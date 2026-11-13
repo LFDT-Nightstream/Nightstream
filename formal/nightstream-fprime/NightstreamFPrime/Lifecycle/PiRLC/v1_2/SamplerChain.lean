@@ -192,8 +192,8 @@ theorem spec_of_children (interface : Interface) (env : Env) (offset : Nat)
   exact children ⟨source, sourceLt⟩
 
 theorem centered_digit (coefficient :
-    Phi81StrongSet.Coefficient) :
-    WideReduction.fieldOfNat coefficient.val - (2 : F) = Phi81StrongSet.embedCoefficient coefficient := by
+    RingStrongSet.Coefficient) :
+    WideReduction.fieldOfNat coefficient.val - (2 : F) = RingStrongSet.embedCoefficient coefficient := by
   fin_cases coefficient <;> decide
 
 theorem outputChallenge_eval (interface : Interface) (env : Env) (offset : Nat)
@@ -208,7 +208,7 @@ theorem outputChallenge_eval (interface : Interface) (env : Env) (offset : Nat)
 
 theorem outputChallenge_member (interface : Interface) (env : Env) (offset : Nat)
     (spec : SpecHolds interface offset env) (source : Fin sourceCount) :
-    Phi81StrongSet.ProductionMember (fun position => (outputChallenge offset source position).eval env) := by
+    RingStrongSet.ProductionMember (fun position => (outputChallenge offset source position).eval env) := by
   rw [outputChallenge_eval interface env offset spec source]
   exact Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.challengeAt_member _ _
 

@@ -12,7 +12,7 @@ open PiCCSOrdinaryRetainedGeometry
 
 variable {relationLogicalWidth : Nat}
   {relationPublicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+    RingCarrierLayout.carrierWidth relationLogicalWidth}
 
 def directForms
     {program : Program} {logicalWidth : Nat}

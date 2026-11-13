@@ -706,7 +706,7 @@ private theorem preservesCombination
 private theorem programRow_support
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (index : Fin 37317) :
@@ -720,7 +720,7 @@ def inputs
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) :
@@ -732,7 +732,7 @@ theorem inputs_preserve
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
@@ -766,7 +766,7 @@ theorem programRow_preserve
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
@@ -793,7 +793,7 @@ def rowForms
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) (index : Fin 37317) :
@@ -806,7 +806,7 @@ theorem rowForms_eq_of_same_shape
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (left right : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) :
@@ -823,7 +823,7 @@ def plan
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) :
@@ -835,7 +835,7 @@ def plan
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) :
@@ -846,7 +846,7 @@ theorem plan_eq_of_same_shape
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (left right : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) :
@@ -858,7 +858,7 @@ theorem rowsZero_iff_rowsHold
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth)

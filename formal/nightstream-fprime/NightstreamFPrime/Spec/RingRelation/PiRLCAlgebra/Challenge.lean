@@ -1,0 +1,27 @@
+import NightstreamFPrime.Spec.RingStrongSet
+
+/-! SuperNeo v1.2 Definitions 6 and 22. -/
+
+namespace NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Challenge
+
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.RingStrongSet
+
+def challengeValid (value : RingF) : Prop := ProductionMember value
+
+theorem challengeValid_iff (value : RingF) :
+    challengeValid value ↔ ProductionMember value := by
+  rfl
+
+theorem embedScalar_valid (scalar : Scalar) :
+    challengeValid (embedScalar scalar) :=
+  embedScalar_member scalar
+
+theorem pairwiseSecure_of_lowNormInvertibility
+    (invertibility : LowNormInvertibility) :
+    forall {left right : RingF},
+      challengeValid left -> challengeValid right -> left ≠ right ->
+        RingFInvertible (ringFSub left right) := by
+  exact productionSet_strong invertibility
+
+end NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Challenge

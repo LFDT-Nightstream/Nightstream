@@ -17,41 +17,41 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 def publicConstraints (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   PiDECArithmetic.publicInputConstraints logicalWidth publicFits
 
 def commitmentConstraints (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   PiDECArithmetic.commitmentConstraints logicalWidth publicFits
 
 def evalKConstraints (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   PiDECArithmetic.evalKConstraints logicalWidth publicFits
 
 def evalAConstraints (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   PiDECArithmetic.evalAConstraints logicalWidth publicFits
 
 def publicFreshStart : Nat := PiDECStarts.publicInputFreshStart
 
 def commitmentFreshStart (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Nat :=
+      RingCarrierLayout.carrierWidth logicalWidth) : Nat :=
   publicFreshStart + R1CS.totalFreshCount
     (publicConstraints logicalWidth publicFits)
 
 def evalKFreshStart (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Nat :=
+      RingCarrierLayout.carrierWidth logicalWidth) : Nat :=
   commitmentFreshStart logicalWidth publicFits + R1CS.totalFreshCount
     (commitmentConstraints logicalWidth publicFits)
 
 def evalAFreshStart (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Nat :=
+      RingCarrierLayout.carrierWidth logicalWidth) : Nat :=
   evalKFreshStart logicalWidth publicFits + R1CS.totalFreshCount
     (evalKConstraints logicalWidth publicFits)
 
@@ -62,7 +62,7 @@ theorem publicFreshStart_eq :
 theorem commitmentFreshStart_eq :
     ∀ (logicalWidth : Nat)
       (publicFits : ringDegree * publicRingColumns ≤
-        Phi81CarrierLayout.carrierWidth logicalWidth),
+        RingCarrierLayout.carrierWidth logicalWidth),
     commitmentFreshStart logicalWidth publicFits =
       PiDECStarts.phaseFreshStart + R1CS.totalFreshCount
         (publicConstraints logicalWidth publicFits) := by
@@ -72,7 +72,7 @@ theorem commitmentFreshStart_eq :
 theorem evalKFreshStart_eq :
     ∀ (logicalWidth : Nat)
       (publicFits : ringDegree * publicRingColumns ≤
-        Phi81CarrierLayout.carrierWidth logicalWidth),
+        RingCarrierLayout.carrierWidth logicalWidth),
     evalKFreshStart logicalWidth publicFits =
       PiDECStarts.phaseFreshStart + R1CS.totalFreshCount
           (publicConstraints logicalWidth publicFits) +
@@ -84,7 +84,7 @@ theorem evalKFreshStart_eq :
 theorem evalAFreshStart_eq :
     ∀ (logicalWidth : Nat)
       (publicFits : ringDegree * publicRingColumns ≤
-        Phi81CarrierLayout.carrierWidth logicalWidth),
+        RingCarrierLayout.carrierWidth logicalWidth),
     evalAFreshStart logicalWidth publicFits =
       PiDECStarts.phaseFreshStart + R1CS.totalFreshCount
           (publicConstraints logicalWidth publicFits) +
@@ -97,35 +97,35 @@ theorem evalAFreshStart_eq :
 
 def publicRows (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
   Spartan.remapRows
     (R1CS.lowerConstraints (publicConstraints logicalWidth publicFits)
       publicFreshStart).rows
 
 def commitmentRows (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
   Spartan.remapRows
     (R1CS.lowerConstraints (commitmentConstraints logicalWidth publicFits)
       (commitmentFreshStart logicalWidth publicFits)).rows
 
 def evalKRows (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
   Spartan.remapRows
     (R1CS.lowerConstraints (evalKConstraints logicalWidth publicFits)
       (evalKFreshStart logicalWidth publicFits)).rows
 
 def evalARows (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
   Spartan.remapRows
     (R1CS.lowerConstraints (evalAConstraints logicalWidth publicFits)
       (evalAFreshStart logicalWidth publicFits)).rows
 
 def sourceRows (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
   publicRows logicalWidth publicFits ++
     commitmentRows logicalWidth publicFits ++
     evalKRows logicalWidth publicFits ++ evalARows logicalWidth publicFits
@@ -151,11 +151,11 @@ section
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 private def phaseInterface (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     Formal.Interface logicalWidth publicFits :=
   PiDECArithmetic.phaseInterface logicalWidth publicFits
 

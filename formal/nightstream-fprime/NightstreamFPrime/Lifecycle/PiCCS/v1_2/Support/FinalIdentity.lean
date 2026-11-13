@@ -13,7 +13,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 private theorem productionCubeVariables_positive :
     0 < productionShape.cubeVariables := by
-  norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+  norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 private theorem equalities_supported (left right : KExpr)
     (allowed : Nat → Prop) (leftSupport : Horner.KSupported left allowed)
@@ -55,7 +55,7 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
     rw [PointEquality.Owned.program_recipes_length_of_positive
       (pointInterfaceAt interface offset) offset
         productionCubeVariables_positive] at upper
-    norm_num [productionShape, Phi81MatrixSource.phi81Shape,
+    norm_num [productionShape, RingMatrixSource.ringShape,
       cubeVariables] at upper
     simpa [privateCount] using (Nat.lt_trans upper (by omega :
       offset + 110 < offset + 2717))
@@ -75,7 +75,7 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
         (pointInterfaceAt interface offset) offset
           productionCubeVariables_positive] at upper
       rw [matrixExponent_eq] at upper
-      norm_num [productionShape, Phi81MatrixSource.phi81Shape,
+      norm_num [productionShape, RingMatrixSource.ringShape,
         cubeVariables] at upper
       simpa [privateCount] using (Nat.lt_trans upper (by omega :
         offset + 110 + 2592 < offset + 2717))
@@ -99,7 +99,7 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
         (pointInterfaceAt interface offset) offset
           productionCubeVariables_positive] at upper
       rw [matrixExponent_eq, constraintFactor_eq] at upper
-      norm_num [productionShape, Phi81MatrixSource.phi81Shape,
+      norm_num [productionShape, RingMatrixSource.ringShape,
         cubeVariables] at upper
       simpa [privateCount] using upper
   have pointRows := PointEquality.Owned.flatConstraints_varsSatisfy

@@ -15,7 +15,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 variable {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
   {relationLogicalWidth : Nat}
   {relationPublicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+    RingCarrierLayout.carrierWidth relationLogicalWidth}
 
 def decodedEnv
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)

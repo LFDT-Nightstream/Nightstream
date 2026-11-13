@@ -11,7 +11,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 theorem inputConstraints_eq_nil
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

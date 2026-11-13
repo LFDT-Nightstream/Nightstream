@@ -21,7 +21,7 @@ private theorem drop_take_ofFn {Alpha : Type} {count start width : Nat}
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 private theorem serializePreimage_current_slice
     (preimage : HashPreimage

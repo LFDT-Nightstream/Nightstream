@@ -256,18 +256,18 @@ theorem matrixVectorAt_matrix {logicalWidth : Nat} (plan : Plan logicalWidth)
 
 def logicalRelation {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (plan : Plan logicalWidth)
-    (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤
+    (cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤
       2 ^ cubeVariables) : ProductionKey.LogicalRelation logicalWidth publicFits where
   matrices := plan.matrix
   cubeFits := cubeFits
 
 @[simp] theorem logicalRelation_matrices {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (plan : Plan logicalWidth)
-    (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤
+    (cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤
       2 ^ cubeVariables) :
     (plan.logicalRelation (publicFits := publicFits) cubeFits).matrices =
       plan.matrix := by
@@ -275,9 +275,9 @@ def logicalRelation {logicalWidth : Nat}
 
 @[simp] theorem logicalRelation_system_matrices {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (plan : Plan logicalWidth)
-    (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤
+    (cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤
       2 ^ cubeVariables) :
     (plan.logicalRelation (publicFits := publicFits) cubeFits).system.matrices =
       plan.matrix := by

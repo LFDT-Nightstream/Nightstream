@@ -20,7 +20,7 @@ open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Export.Generic.Pieces
 open NightstreamFPrime.Export.Generic.PieceRows
 open NightstreamFPrime.Export.Generic.SlotLayout
-open NightstreamFPrime.Spec.Phi81Relation
+open NightstreamFPrime.Spec.RingRelation
 open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 
 /-! ### Expressions and rows -/

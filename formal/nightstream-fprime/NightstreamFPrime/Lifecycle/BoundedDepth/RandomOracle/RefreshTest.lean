@@ -32,7 +32,7 @@ open StrongReduction ConcreteCarrier
 attribute [local instance low] Classical.propDecidable
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 theorem challenges_length :
     (Test.challenges (RefreshSchedule.schedule logicalWidth publicFits)).length = 74 := by
@@ -43,9 +43,9 @@ variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (accumulator : Refresh.Accumulator PaperAlgebra.Commitment
     (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
-    productionShape (Phi81CarrierLayout.carrierWidth logicalWidth)
-    (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth)))
-  (witness : OutputWitness productionShape (Phi81CarrierLayout.carrierWidth logicalWidth))
+    productionShape (RingCarrierLayout.carrierWidth logicalWidth)
+    (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth)))
+  (witness : OutputWitness productionShape (RingCarrierLayout.carrierWidth logicalWidth))
 
 local notation "Width" => ProductionKey.degreeBound relation
 local notation "RefreshStatement" =>
@@ -121,7 +121,7 @@ theorem test_error_le {Output : Type}
     (proof : Output → RefreshProof) :
     𝔼 oracle, (if FalseAcceptance relation ajtai accumulator witness oracle
         (fresh (adversary.run oracle)) (proof (adversary.run oracle)) then (1 : ℝ) else 0) ≤
-      (queries + 1) * ((4589 : ℝ) / (goldilocksModulus : ℝ) ^ 2) := by
+      (queries + 1) * ((4589 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
   refine (Test.test_error_le (source relation ajtai accumulator witness)
     (source_degreeCovers relation ajtai accumulator witness) adversary bounded
     (fun output => (fresh output, (proof output).split))

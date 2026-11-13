@@ -1,9 +1,9 @@
 import Mathlib.Data.Nat.Digits.Lemmas
 import NightstreamFPrime.Circuit.VariableSupport
-import NightstreamFPrime.Spec.GoldilocksPrime
+import NightstreamFPrime.Spec.FieldPrime
 
 /-!
-Obligation: exact canonical 64-bit decomposition of one Goldilocks field value.
+Obligation: exact canonical 64-bit decomposition of one base-field value.
 
 Inputs:
 - one caller-owned field expression below the allocation offset.
@@ -21,7 +21,7 @@ Invariants:
 namespace NightstreamFPrime.Gadgets.Range.CanonicalU64
 
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.GoldilocksPrime
+open NightstreamFPrime.Spec.FieldPrime
 open NightstreamFPrime.Circuit
 
 def bitCount : Nat := 64
@@ -43,7 +43,7 @@ def highFlagExpr (offset : Nat) : Expr :=
   Expr.var (offset + bitCount + 1)
 
 def fieldOfNat (value : Nat) : F :=
-  ⟨value % goldilocksModulus, Nat.mod_lt _ (by decide)⟩
+  ⟨value % fieldModulus, Nat.mod_lt _ (by decide)⟩
 
 def weightedExpr (offset bitStart count : Nat) : Expr :=
   (List.range count).foldl (fun value index =>
@@ -204,13 +204,13 @@ def Assumptions (interface : Interface) (offset : Nat) (_env : Env) : Prop :=
 
 structure Refines (interface : Interface) (offset : Nat) (env : Env) : Prop where
   source_eq : ((interface.source offset).eval env).val = wordValue env offset
-  canonical : wordValue env offset < goldilocksModulus
+  canonical : wordValue env offset < fieldModulus
   bit_lt_two : ∀ index, index < bitCount → bitValue env offset index < 2
 
 abbrev SpecHolds := Refines
 
 @[simp] private theorem fieldOfNat_val (value : Nat) :
-    (fieldOfNat value).val = value % goldilocksModulus := by
+    (fieldOfNat value).val = value % fieldModulus := by
   rfl
 
 private theorem fieldOfNat_add (left right : Nat) :
@@ -235,16 +235,16 @@ theorem mul_hintInverse_eq_one (value : F) (nonzero : value ≠ 0) :
     apply nonzero
     apply Fin.eq_of_val_eq
     simpa using valueValZero)
-  have notDvd : ¬goldilocksModulus ∣ value.val := by
+  have notDvd : ¬fieldModulus ∣ value.val := by
     intro divides
     have lower := Nat.le_of_dvd valuePositive divides
     exact (not_le_of_gt value.isLt) lower
-  have coprime : Nat.Coprime value.val goldilocksModulus :=
-    (goldilocks_natPrime.coprime_iff_not_dvd.mpr notDvd).symm
+  have coprime : Nat.Coprime value.val fieldModulus :=
+    (fieldModulus_natPrime.coprime_iff_not_dvd.mpr notDvd).symm
   unfold Hint.inverse
-  have gcdOne : Nat.gcd value.val goldilocksModulus = 1 :=
+  have gcdOne : Nat.gcd value.val fieldModulus = 1 :=
     Nat.coprime_iff_gcd_eq_one.mp coprime
-  unfold F goldilocksModulus at value gcdOne ⊢
+  unfold F fieldModulus at value gcdOne ⊢
   have law := ZMod.mul_inv_eq_gcd
     (n := 18446744069414584321) value
   dsimp [ZMod, ZMod.val] at law
@@ -580,7 +580,7 @@ private theorem canonicality_row
   simpa [canonicalityConstraint] using operationHolds
 
 private theorem fieldOfNat_eq_zero_of_lt
-    {value : Nat} (less : value < goldilocksModulus)
+    {value : Nat} (less : value < fieldModulus)
     (zero : fieldOfNat value = 0) : value = 0 := by
   have values := congrArg Fin.val zero
   simpa [fieldOfNat, Nat.mod_eq_of_lt less] using values
@@ -619,8 +619,8 @@ theorem soundness
         simp only [halfBitCount, highMax] at highBound ⊢
         omega
       omega
-    have wordBound : wordValue env offset < goldilocksModulus := by
-      simp only [wordValue, halfBitCount, highMax, goldilocksModulus] at *
+    have wordBound : wordValue env offset < fieldModulus := by
+      simp only [wordValue, halfBitCount, highMax, fieldModulus] at *
       omega
     have recomposed := recomposition_row interface env offset rows
     rw [wordExpr_eval env offset] at recomposed
@@ -634,13 +634,13 @@ theorem soundness
       rw [weightedExpr_eval env offset 0 halfBitCount] at lowFieldZero
       exact fieldOfNat_eq_zero_of_lt
         (lt_trans lowBound (by
-          simp [halfBitCount, goldilocksModulus])) lowFieldZero
-    have wordBound : wordValue env offset < goldilocksModulus := by
+          simp [halfBitCount, fieldModulus])) lowFieldZero
+    have wordBound : wordValue env offset < fieldModulus := by
       have highAtMost : highValue env offset ≤ highMax := by
         simp only [halfBitCount, highMax] at highBound ⊢
         omega
       simp only [wordValue, lowZero, Nat.zero_add, halfBitCount,
-        highMax, goldilocksModulus] at *
+        highMax, fieldModulus] at *
       omega
     have recomposed := recomposition_row interface env offset rows
     rw [wordExpr_eval env offset] at recomposed
@@ -785,11 +785,11 @@ private theorem hintBit_value
     (Hint.eval env (.bit (interface.source offset) index)).val =
       bitNat ((interface.source offset).eval env).val index := by
   change (((((interface.source offset).eval env).val >>> index) &&& 1) %
-      goldilocksModulus) = _
+      fieldModulus) = _
   rw [Nat.and_one_is_mod, Nat.shiftRight_eq_div_pow]
   apply Nat.mod_eq_of_lt
   exact lt_trans (Nat.mod_lt _ (by decide)) (by
-    norm_num [goldilocksModulus])
+    norm_num [fieldModulus])
 
 def completeBits (interface : Interface) (env : Env) (offset : Nat) : Env :=
   executeHints env offset (bitHints interface offset)
@@ -895,7 +895,7 @@ private theorem completeEnv_wordValue
     (sourceValue / 2 ^ halfBitCount) % 2 ^ halfBitCount at high
   have sourceCapacity : sourceValue < 2 ^ bitCount := by
     exact lt_trans ((interface.source offset).eval env).isLt (by
-      norm_num [goldilocksModulus, bitCount])
+      norm_num [fieldModulus, bitCount])
   have highLt : sourceValue / 2 ^ halfBitCount < 2 ^ halfBitCount := by
     rw [Nat.div_lt_iff_lt_mul (by positivity)]
     simpa [bitCount, halfBitCount, pow_add, Nat.mul_comm] using sourceCapacity
@@ -1017,7 +1017,7 @@ private theorem completeEnv_holdsFlat
         change highValue completed offset = honestHigh at high
         rw [low, high] at sourceWord
         change honestLow + 2 ^ halfBitCount * honestHigh = sourceValue at sourceWord
-        simp only [highEqual, halfBitCount, highMax, goldilocksModulus] at sourceWord sourceLt
+        simp only [highEqual, halfBitCount, highMax, fieldModulus] at sourceWord sourceLt
         omega
       have lowFieldZero : (lowExpr offset).eval completed = 0 := by
         change (weightedExpr offset 0 halfBitCount).eval completed = 0
@@ -1036,7 +1036,7 @@ private theorem completeEnv_holdsFlat
           (highDifferenceExpr offset).eval
             (completeBits interface env offset) ≠ 0 := by
         intro differenceZero
-        have highBound : honestHigh < goldilocksModulus := by
+        have highBound : honestHigh < fieldModulus := by
           have bound : weightedValue (completeBits interface env offset) offset
               halfBitCount halfBitCount < 2 ^ halfBitCount :=
             weightedValue_lt_twoPow
@@ -1053,7 +1053,7 @@ private theorem completeEnv_holdsFlat
               halfBitCount (by simp [halfBitCount, bitCount])
           rw [highBits] at bound
           exact lt_trans bound (by
-            norm_num [halfBitCount, goldilocksModulus])
+            norm_num [halfBitCount, fieldModulus])
         have highEval := weightedExpr_eval
           (completeBits interface env offset) offset halfBitCount halfBitCount
         rw [highBits] at highEval
@@ -1061,10 +1061,10 @@ private theorem completeEnv_holdsFlat
           apply sub_eq_zero.mp
           simpa [highDifferenceExpr, highExpr, highEval] using differenceZero
         have values := congrArg Fin.val differenceEq
-        have highMaxBound : highMax < goldilocksModulus := by
-          norm_num [highMax, goldilocksModulus]
-        change honestHigh % goldilocksModulus =
-          highMax % goldilocksModulus at values
+        have highMaxBound : highMax < fieldModulus := by
+          norm_num [highMax, fieldModulus]
+        change honestHigh % fieldModulus =
+          highMax % fieldModulus at values
         rw [Nat.mod_eq_of_lt highBound,
           Nat.mod_eq_of_lt highMaxBound] at values
         exact highEqual values

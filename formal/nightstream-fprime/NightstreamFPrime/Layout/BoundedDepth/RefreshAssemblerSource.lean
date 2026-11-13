@@ -28,7 +28,7 @@ open NightstreamFPrime.Layout.BoundedDepth.RefreshAssembler
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The 16 children's commitments, 1,188 words each. -/
 def childCommitmentColumn (split : Spec.Folding.Refresh.Split PaperAlgebra.Commitment
@@ -68,7 +68,7 @@ def outputColumn (output : FullOutputCoordinates.FullOutput K productionShape) (
 /-- One value for each group of the refresh step's shared words. -/
 structure Values (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   counters : List F
   keys : Fin 2 → List F
   states : Fin 3 → List F
@@ -587,7 +587,7 @@ theorem target_digestSelect (word : Nat) (bound : word < 12) :
 /-- The words of slot group `slot` carry the honest slot of that group. -/
 theorem target_slot_words (slot : Fin 7)
     (depth : ((honestValues ajtai circuitKeys input output proof selected folded).slots slot).2 <
-      goldilocksModulus) :
+      fieldModulus) :
     Hash.evalList target (slotAt (logicalWidth := logicalWidth) (publicFits := publicFits)
         (slotsStart base witnessWordCount + slot.val * slotWordCount)).words =
       serializeSlot ((honestValues ajtai circuitKeys input output proof selected folded).slots
@@ -597,7 +597,7 @@ theorem target_slot_words (slot : Fin 7)
 
 theorem target_slot_value (slot : Fin 7)
     (depth : ((honestValues ajtai circuitKeys input output proof selected folded).slots slot).2 <
-      goldilocksModulus) :
+      fieldModulus) :
     (slotAt (logicalWidth := logicalWidth) (publicFits := publicFits)
         (slotsStart base witnessWordCount + slot.val * slotWordCount)).value target =
       (honestValues ajtai circuitKeys input output proof selected folded).slots slot :=
@@ -642,9 +642,9 @@ theorem stepRepresents (program : Stage1.Application.Program) (circuit : Fin 2)
     (agree : ∀ column, column < sharedEnd base program.witnessWordCount →
       target column = honestEnv ajtai circuitKeys input output proof selected folded base
         program.witnessWordCount column)
-    (iterationBound : input.iteration < goldilocksModulus)
-    (priorPcBound : input.priorPc < goldilocksModulus)
-    (priorDepth : ∀ slot, (input.running slot).2 < goldilocksModulus)
+    (iterationBound : input.iteration < fieldModulus)
+    (priorPcBound : input.priorPc < fieldModulus)
+    (priorDepth : ∀ slot, (input.running slot).2 < fieldModulus)
     (keyLength : ∀ key, (circuitKeys key).digest.length = 4)
     (z0Length : input.z0.length = 4) (ziLength : input.zi.length = 4)
     (zNextLength : output.zNext.length = 4)
@@ -759,7 +759,7 @@ theorem nextWords (program : Stage1.Application.Program)
     (agree : ∀ column, column < sharedEnd base program.witnessWordCount →
       target column = honestEnv ajtai circuitKeys input output proof selected folded base
         program.witnessWordCount column)
-    (nextDepth : ∀ slot, (output.runningNext slot).2 < goldilocksModulus) (slot : Fin 2) :
+    (nextDepth : ∀ slot, (output.runningNext slot).2 < fieldModulus) (slot : Fin 2) :
     Hash.evalList target ((interface (logicalWidth := logicalWidth) (publicFits := publicFits)
       base program.witnessWordCount).next slot).words = serializeSlot (output.runningNext slot) := by
   have words := target_slot_words ajtai circuitKeys input output proof selected folded base

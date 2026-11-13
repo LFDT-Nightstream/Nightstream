@@ -1,6 +1,6 @@
 import NightstreamFPrime.Lifecycle.BoundedDepth.SlotWords
 import NightstreamFPrime.Lifecycle.BoundedDepth.Step
-import NightstreamFPrime.Spec.GoldilocksPrime
+import NightstreamFPrime.Spec.FieldPrime
 
 /-! The slot-select gadget of the light step (CW-2.5d, d4b). It allocates no variables: the step
 layout supplies the iteration word with its inverse and recursive flag, the prior-circuit
@@ -22,11 +22,11 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.SlotWords
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   iteration : Nat → Expr
   inverse : Nat → Expr
   recursive : Nat → Expr
@@ -94,11 +94,11 @@ def circuit : FormalCircuit where
 def selected (env : Env) : Fin 2 :=
   if (interface.selector offset).eval env = 1 then 1 else 0
 
-/-- Goldilocks is a field: a zero product has a zero factor. -/
+/-- In the base field, a zero product has a zero factor. -/
 theorem mul_eq_zero_of {left right : F} (zero : left * right = 0) :
     left = 0 ∨ right = 0 := by
-  let : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
-  have key : ∀ first second : ZMod goldilocksModulus, first * second = 0 →
+  let : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_natPrime⟩
+  have key : ∀ first second : ZMod fieldModulus, first * second = 0 →
       first = 0 ∨ second = 0 := fun _ _ => mul_eq_zero.mp
   exact key left right zero
 
@@ -143,7 +143,7 @@ private theorem defaultWords_length :
   rw [defaultWords, List.length_map, serializeSlot_length_eq]
 
 /-- Below the modulus, a count's word is 0 exactly when the count is 0. -/
-theorem natWord_eq_zero {count : Nat} (bound : count < goldilocksModulus) :
+theorem natWord_eq_zero {count : Nat} (bound : count < fieldModulus) :
     natWord count = 0 ↔ count = 0 := by
   constructor
   · intro zero
@@ -157,19 +157,19 @@ theorem rows_implies_select (env : Env) (input : StepInput logicalWidth publicFi
     (output : StepOutput logicalWidth publicFits)
     (holds : ConstraintsHold env (rows interface offset))
     (iterationWord : (interface.iteration offset).eval env = natWord input.iteration)
-    (iterationBound : input.iteration < goldilocksModulus)
+    (iterationBound : input.iteration < fieldModulus)
     (pcWord : (interface.priorPc offset).eval env = natWord input.priorPc)
-    (pcBound : input.priorPc < goldilocksModulus)
+    (pcBound : input.priorPc < fieldModulus)
     (initialWords :
       List.ofFn (fun index => (interface.initialState offset index).eval env) = input.z0)
     (currentWords :
       List.ofFn (fun index => (interface.currentState offset index).eval env) = input.zi)
     (priorWords : ∀ slot,
       Hash.evalList env (interface.prior offset slot).words = serializeSlot (input.running slot))
-    (priorDepth : ∀ slot, (input.running slot).2 < goldilocksModulus)
+    (priorDepth : ∀ slot, (input.running slot).2 < fieldModulus)
     (nextWords : ∀ slot, Hash.evalList env (interface.next offset slot).words =
       serializeSlot (output.runningNext slot))
-    (nextDepth : ∀ slot, (output.runningNext slot).2 < goldilocksModulus) :
+    (nextDepth : ∀ slot, (output.runningNext slot).2 < fieldModulus) :
     SelectSpec input output (selected interface offset env)
         ((interface.new offset).value env).1 ((interface.new offset).value env).2 ∧
       (interface.active offset).value env = input.running (selected interface offset env) := by
@@ -191,7 +191,7 @@ theorem rows_implies_select (env : Env) (input : StepInput logicalWidth publicFi
     (by rw [length, length]) nextZeroRows
   have nextOne := selectRows_eval env _ _ _ _ (by rw [defaultWords_length, length])
     (by rw [length, length]) nextOneRows
-  have slotOf := fun (data : SlotData logicalWidth publicFits) (depth : data.2 < goldilocksModulus)
+  have slotOf := fun (data : SlotData logicalWidth publicFits) (depth : data.2 < fieldModulus)
       (slot : SlotExpr logicalWidth publicFits)
       (words : Hash.evalList env slot.words = serializeSlot data) =>
     slot.value_eq_of_words env data depth words
@@ -220,7 +220,7 @@ theorem rows_implies_select (env : Env) (input : StepInput logicalWidth publicFi
         match slot with
         | 0 => exact (nextZero.1 recursiveZero).trans (defaultWords_eval env)
         | 1 => exact (nextOne.1 recursiveZero).trans (defaultWords_eval env)
-      exact serializeSlot_injective (nextDepth slot) (show (0 : Nat) < goldilocksModulus by decide)
+      exact serializeSlot_injective (nextDepth slot) (show (0 : Nat) < fieldModulus by decide)
         ((nextWords slot).symm.trans words)
   · have recursiveOne : (interface.recursive offset).eval env = 1 :=
       oneFlag (by

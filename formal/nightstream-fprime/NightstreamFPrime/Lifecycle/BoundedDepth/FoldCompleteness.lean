@@ -40,7 +40,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle
 open NightstreamFPrime.Lifecycle.BoundedDepth.BlockSupport
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
 /-- The light Π_RLC witness `ρ · fresh + running` of supported witnesses is supported. -/
@@ -51,7 +51,7 @@ theorem lightWitness_supported (relation : ProductionKey.LogicalRelation logical
     (freshSupported : Supported width fresh) (runningSupported : Supported width running) :
     Supported width (Light.Rlc.witness (keys relation ajtai).light.piRlcAlgebra
       (keys relation ajtai).light.one challenge fresh running) := by
-  show Supported width (Phi81Relation.EvaluationHomomorphism.PiRLCFinite.combineAssignments
+  show Supported width (RingRelation.EvaluationHomomorphism.PiRLCFinite.combineAssignments
     (Light.Rlc.pair challenge (keys relation ajtai).light.one) (Light.Rlc.pair fresh running))
   apply combineAssignments_supported
   intro index
@@ -65,11 +65,11 @@ slot claim that holds at the input bound plus `T(b − 1)`. Its witness is zero 
 on which both source witnesses are zero. -/
 theorem light_folds (key : CircuitKey logicalWidth publicFits)
     (start : SlotClaim logicalWidth publicFits) (fresh : StepFresh logicalWidth publicFits)
-    (witness : OutputWitness LightShape (Phi81CarrierLayout.carrierWidth logicalWidth))
+    (witness : OutputWitness LightShape (RingCarrierLayout.carrierWidth logicalWidth))
     (bound : Nat)
     (freshOpening : Opening.Holds
       (paperRelationSemantics (shape := LightShape)
-        (blockCount := Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
+        (blockCount := ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth))
         (keys key.relation ajtai).light.baseOps (keys key.relation ajtai).light.extensionOps
         (keys key.relation ajtai).light.lift (keys key.relation ajtai).light.openingMaps)
       (keys key.relation ajtai).light.params.b
@@ -80,7 +80,7 @@ theorem light_folds (key : CircuitKey logicalWidth publicFits)
       (witness.assignments (keys key.relation ajtai).light.freshSource))
     (runningOpening : Opening.Holds
       (paperRelationSemantics (shape := LightShape)
-        (blockCount := Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
+        (blockCount := ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth))
         (keys key.relation ajtai).light.baseOps (keys key.relation ajtai).light.extensionOps
         (keys key.relation ajtai).light.lift (keys key.relation ajtai).light.openingMaps)
       bound
@@ -225,7 +225,7 @@ theorem refresh_folds (key : CircuitKey logicalWidth publicFits)
 reads them back. -/
 def witnessOf (running fresh : PaperAlgebra.Assignment (logicalWidth := logicalWidth)
     (publicFits := publicFits)) :
-    OutputWitness LightShape (Phi81CarrierLayout.carrierWidth logicalWidth) :=
+    OutputWitness LightShape (RingCarrierLayout.carrierWidth logicalWidth) :=
   ⟨fun source => if source.val = 0 then fresh else running⟩
 
 /-- A slot claim that holds at `bound` and a fresh instance that holds under the slot's relation
@@ -239,7 +239,7 @@ theorem light_premises (key : CircuitKey logicalWidth publicFits)
     (freshHolds : UniquenessLink.FreshHolds ajtai key fresh freshWitness) :
     Opening.Holds
         (paperRelationSemantics (shape := LightShape)
-          (blockCount := Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
+          (blockCount := ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth))
           (keys key.relation ajtai).light.baseOps (keys key.relation ajtai).light.extensionOps
           (keys key.relation ajtai).light.lift (keys key.relation ajtai).light.openingMaps)
         (keys key.relation ajtai).light.params.b
@@ -250,7 +250,7 @@ theorem light_premises (key : CircuitKey logicalWidth publicFits)
         ((witnessOf running freshWitness).assignments (keys key.relation ajtai).light.freshSource) ∧
       Opening.Holds
         (paperRelationSemantics (shape := LightShape)
-          (blockCount := Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
+          (blockCount := ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth))
           (keys key.relation ajtai).light.baseOps (keys key.relation ajtai).light.extensionOps
           (keys key.relation ajtai).light.lift (keys key.relation ajtai).light.openingMaps)
         bound
@@ -267,7 +267,7 @@ theorem light_premises (key : CircuitKey logicalWidth publicFits)
   have runningOpening := (light.openingAgreement _ _ _ _).mpr slot.1
   have lightSlot := (BoundedDepthKeys.boundHolds_claimToLight_iff _ _ _).mpr slot
   have runningEvaluations : (paperRelationSemantics (shape := LightShape)
-        (blockCount := Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
+        (blockCount := ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth))
         light.baseOps light.extensionOps light.lift light.openingMaps).evaluations
         (light.statement (LightFork.runningOf claim) (freshToLight fresh)).relationSource
         ((witnessOf running freshWitness).assignments
@@ -356,13 +356,13 @@ combination below `count · T · (b − 1) + 1`, as `Refresh.production_countNor
 theorem countNormLaw : Refresh.CountNormLaw (PaperAlgebra.piRlcAlgebra ajtai) := by
   constructor
   intro count challenges assignments valid bounded column
-  have fresh : ∀ index, Phi81Relation.assignmentNormBounded 2 (assignments index) := by
+  have fresh : ∀ index, RingRelation.assignmentNormBounded 2 (assignments index) := by
     intro index
     simpa [PaperAlgebra.semantics, productionGlobalParams] using bounded index
-  have finite := Phi81Relation.PiRLCAlgebra.Norm.Finite.combineAssignments_le challenges
+  have finite := RingRelation.PiRLCAlgebra.Norm.Finite.combineAssignments_le challenges
     assignments valid fresh column
   change centeredMagnitude
-      (Phi81Relation.EvaluationHomomorphism.PiRLCFinite.combineAssignments challenges
+      (RingRelation.EvaluationHomomorphism.PiRLCFinite.combineAssignments challenges
         assignments column) < count * 216 * (2 - 1) + 1
   omega
 

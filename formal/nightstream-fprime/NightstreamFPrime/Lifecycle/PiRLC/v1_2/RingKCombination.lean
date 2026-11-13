@@ -1,6 +1,6 @@
 import NightstreamFPrime.Circuit.Quadratic
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily
-import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLCFinite
+import NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.PiRLCFinite
 
 /-!
 Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1, evaluation
@@ -12,7 +12,7 @@ namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.RingKCombination
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
-open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
 
 abbrev cellCount : Nat := 2
 

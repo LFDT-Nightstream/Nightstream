@@ -140,7 +140,7 @@ def widen (draw : Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Draw) : Call := 
   else 0
 
 def readRho (state : Transcript.State) : RingF :=
-  Phi81StrongSet.embedScalar
+  RingStrongSet.embedScalar
     (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample
       (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.block state))
 

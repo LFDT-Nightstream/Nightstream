@@ -1,11 +1,11 @@
 import Mathlib.Data.ZMod.Defs
 import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
-import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.Embedding
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet
+import NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.Embedding
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ForkStrongSet
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Commitment
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.PublicInput
 
 namespace NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
 
@@ -14,12 +14,12 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiRLC
 open NightstreamFPrime.Spec.Folding.PiRLC.PaperForkAlgebra
 open NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
-open NightstreamFPrime.Spec.Phi81Relation
-open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.RingRelation
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
 open NightstreamFPrime.Lifecycle
 
 private abbrev ScalarRing :=
-  Phi81Relation.PiRLCAlgebra.ForkStrongSet.ring
+  RingRelation.PiRLCAlgebra.ForkStrongSet.ring
 
 private def ringFModule : ModuleOps RingF RingF where
   zero := ringFZero
@@ -28,11 +28,11 @@ private def ringFModule : ModuleOps RingF RingF where
   smul := ringFMul
 
 private theorem ringFModuleLaws : ModuleLaws ScalarRing ringFModule where
-  add_assoc := Phi81Relation.PiRLCAlgebra.ForkStrongSet.ringLaws.add_assoc
-  add_comm := Phi81Relation.PiRLCAlgebra.ForkStrongSet.ringLaws.add_comm
-  zero_add := Phi81Relation.PiRLCAlgebra.ForkStrongSet.ringLaws.zero_add
-  add_zero := Phi81Relation.PiRLCAlgebra.ForkStrongSet.ringLaws.add_zero
-  add_neg := Phi81Relation.PiRLCAlgebra.ForkStrongSet.ringLaws.add_neg
+  add_assoc := RingRelation.PiRLCAlgebra.ForkStrongSet.ringLaws.add_assoc
+  add_comm := RingRelation.PiRLCAlgebra.ForkStrongSet.ringLaws.add_comm
+  zero_add := RingRelation.PiRLCAlgebra.ForkStrongSet.ringLaws.zero_add
+  add_zero := RingRelation.PiRLCAlgebra.ForkStrongSet.ringLaws.add_zero
+  add_neg := RingRelation.PiRLCAlgebra.ForkStrongSet.ringLaws.add_neg
   zero_smul := RingFLaws.ringFMul_zero_left
   add_smul := CarrierAction.ringFMul_add_left
   one_smul := RingFLaws.ringFMul_one_left
@@ -337,46 +337,46 @@ private theorem ringKModuleLaws : ModuleLaws ScalarRing ringKModule where
         ← ringKMul_embedLeft_component1 scalar right]
       rfl
 
-private def assignmentNeg {shape : Phi81Relation.Shape}
+private def assignmentNeg {shape : RingRelation.Shape}
     (assignment : Assignment shape) : Assignment shape :=
   fun column => -assignment column
 
-private def assignmentModule {shape : Phi81Relation.Shape} :
+private def assignmentModule {shape : RingRelation.Shape} :
     ModuleOps RingF (Assignment shape) where
   zero := BaseLinear.assignmentZero
   add := BaseLinear.assignmentAdd
   neg := assignmentNeg
   smul := CarrierAction.act
 
-private theorem assignment_ext {shape : Phi81Relation.Shape}
+private theorem assignment_ext {shape : RingRelation.Shape}
     {left right : Assignment shape}
     (blocks : forall block,
       CarrierAction.assignmentBlock left block =
         CarrierAction.assignmentBlock right block) :
     left = right := by
   funext column
-  let decoded := Phi81ColumnLayout.decode column
+  let decoded := ConcreteRingColumnLayout.decode column
   have equal := congrFun (blocks decoded.1) decoded.2
   have columnEq : CarrierAction.carrierColumn decoded.1 decoded.2 = column := by
     apply Fin.ext
-    exact Phi81ColumnLayout.flatIndex_decode column
+    exact ConcreteRingColumnLayout.flatIndex_decode column
   simpa only [CarrierAction.assignmentBlock, columnEq] using equal
 
-private theorem assignmentBlock_add {shape : Phi81Relation.Shape}
+private theorem assignmentBlock_add {shape : RingRelation.Shape}
     (left right : Assignment shape)
-    (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth)) :
+    (block : Fin (ConcreteRingColumnLayout.blockCount shape.carrierWidth)) :
     CarrierAction.assignmentBlock (BaseLinear.assignmentAdd left right) block =
       ringFAdd (CarrierAction.assignmentBlock left block)
         (CarrierAction.assignmentBlock right block) := by
   rfl
 
-private theorem assignmentBlock_zero {shape : Phi81Relation.Shape}
-    (block : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth)) :
+private theorem assignmentBlock_zero {shape : RingRelation.Shape}
+    (block : Fin (ConcreteRingColumnLayout.blockCount shape.carrierWidth)) :
     CarrierAction.assignmentBlock
         (BaseLinear.assignmentZero : Assignment shape) block = ringFZero := by
   rfl
 
-private theorem assignmentModuleLaws {shape : Phi81Relation.Shape} :
+private theorem assignmentModuleLaws {shape : RingRelation.Shape} :
     ModuleLaws ScalarRing (assignmentModule (shape := shape)) where
   add_assoc := by
     intro left middle right
@@ -460,97 +460,97 @@ private theorem commitmentModuleLaws :
     ModuleLaws ScalarRing commitmentModule :=
   functionModuleLaws ringFModule ringFModuleLaws
 
-private def publicNeg {shape : Phi81Relation.Shape}
+private def publicNeg {shape : RingRelation.Shape}
     (input : PublicInput shape) : PublicInput shape :=
   fun column => -input column
 
-private def publicModule {shape : Phi81Relation.Shape} :
+private def publicModule {shape : RingRelation.Shape} :
     ModuleOps RingF (PublicInput shape) where
-  zero := Phi81Relation.PiRLCAlgebra.PublicInput.publicZero
-  add := Phi81Relation.PiRLCAlgebra.PublicInput.publicAdd
+  zero := RingRelation.PiRLCAlgebra.PublicInput.publicZero
+  add := RingRelation.PiRLCAlgebra.PublicInput.publicAdd
   neg := publicNeg
-  smul := Phi81Relation.PiRLCAlgebra.PublicInput.publicAct
+  smul := RingRelation.PiRLCAlgebra.PublicInput.publicAct
 
-private theorem publicBlock_act {shape : Phi81Relation.Shape}
+private theorem publicBlock_act {shape : RingRelation.Shape}
     (scalar : RingF) (input : PublicInput shape)
     (block : Fin shape.publicRingColumns) :
-    Phi81Relation.PiRLCAlgebra.PublicInput.publicBlock
-        (Phi81Relation.PiRLCAlgebra.PublicInput.publicAct scalar input) block =
+    RingRelation.PiRLCAlgebra.PublicInput.publicBlock
+        (RingRelation.PiRLCAlgebra.PublicInput.publicAct scalar input) block =
       ringFMul scalar
-        (Phi81Relation.PiRLCAlgebra.PublicInput.publicBlock input block) := by
+        (RingRelation.PiRLCAlgebra.PublicInput.publicBlock input block) := by
   funext lane
   let column : Fin shape.publicWidth :=
     ⟨block.val * ringDegree + lane.val, by
       have blockLt := block.isLt
       have laneLt := lane.isLt
-      simp only [Phi81Relation.Shape.publicWidth, ringDegree] at blockLt laneLt ⊢
+      simp only [RingRelation.Shape.publicWidth, ringDegree] at blockLt laneLt ⊢
       omega⟩
   have blockEq :
-      Phi81Relation.PiRLCAlgebra.PublicInput.publicBlockIndex shape column =
+      RingRelation.PiRLCAlgebra.PublicInput.publicBlockIndex shape column =
         block := by
     apply Fin.ext
-    simp only [Phi81Relation.PiRLCAlgebra.PublicInput.publicBlockIndex,
+    simp only [RingRelation.PiRLCAlgebra.PublicInput.publicBlockIndex,
       column, ringDegree]
     omega
   have laneEq :
-      Phi81Relation.PiRLCAlgebra.PublicInput.publicLaneIndex column = lane := by
+      RingRelation.PiRLCAlgebra.PublicInput.publicLaneIndex column = lane := by
     apply Fin.ext
-    simp only [Phi81Relation.PiRLCAlgebra.PublicInput.publicLaneIndex,
+    simp only [RingRelation.PiRLCAlgebra.PublicInput.publicLaneIndex,
       column, ringDegree]
     omega
   change ringFMul scalar
-      (Phi81Relation.PiRLCAlgebra.PublicInput.publicBlock input
-        (Phi81Relation.PiRLCAlgebra.PublicInput.publicBlockIndex shape column))
-      (Phi81Relation.PiRLCAlgebra.PublicInput.publicLaneIndex column) =
+      (RingRelation.PiRLCAlgebra.PublicInput.publicBlock input
+        (RingRelation.PiRLCAlgebra.PublicInput.publicBlockIndex shape column))
+      (RingRelation.PiRLCAlgebra.PublicInput.publicLaneIndex column) =
     ringFMul scalar
-      (Phi81Relation.PiRLCAlgebra.PublicInput.publicBlock input block) lane
+      (RingRelation.PiRLCAlgebra.PublicInput.publicBlock input block) lane
   rw [blockEq, laneEq]
 
-private theorem public_ext {shape : Phi81Relation.Shape}
+private theorem public_ext {shape : RingRelation.Shape}
     {left right : PublicInput shape}
     (blocks : forall block,
-      Phi81Relation.PiRLCAlgebra.PublicInput.publicBlock left block =
-        Phi81Relation.PiRLCAlgebra.PublicInput.publicBlock right block) :
+      RingRelation.PiRLCAlgebra.PublicInput.publicBlock left block =
+        RingRelation.PiRLCAlgebra.PublicInput.publicBlock right block) :
     left = right := by
   funext column
-  let block := Phi81Relation.PiRLCAlgebra.PublicInput.publicBlockIndex shape column
-  let lane := Phi81Relation.PiRLCAlgebra.PublicInput.publicLaneIndex column
+  let block := RingRelation.PiRLCAlgebra.PublicInput.publicBlockIndex shape column
+  let lane := RingRelation.PiRLCAlgebra.PublicInput.publicLaneIndex column
   have equal := congrFun (blocks block) lane
   have columnEq :
       (⟨block.val * ringDegree + lane.val, by
         have blockLt := block.isLt
         have laneLt := lane.isLt
-        simp only [Phi81Relation.Shape.publicWidth, ringDegree] at blockLt laneLt ⊢
+        simp only [RingRelation.Shape.publicWidth, ringDegree] at blockLt laneLt ⊢
         omega⟩ : Fin shape.publicWidth) = column := by
     apply Fin.ext
     dsimp only [block, lane]
-    simp only [Phi81Relation.PiRLCAlgebra.PublicInput.publicBlockIndex,
-      Phi81Relation.PiRLCAlgebra.PublicInput.publicLaneIndex]
+    simp only [RingRelation.PiRLCAlgebra.PublicInput.publicBlockIndex,
+      RingRelation.PiRLCAlgebra.PublicInput.publicLaneIndex]
     calc
       column.val / ringDegree * ringDegree + column.val % ringDegree =
           ringDegree * (column.val / ringDegree) + column.val % ringDegree := by
         rw [Nat.mul_comm]
       _ = column.val := Nat.div_add_mod column.val ringDegree
-  simpa only [Phi81Relation.PiRLCAlgebra.PublicInput.publicBlock, columnEq]
+  simpa only [RingRelation.PiRLCAlgebra.PublicInput.publicBlock, columnEq]
     using equal
 
-private theorem publicBlock_add {shape : Phi81Relation.Shape}
+private theorem publicBlock_add {shape : RingRelation.Shape}
     (left right : PublicInput shape) (block : Fin shape.publicRingColumns) :
-    Phi81Relation.PiRLCAlgebra.PublicInput.publicBlock
-        (Phi81Relation.PiRLCAlgebra.PublicInput.publicAdd left right) block =
+    RingRelation.PiRLCAlgebra.PublicInput.publicBlock
+        (RingRelation.PiRLCAlgebra.PublicInput.publicAdd left right) block =
       ringFAdd
-        (Phi81Relation.PiRLCAlgebra.PublicInput.publicBlock left block)
-        (Phi81Relation.PiRLCAlgebra.PublicInput.publicBlock right block) := by
+        (RingRelation.PiRLCAlgebra.PublicInput.publicBlock left block)
+        (RingRelation.PiRLCAlgebra.PublicInput.publicBlock right block) := by
   rfl
 
-private theorem publicBlock_zero {shape : Phi81Relation.Shape}
+private theorem publicBlock_zero {shape : RingRelation.Shape}
     (block : Fin shape.publicRingColumns) :
-    Phi81Relation.PiRLCAlgebra.PublicInput.publicBlock
-        (Phi81Relation.PiRLCAlgebra.PublicInput.publicZero : PublicInput shape)
+    RingRelation.PiRLCAlgebra.PublicInput.publicBlock
+        (RingRelation.PiRLCAlgebra.PublicInput.publicZero : PublicInput shape)
         block = ringFZero := by
   rfl
 
-private theorem publicModuleLaws {shape : Phi81Relation.Shape} :
+private theorem publicModuleLaws {shape : RingRelation.Shape} :
     ModuleLaws ScalarRing (publicModule (shape := shape)) where
   add_assoc := by
     intro left middle right
@@ -574,62 +574,62 @@ private theorem publicModuleLaws {shape : Phi81Relation.Shape} :
     exact ConcreteCarrier.baseLaws.add_neg _
   zero_smul := by
     intro value
-    change Phi81Relation.PiRLCAlgebra.PublicInput.publicAct ringFZero value =
-      Phi81Relation.PiRLCAlgebra.PublicInput.publicZero
+    change RingRelation.PiRLCAlgebra.PublicInput.publicAct ringFZero value =
+      RingRelation.PiRLCAlgebra.PublicInput.publicZero
     apply public_ext
     intro block
     rw [publicBlock_act, RingFLaws.ringFMul_zero_left]
     rfl
   add_smul := by
     intro left right value
-    change Phi81Relation.PiRLCAlgebra.PublicInput.publicAct
+    change RingRelation.PiRLCAlgebra.PublicInput.publicAct
         (ringFAdd left right) value =
-      Phi81Relation.PiRLCAlgebra.PublicInput.publicAdd
-        (Phi81Relation.PiRLCAlgebra.PublicInput.publicAct left value)
-        (Phi81Relation.PiRLCAlgebra.PublicInput.publicAct right value)
+      RingRelation.PiRLCAlgebra.PublicInput.publicAdd
+        (RingRelation.PiRLCAlgebra.PublicInput.publicAct left value)
+        (RingRelation.PiRLCAlgebra.PublicInput.publicAct right value)
     apply public_ext
     intro block
     simp only [publicBlock_act, publicBlock_add]
     exact CarrierAction.ringFMul_add_left left right
-      (Phi81Relation.PiRLCAlgebra.PublicInput.publicBlock value block)
+      (RingRelation.PiRLCAlgebra.PublicInput.publicBlock value block)
   one_smul := by
     intro value
-    change Phi81Relation.PiRLCAlgebra.PublicInput.publicAct ringFOne value = value
+    change RingRelation.PiRLCAlgebra.PublicInput.publicAct ringFOne value = value
     apply public_ext
     intro block
     rw [publicBlock_act, RingFLaws.ringFMul_one_left]
   mul_smul := by
     intro left right value
-    change Phi81Relation.PiRLCAlgebra.PublicInput.publicAct
+    change RingRelation.PiRLCAlgebra.PublicInput.publicAct
         (ringFMul left right) value =
-      Phi81Relation.PiRLCAlgebra.PublicInput.publicAct left
-        (Phi81Relation.PiRLCAlgebra.PublicInput.publicAct right value)
+      RingRelation.PiRLCAlgebra.PublicInput.publicAct left
+        (RingRelation.PiRLCAlgebra.PublicInput.publicAct right value)
     apply public_ext
     intro block
     rw [publicBlock_act, publicBlock_act, publicBlock_act,
       RingFLaws.ringFMul_assoc]
   smul_zero := by
     intro scalar
-    change Phi81Relation.PiRLCAlgebra.PublicInput.publicAct scalar
-        Phi81Relation.PiRLCAlgebra.PublicInput.publicZero =
-      Phi81Relation.PiRLCAlgebra.PublicInput.publicZero
+    change RingRelation.PiRLCAlgebra.PublicInput.publicAct scalar
+        RingRelation.PiRLCAlgebra.PublicInput.publicZero =
+      RingRelation.PiRLCAlgebra.PublicInput.publicZero
     apply public_ext
     intro block
     simp only [publicBlock_act, publicBlock_zero]
     exact CarrierAction.ringFMul_zero_right scalar
   smul_add := by
     intro scalar left right
-    change Phi81Relation.PiRLCAlgebra.PublicInput.publicAct scalar
-        (Phi81Relation.PiRLCAlgebra.PublicInput.publicAdd left right) =
-      Phi81Relation.PiRLCAlgebra.PublicInput.publicAdd
-        (Phi81Relation.PiRLCAlgebra.PublicInput.publicAct scalar left)
-        (Phi81Relation.PiRLCAlgebra.PublicInput.publicAct scalar right)
+    change RingRelation.PiRLCAlgebra.PublicInput.publicAct scalar
+        (RingRelation.PiRLCAlgebra.PublicInput.publicAdd left right) =
+      RingRelation.PiRLCAlgebra.PublicInput.publicAdd
+        (RingRelation.PiRLCAlgebra.PublicInput.publicAct scalar left)
+        (RingRelation.PiRLCAlgebra.PublicInput.publicAct scalar right)
     apply public_ext
     intro block
     simp only [publicBlock_act, publicBlock_add]
     exact CarrierAction.ringFMul_add_right scalar
-      (Phi81Relation.PiRLCAlgebra.PublicInput.publicBlock left block)
-      (Phi81Relation.PiRLCAlgebra.PublicInput.publicBlock right block)
+      (RingRelation.PiRLCAlgebra.PublicInput.publicBlock left block)
+      (RingRelation.PiRLCAlgebra.PublicInput.publicBlock right block)
 
 private def evaluationModule :
     ModuleOps RingF PaperAlgebra.Evaluation where
@@ -840,7 +840,7 @@ private theorem linearMapLawsOfZeroAddSmul
 private theorem evaluationFamily_zero
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns <=
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (source : PaperAlgebra.Structure logicalWidth) (point : PaperAlgebra.Point) :
     PaperAlgebra.evaluationFamily (publicFits := publicFits) source
         BaseLinear.assignmentZero point = evaluationModule.zero := by
@@ -856,7 +856,7 @@ private theorem evaluationFamily_zero
 private theorem evaluationFamily_add
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns <=
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (source : PaperAlgebra.Structure logicalWidth)
     (left right : PaperAlgebra.Assignment
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -878,7 +878,7 @@ private theorem evaluationFamily_add
 private theorem evaluationFamily_act
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns <=
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (source : PaperAlgebra.Structure logicalWidth) (scalar : RingF)
     (assignment : PaperAlgebra.Assignment
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -906,7 +906,7 @@ private theorem singleton_getD {Value : Type}
 private theorem semantic_getD
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns <=
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (key : PaperAlgebra.AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (source : PaperAlgebra.Structure logicalWidth)
@@ -926,7 +926,7 @@ private theorem semantic_getD
 private theorem semanticEvaluationMapLaws
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns <=
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (key : PaperAlgebra.AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
     (source : PaperAlgebra.Structure logicalWidth)
@@ -1034,13 +1034,13 @@ private theorem combineEvaluations_getD
 def extractionAlgebra
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns <=
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (key : PaperAlgebra.AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     ExtractionAlgebra (PaperAlgebra.semantics key) productionGlobalParams
       (PaperAlgebra.piRlcAlgebra key) where
   ring := ScalarRing
-  ringLaws := Phi81Relation.PiRLCAlgebra.ForkStrongSet.ringLaws
+  ringLaws := RingRelation.PiRLCAlgebra.ForkStrongSet.ringLaws
   assignmentModule := assignmentModule
   assignmentLaws := assignmentModuleLaws
   commitmentModule := commitmentModule
@@ -1051,16 +1051,16 @@ def extractionAlgebra
   evaluationLaws := evaluationModuleLaws
   combineCommitment_eq := by
     intro count coefficients values
-    change Phi81Relation.PiRLCAlgebra.Commitment.combineCommitments
+    change RingRelation.PiRLCAlgebra.Commitment.combineCommitments
         coefficients values =
       linearCombination ScalarRing commitmentModule coefficients values
     induction count with
     | zero => rfl
     | succ count inductionHypothesis =>
-        change Phi81Relation.PiRLCAlgebra.Commitment.commitmentAdd
-            (Phi81Relation.PiRLCAlgebra.Commitment.commitmentAct
+        change RingRelation.PiRLCAlgebra.Commitment.commitmentAdd
+            (RingRelation.PiRLCAlgebra.Commitment.commitmentAct
               (coefficients 0) (values 0))
-            (Phi81Relation.PiRLCAlgebra.Commitment.combineCommitments
+            (RingRelation.PiRLCAlgebra.Commitment.combineCommitments
               (fun index => coefficients index.succ)
               (fun index => values index.succ)) =
           commitmentModule.add
@@ -1075,16 +1075,16 @@ def extractionAlgebra
         rfl
   combinePublicInput_eq := by
     intro count coefficients values
-    change Phi81Relation.PiRLCAlgebra.PublicInput.combinePublicInputs
+    change RingRelation.PiRLCAlgebra.PublicInput.combinePublicInputs
         coefficients values =
       linearCombination ScalarRing publicModule coefficients values
     induction count with
     | zero => rfl
     | succ count inductionHypothesis =>
-        change Phi81Relation.PiRLCAlgebra.PublicInput.publicAdd
-            (Phi81Relation.PiRLCAlgebra.PublicInput.publicAct
+        change RingRelation.PiRLCAlgebra.PublicInput.publicAdd
+            (RingRelation.PiRLCAlgebra.PublicInput.publicAct
               (coefficients 0) (values 0))
-            (Phi81Relation.PiRLCAlgebra.PublicInput.combinePublicInputs
+            (RingRelation.PiRLCAlgebra.PublicInput.combinePublicInputs
               (fun index => coefficients index.succ)
               (fun index => values index.succ)) =
           publicModule.add
@@ -1105,16 +1105,16 @@ def extractionAlgebra
   combineEvaluations_getD := combineEvaluations_getD
   commitMap := linearMapLawsOfZeroAddSmul _ _ assignmentModuleLaws
     commitmentModuleLaws
-    (Phi81Relation.PiRLCAlgebra.Commitment.commit key)
-    (Phi81Relation.PiRLCAlgebra.Commitment.commit_zero key)
-    (Phi81Relation.PiRLCAlgebra.Commitment.commit_add key)
-    (Phi81Relation.PiRLCAlgebra.Commitment.commit_act key)
+    (RingRelation.PiRLCAlgebra.Commitment.commit key)
+    (RingRelation.PiRLCAlgebra.Commitment.commit_zero key)
+    (RingRelation.PiRLCAlgebra.Commitment.commit_add key)
+    (RingRelation.PiRLCAlgebra.Commitment.commit_act key)
   publicInputMap := linearMapLawsOfZeroAddSmul _ _ assignmentModuleLaws
     publicModuleLaws
-    Phi81Relation.projectPublicInput
-    Phi81Relation.PiRLCAlgebra.PublicInput.projectPublicInput_zero
-    Phi81Relation.PiRLCAlgebra.PublicInput.projectPublicInput_add
-    Phi81Relation.PiRLCAlgebra.PublicInput.projectPublicInput_act
+    RingRelation.projectPublicInput
+    RingRelation.PiRLCAlgebra.PublicInput.projectPublicInput_zero
+    RingRelation.PiRLCAlgebra.PublicInput.projectPublicInput_add
+    RingRelation.PiRLCAlgebra.PublicInput.projectPublicInput_act
   evaluationsMap := semanticEvaluationMapLaws key
   correctedNormCoverage := by
     intro assignment column

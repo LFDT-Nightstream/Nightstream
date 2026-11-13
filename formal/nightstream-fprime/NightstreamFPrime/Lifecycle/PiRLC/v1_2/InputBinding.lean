@@ -37,7 +37,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 structure InputExpr (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   commitment : Fin productionProfile.commitmentWidth → Fin ringDegree → Expr
   publicInput : Fin (FullShape logicalWidth publicFits).publicWidth → Expr
   evaluation :
@@ -45,7 +45,7 @@ structure InputExpr (logicalWidth : Nat)
 
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   point : Nat → Fin productionShape.cubeVariables → KExpr
   input : Nat → Fin productionShape.sourceCount →
     InputExpr logicalWidth publicFits
@@ -53,18 +53,18 @@ structure Interface (logicalWidth : Nat)
 def relationSource
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     PaperAlgebra.Structure logicalWidth where
   cubeLayout :=
     NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout.layout
-      cubeVariables (Phi81CarrierLayout.carrierWidth logicalWidth)
+      cubeVariables (RingCarrierLayout.carrierWidth logicalWidth)
       relation.cubeFits
   matrixSource := PaperAlgebra.matrixSource relation.system
 
 abbrev InputInstance (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   CE.Instance (PaperAlgebra.Structure logicalWidth)
     (PaperAlgebra.PublicInput
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -78,7 +78,7 @@ def evalPoint
 def evalInput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (input : InputExpr logicalWidth publicFits)
     (point : Fin productionShape.cubeVariables → KExpr)
@@ -96,7 +96,7 @@ def evalInput
 def evalInputs
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (env : Env) :
@@ -107,7 +107,7 @@ def evalInputs
 def SpecHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (env : Env) : Prop :=
@@ -118,7 +118,7 @@ def SpecHolds
 def circuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) : FormalCircuit where
   main := pure ()
@@ -136,7 +136,7 @@ def circuit
 theorem soundness
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits)
     (env : Env) (offset : Nat)
@@ -147,7 +147,7 @@ theorem soundness
 theorem completeness
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits)
     (env : Env) (offset : Nat)
@@ -162,7 +162,7 @@ theorem completeness
 theorem parentCoverage
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (env : Env)
@@ -175,7 +175,7 @@ theorem parentCoverage
 theorem localLength_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     localLength (Circuit.ops (circuit relation interface).main offset) = 0 := by
@@ -184,7 +184,7 @@ theorem localLength_eq
 theorem flatConstraints_length
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (flatConstraints
@@ -194,7 +194,7 @@ theorem flatConstraints_length
 theorem flatConstraints_varsBelow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     ∀ expression ∈ flatConstraints

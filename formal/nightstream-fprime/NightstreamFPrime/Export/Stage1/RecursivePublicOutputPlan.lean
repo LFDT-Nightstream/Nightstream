@@ -35,9 +35,9 @@ theorem carrierPublicFits
     {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth) :
     ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth := by
+      RingCarrierLayout.carrierWidth logicalWidth := by
   exact Nat.le_trans (publicFits geometry)
-    (Phi81CarrierLayout.logicalWidth_le_carrierWidth logicalWidth)
+    (RingCarrierLayout.logicalWidth_le_carrierWidth logicalWidth)
 
 def oneColumn
     {application : Lifecycle.Stage1.Application.Program}
@@ -85,18 +85,18 @@ theorem publicInput_eq_projectPublicInput
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) :
     publicInput geometry assignment =
-      Phi81Relation.projectPublicInput
+      RingRelation.projectPublicInput
         (shape := FullShape logicalWidth (carrierPublicFits geometry))
-        (Phi81CarrierLayout.extendAssignment 0 assignment) := by
+        (RingCarrierLayout.extendAssignment 0 assignment) := by
   funext column
   have same : (FullShape logicalWidth (carrierPublicFits geometry)).publicColumn column =
-      Phi81CarrierLayout.embedLogical (publicColumn geometry column) := by
+      RingCarrierLayout.embedLogical (publicColumn geometry column) := by
     apply Fin.ext
     rfl
   change assignment (publicColumn geometry column) =
-    Phi81CarrierLayout.extendAssignment 0 assignment
+    RingCarrierLayout.extendAssignment 0 assignment
       ((FullShape logicalWidth (carrierPublicFits geometry)).publicColumn column)
-  rw [same, Phi81CarrierLayout.extendAssignment_embedLogical]
+  rw [same, RingCarrierLayout.extendAssignment_embedLogical]
 
 theorem publicEqual_implies_one
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}

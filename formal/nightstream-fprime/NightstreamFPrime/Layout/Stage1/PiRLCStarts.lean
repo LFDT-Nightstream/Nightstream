@@ -73,7 +73,7 @@ theorem phaseLogicalStart_eq : phaseLogicalStart = 6228781 := by
 theorem phaseRowStart_matches
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     phaseRowStart = PilotPiCCS.physicalRowCount relation := by
   rw [PilotPiCCS.physicalRowCount_eq]

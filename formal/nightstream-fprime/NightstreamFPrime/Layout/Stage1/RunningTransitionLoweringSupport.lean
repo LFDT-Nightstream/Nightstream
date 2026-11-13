@@ -15,7 +15,7 @@ open RunningTransitionInputs
 theorem physicalRows_varsSatisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ∀ row ∈ RunningTransitionLayout.physicalRows logicalWidth publicFits,
       row.VarsSatisfy Source := by
@@ -53,7 +53,7 @@ theorem physicalRows_varsSatisfy
 theorem remappedRows_varsSatisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ∀ row ∈ Spartan.remapRows
         (RunningTransitionLayout.physicalRows logicalWidth publicFits),

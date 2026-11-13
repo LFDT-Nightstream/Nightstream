@@ -1,5 +1,5 @@
 import NightstreamFPrime.Lifecycle.Nebula.StepRefinement
-import NightstreamFPrime.Spec.GoldilocksExtensionRing
+import NightstreamFPrime.Spec.FieldExtensionRing
 
 /-! Owns the refinement of one invocation: the step rows give the
 model's `step` (SPEC.md section 7.5) on the step-start carry, the close rows give
@@ -11,7 +11,7 @@ namespace NightstreamFPrime.Lifecycle.Nebula
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
-open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
+open scoped NightstreamFPrime.Spec.FieldExtensionRing
 open Fin.CommRing
 
 /-- A chain row over field bits is the model's chain hash over their packing. -/
@@ -85,7 +85,7 @@ theorem inTs_lt (reach : Reach p w.inCarry) : (w.cIn 2).val < 2 ^ p.wTs := by
 /-- Row `idx_out`: the output index is `idx_eff + 1`. -/
 theorem RowsHold.idxOut_val (valid : p.Valid) (rows : w.RowsHold zIn)
     (reach : Reach p w.inCarry) : (w.cOut 1).val = w.idxEff.val + 1 := by
-  have small : w.idxEff.val + 1 < goldilocksModulus := by
+  have small : w.idxEff.val + 1 < fieldModulus := by
     have := rows.idxEff_lt w valid reach
     have := Geometry.n_lt valid
     omega
@@ -162,10 +162,10 @@ theorem RowsHold.advanced (valid : p.Valid) (rows : w.RowsHold zIn)
 give `finishStep`. -/
 theorem RowsHold.finished (valid : p.Valid) (rows : w.RowsHold zIn)
     (reach : Reach p w.inCarry) : finishStep (setup p) w.stepEnd = some w.outCarry := by
-  have segSmall : w.inCarry.segIdx + 1 < goldilocksModulus := by
+  have segSmall : w.inCarry.segIdx + 1 < fieldModulus := by
     have := rows.segBelow w valid reach
     have := Geometry.sMax_small valid
-    unfold goldilocksModulus
+    unfold fieldModulus
     omega
   rw [finishStep, outCarry_eq]
   rcases rows.closeBit with notClose | close
@@ -215,8 +215,8 @@ theorem RowsHold.finished (valid : p.Valid) (rows : w.RowsHold zIn)
       · have row := rows.closeProducts
         have embedOne : embed 1 = (1 : K) := rfl
         rw [close, embedOne] at row
-        simp only [← GoldilocksExtensionRing.mul_eq, ← GoldilocksExtensionRing.sub_eq,
-          ← GoldilocksExtensionRing.zero_eq, one_mul, sub_eq_zero] at row
+        simp only [← FieldExtensionRing.mul_eq, ← FieldExtensionRing.sub_eq,
+          ← FieldExtensionRing.zero_eq, one_mul, sub_eq_zero] at row
         exact row
     rw [ite_eq_left closed, closeSegment, ite_eq_left checks]
     congr 1
@@ -233,9 +233,9 @@ theorem RowsHold.finished (valid : p.Valid) (rows : w.RowsHold zIn)
 theorem RowsHold.reachOut (valid : p.Valid) (rows : w.RowsHold zIn)
     (reach : Reach p w.inCarry) : Reach p w.outCarry := by
   have segBelow := rows.segBelow w valid reach
-  have segSmall : w.inCarry.segIdx + 1 < goldilocksModulus := by
+  have segSmall : w.inCarry.segIdx + 1 < fieldModulus := by
     have := Geometry.sMax_small valid
-    unfold goldilocksModulus
+    unfold fieldModulus
     omega
   have idxOut := rows.idxOut_val valid reach
   have idxLt := rows.idxEff_lt w valid reach

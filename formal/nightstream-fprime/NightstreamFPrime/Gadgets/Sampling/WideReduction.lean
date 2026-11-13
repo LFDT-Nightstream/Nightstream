@@ -28,7 +28,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Range
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
-open NightstreamFPrime.Spec.Phi81StrongSet
+open NightstreamFPrime.Spec.RingStrongSet
 
 abbrev fieldCount : Nat := 4
 def childWidth : Nat := CanonicalU64.auxiliaryCount
@@ -73,7 +73,7 @@ def childInterface (interface : Interface) (parentOffset : Nat) (index : Fin fie
 
 def fieldTerms (offset index : Nat) : List (Nat × Expr) :=
   (List.range CanonicalU64.bitCount).map fun bit =>
-    (2 ^ bit * goldilocksModulus ^ index, fieldBit offset index bit)
+    (2 ^ bit * fieldModulus ^ index, fieldBit offset index bit)
 
 def drawTerms (offset : Nat) : List (Nat × Expr) :=
   fieldTerms offset 0 ++ fieldTerms offset 1 ++ fieldTerms offset 2 ++ fieldTerms offset 3

@@ -15,7 +15,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Range
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
-open NightstreamFPrime.Spec.Phi81StrongSet
+open NightstreamFPrime.Spec.RingStrongSet
 open Finset
 
 section Rows
@@ -77,15 +77,15 @@ private theorem digitValue_le (rows : holds env (operations interface hints offs
   change (digitBit offset digit 2).eval env *
       ((digitBit offset digit 0).eval env + (digitBit offset digit 1).eval env) = 0 at zero
   unfold digitValue
-  rcases NightstreamFPrime.Spec.GoldilocksPrime.baseFieldNoZeroDivisors _ _ zero with high | low
+  rcases NightstreamFPrime.Spec.FieldPrime.baseFieldNoZeroDivisors _ _ zero with high | low
   · rw [high]
     change _ + 2 * _ + 4 * 0 ≤ 4
     omega
   · have sum := congrArg Fin.val low
     rw [Fin.val_add] at sum
     have small : ((digitBit offset digit 0).eval env).val +
-        ((digitBit offset digit 1).eval env).val < goldilocksModulus := by
-      have : (2 : Nat) < goldilocksModulus := by decide
+        ((digitBit offset digit 1).eval env).val < fieldModulus := by
+      have : (2 : Nat) < fieldModulus := by decide
       omega
     rw [Nat.mod_eq_of_lt small] at sum
     change _ = 0 at sum
@@ -203,7 +203,7 @@ private theorem check_modEq (assumptions : Assumptions interface offset)
         obtain ⟨bit, below, rfl⟩ := member
         exact checkBit_le_one rows check bit below)
     rwa [length_checkTerms] at this
-  have modulusValue : goldilocksModulus = 18446744069414584321 := rfl
+  have modulusValue : fieldModulus = 18446744069414584321 := rfl
   have bias : checkBias = 293 := rfl
   have equal := fieldOfNat_inj (by rw [modulusValue, bias]; omega) (by rw [modulusValue]; omega) zero
   have left : linearValue env (reduceTerms m (drawTerms offset)) + m * checkBias ≡

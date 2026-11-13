@@ -8,7 +8,7 @@ open NightstreamFPrime.Layout.Polynomial.Horner
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 namespace Logical
 
@@ -49,7 +49,7 @@ def physicalRowCount : Nat :=
 structure InputsLinear
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) : Prop where
   parent_mulCount : ∀ coordinate,
@@ -62,7 +62,7 @@ structure InputsLinear
 theorem childInputs
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (inputs : InputsLinear interface offset)
     (source : Nat) (sourceLt : source < Logical.coordinateCount logicalWidth publicFits) :
@@ -83,7 +83,7 @@ theorem childInputs
 def childConstraints
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset source : Nat) : List Expr :=
   (Logical.childOp interface offset source).flatConstraints
@@ -91,7 +91,7 @@ def childConstraints
 def childConstraintLists
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) : List (List Expr) :=
   (List.range (Logical.coordinateCount logicalWidth publicFits)).map
@@ -100,7 +100,7 @@ def childConstraintLists
 def orderedConstraints
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) : List Expr :=
   (childConstraintLists interface offset).flatten
@@ -108,7 +108,7 @@ def orderedConstraints
 def logicalConstraints
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) : List Expr :=
   flatConstraints (Circuit.ops (Logical.main interface) offset)
@@ -116,7 +116,7 @@ def logicalConstraints
 private theorem flatConstraints_childOps
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (sources : List Nat) :
     flatConstraints (sources.map (Logical.childOp interface offset)) =
@@ -133,7 +133,7 @@ private theorem flatConstraints_childOps
 theorem logicalConstraints_eq_ordered
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) :
     logicalConstraints interface offset = orderedConstraints interface offset := by
@@ -147,7 +147,7 @@ theorem logicalConstraints_eq_ordered
 private theorem childFreshCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (inputs : InputsLinear interface offset)
     (source : Nat) (sourceLt : source < Logical.coordinateCount logicalWidth publicFits) :
@@ -171,7 +171,7 @@ private theorem childFreshCount_eq
 private theorem childRowCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (inputs : InputsLinear interface offset)
     (source : Nat) (sourceLt : source < Logical.coordinateCount logicalWidth publicFits) :
@@ -195,7 +195,7 @@ private theorem childRowCount_eq
 private theorem totalFreshCount_sources
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (inputs : InputsLinear interface offset)
     (sources : List Nat)
@@ -221,7 +221,7 @@ private theorem totalFreshCount_sources
 private theorem totalRowCount_sources
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (inputs : InputsLinear interface offset)
     (sources : List Nat)
@@ -247,7 +247,7 @@ private theorem totalRowCount_sources
 theorem totalFreshCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalFreshCount (logicalConstraints interface offset) =
@@ -266,7 +266,7 @@ theorem totalFreshCount_eq
 theorem totalRowCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalRowCount (logicalConstraints interface offset) =
@@ -285,7 +285,7 @@ theorem totalRowCount_eq
 theorem physicalPrivateColumnCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (offset : Nat) (inputs : InputsLinear interface offset) :
     localLength (Circuit.ops (Logical.main interface) offset) +
@@ -297,7 +297,7 @@ theorem physicalPrivateColumnCount_eq
 def footprint
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Logical.Interface logicalWidth publicFits)
     (inputs : ∀ offset, InputsLinear interface offset) :
     R1CS.CircuitFootprint (Logical.circuit interface) where

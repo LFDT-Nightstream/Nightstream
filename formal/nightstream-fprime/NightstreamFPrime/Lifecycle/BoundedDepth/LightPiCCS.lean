@@ -27,7 +27,7 @@ open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The light Π_CCS claimed sum `T` (SuperNeo v1.2 Section 7.3, Step 2) over the single running
 claim: 54 + 216 = 270 claimed coefficients, against 4,320 today
@@ -165,7 +165,7 @@ theorem ccsAtMessage_eq_singleFresh (input : ProtocolPolynomial.VerifierInput K 
     SignedJointIdentity.gammaTerm, TargetPolynomial.power,
     BooleanTable.finiteSum, canonicalFinIndices, LightShape,
     HyperNova.Construction2.BoundedDepthFolds.lightShape, productionShape,
-    productionProfile, Phi81MatrixSource.phi81Shape, lightFreshIndex,
+    productionProfile, RingMatrixSource.ringShape, lightFreshIndex,
     extensionLaws.one_mul, extensionLaws.add_zero]
 
 /-- The light Π_CCS CCS term from today's CCS terminal. The light shape keeps the four matrices

@@ -380,7 +380,7 @@ theorem substitution_agrees_on_target
 
 variable {relationLogicalWidth : Nat}
   {relationPublicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+    RingCarrierLayout.carrierWidth relationLogicalWidth}
 
 private theorem programRow_support (index : Fin 14943) :
     (PiRLCSamplerOrdinaryDirectSource.programRow

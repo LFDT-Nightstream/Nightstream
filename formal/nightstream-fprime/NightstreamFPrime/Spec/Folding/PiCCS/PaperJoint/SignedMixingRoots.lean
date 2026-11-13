@@ -1,4 +1,4 @@
-import NightstreamFPrime.Spec.SumCheck.GoldilocksRoots
+import NightstreamFPrime.Spec.SumCheck.FieldRoots
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedCoefficientPolynomial
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Basic.Real.Basic
@@ -9,7 +9,7 @@ namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots
 
 open scoped BigOperators
 open NightstreamFPrime.Spec SumCheck.Finite
-open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
+open scoped NightstreamFPrime.Spec.FieldExtensionRing
 
 
 private noncomputable def polynomial : List K → Polynomial K
@@ -18,13 +18,13 @@ private noncomputable def polynomial : List K → Polynomial K
 
 private theorem polynomial_eval (coefficients : List K) (point : K) :
     (polynomial coefficients).eval point =
-      Message.evaluateCoefficients GoldilocksRoots.ops point coefficients := by
+      Message.evaluateCoefficients FieldRoots.ops point coefficients := by
   induction coefficients with
-  | nil => simp only [polynomial, Polynomial.eval_zero, GoldilocksExtensionRing.zero_eq]; rfl
+  | nil => simp only [polynomial, Polynomial.eval_zero, FieldExtensionRing.zero_eq]; rfl
   | cons coefficient rest ih =>
       simp only [polynomial, Polynomial.eval_add, Polynomial.eval_C,
-        Polynomial.eval_mul, Polynomial.eval_X, ih, GoldilocksExtensionRing.add_eq,
-        GoldilocksExtensionRing.mul_eq]
+        Polynomial.eval_mul, Polynomial.eval_X, ih, FieldExtensionRing.add_eq,
+        FieldExtensionRing.mul_eq]
       rfl
 
 private theorem polynomial_degree (coefficients : List K) :
@@ -58,13 +58,13 @@ private theorem coefficients_zero_of_polynomial_zero (coefficients : List K)
         exact (mul_eq_zero.mp product).resolve_left Polynomial.X_ne_zero
       intro value member
       rcases List.mem_cons.mp member with same | inside
-      · simpa only [same, GoldilocksExtensionRing.zero_eq] using head
+      · simpa only [same, FieldExtensionRing.zero_eq] using head
       · exact ih tail value inside
 
 theorem coefficient_root_count_le (coefficients : List K) (samples : Finset K)
     (nonzero : ∃ coefficient ∈ coefficients, coefficient ≠ K.zero) :
     (samples.filter fun gamma =>
-      Message.evaluateCoefficients GoldilocksRoots.ops gamma coefficients = K.zero).card ≤
+      Message.evaluateCoefficients FieldRoots.ops gamma coefficients = K.zero).card ≤
       coefficients.length - 1 := by
   classical
   have notZero : polynomial coefficients ≠ 0 := by
@@ -76,13 +76,13 @@ theorem coefficient_root_count_le (coefficients : List K) (samples : Finset K)
   intro gamma member
   apply (Polynomial.mem_roots notZero).mpr
   change (polynomial coefficients).eval gamma = 0
-  rw [polynomial_eval, GoldilocksExtensionRing.zero_eq]
+  rw [polynomial_eval, FieldExtensionRing.zero_eq]
   exact (Finset.mem_filter.mp member).2
 
 theorem coefficient_root_probability_le (coefficients : List K) (samples : Finset K)
     (nonzero : ∃ coefficient ∈ coefficients, coefficient ≠ K.zero) :
     (𝔼 gamma ∈ samples, if
-      Message.evaluateCoefficients GoldilocksRoots.ops gamma coefficients = K.zero
+      Message.evaluateCoefficients FieldRoots.ops gamma coefficients = K.zero
       then (1 : ℝ) else 0) ≤ (coefficients.length - 1 : Nat) / (samples.card : ℝ) := by
   classical
   rw [Finset.expect_eq_sum_div_card, ← Finset.sum_filter]
@@ -101,7 +101,7 @@ theorem signed_gamma_probability_le {shape : Shape}
         ConcreteCarrier.extensionOps.toOps gamma = K.zero then (1 : ℝ) else 0) ≤
       (shape.jointCoefficientCount - 1 : Nat) / (samples.card : ℝ) := by
   simpa only [SignedCoefficientPolynomial.polynomial, Message.evaluate,
-    GoldilocksRoots.ops, SignedCoefficientPolynomial.coefficients_length] using!
+    FieldRoots.ops, SignedCoefficientPolynomial.coefficients_length] using!
     coefficient_root_probability_le
       (SignedCoefficientPolynomial.coefficients ConcreteCarrier.extensionOps data alpha) samples nonzero
 

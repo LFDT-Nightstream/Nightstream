@@ -46,12 +46,12 @@ open NightstreamFPrime.Export.BoundedDepth.StepCompleteness
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
   {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
   {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)}
   {circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits}
   {step : AppState → AppWitness → AppState}
-  {cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+  {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
 
 /-- The setup's keys carry the exported relations at the step packages' slot layouts widened to
 the key width, and both packages pass the emitter's completeness checks. -/
@@ -164,7 +164,7 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
     (lightNext : control statement.zi witness = 0)
     (room : ∀ pcValid : InRange 2 payload.pc,
       (payload.running (selectedIndex pcValid)).2 < Schedule.productionLightFoldCap)
-    (iterationNext : statement.iteration + 1 < goldilocksModulus)
+    (iterationNext : statement.iteration + 1 < fieldModulus)
     (nextLength : (step statement.zi witness).length = Stage1.Application.stateWordCount)
     (witnessLength : witness.length = exports.program.witnessWordCount) :
     ∃ next, Terminal.HoldsFor cap ajtai circuitKeys step control
@@ -213,10 +213,10 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
       rfl
     · intro slot other
       exact Function.update_of_ne other _ _
-  have small : (Schedule.productionLightFoldCap : Nat) < goldilocksModulus := by decide
-  have pcBound : payload.pc < goldilocksModulus := by
+  have small : (Schedule.productionLightFoldCap : Nat) < fieldModulus := by decide
+  have pcBound : payload.pc < fieldModulus := by
     have := pcValid.2
-    have : (2 : Nat) < goldilocksModulus := by decide
+    have : (2 : Nat) < fieldModulus := by decide
     omega
   have nextSelected : runningNext selected = (folded, (payload.running selected).2 + 1) :=
     Function.update_self _ _ _
@@ -259,10 +259,10 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2 :=
     { running := runningNext
       runningWitness := Function.update payload.runningWitness selected foldedWitness
-      fresh := { commitments := fun _ => Phi81Relation.PiRLCAlgebra.Commitment.commit ajtai
-                   (Phi81CarrierLayout.extendAssignment 0 assignment)
+      fresh := { commitments := fun _ => RingRelation.PiRLCAlgebra.Commitment.commit ajtai
+                   (RingCarrierLayout.extendAssignment 0 assignment)
                  publicInputs := fun _ => encHash (publicFits := publicFits) output.x }
-      freshWitness := Phi81CarrierLayout.extendAssignment 0 assignment
+      freshWitness := RingCarrierLayout.extendAssignment 0 assignment
       pc := 1 }
   have pcOne : InRange 2 1 := ⟨le_refl 1, by decide⟩
   refine ⟨next, (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control _ next).mpr
@@ -320,7 +320,7 @@ theorem refresh_extend (exports : Exports relation ajtai circuitKeys step cubeFi
     (honest : Honest (ajtai := ajtai) complete.packageWidth payload)
     (witness : AppWitness) (valid : exports.program.valid statement.zi witness)
     (refreshNext : control statement.zi witness = 1)
-    (iterationNext : statement.iteration + 1 < goldilocksModulus)
+    (iterationNext : statement.iteration + 1 < fieldModulus)
     (nextLength : (step statement.zi witness).length = Stage1.Application.stateWordCount)
     (witnessLength : witness.length = exports.program.witnessWordCount) :
     ∃ next, Terminal.HoldsFor cap ajtai circuitKeys step control
@@ -361,10 +361,10 @@ theorem refresh_extend (exports : Exports relation ajtai circuitKeys step cubeFi
       rfl
     · intro slot other
       exact Function.update_of_ne other _ _
-  have small : (Schedule.productionLightFoldCap : Nat) < goldilocksModulus := by decide
-  have pcBound : payload.pc < goldilocksModulus := by
+  have small : (Schedule.productionLightFoldCap : Nat) < fieldModulus := by decide
+  have pcBound : payload.pc < fieldModulus := by
     have := pcValid.2
-    have : (2 : Nat) < goldilocksModulus := by decide
+    have : (2 : Nat) < fieldModulus := by decide
     omega
   have nextSelected : runningNext selected = (folded, 0) :=
     Function.update_self _ _ _
@@ -402,10 +402,10 @@ theorem refresh_extend (exports : Exports relation ajtai circuitKeys step cubeFi
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2 :=
     { running := runningNext
       runningWitness := Function.update payload.runningWitness selected foldedWitness
-      fresh := { commitments := fun _ => Phi81Relation.PiRLCAlgebra.Commitment.commit ajtai
-                   (Phi81CarrierLayout.extendAssignment 0 assignment)
+      fresh := { commitments := fun _ => RingRelation.PiRLCAlgebra.Commitment.commit ajtai
+                   (RingCarrierLayout.extendAssignment 0 assignment)
                  publicInputs := fun _ => encHash (publicFits := publicFits) output.x }
-      freshWitness := Phi81CarrierLayout.extendAssignment 0 assignment
+      freshWitness := RingCarrierLayout.extendAssignment 0 assignment
       pc := 2 }
   have pcTwo : InRange 2 2 := ⟨by decide, le_refl 2⟩
   refine ⟨next, (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control _ next).mpr
@@ -496,8 +496,8 @@ theorem base_extend (exports : Exports relation ajtai circuitKeys step cubeFits)
     folded stepHolds valid (fun nonzero => absurd iterationZero nonzero) freshPublic
     (fun nonzero => absurd iterationZero nonzero) accepted
     (show (0 : Nat) < Schedule.productionLightFoldCap by decide) statementValid.1
-    (show (0 : Nat) < goldilocksModulus by decide)
-    (fun _ => show (0 : Nat) < goldilocksModulus by decide)
+    (show (0 : Nat) < fieldModulus by decide)
+    (fun _ => show (0 : Nat) < fieldModulus by decide)
     keysShaped statementValid.2.1 statementValid.2.2 nextLength witnessLength
   obtain ⟨assignment, freshNext, freshZero⟩ := light_complete exports.program relation ajtai
     circuitKeys input output BaseFold.zeroProof env rows represents complete.lightFree
@@ -513,14 +513,14 @@ theorem base_extend (exports : Exports relation ajtai circuitKeys step cubeFits)
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2 :=
     { running := defaults
-      runningWitness := fun _ => Phi81Relation.EvaluationHomomorphism.BaseLinear.assignmentZero
-      fresh := { commitments := fun _ => Phi81Relation.PiRLCAlgebra.Commitment.commit ajtai
-                   (Phi81CarrierLayout.extendAssignment 0 assignment)
+      runningWitness := fun _ => RingRelation.EvaluationHomomorphism.BaseLinear.assignmentZero
+      fresh := { commitments := fun _ => RingRelation.PiRLCAlgebra.Commitment.commit ajtai
+                   (RingCarrierLayout.extendAssignment 0 assignment)
                  publicInputs := fun _ => encHash (publicFits := publicFits) output.x }
-      freshWitness := Phi81CarrierLayout.extendAssignment 0 assignment
+      freshWitness := RingCarrierLayout.extendAssignment 0 assignment
       pc := 1 }
   have pcOne : InRange 2 1 := ⟨le_refl 1, by decide⟩
-  have iterationOne : statement.iteration + 1 < goldilocksModulus := by
+  have iterationOne : statement.iteration + 1 < fieldModulus := by
     rw [iterationZero]
     decide
   refine ⟨next, (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control _ next).mpr

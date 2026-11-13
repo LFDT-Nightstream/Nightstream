@@ -1,6 +1,6 @@
 import NightstreamFPrime.Lifecycle.Nebula.Framing
 import NightstreamFPrime.Spec.Nebula.Game
-import NightstreamFPrime.Spec.GoldilocksExtensionRing
+import NightstreamFPrime.Spec.FieldExtensionRing
 
 /-! Owns the per-slot bound of the challenge game of the memory round
 (`SECURITY_MODEL.md`, trust item 6), for
@@ -13,7 +13,7 @@ namespace NightstreamFPrime.Lifecycle.Nebula
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
-open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
+open scoped NightstreamFPrime.Spec.FieldExtensionRing
 
 variable {p : Plan} {σ Coins : Type} [Fintype Coins] (app : Application p.toGeometry σ)
   (g : Game K Digest σ Coins p.sMax)
@@ -24,9 +24,9 @@ theorem context_hash (p : Plan) : (context p).hash = hash := rfl
 most `2·m_mem/q²` plus its retry term of the time. -/
 theorem badAt_bound (valid : p.Valid) (k : Fin p.sMax) :
     freq (g.BadAt (context p) app k) ≤
-      2 * (p.maxTuples : ℚ≥0) / (goldilocksModulus ^ 2 : ℕ) + g.retryTerm (context p) app k := by
+      2 * (p.maxTuples : ℚ≥0) / (fieldModulus ^ 2 : ℕ) + g.retryTerm (context p) app k := by
   have bound := g.badAt_frequency (context p) app valid k
-  rwa [GoldilocksExtensionRing.card_K] at bound
+  rwa [FieldExtensionRing.card_K] at bound
 
 /-- A chain collision between two closing segment views is a Poseidon2
 transcript collision. With `Game.disagreement_collision`, every retry

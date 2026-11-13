@@ -12,7 +12,7 @@ open NightstreamFPrime.Lifecycle.Stage1
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 def phaseOffset : Nat := PiDECStarts.outputFreshStart
 
@@ -27,7 +27,7 @@ theorem piDecPhaseOffset_le : PiDECInputs.phaseOffset ≤ phaseOffset := by
 theorem phaseOffset_matches_piDec
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     phaseOffset = PilotPiCCSPiRLCPiDEC.physicalColumnCount relation := by
   rw [PilotPiCCSPiRLCPiDEC.physicalColumnCount_eq]
@@ -68,7 +68,7 @@ def childOfRunning
 theorem publicWidth_eq_coordinateCount
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (FullShape logicalWidth publicFits).publicWidth =
       NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit.coordinateCount
         logicalWidth publicFits := by
@@ -78,7 +78,7 @@ theorem publicWidth_eq_coordinateCount
 def digitCoordinate
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (coordinate : Fin (FullShape logicalWidth publicFits).publicWidth) :
     Fin (NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit.coordinateCount
       logicalWidth publicFits) :=
@@ -87,7 +87,7 @@ def digitCoordinate
 @[simp] theorem digitCoordinate_val
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (coordinate : Fin (FullShape logicalWidth publicFits).publicWidth) :
     (digitCoordinate coordinate).val = coordinate.val := by
   rfl
@@ -95,13 +95,13 @@ def digitCoordinate
 def piDecInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   PiDECInputs.interface logicalWidth publicFits
 
 def recursiveRunningExpr
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     StatementAbsorption.RunningExpr logicalWidth publicFits :=
   let piDec := piDecInterface logicalWidth publicFits
   { point := piDec.point PiDECInputs.phaseOffset
@@ -118,7 +118,7 @@ def recursiveRunningExpr
 def interface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     RunningTransition.Interface logicalWidth publicFits where
   iteration := fun _ => iterationExpr
   initialState := fun _ => initialStateExpr

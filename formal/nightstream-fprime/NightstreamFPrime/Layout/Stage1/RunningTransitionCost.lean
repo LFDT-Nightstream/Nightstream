@@ -22,7 +22,7 @@ def physicalEnd : Nat := logicalColumnCount + exactFreshCount
 
 structure RunningMulFree {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits) : Prop where
   point : ∀ coordinate, KExprLinear (running.point coordinate)
   commitment : ∀ source row coefficient,
@@ -47,7 +47,7 @@ private theorem serializeKExpr_mulFree (value : KExpr)
 
 private theorem serializeRunningExpr_affine {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (linear : RunningMulFree running) :
     ∀ expression ∈ RunningWords.serializeRunningExpr running,
@@ -71,7 +71,7 @@ private theorem serializeRunningExpr_affine {logicalWidth : Nat}
 
 theorem runningWord_isAffine {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (linear : RunningMulFree running) (index : RunningTransition.WordIndex) :
     R1CS.IsAffine (RunningTransition.runningWord running index) := by
@@ -87,7 +87,7 @@ theorem runningWord_isAffine {logicalWidth : Nat}
 theorem recursiveMulFree
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     RunningMulFree (recursiveRunningExpr logicalWidth publicFits) := by
   refine {
@@ -112,14 +112,14 @@ theorem recursiveMulFree
 def logicalConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   flatConstraints
     (RunningTransition.operations (interface logicalWidth publicFits) phaseOffset)
 
 theorem logicalConstraints_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     logicalConstraints logicalWidth publicFits =
       RunningTransition.flagConstraint (interface logicalWidth publicFits)
           phaseOffset ::
@@ -129,7 +129,7 @@ theorem logicalConstraints_eq
 
 private theorem runningWord_affine {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (linear : RunningMulFree running) (index : RunningTransition.WordIndex) :
     R1CS.IsAffine
@@ -142,7 +142,7 @@ private theorem runningWord_affine {logicalWidth : Nat}
 private theorem baseFlag_affine
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     R1CS.IsAffine
       (RunningTransition.baseFlag (interface logicalWidth publicFits)
         phaseOffset) :=
@@ -152,7 +152,7 @@ private theorem baseFlag_affine
 private theorem constraintFreshCount_eq_zero
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ∀ expression ∈ logicalConstraints logicalWidth publicFits,
       R1CS.constraintFreshCount expression = 0 := by
@@ -182,7 +182,7 @@ private theorem constraintFreshCount_eq_zero
 theorem totalFreshCount_eq_exactFreshCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount (logicalConstraints logicalWidth publicFits) =
       exactFreshCount :=
@@ -192,7 +192,7 @@ theorem totalFreshCount_eq_exactFreshCount
 theorem totalFreshCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount (logicalConstraints logicalWidth publicFits) = 0 :=
   totalFreshCount_eq_exactFreshCount relation
@@ -200,14 +200,14 @@ theorem totalFreshCount_eq
 theorem logicalConstraints_length_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (logicalConstraints logicalWidth publicFits).length = 27800 := by
   exact RunningTransition.flatConstraints_length_eq _ _
 
 theorem totalRowCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalRowCount (logicalConstraints logicalWidth publicFits) =
       27800 := by

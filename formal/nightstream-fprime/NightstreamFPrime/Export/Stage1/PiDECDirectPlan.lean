@@ -451,7 +451,7 @@ section
 
 variable {relationLogicalWidth : Nat}
   {relationPublicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+    RingCarrierLayout.carrierWidth relationLogicalWidth}
 
 def publicSource
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
@@ -650,7 +650,7 @@ theorem plan_eq_of_same_shape
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (left right : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry application logicalWidth) :

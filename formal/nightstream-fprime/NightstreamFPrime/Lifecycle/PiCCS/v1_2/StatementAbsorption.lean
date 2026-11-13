@@ -46,7 +46,7 @@ structure EvaluationExpr where
 
 structure RunningExpr (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   point : Fin productionShape.cubeVariables → KExpr
   commitment : Fin productionShape.runningCount →
     Fin productionProfile.commitmentWidth → Fin ringDegree → Expr
@@ -56,7 +56,7 @@ structure RunningExpr (logicalWidth : Nat)
 
 structure FreshExpr (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   commitment : Fin productionShape.freshCount →
     Fin productionProfile.commitmentWidth → Fin ringDegree → Expr
   publicInput : Fin productionShape.freshCount →
@@ -64,7 +64,7 @@ structure FreshExpr (logicalWidth : Nat)
 
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   running : Nat → RunningExpr logicalWidth publicFits
   fresh : Nat → FreshExpr logicalWidth publicFits
 
@@ -81,7 +81,7 @@ def evalEvaluation (evaluation : EvaluationExpr) (env : Env) :
 
 def evalRunning {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : RunningExpr logicalWidth publicFits) (env : Env) :
     NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Running K
       PaperAlgebra.Commitment
@@ -97,7 +97,7 @@ def evalRunning {logicalWidth : Nat}
 
 def evalFresh {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (fresh : FreshExpr logicalWidth publicFits) (env : Env) :
     NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Fresh
       PaperAlgebra.Commitment
@@ -125,7 +125,7 @@ def serializeCommitmentExpr
 
 def serializePublicInputExpr {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr) :
     List Expr :=
   (List.finRange (FullShape logicalWidth publicFits).publicWidth).map input
@@ -147,7 +147,7 @@ theorem serializePointExpr_length
     (point : Fin productionShape.cubeVariables → KExpr) :
     (serializePointExpr point).length = 56 := by
   simp [serializePointExpr, serializeKExpr_length, productionShape,
-    Phi81MatrixSource.phi81Shape, cubeVariables]
+    RingMatrixSource.ringShape, cubeVariables]
 
 theorem serializeCommitmentExpr_length
     (commitment : Fin productionProfile.commitmentWidth →
@@ -157,21 +157,21 @@ theorem serializeCommitmentExpr_length
 
 private theorem serializePublicInputExpr_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr) :
     (serializePublicInputExpr input).length = 270 := by
   simp only [serializePublicInputExpr, List.length_map, List.length_finRange]
-  simp [fullShape, Phi81Relation.Shape.publicWidth, publicRingColumns, ringDegree]
+  simp [fullShape, RingRelation.Shape.publicWidth, publicRingColumns, ringDegree]
 
 theorem serializeEvalKExpr_length (evaluation : EvaluationExpr) :
     (serializeEvalKExpr evaluation).length = 108 := by
   simp [serializeEvalKExpr, serializeKExpr_length, productionShape,
-    productionProfile, Phi81MatrixSource.phi81Shape, ringDegree]
+    productionProfile, RingMatrixSource.ringShape, ringDegree]
 
 theorem serializeEvalAExpr_length (evaluation : EvaluationExpr) :
     (serializeEvalAExpr evaluation).length = 432 := by
   simp [serializeEvalAExpr, serializeKExpr_length, productionShape,
-    productionProfile, Phi81MatrixSource.phi81Shape, ringDegree]
+    productionProfile, RingMatrixSource.ringShape, ringDegree]
 
 def constantWords (words : List F) : List Expr := words.map Expr.const
 
@@ -181,7 +181,7 @@ private theorem constantWords_length (words : List F) :
 
 def decodeHashWordExpr {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr)
     (word : Fin 4) : Expr :=
   (List.range 64).foldl (fun value bit =>
@@ -191,7 +191,7 @@ def decodeHashWordExpr {logicalWidth : Nat}
 
 def priorDigestExpr {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) : List Expr :=
   List.ofFn fun lane : Fin 4 =>
@@ -200,7 +200,7 @@ def priorDigestExpr {logicalWidth : Nat}
 
 def publicInputBlocks {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) : List (List Expr) :=
   let fresh := interface.fresh offset
@@ -211,7 +211,7 @@ def publicInputBlocks {logicalWidth : Nat}
 
 def publicInputActions {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) : List Formal.Action :=
   [.absorb (constantWords NightstreamFPrime.Lifecycle.Transcript.foldDomainChunk),
@@ -219,7 +219,7 @@ def publicInputActions {logicalWidth : Nat}
 
 def verifierClaimWords {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) : List Expr :=
   let running := interface.running offset
@@ -233,7 +233,7 @@ def verifierClaimWords {logicalWidth : Nat}
 
 def verifierInputBlocks {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) : List (List Expr) :=
   [serializePointExpr (interface.running offset).point,
@@ -289,7 +289,7 @@ theorem serializeCommitmentExpr_eval
 private theorem serializePublicInputExpr_eval
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr)
     (env : Env) :
     Hash.evalList env (serializePublicInputExpr input) =
@@ -323,7 +323,7 @@ theorem serializeEvalAExpr_eval
 
 private theorem freshGroup_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (fresh : FreshExpr logicalWidth publicFits) (env : Env)
     (index : Fin productionShape.freshCount) :
     [serializeCommitmentExpr (fresh.commitment index),
@@ -339,7 +339,7 @@ private theorem freshGroup_eval {logicalWidth : Nat}
 
 private theorem priorDigestExpr_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
     Hash.evalList env (priorDigestExpr interface offset) =
       ProductionKey.priorDigest
@@ -371,7 +371,7 @@ private theorem priorDigestExpr_eval {logicalWidth : Nat}
 
 theorem publicInputBlocks_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
     (publicInputBlocks interface offset).map (Hash.evalList env) =
       ProductionKey.publicInputBlocks
@@ -388,7 +388,7 @@ theorem publicInputBlocks_eval {logicalWidth : Nat}
 
 private theorem verifierClaimWords_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
     Hash.evalList env (verifierClaimWords interface offset) =
       ((canonicalPadCoordinates productionShape).flatMap fun coordinate =>
@@ -419,7 +419,7 @@ private theorem verifierClaimWords_eval {logicalWidth : Nat}
 theorem verifierInputBlocks_eval
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -439,7 +439,7 @@ theorem verifierInputBlocks_eval
 
 def absorbedBlocks {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     List (List Expr) :=
   publicInputBlocks interface offset
@@ -447,7 +447,7 @@ def absorbedBlocks {logicalWidth : Nat}
 theorem absorbedBlocks_eval
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
     (absorbedBlocks interface offset).map (Hash.evalList env) =
       ProductionKey.publicInputBlocks (evalFresh (interface.fresh offset) env) :=
@@ -485,18 +485,18 @@ private theorem absorb_recipeCount (input : List Expr) :
 
 theorem publicInputBlocks_flatten_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (publicInputBlocks interface offset).flatten.length = 1462 := by
   unfold publicInputBlocks priorDigestExpr
   dsimp only
   simp [serializeCommitmentExpr_length, serializePublicInputExpr_length,
-    productionShape, productionProfile, Phi81MatrixSource.phi81Shape,
+    productionShape, productionProfile, RingMatrixSource.ringShape,
     List.finRange_succ]
 
 private theorem publicInputActions_recipeCount {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     Formal.recipeCount (publicInputActions interface offset) = 134808 := by
   unfold publicInputActions
@@ -507,42 +507,42 @@ private theorem publicInputActions_recipeCount {logicalWidth : Nat}
 
 def actions {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) : List Formal.Action :=
   publicInputActions interface offset
 
 theorem assertionCount_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     Formal.assertionCount (actions interface offset) = 0 := by
   rfl
 
 def program {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     Formal.Program :=
   Formal.compile offset Hash.zeroE (actions interface offset)
 
 def finalState {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     Layer.EState :=
   (program interface offset).output
 
 def finalStateFast {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (_interface : Interface logicalWidth publicFits) (offset : Nat) :
     Layer.EState :=
   Permutation.scheduleOutput (offset + 122 * 1096)
 
 theorem finalState_eq_finalStateFast_pointwise {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     finalState interface offset = finalStateFast interface offset := by
   have domainLength : (Hash.inputChunks
@@ -572,7 +572,7 @@ theorem finalState_eq_finalStateFast_pointwise {logicalWidth : Nat}
 
 def duplexInterface {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : Formal.Interface where
   initial := fun _ => Hash.zeroE
   actions := actions interface
@@ -580,14 +580,14 @@ def duplexInterface {logicalWidth : Nat}
 
 def Assumptions {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (_env : Env) : Prop :=
   Formal.ActionsBelow offset (actions interface offset)
 
 def SpecHolds {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (env : Env) : Prop :=
   Formal.TraceHolds
@@ -597,14 +597,14 @@ def SpecHolds {logicalWidth : Nat}
 
 def opsAt {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) : List Op :=
   [Op.witness (WitnessBatch.arithmetic offset
     (program interface offset).recipes)]
 
 def main {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : Circuit Unit :=
   fun offset =>
     ((), offset + (program interface offset).recipes.length,
@@ -612,14 +612,14 @@ def main {logicalWidth : Nat}
 
 @[simp] theorem main_ops {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     Circuit.ops (main interface) offset = opsAt interface offset := by
   rfl
 
 @[simp] theorem opsAt_localLength {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     localLength (opsAt interface offset) =
       (program interface offset).recipes.length := by
@@ -627,7 +627,7 @@ def main {logicalWidth : Nat}
 
 @[simp] theorem flatConstraints_opsAt {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     flatConstraints (opsAt interface offset) =
       recipeConstraints offset (program interface offset).recipes := by
@@ -635,7 +635,7 @@ def main {logicalWidth : Nat}
 
 private theorem program_assertions_eq_nil {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (program interface offset).assertions = [] := by
   apply List.eq_nil_of_length_eq_zero
@@ -645,7 +645,7 @@ private theorem program_assertions_eq_nil {logicalWidth : Nat}
 
 theorem build {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
@@ -675,7 +675,7 @@ theorem build {logicalWidth : Nat}
 
 def circuit {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : FormalCircuit where
   main := main interface
   assumptions := Assumptions interface
@@ -702,14 +702,14 @@ def circuit {logicalWidth : Nat}
 
 @[simp] theorem circuit_ops {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     Circuit.ops (circuit interface).main offset = opsAt interface offset := by
   rfl
 
 theorem soundness {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
@@ -719,7 +719,7 @@ theorem soundness {logicalWidth : Nat}
 
 theorem completeness {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
@@ -732,7 +732,7 @@ theorem completeness {logicalWidth : Nat}
 
 theorem specHolds_of_agree_below {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (before after : Env) (assumptions : Assumptions interface offset before)
     (agrees : ∀ index,
@@ -767,7 +767,7 @@ theorem specHolds_of_agree_below {logicalWidth : Nat}
 
 theorem flatConstraints_varsBelow {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ expression ∈ flatConstraints
@@ -786,27 +786,27 @@ theorem flatConstraints_varsBelow {logicalWidth : Nat}
 
 theorem actions_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (actions interface offset).length = 2 := by
   rfl
 
 def recipeCount {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) : Nat :=
   Formal.recipeCount (actions interface offset)
 
 theorem recipeCount_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     recipeCount interface offset = 134808 := by
   exact publicInputActions_recipeCount interface offset
 
 @[simp] theorem program_recipes_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (program interface offset).recipes.length = 134808 := by
   change (Formal.compile offset Hash.zeroE
@@ -816,7 +816,7 @@ theorem recipeCount_eq {logicalWidth : Nat}
 
 theorem localLength_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     localLength (Circuit.ops (circuit interface).main offset) = 134808 := by
   rw [circuit_ops, opsAt_localLength]
@@ -824,14 +824,14 @@ theorem localLength_eq {logicalWidth : Nat}
 
 theorem operations_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (Circuit.ops (circuit interface).main offset).length = 1 := by
   rfl
 
 theorem flatConstraints_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
       134808 := by
@@ -841,7 +841,7 @@ theorem flatConstraints_length {logicalWidth : Nat}
 theorem verifierClaimWords_eq_eval_K_append_eval_A
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     verifierClaimWords interface offset =
       ((canonicalPadCoordinates productionShape).flatMap fun coordinate =>
@@ -869,7 +869,7 @@ private theorem eval_zeroE_eq_initialState (env : Env) :
 theorem spec_implies_keyInitialState
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -926,14 +926,14 @@ then the prior digest and the fresh blocks. The bounded-depth scheme's light and
 their own domains (`BoundedDepth.foldDomainChunks_distinct`). -/
 def domainActions {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (domain : List F) (interface : Interface logicalWidth publicFits) (offset : Nat) :
     List Formal.Action :=
   [.absorb (constantWords domain), .absorb (publicInputBlocks interface offset).flatten]
 
 theorem publicInputActions_eq_domain {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     publicInputActions interface offset =
       domainActions NightstreamFPrime.Lifecycle.Transcript.foldDomainChunk interface offset :=
@@ -942,7 +942,7 @@ theorem publicInputActions_eq_domain {logicalWidth : Nat}
 /-- The fresh statement words evaluate to the fresh instance's public-input words. -/
 theorem publicInputWords_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
     Hash.evalList env (publicInputBlocks interface offset).flatten =
       (ProductionKey.publicInputBlocks (evalFresh (interface.fresh offset) env)).flatten := by
@@ -975,7 +975,7 @@ theorem wordsTrace_eq (domain : List F) (words : List Expr) (env : Env)
 after absorbing `domain` and then the fresh statement blocks (SuperNeo v1.2 Section 7.3). -/
 theorem domainTrace_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (domain : List F) (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) (final : NightstreamFPrime.Lifecycle.Transcript.State)
     (trace : Formal.TraceHolds (evalState env Hash.zeroE)

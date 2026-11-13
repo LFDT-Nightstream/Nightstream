@@ -7,7 +7,7 @@ row becomes one row of a `ProductionRelation.Plan` through `OrdinarySourcePlan`,
 these rows and the packed Poseidon2 blocks.
 
 The logical assignment's first `ringDegree * publicRingColumns` columns are the public input
-`x` (`Phi81Relation.projectPublicInput`), so column 0 is the `encHash` marker 1 and serves as the
+`x` (`RingRelation.projectPublicInput`), so column 0 is the `encHash` marker 1 and serves as the
 constant column. Four extra constraints read the output digest back from `x`
 (`decodeHashWord`, as `RecursivePublicOutputPlan`). -/
 
@@ -234,7 +234,7 @@ private theorem decodeFold_eval (env : Env) (word : Fin 4) :
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The public input that an environment's first columns carry. -/
 def publicInput (env : Env) :

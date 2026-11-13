@@ -21,7 +21,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle
 open NightstreamFPrime.Export.BoundedDepth.IvcWalk (WalkAttempt WalkSucceeds WalkExtracted)
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
 /-- On a deployed oracle, the random-oracle success event is the walk's success event. -/

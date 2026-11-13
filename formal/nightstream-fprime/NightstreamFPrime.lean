@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkLaw
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
@@ -16,7 +16,7 @@ import NightstreamFPrime.Layout
 import NightstreamFPrime.Export
 import NightstreamFPrime.Spec.Folding.Light.Bound
 import NightstreamFPrime.Spec.Folding.Light.Completeness
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.LightNorm
 import NightstreamFPrime.Spec.Folding.Light.Security
 import NightstreamFPrime.Spec.Folding.Light.Binding
 import NightstreamFPrime.Spec.Folding.Light.RunningBinding
@@ -142,4 +142,4 @@ import NightstreamFPrime.Export.BoundedDepth.NebulaCompleteness
 import NightstreamFPrime.Export.BoundedDepth.FinishRelation
 import NightstreamFPrime.Export.BoundedDepth.FinishCompleteness
 import NightstreamFPrime.Export.BoundedDepth.Parity
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ChainBinding

@@ -14,7 +14,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 theorem flatConstraints_varsSatisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) (offset : Nat) (allowed : Nat → Prop)
     (freshMatrixSupport : ∀ matrix,
@@ -39,7 +39,7 @@ theorem flatConstraints_varsSatisfy
 theorem output_varsSatisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) (offset : Nat) (allowed : Nat → Prop)
     (localSupport : ∀ index,

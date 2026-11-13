@@ -141,7 +141,7 @@ end Shape
 theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
     (coefficientExprs interface offset).length = 17 := by
   simp [coefficientExprs, canonicalFinIndices_length, productionShape,
-    productionProfile, Phi81MatrixSource.phi81Shape, Shape.sourceCount]
+    productionProfile, RingMatrixSource.ringShape, Shape.sourceCount]
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
     localLength (Circuit.ops (circuit interface).main offset) = 48 := by
@@ -180,7 +180,7 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
 theorem spec_implies_keyNormAtMessage
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

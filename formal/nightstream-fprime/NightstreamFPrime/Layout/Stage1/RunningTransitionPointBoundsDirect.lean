@@ -51,13 +51,13 @@ private def fixedLogicalWidth : Nat :=
   phaseOffset + RunningTransition.exactPrivateCount
 
 private theorem fixedPublicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth fixedLogicalWidth := by
+    RingCarrierLayout.carrierWidth fixedLogicalWidth := by
   apply Nat.le_trans (m := fixedLogicalWidth)
   · have phaseLower := piDecPhaseOffset_le
     rw [PiDECInputs.phaseOffset, PiDECInputs.proofInputColumnCount_eq] at phaseLower
     norm_num [fixedLogicalWidth, ringDegree, publicRingColumns]
     omega
-  · exact Phi81CarrierLayout.logicalWidth_le_carrierWidth fixedLogicalWidth
+  · exact RingCarrierLayout.logicalWidth_le_carrierWidth fixedLogicalWidth
 
 private theorem fixedLayoutSamplesConcrete :
     let parent := PiCCSInputs.interface
@@ -73,7 +73,7 @@ private theorem fixedLayoutSamplesConcrete :
 private theorem fixedLayoutSamples
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth} :
+      RingCarrierLayout.carrierWidth logicalWidth} :
     let parent := PiCCSInputs.interface logicalWidth publicFits
     let frozen := Formal.atOffset parent PiCCSInputs.phaseOffset
     let roundInterface := Formal.roundTranscriptInterface frozen
@@ -85,7 +85,7 @@ private theorem fixedLayoutSamples
 theorem recursivePoint_eq_direct
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (coordinate : Fin productionShape.cubeVariables) :
     (recursiveRunningExpr logicalWidth publicFits).point coordinate =
       directRoundPoint PiCCSStarts.roundTranscriptWitnessStart coordinate := by
@@ -113,7 +113,7 @@ theorem recursivePoint_eq_direct
 theorem recursivePointBelow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (_relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ∀ coordinate,
       ((recursiveRunningExpr logicalWidth publicFits).point coordinate
@@ -128,13 +128,13 @@ theorem recursivePointBelow
     PiDECInputs.proofInputColumnCount_eq, PiRLCStarts.finalBoundaries_eq.2] at phaseLower
   norm_num [roundStride, roundSampleC0Offset,
     roundSampleC1Offset, productionShape, cubeVariables,
-    Phi81MatrixSource.phi81Shape] at coordinateBound ⊢
+    RingMatrixSource.ringShape] at coordinateBound ⊢
   omega
 
 theorem recursivePointLinear
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (_relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ∀ coordinate,
       KExprLinear

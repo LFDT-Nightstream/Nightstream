@@ -100,7 +100,7 @@ theorem payloadLaneValue_absorb
         (PiCCSActionPayloadBlock.packageEnv program prefixAssignment) =
         (0 : F) := by
       apply Fin.ext
-      norm_num [Circuit.Expr.eval, goldilocksModulus]
+      norm_num [Circuit.Expr.eval, fieldModulus]
     rw [← evalZero]
     exact (List.getD_map (n := lane.val) block (0 : Circuit.Expr)
       (Circuit.Expr.eval

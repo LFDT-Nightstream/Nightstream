@@ -1,7 +1,7 @@
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkBinding
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.RelaxedBinding
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.RelaxedBinding
 
 set_option autoImplicit false
 
@@ -11,10 +11,10 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open _root_.NightstreamFPrime.Lifecycle.PaperAlgebra
-open _root_.NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra
+open _root_.NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
@@ -37,13 +37,13 @@ theorem differenceBounded (bound : Nat)
     (ProductionKey.key relation ajtai).piRlcSemantics.normBounded (2 * bound)
       ((PaperExtractionAlgebra.extractionAlgebra
         (logicalWidth := logicalWidth) (publicFits := publicFits) ajtai).assignmentModule.sub left right) := by
-  change Phi81Relation.assignmentNormBounded (shape := FullShape logicalWidth publicFits) (2 * bound)
+  change RingRelation.assignmentNormBounded (shape := FullShape logicalWidth publicFits) (2 * bound)
     ((PaperExtractionAlgebra.extractionAlgebra
       (logicalWidth := logicalWidth) (publicFits := publicFits) ajtai).assignmentModule.sub left right)
   rw [subtraction_eq (logicalWidth := logicalWidth) (publicFits := publicFits) ajtai left right]
-  have leftBound : Phi81Relation.assignmentNormBounded (shape := FullShape logicalWidth publicFits)
+  have leftBound : RingRelation.assignmentNormBounded (shape := FullShape logicalWidth publicFits)
       bound left := leftNorm
-  have rightBound : Phi81Relation.assignmentNormBounded (shape := FullShape logicalWidth publicFits)
+  have rightBound : RingRelation.assignmentNormBounded (shape := FullShape logicalWidth publicFits)
       bound right := rightNorm
   simpa only [two_mul] using Binding.difference_bounded (shape := FullShape logicalWidth publicFits)
     left right leftBound rightBound

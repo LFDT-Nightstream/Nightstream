@@ -18,7 +18,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 variable {relationLogicalWidth : Nat}
   {relationPublicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+    RingCarrierLayout.carrierWidth relationLogicalWidth}
 
 theorem prefixGeometry {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}

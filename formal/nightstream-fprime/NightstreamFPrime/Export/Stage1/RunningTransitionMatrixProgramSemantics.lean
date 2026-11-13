@@ -15,7 +15,7 @@ open RunningTransitionRetainedGeometry
 
 variable {relationLogicalWidth : Nat}
   {relationPublicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+    RingCarrierLayout.carrierWidth relationLogicalWidth}
 
 theorem rowSchedule_index?
     (relation : ProductionKey.LogicalRelation relationLogicalWidth

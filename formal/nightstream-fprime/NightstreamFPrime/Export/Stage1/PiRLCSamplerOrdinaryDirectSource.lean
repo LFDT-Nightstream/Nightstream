@@ -12,7 +12,7 @@ open NightstreamFPrime.Lifecycle.PiRLC.v1_2 NightstreamFPrime.Gadgets.Sampling
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 def sourceRows : List R1CS.Row :=
   (PiRLCSamplerOrdinaryRows.rows (logicalWidth := logicalWidth)

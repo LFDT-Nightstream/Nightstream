@@ -682,7 +682,7 @@ private theorem packetRowIndices (rowStart freshStart count : Nat)
 theorem arithmeticRows_rowIndices
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth logicalWidth}
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
       publicFits) :
     (PiCCSArithmetic.arithmeticRows logicalWidth publicFits).map
@@ -731,7 +731,7 @@ theorem arithmeticRows_rowIndices
 theorem rowSchedule_index?_eq_arithmeticRowIndex?
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth logicalWidth}
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
       publicFits)
     (ordinal : Nat) :
@@ -1286,7 +1286,7 @@ private theorem programRow_support
     {relationLogicalWidth : Nat}
     {relationPublicFits : Spec.ringDegree *
       Lifecycle.PaperAlgebra.publicRingColumns ≤
-        Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+        Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
           relationLogicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
@@ -1301,7 +1301,7 @@ theorem substitution_agrees_on_programRow
     {program : Program} {logicalWidth relationLogicalWidth : Nat}
     {relationPublicFits : Spec.ringDegree *
       Lifecycle.PaperAlgebra.publicRingColumns ≤
-        Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+        Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
           relationLogicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
@@ -1331,7 +1331,7 @@ theorem compile_programRow?
     {program : Program} {logicalWidth relationLogicalWidth : Nat}
     {relationPublicFits : Spec.ringDegree *
       Lifecycle.PaperAlgebra.publicRingColumns ≤
-        Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+        Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
           relationLogicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)

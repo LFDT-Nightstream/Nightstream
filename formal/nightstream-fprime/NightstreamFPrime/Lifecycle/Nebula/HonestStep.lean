@@ -14,7 +14,7 @@ namespace NightstreamFPrime.Lifecycle.Nebula.Honest
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
-open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
+open scoped NightstreamFPrime.Spec.FieldExtensionRing
 open Fin.CommRing
 
 variable {p : Geometry} {c : MemoryCarry} {σ : Type} {inv : Invocation σ Digest}
@@ -141,7 +141,7 @@ namespace NightstreamFPrime.Lifecycle.Nebula.MemoryApp
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
-open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
+open scoped NightstreamFPrime.Spec.FieldExtensionRing
 
 variable {p : Geometry} {app : PortApp p}
 

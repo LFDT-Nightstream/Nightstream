@@ -45,7 +45,7 @@ block's 1,080 dead locals are left out, because Rust leaves them 0. -/
 
 def sharedWord (column : Nat) : F :=
   if column = 0 then 1 else
-    Poseidon2.ofNat ((column * 6364136223846793005 + 1442695040888963407) % goldilocksModulus)
+    Poseidon2.ofNat ((column * 6364136223846793005 + 1442695040888963407) % fieldModulus)
 
 def runRecipes (values : Array F) (start : Nat) : List Expr → Array F
   | [] => values

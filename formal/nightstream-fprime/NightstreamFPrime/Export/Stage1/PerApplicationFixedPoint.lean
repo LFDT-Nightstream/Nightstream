@@ -15,18 +15,18 @@ def logicalWidth (application : Lifecycle.Stage1.Application.Program) : Nat :=
 
 theorem publicFits (application : Lifecycle.Stage1.Application.Program) :
     ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth (logicalWidth application) := by
+      RingCarrierLayout.carrierWidth (logicalWidth application) := by
   apply Nat.le_trans (m := logicalWidth application)
   · unfold logicalWidth
     rw [ApplicationRetainedGeometry.completeLogicalWidth_eq]
     norm_num [ringDegree, publicRingColumns]
     omega
-  · exact Phi81CarrierLayout.logicalWidth_le_carrierWidth _
+  · exact RingCarrierLayout.logicalWidth_le_carrierWidth _
 
 structure FitsTwoPow28
     (application : Lifecycle.Stage1.Application.Program) : Prop where
   package : PerApplicationPackage.FitsTwoPow28 application
-  carrier : Phi81CarrierLayout.carrierWidth (logicalWidth application) ≤
+  carrier : RingCarrierLayout.carrierWidth (logicalWidth application) ≤
     2 ^ Lifecycle.cubeVariables
 
 theorem fitsTwoPow28OfApplicationBounds
@@ -107,7 +107,7 @@ theorem jointDomain_le_twoPow28
     (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
     max (structuralPlan application fits).rowCount
-        (Phi81CarrierLayout.carrierWidth (logicalWidth application)) ≤
+        (RingCarrierLayout.carrierWidth (logicalWidth application)) ≤
       2 ^ Lifecycle.cubeVariables := by
   exact Nat.max_le.mpr
     ⟨structuralPlan_rowCount_le application fits, fits.carrier⟩

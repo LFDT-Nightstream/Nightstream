@@ -339,7 +339,7 @@ theorem productionPlan_wellFormed
 theorem productionRows_imply_typedTransition
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (program : Lifecycle.Stage1.Application.Program) (rowStart : Nat)
     (env : Env)
     (prior next : HashPreimage

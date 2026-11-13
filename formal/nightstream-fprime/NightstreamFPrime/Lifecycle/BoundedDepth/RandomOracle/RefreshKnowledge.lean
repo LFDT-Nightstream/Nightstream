@@ -35,16 +35,16 @@ attribute [local instance low] Classical.propDecidable
 and `(Q + 74) · 4589/q²` for the test step. -/
 noncomputable def statisticalError (queries : Nat) : ℝ :=
   17 * (((queries + 17 : Nat) : ℝ) * Fork.sampleError) +
-    ((queries + 74 : Nat) : ℝ) * ((4589 : ℝ) / (goldilocksModulus : ℝ) ^ 2)
+    ((queries + 74 : Nat) : ℝ) * ((4589 : ℝ) / (fieldModulus : ℝ) ^ 2)
 
 theorem statisticalError_eq {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+    {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
     (queries : Nat) :
     Uniqueness.statisticalError (RefreshSchedule.schedule logicalWidth publicFits) 8 queries =
       statisticalError queries := by
   have test : IndependentExecution.testError
       (RefreshSchedule.schedule logicalWidth publicFits).shape 8 =
-        (4589 : ℝ) / (goldilocksModulus : ℝ) ^ 2 :=
+        (4589 : ℝ) / (fieldModulus : ℝ) ^ 2 :=
     Nifs.VerifierErrorBudget.test_error_eq
   unfold Uniqueness.statisticalError statisticalError
   rw [test, RefreshTest.challenges_length]
@@ -58,24 +58,24 @@ theorem statisticalError_le (queries : Nat) :
     have distance := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt
     have count : (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.scalarCount : ℝ) = 5 ^ 54 := by
       norm_num [Spec.Folding.Nifs.NonInteractive.PiRlcSampler.scalarCount,
-        Phi81StrongSet.alphabetSize, Phi81StrongSet.coefficientCount]
+        RingStrongSet.alphabetSize, RingStrongSet.coefficientCount]
     unfold Fork.sampleError
     rw [count]
     linarith
-  have perQuery : 17 * Fork.sampleError + (4589 : ℝ) / (goldilocksModulus : ℝ) ^ 2 <
+  have perQuery : 17 * Fork.sampleError + (4589 : ℝ) / (fieldModulus : ℝ) ^ 2 <
       50 / (87 * 2 ^ 115) := by
     have numbers : (17 : ℝ) * (1 / 5 ^ 54 + 1 / 2 ^ 132) +
-        4589 / (goldilocksModulus : ℝ) ^ 2 < 50 / (87 * 2 ^ 115) := by
-      norm_num [goldilocksModulus]
+        4589 / (fieldModulus : ℝ) ^ 2 < 50 / (87 * 2 ^ 115) := by
+      norm_num [fieldModulus]
     linarith
   have sampleNonnegative := Fork.sampleError_nonnegative
-  have testNonnegative : (0 : ℝ) ≤ 4589 / (goldilocksModulus : ℝ) ^ 2 := by positivity
+  have testNonnegative : (0 : ℝ) ≤ 4589 / (fieldModulus : ℝ) ^ 2 := by positivity
   have queriesNonnegative : (0 : ℝ) ≤ queries := Nat.cast_nonneg queries
   unfold statisticalError
   push_cast
   calc
     _ ≤ ((queries : ℝ) + 74) *
-        (17 * Fork.sampleError + (4589 : ℝ) / (goldilocksModulus : ℝ) ^ 2) := by
+        (17 * Fork.sampleError + (4589 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
       nlinarith
     _ ≤ _ := mul_le_mul_of_nonneg_left perQuery.le (by positivity)
 
@@ -84,7 +84,7 @@ theorem statisticalError_two_pow_64 : statisticalError (2 ^ 64) < 1 / 2 ^ 51 := 
   norm_num
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (key : CircuitKey logicalWidth publicFits)
   (adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 8) Answer

@@ -213,7 +213,7 @@ theorem badAt_error [Fintype E] {k : Fin ctx.plan.sMax} {c : Coins} {e : Fin ctx
 /-- Every retry disagreement of segment `k` exhibits a collision among the
 chain inputs of two closing record sets for the same committed input. -/
 theorem disagreement_collision [IsDomain E] [Fintype E] [DecidableEq E]
-    [CharP E goldilocksModulus] (valid : ctx.plan.Valid) (k : Fin ctx.plan.sMax) (c : Coins)
+    [CharP E fieldModulus] (valid : ctx.plan.Valid) (k : Fin ctx.plan.sMax) (c : Coins)
     (e : Fin ctx.plan.sMax → E × E) :
     ∀ q ∈ disagreements (g.play ctx app k c e) (g.Unbalanced ctx k c e),
       ∃ z z', g.play ctx app k c e q.1 = some z ∧ g.play ctx app k c e q.2 = some z' ∧
@@ -229,7 +229,7 @@ private theorem card_filter_prod {α β : Type} [Fintype α] [Fintype β] (p : �
 
 /-- The fingerprint bound for segment slot `k` of the game, averaged over the
 prefix: `Pr[bad slot k] ≤ 2·m_mem/|E| + E[retry disagreement]`. -/
-theorem badAt_frequency [IsDomain E] [Fintype E] [DecidableEq E] [CharP E goldilocksModulus]
+theorem badAt_frequency [IsDomain E] [Fintype E] [DecidableEq E] [CharP E fieldModulus]
     [Fintype Coins] (valid : ctx.plan.Valid) (k : Fin ctx.plan.sMax) :
     freq (g.BadAt ctx app k) ≤
       2 * (ctx.plan.maxTuples : ℚ≥0) / Fintype.card E + g.retryTerm ctx app k := by

@@ -27,7 +27,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.LightStepLayout
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
   (program : Stage1.Application.Program)
   (interface : LightStepLayout.Interface logicalWidth publicFits program.witnessWordCount)
 
@@ -58,9 +58,9 @@ structure StepRepresents (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logical
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
     (proof : Spec.Folding.Light.Proof LightShape 8) (env : Env) : Prop where
   iteration : interface.iteration.eval env = natWord input.iteration
-  iterationBound : input.iteration < goldilocksModulus
+  iterationBound : input.iteration < fieldModulus
   priorPc : interface.priorPc.eval env = natWord input.priorPc
-  priorPcBound : input.priorPc < goldilocksModulus
+  priorPcBound : input.priorPc < fieldModulus
   verifierKeys : ∀ key,
     List.ofFn (fun lane => (interface.verifierKeys key lane).eval env) = (circuitKeys key).digest
   initialState : List.ofFn (fun lane => (interface.initialState lane).eval env) = input.z0

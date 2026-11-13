@@ -58,7 +58,7 @@ def carryWordsOf (segIdx idx ts : ℕ) (root : List F) : List F :=
 where only that field fails, and four statements with an integer at or above
 `q`. -/
 def cases (p : Plan) : List Case :=
-  let q := goldilocksModulus
+  let q := fieldModulus
   let root := initRootWords p
   let closed (segments : ℕ) : Case :=
     let ts := segments * p.n * p.bOps
@@ -90,7 +90,7 @@ def Case.json (p : Geometry) (c : Case) : String :=
   let finalApp : Fin 2 → F := fun i => [natWord c.final.1, natWord c.final.2].getD i 0
   let carry : Fin 39 → F := fun i => c.carry.getD i 0
   let canonical :=
-    [c.initial.1, c.initial.2, c.final.1, c.final.2, c.finalTs].all (· < goldilocksModulus)
+    [c.initial.1, c.initial.2, c.final.1, c.final.2, c.finalTs].all (· < fieldModulus)
   let checks := (decisions p carry c.steps c.segments c.finalTs (ofWords c.finalRoot)).map
     fun (name, holds) => "\"" ++ name ++ "\":" ++ toString holds
   "{\"name\":\"" ++ c.name ++ "\",\"statement\":{\"steps\":" ++ toString c.steps ++

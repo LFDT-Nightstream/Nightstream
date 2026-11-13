@@ -17,14 +17,14 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 def sourceRows
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
   Spartan.remapRows
     (RunningTransitionLayout.physicalRows logicalWidth publicFits)
 
 theorem sourceRows_length
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (sourceRows logicalWidth publicFits).length = 27800 := by
   rw [sourceRows, Spartan.remapRows, List.length_map,
@@ -34,7 +34,7 @@ theorem sourceRows_length
 theorem sourceRows_varsBelow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ∀ row ∈ sourceRows logicalWidth publicFits,
       row.VarsBelow Spartan.spartanColumnCount := by
@@ -49,7 +49,7 @@ theorem sourceRows_varsBelow
 theorem sourceRows_rowCount_le
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (sourceRows logicalWidth publicFits).length ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
@@ -59,7 +59,7 @@ theorem sourceRows_rowCount_le
 def program
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     OrdinarySourcePlan.Program Spartan.spartanColumnCount where
   rowCount := (sourceRows logicalWidth publicFits).length
@@ -71,7 +71,7 @@ def program
 @[simp] theorem program_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (program relation).rowCount = 27800 := by
   exact sourceRows_length relation
@@ -79,7 +79,7 @@ def program
 theorem program_eq_of_same_shape
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (left right : ProductionKey.LogicalRelation logicalWidth publicFits) :
     program left = program right := by
   rfl
@@ -87,7 +87,7 @@ theorem program_eq_of_same_shape
 theorem sourceRows_eq_canonicalRows
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth} :
+      RingCarrierLayout.carrierWidth logicalWidth} :
     sourceRows logicalWidth publicFits =
       (RunningTransitionArithmetic.canonicalPlan logicalWidth publicFits).rows.map
         Rows.CompiledRow.toR1CS := by
@@ -103,7 +103,7 @@ theorem sourceRows_eq_canonicalRows
 theorem program_holds_iff_rowsHold
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :
     (program relation).Holds env ↔
@@ -120,7 +120,7 @@ theorem program_holds_iff_rowsHold
 theorem program_holds_iff_physical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :
     (program relation).Holds env ↔

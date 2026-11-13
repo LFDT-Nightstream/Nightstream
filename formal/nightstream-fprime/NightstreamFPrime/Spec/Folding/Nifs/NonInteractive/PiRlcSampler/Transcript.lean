@@ -1,11 +1,11 @@
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Definition
-import NightstreamFPrime.Spec.Phi81StrongSet
+import NightstreamFPrime.Spec.RingStrongSet
 import NightstreamFPrime.Spec.Poseidon2
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript
 
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.Phi81StrongSet
+open NightstreamFPrime.Spec.RingStrongSet
 
 def enter (state : Poseidon2.State) (coordinate : Nat) : Poseidon2.State :=
   Poseidon2.absorbBlock state [Poseidon2.ofNat 4, Poseidon2.ofNat coordinate]
@@ -27,10 +27,10 @@ def scalarAt (initial : Poseidon2.State) (coordinate : Nat) : Scalar :=
   sample (drawAt initial coordinate)
 
 def challengeAt (initial : Poseidon2.State) (coordinate : Nat) : RingF :=
-  Phi81StrongSet.embedScalar (scalarAt initial coordinate)
+  RingStrongSet.embedScalar (scalarAt initial coordinate)
 
 theorem challengeAt_member (initial : Poseidon2.State) (coordinate : Nat) :
-    Phi81StrongSet.ProductionMember (challengeAt initial coordinate) :=
+    RingStrongSet.ProductionMember (challengeAt initial coordinate) :=
   ⟨scalarAt initial coordinate, rfl⟩
 
 @[simp] theorem stateAt_zero (initial : Poseidon2.State) : stateAt initial 0 = initial := rfl

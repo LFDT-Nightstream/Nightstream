@@ -28,8 +28,8 @@ abbrev FitsTwoPow28 (program : Program) :=
 
 abbrev CommitmentSetup (program : Program) :=
   AjtaiSetupV1.Setup productionProfile.commitmentWidth
-    (Phi81ColumnLayout.blockCount
-      (Phi81CarrierLayout.carrierWidth
+    (ConcreteRingColumnLayout.blockCount
+      (RingCarrierLayout.carrierWidth
         (PerApplicationFixedPoint.logicalWidth program)))
 
 def commitmentKey {program : Program} (setup : CommitmentSetup program) :

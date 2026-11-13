@@ -24,7 +24,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.LightStepLayout
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
   (program : Stage1.Application.Program) (circuit : Fin 2)
   (interface : LightStepLayout.Interface logicalWidth publicFits program.witnessWordCount)
   (offset : Nat)

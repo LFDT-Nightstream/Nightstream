@@ -260,7 +260,7 @@ def firstSource (source : Nat) : Bool := source == 0
 def productionSharedInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} : Formal.Interface logicalWidth publicFits :=
   Formal.atOffset
     (PiRLCInputs.interface (logicalWidth := logicalWidth)
@@ -269,7 +269,7 @@ def productionSharedInterface
 def productionCommitmentFamilyInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} :
     CombinationFamily.Interface CommitmentCombination.blockCount
       CommitmentCombination.cellCount :=
@@ -281,7 +281,7 @@ def productionCommitmentFamilyInterface
 def productionPublicInputFamilyInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} :
     CombinationFamily.Interface PublicInputCombination.blockCount
       PublicInputCombination.cellCount :=
@@ -293,7 +293,7 @@ def productionPublicInputFamilyInterface
 def productionEvalKFamilyInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} :
     CombinationFamily.Interface EvalKCombination.blockCount
       RingKCombination.cellCount :=
@@ -306,7 +306,7 @@ def productionEvalKFamilyInterface
 def productionEvalAFamilyInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} :
     CombinationFamily.Interface EvalACombination.blockCount
       RingKCombination.cellCount :=
@@ -332,7 +332,7 @@ def sourceValue (valueStride source block cell : Nat)
 theorem productionCommitmentValue_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount)
     (block : Fin CommitmentCombination.blockCount)
@@ -375,7 +375,7 @@ theorem productionCommitmentValue_eq
 theorem productionPublicInputValue_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount)
     (block : Fin PublicInputCombination.blockCount)
@@ -418,7 +418,7 @@ theorem productionPublicInputValue_eq
 theorem productionEvalKValue_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount)
     (block : Fin EvalKCombination.blockCount)
@@ -438,7 +438,7 @@ theorem productionEvalKValue_eq
 theorem productionEvalAValue_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount)
     (block : Fin EvalACombination.blockCount)
@@ -580,7 +580,7 @@ theorem sourceConstraint_eq_stepAssertion
 theorem commitmentSourceConstraint_eq_stepAssertion
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount)
     (block : Fin CommitmentCombination.blockCount)
@@ -620,7 +620,7 @@ theorem commitmentSourceConstraint_eq_stepAssertion
 theorem publicInputSourceConstraint_eq_stepAssertion
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount)
     (block : Fin PublicInputCombination.blockCount)
@@ -660,7 +660,7 @@ theorem publicInputSourceConstraint_eq_stepAssertion
 theorem evalKSourceConstraint_eq_stepAssertion
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount)
     (block : Fin EvalKCombination.blockCount)
@@ -697,7 +697,7 @@ theorem evalKSourceConstraint_eq_stepAssertion
 theorem evalASourceConstraint_eq_stepAssertion
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount)
     (block : Fin EvalACombination.blockCount)

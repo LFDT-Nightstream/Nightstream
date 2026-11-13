@@ -14,7 +14,7 @@ namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
-open NightstreamFPrime.Spec.Phi81StrongSet
+open NightstreamFPrime.Spec.RingStrongSet
 open Finset
 
 theorem drawIndex_fiber_card (value : Fin drawCount) :

@@ -92,9 +92,9 @@ private def challengeCoefficients (initial : State) (coordinate : Nat) : Array F
       (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.block entered))
   let digits := Array.ofFn (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.scalarIndex.symm reduced)
   Array.ofFn fun position : Fin ringDegree =>
-    Phi81StrongSet.embedCoefficient (digits[(Phi81StrongSet.scalarPosition position).val]'(by
+    RingStrongSet.embedCoefficient (digits[(RingStrongSet.scalarPosition position).val]'(by
       simp only [digits, Array.size_ofFn]
-      exact (Phi81StrongSet.scalarPosition position).isLt))
+      exact (RingStrongSet.scalarPosition position).isLt))
 
 def piRlcChallengesWithState (initial : State) (count : Nat) : Batch count :=
   let values := Array.ofFn fun index : Fin count => challengeCoefficients initial index.val
@@ -118,7 +118,7 @@ theorem piRlcChallengesWithState_finalState (initial : State) (count : Nat) :
     (piRlcChallengesWithState initial count).finalState = Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.stateAt initial count := rfl
 
 theorem piRlcChallenges_member (initial : State) (count : Nat) (index : Fin count) :
-    Phi81StrongSet.ProductionMember (piRlcChallenges initial count index) := by
+    RingStrongSet.ProductionMember (piRlcChallenges initial count index) := by
   rw [piRlcChallenges, piRlcChallengesWithState_challenges]
   exact Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.challengeAt_member initial index.val
 

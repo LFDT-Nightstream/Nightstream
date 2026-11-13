@@ -71,7 +71,7 @@ theorem appendPrefix {initial : Env} {base : Nat} (before : Sequence.Prefix init
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
   (program : Stage1.Application.Program) (circuit : Fin 2)
   (interface : RefreshStepLayout.Interface logicalWidth publicFits program.witnessWordCount)
   (offset : Nat)

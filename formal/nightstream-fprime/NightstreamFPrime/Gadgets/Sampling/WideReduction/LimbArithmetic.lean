@@ -65,9 +65,9 @@ theorem accumulator_bound (draw : Draw) (position : Nat) : accumulator draw posi
   omega
 
 theorem accumulator_times_five_lt_field (draw : Draw) (position : Nat) :
-    5 * accumulator draw position < goldilocksModulus := by
+    5 * accumulator draw position < fieldModulus := by
   have bound := accumulator_bound draw position
-  norm_num [goldilocksModulus] at bound ⊢
+  norm_num [fieldModulus] at bound ⊢
   omega
 
 def lowValue (draw : Draw) (count : Nat) : Nat :=
@@ -104,10 +104,10 @@ private theorem weighted_matrix (words : Fin 4 → Fin 4 → Nat) :
       (∑ lane : Fin 4, ∑ word : Fin 4,
         if word.val ≤ position then
           HintProgram.coefficient lane.val (position - word.val) * words lane word else 0)) =
-      ∑ lane : Fin 4, goldilocksModulus ^ lane.val *
+      ∑ lane : Fin 4, fieldModulus ^ lane.val *
         (∑ word : Fin 4, base ^ word.val * words lane word) := by
   norm_num [sum_range_succ, Fin.sum_univ_four, HintProgram.coefficient,
-    HintProgram.limbBits, base, goldilocksModulus]
+    HintProgram.limbBits, base, fieldModulus]
   ring
 
 theorem coefficient_sum (draw : Draw) :

@@ -46,10 +46,10 @@ theorem laneWord_lt (lanes : List UInt64) (lane : Nat) : laneWord lanes lane < 2
   omega
 
 def wideCoefficientNat (seed : List Nat) (row block lane : Nat) : Nat :=
-  laneWord (elementLanes seed row block) lane % goldilocksModulus
+  laneWord (elementLanes seed row block) lane % fieldModulus
 
 theorem wideCoefficientNat_lt (seed : List Nat) (row block lane : Nat) :
-    wideCoefficientNat seed row block lane < goldilocksModulus := by
+    wideCoefficientNat seed row block lane < fieldModulus := by
   exact Nat.mod_lt _ (by decide)
 
 structure Setup (_verifierRows _messageColumns : Nat) where
@@ -67,7 +67,7 @@ theorem coefficientNat_lt {verifierRows messageColumns : Nat}
     (setup : Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns)
     (lane : Fin ringDegree) :
-    setup.coefficientNat row block lane < goldilocksModulus := by
+    setup.coefficientNat row block lane < fieldModulus := by
   exact wideCoefficientNat_lt _ _ _ _
 
 def verifierKey {verifierRows messageColumns : Nat}

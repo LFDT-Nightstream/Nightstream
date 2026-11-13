@@ -22,7 +22,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The value of four digest words. -/
 def digestValue (digest : Fin 4 → Expr) (env : Env) : Digest :=

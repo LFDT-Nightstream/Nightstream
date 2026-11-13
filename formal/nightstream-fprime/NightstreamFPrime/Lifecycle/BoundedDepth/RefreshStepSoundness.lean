@@ -23,7 +23,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepLayout
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
   (program : Stage1.Application.Program)
   (interface : RefreshStepLayout.Interface logicalWidth publicFits program.witnessWordCount)
 
@@ -54,9 +54,9 @@ structure StepRepresents (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logical
     (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8) (env : Env) :
     Prop where
   iteration : interface.iteration.eval env = natWord input.iteration
-  iterationBound : input.iteration < goldilocksModulus
+  iterationBound : input.iteration < fieldModulus
   priorPc : interface.priorPc.eval env = natWord input.priorPc
-  priorPcBound : input.priorPc < goldilocksModulus
+  priorPcBound : input.priorPc < fieldModulus
   verifierKeys : ∀ key,
     List.ofFn (fun lane => (interface.verifierKeys key lane).eval env) = (circuitKeys key).digest
   initialState : List.ofFn (fun lane => (interface.initialState lane).eval env) = input.z0
@@ -65,7 +65,7 @@ structure StepRepresents (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logical
   witness : List.ofFn (fun index => (interface.witness index).eval env) = input.witness
   priorSlots : ∀ slot,
     Hash.evalList env (interface.prior slot).words = serializeSlot (input.running slot)
-  priorDepth : ∀ slot, (input.running slot).2 < goldilocksModulus
+  priorDepth : ∀ slot, (input.running slot).2 < fieldModulus
   pcNext : output.pcNext = circuit
   outputDigest : output.x = List.ofFn (fun lane => (interface.outputDigest lane).eval env)
   fresh : StatementAbsorption.evalFresh interface.fresh env = input.fresh

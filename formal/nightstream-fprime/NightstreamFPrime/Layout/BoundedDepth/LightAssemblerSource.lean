@@ -24,7 +24,7 @@ open NightstreamFPrime.Layout.BoundedDepth.LightAssembler
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- `index` modulo `count`, as an index below `count`. -/
 def finAt (count : Nat) (positive : 0 < count) (index : Nat) : Fin count :=
@@ -120,7 +120,7 @@ def outputColumn (output : FullOutputCoordinates.FullOutput K LightShape) (word 
 /-- One value for each group of shared words. -/
 structure Values (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   counters : List F
   keys : Fin 2 → List F
   states : Fin 3 → List F
@@ -352,7 +352,7 @@ private theorem fixedPolynomial_ext {left right : SumCheck.Finite.FixedPolynomia
 /-- The words of a slot placed at `start` carry the slot whose columns `env` holds. -/
 theorem slot_value (start : Nat) (data : SlotData logicalWidth publicFits)
     (columns : ∀ word, word < slotWordCount → env (start + word) = slotColumn data word)
-    (depth : data.2 < goldilocksModulus) :
+    (depth : data.2 < fieldModulus) :
     (slotAt start).value env = data := by
   obtain ⟨⟨commitment, publicInput, point, evaluations⟩, depthValue⟩ := data
   simp only [slotWordCount] at columns
@@ -466,7 +466,7 @@ theorem slot_value (start : Nat) (data : SlotData logicalWidth publicFits)
 /-- A slot's words evaluate to the slot's serialization. -/
 theorem slot_words (start : Nat) (data : SlotData logicalWidth publicFits)
     (columns : ∀ word, word < slotWordCount → env (start + word) = slotColumn data word)
-    (depth : data.2 < goldilocksModulus) :
+    (depth : data.2 < fieldModulus) :
     Hash.evalList env (slotAt (logicalWidth := logicalWidth) (publicFits := publicFits) start).words =
       serializeSlot data := by
   rw [SlotExpr.words_eval, slot_value env start data columns depth]
@@ -747,7 +747,7 @@ theorem target_digestSelect (word : Nat) (bound : word < 16) :
 /-- The words of slot group `slot` carry the honest slot of that group. -/
 theorem target_slot_words (slot : Fin 7)
     (depth : ((honestValues circuitKeys input output proof selected folded).slots slot).2 <
-      goldilocksModulus) :
+      fieldModulus) :
     Hash.evalList target (slotAt (logicalWidth := logicalWidth) (publicFits := publicFits)
         (slotsStart base witnessWordCount + slot.val * slotWordCount)).words =
       serializeSlot ((honestValues circuitKeys input output proof selected folded).slots slot) :=
@@ -756,7 +756,7 @@ theorem target_slot_words (slot : Fin 7)
 
 theorem target_slot_value (slot : Fin 7)
     (depth : ((honestValues circuitKeys input output proof selected folded).slots slot).2 <
-      goldilocksModulus) :
+      fieldModulus) :
     (slotAt (logicalWidth := logicalWidth) (publicFits := publicFits)
         (slotsStart base witnessWordCount + slot.val * slotWordCount)).value target =
       (honestValues circuitKeys input output proof selected folded).slots slot :=
@@ -793,9 +793,9 @@ theorem stepRepresents (program : Stage1.Application.Program)
     (agree : ∀ column, column < sharedEnd base program.witnessWordCount →
       target column = honestEnv circuitKeys input output proof selected folded base
         program.witnessWordCount column)
-    (iterationBound : input.iteration < goldilocksModulus)
-    (priorPcBound : input.priorPc < goldilocksModulus)
-    (priorDepth : ∀ slot, (input.running slot).2 < goldilocksModulus)
+    (iterationBound : input.iteration < fieldModulus)
+    (priorPcBound : input.priorPc < fieldModulus)
+    (priorDepth : ∀ slot, (input.running slot).2 < fieldModulus)
     (keyLength : ∀ key, (circuitKeys key).digest.length = 4)
     (z0Length : input.z0.length = 4) (ziLength : input.zi.length = 4)
     (zNextLength : output.zNext.length = 4)

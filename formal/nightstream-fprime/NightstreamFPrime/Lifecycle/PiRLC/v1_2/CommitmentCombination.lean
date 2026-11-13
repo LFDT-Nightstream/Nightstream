@@ -1,6 +1,6 @@
 import Mathlib.Tactic.NormNum.Basic
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Commitment
 
 /-!
 Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1, equation
@@ -11,7 +11,7 @@ namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.CommitmentCombination
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
-open NightstreamFPrime.Spec.Phi81Relation
+open NightstreamFPrime.Spec.RingRelation
 
 def blockCount : Nat := productionProfile.commitmentWidth
 abbrev cellCount : Nat := 1

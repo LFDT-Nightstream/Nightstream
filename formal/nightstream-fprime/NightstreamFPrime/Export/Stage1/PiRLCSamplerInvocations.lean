@@ -18,7 +18,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 def phase : Nat := 7
 def sourceCount : Nat := 17

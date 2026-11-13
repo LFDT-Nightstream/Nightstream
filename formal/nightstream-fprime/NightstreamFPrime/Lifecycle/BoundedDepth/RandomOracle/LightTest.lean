@@ -35,12 +35,12 @@ theorem lightShape_eq : LightShape = Light.ErrorBudget.shape 28 :=
 
 /-- SuperNeo v1.2 Appendix B.2, equation (14), at the light shape: 524 over `q²`. -/
 theorem testError_eq :
-    IndependentExecution.testError LightShape 8 = (524 : ℝ) / (goldilocksModulus : ℝ) ^ 2 := by
+    IndependentExecution.testError LightShape 8 = (524 : ℝ) / (fieldModulus : ℝ) ^ 2 := by
   rw [lightShape_eq]
   exact Light.ErrorBudget.production_testError
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 theorem challenges_length :
     (Test.challenges (LightSchedule.schedule logicalWidth publicFits)).length = 58 := by
@@ -51,7 +51,7 @@ variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (running : Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment
     (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) LightShape)
-  (witness : OutputWitness LightShape (Phi81CarrierLayout.carrierWidth logicalWidth))
+  (witness : OutputWitness LightShape (RingCarrierLayout.carrierWidth logicalWidth))
 
 local notation "Width" => ProductionKey.degreeBound relation
 local notation "LightStatement" =>
@@ -112,7 +112,7 @@ theorem test_error_le {Output : Type}
     (fresh : Output → LightStatement) (proof : Output → Light.Proof LightShape Width) :
     𝔼 oracle, (if FalseAcceptance relation ajtai running witness oracle
         (fresh (adversary.run oracle)) (proof (adversary.run oracle)) then (1 : ℝ) else 0) ≤
-      (queries + 1) * ((524 : ℝ) / (goldilocksModulus : ℝ) ^ 2) := by
+      (queries + 1) * ((524 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
   refine (Test.test_error_le (source relation ajtai running witness)
     (source_degreeCovers relation ajtai running witness) adversary bounded fresh
     (fun output => LightSchedule.messages (proof output))

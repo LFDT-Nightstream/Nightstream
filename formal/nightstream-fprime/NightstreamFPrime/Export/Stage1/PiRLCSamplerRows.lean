@@ -14,7 +14,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 def sharedInterface :
     NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Interface

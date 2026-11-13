@@ -34,7 +34,7 @@ def zeroProof : Light.Proof LightShape 8 where
     matrixCoordinate := fun _ _ _ => K.zero }
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
 /-- The default fresh instance of the base step: zero commitment and public input `encHash

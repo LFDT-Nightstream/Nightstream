@@ -11,7 +11,7 @@ open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 open RunningTransitionInputs
 
 def InRange (start count column : Nat) : Prop :=

@@ -14,7 +14,7 @@ import NightstreamFPrime.Layout.PiRLC.v1_2.PacketProjection
 import NightstreamFPrime.Layout.PiRLC.v1_2.SamplerSegments
 import NightstreamFPrime.Layout.R1CS.Segments
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
-import NightstreamFPrime.Spec.Phi81StrongSet
+import NightstreamFPrime.Spec.RingStrongSet
 import NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePrefixPlan
 import NightstreamFPrime.Export.MatrixProgram.Program
 import NightstreamFPrime.Export.SharedFormulas
@@ -26,13 +26,13 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.CcsTerminal
 import NightstreamFPrime.Lifecycle.Stage1.Terminal
 import NightstreamFPrime.Lifecycle.Stage1.VerificationKey
 import NightstreamFPrime.Spec
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan.outputFinalState_endpoint_of_shape
 
-#audit_axioms NightstreamFPrime.Spec.Phi81StrongSet.productionSet_strong
+#audit_axioms NightstreamFPrime.Spec.RingStrongSet.productionSet_strong
 #audit_axioms NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction.completeFork_implies_correctedAmbientHolds
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset_eq
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.logicalPrivateCount_eq

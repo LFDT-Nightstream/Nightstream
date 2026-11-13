@@ -12,7 +12,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 private theorem productionCubeVariables_positive :
     0 < productionShape.cubeVariables := by
-  norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+  norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 private theorem coefficientExprs_supported (interface : Interface)
     (offset : Nat) (allowed : Nat → Prop)

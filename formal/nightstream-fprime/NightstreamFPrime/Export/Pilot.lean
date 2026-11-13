@@ -1234,7 +1234,7 @@ theorem canonicalPackage_implies_spec (env : Env)
 theorem hashFacts_imply_recursive_hash_slots
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * PaperAlgebra.publicRingColumns <=
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey
@@ -1288,7 +1288,7 @@ theorem hashFacts_imply_recursive_hash_slots
 theorem canonicalPackage_implies_recursive_hash_slots
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * PaperAlgebra.publicRingColumns <=
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey

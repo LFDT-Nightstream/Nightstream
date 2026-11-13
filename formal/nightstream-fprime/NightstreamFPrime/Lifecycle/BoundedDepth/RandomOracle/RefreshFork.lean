@@ -1,7 +1,7 @@
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshTest
 import NightstreamFPrime.Spec.Folding.PiRLC.NormFreeFork
-import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
+import NightstreamFPrime.Spec.RingStrongSet.LowNormInvertibility
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 
 /-! The refresh fold's fork step in the random-oracle model: `Fork` on the refresh schedule,
@@ -49,7 +49,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink (Attempt Fol
 attribute [local instance low] Classical.propDecidable
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 section Types
 
@@ -60,8 +60,8 @@ abbrev Oracle := Point (RefreshSchedule.schedule logicalWidth publicFits) 8 → 
 abbrev Accumulator :=
   Refresh.Accumulator PaperAlgebra.Commitment
     (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
-    productionShape (Phi81CarrierLayout.carrierWidth logicalWidth)
-    (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
+    productionShape (RingCarrierLayout.carrierWidth logicalWidth)
+    (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth))
 
 end Types
 
@@ -71,10 +71,10 @@ abbrev RefreshProof := Refresh.Proof PaperAlgebra.Commitment productionShape 8
 the refresh game's fold verifiers, so the value does not matter. -/
 def placeholder : RefreshProof :=
   let family : EvaluationFamily K productionShape := ⟨fun _ => K.zero, fun _ _ => K.zero⟩
-  ⟨⟨fun _ => Phi81Relation.PiRLCAlgebra.Commitment.commitmentZero, fun _ => family⟩,
+  ⟨⟨fun _ => RingRelation.PiRLCAlgebra.Commitment.commitmentZero, fun _ => family⟩,
     ⟨fun _ => ⟨List.replicate (8 + 1) K.zero, by simp⟩,
       ⟨fun _ _ => K.zero, fun _ _ _ => K.zero⟩,
-      fun _ => Phi81Relation.PiRLCAlgebra.Commitment.commitmentZero, fun _ => family⟩⟩
+      fun _ => RingRelation.PiRLCAlgebra.Commitment.commitmentZero, fun _ => family⟩⟩
 
 def proofOf : StepProof → RefreshProof
   | .refresh proof => proof
@@ -357,13 +357,13 @@ noncomputable def fork (succeeds : Fork.Succeeds (game ajtai key) adversary orac
 
 /-- SuperNeo v1.2 Lemma 8's strong set for the production refresh key. -/
 noncomputable abbrev strongSet :=
-  Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits Phi81StrongSet.lowNormInvertibility
+  RingRelation.PiRLCAlgebra.ForkStrongSet.strongSetUnits RingStrongSet.lowNormInvertibility
 
 /-- The Π_CCS output witness that the fork extracts (`Refresh.forkWitness` on the oracle
 probe). -/
 noncomputable def extractedWitness (succeeds : Fork.Succeeds (game ajtai key) adversary oracle)
     (valid : ∀ index, Fork.ForkValid (game ajtai key) adversary oracle retries index) :
-    OutputWitness productionShape (Phi81CarrierLayout.carrierWidth logicalWidth) :=
+    OutputWitness productionShape (RingCarrierLayout.carrierWidth logicalWidth) :=
   Nifs.PaperStrongInterface.outputWitnessOfAssignments (refreshKey key.relation ajtai)
     fun coordinate => extractedAssignment
       (normFreeLaws (PaperExtractionAlgebra.extractionAlgebra ajtai)) strongSet

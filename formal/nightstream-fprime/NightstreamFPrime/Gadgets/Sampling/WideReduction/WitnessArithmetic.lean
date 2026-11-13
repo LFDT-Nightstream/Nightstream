@@ -18,7 +18,7 @@ theorem accumulator_lt (carry limb : Nat) (hc : carry < 5) (hl : limb < radix) :
   omega
 
 theorem accumulator_lt_field (carry limb : Nat) (hc : carry < 5) (hl : limb < radix) :
-    carry * radix + limb < goldilocksModulus :=
+    carry * radix + limb < fieldModulus :=
   lt_trans (accumulator_lt carry limb hc hl) (by decide)
 
 theorem quotient_lt (carry limb : Nat) (hc : carry < 5) (hl : limb < radix) :
@@ -27,13 +27,13 @@ theorem quotient_lt (carry limb : Nat) (hc : carry < 5) (hl : limb < radix) :
   omega
 
 theorem quotient_hint (env : Env) (source : Expr) (integer : Nat)
-    (bound : integer < goldilocksModulus) (meaning : source.eval env = fieldOfNat integer) :
+    (bound : integer < fieldModulus) (meaning : source.eval env = fieldOfNat integer) :
     Hint.eval env (.quotientFive source) = fieldOfNat (integer / 5) := by
   simp only [Hint.eval, meaning, fieldOfNat, Nat.mod_eq_of_lt bound]
   rfl
 
 theorem remainder_hint (env : Env) (source : Expr) (integer : Nat)
-    (bound : integer < goldilocksModulus) (meaning : source.eval env = fieldOfNat integer) :
+    (bound : integer < fieldModulus) (meaning : source.eval env = fieldOfNat integer) :
     Hint.eval env (.remainderFive source) = fieldOfNat (integer % 5) := by
   simp only [Hint.eval, meaning, fieldOfNat, Nat.mod_eq_of_lt bound]
   rfl

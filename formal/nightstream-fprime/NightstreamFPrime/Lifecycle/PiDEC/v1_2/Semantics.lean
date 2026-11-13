@@ -8,7 +8,7 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 private theorem evaluation_ext (left right : PaperAlgebra.Evaluation)
     (pad : left.pad = right.pad)
@@ -20,7 +20,7 @@ private theorem evaluation_ext (left right : PaperAlgebra.Evaluation)
 private theorem output_ext
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (left right : OutputBinding.Output logicalWidth publicFits)
     (constraintSystem : left.constraintSystem = right.constraintSystem)
     (commitment : left.commitment = right.commitment)
@@ -44,7 +44,7 @@ private theorem childMessage_ext
 private theorem attempt_ext
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (left right : InputBinding.Attempt logicalWidth publicFits)
     (parent : left.parent = right.parent)
     (messages : left.messages = right.messages) : left = right := by
@@ -61,7 +61,7 @@ private theorem point_ext (left right : PaperAlgebra.Point)
 def inputAttempt
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits)
     (offset : Nat) (env : Env) : InputBinding.Attempt logicalWidth publicFits :=
@@ -72,7 +72,7 @@ def inputAttempt
 def output
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits)
     (offset : Nat) (env : Env) :
@@ -84,7 +84,7 @@ def output
 theorem output_eq_of_components
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits)
     (offset : Nat) (left right : Env)
@@ -120,7 +120,7 @@ theorem output_eq_of_components
 theorem output_eq_of_cross_components
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (leftInterface rightInterface : Formal.Interface logicalWidth publicFits)
     (leftOffset rightOffset : Nat) (left right : Env)
@@ -157,7 +157,7 @@ theorem output_eq_of_cross_components
 abbrev PhaseHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -173,7 +173,7 @@ abbrev PhaseHolds
 theorem phaseHolds_of_parent_output_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -197,7 +197,7 @@ theorem phaseHolds_of_parent_output_eq
 theorem phaseHolds_of_cross_parent_output_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -221,7 +221,7 @@ theorem phaseHolds_of_cross_parent_output_eq
 private theorem evaluationFamily_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits)
     (offset : Nat) (env : Env)
@@ -250,7 +250,7 @@ private theorem evaluationFamily_eq
 theorem accepted
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -301,7 +301,7 @@ theorem accepted
 private theorem attemptForOutput_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits)
     (offset : Nat) (env : Env) :
@@ -314,7 +314,7 @@ private theorem attemptForOutput_eq
 private theorem outputComputed
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -347,7 +347,7 @@ private theorem outputComputed
 theorem spec_implies_phaseHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -364,7 +364,7 @@ theorem spec_implies_phaseHolds
 private theorem phaseChecksAtInput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -382,7 +382,7 @@ private theorem phaseChecksAtInput
 private theorem phaseEvaluationFamily_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -407,7 +407,7 @@ private theorem phaseEvaluationFamily_eq
 theorem phaseHolds_implies_spec
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -434,7 +434,7 @@ theorem phaseHolds_implies_spec
         simpa [PaperAlgebra.evaluationArity] using!
           checks.messageEvaluationSize child }
   · have bounded :
-        NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PublicInput.parentBounded
+        NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.PublicInput.parentBounded
         (PublicInputSplit.evalParent
           (Formal.publicInputInterface shared)
           (Formal.publicInputOffset offset) env) := by
@@ -447,7 +447,7 @@ theorem phaseHolds_implies_spec
     have children : PublicInputSplit.evalChildren
           (Formal.publicInputInterface shared)
           (Formal.publicInputOffset offset) env =
-        NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PublicInput.splitPublicInput
+        NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.PublicInput.splitPublicInput
           (PublicInputSplit.evalParent
             (Formal.publicInputInterface shared)
             (Formal.publicInputOffset offset) env) := by
@@ -462,7 +462,7 @@ theorem phaseHolds_implies_spec
         Formal.outputBindingOffset, PublicInputSplit.evalParent,
         PublicInputSplit.evalChildren, OutputBinding.evalOutput,
         PaperAlgebra.publicInputSplit,
-        NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PublicInput.splitPublicInput] using value
+        NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.PublicInput.splitPublicInput] using value
     exact PublicInputSplit.relationHolds_of_parentBounded_children_eq
       (Formal.publicInputInterface shared) (Formal.publicInputOffset offset)
       env bounded children
@@ -497,7 +497,7 @@ theorem phaseHolds_implies_spec
 private theorem parentEvaluation_eq_of_agree
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {interface : Formal.Interface logicalWidth publicFits}
     {offset : Nat} {env : Env}
@@ -519,7 +519,7 @@ private theorem parentEvaluation_eq_of_agree
 private theorem messageEvaluation_eq_of_agree
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {interface : Formal.Interface logicalWidth publicFits}
     {offset : Nat} {env : Env}
@@ -541,7 +541,7 @@ private theorem messageEvaluation_eq_of_agree
 theorem inputAttempt_eq_of_agree
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits)
     (offset : Nat) (env current : Env)
@@ -581,7 +581,7 @@ theorem inputAttempt_eq_of_agree
 theorem output_eq_of_agree
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits)
     (offset : Nat) (env current : Env)
@@ -614,7 +614,7 @@ theorem output_eq_of_agree
 theorem phaseHolds_of_agree
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

@@ -366,8 +366,8 @@ private theorem piCcsInvocation_witnessBound
       cubeFits := by
         norm_num [Data.logicalWidth,
           NightstreamFPrime.Export.Stage1.PhaseReference.logicalWidth,
-          NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth,
-          NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount,
+          NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth,
+          NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteRingColumnLayout.blockCount,
           NightstreamFPrime.Spec.ringDegree,
           Lifecycle.cubeVariables] }
   have schedule := PiCCSInvocations.invocations_scheduleWithin

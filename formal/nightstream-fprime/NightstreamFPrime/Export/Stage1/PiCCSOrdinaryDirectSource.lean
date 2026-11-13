@@ -15,14 +15,14 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 def sourceRows (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
   (PiCCSArithmetic.arithmeticRows logicalWidth publicFits).map
     Rows.CompiledRow.toR1CS
 
 theorem sourceRows_length
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (sourceRows logicalWidth publicFits).length = 37317 := by
   rw [sourceRows, List.length_map,
@@ -31,7 +31,7 @@ theorem sourceRows_length
 theorem sourceRows_varsBelow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ∀ row ∈ sourceRows logicalWidth publicFits,
       row.VarsBelow Spartan.spartanColumnCount := by
@@ -63,7 +63,7 @@ theorem sourceRows_varsBelow
 theorem sourceRows_rowCount_le
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (sourceRows logicalWidth publicFits).length ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
@@ -73,7 +73,7 @@ theorem sourceRows_rowCount_le
 def sourceListIndex
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (index : Fin 37317) : Fin (sourceRows logicalWidth publicFits).length :=
   Fin.cast (sourceRows_length relation).symm index
@@ -81,7 +81,7 @@ def sourceListIndex
 def programRow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (index : Fin 37317) : R1CS.Row :=
   (sourceRows logicalWidth publicFits).get (sourceListIndex relation index)
@@ -89,7 +89,7 @@ def programRow
 theorem programRow_bounded
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (index : Fin 37317) :
     (programRow relation index).VarsBelow Spartan.spartanColumnCount := by
@@ -106,7 +106,7 @@ private theorem ofFn_cast_get {Alpha : Type} (rows : List Alpha) {count : Nat}
 theorem programRows_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     List.ofFn (programRow relation) = sourceRows logicalWidth publicFits := by
   unfold programRow sourceListIndex
@@ -115,7 +115,7 @@ theorem programRows_eq
 theorem programRow_eq_of_same_shape
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (left right : ProductionKey.LogicalRelation logicalWidth publicFits) :
     programRow left = programRow right := by
   apply List.ofFn_injective
@@ -139,7 +139,7 @@ def SupportedProgram.toProgram {rows : List R1CS.Row}
 def supportedProgram
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     SupportedProgram (sourceRows logicalWidth publicFits) where
   rowCount := 37317
@@ -151,7 +151,7 @@ def supportedProgram
 def program
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     OrdinarySourcePlan.Program Spartan.spartanColumnCount :=
   (supportedProgram relation).toProgram
@@ -159,7 +159,7 @@ def program
 @[simp] theorem program_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (program relation).rowCount = 37317 := by
   rfl
@@ -167,7 +167,7 @@ def program
 theorem program_eq_of_same_shape
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (left right : ProductionKey.LogicalRelation logicalWidth publicFits) :
     program left = program right := by
   rfl
@@ -188,7 +188,7 @@ private theorem predicate_iff_of_eq {Alpha : Type} (predicate : Alpha → Prop)
 theorem programRows_hold_iff_rowsHold
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :
     (∀ index : Fin 37317, (programRow relation index).Holds env) ↔
@@ -205,7 +205,7 @@ private theorem supportedHolds_iff_rowsHold {rows : List R1CS.Row}
 theorem program_holds_iff_rowsHold
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :
     (program relation).Holds env ↔
@@ -215,7 +215,7 @@ theorem program_holds_iff_rowsHold
 theorem sourceRows_eq_canonical
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     sourceRows logicalWidth publicFits =
       (PiCCSArithmetic.arithmeticRows logicalWidth publicFits).map
         Rows.CompiledRow.toR1CS := by

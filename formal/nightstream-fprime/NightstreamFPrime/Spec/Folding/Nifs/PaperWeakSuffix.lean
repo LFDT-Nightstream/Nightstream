@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkLaw
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperCompleteness
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Challenge
 
 /-! SuperNeo v1.2 Appendix B.1, B.3 and B.4. -/
 

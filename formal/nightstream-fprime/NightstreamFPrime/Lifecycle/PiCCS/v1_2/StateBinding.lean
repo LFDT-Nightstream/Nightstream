@@ -6,7 +6,7 @@ namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 structure FixedWord where
   index : Nat
@@ -316,7 +316,7 @@ private theorem childrenSplit_of_rows (interface : Interface) (offset : Nat) (en
     have signRow := rows _ (laneRow_mem word lane (signRow_mem _ _))
     rw [PiDEC.v1_2.SignedSplitScalar.signRow_eval] at signRow
     refine ⟨1 - 2 * (signBit offset word lane).eval env, ?_, ?_⟩
-    · rcases GoldilocksPrime.baseFieldNoZeroDivisors _ _ signRow with zero | one
+    · rcases FieldPrime.baseFieldNoZeroDivisors _ _ signRow with zero | one
       · right
         left
         rw [zero]
@@ -328,7 +328,7 @@ private theorem childrenSplit_of_rows (interface : Interface) (offset : Nat) (en
     · intro child
       have row := rows _ (laneRow_mem word lane (digitRow_mem _ _ child))
       rw [PiDEC.v1_2.SignedSplitScalar.digitRow_eval] at row
-      rcases GoldilocksPrime.baseFieldNoZeroDivisors _ _ row with zero | signed
+      rcases FieldPrime.baseFieldNoZeroDivisors _ _ row with zero | signed
       · exact Or.inl zero
       · exact Or.inr (sub_eq_zero.mp signed)
   · intro word

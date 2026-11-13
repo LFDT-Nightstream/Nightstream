@@ -1,6 +1,6 @@
 import Mathlib.Logic.Equiv.Fin.Basic
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.RadixRecomposition
-import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Commitment
+import NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Commitment
 
 /-!
 Paper authority: SuperNeo v1.2, Section 7.5, verifier commitment equation
@@ -26,8 +26,8 @@ namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.CommitmentRecomposition
 
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.Phi81Relation
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 def rowCount : Nat := productionProfile.commitmentWidth
 def coordinateCount : Nat := rowCount * ringDegree

@@ -33,12 +33,12 @@ open NightstreamFPrime.Lifecycle.RandomOracle.Test (Answer Point)
 attribute [local instance low] Classical.propDecidable
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- A bounded-depth NIFS attempt: `BoundedDepthReverse.Attempt` at the bounded-depth scheme's types. -/
 abbrev Attempt (logicalWidth : Nat)
     (publicFits :
-      ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) :=
   BoundedDepthReverse.Attempt (PriorPreimage logicalWidth publicFits)
     (CircuitKey logicalWidth publicFits) (SlotClaim logicalWidth publicFits)
     (StepFresh logicalWidth publicFits) StepProof
@@ -46,7 +46,7 @@ abbrev Attempt (logicalWidth : Nat)
 
 abbrev Folds (logicalWidth : Nat)
     (publicFits :
-      ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) :=
   Spec.HyperNova.Construction2.BoundedDepth.Folds (CircuitKey logicalWidth publicFits) (SlotClaim logicalWidth publicFits)
     (StepFresh logicalWidth publicFits) StepProof
 

@@ -747,7 +747,7 @@ private theorem zeroState_eq_evalZero (env : Env) :
 theorem statementActions_eq_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+      RingCarrierLayout.carrierWidth relationLogicalWidth) :
     PiCCSInvocations.statementActions relationLogicalWidth
         relationPublicFits =
       PiCCSActionPayloadBlock.statementActions := by
@@ -756,7 +756,7 @@ theorem statementActions_eq_of_shape
 private theorem statementTrace_state_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+      RingCarrierLayout.carrierWidth relationLogicalWidth)
     (lane : Fin laneCount) :
     (PiCCSInvocations.statementTrace relationLogicalWidth
       relationPublicFits).state lane =
@@ -799,7 +799,7 @@ private theorem statementTrace_state_endpoint_of_shape
 theorem statementFinalState_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+      RingCarrierLayout.carrierWidth relationLogicalWidth)
     (lane : Fin laneCount) :
     StatementAbsorption.finalState
         (PiCCSInvocations.statementInterface relationLogicalWidth
@@ -817,7 +817,7 @@ theorem statementFinalState_endpoint_of_shape
 theorem challengeActions_eq_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+      RingCarrierLayout.carrierWidth relationLogicalWidth) :
     ChallengeDerivation.actions
         (PiCCSInvocations.challengeInterface relationLogicalWidth
           relationPublicFits)
@@ -828,7 +828,7 @@ theorem challengeActions_eq_of_shape
 private theorem challengeTrace_state_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+      RingCarrierLayout.carrierWidth relationLogicalWidth)
     (lane : Fin laneCount) :
     (PiCCSInvocations.challengeTrace relationLogicalWidth
       relationPublicFits).state lane =
@@ -884,7 +884,7 @@ private theorem challengeTrace_state_endpoint_of_shape
 theorem challengeFinalState_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+      RingCarrierLayout.carrierWidth relationLogicalWidth)
     (lane : Fin laneCount) :
     ChallengeDerivation.finalState
         (PiCCSInvocations.challengeInterface relationLogicalWidth
@@ -902,7 +902,7 @@ theorem challengeFinalState_endpoint_of_shape
 theorem roundActions_eq_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+      RingCarrierLayout.carrierWidth relationLogicalWidth) :
     RoundTranscript.actions
         (PiCCSInvocations.roundInterface relationLogicalWidth
           relationPublicFits)
@@ -913,7 +913,7 @@ theorem roundActions_eq_of_shape
 private theorem roundTrace_state_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+      RingCarrierLayout.carrierWidth relationLogicalWidth)
     (lane : Fin laneCount) :
     (PiCCSInvocations.roundTrace relationLogicalWidth
       relationPublicFits).state lane =
@@ -967,7 +967,7 @@ private theorem roundTrace_state_endpoint_of_shape
 theorem roundFinalState_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+      RingCarrierLayout.carrierWidth relationLogicalWidth)
     (lane : Fin laneCount) :
     RoundTranscript.finalState
         (PiCCSInvocations.roundInterface relationLogicalWidth
@@ -985,7 +985,7 @@ theorem roundFinalState_endpoint_of_shape
 theorem outputActions_eq_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+      RingCarrierLayout.carrierWidth relationLogicalWidth) :
     PiCCSInvocations.outputActions relationLogicalWidth relationPublicFits =
       PiCCSActionPayloadBlock.outputActions := by
   rfl
@@ -993,7 +993,7 @@ theorem outputActions_eq_of_shape
 private theorem outputTrace_state_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+      RingCarrierLayout.carrierWidth relationLogicalWidth)
     (lane : Fin laneCount) :
     (PiCCSInvocations.outputTrace relationLogicalWidth
       relationPublicFits).state lane =
@@ -1036,7 +1036,7 @@ private theorem outputTrace_state_endpoint_of_shape
 private theorem outputTrace_state_matches_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+      RingCarrierLayout.carrierWidth relationLogicalWidth) :
     (PiCCSInvocations.outputTrace relationLogicalWidth
       relationPublicFits).state =
       OutputBinding.finalState
@@ -1054,7 +1054,7 @@ private theorem outputTrace_state_matches_of_shape
 theorem outputFinalState_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+      RingCarrierLayout.carrierWidth relationLogicalWidth)
     (lane : Fin laneCount) :
     OutputBinding.finalState
         (PiCCSInvocations.outputInterface relationLogicalWidth
@@ -1072,7 +1072,7 @@ theorem outputFinalState_endpoint_of_shape
 theorem roundInitialState_eq_challengeFinalState_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+      RingCarrierLayout.carrierWidth relationLogicalWidth) :
     (PiCCSInvocations.roundInterface relationLogicalWidth
       relationPublicFits).initialState PiCCSInvocations.roundWitnessStart =
       ChallengeDerivation.finalState
@@ -1097,7 +1097,7 @@ theorem roundInitialState_eq_challengeFinalState_of_shape
 theorem outputInitialState_eq_roundFinalState_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+      RingCarrierLayout.carrierWidth relationLogicalWidth) :
     (PiCCSInvocations.outputInterface relationLogicalWidth
       relationPublicFits).initialState PiCCSInvocations.outputWitnessStart =
       RoundTranscript.finalState
@@ -1327,7 +1327,7 @@ theorem traces_and_endpoints_imply_transcriptSpecs
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (env : Env)

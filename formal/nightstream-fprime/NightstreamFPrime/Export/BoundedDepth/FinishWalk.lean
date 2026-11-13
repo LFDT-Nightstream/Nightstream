@@ -41,7 +41,7 @@ open NightstreamFPrime.Export.BoundedDepth.IvcSecurity (Output FalseAcceptance)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The finish step's input as a terminal statement: its iteration and both states. -/
 def finishStatement (input : StepInput logicalWidth publicFits) : TerminalStatement AppState :=
@@ -157,7 +157,7 @@ finish step's statement, an answer either fails to extract the succeeding finish
 the finish output an IVC false acceptance (`IvcSecurity.FalseAcceptance`). -/
 theorem finish_covered {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {step : AppState → AppWitness → AppState}
-    {cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+    {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
     (exports : Exports relation ajtai circuitKeys step cubeFits)
     (control : AppState → AppWitness → Fin 2) (terminalCap cap : Nat)
     (well : (toState (priorOf circuitKeys input)).WellFormed)
@@ -181,7 +181,7 @@ statement, the finish answer fails to extract, or the walk from the finish outpu
 or a failed stage at one of its first `iteration` visits. -/
 theorem finish_walk_covered {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {step : AppState → AppWitness → AppState}
-    {cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+    {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
     (exports : Exports relation ajtai circuitKeys step cubeFits)
     (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     (control : AppState → AppWitness → Fin 2) (terminalCap cap : Nat)

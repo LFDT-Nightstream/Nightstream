@@ -16,7 +16,7 @@ open NightstreamFPrime.Spec.Nebula
 /-- The free application with `width` state words. Its model does not check
 port validity: the access rule of `Executes` does, and `PortApp.sound` gives
 the model only rows O1, O3, and O7, not O5 and O6. -/
-def freeApp (p : Geometry) (width : ℕ) (small : width < goldilocksModulus) : PortApp p where
+def freeApp (p : Geometry) (width : ℕ) (small : width < fieldModulus) : PortApp p where
   width := width
   aux := 0
   model := { Step := fun _ ports _ => ports.length = p.bOps, idle := fun _ => by simp [idlePorts] }

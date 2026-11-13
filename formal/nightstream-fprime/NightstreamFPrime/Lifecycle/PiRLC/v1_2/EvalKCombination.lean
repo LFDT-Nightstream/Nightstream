@@ -11,7 +11,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
 
 abbrev blockCount : Nat := 1
 

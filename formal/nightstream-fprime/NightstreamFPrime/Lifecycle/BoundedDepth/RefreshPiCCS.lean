@@ -20,7 +20,7 @@ open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The 16 children's commitment and evaluation words, in the order of `childWords`. -/
 def childWordsExpr (running : StatementAbsorption.RunningExpr logicalWidth publicFits) :

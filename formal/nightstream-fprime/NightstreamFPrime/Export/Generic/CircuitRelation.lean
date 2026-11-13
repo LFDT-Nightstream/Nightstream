@@ -687,7 +687,7 @@ abbrev publicColumns : Nat := ringDegree * PaperAlgebra.publicRingColumns
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- A satisfying assignment of the circuit's logical relation whose public input encodes
 `digest` gives the circuit's spec and the output digest in the decoded environment. -/

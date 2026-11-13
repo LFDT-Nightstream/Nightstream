@@ -1,5 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedCoefficientObject
-import NightstreamFPrime.Spec.SumCheck.GoldilocksCausal
+import NightstreamFPrime.Spec.SumCheck.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.SumCheck.FixedPhase.Sequential
 
@@ -9,7 +9,7 @@ namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbabilit
 
 open scoped BigOperators
 open NightstreamFPrime.Spec SumCheck.Finite
-open GoldilocksCausal ConcreteCarrier SignedCoefficientObject
+open FieldCausal ConcreteCarrier SignedCoefficientObject
 
 attribute [local instance] Classical.propDecidable
 

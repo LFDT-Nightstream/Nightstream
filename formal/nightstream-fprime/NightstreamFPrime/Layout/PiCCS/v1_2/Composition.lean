@@ -25,7 +25,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 structure InputShapes
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -462,7 +462,7 @@ theorem logicalPrivateDeltas_eq_production
     EvalKTerminal.privateCount, EvalATerminal.privateCount,
     FinalIdentity.privateCount, SumcheckChain.privateCount,
     NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.privateCount,
-    productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+    productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 theorem physicalRowDeltas_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

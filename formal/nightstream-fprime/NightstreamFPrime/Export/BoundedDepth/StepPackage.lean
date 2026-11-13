@@ -27,7 +27,7 @@ def fieldFormat : Format F where
   encode := fun value => .atom value.val
   decode
     | .atom value =>
-        if bounded : value < goldilocksModulus then .ok ⟨value, bounded⟩
+        if bounded : value < fieldModulus then .ok ⟨value, bounded⟩
         else .error "field element out of range"
     | .array _ => .error "expected a field atom"
   decode_encode := by

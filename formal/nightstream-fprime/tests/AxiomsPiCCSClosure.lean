@@ -1,6 +1,6 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
@@ -39,7 +39,7 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership.sourceHolds_iff_memberships
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership.fixedWidthAcceptedProbe_implies_memberships_or_badEvent
 
-#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal.sequentialRoundRepresentable
+#audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal.sequentialRoundRepresentable
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots.coefficient_root_count_le
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots.coefficient_root_probability_le
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots.signed_gamma_probability_le

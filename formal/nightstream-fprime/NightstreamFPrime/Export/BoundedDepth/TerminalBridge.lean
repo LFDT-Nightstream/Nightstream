@@ -47,7 +47,7 @@ open NightstreamFPrime.Export.BoundedDepth.StepRelation
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 attribute [local instance] Classical.propDecidable in
 /-- The selector that returns `circuit`, the circuit that the prover runs, on a step that
@@ -162,12 +162,12 @@ theorem stateHash_binds_words {left right : State logicalWidth publicFits}
 /-- The next iteration's word is the terminal's, and the terminal's iteration is positive and
 below `q`, so the next iteration does not wrap. -/
 theorem iteration_of_words {inputIteration iteration : Nat}
-    (inputBound : inputIteration < goldilocksModulus) (bound : iteration < goldilocksModulus)
+    (inputBound : inputIteration < fieldModulus) (bound : iteration < fieldModulus)
     (positive : 0 < iteration) (words : natWord (inputIteration + 1) = natWord iteration) :
     inputIteration + 1 = iteration := by
   have values := congrArg Fin.val words
   simp only [natWord, Poseidon2.ofNat, Nat.mod_eq_of_lt bound] at values
-  by_cases wraps : inputIteration + 1 = goldilocksModulus
+  by_cases wraps : inputIteration + 1 = fieldModulus
   · rw [wraps, Nat.mod_self] at values
     omega
   · rwa [Nat.mod_eq_of_lt (by omega)] at values
@@ -226,7 +226,7 @@ theorem bind_step (cap : Nat)
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
     (holds : StepHolds cap ajtai (decodedKeys circuitKeys verifierKeys env) step control circuit
       input output)
-    (iterationBound : input.iteration < goldilocksModulus) (z0Length : input.z0.length = 4)
+    (iterationBound : input.iteration < fieldModulus) (z0Length : input.z0.length = 4)
     (zNextLength : output.zNext.length = 4)
     (statement : TerminalStatement AppState) (valid : Terminal.StatementValid statement)
     (positive : 0 < statement.iteration) (running : Fin 2 → SlotData logicalWidth publicFits)
@@ -250,7 +250,7 @@ theorem bind_step (cap : Nat)
   rcases stateHash_binds_words nextShaped terminalShaped nextHash.symm with words | collision
   · have keys := decodedKeys_eq fun key => congrFun words.verifierKeys key
     rw [keys] at holds
-    have small : 2 < goldilocksModulus := by decide
+    have small : 2 < fieldModulus := by decide
     refine Or.inl ⟨holds, iteration_of_words iterationBound valid.1 positive words.iteration,
       words.z0, words.current, ?_, words.claims, words.depths⟩
     have same := natWord_injective
@@ -267,7 +267,7 @@ def circuitOf (pc : Nat) : Fin 2 := if pc = 2 then 1 else 0
 /-- A decoded step: its input, its output and the key digests that its shared words carry. -/
 structure Decoded (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   input : StepInput logicalWidth publicFits
   output : StepOutput logicalWidth publicFits
   keys : Fin 2 → CircuitKey logicalWidth publicFits
@@ -278,7 +278,7 @@ variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
   (step : AppState → AppWitness → AppState)
-  (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
+  (cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
 
 /-- The two exported step circuits whose relations the setup's keys carry. Both run the
 application `program`, whose step is `step`. -/

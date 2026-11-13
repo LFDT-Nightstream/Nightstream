@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Spec.FlatMap
 import NightstreamFPrime.Spec.Poseidon2
 import NightstreamFPrime.Spec.Folding.Nifs
-import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits
+import NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix.UniformSignedDigits
 import NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 /-! HyperNova Construction 2 state hash. Rust parity surface: every function is computable (SPEC.md section 4.2).
@@ -19,13 +19,13 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction (EvaluationFamily)
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 section
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns <=
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 abbrev Running := Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment
   (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape
@@ -103,7 +103,7 @@ theorem runningCount_eq_radixChildCount :
 def parentPublic
     (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) : F :=
-  Spec.Phi81Relation.PiDECAlgebra.Radix.recomposeScalar fun child =>
+  Spec.RingRelation.PiDECAlgebra.Radix.recomposeScalar fun child =>
     u.publicInputs (Fin.cast runningCount_eq_radixChildCount.symm child) column
 
 def childDigits
@@ -303,26 +303,26 @@ theorem serializeCommitments_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (serializeCommitments value).length = 19008 := by
   simp [serializeCommitments, productionShape, productionProfile, ringDegree,
-    Phi81MatrixSource.phi81Shape]
+    RingMatrixSource.ringShape]
 
 theorem serializeEvalKs_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (serializeEvalKs value).length = 1728 := by
   simp [serializeEvalKs, productionShape, productionProfile, ringDegree,
-    Phi81MatrixSource.phi81Shape]
+    RingMatrixSource.ringShape]
 
 theorem serializeEvalAs_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (serializeEvalAs value).length = 6912 := by
   simp [serializeEvalAs, productionShape, productionProfile, ringDegree,
-    Phi81MatrixSource.phi81Shape]
+    RingMatrixSource.ringShape]
 
 theorem serializeChildPublicInputs_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (serializeChildPublicInputs (publicFits := publicFits) value).length = 4320 := by
   simp [serializeChildPublicInputs, productionShape, productionProfile, FullShape,
-    fullShape, Phi81Relation.Shape.publicWidth, publicRingColumns, ringDegree,
-    Phi81MatrixSource.phi81Shape]
+    fullShape, RingRelation.Shape.publicWidth, publicRingColumns, ringDegree,
+    RingMatrixSource.ringShape]
 
 theorem serializeParentPublic_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
@@ -334,7 +334,7 @@ theorem serializeRunningFields_length
     (serializeRunningFields value).length = 27704 := by
   simp only [serializeRunningFields, List.length_append, serializeCommitments_length,
     serializeEvalKs_length, serializeEvalAs_length, serializePoint_length]
-  norm_num [cubeVariables, Phi81MatrixSource.phi81Shape]
+  norm_num [cubeVariables, RingMatrixSource.ringShape]
 
 theorem serializeRunning_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
@@ -552,7 +552,7 @@ private theorem digestBitWord_norm (value : F) (bit : Nat) :
   rcases residueCases with residue | residue
   · simp [digestBitWord, residue, Poseidon2.ofNat, centeredMagnitude]
   · simp [digestBitWord, residue, Poseidon2.ofNat, centeredMagnitude,
-      goldilocksModulus]
+      fieldModulus]
 
 theorem encHash_norm (digest : Digest)
     (column : Fin (ringDegree * publicRingColumns)) :
@@ -662,10 +662,10 @@ theorem decodeHashWord_encHash (digest : Digest) (word : Fin 4) :
   rw [encodedFold, reconstructField_eq, reconstructBits_eq_mod]
   have valueBound : (digest.getD word.val 0).val < 2 ^ 64 := by
     exact lt_trans (digest.getD word.val 0).isLt (by
-      norm_num [goldilocksModulus])
+      norm_num [fieldModulus])
   rw [Nat.mod_eq_of_lt valueBound]
   apply Fin.eq_of_val_eq
-  change (digest.getD word.val 0).val % goldilocksModulus =
+  change (digest.getD word.val 0).val % fieldModulus =
     (digest.getD word.val 0).val
   exact Nat.mod_eq_of_lt (digest.getD word.val 0).isLt
 

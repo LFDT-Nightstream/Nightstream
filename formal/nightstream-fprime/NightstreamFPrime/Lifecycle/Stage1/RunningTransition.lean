@@ -1,11 +1,11 @@
 import NightstreamFPrime.Circuit.StraightLine
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.RunningWords
-import NightstreamFPrime.Spec.GoldilocksPrime
+import NightstreamFPrime.Spec.FieldPrime
 
 namespace NightstreamFPrime.Lifecycle.Stage1.RunningTransition
 
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.GoldilocksPrime
+open NightstreamFPrime.Spec.FieldPrime
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
@@ -22,7 +22,7 @@ abbrev StateIndex := Fin stateWordCount
 
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   iteration : Nat → Expr
   initialState : Nat → StateIndex → Expr
   currentState : Nat → StateIndex → Expr
@@ -31,21 +31,21 @@ structure Interface (logicalWidth : Nat)
 
 def iterationValue {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) : F :=
   (interface.iteration offset).eval env
 
 def runningWord {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (index : WordIndex) : Expr :=
   (RunningWords.serializeRunningExpr running).getD index.val 0
 
 def defaultWord {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (index : WordIndex) : F :=
   (serializeRunning (logicalWidth := logicalWidth) (publicFits := publicFits)
     (defaultRunning (logicalWidth := logicalWidth) (publicFits := publicFits))).getD
@@ -56,37 +56,37 @@ def inverseExpr (offset : Nat) : Expr :=
 
 def inverseHint {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) : Hint :=
   .inverseOrZero (interface.iteration offset)
 
 def flagRecipe {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) : Expr :=
   interface.iteration offset * inverseExpr offset
 
 def recursiveFlag {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (_interface : Interface logicalWidth publicFits) (offset : Nat) : Expr :=
   Expr.var (offset + 1)
 
 def baseFlag {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) : Expr :=
   1 - recursiveFlag interface offset
 
 def bindingConstraint {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) : Expr :=
   0 - interface.iteration offset * baseFlag interface offset
 
 def muxConstraint {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (index : WordIndex) : Expr :=
   (interface.output offset index -
@@ -99,7 +99,7 @@ def muxConstraint {logicalWidth : Nat}
 
 def muxConstraints {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     List Expr :=
   List.ofFn (muxConstraint interface offset)
@@ -107,7 +107,7 @@ def muxConstraints {logicalWidth : Nat}
 /-- HyperNova Construction 2, base branch: `z0 = zi`. -/
 def baseStateConstraint {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (index : StateIndex) : Expr :=
   0 - baseFlag interface offset *
@@ -115,20 +115,20 @@ def baseStateConstraint {logicalWidth : Nat}
 
 def baseStateConstraints {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) : List Expr :=
   List.ofFn (baseStateConstraint interface offset)
 
 @[simp] theorem muxConstraints_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (muxConstraints interface offset).length = exactWordCount := by
   simp [muxConstraints]
 
 @[simp] theorem baseStateConstraints_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (baseStateConstraints interface offset).length = stateWordCount := by
   simp [baseStateConstraints]
@@ -182,7 +182,7 @@ private theorem zipWith3_eq_ofFn_getD
 
 def muxConstraintsFast {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     List Expr :=
   List.zipWith3
@@ -197,7 +197,7 @@ def muxConstraintsFast {logicalWidth : Nat}
 
 theorem muxConstraintsFast_eq_muxConstraints {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     muxConstraintsFast interface offset = muxConstraints interface offset := by
   rw [muxConstraintsFast, muxConstraints]
@@ -215,7 +215,7 @@ theorem muxConstraintsFast_eq_muxConstraints {logicalWidth : Nat}
 
 def constraints {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     List Expr :=
   bindingConstraint interface offset ::
@@ -223,7 +223,7 @@ def constraints {logicalWidth : Nat}
 
 def constraintsFast {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     List Expr :=
   bindingConstraint interface offset ::
@@ -231,14 +231,14 @@ def constraintsFast {logicalWidth : Nat}
 
 theorem constraintsFast_eq_constraints {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     constraintsFast interface offset = constraints interface offset := by
   rw [constraintsFast, constraints, muxConstraintsFast_eq_muxConstraints]
 
 def operations {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) : List Op :=
   .witness (WitnessBatch.hinted offset [inverseHint interface offset]) ::
     .witness (WitnessBatch.arithmetic (offset + 1)
@@ -247,13 +247,13 @@ def operations {logicalWidth : Nat}
 
 def main {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : Circuit Unit :=
   fun offset => ((), offset + exactPrivateCount, operations interface offset)
 
 structure Assumptions {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (_env : Env) : Prop where
   iteration : (interface.iteration offset).VarsBelow offset
@@ -268,7 +268,7 @@ structure Assumptions {logicalWidth : Nat}
 
 structure RunningBelow {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (bound : Nat) : Prop where
   point : ∀ coordinate, (running.point coordinate).VarsBelow bound
@@ -283,7 +283,7 @@ structure RunningBelow {logicalWidth : Nat}
 
 theorem RunningBelow.mono {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {running : StatementAbsorption.RunningExpr logicalWidth publicFits}
     {bound larger : Nat} (below : RunningBelow running bound)
     (le : bound ≤ larger) : RunningBelow running larger where
@@ -313,7 +313,7 @@ private theorem serializeKExpr_varsBelow (value : KExpr) (bound : Nat)
 
 theorem serializeRunningExpr_varsBelow {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (bound : Nat) (below : RunningBelow running bound) :
     ∀ expression ∈ RunningWords.serializeRunningExpr running,
@@ -335,7 +335,7 @@ theorem serializeRunningExpr_varsBelow {logicalWidth : Nat}
 
 theorem runningWord_varsBelow {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (bound : Nat) (below : RunningBelow running bound) (index : WordIndex) :
     (runningWord running index).VarsBelow bound := by
@@ -349,7 +349,7 @@ theorem runningWord_varsBelow {logicalWidth : Nat}
 
 def WordsEqual {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (words : WordIndex → Expr)
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (env : Env) : Prop :=
@@ -357,14 +357,14 @@ def WordsEqual {logicalWidth : Nat}
 
 def WordsEqualDefault (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (words : WordIndex → Expr) (env : Env) : Prop :=
   ∀ index, (words index).eval env =
     defaultWord (logicalWidth := logicalWidth) (publicFits := publicFits) index
 
 structure SpecHolds {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) : Prop where
   initialState : iterationValue interface offset env = 0 → ∀ index,
@@ -378,7 +378,7 @@ structure SpecHolds {logicalWidth : Nat}
 theorem specHolds_of_agree_below
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (before after : Env)
     (assumptions : Assumptions interface offset before)
@@ -437,7 +437,7 @@ theorem specHolds_of_agree_below
 theorem specHolds_of_values_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (before after : Env)
     (iterationEq : iterationValue interface offset before =
@@ -517,13 +517,13 @@ private theorem localLength_assertions (items : List Expr) :
 
 def flagConstraint {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) : Expr :=
   Expr.var (offset + 1) - flagRecipe interface offset
 
 theorem flatConstraints_operations {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     flatConstraints (operations interface offset) =
       flagConstraint interface offset :: constraints interface offset := by
@@ -536,7 +536,7 @@ theorem flatConstraints_operations {logicalWidth : Nat}
 
 theorem localLength_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     localLength (operations interface offset) = exactPrivateCount := by
   change 1 + (1 + localLength
@@ -546,7 +546,7 @@ theorem localLength_eq {logicalWidth : Nat}
 
 theorem flatConstraints_length_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (flatConstraints (operations interface offset)).length = exactRowCount := by
   rw [flatConstraints_operations]
@@ -560,7 +560,7 @@ private theorem inverseExpr_varsBelow (offset : Nat) :
 
 private theorem recursiveFlag_varsBelow {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (recursiveFlag interface offset).VarsBelow
       (offset + exactPrivateCount) := by
@@ -568,7 +568,7 @@ private theorem recursiveFlag_varsBelow {logicalWidth : Nat}
 
 private theorem baseFlag_varsBelow {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (baseFlag interface offset).VarsBelow
       (offset + exactPrivateCount) := by
@@ -577,7 +577,7 @@ private theorem baseFlag_varsBelow {logicalWidth : Nat}
 
 theorem flatConstraints_varsBelow {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ expression ∈ flatConstraints (operations interface offset),
@@ -628,7 +628,7 @@ theorem flatConstraints_varsBelow {logicalWidth : Nat}
 
 private theorem constraintsHold_of_holds {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) (rows : holds env (operations interface offset)) :
     ConstraintsHold env (constraints interface offset) := by
@@ -637,7 +637,7 @@ private theorem constraintsHold_of_holds {logicalWidth : Nat}
 
 private theorem flagConstraint_of_holds {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) (rows : holds env (operations interface offset)) :
     (flagConstraint interface offset).eval env = 0 := by
@@ -656,7 +656,7 @@ private theorem flagConstraint_of_holds {logicalWidth : Nat}
 
 private theorem recursiveFlag_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) :
     (recursiveFlag interface offset).eval env = env (offset + 1) := by
@@ -664,7 +664,7 @@ private theorem recursiveFlag_eval {logicalWidth : Nat}
 
 private theorem flag_eq_of_row {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) (row : (flagConstraint interface offset).eval env = 0) :
     (recursiveFlag interface offset).eval env =
@@ -675,7 +675,7 @@ private theorem flag_eq_of_row {logicalWidth : Nat}
 
 private theorem baseFlag_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) :
     (baseFlag interface offset).eval env =
@@ -684,7 +684,7 @@ private theorem baseFlag_eval {logicalWidth : Nat}
 
 private theorem bindingConstraint_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) :
     (bindingConstraint interface offset).eval env =
@@ -694,7 +694,7 @@ private theorem bindingConstraint_eval {logicalWidth : Nat}
 
 private theorem muxConstraint_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (index : WordIndex) (env : Env) :
     (muxConstraint interface offset index).eval env =
@@ -709,7 +709,7 @@ private theorem muxConstraint_eval {logicalWidth : Nat}
 
 private theorem baseStateConstraint_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (index : StateIndex) (env : Env) :
     (baseStateConstraint interface offset index).eval env =
@@ -720,7 +720,7 @@ private theorem baseStateConstraint_eval {logicalWidth : Nat}
 
 theorem soundness {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (env : Env)
     (offset : Nat) (_assumptions : Assumptions interface offset env)
     (rows : holds env (operations interface offset)) :
@@ -779,7 +779,7 @@ theorem soundness {logicalWidth : Nat}
 
 def completeEnv {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (env : Env)
     (offset : Nat) : Env :=
   Env.set
@@ -790,7 +790,7 @@ def completeEnv {logicalWidth : Nat}
 
 private theorem completed_agrees_below {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (env : Env)
     (offset index : Nat) (below : index < offset) :
     completeEnv interface env offset index = env index := by
@@ -799,7 +799,7 @@ private theorem completed_agrees_below {logicalWidth : Nat}
 
 private theorem completed_iteration {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (env : Env)
     (offset : Nat) (assumptions : Assumptions interface offset env) :
     iterationValue interface offset (completeEnv interface env offset) =
@@ -809,7 +809,7 @@ private theorem completed_iteration {logicalWidth : Nat}
 
 private theorem completed_runningWord {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (env : Env)
     (offset : Nat) (assumptions : Assumptions interface offset env)
     (index : WordIndex) :
@@ -822,7 +822,7 @@ private theorem completed_runningWord {logicalWidth : Nat}
 
 private theorem completed_initialState {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (env : Env)
     (offset : Nat) (assumptions : Assumptions interface offset env)
     (index : StateIndex) :
@@ -835,7 +835,7 @@ private theorem completed_initialState {logicalWidth : Nat}
 
 private theorem completed_currentState {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (env : Env)
     (offset : Nat) (assumptions : Assumptions interface offset env)
     (index : StateIndex) :
@@ -848,7 +848,7 @@ private theorem completed_currentState {logicalWidth : Nat}
 
 private theorem completed_outputWord {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (env : Env)
     (offset : Nat) (assumptions : Assumptions interface offset env)
     (index : WordIndex) :
@@ -866,16 +866,16 @@ private theorem mul_hintInverse_eq_one (value : F) (nonzero : value ≠ 0) :
     apply nonzero
     apply Fin.eq_of_val_eq
     simpa using valueValZero)
-  have notDvd : ¬goldilocksModulus ∣ value.val := by
+  have notDvd : ¬fieldModulus ∣ value.val := by
     intro divides
     have lower := Nat.le_of_dvd valuePositive divides
     exact (not_le_of_gt value.isLt) lower
-  have coprime : Nat.Coprime value.val goldilocksModulus :=
-    (goldilocks_natPrime.coprime_iff_not_dvd.mpr notDvd).symm
+  have coprime : Nat.Coprime value.val fieldModulus :=
+    (fieldModulus_natPrime.coprime_iff_not_dvd.mpr notDvd).symm
   unfold Hint.inverse
-  have gcdOne : Nat.gcd value.val goldilocksModulus = 1 :=
+  have gcdOne : Nat.gcd value.val fieldModulus = 1 :=
     Nat.coprime_iff_gcd_eq_one.mp coprime
-  unfold F goldilocksModulus at value gcdOne ⊢
+  unfold F fieldModulus at value gcdOne ⊢
   have law := ZMod.mul_inv_eq_gcd
     (n := 18446744069414584321) value
   dsimp [ZMod, ZMod.val] at law
@@ -884,7 +884,7 @@ private theorem mul_hintInverse_eq_one (value : F) (nonzero : value ≠ 0) :
 
 private theorem completed_recursiveFlag {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (env : Env)
     (offset : Nat) :
     (recursiveFlag interface offset).eval (completeEnv interface env offset) =
@@ -895,7 +895,7 @@ private theorem completed_recursiveFlag {logicalWidth : Nat}
 
 private theorem completeEnv_holdsFlat {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (env : Env)
     (offset : Nat) (assumptions : Assumptions interface offset env)
     (specification : SpecHolds interface offset env) :
@@ -953,7 +953,7 @@ private theorem completeEnv_holdsFlat {logicalWidth : Nat}
 
 theorem completeness {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (env : Env)
     (offset : Nat) (assumptions : Assumptions interface offset env)
     (specification : SpecHolds interface offset env) :
@@ -971,7 +971,7 @@ theorem completeness {logicalWidth : Nat}
 
 theorem runningWord_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (env : Env) (index : WordIndex) :
     (runningWord running index).eval env =
@@ -989,7 +989,7 @@ theorem runningWord_eval {logicalWidth : Nat}
 theorem specHolds_of_cross_values_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (beforeInterface afterInterface : Interface logicalWidth publicFits)
     (beforeOffset afterOffset : Nat) (before after : Env)
     (iterationEq : iterationValue beforeInterface beforeOffset before =
@@ -1047,7 +1047,7 @@ theorem specHolds_of_cross_values_eq
 
 def outputWords {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
     List F :=
   List.ofFn fun index => (interface.output offset index).eval env
@@ -1063,7 +1063,7 @@ private theorem ofFn_eq_of_getD {count : Nat} (values : Fin count → F)
 
 private theorem outputWords_eq_of_get {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env)
     (words : List F) (length : words.length = exactWordCount)
     (each : ∀ index : WordIndex,
@@ -1073,7 +1073,7 @@ private theorem outputWords_eq_of_get {logicalWidth : Nat}
 
 theorem spec_serialized_base {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {interface : Interface logicalWidth publicFits} {offset : Nat}
     {env : Env} (specification : SpecHolds interface offset env)
     (iterationZero : iterationValue interface offset env = 0) :
@@ -1086,7 +1086,7 @@ theorem spec_serialized_base {logicalWidth : Nat}
 
 theorem spec_serialized_recursive {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {interface : Interface logicalWidth publicFits} {offset : Nat}
     {env : Env} (specification : SpecHolds interface offset env)
     (iterationNonzero : iterationValue interface offset env ≠ 0) :
@@ -1099,7 +1099,7 @@ theorem spec_serialized_recursive {logicalWidth : Nat}
 
 def circuit {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : FormalCircuit :=
   { main := main interface
     assumptions := Assumptions interface

@@ -11,7 +11,7 @@ open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-abbrev ProductFamily := MatrixProgram.Phi81Product.Family
+abbrev ProductFamily := MatrixProgram.RingProduct.Family
 
 def commitmentFamily : ProductFamily :=
   { sourceCount := 17, blockCount := 22, cellCount := 1 }
@@ -29,17 +29,17 @@ def families : List ProductFamily :=
   [commitmentFamily, publicInputFamily, evalKFamily, evalAFamily]
 
 @[simp] theorem families_invocationCount :
-    MatrixProgram.Phi81Product.invocationCount families = 33966 := by
-  norm_num [families, MatrixProgram.Phi81Product.invocationCount,
+    MatrixProgram.RingProduct.invocationCount families = 33966 := by
+  norm_num [families, MatrixProgram.RingProduct.invocationCount,
     commitmentFamily, publicInputFamily, evalKFamily, evalAFamily,
-    MatrixProgram.Phi81Product.Family.invocationCount,
-    MatrixProgram.Phi81Product.Family.privateCount,
+    MatrixProgram.RingProduct.Family.invocationCount,
+    MatrixProgram.RingProduct.Family.privateCount,
     CombinationStep.privateCount, ringDegree, productionProfile]
 
 @[simp] theorem families_ringCount :
-    MatrixProgram.Phi81Product.ringCount families = 629 := by
-  norm_num [families, MatrixProgram.Phi81Product.ringCount,
-    MatrixProgram.Phi81Product.Family.ringCount,
+    MatrixProgram.RingProduct.ringCount families = 629 := by
+  norm_num [families, MatrixProgram.RingProduct.ringCount,
+    MatrixProgram.RingProduct.Family.ringCount,
     commitmentFamily, publicInputFamily, evalKFamily, evalAFamily, productionProfile]
 
 def challengeSlotStart : Nat := 0
@@ -64,7 +64,7 @@ def inputs {program : Lifecycle.Stage1.Application.Program}
 def block {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    MatrixProgram.Phi81Product.Block where
+    MatrixProgram.RingProduct.Block where
   families := families
   oneColumn := (PiRLCRetainedGeometry.oneColumn (prefixGeometry geometry)).val
   challenge := MatrixProgram.RetainedBlock.ofSemantic
@@ -84,20 +84,20 @@ def block {program : Lifecycle.Stage1.Application.Program}
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     (block geometry).rowCount = 67932 := by
-  norm_num [block, MatrixProgram.Phi81Product.Block.rowCount]
+  norm_num [block, MatrixProgram.RingProduct.Block.rowCount]
 
 def matrixProgram {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     MatrixProgram.Program where
-  blocks := [.phi81Product (block geometry)]
+  blocks := [.ringProduct (block geometry)]
 
 @[simp] theorem matrixProgram_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     (matrixProgram geometry).rowCount = 67932 := by
   rw [show matrixProgram geometry =
-      MatrixProgram.Program.mk [.phi81Product (block geometry)] by rfl]
+      MatrixProgram.Program.mk [.ringProduct (block geometry)] by rfl]
   rw [MatrixProgram.Program.singleton_rowCount]
   exact block_rowCount geometry
 

@@ -52,7 +52,7 @@ theorem plan_fixedPoint :
 
 theorem jointDomain_le_twoPow28 :
     max (PerApplicationFixedPoint.structuralPlan application fits).rowCount
-        (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+        (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
           (PerApplicationFixedPoint.logicalWidth application)) ≤
       2 ^ Lifecycle.cubeVariables :=
   PerApplicationFixedPoint.jointDomain_le_twoPow28 application fits

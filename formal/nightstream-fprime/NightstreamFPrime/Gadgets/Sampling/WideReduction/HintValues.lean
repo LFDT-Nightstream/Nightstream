@@ -11,7 +11,7 @@ open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open Finset
 
 theorem bit_hint (env : Env) (source : Expr) (value bit : Nat)
-    (bound : value < goldilocksModulus) (meaning : source.eval env = fieldOfNat value) :
+    (bound : value < fieldModulus) (meaning : source.eval env = fieldOfNat value) :
     Hint.eval env (.bit source bit) = fieldOfNat (value / 2 ^ bit % 2) := by
   simp only [Hint.eval, meaning, fieldOfNat, Nat.mod_eq_of_lt bound,
     Nat.and_one_is_mod, Nat.shiftRight_eq_div_pow]
@@ -86,7 +86,7 @@ theorem division_first_carry (value : Nat) (bound : value < 2 ^ 256) :
 
 theorem division_source_bound (value position : Nat) :
     divisionCarry value position * WitnessArithmetic.radix + limb value position <
-      goldilocksModulus :=
+      fieldModulus :=
   WitnessArithmetic.accumulator_lt_field _ _ (Nat.mod_lt _ (by decide))
     (Nat.mod_lt _ (by decide))
 

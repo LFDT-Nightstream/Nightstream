@@ -1,5 +1,5 @@
 import NightstreamFPrime.Circuit.StraightLine
-import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
+import NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
 
 /-!
 Paper authority: SuperNeo v1.2, Section 7.5, verifier Step 2, equations
@@ -27,8 +27,8 @@ namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.RadixRecomposition
 
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.Phi81Relation
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 structure Interface (coordinateCount : Nat) where
   parent : Nat → Fin coordinateCount → Expr

@@ -1,6 +1,6 @@
 import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Spec.Folding.Refresh.Bound
-import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
+import NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
 
 /-! Block support of a witness (CW-10.6). A witness packs into ring elements of `ringDegree`
 coordinates, block `j` holding coordinates `54j` to `54j + 53` (SPEC.md section 2.3). A witness is
@@ -21,18 +21,18 @@ namespace NightstreamFPrime.Lifecycle.BoundedDepth.BlockSupport
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation
-open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.RingRelation
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
 open NightstreamFPrime.Lifecycle
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- `witness` is zero on every ring block that starts at or past `width`. Its coordinates are
 those of `PaperAlgebra.Assignment` and `Terminal.Witness`. -/
 def Supported (width : Nat)
-    (witness : PaperLinearAlgebra.Assignment F (Phi81CarrierLayout.carrierWidth logicalWidth)) :
+    (witness : PaperLinearAlgebra.Assignment F (RingCarrierLayout.carrierWidth logicalWidth)) :
     Prop :=
   ∀ column, width ≤ ringDegree * (column.val / ringDegree) → witness column = 0
 
@@ -63,7 +63,7 @@ theorem act_supported {width : Nat} (challenge : RingF)
     (supported : Supported width witness) :
     Supported width (CarrierAction.act challenge witness) := by
   intro column above
-  have zeroBlock : CarrierAction.assignmentBlock witness (Phi81ColumnLayout.decode column).1 =
+  have zeroBlock : CarrierAction.assignmentBlock witness (ConcreteRingColumnLayout.decode column).1 =
       ringFZero := by
     funext lane
     apply supported
@@ -73,7 +73,7 @@ theorem act_supported {width : Nat} (challenge : RingF)
     simp only [ringDegree] at above laneBound ⊢
     omega
   show ringFMul challenge (CarrierAction.assignmentBlock witness
-    (Phi81ColumnLayout.decode column).1) (Phi81ColumnLayout.decode column).2 = 0
+    (ConcreteRingColumnLayout.decode column).1) (ConcreteRingColumnLayout.decode column).2 = 0
   rw [zeroBlock, CarrierAction.ringFMul_zero_right]
   rfl
 

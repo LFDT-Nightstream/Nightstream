@@ -11,7 +11,7 @@ namespace NightstreamFPrime.Lifecycle.Nebula
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
-open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
+open scoped NightstreamFPrime.Spec.FieldExtensionRing
 
 variable {p : Geometry} {app : PortApp p}
 

@@ -68,13 +68,13 @@ theorem frequency_error_le (samples modulus : Nat)
     nlinarith [mul_le_mul_of_nonneg_left fullBound remainderNonnegative,
       mul_nonneg modulusPos.le tailNonnegative]
 
-theorem wide_remainder_eq : 2 ^ 256 % goldilocksModulus = 4294967295 := by decide
+theorem wide_remainder_eq : 2 ^ 256 % fieldModulus = 4294967295 := by decide
 
 theorem wide_frequency_error_le (event : Nat → Prop) [DecidablePred event] :
-    |frequency (2 ^ 256) goldilocksModulus event -
-      frequency goldilocksModulus goldilocksModulus event| ≤
+    |frequency (2 ^ 256) fieldModulus event -
+      frequency fieldModulus fieldModulus event| ≤
       (4294967295 : ℚ) / 2 ^ 256 := by
   simpa only [wide_remainder_eq, Nat.cast_pow, Nat.cast_ofNat] using!
-    frequency_error_le (2 ^ 256) goldilocksModulus (by decide) (by decide) event
+    frequency_error_le (2 ^ 256) fieldModulus (by decide) (by decide) event
 
 end NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias

@@ -18,12 +18,12 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction (Evaluation
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- A slot's accumulator claim. The slot's key fixes the constraint system and the norm stage,
 so the claim does not carry them. -/
 structure SlotClaim (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
+    (publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth)
     where
   commitment : PaperAlgebra.Commitment
   publicInput : PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)
@@ -34,7 +34,7 @@ structure SlotClaim (logicalWidth : Nat)
 (`Spec.HyperNova.Construction2.BoundedDepth.Running`). -/
 abbrev SlotData (logicalWidth : Nat)
     (publicFits :
-      ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) :=
   SlotClaim logicalWidth publicFits × Nat
 
 /-- Twelve words: the ASCII bytes of `label`, packed eight to a word (SPEC.md 4.2). -/
@@ -56,7 +56,7 @@ def slotDigest (slot : SlotData logicalWidth publicFits) : Digest :=
 
 /-- What the state hash binds. -/
 structure State (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
+    (publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth)
     where
   verifierKeys : Fin 2 → KeyDigest
   iteration : Nat
@@ -78,9 +78,9 @@ structure State.WellFormed (state : State logicalWidth publicFits) : Prop where
   verifierKeys : ∀ circuit, (state.verifierKeys circuit).length = 4
   z0 : state.z0.length = 4
   current : state.current.length = 4
-  iteration : state.iteration < goldilocksModulus
-  pc : state.pc < goldilocksModulus
-  depth : ∀ slot, (state.slots slot).2 < goldilocksModulus
+  iteration : state.iteration < fieldModulus
+  pc : state.pc < fieldModulus
+  depth : ∀ slot, (state.slots slot).2 < fieldModulus
 
 theorem domainChunks_distinct :
     slotDomainChunk ≠ stateDomainChunk ∧ slotDomainChunk ≠ Lifecycle.stateDomainChunk ∧
@@ -89,8 +89,8 @@ theorem domainChunks_distinct :
       stateDomainChunk ≠ Transcript.foldDomainChunk := by
   decide
 
-theorem natWord_injective {left right : Nat} (leftBound : left < goldilocksModulus)
-    (rightBound : right < goldilocksModulus) (same : natWord left = natWord right) :
+theorem natWord_injective {left right : Nat} (leftBound : left < fieldModulus)
+    (rightBound : right < fieldModulus) (same : natWord left = natWord right) :
     left = right := by
   have values := congrArg Fin.val same
   simpa [natWord, Poseidon2.ofNat, Nat.mod_eq_of_lt leftBound, Nat.mod_eq_of_lt rightBound]
@@ -127,7 +127,7 @@ theorem statePreimage_length {state : State logicalWidth publicFits} (well : sta
   rfl
 
 theorem serializeSlot_injective {left right : SlotData logicalWidth publicFits}
-    (leftDepth : left.2 < goldilocksModulus) (rightDepth : right.2 < goldilocksModulus)
+    (leftDepth : left.2 < fieldModulus) (rightDepth : right.2 < fieldModulus)
     (same : serializeSlot left = serializeSlot right) : left = right := by
   unfold serializeSlot at same
   obtain ⟨rest, depthWords⟩ := List.append_inj' same rfl

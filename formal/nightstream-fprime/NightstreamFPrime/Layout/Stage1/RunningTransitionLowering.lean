@@ -13,45 +13,45 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 def plan
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : R1CS.LoweringPlan where
+      RingCarrierLayout.carrierWidth logicalWidth) : R1CS.LoweringPlan where
   constraints := logicalConstraints logicalWidth publicFits
   firstFresh := logicalColumnCount
 
 def lowering
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     R1CS.LoweredConstraints :=
   (plan logicalWidth publicFits).lowering
 
 def physicalRows
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
   (plan logicalWidth publicFits).rows
 
 def physicalFreshColumnCount
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Nat :=
+      RingCarrierLayout.carrierWidth logicalWidth) : Nat :=
   (plan logicalWidth publicFits).freshColumnCount
 
 def physicalRowCount
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Nat :=
+      RingCarrierLayout.carrierWidth logicalWidth) : Nat :=
   (plan logicalWidth publicFits).rowCount
 
 def physicalColumnCount
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Nat :=
+      RingCarrierLayout.carrierWidth logicalWidth) : Nat :=
   (plan logicalWidth publicFits).next
 
 @[simp] theorem plan_constraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (plan logicalWidth publicFits).constraints =
       logicalConstraints logicalWidth publicFits := by
   rfl
@@ -59,14 +59,14 @@ def physicalColumnCount
 @[simp] theorem plan_firstFresh
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (plan logicalWidth publicFits).firstFresh = logicalColumnCount := by
   rfl
 
 theorem logicalColumnCount_eq_localLength
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     logicalColumnCount = phaseOffset +
       localLength
         (RunningTransition.operations (interface logicalWidth publicFits)
@@ -77,7 +77,7 @@ theorem logicalColumnCount_eq_localLength
 @[simp] theorem physicalRows_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     physicalRows logicalWidth publicFits =
       (plan logicalWidth publicFits).rows := by
   rfl
@@ -85,7 +85,7 @@ theorem logicalColumnCount_eq_localLength
 theorem physicalFreshColumnCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     physicalFreshColumnCount logicalWidth publicFits = 0 := by
   exact totalFreshCount_eq relation
@@ -93,7 +93,7 @@ theorem physicalFreshColumnCount_eq
 theorem physicalRowCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     physicalRowCount logicalWidth publicFits = 27800 := by
   rw [physicalRowCount]
@@ -102,7 +102,7 @@ theorem physicalRowCount_eq
 theorem physicalRows_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (physicalRows logicalWidth publicFits).length =
       physicalRowCount logicalWidth publicFits := by
   rfl
@@ -110,7 +110,7 @@ theorem physicalRows_length
 theorem physicalColumnCount_eq_physicalEnd
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     physicalColumnCount logicalWidth publicFits = physicalEnd := by
   rw [physicalColumnCount, R1CS.LoweringPlan.next_eq,

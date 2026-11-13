@@ -212,7 +212,7 @@ private theorem mem_filter_any {α : Type} {p : α → Prop} {inst : DecidablePr
     {s : Finset α} {a : α} : a ∈ @Finset.filter α p inst s ↔ a ∈ s ∧ p a :=
   Finset.mem_filter
 
-variable [IsDomain E] [Fintype E] [DecidableEq E] [CharP E goldilocksModulus]
+variable [IsDomain E] [Fintype E] [DecidableEq E] [CharP E fieldModulus]
 
 /-- The fingerprint bound for one segment of the challenge game:
 `Pr[Err] ≤ 2·m_mem/|E| + Pr[Err and the retry disagrees]`, and every

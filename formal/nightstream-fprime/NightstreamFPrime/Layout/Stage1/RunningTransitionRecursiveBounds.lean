@@ -13,7 +13,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 theorem recursiveRunningBelow
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (pointBelow : ∀ coordinate,
       ((recursiveRunningExpr logicalWidth publicFits).point coordinate
         ).VarsBelow phaseOffset) :
@@ -36,7 +36,7 @@ theorem recursiveRunningBelow
     norm_num [PiDECInputs.childCommitmentStart,
       PiDECInputs.commitmentInputStart, PiDECInputs.commitmentWordsPerChild,
       PiDEC.v1_2.CommitmentRecomposition.coordinateCount_eq, productionShape,
-      productionProfile, Phi81MatrixSource.phi81Shape, ringDegree] at sourceBound rowBound coefficientBound ⊢
+      productionProfile, RingMatrixSource.ringShape, ringDegree] at sourceBound rowBound coefficientBound ⊢
     omega
   · intro source column
     simp only [recursiveRunningExpr, piDecInterface, PiDECInputs.interface,
@@ -53,8 +53,8 @@ theorem recursiveRunningBelow
       PiDEC.v1_2.EvalKRecomposition.coordinateCount_eq,
       PiDEC.v1_2.EvalARecomposition.coordinateCount_eq,
       PiDEC.v1_2.PublicInputSplit.exactCoordinateCount,
-      productionShape, productionProfile, Phi81MatrixSource.phi81Shape,
-      FullShape, fullShape, Phi81Relation.Shape.publicWidth,
+      productionShape, productionProfile, RingMatrixSource.ringShape,
+      FullShape, fullShape, RingRelation.Shape.publicWidth,
       publicRingColumns, ringDegree] at sourceBound columnBound ⊢
     omega
   · intro source coefficient
@@ -69,7 +69,7 @@ theorem recursiveRunningBelow
       PiDECInputs.commitmentWordsPerChild, PiDECInputs.evalKWordsPerChild,
       PiDEC.v1_2.CommitmentRecomposition.coordinateCount_eq,
       PiDEC.v1_2.EvalKRecomposition.coordinateCount_eq,
-      productionShape, productionProfile, Phi81MatrixSource.phi81Shape,
+      productionShape, productionProfile, RingMatrixSource.ringShape,
       ringDegree] at sourceBound coefficientBound ⊢
     omega
   · intro source matrix coefficient
@@ -87,7 +87,7 @@ theorem recursiveRunningBelow
       PiDEC.v1_2.CommitmentRecomposition.coordinateCount_eq,
       PiDEC.v1_2.EvalKRecomposition.coordinateCount_eq,
       PiDEC.v1_2.EvalARecomposition.coordinateCount_eq,
-      productionShape, productionProfile, Phi81MatrixSource.phi81Shape,
+      productionShape, productionProfile, RingMatrixSource.ringShape,
       ringDegree] at sourceBound matrixBound coefficientBound ⊢
     omega
 

@@ -1,7 +1,7 @@
 import Mathlib.Logic.Equiv.Fin.Basic
 import NightstreamFPrime.Circuit.Quadratic
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.RadixRecomposition
-import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.BaseLinear
+import NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.BaseLinear
 
 /-!
 Paper authority: SuperNeo v1.2, Section 7.5, verifier evaluation equations.
@@ -28,9 +28,9 @@ namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.RingKRecomposition
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.Phi81Relation
-open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 def cellCount : Nat := 2
 

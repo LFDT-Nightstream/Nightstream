@@ -17,11 +17,11 @@ open NightstreamFPrime.Spec.Nebula
 open NightstreamFPrime.Circuit
 open Fin.CommRing
 
-theorem val_add_one {x : F} (small : x.val + 1 < goldilocksModulus) : (x + 1).val = x.val + 1 := by
+theorem val_add_one {x : F} (small : x.val + 1 < fieldModulus) : (x + 1).val = x.val + 1 := by
   rw [← natWord_of_val x, ← natWord_one, ← natWord_add, natWord_val small, natWord_of_val]
 
 theorem Geometry.two_pow_mu_lt {p : Geometry} (valid : p.Valid) :
-    2 ^ p.addrWidth < goldilocksModulus :=
+    2 ^ p.addrWidth < fieldModulus :=
   lt_of_le_of_lt (Geometry.two_pow_addrWidth_le_cells p) valid.belowModulus
 
 theorem Geometry.mu_le {p : Geometry} (valid : p.Valid) : p.addrWidth ≤ 63 :=
@@ -339,7 +339,7 @@ theorem sound (valid : p.Valid) (wf : ∀ j, (v.ops j).WellFormed) (rows : PortR
     have pc : (v.appIn 0).val = bitsNat (v.ops (fetchSlot two)).addr := by
       rw [← fetchAddr]
       exact StepWitness.bitsWord_val addrF (Geometry.mu_le valid)
-    have pcSmall : (v.appIn 0).val + 1 < goldilocksModulus := by
+    have pcSmall : (v.appIn 0).val + 1 < fieldModulus := by
       have := bitsNat_lt (v.ops (fetchSlot two)).addr
       have := Geometry.two_pow_mu_lt valid
       omega

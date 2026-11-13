@@ -22,11 +22,11 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.SlotWords
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   iteration : Nat → Expr
   inverse : Nat → Expr
   recursive : Nat → Expr
@@ -55,12 +55,12 @@ def nextSlots (iteration : Nat) (running : Fin 2 → SlotData logicalWidth publi
 /-- The next slots' depths are field values when the prior slots' and the new slot's are. -/
 theorem nextSlots_depth (iteration : Nat) (running : Fin 2 → SlotData logicalWidth publicFits)
     (selected : Fin 2) (next : SlotData logicalWidth publicFits)
-    (runningBound : ∀ slot, (running slot).2 < goldilocksModulus)
-    (nextBound : next.2 < goldilocksModulus) (slot : Fin 2) :
-    (nextSlots iteration running selected next slot).2 < goldilocksModulus := by
+    (runningBound : ∀ slot, (running slot).2 < fieldModulus)
+    (nextBound : next.2 < fieldModulus) (slot : Fin 2) :
+    (nextSlots iteration running selected next slot).2 < fieldModulus := by
   unfold nextSlots
   split_ifs
-  · show (0 : Nat) < goldilocksModulus
+  · show (0 : Nat) < fieldModulus
     decide
   · exact nextBound
   · exact runningBound slot
@@ -205,9 +205,9 @@ theorem control_facts (env : Env) (input : StepInput logicalWidth publicFits)
     (flagHolds : ConstraintsHold env (SlotSelect.flagRows (control interface) offset))
     (baseHolds : ConstraintsHold env (SlotSelect.baseStateRows (control interface) offset))
     (iterationWord : (interface.iteration offset).eval env = natWord input.iteration)
-    (iterationBound : input.iteration < goldilocksModulus)
+    (iterationBound : input.iteration < fieldModulus)
     (pcWord : (interface.priorPc offset).eval env = natWord input.priorPc)
-    (pcBound : input.priorPc < goldilocksModulus)
+    (pcBound : input.priorPc < fieldModulus)
     (initialWords :
       List.ofFn (fun index => (interface.initialState offset index).eval env) = input.z0)
     (currentWords :
@@ -300,16 +300,16 @@ theorem rows_implies_select (env : Env) (input : StepInput logicalWidth publicFi
     (output : StepOutput logicalWidth publicFits) (new : SlotData logicalWidth publicFits)
     (holds : ConstraintsHold env (rows interface offset))
     (iterationWord : (interface.iteration offset).eval env = natWord input.iteration)
-    (iterationBound : input.iteration < goldilocksModulus)
+    (iterationBound : input.iteration < fieldModulus)
     (pcWord : (interface.priorPc offset).eval env = natWord input.priorPc)
-    (pcBound : input.priorPc < goldilocksModulus)
+    (pcBound : input.priorPc < fieldModulus)
     (initialWords :
       List.ofFn (fun index => (interface.initialState offset index).eval env) = input.z0)
     (currentWords :
       List.ofFn (fun index => (interface.currentState offset index).eval env) = input.zi)
     (priorWords : ∀ slot,
       Hash.evalList env (interface.prior offset slot).words = serializeSlot (input.running slot))
-    (priorDepth : ∀ slot, (input.running slot).2 < goldilocksModulus)
+    (priorDepth : ∀ slot, (input.running slot).2 < fieldModulus)
     (priorDigests : ∀ slot,
       digestValue (interface.priorDigest offset slot) env = slotDigest (input.running slot))
     (newDigest : digestValue (interface.newDigest offset) env = slotDigest new)

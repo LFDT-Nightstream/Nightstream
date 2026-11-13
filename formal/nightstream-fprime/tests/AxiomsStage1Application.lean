@@ -23,7 +23,7 @@ import NightstreamFPrime.Layout.ProductionRelation.MultiplicationFamilyPlan
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 import NightstreamFPrime.Spec
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 

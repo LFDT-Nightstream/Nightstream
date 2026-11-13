@@ -20,7 +20,7 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Export.Generic.Pieces
 open NightstreamFPrime.Export.Generic.PieceRows
-open NightstreamFPrime.Spec.Phi81Relation
+open NightstreamFPrime.Spec.RingRelation
 open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 
 /-! ### The scope check -/

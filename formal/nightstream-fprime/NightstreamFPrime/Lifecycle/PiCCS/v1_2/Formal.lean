@@ -29,7 +29,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
 structure Interface (logicalWidth degreeBound : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   baseOffset : Nat := 0
   priorState : Nat → Nat → Expr
   outputState : Nat → Nat → Expr
@@ -42,7 +42,7 @@ structure Interface (logicalWidth degreeBound : Nat)
 
 def atOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (parentOffset : Nat) : Interface logicalWidth degreeBound publicFits where
   baseOffset := parentOffset
@@ -57,7 +57,7 @@ def atOffset {logicalWidth degreeBound : Nat}
 structure ExternalInputsBelow
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Prop where
   priorStateFixed : ∀ word ∈ StateBinding.fixedWords,
@@ -105,21 +105,21 @@ structure ExternalInputsBelow
 
 def evalRunning {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (env : Env) :=
   StatementAbsorption.evalRunning (interface.running offset) env
 
 def evalFresh {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (env : Env) :=
   StatementAbsorption.evalFresh (interface.fresh offset) env
 
 def evalOutput {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (env : Env) :
     FullOutputCoordinates.FullOutput K productionShape where
@@ -132,7 +132,7 @@ def evalOutput {logicalWidth degreeBound : Nat}
 def evalProof
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth
       (ProductionKey.degreeBound relation) publicFits)
@@ -147,7 +147,7 @@ def evalProof
 
 def statementBindingInterface {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) :
     StatementBinding.Interface where
   state := {
@@ -168,7 +168,7 @@ def statementBindingInterface {logicalWidth degreeBound : Nat}
 
 def statementAbsorptionInterface {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) :
     StatementAbsorption.Interface logicalWidth publicFits where
   running := interface.running
@@ -176,7 +176,7 @@ def statementAbsorptionInterface {logicalWidth degreeBound : Nat}
 
 def statementFinalState {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (parentOffset : Nat) : Layer.EState :=
   StatementAbsorption.finalState
@@ -185,7 +185,7 @@ def statementFinalState {logicalWidth degreeBound : Nat}
 
 def challengeInterface {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (parentOffset : Nat) :
     ChallengeDerivation.Interface where
@@ -193,7 +193,7 @@ def challengeInterface {logicalWidth degreeBound : Nat}
 
 theorem challengeInterface_initialState {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (parentOffset childOffset : Nat) :
     (challengeInterface interface parentOffset).initialState childOffset =
@@ -202,13 +202,13 @@ theorem challengeInterface_initialState {logicalWidth degreeBound : Nat}
 
 def challengeStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
   interface.baseOffset + 135078
 
 def challengeAlpha {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (_offset : Nat) : Fin productionShape.cubeVariables → KExpr :=
   ChallengeDerivation.alpha
@@ -217,7 +217,7 @@ def challengeAlpha {logicalWidth degreeBound : Nat}
 
 def challengeGamma {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (_offset : Nat) : KExpr :=
   ChallengeDerivation.gamma
@@ -226,7 +226,7 @@ def challengeGamma {logicalWidth degreeBound : Nat}
 
 def challengeFinalState {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (_offset : Nat) : Layer.EState :=
   ChallengeDerivation.finalState
@@ -235,7 +235,7 @@ def challengeFinalState {logicalWidth degreeBound : Nat}
 
 def roundTranscriptInterface {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) :
   RoundTranscript.Interface degreeBound where
   initialState := challengeFinalState interface
@@ -243,13 +243,13 @@ def roundTranscriptInterface {logicalWidth degreeBound : Nat}
 
 def roundTranscriptStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
   interface.baseOffset + 135078 + 4384
 
 def roundTranscriptRound {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (_offset : Nat) (roundIndex : Fin productionShape.cubeVariables) :
     FixedChain.Round degreeBound :=
@@ -258,7 +258,7 @@ def roundTranscriptRound {logicalWidth degreeBound : Nat}
 
 def roundTranscriptFinalState {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (_offset : Nat) : Layer.EState :=
   RoundTranscript.finalState (roundTranscriptInterface interface)
@@ -266,7 +266,7 @@ def roundTranscriptFinalState {logicalWidth degreeBound : Nat}
 
 def roundPoint {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (_offset : Nat) (coordinate : Fin productionShape.cubeVariables) : KExpr :=
   RoundTranscript.challenge (roundTranscriptInterface interface)
@@ -274,7 +274,7 @@ def roundPoint {logicalWidth degreeBound : Nat}
 
 def initialClaimInterface {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) :
     InitialClaim.Interface where
   gamma := challengeGamma interface
@@ -287,7 +287,7 @@ def initialClaimInterface {logicalWidth degreeBound : Nat}
 
 def initialClaimStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
   roundTranscriptStart interface +
     (RoundTranscript.program (roundTranscriptInterface interface)
@@ -295,7 +295,7 @@ def initialClaimStart {logicalWidth degreeBound : Nat}
 
 def initialClaimStartFast {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
   roundTranscriptStart interface +
     productionShape.cubeVariables *
@@ -304,7 +304,7 @@ def initialClaimStartFast {logicalWidth degreeBound : Nat}
 theorem initialClaimStart_eq_initialClaimStartFast_pointwise
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) :
     initialClaimStart interface = initialClaimStartFast interface := by
   unfold initialClaimStart initialClaimStartFast
@@ -317,7 +317,7 @@ theorem initialClaimStart_eq_initialClaimStartFast_pointwise
 
 def initialClaimOutput {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (_offset : Nat) : KExpr :=
   InitialClaim.output (initialClaimInterface interface)
@@ -325,7 +325,7 @@ def initialClaimOutput {logicalWidth degreeBound : Nat}
 
 def sumcheckInterface {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) :
   SumcheckChain.Interface degreeBound where
   initial := initialClaimOutput interface
@@ -333,13 +333,13 @@ def sumcheckInterface {logicalWidth degreeBound : Nat}
 
 def sumcheckStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
   initialClaimStart interface + InitialClaim.privateCount
 
 def sumcheckOutput {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (_offset : Nat) : KExpr :=
   SumcheckChain.output (sumcheckInterface interface)
@@ -347,7 +347,7 @@ def sumcheckOutput {logicalWidth degreeBound : Nat}
 
 theorem sumcheckOutput_varsBelow_end {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat)
     (assumptions : SumcheckChain.Assumptions (sumcheckInterface interface)
@@ -360,7 +360,7 @@ theorem sumcheckOutput_varsBelow_end {logicalWidth degreeBound : Nat}
 
 def evalKInterface {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) :
     EvalKTerminal.Interface where
   roundPoint := roundPoint interface
@@ -372,20 +372,20 @@ def evalKInterface {logicalWidth degreeBound : Nat}
 
 def evalKStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
   sumcheckStart interface + SumcheckChain.privateCount degreeBound
 
 def evalKOutput {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (_offset : Nat) : KExpr :=
   EvalKTerminal.output (evalKInterface interface) (evalKStart interface)
 
 def evalAInterface {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) :
     EvalATerminal.Interface where
   roundPoint := roundPoint interface
@@ -398,13 +398,13 @@ def evalAInterface {logicalWidth degreeBound : Nat}
 
 def evalAStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
   evalKStart interface + EvalKTerminal.privateCount
 
 def evalAOutput {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (_offset : Nat) : KExpr :=
   EvalATerminal.output (evalAInterface interface) (evalAStart interface)
@@ -412,7 +412,7 @@ def evalAOutput {logicalWidth degreeBound : Nat}
 def constantCoefficient
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     Fin productionShape.coefficientCount :=
   (PaperAlgebra.matrixSource relation.system).kernel.constant
@@ -420,12 +420,12 @@ def constantCoefficient
 def freshIndex : Fin productionShape.freshCount :=
   ⟨0, by
     norm_num [productionShape, productionProfile,
-      Phi81MatrixSource.phi81Shape]⟩
+      RingMatrixSource.ringShape]⟩
 
 def ccsInterface
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits) :
     CcsTerminal.Interface where
@@ -437,14 +437,14 @@ def ccsInterface
 def ccsStart
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
   evalAStart interface + EvalATerminal.privateCount
 
 def ccsOutput
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (_offset : Nat) : KExpr :=
@@ -454,7 +454,7 @@ def ccsOutput
 def normInterface
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits) :
     NormTerminal.Interface where
@@ -466,14 +466,14 @@ def normInterface
 def normStart
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
   ccsStart interface + CcsTerminal.privateCount
 
 def normOutput
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (_offset : Nat) : KExpr :=
@@ -482,7 +482,7 @@ def normOutput
 
 def finalIdentityInterface {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits) :
     FinalIdentity.Interface where
@@ -498,7 +498,7 @@ def finalIdentityInterface {logicalWidth degreeBound : Nat}
 theorem finalIdentityTerminal_eq_sumcheckOutput
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (finalAt sumcheckAt : Nat)
@@ -511,7 +511,7 @@ theorem finalIdentityTerminal_eq_sumcheckOutput
 theorem normGamma_eq_finalIdentityGamma
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (normAt finalAt : Nat) :
@@ -522,7 +522,7 @@ theorem normGamma_eq_finalIdentityGamma
 theorem finalIdentityNorm_eq_normOutput
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (normAt finalAt : Nat) (startEq : normStart interface = normAt) :
@@ -533,7 +533,7 @@ theorem finalIdentityNorm_eq_normOutput
 
 def outputBindingInterface {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) :
   OutputBinding.Interface where
   roundPoint := roundPoint interface
@@ -542,7 +542,7 @@ def outputBindingInterface {logicalWidth degreeBound : Nat}
 
 def statementBindingCircuit {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (StatementBinding.circuit (statementBindingInterface interface))
@@ -552,7 +552,7 @@ def statementBindingCircuit {logicalWidth degreeBound : Nat}
 
 def statementAbsorptionCircuit {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (StatementAbsorption.circuit (statementAbsorptionInterface interface))
@@ -563,7 +563,7 @@ def statementAbsorptionCircuit {logicalWidth degreeBound : Nat}
 
 def challengeCircuit {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (parentOffset : Nat) : FormalCircuit :=
   let childInterface :=
@@ -575,7 +575,7 @@ def challengeCircuit {logicalWidth degreeBound : Nat}
 
 def roundTranscriptCircuit {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (RoundTranscript.circuit (roundTranscriptInterface interface))
@@ -588,7 +588,7 @@ def roundTranscriptCircuit {logicalWidth degreeBound : Nat}
 
 def initialClaimCircuit {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (InitialClaim.circuit (initialClaimInterface interface)) 12957 12957
@@ -597,7 +597,7 @@ def initialClaimCircuit {logicalWidth degreeBound : Nat}
 
 def sumcheckCircuit {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (SumcheckChain.circuit (sumcheckInterface interface))
@@ -608,7 +608,7 @@ def sumcheckCircuit {logicalWidth degreeBound : Nat}
 
 def evalKCircuit {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (EvalKTerminal.circuit (evalKInterface interface))
@@ -618,7 +618,7 @@ def evalKCircuit {logicalWidth degreeBound : Nat}
 
 def evalACircuit {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (EvalATerminal.circuit (evalAInterface interface))
@@ -629,7 +629,7 @@ def evalACircuit {logicalWidth degreeBound : Nat}
 def ccsCircuit
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
@@ -641,7 +641,7 @@ def ccsCircuit
 def normCircuit
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
@@ -651,7 +651,7 @@ def normCircuit
 
 def finalIdentityCircuit {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
@@ -662,7 +662,7 @@ def finalIdentityCircuit {logicalWidth degreeBound : Nat}
 
 def outputBindingCircuit {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (OutputBinding.circuit (outputBindingInterface interface)) 838440 838440
@@ -697,7 +697,7 @@ def statementBindingOffset (offset : Nat) : Nat := offset
 
 def statementAbsorptionOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
   (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Nat :=
   nextOffset (statementBindingCircuit (atOffset interface offset)) offset
@@ -705,7 +705,7 @@ def statementAbsorptionOffset {logicalWidth degreeBound : Nat}
 @[simp] theorem statementAbsorptionOffset_eq
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     statementAbsorptionOffset interface offset = offset + StateBinding.signCount := by
@@ -716,7 +716,7 @@ def statementAbsorptionOffset {logicalWidth degreeBound : Nat}
 
 def challengeOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Nat :=
   nextOffset (statementAbsorptionCircuit (atOffset interface offset))
@@ -725,7 +725,7 @@ def challengeOffset {logicalWidth degreeBound : Nat}
 @[simp] theorem challengeOffset_eq
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : challengeOffset interface offset = offset + 135078 := by
   unfold challengeOffset nextOffset childLength statementAbsorptionCircuit
@@ -737,7 +737,7 @@ def challengeOffset {logicalWidth degreeBound : Nat}
 @[simp] theorem challengeStart_atOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     challengeStart (atOffset interface offset) =
@@ -746,7 +746,7 @@ def challengeOffset {logicalWidth degreeBound : Nat}
 
 def roundTranscriptOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Nat :=
   nextOffset (challengeCircuit interface offset)
@@ -755,7 +755,7 @@ def roundTranscriptOffset {logicalWidth degreeBound : Nat}
 @[simp] theorem roundTranscriptOffset_eq
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     roundTranscriptOffset interface offset =
@@ -767,7 +767,7 @@ def roundTranscriptOffset {logicalWidth degreeBound : Nat}
 @[simp] theorem roundTranscriptStart_atOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     roundTranscriptStart (atOffset interface offset) =
@@ -776,7 +776,7 @@ def roundTranscriptOffset {logicalWidth degreeBound : Nat}
 
 def initialClaimOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Nat :=
   nextOffset (roundTranscriptCircuit (atOffset interface offset))
@@ -785,7 +785,7 @@ def initialClaimOffset {logicalWidth degreeBound : Nat}
 @[simp] theorem initialClaimStart_atOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     initialClaimStart (atOffset interface offset) =
@@ -800,7 +800,7 @@ def initialClaimOffset {logicalWidth degreeBound : Nat}
 theorem roundTranscriptOffset_le_initialClaimOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     roundTranscriptOffset interface offset ≤
@@ -811,7 +811,7 @@ theorem roundTranscriptOffset_le_initialClaimOffset
 theorem challengeOffset_le_initialClaimOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     challengeOffset interface offset ≤ initialClaimOffset interface offset := by
@@ -820,7 +820,7 @@ theorem challengeOffset_le_initialClaimOffset
 
 def sumcheckOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Nat :=
   nextOffset (initialClaimCircuit (atOffset interface offset))
@@ -829,7 +829,7 @@ def sumcheckOffset {logicalWidth degreeBound : Nat}
 @[simp] theorem sumcheckStart_atOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     sumcheckStart (atOffset interface offset) =
@@ -841,7 +841,7 @@ def sumcheckOffset {logicalWidth degreeBound : Nat}
 
 def evalKOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Nat :=
   nextOffset (sumcheckCircuit (atOffset interface offset))
@@ -850,7 +850,7 @@ def evalKOffset {logicalWidth degreeBound : Nat}
 @[simp] theorem evalKStart_atOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     evalKStart (atOffset interface offset) = evalKOffset interface offset := by
@@ -860,7 +860,7 @@ def evalKOffset {logicalWidth degreeBound : Nat}
 
 def evalAOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Nat :=
   nextOffset (evalKCircuit (atOffset interface offset))
@@ -869,7 +869,7 @@ def evalAOffset {logicalWidth degreeBound : Nat}
 @[simp] theorem evalAStart_atOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     evalAStart (atOffset interface offset) = evalAOffset interface offset := by
@@ -880,7 +880,7 @@ def evalAOffset {logicalWidth degreeBound : Nat}
 
 def ccsOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Nat :=
   nextOffset (evalACircuit (atOffset interface offset))
@@ -889,7 +889,7 @@ def ccsOffset {logicalWidth degreeBound : Nat}
 @[simp] theorem ccsStart_atOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     ccsStart (atOffset interface offset) = ccsOffset interface offset := by
@@ -901,7 +901,7 @@ def ccsOffset {logicalWidth degreeBound : Nat}
 def normOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Nat :=
@@ -911,7 +911,7 @@ def normOffset
 @[simp] theorem normStart_atOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
@@ -924,7 +924,7 @@ def normOffset
 def finalIdentityOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Nat :=
@@ -934,7 +934,7 @@ def finalIdentityOffset
 def outputBindingOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Nat :=
@@ -944,7 +944,7 @@ def outputBindingOffset
 def finalOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Nat :=
@@ -954,7 +954,7 @@ def finalOffset
 def outputBindingFinalState
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Layer.EState :=
@@ -965,7 +965,7 @@ def outputBindingFinalState
 structure PhaseHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -1010,7 +1010,7 @@ def childOp (name : String) (child : FormalCircuit) (offset : Nat) : Op :=
 def opsAt
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : List Op :=
@@ -1053,7 +1053,7 @@ def opsAt
 def main
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits) : Circuit Unit :=
   fun offset => ((), finalOffset relation interface offset,
@@ -1062,7 +1062,7 @@ def main
 @[simp] theorem main_ops
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
@@ -1073,7 +1073,7 @@ def main
 structure Assumptions
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (env : Env) : Prop where
@@ -1110,7 +1110,7 @@ structure Assumptions
 structure SpecHolds
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (env : Env) : Prop where
@@ -1156,7 +1156,7 @@ private theorem childSpec_of_rows (name : String) (child : FormalCircuit)
 theorem soundness
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (env : Env) (offset : Nat)

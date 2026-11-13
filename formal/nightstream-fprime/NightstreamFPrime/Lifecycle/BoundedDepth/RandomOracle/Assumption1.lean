@@ -100,7 +100,7 @@ theorem expect_pair {α β : Type} [Fintype α] [Fintype β] (value : α × β �
 end Laws
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 noncomputable local instance oracles : Fintype (Oracle logicalWidth publicFits) :=
   instFintypeProd _ _

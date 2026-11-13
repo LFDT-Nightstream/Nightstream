@@ -27,7 +27,7 @@ are not checked.
   because the `Circuit` monad has the name of its namespace. It is a naming
   lint, not a check of any proof.
 - Strong-set low-norm invertibility (SuperNeo v1.2 Theorem 4) is proved
-  (`Spec.Phi81StrongSet.lowNormInvertibility`), so no security result takes it
+  (`Spec.RingStrongSet.lowNormInvertibility`), so no security result takes it
   as a premise.
 
 ## Applications and setups
@@ -137,7 +137,7 @@ item 5).
   deterministic.
 - **Binding:** two openings of one commitment at a recovered bound give a
   kernel vector of the Ajtai key below the chain norm
-  (`Spec.Phi81Relation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel`,
+  (`Spec.RingRelation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel`,
   `Lifecycle.Nifs.BindingBridge.differenceBounded`). Every bound that a
   history recovers is at most `B + cap · T · (b − 1)`
   (`Spec.Folding.Schedule.recoveredBounds_le`). Trust item 2 gives the

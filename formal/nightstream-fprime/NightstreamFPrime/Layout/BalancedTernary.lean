@@ -1,10 +1,10 @@
-import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
+import NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
 
 namespace NightstreamFPrime.Layout.BalancedTernary
 
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
-open NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
+open NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Norm
 
 def width : Nat := 41
 
@@ -22,7 +22,7 @@ instance (value : F) : Decidable (isNegative value) :=
   inferInstanceAs (Decidable (Centered.halfModulus < value.val))
 
 def magnitude (value : F) : Nat :=
-  if isNegative value then goldilocksModulus - value.val else value.val
+  if isNegative value then fieldModulus - value.val else value.val
 
 theorem magnitude_le_halfModulus (value : F) :
     magnitude value ≤ Centered.halfModulus := by
@@ -175,7 +175,7 @@ private theorem fieldOfNat_val (value : F) : fieldOfNat value.val = value := by
   simp [fieldOfNat, Nat.mod_eq_of_lt value.isLt]
 
 private theorem neg_fieldOfNat_complement (value : F) :
-    -(fieldOfNat (goldilocksModulus - value.val)) = value := by
+    -(fieldOfNat (fieldModulus - value.val)) = value := by
   by_cases valueZero : value = 0
   · subst value
     exact Lean.Grind.AddCommGroup.neg_zero
@@ -185,10 +185,10 @@ private theorem neg_fieldOfNat_complement (value : F) :
       apply Fin.ext
       simpa using equal
     have complementLt :
-        goldilocksModulus - value.val < goldilocksModulus := by
+        fieldModulus - value.val < fieldModulus := by
       omega
     have embeddedNonzero :
-        fieldOfNat (goldilocksModulus - value.val) ≠ 0 := by
+        fieldOfNat (fieldModulus - value.val) ≠ 0 := by
       intro equal
       have valuesEqual := congrArg Fin.val equal
       simp [fieldOfNat, Nat.mod_eq_of_lt complementLt] at valuesEqual
@@ -236,7 +236,7 @@ theorem recompose_digits (value : F) : recompose (digits value) = value := by
   split
   next negative =>
     rw [recompose_map_neg, unsigned]
-    have magnitudeEq : magnitude value = goldilocksModulus - value.val := by
+    have magnitudeEq : magnitude value = fieldModulus - value.val := by
       simp [magnitude, negative]
     rw [magnitudeEq]
     exact neg_fieldOfNat_complement value

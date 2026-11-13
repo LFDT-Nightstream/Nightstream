@@ -90,7 +90,7 @@ theorem sourceConstraint_freshCount_eq
 theorem commitmentSourceConstraints_eq_childConstraints
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount) :
     sourceConstraints PiRLCStarts.commitmentLogicalStart
@@ -109,7 +109,7 @@ theorem commitmentSourceConstraints_eq_childConstraints
 theorem publicInputSourceConstraints_eq_childConstraints
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount) :
     sourceConstraints PiRLCStarts.publicInputLogicalStart
@@ -128,7 +128,7 @@ theorem publicInputSourceConstraints_eq_childConstraints
 theorem evalKSourceConstraints_eq_childConstraints
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount) :
     sourceConstraints PiRLCStarts.evalKLogicalStart
@@ -147,7 +147,7 @@ theorem evalKSourceConstraints_eq_childConstraints
 theorem evalASourceConstraints_eq_childConstraints
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount) :
     sourceConstraints PiRLCStarts.evalALogicalStart
@@ -198,7 +198,7 @@ theorem familyConstraints_eq_orderedConstraints
 theorem commitmentFamilyConstraints_eq_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} :
     familyConstraints PiRLCStarts.commitmentLogicalStart
         CommitmentCombination.blockCount CommitmentCombination.cellCount 1
@@ -214,7 +214,7 @@ theorem commitmentFamilyConstraints_eq_parent
 theorem publicInputFamilyConstraints_eq_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} :
     familyConstraints PiRLCStarts.publicInputLogicalStart
         PublicInputCombination.blockCount PublicInputCombination.cellCount 1
@@ -230,7 +230,7 @@ theorem publicInputFamilyConstraints_eq_parent
 theorem evalKFamilyConstraints_eq_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} :
     familyConstraints PiRLCStarts.evalKLogicalStart
         EvalKCombination.blockCount RingKCombination.cellCount 2
@@ -246,7 +246,7 @@ theorem evalKFamilyConstraints_eq_parent
 theorem evalAFamilyConstraints_eq_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} :
     familyConstraints PiRLCStarts.evalALogicalStart
         EvalACombination.blockCount RingKCombination.cellCount 2
@@ -506,7 +506,7 @@ theorem familyConstraintZeros_imply_prefix
 theorem commitmentFamilyRows_imply_canonical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (env : Env)
     (rows : FamilyInvocationRowsHold PiRLCStarts.commitmentLogicalStart
@@ -536,7 +536,7 @@ theorem commitmentFamilyRows_imply_canonical
 theorem publicInputFamilyRows_imply_canonical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (env : Env)
     (rows : FamilyInvocationRowsHold PiRLCStarts.publicInputLogicalStart
@@ -566,7 +566,7 @@ theorem publicInputFamilyRows_imply_canonical
 theorem evalKFamilyRows_imply_canonical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (env : Env)
     (rows : FamilyInvocationRowsHold PiRLCStarts.evalKLogicalStart
@@ -596,7 +596,7 @@ theorem evalKFamilyRows_imply_canonical
 theorem evalAFamilyRows_imply_canonical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (env : Env)
     (rows : FamilyInvocationRowsHold PiRLCStarts.evalALogicalStart

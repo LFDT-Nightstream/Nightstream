@@ -13,7 +13,7 @@ namespace NightstreamFPrime.Lifecycle.Nebula
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
-open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
+open scoped NightstreamFPrime.Spec.FieldExtensionRing
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper (TerminalStatement)
 open NightstreamFPrime.Lifecycle.Stage1
 

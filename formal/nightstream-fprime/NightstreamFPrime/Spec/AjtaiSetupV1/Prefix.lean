@@ -1,5 +1,5 @@
 import NightstreamFPrime.Spec.AjtaiSetupV1
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Binding
 
 set_option autoImplicit false
 
@@ -7,9 +7,9 @@ namespace NightstreamFPrime.Spec.AjtaiSetupV1.Prefix
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation
-open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
-open NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra
+open NightstreamFPrime.Spec.RingRelation
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra
 
 theorem verifierKey_prefix {rows smallColumns largeColumns : Nat}
     (small : Setup rows smallColumns) (large : Setup rows largeColumns)
@@ -42,50 +42,50 @@ private theorem zeroExtend_outside {Value : Type*} [Zero Value]
 
 private theorem blockCount_mono {smallWidth largeWidth : Nat}
     (fits : smallWidth ≤ largeWidth) :
-    Phi81ColumnLayout.blockCount smallWidth ≤ Phi81ColumnLayout.blockCount largeWidth := by
-  simp only [Phi81ColumnLayout.blockCount, ringDegree]
+    ConcreteRingColumnLayout.blockCount smallWidth ≤ ConcreteRingColumnLayout.blockCount largeWidth := by
+  simp only [ConcreteRingColumnLayout.blockCount, ringDegree]
   omega
 
-private theorem carrierWidth_blocks (shape : Phi81Relation.Shape) :
-    shape.carrierWidth = Phi81ColumnLayout.blockCount shape.carrierWidth * ringDegree := by
-  change Phi81CarrierLayout.carrierWidth shape.logicalWidth =
-    Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth shape.logicalWidth) * ringDegree
-  rw [Phi81CarrierLayout.blockCount_carrierWidth]
+private theorem carrierWidth_blocks (shape : RingRelation.Shape) :
+    shape.carrierWidth = ConcreteRingColumnLayout.blockCount shape.carrierWidth * ringDegree := by
+  change RingCarrierLayout.carrierWidth shape.logicalWidth =
+    ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth shape.logicalWidth) * ringDegree
+  rw [RingCarrierLayout.blockCount_carrierWidth]
   rfl
 
-private theorem assignmentBlock_prefix {smallShape largeShape : Phi81Relation.Shape}
+private theorem assignmentBlock_prefix {smallShape largeShape : RingRelation.Shape}
     (fits : smallShape.carrierWidth ≤ largeShape.carrierWidth)
     (value : Assignment smallShape)
-    (block : Fin (Phi81ColumnLayout.blockCount smallShape.carrierWidth)) :
+    (block : Fin (ConcreteRingColumnLayout.blockCount smallShape.carrierWidth)) :
     CarrierAction.assignmentBlock (logicalWidth := largeShape.logicalWidth)
         (zeroExtend fits value) (Fin.castLE (blockCount_mono fits) block) =
       CarrierAction.assignmentBlock (logicalWidth := smallShape.logicalWidth) value block := by
   funext lane
   have sameColumn :
-      Phi81CarrierLayout.carrierColumn (logicalWidth := largeShape.logicalWidth)
+      RingCarrierLayout.carrierColumn (logicalWidth := largeShape.logicalWidth)
           (Fin.castLE (blockCount_mono fits) block) lane =
         Fin.castLE fits
-          (Phi81CarrierLayout.carrierColumn (logicalWidth := smallShape.logicalWidth) block lane) := by
+          (RingCarrierLayout.carrierColumn (logicalWidth := smallShape.logicalWidth) block lane) := by
     apply Fin.ext
     rfl
   change zeroExtend fits value
-      (Phi81CarrierLayout.carrierColumn (logicalWidth := largeShape.logicalWidth)
+      (RingCarrierLayout.carrierColumn (logicalWidth := largeShape.logicalWidth)
         (Fin.castLE (blockCount_mono fits) block) lane) =
-    value (Phi81CarrierLayout.carrierColumn (logicalWidth := smallShape.logicalWidth) block lane)
+    value (RingCarrierLayout.carrierColumn (logicalWidth := smallShape.logicalWidth) block lane)
   rw [sameColumn, zeroExtend_prefix]
 
-private theorem assignmentBlock_outside {smallShape largeShape : Phi81Relation.Shape}
+private theorem assignmentBlock_outside {smallShape largeShape : RingRelation.Shape}
     (fits : smallShape.carrierWidth ≤ largeShape.carrierWidth)
     (value : Assignment smallShape)
-    (block : Fin (Phi81ColumnLayout.blockCount largeShape.carrierWidth))
-    (outside : Phi81ColumnLayout.blockCount smallShape.carrierWidth ≤ block.val) :
+    (block : Fin (ConcreteRingColumnLayout.blockCount largeShape.carrierWidth))
+    (outside : ConcreteRingColumnLayout.blockCount smallShape.carrierWidth ≤ block.val) :
     CarrierAction.assignmentBlock (logicalWidth := largeShape.logicalWidth)
       (zeroExtend fits value) block = ringFZero := by
   funext lane
   apply zeroExtend_outside fits value
   change smallShape.carrierWidth ≤ block.val * ringDegree + lane.val
   calc
-    _ = Phi81ColumnLayout.blockCount smallShape.carrierWidth * ringDegree :=
+    _ = ConcreteRingColumnLayout.blockCount smallShape.carrierWidth * ringDegree :=
       carrierWidth_blocks smallShape
     _ ≤ block.val * ringDegree := Nat.mul_le_mul_right ringDegree outside
     _ ≤ block.val * ringDegree + lane.val := Nat.le_add_right _ _
@@ -127,10 +127,10 @@ private theorem ringFSum_prefix {smallCount largeCount : Nat}
             ringFAdd (small 0) (Commitment.ringFSum (fun index => small index.succ))
           rw [head, induction bound _ _ tails tailOutside]
 
-theorem commit_zeroExtend {rows : Nat} {smallShape largeShape : Phi81Relation.Shape}
+theorem commit_zeroExtend {rows : Nat} {smallShape largeShape : RingRelation.Shape}
     (fits : smallShape.carrierWidth ≤ largeShape.carrierWidth)
-    (small : Setup rows (Phi81ColumnLayout.blockCount smallShape.carrierWidth))
-    (large : Setup rows (Phi81ColumnLayout.blockCount largeShape.carrierWidth))
+    (small : Setup rows (ConcreteRingColumnLayout.blockCount smallShape.carrierWidth))
+    (large : Setup rows (ConcreteRingColumnLayout.blockCount largeShape.carrierWidth))
     (sameSeed : small.seed = large.seed) (value : Assignment smallShape) :
     Commitment.commit (shape := largeShape) large.verifierKey (zeroExtend fits value) =
       Commitment.commit (shape := smallShape) small.verifierKey value := by
@@ -147,14 +147,14 @@ theorem commit_zeroExtend {rows : Nat} {smallShape largeShape : Phi81Relation.Sh
 
 private theorem zeroExtend_intCast {smallWidth largeWidth : Nat}
     (fits : smallWidth ≤ largeWidth) (value : Fin smallWidth → Int) :
-    (fun column => ((zeroExtend fits value column : Int) : ZMod goldilocksModulus)) =
-      zeroExtend fits (fun column => (value column : ZMod goldilocksModulus)) := by
+    (fun column => ((zeroExtend fits value column : Int) : ZMod fieldModulus)) =
+      zeroExtend fits (fun column => (value column : ZMod fieldModulus)) := by
   funext column
   by_cases inside : column.val < smallWidth
   · simp only [zeroExtend, dite_eq_left inside]
   · simp only [zeroExtend, dite_eq_right inside, Int.cast_zero]
 
-private theorem kernel_bound_positive {shape : Phi81Relation.Shape} {rows bound : Nat}
+private theorem kernel_bound_positive {shape : RingRelation.Shape} {rows bound : Nat}
     {key : Commitment.Key shape rows} (solution : Binding.ShortKernelVector key bound) :
     0 < bound := by
   by_contra notPositive
@@ -165,10 +165,10 @@ private theorem kernel_bound_positive {shape : Phi81Relation.Shape} {rows bound 
     simpa only [zero] using solution.bounded column
   exact False.elim (Nat.not_lt_zero _ impossible)
 
-def extendShortKernel {rows bound : Nat} {smallShape largeShape : Phi81Relation.Shape}
+def extendShortKernel {rows bound : Nat} {smallShape largeShape : RingRelation.Shape}
     (fits : smallShape.carrierWidth ≤ largeShape.carrierWidth)
-    (small : Setup rows (Phi81ColumnLayout.blockCount smallShape.carrierWidth))
-    (large : Setup rows (Phi81ColumnLayout.blockCount largeShape.carrierWidth))
+    (small : Setup rows (ConcreteRingColumnLayout.blockCount smallShape.carrierWidth))
+    (large : Setup rows (ConcreteRingColumnLayout.blockCount largeShape.carrierWidth))
     (sameSeed : small.seed = large.seed)
     (solution : Binding.ShortKernelVector (shape := smallShape) small.verifierKey bound) :
     Binding.ShortKernelVector (shape := largeShape) large.verifierKey bound where
@@ -188,7 +188,7 @@ def extendShortKernel {rows bound : Nat} {smallShape largeShape : Phi81Relation.
   kernel := by
     rw [zeroExtend_intCast]
     exact (commit_zeroExtend (smallShape := smallShape) (largeShape := largeShape)
-      fits small large sameSeed (fun column => (solution.vector column : ZMod goldilocksModulus))).trans
+      fits small large sameSeed (fun column => (solution.vector column : ZMod fieldModulus))).trans
       solution.kernel
 
 end NightstreamFPrime.Spec.AjtaiSetupV1.Prefix

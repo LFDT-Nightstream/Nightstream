@@ -23,7 +23,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepLayout
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The shared words that the step's gadgets read lie below the parent offset. -/
 structure InputsBelow {witnessWordCount : Nat}

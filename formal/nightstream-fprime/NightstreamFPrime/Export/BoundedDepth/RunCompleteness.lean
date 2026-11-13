@@ -33,12 +33,12 @@ open NightstreamFPrime.Export.BoundedDepth.StepExtend
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
   {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
   {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)}
   {circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits}
   {step : AppState → AppWitness → AppState}
-  {cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+  {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
 
 variable (ajtai circuitKeys step) in
 /-- The terminal accepts `statement` with the bottom proof, or with a recursive proof whose slots
@@ -95,7 +95,7 @@ theorem verifies_step (exports : Exports relation ajtai circuitKeys step cubeFit
     (proof : Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits))
     (verifies : Verifies ajtai circuitKeys step complete.packageWidth cap control statement proof)
     (witness : AppWitness) (valid : exports.program.valid statement.zi witness)
-    (iterationNext : statement.iteration + 1 < goldilocksModulus)
+    (iterationNext : statement.iteration + 1 < fieldModulus)
     (witnessLength : witness.length = exports.program.witnessWordCount) :
     ∃ next, Verifies ajtai circuitKeys step complete.packageWidth cap control
       ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ (.recursive next) := by
@@ -155,7 +155,7 @@ theorem accepts_step (exports : Exports relation ajtai circuitKeys step cubeFits
     (cap : Nat) (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
     (accepts : Accepts ajtai circuitKeys step complete.packageWidth cap control statement)
     (witness : AppWitness) (valid : exports.program.valid statement.zi witness)
-    (iterationNext : statement.iteration + 1 < goldilocksModulus)
+    (iterationNext : statement.iteration + 1 < fieldModulus)
     (witnessLength : witness.length = exports.program.witnessWordCount) :
     Accepts ajtai circuitKeys step complete.packageWidth cap control
       ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ := by
@@ -182,7 +182,7 @@ theorem run_complete (exports : Exports relation ajtai circuitKeys step cubeFits
     (z0Length : z0.length = Stage1.Application.stateWordCount) :
     ∀ witnesses : List AppWitness, IvcWalk.ValidFrom exports.program z0 witnesses →
       (∀ witness ∈ witnesses, witness.length = exports.program.witnessWordCount) →
-      witnesses.length < goldilocksModulus →
+      witnesses.length < fieldModulus →
         Accepts ajtai circuitKeys step complete.packageWidth cap control
           ⟨witnesses.length, z0, witnesses.foldl step z0⟩ := by
   intro witnesses
@@ -191,11 +191,11 @@ theorem run_complete (exports : Exports relation ajtai circuitKeys step cubeFits
       intro _ _ _
       left
       exact (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step control _).mpr
-        ⟨⟨show (0 : Nat) < goldilocksModulus by decide, z0Length, z0Length⟩, rfl, rfl⟩
+        ⟨⟨show (0 : Nat) < fieldModulus by decide, z0Length, z0Length⟩, rfl, rfl⟩
   | append_singleton earlier witness inductionHypothesis =>
       intro validRun lengths lengthBound
       rw [IvcWalk.validFrom_append] at validRun
-      have earlierBound : earlier.length < goldilocksModulus := by
+      have earlierBound : earlier.length < fieldModulus := by
         simp only [List.length_append, List.length_singleton] at lengthBound
         omega
       have earlierAccepts := inductionHypothesis validRun.1

@@ -205,7 +205,7 @@ structure PortApp (p : Geometry) extends AppShape where
   model : Application p (Fin width → F)
   rows : List Circuit.Expr
   /-- The state words fit the length word of the state digest. -/
-  width_lt : width < goldilocksModulus
+  width_lt : width < fieldModulus
   /-- Every step uses one port list of width `B_ops`. -/
   portsLength : ∀ {s ports s'}, model.Step s ports s' → ports.length = p.bOps
   /-- Port coverage: rows that hold on well-formed slots are one model step on the

@@ -1,10 +1,10 @@
 namespace NightstreamFPrime.Spec
 
-def goldilocksModulus : Nat := 18446744069414584321
+def fieldModulus : Nat := 18446744069414584321
 
-instance : NeZero goldilocksModulus := ⟨by decide⟩
+instance : NeZero fieldModulus := ⟨by decide⟩
 
-abbrev F := Fin goldilocksModulus
+abbrev F := Fin fieldModulus
 
 structure K where
   c0 : F
@@ -81,7 +81,7 @@ def ringKMul (a b : RingK) : RingK := fun out =>
   K.add (K.sub (rawMulCoeffK a b i) folded) twice
 
 def centeredMagnitude (x : F) : Nat :=
-  min x.val (goldilocksModulus - x.val)
+  min x.val (fieldModulus - x.val)
 
 def normBounded (bound : Nat) (z : List F) : Prop :=
   ∀ x ∈ z, centeredMagnitude x < bound

@@ -1,0 +1,77 @@
+import NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.BaseLinear
+import NightstreamFPrime.Spec.RingRelation.Semantics
+import NightstreamFPrime.Spec.Profile
+
+namespace NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.PiDEC
+
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.RingRelation
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+
+def radixWeight
+    (index : Fin productionGlobalParams.k) : F :=
+  ⟨productionGlobalParams.b ^ index.val % fieldModulus,
+    Nat.mod_lt _ (by decide)⟩
+
+namespace Raw
+
+end Raw
+
+def recomposeAssignment {shape : Shape}
+    (assignments : Fin productionGlobalParams.k -> Assignment shape) :
+    Assignment shape :=
+  BaseLinear.combineAssignments radixWeight assignments
+
+def recomposeEvaluations {shape : Shape}
+    (items : Fin productionGlobalParams.k -> Array Evaluation) :
+    Array Evaluation :=
+  Array.ofFn fun matrix : Fin shape.matrixCount =>
+    BaseLinear.combineEvaluations radixWeight fun index =>
+      (items index).getD matrix.val BaseLinear.evaluationZero
+
+private theorem semantic_getD
+    {shape : Shape}
+    (system : Structure shape) (assignment : Assignment shape)
+    (point : Point shape) (matrix : Fin shape.matrixCount) :
+    (evaluations system assignment point).getD matrix.val
+        BaseLinear.evaluationZero =
+      matrixEvaluation system assignment point matrix := by
+  have bound : matrix.val < (evaluations system assignment point).size := by
+    rw [evaluations_size]
+    exact matrix.isLt
+  rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem bound]
+  exact evaluations_get system assignment point matrix
+
+theorem evaluations_hom
+    {shape : Shape}
+    (system : Structure shape) (point : Point shape)
+    (assignments : Fin productionGlobalParams.k -> Assignment shape) :
+    evaluations system (recomposeAssignment assignments) point =
+      recomposeEvaluations (shape := shape) fun index =>
+        evaluations system (assignments index) point := by
+  rw [recomposeAssignment, BaseLinear.evaluations_combine]
+  apply Array.ext
+  · simp [recomposeEvaluations]
+  · intro matrix leftLt rightLt
+    let typedMatrix : Fin shape.matrixCount := ⟨matrix, by
+      simpa [recomposeEvaluations] using rightLt⟩
+    simp only [recomposeEvaluations, Array.getElem_ofFn]
+    apply congrArg (BaseLinear.combineEvaluations radixWeight)
+    funext index
+    exact (semantic_getD system (assignments index) point typedMatrix).symm
+
+theorem relation_evaluations_hom
+    {shape : Shape} {Commitment : Type}
+    (commit : Assignment shape -> Commitment) :
+    forall (system : Structure shape) (point : Point shape) assignments,
+      (relationSemantics commit).evaluations system
+          (recomposeAssignment assignments) point =
+        recomposeEvaluations (shape := shape) fun index =>
+          (relationSemantics commit).evaluations system
+            (assignments index) point := by
+  intro system point assignments
+  exact evaluations_hom system point assignments
+
+end NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.PiDEC

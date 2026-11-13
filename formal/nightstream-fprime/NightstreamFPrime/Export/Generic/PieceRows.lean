@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Generic.Pieces
-import NightstreamFPrime.Spec.Phi81Relation.QuotientProduct
+import NightstreamFPrime.Spec.RingRelation.QuotientProduct
 
 /-! The R1CS rows of a circuit's pieces (CW-5.7). A ring-product piece is one `CombinationStep`
 block of the Π_RLC combinations: for each cell, `output = prior + challenge * value` in the ring.
@@ -8,7 +8,7 @@ It becomes 108 rows per cell, row `r` checking at node `r`
   `challenge(r) * value(r) = output(r) - prior(r) + Φ81(r) * quotient(r)`,
 
 where each term is the evaluation of a ring element and the quotient is fresh, as
-`Phi81ProductPlan` (SuperNeo v1.2 Section 7.4). `QuotientProduct.sound_add` turns the rows back
+`RingProductPlan` (SuperNeo v1.2 Section 7.4). `QuotientProduct.sound_add` turns the rows back
 into the ring identity, which is the piece's constraints (`ringRows_sound`). A permutation piece
 and every other constraint are lowered with `R1CS.lowerConstraints`. `pieces_sound` gives the
 circuit's constraints from the rows of `split`. -/
@@ -20,7 +20,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Export.Generic.Pieces
-open NightstreamFPrime.Spec.Phi81Relation
+open NightstreamFPrime.Spec.RingRelation
 open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 
 /-! ### Linear lanes as R1CS combinations -/

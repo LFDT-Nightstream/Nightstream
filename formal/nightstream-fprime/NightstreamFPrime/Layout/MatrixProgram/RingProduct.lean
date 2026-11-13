@@ -1,0 +1,253 @@
+import Batteries.Data.Fin.Coding
+import NightstreamFPrime.Layout.MatrixProgram
+import NightstreamFPrime.Layout.ProductionRelation.RingProductPlan
+import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep
+
+namespace NightstreamFPrime.Layout.MatrixProgram.RingProduct
+
+open NightstreamFPrime.Layout
+open NightstreamFPrime.Layout.ProductionRelation
+open NightstreamFPrime.Lifecycle.PiRLC.v1_2
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+
+structure Family where
+  sourceCount : Nat
+  blockCount : Nat
+  cellCount : Nat
+deriving Repr, DecidableEq
+
+def Family.privateCount (family : Family) : Nat :=
+  CombinationStep.privateCount family.blockCount family.cellCount
+
+def Family.invocationCount (family : Family) : Nat :=
+  family.sourceCount * family.privateCount
+
+structure Descriptor where
+  family : Family
+  familyOffset : Nat
+  source : Fin family.sourceCount
+  coordinate : Fin family.privateCount
+
+def Descriptor.coordinates (descriptor : Descriptor) :
+    Fin descriptor.family.blockCount × Fin ringDegree ×
+      Fin descriptor.family.cellCount :=
+  CombinationStep.coordinates descriptor.coordinate
+
+def Descriptor.block (descriptor : Descriptor) :
+    Fin descriptor.family.blockCount :=
+  descriptor.coordinates.1
+
+def Descriptor.lane (descriptor : Descriptor) : Fin ringDegree :=
+  descriptor.coordinates.2.1
+
+def Descriptor.cell (descriptor : Descriptor) :
+    Fin descriptor.family.cellCount :=
+  descriptor.coordinates.2.2
+
+def Descriptor.localInvocation (descriptor : Descriptor) : Nat :=
+  (Fin.encodeProd (descriptor.source, descriptor.coordinate)).val
+
+def Descriptor.invocation (descriptor : Descriptor) : Nat :=
+  descriptor.familyOffset + descriptor.localInvocation
+
+def Descriptor.invocationAtLane (descriptor : Descriptor)
+    (lane : Fin ringDegree) : Nat :=
+  descriptor.familyOffset +
+    (Fin.encodeProd (descriptor.source,
+      CombinationStep.indexOf descriptor.block lane descriptor.cell)).val
+
+def invocationCount (families : List Family) : Nat :=
+  (families.map Family.invocationCount).sum
+
+structure Block where
+  families : List Family
+  oneColumn : Nat
+  challenge : RetainedBlock
+  challengeSlotStart : Nat
+  challengeSourceStride : Nat
+  input : SourceSubstitution
+  output : RetainedBlock
+  quotient : RetainedBlock
+deriving Repr, DecidableEq
+
+def Block.invocationCount (block : Block) : Nat :=
+  RingProduct.invocationCount block.families
+
+def Family.ringCount (family : Family) : Nat :=
+  family.sourceCount * (family.blockCount * family.cellCount)
+
+def ringCount (families : List Family) : Nat :=
+  (families.map Family.ringCount).sum
+
+def Family.ringDescriptor? (family : Family) (familyOffset index : Nat) :
+    Option Descriptor :=
+  if bound : index < family.ringCount then
+    let sourceAndCell : Fin family.sourceCount ×
+        Fin (family.blockCount * family.cellCount) := Fin.decodeProd ⟨index, bound⟩
+    let blockAndCell : Fin family.blockCount × Fin family.cellCount :=
+      Fin.decodeProd sourceAndCell.2
+    some {
+      family, familyOffset
+      source := sourceAndCell.1
+      coordinate := CombinationStep.indexOf blockAndCell.1 ⟨0, by decide⟩ blockAndCell.2 }
+  else none
+
+def ringDescriptorFrom? : List Family → Nat → Nat → Option Descriptor
+  | [], _, _ => none
+  | family :: rest, familyOffset, index =>
+      if index < family.ringCount then
+        family.ringDescriptor? familyOffset index
+      else
+        ringDescriptorFrom? rest (familyOffset + family.invocationCount)
+          (index - family.ringCount)
+
+def ringDescriptor? (families : List Family) (index : Nat) : Option Descriptor :=
+  ringDescriptorFrom? families 0 index
+
+@[simp] theorem Family.ringDescriptor?_encode (family : Family)
+    (familyOffset : Nat) (source : Fin family.sourceCount)
+    (block : Fin family.blockCount) (cell : Fin family.cellCount) :
+    family.ringDescriptor? familyOffset
+        (Fin.encodeProd (source, Fin.encodeProd (block, cell))).val =
+      some {
+        family := family
+        familyOffset := familyOffset
+        source := source
+        coordinate := CombinationStep.indexOf block ⟨0, by decide⟩ cell } := by
+  unfold Family.ringDescriptor? Family.ringCount
+  rw [dite_eq_left (Fin.encodeProd (source, Fin.encodeProd (block, cell))).isLt]
+  simp
+
+@[simp] theorem ringDescriptorFrom?_head (family : Family)
+    (rest : List Family) (familyOffset : Nat) (source : Fin family.sourceCount)
+    (block : Fin family.blockCount) (cell : Fin family.cellCount) :
+    ringDescriptorFrom? (family :: rest) familyOffset
+        (Fin.encodeProd (source, Fin.encodeProd (block, cell))).val =
+      some {
+        family := family
+        familyOffset := familyOffset
+        source := source
+        coordinate := CombinationStep.indexOf block ⟨0, by decide⟩ cell } := by
+  have bound : (Fin.encodeProd (source, Fin.encodeProd (block, cell))).val <
+      family.ringCount := (Fin.encodeProd (source, Fin.encodeProd (block, cell))).isLt
+  simp only [ringDescriptorFrom?, bound, ite_eq_left]
+  exact family.ringDescriptor?_encode familyOffset source block cell
+
+theorem ringDescriptorFrom?_tail (family : Family) (rest : List Family)
+    (familyOffset index : Nat) :
+    ringDescriptorFrom? (family :: rest) familyOffset
+        (family.ringCount + index) =
+      ringDescriptorFrom? rest (familyOffset + family.invocationCount) index := by
+  change (if family.ringCount + index < family.ringCount then _ else _) = _
+  rw [ite_eq_right (by omega), Nat.add_sub_cancel_left]
+
+def Block.rowCount (block : Block) : Nat :=
+  ringCount block.families * 108
+
+def loadFin? {Alpha : Type} :
+    (count : Nat) → (Fin count → Option Alpha) →
+      Option (Fin count → Alpha)
+  | 0, _ => some Fin.elim0
+  | count + 1, load => do
+      let head ← load 0
+      let tail ← loadFin? count (fun index => load index.succ)
+      pure (Fin.cases head tail)
+
+theorem loadFin?_of_some {Alpha : Type} (count : Nat)
+    (load : Fin count → Option Alpha) (value : Fin count → Alpha)
+    (loaded : ∀ index, load index = some (value index)) :
+    loadFin? count load = some value := by
+  induction count with
+  | zero =>
+      simp only [loadFin?]
+      apply congrArg some
+      funext index
+      exact Fin.elim0 index
+  | succ count inductionHypothesis =>
+      rw [loadFin?]
+      rw [loaded 0]
+      rw [inductionHypothesis
+        (fun index => load index.succ)
+        (fun index => value index.succ)
+        (fun index => loaded index.succ)]
+      apply congrArg some
+      funext index
+      refine Fin.cases ?_ (fun _ => ?_) index <;> rfl
+
+def Block.oneColumn? (block : Block) (logicalWidth : Nat) :
+    Option (Fin logicalWidth) :=
+  if bound : block.oneColumn < logicalWidth then
+    some ⟨block.oneColumn, bound⟩
+  else
+    none
+
+def Block.challengeState? (block : Block) (logicalWidth : Nat)
+    (descriptor : Descriptor) :
+    Option (RingProductPlan.State logicalWidth) :=
+  loadFin? ringDegree fun lane =>
+    block.challenge.form? logicalWidth
+      (block.challengeSlotStart +
+        descriptor.source.val * block.challengeSourceStride + lane.val)
+
+def Block.inputState? (block : Block) (logicalWidth : Nat)
+    (descriptor : Descriptor) :
+    Option (RingProductPlan.State logicalWidth) :=
+  loadFin? ringDegree fun lane =>
+    block.input.form? logicalWidth (descriptor.invocationAtLane lane)
+
+def Block.quotientState? (block : Block) (logicalWidth : Nat)
+    (descriptor : Descriptor) :
+    Option (RingProductPlan.State logicalWidth) :=
+  loadFin? ringDegree fun lane =>
+    block.quotient.form? logicalWidth (descriptor.invocationAtLane lane)
+
+def Block.outputState? (block : Block) (logicalWidth : Nat)
+    (descriptor : Descriptor) :
+    Option (RingProductPlan.State logicalWidth) :=
+  loadFin? ringDegree fun lane =>
+    block.output.form? logicalWidth (descriptor.invocationAtLane lane)
+
+def Block.priorState? (block : Block) (logicalWidth : Nat)
+    (descriptor : Descriptor) :
+    Option (RingProductPlan.State logicalWidth) :=
+  if descriptor.source.val = 0 then some (fun _ => SparseForm.empty)
+  else loadFin? ringDegree fun lane =>
+    block.output.form? logicalWidth
+      (descriptor.invocationAtLane lane - descriptor.family.privateCount)
+
+def Block.interface? (block : Block) (logicalWidth : Nat)
+    (descriptor : Descriptor) :
+    Option (RingProductPlan.Interface logicalWidth) := do
+  let oneColumn ← block.oneColumn? logicalWidth
+  let challenge ← block.challengeState? logicalWidth descriptor
+  let input ← block.inputState? logicalWidth descriptor
+  let quotient ← block.quotientState? logicalWidth descriptor
+  let prior ← block.priorState? logicalWidth descriptor
+  let output ← block.outputState? logicalWidth descriptor
+  let left : RingProductPlan.State logicalWidth := fun lane =>
+    SparseForm.add (challenge lane) (SparseForm.singleton oneColumn (-2))
+  pure { left, right := input, quotient, prior, output }
+
+def Block.row? (block : Block) (logicalWidth ordinal : Nat) :
+    Option (RowForms logicalWidth) :=
+  if ordinal < block.rowCount then do
+    let descriptor ← ringDescriptor? block.families (ordinal / 108)
+    let interface ← block.interface? logicalWidth descriptor
+    let row ← (RingProductPlan.rows interface)[ordinal % 108]?
+    pure row.meaningfulForm
+  else none
+
+theorem Block.row?_of_loaded (block : Block) (logicalWidth ordinal : Nat)
+    (bound : ordinal < block.rowCount)
+    (descriptor : Descriptor)
+    (selected : ringDescriptor? block.families (ordinal / 108) = some descriptor)
+    (interface : RingProductPlan.Interface logicalWidth)
+    (loaded : block.interface? logicalWidth descriptor = some interface)
+    (row : OrdinaryRow.Forms logicalWidth)
+    (rowSelected : (RingProductPlan.rows interface)[ordinal % 108]? = some row) :
+    block.row? logicalWidth ordinal = some row.meaningfulForm := by
+  simp [Block.row?, bound, selected, loaded, rowSelected]
+
+end NightstreamFPrime.Layout.MatrixProgram.RingProduct

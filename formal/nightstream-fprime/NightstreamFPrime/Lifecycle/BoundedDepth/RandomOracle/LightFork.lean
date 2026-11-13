@@ -1,7 +1,7 @@
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightTest
 import NightstreamFPrime.Spec.Folding.PiRLC.NormFreeFork
-import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
+import NightstreamFPrime.Spec.RingStrongSet.LowNormInvertibility
 
 /-! The light fold's fork step in the random-oracle model: `Fork` on the light schedule, which
 has one `ρ` challenge. `verify` is `Light.verify` with the Π_CCS coins and `ρ` read from the
@@ -48,7 +48,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink (Attempt Fol
 attribute [local instance low] Classical.propDecidable
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 section Types
 
@@ -64,8 +64,8 @@ abbrev Statement := (LightSchedule.schedule logicalWidth publicFits).Statement
 
 abbrev Claim :=
   CE.Instance
-    (RelationSource LightShape (Phi81CarrierLayout.carrierWidth logicalWidth)
-      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth)))
+    (RelationSource LightShape (RingCarrierLayout.carrierWidth logicalWidth)
+      (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth)))
     (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
     (CubePoint K LightShape.cubeVariables) (EvaluationFamily K LightShape) PaperAlgebra.Commitment
 
@@ -359,13 +359,13 @@ theorem fork_baseNorm (succeeds : Fork.Succeeds (game ajtai key) adversary oracl
 
 /-- SuperNeo v1.2 Lemma 8's strong set for the production light key. -/
 noncomputable abbrev strongSet :=
-  Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits Phi81StrongSet.lowNormInvertibility
+  RingRelation.PiRLCAlgebra.ForkStrongSet.strongSetUnits RingStrongSet.lowNormInvertibility
 
 /-- The output witness that the fork extracts: the fresh witness `(ρ − ρ')⁻¹ (w − w')` and
 the running witness `w − ρ · fresh` (`Light.Rlc.Fork.freshAssignment`, `runningAssignment`). -/
 noncomputable def extractedWitness (succeeds : Fork.Succeeds (game ajtai key) adversary oracle)
     (valid : ∀ index, Fork.ForkValid (game ajtai key) adversary oracle retries index) :
-    OutputWitness LightShape (Phi81CarrierLayout.carrierWidth logicalWidth) where
+    OutputWitness LightShape (RingCarrierLayout.carrierWidth logicalWidth) where
   assignments := fun source =>
     if source.val = 0 then
       (fork ajtai succeeds valid).freshAssignment (normFreeLaws (lightExtraction ajtai)) strongSet

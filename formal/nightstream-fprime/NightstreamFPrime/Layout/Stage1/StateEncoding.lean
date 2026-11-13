@@ -1,5 +1,5 @@
 import NightstreamFPrime.Layout.PilotProduction
-import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits
+import NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix.UniformSignedDigits
 import NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 namespace NightstreamFPrime.Layout.Stage1.StateEncoding
@@ -10,11 +10,11 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
   (EvaluationFamily)
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 theorem defaultRunning_canonical :
     ChildrenCanonical (defaultRunning (logicalWidth := logicalWidth)
@@ -46,7 +46,7 @@ def WellFormed
     (preimage : HashPreimage
       (logicalWidth := logicalWidth) (publicFits := publicFits)) : Prop :=
   PilotProduction.FixedPreimage preimage ∧
-    preimage.iteration < goldilocksModulus ∧
+    preimage.iteration < fieldModulus ∧
     preimage.pc = 1 ∧
     ChildrenCanonical (preimage.running functionIndex)
 
@@ -205,8 +205,8 @@ theorem serializeRunningFields_injective
 
 private theorem natWord_injective_below_modulus
     {left right : Nat}
-    (leftBound : left < goldilocksModulus)
-    (rightBound : right < goldilocksModulus)
+    (leftBound : left < fieldModulus)
+    (rightBound : right < fieldModulus)
     (equal : natWord left = natWord right) :
     left = right := by
   have valuesEqual := congrArg Fin.val equal
@@ -271,15 +271,15 @@ private theorem shifted_val_lt {value : F}
     (bounded : centeredMagnitude value < 2 ^ 16) :
     (value + packOffset).val < 131072 := by
   have valueBound := value.isLt
-  have small : value.val < 65536 ∨ goldilocksModulus - value.val < 65536 := by
+  have small : value.val < 65536 ∨ fieldModulus - value.val < 65536 := by
     unfold centeredMagnitude at bounded
     rw [min_lt_iff] at bounded
     norm_num at bounded
     exact bounded
   have offsetValue : packOffset.val = 65536 := by
-    simp [packOffset, Poseidon2.ofNat, goldilocksModulus]
+    simp [packOffset, Poseidon2.ofNat, fieldModulus]
   rw [Fin.val_add, offsetValue]
-  unfold goldilocksModulus at *
+  unfold fieldModulus at *
   rcases small with small | large
   · rw [Nat.mod_eq_of_lt (by omega)]
     omega
@@ -312,7 +312,7 @@ private theorem packWord_val {low middle high : F}
   simp only [Poseidon2.ofNat]
   norm_num
   apply Nat.mod_eq_of_lt
-  unfold goldilocksModulus
+  unfold fieldModulus
   omega
 
 private theorem radix_unique {a b c d e f : Nat}
@@ -577,14 +577,14 @@ theorem stateHash_length
 
 theorem natWord_successor_eq_below_modulus
     (prior current : Nat)
-    (priorBound : prior < goldilocksModulus)
+    (priorBound : prior < fieldModulus)
     (currentPositive : 0 < current)
-    (currentBound : current < goldilocksModulus)
+    (currentBound : current < fieldModulus)
     (wordEqual : natWord (prior + 1) = natWord current) :
     prior + 1 = current := by
-  by_cases nextBound : prior + 1 < goldilocksModulus
+  by_cases nextBound : prior + 1 < fieldModulus
   · exact natWord_injective_below_modulus nextBound currentBound wordEqual
-  · have atModulus : prior + 1 = goldilocksModulus := by omega
+  · have atModulus : prior + 1 = fieldModulus := by omega
     have valuesEqual := congrArg Fin.val wordEqual
     simp [natWord, Spec.Poseidon2.ofNat, atModulus,
       Nat.mod_eq_of_lt currentBound] at valuesEqual

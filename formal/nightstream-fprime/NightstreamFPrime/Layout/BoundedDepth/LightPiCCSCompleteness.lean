@@ -30,7 +30,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.LightPiCCSLayout
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (interface : LightPiCCSLayout.Interface logicalWidth 8 publicFits) (offset : Nat)
 

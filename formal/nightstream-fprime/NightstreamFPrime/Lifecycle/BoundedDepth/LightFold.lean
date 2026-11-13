@@ -22,7 +22,7 @@ open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- A slot claim as the light fold's running input (`BoundedDepthFolds.toLightRunning`). -/
 def lightRunning (slot : SlotClaim logicalWidth publicFits) :
@@ -68,7 +68,7 @@ theorem familyOf_familyBlocks (family : EvaluationFamily K LightShape) :
 /-- The Π_RLC gadgets of the light fold and their offsets. -/
 structure RlcLeaves (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   sampler : Sampler.Interface
   samplerOffset : Nat
   commitment : LightCommitment.Interface

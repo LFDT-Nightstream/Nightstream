@@ -376,7 +376,7 @@ private theorem preservesCombination
 
 variable {relationLogicalWidth : Nat}
   {relationPublicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+    RingCarrierLayout.carrierWidth relationLogicalWidth}
 
 def inputs
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}

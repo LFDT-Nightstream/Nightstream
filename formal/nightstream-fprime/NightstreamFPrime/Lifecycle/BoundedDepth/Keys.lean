@@ -2,7 +2,7 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.State
 import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKeys
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.LightNorm
 
 /-! The bounded-depth scheme's production verifier keys. The refresh key is the production key with its own
 transcript: the Π_DEC children are prover messages, so the refresh transcript absorbs their
@@ -24,7 +24,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthFolds (lightShap
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 def lightFoldDomainChunk : List F := domainChunk "Nightstream/SuperNeo/fold/light/v1"
 
@@ -49,7 +49,7 @@ section Refresh
 
 abbrev Children (logicalWidth : Nat)
     (publicFits :
-      ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) :=
   Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment
     (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
     productionShape
@@ -189,13 +189,13 @@ def lightChallenge (state : Transcript.State) : RingF :=
   Transcript.PiRlcSampler.piRlcChallenges state 1 0
 
 theorem lightChallenge_valid (state : Transcript.State) :
-    Phi81Relation.PiRLCAlgebra.Challenge.challengeValid (lightChallenge state) :=
+    RingRelation.PiRLCAlgebra.Challenge.challengeValid (lightChallenge state) :=
   Transcript.PiRlcSampler.piRlcChallenges_member state 1 0
 
 /-- Cyclo (ePrint 2026/359) Theorem 3, item 1, on the production Π_RLC algebra. -/
 theorem lightNormLaw (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     Light.Rlc.NormLaw (PaperAlgebra.piRlcAlgebra ajtai) ringFOne :=
-  ⟨(Phi81Relation.PiRLCAlgebra.LightNorm.norm_law ajtai).add_bound⟩
+  ⟨(RingRelation.PiRLCAlgebra.LightNorm.norm_law ajtai).add_bound⟩
 
 noncomputable def lightParts (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
@@ -222,8 +222,8 @@ noncomputable def keys (relation : ProductionKey.LogicalRelation logicalWidth pu
 def lightExtraction (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     ExtractionAlgebra
       (HyperNova.Construction2.BoundedDepthKeys.semanticsToLight
-        (columns := Phi81CarrierLayout.carrierWidth logicalWidth)
-        (blockCount := Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
+        (columns := RingCarrierLayout.carrierWidth logicalWidth)
+        (blockCount := ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth))
         (semantics ajtai))
       productionGlobalParams
       (HyperNova.Construction2.BoundedDepthKeys.algebraToLight (piRlcAlgebra ajtai)) :=
@@ -237,7 +237,7 @@ theorem lightExtractionNormLaw
     Light.Rlc.ExtractionNormLaw (lightExtraction ajtai) :=
   HyperNova.Construction2.BoundedDepthKeys.extractionNormLawToLight
     ⟨fun bound challenge accumulated fresh valid accumulatedBounded freshBounded =>
-      Phi81Relation.PiRLCAlgebra.LightNorm.sub_act_bound
+      RingRelation.PiRLCAlgebra.LightNorm.sub_act_bound
         (shape := FullShape logicalWidth publicFits) accumulated fresh challenge valid bound
         accumulatedBounded freshBounded⟩
 

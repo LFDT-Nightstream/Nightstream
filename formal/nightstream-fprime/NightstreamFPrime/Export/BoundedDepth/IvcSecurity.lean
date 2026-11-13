@@ -32,11 +32,11 @@ open NightstreamFPrime.Export.BoundedDepth.IvcWalk
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 abbrev Output (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   TerminalStatement AppState ×
     Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits)
 
@@ -44,7 +44,7 @@ variable {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
   (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
   {step : AppState → AppWitness → AppState}
-  {cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+  {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
   (exports : Exports relation ajtai circuitKeys step cubeFits)
 
 /-- The terminal accepts, and no `iteration` valid steps of the application lead from `z0` to

@@ -17,9 +17,9 @@ open NightstreamFPrime.Spec
 /-- A witness column. -/
 abbrev Column := ℕ
 
-/-- One row witness: a canonical Goldilocks integer per column. -/
+/-- One row witness: a canonical base-field integer per column. -/
 structure Witness where
-  entries : Column → {z : ℤ // 0 ≤ z ∧ z < goldilocksModulus}
+  entries : Column → {z : ℤ // 0 ≤ z ∧ z < fieldModulus}
 
 /-- The value of a column (`R1CS.v` `value`). -/
 instance : CoeFun Witness fun _ => Column → ℤ := ⟨fun w column => (w.entries column).val⟩

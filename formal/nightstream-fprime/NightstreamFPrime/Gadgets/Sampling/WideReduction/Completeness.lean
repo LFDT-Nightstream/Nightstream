@@ -20,7 +20,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Range
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
-open NightstreamFPrime.Spec.Phi81StrongSet
+open NightstreamFPrime.Spec.RingStrongSet
 open Finset
 
 theorem digit_sum (base value count : Nat) :
@@ -34,7 +34,7 @@ theorem digit_sum (base value count : Nat) :
 def honestBit (value : Nat) : F := fieldOfNat (value % 2)
 
 theorem honestBit_val (value : Nat) : (honestBit value).val = value % 2 := by
-  have small : value % 2 < goldilocksModulus :=
+  have small : value % 2 < fieldModulus :=
     lt_of_lt_of_le (Nat.mod_lt _ (by decide)) (by decide)
   simp [honestBit, fieldOfNat, Nat.mod_eq_of_lt small]
 

@@ -4,9 +4,9 @@ namespace NightstreamFPrime.Spec.AjtaiSetupV1.Setup
 
 private theorem authorityNats_canonical {rows columns : Nat}
     (setup : Setup rows columns)
-    (rowsBound : rows < goldilocksModulus)
-    (columnsBound : columns < goldilocksModulus) :
-    ∀ word ∈ setup.authorityNats, word < goldilocksModulus := by
+    (rowsBound : rows < fieldModulus)
+    (columnsBound : columns < fieldModulus) :
+    ∀ word ∈ setup.authorityNats, word < fieldModulus := by
   intro word member
   unfold authorityNats at member
   simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at member
@@ -22,7 +22,7 @@ private theorem authorityNats_canonical {rows columns : Nat}
   · exact Nat.lt_trans (setup.seed.canonical word inSeed) (by decide)
 
 private theorem recover_canonical_words (values : List Nat)
-    (canonical : ∀ word ∈ values, word < goldilocksModulus) :
+    (canonical : ∀ word ∈ values, word < fieldModulus) :
     (values.map Poseidon2.ofNat).map Fin.val = values := by
   have recovered : (values.map Poseidon2.ofNat).map Fin.val = values.map id := by
     rw [List.map_map]
@@ -42,10 +42,10 @@ private theorem authorityNats_eq_iff
 theorem authorityWords_eq_iff
     {leftRows leftColumns rightRows rightColumns : Nat}
     (left : Setup leftRows leftColumns) (right : Setup rightRows rightColumns)
-    (leftRowsBound : leftRows < goldilocksModulus)
-    (leftColumnsBound : leftColumns < goldilocksModulus)
-    (rightRowsBound : rightRows < goldilocksModulus)
-    (rightColumnsBound : rightColumns < goldilocksModulus) :
+    (leftRowsBound : leftRows < fieldModulus)
+    (leftColumnsBound : leftColumns < fieldModulus)
+    (rightRowsBound : rightRows < fieldModulus)
+    (rightColumnsBound : rightColumns < fieldModulus) :
     left.authorityWords = right.authorityWords ↔
       leftRows = rightRows ∧ leftColumns = rightColumns ∧
         left.seed.bytes = right.seed.bytes := by
@@ -64,8 +64,8 @@ theorem authorityWords_eq_iff
 
 theorem verifierKey_eq_of_authorityWords {rows columns : Nat}
     (left right : Setup rows columns)
-    (rowsBound : rows < goldilocksModulus)
-    (columnsBound : columns < goldilocksModulus)
+    (rowsBound : rows < fieldModulus)
+    (columnsBound : columns < fieldModulus)
     (sameWords : left.authorityWords = right.authorityWords) :
     left.verifierKey = right.verifierKey := by
   have sameSeed := ((authorityWords_eq_iff left right

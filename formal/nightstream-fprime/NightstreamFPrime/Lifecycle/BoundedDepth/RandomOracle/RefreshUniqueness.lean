@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.Nifs.BindingBridge
 import NightstreamFPrime.Spec.Folding.PiRLC.ChainBinding
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 import NightstreamFPrime.Spec.Folding.Refresh.Security
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ChainBinding
 
 /-! The refresh fold's uniqueness step in the random-oracle model: `Uniqueness` on the refresh
 game `RefreshFork.game`.
@@ -53,7 +53,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink (Attempt)
 attribute [local instance low] Classical.propDecidable
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
 variable (logicalWidth publicFits) in
@@ -70,7 +70,7 @@ def Truth (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (accumulator : RefreshFork.Accumulator logicalWidth publicFits)
     (fresh : StepFresh logicalWidth publicFits)
     (split : Refresh.Split PaperAlgebra.Commitment productionShape)
-    (witness : OutputWitness productionShape (Phi81CarrierLayout.carrierWidth logicalWidth)) :
+    (witness : OutputWitness productionShape (RingCarrierLayout.carrierWidth logicalWidth)) :
     Prop :=
   SourceHolds (refreshKey relation ajtai).extensionOps (refreshKey relation ajtai).lift
     (refreshKey relation ajtai).openingMaps (refreshKey relation ajtai).params
@@ -79,7 +79,7 @@ def Truth (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
 
 /-- The answer of a refresh output witness: the recomposed children, then the fresh witness. -/
 noncomputable def answerOf (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (witness : OutputWitness productionShape (Phi81CarrierLayout.carrierWidth logicalWidth)) :
+    (witness : OutputWitness productionShape (RingCarrierLayout.carrierWidth logicalWidth)) :
     PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits) ×
       PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   ((refreshKey relation ajtai).piDecAlgebra.recomposeAssignment fun child =>
@@ -93,7 +93,7 @@ relation. -/
 theorem holds_of_knowledge {key : CircuitKey logicalWidth publicFits}
     {claim : SlotClaim logicalWidth publicFits} {fresh : StepFresh logicalWidth publicFits}
     {split : Refresh.Split PaperAlgebra.Commitment productionShape} (bound : Nat)
-    {witness : OutputWitness productionShape (Phi81CarrierLayout.carrierWidth logicalWidth)}
+    {witness : OutputWitness productionShape (RingCarrierLayout.carrierWidth logicalWidth)}
     (inputAccepted : Refresh.inputCheck (refreshKey key.relation ajtai)
       (toClaim (key.system ajtai) claim) split = true)
     (truth : Truth ajtai key.relation (toClaim (key.system ajtai) claim) fresh split witness) :
@@ -167,12 +167,12 @@ variable (key : CircuitKey logicalWidth publicFits)
 /-- The witness that a valid pair extracts. -/
 noncomputable def witnessOf (oracle : RefreshFork.Oracle logicalWidth publicFits)
     (retries : Retries logicalWidth publicFits) :
-    Option (OutputWitness productionShape (Phi81CarrierLayout.carrierWidth logicalWidth)) :=
+    Option (OutputWitness productionShape (RingCarrierLayout.carrierWidth logicalWidth)) :=
   if valid : Uniqueness.Valid (RefreshFork.game ajtai key) adversary oracle retries then
     some (RefreshFork.extractedWitness ajtai valid.1 valid.2)
   else none
 
-def zeroWitness : OutputWitness productionShape (Phi81CarrierLayout.carrierWidth logicalWidth) :=
+def zeroWitness : OutputWitness productionShape (RingCarrierLayout.carrierWidth logicalWidth) :=
   ⟨fun _ _ => 0⟩
 
 /-- The claimed refresh Π_CCS data of a pair: the children of the base run's start claim, read
@@ -302,7 +302,7 @@ variable (key adversary) in
 their extracted witnesses differ. -/
 noncomputable def rerunKernel (oracle : Oracle) (retries : Retries logicalWidth publicFits)
     (other : Oracle) (otherRetries : Retries logicalWidth publicFits) :
-    Option (Phi81Relation.PiRLCAlgebra.Binding.ShortKernelVector ajtai
+    Option (RingRelation.PiRLCAlgebra.Binding.ShortKernelVector ajtai
       (Folding.Schedule.msisChainBound productionGlobalParams
         Folding.Schedule.productionLightFoldCap)) :=
   if paired : Uniqueness.Valid (RefreshFork.game ajtai key) adversary oracle retries ∧
@@ -315,7 +315,7 @@ noncomputable def rerunKernel (oracle : Oracle) (retries : Retries logicalWidth 
             RefreshFork.strongSet (RefreshFork.fork ajtai paired.1.1 paired.1.2) coordinate ≠
           extractedAssignment (normFreeLaws (PaperExtractionAlgebra.extractionAlgebra ajtai))
             RefreshFork.strongSet (RefreshFork.fork ajtai paired.2.1.1 paired.2.1.2) coordinate then
-      some (Phi81Relation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel ajtai _ le_rfl
+      some (RingRelation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel ajtai _ le_rfl
         (UniquenessLink.ajtaiCollision ajtai (PiRLC.ChainBinding.forkCollision
           (PaperExtractionAlgebra.extractionAlgebra ajtai) _
           (Nifs.BindingBridge.compatible key.relation ajtai) RefreshFork.strongSet

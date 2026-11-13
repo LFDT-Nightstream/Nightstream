@@ -17,7 +17,7 @@ open PiDECRetainedGeometry
 
 variable {relationLogicalWidth : Nat}
   {relationPublicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+    RingCarrierLayout.carrierWidth relationLogicalWidth}
 
 theorem publicSchedule_index? (index : Fin Layout.PiDEC.v1_2.PublicInputSplit.physicalRowCount) :
     publicSchedule.index? index.val =

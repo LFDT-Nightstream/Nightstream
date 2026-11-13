@@ -16,13 +16,13 @@ open PerApplicationAssignmentPlan
 
 abbrev Program := Lifecycle.Stage1.Application.Program
 
-structure Phi81FamilyShape where
+structure RingFamilyShape where
   sourceCount : Nat
   blockCount : Nat
   cellCount : Nat
 deriving Repr, DecidableEq
 
-def Phi81FamilyShape.format : Format Phi81FamilyShape where
+def RingFamilyShape.format : Format RingFamilyShape where
   encode := fun shape => .array [
     .atom shape.sourceCount,
     .atom shape.blockCount,
@@ -30,18 +30,18 @@ def Phi81FamilyShape.format : Format Phi81FamilyShape where
   decode
     | .array [.atom sourceCount, .atom blockCount, .atom cellCount] =>
         .ok { sourceCount, blockCount, cellCount }
-    | _ => .error "invalid Phi81 assignment family shape"
+    | _ => .error "invalid ring assignment family shape"
   decode_encode := by
     intro shape
     cases shape
     rfl
 
-structure Phi81QuotientRecipe where
+structure RingQuotientRecipe where
   ringDegree : Nat
   middleDegree : Nat
   foldOffset : Nat
   quotientCount : Nat
-  familyShapes : List Phi81FamilyShape
+  familyShapes : List RingFamilyShape
   challengeBlock : BlockKind
   challengeSlotBase : Nat
   challengeSourceStride : Nat
@@ -50,13 +50,13 @@ structure Phi81QuotientRecipe where
   quotientOutputBlock : BlockKind
 deriving Repr, DecidableEq
 
-def Phi81QuotientRecipe.format : Format Phi81QuotientRecipe where
+def RingQuotientRecipe.format : Format RingQuotientRecipe where
   encode := fun recipe => .array [
     .atom recipe.ringDegree,
     .atom recipe.middleDegree,
     .atom recipe.foldOffset,
     .atom recipe.quotientCount,
-    (Codec.list Phi81FamilyShape.format).encode recipe.familyShapes,
+    (Codec.list RingFamilyShape.format).encode recipe.familyShapes,
     BlockKind.format.encode recipe.challengeBlock,
     .atom recipe.challengeSlotBase,
     .atom recipe.challengeSourceStride,
@@ -70,63 +70,63 @@ def Phi81QuotientRecipe.format : Format Phi81QuotientRecipe where
         .atom challengeShift, valueSources, quotientOutputBlock] => do
       pure {
         ringDegree, middleDegree, foldOffset, quotientCount,
-        familyShapes := ← (Codec.list Phi81FamilyShape.format).decode familyShapes,
+        familyShapes := ← (Codec.list RingFamilyShape.format).decode familyShapes,
         challengeBlock := ← BlockKind.format.decode challengeBlock,
         challengeSlotBase, challengeSourceStride, challengeShift,
         valueSources := ← AffineRuns.format.decode valueSources,
         quotientOutputBlock := ← BlockKind.format.decode quotientOutputBlock }
-    | _ => .error "invalid Phi81 assignment quotient recipe"
+    | _ => .error "invalid ring assignment quotient recipe"
   decode_encode := by
     intro recipe
     cases recipe
-    simp only [(Codec.list Phi81FamilyShape.format).decode_encode,
+    simp only [(Codec.list RingFamilyShape.format).decode_encode,
       BlockKind.format.decode_encode, AffineRuns.decode_encode]
     rfl
 
-def phi81FamilyShapes : List Phi81FamilyShape :=
+def ringFamilyShapes : List RingFamilyShape :=
   [ ⟨17, 22, 1⟩
   , ⟨17, 5, 1⟩
   , ⟨17, 1, 2⟩
   , ⟨17, 4, 2⟩ ]
 
-def phi81ValueSources (program : Program) : List AffineRuns.Run :=
+def ringValueSources (program : Program) : List AffineRuns.Run :=
   AffineRuns.compress <| List.ofFn fun invocation :
       Fin PiRLCProductSchedule.invocationCount =>
     let descriptor := PiRLCProductSchedule.descriptor invocation
     (PiRLCProductPlan.valueColumn program descriptor descriptor.lane).val
 
-def directPhi81ValueSources (program : Program) : List AffineRuns.Run :=
+def directRingValueSources (program : Program) : List AffineRuns.Run :=
   AffineRuns.compressIndexedTR fun invocation :
       Fin PiRLCProductSchedule.invocationCount =>
     let descriptor := PiRLCProductSchedule.descriptor invocation
     (PiRLCProductPlan.valueColumn program descriptor descriptor.lane).val
 
-@[csimp] theorem phi81ValueSources_eq_direct :
-    phi81ValueSources = directPhi81ValueSources := by
+@[csimp] theorem ringValueSources_eq_direct :
+    ringValueSources = directRingValueSources := by
   funext program
   exact (AffineRuns.compressIndexedTR_eq_compress_ofFn _).symm
 
-theorem phi81ValueSources_at (program : Program)
+theorem ringValueSources_at (program : Program)
     (invocation : Fin PiRLCProductSchedule.invocationCount) :
-    AffineRuns.sourceAt (phi81ValueSources program) invocation.val =
+    AffineRuns.sourceAt (ringValueSources program) invocation.val =
       (PiRLCProductPlan.valueColumn program
         (PiRLCProductSchedule.descriptor invocation)
         (PiRLCProductSchedule.descriptor invocation).lane).val := by
-  rw [AffineRuns.sourceAt_eq_expand_getD, phi81ValueSources,
+  rw [AffineRuns.sourceAt_eq_expand_getD, ringValueSources,
     AffineRuns.expand_compress]
   exact Lifecycle.PriorStateHash.ofFn_getD _ invocation 0
 
-def phi81QuotientRecipe (program : Program) : Phi81QuotientRecipe where
+def ringQuotientRecipe (program : Program) : RingQuotientRecipe where
   ringDegree := 54
   middleDegree := 27
   foldOffset := 81
   quotientCount := 54
-  familyShapes := phi81FamilyShapes
+  familyShapes := ringFamilyShapes
   challengeBlock := .challengeWords
   challengeSlotBase := 0
   challengeSourceStride := 54
   challengeShift := 2
-  valueSources := phi81ValueSources program
+  valueSources := ringValueSources program
   quotientOutputBlock := .productGroup
 
 def physicalExpr (program : Program) (expression : Expr) : Expr :=
@@ -152,7 +152,7 @@ def schema : Nat := 3
 
 structure Plan where
   blocks : List PerApplicationAssignmentBlocks.BlockPlan
-  phi81 : Phi81QuotientRecipe
+  ringQuotient : RingQuotientRecipe
   outputDigestBlock : BlockKind
   outputDigestExpressions : List Expr
 deriving Repr, DecidableEq
@@ -161,16 +161,16 @@ def Plan.format : Format Plan where
   encode := fun plan => .array [
     .atom schema,
     PerApplicationAssignmentBlocks.format.encode plan.blocks,
-    Phi81QuotientRecipe.format.encode plan.phi81,
+    RingQuotientRecipe.format.encode plan.ringQuotient,
     BlockKind.format.encode plan.outputDigestBlock,
     (Codec.list NightstreamFPrime.Export.Package.exprFormat).encode
       plan.outputDigestExpressions]
   decode
-    | .array [.atom 3, blocks, phi81,
+    | .array [.atom 3, blocks, ringQuotient,
         outputDigestBlock, outputDigestExpressions] => do
       pure {
         blocks := ← PerApplicationAssignmentBlocks.format.decode blocks,
-        phi81 := ← Phi81QuotientRecipe.format.decode phi81,
+        ringQuotient := ← RingQuotientRecipe.format.decode ringQuotient,
         outputDigestBlock := ← BlockKind.format.decode outputDigestBlock,
         outputDigestExpressions :=
           ← (Codec.list NightstreamFPrime.Export.Package.exprFormat).decode
@@ -180,14 +180,14 @@ def Plan.format : Format Plan where
     intro plan
     cases plan
     simp only [schema, PerApplicationAssignmentBlocks.format.decode_encode,
-      Phi81QuotientRecipe.format.decode_encode,
+      RingQuotientRecipe.format.decode_encode,
       BlockKind.format.decode_encode,
       (Codec.list NightstreamFPrime.Export.Package.exprFormat).decode_encode]
     rfl
 
 def canonical (program : Program) : Plan where
   blocks := PerApplicationAssignmentBlocks.canonical program
-  phi81 := phi81QuotientRecipe program
+  ringQuotient := ringQuotientRecipe program
   outputDigestBlock := .pilotOutputDigest
   outputDigestExpressions := outputDigestExpressions program
 

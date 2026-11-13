@@ -25,11 +25,11 @@ open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The Π_DEC child that gives running source `child`. -/
 def outputIndex (child : Fin productionShape.runningCount) :
-    Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex :=
+    Spec.RingRelation.PiDECAlgebra.Radix.ChildIndex :=
   Fin.cast rfl child
 
 /-- The refresh Π_CCS running inputs: the slot's point and public-input split, with the proof's

@@ -25,7 +25,7 @@ commitments and evaluation families, and the Π_DEC digit words), the fresh inst
 SumCheck round messages and the Π_CCS output of every source. -/
 structure Interface (logicalWidth degreeBound : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   running : Nat → StatementAbsorption.RunningExpr logicalWidth publicFits
   fresh : Nat → StatementAbsorption.FreshExpr logicalWidth publicFits
   round : Nat → Fin productionShape.cubeVariables → RoundTranscript.Message degreeBound
@@ -33,7 +33,7 @@ structure Interface (logicalWidth degreeBound : Nat)
 
 variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (interface : Interface logicalWidth degreeBound publicFits) (offset : Nat)
 

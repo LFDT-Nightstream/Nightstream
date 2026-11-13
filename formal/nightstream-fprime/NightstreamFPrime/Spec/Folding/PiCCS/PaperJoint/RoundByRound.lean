@@ -1,9 +1,9 @@
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
-import NightstreamFPrime.Spec.SumCheck.GoldilocksCausal
+import NightstreamFPrime.Spec.SumCheck.FieldCausal
 
 set_option autoImplicit false
 
@@ -12,7 +12,7 @@ namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RoundByRound
 open scoped BigOperators
 open NightstreamFPrime.Spec SumCheck.Finite
 open ConcreteCarrier StrongReduction SignedCoefficientObject
-open _root_.NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausal (Hit hit_probability_le)
+open _root_.NightstreamFPrime.Spec.SumCheck.Finite.FieldCausal (Hit hit_probability_le)
 
 attribute [local instance] Classical.propDecidable
 
@@ -104,7 +104,7 @@ theorem vanishesAt_probability_le (samples : Finset K) : {size : Nat} →
               by simpa [lowZero, subZero] using highNonzero⟩
           · exact ⟨low.evaluateCoordinates extensionOps rest, by simp, lowZero⟩
         have evaluation (point : K) :
-            Message.evaluateCoefficients GoldilocksRoots.ops point
+            Message.evaluateCoefficients FieldRoots.ops point
                 [low.evaluateCoordinates extensionOps rest,
                   extensionOps.sub (high.evaluateCoordinates extensionOps rest)
                     (low.evaluateCoordinates extensionOps rest)] =
@@ -247,9 +247,9 @@ theorem falseAcceptance_splits
             probe.coins.gamma (probe.coins.roundPoint.coordinates.take round.val) message
             (shape.cubeVariables - round.val - 1) := by
   rcases fixedWidthAcceptedProbe_extracts_source_or_badEvent
-      baseLaws baseZeroAgreement GoldilocksPrime.baseFieldNoZeroDivisors
+      baseLaws baseZeroAgreement FieldPrime.baseFieldNoZeroDivisors
       extensionOps extensionLaws extensionZeroLaws K.embed protocolLift openingMaps params
-      freshBound statement constantLaw width degreeCovers (goldilocksModulus ^ 2)
+      freshBound statement constantLaw width degreeCovers (fieldModulus ^ 2)
       probe witness ambient accepted with source | mixing | failure
   · exact absurd source sourceInvalid
   · rcases mixingRoot_splits _ _ _ mixing with alpha | gamma
@@ -319,7 +319,7 @@ theorem roundBad_probability_le (samples : Finset K) {shape : Shape} {width : Na
     (𝔼 challenge ∈ samples,
       if challenge ∈ roundBad data alpha gamma before message remaining then (1 : ℝ) else 0) ≤
       width / (samples.card : ℝ) := by
-  obtain ⟨semantic, represents⟩ := GoldilocksCausal.sequentialRoundRepresentable data alpha gamma
+  obtain ⟨semantic, represents⟩ := FieldCausal.sequentialRoundRepresentable data alpha gamma
     width degreeCovers before remaining length
   exact hit_probability_le samples _ before remaining message semantic represents
 

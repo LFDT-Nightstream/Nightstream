@@ -13,7 +13,7 @@ import NightstreamFPrime.Spec.RandomOracle
 import NightstreamFPrime.Spec.RandomOracleBudget
 import NightstreamFPrime.Export.SharedFormulas
 import NightstreamFPrime.Export.Stage1.DirectLowNormFootprint
-import NightstreamFPrime.Layout.MatrixProgram.Phi81Product
+import NightstreamFPrime.Layout.MatrixProgram.RingProduct
 import NightstreamFPrime.Layout.MatrixProgram.Poseidon
 import NightstreamFPrime.Layout.PiDEC.v1_2.Ownership
 import NightstreamFPrime.Layout.ProductionRelation.CcsOpening
@@ -89,9 +89,9 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperSecurityComposition.baseOutput_eq_parentForChallenges
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperSecurityComposition.accepted_with_fork_and_children_extracts_or_failure
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperSecurityComposition.accepted_implies_securityOutcome
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet.ring_sub_eq
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet.ringLaws
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits
+#audit_axioms NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ForkStrongSet.ring_sub_eq
+#audit_axioms NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ForkStrongSet.ringLaws
+#audit_axioms NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ForkStrongSet.strongSetUnits
 #audit_axioms NightstreamFPrime.Lifecycle.PaperExtractionAlgebra.extractionAlgebra
 
 #audit_axioms NightstreamFPrime.Export.Stage1.PermutationPlan.canonicalInvocation_witnessStart_of_output

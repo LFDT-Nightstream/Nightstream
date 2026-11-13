@@ -62,7 +62,7 @@ def childBatches (main : Circuit Unit) (offset : Nat) : List WitnessBatch :=
 def statementBindingBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
   childBatches
     (Formal.statementBindingCircuit
       (PiCCSArithmetic.sharedInterface logicalWidth publicFits)).main
@@ -71,7 +71,7 @@ def statementBindingBatches
 def initialClaimBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
   childBatches
     (Formal.initialClaimCircuit
       (PiCCSArithmetic.sharedInterface logicalWidth publicFits)).main
@@ -80,7 +80,7 @@ def initialClaimBatches
 def sumcheckBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
   childBatches
     (Formal.sumcheckCircuit
       (PiCCSArithmetic.sharedInterface logicalWidth publicFits)).main
@@ -89,7 +89,7 @@ def sumcheckBatches
 def evalKBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
   childBatches
     (Formal.evalKCircuit
       (PiCCSArithmetic.sharedInterface logicalWidth publicFits)).main
@@ -98,7 +98,7 @@ def evalKBatches
 def evalABatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
   childBatches
     (Formal.evalACircuit
       (PiCCSArithmetic.sharedInterface logicalWidth publicFits)).main
@@ -107,7 +107,7 @@ def evalABatches
 def ccsBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
   childBatches
     (Formal.ccsRowMain
       (PiCCSArithmetic.sharedInterface logicalWidth publicFits))
@@ -116,7 +116,7 @@ def ccsBatches
 def normBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
   childBatches
     (Formal.normRowMain
       (PiCCSArithmetic.sharedInterface logicalWidth publicFits))
@@ -125,7 +125,7 @@ def normBatches
 def finalIdentityBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
   childBatches
     (Formal.finalIdentityRowMain
       (PiCCSArithmetic.sharedInterface logicalWidth publicFits))
@@ -134,7 +134,7 @@ def finalIdentityBatches
 def piRlcSourceBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (source : Nat) : List WitnessBatch :=
   childBatches
     (Gadgets.Sampling.WideReduction.Program.circuit
@@ -147,7 +147,7 @@ def piRlcSourceBatches
 
 theorem piRlcSourceBatches_eq_fromCircuit
     (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
+    (publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth)
     (source : Nat) :
     piRlcSourceBatches logicalWidth publicFits source =
       childBatches (PiRLC.v1_2.Sampler.rangeCircuit
@@ -165,14 +165,14 @@ theorem piRlcSourceBatches_eq_fromCircuit
 def piRlcSamplerBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
   (List.range 17).flatMap
     (piRlcSourceBatches logicalWidth publicFits)
 
 def piCcsBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
   statementBindingBatches logicalWidth publicFits ++
     initialClaimBatches logicalWidth publicFits ++
     sumcheckBatches logicalWidth publicFits ++
@@ -185,7 +185,7 @@ def piCcsBatches
 def piDecBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
   let shared := NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.atOffset
     (PiDECArithmetic.phaseInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
@@ -197,7 +197,7 @@ def piDecBatches
 def runningTransitionBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
   childBatches
     (NightstreamFPrime.Lifecycle.Stage1.RunningTransition.circuit
     (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
@@ -214,7 +214,7 @@ private theorem witnesses_assertions (values : List Expr) :
 def directRunningTransitionBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
   let interface :=
     NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
       logicalWidth publicFits
@@ -230,7 +230,7 @@ def directRunningTransitionBatches
 theorem directRunningTransitionBatches_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     directRunningTransitionBatches logicalWidth publicFits =
       runningTransitionBatches logicalWidth publicFits := by
   unfold directRunningTransitionBatches runningTransitionBatches childBatches
@@ -255,7 +255,7 @@ theorem directRunningTransitionBatches_eq
 def batches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List WitnessBatch :=
   piCcsBatches logicalWidth publicFits ++
     (piRlcSamplerBatches logicalWidth publicFits ++
       (piDecBatches logicalWidth publicFits ++
@@ -264,7 +264,7 @@ def batches
 theorem batches_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     batches logicalWidth publicFits =
       piCcsBatches logicalWidth publicFits ++
         (piRlcSamplerBatches logicalWidth publicFits ++

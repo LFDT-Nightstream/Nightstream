@@ -1,12 +1,12 @@
 import NightstreamFPrime.Lifecycle.Types
 import NightstreamFPrime.Spec
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 
 namespace NightstreamFPrime.Lifecycle.PaperAlgebra
 
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.Phi81Relation
-open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.RingRelation
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
 open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
@@ -21,8 +21,8 @@ def publicRingColumns : Nat := 5
 @[implicit_reducible]
 def fullShape (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns <=
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
-    Phi81Relation.Shape where
+      RingCarrierLayout.carrierWidth logicalWidth) :
+    RingRelation.Shape where
   rowVariables := cubeVariables
   logicalWidth := logicalWidth
   matrixCount := productionProfile.ccsMatrices
@@ -31,29 +31,29 @@ def fullShape (logicalWidth : Nat)
 
 abbrev FullShape (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns <=
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   fullShape logicalWidth publicFits
 
 abbrev MatrixStructure (logicalWidth : Nat) :=
   MatrixSource F productionShape
-    (Phi81CarrierLayout.carrierWidth logicalWidth)
-    (Phi81ColumnLayout.blockCount
-      (Phi81CarrierLayout.carrierWidth logicalWidth))
+    (RingCarrierLayout.carrierWidth logicalWidth)
+    (ConcreteRingColumnLayout.blockCount
+      (RingCarrierLayout.carrierWidth logicalWidth))
 
 abbrev Structure (logicalWidth : Nat) :=
   RelationSource productionShape
-    (Phi81CarrierLayout.carrierWidth logicalWidth)
-    (Phi81ColumnLayout.blockCount
-      (Phi81CarrierLayout.carrierWidth logicalWidth))
+    (RingCarrierLayout.carrierWidth logicalWidth)
+    (ConcreteRingColumnLayout.blockCount
+      (RingCarrierLayout.carrierWidth logicalWidth))
 
 section
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns <=
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
-abbrev Assignment := Phi81Relation.Assignment (FullShape logicalWidth publicFits)
-abbrev PublicInput := Phi81Relation.PublicInput (FullShape logicalWidth publicFits)
+abbrev Assignment := RingRelation.Assignment (FullShape logicalWidth publicFits)
+abbrev PublicInput := RingRelation.PublicInput (FullShape logicalWidth publicFits)
 abbrev Point := CubePoint K productionShape.cubeVariables
 abbrev Evaluation := EvaluationFamily K productionShape
 abbrev AjtaiKey := PiRLCAlgebra.Commitment.Key (FullShape logicalWidth publicFits)
@@ -69,45 +69,45 @@ private theorem evaluation_ext
   simp_all
 
 def matrixSource
-    (system : Phi81Relation.Structure (FullShape logicalWidth publicFits)) :
+    (system : RingRelation.Structure (FullShape logicalWidth publicFits)) :
     MatrixStructure logicalWidth :=
-  Phi81MatrixSource.source cubeVariables productionProfile.freshSources
+  RingMatrixSource.source cubeVariables productionProfile.freshSources
     productionProfile.runningSources productionProfile.ccsMatrices logicalWidth
     system.matrices system.constraintPolynomial
 
 def relationSource
     (layout : ColumnLayout productionShape.cubeVariables
-      (Phi81CarrierLayout.carrierWidth logicalWidth))
-    (system : Phi81Relation.Structure (FullShape logicalWidth publicFits)) :
+      (RingCarrierLayout.carrierWidth logicalWidth))
+    (system : RingRelation.Structure (FullShape logicalWidth publicFits)) :
     Structure logicalWidth where
   cubeLayout := layout
   matrixSource := matrixSource system
 
 def canonicalStructure (source : Structure logicalWidth) :
-    Phi81Relation.Structure (FullShape logicalWidth publicFits) where
+    RingRelation.Structure (FullShape logicalWidth publicFits) where
   matrices := fun matrix vertex column =>
     source.matrixSource.matrices matrix vertex
-      (Phi81CarrierLayout.embedLogical column)
+      (RingCarrierLayout.embedLogical column)
   constraintPolynomial := source.matrixSource.constraintPolynomial
 
 theorem canonicalStructure_relationSource
     (layout : ColumnLayout productionShape.cubeVariables
-      (Phi81CarrierLayout.carrierWidth logicalWidth))
-    (system : Phi81Relation.Structure (FullShape logicalWidth publicFits)) :
+      (RingCarrierLayout.carrierWidth logicalWidth))
+    (system : RingRelation.Structure (FullShape logicalWidth publicFits)) :
     canonicalStructure (publicFits := publicFits)
       (relationSource layout system) = system := by
   cases system with
   | mk matrices polynomial =>
-      apply congrArg₂ (@Phi81Relation.Structure.mk (FullShape logicalWidth publicFits))
+      apply congrArg₂ (@RingRelation.Structure.mk (FullShape logicalWidth publicFits))
       · funext matrix vertex column
-        exact Phi81MatrixSource.source_matrix_embedLogical
+        exact RingMatrixSource.source_matrix_embedLogical
           cubeVariables productionProfile.freshSources productionProfile.runningSources
           productionProfile.ccsMatrices logicalWidth matrices polynomial matrix vertex column
       · rfl
 
 def padMatrix (source : Structure logicalWidth) :
     BooleanMatrix F productionShape.cubeVariables
-      (Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      (RingCarrierLayout.carrierWidth logicalWidth) :=
   fun vertex column =>
     source.cubeLayout.paddedIdentityEntry
       baseOps.zero baseOps.one vertex column
@@ -116,7 +116,7 @@ def padEvaluation
     (source : Structure logicalWidth)
     (assignment : Assignment (logicalWidth := logicalWidth)
       (publicFits := publicFits))
-    (point : Point) : Phi81Relation.Evaluation :=
+    (point : Point) : RingRelation.Evaluation :=
   EvaluationHomomorphism.PiRLC.ExplicitMatrix.evaluate
     (canonicalStructure (publicFits := publicFits) source)
     (padMatrix source) assignment point
@@ -125,14 +125,14 @@ def openingMaps (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := pu
     OpeningMaps Commitment (PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       (FullShape logicalWidth publicFits).carrierWidth where
   commit := PiRLCAlgebra.Commitment.commit key
-  projectPublicInput := Phi81Relation.projectPublicInput
+  projectPublicInput := RingRelation.projectPublicInput
 
 def evaluationFamily (source : Structure logicalWidth)
     (assignment : Assignment (logicalWidth := logicalWidth) (publicFits := publicFits))
     (point : Point) : Evaluation where
   pad := padEvaluation (publicFits := publicFits) source assignment point
   matrix := fun matrix =>
-    Phi81Relation.matrixEvaluation
+    RingRelation.matrixEvaluation
       (canonicalStructure (publicFits := publicFits) source)
       assignment point matrix
 
@@ -142,8 +142,8 @@ def semantics (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publ
       (PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       Point Evaluation Commitment where
   commit := PiRLCAlgebra.Commitment.commit key
-  projectPublicInput := Phi81Relation.projectPublicInput
-  normBounded := Phi81Relation.assignmentNormBounded
+  projectPublicInput := RingRelation.projectPublicInput
+  normBounded := RingRelation.assignmentNormBounded
   ccsSatisfied := fun source assignment =>
     CCSResidualTable.ConstraintSatisfied baseOps
       source.matrixSource.system assignment
@@ -160,8 +160,8 @@ def semantics (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publ
 
 theorem evaluationFamily_eq_paper
     (layout : ColumnLayout productionShape.cubeVariables
-      (Phi81CarrierLayout.carrierWidth logicalWidth))
-    (system : Phi81Relation.Structure (FullShape logicalWidth publicFits))
+      (RingCarrierLayout.carrierWidth logicalWidth))
+    (system : RingRelation.Structure (FullShape logicalWidth publicFits))
     (assignment : Assignment (logicalWidth := logicalWidth) (publicFits := publicFits))
     (point : Point) :
     evaluationFamily (publicFits := publicFits)
@@ -194,15 +194,15 @@ theorem evaluationFamily_eq_paper
 theorem evaluations_eq_paper
     (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (layout : ColumnLayout productionShape.cubeVariables
-      (Phi81CarrierLayout.carrierWidth logicalWidth))
-    (system : Phi81Relation.Structure (FullShape logicalWidth publicFits))
+      (RingCarrierLayout.carrierWidth logicalWidth))
+    (system : RingRelation.Structure (FullShape logicalWidth publicFits))
     (assignment : Assignment (logicalWidth := logicalWidth) (publicFits := publicFits))
     (point : Point) :
     (semantics key).evaluations (relationSource layout system) assignment point =
       (paperRelationSemantics baseOps extensionOps K.embed
         (shape := productionShape)
-        (blockCount := Phi81ColumnLayout.blockCount
-          (Phi81CarrierLayout.carrierWidth logicalWidth))
+        (blockCount := ConcreteRingColumnLayout.blockCount
+          (RingCarrierLayout.carrierWidth logicalWidth))
         (openingMaps key)).evaluations
           (relationSource layout system) assignment point := by
   apply congrArg (fun family => #[family])
@@ -211,8 +211,8 @@ theorem evaluations_eq_paper
 theorem ambientAgreement
     (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (layout : ColumnLayout productionShape.cubeVariables
-      (Phi81CarrierLayout.carrierWidth logicalWidth))
-    (system : Phi81Relation.Structure (FullShape logicalWidth publicFits))
+      (RingCarrierLayout.carrierWidth logicalWidth))
+    (system : RingRelation.Structure (FullShape logicalWidth publicFits))
     (statement : CE.Instance (Structure logicalWidth)
       (PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       Point Evaluation Commitment)
@@ -220,8 +220,8 @@ theorem ambientAgreement
     (sourceEq : statement.constraintSystem = relationSource layout system) :
     PiRLC.PaperCorrections.CorrectedAmbientHolds
         (paperRelationSemantics (shape := productionShape)
-          (blockCount := Phi81ColumnLayout.blockCount
-            (Phi81CarrierLayout.carrierWidth logicalWidth))
+          (blockCount := ConcreteRingColumnLayout.blockCount
+            (RingCarrierLayout.carrierWidth logicalWidth))
           baseOps extensionOps K.embed (openingMaps key))
         productionGlobalParams statement assignment <->
       PiRLC.PaperCorrections.CorrectedAmbientHolds
@@ -230,20 +230,20 @@ theorem ambientAgreement
   rw [sourceEq]
   change
     (PiRLCAlgebra.Commitment.commit key assignment = statement.commitment /\
-      Phi81Relation.projectPublicInput assignment = statement.publicInput /\
-      Phi81Relation.assignmentNormBounded
+      RingRelation.projectPublicInput assignment = statement.publicInput /\
+      RingRelation.assignmentNormBounded
         (PiRLC.PaperCorrections.correctedAmbientBoundFor productionGlobalParams)
         assignment) /\
       True /\
       (paperRelationSemantics (shape := productionShape)
-        (blockCount := Phi81ColumnLayout.blockCount
-          (Phi81CarrierLayout.carrierWidth logicalWidth))
+        (blockCount := ConcreteRingColumnLayout.blockCount
+          (RingCarrierLayout.carrierWidth logicalWidth))
         baseOps extensionOps K.embed (openingMaps key)).evaluations
           (relationSource layout system) assignment statement.point =
             statement.evaluations <->
     (PiRLCAlgebra.Commitment.commit key assignment = statement.commitment /\
-      Phi81Relation.projectPublicInput assignment = statement.publicInput /\
-      Phi81Relation.assignmentNormBounded
+      RingRelation.projectPublicInput assignment = statement.publicInput /\
+      RingRelation.assignmentNormBounded
         (PiRLC.PaperCorrections.correctedAmbientBoundFor productionGlobalParams)
         assignment) /\
       True /\
@@ -259,17 +259,17 @@ theorem openingAgreement
     (assignment : Assignment (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     Opening.Holds
         (paperRelationSemantics (shape := productionShape)
-          (blockCount := Phi81ColumnLayout.blockCount
-            (Phi81CarrierLayout.carrierWidth logicalWidth))
+          (blockCount := ConcreteRingColumnLayout.blockCount
+            (RingCarrierLayout.carrierWidth logicalWidth))
           baseOps extensionOps K.embed (openingMaps key))
         normBound commitment publicInput assignment <->
       Opening.Holds (semantics key) normBound commitment publicInput assignment := by
   change
     ((PiRLCAlgebra.Commitment.commit key assignment = commitment /\
-        Phi81Relation.projectPublicInput assignment = publicInput /\
+        RingRelation.projectPublicInput assignment = publicInput /\
         (forall column, centeredMagnitude (assignment column) < normBound)) <->
       (PiRLCAlgebra.Commitment.commit key assignment = commitment /\
-        Phi81Relation.projectPublicInput assignment = publicInput /\
+        RingRelation.projectPublicInput assignment = publicInput /\
         (forall column, centeredMagnitude (assignment column) < normBound)))
   exact Iff.rfl
 

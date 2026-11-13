@@ -2,7 +2,7 @@ import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Data.Nat.ModEq
 import Mathlib.Tactic.Ring
 import NightstreamFPrime.Circuit.Basic
-import NightstreamFPrime.Spec.GoldilocksPrime
+import NightstreamFPrime.Spec.FieldPrime
 
 /-!
 Owns linear forms with natural coefficients over expressions that evaluate to
@@ -17,7 +17,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 
 def fieldOfNat (value : Nat) : F :=
-  ⟨value % goldilocksModulus, Nat.mod_lt _ (by decide)⟩
+  ⟨value % fieldModulus, Nat.mod_lt _ (by decide)⟩
 
 theorem fieldOfNat_add (left right : Nat) :
     fieldOfNat left + fieldOfNat right = fieldOfNat (left + right) := by
@@ -33,8 +33,8 @@ theorem fieldOfNat_val (value : F) : fieldOfNat value.val = value := by
   apply Fin.ext
   simp [fieldOfNat, Nat.mod_eq_of_lt value.isLt]
 
-theorem fieldOfNat_inj {left right : Nat} (leftBound : left < goldilocksModulus)
-    (rightBound : right < goldilocksModulus) (same : fieldOfNat left = fieldOfNat right) :
+theorem fieldOfNat_inj {left right : Nat} (leftBound : left < fieldModulus)
+    (rightBound : right < fieldModulus) (same : fieldOfNat left = fieldOfNat right) :
     left = right := by
   have values := congrArg Fin.val same
   simpa [fieldOfNat, Nat.mod_eq_of_lt leftBound, Nat.mod_eq_of_lt rightBound] using values
@@ -128,7 +128,7 @@ theorem bit_of_boolean (env : Env) (atom : Expr)
     (row : (atom * (atom - 1)).eval env = 0) : (atom.eval env).val ≤ 1 := by
   change atom.eval env * (atom - 1).eval env = 0 at row
   rw [Expr.eval_sub] at row
-  rcases NightstreamFPrime.Spec.GoldilocksPrime.baseFieldNoZeroDivisors _ _ row with zero | one
+  rcases NightstreamFPrime.Spec.FieldPrime.baseFieldNoZeroDivisors _ _ row with zero | one
   · rw [zero]; exact Nat.zero_le _
   · have : atom.eval env = 1 := by
       have := sub_eq_zero.mp one

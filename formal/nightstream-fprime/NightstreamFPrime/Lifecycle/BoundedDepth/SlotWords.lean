@@ -18,11 +18,11 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The expressions of one slot: its claim's fields and its depth word. -/
 structure SlotExpr (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
+    (publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth)
     where
   commitment : Fin productionProfile.commitmentWidth → Fin ringDegree → Expr
   evaluation : StatementAbsorption.EvaluationExpr
@@ -77,7 +77,7 @@ theorem words_length (slot : SlotExpr logicalWidth publicFits) : slot.words.leng
 
 /-- Words that serialize a slot of depth below the modulus carry that slot. -/
 theorem value_eq_of_words (slot : SlotExpr logicalWidth publicFits) (env : Env)
-    (data : SlotData logicalWidth publicFits) (depth : data.2 < goldilocksModulus)
+    (data : SlotData logicalWidth publicFits) (depth : data.2 < fieldModulus)
     (same : Hash.evalList env slot.words = serializeSlot data) : slot.value env = data :=
   serializeSlot_injective (slot.depth.eval env).isLt depth ((words_eval slot env).symm.trans same)
 

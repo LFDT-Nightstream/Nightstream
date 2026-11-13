@@ -434,9 +434,9 @@ private theorem spec_of_parts (interface : Interface) (offset : Nat)
           have binary :
               ((Poseidon2.hash
                 (Hash.evalList env (interface.preimage offset))).getD word.val 0).val /
-                  2 ^ bit.val % 2 < goldilocksModulus := by
+                  2 ^ bit.val % 2 < fieldModulus := by
             exact lt_trans (Nat.mod_lt _ (by decide)) (by
-              norm_num [goldilocksModulus])
+              norm_num [fieldModulus])
           exact (Nat.mod_eq_of_lt binary).symm
     · simpa using tail lane
 
@@ -545,7 +545,7 @@ private theorem wordSpec_of_spec (interface : Interface) (offset : Nat)
       unfold NightstreamFPrime.Lifecycle.digestBitWord Poseidon2.ofNat
       apply Nat.mod_eq_of_lt
       exact lt_trans (Nat.mod_lt _ (by decide)) (by
-        norm_num [goldilocksModulus])
+        norm_num [fieldModulus])
     _ = ((RawFormal.digest (hashInterface interface) offset word).eval env).val /
         2 ^ bit % 2 := by rw [digestValue]
 

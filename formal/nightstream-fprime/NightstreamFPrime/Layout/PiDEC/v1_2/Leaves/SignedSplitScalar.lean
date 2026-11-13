@@ -7,7 +7,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Layout.Polynomial.Horner
 open NightstreamFPrime.Lifecycle.PiDEC.v1_2
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 def signFreshCount : Nat := 0
 def digitFreshCount : Nat := 0

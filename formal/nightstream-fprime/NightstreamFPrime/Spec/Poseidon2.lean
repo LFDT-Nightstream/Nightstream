@@ -12,7 +12,7 @@ def partialRounds : Nat := 22
 
 abbrev State := List F
 
-def ofNat (n : Nat) : F := ⟨n % goldilocksModulus, Nat.mod_lt _ (by decide)⟩
+def ofNat (n : Nat) : F := ⟨n % fieldModulus, Nat.mod_lt _ (by decide)⟩
 
 def initialConstants : List (List Nat) :=
   [[15504881536434223753, 2212164856944708396, 1885257220781225929, 17531637481572944510,

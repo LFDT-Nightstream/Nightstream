@@ -1,5 +1,5 @@
 import NightstreamFPrime.Lifecycle.Nebula.PortApp
-import NightstreamFPrime.Spec.GoldilocksExtensionRing
+import NightstreamFPrime.Spec.FieldExtensionRing
 
 /-! Owns the refinement of the memory rows of one invocation: when the rows of
 `StepWitness.RowsHold` hold and the input carry is reachable, the model's
@@ -11,7 +11,7 @@ namespace NightstreamFPrime.Lifecycle.Nebula
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
-open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
+open scoped NightstreamFPrime.Spec.FieldExtensionRing
 open Fin.CommRing
 
 /-- The invariant of every carry between invocations: counters in range, and
@@ -30,16 +30,16 @@ theorem reach_startCarry {p : Plan} : Reach p.toGeometry (startCarry (context p)
 
 /-! ### Small values -/
 
-theorem two_pow_lt_modulus {k : ℕ} (small : k ≤ 63) : 2 ^ k < goldilocksModulus :=
+theorem two_pow_lt_modulus {k : ℕ} (small : k ≤ 63) : 2 ^ k < fieldModulus :=
   lt_of_le_of_lt (Nat.pow_le_pow_right (by norm_num) small) (by decide)
 
-theorem Geometry.n_lt {p : Geometry} (valid : p.Valid) : p.n < goldilocksModulus := by
+theorem Geometry.n_lt {p : Geometry} (valid : p.Valid) : p.n < fieldModulus := by
   have cover := valid.exactCover
   have positive := valid.positive.2.1
   have below := valid.belowModulus
   calc p.n ≤ p.n * p.bScan := Nat.le_mul_of_pos_right _ positive
     _ = p.cells := cover
-    _ < goldilocksModulus := below
+    _ < fieldModulus := below
 
 theorem Geometry.wTs_small {p : Geometry} (valid : p.Valid) : 2 ^ p.wTs ≤ 2 ^ 62 :=
   Nat.pow_le_pow_right (by norm_num) (valid.fieldEncoding.trans (by norm_num))
@@ -103,7 +103,7 @@ theorem RowsHold.arm (valid : p.Valid) (rows : w.RowsHold zIn) :
 
 /-! ### Bits -/
 
-theorem modulus_ne_one : goldilocksModulus ≠ 1 := by decide
+theorem modulus_ne_one : fieldModulus ≠ 1 := by decide
 
 theorem toBool_true {x : F} : toBool x = true ↔ x = 1 := by simp [toBool]
 
@@ -310,8 +310,8 @@ theorem RowsHold.activeFresh (valid : p.Valid) (rows : w.RowsHold zIn)
     omega
   have rtSmall := bitsNat_lt (w.ops j).rt
   have diffSmall := bitsNat_lt (w.ops j).diff
-  have equal := natWord_injective (by rw [wt]; unfold goldilocksModulus; omega)
-    (by unfold goldilocksModulus; omega) row
+  have equal := natWord_injective (by rw [wt]; unfold fieldModulus; omega)
+    (by unfold fieldModulus; omega) row
   rw [rt]
   change bitsNat (w.ops j).rt < o.wt
   omega
@@ -337,8 +337,8 @@ theorem RowsHold.boundary (valid : p.Valid) (rows : w.RowsHold zIn)
     rw [activeCount_records, ← length]
     exact activeLength_le _
   have bitsSmall := bitsNat_lt w.tsBits
-  have equal := natWord_injective (by unfold goldilocksModulus; omega)
-    (by unfold goldilocksModulus; omega) range
+  have equal := natWord_injective (by unfold fieldModulus; omega)
+    (by unfold fieldModulus; omega) range
   omega
 
 /-- The rows give the typed step rows of SPEC.md section 7.3 (the premise of the row products). -/
@@ -376,7 +376,7 @@ theorem readDigest_eq (v : Fin 39 → F) (start : ℕ) (fits : start + 3 < 39) :
   simp [readDigest, carryDigest, carryWord, show start + i < 39 by omega]
 
 theorem startProduct_open (word : ℕ) (opens : w.isOpen = 1) : w.startProduct word = 1 := by
-  rw [GoldilocksExtensionRing.one_eq]
+  rw [FieldExtensionRing.one_eq]
   simp [startProduct, opens, embed, K.add, K.mul, K.one]
 
 theorem startProduct_continue (word : ℕ) (continues : w.isOpen = 0) :
@@ -410,8 +410,8 @@ theorem RowsHold.segBelow (valid : p.Valid) (rows : w.RowsHold zIn)
     have bitsSmall := lt_of_lt_of_le (bitsNat_lt w.segBits)
       (Nat.pow_le_pow_right (by norm_num) widthSmall)
     have segLe : w.inCarry.segIdx ≤ p.sMax := reach.seg
-    have equal := natWord_injective (by unfold goldilocksModulus; omega)
-      (by unfold goldilocksModulus; omega) row
+    have equal := natWord_injective (by unfold fieldModulus; omega)
+      (by unfold fieldModulus; omega) row
     omega
   · exact reach.openSeg notClosed
 
@@ -517,27 +517,27 @@ end StepWitness
 /-! ### `K` values -/
 
 theorem embed_eq (x : F) : embed x = ((x.val : ℕ) : K) := by
-  rw [GoldilocksExtensionRing.natCast_eq]
+  rw [FieldExtensionRing.natCast_eq]
   simp only [embed, K.mk.injEq, and_true]
   exact Fin.ext (by simp [Nat.mod_eq_of_lt x.isLt])
 
 theorem embed_add (x y : F) : embed (x + y) = embed x + embed y := by
-  rw [GoldilocksExtensionRing.add_eq]
+  rw [FieldExtensionRing.add_eq]
   simp [embed, K.add]
 
 theorem embed_mul (x y : F) : embed (x * y) = embed x * embed y := by
-  rw [GoldilocksExtensionRing.mul_eq]
+  rw [FieldExtensionRing.mul_eq]
   simp [embed, K.mul]
 
 /-- The circuit fingerprint is the model fingerprint of the field values. -/
 theorem fingerprintK_eq (η1 η2 : K) (t g v : F) :
     fingerprintK η1 η2 t g v = fingerprint (η1, η2) (t.val, g.val, v.val) := by
   have shift : embed (natWord (2 ^ 32)) = (2 : K) ^ 32 := by
-    rw [embed_eq, natWord_val (by norm_num [goldilocksModulus])]
+    rw [embed_eq, natWord_val (by norm_num [fieldModulus])]
     norm_num
   rw [fingerprintK, embed_add, embed_mul, shift]
-  simp only [fingerprint, ← GoldilocksExtensionRing.add_eq, ← GoldilocksExtensionRing.mul_eq,
-    ← GoldilocksExtensionRing.sub_eq, embed_eq]
+  simp only [fingerprint, ← FieldExtensionRing.add_eq, ← FieldExtensionRing.mul_eq,
+    ← FieldExtensionRing.sub_eq, embed_eq]
 
 /-- The O8 and O9 gate on a bit. -/
 theorem gatedK_bit {pad : F} (bit : IsBit pad) (f : K) :
@@ -546,7 +546,7 @@ theorem gatedK_bit {pad : F} (bit : IsBit pad) (f : K) :
   · have : toBool (0 : F) = false := by simp [toBool, StepWitness.modulus_ne_one]
     rw [this, ite_eq_right (by simp)]
     simp [gatedK, embed, K.add, K.mul]
-  · rw [show toBool (1 : F) = true from by simp [toBool], ite_eq_left rfl, GoldilocksExtensionRing.one_eq]
+  · rw [show toBool (1 : F) = true from by simp [toBool], ite_eq_left rfl, FieldExtensionRing.one_eq]
     simp [gatedK, embed, K.add, K.mul, K.one]
 
 namespace StepWitness
@@ -594,12 +594,12 @@ theorem RowsHold.globalIndex_val (valid : p.Valid) (rows : w.RowsHold zIn) (j : 
     have small : bitsNat (w.ops j).addr < 2 ^ p.r := slot.romRange decodeRam
     simp only [globalIndex, isRam, zero, zero_mul, add_zero, addr, slotIndex, PortAccess.globalIndex,
       decodeRam]
-    exact natWord_val (by unfold goldilocksModulus at *; omega)
+    exact natWord_val (by unfold fieldModulus at *; omega)
   · have decodeRam : (w.ops j).decode.isRam = true := by simp [OpSlotBits.decode, one, toBool]
     have small : bitsNat (w.ops j).addr < 2 ^ p.μ := slot.ramRange decodeRam
     simp only [globalIndex, isRam, one, one_mul, addr, slotIndex, PortAccess.globalIndex,
       decodeRam, ite_true, ← natWord_add]
-    rw [natWord_val (by unfold goldilocksModulus at *; omega)]
+    rw [natWord_val (by unfold fieldModulus at *; omega)]
     simp only [OpSlotBits.decode]
     omega
 
@@ -622,9 +622,9 @@ theorem RowsHold.wt_val (valid : p.Valid) (rows : w.RowsHold zIn) (j : Fin p.bOp
   have small62 := Geometry.wTs_small valid
   have opsSmall := Geometry.bOps_small valid
   have sumSmall : (w.cIn 2).val + activeLength (w.records.ops.take j.val) + 1 <
-      goldilocksModulus := by
+      fieldModulus := by
     have tsSmall := lt_of_lt_of_le tsRange small62
-    unfold goldilocksModulus
+    unfold fieldModulus
     omega
   rw [StepWitness.wt, count, show w.cIn 2 + natWord (activeLength (w.records.ops.take j.val) + 1) =
       natWord ((w.cIn 2).val + activeLength (w.records.ops.take j.val) + 1) by
@@ -652,7 +652,7 @@ theorem RowsHold.readProducts (valid : p.Valid) (rows : w.RowsHold zIn) :
     have split : w.records.ops.take (k + 1) =
         w.records.ops.take k ++ [(w.ops ⟨k, hk'⟩).decode] := by
       rw [records_ops, take_succ_ofFn _ hk']
-    rw [rows.readProduct ⟨k, hk'⟩, previous, ← GoldilocksExtensionRing.mul_eq, split,
+    rw [rows.readProduct ⟨k, hk'⟩, previous, ← FieldExtensionRing.mul_eq, split,
       opsFactors_append, mul_assoc]
     congr 2
     rw [StepWitness.pad, gatedK_bit (rows.slotBits w ⟨k, hk'⟩).1,
@@ -672,7 +672,7 @@ theorem RowsHold.writeProducts (valid : p.Valid) (rows : w.RowsHold zIn)
     have split : w.records.ops.take (k + 1) =
         w.records.ops.take k ++ [(w.ops ⟨k, hk'⟩).decode] := by
       rw [records_ops, take_succ_ofFn _ hk']
-    rw [rows.writeProduct ⟨k, hk'⟩, previous, ← GoldilocksExtensionRing.mul_eq, split,
+    rw [rows.writeProduct ⟨k, hk'⟩, previous, ← FieldExtensionRing.mul_eq, split,
       opsFactors_append, mul_assoc]
     congr 2
     rw [StepWitness.pad, gatedK_bit (rows.slotBits w ⟨k, hk'⟩).1]
@@ -705,7 +705,7 @@ theorem RowsHold.scanIndex_val (valid : p.Valid) (rows : w.RowsHold zIn)
   have idxLt := rows.idxEff_lt w valid reach
   have cover := valid.exactCover
   have below := valid.belowModulus
-  have bound : w.idxEff.val * p.bScan + j < goldilocksModulus := by
+  have bound : w.idxEff.val * p.bScan + j < fieldModulus := by
     have : w.idxEff.val * p.bScan + j < p.n * p.bScan := by
       calc w.idxEff.val * p.bScan + j < w.idxEff.val * p.bScan + p.bScan := by omega
         _ = (w.idxEff.val + 1) * p.bScan := by ring
@@ -733,7 +733,7 @@ theorem RowsHold.initialProducts (valid : p.Valid) (rows : w.RowsHold zIn)
     have hk' : k < p.bScan := hk
     have previous := RowsHold.initialProducts valid rows reach k (by omega)
     have all := rows.initialBits ⟨k, hk'⟩
-    rw [rows.initialProduct ⟨k, hk'⟩, previous, ← GoldilocksExtensionRing.mul_eq]
+    rw [rows.initialProduct ⟨k, hk'⟩, previous, ← FieldExtensionRing.mul_eq]
     simp only [records]
     rw [take_scans _ hk', scanFactor_append, take_scans_length _ (by omega), mul_assoc,
       fingerprintK_eq, scanStamp_val valid all, scanValue_val all,
@@ -749,7 +749,7 @@ theorem RowsHold.finalProducts (valid : p.Valid) (rows : w.RowsHold zIn)
     have hk' : k < p.bScan := hk
     have previous := RowsHold.finalProducts valid rows reach k (by omega)
     have all := rows.finalBits ⟨k, hk'⟩
-    rw [rows.finalProduct ⟨k, hk'⟩, previous, ← GoldilocksExtensionRing.mul_eq]
+    rw [rows.finalProduct ⟨k, hk'⟩, previous, ← FieldExtensionRing.mul_eq]
     simp only [records]
     rw [take_scans _ hk', scanFactor_append, take_scans_length _ (by omega), mul_assoc,
       fingerprintK_eq, scanStamp_val valid all, scanValue_val all,

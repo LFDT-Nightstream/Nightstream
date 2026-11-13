@@ -23,7 +23,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.LightPiCCS
 the statement absorption. -/
 structure Leaves (logicalWidth degreeBound : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   statement : StatementAbsorption.Interface logicalWidth publicFits
   statementOffset : Nat
   statementFinal : Layer.EState
@@ -50,7 +50,7 @@ structure Leaves (logicalWidth degreeBound : Nat)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
 
 /-- Each leaf's rows hold. The statement absorption is the trace from the light fold domain. -/

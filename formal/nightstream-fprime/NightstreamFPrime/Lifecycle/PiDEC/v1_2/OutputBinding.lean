@@ -17,11 +17,11 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   point : Nat → Fin productionShape.cubeVariables → KExpr
   message : Nat → Radix.ChildIndex → InputBinding.ChildMessageExpr
   publicInput : Nat → Radix.ChildIndex →
@@ -29,7 +29,7 @@ structure Interface (logicalWidth : Nat)
 
 abbrev Output (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   CE.Instance (PaperAlgebra.Structure logicalWidth)
     (PaperAlgebra.PublicInput
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -38,7 +38,7 @@ abbrev Output (logicalWidth : Nat)
 def evalOutput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (env : Env) :
@@ -58,7 +58,7 @@ def evalOutput
 @[simp] theorem evalOutput_commitment
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (env : Env) (child : Radix.ChildIndex) :
@@ -69,7 +69,7 @@ def evalOutput
 @[simp] theorem evalOutput_evaluations
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (env : Env) (child : Radix.ChildIndex) :
@@ -81,7 +81,7 @@ def evalOutput
 @[simp] theorem evalOutput_publicInput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (env : Env) (child : Radix.ChildIndex) :
@@ -93,7 +93,7 @@ def evalOutput
 structure SpecHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (env : Env) : Prop where
@@ -111,7 +111,7 @@ structure SpecHolds
 def circuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) : FormalCircuit where
   main := pure ()
@@ -126,7 +126,7 @@ def circuit
 theorem soundness
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (env : Env)
@@ -137,7 +137,7 @@ theorem soundness
 theorem completeness
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (env : Env)
@@ -152,7 +152,7 @@ theorem completeness
 theorem parentCoverage
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (env : Env)
@@ -173,7 +173,7 @@ theorem parentCoverage
 theorem localLength_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     localLength (Circuit.ops (circuit relation interface).main offset) = 0 := by
@@ -182,7 +182,7 @@ theorem localLength_eq
 theorem flatConstraints_length
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (flatConstraints
@@ -192,7 +192,7 @@ theorem flatConstraints_length
 theorem flatConstraints_varsBelow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     ∀ expression ∈ flatConstraints

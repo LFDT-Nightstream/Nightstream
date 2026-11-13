@@ -40,7 +40,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 structure InputsLinear
     (interface :
@@ -92,7 +92,7 @@ theorem output_varsBelow_ccs
 
 private theorem cubeVariables_positive :
     0 < productionShape.cubeVariables := by
-  norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+  norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 private theorem coefficientExprs_linear
     (interface :
@@ -136,7 +136,7 @@ private theorem core_totalFreshCount
             interface) cubeVariables_positive offset
           (coreInputs interface offset inputs)
     _ = 665 := by
-      norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+      norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 private theorem core_totalRowCount
     (interface :
@@ -157,7 +157,7 @@ private theorem core_totalRowCount
           (coreInputs interface offset inputs)
     _ = 11140 := by
       rw [NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalATerminal.coefficientExprs_length]
-      norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+      norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 def footprint
     (interface : Formal.Interface logicalWidth degreeBound publicFits)

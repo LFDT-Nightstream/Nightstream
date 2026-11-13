@@ -126,7 +126,7 @@ private theorem padWords_length (output : OutputExpr)
   unfold padWords
   rw [flatMap_length_constant _ _ 2 (fun _ => rfl)]
   norm_num [productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape, ringDegree]
+    RingMatrixSource.ringShape, ringDegree]
 
 private theorem matrixWords_length (output : OutputExpr)
     (source : Fin productionShape.sourceCount) :
@@ -138,11 +138,11 @@ private theorem matrixWords_length (output : OutputExpr)
     intro matrix
     rw [flatMap_length_constant _ _ 2 (fun _ => rfl)]
     norm_num [productionShape, productionProfile,
-      Phi81MatrixSource.phi81Shape, ringDegree]
+      RingMatrixSource.ringShape, ringDegree]
   unfold matrixWords
   rw [flatMap_length_constant _ _ 108 coefficientLength]
   norm_num [productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape, ringDegree]
+    RingMatrixSource.ringShape, ringDegree]
 
 private theorem sourceWords_length (output : OutputExpr)
     (source : Fin productionShape.sourceCount) :
@@ -154,7 +154,7 @@ theorem outputWords_length (interface : Interface) (offset : Nat) :
   unfold outputWords
   rw [flatMap_length_constant _ _ 540 (sourceWords_length _)]
   norm_num [productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape, Shape.sourceCount]
+    RingMatrixSource.ringShape, Shape.sourceCount]
 
 section Shape
 
@@ -451,7 +451,7 @@ theorem outputWords_eval (interface : Interface) (offset : Nat) (env : Env)
 theorem spec_implies_keyOutgoingState
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -512,7 +512,7 @@ theorem spec_implies_keyOutgoingState
 theorem key_output_eval_K
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -531,7 +531,7 @@ theorem key_output_eval_K
 theorem key_output_eval_A
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

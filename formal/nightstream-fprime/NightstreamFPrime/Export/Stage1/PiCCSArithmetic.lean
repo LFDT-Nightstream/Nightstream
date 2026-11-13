@@ -16,7 +16,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 def statementBindingRowStart : Nat :=
   NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementBindingRowStart
@@ -156,21 +156,21 @@ theorem compilePacket_complete (rowStart freshStart : Nat)
 def parentInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     Formal.Interface logicalWidth 8 publicFits :=
   PiCCSInvocations.parentInterface logicalWidth publicFits
 
 def sharedInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     Formal.Interface logicalWidth 8 publicFits :=
   PiCCSInvocations.sharedInterface logicalWidth publicFits
 
 theorem initialClaimLogicalStart_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     initialClaimLogicalStart =
       Formal.initialClaimOffset (parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
@@ -186,7 +186,7 @@ theorem initialClaimLogicalStart_matches
 theorem sumcheckLogicalStart_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     sumcheckLogicalStart =
       Formal.sumcheckOffset (parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
@@ -202,7 +202,7 @@ theorem sumcheckLogicalStart_matches
 theorem evalKLogicalStart_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     evalKLogicalStart =
       Formal.evalKOffset (parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
@@ -218,7 +218,7 @@ theorem evalKLogicalStart_matches
 theorem evalALogicalStart_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     evalALogicalStart =
       Formal.evalAOffset (parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
@@ -234,7 +234,7 @@ theorem evalALogicalStart_matches
 theorem ccsLogicalStart_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     ccsLogicalStart =
       Formal.ccsOffset (parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
@@ -250,7 +250,7 @@ theorem ccsLogicalStart_matches
 theorem normLogicalStart_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     normLogicalStart =
       Formal.normRowOffset (parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
@@ -259,7 +259,7 @@ theorem normLogicalStart_matches
 theorem finalIdentityLogicalStart_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     finalIdentityLogicalStart =
       Formal.finalIdentityRowOffset (parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
@@ -268,7 +268,7 @@ theorem finalIdentityLogicalStart_matches
 def statementBindingConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
     (Formal.statementBindingCircuit (sharedInterface logicalWidth publicFits))
     statementBindingLogicalStart
@@ -276,7 +276,7 @@ def statementBindingConstraints
 def initialClaimConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
     (Formal.initialClaimCircuit (sharedInterface logicalWidth publicFits))
     initialClaimLogicalStart
@@ -284,7 +284,7 @@ def initialClaimConstraints
 def sumcheckConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
     (Formal.sumcheckCircuit (sharedInterface logicalWidth publicFits))
     sumcheckLogicalStart
@@ -292,7 +292,7 @@ def sumcheckConstraints
 def evalKConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
     (Formal.evalKCircuit (sharedInterface logicalWidth publicFits))
     evalKLogicalStart
@@ -300,7 +300,7 @@ def evalKConstraints
 def evalAConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
     (Formal.evalACircuit (sharedInterface logicalWidth publicFits))
     evalALogicalStart
@@ -311,7 +311,7 @@ def mainConstraints (main : Circuit Unit) (offset : Nat) : List Expr :=
 def ccsConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   mainConstraints
     (Formal.ccsRowMain (sharedInterface logicalWidth publicFits))
     ccsLogicalStart
@@ -319,7 +319,7 @@ def ccsConstraints
 def normConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   mainConstraints
     (Formal.normRowMain (sharedInterface logicalWidth publicFits))
     normLogicalStart
@@ -327,7 +327,7 @@ def normConstraints
 def finalIdentityConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   mainConstraints
     (Formal.finalIdentityRowMain (sharedInterface logicalWidth publicFits))
     finalIdentityLogicalStart
@@ -335,7 +335,7 @@ def finalIdentityConstraints
 def statementBindingRows
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     List Rows.CompiledRow :=
   compilePacket statementBindingRowStart statementBindingFreshStart
     (statementBindingConstraints logicalWidth publicFits)
@@ -343,7 +343,7 @@ def statementBindingRows
 def initialClaimRows
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     List Rows.CompiledRow :=
   compilePacket initialClaimRowStart initialClaimFreshStart
     (initialClaimConstraints logicalWidth publicFits)
@@ -351,7 +351,7 @@ def initialClaimRows
 def sumcheckRows
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     List Rows.CompiledRow :=
   compilePacket sumcheckRowStart sumcheckFreshStart
     (sumcheckConstraints logicalWidth publicFits)
@@ -359,7 +359,7 @@ def sumcheckRows
 def evalKRows
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     List Rows.CompiledRow :=
   compilePacket evalKRowStart evalKFreshStart
     (evalKConstraints logicalWidth publicFits)
@@ -367,7 +367,7 @@ def evalKRows
 def evalARows
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     List Rows.CompiledRow :=
   compilePacket evalARowStart evalAFreshStart
     (evalAConstraints logicalWidth publicFits)
@@ -375,7 +375,7 @@ def evalARows
 def ccsRows
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     List Rows.CompiledRow :=
   compilePacket ccsRowStart ccsFreshStart
     (ccsConstraints logicalWidth publicFits)
@@ -383,7 +383,7 @@ def ccsRows
 def normRows
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     List Rows.CompiledRow :=
   compilePacket normRowStart normFreshStart
     (normConstraints logicalWidth publicFits)
@@ -391,7 +391,7 @@ def normRows
 def finalIdentityRows
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     List Rows.CompiledRow :=
   compilePacket finalIdentityRowStart finalIdentityFreshStart
     (finalIdentityConstraints logicalWidth publicFits)
@@ -399,7 +399,7 @@ def finalIdentityRows
 def arithmeticRows
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth) :
+    RingCarrierLayout.carrierWidth logicalWidth) :
     List Rows.CompiledRow :=
   statementBindingRows logicalWidth publicFits ++
     initialClaimRows logicalWidth publicFits ++
@@ -413,7 +413,7 @@ def arithmeticRows
 structure PacketHolds
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (env : Env) : Prop where
   statementBinding : R1CS.RowsHold env
     ((statementBindingRows logicalWidth publicFits).map
@@ -436,7 +436,7 @@ structure PacketHolds
 theorem arithmeticRows_imply_packetHolds
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (env : Env)
     (holds : R1CS.RowsHold env
       ((arithmeticRows logicalWidth publicFits).map
@@ -475,7 +475,7 @@ theorem compilePacket_implies_childSpec
 structure ArithmeticSpecs
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) : Prop where
   statementBinding :
@@ -515,7 +515,7 @@ structure ArithmeticSpecs
 theorem ArithmeticSpecs.statementBinding_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {env : Env} (specs : ArithmeticSpecs logicalWidth publicFits relation env) :
     (Formal.statementBindingCircuit
@@ -528,7 +528,7 @@ theorem ArithmeticSpecs.statementBinding_parent
 theorem ArithmeticSpecs.initialClaim_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {env : Env} (specs : ArithmeticSpecs logicalWidth publicFits relation env) :
     (Formal.initialClaimCircuit (sharedInterface logicalWidth publicFits)).spec
@@ -541,7 +541,7 @@ theorem ArithmeticSpecs.initialClaim_parent
 theorem ArithmeticSpecs.sumcheck_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {env : Env} (specs : ArithmeticSpecs logicalWidth publicFits relation env) :
     (Formal.sumcheckCircuit (sharedInterface logicalWidth publicFits)).spec
@@ -554,7 +554,7 @@ theorem ArithmeticSpecs.sumcheck_parent
 theorem ArithmeticSpecs.evalK_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {env : Env} (specs : ArithmeticSpecs logicalWidth publicFits relation env) :
     (Formal.evalKCircuit (sharedInterface logicalWidth publicFits)).spec
@@ -567,7 +567,7 @@ theorem ArithmeticSpecs.evalK_parent
 theorem ArithmeticSpecs.evalA_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {env : Env} (specs : ArithmeticSpecs logicalWidth publicFits relation env) :
     (Formal.evalACircuit (sharedInterface logicalWidth publicFits)).spec
@@ -580,7 +580,7 @@ theorem ArithmeticSpecs.evalA_parent
 theorem ArithmeticSpecs.ccs_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {env : Env} (specs : ArithmeticSpecs logicalWidth publicFits relation env) :
     (Formal.ccsCircuit relation (sharedInterface logicalWidth publicFits)).spec
@@ -593,7 +593,7 @@ theorem ArithmeticSpecs.ccs_parent
 theorem ArithmeticSpecs.norm_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {env : Env} (specs : ArithmeticSpecs logicalWidth publicFits relation env) :
     (Formal.normCircuit relation (sharedInterface logicalWidth publicFits)).spec
@@ -607,7 +607,7 @@ theorem ArithmeticSpecs.norm_parent
 theorem ArithmeticSpecs.finalIdentity_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {env : Env} (specs : ArithmeticSpecs logicalWidth publicFits relation env) :
     (Formal.finalIdentityCircuit relation
@@ -623,7 +623,7 @@ theorem ArithmeticSpecs.finalIdentity_parent
 theorem packetHolds_imply_arithmeticSpecs
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env)
     (assumptions : Formal.Assumptions relation
@@ -750,7 +750,7 @@ theorem packetHolds_imply_arithmeticSpecs
 theorem inputShapes
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     NightstreamFPrime.Layout.PiCCS.v1_2.InputShapes relation
       (parentInterface logicalWidth publicFits)
@@ -764,7 +764,7 @@ theorem inputShapes
 theorem statementBindingRows_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (statementBindingRows logicalWidth publicFits).length = 4712 := by
   rw [statementBindingRows, compilePacket_length]
@@ -782,7 +782,7 @@ theorem statementBindingRows_length
 theorem initialClaimRows_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (initialClaimRows logicalWidth publicFits).length = 12957 := by
   rw [initialClaimRows, compilePacket_length]
@@ -797,7 +797,7 @@ theorem initialClaimRows_length
 theorem sumcheckRows_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (sumcheckRows logicalWidth publicFits).length = 728 := by
   rw [sumcheckRows, compilePacket_length]
@@ -812,7 +812,7 @@ theorem sumcheckRows_length
 theorem evalKRows_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (evalKRows logicalWidth publicFits).length = 3364 := by
   rw [evalKRows, compilePacket_length]
@@ -827,7 +827,7 @@ theorem evalKRows_length
 theorem evalARows_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (evalARows logicalWidth publicFits).length = 11140 := by
   rw [evalARows, compilePacket_length]
@@ -842,7 +842,7 @@ theorem evalARows_length
 theorem ccsRows_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (ccsRows logicalWidth publicFits).length = 23 := by
   rw [ccsRows, compilePacket_length]
@@ -859,7 +859,7 @@ theorem ccsRows_length
 theorem normRows_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (normRows logicalWidth publicFits).length = 800 := by
   rw [normRows, compilePacket_length]
@@ -879,7 +879,7 @@ theorem normRows_length
 theorem finalIdentityRows_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (finalIdentityRows logicalWidth publicFits).length = 3593 := by
   rw [finalIdentityRows, compilePacket_length]
@@ -916,7 +916,7 @@ theorem finalIdentityRows_length
 theorem arithmeticRows_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (arithmeticRows logicalWidth publicFits).length = 37317 := by
   unfold arithmeticRows
@@ -935,14 +935,14 @@ theorem arithmeticRows_length
 def witnessInstructions
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   Rows.witnessInstructions
     (arithmeticRows logicalWidth publicFits)
 
 def assertionRows
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   Rows.assertionRows (arithmeticRows logicalWidth publicFits)
 
 end NightstreamFPrime.Export.Stage1.PiCCSArithmetic

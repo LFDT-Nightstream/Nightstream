@@ -12,8 +12,8 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 def verifierRows : Nat := productionProfile.commitmentWidth
 
 def messageColumns : Nat :=
-  Phi81ColumnLayout.blockCount
-    (Phi81CarrierLayout.carrierWidth
+  ConcreteRingColumnLayout.blockCount
+    (RingCarrierLayout.carrierWidth
       (PerApplicationFixedPoint.logicalWidth
         Poseidon2HashChainV1Package.application))
 
@@ -21,18 +21,18 @@ def messageColumns : Nat :=
   rfl
 
 @[simp] theorem carrierWidth_eq :
-    Phi81CarrierLayout.carrierWidth
+    RingCarrierLayout.carrierWidth
         (PerApplicationFixedPoint.logicalWidth
           Poseidon2HashChainV1Package.application) =
       43963776 := by
   rw [Poseidon2HashChainV1Package.logicalWidth]
-  norm_num [Phi81CarrierLayout.carrierWidth, Phi81ColumnLayout.blockCount,
+  norm_num [RingCarrierLayout.carrierWidth, ConcreteRingColumnLayout.blockCount,
     ringDegree]
 
 @[simp] theorem messageColumns_eq : messageColumns = 814144 := by
   unfold messageColumns
   rw [carrierWidth_eq]
-  norm_num [Phi81ColumnLayout.blockCount, ringDegree]
+  norm_num [ConcreteRingColumnLayout.blockCount, ringDegree]
 
 abbrev Setup :=
   PerApplicationCanonicalPackage.CommitmentSetup
@@ -55,10 +55,10 @@ def authorityWords (setup : Setup) : List F :=
 
 theorem authorityWords_injective : Function.Injective authorityWords := by
   intro left right sameWords
-  have rowsBound : verifierRows < goldilocksModulus := by
+  have rowsBound : verifierRows < fieldModulus := by
     rw [verifierRows_eq]
     decide
-  have columnsBound : messageColumns < goldilocksModulus := by
+  have columnsBound : messageColumns < fieldModulus := by
     rw [messageColumns_eq]
     decide
   have sameSeed := (AjtaiSetupV1.Setup.authorityWords_eq_iff left right

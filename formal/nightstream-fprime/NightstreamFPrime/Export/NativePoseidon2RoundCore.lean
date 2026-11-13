@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.NativeGoldilocks
+import NightstreamFPrime.Export.NativeField
 
 namespace NightstreamFPrime.Export.NativePoseidon2
 
@@ -10,23 +10,23 @@ open Fin.CommRing
 @[inline] private def triple64 (value : Word) : Word := add64 (double64 value) value
 
 private theorem double64_canonical (value : Word)
-    (canonical : value.toNat < goldilocksModulus) :
-    (double64 value).toNat < goldilocksModulus :=
+    (canonical : value.toNat < fieldModulus) :
+    (double64 value).toNat < fieldModulus :=
   add64_canonical value value canonical canonical
 
 private theorem triple64_canonical (value : Word)
-    (canonical : value.toNat < goldilocksModulus) :
-    (triple64 value).toNat < goldilocksModulus :=
+    (canonical : value.toNat < fieldModulus) :
+    (triple64 value).toNat < fieldModulus :=
   add64_canonical _ value (double64_canonical value canonical) canonical
 
 private theorem double64_denote (value : Word)
-    (canonical : value.toNat < goldilocksModulus) :
+    (canonical : value.toNat < fieldModulus) :
     (double64 value).denote = 2 * value.denote := by
   rw [double64, add64_denote value value canonical canonical]
   ring
 
 private theorem triple64_denote (value : Word)
-    (canonical : value.toNat < goldilocksModulus) :
+    (canonical : value.toNat < fieldModulus) :
     (triple64 value).denote = 3 * value.denote := by
   rw [triple64, add64_denote _ value
     (double64_canonical value canonical) canonical,
@@ -37,19 +37,19 @@ private theorem triple64_denote (value : Word)
   add64 (add64 (add64 a b) c) d
 
 private theorem sum4_64_canonical (a b c d : Word)
-    (ha : a.toNat < goldilocksModulus)
-    (hb : b.toNat < goldilocksModulus)
-    (hc : c.toNat < goldilocksModulus)
-    (hd : d.toNat < goldilocksModulus) :
-    (sum4_64 a b c d).toNat < goldilocksModulus :=
+    (ha : a.toNat < fieldModulus)
+    (hb : b.toNat < fieldModulus)
+    (hc : c.toNat < fieldModulus)
+    (hd : d.toNat < fieldModulus) :
+    (sum4_64 a b c d).toNat < fieldModulus :=
   add64_canonical _ d
     (add64_canonical _ c (add64_canonical a b ha hb) hc) hd
 
 private theorem sum4_64_denote (a b c d : Word)
-    (ha : a.toNat < goldilocksModulus)
-    (hb : b.toNat < goldilocksModulus)
-    (hc : c.toNat < goldilocksModulus)
-    (hd : d.toNat < goldilocksModulus) :
+    (ha : a.toNat < fieldModulus)
+    (hb : b.toNat < fieldModulus)
+    (hc : c.toNat < fieldModulus)
+    (hd : d.toNat < fieldModulus) :
     (sum4_64 a b c d).denote =
       a.denote + b.denote + c.denote + d.denote := by
   simp only [sum4_64]
@@ -61,14 +61,14 @@ private theorem sum4_64_denote (a b c d : Word)
 @[inline] private def combine64 (a b : Word) : Word := add64 (double64 a) b
 
 private theorem combine64_canonical (a b : Word)
-    (ha : a.toNat < goldilocksModulus)
-    (hb : b.toNat < goldilocksModulus) :
-    (combine64 a b).toNat < goldilocksModulus :=
+    (ha : a.toNat < fieldModulus)
+    (hb : b.toNat < fieldModulus) :
+    (combine64 a b).toNat < fieldModulus :=
   add64_canonical _ b (double64_canonical a ha) hb
 
 private theorem combine64_denote (a b : Word)
-    (ha : a.toNat < goldilocksModulus)
-    (hb : b.toNat < goldilocksModulus) :
+    (ha : a.toNat < fieldModulus)
+    (hb : b.toNat < fieldModulus) :
     (combine64 a b).denote = a.denote + a.denote + b.denote := by
   rw [combine64, add64_denote _ b (double64_canonical a ha) hb,
     double64_denote a ha]
@@ -92,14 +92,14 @@ structure State64 where
   x14 : UInt64
   x15 : UInt64
   canonical :
-    x0.toNat < goldilocksModulus ∧ x1.toNat < goldilocksModulus ∧
-    x2.toNat < goldilocksModulus ∧ x3.toNat < goldilocksModulus ∧
-    x4.toNat < goldilocksModulus ∧ x5.toNat < goldilocksModulus ∧
-    x6.toNat < goldilocksModulus ∧ x7.toNat < goldilocksModulus ∧
-    x8.toNat < goldilocksModulus ∧ x9.toNat < goldilocksModulus ∧
-    x10.toNat < goldilocksModulus ∧ x11.toNat < goldilocksModulus ∧
-    x12.toNat < goldilocksModulus ∧ x13.toNat < goldilocksModulus ∧
-    x14.toNat < goldilocksModulus ∧ x15.toNat < goldilocksModulus
+    x0.toNat < fieldModulus ∧ x1.toNat < fieldModulus ∧
+    x2.toNat < fieldModulus ∧ x3.toNat < fieldModulus ∧
+    x4.toNat < fieldModulus ∧ x5.toNat < fieldModulus ∧
+    x6.toNat < fieldModulus ∧ x7.toNat < fieldModulus ∧
+    x8.toNat < fieldModulus ∧ x9.toNat < fieldModulus ∧
+    x10.toNat < fieldModulus ∧ x11.toNat < fieldModulus ∧
+    x12.toNat < fieldModulus ∧ x13.toNat < fieldModulus ∧
+    x14.toNat < fieldModulus ∧ x15.toNat < fieldModulus
 
 namespace State64
 
@@ -109,37 +109,37 @@ def denote (state : State64) : Poseidon2.State :=
    state.x8.denote, state.x9.denote, state.x10.denote, state.x11.denote,
    state.x12.denote, state.x13.denote, state.x14.denote, state.x15.denote]
 
-theorem c0 (state : State64) : state.x0.toNat < goldilocksModulus :=
+theorem c0 (state : State64) : state.x0.toNat < fieldModulus :=
   state.canonical.1
-theorem c1 (state : State64) : state.x1.toNat < goldilocksModulus :=
+theorem c1 (state : State64) : state.x1.toNat < fieldModulus :=
   state.canonical.2.1
-theorem c2 (state : State64) : state.x2.toNat < goldilocksModulus :=
+theorem c2 (state : State64) : state.x2.toNat < fieldModulus :=
   state.canonical.2.2.1
-theorem c3 (state : State64) : state.x3.toNat < goldilocksModulus :=
+theorem c3 (state : State64) : state.x3.toNat < fieldModulus :=
   state.canonical.2.2.2.1
-theorem c4 (state : State64) : state.x4.toNat < goldilocksModulus :=
+theorem c4 (state : State64) : state.x4.toNat < fieldModulus :=
   state.canonical.2.2.2.2.1
-theorem c5 (state : State64) : state.x5.toNat < goldilocksModulus :=
+theorem c5 (state : State64) : state.x5.toNat < fieldModulus :=
   state.canonical.2.2.2.2.2.1
-theorem c6 (state : State64) : state.x6.toNat < goldilocksModulus :=
+theorem c6 (state : State64) : state.x6.toNat < fieldModulus :=
   state.canonical.2.2.2.2.2.2.1
-theorem c7 (state : State64) : state.x7.toNat < goldilocksModulus :=
+theorem c7 (state : State64) : state.x7.toNat < fieldModulus :=
   state.canonical.2.2.2.2.2.2.2.1
-theorem c8 (state : State64) : state.x8.toNat < goldilocksModulus :=
+theorem c8 (state : State64) : state.x8.toNat < fieldModulus :=
   state.canonical.2.2.2.2.2.2.2.2.1
-theorem c9 (state : State64) : state.x9.toNat < goldilocksModulus :=
+theorem c9 (state : State64) : state.x9.toNat < fieldModulus :=
   state.canonical.2.2.2.2.2.2.2.2.2.1
-theorem c10 (state : State64) : state.x10.toNat < goldilocksModulus :=
+theorem c10 (state : State64) : state.x10.toNat < fieldModulus :=
   state.canonical.2.2.2.2.2.2.2.2.2.2.1
-theorem c11 (state : State64) : state.x11.toNat < goldilocksModulus :=
+theorem c11 (state : State64) : state.x11.toNat < fieldModulus :=
   state.canonical.2.2.2.2.2.2.2.2.2.2.2.1
-theorem c12 (state : State64) : state.x12.toNat < goldilocksModulus :=
+theorem c12 (state : State64) : state.x12.toNat < fieldModulus :=
   state.canonical.2.2.2.2.2.2.2.2.2.2.2.2.1
-theorem c13 (state : State64) : state.x13.toNat < goldilocksModulus :=
+theorem c13 (state : State64) : state.x13.toNat < fieldModulus :=
   state.canonical.2.2.2.2.2.2.2.2.2.2.2.2.2.1
-theorem c14 (state : State64) : state.x14.toNat < goldilocksModulus :=
+theorem c14 (state : State64) : state.x14.toNat < fieldModulus :=
   state.canonical.2.2.2.2.2.2.2.2.2.2.2.2.2.2.1
-theorem c15 (state : State64) : state.x15.toNat < goldilocksModulus :=
+theorem c15 (state : State64) : state.x15.toNat < fieldModulus :=
   state.canonical.2.2.2.2.2.2.2.2.2.2.2.2.2.2.2
 
 def zero : State64 where
@@ -159,36 +159,36 @@ def zero : State64 where
   sum4_64 (triple64 a) b c (double64 d)
 
 private theorem mat0_canonical (a b c d : Word)
-    (ha : a.toNat < goldilocksModulus) (hb : b.toNat < goldilocksModulus)
-    (hc : c.toNat < goldilocksModulus) (hd : d.toNat < goldilocksModulus) :
-    (mat0 a b c d).toNat < goldilocksModulus :=
+    (ha : a.toNat < fieldModulus) (hb : b.toNat < fieldModulus)
+    (hc : c.toNat < fieldModulus) (hd : d.toNat < fieldModulus) :
+    (mat0 a b c d).toNat < fieldModulus :=
   sum4_64_canonical _ _ c d (double64_canonical a ha)
     (triple64_canonical b hb) hc hd
 
 private theorem mat1_canonical (a b c d : Word)
-    (ha : a.toNat < goldilocksModulus) (hb : b.toNat < goldilocksModulus)
-    (hc : c.toNat < goldilocksModulus) (hd : d.toNat < goldilocksModulus) :
-    (mat1 a b c d).toNat < goldilocksModulus :=
+    (ha : a.toNat < fieldModulus) (hb : b.toNat < fieldModulus)
+    (hc : c.toNat < fieldModulus) (hd : d.toNat < fieldModulus) :
+    (mat1 a b c d).toNat < fieldModulus :=
   sum4_64_canonical a _ _ d ha (double64_canonical b hb)
     (triple64_canonical c hc) hd
 
 private theorem mat2_canonical (a b c d : Word)
-    (ha : a.toNat < goldilocksModulus) (hb : b.toNat < goldilocksModulus)
-    (hc : c.toNat < goldilocksModulus) (hd : d.toNat < goldilocksModulus) :
-    (mat2 a b c d).toNat < goldilocksModulus :=
+    (ha : a.toNat < fieldModulus) (hb : b.toNat < fieldModulus)
+    (hc : c.toNat < fieldModulus) (hd : d.toNat < fieldModulus) :
+    (mat2 a b c d).toNat < fieldModulus :=
   sum4_64_canonical a b _ _ ha hb (double64_canonical c hc)
     (triple64_canonical d hd)
 
 private theorem mat3_canonical (a b c d : Word)
-    (ha : a.toNat < goldilocksModulus) (hb : b.toNat < goldilocksModulus)
-    (hc : c.toNat < goldilocksModulus) (hd : d.toNat < goldilocksModulus) :
-    (mat3 a b c d).toNat < goldilocksModulus :=
+    (ha : a.toNat < fieldModulus) (hb : b.toNat < fieldModulus)
+    (hc : c.toNat < fieldModulus) (hd : d.toNat < fieldModulus) :
+    (mat3 a b c d).toNat < fieldModulus :=
   sum4_64_canonical _ b c _ (triple64_canonical a ha) hb hc
     (double64_canonical d hd)
 
 private theorem mat0_denote (a b c d : Word)
-    (ha : a.toNat < goldilocksModulus) (hb : b.toNat < goldilocksModulus)
-    (hc : c.toNat < goldilocksModulus) (hd : d.toNat < goldilocksModulus) :
+    (ha : a.toNat < fieldModulus) (hb : b.toNat < fieldModulus)
+    (hc : c.toNat < fieldModulus) (hd : d.toNat < fieldModulus) :
     (mat0 a b c d).denote =
       2 * a.denote + 3 * b.denote + c.denote + d.denote := by
   rw [mat0, sum4_64_denote _ _ c d (double64_canonical a ha)
@@ -196,8 +196,8 @@ private theorem mat0_denote (a b c d : Word)
     triple64_denote b hb]
 
 private theorem mat1_denote (a b c d : Word)
-    (ha : a.toNat < goldilocksModulus) (hb : b.toNat < goldilocksModulus)
-    (hc : c.toNat < goldilocksModulus) (hd : d.toNat < goldilocksModulus) :
+    (ha : a.toNat < fieldModulus) (hb : b.toNat < fieldModulus)
+    (hc : c.toNat < fieldModulus) (hd : d.toNat < fieldModulus) :
     (mat1 a b c d).denote =
       a.denote + 2 * b.denote + 3 * c.denote + d.denote := by
   rw [mat1, sum4_64_denote a _ _ d ha (double64_canonical b hb)
@@ -205,8 +205,8 @@ private theorem mat1_denote (a b c d : Word)
     triple64_denote c hc]
 
 private theorem mat2_denote (a b c d : Word)
-    (ha : a.toNat < goldilocksModulus) (hb : b.toNat < goldilocksModulus)
-    (hc : c.toNat < goldilocksModulus) (hd : d.toNat < goldilocksModulus) :
+    (ha : a.toNat < fieldModulus) (hb : b.toNat < fieldModulus)
+    (hc : c.toNat < fieldModulus) (hd : d.toNat < fieldModulus) :
     (mat2 a b c d).denote =
       a.denote + b.denote + 2 * c.denote + 3 * d.denote := by
   rw [mat2, sum4_64_denote a b _ _ ha hb (double64_canonical c hc)
@@ -214,8 +214,8 @@ private theorem mat2_denote (a b c d : Word)
     triple64_denote d hd]
 
 private theorem mat3_denote (a b c d : Word)
-    (ha : a.toNat < goldilocksModulus) (hb : b.toNat < goldilocksModulus)
-    (hc : c.toNat < goldilocksModulus) (hd : d.toNat < goldilocksModulus) :
+    (ha : a.toNat < fieldModulus) (hb : b.toNat < fieldModulus)
+    (hc : c.toNat < fieldModulus) (hd : d.toNat < fieldModulus) :
     (mat3 a b c d).denote =
       3 * a.denote + b.denote + c.denote + 2 * d.denote := by
   rw [mat3, sum4_64_denote _ b c _ (triple64_canonical a ha) hb hc
@@ -243,42 +243,42 @@ private theorem mat3_denote (a b c d : Word)
   let s1 := sum4_64 m1 m5 m9 m13
   let s2 := sum4_64 m2 m6 m10 m14
   let s3 := sum4_64 m3 m7 m11 m15
-  have k0 : m0.toNat < goldilocksModulus :=
+  have k0 : m0.toNat < fieldModulus :=
     mat0_canonical _ _ _ _ state.c0 state.c1 state.c2 state.c3
-  have k1 : m1.toNat < goldilocksModulus :=
+  have k1 : m1.toNat < fieldModulus :=
     mat1_canonical _ _ _ _ state.c0 state.c1 state.c2 state.c3
-  have k2 : m2.toNat < goldilocksModulus :=
+  have k2 : m2.toNat < fieldModulus :=
     mat2_canonical _ _ _ _ state.c0 state.c1 state.c2 state.c3
-  have k3 : m3.toNat < goldilocksModulus :=
+  have k3 : m3.toNat < fieldModulus :=
     mat3_canonical _ _ _ _ state.c0 state.c1 state.c2 state.c3
-  have k4 : m4.toNat < goldilocksModulus :=
+  have k4 : m4.toNat < fieldModulus :=
     mat0_canonical _ _ _ _ state.c4 state.c5 state.c6 state.c7
-  have k5 : m5.toNat < goldilocksModulus :=
+  have k5 : m5.toNat < fieldModulus :=
     mat1_canonical _ _ _ _ state.c4 state.c5 state.c6 state.c7
-  have k6 : m6.toNat < goldilocksModulus :=
+  have k6 : m6.toNat < fieldModulus :=
     mat2_canonical _ _ _ _ state.c4 state.c5 state.c6 state.c7
-  have k7 : m7.toNat < goldilocksModulus :=
+  have k7 : m7.toNat < fieldModulus :=
     mat3_canonical _ _ _ _ state.c4 state.c5 state.c6 state.c7
-  have k8 : m8.toNat < goldilocksModulus :=
+  have k8 : m8.toNat < fieldModulus :=
     mat0_canonical _ _ _ _ state.c8 state.c9 state.c10 state.c11
-  have k9 : m9.toNat < goldilocksModulus :=
+  have k9 : m9.toNat < fieldModulus :=
     mat1_canonical _ _ _ _ state.c8 state.c9 state.c10 state.c11
-  have k10 : m10.toNat < goldilocksModulus :=
+  have k10 : m10.toNat < fieldModulus :=
     mat2_canonical _ _ _ _ state.c8 state.c9 state.c10 state.c11
-  have k11 : m11.toNat < goldilocksModulus :=
+  have k11 : m11.toNat < fieldModulus :=
     mat3_canonical _ _ _ _ state.c8 state.c9 state.c10 state.c11
-  have k12 : m12.toNat < goldilocksModulus :=
+  have k12 : m12.toNat < fieldModulus :=
     mat0_canonical _ _ _ _ state.c12 state.c13 state.c14 state.c15
-  have k13 : m13.toNat < goldilocksModulus :=
+  have k13 : m13.toNat < fieldModulus :=
     mat1_canonical _ _ _ _ state.c12 state.c13 state.c14 state.c15
-  have k14 : m14.toNat < goldilocksModulus :=
+  have k14 : m14.toNat < fieldModulus :=
     mat2_canonical _ _ _ _ state.c12 state.c13 state.c14 state.c15
-  have k15 : m15.toNat < goldilocksModulus :=
+  have k15 : m15.toNat < fieldModulus :=
     mat3_canonical _ _ _ _ state.c12 state.c13 state.c14 state.c15
-  have t0 : s0.toNat < goldilocksModulus := sum4_64_canonical _ _ _ _ k0 k4 k8 k12
-  have t1 : s1.toNat < goldilocksModulus := sum4_64_canonical _ _ _ _ k1 k5 k9 k13
-  have t2 : s2.toNat < goldilocksModulus := sum4_64_canonical _ _ _ _ k2 k6 k10 k14
-  have t3 : s3.toNat < goldilocksModulus := sum4_64_canonical _ _ _ _ k3 k7 k11 k15
+  have t0 : s0.toNat < fieldModulus := sum4_64_canonical _ _ _ _ k0 k4 k8 k12
+  have t1 : s1.toNat < fieldModulus := sum4_64_canonical _ _ _ _ k1 k5 k9 k13
+  have t2 : s2.toNat < fieldModulus := sum4_64_canonical _ _ _ _ k2 k6 k10 k14
+  have t3 : s3.toNat < fieldModulus := sum4_64_canonical _ _ _ _ k3 k7 k11 k15
   { x0 := add64 m0 s0, x1 := add64 m1 s1, x2 := add64 m2 s2, x3 := add64 m3 s3,
     x4 := add64 m4 s0, x5 := add64 m5 s1, x6 := add64 m6 s2, x7 := add64 m7 s3,
     x8 := add64 m8 s0, x9 := add64 m9 s1, x10 := add64 m10 s2, x11 := add64 m11 s3,
@@ -360,19 +360,19 @@ theorem externalLayer64_denote (state : State64) :
   mul64 (mul64 x4 x2) value
 
 private theorem sbox64_canonical (value : Word) :
-    (sbox64 value).toNat < goldilocksModulus := by
+    (sbox64 value).toNat < fieldModulus := by
   simp only [sbox64]
   exact mul64_canonical _ value
 
 private theorem sbox64_denote (value : Word)
-    (canonical : value.toNat < goldilocksModulus) :
+    (canonical : value.toNat < fieldModulus) :
     (sbox64 value).denote = Poseidon2.sbox value.denote := by
   let x2 := square64 value
   let x4 := square64 x2
   let x6 := mul64 x4 x2
-  have x2Canonical : x2.toNat < goldilocksModulus := square64_canonical _
-  have x4Canonical : x4.toNat < goldilocksModulus := square64_canonical _
-  have x6Canonical : x6.toNat < goldilocksModulus := mul64_canonical _ _
+  have x2Canonical : x2.toNat < fieldModulus := square64_canonical _
+  have x4Canonical : x4.toNat < fieldModulus := square64_canonical _
+  have x6Canonical : x6.toNat < fieldModulus := mul64_canonical _ _
   change (mul64 x6 value).denote =
     ((value.denote * value.denote) * (value.denote * value.denote)) *
       (value.denote * value.denote) * value.denote
@@ -465,7 +465,7 @@ theorem fullRound64_denote (constants state : State64) :
       (sum4_64 state.x12 state.x13 state.x14 state.x15))
 
 private theorem sum16_64_canonical (state : State64) :
-    (sum16_64 state).toNat < goldilocksModulus :=
+    (sum16_64 state).toNat < fieldModulus :=
   add64_canonical _ _
     (add64_canonical _ _ (sum4_64_canonical _ _ _ _ state.c0 state.c1 state.c2 state.c3)
       (sum4_64_canonical _ _ _ _ state.c4 state.c5 state.c6 state.c7))
@@ -492,7 +492,7 @@ private theorem sum16_64_denote (state : State64) :
 
 private abbrev half64 : UInt64 := 0x7fffffff80000001
 private theorem half64_toNat : half64.toNat = 9223372034707292161 := by decide
-private theorem half64_canonical : half64.toNat < goldilocksModulus := by decide
+private theorem half64_canonical : half64.toNat < fieldModulus := by decide
 
 @[inline] private def mulHalf64 (value : Word) : Word :=
   let quotient := value >>> 1
@@ -541,8 +541,8 @@ private theorem mulHalf64_toNat (value : Word) :
     simp [nonzero]
 
 private theorem mulHalf64_canonical (value : Word)
-    (canonical : value.toNat < goldilocksModulus) :
-    (mulHalf64 value).toNat < goldilocksModulus := by
+    (canonical : value.toNat < fieldModulus) :
+    (mulHalf64 value).toNat < fieldModulus := by
   rw [mulHalf64_toNat]
   split <;> rename_i parity
   · exact lt_of_le_of_lt (Nat.div_le_self _ _) canonical
@@ -552,11 +552,11 @@ private theorem mulHalf64_canonical (value : Word)
       · exact one
     have decomposition := Nat.mod_add_div value.toNat 2
     rw [half64_toNat]
-    norm_num [goldilocksModulus] at canonical ⊢
+    norm_num [fieldModulus] at canonical ⊢
     omega
 
 private theorem mulHalf64_denote (value : Word)
-    (canonical : value.toNat < goldilocksModulus) :
+    (canonical : value.toNat < fieldModulus) :
     (mulHalf64 value).denote = half64.denote * value.denote := by
   apply Fin.ext
   rw [Fin.val_mul]
@@ -569,11 +569,11 @@ private theorem mulHalf64_denote (value : Word)
   all_goals
     have decomposition := Nat.mod_add_div value.toNat 2
     rcases Nat.mod_two_eq_zero_or_one value.toNat with zero | one
-    all_goals norm_num [goldilocksModulus] at canonical ⊢
+    all_goals norm_num [fieldModulus] at canonical ⊢
     all_goals omega
 
 private abbrev inverseRadix64 : UInt64 := 0xfffffffe00000002
-private theorem inverseRadix64_canonical : inverseRadix64.toNat < goldilocksModulus := by decide
+private theorem inverseRadix64_canonical : inverseRadix64.toNat < fieldModulus := by decide
 
 @[inline] private def scale0 (value : Word) : Word := sub64 0 (double64 value)
 @[inline] private def scale1 (value : Word) : Word := value
@@ -593,76 +593,76 @@ private theorem inverseRadix64_canonical : inverseRadix64.toNat < goldilocksModu
 @[inline] private def scale15 (value : Word) : Word := mul64 inverseRadix64 value
 
 private theorem scale0_canonical (value : Word)
-    (h : value.toNat < goldilocksModulus) :
-    (scale0 value).toNat < goldilocksModulus :=
+    (h : value.toNat < fieldModulus) :
+    (scale0 value).toNat < fieldModulus :=
   sub64_canonical _ _ (by decide) (double64_canonical value h)
 private theorem scale1_canonical (value : Word)
-    (h : value.toNat < goldilocksModulus) :
-    (scale1 value).toNat < goldilocksModulus :=
+    (h : value.toNat < fieldModulus) :
+    (scale1 value).toNat < fieldModulus :=
   h
 private theorem scale2_canonical (value : Word)
-    (h : value.toNat < goldilocksModulus) :
-    (scale2 value).toNat < goldilocksModulus :=
+    (h : value.toNat < fieldModulus) :
+    (scale2 value).toNat < fieldModulus :=
   double64_canonical value h
 private theorem scale3_canonical (value : Word)
-    (h : value.toNat < goldilocksModulus) :
-    (scale3 value).toNat < goldilocksModulus :=
+    (h : value.toNat < fieldModulus) :
+    (scale3 value).toNat < fieldModulus :=
   mulHalf64_canonical value h
 private theorem scale4_canonical (value : Word)
-    (h : value.toNat < goldilocksModulus) :
-    (scale4 value).toNat < goldilocksModulus :=
+    (h : value.toNat < fieldModulus) :
+    (scale4 value).toNat < fieldModulus :=
   triple64_canonical value h
 private theorem scale5_canonical (value : Word)
-    (h : value.toNat < goldilocksModulus) :
-    (scale5 value).toNat < goldilocksModulus :=
+    (h : value.toNat < fieldModulus) :
+    (scale5 value).toNat < fieldModulus :=
   double64_canonical _ (double64_canonical value h)
 private theorem scale6_canonical (value : Word)
-    (h : value.toNat < goldilocksModulus) :
-    (scale6 value).toNat < goldilocksModulus :=
+    (h : value.toNat < fieldModulus) :
+    (scale6 value).toNat < fieldModulus :=
   sub64_canonical _ _ (by decide) (mulHalf64_canonical value h)
 private theorem scale7_canonical (value : Word)
-    (h : value.toNat < goldilocksModulus) :
-    (scale7 value).toNat < goldilocksModulus :=
+    (h : value.toNat < fieldModulus) :
+    (scale7 value).toNat < fieldModulus :=
   sub64_canonical _ _ (by decide) (triple64_canonical value h)
 private theorem scale8_canonical (value : Word)
-    (h : value.toNat < goldilocksModulus) :
-    (scale8 value).toNat < goldilocksModulus :=
+    (h : value.toNat < fieldModulus) :
+    (scale8 value).toNat < fieldModulus :=
   sub64_canonical _ _ (by decide)
     (double64_canonical _ (double64_canonical value h))
 private theorem scale9_canonical (value : Word)
-    (h : value.toNat < goldilocksModulus) :
-    (scale9 value).toNat < goldilocksModulus :=
+    (h : value.toNat < fieldModulus) :
+    (scale9 value).toNat < fieldModulus :=
   mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical value h))
 private theorem scale10_canonical (value : Word)
-    (h : value.toNat < goldilocksModulus) :
-    (scale10 value).toNat < goldilocksModulus :=
+    (h : value.toNat < fieldModulus) :
+    (scale10 value).toNat < fieldModulus :=
   mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical value h)))
 private theorem scale11_canonical (value : Word)
-    (h : value.toNat < goldilocksModulus) :
-    (scale11 value).toNat < goldilocksModulus :=
+    (h : value.toNat < fieldModulus) :
+    (scale11 value).toNat < fieldModulus :=
   mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical value h))))
 private theorem scale12_canonical (value : Word)
-    (h : value.toNat < goldilocksModulus) :
-    (scale12 value).toNat < goldilocksModulus :=
+    (h : value.toNat < fieldModulus) :
+    (scale12 value).toNat < fieldModulus :=
   sub64_canonical _ _ (by decide)
     (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical value h)))
 private theorem scale13_canonical (value : Word)
-    (h : value.toNat < goldilocksModulus) :
-    (scale13 value).toNat < goldilocksModulus :=
+    (h : value.toNat < fieldModulus) :
+    (scale13 value).toNat < fieldModulus :=
   sub64_canonical _ _ (by decide)
     (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical value h))))
 private theorem scale14_canonical (value : Word)
-    (h : value.toNat < goldilocksModulus) :
-    (scale14 value).toNat < goldilocksModulus :=
+    (h : value.toNat < fieldModulus) :
+    (scale14 value).toNat < fieldModulus :=
   sub64_canonical _ _ (by decide)
     (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical value h)))))
 private theorem scale15_canonical (value : Word)
-    (_h : value.toNat < goldilocksModulus) :
-    (scale15 value).toNat < goldilocksModulus :=
+    (_h : value.toNat < fieldModulus) :
+    (scale15 value).toNat < fieldModulus :=
   mul64_canonical _ _
 
 private theorem scale0_denote (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (h : value.toNat < fieldModulus) :
     (scale0 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 0 0) * value.denote := by
   rw [scale0, sub64_denote _ _ (by decide) (double64_canonical value h),
@@ -674,7 +674,7 @@ private theorem scale0_denote (value : Word)
   ring
 
 private theorem scale1_denote (value : Word)
-    (_h : value.toNat < goldilocksModulus) :
+    (_h : value.toNat < fieldModulus) :
     (scale1 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 1 0) * value.denote := by
   have coefficient : Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 1 0) = 1 := by
@@ -683,7 +683,7 @@ private theorem scale1_denote (value : Word)
   simp [scale1]
 
 private theorem scale2_denote (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (h : value.toNat < fieldModulus) :
     (scale2 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 2 0) * value.denote := by
   rw [scale2, double64_denote value h]
@@ -692,7 +692,7 @@ private theorem scale2_denote (value : Word)
   rw [coefficient]
 
 private theorem scale3_denote (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (h : value.toNat < fieldModulus) :
     (scale3 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 3 0) * value.denote := by
   rw [scale3, mulHalf64_denote _ h]
@@ -702,7 +702,7 @@ private theorem scale3_denote (value : Word)
   ring
 
 private theorem scale4_denote (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (h : value.toNat < fieldModulus) :
     (scale4 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 4 0) * value.denote := by
   rw [scale4, triple64_denote value h]
@@ -711,7 +711,7 @@ private theorem scale4_denote (value : Word)
   rw [coefficient]
 
 private theorem scale5_denote (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (h : value.toNat < fieldModulus) :
     (scale5 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 5 0) * value.denote := by
   rw [scale5, double64_denote _ (double64_canonical value h), double64_denote value h]
@@ -721,7 +721,7 @@ private theorem scale5_denote (value : Word)
   ring
 
 private theorem scale6_denote (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (h : value.toNat < fieldModulus) :
     (scale6 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 6 0) * value.denote := by
   rw [scale6, sub64_denote _ _ (by decide) (mulHalf64_canonical value h),
@@ -733,7 +733,7 @@ private theorem scale6_denote (value : Word)
   ring
 
 private theorem scale7_denote (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (h : value.toNat < fieldModulus) :
     (scale7 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 7 0) * value.denote := by
   rw [scale7, sub64_denote _ _ (by decide) (triple64_canonical value h),
@@ -745,7 +745,7 @@ private theorem scale7_denote (value : Word)
   ring
 
 private theorem scale8_denote (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (h : value.toNat < fieldModulus) :
     (scale8 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 8 0) * value.denote := by
   rw [scale8, sub64_denote _ _ (by decide) (double64_canonical _ (double64_canonical value h)),
@@ -757,7 +757,7 @@ private theorem scale8_denote (value : Word)
   ring
 
 private theorem scale9_denote (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (h : value.toNat < fieldModulus) :
     (scale9 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 9 0) * value.denote := by
   rw [scale9, mulHalf64_denote _ (mulHalf64_canonical _ (mulHalf64_canonical value h)), mulHalf64_denote _ (mulHalf64_canonical value h), mulHalf64_denote _ h]
@@ -767,7 +767,7 @@ private theorem scale9_denote (value : Word)
   ring
 
 private theorem scale10_denote (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (h : value.toNat < fieldModulus) :
     (scale10 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 10 0) * value.denote := by
   rw [scale10, mulHalf64_denote _ (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical value h))), mulHalf64_denote _ (mulHalf64_canonical _ (mulHalf64_canonical value h)), mulHalf64_denote _ (mulHalf64_canonical value h), mulHalf64_denote _ h]
@@ -777,7 +777,7 @@ private theorem scale10_denote (value : Word)
   ring
 
 private theorem scale11_denote (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (h : value.toNat < fieldModulus) :
     (scale11 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 11 0) * value.denote := by
   rw [scale11, mulHalf64_denote _ (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical value h)))), mulHalf64_denote _ (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical value h))), mulHalf64_denote _ (mulHalf64_canonical _ (mulHalf64_canonical value h)), mulHalf64_denote _ (mulHalf64_canonical value h), mulHalf64_denote _ h]
@@ -787,7 +787,7 @@ private theorem scale11_denote (value : Word)
   ring
 
 private theorem scale12_denote (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (h : value.toNat < fieldModulus) :
     (scale12 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 12 0) * value.denote := by
   rw [scale12, sub64_denote _ _ (by decide) (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical value h))),
@@ -799,7 +799,7 @@ private theorem scale12_denote (value : Word)
   ring
 
 private theorem scale13_denote (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (h : value.toNat < fieldModulus) :
     (scale13 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 13 0) * value.denote := by
   rw [scale13, sub64_denote _ _ (by decide) (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical value h)))),
@@ -811,7 +811,7 @@ private theorem scale13_denote (value : Word)
   ring
 
 private theorem scale14_denote (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (h : value.toNat < fieldModulus) :
     (scale14 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 14 0) * value.denote := by
   rw [scale14, sub64_denote _ _ (by decide) (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical _ (mulHalf64_canonical value h))))),
@@ -823,7 +823,7 @@ private theorem scale14_denote (value : Word)
   ring
 
 private theorem scale15_denote (value : Word)
-    (h : value.toNat < goldilocksModulus) :
+    (h : value.toNat < fieldModulus) :
     (scale15 value).denote =
       Poseidon2.ofNat (Poseidon2.internalDiagonal.getD 15 0) * value.denote := by
   rw [scale15, mul64_denote _ _ inverseRadix64_canonical h]
@@ -833,7 +833,7 @@ private theorem scale15_denote (value : Word)
 
 @[inline] def internalLayer64 (state : State64) : State64 :=
   let sum := sum16_64 state
-  have sumC : sum.toNat < goldilocksModulus := sum16_64_canonical state
+  have sumC : sum.toNat < fieldModulus := sum16_64_canonical state
   { x0 := add64 (scale0 state.x0) sum, x1 := add64 (scale1 state.x1) sum, x2 := add64 (scale2 state.x2) sum, x3 := add64 (scale3 state.x3) sum,
     x4 := add64 (scale4 state.x4) sum, x5 := add64 (scale5 state.x5) sum, x6 := add64 (scale6 state.x6) sum, x7 := add64 (scale7 state.x7) sum,
     x8 := add64 (scale8 state.x8) sum, x9 := add64 (scale9 state.x9) sum, x10 := add64 (scale10 state.x10) sum, x11 := add64 (scale11 state.x11) sum,
@@ -902,7 +902,7 @@ theorem internalLayer64_denote (state : State64) :
       state.c10, state.c11, state.c12, state.c13, state.c14, state.c15⟩ }
 
 theorem partialRound64_denote (constant : UInt64)
-    (constantCanonical : constant.toNat < goldilocksModulus)
+    (constantCanonical : constant.toNat < fieldModulus)
     (state : State64) :
     (partialRound64 state constant).denote =
       Poseidon2.internalLayer

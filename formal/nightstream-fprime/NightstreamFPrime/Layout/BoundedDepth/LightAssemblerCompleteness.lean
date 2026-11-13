@@ -33,13 +33,13 @@ open NightstreamFPrime.Layout.BoundedDepth.LightAssemblerSource
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 private theorem natWord_succ (count : Nat) : natWord (count + 1) = natWord count + 1 := by
   apply Fin.ext
   simp [natWord, Poseidon2.ofNat, Fin.val_add, Nat.add_mod]
 
-private theorem natWord_ne_zero {count : Nat} (bound : count < goldilocksModulus)
+private theorem natWord_ne_zero {count : Nat} (bound : count < fieldModulus)
     (nonzero : count ≠ 0) : natWord count ≠ 0 := fun zero =>
   nonzero (natWord_injective bound (by decide) (zero.trans rfl))
 
@@ -102,7 +102,7 @@ theorem digestSelect_lanes (block : Fin 4) (start : Nat)
 
 theorem group_words (slot : Fin 7)
     (depth : ((honestValues circuitKeys input output proof selected folded).slots slot).2 <
-      goldilocksModulus) :
+      fieldModulus) :
     Hash.evalList target (slotAt (logicalWidth := logicalWidth) (publicFits := publicFits)
         (slotsStart base program.witnessWordCount + slot.val * slotWordCount)).words =
       serializeSlot ((honestValues circuitKeys input output proof selected folded).slots slot) :=
@@ -111,7 +111,7 @@ theorem group_words (slot : Fin 7)
 
 theorem group_value (slot : Fin 7)
     (depth : ((honestValues circuitKeys input output proof selected folded).slots slot).2 <
-      goldilocksModulus) :
+      fieldModulus) :
     (slotAt (logicalWidth := logicalWidth) (publicFits := publicFits)
         (slotsStart base program.witnessWordCount + slot.val * slotWordCount)).value target =
       (honestValues circuitKeys input output proof selected folded).slots slot :=
@@ -210,9 +210,9 @@ theorem complete (program : Stage1.Application.Program)
       (toClaim ((circuitKeys selected).system ajtai) (input.running selected).1) input.fresh
       (.light proof) = some (toClaim ((circuitKeys selected).system ajtai) folded))
     (depthSmall : (input.running selected).2 < Folding.Schedule.productionLightFoldCap)
-    (iterationBound : input.iteration < goldilocksModulus)
-    (priorPcBound : input.priorPc < goldilocksModulus)
-    (priorDepth : ∀ slot, (input.running slot).2 < goldilocksModulus)
+    (iterationBound : input.iteration < fieldModulus)
+    (priorPcBound : input.priorPc < fieldModulus)
+    (priorDepth : ∀ slot, (input.running slot).2 < fieldModulus)
     (keyLength : ∀ key, (circuitKeys key).digest.length = 4)
     (z0Length : input.z0.length = 4) (ziLength : input.zi.length = 4)
     (zNextLength : output.zNext.length = 4)
@@ -227,12 +227,12 @@ theorem complete (program : Stage1.Application.Program)
     exact Spec.Poseidon2.hash_length _
   obtain ⟨foldedSlot, foldedSlotEq⟩ : ∃ slot : SlotData logicalWidth publicFits,
       slot = (folded, (input.running selected).2 + 1) := ⟨_, rfl⟩
-  have foldedDepth : foldedSlot.2 < goldilocksModulus := by
+  have foldedDepth : foldedSlot.2 < fieldModulus := by
     rw [foldedSlotEq]
     have cap := depthSmall
     simp only [Folding.Schedule.productionLightFoldCap] at cap
-    have modulus : 65 ≤ goldilocksModulus := by decide
-    show (input.running selected).2 + 1 < goldilocksModulus
+    have modulus : 65 ≤ fieldModulus := by decide
+    show (input.running selected).2 + 1 < fieldModulus
     omega
   obtain ⟨source, sourceEq⟩ : ∃ env : Env, env = honestEnv circuitKeys input output proof
       selected foldedSlot base program.witnessWordCount := ⟨_, rfl⟩
@@ -523,10 +523,10 @@ theorem complete (program : Stage1.Application.Program)
         (sharedEnd base program.witnessWordCount)) p3.current = folded :=
     LightFold.toClaim_injective _ (Option.some.inj (foldEq.symm.trans accepted))
   -- The new slot's words on the filled values.
-  have succBound : (input.running selected).2 + 1 < goldilocksModulus := by
+  have succBound : (input.running selected).2 + 1 < fieldModulus := by
     have cap := depthSmall
     simp only [Folding.Schedule.productionLightFoldCap] at cap
-    have modulus : 65 ≤ goldilocksModulus := by decide
+    have modulus : 65 ≤ fieldModulus := by decide
     omega
   have depthWord : (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).active.depth.eval p3.current = natWord (input.running selected).2 := by
     have depthEq := congrArg Prod.snd active3

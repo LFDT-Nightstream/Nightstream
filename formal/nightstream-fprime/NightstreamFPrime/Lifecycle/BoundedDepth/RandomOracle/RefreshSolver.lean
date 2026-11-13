@@ -1,6 +1,6 @@
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshUniqueness
 import NightstreamFPrime.Lifecycle.RandomOracle.Solver
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ChainBinding
 
 /-! The refresh fold's MSIS solver in the random-oracle model: `Solver` on the refresh game
 `RefreshFork.game`, with the binding step of `RefreshUniqueness` as the kernel.
@@ -39,7 +39,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink (Attempt)
 attribute [local instance low] Classical.propDecidable
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
 variable (logicalWidth publicFits) in
@@ -137,7 +137,7 @@ variable (key : CircuitKey logicalWidth publicFits)
 /-- `RefreshUniqueness.rerunKernel` on two views: when the extracted witnesses differ at a
 coordinate, `PiRLC.ChainBinding.forkCollision` at the chain bound. -/
 noncomputable def kernelOf (view other : View logicalWidth publicFits) :
-    Option (Phi81Relation.PiRLCAlgebra.Binding.ShortKernelVector ajtai
+    Option (RingRelation.PiRLCAlgebra.Binding.ShortKernelVector ajtai
       (Folding.Schedule.msisChainBound productionGlobalParams
         Folding.Schedule.productionLightFoldCap)) :=
   if paired : Reduction.ValidOf (RefreshFork.game ajtai key) view ∧
@@ -150,7 +150,7 @@ noncomputable def kernelOf (view other : View logicalWidth publicFits) :
             RefreshFork.strongSet (forkOf ajtai paired.1) coordinate ≠
           extractedAssignment (normFreeLaws (PaperExtractionAlgebra.extractionAlgebra ajtai))
             RefreshFork.strongSet (forkOf ajtai paired.2.1) coordinate then
-      some (Phi81Relation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel ajtai _ le_rfl
+      some (RingRelation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel ajtai _ le_rfl
         (UniquenessLink.ajtaiCollision ajtai (PiRLC.ChainBinding.forkCollision
           (PaperExtractionAlgebra.extractionAlgebra ajtai) _
           (Nifs.BindingBridge.compatible key.relation ajtai) RefreshFork.strongSet
@@ -190,7 +190,7 @@ theorem kernelChance_eq :
 /-- The refresh MSIS solver: `Reduction.solve` with kernel `kernelOf`. -/
 noncomputable def solve (budget : ℕ)
     (tape : Fin budget → RefreshFork.Oracle logicalWidth publicFits) :
-    Option (Phi81Relation.PiRLCAlgebra.Binding.ShortKernelVector ajtai
+    Option (RingRelation.PiRLCAlgebra.Binding.ShortKernelVector ajtai
       (Folding.Schedule.msisChainBound productionGlobalParams
         Folding.Schedule.productionLightFoldCap)) :=
   Reduction.solve (RefreshFork.game ajtai key) (kernelOf ajtai key) adversary budget tape

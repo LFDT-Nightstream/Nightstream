@@ -38,11 +38,11 @@ open NightstreamFPrime.Export.BoundedDepth.TerminalBridge
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 abbrev Payload (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   TerminalProof (SlotData logicalWidth publicFits)
     (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
     (StepFresh logicalWidth publicFits)
@@ -51,14 +51,14 @@ abbrev Payload (logicalWidth : Nat)
 /-- A visit of the walk: a terminal statement, a proof and one witness bound per slot. -/
 structure Visit (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   statement : TerminalStatement AppState
   proof : Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits)
   bounds : Fin 2 → Nat
 
 abbrev WalkAttempt (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   Attempt (PriorPreimage logicalWidth publicFits) (CircuitKey logicalWidth publicFits)
     (SlotClaim logicalWidth publicFits) (StepFresh logicalWidth publicFits) StepProof
     (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -66,7 +66,7 @@ abbrev WalkAttempt (logicalWidth : Nat)
 /-- An extractor's answer: a witness of the fold's input claim and one of its fresh instance. -/
 abbrev Answer (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits) ×
     Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)
 
@@ -80,7 +80,7 @@ def initial (output : TerminalStatement AppState ×
 the light folds that the slot can still take. -/
 def DepthWithin (bound depth : Nat) : Prop :=
   bound ≤ productionGlobalParams.bigB ∨
-    (depth < goldilocksModulus ∧ bound ≤ productionGlobalParams.bigB +
+    (depth < fieldModulus ∧ bound ≤ productionGlobalParams.bigB +
       (productionLightFoldCap - depth) *
         (productionGlobalParams.expansionT * (productionGlobalParams.b - 1)))
 
@@ -172,7 +172,7 @@ theorem reaches_of_leads (program : Stage1.Application.Program) :
   fun statement steps leads lengths =>
     ⟨witnessesOf steps, reachedBy_of_leads program statement steps leads lengths⟩
 
-theorem cap_lt_modulus : productionLightFoldCap < goldilocksModulus := by
+theorem cap_lt_modulus : productionLightFoldCap < fieldModulus := by
   decide
 
 /-- A light fold: the slot's bound before the fold leaves room for one more light fold. -/
@@ -180,7 +180,7 @@ theorem depthWithin_light {bound depth payloadDepth : Nat} (guard : depth < prod
     (words : natWord (depth + 1) = natWord payloadDepth) (within : DepthWithin bound payloadDepth) :
     DepthWithin (bound + productionGlobalParams.expansionT * (productionGlobalParams.b - 1))
       depth := by
-  have depthBound : depth < goldilocksModulus := lt_trans guard cap_lt_modulus
+  have depthBound : depth < fieldModulus := lt_trans guard cap_lt_modulus
   have room : productionLightFoldCap - depth = (productionLightFoldCap - (depth + 1)) + 1 := by
     omega
   refine Or.inr ⟨depthBound, ?_⟩
@@ -194,7 +194,7 @@ theorem depthWithin_light {bound depth payloadDepth : Nat} (guard : depth < prod
     omega
 
 /-- A slot that the step does not fold keeps its bound. -/
-theorem depthWithin_kept {bound depth payloadDepth : Nat} (depthBound : depth < goldilocksModulus)
+theorem depthWithin_kept {bound depth payloadDepth : Nat} (depthBound : depth < fieldModulus)
     (words : natWord depth = natWord payloadDepth) (within : DepthWithin bound payloadDepth) :
     DepthWithin bound depth := by
   rcases within with small | ⟨payloadBound, large⟩
@@ -215,7 +215,7 @@ variable {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
   (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
   {step : AppState → AppWitness → AppState}
-  {cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+  {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
   (exports : Exports relation ajtai circuitKeys step cubeFits)
 
 /-- A slot claim opens at norm `bound` and its evaluations are true: the CE relation of the
@@ -329,12 +329,12 @@ def Relaxed (visit : Visit logicalWidth publicFits) : Prop :=
 /-- A decoded step's counters and slot depths are field values, and its states have four
 words. -/
 structure Shaped (decoded : Decoded logicalWidth publicFits) : Prop where
-  iteration : decoded.input.iteration < goldilocksModulus
-  priorPc : decoded.input.priorPc < goldilocksModulus
+  iteration : decoded.input.iteration < fieldModulus
+  priorPc : decoded.input.priorPc < fieldModulus
   z0 : decoded.input.z0.length = 4
   zi : decoded.input.zi.length = 4
-  priorDepth : ∀ slot, (decoded.input.running slot).2 < goldilocksModulus
-  nextDepth : ∀ slot, (decoded.output.runningNext slot).2 < goldilocksModulus
+  priorDepth : ∀ slot, (decoded.input.running slot).2 < fieldModulus
+  nextDepth : ∀ slot, (decoded.output.runningNext slot).2 < fieldModulus
 
 theorem decode_shaped (circuit : Fin 2)
     (witness : Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))

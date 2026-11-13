@@ -576,7 +576,7 @@ private theorem preservesCombination
 private theorem programRow_support
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (index : Fin (RunningTransitionDirectSource.program relation).rowCount) :
     ((RunningTransitionDirectSource.program relation).row index).VarsSatisfy
@@ -588,7 +588,7 @@ def inputs
     {program : Lifecycle.Stage1.Application.Program}
     {sourceLogicalWidth targetLogicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth sourceLogicalWidth}
+      RingCarrierLayout.carrierWidth sourceLogicalWidth}
     (relation : ProductionKey.LogicalRelation sourceLogicalWidth publicFits)
     (geometry : Geometry program targetLogicalWidth) :
     (RunningTransitionDirectSource.program relation).Inputs
@@ -600,7 +600,7 @@ theorem inputs_preserve
     {program : Lifecycle.Stage1.Application.Program}
     {sourceLogicalWidth targetLogicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth sourceLogicalWidth}
+      RingCarrierLayout.carrierWidth sourceLogicalWidth}
     (relation : ProductionKey.LogicalRelation sourceLogicalWidth publicFits)
     (geometry : Geometry program targetLogicalWidth)
     (assignment : Assignment F targetLogicalWidth)
@@ -627,7 +627,7 @@ def plan
     {program : Lifecycle.Stage1.Application.Program}
     {sourceLogicalWidth targetLogicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth sourceLogicalWidth}
+      RingCarrierLayout.carrierWidth sourceLogicalWidth}
     (relation : ProductionKey.LogicalRelation sourceLogicalWidth publicFits)
     (geometry : Geometry program targetLogicalWidth) :
     ProductionRelation.Plan targetLogicalWidth :=
@@ -638,7 +638,7 @@ def plan
     {program : Lifecycle.Stage1.Application.Program}
     {sourceLogicalWidth targetLogicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth sourceLogicalWidth}
+      RingCarrierLayout.carrierWidth sourceLogicalWidth}
     (relation : ProductionKey.LogicalRelation sourceLogicalWidth publicFits)
     (geometry : Geometry program targetLogicalWidth) :
     (plan relation geometry).rowCount = 27800 := by
@@ -649,7 +649,7 @@ theorem plan_eq_of_same_shape
     {program : Lifecycle.Stage1.Application.Program}
     {sourceLogicalWidth targetLogicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth sourceLogicalWidth}
+      RingCarrierLayout.carrierWidth sourceLogicalWidth}
     (left right : ProductionKey.LogicalRelation sourceLogicalWidth publicFits)
     (geometry : Geometry program targetLogicalWidth) :
     plan left geometry = plan right geometry := by
@@ -659,7 +659,7 @@ theorem rowsZero_iff_physical
     {program : Lifecycle.Stage1.Application.Program}
     {sourceLogicalWidth targetLogicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth sourceLogicalWidth}
+      RingCarrierLayout.carrierWidth sourceLogicalWidth}
     (relation : ProductionKey.LogicalRelation sourceLogicalWidth publicFits)
     (geometry : Geometry program targetLogicalWidth)
     (assignment : Assignment F targetLogicalWidth)

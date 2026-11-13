@@ -21,7 +21,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.LightRlcLayout
 
 variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
   (piccs : LightPiCCSPhase.Leaves logicalWidth degreeBound publicFits)
   (interface : LightRlcLayout.Interface logicalWidth publicFits) (offset : Nat)
 

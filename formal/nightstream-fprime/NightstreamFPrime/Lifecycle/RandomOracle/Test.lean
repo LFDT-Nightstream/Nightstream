@@ -63,7 +63,7 @@ private def splitAnswer : Answer ≃ (F × F) × (F × F) where
   right_inv _ := rfl
 
 /-- Every element of `K`, as the pairs of its two words. Noncomputable: compiled code would build
-the `goldilocksModulus ^ 2` pairs when an executable that imports this module starts. -/
+the `fieldModulus ^ 2` pairs when an executable that imports this module starts. -/
 noncomputable def pairs : Finset K :=
   Finset.univ.map ⟨fun words : F × F => (⟨words.1, words.2⟩ : K), fun left right same => by
     cases left
@@ -71,7 +71,7 @@ noncomputable def pairs : Finset K :=
     cases same
     rfl⟩
 
-theorem pairs_card : (pairs.card : ℝ) = (goldilocksModulus ^ 2 : Nat) := by
+theorem pairs_card : (pairs.card : ℝ) = (fieldModulus ^ 2 : Nat) := by
   simp [pairs, Fintype.card_prod, Fintype.card_fin, pow_two]
 
 /-- A uniform answer decodes to a uniform element of `K`. -/
@@ -185,9 +185,9 @@ variable (schedule width) in
 /-- The mass bound of each challenge's bad set: `1/q²` for an `α` coordinate, `(J − 1)/q²` for
 `γ`, `width/q²` for a round, and none for `ρ`. -/
 noncomputable def error : schedule.Challenge → ℝ
-  | .alpha _ => 1 / (goldilocksModulus ^ 2 : Nat)
-  | .gamma => (schedule.shape.jointCoefficientCount - 1 : Nat) / (goldilocksModulus ^ 2 : Nat)
-  | .round _ => width / (goldilocksModulus ^ 2 : Nat)
+  | .alpha _ => 1 / (fieldModulus ^ 2 : Nat)
+  | .gamma => (schedule.shape.jointCoefficientCount - 1 : Nat) / (fieldModulus ^ 2 : Nat)
+  | .round _ => width / (fieldModulus ^ 2 : Nat)
   | .rho _ => 0
 
 theorem error_nonnegative (challenge : schedule.Challenge) :
@@ -577,12 +577,12 @@ theorem hits_error_le {Sample : Type} [Fintype Sample] (event : Sample → Prop)
       linarith
   have alphaBound : 𝔼 sample, (∑ index, if hit (.alpha index) sample then (1 : ℝ) else 0) ≤
       ∑ _index : Fin schedule.shape.cubeVariables,
-        scale * (1 / (goldilocksModulus ^ 2 : Nat)) := by
+        scale * (1 / (fieldModulus ^ 2 : Nat)) := by
     rw [Finset.expect_sum_comm]
     exact Finset.sum_le_sum fun index _ => chance (.alpha index)
   have roundBound : 𝔼 sample, (∑ index, if hit (.round index) sample then (1 : ℝ) else 0) ≤
       ∑ _index : Fin schedule.shape.cubeVariables,
-        scale * (width / (goldilocksModulus ^ 2 : Nat)) := by
+        scale * (width / (fieldModulus ^ 2 : Nat)) := by
     rw [Finset.expect_sum_comm]
     exact Finset.sum_le_sum fun index _ => chance (.round index)
   have total :

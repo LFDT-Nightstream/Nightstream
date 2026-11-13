@@ -18,7 +18,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Range
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
-open NightstreamFPrime.Spec.Phi81StrongSet
+open NightstreamFPrime.Spec.RingStrongSet
 open Finset
 
 theorem foldl_range (term : Nat → Nat) (count : Nat) :
@@ -80,7 +80,7 @@ theorem fieldWord (spec : CanonicalU64.SpecHolds (childInterface interface offse
 theorem fieldTerms_value (spec : CanonicalU64.SpecHolds (childInterface interface offset index)
       (childOffset offset index) env) :
     linearValue env (fieldTerms offset index.val) =
-      goldilocksModulus ^ index.val * ((interface.source index offset).eval env).val := by
+      fieldModulus ^ index.val * ((interface.source index offset).eval env).val := by
   unfold fieldTerms
   rw [linearValue_rangeMap, ← fieldWord spec, Finset.mul_sum]
   refine Finset.sum_congr rfl fun bit _ => ?_
@@ -92,24 +92,24 @@ theorem drawTerms_value
     linearValue env (drawTerms offset) = (drawIndex (drawOf interface env offset)).val := by
   have value := fun index => fieldTerms_value (children index)
   have v0 : linearValue env (fieldTerms offset 0) =
-      goldilocksModulus ^ 0 * ((interface.source 0 offset).eval env).val := value 0
+      fieldModulus ^ 0 * ((interface.source 0 offset).eval env).val := value 0
   have v1 : linearValue env (fieldTerms offset 1) =
-      goldilocksModulus ^ 1 * ((interface.source 1 offset).eval env).val := value 1
+      fieldModulus ^ 1 * ((interface.source 1 offset).eval env).val := value 1
   have v2 : linearValue env (fieldTerms offset 2) =
-      goldilocksModulus ^ 2 * ((interface.source 2 offset).eval env).val := value 2
+      fieldModulus ^ 2 * ((interface.source 2 offset).eval env).val := value 2
   have v3 : linearValue env (fieldTerms offset 3) =
-      goldilocksModulus ^ 3 * ((interface.source 3 offset).eval env).val := value 3
+      fieldModulus ^ 3 * ((interface.source 3 offset).eval env).val := value 3
   rw [drawIndex_val]
   change linearValue env (fieldTerms offset 0 ++ fieldTerms offset 1 ++ fieldTerms offset 2 ++
       fieldTerms offset 3) =
-    ∑ index : Fin 4, ((interface.source index offset).eval env).val * goldilocksModulus ^ index.val
+    ∑ index : Fin 4, ((interface.source index offset).eval env).val * fieldModulus ^ index.val
   rw [Fin.sum_univ_four]
   simp only [linearValue_append]
   rw [v0, v1, v2, v3]
-  change _ = ((interface.source 0 offset).eval env).val * goldilocksModulus ^ 0 +
-    ((interface.source 1 offset).eval env).val * goldilocksModulus ^ 1 +
-    ((interface.source 2 offset).eval env).val * goldilocksModulus ^ 2 +
-    ((interface.source 3 offset).eval env).val * goldilocksModulus ^ 3
+  change _ = ((interface.source 0 offset).eval env).val * fieldModulus ^ 0 +
+    ((interface.source 1 offset).eval env).val * fieldModulus ^ 1 +
+    ((interface.source 2 offset).eval env).val * fieldModulus ^ 2 +
+    ((interface.source 3 offset).eval env).val * fieldModulus ^ 3
   ring
 
 def quotientValue (env : Env) (offset : Nat) : Nat :=

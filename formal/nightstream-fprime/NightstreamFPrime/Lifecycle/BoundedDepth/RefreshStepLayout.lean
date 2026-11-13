@@ -27,7 +27,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.SlotWords
 /-- The step's shared words. -/
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) (witnessWordCount : Nat) where
+      RingCarrierLayout.carrierWidth logicalWidth) (witnessWordCount : Nat) where
   iteration : Expr
   inverse : Expr
   recursive : Expr
@@ -58,10 +58,10 @@ structure Interface (logicalWidth : Nat)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The running source of a Π_DEC child. -/
-def childOf (child : Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex) :
+def childOf (child : Spec.RingRelation.PiDECAlgebra.Radix.ChildIndex) :
     Fin productionShape.runningCount :=
   Fin.cast rfl child
 

@@ -42,7 +42,7 @@ private theorem contextAssertions_varsSatisfy
 theorem statementBindingConstraints_varsSatisfy
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (parentOffset childOffset : Nat) (allowed : Nat → Prop)
     (support : ExternalInputsSupported interface parentOffset allowed)

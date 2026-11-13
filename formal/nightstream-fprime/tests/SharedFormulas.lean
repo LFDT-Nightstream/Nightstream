@@ -1,11 +1,11 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Export.SharedFormulas
 import NightstreamFPrime.Export.MatrixProgram
-import NightstreamFPrime.Layout.MatrixProgram.Phi81Product
+import NightstreamFPrime.Layout.MatrixProgram.RingProduct
 import NightstreamFPrime.Layout.MatrixProgram.Poseidon
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Spec
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
@@ -95,15 +95,15 @@ def check : IO Unit := do
       WireForm.ofSemantic (normalized (SparseLayer.external input lane))
     ensure ((← expanded 16 external) == ([], expected))
       "external-layer template differs from its Lean owner"
-    let variant := phi81Variant 0
+    let variant := ringProductVariant 0
     variant.validate 271
-    ensure (variant.rows.length == 108) "Phi81 row footprint changed"
-    ensure (variant.linearForms.isEmpty) "Phi81 has unexpected registers"
+    ensure (variant.rows.length == 108) "ring product row footprint changed"
+    ensure (variant.linearForms.isEmpty) "ring product has unexpected registers"
     let forward : Variant :=
       { linearForms := [⟨[⟨1, 1⟩]⟩], rows := [], outputRegisters := [] }
     ensure (!(forward.validate 1).isOk) "forward reference was accepted"
     let noncanonical : Variant :=
-      { linearForms := [⟨[⟨0, goldilocksModulus⟩]⟩], rows := [], outputRegisters := [] }
+      { linearForms := [⟨[⟨0, fieldModulus⟩]⟩], rows := [], outputRegisters := [] }
     ensure (!(noncanonical.validate 1).isOk) "noncanonical coefficient was accepted"
     let wrongPorts : Variant :=
       { linearForms := [], rows := [[]], outputRegisters := [] }
@@ -117,8 +117,8 @@ def check : IO Unit := do
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan.rowsZero_of_equations
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Poseidon.Block.rowWithInput?_ofSemantic
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.SparseLayer.eval_external
-#audit_axioms NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan.rowsZero_implies_ringProduct
-#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Phi81Product.Block.row?_of_loaded
+#audit_axioms NightstreamFPrime.Layout.ProductionRelation.RingProductPlan.rowsZero_implies_ringProduct
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.RingProduct.Block.row?_of_loaded
 
 #eval check
 

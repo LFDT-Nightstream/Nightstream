@@ -55,7 +55,7 @@ def PoseidonCollision : Type :=
     Poseidon2.hash pair.1 = Poseidon2.hash pair.2}
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The slot preimages of one slot of two states. -/
 def slotInputs (left right : State logicalWidth publicFits) (slot : Fin 2) : List F × List F :=

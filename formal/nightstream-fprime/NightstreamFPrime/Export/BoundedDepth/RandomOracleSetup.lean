@@ -62,12 +62,12 @@ attribute [local instance low] Classical.propDecidable
 
 /-- One setup chunk per coefficient of the Ajtai key: row, block and lane. -/
 abbrev SetupIndex (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :=
+    (publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) :=
   KeyIndex productionProfile.commitmentWidth
-    (Phi81ColumnLayout.blockCount (FullShape logicalWidth publicFits).carrierWidth)
+    (ConcreteRingColumnLayout.blockCount (FullShape logicalWidth publicFits).carrierWidth)
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The Ajtai key that the setup chunks give (`AjtaiSetupV1.Programming.verifierKey_eq`). -/
 def setupKey (chunks : SetupIndex logicalWidth publicFits → Chunk) :
@@ -76,7 +76,7 @@ def setupKey (chunks : SetupIndex logicalWidth publicFits → Chunk) :
 
 /-- The programming error of `expect_le_programmed`. -/
 noncomputable def programmingError (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :
+    (publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) :
     ℝ :=
   Fintype.card (SetupIndex logicalWidth publicFits) * (2 * 4294967295 / 2 ^ 256 : ℝ)
 
@@ -360,7 +360,7 @@ local notation "Fits" => StepRelation.keyPublicFits
 theorem setupIndex_card :
     Fintype.card (SetupIndex Width Fits) = 22 * 1242757 * 54 := by
   show Fintype.card (KeyIndex productionProfile.commitmentWidth
-    (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth StepRelation.keyWidth))) = _
+    (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth StepRelation.keyWidth))) = _
   rw [Fintype.card_prod, Fintype.card_prod, Fintype.card_fin, Fintype.card_fin, Fintype.card_fin]
   rfl
 

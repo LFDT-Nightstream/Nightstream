@@ -28,7 +28,7 @@ open NightstreamFPrime.Layout.BoundedDepth.LightAssembler (kAt slotAt slotAt_bel
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- Where each group of the refresh step's own shared words starts. -/
 def childCommitmentsStart (base witnessWordCount : Nat) : Nat :=

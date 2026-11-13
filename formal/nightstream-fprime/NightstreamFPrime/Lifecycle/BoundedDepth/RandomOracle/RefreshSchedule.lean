@@ -23,7 +23,7 @@ open NightstreamFPrime.Lifecycle.RandomOracle
 open NightstreamFPrime.Lifecycle.RandomOracle.Sponge
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 section Words
 

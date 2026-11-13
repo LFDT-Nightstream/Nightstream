@@ -54,13 +54,13 @@ theorem completeLogicalWidth_le_twoPow28_iff
 
 theorem carrierWidth_le_twoPow28_iff
     (application : Lifecycle.Stage1.Application.Program) :
-    NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+    NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
           (completeLogicalWidth application) ≤
         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
       application.witnessWordCount + localCount application ≤ 5480402 := by
   rw [completeLogicalWidth_eq_applicationCounts]
-  simp [NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth,
-    NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount,
+  simp [NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth,
+    NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteRingColumnLayout.blockCount,
     NightstreamFPrime.Spec.ringDegree,
     NightstreamFPrime.Lifecycle.cubeVariables]
   omega

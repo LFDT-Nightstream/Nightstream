@@ -28,7 +28,7 @@ open NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The next state hash starts at or below today's Π_DEC offset. The layout and the offset are
 variables here, so the kernel never evaluates a layout length. -/
@@ -59,10 +59,10 @@ theorem complete (program : Stage1.Application.Program)
       circuit input output)
     (active : input.iteration ≠ 0) (proofEq : input.nifsProof = .refresh proof)
     (pcNext : output.pcNext = circuit)
-    (iterationBound : input.iteration < goldilocksModulus)
-    (priorPcBound : input.priorPc < goldilocksModulus)
-    (priorDepth : ∀ slot, (input.running slot).2 < goldilocksModulus)
-    (nextDepth : ∀ slot, (output.runningNext slot).2 < goldilocksModulus)
+    (iterationBound : input.iteration < fieldModulus)
+    (priorPcBound : input.priorPc < fieldModulus)
+    (priorDepth : ∀ slot, (input.running slot).2 < fieldModulus)
+    (nextDepth : ∀ slot, (output.runningNext slot).2 < fieldModulus)
     (keyLength : ∀ key, (circuitKeys key).digest.length = 4)
     (z0Length : input.z0.length = 4) (ziLength : input.zi.length = 4)
     (zNextLength : output.zNext.length = 4)

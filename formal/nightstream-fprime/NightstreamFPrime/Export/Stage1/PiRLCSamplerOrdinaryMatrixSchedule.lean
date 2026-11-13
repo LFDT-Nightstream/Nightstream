@@ -105,7 +105,7 @@ theorem rowIndexReference_bounds : ∀ index ∈ rowIndexReference,
 
 theorem rangeRows_rowIndices {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth logicalWidth} (source : Nat) :
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth} (source : Nat) :
     (PiRLCSamplerOrdinaryRows.rangeRows (logicalWidth := logicalWidth) (publicFits := publicFits) source).map
       Rows.CompiledRow.rowIndex = (reductionRange source).indices := by
   rw [PiRLCSamplerOrdinaryRows.rangeRows, PiCCSArithmetic.compilePacket_rowIndices]
@@ -122,7 +122,7 @@ theorem wordRows_rowIndices (source : Nat) :
 
 theorem sourceRows_rowIndices {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth logicalWidth} (source : Nat) :
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth} (source : Nat) :
     (PiRLCSamplerOrdinaryRows.sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits) source).map
       Rows.CompiledRow.rowIndex = (sourceRanges source).flatMap IndexRange.indices := by
   simp only [PiRLCSamplerOrdinaryRows.sourceRows, List.map_append, rangeRows_rowIndices,
@@ -132,7 +132,7 @@ theorem arithmeticRows_rowIndices
     {logicalWidth : Nat}
     {publicFits : NightstreamFPrime.Spec.ringDegree *
       NightstreamFPrime.Lifecycle.PaperAlgebra.publicRingColumns ≤
-        NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+        NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
           logicalWidth} :
     (PiRLCSamplerOrdinaryRows.rows
         (logicalWidth := logicalWidth) (publicFits := publicFits)).map
@@ -145,7 +145,7 @@ theorem rowSchedule_index?_eq_arithmeticRowIndex?
     {logicalWidth : Nat}
     {publicFits : NightstreamFPrime.Spec.ringDegree *
       NightstreamFPrime.Lifecycle.PaperAlgebra.publicRingColumns ≤
-        NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+        NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
           logicalWidth}
     (ordinal : Nat) :
     rowSchedule.index? ordinal =

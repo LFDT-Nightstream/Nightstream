@@ -24,7 +24,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepLayout
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
   (program : Stage1.Application.Program)
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits) (circuit : Fin 2)
   (interface : RefreshStepLayout.Interface logicalWidth publicFits program.witnessWordCount)
@@ -125,7 +125,7 @@ theorem rows_implies_finish
       input output proof env)
     (nextSlots : ∀ slot,
       Hash.evalList env (interface.next slot).words = serializeSlot (output.runningNext slot))
-    (nextDepth : ∀ slot, (output.runningNext slot).2 < goldilocksModulus)
+    (nextDepth : ∀ slot, (output.runningNext slot).2 < fieldModulus)
     (active : input.iteration ≠ 0) :
     FinishHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys circuit input output := by
   change holds env (opsAt program relation circuit interface offset) at rows

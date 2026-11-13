@@ -22,13 +22,13 @@ open NightstreamFPrime.Spec.HyperNova.Construction2
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The gadgets of the light step circuit and their offsets. The prior and next state hashes read
 two digests each, and one slot gadget hashes the new slot. -/
 structure Leaves (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) (witnessWordCount : Nat) where
+      RingCarrierLayout.carrierWidth logicalWidth) (witnessWordCount : Nat) where
   application : Stage1.Application.Interface witnessWordCount
   applicationOffset : Nat
   depth : CanonicalU64.Interface
@@ -103,7 +103,7 @@ structure Represents (leaves : Leaves logicalWidth publicFits witnessWordCount) 
   depthWord : (leaves.depth.source leaves.depthOffset).eval env =
     natWord (input.running selected).2
   recursive : input.iteration ≠ 0 →
-    input.nifsProof = .light proof ∧ (input.running selected).2 < goldilocksModulus
+    input.nifsProof = .light proof ∧ (input.running selected).2 < fieldModulus
 
 /-- Soundness of the light step circuit: its rows, its words, the slot select and, after the base
 case, prior digests that are the prior slots' digests give the step relation of a light circuit
@@ -161,10 +161,10 @@ theorem spec_implies_stepHolds (light : Spec.HyperNova.Construction2.BoundedDept
           specification.piccs represents.piccsWired specification.rlc represents.rlcWired
       · rw [depthEq, ← terms.2]
         have below :
-            Folding.Schedule.nextDepth (input.running selected).2 .light < goldilocksModulus := by
+            Folding.Schedule.nextDepth (input.running selected).2 .light < fieldModulus := by
           have cap := terms.1
           simp only [Folding.Schedule.nextDepth, Folding.Schedule.productionLightFoldCap] at cap ⊢
-          have modulus : 65 ≤ goldilocksModulus := by decide
+          have modulus : 65 ≤ fieldModulus := by decide
           omega
         simp only [natWord, Poseidon2.ofNat]
         exact Nat.mod_eq_of_lt below

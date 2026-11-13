@@ -27,7 +27,7 @@ open NightstreamFPrime.Gadgets.Poseidon2
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- Two adjacent columns as a `K` value. -/
 def kAt (column : Nat) : KExpr := ⟨.var column, .var (column + 1)⟩

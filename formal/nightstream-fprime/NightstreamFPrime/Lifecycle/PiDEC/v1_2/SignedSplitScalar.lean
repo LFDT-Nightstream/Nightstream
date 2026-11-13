@@ -1,14 +1,14 @@
 import NightstreamFPrime.Circuit.StraightLine
-import NightstreamFPrime.Spec.GoldilocksPrime
-import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits
+import NightstreamFPrime.Spec.FieldPrime
+import NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix.UniformSignedDigits
 
 namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.SignedSplitScalar
 
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.GoldilocksPrime
-open NightstreamFPrime.Spec.Phi81Relation
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.FieldPrime
+open NightstreamFPrime.Spec.RingRelation
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 def signBitIndex : Nat := 63
 def exactPrivateCount : Nat := 1
@@ -369,11 +369,11 @@ theorem bitHintValue_val (source : Expr) (env : Env) :
     (Hint.eval env (bitHint source)).val =
       ((source.eval env).val / 2 ^ signBitIndex) % 2 := by
   change ((((source.eval env).val >>> signBitIndex) &&& 1) %
-      goldilocksModulus) = _
+      fieldModulus) = _
   rw [Nat.and_one_is_mod, Nat.shiftRight_eq_div_pow]
   apply Nat.mod_eq_of_lt
   exact lt_trans (Nat.mod_lt _ (by decide : 0 < 2)) (by
-    norm_num [goldilocksModulus])
+    norm_num [fieldModulus])
 
 theorem bitHint_eq_branchBit (source : Expr) (env : Env)
     (bounded : centeredMagnitude (source.eval env) < Radix.combinedBound) :
@@ -382,8 +382,8 @@ theorem bitHint_eq_branchBit (source : Expr) (env : Env)
   let parent := source.eval env
   by_cases nonnegative : Radix.isNonnegative parent
   · have magnitude : centeredMagnitude parent = parent.val := by
-      rw [NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered.centeredMagnitude_eq_distance]
-      unfold NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered.distance
+      rw [NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Norm.Centered.centeredMagnitude_eq_distance]
+      unfold NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Norm.Centered.distance
       rw [ite_eq_left (by simpa [Radix.isNonnegative] using nonnegative)]
     have parentLt : parent.val < 2 ^ signBitIndex := by
       rw [magnitude] at bounded
@@ -397,19 +397,19 @@ theorem bitHint_eq_branchBit (source : Expr) (env : Env)
       rw [Nat.div_eq_of_lt parentLt]
     simpa [parent, nonnegative] using hintZero
   · have magnitude :
-        centeredMagnitude parent = goldilocksModulus - parent.val := by
-      rw [NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered.centeredMagnitude_eq_distance]
-      unfold NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered.distance
+        centeredMagnitude parent = fieldModulus - parent.val := by
+      rw [NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Norm.Centered.centeredMagnitude_eq_distance]
+      unfold NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Norm.Centered.distance
       rw [ite_eq_right (by simpa [Radix.isNonnegative] using nonnegative)]
     have parentLower : 2 ^ signBitIndex ≤ parent.val := by
       rw [magnitude] at bounded
       have parentLtModulus := parent.isLt
       norm_num [Radix.combinedBound, productionGlobalParams,
-        GlobalParams.bigB, signBitIndex, goldilocksModulus] at bounded ⊢
+        GlobalParams.bigB, signBitIndex, fieldModulus] at bounded ⊢
       omega
     have parentUpper : parent.val < 2 * 2 ^ signBitIndex := by
       have parentLtModulus := parent.isLt
-      norm_num [signBitIndex, goldilocksModulus] at parentLtModulus ⊢
+      norm_num [signBitIndex, fieldModulus] at parentLtModulus ⊢
       omega
     have quotient : parent.val / 2 ^ signBitIndex = 1 := by
       norm_num [signBitIndex] at parentLower parentUpper ⊢

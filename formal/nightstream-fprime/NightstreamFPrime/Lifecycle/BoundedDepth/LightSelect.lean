@@ -21,12 +21,12 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.SlotWords
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- `DigestSelect`'s words and the active slot's digest. -/
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) extends
+      RingCarrierLayout.carrierWidth logicalWidth) extends
     DigestSelect.Interface logicalWidth publicFits where
   activeDigest : Nat → Fin 4 → Expr
 
@@ -102,9 +102,9 @@ theorem rows_implies_select (env : Env) (input : StepInput logicalWidth publicFi
     (output : StepOutput logicalWidth publicFits) (new : SlotData logicalWidth publicFits)
     (holds : ConstraintsHold env (rows interface offset))
     (iterationWord : (interface.iteration offset).eval env = natWord input.iteration)
-    (iterationBound : input.iteration < goldilocksModulus)
+    (iterationBound : input.iteration < fieldModulus)
     (pcWord : (interface.priorPc offset).eval env = natWord input.priorPc)
-    (pcBound : input.priorPc < goldilocksModulus)
+    (pcBound : input.priorPc < fieldModulus)
     (initialWords :
       List.ofFn (fun index => (interface.initialState offset index).eval env) = input.z0)
     (currentWords :

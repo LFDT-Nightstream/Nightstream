@@ -1,7 +1,7 @@
 import Lean.Data.Json
 import NightstreamFPrime.Export.Package
 import NightstreamFPrime.Layout.MatrixProgram
-import NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan
+import NightstreamFPrime.Layout.ProductionRelation.RingProductPlan
 import NightstreamFPrime.Lifecycle.VerifierContext
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan
 
@@ -132,9 +132,9 @@ def externalComponent (_ : Unit) : Component where
   definitions := ["NightstreamFPrime.Layout.ProductionRelation.SparseLayer.external"]
   contracts := ["NightstreamFPrime.Layout.ProductionRelation.SparseLayer.eval_external"]
 
-private def phi81Interface : Phi81ProductPlan.Interface 271 :=
+private def ringProductInterface : RingProductPlan.Interface 271 :=
   let oneColumn : Fin 271 := 0
-  let challenge : Phi81ProductPlan.State 271 := fun index =>
+  let challenge : RingProductPlan.State 271 := fun index =>
     SparseForm.add (SparseForm.singleton
       ⟨1 + index.val, by have bound : index.val < 54 := index.isLt; omega⟩ 1)
       (SparseForm.singleton oneColumn (-2))
@@ -148,13 +148,13 @@ private def phi81Interface : Phi81ProductPlan.Interface 271 :=
     output := fun index => SparseForm.singleton
       ⟨217 + index.val, by have bound : index.val < 54 := index.isLt; omega⟩ 1 }
 
-def phi81Variant (_ : Fin 1) : Variant where
+def ringProductVariant (_ : Fin 1) : Variant where
   linearForms := []
-  rows := (Phi81ProductPlan.rows phi81Interface).map
+  rows := (RingProductPlan.rows ringProductInterface).map
     (fun row => wireRow row.meaningfulForm)
   outputRegisters := (List.range ringDegree).map (217 + ·)
 
-def phi81Component (_ : Unit) : Component where
+def ringProductComponent (_ : Unit) : Component where
   id := "phi81-product-v1"
   inputCount := 271
   ports := [⟨"one", "constant", 0, 1⟩,
@@ -164,7 +164,7 @@ def phi81Component (_ : Unit) : Component where
     ⟨"prior", "input", 163, ringDegree⟩,
     ⟨"output", "output", 217, ringDegree⟩]
   variantCount := 1
-  variant := phi81Variant
+  variant := ringProductVariant
   definitions := [
     "NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan.rows",
     "NightstreamFPrime.Layout.MatrixProgram.Phi81Product.Block.interface?"]
@@ -177,7 +177,7 @@ def Variant.validate (inputCount : Nat) (variant : Variant) : Except String Unit
   let mut available := inputCount
   for form in variant.linearForms do
     if !form.entries.all (fun entry =>
-        entry.column < available && entry.coefficient < goldilocksModulus) then
+        entry.column < available && entry.coefficient < fieldModulus) then
       throw "noncanonical or forward linear-form reference"
     available := available + 1
   for row in variant.rows do
@@ -185,7 +185,7 @@ def Variant.validate (inputCount : Nat) (variant : Variant) : Except String Unit
       throw "invalid meaningful matrix port count"
     for form in row do
       if !form.entries.all (fun entry =>
-          entry.column < available && entry.coefficient < goldilocksModulus) then
+          entry.column < available && entry.coefficient < fieldModulus) then
         throw "noncanonical or invalid row-form reference"
   if !variant.outputRegisters.all (· < available) then
     throw "invalid output register"
@@ -232,7 +232,7 @@ def format : String := "nightstream.matrix-templates"
 def version : Nat := 1
 
 def profile : List Nat :=
-  [goldilocksModulus, productionGlobalParams.b,
+  [fieldModulus, productionGlobalParams.b,
     productionGlobalParams.k, productionGlobalParams.bigB, ringDegree,
     NightstreamFPrime.Lifecycle.cubeVariables,
     Spec.ProductionRelation.matrixCount,
@@ -249,7 +249,7 @@ def write (path : System.FilePath) : IO Unit := do
   handle.putStr ","
   writeComponent handle (externalComponent ())
   handle.putStr ","
-  writeComponent handle (phi81Component ())
+  writeComponent handle (ringProductComponent ())
   handle.putStr "]}\n"
 
 /-! The verification key binds this digest; Rust recomputes it from the loaded file. -/
@@ -290,7 +290,7 @@ def libraryValue (_ : Unit) : Value :=
     .atom version,
     natsValue profile,
     .array [(poseidonComponent ()).value, (externalComponent ()).value,
-      (phi81Component ()).value]]
+      (ringProductComponent ()).value]]
 
 def digestDomain : List F :=
   ([78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,

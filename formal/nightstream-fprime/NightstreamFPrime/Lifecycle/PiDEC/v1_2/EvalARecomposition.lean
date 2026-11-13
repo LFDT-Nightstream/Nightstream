@@ -26,7 +26,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
 
 abbrev blockCount : Nat := productionShape.matrixCount
 
@@ -34,7 +34,7 @@ structure Interface where
   parent : Nat → Fin productionShape.matrixCount →
     Fin productionShape.coefficientCount → KExpr
   child : Nat →
-    NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex →
+    NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix.ChildIndex →
     Fin productionShape.matrixCount →
     Fin productionShape.coefficientCount → KExpr
 
@@ -59,7 +59,7 @@ def evalParent (interface : Interface) (offset : Nat) (env : Env) :
       (EvalKRecomposition.coefficient lane)).eval env
 
 def evalChildren (interface : Interface) (offset : Nat) (env : Env) :
-    NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex →
+    NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix.ChildIndex →
       Fin productionShape.matrixCount → RingK :=
   fun child matrix lane =>
     (interface.child offset child matrix
@@ -69,7 +69,7 @@ theorem parentCoverage (interface : Interface) (offset : Nat) (env : Env)
     (specification : SpecHolds interface offset env) :
     evalParent interface offset env = fun matrix =>
       BaseLinear.combineEvaluations
-        NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiDEC.radixWeight
+        NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.PiDEC.radixWeight
         (fun child => evalChildren interface offset env child matrix) := by
   simpa [evalParent, evalChildren, RingKRecomposition.evalParent,
     RingKRecomposition.evalChildren, ringInterface] using!
@@ -80,7 +80,7 @@ theorem specHolds_of_parentCoverage
     (interface : Interface) (offset : Nat) (env : Env)
     (equation : evalParent interface offset env = fun matrix =>
       BaseLinear.combineEvaluations
-        NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiDEC.radixWeight
+        NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.PiDEC.radixWeight
         (fun child => evalChildren interface offset env child matrix)) :
     SpecHolds interface offset env := by
   apply RingKRecomposition.specHolds_of_parentCoverage
@@ -92,7 +92,7 @@ theorem coordinateCount_eq :
     RingKRecomposition.coordinateCount blockCount = 432 := by
   norm_num [RingKRecomposition.coordinateCount,
     RingKRecomposition.cellCount, blockCount, productionShape,
-    Phi81MatrixSource.phi81Shape, productionProfile, ringDegree]
+    RingMatrixSource.ringShape, productionProfile, ringDegree]
 
 abbrev circuit (interface : Interface) : FormalCircuit :=
   RingKRecomposition.circuit (ringInterface interface)

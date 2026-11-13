@@ -15,7 +15,7 @@ open RunningTransitionInputs
 theorem recursiveSupported
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     RunningTransition.RunningSupported
       (recursiveRunningExpr logicalWidth publicFits) Logical := by
   refine {
@@ -40,7 +40,7 @@ theorem recursiveSupported
     let coordinate : Fin 270 :=
       ⟨column.val, by
         have bound := column.isLt
-        norm_num [FullShape, fullShape, Phi81Relation.Shape.publicWidth,
+        norm_num [FullShape, fullShape, RingRelation.Shape.publicWidth,
           publicRingColumns, ringDegree] at bound ⊢
         exact bound⟩
     exact Or.inr (Or.inl ⟨childOfRunning source, coordinate, rfl⟩)

@@ -25,7 +25,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RefreshPiCCSLayout
 
 variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The external words of the refresh Π_CCS layout lie below the parent offset. -/
 structure InputsBelow (interface : RefreshPiCCSLayout.Interface logicalWidth degreeBound publicFits)

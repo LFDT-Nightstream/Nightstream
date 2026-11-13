@@ -41,7 +41,7 @@ open NightstreamFPrime.Export.BoundedDepth.IvcSecurity (walkAdversary)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- State `i` of the history that decoded steps give, the steps listed from the last back: the
 input state of step `i`, or the statement's current state after the last step. -/
@@ -119,7 +119,7 @@ theorem history_of_leads (program : Lifecycle.Stage1.Application.Program) :
 /-- A sample: the claimed memory statement, the walk's start, and the extractor's answers. -/
 abbrev Sample (width : ℕ) (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   MemoryStatement width × Visit logicalWidth publicFits × List (Answer logicalWidth publicFits)
 
 variable {p : Plan} (app : PortApp p.toGeometry)
@@ -127,7 +127,7 @@ variable {p : Plan} (app : PortApp p.toGeometry)
   (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
   {step : AppState → AppWitness → AppState}
-  {cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+  {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
   (exports : Exports relation ajtai circuitKeys step cubeFits)
 
 /-- The extracted history is the steps that the walk decodes. -/

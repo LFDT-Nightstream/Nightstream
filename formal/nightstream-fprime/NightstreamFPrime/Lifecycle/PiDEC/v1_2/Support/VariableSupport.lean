@@ -10,7 +10,7 @@ open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 namespace Support
 
@@ -142,7 +142,7 @@ namespace PublicInputSplit
 theorem flatConstraints_varsSatisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (allowed : Nat → Prop) (interface : Interface logicalWidth publicFits)
     (offset : Nat)
     (parent : ∀ coordinate,

@@ -138,7 +138,7 @@ theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
   simp only [coefficientExprs, List.length_append, List.length_map]
   simp [canonicalPadCoordinates_length,
     canonicalMatrixCoordinates_length, productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape, Shape.padEvaluationCount,
+    RingMatrixSource.ringShape, Shape.padEvaluationCount,
     Shape.matrixEvaluationCount, cubeVariables, ringDegree]
 
 def privateCount : Nat := 12957
@@ -167,7 +167,7 @@ theorem flatConstraints_length (interface : Interface) (offset : Nat) :
 theorem spec_implies_keyInitial
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

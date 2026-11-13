@@ -43,7 +43,7 @@ open NightstreamFPrime.Export.BoundedDepth.SlotCompleteness
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- No row of the circuit reads a public column. -/
 def publicFree (constraints : List Expr) : Bool :=
@@ -124,22 +124,22 @@ theorem fresh_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn : 
     (wideFits : ProductionAssignment.logicalWidth (SlotLayout.runSlots width
       (StepPackage.slotRuns publicColumns (CircuitRelation.pieces circuit offset digestColumn)
         firstFresh batches)) ≤ logicalWidth)
-    (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
+    (cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     ∃ assignment : Assignment F logicalWidth,
       CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
         (freshStatement ((CircuitRelation.plan publicColumns _ firstFresh width fits
             (WideLayout.widen (SlotLayout.layout _) wideFits)).logicalRelation
               (publicFits := publicFits) cubeFits)
-          { commitments := fun _ => Phi81Relation.PiRLCAlgebra.Commitment.commit ajtai
-              (Phi81CarrierLayout.extendAssignment 0 assignment)
+          { commitments := fun _ => RingRelation.PiRLCAlgebra.Commitment.commit ajtai
+              (RingCarrierLayout.extendAssignment 0 assignment)
             publicInputs := fun _ => encHash (publicFits := publicFits) digest })
-        (Phi81CarrierLayout.extendAssignment 0 assignment) ∧
-      ∀ column : Fin (Phi81CarrierLayout.carrierWidth logicalWidth),
+        (RingCarrierLayout.extendAssignment 0 assignment) ∧
+      ∀ column : Fin (RingCarrierLayout.carrierWidth logicalWidth),
         ProductionAssignment.logicalWidth (SlotLayout.runSlots width
           (StepPackage.slotRuns publicColumns (CircuitRelation.pieces circuit offset digestColumn)
             firstFresh batches)) ≤ column.val →
-        Phi81CarrierLayout.extendAssignment 0 assignment column = 0 := by
+        RingCarrierLayout.extendAssignment 0 assignment column = 0 := by
   have piecesHold := pieces_complete (publicFits := publicFits) circuit offset digestColumn env
     holds digest digestWords digestAbove free
   have marker : (withPublic (publicFits := publicFits) digest env) 0 = 1 := by
@@ -163,19 +163,19 @@ theorem fresh_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn : 
   swap
   · intro column above
     by_cases inside : column.val < logicalWidth
-    · rw [show column = Phi81CarrierLayout.embedLogical (⟨column.val, inside⟩ : Fin logicalWidth)
-        from Fin.ext rfl, Phi81CarrierLayout.extendAssignment_embedLogical]
+    · rw [show column = RingCarrierLayout.embedLogical (⟨column.val, inside⟩ : Fin logicalWidth)
+        from Fin.ext rfl, RingCarrierLayout.extendAssignment_embedLogical]
       unfold WideLayout.extend
       exact dite_eq_right (not_lt.mpr above)
-    · exact Phi81CarrierLayout.extendAssignment_tail_zero 0 _ column (not_lt.mp inside)
+    · exact RingCarrierLayout.extendAssignment_tail_zero 0 _ column (not_lt.mp inside)
   funext column
   have inside : column.val < logicalWidth :=
     Nat.lt_of_lt_of_le column.isLt (le_trans (SlotLayout.publicFits _) wideFits)
   have same : (PaperAlgebra.FullShape logicalWidth publicFits).publicColumn column =
-      Phi81CarrierLayout.embedLogical (⟨column.val, inside⟩ : Fin logicalWidth) := by
+      RingCarrierLayout.embedLogical (⟨column.val, inside⟩ : Fin logicalWidth) := by
     apply Fin.ext
     rfl
-  rw [Phi81Relation.projectPublicInput, same, Phi81CarrierLayout.extendAssignment_embedLogical]
+  rw [RingRelation.projectPublicInput, same, RingCarrierLayout.extendAssignment_embedLogical]
   have narrow : column.val < ProductionAssignment.logicalWidth (SlotLayout.runSlots width
       (StepPackage.slotRuns publicColumns (CircuitRelation.pieces circuit offset digestColumn) firstFresh batches)) :=
     Nat.lt_of_lt_of_le column.isLt (SlotLayout.publicFits _)
@@ -285,21 +285,21 @@ theorem light_complete (relation : ProductionKey.LogicalRelation logicalWidth pu
     (wideFits : ProductionAssignment.logicalWidth (SlotLayout.runSlots width
       (StepPackage.slotRuns publicColumns (lightPieces program relation ajtai) firstFresh batches)) ≤
         logicalWidth)
-    (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables) :
+    (cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables) :
     ∃ assignment : Assignment F logicalWidth,
       CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
         (freshStatement ((CircuitRelation.plan publicColumns _ firstFresh width fits
             (WideLayout.widen (SlotLayout.layout _) wideFits)).logicalRelation
               (publicFits := publicFits) cubeFits)
-          { commitments := fun _ => Phi81Relation.PiRLCAlgebra.Commitment.commit ajtai
-              (Phi81CarrierLayout.extendAssignment 0 assignment)
+          { commitments := fun _ => RingRelation.PiRLCAlgebra.Commitment.commit ajtai
+              (RingCarrierLayout.extendAssignment 0 assignment)
             publicInputs := fun _ => encHash (publicFits := publicFits) output.x })
-        (Phi81CarrierLayout.extendAssignment 0 assignment) ∧
-      ∀ column : Fin (Phi81CarrierLayout.carrierWidth logicalWidth),
+        (RingCarrierLayout.extendAssignment 0 assignment) ∧
+      ∀ column : Fin (RingCarrierLayout.carrierWidth logicalWidth),
         ProductionAssignment.logicalWidth (SlotLayout.runSlots width
           (StepPackage.slotRuns publicColumns (lightPieces program relation ajtai) firstFresh
             batches)) ≤ column.val →
-        Phi81CarrierLayout.extendAssignment 0 assignment column = 0 :=
+        RingCarrierLayout.extendAssignment 0 assignment column = 0 :=
   fresh_complete _ _ _ env holds output.x (digest_getD represents.outputDigest)
     (digestColumn_above program) free firstFresh width fits packed below publicBelow batches
     wideFits cubeFits ajtai
@@ -329,21 +329,21 @@ theorem refresh_complete (relation : ProductionKey.LogicalRelation logicalWidth 
     (wideFits : ProductionAssignment.logicalWidth (SlotLayout.runSlots width
       (StepPackage.slotRuns publicColumns (refreshPieces program relation ajtai) firstFresh
         batches)) ≤ logicalWidth)
-    (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables) :
+    (cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables) :
     ∃ assignment : Assignment F logicalWidth,
       CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
         (freshStatement ((CircuitRelation.plan publicColumns _ firstFresh width fits
             (WideLayout.widen (SlotLayout.layout _) wideFits)).logicalRelation
               (publicFits := publicFits) cubeFits)
-          { commitments := fun _ => Phi81Relation.PiRLCAlgebra.Commitment.commit ajtai
-              (Phi81CarrierLayout.extendAssignment 0 assignment)
+          { commitments := fun _ => RingRelation.PiRLCAlgebra.Commitment.commit ajtai
+              (RingCarrierLayout.extendAssignment 0 assignment)
             publicInputs := fun _ => encHash (publicFits := publicFits) output.x })
-        (Phi81CarrierLayout.extendAssignment 0 assignment) ∧
-      ∀ column : Fin (Phi81CarrierLayout.carrierWidth logicalWidth),
+        (RingCarrierLayout.extendAssignment 0 assignment) ∧
+      ∀ column : Fin (RingCarrierLayout.carrierWidth logicalWidth),
         ProductionAssignment.logicalWidth (SlotLayout.runSlots width
           (StepPackage.slotRuns publicColumns (refreshPieces program relation ajtai) firstFresh
             batches)) ≤ column.val →
-        Phi81CarrierLayout.extendAssignment 0 assignment column = 0 :=
+        RingCarrierLayout.extendAssignment 0 assignment column = 0 :=
   fresh_complete _ _ _ env holds output.x (digest_getD represents.outputDigest)
     (digestColumn_above program) free firstFresh width fits packed below publicBelow batches
     wideFits cubeFits ajtai

@@ -33,7 +33,7 @@ theorem quotient_hint (env : Env) (start : Nat) (draw : Draw)
       fieldOfNat ((drawIndex draw).val / scalarCount / 2 ^ bit % 2) := by
   have positionBound : 4 - bit / 60 < 5 := by omega
   have value := (division_values env start draw present 53 (4 - bit / 60) (by decide) positionBound).1
-  have small : HelperValues.quotient draw 53 (4 - bit / 60) < goldilocksModulus :=
+  have small : HelperValues.quotient draw 53 (4 - bit / 60) < fieldModulus :=
     lt_trans (Nat.mod_lt _ (by decide : 0 < WitnessArithmetic.radix)) (by decide)
   unfold HintProgram.quotientHint
   simp only [digitCount, HintProgram.divisionLimbs, HintProgram.divisionBits, Nat.reduceSub]
@@ -52,7 +52,7 @@ theorem digit_hint (env : Env) (start : Nat) (draw : Draw)
     (HintProgram.digitHint start digit bit).eval env =
       fieldOfNat ((drawIndex draw).val % scalarCount / 5 ^ digit % 5 / 2 ^ bit % 2) := by
   have value := (division_values env start draw present digit 4 bound (by decide)).2
-  have small : HelperValues.remainder draw digit 4 < goldilocksModulus :=
+  have small : HelperValues.remainder draw digit 4 < fieldModulus :=
     lt_trans (Nat.mod_lt _ (by decide : 0 < 5)) (by decide)
   unfold HintProgram.digitHint
   simp only [HintProgram.divisionLimbs, Nat.reduceSub]
@@ -121,7 +121,7 @@ theorem check_hint (interface : Interface) (hints : Nat → List Hint) (base : E
     rw [Expr.eval_hadd, row, linearExpr_eval target (checkTerms offset check), checkValue, add_comm]
   unfold HintProgram.checkQuotient
   rw [Expr.eval_hmul, Expr.eval_const, difference, ← fieldOfNat_mul]
-  change (fieldOfNat (modulus check) : ZMod goldilocksModulus) * fieldOfNat quotient * _ = _
+  change (fieldOfNat (modulus check) : ZMod fieldModulus) * fieldOfNat quotient * _ = _
   rw [mul_comm (fieldOfNat (modulus check)), mul_assoc, CheckQuotient.modulus_inverse, mul_one]
 
 end NightstreamFPrime.Gadgets.Sampling.WideReduction.OutputHintValues

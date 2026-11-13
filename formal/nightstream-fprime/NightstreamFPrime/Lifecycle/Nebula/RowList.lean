@@ -1,6 +1,6 @@
 import NightstreamFPrime.Lifecycle.Nebula.RowExprs
 import NightstreamFPrime.Lifecycle.Nebula.PortApp
-import NightstreamFPrime.Spec.GoldilocksPrime
+import NightstreamFPrime.Spec.FieldPrime
 
 /-! Owns the polynomial rows of the memory-application circuit as expressions
 over the witness words: the memory rows, grouped by the spec check that names
@@ -78,8 +78,8 @@ def bitRow (x : Circuit.Expr) : Circuit.Expr := x * (x - 1)
 
 /-- In `F`, `x · (x − 1) = 0` exactly for the bits. -/
 theorem mul_sub_one_eq_zero_iff (x : F) : x * (x - 1) = 0 ↔ IsBit x := by
-  let : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
-  have key : ∀ y : ZMod goldilocksModulus, y * (y - 1) = 0 ↔ y = 0 ∨ y = 1 := fun y => by
+  let : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_natPrime⟩
+  have key : ∀ y : ZMod fieldModulus, y * (y - 1) = 0 ↔ y = 0 ∨ y = 1 := fun y => by
     rw [mul_eq_zero, sub_eq_zero]
   exact key x
 

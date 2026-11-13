@@ -15,7 +15,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 theorem roundPoint_offset_eq
     {degreeBound : Nat}

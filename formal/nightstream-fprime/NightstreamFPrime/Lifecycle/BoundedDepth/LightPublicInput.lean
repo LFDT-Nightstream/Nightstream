@@ -13,7 +13,7 @@ namespace NightstreamFPrime.Lifecycle.BoundedDepth.LightPublicInput
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
-open NightstreamFPrime.Spec.Phi81Relation
+open NightstreamFPrime.Spec.RingRelation
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiRLC.v1_2
@@ -25,11 +25,11 @@ abbrev cellCount : Nat := 1
 def cell : Fin cellCount := ⟨0, by decide⟩
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 structure Interface (logicalWidth : Nat)
     (publicFits :
-      ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) where
+      ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) where
   challenge : Nat → Fin ringDegree → Expr
   running : Nat → Fin (FullShape logicalWidth publicFits).publicWidth → Expr
   fresh : Nat → Fin (FullShape logicalWidth publicFits).publicWidth → Expr
@@ -101,12 +101,12 @@ theorem output_eq (relation : ProductionKey.LogicalRelation logicalWidth publicF
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env)
     (spec : CombinationStep.SpecHolds (stepInterface interface) offset env)
     (system : StrongReduction.RelationSource BoundedDepth.LightShape
-      (Phi81CarrierLayout.carrierWidth logicalWidth)
-      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth)))
+      (RingCarrierLayout.carrierWidth logicalWidth)
+      (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth)))
     (point : CubePoint K BoundedDepth.LightShape.cubeVariables)
     (fresh running : CE.Instance (StrongReduction.RelationSource BoundedDepth.LightShape
-      (Phi81CarrierLayout.carrierWidth logicalWidth)
-      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth)))
+      (RingCarrierLayout.carrierWidth logicalWidth)
+      (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth)))
       (PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       (CubePoint K BoundedDepth.LightShape.cubeVariables)
       (StrongReduction.EvaluationFamily K BoundedDepth.LightShape) PaperAlgebra.Commitment)

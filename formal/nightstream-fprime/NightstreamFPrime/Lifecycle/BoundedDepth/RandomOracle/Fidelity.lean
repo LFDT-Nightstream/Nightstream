@@ -119,7 +119,7 @@ theorem rho_eq (deployed : DeployedOn oracle) (statement : schedule.Statement)
 end Generic
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- Both parts of a bounded-depth oracle read their schedule as the Poseidon2 sponge does. -/
 def Deployed (oracle : Oracle logicalWidth publicFits) : Prop :=

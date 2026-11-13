@@ -948,7 +948,7 @@ theorem circuitPackage_implies_pilotSpec
 theorem circuitPackage_implies_recursive_hash_slots
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * PaperAlgebra.publicRingColumns <=
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

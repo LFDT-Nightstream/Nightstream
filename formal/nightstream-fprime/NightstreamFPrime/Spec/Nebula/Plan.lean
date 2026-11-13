@@ -62,8 +62,8 @@ structure Valid (p : Geometry) : Prop where
   exactCover : p.n * p.bScan = p.cells
   timestampRange : p.sMax * p.n * p.bOps < 2 ^ p.wTs
   fieldEncoding : p.wTs ≤ 31
-  laneBits : p.bOps * p.opWidth < goldilocksModulus ∧ p.bScan * p.scanWidth < goldilocksModulus
-  belowModulus : p.cells < goldilocksModulus
+  laneBits : p.bOps * p.opWidth < fieldModulus ∧ p.bScan * p.scanWidth < fieldModulus
+  belowModulus : p.cells < fieldModulus
   positive : 0 < p.bOps ∧ 0 < p.bScan ∧ 0 < p.n ∧ 0 < p.sMax
 
 theorem two_pow_addrWidth_le_cells (p : Geometry) : 2 ^ p.addrWidth ≤ p.cells := by
@@ -78,7 +78,7 @@ theorem addrWidth_le {p : Geometry} (valid : p.Valid) : p.addrWidth ≤ 63 := by
   have below := Nat.lt_of_le_of_lt (two_pow_addrWidth_le_cells p) valid.belowModulus
   refine Nat.le_of_not_lt fun large => ?_
   have big : 2 ^ 64 ≤ 2 ^ p.addrWidth := Nat.pow_le_pow_right (by decide) large
-  have : goldilocksModulus < 2 ^ 64 := by decide
+  have : fieldModulus < 2 ^ 64 := by decide
   omega
 
 end Geometry

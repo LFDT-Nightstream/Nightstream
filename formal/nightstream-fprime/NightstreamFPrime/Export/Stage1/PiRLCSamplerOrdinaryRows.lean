@@ -10,7 +10,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open PiRLCSamplerInvocations (sourceInterface sourceLogicalStart)
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 def rangeInterface (source : Nat) : WideReduction.Interface where
   source := fun lane _ => PiRLCSamplerInvocations.fastAdvanceState

@@ -38,7 +38,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 structure InputsLinear
     (interface :
@@ -67,7 +67,7 @@ structure TerminalInputShapes
 
 private theorem cubeVariables_positive :
     0 < productionShape.cubeVariables := by
-  norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+  norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 private theorem pointEqualityOutput_linear
     (interface :
@@ -84,7 +84,7 @@ private theorem pointEqualityOutput_linear
   have lengthZero := congrArg List.length empty
   simp [NightstreamFPrime.Gadgets.Multilinear.PointEquality.Owned.coordinateExprs,
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.canonicalFinIndices_length,
-    productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+    productionShape, RingMatrixSource.ringShape, cubeVariables]
     at lengthZero
 
 private theorem matrixPowerOutput_linear
@@ -339,7 +339,7 @@ private theorem point_totalFreshCount
       NightstreamFPrime.Layout.Multilinear.PointEquality.ownedCircuit_totalFreshCount_of_positive
         _ offset cubeVariables_positive (pointInputs interface offset inputs)
     _ = 665 := by
-      norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+      norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 private theorem point_totalRowCount
     (interface :
@@ -354,7 +354,7 @@ private theorem point_totalRowCount
       NightstreamFPrime.Layout.Multilinear.PointEquality.ownedCircuit_totalRowCount_of_positive
         _ offset cubeVariables_positive (pointInputs interface offset inputs)
     _ = 775 := by
-      norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+      norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 private theorem matrixPower_totalFreshCount
     (interface :

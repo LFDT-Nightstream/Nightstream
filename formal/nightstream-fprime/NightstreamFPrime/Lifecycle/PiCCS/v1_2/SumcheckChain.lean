@@ -141,7 +141,7 @@ theorem operations_length {degree : Nat} (interface : Interface degree)
   change (Circuit.ops
     (FixedChain.Owned.circuit
       (coreInterface interface offset)).main offset).length = 57
-  simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using!
+  simpa [productionShape, RingMatrixSource.ringShape, cubeVariables] using!
     FixedChain.Owned.operations_length (coreInterface interface offset) offset
 
 theorem flatConstraints_length {degree : Nat} (interface : Interface degree)
@@ -152,7 +152,7 @@ theorem flatConstraints_length {degree : Nat} (interface : Interface degree)
     (FixedChain.Owned.circuit
       (coreInterface interface offset)).main offset)).length =
         privateCount degree + 56
-  simpa [privateCount, productionShape, Phi81MatrixSource.phi81Shape,
+  simpa [privateCount, productionShape, RingMatrixSource.ringShape,
     cubeVariables] using!
     FixedChain.Owned.flatConstraints_length
       (coreInterface interface offset) offset
@@ -253,7 +253,7 @@ theorem chain_build {degree : Nat} (interface : Interface degree) (offset : Nat)
 theorem spec_implies_keyChain
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -356,7 +356,7 @@ theorem spec_implies_keyChain
 private theorem keyChain_core
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -447,7 +447,7 @@ private theorem keyChain_core
 theorem keyChain_build
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -517,7 +517,7 @@ theorem keyChain_build
 theorem output_eval_of_keyChain
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

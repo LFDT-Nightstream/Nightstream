@@ -1,4 +1,4 @@
-import NightstreamFPrime.Layout.MatrixProgram.Phi81Product
+import NightstreamFPrime.Layout.MatrixProgram.RingProduct
 
 set_option autoImplicit false
 
@@ -31,16 +31,16 @@ def loadFin? {Alpha : Type} :
 
 theorem loadFin?_value {Alpha : Type} (count : Nat)
     (load : Fin count → Option Alpha) :
-    loadFin? count load = Phi81Product.loadFin? count load := by
+    loadFin? count load = RingProduct.loadFin? count load := by
   induction count with
   | zero => rfl
   | succ count inductionHypothesis =>
-      simp only [loadFin?, Phi81Product.loadFin?,
+      simp only [loadFin?, RingProduct.loadFin?,
         inductionHypothesis, select_eq_cases]
 
-def interface? (block : Phi81Product.Block) (logicalWidth : Nat)
-    (descriptor : Phi81Product.Descriptor) :
-    Option (Phi81ProductPlan.Interface logicalWidth) := do
+def interface? (block : RingProduct.Block) (logicalWidth : Nat)
+    (descriptor : RingProduct.Descriptor) :
+    Option (RingProductPlan.Interface logicalWidth) := do
   let oneColumn ← block.oneColumn? logicalWidth
   let challenge ← loadFin? ringDegree fun lane =>
     block.challenge.form? logicalWidth
@@ -58,18 +58,18 @@ def interface? (block : Phi81Product.Block) (logicalWidth : Nat)
           (descriptor.invocationAtLane lane - descriptor.family.privateCount)
   let output ← loadFin? ringDegree fun lane =>
     block.output.form? logicalWidth (descriptor.invocationAtLane lane)
-  let left : Phi81ProductPlan.State logicalWidth := fun lane =>
+  let left : RingProductPlan.State logicalWidth := fun lane =>
     SparseForm.add (challenge lane) (SparseForm.singleton oneColumn (-2))
   pure { left, right := input, quotient, prior, output }
 
-theorem interface?_value (block : Phi81Product.Block) (logicalWidth : Nat)
-    (descriptor : Phi81Product.Descriptor) :
+theorem interface?_value (block : RingProduct.Block) (logicalWidth : Nat)
+    (descriptor : RingProduct.Descriptor) :
     interface? block logicalWidth descriptor =
       block.interface? logicalWidth descriptor := by
   by_cases first : descriptor.source.val = 0 <;>
-    simp [interface?, Phi81Product.Block.interface?,
-      Phi81Product.Block.challengeState?, Phi81Product.Block.inputState?,
-      Phi81Product.Block.quotientState?, Phi81Product.Block.priorState?,
-      Phi81Product.Block.outputState?, loadFin?_value, first]
+    simp [interface?, RingProduct.Block.interface?,
+      RingProduct.Block.challengeState?, RingProduct.Block.inputState?,
+      RingProduct.Block.quotientState?, RingProduct.Block.priorState?,
+      RingProduct.Block.outputState?, loadFin?_value, first]
 
 end NightstreamFPrime.Export.Stage1.PiDECProductInterface

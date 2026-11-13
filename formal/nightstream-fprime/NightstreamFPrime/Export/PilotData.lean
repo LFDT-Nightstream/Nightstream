@@ -226,7 +226,7 @@ def witnessInstructions (_unit : Unit) : List WitnessInstruction :=
   Stage1.Rows.witnessInstructionsTR (priorExtraRows ())
 
 def profile : Profile where
-  fieldModulus := goldilocksModulus
+  fieldModulus := fieldModulus
   decompositionBase := 2
   decompositionDigits := 16
   decompositionBound := 65536

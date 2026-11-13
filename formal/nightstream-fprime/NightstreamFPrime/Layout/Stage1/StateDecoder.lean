@@ -11,11 +11,11 @@ open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 def slice (state : Nat → F) (start count : Nat) : List F :=
   List.ofFn fun index : Fin count => state (start + index.val)
@@ -179,7 +179,7 @@ def packedWords (state : Nat → F) : Fin packedParentWords → F :=
 def running
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (state : Nat → F) :
     Running (logicalWidth := logicalWidth) (publicFits := publicFits) where
   point := point state PiCCSInputs.runningPointStart
@@ -367,7 +367,7 @@ def currentState (state : Nat → F) : AppState :=
 def preimage
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (state : Nat → F) :
     HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits) where
   verifierKeys := fun _ => keyDigest state
@@ -402,7 +402,7 @@ theorem serializeTail_preimage (state : Nat → F) :
 theorem serializePreimage_preimage
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     {state : Nat → F} (canonical : Canonical state) :
     serializePreimage (publicFits := publicFits)
         (preimage logicalWidth publicFits state) =
@@ -441,7 +441,7 @@ theorem serializePreimage_preimage
 theorem preimage_fixed
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (state : Nat → F) :
     PilotProduction.FixedPreimage
       (preimage logicalWidth publicFits state) := by
@@ -450,13 +450,13 @@ theorem preimage_fixed
       Lifecycle.Stage1.Application.stateWordCount]
 
 theorem iteration_lt (state : Nat → F) :
-    (preimage logicalWidth publicFits state).iteration < goldilocksModulus :=
+    (preimage logicalWidth publicFits state).iteration < fieldModulus :=
   (state RunningTransitionInputs.iterationWordIndex).isLt
 
 theorem priorRepresents
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (env : Circuit.Env) (state : Nat → F)
     (canonical : Canonical state)
     (agrees : ∀ word : Fin PilotProduction.stateHashWords,
@@ -474,7 +474,7 @@ theorem priorRepresents
 theorem outputRepresents
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (env : Circuit.Env) (state : Nat → F)
     (canonical : Canonical state)
     (agrees : ∀ word : Fin PilotProduction.stateHashWords,
@@ -636,7 +636,7 @@ theorem evalRunning_eq_running (env : Env)
         PiCCSInputs.runningExpr, PiCCSInputs.runningEval_A, PiCCSInputs.pairAt,
         Circuit.Quadratic.KExpr.eval, running, evaluations, pair,
         PilotProduction.priorPreimageStart, productionShape,
-        Phi81MatrixSource.phi81Shape, ringDegree]
+        RingMatrixSource.ringShape, ringDegree]
 
 theorem running_canonical (env : Env)
     (split : StateBinding.ChildrenSplit

@@ -74,7 +74,7 @@ private theorem roundLayoutRecipeCount {degreeBound : Nat}
 private theorem statementPermutationCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : StatementAbsorption.Interface logicalWidth publicFits)
     (offset : Nat) :
     Duplex.Formal.permutationCount
@@ -102,14 +102,14 @@ private theorem roundPermutationCount
   have recipes := Duplex.Formal.recipeCount_eq_permutationCount_mul
     (RoundTranscript.layoutActions interface offset)
   rw [roundLayoutRecipeCount interface offset] at recipes
-  norm_num [productionShape, Phi81MatrixSource.phi81Shape,
+  norm_num [productionShape, RingMatrixSource.ringShape,
     cubeVariables, RoundTranscript.perRoundRecipeCount] at recipes
   omega
 
 private theorem statementFinalState_outputPrefix_supported
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     let shared := Formal.atOffset
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
     Duplex.Formal.StateSupported
@@ -134,7 +134,7 @@ private theorem statementFinalState_outputPrefix_supported
 private theorem challengeWiring_outputPrefix_supported
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     let shared := Formal.atOffset
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
     let interface := Formal.challengeInterface shared PiCCSInputs.phaseOffset
@@ -184,7 +184,7 @@ private theorem challengeWiring_outputPrefix_supported
 private theorem roundWiring_outputPrefix_supported
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     let shared := Formal.atOffset
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
     let interface := Formal.roundTranscriptInterface shared
@@ -229,7 +229,7 @@ private theorem roundWiring_outputPrefix_supported
 theorem challengeWiring_supported
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     let shared := Formal.atOffset
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
     let interface := Formal.challengeInterface shared PiCCSInputs.phaseOffset
@@ -248,7 +248,7 @@ theorem challengeWiring_supported
 private theorem roundWiring_supported
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     let shared := Formal.atOffset
       (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
     let interface := Formal.roundTranscriptInterface shared
@@ -266,7 +266,7 @@ private theorem roundWiring_supported
 structure TranscriptValuesSupported
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Prop where
+      RingCarrierLayout.carrierWidth logicalWidth) : Prop where
   alpha : ∀ coordinate,
     Horner.KSupported
       (Formal.challengeAlpha
@@ -288,7 +288,7 @@ structure TranscriptValuesSupported
 theorem transcriptValuesSupported
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     TranscriptValuesSupported logicalWidth publicFits := by
   let shared := Formal.atOffset
     (PiCCSInputs.interface logicalWidth publicFits) PiCCSInputs.phaseOffset
@@ -310,7 +310,7 @@ theorem transcriptValuesSupported
       apply challengeSupport sample
       exact List.mem_of_mem_take member
     · simp [ChallengeDerivation.layoutWiring_samples_length,
-        productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+        productionShape, RingMatrixSource.ringShape, cubeVariables]
       exact coordinate.isLt
   · rw [Formal.challengeGamma,
       ChallengeDerivation.gamma_eq_gammaFast_pointwise]
@@ -318,7 +318,7 @@ theorem transcriptValuesSupported
     apply Duplex.Formal.sampleGetD_supported
     · exact challengeSupport
     · simp [ChallengeDerivation.layoutWiring_samples_length,
-        productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+        productionShape, RingMatrixSource.ringShape, cubeVariables]
   · intro coordinate
     rw [Formal.roundPoint,
       RoundTranscript.challenge_eq_challengeFast_pointwise]
@@ -332,7 +332,7 @@ theorem transcriptValuesSupported
 theorem roundOutputs_outputPrefix_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Formal.Interface logicalWidth 8 publicFits)
     (offset : Nat) :
     (∀ coordinate, Horner.KSupported
@@ -435,7 +435,7 @@ theorem roundOutputs_outputPrefix_supported
 theorem roundPoint_outputPrefix_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Formal.Interface logicalWidth 8 publicFits)
     (offset : Nat) (coordinate : Fin productionShape.cubeVariables) :
     Horner.KSupported
@@ -454,7 +454,7 @@ private theorem cubePoint_ext
 theorem evalRoundPoint_eq_of_agree_outputPrefix
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Formal.Interface logicalWidth 8 publicFits)
     (offset : Nat) (left right : Env)
     (agrees : ∀ index,
@@ -492,7 +492,7 @@ theorem evalRoundPoint_eq_of_agree_outputPrefix
 theorem roundFinalState_outputPrefix_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Formal.Interface logicalWidth 8 publicFits)
     (offset : Nat) :
     Duplex.Formal.StateSupported

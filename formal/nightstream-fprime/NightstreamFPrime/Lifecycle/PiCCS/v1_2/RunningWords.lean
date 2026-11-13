@@ -13,7 +13,7 @@ open NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption
 
 def parentPublicExpr {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : RunningExpr logicalWidth publicFits)
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) : Expr :=
   PiDEC.v1_2.SignedSplitScalar.recomposeDigits fun child =>
@@ -23,7 +23,7 @@ def parentPublicExpr {logicalWidth : Nat}
 
 def serializeParentPublicExpr {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : RunningExpr logicalWidth publicFits) : List Expr :=
   (List.finRange NightstreamFPrime.Lifecycle.packedParentWords).map fun word =>
     StateBinding.packWordExpr
@@ -33,7 +33,7 @@ def serializeParentPublicExpr {logicalWidth : Nat}
 
 def serializeRunningExpr {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : RunningExpr logicalWidth publicFits) : List Expr :=
   ((List.finRange productionShape.runningCount).flatMap fun index =>
       serializeCommitmentExpr (running.commitment index)) ++
@@ -46,17 +46,17 @@ def serializeRunningExpr {logicalWidth : Nat}
 
 theorem serializeRunningExpr_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : RunningExpr logicalWidth publicFits) :
     (serializeRunningExpr running).length = 27794 := by
   simp [serializeRunningExpr, serializeParentPublicExpr, serializePointExpr_length,
     serializeCommitmentExpr_length, serializeEvalKExpr_length,
     serializeEvalAExpr_length, productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape, NightstreamFPrime.Lifecycle.packedParentWords]
+    RingMatrixSource.ringShape, NightstreamFPrime.Lifecycle.packedParentWords]
 
 theorem serializeRunningExpr_mem {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {running : RunningExpr logicalWidth publicFits} {expression : Expr}
     (member : expression ∈ serializeRunningExpr running) :
     (∃ source row coefficient, expression = running.commitment source row coefficient) ∨
@@ -90,7 +90,7 @@ theorem serializeRunningExpr_mem {logicalWidth : Nat}
 
 theorem packWordExpr_parent_closed {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (Holds : Expr → Prop)
     (constant : ∀ value, Holds (Expr.const value))
     (add : ∀ left right, Holds left → Holds right → Holds (left + right))
@@ -109,7 +109,7 @@ theorem packWordExpr_parent_closed {logicalWidth : Nat}
 
 theorem parentPublicExpr_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : RunningExpr logicalWidth publicFits) (env : Env)
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
     (parentPublicExpr running column).eval env =
@@ -120,7 +120,7 @@ theorem parentPublicExpr_eval {logicalWidth : Nat}
 
 theorem serializeRunningExpr_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : RunningExpr logicalWidth publicFits) (env : Env) :
     Hash.evalList env (serializeRunningExpr running) =
       NightstreamFPrime.Lifecycle.serializeRunning

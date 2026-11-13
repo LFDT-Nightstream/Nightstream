@@ -78,7 +78,7 @@ def digestF (state : FState) : Fin 4 → F :=
     (block.map (Expr.eval env)).getD lane.val (0 : F)
   have evalZero : (0 : Expr).eval env = (0 : F) := by
     apply Fin.ext
-    norm_num [Expr.eval, goldilocksModulus]
+    norm_num [Expr.eval, fieldModulus]
   rw [← evalZero]
   exact (List.getD_map (n := lane.val) block (0 : Expr) (Expr.eval env)).symm
 
@@ -86,7 +86,7 @@ def digestF (state : FState) : Fin 4 → F :=
     Layer.evalState env (padE state) = padF (Layer.evalState env state) := by
   have evalOne : (1 : Expr).eval env = (1 : F) := by
     apply Fin.ext
-    norm_num [Expr.eval, goldilocksModulus]
+    norm_num [Expr.eval, fieldModulus]
   funext lane
   by_cases hzero : lane.val = 0 <;>
     simp [Layer.evalState, padE, padF, hzero, evalOne]

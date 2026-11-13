@@ -17,14 +17,14 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 def PhysicalHolds
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (env : Env) : Prop :=
   R1CS.RowsHold env (physicalRows logicalWidth publicFits)
 
 theorem physical_implies_holdsFlat
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (env : Env)
     (physical : PhysicalHolds logicalWidth publicFits env) :
     holdsFlat env
@@ -39,7 +39,7 @@ theorem physical_implies_holdsFlat
 theorem physical_implies_specHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env)
     (physical : PhysicalHolds logicalWidth publicFits env) :
@@ -53,7 +53,7 @@ theorem physical_implies_specHolds
 theorem physical_implies_typed_base
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env)
     (physical : PhysicalHolds logicalWidth publicFits env)
@@ -68,7 +68,7 @@ theorem physical_implies_typed_base
 theorem physical_implies_typed_recursive
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env)
     (physical : PhysicalHolds logicalWidth publicFits env)
@@ -84,7 +84,7 @@ theorem physical_implies_typed_recursive
 theorem physicalRows_varsBelow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ∀ row ∈ physicalRows logicalWidth publicFits,
       row.VarsBelow (physicalColumnCount logicalWidth publicFits) := by
@@ -111,7 +111,7 @@ theorem physicalRows_varsBelow
 theorem physical_complete
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env)
     (specification : RunningTransition.SpecHolds

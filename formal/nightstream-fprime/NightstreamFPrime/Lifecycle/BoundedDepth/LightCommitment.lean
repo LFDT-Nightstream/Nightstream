@@ -12,7 +12,7 @@ namespace NightstreamFPrime.Lifecycle.BoundedDepth.LightCommitment
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
-open NightstreamFPrime.Spec.Phi81Relation
+open NightstreamFPrime.Spec.RingRelation
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 
@@ -67,7 +67,7 @@ theorem output_combination (interface : Interface) (offset : Nat) (env : Env)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The production Π_RLC commitment of `ρ · c_fresh + 1 · c_running`. -/
 theorem combine_eq (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth)
@@ -88,12 +88,12 @@ theorem output_eq (relation : ProductionKey.LogicalRelation logicalWidth publicF
     (interface : Interface) (offset : Nat) (env : Env)
     (spec : CombinationStep.SpecHolds (stepInterface interface) offset env)
     (system : StrongReduction.RelationSource BoundedDepth.LightShape
-      (Phi81CarrierLayout.carrierWidth logicalWidth)
-      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth)))
+      (RingCarrierLayout.carrierWidth logicalWidth)
+      (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth)))
     (point : CubePoint K BoundedDepth.LightShape.cubeVariables)
     (fresh running : CE.Instance (StrongReduction.RelationSource BoundedDepth.LightShape
-      (Phi81CarrierLayout.carrierWidth logicalWidth)
-      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth)))
+      (RingCarrierLayout.carrierWidth logicalWidth)
+      (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth)))
       (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       (CubePoint K BoundedDepth.LightShape.cubeVariables)
       (StrongReduction.EvaluationFamily K BoundedDepth.LightShape) PaperAlgebra.Commitment)

@@ -26,7 +26,7 @@ theorem childOp_holds_of_spec (name : String) (child : FormalCircuit)
 theorem specHolds_implies_holds
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (env : Env) (offset : Nat)
@@ -60,7 +60,7 @@ def rowCount (degreeBound : Nat) : Nat :=
 private theorem transcriptPrefix_localLength_eq
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     localLength (transcriptPrefixOps interface offset) =
@@ -76,7 +76,7 @@ private theorem transcriptPrefix_localLength_eq
 private theorem evaluationPrefix_localLength_eq
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     localLength (evaluationPrefixOps interface offset) =
@@ -92,7 +92,7 @@ private theorem evaluationPrefix_localLength_eq
 private theorem terminalPrefix_localLength_eq
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
@@ -107,7 +107,7 @@ private theorem terminalPrefix_localLength_eq
 private theorem transcriptPrefix_rowCount_eq
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     NightstreamFPrime.Circuit.rowCount
@@ -125,7 +125,7 @@ private theorem transcriptPrefix_rowCount_eq
 private theorem evaluationPrefix_rowCount_eq
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     NightstreamFPrime.Circuit.rowCount
@@ -142,7 +142,7 @@ private theorem evaluationPrefix_rowCount_eq
 private theorem terminalPrefix_rowCount_eq
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
@@ -159,7 +159,7 @@ private theorem terminalPrefix_rowCount_eq
 private theorem opsAt_eq_prefixes
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
@@ -172,7 +172,7 @@ private theorem opsAt_eq_prefixes
 theorem localLength_eq
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
@@ -189,7 +189,7 @@ theorem localLength_eq
 theorem flatConstraints_length_eq
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
@@ -208,19 +208,19 @@ theorem privateCount_eq_of_degreeBound_eq_eight (degreeBound : Nat)
   rw [degreeEq]
   norm_num [privateCount, RoundTranscript.perRoundRecipeCount,
     SumcheckChain.privateCount, FixedChain.Owned.privateCount,
-    productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+    productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 theorem rowCount_eq_of_degreeBound_eq_eight (degreeBound : Nat)
     (degreeEq : degreeBound = 8) : rowCount degreeBound = 1073369 := by
   rw [degreeEq]
   norm_num [rowCount, RoundTranscript.perRoundRecipeCount,
     SumcheckChain.privateCount, FixedChain.Owned.privateCount,
-    productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+    productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 theorem completePrefix_of_accepted
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -264,7 +264,7 @@ theorem completePrefix_of_accepted
 theorem completePrefix
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -284,7 +284,7 @@ theorem completePrefix
 theorem completeness
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -312,7 +312,7 @@ theorem completeness
 def circuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

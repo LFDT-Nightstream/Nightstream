@@ -1,18 +1,18 @@
 import Mathlib.Algebra.BigOperators.Fin
 import NightstreamFPrime.Spec.Algebra
-import NightstreamFPrime.Spec.Phi81StrongSet
+import NightstreamFPrime.Spec.RingStrongSet
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
-open NightstreamFPrime.Spec.Phi81StrongSet
+open NightstreamFPrime.Spec.RingStrongSet
 
 @[implicit_reducible] def drawWidth : Nat := 4
 
 abbrev Draw := Fin drawWidth → F
 
-def drawCount : Nat := goldilocksModulus ^ drawWidth
+def drawCount : Nat := fieldModulus ^ drawWidth
 
 def scalarCount : Nat := alphabetSize ^ coefficientCount
 
@@ -39,7 +39,7 @@ def sample (draw : Draw) : Scalar :=
   scalarIndex.symm (reduce (drawIndex draw))
 
 theorem drawIndex_val (draw : Draw) :
-    (drawIndex draw).val = ∑ index, (draw index).val * goldilocksModulus ^ index.val :=
+    (drawIndex draw).val = ∑ index, (draw index).val * fieldModulus ^ index.val :=
   finFunctionFinEquiv_apply draw
 
 theorem sample_val (draw : Draw) (position : Fin coefficientCount) :

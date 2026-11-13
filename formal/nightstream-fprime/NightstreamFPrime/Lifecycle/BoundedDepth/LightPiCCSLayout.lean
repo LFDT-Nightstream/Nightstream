@@ -26,7 +26,7 @@ open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 fresh instance, the SumCheck round messages and the Π_CCS output of both sources. -/
 structure Interface (logicalWidth degreeBound : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   runningPoint : Nat → Fin LightShape.cubeVariables → KExpr
   runningEvaluation : Nat → StatementAbsorption.EvaluationExpr
   fresh : Nat → StatementAbsorption.FreshExpr logicalWidth publicFits
@@ -35,7 +35,7 @@ structure Interface (logicalWidth degreeBound : Nat)
 
 variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (interface : Interface logicalWidth degreeBound publicFits) (offset : Nat)
 

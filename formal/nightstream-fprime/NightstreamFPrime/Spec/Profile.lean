@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Relation
 namespace NightstreamFPrime.Spec
 
 def productionGlobalParams : GlobalParams where
-  q := goldilocksModulus
+  q := fieldModulus
   b := 2
   k := 16
   maxFresh := 287

@@ -37,7 +37,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 structure ResidualShape (value : KExpr) : Prop where
   c0_mulCount : R1CS.mulCount value.c0 = 10

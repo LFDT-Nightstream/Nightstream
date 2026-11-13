@@ -46,7 +46,7 @@ def logicalWidth : Nat :=
   PhaseReference.logicalWidth
 
 theorem publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth :=
+    RingCarrierLayout.carrierWidth logicalWidth :=
   PhaseReference.publicFits
 
 def liftPilotTerm (term : SparseTerm) : SparseTerm :=
@@ -264,7 +264,7 @@ def privateSegments : List Segment :=
     piCcsOutputSegments.length = 34 := by
   norm_num [piCcsOutputSegments, productionShape, productionProfile,
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Shape.sourceCount,
-    NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81MatrixSource.phi81Shape]
+    NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingMatrixSource.ringShape]
 
 theorem outputEval_KSegment_mem
     (source : Fin productionShape.sourceCount) :

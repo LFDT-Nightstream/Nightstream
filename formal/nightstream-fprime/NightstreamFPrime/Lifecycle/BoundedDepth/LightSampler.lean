@@ -25,7 +25,7 @@ theorem challenge_eq (interface : Sampler.Interface) (env : Env) (offset : Nat)
 
 theorem challenge_valid (interface : Sampler.Interface) (env : Env) (offset : Nat)
     (spec : Sampler.SpecHolds interface 0 offset env) :
-    Phi81Relation.PiRLCAlgebra.Challenge.challengeValid
+    RingRelation.PiRLCAlgebra.Challenge.challengeValid
       (fun position => (Sampler.outputChallenge offset position).eval env) := by
   rw [challenge_eq interface env offset spec]
   exact lightChallenge_valid _

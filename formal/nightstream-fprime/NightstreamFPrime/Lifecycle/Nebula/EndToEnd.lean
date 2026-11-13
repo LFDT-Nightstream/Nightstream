@@ -27,7 +27,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
 open NightstreamFPrime.Lifecycle.Stage1
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper (TerminalStatement)
-open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
+open scoped NightstreamFPrime.Spec.FieldExtensionRing
 
 /-- A step history of `statement` for `program`: states from `z0` to `zi` in
 `iteration` steps, each step valid with its witness. -/

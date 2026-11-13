@@ -1,5 +1,5 @@
 import NightstreamFPrime.Lifecycle.Nebula.HonestWitness
-import NightstreamFPrime.Spec.GoldilocksExtensionRing
+import NightstreamFPrime.Spec.FieldExtensionRing
 
 /-! Owns the polynomial rows of the honest witness (completeness of the relation):
 for a reachable carry and an invocation that `invoke` accepts, every row of
@@ -10,7 +10,7 @@ namespace NightstreamFPrime.Lifecycle.Nebula.Honest
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
-open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
+open scoped NightstreamFPrime.Spec.FieldExtensionRing
 open Fin.CommRing
 
 variable {p : Geometry} {c : MemoryCarry} {σ : Type} {inv : Invocation σ Digest}
@@ -85,7 +85,7 @@ theorem canonical (valid : p.Valid) (reach : Reach p c) : c.Canonical := by
   have := reach.seg
   have := reach.idx
   have := reach.ts
-  refine ⟨?_, ?_, ?_⟩ <;> unfold goldilocksModulus at * <;> omega
+  refine ⟨?_, ?_, ?_⟩ <;> unfold fieldModulus at * <;> omega
 
 /-! ### Witness words -/
 
@@ -106,7 +106,7 @@ theorem openZero : ((witness p c inv appIn appOut aux).cIn 1 - natWord p.n) * (w
   · simp [h, bitWord]
 
 /-- A difference of two canonical counters is zero only when they are equal. -/
-theorem natWord_sub_ne {a b : ℕ} (ha : a < goldilocksModulus) (hb : b < goldilocksModulus)
+theorem natWord_sub_ne {a b : ℕ} (ha : a < fieldModulus) (hb : b < fieldModulus)
     (ne : a ≠ b) : natWord a - natWord b ≠ 0 :=
   fun zero => ne (natWord_injective ha hb (sub_eq_zero.mp zero))
 
@@ -479,7 +479,7 @@ theorem readProduct_row (valid : p.Valid) (accepted : Accepted p c inv) (j : Fin
         ((witness p c inv appIn appOut aux).globalIndex j) ((witness p c inv appIn appOut aux).vr j))) := by
   have fits := accepted.rows.shaped.opsFit _ (opSlot_mem accepted j)
   rw [(opsProductAfter_val appIn appOut aux (j.val + 1) j.isLt).1, (opsProductAfter_val appIn appOut aux j.val j.isLt.le).1,
-    ← GoldilocksExtensionRing.mul_eq,
+    ← FieldExtensionRing.mul_eq,
     gatedK_bit (show IsBit ((witness p c inv appIn appOut aux).pad j) from bitWord_isBit _),
     fingerprintK_eq, eta_pair, globalIndex_val appIn appOut aux valid accepted j]
   show _ = _ * (if toBool (bitWord (opSlot inv j).pad) then 1 else fingerprint (start p c inv).eta
@@ -498,7 +498,7 @@ theorem writeProduct_row (valid : p.Valid) (accepted : Accepted p c inv) (j : Fi
         ((witness p c inv appIn appOut aux).globalIndex j) ((witness p c inv appIn appOut aux).vw j))) := by
   have fits := accepted.rows.shaped.opsFit _ (opSlot_mem accepted j)
   rw [(opsProductAfter_val appIn appOut aux (j.val + 1) j.isLt).2, (opsProductAfter_val appIn appOut aux j.val j.isLt.le).2,
-    ← GoldilocksExtensionRing.mul_eq,
+    ← FieldExtensionRing.mul_eq,
     gatedK_bit (show IsBit ((witness p c inv appIn appOut aux).pad j) from bitWord_isBit _),
     fingerprintK_eq, eta_pair, globalIndex_val appIn appOut aux valid accepted j]
   show _ = _ * (if toBool (bitWord (opSlot inv j).pad) then 1 else fingerprint (start p c inv).eta
@@ -531,7 +531,7 @@ theorem scanIndex_val (valid : p.Valid) (reach : Reach p c) (j : Fin p.bScan) :
   have idxLt := start_idx_lt (inv := inv) valid reach
   have cover := valid.exactCover
   have below := valid.belowModulus
-  have bound : (start p c inv).idx * p.bScan + j.val < goldilocksModulus := by
+  have bound : (start p c inv).idx * p.bScan + j.val < fieldModulus := by
     have : (start p c inv).idx * p.bScan + j.val < p.n * p.bScan := by
       calc (start p c inv).idx * p.bScan + j.val < (start p c inv).idx * p.bScan + p.bScan := by
             omega
@@ -555,7 +555,7 @@ theorem initialProduct_row (valid : p.Valid) (reach : Reach p c) (accepted : Acc
     exact List.getElem_mem _
   have fits := accepted.rows.shaped.initialFit _ member
   rw [(scanProductAfter_val appIn appOut aux (j.val + 1) j.isLt).1, (scanProductAfter_val appIn appOut aux j.val j.isLt.le).1,
-    ← GoldilocksExtensionRing.mul_eq, fingerprintK_eq, eta_pair,
+    ← FieldExtensionRing.mul_eq, fingerprintK_eq, eta_pair,
     scanIndex_val appIn appOut aux valid reach]
   show _ = _ * fingerprint (start p c inv).eta
     ((bitsWord (natBits p.wTs (initialSlot inv j).stamp)).val, _,
@@ -582,7 +582,7 @@ theorem finalProduct_row (valid : p.Valid) (reach : Reach p c) (accepted : Accep
     exact List.getElem_mem _
   have fits := accepted.rows.shaped.finalFit _ member
   rw [(scanProductAfter_val appIn appOut aux (j.val + 1) j.isLt).2, (scanProductAfter_val appIn appOut aux j.val j.isLt.le).2,
-    ← GoldilocksExtensionRing.mul_eq, fingerprintK_eq, eta_pair,
+    ← FieldExtensionRing.mul_eq, fingerprintK_eq, eta_pair,
     scanIndex_val appIn appOut aux valid reach]
   show _ = _ * fingerprint (start p c inv).eta
     ((bitsWord (natBits p.wTs (finalSlot inv j).stamp)).val, _,
@@ -672,7 +672,7 @@ theorem closeTest_row (valid : p.Valid) (reach : Reach p c) :
   rw [finished_idx]
   by_cases h : (stepped p c inv).idx = p.n
   · simp [h, bitWord]
-  · have small : (stepped p c inv).idx < goldilocksModulus := by
+  · have small : (stepped p c inv).idx < fieldModulus := by
       have := start_idx_lt (inv := inv) valid reach
       have := Geometry.n_lt valid
       show (start p c inv).idx + 1 < _
@@ -721,8 +721,8 @@ theorem closeProducts_row (accepted : Accepted p c inv) :
   show K.mul (embed (bitWord (decide ((stepped p c inv).idx = p.n))))
     (K.sub (K.mul (finished p c inv).products.initial (finished p c inv).products.write)
       (K.mul (finished p c inv).products.read (finished p c inv).products.final)) = K.zero
-  simp only [← GoldilocksExtensionRing.mul_eq, ← GoldilocksExtensionRing.sub_eq,
-    ← GoldilocksExtensionRing.zero_eq, finished_products]
+  simp only [← FieldExtensionRing.mul_eq, ← FieldExtensionRing.sub_eq,
+    ← FieldExtensionRing.zero_eq, finished_products]
   by_cases h : (stepped p c inv).idx = p.n
   · rw [(accepted.closes h).2.2.2, sub_self, mul_zero]
   · have zero : embed (bitWord (decide ((stepped p c inv).idx = p.n))) = 0 := by

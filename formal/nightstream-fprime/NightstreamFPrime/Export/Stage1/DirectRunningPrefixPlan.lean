@@ -29,7 +29,7 @@ def transitionPlan
     {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
@@ -39,7 +39,7 @@ theorem rowCount_le
     {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (values : PiRLCRetainedInputs.Values logicalWidth)
@@ -54,7 +54,7 @@ def plan
     {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (values : PiRLCRetainedInputs.Values logicalWidth)
@@ -67,7 +67,7 @@ def plan
     {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (values : PiRLCRetainedInputs.Values logicalWidth)
@@ -79,7 +79,7 @@ theorem rowsZero_iff
     {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (values : PiRLCRetainedInputs.Values logicalWidth)
@@ -110,7 +110,7 @@ structure Semantics
     {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (geometry : RunningTransitionRetainedGeometry.Geometry program logicalWidth)
@@ -144,7 +144,7 @@ theorem rowsZero_implies_semantics
     {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (payloadForms : PiCCSPoseidonPlan.Payload logicalWidth)
     (values : PiRLCRetainedInputs.Values logicalWidth)

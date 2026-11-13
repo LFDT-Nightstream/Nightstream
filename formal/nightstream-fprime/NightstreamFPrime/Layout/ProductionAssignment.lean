@@ -5,7 +5,7 @@ namespace NightstreamFPrime.Layout.ProductionAssignment
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation
+open NightstreamFPrime.Spec.RingRelation
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
@@ -21,11 +21,11 @@ def logicalWidth {sourceWidth : Nat}
 theorem publicFits {sourceWidth : Nat}
     (slots : List (LowNormAssignment.Slot sourceWidth)) :
     ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth (logicalWidth slots) := by
-  change publicWidth ≤ Phi81CarrierLayout.carrierWidth (logicalWidth slots)
+      RingCarrierLayout.carrierWidth (logicalWidth slots) := by
+  change publicWidth ≤ RingCarrierLayout.carrierWidth (logicalWidth slots)
   apply Nat.le_trans (show publicWidth ≤ logicalWidth slots by
     simp [logicalWidth])
-  exact Phi81CarrierLayout.logicalWidth_le_carrierWidth _
+  exact RingCarrierLayout.logicalWidth_le_carrierWidth _
 
 private def privateCoordinate {sourceWidth : Nat}
     (slots : List (LowNormAssignment.Slot sourceWidth))
@@ -116,11 +116,11 @@ theorem projectPublicInput_completeAssignment {sourceWidth : Nat}
     (publicInput : Fin publicWidth → F)
     (slots : List (LowNormAssignment.Slot sourceWidth))
     (source : Fin sourceWidth → F) :
-    Phi81Relation.projectPublicInput
+    RingRelation.projectPublicInput
         (completeAssignment publicInput slots source) = publicInput := by
   funext column
-  unfold Phi81Relation.projectPublicInput completeAssignment
-    Phi81Relation.Shape.publicColumn
+  unfold RingRelation.projectPublicInput completeAssignment
+    RingRelation.Shape.publicColumn
   have logicalRegion : column.val < logicalWidth slots := by
     have columnBound : column.val < publicWidth := by
       have rawBound := column.isLt
@@ -164,7 +164,7 @@ theorem completeAssignment_norm {sourceWidth : Nat}
     (publicNorm : ∀ column, centeredMagnitude (publicInput column) < 2)
     (privateValid : ∀ slot ∈ slots, slot.Valid source)
     (column : Fin
-      (Phi81CarrierLayout.carrierWidth (logicalWidth slots))) :
+      (RingCarrierLayout.carrierWidth (logicalWidth slots))) :
     centeredMagnitude (completeAssignment publicInput slots source column) < 2 := by
   unfold completeAssignment
   split
@@ -178,7 +178,7 @@ theorem encHash_completeAssignment_norm {sourceWidth : Nat}
     (source : Fin sourceWidth → F)
     (privateValid : ∀ slot ∈ slots, slot.Valid source)
     (column : Fin
-      (Phi81CarrierLayout.carrierWidth (logicalWidth slots))) :
+      (RingCarrierLayout.carrierWidth (logicalWidth slots))) :
     centeredMagnitude
       (completeAssignment
         (encHash (publicFits := publicFits slots) digest) slots source column) < 2 :=

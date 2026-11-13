@@ -24,8 +24,8 @@ def baseShapeRelation :
   matrices := fun _ _ _ => 0
   cubeFits := by
     norm_num [Data.logicalWidth, PhaseReference.logicalWidth,
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth,
-      Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount,
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth,
+      Spec.Folding.PiCCS.PaperJoint.ConcreteRingColumnLayout.blockCount,
       Lifecycle.cubeVariables, Spec.ringDegree]
 
 def shiftCompiledRow (application : ApplicationProgram) :
@@ -251,7 +251,7 @@ private theorem piDecRowEnd : RunningTransitionArithmetic.rowStart =
     PiDECStarts.inputRowStart, Nat.add_assoc]
 private theorem piDecCanonicalRows_length {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth logicalWidth}
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth publicFits) :
     (PiDECArithmetic.canonicalPlan logicalWidth publicFits).rows.length =
       PiDEC.v1_2.exactRowCount := by
@@ -961,7 +961,7 @@ theorem indexedApplicationPackageSourceRow?_eq_some
 theorem piCcsPackageSourceRow?_eq_some
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (application : ApplicationProgram)
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
@@ -1017,7 +1017,7 @@ theorem piCcsPackageSourceRow?_eq_some
 theorem samplerPackageSourceRow?_eq_some
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (application : ApplicationProgram) (index : Fin 14943)
     (sourceIndex : Nat)
@@ -1146,7 +1146,7 @@ private theorem ofFn_cast_get {Alpha : Type} (rows : List Alpha) {count : Nat}
 def piDecProgramRow
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (_relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
       publicFits) (index : Fin PiDEC.v1_2.exactRowCount) : R1CS.Row :=
@@ -1156,7 +1156,7 @@ def piDecProgramRow
 theorem piDecProgramRows_eq
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
       publicFits) :
@@ -1176,7 +1176,7 @@ theorem piDecProgramRows_eq
 theorem piDecPackageSourceRow?_eq_some
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (application : ApplicationProgram)
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
@@ -1227,7 +1227,7 @@ def piDecPublicIndex (index : Fin PiDEC.v1_2.PublicInputSplit.physicalRowCount) 
 theorem piDecProgramRow_public
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
       publicFits) (index : Fin PiDEC.v1_2.PublicInputSplit.physicalRowCount) :
@@ -1255,7 +1255,7 @@ def piDecCommitmentIndex (index : Fin PiDEC.v1_2.CommitmentRecomposition.physica
 theorem piDecProgramRow_commitment
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
       publicFits) (index : Fin PiDEC.v1_2.CommitmentRecomposition.physicalRowCount) :
@@ -1301,7 +1301,7 @@ def piDecEvalKIndex (index : Fin PiDEC.v1_2.EvalKRecomposition.physicalRowCount)
 theorem piDecProgramRow_evalK
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
       publicFits) (index : Fin PiDEC.v1_2.EvalKRecomposition.physicalRowCount) :
@@ -1346,7 +1346,7 @@ def piDecEvalAIndex (index : Fin PiDEC.v1_2.EvalARecomposition.physicalRowCount)
 theorem piDecProgramRow_evalA
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
       publicFits) (index : Fin PiDEC.v1_2.EvalARecomposition.physicalRowCount) :
@@ -1385,7 +1385,7 @@ theorem piDecProgramRow_evalA
 theorem piDecPublicPackageSourceRow?_eq_some
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (application : ApplicationProgram)
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
@@ -1404,7 +1404,7 @@ theorem piDecPublicPackageSourceRow?_eq_some
 theorem piDecCommitmentPackageSourceRow?_eq_some
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (application : ApplicationProgram)
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
@@ -1422,7 +1422,7 @@ theorem piDecCommitmentPackageSourceRow?_eq_some
 theorem piDecEvalKPackageSourceRow?_eq_some
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (application : ApplicationProgram)
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth
@@ -1440,7 +1440,7 @@ theorem piDecEvalKPackageSourceRow?_eq_some
 theorem piDecEvalAPackageSourceRow?_eq_some
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (application : ApplicationProgram)
     (relation : Lifecycle.ProductionKey.LogicalRelation logicalWidth

@@ -13,7 +13,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 def outputRunning
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (env : Env) :
     Running (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   StateDecoder.running logicalWidth publicFits
@@ -22,7 +22,7 @@ def outputRunning
 theorem spec_typed_base
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {env : Env}
     (specification : RunningTransition.SpecHolds
       (interface logicalWidth publicFits) phaseOffset env)
@@ -37,7 +37,7 @@ theorem spec_typed_base
 theorem spec_typed_recursive
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {env : Env}
     (specification : RunningTransition.SpecHolds
       (interface logicalWidth publicFits) phaseOffset env)
@@ -54,7 +54,7 @@ theorem spec_typed_recursive
 theorem recursive_canonical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (env : Env)
     (split : NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit.RelationHolds
       (NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.publicInputInterface
@@ -71,7 +71,7 @@ theorem recursive_canonical
 def piDecRunningOutput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :
     NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Running K
@@ -95,7 +95,7 @@ def piDecRunningOutput
 theorem eval_recursiveRunningExpr_eq_piDecRunningOutput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :
     StatementAbsorption.evalRunning
@@ -106,7 +106,7 @@ theorem eval_recursiveRunningExpr_eq_piDecRunningOutput
 theorem spec_typed_recursive_eq_piDecOutput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {env : Env}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (specification : RunningTransition.SpecHolds

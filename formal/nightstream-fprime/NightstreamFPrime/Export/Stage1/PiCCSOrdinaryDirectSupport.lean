@@ -38,7 +38,7 @@ private theorem k_external_source {value : KExpr}
 private theorem externalInputsSource
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth} :
+      RingCarrierLayout.carrierWidth logicalWidth} :
     Formal.ExternalInputsSupported
       (PiCCSArithmetic.parentInterface logicalWidth publicFits)
       PiCCSInputs.phaseOffset Source := by
@@ -99,7 +99,7 @@ private theorem externalInputsSource
 private theorem sharedInputsSource
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth} :
+      RingCarrierLayout.carrierWidth logicalWidth} :
     Formal.ExternalInputsSupported
       (PiCCSArithmetic.sharedInterface logicalWidth publicFits)
       PiCCSInputs.phaseOffset Source := by
@@ -268,7 +268,7 @@ private theorem final_finish_le :
 theorem emittedConstraints_varsSatisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth} :
+      RingCarrierLayout.carrierWidth logicalWidth} :
     ∀ expression ∈ PiCCSCompleteness.emittedConstraints
         logicalWidth publicFits,
       expression.VarsSatisfy Source := by
@@ -604,7 +604,7 @@ theorem emittedConstraints_varsSatisfy
 theorem sourceRows_varsSatisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ∀ row ∈ PiCCSOrdinaryDirectSource.sourceRows logicalWidth publicFits,
       row.VarsSatisfy Target := by

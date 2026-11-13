@@ -20,7 +20,7 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.CcsTerminal
 import NightstreamFPrime.Lifecycle.Stage1.Terminal
 import NightstreamFPrime.Spec
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
@@ -45,8 +45,8 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Spec.Nebula.productEq_of_balanced
 #audit_axioms NightstreamFPrime.Spec.Nebula.badChallenges_card
 #audit_axioms NightstreamFPrime.Spec.Nebula.badChallenges_frequency
-#audit_axioms NightstreamFPrime.Spec.GoldilocksExtensionRing.card_K
-#audit_axioms NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint.goldilocks_badChallenges_frequency
+#audit_axioms NightstreamFPrime.Spec.FieldExtensionRing.card_K
+#audit_axioms NightstreamFPrime.Spec.Nebula.FieldFingerprint.field_badChallenges_frequency
 #audit_axioms NightstreamFPrime.Spec.Nebula.stepProducts_eq
 #audit_axioms NightstreamFPrime.Spec.Nebula.activeOps_length
 #audit_axioms NightstreamFPrime.Spec.Nebula.stepMultisets_small
@@ -103,7 +103,7 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Spec.Nebula.initialInputs_canonical
 #audit_axioms NightstreamFPrime.Spec.Nebula.runInputs_canonical
 #audit_axioms NightstreamFPrime.Spec.Nebula.Geometry.secure_iff
-#audit_axioms NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint.goldilocks_segment_fingerprint_bound
+#audit_axioms NightstreamFPrime.Spec.Nebula.FieldFingerprint.field_segment_fingerprint_bound
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.absorbBlocks_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.blockChunks_cons
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.blockChunks_injective
@@ -126,10 +126,10 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.context_hash
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.badAt_bound
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.closing_collision_transcript
-#audit_axioms NightstreamFPrime.Spec.GoldilocksExtensionRing.add_eq
-#audit_axioms NightstreamFPrime.Spec.GoldilocksExtensionRing.sub_eq
-#audit_axioms NightstreamFPrime.Spec.GoldilocksExtensionRing.mul_eq
-#audit_axioms NightstreamFPrime.Spec.GoldilocksExtensionRing.natCast_eq
+#audit_axioms NightstreamFPrime.Spec.FieldExtensionRing.add_eq
+#audit_axioms NightstreamFPrime.Spec.FieldExtensionRing.sub_eq
+#audit_axioms NightstreamFPrime.Spec.FieldExtensionRing.mul_eq
+#audit_axioms NightstreamFPrime.Spec.FieldExtensionRing.natCast_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.decodeCarry_carryVector
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.carryVector_decodeCarry
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.carryVector_injective
@@ -706,9 +706,9 @@ plans (`SlotPlan`), batched catalogs (`Batch`) and the free application
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Expr.eval_one
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Expr.eval_two
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sponge.main_ops
-#audit_axioms NightstreamFPrime.Spec.GoldilocksExtensionRing.zero_eq
-#audit_axioms NightstreamFPrime.Spec.GoldilocksExtensionRing.one_eq
-#audit_axioms NightstreamFPrime.Spec.GoldilocksExtensionRing.neg_eq
+#audit_axioms NightstreamFPrime.Spec.FieldExtensionRing.zero_eq
+#audit_axioms NightstreamFPrime.Spec.FieldExtensionRing.one_eq
+#audit_axioms NightstreamFPrime.Spec.FieldExtensionRing.neg_eq
 #audit_axioms NightstreamFPrime.Spec.Nebula.pack_nil
 #audit_axioms NightstreamFPrime.Spec.Nebula.pack_of_ne_nil
 #audit_axioms NightstreamFPrime.Spec.Nebula.chunkValue_lt

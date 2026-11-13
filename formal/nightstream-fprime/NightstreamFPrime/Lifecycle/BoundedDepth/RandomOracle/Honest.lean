@@ -37,7 +37,7 @@ open NightstreamFPrime.Lifecycle.RandomOracle
 open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink (Attempt)
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
 /-- A claim that opens under the semantics has one evaluation family, so it is a slot claim. -/
@@ -59,7 +59,7 @@ theorem light_honest {oracle : RomModel.Oracle logicalWidth publicFits}
     (circuit : Fin 2) (lightStep : Spec.HyperNova.Construction2.BoundedDepth.circuitStep circuit = .light)
     (room : start.2 < Folding.Schedule.productionLightFoldCap)
     (fresh : StepFresh logicalWidth publicFits)
-    (witness : OutputWitness LightShape (Phi81CarrierLayout.carrierWidth logicalWidth))
+    (witness : OutputWitness LightShape (RingCarrierLayout.carrierWidth logicalWidth))
     (bound : Nat)
     (within : bound + (keys key.relation ajtai).light.params.expansionT *
         ((keys key.relation ajtai).light.params.b - 1) ≤
@@ -69,7 +69,7 @@ theorem light_honest {oracle : RomModel.Oracle logicalWidth publicFits}
       PriorLink prior start fold)
     (freshOpening : Opening.Holds
       (paperRelationSemantics (shape := LightShape)
-        (blockCount := Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
+        (blockCount := ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth))
         (keys key.relation ajtai).light.baseOps (keys key.relation ajtai).light.extensionOps
         (keys key.relation ajtai).light.lift (keys key.relation ajtai).light.openingMaps)
       (keys key.relation ajtai).light.params.b
@@ -80,7 +80,7 @@ theorem light_honest {oracle : RomModel.Oracle logicalWidth publicFits}
       (witness.assignments (keys key.relation ajtai).light.freshSource))
     (runningOpening : Opening.Holds
       (paperRelationSemantics (shape := LightShape)
-        (blockCount := Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
+        (blockCount := ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth))
         (keys key.relation ajtai).light.baseOps (keys key.relation ajtai).light.extensionOps
         (keys key.relation ajtai).light.lift (keys key.relation ajtai).light.openingMaps)
       bound

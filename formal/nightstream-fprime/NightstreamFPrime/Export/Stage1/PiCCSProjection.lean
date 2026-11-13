@@ -25,13 +25,13 @@ theorem fastOutput_eq_compile (witnessStart : Nat)
 
 def fastStatementState (logicalWidth : Nat) (publicFits :
     ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : EState :=
+      RingCarrierLayout.carrierWidth logicalWidth) : EState :=
   fastOutput PiCCSInvocations.statementWitnessStart (fun _ => Hash.zeroE)
     (PiCCSInvocations.statementActions logicalWidth publicFits)
 
 theorem fastStatementState_eq (logicalWidth : Nat) (publicFits :
     ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     fastStatementState logicalWidth publicFits =
       (PiCCSInvocations.statementTrace logicalWidth publicFits).state := by
   calc
@@ -48,14 +48,14 @@ theorem fastStatementState_eq (logicalWidth : Nat) (publicFits :
 
 def fastChallengeState (logicalWidth : Nat) (publicFits :
     ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : EState :=
+      RingCarrierLayout.carrierWidth logicalWidth) : EState :=
   fastOutput PiCCSInvocations.challengeWitnessStart
     (fun _ => fastStatementState logicalWidth publicFits)
     (PiCCSInvocations.challengeActions logicalWidth publicFits)
 
 theorem fastChallengeState_eq (logicalWidth : Nat) (publicFits :
     ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     fastChallengeState logicalWidth publicFits =
       (PiCCSInvocations.challengeTrace logicalWidth publicFits).state := by
   calc
@@ -75,14 +75,14 @@ theorem fastChallengeState_eq (logicalWidth : Nat) (publicFits :
 
 def fastRoundState (logicalWidth : Nat) (publicFits :
     ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : EState :=
+      RingCarrierLayout.carrierWidth logicalWidth) : EState :=
   fastOutput PiCCSInvocations.roundWitnessStart
     (fun _ => fastChallengeState logicalWidth publicFits)
     (PiCCSInvocations.roundActions logicalWidth publicFits)
 
 theorem fastRoundState_eq (logicalWidth : Nat) (publicFits :
     ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     fastRoundState logicalWidth publicFits =
       (PiCCSInvocations.roundTrace logicalWidth publicFits).state := by
   calc
@@ -102,14 +102,14 @@ theorem fastRoundState_eq (logicalWidth : Nat) (publicFits :
 
 def fastOutputState (logicalWidth : Nat) (publicFits :
     ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : EState :=
+      RingCarrierLayout.carrierWidth logicalWidth) : EState :=
   fastOutput PiCCSInvocations.outputWitnessStart
     (fun _ => fastRoundState logicalWidth publicFits)
     (PiCCSInvocations.outputActions logicalWidth publicFits)
 
 theorem fastOutputState_eq (logicalWidth : Nat) (publicFits :
     ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     fastOutputState logicalWidth publicFits =
       (PiCCSInvocations.outputTrace logicalWidth publicFits).state := by
   calc

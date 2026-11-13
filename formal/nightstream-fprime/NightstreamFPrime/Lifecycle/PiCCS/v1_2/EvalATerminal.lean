@@ -155,7 +155,7 @@ theorem spec_implies_matrixAtMessage (interface : ShapeInterface shape) (offset 
 end Shape
 
 private theorem cubeVariables_positive : 0 < productionShape.cubeVariables := by
-  norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+  norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 def circuit (interface : Interface) : FormalCircuit :=
   PointWeightedHorner.Owned.circuit
@@ -206,13 +206,13 @@ theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
     (coefficientExprs interface offset).length = 3456 := by
   simp only [coefficientExprs, List.length_map]
   simp [canonicalMatrixCoordinates_length, productionShape,
-    productionProfile, Phi81MatrixSource.phi81Shape,
+    productionProfile, RingMatrixSource.ringShape,
     Shape.matrixEvaluationCount, ringDegree]
 
 theorem pointLength_eq (interface : Interface) (offset : Nat) :
     pointLength interface offset = 110 := by
   unfold pointLength
-  simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
+  simpa [productionShape, RingMatrixSource.ringShape, cubeVariables] using
     PointWeightedHorner.Owned.pointLength_eq_of_positive
       (coreInterface interface) offset cubeVariables_positive
 
@@ -232,7 +232,7 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
   change (4 * productionShape.cubeVariables - 2) +
     3 * ((coefficientExprs interface offset).length - 1) = 10475
   rw [coefficientExprs_length]
-  norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+  norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 theorem operations_length (interface : Interface) (offset : Nat) :
     (Circuit.ops (circuit interface).main offset).length = 2 :=
@@ -247,12 +247,12 @@ theorem flatConstraints_length (interface : Interface) (offset : Nat) :
   change (4 * productionShape.cubeVariables - 2) +
     3 * ((coefficientExprs interface offset).length - 1) = 10475
   rw [coefficientExprs_length]
-  norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+  norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 theorem spec_implies_keyMatrixAtMessage
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

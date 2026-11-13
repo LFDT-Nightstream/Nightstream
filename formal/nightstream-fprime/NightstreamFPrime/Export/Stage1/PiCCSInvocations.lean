@@ -46,7 +46,7 @@ def outputWitnessStart : Nat :=
 def parentInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface
       logicalWidth 8 publicFits :=
   NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
@@ -55,7 +55,7 @@ def parentInterface
 def sharedInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface
       logicalWidth 8 publicFits :=
   NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.atOffset
@@ -64,7 +64,7 @@ def sharedInterface
 theorem inputShapes
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     NightstreamFPrime.Layout.PiCCS.v1_2.InputShapes relation
       (parentInterface logicalWidth publicFits) phaseOffset :=
@@ -76,35 +76,35 @@ theorem inputShapes
 def statementInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.statementAbsorptionInterface
     (sharedInterface logicalWidth publicFits)
 
 def challengeInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.challengeInterface
     (parentInterface logicalWidth publicFits) phaseOffset
 
 def roundInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.roundTranscriptInterface
     (sharedInterface logicalWidth publicFits)
 
 def outputInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.outputBindingInterface
     (sharedInterface logicalWidth publicFits)
 
 theorem statementWitnessStart_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     statementWitnessStart =
       Formal.statementAbsorptionOffset
         (parentInterface logicalWidth publicFits) phaseOffset := by
@@ -114,7 +114,7 @@ theorem statementWitnessStart_matches
 theorem challengeWitnessStart_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     challengeWitnessStart =
       Formal.challengeOffset (parentInterface logicalWidth publicFits)
         phaseOffset := by
@@ -125,7 +125,7 @@ theorem challengeWitnessStart_matches
 theorem roundWitnessStart_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     roundWitnessStart =
       Formal.roundTranscriptOffset (parentInterface logicalWidth publicFits)
         phaseOffset := by
@@ -136,7 +136,7 @@ theorem roundWitnessStart_matches
 theorem outputWitnessStart_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     outputWitnessStart =
       Formal.outputBindingOffset relation
@@ -151,41 +151,41 @@ theorem outputWitnessStart_matches
 def statementActions
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   StatementAbsorption.actions (statementInterface logicalWidth publicFits)
     statementWitnessStart
 
 def challengeActions
     (_logicalWidth : Nat)
     (_publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth _logicalWidth) : List Formal.Action :=
+      RingCarrierLayout.carrierWidth _logicalWidth) : List Formal.Action :=
   ChallengeDerivation.layoutActions
 
 def roundActions
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   RoundTranscript.layoutActions (roundInterface logicalWidth publicFits)
     roundWitnessStart
 
 def outputActions
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   OutputBinding.actions (outputInterface logicalWidth publicFits)
     outputWitnessStart
 
 def statementTrace
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Trace :=
+      RingCarrierLayout.carrierWidth logicalWidth) : Trace :=
   compileActions statementPhase statementRowStart statementWitnessStart
     Hash.zeroE (statementActions logicalWidth publicFits)
 
 def challengeTrace
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Trace :=
+      RingCarrierLayout.carrierWidth logicalWidth) : Trace :=
   compileActions challengePhase challengeRowStart challengeWitnessStart
     (statementTrace logicalWidth publicFits).state
     (challengeActions logicalWidth publicFits)
@@ -193,7 +193,7 @@ def challengeTrace
 def challengeSemanticTrace
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Trace :=
+      RingCarrierLayout.carrierWidth logicalWidth) : Trace :=
   compileActions challengePhase challengeRowStart challengeWitnessStart
     ((challengeInterface logicalWidth publicFits).initialState
       challengeWitnessStart)
@@ -203,7 +203,7 @@ def challengeSemanticTrace
 def roundTrace
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Trace :=
+      RingCarrierLayout.carrierWidth logicalWidth) : Trace :=
   compileActions roundPhase roundRowStart roundWitnessStart
     (challengeTrace logicalWidth publicFits).state
     (roundActions logicalWidth publicFits)
@@ -211,7 +211,7 @@ def roundTrace
 def roundSemanticTrace
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Trace :=
+      RingCarrierLayout.carrierWidth logicalWidth) : Trace :=
   compileActions roundPhase roundRowStart roundWitnessStart
     ((roundInterface logicalWidth publicFits).initialState roundWitnessStart)
     (RoundTranscript.actions (roundInterface logicalWidth publicFits)
@@ -220,7 +220,7 @@ def roundSemanticTrace
 def outputTrace
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Trace :=
+      RingCarrierLayout.carrierWidth logicalWidth) : Trace :=
   compileActions outputPhase outputRowStart outputWitnessStart
     (roundTrace logicalWidth publicFits).state
     (outputActions logicalWidth publicFits)
@@ -228,7 +228,7 @@ def outputTrace
 def outputSemanticTrace
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Trace :=
+      RingCarrierLayout.carrierWidth logicalWidth) : Trace :=
   compileActions outputPhase outputRowStart outputWitnessStart
     ((outputInterface logicalWidth publicFits).initialState outputWitnessStart)
     (OutputBinding.actions (outputInterface logicalWidth publicFits)
@@ -237,7 +237,7 @@ def outputSemanticTrace
 theorem challengeActions_shape_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (challengeActions logicalWidth publicFits).map Formal.Action.shape =
       (ChallengeDerivation.actions
         (challengeInterface logicalWidth publicFits)
@@ -249,7 +249,7 @@ theorem challengeActions_shape_matches
 theorem roundActions_shape_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (roundActions logicalWidth publicFits).map Formal.Action.shape =
       (RoundTranscript.actions (roundInterface logicalWidth publicFits)
         roundWitnessStart).map Formal.Action.shape := by
@@ -259,7 +259,7 @@ theorem roundActions_shape_matches
 theorem statementTrace_state_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (statementTrace logicalWidth publicFits).state =
       StatementAbsorption.finalState
         (statementInterface logicalWidth publicFits)
@@ -272,7 +272,7 @@ theorem statementTrace_state_matches
 theorem statementTrace_implies_spec
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env)
     (holds : ∀ current ∈
@@ -313,7 +313,7 @@ theorem statementTrace_implies_spec
 theorem challengeInitialState_eq_statementFinalState
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (challengeInterface logicalWidth publicFits).initialState
         challengeWitnessStart =
       StatementAbsorption.finalState
@@ -359,7 +359,7 @@ theorem challengeInitialState_eq_statementFinalState
 theorem challengeTrace_state_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (challengeTrace logicalWidth publicFits).state =
       ChallengeDerivation.finalState
         (challengeInterface logicalWidth publicFits)
@@ -398,7 +398,7 @@ theorem challengeTrace_state_matches
 theorem challengeTrace_eq_semantic
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     challengeTrace logicalWidth publicFits =
       challengeSemanticTrace logicalWidth publicFits := by
   have initialEq : (statementTrace logicalWidth publicFits).state =
@@ -421,7 +421,7 @@ theorem challengeTrace_eq_semantic
 theorem challengeTrace_implies_spec
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env)
     (holds : ∀ current ∈
@@ -478,7 +478,7 @@ theorem challengeTrace_implies_spec
 theorem roundTrace_eq_semantic
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     roundTrace logicalWidth publicFits =
       roundSemanticTrace logicalWidth publicFits := by
   have initialEq : (challengeTrace logicalWidth publicFits).state =
@@ -500,7 +500,7 @@ theorem roundTrace_eq_semantic
 theorem roundTrace_implies_spec
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env)
     (holds : ∀ current ∈ (roundTrace logicalWidth publicFits).invocations,
@@ -557,7 +557,7 @@ theorem roundTrace_implies_spec
 theorem roundTrace_state_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (roundTrace logicalWidth publicFits).state =
       RoundTranscript.finalState (roundInterface logicalWidth publicFits)
         roundWitnessStart := by
@@ -578,7 +578,7 @@ theorem roundTrace_state_matches
 theorem outputTrace_eq_semantic
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     outputTrace logicalWidth publicFits =
       outputSemanticTrace logicalWidth publicFits := by
   have initialEq : (roundTrace logicalWidth publicFits).state =
@@ -594,7 +594,7 @@ theorem outputTrace_eq_semantic
 theorem outputSemanticTrace_state_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (outputSemanticTrace logicalWidth publicFits).state =
       OutputBinding.finalState (outputInterface logicalWidth publicFits)
         outputWitnessStart := by
@@ -610,7 +610,7 @@ theorem outputSemanticTrace_state_matches
 theorem outputTrace_implies_spec
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env)
     (holds : ∀ current ∈ (outputTrace logicalWidth publicFits).invocations,
@@ -665,7 +665,7 @@ theorem outputTrace_implies_spec
 def invocations
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     List PermutationInvocation :=
   (statementTrace logicalWidth publicFits).invocations ++
     (challengeTrace logicalWidth publicFits).invocations ++
@@ -675,7 +675,7 @@ def invocations
 structure TranscriptSpecs
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (env : Env) : Prop where
   statementAbsorption :
     StatementAbsorption.SpecHolds
@@ -697,7 +697,7 @@ structure TranscriptSpecs
 theorem TranscriptSpecs.statementAbsorption_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {env : Env} (specs : TranscriptSpecs logicalWidth publicFits env) :
     (Formal.statementAbsorptionCircuit
       (sharedInterface logicalWidth publicFits)).spec
@@ -715,7 +715,7 @@ theorem TranscriptSpecs.statementAbsorption_parent
 theorem TranscriptSpecs.challengeDerivation_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {env : Env} (specs : TranscriptSpecs logicalWidth publicFits env) :
     (Formal.challengeCircuit (parentInterface logicalWidth publicFits)
       phaseOffset).spec
@@ -733,7 +733,7 @@ theorem TranscriptSpecs.challengeDerivation_parent
 theorem TranscriptSpecs.roundTranscript_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {env : Env} (specs : TranscriptSpecs logicalWidth publicFits env) :
     (Formal.roundTranscriptCircuit
       (sharedInterface logicalWidth publicFits)).spec
@@ -751,7 +751,7 @@ theorem TranscriptSpecs.roundTranscript_parent
 theorem TranscriptSpecs.outputBinding_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     {env : Env} (specs : TranscriptSpecs logicalWidth publicFits env) :
     (Formal.outputBindingCircuit
@@ -770,7 +770,7 @@ theorem TranscriptSpecs.outputBinding_parent
 theorem invocations_imply_transcriptSpecs
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env)
     (holds : ∀ current ∈ invocations logicalWidth publicFits,
@@ -809,7 +809,7 @@ theorem invocations_imply_transcriptSpecs
 theorem statementInvocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (statementTrace logicalWidth publicFits).invocations.length = 123 := by
   rw [statementTrace, compileActions_invocations_length]
   have compiled := recipeCount_eq_invocationCount_mul
@@ -824,7 +824,7 @@ theorem statementInvocations_length
 theorem challengeInvocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (challengeTrace logicalWidth publicFits).invocations.length = 4 := by
   rw [challengeTrace, compileActions_invocations_length]
   have sameCount := invocationCount_eq_of_shapes
@@ -847,7 +847,7 @@ theorem challengeInvocations_length
 theorem roundInvocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (roundTrace logicalWidth publicFits).invocations.length = 56 := by
   rw [roundTrace, compileActions_invocations_length]
   have sameCount := invocationCount_eq_of_shapes
@@ -866,7 +866,7 @@ theorem roundInvocations_length
       productionShape.cubeVariables *
         RoundTranscript.perRoundRecipeCount 9 at fixed
   norm_num [RoundTranscript.perRoundRecipeCount, productionShape,
-    Phi81MatrixSource.phi81Shape, cubeVariables] at fixed
+    RingMatrixSource.ringShape, cubeVariables] at fixed
   rw [fixed] at compiled
   rw [← sameCount]
   omega
@@ -874,7 +874,7 @@ theorem roundInvocations_length
 theorem outputInvocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (outputTrace logicalWidth publicFits).invocations.length = 765 := by
   rw [outputTrace, compileActions_invocations_length]
   have compiled := recipeCount_eq_invocationCount_mul
@@ -889,7 +889,7 @@ theorem outputInvocations_length
 theorem invocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (invocations logicalWidth publicFits).length = 948 := by
   unfold invocations
   rw [List.length_append, List.length_append, List.length_append,
@@ -915,35 +915,35 @@ theorem invocationCeiling_le_private :
   norm_num
 theorem statementInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     invocationCount (statementActions logicalWidth publicFits) = 123 := by
   have count := statementInvocations_length logicalWidth publicFits
   rw [statementTrace, compileActions_invocations_length] at count
   exact count
 theorem challengeInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     invocationCount (challengeActions logicalWidth publicFits) = 4 := by
   have count := challengeInvocations_length logicalWidth publicFits
   rw [challengeTrace, compileActions_invocations_length] at count
   exact count
 theorem roundInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     invocationCount (roundActions logicalWidth publicFits) = 56 := by
   have count := roundInvocations_length logicalWidth publicFits
   rw [roundTrace, compileActions_invocations_length] at count
   exact count
 theorem outputInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     invocationCount (outputActions logicalWidth publicFits) = 765 := by
   have count := outputInvocations_length logicalWidth publicFits
   rw [outputTrace, compileActions_invocations_length] at count
   exact count
 theorem statementEnd_eq_challengeStart (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     statementWitnessStart +
         invocationCount (statementActions logicalWidth publicFits) * 1096 =
       challengeWitnessStart := by
@@ -953,7 +953,7 @@ theorem statementEnd_eq_challengeStart (logicalWidth : Nat)
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart_eq]
 theorem challengeEnd_eq_roundStart (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     challengeWitnessStart +
         invocationCount (challengeActions logicalWidth publicFits) * 1096 =
       roundWitnessStart := by
@@ -963,7 +963,7 @@ theorem challengeEnd_eq_roundStart (logicalWidth : Nat)
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart_eq]
 theorem roundEnd_lt_outputStart (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     roundWitnessStart +
         invocationCount (roundActions logicalWidth publicFits) * 1096 <
       outputWitnessStart := by
@@ -974,7 +974,7 @@ theorem roundEnd_lt_outputStart (logicalWidth : Nat)
   norm_num
 theorem outputEnd_eq_logicalFreshBase (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     outputWitnessStart +
         invocationCount (outputActions logicalWidth publicFits) * 1096 =
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase := by
@@ -987,7 +987,7 @@ theorem outputEnd_eq_logicalFreshBase (logicalWidth : Nat)
 theorem outputFinalState_varsBelow_samplerStart
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :
     ∀ lane,
@@ -1031,7 +1031,7 @@ theorem outputFinalState_varsBelow_samplerStart
 theorem outputFinalState_eval_eq_of_agree_below_samplerStart
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (left right : Env)
     (agrees : ∀ column,
@@ -1049,7 +1049,7 @@ theorem outputFinalState_eval_eq_of_agree_below_samplerStart
 
 theorem statementTrace_scheduleWithin (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ScheduleWithin
         (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
@@ -1124,7 +1124,7 @@ theorem statementTrace_scheduleWithin (logicalWidth : Nat)
   exact scheduled
 theorem challengeTrace_scheduleWithin (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ScheduleWithin
         (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
@@ -1215,7 +1215,7 @@ theorem challengeTrace_scheduleWithin (logicalWidth : Nat)
   exact scheduled
 theorem roundTrace_scheduleWithin (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ScheduleWithin
         (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
@@ -1319,7 +1319,7 @@ theorem roundTrace_scheduleWithin (logicalWidth : Nat)
   exact scheduled
 theorem outputTrace_scheduleWithin (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ScheduleWithin
         (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan

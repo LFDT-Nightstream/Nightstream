@@ -43,7 +43,7 @@ theorem word_lt_cap (interface : CanonicalU64.Interface) (env : Env) (offset : N
       rfl
   have below : ((interface.source offset).eval env).val < 2 ^ 64 := by
     have bounded := ((interface.source offset).eval env).isLt
-    have modulus : goldilocksModulus < 2 ^ 64 := by decide
+    have modulus : fieldModulus < 2 ^ 64 := by decide
     omega
   rw [zero] at window
   have quotient : ((interface.source offset).eval env).val / 2 ^ 6 < 2 ^ 58 := by
@@ -102,7 +102,7 @@ theorem next_word (depth : Nat) (step : Step) :
 below the cap, and the next word is that word plus one. -/
 theorem light_terms (interface : CanonicalU64.Interface) (env : Env) (offset : Nat)
     (spec : CanonicalU64.SpecHolds interface offset env) (high : HighBitsZero offset env)
-    {depth : Nat} (depthBound : depth < goldilocksModulus)
+    {depth : Nat} (depthBound : depth < fieldModulus)
     (word : (interface.source offset).eval env = natWord depth) :
     depth < productionLightFoldCap ∧
       natWord (nextDepth depth .light) = (interface.source offset).eval env + 1 := by

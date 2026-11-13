@@ -19,7 +19,7 @@ def phaseInterface :
     (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 private theorem samplerFreshCount
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :

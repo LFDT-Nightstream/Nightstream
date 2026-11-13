@@ -1,5 +1,5 @@
 import NightstreamFPrime.Lifecycle.Relation
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Norm.Centered
 
 /-! The fresh instance that the bounded-depth prover builds for a step (Rust `Relation::instance`,
 `crates/nightstream/src/lifecycle/bounded_depth/relation.rs`). Rust stores the fresh witness as two
@@ -23,7 +23,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.ProductionKey
-open NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
+open NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Norm.Centered
 
 /-- The coordinates that hold 1 and the coordinates that hold -1. Rust keeps coordinate `c` as bit
 `c % 54` of block `c / 54` in each mask. -/
@@ -47,11 +47,11 @@ private theorem one_ne_negOne : (1 : F) ≠ -1 := by decide
 /-- A value below the fresh norm bound is 0, 1 or -1. -/
 theorem unit_of_norm {value : F} (norm : centeredMagnitude value < 2) :
     value = 0 ∨ value = 1 ∨ value = -1 := by
-  have negOne : ((-1 : F) : Nat) = goldilocksModulus - 1 := by decide
+  have negOne : ((-1 : F) : Nat) = fieldModulus - 1 := by decide
   have one : ((1 : F) : Nat) = 1 := by decide
   have zero : ((0 : F) : Nat) = 0 := rfl
   have bound := value.isLt
-  have cases : value.val = 0 ∨ value.val = 1 ∨ value.val = goldilocksModulus - 1 := by
+  have cases : value.val = 0 ∨ value.val = 1 ∨ value.val = fieldModulus - 1 := by
     unfold centeredMagnitude at norm
     rw [Nat.min_def] at norm
     split at norm <;> omega
@@ -94,7 +94,7 @@ theorem assignment_ofAssignment (values : Fin width → F)
 end Masks
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- Rust `Relation::instance`: the commitment to the assignment and its public input. -/
 noncomputable def built
@@ -109,7 +109,7 @@ noncomputable def built
 masks' assignment. -/
 theorem built_holds_iff (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (masks : Masks (Phi81Relation.Shape.carrierWidth (FullShape logicalWidth publicFits))) :
+    (masks : Masks (RingRelation.Shape.carrierWidth (FullShape logicalWidth publicFits))) :
     CCS.Holds (semantics ajtai) productionGlobalParams
         (freshStatement relation (built ajtai masks.assignment)) masks.assignment ↔
       (semantics ajtai).ccsSatisfied

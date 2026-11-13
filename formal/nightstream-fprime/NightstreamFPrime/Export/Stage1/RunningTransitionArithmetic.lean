@@ -18,7 +18,7 @@ def rowStart : Nat :=
 theorem rowStart_eq_prefix
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     rowStart =
       NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC.physicalRowCount
@@ -37,7 +37,7 @@ abbrev Plan.rows (plan : Plan) : List Rows.CompiledRow :=
 def canonicalPlan
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Plan where
+      RingCarrierLayout.carrierWidth logicalWidth) : Plan where
   rowStart := rowStart
   freshStart :=
     NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.logicalColumnCount
@@ -54,7 +54,7 @@ def canonicalPlan
 abbrev canonicalLayoutPlan
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : R1CS.LoweringPlan :=
+      RingCarrierLayout.carrierWidth logicalWidth) : R1CS.LoweringPlan :=
   NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.plan
     logicalWidth publicFits
 
@@ -87,7 +87,7 @@ theorem Plan.rows_to_layout (packagePlan : Plan)
 theorem canonicalPlan_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (canonicalPlan logicalWidth publicFits).MatchesLayout
       (canonicalLayoutPlan logicalWidth publicFits) := by
   constructor
@@ -113,7 +113,7 @@ theorem Plan.rows_length (plan : Plan) :
 theorem canonicalPlan_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalRowCount (canonicalPlan logicalWidth publicFits).constraints =
       27800 := by

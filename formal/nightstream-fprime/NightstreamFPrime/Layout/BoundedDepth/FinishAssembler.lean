@@ -19,7 +19,7 @@ open NightstreamFPrime.Layout.BoundedDepth.RefreshAssembler
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- Soundness of the finish circuit at the source layout: rows that hold and shared words that
 carry an active proof's input give `FinishStep.FinishHolds` at the production cap. -/
@@ -36,7 +36,7 @@ theorem rows_implies_finish (program : Stage1.Application.Program)
     (nextSlots : ∀ slot, Hash.evalList env ((interface (logicalWidth := logicalWidth)
       (publicFits := publicFits) base program.witnessWordCount).next slot).words =
         serializeSlot (output.runningNext slot))
-    (nextDepth : ∀ slot, (output.runningNext slot).2 < goldilocksModulus)
+    (nextDepth : ∀ slot, (output.runningNext slot).2 < fieldModulus)
     (active : input.iteration ≠ 0) :
     FinishStep.FinishHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys circuit input
       output :=

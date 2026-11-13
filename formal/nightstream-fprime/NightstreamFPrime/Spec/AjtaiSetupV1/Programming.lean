@@ -11,7 +11,7 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 import NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Binding
 import NightstreamFPrime.Spec.AjtaiSetupV1
 
 /-! Assumes SHAKE128 is a random oracle (premise P1); P1 is not proved here. -/
@@ -21,9 +21,9 @@ set_option autoImplicit false
 namespace NightstreamFPrime.Spec.AjtaiSetupV1.Programming
 
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.Phi81Relation
-open NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra
-open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.RingRelation
+open NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open Finset
 
@@ -127,7 +127,7 @@ theorem product_difference_le {ι α : Type} [Fintype ι] [DecidableEq ι] [Fint
 abbrev Chunk := Fin (2 ^ 256)
 
 def residue (chunk : Chunk) : F :=
-  ⟨chunk.val % goldilocksModulus, Nat.mod_lt _ (by decide)⟩
+  ⟨chunk.val % fieldModulus, Nat.mod_lt _ (by decide)⟩
 
 def fiber (value : F) : Finset Chunk :=
   univ.filter fun chunk => residue chunk = value
@@ -145,7 +145,7 @@ theorem fiber_nonempty (value : F) : (fiber value).Nonempty :=
   ⟨small value, by simp [fiber, residue_small]⟩
 
 private def residueEvent (values : Finset F) (natural : Nat) : Prop :=
-  ∃ bounded : natural < goldilocksModulus, (⟨natural, bounded⟩ : F) ∈ values
+  ∃ bounded : natural < fieldModulus, (⟨natural, bounded⟩ : F) ∈ values
 
 private instance (values : Finset F) : DecidablePred (residueEvent values) := by
   intro natural
@@ -167,7 +167,7 @@ private theorem card_filter_val {count : Nat} (event : Nat → Prop) [DecidableP
     exact ⟨⟨natural, member.1⟩, by simp [member.2], rfl⟩
 
 private theorem residue_mem_iff (values : Finset F) (chunk : Chunk) :
-    residue chunk ∈ values ↔ residueEvent values (chunk.val % goldilocksModulus) := by
+    residue chunk ∈ values ↔ residueEvent values (chunk.val % fieldModulus) := by
   constructor
   · intro member
     exact ⟨Nat.mod_lt _ (by decide), member⟩
@@ -176,7 +176,7 @@ private theorem residue_mem_iff (values : Finset F) (chunk : Chunk) :
 
 private theorem sum_reducedWeight (values : Finset F) :
     ∑ value ∈ values, reducedWeight value =
-      ReductionBias.frequency (2 ^ 256) goldilocksModulus (residueEvent values) := by
+      ReductionBias.frequency (2 ^ 256) fieldModulus (residueEvent values) := by
   have cards : ∑ value ∈ values, ((fiber value).card : ℚ) =
       ((univ.filter fun chunk : Chunk => residue chunk ∈ values).card : ℚ) := by
     rw [card_eq_sum_card_fiberwise (s := univ.filter fun chunk : Chunk => residue chunk ∈ values)
@@ -195,29 +195,29 @@ private theorem sum_reducedWeight (values : Finset F) :
         exact equal
     rw [same]
   have counted : (univ.filter fun chunk : Chunk => residue chunk ∈ values).card =
-      Nat.count (fun natural => residueEvent values (natural % goldilocksModulus)) (2 ^ 256) := by
+      Nat.count (fun natural => residueEvent values (natural % fieldModulus)) (2 ^ 256) := by
     rw [filter_congr fun chunk _ => residue_mem_iff values chunk]
-    exact card_filter_val (fun natural => residueEvent values (natural % goldilocksModulus))
+    exact card_filter_val (fun natural => residueEvent values (natural % fieldModulus))
   unfold reducedWeight ReductionBias.frequency
   rw [← sum_div, cards, counted]
 
 private theorem sum_uniformWeight (values : Finset F) :
-    ∑ _value ∈ values, (1 / goldilocksModulus : ℚ) =
-      ReductionBias.frequency goldilocksModulus goldilocksModulus (residueEvent values) := by
-  have counted : Nat.count (fun natural => residueEvent values (natural % goldilocksModulus))
-      goldilocksModulus = values.card := by
+    ∑ _value ∈ values, (1 / fieldModulus : ℚ) =
+      ReductionBias.frequency fieldModulus fieldModulus (residueEvent values) := by
+  have counted : Nat.count (fun natural => residueEvent values (natural % fieldModulus))
+      fieldModulus = values.card := by
     rw [Nat.count_eq_card_filter_range]
     apply card_bij (fun natural member => (⟨natural, mem_range.mp (mem_filter.mp member).1⟩ : F))
     · intro natural member
       obtain ⟨bounded, reduced, inside⟩ := mem_filter.mp member
-      have same : (⟨natural % goldilocksModulus, reduced⟩ : F) = ⟨natural, mem_range.mp bounded⟩ :=
+      have same : (⟨natural % fieldModulus, reduced⟩ : F) = ⟨natural, mem_range.mp bounded⟩ :=
         Fin.ext (Nat.mod_eq_of_lt (mem_range.mp bounded))
       rwa [same] at inside
     · intro left _ right _ same
       exact congrArg Fin.val same
     · intro value member
       refine ⟨value.val, ?_, rfl⟩
-      have same : (⟨value.val % goldilocksModulus, Nat.mod_lt _ (by decide)⟩ : F) = value :=
+      have same : (⟨value.val % fieldModulus, Nat.mod_lt _ (by decide)⟩ : F) = value :=
         Fin.ext (Nat.mod_eq_of_lt value.isLt)
       refine mem_filter.mpr ⟨mem_range.mpr value.isLt, Nat.mod_lt _ (by decide), ?_⟩
       rw [same]
@@ -239,19 +239,19 @@ theorem reducedWeight_sum : ∑ value, reducedWeight value = 1 := by
   rw [← sum_div, cards, div_self (by positivity)]
 
 theorem reducedWeight_difference_le :
-    ∑ value, |reducedWeight value - 1 / goldilocksModulus| ≤ 2 * 4294967295 / 2 ^ 256 := by
+    ∑ value, |reducedWeight value - 1 / fieldModulus| ≤ 2 * 4294967295 / 2 ^ 256 := by
   rw [← sum_filter_add_sum_filter_not univ
-    (fun value : F => (1 / goldilocksModulus : ℚ) ≤ reducedWeight value)]
+    (fun value : F => (1 / fieldModulus : ℚ) ≤ reducedWeight value)]
   have upper : ∑ value ∈ univ.filter (fun value : F =>
-      (1 / goldilocksModulus : ℚ) ≤ reducedWeight value),
-      |reducedWeight value - 1 / goldilocksModulus| ≤ 4294967295 / 2 ^ 256 := by
+      (1 / fieldModulus : ℚ) ≤ reducedWeight value),
+      |reducedWeight value - 1 / fieldModulus| ≤ 4294967295 / 2 ^ 256 := by
     rw [sum_congr rfl fun value member =>
         abs_of_nonneg (sub_nonneg.mpr (mem_filter.mp member).2),
       sum_sub_distrib, sum_reducedWeight, sum_uniformWeight]
     exact (le_abs_self _).trans (ReductionBias.wide_frequency_error_le _)
   have lower : ∑ value ∈ univ.filter (fun value : F =>
-      ¬ (1 / goldilocksModulus : ℚ) ≤ reducedWeight value),
-      |reducedWeight value - 1 / goldilocksModulus| ≤ 4294967295 / 2 ^ 256 := by
+      ¬ (1 / fieldModulus : ℚ) ≤ reducedWeight value),
+      |reducedWeight value - 1 / fieldModulus| ≤ 4294967295 / 2 ^ 256 := by
     rw [sum_congr rfl fun value member => (abs_sub_comm _ _).trans
         (abs_of_nonneg (sub_nonneg.mpr (le_of_lt (not_le.mp (mem_filter.mp member).2)))),
       sum_sub_distrib, sum_reducedWeight, sum_uniformWeight]
@@ -346,7 +346,7 @@ private theorem real_eq (event : (ι → Chunk) × Extra → Prop) [DecidablePre
 omit [Nonempty Extra] in
 private theorem programmed_eq (event : (ι → Chunk) × Extra → Prop) [DecidablePred event] :
     programmed event = ∑ matrix : ι → F,
-      (∏ _index : ι, (1 / goldilocksModulus : ℚ)) * programmedFor event matrix := by
+      (∏ _index : ι, (1 / fieldModulus : ℚ)) * programmedFor event matrix := by
   unfold programmed
   apply sum_congr rfl
   intro matrix _
@@ -358,15 +358,15 @@ theorem real_sub_programmed_le (event : (ι → Chunk) × Extra → Prop) [Decid
     |real event - programmed event| ≤ Fintype.card ι * (2 * 4294967295 / 2 ^ 256) := by
   rw [real_eq, programmed_eq, ← sum_sub_distrib]
   calc |∑ matrix : ι → F, ((∏ index, reducedWeight (matrix index)) * programmedFor event matrix -
-          (∏ _index : ι, (1 / goldilocksModulus : ℚ)) * programmedFor event matrix)|
+          (∏ _index : ι, (1 / fieldModulus : ℚ)) * programmedFor event matrix)|
       ≤ ∑ matrix : ι → F, |∏ index, reducedWeight (matrix index) -
-          ∏ _index : ι, (1 / goldilocksModulus : ℚ)| := by
+          ∏ _index : ι, (1 / fieldModulus : ℚ)| := by
         refine (abs_sum_le_sum_abs _ _).trans (sum_le_sum fun matrix _ => ?_)
         have bounds := programmedFor_mem event matrix
         rw [← sub_mul, abs_mul, abs_of_nonneg bounds.1]
         exact mul_le_of_le_one_right (abs_nonneg _) bounds.2
-    _ ≤ Fintype.card ι * ∑ value, |reducedWeight value - 1 / goldilocksModulus| :=
-        product_difference_le reducedWeight (fun _ => (1 / goldilocksModulus : ℚ))
+    _ ≤ Fintype.card ι * ∑ value, |reducedWeight value - 1 / fieldModulus| :=
+        product_difference_le reducedWeight (fun _ => (1 / fieldModulus : ℚ))
           reducedWeight_nonneg (fun _ => by positivity) reducedWeight_sum (by
             rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
             exact mul_one_div_cancel (Nat.cast_ne_zero.mpr (by decide)))
@@ -423,7 +423,7 @@ theorem expect_le_programmed {ι : Type} [Fintype ι] [DecidableEq ι] (value : 
       div_mul_div_comm, mul_comm (∏ index, ((fiber (matrix index)).card : ℝ)),
       mul_div_mul_right _ _ productPositive.ne']
   have programmed : 𝔼 matrix : ι → F, average matrix =
-      ∑ matrix : ι → F, (∏ _index : ι, (1 / goldilocksModulus : ℝ)) * average matrix := by
+      ∑ matrix : ι → F, (∏ _index : ι, (1 / fieldModulus : ℝ)) * average matrix := by
     rw [Finset.expect_eq_sum_div_card, Finset.sum_div]
     apply Finset.sum_congr rfl
     intro matrix _
@@ -431,10 +431,10 @@ theorem expect_le_programmed {ι : Type} [Fintype ι] [DecidableEq ι] (value : 
     push_cast
     rw [one_div, inv_pow, div_eq_mul_inv, mul_comm]
   have weights : ∑ matrix : ι → F, |∏ index, (reducedWeight (matrix index) : ℝ) -
-      ∏ _index : ι, (1 / goldilocksModulus : ℝ)| ≤
+      ∏ _index : ι, (1 / fieldModulus : ℝ)| ≤
         Fintype.card ι * (2 * 4294967295 / 2 ^ 256 : ℝ) := by
     have rational := (product_difference_le (ι := ι) reducedWeight
-      (fun _ => (1 / goldilocksModulus : ℚ)) reducedWeight_nonneg (fun _ => by positivity)
+      (fun _ => (1 / fieldModulus : ℚ)) reducedWeight_nonneg (fun _ => by positivity)
       reducedWeight_sum (by
         rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
         exact mul_one_div_cancel (Nat.cast_ne_zero.mpr (by decide)))).trans
@@ -445,9 +445,9 @@ theorem expect_le_programmed {ι : Type} [Fintype ι] [DecidableEq ι] (value : 
     norm_num
   rw [real, programmed, ← sub_le_iff_le_add', ← Finset.sum_sub_distrib]
   calc ∑ matrix : ι → F, ((∏ index, (reducedWeight (matrix index) : ℝ)) * average matrix -
-        (∏ _index : ι, (1 / goldilocksModulus : ℝ)) * average matrix)
+        (∏ _index : ι, (1 / fieldModulus : ℝ)) * average matrix)
       ≤ ∑ matrix : ι → F, |∏ index, (reducedWeight (matrix index) : ℝ) -
-          ∏ _index : ι, (1 / goldilocksModulus : ℝ)| := by
+          ∏ _index : ι, (1 / fieldModulus : ℝ)| := by
         refine Finset.sum_le_sum fun matrix _ => ?_
         rw [← sub_mul]
         exact (le_abs_self _).trans (by
@@ -469,16 +469,16 @@ theorem verifierKey_eq {rows blocks : Nat} (setup : Setup rows blocks) :
   funext row block lane
   rfl
 
-def IsCollision {shape : Phi81Relation.Shape} {rows : Nat} (bound : Nat)
+def IsCollision {shape : RingRelation.Shape} {rows : Nat} (bound : Nat)
     (key : Commitment.Key shape rows)
-    (openings : Phi81Relation.Assignment shape × Phi81Relation.Assignment shape) : Prop :=
+    (openings : RingRelation.Assignment shape × RingRelation.Assignment shape) : Prop :=
   Commitment.commit key openings.1 = Commitment.commit key openings.2 ∧
     assignmentNormBounded bound openings.1 ∧ assignmentNormBounded bound openings.2 ∧
     openings.1 ≠ openings.2
 
-def IsCollision.shortKernel {shape : Phi81Relation.Shape} {rows bound : Nat}
+def IsCollision.shortKernel {shape : RingRelation.Shape} {rows bound : Nat}
     {key : Commitment.Key shape rows}
-    {openings : Phi81Relation.Assignment shape × Phi81Relation.Assignment shape}
+    {openings : RingRelation.Assignment shape × RingRelation.Assignment shape}
     (collision : IsCollision bound key openings) :
     Binding.ShortKernelVector key (2 * bound) :=
   Binding.bindingCollision_to_shortKernel key (Commitment.commit key openings.1)
@@ -494,21 +494,21 @@ section Binding
 
 open Classical
 
-variable {shape : Phi81Relation.Shape} {rows : Nat} {Extra : Type} [Fintype Extra] [Nonempty Extra]
+variable {shape : RingRelation.Shape} {rows : Nat} {Extra : Type} [Fintype Extra] [Nonempty Extra]
 
 noncomputable def solverSuccess (bound : Nat)
-    (attack : (KeyIndex rows (Phi81ColumnLayout.blockCount shape.carrierWidth) → Chunk) × Extra →
-      Phi81Relation.Assignment shape × Phi81Relation.Assignment shape) : ℚ :=
-  ∑ matrix : KeyIndex rows (Phi81ColumnLayout.blockCount shape.carrierWidth) → F,
+    (attack : (KeyIndex rows (ConcreteRingColumnLayout.blockCount shape.carrierWidth) → Chunk) × Extra →
+      RingRelation.Assignment shape × RingRelation.Assignment shape) : ℚ :=
+  ∑ matrix : KeyIndex rows (ConcreteRingColumnLayout.blockCount shape.carrierWidth) → F,
     programmedFor (fun view => IsCollision bound (keyOf matrix) (attack view)) matrix /
-      Fintype.card (KeyIndex rows (Phi81ColumnLayout.blockCount shape.carrierWidth) → F)
+      Fintype.card (KeyIndex rows (ConcreteRingColumnLayout.blockCount shape.carrierWidth) → F)
 
 theorem binding_le_solver (bound : Nat)
-    (attack : (KeyIndex rows (Phi81ColumnLayout.blockCount shape.carrierWidth) → Chunk) × Extra →
-      Phi81Relation.Assignment shape × Phi81Relation.Assignment shape) :
+    (attack : (KeyIndex rows (ConcreteRingColumnLayout.blockCount shape.carrierWidth) → Chunk) × Extra →
+      RingRelation.Assignment shape × RingRelation.Assignment shape) :
     real (fun view => IsCollision bound (keyOf (residues view.1)) (attack view)) ≤
       solverSuccess bound attack +
-        Fintype.card (KeyIndex rows (Phi81ColumnLayout.blockCount shape.carrierWidth)) *
+        Fintype.card (KeyIndex rows (ConcreteRingColumnLayout.blockCount shape.carrierWidth)) *
           (2 * 4294967295 / 2 ^ 256) := by
   have difference := real_sub_programmed_le
     (fun view => IsCollision bound (keyOf (residues view.1)) (attack view))

@@ -36,14 +36,14 @@ def familyExpr (output : OutputBinding.ShapeOutputExpr LightShape)
 fresh instance. -/
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   runningCommitment : Nat → Fin LightCommitment.blockCount → Fin ringDegree → Expr
   runningPublicInput : Nat → Fin (FullShape logicalWidth publicFits).publicWidth → Expr
   fresh : Nat → StatementAbsorption.FreshExpr logicalWidth publicFits
 
 variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
   (piccs : LightPiCCSPhase.Leaves logicalWidth degreeBound publicFits)
   (interface : Interface logicalWidth publicFits) (offset : Nat)
 

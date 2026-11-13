@@ -785,7 +785,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 def FixedPreimage
     (preimage : HashPreimage (logicalWidth := logicalWidth)

@@ -1,7 +1,7 @@
 import NightstreamFPrime.Lifecycle.Nebula.Framing
 import NightstreamFPrime.Lifecycle.Nebula.Carry
 import NightstreamFPrime.Spec.Nebula.EtaLine
-import NightstreamFPrime.Spec.GoldilocksExtensionRing
+import NightstreamFPrime.Spec.FieldExtensionRing
 
 /-! A random-oracle model of the Nebula `η` transcript (CW-10.8). The step circuit computes the
 product-test challenge `η` with Poseidon2 from the plan digest, the open timestamp and the three
@@ -26,7 +26,7 @@ abbrev Point := Digest × F × Digest × Digest × Digest
 /-- An oracle for the `η` transcript. -/
 abbrev Oracle := Point → K × K
 
-open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing in
+open scoped NightstreamFPrime.Spec.FieldExtensionRing in
 /-- The oracles are finite. Instance search on `Point → K × K` exceeds its size limit. -/
 noncomputable instance oracleFintype : Fintype Oracle := Pi.instFintype
 
@@ -39,7 +39,7 @@ def inputOf (point : Point) : EtaInput Digest :=
   ⟨point.1, point.2.1.val, point.2.2.1, point.2.2.2.1, point.2.2.2.2⟩
 
 /-- An `η` input with a canonical timestamp is the input of its oracle point. -/
-theorem inputOf_pointOf {input : EtaInput Digest} (small : input.ts < goldilocksModulus) :
+theorem inputOf_pointOf {input : EtaInput Digest} (small : input.ts < fieldModulus) :
     inputOf (pointOf input) = input := by
   cases input
   simp only [inputOf, pointOf, natWord_val small]
@@ -76,8 +76,8 @@ theorem romContext_deployed (p : Plan) : romContext p deployed = context p := by
   exact deployed_pointOf input
 
 /-- Two `η` inputs with canonical timestamps have the same oracle point only if they are equal. -/
-theorem pointOf_injective {input input' : EtaInput Digest} (small : input.ts < goldilocksModulus)
-    (small' : input'.ts < goldilocksModulus) (same : pointOf input = pointOf input') :
+theorem pointOf_injective {input input' : EtaInput Digest} (small : input.ts < fieldModulus)
+    (small' : input'.ts < fieldModulus) (same : pointOf input = pointOf input') :
     input = input' := by
   rw [← inputOf_pointOf small, same, inputOf_pointOf small']
 

@@ -5,7 +5,7 @@ import NightstreamFPrime.Lifecycle.Types
 
 /-!
 Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1.
-Obligation: compose the generic Phi81 accumulation child for all 17 PiRLC
+Obligation: compose the generic ring accumulation child for all 17 PiRLC
 sources in exact `K + k` order for one public value family.
 -/
 

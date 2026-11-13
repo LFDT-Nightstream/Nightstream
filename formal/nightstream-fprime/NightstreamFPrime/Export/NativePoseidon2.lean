@@ -103,7 +103,7 @@ private theorem fullRound64_denote_at (rows : List (List Nat)) (round : Nat)
   simp [Poseidon2.width, denote, List.range_succ, h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15]
 
 private theorem partialRound64_denote_at (round : Nat) (constant : UInt64)
-    (constantCanonical : constant.toNat < goldilocksModulus)
+    (constantCanonical : constant.toNat < fieldModulus)
     (constantMatch : constant.denote =
       Poseidon2.ofNat (Poseidon2.internalConstants.getD round 0))
     (state : State64) :
@@ -287,31 +287,31 @@ end State64
 
 @[inline] def ofNat64 (value : Nat) : UInt64 :=
   if value < UInt64.size then
-    if value < goldilocksModulus then UInt64.ofNat value
-    else UInt64.ofNat (value - goldilocksModulus)
-  else UInt64.ofNat (value % goldilocksModulus)
+    if value < fieldModulus then UInt64.ofNat value
+    else UInt64.ofNat (value - fieldModulus)
+  else UInt64.ofNat (value % fieldModulus)
 
 private theorem ofNat64_toNat (value : Nat) :
-    (ofNat64 value).toNat = value % goldilocksModulus := by
+    (ofNat64 value).toNat = value % fieldModulus := by
   simp only [ofNat64]
   split <;> rename_i sizeBranch
   · split <;> rename_i modulusBranch
     · rw [UInt64.toNat_ofNat_of_lt' sizeBranch,
         Nat.mod_eq_of_lt modulusBranch]
-    · have modulusLe : goldilocksModulus ≤ value := by omega
-      have differenceSize : value - goldilocksModulus < UInt64.size := by omega
-      have differenceModulus : value - goldilocksModulus < goldilocksModulus := by
-        have sizeLtTwice : UInt64.size < 2 * goldilocksModulus := by decide
+    · have modulusLe : fieldModulus ≤ value := by omega
+      have differenceSize : value - fieldModulus < UInt64.size := by omega
+      have differenceModulus : value - fieldModulus < fieldModulus := by
+        have sizeLtTwice : UInt64.size < 2 * fieldModulus := by decide
         omega
       rw [UInt64.toNat_ofNat_of_lt' differenceSize,
         Nat.mod_eq_sub_mod modulusLe, Nat.mod_eq_of_lt differenceModulus]
-  · have residueModulus := Nat.mod_lt value (by decide : 0 < goldilocksModulus)
-    have residueSize : value % goldilocksModulus < UInt64.size :=
+  · have residueModulus := Nat.mod_lt value (by decide : 0 < fieldModulus)
+    have residueSize : value % fieldModulus < UInt64.size :=
       Nat.lt_trans residueModulus (by decide)
     rw [UInt64.toNat_ofNat_of_lt' residueSize]
 
 theorem ofNat64_canonical (value : Nat) :
-    (ofNat64 value).toNat < goldilocksModulus := by
+    (ofNat64 value).toNat < fieldModulus := by
   rw [ofNat64_toNat]
   exact Nat.mod_lt _ (by decide)
 
@@ -350,8 +350,8 @@ private theorem fastCarry_denote (value : Nat) (bound : value < UInt64.size) :
   decide
 
 private theorem getD_canonical (words : List UInt64)
-    (canonical : ∀ word ∈ words, word.toNat < goldilocksModulus) (index : Nat) :
-    (words.getD index 0).toNat < goldilocksModulus := by
+    (canonical : ∀ word ∈ words, word.toNat < fieldModulus) (index : Nat) :
+    (words.getD index 0).toNat < fieldModulus := by
   rw [List.getD_eq_getElem?_getD]
   cases member : words[index]? with
   | none => decide
@@ -365,7 +365,7 @@ private theorem getElem?_getD_denote (words : List UInt64) (index : Nat) :
   | some word => rfl
 
 @[inline] def absorbWords64 (state : State64) (words : List UInt64)
-    (canonical : ∀ word ∈ words, word.toNat < goldilocksModulus) : State64 :=
+    (canonical : ∀ word ∈ words, word.toNat < fieldModulus) : State64 :=
   State64.permute64 {
     x0 := add64 state.x0 (words.getD 0 0)
     x1 := add64 state.x1 (words.getD 1 0)
@@ -401,7 +401,7 @@ private theorem getElem?_getD_denote (words : List UInt64) (index : Nat) :
       add64_canonical _ _ state.c15 (getD_canonical words canonical 15)⟩ }
 
 @[simp] theorem absorbWords64_denote (state : State64) (words : List UInt64)
-    (canonical : ∀ word ∈ words, word.toNat < goldilocksModulus) :
+    (canonical : ∀ word ∈ words, word.toNat < fieldModulus) :
     (absorbWords64 state words canonical).denote =
       Poseidon2.absorbBlock state.denote (words.map UInt64.denote) := by
   rw [absorbWords64, State64.permute64_denote]
@@ -436,7 +436,7 @@ private theorem getElem?_getD_denote (words : List UInt64) (index : Nat) :
       ofNat64 (node.value / (Package.limbBase * Package.limbBase))]
 
 theorem nodeWords64_canonical (node : StreamingIdentity.Node) :
-    ∀ word ∈ nodeWords64 node, word.toNat < goldilocksModulus := by
+    ∀ word ∈ nodeWords64 node, word.toNat < fieldModulus := by
   unfold nodeWords64
   split
   · simp only [List.mem_cons, List.not_mem_nil, or_false]
@@ -465,7 +465,7 @@ theorem nodeWords64_denote (node : StreamingIdentity.Node) :
 structure HashState64 where
   sponge : State64
   pending : List UInt64
-  pendingCanonical : ∀ word ∈ pending, word.toNat < goldilocksModulus
+  pendingCanonical : ∀ word ∈ pending, word.toNat < fieldModulus
 
 def HashState64.denote (state : HashState64) : StreamingIdentity.HashState where
   sponge := state.sponge.denote
@@ -474,7 +474,7 @@ def HashState64.denote (state : HashState64) : StreamingIdentity.HashState where
 @[noinline] def pushNode64 (state : HashState64)
     (node : StreamingIdentity.Node) : HashState64 :=
   let buffer := state.pending ++ nodeWords64 node
-  have bufferCanonical : ∀ word ∈ buffer, word.toNat < goldilocksModulus := by
+  have bufferCanonical : ∀ word ∈ buffer, word.toNat < fieldModulus := by
     intro word member
     rcases List.mem_append.mp member with pending | fresh
     · exact state.pendingCanonical word pending

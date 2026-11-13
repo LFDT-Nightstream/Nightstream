@@ -224,12 +224,12 @@ end RawValues
 
 theorem projectPublicInput_completeAssignment {application : Program}
     (raw : RawValues application) :
-    Spec.Phi81Relation.projectPublicInput raw.completeAssignment =
+    Spec.RingRelation.projectPublicInput raw.completeAssignment =
       encHash (publicFits := PerApplicationFixedPoint.publicFits application)
         raw.outputDigest := by
   funext column
-  unfold Spec.Phi81Relation.projectPublicInput RawValues.completeAssignment
-    Spec.Phi81Relation.Shape.publicColumn
+  unfold Spec.RingRelation.projectPublicInput RawValues.completeAssignment
+    Spec.RingRelation.Shape.publicColumn
   have logicalRegion :
       column.val < PerApplicationFixedPoint.logicalWidth application := by
     have bound := column.isLt

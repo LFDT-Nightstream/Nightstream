@@ -31,14 +31,14 @@ private def transcript (initial : Poseidon2.State) : Lean.Json :=
 
 def fixture : Lean.Json :=
   let boundaries := [0, 1, scalarCount - 1, scalarCount, scalarCount + 1,
-    goldilocksModulus - 1, goldilocksModulus, goldilocksModulus + 1,
+    fieldModulus - 1, fieldModulus, fieldModulus + 1,
     drawCount - scalarCount, drawCount - 2, drawCount - 1]
   let states := [List.replicate 16 (Poseidon2.ofNat 0),
     (List.range 16).map Poseidon2.ofNat,
-    List.replicate 16 (Poseidon2.ofNat (goldilocksModulus - 1))]
+    List.replicate 16 (Poseidon2.ofNat (fieldModulus - 1))]
   Lean.Json.mkObj [
     ("schema", Lean.toJson (1 : Nat)),
-    ("modulus", Lean.toJson goldilocksModulus),
+    ("modulus", Lean.toJson fieldModulus),
     ("degree", Lean.toJson ringDegree),
     ("boundaries", Lean.toJson (boundaries.map boundary)),
     ("transcripts", Lean.toJson (states.map transcript))]

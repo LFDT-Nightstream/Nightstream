@@ -10,7 +10,7 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.CcsTerminal
 import NightstreamFPrime.Lifecycle.Stage1.Terminal
 import NightstreamFPrime.Spec
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 

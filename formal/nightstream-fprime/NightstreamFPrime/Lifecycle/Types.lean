@@ -1,4 +1,4 @@
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81MatrixSource
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingMatrixSource
 import NightstreamFPrime.Spec.Poseidon2
 import NightstreamFPrime.Spec.Profile
 
@@ -18,7 +18,7 @@ def cubeVariables : Nat := 28
 
 @[implicit_reducible]
 def productionShape : Shape :=
-  Phi81MatrixSource.phi81Shape cubeVariables
+  RingMatrixSource.ringShape cubeVariables
     productionProfile.freshSources productionProfile.runningSources
     productionProfile.ccsMatrices
 

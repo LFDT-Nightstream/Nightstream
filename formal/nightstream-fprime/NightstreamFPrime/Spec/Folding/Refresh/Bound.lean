@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Folding.Refresh.Completeness
 import NightstreamFPrime.Spec.Folding.Light.Bound
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Algebra
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Algebra
 
 /-! The honest refresh parent is the Π_RLC combination of its 17 sources, so its norm is at most
 `17 · T · (b − 1)`, the accumulator bound at depth 0 (SuperNeo v1.2 Definition 22). Light folds
@@ -59,18 +59,18 @@ structure SupportLaw
   split_supported : ∀ (assignment : Assignment) (child : Fin params.k),
     supported assignment → supported (decomposition.splitAssignment assignment child)
 
-theorem production_countNormLaw {shape : Phi81Relation.Shape} {verifierRows : Nat}
-    (key : Phi81Relation.PiRLCAlgebra.Commitment.Key shape verifierRows) :
-    CountNormLaw (Phi81Relation.PiRLCAlgebra.Algebra.concrete key) := by
+theorem production_countNormLaw {shape : RingRelation.Shape} {verifierRows : Nat}
+    (key : RingRelation.PiRLCAlgebra.Commitment.Key shape verifierRows) :
+    CountNormLaw (RingRelation.PiRLCAlgebra.Algebra.concrete key) := by
   constructor
   intro count challenges assignments valid bounded column
-  have fresh : ∀ index, Phi81Relation.assignmentNormBounded 2 (assignments index) := by
+  have fresh : ∀ index, RingRelation.assignmentNormBounded 2 (assignments index) := by
     intro index
-    simpa [Phi81Relation.relationSemantics, productionGlobalParams] using bounded index
-  have finite := Phi81Relation.PiRLCAlgebra.Norm.Finite.combineAssignments_le challenges
+    simpa [RingRelation.relationSemantics, productionGlobalParams] using bounded index
+  have finite := RingRelation.PiRLCAlgebra.Norm.Finite.combineAssignments_le challenges
     assignments valid fresh column
   change centeredMagnitude
-      (Phi81Relation.EvaluationHomomorphism.PiRLCFinite.combineAssignments challenges
+      (RingRelation.EvaluationHomomorphism.PiRLCFinite.combineAssignments challenges
         assignments column) < count * 216 * (2 - 1) + 1
   omega
 

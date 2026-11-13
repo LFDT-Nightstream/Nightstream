@@ -56,7 +56,7 @@ open NightstreamFPrime.Export.BoundedDepth.StepExtend
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-! ### The finish package -/
 
@@ -135,7 +135,7 @@ end Package
 
 /-! ### The honest finish -/
 
-theorem natWord_val_of_lt {count : Nat} (bound : count < goldilocksModulus) :
+theorem natWord_val_of_lt {count : Nat} (bound : count < fieldModulus) :
     (natWord count).val = count := by
   simp [natWord, Poseidon2.ofNat, Nat.mod_eq_of_lt bound]
 
@@ -285,10 +285,10 @@ theorem finish_complete (keysShaped : ∀ key, (circuitKeys key).digest.length =
       exact accepted
     · show (runningNext selected).2 = 0
       rw [nextSelected]
-  have small : (Schedule.productionLightFoldCap : Nat) < goldilocksModulus := by decide
-  have pcBound : payload.pc < goldilocksModulus := by
+  have small : (Schedule.productionLightFoldCap : Nat) < fieldModulus := by decide
+  have pcBound : payload.pc < fieldModulus := by
     have := pcValid.2
-    have : (2 : Nat) < goldilocksModulus := by decide
+    have : (2 : Nat) < fieldModulus := by decide
     omega
   have nextDepthLe : ∀ slot, (runningNext slot).2 ≤ Schedule.productionLightFoldCap := by
     intro slot
@@ -399,7 +399,7 @@ variable {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
   {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)}
   {circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits}
   {step : AppState → AppWitness → AppState}
-  {cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+  {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
 
 /-- Completeness of the finish package along a run: for every valid run of at least one step
 from `z0` whose witnesses have the application's witness length, the honest finish of the honest
@@ -413,7 +413,7 @@ theorem run_finish_complete (exports : Exports relation ajtai circuitKeys step c
     (finish : FinishComplete exports.program relation firstFresh) :
     ∀ witnesses : List AppWitness, IvcWalk.ValidFrom exports.program z0 witnesses →
       (∀ witness ∈ witnesses, witness.length = exports.program.witnessWordCount) →
-      0 < witnesses.length → witnesses.length < goldilocksModulus →
+      0 < witnesses.length → witnesses.length < fieldModulus →
         FinishAccepts exports.program relation ajtai circuitKeys firstFresh width batches
           application complete.packageWidth ⟨witnesses.length, z0, witnesses.foldl step z0⟩ := by
   intro witnesses valid lengths nonempty bound

@@ -12,7 +12,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
 
 abbrev blockCount : Nat := productionShape.matrixCount
 
@@ -76,7 +76,7 @@ theorem logicalPrivateCount_eq :
     CombinationFamily.sourceCount_eq]
   norm_num [CombinationFamily.stepSize, CombinationStep.privateCount,
     blockCount, RingKCombination.cellCount, productionShape,
-    Phi81MatrixSource.phi81Shape, productionProfile, ringDegree]
+    RingMatrixSource.ringShape, productionProfile, ringDegree]
 
 theorem logicalRowCount_eq :
     CombinationFamily.logicalRowCount blockCount

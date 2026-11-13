@@ -11,7 +11,7 @@ open NightstreamFPrime.Export.Stage1.Invocations
 
 theorem invocations_scheduleWithin (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ScheduleWithin
         (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan

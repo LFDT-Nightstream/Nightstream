@@ -32,7 +32,7 @@ def sourceBitHints (interface : Interface) (offset : Nat) : List Hint :=
 def limbStart (offset limb : Nat) : Nat := offset + sourceBitCount + limb * limbStride
 
 def coefficient (lane limb : Nat) : Nat :=
-  goldilocksModulus ^ lane / (2 ^ limbBits) ^ limb % 2 ^ limbBits
+  fieldModulus ^ lane / (2 ^ limbBits) ^ limb % 2 ^ limbBits
 
 def limbTerms (offset limb : Nat) : List (Nat × Expr) :=
   let carry := if limb = 0 then [] else

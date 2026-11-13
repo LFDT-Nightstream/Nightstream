@@ -1,0 +1,140 @@
+import NightstreamFPrime.Layout.ProductionRelation.OrdinaryRow
+import NightstreamFPrime.Spec.RingRelation.QuotientProduct
+
+namespace NightstreamFPrime.Layout.ProductionRelation.RingProductPlan
+
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+
+abbrev State (logicalWidth : Nat) := Fin ringDegree → SparseForm logicalWidth
+
+def evalState {logicalWidth : Nat} (assignment : Assignment F logicalWidth)
+    (state : State logicalWidth) : RingF :=
+  fun lane => (state lane).eval assignment
+
+def sumForms {logicalWidth : Nat} :
+    List (SparseForm logicalWidth) → SparseForm logicalWidth
+  | [] => .empty
+  | form :: rest => SparseForm.add form (sumForms rest)
+
+@[simp] theorem sumForms_eval {logicalWidth : Nat}
+    (assignment : Assignment F logicalWidth) :
+    ∀ forms : List (SparseForm logicalWidth),
+      (sumForms forms).eval assignment =
+        (forms.map fun form => form.eval assignment).sum
+  | [] => by simp [sumForms]
+  | form :: rest => by
+      simp [sumForms, sumForms_eval assignment rest]
+
+def evaluateForm {logicalWidth : Nat} (state : State logicalWidth) (point : F) :
+    SparseForm logicalWidth :=
+  sumForms (List.ofFn fun lane : Fin ringDegree =>
+    SparseForm.scale (point ^ lane.val) (state lane))
+
+theorem evaluateForm_eval {logicalWidth : Nat}
+    (state : State logicalWidth) (point : F)
+    (assignment : Assignment F logicalWidth) :
+    (evaluateForm state point).eval assignment =
+      RingRelation.QuotientProduct.evaluate (evalState assignment state) point := by
+  simp only [evaluateForm, sumForms_eval, List.map_ofFn,
+    Function.comp_def, SparseForm.scale_eval,
+    RingRelation.QuotientProduct.evaluate, evalState, mul_comm]
+
+structure Interface (logicalWidth : Nat) where
+  left : State logicalWidth
+  right : State logicalWidth
+  quotient : State logicalWidth
+  prior : State logicalWidth
+  output : State logicalWidth
+
+def outputForm {logicalWidth : Nat} (interface : Interface logicalWidth)
+    (point : F) : SparseForm logicalWidth :=
+  SparseForm.add
+    (SparseForm.add (evaluateForm interface.output point)
+      (SparseForm.scale (-1) (evaluateForm interface.prior point)))
+    (SparseForm.scale (RingRelation.QuotientProduct.modulusValue point)
+      (evaluateForm interface.quotient point))
+
+def rowAt {logicalWidth : Nat} (interface : Interface logicalWidth)
+    (row : Fin 108) : OrdinaryRow.Forms logicalWidth :=
+  let point := RingRelation.QuotientProduct.node row
+  { a := evaluateForm interface.left point
+    b := evaluateForm interface.right point
+    c := outputForm interface point }
+
+def rows {logicalWidth : Nat} (interface : Interface logicalWidth) :
+    List (OrdinaryRow.Forms logicalWidth) :=
+  List.ofFn (rowAt interface)
+
+@[simp] theorem rows_length {logicalWidth : Nat}
+    (interface : Interface logicalWidth) : (rows interface).length = 108 := by
+  simp only [rows, List.length_ofFn]
+
+def Equation {logicalWidth : Nat} (interface : Interface logicalWidth)
+    (assignment : Assignment F logicalWidth) (row : Fin 108) : Prop :=
+  let point := RingRelation.QuotientProduct.node row
+  RingRelation.QuotientProduct.evaluate
+        (evalState assignment interface.left) point *
+      RingRelation.QuotientProduct.evaluate
+        (evalState assignment interface.right) point =
+    RingRelation.QuotientProduct.evaluate
+        (evalState assignment interface.output) point -
+      RingRelation.QuotientProduct.evaluate
+        (evalState assignment interface.prior) point +
+      RingRelation.QuotientProduct.modulusValue point *
+        RingRelation.QuotientProduct.evaluate
+          (evalState assignment interface.quotient) point
+
+def Equations {logicalWidth : Nat} (interface : Interface logicalWidth)
+    (assignment : Assignment F logicalWidth) : Prop :=
+  ∀ row : Fin 108, Equation interface assignment row
+
+def RowsZero {logicalWidth : Nat} (interface : Interface logicalWidth)
+    (assignment : Assignment F logicalWidth) : Prop :=
+  ∀ row : Fin 108, (rowAt interface row).residual assignment = 0
+
+theorem row_zero_iff {logicalWidth : Nat} (interface : Interface logicalWidth)
+    (assignment : Assignment F logicalWidth) (row : Fin 108) :
+    (rowAt interface row).residual assignment = 0 ↔
+      Equation interface assignment row := by
+  let point := RingRelation.QuotientProduct.node row
+  have residual : (rowAt interface row).residual assignment =
+      RingRelation.QuotientProduct.evaluate
+          (evalState assignment interface.left) point *
+        RingRelation.QuotientProduct.evaluate
+          (evalState assignment interface.right) point -
+        (RingRelation.QuotientProduct.evaluate
+            (evalState assignment interface.output) point -
+          RingRelation.QuotientProduct.evaluate
+            (evalState assignment interface.prior) point +
+          RingRelation.QuotientProduct.modulusValue point *
+            RingRelation.QuotientProduct.evaluate
+              (evalState assignment interface.quotient) point) := by
+    rw [OrdinaryRow.Forms.residual_eq]
+    simp [rowAt, outputForm, evaluateForm_eval, point, sub_eq_add_neg]
+  rw [residual]
+  exact Lean.Grind.AddCommGroup.sub_eq_zero_iff
+
+theorem rowsZero_iff_equations {logicalWidth : Nat}
+    (interface : Interface logicalWidth)
+    (assignment : Assignment F logicalWidth) :
+    RowsZero interface assignment ↔ Equations interface assignment := by
+  unfold RowsZero Equations
+  exact forall_congr' (fun row => row_zero_iff interface assignment row)
+
+theorem rowsZero_implies_ringProduct {logicalWidth : Nat}
+    (interface : Interface logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (rowsZero : RowsZero interface assignment) :
+    evalState assignment interface.output =
+      ringFAdd (evalState assignment interface.prior)
+        (ringFMul (evalState assignment interface.left)
+          (evalState assignment interface.right)) := by
+  exact RingRelation.QuotientProduct.sound_add
+    (evalState assignment interface.left) (evalState assignment interface.right)
+    (evalState assignment interface.prior) (evalState assignment interface.output)
+    (evalState assignment interface.quotient)
+    ((rowsZero_iff_equations interface assignment).mp rowsZero)
+
+end NightstreamFPrime.Layout.ProductionRelation.RingProductPlan

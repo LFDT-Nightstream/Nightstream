@@ -14,7 +14,7 @@ import NightstreamFPrime.Export.MatrixProgram
 import NightstreamFPrime.Export.MatrixProgram.AffineGrid
 import NightstreamFPrime.Export.MatrixProgram.MultiplicationGrid
 import NightstreamFPrime.Export.MatrixProgram.Ordinary
-import NightstreamFPrime.Export.MatrixProgram.Phi81Product
+import NightstreamFPrime.Export.MatrixProgram.RingProduct
 import NightstreamFPrime.Export.MatrixProgram.Pin
 import NightstreamFPrime.Export.MatrixProgram.PoseidonInput
 import NightstreamFPrime.Export.MatrixProgram.Poseidon
@@ -44,7 +44,7 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.CcsTerminal
 import NightstreamFPrime.Lifecycle.Stage1.Terminal
 import NightstreamFPrime.Spec
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
@@ -236,8 +236,8 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.IndexSchedule.indices_length
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.IndexSchedule.index?_eq_getElem?
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Ordinary.Block.row?_eq_compileRow
-#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Phi81Product.loadFin?_of_some
-#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Phi81Product.Block.row?_of_loaded
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.RingProduct.loadFin?_of_some
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.RingProduct.Block.row?_of_loaded
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Pin.Block.ofSemantic_rowCount
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Pin.Block.row?_ofSemantic
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.PoseidonInput.Region.offsets?_of_offsets

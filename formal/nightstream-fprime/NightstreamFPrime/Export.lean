@@ -7,7 +7,7 @@ import NightstreamFPrime.Export.MatrixProgram
 import NightstreamFPrime.Export.MatrixProgram.AffineGrid
 import NightstreamFPrime.Export.MatrixProgram.MultiplicationGrid
 import NightstreamFPrime.Export.MatrixProgram.Ordinary
-import NightstreamFPrime.Export.MatrixProgram.Phi81Product
+import NightstreamFPrime.Export.MatrixProgram.RingProduct
 import NightstreamFPrime.Export.MatrixProgram.Pin
 import NightstreamFPrime.Export.MatrixProgram.PoseidonInput
 import NightstreamFPrime.Export.MatrixProgram.Poseidon

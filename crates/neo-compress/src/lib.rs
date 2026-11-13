@@ -27,7 +27,7 @@
 //!
 //! - batch of the equations at `(ω, δ, γ, μ)`:
 //!   `(κ + 1 + t + max(63, m − 1) + s − 1) / |K|`,
-//! - lookup: `((N + T) / q)^3` for each table,
+//! - lookup: `((N + T) / q)^4` for each table,
 //! - batch of the inverse checks and the sums at `(ψ, ξ, λ, β)`: `(2 + n) / |K|`,
 //! - sum-check: `3n / |K|`,
 //! - one point for the columns of `V`: `2 / |K|`,
@@ -36,8 +36,8 @@
 //!
 //! `error_bits` gives the sum without the Akita term. For the two step
 //! circuits of the Poseidon2 hash chain (`N = 2^25` and `2^23`, `T ≤ 20737`,
-//! `n ≤ 28`, `m = 320`, `t = 4`, `s = 3`) the lookups give `2^-116.97`, the
-//! other terms `2^-119.2`, and the sum is `2^-116.7`.
+//! `n ≤ 28`, `m = 320`, `t = 4`, `s = 3`) the lookups give `2^-155.99`, the
+//! other terms `2^-119.15`, and the sum is `2^-119.15`.
 
 // The claims of `tests/support` name this crate as an integration test does.
 #[cfg(test)]

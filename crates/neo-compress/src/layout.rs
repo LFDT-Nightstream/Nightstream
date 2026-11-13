@@ -11,8 +11,10 @@ use crate::{Error, Norm};
 /// one polynomial. The row of 14 variables has a known fault.
 const SHIPPED_VARS: [usize; 6] = [16, 20, 26, 28, 29, 30];
 
-/// The lookup runs once for each of this many base-field challenges.
-pub(crate) const LOOKUPS: usize = 3;
+/// The lookup runs once for each of this many base-field challenges. Four
+/// fill the columns of `V` and put the lookup error below the other terms
+/// of `error_bits`.
+pub(crate) const LOOKUPS: usize = 4;
 /// `V` has one column for each value of this many variables.
 pub(crate) const LOOKUP_VARS: usize = 2;
 const _: () = assert!(LOOKUPS <= 1 << LOOKUP_VARS);

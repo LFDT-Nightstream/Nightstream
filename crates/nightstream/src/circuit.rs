@@ -368,7 +368,7 @@ impl FinalProof {
 /// circuit reads and their commitment. It holds about 10 GB for the
 /// Poseidon2 hash chain. `Prover::compression_setup` makes it once from the
 /// prover's circuit, and each `Prover::compress` reads it. It gives the
-/// verifier nothing: a verifier computes its own `CompressionKey`.
+/// verifier nothing: a verifier takes its own `CompressionKey`.
 pub struct CompressionSetup(neo_compress::ProverKey);
 
 /// The verifier's key of the compression: the commitment of the rows of the
@@ -376,13 +376,12 @@ pub struct CompressionSetup(neo_compress::ProverKey);
 /// the public seeds and of the size of the verifier's circuit. No proof
 /// carries it.
 ///
-/// `Verifier::compression_key` computes the key, once for each verifier.
-/// `Verifier::decode_compression_key` loads its bytes for a verifier that
-/// cannot make that computation. Loaded bytes are trusted input, as the
-/// compiled circuit is: the decoder checks their form only, and
-/// `Verifier::verify_final` accepts false statements under a key that does
-/// not hold the commitment of the Ajtai key. The bytes are no proof of their
-/// content. Any party computes them again with `Verifier::compression_key`.
+/// The key of each size is pinned in this library, and a test computes each
+/// pinned key again from the public seeds. `Verifier::compression_key` gives
+/// the pinned key of the verifier's circuit and expands no key element.
+/// `Verifier::decode_compression_key` accepts exactly the bytes of that
+/// pinned key, so a decoded key is checked against the pin and is not
+/// trusted input.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompressionKey(neo_compress::VerificationKey);
 
@@ -497,7 +496,7 @@ impl Prover {
 
     /// Expand the rows of the Ajtai key that the prover's circuit reads and
     /// commit them, once for each prover. A verifier of the same circuit
-    /// computes the key of these proofs itself (`Verifier::compression_key`).
+    /// takes the key of these proofs itself (`Verifier::compression_key`).
     pub fn compression_setup(&self) -> Result<CompressionSetup, Error> {
         Ok(CompressionSetup(self.lifecycle.compression_setup()?))
     }
@@ -529,20 +528,18 @@ impl Verifier {
             .verify(expected.iteration(), expected.z0(), expected.current(), &proof.0)?)
     }
 
-    /// Compute the compression key of this verifier's circuit from the
-    /// public seeds: expand the rows of the Ajtai key that the circuit reads
-    /// and commit them. For the Poseidon2 hash chain it takes about 1 s on
-    /// 30 threads and 19 s on one, with a peak of 6 GB. Make it once and use
-    /// it for each proof. A prover of the same circuit makes proofs for
-    /// this key (`Prover::compression_setup`).
+    /// The compression key of this verifier's circuit: the pinned key of
+    /// its size (`CompressionKey`). A prover of the same circuit makes
+    /// proofs for this key (`Prover::compression_setup`). Make the key once
+    /// and use it for each proof: it keeps the Akita verifier setup that its
+    /// first proof makes.
     pub fn compression_key(&self) -> Result<CompressionKey, Error> {
         Ok(CompressionKey(self.lifecycle.compression_key()?))
     }
 
     /// Decode the bytes of the compression key of this verifier's circuit.
-    /// A key has one encoding, no byte follows it, and it has the size of
-    /// the circuit. The bytes are trusted input (`CompressionKey`): take
-    /// them from a party that the verifier trusts as it trusts its circuit.
+    /// Only the bytes of the pinned key of the circuit's size decode
+    /// (`CompressionKey`).
     pub fn decode_compression_key(&self, bytes: &[u8]) -> Result<CompressionKey, Error> {
         Ok(CompressionKey(self.lifecycle.decode_compression_key(bytes)?))
     }

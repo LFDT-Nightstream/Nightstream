@@ -682,11 +682,10 @@ fn a_verifier_of_other_keys_rejects_the_proof() {
     assert!(!accepts(&other_circuit, &envelope, &proof));
 }
 
-/// The compression key is authority, and anyone computes it from the public
-/// seeds. The key that a verifier derives is the key of the prover's setup
-/// by construction, and the proof verifies under it. A proof does not verify
-/// under the key of another circuit size or under a key with one changed
-/// byte.
+/// The verifier's compression key is the pinned key of the circuit's size,
+/// which is the key of the prover's setup, and the proof verifies under it.
+/// A proof does not verify under the key of another circuit size, and a key
+/// with one changed byte does not decode.
 #[test]
 #[ignore = "Production-size compression, 30 GB; run separately under the 300-second cap."]
 fn a_proof_does_not_verify_under_another_compression_key() {
@@ -695,41 +694,30 @@ fn a_proof_does_not_verify_under_another_compression_key() {
     let (proof, _) = prover
         .compress(setup(&prover), &envelope)
         .expect("compressed proof");
-    let start = Instant::now();
-    let derived = prover.compression_key().expect("derived key");
-    println!(
-        "compression_key {:.0} ms on {} threads",
-        milliseconds(start.elapsed()),
-        rayon::current_num_threads()
-    );
-    assert_eq!(&derived, key(&prover));
+    let pinned = prover.compression_key().expect("pinned key");
+    assert_eq!(&pinned, key(&prover));
     prover
-        .verify_final(&derived, envelope.iteration, envelope.z0, envelope.current, &proof)
-        .expect("the proof verifies under the derived key");
-
+        .verify_final(&pinned, envelope.iteration, envelope.z0, envelope.current, &proof)
+        .expect("the proof verifies under the pinned key");
     assert_eq!(
         &prover
-            .decode_compression_key(&derived.to_bytes())
+            .decode_compression_key(&pinned.to_bytes())
             .expect("decoded key"),
-        &derived
+        &pinned
     );
 
-    let small = VerificationKey::derive(512).expect("the key of 512 blocks");
+    let small = VerificationKey::new(512).expect("the key of 512 blocks");
     assert!(small.blocks() < prover.relations[0].blocks());
     assert!(matches!(
         prover.verify_final(&small, envelope.iteration, envelope.z0, envelope.current, &proof),
         Err(BoundedDepthError::Compression(neo_compress::Error::Key(_)))
     ));
 
-    let bytes = key(&prover).to_bytes();
-    for at in [16, 24, 40, 300, bytes.len() - 600, bytes.len() - 300, bytes.len() - 1] {
+    let bytes = pinned.to_bytes();
+    for at in 0..bytes.len() {
         let mut changed = bytes.clone();
         changed[at] ^= 1;
-        if let Ok(other) = VerificationKey::from_bytes(&changed) {
-            assert_ne!(&other, key(&prover), "byte {at}");
-            let result = prover.verify_final(&other, envelope.iteration, envelope.z0, envelope.current, &proof);
-            assert!(result.is_err(), "byte {at}");
-        }
+        assert!(prover.decode_compression_key(&changed).is_err(), "byte {at}");
     }
 }
 

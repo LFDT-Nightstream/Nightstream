@@ -1,6 +1,8 @@
 //! The verifier of the argument expands no element of the Ajtai key. This
 //! file has one test, so no other thread of its process expands a key element
-//! while the verifier runs.
+//! while the verifier runs. `expanded_key_bytes` counts the CPU expansion of
+//! `neo-ajtai` only: an expansion in a Metal shader does not count, and this
+//! test runs no Metal path.
 
 mod support;
 

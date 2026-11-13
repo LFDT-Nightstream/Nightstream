@@ -238,14 +238,14 @@ impl<A: Application> Verifier<A> {
         self.stage1.compression_key()
     }
 
-    /// Decode trusted bytes of the compression key of the circuit
+    /// Decode the bytes of the compression key of the circuit
     /// (`crate::Verifier::decode_compression_key`).
     pub fn decode_compression_key(&self, bytes: &[u8]) -> Result<crate::CompressionKey, crate::Error> {
         self.stage1.decode_compression_key(bytes)
     }
 
     /// Verify a compressed memory proof as `verify` does: the terminal
-    /// checks, then `crate::Verifier::verify_final` with the trusted `key`.
+    /// checks, then `crate::Verifier::verify_final` with `key`.
     pub fn verify_final(
         &self,
         program: &Program,

@@ -14,10 +14,11 @@
 //! The verifier does not expand the Ajtai key. `compression_setup` commits
 //! the key rows once as one polynomial, for the blocks of the larger
 //! relation up to a power of two, and `verify_final` reads the commitment
-//! from its verification key. The verifier computes the key from its circuit
-//! and the public seeds (`compression_key`), and no proof and no prover
-//! value carries it. The key is a function of the seeds and of that power of
-//! two only, so each circuit of one size has the same key.
+//! from its verification key. The key is a function of the public seeds and
+//! of that power of two only, so `neo-compress` pins the key of each size,
+//! and a test computes each pinned key again from the seeds. The verifier
+//! takes the pinned key of its circuit (`compression_key`), and no proof and
+//! no prover value carries it.
 //!
 //! The soundness error is the sum of three parts. The caller's
 //! `minimum_security_bits` gates the first two, each alone and never their
@@ -187,14 +188,14 @@ impl BoundedDepth {
         Ok(ProverKey::new(self.key_blocks())?)
     }
 
-    /// The verification key of this circuit, from the public seeds: the key
-    /// of `compression_setup`, without the rows.
+    /// The verification key of this circuit: the pinned key of the size of
+    /// `compression_setup`, which is the key of that setup without the rows.
     pub(crate) fn compression_key(&self) -> Result<VerificationKey, BoundedDepthError> {
-        Ok(VerificationKey::derive(self.key_blocks())?)
+        Ok(VerificationKey::new(self.key_blocks())?)
     }
 
-    /// Decode the bytes of the verification key of this circuit. The bytes
-    /// are trusted input: only `compression_key` shows what they must be.
+    /// Decode the bytes of the verification key of this circuit. Only the
+    /// bytes of `compression_key` decode.
     pub(crate) fn decode_compression_key(&self, bytes: &[u8]) -> Result<VerificationKey, BoundedDepthError> {
         let key = VerificationKey::from_bytes(bytes)?;
         self.check_key_size(&key)?;
@@ -360,8 +361,8 @@ impl BoundedDepth {
     /// Accept `proof` for the expected statement exactly when `verify`
     /// accepts some proof with witnesses for it (Lean
     /// `RunCompleteness.Verifies`), up to the soundness error of the
-    /// argument. `key` is authority: it must be the key of
-    /// `compression_key`, and no proof carries it.
+    /// argument under `key`, which must have the size of `compression_key`.
+    /// No proof carries the key.
     pub(crate) fn verify_final(
         &self,
         key: &VerificationKey,

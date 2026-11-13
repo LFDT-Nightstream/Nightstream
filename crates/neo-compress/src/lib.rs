@@ -75,7 +75,7 @@
 //! The key sum-check proves the exact sum that the first sum-check needs, so
 //! the claims need no new batch. The identity `ω^i = scale · eq(s, i)` of the
 //! rows is exact, so the row point adds no error. No proof exists when `ω`
-//! has no row point, with probability at most `31 / |K|`.
+//! has no row point, with probability `7 / |K|` (`key::row_point`).
 //!
 //! `error_bits` gives the sum without the Akita term. For the two step
 //! circuits of the Poseidon2 hash chain (`N = 2^25` and `2^23`, `T ≤ 20737`,
@@ -85,9 +85,10 @@
 //! The argument assumes that the commitment of the verification key is the
 //! Akita commitment of the key polynomial, and that Akita is binding and
 //! knowledge sound for it: the value that Akita opens is the value of that
-//! polynomial. The verifier never sees the polynomial. A third party checks
-//! a verification key with `VerificationKey::derive`, which computes it
-//! again from the public seeds.
+//! polynomial. The verifier never sees the polynomial. The verification key
+//! of each size is pinned in `artifacts/`, a test computes each pinned key
+//! again from the public seeds, and `VerificationKey::new` and
+//! `VerificationKey::from_bytes` give only a pinned key.
 
 // The claims of `tests/support` name this crate as an integration test does.
 #[cfg(test)]

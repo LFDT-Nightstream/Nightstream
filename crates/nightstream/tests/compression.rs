@@ -1,8 +1,10 @@
 //! The compressed proof through the public API on the Rust Poseidon2 hash
 //! chain (SPEC.md section 6). This file has one test, so no other thread of
 //! its process expands a key element while the verifier runs. The test holds
-//! the compression setup of 10 GB and needs 25 GB, so it is ignored.
-//! `neo-compress` runs the same check on small claims.
+//! the compression setup of 10 GB and needs 25 GB, so it is ignored, and
+//! `scripts/ci_rust_tests.sh` runs it alone. `neo-compress` runs the same
+//! check on small claims. `expanded_key_bytes` counts the CPU expansion
+//! only, and the test runs no Metal path.
 
 use neo_ajtai::nightstream_fprime_setup::expanded_key_bytes;
 use neo_math::F;
@@ -24,19 +26,19 @@ fn words(values: [u64; 4]) -> [F; 4] {
 
 /// A verifier and a prover each compile the circuit and make their own key
 /// from it: the verifier its compression key, the prover its compression
-/// setup. Each expands the rows of the Ajtai key once. The proofs of the
-/// prover verify from their bytes under the key of the verifier, and not for
-/// another state, after a changed byte or under a changed key. The verifier
-/// expands no key element when it verifies.
+/// setup. The prover expands the rows of the Ajtai key once, and the
+/// verifier takes the pinned key and expands none. The proofs of the prover
+/// verify from their bytes under the key of the verifier, and not for
+/// another state or after a changed byte. Only the bytes of the key decode.
+/// The verifier expands no key element.
 #[test]
-#[ignore = "Production-size compression, 30 GB; run separately under the 300-second cap."]
+#[ignore = "Production-size compression, 25 GB; scripts/ci_rust_tests.sh runs it alone."]
 fn hash_chain_compresses_and_verifies_without_the_ajtai_key() {
     let verifier = circuit()
         .verifier(Engine::Optimized, 109)
         .expect("verifier");
     let before = expanded_key_bytes();
     let key = verifier.compression_key().expect("compression key");
-    assert_eq!(expanded_key_bytes() - before, KEY_BYTES);
     let key_bytes = key.to_bytes();
     assert!(key_bytes.len() < 2048, "the key has {} bytes", key_bytes.len());
     assert_eq!(
@@ -44,6 +46,11 @@ fn hash_chain_compresses_and_verifies_without_the_ajtai_key() {
             .decode_compression_key(&key_bytes)
             .expect("decoded key"),
         key
+    );
+    assert_eq!(
+        expanded_key_bytes(),
+        before,
+        "the key of the verifier expanded key elements"
     );
 
     let prover = circuit().prover(Engine::Optimized, 109).expect("prover");
@@ -116,16 +123,13 @@ fn hash_chain_compresses_and_verifies_without_the_ajtai_key() {
         verifier.decode_compression_key(&longer).is_err(),
         "a byte after the key"
     );
-    for at in [30, 200, key_bytes.len() - 100] {
+    for at in 0..key_bytes.len() {
         let mut changed = key_bytes.clone();
         changed[at] ^= 1;
-        if let Ok(other) = verifier.decode_compression_key(&changed) {
-            assert_ne!(other, key, "changed key byte {at}");
-            assert!(
-                verifier.verify_final(&state, &other, &decoded).is_err(),
-                "changed key byte {at}"
-            );
-        }
+        assert!(
+            verifier.decode_compression_key(&changed).is_err(),
+            "changed key byte {at}"
+        );
     }
     assert_eq!(expanded_key_bytes(), before, "the verifier expanded key elements");
 }

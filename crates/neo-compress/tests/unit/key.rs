@@ -1,18 +1,26 @@
 //! The reduction of the Ajtai key's part of the weights to one value of the
 //! key polynomial, against key elements from an independent SHAKE128 path,
-//! and proofs under the key polynomial of another seed.
+//! proofs under the key polynomial of another seed, and the pinned
+//! verification keys.
 
 use crate::support::{claim_of_seed, instances, key, layout, random_extension, statements};
 use neo_ajtai::nightstream_fprime_setup::{coefficient_block, PRODUCTION_SEED};
 use neo_math::{D, F, K};
 use neo_transcript::Poseidon2Transcript;
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
 
-use super::{fold, prefix_equality, production_element, row_point, table, weight_at, weight_table, ProverKey};
-use crate::akita::SCHEDULES;
+use akita_serialization::AkitaSerialize;
+use akita_types::{AkitaSetupSeed, SetupPrefixVerifierRegistry};
+use jolt_field::Ring;
+
+use super::{
+    committed, fold, prefix_equality, production_element, row_point, table, weight_at, weight_table, ProverKey,
+    VerificationKey,
+};
+use crate::akita::{self, Base, Schedules, SCHEDULES};
 use crate::layout::LANE_VARS;
 use crate::ring::{dot, Point};
 use crate::sumcheck;
@@ -191,13 +199,31 @@ fn the_powers_of_omega_are_a_scaled_equality_table() {
             .collect();
         assert_eq!(table, powers(omega, 32));
     }
-    assert!(matches!(row_point(K::NEG_ONE), Err(Error::Challenge)));
+    // `x^((q² − 1)/8)` has order 8 for some `x`; each of its 7 powers other
+    // than 1 has no row point.
+    let quarter = (F::ORDER_U64 - 1) / 4;
+    let half = F::ORDER_U64.div_ceil(2);
+    let root = (2..)
+        .map(|x: u64| {
+            random_extension(&mut ChaCha8Rng::seed_from_u64(x))
+                .exp_u64(quarter)
+                .exp_u64(half)
+        })
+        .find(|root| root.exp_u64(4) == K::NEG_ONE)
+        .expect("a root of order 8");
+    for power in 1..8 {
+        assert!(
+            matches!(row_point(root.exp_u64(power)), Err(Error::Challenge)),
+            "power {power}"
+        );
+    }
 }
 
 /// The claims of a prover that holds the key polynomial of another seed are
 /// about that key: their proof verifies under the verification key of that
 /// polynomial and not under the key of the production seed. The honest
-/// proof does not verify under the other key.
+/// proof does not verify under the other key, and the bytes of the other key
+/// do not decode.
 #[test]
 fn a_proof_under_the_key_of_another_seed_does_not_verify() {
     let seed = [7u8; 32];
@@ -207,6 +233,10 @@ fn a_proof_under_the_key_of_another_seed_does_not_verify() {
     .expect("key");
     assert_ne!(other.verification_key(), key().verification_key());
     assert_eq!(other.verification_key().blocks(), key().verification_key().blocks());
+    assert!(matches!(
+        VerificationKey::from_bytes(&other.verification_key().to_bytes()),
+        Err(Error::Key(_))
+    ));
 
     let mut instances = instances();
     for instance in &mut instances {
@@ -271,5 +301,93 @@ fn the_rows_of_another_key_under_the_honest_commitment_do_not_verify() {
             assert!(matches!(result, Err(Error::Rejected(_))), "{result:?}");
         }
         Err(error) => assert!(matches!(error, Error::Akita(_)), "{error}"),
+    }
+}
+
+/// The verification key of `schedules` from the public seeds: the key of
+/// `ProverKey::new`, without its table of `F`.
+fn derive(schedules: &'static Schedules) -> VerificationKey {
+    committed(schedules, table(schedules.blocks(), production_element, Base::from_u64))
+        .expect("key")
+        .2
+}
+
+/// The pinned key of `schedules` is the key of the public seeds, and it
+/// decodes to itself.
+fn the_pinned_key_is_the_key_of_the_public_seeds(schedules: &'static Schedules) {
+    let key = derive(schedules);
+    assert!(
+        key.to_bytes() == schedules.key,
+        "artifacts/key{}.vk is not the derived key",
+        schedules.key_vars
+    );
+    assert_eq!(VerificationKey::from_bytes(schedules.key).expect("pinned key"), key);
+    assert_eq!(VerificationKey::new(schedules.blocks()).expect("pinned key"), key);
+}
+
+#[test]
+fn the_small_pinned_key_is_the_key_of_the_public_seeds() {
+    the_pinned_key_is_the_key_of_the_public_seeds(&SCHEDULES[0]);
+    assert_eq!(key().verification_key().to_bytes(), SCHEDULES[0].key);
+}
+
+/// `scripts/ci_rust_tests.sh` runs this test alone.
+#[test]
+#[ignore = "6 GB: the key polynomial of 2^19 blocks."]
+fn the_large_pinned_key_is_the_key_of_the_public_seeds() {
+    the_pinned_key_is_the_key_of_the_public_seeds(&SCHEDULES[1]);
+}
+
+/// The bytes of `key` with `commitment` and `setup_prefixes` in place of its
+/// own.
+fn with_parts(key: &VerificationKey, commitment: &[u8], setup_prefixes: &[u8]) -> Vec<u8> {
+    VerificationKey::of_parts(key.schedules, commitment.to_vec(), setup_prefixes.to_vec()).to_bytes()
+}
+
+/// Only a pinned key decodes. A changed byte of the commitment of the key
+/// polynomial or of the commitments of Akita's setup gives bytes that do not
+/// decode, also when the changed part is a well-formed Akita value. So does
+/// a well-formed registry of Akita's setup under another seed.
+#[test]
+fn only_a_pinned_key_decodes() {
+    for schedules in &SCHEDULES {
+        let key = VerificationKey::from_bytes(schedules.key).expect("pinned key");
+        assert_eq!(key.to_bytes(), schedules.key);
+        let rejected = |bytes: &[u8]| matches!(VerificationKey::from_bytes(bytes), Err(Error::Key(_)));
+
+        let mut well_formed = 0;
+        for at in 0..key.commitment.len() {
+            let mut changed = key.commitment.clone();
+            changed[at] ^= 1;
+            well_formed += usize::from(akita::commitment(&changed).is_ok());
+            assert!(
+                rejected(&with_parts(&key, &changed, &key.setup_prefixes)),
+                "commitment byte {at}"
+            );
+        }
+        assert!(well_formed > 0, "no changed commitment is well formed");
+
+        let registry = akita::setup_prefixes(&key.setup_prefixes).expect("registry");
+        let mut other = SetupPrefixVerifierRegistry::new(AkitaSetupSeed::shake256_paged_v1([9; 32]));
+        for (_, slot) in registry.iter() {
+            other.insert(slot.clone()).expect("slot");
+        }
+        let mut bytes = Vec::new();
+        other.serialize_compressed(&mut bytes).expect("bytes");
+        assert!(rejected(&with_parts(&key, &key.commitment, &bytes)), "another seed");
+
+        let mut well_formed = 0;
+        for at in 0..key.setup_prefixes.len() {
+            let mut changed = key.setup_prefixes.clone();
+            changed[at] ^= 1;
+            well_formed += usize::from(akita::setup_prefixes(&changed).is_ok());
+            assert!(
+                rejected(&with_parts(&key, &key.commitment, &changed)),
+                "setup prefix byte {at}"
+            );
+        }
+        if !registry.is_empty() {
+            assert!(well_formed > 0, "no changed registry is well formed");
+        }
     }
 }

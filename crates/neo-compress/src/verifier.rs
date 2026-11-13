@@ -6,7 +6,7 @@ use neo_math::K;
 use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 
-use crate::akita::verifier::{Opening, Verifier};
+use crate::akita::verifier::Opening;
 use crate::key::{self, VerificationKey};
 use crate::layout::{LANE_VARS, LOOKUPS, LOOKUP_VARS};
 use crate::transcript::{absorb_bytes, absorb_extension, challenges as draw, session};
@@ -24,7 +24,8 @@ pub struct VerifierTimes {
     pub matrices: Duration,
     /// Each other part of the public weights and both sum-checks.
     pub rest: Duration,
-    /// The prefix of Akita's setup, from Akita's seed.
+    /// The prefix of Akita's setup, from Akita's seed: once for each key
+    /// and schedule row.
     pub akita_setup: Duration,
     pub akita: Duration,
 }
@@ -101,7 +102,7 @@ pub fn verify(
     let matrices = start.elapsed();
 
     let start = Instant::now();
-    let akita = Verifier::new(layout.shape(), key.setup_prefixes())?;
+    let akita = key.akita(layout.shape())?;
     let akita_setup = start.elapsed();
     let start = Instant::now();
     let inverse_value = weights::equality(&column, proof.inverse_values.len())

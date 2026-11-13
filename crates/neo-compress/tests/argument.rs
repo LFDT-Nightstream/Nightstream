@@ -170,65 +170,40 @@ fn a_false_key_weight_with_a_consistent_first_round_does_not_verify() {
     assert!(matches!(accepts(instances, &changed), Err(Error::Rejected(_))));
 }
 
-/// A verification key is authority. A key with one changed byte is another
-/// key or no key, and the honest proof does not verify under it. The bytes
-/// of a key decode to that key only.
+/// Only the pinned key of a size decodes: bytes with one changed byte, a
+/// prefix, a longer string and the body of one size under the block count
+/// of another do not.
 #[test]
-fn another_verification_key_does_not_verify() {
-    let (instances, proof) = honest();
+fn only_the_pinned_verification_key_decodes() {
     let honest_key = key().verification_key();
     let bytes = honest_key.to_bytes();
     assert_eq!(&VerificationKey::from_bytes(&bytes).expect("key"), honest_key);
     assert_eq!(honest_key.blocks(), 512);
+    let rejected = |bytes: &[u8]| matches!(VerificationKey::from_bytes(bytes), Err(Error::Key(_)));
     for at in 0..bytes.len() {
         let mut changed = bytes.clone();
         changed[at] ^= 1;
-        match VerificationKey::from_bytes(&changed) {
-            Ok(other) => {
-                assert_ne!(&other, honest_key, "byte {at}");
-                assert!(accepts_under(&other, instances, proof).is_err(), "byte {at}");
-            }
-            Err(error) => assert!(
-                matches!(error, Error::Key(_) | Error::Rejected(_)),
-                "byte {at}: {error}"
-            ),
-        }
+        assert!(rejected(&changed), "byte {at}");
     }
-    assert!(matches!(
-        VerificationKey::from_bytes(&bytes[..bytes.len() - 1]),
-        Err(Error::Key(_))
-    ));
+    assert!(rejected(&bytes[..bytes.len() - 1]));
     let mut longer = bytes.clone();
     longer.push(0);
-    assert!(matches!(VerificationKey::from_bytes(&longer), Err(Error::Key(_))));
-    // The block count is a field of the key: 1024 blocks have no schedule
-    // row, and 2^19 blocks have another commitment profile.
+    assert!(rejected(&longer));
     for blocks in [0u64, 511, 1024, 1 << 19, u64::MAX] {
         let mut changed = bytes.clone();
         changed[16..24].copy_from_slice(&blocks.to_le_bytes());
-        assert!(
-            matches!(VerificationKey::from_bytes(&changed), Err(Error::Key(_))),
-            "{blocks} blocks"
-        );
-    }
-    // A length above the bytes that follow it decodes nothing.
-    for huge in [u64::MAX, 1 << 40, bytes.len() as u64] {
-        let mut changed = bytes.clone();
-        changed[24..32].copy_from_slice(&huge.to_le_bytes());
-        assert!(
-            matches!(VerificationKey::from_bytes(&changed), Err(Error::Key(_))),
-            "length {huge}"
-        );
+        assert!(rejected(&changed), "{blocks} blocks");
     }
 }
 
-/// Anyone derives the verification key from the public seeds, without the
-/// prover's key.
+/// The key of a number of blocks is the pinned key of the smallest key
+/// polynomial that holds them, and the prover's key of that size.
 #[test]
-fn the_derived_verification_key_is_the_key_of_the_prover() {
-    assert_eq!(&VerificationKey::derive(512).expect("key"), key().verification_key());
-    assert_eq!(&VerificationKey::derive(1).expect("key"), key().verification_key());
-    assert!(matches!(VerificationKey::derive((1 << 19) + 1), Err(Error::Layout(_))));
+fn the_pinned_verification_key_is_the_key_of_the_prover() {
+    assert_eq!(&VerificationKey::new(512).expect("key"), key().verification_key());
+    assert_eq!(&VerificationKey::new(1).expect("key"), key().verification_key());
+    assert_eq!(VerificationKey::new(513).expect("key").blocks(), 1 << 19);
+    assert!(matches!(VerificationKey::new((1 << 19) + 1), Err(Error::Layout(_))));
 }
 
 /// A claim of 513 blocks reads a key element that the key polynomial of 512

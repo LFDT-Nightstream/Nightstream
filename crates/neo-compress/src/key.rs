@@ -24,15 +24,17 @@
 //! scaled `eq` table (`row_point`), so `F(λ, β′) = scale · A(λ, β′, s)`: one
 //! value of the committed polynomial, which Akita opens.
 
-use akita_params::GroupCommitPhaseParams;
-use jolt_field::Ring;
+use std::fmt;
+use std::sync::{Arc, OnceLock};
+
 use neo_ajtai::nightstream_fprime_setup::production_key_pair;
 use neo_math::{KExtensions, D, F, K};
 use p3_field::{Field, PrimeCharacteristicRing};
 use rayon::prelude::*;
 
 use crate::akita::prover::{Committed, Prover};
-use crate::akita::{self, Base, Polynomial, Schedules, SCHEDULES};
+use crate::akita::verifier::Verifier;
+use crate::akita::{self, Base, Polynomial, Schedules, Shape, SCHEDULES};
 use crate::layout::LANE_VARS;
 use crate::ring::dot;
 use crate::weights::{equality, powers, prefix_equality, Uses, KAPPA};
@@ -50,92 +52,110 @@ const MAGIC: &[u8; 16] = b"NS-COMPRESS-VK-1";
 /// setup that the schedule rows of the key offload. Both are functions of
 /// public seeds, and the verifier reads neither table.
 ///
-/// The key is authority. `VerificationKey::derive` computes it. Bytes from
-/// another party are unchecked input: `from_bytes` checks their form only,
-/// and the argument is sound only under the key that `derive` gives.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// The key of each size is pinned (`Schedules::key`), and a test computes
+/// each pinned key again from the public seeds. `new` and `from_bytes` give
+/// only a pinned key, so no key that they give is unchecked input.
+#[derive(Clone)]
 pub struct VerificationKey {
-    blocks: usize,
+    schedules: &'static Schedules,
     commitment: Vec<u8>,
     setup_prefixes: Vec<u8>,
+    /// The Akita verifier of each schedule row, made at the first proof of
+    /// that row.
+    akita: Arc<[OnceLock<Verifier>]>,
 }
 
 impl VerificationKey {
-    /// The key for claims of at most `blocks` blocks, from the public seeds.
-    /// It expands the key polynomial and commits it, and keeps neither.
-    pub fn derive(blocks: usize) -> Result<Self, Error> {
-        let schedules = schedules_for(blocks)?;
-        Ok(committed(schedules, table(schedules.blocks(), production_element, Base::from_u64))?.2)
+    /// The key for claims of at most `blocks` blocks: the pinned key of the
+    /// smallest key polynomial that holds them. It expands no key element.
+    pub fn new(blocks: usize) -> Result<Self, Error> {
+        Ok(Self::pinned(schedules_for(blocks)?))
+    }
+
+    /// Decode untrusted bytes. They decode only when they are the pinned
+    /// key of one size of the key polynomial.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        SCHEDULES
+            .iter()
+            .find(|schedules| schedules.key == bytes)
+            .map(Self::pinned)
+            .ok_or(Error::Key("the bytes are not a pinned key"))
+    }
+
+    fn pinned(schedules: &'static Schedules) -> Self {
+        let mut input = &schedules.key[MAGIC.len() + 8..];
+        let mut part = || {
+            let (length, rest) = input.split_at(8);
+            let (part, rest) = rest.split_at(u64::from_le_bytes(length.try_into().expect("a length")) as usize);
+            input = rest;
+            part.to_vec()
+        };
+        Self::of_parts(schedules, part(), part())
+    }
+
+    fn of_parts(schedules: &'static Schedules, commitment: Vec<u8>, setup_prefixes: Vec<u8>) -> Self {
+        Self {
+            schedules,
+            commitment,
+            setup_prefixes,
+            akita: schedules.rows.iter().map(|_| OnceLock::new()).collect(),
+        }
     }
 
     /// The key polynomial holds this many blocks of each key row, so the
     /// key proves claims of at most this many blocks.
     pub fn blocks(&self) -> usize {
-        self.blocks
+        self.schedules.blocks()
     }
 
     pub(crate) fn commitment(&self) -> &[u8] {
         &self.commitment
     }
 
-    pub(crate) fn setup_prefixes(&self) -> &[u8] {
-        &self.setup_prefixes
+    /// The Akita verifier of the proofs with `shape`.
+    pub(crate) fn akita(&self, shape: Shape) -> Result<&Verifier, Error> {
+        let row = self
+            .schedules
+            .rows
+            .iter()
+            .position(|&row| shape.key == self.schedules.key_vars && row == (shape.witness, shape.inverse))
+            .ok_or(Error::Layout("no Akita schedule row has these polynomials"))?;
+        if let Some(verifier) = self.akita[row].get() {
+            return Ok(verifier);
+        }
+        let verifier = Verifier::new(shape, &self.setup_prefixes)?;
+        Ok(self.akita[row].get_or_init(|| verifier))
     }
 
     /// The key's strict bytes: a tag, the blocks, then each Akita byte
     /// string after its length.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut bytes = MAGIC.to_vec();
-        bytes.extend((self.blocks as u64).to_le_bytes());
+        bytes.extend((self.blocks() as u64).to_le_bytes());
         for part in [&self.commitment, &self.setup_prefixes] {
             bytes.extend((part.len() as u64).to_le_bytes());
             bytes.extend_from_slice(part);
         }
         bytes
     }
+}
 
-    /// Decode untrusted bytes. A key has one encoding: its size has
-    /// schedule rows, its commitment has the profile of those rows, each
-    /// Akita byte string is canonical, and no byte follows the key. The
-    /// bytes do not show that the commitment is the one of the Ajtai key.
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        let mut input = bytes;
-        if take(&mut input, MAGIC.len())? != MAGIC {
-            return Err(Error::Key("format tag"));
-        }
-        let blocks = word(&mut input)?;
-        let schedules = Schedules::of_blocks(blocks).ok_or(Error::Key("no schedule row has a key of this size"))?;
-        let mut part = || -> Result<Vec<u8>, Error> {
-            let length = word(&mut input)?;
-            Ok(take(&mut input, length)?.to_vec())
-        };
-        let (commitment, setup_prefixes) = (part()?, part()?);
-        if !input.is_empty() {
-            return Err(Error::Key("bytes after the key"));
-        }
-        if *akita::commitment(&commitment)?.profile() != key_profile(schedules)? {
-            return Err(Error::Key("the commitment has another profile"));
-        }
-        akita::setup_prefixes(&setup_prefixes)?;
-        Ok(Self {
-            blocks,
-            commitment,
-            setup_prefixes,
-        })
+impl PartialEq for VerificationKey {
+    fn eq(&self, other: &Self) -> bool {
+        (self.blocks(), &self.commitment, &self.setup_prefixes)
+            == (other.blocks(), &other.commitment, &other.setup_prefixes)
     }
 }
 
-fn take<'a>(input: &mut &'a [u8], count: usize) -> Result<&'a [u8], Error> {
-    let (taken, rest) = input
-        .split_at_checked(count)
-        .ok_or(Error::Key("the bytes end before the key does"))?;
-    *input = rest;
-    Ok(taken)
-}
+impl Eq for VerificationKey {}
 
-fn word(input: &mut &[u8]) -> Result<usize, Error> {
-    let word = u64::from_le_bytes(take(input, 8)?.try_into().expect("eight bytes"));
-    usize::try_from(word).map_err(|_| Error::Key("a length exceeds the address space"))
+impl fmt::Debug for VerificationKey {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("VerificationKey")
+            .field("blocks", &self.blocks())
+            .finish_non_exhaustive()
+    }
 }
 
 /// What the prover holds: the key rows, their Akita commitment with the
@@ -207,7 +227,7 @@ fn fold(table: &[F], omega: K) -> Vec<K> {
 }
 
 /// The blocks of the key polynomial for claims of at most `blocks` blocks:
-/// `ProverKey::new` and `VerificationKey::derive` make the key of this size.
+/// `ProverKey::new` and `VerificationKey::new` give the key of this size.
 pub fn key_blocks(blocks: usize) -> Result<usize, Error> {
     Ok(schedules_for(blocks)?.blocks())
 }
@@ -240,29 +260,19 @@ fn table<T: Send>(
         .into_flattened()
 }
 
-fn key_profile(schedules: &Schedules) -> Result<GroupCommitPhaseParams, Error> {
-    let catalog = schedules.catalog()?;
-    Ok(*akita::profile(
-        akita::row(&catalog, schedules.first())?,
-        Polynomial::Key,
-    ))
-}
-
 /// Commit the key polynomial with the cells `cells`.
 fn committed(schedules: &'static Schedules, cells: Vec<Base>) -> Result<(Prover, Committed, VerificationKey), Error> {
     let akita = Prover::new(schedules)?;
     let committed = akita.commit(schedules.first(), Polynomial::Key, cells)?;
-    let verification = VerificationKey {
-        blocks: schedules.blocks(),
-        commitment: committed.bytes.clone(),
-        setup_prefixes: akita.setup_prefixes()?,
-    };
+    let verification = VerificationKey::of_parts(schedules, committed.bytes.clone(), akita.setup_prefixes()?);
     Ok((akita, committed, verification))
 }
 
 /// `(s, scale)` with `ω^i = scale · eq(s, i)` for each row `i`:
 /// `s_k = ω^(2^k) / (1 + ω^(2^k))` and `scale = Π_k (1 + ω^(2^k))`. No such
-/// point exists when a factor of `scale` is zero.
+/// point exists when a factor of `scale` is zero: for 7 values of `ω`, since
+/// 8 is the largest power of two that divides `|K*| = q² − 1`, so
+/// `ω^(2^k) = −1` has `2^k` roots for `k ≤ 2` and none for `k > 2`.
 pub(crate) fn row_point(omega: K) -> Result<([K; ROW_VARS], K), Error> {
     let mut point = [K::ZERO; ROW_VARS];
     let (mut scale, mut power) = (K::ONE, omega);

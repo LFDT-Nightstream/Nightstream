@@ -39,6 +39,9 @@ pub(crate) struct Schedules {
     /// The variables of `W` and of `V` of each row, in increasing order.
     pub(crate) rows: &'static [(usize, usize)],
     bytes: &'static [u8],
+    /// The bytes of the verification key of this size. The key is a
+    /// function of public seeds, so a test computes it again.
+    pub(crate) key: &'static [u8],
 }
 
 pub(crate) const SCHEDULES: [Schedules; 2] = [
@@ -46,11 +49,13 @@ pub(crate) const SCHEDULES: [Schedules; 2] = [
         key_vars: 20,
         rows: &[(16, 16)],
         bytes: include_bytes!("../artifacts/key20.aks"),
+        key: include_bytes!("../artifacts/key20.vk"),
     },
     Schedules {
         key_vars: 30,
         rows: &[(26, 28), (27, 28)],
         bytes: include_bytes!("../artifacts/key30.aks"),
+        key: include_bytes!("../artifacts/key30.vk"),
     },
 ];
 

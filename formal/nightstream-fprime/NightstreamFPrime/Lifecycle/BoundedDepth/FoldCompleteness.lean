@@ -363,7 +363,7 @@ theorem countNormLaw : Refresh.CountNormLaw (PaperAlgebra.piRlcAlgebra ajtai) :=
     assignments valid fresh column
   change centeredMagnitude
       (RingRelation.EvaluationHomomorphism.PiRLCFinite.combineAssignments challenges
-        assignments column) < count * 216 * (2 - 1) + 1
+        assignments column) < count * 128 * (2 - 1) + 1
   omega
 
 /-- The honest refresh fold of a slot claim that holds, with a fresh instance that holds under

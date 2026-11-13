@@ -37,7 +37,7 @@ theorem recursiveSupported
     simp only [recursiveRunningExpr, piDecInterface, PiDECInputs.interface,
       PiDECInputs.childPublicInput, Expr.VarsSatisfy]
     apply logical_piDec
-    let coordinate : Fin 270 :=
+    let coordinate : Fin 320 :=
       ⟨column.val, by
         have bound := column.isLt
         norm_num [FullShape, fullShape, RingRelation.Shape.publicWidth,

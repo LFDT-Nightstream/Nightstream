@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
 /-! The light Π_RLC commitment `c = c_running + ρ · c_fresh` (Cyclo, ePrint 2026/359, Figure 3,
 step 6, on SuperNeo v1.2 Section 7.4, verifier Step 1) as one `CombinationStep` with the
-running commitment as the prior: 22 × 54 = 1,188 rows, against 20,196 for today's 17-source
+running commitment as the prior: 18 × 64 = 1,152 rows, against 19,584 for today's 17-source
 combination (`CommitmentCombination.logicalRowCount_eq`). `output_eq` gives the commitment of
 `Light.Rlc.output` for the production light key. -/
 
@@ -49,7 +49,7 @@ def evalFresh (interface : Interface) (offset : Nat) (env : Env) :
     PiRLCAlgebra.Commitment.Value blockCount :=
   fun row lane => (interface.fresh offset row lane).eval env
 
-theorem rowCount : CombinationStep.privateCount blockCount cellCount = 1188 := by
+theorem rowCount : CombinationStep.privateCount blockCount cellCount = 1152 := by
   norm_num [CombinationStep.privateCount, blockCount, productionProfile, ringDegree]
 
 /-- The rows compute `c_running + ρ · c_fresh`. -/

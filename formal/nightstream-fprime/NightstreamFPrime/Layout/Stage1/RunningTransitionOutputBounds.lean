@@ -9,7 +9,7 @@ open NightstreamFPrime.Lifecycle.Stage1
 
 theorem outputWordBelowOutputDigestStart (index : RunningTransition.WordIndex) :
     (outputWord index).VarsBelow PilotProduction.outputDigestStart := by
-  have indexBound : index.val < 27794 := index.isLt
+  have indexBound : index.val < 28888 := index.isLt
   simp only [outputWord, outputBase, Expr.VarsBelow]
   norm_num [PilotProduction.outputDigestStart, PilotProduction.outputPreimageStart,
     PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart,

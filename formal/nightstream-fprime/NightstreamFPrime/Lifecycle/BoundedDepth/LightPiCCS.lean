@@ -30,7 +30,7 @@ variable {logicalWidth : Nat}
     RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The light Π_CCS claimed sum `T` (SuperNeo v1.2 Section 7.3, Step 2) over the single running
-claim: 54 + 216 = 270 claimed coefficients, against 4,320 today
+claim: 64 + 256 = 320 claimed coefficients, against 5,120 today
 (`InitialClaim.coefficientExprs_length`). -/
 theorem initial_eq (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -56,14 +56,14 @@ theorem initial_eq (relation : ProductionKey.LogicalRelation logicalWidth public
     specification
 
 theorem light_coefficientCount (interface : InitialClaim.ShapeInterface LightShape)
-    (offset : Nat) : (InitialClaim.coefficientExprs interface offset).length = 270 := by
+    (offset : Nat) : (InitialClaim.coefficientExprs interface offset).length = 320 := by
   simp only [InitialClaim.coefficientExprs, List.length_append, List.length_map,
     canonicalPadCoordinates_length, canonicalMatrixCoordinates_length]
   rfl
 
 /-- The light Π_CCS output binding (SuperNeo v1.2 Section 7.3, Step 5): the rows absorb the
-outputs of the two sources, which is the light key's `absorbPiCcsOutput`: 2 × 540 = 1,080 words,
-against 17 × 540 = 9,180 today. -/
+outputs of the two sources, which is the light key's `absorbPiCcsOutput`: 2 × 640 = 1,280 words,
+against 17 × 640 = 10,880 today. -/
 theorem outgoing_eq (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (interface : OutputBinding.ShapeInterface LightShape) (offset : Nat) (env : Env)
@@ -97,7 +97,7 @@ noncomputable abbrev lightInput :=
   ((keys relation ajtai).light.statement running fresh).verifierInput
     (keys relation ajtai).light.lift
 
-/-- `E_K` of the light Π_CCS from the generic `Eval_K` terminal: 54 output coefficients. -/
+/-- `E_K` of the light Π_CCS from the generic `Eval_K` terminal: 64 output coefficients. -/
 theorem padAtMessage_eq (interface : EvalKTerminal.ShapeInterface LightShape) (offset : Nat)
     (env : Env) (gamma : K) (roundPoint : CubePoint K LightShape.cubeVariables)
     (message : ProtocolPolynomial.OutputMessage K LightShape)
@@ -116,7 +116,7 @@ theorem padAtMessage_eq (interface : EvalKTerminal.ShapeInterface LightShape) (o
   EvalKTerminal.spec_implies_padAtMessage interface offset env _ gamma roundPoint message
     roundPointEq priorPointEq gammaEq outputEvalEq specification
 
-/-- `E_A` of the light Π_CCS from the generic `Eval_A` terminal: 216 output coefficients. -/
+/-- `E_A` of the light Π_CCS from the generic `Eval_A` terminal: 256 output coefficients. -/
 theorem matrixAtMessage_eq (interface : EvalATerminal.ShapeInterface LightShape) (offset : Nat)
     (env : Env) (gamma : K) (roundPoint : CubePoint K LightShape.cubeVariables)
     (message : ProtocolPolynomial.OutputMessage K LightShape)
@@ -198,12 +198,12 @@ theorem ccsAtMessage_eq (relation : ProductionKey.LogicalRelation logicalWidth p
   exact (value.trans (congrArg _ pointEq)).trans
     (ccsAtMessage_eq_singleFresh _ gamma message).symm
 
-/-- The light final identity's `γ` exponents: 54 for `E_A` and 270 = 54 × 5 for the constraint
-terms, against 864 and 4,320 today (`FinalIdentity.matrixExponent_eq`,
+/-- The light final identity's `γ` exponents: 64 for `E_A` and 320 = 64 × 5 for the constraint
+terms, against 1,024 and 5,120 today (`FinalIdentity.matrixExponent_eq`,
 `FinalIdentity.constraintExponent_eq`). -/
 theorem light_exponents :
-    FinalIdentity.matrixExponentOf LightShape = 54 ∧
-      FinalIdentity.constraintExponentOf LightShape = 270 :=
+    FinalIdentity.matrixExponentOf LightShape = 64 ∧
+      FinalIdentity.constraintExponentOf LightShape = 320 :=
   ⟨rfl, rfl⟩
 
 /-- The light Π_CCS terminal `v = Q(r')` (SuperNeo v1.2 Section 7.3, Step 4) from the generic
@@ -245,7 +245,7 @@ theorem terminal_eq (relation : ProductionKey.LogicalRelation logicalWidth publi
 /-- The light Π_CCS statement absorption (SuperNeo v1.2 Section 7.3): the generic absorption from
 the light fold domain ends in the light key's prior transcript state, the state its Π_CCS
 challenges start from. The absorbed statement is today's: the prior digest and the fresh blocks,
-1,462 words. -/
+1,476 words. -/
 theorem statementState_eq (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (running : Spec.Folding.Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment

@@ -24,34 +24,34 @@ theorem PublicInputSplit.freshColumnCount_value :
     PublicInputSplit.freshColumnCount = 0 := by rfl
 
 theorem PublicInputSplit.physicalRowCount_value :
-    PublicInputSplit.physicalRowCount = 4860 := by rfl
+    PublicInputSplit.physicalRowCount = 5760 := by rfl
 
 theorem CommitmentRecomposition.physicalRowCount_value :
-    CommitmentRecomposition.physicalRowCount = 1188 := by rfl
+    CommitmentRecomposition.physicalRowCount = 1152 := by rfl
 
 theorem EvalKRecomposition.physicalRowCount_value :
-    EvalKRecomposition.physicalRowCount = 108 := by rfl
+    EvalKRecomposition.physicalRowCount = 128 := by rfl
 
 theorem EvalARecomposition.physicalRowCount_value :
-    EvalARecomposition.physicalRowCount = 432 := by rfl
+    EvalARecomposition.physicalRowCount = 512 := by rfl
 
 theorem exactFreshDeltas_value :
     exactFreshDeltas = [0, 0, 0, 0, 0, 0] := by rfl
 
 theorem exactRowDeltas_value :
-    exactRowDeltas = [0, 4860, 1188, 108, 432, 0] := by rfl
+    exactRowDeltas = [0, 5760, 1152, 128, 512, 0] := by rfl
 
 theorem exactPhysicalColumnDeltas_value :
-    exactPhysicalColumnDeltas = [0, 270, 0, 0, 0, 0] := by rfl
+    exactPhysicalColumnDeltas = [0, 320, 0, 0, 0, 0] := by rfl
 
 theorem exactFreshCount_value : exactFreshCount = 0 := by rfl
 
-theorem exactRowCount_value : exactRowCount = 6588 := by rfl
+theorem exactRowCount_value : exactRowCount = 7552 := by rfl
 
 theorem exactPrivateCount_value :
-    Formal.logicalPrivateCount + exactFreshCount = 270 := by
+    Formal.logicalPrivateCount + exactFreshCount = 320 := by
   rw [exactFreshCount_value]
-  change Lifecycle.PiDEC.v1_2.PublicInputSplit.exactPrivateCount + 0 = 270
+  change Lifecycle.PiDEC.v1_2.PublicInputSplit.exactPrivateCount + 0 = 320
   rw [Lifecycle.PiDEC.v1_2.PublicInputSplit.exactPrivateCount_eq]
 
 variable {logicalWidth : Nat}
@@ -63,11 +63,11 @@ theorem cumulativeFootprints_eq
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     cumulativePhysicalRows relation interface offset =
-        [0, 4860, 6048, 6156, 6588, 6588] ∧
+        [0, 5760, 6912, 7040, 7552, 7552] ∧
       cumulativePhysicalColumns relation interface offset =
-        [0, 270, 270, 270, 270, 270] ∧
+        [0, 320, 320, 320, 320, 320] ∧
       cumulativeJointDomains relation interface offset =
-        [0, 4860, 6048, 6156, 6588, 6588] := by
+        [0, 5760, 6912, 7040, 7552, 7552] := by
   norm_num [cumulativePhysicalRows,
     physicalRowDeltas_eq relation interface offset inputs, exactRowDeltas_value,
     cumulativePhysicalColumns,

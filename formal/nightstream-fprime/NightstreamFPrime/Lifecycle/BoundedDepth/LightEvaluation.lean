@@ -6,7 +6,7 @@ import NightstreamFPrime.Spec.Folding.Light.RlcModule
 Figure 3, step 6, on SuperNeo v1.2 Section 7.4, verifier Step 1) as one `CombinationStep` with
 the running family as the prior. Block 0 is `Eval_K` (the pad family) and block `m + 1` is
 `Eval_A` of matrix `m`; each `K` value is two field cells, so the step has
-5 × 54 × 2 = 540 rows, against 1,836 + 7,344 = 9,180 for today's combinations
+5 × 64 × 2 = 640 rows, against 2,176 + 8,704 = 10,880 for today's combinations
 (`EvalKCombination`, `EvalACombination`). `output_eq` gives the
 evaluation family of the production light key's Π_RLC output. -/
 
@@ -60,7 +60,7 @@ def evalRunning (interface : Interface) (offset : Nat) (env : Env) : Fin blockCo
 def evalFresh (interface : Interface) (offset : Nat) (env : Env) : Fin blockCount → RingK :=
   fun block lane => (interface.fresh offset block lane).eval env
 
-theorem rowCount : CombinationStep.privateCount blockCount cellCount = 540 := by
+theorem rowCount : CombinationStep.privateCount blockCount cellCount = 640 := by
   rfl
 
 private theorem expressionCell_eval (env : Env) (cell : Fin cellCount) (value : KExpr) :

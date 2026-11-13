@@ -38,7 +38,7 @@ def PiDecField (column : Nat) : Prop :=
       (coefficient : Fin ringDegree),
     column = PiDECInputs.childCommitmentStart source +
       row.val * ringDegree + coefficient.val) ∨
-  (∃ (source : Radix.ChildIndex) (coordinate : Fin 270),
+  (∃ (source : Radix.ChildIndex) (coordinate : Fin 320),
     column = PiDECInputs.childPublicInputStart source + coordinate.val) ∨
   (∃ (source : Radix.ChildIndex)
       (coefficient : Fin productionShape.coefficientCount),
@@ -71,19 +71,19 @@ def Source (column : Nat) : Prop :=
 def Target (column : Nat) : Prop :=
   ∃ source, Source source ∧ column = Spartan.sourceToSpartan source
 
-@[simp] theorem stateStart_eq : stateStart = 27810 := by
+@[simp] theorem stateStart_eq : stateStart = 28904 := by
   rfl
 
-@[simp] theorem outputStart_eq : outputStart = 28089 := by
+@[simp] theorem outputStart_eq : outputStart = 29233 := by
   rfl
 
-@[simp] theorem outputCount_eq : outputCount = 27819 := by
+@[simp] theorem outputCount_eq : outputCount = 28913 := by
   exact PilotProduction.stateHashWords_eq
 
-@[simp] theorem piDecStart_eq : piDecStart = 11432634 := by
+@[simp] theorem piDecStart_eq : piDecStart = 11381138 := by
   rfl
 
-@[simp] theorem piDecCount_eq : piDecCount = 31968 := by
+@[simp] theorem piDecCount_eq : piDecCount = 33792 := by
   exact PiDECInputs.proofInputColumnCount_eq
 
 theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
@@ -95,19 +95,19 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
     have rowBound := row.isLt
     have coefficientBound := coefficient.isLt
     change source.val < 16 at sourceBound
-    change row.val < 22 at rowBound
-    change coefficient.val < 54 at coefficientBound
-    change InRange 11432634 31968
-      (11432634 + source.val * 1188 + row.val * 54 + coefficient.val)
+    change row.val < 18 at rowBound
+    change coefficient.val < 64 at coefficientBound
+    change InRange 11381138 33792
+      (11381138 + source.val * 1152 + row.val * 64 + coefficient.val)
     unfold InRange
     omega
   · rcases publicInput with ⟨source, coordinate, rfl⟩
     have sourceBound := source.isLt
     have coordinateBound := coordinate.isLt
     change source.val < 16 at sourceBound
-    change coordinate.val < 270 at coordinateBound
-    change InRange 11432634 31968
-      (11460282 + source.val * 270 + coordinate.val)
+    change coordinate.val < 320 at coordinateBound
+    change InRange 11381138 33792
+      (11409810 + source.val * 320 + coordinate.val)
     unfold InRange
     omega
   · rcases evalK with ⟨source, coefficient, low | high⟩
@@ -116,14 +116,14 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
       have sourceBound := source.isLt
       have coefficientBound := coefficient.isLt
       change source.val < 16 at sourceBound
-      change coefficient.val < 54 at coefficientBound
+      change coefficient.val < 64 at coefficientBound
       first
-      | change InRange 11432634 31968
-          (11451642 + source.val * 108 + coefficient.val * 2)
+      | change InRange 11381138 33792
+          (11399570 + source.val * 128 + coefficient.val * 2)
         unfold InRange
         omega
-      | change InRange 11432634 31968
-          (11451642 + source.val * 108 + coefficient.val * 2 + 1)
+      | change InRange 11381138 33792
+          (11399570 + source.val * 128 + coefficient.val * 2 + 1)
         unfold InRange
         omega
   · rcases evalA with ⟨source, matrix, coefficient, low | high⟩
@@ -134,15 +134,15 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
       have coefficientBound := coefficient.isLt
       change source.val < 16 at sourceBound
       change matrix.val < 4 at matrixBound
-      change coefficient.val < 54 at coefficientBound
+      change coefficient.val < 64 at coefficientBound
       first
-      | change InRange 11432634 31968
-          (11453370 + source.val * 432 + matrix.val * 108 +
+      | change InRange 11381138 33792
+          (11401618 + source.val * 512 + matrix.val * 128 +
             coefficient.val * 2)
         unfold InRange
         omega
-      | change InRange 11432634 31968
-          (11453370 + source.val * 432 + matrix.val * 108 +
+      | change InRange 11381138 33792
+          (11401618 + source.val * 512 + matrix.val * 128 +
             coefficient.val * 2 + 1)
         unfold InRange
         omega

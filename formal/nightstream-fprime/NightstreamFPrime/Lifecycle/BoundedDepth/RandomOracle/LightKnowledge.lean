@@ -59,7 +59,7 @@ theorem statisticalError_le (queries : Nat) :
     have distance := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt
     have count : (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.scalarCount : ℝ) = 5 ^ 64 := by
       norm_num [Spec.Folding.Nifs.NonInteractive.PiRlcSampler.scalarCount,
-        RingStrongSet.alphabetSize, RingStrongSet.coefficientCount]
+        RingStrongSet.alphabetSize, RingStrongSet.coefficientCount, ringDegree]
     unfold Fork.sampleError
     rw [count]
     linarith

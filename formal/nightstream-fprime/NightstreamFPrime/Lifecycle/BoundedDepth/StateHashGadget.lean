@@ -8,8 +8,8 @@ one hash gadget for the 38-word state preimage, whose last eight words are two s
 state hash in the fresh instance of `stepHolds_iff` from the gadget specifications, the words the
 circuit holds and the value of each slot digest. A step runs three slot digests (both prior slots
 and the new slot; the other next digest is a prior digest, `DigestSelect`) and two state hashes:
-3 × 190,704 + 2 × 5,480 = 583,072 hash recipes (`slotGadget_hashLength`,
-`stateGadget_hashLength`), against 2 × 2,542,720 = 5,085,440 for today's two flat state hashes
+3 × 200,568 + 2 × 5,480 = 612,664 hash recipes (`slotGadget_hashLength`,
+`stateGadget_hashLength`), against 2 × 2,642,456 = 5,284,912 for today's two flat state hashes
 (`PilotProduction.hashWitnessCount_eq`). -/
 
 namespace NightstreamFPrime.Lifecycle.BoundedDepth
@@ -129,10 +129,10 @@ theorem builder_implies_prior {prior : PriorStateHash.Interface} {offset : Nat}
 
 end Step
 
-/-- A slot gadget hashes 2,067 words: 173 absorptions and the padding permutation. -/
+/-- A slot gadget hashes 2,181 words: 182 absorptions and the padding permutation. -/
 theorem slotGadget_hashLength {gadget : OutputHash.Interface} {offset : Nat} {env : Env}
     {slot : SlotData logicalWidth publicFits} (represents : SlotRepresents gadget offset env slot) :
-    OutputHash.hashLength gadget offset = 190704 := by
+    OutputHash.hashLength gadget offset = 200568 := by
   have length := congrArg List.length represents
   simp only [Hash.evalList, List.length_map, List.length_append, serializeSlot_length_eq] at length
   simp [OutputHash.hashLength, Hash.inputChunks, length, slotDomainChunk, domainChunk,

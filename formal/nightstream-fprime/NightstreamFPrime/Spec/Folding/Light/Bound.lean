@@ -15,11 +15,11 @@ theorem accumulatorBound_lt_bigB (p : GlobalParams) {lightFolds : Nat}
   p.rlc_bound_for depth
 
 theorem production_accumulatorBound_lt_bigB {lightFolds : Nat}
-    (depth : lightFolds ≤ 286) :
+    (depth : lightFolds ≤ 494) :
     productionGlobalParams.accumulatorBound lightFolds <
       productionGlobalParams.bigB :=
   productionGlobalParams.accumulatorBound_lt_bigB (by
-    change 1 + lightFolds ≤ 287
+    change 1 + lightFolds ≤ 495
     omega)
 
 end NightstreamFPrime.Spec.GlobalParams

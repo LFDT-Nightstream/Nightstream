@@ -147,7 +147,7 @@ theorem production_cap_fits : 1 + productionLightFoldCap ≤ productionGlobalPar
   decide
 
 theorem production_msisChainBound :
-    msisChainBound productionGlobalParams productionLightFoldCap = 137134080 := by
+    msisChainBound productionGlobalParams productionLightFoldCap = 75497472 := by
   decide
 
 end NightstreamFPrime.Spec.Folding.Schedule

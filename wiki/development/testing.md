@@ -15,6 +15,7 @@ The root [AGENTS.md](../../AGENTS.md) defines the test rules.
 timeout --signal=KILL 300 cargo test -p nightstream --release
 timeout --signal=KILL 300 cargo test -p neo-ccs --release --test packed_witness
 timeout --signal=KILL 300 cargo test -p neo-reductions --release --test matrix_rows
+timeout --signal=KILL 300 cargo test -p neo-compress --release
 timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib application_records
 timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib bounded_depth::application
 ```

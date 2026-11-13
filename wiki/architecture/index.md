@@ -9,16 +9,18 @@ the step packages. Production compilation and execution do not run Lean.
 | `nightstream/src/application` | Application program and witness construction |
 | `nightstream/src/circuit.rs` | The public API that compiles, saves and loads the application and makes the prover and verifier |
 | `nightstream/src/folding` | PiCCS, PiRLC, PiDEC, the light and refresh folds, and the verifier-driven transcript |
-| `nightstream/src/lifecycle/bounded_depth` | Steps, verification and proof bytes |
+| `nightstream/src/lifecycle/bounded_depth` | Steps, verification, compression and proof bytes |
 | `nightstream/src/nebula` | Nebula memory applications |
 | `nightstream-fprime/src/bounded_depth` | Loading of the bounded-depth packages, their identity and their words |
 | `nightstream-fprime/src/package` | Package formats, matrix programs and the PiCCS transcripts of the folds |
 | `neo-reductions` | Folding arithmetic and sum-check engines |
+| `neo-compress` | The argument of the compressed proof over the Akita commitment scheme |
 | `neo-ajtai` | Fixed-key commitments and low-norm decomposition |
 | `formal/nightstream-fprime` | Protocol, circuit, layout, and export proofs |
 
 The application compiler uses one general path. Protocol-binding hashes use
-Poseidon2.
+Poseidon2. The Akita commitment scheme, which only `neo-compress` calls,
+uses Keccak-family hashes for its own challenges.
 
 See [lifecycle](lifecycle.md), [applications](frontends.md), and the
 [protocol specification](../../SPEC.md).

@@ -10,6 +10,7 @@ Workspace members (root `Cargo.toml`), lowest layer first:
 | `neo-transcript` | Poseidon2 Fiat-Shamir transcript | [neo-transcript](neo-transcript.md) |
 | `neo-ajtai` | Ajtai (module-SIS) commitments, decomposition, S-module | [neo-ajtai](neo-ajtai.md) |
 | `neo-reductions` | Π_CCS / Π_RLC / Π_DEC engines (optimized + paper-exact) | [neo-reductions](neo-reductions.md) |
+| `neo-compress` | The argument of the compressed proof: CE claims over the Akita commitment scheme | [source](../../crates/neo-compress/src/lib.rs) |
 | `neo-prover-metal` | Metal device state and row evaluation; `nightstream` does not use it now | [neo-prover-metal](../../crates/neo-prover-metal/README.md) |
 | `neo-prover-cuda` | CUDA backend target; construction fails until a canonical kernel exists | [source](../../crates/neo-prover-cuda/src/lib.rs) |
 | `nightstream` | Application compilation, proving and verification | [nightstream](../../crates/nightstream/README.md) |

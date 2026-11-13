@@ -192,31 +192,31 @@ theorem density_claimBatch_le (D E m : ℕ) (L Y : ℕ → ℕ → K) (z X : ℕ
       rw [← zero]
       exact sum_congr rfl fun k _ => mul_comm _ _
 
-/-- The claims batched with powers of `μ`: when one claim fails, the batch vanishes on
-`(μ, ω, δ, γ)` with density at most `(s − 1 + E + max(D − 1, m − 1)) / |K|`. -/
-theorem density_claims_le (s D E m : ℕ) (L Y : ℕ → ℕ → ℕ → K) (z X : ℕ → ℕ → K) (c : ℕ)
-    (claim : c < s) (fails : ClaimFails D E m (L c) (Y c) (z c) (X c)) :
+/-- The claims batched with powers of `μ`: when claim `c` fails, the batch vanishes on
+`(μ, ω, δ, γ)` with density at most `(s − 1 + E + max(D − 1, m_c − 1)) / |K|`. -/
+theorem density_claims_le (s D E : ℕ) (m : ℕ → ℕ) (L Y : ℕ → ℕ → ℕ → K) (z X : ℕ → ℕ → K)
+    (c : ℕ) (claim : c < s) (fails : ClaimFails D E (m c) (L c) (Y c) (z c) (X c)) :
     density (univ.filter fun p : K × K × K × K => ∑ k ∈ range s, p.1 ^ k *
-      claimBatch D E m (L k) (Y k) (z k) (X k) p.2.1 p.2.2.1 p.2.2.2 = 0) ≤
-      ((s - 1 : ℕ) : ℝ) / Fintype.card K + (E + max (D - 1) (m - 1) : ℕ) / Fintype.card K := by
+      claimBatch D E (m k) (L k) (Y k) (z k) (X k) p.2.1 p.2.2.1 p.2.2.2 = 0) ≤
+      ((s - 1 : ℕ) : ℝ) / Fintype.card K + (E + max (D - 1) (m c - 1) : ℕ) / Fintype.card K := by
   let coeff : ℕ → K × K × K → K := fun k b =>
-    if k < s then claimBatch D E m (L k) (Y k) (z k) (X k) b.1 b.2.1 b.2.2 else 0
+    if k < s then claimBatch D E (m k) (L k) (Y k) (z k) (X k) b.1 b.2.1 b.2.2 else 0
   have shape : (univ.filter fun p : K × K × K × K => ∑ k ∈ range s, p.1 ^ k *
-      claimBatch D E m (L k) (Y k) (z k) (X k) p.2.1 p.2.2.1 p.2.2.2 = 0) =
+      claimBatch D E (m k) (L k) (Y k) (z k) (X k) p.2.1 p.2.2.1 p.2.2.2 = 0) =
       univ.filter fun p : K × K × K × K => ∑ k ∈ range (s - 1 + 1), coeff k p.2 * p.1 ^ k = 0 := by
     ext p
     simp only [mem_filter, mem_univ, true_and, show s - 1 + 1 = s by omega]
     rw [sum_congr rfl fun k member => show coeff k p.2 * p.1 ^ k =
-      p.1 ^ k * claimBatch D E m (L k) (Y k) (z k) (X k) p.2.1 p.2.2.1 p.2.2.2 by
+      p.1 ^ k * claimBatch D E (m k) (L k) (Y k) (z k) (X k) p.2.1 p.2.2.1 p.2.2.2 by
         simp only [coeff, ite_eq_left (mem_range.mp member)]; ring]
   rw [shape]
   refine (density_batch_le (s - 1) coeff c (by omega)
     (univ.filter fun b : K × K × K =>
-      claimBatch D E m (L c) (Y c) (z c) (X c) b.1 b.2.1 b.2.2 = 0)
+      claimBatch D E (m c) (L c) (Y c) (z c) (X c) b.1 b.2.1 b.2.2 = 0)
     fun b outside => by
       simp only [coeff, ite_eq_left claim]
       simpa using outside).trans ?_
-  exact add_le_add le_rfl (density_claimBatch_le D E m (L c) (Y c) (z c) (X c) fails)
+  exact add_le_add le_rfl (density_claimBatch_le D E (m c) (L c) (Y c) (z c) (X c) fails)
 
 end Density
 

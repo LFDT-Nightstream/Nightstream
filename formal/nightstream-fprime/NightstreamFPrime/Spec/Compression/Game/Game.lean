@@ -134,6 +134,13 @@ theorem Ends.mono {g : Game α} {P R : α → Prop} (h : g.Ends P) (imp : ∀ a,
   | draw C bad next ih => exact fun c => ih c (h c)
   | recv M next ih => exact fun m => ih m (h m)
 
+theorem Avoids.and_ends {g : Game α} {Q P : α → Prop} (avoids : g.Avoids Q) (ends : g.Ends P) :
+    g.Avoids fun a => Q a ∧ P a := by
+  induction g with
+  | pure a => exact ⟨avoids, ends⟩
+  | draw C bad next ih => exact fun c out => ih c (avoids c out) (ends c)
+  | recv M next ih => exact fun m => ih m (avoids m) (ends m)
+
 theorem ends_bind (g : Game α) (f : α → Game β) (P : β → Prop) :
     (bind g f).Ends P ↔ g.Ends (fun a => (f a).Ends P) := by
   induction g with

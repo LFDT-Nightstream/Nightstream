@@ -672,7 +672,7 @@ impl ParsedWasmArtifactsBuilder {
                             if to_function(targets.default())
                                 || targets
                                     .targets()
-                                    .any(|target| target.is_ok_and(&to_function)) =>
+                                    .any(|target| target.is_ok_and(to_function)) =>
                         {
                             return Err(WasmProgramError::Unsupported(
                                 "br_table to the function's label".to_string(),

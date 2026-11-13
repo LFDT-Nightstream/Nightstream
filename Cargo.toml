@@ -79,3 +79,5 @@ too_many_arguments = "allow"
 needless_range_loop = "allow"
 # Allow complex types in cryptographic code (proof systems have inherently complex types)
 type_complexity = "allow"
+# Rust 1.99 Clippy: `chunks_exact(D)` reads as clearly as `as_chunks::<D>()`
+chunks_exact_to_as_chunks = "allow"

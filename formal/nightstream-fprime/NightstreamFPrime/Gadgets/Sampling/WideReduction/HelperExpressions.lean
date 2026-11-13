@@ -8,7 +8,7 @@ open NightstreamFPrime.Spec NightstreamFPrime.Circuit
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open Finset
 
-theorem source_bit_val (base : Env) (start : Nat) (draw : Draw) (lane : Fin 4) (bit : Nat)
+theorem source_bit_val (base : Env) (start : Nat) (draw : Draw) (lane : Fin 5) (bit : Nat)
     (bound : bit < 64) :
     (HelperValues.environment base start draw (start + lane.val * 64 + bit)).val =
       (draw lane).val / 2 ^ bit % 2 := by
@@ -16,7 +16,7 @@ theorem source_bit_val (base : Env) (start : Nat) (draw : Draw) (lane : Fin 4) (
   exact honestBit_val _
 
 theorem accumulator_bit_val (base : Env) (start : Nat) (draw : Draw) (position bit : Nat)
-    (positionBound : position < 16) (bitBound : bit < 37) :
+    (positionBound : position < 20) (bitBound : bit < 37) :
     (HelperValues.environment base start draw (HintProgram.limbStart start position + 1 + bit)).val =
       LimbArithmetic.accumulator draw position / 2 ^ bit % 2 := by
   rw [HelperValues.accumulator_bit base start draw position bit positionBound bitBound]
@@ -32,7 +32,7 @@ private theorem linearValue_scale (env : Env) (terms : List (Nat × Expr)) (scal
       ring
 
 private theorem word_value (base : Env) (start : Nat) (draw : Draw)
-    (lane word : Fin 4) (scale : Nat) :
+    (lane : Fin 5) (word : Fin 4) (scale : Nat) :
     linearValue (HelperValues.environment base start draw)
       ((List.range 16).map fun bit =>
         (scale * 2 ^ bit, Expr.var (start + lane.val * 64 + word.val * 16 + bit))) =
@@ -46,7 +46,7 @@ private theorem word_value (base : Env) (start : Nat) (draw : Draw)
   exact source_bit_val base start draw lane
 
 theorem limb_terms (base : Env) (start : Nat) (draw : Draw) (position : Nat)
-    (bound : position < 16) :
+    (bound : position < 20) :
     linearValue (HelperValues.environment base start draw) (HintProgram.limbTerms start position) =
       LimbArithmetic.accumulator draw position := by
   have carry : linearValue (HelperValues.environment base start draw)
@@ -67,7 +67,7 @@ theorem limb_terms (base : Env) (start : Nat) (draw : Draw) (position : Nat)
     LimbArithmetic.carry draw position + LimbArithmetic.coefficient draw position
   apply congrArg (fun value => LimbArithmetic.carry draw position + value)
   unfold LimbArithmetic.coefficient
-  change (∑ lane ∈ range 4, _) = _
+  change (∑ lane ∈ range 5, _) = _
   rw [← Fin.sum_univ_eq_sum_range]
   apply sum_congr rfl
   intro lane _
@@ -81,7 +81,7 @@ theorem limb_terms (base : Env) (start : Nat) (draw : Draw) (position : Nat)
     rfl
 
 theorem integer_bit (base : Env) (start : Nat) (draw : Draw) (index : Nat)
-    (bound : index < 256) :
+    (bound : index < 320) :
     ((HintProgram.integerBit start index).eval (HelperValues.environment base start draw)).val =
       (drawIndex draw).val / 2 ^ index % 2 := by
   change (HelperValues.environment base start draw
@@ -112,14 +112,12 @@ theorem initial_limb (base : Env) (start : Nat) (draw : Draw) (position : Nat) :
     _ = ∑ bit ∈ range 60, 2 ^ bit * ((drawIndex draw).val / 2 ^ (position * 60 + bit) % 2) := by
       apply sum_congr rfl
       intro bit _
-      by_cases included : position * 60 + bit < 256
+      by_cases included : position * 60 + bit < 320
       · erw [ite_eq_left included]
         exact congrArg (fun value => 2 ^ bit * value) (integer_bit base start draw _ included)
       · erw [ite_eq_right included]
-        have valueBound : (drawIndex draw).val < 2 ^ 256 :=
-          lt_trans (drawIndex draw).isLt (by decide)
         have high : (drawIndex draw).val < 2 ^ (position * 60 + bit) :=
-          lt_of_lt_of_le valueBound (Nat.pow_le_pow_right (by decide) (by omega))
+          LimbArithmetic.drawIndex_lt_two_pow draw _ (by omega)
         rw [Nat.div_eq_of_lt high]
         simp
     _ = (drawIndex draw).val / 2 ^ (position * 60) % 2 ^ 60 := by
@@ -130,22 +128,22 @@ theorem initial_limb (base : Env) (start : Nat) (draw : Draw) (position : Nat) :
       rw [← pow_mul, Nat.mul_comm 60 position]
 
 theorem division_input (base : Env) (start : Nat) (draw : Draw) (round position : Nat)
-    (roundBound : round < 54) (positionBound : position < 5) :
+    (roundBound : round < 64) (positionBound : position < 6) :
     (HintProgram.divisionInput start round position).eval
         (HelperValues.environment base start draw) =
       fieldOfNat
-        (HintValues.divisionCarry ((drawIndex draw).val / 5 ^ round) (4 - position) *
-          WitnessArithmetic.radix + HintValues.limb ((drawIndex draw).val / 5 ^ round) (4 - position)) := by
+        (HintValues.divisionCarry ((drawIndex draw).val / 5 ^ round) (5 - position) *
+          WitnessArithmetic.radix + HintValues.limb ((drawIndex draw).val / 5 ^ round) (5 - position)) := by
   have carryMeaning :
       (if position = 0 then Expr.const 0 else
         Expr.var (HintProgram.divisionColumn start round (position - 1) + 1)).eval
           (HelperValues.environment base start draw) =
-        fieldOfNat (HintValues.divisionCarry ((drawIndex draw).val / 5 ^ round) (4 - position)) := by
+        fieldOfNat (HintValues.divisionCarry ((drawIndex draw).val / 5 ^ round) (5 - position)) := by
     by_cases first : position = 0
     · subst position
       rw [ite_eq_left rfl]
-      have valueBound : (drawIndex draw).val / 5 ^ round < 2 ^ 256 :=
-        lt_of_le_of_lt (Nat.div_le_self _ _) (lt_trans (drawIndex draw).isLt (by decide))
+      have valueBound : (drawIndex draw).val / 5 ^ round < (2 ^ 64) ^ 5 :=
+        lt_of_le_of_lt (Nat.div_le_self _ _) (LimbArithmetic.drawIndex_lt draw)
       rw [Nat.sub_zero, HintValues.division_first_carry _ valueBound]
       rfl
     · rw [ite_eq_right first]
@@ -153,12 +151,12 @@ theorem division_input (base : Env) (start : Nat) (draw : Draw) (round position 
       rw [(HelperValues.division base start draw round (position - 1) roundBound (by omega)).2]
       apply congrArg fieldOfNat
       unfold HelperValues.remainder HintValues.divisionCarry
-      rw [show 4 - (position - 1) = 4 - position + 1 by omega]
+      rw [show 5 - (position - 1) = 5 - position + 1 by omega]
   have limbMeaning :
-      (if round = 0 then HintProgram.initialDivisionLimb start (4 - position) else
+      (if round = 0 then HintProgram.initialDivisionLimb start (5 - position) else
         Expr.var (HintProgram.divisionColumn start (round - 1) position)).eval
           (HelperValues.environment base start draw) =
-        fieldOfNat (HintValues.limb ((drawIndex draw).val / 5 ^ round) (4 - position)) := by
+        fieldOfNat (HintValues.limb ((drawIndex draw).val / 5 ^ round) (5 - position)) := by
     by_cases first : round = 0
     · subst round
       rw [ite_eq_left rfl, initial_limb]

@@ -2,7 +2,7 @@ import NightstreamFPrime.Gadgets.Sampling.WideReduction.OutputHintValues
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.HintCertificate
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.HintSupport
 
-/-! Execution of the 353 retained result-bit hints agrees with the
+/-! Execution of the 434 retained result-bit hints agrees with the
 existing gadget's explicit honest assignment. -/
 
 namespace NightstreamFPrime.Gadgets.Sampling.WideReduction.OutputExecution

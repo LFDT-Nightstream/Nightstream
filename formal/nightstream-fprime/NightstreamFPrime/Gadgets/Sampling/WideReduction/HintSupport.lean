@@ -43,7 +43,7 @@ theorem limbTerms_below (offset position : Nat) :
       omega
     · simp at member
 
-theorem integerBit_below (offset bit : Nat) (bound : bit < 256) :
+theorem integerBit_below (offset bit : Nat) (bound : bit < 320) :
     (HintProgram.integerBit offset bit).VarsBelow (HintProgram.divisionStart offset) := by
   change _ < _
   simp only [HintProgram.limbStart, HintProgram.divisionStart,
@@ -86,15 +86,16 @@ theorem checkQuotient_below (offset : Nat) (check : Fin checkCount) :
     apply linearExpr_below
     intro term member
     obtain ⟨original, inside, rfl⟩ := List.mem_map.mp member
-    have field (lane bit : Nat) (laneBound : lane < 4) (bitBound : bit < 64) :
+    have field (lane bit : Nat) (laneBound : lane < 5) (bitBound : bit < 64) :
         (fieldBit offset lane bit).VarsBelow (checkStart offset) := by
       change _ < _
       simp only [childOffset, childWidth, Range.CanonicalU64.auxiliaryCount,
         checkStart, digitStart, quotientStart, fieldCount, quotientBitCount, digitCount, digitBitCount]
       omega
     simp only [drawTerms, fieldTerms, List.mem_append, List.mem_map, List.mem_range] at inside
-    rcases inside with ((⟨bit, below, rfl⟩ | ⟨bit, below, rfl⟩) |
-      ⟨bit, below, rfl⟩) | ⟨bit, below, rfl⟩ <;> exact field _ bit (by decide) below
+    rcases inside with (((⟨bit, below, rfl⟩ | ⟨bit, below, rfl⟩) |
+      ⟨bit, below, rfl⟩) | ⟨bit, below, rfl⟩) | ⟨bit, below, rfl⟩ <;>
+        exact field _ bit (by decide) below
   have result : (linearExpr (reduceTerms (modulus check) (resultTerms offset))).VarsBelow
       (checkStart offset) := by
     apply linearExpr_below

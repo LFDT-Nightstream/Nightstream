@@ -8,16 +8,16 @@ import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Definitio
 /-!
 Obligation: decode one whole-vector PiRLC scalar.
 
-Inputs: four caller-owned field expressions below the gadget offset.
-Private layout: four canonical-u64 children, then 131 quotient bits `Q`,
-three bits for each of the 54 base-five digits `D_j`, and ten bits for each
-of the six check quotients `K_r`.
+Inputs: five caller-owned field expressions below the gadget offset.
+Private layout: five canonical-u64 children, then 172 quotient bits `Q`,
+three bits for each of the 64 base-five digits `D_j`, and ten bits for each
+of the seven check quotients `K_r`.
 Rows: the children, Booleanity of every new bit, `D_j ≤ 4`, and for each
 modulus `m_r` one check row
 `Σ (c mod m) x + m B = Σ (e mod m) y + m K_r`,
 where `Σ c x = Σ p^i h_i` and `Σ e y = Q N + Σ 5^j D_j`.
 
-Soundness: every accepted assignment has `D = sample (h₀, h₁, h₂, h₃)`, for
+Soundness: every accepted assignment has `D = sample (h₀, h₁, h₂, h₃, h₄)`, for
 every witness value.
 -/
 
@@ -30,12 +30,12 @@ open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.RingStrongSet
 
-abbrev fieldCount : Nat := 4
+abbrev fieldCount : Nat := 5
 def childWidth : Nat := CanonicalU64.auxiliaryCount
-def quotientBitCount : Nat := 131
-def digitCount : Nat := 54
+def quotientBitCount : Nat := 172
+def digitCount : Nat := 64
 def digitBitCount : Nat := 3
-abbrev checkCount : Nat := 6
+abbrev checkCount : Nat := 7
 def checkBitCount : Nat := 10
 def checkBias : Nat := quotientBitCount + digitCount * digitBitCount
 def newBitCount : Nat :=
@@ -44,7 +44,7 @@ def privateCount : Nat := childWidth * fieldCount + newBitCount
 
 def modulus : Fin checkCount → Nat :=
   ![1125899906842623, 1125899906842621, 1125899906842619,
-    1125899906842615, 1125899906842613, 1125899906842609]
+    1125899906842615, 1125899906842613, 1125899906842609, 1125899906842607]
 
 theorem modulus_lt (index : Fin checkCount) : modulus index < 2 ^ 50 := by
   fin_cases index <;> decide
@@ -76,7 +76,8 @@ def fieldTerms (offset index : Nat) : List (Nat × Expr) :=
     (2 ^ bit * fieldModulus ^ index, fieldBit offset index bit)
 
 def drawTerms (offset : Nat) : List (Nat × Expr) :=
-  fieldTerms offset 0 ++ fieldTerms offset 1 ++ fieldTerms offset 2 ++ fieldTerms offset 3
+  fieldTerms offset 0 ++ fieldTerms offset 1 ++ fieldTerms offset 2 ++ fieldTerms offset 3 ++
+    fieldTerms offset 4
 
 def quotientTerms (offset : Nat) : List (Nat × Expr) :=
   (List.range quotientBitCount).map fun bit => (2 ^ bit * scalarCount, quotientBit offset bit)

@@ -1142,6 +1142,7 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Circuit.executeHints_agrees_above
 #audit_axioms NightstreamFPrime.Circuit.executeHints_agreesOutside
 #audit_axioms NightstreamFPrime.Circuit.executeHints_value_of_readBelow
+#audit_axioms NightstreamFPrime.Gadgets.Range.CanonicalU64.fieldModulus_eq
 #audit_axioms NightstreamFPrime.Gadgets.Range.CanonicalU64.soundness
 #audit_axioms NightstreamFPrime.Gadgets.Range.CanonicalU64.completeness
 #audit_axioms NightstreamFPrime.Gadgets.Range.CanonicalU64.localLength_eq

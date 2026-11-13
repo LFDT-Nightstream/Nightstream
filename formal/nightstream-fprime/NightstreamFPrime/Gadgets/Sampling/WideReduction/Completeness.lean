@@ -4,10 +4,10 @@ import NightstreamFPrime.Gadgets.Sampling.WideReduction.Soundness
 
 /-!
 Owns the completeness of the whole-vector sampler constraints. From any
-environment whose four inputs lie below the offset, it completes the four
+environment whose five inputs lie below the offset, it completes the five
 canonical-u64 children and assigns the new bits: the binary digits of
-`Q = X div 5^54`, the base-five digits of `R = X mod 5^54` in binary, and the
-check quotients `K_r = (L_r - R_r) / m_r`, which lie in `[0, 549)`. Every row
+`Q = X div 5^64`, the base-five digits of `R = X mod 5^64` in binary, and the
+check quotients `K_r = (L_r - R_r) / m_r`, which lie in `[0, 684)`. Every row
 then holds and no variable outside the gadget changes.
 
 Completeness is existential; the exported witness program is not owned here.
@@ -82,10 +82,10 @@ theorem digitBit_eval (digit bit : Nat) (digitBelow : digit < digitCount)
     newBitCount, checkBitCount] at *
   erw [ite_eq_left (by omega), ite_eq_right (by omega), ite_eq_left (by omega), honestBit_val]
   have quotientDigit :
-      (quotientStart offset + 131 + 3 * digit + bit - quotientStart offset - 131) / 3 = digit := by
+      (quotientStart offset + 172 + 3 * digit + bit - quotientStart offset - 172) / 3 = digit := by
     omega
   have remainderBit :
-      (quotientStart offset + 131 + 3 * digit + bit - quotientStart offset - 131) % 3 = bit := by
+      (quotientStart offset + 172 + 3 * digit + bit - quotientStart offset - 172) % 3 = bit := by
     omega
   rw [quotientDigit, remainderBit]
 
@@ -100,12 +100,12 @@ theorem checkBit_eval (index : Nat) (bit : Nat) (bitBelow : bit < checkBitCount)
     newBitCount, checkBitCount, checkCount] at *
   erw [ite_eq_left (by omega), ite_eq_right (by omega), ite_eq_right (by omega), honestBit_val]
   have quotientIndex :
-      (quotientStart offset + 131 + 54 * 3 + 10 * index + bit - quotientStart offset -
-        (131 + 54 * 3)) / 10 = index := by
+      (quotientStart offset + 172 + 64 * 3 + 10 * index + bit - quotientStart offset -
+        (172 + 64 * 3)) / 10 = index := by
     omega
   have remainderBit :
-      (quotientStart offset + 131 + 54 * 3 + 10 * index + bit - quotientStart offset -
-        (131 + 54 * 3)) % 10 = bit := by
+      (quotientStart offset + 172 + 64 * 3 + 10 * index + bit - quotientStart offset -
+        (172 + 64 * 3)) % 10 = bit := by
     omega
   rw [quotientIndex, remainderBit]
 
@@ -247,8 +247,10 @@ private theorem completeChildren (interface : Interface) (offset : Nat) (env : E
     secondLength
   obtain ⟨fourth, fourthOps, fourthLength⟩ := appendChild interface offset assumptions third 3
     thirdLength
-  refine ⟨fourth, ?_, fourthLength⟩
-  rw [fourthOps, thirdOps, secondOps, firstOps]
+  obtain ⟨fifth, fifthOps, fifthLength⟩ := appendChild interface offset assumptions fourth 4
+    fourthLength
+  refine ⟨fifth, ?_, fifthLength⟩
+  rw [fifthOps, fourthOps, thirdOps, secondOps, firstOps]
   rfl
 
 def checkQuotients (base : Env) (offset draw : Nat) : Nat → Nat := fun index =>
@@ -280,7 +282,7 @@ theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hi
       expression.VarsBelow (quotientStart offset)) :
     holdsFlat (completeNew interface base offset) (operations interface hints offset) ∧
       ∀ check : Fin checkCount,
-        checkQuotients base offset (drawIndex (drawOf interface base offset)).val check.val < 549 := by
+        checkQuotients base offset (drawIndex (drawOf interface base offset)).val check.val < 684 := by
   let draw := (drawIndex (drawOf interface base offset)).val
   have drawBound : draw < drawCount := (drawIndex (drawOf interface base offset)).isLt
   have drawValue : linearValue base (drawTerms offset) = draw := drawTerms_value children
@@ -318,12 +320,13 @@ theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hi
         CanonicalU64.bitCount, fieldCount] at *
       omega
     simp only [drawTerms, fieldTerms, List.mem_append, List.mem_map, List.mem_range] at member
-    rcases member with (((⟨bit, bitBelow, rfl⟩ | ⟨bit, bitBelow, rfl⟩) | ⟨bit, bitBelow, rfl⟩) |
-      ⟨bit, bitBelow, rfl⟩)
+    rcases member with ((((⟨bit, bitBelow, rfl⟩ | ⟨bit, bitBelow, rfl⟩) | ⟨bit, bitBelow, rfl⟩) |
+      ⟨bit, bitBelow, rfl⟩) | ⟨bit, bitBelow, rfl⟩)
     · exact below 0 bit (by decide) bitBelow
     · exact below 1 bit (by decide) bitBelow
     · exact below 2 bit (by decide) bitBelow
     · exact below 3 bit (by decide) bitBelow
+    · exact below 4 bit (by decide) bitBelow
   have drawSame : ∀ modulusValue,
       linearValue completed (reduceTerms modulusValue (drawTerms offset)) =
         linearValue base (reduceTerms modulusValue (drawTerms offset)) := by
@@ -335,7 +338,7 @@ theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hi
     exact drawAtoms original originalMember
   have checkClosed : ∀ index : Fin checkCount,
       left index = right index + modulus index * quotients index.val ∧
-        quotients index.val < 549 := by
+        quotients index.val < 684 := by
     intro index
     let m := modulus index
     have positive := modulus_pos index
@@ -347,33 +350,34 @@ theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hi
     have rightModEq : right index ≡ draw [MOD m] := by
       have := linearValue_reduce_modEq zeroEnv m (resultTerms offset)
       rwa [resultTerms_honest base offset draw (fun _ => 0) drawBound] at this
-    have rightBound : right index ≤ 293 * (m - 1) := by
+    have rightBound : right index ≤ 364 * (m - 1) := by
       have := linearValue_le zeroEnv (reduceTerms m (resultTerms offset)) (m - 1)
         (reduceTerms_bound m positive _)
         (reduceTerms_bits zeroEnv m _ (resultTerms_bits_honest base offset draw (fun _ => 0)))
       rwa [reduceTerms_length, length_resultTerms] at this
-    have leftLower : 293 * m ≤ left index := by
-      change 293 * m ≤ linearValue base (reduceTerms m (drawTerms offset)) + m * checkBias
-      have : checkBias = 293 := rfl
+    have leftLower : 364 * m ≤ left index := by
+      change 364 * m ≤ linearValue base (reduceTerms m (drawTerms offset)) + m * checkBias
+      have : checkBias = 364 := rfl
       rw [this]; omega
-    have leftUpper : left index ≤ 256 * (m - 1) + 293 * m := by
+    have leftUpper : left index ≤ 320 * (m - 1) + 364 * m := by
       have := linearValue_le base (reduceTerms m (drawTerms offset)) (m - 1)
         (reduceTerms_bound m positive _) (reduceTerms_bits base m _ (by
           intro term member
           simp only [drawTerms, fieldTerms, List.mem_append, List.mem_map, List.mem_range] at member
-          rcases member with (((⟨bit, below, rfl⟩ | ⟨bit, below, rfl⟩) | ⟨bit, below, rfl⟩) |
-            ⟨bit, below, rfl⟩)
+          rcases member with ((((⟨bit, below, rfl⟩ | ⟨bit, below, rfl⟩) | ⟨bit, below, rfl⟩) |
+            ⟨bit, below, rfl⟩) | ⟨bit, below, rfl⟩)
           · exact Nat.le_of_lt_succ ((children 0).bit_lt_two bit below)
           · exact Nat.le_of_lt_succ ((children 1).bit_lt_two bit below)
           · exact Nat.le_of_lt_succ ((children 2).bit_lt_two bit below)
-          · exact Nat.le_of_lt_succ ((children 3).bit_lt_two bit below)))
+          · exact Nat.le_of_lt_succ ((children 3).bit_lt_two bit below)
+          · exact Nat.le_of_lt_succ ((children 4).bit_lt_two bit below)))
       rw [reduceTerms_length, length_drawTerms] at this
       change linearValue base (reduceTerms m (drawTerms offset)) + m * checkBias ≤ _
-      have : checkBias = 293 := rfl
+      have : checkBias = 364 := rfl
       rw [this]; omega
     have ordered : right index ≤ left index := by
-      calc right index ≤ 293 * (m - 1) := rightBound
-        _ ≤ 293 * m := Nat.mul_le_mul_left _ (Nat.sub_le _ _)
+      calc right index ≤ 364 * (m - 1) := rightBound
+        _ ≤ 364 * m := Nat.mul_le_mul_left _ (Nat.sub_le _ _)
         _ ≤ left index := leftLower
     have divides : m ∣ left index - right index :=
       (Nat.modEq_iff_dvd' ordered).mp (rightModEq.trans leftModEq.symm)
@@ -384,11 +388,11 @@ theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hi
     · rw [quotientEq, Nat.mul_div_cancel' divides]
       omega
     · rw [quotientEq]
-      have : (left index - right index) / m < 549 := by
+      have : (left index - right index) / m < 684 := by
         apply Nat.div_lt_of_lt_mul
         calc left index - right index ≤ left index := Nat.sub_le _ _
-          _ ≤ 256 * (m - 1) + 293 * m := leftUpper
-          _ < m * 549 := by
+          _ ≤ 320 * (m - 1) + 364 * m := leftUpper
+          _ < m * 684 := by
             have : 1 ≤ m := positive
             omega
       exact this
@@ -481,7 +485,7 @@ theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hi
             intro bit member
             rw [checkBit_eval index bit (Finset.mem_range.mp member) index.isLt]
             ring
-          rw [Finset.sum_congr rfl bits, ← Finset.mul_sum, binary_sum _ _ (lt_trans bound (by decide : 549 < 2 ^ checkBitCount))]
+          rw [Finset.sum_congr rfl bits, ← Finset.mul_sum, binary_sum _ _ (lt_trans bound (by decide : 684 < 2 ^ checkBitCount))]
         rw [checkValue]
         exact congrArg fieldOfNat closed
   · exact fun check => (checkClosed check).2

@@ -4,8 +4,8 @@ import NightstreamFPrime.Gadgets.Sampling.WideReduction.Values
 Owns the soundness of the whole-vector sampler constraints: every
 assignment accepted by the rows decodes the digits of `sample`. The witness
 program is arbitrary. The argument is: children give `h_i` as bits, check rows
-give `Σ p^i h_i ≡ Q N + R` modulo six coprime moduli, the Chinese remainder
-theorem and range bounds give equality, and `R < 5^54` fixes the digits.
+give `Σ p^i h_i ≡ Q N + R` modulo seven coprime moduli, the Chinese remainder
+theorem and range bounds give equality, and `R < 5^64` fixes the digits.
 -/
 
 namespace NightstreamFPrime.Gadgets.Sampling.WideReduction
@@ -98,39 +98,39 @@ theorem retained_bit_le_one (interface : Interface) (hints : Nat → List Hint)
     (rows : holds env (operations interface hints offset)) (bound : column < privateCount)
     (bitColumn : column < childWidth * fieldCount → column % childWidth < CanonicalU64.bitCount) :
     (env (offset + column)).val ≤ 1 := by
-  change column < 617 at bound
+  change column < 769 at bound
   by_cases inChild : column < childWidth * fieldCount
   · have bitBound := bitColumn inChild
     have indexBound : column / childWidth < fieldCount := by
-      change column < 264 at inChild
-      change column / 66 < 4
+      change column < 335 at inChild
+      change column / 67 < 5
       omega
     have value := (child_spec assumptions rows ⟨column / childWidth, indexBound⟩).bit_lt_two
       (column % childWidth) bitBound
     change (env (offset + childWidth * (column / childWidth) + column % childWidth)).val < 2 at value
     rw [Nat.add_assoc, Nat.div_add_mod] at value
     omega
-  · change ¬column < 264 at inChild
-    by_cases inQuotient : column < 395
-    · have value := quotientBit_le_one rows (column - 264) (by change _ < 131; omega)
-      change (env (quotientStart offset + (column - 264))).val ≤ 1 at value
-      have coordinate : quotientStart offset + (column - 264) = offset + column := by
-        change offset + 264 + (column - 264) = _
+  · change ¬column < 335 at inChild
+    by_cases inQuotient : column < 507
+    · have value := quotientBit_le_one rows (column - 335) (by change _ < 172; omega)
+      change (env (quotientStart offset + (column - 335))).val ≤ 1 at value
+      have coordinate : quotientStart offset + (column - 335) = offset + column := by
+        change offset + 335 + (column - 335) = _
         omega
       rwa [coordinate] at value
-    · by_cases inDigit : column < 557
-      · have digitBound : (column - 395) / 3 < digitCount := by change _ < 54; omega
-        have value := digitBit_le_one rows ((column - 395) / 3) ((column - 395) % 3)
+    · by_cases inDigit : column < 699
+      · have digitBound : (column - 507) / 3 < digitCount := by change _ < 64; omega
+        have value := digitBit_le_one rows ((column - 507) / 3) ((column - 507) % 3)
           digitBound (by exact Nat.mod_lt _ (by decide))
-        change (env (offset + 395 + 3 * ((column - 395) / 3) + (column - 395) % 3)).val ≤ 1 at value
-        have coordinate : offset + 395 + 3 * ((column - 395) / 3) + (column - 395) % 3 =
+        change (env (offset + 507 + 3 * ((column - 507) / 3) + (column - 507) % 3)).val ≤ 1 at value
+        have coordinate : offset + 507 + 3 * ((column - 507) / 3) + (column - 507) % 3 =
             offset + column := by omega
         rwa [coordinate] at value
-      · have checkBound : (column - 557) / 10 < checkCount := by change _ < 6; omega
-        have value := checkBit_le_one rows ⟨(column - 557) / 10, checkBound⟩ ((column - 557) % 10)
+      · have checkBound : (column - 699) / 10 < checkCount := by change _ < 7; omega
+        have value := checkBit_le_one rows ⟨(column - 699) / 10, checkBound⟩ ((column - 699) % 10)
           (by exact Nat.mod_lt _ (by decide))
-        change (env (offset + 557 + 10 * ((column - 557) / 10) + (column - 557) % 10)).val ≤ 1 at value
-        have coordinate : offset + 557 + 10 * ((column - 557) / 10) + (column - 557) % 10 =
+        change (env (offset + 699 + 10 * ((column - 699) / 10) + (column - 699) % 10)).val ≤ 1 at value
+        have coordinate : offset + 699 + 10 * ((column - 699) / 10) + (column - 699) % 10 =
             offset + column := by omega
         rwa [coordinate] at value
 
@@ -149,11 +149,12 @@ private theorem drawTerms_bits (assumptions : Assumptions interface offset)
     obtain ⟨bit, below, rfl⟩ := member
     exact Nat.le_of_lt_succ ((child_spec assumptions rows index).bit_lt_two bit below)
   simp only [drawTerms, List.mem_append] at member
-  rcases member with ((first | second) | third) | fourth
+  rcases member with (((first | second) | third) | fourth) | fifth
   · exact fieldBits 0 term first
   · exact fieldBits 1 term second
   · exact fieldBits 2 term third
   · exact fieldBits 3 term fourth
+  · exact fieldBits 4 term fifth
 
 private theorem resultTerms_bits (rows : holds env (operations interface hints offset)) :
     ∀ term ∈ resultTerms offset, (term.2.eval env).val ≤ 1 := by
@@ -181,11 +182,11 @@ private theorem check_modEq (assumptions : Assumptions interface offset)
     (linearExpr (reduceTerms m (resultTerms offset))).eval env +
       (linearExpr (checkTerms offset check)).eval env at zero
   rw [linearExpr_eval, linearExpr_eval, linearExpr_eval, fieldOfNat_add, fieldOfNat_add] at zero
-  have leftBound : linearValue env (reduceTerms m (drawTerms offset)) ≤ 256 * (m - 1) := by
+  have leftBound : linearValue env (reduceTerms m (drawTerms offset)) ≤ 320 * (m - 1) := by
     have := linearValue_le env (reduceTerms m (drawTerms offset)) (m - 1)
       (reduceTerms_bound m positive _) (reduceTerms_bits env m _ (drawTerms_bits assumptions rows))
     rwa [reduceTerms_length, length_drawTerms] at this
-  have rightBound : linearValue env (reduceTerms m (resultTerms offset)) ≤ 293 * (m - 1) := by
+  have rightBound : linearValue env (reduceTerms m (resultTerms offset)) ≤ 364 * (m - 1) := by
     have := linearValue_le env (reduceTerms m (resultTerms offset)) (m - 1)
       (reduceTerms_bound m positive _) (reduceTerms_bits env m _ (resultTerms_bits rows))
     rwa [reduceTerms_length, length_resultTerms] at this
@@ -203,8 +204,8 @@ private theorem check_modEq (assumptions : Assumptions interface offset)
         obtain ⟨bit, below, rfl⟩ := member
         exact checkBit_le_one rows check bit below)
     rwa [length_checkTerms] at this
-  have modulusValue : fieldModulus = 18446744069414584321 := rfl
-  have bias : checkBias = 293 := rfl
+  have modulusValue : fieldModulus = 18446744073709551557 := rfl
+  have bias : checkBias = 364 := rfl
   have equal := fieldOfNat_inj (by rw [modulusValue, bias]; omega) (by rw [modulusValue]; omega) zero
   have left : linearValue env (reduceTerms m (drawTerms offset)) + m * checkBias ≡
       linearValue env (drawTerms offset) [MOD m] := by

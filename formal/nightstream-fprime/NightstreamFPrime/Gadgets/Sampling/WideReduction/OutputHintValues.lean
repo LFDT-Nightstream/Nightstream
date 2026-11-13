@@ -11,7 +11,7 @@ open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 
 theorem division_values (env : Env) (start : Nat) (draw : Draw)
     (present : HelperValues.Present env start draw) (round position : Nat)
-    (roundBound : round < 54) (positionBound : position < 5) :
+    (roundBound : round < 64) (positionBound : position < 6) :
     env (HintProgram.divisionColumn start round position) =
         fieldOfNat (HelperValues.quotient draw round position) ∧
       env (HintProgram.divisionColumn start round position + 1) =
@@ -31,17 +31,17 @@ theorem quotient_hint (env : Env) (start : Nat) (draw : Draw)
     (present : HelperValues.Present env start draw) (bit : Nat) (bound : bit < quotientBitCount) :
     (HintProgram.quotientHint start bit).eval env =
       fieldOfNat ((drawIndex draw).val / scalarCount / 2 ^ bit % 2) := by
-  have positionBound : 4 - bit / 60 < 5 := by omega
-  have value := (division_values env start draw present 53 (4 - bit / 60) (by decide) positionBound).1
-  have small : HelperValues.quotient draw 53 (4 - bit / 60) < fieldModulus :=
+  have positionBound : 5 - bit / 60 < 6 := by omega
+  have value := (division_values env start draw present 63 (5 - bit / 60) (by decide) positionBound).1
+  have small : HelperValues.quotient draw 63 (5 - bit / 60) < fieldModulus :=
     lt_trans (Nat.mod_lt _ (by decide : 0 < WitnessArithmetic.radix)) (by decide)
   unfold HintProgram.quotientHint
   simp only [digitCount, HintProgram.divisionLimbs, HintProgram.divisionBits, Nat.reduceSub]
-  rw [HintValues.bit_hint env (.var (HintProgram.divisionColumn start 53 (4 - bit / 60)))
+  rw [HintValues.bit_hint env (.var (HintProgram.divisionColumn start 63 (5 - bit / 60)))
     _ (bit % 60) small value]
   unfold HelperValues.quotient
-  have bitBound : bit < 131 := bound
-  rw [show 4 - (4 - bit / 60) = bit / 60 by omega]
+  have bitBound : bit < 172 := bound
+  rw [show 5 - (5 - bit / 60) = bit / 60 by omega]
   change fieldOfNat (HintValues.limb ((drawIndex draw).val / scalarCount) (bit / 60) /
     2 ^ (bit % 60) % 2) = _
   rw [HintValues.quotient_bit]
@@ -51,16 +51,16 @@ theorem digit_hint (env : Env) (start : Nat) (draw : Draw)
     (bound : digit < digitCount) :
     (HintProgram.digitHint start digit bit).eval env =
       fieldOfNat ((drawIndex draw).val % scalarCount / 5 ^ digit % 5 / 2 ^ bit % 2) := by
-  have value := (division_values env start draw present digit 4 bound (by decide)).2
-  have small : HelperValues.remainder draw digit 4 < fieldModulus :=
+  have value := (division_values env start draw present digit 5 bound (by decide)).2
+  have small : HelperValues.remainder draw digit 5 < fieldModulus :=
     lt_trans (Nat.mod_lt _ (by decide : 0 < 5)) (by decide)
   unfold HintProgram.digitHint
   simp only [HintProgram.divisionLimbs, Nat.reduceSub]
-  rw [HintValues.bit_hint env (.var (HintProgram.divisionColumn start digit 4 + 1))
+  rw [HintValues.bit_hint env (.var (HintProgram.divisionColumn start digit 5 + 1))
     _ bit small value]
   unfold HelperValues.remainder
   simp only [Nat.sub_self, pow_zero, Nat.div_one]
-  have digitMeaning := LimbArithmetic.digit_below_mod_power 5 (drawIndex draw).val 54 digit bound
+  have digitMeaning := LimbArithmetic.digit_below_mod_power 5 (drawIndex draw).val 64 digit bound
   change (drawIndex draw).val % scalarCount / 5 ^ digit % 5 = _ at digitMeaning
   rw [digitMeaning]
 

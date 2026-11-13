@@ -22,21 +22,21 @@ theorem integer_bounds (env : Env) (offset : Nat) (check : Fin checkCount)
     right env offset check ≤ left env offset check ∧
       left env offset check < fieldModulus ∧
       modulus check ∣ left env offset check - right env offset check ∧
-      (left env offset check - right env offset check) / modulus check < 549 := by
+      (left env offset check - right env offset check) / modulus check < 684 := by
   let m := modulus check
   have positive := modulus_pos check
   have small := modulus_lt check
-  have lower : 293 * m ≤ left env offset check := by
+  have lower : 364 * m ≤ left env offset check := by
     unfold left checkBias quotientBitCount digitCount digitBitCount
     omega
-  have upper : left env offset check ≤ 256 * (m - 1) + 293 * m := by
+  have upper : left env offset check ≤ 320 * (m - 1) + 364 * m := by
     have bound := linearValue_le env (reduceTerms m (drawTerms offset)) (m - 1)
       (reduceTerms_bound m positive _) (reduceTerms_bits env m _ drawBits)
     rw [reduceTerms_length, length_drawTerms] at bound
     dsimp only [m] at bound ⊢
     unfold left checkBias quotientBitCount digitCount digitBitCount
     omega
-  have rightUpper : right env offset check ≤ 293 * (m - 1) := by
+  have rightUpper : right env offset check ≤ 364 * (m - 1) := by
     have bound := linearValue_le env (reduceTerms m (resultTerms offset)) (m - 1)
       (reduceTerms_bound m positive _) (reduceTerms_bits env m _ resultBits)
     rwa [reduceTerms_length, length_resultTerms] at bound

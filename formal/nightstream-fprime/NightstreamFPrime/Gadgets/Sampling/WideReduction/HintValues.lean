@@ -30,7 +30,7 @@ theorem bit_terms (env : Env) (start count value shift : Nat)
       rw [bits bit (mem_range.mp inside), Nat.div_div_eq_div_mul, ← pow_add]
     _ = _ := digit_sum 2 (value / 2 ^ shift) count
 
-theorem source_word (env : Env) (offset : Nat) (draw : Draw) (lane word : Fin 4)
+theorem source_word (env : Env) (offset : Nat) (draw : Draw) (lane : Fin 5) (word : Fin 4)
     (bits : ∀ bit, bit < 64 →
       (env (offset + lane.val * 64 + bit)).val = (draw lane).val / 2 ^ bit % 2) :
     linearValue env (HintProgram.bitTerms (offset + lane.val * 64 + word.val * 16) 16) =
@@ -78,10 +78,10 @@ theorem division_step (value position : Nat) :
   unfold WitnessArithmetic.radix
   omega
 
-theorem division_first_carry (value : Nat) (bound : value < 2 ^ 256) :
-    divisionCarry value 4 = 0 := by
+theorem division_first_carry (value : Nat) (bound : value < (2 ^ 64) ^ 5) :
+    divisionCarry value 5 = 0 := by
   unfold divisionCarry WitnessArithmetic.radix
-  have below : value < (2 ^ 60) ^ (4 + 1) := lt_trans bound (by decide)
+  have below : value < (2 ^ 60) ^ (5 + 1) := lt_trans bound (by decide)
   rw [Nat.div_eq_of_lt below]
 
 theorem division_source_bound (value position : Nat) :

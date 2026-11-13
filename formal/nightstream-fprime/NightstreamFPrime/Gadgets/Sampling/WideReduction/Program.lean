@@ -28,7 +28,7 @@ def operations (interface : Interface) (start : Nat) : List Op :=
 
 def privateCount : Nat := HintProgram.helperCount + WideReduction.privateCount
 
-theorem privateCount_eq : privateCount = 2021 := rfl
+theorem privateCount_eq : privateCount = 2617 := rfl
 
 theorem localLength_eq (interface : Interface) (start : Nat) :
     localLength (operations interface start) = privateCount := by

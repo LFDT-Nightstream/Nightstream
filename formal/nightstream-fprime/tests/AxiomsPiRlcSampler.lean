@@ -201,6 +201,8 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.LimbArithmetic.accumulator_times_five_lt_field
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.LimbArithmetic.carry_identity
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.LimbArithmetic.source_expansion
+#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.LimbArithmetic.drawIndex_lt
+#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.LimbArithmetic.drawIndex_lt_two_pow
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.LimbArithmetic.coefficient_sum
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.LimbArithmetic.lowValue_exact
 #audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.LimbArithmetic.limb_exact

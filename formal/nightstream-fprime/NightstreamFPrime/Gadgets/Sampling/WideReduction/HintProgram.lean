@@ -12,12 +12,12 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 
-def sourceBitCount : Nat := 4 * 64
-def limbCount : Nat := 16
+def sourceBitCount : Nat := 5 * 64
+def limbCount : Nat := 20
 def limbBits : Nat := 16
 def accumulatorBits : Nat := 37
 def limbStride : Nat := 1 + accumulatorBits
-def divisionLimbs : Nat := 5
+def divisionLimbs : Nat := 6
 def divisionBits : Nat := 60
 def divisionStride : Nat := 2 * divisionLimbs
 def helperCount : Nat := sourceBitCount + limbCount * limbStride + digitCount * divisionStride
@@ -99,7 +99,7 @@ def resultHints (helperOffset gadgetOffset : Nat) : List Hint :=
     (List.finRange checkCount).flatMap (fun check =>
       (List.range checkBitCount).map fun bit => .bit (checkQuotient gadgetOffset check) bit)
 
-theorem helperCount_eq : helperCount = 1404 := rfl
+theorem helperCount_eq : helperCount = 1848 := rfl
 
 theorem sourceBitHints_length (interface : Interface) (offset : Nat) :
     (sourceBitHints interface offset).length = sourceBitCount := by

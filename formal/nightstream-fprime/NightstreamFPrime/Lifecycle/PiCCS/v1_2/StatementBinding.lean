@@ -108,7 +108,7 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      4712 := by
+      5632 := by
   exact StateBinding.flatConstraints_length interface.state offset
 
 theorem flatConstraints_eq_stateAssertions (interface : Interface)

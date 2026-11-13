@@ -29,7 +29,6 @@ def serializeParentPublicExpr {logicalWidth : Nat}
     StateBinding.packWordExpr
       (parentPublicExpr running (NightstreamFPrime.Lifecycle.packedColumn word 0))
       (parentPublicExpr running (NightstreamFPrime.Lifecycle.packedColumn word 1))
-      (parentPublicExpr running (NightstreamFPrime.Lifecycle.packedColumn word 2))
 
 def serializeRunningExpr {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -48,7 +47,7 @@ theorem serializeRunningExpr_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (running : RunningExpr logicalWidth publicFits) :
-    (serializeRunningExpr running).length = 27794 := by
+    (serializeRunningExpr running).length = 28888 := by
   simp [serializeRunningExpr, serializeParentPublicExpr, serializePointExpr_length,
     serializeCommitmentExpr_length, serializeEvalKExpr_length,
     serializeEvalAExpr_length, productionShape, productionProfile,
@@ -67,8 +66,7 @@ theorem serializeRunningExpr_mem {logicalWidth : Nat}
       (∃ coordinate, expression ∈ serializeKExpr (running.point coordinate)) ∨
       (∃ word, expression = StateBinding.packWordExpr
         (parentPublicExpr running (NightstreamFPrime.Lifecycle.packedColumn word 0))
-        (parentPublicExpr running (NightstreamFPrime.Lifecycle.packedColumn word 1))
-        (parentPublicExpr running (NightstreamFPrime.Lifecycle.packedColumn word 2))) := by
+        (parentPublicExpr running (NightstreamFPrime.Lifecycle.packedColumn word 1))) := by
   simp only [serializeRunningExpr, List.mem_append, List.mem_flatMap] at member
   rcases member with (((⟨source, _, commitment⟩ | ⟨source, _, evalK⟩) |
       ⟨source, _, evalA⟩) | point) | parent
@@ -100,10 +98,8 @@ theorem packWordExpr_parent_closed {logicalWidth : Nat}
     (word : Fin NightstreamFPrime.Lifecycle.packedParentWords) :
     Holds (StateBinding.packWordExpr
       (parentPublicExpr running (NightstreamFPrime.Lifecycle.packedColumn word 0))
-      (parentPublicExpr running (NightstreamFPrime.Lifecycle.packedColumn word 1))
-      (parentPublicExpr running (NightstreamFPrime.Lifecycle.packedColumn word 2))) := by
+      (parentPublicExpr running (NightstreamFPrime.Lifecycle.packedColumn word 1))) := by
   exact StateBinding.packWordExpr_closed Holds add scale
-    (PiDEC.v1_2.SignedSplitScalar.recomposeDigits_closed Holds constant add scale _ fun _ => publicInput _ _)
     (PiDEC.v1_2.SignedSplitScalar.recomposeDigits_closed Holds constant add scale _ fun _ => publicInput _ _)
     (PiDEC.v1_2.SignedSplitScalar.recomposeDigits_closed Holds constant add scale _ fun _ => publicInput _ _)
 

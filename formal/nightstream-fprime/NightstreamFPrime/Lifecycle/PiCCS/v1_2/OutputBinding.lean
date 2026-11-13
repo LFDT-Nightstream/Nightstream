@@ -122,7 +122,7 @@ end Shape
 
 private theorem padWords_length (output : OutputExpr)
     (source : Fin productionShape.sourceCount) :
-    (padWords output source).length = 108 := by
+    (padWords output source).length = 128 := by
   unfold padWords
   rw [flatMap_length_constant _ _ 2 (fun _ => rfl)]
   norm_num [productionShape, productionProfile,
@@ -130,29 +130,29 @@ private theorem padWords_length (output : OutputExpr)
 
 private theorem matrixWords_length (output : OutputExpr)
     (source : Fin productionShape.sourceCount) :
-    (matrixWords output source).length = 432 := by
+    (matrixWords output source).length = 512 := by
   have coefficientLength : ∀ matrix,
       ((List.finRange productionShape.coefficientCount).flatMap
         fun coefficient => StatementAbsorption.serializeKExpr
-          (output.matrixCoordinate source matrix coefficient)).length = 108 := by
+          (output.matrixCoordinate source matrix coefficient)).length = 128 := by
     intro matrix
     rw [flatMap_length_constant _ _ 2 (fun _ => rfl)]
     norm_num [productionShape, productionProfile,
       RingMatrixSource.ringShape, ringDegree]
   unfold matrixWords
-  rw [flatMap_length_constant _ _ 108 coefficientLength]
+  rw [flatMap_length_constant _ _ 128 coefficientLength]
   norm_num [productionShape, productionProfile,
     RingMatrixSource.ringShape, ringDegree]
 
 private theorem sourceWords_length (output : OutputExpr)
     (source : Fin productionShape.sourceCount) :
-    (sourceWords output source).length = 540 := by
+    (sourceWords output source).length = 640 := by
   rw [sourceWords, List.length_append, padWords_length, matrixWords_length]
 
 theorem outputWords_length (interface : Interface) (offset : Nat) :
-    (outputWords interface offset).length = 9180 := by
+    (outputWords interface offset).length = 10880 := by
   unfold outputWords
-  rw [flatMap_length_constant _ _ 540 (sourceWords_length _)]
+  rw [flatMap_length_constant _ _ 640 (sourceWords_length _)]
   norm_num [productionShape, productionProfile,
     RingMatrixSource.ringShape, Shape.sourceCount]
 
@@ -255,14 +255,14 @@ private theorem inputChunks_length (input : List Expr) :
   rfl
 
 theorem recipeCount_eq (interface : Interface) (offset : Nat) :
-    recipeCount interface offset = 838440 := by
+    recipeCount interface offset = 994072 := by
   unfold recipeCount actions
   simp only [Formal.recipeCount, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero, Formal.Action.recipeCount]
   rw [inputChunks_length, outputWords_length]
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 838440 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 994072 := by
   change localLength (Formal.Owned.opsAt (duplexInterface interface) offset) = _
   rw [Formal.Owned.opsAt_localLength]
   unfold Formal.Owned.program
@@ -278,12 +278,12 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      838440 := by
+      994072 := by
   change (flatConstraints
     (Formal.Owned.opsAt (duplexInterface interface) offset)).length = _
   rw [Formal.Owned.flatConstraints_length]
   have recipes : Formal.recipeCount
-      ((duplexInterface interface).actions offset) = 838440 := by
+      ((duplexInterface interface).actions offset) = 994072 := by
     simpa [duplexInterface, recipeCount] using recipeCount_eq interface offset
   rw [recipes]
   simp [duplexInterface, actions, Formal.assertionCount,

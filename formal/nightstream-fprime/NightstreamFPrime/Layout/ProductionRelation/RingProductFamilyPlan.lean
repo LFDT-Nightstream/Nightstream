@@ -27,40 +27,40 @@ def ringInterface {logicalWidth invocationCount : Nat}
 
 def rowAt {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (invocation : Fin invocationCount) (row : Fin 108) :
+    (invocation : Fin invocationCount) (row : Fin 128) :
     OrdinaryRow.Forms logicalWidth :=
   RingProductPlan.rowAt (ringInterface interface invocation) row
 
 def rowForms {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (invocation : Fin invocationCount) (row : Fin 108)
+    (invocation : Fin invocationCount) (row : Fin 128)
     (port : Fin Spec.ProductionRelation.meaningfulPortCount) :
     SparseForm logicalWidth :=
   (rowAt interface invocation row).meaningfulForm port
 
 def plan {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 108 ≤
+    (rowCount_le : invocationCount * 128 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables) :
     ProductionRelation.Plan logicalWidth :=
   ProductionRelation.Plan.indexed (rowForms interface) rowCount_le
 
 @[simp] theorem plan_rowCount {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 108 ≤
+    (rowCount_le : invocationCount * 128 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables) :
-    (plan interface rowCount_le).rowCount = invocationCount * 108 := by
+    (plan interface rowCount_le).rowCount = invocationCount * 128 := by
   rfl
 
 theorem plan_rowImage_at {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 108 ≤
+    (rowCount_le : invocationCount * 128 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
     (assignment : Assignment F logicalWidth)
-    (invocation : Fin invocationCount) (row : Fin 108) :
+    (invocation : Fin invocationCount) (row : Fin 128) :
     (plan interface rowCount_le).rowImage assignment
         ((plan interface rowCount_le).rowLayout.toVertex
-          (ProductionRelation.Plan.indexedRow invocationCount 108
+          (ProductionRelation.Plan.indexedRow invocationCount 128
             invocation row)) =
       (rowAt interface invocation row).portImages assignment := by
   erw [ProductionRelation.Plan.rowImage_toVertex]
@@ -74,7 +74,7 @@ theorem plan_rowImage_at {logicalWidth invocationCount : Nat}
       simp only [ProductionRelation.Plan.portForm,
         OrdinaryRow.Forms.portForm, found]
       rw [show (plan interface rowCount_le).forms
-            (ProductionRelation.Plan.indexedRow invocationCount 108
+            (ProductionRelation.Plan.indexedRow invocationCount 128
               invocation row) meaningful =
           rowForms interface invocation row meaningful by
         exact ProductionRelation.Plan.indexed_forms
@@ -83,14 +83,14 @@ theorem plan_rowImage_at {logicalWidth invocationCount : Nat}
 
 theorem plan_residual_at {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 108 ≤
+    (rowCount_le : invocationCount * 128 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
     (assignment : Assignment F logicalWidth)
-    (invocation : Fin invocationCount) (row : Fin 108) :
+    (invocation : Fin invocationCount) (row : Fin 128) :
     evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
         ((plan interface rowCount_le).rowImage assignment
           ((plan interface rowCount_le).rowLayout.toVertex
-            (ProductionRelation.Plan.indexedRow invocationCount 108
+            (ProductionRelation.Plan.indexedRow invocationCount 128
               invocation row))) =
       (rowAt interface invocation row).residual assignment := by
   rw [plan_rowImage_at]
@@ -98,7 +98,7 @@ theorem plan_residual_at {logicalWidth invocationCount : Nat}
 
 theorem planRowsZero_iff {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 108 ≤
+    (rowCount_le : invocationCount * 128 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
     (assignment : Assignment F logicalWidth) :
     (plan interface rowCount_le).RowsZero assignment ↔
@@ -113,11 +113,11 @@ theorem planRowsZero_iff {logicalWidth invocationCount : Nat}
     change (rowAt interface invocation row).residual assignment = 0
     rw [← plan_residual_at interface rowCount_le assignment invocation row]
     exact rowsZero
-      (ProductionRelation.Plan.indexedRow invocationCount 108 invocation row)
+      (ProductionRelation.Plan.indexedRow invocationCount 128 invocation row)
   · intro equations globalRow
-    let decoded : Fin invocationCount × Fin 108 := Fin.decodeProd globalRow
+    let decoded : Fin invocationCount × Fin 128 := Fin.decodeProd globalRow
     have encodedEqual :
-        ProductionRelation.Plan.indexedRow invocationCount 108
+        ProductionRelation.Plan.indexedRow invocationCount 128
           decoded.1 decoded.2 = globalRow := by
       unfold ProductionRelation.Plan.indexedRow decoded
       exact Fin.encodeProd_decodeProd globalRow
@@ -129,7 +129,7 @@ theorem planRowsZero_iff {logicalWidth invocationCount : Nat}
 
 theorem planRowsZero_implies_ringProduct {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
-    (rowCount_le : invocationCount * 108 ≤
+    (rowCount_le : invocationCount * 128 ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables)
     (assignment : Assignment F logicalWidth)
     (rowsZero : (plan interface rowCount_le).RowsZero assignment)

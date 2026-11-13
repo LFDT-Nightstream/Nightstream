@@ -235,14 +235,14 @@ theorem physicalFreshColumnCountEqProduction
     (interface : Logical.Interface blockCount cellCount) (offset : Nat)
     (inputs : ProductionInputs interface offset) :
     physicalFreshColumnCount interface offset =
-      Logical.logicalPrivateCount blockCount cellCount * 150 := by
+      Logical.logicalPrivateCount blockCount cellCount * 130 := by
   unfold physicalFreshColumnCount physicalFreshDeltas
   rw [sumMapEqMulLength _ _
-    (CombinationStep.Logical.privateCount blockCount cellCount * 150)]
+    (CombinationStep.Logical.privateCount blockCount cellCount * 130)]
   · change Logical.sourceCount *
-      (CombinationStep.Logical.privateCount blockCount cellCount * 150) =
+      (CombinationStep.Logical.privateCount blockCount cellCount * 130) =
         (Logical.sourceCount *
-          CombinationStep.Logical.privateCount blockCount cellCount) * 150
+          CombinationStep.Logical.privateCount blockCount cellCount) * 130
     exact (Nat.mul_assoc _ _ _).symm
   · intro source member
     exact CombinationStep.physicalFreshColumnCountEqProduction
@@ -284,7 +284,7 @@ theorem physicalRowCountEqProduction
     (interface : Logical.Interface blockCount cellCount) (offset : Nat)
     (inputs : ProductionInputs interface offset) :
     physicalRowCount interface offset =
-      Logical.logicalPrivateCount blockCount cellCount * 151 := by
+      Logical.logicalPrivateCount blockCount cellCount * 131 := by
   rw [physicalRowCountEqFreshAddLogical,
     physicalFreshColumnCountEqProduction interface offset inputs]
   omega

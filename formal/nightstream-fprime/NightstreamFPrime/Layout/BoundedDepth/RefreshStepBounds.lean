@@ -355,13 +355,13 @@ theorem familyOutput_below {blockCount cellCount : Nat} [NeZero cellCount]
 omit below in
 /-- Today's Π_RLC output groups end at the output binding's offset, for any start. -/
 theorem rlcOutputs_le (start : Nat) :
-    Lifecycle.PiRLC.v1_2.Formal.commitmentOffset start + 20196 ≤
+    Lifecycle.PiRLC.v1_2.Formal.commitmentOffset start + 19584 ≤
         Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset start ∧
-      Lifecycle.PiRLC.v1_2.Formal.publicInputOffset start + 4590 ≤
+      Lifecycle.PiRLC.v1_2.Formal.publicInputOffset start + 5440 ≤
         Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset start ∧
-      Lifecycle.PiRLC.v1_2.Formal.evalKOffset start + 1836 ≤
+      Lifecycle.PiRLC.v1_2.Formal.evalKOffset start + 2176 ≤
         Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset start ∧
-      Lifecycle.PiRLC.v1_2.Formal.evalAOffset start + 7344 ≤
+      Lifecycle.PiRLC.v1_2.Formal.evalAOffset start + 8704 ≤
         Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset start ∧
       start ≤ Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset start := by
   unfold Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset Lifecycle.PiRLC.v1_2.Formal.evalAOffset

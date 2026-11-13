@@ -205,22 +205,22 @@ theorem rlcBelow : LightRlcBounds.InputsBelow (piccsLeaves program relation circ
       fun source column => Expr.VarsBelow.mono _ (below.freshPublicInput source column) rlcLe⟩
 
 omit below in
-/-- The light Π_RLC layout's three output groups: 1,188 commitment words, 270 public-input words
-and 540 evaluation words, in that order, up to the new slot hash's offset. -/
+/-- The light Π_RLC layout's three output groups: 1,152 commitment words, 320 public-input words
+and 640 evaluation words, in that order, up to the new slot hash's offset. -/
 theorem rlcOutputs_eq :
     LightRlcLayout.publicInputOffset (piccsLeaves program relation circuit interface offset)
         (rlcInterface program interface) (rlcOffset program relation circuit interface offset) =
       LightRlcLayout.commitmentOffset (piccsLeaves program relation circuit interface offset)
-        (rlcOffset program relation circuit interface offset) + 1188 ∧
+        (rlcOffset program relation circuit interface offset) + 1152 ∧
     LightRlcLayout.evaluationOffset (piccsLeaves program relation circuit interface offset)
         (rlcInterface program interface) (rlcOffset program relation circuit interface offset) =
       LightRlcLayout.publicInputOffset (piccsLeaves program relation circuit interface offset)
         (rlcInterface program interface) (rlcOffset program relation circuit interface offset) +
-        270 ∧
+        320 ∧
     newSlotOffset program relation circuit interface offset =
       LightRlcLayout.evaluationOffset (piccsLeaves program relation circuit interface offset)
         (rlcInterface program interface) (rlcOffset program relation circuit interface offset) +
-        540 := by
+        640 := by
   refine ⟨?_, ?_, ?_⟩
   · unfold LightRlcLayout.publicInputOffset Formal.nextOffset Formal.childLength
       LightRlcLayout.commitmentCircuit

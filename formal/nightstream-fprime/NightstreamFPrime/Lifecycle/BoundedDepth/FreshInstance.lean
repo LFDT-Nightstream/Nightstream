@@ -26,7 +26,7 @@ open NightstreamFPrime.Lifecycle.ProductionKey
 open NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Norm.Centered
 
 /-- The coordinates that hold 1 and the coordinates that hold -1. Rust keeps coordinate `c` as bit
-`c % 54` of block `c / 54` in each mask. -/
+`c % 64` of block `c / 64` in each mask. -/
 structure Masks (width : Nat) where
   positive : Fin width → Bool
   negative : Fin width → Bool

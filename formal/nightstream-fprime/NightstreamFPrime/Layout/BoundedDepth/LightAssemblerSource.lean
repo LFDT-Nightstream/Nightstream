@@ -80,26 +80,26 @@ theorem ofFn_getD {α : Type} {count : Nat} (default : α) (words : List α)
   intro index left right
   simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem right]
 
-/-- The 2,055 words of a slot in the order of `SlotExpr.words`. -/
+/-- The 2,169 words of a slot in the order of `SlotExpr.words`. -/
 def slotColumn (data : SlotData logicalWidth publicFits) (word : Nat) : F :=
-  if word < 1188 then
-    data.1.commitment (finAt 22 (by decide) (word / 54)) (finAt 54 (by decide) word)
-  else if word < 1296 then
-    kColumn (fun index => data.1.evaluations.pad (finAt 54 (by decide) index)) (word - 1188)
-  else if word < 1728 then
-    kColumn (fun index => data.1.evaluations.matrix (finAt 4 (by decide) (index / 54))
-      (finAt 54 (by decide) index)) (word - 1296)
-  else if word < 1784 then
-    kColumn (fun index => data.1.point.coordinates.getD index ⟨0, 0⟩) (word - 1728)
-  else if word < 2054 then
-    data.1.publicInput (finAt 270 (by decide) (word - 1784))
+  if word < 1152 then
+    data.1.commitment (finAt 18 (by decide) (word / 64)) (finAt 64 (by decide) word)
+  else if word < 1280 then
+    kColumn (fun index => data.1.evaluations.pad (finAt 64 (by decide) index)) (word - 1152)
+  else if word < 1792 then
+    kColumn (fun index => data.1.evaluations.matrix (finAt 4 (by decide) (index / 64))
+      (finAt 64 (by decide) index)) (word - 1280)
+  else if word < 1848 then
+    kColumn (fun index => data.1.point.coordinates.getD index ⟨0, 0⟩) (word - 1792)
+  else if word < 2168 then
+    data.1.publicInput (finAt 320 (by decide) (word - 1848))
   else natWord data.2
 
-/-- The fresh instance's 1,458 words: the commitment, then the public input. -/
+/-- The fresh instance's 1,472 words: the commitment, then the public input. -/
 def freshColumn (fresh : StepFresh logicalWidth publicFits) (word : Nat) : F :=
-  if word < 1188 then
-    fresh.commitments ⟨0, by decide⟩ (finAt 22 (by decide) (word / 54)) (finAt 54 (by decide) word)
-  else fresh.publicInputs ⟨0, by decide⟩ (finAt 270 (by decide) (word - 1188))
+  if word < 1152 then
+    fresh.commitments ⟨0, by decide⟩ (finAt 18 (by decide) (word / 64)) (finAt 64 (by decide) word)
+  else fresh.publicInputs ⟨0, by decide⟩ (finAt 320 (by decide) (word - 1152))
 
 /-- The round polynomials' coefficients, nine per round. -/
 def roundColumn (rounds : Fin productionShape.cubeVariables → SumCheck.Finite.FixedPolynomial K 8)
@@ -107,14 +107,14 @@ def roundColumn (rounds : Fin productionShape.cubeVariables → SumCheck.Finite.
   kColumn (fun index => (rounds (finAt 28 (by decide) (index / 9))).coefficients.getD
     (index % 9) ⟨0, 0⟩) word
 
-/-- The Π_CCS output of both sources: per source 54 pad and 216 matrix coordinates. -/
+/-- The Π_CCS output of both sources: per source 64 pad and 256 matrix coordinates. -/
 def outputColumn (output : FullOutputCoordinates.FullOutput K LightShape) (word : Nat) : F :=
   kColumn (fun index =>
-    if index % 270 < 54 then
-      output.padCoordinate (finAt 2 (by decide) (index / 270)) (finAt 54 (by decide) (index % 270))
+    if index % 320 < 64 then
+      output.padCoordinate (finAt 2 (by decide) (index / 320)) (finAt 64 (by decide) (index % 320))
     else
-      output.matrixCoordinate (finAt 2 (by decide) (index / 270))
-        (finAt 4 (by decide) ((index % 270 - 54) / 54)) (finAt 54 (by decide) (index % 270 - 54)))
+      output.matrixCoordinate (finAt 2 (by decide) (index / 320))
+        (finAt 4 (by decide) ((index % 320 - 64) / 64)) (finAt 64 (by decide) (index % 320 - 64)))
     word
 
 /-- One value for each group of shared words. -/
@@ -243,7 +243,7 @@ theorem env_digest (word : Nat) (bound : word < 20) :
       unfold freshStart; omega,
     ↓reduceIte, Nat.add_sub_cancel_left]
 
-theorem env_fresh (word : Nat) (bound : word < 1458) :
+theorem env_fresh (word : Nat) (bound : word < 1472) :
     env base witnessWordCount values (freshStart base witnessWordCount + word) =
       freshColumn values.fresh word := by
   simp only [env, show ¬freshStart base witnessWordCount + word < base by
@@ -285,7 +285,7 @@ theorem env_round (word : Nat) (bound : word < 504) :
       unfold outputStart; omega,
     ↓reduceIte, Nat.add_sub_cancel_left]
 
-theorem env_output (word : Nat) (bound : word < 1080) :
+theorem env_output (word : Nat) (bound : word < 1280) :
     env base witnessWordCount values (outputStart base witnessWordCount + word) =
       outputColumn values.output word := by
   simp only [env, show ¬outputStart base witnessWordCount + word < base by
@@ -361,7 +361,7 @@ theorem slot_value (start : Nat) (data : SlotData logicalWidth publicFits)
         (offset + 2 * index) = value.c0)
       (high : slotColumn (⟨commitment, publicInput, point, evaluations⟩, depthValue)
         (offset + 2 * index + 1) = value.c1)
-      (bound : offset + 2 * index + 1 < 2055) =>
+      (bound : offset + 2 * index + 1 < 2169) =>
     kAt_eval env (start + offset) index value
       (by rw [show start + offset + 2 * index = start + (offset + 2 * index) by omega,
         columns _ (by omega), low])
@@ -373,23 +373,23 @@ theorem slot_value (start : Nat) (data : SlotData logicalWidth publicFits)
     · funext row lane
       have rowBound := row.isLt
       have laneBound := lane.isLt
-      change row.val < 22 at rowBound
-      change lane.val < 54 at laneBound
+      change row.val < 18 at rowBound
+      change lane.val < 64 at laneBound
       change env (start + row.val * ringDegree + lane.val) = commitment row lane
-      rw [show start + row.val * ringDegree + lane.val = start + (row.val * 54 + lane.val) by
+      rw [show start + row.val * ringDegree + lane.val = start + (row.val * 64 + lane.val) by
         simp only [ringDegree]; omega, columns _ (by omega)]
-      simp only [slotColumn, show row.val * 54 + lane.val < 1188 by omega, ↓reduceIte]
+      simp only [slotColumn, show row.val * 64 + lane.val < 1152 by omega, ↓reduceIte]
       exact congrArg₂ commitment (Fin.ext (by rw [finAt_val]; omega))
         (Fin.ext (by rw [finAt_val]; omega))
     · funext column
       have columnBound := column.isLt
-      change column.val < 270 at columnBound
-      change env (start + 1784 + column.val) = publicInput column
-      rw [show start + 1784 + column.val = start + (1784 + column.val) by omega,
+      change column.val < 320 at columnBound
+      change env (start + 1848 + column.val) = publicInput column
+      rw [show start + 1848 + column.val = start + (1848 + column.val) by omega,
         columns _ (by omega)]
-      simp only [slotColumn, show ¬1784 + column.val < 1188 by omega,
-        show ¬1784 + column.val < 1296 by omega, show ¬1784 + column.val < 1728 by omega,
-        show ¬1784 + column.val < 1784 by omega, show 1784 + column.val < 2054 by omega,
+      simp only [slotColumn, show ¬1848 + column.val < 1152 by omega,
+        show ¬1848 + column.val < 1280 by omega, show ¬1848 + column.val < 1792 by omega,
+        show ¬1848 + column.val < 1848 by omega, show 1848 + column.val < 2168 by omega,
         ↓reduceIte, Nat.add_sub_cancel_left]
       exact congrArg publicInput (Fin.ext (by rw [finAt_val]; omega))
     · obtain ⟨coordinates, dimension⟩ := point
@@ -400,17 +400,17 @@ theorem slot_value (start : Nat) (data : SlotData logicalWidth publicFits)
       funext coordinate
       have coordinateBound := coordinate.isLt
       change coordinate.val < 28 at coordinateBound
-      apply kWord 1728 coordinate.val
-      · simp only [slotColumn, show ¬1728 + 2 * coordinate.val < 1188 by omega,
-          show ¬1728 + 2 * coordinate.val < 1296 by omega,
-          show ¬1728 + 2 * coordinate.val < 1728 by omega,
-          show 1728 + 2 * coordinate.val < 1784 by omega, ↓reduceIte, Nat.add_sub_cancel_left,
+      apply kWord 1792 coordinate.val
+      · simp only [slotColumn, show ¬1792 + 2 * coordinate.val < 1152 by omega,
+          show ¬1792 + 2 * coordinate.val < 1280 by omega,
+          show ¬1792 + 2 * coordinate.val < 1792 by omega,
+          show 1792 + 2 * coordinate.val < 1848 by omega, ↓reduceIte, Nat.add_sub_cancel_left,
           kColumn_low]
-      · simp only [slotColumn, show ¬1728 + 2 * coordinate.val + 1 < 1188 by omega,
-          show ¬1728 + 2 * coordinate.val + 1 < 1296 by omega,
-          show ¬1728 + 2 * coordinate.val + 1 < 1728 by omega,
-          show 1728 + 2 * coordinate.val + 1 < 1784 by omega, ↓reduceIte,
-          show 1728 + 2 * coordinate.val + 1 - 1728 = 2 * coordinate.val + 1 by omega,
+      · simp only [slotColumn, show ¬1792 + 2 * coordinate.val + 1 < 1152 by omega,
+          show ¬1792 + 2 * coordinate.val + 1 < 1280 by omega,
+          show ¬1792 + 2 * coordinate.val + 1 < 1792 by omega,
+          show 1792 + 2 * coordinate.val + 1 < 1848 by omega, ↓reduceIte,
+          show 1792 + 2 * coordinate.val + 1 - 1792 = 2 * coordinate.val + 1 by omega,
           kColumn_high]
       · omega
     · obtain ⟨pad, matrix⟩ := evaluations
@@ -418,15 +418,15 @@ theorem slot_value (start : Nat) (data : SlotData logicalWidth publicFits)
       congr 1
       · funext coefficient
         have coefficientBound := coefficient.isLt
-        change coefficient.val < 54 at coefficientBound
-        apply kWord 1188 coefficient.val
-        · simp only [slotColumn, show ¬1188 + 2 * coefficient.val < 1188 by omega,
-            show 1188 + 2 * coefficient.val < 1296 by omega, ↓reduceIte,
+        change coefficient.val < 64 at coefficientBound
+        apply kWord 1152 coefficient.val
+        · simp only [slotColumn, show ¬1152 + 2 * coefficient.val < 1152 by omega,
+            show 1152 + 2 * coefficient.val < 1280 by omega, ↓reduceIte,
             Nat.add_sub_cancel_left, kColumn_low]
           exact congrArg (fun index => (pad index).c0) (Fin.ext (by rw [finAt_val]; omega))
-        · simp only [slotColumn, show ¬1188 + 2 * coefficient.val + 1 < 1188 by omega,
-            show 1188 + 2 * coefficient.val + 1 < 1296 by omega, ↓reduceIte,
-            show 1188 + 2 * coefficient.val + 1 - 1188 = 2 * coefficient.val + 1 by omega,
+        · simp only [slotColumn, show ¬1152 + 2 * coefficient.val + 1 < 1152 by omega,
+            show 1152 + 2 * coefficient.val + 1 < 1280 by omega, ↓reduceIte,
+            show 1152 + 2 * coefficient.val + 1 - 1152 = 2 * coefficient.val + 1 by omega,
             kColumn_high]
           exact congrArg (fun index => (pad index).c1) (Fin.ext (by rw [finAt_val]; omega))
         · omega
@@ -434,32 +434,32 @@ theorem slot_value (start : Nat) (data : SlotData logicalWidth publicFits)
         have matrixBound := matrixIndex.isLt
         have coefficientBound := coefficient.isLt
         change matrixIndex.val < 4 at matrixBound
-        change coefficient.val < 54 at coefficientBound
-        change (kAt (start + 1296 + 2 * (matrixIndex.val * ringDegree + coefficient.val))).eval
+        change coefficient.val < 64 at coefficientBound
+        change (kAt (start + 1280 + 2 * (matrixIndex.val * ringDegree + coefficient.val))).eval
           env = _
         simp only [ringDegree]
-        apply kWord 1296 (matrixIndex.val * 54 + coefficient.val)
+        apply kWord 1280 (matrixIndex.val * 64 + coefficient.val)
         · simp only [slotColumn,
-            show ¬1296 + 2 * (matrixIndex.val * 54 + coefficient.val) < 1188 by omega,
-            show ¬1296 + 2 * (matrixIndex.val * 54 + coefficient.val) < 1296 by omega,
-            show 1296 + 2 * (matrixIndex.val * 54 + coefficient.val) < 1728 by omega,
+            show ¬1280 + 2 * (matrixIndex.val * 64 + coefficient.val) < 1152 by omega,
+            show ¬1280 + 2 * (matrixIndex.val * 64 + coefficient.val) < 1280 by omega,
+            show 1280 + 2 * (matrixIndex.val * 64 + coefficient.val) < 1792 by omega,
             ↓reduceIte, Nat.add_sub_cancel_left, kColumn_low]
           exact congrArg₂ (fun first second => (matrix first second).c0)
             (Fin.ext (by rw [finAt_val]; omega)) (Fin.ext (by rw [finAt_val]; omega))
         · simp only [slotColumn,
-            show ¬1296 + 2 * (matrixIndex.val * 54 + coefficient.val) + 1 < 1188 by omega,
-            show ¬1296 + 2 * (matrixIndex.val * 54 + coefficient.val) + 1 < 1296 by omega,
-            show 1296 + 2 * (matrixIndex.val * 54 + coefficient.val) + 1 < 1728 by omega,
+            show ¬1280 + 2 * (matrixIndex.val * 64 + coefficient.val) + 1 < 1152 by omega,
+            show ¬1280 + 2 * (matrixIndex.val * 64 + coefficient.val) + 1 < 1280 by omega,
+            show 1280 + 2 * (matrixIndex.val * 64 + coefficient.val) + 1 < 1792 by omega,
             ↓reduceIte,
-            show 1296 + 2 * (matrixIndex.val * 54 + coefficient.val) + 1 - 1296 =
-              2 * (matrixIndex.val * 54 + coefficient.val) + 1 by omega, kColumn_high]
+            show 1280 + 2 * (matrixIndex.val * 64 + coefficient.val) + 1 - 1280 =
+              2 * (matrixIndex.val * 64 + coefficient.val) + 1 by omega, kColumn_high]
           exact congrArg₂ (fun first second => (matrix first second).c1)
             (Fin.ext (by rw [finAt_val]; omega)) (Fin.ext (by rw [finAt_val]; omega))
         · omega
-  · change (env (start + 2054)).val = depthValue
-    rw [columns 2054 (by decide)]
-    simp only [slotColumn, show ¬2054 < 1188 by decide, show ¬2054 < 1296 by decide,
-      show ¬2054 < 1728 by decide, show ¬2054 < 1784 by decide, show ¬2054 < 2054 by decide,
+  · change (env (start + 2168)).val = depthValue
+    rw [columns 2168 (by decide)]
+    simp only [slotColumn, show ¬2168 < 1152 by decide, show ¬2168 < 1280 by decide,
+      show ¬2168 < 1792 by decide, show ¬2168 < 1848 by decide, show ¬2168 < 2168 by decide,
       ↓reduceIte]
     simp [natWord, Poseidon2.ofNat, Nat.mod_eq_of_lt depth]
 
@@ -473,7 +473,7 @@ theorem slot_words (start : Nat) (data : SlotData logicalWidth publicFits)
 
 /-- The fresh words carry the fresh instance whose columns `env` holds. -/
 theorem fresh_eval (fresh : StepFresh logicalWidth publicFits)
-    (columns : ∀ word, word < 1458 →
+    (columns : ∀ word, word < 1472 →
       env (freshStart base witnessWordCount + word) = freshColumn fresh word) :
     StatementAbsorption.evalFresh
         (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base
@@ -490,23 +490,23 @@ theorem fresh_eval (fresh : StepFresh logicalWidth publicFits)
   · funext source row lane
     have rowBound := row.isLt
     have laneBound := lane.isLt
-    change row.val < 22 at rowBound
-    change lane.val < 54 at laneBound
+    change row.val < 18 at rowBound
+    change lane.val < 64 at laneBound
     change env (freshStart base witnessWordCount + row.val * ringDegree + lane.val) = _
     rw [show freshStart base witnessWordCount + row.val * ringDegree + lane.val =
-      freshStart base witnessWordCount + (row.val * 54 + lane.val) by simp only [ringDegree]; omega,
+      freshStart base witnessWordCount + (row.val * 64 + lane.val) by simp only [ringDegree]; omega,
       columns _ (by omega)]
-    simp only [freshColumn, show row.val * 54 + lane.val < 1188 by omega, ↓reduceIte]
+    simp only [freshColumn, show row.val * 64 + lane.val < 1152 by omega, ↓reduceIte]
     rw [only source]
     exact congrArg₂ (commitments ⟨0, by decide⟩) (Fin.ext (by rw [finAt_val]; omega))
       (Fin.ext (by rw [finAt_val]; omega))
   · funext source column
     have columnBound := column.isLt
-    change column.val < 270 at columnBound
-    change env (freshStart base witnessWordCount + 1188 + column.val) = _
-    rw [show freshStart base witnessWordCount + 1188 + column.val =
-      freshStart base witnessWordCount + (1188 + column.val) by omega, columns _ (by omega)]
-    simp only [freshColumn, show ¬1188 + column.val < 1188 by omega, ↓reduceIte,
+    change column.val < 320 at columnBound
+    change env (freshStart base witnessWordCount + 1152 + column.val) = _
+    rw [show freshStart base witnessWordCount + 1152 + column.val =
+      freshStart base witnessWordCount + (1152 + column.val) by omega, columns _ (by omega)]
+    simp only [freshColumn, show ¬1152 + column.val < 1152 by omega, ↓reduceIte,
       Nat.add_sub_cancel_left]
     rw [only source]
     exact congrArg (publicInputs ⟨0, by decide⟩) (Fin.ext (by rw [finAt_val]; omega))
@@ -543,7 +543,7 @@ theorem round_eval (rounds : Fin productionShape.cubeVariables →
 
 /-- The output words carry the Π_CCS output whose columns `env` holds. -/
 theorem outputPad_eval (output : FullOutputCoordinates.FullOutput K LightShape)
-    (columns : ∀ word, word < 1080 →
+    (columns : ∀ word, word < 1280 →
       env (outputStart base witnessWordCount + word) = outputColumn output word)
     (source : Fin LightShape.sourceCount) (coefficient : Fin LightShape.coefficientCount) :
     ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base
@@ -552,24 +552,24 @@ theorem outputPad_eval (output : FullOutputCoordinates.FullOutput K LightShape)
   have sourceBound := source.isLt
   have coefficientBound := coefficient.isLt
   change source.val < 2 at sourceBound
-  change coefficient.val < 54 at coefficientBound
-  have position : (source.val * 270 + coefficient.val) % 270 = coefficient.val := by omega
+  change coefficient.val < 64 at coefficientBound
+  have position : (source.val * 320 + coefficient.val) % 320 = coefficient.val := by omega
   apply kAt_eval
-  · rw [columns (2 * (source.val * 270 + coefficient.val)) (by omega)]
+  · rw [columns (2 * (source.val * 320 + coefficient.val)) (by omega)]
     unfold outputColumn
     rw [kColumn_low]
-    simp only [position, show coefficient.val < 54 from coefficientBound, ↓reduceIte]
+    simp only [position, show coefficient.val < 64 from coefficientBound, ↓reduceIte]
     exact congrArg₂ (fun first second => (output.padCoordinate first second).c0)
       (Fin.ext (by rw [finAt_val]; omega)) (Fin.ext (by rw [finAt_val]; omega))
-  · rw [Nat.add_assoc, columns (2 * (source.val * 270 + coefficient.val) + 1) (by omega)]
+  · rw [Nat.add_assoc, columns (2 * (source.val * 320 + coefficient.val) + 1) (by omega)]
     unfold outputColumn
     rw [kColumn_high]
-    simp only [position, show coefficient.val < 54 from coefficientBound, ↓reduceIte]
+    simp only [position, show coefficient.val < 64 from coefficientBound, ↓reduceIte]
     exact congrArg₂ (fun first second => (output.padCoordinate first second).c1)
       (Fin.ext (by rw [finAt_val]; omega)) (Fin.ext (by rw [finAt_val]; omega))
 
 theorem outputMatrix_eval (output : FullOutputCoordinates.FullOutput K LightShape)
-    (columns : ∀ word, word < 1080 →
+    (columns : ∀ word, word < 1280 →
       env (outputStart base witnessWordCount + word) = outputColumn output word)
     (source : Fin LightShape.sourceCount) (matrix : Fin LightShape.matrixCount)
     (coefficient : Fin LightShape.coefficientCount) :
@@ -581,32 +581,32 @@ theorem outputMatrix_eval (output : FullOutputCoordinates.FullOutput K LightShap
   have coefficientBound := coefficient.isLt
   change source.val < 2 at sourceBound
   change matrix.val < 4 at matrixBound
-  change coefficient.val < 54 at coefficientBound
-  have position : (source.val * 270 + 54 + matrix.val * 54 + coefficient.val) % 270 =
-      54 + matrix.val * 54 + coefficient.val := by omega
-  have notPad : ¬54 + matrix.val * 54 + coefficient.val < 54 := by omega
+  change coefficient.val < 64 at coefficientBound
+  have position : (source.val * 320 + 64 + matrix.val * 64 + coefficient.val) % 320 =
+      64 + matrix.val * 64 + coefficient.val := by omega
+  have notPad : ¬64 + matrix.val * 64 + coefficient.val < 64 := by omega
   apply kAt_eval
-  · rw [columns (2 * (source.val * 270 + 54 + matrix.val * 54 + coefficient.val)) (by omega)]
+  · rw [columns (2 * (source.val * 320 + 64 + matrix.val * 64 + coefficient.val)) (by omega)]
     unfold outputColumn
     rw [kColumn_low]
     simp only [position, notPad, ↓reduceIte]
     rw [show (output.matrixCoordinate (finAt 2 (by decide)
-        ((source.val * 270 + 54 + matrix.val * 54 + coefficient.val) / 270))
-        (finAt 4 (by decide) ((54 + matrix.val * 54 + coefficient.val - 54) / 54))
-        (finAt 54 (by decide) (54 + matrix.val * 54 + coefficient.val - 54))) =
+        ((source.val * 320 + 64 + matrix.val * 64 + coefficient.val) / 320))
+        (finAt 4 (by decide) ((64 + matrix.val * 64 + coefficient.val - 64) / 64))
+        (finAt 64 (by decide) (64 + matrix.val * 64 + coefficient.val - 64))) =
       output.matrixCoordinate source matrix coefficient from
         congrArg₂ (fun first second => output.matrixCoordinate first second _)
           (Fin.ext (by rw [finAt_val]; omega)) (Fin.ext (by rw [finAt_val]; omega)) |>.trans
           (congrArg (output.matrixCoordinate source matrix) (Fin.ext (by rw [finAt_val]; omega)))]
   · rw [Nat.add_assoc,
-      columns (2 * (source.val * 270 + 54 + matrix.val * 54 + coefficient.val) + 1) (by omega)]
+      columns (2 * (source.val * 320 + 64 + matrix.val * 64 + coefficient.val) + 1) (by omega)]
     unfold outputColumn
     rw [kColumn_high]
     simp only [position, notPad, ↓reduceIte]
     rw [show (output.matrixCoordinate (finAt 2 (by decide)
-        ((source.val * 270 + 54 + matrix.val * 54 + coefficient.val) / 270))
-        (finAt 4 (by decide) ((54 + matrix.val * 54 + coefficient.val - 54) / 54))
-        (finAt 54 (by decide) (54 + matrix.val * 54 + coefficient.val - 54))) =
+        ((source.val * 320 + 64 + matrix.val * 64 + coefficient.val) / 320))
+        (finAt 4 (by decide) ((64 + matrix.val * 64 + coefficient.val - 64) / 64))
+        (finAt 64 (by decide) (64 + matrix.val * 64 + coefficient.val - 64))) =
       output.matrixCoordinate source matrix coefficient from
         congrArg₂ (fun first second => output.matrixCoordinate first second _)
           (Fin.ext (by rw [finAt_val]; omega)) (Fin.ext (by rw [finAt_val]; omega)) |>.trans
@@ -669,12 +669,12 @@ omit circuitKeys input output proof selected folded in
 private theorem starts : keysStart base = base + 5 ∧ statesStart base = base + 13 ∧
     witnessStart base = base + 25 ∧
     slotsStart base witnessWordCount = base + 25 + witnessWordCount ∧
-    digestsStart base witnessWordCount = base + 25 + witnessWordCount + 14385 ∧
-    freshStart base witnessWordCount = base + 25 + witnessWordCount + 14405 ∧
-    roundsStart base witnessWordCount = base + 25 + witnessWordCount + 15863 ∧
-    outputStart base witnessWordCount = base + 25 + witnessWordCount + 16367 ∧
-    digestSelectStart base witnessWordCount = base + 25 + witnessWordCount + 17447 ∧
-    sharedEnd base witnessWordCount = base + 25 + witnessWordCount + 17463 := by
+    digestsStart base witnessWordCount = base + 25 + witnessWordCount + 15183 ∧
+    freshStart base witnessWordCount = base + 25 + witnessWordCount + 15203 ∧
+    roundsStart base witnessWordCount = base + 25 + witnessWordCount + 16675 ∧
+    outputStart base witnessWordCount = base + 25 + witnessWordCount + 17179 ∧
+    digestSelectStart base witnessWordCount = base + 25 + witnessWordCount + 18459 ∧
+    sharedEnd base witnessWordCount = base + 25 + witnessWordCount + 18475 := by
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
     simp only [keysStart, statesStart, witnessStart, slotsStart, digestsStart, freshStart,
       roundsStart, outputStart, digestSelectStart, sharedEnd, slotWordCount]
@@ -722,7 +722,7 @@ theorem target_digest (word : Nat) (bound : word < 20) :
   (agree _ (by have := starts base witnessWordCount; omega)).trans
     (env_digest base witnessWordCount _ word bound)
 
-theorem target_fresh (word : Nat) (bound : word < 1458) :
+theorem target_fresh (word : Nat) (bound : word < 1472) :
     target (freshStart base witnessWordCount + word) = freshColumn input.fresh word :=
   (agree _ (by have := starts base witnessWordCount; omega)).trans
     (env_fresh base witnessWordCount _ word bound)
@@ -732,7 +732,7 @@ theorem target_round (word : Nat) (bound : word < 504) :
   (agree _ (by have := starts base witnessWordCount; omega)).trans
     (env_round base witnessWordCount _ word bound)
 
-theorem target_output (word : Nat) (bound : word < 1080) :
+theorem target_output (word : Nat) (bound : word < 1280) :
     target (outputStart base witnessWordCount + word) = outputColumn proof.piCcsOutput word :=
   (agree _ (by have := starts base witnessWordCount; omega)).trans
     (env_output base witnessWordCount _ word bound)

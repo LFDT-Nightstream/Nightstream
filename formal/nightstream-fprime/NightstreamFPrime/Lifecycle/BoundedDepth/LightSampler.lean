@@ -2,7 +2,7 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.Keys
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain
 
 /-! The light Π_RLC challenge: one production sampler at coordinate 0 (`lightChallenge`). The
-`Sampler` gadget has 2,927 rows (`Sampler.counts`); today's step samples 17 challenges. -/
+`Sampler` gadget has 3,101 rows (`Sampler.counts`); today's step samples 17 challenges. -/
 
 namespace NightstreamFPrime.Lifecycle.BoundedDepth.LightSampler
 

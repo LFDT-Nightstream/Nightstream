@@ -231,7 +231,7 @@ def lightExtraction (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits
     (PaperExtractionAlgebra.extractionAlgebra ajtai)
 
 /-- Cyclo Theorem 3, item 2, for the production light key: the extracted accumulator
-`w − ρ · u` is within `T = 216` of `w`. -/
+`w − ρ · u` is within `T = 128` of `w`. -/
 theorem lightExtractionNormLaw
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     Light.Rlc.ExtractionNormLaw (lightExtraction ajtai) :=

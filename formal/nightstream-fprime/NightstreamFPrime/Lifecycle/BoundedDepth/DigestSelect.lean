@@ -8,7 +8,7 @@ variables: the step layout supplies the counters, the selector, the states, the 
 slots and the slot digests. Its rows are the slot select's flag and base-state rows, the active
 slot's selection from the prior slots, and two digest selections per slot: the inner digest (the
 new slot's digest for the selected slot, the prior digest otherwise) and the next digest (the
-default slot's digest at iteration 0, the inner digest otherwise). That is 2,055 + 16 + 8 rows.
+default slot's digest at iteration 0, the inner digest otherwise). That is 2,169 + 16 + 8 rows.
 `rows_implies_select` gives `SelectSpec` for the next slots `nextSlots`, the active slot and the
 digest of each next slot. -/
 

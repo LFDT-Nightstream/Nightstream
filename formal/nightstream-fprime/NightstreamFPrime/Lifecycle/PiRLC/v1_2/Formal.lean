@@ -99,16 +99,16 @@ def commitmentOffset (offset : Nat) : Nat :=
   samplerOffset offset + SamplerChain.logicalPrivateCount
 
 def publicInputOffset (offset : Nat) : Nat :=
-  commitmentOffset offset + 20196
+  commitmentOffset offset + 19584
 
 def evalKOffset (offset : Nat) : Nat :=
-  publicInputOffset offset + 4590
+  publicInputOffset offset + 5440
 
 def evalAOffset (offset : Nat) : Nat :=
-  evalKOffset offset + 1836
+  evalKOffset offset + 2176
 
 def outputBindingOffset (offset : Nat) : Nat :=
-  evalAOffset offset + 7344
+  evalAOffset offset + 8704
 
 def finalOffset (offset : Nat) : Nat := outputBindingOffset offset
 
@@ -228,10 +228,10 @@ def main
       opsAt relation interface offset := by
   rfl
 
-def logicalPrivateCount : Nat := 106505
-def logicalRowCount : Nat := 83725
+def logicalPrivateCount : Nat := 118745
+def logicalRowCount : Nat := 88621
 
-theorem logicalPrivateCount_eq : logicalPrivateCount = 106505 := by
+theorem logicalPrivateCount_eq : logicalPrivateCount = 118745 := by
   rfl
 
 structure Assumptions
@@ -346,7 +346,7 @@ theorem soundness
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.commitment_combination" (commitmentCircuit interface)
-      offset).localLength = 20196 := by
+      offset).localLength = 19584 := by
   rw [childOp, Sequence.childOp_localLength]
   exact CommitmentCombination.localLength_eq (commitmentInterface interface) offset
 
@@ -356,7 +356,7 @@ theorem soundness
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.public_input_combination" (publicInputCircuit interface)
-      offset).localLength = 4590 := by
+      offset).localLength = 5440 := by
   rw [childOp, Sequence.childOp_localLength]
   exact PublicInputCombination.localLength_eq (publicInputInterface interface) offset
 
@@ -366,7 +366,7 @@ theorem soundness
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.eval_K_combination" (evalKCircuit interface)
-      offset).localLength = 1836 := by
+      offset).localLength = 2176 := by
   rw [childOp, Sequence.childOp_localLength]
   exact EvalKCombination.localLength_eq (evalKInterface interface) offset
 
@@ -376,7 +376,7 @@ theorem soundness
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.eval_A_combination" (evalACircuit interface)
-      offset).localLength = 7344 := by
+      offset).localLength = 8704 := by
   rw [childOp, Sequence.childOp_localLength]
   exact EvalACombination.localLength_eq (evalAInterface interface) offset
 
@@ -415,9 +415,9 @@ theorem soundness
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.commitment_combination" (commitmentCircuit interface)
-      offset).rowCount = 20196 := by
+      offset).rowCount = 19584 := by
   change CombinationFamily.logicalRowCount CommitmentCombination.blockCount
-    CommitmentCombination.cellCount = 20196
+    CommitmentCombination.cellCount = 19584
   exact CommitmentCombination.logicalRowCount_eq
 
 @[simp] private theorem publicInputOp_rowCount
@@ -426,9 +426,9 @@ theorem soundness
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.public_input_combination" (publicInputCircuit interface)
-      offset).rowCount = 4590 := by
+      offset).rowCount = 5440 := by
   change CombinationFamily.logicalRowCount PublicInputCombination.blockCount
-    PublicInputCombination.cellCount = 4590
+    PublicInputCombination.cellCount = 5440
   exact PublicInputCombination.logicalRowCount_eq
 
 @[simp] private theorem evalKOp_rowCount
@@ -437,9 +437,9 @@ theorem soundness
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.eval_K_combination" (evalKCircuit interface)
-      offset).rowCount = 1836 := by
+      offset).rowCount = 2176 := by
   change CombinationFamily.logicalRowCount EvalKCombination.blockCount
-    RingKCombination.cellCount = 1836
+    RingKCombination.cellCount = 2176
   exact EvalKCombination.logicalRowCount_eq
 
 @[simp] private theorem evalAOp_rowCount
@@ -448,9 +448,9 @@ theorem soundness
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.eval_A_combination" (evalACircuit interface)
-      offset).rowCount = 7344 := by
+      offset).rowCount = 8704 := by
   change CombinationFamily.logicalRowCount EvalACombination.blockCount
-    RingKCombination.cellCount = 7344
+    RingKCombination.cellCount = 8704
   exact EvalACombination.logicalRowCount_eq
 
 @[simp] private theorem outputBindingOp_rowCount

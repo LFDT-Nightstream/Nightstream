@@ -12,10 +12,10 @@ open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 
-def exactWordCount : Nat := 27794
+def exactWordCount : Nat := 28888
 def stateWordCount : Nat := 4
 def exactPrivateCount : Nat := 2
-def exactRowCount : Nat := 27800
+def exactRowCount : Nat := 28894
 
 abbrev WordIndex := Fin exactWordCount
 abbrev StateIndex := Fin stateWordCount
@@ -27,7 +27,7 @@ structure Interface (logicalWidth : Nat)
   initialState : Nat → StateIndex → Expr
   currentState : Nat → StateIndex → Expr
   recursive : Nat → StatementAbsorption.RunningExpr logicalWidth publicFits
-  output : Nat → Fin 27794 → Expr
+  output : Nat → Fin 28888 → Expr
 
 def iterationValue {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -877,7 +877,7 @@ private theorem mul_hintInverse_eq_one (value : F) (nonzero : value ≠ 0) :
     Nat.coprime_iff_gcd_eq_one.mp coprime
   unfold F fieldModulus at value gcdOne ⊢
   have law := ZMod.mul_inv_eq_gcd
-    (n := 18446744069414584321) value
+    (n := 18446744073709551557) value
   dsimp [ZMod, ZMod.val] at law
   rw [gcdOne] at law
   exact law

@@ -75,12 +75,13 @@ def descriptor (authority : Authority) : Descriptor where
   commitmentKey := componentDigest 4 authority.commitmentKeyWords
 
 def profileWords : List F :=
-  ([4294967295, 1, 2, 16, 65536, 1, 16, 17, 16, productionProfile.ccsMatrices,
-      cubeVariables, 8, 54, productionProfile.commitmentWidth] :
+  ([fieldModulus / 2 ^ 32, fieldModulus % 2 ^ 32, 2, 16, 65536, 1, 16, 17, 16,
+      productionProfile.ccsMatrices, cubeVariables, 8, ringDegree,
+      productionProfile.commitmentWidth] :
     List Nat).map Poseidon2.ofNat
 
 def scheduleWords : List F :=
-  ([1, 1, 1, cubeVariables, 9, 17, productionProfile.ccsMatrices, 54, 4, 1] :
+  ([1, 1, 1, cubeVariables, 9, 17, productionProfile.ccsMatrices, ringDegree, 4, 1] :
       List Nat).map
     Poseidon2.ofNat
 

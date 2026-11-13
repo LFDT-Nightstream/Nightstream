@@ -287,27 +287,24 @@ private theorem shifted_val_lt {value : F}
     omega
 
 open Fin.CommRing in
-private theorem packWord_shift (low middle high : F) :
-    packWord (low + packOffset) (middle + packOffset) (high + packOffset) =
-      packWord low middle high + packShift := by
+private theorem packWord_shift (low high : F) :
+    packWord (low + packOffset) (high + packOffset) =
+      packWord low high + packShift := by
   simp only [packShift, packWord]
   ring
 
-private theorem packWord_val {low middle high : F}
-    (lowBound : low.val < 131072) (middleBound : middle.val < 131072)
-    (highBound : high.val < 131072) :
-    (packWord low middle high).val =
-      low.val + 131072 * middle.val + 17179869184 * high.val := by
-  have asNat : packWord low middle high =
-      Poseidon2.ofNat (low.val + 2 ^ 17 * middle.val + 2 ^ 17 * 2 ^ 17 * high.val) := by
-    calc packWord low middle high
-        = Poseidon2.ofNat low.val + Poseidon2.ofNat (2 ^ 17) * Poseidon2.ofNat middle.val +
-            Poseidon2.ofNat (2 ^ 17) * Poseidon2.ofNat (2 ^ 17) *
-              Poseidon2.ofNat high.val := by
-          rw [ofNat_val, ofNat_val, ofNat_val]
+private theorem packWord_val {low high : F}
+    (lowBound : low.val < 131072) (highBound : high.val < 131072) :
+    (packWord low high).val = low.val + 131072 * high.val := by
+  have asNat : packWord low high =
+      Poseidon2.ofNat (low.val + 2 ^ 17 * high.val) := by
+    calc packWord low high
+        = Poseidon2.ofNat low.val +
+            Poseidon2.ofNat (2 ^ 17) * Poseidon2.ofNat high.val := by
+          rw [ofNat_val, ofNat_val]
           rfl
       _ = _ := by
-          rw [ofNat_mul, ofNat_mul, ofNat_mul, ofNat_add, ofNat_add]
+          rw [ofNat_mul, ofNat_add]
   rw [asNat]
   simp only [Poseidon2.ofNat]
   norm_num
@@ -315,94 +312,74 @@ private theorem packWord_val {low middle high : F}
   unfold fieldModulus
   omega
 
-private theorem radix_unique {a b c d e f : Nat}
-    (aBound : a < 131072) (bBound : b < 131072)
-    (dBound : d < 131072) (eBound : e < 131072)
-    (equal : a + 131072 * b + 17179869184 * c = d + 131072 * e + 17179869184 * f) :
-    a = d ∧ b = e ∧ c = f := by
+private theorem radix_unique {a b d e : Nat}
+    (aBound : a < 131072) (dBound : d < 131072)
+    (equal : a + 131072 * b = d + 131072 * e) :
+    a = d ∧ b = e := by
   omega
 
-theorem packWord_injective {leftLow leftMiddle leftHigh
-      rightLow rightMiddle rightHigh : F}
+theorem packWord_injective {leftLow leftHigh rightLow rightHigh : F}
     (leftLowBound : centeredMagnitude leftLow < 2 ^ 16)
-    (leftMiddleBound : centeredMagnitude leftMiddle < 2 ^ 16)
     (leftHighBound : centeredMagnitude leftHigh < 2 ^ 16)
     (rightLowBound : centeredMagnitude rightLow < 2 ^ 16)
-    (rightMiddleBound : centeredMagnitude rightMiddle < 2 ^ 16)
     (rightHighBound : centeredMagnitude rightHigh < 2 ^ 16)
-    (equal : packWord leftLow leftMiddle leftHigh =
-      packWord rightLow rightMiddle rightHigh) :
-    leftLow = rightLow ∧ leftMiddle = rightMiddle ∧ leftHigh = rightHigh := by
+    (equal : packWord leftLow leftHigh = packWord rightLow rightHigh) :
+    leftLow = rightLow ∧ leftHigh = rightHigh := by
   have shiftedEqual :
-      packWord (leftLow + packOffset) (leftMiddle + packOffset) (leftHigh + packOffset) =
-        packWord (rightLow + packOffset) (rightMiddle + packOffset)
-          (rightHigh + packOffset) := by
+      packWord (leftLow + packOffset) (leftHigh + packOffset) =
+        packWord (rightLow + packOffset) (rightHigh + packOffset) := by
     rw [packWord_shift, packWord_shift, equal]
   have valuesEqual := congrArg Fin.val shiftedEqual
   have leftLowShift := shifted_val_lt leftLowBound
-  have leftMiddleShift := shifted_val_lt leftMiddleBound
   have leftHighShift := shifted_val_lt leftHighBound
   have rightLowShift := shifted_val_lt rightLowBound
-  have rightMiddleShift := shifted_val_lt rightMiddleBound
   have rightHighShift := shifted_val_lt rightHighBound
-  rw [packWord_val leftLowShift leftMiddleShift leftHighShift,
-    packWord_val rightLowShift rightMiddleShift rightHighShift] at valuesEqual
-  rcases radix_unique leftLowShift leftMiddleShift rightLowShift
-      rightMiddleShift valuesEqual with ⟨low, middle, high⟩
-  exact ⟨add_right_cancel (Fin.ext low), add_right_cancel (Fin.ext middle),
-    add_right_cancel (Fin.ext high)⟩
+  rw [packWord_val leftLowShift leftHighShift,
+    packWord_val rightLowShift rightHighShift] at valuesEqual
+  rcases radix_unique leftLowShift rightLowShift valuesEqual with ⟨low, high⟩
+  exact ⟨add_right_cancel (Fin.ext low), add_right_cancel (Fin.ext high)⟩
 
-private theorem packWord_ofNat (low middle high : Nat) :
-    packWord (Poseidon2.ofNat low) (Poseidon2.ofNat middle) (Poseidon2.ofNat high) =
-      Poseidon2.ofNat (low + 2 ^ 17 * middle + 2 ^ 17 * 2 ^ 17 * high) := by
+private theorem packWord_ofNat (low high : Nat) :
+    packWord (Poseidon2.ofNat low) (Poseidon2.ofNat high) =
+      Poseidon2.ofNat (low + 2 ^ 17 * high) := by
   unfold packWord packRadix
-  rw [ofNat_mul, ofNat_mul, ofNat_mul, ofNat_add, ofNat_add]
+  rw [ofNat_mul, ofNat_add]
 
 theorem packWord_unpackWord (word : F) :
-    packWord (unpackWord word 0) (unpackWord word 1) (unpackWord word 2) = word := by
+    packWord (unpackWord word 0) (unpackWord word 1) = word := by
   have shifted :
-      packWord (unpackWord word 0 + packOffset) (unpackWord word 1 + packOffset)
-          (unpackWord word 2 + packOffset) = word + packShift := by
+      packWord (unpackWord word 0 + packOffset) (unpackWord word 1 + packOffset) =
+        word + packShift := by
     simp only [unpackWord, sub_add_cancel]
     rw [packWord_ofNat]
     have digits : (word + packShift).val % 2 ^ 17 +
-        2 ^ 17 * ((word + packShift).val / 2 ^ 17 % 2 ^ 17) +
-        2 ^ 17 * 2 ^ 17 * ((word + packShift).val / 2 ^ 34) =
+        2 ^ 17 * ((word + packShift).val / 2 ^ 17) =
           (word + packShift).val := by
       omega
     rw [digits, ofNat_val]
   rw [packWord_shift] at shifted
   exact add_right_cancel shifted
 
-private theorem radix_digits {a b c : Nat}
-    (aBound : a < 131072) (bBound : b < 131072) :
-    (a + 131072 * b + 17179869184 * c) % 2 ^ 17 = a ∧
-      (a + 131072 * b + 17179869184 * c) / 2 ^ 17 % 2 ^ 17 = b ∧
-      (a + 131072 * b + 17179869184 * c) / 2 ^ 34 = c := by
+private theorem radix_digits {a : Nat} (b : Nat) (aBound : a < 131072) :
+    (a + 131072 * b) % 2 ^ 17 = a ∧ (a + 131072 * b) / 2 ^ 17 = b := by
   omega
 
-theorem unpackWord_packWord {low middle high : F}
+theorem unpackWord_packWord {low high : F}
     (lowBound : centeredMagnitude low < 2 ^ 16)
-    (middleBound : centeredMagnitude middle < 2 ^ 16)
     (highBound : centeredMagnitude high < 2 ^ 16) :
-    unpackWord (packWord low middle high) 0 = low ∧
-      unpackWord (packWord low middle high) 1 = middle ∧
-      unpackWord (packWord low middle high) 2 = high := by
+    unpackWord (packWord low high) 0 = low ∧
+      unpackWord (packWord low high) 1 = high := by
   have lowShift := shifted_val_lt lowBound
-  have middleShift := shifted_val_lt middleBound
   have highShift := shifted_val_lt highBound
-  have value : (packWord low middle high + packShift).val =
-      (low + packOffset).val + 131072 * (middle + packOffset).val +
-        17179869184 * (high + packOffset).val := by
-    rw [← packWord_shift, packWord_val lowShift middleShift highShift]
+  have value : (packWord low high + packShift).val =
+      (low + packOffset).val + 131072 * (high + packOffset).val := by
+    rw [← packWord_shift, packWord_val lowShift highShift]
   have lane (lane : F) : Poseidon2.ofNat (lane + packOffset).val - packOffset = lane := by
     rw [ofNat_val, add_sub_cancel_right]
-  rcases radix_digits lowShift middleShift with ⟨lowDigit, middleDigit, highDigit⟩
-  refine ⟨?_, ?_, ?_⟩
+  rcases radix_digits (high + packOffset).val lowShift with ⟨lowDigit, highDigit⟩
+  refine ⟨?_, ?_⟩
   · simp only [unpackWord]
     rw [value, lowDigit, lane]
-  · simp only [unpackWord]
-    rw [value, middleDigit, lane]
   · simp only [unpackWord]
     rw [value, highDigit, lane]
 
@@ -410,10 +387,10 @@ theorem packedColumn_cover
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
     ∃ word lane, packedColumn (logicalWidth := logicalWidth) (publicFits := publicFits)
       word lane = column := by
-  have columnBound : column.val < 3 * packedParentWords :=
+  have columnBound : column.val < 2 * packedParentWords :=
     lt_of_lt_of_eq column.isLt publicWidth_eq
-  refine ⟨⟨column.val / 3, by unfold packedParentWords at *; omega⟩,
-    ⟨column.val % 3, by omega⟩, ?_⟩
+  refine ⟨⟨column.val / 2, by unfold packedParentWords at *; omega⟩,
+    ⟨column.val % 2, by omega⟩, ?_⟩
   apply Fin.ext
   simp only [packedColumn]
   omega
@@ -433,13 +410,11 @@ theorem serializeParentPublic_injective
     simp only [List.getElem_map, List.getElem_finRange] at wordEqual
     rcases packWord_injective
         (leftCanonical.parentBounded _) (leftCanonical.parentBounded _)
-        (leftCanonical.parentBounded _) (rightCanonical.parentBounded _)
         (rightCanonical.parentBounded _) (rightCanonical.parentBounded _)
         wordEqual with
-      ⟨low, middle, high⟩
+      ⟨low, high⟩
     fin_cases lane
     · exact low
-    · exact middle
     · exact high
   funext source column
   rcases leftCanonical.accepted column with ⟨leftSign, leftAccepted⟩

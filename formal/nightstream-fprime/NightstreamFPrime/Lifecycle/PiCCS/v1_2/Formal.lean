@@ -204,7 +204,7 @@ def challengeStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
-  interface.baseOffset + 135078
+  interface.baseOffset + 136224
 
 def challengeAlpha {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -245,7 +245,7 @@ def roundTranscriptStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
-  interface.baseOffset + 135078 + 4384
+  interface.baseOffset + 136224 + 4384
 
 def roundTranscriptRound {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -546,7 +546,7 @@ def statementBindingCircuit {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (StatementBinding.circuit (statementBindingInterface interface))
-    StateBinding.signCount 4712
+    StateBinding.signCount 5632
     (StatementBinding.localLength_eq (statementBindingInterface interface))
     (StatementBinding.flatConstraints_length (statementBindingInterface interface))
 
@@ -556,7 +556,7 @@ def statementAbsorptionCircuit {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (StatementAbsorption.circuit (statementAbsorptionInterface interface))
-    134808 134808
+    135904 135904
     (StatementAbsorption.localLength_eq (statementAbsorptionInterface interface))
     (StatementAbsorption.flatConstraints_length
       (statementAbsorptionInterface interface))
@@ -591,7 +591,7 @@ def initialClaimCircuit {logicalWidth degreeBound : Nat}
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (InitialClaim.circuit (initialClaimInterface interface)) 12957 12957
+    (InitialClaim.circuit (initialClaimInterface interface)) 15357 15357
     (InitialClaim.localLength_eq (initialClaimInterface interface))
     (InitialClaim.flatConstraints_length (initialClaimInterface interface))
 
@@ -656,7 +656,7 @@ def finalIdentityCircuit {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (FinalIdentity.circuit (finalIdentityInterface relation interface))
-      FinalIdentity.privateCount 2719
+      FinalIdentity.privateCount 3199
     (FinalIdentity.localLength_eq (finalIdentityInterface relation interface))
     (FinalIdentity.flatConstraints_length (finalIdentityInterface relation interface))
 
@@ -665,7 +665,7 @@ def outputBindingCircuit {logicalWidth degreeBound : Nat}
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (OutputBinding.circuit (outputBindingInterface interface)) 838440 838440
+    (OutputBinding.circuit (outputBindingInterface interface)) 994072 994072
     (OutputBinding.localLength_eq (outputBindingInterface interface))
     (OutputBinding.flatConstraints_length (outputBindingInterface interface))
 
@@ -727,7 +727,7 @@ def challengeOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
-    (offset : Nat) : challengeOffset interface offset = offset + 135078 := by
+    (offset : Nat) : challengeOffset interface offset = offset + 136224 := by
   unfold challengeOffset nextOffset childLength statementAbsorptionCircuit
   rw [statementAbsorptionOffset_eq, FormalCircuit.withConstantFootprint_main,
     StatementAbsorption.localLength_eq]

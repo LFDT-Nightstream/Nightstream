@@ -30,6 +30,8 @@ akita-verifier = { git = "https://github.com/LayerZero-Labs/akita.git", rev = "d
 jolt-field = { git = "https://github.com/a16z/jolt", rev = "25d87ba68bde9f4a85ac986f5487b2e7b7db2699", default-features = false, features = ["asm", "solinas"] }
 
 [dev-dependencies]
+# The rows of the step circuits, for the test of the matrix part.
+nightstream-fprime = { path = "../nightstream-fprime" }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
 # The digests of the schedule files of `artifacts/`.

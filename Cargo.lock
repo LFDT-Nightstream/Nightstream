@@ -1255,6 +1255,7 @@ dependencies = [
  "neo-math",
  "neo-reductions",
  "neo-transcript",
+ "nightstream-fprime",
  "p3-field",
  "rand 0.9.5",
  "rand_chacha",

@@ -26,7 +26,7 @@
 //! that the key gives. A second sum-check reduces that part to one
 //! evaluation of the key polynomial. One Akita proof opens the key
 //! polynomial, `W` and `V`. The verifier computes the part of the weights
-//! that the matrices give in one pass over the rows of each claim
+//! that the matrices give in one pass over the rows of each relation
 //! (`weights::matrix_part`).
 //!
 //! # Transcript

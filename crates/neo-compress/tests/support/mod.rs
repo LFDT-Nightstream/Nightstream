@@ -81,11 +81,16 @@ const RATIO: u64 = 3;
 
 impl Rows {
     pub fn random(rng: &mut ChaCha8Rng, rows: usize, blocks: usize) -> Self {
+        Self::random_with_widest(rng, rows, blocks, 9)
+    }
+
+    /// Random rows whose slots have up to `widest` columns.
+    pub fn random_with_widest(rng: &mut ChaCha8Rng, rows: usize, blocks: usize, widest: usize) -> Self {
         let columns = blocks * D;
         let (mut starts, mut widths) = (Vec::new(), Vec::new());
         let mut column = 0;
         while column < columns {
-            let width = (1 + rng.next_u32() as usize % 9).min(columns - column);
+            let width = (1 + rng.next_u32() as usize % widest).min(columns - column);
             starts.push(column as u32);
             widths.push(width as u8);
             column += width + rng.next_u32() as usize % 3;

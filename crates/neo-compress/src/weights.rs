@@ -10,8 +10,8 @@
 //! `matrix_part` and `closed_part`.
 
 use neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS;
-use neo_math::{D, F, K};
-use neo_reductions::superneo_eval::{EqualityWeights, FactoredRows};
+use neo_math::{KExtensions, D, F, K};
+use neo_reductions::superneo_eval::{EqualityWeights, FactoredRows, FactoredSlots};
 use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
@@ -315,29 +315,107 @@ pub(crate) fn key_part(uses: &Uses<'_>, folded: &[K]) -> K {
         .sum()
 }
 
-/// The part of `G(ρ)` that the matrices of the claims give, in one pass over
-/// the rows of each claim. A verifier that holds a commitment of the
-/// matrices replaces this function only, as the proof replaces `key_part`.
+/// The part of `G(ρ)` that the matrices of the claims give:
+/// `Σ_claims c · Σ_row eq(r, row) · Σ_j ω^(κ+1+j) · Σ_entries coefficient · Γ(slot)`,
+/// in one pass over the rows of each relation. Claims of one relation have
+/// the same blocks, so the same `β` and `Γ`, and share the pass. A verifier
+/// that holds a commitment of the matrices replaces the pass over the rows
+/// only, as the proof replaces `key_part`.
 pub(crate) fn matrix_part(statements: &[Statement<'_>], challenges: &Challenges, uses: &Uses<'_>) -> Result<K, Error> {
     let form = conjugate(&uses.form);
-    let parts = statements
+    let mut relations: Vec<(&Statement<'_>, &Use<'_>, Vec<(K, &[K])>)> = Vec::new();
+    for (statement, claim) in statements.iter().zip(&uses.claims) {
+        let rows = (claim.coefficient, &statement.claim.r[..]);
+        match relations.iter_mut().find(|(other, other_claim, _)| {
+            std::ptr::addr_eq(other.rows, statement.rows) && other_claim.point == claim.point
+        }) {
+            Some((_, _, claims)) => claims.push(rows),
+            None => relations.push((statement, claim, vec![rows])),
+        }
+    }
+    let mut total = K::ZERO;
+    for (statement, claim, claims) in relations {
+        let rows = statement
+            .rows
+            .factored()?
+            .ok_or(Error::Statement("the matrix rows have no factored form"))?;
+        let omega = omega_powers(statement, challenges.omega);
+        let omega = &omega[KAPPA + 1..][..statement.claim.eval_a.len()];
+        let slots = slot_values(rows.slots(), &equality(claim.point, claim.blocks), &form);
+        let weights = RowWeights::new(&claims);
+        total += (0..rows.shape().rows)
+            .into_par_iter()
+            .with_min_len(1 << 12)
+            .map(|row| weights.at(row) * rows.weighted_row(row, omega, &slots))
+            .sum::<K>();
+    }
+    Ok(total)
+}
+
+/// `Σ c · eq(r, row)` over the claims `(c, r)` of one relation. Each
+/// `eq(r, ·)` is a table of the low bits of `row` times a table of the high
+/// bits, and `c` scales the high table.
+struct RowWeights(Vec<(Vec<K>, Vec<K>, usize)>);
+
+impl RowWeights {
+    fn new(claims: &[(K, &[K])]) -> Self {
+        Self(
+            claims
+                .iter()
+                .map(|&(coefficient, point)| {
+                    let (low, high) = point.split_at(point.len() / 2);
+                    let high = equality(high, 1 << high.len())
+                        .into_iter()
+                        .map(|weight| coefficient * weight);
+                    (equality(low, 1 << low.len()), high.collect(), low.len())
+                })
+                .collect(),
+        )
+    }
+
+    fn at(&self, row: usize) -> K {
+        self.0
+            .iter()
+            .map(|(low, high, bits)| low[row & ((1 << bits) - 1)] * high[row >> bits])
+            .sum()
+    }
+}
+
+/// `Γ(s) = Σ_{k < width} ratio^k · Φ(start + k)` for each slot `s` of
+/// columns `start..start + width`, where `Φ(64b + h) = eq(β, b) · form[h]`
+/// and `blocks[b] = eq(β, b)`. With `(b, h) = divmod(start, 64)`,
+/// `Γ(s) = Σ_t eq(β, b + t) · windows[width][t][h]`, so a slot costs one
+/// product for each block it meets, not one for each column.
+pub(crate) fn slot_values(slots: FactoredSlots<'_>, blocks: &[K], form: &[K; D]) -> Vec<K> {
+    let widest = slots.widths.iter().copied().max().map_or(0, usize::from);
+    // windows[w][t][h] = Σ over k < w with ⌊(h + k)/64⌋ = t of ratio^k · form[(h + k) mod 64].
+    let mut windows: Vec<Vec<[K; D]>> = vec![Vec::new()];
+    let mut power = F::ONE;
+    for k in 0..widest {
+        let mut window = windows[k].clone();
+        window.resize(k.div_ceil(D) + 1, [K::ZERO; D]);
+        for (lane, column) in (k..k + D).enumerate() {
+            window[column / D][lane] += form[column % D].scale_base(power);
+        }
+        power *= slots.ratio;
+        windows.push(window);
+    }
+    slots
+        .starts
         .par_iter()
-        .zip(&uses.claims)
-        .map(|(statement, claim)| {
-            let matrices = Matrices::new(statement, &omega_powers(statement, challenges.omega))?;
-            let mut projection = vec![K::ZERO; claim.blocks * D];
-            projection
-                .par_chunks_mut(D)
-                .zip(equality(claim.point, claim.blocks))
-                .for_each(|(output, block)| {
-                    for (output, &weight) in output.iter_mut().zip(&form) {
-                        *output = block * weight;
-                    }
-                });
-            Ok(claim.coefficient * dot(&matrices.slots, &matrices.rows.projected_slot_values(&projection)))
+        .zip(slots.widths)
+        .with_min_len(1 << 12)
+        .map(|(&start, &width)| {
+            let (block, lane) = (start as usize / D, start as usize % D);
+            let width = usize::from(width);
+            windows[width]
+                .iter()
+                .take((lane + width).div_ceil(D))
+                .zip(&blocks[block..])
+                .map(|(window, &weight)| weight * window[lane])
+                .sum()
         })
-        .collect::<Result<Vec<K>, Error>>()?;
-    Ok(parts.into_iter().sum())
+        .collect()
 }
 
 /// The parts of `G(ρ)` with a closed form: `Eval_K` and the public input of
@@ -368,3 +446,7 @@ pub(crate) fn closed_part(
     }
     Ok(total)
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/weights.rs"]
+mod tests;

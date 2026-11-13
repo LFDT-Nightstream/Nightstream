@@ -20,7 +20,7 @@ use crate::{
 #[derive(Clone, Copy, Debug, Default)]
 pub struct VerifierTimes {
     /// The part of the public weights that the matrices give: one pass over
-    /// the rows of each claim.
+    /// the rows of each relation.
     pub matrices: Duration,
     /// Each other part of the public weights and both sum-checks.
     pub rest: Duration,

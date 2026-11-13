@@ -8,7 +8,7 @@ authority is `formal/nightstream-fprime`.
 Lean emits a light and a refresh step circuit. The Rust application takes
 the place of the Lean application in both. The state has two slots, one for
 the accumulator of each circuit. The verifier checks the fresh instance and
-the claims of both slots. `neo-spartan` compresses a proof into a final proof.
+the claims of both slots.
 
 The code remains research software. Independent review and the concrete
 Fiat–Shamir security argument are separate from component conformance.

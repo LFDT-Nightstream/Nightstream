@@ -2,8 +2,8 @@
 # Mechanical enforcement of the architecture boundaries in AGENTS.md. Every
 # check is a hard failure.
 #   check-boundaries.sh [package-dir]
-# With no argument, it checks F′. Another package, such as
-# ../compression-lean, gets only the package-wide checks. The layer,
+# With no argument, it checks F′. Another package gets only the
+# package-wide checks. The layer,
 # matrix and consumer rules belong to F′.
 set -euo pipefail
 

@@ -48,8 +48,8 @@ refresh packages, `artifacts/nightstream-fprime-bounded-depth-light-v1.json` and
 `artifacts/nightstream-fprime-bounded-depth-finish-v1.json`. Before it writes a
 package, the emitter runs the package's completeness checks and stops when one
 fails. With `--checks`, it runs only these checks and writes nothing. Rust pins the
-identities of these packages (`BOUNDED_DEPTH_PACKAGES_IDENTITY` and
-`BOUNDED_DEPTH_FINISH_IDENTITY` in `crates/nightstream-fprime/src/bounded_depth.rs`).
+identity of the light and refresh packages (`BOUNDED_DEPTH_PACKAGES_IDENTITY` in
+`crates/nightstream-fprime/src/bounded_depth.rs`) and does not load the finish package.
 
 ## Credits
 
@@ -136,8 +136,6 @@ recorded execution scope; they are not universal proofs of Rust semantics.
 Package or relation changes require the corresponding identity and consumer
 checks. A digest alone is not protocol authority.
 
-Run `scripts/validate.sh static`, `scripts/validate.sh build`,
-`scripts/validate.sh axioms`, and `scripts/validate.sh compression`, in that
-order, before a proof checkpoint. The last one rebuilds `../compression-lean`,
-which imports this package.
+Run `scripts/validate.sh static`, `scripts/validate.sh build` and
+`scripts/validate.sh axioms`, in that order, before a proof checkpoint.
 Follow [AGENTS.md](AGENTS.md) for bounded commands and the single build queue.

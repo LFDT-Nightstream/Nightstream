@@ -29,16 +29,6 @@ use crate::package::{IdentityKind, PackageError};
 use crate::witness::{validate_witness_batch, validate_witness_batch_order, RawWitnessBatch, WitnessBatch};
 
 const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/packages/v1";
-const FINISH_IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/finish/v1";
-
-/// The identity of the finish package in `formal/nightstream-fprime/artifacts`.
-pub const BOUNDED_DEPTH_FINISH_IDENTITY: [u64; 4] = [
-    503_609_614_388_367_041,
-    7_644_005_157_041_270_037,
-    14_871_096_991_768_929_597,
-    6_590_892_341_288_072_932,
-];
-
 /// The identity of the packages in `formal/nightstream-fprime/artifacts`.
 pub const BOUNDED_DEPTH_PACKAGES_IDENTITY: [u64; 4] = [
     9_707_591_829_227_951_822,
@@ -246,13 +236,6 @@ impl Block<'_> {
         self.start + 1080
     }
 
-    /// The input lanes as their constant and terms.
-    pub fn lane_forms(&self) -> impl Iterator<Item = (Goldilocks, &[(usize, Goldilocks)])> + '_ {
-        self.lanes
-            .iter()
-            .map(|lane| (lane.constant, lane.terms.as_slice()))
-    }
-
     /// The input lanes evaluated on `assignment`.
     pub fn lane_values(&self, assignment: &[Goldilocks]) -> Vec<Goldilocks> {
         self.lanes
@@ -341,50 +324,15 @@ fn decode_pair(light: &[u8], refresh: &[u8]) -> Result<(Value, StepPackage, Step
     Ok((pair, light, refresh))
 }
 
-/// The finish package (`FinishRelation`): the refresh step's layout without
-/// the application and the next hashes. Its identity hashes its canonical
-/// preimage under its own domain.
-pub fn load_bounded_depth_finish(bytes: &[u8], expected: [u64; 4]) -> Result<StepPackage, PackageError> {
-    let value = parse_atoms(bytes)?;
-    let package = decode_finish(&value)?;
-    let identity = hashed_identity(FINISH_IDENTITY_DOMAIN, &value)?;
-    if identity != expected {
-        return Err(PackageError::IdentityMismatch {
-            kind: IdentityKind::Package,
-            expected,
-            computed: identity,
-        });
-    }
-    Ok(package)
-}
-
-/// Decodes the finish package without hashing it, under the rule of
-/// `load_pinned_bounded_depth_packages`.
-pub fn load_pinned_bounded_depth_finish(bytes: &[u8]) -> Result<StepPackage, PackageError> {
-    decode_finish(&parse_atoms(bytes)?)
-}
-
-fn decode_finish(value: &Value) -> Result<StepPackage, PackageError> {
-    let package = StepPackage::decode(value)?;
-    if package.circuit != 2 {
-        return Err(PackageError::Malformed("bounded-depth finish circuit index"));
-    }
-    Ok(package)
-}
-
-fn hashed_identity(domain: &[u8], value: &Value) -> Result<[u64; 4], PackageError> {
-    let mut input = poseidon2::Poseidon2Hasher::default();
-    for &byte in domain {
-        input.update(&[Goldilocks::from_u64(u64::from(byte))]);
-    }
-    append_value_preimage(value, &mut input)?;
-    Ok(input.finalize().map(|word| word.as_canonical_u64()))
-}
-
 /// `StepPackage.identity`: Poseidon2 over the domain words and the canonical
 /// preimage of the package pair.
 pub fn bounded_depth_identity(pair: &Value) -> Result<[u64; 4], PackageError> {
-    hashed_identity(IDENTITY_DOMAIN, pair)
+    let mut input = poseidon2::Poseidon2Hasher::default();
+    for &byte in IDENTITY_DOMAIN {
+        input.update(&[Goldilocks::from_u64(u64::from(byte))]);
+    }
+    append_value_preimage(pair, &mut input)?;
+    Ok(input.finalize().map(|word| word.as_canonical_u64()))
 }
 
 /// Reads Lean's rendering of a `Codec.Value`: arrays and natural numbers. It

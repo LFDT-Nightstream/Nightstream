@@ -8,9 +8,8 @@ Accepted.
 
 HyperNova Definition 11 (i) requires that the prover can extend each proof
 that the verifier accepts. With bounded-depth folds, a light fold adds
-`T(b − 1)` to the norm of a slot witness, and the final proof admits a slot
-only within the bound of the light cap. A verifier that admits each slot
-witness below `B` accepts proofs that the prover cannot extend or finish. Such
+`T(b − 1)` to the norm of a slot witness. A verifier that admits each slot
+witness below `B` accepts proofs that the prover cannot extend. Such
 a proof needs a second opening of a slot commitment, so no honest run and no
 known attack makes one, but the definition has probability 1.
 

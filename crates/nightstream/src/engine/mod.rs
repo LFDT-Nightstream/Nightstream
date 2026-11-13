@@ -1,6 +1,6 @@
 //! The engine that proves and verifies. `Engine::Optimized` runs on the CPU;
 //! `Engine::Metal` (feature `metal`) runs the commitments, the PiCCS round
-//! oracle, the PiDEC openings and the compression loops on the device. Every
+//! oracle and the PiDEC openings on the device. Every
 //! device result equals the CPU result; the transcript order, the proof
 //! assembly and every public check stay on the host.
 
@@ -154,24 +154,6 @@ impl Backend {
                     .map_err(|error| self.classify(error)),
                 Err(error) => Err(error.into()),
             }),
-        }
-    }
-
-    /// Free a kept commitment key until the next commitment.
-    pub(crate) fn release_commitment_key(&self) -> Result<(), EngineError> {
-        match self {
-            Self::Optimized => Ok(()),
-            #[cfg(feature = "metal")]
-            Self::Metal(device) => device.release_commitment_key(),
-        }
-    }
-
-    /// Where the compression prover's batch loops run.
-    pub(crate) fn accelerator(&self) -> neo_spartan::Accelerator {
-        match self {
-            Self::Optimized => neo_spartan::Accelerator::cpu(),
-            #[cfg(feature = "metal")]
-            Self::Metal(device) => device.accelerator(),
         }
     }
 

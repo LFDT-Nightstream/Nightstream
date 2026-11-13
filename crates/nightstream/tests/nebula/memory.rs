@@ -356,11 +356,10 @@ fn memory_security_bits_match_the_lean_setup_boundary() {
 }
 
 /// Lean's bounded-depth packages (`formal/nightstream-fprime/artifacts`): the
-/// light and refresh step packages of an application and the finish package.
+/// light and refresh step packages of an application.
 struct Packages {
     light: Vec<u8>,
     refresh: Vec<u8>,
-    finish: Vec<u8>,
 }
 
 impl Packages {
@@ -379,7 +378,6 @@ impl Packages {
         Self {
             light: Self::read(&format!("nightstream-fprime-bounded-depth-{stem}light-v1.json")),
             refresh: Self::read(&format!("nightstream-fprime-bounded-depth-{stem}refresh-v1.json")),
-            finish: Self::read("nightstream-fprime-bounded-depth-finish-v1.json"),
         }
     }
 
@@ -387,7 +385,6 @@ impl Packages {
         crate::References {
             light: &self.light,
             refresh: &self.refresh,
-            finish: &self.finish,
         }
     }
 }

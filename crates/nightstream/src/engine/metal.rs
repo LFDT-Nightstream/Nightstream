@@ -1,5 +1,5 @@
 //! The Metal device session (`neo_prover_metal::MetalRowProver`) behind one
-//! lock, and its compression device. The prover keeps the commitment key on
+//! lock. The prover keeps the commitment key on
 //! the device after the first commitment; the key and every other device
 //! buffer stay below `neo_prover_metal::BUFFER_LIMIT_BYTES`.
 
@@ -58,17 +58,6 @@ impl Device {
                 error => DeviceError::Rejected(error),
             })
     }
-
-    /// Free the kept commitment key until the next commitment: layer 1 and
-    /// the shrink layer make no Ajtai commitment.
-    pub(crate) fn release_commitment_key(&self) -> Result<(), EngineError> {
-        self.lock()?.release_commitment_key_rows();
-        Ok(())
-    }
-
-    pub(crate) fn accelerator(&self) -> neo_spartan::Accelerator {
-        neo_spartan::Accelerator::new(Arc::new(CompressionDevice(self.0.clone())))
-    }
 }
 
 fn poisoned() -> EngineError {
@@ -79,80 +68,3 @@ fn poisoned() -> EngineError {
 }
 
 const POISONED: &str = "the device session lock was poisoned";
-
-/// The Metal device of the compression prover: the backend's own session.
-struct CompressionDevice(Arc<Mutex<MetalRowProver>>);
-
-impl CompressionDevice {
-    /// The device session, or `None` once a panic poisoned it: a poisoned
-    /// session is never used again.
-    fn lock(&self) -> Option<MutexGuard<'_, MetalRowProver>> {
-        self.0.lock().ok()
-    }
-}
-
-impl neo_spartan::Device for CompressionDevice {
-    fn merkle_layers(
-        &self,
-        rows: usize,
-        width: usize,
-        fill: &(dyn Fn(&mut [u64]) + Sync),
-    ) -> Option<Vec<Vec<[u64; 4]>>> {
-        self.lock()?.merkle_layers(rows, width, fill).ok()
-    }
-
-    fn merkle_leaves(&self, values: &[u64], width: usize) -> Option<Vec<[u64; 4]>> {
-        self.lock()?.merkle_leaves(values, width).ok()
-    }
-
-    fn key_weights(&self, powers: &[[u64; 3]], blocks: usize) -> Option<Vec<[u64; 3]>> {
-        self.lock()?.production_key_weights(powers, blocks).ok()
-    }
-
-    fn dft_columns(&self, values: &mut [u64], width: usize, generator: u64) -> Result<bool, String> {
-        let Some(device) = self.lock() else {
-            return Ok(false);
-        };
-        match device.dft_columns(values, width, generator) {
-            Ok(()) => Ok(true),
-            // Only execution touches `values`; any earlier failure leaves it
-            // unchanged, and the CPU runs the DFT.
-            Err(error @ neo_prover_metal::MetalError::Execution(_)) => Err(error.to_string()),
-            Err(_) => Ok(false),
-        }
-    }
-
-    fn gkr_layer<'a>(
-        &self,
-        trees: Vec<Vec<&'a mut [u64]>>,
-        eq: &'a mut [u64],
-    ) -> Option<Box<dyn neo_spartan::GkrLayer + 'a>> {
-        let layer = self.lock()?.gkr_layer(trees, eq).ok()?;
-        Some(Box::new(GkrOnDevice {
-            device: self.0.clone(),
-            layer,
-        }))
-    }
-}
-
-/// One GKR layer's rounds on the backend's device.
-struct GkrOnDevice<'a> {
-    device: Arc<Mutex<MetalRowProver>>,
-    layer: neo_prover_metal::MetalGkrLayer<'a>,
-}
-
-impl neo_spartan::GkrLayer for GkrOnDevice<'_> {
-    fn message(&mut self, weights: &[[u64; 3]], mu: [u64; 3], degree: usize) -> Result<Vec<[u64; 3]>, String> {
-        let device = self.device.lock().map_err(|_| POISONED.to_string())?;
-        device
-            .gkr_message(&self.layer, weights, mu, degree)
-            .map_err(|error| error.to_string())
-    }
-
-    fn fold(&mut self, r: [u64; 3]) -> Result<(), String> {
-        let device = self.device.lock().map_err(|_| POISONED.to_string())?;
-        device
-            .gkr_fold(&mut self.layer, r)
-            .map_err(|error| error.to_string())
-    }
-}

@@ -42,7 +42,7 @@ pub use geometry::Geometry;
 #[cfg(test)]
 pub(crate) use machine::{Machine, MachineError, MachineState, Step};
 use neo_application::MemoryPreload;
-pub use proving::{FinalProof, Proof, ProveError, Prover, Proving, Verified, Verifier, VerifyError};
+pub use proving::{Proof, ProveError, Prover, Proving, Verified, Verifier, VerifyError};
 pub use r1cs::{batched_slots, R1csApplication, R1csApplicationError, R1csStepError, RowRelation, Size, Terms};
 pub use records::PortAccess;
 pub use rows::View;
@@ -84,8 +84,8 @@ impl Package {
     }
 
     /// Load the package's bounded-depth circuit: Lean's light and refresh
-    /// packages of the memory program (`EmitMain --program`) and the finish
-    /// package. `Circuit::load_packages` recomputes their identity
+    /// packages of the memory program (`EmitMain --program`).
+    /// `Circuit::load_packages` recomputes their identity
     /// and requires the package's pin.
     pub fn load(self, references: crate::References<'_>) -> Result<Circuit<Machine>, crate::Error> {
         Ok(Circuit {

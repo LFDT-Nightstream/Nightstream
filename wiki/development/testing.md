@@ -31,5 +31,3 @@ timeout --signal=KILL 300 cargo test -p neo-prover-metal --release --no-default-
 
 Use `formal/nightstream-fprime/scripts/validate.sh` for Lean. Each command
 has a 25-minute cap. Read the active project's `AGENTS.md` before editing.
-`formal/compression-lean/scripts/crosschecks.sh` builds the Lean check
-executables and runs the ignored Rust tests that compare Rust with Lean.

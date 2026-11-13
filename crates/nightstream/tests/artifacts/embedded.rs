@@ -5,10 +5,7 @@
 
 use std::path::Path;
 
-use nightstream_fprime::{
-    load_bounded_depth_finish, load_bounded_depth_packages, BOUNDED_DEPTH_FINISH_IDENTITY,
-    BOUNDED_DEPTH_PACKAGES_IDENTITY,
-};
+use nightstream_fprime::{load_bounded_depth_packages, BOUNDED_DEPTH_PACKAGES_IDENTITY};
 
 fn lean_output(name: &str) -> Vec<u8> {
     std::fs::read(
@@ -21,11 +18,10 @@ fn lean_output(name: &str) -> Vec<u8> {
 
 #[test]
 fn embedded_packages_are_the_lean_outputs() {
-    let [light, refresh, finish] = super::copies();
+    let [light, refresh] = super::copies();
     for (embedded, name) in [
         (light, "nightstream-fprime-bounded-depth-light-v1.json"),
         (refresh, "nightstream-fprime-bounded-depth-refresh-v1.json"),
-        (finish, "nightstream-fprime-bounded-depth-finish-v1.json"),
     ] {
         assert!(
             embedded == lean_output(name),
@@ -36,8 +32,7 @@ fn embedded_packages_are_the_lean_outputs() {
 
 #[test]
 fn embedded_packages_have_their_pinned_identities() {
-    let [light, refresh, finish] = super::copies();
+    let [light, refresh] = super::copies();
     let checked = load_bounded_depth_packages(&light, &refresh, BOUNDED_DEPTH_PACKAGES_IDENTITY).unwrap();
-    load_bounded_depth_finish(&finish, BOUNDED_DEPTH_FINISH_IDENTITY).unwrap();
     assert_eq!(super::embedded().packages.identity(), checked.identity());
 }

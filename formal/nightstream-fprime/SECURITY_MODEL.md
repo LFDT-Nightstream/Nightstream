@@ -233,15 +233,6 @@ item 5).
   `Export.BoundedDepth.IvcSecurity.extraction_bound`). Its law is the adversary's
   tape and the coins of each stage's extractor. A false acceptance is an
   extraction failure, so the result above follows from this one.
-- **Start from a final proof:** the finish fold of a last fold is one more
-  stage before the walk. An answer that extracts it gives an accepted
-  terminal for the finish step's input
-  (`Export.BoundedDepth.FinishWalk.holdsFor_of_extracted`), whose visit has each
-  slot at bound `B` (`Export.BoundedDepth.FinishWalk.finish_relaxed`). So, if no
-  valid steps reach that statement, the finish answer does not extract, or
-  the walk from the finish output has a collision or a failed stage at one of
-  its first `iteration` visits
-  (`Export.BoundedDepth.FinishWalk.finish_walk_covered`). Adversary 6 uses this.
 - **Gaps:** Lean derives Assumption 1 with an explicit `error` only in a
   random-oracle model of the folds
   (`Lifecycle.BoundedDepth.RandomOracle.Assumption1.romAssumption1`). The bound
@@ -302,41 +293,6 @@ item 5).
   every rerun. At the Poseidon2 oracle the event is the event of the memory
   round (`Lifecycle.Nebula.EtaRound.unbalancedIn_deployed`), but no result
   bounds it there.
-
-### 6. Final-proof adversary
-
-- **Controls:** a final proof and the statement, against the verifier's
-  compression key.
-- **Wins:** the final verifier accepts, but no last fold exists whose finish
-  checks hold and whose two slot claims hold under their circuits' relations.
-- **Result:** the claims of `formal/compression-lean`
-  (`CompressionLean.Claims.bounded_depth_parent_bound`): such a win has probability
-  at most `calls / 2^t` in the state-restoration experiment at Rust's layer
-  bits `t`. For the reference application, a Lean proof, a Lean check of
-  Rust's files, Rust or a Lean value meets each premise
-  (`CompressionLean.Claims.bounded_depth_poseidon2_bound`,
-  `formal/compression-lean/STATUS.md`). `Circuit::compile` keeps Lean's
-  packages for the reference hash chain (`SPEC.md` Algorithm 2), so these
-  checks cover the circuit that it builds. The final program's checks on the
-  finish package give the finish relation of the last fold
-  (`Export.BoundedDepth.FinishRelation.package_finish`). Trust item 7 lists what
-  this result assumes.
-- **With the IVC bound:** the last fold starts the reverse walk of adversary
-  4. One experiment draws an outcome of the final verifier's experiment, then
-  the coins of the finish stage's extractor, then the coins of the reverse
-  extractor's stages. In it, the probability that the final verifier accepts
-  a statement whose iteration is at most `depth` and that no valid steps
-  reach is at most `calls / 2^t`, plus the finish stage's Assumption 1 error,
-  plus the terms of adversary 4
-  (`CompressionLean.Claims.bounded_depth_ivc_bound`).
-- **Gaps:** that bound has two more premises. The finish adversary, which
-  outputs the finish fold of the last fold, is admitted. The chain adversary,
-  which outputs the terminal that the finish answer gives, is an admitted
-  stage (`CompressionLean.Spec.BoundedDepth.finishAdversary`,
-  `CompressionLean.Spec.BoundedDepth.chainAdversary`). Both select the last fold
-  with `Classical.epsilon`. The compression claims prove that a last fold
-  exists, but no Lean algorithm computes it from the final proof. So Lean
-  does not show that these two adversaries are efficient (trust item 3).
 
 ## What you trust
 
@@ -492,11 +448,6 @@ item 5).
    extractors because that number is constant. A random-oracle bound for
    each fold does not remove this limit: each stage's adversary includes
    the earlier stages' reruns.
-   The joined bound of adversary 6 uses this premise for one more stage, the
-   finish fold. It also needs the finish adversary and the chain adversary to
-   be admitted. Both select the last fold with `Classical.epsilon`, so they
-   have the intended meaning of `Admitted` only if an efficient algorithm
-   finds the last fold from the final proof. Lean does not show this.
 4. **The circuit selection.** HyperNova NIVC selects the circuit of a step
    with `φ(z_i, w_i)`. The Lean step relation takes it from the machine's
    selector of the application state and witness (`Lifecycle.BoundedDepth.machine`,
@@ -529,18 +480,6 @@ item 5).
    oracle to be independent of the oracle of the folds (trust item 3). Their
    domain tags differ, but no Lean result separates them. The record chains
    need only Poseidon2 collision resistance.
-7. **The compressed proof.** `formal/compression-lean/TRUST.md` lists the
-   assumptions of adversary 6: WHIR openings are idealized, Poseidon2 is a
-   random oracle, Fiat–Shamir runs inside the final program, and the layer-1
-   key's root is the honest root of the claims' setup. The premises about the
-   keys and the setups are met for the reference application only
-   (`formal/compression-lean/STATUS.md`).
-   The bound with the IVC bound (`CompressionLean.Claims.bounded_depth_ivc_bound`)
-   also needs the final program's state keys to be the digests of the circuit
-   keys (`CompressionLean.Spec.BoundedDepth.KeysAre`). Rust meets this premise:
-   `BoundedDepth::new` gives the same digests to the step states and to the final
-   program (not checked against Lean).
-
 ## Out of scope
 
 - Completeness does not follow from a knowledge bound: a bound on the
@@ -569,15 +508,7 @@ item 5).
   (`Export.BoundedDepth.RunCompleteness.verifies_step`). These
   results take as premises three package checks that the emitter evaluates
   (`Export.BoundedDepth.StepExtend.Complete`), key digests of four words, and
-  witnesses of the application's witness length. For the finish step and
-  compression, Lean proves completeness at the claim level: for every valid
-  run of at least one step, the claim of the final verifier holds for the
-  honest statement (`CompressionLean.Claims.bounded_depth_complete`). It does not
-  prove that the honest layer-1 and shrink provers produce proofs that the
-  verifiers accept. That part is an assumption, and the Rust tests of SPEC.md
-  lifecycle rule 2 are its evidence (`decisions/bounded-depth-claim-level-completeness.md`).
-  Rust's completeness is not perfect: a WHIR query sample of `p − 1` and the
-  layer-1 poles of SPEC.md Algorithm 7 make `compress` return an error. Each application promises that its step keeps the state width
+  witnesses of the application's witness length. Each application promises that its step keeps the state width
   (`Lifecycle.Stage1.Application.Program.step_length`); the counter must stay
   below `q`.
 - The error is not one security level. Lean bounds no fold error in a

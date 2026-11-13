@@ -15,13 +15,9 @@ use objc2_metal::{
     MTLCreateSystemDefaultDevice, MTLDevice, MTLLibrary, MTLResourceOptions, MTLSize,
 };
 
-use crate::{poseidon2, MetalActivity, MetalError, BUFFER_LIMIT_BYTES};
+use crate::{MetalActivity, MetalError, BUFFER_LIMIT_BYTES};
 
-mod dft;
-mod gkr;
 mod joint;
-mod merkle;
-pub use gkr::MetalGkrLayer;
 mod masks;
 mod production_commitment;
 mod rlc;
@@ -47,8 +43,6 @@ enum Arg<'a> {
     Buffer(usize, &'a ProtocolObject<dyn MTLBuffer>),
     /// `[[buffer(index)]]` from a byte offset.
     BufferAt(usize, &'a ProtocolObject<dyn MTLBuffer>, usize),
-    /// `[[buffer(index)]]` as words that Metal copies into the command.
-    Words(usize, &'a [u64]),
     /// `[[threadgroup(index)]]` memory of a byte length.
     Threadgroup(usize, usize),
 }
@@ -76,15 +70,7 @@ struct ActivityCounters {
 pub struct MetalSession {
     device: Device,
     queue: Queue,
-    poseidon2_hash_rows_overwrite: Pipeline,
-    poseidon2_constants: Buffer,
     production_key_row: Pipeline,
-    production_key_weights: Pipeline,
-    dft_twiddles: Pipeline,
-    dft_dif_pass: Pipeline,
-    dft_bit_reverse: Pipeline,
-    gkr_message: Pipeline,
-    gkr_fold: Pipeline,
     production_ajtai_accumulate: Pipeline,
     production_ajtai_sum_groups: Pipeline,
     tensor_point_expand_k: Pipeline,
@@ -140,15 +126,7 @@ impl MetalSession {
         let library = device
             .newLibraryWithData_error(&data)
             .map_err(|error| MetalError::Library(format!("{error:?}")))?;
-        let poseidon2_hash_rows_overwrite = pipeline(&device, &library, "poseidon2_hash_rows_overwrite")?;
-        let poseidon2_constants = pre_session_buffer(&device, &poseidon2::round_constant_words())?;
         let production_key_row = pipeline(&device, &library, "production_key_row")?;
-        let production_key_weights = pipeline(&device, &library, "production_key_weights")?;
-        let dft_twiddles = pipeline(&device, &library, "dft_twiddles")?;
-        let dft_dif_pass = pipeline(&device, &library, "dft_dif_pass")?;
-        let dft_bit_reverse = pipeline(&device, &library, "dft_bit_reverse")?;
-        let gkr_message = pipeline(&device, &library, "gkr_message")?;
-        let gkr_fold = pipeline(&device, &library, "gkr_fold")?;
         let production_ajtai_accumulate = pipeline(&device, &library, "production_ajtai_accumulate")?;
         let production_ajtai_sum_groups = pipeline(&device, &library, "production_ajtai_sum_groups")?;
         let tensor_point_expand_k = pipeline(&device, &library, "tensor_point_expand_k")?;
@@ -184,15 +162,7 @@ impl MetalSession {
         Ok(Self {
             device,
             queue,
-            poseidon2_hash_rows_overwrite,
-            poseidon2_constants,
             production_key_row,
-            production_key_weights,
-            dft_twiddles,
-            dft_dif_pass,
-            dft_bit_reverse,
-            gkr_message,
-            gkr_fold,
             production_ajtai_accumulate,
             production_ajtai_sum_groups,
             tensor_point_expand_k,
@@ -317,8 +287,7 @@ impl MetalSession {
         for &arg in args {
             // SAFETY: `slot` asserts that each index is inside the kernel's
             // argument table, and a `BufferAt` offset is asserted to be inside
-            // its buffer. `words` is a live slice of `size_of_val(words)`
-            // bytes, and Metal copies it before `setBytes` returns. A bound
+            // its buffer. A bound
             // buffer lives until its command completes: the command buffer
             // (from `commandBuffer`) retains it. A command runs only inside
             // `finish`, which commits it and waits. The session is not `Sync`,
@@ -342,11 +311,6 @@ impl MetalSession {
                         );
                         encoder.setBuffer_offset_atIndex(Some(buffer), offset, slot(index));
                     }
-                    Arg::Words(index, words) => encoder.setBytes_length_atIndex(
-                        std::ptr::NonNull::from(words).cast(),
-                        size_of_val(words),
-                        slot(index),
-                    ),
                     Arg::Threadgroup(index, bytes) => encoder.setThreadgroupMemoryLength_atIndex(bytes, slot(index)),
                 }
             }
@@ -379,16 +343,6 @@ impl MetalSession {
     fn finish(&self, command: &ProtocolObject<dyn MTLCommandBuffer>) -> Result<(), MetalError> {
         self.activity.host_waits.fetch_add(1, Ordering::Relaxed);
         finish(command)
-    }
-
-    /// `read_buffer` with the copy split over the CPU cores.
-    fn read_buffer_parallel<T: Pod>(&self, buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> Vec<T> {
-        use rayon::prelude::*;
-        let values = host_view::<T>(buffer, len);
-        self.activity
-            .downloaded_bytes
-            .fetch_add(size_of_val(values) as u64, Ordering::Relaxed);
-        values.par_iter().copied().collect()
     }
 
     fn read_buffer<T: Pod>(&self, buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> Vec<T> {
@@ -427,17 +381,6 @@ impl MetalSession {
 #[cfg(test)]
 #[path = "../tests/unit/buffer_limit.rs"]
 mod buffer_limit_tests;
-
-/// Uploads `values` before the session exists, so outside its memory limit
-/// and activity counters.
-fn pre_session_buffer<T: Copy>(device: &ProtocolObject<dyn MTLDevice>, values: &[T]) -> Result<Buffer, MetalError> {
-    let bytes = size_of_val(values);
-    let buffer = device
-        .newBufferWithLength_options(bytes, MTLResourceOptions::StorageModeShared)
-        .ok_or(MetalError::Buffer { bytes })?;
-    upload(&buffer, values)?;
-    Ok(buffer)
-}
 
 /// Copy `values` to the start of `buffer`, a buffer that Metal allocated
 /// and that no command is using.

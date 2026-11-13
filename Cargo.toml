@@ -10,13 +10,9 @@ members = [
   "crates/neo-prover-cuda",
   "crates/neo-prover-metal",
   "crates/nightstream-fprime",
-  "crates/neo-spartan",
   "crates/neo-application",
   "crates/neo-wasm",
   "crates/nightstream",
-]
-exclude = [
-  "external/Spartan2",
 ]
 resolver = "2"
 

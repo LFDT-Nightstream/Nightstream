@@ -4,9 +4,8 @@
 
 ## Problem
 
-Every circuit needs two Lean packages: the Stage 1 reference package, whose
-shared F′ verifier `Circuit::compile` keeps, and the compression terminal
-package. They are 50 MB and 40 MB of JSON in Git LFS. Cargo does not fetch
+Every circuit needs the Lean light and refresh step packages, whose shared
+F′ verifier `Circuit::compile` keeps. They are large JSON files in Git LFS. Cargo does not fetch
 LFS files for a Git dependency, so a dependency such as Starstream got only
 the pointer files, and it had to ship the reference package and pass its
 bytes.

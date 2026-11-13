@@ -225,8 +225,7 @@ impl StepPackage {
     }
 
     /// The same rows on the source columns, where a port reads an output
-    /// local itself. The final program checks these rows and each block as a
-    /// permutation (`FinishRelation.package_finish`).
+    /// local itself.
     pub fn source_rows(&self) -> Result<PlanRows, PackageError> {
         self.rows(false)
     }

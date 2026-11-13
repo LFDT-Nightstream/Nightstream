@@ -34,13 +34,6 @@ impl Proof {
     }
 }
 
-/// A compressed memory proof (`Prover::compress`) and the final carry.
-#[derive(Clone)]
-pub struct FinalProof {
-    stage1: crate::FinalProof,
-    carry: Carry,
-}
-
 /// What a verified memory proof shows beyond its two states.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Verified {
@@ -126,20 +119,6 @@ impl<A: Application + Clone> Prover<A> {
         let mut bytes = carry_bytes(&proof.carry);
         bytes.extend(self.stage1.encode_proof(&proof.stage1)?);
         Ok(bytes)
-    }
-
-    /// `crate::Prover::compression_setup` of the circuit.
-    pub fn compression_setup(&self, dir: impl AsRef<Path>) -> Result<crate::CompressionSetup, crate::Error> {
-        self.stage1.compression_setup(dir)
-    }
-
-    /// Compress `proof` (`crate::Prover::compress`). The carry
-    /// does not change.
-    pub fn compress(&self, proof: &Proof, setup: &crate::CompressionSetup) -> Result<FinalProof, crate::Error> {
-        Ok(FinalProof {
-            stage1: self.stage1.compress(&proof.stage1, setup)?,
-            carry: proof.carry,
-        })
     }
 }
 
@@ -230,26 +209,6 @@ impl<A: Application> Verifier<A> {
     ) -> Result<Verified, VerifyError> {
         let state = self.terminal(program, initial, last, &proof.carry)?;
         self.stage1.verify(&state, &proof.stage1)?;
-        Ok(verified(&proof.carry, &program.geometry))
-    }
-
-    /// The trusted compression key of the circuit (`crate::Verifier::compression_key`).
-    pub fn compression_key(&self) -> Result<crate::CompressionKey, crate::Error> {
-        self.stage1.compression_key()
-    }
-
-    /// Verify a compressed memory proof as `verify` does: the terminal
-    /// checks, then `crate::Verifier::verify_final` with `key`.
-    pub fn verify_final(
-        &self,
-        program: &Program,
-        initial: &A::State,
-        last: &A::State,
-        key: &crate::CompressionKey,
-        proof: &FinalProof,
-    ) -> Result<Verified, VerifyError> {
-        let state = self.terminal(program, initial, last, &proof.carry)?;
-        self.stage1.verify_final(&state, key, &proof.stage1)?;
         Ok(verified(&proof.carry, &program.geometry))
     }
 

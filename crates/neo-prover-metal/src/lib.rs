@@ -6,8 +6,6 @@
 
 #![warn(clippy::undocumented_unsafe_blocks)]
 
-pub mod poseidon2;
-
 #[cfg(all(feature = "metal", not(target_vendor = "apple")))]
 compile_error!("the `metal` feature requires an Apple target");
 
@@ -20,14 +18,12 @@ mod session;
 #[cfg(feature = "metal")]
 pub use rows::MetalRowProver;
 #[cfg(feature = "metal")]
-pub use session::{MetalGkrLayer, MetalSession};
+pub use session::MetalSession;
 
 /// Owner's Metal memory ceiling, chosen so a prover can run on a current
 /// iPhone. Device buffer requests stay below it; CPU memory is measured
 /// separately.
 pub const BUFFER_LIMIT_BYTES: usize = 24_000_000_000;
-
-pub type PoseidonDigest = [u64; 4];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct MetalActivity {

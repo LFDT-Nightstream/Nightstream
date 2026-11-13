@@ -36,7 +36,6 @@ pub const PRODUCTION_VERIFIER_ROWS: u64 = neo_params::nightstream_goldilocks_k16
 // Lean authority: Poseidon2HashChainV1Setup.messageColumns_eq.
 pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 814_144;
 pub const PRODUCTION_CARRIER_WIDTH: usize = PRODUCTION_MESSAGE_COLUMNS as usize * D;
-// The same limit as the `columns` check of Lean `CompressionLean/Spec/Checks.lean`.
 pub const MAX_MESSAGE_COLUMNS: u64 = 4_708_530;
 pub const MAX_CARRIER_WIDTH: usize = MAX_MESSAGE_COLUMNS as usize * D;
 pub const PRODUCTION_SEED: [u8; 32] = [

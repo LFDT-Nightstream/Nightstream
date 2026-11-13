@@ -1,8 +1,7 @@
 //! The prover and verifier: a light and a refresh step circuit that Lean
-//! emits, with the Rust application in place of Lean's, two slots, and a
-//! final proof that the shrink layer compresses.
+//! emits, with the Rust application in place of Lean's, and two slots.
 //!
-//! The crate embeds the three packages (`artifacts`); the caller selects the
+//! The crate embeds the two packages (`artifacts`); the caller selects the
 //! application, and the verifier derives everything else from them. Nothing
 //! a proof carries is authority.
 
@@ -11,12 +10,12 @@ use std::path::Path;
 use std::sync::Arc;
 
 use neo_math::F;
-use nightstream_fprime::{BoundedDepthPackages, Linear, NativeBlock, NativeShape, StepPackage};
+use nightstream_fprime::{BoundedDepthPackages, Linear, NativeBlock, NativeShape};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::engine::{Backend, Engine, EngineError};
-use crate::lifecycle::bounded_depth::{self as lifecycle, Finish};
+use crate::lifecycle::bounded_depth as lifecycle;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -158,15 +157,14 @@ fn encode_application(application: &ApplicationCircuit) -> Result<Vec<u8>, Error
     Ok(bytes)
 }
 
-/// The three Lean-emitted packages: the light and refresh step circuits and
-/// the finish circuit (`formal/nightstream-fprime/artifacts`), for the tests
-/// that load Lean's own packages (`load_packages`).
+/// The two Lean-emitted packages: the light and refresh step circuits
+/// (`formal/nightstream-fprime/artifacts`), for the tests that load Lean's
+/// own packages (`load_packages`).
 #[cfg(test)]
 #[derive(Clone, Copy)]
 pub(crate) struct References<'a> {
     pub(crate) light: &'a [u8],
     pub(crate) refresh: &'a [u8],
-    pub(crate) finish: &'a [u8],
 }
 
 /// The packages and their application: a Rust application in place of
@@ -174,7 +172,6 @@ pub(crate) struct References<'a> {
 /// fills its locals from the witness words and the output state.
 pub struct Circuit {
     packages: BoundedDepthPackages,
-    finish: StepPackage,
     application: Option<ApplicationCircuit>,
     /// A memory relation: only `nebula::Circuit::verifier` verifies it,
     /// because this verifier checks no SPEC.md Algorithm 10 terminal
@@ -201,29 +198,21 @@ impl Circuit {
                 .packages
                 .with_application(application.records().clone(), witness_words, application.shape())?
         };
-        let finish = embedded.finish.with_witness_words(witness_words)?;
         Ok(Self {
             packages,
-            finish,
             application: Some(application),
             memory: false,
         })
     }
 
     /// Check the pinned identity of Lean-emitted light and refresh packages
-    /// whose application is Lean's (`expected`), and of the finish package,
-    /// which moves to their witness words. Only the tests load Lean packages.
+    /// whose application is Lean's (`expected`). Only the tests load Lean
+    /// packages.
     #[cfg(test)]
     pub(crate) fn load_packages(references: References<'_>, expected: [u64; 4]) -> Result<Self, Error> {
         let packages = nightstream_fprime::load_bounded_depth_packages(references.light, references.refresh, expected)?;
-        let finish = nightstream_fprime::load_bounded_depth_finish(
-            references.finish,
-            nightstream_fprime::BOUNDED_DEPTH_FINISH_IDENTITY,
-        )?
-        .with_witness_words(packages.light().witness_words())?;
         Ok(Self {
             packages,
-            finish,
             application: None,
             memory: false,
         })
@@ -312,7 +301,6 @@ impl Circuit {
     fn prover_on(&self, backend: Backend, minimum_security_bits: u32) -> Result<Prover, Error> {
         Ok(Prover {
             lifecycle: lifecycle::BoundedDepth::new(self.packages.clone(), minimum_security_bits, backend)?,
-            finish: Finish::new(self.finish.clone())?,
             application: self.application.clone(),
         })
     }
@@ -337,7 +325,6 @@ impl Circuit {
                 minimum_security_bits,
                 Backend::new(engine)?,
             )?,
-            finish: Finish::new(self.finish.clone())?,
         })
     }
 }
@@ -353,21 +340,8 @@ impl Proof {
     }
 }
 
-/// A finished proof: the statement and the shrink proof. It carries no
-/// witness and cannot be extended.
-#[derive(Clone)]
-pub struct FinalProof(lifecycle::FinalProof);
-
-/// The verifier's compression constants, derived from the relations.
-#[derive(Clone)]
-pub struct CompressionKey(lifecycle::Keys);
-
-/// The prover's layer-1 setup files and their key.
-pub struct CompressionSetup(lifecycle::Setups);
-
 pub struct Prover {
     lifecycle: lifecycle::BoundedDepth,
-    finish: Finish,
     application: Option<ApplicationCircuit>,
 }
 
@@ -467,30 +441,10 @@ impl Prover {
     pub fn encode_proof(&self, proof: &Proof) -> Result<Vec<u8>, Error> {
         Ok(self.lifecycle.encode_proof(&proof.0)?)
     }
-
-    /// Write both layer-1 setups into the existing directory `dir`.
-    pub fn compression_setup(&self, dir: impl AsRef<Path>) -> Result<CompressionSetup, Error> {
-        Ok(CompressionSetup(self.lifecycle.compression_setups(dir.as_ref())?))
-    }
-
-    /// Compress `proof`; `proof` does not change.
-    pub fn compress(&self, proof: &Proof, setup: &CompressionSetup) -> Result<FinalProof, Error> {
-        let witness = self
-            .lifecycle
-            .final_witness(&proof.0, &setup.0, &self.finish)?;
-        let state = proof.state();
-        Ok(FinalProof(self.lifecycle.prove_final(
-            setup.0.keys(),
-            &self.finish,
-            (state.iteration(), state.z0(), state.current()),
-            &witness,
-        )?))
-    }
 }
 
 pub struct Verifier {
     lifecycle: lifecycle::BoundedDepth,
-    finish: Finish,
 }
 
 impl Verifier {
@@ -506,24 +460,5 @@ impl Verifier {
         Ok(self
             .lifecycle
             .verify(expected.iteration(), expected.z0(), expected.current(), &proof.0)?)
-    }
-
-    /// Derive the compression key from the relations, without files. This
-    /// key, or a copy you pinned, is the authority for `verify_final`.
-    pub fn compression_key(&self) -> Result<CompressionKey, Error> {
-        Ok(CompressionKey(self.lifecycle.compression_keys()?))
-    }
-
-    /// Check a finished proof against the expected state and a trusted key.
-    /// A key that a verifier at a lower security minimum derived is refused.
-    pub fn verify_final(&self, expected: &State, key: &CompressionKey, proof: &FinalProof) -> Result<(), Error> {
-        Ok(self.lifecycle.verify_final(
-            &key.0,
-            &self.finish,
-            expected.iteration(),
-            expected.z0(),
-            expected.current(),
-            &proof.0,
-        )?)
     }
 }

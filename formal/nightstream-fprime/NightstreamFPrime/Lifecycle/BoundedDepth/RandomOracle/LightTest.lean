@@ -9,7 +9,7 @@ adversary outputs the fresh claim and the light proof. A false acceptance (`Fals
 is the light Π_CCS check on the oracle coins with the output claims open at the ambient bound
 and false source claims (`¬ Light.PiCCS.SemanticTruth`). `Light.PiCCS.falseAcceptance_splits`
 turns it into a hit (`falseAcceptance_hits`), so its probability is at most
-`(Q + 1) · 524/q²` (`test_error_le`, `testError_eq`). The light transcript has
+`(Q + 1) · 574/q²` (`test_error_le`, `testError_eq`). The light transcript has
 `28 + 1 + 28 + 1 = 58` challenges (`challenges_length`). -/
 
 set_option autoImplicit false
@@ -33,9 +33,9 @@ attribute [local instance low] Classical.propDecidable
 theorem lightShape_eq : LightShape = Light.ErrorBudget.shape 28 :=
   rfl
 
-/-- SuperNeo v1.2 Appendix B.2, equation (14), at the light shape: 524 over `q²`. -/
+/-- SuperNeo v1.2 Appendix B.2, equation (14), at the light shape: 574 over `q²`. -/
 theorem testError_eq :
-    IndependentExecution.testError LightShape 8 = (524 : ℝ) / (fieldModulus : ℝ) ^ 2 := by
+    IndependentExecution.testError LightShape 8 = (574 : ℝ) / (fieldModulus : ℝ) ^ 2 := by
   rw [lightShape_eq]
   exact Light.ErrorBudget.production_testError
 
@@ -104,7 +104,7 @@ theorem falseAcceptance_hits (oracle : Oracle) (fresh : LightStatement)
       (oracleProbe relation ajtai running oracle fresh proof) witness invalid ambient accepted)
 
 /-- The test step for the light fold: an adversary with at most `Q` queries makes a light Π_CCS false
-acceptance with probability at most `(Q + 1) · 524/q²`. -/
+acceptance with probability at most `(Q + 1) · 574/q²`. -/
 theorem test_error_le {Output : Type}
     (adversary : OracleComp
       (Test.Point (LightSchedule.schedule logicalWidth publicFits) Width) Test.Answer Output)
@@ -112,7 +112,7 @@ theorem test_error_le {Output : Type}
     (fresh : Output → LightStatement) (proof : Output → Light.Proof LightShape Width) :
     𝔼 oracle, (if FalseAcceptance relation ajtai running witness oracle
         (fresh (adversary.run oracle)) (proof (adversary.run oracle)) then (1 : ℝ) else 0) ≤
-      (queries + 1) * ((524 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
+      (queries + 1) * ((574 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
   refine (Test.test_error_le (source relation ajtai running witness)
     (source_degreeCovers relation ajtai running witness) adversary bounded fresh
     (fun output => LightSchedule.messages (proof output))

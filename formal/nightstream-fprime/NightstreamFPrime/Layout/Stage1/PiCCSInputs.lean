@@ -16,29 +16,29 @@ open NightstreamFPrime.Layout.Polynomial.Horner
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 def priorRunningStart : Nat := 12
-def runningCommitmentWords : Nat := 1188
-def runningEvalKWords : Nat := 108
-def runningEvalAWords : Nat := 432
-def runningPublicWords : Nat := 270
+def runningCommitmentWords : Nat := 1152
+def runningEvalKWords : Nat := 128
+def runningEvalAWords : Nat := 512
+def runningPublicWords : Nat := 320
 
 def runningCommitmentStart (source : Nat) : Nat :=
   priorRunningStart + source * runningCommitmentWords
 
 def runningEvalKStart (source : Nat) : Nat :=
-  priorRunningStart + 19008 + source * runningEvalKWords
+  priorRunningStart + 18432 + source * runningEvalKWords
 
 def runningEvalAStart (source : Nat) : Nat :=
-  priorRunningStart + 20736 + source * runningEvalAWords
+  priorRunningStart + 20480 + source * runningEvalAWords
 
-def runningPointStart : Nat := priorRunningStart + 27648
+def runningPointStart : Nat := priorRunningStart + 28672
 
-def expectedContextStart : Nat := 5141760
+def expectedContextStart : Nat := 5343330
 
 def expectedContextWords : Nat := 4
 
 def priorChildrenStart : Nat := expectedContextStart + expectedContextWords
 
-def priorChildrenWords : Nat := 4320
+def priorChildrenWords : Nat := 5120
 
 def runningPublicStart (source : Nat) : Nat :=
   priorChildrenStart + source * runningPublicWords
@@ -52,25 +52,25 @@ theorem expectedContextStart_matches_pilot :
   rw [PilotProduction.physicalColumnCount_eq]
   rfl
 
-theorem expectedContextStart_eq : expectedContextStart = 5141760 := by
+theorem expectedContextStart_eq : expectedContextStart = 5343330 := by
   rfl
 
 theorem expectedContextWords_eq : expectedContextWords = 4 := by
   rfl
 
-theorem priorChildrenStart_eq : priorChildrenStart = 5141764 := by
+theorem priorChildrenStart_eq : priorChildrenStart = 5343334 := by
   rfl
 
-theorem proofInputStart_eq : proofInputStart = 5146084 := by
+theorem proofInputStart_eq : proofInputStart = 5348454 := by
   rfl
 
 def freshCommitmentStart : Nat := proofInputStart
-def freshCommitmentWords : Nat := 1188
+def freshCommitmentWords : Nat := 1152
 def roundMessageStart : Nat := freshCommitmentStart + freshCommitmentWords
 def roundMessageWords : Nat := 504
 def outputEvaluationStart : Nat := roundMessageStart + roundMessageWords
-def outputEvaluationWords : Nat := 9180
-def outputEvaluationSourceWords : Nat := 540
+def outputEvaluationWords : Nat := 10880
+def outputEvaluationSourceWords : Nat := 640
 def proofInputColumnCount : Nat :=
   freshCommitmentWords + roundMessageWords + outputEvaluationWords
 def phaseOffset : Nat := proofInputStart + proofInputColumnCount
@@ -92,10 +92,10 @@ theorem outputEvaluationWords_eq :
   norm_num [outputEvaluationWords, productionShape, productionProfile,
     RingMatrixSource.ringShape, Shape.sourceCount, ringDegree]
 
-theorem proofInputColumnCount_eq : proofInputColumnCount = 10872 := by
+theorem proofInputColumnCount_eq : proofInputColumnCount = 12536 := by
   rfl
 
-theorem phaseOffset_eq : phaseOffset = 5156956 := by
+theorem phaseOffset_eq : phaseOffset = 5360990 := by
   rfl
 
 def pairAt (start : Nat) : KExpr :=
@@ -133,7 +133,7 @@ def runningEval_A
     (source : Fin productionShape.runningCount)
     (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount) : KExpr :=
-  pairAt (runningEvalAStart source.val + matrix.val * 108 + coefficient.val * 2)
+  pairAt (runningEvalAStart source.val + matrix.val * 128 + coefficient.val * 2)
 
 def runningExpr
     (logicalWidth : Nat)
@@ -171,14 +171,14 @@ def roundCoefficient
 def outputEval_K
     (source : Fin productionShape.sourceCount)
     (coefficient : Fin productionShape.coefficientCount) : KExpr :=
-  pairAt (outputEvaluationStart + source.val * 540 + coefficient.val * 2)
+  pairAt (outputEvaluationStart + source.val * 640 + coefficient.val * 2)
 
 def outputEval_A
     (source : Fin productionShape.sourceCount)
     (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount) : KExpr :=
-  pairAt (outputEvaluationStart + source.val * 540 + 108 +
-    matrix.val * 108 + coefficient.val * 2)
+  pairAt (outputEvaluationStart + source.val * 640 + 128 +
+    matrix.val * 128 + coefficient.val * 2)
 
 def freshExpr
     (logicalWidth : Nat)
@@ -224,7 +224,7 @@ private theorem publicColumn_lt_270
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
-    column.val < 270 := by
+    column.val < 320 := by
   have bound := column.isLt
   norm_num [FullShape, fullShape, RingRelation.Shape.publicWidth,
     publicRingColumns, ringDegree] at bound
@@ -261,20 +261,20 @@ private theorem matrix_lt_4
 
 private theorem coefficient_lt_ringDegree
     (coefficient : Fin productionShape.coefficientCount) :
-    coefficient.val < 54 := by
+    coefficient.val < 64 := by
   have bound := coefficient.isLt
   norm_num [productionShape, RingMatrixSource.ringShape,
     ringDegree] at bound
   exact bound
 
 private theorem commitmentRow_lt_22
-    (row : Fin productionProfile.commitmentWidth) : row.val < 22 := by
+    (row : Fin productionProfile.commitmentWidth) : row.val < 18 := by
   have bound := row.isLt
   norm_num [productionProfile] at bound
   exact bound
 
 private theorem ringCoefficient_lt_ringDegree
-    (coefficient : Fin ringDegree) : coefficient.val < 54 := by
+    (coefficient : Fin ringDegree) : coefficient.val < 64 := by
   have bound := coefficient.isLt
   norm_num [ringDegree] at bound
   exact bound

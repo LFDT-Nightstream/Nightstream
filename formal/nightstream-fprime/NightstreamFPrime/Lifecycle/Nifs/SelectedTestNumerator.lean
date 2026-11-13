@@ -11,7 +11,7 @@ def numerator : Nat :=
   productionShape.cubeVariables * width +
     (productionShape.jointCoefficientCount - 1 + productionShape.cubeVariables)
 
-theorem numerator_eq : numerator = 4589 := by
+theorem numerator_eq : numerator = 5389 := by
   rfl
 
 end NightstreamFPrime.Lifecycle.Nifs.SelectedTestNumerator

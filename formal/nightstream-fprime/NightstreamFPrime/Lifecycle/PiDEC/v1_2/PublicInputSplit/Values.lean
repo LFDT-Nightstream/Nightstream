@@ -5,11 +5,11 @@ namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
-theorem exactPrivateCount_eq : exactPrivateCount = 270 := by
+theorem exactPrivateCount_eq : exactPrivateCount = 320 := by
   norm_num [exactPrivateCount, exactCoordinateCount,
     SignedSplitScalar.exactPrivateCount, ringDegree, publicRingColumns]
 
-theorem exactRowCount_eq : exactRowCount = 4860 := by
+theorem exactRowCount_eq : exactRowCount = 5760 := by
   norm_num [exactRowCount, exactCoordinateCount,
     SignedSplitScalar.exactRowCount, ringDegree, publicRingColumns]
 

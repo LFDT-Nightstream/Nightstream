@@ -41,15 +41,16 @@ abbrev Answer := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Draw
 
 def decodeK (answer : Answer) : K := ⟨answer ⟨0, by decide⟩, answer ⟨1, by decide⟩⟩
 
-private def splitAnswer : Answer ≃ (F × F) × (F × F) where
+private def splitAnswer : Answer ≃ (F × F) × (F × F × F) where
   toFun answer := ((answer ⟨0, by decide⟩, answer ⟨1, by decide⟩),
-    (answer ⟨2, by decide⟩, answer ⟨3, by decide⟩))
+    (answer ⟨2, by decide⟩, answer ⟨3, by decide⟩, answer ⟨4, by decide⟩))
   invFun words := fun lane =>
     match lane with
     | ⟨0, _⟩ => words.1.1
     | ⟨1, _⟩ => words.1.2
     | ⟨2, _⟩ => words.2.1
-    | _ => words.2.2
+    | ⟨3, _⟩ => words.2.2.1
+    | _ => words.2.2.2
   left_inv answer := by
     funext lane
     match lane with
@@ -57,7 +58,8 @@ private def splitAnswer : Answer ≃ (F × F) × (F × F) where
     | ⟨1, _⟩ => rfl
     | ⟨2, _⟩ => rfl
     | ⟨3, _⟩ => rfl
-    | ⟨index + 4, inside⟩ =>
+    | ⟨4, _⟩ => rfl
+    | ⟨index + 5, inside⟩ =>
         exact absurd inside
           (by unfold Spec.Folding.Nifs.NonInteractive.PiRlcSampler.drawWidth; omega)
   right_inv _ := rfl
@@ -78,7 +80,7 @@ theorem pairs_card : (pairs.card : ℝ) = (fieldModulus ^ 2 : Nat) := by
 theorem expect_decodeK (value : K → ℝ) :
     𝔼 answer : Answer, value (decodeK answer) = 𝔼 element ∈ pairs, value element := by
   refine (Fintype.expect_equiv splitAnswer (fun answer => value (decodeK answer))
-    (fun words : (F × F) × (F × F) => value ⟨words.1.1, words.1.2⟩) fun _ => rfl).trans ?_
+    (fun words : (F × F) × (F × F × F) => value ⟨words.1.1, words.1.2⟩) fun _ => rfl).trans ?_
   simp only [pairs, Finset.expect_eq_sum_div_card, Finset.sum_map, Finset.card_map,
     Finset.card_univ, Fintype.card_prod, Fintype.sum_prod_type, Finset.sum_const, nsmul_eq_mul,
     ← Finset.mul_sum]

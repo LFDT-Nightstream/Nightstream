@@ -13,11 +13,11 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open MeasureTheory
 
 theorem test_error_eq : IndependentExecution.testError productionShape 8 =
-    (4589 : ℝ) / (fieldModulus : ℝ) ^ 2 := by
+    (5389 : ℝ) / (fieldModulus : ℝ) ^ 2 := by
   unfold IndependentExecution.testError
   rw [Nat.cast_pow]
   change (28 : ℝ) * 8 / (fieldModulus : ℝ) ^ 2 +
-    4365 / (fieldModulus : ℝ) ^ 2 = _
+    5165 / (fieldModulus : ℝ) ^ 2 = _
   ring
 
 theorem test_error_eq_selected :

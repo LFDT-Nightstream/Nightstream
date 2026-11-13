@@ -112,10 +112,10 @@ theorem serializeSlot_length (slot : SlotData logicalWidth publicFits) :
         cubeVariables * 2 + (FullShape logicalWidth publicFits).publicWidth + 1 := by
   simp [serializeSlot, Nat.add_assoc]
 
-/-- A slot is 2,055 words: κd = 1,188, `Eval_K` and `Eval_A` 540, the point 56, the public input
-270 and the depth 1 (the CW-0 census number). -/
+/-- A slot is 2,169 words: κd = 1,152, `Eval_K` and `Eval_A` 640, the point 56, the public input
+320 and the depth 1 (the CW-0 census number). -/
 theorem serializeSlot_length_eq (slot : SlotData logicalWidth publicFits) :
-    (serializeSlot slot).length = 2055 := by
+    (serializeSlot slot).length = 2169 := by
   rw [serializeSlot_length, publicWidth_eq]
   rfl
 

@@ -10,7 +10,7 @@ fresh claim and the children that the proof's split gives for the accumulator
 acceptance (`FalseAcceptance`) is the refresh Π_CCS check on the oracle coins with the output
 claims open at the ambient bound and false source claims (`¬ SourceHolds`, `b = 2` on all 17
 sources). `RoundByRound.falseAcceptance_splits` turns it into a hit (`falseAcceptance_hits`), so
-its probability is at most `(Q + 1) · 4589/q²` (`test_error_le`,
+its probability is at most `(Q + 1) · 5389/q²` (`test_error_le`,
 `Nifs.VerifierErrorBudget.test_error_eq`). The refresh transcript has `28 + 1 + 28 + 17 = 74`
 challenges (`challenges_length`). -/
 
@@ -112,7 +112,7 @@ theorem falseAcceptance_hits (oracle : Oracle)
       invalid _ ambient accepted)
 
 /-- The test step for the refresh fold: an adversary with at most `Q` queries makes a refresh Π_CCS
-false acceptance with probability at most `(Q + 1) · 4589/q²`. -/
+false acceptance with probability at most `(Q + 1) · 5389/q²`. -/
 theorem test_error_le {Output : Type}
     (adversary : OracleComp
       (Test.Point (RefreshSchedule.schedule logicalWidth publicFits) Width) Test.Answer Output)
@@ -121,7 +121,7 @@ theorem test_error_le {Output : Type}
     (proof : Output → RefreshProof) :
     𝔼 oracle, (if FalseAcceptance relation ajtai accumulator witness oracle
         (fresh (adversary.run oracle)) (proof (adversary.run oracle)) then (1 : ℝ) else 0) ≤
-      (queries + 1) * ((4589 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
+      (queries + 1) * ((5389 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
   refine (Test.test_error_le (source relation ajtai accumulator witness)
     (source_degreeCovers relation ajtai accumulator witness) adversary bounded
     (fun output => (fresh output, (proof output).split))

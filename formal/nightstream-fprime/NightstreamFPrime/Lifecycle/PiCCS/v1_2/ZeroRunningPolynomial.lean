@@ -255,7 +255,7 @@ theorem qAtPoint_eq_fresh
       (data.toUnifiedInputs baseOps)
     let message := ProtocolPolynomial.messageAt extensionOps protocol point
     ProtocolPolynomial.qAtPoint extensionOps protocol alpha gamma point =
-      SignedJointIdentity.gammaTerm extensionOps gamma 4320
+      SignedJointIdentity.gammaTerm extensionOps gamma 5120
         (extensionOps.mul (SumCheckTruthPath.pointEquality extensionOps point alpha)
           (extensionOps.add
             (CCSResidualTable.evaluatePolynomial extensionOps protocol.constraintPolynomial

@@ -6,6 +6,7 @@ mod support;
 
 use std::sync::OnceLock;
 
+use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
 use neo_ccs::Mat;
 use neo_compress::{commit, verify, Error, Layout, Norm, Proof, Statement};
 use neo_math::{D, F, K};
@@ -114,6 +115,31 @@ fn a_changed_proof_does_not_verify() {
             ));
         }
     }
+    // Akita reads each of its byte strings to the end.
+    changes.push((
+        "witness commitment with one more byte".into(),
+        Box::new(|proof| proof.witness_commitment.push(0)),
+    ));
+    changes.push((
+        "inverse commitment with one more byte".into(),
+        Box::new(|proof| proof.inverse_commitment.push(0)),
+    ));
+    changes.push((
+        "witness opening with one more byte".into(),
+        Box::new(|proof| proof.witness_opening.push(0)),
+    ));
+    changes.push((
+        "inverse opening with one more byte".into(),
+        Box::new(|proof| proof.inverse_opening.push(0)),
+    ));
+    changes.push((
+        "the two commitments in the other order".into(),
+        Box::new(|proof| std::mem::swap(&mut proof.witness_commitment, &mut proof.inverse_commitment)),
+    ));
+    changes.push((
+        "the two openings in the other order".into(),
+        Box::new(|proof| std::mem::swap(&mut proof.witness_opening, &mut proof.inverse_opening)),
+    ));
     for (name, change) in changes {
         let mut changed = proof.clone();
         change(&mut changed);
@@ -133,6 +159,18 @@ fn claims_without_a_table_have_no_layout() {
     assert!(Layout::new(&[(90, Norm::Caller), (61, Norm::Table { bound: 1 })]).is_ok());
     let (instances, proof) = honest();
     assert!(matches!(accepts(&instances[2..], proof), Err(Error::Layout(_))));
+}
+
+/// The commitment that the native path makes for a witness is the one that
+/// the argument opens: both read the columns `0..blocks` of the production
+/// key. `claim_of` computes the commitment of the claim from those columns.
+#[test]
+fn the_native_commitment_is_the_commitment_of_the_claim() {
+    let (instances, _) = honest();
+    let instance = &instances[2];
+    assert!(matches!(instance.norm, Norm::Caller));
+    let native = commit_production_signed_unit_prefix_matrix(&instance.witness).expect("native commitment");
+    assert_eq!(native, instance.claim.c);
 }
 
 /// Each change makes one part of a claim false: a commitment row, `Eval_K`,

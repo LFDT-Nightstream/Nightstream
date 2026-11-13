@@ -39,6 +39,10 @@
 //! `n ≤ 28`, `m = 320`, `t = 4`, `s = 3`) the lookups give `2^-116.97`, the
 //! other terms `2^-119.2`, and the sum is `2^-116.7`.
 
+// The claims of `tests/support` name this crate as an integration test does.
+#[cfg(test)]
+extern crate self as neo_compress;
+
 mod akita;
 mod layout;
 mod lookup;

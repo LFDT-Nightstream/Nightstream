@@ -327,3 +327,7 @@ impl Committed {
         ))
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/cheating_prover.rs"]
+mod tests;

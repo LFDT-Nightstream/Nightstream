@@ -930,8 +930,8 @@ name = "neo-math"
 version = "0.1.0"
 dependencies = [
  "neo-params",
+ "num-bigint",
  "p3-field",
- "p3-goldilocks",
  "p3-matrix",
  "proptest",
  "rand 0.9.5",

@@ -1,7 +1,7 @@
-#![forbid(unsafe_code)]
+#![deny(unsafe_code)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-//! neo-math: Fq (Goldilocks), K=F_{q^2}, R_q = F_q[X]/(Phi_eta), cf/cf^{-1}, and S-action.
+//! neo-math: F_q with q = 2^64 − 59, K = F_{q^2}, R_q = F_q[X]/(X^64 + 1), cf/cf^{-1}, and S-action.
 
 pub mod balanced;
 pub mod field;

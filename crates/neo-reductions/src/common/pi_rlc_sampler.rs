@@ -5,7 +5,8 @@ use neo_math::{D, F};
 use p3_field::PrimeField64;
 
 /// The field lanes of one draw. `q^5 / 5^64 > 2^171`, so the law of a challenge is within
-/// `2^−132` of the uniform law on the challenge set. Four lanes give only about `2^−109`.
+/// `2^−173` of the uniform law on the challenge set (`PiRlcSampler.distance_lt`). Four lanes
+/// give only about `2^−109`.
 pub const PI_RLC_DRAW_LANES: usize = 5;
 
 /// `N = Σ_k draw[k] · q^k`, lane 0 least significant. Coefficient `h` of the challenge is

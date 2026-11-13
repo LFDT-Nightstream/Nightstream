@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted by the owner on 2026-11-13.
+Accepted by the owner on 2026-11-13: the prime, the ring, rank 18, and SHAKE
+for the Akita challenges. The other entries (the 5-lane sampler, the limit of
+the auxiliary maps, the profile name, the wording of the hash rule) follow
+from these and wait for the owner's review.
 
 ## Problem
 

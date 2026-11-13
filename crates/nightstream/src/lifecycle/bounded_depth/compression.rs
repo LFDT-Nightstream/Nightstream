@@ -334,10 +334,7 @@ impl BoundedDepth {
             }
         }
         let slots = steps.slots.each_ref();
-        let layout = self.compression_layout(steps.pc, slots.map(|slot| slot.1))?;
-        if steps.argument.rounds.len() != layout.witness_vars() {
-            return Err(BoundedDepthError::Statement("the argument is for another layout"));
-        }
+        self.compression_layout(steps.pc, slots.map(|slot| slot.1))?;
         let state = BoundedDepthState {
             keys: self.keys,
             iteration,

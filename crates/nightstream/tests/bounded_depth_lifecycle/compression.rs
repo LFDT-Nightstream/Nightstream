@@ -71,13 +71,19 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
         let verify_times = prover
             .verify_final(envelope.iteration, envelope.z0, envelope.current, &decoded)
             .unwrap_or_else(|error| panic!("the proof of circuit {} verifies: {error}", envelope.pc));
+        let argument = &decoded.steps.as_ref().expect("steps").argument;
         println!(
-            "compressed proof, circuit {}: {} witness cells, W has {} variables, V has {} variables, {} bytes",
+            "compressed proof, circuit {}: {} witness cells, W has {} variables, V has {} variables, {} bytes \
+             (Akita commitments {} and {}, openings {} and {})",
             envelope.pc,
             layout.witness_cells(),
             layout.witness_vars(),
             layout.inverse_vars(),
             bytes.len(),
+            argument.witness_commitment.len(),
+            argument.inverse_commitment.len(),
+            argument.witness_opening.len(),
+            argument.inverse_opening.len(),
         );
         println!("  compress {:.0} ms: {times}", compress.as_secs_f64() * 1e3);
         println!(

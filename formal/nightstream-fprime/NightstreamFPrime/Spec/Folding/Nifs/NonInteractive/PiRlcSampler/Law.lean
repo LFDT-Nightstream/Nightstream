@@ -185,8 +185,8 @@ noncomputable def uniformExpect (test : Scalar → ℝ) : ℝ :=
 noncomputable def distance : ℝ :=
   ((remainder * (scalarCount - remainder) : Nat) : ℝ) / ((scalarCount * drawCount : Nat) : ℝ)
 
-theorem distance_lt : distance < 1 / 2 ^ 132 := by
-  have exact : remainder * (scalarCount - remainder) * 2 ^ 132 < scalarCount * drawCount := by
+theorem distance_lt : distance < 1 / 2 ^ 173 := by
+  have exact : remainder * (scalarCount - remainder) * 2 ^ 173 < scalarCount * drawCount := by
     decide
   have denominator : (0 : ℝ) < ((scalarCount * drawCount : Nat) : ℝ) := by
     exact_mod_cast Nat.mul_pos scalarCount_pos drawCount_pos

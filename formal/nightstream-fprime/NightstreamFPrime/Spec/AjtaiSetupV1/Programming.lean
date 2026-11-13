@@ -239,19 +239,19 @@ theorem reducedWeight_sum : ∑ value, reducedWeight value = 1 := by
   rw [← sum_div, cards, div_self (by positivity)]
 
 theorem reducedWeight_difference_le :
-    ∑ value, |reducedWeight value - 1 / fieldModulus| ≤ 2 * 4294967295 / 2 ^ 256 := by
+    ∑ value, |reducedWeight value - 1 / fieldModulus| ≤ 2 * 12117361 / 2 ^ 256 := by
   rw [← sum_filter_add_sum_filter_not univ
     (fun value : F => (1 / fieldModulus : ℚ) ≤ reducedWeight value)]
   have upper : ∑ value ∈ univ.filter (fun value : F =>
       (1 / fieldModulus : ℚ) ≤ reducedWeight value),
-      |reducedWeight value - 1 / fieldModulus| ≤ 4294967295 / 2 ^ 256 := by
+      |reducedWeight value - 1 / fieldModulus| ≤ 12117361 / 2 ^ 256 := by
     rw [sum_congr rfl fun value member =>
         abs_of_nonneg (sub_nonneg.mpr (mem_filter.mp member).2),
       sum_sub_distrib, sum_reducedWeight, sum_uniformWeight]
     exact (le_abs_self _).trans (ReductionBias.wide_frequency_error_le _)
   have lower : ∑ value ∈ univ.filter (fun value : F =>
       ¬ (1 / fieldModulus : ℚ) ≤ reducedWeight value),
-      |reducedWeight value - 1 / fieldModulus| ≤ 4294967295 / 2 ^ 256 := by
+      |reducedWeight value - 1 / fieldModulus| ≤ 12117361 / 2 ^ 256 := by
     rw [sum_congr rfl fun value member => (abs_sub_comm _ _).trans
         (abs_of_nonneg (sub_nonneg.mpr (le_of_lt (not_le.mp (mem_filter.mp member).2)))),
       sum_sub_distrib, sum_reducedWeight, sum_uniformWeight]
@@ -355,7 +355,7 @@ private theorem programmed_eq (event : (ι → Chunk) × Extra → Prop) [Decida
   rw [one_div, inv_pow, div_eq_mul_inv, mul_comm]
 
 theorem real_sub_programmed_le (event : (ι → Chunk) × Extra → Prop) [DecidablePred event] :
-    |real event - programmed event| ≤ Fintype.card ι * (2 * 4294967295 / 2 ^ 256) := by
+    |real event - programmed event| ≤ Fintype.card ι * (2 * 12117361 / 2 ^ 256) := by
   rw [real_eq, programmed_eq, ← sum_sub_distrib]
   calc |∑ matrix : ι → F, ((∏ index, reducedWeight (matrix index)) * programmedFor event matrix -
           (∏ _index : ι, (1 / fieldModulus : ℚ)) * programmedFor event matrix)|
@@ -370,7 +370,7 @@ theorem real_sub_programmed_le (event : (ι → Chunk) × Extra → Prop) [Decid
           reducedWeight_nonneg (fun _ => by positivity) reducedWeight_sum (by
             rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
             exact mul_one_div_cancel (Nat.cast_ne_zero.mpr (by decide)))
-    _ ≤ Fintype.card ι * (2 * 4294967295 / 2 ^ 256) :=
+    _ ≤ Fintype.card ι * (2 * 12117361 / 2 ^ 256) :=
         mul_le_mul_of_nonneg_left reducedWeight_difference_le (Nat.cast_nonneg _)
 
 end Games
@@ -380,7 +380,7 @@ theorem expect_le_programmed {ι : Type} [Fintype ι] [DecidableEq ι] (value : 
     (nonnegative : ∀ chunks, 0 ≤ value chunks) (le_one : ∀ chunks, value chunks ≤ 1) :
     𝔼 chunks, value chunks ≤
       (𝔼 matrix : ι → F, 𝔼 chunks ∈ preimages matrix, value chunks) +
-        Fintype.card ι * (2 * 4294967295 / 2 ^ 256 : ℝ) := by
+        Fintype.card ι * (2 * 12117361 / 2 ^ 256 : ℝ) := by
   set average : (ι → F) → ℝ := fun matrix => 𝔼 chunks ∈ preimages matrix, value chunks
   have average_nonnegative (matrix : ι → F) : 0 ≤ average matrix :=
     Finset.expect_nonneg fun chunks _ => nonnegative chunks
@@ -432,7 +432,7 @@ theorem expect_le_programmed {ι : Type} [Fintype ι] [DecidableEq ι] (value : 
     rw [one_div, inv_pow, div_eq_mul_inv, mul_comm]
   have weights : ∑ matrix : ι → F, |∏ index, (reducedWeight (matrix index) : ℝ) -
       ∏ _index : ι, (1 / fieldModulus : ℝ)| ≤
-        Fintype.card ι * (2 * 4294967295 / 2 ^ 256 : ℝ) := by
+        Fintype.card ι * (2 * 12117361 / 2 ^ 256 : ℝ) := by
     have rational := (product_difference_le (ι := ι) reducedWeight
       (fun _ => (1 / fieldModulus : ℚ)) reducedWeight_nonneg (fun _ => by positivity)
       reducedWeight_sum (by
@@ -509,7 +509,7 @@ theorem binding_le_solver (bound : Nat)
     real (fun view => IsCollision bound (keyOf (residues view.1)) (attack view)) ≤
       solverSuccess bound attack +
         Fintype.card (KeyIndex rows (ConcreteRingColumnLayout.blockCount shape.carrierWidth)) *
-          (2 * 4294967295 / 2 ^ 256) := by
+          (2 * 12117361 / 2 ^ 256) := by
   have difference := real_sub_programmed_le
     (fun view => IsCollision bound (keyOf (residues view.1)) (attack view))
   have same : programmed (fun view => IsCollision bound (keyOf (residues view.1)) (attack view)) =

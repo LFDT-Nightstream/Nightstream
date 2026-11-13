@@ -14,8 +14,8 @@ theorem replay_append (initial : Poseidon2.State) (before after : List Draw) :
   by simp only [replay, List.foldl_append]
 
 private theorem zeroBlock_getD (index : Nat) : (List.ofFn zeroBlock).getD index 0 = 0 := by
-  rw [show List.ofFn zeroBlock = [0, 0, 0, 0] from rfl]
-  rcases index with _ | _ | _ | _ | index <;> simp
+  rw [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
+  split <;> rfl
 
 private def domain (coordinate : Nat) : Draw := fun lane =>
   if lane.val = 0 then Poseidon2.ofNat 4

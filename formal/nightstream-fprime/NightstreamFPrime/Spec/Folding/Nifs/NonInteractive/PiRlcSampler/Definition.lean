@@ -8,7 +8,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.RingStrongSet
 
-@[implicit_reducible] def drawWidth : Nat := 4
+@[implicit_reducible] def drawWidth : Nat := 5
 
 abbrev Draw := Fin drawWidth → F
 

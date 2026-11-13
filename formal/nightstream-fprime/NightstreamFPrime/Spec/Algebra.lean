@@ -24,9 +24,7 @@ def mul (a b : K) : K :=
 
 end K
 
-def ringDegree : Nat := 54
-
-def ringMiddleDegree : Nat := 27
+def ringDegree : Nat := 64
 
 abbrev RingF := Fin ringDegree → F
 abbrev RingK := Fin ringDegree → K
@@ -61,24 +59,10 @@ def rawMulCoeffK (a b : RingK) (degree : Nat) : K :=
     else acc) K.zero
 
 def ringFMul (a b : RingF) : RingF := fun out =>
-  let i := out.val
-  let folded := if i < ringMiddleDegree then
-      rawMulCoeffF a b (i + ringDegree)
-    else
-      rawMulCoeffF a b (i + ringMiddleDegree)
-  let twice := if i + (ringDegree + ringMiddleDegree) ≤ 2 * (ringDegree - 1) then
-      rawMulCoeffF a b (i + (ringDegree + ringMiddleDegree)) else 0
-  rawMulCoeffF a b i - folded + twice
+  rawMulCoeffF a b out.val - rawMulCoeffF a b (out.val + ringDegree)
 
 def ringKMul (a b : RingK) : RingK := fun out =>
-  let i := out.val
-  let folded := if i < ringMiddleDegree then
-      rawMulCoeffK a b (i + ringDegree)
-    else
-      rawMulCoeffK a b (i + ringMiddleDegree)
-  let twice := if i + (ringDegree + ringMiddleDegree) ≤ 2 * (ringDegree - 1) then
-      rawMulCoeffK a b (i + (ringDegree + ringMiddleDegree)) else K.zero
-  K.add (K.sub (rawMulCoeffK a b i) folded) twice
+  K.sub (rawMulCoeffK a b out.val) (rawMulCoeffK a b (out.val + ringDegree))
 
 def centeredMagnitude (x : F) : Nat :=
   min x.val (fieldModulus - x.val)

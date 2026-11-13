@@ -17,7 +17,7 @@ private abbrev Base := ZMod fieldModulus
 local instance : Nontrivial Base := ZMod.nontrivial fieldModulus
 
 noncomputable def modulus : Polynomial Base :=
-  X ^ ringDegree + (X ^ ringMiddleDegree + 1)
+  X ^ ringDegree + 1
 
 noncomputable def toPolynomial (value : RingF) : Polynomial Base :=
   ∑ index : Fin ringDegree, C (R := Base) (value index) * X ^ index.val
@@ -101,21 +101,18 @@ private theorem toPolynomial_scale (scalar : F) (value : RingF) :
     rw [coeff_toPolynomial_of_ge _ index outside,
       coeff_toPolynomial_of_ge _ index outside, mul_zero]
 
-private theorem degree_lower :
-    (X ^ ringMiddleDegree + 1 : Polynomial Base).degree = (27 : WithBot Nat) := by
-  simpa [ringMiddleDegree] using
-    (degree_X_pow_add_C (R := Base) (n := 27) (by decide) (1 : Base))
+private theorem degree_one_lt :
+    (1 : Polynomial Base).degree < (ringDegree : WithBot Nat) := by
+  rw [degree_one]
+  exact_mod_cast (show 0 < ringDegree by decide)
 
-theorem modulus_monic : modulus.Monic := by
-  apply monic_X_pow_add
-  rw [degree_lower]
-  decide
+theorem modulus_monic : modulus.Monic :=
+  monic_X_pow_add degree_one_lt
 
 theorem degree_modulus : modulus.degree = (ringDegree : WithBot Nat) := by
-  rw [modulus, degree_add_eq_left_of_degree_lt]
-  · exact degree_X_pow ringDegree
-  · rw [degree_lower, degree_X_pow]
-    decide
+  rw [modulus, degree_add_eq_left_of_degree_lt, degree_X_pow]
+  rw [degree_X_pow]
+  exact degree_one_lt
 
 private theorem degree_toPolynomial (value : RingF) :
     (toPolynomial value).degree < (ringDegree : WithBot Nat) :=
@@ -151,51 +148,38 @@ private theorem image_basis (degree : Nat) (inside : degree < ringDegree) :
   rw [image, toPolynomial_basis degree inside, map_pow, AdjoinRoot.mk_X]
 
 private theorem root_relation :
-    AdjoinRoot.root modulus ^ 54 + (AdjoinRoot.root modulus ^ 27 + 1) = 0 := by
+    AdjoinRoot.root modulus ^ ringDegree = -1 := by
   have relation := AdjoinRoot.mk_self (f := modulus)
-  change AdjoinRoot.mk modulus ((X : Polynomial Base) ^ 54 + (X ^ 27 + 1)) = 0 at relation
-  simpa only [map_add, map_pow, map_one, AdjoinRoot.mk_X] using relation
+  rw [modulus, map_add, map_pow, map_one, AdjoinRoot.mk_X] at relation
+  exact eq_neg_of_add_eq_zero_left relation
 
-private theorem root_period : AdjoinRoot.root modulus ^ 81 = 1 := by
-  apply sub_eq_zero.mp
-  calc
-    _ = (AdjoinRoot.root modulus ^ 27 - 1) *
-        (AdjoinRoot.root modulus ^ 54 + (AdjoinRoot.root modulus ^ 27 + 1)) := by ring
-    _ = 0 := by rw [root_relation, mul_zero]
+private theorem root_period : AdjoinRoot.root modulus ^ (2 * ringDegree) = 1 := by
+  rw [mul_comm, pow_mul, root_relation, neg_one_sq]
 
 theorem root_pow_mod (degree : Nat) :
-    AdjoinRoot.root modulus ^ degree = AdjoinRoot.root modulus ^ (degree % 81) := by
-  conv_lhs => rw [← Nat.mod_add_div degree 81]
+    AdjoinRoot.root modulus ^ degree =
+      AdjoinRoot.root modulus ^ (degree % (2 * ringDegree)) := by
+  conv_lhs => rw [← Nat.mod_add_div degree (2 * ringDegree)]
   rw [pow_add, pow_mul, root_period, one_pow, mul_one]
 
 private theorem image_monomialReduce (degree : Nat) :
     image (RingFLaws.monomialReduce degree) = AdjoinRoot.root modulus ^ degree := by
   rw [root_pow_mod]
-  have residual : degree % 81 < 81 := Nat.mod_lt _ (by decide)
+  have residual : degree % (2 * ringDegree) < 2 * ringDegree := Nat.mod_lt _ (by decide)
   unfold RingFLaws.monomialReduce
   dsimp only
   split_ifs with low
   · exact image_basis _ low
-  · have high : 54 ≤ degree % 81 := by simpa [ringDegree] using Nat.le_of_not_gt low
-    rw [image_add, image_scale, image_scale,
-      image_basis _ (by change degree % 81 - 54 < 54; omega),
-      image_basis _ (by change degree % 81 - 27 < 54; omega)]
-    change AdjoinRoot.of modulus (-1 : Base) * AdjoinRoot.root modulus ^ (degree % 81 - 54) +
-      AdjoinRoot.of modulus (-1 : Base) * AdjoinRoot.root modulus ^ (degree % 81 - 27) = _
-    rw [map_neg, map_one]
-    have highPower : AdjoinRoot.root modulus ^ (degree % 81) =
-        AdjoinRoot.root modulus ^ (degree % 81 - 54) * AdjoinRoot.root modulus ^ 54 := by
+  · rw [image_scale, image_basis _ (by omega)]
+    change AdjoinRoot.of modulus (-1 : Base) *
+      AdjoinRoot.root modulus ^ (degree % (2 * ringDegree) - ringDegree) = _
+    have highPower : AdjoinRoot.root modulus ^ (degree % (2 * ringDegree)) =
+        AdjoinRoot.root modulus ^ (degree % (2 * ringDegree) - ringDegree) *
+          AdjoinRoot.root modulus ^ ringDegree := by
       rw [← pow_add]
       congr 1
       omega
-    have middlePower : AdjoinRoot.root modulus ^ (degree % 81 - 27) =
-        AdjoinRoot.root modulus ^ (degree % 81 - 54) * AdjoinRoot.root modulus ^ 27 := by
-      rw [← pow_add]
-      congr 1
-      omega
-    have relation : AdjoinRoot.root modulus ^ 54 = -(AdjoinRoot.root modulus ^ 27 + 1) :=
-      eq_neg_of_add_eq_zero_left root_relation
-    rw [highPower, middlePower, relation]
+    rw [map_neg, map_one, highPower, root_relation]
     ring
 
 private theorem linear_image_eq

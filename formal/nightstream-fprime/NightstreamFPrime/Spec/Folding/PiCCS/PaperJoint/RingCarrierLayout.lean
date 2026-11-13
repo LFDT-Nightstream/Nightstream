@@ -128,8 +128,8 @@ theorem flatIndex_lt_carrierWidth
     calc
       block.val < blockCount (carrierWidth logicalWidth) := block.isLt
       _ = blockCount logicalWidth := blockCount_carrierWidth logicalWidth
-  have coefficientBound : coefficient.val < 54 := coefficient.isLt
-  change block.val * 54 + coefficient.val < blockCount logicalWidth * 54
+  have coefficientBound : coefficient.val < 64 := coefficient.isLt
+  change block.val * 64 + coefficient.val < blockCount logicalWidth * 64
   omega
 
 def carrierColumn

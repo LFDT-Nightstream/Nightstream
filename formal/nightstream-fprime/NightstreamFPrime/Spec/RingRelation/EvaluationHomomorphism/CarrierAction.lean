@@ -268,18 +268,6 @@ private theorem add_sub_pair
     ⟨ConcreteCarrier.baseLaws.add_comm⟩
   ac_rfl
 
-private theorem add_sub_add_triple
-    (a₁ a₂ b₁ b₂ c₁ c₂ : F) :
-    (a₁ + a₂) - (b₁ + b₂) + (c₁ + c₂) =
-      (a₁ - b₁ + c₁) + (a₂ - b₂ + c₂) := by
-  rw [add_sub_pair]
-  simp only [Fin.sub_eq_add_neg]
-  letI : Std.Associative (fun (a b : F) => a + b) :=
-    ⟨ConcreteCarrier.baseLaws.add_assoc⟩
-  letI : Std.Commutative (fun (a b : F) => a + b) :=
-    ⟨ConcreteCarrier.baseLaws.add_comm⟩
-  ac_rfl
-
 private theorem scale_sub
     (scalar a b : F) :
     scalar * a - scalar * b = scalar * (a - b) := by
@@ -296,68 +284,33 @@ private theorem scale_sub
       (ConcreteCarrier.baseLaws.left_distrib scalar a (-b)).symm
     _ = scalar * (a - b) := by rw [Fin.sub_eq_add_neg]
 
-private theorem scale_sub_add
-    (scalar a b c : F) :
-    scalar * a - scalar * b + scalar * c = scalar * (a - b + c) := by
-  rw [scale_sub]
-  exact (ConcreteCarrier.baseLaws.left_distrib scalar (a - b) c).symm
-
-private theorem add_sub_pair_zero
-    (a₁ a₂ b₁ b₂ : F) :
-    (a₁ + a₂) - (b₁ + b₂) + 0 =
-      (a₁ - b₁ + 0) + (a₂ - b₂ + 0) := by
-  rw [Fin.add_zero, Fin.add_zero, Fin.add_zero]
-  exact add_sub_pair _ _ _ _
-
-private theorem scale_sub_zero
-    (scalar a b : F) :
-    scalar * a - scalar * b + 0 = scalar * (a - b + 0) := by
-  rw [Fin.add_zero, Fin.add_zero]
-  exact scale_sub _ _ _
-
 theorem ringFMul_add_right (left right₁ right₂ : RingF) :
     ringFMul left (ringFAdd right₁ right₂) =
       ringFAdd (ringFMul left right₁) (ringFMul left right₂) := by
   funext output
-  simp only [ringFMul, ringFAdd]
-  split <;> split <;> simp only [rawMulCoeffF_add_right]
-  · exact add_sub_add_triple _ _ _ _ _ _
-  · exact add_sub_pair_zero _ _ _ _
-  · exact add_sub_add_triple _ _ _ _ _ _
-  · exact add_sub_pair_zero _ _ _ _
+  simp only [ringFMul, ringFAdd, rawMulCoeffF_add_right]
+  exact add_sub_pair _ _ _ _
 
 theorem ringFMul_add_left (left₁ left₂ right : RingF) :
     ringFMul (ringFAdd left₁ left₂) right =
       ringFAdd (ringFMul left₁ right) (ringFMul left₂ right) := by
   funext output
-  simp only [ringFMul, ringFAdd]
-  split <;> split <;> simp only [rawMulCoeffF_add_left]
-  · exact add_sub_add_triple _ _ _ _ _ _
-  · exact add_sub_pair_zero _ _ _ _
-  · exact add_sub_add_triple _ _ _ _ _ _
-  · exact add_sub_pair_zero _ _ _ _
+  simp only [ringFMul, ringFAdd, rawMulCoeffF_add_left]
+  exact add_sub_pair _ _ _ _
 
 theorem ringFMul_scale_right (left : RingF) (scalar : F) (right : RingF) :
     ringFMul left (ringFScale scalar right) =
       ringFScale scalar (ringFMul left right) := by
   funext output
-  simp only [ringFMul, ringFScale]
-  split <;> split <;> simp only [rawMulCoeffF_scale_right]
-  · exact scale_sub_add _ _ _ _
-  · exact scale_sub_zero _ _ _
-  · exact scale_sub_add _ _ _ _
-  · exact scale_sub_zero _ _ _
+  simp only [ringFMul, ringFScale, rawMulCoeffF_scale_right]
+  exact scale_sub _ _ _
 
 theorem ringFMul_scale_left (scalar : F) (left right : RingF) :
     ringFMul (ringFScale scalar left) right =
       ringFScale scalar (ringFMul left right) := by
   funext output
-  simp only [ringFMul, ringFScale]
-  split <;> split <;> simp only [rawMulCoeffF_scale_left]
-  · exact scale_sub_add _ _ _ _
-  · exact scale_sub_zero _ _ _
-  · exact scale_sub_add _ _ _ _
-  · exact scale_sub_zero _ _ _
+  simp only [ringFMul, ringFScale, rawMulCoeffF_scale_left]
+  exact scale_sub _ _ _
 
 theorem ringFMul_zero_right (left : RingF) :
     ringFMul left ringFZero = ringFZero := by

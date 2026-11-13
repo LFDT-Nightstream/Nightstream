@@ -101,12 +101,6 @@ private theorem k_one_mul (value : K) :
     K.mul ConcreteCarrier.extensionOps.one value = value :=
   ConcreteCarrier.extensionLaws.one_mul value
 
-private theorem k_zero_add (value : K) : K.add K.zero value = value :=
-  ConcreteCarrier.extensionLaws.zero_add value
-
-private theorem k_mul_zero (value : K) : K.mul value K.zero = K.zero :=
-  ConcreteCarrier.extensionLaws.mul_zero value
-
 private theorem f_neg_add (left right : F) :
     -(left + right) = -left + -right :=
   ConcreteCarrier.baseLaws.neg_add left right
@@ -293,28 +287,15 @@ private theorem rawMulCoeffK_scale
     _ = _ := sumTerms_scale _ _ _
 
 private theorem reduction_add
-    (left0 left1 folded0 folded1 twice0 twice1 : K) :
-    K.add
-        (K.sub (K.add left0 left1) (K.add folded0 folded1))
-        (K.add twice0 twice1) =
-      K.add (K.add (K.sub left0 folded0) twice0)
-        (K.add (K.sub left1 folded1) twice1) := by
+    (left0 left1 folded0 folded1 : K) :
+    K.sub (K.add left0 left1) (K.add folded0 folded1) =
+      K.add (K.sub left0 folded0) (K.sub left1 folded1) := by
   rcases left0 with ⟨left00, left01⟩
   rcases left1 with ⟨left10, left11⟩
   rcases folded0 with ⟨folded00, folded01⟩
   rcases folded1 with ⟨folded10, folded11⟩
-  rcases twice0 with ⟨twice00, twice01⟩
-  rcases twice1 with ⟨twice10, twice11⟩
   simp only [K.add, K.sub, K.mk.injEq, Fin.sub_eq_add_neg]
   constructor <;> rw [f_neg_add] <;> ac_rfl
-
-private theorem reduction_add_zero
-    (left0 left1 folded0 folded1 : K) :
-    K.add (K.sub (K.add left0 left1) (K.add folded0 folded1)) K.zero =
-      K.add (K.add (K.sub left0 folded0) K.zero)
-        (K.add (K.sub left1 folded1) K.zero) := by
-  simpa only [k_zero_add] using
-    (reduction_add left0 left1 folded0 folded1 K.zero K.zero)
 
 private theorem mul_neg (left right : K) :
     K.mul left (ConcreteCarrier.extensionOps.neg right) =
@@ -329,35 +310,20 @@ private theorem mul_neg (left right : K) :
       rw [k_mul_comm right left]
 
 private theorem reduction_scale
-    (scalar left folded twice : K) :
-    K.add (K.sub (K.mul scalar left) (K.mul scalar folded))
-        (K.mul scalar twice) =
-      K.mul scalar (K.add (K.sub left folded) twice) := by
+    (scalar left folded : K) :
+    K.sub (K.mul scalar left) (K.mul scalar folded) =
+      K.mul scalar (K.sub left folded) := by
   rw [← ConcreteCarrier.derived_sub_eq_concrete_sub,
     ← ConcreteCarrier.derived_sub_eq_concrete_sub]
   unfold InterpolationOps.sub
   rw [← mul_neg scalar folded]
-  change K.add
-      (K.add (K.mul scalar left)
-        (K.mul scalar (ConcreteCarrier.extensionOps.neg folded)))
-      (K.mul scalar twice) =
-    K.mul scalar
-      (K.add (K.add left (ConcreteCarrier.extensionOps.neg folded)) twice)
-  rw [← k_left_distrib scalar left (ConcreteCarrier.extensionOps.neg folded)]
-  exact (k_left_distrib scalar _ twice).symm
-
-private theorem reduction_scale_zero
-    (scalar left folded : K) :
-    K.add (K.sub (K.mul scalar left) (K.mul scalar folded)) K.zero =
-      K.mul scalar (K.add (K.sub left folded) K.zero) := by
-  simpa only [k_mul_zero] using
-    (reduction_scale scalar left folded K.zero)
+  exact (k_left_distrib scalar left (ConcreteCarrier.extensionOps.neg folded)).symm
 
 theorem ringKMul_right_zero (left : RingK) :
     ringKMul left ringKZero = ringKZero := by
   funext output
   simp only [ringKMul, rawMulCoeffK_zero]
-  split <;> split <;> rfl
+  rfl
 
 theorem ringKMul_right_add (left right other : RingK) :
     ringKMul left (ringKAdd right other) =
@@ -367,10 +333,7 @@ theorem ringKMul_right_add (left right other : RingK) :
     K.add (ringKMul left right output) (ringKMul left other output)
   unfold ringKMul
   simp only [rawMulCoeffK_add]
-  split <;> split
-  all_goals first
-    | exact reduction_add _ _ _ _ _ _
-    | exact reduction_add_zero _ _ _ _
+  exact reduction_add _ _ _ _
 
 theorem ringKMul_right_scale
     (left : RingK) (scalar : K) (right : RingK) :
@@ -381,10 +344,7 @@ theorem ringKMul_right_scale
     K.mul scalar (ringKMul left right output)
   unfold ringKMul
   simp only [rawMulCoeffK_scale]
-  split <;> split
-  all_goals first
-    | exact reduction_scale _ _ _ _
-    | exact reduction_scale_zero _ _ _
+  exact reduction_scale _ _ _
 
 private theorem scale_neg_one (value : RingK) :
     scale (ConcreteCarrier.extensionOps.neg ConcreteCarrier.extensionOps.one)

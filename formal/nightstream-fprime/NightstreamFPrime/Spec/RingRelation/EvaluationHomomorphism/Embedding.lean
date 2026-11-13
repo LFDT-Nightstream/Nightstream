@@ -79,37 +79,14 @@ private theorem embed_sub (left right : F) :
     K.embed (left - right) = K.sub (K.embed left) (K.embed right) := by
   simp only [K.embed, K.sub, Fin.sub_self]
 
-private theorem embed_reduction (raw folded twice : F) :
-    K.embed (raw - folded + twice) =
-      K.add (K.sub (K.embed raw) (K.embed folded)) (K.embed twice) := by
-  rw [embed_add, embed_sub]
-
 theorem embedChallenge_ringFMul (left right : RingF) :
     RingKAction.embedChallenge (ringFMul left right) =
       ringKMul
         (RingKAction.embedChallenge left)
         (RingKAction.embedChallenge right) := by
   funext output
-  by_cases foldedLow : output.val < ringMiddleDegree
-  · by_cases hasTwice :
-      output.val + (ringDegree + ringMiddleDegree) <= 2 * (ringDegree - 1)
-    · simp only [RingKAction.embedChallenge, ringFMul, ringKMul,
-        ite_eq_left foldedLow, ite_eq_left hasTwice,
-        rawMulCoeffK_embedChallenge]
-      exact embed_reduction _ _ _
-    · simp only [RingKAction.embedChallenge, ringFMul, ringKMul,
-        ite_eq_left foldedLow, ite_eq_right hasTwice,
-        rawMulCoeffK_embedChallenge]
-      exact embed_reduction _ _ _
-  · by_cases hasTwice :
-      output.val + (ringDegree + ringMiddleDegree) <= 2 * (ringDegree - 1)
-    · simp only [RingKAction.embedChallenge, ringFMul, ringKMul,
-        ite_eq_right foldedLow, ite_eq_left hasTwice,
-        rawMulCoeffK_embedChallenge]
-      exact embed_reduction _ _ _
-    · simp only [RingKAction.embedChallenge, ringFMul, ringKMul,
-        ite_eq_right foldedLow, ite_eq_right hasTwice,
-        rawMulCoeffK_embedChallenge]
-      exact embed_reduction _ _ _
+  simp only [RingKAction.embedChallenge, ringFMul, ringKMul,
+    rawMulCoeffK_embedChallenge]
+  exact embed_sub _ _
 
 end NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.Embedding

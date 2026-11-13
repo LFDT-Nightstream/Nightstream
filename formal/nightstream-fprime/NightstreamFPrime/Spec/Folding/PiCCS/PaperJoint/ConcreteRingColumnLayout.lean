@@ -61,7 +61,7 @@ private theorem flatIndex_mod
     (block : Fin (blockCount columns))
     (coefficient : Fin ringDegree) :
     flatIndex block coefficient % ringDegree = coefficient.val := by
-  have bound : coefficient.val < 54 := coefficient.isLt
+  have bound : coefficient.val < 64 := coefficient.isLt
   simp [flatIndex, ringDegree, bound]
 
 theorem decode_encode
@@ -124,9 +124,9 @@ theorem flatIndex_lt_paddedWidth
     (coefficient : Fin ringDegree) :
     flatIndex block coefficient < blockCount columns * ringDegree := by
   have blockBound := block.isLt
-  have coefficientBound : coefficient.val < 54 := coefficient.isLt
+  have coefficientBound : coefficient.val < 64 := coefficient.isLt
   change
-    block.val * 54 + coefficient.val < blockCount columns * 54
+    block.val * 64 + coefficient.val < blockCount columns * 64
   omega
 
 def layout (columns : Nat) :

@@ -30,6 +30,10 @@ neo-reductions = { path = "../neo-reductions" }
 p3-field = { workspace = true }
 thiserror = { workspace = true }
 
+[build-dependencies]
+neo-math = { path = "../neo-math" }
+p3-field = { workspace = true }
+
 [target.'cfg(target_vendor = "apple")'.dependencies]
 dispatch2 = { version = "0.3", default-features = false, features = ["std", "block2", "objc2"], optional = true }
 objc2 = { version = "0.6.4", default-features = false, features = ["std"], optional = true }

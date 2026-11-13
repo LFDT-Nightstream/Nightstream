@@ -2,6 +2,9 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+use neo_math::{Fq, D};
+use p3_field::{extension::BinomiallyExtendable, PrimeField64};
+
 fn main() {
     println!("cargo:rerun-if-changed=shaders/nightstream.metal");
     println!("cargo:rerun-if-changed=shaders/joint.metal");
@@ -34,12 +37,20 @@ fn main() {
     let air = out.join("nightstream.air");
     let library = out.join("nightstream-metal.metallib");
     let developer_dir = developer_dir();
+    // The shaders take the field and the ring from `neo-math`, so no shader
+    // repeats a profile value.
+    let profile = format!(
+        "constant ulong FQ_MODULUS = {:#x}ul;\nconstant ulong RING_DEGREE = {D};\nconstant ulong KX_NON_RESIDUE = {};\n",
+        Fq::ORDER_U64,
+        <Fq as BinomiallyExtendable<2>>::W.as_canonical_u64(),
+    );
+    std::fs::write(out.join("profile.metal"), profile).expect("write the shader profile header");
 
     let compile = run_xcrun(
         developer_dir.as_deref(),
         sdk,
         &["metal", "-std=metal3.0", "-c"],
-        &[&source, Path::new("-o"), &air],
+        &[Path::new("-I"), &out, &source, Path::new("-o"), &air],
     )
     .unwrap_or_else(|error| panic!("run Metal compiler: {error}"));
     if !compile.status.success() {

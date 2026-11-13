@@ -6,7 +6,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
 /-!
 Paper authority: SuperNeo v1.2, section 7.3, Step 4, `v = Q(r')`.
 Obligation: Lower
-`v = E_K + gamma^864 E_A + gamma^4320 eq(r', alpha) (F + gamma N)`.
+`v = E_K + gamma^1024 E_A + gamma^5120 eq(r', alpha) (F + gamma N)`.
 
 Inputs:
 - the 28-coordinate verifier-derived points `r'` and `alpha`;
@@ -101,7 +101,7 @@ private theorem matrixPowerOutput_linear
     NightstreamFPrime.Gadgets.Polynomial.Power.hornerInterface
   rw [NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.matrixExponent_eq]
   exact NightstreamFPrime.Layout.Polynomial.Power.compile_output_linear_succ
-    _ _ 863
+    _ _ 1023
 
 private theorem constraintPowerOutput_linear
     (interface :
@@ -377,7 +377,7 @@ private theorem matrixPower_totalRowCount
       (NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.matrixPowerCircuitAt
         interface offset).main
         (NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.matrixOffset
-          interface offset))) = 2592 := by
+          interface offset))) = 3072 := by
   unfold NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.matrixPowerCircuitAt
   rw [NightstreamFPrime.Layout.Polynomial.Power.ownedCircuit_totalRowCount
       _ _ _ inputs.gamma,
@@ -479,7 +479,7 @@ private theorem core_totalRowCount
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.circuit interface
         ).main offset)) =
-      3382 + terminalPhysicalRowCount interface offset := by
+      3862 + terminalPhysicalRowCount interface offset := by
   change R1CS.totalRowCount (flatConstraints
     (NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.opsAt
       interface offset)) = _
@@ -500,7 +500,7 @@ def footprint
     665 + terminalFreshColumnCount
       (Formal.finalIdentityInterface relation interface) offset
   physicalRowCount := fun offset =>
-    3382 + terminalPhysicalRowCount
+    3862 + terminalPhysicalRowCount
       (Formal.finalIdentityInterface relation interface) offset
   freshColumnCount_eq := by
     intro offset
@@ -533,7 +533,7 @@ theorem physicalRowCount_eq
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (Formal.finalIdentityCircuit relation interface).main offset)) =
-      3382 + terminalPhysicalRowCount
+      3862 + terminalPhysicalRowCount
         (Formal.finalIdentityInterface relation interface) offset :=
   (footprint relation interface inputs).physicalRowCount_eq offset
 
@@ -547,10 +547,10 @@ theorem physicalPrivateColumnCount_eq
         (Formal.finalIdentityCircuit relation interface).main offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
         (Formal.finalIdentityCircuit relation interface).main offset)) =
-      3382 + terminalFreshColumnCount
+      3862 + terminalFreshColumnCount
         (Formal.finalIdentityInterface relation interface) offset := by
   have logicalColumns : localLength (Circuit.ops
-      (Formal.finalIdentityCircuit relation interface).main offset) = 2717 := by
+      (Formal.finalIdentityCircuit relation interface).main offset) = 3197 := by
     exact (Formal.finalIdentityCircuit relation interface).privateCount_eq offset
   rw [logicalColumns, freshColumnCount_eq relation interface inputs offset]
   omega
@@ -568,14 +568,14 @@ def plan
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.Interface)
     (offset : Nat) : R1CS.LoweringPlan where
   constraints := logicalConstraints interface offset
-  firstFresh := offset + 2717
+  firstFresh := offset + 3197
 
 def physicalRows
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.Interface)
     (offset : Nat) : List R1CS.Row :=
   (R1CS.lowerConstraints (logicalConstraints interface offset)
-    (offset + 2717)).rows
+    (offset + 3197)).rows
 
 def PhysicalHolds
     (interface :
@@ -591,7 +591,7 @@ private theorem logicalConstraints_varsBelow
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.Assumptions
         interface offset env) :
     ∀ expression ∈ logicalConstraints interface offset,
-      expression.VarsBelow (offset + 2717) := by
+      expression.VarsBelow (offset + 3197) := by
   have scope :=
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.flatConstraints_varsBelow
       interface offset env assumptions
@@ -608,7 +608,7 @@ theorem physical_implies_logicalConstraints
     ConstraintsHold env (logicalConstraints interface offset) := by
   unfold PhysicalHolds physicalRows at physical
   exact R1CS.lowerConstraints_sound env
-    (logicalConstraints interface offset) (offset + 2717) physical
+    (logicalConstraints interface offset) (offset + 3197) physical
 
 theorem physical_implies_spec
     (interface :
@@ -638,7 +638,7 @@ theorem physical_complete
         interface offset env) :
     ∃ completed,
       AgreesOutside env completed offset
-          (2717 + R1CS.totalFreshCount
+          (3197 + R1CS.totalFreshCount
             (logicalConstraints interface offset)) ∧
         PhysicalHolds interface offset completed := by
   rcases NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.completeness
@@ -646,14 +646,14 @@ theorem physical_complete
     ⟨logicalEnv, logicalAgrees, logicalRows⟩
   have lengthEq : localLength (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.main interface)
-        offset) = 2717 := by
+        offset) = 3197 := by
     change localLength (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.circuit interface
-        ).main offset) = 2717
+        ).main offset) = 3197
     exact NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity.localLength_eq
       interface offset
   have logicalAgreesFixed :
-      AgreesOutside env logicalEnv offset 2717 := by
+      AgreesOutside env logicalEnv offset 3197 := by
     rw [lengthEq] at logicalAgrees
     exact logicalAgrees
   have logicalAssumptions :
@@ -673,7 +673,7 @@ theorem physical_complete
       ConstraintsHold logicalEnv (logicalConstraints interface offset) := by
     exact logicalRows
   rcases R1CS.lowerConstraints_complete logicalEnv
-      (logicalConstraints interface offset) (offset + 2717) scope logicalHolds
+      (logicalConstraints interface offset) (offset + 3197) scope logicalHolds
       with ⟨completed, physicalAgrees, physicalRowsHold⟩
   refine ⟨completed, logicalAgreesFixed.append physicalAgrees, ?_⟩
   exact physicalRowsHold

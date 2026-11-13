@@ -8,14 +8,14 @@ at `γ` and expose the verifier-owned initial SumCheck claim.
 
 Inputs:
 - verifier-derived `γ`;
-- 864 `Eval_K` coefficients;
-- 3,456 `Eval_A` coefficients.
+- 1024 `Eval_K` coefficients;
+- 4,096 `Eval_A` coefficients.
 
 Outputs:
 - the child-owned initial SumCheck claim.
 
 Constraint groups:
-- one reusable quadratic-extension Horner chain over 4,320 coefficients;
+- one reusable quadratic-extension Horner chain over 5,120 coefficients;
 - no expected-output or boundary-copy row.
 
 Parent coverage:
@@ -155,7 +155,7 @@ private theorem program_totalRowCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalRowCount
       (recipeConstraints offset (program interface offset).recipes) =
-        12957 := by
+        15357 := by
   calc
     _ = 3 * ((coefficientExprs interface offset).length - 1) := by
       simpa only [program, ownedInterface,
@@ -163,7 +163,7 @@ private theorem program_totalRowCount
         compile_totalRowCount offset (interface.gamma offset)
           (coefficientExprs interface offset) inputs.gamma
           (coefficientExprs_linear interface offset inputs)
-    _ = 12957 := by
+    _ = 15357 := by
       rw [coefficientExprs_length]
 
 def footprint
@@ -172,7 +172,7 @@ def footprint
       InputsLinear (Formal.initialClaimInterface interface) offset) :
     R1CS.CircuitFootprint (Formal.initialClaimCircuit interface) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 12957
+  physicalRowCount := fun _ => 15357
   freshColumnCount_eq := by
     intro offset
     unfold Formal.initialClaimCircuit
@@ -201,7 +201,7 @@ theorem physicalRowCount_eq
       InputsLinear (Formal.initialClaimInterface interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.initialClaimCircuit interface).main offset)) = 12957 :=
+      (Formal.initialClaimCircuit interface).main offset)) = 15357 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
@@ -212,10 +212,10 @@ theorem physicalPrivateColumnCount_eq
     localLength (Circuit.ops (Formal.initialClaimCircuit interface).main
         offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-        (Formal.initialClaimCircuit interface).main offset)) = 12957 := by
+        (Formal.initialClaimCircuit interface).main offset)) = 15357 := by
   have logicalColumns :
       localLength (Circuit.ops (Formal.initialClaimCircuit interface).main
-        offset) = 12957 := by
+        offset) = 15357 := by
     unfold Formal.initialClaimCircuit
     rw [FormalCircuit.withConstantFootprint_main]
     exact NightstreamFPrime.Lifecycle.PiCCS.v1_2.InitialClaim.localLength_eq

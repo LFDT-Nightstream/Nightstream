@@ -2,8 +2,9 @@
 //! 7.6). The WASM relation of `neo-wasm` and the Starstream interleaving
 //! relation both use it. One Nebula step proves `rows` consecutive rows, so
 //! the rows share the fixed F′ cost of a fold. Its private words are the
-//! witnesses `z` of its rows, one block of the one-row width each, and every
-//! block uses the constant-one column of block 0. Its relation is the
+//! witnesses `z` of its rows. The default layout uses one block of the one-row
+//! width per row. `with_shared` stores local columns by row and selected shared
+//! columns by group. Both layouts use one constant-one column. Its relation is the
 //! rank-one rows of each row, then one equality row for each continuity link
 //! between neighbor rows. Its state is the continuity words, one per link:
 //! the `next_step_column`s of its first row in, the `previous_step_column`s
@@ -25,6 +26,10 @@ use super::expr::Expr;
 use super::geometry::Geometry;
 use super::rows::View;
 use super::{MemoryPreload, Program};
+
+mod shared;
+pub use shared::SharedColumns;
+use shared::StepLayout;
 
 /// The terms `(column, coefficient)` of one side of a rank-one row.
 pub type Terms = Vec<(usize, F)>;
@@ -139,10 +144,7 @@ pub struct R1csApplication<Id> {
     /// The one-row `(previous_step_column, next_step_column)` of each
     /// continuity link, in link order.
     links: Arc<Vec<(usize, usize)>>,
-    rows: NonZeroUsize,
-    /// The witness width of one row.
-    row_width: usize,
-    one: usize,
+    layout: StepLayout,
     binding: CatalogBinding<Id>,
 }
 
@@ -160,6 +162,8 @@ pub enum R1csApplicationError {
     Column,
     #[error("the batched witness or relation dimensions overflow")]
     Dimension,
+    #[error("a shared column is repeated, outside the row, or used by the constant, continuity, or memory interface")]
+    SharedColumn,
 }
 
 /// Why a step input has no step.
@@ -171,6 +175,8 @@ pub enum R1csStepError {
     State,
     #[error(transparent)]
     Row(#[from] CatalogRowError),
+    #[error("rank-one row {row} of the step relation does not hold")]
+    Relation { row: usize },
 }
 
 fn previous(link: &(usize, usize)) -> usize {
@@ -179,16 +185,6 @@ fn previous(link: &(usize, usize)) -> usize {
 
 fn next(link: &(usize, usize)) -> usize {
     link.1
-}
-
-/// The column of the one-row column `column` in row `row` of a step. Every
-/// row uses the constant-one column of row 0.
-fn step_column(row_width: usize, one: usize, row: usize, column: usize) -> usize {
-    if column == one {
-        column
-    } else {
-        column + row * row_width
-    }
 }
 
 impl<Id: Clone + Eq> R1csApplication<Id> {
@@ -203,21 +199,42 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
         catalog: &MemoryCatalog<Id>,
         size: Size<Id>,
     ) -> Result<Self, R1csApplicationError> {
+        Self::with_shared(relation, continuity, catalog, size, SharedColumns::NONE)
+    }
+
+    /// SPEC.md section 7.6. Share the selected columns in consecutive groups.
+    /// The final group can have fewer rows. Interface columns cannot be shared.
+    pub fn with_shared(
+        relation: RowRelation,
+        continuity: &ContinuityCatalog,
+        catalog: &MemoryCatalog<Id>,
+        size: Size<Id>,
+        shared: SharedColumns,
+    ) -> Result<Self, R1csApplicationError> {
+        let layout = StepLayout::new(relation.width, relation.one, size.rows, &shared)?;
         let links: Vec<(usize, usize)> = continuity
             .links()
             .map(|link| (link.previous_step_column, link.next_step_column))
             .collect();
         let (row_width, one) = (relation.width, relation.one);
         let check_column = |column| {
-            if column < row_width {
-                Ok(())
-            } else {
+            if column >= row_width {
                 Err(R1csApplicationError::Column)
+            } else if layout.is_shared(column) {
+                Err(R1csApplicationError::SharedColumn)
+            } else {
+                Ok(())
             }
         };
         check_column(one)?;
-        for (column, _) in relation.rows.iter().flatten().flatten() {
-            check_column(*column)?;
+        if relation
+            .rows
+            .iter()
+            .flatten()
+            .flatten()
+            .any(|(column, _)| *column >= row_width)
+        {
+            return Err(R1csApplicationError::Column);
         }
         for (previous, next) in &links {
             check_column(*previous)?;
@@ -239,9 +256,6 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
                 MemoryPortActivation::Always => {}
             }
         }
-        row_width
-            .checked_mul(size.rows.get())
-            .ok_or(R1csApplicationError::Dimension)?;
         relation
             .rows
             .len()
@@ -253,18 +267,16 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
                     .and_then(|continuity| rows.checked_add(continuity))
             })
             .ok_or(R1csApplicationError::Dimension)?;
-        let column = |row: usize, column: usize| step_column(row_width, one, row, column);
+        let column = |row: usize, column: usize| layout.column(row, column);
         let batched = catalog.batched(size.rows, column);
         let binding = CatalogBinding::new(&batched, &size.geometry, size.regions, &size.slots)?;
         if !binding.host_checked().is_empty() {
             return Err(R1csApplicationError::Unchecked);
         }
         Ok(Self {
-            relation: Arc::new(step_relation(&relation, &links, size.rows)),
+            relation: Arc::new(step_relation(&relation, &links, &layout)),
             links: Arc::new(links),
-            rows: size.rows,
-            row_width,
-            one,
+            layout,
             binding,
         })
     }
@@ -283,10 +295,45 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
         self.relation.len()
     }
 
+    /// Map a source column to its step witness position, or reject an index
+    /// outside this layout (SPEC.md section 7.6).
+    pub fn witness_column(&self, row: usize, column: usize) -> Option<usize> {
+        self.layout.checked_column(row, column)
+    }
+
+    /// Check the rank-one rows and constant word. Memory checks belong to
+    /// the complete Nebula relation (SPEC.md section 7.6).
+    pub fn check(&self, z: &[F]) -> Result<(), R1csStepError> {
+        if z.len() != self.aux() {
+            return Err(R1csStepError::Width {
+                words: z.len(),
+                expected: self.aux(),
+            });
+        }
+        let affine = |terms: &Terms| {
+            terms
+                .iter()
+                .fold(F::ZERO, |sum, (column, coefficient)| sum + *coefficient * z[*column])
+        };
+        if let Some(row) = self
+            .relation
+            .iter()
+            .position(|[a, b, c]| affine(a) * affine(b) != affine(c))
+        {
+            return Err(R1csStepError::Relation { row });
+        }
+        if z[self.layout.one] != F::ONE {
+            return Err(R1csStepError::Relation {
+                row: self.relation.len(),
+            });
+        }
+        Ok(())
+    }
+
     /// The state words that step input `z` ends in: the
     /// `previous_step_column`s of its last row.
     pub fn output_words(&self, z: &[F]) -> Vec<u64> {
-        self.link_words(z, self.rows.get() - 1, previous)
+        self.link_words(z, self.layout.rows.get() - 1, previous)
     }
 
     /// The position in the state words of the link whose one-row
@@ -296,7 +343,7 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
     }
 
     fn column(&self, row: usize, column: usize) -> usize {
-        step_column(self.row_width, self.one, row, column)
+        self.layout.column(row, column)
     }
 
     fn link_words(&self, z: &[F], row: usize, column: fn(&(usize, usize)) -> usize) -> Vec<u64> {
@@ -317,7 +364,7 @@ impl<Id: Clone + Eq> Application for R1csApplication<Id> {
     }
 
     fn aux(&self) -> usize {
-        self.rows.get() * self.row_width
+        self.layout.words()
     }
 
     fn port_count(&self) -> usize {
@@ -335,9 +382,9 @@ impl<Id: Clone + Eq> Application for R1csApplication<Id> {
     /// of `z[one]` (Lean `PortApp.fixColumn`), so a row `x · (x − one)` reads
     /// only `x` and gives `x` a bit slot (SPEC.md section 7.6).
     fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
-        let one = view.aux(self.one);
+        let one = view.aux(self.layout.one);
         let mut z: Vec<Expr> = (0..self.aux()).map(|column| view.aux(column)).collect();
-        z[self.one] = Expr::constant(1);
+        z[self.layout.one] = Expr::constant(1);
         let affine = |terms: &Terms| {
             terms
                 .iter()
@@ -351,7 +398,7 @@ impl<Id: Clone + Eq> Application for R1csApplication<Id> {
             .map(|[a, b, c]| affine(c) - affine(a) * affine(b))
             .collect();
         rows.push(one - Expr::constant(1));
-        let last = self.rows.get() - 1;
+        let last = self.layout.rows.get() - 1;
         for (k, link) in self.links.iter().enumerate() {
             rows.push(z[self.column(0, next(link))].clone() - view.input(k));
             rows.push(z[self.column(last, previous(link))].clone() - view.output(k));
@@ -378,15 +425,22 @@ impl<Id: Clone + Eq> Application for R1csApplication<Id> {
     }
 }
 
-/// The rank-one rows of one step of `rows` rows: the rows of `relation` for
-/// row 0, then for row 1, and so on, then for each pair of neighbor rows one
-/// row `z[previous] − z[next] = 0` for each link, as `(A·z)(z[one]) = 0`.
-fn step_relation(relation: &RowRelation, links: &[(usize, usize)], rows: NonZeroUsize) -> Vec<[Terms; 3]> {
-    let column = |row: usize, column: usize| step_column(relation.width, relation.one, row, column);
-    let rows = rows.get();
-    let mut step = Vec::with_capacity(rows * relation.rows.len() + (rows - 1) * links.len());
+/// SPEC.md section 7.6. Place each source row, retaining a row over only
+/// shared columns and the constant once per group, then append the links.
+fn step_relation(relation: &RowRelation, links: &[(usize, usize)], layout: &StepLayout) -> Vec<[Terms; 3]> {
+    let column = |row: usize, column: usize| layout.column(row, column);
+    let block_only = |sides: &[Terms; 3]| {
+        let mut columns = sides.iter().flatten().map(|(column, _)| *column);
+        columns.clone().any(|column| layout.is_shared(column))
+            && columns.all(|column| column == relation.one || layout.is_shared(column))
+    };
+    let rows = layout.rows.get();
+    let mut step = Vec::new();
     for row in 0..rows {
         for sides in &relation.rows {
+            if row % layout.group_rows.get() != 0 && block_only(sides) {
+                continue;
+            }
             step.push(sides.clone().map(|terms| {
                 terms
                     .into_iter()
@@ -402,7 +456,7 @@ fn step_relation(relation: &RowRelation, links: &[(usize, usize)], rows: NonZero
                     (column(row - 1, previous(link)), F::ONE),
                     (column(row, next(link)), -F::ONE),
                 ],
-                vec![(relation.one, F::ONE)],
+                vec![(layout.one, F::ONE)],
                 Vec::new(),
             ]);
         }

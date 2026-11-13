@@ -9,8 +9,11 @@ mod support;
 
 mod factored_rows;
 mod final_ir;
+mod guard_fusion;
 #[cfg(feature = "metal")]
 mod metal_parity;
+mod packed_boolean;
+mod packed_product;
 mod setup_runs;
 
 use super::{BoundedDepth, BoundedDepthError, Envelope, LIGHT_FOLD_CAP};

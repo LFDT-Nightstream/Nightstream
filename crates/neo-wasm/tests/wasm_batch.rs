@@ -42,10 +42,18 @@ fn batched_at_one_includes_lookup_constraints() {
         single.sparse_r1cs.n > core.structure().n(),
         "lookup constraints must be included"
     );
-    // Advice is Boolean, except the 16-by-16-bit limb products.
+    // Each advice column has a range check: a bit, or a bounded product
+    // with its declared bit width. None is an unchecked field element.
     let advice = &single.widths[core.structure().m()..];
-    assert!(advice.iter().all(|&width| width == 1 || width == 32));
-    assert!(advice.contains(&32), "limb products must declare 32 bits");
+    let widths: std::collections::BTreeSet<usize> = advice.iter().copied().collect();
+    assert!(
+        widths.iter().all(|width| (1..64).contains(width)),
+        "advice widths {widths:?}"
+    );
+    assert!(
+        widths.iter().any(|&width| width > 1),
+        "bounded products must declare their bit width"
+    );
     assert_eq!(single.sparse_r1cs.m_in, core.public_input_count());
 }
 

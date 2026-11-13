@@ -12,6 +12,93 @@ use p3_field::PrimeCharacteristicRing;
 #[test]
 fn factored_rows_match_the_slot_layout_rows() {
     let packages = packages();
+    check_factored(&packages);
+}
+
+#[test]
+fn packed_application_rows_match_the_slot_layout_rows() {
+    let mut builder = crate::application::ApplicationBuilder::new(32).unwrap();
+    for bit in builder.private_inputs().to_vec() {
+        builder
+            .assert_product(bit.into(), bit.into(), bit.into())
+            .unwrap();
+    }
+    let state = builder.input_state();
+    let application = builder.finish(state.map(Into::into)).unwrap();
+    let packages = packages()
+        .with_application(application.records().clone(), 32, application.shape())
+        .unwrap();
+    check_factored(&packages);
+}
+
+#[test]
+fn native_power_and_affine_application_match_actual_factored_matrices() {
+    let mut builder = crate::application::ApplicationBuilder::new(1).unwrap();
+    let x = crate::application::Affine::from(builder.private_inputs()[0])
+        + crate::application::Affine::constant(F::from_u64(19));
+    let x2 = builder.multiply(x.clone(), x.clone()).unwrap();
+    let x4 = builder.multiply(x2.into(), x2.into()).unwrap();
+    let x6 = builder.multiply(x4.into(), x2.into()).unwrap();
+    let x7 = builder.multiply(x6.into(), x).unwrap();
+    let copy = builder
+        .affine(crate::application::Affine::from(x7) * F::from_u64(3))
+        .unwrap();
+    let mut state = builder.input_state().map(crate::application::Affine::from);
+    state[0] = state[0].clone() + crate::application::Affine::from(copy);
+    let application = builder.finish(state).unwrap();
+    let packages = packages()
+        .with_application(application.records().clone(), 1, application.shape())
+        .unwrap();
+    for package in [packages.light(), packages.refresh()] {
+        let rows = package.plan_rows().unwrap();
+        assert_eq!(
+            (0..rows.ordinary_row_count())
+                .filter(|&row| rows.port(row, 3).next().is_some())
+                .count(),
+            1
+        );
+        let relation = Relation::new(package, MINIMUM_SECURITY_BITS).unwrap();
+        assert_eq!(relation.params().b(), 2);
+        assert_eq!(relation.params().k_rho(), 16);
+    }
+    check_factored(&packages);
+}
+
+#[test]
+fn affine_reconstruction_restores_native_output_aliases() {
+    let mut builder = crate::application::ApplicationBuilder::new(1).unwrap();
+    let input = crate::application::Affine::from(builder.private_inputs()[0]);
+    let digest = builder.poseidon2_hash(&[input]).unwrap();
+    let copy = builder.affine(digest[0].clone() * F::from_u64(3)).unwrap();
+    let mut output = digest;
+    output[0] = copy.into();
+    let application = builder.finish(output).unwrap();
+    let packages = packages()
+        .with_application(application.records().clone(), 1, application.shape())
+        .unwrap();
+    for package in [packages.light(), packages.refresh()] {
+        let layout = package.layout().unwrap();
+        let mut logical = (0..layout.width())
+            .map(|index| F::from_u64((index % 3) as u64) - F::ONE)
+            .collect::<Vec<_>>();
+        logical[0] = F::ONE;
+        let restored = package.source_assignment(&logical).unwrap();
+        let plan = package.plan_rows().unwrap();
+        let source = package.source_rows().unwrap();
+        assert_eq!(source.row_count() - plan.row_count(), 1);
+        assert_eq!(source.residual(0, &restored), F::ZERO);
+        for row in 0..4 {
+            for port in 0..3 {
+                assert_eq!(
+                    source.evaluate(row + 1, port, &restored),
+                    layout.evaluate(&plan, row, port, &logical).unwrap()
+                );
+            }
+        }
+    }
+}
+
+pub(super) fn check_factored(packages: &nightstream_fprime::BoundedDepthPackages) {
     for package in [packages.light(), packages.refresh()] {
         let relation = Relation::new(package, MINIMUM_SECURITY_BITS).expect("relation");
         let (rows, layout) = (package.plan_rows().expect("rows"), package.layout().expect("layout"));

@@ -128,7 +128,7 @@ impl ApplicationBuilder {
         });
     }
 
-    fn validate(&self, expression: &Affine, causal: bool) -> Result<(), ApplicationError> {
+    pub(super) fn validate(&self, expression: &Affine, causal: bool) -> Result<(), ApplicationError> {
         expression.expression.validate(
             self.variable_count,
             self.generated_start - 4..self.generated_start,
@@ -172,6 +172,11 @@ impl ApplicationBuilder {
 
     pub fn assert_equal(&mut self, left: Affine, right: Affine) -> Result<(), ApplicationError> {
         self.equality_row(left, right).map(|_| ())
+    }
+
+    /// Constrains `a · b = c` without generating a witness word.
+    pub fn assert_product(&mut self, a: Affine, b: Affine, c: Affine) -> Result<(), ApplicationError> {
+        self.constrain(a, b, c).map(|_| ())
     }
 
     /// The row `a · b = c` as given, with no generated variable. A circuit

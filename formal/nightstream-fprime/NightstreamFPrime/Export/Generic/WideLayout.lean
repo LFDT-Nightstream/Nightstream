@@ -65,6 +65,32 @@ theorem sourceEnv_widen {width : Nat} (layout : LogicalPlan.Layout width narrow)
   · exact widenForm_eval le assignment _
   · rfl
 
+theorem widenForm_eval_restrict (le : narrow ≤ wide) (assignment : Assignment F wide) :
+    ∀ entries : List (SparseEntry narrow),
+      (widenForm le ⟨entries⟩).eval assignment =
+        (⟨entries⟩ : SparseForm narrow).eval (fun column => assignment (Fin.castLE le column))
+  | [] => by
+      change (SparseForm.empty : SparseForm wide).eval _ = (SparseForm.empty : SparseForm narrow).eval _
+      simp only [SparseForm.empty_eval]
+  | entry :: rest => by
+      have narrowSplit : (⟨entry :: rest⟩ : SparseForm narrow) =
+          SparseForm.add (SparseForm.singleton entry.column entry.coefficient) ⟨rest⟩ := rfl
+      have wideSplit : widenForm le ⟨entry :: rest⟩ =
+          SparseForm.add (SparseForm.singleton (Fin.castLE le entry.column) entry.coefficient)
+            (widenForm le ⟨rest⟩) := rfl
+      rw [wideSplit, narrowSplit, SparseForm.add_eval, SparseForm.add_eval,
+        SparseForm.singleton_eval, SparseForm.singleton_eval, widenForm_eval_restrict le assignment rest]
+
+theorem sourceEnv_widen_restrict {width : Nat} (layout : LogicalPlan.Layout width narrow)
+    (le : narrow ≤ wide) (assignment : Assignment F wide) :
+    LogicalPlan.sourceEnv (widen layout le) assignment =
+      LogicalPlan.sourceEnv layout (fun column => assignment (Fin.castLE le column)) := by
+  funext column
+  unfold LogicalPlan.sourceEnv
+  split
+  · exact widenForm_eval_restrict le assignment _
+  · rfl
+
 theorem one_widen {width : Nat} (layout : LogicalPlan.Layout width narrow) (le : narrow ≤ wide)
     (assignment : Assignment F narrow) :
     extend (wide := wide) assignment (widen layout le).one = assignment layout.one :=

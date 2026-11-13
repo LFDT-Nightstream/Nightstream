@@ -2,14 +2,15 @@
 //! `ApplicationBuilder` in the order of `Lifecycle/Nebula/MemoryCircuit.lean`:
 //! nine sponge children (the two state digests, the three record chains, the
 //! `η` transcript and its three squeezes), then the hash rows, the memory
-//! rows, and the application's rows. `tests/nebula/parity.rs` requires the
-//! machine's circuit to equal each Lean package's, row for row. It does not
+//! rows, and the application's rows. The unshared constructor retains the
+//! row parity checks against the Lean packages. It does not
 //! own witness values. Its output rows are the `state_out` hash rows, which
 //! are not the last rows.
 
 use neo_ccs::crypto::poseidon2_goldilocks::{round_constants, Poseidon2RoundConstants, RATE, WIDTH};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
+use std::collections::BTreeSet;
 
 use super::app::Application;
 use super::expr::{lower_affine, lower_constraint, Expr};
@@ -98,12 +99,51 @@ pub(super) fn memory_circuit_phases<A: Application>(
     geometry: &Geometry,
     app: &A,
 ) -> Result<(ApplicationCircuit, Vec<Phase>), crate::Error> {
+    build(geometry, app, true)
+}
+
+#[cfg(test)]
+pub(super) fn memory_circuit_unshared<A: Application>(
+    geometry: &Geometry,
+    app: &A,
+) -> Result<ApplicationCircuit, crate::Error> {
+    build(geometry, app, false).map(|(circuit, _)| circuit)
+}
+
+fn build<A: Application>(
+    geometry: &Geometry,
+    app: &A,
+    share_reads: bool,
+) -> Result<(ApplicationCircuit, Vec<Phase>), crate::Error> {
     let layout = Layout::new(geometry, app.width(), app.aux());
     let mut builder = ApplicationBuilder::new(layout.count())?;
-    let wires: Vec<Variable> = builder.private_inputs().to_vec();
+    let source_wires: Vec<Variable> = builder.private_inputs().to_vec();
     let digest = plan_digest(geometry);
     let (ops_header, mem_header) = (header(Lane::Ops, &digest), header(Lane::Mem, &digest));
     let headers = std::array::from_fn(|i| if i < 4 { ops_header[i] } else { mem_header[i % 4] });
+    let source_sym = Sym::new(geometry, layout, &source_wires, headers);
+    let source_view = View::new(&source_sym);
+    let source_rows = app.rows(&source_view)?;
+    let readable = source_view.variables();
+    for row in &source_rows {
+        if let Some(variable) = row.variable_outside(&readable) {
+            return Err(ApplicationError::VariableOutOfScope(variable.index()).into());
+        }
+    }
+    let shared = if share_reads {
+        super::readonly::ReadOnlyValues::checked(&source_rows, geometry, &layout, &source_wires)
+    } else {
+        super::readonly::ReadOnlyValues::default()
+    };
+    let rows = source_rows
+        .iter()
+        .map(|row| shared.rename(row))
+        .collect::<Vec<_>>();
+    let mut hints = app.poseidon2_hints(&source_view)?;
+    for hint in &mut hints {
+        hint.lanes = std::array::from_fn(|lane| shared.rename(&hint.lanes[lane]));
+    }
+    let wires = shared.wires(&source_wires);
     let sym = Sym::new(geometry, layout, &wires, headers);
     let constants = round_constants();
     let run = |count: usize, index: &dyn Fn(usize) -> usize| (0..count).map(|k| sym.word(index(k))).collect::<Vec<_>>();
@@ -194,22 +234,26 @@ pub(super) fn memory_circuit_phases<A: Application>(
         lower_constraint(&mut builder, &(lane(state, 0) - sym.word(words::ETA_FRESH + k)))?;
     }
     mark(&builder, "Sponge output bindings");
+    let mut checked_bits = BTreeSet::new();
     for (name, rows) in sym.memory_row_groups() {
         for row in &rows {
+            if !shared.is_empty()
+                && ((name == "Bit rows" && super::readonly::repeated_bit(row, &mut checked_bits))
+                    || (name == "Operation slot rows" && super::readonly::zero_row(row)))
+            {
+                continue;
+            }
             lower_constraint(&mut builder, row)?;
         }
         mark(&builder, name);
     }
     let view = View::new(&sym);
-    let readable = view.variables();
-    for row in &app.rows(&view)? {
-        if let Some(variable) = row.variable_outside(&readable) {
-            return Err(ApplicationError::VariableOutOfScope(variable.index()).into());
-        }
-        lower_constraint(&mut builder, row)?;
-    }
+    let first_app_row = builder.row_count();
+    let aliases = super::poseidon::lower(&mut builder, &rows, hints, &view, app.aux())?;
     mark(&builder, "Application rows");
-    Ok((builder.finish_with_output_rows(output_rows)?, phases))
+    let circuit = builder.finish_with_output_rows(output_rows)?;
+    super::poseidon::check_prefix(&circuit, first_app_row, &aliases)?;
+    Ok((circuit, phases))
 }
 
 #[cfg(test)]

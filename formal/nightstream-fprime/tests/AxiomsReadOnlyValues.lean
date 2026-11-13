@@ -1,0 +1,11 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Export.Generic.ReadOnlyValues
+
+#audit_axioms NightstreamFPrime.Export.Generic.ReadOnlyValues.word_bits_eq
+#audit_axioms NightstreamFPrime.Export.Generic.ReadOnlyValues.read_rows_bits_eq
+#audit_axioms NightstreamFPrime.Export.Generic.ReadOnlyValues.port_bits_eq
+#audit_axioms NightstreamFPrime.Export.Generic.ReadOnlyValues.agree
+#audit_axioms NightstreamFPrime.Export.Generic.ReadOnlyValues.renamed_holds
+#audit_axioms NightstreamFPrime.Export.Generic.ReadOnlyValues.reduced_holds
+#audit_axioms NightstreamFPrime.Export.Generic.ReadOnlyValues.reconstruct
+#audit_axioms NightstreamFPrime.Export.Generic.ReadOnlyValues.honest_complete

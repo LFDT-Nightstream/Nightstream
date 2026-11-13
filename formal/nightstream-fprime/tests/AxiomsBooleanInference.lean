@@ -1,0 +1,11 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Export.Generic.BooleanInference
+
+#audit_axioms NightstreamFPrime.Export.Generic.BooleanInference.boolean_of_truth
+#audit_axioms NightstreamFPrime.Export.Generic.BooleanInference.checked_truth
+#audit_axioms NightstreamFPrime.Export.Generic.BooleanInference.gate_valid
+#audit_axioms NightstreamFPrime.Export.Generic.BooleanInference.derived_valid
+#audit_axioms NightstreamFPrime.Export.Generic.BooleanInference.booleanRow_holds
+#audit_axioms NightstreamFPrime.Export.Generic.BooleanInference.redundant_rows
+#audit_axioms NightstreamFPrime.Export.Generic.BooleanInference.slots_valid
+#audit_axioms NightstreamFPrime.Export.Generic.BooleanInference.honest_layout

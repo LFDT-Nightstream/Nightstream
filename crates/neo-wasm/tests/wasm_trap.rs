@@ -48,6 +48,8 @@ fn div_by_zero_trap_is_a_provable_terminal_state() {
     assert!(checked.run.results.is_empty());
     let last = checked.trace.last().expect("non-empty trace");
     assert_eq!(last.opcode, WasmOpcode::I32DivU);
+    common::shared_host::check(&checked.trace);
+    common::shared_host::prove(&checked.trace, &checked.artifacts);
     assert!(last.state_after.trapped);
     assert!(!last.state_after.output.enabled);
 }

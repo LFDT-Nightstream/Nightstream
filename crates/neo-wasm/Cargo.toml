@@ -58,5 +58,6 @@ wasmtime = { version = "51.0.0-rc.1", default-features = false, features = [
 ] }
 
 [dev-dependencies]
+nightstream-fprime = { path = "../nightstream-fprime" }
 serde_json = { workspace = true }
 wat = "1"

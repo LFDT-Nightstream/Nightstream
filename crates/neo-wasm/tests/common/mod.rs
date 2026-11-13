@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 pub mod host_event_fixture;
+pub mod shared_host;
 
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;

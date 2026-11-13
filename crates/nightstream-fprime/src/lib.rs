@@ -19,7 +19,7 @@ pub use application_records::{
 };
 pub use bounded_depth::{
     bounded_depth_identity,
-    layout::{LogicalLayout, SlotSpans},
+    layout::{Kind as SlotKind, LogicalLayout, SlotSpans},
     load_bounded_depth_finish, load_bounded_depth_packages, load_pinned_bounded_depth_finish,
     load_pinned_bounded_depth_packages, parse_atoms,
     words::{encode_digest, Child, FoldWords, KWords, Slot, State as BoundedDepthState, StepWords, PUBLIC_WORDS},

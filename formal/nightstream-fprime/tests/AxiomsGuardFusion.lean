@@ -1,0 +1,15 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Export.Generic.GuardFusion
+
+#audit_axioms NightstreamFPrime.Export.Generic.GuardFusion.complementary_iff
+#audit_axioms NightstreamFPrime.Export.Generic.GuardFusion.sum_bit_exclusive
+#audit_axioms NightstreamFPrime.Export.Generic.GuardFusion.family_iff
+#audit_axioms NightstreamFPrime.Export.Generic.GuardFusion.complementary_rows
+#audit_axioms NightstreamFPrime.Export.Generic.GuardFusion.restore_sources
+#audit_axioms NightstreamFPrime.Export.Generic.GuardFusion.affine_restore_sources
+
+#audit_axioms NightstreamFPrime.Export.Generic.GuardFusion.subset_bit
+#audit_axioms NightstreamFPrime.Export.Generic.GuardFusion.disjoint_sums
+#audit_axioms NightstreamFPrime.Export.Generic.GuardFusion.sumForms_eval
+#audit_axioms NightstreamFPrime.Export.Generic.GuardFusion.family_rows
+#audit_axioms NightstreamFPrime.Export.Generic.GuardFusion.power_restore_sources

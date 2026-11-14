@@ -14,6 +14,10 @@ Accepted by the owner on 2026-11-13:
 - The final proof must be a succinct argument of less than 200 KB.
 - The final verifier can read the compiled circuit. It must not read
   gigabytes of key material, and it must not read witness openings.
+- The matrices of the circuits are not committed. The verifier keeps its
+  pass over the compiled circuit, because a commitment adds prover time to
+  each `compress`.
+- No Rust code of the compression is translated to Lean with Aeneas.
 - The committed key. Preprocessing commits the Ajtai key with Akita, and the
   verifier holds the commitment in a verification key.
 - The verification key belongs to the generation of the circuit on the
@@ -199,6 +203,14 @@ WHIR with the same method was not selected. The estimate for its final
 proof was 300 to 450 KB, which is above the owner's limit. No such proof was
 built or measured.
 
+A commitment to the matrices of the circuits was not selected. With it, the
+verifier makes no pass over the rows, but each `compress` must also prove
+the matrices' part of the public weights. Prototypes outside the repository
+added 0.4 to 1.4 s of prover time and about 45 KB to each final proof. The
+cheaper prototype still gave the verifier 3.2 MB of ring rows of the
+circuits. A permutation argument in the style of PLONK was estimated at 2
+to 3 s.
+
 ### Error accounting
 
 With `|K| = q²`, `n` variables of `W`, `n_A` block variables of the key
@@ -271,7 +283,12 @@ fails again. The prover can extend one step and then compress.
 - The tests that compress a step of the reference application hold the
   prover's key and are ignored. CI runs the public test
   `hash_chain_compresses_and_verifies_without_the_ajtai_key` and the test
-  of the large pin alone (`scripts/ci_rust_tests.sh`). The other tests at
+  of the large pin alone (`scripts/ci_rust_tests.sh`). It also runs
+  `hash_chain_compresses_at_the_light_fold_cap` alone, which compresses at
+  the light slot's depth 64, the largest lookup table.
+- Each Akita call runs on a rayon pool with 64 MB thread stacks
+  (`neo_compress::akita::on_large_stacks`). Under fat LTO, Akita's NTT loops
+  need more than rayon's default 2 MB stack. The other tests at
   the production size run by hand. CI runs the edits of the argument on
   small claims only.
 - The project depends on Akita at one git revision. Akita is version 0.1.0,
@@ -288,16 +305,11 @@ fails again. The prover can extend one step and then compress.
 
 ### Open points
 
-- A commitment to the matrices of the circuits. With it, the verifier makes
-  no pass over the rows, and it replaces one function, the matrices' part of
-  the public weights at the point of the sum-check.
 - A review of the soundness of the committed key by a party outside the
   project.
 - A Lean statement of the Π_CCS run with one source, and a Lean link from
   the soundness of the argument to `Spec.CE.Holds` and to the Rust data.
 - Security against a quantum adversary of the transcript hashes.
-- A compression with a slot depth near the cap 64, which has the largest
-  lookup table. The tests compress after 5 steps or less.
 - A WASM build of the verifier.
 
 ## Scope and supersession

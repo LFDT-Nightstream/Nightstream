@@ -6,7 +6,9 @@ bounds it, and what you must trust. It does not restate proofs; read the cited
 declaration. `SPEC.md` describes the protocol: two step circuits, a light
 circuit and a refresh circuit, that fold into two slots. Adversary 6, the
 adversary of the compressed proof, has a Lean result for the argument only,
-in a model with ideal Akita openings. No Lean result gives its aim.
+in a model with ideal Akita openings. No Lean result gives its aim. Section
+Assumptions lists every assumption of the results, and section Hashed
+encodings lists every place that hashes or absorbs data.
 
 Names omit the common `NightstreamFPrime` namespace.
 `tests/EndpointCensus.lean` checks that every name on this page that starts
@@ -32,6 +34,80 @@ are not checked.
   (`Spec.RingStrongSet.lowNormInvertibility`), so no security result takes it
   as a premise.
 
+## Assumptions
+
+The results use only the assumptions of this list, and each is on a
+primitive. A random oracle on a derived object (the Poseidon2 hash, a
+transcript, `η`, or a challenge) is not an assumption. Such a model is
+`[P2-PERM]` and `[SPONGE]`, with the conditions of `[SPONGE]` as Lean
+hypotheses, or it is a Lean theorem. Section Hashed encodings gives the status
+of each condition. `scripts/check_assumptions.py`, in the `static` phase of
+`scripts/validate.sh`, fails when an entry of this list is not on the owner's
+list of 2026-11-13, when another part of this page or `SPEC.md` states an
+assumption, or when a trust item cites no assumption and is not a gap or a
+scope note.
+
+<!-- assumptions:begin -->
+- `P2-PERM`: the Poseidon2 permutation of width 16 over `F_q`
+  (`Spec.Poseidon2.permute`) is a uniform random permutation. The adversary
+  can evaluate it and its inverse, and each evaluation counts toward `N`. Each
+  ideal primitive of this list is independent of the others.
+- `SPONGE`: the sponge indifferentiability theorem (Bertoni, Daemen, Peeters
+  and Van Assche, EUROCRYPT 2008; for prime fields, Khovratovich, Marhuenda
+  Beltrán and Mennink, ePrint 2023/520). Under `[P2-PERM]`, the map from a
+  nonempty list of 12-lane rate blocks to the rate lanes of the sponge state
+  is indifferentiable from a uniform function on such lists. The advantage is
+  at most `spongeError N = N²/q⁴` for `N` permutation calls, because the
+  capacity is 4 lanes (`Spec.Sponge.spongeError`). `Spec.Sponge.Transfer`
+  states the theorem for one use, and `Spec.Sponge.transfer_le` moves a bound
+  of the use's random-oracle model to the ideal-permutation model. The theorem applies to a use only under its
+  conditions, which are Lean hypotheses: the hash pads injectively
+  (`Spec.Sponge.PaddingInjective`), each use absorbs an injective framing of its data, and
+  two uses never absorb the same block list (domain separation). Then two
+  distinct inputs give one 4-lane digest with probability at most `N²/q⁴` plus
+  `spongeError N`, because they absorb distinct block lists
+  (`Spec.Sponge.collision_blocks`). Two uses whose words start with tags that
+  differ at a position of both never absorb one block list
+  (`Spec.Sponge.blocks_ne_of_differ`).
+- `KECCAK`: SHAKE128, SHAKE256, SHA3-256 and the Keccak-f duplex of Akita in
+  the classical random-oracle model: the Ajtai setup reads SHAKE128 output
+  chunks as uniform words (trust item 1), and Akita reads its challenges as
+  uniform (trust item 7). The owner accepted this hash family for Akita on
+  2026-11-13 (`decisions/akita-compression.md`).
+- `MSIS`: Module-SIS for a uniform matrix of `κ = 18` rows over
+  `F_q[X]/(X^64 + 1)` at the chain norm, in the pinned lattice-estimator model
+  of `decisions/fprime-stage1-main-ajtai-setup.md` (trust item 2), and for the
+  Akita commitments at Akita's price (trust item 7).
+- `AKITA`: the knowledge soundness of Akita (ePrint 2026/1983) with the error
+  `εAkita` (`Export.BoundedDepth.FinalVerifier.AkitaKnowledge`).
+- `HN-A1`: HyperNova errata Assumption 1 for the two fold kinds, in the form of
+  trust item 3.
+<!-- assumptions:end -->
+
+## Hashed encodings
+
+Each row is a place where Nightstream hashes or absorbs data. The condition
+of `[SPONGE]` for a row is that the map from the data to the absorbed words is
+injective on the data that the verifier accepts, and that the row's words
+start with a domain that no other row starts with. The last column says how
+the Rust code is held to the Lean definition (trust item 5).
+
+| Use | Lean definition | Injectivity | Rust parity |
+| --- | --- | --- | --- |
+| Hash padding | `Spec.Poseidon2.hash` | Finding: zero padding gives `hash(m) = hash(m ‖ 0)`. Branch `poseidon2-padding` changes the padding; until then `Spec.Sponge.PaddingInjective` is a hypothesis. | Vectors (`crates/neo-ccs/tests/poseidon2_lean_vectors.rs`) |
+| State hash | `Lifecycle.BoundedDepth.statePreimage` | `Lifecycle.BoundedDepth.statePreimage_injective`, `Lifecycle.BoundedDepth.stateHash_collision` (well-formed states) | Indirect: the rows of the emitted packages (`crates/nightstream/tests/bounded_depth_base_steps.rs`) |
+| Slot digest | `Lifecycle.BoundedDepth.serializeSlot` | `Lifecycle.BoundedDepth.serializeSlot_injective` (shapes fixed by the type, depth below `q`) | Indirect, as above |
+| Fresh public input | `Lifecycle.encHash` | `Lifecycle.encHash_injective_fixed` | Indirect, as above |
+| Package identity | `Export.BoundedDepth.StepPackage.identity` | `Export.BoundedDepth.IdentityBinding.valuePreimage_injective`, `Export.BoundedDepth.IdentityBinding.identity_binds` (atoms and lengths below `2^64`) | Direct: `identity_code_matches_lean_on_the_probe_packages` |
+| Circuit key digest | None (`SPEC.md` section 4.4) | Open: Rust only | None |
+| Fold transcripts | `Lifecycle.RandomOracle.Schedule.challengeCalls` | `Lifecycle.RandomOracle.Schedule.challengeAddress_injective`, `Lifecycle.RandomOracle.Schedule.statementCalls_identify`, `Lifecycle.RandomOracle.Schedule.proverCalls_identify`; disjoint lanes: `Export.BoundedDepth.FoldSponge.rho_ne` | Indirect: package rows. The Π_RLC sampler is direct (`crates/neo-reductions/tests/pi_rlc_lean_parity.rs`) |
+| Compression transcript and Akita session bytes | None | Open: no Lean model | None |
+| Nebula record chains | `Lifecycle.Nebula.blocks` | `Lifecycle.Nebula.blocks_injective`, `Lifecycle.Nebula.blockChunks_injective` | Direct: fixtures (`crates/nightstream/tests/nebula/memory.rs`) |
+| Nebula `η` | `Lifecycle.Nebula.etaInputBlocks` | `Lifecycle.Nebula.etaInputBlocks_injective`, `Lifecycle.Nebula.EtaOracle.pointOf_injective`; the four reads: `Export.BoundedDepth.EtaSponge.reads_injective` | Indirect: package rows |
+| Nebula state words | `Lifecycle.Nebula.carryVector` | `Lifecycle.Nebula.carryVector_injective`, `Lifecycle.Nebula.stateWords_eq_or_collision` | Direct: terminal fixtures |
+| Application identity | None (`with_application`) | Open: Rust only | None |
+| Domain separation | `Export.DomainSeparation.uses` | `Export.DomainSeparation.separated`: two block lists whose words start with the tags of two distinct uses are distinct. A use owns its blocks: `Export.DomainSeparation.hash_owns`, `Export.DomainSeparation.fold_owns`, `Export.DomainSeparation.nebula_owns`. Open: inputs that an application hashes, which can start with any words. | Indirect for the tags that Lean defines. None for the four tags that Lean restates from Rust (circuit key, two compression domains, application identity) |
+
 ## Applications and setups
 
 An application is a step program (`Lifecycle.Stage1.Application.Program`).
@@ -50,8 +126,12 @@ packages also fix the memory geometry, and the verifier takes the program,
 which the adversary does not choose. The identity is the Poseidon2 hash of the
 encoding of the light and refresh packages
 (`Export.BoundedDepth.StepPackage.identity`), and every format decodes what it
-encodes. No Lean theorem states that equal identities give equal packages or
-a Poseidon2 collision.
+encodes. Two pairs of packages with one identity are equal, or their two hash
+inputs are distinct and have one hash
+(`Export.BoundedDepth.IdentityBinding.identity_binds`), when each atom and each
+array length of the encoding is below `2^64`, the range of Rust `u64`. The
+node words are injective on such values
+(`Export.BoundedDepth.IdentityBinding.valuePreimage_injective`).
 
 The state hash binds the key digest of each circuit
 (`Lifecycle.BoundedDepth.statePreimage`). Rust computes each key digest as the
@@ -85,7 +165,7 @@ item 5).
   other circuit otherwise (`Export.BoundedDepth.TerminalBridge.chosen`) meets this
   premise for every application (trust item 4). The decoded key digests are the words that
   the assignment carries; adversary 2 binds them to the verifier's keys. The
-  result is deterministic and needs no hardness premise.
+  result is deterministic and needs no assumption.
 
 **Packed native Boolean rows.** The adversary also controls both coordinates
 of each packed pair. It wins if the accepted fresh relation holds but one of
@@ -227,16 +307,16 @@ not change terminal source checks.
   `Lifecycle.Nifs.BindingBridge.differenceBounded`). Every bound that a
   history recovers is at most `B + cap · T · (b − 1)`
   (`Spec.Folding.Schedule.recoveredBounds_le`). Trust item 2 gives the
-  hardness premise.
+  assumption `[MSIS]` at that norm.
 - **Error terms:** the light Π_CCS test numerator is 524, against 4,589 for
   the refresh Π_CCS, and a light fork has one `ρ` coordinate, against 17 for
   a refresh fork (`Spec.Folding.Light.ErrorBudget.production_testNumerator`,
   `Spec.Folding.Light.ErrorBudget.production_forkCoordinates`,
   `Lifecycle.Nifs.VerifierErrorBudget.test_error_eq`). Each numerator is a
   per-call count over `q²`.
-- **Random-oracle result:** with every fold challenge read from a uniform
-  random oracle and an adversary that makes at most `Q` queries, the
-  probability that a fold succeeds and the extractor does not return its
+- **Random-oracle model:** in a model where each fold challenge is a uniform
+  value at the address of its sponge calls, for an adversary that makes at
+  most `Q` queries, the probability that a fold succeeds and the extractor does not return its
   witnesses is at most a statistical term, a state-collision term and a
   kernel term (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.knowledge_error_le`,
   `Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.knowledge_error_le`). The
@@ -255,6 +335,9 @@ not change terminal source checks.
   named prior states, and a collision finder outputs the colliding input
   pair, whose two inputs have one length (the sponge pads with zeros and does
   not encode the length) (`Lifecycle.BoundedDepth.RandomOracle.HashSolver.hashCollisions_le_finder`).
+  Under `[P2-PERM]` and `[SPONGE]`, two distinct inputs of one length give
+  one digest with probability at most `N²/q⁴ + spongeError N`, when
+  `PaddingInjective` holds.
   Averaged over the SHAKE128 key setup at key width `2^26`, the kernel term is
   an MSIS advantage for a uniform matrix at the chain norm plus a programming
   error below `2^−192`, so each fold's bound uses only the two algorithms
@@ -263,9 +346,32 @@ not change terminal source checks.
   Lean bounds neither the MSIS advantage nor the collision advantage
   numerically (trust item 2), and it states the machines' work in adversary
   runs, not in time.
-- **Not covered:** the model reads every challenge from a random oracle. The
-  step circuits recompute the challenges with Poseidon2, so this result
-  bounds no deployed check (trust item 3).
+- **The sponge:** the model's address of a challenge is the list of sponge
+  calls before its read (`Lifecycle.RandomOracle.Schedule.challengeCalls`).
+  Distinct challenges have distinct addresses
+  (`Lifecycle.RandomOracle.Schedule.challengeAddress_injective`), equal calls
+  fix the absorbed data (`Lifecycle.RandomOracle.Schedule.proverCalls_identify`),
+  and the light and refresh transcripts share no call prefix
+  (`Lifecycle.RandomOracle.Schedule.challengeCalls_separated`). These are
+  conditions of `[SPONGE]`. Under `[P2-PERM]` and `[SPONGE]`, the bound of
+  the model holds for a verifier that reads the sponge outside a circuit, plus
+  `spongeError N`, when every condition holds. The fold calls start with
+  their domain (`Export.DomainSeparation.fold_owns`), and the fold domains
+  are separated from the other uses (`Export.DomainSeparation.separated`).
+  The model's answers at distinct points are independent, but a `Π_RLC`
+  draw reads lanes 0 to 4 and a coin of slot `s` reads lanes `2s` and
+  `2s + 1`. So a draw must never share its calls with a coin of slot 1 or 2:
+  it does not, because its calls are longer
+  (`Export.BoundedDepth.FoldSponge.rho_ne`). With these conditions proved
+  for every fold schedule (`Export.BoundedDepth.FoldSponge.conditions`), the
+  knowledge bound moves to the ideal-permutation model as the statistical
+  error plus `spongeError N`, with the collision and kernel terms as before
+  (`Export.BoundedDepth.FoldSponge.light_knowledge_le`,
+  `Export.BoundedDepth.FoldSponge.refresh_knowledge_le`).
+- **Not covered:** the step circuits recompute the challenges with the
+  Poseidon2 permutation, and no ideal-permutation model covers a circuit
+  that evaluates the permutation. So this result bounds no deployed check of
+  the recursion (trust item 3).
 
 ### 4. IVC adversary
 
@@ -382,7 +488,18 @@ not change terminal source checks.
   adversary and the extractor as one sampler, so `Q_η` counts the queries of
   every rerun. At the Poseidon2 oracle the event is the event of the memory
   round (`Lifecycle.Nebula.EtaRound.unbalancedIn_deployed`), but no result
-  bounds it there.
+  bounds it there. The model's point is a function of the `η` input that is
+  injective on canonical timestamps
+  (`Lifecycle.Nebula.EtaOracle.pointOf_injective`), and the absorbed blocks
+  are injective (`Lifecycle.Nebula.etaInputBlocks_injective`,
+  `Lifecycle.Nebula.blockChunks_injective`). These are conditions of
+  `[SPONGE]`, and the `η` domain is separated from the other uses
+  (`Export.DomainSeparation.separated`). With these conditions proved
+  (`Export.BoundedDepth.EtaSponge.conditions`), `[P2-PERM]` and `[SPONGE]`
+  move the bound, without the retry term, to the ideal-permutation model
+  plus `spongeError N` (`Export.BoundedDepth.EtaSponge.unbalanced_le`). That
+  bound is for a verifier that computes `η` outside a circuit. The step
+  circuit computes `η` with the permutation (trust item 6).
 
 ### 6. Final-proof adversary
 
@@ -473,7 +590,7 @@ not change terminal source checks.
   for the stages of this IVC adversary
   (`Export.BoundedDepth.FinalHistory.soundness`). With Akita openings, the
   bound adds `εAkita` (`Export.BoundedDepth.FinalHistory.real_soundness`).
-  The premises are those of trust item 7, Assumption 1 and the closure
+  The premises are those of trust item 7, `[HN-A1]` and the closure
   premise of trust item 3, an admitted IVC adversary of the prover, the
   digest length 4 of each circuit key, and a bound `depth` on the
   iteration of each statement that the experiment accepts. The sum has the
@@ -499,7 +616,7 @@ not change terminal source checks.
 
 ## What you trust
 
-1. **SHAKE128 as a random oracle (premise P1).** Each key coefficient is one
+1. **The Ajtai setup [KECCAK] (premise P1).** Each key coefficient is one
    SHAKE128 output chunk reduced modulo `q`
    (`Spec.AjtaiSetupV1.Programming.verifierKey_eq`). With uniform chunks, an
    event has at most its probability under a uniform matrix, plus
@@ -509,7 +626,7 @@ not change terminal source checks.
    `decisions/fprime-ajtai-shake128-security-argument.md`). The seed is
    fixed and public, so an adversary that is precomputed for that seed is
    outside this premise. Lean does not join this step to the results above.
-2. **Two hardness terms.**
+2. **The binding and collision terms [MSIS] [P2-PERM] [SPONGE].**
    - *MSIS at the chain norm.* Binding needs MSIS for a uniform matrix of
      `κ = 18` rows of elements of `F_q[X]/(X^64 + 1)` (degree 64) at the chain norm
      `msisChainBound = 8 · T · (B + cap · T · (b − 1)) = 75,497,472`, about
@@ -537,12 +654,18 @@ not change terminal source checks.
      public seed, and the run's files are not in the repository.
    - *Poseidon2 collisions.* The state hash, the slot digests, the package
      identity, the Nebula record chains and the state digests of a memory
-     application need Poseidon2 collision resistance. Each hash is fixed and
-     has no key, so an efficient algorithm that contains a collision exists.
-     A bound therefore needs the human-ignorance reading (Rogaway): it
-     applies to algorithms that a person can write without such knowledge.
+     application bind their inputs only up to a Poseidon2 collision. The
+     results name each collision as an event on two inputs that a reduction
+     computes. Under `[P2-PERM]` and `[SPONGE]`, an algorithm with `N`
+     permutation calls finds two distinct padded inputs with one digest with
+     probability at most `N²/q⁴ + spongeError N`. Two distinct inputs of the
+     hash have distinct padded inputs only when `PaddingInjective` holds, and
+     two distinct values of a row of section Hashed encodings have distinct
+     inputs only by that row's injectivity theorem. The deployed permutation
+     is fixed, so `[P2-PERM]` is a heuristic for it; algorithms that use its
+     structure are outside the model.
    - Lean bounds neither term numerically.
-3. **The history: HyperNova errata Assumption 1 for the two fold kinds.**
+3. **The history: HyperNova errata Assumption 1 for the two fold kinds [HN-A1].**
    `Spec.HyperNova.ReverseStages.Assumption1` states Assumption 1 in the form
    of HyperNova Definition 7 knowledge soundness. Adversary 4 uses it with the
    success event `Export.BoundedDepth.IvcWalk.WalkSucceeds` and the extraction
@@ -652,7 +775,7 @@ not change terminal source checks.
    extractors because that number is constant. A random-oracle bound for
    each fold does not remove this limit: each stage's adversary includes
    the earlier stages' reruns.
-4. **The circuit selection.** HyperNova NIVC selects the circuit of a step
+4. **Scope: the circuit selection.** HyperNova NIVC selects the circuit of a step
    with `φ(z_i, w_i)`. The Lean step relation takes it from the machine's
    selector of the application state and witness (`Lifecycle.BoundedDepth.machine`,
    `Lifecycle.BoundedDepth.stepHolds_iff`). Both bounded-depth circuits run the same
@@ -664,27 +787,31 @@ not change terminal source checks.
    the cap. The light depth guard rejects a light fold at the cap for every
    pick. The statement `(i, z0, zi)` does not fix the circuit of a step; the
    state hash binds the program counter of the last step only.
-5. **Rust and Lean agree on recorded inputs only.** The Rust tests compare
+5. **Gap: Rust and Lean agree on recorded inputs only.** The Rust tests compare
    Rust's expansion of the packages, its identity code, its witness program
    and its logical assignment with Lean exports, and they check the
    lifecycle on fixed inputs (`SPEC.md` section 9). No theorem covers
    arbitrary Rust execution.
-6. **The memory round.** `Export.BoundedDepth.NebulaSecurity.MemoryRound` states
-   the memory round for the two step circuits as a premise: for each admitted
-   stage and the memory statement of its tape, the extracted run is accepted
-   and has a segment that passes the product test with unbalanced multisets
-   with probability at most `error_mem` of that stage. The relation computes `η`
-   with Poseidon2 inside the proven step, so no random-oracle proof covers
-   the deployed check. The random-oracle model of `η` in adversary 5 gives
-   the form of `error_mem`: `(Q_η + 1) · 2 · m_mem/q²` plus the retry term,
-   where `Q_η` counts the evaluations of the `η` transcript, in the circuit
-   and outside it. Lean does not bound the retry term with a number, because
-   each pair that it counts is a Poseidon2 collision. The owner chose this
-   form (`decisions/nebula-memory-checking.md`). The model takes the `η`
-   oracle to be independent of the oracle of the folds (trust item 3). Their
-   domain tags differ, but no Lean result separates them. The record chains
-   need only Poseidon2 collision resistance.
-7. **The compressed proof.** Adversary 6 has these premises.
+6. **Gap: the memory round.** `Export.BoundedDepth.NebulaSecurity.MemoryRound`
+   states the memory round for the two step circuits as a hypothesis: for
+   each admitted stage and the memory statement of its tape, the extracted run
+   is accepted and has a segment that passes the product test with unbalanced
+   multisets with probability at most `error_mem` of that stage. It is not an
+   assumption of the list, and no result derives it from the list: the
+   relation computes `η` with the Poseidon2 permutation inside the proven
+   step, and no ideal-permutation model covers that check. The random-oracle
+   model of `η` in adversary 5 gives the form of `error_mem`:
+   `(Q_η + 1) · 2 · m_mem/q²` plus the retry term, where `Q_η` counts the
+   evaluations of the `η` transcript, in the circuit and outside it. Lean does
+   not bound the retry term with a number, because each pair that it counts
+   is a Poseidon2 collision. The owner chose this form
+   (`decisions/nebula-memory-checking.md`). The model gives the `η` oracle no
+   relation to the fold addresses (trust item 3). Their domain tags differ,
+   and two block lists with these tags are distinct
+   (`Export.DomainSeparation.separated`). The record
+   chains need only the collision bound of trust item 2.
+7. **The compressed proof [AKITA] [KECCAK] [MSIS] [P2-PERM] [SPONGE].**
+   Adversary 6 has these premises.
    - *The premises of the Lean result.* `Spec.Compression.Verifier.soundness`
      takes these hypotheses.
      `Spec.Compression.Verifier.WellFormed` (each slice is aligned and
@@ -707,12 +834,12 @@ not change terminal source checks.
      production parameters without it. The model is a transcription of the
      Rust code by hand, and no check compares the two. `L ≤ 2^2` and
      `κ ≤ 2^5` are const asserts in Rust, and `params_soundness` proves them
-     at the production values. `slot_holds` also assumes
+     at the production values. `slot_holds` also takes the hypothesis
      `Spec.Compression.Claim.Represents`: the dense rows of a slot claim are
      the matrices of its circuit's relation on the claim's cells. Rust builds
      these rows from the package that `SPEC.md` Algorithm 2 pins, and no
      Lean result states `Represents` for the rows of a package. It also
-     assumes that Rust gives each slot claim to the argument with the values
+     needs that Rust gives each slot claim to the argument with the values
      of `Lifecycle.BoundedDepth.CompressionSlot.claimValues`, which no check
      compares. The model has three more
      premises. First, the Akita openings are ideal: an opening is accepted
@@ -732,16 +859,20 @@ not change terminal source checks.
      the layout of the model, except `spanVars ≤ 27`, but Lean does not
      join the model to the layout of the setup. The game
      takes the slot claims before `W` and the run of Π_CCS, and Rust absorbs
-     only `x`, their Poseidon2 hash, before that run, so the premise is that
-     Poseidon2 binds the slot claims through `x`. Second, the key polynomial is the honest key. Rust enforces
+     only `x`, their Poseidon2 hash, before that run, so the slot claims are
+     bound through `x` up to a collision of trust item 2. Second, the key
+     polynomial is the honest key. Rust enforces
      this with the pin of the full bytes of the verification key
      (`crates/neo-compress/artifacts/key20.vk`, `crates/neo-compress/artifacts/key30.vk`),
-     not with a digest. Third, each draw is uniform for each query, which
-     takes Poseidon2 as a random oracle. Lean does not model the bytes that
-     the transcript absorbs or its domains. It models their order: each
-     path of the game receives and draws the rows of `SPEC.md` section 5.4
-     in order (`Spec.Compression.Rust.game_follows`), and a test replays a
-     real proof in that order and checks each challenge of `verify`.
+     not with a digest. Third, each draw is uniform for each query. This is
+     the sponge of `[SPONGE]` under `[P2-PERM]` only if the compression
+     transcript absorbs an injective framing of its messages with a domain of
+     its own. Lean does not model the words that the transcript absorbs or its
+     domains, so these conditions are open (section Hashed encodings). Lean models
+     their order: each path of the game receives and draws the rows of
+     `SPEC.md` section 5.4 in order (`Spec.Compression.Rust.game_follows`),
+     and a test replays a real proof in that order and checks each
+     challenge of `verify`.
    - *The compression key.* The verifier's key is the key of `SPEC.md`
      Algorithm 11. It holds the Akita commitment of the key polynomial of
      the production Ajtai key, and Akita's commitments of the prefixes of
@@ -754,7 +885,7 @@ not change terminal source checks.
      verifier can accept a false statement. The pin is a value in the code,
      and the test is the check of the pin. No Lean result covers either.
      The Lean result takes the honest key as a premise.
-   - *Akita binding and knowledge soundness.* The one Akita proof opens
+   - *Akita binding and knowledge soundness `[AKITA]`.* The one Akita proof opens
      the key polynomial, `W` and `V`. It uses Akita (ePrint 2026/1983) at
      git revision `d50f700f`, crate version 0.1.0, with the configuration
      `RecursiveCommitmentConfig<fp64::Dense>` and the schedule files of
@@ -768,41 +899,46 @@ not change terminal source checks.
      end-to-end bound and that it declares no query budget, no bound on the
      size of the extraction tree and no reduction loss. Akita has no audit
      and no analysis in the quantum random-oracle model.
-   - *Keccak as a random oracle.* Akita makes its challenges with a
+   - *The Keccak family `[KECCAK]`.* Akita makes its challenges with a
      Keccak-f duplex sponge, its digests with SHA3-256, its session
      identifier with SHAKE128 and its setup with SHAKE256. No step circuit
      computes these functions. The owner accepted this hash family for
      Akita on 2026-11-13 (`decisions/akita-compression.md`).
-   - *Module-SIS for the Akita commitments.* Akita prices each of its
+   - *Module-SIS for the Akita commitments `[MSIS]`.* Akita prices each of its
      Module-SIS instances at 169 bits or more in the ADPS16 quantum cost
      model (policy `Quantum169BitADPS16`). Akita states that this price is
      for one attack family on a scalar instance, that it does not price
      attacks on the ring or module structure, and that it does not include
      the loss of the reduction. The Ajtai commitments of the three claims
      keep the lower estimate of trust item 2.
-   - *Poseidon2 as a random oracle for the argument.* The Poseidon2 sponge
-     makes each challenge of the Π_CCS run and of the argument (`SPEC.md`
-     section 5.4). Each term of the Rust sum of `SPEC.md` section 3 is for
-     one interactive run, and Lean proves that the exact sum bounds one
-     interactive run (`Spec.Compression.Rust.params_run_soundness`). With
-     Poseidon2 as a random oracle and `Q` queries, Lean bounds the
+   - *The Poseidon2 sponge for the argument `[P2-PERM]` `[SPONGE]`.* The
+     Poseidon2 sponge makes each challenge of the Π_CCS run and of the
+     argument (`SPEC.md` section 5.4). Each term of the Rust sum of `SPEC.md`
+     section 3 is for one interactive run, and Lean proves that the exact
+     sum bounds one interactive run
+     (`Spec.Compression.Rust.params_run_soundness`). In the
+     state-restoration model with `Q` queries, Lean bounds the
      non-interactive argument by `Q · error`
      (`Spec.Compression.Verifier.soundness`), and `error` is at most the
      exact sum (`Spec.Compression.Rust.error_le_runError`). Lean bounds the
      Π_CCS run with one source by `Q · 38/q²`
-     (`Spec.Compression.Fresh.soundness`).
+     (`Spec.Compression.Fresh.soundness`). The sponge meets this model, up
+     to `spongeError N`, only under the open conditions of the third premise
+     above.
    - *Separation of the two transcripts.* The session bytes of the Akita
      proof are a label and lanes 0 to 3 of the Poseidon2 sponge state
      after the last message of the argument, so they bind the opening to
      each earlier message, the bytes of the compression key included,
-     unless these four lanes collide. The Π_CCS run and the argument have
-     their own domain blocks, which differ from the fold domains. The
-     premise is that the Poseidon2 sponge and the Keccak functions are
-     independent oracles, and that these domains separate the compression
-     transcript from the fold transcripts. No Lean result states either.
+     unless these four lanes collide (trust item 2). The Π_CCS run and the
+     argument have their own domain blocks, which differ from the fold
+     domains. `[P2-PERM]` and `[KECCAK]` make the permutation and the Keccak
+     functions independent. The compression domains, as Lean restates them,
+     are separated from the fold domains (`Export.DomainSeparation.separated`),
+     but no emitted data compares the restated tags with Rust.
      `Export.BoundedDepth.FinalHistory.soundness` puts the draws of the
      argument and of the Π_CCS run on the tape of an IVC adversary whose
-     folds use Poseidon2 (trust item 3), so it also needs this separation.
+     folds use Poseidon2 (trust item 3), so it also needs the separation of
+     the compression domains from the fold domains.
    - *The error of the argument.* Lean bounds it by `Q · error`, with
      `error < 2^−119` at the production shapes
      (`Spec.Compression.Verifier.production_error_lt`). Rust bounds the
@@ -853,8 +989,8 @@ not change terminal source checks.
 - The compressed proof has a Lean result for its argument only
   (adversary 6). Its error is not a security level, and the final proof is
   not zero-knowledge.
-- Concrete attacks on Poseidon2 as a random oracle, or on the additive duplex,
-  are outside the model. Attacks that use the hash inside the circuit (KRS)
+- Attacks on the fixed Poseidon2 permutation that a uniform permutation does
+  not have (`[P2-PERM]`) are outside the model. Attacks that use the hash inside the circuit (KRS)
   are outside every random-oracle model; the verifier's packages fix the
   relation.
 - The adversary is a classical algorithm. Quantum adversaries are not
@@ -890,12 +1026,13 @@ not change terminal source checks.
   chooses every row flag, shared input, permutation auxiliary, and shared output.
   The group argument uses soundness and completeness of the exact width-12
   Poseidon2 event commitment with its four-lane feed-forward. It does not use
-  collision resistance to replace a row check. The soundness argument allows
+  a collision bound to replace a row check. The soundness argument allows
   multiple absorbing rows in a group and forces each to have the shared input.
   Completeness uses the checked Boolean decoding, position and kind sum rows,
   cursor transition, absorb equation, Enter exclusion, and cursor continuity.
   The kind count and eight slot positions must be below the field modulus.
-  No global natural range bound on arbitrary cursor field values is assumed.
+  The argument needs no global natural range bound on arbitrary cursor field
+  values.
   `Lifecycle.Nebula.SharedAbsorb.CursorRows` states these row premises. The
   Rust tests compare those rows and check column mutations on fixed inputs.
   A universal proof that the Rust transformation and shared-column map realize

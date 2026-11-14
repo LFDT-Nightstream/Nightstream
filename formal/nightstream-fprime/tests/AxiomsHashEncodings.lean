@@ -1,8 +1,16 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Sponge
+import NightstreamFPrime.Export.BoundedDepth.IdentityBinding
 
 #audit_axioms NightstreamFPrime.Spec.Sponge.spongeError_nonneg
 #audit_axioms NightstreamFPrime.Spec.Sponge.collision_blocks
 #audit_axioms NightstreamFPrime.Spec.Sponge.blocks_ne_of_differ
 #audit_axioms NightstreamFPrime.Spec.Sponge.padded_ne_of_differ
 #audit_axioms NightstreamFPrime.Spec.Sponge.transfer_le
+
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.IdentityBinding.nodes_tag_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.IdentityBinding.words_injective
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.IdentityBinding.flatMap_words_injective
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.IdentityBinding.nodes_append_inj
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.IdentityBinding.valuePreimage_injective
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.IdentityBinding.identity_binds

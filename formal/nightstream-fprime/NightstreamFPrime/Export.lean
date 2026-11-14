@@ -129,3 +129,4 @@ import NightstreamFPrime.Export.Stage1.PoseidonRetainedBlock
 import NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprint
 import NightstreamFPrime.Export.Stage1.DirectLowNormFootprint
 
+import NightstreamFPrime.Export.BoundedDepth.IdentityBinding

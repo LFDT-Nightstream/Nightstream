@@ -98,7 +98,7 @@ the Rust code is held to the Lean definition (trust item 5).
 | State hash | `Lifecycle.BoundedDepth.statePreimage` | `Lifecycle.BoundedDepth.statePreimage_injective`, `Lifecycle.BoundedDepth.stateHash_collision` (well-formed states) | Indirect: the rows of the emitted packages (`crates/nightstream/tests/bounded_depth_base_steps.rs`) |
 | Slot digest | `Lifecycle.BoundedDepth.serializeSlot` | `Lifecycle.BoundedDepth.serializeSlot_injective` (shapes fixed by the type, depth below `q`) | Indirect, as above |
 | Fresh public input | `Lifecycle.encHash` | `Lifecycle.encHash_injective_fixed` | Indirect, as above |
-| Package identity | `Export.BoundedDepth.StepPackage.identity` | Open | Direct: `identity_code_matches_lean_on_the_probe_packages` |
+| Package identity | `Export.BoundedDepth.StepPackage.identity` | `Export.BoundedDepth.IdentityBinding.valuePreimage_injective`, `Export.BoundedDepth.IdentityBinding.identity_binds` (atoms and lengths below `2^64`) | Direct: `identity_code_matches_lean_on_the_probe_packages` |
 | Circuit key digest | None (`SPEC.md` section 4.4) | Open: Rust only | None |
 | Fold transcripts | `Lifecycle.RandomOracle.Schedule.challengeCalls` | `Lifecycle.RandomOracle.Schedule.challengeAddress_injective`, `Lifecycle.RandomOracle.Schedule.statementCalls_identify`, `Lifecycle.RandomOracle.Schedule.proverCalls_identify` | Indirect: package rows. The Π_RLC sampler is direct (`crates/neo-reductions/tests/pi_rlc_lean_parity.rs`) |
 | Compression transcript and Akita session bytes | None | Open: no Lean model | None |
@@ -126,8 +126,12 @@ packages also fix the memory geometry, and the verifier takes the program,
 which the adversary does not choose. The identity is the Poseidon2 hash of the
 encoding of the light and refresh packages
 (`Export.BoundedDepth.StepPackage.identity`), and every format decodes what it
-encodes. No Lean theorem states that equal identities give equal packages or
-a Poseidon2 collision.
+encodes. Two pairs of packages with one identity are equal, or their two hash
+inputs are distinct and have one hash
+(`Export.BoundedDepth.IdentityBinding.identity_binds`), when each atom and each
+array length of the encoding is below `2^64`, the range of Rust `u64`. The
+node words are injective on such values
+(`Export.BoundedDepth.IdentityBinding.valuePreimage_injective`).
 
 The state hash binds the key digest of each circuit
 (`Lifecycle.BoundedDepth.statePreimage`). Rust computes each key digest as the

@@ -6,16 +6,16 @@ theorem appendedPrivateColumnCount_eq :
     appendedPrivateColumnCount = 6071918 := by
   rfl
 
-theorem sourceColumnCount_eq : SourceColumnCount = 11415252 := by
+theorem sourceColumnCount_eq : SourceColumnCount = 11413060 := by
   rfl
 
-theorem privateColumnCount_eq : privateColumnCount = 11414924 := by
+theorem privateColumnCount_eq : privateColumnCount = 11412732 := by
   rfl
 
-theorem constantColumn_eq : constantColumn = 11414924 := by
+theorem constantColumn_eq : constantColumn = 11412732 := by
   exact privateColumnCount_eq
 
-theorem packageColumnCount_eq : packageColumnCount = 11415253 := by
+theorem packageColumnCount_eq : packageColumnCount = 11413061 := by
   rfl
 
 theorem privateColumnCount_bound : privateColumnCount ≤ domainSize := by

@@ -693,11 +693,10 @@ theorem chainAbsorbed_eq_absorbManyF (chain : HashChain) (env : Env) :
           rw [List.take_succ_eq_append_getElem chunkBound,
             absorbManyF_append_single, chunkEq]
 
-private theorem chainChunks_eq_inputChunks (chain : HashChain) (env : Env)
-    (countEq : chain.absorbCount =
-      (chain.inputLength + Poseidon2.rate - 1) / Poseidon2.rate) :
-    chainChunks chain env = Hash.inputChunks (chainInputValues chain env) := by
-  unfold chainChunks Hash.inputChunks chainBlockList
+private theorem chainChunks_eq_fullBlocks (chain : HashChain) (env : Env)
+    (countEq : chain.absorbCount = chain.inputLength / Poseidon2.rate) :
+    chainChunks chain env = Poseidon2.fullBlocks (chainInputValues chain env) := by
+  unfold chainChunks Poseidon2.fullBlocks chainBlockList
   simp only [chainInputValues, List.length_ofFn]
   rw [countEq]
   rfl
@@ -761,61 +760,75 @@ theorem canonicalChainAbsorptions_sound (chain : HashChain) (env : Env)
           rw [ih (by omega)]
         _ = chainAbsorbed chain env (count + 1) := rfl
 
+/-- The previous state of the last invocation, as `invocationInput` reads it. -/
+private theorem finalPrevious_eval (chain : HashChain) (env : Env) (lane : Fin 16) :
+    (if chain.absorbCount = 0 then R1CS.LinearCombination.zero else
+      R1CS.LinearCombination.ofVar (chain.witnessStart +
+        (chain.absorbCount - 1) * (PilotData.circuitPackage ()).permutation.localColumnCount +
+        (PilotData.circuitPackage ()).permutation.outputLocalStart + lane.val)).eval env =
+      chainCarriedState chain chain.absorbCount env lane := by
+  by_cases empty : chain.absorbCount = 0 <;>
+    simp [chainCarriedState, chainOutputState, invocationLocalStart, empty, Hash.zeroF]
+
 theorem canonicalChainFinal_sound (chain : HashChain) (env : Env)
+    (countEq : chain.absorbCount = chain.inputLength / Poseidon2.rate)
     (holds : HashChainHolds (PilotData.circuitPackage ()) chain env) :
     chainOutputState chain chain.absorbCount env =
       Permutation.runF Permutation.schedule
-        (Hash.padF (chainAbsorbed chain env chain.absorbCount)) := by
+        (Hash.padF (Poseidon2.lastWords (chainInputValues chain env))
+          (chainAbsorbed chain env chain.absorbCount)) := by
   have invocationSound := canonicalTemplateInvocation_sound chain
     chain.absorbCount env (holds chain.absorbCount (by omega))
   change chainOutputState chain chain.absorbCount env =
     Permutation.runF Permutation.schedule (fun lane : Fin 16 =>
       (invocationInput (PilotData.circuitPackage ()) chain chain.absorbCount
         lane.val).eval env) at invocationSound
+  have rate : (PilotData.circuitPackage ()).poseidon.rate = Poseidon2.rate := rfl
+  have lastLength : (Poseidon2.lastWords (chainInputValues chain env)).length =
+      chain.inputLength - chain.absorbCount * Poseidon2.rate := by
+    simp [Poseidon2.lastWords, chainInputValues, countEq]
   have finalInput :
       (fun lane : Fin 16 =>
         (invocationInput (PilotData.circuitPackage ()) chain chain.absorbCount
           lane.val).eval env) =
-        Hash.padF (chainCarriedState chain chain.absorbCount env) := by
+        Hash.padF (Poseidon2.lastWords (chainInputValues chain env))
+          (chainCarriedState chain chain.absorbCount env) := by
     funext lane
-    by_cases empty : chain.absorbCount = 0
-    · by_cases zeroLane : lane = 0 <;>
-        simp [invocationInput, Hash.padF, chainCarriedState,
-          empty, Hash.zeroF, zeroLane]
-    · by_cases zeroLane : lane.val = 0
-      · have laneEq : lane = 0 := Fin.ext zeroLane
-        subst lane
-        simp [invocationInput, Hash.padF, chainCarriedState,
-          PilotData.circuitPackage, 
-          PilotData.permutationTemplate, chainOutputState,
-          invocationLocalStart, empty]
-      · simp [invocationInput, Hash.padF, chainCarriedState,
-          PilotData.circuitPackage, 
-          PilotData.permutationTemplate, chainOutputState,
-          invocationLocalStart, empty, zeroLane]
+    have previous := finalPrevious_eval chain env lane
+    have short : chain.inputLength - chain.absorbCount * Poseidon2.rate < Poseidon2.rate := by
+      rw [countEq, show Poseidon2.rate = 12 from rfl]
+      omega
+    have covered : chain.absorbCount * Poseidon2.rate ≤ chain.inputLength := by
+      rw [countEq]
+      exact Nat.div_mul_le_self _ _
+    unfold invocationInput Hash.padF
+    simp only [rate, Nat.lt_irrefl, ↓reduceIte, lastLength]
+    by_cases inside : lane.val < chain.inputLength - chain.absorbCount * Poseidon2.rate
+    · have word : (Poseidon2.lastWords (chainInputValues chain env)).getD lane.val 0 =
+          env (chain.inputStart + (chain.absorbCount * Poseidon2.rate + lane.val)) := by
+        rw [List.getD_eq_getElem _ _ (by rw [lastLength]; exact inside)]
+        simp [Poseidon2.lastWords, chainInputValues, countEq, Nat.add_comm]
+      rw [ite_eq_left ⟨by omega, by omega⟩, ite_eq_left inside, word,
+        R1CS.LinearCombination.eval_add, previous, R1CS.LinearCombination.eval_ofVar]
+    · rw [ite_eq_right (by omega), ite_eq_right inside]
+      by_cases next : lane.val = chain.inputLength - chain.absorbCount * Poseidon2.rate
+      · rw [ite_eq_left ⟨by omega, by omega⟩, ite_eq_left next,
+          R1CS.LinearCombination.eval_add, previous]
+        simp
+      · rw [ite_eq_right (by omega), ite_eq_right next, previous]
   have absorbed := canonicalChainAbsorptions_sound chain env holds
     chain.absorbCount (by omega)
-  calc
-    chainOutputState chain chain.absorbCount env =
-        Permutation.runF Permutation.schedule (fun lane : Fin 16 =>
-          (invocationInput (PilotData.circuitPackage ()) chain
-            chain.absorbCount lane.val).eval env) := invocationSound
-    _ = Permutation.runF Permutation.schedule
-        (Hash.padF (chainCarriedState chain chain.absorbCount env)) := by
-      rw [finalInput]
-    _ = Permutation.runF Permutation.schedule
-        (Hash.padF (chainAbsorbed chain env chain.absorbCount)) := by
-      rw [absorbed]
+  rw [invocationSound, finalInput, absorbed]
 
 theorem canonicalChainFinal_eq_hashF (chain : HashChain) (env : Env)
-    (countEq : chain.absorbCount =
-      (chain.inputLength + Poseidon2.rate - 1) / Poseidon2.rate)
+    (countEq : chain.absorbCount = chain.inputLength / Poseidon2.rate)
     (holds : HashChainHolds (PilotData.circuitPackage ()) chain env) :
     chainOutputState chain chain.absorbCount env =
       Permutation.runF Permutation.schedule
-        (Hash.padF (Hash.absorbManyF Hash.zeroF
-          (Hash.inputChunks (chainInputValues chain env)))) := by
-  have finalState := canonicalChainFinal_sound chain env holds
+        (Hash.padF (Poseidon2.lastWords (chainInputValues chain env))
+          (Hash.absorbManyF Hash.zeroF
+            (Poseidon2.fullBlocks (chainInputValues chain env)))) := by
+  have finalState := canonicalChainFinal_sound chain env countEq holds
   have absorbed := chainAbsorbed_eq_absorbManyF chain env
     chain.absorbCount (by omega)
   have chunksLength : (chainChunks chain env).length = chain.absorbCount := by
@@ -823,7 +836,7 @@ theorem canonicalChainFinal_eq_hashF (chain : HashChain) (env : Env)
   have absorbedStandard :
       chainAbsorbed chain env chain.absorbCount =
         Hash.absorbManyF Hash.zeroF
-          (Hash.inputChunks (chainInputValues chain env)) := by
+          (Poseidon2.fullBlocks (chainInputValues chain env)) := by
     calc
       chainAbsorbed chain env chain.absorbCount =
           Hash.absorbManyF Hash.zeroF
@@ -831,14 +844,13 @@ theorem canonicalChainFinal_eq_hashF (chain : HashChain) (env : Env)
       _ = Hash.absorbManyF Hash.zeroF (chainChunks chain env) := by
         rw [← chunksLength, List.take_length]
       _ = Hash.absorbManyF Hash.zeroF
-          (Hash.inputChunks (chainInputValues chain env)) := by
-        rw [chainChunks_eq_inputChunks chain env countEq]
+          (Poseidon2.fullBlocks (chainInputValues chain env)) := by
+        rw [chainChunks_eq_fullBlocks chain env countEq]
   rw [absorbedStandard] at finalState
   exact finalState
 
 theorem canonicalChainDigest_eq_hash (chain : HashChain) (env : Env)
-    (countEq : chain.absorbCount =
-      (chain.inputLength + Poseidon2.rate - 1) / Poseidon2.rate)
+    (countEq : chain.absorbCount = chain.inputLength / Poseidon2.rate)
     (holds : HashChainHolds (PilotData.circuitPackage ()) chain env) :
     List.ofFn (fun lane : Fin 4 =>
       chainOutputState chain chain.absorbCount env
@@ -946,14 +958,12 @@ theorem canonicalAssertions_sound (env : Env)
 
 private theorem priorChain_count_eq :
     PilotData.priorChain.absorbCount =
-      (PilotData.priorChain.inputLength + Poseidon2.rate - 1) /
-        Poseidon2.rate := by
+      PilotData.priorChain.inputLength / Poseidon2.rate := by
   rfl
 
 private theorem outputChain_count_eq :
     PilotData.outputChain.absorbCount =
-      (PilotData.outputChain.inputLength + Poseidon2.rate - 1) /
-        Poseidon2.rate := by
+      PilotData.outputChain.inputLength / Poseidon2.rate := by
   rfl
 
 private theorem priorInputValues_eq (env : Env) :
@@ -1101,15 +1111,15 @@ private theorem priorDigestWire_eval (env : Env) (lane : Fin 4) :
   rw [NightstreamFPrime.Layout.Poseidon2.hash_compile_output_eq]
   rw [PriorStateHash.hashInterface_input,
     PilotProduction.priorInterface_preimage_apply,
-    PilotProduction.priorPreimage_chunkCount]
+    PilotProduction.priorPreimage_blockCount]
   simp only [Hash.digestE, Permutation.freshState, Expr.eval_var]
   unfold PilotPackageOrder.pullback chainOutputState invocationLocalStart
   simp only [PilotData.circuitPackage,
     PilotData.circuitPackageOf_permutation]
   simp only [PilotData.permutationTemplate, PilotData.priorChain,
     PilotData.priorWitnessStart]
-  rw [show PilotProduction.witnessOffset + 2410 * 1096 + 1080 + lane.val =
-      PilotProduction.witnessOffset + (2410 * 1096 + 1080 + lane.val) by
+  rw [show PilotProduction.witnessOffset + 2409 * 1096 + 1080 + lane.val =
+      PilotProduction.witnessOffset + (2409 * 1096 + 1080 + lane.val) by
     omega,
     PilotPackageOrder.sourceToPackage_pilotWitness]
   norm_num [PilotValues.absorbCount, PilotValues.stateHashWords,

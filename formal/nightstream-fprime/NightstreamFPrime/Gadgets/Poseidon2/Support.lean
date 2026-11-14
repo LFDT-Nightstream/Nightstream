@@ -341,13 +341,13 @@ def BlocksSupported (blocks : List (List Expr))
   ∀ block ∈ blocks, ∀ expression ∈ block,
     expression.VarsSatisfy allowed
 
-private theorem inputChunks_supported (input : List Expr)
+private theorem fullBlocks_supported (input : List Expr)
     (allowed : Nat → Prop)
     (inputSupported : ∀ expression ∈ input,
       expression.VarsSatisfy allowed) :
-    BlocksSupported (Hash.inputChunks input) allowed := by
+    BlocksSupported (Spec.Poseidon2.fullBlocks input) allowed := by
   intro block blockMember expression expressionMember
-  simp only [Hash.inputChunks, List.mem_map] at blockMember
+  simp only [Spec.Poseidon2.fullBlocks, List.mem_map] at blockMember
   rcases blockMember with ⟨chunk, _, rfl⟩
   apply inputSupported expression
   exact List.mem_of_mem_drop (List.mem_of_mem_take expressionMember)
@@ -365,13 +365,21 @@ private theorem absorbE_supported (state : Layer.EState) (block : List Expr)
       exact blockSupported _ (List.get_mem _ _)
     · simp [List.getD, within, Expr.VarsSatisfy]
 
-private theorem padE_supported (state : Layer.EState) (allowed : Nat → Prop)
+private theorem padE_supported (input : List Expr) (state : Layer.EState)
+    (allowed : Nat → Prop)
+    (inputSupported : ∀ expression ∈ input, expression.VarsSatisfy allowed)
     (stateSupported : StateSupported state allowed) :
-    StateSupported (Hash.padE state) allowed := by
+    StateSupported (Hash.padE (Spec.Poseidon2.lastWords input) state) allowed := by
   intro lane
-  by_cases hzero : lane.val = 0
-  · simp [Hash.padE, hzero, Expr.VarsSatisfy, stateSupported lane]
-  · simpa [Hash.padE, hzero] using stateSupported lane
+  unfold Hash.padE
+  split
+  · rename_i inside
+    apply Expr.VarsSatisfy.add _ _ allowed (stateSupported lane)
+    rw [List.getD_eq_getElem _ _ inside]
+    exact inputSupported _ (List.mem_of_mem_drop (List.getElem_mem inside))
+  · split
+    · exact Expr.VarsSatisfy.add _ _ allowed (stateSupported lane) trivial
+    · exact stateSupported lane
 
 theorem compileAbsorptions_supported (start : Nat)
     (state : Layer.EState) (blocks : List (List Expr))
@@ -446,23 +454,24 @@ theorem hashCompile_supported (start : Nat) (input : List Expr)
     (∀ recipe ∈ (Hash.compile start input).recipes,
         recipe.VarsSatisfy allowed) ∧
       StateSupported (Hash.compile start input).output allowed := by
-  let blocks := Hash.inputChunks input
+  let blocks := Spec.Poseidon2.fullBlocks input
+  let last := Spec.Poseidon2.lastWords input
   let absorbed := Hash.compileAbsorptions start Hash.zeroE blocks
   let finalPermutation := Permutation.compile
-    (start + absorbed.recipes.length) (Hash.padE absorbed.output)
+    (start + absorbed.recipes.length) (Hash.padE last absorbed.output)
     Permutation.schedule
   have compileEq : Hash.compile start input =
       ⟨absorbed.recipes ++ finalPermutation.recipes,
         finalPermutation.output⟩ := by
     rfl
   have absorbedLength : absorbed.recipes.length =
-      (Hash.inputChunks input).length * 1096 := by
-    simp [absorbed, blocks]
+      input.length / Spec.Poseidon2.rate * 1096 := by
+    simp [absorbed, blocks, Spec.Poseidon2.fullBlocks]
   have zeroSupported : StateSupported Hash.zeroE allowed := by
     intro lane
     trivial
   have blocksSupported : BlocksSupported blocks allowed :=
-    inputChunks_supported input allowed inputSupported
+    fullBlocks_supported input allowed inputSupported
   have absorbedTargets : ∀ index, index < absorbed.recipes.length →
       allowed (start + index) := by
     intro index indexBound
@@ -481,7 +490,7 @@ theorem hashCompile_supported (start : Nat) (input : List Expr)
       have finalLength : finalPermutation.recipes.length = 1096 := by
         simpa [finalPermutation] using
           Permutation.compile_schedule_recipe_count
-            (start + absorbed.recipes.length) (Hash.padE absorbed.output)
+            (start + absorbed.recipes.length) (Hash.padE last absorbed.output)
       rw [finalLength] at indexBound
       exact Nat.add_lt_add_left indexBound _)
     simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using target
@@ -490,9 +499,9 @@ theorem hashCompile_supported (start : Nat) (input : List Expr)
           recipe.VarsSatisfy allowed) ∧
         StateSupported finalPermutation.output allowed := by
     simpa only [finalPermutation] using permutationCompile_supported
-      (start + absorbed.recipes.length) (Hash.padE absorbed.output)
-      Permutation.schedule allowed (padE_supported absorbed.output allowed
-        absorbedProof.2) finalTargets
+      (start + absorbed.recipes.length) (Hash.padE last absorbed.output)
+      Permutation.schedule allowed (padE_supported input absorbed.output allowed
+        inputSupported absorbedProof.2) finalTargets
   constructor
   · intro recipe member
     have recipesEq : (Hash.compile start input).recipes =

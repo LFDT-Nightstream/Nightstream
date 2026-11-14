@@ -20,7 +20,7 @@ def interface : Formal.Interface logicalWidth 8 publicFits :=
 
 def piCcsOffset : Nat := PiCCSInputs.phaseOffset
 
-theorem piCcsOffset_eq : piCcsOffset = 5360990 := by
+theorem piCcsOffset_eq : piCcsOffset = 5358798 := by
   exact PiCCSInputs.phaseOffset_eq
 
 def physicalRows
@@ -83,13 +83,13 @@ theorem physicalHolds_iff
 
 theorem physicalRowCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalRowCount relation = 6524761 := by
+    physicalRowCount relation = 6522569 := by
   unfold physicalRowCount physicalRows
   rw [List.length_append]
   change Pilot.physicalRowCount PilotProduction.interface
       PilotProduction.witnessOffset +
     NightstreamFPrime.Layout.PiCCS.v1_2.physicalRowCount relation
-      (interface (publicFits := publicFits)) piCcsOffset = 6524761
+      (interface (publicFits := publicFits)) piCcsOffset = 6522569
   rw [PilotProduction.physicalRowCount_eq,
     NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.physicalRowCount_eq
       relation (interface (publicFits := publicFits)) piCcsOffset
@@ -97,7 +97,7 @@ theorem physicalRowCount_eq
 
 theorem physicalColumnCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    physicalColumnCount relation = 6594873 := by
+    physicalColumnCount relation = 6592681 := by
   unfold physicalColumnCount
   rw [PilotProduction.physicalColumnCount_eq,
     NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.physicalColumnCount_eq
@@ -108,7 +108,7 @@ theorem physicalColumnCount_eq
 
 theorem jointDomain_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    jointDomain relation = 6594873 := by
+    jointDomain relation = 6592681 := by
   unfold jointDomain
   rw [physicalRowCount_eq relation, physicalColumnCount_eq relation]
   norm_num
@@ -130,14 +130,14 @@ theorem cumulativeFootprints_eq
         [320, 135904, 4384, 61376, 15357, 672, 3844, 13060,
           23, 800, 4071, 994072] ∧
       cumulativePhysicalRows relation =
-        [5291140, 5427044, 5431428, 5492804, 5508161, 5508889,
-          5512733, 5525793, 5525816, 5526616, 5530689, 6524761] ∧
+        [5288948, 5424852, 5429236, 5490612, 5505969, 5506697,
+          5510541, 5523601, 5523624, 5524424, 5528497, 6522569] ∧
       cumulativePhysicalColumns relation =
-        [5361310, 5497214, 5501598, 5562974, 5578331, 5579003,
-          5582847, 5595907, 5595930, 5596730, 5600801, 6594873] ∧
+        [5359118, 5495022, 5499406, 5560782, 5576139, 5576811,
+          5580655, 5593715, 5593738, 5594538, 5598609, 6592681] ∧
       cumulativeJointDomains relation =
-        [5361310, 5497214, 5501598, 5562974, 5578331, 5579003,
-          5582847, 5595907, 5595930, 5596730, 5600801, 6594873] := by
+        [5359118, 5495022, 5499406, 5560782, 5576139, 5576811,
+          5580655, 5593715, 5593738, 5594538, 5598609, 6592681] := by
   let inputs :=
     NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.inputShapes relation
       (interface (publicFits := publicFits)) piCcsOffset

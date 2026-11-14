@@ -190,32 +190,144 @@ theorem absorbBlocksFast_eq_indexed (count : Nat) (state : State)
       congr 1
       simp [Nat.succ_mul, Nat.add_comm]
 
+/-- The blocks of `rate` words at the start of `input`, without a last short block. -/
+def fullBlocks {Alpha : Type} (input : List Alpha) : List (List Alpha) :=
+  (List.range (input.length / rate)).map fun block => (input.drop (block * rate)).take rate
+
+/-- The words after the full blocks of `input`, fewer than `rate`. -/
+def lastWords {Alpha : Type} (input : List Alpha) : List Alpha :=
+  input.drop (input.length / rate * rate)
+
+/-- `10*` padding (`decisions/poseidon2-p64-instance.md`): the input, the word 1, then zeros up
+to a multiple of `rate`. -/
+def pad (input : List F) : List F :=
+  input ++ 1 :: List.replicate (rate - 1 - input.length % rate) 0
+
+/-- The blocks that `hash` absorbs. -/
+def blocks (input : List F) : List (List F) :=
+  fullBlocks (pad input)
+
 /-- Matches `neo_ccs::crypto::poseidon2::poseidon2_hash`. -/
 def hash (input : List F) : List F :=
-  let chunks := (List.range ((input.length + rate - 1) / rate)).map
-    (fun c => (input.drop (c * rate)).take rate)
-  let absorbed := chunks.foldl absorbBlock zeroState
-  let padded := permute ((List.range width).map fun i =>
-    if i = 0 then absorbed.getD 0 0 + 1 else absorbed.getD i 0)
-  padded.take digestLen
+  ((blocks input).foldl absorbBlock zeroState).take digestLen
 
+/-- `hash` with one absorb of the last words and the word 1: the zeros of `pad` add nothing. -/
 def hashFast (input : List F) : List F :=
-  let blockCount := (input.length + rate - 1) / rate
-  let absorbed := absorbBlocksFast blockCount zeroState input
-  let padded := permute ((List.range width).map fun i =>
-    if i = 0 then absorbed.getD 0 0 + 1 else absorbed.getD i 0)
-  padded.take digestLen
+  (absorbBlock (absorbBlocksFast (input.length / rate) zeroState input)
+    (lastWords input ++ [1])).take digestLen
+
+private theorem rate_eq : rate = 12 := rfl
+
+theorem pad_length (input : List F) :
+    (pad input).length = (input.length / rate + 1) * rate := by
+  simp only [pad, List.length_append, List.length_cons, List.length_replicate, rate_eq]
+  omega
+
+private theorem pad_blockCount (input : List F) :
+    (pad input).length / rate = input.length / rate + 1 := by
+  rw [pad_length, Nat.mul_div_cancel _ (by decide)]
+
+private theorem flatten_chunks {Alpha : Type} (count : Nat) (input : List Alpha)
+    (covered : input.length ≤ count * rate) :
+    ((List.range count).map fun block => (input.drop (block * rate)).take rate).flatten =
+      input := by
+  induction count generalizing input with
+  | zero =>
+      rw [Nat.zero_mul] at covered
+      rw [List.eq_nil_of_length_eq_zero (Nat.le_zero.mp covered)]
+      rfl
+  | succ count inductionHypothesis =>
+      have rest := inductionHypothesis (input.drop rate) (by
+        rw [List.length_drop]
+        rw [Nat.succ_mul] at covered
+        omega)
+      rw [List.range_succ_eq_map, List.map_cons, List.map_map, List.flatten_cons, Nat.zero_mul,
+        List.drop_zero]
+      conv => rhs; rw [← List.take_append_drop rate input]
+      rw [← rest]
+      congr 2
+      apply List.map_congr_left
+      intro block _member
+      simp only [Function.comp_apply, List.drop_drop, Nat.succ_mul]
+      rw [Nat.add_comm]
+
+/-- The padding is injective: two inputs with one padded word list are equal. -/
+theorem pad_injective {left right : List F} (equal : pad left = pad right) : left = right := by
+  have strip : ∀ input : List F,
+      (pad input).reverse.dropWhile (fun word => word == 0) = 1 :: input.reverse := by
+    intro input
+    simp only [pad, List.reverse_append, List.reverse_cons, List.reverse_replicate,
+      List.append_assoc, List.singleton_append]
+    rw [List.dropWhile_append_of_pos (fun word member => by
+      rw [List.eq_of_mem_replicate member]
+      rfl)]
+    simp only [List.dropWhile_cons, show ((1 : F) == 0) = false from by decide,
+      Bool.false_eq_true, ↓reduceIte]
+  have reversed := (strip left).symm.trans
+    ((congrArg (fun padded => padded.reverse.dropWhile (fun word => word == 0)) equal).trans
+      (strip right))
+  exact List.reverse_inj.mp (List.cons.inj reversed).2
+
+/-- Two inputs with one block list are equal, so `hash` absorbs different blocks for different
+inputs. -/
+theorem blocks_injective {left right : List F} (equal : blocks left = blocks right) :
+    left = right := by
+  apply pad_injective
+  have flat : ∀ input : List F, (blocks input).flatten = pad input := fun input =>
+    flatten_chunks _ _ (Nat.le_of_eq (by rw [pad_blockCount, pad_length]))
+  rw [← flat left, ← flat right, equal]
+
+private theorem absorbBlock_append_zeros (state : State) (block : List F) (count : Nat) :
+    absorbBlock state (block ++ List.replicate count 0) = absorbBlock state block := by
+  unfold absorbBlock
+  congr 1
+  apply List.map_congr_left
+  intro lane _member
+  congr 1
+  rw [List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD]
+  by_cases inside : lane < block.length
+  · rw [List.getElem?_append_left inside]
+  · have outside := Nat.le_of_not_lt inside
+    rw [List.getElem?_append_right outside, List.getElem?_eq_none outside,
+      List.getElem?_replicate]
+    split <;> rfl
+
+/-- `hash` absorbs the full blocks of the input, then its last words and the word 1 in one
+block. -/
+theorem hash_eq_last (input : List F) :
+    hash input = (absorbBlock ((fullBlocks input).foldl absorbBlock zeroState)
+      (lastWords input ++ [1])).take digestLen := by
+  have below := Nat.div_mul_le_self input.length rate
+  have split : blocks input = fullBlocks input ++
+      [lastWords input ++ 1 :: List.replicate (rate - 1 - input.length % rate) 0] := by
+    unfold blocks fullBlocks
+    rw [pad_blockCount, List.range_succ, List.map_append, List.map_singleton]
+    congr 1
+    · apply List.map_congr_left
+      intro block member
+      have inside : (block + 1) * rate ≤ input.length := by
+        have := List.mem_range.mp member
+        rw [rate_eq] at this below ⊢
+        omega
+      rw [pad, List.drop_append_of_le_length (by rw [Nat.succ_mul] at inside; omega),
+        List.take_append_of_le_length (by rw [List.length_drop, Nat.succ_mul] at *; omega)]
+    · rw [pad, lastWords, List.drop_append_of_le_length below, List.take_of_length_le]
+      simp only [List.length_append, List.length_drop, List.length_cons, List.length_replicate,
+        rate_eq] at below ⊢
+      omega
+  rw [hash, split, List.foldl_append, List.foldl_cons, List.foldl_nil,
+    show lastWords input ++ 1 :: List.replicate (rate - 1 - input.length % rate) 0 =
+      (lastWords input ++ [1]) ++ List.replicate (rate - 1 - input.length % rate) 0 by simp,
+    absorbBlock_append_zeros]
 
 theorem hash_length (input : List F) : (hash input).length = digestLen := by
-  unfold hash
-  dsimp only
-  rw [List.length_take, permute_length]
+  rw [hash_eq_last, List.length_take, absorbBlock_length]
   decide
 
 @[csimp] theorem hash_eq_hashFast : @hash = @hashFast := by
   funext input
-  dsimp only [hash, hashFast]
-  rw [absorbBlocksFast_eq_indexed]
+  rw [hash_eq_last, hashFast, absorbBlocksFast_eq_indexed]
+  rfl
 
 theorem constant_table_shape :
     initialConstants.length = halfFullRounds ∧

@@ -125,19 +125,12 @@ def compiledHashLength (interface : Interface) (offset : Nat) : Nat :=
   (RawFormal.program (hashInterface interface) offset).recipes.length
 
 def hashLength (interface : Interface) (offset : Nat) : Nat :=
-  ((interface.preimage offset).length + Spec.Poseidon2.rate - 1) /
-    Spec.Poseidon2.rate * 1096 + 1096
+  (interface.preimage offset).length / Spec.Poseidon2.rate * 1096 + 1096
 
 theorem compiledHashLength_eq_hashLength (interface : Interface) (offset : Nat) :
     compiledHashLength interface offset = hashLength interface offset := by
   unfold compiledHashLength hashLength RawFormal.program hashInterface
-  simpa only [Hash.inputChunks, List.length_map, List.length_range] using
-    Hash.compile_recipes_length offset (interface.preimage offset)
-
-theorem hashLength_eq (interface : Interface) (offset : Nat) :
-    hashLength interface offset =
-      (Hash.inputChunks (interface.preimage offset)).length * 1096 + 1096 := by
-  simp only [hashLength, Hash.inputChunks, List.length_map, List.length_range]
+  exact Hash.compile_recipes_length offset (interface.preimage offset)
 
 def hashEnd (interface : Interface) (offset : Nat) : Nat :=
   offset + hashLength interface offset

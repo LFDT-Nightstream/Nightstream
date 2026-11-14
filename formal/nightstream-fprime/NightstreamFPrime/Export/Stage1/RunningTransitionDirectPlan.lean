@@ -381,7 +381,7 @@ private theorem mapped_lt_basePackage (source : Nat)
     PackageOrder.sourceToPackage source <
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have mapped := PackageOrder.sourceToPackage_lt source bound
-  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 11415253 :=
+  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 11413061 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   simpa [PackageOrder.packageColumnCount] using mapped
@@ -463,7 +463,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
       have address : 28904 + index.val =
-          5361310 + invocation.val * 1096 + 1080 + lane.val := by
+          5359118 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.stateStart_eq,
           PiCCSStarts.statementWitnessStart_eq] using same
       omega
@@ -484,7 +484,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
       have address : 29233 + index.val =
-          5361310 + invocation.val * 1096 + 1080 + lane.val := by
+          5359118 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.outputStart_eq,
           PiCCSStarts.statementWitnessStart_eq] using same
       omega
@@ -504,8 +504,8 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
-      have address : 11381138 + index.val =
-          5361310 + invocation.val * 1096 + 1080 + lane.val := by
+      have address : 11378946 + index.val =
+          5359118 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.piDecStart_eq,
           PiCCSStarts.statementWitnessStart_eq] using same
       omega

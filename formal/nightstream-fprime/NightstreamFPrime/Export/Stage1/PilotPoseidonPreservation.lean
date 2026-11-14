@@ -37,9 +37,9 @@ private theorem constant_le_total :
     PiRLCProductPlan.basePackage.layout.constantColumn ≤
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-      11414924 := Package.circuitPackage_layout_values.2.2.1
+      11412732 := Package.circuitPackage_layout_values.2.2.1
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      11415253 := Package.circuitPackage_layout_values.2.2.2.2
+      11413061 := Package.circuitPackage_layout_values.2.2.2.2
   rw [constant, total]
   omega
 
@@ -207,7 +207,17 @@ def canonicalInput (chain : HashChain) (env : Circuit.Env)
       else
         previous lane
   else
-    fun lane => if lane.val = 0 then previous lane + 1 else previous lane
+    fun lane =>
+      if _rateLane : lane.val < Spec.Poseidon2.rate then
+        let offset := invocation.val * Spec.Poseidon2.rate + lane.val
+        if offset < chain.inputLength then
+          previous lane + env (chain.inputStart + offset)
+        else if offset = chain.inputLength then
+          previous lane + 1
+        else
+          previous lane
+      else
+        previous lane
 
 private theorem priorPreviousOutput_eval
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -312,24 +322,46 @@ theorem priorInputState_eval
     have pilotFinal : ¬invocation.val < PilotData.priorChain.absorbCount := by
       simpa [Data.priorChain, Data.liftPilotChain] using absorbing
     rw [ite_eq_right pilotFinal]
-    by_cases zeroLane : lane.val = 0
-    · rw [ite_eq_left zeroLane, ite_eq_left zeroLane]
-      simp only [SparseForm.add_eval,
-        SparseForm.singleton_eval, one, mul_one]
-      rw [show
-          (PilotPoseidonPlan.previousOutput
-            (PilotPoseidonPlan.priorSchedule program)
-            (PiRLCRetainedGeometry.priorPoseidonStart program)
-            (PiRLCRetainedGeometry.priorPoseidonFits
-              (PiRLCPoseidonGeometry.prefixGeometry geometry)) invocation lane).eval
-              assignment =
-            previousValue (priorOutputValue geometry assignment)
-              invocation lane by
-        exact congrFun (priorPreviousOutput_eval geometry assignment invocation)
-          lane]
-    · rw [ite_eq_right zeroLane, ite_eq_right zeroLane]
-      exact congrFun (priorPreviousOutput_eval geometry assignment invocation)
-        lane
+    have previousEq :
+        (PilotPoseidonPlan.previousOutput
+          (PilotPoseidonPlan.priorSchedule program)
+          (PiRLCRetainedGeometry.priorPoseidonStart program)
+          (PiRLCRetainedGeometry.priorPoseidonFits
+            (PiRLCPoseidonGeometry.prefixGeometry geometry)) invocation lane).eval
+            assignment =
+          previousValue (priorOutputValue geometry assignment) invocation lane :=
+      congrFun (priorPreviousOutput_eval geometry assignment invocation) lane
+    by_cases rateLane : lane.val < Spec.Poseidon2.rate
+    · rw [dite_eq_left rateLane, dite_eq_left rateLane]
+      let offset := invocation.val * Spec.Poseidon2.rate + lane.val
+      by_cases present : offset < Data.priorChain.inputLength
+      · rw [dite_eq_left present]
+        have pilotPresent : offset < PilotData.priorChain.inputLength := by
+          simpa [Data.priorChain, Data.liftPilotChain] using present
+        rw [ite_eq_left pilotPresent]
+        simp only [SparseForm.add_eval]
+        rw [previousEq]
+        apply congrArg (fun value =>
+          previousValue (priorOutputValue geometry assignment)
+            invocation lane + value)
+        simpa only [offset] using!
+          inputValues ⟨offset, present⟩
+      · rw [dite_eq_right present]
+        have pilotAbsent : ¬offset < PilotData.priorChain.inputLength := by
+          simpa [Data.priorChain, Data.liftPilotChain] using present
+        rw [ite_eq_right pilotAbsent]
+        by_cases next : offset = Data.priorChain.inputLength
+        · have pilotNext : offset = PilotData.priorChain.inputLength := by
+            simpa [Data.priorChain, Data.liftPilotChain] using next
+          rw [ite_eq_left next, ite_eq_left pilotNext]
+          simp only [SparseForm.add_eval, SparseForm.singleton_eval, one, mul_one]
+          rw [previousEq]
+        · have pilotNotNext : ¬offset = PilotData.priorChain.inputLength := by
+            simpa [Data.priorChain, Data.liftPilotChain] using next
+          rw [ite_eq_right next, ite_eq_right pilotNotNext]
+          exact previousEq
+    · rw [dite_eq_right rateLane, dite_eq_right rateLane]
+      exact previousEq
 
 theorem outputInputState_eval
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -398,24 +430,46 @@ theorem outputInputState_eval
     have pilotFinal : ¬invocation.val < PilotData.outputChain.absorbCount := by
       simpa [Data.outputChain, Data.liftPilotChain] using absorbing
     rw [ite_eq_right pilotFinal]
-    by_cases zeroLane : lane.val = 0
-    · rw [ite_eq_left zeroLane, ite_eq_left zeroLane]
-      simp only [SparseForm.add_eval,
-        SparseForm.singleton_eval, one, mul_one]
-      rw [show
-          (PilotPoseidonPlan.previousOutput
-            (PilotPoseidonPlan.outputSchedule program)
-            (PiRLCRetainedGeometry.outputPoseidonStart program)
-            (PiRLCRetainedGeometry.outputPoseidonFits
-              (PiRLCPoseidonGeometry.prefixGeometry geometry)) invocation lane).eval
-              assignment =
-            previousValue (outputOutputValue geometry assignment)
-              invocation lane by
-        exact congrFun (outputPreviousOutput_eval geometry assignment invocation)
-          lane]
-    · rw [ite_eq_right zeroLane, ite_eq_right zeroLane]
-      exact congrFun (outputPreviousOutput_eval geometry assignment invocation)
-        lane
+    have previousEq :
+        (PilotPoseidonPlan.previousOutput
+          (PilotPoseidonPlan.outputSchedule program)
+          (PiRLCRetainedGeometry.outputPoseidonStart program)
+          (PiRLCRetainedGeometry.outputPoseidonFits
+            (PiRLCPoseidonGeometry.prefixGeometry geometry)) invocation lane).eval
+            assignment =
+          previousValue (outputOutputValue geometry assignment) invocation lane :=
+      congrFun (outputPreviousOutput_eval geometry assignment invocation) lane
+    by_cases rateLane : lane.val < Spec.Poseidon2.rate
+    · rw [dite_eq_left rateLane, dite_eq_left rateLane]
+      let offset := invocation.val * Spec.Poseidon2.rate + lane.val
+      by_cases present : offset < Data.outputChain.inputLength
+      · rw [dite_eq_left present]
+        have pilotPresent : offset < PilotData.outputChain.inputLength := by
+          simpa [Data.outputChain, Data.liftPilotChain] using present
+        rw [ite_eq_left pilotPresent]
+        simp only [SparseForm.add_eval]
+        rw [previousEq]
+        apply congrArg (fun value =>
+          previousValue (outputOutputValue geometry assignment)
+            invocation lane + value)
+        simpa only [offset] using!
+          inputValues ⟨offset, present⟩
+      · rw [dite_eq_right present]
+        have pilotAbsent : ¬offset < PilotData.outputChain.inputLength := by
+          simpa [Data.outputChain, Data.liftPilotChain] using present
+        rw [ite_eq_right pilotAbsent]
+        by_cases next : offset = Data.outputChain.inputLength
+        · have pilotNext : offset = PilotData.outputChain.inputLength := by
+            simpa [Data.outputChain, Data.liftPilotChain] using next
+          rw [ite_eq_left next, ite_eq_left pilotNext]
+          simp only [SparseForm.add_eval, SparseForm.singleton_eval, one, mul_one]
+          rw [previousEq]
+        · have pilotNotNext : ¬offset = PilotData.outputChain.inputLength := by
+            simpa [Data.outputChain, Data.liftPilotChain] using next
+          rw [ite_eq_right next, ite_eq_right pilotNotNext]
+          exact previousEq
+    · rw [dite_eq_right rateLane, dite_eq_right rateLane]
+      exact previousEq
 
 structure CanonicalSemantics (chain : HashChain) (env : Circuit.Env)
     (output : Fin PilotPoseidonPlan.invocationCount → Layer.FState) : Prop where
@@ -510,12 +564,49 @@ theorem canonicalInput_absorb (chain : HashChain) (env : Circuit.Env)
 theorem canonicalInput_final (chain : HashChain) (env : Circuit.Env)
     (output : Fin PilotPoseidonPlan.invocationCount → Layer.FState)
     (current : Fin PilotPoseidonPlan.invocationCount)
-    (final : ¬current.val < chain.absorbCount) :
+    (countEq : chain.absorbCount = chain.inputLength / Spec.Poseidon2.rate)
+    (final : current.val = chain.absorbCount) :
     canonicalInput chain env output current =
-      Hash.padF (previousValue output current) := by
+      Hash.padF (Spec.Poseidon2.lastWords
+          (NightstreamFPrime.Export.Pilot.chainInputValues chain env))
+        (previousValue output current) := by
   funext lane
+  have lastLength : (Spec.Poseidon2.lastWords
+      (NightstreamFPrime.Export.Pilot.chainInputValues chain env)).length =
+        chain.inputLength - current.val * Spec.Poseidon2.rate := by
+    simp [Spec.Poseidon2.lastWords, NightstreamFPrime.Export.Pilot.chainInputValues,
+      final, countEq]
+  have short : chain.inputLength - current.val * Spec.Poseidon2.rate <
+      Spec.Poseidon2.rate := by
+    rw [final, countEq, show Spec.Poseidon2.rate = 12 from rfl]
+    omega
+  have covered : current.val * Spec.Poseidon2.rate ≤ chain.inputLength := by
+    rw [final, countEq]
+    exact Nat.div_mul_le_self _ _
   unfold canonicalInput Hash.padF
-  rw [ite_eq_right final]
+  rw [ite_eq_right (by omega), lastLength]
+  by_cases inside : lane.val < chain.inputLength - current.val * Spec.Poseidon2.rate
+  · have word : (Spec.Poseidon2.lastWords
+        (NightstreamFPrime.Export.Pilot.chainInputValues chain env)).getD lane.val 0 =
+          env (chain.inputStart + (current.val * Spec.Poseidon2.rate + lane.val)) := by
+      rw [List.getD_eq_getElem _ _ (by rw [lastLength]; exact inside)]
+      simp [Spec.Poseidon2.lastWords, NightstreamFPrime.Export.Pilot.chainInputValues,
+        final, countEq, Nat.add_comm]
+    simp only [dite_eq_left (by omega : lane.val < Spec.Poseidon2.rate),
+      ite_eq_left (by omega : current.val * Spec.Poseidon2.rate + lane.val < chain.inputLength),
+      ite_eq_left inside, word]
+  · by_cases rateLane : lane.val < Spec.Poseidon2.rate
+    · simp only [dite_eq_left rateLane,
+        ite_eq_right (by omega : ¬current.val * Spec.Poseidon2.rate + lane.val <
+          chain.inputLength), ite_eq_right inside]
+      by_cases next : lane.val = chain.inputLength - current.val * Spec.Poseidon2.rate
+      · simp only [ite_eq_left (by omega : current.val * Spec.Poseidon2.rate + lane.val =
+          chain.inputLength), ite_eq_left next]
+      · simp only [ite_eq_right (by omega : ¬current.val * Spec.Poseidon2.rate + lane.val =
+          chain.inputLength), ite_eq_right next]
+    · simp only [dite_eq_right rateLane, ite_eq_right inside,
+        ite_eq_right (by omega :
+          ¬lane.val = chain.inputLength - current.val * Spec.Poseidon2.rate)]
 
 def invocationAt (chain : HashChain)
     (countEq : chain.absorbCount + 1 = PilotPoseidonPlan.invocationCount)
@@ -606,11 +697,14 @@ theorem finalOutput_eq_hashState
     (chain : HashChain) (env : Circuit.Env)
     (output : Fin PilotPoseidonPlan.invocationCount → Layer.FState)
     (countEq : chain.absorbCount + 1 = PilotPoseidonPlan.invocationCount)
+    (chunkCountEq : chain.absorbCount = chain.inputLength / Spec.Poseidon2.rate)
     (semantics : CanonicalSemantics chain env output) :
     output (finalInvocation chain countEq) =
       Permutation.runF Permutation.schedule
-        (Hash.padF (NightstreamFPrime.Export.Pilot.chainAbsorbed
-          chain env chain.absorbCount)) := by
+        (Hash.padF (Spec.Poseidon2.lastWords
+            (NightstreamFPrime.Export.Pilot.chainInputValues chain env))
+          (NightstreamFPrime.Export.Pilot.chainAbsorbed
+            chain env chain.absorbCount)) := by
   let current := finalInvocation chain countEq
   have carried := previousValue_eq_chainAbsorbed chain env output countEq
     semantics chain.absorbCount (Nat.le_refl _)
@@ -618,7 +712,7 @@ theorem finalOutput_eq_hashState
       NightstreamFPrime.Export.Pilot.chainAbsorbed
         chain env chain.absorbCount := by
     simpa [current, finalInvocation] using carried
-  have inputEq := canonicalInput_final chain env output current (by
+  have inputEq := canonicalInput_final chain env output current chunkCountEq (by
     simp [current, finalInvocation, invocationAt])
   have step := semantics.invocation current
   apply List.ofFn_injective
@@ -627,23 +721,24 @@ theorem finalOutput_eq_hashState
         Spec.Poseidon2.permute
           (List.ofFn (canonicalInput chain env output current)) := step
     _ = Spec.Poseidon2.permute
-        (List.ofFn (Hash.padF
+        (List.ofFn (Hash.padF (Spec.Poseidon2.lastWords
+            (NightstreamFPrime.Export.Pilot.chainInputValues chain env))
           (NightstreamFPrime.Export.Pilot.chainAbsorbed
             chain env chain.absorbCount))) := by
       rw [inputEq, carriedCurrent]
     _ = List.ofFn (Permutation.runF Permutation.schedule
-        (Hash.padF (NightstreamFPrime.Export.Pilot.chainAbsorbed
-          chain env chain.absorbCount))) := permute_eq_runF _
+        (Hash.padF (Spec.Poseidon2.lastWords
+            (NightstreamFPrime.Export.Pilot.chainInputValues chain env))
+          (NightstreamFPrime.Export.Pilot.chainAbsorbed
+            chain env chain.absorbCount))) := permute_eq_runF _
 
-private theorem chainChunks_eq_inputChunks (chain : HashChain)
+private theorem chainChunks_eq_fullBlocks (chain : HashChain)
     (env : Circuit.Env)
-    (countEq : chain.absorbCount =
-      (chain.inputLength + Spec.Poseidon2.rate - 1) /
-        Spec.Poseidon2.rate) :
+    (countEq : chain.absorbCount = chain.inputLength / Spec.Poseidon2.rate) :
     NightstreamFPrime.Export.Pilot.chainChunks chain env =
-      Hash.inputChunks
+      Spec.Poseidon2.fullBlocks
         (NightstreamFPrime.Export.Pilot.chainInputValues chain env) := by
-  unfold NightstreamFPrime.Export.Pilot.chainChunks Hash.inputChunks
+  unfold NightstreamFPrime.Export.Pilot.chainChunks Spec.Poseidon2.fullBlocks
     NightstreamFPrime.Export.Pilot.chainBlockList
   simp only [NightstreamFPrime.Export.Pilot.chainInputValues,
     List.length_ofFn]
@@ -652,13 +747,11 @@ private theorem chainChunks_eq_inputChunks (chain : HashChain)
 
 private theorem chainAbsorbed_final_eq_absorbManyF (chain : HashChain)
     (env : Circuit.Env)
-    (countEq : chain.absorbCount =
-      (chain.inputLength + Spec.Poseidon2.rate - 1) /
-        Spec.Poseidon2.rate) :
+    (countEq : chain.absorbCount = chain.inputLength / Spec.Poseidon2.rate) :
     NightstreamFPrime.Export.Pilot.chainAbsorbed
         chain env chain.absorbCount =
       Hash.absorbManyF Hash.zeroF
-        (Hash.inputChunks
+        (Spec.Poseidon2.fullBlocks
           (NightstreamFPrime.Export.Pilot.chainInputValues chain env)) := by
   have absorbed :=
     NightstreamFPrime.Export.Pilot.chainAbsorbed_eq_absorbManyF
@@ -677,31 +770,31 @@ private theorem chainAbsorbed_final_eq_absorbManyF (chain : HashChain)
         (NightstreamFPrime.Export.Pilot.chainChunks chain env) := by
       rw [← chunksLength, List.take_length]
     _ = Hash.absorbManyF Hash.zeroF
-        (Hash.inputChunks
+        (Spec.Poseidon2.fullBlocks
           (NightstreamFPrime.Export.Pilot.chainInputValues chain env)) := by
-      rw [chainChunks_eq_inputChunks chain env countEq]
+      rw [chainChunks_eq_fullBlocks chain env countEq]
 
 theorem directDigest_eq_hash
     (chain : HashChain) (env : Circuit.Env)
     (output : Fin PilotPoseidonPlan.invocationCount → Layer.FState)
     (invocationCountEq :
       chain.absorbCount + 1 = PilotPoseidonPlan.invocationCount)
-    (chunkCountEq : chain.absorbCount =
-      (chain.inputLength + Spec.Poseidon2.rate - 1) /
-        Spec.Poseidon2.rate)
+    (chunkCountEq : chain.absorbCount = chain.inputLength / Spec.Poseidon2.rate)
     (semantics : CanonicalSemantics chain env output) :
     List.ofFn (directDigest chain invocationCountEq output) =
       Spec.Poseidon2.hash
         (NightstreamFPrime.Export.Pilot.chainInputValues chain env) := by
   have finalState := finalOutput_eq_hashState chain env output
-    invocationCountEq semantics
+    invocationCountEq chunkCountEq semantics
   have absorbed := chainAbsorbed_final_eq_absorbManyF chain env chunkCountEq
   calc
     List.ofFn (directDigest chain invocationCountEq output) =
         List.ofFn (Hash.digestF
           (Permutation.runF Permutation.schedule
-            (Hash.padF (NightstreamFPrime.Export.Pilot.chainAbsorbed
-              chain env chain.absorbCount)))) := by
+            (Hash.padF (Spec.Poseidon2.lastWords
+                (NightstreamFPrime.Export.Pilot.chainInputValues chain env))
+              (NightstreamFPrime.Export.Pilot.chainAbsorbed
+                chain env chain.absorbCount)))) := by
       unfold directDigest
       rw [finalState]
     _ = List.ofFn (Hash.hashF
@@ -715,27 +808,25 @@ theorem directDigest_eq_hash
 theorem priorInvocationCount_eq :
     PilotData.priorChain.absorbCount + 1 =
       PilotPoseidonPlan.invocationCount := by
-  change 2410 + 1 = 2411
+  change 2409 + 1 = 2410
   decide
 
 theorem outputInvocationCount_eq :
     PilotData.outputChain.absorbCount + 1 =
       PilotPoseidonPlan.invocationCount := by
-  change 2410 + 1 = 2411
+  change 2409 + 1 = 2410
   decide
 
 private theorem priorChunkCount_eq :
     PilotData.priorChain.absorbCount =
-      (PilotData.priorChain.inputLength + Spec.Poseidon2.rate - 1) /
-        Spec.Poseidon2.rate := by
-  change 2410 = (28913 + 12 - 1) / 12
+      PilotData.priorChain.inputLength / Spec.Poseidon2.rate := by
+  change 2409 = 28913 / 12
   decide
 
 private theorem outputChunkCount_eq :
     PilotData.outputChain.absorbCount =
-      (PilotData.outputChain.inputLength + Spec.Poseidon2.rate - 1) /
-        Spec.Poseidon2.rate := by
-  change 2410 = (28913 + 12 - 1) / 12
+      PilotData.outputChain.inputLength / Spec.Poseidon2.rate := by
+  change 2409 = 28913 / 12
   decide
 
 structure HashFacts {program : Lifecycle.Stage1.Application.Program}

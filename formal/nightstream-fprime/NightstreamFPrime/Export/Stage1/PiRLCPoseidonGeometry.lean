@@ -31,7 +31,7 @@ def pilotLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem pilotLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    pilotLogicalWidth program = 41933972 := by
+    pilotLogicalWidth program = 41921672 := by
   unfold pilotLogicalWidth outputInputStart priorInputStart
     priorInputBlock outputInputBlock
   simp

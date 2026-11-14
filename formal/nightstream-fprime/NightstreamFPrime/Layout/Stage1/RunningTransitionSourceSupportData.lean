@@ -80,7 +80,7 @@ def Target (column : Nat) : Prop :=
 @[simp] theorem outputCount_eq : outputCount = 28913 := by
   exact PilotProduction.stateHashWords_eq
 
-@[simp] theorem piDecStart_eq : piDecStart = 11381138 := by
+@[simp] theorem piDecStart_eq : piDecStart = 11378946 := by
   rfl
 
 @[simp] theorem piDecCount_eq : piDecCount = 33792 := by
@@ -97,8 +97,8 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
     change source.val < 16 at sourceBound
     change row.val < 18 at rowBound
     change coefficient.val < 64 at coefficientBound
-    change InRange 11381138 33792
-      (11381138 + source.val * 1152 + row.val * 64 + coefficient.val)
+    change InRange 11378946 33792
+      (11378946 + source.val * 1152 + row.val * 64 + coefficient.val)
     unfold InRange
     omega
   · rcases publicInput with ⟨source, coordinate, rfl⟩
@@ -106,8 +106,8 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
     have coordinateBound := coordinate.isLt
     change source.val < 16 at sourceBound
     change coordinate.val < 320 at coordinateBound
-    change InRange 11381138 33792
-      (11409810 + source.val * 320 + coordinate.val)
+    change InRange 11378946 33792
+      (11407618 + source.val * 320 + coordinate.val)
     unfold InRange
     omega
   · rcases evalK with ⟨source, coefficient, low | high⟩
@@ -118,12 +118,12 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
       change source.val < 16 at sourceBound
       change coefficient.val < 64 at coefficientBound
       first
-      | change InRange 11381138 33792
-          (11399570 + source.val * 128 + coefficient.val * 2)
+      | change InRange 11378946 33792
+          (11397378 + source.val * 128 + coefficient.val * 2)
         unfold InRange
         omega
-      | change InRange 11381138 33792
-          (11399570 + source.val * 128 + coefficient.val * 2 + 1)
+      | change InRange 11378946 33792
+          (11397378 + source.val * 128 + coefficient.val * 2 + 1)
         unfold InRange
         omega
   · rcases evalA with ⟨source, matrix, coefficient, low | high⟩
@@ -136,13 +136,13 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
       change matrix.val < 4 at matrixBound
       change coefficient.val < 64 at coefficientBound
       first
-      | change InRange 11381138 33792
-          (11401618 + source.val * 512 + matrix.val * 128 +
+      | change InRange 11378946 33792
+          (11399426 + source.val * 512 + matrix.val * 128 +
             coefficient.val * 2)
         unfold InRange
         omega
-      | change InRange 11381138 33792
-          (11401618 + source.val * 512 + matrix.val * 128 +
+      | change InRange 11378946 33792
+          (11399426 + source.val * 512 + matrix.val * 128 +
             coefficient.val * 2 + 1)
         unfold InRange
         omega

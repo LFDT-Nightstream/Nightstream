@@ -169,8 +169,9 @@ item 5).
   `Lifecycle.BoundedDepth.RandomOracle.RefreshSolver.kernelChance_le_solver`). The
   state-collision terms are the probability of a Poseidon2 collision on two
   named prior states, and a collision finder outputs the colliding input
-  pair, whose two inputs have one length (the sponge pads with zeros and does
-  not encode the length) (`Lifecycle.BoundedDepth.RandomOracle.HashSolver.hashCollisions_le_finder`).
+  pair, whose two inputs have one length
+  (`Lifecycle.BoundedDepth.RandomOracle.HashSolver.hashCollisions_le_finder`).
+  The `10*` padding of the sponge is injective (`Spec.Poseidon2.blocks_injective`).
   Averaged over the SHAKE128 key setup at key width `2^26`, the kernel term is
   an MSIS advantage for a uniform matrix at the chain norm plus a programming
   error below `2^−192`, so each fold's bound uses only the two algorithms

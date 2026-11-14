@@ -18,7 +18,7 @@ private theorem target_lt_basePackage (source : Nat)
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have mapped := PackageOrder.sourceToPackage_lt source bound
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      11415253 :=
+      11413061 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   simpa [PackageOrder.packageColumnCount] using mapped
@@ -47,7 +47,7 @@ def stateBlock (program : Lifecycle.Stage1.Application.Program) :
       change index.val < 9 at indexBound
       rw [RunningTransitionSourceSupport.stateStart_eq,
         PackageOrder.sourceColumnCount_eq]
-      change 28904 + index.val < 11415252
+      change 28904 + index.val < 11413060
       omega)
 
 def outputBlock (program : Lifecycle.Stage1.Application.Program) :
@@ -59,7 +59,7 @@ def outputBlock (program : Lifecycle.Stage1.Application.Program) :
       change index.val < 28913 at indexBound
       rw [RunningTransitionSourceSupport.outputStart_eq,
         PackageOrder.sourceColumnCount_eq]
-      change 29233 + index.val < 11415252
+      change 29233 + index.val < 11413060
       omega)
 
 def piDecBlock (program : Lifecycle.Stage1.Application.Program) :
@@ -71,7 +71,7 @@ def piDecBlock (program : Lifecycle.Stage1.Application.Program) :
       change index.val < 33792 at indexBound
       rw [RunningTransitionSourceSupport.piDecStart_eq,
         PackageOrder.sourceColumnCount_eq]
-      change 11381138 + index.val < 11415252
+      change 11378946 + index.val < 11413060
       omega)
 
 def freshCount : Nat := RunningTransitionSourceSupport.physicalEnd -

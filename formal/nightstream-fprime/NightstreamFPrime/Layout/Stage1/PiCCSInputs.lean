@@ -32,7 +32,7 @@ def runningEvalAStart (source : Nat) : Nat :=
 
 def runningPointStart : Nat := priorRunningStart + 28672
 
-def expectedContextStart : Nat := 5343330
+def expectedContextStart : Nat := 5341138
 
 def expectedContextWords : Nat := 4
 
@@ -52,16 +52,16 @@ theorem expectedContextStart_matches_pilot :
   rw [PilotProduction.physicalColumnCount_eq]
   rfl
 
-theorem expectedContextStart_eq : expectedContextStart = 5343330 := by
+theorem expectedContextStart_eq : expectedContextStart = 5341138 := by
   rfl
 
 theorem expectedContextWords_eq : expectedContextWords = 4 := by
   rfl
 
-theorem priorChildrenStart_eq : priorChildrenStart = 5343334 := by
+theorem priorChildrenStart_eq : priorChildrenStart = 5341142 := by
   rfl
 
-theorem proofInputStart_eq : proofInputStart = 5348454 := by
+theorem proofInputStart_eq : proofInputStart = 5346262 := by
   rfl
 
 def freshCommitmentStart : Nat := proofInputStart
@@ -95,7 +95,7 @@ theorem outputEvaluationWords_eq :
 theorem proofInputColumnCount_eq : proofInputColumnCount = 12536 := by
   rfl
 
-theorem phaseOffset_eq : phaseOffset = 5360990 := by
+theorem phaseOffset_eq : phaseOffset = 5358798 := by
   rfl
 
 def pairAt (start : Nat) : KExpr :=

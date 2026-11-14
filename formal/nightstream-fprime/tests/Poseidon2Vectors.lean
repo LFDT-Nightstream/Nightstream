@@ -1,8 +1,8 @@
 import NightstreamFPrime.Spec.Poseidon2
 
 /-! Known answers of the width-16 instance (`decisions/poseidon2-p64-instance.md`): the five
-vectors of `scripts/poseidon2/vectors.json`, then the sponge outputs that the Rust test
-`sponge_hash_matches_lean_reference` pins. -/
+vectors of `scripts/poseidon2/vectors.json`. The sponge outputs are emitted for Rust by
+`Export/Poseidon2VectorsMain.lean`. -/
 
 namespace NightstreamFPrime.Tests.Poseidon2Vectors
 
@@ -10,9 +10,6 @@ open NightstreamFPrime.Spec
 
 private def permuted (input : List Nat) : List Nat :=
   (Poseidon2.permute (input.map Poseidon2.ofNat)).map (·.val)
-
-private def hashed (input : List Nat) : List Nat :=
-  (Poseidon2.hash (input.map Poseidon2.ofNat)).map (·.val)
 
 #guard permuted (List.range 16) =
   [14563845112283909505, 9412640492775559967, 9235116104467616360, 11257732917720685649,
@@ -55,17 +52,5 @@ private def hashed (input : List Nat) : List Nat :=
    5171420854726057032, 1955377380413491979, 14421797349872767809, 7725855441090982860,
    17074270871646876133, 16860933529697661685, 9115077081967424772, 18332926346446892941,
    15602346088900531521, 18242047828731523014, 14461512189546497582, 12025382669995699496]
-
-#guard hashed ([1, 2, 3]) =
-  [7952027621332927413, 9213421264810627226, 623495900639085789, 9467555370543695039]
-
-#guard hashed (List.replicate 10 42) =
-  [2656735232155600267, 9823656000846225850, 3299150451117335507, 10682430385665004754]
-
-#guard hashed [] =
-  [5720237852712464303, 824292497264698302, 520357743679308628, 12930268376689415027]
-
-#guard hashed (List.range 25) =
-  [12273299475131208254, 5711874076847198927, 1399208977636903231, 17383775066828091843]
 
 end NightstreamFPrime.Tests.Poseidon2Vectors

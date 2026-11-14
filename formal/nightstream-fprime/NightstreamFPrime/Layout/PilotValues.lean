@@ -16,8 +16,7 @@ abbrev outputDigestStart : Nat := outputPreimageStart + stateHashWords
 abbrev externalColumnCount : Nat := outputDigestStart + digestWords
 
 abbrev absorbCount : Nat :=
-  (stateHashWords + NightstreamFPrime.Spec.Poseidon2.rate - 1) /
-    NightstreamFPrime.Spec.Poseidon2.rate
+  stateHashWords / NightstreamFPrime.Spec.Poseidon2.rate
 abbrev permutationRecipeCount : Nat := 1096
 abbrev permutationOutputLocalStart : Nat := 1080
 abbrev hashWitnessCount : Nat :=

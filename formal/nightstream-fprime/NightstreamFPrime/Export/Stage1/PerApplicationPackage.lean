@@ -26,7 +26,7 @@ def applicationPlan (program : Lifecycle.Stage1.Application.Program) :
 
 def directApplicationPlan (program : Lifecycle.Stage1.Application.Program) :
     ApplicationPackage.Plan :=
-  ApplicationPackage.productionPlan program 11317348
+  ApplicationPackage.productionPlan program 11315156
 
 theorem directApplicationPlan_eq_applicationPlan
     (program : Lifecycle.Stage1.Application.Program) :
@@ -79,7 +79,7 @@ def nextPreimageRowStart
 
 def directNextPreimageRowStart
     (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  11317348 + directApplicationRowCount program
+  11315156 + directApplicationRowCount program
 
 theorem directNextPreimageRowStart_eq_nextPreimageRowStart
     (program : Lifecycle.Stage1.Application.Program) :
@@ -596,19 +596,19 @@ theorem packageRows_imply_nextPreimageSpec
       sourceSpec.initialState index
 
 @[simp] theorem basePackage_rowCount_eq :
-    basePackage.layout.rowCount = 11317348 := by
+    basePackage.layout.rowCount = 11315156 := by
   rw [basePackage, Data.circuitPackage_layout]
   rfl
 
 @[simp] theorem basePackage_totalColumnCount_eq :
-    basePackage.layout.totalColumnCount = 11415253 := by
+    basePackage.layout.totalColumnCount = 11413061 := by
   rw [basePackage, Data.circuitPackage_layout]
   rfl
 
 theorem package_rowCount_le_twoPow28_iff
     (program : Lifecycle.Stage1.Application.Program) :
     (package program).layout.rowCount ≤ 2 ^ Lifecycle.cubeVariables ↔
-      (applicationPlan program).rowCount ≤ 257118103 := by
+      (applicationPlan program).rowCount ≤ 257120295 := by
   rw [package_rowCount, basePackage_rowCount_eq]
   norm_num [Lifecycle.cubeVariables]
   omega
@@ -616,7 +616,7 @@ theorem package_rowCount_le_twoPow28_iff
 theorem package_totalColumnCount_le_twoPow28_iff
     (program : Lifecycle.Stage1.Application.Program) :
     (package program).layout.totalColumnCount ≤ 2 ^ Lifecycle.cubeVariables ↔
-      addedPrivateColumnCount program ≤ 257020203 := by
+      addedPrivateColumnCount program ≤ 257022395 := by
   rw [package_totalColumnCount, basePackage_totalColumnCount_eq]
   norm_num [Lifecycle.cubeVariables]
   omega
@@ -628,8 +628,8 @@ structure FitsTwoPow28 (program : Lifecycle.Stage1.Application.Program) : Prop w
 
 theorem fitsTwoPow28OfApplicationBounds
     (program : Lifecycle.Stage1.Application.Program)
-    (rows : (applicationPlan program).rowCount ≤ 257118103)
-    (columns : addedPrivateColumnCount program ≤ 257020203) :
+    (rows : (applicationPlan program).rowCount ≤ 257120295)
+    (columns : addedPrivateColumnCount program ≤ 257022395) :
     FitsTwoPow28 program where
   rows := (package_rowCount_le_twoPow28_iff program).2 rows
   columns := (package_totalColumnCount_le_twoPow28_iff program).2 columns

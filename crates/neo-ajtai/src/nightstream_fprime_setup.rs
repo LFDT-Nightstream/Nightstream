@@ -35,8 +35,8 @@ pub const ELEMENT_INPUT_BYTES: usize = SETUP_ID.len() + 32 + 4 + 8;
 /// The commitment rows κ of the selected parameter profile.
 pub const PRODUCTION_VERIFIER_ROWS: u64 = neo_params::nightstream_p64_k16::KAPPA as u64;
 /// Lean `Poseidon2HashChainV1Setup.messageColumns_eq`: `blockCount` of the logical width
-/// 46,617,074 of `Poseidon2HashChainV1Package.logicalWidth`, which is `ceil(46_617_074 / D)`.
-pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 46_617_074_u64.div_ceil(D as u64);
+/// 46,604,774 of `Poseidon2HashChainV1Package.logicalWidth`, which is `ceil(46_604_774 / D)`.
+pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 46_604_774_u64.div_ceil(D as u64);
 pub const PRODUCTION_CARRIER_WIDTH: usize = PRODUCTION_MESSAGE_COLUMNS as usize * D;
 /// The whole ring columns in the 254,260,620 coefficients of the matrix of
 /// `decisions/fprime-ajtai-public-seed-msis-assumption.md`. The limit stays a count of
@@ -49,7 +49,7 @@ pub const PRODUCTION_SEED: [u8; 32] = [
     189, 76, 31, 30, 55, 23, 2,
 ];
 
-const _: () = assert!(PRODUCTION_MESSAGE_COLUMNS == 728_392 && MAX_MESSAGE_COLUMNS == 3_972_822);
+const _: () = assert!(PRODUCTION_MESSAGE_COLUMNS == 728_200 && MAX_MESSAGE_COLUMNS == 3_972_822);
 const _: () = assert!(PRODUCTION_MESSAGE_COLUMNS <= MAX_MESSAGE_COLUMNS);
 /// One `SignedShiftSums` receives at most one term for each key column.
 const _: () = assert!(MAX_MESSAGE_COLUMNS <= MAX_TERMS);

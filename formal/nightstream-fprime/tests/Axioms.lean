@@ -972,6 +972,9 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn_add_of_public
 #audit_axioms NightstreamFPrime.Spec.Poseidon2.absorbBlocksFast_eq_indexed
 #audit_axioms NightstreamFPrime.Spec.Poseidon2.hash_eq_hashFast
+#audit_axioms NightstreamFPrime.Spec.Poseidon2.hash_eq_last
+#audit_axioms NightstreamFPrime.Spec.Poseidon2.pad_injective
+#audit_axioms NightstreamFPrime.Spec.Poseidon2.blocks_injective
 #audit_axioms NightstreamFPrime.Export.Package.decode_encode
 #audit_axioms NightstreamFPrime.Export.Package.valuePreimage_atom
 #audit_axioms NightstreamFPrime.Export.Package.valuePreimage_emptyArray

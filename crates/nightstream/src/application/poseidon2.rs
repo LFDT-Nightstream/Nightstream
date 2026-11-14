@@ -32,13 +32,19 @@ pub fn poseidon2_hash_chain_v1() -> Result<ApplicationCircuit, ApplicationError>
     preimage.extend(builder.input_state().map(Affine::from));
     preimage.extend(builder.private_inputs().iter().copied().map(Affine::from));
     let mut state = std::array::from_fn(|_| scalar(0));
-    for block in preimage.chunks(RATE) {
+    let blocks = preimage.chunks_exact(RATE);
+    let last = blocks.remainder();
+    for block in blocks {
         for (lane, value) in state.iter_mut().enumerate() {
             *value = value.clone() + block.get(lane).cloned().unwrap_or_else(|| scalar(0));
         }
         state = permutation(&mut builder, state)?;
     }
-    state[0] = state[0].clone() + scalar(1);
+    // `Hash.padE`: the last words, then 1 in the next lane.
+    for (lane, word) in last.iter().enumerate() {
+        state[lane] = state[lane].clone() + word.clone();
+    }
+    state[last.len()] = state[last.len()].clone() + scalar(1);
     state = permutation(&mut builder, state)?;
     builder.finish(std::array::from_fn(|lane| state[lane].clone()))
 }

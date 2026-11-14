@@ -1,7 +1,10 @@
 //! Primitive conformance: the Rust Poseidon2 permutations must equal each known answer of
 //! `scripts/poseidon2/vectors.json`, and the sponge hash must equal the Lean reference
-//! `NightstreamFPrime.Spec.Poseidon2.hash` on the vectors that Lean checks in
-//! `formal/nightstream-fprime/tests/Poseidon2Vectors.lean`.
+//! `NightstreamFPrime.Spec.Poseidon2.hash` on the inputs that `Export/Poseidon2VectorsMain.lean`
+//! emits to `formal/nightstream-fprime/artifacts/nightstream-fprime-poseidon2-hash-v1.json`.
+//! From `formal/nightstream-fprime`, emit them again with
+//! `bash scripts/validate.sh lean-executable .lake/build/bin/emitPoseidon2Vectors
+//! artifacts/nightstream-fprime-poseidon2-hash-v1.json`.
 
 use neo_ccs::crypto::poseidon2 as p2;
 use neo_math::Fq;
@@ -55,41 +58,24 @@ fn permutations_match_every_known_answer() {
 
 #[test]
 fn sponge_hash_matches_lean_reference() {
-    assert_eq!(
-        u64s(&p2::poseidon2_hash(&[1u64, 2, 3].map(Fq::from_u64))),
-        [
-            7952027621332927413,
-            9213421264810627226,
-            623495900639085789,
-            9467555370543695039,
-        ]
-    );
-    assert_eq!(
-        u64s(&p2::poseidon2_hash(&[Fq::from_u64(42); 10])),
-        [
-            2656735232155600267,
-            9823656000846225850,
-            3299150451117335507,
-            10682430385665004754,
-        ]
-    );
-    assert_eq!(
-        u64s(&p2::poseidon2_hash(&[])),
-        [
-            5720237852712464303,
-            824292497264698302,
-            520357743679308628,
-            12930268376689415027,
-        ]
-    );
-    let input: Vec<Fq> = (0..25).map(Fq::from_u64).collect();
-    assert_eq!(
-        u64s(&p2::poseidon2_hash(&input)),
-        [
-            12273299475131208254,
-            5711874076847198927,
-            1399208977636903231,
-            17383775066828091843,
-        ]
-    );
+    let vectors: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../formal/nightstream-fprime/artifacts/nightstream-fprime-poseidon2-hash-v1.json"
+    ))
+    .expect("Lean hash vectors");
+    assert_eq!(vectors[0], Fq::ORDER_U64);
+    let mut lengths = Vec::new();
+    for vector in vectors[1].as_array().expect("vectors") {
+        let words = |index: usize| -> Vec<u64> {
+            vector[index]
+                .as_array()
+                .expect("words")
+                .iter()
+                .map(|word| word.as_u64().expect("u64"))
+                .collect()
+        };
+        let input: Vec<Fq> = words(0).into_iter().map(Fq::from_u64).collect();
+        assert_eq!(u64s(&p2::poseidon2_hash(&input)), words(1), "length {}", input.len());
+        lengths.push(input.len());
+    }
+    assert!((0..=25).all(|length| lengths.contains(&length)));
 }

@@ -49,7 +49,7 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1.preimage_length
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1.step_output_length
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1.inputExpressions_length
-#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1.inputChunks_length
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1.fullBlockCount
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1.compile_recipes_length
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1.circuit_localLength
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1.circuit_rowCount

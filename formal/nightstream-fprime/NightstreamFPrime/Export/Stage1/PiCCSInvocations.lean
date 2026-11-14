@@ -899,7 +899,7 @@ theorem invocations_length
 def invocationCeiling : Nat :=
   NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
-theorem invocationCeiling_eq : invocationCeiling = 6591589 := by
+theorem invocationCeiling_eq : invocationCeiling = 6589397 := by
   unfold invocationCeiling NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
   rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage,

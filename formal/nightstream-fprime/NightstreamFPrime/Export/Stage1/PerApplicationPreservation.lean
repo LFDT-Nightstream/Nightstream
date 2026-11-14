@@ -545,9 +545,20 @@ private theorem shiftedHashInvocationInput
           exact (Nat.not_lt.mpr (present both.1)) both.2
         simp [absent]
     · simp only [absorbing]
-      by_cases zeroLane : lane = 0
-      · simp [zeroLane]
-      · simp [zeroLane]
+      by_cases present : lane < 12 ∧ 0 * 12 + lane < chain.inputLength
+      · have inputEnd := layout.inputEnd
+        have inputShift := shiftColumn_add_of_private program chain.inputStart
+          (0 * 12 + lane) (by omega)
+        norm_num at present inputShift
+        simp [present.1, present.2, inputShift]
+      · norm_num at present
+        have absent : ¬(lane < 12 ∧ lane < chain.inputLength) := by
+          intro both
+          exact (Nat.not_lt.mpr (present both.1)) both.2
+        by_cases next : lane < 12 ∧ lane = chain.inputLength
+        · simp [next]
+          split <;> simp
+        · simp [absent, next]
   · have witnessEnd := layout.witnessEnd
     have previousShift :
         shiftColumn program
@@ -582,11 +593,14 @@ private theorem shiftedHashInvocationInput
         simp [present, previousShift, inputShift]
       · simp [present, previousShift]
     · simp only [absorbing]
-      by_cases zeroLane : lane = 0
-      · subst lane
-        simp at previousShift
-        simp [previousShift]
-      · simp [zeroLane, previousShift]
+      by_cases present : lane < 12 ∧ invocation * 12 + lane < chain.inputLength
+      · have inputEnd := layout.inputEnd
+        have inputShift := shiftColumn_add_of_private program chain.inputStart
+          (invocation * 12 + lane) (by omega)
+        simp [present, previousShift, inputShift]
+      · by_cases next : lane < 12 ∧ invocation * 12 + lane = chain.inputLength
+        · simp [next, previousShift]
+        · simp [present, next, previousShift]
 
 private theorem shiftedHashColumn
     (program : Lifecycle.Stage1.Application.Program) (chain : HashChain)

@@ -53,16 +53,13 @@ pub(crate) enum Holds {
 }
 
 /// One step circuit as a compiled circuit holds it: the expanded package,
-/// its slot spans, the fold workspace and the retained matrix window. A
-/// compiled circuit builds it once, and each of its provers and verifiers
-/// shares it.
+/// its slot spans and the fold workspace. A compiled circuit builds it once,
+/// and each of its provers and verifiers shares it. It is read-only: the
+/// retained matrix window, which a fold fills, belongs to each `Relation`.
 pub(crate) struct CompiledStep {
     expanded: ExpandedPackage,
     spans: SlotSpans,
     workspace_bytes: usize,
-    /// The compact matrices of every row, kept after their first complete
-    /// load: each fold, opening and row check reads them again.
-    window: RetainedMatrixWindow,
 }
 
 impl CompiledStep {
@@ -71,7 +68,6 @@ impl CompiledStep {
             spans: expanded.layout().spans(),
             expanded,
             workspace_bytes: 0,
-            window: RetainedMatrixWindow::default(),
         };
         let payload = 2 * MATRICES * size_of::<K>() + size_of::<F>() + size_of::<K>();
         step.workspace_bytes =
@@ -122,10 +118,6 @@ impl MatrixRows for CompiledStep {
     fn factored(&self) -> Result<Option<FactoredRows<'_>>, PiCcsError> {
         self.factored_rows().map(Some)
     }
-
-    fn retained_window(&self) -> Option<&RetainedMatrixWindow> {
-        Some(&self.window)
-    }
 }
 
 /// A step circuit's relation at one security minimum: its compiled step,
@@ -134,6 +126,10 @@ pub(crate) struct Relation {
     step: Arc<CompiledStep>,
     structure: Structure,
     params: Params,
+    /// The compact matrices of every row, kept after their first complete
+    /// load: each fold, opening and row check reads them again. Each prover
+    /// and verifier keeps its own, so a verifier reads nothing a prover filled.
+    window: RetainedMatrixWindow,
 }
 
 impl Relation {
@@ -169,6 +165,7 @@ impl Relation {
             step: Arc::clone(step),
             structure,
             params,
+            window: RetainedMatrixWindow::default(),
         })
     }
 
@@ -396,6 +393,6 @@ impl MatrixRows for Relation {
     }
 
     fn retained_window(&self) -> Option<&RetainedMatrixWindow> {
-        self.step.retained_window()
+        Some(&self.window)
     }
 }

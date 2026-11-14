@@ -1,8 +1,11 @@
 //! A compiled circuit expands its step packages and builds its finish
-//! circuit once. Its provers and verifiers read that one copy, so making
-//! them expands nothing again.
+//! circuit once. Its provers and verifiers read that one read-only copy, so
+//! making them expands nothing again. Each keeps its own matrix window, the
+//! one part a fold fills, so a verifier reads nothing a prover filled.
 
 use std::sync::Arc;
+
+use neo_reductions::superneo_eval::{MatrixRows, RetainedMatrixWindow};
 
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -34,6 +37,22 @@ fn provers_and_verifiers_read_the_circuit_expansion() {
             let rows = shared.expanded().rows();
             assert_eq!(rows.columns().as_ptr(), expanded.rows().columns().as_ptr());
             assert!(std::ptr::eq(shared.expanded().layout(), expanded.layout()));
+        }
+        let windows: Vec<*const RetainedMatrixWindow> = lifecycles
+            .iter()
+            .map(|lifecycle| {
+                lifecycle.relations()[index]
+                    .retained_window()
+                    .expect("a relation keeps a window") as *const _
+            })
+            .collect();
+        for (left, first) in windows.iter().enumerate() {
+            for second in &windows[left + 1..] {
+                assert!(
+                    !std::ptr::eq(*first, *second),
+                    "circuit {index}: two objects share a matrix window"
+                );
+            }
         }
     }
     for finish in [&provers[0].finish, &provers[1].finish, &verifier.finish] {

@@ -8,7 +8,7 @@ exact error sum that bounds the soundness error of the argument (`runError (prod
 Rust gate (`runBits`). For generated claim sets, Lean's layout or the error of `layoutNew`, and the
 same values with the production `m` and `t`. Rust tests compare them with `Layout::new` and
 `error_bits` (`crates/nightstream/tests/bounded_depth_lifecycle/compression_error.rs`,
-`crates/neo-compress/tests/unit/layout.rs`). -/
+`crates/ns-compress/tests/unit/layout.rs`). -/
 
 namespace NightstreamFPrime.Export.CompressionParity
 
@@ -103,7 +103,7 @@ private def generatedEntry (input : List Claim × ℕ) : Lean.Json :=
       ("error", error (l.counts 320 4))])
   | .error e => Lean.Json.mkObj (entry ++ [("rejected", Lean.toJson e.name)])
 
-/-- The claims of the proof of `crates/neo-compress/tests/unit/transcript_order.rs`
+/-- The claims of the proof of `crates/ns-compress/tests/unit/transcript_order.rs`
 (`tests/support::instances`): their blocks and tables, under the key of 512 blocks, each with 128
 public cells, 14 point variables and 4 matrices. -/
 private def transcriptClaims : List Claim := [⟨61, some 2176⟩, ⟨100, some 300⟩, ⟨90, none⟩]

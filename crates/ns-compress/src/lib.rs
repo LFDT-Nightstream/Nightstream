@@ -95,7 +95,7 @@
 
 // The claims of `tests/support` name this crate as an integration test does.
 #[cfg(test)]
-extern crate self as neo_compress;
+extern crate self as ns_compress;
 #[cfg(test)]
 #[path = "../tests/support/mod.rs"]
 mod support;

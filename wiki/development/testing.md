@@ -15,7 +15,7 @@ The root [AGENTS.md](../../AGENTS.md) defines the test rules.
 timeout --signal=KILL 300 cargo test -p nightstream --release
 timeout --signal=KILL 300 cargo test -p neo-ccs --release --test packed_witness
 timeout --signal=KILL 300 cargo test -p neo-reductions --release --test matrix_rows
-timeout --signal=KILL 300 cargo test -p neo-compress --release
+timeout --signal=KILL 300 cargo test -p ns-compress --release
 timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib application_records
 timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib bounded_depth::application
 ```
@@ -31,13 +31,13 @@ other CI tests turn LTO off. Run the first command by hand:
 timeout --signal=KILL 300 cargo test -p nightstream --release --lib lifecycle::bounded_depth::tests::compression -- --ignored --test-threads 1
 timeout --signal=KILL 300 cargo test -p nightstream --release --test compression -- --ignored
 timeout --signal=KILL 300 cargo test -p nightstream --release --test compression_at_cap -- --ignored
-timeout --signal=KILL 300 cargo test -p neo-compress --release --lib -- --ignored key::tests::the_large_pinned_key_is_the_key_of_the_public_seeds
+timeout --signal=KILL 300 cargo test -p ns-compress --release --lib -- --ignored key::tests::the_large_pinned_key_is_the_key_of_the_public_seeds
 ```
 
-`cargo test -p neo-compress --release` runs the argument on small claims,
+`cargo test -p ns-compress --release` runs the argument on small claims,
 with a key polynomial of 512 blocks.
 `scripts/akita_schedules.sh` makes the Akita schedule files of
-`crates/neo-compress/artifacts` again.
+`crates/ns-compress/artifacts` again.
 
 CI runs the selected Rust regression suites. Lean remains a local check.
 Until a Mac runner is available, run the Metal relation check locally on a

@@ -9,13 +9,13 @@
 //! and that each coefficient is in {-1, 0, 1}, given the evaluations of the
 //! claim. That run binds the Akita commitment of the witnesses before its
 //! challenges, so the committed fresh witness is the one that it judges.
-//! `neo-compress` proves the three claims.
+//! `ns-compress` proves the three claims.
 //!
 //! The verifier does not expand the Ajtai key. `compression_setup` commits
 //! the key rows once as one polynomial, for the blocks of the larger
 //! relation up to a power of two, and `verify_final` reads the commitment
 //! from its verification key. The key is a function of the public seeds and
-//! of that power of two only, so `neo-compress` pins the key of each size,
+//! of that power of two only, so `ns-compress` pins the key of each size,
 //! and a test computes each pinned key again from the seeds. The verifier
 //! takes the pinned key of its circuit (`compression_key`), and no proof and
 //! no prover value carries it.
@@ -29,7 +29,7 @@
 //!    sources, about `2^-109.15` for the Poseidon2 hash chain.
 //! 2. The argument has the error of its batches, its lookups, its two
 //!    sum-checks and the point of `V`, `2^-119.02` for the Poseidon2 hash
-//!    chain. `neo_compress::error_bits` bounds it by `2^-119` in integers,
+//!    chain. `ns_compress::error_bits` bounds it by `2^-119` in integers,
 //!    and `compression_layout` gates that bound.
 //! 3. The Akita opening has the knowledge error of Akita's schedule row. No
 //!    gate here computes or bounds it. The argument also needs the
@@ -39,7 +39,6 @@ use std::time::{Duration, Instant};
 
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
-use neo_compress::{Layout, Norm, ProverKey, Statement, VerificationKey};
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::optimized_engine::optimized_verify_with_profile;
 use neo_reductions::{FoldProfile, NormSources};
@@ -48,6 +47,7 @@ use nightstream_fprime::{
     encode_digest, BoundedDepthState, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT as ROUND_COEFFICIENTS,
     PI_CCS_V1_2_ROUND_COUNT as ROUNDS, PUBLIC_WORDS,
 };
+use ns_compress::{Layout, Norm, ProverKey, Statement, VerificationKey};
 use p3_field::PrimeField64;
 
 use super::super::encoding::{Reader, Shape, Writer};
@@ -77,7 +77,7 @@ pub(super) struct Steps {
     pub(super) slots: [(CeClaim, u64); 2],
     pub(super) fresh: Fresh,
     pub(super) pi_ccs: pi_ccs::SumcheckProof,
-    pub(super) argument: neo_compress::Proof,
+    pub(super) argument: ns_compress::Proof,
 }
 
 /// The CE claim that Π_CCS makes of the fresh instance, without its public
@@ -121,14 +121,14 @@ impl FinalProof {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct CompressTimes {
     pi_ccs: Duration,
-    argument: neo_compress::ProverTimes,
+    argument: ns_compress::ProverTimes,
 }
 
 /// Where `verify_final` spends its time.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct VerifyTimes {
     pi_ccs: Duration,
-    argument: neo_compress::VerifierTimes,
+    argument: ns_compress::VerifierTimes,
 }
 
 fn milliseconds(duration: Duration) -> f64 {
@@ -205,8 +205,8 @@ impl BoundedDepth {
 
     /// The key of `compression_key` has the size of this circuit.
     fn check_key_size(&self, key: &VerificationKey) -> Result<(), BoundedDepthError> {
-        if key.blocks() != neo_compress::key_blocks(self.key_blocks())? {
-            return Err(neo_compress::Error::Key("the key is for another circuit size").into());
+        if key.blocks() != ns_compress::key_blocks(self.key_blocks())? {
+            return Err(ns_compress::Error::Key("the key is for another circuit size").into());
         }
         Ok(())
     }
@@ -217,7 +217,7 @@ impl BoundedDepth {
     }
 
     /// The layout of the claims under a key of `key_blocks` blocks, when
-    /// `neo_compress::error_bits` of it is at least the security minimum.
+    /// `ns_compress::error_bits` of it is at least the security minimum.
     /// The error of the batches, the lookups, the sum-checks and the point
     /// of `V` is at most `2^-error_bits`, and the comparison is of integers
     /// (`Spec.Compression.Rust.params_run_soundness_bits`). It has no term
@@ -229,7 +229,7 @@ impl BoundedDepth {
         depths: [u64; 2],
     ) -> Result<Layout, BoundedDepthError> {
         let layout = Layout::new(&self.compression_claims(pc, depths), key_blocks)?;
-        if neo_compress::error_bits(&layout, PUBLIC_WORDS, MATRICES) < self.minimum_security_bits {
+        if ns_compress::error_bits(&layout, PUBLIC_WORDS, MATRICES) < self.minimum_security_bits {
             return Err(BoundedDepthError::Statement(
                 "the batch, lookup and sum-check error of the compression argument is above the security minimum",
             ));
@@ -295,7 +295,7 @@ impl BoundedDepth {
             };
             let times = CompressTimes {
                 pi_ccs: Duration::ZERO,
-                argument: neo_compress::ProverTimes::default(),
+                argument: ns_compress::ProverTimes::default(),
             };
             return Ok((proof, times));
         };
@@ -306,7 +306,7 @@ impl BoundedDepth {
         }
         let slots = envelope.slots.each_ref();
         let layout = self.compression_layout(setup.verification_key().blocks(), pc, slots.map(|slot| slot.depth))?;
-        let committed = neo_compress::commit(
+        let committed = ns_compress::commit(
             setup,
             layout,
             &[
@@ -317,7 +317,7 @@ impl BoundedDepth {
         )?;
 
         let start = Instant::now();
-        let commitment = neo_compress::byte_words(committed.commitment());
+        let commitment = ns_compress::byte_words(committed.commitment());
         let mut transcript = Transcript::session();
         let mut ccs = pi_ccs::prove_from_parts_with_rows(
             &mut transcript,
@@ -426,7 +426,7 @@ impl BoundedDepth {
         let output = steps.fresh.claim(&fresh.x);
 
         let start = Instant::now();
-        let commitment = neo_compress::byte_words(&steps.argument.witness_commitment);
+        let commitment = ns_compress::byte_words(&steps.argument.witness_commitment);
         let mut transcript = Poseidon2Transcript::new_v1_2();
         let accepted = optimized_verify_with_profile(
             &mut transcript,
@@ -445,7 +445,7 @@ impl BoundedDepth {
         let pi_ccs = start.elapsed();
 
         let statements = self.compression_statements(steps.pc, slots.map(|(claim, depth)| (claim, *depth)), &output);
-        let argument = neo_compress::verify(&mut transcript, key, &statements, &steps.argument)?;
+        let argument = ns_compress::verify(&mut transcript, key, &statements, &steps.argument)?;
         Ok(VerifyTimes { pi_ccs, argument })
     }
 }
@@ -603,7 +603,7 @@ impl FinalProof {
                         fold_digest,
                     },
                     pi_ccs: pi_ccs::SumcheckProof::new(pi_ccs),
-                    argument: neo_compress::Proof {
+                    argument: ns_compress::Proof {
                         witness_commitment,
                         inverse_commitment,
                         rounds,

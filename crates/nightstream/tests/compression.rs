@@ -2,7 +2,7 @@
 //! chain (SPEC.md section 6). This file has one test, so no other thread of
 //! its process expands a key element while the verifier runs. The test holds
 //! the compression setup of 10 GB and needs 25 GB, so it is ignored, and
-//! `scripts/ci_rust_tests.sh` runs it alone. `neo-compress` runs the same
+//! `scripts/ci_rust_tests.sh` runs it alone. `ns-compress` runs the same
 //! check on small claims. `expanded_key_bytes` counts the CPU expansion
 //! only, and the test runs no Metal path.
 

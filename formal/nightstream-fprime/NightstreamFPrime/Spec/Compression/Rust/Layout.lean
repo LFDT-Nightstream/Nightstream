@@ -1,14 +1,14 @@
 import NightstreamFPrime.Spec.Compression.Rust.Error
 import Mathlib.Data.Nat.Log
 
-/-! Rust `Layout::new` (`crates/neo-compress/src/layout.rs`, SPEC.md Algorithm 9, step 3) as a
+/-! Rust `Layout::new` (`crates/ns-compress/src/layout.rs`, SPEC.md Algorithm 9, step 3) as a
 function (`layoutNew`). The witness slices of the claims with a table come first, the larger first,
 then the other witness slices, then the count slices of the tables in claim order. Each slice
 starts at the next multiple of its size. `W` and `V` take the first row of the schedule file of
 the key whose `W` holds every cell and whose `V` holds the inverses of the span.
 
 Rust tests compare `layoutNew` with `Layout::new` on the same inputs
-(`crates/neo-compress/tests/unit/layout.rs`). -/
+(`crates/ns-compress/tests/unit/layout.rs`). -/
 
 namespace NightstreamFPrime.Spec.Compression.Rust
 

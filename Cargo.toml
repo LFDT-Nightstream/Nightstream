@@ -7,7 +7,7 @@ members = [
   "crates/neo-ajtai",
   "crates/neo-ccs",
   "crates/neo-reductions",
-  "crates/neo-compress",
+  "crates/ns-compress",
   "crates/neo-prover-cuda",
   "crates/neo-prover-metal",
   "crates/nightstream-fprime",

@@ -369,7 +369,7 @@ impl FinalProof {
 /// Poseidon2 hash chain. `Prover::compression_setup` makes it once from the
 /// prover's circuit, and each `Prover::compress` reads it. It gives the
 /// verifier nothing: a verifier takes its own `CompressionKey`.
-pub struct CompressionSetup(neo_compress::ProverKey);
+pub struct CompressionSetup(ns_compress::ProverKey);
 
 /// The verifier's key of the compression: the commitment of the rows of the
 /// Ajtai key, in place of the rows (SPEC.md section 6). It is a function of
@@ -383,7 +383,7 @@ pub struct CompressionSetup(neo_compress::ProverKey);
 /// pinned key, so a decoded key is checked against the pin and is not
 /// trusted input.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct CompressionKey(neo_compress::VerificationKey);
+pub struct CompressionKey(ns_compress::VerificationKey);
 
 impl CompressionKey {
     /// The key's strict bytes, for `Verifier::decode_compression_key`.

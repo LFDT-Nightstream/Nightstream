@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# Make the Akita schedule files of crates/neo-compress/artifacts with the
+# Make the Akita schedule files of crates/ns-compress/artifacts with the
 # planner of Akita (crates/akita-planner), at the Akita revision of
-# crates/neo-compress/Cargo.toml.
+# crates/ns-compress/Cargo.toml.
 #
 #   scripts/akita_schedules.sh <Akita checkout at that revision>
 #
 # Each file holds the rows of the family fp64_dense_recursive that open the
 # key polynomial, W and V in one proof, for one size of the key polynomial.
 # The planner is deterministic. The script prints the SHA-256 of each file,
-# which crates/neo-compress/tests/unit/akita.rs pins. One run takes about
+# which crates/ns-compress/tests/unit/akita.rs pins. One run takes about
 # six minutes.
 set -euo pipefail
 
 akita="${1:?usage: $0 <Akita checkout>}"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-artifacts="$root/crates/neo-compress/artifacts"
-revision="$(sed -n 's/^akita-pcs = .*rev = "\([0-9a-f]*\)".*/\1/p' "$root/crates/neo-compress/Cargo.toml")"
+artifacts="$root/crates/ns-compress/artifacts"
+revision="$(sed -n 's/^akita-pcs = .*rev = "\([0-9a-f]*\)".*/\1/p' "$root/crates/ns-compress/Cargo.toml")"
 if [ "$(git -C "$akita" rev-parse HEAD)" != "$revision" ]; then
   echo "the Akita checkout is not at revision $revision" >&2
   exit 1

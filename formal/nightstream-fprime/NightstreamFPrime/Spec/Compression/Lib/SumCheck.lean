@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Lib.Cube
 import Mathlib.Algebra.Polynomial.BigOperators
 
 /-! The facts of one sum-check that its game needs: the polynomial of a round's coefficients
-(Rust `Round` and `KeyRound`, `crates/neo-compress/src/sumcheck.rs`), the round check, and the
+(Rust `Round` and `KeyRound`, `crates/ns-compress/src/sumcheck.rs`), the round check, and the
 true round polynomials of a sum (`RoundTruth`). -/
 
 namespace NightstreamFPrime.Spec.Compression.Lib

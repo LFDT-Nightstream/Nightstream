@@ -9,12 +9,12 @@ use std::sync::OnceLock;
 use neo_ajtai::nightstream_fprime_setup::{coefficient_block, PRODUCTION_SEED};
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
-use neo_compress::{CeClaim, Layout, Norm, ProverKey, Statement};
 use neo_math::{from_complex, D, F, K};
 use neo_reductions::superneo_eval::{
     FactoredEntries, FactoredRows, FactoredSlots, MatrixRowSink, MatrixRows, MatrixShape,
 };
 use neo_reductions::PiCcsError;
+use ns_compress::{CeClaim, Layout, Norm, ProverKey, Statement};
 use p3_field::PrimeCharacteristicRing;
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha8Rng;

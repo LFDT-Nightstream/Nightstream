@@ -89,7 +89,7 @@ Ajtai key.
 |---|---|
 | `nightstream` | Application circuits, CPU proving and verification |
 | `neo-reductions` | Optimized and PaperExact SuperNeo reductions |
-| `neo-compress` | The argument of the compressed proof over Akita |
+| `ns-compress` | The argument of the compressed proof over Akita |
 | `neo-ccs` | CCS and committed-evaluation relation types |
 | `neo-ajtai` | Ajtai setup, commitments, and openings |
 | `neo-math` | Field, extension-field, and ring arithmetic |

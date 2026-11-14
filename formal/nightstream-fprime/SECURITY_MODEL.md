@@ -863,7 +863,7 @@ not change terminal source checks.
      bound through `x` up to a collision of trust item 2. Second, the key
      polynomial is the honest key. Rust enforces
      this with the pin of the full bytes of the verification key
-     (`crates/neo-compress/artifacts/key20.vk`, `crates/neo-compress/artifacts/key30.vk`),
+     (`crates/ns-compress/artifacts/key20.vk`, `crates/ns-compress/artifacts/key30.vk`),
      not with a digest. Third, each draw is uniform for each query. This is
      the sponge of `[SPONGE]` under `[P2-PERM]` only if the compression
      transcript absorbs an injective framing of its messages with a domain of

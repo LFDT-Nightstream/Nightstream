@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Game.SumCheck
 import NightstreamFPrime.Spec.Compression.Game.Restoration
 import Mathlib.Algebra.MvPolynomial.CommRing
 
-/-! The verifier of Rust `neo_compress::verify` as a public-coin game (SPEC.md section 6).
+/-! The verifier of Rust `ns_compress::verify` as a public-coin game (SPEC.md section 6).
 
 The prover names the claims, commits `W`, receives `τ`, commits `V`, receives the challenges, runs
 the first sum-check, sends `W(ρ)`, the values of the columns of `V` and the key part, receives the

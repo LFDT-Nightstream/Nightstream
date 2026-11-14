@@ -14,12 +14,12 @@ the step packages. Production compilation and execution do not run Lean.
 | `nightstream-fprime/src/bounded_depth` | Loading of the bounded-depth packages, their identity and their words |
 | `nightstream-fprime/src/package` | Package formats, matrix programs and the PiCCS transcripts of the folds |
 | `neo-reductions` | Folding arithmetic and sum-check engines |
-| `neo-compress` | The argument of the compressed proof over the Akita commitment scheme |
+| `ns-compress` | The argument of the compressed proof over the Akita commitment scheme |
 | `neo-ajtai` | Fixed-key commitments and low-norm decomposition |
 | `formal/nightstream-fprime` | Protocol, circuit, layout, and export proofs |
 
 The application compiler uses one general path. Protocol-binding hashes use
-Poseidon2. The Akita commitment scheme, which only `neo-compress` calls,
+Poseidon2. The Akita commitment scheme, which only `ns-compress` calls,
 uses Keccak-family hashes for its own challenges.
 
 See [lifecycle](lifecycle.md), [applications](frontends.md), and the

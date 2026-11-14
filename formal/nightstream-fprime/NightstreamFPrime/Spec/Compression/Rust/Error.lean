@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Production
 import NightstreamFPrime.Spec.Compression.Verifier.Run
 import Mathlib.Data.Rat.Cast.Lemmas
 
-/-! The error sum of Rust `error_bits` (`crates/neo-compress/src/lib.rs`) as an exact rational
+/-! The error sum of Rust `error_bits` (`crates/ns-compress/src/lib.rs`) as an exact rational
 (`runError`), from the counts of a layout that it reads. Rust does not compute this sum. It counts
 each lookup term as `1/q²` (`runCount`) and returns `runBits`, the largest `k` with
 `2^k · runCount ≤ q²`, in integers. The gate of `compression_layout` compares `runBits` with the

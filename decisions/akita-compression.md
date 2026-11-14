@@ -74,7 +74,7 @@ argument over Akita. It has no witness and cannot be extended.
 |---|---|
 | Commitment scheme | Akita, git revision `d50f700fb1a292395a717cef0e6f437c7ce2cdb1`, crate version 0.1.0 |
 | Akita configuration | `RecursiveCommitmentConfig<proof_optimized::fp64::Dense>`: base field `F_q`, extension `F_q[v]/(v² − 2)`, schedules that offload Akita's own setup |
-| Schedule files | `crates/neo-compress/artifacts/key20.aks`, SHA-256 `8ee08715b2120cfb576227f195fde041e5e1dd828511ca5e75d5df73d4c097b5`, and `crates/neo-compress/artifacts/key30.aks`, SHA-256 `b71861d25a4cb23b8eb68b20365bc5b76336224dcacdcada86242c9d9c084f94` |
+| Schedule files | `crates/ns-compress/artifacts/key20.aks`, SHA-256 `8ee08715b2120cfb576227f195fde041e5e1dd828511ca5e75d5df73d4c097b5`, and `crates/ns-compress/artifacts/key30.aks`, SHA-256 `b71861d25a4cb23b8eb68b20365bc5b76336224dcacdcada86242c9d9c084f94` |
 | Source of the schedule files | Akita's planner at the pinned revision, family `fp64_dense_recursive`, run by `scripts/akita_schedules.sh` |
 | Schedule rows | Each row opens three polynomials in one proof. `key20.aks`: a key polynomial of 20 variables, `W` of 16 and `V` of 16, for tests. `key30.aks`: a key polynomial of 30 variables, `W` of 26 or 27 and `V` of 28 |
 | Committed polynomials | The key polynomial: the Ajtai key, once, in preprocessing. `W`: each witness, then the counts of each table. `V`: the lookup inverses |
@@ -216,7 +216,7 @@ to 3 s.
 
 With `|K| = q²`, `n` variables of `W`, `n_A` block variables of the key
 polynomial, `m = 320` public cells, `t = 4` matrices and `s = 3` claims, the
-terms that `neo_compress::error_bits` adds are these.
+terms that `ns_compress::error_bits` adds are these.
 
 | Term | Bound |
 |---|---|
@@ -290,7 +290,7 @@ fails again. The prover can extend one step and then compress.
   `hash_chain_compresses_at_the_light_fold_cap` alone, which compresses at
   the light slot's depth 64, the largest lookup table.
 - Each Akita call runs on a rayon pool with 64 MB thread stacks
-  (`neo_compress::akita::on_large_stacks`). Under fat LTO, Akita's NTT loops
+  (`ns_compress::akita::on_large_stacks`). Under fat LTO, Akita's NTT loops
   need more than rayon's default 2 MB stack. The other tests at
   the production size run by hand. CI runs the edits of the argument on
   small claims only.

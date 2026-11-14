@@ -12,7 +12,7 @@ import NightstreamFPrime.Spec.Compression.Fresh
 import NightstreamFPrime.Spec.Compression.Rust.Soundness
 import NightstreamFPrime.Spec.Compression.Rust.Transcript
 
-/-! The soundness of the compression argument over Akita (Rust `neo-compress`, SPEC.md section 6):
+/-! The soundness of the compression argument over Akita (Rust `ns-compress`, SPEC.md section 6):
 a public-coin game with bad sets and its state-restoration bound (`Game`), and the lemmas of its
 steps (`Lib`), the exact algebraic identities of the argument (`Algebra`), and the verifier as a game with its
 soundness bound and its completeness at the level of the claims (`Verifier`), and the production

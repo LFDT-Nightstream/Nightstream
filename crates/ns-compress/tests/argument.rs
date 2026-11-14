@@ -8,9 +8,9 @@ use std::sync::OnceLock;
 
 use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
 use neo_ccs::Mat;
-use neo_compress::{commit, verify, Error, Layout, Norm, Proof, VerificationKey};
 use neo_math::{D, F, K};
 use neo_transcript::Poseidon2Transcript;
+use ns_compress::{commit, verify, Error, Layout, Norm, Proof, VerificationKey};
 use p3_field::PrimeCharacteristicRing;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;

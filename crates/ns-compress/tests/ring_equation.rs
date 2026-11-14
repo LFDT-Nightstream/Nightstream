@@ -1,10 +1,10 @@
-//! The reduction of a ring equation to an inner product (`neo_compress::ring`)
+//! The reduction of a ring equation to an inner product (`ns_compress::ring`)
 //! against schoolbook arithmetic in `K[X]/(X^64 + 1)`.
 
 mod support;
 
-use neo_compress::ring::{conjugate, Point};
 use neo_math::{D, F, K};
+use ns_compress::ring::{conjugate, Point};
 use p3_field::PrimeCharacteristicRing;
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha8Rng;

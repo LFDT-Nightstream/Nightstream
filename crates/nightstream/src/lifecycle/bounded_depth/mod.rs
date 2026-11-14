@@ -47,7 +47,7 @@ pub enum BoundedDepthError {
     #[error(transparent)]
     Engine(#[from] EngineError),
     #[error(transparent)]
-    Compression(#[from] neo_compress::Error),
+    Compression(#[from] ns_compress::Error),
 }
 
 impl BoundedDepthError {

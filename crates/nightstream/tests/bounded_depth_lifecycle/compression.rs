@@ -5,7 +5,7 @@
 //!
 //! The relations have one size, so each test that compresses a step holds
 //! the compression setup of 10 GB and needs up to 30 GB. Those tests are
-//! ignored. `neo-compress` tests the argument on small claims.
+//! ignored. `ns-compress` tests the argument on small claims.
 
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
@@ -21,11 +21,11 @@ use neo_ajtai::nightstream_fprime_setup::{
 };
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
-use neo_compress::{ProverKey, VerificationKey};
 use neo_math::{D, F, K};
 use nightstream_fprime::{
     PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS,
 };
+use ns_compress::{ProverKey, VerificationKey};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 const STEPS: u64 = 5;
@@ -98,7 +98,7 @@ fn increment(commitment: &mut Commitment, word: usize) {
 #[ignore = "Production-size compression, 30 GB; run separately under the 300-second cap."]
 fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
     let prover = prover(2);
-    // `neo-compress` tests its key reduction on this number of blocks.
+    // `ns-compress` tests its key reduction on this number of blocks.
     assert_eq!(prover.relations[0].blocks(), 74_530);
     let envelopes = envelopes(&prover);
     let (setup, setup_time) = setup_and_time(&prover);
@@ -141,7 +141,7 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
         let (verify_time, verify_times) = verify();
         let (single_time, single_times) = single.install(verify);
         let argument = &decoded.steps.as_ref().expect("steps").argument;
-        let error_bits = neo_compress::error_bits(&layout, PUBLIC_WORDS, PI_CCS_V1_2_MATRIX_COUNT);
+        let error_bits = ns_compress::error_bits(&layout, PUBLIC_WORDS, PI_CCS_V1_2_MATRIX_COUNT);
         assert!(error_bits >= 119, "the argument's own error is at most 2^-{error_bits}");
         let commitments = argument.witness_commitment.len() + argument.inverse_commitment.len();
         let sumchecks = 16 * (4 * argument.rounds.len() + 3 * argument.key_rounds.len());
@@ -367,7 +367,7 @@ fn unproven(envelope: &Envelope) -> FinalProof {
                 vec![K::ONE; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT];
                 PI_CCS_V1_2_ROUND_COUNT
             ]),
-            argument: neo_compress::Proof {
+            argument: ns_compress::Proof {
                 witness_commitment: vec![1; 471],
                 inverse_commitment: vec![2; 471],
                 rounds: vec![[K::ONE; 4]; 26],
@@ -402,11 +402,11 @@ fn a_final_proof_has_one_encoding_and_a_circuit_and_depths_in_range() {
     // The key of 512 blocks is not the key of the hash chain.
     assert!(matches!(
         prover.verify_final(key, envelope.iteration, envelope.z0, envelope.current, &decoded),
-        Err(BoundedDepthError::Compression(neo_compress::Error::Key(_)))
+        Err(BoundedDepthError::Compression(ns_compress::Error::Key(_)))
     ));
     assert!(matches!(
         prover.decode_compression_key(&key.to_bytes()),
-        Err(BoundedDepthError::Compression(neo_compress::Error::Key(_)))
+        Err(BoundedDepthError::Compression(ns_compress::Error::Key(_)))
     ));
 
     // A depth above the light fold cap of 64 has no accumulator bound.
@@ -527,8 +527,8 @@ fn compress_committing(prover: &BoundedDepth, envelope: &Envelope, committed: &M
         .compression_layout(key(prover).blocks(), pc, slots.map(|slot| slot.depth))
         .expect("layout");
     let witnesses = [&slots[0].accumulator.witness, &slots[1].accumulator.witness, committed];
-    let committed = neo_compress::commit(setup(prover), layout, &witnesses).expect("commitment of W");
-    let commitment = neo_compress::byte_words(committed.commitment());
+    let committed = ns_compress::commit(setup(prover), layout, &witnesses).expect("commitment of W");
+    let commitment = ns_compress::byte_words(committed.commitment());
     let mut transcript = Transcript::session();
     let claim = CcsClaim {
         c: c.clone(),
@@ -641,7 +641,7 @@ fn a_committed_fresh_witness_that_piccs_did_not_judge_is_rejected() {
         assert!(
             matches!(
                 result,
-                Err(BoundedDepthError::Compression(neo_compress::Error::Rejected(_)))
+                Err(BoundedDepthError::Compression(ns_compress::Error::Rejected(_)))
             ),
             "{name}: {result:?}"
         );
@@ -710,7 +710,7 @@ fn a_proof_does_not_verify_under_another_compression_key() {
     assert!(small.blocks() < prover.relations[0].blocks());
     assert!(matches!(
         prover.verify_final(&small, envelope.iteration, envelope.z0, envelope.current, &proof),
-        Err(BoundedDepthError::Compression(neo_compress::Error::Key(_)))
+        Err(BoundedDepthError::Compression(ns_compress::Error::Key(_)))
     ));
 
     let bytes = pinned.to_bytes();
@@ -771,6 +771,6 @@ fn a_setup_that_does_not_hold_the_relations_gives_no_proof() {
         .expect("step");
     assert!(matches!(
         prover.compress(&setup, &envelope),
-        Err(BoundedDepthError::Compression(neo_compress::Error::Layout(_)))
+        Err(BoundedDepthError::Compression(ns_compress::Error::Layout(_)))
     ));
 }

@@ -8,8 +8,8 @@
 //! `error_bits` must be `runBits`, and the gate must pass a security minimum
 //! exactly when it is at most `runBits`.
 
-use neo_compress::{Layout, Norm};
 use nightstream_fprime::{PI_CCS_V1_2_MATRIX_COUNT, PUBLIC_WORDS};
+use ns_compress::{Layout, Norm};
 use serde_json::Value;
 
 use super::support::artifact;
@@ -60,7 +60,7 @@ fn error_bits_and_the_gate_match_the_lean_bound_on_each_production_claim_set() {
         [0, 1].map(|relation| prover.relations[relation].blocks() as u64),
         "Lean's inputs are the blocks of the light and the refresh relation"
     );
-    let key_blocks = neo_compress::key_blocks(prover.key_blocks()).expect("key blocks");
+    let key_blocks = ns_compress::key_blocks(prover.key_blocks()).expect("key blocks");
     assert_eq!(
         number(&lean["key_blocks"]),
         key_blocks as u64,
@@ -100,7 +100,7 @@ fn error_bits_and_the_gate_match_the_lean_bound_on_each_production_claim_set() {
         let error = &entry["error"];
         let minimum = u32::try_from(number(&error["bits"])).expect("bits");
         assert_eq!(
-            neo_compress::error_bits(&layout, PUBLIC_WORDS, PI_CCS_V1_2_MATRIX_COUNT),
+            ns_compress::error_bits(&layout, PUBLIC_WORDS, PI_CCS_V1_2_MATRIX_COUNT),
             minimum,
             "{context}: error_bits is Lean runBits"
         );

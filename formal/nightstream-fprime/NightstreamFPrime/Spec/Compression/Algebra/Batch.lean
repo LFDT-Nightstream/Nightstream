@@ -13,7 +13,7 @@ the weights minus the target is a polynomial in `(ω, δ, γ)` whose coefficient
 the equations and of the public input (`claim_difference`). The claims are batched with powers of
 `μ`. When an equation or a public cell of a claim fails, the batch vanishes with density at most
 `(s − 1 + E + max(D − 1, m − 1)) / |K|` (`density_claims_le`): the term of Rust
-`neo_compress::error_bits` with `E = κ + 1 + t`. -/
+`ns_compress::error_bits` with `E = κ + 1 + t`. -/
 
 namespace NightstreamFPrime.Spec.Compression.Algebra
 

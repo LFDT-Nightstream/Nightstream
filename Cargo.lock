@@ -1240,32 +1240,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "neo-compress"
-version = "0.1.0"
-dependencies = [
- "akita-config",
- "akita-params",
- "akita-pcs",
- "akita-serialization",
- "akita-types",
- "akita-verifier",
- "jolt-field",
- "neo-ajtai",
- "neo-ccs",
- "neo-math",
- "neo-reductions",
- "neo-transcript",
- "nightstream-fprime",
- "p3-field",
- "rand 0.9.5",
- "rand_chacha",
- "rayon",
- "serde_json",
- "sha2",
- "thiserror",
-]
-
-[[package]]
 name = "neo-math"
 version = "0.1.0"
 dependencies = [
@@ -1370,13 +1344,13 @@ dependencies = [
  "neo-ajtai",
  "neo-application",
  "neo-ccs",
- "neo-compress",
  "neo-math",
  "neo-params",
  "neo-prover-metal",
  "neo-reductions",
  "neo-transcript",
  "nightstream-fprime",
+ "ns-compress",
  "p3-field",
  "rayon",
  "ruzstd",
@@ -1409,6 +1383,32 @@ checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
 dependencies = [
  "memchr",
  "minimal-lexical",
+]
+
+[[package]]
+name = "ns-compress"
+version = "0.1.0"
+dependencies = [
+ "akita-config",
+ "akita-params",
+ "akita-pcs",
+ "akita-serialization",
+ "akita-types",
+ "akita-verifier",
+ "jolt-field",
+ "neo-ajtai",
+ "neo-ccs",
+ "neo-math",
+ "neo-reductions",
+ "neo-transcript",
+ "nightstream-fprime",
+ "p3-field",
+ "rand 0.9.5",
+ "rand_chacha",
+ "rayon",
+ "serde_json",
+ "sha2",
+ "thiserror",
 ]
 
 [[package]]

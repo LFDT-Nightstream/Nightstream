@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Compression.Algebra.Batch
 import NightstreamFPrime.Spec.Compression.Algebra.Key
 import NightstreamFPrime.Spec.Compression.Lib.LogUp
 
-/-! The argument of Rust `neo-compress` as data (SPEC.md section 6).
+/-! The argument of Rust `ns-compress` as data (SPEC.md section 6).
 
 `Params` holds what the verifier knows before a proof: the shapes and the layout of the claims,
 the honest Ajtai key, and the matrix weights `matrixForm` of each claim, which this unit keeps

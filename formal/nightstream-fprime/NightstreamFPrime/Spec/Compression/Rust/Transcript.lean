@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Compression.Rust.Layout
 
-/-! The order of the messages and draws of Rust `verify` (`crates/neo-compress/src/verifier.rs`,
+/-! The order of the messages and draws of Rust `verify` (`crates/ns-compress/src/verifier.rs`,
 SPEC.md section 5.4, rows 4 to 17), and its match with `Verifier.game`.
 
 `labels n k` lists what `verify` absorbs or draws, in order: the statement, `W`, the lookup
@@ -9,7 +9,7 @@ sum-check with their coordinates of `ρ`, the values at `ρ`, the column point, 
 the key sum-check with their coordinates, and the key value. Each path of `game` receives and draws
 exactly these, with these types, until it rejects or accepts at the end (`game_follows`). `calls`
 gives the Poseidon2 transcript operations of each label. A Rust test replays a real proof in this
-order and checks each challenge of `verify` (`crates/neo-compress/tests/unit/transcript_order.rs`).
+order and checks each challenge of `verify` (`crates/ns-compress/tests/unit/transcript_order.rs`).
 Lean does not model the bytes of a message. -/
 
 namespace NightstreamFPrime.Spec.Compression.Rust

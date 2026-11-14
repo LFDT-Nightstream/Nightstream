@@ -18,7 +18,7 @@ groups=(
   '-p neo-reductions --lib superneo_eval::openings::tests::'
   '-p neo-reductions --lib factored_oracle_tests::'
   '-p neo-reductions --test pi_rlc_lean_parity'
-  '-p neo-compress'
+  '-p ns-compress'
   '-p neo-application'
   '-p neo-wasm'
 )
@@ -27,7 +27,7 @@ groups=(
 alone=(
   '-p nightstream --test compression -- --ignored'
   '-p nightstream --test compression_at_cap -- --ignored'
-  '-p neo-compress --lib -- --ignored key::tests::the_large_pinned_key_is_the_key_of_the_public_seeds'
+  '-p ns-compress --lib -- --ignored key::tests::the_large_pinned_key_is_the_key_of_the_public_seeds'
 )
 
 common=(

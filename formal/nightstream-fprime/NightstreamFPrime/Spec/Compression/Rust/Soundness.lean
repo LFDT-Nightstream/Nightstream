@@ -5,7 +5,7 @@ claims of `Production.params`, its layout satisfies `WellFormed`, the key polyno
 blocks of each claim, and each witness slice has at most `2^25` cells (`layoutNew_production`). So
 `soundness` and `params_run_soundness` hold for that layout without these premises
 (`layout_soundness`, `layout_run_soundness`). The one premise left is the check of Rust `layout`
-(`crates/neo-compress/src/lib.rs`) that a claim has at most as many public cells as cells. -/
+(`crates/ns-compress/src/lib.rs`) that a claim has at most as many public cells as cells. -/
 
 namespace NightstreamFPrime.Spec.Compression.Rust
 

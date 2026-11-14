@@ -48,14 +48,14 @@ accepts only the bytes of the pinned key of the circuit size.
 memory proof.
 
 The final proof has both slot claims, the CE claim that one PiCCS run makes
-of the fresh instance, and one argument from `crates/neo-compress`. The
+of the fresh instance, and one argument from `crates/ns-compress`. The
 argument commits two polynomials with Akita: `W` holds the three witnesses
 and the counts of the lookup tables, and `V` holds the lookup inverses. One
 sum-check proves the Ajtai openings, the evaluations, the public inputs and
 the norm bound of each slot. A second sum-check reduces the part of the
 public weights that the Ajtai key gives to one value of the key polynomial.
 One Akita proof opens the key polynomial, `W` and `V`. See the module
-comment of `crates/neo-compress/src/lib.rs` for the transcript and the
+comment of `crates/ns-compress/src/lib.rs` for the transcript and the
 error. [SPEC.md](../../SPEC.md) Algorithms 9, 10 and 11 and the
 [decision record](../../decisions/akita-compression.md) describe the proof
 and the key.

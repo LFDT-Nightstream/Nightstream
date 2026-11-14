@@ -7,9 +7,9 @@
 mod support;
 
 use neo_ajtai::nightstream_fprime_setup::expanded_key_bytes;
-use neo_compress::{commit, verify, Layout, ProverKey, VerificationKey};
 use neo_math::K;
 use neo_transcript::Poseidon2Transcript;
+use ns_compress::{commit, verify, Layout, ProverKey, VerificationKey};
 use p3_field::PrimeCharacteristicRing;
 use support::{instances, statements};
 

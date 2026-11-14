@@ -218,3 +218,6 @@ import NightstreamFPrime.Spec.Compression
 #audit_axioms NightstreamFPrime.Spec.Compression.Production.params_countsNonzero
 #audit_axioms NightstreamFPrime.Spec.Compression.Production.verifierData_matrixSpec
 #audit_axioms NightstreamFPrime.Spec.Compression.Production.params_soundness
+#audit_axioms NightstreamFPrime.Spec.Compression.Production.centeredMagnitude_tableValue
+#audit_axioms NightstreamFPrime.Spec.Compression.Production.slot_norm
+#audit_axioms NightstreamFPrime.Spec.Compression.Production.slot_normBounded

@@ -2,6 +2,7 @@ import NightstreamFPrime.Spec.Compression.Verifier.Bound
 import NightstreamFPrime.Spec.Compression.Verifier.Pass
 import NightstreamFPrime.Spec.FieldExtensionRing
 import NightstreamFPrime.Spec.Folding.Schedule
+import NightstreamFPrime.Spec.RingRelation.Semantics
 
 /-! The production instance of the argument (SPEC.md section 3, Algorithms 9 and 11). `F` is `F_q`
 with `q = 2^64 − 59` and `K` is `F_q[u]/(u² − 7)`, a ring block has `D = 64` lanes, the key has
@@ -15,7 +16,10 @@ cells, and slot `s` has the table `[−accumulatorBound(depth_s), accumulatorBou
 `verifierData` is the verifier of Rust `verify` with the one pass of Rust `matrix_part` over the
 factored rows of each claim's relation. With its matrices, `MatrixSpec` holds
 (`verifierData_matrixSpec`), and `soundness` needs of the layout only `WellFormed`, the bound of
-the key blocks and the bound `2^25` on the cells of a slot (`params_soundness`). -/
+the key blocks and the bound `2^25` on the cells of a slot (`params_soundness`).
+
+`slot_normBounded`: `Relation` puts each cell of the witness slice of slot `s` in its table, so
+the slice has the norm `accumulatorBound(depth_s) + 1` of `Spec.CE.Holds`, which is at most `B`. -/
 
 namespace NightstreamFPrime.Spec.Compression.Production
 
@@ -182,5 +186,70 @@ theorem params_soundness
     (Nat.le_of_ble_eq_true rfl) key_fits s q
 
 end Pass
+
+section Norm
+
+/-- A value of the table `[−bound, bound]` has centered magnitude at most `bound`. -/
+theorem centeredMagnitude_tableValue {bound v : ℕ} (small : 2 * bound < fieldModulus)
+    (value : v < 2 * bound + 1) : centeredMagnitude (tableValue bound v : F) ≤ bound := by
+  unfold tableValue centeredMagnitude
+  change min (ZMod.val ((v : ZMod fieldModulus) - (bound : ZMod fieldModulus)))
+    (fieldModulus - ZMod.val ((v : ZMod fieldModulus) - (bound : ZMod fieldModulus))) ≤ bound
+  rcases le_or_gt bound v with above | below
+  · rw [← Nat.cast_sub above, ZMod.val_natCast,
+      Nat.mod_eq_of_lt (show v - bound < fieldModulus by omega)]
+    omega
+  · rw [show (v : ZMod fieldModulus) - (bound : ZMod fieldModulus) =
+          -((bound - v : ℕ) : ZMod fieldModulus) by
+        rw [Nat.cast_sub below.le]
+        ring,
+      ZMod.neg_val', ZMod.val_natCast, Nat.mod_eq_of_lt (show bound - v < fieldModulus by omega),
+      Nat.mod_eq_of_lt (show fieldModulus - (bound - v) < fieldModulus by omega)]
+    omega
+
+variable (key : ℕ → ℕ → ℕ → F) (matrices : Fin 3 → Matrices F) (depths : Fin 2 → ℕ)
+  (layout : Layout)
+
+/-- `Relation` gives each cell of the witness slice of slot `s` a centered magnitude below
+`accumulatorBound(depth_s) + 1`, and that bound is at most `B`. -/
+theorem slot_norm {st : Statement (params key matrices depths layout)} {W : ℕ → F}
+    (holds : Relation (params key matrices depths layout) st W) (s : Fin 2)
+    (depth_le : depths s ≤ productionLightFoldCap) :
+    (∀ y < 2 ^ (layout.witness s.castSucc).vars,
+      centeredMagnitude (W ((layout.witness s.castSucc).offset + y)) <
+        productionGlobalParams.accumulatorBound (depths s) + 1) ∧
+    productionGlobalParams.accumulatorBound (depths s) + 1 ≤ productionGlobalParams.bigB := by
+  have shape_bound : ((params key matrices depths layout).shape s.castSucc).bound =
+      productionGlobalParams.accumulatorBound (depths s) := by
+    change bound depths s.castSucc = _
+    simp only [bound, Fin.val_castSucc, s.isLt, dite_true, Fin.eta]
+  have values := slot_table_le depth_le
+  have small : 2 * productionGlobalParams.accumulatorBound (depths s) < fieldModulus := by
+    have : (20737 : ℕ) < fieldModulus := by decide
+    omega
+  refine ⟨fun y cell => ?_, ?_⟩
+  · obtain ⟨v, v_lt, equal⟩ := (holds s.castSucc).2.2
+      (show decide ((s.castSucc : ℕ) < 2) = true from
+        decide_eq_true (by rw [Fin.val_castSucc]; exact s.isLt)) y cell
+    rw [shape_bound] at v_lt equal
+    change W ((layout.witness s.castSucc).offset + y) = _ at equal
+    rw [equal]
+    exact Nat.lt_succ_of_le (centeredMagnitude_tableValue small v_lt)
+  · exact GlobalParams.production_accumulatorBound_lt_bigB (by
+      simp only [productionLightFoldCap] at depth_le
+      omega)
+
+/-- The witness of slot `s` as an assignment of `Spec.CE.Holds` (the cells of its slice from
+`offset`) has the norm `accumulatorBound(depth_s) + 1`. -/
+theorem slot_normBounded {st : Statement (params key matrices depths layout)} {W : ℕ → F}
+    (holds : Relation (params key matrices depths layout) st W) (s : Fin 2)
+    (depth_le : depths s ≤ productionLightFoldCap) {shape : RingRelation.Shape}
+    (fits : shape.carrierWidth ≤ 2 ^ (layout.witness s.castSucc).vars) :
+    RingRelation.assignmentNormBounded (productionGlobalParams.accumulatorBound (depths s) + 1)
+      (fun column : Fin shape.carrierWidth => W ((layout.witness s.castSucc).offset + column)) :=
+  fun column => (slot_norm key matrices depths layout holds s depth_le).1 column
+    (Nat.lt_of_lt_of_le column.isLt fits)
+
+end Norm
 
 end NightstreamFPrime.Spec.Compression.Production

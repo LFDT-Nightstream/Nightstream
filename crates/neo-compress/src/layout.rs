@@ -210,3 +210,7 @@ impl Layout {
         self.cells.iter().map(|cells| cells.blocks * D).sum()
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/layout.rs"]
+mod tests;

@@ -72,6 +72,15 @@ inductive LayoutError where
   | noRow
   deriving DecidableEq, Repr
 
+/-- The name of an error in the parity file. -/
+def LayoutError.name : LayoutError → String
+  | .noKey => "no_key"
+  | .emptyClaim => "empty_claim"
+  | .claimAboveKey => "claim_above_key"
+  | .noTable => "no_table"
+  | .tableWide => "table_wide"
+  | .noRow => "no_row"
+
 /-- The least multiple of `size` at or above `cursor` (Rust `usize::next_multiple_of`). -/
 def nextMultiple (cursor size : ℕ) : ℕ := (cursor + size - 1) / size * size
 
@@ -102,6 +111,41 @@ def countRequests (claims : List Claim) : List (ℕ × ℕ) :=
   (List.range claims.length).filterMap fun i =>
     (claims.getD i default).table.map fun bound => (i, varsFor (2 * bound + 1))
 
+/-- The witness slices of the claims with a table, from cell 0, and the cursor after them: the end
+of the span. -/
+def tableSlices (claims : List Claim) : List (ℕ × Slice) × ℕ :=
+  placeAll 0 ((groupOrder claims true).map fun i => (i, witnessVarsOf claims i))
+
+/-- The witness slices of the other claims, after the span. -/
+def otherSlices (claims : List Claim) : List (ℕ × Slice) × ℕ :=
+  placeAll (tableSlices claims).2 ((groupOrder claims false).map fun i => (i, witnessVarsOf claims i))
+
+/-- The count slices, after the witness slices, and the cursor after them: the cells of `W`. -/
+def countSlices (claims : List Claim) : List (ℕ × Slice) × ℕ :=
+  placeAll (otherSlices claims).2 (countRequests claims)
+
+/-- Rust `Cells` of claim `i`. -/
+def cellOf (claims : List Claim) (i : ℕ) : Cells where
+  witness := (((tableSlices claims).1 ++ (otherSlices claims).1).lookup i).getD ⟨0, 0⟩
+  blocks := (claims.getD i default).blocks
+  table := (claims.getD i default).table.map fun bound =>
+    (bound, ((countSlices claims).1.lookup i).getD ⟨0, 0⟩)
+
+/-- A schedule row whose `W` holds every cell and whose `V` holds the inverses of the span. -/
+def rowFits (claims : List Claim) (row : ℕ × ℕ) : Bool :=
+  decide (varsFor (countSlices claims).2 ≤ row.1) &&
+    decide (varsFor (tableSlices claims).2 + lookupVars ≤ row.2)
+
+/-- The layout of `claims` with the key of `schedule` and the variables `row` of `W` and `V`. -/
+def assemble (claims : List Claim) (schedule : Schedule) (row : ℕ × ℕ) : Placed where
+  cells := (List.range claims.length).map (cellOf claims)
+  keyVars := schedule.keyVars
+  witnessVars := row.1
+  witnessLen := (countSlices claims).2
+  spanVars := varsFor (tableSlices claims).2
+  spanLen := (tableSlices claims).2
+  inverseVars := row.2
+
 /-- Rust `Layout::new` for `claims` under a key polynomial of `keyBlocks` blocks. -/
 def layoutNew (claims : List Claim) (keyBlocks : ℕ) : Except LayoutError Placed :=
   match schedules.find? (fun s => s.blocks == keyBlocks) with
@@ -112,28 +156,9 @@ def layoutNew (claims : List Claim) (keyBlocks : ℕ) : Except LayoutError Place
     else if !claims.any (fun c => c.table.isSome) then .error .noTable
     else if claims.any (fun c => c.table.any fun bound => 65535 < 2 * bound + 1) then
       .error .tableWide
-    else
-      let tables := placeAll 0 ((groupOrder claims true).map fun i => (i, witnessVarsOf claims i))
-      let others := placeAll tables.2
-        ((groupOrder claims false).map fun i => (i, witnessVarsOf claims i))
-      let counts := placeAll others.2 (countRequests claims)
-      let witnesses := tables.1 ++ others.1
-      let spanVars := varsFor tables.2
-      match schedule.rows.find? (fun r => decide (varsFor counts.2 ≤ r.1) &&
-          decide (spanVars + lookupVars ≤ r.2)) with
+    else match schedule.rows.find? (rowFits claims) with
       | none => .error .noRow
-      | some (witnessVars, inverseVars) => .ok
-          { cells := (List.range claims.length).map fun i =>
-              { witness := (witnesses.lookup i).getD ⟨0, 0⟩
-                blocks := (claims.getD i default).blocks
-                table := (claims.getD i default).table.map fun bound =>
-                  (bound, (counts.1.lookup i).getD ⟨0, 0⟩) }
-            keyVars := schedule.keyVars
-            witnessVars
-            witnessLen := counts.2
-            spanVars
-            spanLen := tables.2
-            inverseVars }
+      | some row => .ok (assemble claims schedule row)
 
 /-- `Production.Layout` of a layout of the three production claims. -/
 def Placed.production (l : Placed) : Production.Layout where
@@ -153,12 +178,17 @@ def Placed.counts (l : Placed) (publicCells matrices : ℕ) : RunCounts where
   witnessVars := l.witnessVars
   keyBlockVars := l.keyVars - laneVars - rowVars
 
+/-- The claims of `Production.params`: claim `c` has `blocks c` ring blocks, and slot `s` has the
+table of its depth. -/
+def paramsClaims (blocks : Fin 3 → ℕ) (depths : Fin 2 → ℕ) : List Claim :=
+  [⟨blocks 0, some (Production.bound depths 0)⟩, ⟨blocks 1, some (Production.bound depths 1)⟩,
+    ⟨blocks 2, none⟩]
+
 /-- The production claims: slot 0 and slot 1 with the tables of their depths, then the fresh
 instance of circuit `pc − 1`, for relations of `blocks 0` and `blocks 1` ring blocks (Rust
 `BoundedDepth::compression_claims`). -/
 def productionClaims (blocks : Fin 2 → ℕ) (pc : Fin 2) (depths : Fin 2 → ℕ) : List Claim :=
-  [⟨blocks 0, some (Production.bound depths 0)⟩, ⟨blocks 1, some (Production.bound depths 1)⟩,
-    ⟨blocks pc, none⟩]
+  paramsClaims ![blocks 0, blocks 1, blocks pc] depths
 
 /-- Rust `key_blocks`: the blocks of the smallest key polynomial that holds `blocks` blocks. -/
 def keyBlocksFor (blocks : ℕ) : Option ℕ :=

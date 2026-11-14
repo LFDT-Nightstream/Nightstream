@@ -1260,6 +1260,7 @@ dependencies = [
  "rand 0.9.5",
  "rand_chacha",
  "rayon",
+ "serde_json",
  "sha2",
  "thiserror",
 ]

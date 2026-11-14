@@ -320,12 +320,16 @@ item 5).
   (`Spec.Compression.Verifier.game_avoids`). At the production shapes,
   `error < 2^−119` (`Spec.Compression.Verifier.production_error_lt`). The
   premises of the theorem, and how Rust meets each one, are in trust item 7.
-  Lean has no definition of the layout, of the compression key, or of a
-  Π_CCS run with one source. It does not join `Relation` to `Spec.CE.Holds`,
+  Lean has no definition of the compression key or of a Π_CCS run with
+  one source. Its model of the layout (`Spec.Compression.Rust.layoutNew`)
+  meets the layout premises of the theorem
+  (`Spec.Compression.Rust.layoutNew_production`), and Rust tests compare
+  it with `Layout::new`. It does not join `Relation` to `Spec.CE.Holds`,
   `Spec.normBounded` or `Spec.GlobalParams.accumulatorBound`, so the norm
-  of the fresh witness comes from the Π_CCS run, outside this result. No
-  Lean result joins the model to the Rust data, and no result states a full
-  honest run or a bound for one interactive run. Rust implements the final
+  of the fresh witness comes from the Π_CCS run, outside this result. Lean
+  bounds one interactive run by the exact Rust error sum
+  (`Spec.Compression.Rust.params_run_soundness`). Only tests join the model
+  to the Rust layout and error sum, and no result states a full honest run. Rust implements the final
   verifier, and the tests check it on fixed inputs (`SPEC.md` lifecycle
   rules 2 and 3, trust item 5). `decisions/akita-compression.md` gives the
   reason for each step.
@@ -560,12 +564,18 @@ item 5).
    - *The premises of the Lean result.* `Spec.Compression.Verifier.soundness`
      takes these hypotheses.
      `Spec.Compression.Verifier.WellFormed` (each slice is aligned and
-     inside the cube of `W`) is assumed. Rust `Layout::new` makes a layout
-     with this property, but Lean does not model `Layout::new`.
+     inside the cube of `W`), the bound `2^25` on the cells of a witness
+     slice and the bound of the key on the blocks of a claim hold for the
+     layout of the Lean model of `Layout::new`
+     (`Spec.Compression.Rust.layoutNew_production`), when each claim has at
+     least its 320 public cells, which the shape check of Rust `layout`
+     makes. `Spec.Compression.Rust.layout_soundness` states the bound
+     without these premises. The premise is that Rust `Layout::new` is the
+     model: tests compare the two on each claim set of the reference
+     application and on generated claim sets, and no proof does.
      `Spec.Compression.Verifier.CountsNonzero` (`2^vars` is below the
-     characteristic of `F_q`) follows from the bound `2^25` on the cells of
-     a slot (`Spec.Compression.Production.params_countsNonzero`), and that
-     bound is assumed for the same reason. `Spec.Compression.Verifier.MatrixSpec`
+     characteristic of `F_q`) follows from the bound `2^25`
+     (`Spec.Compression.Production.params_countsNonzero`). `Spec.Compression.Verifier.MatrixSpec`
      (the verifier's matrix part is the multilinear extension of the matrix
      weights) is a theorem for the Lean model of Rust `matrix_part`
      (`Spec.Compression.Verifier.matrixPass_spec`), and
@@ -573,9 +583,7 @@ item 5).
      production parameters without it. The model is a transcription of the
      Rust code by hand, and no check compares the two. `L ≤ 2^2` and
      `κ ≤ 2^5` are const asserts in Rust, and `params_soundness` proves them
-     at the production values. The key polynomial
-     holds the blocks of each claim, because Rust `Layout::new` rejects a
-     claim with more blocks than the key. The model has three more
+     at the production values. The model has three more
      premises. First, the Akita openings are ideal: an opening is accepted
      only when the committed table, which the prover fixed before the later
      challenges, has the opened value. Akita's knowledge error is outside
@@ -626,9 +634,12 @@ item 5).
    - *Poseidon2 as a random oracle for the argument.* The Poseidon2 sponge
      makes each challenge of the Π_CCS run and of the argument (`SPEC.md`
      section 5.4). Each term of the Rust sum of `SPEC.md` section 3 is for
-     one interactive run. With Poseidon2 as a random oracle and `Q`
-     queries, Lean bounds the non-interactive argument by `Q · error`
-     (`Spec.Compression.Verifier.soundness`). No result bounds the Π_CCS
+     one interactive run, and Lean proves that the exact sum bounds one
+     interactive run (`Spec.Compression.Rust.params_run_soundness`). With
+     Poseidon2 as a random oracle and `Q` queries, Lean bounds the
+     non-interactive argument by `Q · error`
+     (`Spec.Compression.Verifier.soundness`), and `error` is at most the
+     exact sum (`Spec.Compression.Rust.error_le_runError`). No result bounds the Π_CCS
      run with one source in this model.
    - *Separation of the two transcripts.* The session bytes of the Akita
      proof are a label and lanes 0 to 3 of the Poseidon2 sponge state

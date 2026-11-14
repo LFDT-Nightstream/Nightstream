@@ -7,7 +7,7 @@ import NightstreamFPrime.Spec.Compression.Algebra.Key
 import NightstreamFPrime.Spec.Compression.Verifier.Complete
 import NightstreamFPrime.Spec.Compression.Production
 import NightstreamFPrime.Spec.Compression.Verifier.Pass
-import NightstreamFPrime.Spec.Compression.Rust.Placement
+import NightstreamFPrime.Spec.Compression.Rust.Soundness
 
 /-! The soundness of the compression argument over Akita (Rust `neo-compress`, SPEC.md section 6):
 a public-coin game with bad sets and its state-restoration bound (`Game`), and the lemmas of its

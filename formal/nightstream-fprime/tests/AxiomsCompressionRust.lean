@@ -14,3 +14,16 @@ import NightstreamFPrime.Spec.Compression
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.lookup_mem
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.lookup_isSome
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.lookup_slice
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.mem_groupOrder
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.mem_countRequests
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.tables_le_others
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.others_le_counts
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.cellOf_witness
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.cellOf_table
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.layoutNew_ok
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.fits_of
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.assemble_cell
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.claimsOf_getD
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.layoutNew_production
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.layout_soundness
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.layout_run_soundness

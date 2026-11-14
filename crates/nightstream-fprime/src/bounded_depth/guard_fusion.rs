@@ -127,7 +127,42 @@ fn families(rows: &[(usize, Row)], known: &BTreeSet<usize>) -> Vec<Family> {
     found.into_values().collect()
 }
 
-fn gate(form: &Linear, known: &BTreeSet<usize>, families: &[Family]) -> Option<(Linear, Option<usize>)> {
+/// The families in family order and, for each selector column, the families
+/// that hold it in that order.
+struct Families {
+    families: Vec<Family>,
+    by_selector: HashMap<usize, Vec<usize>>,
+}
+
+impl Families {
+    fn new(families: Vec<Family>) -> Self {
+        let mut by_selector = HashMap::<usize, Vec<usize>>::new();
+        for (index, family) in families.iter().enumerate() {
+            for &column in &family.selectors {
+                by_selector.entry(column).or_default().push(index);
+            }
+        }
+        Self { families, by_selector }
+    }
+
+    /// The families whose selectors hold every column of `terms`, in family
+    /// order. Each of them holds the column of `terms` with the fewest
+    /// families, so only those families are tested.
+    fn containing<'a>(&'a self, terms: &'a [(usize, F)]) -> impl Iterator<Item = usize> + 'a {
+        let fewest = terms
+            .iter()
+            .map(|(column, _)| self.by_selector.get(column).map_or(&[][..], Vec::as_slice))
+            .min_by_key(|families| families.len())
+            .unwrap_or(&[]);
+        fewest.iter().copied().filter(move |&index| {
+            terms
+                .iter()
+                .all(|(column, _)| self.families[index].selectors.contains(column))
+        })
+    }
+}
+
+fn gate(form: &Linear, known: &BTreeSet<usize>, families: &Families) -> Option<(Linear, Option<usize>)> {
     let form = canonical(form.clone());
     for form in [form.clone(), form.scale(-F::ONE)] {
         if form.terms.is_empty() {
@@ -141,12 +176,9 @@ fn gate(form: &Linear, known: &BTreeSet<usize>, families: &[Family]) -> Option<(
         if form.terms.len() == 1 && known.contains(&form.terms[0].0) {
             return Some((form, None));
         }
-        if let Some(family) = families.iter().find(|family| {
-            form.terms
-                .iter()
-                .all(|(column, _)| family.selectors.contains(column))
-        }) {
-            return Some((form, Some(family.source)));
+        let family = families.containing(&form.terms).next();
+        if let Some(family) = family {
+            return Some((form, Some(families.families[family].source)));
         }
     }
     None
@@ -189,8 +221,9 @@ impl GuardFusion {
                 )
             })
             .collect::<Vec<_>>();
-        let families = families(&rows, &known);
+        let families = Families::new(families(&rows, &known));
         let certificates = families
+            .families
             .iter()
             .map(|family| family.source)
             .collect::<BTreeSet<_>>();
@@ -215,20 +248,13 @@ impl GuardFusion {
             if candidate.gate.constant != F::ZERO {
                 continue;
             }
-            for (family_index, family) in families.iter().enumerate() {
-                if candidate
-                    .gate
-                    .terms
-                    .iter()
-                    .all(|(column, _)| family.selectors.contains(column))
-                {
-                    let mut common = candidate.residual.clone();
-                    common.constant = F::ZERO;
-                    groups
-                        .entry((family_index, key(&common)))
-                        .or_default()
-                        .push(index);
-                }
+            for family_index in families.containing(&candidate.gate.terms) {
+                let mut common = candidate.residual.clone();
+                common.constant = F::ZERO;
+                groups
+                    .entry((family_index, key(&common)))
+                    .or_default()
+                    .push(index);
             }
         }
         let mut groups = groups.into_iter().collect::<Vec<_>>();
@@ -261,7 +287,7 @@ impl GuardFusion {
             if selected.len() < 2 {
                 continue;
             }
-            let family = &families[family_index];
+            let family = &families.families[family_index];
             let mut a = Linear::default();
             let mut b = selected[0].residual.clone();
             b.constant = F::ZERO;

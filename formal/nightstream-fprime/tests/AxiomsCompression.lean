@@ -194,3 +194,8 @@ import NightstreamFPrime.Spec.Compression
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.mle_aTable
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.mle_bTable
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.mle_V_opening
+#audit_axioms NightstreamFPrime.Spec.Compression.Production.card_F
+#audit_axioms NightstreamFPrime.Spec.Compression.Production.params_lanes
+#audit_axioms NightstreamFPrime.Spec.Compression.Production.params_equations
+#audit_axioms NightstreamFPrime.Spec.Compression.Production.slot_table_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Production.params_error_lt

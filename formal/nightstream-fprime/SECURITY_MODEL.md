@@ -321,9 +321,11 @@ item 5).
   `error < 2^−119` (`Spec.Compression.Verifier.production_error_lt`). The
   premises of the theorem, and how Rust meets each one, are in trust item 7.
   Lean has no definition of the layout, of the compression key, or of a
-  Π_CCS run with one source. It does not join `Relation` to `Spec.CE.Holds`,
-  `Spec.normBounded` or `Spec.GlobalParams.accumulatorBound`, so the norm
-  of the fresh witness comes from the Π_CCS run, outside this result. No
+  Π_CCS run with one source. For each slot claim, `Relation` gives the
+  claim under `Spec.CE.Holds` with the norm of its depth
+  (`Lifecycle.BoundedDepth.CompressionSlot.slot_holds`), under the premise
+  `Spec.Compression.Claim.Represents` of trust item 7. The rows and the
+  norm of the fresh witness come from the Π_CCS run, outside this result. No
   Lean result joins the model to the Rust data, and no result states a full
   honest run or a bound for one interactive run. Rust implements the final
   verifier, and the tests check it on fixed inputs (`SPEC.md` lifecycle
@@ -575,7 +577,14 @@ item 5).
      `κ ≤ 2^5` are const asserts in Rust, and `params_soundness` proves them
      at the production values. The key polynomial
      holds the blocks of each claim, because Rust `Layout::new` rejects a
-     claim with more blocks than the key. The model has three more
+     claim with more blocks than the key. `slot_holds` also assumes
+     `Spec.Compression.Claim.Represents`: the dense rows of a slot claim are
+     the matrices of its circuit's relation on the claim's cells. Rust builds
+     these rows from the package that `SPEC.md` Algorithm 2 pins, and no
+     Lean result states `Represents` for the rows of a package. It also
+     assumes that Rust gives each slot claim to the argument with the values
+     of `Lifecycle.BoundedDepth.CompressionSlot.claimValues`, which no check
+     compares. The model has three more
      premises. First, the Akita openings are ideal: an opening is accepted
      only when the committed table, which the prover fixed before the later
      challenges, has the opened value. Akita's knowledge error is outside

@@ -1,5 +1,6 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Compression
+import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot
 
 /-! Axiom audits for the compression argument over Akita (`Spec/Compression`). -/
 
@@ -221,3 +222,41 @@ import NightstreamFPrime.Spec.Compression
 #audit_axioms NightstreamFPrime.Spec.Compression.Production.centeredMagnitude_tableValue
 #audit_axioms NightstreamFPrime.Spec.Compression.Production.slot_norm
 #audit_axioms NightstreamFPrime.Spec.Compression.Production.slot_normBounded
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.mul_congr_left
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.mul_congr_right
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.map_mul
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.foldl_ite_range
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.rawMulCoeffF_eq
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.ringFMul_apply
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.ringFSum_apply
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.ajtaiRow_apply
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.mulX_congr
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.mulX_sum
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.conjugate_eq_sum
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.mulX_conjugate
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.conjugate_smul
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.vertex_even
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.vertex_odd
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.evaluateCoordinates_tabulate
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.evaluate_tabulate
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.foldl_add_eq
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.matrixVectorAt_eq
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.sumRange_eq
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.weight_eq
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.paddedEntry_apply
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.embed_matrixVectorAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.evaluate_coefficientMatrixOf
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.cell_sliceAssignment
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.block_lt
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.conjugate_congr
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.sum_blocks_slice
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.ajtaiRow_slice
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.paddedIdentity_cell
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.evaluate_pad
+#audit_axioms NightstreamFPrime.Spec.Compression.Claim.evaluate_matrix
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot.ring_equation
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot.slot_normBounded_slice
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot.slot_commitment
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot.slot_publicInput
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot.slot_evaluations
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot.slot_holds

@@ -194,8 +194,20 @@ impl Circuit {
         crate::application::check_blocks(&application)?;
         let embedded = crate::artifacts::embedded();
         let witness_words = application.private_input_count();
-        let packages = if encode_application(&application)?
-            == encode_application(&crate::application::poseidon2_hash_chain_v1()?)?
+        let reference = crate::application::poseidon2_hash_chain_v1()?;
+        // The saved form holds these counts, so applications with other
+        // counts have other saved forms.
+        let counts = |application: &ApplicationCircuit| {
+            let records = application.records();
+            (
+                application.private_input_count(),
+                records.row_count(),
+                records.recipe_count(),
+                application.shape().blocks.len(),
+            )
+        };
+        let packages = if counts(&application) == counts(&reference)
+            && encode_application(&application)? == encode_application(&reference)?
         {
             embedded.packages.clone()
         } else {

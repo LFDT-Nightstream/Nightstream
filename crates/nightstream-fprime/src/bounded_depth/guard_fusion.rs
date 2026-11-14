@@ -365,10 +365,11 @@ impl GuardFusion {
                 .as_ref()
                 .ok_or(PackageError::Malformed("guard fusion source records"))?;
             let mut dropped = BTreeSet::new();
+            let mut walk = records.walk();
             for block in package.blocks().take(package.application.pieces - 1) {
                 let first = block.start() - package.application.local_start;
                 for recipe in first..first + 1096 {
-                    dropped.insert(records.recipe_row(recipe)?);
+                    dropped.insert(walk.recipe_row(recipe)?);
                 }
             }
             let packed = package

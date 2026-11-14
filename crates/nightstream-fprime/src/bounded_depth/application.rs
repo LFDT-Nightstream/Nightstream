@@ -8,7 +8,6 @@
 //! step's current state, its witness words, its next state and one local per
 //! recipe (`ApplicationCircuit`'s variable order).
 
-use std::ops::ControlFlow;
 use std::sync::Arc;
 
 use neo_ccs::crypto::poseidon2_goldilocks as poseidon2;
@@ -18,7 +17,7 @@ use p3_goldilocks::Goldilocks;
 use super::packed_boolean::PackedBooleans;
 use super::words::PUBLIC_WORDS;
 use super::{BoundedDepthPackages, Linear, Piece, Region, Row, StepPackage};
-use crate::application_records::ApplicationRecords;
+use crate::application_records::{ApplicationRecords, ApplicationWalk};
 use crate::package::PackageError;
 
 /// The shared words before the states: the encoded digest, the five counter
@@ -329,6 +328,7 @@ impl StepPackage {
         let end = first + records.recipe_count();
         let mut dead = vec![false; end];
         let mut dropped = vec![false; records.row_count()];
+        let mut walk = records.walk();
         let mut free = first;
         let mut blocks = Vec::with_capacity(shape.blocks.len());
         for block in &shape.blocks {
@@ -356,7 +356,7 @@ impl StepPackage {
                 .collect::<Result<Vec<_>, _>>()?;
             for recipe in start - first..start - first + BLOCK_LOCALS {
                 let row = dropped
-                    .get_mut(records.recipe_row(recipe)?)
+                    .get_mut(walk.recipe_row(recipe)?)
                     .ok_or(PackageError::Malformed("bounded-depth native block row"))?;
                 if std::mem::replace(row, true) {
                     return Err(PackageError::Malformed("bounded-depth native block row in two blocks"));
@@ -369,7 +369,7 @@ impl StepPackage {
             });
             free = start + BLOCK_LOCALS;
         }
-        let rows = self.application_rows(records, &dropped, &dead)?;
+        let rows = self.application_rows(&mut walk, &dropped, &dead)?;
         Ok(std::iter::once(Piece::Rows(rows)).chain(blocks).collect())
     }
 
@@ -387,34 +387,33 @@ impl StepPackage {
     /// The application's rows outside the blocks over the step's columns.
     fn application_rows(
         &self,
-        records: &ApplicationRecords,
+        walk: &mut ApplicationWalk<'_>,
         dropped: &[bool],
         dead: &[bool],
     ) -> Result<Vec<Row>, PackageError> {
-        (0..records.row_count())
-            .filter(|&row| !dropped[row])
-            .map(|row| {
-                let header = records.row_header(row)?;
-                let mut sides = header.constants.map(|constant| Linear {
-                    constant: Goldilocks::from_u64(constant),
-                    terms: Vec::new(),
-                });
-                let _: ControlFlow<()> = records.visit_terms(row, |term| {
-                    if dead.get(term.variable) == Some(&true) {
-                        return Err(PackageError::Malformed(
-                            "bounded-depth application row reads a dead local",
-                        ));
-                    }
-                    sides[term.form.index()].terms.push((
-                        self.variable_column(term.variable)?,
-                        Goldilocks::from_u64(term.coefficient),
+        let mut rows = Vec::with_capacity(dropped.iter().filter(|&&dropped| !dropped).count());
+        let mut terms = Vec::new();
+        for row in (0..dropped.len()).filter(|&row| !dropped[row]) {
+            let header = walk.row(row, &mut terms)?;
+            let mut sides = [0, 1, 2].map(|form| Linear {
+                constant: Goldilocks::from_u64(header.constants[form]),
+                terms: Vec::with_capacity(header.term_counts[form]),
+            });
+            for term in &terms {
+                if dead.get(term.variable) == Some(&true) {
+                    return Err(PackageError::Malformed(
+                        "bounded-depth application row reads a dead local",
                     ));
-                    Ok(ControlFlow::Continue(()))
-                })?;
-                let [a, b, c] = sides;
-                Ok(Row { a, b, c })
-            })
-            .collect()
+                }
+                sides[term.form.index()].terms.push((
+                    self.variable_column(term.variable)?,
+                    Goldilocks::from_u64(term.coefficient),
+                ));
+            }
+            let [a, b, c] = sides;
+            rows.push(Row { a, b, c });
+        }
+        Ok(rows)
     }
 
     fn native_slots(&self) -> Result<Vec<(usize, usize, u8)>, PackageError> {
@@ -491,21 +490,22 @@ impl BoundedDepthPackages {
         self.identity.into_iter().for_each(&mut update);
         update(witness_words as u64);
         update(records.row_count() as u64);
+        let mut walk = records.walk();
+        let mut terms = Vec::new();
         for row in 0..records.row_count() {
-            let header = records.row_header(row)?;
+            let header = walk.row(row, &mut terms)?;
             for form in 0..3 {
                 update(header.constants[form]);
                 update(header.term_counts[form] as u64);
             }
-            let _: ControlFlow<()> = records.visit_terms(row, |term| {
+            for term in &terms {
                 update(term.variable as u64);
                 update(term.coefficient);
-                Ok(ControlFlow::Continue(()))
-            })?;
+            }
         }
         update(records.recipe_count() as u64);
         for recipe in 0..records.recipe_count() {
-            update(records.recipe_row(recipe)? as u64);
+            update(walk.recipe_row(recipe)? as u64);
         }
         update(shape.blocks.len() as u64);
         for block in &shape.blocks {

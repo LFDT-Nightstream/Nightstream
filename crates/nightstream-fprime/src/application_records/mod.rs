@@ -476,6 +476,90 @@ impl ApplicationWalk<'_> {
         index(self.recipes.word(word(entry)?)?)
     }
 
+    /// The header of `row`, with its terms in form order in `terms`
+    /// (`ApplicationRecords::row_header` and `ApplicationRecords::visit_terms`
+    /// in one read).
+    pub fn row(&mut self, row: usize, terms: &mut Vec<ApplicationTerm>) -> Result<ApplicationRowHeader, PackageError> {
+        if row >= self.records.row_count {
+            return Err(PackageError::Input("application row is out of range"));
+        }
+        let mut offset = self.rows.word(word(mul(row, size_of::<u64>())?)?)?;
+        let data = &mut self.data;
+        let mut next = || -> Result<u64, PackageError> {
+            let word = data.word(offset)?;
+            offset += size_of::<u64>() as u64;
+            Ok(word)
+        };
+        let mut header = ApplicationRowHeader {
+            constants: [0; 3],
+            term_counts: [0; 3],
+        };
+        for form in 0..3 {
+            header.constants[form] = canonical(next()?)?.as_canonical_u64();
+            header.term_counts[form] = index(next()?)?;
+        }
+        terms.clear();
+        for form in [ApplicationForm::A, ApplicationForm::B, ApplicationForm::C] {
+            for _ in 0..header.term_counts[form.index()] {
+                let variable = index(next()?)?;
+                let coefficient = canonical(next()?)?.as_canonical_u64();
+                terms.push(ApplicationTerm {
+                    form,
+                    variable,
+                    coefficient,
+                });
+            }
+        }
+        Ok(header)
+    }
+
+    /// The row that `recipe` generates, with its nodes in `nodes`
+    /// (`ApplicationRecords::visit_recipe_nodes` in one read).
+    pub fn recipe(&mut self, recipe: usize, nodes: &mut Vec<ApplicationRecipeNode>) -> Result<usize, PackageError> {
+        if recipe >= self.records.recipe_count {
+            return Err(PackageError::Input("application recipe is out of range"));
+        }
+        let entry = mul(recipe, 3 * size_of::<u64>())?;
+        let mut offset = self.recipes.word(word(entry)?)?;
+        let count = index(self.recipes.word(word(add(entry, size_of::<u64>())?)?)?)?;
+        let row = index(
+            self.recipes
+                .word(word(add(entry, 2 * size_of::<u64>())?)?)?,
+        )?;
+        let data = &mut self.data;
+        let mut next = || -> Result<u64, PackageError> {
+            let word = data.word(offset)?;
+            offset += size_of::<u64>() as u64;
+            Ok(word)
+        };
+        nodes.clear();
+        let mut pending = 1;
+        for _ in 0..count {
+            if pending == 0 {
+                return Err(malformed("application recipe has extra stored nodes"));
+            }
+            pending -= 1;
+            let node = match (next()?, next()?) {
+                (0, variable) => ApplicationRecipeNode::Variable(index(variable)?),
+                (1, value) => ApplicationRecipeNode::Constant(canonical(value)?.as_canonical_u64()),
+                (2, 0) => {
+                    pending = add(pending, 2)?;
+                    ApplicationRecipeNode::Add
+                }
+                (3, 0) => {
+                    pending = add(pending, 2)?;
+                    ApplicationRecipeNode::Multiply
+                }
+                _ => return Err(malformed("invalid stored application recipe node")),
+            };
+            nodes.push(node);
+        }
+        if pending != 0 {
+            return Err(malformed("application recipe has missing stored nodes"));
+        }
+        Ok(row)
+    }
+
     /// The A, B and C sides of `row` under `value`.
     pub fn evaluate_row<E: From<PackageError>>(
         &mut self,

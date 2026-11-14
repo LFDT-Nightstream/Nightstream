@@ -26,7 +26,7 @@ define_column_region! {
         COL_PROGRAM_HEADER: Field => "opcode + 65536 * pc edge kind",
         COL_PC_BEFORE: U32 => "transition source pc",
         COL_PC_AFTER: U32 => "transition destination pc",
-        COL_CONTROL_CHOICE: U32 => "control-edge choice",
+        COL_CONTROL_CHOICE: (Implied(32)) => "control-edge choice",
         COL_PC_EDGE_KIND: U32 => "pc edge kind",
         COL_WIDE_VALUES_ENABLED: Boolean => "wide-value flag",
         COL_OUTPUT_CAPTURED: Boolean => "output-capture gate",

@@ -6,31 +6,6 @@ Require Import StackPorts R1CS Columns FullRelation Range Selectors CircuitFacts
 Import ListNotations.
 Open Scope Z_scope.
 
-Theorem full_br_if_choice : forall (w : Witness),
-  fieldPrime -> FullRelation.satFull w -> w COL_SEL_BR_IF_EQZ = 1 ->
-  w COL_CONTROL_CHOICE =
-    (if Z.eqb (w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0 then 0 else 1).
-Proof.
-  intros w Hprime Hfull Hchosen.
-  assert (Hin : In COL_SEL_BR_IF_EQZ selectorColumns) by (vm_compute; tauto).
-  pose proof (proj1 Hfull) as Hone.
-  selected_circuit_row COL_SEL_BR_IF_EQZ
-    ([(COL_SEL_BR_IF_EQZ, 1); (COL_SEL_IF, 1)],
-     [(COL_ZERO_TEST_LO_INPUT, 1); (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat, -1)], ([] : SparseRow)) Hpin.
-  pose proof (value_bound w COL_ZERO_TEST_LO_INPUT).
-  pose proof (value_bound w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)).
-  assert (Hinput : w COL_ZERO_TEST_LO_INPUT = w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) by (field_linear Hpin).
-  circuit_zero_test COL_ZERO_TEST_LO_INPUT COL_ZERO_TEST_LO_INV COL_ZERO_TEST_LO_IS_ZERO Hzero.
-  rewrite Hinput in Hzero.
-  selected_circuit_row COL_SEL_BR_IF_EQZ
-    ([(COL_SEL_BR_IF_EQZ, 1); (COL_SEL_IF, 1)],
-     [(COL_CONTROL_CHOICE, 1); (COL_ZERO_TEST_LO_IS_ZERO, 1); (COL_ONE, -1)], ([] : SparseRow)) Hchoice.
-  rewrite Hone, Hzero in Hchoice. pose proof (value_bound w COL_CONTROL_CHOICE).
-  normalize_columns.
-  let readColumn := eval compute in (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) in
-    destruct (Z.eqb (w readColumn) 0); field_linear Hchoice.
-Qed.
-
 (* A br_if pops its condition and slides by its distance. *)
 Theorem full_br_if_stack_shape : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w -> w COL_SEL_BR_IF_EQZ = 1 ->
@@ -110,68 +85,6 @@ Proof.
     rewrite Hone, Hguest, Hturn, Hpop in Hrow.
     pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE).
     pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER). field_linear Hrow.
-Qed.
-
-(* A br_table's edge: arm `index` (choice index + 1) for an index below the arm
-   count, the default (choice 0) otherwise. *)
-Theorem full_br_table_choice : forall (w : Witness),
-  fieldPrime -> FullRelation.satFull w -> w COL_SEL_BR_TABLE = 1 ->
-  w COL_CONTROL_CHOICE =
-    (if Z.ltb (w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) (w COL_BR_TABLE_LEN)
-     then w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) + 1 else 0).
-Proof.
-  intros w Hprime Hfull Hchosen.
-  pose proof (proj1 Hfull) as Hone.
-  pose proof (full_read0_u32 w Hprime Hfull) as Hindex.
-  circuit_range COL_BR_TABLE_LEN Hlen. circuit_range COL_CMP_LOW Hlow. circuit_boolean COL_CMP_GE Hge.
-  circuit_boolean COL_BR_TABLE_IN_BOUNDS Hbounds.
-  pose proof (value_bound w COL_CONTROL_CHOICE).
-  (* index - len + 2^32 = low + ge * 2^32, so ge says index >= len. *)
-  circuit_row ([(COL_SEL_BR_TABLE, 1)], [(nth 0%nat COL_STACK_READ_VALUE_LO 0%nat, 1); (COL_BR_TABLE_LEN, -1);
-    (COL_ONE, 4294967296); (COL_CMP_LOW, -1); (COL_CMP_GE, -4294967296)], ([] : SparseRow)) Hcmp.
-  circuit_row ([(COL_SEL_BR_TABLE, 1)], [(COL_ONE, 1); (COL_CMP_GE, -1)], [(COL_BR_TABLE_IN_BOUNDS, 1)]) Hin.
-  circuit_row ([(COL_BR_TABLE_IN_BOUNDS, 1)],
-    [(COL_CONTROL_CHOICE, 1); (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat, -1); (COL_ONE, -1)], ([] : SparseRow)) Harm.
-  circuit_row ([(COL_SEL_BR_TABLE, 1); (COL_BR_TABLE_IN_BOUNDS, -1)], [(COL_CONTROL_CHOICE, 1)], ([] : SparseRow))
-    Hdefault.
-  expand_row Hcmp. expand_row Hin. expand_row Harm. expand_row Hdefault.
-  rewrite Hone, Hchosen in *.
-  destruct Hge as [Hge | Hge]; rewrite Hge in *.
-  - assert (Hinside : w COL_BR_TABLE_IN_BOUNDS = 1) by field_linear Hin.
-    normalize_columns. rewrite Hinside in Harm.
-    assert (Hlt : w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) < w COL_BR_TABLE_LEN) by field_linear Hcmp.
-    replace (Z.ltb _ _) with true by (symmetry; apply Z.ltb_lt; exact Hlt). field_linear Harm.
-  - assert (Houtside : w COL_BR_TABLE_IN_BOUNDS = 0) by field_linear Hin.
-    normalize_columns. rewrite Houtside in Hdefault.
-    assert (Hge' : w COL_BR_TABLE_LEN <= w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) by field_linear Hcmp.
-    replace (Z.ltb _ _) with false by (symmetry; apply Z.ltb_ge; exact Hge'). field_linear Hdefault.
-Qed.
-
-(* An if's control choice: its true edge (choice 1) on a nonzero condition, its
-   false edge (choice 0) on zero. *)
-Theorem full_if_choice : forall (w : Witness),
-  fieldPrime -> FullRelation.satFull w -> w COL_SEL_IF = 1 ->
-  w COL_CONTROL_CHOICE =
-    (if Z.eqb (w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0 then 0 else 1).
-Proof.
-  intros w Hprime Hfull Hchosen.
-  assert (Hin : In COL_SEL_IF selectorColumns) by (vm_compute; tauto).
-  pose proof (proj1 Hfull) as Hone.
-  selected_circuit_row COL_SEL_IF
-    ([(COL_SEL_BR_IF_EQZ, 1); (COL_SEL_IF, 1)],
-     [(COL_ZERO_TEST_LO_INPUT, 1); (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat, -1)], ([] : SparseRow)) Hpin.
-  pose proof (value_bound w COL_ZERO_TEST_LO_INPUT).
-  pose proof (value_bound w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)).
-  assert (Hinput : w COL_ZERO_TEST_LO_INPUT = w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) by (field_linear Hpin).
-  circuit_zero_test COL_ZERO_TEST_LO_INPUT COL_ZERO_TEST_LO_INV COL_ZERO_TEST_LO_IS_ZERO Hzero.
-  rewrite Hinput in Hzero.
-  selected_circuit_row COL_SEL_IF
-    ([(COL_SEL_BR_IF_EQZ, 1); (COL_SEL_IF, 1)],
-     [(COL_CONTROL_CHOICE, 1); (COL_ZERO_TEST_LO_IS_ZERO, 1); (COL_ONE, -1)], ([] : SparseRow)) Hchoice.
-  rewrite Hone, Hzero in Hchoice. pose proof (value_bound w COL_CONTROL_CHOICE).
-  normalize_columns.
-  let readColumn := eval compute in (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) in
-    destruct (Z.eqb (w readColumn) 0); field_linear Hchoice.
 Qed.
 
 (* An if pops its condition and slides nothing. *)

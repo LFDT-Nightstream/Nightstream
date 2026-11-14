@@ -13,8 +13,8 @@ use crate::{Error, Norm};
 pub(crate) const LANE_VARS: usize = D.trailing_zeros() as usize;
 
 /// The lookup runs once for each of this many base-field challenges. Four
-/// fill the columns of `V` and put the lookup error below the other terms
-/// of `error_bits`.
+/// fill the columns of `V`, and with `(N + T)² ≤ q` they put each lookup
+/// term at most `1/|K|` (`error_bits`).
 pub(crate) const LOOKUPS: usize = 4;
 /// `V` has one column for each value of this many variables.
 pub(crate) const LOOKUP_VARS: usize = 2;

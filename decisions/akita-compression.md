@@ -230,7 +230,9 @@ For the reference application, `N` is `2^23` and `2^25`, `T ≤ 20,737`,
 `n ≤ 27` and `n_A = 19`. At `L = 4` the lookups give about `2^−155.99`, the
 other terms give `(398 + 4n)/q² = 506/q²` at `n = 27`, about `2^−119.02`,
 and the sum is about `2^−119.02` (computed). `verify_final` and `compress`
-refuse a layout whose sum is above the caller's security minimum.
+count each lookup term as `1/q²` and refuse a layout when the largest `k`
+with `2^k · count ≤ q²` is below the caller's security minimum, in integers
+(`SPEC.md` section 3). For the reference application, `k` is 119.
 
 This sum is not a security level of the final proof. It does not include:
 

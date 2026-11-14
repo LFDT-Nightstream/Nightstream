@@ -358,10 +358,10 @@ item 5).
   the final verifier accepts. No Lean result joins them, and no result
   shows that an extractor of the three witnesses is efficient.
 - **Error:** Lean bounds the argument by `Q · error`, with `error` below
-  `2^−119` at the production shapes (`SPEC.md` section 3). Rust computes a
+  `2^−119` at the production shapes (`SPEC.md` section 3). Rust bounds a
   sum of six terms for one interactive run of the argument, about
-  `2^−119.02` for the reference application at 4 lookup challenges, with no
-  factor for the queries. Where the two differ, the Lean bound is correct.
+  `2^−119.02` for the reference application at 4 lookup challenges, by
+  `2^−119` in integers, with no factor for the queries. Where the two differ, the Lean bound is correct.
   Neither is a bound on a win. Neither includes the knowledge error of the
   Akita opening or the error of the Π_CCS run.
 - **Gaps:** the final proof is not zero-knowledge. No test uses a slot
@@ -655,9 +655,10 @@ item 5).
      transcript from the fold transcripts. No Lean result states either.
    - *The error of the argument.* Lean bounds it by `Q · error`, with
      `error < 2^−119` at the production shapes
-     (`Spec.Compression.Verifier.production_error_lt`). Rust computes the
+     (`Spec.Compression.Verifier.production_error_lt`). Rust bounds the
      sum of `SPEC.md` section 3 for one interactive run, about `2^−119.02`
-     for the reference application at 4 lookup challenges. To either, add
+     for the reference application at 4 lookup challenges, by `2^−119` in
+     integers. To either, add
      the error of a Π_CCS run with one source, which Rust does not compute. Rust holds the Π_CCS test error for 17
      sources to the caller's security minimum (`SPEC.md` section 3).
    - *The Rust code.* Trust item 5 applies. The tests check fixed inputs.

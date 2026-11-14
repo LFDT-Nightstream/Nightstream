@@ -1,8 +1,9 @@
-//! `Layout::new` and `error_bits` against Lean `layoutNew` and the exact
-//! value of `error_bits` (`Spec.Compression.Rust`), on each claim set of the
-//! Poseidon2 hash chain and on generated claim sets. Lean proves that a
-//! layout of `layoutNew` satisfies the premises of the soundness theorem
-//! (`Spec.Compression.Rust.layoutNew_production`).
+//! `Layout::new` and `error_bits` against Lean `layoutNew` and `runBits`
+//! (`Spec.Compression.Rust`), on each claim set of the Poseidon2 hash chain
+//! and on generated claim sets. Lean proves that a layout of `layoutNew`
+//! satisfies the premises of the soundness theorem
+//! (`Spec.Compression.Rust.layoutNew_production`), and that the exact error
+//! sum is at most `2^-runBits` (`Spec.Compression.Rust.runError_le_runBits`).
 
 use std::fs;
 use std::path::PathBuf;
@@ -115,16 +116,6 @@ fn rejection(error: &Error) -> &'static str {
     }
 }
 
-/// `log2` of a decimal natural number, within `2^-52` bits.
-fn log2(decimal: &Value) -> f64 {
-    decimal
-        .as_str()
-        .expect("a decimal string")
-        .parse::<f64>()
-        .expect("a decimal number")
-        .log2()
-}
-
 #[test]
 fn schedules_and_variables_are_lean_constants() {
     let lean = lean();
@@ -171,37 +162,52 @@ fn layout_new_is_lean_layout_new_on_each_claim_set() {
     }
 }
 
-/// `error_bits` is `−log2` of Lean's exact value within `1e-9` bits. Its
-/// floor is the largest security minimum that the exact value meets, except
-/// where the exact value is within `f64` resolution of an integer power of
-/// two: there `error_bits` can be that integer while the exact value is
-/// above it.
 #[test]
-fn error_bits_is_minus_log2_of_the_lean_value_on_each_layout() {
+fn error_bits_is_lean_run_bits_on_each_layout() {
     let lean = lean();
-    let mut rounded = Vec::new();
+    let mut layouts = 0;
     for (claims, key_blocks, entry) in claim_sets(&lean) {
         let Ok(layout) = Layout::new(&claims, key_blocks) else {
             continue;
         };
-        let error = &entry["error"];
-        let exact = log2(&error["denominator"]) - log2(&error["numerator"]);
-        let bits = error_bits(&layout, PUBLIC_CELLS, MATRICES);
-        assert!(
-            (bits - exact).abs() < 1e-9,
-            "{claims:?}: error_bits {bits}, Lean {exact}"
+        assert_eq!(
+            error_bits(&layout, PUBLIC_CELLS, MATRICES) as usize,
+            number(&entry["error"]["bits"]),
+            "{claims:?}"
         );
-        let floor = number(&error["bits"]) as f64;
-        if bits.floor() != floor {
-            assert!(
-                floor + 1.0 - exact < 1e-12,
-                "{claims:?}: only f64 resolution moves the floor"
-            );
-            rounded.push(claims.len());
-        }
+        layouts += 1;
     }
-    println!(
-        "error_bits reaches the next integer on {} layouts, with these claim counts: {rounded:?}",
-        rounded.len()
-    );
+    assert_eq!(layouts, 8450 + 508, "the claim sets with a layout");
+}
+
+/// Nine claims under the key of `2^19` blocks: the terms over `|K|` other
+/// than the lookup are `512/|K| > 2^-119`, because `|K| < 2^128`. So the
+/// error sum is above `2^-119`, and 118 is the largest minimum that it
+/// meets. In `f64`, `-log2` of this sum was exactly 119.
+#[test]
+fn error_bits_is_118_where_the_error_sum_is_just_above_2_to_the_minus_119() {
+    let mut claims = vec![
+        (1, Norm::Table { bound: 0 }),
+        (1 << 19, Norm::Caller),
+        (1 << 19, Norm::Caller),
+    ];
+    claims.extend([(1, Norm::Caller); 6]);
+    let layout = Layout::new(&claims, 1 << 19).expect("layout");
+    assert_eq!(layout.witness_vars, 27);
+    assert_eq!(error_bits(&layout, PUBLIC_CELLS, MATRICES), 118);
+}
+
+/// `((N + T)/q)^4 ≤ 1/|K|` needs `(N + T)² ≤ q`. The largest such
+/// `N + T` is `2^32 − 1`. A table above it gives 0 bits.
+#[test]
+fn error_bits_is_zero_when_a_lookup_term_can_exceed_one_over_k() {
+    let mut layout = Layout::new(&[(1, Norm::Table { bound: 0 }), (1, Norm::Caller)], 512).expect("layout");
+    let witness = layout.cells[0].witness.len() as u64;
+    let mut bits = |poles: u64| {
+        let table = layout.cells[0].table.as_mut().expect("table");
+        table.0 = (poles - witness - 1) / 2;
+        error_bits(&layout, PUBLIC_CELLS, MATRICES)
+    };
+    assert!(bits((1 << 32) - 1) > 100);
+    assert_eq!(bits((1 << 32) + 1), 0);
 }

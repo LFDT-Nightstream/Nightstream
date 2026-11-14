@@ -2,12 +2,12 @@ import Lean
 import NightstreamFPrime.Spec.Compression.Rust.Layout
 import NightstreamFPrime.Spec.Compression.Rust.Transcript
 
-/-! The compression parity file. For each production claim set, Lean's layout (`layoutNew`) and the
-exact value of Rust `error_bits` that bounds the soundness error of the argument
-(`runError (productionCounts …)`, `runCost_le_runError`, `error_le_runError`). For generated claim
-sets, Lean's layout or the error of `layoutNew`, and the exact value of `error_bits` with the
-production `m` and `t`. Rust tests compare them with `Layout::new` and `error_bits`
-(`crates/nightstream/tests/bounded_depth_lifecycle/compression_error.rs`,
+/-! The compression parity file. For each production claim set, Lean's layout (`layoutNew`), the
+exact error sum that bounds the soundness error of the argument (`runError (productionCounts …)`,
+`runCost_le_runError`, `error_le_runError`), its count over `q²` (`runCount`) and the bits of the
+Rust gate (`runBits`). For generated claim sets, Lean's layout or the error of `layoutNew`, and the
+same values with the production `m` and `t`. Rust tests compare them with `Layout::new` and
+`error_bits` (`crates/nightstream/tests/bounded_depth_lifecycle/compression_error.rs`,
 `crates/neo-compress/tests/unit/layout.rs`). -/
 
 namespace NightstreamFPrime.Export.CompressionParity
@@ -20,10 +20,6 @@ open NightstreamFPrime.Spec.Folding.Schedule (productionLightFoldCap)
 /-- The ring blocks of the light and the refresh relation of the reference application (Rust
 `Relation::blocks`). The Rust test fails when the relations have other counts. -/
 def productionBlocks : Fin 2 → ℕ := ![74530, 497376]
-
-/-- The largest `m` with `value ≤ 2^−m`, for `0 < value ≤ 1`: the largest security minimum that
-the exact value meets. -/
-def floorBits (value : ℚ) : ℕ := Nat.log 2 (value.den / value.num.toNat)
 
 private def slice (s : Slice) : Lean.Json := Lean.toJson [s.offset, s.vars]
 
@@ -42,11 +38,12 @@ private def layout (l : Placed) : Lean.Json :=
     ("span_len", Lean.toJson l.spanLen),
     ("inverse_vars", Lean.toJson l.inverseVars)]
 
-private def error (value : ℚ) : Lean.Json :=
+private def error (c : RunCounts) : Lean.Json :=
   Lean.Json.mkObj [
-    ("numerator", Lean.toJson (toString value.num)),
-    ("denominator", Lean.toJson (toString value.den)),
-    ("bits", Lean.toJson (floorBits value))]
+    ("numerator", Lean.toJson (toString (runError c).num)),
+    ("denominator", Lean.toJson (toString (runError c).den)),
+    ("count", Lean.toJson (runCount c)),
+    ("bits", Lean.toJson (runBits c))]
 
 private def production (pc : Fin 2) (d0 d1 : ℕ) : Lean.Json :=
   let depths : Fin 2 → ℕ := ![d0, d1]
@@ -54,7 +51,7 @@ private def production (pc : Fin 2) (d0 d1 : ℕ) : Lean.Json :=
   let entry := [("pc", Lean.toJson ((pc : ℕ) + 1)), ("depths", Lean.toJson [d0, d1])]
   match layoutNew (productionClaims productionBlocks pc depths) keyBlocks with
   | .ok l => Lean.Json.mkObj (entry ++ [("layout", layout l),
-      ("error", error (runError (productionCounts l.production depths)))])
+      ("error", error (productionCounts l.production depths))])
   | .error e => Lean.Json.mkObj (entry ++ [("rejected", Lean.toJson e.name)])
 
 /-- One step of Knuth's MMIX linear congruential generator. -/
@@ -91,8 +88,9 @@ private def generated (index : ℕ) : List Claim × ℕ :=
   let (count, state) := draw state 7
   (claims key count state, key)
 
-/-- A layout whose `error_bits` numerator over `q²` is `512`: nine claims, one small table, and
-`W` of 27 variables under the key of `2^19` blocks. -/
+/-- A layout whose `extensionTerms` are `512`, so its exact error sum is above `2^−119` and
+`runBits` is 118: nine claims, one small table, and `W` of 27 variables under the key of `2^19`
+blocks. -/
 private def powerOfTwo : List Claim × ℕ :=
   (⟨1, some 0⟩ :: ⟨2 ^ 19, none⟩ :: ⟨2 ^ 19, none⟩ :: List.replicate 6 ⟨1, none⟩, 2 ^ 19)
 
@@ -102,7 +100,7 @@ private def generatedEntry (input : List Claim × ℕ) : Lean.Json :=
     ("key_blocks", Lean.toJson input.2)]
   match layoutNew input.1 input.2 with
   | .ok l => Lean.Json.mkObj (entry ++ [("layout", layout l),
-      ("error", error (runError (l.counts 320 4)))])
+      ("error", error (l.counts 320 4))])
   | .error e => Lean.Json.mkObj (entry ++ [("rejected", Lean.toJson e.name)])
 
 /-- The claims of the proof of `crates/neo-compress/tests/unit/transcript_order.rs`

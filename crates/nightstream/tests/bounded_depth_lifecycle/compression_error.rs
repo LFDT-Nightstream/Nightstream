@@ -1,13 +1,12 @@
 //! The gate of `compression_layout` against the Lean bound of the
 //! compression argument, on every claim set of the Poseidon2 hash chain:
 //! both circuits of the fresh instance and each pair of slot depths up to
-//! the light fold cap. Lean emits, for each set, its layout (`layoutNew`)
-//! and the exact rational `runError (productionCounts …)`, which bounds one
-//! interactive run (`Spec.Compression.Rust.params_run_soundness`) and the
-//! density `error` of the state-restoration bound
-//! (`Spec.Compression.Rust.error_le_runError`). `error_bits` must be its
-//! `−log2`, and the gate must pass a security minimum exactly when the exact
-//! value is at most `2^−minimum`.
+//! the light fold cap. Lean emits, for each set, its layout (`layoutNew`),
+//! the count `runCount (productionCounts …)` over `q²` and `runBits`, the
+//! largest `k` with `2^k · runCount ≤ q²`. One interactive run is at most
+//! `2^−runBits` (`Spec.Compression.Rust.params_run_soundness_bits`).
+//! `error_bits` must be `runBits`, and the gate must pass a security minimum
+//! exactly when it is at most `runBits`.
 
 use neo_compress::{Layout, Norm};
 use nightstream_fprime::{PI_CCS_V1_2_MATRIX_COUNT, PUBLIC_WORDS};
@@ -32,17 +31,6 @@ fn numbers(value: &Value) -> Vec<u64> {
         .iter()
         .map(number)
         .collect()
-}
-
-/// `log2` of a decimal natural number. The parse rounds to the nearest
-/// `f64`, so the error is below `2^-52` bits.
-fn log2(decimal: &Value) -> f64 {
-    decimal
-        .as_str()
-        .expect("a decimal string")
-        .parse::<f64>()
-        .expect("a decimal number")
-        .log2()
 }
 
 /// The claims of a Lean layout: the blocks and the table of each cell.
@@ -94,7 +82,7 @@ fn error_bits_and_the_gate_match_the_lean_bound_on_each_production_claim_set() {
         2 * (LIGHT_FOLD_CAP as usize + 1).pow(2),
         "each circuit and pair of depths"
     );
-    let mut closest = f64::INFINITY;
+    let mut counts = (u64::MAX, 0);
     for entry in entries {
         let pc = number(&entry["pc"]);
         let depths: [u64; 2] = numbers(&entry["depths"]).try_into().expect("two depths");
@@ -110,19 +98,14 @@ fn error_bits_and_the_gate_match_the_lean_bound_on_each_production_claim_set() {
         );
 
         let error = &entry["error"];
-        let exact = log2(&error["denominator"]) - log2(&error["numerator"]);
-        let bits = neo_compress::error_bits(&layout, PUBLIC_WORDS, PI_CCS_V1_2_MATRIX_COUNT);
-        assert!(
-            (bits - exact).abs() < 1e-9,
-            "{context}: error_bits {bits} and Lean {exact}"
-        );
-
         let minimum = u32::try_from(number(&error["bits"])).expect("bits");
-        assert!(
-            exact >= f64::from(minimum) && exact < f64::from(minimum + 1),
-            "{context}: Lean's floor"
+        assert_eq!(
+            neo_compress::error_bits(&layout, PUBLIC_WORDS, PI_CCS_V1_2_MATRIX_COUNT),
+            minimum,
+            "{context}: error_bits is Lean runBits"
         );
-        closest = closest.min(exact - f64::from(minimum));
+        let count = number(&error["count"]);
+        counts = (counts.0.min(count), counts.1.max(count));
         prover.minimum_security_bits = minimum;
         assert!(
             prover.compression_layout(key_blocks, pc, depths).is_ok(),
@@ -135,5 +118,8 @@ fn error_bits_and_the_gate_match_the_lean_bound_on_each_production_claim_set() {
             minimum + 1
         );
     }
-    println!("the exact error is at least {closest:.4} bits above its integer floor on each set");
+    println!(
+        "the count over q² is between {} and {} on these sets",
+        counts.0, counts.1
+    );
 }

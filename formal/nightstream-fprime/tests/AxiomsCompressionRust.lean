@@ -9,6 +9,12 @@ import NightstreamFPrime.Spec.Compression
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.runCost_le_runError
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.error_le_runError
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.params_run_soundness
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.runCount_pos
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.runError_le_runCount
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.runBits_spec
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.runError_le_runBits
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.params_run_soundness_bits
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.error_le_runBits
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.nextMultiple_spec
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.placeAll_spec
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.lookup_mem

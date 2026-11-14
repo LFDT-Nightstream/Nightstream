@@ -5,8 +5,8 @@ import NightstreamFPrime.Spec.Folding.Light.ErrorBudget
 /-! The fold gate of Rust `Params::for_ccs_shape` in integers. Rust reads `Counts` from a CCS
 shape: the cube variables `ℓ`, the degree bound of a round polynomial and the CCS matrices. Its
 census numerator (`Counts.numerator`) counts every fresh source that the Π_RLC guard admits. The
-gate charges `error = (2ℓ + 1 + 15) · numerator/q² + 15² · (1/|C| + 2^−173)` as
-`count/denominator`, and gives `bits`, the largest `k` with `2^k · count ≤ denominator`.
+gate charges `error = numerator/q² + 15² · (1/|C| + 2^−173)` as `count/denominator`, and gives
+`bits`, the largest `k` with `2^k · count ≤ denominator`.
 
 - `bits_spec`: `2^bits · count ≤ denominator < 2^(bits + 1) · count`.
 - `error_le_bits`: when `bits` is positive, `error ≤ 2^−bits`.
@@ -14,7 +14,7 @@ gate charges `error = (2ℓ + 1 + 15) · numerator/q² + 15² · (1/|C| + 2^−1
   statistical term of each fold's random-oracle result with `Q` queries is at most
   `(Q + 1) · error`. `refresh_statisticalError_le_bits`, `light_statisticalError_le_bits`: it is
   at most `(Q + 1)/2^bits`.
-- `production_bits`: `bits` is 109 at the production counts. -/
+- `production_bits`: `bits` is 115 at the production counts. -/
 
 set_option autoImplicit false
 
@@ -43,12 +43,9 @@ def Counts.numerator (c : Counts) : ℕ :=
 /-- The Π_RLC sources of a refresh fold, `1 + k`. -/
 def sources : ℕ := productionProfile.piRlcInputs
 
-/-- The challenges at which the gate charges the test error, `2ℓ + 1 + sources`. -/
-def Counts.challenges (c : Counts) : ℕ := 2 * c.cubeVariables + 1 + sources
-
 /-- The error that the gate charges. -/
 def error (c : Counts) : ℚ :=
-  ((c.challenges * c.numerator : ℕ) : ℚ) / ((fieldModulus ^ 2 : ℕ) : ℚ) +
+  (c.numerator : ℚ) / ((fieldModulus ^ 2 : ℕ) : ℚ) +
     ((sources ^ 2 : ℕ) : ℚ) * (1 / (productionChallengeSetCardinality : ℚ) + 1 / 2 ^ 173)
 
 /-- `q² · |C| · 2^173`. -/
@@ -56,7 +53,7 @@ def denominator : ℕ := fieldModulus ^ 2 * productionChallengeSetCardinality * 
 
 /-- The numerator of `error` over `denominator`. -/
 def count (c : Counts) : ℕ :=
-  c.challenges * c.numerator * productionChallengeSetCardinality * 2 ^ 173 +
+  c.numerator * productionChallengeSetCardinality * 2 ^ 173 +
     sources ^ 2 * (fieldModulus ^ 2 * 2 ^ 173 + fieldModulus ^ 2 * productionChallengeSetCardinality)
 
 /-- The largest `k` with `2^k · count ≤ denominator`. -/
@@ -117,7 +114,7 @@ theorem error_le_bits (c : Counts) (pos : 0 < bits c) : (error c : ℝ) ≤ 1 / 
   rw [div_le_div_iff₀ positive (by positivity), one_mul]
   exact_mod_cast spec
 
-theorem production_bits : bits production = 109 := by
+theorem production_bits : bits production = 115 := by
   unfold bits
   rw [Nat.log_eq_iff (Or.inl (by norm_num))]
   constructor <;> decide
@@ -133,10 +130,9 @@ private theorem sampleError_lt : Fork.sampleError < 1 / 5 ^ 64 + 1 / 2 ^ 173 := 
 
 private theorem error_production :
     ((error production : ℚ) : ℝ) =
-      72 * 4971 * (1 / (fieldModulus : ℝ) ^ 2) + 225 * (1 / 5 ^ 64 + 1 / 2 ^ 173) := by
-  have challenges : production.challenges = 72 := rfl
+      4971 * (1 / (fieldModulus : ℝ) ^ 2) + 225 * (1 / 5 ^ 64 + 1 / 2 ^ 173) := by
   unfold error
-  rw [challenges, production_numerator, sources_eq, cardinality_eq]
+  rw [production_numerator, sources_eq, cardinality_eq]
   push_cast
   ring
 

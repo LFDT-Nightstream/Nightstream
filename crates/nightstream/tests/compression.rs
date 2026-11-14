@@ -6,6 +6,9 @@
 //! check on small claims. `expanded_key_bytes` counts the CPU expansion
 //! only, and the test runs no Metal path.
 
+mod bounded_depth_support;
+
+use bounded_depth_support::fold_gate_bits;
 use neo_ajtai::nightstream_fprime_setup::expanded_key_bytes;
 use neo_math::F;
 use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1};
@@ -35,7 +38,7 @@ fn words(values: [u64; 4]) -> [F; 4] {
 #[ignore = "Production-size compression, 25 GB; scripts/ci_rust_tests.sh runs it alone."]
 fn hash_chain_compresses_and_verifies_without_the_ajtai_key() {
     let verifier = circuit()
-        .verifier(Engine::Optimized, 109)
+        .verifier(Engine::Optimized, fold_gate_bits())
         .expect("verifier");
     let before = expanded_key_bytes();
     let key = verifier.compression_key().expect("compression key");
@@ -53,7 +56,9 @@ fn hash_chain_compresses_and_verifies_without_the_ajtai_key() {
         "the key of the verifier expanded key elements"
     );
 
-    let prover = circuit().prover(Engine::Optimized, 109).expect("prover");
+    let prover = circuit()
+        .prover(Engine::Optimized, fold_gate_bits())
+        .expect("prover");
     let before = expanded_key_bytes();
     let setup = prover.compression_setup().expect("compression setup");
     assert_eq!(expanded_key_bytes() - before, KEY_BYTES);

@@ -100,8 +100,8 @@ pub struct PaddedRowSecuritySummary {
 }
 
 /// The statistical error of one fold that the fold gate charges (Lean
-/// `FoldGate.error`), `count / denominator`: the Π_CCS test error at
-/// `2ℓ + 1 + S` challenges, and `S²` times `1/|C| + 2^-173`, the bound on
+/// `FoldGate.error`), `count / denominator`: the census Π_CCS test error
+/// `field_factor/q^s`, and `S²` times `1/|C| + 2^-173`, the bound on
 /// the probability that one Π_RLC challenge takes a given value, with
 /// `S = 1 + k_rho`. `bits` is the largest `k` with
 /// `2^k · count ≤ denominator` (Lean `FoldGate.bits`).
@@ -397,7 +397,7 @@ impl NeoParams {
         let total_denominator = &field_size * &challenge_set_cardinality;
         let security_bits = floor_log2_ratio(&total_denominator, &total_numerator);
         let slack_bits = signed_difference(security_bits, self.lambda);
-        let fold_error = self.fold_error(cube_variables, field_factor, &field_size, &challenge_set_cardinality);
+        let fold_error = self.fold_error(field_factor, &field_size, &challenge_set_cardinality);
 
         Ok(PaddedRowSecuritySummary {
             s_supported: self.s,
@@ -415,17 +415,10 @@ impl NeoParams {
     }
 
     /// Lean `FoldGate.count` over `FoldGate.denominator`, with `field_size = q^s`.
-    fn fold_error(
-        &self,
-        cube_variables: u32,
-        field_factor: u128,
-        field_size: &BigUint,
-        challenge_set_cardinality: &BigUint,
-    ) -> FoldError {
+    fn fold_error(&self, field_factor: u128, field_size: &BigUint, challenge_set_cardinality: &BigUint) -> FoldError {
         let sources = BigUint::from(1 + u64::from(self.k_rho));
-        let challenges = BigUint::from(2 * u64::from(cube_variables) + 1) + &sources;
         let distance = BigUint::from(1u8) << nightstream_p64_k14::CHALLENGE_DISTANCE_LOG2;
-        let count = challenges * field_factor * challenge_set_cardinality * &distance
+        let count = BigUint::from(field_factor) * challenge_set_cardinality * &distance
             + &sources * &sources * (field_size * &distance + field_size * challenge_set_cardinality);
         let denominator = field_size * challenge_set_cardinality * distance;
         FoldError {

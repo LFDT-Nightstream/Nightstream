@@ -15,10 +15,11 @@ challenge (`bad`) is the `RoundByRound` set of its coin: an `α` coordinate, `γ
 challenge. A `ρ` challenge has no bad set. Each bad set is local (`bad_local`) and has mass at
 most `error` (`bad_mass_le`). When the fold's split lemma (`RoundByRound.falseAcceptance_splits`,
 `Light.PiCCS.falseAcceptance_splits`) holds on the oracle coins (`Splits`), one challenge hits
-its bad set at its address (`splits_hits`). So an event that implies a hit has probability at
-most `(Q + 1) · testError` (`test_error_le`). Inside a game that also queries every challenge
-point (`checked`), any local per-challenge family of the same masses gives
-`(Q + 2 · cube + 1 + rhoCount) · testError` (`checked_error_le`, `challenges_length`). -/
+its bad set at its address (`splits_hits`). For any local per-challenge family of these masses,
+an event that implies a hit has probability at most `(Q + 1) · testError`
+(`family_error_le`), and the bad sets are one such family (`test_error_le`). The checked game
+(`checked`) runs the adversary and then queries all `2 · cube + 1 + rhoCount` challenge points
+(`challenges_length`). -/
 
 set_option autoImplicit false
 
@@ -601,9 +602,37 @@ theorem hits_error_le {Sample : Type} [Fintype Sample] (event : Sample → Prop)
   push_cast
   ring
 
-/-- The test step with the claimed data fixed: an event that implies a hit of the bad sets on
-`source` has probability at most `(Q + 1) · testError` over the oracle, for an adversary with
-at most `Q` queries. -/
+/-- The test step for any local per-challenge family with the masses of `error`: an event that
+implies a hit has probability at most `(Q + 1) · testError` over the oracle, for an adversary
+with at most `Q` queries. Each challenge's hit at its own point costs `(Q + 1) · error`
+(`pinned_le`). -/
+theorem family_error_le
+    (family : schedule.Challenge → Point schedule width → (Point schedule width → Answer) →
+      Set Answer)
+    (local_ : ∀ challenge, Local (family challenge))
+    (small : ∀ challenge target oracle,
+      mass (family challenge target oracle) ≤ error schedule width challenge)
+    {Output : Type} (adversary : OracleComp (Point schedule width) Answer Output)
+    {queries : Nat} (bounded : adversary.QueryBound queries)
+    (statement : Output → schedule.Statement) (messages : Output → schedule.Messages width)
+    (event : (Point schedule width → Answer) → Prop)
+    (hits : ∀ oracle, event oracle →
+      Hits family oracle (statement (adversary.run oracle)) (messages (adversary.run oracle))) :
+    𝔼 oracle, (if event oracle then (1 : ℝ) else 0) ≤
+      (queries + 1) * IndependentExecution.testError schedule.shape width :=
+  hits_error_le schedule width event
+    (fun challenge oracle =>
+      oracle (point (statement (adversary.run oracle)) (messages (adversary.run oracle))
+          challenge) ∈
+        family challenge
+          (point (statement (adversary.run oracle)) (messages (adversary.run oracle)) challenge)
+          oracle)
+    _ hits
+    fun challenge => pinned_le (family challenge) (local_ challenge)
+      (error schedule width challenge) (small challenge) (error_nonnegative challenge) bounded
+      (fun output => point (statement output) (messages output) challenge)
+
+/-- The test step with the claimed data fixed: `family_error_le` on the bad sets of `source`. -/
 theorem test_error_le (source : schedule.Statement → ProtocolPolynomial.Data K schedule.shape)
     (degreeCovers : ∀ statement, (source statement).toVerifierInput.sumcheckDegreeBound ≤ width)
     {Output : Type} (adversary : OracleComp (Point schedule width) Answer Output)
@@ -615,18 +644,8 @@ theorem test_error_le (source : schedule.Statement → ProtocolPolynomial.Data K
         (messages (adversary.run oracle))) :
     𝔼 oracle, (if event oracle then (1 : ℝ) else 0) ≤
       (queries + 1) * IndependentExecution.testError schedule.shape width :=
-  hits_error_le schedule width event
-    (fun challenge oracle =>
-      oracle (point (statement (adversary.run oracle)) (messages (adversary.run oracle))
-          challenge) ∈
-        bad source challenge
-          (point (statement (adversary.run oracle)) (messages (adversary.run oracle)) challenge)
-          oracle)
-    _ hits
-    fun challenge => pinned_le (bad source challenge) (bad_local source challenge)
-      (error schedule width challenge) (bad_mass_le source degreeCovers challenge)
-      (error_nonnegative challenge) bounded
-      (fun output => point (statement output) (messages output) challenge)
+  family_error_le (bad source) (bad_local source) (bad_mass_le source degreeCovers) adversary
+    bounded statement messages event hits
 
 end Hits
 
@@ -667,48 +686,6 @@ theorem mem_checked (oracle : Point schedule width → Answer) (challenge : sche
       (checked adversary statement messages).queries oracle :=
   OracleComp.mem_queries_thenQueries _ _ _
     (List.mem_map.mpr ⟨challenge, mem_challenges schedule challenge, rfl⟩)
-
-/-- The test step for any local per-challenge family with the masses of `error`: inside the checked
-game, an event that implies a hit has probability at most
-`(Q + challenge count) · testError`. -/
-theorem checked_error_le
-    (family : schedule.Challenge → Point schedule width → (Point schedule width → Answer) →
-      Set Answer)
-    (local_ : ∀ challenge, Local (family challenge))
-    (small : ∀ challenge target oracle,
-      mass (family challenge target oracle) ≤ error schedule width challenge)
-    {queries : Nat} (bounded : adversary.QueryBound queries)
-    (event : (Point schedule width → Answer) → Prop)
-    (hits : ∀ oracle, event oracle →
-      Hits family oracle (statement (adversary.run oracle)) (messages (adversary.run oracle))) :
-    𝔼 oracle, (if event oracle then (1 : ℝ) else 0) ≤
-      ((queries + (challenges schedule).length : Nat) : ℝ) *
-        IndependentExecution.testError schedule.shape width := by
-  refine hits_error_le schedule width event
-    (fun challenge oracle =>
-      oracle (point (statement (adversary.run oracle)) (messages (adversary.run oracle))
-          challenge) ∈
-        family challenge
-          (point (statement (adversary.run oracle)) (messages (adversary.run oracle)) challenge)
-          oracle)
-    _ hits fun challenge => ?_
-  have escape := escape_le (family challenge) (local_ challenge) (error schedule width challenge)
-    (small challenge) (error_nonnegative challenge)
-    (checked_bound adversary statement messages bounded)
-  refine (Finset.expect_le_expect fun oracle _ => ?_).trans escape
-  by_cases isBad :
-      oracle (point (statement (adversary.run oracle)) (messages (adversary.run oracle))
-          challenge) ∈
-        family challenge
-          (point (statement (adversary.run oracle)) (messages (adversary.run oracle)) challenge)
-          oracle
-  · have queried : ∃ asked ∈ (checked adversary statement messages).queries oracle,
-        oracle asked ∈ family challenge asked oracle :=
-      ⟨_, mem_checked adversary statement messages oracle challenge, isBad⟩
-    simp only [ite_eq_left isBad, ite_eq_left queried]
-    norm_num
-  · simp only [ite_eq_right isBad]
-    split <;> norm_num
 
 end Checked
 

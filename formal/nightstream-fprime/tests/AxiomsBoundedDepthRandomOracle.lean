@@ -79,12 +79,12 @@ import NightstreamFPrime.Spec.Nebula
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.bad_mass_le
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.splits_hits
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.hits_error_le
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.family_error_le
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.test_error_le
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.mem_challenges
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.challenges_length
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.checked_bound
 #audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.mem_checked
-#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Test.checked_error_le
 
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshTest.challenges_length
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshTest.source_degreeCovers

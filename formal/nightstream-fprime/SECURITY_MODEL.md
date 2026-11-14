@@ -321,13 +321,15 @@ not change terminal source checks.
   witnesses is at most a statistical term, a state-collision term and a
   kernel term (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.knowledge_error_le`,
   `Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.knowledge_error_le`). The
-  statistical term is at most `(Q + 58) · 575/2^128` for light and
-  `(Q + 72) · 4748/2^128` for refresh
+  test step charges each challenge's bad set at the challenge's own point, so
+  it costs at most `(Q + 1)` times the Π_CCS test error
+  (`Lifecycle.RandomOracle.Test.family_error_le`). The statistical term is at
+  most `(Q + 1) · 575/2^128` for light and `(Q + 1) · 4748/2^128` for refresh
   (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.statisticalError_le`,
   `Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.statisticalError_le`).
   The fold gate of Rust `Params::for_ccs_shape` charges one error for both
   folds and computes its bits in integers. The statistical term of either
-  fold is at most `(Q + 1)/2^bits`, and `bits` is 109 at the step relations
+  fold is at most `(Q + 1)/2^bits`, and `bits` is 115 at the step relations
   (`Lifecycle.BoundedDepth.RandomOracle.FoldGate.refresh_statisticalError_le_bits`,
   `Lifecycle.BoundedDepth.RandomOracle.FoldGate.light_statisticalError_le_bits`,
   `Lifecycle.BoundedDepth.RandomOracle.FoldGate.production_bits`). The gate

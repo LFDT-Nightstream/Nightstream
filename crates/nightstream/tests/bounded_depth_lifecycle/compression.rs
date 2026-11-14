@@ -12,8 +12,8 @@ use std::time::{Duration, Instant};
 
 use super::super::compression::{FinalProof, Fresh, Steps};
 use super::super::{BoundedDepth, BoundedDepthError, Envelope};
-use super::support::{hash_chain_step, packages, words};
-use super::{addition, prover, MINIMUM_SECURITY_BITS};
+use super::support::{fold_gate_bits, hash_chain_step, packages, words};
+use super::{addition, prover};
 use crate::folding::transcript::Transcript;
 use crate::folding::{pi_ccs, CcsClaim, RunningInstance};
 use neo_ajtai::nightstream_fprime_setup::{
@@ -676,7 +676,7 @@ fn a_verifier_of_other_keys_rejects_the_proof() {
             application.shape(),
         )
         .expect("packages with the application");
-    let other_circuit = BoundedDepth::new(packages, MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized)
+    let other_circuit = BoundedDepth::new(packages, fold_gate_bits(), crate::engine::Backend::Optimized)
         .expect("bounded-depth verifier");
     assert_ne!(other_circuit.keys, prover.keys);
     assert!(!accepts(&other_circuit, &envelope, &proof));

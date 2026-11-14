@@ -49,9 +49,10 @@ value must be positive. Prover and verifier creation fail when the
 statistical security of a step relation is below this minimum. The gate
 charges one error for both folds, which bounds the zero-query statistical
 term of either fold in Lean's random-oracle result. Rust computes the error
-and its bits in integers, and Lean emits the same bits: 109 for each step
+and its bits in integers, and Lean emits the same bits: 115 for each step
 relation (`SPEC.md` section 3). So the selected profile accepts a minimum of
-at most 109 bits.
+at most 115 bits. The memory fingerprint term of a Nebula circuit accepts at
+most 109 bits (`SPEC.md` section 7.1).
 
 `minimum_security_bits` is not an end-to-end security claim. It gates the
 selected one-fold error. A Nebula circuit also compares it with one memory
@@ -146,7 +147,7 @@ The binary writes one JSON line when each phase starts and stops. Only
 ```sh
 cargo build -p nightstream --release --bin nightstream-poseidon2-bench
 timeout --signal=KILL 300 target/release/nightstream-poseidon2-bench compile --output app.nsc > compile.jsonl
-/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine optimized --steps 3 --minimum-security-bits 109 > cpu.jsonl 2> cpu.time
+/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine optimized --steps 3 --minimum-security-bits 115 > cpu.jsonl 2> cpu.time
 ```
 
 The 300-second cap comes from the repository `AGENTS.md`. A run that reaches

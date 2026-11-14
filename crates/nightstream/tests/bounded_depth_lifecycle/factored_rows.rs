@@ -2,8 +2,8 @@
 //! `SlotLayout.layout`).
 
 use super::super::Relation;
+use super::support::fold_gate_bits;
 use super::support::packages;
-use super::MINIMUM_SECURITY_BITS;
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use neo_params::nightstream_p64_k14 as profile;
@@ -58,7 +58,7 @@ fn native_power_and_affine_application_match_actual_factored_matrices() {
                 .count(),
             1
         );
-        let relation = Relation::new(package, MINIMUM_SECURITY_BITS).unwrap();
+        let relation = Relation::new(package, fold_gate_bits()).unwrap();
         assert_eq!(relation.params().b(), profile::B_BASE);
         assert_eq!(relation.params().k_rho(), profile::K_RHO);
     }
@@ -101,7 +101,7 @@ fn affine_reconstruction_restores_native_output_aliases() {
 
 pub(super) fn check_factored(packages: &nightstream_fprime::BoundedDepthPackages) {
     for package in [packages.light(), packages.refresh()] {
-        let relation = Relation::new(package, MINIMUM_SECURITY_BITS).expect("relation");
+        let relation = Relation::new(package, fold_gate_bits()).expect("relation");
         let (rows, layout) = (package.plan_rows().expect("rows"), package.layout().expect("layout"));
         let mut state = 0x9e37_79b9_7f4a_7c15u64;
         let logical: Vec<F> = (0..layout.width())

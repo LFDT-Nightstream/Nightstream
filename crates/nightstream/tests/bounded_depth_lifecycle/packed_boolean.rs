@@ -21,12 +21,7 @@ fn packed_pairs_are_checked_in_both_fold_relations_and_after_recommitment() {
     let packages = packages()
         .with_application(application.records().clone(), 32, application.shape())
         .unwrap();
-    let mut prover = BoundedDepth::new(
-        packages.clone(),
-        MINIMUM_SECURITY_BITS,
-        crate::engine::Backend::Optimized,
-    )
-    .unwrap();
+    let mut prover = BoundedDepth::new(packages.clone(), fold_gate_bits(), crate::engine::Backend::Optimized).unwrap();
     prover.cap = 1;
     let initial = [F::ZERO; 4];
     let message = (0..32)

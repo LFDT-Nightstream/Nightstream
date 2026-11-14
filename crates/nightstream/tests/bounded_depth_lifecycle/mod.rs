@@ -25,12 +25,10 @@ use neo_ccs::Mat;
 use neo_math::{D, F};
 use neo_params::nightstream_p64_k14 as profile;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use support::{hash_chain_step, packages, words};
-
-const MINIMUM_SECURITY_BITS: u32 = 109;
+use support::{fold_gate_bits, hash_chain_step, packages, words};
 
 fn prover(cap: u64) -> BoundedDepth {
-    let mut prover = BoundedDepth::new(packages(), MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized)
+    let mut prover = BoundedDepth::new(packages(), fold_gate_bits(), crate::engine::Backend::Optimized)
         .expect("bounded-depth prover");
     prover.cap = cap;
     prover
@@ -194,8 +192,8 @@ fn native_application_verifies(application: ApplicationCircuit) {
             application.shape(),
         )
         .expect("packages with the application");
-    let mut prover = BoundedDepth::new(packages, MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized)
-        .expect("bounded-depth prover");
+    let mut prover =
+        BoundedDepth::new(packages, fold_gate_bits(), crate::engine::Backend::Optimized).expect("bounded-depth prover");
     prover.cap = 1;
     let z0 = words([10, 11, 12, 13]);
     let mut envelope = prover.initial(z0).expect("initial proof");

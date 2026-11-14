@@ -2,8 +2,11 @@
 //! compile against the two embedded Lean packages, prove and extend, and
 //! verify against the expected state.
 
+mod bounded_depth_support;
+
 use std::fs;
 
+use bounded_depth_support::fold_gate_bits;
 use neo_math::F;
 use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1};
 use nightstream::{Circuit, Prover};
@@ -23,9 +26,11 @@ fn hash_chain_proves_and_verifies() {
     let compiled = circuit();
     let path = std::env::temp_dir().join(format!("bounded-depth-circuit-{}", std::process::id()));
     compiled.write(&path).expect("saved application");
-    let prover = Prover::load(&path, Engine::Optimized, 109).expect("loaded prover");
+    let prover = Prover::load(&path, Engine::Optimized, fold_gate_bits()).expect("loaded prover");
     fs::remove_file(&path).expect("remove the saved application");
-    let verifier = compiled.verifier(Engine::Optimized, 109).expect("verifier");
+    let verifier = compiled
+        .verifier(Engine::Optimized, fold_gate_bits())
+        .expect("verifier");
     let initial = words([1, 2, 3, 4]);
     let message = words([5, 6, 7, 8]);
     let mut proof = prover.prove(initial, &message).expect("first step");
@@ -84,8 +89,12 @@ fn hash_chain_proves_and_verifies() {
 #[test]
 fn a_word_not_below_q_does_not_decode() {
     let compiled = circuit();
-    let prover = compiled.prover(Engine::Optimized, 109).expect("prover");
-    let verifier = compiled.verifier(Engine::Optimized, 109).expect("verifier");
+    let prover = compiled
+        .prover(Engine::Optimized, fold_gate_bits())
+        .expect("prover");
+    let verifier = compiled
+        .verifier(Engine::Optimized, fold_gate_bits())
+        .expect("verifier");
     let proof = prover
         .prove(words([1, 2, 3, 4]), &words([5, 6, 7, 8]))
         .expect("first step");

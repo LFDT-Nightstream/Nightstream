@@ -1,3 +1,6 @@
+mod bounded_depth_support;
+
+use bounded_depth_support::fold_gate_bits;
 use nightstream::application::{Affine, ApplicationBuilder};
 use nightstream::{Circuit, Engine, Fq as F, PrimeCharacteristicRing, State};
 
@@ -33,8 +36,10 @@ fn bits(word: u32) -> Vec<F> {
 #[test]
 fn packed_bits_keep_public_multistep_statements_and_reject_false_inputs() {
     let circuit = circuit();
-    let prover = circuit.prover(Engine::Optimized, 109).unwrap();
-    let verifier = circuit.verifier(Engine::Optimized, 109).unwrap();
+    let prover = circuit.prover(Engine::Optimized, fold_gate_bits()).unwrap();
+    let verifier = circuit
+        .verifier(Engine::Optimized, fold_gate_bits())
+        .unwrap();
     let initial = [F::ZERO; 4];
     let words = [0x8000_0001u32, 0xffff_ffff, 0x5555_5555];
     let mut proof = prover.prove(initial, &bits(words[0])).unwrap();

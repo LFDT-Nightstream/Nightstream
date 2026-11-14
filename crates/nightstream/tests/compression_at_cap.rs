@@ -4,6 +4,9 @@
 //! the compression setup of 10 GB, so it is ignored, and
 //! `scripts/ci_rust_tests.sh` runs it alone.
 
+mod bounded_depth_support;
+
+use bounded_depth_support::fold_gate_bits;
 use neo_math::F;
 use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1};
 use nightstream::{Circuit, Engine, FinalProof, PrimeCharacteristicRing, State};
@@ -21,9 +24,13 @@ const AT_CAP: u64 = 65;
 #[ignore = "Production-size compression, 30 GB; scripts/ci_rust_tests.sh runs it alone."]
 fn hash_chain_compresses_at_the_light_fold_cap() {
     let circuit = Circuit::compile(poseidon2_hash_chain_v1().expect("hash chain")).expect("bounded-depth circuit");
-    let verifier = circuit.verifier(Engine::Optimized, 109).expect("verifier");
+    let verifier = circuit
+        .verifier(Engine::Optimized, fold_gate_bits())
+        .expect("verifier");
     let key = verifier.compression_key().expect("compression key");
-    let prover = circuit.prover(Engine::Optimized, 109).expect("prover");
+    let prover = circuit
+        .prover(Engine::Optimized, fold_gate_bits())
+        .expect("prover");
     let setup = prover.compression_setup().expect("compression setup");
 
     let initial = [1, 2, 3, 4].map(F::from_u64);

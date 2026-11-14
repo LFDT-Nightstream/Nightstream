@@ -8,10 +8,10 @@ attempt: the input claim at the refresh bound `B` and the fresh instance. A vali
 or fails (`splits`, `RefreshUniqueness.extracted_of_truth`). `knowledge_error_le`: a successful
 run extracts, weighted by the retry law, except with `knowledgeError`, the sum of the
 statistical error (`statisticalError`: `15 · (Q + 15) · sampleError` for the fork step and
-`(Q + 72) · 4747/q²` for the test step), the prior-state collision chances of the fork step
+`(Q + 1) · 4747/q²` for the test step), the prior-state collision chances of the fork step
 (`RefreshFork.collisionChance`) and the uniqueness step (`stateChance`), and the kernel chance
 (`RefreshUniqueness.kernelChance`). `statisticalError_le`: the statistical error is at most
-`(Q + 72) · 4748/2^128`, the bound of the one-circuit fold. -/
+`(Q + 1) · 4748/2^128`. -/
 
 set_option autoImplicit false
 
@@ -32,10 +32,10 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshUniqueness (Re
 attribute [local instance low] Classical.propDecidable
 
 /-- The statistical error of the refresh fold: `15 · (Q + 15) · sampleError` for the fork step
-and `(Q + 72) · 4747/q²` for the test step. -/
+and `(Q + 1) · 4747/q²` for the test step. -/
 noncomputable def statisticalError (queries : Nat) : ℝ :=
   15 * (((queries + 15 : Nat) : ℝ) * Fork.sampleError) +
-    ((queries + 72 : Nat) : ℝ) * ((4747 : ℝ) / (fieldModulus : ℝ) ^ 2)
+    ((queries + 1 : Nat) : ℝ) * ((4747 : ℝ) / (fieldModulus : ℝ) ^ 2)
 
 theorem statisticalError_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
@@ -47,13 +47,13 @@ theorem statisticalError_eq {logicalWidth : Nat}
         (4747 : ℝ) / (fieldModulus : ℝ) ^ 2 :=
     Nifs.VerifierErrorBudget.test_error_eq
   unfold Uniqueness.statisticalError statisticalError
-  rw [test, RefreshTest.challenges_length]
+  rw [test]
   show ((15 : Nat) : ℝ) * (((queries + 15 : Nat) : ℝ) * Fork.sampleError) + _ = _
   norm_num
 
-/-- The statistical error is at most `(Q + 72) · 4748/2^128`. -/
+/-- The statistical error is at most `(Q + 1) · 4748/2^128`: `15 · (Q + 15) ≤ 225 · (Q + 1)`. -/
 theorem statisticalError_le (queries : Nat) :
-    statisticalError queries ≤ ((queries : ℝ) + 72) * (4748 / 2 ^ 128) := by
+    statisticalError queries ≤ ((queries : ℝ) + 1) * (4748 / 2 ^ 128) := by
   have sample : Fork.sampleError < 1 / 5 ^ 64 + 1 / 2 ^ 173 := by
     have distance := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt
     have count : (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.scalarCount : ℝ) = 5 ^ 64 := by
@@ -62,20 +62,19 @@ theorem statisticalError_le (queries : Nat) :
     unfold Fork.sampleError
     rw [count]
     linarith
-  have perQuery : 15 * Fork.sampleError + (4747 : ℝ) / (fieldModulus : ℝ) ^ 2 <
+  have perQuery : 225 * Fork.sampleError + (4747 : ℝ) / (fieldModulus : ℝ) ^ 2 <
       4748 / 2 ^ 128 := by
-    have numbers : (15 : ℝ) * (1 / 5 ^ 64 + 1 / 2 ^ 173) +
+    have numbers : (225 : ℝ) * (1 / 5 ^ 64 + 1 / 2 ^ 173) +
         4747 / (fieldModulus : ℝ) ^ 2 < 4748 / 2 ^ 128 := by
       norm_num [fieldModulus]
     linarith
   have sampleNonnegative := Fork.sampleError_nonnegative
-  have testNonnegative : (0 : ℝ) ≤ 4747 / (fieldModulus : ℝ) ^ 2 := by positivity
   have queriesNonnegative : (0 : ℝ) ≤ queries := Nat.cast_nonneg queries
   unfold statisticalError
   push_cast
   calc
-    _ ≤ ((queries : ℝ) + 72) *
-        (15 * Fork.sampleError + (4747 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
+    _ ≤ ((queries : ℝ) + 1) *
+        (225 * Fork.sampleError + (4747 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
       nlinarith
     _ ≤ _ := mul_le_mul_of_nonneg_left perQuery.le (by positivity)
 

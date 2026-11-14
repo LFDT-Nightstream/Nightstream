@@ -29,6 +29,18 @@ pub fn artifact(name: &str) -> Vec<u8> {
     .unwrap_or_else(|error| panic!("read {name}: {error}"))
 }
 
+/// Lean's fold-gate bits at the counts of each step relation
+/// (`FoldGate.production_bits`), the largest minimum that a bounded-depth
+/// circuit without memory accepts.
+pub fn fold_gate_bits() -> u32 {
+    let lean: serde_json::Value =
+        serde_json::from_slice(&artifact("nightstream-fprime-fold-gate-parity-v1.json")).expect("Lean fold gate file");
+    lean[5]
+        .as_u64()
+        .and_then(|bits| u32::try_from(bits).ok())
+        .expect("bits")
+}
+
 pub fn packages() -> BoundedDepthPackages {
     load_bounded_depth_packages(
         &artifact("nightstream-fprime-bounded-depth-light-v1.json"),

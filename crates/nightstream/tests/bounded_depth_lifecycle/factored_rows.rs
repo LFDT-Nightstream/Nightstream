@@ -1,7 +1,7 @@
 //! Factored rows equal the plan rows read through the slot layout (Lean
 //! `SlotLayout.layout`).
 
-use super::super::Relation;
+use super::super::{CompiledSteps, Relation};
 use super::support::packages;
 use super::MINIMUM_SECURITY_BITS;
 use neo_ccs::Mat;
@@ -49,15 +49,15 @@ fn native_power_and_affine_application_match_actual_factored_matrices() {
     let packages = packages()
         .with_application(application.records().clone(), 1, application.shape())
         .unwrap();
-    for package in [packages.light(), packages.refresh()] {
-        let rows = package.plan_rows().unwrap();
+    for step in CompiledSteps::new(packages.clone()).unwrap().steps() {
+        let rows = step.expanded().rows();
         assert_eq!(
             (0..rows.ordinary_row_count())
                 .filter(|&row| rows.port(row, 3).next().is_some())
                 .count(),
             1
         );
-        let relation = Relation::new(package, MINIMUM_SECURITY_BITS).unwrap();
+        let relation = Relation::new(step, MINIMUM_SECURITY_BITS).unwrap();
         assert_eq!(relation.params().b(), 2);
         assert_eq!(relation.params().k_rho(), 16);
     }
@@ -77,13 +77,13 @@ fn affine_reconstruction_restores_native_output_aliases() {
         .with_application(application.records().clone(), 1, application.shape())
         .unwrap();
     for package in [packages.light(), packages.refresh()] {
-        let layout = package.layout().unwrap();
+        let expanded = package.clone().expand().unwrap();
+        let (plan, layout) = (expanded.rows(), expanded.layout());
         let mut logical = (0..layout.width())
             .map(|index| F::from_u64((index % 3) as u64) - F::ONE)
             .collect::<Vec<_>>();
         logical[0] = F::ONE;
-        let restored = package.source_assignment(&logical).unwrap();
-        let plan = package.plan_rows().unwrap();
+        let restored = expanded.source_assignment(&logical).unwrap();
         let source = package.source_rows().unwrap();
         assert_eq!(source.row_count() - plan.row_count(), 1);
         assert_eq!(source.residual(0, &restored), F::ZERO);
@@ -91,7 +91,7 @@ fn affine_reconstruction_restores_native_output_aliases() {
             for port in 0..3 {
                 assert_eq!(
                     source.evaluate(row + 1, port, &restored),
-                    layout.evaluate(&plan, row, port, &logical).unwrap()
+                    layout.evaluate(plan, row, port, &logical).unwrap()
                 );
             }
         }
@@ -99,9 +99,12 @@ fn affine_reconstruction_restores_native_output_aliases() {
 }
 
 pub(super) fn check_factored(packages: &nightstream_fprime::BoundedDepthPackages) {
-    for package in [packages.light(), packages.refresh()] {
-        let relation = Relation::new(package, MINIMUM_SECURITY_BITS).expect("relation");
-        let (rows, layout) = (package.plan_rows().expect("rows"), package.layout().expect("layout"));
+    for step in CompiledSteps::new(packages.clone())
+        .expect("compiled steps")
+        .steps()
+    {
+        let relation = Relation::new(step, MINIMUM_SECURITY_BITS).expect("relation");
+        let (rows, layout) = (step.expanded().rows(), step.expanded().layout());
         let mut state = 0x9e37_79b9_7f4a_7c15u64;
         let logical: Vec<F> = (0..layout.width())
             .map(|_| {
@@ -130,9 +133,9 @@ pub(super) fn check_factored(packages: &nightstream_fprime::BoundedDepthPackages
             for port in 0..4 {
                 assert_eq!(
                     factored.row_value(port, row, &values),
-                    layout.evaluate(&rows, row, port, &logical).expect("row"),
+                    layout.evaluate(rows, row, port, &logical).expect("row"),
                     "circuit {} row {row} port {port}",
-                    package.circuit()
+                    step.expanded().package().circuit()
                 );
             }
         }

@@ -335,12 +335,55 @@ impl Block<'_> {
     }
 }
 
+/// A step package with its relation's plan rows and slot layout
+/// (`CircuitRelation.plan`, `SlotLayout.layout`). Only `StepPackage::expand`
+/// makes one, so a holder reads the rows and the layout and never expands
+/// the package again.
+pub struct ExpandedPackage {
+    package: StepPackage,
+    rows: PlanRows,
+    layout: layout::LogicalLayout,
+}
+
+impl ExpandedPackage {
+    pub fn package(&self) -> &StepPackage {
+        &self.package
+    }
+
+    pub fn rows(&self) -> &PlanRows {
+        &self.rows
+    }
+
+    pub fn layout(&self) -> &layout::LogicalLayout {
+        &self.layout
+    }
+}
+
+impl StepPackage {
+    /// The package with its plan rows and slot layout.
+    pub fn expand(self) -> Result<ExpandedPackage, PackageError> {
+        let (rows, layout) = rayon::join(|| self.plan_rows(), || self.layout());
+        Ok(ExpandedPackage {
+            rows: rows?,
+            layout: layout?,
+            package: self,
+        })
+    }
+}
+
 /// The light and the refresh packages and their one identity.
 #[derive(Clone, Debug)]
 pub struct BoundedDepthPackages {
     light: StepPackage,
     refresh: StepPackage,
     identity: [u64; 4],
+}
+
+/// Both step packages expanded, and their one identity.
+pub struct ExpandedPackages {
+    pub light: ExpandedPackage,
+    pub refresh: ExpandedPackage,
+    pub identity: [u64; 4],
 }
 
 impl BoundedDepthPackages {
@@ -354,6 +397,16 @@ impl BoundedDepthPackages {
 
     pub fn identity(&self) -> [u64; 4] {
         self.identity
+    }
+
+    /// Both packages expanded (`StepPackage::expand`).
+    pub fn expand(self) -> Result<ExpandedPackages, PackageError> {
+        let (light, refresh) = rayon::join(|| self.light.expand(), || self.refresh.expand());
+        Ok(ExpandedPackages {
+            light: light?,
+            refresh: refresh?,
+            identity: self.identity,
+        })
     }
 }
 

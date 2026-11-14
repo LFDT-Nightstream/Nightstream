@@ -86,24 +86,28 @@ fn ring_operands(cells: usize, cell: usize, lanes: &[Linear], columns: &[Goldilo
     ]
 }
 
-impl StepPackage {
+impl super::ExpandedPackage {
+    /// The source columns of the logical assignment `logical`.
     pub fn source_assignment(&self, logical: &[Goldilocks]) -> Result<Vec<Goldilocks>, PackageError> {
         if logical.first() != Some(&Goldilocks::ONE) {
             return Err(PackageError::Input("bounded-depth constant column"));
         }
-        let mut columns = self.layout()?.source_assignment(logical)?;
-        columns.resize(self.source_end(), Goldilocks::ZERO);
-        for (output, form) in self.output_forms()? {
+        let package = &self.package;
+        let mut columns = self.layout.source_assignment(logical)?;
+        columns.resize(package.source_end(), Goldilocks::ZERO);
+        for (output, form) in package.output_forms()? {
             columns[output] = form
                 .iter()
                 .fold(Goldilocks::ZERO, |sum, &(column, coefficient)| {
                     sum + coefficient * columns[column]
                 });
         }
-        self.field_lowering.reconstruct(&mut columns)?;
+        package.field_lowering.reconstruct(&mut columns)?;
         Ok(columns)
     }
+}
 
+impl StepPackage {
     /// The circuit's columns below `first_fresh` from `shared`, the columns
     /// below the first local: column 0 is the constant 1. A block's 1,080 dead
     /// locals stay 0, because no row reads them (`Frame.Framed`).

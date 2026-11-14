@@ -36,7 +36,7 @@ fn packed_products_restore_both_sources_and_reject_recommitted_signed_units() {
         assert_eq!(package.packed_zero_count(), 1);
     }
     let mut prover = BoundedDepth::new(
-        packages.clone(),
+        &CompiledSteps::new(packages.clone()).unwrap(),
         MINIMUM_SECURITY_BITS,
         crate::engine::Backend::Optimized,
     )
@@ -59,7 +59,10 @@ fn packed_products_restore_both_sources_and_reject_recommitted_signed_units() {
         } else {
             packages.refresh()
         };
-        let layout = package.layout().unwrap();
+        let layout = prover.relations[envelope.pc as usize - 1]
+            .step()
+            .expanded()
+            .layout();
         let product = package.packed_products().next().unwrap();
         let zero = package.packed_zero_products().next().unwrap();
         for (column, value) in [

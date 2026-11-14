@@ -224,25 +224,26 @@ fn compiled_slot_cost_is_an_integer_per_proved_read_port() {
             ("light", old_packages.light(), new_packages.light()),
             ("refresh", old_packages.refresh(), new_packages.refresh()),
         ] {
-            let before = old.plan_rows().unwrap();
-            let after = new.plan_rows().unwrap();
+            let (old_expanded, new_expanded) = (old.clone().expand().unwrap(), new.clone().expand().unwrap());
+            let (before, after) = (old_expanded.rows(), new_expanded.rows());
             let before_source = old.source_rows().unwrap();
             let after_source = new.source_rows().unwrap();
             assert_eq!(before_source.row_count() - after_source.row_count(), 33 * reads);
-            let pairs = |package: &nightstream_fprime::StepPackage| {
-                package.layout().unwrap().spans().widths.len() - (package.sbox_start() + 150 * package.block_count())
+            let pairs = |expanded: &nightstream_fprime::ExpandedPackage| {
+                let package = expanded.package();
+                expanded.layout().spans().widths.len() - (package.sbox_start() + 150 * package.block_count())
             };
-            let (before_pairs, after_pairs) = (pairs(old), pairs(new));
+            let (before_pairs, after_pairs) = (pairs(&old_expanded), pairs(&new_expanded));
             assert_eq!(before_pairs - after_pairs, 32 * reads);
             assert_eq!(
                 before.row_count() - after.row_count(),
                 old.packed_boolean_count().div_ceil(31) - new.packed_boolean_count().div_ceil(31)
             );
             assert_eq!(
-                old.layout().unwrap().width() - new.layout().unwrap().width(),
+                old_expanded.layout().width() - new_expanded.layout().width(),
                 64 * reads
             );
-            eprintln!("readonly_cost reads={reads} package={name} before_rows={} after_rows={} before_entries={} after_entries={} before_coordinates={} after_coordinates={}",before.row_count(),after.row_count(),before.entry_count(),after.entry_count(),old.layout().unwrap().width(),new.layout().unwrap().width());
+            eprintln!("readonly_cost reads={reads} package={name} before_rows={} after_rows={} before_entries={} after_entries={} before_coordinates={} after_coordinates={}",before.row_count(),after.row_count(),before.entry_count(),after.entry_count(),old_expanded.layout().width(),new_expanded.layout().width());
         }
         for (name, application) in [("before", old), ("after", new)] {
             crate::Circuit::compile(application)

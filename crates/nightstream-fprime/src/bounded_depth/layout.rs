@@ -292,7 +292,7 @@ impl StepPackage {
     }
 
     /// The logical layout of the package's slot runs (`SlotLayout.layout`).
-    pub fn layout(&self) -> Result<LogicalLayout, PackageError> {
+    pub(super) fn layout(&self) -> Result<LogicalLayout, PackageError> {
         let size = self
             .slots
             .iter()

@@ -165,10 +165,11 @@ impl StepZero {
 /// Checks every row on the step's witness and returns its logical assignment.
 pub fn assert_every_row_holds(package: &StepPackage, step: &StepWords) -> Vec<G> {
     let shared = step.columns().expect("step words");
-    let rows = package.plan_rows().expect("plan rows");
+    let expanded = package.clone().expand().expect("expanded package");
+    let (rows, layout) = (expanded.rows(), expanded.layout());
     let columns = package.circuit_columns(&shared).expect("circuit columns");
     let columns = package
-        .relation_columns(columns, &rows)
+        .relation_columns(columns, rows)
         .expect("relation columns");
     let failing: Vec<usize> = (0..rows.row_count())
         .filter(|&row| rows.residual(row, &columns) != G::ZERO)
@@ -180,11 +181,10 @@ pub fn assert_every_row_holds(package: &StepPackage, step: &StepWords) -> Vec<G>
         failing.len(),
         &failing[..failing.len().min(8)]
     );
-    let layout = package.layout().expect("layout");
     let logical = layout.assignment(&columns).expect("logical assignment");
     let port = |row, port| {
         layout
-            .evaluate(&rows, row, port, &logical)
+            .evaluate(rows, row, port, &logical)
             .expect("logical row")
     };
     let failing: Vec<usize> = (0..rows.row_count())

@@ -145,12 +145,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         };
         let (private, records, shape) = saved(&path)?;
         let compiled = packages.with_application(records.clone(), private, &shape)?;
+        let steps = compiled.clone().expand()?;
         let package = compiled.light();
-        let rows = package.plan_rows()?;
+        let (rows, layout) = (steps.light.rows(), steps.light.layout());
         let source = package.source_rows()?;
         if std::env::args().nth(3).as_deref() == Some("dump-application") {
             use std::io::Write;
-            for (label, plan) in [("source", &source), ("plan", &rows)] {
+            for (label, plan) in [("source", &source), ("plan", rows)] {
                 let path = output.join(format!("rows-{trace_rows}-{label}.jsonl"));
                 let mut out = std::io::BufWriter::new(std::fs::File::create(path)?);
                 for row in plan.piece_ranges()[0].clone() {
@@ -166,12 +167,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
-        let layout = package.layout()?;
-        let (source_entries, logical_entries) = matrix_entries(&rows, &layout);
+        let (source_entries, logical_entries) = matrix_entries(rows, layout);
         let refresh = compiled.refresh();
-        let refresh_rows = refresh.plan_rows()?;
-        let refresh_layout = refresh.layout()?;
-        let (refresh_source_entries, refresh_logical_entries) = matrix_entries(&refresh_rows, &refresh_layout);
+        let (refresh_rows, refresh_layout) = (steps.refresh.rows(), steps.refresh.layout());
+        let (refresh_source_entries, refresh_logical_entries) = matrix_entries(refresh_rows, refresh_layout);
         let refresh_count = refresh_rows.row_count();
         let refresh_source_count = refresh.source_rows()?.row_count();
         let companions = layout.spans().widths.len() - (package.sbox_start() + 150 * package.block_count());
@@ -206,10 +205,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         )?;
         let count = rows.row_count();
         let mut circuits = Vec::new();
-        for (kind, package) in [("light", compiled.light()), ("refresh", compiled.refresh())] {
-            let plan = package.plan_rows()?;
+        for (kind, step) in [("light", &steps.light), ("refresh", &steps.refresh)] {
+            let (package, plan, layout) = (step.package(), step.rows(), step.layout());
             let source = package.source_rows()?;
-            let layout = package.layout()?;
             let spans = layout.spans();
             let compressed: [usize; 4] = std::array::from_fn(|port| {
                 (0..plan.row_count())

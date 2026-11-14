@@ -271,7 +271,7 @@ impl StepPackage {
     /// contributes none), then the blocks' S-box rows from the shared formula
     /// library. Native applications use the experimental `NativePower`
     /// rewrite. Each port substitutes native output and affine forms.
-    pub fn plan_rows(&self) -> Result<PlanRows, PackageError> {
+    pub(super) fn plan_rows(&self) -> Result<PlanRows, PackageError> {
         self.rows(true)
     }
 

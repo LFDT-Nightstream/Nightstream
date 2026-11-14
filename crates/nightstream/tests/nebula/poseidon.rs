@@ -263,8 +263,8 @@ fn checked_port_hash_compiles_to_two_native_blocks() {
         ("light", old.light(), new.light()),
         ("refresh", old.refresh(), new.refresh()),
     ] {
-        let old_rows = old.plan_rows().unwrap();
-        let new_rows = new.plan_rows().unwrap();
+        let (old_expanded, new_expanded) = (old.clone().expand().unwrap(), new.clone().expand().unwrap());
+        let (old_rows, new_rows) = (old_expanded.rows(), new_expanded.rows());
         assert_eq!(new.block_count() - old.block_count(), 2);
         assert_eq!(
             old.source_rows().unwrap().ordinary_row_count() - new.source_rows().unwrap().ordinary_row_count(),
@@ -273,6 +273,6 @@ fn checked_port_hash_compiles_to_two_native_blocks() {
         assert_eq!(old_rows.row_count(), new_rows.row_count());
         eprintln!("port_hash {name} before_rows={} after_rows={} before_entries={} after_entries={} before_coordinates={} after_coordinates={}",
             old_rows.row_count(), new_rows.row_count(), old_rows.entry_count(), new_rows.entry_count(),
-            old.layout().unwrap().width(), new.layout().unwrap().width());
+            old_expanded.layout().width(), new_expanded.layout().width());
     }
 }

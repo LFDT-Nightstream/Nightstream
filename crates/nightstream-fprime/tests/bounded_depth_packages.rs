@@ -80,7 +80,8 @@ fn relation_rows_match_the_lean_checksum() {
         let [ordinary, sbox, checksum, _, _, _] = words(summary)[..] else {
             panic!("a summary has six words");
         };
-        let rows = package.plan_rows().expect("plan rows");
+        let expanded = package.clone().expand().expect("expanded package");
+        let rows = expanded.rows();
         let circuit = package.circuit();
         assert_eq!(
             rows.ordinary_row_count() as u64,
@@ -117,7 +118,8 @@ fn loader_rejects_another_identity() {
 fn block_rows_compute_the_native_permutation() {
     let packages = packages();
     let light = packages.light();
-    let rows = light.plan_rows().expect("plan rows");
+    let expanded = light.clone().expand().expect("expanded package");
+    let rows = expanded.rows();
     let width = light.sbox_start() + 150 * light.block_count();
     let mut state = 0x9e37_79b9_7f4a_7c15u64;
     let mut assignment: Vec<G> = (0..width)
@@ -185,12 +187,13 @@ fn fresh_columns_satisfy_the_rows_that_define_them() {
     let fields = parity();
     let packages = packages();
     for (package, summary) in [(packages.light(), &fields[1]), (packages.refresh(), &fields[2])] {
-        let rows = package.plan_rows().expect("plan rows");
+        let expanded = package.clone().expand().expect("expanded package");
+        let rows = expanded.rows();
         let columns = package
             .circuit_columns(&shared_columns(summary))
             .expect("circuit columns");
         let columns = package
-            .relation_columns(columns, &rows)
+            .relation_columns(columns, rows)
             .expect("relation columns");
         let defining = rows.ring_rows().iter().cloned().chain([rows.sbox_rows()]);
         for row in defining.flatten() {
@@ -212,13 +215,13 @@ fn logical_assignment_matches_the_lean_layout() {
     let fields = parity();
     let packages = packages();
     for (package, summary) in [(packages.light(), &fields[1]), (packages.refresh(), &fields[2])] {
-        let layout = package.layout().expect("layout");
-        let rows = package.plan_rows().expect("plan rows");
+        let expanded = package.clone().expand().expect("expanded package");
+        let (rows, layout) = (expanded.rows(), expanded.layout());
         let columns = package
             .circuit_columns(&shared_columns(summary))
             .expect("circuit columns");
         let columns = package
-            .relation_columns(columns, &rows)
+            .relation_columns(columns, rows)
             .expect("relation columns");
         let logical = layout.assignment(&columns).expect("logical assignment");
         assert_eq!(

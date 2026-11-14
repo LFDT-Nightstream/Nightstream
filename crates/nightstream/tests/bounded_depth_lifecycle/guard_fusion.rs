@@ -51,9 +51,9 @@ fn guarded_application_matches_actual_factored_matrices() {
         .with_application(application.records().clone(), 7, application.shape())
         .unwrap();
     for package in [packages.light(), packages.refresh()] {
-        let plan = package.plan_rows().unwrap();
+        let expanded = package.clone().expand().unwrap();
         let source = package.source_rows().unwrap();
-        assert_eq!(source.row_count() - plan.row_count(), 6);
+        assert_eq!(source.row_count() - expanded.rows().row_count(), 6);
     }
     super::factored_rows::check_factored(&packages);
 }
@@ -65,7 +65,7 @@ fn guarded_rows_reject_fresh_recommitted_changes_in_both_relations() {
         .with_application(application.records().clone(), 7, application.shape())
         .unwrap();
     let mut prover = BoundedDepth::new(
-        packages.clone(),
+        &CompiledSteps::new(packages.clone()).unwrap(),
         MINIMUM_SECURITY_BITS,
         crate::engine::Backend::Optimized,
     )
@@ -92,7 +92,12 @@ fn guarded_rows_reject_fresh_recommitted_changes_in_both_relations() {
             .find(|(column, _)| *column != 0)
             .unwrap()
             .0;
-        let (coordinate, kind) = package.layout().unwrap().slot(input).unwrap();
+        let (coordinate, kind) = prover.relations[envelope.pc as usize - 1]
+            .step()
+            .expanded()
+            .layout()
+            .slot(input)
+            .unwrap();
         assert_eq!(kind.width(), 41);
         let mut changed = envelope.clone();
         let fresh = changed.fresh.as_mut().unwrap();

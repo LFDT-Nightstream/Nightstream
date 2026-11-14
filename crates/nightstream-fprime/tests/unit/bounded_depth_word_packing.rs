@@ -112,9 +112,9 @@ fn word_packing_preserves_all_ports_and_source_assignments() {
         assert_eq!(packing.groups[0].sources.len(), 3);
         assert_eq!(packing.groups[0].pairs.len(), 2);
         assert_eq!(packing.groups[0].certificates.len(), 1);
-        let plan = package.plan_rows().unwrap();
+        let expanded = package.clone().expand().unwrap();
+        let (plan, layout) = (expanded.rows(), expanded.layout());
         let source = package.source_rows().unwrap();
-        let layout = package.layout().unwrap();
         assert_eq!(source.piece_ranges()[0].len(), rows.len());
         assert_eq!(plan.piece_ranges()[0].len(), 2);
         for assignment in 0..16 {
@@ -139,7 +139,7 @@ fn word_packing_preserves_all_ports_and_source_assignments() {
                         .all(|row| plan.residual(row, &columns) == F::ZERO)
                 );
                 let logical = layout.assignment(&columns).unwrap();
-                let restored = package.source_assignment(&logical).unwrap();
+                let restored = expanded.source_assignment(&logical).unwrap();
                 assert_eq!(
                     original,
                     source.piece_ranges()[0]
@@ -150,7 +150,7 @@ fn word_packing_preserves_all_ports_and_source_assignments() {
                     for port in 0..4 {
                         assert_eq!(
                             plan.evaluate(row, port, &columns),
-                            layout.evaluate(&plan, row, port, &logical).unwrap()
+                            layout.evaluate(plan, row, port, &logical).unwrap()
                         );
                     }
                 }

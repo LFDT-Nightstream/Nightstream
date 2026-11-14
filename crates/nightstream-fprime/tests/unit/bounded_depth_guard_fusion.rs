@@ -110,10 +110,10 @@ fn guarded_rows_preserve_source_and_all_four_matrix_ports() {
                 .count(),
             1
         );
-        let plan = package.plan_rows().unwrap();
+        let expanded = package.clone().expand().unwrap();
+        let (plan, layout) = (expanded.rows(), expanded.layout());
         let source = package.source_rows().unwrap();
         assert_eq!(source.piece_ranges()[0].len(), rows.len());
-        let layout = package.layout().unwrap();
         for (active, value) in [(0, 3), (1, 5), (2, -9)] {
             for gate in [0, 1] {
                 let mut columns = vec![F::ZERO; package.source_end()];
@@ -135,7 +135,7 @@ fn guarded_rows_preserve_source_and_all_four_matrix_ports() {
                     .clone()
                     .all(|row| plan.residual(row, &columns) == F::ZERO));
                 let logical = layout.assignment(&columns).unwrap();
-                let restored = package.source_assignment(&logical).unwrap();
+                let restored = expanded.source_assignment(&logical).unwrap();
                 assert!(source.piece_ranges()[0]
                     .clone()
                     .all(|row| source.residual(row, &restored) == F::ZERO));
@@ -143,7 +143,7 @@ fn guarded_rows_preserve_source_and_all_four_matrix_ports() {
                     for port in 0..4 {
                         assert_eq!(
                             plan.evaluate(row, port, &columns),
-                            layout.evaluate(&plan, row, port, &logical).unwrap()
+                            layout.evaluate(plan, row, port, &logical).unwrap()
                         );
                     }
                 }

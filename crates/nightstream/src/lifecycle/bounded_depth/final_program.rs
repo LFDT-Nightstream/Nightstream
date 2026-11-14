@@ -31,10 +31,11 @@ const Z0: usize = KEYS + 8;
 const CURRENT: usize = Z0 + 4;
 const WITNESS: usize = CURRENT + 8;
 
-/// The finish package and the R1CS block of its rows on the source columns,
-/// without the blocks' S-box rows.
+/// The finish package, its source rows, and the R1CS block of those rows on
+/// the source columns, without the blocks' S-box rows.
 pub(crate) struct Finish {
     package: StepPackage,
+    rows: PlanRows,
     system: R1cs,
     /// The columns below `sbox_start` that the final program reads. The
     /// others are the blocks' dead locals and the columns that only the
@@ -65,6 +66,7 @@ impl Finish {
         }
         let finish = Self {
             package,
+            rows,
             system,
             live: Vec::new(),
         };
@@ -114,9 +116,7 @@ impl Finish {
     /// The witness words of the live columns, in column order.
     pub(crate) fn columns(&self, words: &nightstream_fprime::StepWords) -> Result<Vec<u64>, super::BoundedDepthError> {
         let columns = self.package.circuit_columns(&words.columns()?)?;
-        let columns = self
-            .package
-            .relation_columns(columns, &self.package.source_rows()?)?;
+        let columns = self.package.relation_columns(columns, &self.rows)?;
         Ok(columns[..self.package.sbox_start()]
             .iter()
             .zip(&self.live)

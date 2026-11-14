@@ -8,7 +8,7 @@ use std::time::Instant;
 
 use super::super::final_program::Finish;
 use super::super::{BoundedDepth, BoundedDepthError, Envelope, Setups};
-use super::{hash_chain_step, packages, support, words, SetupDir, MINIMUM_SECURITY_BITS};
+use super::{compiled, hash_chain_step, packages, support, words, SetupDir, MINIMUM_SECURITY_BITS};
 use crate::engine::{Backend, Engine};
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
@@ -17,7 +17,7 @@ use p3_field::PrimeCharacteristicRing;
 fn provers(cap: u64) -> [BoundedDepth; 2] {
     [Engine::Optimized, Engine::Metal].map(|engine| {
         let backend = Backend::new(engine).expect("engine");
-        let mut prover = BoundedDepth::new(packages(), MINIMUM_SECURITY_BITS, backend).expect("bounded-depth prover");
+        let mut prover = BoundedDepth::new(&compiled(), MINIMUM_SECURITY_BITS, backend).expect("bounded-depth prover");
         prover.cap = cap;
         prover
     })

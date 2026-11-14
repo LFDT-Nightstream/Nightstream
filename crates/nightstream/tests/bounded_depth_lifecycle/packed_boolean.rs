@@ -22,7 +22,7 @@ fn packed_pairs_are_checked_in_both_fold_relations_and_after_recommitment() {
         .with_application(application.records().clone(), 32, application.shape())
         .unwrap();
     let mut prover = BoundedDepth::new(
-        packages.clone(),
+        &CompiledSteps::new(packages.clone()).unwrap(),
         MINIMUM_SECURITY_BITS,
         crate::engine::Backend::Optimized,
     )
@@ -46,7 +46,12 @@ fn packed_pairs_are_checked_in_both_fold_relations_and_after_recommitment() {
             packages.refresh()
         };
         let companion = package.sbox_start() + 150 * package.block_count();
-        let (coordinate, kind) = package.layout().unwrap().slot(companion).unwrap();
+        let (coordinate, kind) = prover.relations[envelope.pc as usize - 1]
+            .step()
+            .expanded()
+            .layout()
+            .slot(companion)
+            .unwrap();
         assert_eq!(kind.width(), 1);
         let mut changed = envelope.clone();
         let fresh = changed.fresh.as_mut().unwrap();

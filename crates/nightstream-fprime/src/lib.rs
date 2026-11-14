@@ -23,8 +23,8 @@ pub use bounded_depth::{
     load_bounded_depth_finish, load_bounded_depth_packages, load_pinned_bounded_depth_finish,
     load_pinned_bounded_depth_packages, parse_atoms,
     words::{encode_digest, Child, FoldWords, KWords, Slot, State as BoundedDepthState, StepWords, PUBLIC_WORDS},
-    BoundedDepthPackages, Linear, NativeBlock, NativeShape, PlanRows, StepPackage, BOUNDED_DEPTH_FINISH_IDENTITY,
-    BOUNDED_DEPTH_PACKAGES_IDENTITY,
+    BoundedDepthPackages, ExpandedPackage, ExpandedPackages, Linear, NativeBlock, NativeShape, PlanRows, StepPackage,
+    BOUNDED_DEPTH_FINISH_IDENTITY, BOUNDED_DEPTH_PACKAGES_IDENTITY,
 };
 pub use package::{
     derive_light_transcript, derive_refresh_transcript, IdentityKind, PackageError, PiCcsV1_2Transcript, LIGHT_DOMAIN,

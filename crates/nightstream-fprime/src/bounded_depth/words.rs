@@ -109,7 +109,7 @@ pub struct Child {
 }
 
 /// The words of the step's fold after the fresh instance: the light fold's
-/// two-source PiCCS output, or the refresh fold's 16 children and 17-source
+/// two-source PiCCS output, or the refresh fold's 14 children and 15-source
 /// output. The round messages lie between them in both.
 #[derive(Clone, Debug)]
 pub enum FoldWords {

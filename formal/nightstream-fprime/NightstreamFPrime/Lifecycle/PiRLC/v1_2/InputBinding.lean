@@ -5,14 +5,14 @@ import NightstreamFPrime.Spec.Folding.PiRLC.v1_2.InputBinding
 
 /-!
 Paper authority: SuperNeo v1.2, Section 7.4, PiRLC input and output.
-Obligation: Bind the 17 PiCCS output claims, in `K+k` order, as fresh PiRLC
+Obligation: Bind the 15 PiCCS output claims, in `K+k` order, as fresh PiRLC
 inputs for one production structure and one verifier-derived point.
 
 Inputs:
 - one shared point;
-- 17 commitments and packed public inputs;
-- 17 separate `Eval_K` families;
-- 17 families of 4 `Eval_A` values.
+- 15 commitments and packed public inputs;
+- 15 separate `Eval_K` families;
+- 15 families of 4 `Eval_A` values.
 
 Outputs:
 - the same symbolic values viewed as the PiRLC input vector.

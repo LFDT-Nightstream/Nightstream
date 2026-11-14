@@ -55,7 +55,7 @@ pub mod nightstream_p64_k14 {
     pub const EXTENSION_DEGREE: u32 = 2;
     /// The statistical target of `NeoParams::nightstream_p64_k14`, not a
     /// bound. No gate certifies it: the census of each shape gives at most
-    /// 116 bits, and the fold error at most 112 (SPEC.md section 3). A gate
+    /// 117 bits, and the fold error at most 112 (SPEC.md section 3). A gate
     /// replaces it with the bits that it certifies (`NeoParams::with_lambda`).
     /// Until then, the census check of the engines refuses the parameters.
     pub const TARGET_LAMBDA: u32 = 125;

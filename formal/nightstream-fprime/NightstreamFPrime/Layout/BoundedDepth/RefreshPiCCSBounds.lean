@@ -5,7 +5,7 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.RefreshPiCCSLayout
 /-! Input scoping of the refresh Π_CCS layout (CW-3.6): when the external words lie below the
 parent offset, every leaf's inputs lie below the leaf's offset, so
 `RefreshPiCCSLayout.Assumptions` holds (`assumptions`). The statement absorption also reads the
-16 children's commitments and evaluation families. -/
+14 children's commitments and evaluation families. -/
 
 namespace NightstreamFPrime.Layout.BoundedDepth.RefreshPiCCSBounds
 

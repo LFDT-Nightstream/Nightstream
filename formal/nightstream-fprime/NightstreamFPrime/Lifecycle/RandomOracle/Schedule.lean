@@ -29,7 +29,7 @@ open NightstreamFPrime.Lifecycle.RandomOracle.Sponge
 
 /-- What differs between two fold transcripts. The statement words and the output words have
 one length each, so the address of a challenge does not depend on the prover's data. The
-production sampler schedule has 17 coordinates (`ScheduleLaw.queryAt`). -/
+production sampler schedule has 15 coordinates (`ScheduleLaw.queryAt`). -/
 structure Schedule where
   shape : Shape
   domainChunk : List F

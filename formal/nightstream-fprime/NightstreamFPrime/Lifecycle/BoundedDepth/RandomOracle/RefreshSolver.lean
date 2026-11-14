@@ -7,16 +7,16 @@ import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ChainBinding
 
 The solver sees the adversary only through its run records, so its kernel reads a pair as a
 view (`Reduction.View`). `forkOf` is `RefreshFork.fork` on a valid view: the base response and
-the 17 retry responses on the base batch (SuperNeo v1.2 Appendix B.3), with each retry's opening
+the 15 retry responses on the base batch (SuperNeo v1.2 Appendix B.3), with each retry's opening
 from `retryHoldsOf`, the view form of `RefreshFork.retry_holds`. Every response opens at the
 chain bound (`responsesBoundedOf`). `kernelOf` is `RefreshUniqueness.rerunKernel` on two views,
 and on the views of an adversary the two are equal by definition (`rerunKernel_eq`). So
 `RefreshUniqueness.kernelChance` is the reduction chance of `kernelOf` (`kernelChance_eq`).
 
 `kernelChance_le_solver`: with at most `Q` queries, `budget · (kernelChance − solverChance) ≤
-35Q + 653`, the work bound of the one-circuit solver (`RandomOracleSolver.kernelChance_le_solver`).
-The work is `Solver.work` with 17 `ρ` coordinates and 74 challenges:
-`1 + 2 · 17 · (Q + 17) + (Q + 74)` (`work_eq`). -/
+31Q + 523`, the work bound of the one-circuit solver (`RandomOracleSolver.kernelChance_le_solver`).
+The work is `Solver.work` with 15 `ρ` coordinates and 72 challenges:
+`1 + 2 · 15 · (Q + 15) + (Q + 72)` (`work_eq`). -/
 
 set_option autoImplicit false
 
@@ -43,7 +43,7 @@ variable {logicalWidth : Nat}
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
 variable (logicalWidth publicFits) in
-/-- A view of the refresh game: a base run and its 17 retries. -/
+/-- A view of the refresh game: a base run and its 15 retries. -/
 abbrev View :=
   Reduction.View (RefreshSchedule.schedule logicalWidth publicFits) 8
     (Attempt logicalWidth publicFits)
@@ -208,7 +208,7 @@ theorem work_eq (queries : Nat) :
   omega
 
 /-- The refresh kernel chance is at most the refresh solver's chance plus
-`(35Q + 653) / budget`. -/
+`(31Q + 523) / budget`. -/
 theorem kernelChance_le_solver {queries : Nat} (bounded : adversary.QueryBound queries)
     (budget : ℕ) :
     budget * (RefreshUniqueness.kernelChance ajtai key adversary -

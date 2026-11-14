@@ -95,7 +95,7 @@ This decision supersedes only the statement in
 commitment remains `κ = 18`. It does not change the accepted auxiliary
 rank-two limits in that decision.
 
-It does not change `b = 2`, `k_rho = 16`, `B = 2^16`, the `2^28` domain,
+It does not change `b = 2`, `k_rho`, `B = 2^k_rho`, the `2^28` domain,
 Poseidon2 protocol binding, the selected application, or any Stage 2 rule.
 
 ## Required closure after approval

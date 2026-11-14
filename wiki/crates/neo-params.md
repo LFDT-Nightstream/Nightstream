@@ -11,7 +11,7 @@ workspace dependencies — this is the root crate.
   - Extension policy v1: `s_min = ceil((λ + log₂(soundness_factor)) / log₂(q))`;
     only `s = 2` supported; `s_min > 2` is a configuration error; slack recorded.
 - **`nightstream_p64_k14`** — the constants of the one profile, "Nightstream P64,
-  k_rho = 16" (single source of truth; values in [SPEC.md](../../SPEC.md),
+  k_rho = 14" (single source of truth; values in [SPEC.md](../../SPEC.md),
   section 3), including `CHALLENGE_ALPHABET = {−2…2}`.
   `NeoParams::nightstream_p64_k14()` builds the validated parameter set.
 - **`poseidon2`** — the sizes of the production Poseidon2 instance that every

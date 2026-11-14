@@ -98,8 +98,8 @@ that instance. There are two kinds of fold.
   over the fresh instance and the accumulator, then Π_RLC with the weights ρ
   and 1. It adds 1 to the depth.
 - A refresh fold runs when the depth is 64. Π_DEC splits the accumulator into
-  16 children. Then Π_CCS runs over the fresh instance and the 16 children,
-  and Π_RLC runs with 17 sampled challenges. The depth becomes 0.
+  14 children. Then Π_CCS runs over the fresh instance and the 14 children,
+  and Π_RLC runs with 15 sampled challenges. The depth becomes 0.
 
 No fold ends with Π_DEC. With `cap = 64`, the first period of steps is
 `(L^(cap+1) R)^(cap+1) R`, and each later period is `(L^(cap+1) R)^cap R`

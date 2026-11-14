@@ -241,7 +241,7 @@ This sum is not a security level of the final proof. It does not include:
   128-bit Fiat–Shamir rate for each query in the classical random-oracle
   model, and it states no complete bound;
 - the error of the Π_CCS run of the fresh instance, which has one source.
-  Rust holds the Π_CCS test error for 17 sources to the security minimum
+  Rust holds the Π_CCS test error for 15 sources to the security minimum
   (SPEC.md section 3);
 - the loss of Fiat–Shamir with Poseidon2. Each term above is the error of
   one interactive run. Lean bounds the non-interactive argument by

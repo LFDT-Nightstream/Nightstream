@@ -8,7 +8,7 @@ Obligation: Enforce
 
 Inputs:
 - the verifier-derived challenge `gamma`;
-- all 17 output source-assignment values in exact `K + k` order.
+- all 15 output source-assignment values in exact `K + k` order.
 
 Outputs:
 - the child-owned exact strict-`b = 2` norm residual term.

@@ -9,7 +9,7 @@ production matrix evaluations. `Eval_A` remains separate from Pad `Eval_K`.
 
 Inputs:
 - one parent `Eval_A` ring for each production matrix;
-- sixteen child `Eval_A` rings for each production matrix.
+- fourteen child `Eval_A` rings for each production matrix.
 
 Outputs: none.
 

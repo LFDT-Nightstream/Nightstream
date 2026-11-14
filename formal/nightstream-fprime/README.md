@@ -26,7 +26,7 @@ column counts into a document.
 | Circuit | Lean layout | Gadgets, in order |
 |---|---|---|
 | Light | `Lifecycle/BoundedDepth/LightStepLayout.lean` | The application, the depth guard on the depth word of the active slot, the prior state hash with its two slot hashes, the next state hash with its two slot hashes, the light Π_CCS and Π_RLC on the active slot, and the slot select. |
-| Refresh | `Lifecycle/BoundedDepth/RefreshStepLayout.lean` | The application, the prior state hash with its two slot hashes, the next state hash with its two slot hashes, Π_DEC on the active slot, the refresh Π_CCS on the 16 children, Π_RLC, and the slot select. There is no depth guard, and the new depth of the slot is 0. |
+| Refresh | `Lifecycle/BoundedDepth/RefreshStepLayout.lean` | The application, the prior state hash with its two slot hashes, the next state hash with its two slot hashes, Π_DEC on the active slot, the refresh Π_CCS on the 14 children, Π_RLC, and the slot select. There is no depth guard, and the new depth of the slot is 0. |
 
 `Lifecycle/BoundedDepth/Step.lean` states the step relation (`stepHolds_iff`).
 `LightStep.lean` and `RefreshStep.lean` give its two cases from the rows of
@@ -62,10 +62,10 @@ The code is a fresh implementation. The headers of `Circuit/Basic.lean` and
 Prove the soundness and completeness of the concrete checks, exact transcript
 and public-input binding, parameter bounds, and the links consumed by the
 selected verifier. Keep Pad and the matrix-evaluation families separate.
-The selected profile is Nightstream P64, k_rho = 16, with `q = 2^64 − 59`, the
-ring `X^64 + 1`, `b = 2` and `B = 65536`. A light fold has two sources, the fresh instance and the
-accumulator. A refresh fold has 17 ordered sources, the fresh instance and the
-16 Π_DEC children of the accumulator. Protocol binding uses Poseidon2.
+The selected profile is Nightstream P64, k_rho = 14, with `q = 2^64 − 59`, the
+ring `X^64 + 1`, `b = 2` and `B = 16384`. A light fold has two sources, the fresh instance and the
+accumulator. A refresh fold has 15 ordered sources, the fresh instance and the
+14 Π_DEC children of the accumulator. Protocol binding uses Poseidon2.
 
 The project does not require a full proof of every cryptographic primitive.
 Established cryptographic security results can remain explicit assumptions.

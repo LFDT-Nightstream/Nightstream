@@ -25,8 +25,8 @@
 //! sum. The public API has no default for it, and no fold reaches 110 bits.
 //!
 //! 1. The Π_CCS run has the test error of one fold with one source.
-//!    `Params::for_ccs_shape` gates the larger error of a fold with 17
-//!    sources, about `2^-109.15` for the Poseidon2 hash chain.
+//!    `Params::for_ccs_shape` gates the larger error of a fold with 15
+//!    sources, about `2^-109.55` for the Poseidon2 hash chain.
 //! 2. The argument has the error of its batches, its lookups, its two
 //!    sum-checks and the point of `V`, `2^-119.02` for the Poseidon2 hash
 //!    chain. `ns_compress::error_bits` bounds it by `2^-119` in integers,

@@ -20,7 +20,7 @@ open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Gadgets.Multilinear
 open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 
-/-- The external words of the refresh Π_CCS: the 16 children (the slot's point, the proof's
+/-- The external words of the refresh Π_CCS: the 14 children (the slot's point, the proof's
 commitments and evaluation families, and the Π_DEC digit words), the fresh instance, the
 SumCheck round messages and the Π_CCS output of every source. -/
 structure Interface (logicalWidth degreeBound : Nat)

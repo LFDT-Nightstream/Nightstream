@@ -2,8 +2,8 @@ import NightstreamFPrime.Spec.Folding.Refresh.Completeness
 import NightstreamFPrime.Spec.Folding.Light.Bound
 import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Algebra
 
-/-! The honest refresh parent is the Π_RLC combination of its 17 sources, so its norm is at most
-`17 · T · (b − 1)`, the accumulator bound at depth 0 (SuperNeo v1.2 Definition 22). Light folds
+/-! The honest refresh parent is the Π_RLC combination of its 15 sources, so its norm is at most
+`15 · T · (b − 1)`, the accumulator bound at depth 0 (SuperNeo v1.2 Definition 22). Light folds
 after a refresh start from this bound. The parent's witness is the combination of the fresh
 witnesses and the Π_DEC digits of the accumulator's witness (`complete_bounded`), so a predicate
 that Π_RLC and Π_DEC keep (`SupportLaw`) holds for it when it holds for the inputs

@@ -9,14 +9,14 @@ for the fixed strict `b = 2` profile.
 
 Inputs:
 - verifier-derived `gamma`;
-- 17 source assignments in exact `K + k` order.
+- 15 source assignments in exact `K + k` order.
 
 Outputs:
 - the child-owned strict-norm residual sum.
 
 Constraint groups:
 - one symbolic cubic residual per source;
-- one reusable Horner multiplication for each of 16 source transitions;
+- one reusable Horner multiplication for each of 14 source transitions;
 - no expected-output copy row.
 
 Parent coverage:

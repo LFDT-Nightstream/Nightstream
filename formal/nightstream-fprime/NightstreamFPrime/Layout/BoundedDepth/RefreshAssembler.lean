@@ -6,9 +6,9 @@ import NightstreamFPrime.Layout.BoundedDepth.LightAssembler
 is one variable in a source region that starts at `base`. The first groups are the light step's
 (`LightAssembler`): the counters and selector (5), the key digests (8), the start, current and
 next states (12), the application witness, the prior, active, inner and next slots
-(7 × 2,169), the slot and output digests (20) and the fresh instance (1,472). Then come the 16
-children's commitments (18,432) and evaluation families (10,240), their digit words (5,120), the
-round messages (504), the Π_CCS output of all 17 sources (10,880), and the new and inner digests
+(7 × 2,169), the slot and output digests (20) and the fresh instance (1,472). Then come the 14
+children's commitments (16,128) and evaluation families (8,960), their digit words (4,480), the
+round messages (504), the Π_CCS output of all 15 sources (9,600), and the new and inner digests
 (12). The step's gadgets start at `sharedEnd`. -/
 
 namespace NightstreamFPrime.Layout.BoundedDepth.RefreshAssembler

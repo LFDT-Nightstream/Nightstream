@@ -5,18 +5,18 @@ import NightstreamFPrime.Spec.Folding.PiCCS.Accepted
 /-!
 Paper authority: SuperNeo v1.2, Section 7.3, Steps 3 and 5; the
 Fiat–Shamir handoff to `Pi_RLC`.
-Obligation: Reuse the complete prover `y′` family as the 17 reduced CE
+Obligation: Reuse the complete prover `y′` family as the 15 reduced CE
 evaluation families, absorb it in canonical source/Pad/matrix order, and
 bind the verifier-owned outgoing transcript state.
 
 Inputs:
 - the verifier-derived final SumCheck point and transcript state;
-- all 17 separate Pad (`Eval_K`) output families;
-- all 17 × 4 CCS-matrix (`Eval_A`) output families.
+- all 15 separate Pad (`Eval_K`) output families;
+- all 15 × 4 CCS-matrix (`Eval_A`) output families.
 
 Outputs:
 - zero-copy reduced point, `Eval_K`, and `Eval_A` views;
-- the transcript state from which `Pi_RLC` samples all 17 challenges.
+- the transcript state from which `Pi_RLC` samples all 15 challenges.
 
 Constraint groups:
 - C1: one complete output absorption, with no length prefix, through the

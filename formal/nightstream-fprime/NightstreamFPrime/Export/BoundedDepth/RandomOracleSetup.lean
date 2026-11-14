@@ -24,7 +24,7 @@ average over a uniform key matrix, with the chunks a uniform preimage of the mat
 * `light_msisAdvantage_le_solver`, `refresh_msisAdvantage_le_solver`: the MSIS advantage is at
   most the advantage of the fold's MSIS solver (`LightSolver.solve`, `RefreshSolver.solve`) on a
   uniform key matrix at `msisChainBound p cap`, plus `(3Q + 61)/budget` (light) or
-  `(35Q + 653)/budget` (refresh).
+  `(31Q + 523)/budget` (refresh).
 * `programmingError_lt`: at the bounded-depth scheme's key width `2^26` (`StepRelation.keyWidth`), the setup has
   `18 · 1,048,576 · 64` chunks and the programming error is below `2^-192`.
 * `light_production_knowledge_error_lt`, `refresh_production_knowledge_error_lt`: at the key
@@ -313,7 +313,7 @@ theorem refresh_knowledge_error_le_setup {queries : Nat}
         linarith
 
 /-- The refresh MSIS advantage is at most the refresh solver's advantage plus
-`(35Q + 653)/budget`. -/
+`(31Q + 523)/budget`. -/
 theorem refresh_msisAdvantage_le_solver {queries : Nat}
     (bounded : ∀ chunks, (adversary chunks).QueryBound queries) {budget : ℕ}
     (positive : 0 < budget) :

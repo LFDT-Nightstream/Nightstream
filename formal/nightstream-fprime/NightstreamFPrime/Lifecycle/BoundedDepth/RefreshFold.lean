@@ -5,12 +5,12 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding
 
 /-! The refresh fold (CW-3.2). Today's Π_DEC on the slot's claim, the refresh Π_CCS phase on the
-16 children and the fresh instance, and today's Π_RLC make the bounded-depth refresh fold accept the
+14 children and the fresh instance, and today's Π_RLC make the bounded-depth refresh fold accept the
 slot's claim, with the output slot claim that the circuit's words carry. This is
 `Refresh.verify`: SuperNeo v1.2 Sections 7.5, 7.3 and 7.4, with Π_DEC moved to the front. It is
 the fold term of the refresh case of `stepHolds_iff`.
 
-The Π_RLC inputs of the 16 running sources take their public inputs from the Π_DEC digit words,
+The Π_RLC inputs of the 14 running sources take their public inputs from the Π_DEC digit words,
 which the Π_DEC rows bind to the split of the slot's public input
 (`OutputAccepted.childPublicInput_eq`). -/
 

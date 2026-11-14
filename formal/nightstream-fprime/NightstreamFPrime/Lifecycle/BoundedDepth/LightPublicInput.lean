@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Folding.Light.RlcModule
 /-! The light Π_RLC public input `x = x_running + ρ · x_fresh` under the coefficient embedding
 (Cyclo, ePrint 2026/359, Figure 3, step 6, on SuperNeo v1.2 Section 7.4, verifier Step 1) as one
 `CombinationStep` over the five public ring columns, with the running public input as the prior:
-5 × 64 = 320 rows, against 5,440 for today's 17-source combination
+5 × 64 = 320 rows, against 4,800 for today's 15-source combination
 (`PublicInputCombination.logicalRowCount_eq`). `output_eq` gives the public
 input of `Light.Rlc.output` for the production light key. -/
 

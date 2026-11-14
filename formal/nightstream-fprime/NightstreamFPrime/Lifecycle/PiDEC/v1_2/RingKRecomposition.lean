@@ -11,7 +11,7 @@ evaluations. Each `K` coefficient uses the canonical `c0, c1` field order.
 
 Inputs:
 - one parent `RingK` per block;
-- sixteen child `RingK` values per block.
+- fourteen child `RingK` values per block.
 
 Outputs: none.
 

@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect
 import NightstreamFPrime.Lifecycle.BoundedDepth.LightStepLayout
 
 /-! The refresh step circuit's layout (CW-3.4b). The step's shared words are those of the light
-step (`LightStepLayout.Interface`) with the 16 Π_DEC children in place of the light proof's
+step (`LightStepLayout.Interface`) with the 14 Π_DEC children in place of the light proof's
 single source: the proof's commitments and evaluation families, and the digit words that split
 the active slot's public input. From a parent offset the layout places today's application
 gadget, the prior state hash with its two slot hashes, the next state hash, today's Π_DEC on the

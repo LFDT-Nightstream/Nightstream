@@ -74,11 +74,10 @@ value.
 - SHAKE128 expands the Ajtai setup. The Akita commitment scheme can use SHAKE
   for its challenges. Do not add other hash families, for example BLAKE3,
   without approval.
-- Decomposition uses `b = 2` and `B = 2^k_rho`. Use `k_rho = 16` by default.
-  Use `k_rho = 18` only when a requirement or a measurement shows that 16 is
-  not sufficient. Each profile binds exactly one of these two values. Any
-  other value, including a value from the paper, needs approval in the
-  current task.
+- Decomposition uses `b = 2` and `B = 2^k_rho` with `k_rho = 14`. The
+  deepest accumulator `(1 + cap + k_rho)·T` stays below `B`, which needs
+  `cap ≤ 112` at `T = 128`. Any other value needs approval in the current
+  task.
 - Call such a profile "Nightstream P64, k_rho = N", never "paper exact".
 
 ## Security

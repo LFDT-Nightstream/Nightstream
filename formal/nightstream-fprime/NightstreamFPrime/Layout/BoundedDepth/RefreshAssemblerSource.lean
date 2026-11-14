@@ -4,7 +4,7 @@ import NightstreamFPrime.Layout.BoundedDepth.LightAssemblerSource
 /-! Values for the refresh step's source columns (CW-3.8). The columns below the children's
 commitments are the light step's (`LightAssemblerSource.env`): counters, key digests, states,
 witness, slots, digests and the fresh instance. After them come the children's commitments and
-evaluation families, the digit words, the rounds and the Π_CCS output of all 17 sources, each
+evaluation families, the digit words, the rounds and the Π_CCS output of all 15 sources, each
 decoded from its position in its group (`tailColumn`). The readback theorems give the value of
 each of these shared words on an environment that holds the columns. -/
 
@@ -30,13 +30,13 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
 
-/-- The 16 children's commitments, 1,152 words each. -/
+/-- The 14 children's commitments, 1,152 words each. -/
 def childCommitmentColumn (split : Spec.Folding.Refresh.Split PaperAlgebra.Commitment
     productionShape) (word : Nat) : F :=
   split.commitments (finAt 14 (by decide) (word / 1152))
     (finAt 18 (by decide) (word % 1152 / 64)) (finAt 64 (by decide) word)
 
-/-- The 16 children's evaluation families, 320 values of `K` each: the pad family, then the
+/-- The 14 children's evaluation families, 320 values of `K` each: the pad family, then the
 four matrix families. -/
 def childEvaluationColumn (split : Spec.Folding.Refresh.Split PaperAlgebra.Commitment
     productionShape) (word : Nat) : F :=
@@ -49,13 +49,13 @@ def childEvaluationColumn (split : Spec.Folding.Refresh.Split PaperAlgebra.Commi
         (finAt 4 (by decide) ((index % 320 - 64) / 64)) (finAt 64 (by decide) (index % 320 - 64)))
     word
 
-/-- The 16 children's digit words, 320 each. -/
+/-- The 14 children's digit words, 320 each. -/
 def digitColumn (digits : Fin productionShape.runningCount →
     PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
     (word : Nat) : F :=
   digits (finAt 14 (by decide) (word / 320)) (finAt 320 (by decide) word)
 
-/-- The Π_CCS output of all 17 sources: per source 64 pad and 256 matrix coordinates. -/
+/-- The Π_CCS output of all 15 sources: per source 64 pad and 256 matrix coordinates. -/
 def outputColumn (output : FullOutputCoordinates.FullOutput K productionShape) (word : Nat) : F :=
   kColumn (fun index =>
     if index % 320 < 64 then

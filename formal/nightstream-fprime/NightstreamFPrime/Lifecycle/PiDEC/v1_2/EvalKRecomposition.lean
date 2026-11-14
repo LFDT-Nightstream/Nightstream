@@ -10,7 +10,7 @@ Obligation: enforce fixed-radix recomposition of the one 64-coefficient
 
 Inputs:
 - one parent `Eval_K`;
-- sixteen child `Eval_K` values.
+- fourteen child `Eval_K` values.
 
 Outputs: none.
 

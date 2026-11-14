@@ -11,7 +11,7 @@ of the typed Ajtai commitment.
 
 Inputs:
 - one parent commitment;
-- sixteen child commitments.
+- fourteen child commitments.
 
 Outputs: none.
 

@@ -26,11 +26,11 @@ Per game, `Budgeted.failure_le` turns the ideal knowledge bounds
 (`LightKnowledge.knowledge_error_le`, `RefreshKnowledge.knowledge_error_le`) into bounds on the
 joint event "succeeds and the budgeted answer does not extract" (`light_failure_le`,
 `refresh_failure_le`). The loss over the ideal extractor is the expected number of reruns over
-`budget`: `(Q + 1)/budget` for the light game and `17 · (Q + 17)/budget` for the refresh game.
+`budget`: `(Q + 1)/budget` for the light game and `15 · (Q + 15)/budget` for the refresh game.
 A failure of the NIFS extractor is a failure in the game of the attempt's circuit and key
 (`covered`), so the error (`errorOf`, `romError`) is the sum over the two keys of both games'
 knowledge errors, averaged over the coins and the other oracle part, plus
-`2 · ((Q + 1) + 17 · (Q + 17)) / budget` (`truncation`).
+`2 · ((Q + 1) + 15 · (Q + 15)) / budget` (`truncation`).
 
 This theorem gives a value of `error` for which the premise holds in the random-oracle model.
 It does not prove the plain-model premise that the step circuits rely on: they recompute the
@@ -278,7 +278,7 @@ theorem light_failure_le (key : CircuitKey logicalWidth publicFits)
 
 /-- `RefreshKnowledge.knowledge_error_le` for the budgeted refresh extractor: a successful
 refresh run whose budgeted answer does not extract has probability at most the refresh knowledge
-error plus `17 · (Q + 17)/budget`. -/
+error plus `15 · (Q + 15)/budget`. -/
 theorem refresh_failure_le (key : CircuitKey logicalWidth publicFits)
     (adversary : OracleComp (RefreshPoint logicalWidth publicFits) Test.Answer
       (Attempt logicalWidth publicFits))
@@ -322,7 +322,7 @@ noncomputable def refreshError (rom : RomAdversary circuitKeys queries) (slot : 
 
 variable (queries) in
 /-- The budget loss: the expected reruns of the light and refresh games, `(Q + 1)` and
-`17 · (Q + 17)`, for each of the two keys, over `budget`. -/
+`15 · (Q + 15)`, for each of the two keys, over `budget`. -/
 noncomputable def truncation (budget : Nat) : ℝ :=
   2 * (((queries + 1 : Nat) : ℝ) + 15 * ((queries + 15 : Nat) : ℝ)) / budget
 

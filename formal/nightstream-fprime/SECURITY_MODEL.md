@@ -76,8 +76,8 @@ scope note.
   uniform (trust item 7). The owner accepted this hash family for Akita on
   2026-11-13 (`decisions/akita-compression.md`).
 - `MSIS`: Module-SIS for a uniform matrix of `κ = 18` rows over
-  `F_q[X]/(X^64 + 1)` at the chain norm, in the pinned lattice-estimator model
-  of `decisions/fprime-stage1-main-ajtai-setup.md` (trust item 2), and for the
+  `F_q[X]/(X^64 + 1)` at the chain norm, in the lattice-estimator model
+  of `decisions/field-2p64-59-ring-x64.md` (trust item 2), and for the
   Akita commitments at Akita's price (trust item 7).
 - `AKITA`: the knowledge soundness of Akita (ePrint 2026/1983) with the error
   `εAkita` (`Export.BoundedDepth.FinalVerifier.AkitaKnowledge`).
@@ -309,8 +309,8 @@ not change terminal source checks.
   history recovers is at most `B + cap · T · (b − 1)`
   (`Spec.Folding.Schedule.recoveredBounds_le`). Trust item 2 gives the
   assumption `[MSIS]` at that norm.
-- **Error terms:** the light Π_CCS test numerator is 574, against 5,389 for
-  the refresh Π_CCS, and a light fork has one `ρ` coordinate, against 17 for
+- **Error terms:** the light Π_CCS test numerator is 574, against 4,747 for
+  the refresh Π_CCS, and a light fork has one `ρ` coordinate, against 15 for
   a refresh fork (`Spec.Folding.Light.ErrorBudget.production_testNumerator`,
   `Spec.Folding.Light.ErrorBudget.production_forkCoordinates`,
   `Lifecycle.Nifs.VerifierErrorBudget.test_error_eq`). Each numerator is a
@@ -322,7 +322,7 @@ not change terminal source checks.
   kernel term (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.knowledge_error_le`,
   `Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.knowledge_error_le`). The
   statistical term is at most `(Q + 58) · 575/2^128` for light and
-  `(Q + 74) · 5390/2^128` for refresh
+  `(Q + 72) · 4748/2^128` for refresh
   (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.statisticalError_le`,
   `Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.statisticalError_le`).
   The fold gate of Rust `Params::for_ccs_shape` charges one error for both
@@ -336,7 +336,7 @@ not change terminal source checks.
   short kernel vector of the Ajtai key at the chain norm. A black-box
   rewinding machine outputs that vector with at most `budget` adversary runs,
   so the kernel term is at most its success plus `(3Q + 61)/budget` for light
-  and `(35Q + 653)/budget` for refresh
+  and `(31Q + 523)/budget` for refresh
   (`Lifecycle.BoundedDepth.RandomOracle.LightSolver.kernelChance_le_solver`,
   `Lifecycle.BoundedDepth.RandomOracle.RefreshSolver.kernelChance_le_solver`). The
   state-collision terms are the probability of a Poseidon2 collision on two
@@ -638,12 +638,12 @@ not change terminal source checks.
 2. **The binding and collision terms [MSIS] [P2-PERM] [SPONGE].**
    - *MSIS at the chain norm.* Binding needs MSIS for a uniform matrix of
      `κ = 18` rows of elements of `F_q[X]/(X^64 + 1)` (degree 64) at the chain norm
-     `msisChainBound = 8 · T · (B + cap · T · (b − 1)) = 75,497,472`, about
-     `2^26.17` (`Spec.Folding.Schedule.production_msisChainBound`). It is the
+     `msisChainBound = 8 · T · (B + cap · T · (b − 1)) = 25,165,824`, about
+     `2^24.58` (`Spec.Folding.Schedule.production_msisChainBound`). It is the
      SuperNeo v1.2 Section 8 norm `8TB` with `B` replaced by the largest
      recovered bound (`Spec.Folding.Schedule.msisChainBound_zero`). The
      terminal verifier checks each slot at the bound of its depth. By Cyclo
-     Theorem 3, this bound is at most `accumulatorBound cap = 10,368`
+     Theorem 3, this bound is at most `accumulatorBound cap = 10,112`
      (`Spec.GlobalParams.accumulatorBound`, `SPEC.md` Algorithm 6), and Lean
      proves that an honest run stays within it
      (`Export.BoundedDepth.StepExtend.Honest`). A refresh fold recovers its input
@@ -651,16 +651,20 @@ not change terminal source checks.
      `B` (`Export.BoundedDepth.RunCompleteness.holds_of_verifies`). The recovered
      bound, and so the chain norm, comes from `B`, not from the bound of the
      depth.
-   - *The κ estimate.* A lattice-estimator run outside Lean (commit 38618db),
-     in the model of `decisions/fprime-stage1-main-ajtai-setup.md` (a width of
-     `2^28` coefficients, the norm `8TB = 67,108,864`, the ADPS16 quantum
-     cost), gives 114.745 bits at rank 18 (block size 433). After the
-     allowance of 3 bits for eight targets, this is 111.7 bits. The owner
-     selected `κ = 18` on 2026-11-13
-     (`decisions/field-2p64-59-ring-x64.md`). The estimate at the chain norm
-     was not run for this profile. The models are heuristic generic lattice
-     attacks. They are not a proof for structured Module-SIS or for the fixed
-     public seed, and the run's files are not in the repository.
+   - *The κ estimate.* A lattice-estimator run outside Lean, at rank
+     `κ = 18`, a width of `2^28` coefficients and the chain norm
+     `8T(2^14 + 64T) = 25,165,824`, gives 127.20 bits in the ADPS16 quantum
+     model (BKZ block size 480), 140.16 bits in the ADPS16 classical model and
+     166.84 bits in the default model. The norm is the largest extraction
+     norm. There is no allowance for more targets, because the main key is
+     one SHAKE128 matrix and so it has one target. The owner approved this
+     method (`decisions/field-2p64-59-ring-x64.md`). The sister project
+     ProtogaLattice computed these values with lattice-estimator commit
+     `3e48ef4` and Sage 10.9. Nightstream did not run them again, because
+     Sage stops at start-up on this machine. The owner selected `κ = 18` on
+     2026-11-13. The models are heuristic generic lattice attacks. They are
+     not a proof for structured Module-SIS or for the fixed public seed, and
+     the run's files are not in the repository.
    - *Poseidon2 collisions.* The state hash, the slot digests, the package
      identity, the Nebula record chains and the state digests of a memory
      application bind their inputs only up to a Poseidon2 collision. The
@@ -760,7 +764,7 @@ not change terminal source checks.
    with Poseidon2, so a recursive argument uses the concrete hash, which no
    random-oracle model covers. In a random-oracle model of the folds,
    Assumption 1 holds with an explicit error: adversary 3's knowledge errors
-   for each circuit key plus a truncation loss `2 · ((Q + 1) + 17 · (Q + 17))
+   for each circuit key plus a truncation loss `2 · ((Q + 1) + 15 · (Q + 15))
    / budget` for an extractor with its own oracle coins and `budget` reruns
    (`Lifecycle.BoundedDepth.RandomOracle.Assumption1.romAssumption1`). At an
    oracle that answers like the Poseidon2 sponge, the model's success and

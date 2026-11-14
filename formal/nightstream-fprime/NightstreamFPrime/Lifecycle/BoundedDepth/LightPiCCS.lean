@@ -63,7 +63,7 @@ theorem light_coefficientCount (interface : InitialClaim.ShapeInterface LightSha
 
 /-- The light Π_CCS output binding (SuperNeo v1.2 Section 7.3, Step 5): the rows absorb the
 outputs of the two sources, which is the light key's `absorbPiCcsOutput`: 2 × 640 = 1,280 words,
-against 17 × 640 = 10,880 today. -/
+against 15 × 640 = 9,600 today. -/
 theorem outgoing_eq (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (interface : OutputBinding.ShapeInterface LightShape) (offset : Nat) (env : Env)

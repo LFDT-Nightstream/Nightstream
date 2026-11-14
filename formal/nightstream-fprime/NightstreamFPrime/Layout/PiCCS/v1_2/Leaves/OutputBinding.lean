@@ -5,13 +5,13 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
 /-!
 Paper authority: SuperNeo v1.2, section 7.3, Steps 3 and 5, and the
 Fiat--Shamir handoff to PiRLC.
-Obligation: Absorb the complete 17-source `y'` family in source, Pad, matrix,
+Obligation: Absorb the complete 15-source `y'` family in source, Pad, matrix,
 coefficient order and expose the verifier-owned outgoing transcript state.
 
 Inputs:
 - the incoming constrained Poseidon2 state;
-- 17 separate `Eval_K` Pad families;
-- 17 by 14 separate `Eval_A` matrix families.
+- 15 separate `Eval_K` Pad families;
+- 15 by 14 separate `Eval_A` matrix families.
 
 Outputs:
 - the outgoing constrained transcript state;

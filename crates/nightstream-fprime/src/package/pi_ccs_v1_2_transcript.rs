@@ -59,7 +59,7 @@ pub fn derive_light_transcript(
     )
 }
 
-/// The refresh fold's transcript (`BoundedDepth.refreshWords`): the 16 Π_DEC
+/// The refresh fold's transcript (`BoundedDepth.refreshWords`): the 14 Π_DEC
 /// children's commitments and evaluation families follow the statement.
 pub fn derive_refresh_transcript(
     fresh_commitment: &[u64],

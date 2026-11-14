@@ -7,11 +7,11 @@ A valid pair extracts (`Extracts`) when its answer gives the walk's `Extracted` 
 attempt: the input claim at the refresh bound `B` and the fresh instance. A valid pair extracts
 or fails (`splits`, `RefreshUniqueness.extracted_of_truth`). `knowledge_error_le`: a successful
 run extracts, weighted by the retry law, except with `knowledgeError`, the sum of the
-statistical error (`statisticalError`: `17 · (Q + 17) · sampleError` for the fork step and
-`(Q + 74) · 5389/q²` for the test step), the prior-state collision chances of the fork step
+statistical error (`statisticalError`: `15 · (Q + 15) · sampleError` for the fork step and
+`(Q + 72) · 4747/q²` for the test step), the prior-state collision chances of the fork step
 (`RefreshFork.collisionChance`) and the uniqueness step (`stateChance`), and the kernel chance
 (`RefreshUniqueness.kernelChance`). `statisticalError_le`: the statistical error is at most
-`(Q + 74) · 5390/2^128`, the bound of the one-circuit fold. -/
+`(Q + 72) · 4748/2^128`, the bound of the one-circuit fold. -/
 
 set_option autoImplicit false
 
@@ -31,8 +31,8 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshUniqueness (Re
 
 attribute [local instance low] Classical.propDecidable
 
-/-- The statistical error of the refresh fold: `17 · (Q + 17) · sampleError` for the fork step
-and `(Q + 74) · 5389/q²` for the test step. -/
+/-- The statistical error of the refresh fold: `15 · (Q + 15) · sampleError` for the fork step
+and `(Q + 72) · 4747/q²` for the test step. -/
 noncomputable def statisticalError (queries : Nat) : ℝ :=
   15 * (((queries + 15 : Nat) : ℝ) * Fork.sampleError) +
     ((queries + 72 : Nat) : ℝ) * ((4747 : ℝ) / (fieldModulus : ℝ) ^ 2)
@@ -51,7 +51,7 @@ theorem statisticalError_eq {logicalWidth : Nat}
   show ((15 : Nat) : ℝ) * (((queries + 15 : Nat) : ℝ) * Fork.sampleError) + _ = _
   norm_num
 
-/-- The statistical error is at most `(Q + 74) · 5390/2^128`. -/
+/-- The statistical error is at most `(Q + 72) · 4748/2^128`. -/
 theorem statisticalError_le (queries : Nat) :
     statisticalError queries ≤ ((queries : ℝ) + 72) * (4748 / 2 ^ 128) := by
   have sample : Fork.sampleError < 1 / 5 ^ 64 + 1 / 2 ^ 173 := by

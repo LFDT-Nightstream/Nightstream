@@ -9,9 +9,9 @@ import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ChainBinding
 /-! The refresh fold's uniqueness step in the random-oracle model: `Uniqueness` on the refresh
 game `RefreshFork.game`.
 
-Extraction. A valid pair's complete fork (`RefreshFork.fork`) extracts the 17 Π_CCS output
-witnesses (`RefreshFork.extractedWitness`). When they satisfy the 17 source claims (`Truth`), the
-Π_DEC input check that the successful run passes recomposes the 16 children into a witness of
+Extraction. A valid pair's complete fork (`RefreshFork.fork`) extracts the 15 Π_CCS output
+witnesses (`RefreshFork.extractedWitness`). When they satisfy the 15 source claims (`Truth`), the
+Π_DEC input check that the successful run passes recomposes the 14 children into a witness of
 the input accumulator below `B`, and the fresh witness satisfies the CCS
 (`Refresh.knowledge_of_sourceHolds`). That is the walk's `Extracted` at the refresh bound `B`
 (`holds_of_knowledge`, `extracted_of_truth`). Otherwise the pair fails (`Fails`).
@@ -64,7 +64,7 @@ local notation "Oracle" => RefreshFork.Oracle logicalWidth publicFits
 
 section Knowledge
 
-/-- The 17 refresh Π_CCS source claims on the children of `accumulator` and `fresh` hold for
+/-- The 15 refresh Π_CCS source claims on the children of `accumulator` and `fresh` hold for
 `witness`, with `b = 2` on every source. -/
 def Truth (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (accumulator : RefreshFork.Accumulator logicalWidth publicFits)

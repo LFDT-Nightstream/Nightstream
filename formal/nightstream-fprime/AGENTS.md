@@ -66,7 +66,7 @@ tests      axiom gate (explicit imports, `#audit_axioms` per theorem)
   the code cannot show, such as a paper citation or a leaf audit packet.
 - No generated modules, no embedded artifact data, no `native_decide`, no
   `sorry`/`admit`/`axiom`/`unsafe`, no file at or above 1,500 lines, no glob
-  in `lakefile.toml`, one profile (`b = 2`, `k_rho = 16`).
+  in `lakefile.toml`, one profile (`b = 2`, `k_rho = 14`).
 - No `maxRecDepth`/`maxHeartbeats` override, except a per-declaration
   `set_option … in -- fixed-size: …` whose cost axis is a protocol constant
   (ring degree 64, Poseidon2 width) and never emitted data. Each such site is

@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Verifier
 
 /-! The refresh fold: SuperNeo v1.2's fold with Π_DEC moved to the front. The verifier checks
-the 16 children that the proof gives for the input accumulator (Section 7.5), runs Π_CCS on
+the 14 children that the proof gives for the input accumulator (Section 7.5), runs Π_CCS on
 the fresh claim and those children (Section 7.3), and returns the Π_RLC parent (Section 7.4)
 as the next accumulator. It reuses `Nifs.PaperNonInteractive`; the output split of that
 module is not used. -/
@@ -18,7 +18,7 @@ open NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive (Key Fresh Running 
 
 universe uCommitment uPublicInput uScalar uState
 
-/-- The 16 children the prover gives for the input accumulator (SuperNeo v1.2 Section 7.5). -/
+/-- The 14 children the prover gives for the input accumulator (SuperNeo v1.2 Section 7.5). -/
 structure Split (Commitment : Type uCommitment) (shape : Shape) where
   commitments : Fin shape.runningCount -> Commitment
   evaluations : Fin shape.runningCount -> EvaluationFamily K shape

@@ -10,8 +10,8 @@ The state has two slots. Slot 0 holds the accumulator of the light circuit,
 and slot 1 holds the accumulator of the refresh circuit. Each step folds the
 fresh instance of the previous step into the slot of the circuit that made it.
 A light fold runs PiCCS and PiRLC while the depth of the slot is below 64. A
-refresh fold runs at depth 64. It splits the accumulator with PiDEC into 16
-children, then runs PiCCS over 17 sources and PiRLC. No fold ends with PiDEC.
+refresh fold runs at depth 64. It splits the accumulator with PiDEC into 14
+children, then runs PiCCS over 15 sources and PiRLC. No fold ends with PiDEC.
 See the [API guide](../../crates/nightstream/README.md).
 
 `Verifier::verify` recomputes the hash of the state with both slots and

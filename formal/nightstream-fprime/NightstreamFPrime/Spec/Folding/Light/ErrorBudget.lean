@@ -9,7 +9,7 @@ light shape: one fresh source and one running source.
 
 - Event: the light Π_CCS accepts while `Light.accepted_implies_securityOutcome` gives a
   mixing root or a sum-check failure. Experiment: `α`, `γ` and the round challenges drawn
-  from `K`. Per-call bound: `testNumerator / |K|`, 574 at the production cube against 5,389
+  from `K`. Per-call bound: `testNumerator / |K|`, 574 at the production cube against 4,747
   for the SuperNeo fold.
 - Event: the two `ρ` of a light fork collide. Experiment: one coefficient drawn from the
   strong set `C`. Per-call bound: `forkCoordinates / |C|`, one coordinate against SuperNeo's 17.

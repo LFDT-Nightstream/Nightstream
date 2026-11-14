@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.RingStrongSet.LowNormInvertibility
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 
 /-! The refresh fold's fork step in the random-oracle model: `Fork` on the refresh schedule,
-which has 17 `ρ` challenges. `verify` is `Refresh.verify` with the Π_CCS coins and the `ρ`
+which has 15 `ρ` challenges. `verify` is `Refresh.verify` with the Π_CCS coins and the `ρ`
 challenges read from the oracle (`RefreshTest.oracleProbe`, `Fork.rho`); the Π_RLC parent is the
 combined output of the batch on the oracle probe (`batch`, `parentFor`). `folds` is `slotFolds`
 at a refresh step with `verify` in its place. An adversary outputs a bounded-depth attempt; the
@@ -16,14 +16,14 @@ A successful attempt passes the Π_DEC input check and the refresh Π_CCS check 
 coins, and its witness opens the parent at the attempt's bound (`succeeds_holds`). The oracle
 probe reads only the split and the Π_CCS messages of a proof (`oracleProbe_congr`), so a valid
 retry at coordinate `i` has the base run's batch, and its witness opens the parent at the base
-run's challenges with coordinate `i` replaced (`retry_holds`). The base run and the 17 retries
+run's challenges with coordinate `i` replaced (`retry_holds`). The base run and the 15 retries
 are SuperNeo v1.2 Appendix B.3's complete fork without norms on the base batch (`fork`). It
-extracts the 17 Π_CCS outputs at the ambient bound (`extractedWitness`, `extracted_ambient`,
+extracts the 15 Π_CCS outputs at the ambient bound (`extractedWitness`, `extracted_ambient`,
 through `NormFreeFork.correctedAmbientHolds`).
 
-With `rhoCount = 17`: an invalid retry family has probability at most
-`17 · (Q + 17) · sampleError` plus the prior-state collision chance (`fork_failure_le`), and the
-expected number of reruns is at most `17 · (Q + 17)` (`expected_retries_le`). -/
+With `rhoCount = 15`: an invalid retry family has probability at most
+`15 · (Q + 15) · sampleError` plus the prior-state collision chance (`fork_failure_le`), and the
+expected number of reruns is at most `15 · (Q + 15)` (`expected_retries_le`). -/
 
 set_option autoImplicit false
 
@@ -85,7 +85,7 @@ section Verifier
 variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
-/-- The refresh Π_RLC batch on the oracle probe: the 17 Π_CCS outputs at the oracle's round
+/-- The refresh Π_RLC batch on the oracle probe: the 15 Π_CCS outputs at the oracle's round
 point (`PaperStrongInterface.piRlcBatchForProbe`). -/
 noncomputable def batch (oracle : Oracle logicalWidth publicFits)
     (accumulator : Accumulator logicalWidth publicFits) (fresh : StepFresh logicalWidth publicFits)
@@ -106,7 +106,7 @@ noncomputable def parentFor (oracle : Oracle logicalWidth publicFits)
     (batch relation ajtai oracle accumulator fresh proof).inputs rho
 
 /-- `Refresh.verify` in the random-oracle model: the Π_DEC input check, the refresh Π_CCS check
-on the oracle coins, and the Π_RLC parent at the oracle's 17 `ρ` challenges. -/
+on the oracle coins, and the Π_RLC parent at the oracle's 15 `ρ` challenges. -/
 noncomputable def verify (oracle : Oracle logicalWidth publicFits)
     (accumulator : Accumulator logicalWidth publicFits) (fresh : StepFresh logicalWidth publicFits)
     (proof : RefreshProof) : Option (Accumulator logicalWidth publicFits) :=
@@ -405,7 +405,7 @@ noncomputable def collisionChance
     index oracle
 
 /-- `Fork.fork_failure_le` for the refresh fold: a successful run whose retry family is invalid
-has probability at most `17 · (Q + 17) · sampleError` plus the expected prior-state collision
+has probability at most `15 · (Q + 15) · sampleError` plus the expected prior-state collision
 chance. -/
 theorem fork_failure_le {queries : Nat} (bounded : adversary.QueryBound queries) :
     𝔼 oracle, (if Fork.Succeeds (game ajtai key) adversary oracle then
@@ -429,7 +429,7 @@ theorem fork_failure_le {queries : Nat} (bounded : adversary.QueryBound queries)
   rw [count] at failure
   exact failure
 
-/-- `Fork.expected_retries_le` for the refresh fold: at most `17 · (Q + 17)` expected
+/-- `Fork.expected_retries_le` for the refresh fold: at most `15 · (Q + 15)` expected
 reruns. -/
 theorem expected_retries_le {queries : Nat} (bounded : adversary.QueryBound queries) :
     𝔼 oracle, (if Fork.Succeeds (game ajtai key) adversary oracle then

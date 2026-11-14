@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.BoundedDepth.RefreshPiCCSBounds
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness.Core
 import NightstreamFPrime.Circuit.Sequence
 
-/-! Completeness of the refresh Π_CCS layout (CW-3.7a). When the external words carry the 16
+/-! Completeness of the refresh Π_CCS layout (CW-3.7a). When the external words carry the 14
 children, a fresh instance and a refresh proof that the refresh key's Π_CCS check accepts, the
 eleven leaves can be filled one after another (`completeFrom`). Nine leaves compute their outputs
 from their inputs. The SumCheck chain and the final identity check a relation: the accepting

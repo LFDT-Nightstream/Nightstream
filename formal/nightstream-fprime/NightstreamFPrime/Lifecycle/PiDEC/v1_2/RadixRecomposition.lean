@@ -7,11 +7,11 @@ Paper authority: SuperNeo v1.2, Section 7.5, verifier Step 2, equations
 `y_j = sum_i b^i y_{i,j}`.
 
 Obligation: one coordinate of a typed parent family equals the fixed-radix
-recomposition of its sixteen child coordinates.
+recomposition of its fourteen child coordinates.
 
 Inputs:
 - one parent expression per coordinate;
-- sixteen child expressions per coordinate, in `Radix.ChildIndex` order.
+- fourteen child expressions per coordinate, in `Radix.ChildIndex` order.
 
 Outputs: none. The verifier-owned weights are constants.
 

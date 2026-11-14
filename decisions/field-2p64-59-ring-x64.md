@@ -5,7 +5,8 @@
 Accepted by the owner on 2026-11-13: the prime, the ring, rank 18, and SHAKE
 for the Akita challenges. The other entries (the 5-lane sampler, the limit of
 the auxiliary maps, the profile name, the wording of the hash rule) follow
-from these and wait for the owner's review.
+from these and wait for the owner's review. The owner approved `k_rho = 14`
+and the Module-SIS method of section Security calculation on 2026-11-14.
 
 ## Problem
 
@@ -32,7 +33,7 @@ a different prime.
 
 ## Decision
 
-Nightstream uses one profile, "Nightstream P64, k_rho = 16":
+Nightstream uses one profile, "Nightstream P64, k_rho = 14":
 
 | Parameter | Value |
 |---|---|
@@ -41,7 +42,7 @@ Nightstream uses one profile, "Nightstream P64, k_rho = 16":
 | Sum-check field `K` | `F_q[u]/(u² − 7)` |
 | Challenge alphabet | `{−2, −1, 0, 1, 2}` |
 | Expansion factor `T` | `128` |
-| Decomposition | `b = 2`, `k_rho = 16`, `B = 2^16` |
+| Decomposition | `b = 2`, `k_rho = 14`, `B = 2^14` |
 | Main commitment rank `κ` | `18` |
 
 This profile replaces Goldilocks, the ring `X^54 + X^27 + 1`, and rank 22.
@@ -58,28 +59,29 @@ There is no second profile and no compatibility path.
 - For a power-of-two cyclotomic ring, Theorem 5 gives `T = φ(η) · 2 = 128`.
 - 7 is not a square modulo `q`, so `K` is a field.
 - `gcd(7, q − 1) = 1`, so the Poseidon2 S-box `x^7` is a permutation.
+- Why 14: at `T = 128` the deepest accumulator is
+  `(1 + cap + k_rho)·T = 79·128 = 10,112 ≤ 2^14 − 1`. The old ring had
+  `T = 216` and needed at least 15. The owner approved 14 on 2026-11-14.
 
 ### Security calculation
 
-The model is that of
-[`fprime-stage1-main-ajtai-setup.md`](./fprime-stage1-main-ajtai-setup.md):
-width `2^28` coefficients, norm `8TB`, the lattice estimator with the ADPS16
-quantum cost. The owner ran it at estimator commit `38618db` on 2026-11-13.
-The control run gave the recorded value for the prior profile.
+The owner approved this method. The norm is the largest extraction norm,
+the chain norm `8T(B + cap·T·(b − 1)) = 8T(2^14 + 64T) = 25,165,824`. There
+is no 3-bit allowance for more targets, because the main key is one SHAKE128
+matrix, so there is one target. The width is `2^28` coefficients.
 
-| Rank | Coefficients `κ·d` | BKZ block size | ADPS16 quantum |
-|---|---|---|---|
-| 22, prior profile | 1188 | 429 | 113.685 bits |
-| 18, this profile | 1152 | 433 | 114.745 bits |
+| Rank `κ` | Norm | ADPS16 quantum | BKZ block size | ADPS16 classical | Default model |
+|---|---|---|---|---|---|
+| 18 | 25,165,824 | 127.20 bits | 480 | 140.16 bits | 166.84 bits |
 
-After the allowance of 3 bits for eight targets, rank 18 gives 111.7 bits.
-The owner selected this level. It does not meet a 128-bit post-allowance
-target. Rank 20 gives 130.3 bits after the allowance.
+The sister project ProtogaLattice computed these values with
+lattice-estimator commit `3e48ef4` and Sage 10.9. Nightstream did not run
+them again, because Sage stops at start-up on this machine. They replace the
+run at estimator commit `38618db` of 2026-11-13, which used the norm `8TB` and
+the allowance of 3 bits.
 
 The estimate is for generic lattice attacks on a uniform matrix. It is not a
-proof for structured Module-SIS or for a fixed public seed. The chain norm of
-the bounded-depth fold, `8T(B + cap·T·(b − 1))`, was not run in the estimator
-for this profile.
+proof for structured Module-SIS or for a fixed public seed.
 
 ### Consequences
 
@@ -111,12 +113,13 @@ The SHAKE128 setup rules of
 [`fprime-ajtai-shake128-setup.md`](./fprime-ajtai-shake128-setup.md) stay in
 force with the new modulus.
 
-It does not change `b = 2`, `k_rho = 16`, `B = 2^16`, the `2^28` domain, the
-selected application, or the recursion.
+It does not change `b = 2`, the `2^28` domain, the selected application, or
+the recursion.
 
 The final security theorem must name these external assumptions:
 
-- Module-SIS hardness under the pinned estimator model at rank 18;
+- Module-SIS hardness at rank 18 and the chain norm, in the model of section
+  Security calculation;
 - the low-norm invertibility bound of Theorem 4 for `X^64 + 1`;
 - Poseidon2 over `F_q` as a random oracle, with the derived instance; and
 - the security of Akita, when the compression layer uses it.

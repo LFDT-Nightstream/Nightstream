@@ -8,10 +8,10 @@ fixed; the adversary outputs the fresh claim and the refresh proof. The Π_CCS i
 fresh claim and the children that the proof's split gives for the accumulator
 (`Refresh.children`), and the schedule statement is the fresh claim with that split. A false
 acceptance (`FalseAcceptance`) is the refresh Π_CCS check on the oracle coins with the output
-claims open at the ambient bound and false source claims (`¬ SourceHolds`, `b = 2` on all 17
+claims open at the ambient bound and false source claims (`¬ SourceHolds`, `b = 2` on all 15
 sources). `RoundByRound.falseAcceptance_splits` turns it into a hit (`falseAcceptance_hits`), so
-its probability is at most `(Q + 1) · 5389/q²` (`test_error_le`,
-`Nifs.VerifierErrorBudget.test_error_eq`). The refresh transcript has `28 + 1 + 28 + 17 = 74`
+its probability is at most `(Q + 1) · 4747/q²` (`test_error_le`,
+`Nifs.VerifierErrorBudget.test_error_eq`). The refresh transcript has `28 + 1 + 28 + 15 = 72`
 challenges (`challenges_length`). -/
 
 set_option autoImplicit false
@@ -112,7 +112,7 @@ theorem falseAcceptance_hits (oracle : Oracle)
       invalid _ ambient accepted)
 
 /-- The test step for the refresh fold: an adversary with at most `Q` queries makes a refresh Π_CCS
-false acceptance with probability at most `(Q + 1) · 5389/q²`. -/
+false acceptance with probability at most `(Q + 1) · 4747/q²`. -/
 theorem test_error_le {Output : Type}
     (adversary : OracleComp
       (Test.Point (RefreshSchedule.schedule logicalWidth publicFits) Width) Test.Answer Output)

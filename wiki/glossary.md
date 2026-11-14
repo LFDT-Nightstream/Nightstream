@@ -5,7 +5,7 @@
 | CCS | Matrices and a polynomial defining the computation relation | `neo-ccs` |
 | CE | A commitment with public values and claimed matrix evaluations | `neo-ccs`, `nightstream/src/folding/claims.rs` |
 | PiCCS | Reduce fresh and running claims to a common evaluation point | `nightstream/src/folding/pi_ccs.rs` |
-| PiRLC | Combine the sources of a fold. A light fold has 2 sources, with the weights ρ and 1. A refresh fold has 17 sources, with strong-set challenges | `nightstream/src/folding/pi_rlc.rs` |
+| PiRLC | Combine the sources of a fold. A light fold has 2 sources, with the weights ρ and 1. A refresh fold has 15 sources, with strong-set challenges | `nightstream/src/folding/pi_rlc.rs` |
 | PiDEC | In a refresh fold, decompose the accumulator into 16 low-norm claims | `nightstream/src/folding/pi_dec.rs` |
 | NIFS | The light fold and the refresh fold | `nightstream/src/folding/bounded_depth.rs` |
 | F′ | Application execution plus recursive fold verification and state binding, in a light and a refresh step circuit | `formal/nightstream-fprime/NightstreamFPrime/Lifecycle/BoundedDepth` |

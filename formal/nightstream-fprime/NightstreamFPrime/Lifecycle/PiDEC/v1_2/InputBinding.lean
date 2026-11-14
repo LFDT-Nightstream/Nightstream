@@ -7,7 +7,7 @@ import NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
 Paper authority: SuperNeo v1.2, Section 7.5, input/output declarations and
 verifier Step 2.
 
-Obligation: bind one combined parent claim and exactly sixteen prover child
+Obligation: bind one combined parent claim and exactly fourteen prover child
 messages to the operational `PiDEC.PaperVerifier.Attempt`. The verifier copies
 the relation structure and point, computes child public inputs, and marks every
 child fresh.
@@ -15,7 +15,7 @@ child fresh.
 Inputs:
 - one parent commitment, public input, point, separate `Eval_K`, and separate
   4-matrix `Eval_A` family;
-- sixteen child commitment and evaluation messages.
+- fourteen child commitment and evaluation messages.
 
 Outputs:
 - the same expressions viewed as the exact operational PiDEC attempt.

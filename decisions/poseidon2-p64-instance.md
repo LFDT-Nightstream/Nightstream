@@ -25,7 +25,10 @@ and 12. `scripts/poseidon2/check.py` checks them again with other algorithms
 and exits with an error on a failed check. `scripts/poseidon2/params.json`
 holds the parameters and `scripts/poseidon2/vectors.json` holds known
 answers. Lean and Rust take their constants from `params.json` and test
-against `vectors.json`.
+against `vectors.json`. For a check between the two projects, Lean emits
+`formal/nightstream-fprime/artifacts/nightstream-fprime-poseidon2-vectors-v1.json`
+(`Export/Poseidon2VectorsMain.lean`): the width-16 shape, six permutations of
+`Spec.Poseidon2.permute` and 52 sponge hashes of `Spec.Poseidon2.hash`.
 
 | Parameter | Value |
 |---|---|

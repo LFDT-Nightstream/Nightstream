@@ -232,6 +232,12 @@ fn checked_port_hash_rejects_malformed_hints() {
     }
 }
 
+/// The two hints make two native blocks (`SPEC.md` section 7.7). The final
+/// program then checks each block as one permutation in place of its 1,096
+/// source rows (`CompressionLean.BoundedDepth.finishRows`). The plan rows do
+/// not change: section 7.11 lowers each unhinted trace to one seventh-power
+/// row for each of its 150 S-boxes (`Export.Generic.NativePower.Chain.sound`)
+/// and substitutes its affine rows, and a block has 150 S-box rows.
 #[test]
 fn checked_port_hash_compiles_to_two_native_blocks() {
     let compile = |optimized| {
@@ -259,8 +265,12 @@ fn checked_port_hash_compiles_to_two_native_blocks() {
     ] {
         let old_rows = old.plan_rows().unwrap();
         let new_rows = new.plan_rows().unwrap();
-        assert_eq!(old_rows.row_count() - new_rows.row_count(), 2 * (1096 - 150));
         assert_eq!(new.block_count() - old.block_count(), 2);
+        assert_eq!(
+            old.source_rows().unwrap().ordinary_row_count() - new.source_rows().unwrap().ordinary_row_count(),
+            2 * 1096
+        );
+        assert_eq!(old_rows.row_count(), new_rows.row_count());
         eprintln!("port_hash {name} before_rows={} after_rows={} before_entries={} after_entries={} before_coordinates={} after_coordinates={}",
             old_rows.row_count(), new_rows.row_count(), old_rows.entry_count(), new_rows.entry_count(),
             old.layout().unwrap().width(), new.layout().unwrap().width());

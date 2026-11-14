@@ -165,6 +165,14 @@ impl StepPackage {
         self.packed_booleans.zeros.len()
     }
 
+    /// The columns that `SPEC.md` section 7.11 refills and gives no slot:
+    /// the three intermediate powers of each chain
+    /// (`Export.Generic.NativePower.Chain.restore`) and each solved affine
+    /// column (`Export.Generic.Substitute.refill`).
+    pub fn lowered_column_count(&self) -> usize {
+        self.field_lowering.dead.len()
+    }
+
     pub fn packed_zero_products(&self) -> impl Iterator<Item = [usize; 6]> + '_ {
         self.packed_booleans
             .zeros

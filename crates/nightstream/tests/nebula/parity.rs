@@ -147,8 +147,10 @@ fn forced_words(application: &ApplicationCircuit) -> BTreeSet<usize> {
 
 /// The machine's Rust-built memory circuit in place of the fixture's
 /// application preserves the Lean package's blocks and source rows. The
-/// coordinate ledger includes inferred bits and each packed-check coordinate
-/// (`SPEC.md` sections 7.9 and 7.10).
+/// coordinate ledger includes inferred bits, each packed-check coordinate
+/// (`SPEC.md` sections 7.9 and 7.10), and no field slot for a column that
+/// section 7.11 refills (`Export.Generic.NativePower.Chain.restore_source`,
+/// `Export.Generic.NativePower.affine_restore_source`).
 fn assert_native_packages_match_lean(package: Package, stem: &str) {
     let application = package.application().unwrap();
     let forced = forced_words(&application);
@@ -197,7 +199,7 @@ fn assert_native_packages_match_lean(package: Package, stem: &str) {
             .checked_sub(expected["Bit"] + added_columns)
             .unwrap();
         assert!(refined >= forced.len());
-        *expected.get_mut("Field").unwrap() -= 41 * refined;
+        *expected.get_mut("Field").unwrap() -= 41 * (refined + native.lowered_column_count());
         *expected.get_mut("Bit").unwrap() += refined + added_columns;
         assert_eq!(actual, expected);
     }

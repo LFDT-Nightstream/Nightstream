@@ -637,6 +637,8 @@ Setup rejects a geometry that breaks one of these rules (`Spec.Nebula.Geometry.V
 5. **Positive sizes:** `B_ops`, `B_scan`, `N` and `S_max` are at least 1.
 6. **Security:** `R + M + N · B_ops ≤ 139,509`. This holds exactly when the fingerprint error `2(R + M + N · B_ops)/q²` is at most `2^−109.91` (`Spec.Nebula.Geometry.secure_iff` (`a0dfdd1bf945a81d`)), the floor of `decisions/nebula-memory-checking.md`.
 
+Rule 6 bounds one segment. A proof has at most `S_max` segments, and each has its own fingerprint challenge. So the memory prover, the memory verifier and `Prover::load` also reject a caller minimum `k` unless `2^k · S_max · 2(R + M + N · B_ops) ≤ q²`. They compute this with exact integers, so no rounding accepts a larger `k` (`nebula::memory_security` in `crates/nightstream/src/nebula/mod.rs`; not checked against Lean).
+
 A Lean memory package is a light and a refresh package whose application is `Export.Stage1.NebulaMemoryPackage.application` at a geometry, with the proofs of rules 1 to 6. The emitter writes them as `nightstream-fprime-bounded-depth-nebula-v1-{light,refresh}-v1.json` and `nightstream-fprime-bounded-depth-nebula-n1-{light,refresh}-v1.json` (`--program`, `Export/BoundedDepth/EmitMain.lean`). The verifier rejects a program whose ROM image does not have `R` words or whose RAM image does not have `M` words before it computes `D_init` (`Spec.Nebula.Plan.Valid`). The segment counter uses `W_seg = ⌈log₂(S_max + 1)⌉` bits.
 
 The plan digest is `Digest("Nightstream/Nebula/v3/plan", [r, μ, W_ts, B_ops, B_scan, N, S_max])` (section 7.4, `Lifecycle.Nebula.planDigest`). The package rows hold it as a constant.

@@ -476,22 +476,25 @@ impl WasmLimits {
 /// geometry, and the rows of one step. Each size is one circuit, so a
 /// verifier compiles at most three. It takes the size of a proof from the
 /// proof's statement, never from the prover's run. A prover takes the
-/// smallest size that holds the run (`WasmSize::for_run`). Each size holds
-/// runs of up to 16,384 trace rows. Its one-challenge memory-fingerprint term
-/// is at least 109.91 bits (SPEC.md section 7.1, rule 6), so the runtime gate
-/// accepts at most 109 bits. This is not an end-to-end security level: the
-/// deployment query count, retries, and recursive depth remain separate.
+/// smallest size that holds the run (`WasmSize::for_run`). Each size has the
+/// most segments for which the memory fingerprint term of all its segments,
+/// `S_max · 2·m_mem/q²`, is at most `2^−109` (SPEC.md section 7.1), so the
+/// runtime gate accepts at most 109 bits. This is not an end-to-end security
+/// level: the deployment query count, retries, and recursive depth remain
+/// separate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WasmSize {
     /// ROM of `2^14` cells and RAM of `2^10`: 256 instructions, 32 function
-    /// references, steps of 64 rows, and segments of 8 steps.
+    /// references, steps of 64 rows, and at most 10 segments of 8 steps:
+    /// runs of up to 5,120 rows.
     Small,
     /// ROM of `2^15` cells and RAM of `2^11`: 512 instructions, 64 function
-    /// references, steps of 64 rows, and segments of 16 steps.
+    /// references, steps of 64 rows, and at most 5 segments of 16 steps: runs
+    /// of up to 5,120 rows.
     Medium,
     /// ROM of `2^16` cells and RAM of `2^12`: 1,024
-    /// instructions, 128 function references, steps of 32 rows, and segments
-    /// of 16 steps.
+    /// instructions, 128 function references, steps of 32 rows, and at most 3
+    /// segments of 16 steps: runs of up to 1,536 rows.
     Large,
 }
 
@@ -502,9 +505,9 @@ impl WasmSize {
     /// segment, and the most segments.
     fn shape(self) -> (usize, usize, usize, usize) {
         match self {
-            Self::Small => (14, 64, 8, 32),
-            Self::Medium => (15, 64, 16, 16),
-            Self::Large => (16, 32, 16, 32),
+            Self::Small => (14, 64, 8, 10),
+            Self::Medium => (15, 64, 16, 5),
+            Self::Large => (16, 32, 16, 3),
         }
     }
 

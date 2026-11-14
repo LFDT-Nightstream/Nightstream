@@ -355,6 +355,59 @@ fn memory_security_bits_match_the_lean_setup_boundary() {
     }
 }
 
+/// SPEC.md section 7.1: the memory gate charges every segment of a proof,
+/// `S_max · 2·m_mem/q²`, and accepts a minimum `k` exactly when
+/// `2^k · S_max · 2·m_mem ≤ q²`. At the setup boundary `m_mem = 139,509`, one
+/// segment gives 109.91 bits and four segments give 107.91, so the gate
+/// accepts 107 and rejects 108, also before a prover reads a saved circuit.
+#[test]
+fn the_memory_gate_charges_every_segment_exactly() {
+    use super::{memory_security, segments_security_bits, Geometry, Prover};
+    use crate::{Engine, Error};
+    use neo_params::ParamsError;
+
+    let q = u128::from(F::ORDER_U64);
+    let edge = Geometry::new(17, 12, 4341, 1, 4).expect("a secure geometry at the boundary");
+    assert_eq!(edge.max_tuples(), 139_509);
+    let mut geometries = vec![edge, Package::V1.geometry(), Package::N1.geometry()];
+    for s_max in [1, 2, 3, 7, 64, 1000, 65_536] {
+        geometries.extend(Geometry::new(10, 8, 2, 1, s_max));
+        geometries.extend(Geometry::new(14, 10, 40, 8, s_max));
+    }
+    assert!(geometries.len() > 10);
+    for geometry in &geometries {
+        let charge = 2 * geometry.max_tuples() as u128 * geometry.s_max as u128;
+        let bits = segments_security_bits(geometry);
+        assert!(
+            charge
+                .checked_mul(1 << bits)
+                .is_some_and(|error| error <= q * q),
+            "{geometry:?}"
+        );
+        assert!(
+            charge
+                .checked_mul(1 << (bits + 1))
+                .is_none_or(|error| error > q * q),
+            "{geometry:?}"
+        );
+    }
+
+    assert_eq!(segments_security_bits(&edge), 107);
+    assert!(memory_security(&edge, 107).is_ok());
+    let rejected = |result: Result<(), Error>| {
+        matches!(
+            result,
+            Err(Error::Parameters(ParamsError::InsufficientStatisticalSecurity {
+                required: 108,
+                available: 107
+            }))
+        )
+    };
+    assert!(rejected(memory_security(&edge, 108)));
+    let load = Prover::load("", edge, Machine, Engine::Optimized, 108).map(|_| ());
+    assert!(rejected(load), "the gate must reject before it reads a saved circuit");
+}
+
 /// Lean's bounded-depth packages (`formal/nightstream-fprime/artifacts`): the
 /// light and refresh step packages of an application.
 struct Packages {

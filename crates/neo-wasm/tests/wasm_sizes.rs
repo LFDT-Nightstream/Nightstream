@@ -5,11 +5,13 @@
 
 mod common;
 
+use neo_math::F;
 use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::memory_semantics::preload_host_event_tables;
 use neo_wasm::nebula::{step_inputs, WasmApplicationError, WasmLimits, WasmSize};
 use neo_wasm::{preload_from_program_artifacts, top_level_initial_state, WasmMemoryPreload, WasmStepState, WasmVmStep};
 use nightstream::nebula::{Application, Run};
+use p3_field::PrimeField64;
 
 /// Enzo's iterative Fibonacci program (`tests/wasm_fibonacci.rs`) with two
 /// loop rounds.
@@ -86,7 +88,11 @@ fn each_size_is_a_secure_geometry_whose_regions_fit_its_spaces() {
             "{size:?} uses {used:?}"
         );
         assert_eq!(size.application().unwrap().port_count(), geometry.b_ops);
-        assert_eq!(size.max_rows(), 16_384, "{size:?}");
+        let rows = match size {
+            WasmSize::Small | WasmSize::Medium => 5_120,
+            WasmSize::Large => 1_536,
+        };
+        assert_eq!(size.max_rows(), rows, "{size:?}");
         if let Some(smaller) = smaller {
             assert!(size.limits().holds(&smaller), "{size:?} holds the smaller sizes");
         }
@@ -122,26 +128,45 @@ fn the_starstream_test_transactions_fit_small_or_medium() {
     }
 }
 
-/// The memory security of each size is below 114 bits, so a prover that asks
-/// for 114 gets the named security error before it reads its circuit file.
+/// The memory fingerprint term of all segments of each size gives exactly 109
+/// bits (SPEC.md section 7.1), so a prover that asks for 110 gets the named
+/// security error before it reads its circuit file. One more segment would
+/// give less than 109 bits.
 #[test]
 fn a_size_refuses_more_security_than_its_memory_gives() {
     use nightstream::error::ParamsError;
     use nightstream::nebula::Prover;
-    for (size, available) in [(WasmSize::Small, 112), (WasmSize::Medium, 111), (WasmSize::Large, 110)] {
+    let q = u128::from(F::ORDER_U64);
+    for size in WasmSize::ALL {
+        let geometry = size.geometry();
+        let error = |segments: usize| (2 * geometry.max_tuples() as u128 * segments as u128).checked_mul(1 << 109);
+        assert!(
+            error(geometry.s_max).is_some_and(|e| e <= q * q),
+            "{size:?} keeps 109 bits"
+        );
+        assert!(
+            error(geometry.s_max + 1).is_none_or(|e| e > q * q),
+            "{size:?} has the most segments"
+        );
         let result = Prover::load(
             "no-circuit-file",
-            size.geometry(),
+            geometry,
             size.application().unwrap(),
             nightstream::Engine::Optimized,
-            114,
+            110,
         );
         let Err(nightstream::Error::Parameters(error)) = result else {
-            panic!("{size:?} accepts 114 bits");
+            panic!("{size:?} accepts 110 bits");
         };
         let error: ParamsError = error;
         assert!(
-            matches!(error, ParamsError::InsufficientStatisticalSecurity { required: 114, available: a } if a == available),
+            matches!(
+                error,
+                ParamsError::InsufficientStatisticalSecurity {
+                    required: 110,
+                    available: 109
+                }
+            ),
             "{size:?}: {error}"
         );
     }
@@ -165,11 +190,8 @@ fn a_prover_takes_the_smallest_size_that_holds_the_run() {
             (other, _) => panic!("{count} nops: {other:?}"),
         }
     }
-    assert_eq!(
-        WasmSize::smallest(&WasmLimits::default(), 16_384),
-        Some(WasmSize::Small)
-    );
-    assert_eq!(WasmSize::smallest(&WasmLimits::default(), 16_385), None);
+    assert_eq!(WasmSize::smallest(&WasmLimits::default(), 5_120), Some(WasmSize::Small));
+    assert_eq!(WasmSize::smallest(&WasmLimits::default(), 5_121), None);
 }
 
 /// Fibonacci steps natively through Small in one segment. The 600 `nop`s

@@ -40,7 +40,9 @@ approved it on 2026-11-03.
    Small, and the two larger fit Medium.
 3. **Steps and segments.** Small and Medium prove 64 rows in each step, in
    segments of 8 and 16 steps. Large proves 32 rows in each step, in
-   segments of 16 steps. Each size holds runs of up to 16,384 trace rows.
+   segments of 16 steps. Small has at most 10 segments, Medium 5 and Large
+   3 (item 5), so Small and Medium hold runs of up to 5,120 trace rows and
+   Large of up to 1,536.
    The fixed cost of a step changes little with its rows, so fewer and
    larger steps cost less for each row. The owner approved these shapes on
    2026-11-09 after CPU measurements on memories with the same step shape: a
@@ -52,5 +54,10 @@ approved it on 2026-11-03.
    smallest size that holds the program and its run. The size is part of the
    statement, and the verifier compiles the circuit of that size. It never
    takes a region or a geometry from the run.
-5. **Security.** Each size keeps rule 6, so its memory fingerprint error is
-   at most `2^−109.91`. A caller asks for at most 109 bits of security.
+5. **Security.** Each size keeps rule 6, so the memory fingerprint error of
+   one segment is at most `2^−109.91`. A proof has up to `S_max` segments,
+   and the runtime gate charges each one (`SPEC.md` section 7.1). Each size
+   has the most segments for which `S_max · 2·m_mem/q²` is at most `2^−109`,
+   so a caller asks for at most 109 bits of security. On 2026-11-13 the
+   owner kept 109 bits with fewer segments, in place of 107, 107 and 105
+   bits with the earlier 32, 16 and 32 segments.

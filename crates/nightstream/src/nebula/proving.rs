@@ -91,7 +91,8 @@ impl<A: Application + Clone> Prover<A> {
     /// Load the prover of a circuit that `Circuit::write` saved for
     /// `geometry` and `app`. A verifier compiles its own circuit and never
     /// loads this file. `minimum_security_bits` separately gates one fold and
-    /// one memory challenge, not the cumulative proof or deployment error.
+    /// the memory fingerprint term of all `S_max` segments, before it reads
+    /// the file. It is not the cumulative proof or deployment error.
     pub fn load(
         path: impl AsRef<Path>,
         geometry: Geometry,

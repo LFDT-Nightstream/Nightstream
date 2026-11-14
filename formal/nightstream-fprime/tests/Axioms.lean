@@ -14,6 +14,11 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Spec.production_rlc_bound_one_fresh
 #audit_axioms NightstreamFPrime.Spec.Poseidon2.constant_table_shape
 #audit_axioms NightstreamFPrime.Spec.Poseidon2.internalDiagonal_signed
+#audit_axioms NightstreamFPrime.Spec.Poseidon2.pow_bijective_of_coprime
+#audit_axioms NightstreamFPrime.Spec.Poseidon2.coprime_seven
+#audit_axioms NightstreamFPrime.Spec.Poseidon2.coprime_three
+#audit_axioms NightstreamFPrime.Spec.Poseidon2.sbox_eq_pow
+#audit_axioms NightstreamFPrime.Spec.Poseidon2.sbox_bijective
 #audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.FixedPhase.check_eq_true_iff_accepted
 #audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.FixedPhase.complete
 #audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.FixedPhase.false_acceptance_implies_bad_challenge

@@ -560,13 +560,20 @@ item 5).
    - *The premises of the Lean result.* `Spec.Compression.Verifier.soundness`
      takes these hypotheses.
      `Spec.Compression.Verifier.WellFormed` (each slice is aligned and
-     inside the cube of `W`) and `Spec.Compression.Verifier.CountsNonzero`
-     (`2^vars` is below the characteristic of `F_q`) are assumed. Rust
-     `Layout::new` makes a layout with these properties, but Lean does not
-     model `Layout::new`. `Spec.Compression.Verifier.MatrixSpec` (the
-     verifier's matrix part is the multilinear extension of the matrix
-     weights) is assumed, because Lean keeps the matrix weights abstract.
-     `L ≤ 2^2` and `κ ≤ 2^5` are const asserts in Rust. The key polynomial
+     inside the cube of `W`) is assumed. Rust `Layout::new` makes a layout
+     with this property, but Lean does not model `Layout::new`.
+     `Spec.Compression.Verifier.CountsNonzero` (`2^vars` is below the
+     characteristic of `F_q`) follows from the bound `2^25` on the cells of
+     a slot (`Spec.Compression.Production.params_countsNonzero`), and that
+     bound is assumed for the same reason. `Spec.Compression.Verifier.MatrixSpec`
+     (the verifier's matrix part is the multilinear extension of the matrix
+     weights) is a theorem for the Lean model of Rust `matrix_part`
+     (`Spec.Compression.Verifier.matrixPass_spec`), and
+     `Spec.Compression.Production.params_soundness` states the bound at the
+     production parameters without it. The model is a transcription of the
+     Rust code by hand, and no check compares the two. `L ≤ 2^2` and
+     `κ ≤ 2^5` are const asserts in Rust, and `params_soundness` proves them
+     at the production values. The key polynomial
      holds the blocks of each claim, because Rust `Layout::new` rejects a
      claim with more blocks than the key. The model has three more
      premises. First, the Akita openings are ideal: an opening is accepted

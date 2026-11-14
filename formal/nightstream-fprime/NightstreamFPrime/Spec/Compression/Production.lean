@@ -1,5 +1,5 @@
 import NightstreamFPrime.Spec.Compression.Verifier.Bound
-import NightstreamFPrime.Spec.Compression.Verifier.Matrices
+import NightstreamFPrime.Spec.Compression.Verifier.Pass
 import NightstreamFPrime.Spec.FieldExtensionRing
 import NightstreamFPrime.Spec.Folding.Schedule
 
@@ -10,13 +10,19 @@ and the claims are slot 0, slot 1 and the fresh instance, in this order. `params
 from the Ajtai key, the CCS matrices of each claim's relation, the depths of the slots and the
 layout of Rust `Layout::new`, which Lean does not model. A claim has the blocks of its relation's
 cells, and slot `s` has the table `[−accumulatorBound(depth_s), accumulatorBound(depth_s)]`.
-`params_error_lt`: at the production bounds of the layout, `error < 2^−119`. -/
+`params_error_lt`: at the production bounds of the layout, `error < 2^−119`.
+
+`verifierData` is the verifier of Rust `verify` with the one pass of Rust `matrix_part` over the
+factored rows of each claim's relation. With its matrices, `MatrixSpec` holds
+(`verifierData_matrixSpec`), and `soundness` needs of the layout only `WellFormed`, the bound of
+the key blocks and the bound `2^25` on the cells of a slot (`params_soundness`). -/
 
 namespace NightstreamFPrime.Spec.Compression.Production
 
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.FieldExtensionRing
 open NightstreamFPrime.Spec.Compression.Verifier
 open NightstreamFPrime.Spec.Folding.Schedule (productionLightFoldCap)
+open NightstreamFPrime.Spec.Compression.Game
 
 scoped instance : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_natPrime⟩
 
@@ -116,6 +122,65 @@ theorem params_error_lt (vf : VerifierData (params key matrices depths layout))
   change 2 ^ (layout.witness c).vars + (2 * bound depths c + 1) ≤ 2 ^ 25 + 20737
   omega
 
+/-- A slot of at most `2^25` cells has nonzero counts in `F_q`. -/
+theorem params_countsNonzero (slots_le : ∀ c : Fin 3, (c : ℕ) < 2 → (layout.witness c).vars ≤ 25) :
+    CountsNonzero (params key matrices depths layout) := by
+  intro c table n positive le
+  have slot : (c : ℕ) < 2 := of_decide_eq_true table
+  have cells : 2 ^ (layout.witness c).vars ≤ 2 ^ 25 :=
+    Nat.pow_le_pow_right two_pos (slots_le c slot)
+  have below : (2 : ℕ) ^ 25 < fieldModulus := by decide
+  change ((n : ZMod fieldModulus)) ≠ 0
+  rw [Ne, CharP.cast_eq_zero_iff (ZMod fieldModulus) fieldModulus]
+  intro divides
+  have := Nat.le_of_dvd positive divides
+  change n ≤ 2 ^ (layout.witness c).vars at le
+  omega
+
 end Params
+
+section Pass
+
+variable (key : ℕ → ℕ → ℕ → F) (rel : ℕ → Factored F) (which : Fin 3 → ℕ) (depths : Fin 2 → ℕ)
+  (layout : Layout) (zeros : ℕ)
+
+/-- The verifier of Rust `verify`: the one pass of Rust `matrix_part` over the factored rows
+`rel (which c)` of the relation of claim `c`, `LOOKUP_VARS = 2` and `zeros` zeros in the opening
+point of `V`. -/
+noncomputable def verifierData :
+    VerifierData (params key (fun c => (rel (which c)).matrices) depths layout) :=
+  ⟨matrixPass _ rel which, 2, zeros⟩
+
+/-- The one pass computes the matrix part of the honest weights of the production parameters. -/
+theorem verifierData_matrixSpec : MatrixSpec (verifierData key rel which depths layout zeros) := by
+  have form : ∀ c, (params key (fun c => (rel (which c)).matrices) depths layout).matrixForm c =
+      (rel (which c)).matrices.form (params key (fun c => (rel (which c)).matrices) depths
+        layout).lanes := fun c => by
+    rw [params_lanes]
+    rfl
+  have blocks : ∀ c c', which c = which c' →
+      ((params key (fun c => (rel (which c)).matrices) depths layout).shape c).blocks =
+        ((params key (fun c => (rel (which c)).matrices) depths layout).shape c').blocks :=
+    fun c c' same => by
+      change (rel (which c)).columns / ringDegree = (rel (which c')).columns / ringDegree
+      rw [same]
+  exact matrixPass_spec (params key (fun c => (rel (which c)).matrices) depths layout) rel which
+    form blocks 2 zeros
+
+/-- `soundness` at the production parameters with the one pass of Rust `matrix_part`. -/
+theorem params_soundness
+    (wf : WellFormed (params key (fun c => (rel (which c)).matrices) depths layout))
+    (slots_le : ∀ c : Fin 3, (c : ℕ) < 2 → (layout.witness c).vars ≤ 25)
+    (key_fits : ∀ c : Fin 3, (layout.witness c).vars - 6 ≤ layout.keyBlockVars)
+    (s : Strategy (Option (Option (Statement (params key (fun c => (rel (which c)).matrices)
+      depths layout) × (ℕ → F))))) (q : ℕ) :
+    prob s (restore (game (verifierData key rel which depths layout zeros)) q [])
+        (fun r => ¬ ∀ a, r = some a → ∀ o, a = some o → Relation _ o.1 o.2) ≤
+      q * error (verifierData key rel which depths layout zeros) :=
+  soundness _ wf (params_countsNonzero key _ depths layout slots_le)
+    (verifierData_matrixSpec key rel which depths layout zeros) (le_of_eq rfl)
+    (Nat.le_of_ble_eq_true rfl) key_fits s q
+
+end Pass
 
 end NightstreamFPrime.Spec.Compression.Production

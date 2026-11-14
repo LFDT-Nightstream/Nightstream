@@ -69,6 +69,8 @@ impl PackedBooleans {
             })
             .collect();
         rows.extend(packed.rows());
+        rows.shrink_to_fit();
+        packed.removed.shrink_to_fit();
         packed
     }
 

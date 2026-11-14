@@ -39,6 +39,13 @@ pub struct PlanRows {
 }
 
 impl PlanRows {
+    /// Drops the spare capacity that the push-grown vectors keep.
+    fn shrink_to_fit(&mut self) {
+        self.offsets.shrink_to_fit();
+        self.columns.shrink_to_fit();
+        self.coefficients.shrink_to_fit();
+    }
+
     pub fn piece_ranges(&self) -> &[Range<usize>] {
         &self.piece_ranges
     }
@@ -394,6 +401,7 @@ impl StepPackage {
                 Ok(())
             })?;
         }
+        builder.rows.shrink_to_fit();
         Ok(builder.rows)
     }
 }

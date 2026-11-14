@@ -56,6 +56,7 @@ impl Finish {
             }
             system.push(&sides[0], &sides[1], &sides[2]);
         }
+        system.shrink_to_fit();
         for block in package.blocks() {
             for (_, terms) in block.lane_forms() {
                 for &(column, _) in terms {

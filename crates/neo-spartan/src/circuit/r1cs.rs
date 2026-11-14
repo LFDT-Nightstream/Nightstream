@@ -48,6 +48,13 @@ impl R1cs {
         self.ends.push(ends);
     }
 
+    /// Drops the spare capacity that `push` leaves.
+    pub fn shrink_to_fit(&mut self) {
+        self.ends.shrink_to_fit();
+        self.column.shrink_to_fit();
+        self.coefficient.shrink_to_fit();
+    }
+
     pub fn columns(&self) -> usize {
         self.columns
     }

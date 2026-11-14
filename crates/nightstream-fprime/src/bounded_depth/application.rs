@@ -8,7 +8,6 @@
 //! step's current state, its witness words, its next state and one local per
 //! recipe (`ApplicationCircuit`'s variable order).
 
-use std::ops::ControlFlow;
 use std::sync::Arc;
 
 use neo_ccs::crypto::poseidon2_goldilocks as poseidon2;
@@ -18,7 +17,7 @@ use p3_goldilocks::Goldilocks;
 use super::packed_boolean::PackedBooleans;
 use super::words::PUBLIC_WORDS;
 use super::{BoundedDepthPackages, Linear, Piece, Region, Row, StepPackage};
-use crate::application_records::ApplicationRecords;
+use crate::application_records::{ApplicationRecords, ApplicationWalk};
 use crate::package::PackageError;
 
 /// The shared words before the states: the encoded digest, the five counter
@@ -220,6 +219,9 @@ impl StepPackage {
             ));
         }
         let mut package = Self {
+            circuit: self.circuit,
+            public_columns: self.public_columns,
+            width: self.width,
             first_fresh: moved(self.first_fresh, locals).ok_or(PackageError::Malformed("bounded-depth columns"))?,
             sbox_start: moved(self.sbox_start, fresh).ok_or(PackageError::Malformed("bounded-depth columns"))?,
             application: Region {
@@ -237,7 +239,6 @@ impl StepPackage {
             pieces: Vec::new(),
             witness: Vec::new(),
             slots: Vec::new(),
-            ..self.clone()
         };
         let mut pieces = package.native_pieces(records, shape)?;
         for piece in &self.pieces[old.pieces..] {
@@ -256,26 +257,64 @@ impl StepPackage {
                 ))
             })
             .collect::<Result<_, _>>()?;
-        package.slots = package.native_slots()?;
+        let (bits, forced) = package.slot_facts()?;
+        package.slots = package.rule_slots(&bits, &forced);
         package.pack_native_booleans()?;
+        // Field lowering changes neither the candidate bits nor the forced
+        // columns, so its slots reuse the facts of the packed rows.
+        let (bits, forced) = package.slot_facts()?;
+        package.slots = package.rule_slots(&bits, &forced);
         package.field_lowering = super::field_lowering::FieldLowering::checked(&package)?;
-        package.slots = package.native_slots()?;
+        package.slots = package.rule_slots(&bits, &forced);
         package.guard_fusion = super::guard_fusion::GuardFusion::checked(&package)?;
         package.word_packing = super::word_packing::WordPacking::checked(&package)?;
+        package.check_packed_slots()?;
         Ok(package)
+    }
+
+    /// Every column that a packed product or zero product reads, and every
+    /// added column, has a one-coordinate bit slot (`SPEC.md` section 7.10,
+    /// step 5).
+    fn check_packed_slots(&self) -> Result<(), PackageError> {
+        let layout = self.layout()?;
+        let packed = &self.packed_booleans;
+        let reads = packed
+            .products
+            .iter()
+            .flat_map(|product| [product.left, product.right, product.output])
+            .chain(
+                packed
+                    .zeros
+                    .iter()
+                    .flat_map(|zero| [zero.left.column, zero.right.column]),
+            )
+            .chain(packed.start..packed.end());
+        for column in reads {
+            if layout
+                .slot(column)
+                .is_none_or(|(_, kind)| kind != super::layout::Kind::Bit)
+            {
+                return Err(PackageError::Malformed("bounded-depth packed product slot"));
+            }
+        }
+        Ok(())
     }
 
     fn pack_native_booleans(&mut self) -> Result<(), PackageError> {
         let layout = self.layout()?;
         let region = self.application;
-        let blocks = self
+        let end = self
             .blocks()
-            .map(|block| block.start()..block.start() + BLOCK_LOCALS)
-            .collect::<Vec<_>>();
+            .map(|block| block.start() + BLOCK_LOCALS)
+            .max();
+        let mut in_block = vec![false; end.unwrap_or(0)];
+        for block in self.blocks() {
+            in_block[block.start()..block.start() + BLOCK_LOCALS].fill(true);
+        }
         let eligible = |column| {
             ((WITNESS_START..WITNESS_START + region.witness_words).contains(&column)
                 || (region.local_start..region.local_start + region.locals).contains(&column))
-                && !blocks.iter().any(|block| block.contains(&column))
+                && in_block.get(column) != Some(&true)
                 && layout
                     .slot(column)
                     .is_some_and(|(_, kind)| kind == super::layout::Kind::Bit)
@@ -286,7 +325,6 @@ impl StepPackage {
         };
         self.packed_booleans = PackedBooleans::lower(rows, start, self.width, eligible);
         self.packed_booleans.validate(rows, start, self.width)?;
-        self.slots = self.native_slots()?;
         Ok(())
     }
 
@@ -300,6 +338,7 @@ impl StepPackage {
         let end = first + records.recipe_count();
         let mut dead = vec![false; end];
         let mut dropped = vec![false; records.row_count()];
+        let mut walk = records.walk();
         let mut free = first;
         let mut blocks = Vec::with_capacity(shape.blocks.len());
         for block in &shape.blocks {
@@ -327,7 +366,7 @@ impl StepPackage {
                 .collect::<Result<Vec<_>, _>>()?;
             for recipe in start - first..start - first + BLOCK_LOCALS {
                 let row = dropped
-                    .get_mut(records.recipe_row(recipe)?)
+                    .get_mut(walk.recipe_row(recipe)?)
                     .ok_or(PackageError::Malformed("bounded-depth native block row"))?;
                 if std::mem::replace(row, true) {
                     return Err(PackageError::Malformed("bounded-depth native block row in two blocks"));
@@ -340,7 +379,7 @@ impl StepPackage {
             });
             free = start + BLOCK_LOCALS;
         }
-        let rows = self.application_rows(records, &dropped, &dead)?;
+        let rows = self.application_rows(&mut walk, &dropped, &dead)?;
         Ok(std::iter::once(Piece::Rows(rows)).chain(blocks).collect())
     }
 
@@ -358,57 +397,60 @@ impl StepPackage {
     /// The application's rows outside the blocks over the step's columns.
     fn application_rows(
         &self,
-        records: &ApplicationRecords,
+        walk: &mut ApplicationWalk<'_>,
         dropped: &[bool],
         dead: &[bool],
     ) -> Result<Vec<Row>, PackageError> {
-        (0..records.row_count())
-            .filter(|&row| !dropped[row])
-            .map(|row| {
-                let header = records.row_header(row)?;
-                let mut sides = header.constants.map(|constant| Linear {
-                    constant: Goldilocks::from_u64(constant),
-                    terms: Vec::new(),
-                });
-                let _: ControlFlow<()> = records.visit_terms(row, |term| {
-                    if dead.get(term.variable) == Some(&true) {
-                        return Err(PackageError::Malformed(
-                            "bounded-depth application row reads a dead local",
-                        ));
-                    }
-                    sides[term.form.index()].terms.push((
-                        self.variable_column(term.variable)?,
-                        Goldilocks::from_u64(term.coefficient),
+        let mut rows = Vec::with_capacity(dropped.iter().filter(|&&dropped| !dropped).count());
+        let mut terms = Vec::new();
+        for row in (0..dropped.len()).filter(|&row| !dropped[row]) {
+            let header = walk.row(row, &mut terms)?;
+            let mut sides = [0, 1, 2].map(|form| Linear {
+                constant: Goldilocks::from_u64(header.constants[form]),
+                terms: Vec::with_capacity(header.term_counts[form]),
+            });
+            for term in &terms {
+                if dead.get(term.variable) == Some(&true) {
+                    return Err(PackageError::Malformed(
+                        "bounded-depth application row reads a dead local",
                     ));
-                    Ok(ControlFlow::Continue(()))
-                })?;
-                let [a, b, c] = sides;
-                Ok(Row { a, b, c })
-            })
-            .collect()
+                }
+                sides[term.form.index()].terms.push((
+                    self.variable_column(term.variable)?,
+                    Goldilocks::from_u64(term.coefficient),
+                ));
+            }
+            let [a, b, c] = sides;
+            rows.push(Row { a, b, c });
+        }
+        Ok(rows)
     }
 
-    fn native_slots(&self) -> Result<Vec<(usize, usize, u8)>, PackageError> {
+    /// The slot facts of the native application (`SPEC.md` section 7.9,
+    /// step 5): the candidate bit columns, and the columns that the original
+    /// rows or the packed pairs force to bits.
+    fn slot_facts(&self) -> Result<(Vec<usize>, Vec<usize>), PackageError> {
         let region = self.application;
-        let dead: Vec<_> = self
+        let end = self
             .blocks()
             .take(region.pieces - 1)
-            .map(|block| block.start()..block.outputs())
-            .collect();
+            .map(|block| block.outputs())
+            .max();
+        let mut dead = vec![false; end.unwrap_or(0)];
+        for block in self.blocks().take(region.pieces - 1) {
+            dead[block.start()..block.outputs()].fill(true);
+        }
+        let live = |column: &usize| dead.get(*column) != Some(&true);
         let mut bits = self.bit_columns();
         bits.extend(WITNESS_START..WITNESS_START + region.witness_words);
-        bits.extend(
-            (region.local_start..region.local_start + region.locals)
-                .filter(|column| !dead.iter().any(|locals| locals.contains(column))),
-        );
+        bits.extend((region.local_start..region.local_start + region.locals).filter(live));
         bits.extend(self.packed_booleans.start..self.packed_booleans.end());
         let mut eligible = vec![false; self.source_end()];
         for column in (WITNESS_START..WITNESS_START + region.witness_words)
             .chain(region.local_start..region.local_start + region.locals)
+            .filter(live)
         {
-            if !dead.iter().any(|locals| locals.contains(&column)) {
-                eligible[column] = true;
-            }
+            eligible[column] = true;
         }
         let seeds = self
             .packed_booleans
@@ -424,11 +466,7 @@ impl StepPackage {
             _ => Vec::new(),
         };
         inferred.extend(seeds);
-        Ok(if inferred.is_empty() {
-            self.rule_slots(&bits)
-        } else {
-            self.rule_slots_with_inferred(&bits, &inferred)
-        })
+        Ok((bits, inferred))
     }
 }
 
@@ -454,48 +492,59 @@ impl BoundedDepthPackages {
         witness_words: usize,
         shape: &NativeShape,
     ) -> Result<Self, PackageError> {
-        let mut input = poseidon2::Poseidon2Hasher::default();
-        let mut update = |word: u64| input.update(&[Goldilocks::from_u64(word)]);
-        IDENTITY_DOMAIN
-            .iter()
-            .for_each(|&byte| update(u64::from(byte)));
-        self.identity.into_iter().for_each(&mut update);
-        update(witness_words as u64);
-        update(records.row_count() as u64);
-        for row in 0..records.row_count() {
-            let header = records.row_header(row)?;
-            for form in 0..3 {
-                update(header.constants[form]);
-                update(header.term_counts[form] as u64);
-            }
-            let _: ControlFlow<()> = records.visit_terms(row, |term| {
-                update(term.variable as u64);
-                update(term.coefficient);
-                Ok(ControlFlow::Continue(()))
-            })?;
-        }
-        update(records.recipe_count() as u64);
-        for recipe in 0..records.recipe_count() {
-            update(records.recipe_row(recipe)? as u64);
-        }
-        update(shape.blocks.len() as u64);
-        for block in &shape.blocks {
-            update(block.first_local as u64);
-            for lane in &block.lanes {
-                update(lane.constant.as_canonical_u64());
-                update(lane.terms.len() as u64);
-                for &(variable, coefficient) in &lane.terms {
-                    update(variable as u64);
-                    update(coefficient.as_canonical_u64());
+        let application = || -> Result<_, PackageError> {
+            let mut input = poseidon2::Poseidon2Hasher::default();
+            let mut update = |word: u64| input.update(&[Goldilocks::from_u64(word)]);
+            IDENTITY_DOMAIN
+                .iter()
+                .for_each(|&byte| update(u64::from(byte)));
+            self.identity.into_iter().for_each(&mut update);
+            update(witness_words as u64);
+            update(records.row_count() as u64);
+            let mut walk = records.walk();
+            let mut terms = Vec::new();
+            for row in 0..records.row_count() {
+                let header = walk.row(row, &mut terms)?;
+                for form in 0..3 {
+                    update(header.constants[form]);
+                    update(header.term_counts[form] as u64);
+                }
+                for term in &terms {
+                    update(term.variable as u64);
+                    update(term.coefficient);
                 }
             }
-        }
-        let light = self
-            .light
-            .with_application(&records, witness_words, shape)?;
-        let refresh = self
-            .refresh
-            .with_application(&records, witness_words, shape)?;
+            update(records.recipe_count() as u64);
+            for recipe in 0..records.recipe_count() {
+                update(walk.recipe_row(recipe)? as u64);
+            }
+            update(shape.blocks.len() as u64);
+            for block in &shape.blocks {
+                update(block.first_local as u64);
+                for lane in &block.lanes {
+                    update(lane.constant.as_canonical_u64());
+                    update(lane.terms.len() as u64);
+                    for &(variable, coefficient) in &lane.terms {
+                        update(variable as u64);
+                        update(coefficient.as_canonical_u64());
+                    }
+                }
+            }
+            Ok(input)
+        };
+        // The hash takes the application's words while both packages are
+        // built; the packages' maps follow those words.
+        let (input, (light, refresh)) = rayon::join(application, || {
+            rayon::join(
+                || self.light.with_application(&records, witness_words, shape),
+                || {
+                    self.refresh
+                        .with_application(&records, witness_words, shape)
+                },
+            )
+        });
+        let (mut input, light, refresh) = (input?, light?, refresh?);
+        let mut update = |word: u64| input.update(&[Goldilocks::from_u64(word)]);
         for package in [&light, &refresh] {
             if let Some(Piece::Rows(rows)) = package.pieces.first() {
                 package.guard_fusion.bind(rows, &mut update);

@@ -7,7 +7,6 @@ use super::{
     index, malformed, read_word, word, ApplicationForm, ApplicationRecipeNode, ApplicationRecords,
     ApplicationRecordsWriter, ApplicationRowHeader, ApplicationTerm, PackageError,
 };
-use std::ops::ControlFlow;
 
 fn write_word(output: &mut (impl Write + ?Sized), value: u64) -> Result<(), PackageError> {
     output.write_all(&value.to_le_bytes())?;
@@ -18,26 +17,25 @@ impl ApplicationRecords {
     pub fn write_to(&self, output: &mut (impl Write + ?Sized)) -> Result<(), PackageError> {
         write_word(output, word(self.row_count())?)?;
         write_word(output, word(self.recipe_count())?)?;
+        let mut walk = self.walk();
+        let mut terms = Vec::new();
         for row in 0..self.row_count() {
-            let header = self.row_header(row)?;
+            let header = walk.row(row, &mut terms)?;
             for form in 0..3 {
                 write_word(output, header.constants[form])?;
                 write_word(output, word(header.term_counts[form])?)?;
             }
-            let flow = self.visit_terms(row, |term| {
+            for term in &terms {
                 write_word(output, word(term.variable)?)?;
                 write_word(output, term.coefficient)?;
-                Ok(ControlFlow::Continue(()))
-            })?;
-            if flow.is_break() {
-                return Err(malformed("application row serialization stopped early"));
             }
         }
+        let mut nodes = Vec::new();
         for recipe in 0..self.recipe_count() {
-            let (_, count, row) = self.recipe_location(recipe)?;
+            let row = walk.recipe(recipe, &mut nodes)?;
             write_word(output, word(row)?)?;
-            write_word(output, word(count)?)?;
-            let flow = self.visit_recipe_nodes(recipe, |node| {
+            write_word(output, word(nodes.len())?)?;
+            for &node in &nodes {
                 let (tag, payload) = match node {
                     ApplicationRecipeNode::Variable(variable) => (0, word(variable)?),
                     ApplicationRecipeNode::Constant(value) => (1, value),
@@ -46,10 +44,6 @@ impl ApplicationRecords {
                 };
                 write_word(output, tag)?;
                 write_word(output, payload)?;
-                Ok(ControlFlow::Continue(()))
-            })?;
-            if flow.is_break() {
-                return Err(malformed("application recipe serialization stopped early"));
             }
         }
         Ok(())

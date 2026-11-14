@@ -39,6 +39,13 @@ pub struct PlanRows {
 }
 
 impl PlanRows {
+    /// Drops the spare capacity that the push-grown vectors keep.
+    fn shrink_to_fit(&mut self) {
+        self.offsets.shrink_to_fit();
+        self.columns.shrink_to_fit();
+        self.coefficients.shrink_to_fit();
+    }
+
     pub fn piece_ranges(&self) -> &[Range<usize>] {
         &self.piece_ranges
     }
@@ -271,7 +278,7 @@ impl StepPackage {
     /// contributes none), then the blocks' S-box rows from the shared formula
     /// library. Native applications use the experimental `NativePower`
     /// rewrite. Each port substitutes native output and affine forms.
-    pub fn plan_rows(&self) -> Result<PlanRows, PackageError> {
+    pub(super) fn plan_rows(&self) -> Result<PlanRows, PackageError> {
         self.rows(true)
     }
 
@@ -283,36 +290,6 @@ impl StepPackage {
     }
 
     fn rows(&self, with_forms: bool) -> Result<PlanRows, PackageError> {
-        if self.native.is_some() {
-            let Some(Piece::Rows(rows)) = self.pieces.first() else {
-                return Err(PackageError::Malformed("bounded-depth native application rows"));
-            };
-            self.packed_booleans
-                .validate(rows, self.sbox_start + SBOX_ROWS * self.block_count(), self.width)?;
-            self.guard_fusion.validate(self)?;
-            self.word_packing.validate(self)?;
-            let layout = self.layout()?;
-            for column in self
-                .packed_booleans
-                .products
-                .iter()
-                .flat_map(|product| [product.left, product.right, product.output])
-                .chain(
-                    self.packed_booleans
-                        .zeros
-                        .iter()
-                        .flat_map(|zero| [zero.left.column, zero.right.column]),
-                )
-                .chain(self.packed_booleans.start..self.packed_booleans.end())
-            {
-                if layout
-                    .slot(column)
-                    .is_none_or(|(_, kind)| kind != super::layout::Kind::Bit)
-                {
-                    return Err(PackageError::Malformed("bounded-depth packed product slot"));
-                }
-            }
-        }
         let mut blocks = Vec::new();
         for piece in &self.pieces {
             if let Piece::Block { start, lanes } = piece {
@@ -424,6 +401,7 @@ impl StepPackage {
                 Ok(())
             })?;
         }
+        builder.rows.shrink_to_fit();
         Ok(builder.rows)
     }
 }

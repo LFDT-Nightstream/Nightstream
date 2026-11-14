@@ -1,12 +1,46 @@
 //! Retains application expression order for the existing package wire identity.
 
-use std::{collections::HashSet, ops::Range, sync::Arc};
+use std::{
+    collections::HashSet,
+    hash::{BuildHasherDefault, Hasher},
+    ops::Range,
+    sync::Arc,
+};
 
 use nightstream_fprime::ApplicationRecipeNode;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
 use super::{ApplicationError, Variable};
+
+/// A set of nodes that a walk has met. The walks only ask whether they met a
+/// node before, so a node's address needs no keyed hash: one multiply mixes
+/// it, and the rotation brings the mixed high bits to the low bits that pick
+/// the bucket.
+type Nodes<T> = HashSet<T, BuildHasherDefault<NodeHasher>>;
+
+#[derive(Default)]
+struct NodeHasher(u64);
+
+impl Hasher for NodeHasher {
+    fn finish(&self) -> u64 {
+        self.0.rotate_left(26)
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
+            self.write_u64(u64::from(byte));
+        }
+    }
+
+    fn write_u64(&mut self, value: u64) {
+        self.0 = (self.0.rotate_left(5) ^ value).wrapping_mul(0xf135_7aea_2e62_a9c5);
+    }
+
+    fn write_usize(&mut self, value: usize) {
+        self.write_u64(value as u64);
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Expression {
@@ -18,7 +52,7 @@ pub(crate) enum Expression {
 
 impl Expression {
     pub(super) fn validate(&self, count: usize, outputs: Range<usize>, causal: bool) -> Result<(), ApplicationError> {
-        let mut seen = HashSet::new();
+        let mut seen = Nodes::default();
         let mut pending = vec![self];
         while let Some(expression) = pending.pop() {
             if !seen.insert(expression as *const Self) {
@@ -44,8 +78,8 @@ impl Expression {
     }
 
     pub(super) fn has_nested_shared_operations(&self) -> bool {
-        let mut seen = HashSet::new();
-        let mut shared = HashSet::new();
+        let mut seen = Nodes::default();
+        let mut shared = Nodes::default();
         let mut pending = vec![self];
         while let Some(expression) = pending.pop() {
             if let Self::Add(left, right) | Self::Multiply(left, right) = expression {
@@ -58,7 +92,7 @@ impl Expression {
                 pending.push(left);
             }
         }
-        let mut visited = HashSet::new();
+        let mut visited = Nodes::default();
         let mut pending = vec![(self, false)];
         while let Some((expression, shared_parent)) = pending.pop() {
             if let Self::Add(left, right) | Self::Multiply(left, right) = expression {

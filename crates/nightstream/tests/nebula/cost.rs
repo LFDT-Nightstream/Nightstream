@@ -31,7 +31,7 @@ fn logical_width(circuit: &ApplicationCircuit) -> Result<usize, crate::Error> {
         circuit.private_input_count(),
         circuit.shape(),
     )?;
-    Ok(packages.refresh().layout()?.width())
+    Ok(packages.refresh().clone().expand()?.layout().width())
 }
 
 /// An application with `width` state words, `aux` private words, `ports`
@@ -218,8 +218,8 @@ fn size_parts_sum_to_the_circuit_counts() {
 /// coordinates of each kind, the plan rows and the blocks.
 fn print_package_size(name: &str, packages: &BoundedDepthPackages) {
     for (kind, package) in [("light", packages.light()), ("refresh", packages.refresh())] {
-        let layout = package.layout().unwrap();
-        let rows = package.plan_rows().unwrap();
+        let expanded = package.clone().expand().unwrap();
+        let (layout, rows) = (expanded.layout(), expanded.rows());
         eprintln!(
             "{name} {kind} logical={} plan_rows={} blocks={}",
             layout.width(),

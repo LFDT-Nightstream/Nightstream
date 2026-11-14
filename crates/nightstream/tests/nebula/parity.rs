@@ -102,7 +102,8 @@ fn rows_of_a_ram_smaller_than_the_rom_match_lean() {
 }
 
 fn coordinates(package: &nightstream_fprime::StepPackage) -> BTreeMap<String, usize> {
-    let layout = package.layout().unwrap();
+    let expanded = package.clone().expand().unwrap();
+    let layout = expanded.layout();
     let mut counts = BTreeMap::new();
     for column in 270..layout.spans().starts.len() {
         if let Some((_, kind)) = layout.slot(column) {
@@ -174,7 +175,8 @@ fn assert_native_packages_match_lean(package: Package, stem: &str) {
             lean.source_rows().unwrap().row_count()
         );
         assert_eq!(native.width(), lean.width());
-        let layout = native.layout().unwrap();
+        let expanded = native.clone().expand().unwrap();
+        let layout = expanded.layout();
         let block = native.blocks().next().unwrap();
         let first_local = application.shape().blocks[0].first_local;
         assert_eq!(first_local, application.generated_range().start);

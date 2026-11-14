@@ -213,11 +213,10 @@ impl StepPackage {
             .collect()
     }
 
-    pub(crate) fn rule_slots(&self, bits: &[usize]) -> Vec<(usize, usize, u8)> {
-        self.rule_slots_with_inferred(bits, &[])
-    }
-
-    pub(super) fn rule_slots_with_inferred(&self, bits: &[usize], inferred: &[usize]) -> Vec<(usize, usize, u8)> {
+    /// The slot runs (`StepPackage.runsOf`): a bit slot for each candidate in
+    /// `bits` that a row forces or `inferred` names, a field slot for each
+    /// other read column.
+    pub(super) fn rule_slots(&self, bits: &[usize], inferred: &[usize]) -> Vec<(usize, usize, u8)> {
         const BIT: u8 = 0;
         const FIELD: u8 = 2;
         let end = self.source_end();
@@ -292,7 +291,7 @@ impl StepPackage {
     }
 
     /// The logical layout of the package's slot runs (`SlotLayout.layout`).
-    pub fn layout(&self) -> Result<LogicalLayout, PackageError> {
+    pub(super) fn layout(&self) -> Result<LogicalLayout, PackageError> {
         let size = self
             .slots
             .iter()

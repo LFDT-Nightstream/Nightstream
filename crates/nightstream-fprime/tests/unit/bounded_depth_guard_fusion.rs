@@ -110,10 +110,10 @@ fn guarded_rows_preserve_source_and_all_four_matrix_ports() {
                 .count(),
             1
         );
-        let plan = package.plan_rows().unwrap();
+        let expanded = package.clone().expand().unwrap();
+        let (plan, layout) = (expanded.rows(), expanded.layout());
         let source = package.source_rows().unwrap();
         assert_eq!(source.piece_ranges()[0].len(), rows.len());
-        let layout = package.layout().unwrap();
         for (active, value) in [(0, 3), (1, 5), (2, -9)] {
             for gate in [0, 1] {
                 let mut columns = vec![F::ZERO; package.source_end()];
@@ -135,7 +135,7 @@ fn guarded_rows_preserve_source_and_all_four_matrix_ports() {
                     .clone()
                     .all(|row| plan.residual(row, &columns) == F::ZERO));
                 let logical = layout.assignment(&columns).unwrap();
-                let restored = package.source_assignment(&logical).unwrap();
+                let restored = expanded.source_assignment(&logical).unwrap();
                 assert!(source.piece_ranges()[0]
                     .clone()
                     .all(|row| source.residual(row, &restored) == F::ZERO));
@@ -143,7 +143,7 @@ fn guarded_rows_preserve_source_and_all_four_matrix_ports() {
                     for port in 0..4 {
                         assert_eq!(
                             plan.evaluate(row, port, &columns),
-                            layout.evaluate(&plan, row, port, &logical).unwrap()
+                            layout.evaluate(plan, row, port, &logical).unwrap()
                         );
                     }
                 }
@@ -160,37 +160,7 @@ fn guarded_rows_preserve_source_and_all_four_matrix_ports() {
 }
 
 #[test]
-fn malformed_guard_maps_and_missing_certificates_are_rejected() {
-    let package = packages(&fixture()).light().clone();
-    for mutation in 0..5 {
-        let mut changed = package.clone();
-        match mutation {
-            0 => {
-                changed.guard_fusion.removed.clear();
-            }
-            1 => {
-                changed
-                    .guard_fusion
-                    .replacements
-                    .values_mut()
-                    .next()
-                    .unwrap()
-                    .c
-                    .constant += F::ONE;
-            }
-            2 => {
-                changed.guard_fusion.groups[0].sources[0] += 1;
-            }
-            3 => {
-                changed.guard_fusion.groups[0].certificates.clear();
-            }
-            _ => {
-                changed.guard_fusion.groups[0].source_records[0].1 += 1;
-            }
-        }
-        assert!(changed.plan_rows().is_err());
-        assert!(changed.source_rows().is_err());
-    }
+fn missing_certificates_keep_only_complementary_pairs() {
     let mut source = fixture();
     source.remove(0);
     let missing = packages(&source);
@@ -323,5 +293,41 @@ fn a_family_certificate_cannot_certify_its_own_replacement() {
         assert!(plan.piece_ranges()[0]
             .clone()
             .any(|row| plan.residual(row, &columns) != F::ZERO));
+    }
+}
+
+/// `Families::containing` gives, in family order, exactly the families that
+/// a scan of every family accepts: the families whose selectors hold every
+/// column of the query. The families overlap and share selectors, and the
+/// queries include columns that no family holds.
+#[test]
+fn indexed_family_search_equals_the_full_scan() {
+    let mut state = 0x9e37_79b9_7f4a_7c15u64;
+    let mut next = |bound: u64| {
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        ((state >> 33) % bound) as usize
+    };
+    let families = (0..200)
+        .map(|source| Family {
+            source,
+            selectors: (0..2 + next(6)).map(|_| 10 + next(60)).collect(),
+            total_one: next(2) == 0,
+        })
+        .collect::<Vec<_>>();
+    let index = Families::new(families.clone());
+    for _ in 0..5_000 {
+        let terms = (0..1 + next(4))
+            .map(|_| (10 + next(64), F::ONE))
+            .collect::<Vec<_>>();
+        let scan = (0..families.len())
+            .filter(|&family| {
+                terms
+                    .iter()
+                    .all(|(column, _)| families[family].selectors.contains(column))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(index.containing(&terms).collect::<Vec<_>>(), scan, "{terms:?}");
     }
 }

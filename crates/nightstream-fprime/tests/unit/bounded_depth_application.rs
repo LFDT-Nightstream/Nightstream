@@ -254,7 +254,7 @@ fn lean_packages_follow_the_slot_rule() {
     ] {
         let bytes = artifact(&format!("nightstream-fprime-bounded-depth-{name}-v1.json"));
         let package = StepPackage::decode(&parse_atoms(&bytes).expect("atoms")).expect("package");
-        assert_eq!(package.rule_slots(&package.bit_columns()), package.slots, "{name}");
+        assert_eq!(package.rule_slots(&package.bit_columns(), &[]), package.slots, "{name}");
     }
 }
 
@@ -401,7 +401,7 @@ fn inferred_application_bits_keep_the_compact_layout() {
             inferred.variable_column(5).unwrap(),
             output,
         ]);
-        let old_slots = inferred.rule_slots(&old_bits);
+        let old_slots = inferred.rule_slots(&old_bits, &[]);
         assert_ne!(old_slots, inferred.slots);
         let mut shared = vec![Goldilocks::ZERO; inferred.application.local_start];
         shared[0] = Goldilocks::ONE;
@@ -431,7 +431,7 @@ fn empty_and_unmatched_applications_keep_the_existing_slot_rule() {
         for step in [&package.light, &package.refresh] {
             let mut bits = step.bit_columns();
             bits.extend((0..count).map(|index| step.variable_column(4 + index).unwrap()));
-            assert_eq!(step.slots, step.rule_slots(&bits));
+            assert_eq!(step.slots, step.rule_slots(&bits, &[]));
         }
     }
 }

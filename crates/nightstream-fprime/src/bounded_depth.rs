@@ -335,12 +335,90 @@ impl Block<'_> {
     }
 }
 
+/// A step package with its relation's plan rows and slot layout
+/// (`CircuitRelation.plan`, `SlotLayout.layout`). Only `StepPackage::expand`
+/// makes one, so a holder reads the rows and the layout and never expands
+/// the package again.
+pub struct ExpandedPackage {
+    package: StepPackage,
+    rows: PlanRows,
+    layout: layout::LogicalLayout,
+}
+
+impl ExpandedPackage {
+    pub fn rows(&self) -> &PlanRows {
+        &self.rows
+    }
+
+    pub fn layout(&self) -> &layout::LogicalLayout {
+        &self.layout
+    }
+
+    pub fn circuit(&self) -> usize {
+        self.package.circuit
+    }
+
+    pub fn sbox_start(&self) -> usize {
+        self.package.sbox_start
+    }
+
+    pub fn block_count(&self) -> usize {
+        self.package.block_count()
+    }
+
+    /// `StepPackage::circuit_columns_with`.
+    pub fn circuit_columns_with(
+        &self,
+        shared: &[Goldilocks],
+        locals: Option<&[Goldilocks]>,
+    ) -> Result<Vec<Goldilocks>, PackageError> {
+        self.package.circuit_columns_with(shared, locals)
+    }
+
+    /// `StepPackage::relation_columns` with the package's plan rows.
+    pub fn relation_columns(&self, columns: Vec<Goldilocks>) -> Result<Vec<Goldilocks>, PackageError> {
+        self.package.relation_columns(columns, &self.rows)
+    }
+}
+
+impl StepPackage {
+    /// The package with its plan rows and slot layout. The expanded package
+    /// keeps only what its witness program reads: the rows of its row
+    /// pieces, the removed Boolean rows and the row maps go once the plan
+    /// rows exist, so it cannot give its rows again.
+    pub fn expand(mut self) -> Result<ExpandedPackage, PackageError> {
+        let (rows, layout) = rayon::join(|| self.plan_rows(), || self.layout());
+        let (rows, layout) = (rows?, layout?);
+        for piece in &mut self.pieces {
+            if let Piece::Rows(rows) = piece {
+                *rows = Vec::new();
+            }
+        }
+        self.packed_booleans.removed = Vec::new();
+        self.guard_fusion = guard_fusion::GuardFusion::default();
+        self.word_packing = word_packing::WordPacking::default();
+        self.slots = Vec::new();
+        Ok(ExpandedPackage {
+            rows,
+            layout,
+            package: self,
+        })
+    }
+}
+
 /// The light and the refresh packages and their one identity.
 #[derive(Clone, Debug)]
 pub struct BoundedDepthPackages {
     light: StepPackage,
     refresh: StepPackage,
     identity: [u64; 4],
+}
+
+/// Both step packages expanded, and their one identity.
+pub struct ExpandedPackages {
+    pub light: ExpandedPackage,
+    pub refresh: ExpandedPackage,
+    pub identity: [u64; 4],
 }
 
 impl BoundedDepthPackages {
@@ -354,6 +432,16 @@ impl BoundedDepthPackages {
 
     pub fn identity(&self) -> [u64; 4] {
         self.identity
+    }
+
+    /// Both packages expanded (`StepPackage::expand`).
+    pub fn expand(self) -> Result<ExpandedPackages, PackageError> {
+        let (light, refresh) = rayon::join(|| self.light.expand(), || self.refresh.expand());
+        Ok(ExpandedPackages {
+            light: light?,
+            refresh: refresh?,
+            identity: self.identity,
+        })
     }
 }
 

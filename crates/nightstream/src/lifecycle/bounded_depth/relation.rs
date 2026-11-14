@@ -6,6 +6,7 @@
 use rayon::prelude::*;
 use std::ops::Range;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use crate::engine::{Backend, CommitError, DeviceError, EngineError};
 use crate::folding::{
@@ -21,9 +22,7 @@ use neo_reductions::superneo_eval::{
     RetainedMatrixWindow,
 };
 use neo_reductions::PiCcsError;
-use nightstream_fprime::{
-    LogicalLayout, PackageError, PlanRows, SlotSpans, StepPackage, StepWords, PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS,
-};
+use nightstream_fprime::{ExpandedPackage, PackageError, SlotSpans, StepWords, PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS};
 use p3_field::PrimeCharacteristicRing;
 
 const MATRICES: usize = 4;
@@ -53,22 +52,93 @@ pub(crate) enum Holds {
     Engine(EngineError),
 }
 
-pub(crate) struct Relation {
-    rows: PlanRows,
-    layout: LogicalLayout,
+/// One step circuit as a compiled circuit holds it: the expanded package,
+/// its slot spans, the fold workspace and the retained matrix window. A
+/// compiled circuit builds it once, and each of its provers and verifiers
+/// shares it.
+pub(crate) struct CompiledStep {
+    expanded: ExpandedPackage,
     spans: SlotSpans,
-    structure: Structure,
-    params: Params,
     workspace_bytes: usize,
     /// The compact matrices of every row, kept after their first complete
     /// load: each fold, opening and row check reads them again.
     window: RetainedMatrixWindow,
 }
 
+impl CompiledStep {
+    pub(crate) fn new(expanded: ExpandedPackage) -> Result<Self, RelationError> {
+        let mut step = Self {
+            spans: expanded.layout().spans(),
+            expanded,
+            workspace_bytes: 0,
+            window: RetainedMatrixWindow::default(),
+        };
+        let payload = 2 * MATRICES * size_of::<K>() + size_of::<F>() + size_of::<K>();
+        step.workspace_bytes =
+            MatrixWindow::required_workspace(&step, 0..step.expanded.rows().row_count(), payload)? * 2;
+        Ok(step)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn expanded(&self) -> &ExpandedPackage {
+        &self.expanded
+    }
+
+    fn blocks(&self) -> usize {
+        self.expanded.layout().width().div_ceil(D)
+    }
+
+    fn factored_rows(&self) -> Result<FactoredRows<'_>, PiCcsError> {
+        let rows = self.expanded.rows();
+        FactoredRows::new(
+            MatrixRows::shape(self),
+            FactoredEntries {
+                offsets: rows.offsets(),
+                slots: rows.columns(),
+                coefficients: rows.coefficients(),
+            },
+            FactoredSlots {
+                starts: &self.spans.starts,
+                widths: &self.spans.widths,
+                ratio: self.spans.ratio,
+            },
+        )
+    }
+}
+
+impl MatrixRows for CompiledStep {
+    fn shape(&self) -> MatrixShape {
+        MatrixShape {
+            rows: self.expanded.rows().row_count(),
+            columns: self.blocks() * D,
+            matrices: MATRICES,
+        }
+    }
+
+    fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
+        self.factored_rows()?.visit_rows(rows, sink)
+    }
+
+    fn factored(&self) -> Result<Option<FactoredRows<'_>>, PiCcsError> {
+        self.factored_rows().map(Some)
+    }
+
+    fn retained_window(&self) -> Option<&RetainedMatrixWindow> {
+        Some(&self.window)
+    }
+}
+
+/// A step circuit's relation at one security minimum: its compiled step,
+/// the CCS structure and the parameters that its shape allows.
+pub(crate) struct Relation {
+    step: Arc<CompiledStep>,
+    structure: Structure,
+    params: Params,
+}
+
 impl Relation {
-    pub(crate) fn new(package: &StepPackage, minimum_security_bits: u32) -> Result<Self, RelationError> {
-        let rows = package.plan_rows()?;
-        let layout = package.layout()?;
+    pub(crate) fn new(step: &Arc<CompiledStep>, minimum_security_bits: u32) -> Result<Self, RelationError> {
+        let (rows, layout) = (step.expanded.rows(), step.expanded.layout());
         let gate = SparsePoly::new(
             MATRICES,
             vec![
@@ -95,19 +165,16 @@ impl Relation {
             structure.max_degree(),
             minimum_security_bits,
         )?;
-        let mut relation = Self {
-            spans: layout.spans(),
-            rows,
-            layout,
+        Ok(Self {
+            step: Arc::clone(step),
             structure,
             params,
-            workspace_bytes: 0,
-            window: RetainedMatrixWindow::default(),
-        };
-        let payload = 2 * MATRICES * size_of::<K>() + size_of::<F>() + size_of::<K>();
-        relation.workspace_bytes =
-            MatrixWindow::required_workspace(&relation, 0..relation.rows.row_count(), payload)? * 2;
-        Ok(relation)
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn step(&self) -> &Arc<CompiledStep> {
+        &self.step
     }
 
     pub(crate) fn context(&self) -> FoldContext<'_> {
@@ -115,7 +182,7 @@ impl Relation {
             params: &self.params,
             structure: &self.structure,
             rows: self,
-            workspace_bytes: self.workspace_bytes,
+            workspace_bytes: self.step.workspace_bytes,
         }
     }
 
@@ -125,9 +192,10 @@ impl Relation {
     /// one mask of the 1 lanes and one of the -1 lanes for each block (Lean
     /// `FreshInstance.Masks`, `FreshInstance.built`).
     pub(crate) fn instance(&self, backend: &Backend, logical: &[F]) -> Result<CcsInstance, RelationError> {
-        if logical.len() != self.layout.width() {
+        let width = self.step.expanded.layout().width();
+        if logical.len() != width {
             return Err(RelationError::Width {
-                expected: self.layout.width(),
+                expected: width,
                 got: logical.len(),
             });
         }
@@ -171,28 +239,22 @@ impl Relation {
     /// The logical assignment of a step: the package's witness program fills
     /// the circuit's columns from the step words, the relation's fresh
     /// columns follow, and the slot layout lowers them to digits.
-    pub(crate) fn assignment(
-        &self,
-        package: &StepPackage,
-        words: &StepWords,
-        locals: Option<&[F]>,
-    ) -> Result<Vec<F>, RelationError> {
-        let columns = package.circuit_columns_with(&words.columns()?, locals)?;
-        let columns = package.relation_columns(columns, &self.rows)?;
-        Ok(self.layout.assignment(&columns)?)
+    pub(crate) fn assignment(&self, words: &StepWords, locals: Option<&[F]>) -> Result<Vec<F>, RelationError> {
+        let expanded = &self.step.expanded;
+        let columns = expanded.circuit_columns_with(&words.columns()?, locals)?;
+        let columns = expanded.relation_columns(columns)?;
+        Ok(expanded.layout().assignment(&columns)?)
     }
 
     /// The first row of the relation that a step's columns fail; the
     /// application's rows come first.
     #[cfg(test)]
-    pub(crate) fn first_failing_row(
-        &self,
-        package: &StepPackage,
-        words: &StepWords,
-    ) -> Result<Option<usize>, RelationError> {
-        let columns = package.circuit_columns(&words.columns()?)?;
-        let columns = package.relation_columns(columns, &self.rows)?;
-        Ok((0..self.rows.row_count()).find(|&row| self.rows.residual(row, &columns) != F::ZERO))
+    pub(crate) fn first_failing_row(&self, words: &StepWords) -> Result<Option<usize>, RelationError> {
+        let expanded = &self.step.expanded;
+        let columns = expanded.circuit_columns_with(&words.columns()?, None)?;
+        let columns = expanded.relation_columns(columns)?;
+        let rows = expanded.rows();
+        Ok((0..rows.row_count()).find(|&row| rows.residual(row, &columns) != F::ZERO))
     }
 
     /// The shape that a slot's claim and the state words need: the selected
@@ -238,7 +300,7 @@ impl Relation {
                 .map(|column| z[(column % D, column / D)])
                 .collect(),
         };
-        let width = self.layout.width();
+        let width = self.step.expanded.layout().width();
         if logical[width..].iter().any(|value| *value != F::ZERO) {
             return Err(Holds::Fails("nonzero witness tail"));
         }
@@ -253,7 +315,7 @@ impl Relation {
         if commitment != claim.c {
             return Err(Holds::Fails("fixed-key commitment differs from the witness"));
         }
-        if let Some(first) = backend.first_failing_row(self, self.workspace_bytes, &self.structure, z) {
+        if let Some(first) = backend.first_failing_row(self, self.step.workspace_bytes, &self.structure, z) {
             return match first {
                 Ok(None) => Ok(()),
                 Ok(Some(_)) => Err(Holds::Fails("a relation row fails")),
@@ -266,8 +328,9 @@ impl Relation {
 
     /// Every row of the relation holds on the logical assignment `logical`.
     pub(crate) fn rows_hold(&self, logical: &[F]) -> Result<(), &'static str> {
+        let (rows, layout) = (self.step.expanded.rows(), self.step.expanded.layout());
         let holds = |row: usize| {
-            let [a, b, c, s] = [0, 1, 2, 3].map(|port| self.layout.evaluate(&self.rows, row, port, logical));
+            let [a, b, c, s] = [0, 1, 2, 3].map(|port| layout.evaluate(rows, row, port, logical));
             let (Ok(a), Ok(b), Ok(c), Ok(s)) = (a, b, c, s) else {
                 return Err("row evaluation");
             };
@@ -276,7 +339,7 @@ impl Relation {
             }
             Ok(())
         };
-        let count = self.rows.row_count();
+        let count = rows.row_count();
         let next = AtomicUsize::new(0);
         // The cost of a row varies a lot along the rows, so each worker takes
         // the next small range until none is left.
@@ -307,7 +370,7 @@ impl Relation {
     }
 
     pub(crate) fn blocks(&self) -> usize {
-        self.layout.width().div_ceil(D)
+        self.step.blocks()
     }
 
     pub(crate) fn params(&self) -> &Params {
@@ -321,40 +384,18 @@ impl Relation {
 
 impl MatrixRows for Relation {
     fn shape(&self) -> MatrixShape {
-        MatrixShape {
-            rows: self.rows.row_count(),
-            columns: self.blocks() * D,
-            matrices: MATRICES,
-        }
+        self.step.shape()
     }
 
     fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
-        self.factored_rows()?.visit_rows(rows, sink)
+        self.step.visit_rows(rows, sink)
     }
 
     fn factored(&self) -> Result<Option<FactoredRows<'_>>, PiCcsError> {
-        self.factored_rows().map(Some)
+        self.step.factored()
     }
 
     fn retained_window(&self) -> Option<&RetainedMatrixWindow> {
-        Some(&self.window)
-    }
-}
-
-impl Relation {
-    fn factored_rows(&self) -> Result<FactoredRows<'_>, PiCcsError> {
-        FactoredRows::new(
-            MatrixRows::shape(self),
-            FactoredEntries {
-                offsets: self.rows.offsets(),
-                slots: self.rows.columns(),
-                coefficients: self.rows.coefficients(),
-            },
-            FactoredSlots {
-                starts: &self.spans.starts,
-                widths: &self.spans.widths,
-                ratio: self.spans.ratio,
-            },
-        )
+        self.step.retained_window()
     }
 }

@@ -16,7 +16,7 @@ mod packed_boolean;
 mod packed_product;
 mod setup_runs;
 
-use super::{BoundedDepth, BoundedDepthError, Envelope, LIGHT_FOLD_CAP};
+use super::{BoundedDepth, BoundedDepthError, CompiledSteps, Envelope, LIGHT_FOLD_CAP};
 use crate::application::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder, ApplicationCircuit};
 use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
 use neo_ajtai::Commitment;
@@ -27,8 +27,12 @@ use support::{hash_chain_step, packages, words};
 
 const MINIMUM_SECURITY_BITS: u32 = 109;
 
+fn compiled() -> CompiledSteps {
+    CompiledSteps::new(packages()).expect("compiled steps")
+}
+
 fn prover(cap: u64) -> BoundedDepth {
-    let mut prover = BoundedDepth::new(packages(), MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized)
+    let mut prover = BoundedDepth::new(&compiled(), MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized)
         .expect("bounded-depth prover");
     prover.cap = cap;
     prover
@@ -188,8 +192,12 @@ fn native_application_verifies(application: ApplicationCircuit) {
             application.shape(),
         )
         .expect("packages with the application");
-    let mut prover = BoundedDepth::new(packages, MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized)
-        .expect("bounded-depth prover");
+    let mut prover = BoundedDepth::new(
+        &CompiledSteps::new(packages).unwrap(),
+        MINIMUM_SECURITY_BITS,
+        crate::engine::Backend::Optimized,
+    )
+    .expect("bounded-depth prover");
     prover.cap = 1;
     let z0 = words([10, 11, 12, 13]);
     let mut envelope = prover.initial(z0).expect("initial proof");
@@ -254,12 +262,13 @@ fn native_hash_chain_packages_are_lean_packages() {
     let native = lean
         .with_application(application.records().clone(), 4, application.shape())
         .expect("packages with the application");
-    for (lean, native) in [(lean.light(), native.light()), (lean.refresh(), native.refresh())] {
+    let (lean, native) = (lean.expand().expect("expanded"), native.expand().expect("expanded"));
+    for (lean, native) in [(&lean.light, &native.light), (&lean.refresh, &native.refresh)] {
+        let (lean_rows, native_rows) = (lean.rows(), native.rows());
+        let (lean_layout, native_layout) = (lean.layout(), native.layout());
         assert_eq!(native.block_count(), lean.block_count());
-        let (lean_rows, native_rows) = (lean.plan_rows().expect("rows"), native.plan_rows().expect("rows"));
         assert_eq!(native_rows.row_count(), lean_rows.row_count());
-        assert_eq!(plan_sum(&native_rows), plan_sum(&lean_rows));
-        let (lean_layout, native_layout) = (lean.layout().expect("layout"), native.layout().expect("layout"));
+        assert_eq!(plan_sum(native_rows), plan_sum(lean_rows));
         assert_eq!(native_layout.width(), lean_layout.width());
         let end = lean.sbox_start() + 150 * lean.block_count();
         assert!((0..end).all(|column| native_layout.slot(column) == lean_layout.slot(column)));
@@ -348,7 +357,7 @@ fn final_proof_verifies() {
     // Keys for a minimum below the production one have fewer layer bits, so
     // a production verifier must refuse them (the end of this test).
     let mut prover =
-        BoundedDepth::new(packages(), 105, crate::engine::Backend::Optimized).expect("bounded-depth prover");
+        BoundedDepth::new(&compiled(), 105, crate::engine::Backend::Optimized).expect("bounded-depth prover");
     prover.cap = 2;
     let finish = Finish::new(
         nightstream_fprime::load_bounded_depth_finish(

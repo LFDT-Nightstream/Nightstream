@@ -386,7 +386,13 @@ impl<'a> Sym<'a> {
                 .filter(|(k, _)| geometry.mu <= *k)
                 .map(|(_, bit)| is_ram.clone() * bit),
         );
-        rows.extend(self.op_lane(j).into_iter().skip(1).map(|x| pad.clone() * x));
+        let padding_sum = self
+            .op_lane(j)
+            .into_iter()
+            .skip(1)
+            .rev()
+            .fold(c(0), |sum, bit| bit + sum);
+        rows.push(pad.clone() * padding_sum);
         for (pair, stamp, value) in [(0, chunk(self.rt_bits(j)), vr), (1, self.wt(j), vw)] {
             rows.extend(self.gated_rows(
                 |k| self.word(self.layout.ops_factor(j, pair, k)),
@@ -541,3 +547,7 @@ impl<'a> View<'a> {
         chunk(self.slot_bits(j, Layout::op_vw, 32))
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/nebula/padding_zero.rs"]
+mod padding_zero_tests;

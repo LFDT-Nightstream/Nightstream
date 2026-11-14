@@ -136,7 +136,7 @@
   {"lean": "CompressionLean.BoundedDepth.finishRows", "rust": "crates/nightstream/src/lifecycle/bounded_depth/final_program.rs::Finish::new", "hash": "0af59e8d092b4d39"},
   {"lean": "CompressionLean.BoundedDepth.finishRows", "rust": "crates/nightstream/src/lifecycle/bounded_depth/final_program.rs::side", "hash": "ad72968771afb733"},
   {"lean": "CompressionLean.BoundedDepth.finishRows", "rust": "crates/nightstream-fprime/src/bounded_depth/expand.rs::StepPackage::source_rows", "hash": "375705085d47dc09"},
-  {"lean": "CompressionLean.BoundedDepth.finishRows", "rust": "crates/nightstream-fprime/src/bounded_depth/expand.rs::StepPackage::rows", "hash": "3787764680400ed1"},
+  {"lean": "CompressionLean.BoundedDepth.finishRows", "rust": "crates/nightstream-fprime/src/bounded_depth/expand.rs::StepPackage::rows", "hash": "a8d2ae1aa4d66df4"},
   {"lean": "CompressionLean.BoundedDepth.finishRows", "rust": "crates/nightstream-fprime/src/bounded_depth/expand.rs::Builder::push_linear", "hash": "a2f85f80dd66500e"},
   {"lean": "CompressionLean.BoundedDepth.finishRows", "rust": "crates/nightstream-fprime/src/bounded_depth/expand.rs::Builder::push_ring", "hash": "08b168ddac18f200"},
   {"lean": "CompressionLean.BoundedDepth.iterationWord", "rust": "crates/nightstream/src/lifecycle/bounded_depth/final_program.rs::ITERATION", "hash": "049b7f586d04b286"},

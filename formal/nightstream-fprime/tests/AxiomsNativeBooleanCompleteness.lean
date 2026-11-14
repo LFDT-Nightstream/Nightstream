@@ -1,0 +1,6 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Export.BoundedDepth.NativeBooleanCompleteness
+
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.NativeBooleanCompleteness.sourceEnv_honest_absent
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.NativeBooleanCompleteness.sourceEnv_honest_eq_of_sources
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.NativeBooleanCompleteness.inferred_native_complete

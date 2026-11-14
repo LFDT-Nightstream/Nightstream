@@ -162,6 +162,8 @@ fn core_export_input_local_bootstraps_parameter() -> Result<(), Box<dyn std::err
     common::sanity_check_trace_with_bindings(&trace, run.artifacts(), &bindings);
 
     common::ccs_check_trace(&trace);
+    common::shared_host::check(&trace);
+    common::shared_host::prove(&trace, run.artifacts());
 
     // The suffix scalar straddles blocks; the third root forces zero padding.
     let first_root = opaque_value_root(schema, &[37])?;

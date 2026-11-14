@@ -15,7 +15,12 @@ path = "src/bin/poseidon2_bench.rs"
 test = false
 bench = false
 
+[features]
+default = []
+metal = ["dep:neo-prover-metal", "neo-prover-metal/metal"]
+
 [dependencies]
+neo-prover-metal = { path = "../neo-prover-metal", default-features = false, optional = true }
 nightstream-fprime = { path = "../nightstream-fprime" }
 neo-math = { path = "../neo-math" }
 neo-params = { path = "../neo-params" }
@@ -27,6 +32,7 @@ neo-reductions = { path = "../neo-reductions" }
 neo-spartan = { path = "../neo-spartan" }
 p3-field = { workspace = true }
 p3-goldilocks = { workspace = true }
+rayon = { workspace = true }
 bincode = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

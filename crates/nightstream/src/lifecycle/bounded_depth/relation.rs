@@ -3,18 +3,22 @@
 //! factored form (each entry reads one slot, `SlotLayout.layout`), the gate
 //! `A · B − C + S^7` (`GatePolynomial.terms`) over the 28-variable cube, and
 //! the parameters that its shape allows.
+use rayon::prelude::*;
 use std::ops::Range;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
+use crate::engine::{Backend, CommitError, DeviceError, EngineError};
 use crate::folding::{
     has_canonical_evaluations, superneo_has_canonical_x_shape, CcsClaim, CcsInstance, CcsWitness, CeClaim, FoldContext,
     Params, Structure,
 };
-use neo_ajtai::nightstream_fprime_setup::{commit_production_signed_unit_prefix_matrix, PRODUCTION_VERIFIER_ROWS};
+use neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS;
 use neo_ccs::poly::{SparsePoly, Term};
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
 use neo_reductions::superneo_eval::{
     FactoredEntries, FactoredRows, FactoredSlots, MatrixRowSink, MatrixRows, MatrixShape, MatrixWindow,
+    RetainedMatrixWindow,
 };
 use neo_reductions::PiCcsError;
 use nightstream_fprime::{
@@ -23,6 +27,7 @@ use nightstream_fprime::{
 use p3_field::PrimeCharacteristicRing;
 
 const MATRICES: usize = 4;
+const ROWS_PER_RANGE: usize = 1024;
 
 #[derive(Debug, thiserror::Error)]
 pub enum RelationError {
@@ -33,11 +38,19 @@ pub enum RelationError {
     #[error("bounded-depth relation rows: {0}")]
     Rows(#[from] PiCcsError),
     #[error(transparent)]
-    Commitment(#[from] neo_ajtai::AjtaiError),
+    Commitment(#[from] CommitError),
     #[error("bounded-depth relation header: {0}")]
     Header(#[from] neo_ccs::RelationError),
     #[error("bounded-depth logical assignment has {got} columns, expected {expected}")]
     Width { expected: usize, got: usize },
+}
+
+/// Why `Relation::holds` did not accept an instance: a check failed, or the
+/// engine failed and judged nothing.
+#[derive(Debug)]
+pub(crate) enum Holds {
+    Fails(&'static str),
+    Engine(EngineError),
 }
 
 pub(crate) struct Relation {
@@ -47,6 +60,9 @@ pub(crate) struct Relation {
     structure: Structure,
     params: Params,
     workspace_bytes: usize,
+    /// The compact matrices of every row, kept after their first complete
+    /// load: each fold, opening and row check reads them again.
+    window: RetainedMatrixWindow,
 }
 
 impl Relation {
@@ -86,6 +102,7 @@ impl Relation {
             structure,
             params,
             workspace_bytes: 0,
+            window: RetainedMatrixWindow::default(),
         };
         let payload = 2 * MATRICES * size_of::<K>() + size_of::<F>() + size_of::<K>();
         relation.workspace_bytes =
@@ -107,30 +124,39 @@ impl Relation {
     /// key. The key commits entries in {-1, 0, 1} only, so the matrix holds
     /// one mask of the 1 lanes and one of the -1 lanes for each block (Lean
     /// `FreshInstance.Masks`, `FreshInstance.built`).
-    pub(crate) fn instance(&self, logical: &[F]) -> Result<CcsInstance, RelationError> {
+    pub(crate) fn instance(&self, backend: &Backend, logical: &[F]) -> Result<CcsInstance, RelationError> {
         if logical.len() != self.layout.width() {
             return Err(RelationError::Width {
                 expected: self.layout.width(),
                 got: logical.len(),
             });
         }
-        let (mut positive, mut negative) = (vec![0u64; self.blocks()], vec![0u64; self.blocks()]);
-        for (column, &value) in logical.iter().enumerate() {
-            if value == F::ONE {
-                positive[column / D] |= 1 << (column % D);
-            } else if value == -F::ONE {
-                negative[column / D] |= 1 << (column % D);
-            } else if value != F::ZERO {
-                return Err(neo_ajtai::AjtaiError::RangeViolation {
-                    value: neo_math::balanced::to_balanced_i128(value),
-                    bound: 2,
+        let masks = |block: &[F]| {
+            let (mut positive, mut negative) = (0u64, 0u64);
+            for (lane, &value) in block.iter().enumerate() {
+                if value == F::ONE {
+                    positive |= 1 << lane;
+                } else if value == -F::ONE {
+                    negative |= 1 << lane;
+                } else if value != F::ZERO {
+                    let error = neo_ajtai::AjtaiError::RangeViolation {
+                        value: neo_math::balanced::to_balanced_i128(value),
+                        bound: 2,
+                    };
+                    return Err(CommitError::Input(error.to_string()));
                 }
-                .into());
             }
-        }
+            Ok((positive, negative))
+        };
+        let (positive, negative): (Vec<u64>, Vec<u64>) = logical
+            .par_chunks(D)
+            .map(masks)
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .unzip();
         let witness = Mat::compact_signed_unit_from_column_masks(D, self.blocks(), &positive, &negative)
             .expect("one disjoint mask pair of D lanes for each block");
-        let commitment = commit_production_signed_unit_prefix_matrix(&witness)?;
+        let commitment = backend.commit(&[&witness])?.remove(0);
         Ok(CcsInstance {
             claim: CcsClaim {
                 c: commitment,
@@ -145,8 +171,13 @@ impl Relation {
     /// The logical assignment of a step: the package's witness program fills
     /// the circuit's columns from the step words, the relation's fresh
     /// columns follow, and the slot layout lowers them to digits.
-    pub(crate) fn assignment(&self, package: &StepPackage, words: &StepWords) -> Result<Vec<F>, RelationError> {
-        let columns = package.circuit_columns(&words.columns()?)?;
+    pub(crate) fn assignment(
+        &self,
+        package: &StepPackage,
+        words: &StepWords,
+        locals: Option<&[F]>,
+    ) -> Result<Vec<F>, RelationError> {
+        let columns = package.circuit_columns_with(&words.columns()?, locals)?;
         let columns = package.relation_columns(columns, &self.rows)?;
         Ok(self.layout.assignment(&columns)?)
     }
@@ -186,14 +217,14 @@ impl Relation {
     /// assignment with a zero tail, its public prefix is `x`, the production
     /// key commits it to `c` (so every entry is in {-1, 0, 1}), and every row
     /// of the relation holds on it.
-    pub(crate) fn holds(&self, instance: &CcsInstance) -> Result<(), &'static str> {
+    pub(crate) fn holds(&self, backend: &Backend, instance: &CcsInstance) -> Result<(), Holds> {
         let CcsInstance { claim, witness } = instance;
         let z = &witness.Z;
         if claim.adv.is_some() || claim.m_in != PUBLIC_WORDS || claim.x.len() != PUBLIC_WORDS {
-            return Err("claim shape");
+            return Err(Holds::Fails("claim shape"));
         }
         if z.rows() != D || z.cols() != self.blocks() {
-            return Err("witness shape");
+            return Err(Holds::Fails("witness shape"));
         }
         let logical: Vec<F> = match z.packed_signed_unit_column_masks() {
             Some((positive, negative)) => positive
@@ -209,42 +240,69 @@ impl Relation {
         };
         let width = self.layout.width();
         if logical[width..].iter().any(|value| *value != F::ZERO) {
-            return Err("nonzero witness tail");
+            return Err(Holds::Fails("nonzero witness tail"));
         }
         if logical[..PUBLIC_WORDS] != claim.x[..] {
-            return Err("witness public projection differs from x");
+            return Err(Holds::Fails("witness public projection differs from x"));
         }
-        if commit_production_signed_unit_prefix_matrix(z).map_err(|_| "witness outside {-1, 0, 1}")? != claim.c {
-            return Err("fixed-key commitment differs from the witness");
+        let commitment = match backend.commit(&[z]) {
+            Ok(mut commitments) => commitments.remove(0),
+            Err(CommitError::Input(_)) => return Err(Holds::Fails("witness outside {-1, 0, 1}")),
+            Err(CommitError::Engine(error)) => return Err(Holds::Engine(error)),
+        };
+        if commitment != claim.c {
+            return Err(Holds::Fails("fixed-key commitment differs from the witness"));
         }
-        self.rows_hold(&logical[..width])
+        if let Some(first) = backend.first_failing_row(self, self.workspace_bytes, &self.structure, z) {
+            return match first {
+                Ok(None) => Ok(()),
+                Ok(Some(_)) => Err(Holds::Fails("a relation row fails")),
+                Err(DeviceError::Engine(error)) => Err(Holds::Engine(error)),
+                Err(DeviceError::Rejected(_)) => Err(Holds::Fails("row evaluation")),
+            };
+        }
+        self.rows_hold(&logical[..width]).map_err(Holds::Fails)
     }
 
     /// Every row of the relation holds on the logical assignment `logical`.
     pub(crate) fn rows_hold(&self, logical: &[F]) -> Result<(), &'static str> {
-        let check = |rows: Range<usize>| {
-            for row in rows {
-                let [a, b, c, s] = [0, 1, 2, 3].map(|port| self.layout.evaluate(&self.rows, row, port, logical));
-                let (Ok(a), Ok(b), Ok(c), Ok(s)) = (a, b, c, s) else {
-                    return Err("row evaluation");
-                };
-                if a * b - c + s.exp_u64(7) != F::ZERO {
-                    return Err("a relation row fails");
-                }
+        let holds = |row: usize| {
+            let [a, b, c, s] = [0, 1, 2, 3].map(|port| self.layout.evaluate(&self.rows, row, port, logical));
+            let (Ok(a), Ok(b), Ok(c), Ok(s)) = (a, b, c, s) else {
+                return Err("row evaluation");
+            };
+            if a * b - c + s.exp_u64(7) != F::ZERO {
+                return Err("a relation row fails");
             }
             Ok(())
         };
         let count = self.rows.row_count();
+        let next = AtomicUsize::new(0);
+        // The cost of a row varies a lot along the rows, so each worker takes
+        // the next small range until none is left.
+        let first_failure = || loop {
+            let start = next.fetch_add(ROWS_PER_RANGE, Ordering::Relaxed);
+            if start >= count {
+                return None;
+            }
+            for row in start..(start + ROWS_PER_RANGE).min(count) {
+                if let Err(error) = holds(row) {
+                    return Some((row, error));
+                }
+            }
+        };
         let threads = std::thread::available_parallelism().map_or(1, usize::from);
-        let chunk = count.div_ceil(threads).max(1);
         std::thread::scope(|scope| {
-            let workers: Vec<_> = (0..count)
-                .step_by(chunk)
-                .map(|start| scope.spawn(move || check(start..(start + chunk).min(count))))
-                .collect();
-            workers
+            let workers: Vec<_> = (0..threads).map(|_| scope.spawn(first_failure)).collect();
+            let failures = workers
                 .into_iter()
-                .try_for_each(|worker| worker.join().unwrap_or(Err("row worker panicked")))
+                .map(|worker| worker.join().map_err(|_| "row worker panicked"))
+                .collect::<Result<Vec<_>, _>>()?;
+            failures
+                .into_iter()
+                .flatten()
+                .min_by_key(|&(row, _)| row)
+                .map_or(Ok(()), |(_, error)| Err(error))
         })
     }
 
@@ -276,6 +334,10 @@ impl MatrixRows for Relation {
 
     fn factored(&self) -> Result<Option<FactoredRows<'_>>, PiCcsError> {
         self.factored_rows().map(Some)
+    }
+
+    fn retained_window(&self) -> Option<&RetainedMatrixWindow> {
+        Some(&self.window)
     }
 }
 

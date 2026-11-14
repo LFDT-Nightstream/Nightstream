@@ -131,13 +131,17 @@ pub(super) const fn host_call_params_col() -> usize {
 
 /// The block absorb: the first seven words are already in the buffer, and the
 /// row stages the eighth.
-fn absorb_commitment() -> EventCommitment {
+pub(crate) fn absorb_commitment() -> EventCommitment {
     EventCommitment {
         previous: ABSORB_PREVIOUS,
         block: core::array::from_fn(|word| if word < 7 { COL_EVBUF_BEFORE[word] } else { GSLOT_VALUE }),
         output: ABSORB_OUTPUT,
         auxiliary_start: ABSORB_PERMUTATION[0],
     }
+}
+
+pub(crate) fn absorb_flag_column() -> usize {
+    ABSORB
 }
 
 pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {

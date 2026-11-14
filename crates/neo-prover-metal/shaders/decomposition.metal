@@ -131,6 +131,101 @@ kernel void dec_sparse_ring_partials(
     partials[index] = gl_sub(gl_reduce_sum(positive_lo, positive_hi), gl_reduce_sum(negative_lo, negative_hi));
 }
 
+// A 64-bit word that is congruent to the sum of two 64-bit words.
+inline ulong word_add(ulong lhs, ulong rhs) {
+    ulong sum = lhs + rhs;
+    ulong folded = sum + (sum < lhs ? GOLDILOCKS_EPSILON : 0);
+    return folded + (folded < sum ? GOLDILOCKS_EPSILON : 0);
+}
+
+// Lane `j` of output element `e` is a word congruent to the sum of lanes `j`
+// and `j + 27` of input element `e`: the middle operand of a Karatsuba split.
+kernel void dec_ring_half_sums(
+    device const ulong *elements [[buffer(0)]],
+    device ulong *sums [[buffer(1)]],
+    uint index [[thread_position_in_grid]]) {
+    const ulong split = RING_DEGREE / 2;
+    device const ulong *lane = elements + (index / split) * RING_DEGREE + index % split;
+    sums[index] = word_add(lane[0], lane[split]);
+}
+
+// `dec_sparse_ring_partials` over running sources without norm terms, whose
+// field values are stored source by source, block by block and lane by lane.
+// Source `s` writes the partials of opening `shape[8] + s`. One threadgroup
+// makes the product of one source, chunk and component with one Karatsuba
+// split at lane 27: thread `53 * part + lane` adds one coefficient of the
+// low, high or middle 27 by 27 product, and then the group joins them. The
+// middle operands come from `dec_ring_half_sums`.
+[[max_total_threads_per_threadgroup(160)]]
+kernel void dec_dense_ring_partials(
+    device const ulong *forms [[buffer(0)]],
+    device const ulong *values [[buffer(1)]],
+    device const ulong *shape [[buffer(2)]],
+    device ulong *partials [[buffer(3)]],
+    device const uint *sources [[buffer(4)]],
+    device const uint *active_blocks [[buffer(5)]],
+    device const uint *active_chunk_bases [[buffer(6)]],
+    device const uint *active_chunk_matrices [[buffer(7)]],
+    device const uint *matrix_active_offsets [[buffer(8)]],
+    device const ulong *form_sums [[buffer(9)]],
+    device const ulong *value_sums [[buffer(10)]],
+    threadgroup ulong *products [[threadgroup(0)]],
+    uint group [[threadgroup_position_in_grid]],
+    uint slot [[thread_index_in_threadgroup]]) {
+    const ulong split = RING_DEGREE / 2;
+    const ulong lanes_per_product = 2 * split - 1;
+    ulong blocks = shape[3];
+    ulong chunk_count = shape[4];
+    ulong component = group % 2;
+    ulong chunk = (group / 2) % chunk_count;
+    ulong dense = (group / 2) / chunk_count;
+    ulong matrix = active_chunk_matrices[chunk];
+    if (2 * matrix + component >= shape[2]) {
+        return;
+    }
+    ulong part = slot / lanes_per_product;
+    if (part < 3) {
+        ulong source = sources[dense];
+        ulong start = active_chunk_bases[chunk];
+        ulong end = min(start + DEC_CHUNK_COLUMNS, (ulong)matrix_active_offsets[matrix + 1]);
+        ulong lane = slot % lanes_per_product;
+        ulong term_start = lane >= split ? lane - (split - 1) : 0;
+        ulong term_end = lane < split ? lane : split - 1;
+        ulong stride = part == 2 ? split : RING_DEGREE;
+        ulong shift = part == 1 ? split : 0;
+        device const ulong *form_lanes = (part == 2 ? form_sums : forms) + shift + lane;
+        device const ulong *value_lanes = (part == 2 ? value_sums : values) + shift;
+        WideSum sum = WideSum{0, 0, 0};
+        for (ulong active = start; active < end; ++active) {
+            ulong block = (ulong)active_blocks[active] % blocks;
+            device const ulong *value = value_lanes + (source * blocks + block) * stride;
+            device const ulong *form = form_lanes + ((active - shape[7]) * 2 + component) * stride;
+            for (ulong term = term_start; term <= term_end; ++term) {
+                wide_sum_add(sum, *(form - term), value[term]);
+            }
+        }
+        products[slot] = wide_sum_reduce(sum);
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    if (slot >= RING_PRODUCT_COEFFICIENTS) {
+        return;
+    }
+    threadgroup ulong *low = products;
+    threadgroup ulong *high = products + lanes_per_product;
+    threadgroup ulong *middle = high + lanes_per_product;
+    ulong sum = slot < lanes_per_product ? gl_from_word(low[slot]) : 0;
+    if (slot >= split && slot < split + lanes_per_product) {
+        ulong lane = slot - split;
+        ulong outer = gl_add(gl_from_word(low[lane]), gl_from_word(high[lane]));
+        sum = gl_add(sum, gl_sub(gl_from_word(middle[lane]), outer));
+    }
+    if (slot >= RING_DEGREE) {
+        sum = gl_add(sum, gl_from_word(high[slot - RING_DEGREE]));
+    }
+    ulong partial = ((shape[8] + dense) * chunk_count + chunk) * 2 + component;
+    partials[partial * RING_PRODUCT_COEFFICIENTS + slot] = sum;
+}
+
 kernel void dec_sparse_ring_sum_chunks(
     device const ulong *partials [[buffer(0)]],
     device const ulong *shape [[buffer(1)]],

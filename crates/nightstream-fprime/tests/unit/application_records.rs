@@ -183,6 +183,106 @@ fn reused_recipe_evaluator_clears_pending_frames_after_lookup_error() {
 }
 
 #[test]
+fn walks_read_each_row_across_windows_in_any_order() {
+    let rows = (storage::WINDOW_BYTES / size_of::<u64>() as u64) as usize + 1;
+    let term = |form, variable, coefficient| {
+        Ok(ApplicationTerm {
+            form,
+            variable,
+            coefficient,
+        })
+    };
+    let mut writer = ApplicationRecordsWriter::new().unwrap();
+    for row in 0..rows {
+        writer
+            .append_row(
+                ApplicationRowHeader {
+                    constants: [row as u64 % 7, 1, 0],
+                    term_counts: [2, 1, 1],
+                },
+                [
+                    term(ApplicationForm::A, row, 2),
+                    term(ApplicationForm::A, row + 1, 3),
+                    term(ApplicationForm::B, 0, 1),
+                    term(ApplicationForm::C, row, 5),
+                ],
+            )
+            .unwrap();
+        writer
+            .append_recipe(row, [Ok(ApplicationRecipeNode::Variable(row))])
+            .unwrap();
+    }
+    let records = writer.finish().unwrap();
+    let sides = |row: usize| {
+        let row = row as u64;
+        [row % 7 + 2 * (row + 1) + 3 * (row + 2), 2, 5 * (row + 1)]
+    };
+    let value = |variable: usize| Ok::<_, PackageError>(variable as u64 + 1);
+    let mut walk = records.walk();
+    for recipe in 0..rows {
+        let row = walk.recipe_row(recipe).unwrap();
+        assert_eq!(row, recipe);
+        assert_eq!(walk.evaluate_row(row, value).unwrap(), sides(row));
+    }
+    let mut walk = records.walk();
+    let stride = rows / 64;
+    let backward = (0..rows).rev().step_by(stride);
+    for row in backward.chain((0..rows).step_by(stride)) {
+        assert_eq!(walk.recipe_row(row).unwrap(), row);
+        assert_eq!(walk.evaluate_row(row, value).unwrap(), sides(row));
+    }
+    assert!(walk.recipe_row(rows).is_err());
+    assert!(walk.evaluate_row(rows, value).is_err());
+}
+
+#[test]
+fn first_unsatisfied_row_and_first_error_follow_row_order() {
+    let rows = 50_000;
+    let mut writer = ApplicationRecordsWriter::new().unwrap();
+    for row in 0..rows {
+        let term = |form, variable| {
+            Ok(ApplicationTerm {
+                form,
+                variable,
+                coefficient: 1,
+            })
+        };
+        writer
+            .append_row(
+                ApplicationRowHeader {
+                    constants: [0, 1, 0],
+                    term_counts: [1, 0, 1],
+                },
+                [term(ApplicationForm::A, row), term(ApplicationForm::C, rows + row)],
+            )
+            .unwrap();
+    }
+    let records = writer.finish().unwrap();
+    let broken = [30_000, 40_000];
+    let value = |missing: usize| {
+        move |variable: usize| match variable.checked_sub(rows) {
+            _ if variable == missing => Err(PackageError::Input("missing variable")),
+            Some(row) if broken.contains(&row) => Ok(0),
+            Some(row) => Ok(row as u64),
+            None => Ok(variable as u64),
+        }
+    };
+    let none = usize::MAX;
+    assert_eq!(
+        records
+            .first_unsatisfied_row(|variable| Ok::<_, PackageError>((variable % rows) as u64))
+            .unwrap(),
+        None
+    );
+    assert_eq!(records.first_unsatisfied_row(value(none)).unwrap(), Some(30_000));
+    assert_eq!(records.first_unsatisfied_row(value(45_000)).unwrap(), Some(30_000));
+    assert!(matches!(
+        records.first_unsatisfied_row(value(rows + 20_000)),
+        Err(PackageError::Input("missing variable"))
+    ));
+}
+
+#[test]
 fn writer_buffers_do_not_grow_with_distinct_rows_or_terms() {
     let mut writer = ApplicationRecordsWriter::new().unwrap();
     let bytes = writer.buffer_bytes();

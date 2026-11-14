@@ -1,0 +1,12 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Export.Generic.AuxRelocation
+
+#audit_axioms NightstreamFPrime.Export.Generic.AuxRelocation.combinationExpr_eval
+#audit_axioms NightstreamFPrime.Export.Generic.AuxRelocation.rowExpr_zero
+#audit_axioms NightstreamFPrime.Export.Generic.AuxRelocation.matched_holds
+#audit_axioms NightstreamFPrime.Export.Generic.AuxRelocation.reconstruct
+#audit_axioms NightstreamFPrime.Export.Generic.AuxRelocation.extend_at
+#audit_axioms NightstreamFPrime.Export.Generic.AuxRelocation.honest_complete
+
+#audit_axioms NightstreamFPrime.Export.Generic.AuxRelocation.holds_permuted
+#audit_axioms NightstreamFPrime.Export.Generic.AuxRelocation.holds_equivalent

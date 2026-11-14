@@ -6,7 +6,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 
 use crate::application_records::{
@@ -158,13 +158,6 @@ fn block(first_local: usize, lane: usize) -> NativeBlock {
     }
 }
 
-/// Two blocks of the chain's locals replace their rows: the application's
-/// pieces are its four output rows, its three bit rows and the two blocks,
-/// a block's locals get no slot (a row reads the form of an output local),
-/// and each block gets 150 S-box columns. A witness word that a row forces
-/// to 0 or 1 gets one coordinate; a state word that a row forces keeps its
-/// field slot. A witness word that no row reads gets no slot. The identity
-/// binds the blocks.
 #[test]
 fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
     let packages = packages();
@@ -200,18 +193,36 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
         assert_eq!(kind(4), Some(Kind::Field));
         assert_eq!(kind(0), Some(Kind::Field));
         assert_eq!(kind(6), None);
+        assert_eq!(packed.packed_booleans.sources, vec![packed.variable_column(5).unwrap()]);
         for column in [packed.sbox_start(), packed.sbox_start() + 299] {
             assert_eq!(layout.slot(column).map(|(_, kind)| kind), Some(Kind::Field));
         }
-        // In the plain package, each local has a field slot, and the forced
-        // output local has a bit slot.
+        let plain_layout = plain.layout().expect("layout");
+        for (local, expected) in [
+            (FIRST_LOCAL + 1079, Kind::Bit),
+            (FIRST_LOCAL + 1080, Kind::Bit),
+            (FIRST_LOCAL + 2 * BLOCK - 1, Kind::Bit),
+        ] {
+            assert_eq!(
+                plain_layout
+                    .slot(plain.variable_column(local).unwrap())
+                    .unwrap()
+                    .1,
+                expected
+            );
+        }
+        for local in FIRST_LOCAL..FIRST_LOCAL + 1079 {
+            assert!(plain_layout
+                .slot(plain.variable_column(local).unwrap())
+                .is_none());
+        }
         assert_eq!(
-            layout.width() + 41 * (2 * BLOCK - 1) + 1,
-            plain.layout().expect("layout").width() + 41 * 2 * 150
+            layout.width() - packed.packed_booleans.sources.len() + (2 * BLOCK - 1079),
+            plain_layout.width() - plain.packed_booleans.sources.len() + 41 * 2 * 150
         );
         assert_eq!(
-            packed.plan_rows().expect("rows").row_count() + 2 * BLOCK,
-            plain.plan_rows().expect("rows").row_count() + 2 * 150
+            packed.source_rows().expect("rows").row_count() + 2 * BLOCK,
+            plain.source_rows().expect("rows").row_count() + 2 * 150
         );
     }
     let one_lane = NativeShape {
@@ -299,4 +310,148 @@ fn native_shape_outside_its_rules_is_refused() {
             "bounded-depth application row reads a dead local"
         ))
     ));
+}
+
+#[test]
+fn inferred_application_bits_keep_the_compact_layout() {
+    let records = |explicit: bool| {
+        let mut writer = ApplicationRecordsWriter::new().unwrap();
+        let mut row = |a, b, c| {
+            writer
+                .append_row(
+                    ApplicationRowHeader {
+                        constants: [0; 3],
+                        term_counts: [1; 3],
+                    },
+                    [
+                        (ApplicationForm::A, a),
+                        (ApplicationForm::B, b),
+                        (ApplicationForm::C, c),
+                    ]
+                    .into_iter()
+                    .map(|(form, variable)| {
+                        Ok(ApplicationTerm {
+                            form,
+                            variable,
+                            coefficient: 1,
+                        })
+                    }),
+                )
+                .unwrap();
+        };
+        row(4, 4, 4);
+        row(5, 5, 5);
+        if explicit {
+            row(6, 6, 6);
+        }
+        row(4, 5, 6);
+        writer
+            .append_row(
+                ApplicationRowHeader {
+                    constants: [0, 1, 0],
+                    term_counts: [1, 1, 0],
+                },
+                [
+                    (ApplicationForm::A, 4, 1),
+                    (ApplicationForm::B, 5, Goldilocks::NEG_ONE.as_canonical_u64()),
+                ]
+                .into_iter()
+                .map(|(form, variable, coefficient)| {
+                    Ok(ApplicationTerm {
+                        form,
+                        variable,
+                        coefficient,
+                    })
+                }),
+            )
+            .unwrap();
+        Arc::new(writer.finish().unwrap())
+    };
+    let base = packages();
+    let explicit = base
+        .with_application(records(true), 3, &NativeShape::default())
+        .unwrap();
+    let inferred = base
+        .with_application(records(false), 3, &NativeShape::default())
+        .unwrap();
+    for (explicit, inferred) in [
+        (&explicit.light, &inferred.light),
+        (&explicit.refresh, &inferred.refresh),
+    ] {
+        let explicit_layout = explicit.layout().unwrap();
+        let inferred_layout = inferred.layout().unwrap();
+        for variable in 4..7 {
+            let column = explicit.variable_column(variable).unwrap();
+            assert_eq!(explicit_layout.slot(column), inferred_layout.slot(column));
+        }
+        assert_eq!(explicit_layout.width(), inferred_layout.width() + 1);
+        assert_eq!(
+            explicit.plan_rows().unwrap().row_count(),
+            inferred.plan_rows().unwrap().row_count()
+        );
+        assert_eq!(
+            explicit.source_rows().unwrap().row_count(),
+            inferred.source_rows().unwrap().row_count() + 1
+        );
+        let output = inferred.variable_column(6).unwrap();
+        assert_eq!(inferred.layout().unwrap().slot(output).unwrap().1, Kind::Bit);
+        let mut old_bits = inferred.bit_columns();
+        old_bits.extend([
+            inferred.variable_column(4).unwrap(),
+            inferred.variable_column(5).unwrap(),
+            output,
+        ]);
+        let old_slots = inferred.rule_slots(&old_bits);
+        assert_ne!(old_slots, inferred.slots);
+        let mut shared = vec![Goldilocks::ZERO; inferred.application.local_start];
+        shared[0] = Goldilocks::ONE;
+        for variable in 4..7 {
+            shared[inferred.variable_column(variable).unwrap()] = Goldilocks::ONE;
+        }
+        let columns = inferred.circuit_columns(&shared).unwrap();
+        let plan = inferred.plan_rows().unwrap();
+        let source = inferred.source_rows().unwrap();
+        assert_eq!(
+            inferred.relation_columns(columns.clone(), &plan).unwrap(),
+            inferred.relation_columns(columns, &source).unwrap()
+        );
+    }
+}
+
+#[test]
+fn empty_and_unmatched_applications_keep_the_existing_slot_rule() {
+    let base = packages();
+    for (records, count) in [
+        (Arc::new(ApplicationRecordsWriter::new().unwrap().finish().unwrap()), 0),
+        (addition(1), 4),
+    ] {
+        let package = base
+            .with_application(records, count, &NativeShape::default())
+            .unwrap();
+        for step in [&package.light, &package.refresh] {
+            let mut bits = step.bit_columns();
+            bits.extend((0..count).map(|index| step.variable_column(4 + index).unwrap()));
+            assert_eq!(step.slots, step.rule_slots(&bits));
+        }
+    }
+}
+
+#[test]
+fn source_and_packed_row_orders_fill_the_same_fresh_columns() {
+    let native = packages()
+        .with_application(chained(0, 4, &[4, 5, 6]), 4, &NativeShape::default())
+        .unwrap();
+    for package in [native.light(), native.refresh()] {
+        let mut shared = vec![Goldilocks::ZERO; package.application.local_start];
+        shared[0] = Goldilocks::ONE;
+        shared[package.variable_column(5).unwrap()] = Goldilocks::ONE;
+        let columns = package.circuit_columns(&shared).unwrap();
+        let plan = package.plan_rows().unwrap();
+        let source = package.source_rows().unwrap();
+        assert_eq!(source.row_count() - plan.row_count(), 2);
+        assert_eq!(
+            package.relation_columns(columns.clone(), &plan).unwrap(),
+            package.relation_columns(columns, &source).unwrap()
+        );
+    }
 }

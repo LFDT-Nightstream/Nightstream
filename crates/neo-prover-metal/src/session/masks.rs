@@ -77,8 +77,8 @@ impl MetalWitnessMasks {
         })
     }
 
-    pub(super) fn matches_joint(&self, witness_count: usize, blocks: usize) -> bool {
-        self.witness_count == witness_count && self.blocks == blocks
+    pub(super) fn witness_count(&self) -> usize {
+        self.witness_count
     }
 
     pub(super) fn magnitudes(&self) -> usize {

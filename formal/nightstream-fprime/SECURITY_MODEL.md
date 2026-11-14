@@ -85,6 +85,90 @@ item 5).
   the assignment carries; adversary 2 binds them to the verifier's keys. The
   result is deterministic and needs no hardness premise.
 
+**Packed native Boolean rows.** The adversary also controls both coordinates
+of each packed pair. It wins if the accepted fresh relation holds but one of
+the replaced application forcing rows fails. There is no such assignment
+when each pair names actual one-coordinate slots, each group has at most 31
+pairs, and the original rows are covered by retained or matched forcing rows
+(`Export.Generic.PackedBoolean.freshHolds_implies_original_rows`). The result
+uses the norm of that fresh witness, not the larger accumulator bound.
+`Layout.ProductionRelation.Plan.freshHolds_implies_rowsPublicAndNorm` retains
+this norm from fresh acceptance. There is no new probabilistic test or
+cryptographic assumption. The existing extraction and binding premises still
+apply to the history. The constructor packs only the sources, zero products
+and products whose added columns fit in the package width, in that order, and
+keeps the original row of each other candidate
+(`Export.BoundedDepth.PackedBudget.choose_end`). The restorations also hold
+for such a partial packing
+(`Export.BoundedDepth.PackedBudget.restore_chosen_rows`). Rust must establish
+the map, coverage, slot and framing conditions under trust item 5. Honest
+completion uses raw application Boolean facts before native-output substitution
+(`Export.BoundedDepth.PackedBooleanCompleteness.native_complete`). The terminal
+source relation retains its original forcing rows because its own source
+assignment has no signed-unit premise.
+
+The adversary also controls parity pairs and zero-product sums from section 7.10.
+The product check first recovers each bounded residual
+(`Export.Generic.PackedProduct.packed_implies_residuals`). Boolean input facts
+then force the original product (`Export.Generic.PackedProduct.half_adder`).
+Each removed product uses input derivations from forcing rows or earlier source
+rows, not from the row under restoration (`Export.Generic.PackedProduct.restore_rows`).
+Zero-product checks require both inputs to be directly forced Boolean values
+before decoding their packed residuals (`Export.Generic.PackedZero.packed_implies_residuals`).
+The signed-unit sum then forces the original zero product
+(`Export.Generic.PackedZero.zero_product`). The actual fresh norm supplies every
+new coordinate bound. No accumulator norm or uncommitted affine output supplies
+that bound. Honest values follow from `Export.Generic.PackedProduct.honest_values`
+and `Export.Generic.PackedZero.honest_values`. These results add no cryptographic
+or probabilistic premise. Trust item 5 still covers the Rust constructor's
+framing, map, coverage, source-order and slot checks.
+
+**Experimental native guard fusion.** The adversary chooses the fresh assignment
+and wins if its fused guard rows hold but an original guarded row fails.
+Complementary fusion requires a proved Boolean guard
+(`Export.Generic.GuardFusion.complementary_rows`). A family whose directly
+forced selectors sum to a Boolean value has mutually exclusive selectors
+when its size is below the field modulus
+(`Export.Generic.GuardFusion.sum_bit_exclusive`). Subset sums are Boolean,
+and disjoint subsets are mutually exclusive
+(`Export.Generic.GuardFusion.subset_bit`,
+`Export.Generic.GuardFusion.disjoint_sums`). The family rewrite preserves its
+rows under that exclusion condition
+(`Export.Generic.GuardFusion.family_rows`). The constant coordinate must be 1
+when source column 0 is moved into an affine constant. Nonzero field scaling
+does not make an unchecked affine form Boolean.
+
+Certificates must remain outside the removed guard rows. Retained
+certificates give exact source restoration, including composition with an
+acyclic affine substitution and a framed native power chain
+(`Export.Generic.GuardFusion.restore_sources`,
+`Export.Generic.GuardFusion.affine_restore_sources`,
+`Export.Generic.GuardFusion.power_restore_sources`). A packed seed still
+requires the actual fresh norm and slot correspondence stated above. A kind
+label or a native output alias supplies no Boolean premise. The Rust matcher,
+normalization, original-record map, and complete compiler and slot bridge
+are not proved. Tests check those boundaries under trust item 5. This
+experiment adds no probabilistic test or cryptographic assumption and does
+not change terminal source checks.
+
+**Common-guard binary equality packing.** The adversary chooses the fresh
+assignment and wins if the packed rows hold but a replaced source row fails.
+The source words use at most 32 bits. Output chunks use at most 63 Boolean
+pairs. The guard can be any field value, including zero. The exact field
+equivalence is `Export.Generic.BoundedWord.common_guard_iff`.
+Every used source bit needs a retained forcing row or a retained packed
+Boolean certificate. The packed certificate requires the actual fresh norm
+and unchanged bit slots, as proved by
+`Export.Generic.WordPacking.Certificate.logical_norm`. A signed unit slot
+alone supplies no Boolean premise. All certificates remain outside the
+selected rows, so one replacement cannot certify another replacement.
+`Export.Generic.WordPacking.ordered_iff` preserves source rows and valid
+assignments under explicit encoding and coverage checks. Trust item 5 covers
+the Rust matcher, normalization, source indices, concrete encodings, group
+coverage, identity binding, and slot correspondence. These checks are not a
+new cryptographic assumption. The change adds no error probability and does
+not change terminal source checks.
+
 ### 2. Malicious terminal opening
 
 - **Controls:** the terminal statement and every value of the proof: the
@@ -618,6 +702,21 @@ item 5).
   (`a_state_field_of_q_or_more_has_no_canonical_word`). So a verifier that
   reads a field of a proved state reads a proved word, except that `None` and
   `Some(0)` of `memory_pages` and `max_memory_pages` share the word 0.
+- The shared host-event transformation in a multirow WASM step. The adversary
+  chooses every row flag, shared input, permutation auxiliary, and shared output.
+  The group argument uses soundness and completeness of the exact width-12
+  Poseidon2 event commitment with its four-lane feed-forward. It does not use
+  collision resistance to replace a row check. The soundness argument allows
+  multiple absorbing rows in a group and forces each to have the shared input.
+  Completeness uses the checked Boolean decoding, position and kind sum rows,
+  cursor transition, absorb equation, Enter exclusion, and cursor continuity.
+  The kind count and eight slot positions must be below the field modulus.
+  No global natural range bound on arbitrary cursor field values is assumed.
+  `Lifecycle.Nebula.SharedAbsorb.CursorRows` states these row premises. The
+  Rust tests compare those rows and check column mutations on fixed inputs.
+  A universal proof that the Rust transformation and shared-column map realize
+  the Lean group relation remains open. The original one-row relation remains
+  the source of all constraints outside the selected commitment input rewrite.
 - A prover that picks the WASM size of its proof
   (`neo_wasm::nebula::WasmSize`). The results hold for each of the three
   fixed sizes, not for a choice among them.

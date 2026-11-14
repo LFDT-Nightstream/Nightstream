@@ -1,4 +1,4 @@
-import NightstreamFPrime.Lifecycle.Nebula.RowList
+import NightstreamFPrime.Lifecycle.Nebula.PaddingZero
 import NightstreamFPrime.Lifecycle.Nebula.FactorWords
 
 /-! Owns the meaning of the polynomial row list: on a word vector, the rows of
@@ -150,7 +150,8 @@ theorem armRows_iff : ConstraintsHold v (armRows p) ↔
 
 /-! ### Operation rows -/
 
-theorem slotRows_iff (j : Fin p.bOps) : ConstraintsHold v (slotRows p j) ↔
+theorem slotRows_iff (j : Fin p.bOps)
+    (allBits : ∀ x ∈ ((W).ops j).lane, IsBit x) : ConstraintsHold v (slotRows p j) ↔
     (((((((v (Words.cnt p j) = (cntBefore p j).eval v + (1 - (W).pad j)) ∧
       ((1 - (W).isWrite j) * ((W).vw j - (W).vr j) = 0)) ∧
       ((1 - (W).pad j) * ((W).cIn 2 + v (Words.cnt p j) - (W).rt j - 1 - (W).diff j) = 0)) ∧
@@ -197,7 +198,13 @@ theorem slotRows_iff (j : Fin p.bOps) : ConstraintsHold v (slotRows p j) ↔
       refine forall_congr' fun k => imp_congr_right fun _ => ?_
       simp only [Circuit.Expr.eval_hmul]
       rfl
-  · rw [hold_map, ← Sym.eval_opLane p a v j, ← List.map_tail, List.forall_mem_map]
+  · have tailBits : ∀ x ∈ (opLane p j).tail, IsBit (x.eval v) := by
+      intro x member
+      apply allBits (x.eval v)
+      rw [← Sym.eval_opLane p a v j]
+      exact List.mem_map.mpr ⟨x, List.mem_of_mem_tail member, rfl⟩
+    rw [PaddingZero.paddingRows_hold_iff v _ _ tailBits, hold_map,
+      ← Sym.eval_opLane p a v j, ← List.map_tail, List.forall_mem_map]
     rfl
   · simp only [Sym.eval_rt p a v, Sym.eval_globalIndex p a v, Sym.eval_vr p a v]
     rfl
@@ -388,11 +395,12 @@ theorem polyRows_iff (app : PortApp p) :
   rw [polyRows, memoryRows, hold_append, hold_append, hold_append, hold_append, hold_append,
     bitRows_iff p app.toAppShape v, armRows_iff p app.toAppShape v, hold_finRange, hold_finRange,
     closeRows_iff p app.toAppShape v, appRows_iff p v app, auxHonest_iff p app.toAppShape v]
-  simp only [slotRows_iff p app.toAppShape v, scanRows_iff p app.toAppShape v]
+  simp only [scanRows_iff p app.toAppShape v]
   constructor
   · rintro ⟨⟨⟨⟨⟨bits, arm⟩, slots⟩, scans⟩, close⟩, application⟩
     obtain ⟨⟨⟨⟨⟨⟨opsBits, diffBits⟩, initialBits⟩, finalBits⟩, tsBits⟩, segBits⟩, openBit,
       closeBit⟩ := bits
+    have slots := fun j => (slotRows_iff p app.toAppShape v j (opsBits j)).mp (slots j)
     obtain ⟨⟨⟨⟨⟨⟨⟨openZero, openTest⟩, segRange⟩, idxEff⟩, seenPrev⟩, proposed⟩, eta⟩,
       starts⟩ := arm
     obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨tsOut, tsRange⟩, idxOut⟩, ⟨⟨⟨read, write⟩, initial⟩, final⟩⟩, closeZero,
@@ -454,7 +462,8 @@ theorem polyRows_iff (app : PortApp p) :
         rows.segBits⟩, rows.openBit, rows.closeBit⟩
     · exact ⟨⟨⟨⟨⟨⟨⟨rows.openZero, rows.openTest⟩, rows.segRange⟩, rows.idxEff⟩, rows.seenPrev⟩,
         rows.proposed⟩, rows.eta⟩, starts⟩
-    · rw [wt j, ops 0 (by decide), ops 0 (by decide), ops 1 (by decide), ops 1 (by decide)]
+    · rw [slotRows_iff p app.toAppShape v j (rows.opsBits j)]
+      rw [wt j, ops 0 (by decide), ops 0 (by decide), ops 1 (by decide), ops 1 (by decide)]
       exact ⟨⟨⟨⟨⟨⟨⟨chain j, rows.readKeeps j⟩, rows.fresh j⟩, rows.noRomWrite j⟩, rows.romRange j, rows.ramRange j⟩,
         rows.padZero j⟩, (opsAux j 0).trans (opsAux_zero p _ v j), rows.readProduct j⟩,
         (opsAux j 1).trans (opsAux_one p _ v j), rows.writeProduct j⟩

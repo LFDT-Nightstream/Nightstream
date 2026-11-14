@@ -112,7 +112,7 @@ fn compact_openings_match_cpu_across_parallel_and_tiled_lists() {
     let opening = session
         .prepare_joint_opening_plan(cache.matrix_caches(), 2 * D, 0, true, &layout)
         .unwrap();
-    assert!(opening.parallel_form_list_count > 0);
+    assert!(opening.parallel_form_list_offsets.last() > Some(&0));
     assert!(opening.tiled_form_tile_count > 0);
     let masks = session
         .prepare_joint_witness_masks(&blocks, 2, 2 * D)

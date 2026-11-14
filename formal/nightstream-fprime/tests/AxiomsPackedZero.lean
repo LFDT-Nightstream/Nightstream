@@ -1,0 +1,10 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Export.Generic.PackedZero
+
+#audit_axioms NightstreamFPrime.Export.Generic.PackedZero.Values.digit_le
+#audit_axioms NightstreamFPrime.Export.Generic.PackedZero.Values.digit_field
+#audit_axioms NightstreamFPrime.Export.Generic.PackedZero.pack_field
+#audit_axioms NightstreamFPrime.Export.Generic.PackedZero.packed_implies_residuals
+#audit_axioms NightstreamFPrime.Export.Generic.PackedZero.residuals_imply_packed
+#audit_axioms NightstreamFPrime.Export.Generic.PackedZero.zero_product
+#audit_axioms NightstreamFPrime.Export.Generic.PackedZero.honest_values

@@ -87,6 +87,30 @@ inline ulong gl_mul_native(ulong lhs, ulong rhs) {
     return gl_reduce_wide(mul_wide_native(lhs, rhs));
 }
 
+// A sum of full products as a 192-bit integer. It reduces one time:
+// 2^128 = -2^32 in the field.
+struct WideSum {
+    ulong lo;
+    ulong hi;
+    ulong top;
+};
+
+inline void wide_sum_add(thread WideSum &sum, ulong lhs, ulong rhs) {
+    WideProduct product = mul_wide_32(lhs, rhs);
+    ulong lo = sum.lo + product.lo;
+    ulong hi = sum.hi + product.hi;
+    ulong carried = hi + (lo < sum.lo);
+    sum.top += (hi < sum.hi) + (carried < hi);
+    sum.lo = lo;
+    sum.hi = carried;
+}
+
+inline ulong wide_sum_reduce(WideSum sum) {
+    return gl_add(
+        gl_reduce_wide(WideProduct{sum.lo, sum.hi}),
+        gl_mul(sum.top, GOLDILOCKS_MODULUS - (1ul << 32)));
+}
+
 inline ulong gl_reduce_sum(ulong lo, ulong hi) {
     return gl_add(gl_from_word(lo), hi * GOLDILOCKS_EPSILON);
 }
@@ -477,24 +501,6 @@ kernel void rlc_witness_mix_signed_masks(
 #include "decomposition.metal"
 
 constant uint SUMCHECK_REDUCTION_THREADS = 64;
-
-kernel void sumcheck_reduce_partials(
-    device const ulong *partials [[buffer(0)]],
-    device const ulong *shape [[buffer(1)]],
-    device ulong *output [[buffer(2)]],
-    uint coefficient [[thread_position_in_grid]]) {
-    ulong rows = shape[0];
-    ulong coefficient_count = shape[1];
-    if (coefficient >= coefficient_count) {
-        return;
-    }
-    Kx total = Kx{0, 0};
-    for (ulong row = 0; row < rows; ++row) {
-        total = kx_add(total, load_k(partials, row * coefficient_count + coefficient));
-    }
-    output[2 * coefficient] = total.c0;
-    output[2 * coefficient + 1] = total.c1;
-}
 
 #include "dec_forms.metal"
 #include "joint.metal"

@@ -171,6 +171,12 @@ def armRows : List Circuit.Expr := joinChecks (armChecks p)
 
 /-! ### Operation rows -/
 
+/-- The long-list branch preserves O7's per-bit rows for arbitrary geometries.
+See `PaddingZero.paddingRows_hold_iff`. -/
+def paddingRows (gate : Circuit.Expr) (bits : List Circuit.Expr) : List Circuit.Expr :=
+  if bits.length < goldilocksModulus then [gate * Expr.sum bits]
+  else bits.map (fun x => gate * x)
+
 def slotChecks (j : Fin p.bOps) : Checks :=
   [(s!"O2 slot {j.val}", [cnt p j - (cntBefore p j + (1 - Sym.pad p j))]),
     (s!"O3 slot {j.val}", [(1 - isWrite p j) * (vw p j - vr p j)]),
@@ -180,7 +186,7 @@ def slotChecks (j : Fin p.bOps) : Checks :=
         (fun k : Fin p.addrWidth => (1 - isRam p j) * addrBit p j k.val) ++
       ((List.finRange p.addrWidth).filter (fun k : Fin p.addrWidth => p.μ ≤ k.val)).map
         (fun k : Fin p.addrWidth => isRam p j * addrBit p j k.val)),
-    (s!"O7 slot {j.val}", (opLane p j).tail.map (fun x => Sym.pad p j * x)),
+    (s!"O7 slot {j.val}", paddingRows (Sym.pad p j) (opLane p j).tail),
     (s!"O8 slot {j.val}", gatedRows (opsFactor p j 0) (Sym.pad p j) (opsProductAfter p 0 j.val)
       (opsProductAfter p 0 (j.val + 1)) (rt p j) (globalIndex p j) (vr p j)),
     (s!"O9 slot {j.val}", gatedRows (opsFactor p j 1) (Sym.pad p j) (opsProductAfter p 1 j.val)

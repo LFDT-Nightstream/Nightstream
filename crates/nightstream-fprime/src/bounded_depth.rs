@@ -7,9 +7,16 @@
 //! own the relation's meaning, the witness program or the fold.
 
 mod application;
+mod boolean;
 mod expand;
+mod field_lowering;
+mod guard_fusion;
 pub mod layout;
+mod packed_boolean;
+mod packed_product;
+mod packed_zero;
 mod witness;
+mod word_packing;
 pub mod words;
 
 pub use application::{NativeBlock, NativeShape};
@@ -70,7 +77,7 @@ impl Linear {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Row {
     pub(crate) a: Linear,
     pub(crate) b: Linear,
@@ -119,6 +126,10 @@ pub struct StepPackage {
     slots: Vec<(usize, usize, u8)>,
     application: Region,
     native: Option<Arc<ApplicationRecords>>,
+    packed_booleans: packed_boolean::PackedBooleans,
+    field_lowering: field_lowering::FieldLowering,
+    guard_fusion: guard_fusion::GuardFusion,
+    word_packing: word_packing::WordPacking,
 }
 
 impl StepPackage {
@@ -140,6 +151,58 @@ impl StepPackage {
 
     pub fn sbox_start(&self) -> usize {
         self.sbox_start
+    }
+
+    pub fn packed_product_count(&self) -> usize {
+        self.packed_booleans.products.len()
+    }
+
+    pub fn packed_boolean_count(&self) -> usize {
+        self.packed_booleans.sources.len() + self.packed_product_count()
+    }
+
+    pub fn packed_zero_count(&self) -> usize {
+        self.packed_booleans.zeros.len()
+    }
+
+    /// The columns that `SPEC.md` section 7.11 refills and gives no slot:
+    /// the three intermediate powers of each chain
+    /// (`Export.Generic.NativePower.Chain.restore`) and each solved affine
+    /// column (`Export.Generic.Substitute.refill`).
+    pub fn lowered_column_count(&self) -> usize {
+        self.field_lowering.dead.len()
+    }
+
+    pub fn packed_zero_products(&self) -> impl Iterator<Item = [usize; 6]> + '_ {
+        self.packed_booleans
+            .zeros
+            .iter()
+            .enumerate()
+            .map(|(index, zero)| {
+                [
+                    zero.row,
+                    zero.left.column,
+                    usize::from(zero.left.complement),
+                    zero.right.column,
+                    usize::from(zero.right.complement),
+                    self.packed_booleans.zero_start() + index,
+                ]
+            })
+    }
+
+    pub fn packed_products(&self) -> impl Iterator<Item = [usize; 6]> + '_ {
+        self.packed_booleans
+            .products
+            .iter()
+            .enumerate()
+            .map(|(index, product)| {
+                let xor = self.packed_booleans.product_start() + 2 * index;
+                [product.row, product.left, product.right, product.output, xor, xor + 1]
+            })
+    }
+
+    fn source_end(&self) -> usize {
+        (self.sbox_start + 150 * self.block_count()).max(self.packed_booleans.end())
     }
 
     /// The application's witness word count, which places the shared words
@@ -224,6 +287,10 @@ impl StepPackage {
                 .collect::<Result<_, PackageError>>()?,
             application,
             native: None,
+            packed_booleans: packed_boolean::PackedBooleans::default(),
+            field_lowering: field_lowering::FieldLowering::default(),
+            guard_fusion: guard_fusion::GuardFusion::default(),
+            word_packing: word_packing::WordPacking::default(),
         })
     }
 }

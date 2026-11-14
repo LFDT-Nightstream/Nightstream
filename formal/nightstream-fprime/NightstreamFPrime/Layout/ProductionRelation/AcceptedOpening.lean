@@ -95,4 +95,27 @@ theorem freshHolds_implies_rowsAndPublic {logicalWidth : Nat}
     simpa only [images] using ccs (plan.rowLayout.toVertex row)
   · exact (projectPublicInput_logicalAssignment publicLogicalFits assignment).trans accepted.1.2.1
 
+theorem freshHolds_implies_rowsPublicAndNorm {logicalWidth : Nat}
+    {publicFits : ringDegree * publicRingColumns ≤
+      Phi81CarrierLayout.carrierWidth logicalWidth}
+    (plan : ProductionRelation.Plan logicalWidth)
+    (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
+    (key : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (assignment : Assignment F (Phi81CarrierLayout.carrierWidth logicalWidth))
+    (publicLogicalFits : ringDegree * publicRingColumns ≤ logicalWidth)
+    (accepted : CCS.Holds (semantics key) productionGlobalParams
+      (freshStatement (plan.logicalRelation (publicFits := publicFits) cubeFits) fresh)
+      assignment) :
+    plan.RowsZero (logicalAssignment assignment) ∧
+      Phi81Relation.projectPublicInput (shape := FullShape logicalWidth publicFits)
+        (Phi81CarrierLayout.extendAssignment 0 (logicalAssignment assignment)) =
+          fresh.publicInputs ⟨0, by decide⟩ ∧
+      ∀ column, centeredMagnitude (logicalAssignment assignment column) < 2 := by
+  obtain ⟨rows, publicInput⟩ := freshHolds_implies_rowsAndPublic plan cubeFits key fresh
+    assignment publicLogicalFits accepted
+  refine ⟨rows, publicInput, ?_⟩
+  have norm : ∀ column, centeredMagnitude (assignment column) < 2 := accepted.1.2.2
+  exact fun column => norm (Phi81CarrierLayout.embedLogical column)
+
 end NightstreamFPrime.Layout.ProductionRelation.Plan

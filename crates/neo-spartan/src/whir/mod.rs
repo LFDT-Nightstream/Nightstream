@@ -15,6 +15,10 @@ pub(crate) mod paths;
 pub(crate) mod prover;
 pub(crate) mod seeds;
 
+#[cfg(test)]
+#[path = "../../tests/internal/whir_sampler.rs"]
+mod sampler_tests;
+
 use p3_field_v08::{PrimeCharacteristicRing, TwoAdicField};
 use p3_sumcheck_v08::layout::plan_stacked_layout;
 use p3_whir::pcs::proof::QueryOpenings;

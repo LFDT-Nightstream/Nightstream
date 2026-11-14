@@ -191,32 +191,39 @@ impl Circuit {
     /// packages: it computes the step of Lean's application region, and the
     /// Lean checks of Rust's files read those packages.
     pub fn compile(application: ApplicationCircuit) -> Result<Self, Error> {
-        crate::application::check_blocks(&application)?;
         let embedded = crate::artifacts::embedded();
         let witness_words = application.private_input_count();
-        let reference = crate::application::poseidon2_hash_chain_v1()?;
-        // The saved form holds these counts, so applications with other
-        // counts have other saved forms.
-        let counts = |application: &ApplicationCircuit| {
-            let records = application.records();
-            (
-                application.private_input_count(),
-                records.row_count(),
-                records.recipe_count(),
-                application.shape().blocks.len(),
-            )
+        let steps = || -> Result<CompiledSteps, Error> {
+            let reference = crate::application::poseidon2_hash_chain_v1()?;
+            // The saved form holds these counts, so applications with other
+            // counts have other saved forms.
+            let counts = |application: &ApplicationCircuit| {
+                let records = application.records();
+                (
+                    application.private_input_count(),
+                    records.row_count(),
+                    records.recipe_count(),
+                    application.shape().blocks.len(),
+                )
+            };
+            let packages = if counts(&application) == counts(&reference)
+                && encode_application(&application)? == encode_application(&reference)?
+            {
+                embedded.packages.clone()
+            } else {
+                embedded
+                    .packages
+                    .with_application(application.records().clone(), witness_words, application.shape())?
+            };
+            Ok(CompiledSteps::new(packages)?)
         };
-        let packages = if counts(&application) == counts(&reference)
-            && encode_application(&application)? == encode_application(&reference)?
-        {
-            embedded.packages.clone()
-        } else {
-            embedded
-                .packages
-                .with_application(application.records().clone(), witness_words, application.shape())?
-        };
-        let finish = embedded.finish.with_witness_words(witness_words)?;
-        let (steps, finish) = rayon::join(|| CompiledSteps::new(packages), || Finish::new(finish));
+        let finish =
+            || -> Result<Finish, Error> { Ok(Finish::new(embedded.finish.with_witness_words(witness_words)?)?) };
+        let (checked, (steps, finish)) = rayon::join(
+            || crate::application::check_blocks(&application),
+            || rayon::join(steps, finish),
+        );
+        checked?;
         Ok(Self {
             steps: steps?,
             finish: Arc::new(finish?),

@@ -492,49 +492,59 @@ impl BoundedDepthPackages {
         witness_words: usize,
         shape: &NativeShape,
     ) -> Result<Self, PackageError> {
-        let mut input = poseidon2::Poseidon2Hasher::default();
-        let mut update = |word: u64| input.update(&[Goldilocks::from_u64(word)]);
-        IDENTITY_DOMAIN
-            .iter()
-            .for_each(|&byte| update(u64::from(byte)));
-        self.identity.into_iter().for_each(&mut update);
-        update(witness_words as u64);
-        update(records.row_count() as u64);
-        let mut walk = records.walk();
-        let mut terms = Vec::new();
-        for row in 0..records.row_count() {
-            let header = walk.row(row, &mut terms)?;
-            for form in 0..3 {
-                update(header.constants[form]);
-                update(header.term_counts[form] as u64);
-            }
-            for term in &terms {
-                update(term.variable as u64);
-                update(term.coefficient);
-            }
-        }
-        update(records.recipe_count() as u64);
-        for recipe in 0..records.recipe_count() {
-            update(walk.recipe_row(recipe)? as u64);
-        }
-        update(shape.blocks.len() as u64);
-        for block in &shape.blocks {
-            update(block.first_local as u64);
-            for lane in &block.lanes {
-                update(lane.constant.as_canonical_u64());
-                update(lane.terms.len() as u64);
-                for &(variable, coefficient) in &lane.terms {
-                    update(variable as u64);
-                    update(coefficient.as_canonical_u64());
+        let application = || -> Result<_, PackageError> {
+            let mut input = poseidon2::Poseidon2Hasher::default();
+            let mut update = |word: u64| input.update(&[Goldilocks::from_u64(word)]);
+            IDENTITY_DOMAIN
+                .iter()
+                .for_each(|&byte| update(u64::from(byte)));
+            self.identity.into_iter().for_each(&mut update);
+            update(witness_words as u64);
+            update(records.row_count() as u64);
+            let mut walk = records.walk();
+            let mut terms = Vec::new();
+            for row in 0..records.row_count() {
+                let header = walk.row(row, &mut terms)?;
+                for form in 0..3 {
+                    update(header.constants[form]);
+                    update(header.term_counts[form] as u64);
+                }
+                for term in &terms {
+                    update(term.variable as u64);
+                    update(term.coefficient);
                 }
             }
-        }
-        let light = self
-            .light
-            .with_application(&records, witness_words, shape)?;
-        let refresh = self
-            .refresh
-            .with_application(&records, witness_words, shape)?;
+            update(records.recipe_count() as u64);
+            for recipe in 0..records.recipe_count() {
+                update(walk.recipe_row(recipe)? as u64);
+            }
+            update(shape.blocks.len() as u64);
+            for block in &shape.blocks {
+                update(block.first_local as u64);
+                for lane in &block.lanes {
+                    update(lane.constant.as_canonical_u64());
+                    update(lane.terms.len() as u64);
+                    for &(variable, coefficient) in &lane.terms {
+                        update(variable as u64);
+                        update(coefficient.as_canonical_u64());
+                    }
+                }
+            }
+            Ok(input)
+        };
+        // The hash takes the application's words while both packages are
+        // built; the packages' maps follow those words.
+        let (input, (light, refresh)) = rayon::join(application, || {
+            rayon::join(
+                || self.light.with_application(&records, witness_words, shape),
+                || {
+                    self.refresh
+                        .with_application(&records, witness_words, shape)
+                },
+            )
+        });
+        let (mut input, light, refresh) = (input?, light?, refresh?);
+        let mut update = |word: u64| input.update(&[Goldilocks::from_u64(word)]);
         for package in [&light, &refresh] {
             if let Some(Piece::Rows(rows)) = package.pieces.first() {
                 package.guard_fusion.bind(rows, &mut update);

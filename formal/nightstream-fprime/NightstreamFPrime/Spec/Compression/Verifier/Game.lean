@@ -100,15 +100,18 @@ noncomputable def afterMain (st : Statement P) (W V : ℕ → F) (τ : Fin P.loo
             productComb) (P.laneVars + P.keyBlockVars) [] vals.2.2)
             (afterKey vf st W V τ ch ρ value vals col)
 
+/-- The verifier after the prover names the claims `st` and the table `W`. -/
+noncomputable def afterTables (st : Statement P) (W : ℕ → F) :
+    Game (Option (Statement P × (ℕ → F))) :=
+  .draw (Fin P.lookups → F) (tauBad P W) fun τ =>
+    .recv (ℕ → F) fun V =>
+      .draw (Challenges P) (challengeBad P st W V τ) fun ch =>
+        bind (sumcheck 3 (combRound P.witnessVars (mainTables P st W V τ ch) mainComb)
+          P.witnessVars [] (claimedSum P st ch)) (afterMain vf st W V τ ch)
+
 /-- The verifier against an adaptive prover. -/
 noncomputable def game : Game (Option (Statement P × (ℕ → F))) :=
-  .recv (Statement P) fun st =>
-    .recv (ℕ → F) fun W =>
-      .draw (Fin P.lookups → F) (tauBad P W) fun τ =>
-        .recv (ℕ → F) fun V =>
-          .draw (Challenges P) (challengeBad P st W V τ) fun ch =>
-            bind (sumcheck 3 (combRound P.witnessVars (mainTables P st W V τ ch) mainComb)
-              P.witnessVars [] (claimedSum P st ch)) (afterMain vf st W V τ ch)
+  .recv (Statement P) fun st => .recv (ℕ → F) fun W => afterTables vf st W
 
 end Game
 

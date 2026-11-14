@@ -2,6 +2,7 @@ import tests.AxiomAudit
 import NightstreamFPrime.Spec.Compression
 import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot
 import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh
+import NightstreamFPrime.Export.BoundedDepth.FinalVerifier
 
 /-! Axiom audits for the compression argument over Akita (`Spec/Compression`). -/
 
@@ -284,3 +285,14 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh.game_densityLe
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh.centeredMagnitude_lt_ambient
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh.fresh_ambient
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.avoids_bind_of
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.which_slot
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.freshIndex_eq
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.which_fresh
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.supported_slice
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.verifies_of_run
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.verifies_of_bottom
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.game_avoids
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.game_densityLe
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.soundness
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.real_soundness

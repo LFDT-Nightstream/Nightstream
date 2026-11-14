@@ -329,7 +329,15 @@ item 5).
   (`Spec.Compression.Fresh.game`). On a path that avoids its bad sets, of
   density at most `38/q²`, an accepted run whose output claims hold gives
   the fresh instance under `Spec.CCS.Holds`
-  (`Lifecycle.BoundedDepth.CompressionFresh.game_avoids`). No
+  (`Lifecycle.BoundedDepth.CompressionFresh.game_avoids`). Lean joins the
+  checks, Π_CCS and the argument in one game of the final verifier
+  (`Export.BoundedDepth.FinalVerifier.Setup.game`). With `Q` queries, it accepts
+  a statement for which no proof with witnesses satisfies `Verifies` with
+  probability at most `Q · (2^−119 + 38/q²)`
+  (`Export.BoundedDepth.FinalVerifier.soundness`), and with Akita openings
+  at most `Q · (2^−119 + 38/q²) + εAkita`
+  (`Export.BoundedDepth.FinalVerifier.real_soundness`), under the
+  premises of trust item 7. No
   Lean result joins the model to the Rust data, and no result states a full
   honest run or a bound for one interactive run. Rust implements the final
   verifier, and the tests check it on fixed inputs (`SPEC.md` lifecycle
@@ -355,10 +363,13 @@ item 5).
   zeros.
 - **With the other adversaries:** the verifier of Algorithm 6 accepts only
   what the terminal relation accepts
-  (`Export.BoundedDepth.RunCompleteness.holds_of_verifies`). So, if the aim
-  holds, the results of adversaries 2, 4 and 5 apply to a statement that
-  the final verifier accepts. No Lean result joins them, and no result
-  shows that an extractor of the three witnesses is efficient.
+  (`Export.BoundedDepth.RunCompleteness.holds_of_verifies`). So the results
+  of adversaries 2, 4 and 5 apply to a statement that the final verifier
+  accepts. No Lean result joins their bounds with the bound of this
+  adversary. In particular, the bound above ends at the terminal relation,
+  and the validity of the history at each step is the separate result of
+  adversary 4. No result shows that an extractor of the three witnesses is
+  efficient.
 - **Error:** Lean bounds the argument by `Q · error`, with `error` below
   `2^−119` at the production shapes (`SPEC.md` section 3). Rust computes a
   sum of six terms for one interactive run of the argument, about
@@ -591,8 +602,17 @@ item 5).
      compares. The model has three more
      premises. First, the Akita openings are ideal: an opening is accepted
      only when the committed table, which the prover fixed before the later
-     challenges, has the opened value. Akita's knowledge error is outside
-     the bound. Second, the key polynomial is the honest key. Rust enforces
+     challenges, has the opened value.
+     `Export.BoundedDepth.FinalVerifier.AkitaKnowledge` states this premise
+     with the error `εAkita`: for each prover with Akita openings, a prover
+     of the game wins at most `εAkita` less often. Lean does not bound
+     `εAkita`. `Export.BoundedDepth.FinalVerifier.Premises` collects the
+     premises on the setup: `Represents` for the dense rows of each circuit,
+     at most the blocks of its package for each claim, and a layout of Rust
+     `Layout::new` that is well formed with the production bounds. The game
+     takes the slot claims before `W` and the run of Π_CCS, and Rust absorbs
+     only `x`, their Poseidon2 hash, before that run, so the premise is that
+     Poseidon2 binds the slot claims through `x`. Second, the key polynomial is the honest key. Rust enforces
      this with the pin of the full bytes of the verification key
      (`crates/neo-compress/artifacts/key20.vk`, `crates/neo-compress/artifacts/key30.vk`),
      not with a digest. Third, each draw is uniform for each query, which

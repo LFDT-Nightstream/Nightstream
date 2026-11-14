@@ -133,7 +133,7 @@ theorem ChildrenCanonical.parentBounded
   rcases canonical.accepted column with ⟨sign, accepted⟩
   have bounded := accepted.parentBounded
   rw [Radix.production_parameters.2.2] at bounded
-  exact bounded
+  omega
 
 theorem ChildrenCanonical.childDigits_eq
     {u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
@@ -300,25 +300,25 @@ theorem serializeEvaluations_injective : Function.Injective serializeEvaluations
 
 theorem serializeCommitments_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (serializeCommitments value).length = 18432 := by
+    (serializeCommitments value).length = 16128 := by
   simp [serializeCommitments, productionShape, productionProfile, ringDegree,
     RingMatrixSource.ringShape]
 
 theorem serializeEvalKs_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (serializeEvalKs value).length = 2048 := by
+    (serializeEvalKs value).length = 1792 := by
   simp [serializeEvalKs, productionShape, productionProfile, ringDegree,
     RingMatrixSource.ringShape]
 
 theorem serializeEvalAs_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (serializeEvalAs value).length = 8192 := by
+    (serializeEvalAs value).length = 7168 := by
   simp [serializeEvalAs, productionShape, productionProfile, ringDegree,
     RingMatrixSource.ringShape]
 
 theorem serializeChildPublicInputs_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (serializeChildPublicInputs (publicFits := publicFits) value).length = 5120 := by
+    (serializeChildPublicInputs (publicFits := publicFits) value).length = 4480 := by
   simp [serializeChildPublicInputs, productionShape, productionProfile, FullShape,
     fullShape, RingRelation.Shape.publicWidth, publicRingColumns, ringDegree,
     RingMatrixSource.ringShape]
@@ -330,14 +330,14 @@ theorem serializeParentPublic_length
 
 theorem serializeRunningFields_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (serializeRunningFields value).length = 28728 := by
+    (serializeRunningFields value).length = 25144 := by
   simp only [serializeRunningFields, List.length_append, serializeCommitments_length,
     serializeEvalKs_length, serializeEvalAs_length, serializePoint_length]
   norm_num [cubeVariables, RingMatrixSource.ringShape]
 
 theorem serializeRunning_length
     (value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (serializeRunning (publicFits := publicFits) value).length = 28888 := by
+    (serializeRunning (publicFits := publicFits) value).length = 25304 := by
   simp only [serializeRunning, List.length_append, serializeRunningFields_length,
     serializeParentPublic_length]
   norm_num [packedParentWords]
@@ -353,7 +353,7 @@ theorem serializeTail_length
 theorem serializePreimage_length
     (value : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (serializePreimage (publicFits := publicFits) value).length =
-      28901 + (value.verifierKeys functionIndex).length +
+      25317 + (value.verifierKeys functionIndex).length +
         value.z0.length + value.current.length := by
   simp only [serializePreimage, List.length_append, stateDomainChunk_length,
     serializeRunning_length, serializeTail_length]

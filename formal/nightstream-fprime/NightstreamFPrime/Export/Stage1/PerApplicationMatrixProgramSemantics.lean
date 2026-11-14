@@ -54,7 +54,7 @@ theorem Exact.append {logicalWidth : Nat}
 structure SourceCustody (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (sourceRow : Nat → Option R1CS.Row) : Prop where
-  piCcsOrdinary : ∀ index : Fin 43517, ∀ sourceIndex,
+  piCcsOrdinary : ∀ index : Fin 38553, ∀ sourceIndex,
     PiCCSOrdinaryMatrixProgram.rowSchedule.index? index.val =
         some sourceIndex →
       sourceRow sourceIndex = some
@@ -65,7 +65,7 @@ structure SourceCustody (application : ApplicationProgram)
     sourceRow (PilotOrdinaryMatrixProgram.rowIndexAt index) =
       some (PerApplicationSourceProjection.pilotPackageRow application
         (PilotOrdinaryDirectSource.programRow index))
-  samplerOrdinary : ∀ index : Fin 15453, ∀ sourceIndex,
+  samplerOrdinary : ∀ index : Fin 13635, ∀ sourceIndex,
     PiRLCSamplerOrdinaryMatrixSchedule.rowSchedule.index? index.val =
         some sourceIndex →
       sourceRow sourceIndex = some
@@ -74,7 +74,7 @@ structure SourceCustody (application : ApplicationProgram)
             (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
             (publicFits := PerApplicationFixedPoint.publicFits application)
             index))
-  piDecPublic : ∀ index : Fin 5760,
+  piDecPublic : ∀ index : Fin 5120,
     sourceRow (PiDECStarts.publicInputRowStart + index.val) =
       some (PerApplicationSourceProjection.basePackageRow application
         (PiDECOrdinaryDirectSource.publicProgramRow

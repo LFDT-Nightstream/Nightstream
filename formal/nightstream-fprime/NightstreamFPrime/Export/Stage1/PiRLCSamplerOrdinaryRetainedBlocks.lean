@@ -14,8 +14,8 @@ def sourceCount : Nat := PiRLCSamplerInvocations.sourceCount
 def logicalCountPerSource : Nat := 769
 def logicalSlotCount : Nat := sourceCount * logicalCountPerSource
 
-@[simp] theorem sourceCount_eq : sourceCount = 17 := rfl
-@[simp] theorem logicalSlotCount_eq : logicalSlotCount = 13073 := rfl
+@[simp] theorem sourceCount_eq : sourceCount = 15 := rfl
+@[simp] theorem logicalSlotCount_eq : logicalSlotCount = 11535 := rfl
 
 def logicalSlot (source : Fin sourceCount) (position : Fin logicalCountPerSource) :
     Fin logicalSlotCount := Fin.encodeProd (source, position)
@@ -45,7 +45,7 @@ def logicalBlock (program : Lifecycle.Stage1.Application.Program) :
       (logicalSource descriptor.1 descriptor.2) (logicalSource_lt descriptor.1 descriptor.2)
 
 @[simp] theorem logicalBlock_slotCount (program : Lifecycle.Stage1.Application.Program) :
-    (logicalBlock program).slotCount = 13073 := rfl
+    (logicalBlock program).slotCount = 11535 := rfl
 
 theorem logicalBlock_source (program : Lifecycle.Stage1.Application.Program)
     (source : Fin sourceCount) (position : Fin logicalCountPerSource) :
@@ -56,15 +56,15 @@ theorem logicalBlock_source (program : Lifecycle.Stage1.Application.Program)
   simp only [logicalDescriptor_logicalSlot]
 
 @[simp] theorem logicalBlock_coordinateCount (program : Lifecycle.Stage1.Application.Program) :
-    (logicalBlock program).coordinateCount = 535993 := by
-  change logicalSlotCount * 41 = 535993
+    (logicalBlock program).coordinateCount = 472935 := by
+  change logicalSlotCount * 41 = 472935
   rw [logicalSlotCount_eq]
 
 def retainedCoordinateCount (program : Lifecycle.Stage1.Application.Program) : Nat :=
   (logicalBlock program).coordinateCount
 
 @[simp] theorem retainedCoordinateCount_eq (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 535993 := by
+    retainedCoordinateCount program = 472935 := by
   unfold retainedCoordinateCount
   rw [logicalBlock_coordinateCount]
 

@@ -34,8 +34,8 @@ attribute [local instance low] Classical.propDecidable
 /-- The statistical error of the refresh fold: `17 · (Q + 17) · sampleError` for the fork step
 and `(Q + 74) · 5389/q²` for the test step. -/
 noncomputable def statisticalError (queries : Nat) : ℝ :=
-  17 * (((queries + 17 : Nat) : ℝ) * Fork.sampleError) +
-    ((queries + 74 : Nat) : ℝ) * ((5389 : ℝ) / (fieldModulus : ℝ) ^ 2)
+  15 * (((queries + 15 : Nat) : ℝ) * Fork.sampleError) +
+    ((queries + 72 : Nat) : ℝ) * ((4747 : ℝ) / (fieldModulus : ℝ) ^ 2)
 
 theorem statisticalError_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
@@ -44,16 +44,16 @@ theorem statisticalError_eq {logicalWidth : Nat}
       statisticalError queries := by
   have test : IndependentExecution.testError
       (RefreshSchedule.schedule logicalWidth publicFits).shape 8 =
-        (5389 : ℝ) / (fieldModulus : ℝ) ^ 2 :=
+        (4747 : ℝ) / (fieldModulus : ℝ) ^ 2 :=
     Nifs.VerifierErrorBudget.test_error_eq
   unfold Uniqueness.statisticalError statisticalError
   rw [test, RefreshTest.challenges_length]
-  show ((17 : Nat) : ℝ) * (((queries + 17 : Nat) : ℝ) * Fork.sampleError) + _ = _
+  show ((15 : Nat) : ℝ) * (((queries + 15 : Nat) : ℝ) * Fork.sampleError) + _ = _
   norm_num
 
 /-- The statistical error is at most `(Q + 74) · 5390/2^128`. -/
 theorem statisticalError_le (queries : Nat) :
-    statisticalError queries ≤ ((queries : ℝ) + 74) * (5390 / 2 ^ 128) := by
+    statisticalError queries ≤ ((queries : ℝ) + 72) * (4748 / 2 ^ 128) := by
   have sample : Fork.sampleError < 1 / 5 ^ 64 + 1 / 2 ^ 173 := by
     have distance := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt
     have count : (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.scalarCount : ℝ) = 5 ^ 64 := by
@@ -62,20 +62,20 @@ theorem statisticalError_le (queries : Nat) :
     unfold Fork.sampleError
     rw [count]
     linarith
-  have perQuery : 17 * Fork.sampleError + (5389 : ℝ) / (fieldModulus : ℝ) ^ 2 <
-      5390 / 2 ^ 128 := by
-    have numbers : (17 : ℝ) * (1 / 5 ^ 64 + 1 / 2 ^ 173) +
-        5389 / (fieldModulus : ℝ) ^ 2 < 5390 / 2 ^ 128 := by
+  have perQuery : 15 * Fork.sampleError + (4747 : ℝ) / (fieldModulus : ℝ) ^ 2 <
+      4748 / 2 ^ 128 := by
+    have numbers : (15 : ℝ) * (1 / 5 ^ 64 + 1 / 2 ^ 173) +
+        4747 / (fieldModulus : ℝ) ^ 2 < 4748 / 2 ^ 128 := by
       norm_num [fieldModulus]
     linarith
   have sampleNonnegative := Fork.sampleError_nonnegative
-  have testNonnegative : (0 : ℝ) ≤ 5389 / (fieldModulus : ℝ) ^ 2 := by positivity
+  have testNonnegative : (0 : ℝ) ≤ 4747 / (fieldModulus : ℝ) ^ 2 := by positivity
   have queriesNonnegative : (0 : ℝ) ≤ queries := Nat.cast_nonneg queries
   unfold statisticalError
   push_cast
   calc
-    _ ≤ ((queries : ℝ) + 74) *
-        (17 * Fork.sampleError + (5389 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
+    _ ≤ ((queries : ℝ) + 72) *
+        (15 * Fork.sampleError + (4747 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
       nlinarith
     _ ≤ _ := mul_le_mul_of_nonneg_left perQuery.le (by positivity)
 

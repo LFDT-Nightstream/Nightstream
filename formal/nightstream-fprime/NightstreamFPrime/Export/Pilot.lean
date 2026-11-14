@@ -992,10 +992,10 @@ private theorem sourceToPackage_outputPreimage
     PilotPackageOrder.sourceToPackage
         (PilotProduction.outputPreimageStart + index.val) =
       PilotPackageOrder.secondPrivateStart + index.val := by
-  have indexBound : index.val < 28913 := by
+  have indexBound : index.val < 25329 := by
     calc
       index.val < PilotProduction.stateHashWords := index.isLt
-      _ = 28913 := PilotProduction.stateHashWords_eq
+      _ = 25329 := PilotProduction.stateHashWords_eq
   unfold PilotPackageOrder.sourceToPackage
   all_goals try split
   all_goals try split
@@ -1118,8 +1118,8 @@ private theorem priorDigestWire_eval (env : Env) (lane : Fin 4) :
     PilotData.circuitPackageOf_permutation]
   simp only [PilotData.permutationTemplate, PilotData.priorChain,
     PilotData.priorWitnessStart]
-  rw [show PilotProduction.witnessOffset + 2409 * 1096 + 1080 + lane.val =
-      PilotProduction.witnessOffset + (2409 * 1096 + 1080 + lane.val) by
+  rw [show PilotProduction.witnessOffset + 2110 * 1096 + 1080 + lane.val =
+      PilotProduction.witnessOffset + (2110 * 1096 + 1080 + lane.val) by
     omega,
     PilotPackageOrder.sourceToPackage_pilotWitness]
   norm_num [PilotValues.absorbCount, PilotValues.stateHashWords,

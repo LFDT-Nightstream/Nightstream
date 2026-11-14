@@ -35,7 +35,7 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 theorem challenges_length :
-    (Test.challenges (RefreshSchedule.schedule logicalWidth publicFits)).length = 74 := by
+    (Test.challenges (RefreshSchedule.schedule logicalWidth publicFits)).length = 72 := by
   rw [Test.challenges_length]
   rfl
 
@@ -121,7 +121,7 @@ theorem test_error_le {Output : Type}
     (proof : Output → RefreshProof) :
     𝔼 oracle, (if FalseAcceptance relation ajtai accumulator witness oracle
         (fresh (adversary.run oracle)) (proof (adversary.run oracle)) then (1 : ℝ) else 0) ≤
-      (queries + 1) * ((5389 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
+      (queries + 1) * ((4747 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
   refine (Test.test_error_le (source relation ajtai accumulator witness)
     (source_degreeCovers relation ajtai accumulator witness) adversary bounded
     (fun output => (fresh output, (proof output).split))

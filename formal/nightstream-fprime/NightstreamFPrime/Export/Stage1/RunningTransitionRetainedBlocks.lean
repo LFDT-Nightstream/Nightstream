@@ -18,7 +18,7 @@ private theorem target_lt_basePackage (source : Nat)
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have mapped := PackageOrder.sourceToPackage_lt source bound
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      11413061 :=
+      10059655 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   simpa [PackageOrder.packageColumnCount] using mapped
@@ -47,7 +47,7 @@ def stateBlock (program : Lifecycle.Stage1.Application.Program) :
       change index.val < 9 at indexBound
       rw [RunningTransitionSourceSupport.stateStart_eq,
         PackageOrder.sourceColumnCount_eq]
-      change 28904 + index.val < 11413060
+      change 25320 + index.val < 10059654
       omega)
 
 def outputBlock (program : Lifecycle.Stage1.Application.Program) :
@@ -56,10 +56,10 @@ def outputBlock (program : Lifecycle.Stage1.Application.Program) :
     (fun index => RunningTransitionSourceSupport.outputStart + index.val) (by
       intro index
       have indexBound := index.isLt
-      change index.val < 28913 at indexBound
+      change index.val < 25329 at indexBound
       rw [RunningTransitionSourceSupport.outputStart_eq,
         PackageOrder.sourceColumnCount_eq]
-      change 29233 + index.val < 11413060
+      change 25649 + index.val < 10059654
       omega)
 
 def piDecBlock (program : Lifecycle.Stage1.Application.Program) :
@@ -68,10 +68,10 @@ def piDecBlock (program : Lifecycle.Stage1.Application.Program) :
     (fun index => RunningTransitionSourceSupport.piDecStart + index.val) (by
       intro index
       have indexBound := index.isLt
-      change index.val < 33792 at indexBound
+      change index.val < 29568 at indexBound
       rw [RunningTransitionSourceSupport.piDecStart_eq,
         PackageOrder.sourceColumnCount_eq]
-      change 11378946 + index.val < 11413060
+      change 10029764 + index.val < 10059654
       omega)
 
 def freshCount : Nat := RunningTransitionSourceSupport.physicalEnd -
@@ -95,13 +95,13 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem outputBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (outputBlock program).slotCount = 28913 := by
+    (outputBlock program).slotCount = 25329 := by
   rw [outputBlock]
   exact RunningTransitionSourceSupport.outputCount_eq
 
 @[simp] theorem piDecBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (piDecBlock program).slotCount = 33792 := by
+    (piDecBlock program).slotCount = 29568 := by
   rw [piDecBlock]
   exact RunningTransitionSourceSupport.piDecCount_eq
 
@@ -126,7 +126,7 @@ def retainedSlotCount (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem retainedSlotCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedSlotCount program = 33794 := by
+    retainedSlotCount program = 29570 := by
   simp [retainedSlotCount]
 
 def retainedCoordinateCount
@@ -136,7 +136,7 @@ def retainedCoordinateCount
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 1385554 := by
+    retainedCoordinateCount program = 1212370 := by
   simp only [retainedCoordinateCount, piDecBlock,
     freshBlock, fieldBlock_coordinateCount,
     RunningTransitionSourceSupport.piDecCount_eq, freshCount_eq]

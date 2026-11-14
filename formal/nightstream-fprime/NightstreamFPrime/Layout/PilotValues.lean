@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Poseidon2
 namespace NightstreamFPrime.Layout.PilotValues
 
 abbrev digestWords : Nat := 4
-abbrev stateHashBaseWords : Nat := 28901
+abbrev stateHashBaseWords : Nat := 25317
 abbrev stateHashWords : Nat :=
   stateHashBaseWords + digestWords + digestWords + digestWords
 abbrev priorPublicInputWords : Nat := 320

@@ -1,5 +1,5 @@
 #![allow(clippy::uninlined_format_args)]
-use neo_params::{nightstream_p64_k16 as profile, NeoParams, ParamsError};
+use neo_params::{nightstream_p64_k14 as profile, NeoParams, ParamsError};
 use num_bigint::BigUint;
 
 #[test]
@@ -69,7 +69,7 @@ fn params_reject_when_combined_bound_reaches_half_the_field() {
 
 #[test]
 fn extension_policy_rejects_when_s_min_gt_2() {
-    let p = NeoParams::nightstream_p64_k16();
+    let p = NeoParams::nightstream_p64_k14();
     let mut p2 = p;
     p2 = p2.with_lambda(320).unwrap();
     let (ell, d_sc) = (64u32, 16u32);
@@ -85,7 +85,7 @@ fn extension_policy_rejects_when_s_min_gt_2() {
 
 #[test]
 fn s_min_and_slack_bits_behave() {
-    let p = NeoParams::nightstream_p64_k16();
+    let p = NeoParams::nightstream_p64_k14();
 
     let s_min1 = p.s_min(1, 1);
     let s_min2 = p.s_min(8, 8);
@@ -166,7 +166,7 @@ fn parameter_boundary_conditions() {
 
 #[test]
 fn profile_security_invariants() {
-    let p = NeoParams::nightstream_p64_k16();
+    let p = NeoParams::nightstream_p64_k14();
 
     let lhs = (p.k_rho() as u128 + 1) * (p.T() as u128) * ((p.b() as u128) - 1);
     let rhs = p.B() as u128;
@@ -192,7 +192,7 @@ fn profile_security_invariants() {
 fn parameter_overflow_boundary_test() {
     use neo_params::{NeoParams, ParamsError};
 
-    let high_lambda_params = NeoParams::nightstream_p64_k16()
+    let high_lambda_params = NeoParams::nightstream_p64_k14()
         .with_lambda(128)
         .expect("lambda");
 
@@ -206,7 +206,7 @@ fn parameter_overflow_boundary_test() {
         Err(e) => panic!("Unexpected error type: {e:?}"),
     }
 
-    let boundary_params = NeoParams::nightstream_p64_k16()
+    let boundary_params = NeoParams::nightstream_p64_k14()
         .with_lambda(127)
         .expect("lambda");
 

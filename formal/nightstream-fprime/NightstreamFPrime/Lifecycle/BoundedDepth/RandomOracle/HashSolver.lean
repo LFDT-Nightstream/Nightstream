@@ -347,13 +347,13 @@ theorem refresh_hashCollisions_le_finder {queries : Nat} (bounded : adversary.Qu
     𝔼 oracle, (if Fork.Succeeds (RefreshFork.game ajtai key) adversary oracle then
         ∑ index, RefreshFork.collisionChance ajtai key adversary index oracle else 0) +
         RefreshKnowledge.stateChance ajtai key adversary ≤
-      18 * refreshFinderChance ajtai key adversary budget + (52 * queries + 959) / budget := by
+      16 * refreshFinderChance ajtai key adversary budget + (46 * queries + 763) / budget := by
   have bound := hashCollisions_le_finder ajtai key (RefreshFork.folds ajtai)
     (fun attempt => (attempt.link.fold.fresh, (RefreshFork.proofOf attempt.link.fold.proof).split))
     (fun attempt => RefreshSchedule.messages (RefreshFork.proofOf attempt.link.fold.proof).nifs)
     adversary bounded positive
-  have count : ((RefreshSchedule.schedule logicalWidth publicFits).rhoCount : ℝ) = 17 := by
-    show ((17 : Nat) : ℝ) = 17
+  have count : ((RefreshSchedule.schedule logicalWidth publicFits).rhoCount : ℝ) = 15 := by
+    show ((15 : Nat) : ℝ) = 15
     norm_num
   rw [count, RefreshSolver.work_eq] at bound
   calc

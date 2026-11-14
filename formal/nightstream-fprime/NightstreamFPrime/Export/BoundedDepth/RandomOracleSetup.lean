@@ -318,7 +318,7 @@ theorem refresh_msisAdvantage_le_solver {queries : Nat}
     (bounded : ∀ chunks, (adversary chunks).QueryBound queries) {budget : ℕ}
     (positive : 0 < budget) :
     refreshMsisAdvantage key adversary ≤
-      refreshSolverAdvantage key adversary budget + (35 * queries + 653) / budget :=
+      refreshSolverAdvantage key adversary budget + (31 * queries + 523) / budget :=
   average_le
     (fun ajtai chunks => RefreshUniqueness.kernelChance ajtai (key chunks) (adversary chunks))
     (fun ajtai chunks => RefreshSolver.solverChance ajtai (key chunks) (adversary chunks) budget)
@@ -336,11 +336,11 @@ theorem refresh_hashCollisions_le_finder {queries : Nat}
     (bounded : ∀ chunks, (adversary chunks).QueryBound queries) {budget : ℕ}
     (positive : 0 < budget) :
     𝔼 chunks, refreshHashCollisions key adversary chunks ≤
-      18 * refreshHashAdvantage key adversary budget + (52 * queries + 959) / budget := by
+      16 * refreshHashAdvantage key adversary budget + (46 * queries + 763) / budget := by
   calc
     _ ≤ 𝔼 chunks : SetupIndex logicalWidth publicFits → Chunk,
-          (18 * HashSolver.refreshFinderChance (setupKey chunks) (key chunks) (adversary chunks)
-              budget + (52 * queries + 959) / budget) :=
+          (16 * HashSolver.refreshFinderChance (setupKey chunks) (key chunks) (adversary chunks)
+              budget + (46 * queries + 763) / budget) :=
       Finset.expect_le_expect fun chunks _ =>
         HashSolver.refresh_hashCollisions_le_finder (setupKey chunks) (key chunks)
           (adversary chunks) (bounded chunks) positive
@@ -454,13 +454,13 @@ theorem refresh_production_knowledge_error_lt_solvers
     𝔼 chunks, refreshSuccess key adversary chunks <
       𝔼 chunks, refreshExtraction key adversary chunks +
         RefreshKnowledge.statisticalError queries + refreshSolverAdvantage key adversary budget +
-        18 * refreshHashAdvantage key adversary budget + (87 * queries + 1612) / budget +
+        16 * refreshHashAdvantage key adversary budget + (77 * queries + 1286) / budget +
         1 / 2 ^ 192 := by
   have bound := refresh_production_knowledge_error_lt key adversary bounded
   have msis := refresh_msisAdvantage_le_solver key adversary bounded positive
   have hash := refresh_hashCollisions_le_finder key adversary bounded positive
-  have work : ((35 * queries + 653 : ℝ)) / budget + (52 * queries + 959) / budget =
-      (87 * queries + 1612) / budget := by ring
+  have work : ((31 * queries + 523 : ℝ)) / budget + (46 * queries + 763) / budget =
+      (77 * queries + 1286) / budget := by ring
   rw [Finset.expect_add_distrib] at bound
   linarith
 

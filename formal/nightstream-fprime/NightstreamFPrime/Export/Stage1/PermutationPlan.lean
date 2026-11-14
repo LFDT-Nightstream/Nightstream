@@ -392,7 +392,7 @@ def piCcsWitnessStarts (_unit : Unit) : List Nat :=
   sequentialWitnessStarts PiCCSInvocations.statementWitnessStart 124 ++
     sequentialWitnessStarts PiCCSInvocations.challengeWitnessStart 4 ++
     sequentialWitnessStarts PiCCSInvocations.roundWitnessStart 56 ++
-    sequentialWitnessStarts PiCCSInvocations.outputWitnessStart 907
+    sequentialWitnessStarts PiCCSInvocations.outputWitnessStart 800
 
 theorem piCcsWitnessStarts_materializes :
     piCcsWitnessStarts () =
@@ -410,7 +410,7 @@ theorem piCcsWitnessStarts_materializes :
 private theorem piCcsWitnessStarts_transcriptPrefix :
     piCcsWitnessStarts () =
       sequentialWitnessStarts PiCCSInvocations.statementWitnessStart 184 ++
-        sequentialWitnessStarts PiCCSInvocations.outputWitnessStart 907 := by
+        sequentialWitnessStarts PiCCSInvocations.outputWitnessStart 800 := by
   have challengeStart : PiCCSInvocations.statementWitnessStart + 124 * 1096 =
       PiCCSInvocations.challengeWitnessStart := by
     simp only [PiCCSInvocations.statementWitnessStart,
@@ -431,7 +431,7 @@ private theorem piCcsWitnessStarts_transcriptPrefix :
       (124 + 4) 56]
 
 private theorem piCcsWitnessStarts_length :
-    (piCcsWitnessStarts ()).length = 1091 := by
+    (piCcsWitnessStarts ()).length = 984 := by
   rw [piCcsWitnessStarts_transcriptPrefix, List.length_append,
     sequentialWitnessStarts_length, sequentialWitnessStarts_length]
 
@@ -725,7 +725,7 @@ theorem canonicalInvocation_witnessStart_of_transcript
   simpa only [List.getElem_map, List.get_eq_getElem] using selected
 
 private theorem canonicalWitnessStarts_output_getD
-    (index : Nat) (afterTranscript : 184 ≤ index) (bound : index < 1091) :
+    (index : Nat) (afterTranscript : 184 ≤ index) (bound : index < 984) :
     (canonicalWitnessStarts ()).getD index 0 =
       NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         (PiCCSInvocations.outputWitnessStart + (index - 184) * 1096) := by
@@ -737,11 +737,11 @@ private theorem canonicalWitnessStarts_output_getD
     exact afterTranscript)]
   rw [sequentialWitnessStarts_length]
   exact sequentialWitnessStarts_getD PiCCSInvocations.outputWitnessStart
-    907 (index - 184) (by omega)
+    800 (index - 184) (by omega)
 
 theorem canonicalInvocation_witnessStart_of_output
     (index : Fin (Data.permutationInvocations ()).length)
-    (afterTranscript : 184 ≤ index.val) (bound : index.val < 1091) :
+    (afterTranscript : 184 ≤ index.val) (bound : index.val < 984) :
     ((Data.permutationInvocations ()).get index).witnessStart =
       NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         (PiCCSInvocations.outputWitnessStart + (index.val - 184) * 1096) := by

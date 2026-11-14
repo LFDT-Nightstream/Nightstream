@@ -96,7 +96,7 @@ def evalChallenges
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
-    Fin 17 → RingF :=
+    Fin 15 → RingF :=
   fun source lane =>
     (interface.challenge offset
       (Fin.cast CombinationFamily.sourceCount_eq.symm source) lane).eval env
@@ -106,7 +106,7 @@ def evalInputs
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
-    Fin 17 → PublicInput (FullShape logicalWidth publicFits) :=
+    Fin 15 → PublicInput (FullShape logicalWidth publicFits) :=
   fun source column =>
     (interface.input offset
       (Fin.cast CombinationFamily.sourceCount_eq.symm source) column).eval env
@@ -177,14 +177,14 @@ theorem parentCoverage
     _ = PiRLCAlgebra.PublicInput.combinePublicInputs
           (evalChallenges interface offset env)
           (evalInputs interface offset env) column := by
-      have challengeEq : ∀ source : Fin 17,
+      have challengeEq : ∀ source : Fin 15,
           CombinationFamily.challengeValue (familyInterface interface)
               offset env
               (Fin.cast CombinationFamily.sourceCount_eq.symm source) =
             evalChallenges interface offset env source := by
         intro source
         rfl
-      have inputEq : ∀ source : Fin 17,
+      have inputEq : ∀ source : Fin 15,
           CombinationFamily.inputValue (familyInterface interface)
               offset env
               (Fin.cast CombinationFamily.sourceCount_eq.symm source)
@@ -212,14 +212,14 @@ theorem parentCoverage
           (evalInputs interface offset env) column
 
 theorem logicalPrivateCount_eq :
-    CombinationFamily.logicalPrivateCount blockCount cellCount = 5440 := by
+    CombinationFamily.logicalPrivateCount blockCount cellCount = 4800 := by
   rw [CombinationFamily.logicalPrivateCount,
     CombinationFamily.sourceCount_eq]
   norm_num [CombinationFamily.stepSize, CombinationStep.privateCount,
     blockCount, cellCount, publicRingColumns, ringDegree]
 
 theorem logicalRowCount_eq :
-    CombinationFamily.logicalRowCount blockCount cellCount = 5440 := by
+    CombinationFamily.logicalRowCount blockCount cellCount = 4800 := by
   rw [CombinationFamily.logicalRowCount, logicalPrivateCount_eq]
 
 def circuit
@@ -234,7 +234,7 @@ theorem localLength_eq
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 5440 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 4800 := by
   rw [(circuit interface).privateCount_eq offset]
   exact logicalPrivateCount_eq
 
@@ -244,7 +244,7 @@ theorem flatConstraints_length
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      5440 := by
+      4800 := by
   rw [(circuit interface).rowCount_eq offset]
   exact logicalRowCount_eq
 
@@ -255,7 +255,7 @@ theorem flatConstraints_varsBelow
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ expression ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
-      expression.VarsBelow (offset + 5440) := by
+      expression.VarsBelow (offset + 4800) := by
   simpa [circuit, logicalPrivateCount_eq] using!
     CombinationFamily.flatConstraints_varsBelow (familyInterface interface)
       offset env assumptions

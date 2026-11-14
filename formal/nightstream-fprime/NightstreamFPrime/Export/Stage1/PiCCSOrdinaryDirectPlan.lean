@@ -86,7 +86,7 @@ theorem sourceSupport (location : Location) :
       exact proofLogicalSource_support index
   | fresh index =>
       have bound := index.isLt
-      change index.val < 2956 at bound
+      change index.val < 2862 at bound
       apply PiCCSOrdinarySourceSupport.fresh_source
       · change PiCCSStarts.initialClaimFreshStart ≤
           PiCCSArithmetic.initialClaimFreshStart + index.val
@@ -226,7 +226,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
       apply Eq.symm
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.priorInput index).sourceColumn_lt
-      have indexBound : index.val < 28913 := index.isLt
+      have indexBound : index.val < 25329 := index.isLt
       left
       norm_num [sourceColumn, PilotProduction.priorPreimageStart, PiCCSStarts.statementWitnessStart_eq]
       omega
@@ -254,7 +254,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
       apply Eq.symm
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.outputInput index).sourceColumn_lt
-      have indexBound : index.val < 28913 := index.isLt
+      have indexBound : index.val < 25329 := index.isLt
       left
       norm_num [sourceColumn, PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, Lifecycle.PriorStateHash.publicWidth, Lifecycle.PaperAlgebra.publicRingColumns, Spec.ringDegree, PiCCSStarts.statementWitnessStart_eq]
       omega
@@ -302,7 +302,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         apply Eq.symm
         apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (proofLogicalSource_lt index)
         left
-        have indexBound : index.val < 17976 := by
+        have indexBound : index.val < 16056 := by
           simpa only [proofInputCount_eq] using proof
         rw [proofLogicalSource, dite_eq_left proof]
         rw [PiCCSInputs.priorChildrenStart_eq, PiCCSStarts.statementWitnessStart_eq]
@@ -709,7 +709,7 @@ private theorem programRow_support
       RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (index : Fin 43517) :
+    (index : Fin 38553) :
     (PiCCSOrdinaryDirectSource.programRow relation index).VarsSatisfy
       PiCCSOrdinarySourceSupport.Target := by
   exact PiCCSOrdinaryDirectSupport.sourceRows_varsSatisfy relation _
@@ -775,7 +775,7 @@ theorem programRow_preserve
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
-    (index : Fin 43517) :
+    (index : Fin 38553) :
     OrdinarySourcePlan.SourceMap.PreservesRow (sourceMap geometry) assignment
       (RunningTransitionDirectPlan.transitionEnv program base)
       (PiCCSOrdinaryDirectSource.programRow relation index)
@@ -796,7 +796,7 @@ def rowForms
       RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 43517) :
+    (geometry : Geometry program logicalWidth) (index : Fin 38553) :
     OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (sourceMap geometry) (oneColumn geometry)
     (PiCCSOrdinaryDirectSource.programRow relation index)
@@ -839,7 +839,7 @@ def plan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) :
-    (plan relation geometry).rowCount = 43517 := by
+    (plan relation geometry).rowCount = 38553 := by
   rfl
 
 theorem plan_eq_of_same_shape

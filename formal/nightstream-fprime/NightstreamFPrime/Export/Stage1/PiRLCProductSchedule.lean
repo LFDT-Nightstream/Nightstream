@@ -50,20 +50,20 @@ def invocationCount (family : Family) : Nat :=
   sourceCount * family.privateCount
 
 @[simp] theorem commitment_invocationCount :
-    invocationCount .commitment = 19584 := by
+    invocationCount .commitment = 17280 := by
   norm_num [invocationCount, privateCount, blockCount, cellCount,
     CombinationStep.privateCount, sourceCount, ringDegree]
 
 @[simp] theorem publicInput_invocationCount :
-    invocationCount .publicInput = 5440 := by
+    invocationCount .publicInput = 4800 := by
   norm_num [invocationCount, privateCount, blockCount, cellCount,
     CombinationStep.privateCount, sourceCount, ringDegree]
 
-@[simp] theorem evalK_invocationCount : invocationCount .evalK = 2176 := by
+@[simp] theorem evalK_invocationCount : invocationCount .evalK = 1920 := by
   norm_num [invocationCount, privateCount, blockCount, cellCount,
     CombinationStep.privateCount, sourceCount, ringDegree]
 
-@[simp] theorem evalA_invocationCount : invocationCount .evalA = 8704 := by
+@[simp] theorem evalA_invocationCount : invocationCount .evalA = 7680 := by
   norm_num [invocationCount, privateCount, blockCount, cellCount,
     CombinationStep.privateCount, sourceCount, ringDegree]
 
@@ -371,7 +371,7 @@ def invocationCount : Nat :=
     (Family.invocationCount .publicInput +
       (Family.invocationCount .evalK + Family.invocationCount .evalA))
 
-@[simp] theorem invocationCount_eq : invocationCount = 35904 := by
+@[simp] theorem invocationCount_eq : invocationCount = 31680 := by
   norm_num [invocationCount]
 
 def descriptor : Fin invocationCount → Descriptor :=
@@ -498,7 +498,7 @@ attribute [local implicit_reducible] Family.invocationCount Family.privateCount 
 theorem Descriptor.invocation_val (descriptor : PiRLCProductSchedule.Descriptor) :
     descriptor.invocation.val =
       (match descriptor.family with
-        | .commitment => 0 | .publicInput => 19584 | .evalK => 25024 | .evalA => 27200) +
+        | .commitment => 0 | .publicInput => 17280 | .evalK => 22080 | .evalA => 24000) +
       descriptor.source.val * (descriptor.family.blockCount * 64 * descriptor.family.cellCount) +
       descriptor.block.val * (64 * descriptor.family.cellCount) +
       descriptor.lane.val * descriptor.family.cellCount + descriptor.cell.val := by

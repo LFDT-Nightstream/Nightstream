@@ -413,14 +413,14 @@ theorem fork_failure_le {queries : Nat} (bounded : adversary.QueryBound queries)
           (if ∀ index, Fork.ForkValid (game ajtai key) adversary oracle retries index
             then 0 else 1)
       else 0) ≤
-      17 * (((queries + 17 : Nat) : ℝ) * Fork.sampleError) +
+      15 * (((queries + 15 : Nat) : ℝ) * Fork.sampleError) +
         𝔼 oracle, (if Fork.Succeeds (game ajtai key) adversary oracle then
           ∑ index, collisionChance ajtai key adversary index oracle else 0) := by
   have count : ((RefreshSchedule.schedule logicalWidth publicFits).rhoCount : ℝ) *
       (((queries + (RefreshSchedule.schedule logicalWidth publicFits).rhoCount : Nat) : ℝ) *
         Fork.sampleError) =
-      17 * (((queries + 17 : Nat) : ℝ) * Fork.sampleError) := by
-    show ((17 : Nat) : ℝ) * (((queries + 17 : Nat) : ℝ) * Fork.sampleError) = _
+      15 * (((queries + 15 : Nat) : ℝ) * Fork.sampleError) := by
+    show ((15 : Nat) : ℝ) * (((queries + 15 : Nat) : ℝ) * Fork.sampleError) = _
     norm_num
   have failure := ForkLink.fork_failure_le ajtai key (folds ajtai)
     (statement := fun attempt => (attempt.link.fold.fresh, (proofOf attempt.link.fold.proof).split))
@@ -435,11 +435,11 @@ theorem expected_retries_le {queries : Nat} (bounded : adversary.QueryBound quer
     𝔼 oracle, (if Fork.Succeeds (game ajtai key) adversary oracle then
         ∑ index, retryCount (Fork.Hits (game ajtai key) adversary index)
           (Fork.rhoPoint (game ajtai key) adversary index oracle) oracle else 0) ≤
-      17 * ((queries + 17 : Nat) : ℝ) := by
+      15 * ((queries + 15 : Nat) : ℝ) := by
   have count : ((RefreshSchedule.schedule logicalWidth publicFits).rhoCount : ℝ) *
       ((queries + (RefreshSchedule.schedule logicalWidth publicFits).rhoCount : Nat) : ℝ) =
-      17 * ((queries + 17 : Nat) : ℝ) := by
-    show ((17 : Nat) : ℝ) * ((queries + 17 : Nat) : ℝ) = _
+      15 * ((queries + 15 : Nat) : ℝ) := by
+    show ((15 : Nat) : ℝ) * ((queries + 15 : Nat) : ℝ) = _
     norm_num
   have retries := Fork.expected_retries_le (game ajtai key) adversary bounded
   rw [count] at retries

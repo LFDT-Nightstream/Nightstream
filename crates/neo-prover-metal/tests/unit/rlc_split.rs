@@ -101,7 +101,7 @@ fn device_rlc_mix_matches_host_mix() {
     let witnesses = [&signed, &stored, &zero, &dense];
     let mut rhos: Vec<_> = sample_rot_rhos_n_typed(
         &mut neo_transcript::Poseidon2Transcript::new_v1_2(),
-        &neo_params::NeoParams::nightstream_p64_k16(),
+        &neo_params::NeoParams::nightstream_p64_k14(),
         &RotRing::profile(),
         4,
     )

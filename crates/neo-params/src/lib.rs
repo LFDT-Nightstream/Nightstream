@@ -38,22 +38,22 @@ pub struct NeoParams {
     lambda: u32,
 }
 
-/// The only profile, "Nightstream P64, k_rho = 16": `q = 2^64 − 59` and the
+/// The only profile, "Nightstream P64, k_rho = 14": `q = 2^64 − 59` and the
 /// ring `F_q[X]/(X^64 + 1)` (`decisions/field-2p64-59-ring-x64.md`).
-pub mod nightstream_p64_k16 {
-    pub const NAME: &str = "Nightstream P64, k_rho = 16";
+pub mod nightstream_p64_k14 {
+    pub const NAME: &str = "Nightstream P64, k_rho = 14";
     pub const Q: u64 = 0u64.wrapping_sub(59);
     pub const ETA: usize = 128;
     pub const D: usize = 64;
     pub const KAPPA: u32 = 18;
     pub const M: u64 = 1u64 << 30;
     pub const B_BASE: u32 = 2;
-    pub const K_RHO: u32 = 16;
+    pub const K_RHO: u32 = 14;
     pub const B: u64 = 1u64 << K_RHO;
     /// SuperNeo v1.2 Theorem 5 for a power-of-two cyclotomic ring: `T = 2·φ(η)`.
     pub const T: u32 = 128;
     pub const EXTENSION_DEGREE: u32 = 2;
-    /// The statistical target of `NeoParams::nightstream_p64_k16`, not a
+    /// The statistical target of `NeoParams::nightstream_p64_k14`, not a
     /// bound. No gate certifies it: the census of each shape gives at most
     /// 116 bits, and the fold error at most 112 (SPEC.md section 3). A gate
     /// replaces it with the bits that it certifies (`NeoParams::with_lambda`).
@@ -254,20 +254,20 @@ impl NeoParams {
         Ok(Self { lambda, ..self })
     }
 
-    pub fn nightstream_p64_k16() -> Self {
+    pub fn nightstream_p64_k14() -> Self {
         Self::new(
-            nightstream_p64_k16::Q,
-            nightstream_p64_k16::ETA as u32,
-            nightstream_p64_k16::D as u32,
-            nightstream_p64_k16::KAPPA,
-            nightstream_p64_k16::M,
-            nightstream_p64_k16::B_BASE,
-            nightstream_p64_k16::K_RHO,
-            nightstream_p64_k16::T,
-            nightstream_p64_k16::EXTENSION_DEGREE,
-            nightstream_p64_k16::TARGET_LAMBDA,
+            nightstream_p64_k14::Q,
+            nightstream_p64_k14::ETA as u32,
+            nightstream_p64_k14::D as u32,
+            nightstream_p64_k14::KAPPA,
+            nightstream_p64_k14::M,
+            nightstream_p64_k14::B_BASE,
+            nightstream_p64_k14::K_RHO,
+            nightstream_p64_k14::T,
+            nightstream_p64_k14::EXTENSION_DEGREE,
+            nightstream_p64_k14::TARGET_LAMBDA,
         )
-        .expect("Nightstream P64 k_rho=16 parameters")
+        .expect("Nightstream P64 k_rho=14 parameters")
     }
 
     #[inline]
@@ -424,7 +424,7 @@ impl NeoParams {
     ) -> FoldError {
         let sources = BigUint::from(1 + u64::from(self.k_rho));
         let challenges = BigUint::from(2 * u64::from(cube_variables) + 1) + &sources;
-        let distance = BigUint::from(1u8) << nightstream_p64_k16::CHALLENGE_DISTANCE_LOG2;
+        let distance = BigUint::from(1u8) << nightstream_p64_k14::CHALLENGE_DISTANCE_LOG2;
         let count = challenges * field_factor * challenge_set_cardinality * &distance
             + &sources * &sources * (field_size * &distance + field_size * challenge_set_cardinality);
         let denominator = field_size * challenge_set_cardinality * distance;

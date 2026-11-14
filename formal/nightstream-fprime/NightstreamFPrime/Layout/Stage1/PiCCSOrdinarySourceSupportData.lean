@@ -25,11 +25,11 @@ def ordinaryLogicalCount : Nat :=
   PiCCSStarts.outputBindingWitnessStart -
     PiCCSStarts.initialClaimLogicalStart
 
-@[simp] theorem callerInputCount_eq : callerInputCount = 17656 := by
+@[simp] theorem callerInputCount_eq : callerInputCount = 15736 := by
   rw [callerInputCount, PiCCSInputs.phaseOffset_eq,
     PiCCSInputs.priorChildrenStart_eq]
 
-@[simp] theorem proofInputCount_eq : proofInputCount = 17976 := by
+@[simp] theorem proofInputCount_eq : proofInputCount = 16056 := by
   rw [proofInputCount, PiCCSStarts.statementWitnessStart_eq,
     PiCCSInputs.priorChildrenStart_eq]
 
@@ -42,7 +42,7 @@ def ordinaryLogicalCount : Nat :=
   rw [transcriptOutputCount, transcriptInvocationCount_eq]
   norm_num [NightstreamFPrime.Spec.Poseidon2.width]
 
-@[simp] theorem ordinaryLogicalCount_eq : ordinaryLogicalCount = 34871 := by
+@[simp] theorem ordinaryLogicalCount_eq : ordinaryLogicalCount = 30641 := by
   unfold ordinaryLogicalCount PiCCSStarts.initialClaimLogicalStart
   rw [PiCCSStarts.outputBindingWitnessStart_eq,
     PiCCSStarts.roundTranscriptWitnessStart_eq]
@@ -142,7 +142,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
     column < PackageOrder.SourceColumnCount := by
   have phaseValue := congrArg (fun starts : List Nat => starts[4]!)
     PiDECInputs.inputStarts_eq
-  change PiDECInputs.phaseOffset = 11412738 at phaseValue
+  change PiDECInputs.phaseOffset = 10059332 at phaseValue
   have sourceLower := PackageOrder.sourceColumnCount_ge_piDecPhaseOffset
   rw [phaseValue] at sourceLower
   apply Nat.lt_of_lt_of_le ?_ sourceLower
@@ -192,7 +192,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
                 PiCCSStarts.outputBindingWitnessStart_eq]
               unfold PiCCSStarts.initialClaimLogicalStart
               rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
-            _ ≤ 11412738 := by
+            _ ≤ 10059332 := by
               rw [PiCCSStarts.outputBindingWitnessStart_eq]
               norm_num)
   · exact Nat.lt_of_lt_of_le fresh.2 (by

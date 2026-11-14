@@ -57,12 +57,12 @@ def constraintExponentOf (shape : Shape) : Nat := shape.constraintOffset
 /-- The circuit computes `γ ^ constraintExponentOf` as `(γ ^ matrixExponentOf) ^ (t + 1)`. -/
 def constraintFactorOf (shape : Shape) : Nat := shape.matrixCount + 1
 
-theorem matrixExponent_eq : matrixExponentOf productionShape = 1024 := by
+theorem matrixExponent_eq : matrixExponentOf productionShape = 896 := by
   norm_num [matrixExponentOf, productionShape, productionProfile,
     RingMatrixSource.ringShape, Shape.matrixEvaluationOffset,
     Shape.padEvaluationCount, ringDegree]
 
-theorem constraintExponent_eq : constraintExponentOf productionShape = 5120 := by
+theorem constraintExponent_eq : constraintExponentOf productionShape = 4480 := by
   norm_num [constraintExponentOf, productionShape, productionProfile,
     RingMatrixSource.ringShape, Shape.constraintOffset,
     Shape.padEvaluationCount, Shape.matrixEvaluationCount, ringDegree]
@@ -874,7 +874,7 @@ private theorem pointLength_eq (interface : Interface) (offset : Nat) :
   rfl
 
 private theorem matrixLength_eq (interface : Interface) (offset : Nat) :
-    matrixLength interface offset = 3072 := by
+    matrixLength interface offset = 2688 := by
   rw [matrixLength_eq_mul, matrixExponent_eq]
 
 private theorem constraintLength_eq (interface : Interface) (offset : Nat) :
@@ -1015,17 +1015,17 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
         (offset + localLength (Circuit.ops (circuit interface).main offset)) :=
   shapeFlatConstraints_varsBelow interface cubeVariables_positive offset env assumptions
 
-def privateCount : Nat := 3197
+def privateCount : Nat := 2813
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 3197 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 2813 := by
   change localLength (opsAt interface offset) = _
   rw [opsAt_localLength, pointLength_eq, matrixLength_eq, constraintLength_eq]
 
 /-- The circuit with its constant private count, for compiled evaluation
 (`Formal.childLength_eq_childLengthFast` reads it for every later offset). -/
 def circuitFast (interface : Interface) : FormalCircuit :=
-  (circuit interface).withPrivateCount (fun _ => 3197) (localLength_eq interface)
+  (circuit interface).withPrivateCount (fun _ => 2813) (localLength_eq interface)
 
 @[csimp] theorem circuit_eq_circuitFast : @circuit = @circuitFast := by
   funext interface
@@ -1038,7 +1038,7 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      3199 := by
+      2815 := by
   change (flatConstraints (opsAt interface offset)).length = _
   have pointFlat :
       (flatConstraints (Circuit.ops (pointCircuitAt interface offset).main
@@ -1051,7 +1051,7 @@ theorem flatConstraints_length (interface : Interface) (offset : Nat) :
             cubeVariables])
   have matrixFlat :
       (flatConstraints (Circuit.ops (matrixPowerCircuitAt interface offset).main
-        (matrixOffset interface offset))).length = 3072 := by
+        (matrixOffset interface offset))).length = 2688 := by
     unfold matrixPowerCircuitAt
     rw [Power.flatConstraints_length, matrixExponent_eq]
   have constraintFlat :

@@ -12,7 +12,7 @@ open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 def signBitIndex : Nat := 63
 def exactPrivateCount : Nat := 1
-def exactRowCount : Nat := 18
+def exactRowCount : Nat := 16
 
 theorem exactPrivateCount_pos : 0 < exactPrivateCount := by
   decide

@@ -361,7 +361,7 @@ theorem programRow_preserve
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) (assignment : Assignment F logicalWidth)
-    (index : Fin 15453) :
+    (index : Fin 13635) :
     OrdinarySourcePlan.SourceMap.PreservesRow (sourceMap geometry) assignment
       (resolvedEnv geometry assignment)
       (PiRLCSamplerOrdinaryDirectSource.programRow
@@ -380,7 +380,7 @@ def rowForms
     (_relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
-      logicalWidth) (index : Fin 15453) : OrdinaryRow.Forms logicalWidth :=
+      logicalWidth) (index : Fin 13635) : OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (sourceMap geometry)
     (PiRLCSamplerOrdinaryRetainedGeometry.oneColumn geometry)
     (PiRLCSamplerOrdinaryDirectSource.programRow

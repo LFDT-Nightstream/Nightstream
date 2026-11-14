@@ -33,10 +33,10 @@ theorem phaseOffset_matches_piDec
   rw [PilotPiCCSPiRLCPiDEC.physicalColumnCount_eq]
   rfl
 
-def iterationWordIndex : Nat := 28904
+def iterationWordIndex : Nat := 25320
 
-def initialStateWordStart : Nat := 28905
-def currentStateWordStart : Nat := 28909
+def initialStateWordStart : Nat := 25321
+def currentStateWordStart : Nat := 25325
 
 def iterationExpr : Expr :=
   Expr.var (PilotProduction.priorPreimageStart + iterationWordIndex)

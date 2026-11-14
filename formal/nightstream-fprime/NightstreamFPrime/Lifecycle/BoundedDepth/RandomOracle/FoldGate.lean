@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Folding.Light.ErrorBudget
 /-! The fold gate of Rust `Params::for_ccs_shape` in integers. Rust reads `Counts` from a CCS
 shape: the cube variables `ℓ`, the degree bound of a round polynomial and the CCS matrices. Its
 census numerator (`Counts.numerator`) counts every fresh source that the Π_RLC guard admits. The
-gate charges `error = (2ℓ + 1 + 17) · numerator/q² + 17² · (1/|C| + 2^−173)` as
+gate charges `error = (2ℓ + 1 + 15) · numerator/q² + 15² · (1/|C| + 2^−173)` as
 `count/denominator`, and gives `bits`, the largest `k` with `2^k · count ≤ denominator`.
 
 - `bits_spec`: `2^bits · count ≤ denominator < 2^(bits + 1) · count`.
@@ -68,12 +68,12 @@ def production : Counts where
   width := Nifs.SelectedTestNumerator.width
   matrices := productionProfile.ccsMatrices
 
-theorem production_numerator : production.numerator = 6377 := by
+theorem production_numerator : production.numerator = 4971 := by
   rfl
 
 private theorem cardinality_eq : productionChallengeSetCardinality = 5 ^ 64 := rfl
 
-private theorem sources_eq : sources = 17 := rfl
+private theorem sources_eq : sources = 15 := rfl
 
 theorem error_eq (c : Counts) : error c = (count c : ℚ) / (denominator : ℚ) := by
   have card : (0 : ℚ) < (productionChallengeSetCardinality : ℚ) := by
@@ -133,8 +133,8 @@ private theorem sampleError_lt : Fork.sampleError < 1 / 5 ^ 64 + 1 / 2 ^ 173 := 
 
 private theorem error_production :
     ((error production : ℚ) : ℝ) =
-      74 * 6377 * (1 / (fieldModulus : ℝ) ^ 2) + 289 * (1 / 5 ^ 64 + 1 / 2 ^ 173) := by
-  have challenges : production.challenges = 74 := rfl
+      72 * 4971 * (1 / (fieldModulus : ℝ) ^ 2) + 225 * (1 / 5 ^ 64 + 1 / 2 ^ 173) := by
+  have challenges : production.challenges = 72 := rfl
   unfold error
   rw [challenges, production_numerator, sources_eq, cardinality_eq]
   push_cast
@@ -150,7 +150,7 @@ theorem refresh_statisticalError_le (queries : ℕ) :
   have queriesNonnegative : (0 : ℝ) ≤ queries := Nat.cast_nonneg queries
   unfold RefreshKnowledge.statisticalError
   push_cast
-  rw [div_eq_mul_one_div (5389 : ℝ)]
+  rw [div_eq_mul_one_div (4747 : ℝ)]
   nlinarith [mul_nonneg queriesNonnegative inverse.le,
     mul_nonneg queriesNonnegative (sub_nonneg.mpr sample.le),
     mul_nonneg queriesNonnegative nonnegative]

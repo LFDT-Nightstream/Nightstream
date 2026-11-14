@@ -1,9 +1,9 @@
-//! The shape constants of the profile Nightstream P64, k_rho = 16, as the
+//! The shape constants of the profile Nightstream P64, k_rho = 14, as the
 //! Lean-emitted packages lay them out. Each value that the profile fixes comes
 //! from `neo-params`; the other files of this crate read these, so a value has
 //! one definition.
 
-use neo_params::nightstream_p64_k16 as profile;
+use neo_params::nightstream_p64_k14 as profile;
 
 pub(crate) const DECOMPOSITION_BASE: u64 = profile::B_BASE as u64;
 pub(crate) const DECOMPOSITION_K_RHO: u32 = profile::K_RHO;

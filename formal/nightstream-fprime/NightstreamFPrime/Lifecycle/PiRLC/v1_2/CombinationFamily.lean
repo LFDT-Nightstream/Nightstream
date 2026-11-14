@@ -16,11 +16,11 @@ open NightstreamFPrime.Circuit
 
 abbrev sourceCount : Nat := productionShape.sourceCount
 
-theorem sourceCount_eq : sourceCount = 17 := by
+theorem sourceCount_eq : sourceCount = 15 := by
   rw [sourceCount, productionShape_sourceCount]
   rfl
 
-@[simp] theorem castSource_eq_mk (source : Fin 17) :
+@[simp] theorem castSource_eq_mk (source : Fin 15) :
     Fin.cast sourceCount_eq.symm source =
       ⟨source.val, by
         rw [sourceCount_eq]
@@ -352,7 +352,7 @@ def rightCombination : {count : Nat} →
 def orderedCombination {blockCount cellCount : Nat}
     (interface : Interface blockCount cellCount) (offset : Nat)
     (env : Env) (block : Fin blockCount) (cell : Fin cellCount) : RingF :=
-  rightCombination (count := 17) fun source =>
+  rightCombination (count := 15) fun source =>
     term interface offset env (Fin.cast sourceCount_eq.symm source) block cell
 
 def accumulated {blockCount cellCount : Nat}

@@ -243,21 +243,21 @@ theorem previousInvocation_eq
         (CombinationStep.indexOf block lane cell).val
     omega
   · rw [wireDescriptor_invocation, wireDescriptor_privateCount]
-    change 19584 + (320 * source.val +
+    change 17280 + (320 * source.val +
         (CombinationStep.indexOf block lane cell).val) - 320 =
-      19584 + (320 * (source.val - 1) +
+      17280 + (320 * (source.val - 1) +
         (CombinationStep.indexOf block lane cell).val)
     omega
   · rw [wireDescriptor_invocation, wireDescriptor_privateCount]
-    change 19584 + (5440 + (128 * source.val +
+    change 17280 + (4800 + (128 * source.val +
         (CombinationStep.indexOf block lane cell).val)) - 128 =
-      19584 + (5440 + (128 * (source.val - 1) +
+      17280 + (4800 + (128 * (source.val - 1) +
         (CombinationStep.indexOf block lane cell).val))
     omega
   · rw [wireDescriptor_invocation, wireDescriptor_privateCount]
-    change 19584 + (5440 + (2176 + (512 * source.val +
+    change 17280 + (4800 + (1920 + (512 * source.val +
         (CombinationStep.indexOf block lane cell).val))) - 512 =
-      19584 + (5440 + (2176 + (512 * (source.val - 1) +
+      17280 + (4800 + (1920 + (512 * (source.val - 1) +
         (CombinationStep.indexOf block lane cell).val)))
     omega
 
@@ -440,7 +440,7 @@ theorem block_row?
   have bound : ordinal < (block geometry).rowCount := by
     rw [block_rowCount]
     dsimp only [ordinal]
-    have invocationBound : descriptor.invocation.val < 561 := descriptor.invocation.isLt
+    have invocationBound : descriptor.invocation.val < 495 := descriptor.invocation.isLt
     omega
   have quotient : ordinal / 128 = descriptor.invocation.val := by
     dsimp only [ordinal]
@@ -483,7 +483,7 @@ theorem matrixProgram_invocation_row?
       (MatrixProgram.Block.ringProduct (block geometry)).rowCount := by
     change invocation.val * 128 + localRow.val < (block geometry).rowCount
     rw [block_rowCount]
-    have invocationBound : invocation.val < 561 := invocation.isLt
+    have invocationBound : invocation.val < 495 := invocation.isLt
     omega
   rw [show matrixProgram geometry = MatrixProgram.Program.mk
       [.ringProduct (block geometry)] by rfl]

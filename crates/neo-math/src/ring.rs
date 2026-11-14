@@ -2,14 +2,14 @@
 
 use crate::balanced::to_balanced_i128;
 use crate::Fq;
-use neo_params::nightstream_p64_k16;
+use neo_params::nightstream_p64_k14;
 use p3_field::PrimeCharacteristicRing;
 use std::array;
 use std::ops::{Add, Mul, Sub};
 use std::sync::OnceLock;
 
-pub const ETA: usize = nightstream_p64_k16::ETA;
-pub const D: usize = nightstream_p64_k16::D;
+pub const ETA: usize = nightstream_p64_k14::ETA;
+pub const D: usize = nightstream_p64_k14::D;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Rq(pub [Fq; D]);

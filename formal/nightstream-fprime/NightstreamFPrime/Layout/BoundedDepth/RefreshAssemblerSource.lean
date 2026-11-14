@@ -33,7 +33,7 @@ variable {logicalWidth : Nat}
 /-- The 16 children's commitments, 1,152 words each. -/
 def childCommitmentColumn (split : Spec.Folding.Refresh.Split PaperAlgebra.Commitment
     productionShape) (word : Nat) : F :=
-  split.commitments (finAt 16 (by decide) (word / 1152))
+  split.commitments (finAt 14 (by decide) (word / 1152))
     (finAt 18 (by decide) (word % 1152 / 64)) (finAt 64 (by decide) word)
 
 /-- The 16 children's evaluation families, 320 values of `K` each: the pad family, then the
@@ -42,10 +42,10 @@ def childEvaluationColumn (split : Spec.Folding.Refresh.Split PaperAlgebra.Commi
     productionShape) (word : Nat) : F :=
   kColumn (fun index =>
     if index % 320 < 64 then
-      (split.evaluations (finAt 16 (by decide) (index / 320))).pad
+      (split.evaluations (finAt 14 (by decide) (index / 320))).pad
         (finAt 64 (by decide) (index % 320))
     else
-      (split.evaluations (finAt 16 (by decide) (index / 320))).matrix
+      (split.evaluations (finAt 14 (by decide) (index / 320))).matrix
         (finAt 4 (by decide) ((index % 320 - 64) / 64)) (finAt 64 (by decide) (index % 320 - 64)))
     word
 
@@ -53,15 +53,15 @@ def childEvaluationColumn (split : Spec.Folding.Refresh.Split PaperAlgebra.Commi
 def digitColumn (digits : Fin productionShape.runningCount →
     PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
     (word : Nat) : F :=
-  digits (finAt 16 (by decide) (word / 320)) (finAt 320 (by decide) word)
+  digits (finAt 14 (by decide) (word / 320)) (finAt 320 (by decide) word)
 
 /-- The Π_CCS output of all 17 sources: per source 64 pad and 256 matrix coordinates. -/
 def outputColumn (output : FullOutputCoordinates.FullOutput K productionShape) (word : Nat) : F :=
   kColumn (fun index =>
     if index % 320 < 64 then
-      output.padCoordinate (finAt 17 (by decide) (index / 320)) (finAt 64 (by decide) (index % 320))
+      output.padCoordinate (finAt 15 (by decide) (index / 320)) (finAt 64 (by decide) (index % 320))
     else
-      output.matrixCoordinate (finAt 17 (by decide) (index / 320))
+      output.matrixCoordinate (finAt 15 (by decide) (index / 320))
         (finAt 4 (by decide) ((index % 320 - 64) / 64)) (finAt 64 (by decide) (index % 320 - 64)))
     word
 
@@ -100,12 +100,12 @@ def lightValues (values : Values logicalWidth publicFits) :
 
 /-- The refresh step's own groups, from the children's commitments. -/
 def tailColumn (values : Values logicalWidth publicFits) (word : Nat) : F :=
-  if word < 18432 then childCommitmentColumn values.split word
-  else if word < 28672 then childEvaluationColumn values.split (word - 18432)
-  else if word < 33792 then digitColumn values.digits (word - 28672)
-  else if word < 34296 then roundColumn values.rounds (word - 33792)
-  else if word < 45176 then outputColumn values.output (word - 34296)
-  else LightAssemblerSource.quadColumn (by decide) values.digestSelect (word - 45176)
+  if word < 16128 then childCommitmentColumn values.split word
+  else if word < 25088 then childEvaluationColumn values.split (word - 16128)
+  else if word < 29568 then digitColumn values.digits (word - 25088)
+  else if word < 30072 then roundColumn values.rounds (word - 29568)
+  else if word < 39672 then outputColumn values.output (word - 30072)
+  else LightAssemblerSource.quadColumn (by decide) values.digestSelect (word - 39672)
 
 /-- The source columns from `base`, in the layout of `RefreshAssembler.interface`. -/
 def env (base witnessWordCount : Nat) (values : Values logicalWidth publicFits) : Env :=
@@ -127,40 +127,40 @@ theorem env_tail (word : Nat) :
   simp only [env, show ¬childCommitmentsStart base witnessWordCount + word <
     childCommitmentsStart base witnessWordCount by omega, ↓reduceIte, Nat.add_sub_cancel_left]
 
-theorem tail_commitment (word : Nat) (bound : word < 18432) :
+theorem tail_commitment (word : Nat) (bound : word < 16128) :
     tailColumn values word = childCommitmentColumn values.split word := by
   simp only [tailColumn, bound, ↓reduceIte]
 
-theorem tail_evaluation (word : Nat) (bound : word < 10240) :
-    tailColumn values (18432 + word) = childEvaluationColumn values.split word := by
-  simp only [tailColumn, show ¬18432 + word < 18432 by omega,
-    show 18432 + word < 28672 by omega, ↓reduceIte, Nat.add_sub_cancel_left]
+theorem tail_evaluation (word : Nat) (bound : word < 8960) :
+    tailColumn values (16128 + word) = childEvaluationColumn values.split word := by
+  simp only [tailColumn, show ¬16128 + word < 16128 by omega,
+    show 16128 + word < 25088 by omega, ↓reduceIte, Nat.add_sub_cancel_left]
 
-theorem tail_digit (word : Nat) (bound : word < 5120) :
-    tailColumn values (28672 + word) = digitColumn values.digits word := by
-  simp only [tailColumn, show ¬28672 + word < 18432 by omega,
-    show ¬28672 + word < 28672 by omega, show 28672 + word < 33792 by omega, ↓reduceIte,
+theorem tail_digit (word : Nat) (bound : word < 4480) :
+    tailColumn values (25088 + word) = digitColumn values.digits word := by
+  simp only [tailColumn, show ¬25088 + word < 16128 by omega,
+    show ¬25088 + word < 25088 by omega, show 25088 + word < 29568 by omega, ↓reduceIte,
     Nat.add_sub_cancel_left]
 
 theorem tail_round (word : Nat) (bound : word < 504) :
-    tailColumn values (33792 + word) = roundColumn values.rounds word := by
-  simp only [tailColumn, show ¬33792 + word < 18432 by omega,
-    show ¬33792 + word < 28672 by omega, show ¬33792 + word < 33792 by omega,
-    show 33792 + word < 34296 by omega, ↓reduceIte, Nat.add_sub_cancel_left]
+    tailColumn values (29568 + word) = roundColumn values.rounds word := by
+  simp only [tailColumn, show ¬29568 + word < 16128 by omega,
+    show ¬29568 + word < 25088 by omega, show ¬29568 + word < 29568 by omega,
+    show 29568 + word < 30072 by omega, ↓reduceIte, Nat.add_sub_cancel_left]
 
-theorem tail_output (word : Nat) (bound : word < 10880) :
-    tailColumn values (34296 + word) = outputColumn values.output word := by
-  simp only [tailColumn, show ¬34296 + word < 18432 by omega,
-    show ¬34296 + word < 28672 by omega, show ¬34296 + word < 33792 by omega,
-    show ¬34296 + word < 34296 by omega, show 34296 + word < 45176 by omega, ↓reduceIte,
+theorem tail_output (word : Nat) (bound : word < 9600) :
+    tailColumn values (30072 + word) = outputColumn values.output word := by
+  simp only [tailColumn, show ¬30072 + word < 16128 by omega,
+    show ¬30072 + word < 25088 by omega, show ¬30072 + word < 29568 by omega,
+    show ¬30072 + word < 30072 by omega, show 30072 + word < 39672 by omega, ↓reduceIte,
     Nat.add_sub_cancel_left]
 
 theorem tail_digestSelect (word : Nat) :
-    tailColumn values (45176 + word) =
+    tailColumn values (39672 + word) =
       LightAssemblerSource.quadColumn (by decide) values.digestSelect word := by
-  simp only [tailColumn, show ¬45176 + word < 18432 by omega,
-    show ¬45176 + word < 28672 by omega, show ¬45176 + word < 33792 by omega,
-    show ¬45176 + word < 34296 by omega, show ¬45176 + word < 45176 by omega, ↓reduceIte,
+  simp only [tailColumn, show ¬39672 + word < 16128 by omega,
+    show ¬39672 + word < 25088 by omega, show ¬39672 + word < 29568 by omega,
+    show ¬39672 + word < 30072 by omega, show ¬39672 + word < 39672 by omega, ↓reduceIte,
     Nat.add_sub_cancel_left]
 
 section Readback
@@ -176,7 +176,7 @@ private theorem fixedPolynomial_ext {left right : SumCheck.Finite.FixedPolynomia
 /-- The children's commitment words carry the split's commitments whose columns `env` holds. -/
 theorem childCommitment_eval (split : Spec.Folding.Refresh.Split PaperAlgebra.Commitment
       productionShape)
-    (columns : ∀ word, word < 18432 →
+    (columns : ∀ word, word < 16128 →
       env (childCommitmentsStart base witnessWordCount + word) = childCommitmentColumn split word)
     (child : Fin productionShape.runningCount) (row : Fin productionProfile.commitmentWidth)
     (lane : Fin ringDegree) :
@@ -186,7 +186,7 @@ theorem childCommitment_eval (split : Spec.Folding.Refresh.Split PaperAlgebra.Co
   have childBound := child.isLt
   have rowBound := row.isLt
   have laneBound := lane.isLt
-  change child.val < 16 at childBound
+  change child.val < 14 at childBound
   change row.val < 18 at rowBound
   change lane.val < 64 at laneBound
   change env (childCommitmentsStart base witnessWordCount + child.val * 1152 +
@@ -204,7 +204,7 @@ theorem childCommitment_eval (split : Spec.Folding.Refresh.Split PaperAlgebra.Co
 holds. -/
 theorem childEvaluation_eval (split : Spec.Folding.Refresh.Split PaperAlgebra.Commitment
       productionShape)
-    (columns : ∀ word, word < 10240 →
+    (columns : ∀ word, word < 8960 →
       env (childEvaluationsStart base witnessWordCount + word) =
         childEvaluationColumn split word)
     (child : Fin productionShape.runningCount) :
@@ -213,7 +213,7 @@ theorem childEvaluation_eval (split : Spec.Folding.Refresh.Split PaperAlgebra.Co
           witnessWordCount).childEvaluation child) env =
       split.evaluations child := by
   have childBound := child.isLt
-  change child.val < 16 at childBound
+  change child.val < 14 at childBound
   unfold StatementAbsorption.evalEvaluation
   congr 1
   · funext coefficient
@@ -250,7 +250,7 @@ theorem childEvaluation_eval (split : Spec.Folding.Refresh.Split PaperAlgebra.Co
     have value := fun (part : K → F) =>
       congrArg₂ (fun first second => part ((split.evaluations first).matrix second
           (finAt 64 (by decide) (64 + matrix.val * 64 + coefficient.val - 64))))
-        (show finAt 16 (by decide) ((child.val * 320 + 64 + matrix.val * 64 + coefficient.val) /
+        (show finAt 14 (by decide) ((child.val * 320 + 64 + matrix.val * 64 + coefficient.val) /
           320) = child from Fin.ext (by rw [finAt_val]; omega))
         (show finAt 4 (by decide) ((64 + matrix.val * 64 + coefficient.val - 64) / 64) = matrix
           from Fin.ext (by rw [finAt_val]; omega)) |>.trans
@@ -279,7 +279,7 @@ theorem childEvaluation_eval (split : Spec.Folding.Refresh.Split PaperAlgebra.Co
 /-- The digit words carry the digits whose columns `env` holds. -/
 theorem digit_eval (digits : Fin productionShape.runningCount →
       PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (columns : ∀ word, word < 5120 →
+    (columns : ∀ word, word < 4480 →
       env (digitsStart base witnessWordCount + word) = digitColumn digits word)
     (child : Fin productionShape.runningCount)
     (column : Fin (PaperAlgebra.FullShape logicalWidth publicFits).publicWidth) :
@@ -287,7 +287,7 @@ theorem digit_eval (digits : Fin productionShape.runningCount →
         witnessWordCount).digit child column).eval env = digits child column := by
   have childBound := child.isLt
   have columnBound := column.isLt
-  change child.val < 16 at childBound
+  change child.val < 14 at childBound
   change column.val < 320 at columnBound
   change env (digitsStart base witnessWordCount + child.val * 320 + column.val) = _
   rw [Nat.add_assoc, columns _ (by omega)]
@@ -327,7 +327,7 @@ theorem round_eval (rounds : Fin productionShape.cubeVariables →
 
 /-- The output words carry the Π_CCS output whose columns `env` holds. -/
 theorem outputPad_eval (output : FullOutputCoordinates.FullOutput K productionShape)
-    (columns : ∀ word, word < 10880 →
+    (columns : ∀ word, word < 9600 →
       env (outputStart base witnessWordCount + word) = outputColumn output word)
     (source : Fin productionShape.sourceCount)
     (coefficient : Fin productionShape.coefficientCount) :
@@ -336,7 +336,7 @@ theorem outputPad_eval (output : FullOutputCoordinates.FullOutput K productionSh
       output.padCoordinate source coefficient := by
   have sourceBound := source.isLt
   have coefficientBound := coefficient.isLt
-  change source.val < 17 at sourceBound
+  change source.val < 15 at sourceBound
   change coefficient.val < 64 at coefficientBound
   have position : (source.val * 320 + coefficient.val) % 320 = coefficient.val := by omega
   apply kAt_eval
@@ -354,7 +354,7 @@ theorem outputPad_eval (output : FullOutputCoordinates.FullOutput K productionSh
       (Fin.ext (by rw [finAt_val]; omega)) (Fin.ext (by rw [finAt_val]; omega))
 
 theorem outputMatrix_eval (output : FullOutputCoordinates.FullOutput K productionShape)
-    (columns : ∀ word, word < 10880 →
+    (columns : ∀ word, word < 9600 →
       env (outputStart base witnessWordCount + word) = outputColumn output word)
     (source : Fin productionShape.sourceCount) (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount) :
@@ -364,7 +364,7 @@ theorem outputMatrix_eval (output : FullOutputCoordinates.FullOutput K productio
   have sourceBound := source.isLt
   have matrixBound := matrix.isLt
   have coefficientBound := coefficient.isLt
-  change source.val < 17 at sourceBound
+  change source.val < 15 at sourceBound
   change matrix.val < 4 at matrixBound
   change coefficient.val < 64 at coefficientBound
   have position : (source.val * 320 + 64 + matrix.val * 64 + coefficient.val) % 320 =
@@ -373,7 +373,7 @@ theorem outputMatrix_eval (output : FullOutputCoordinates.FullOutput K productio
   have value := fun (part : K → F) =>
     congrArg₂ (fun first second => part (output.matrixCoordinate first second
         (finAt 64 (by decide) (64 + matrix.val * 64 + coefficient.val - 64))))
-      (show finAt 17 (by decide) ((source.val * 320 + 64 + matrix.val * 64 + coefficient.val) /
+      (show finAt 15 (by decide) ((source.val * 320 + 64 + matrix.val * 64 + coefficient.val) /
         320) = source from Fin.ext (by rw [finAt_val]; omega))
       (show finAt 4 (by decide) ((64 + matrix.val * 64 + coefficient.val - 64) / 64) = matrix
         from Fin.ext (by rw [finAt_val]; omega)) |>.trans
@@ -463,7 +463,7 @@ theorem target_light (column : Nat) (bound : column < childCommitmentsStart base
     have := sharedEnd_eq base witnessWordCount
     omega)).trans (env_light base witnessWordCount _ column bound)
 
-theorem target_tail (word : Nat) (bound : word < 45188) :
+theorem target_tail (word : Nat) (bound : word < 39684) :
     target (childCommitmentsStart base witnessWordCount + word) =
       tailColumn (honestValues ajtai circuitKeys input output proof selected folded) word :=
   (agree _ (by
@@ -531,27 +531,27 @@ theorem target_fresh (word : Nat) (bound : word < 1472) :
       unfold freshStart digestsStart slotsStart witnessStart slotWordCount
       omega)).trans (LightAssemblerSource.env_fresh base witnessWordCount _ word bound)
 
-theorem target_childCommitment (word : Nat) (bound : word < 18432) :
+theorem target_childCommitment (word : Nat) (bound : word < 16128) :
     target (childCommitmentsStart base witnessWordCount + word) =
       childCommitmentColumn proof.split word :=
   (target_tail ajtai circuitKeys input output proof selected folded base witnessWordCount target
     agree word (by omega)).trans (tail_commitment _ word bound)
 
-theorem target_childEvaluation (word : Nat) (bound : word < 10240) :
+theorem target_childEvaluation (word : Nat) (bound : word < 8960) :
     target (childEvaluationsStart base witnessWordCount + word) =
       childEvaluationColumn proof.split word := by
   rw [show childEvaluationsStart base witnessWordCount + word =
-    childCommitmentsStart base witnessWordCount + (18432 + word) by
+    childCommitmentsStart base witnessWordCount + (16128 + word) by
       unfold childEvaluationsStart; omega]
   exact (target_tail ajtai circuitKeys input output proof selected folded base witnessWordCount
     target agree _ (by omega)).trans (tail_evaluation _ word bound)
 
-theorem target_digit (word : Nat) (bound : word < 5120) :
+theorem target_digit (word : Nat) (bound : word < 4480) :
     target (digitsStart base witnessWordCount + word) =
       digitColumn (honestValues ajtai circuitKeys input output proof selected folded).digits
         word := by
   rw [show digitsStart base witnessWordCount + word =
-    childCommitmentsStart base witnessWordCount + (28672 + word) by
+    childCommitmentsStart base witnessWordCount + (25088 + word) by
       unfold digitsStart childEvaluationsStart; omega]
   exact (target_tail ajtai circuitKeys input output proof selected folded base witnessWordCount
     target agree _ (by omega)).trans (tail_digit _ word bound)
@@ -560,16 +560,16 @@ theorem target_round (word : Nat) (bound : word < 504) :
     target (roundsStart base witnessWordCount + word) =
       roundColumn proof.nifs.piCcsRounds word := by
   rw [show roundsStart base witnessWordCount + word =
-    childCommitmentsStart base witnessWordCount + (33792 + word) by
+    childCommitmentsStart base witnessWordCount + (29568 + word) by
       unfold roundsStart digitsStart childEvaluationsStart; omega]
   exact (target_tail ajtai circuitKeys input output proof selected folded base witnessWordCount
     target agree _ (by omega)).trans (tail_round _ word bound)
 
-theorem target_output (word : Nat) (bound : word < 10880) :
+theorem target_output (word : Nat) (bound : word < 9600) :
     target (outputStart base witnessWordCount + word) =
       outputColumn proof.nifs.piCcsOutput word := by
   rw [show outputStart base witnessWordCount + word =
-    childCommitmentsStart base witnessWordCount + (34296 + word) by
+    childCommitmentsStart base witnessWordCount + (30072 + word) by
       unfold outputStart roundsStart digitsStart childEvaluationsStart; omega]
   exact (target_tail ajtai circuitKeys input output proof selected folded base witnessWordCount
     target agree _ (by omega)).trans (tail_output _ word bound)
@@ -579,7 +579,7 @@ theorem target_digestSelect (word : Nat) (bound : word < 12) :
       LightAssemblerSource.quadColumn (by decide)
         (honestValues ajtai circuitKeys input output proof selected folded).digestSelect word := by
   rw [show digestSelectStart base witnessWordCount + word =
-    childCommitmentsStart base witnessWordCount + (45176 + word) by
+    childCommitmentsStart base witnessWordCount + (39672 + word) by
       unfold digestSelectStart outputStart roundsStart digitsStart childEvaluationsStart; omega]
   exact (target_tail ajtai circuitKeys input output proof selected folded base witnessWordCount
     target agree _ (by omega)).trans (tail_digestSelect _ word)

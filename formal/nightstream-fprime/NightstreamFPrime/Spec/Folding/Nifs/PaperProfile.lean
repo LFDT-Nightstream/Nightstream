@@ -20,11 +20,11 @@ def arity : BatchArity productionGlobalParams :=
 @[simp] theorem arity_freshCount : arity.freshCount = 1 := rfl
 
 @[simp] theorem arity_runningCount :
-    arity.mode.count productionGlobalParams = 16 := rfl
+    arity.mode.count productionGlobalParams = 14 := rfl
 
-@[simp] theorem arity_total : arity.total = 17 := rfl
+@[simp] theorem arity_total : arity.total = 15 := rfl
 
-@[simp] theorem outputCount : productionGlobalParams.k = 16 := rfl
+@[simp] theorem outputCount : productionGlobalParams.k = 14 := rfl
 
 @[simp] theorem baseNormBound : productionGlobalParams.b = 2 := rfl
 

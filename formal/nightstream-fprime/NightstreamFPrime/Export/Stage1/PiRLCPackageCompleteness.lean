@@ -40,7 +40,7 @@ private theorem commitmentFreshCount
     R1CS.totalFreshCount
         (NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.commitmentPacketConstraints
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset) =
-      2545920 := by
+      2246400 := by
   unfold NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.commitmentPacketConstraints
   rw [NightstreamFPrime.Layout.PiRLC.v1_2.CommitmentCombination.totalFreshCount_eq]
   exact (PiRLCInputs.inputShapes relation).commitmentFresh
@@ -50,7 +50,7 @@ private theorem publicInputFreshCount
     R1CS.totalFreshCount
         (NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.publicInputPacketConstraints
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset) =
-      707200 := by
+      624000 := by
   unfold NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.publicInputPacketConstraints
   rw [NightstreamFPrime.Layout.PiRLC.v1_2.PublicInputCombination.totalFreshCount_eq]
   exact (PiRLCInputs.inputShapes relation).publicInputFresh
@@ -60,7 +60,7 @@ private theorem evalKFreshCount
     R1CS.totalFreshCount
         (NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.evalKPacketConstraints
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset) =
-      282880 := by
+      249600 := by
   unfold NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.evalKPacketConstraints
   rw [NightstreamFPrime.Layout.PiRLC.v1_2.EvalKCombination.totalFreshCount_eq]
   exact (PiRLCInputs.inputShapes relation).evalKFresh
@@ -252,7 +252,7 @@ theorem completePackets
         phaseInterface PiRLCInputs.phaseOffset (PackageOrder.pullback env)) :
     ∃ completed,
       AgreesOutside env completed
-          (PackageOrder.sourceToPackage PiRLCInputs.phaseOffset) 4786265 ∧
+          (PackageOrder.sourceToPackage PiRLCInputs.phaseOffset) 4223175 ∧
         RemappedPacketRowsHold completed := by
   rcases PiRLCPhysicalCompleteness.completePhysicalRows relation ajtai env
       assumptions phase with ⟨completed, agrees, physical⟩

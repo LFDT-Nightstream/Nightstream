@@ -85,7 +85,7 @@ fn one_window_schedule_matches_lean_transcript_states() {
 
 #[test]
 fn production_sampler_matches_lean_coefficients_and_final_state() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ring = RotRing::profile();
     for case in fixture().transcripts {
         let mut transcript = Poseidon2Transcript::from_state_and_absorbed(case.initial.map(field), 0);

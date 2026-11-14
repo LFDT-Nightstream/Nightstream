@@ -31,11 +31,11 @@ private theorem sum_map_flatMap {Alpha Beta : Type}
 @[simp] theorem sourceRanges_count (source : Nat) :
     ((sourceRanges source).map IndexRange.count).sum = 909 := rfl
 
-@[simp] theorem ranges_count : (ranges.map IndexRange.count).sum = 15453 := by
+@[simp] theorem ranges_count : (ranges.map IndexRange.count).sum = 13635 := by
   rw [ranges, sum_map_flatMap]
   simp [PiRLCSamplerInvocations.sourceCount]
 
-@[simp] theorem rowSchedule_count : rowSchedule.count = 15453 := ranges_count
+@[simp] theorem rowSchedule_count : rowSchedule.count = 13635 := ranges_count
 
 theorem rowSchedule_indices : rowSchedule.indices = rowIndexReference := rfl
 
@@ -81,7 +81,7 @@ private theorem samplerEnd_eq :
     PiRLCStarts.samplerSourceRowStart PiRLCSamplerInvocations.sourceCount = PiRLCStarts.commitmentRowStart := by
   unfold PiRLCStarts.samplerSourceRowStart PiRLCStarts.commitmentRowStart
   exact congrArg (PiRLCStarts.samplerRowStart + ·) (by decide :
-    PiRLCSamplerInvocations.sourceCount * 3101 = 52717)
+    PiRLCSamplerInvocations.sourceCount * 3101 = 46515)
 
 theorem rowSchedule_valid : rowSchedule.valid PiRLCStarts.commitmentRowStart = true :=
   @rowSchedule_valid_of_le PiRLCStarts.commitmentRowStart (Nat.le_of_eq samplerEnd_eq)

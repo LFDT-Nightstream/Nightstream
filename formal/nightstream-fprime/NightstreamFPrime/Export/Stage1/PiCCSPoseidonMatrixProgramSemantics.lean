@@ -21,7 +21,7 @@ private theorem previousRule_zero
 private theorem previousRule_succ
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (invocationOffset : Fin 1090) (lane : Fin 16) :
+    (invocationOffset : Fin 983) (lane : Fin 16) :
     (previousRule program).form? logicalWidth
         (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val
         (1 + invocationOffset.val) lane.val =
@@ -53,7 +53,7 @@ private theorem previousRule_succ
               slotBound selected⟩) lane)) by
     simpa [previousRule] using!
       PoseidonInput.Rule.external_form?_ofSemantic
-        (region := PoseidonInput.Region.mk 1 1090 0 16)
+        (region := PoseidonInput.Region.mk 1 983 0 16)
         invocationOffset lane lane.isLt
         (PiCCSPoseidonPlan.schedule program).block
         (PiCCSPoseidonPlan.retainedStart program)
@@ -91,9 +91,9 @@ private theorem previousRule_result
     rw [invocationEq]
     exact previousRule_zero geometry lane
   · rw [ite_eq_right first]
-    let invocationOffset : Fin 1090 :=
+    let invocationOffset : Fin 983 :=
       ⟨invocation.val - 1, by
-        have bound : invocation.val < 1091 := by
+        have bound : invocation.val < 984 := by
           simpa only [PiCCSPoseidonPlan.invocationCount_eq] using
             invocation.isLt
         omega⟩
@@ -133,7 +133,7 @@ private theorem payloadRule_lane
       some (invocation.val, lane.val) := by
     simpa only [payloadRule, Nat.zero_add] using
       (PoseidonInput.Region.offsets?_of_offsets
-        (PoseidonInput.Region.mk 0 1091 0 12) invocation lane)
+        (PoseidonInput.Region.mk 0 984 0 12) invocation lane)
   unfold PoseidonInput.Rule.form?
   rw [offsets]
   simp only

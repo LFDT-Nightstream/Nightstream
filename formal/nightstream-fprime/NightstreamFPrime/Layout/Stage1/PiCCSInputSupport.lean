@@ -121,7 +121,7 @@ theorem externalInputsSupported
     simp only [PiCCSInputs.interface, PiCCSInputs.runningExpr,
       PiCCSInputs.runningPublicInput, Expr.VarsSatisfy]
     apply external_proof
-    have sourceBound : source.val < 16 := source.isLt
+    have sourceBound : source.val < 14 := source.isLt
     have columnBound : column.val < 320 := column.isLt
     unfold InRange
     rw [callerInputCount_eq]

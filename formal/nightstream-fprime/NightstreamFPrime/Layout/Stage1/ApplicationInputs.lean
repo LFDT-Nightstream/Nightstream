@@ -7,7 +7,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Layout
 
-def currentWordStart : Nat := 28909
+def currentWordStart : Nat := 25325
 
 def inputSourceColumn
     (index : Lifecycle.Stage1.Application.StateIndex) : Nat :=
@@ -43,7 +43,7 @@ theorem inputColumn_value
     inputColumn index = currentWordStart + index.val := by
   have bound := index.isLt
   simp only [Lifecycle.Stage1.Application.stateWordCount] at bound
-  change PackageOrder.sourceToPackage (28909 + index.val) = 28909 + index.val
+  change PackageOrder.sourceToPackage (25325 + index.val) = 25325 + index.val
   unfold PackageOrder.sourceToPackage
   rw [ite_eq_left (by
     norm_num [PackageOrder.pilotSourceColumnCount]
@@ -57,10 +57,10 @@ theorem inputColumn_value
 
 theorem outputColumn_value
     (index : Lifecycle.Stage1.Application.StateIndex) :
-    outputColumn index = 57822 + index.val := by
+    outputColumn index = 50654 + index.val := by
   have bound := index.isLt
   simp only [Lifecycle.Stage1.Application.stateWordCount] at bound
-  change PackageOrder.sourceToPackage (58142 + index.val) = 57822 + index.val
+  change PackageOrder.sourceToPackage (50974 + index.val) = 50654 + index.val
   unfold PackageOrder.sourceToPackage
   rw [ite_eq_left (by
     norm_num [PackageOrder.pilotSourceColumnCount]
@@ -71,7 +71,7 @@ theorem outputColumn_value
   rw [ite_eq_left (by rw [PilotPackageOrder.outputDigestStart_value]; omega)]
   rw [PilotPackageOrder.secondPrivateStart_value,
     PilotPackageOrder.outputPreimageStart_value]
-  have difference : 58142 + index.val - 29233 = 28909 + index.val := by omega
+  have difference : 50974 + index.val - 25649 = 25325 + index.val := by omega
   rw [difference]
   unfold PackageOrder.liftPilotColumn
   rw [ite_eq_left (by

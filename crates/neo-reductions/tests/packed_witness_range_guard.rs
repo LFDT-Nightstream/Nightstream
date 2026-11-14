@@ -28,7 +28,7 @@ fn f_from_i64(v: i64) -> F {
 fn prove_accepts_nc_alphabet_packed_witness_values() {
     let n = D;
     let ccs = identity_ccs(n);
-    let params = NeoParams::nightstream_p64_k16()
+    let params = NeoParams::nightstream_p64_k14()
         .with_lambda(115)
         .expect("params");
 

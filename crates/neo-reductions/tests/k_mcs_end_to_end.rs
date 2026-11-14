@@ -72,7 +72,7 @@ fn build_mcs_step_packed_digits(
 
 fn run_case_with_n(n: usize, k_mcs: usize) {
     let ccs = identity_ccs(n);
-    let params = NeoParams::nightstream_p64_k16()
+    let params = NeoParams::nightstream_p64_k14()
         .with_lambda(115)
         .expect("params");
     let l = setup_ajtai_committer(&params, ccs.m());
@@ -133,7 +133,7 @@ fn pi_ccs_prove_verify_superneo_shape_k_mcs_2() {
 fn pi_ccs_prove_verify_superneo_shape_nonzero_digits_k_mcs_2() {
     let n = D;
     let ccs = identity_ccs(n);
-    let params = NeoParams::nightstream_p64_k16()
+    let params = NeoParams::nightstream_p64_k14()
         .with_lambda(115)
         .expect("params");
     let l = setup_ajtai_committer(&params, ccs.m());
@@ -160,7 +160,7 @@ fn pi_ccs_prove_verify_superneo_shape_nonzero_digits_k_mcs_2() {
 fn pi_ccs_prove_rejects_non_shared_me_r() {
     let n = D;
     let ccs = identity_ccs(n);
-    let params = NeoParams::nightstream_p64_k16()
+    let params = NeoParams::nightstream_p64_k14()
         .with_lambda(115)
         .expect("params");
     let l = setup_ajtai_committer(&params, ccs.m());
@@ -196,7 +196,7 @@ fn pi_ccs_prove_rejects_non_shared_me_r() {
 fn pi_ccs_verify_rejects_tampered_mcs_output_x_recomposition() {
     let n = D;
     let ccs = identity_ccs(n);
-    let params = NeoParams::nightstream_p64_k16()
+    let params = NeoParams::nightstream_p64_k14()
         .with_lambda(115)
         .expect("params");
     let l = setup_ajtai_committer(&params, ccs.m());
@@ -231,7 +231,7 @@ fn pi_ccs_verify_rejects_tampered_mcs_output_x_recomposition() {
 fn pi_ccs_verify_rejects_noncanonical_extra_x_column() {
     let n = D;
     let ccs = identity_ccs(n);
-    let params = NeoParams::nightstream_p64_k16()
+    let params = NeoParams::nightstream_p64_k14()
         .with_lambda(115)
         .expect("params");
     let l = setup_ajtai_committer(&params, ccs.m());

@@ -121,7 +121,7 @@ fn build_joint_dims_for_shape(
             columns,
             matrix_count_without_identity,
             max_degree,
-            neo_params::nightstream_p64_k16::CHALLENGE_ALPHABET.len() as u32,
+            neo_params::nightstream_p64_k14::CHALLENGE_ALPHABET.len() as u32,
         )
         .map_err(|error| PiCcsError::ExtensionPolicyFailed(error.to_string()))?;
 

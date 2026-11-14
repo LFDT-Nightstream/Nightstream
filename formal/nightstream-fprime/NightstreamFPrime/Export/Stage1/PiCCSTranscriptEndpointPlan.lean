@@ -63,7 +63,7 @@ private theorem outputActions_positive :
   have count := PiCCSInvocations.outputInvocationCount_eq
     Data.logicalWidth Data.publicFits
   change Invocations.invocationCount
-    PiCCSActionPayloadBlock.outputActions = 907 at count
+    PiCCSActionPayloadBlock.outputActions = 800 at count
   omega
 
 def endpointInvocation (family : Fin familyCount) :
@@ -205,7 +205,7 @@ private theorem outputTrace_state_endpoint (lane : Fin laneCount) :
           (Invocations.invocationCount PiCCSActionPayloadBlock.outputActions - 1) *
             1096) at compiled
   have count : Invocations.invocationCount
-      PiCCSActionPayloadBlock.outputActions = 907 := by
+      PiCCSActionPayloadBlock.outputActions = 800 := by
     exact PiCCSInvocations.outputInvocationCount_eq
       Data.logicalWidth Data.publicFits
   have endEq := PiCCSInvocations.outputEnd_eq_logicalFreshBase
@@ -213,7 +213,7 @@ private theorem outputTrace_state_endpoint (lane : Fin laneCount) :
   rw [count] at compiled
   rw [PiCCSInvocations.outputInvocationCount_eq] at endEq
   have startEq :
-      PiCCSInvocations.outputWitnessStart + (907 - 1) * 1096 + 1080 =
+      PiCCSInvocations.outputWitnessStart + (800 - 1) * 1096 + 1080 =
         PiCCSStarts.logicalFreshBase - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.outputWitnessStart = start
@@ -1023,7 +1023,7 @@ private theorem outputTrace_state_endpoint_of_shape
     relationLogicalWidth relationPublicFits
   rw [count] at compiled endEq
   have startEq :
-      PiCCSInvocations.outputWitnessStart + (907 - 1) * 1096 + 1080 =
+      PiCCSInvocations.outputWitnessStart + (800 - 1) * 1096 + 1080 =
         PiCCSStarts.logicalFreshBase - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.outputWitnessStart = start

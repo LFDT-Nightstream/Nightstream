@@ -72,9 +72,9 @@ theorem production_total_bound {count : Nat}
     (totalBound : count <=
       productionGlobalParams.maxFresh + productionGlobalParams.k) :
     count * 128 < productionGlobalParams.bigB := by
-  have countLe : count <= 511 := by
+  have countLe : count <= 127 := by
     simpa [productionGlobalParams] using totalBound
-  change count * 128 < 65536
+  change count * 128 < 16384
   omega
 
 theorem relation_norm_growth

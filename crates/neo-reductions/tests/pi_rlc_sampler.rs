@@ -1,7 +1,7 @@
 //! The Π_RLC draw decoder of SPEC.md section 5.3 against exact integer arithmetic.
 
 use neo_math::{D, F};
-use neo_params::{nightstream_p64_k16 as profile, NeoParams};
+use neo_params::{nightstream_p64_k14 as profile, NeoParams};
 use neo_reductions::common::{decode_pi_rlc_coefficients, read_pi_rlc_draw, PI_RLC_DRAW_LANES};
 use neo_reductions::{sample_rot_rhos_n_typed, RotRing};
 use neo_transcript::Poseidon2Transcript;
@@ -98,7 +98,7 @@ fn decoder_matches_the_integer_rule_on_random_draws_and_reads_each_lane() {
 #[test]
 fn sampler_reads_the_draw_after_the_block_and_permutes_once() {
     const COUNT: usize = 3;
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let mut initial = Poseidon2Transcript::new_v1_2();
     initial.absorb_v1_2(&[F::from_u64(11), F::from_u64(13)]);
 

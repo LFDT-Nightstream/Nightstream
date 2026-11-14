@@ -211,12 +211,12 @@ def witnessInstructions (_unit : Unit) : List WitnessInstruction :=
 def profile : Profile where
   fieldModulus := fieldModulus
   decompositionBase := 2
-  decompositionDigits := 16
-  decompositionBound := 65536
+  decompositionDigits := 14
+  decompositionBound := 16384
   freshSources := 1
-  runningSources := 16
-  piRlcInputs := 17
-  piDecChildren := 16
+  runningSources := 14
+  piRlcInputs := 15
+  piDecChildren := 14
   ccsMatrices := productionProfile.ccsMatrices
   cubeVariables := 28
 

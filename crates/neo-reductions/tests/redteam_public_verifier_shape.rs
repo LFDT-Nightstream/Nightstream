@@ -121,7 +121,7 @@ fn build_me_from_z(
 
 #[test]
 fn rlc_public_matches_rejects_common_short_row_point() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let m_in = D;
@@ -187,7 +187,7 @@ fn rlc_public_matches_rejects_common_short_row_point() {
 
 #[test]
 fn verify_dec_public_rejects_common_short_row_point() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let m_in = D;
@@ -256,7 +256,7 @@ fn verify_dec_public_rejects_common_short_row_point() {
 
 #[test]
 fn verify_dec_public_rejects_child_count_different_from_k_rho() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let r = vec![k(17); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
@@ -265,7 +265,7 @@ fn verify_dec_public_rejects_child_count_different_from_k_rho() {
     let child = build_me_from_z(&params, &structure, &z, &r, ell_d, D, make_commitment(120_001), 120_002);
     let parent = child.clone();
 
-    assert_eq!(params.k_rho(), 16);
+    assert!(params.k_rho() > 1);
     assert!(
         verify_dec_public(
             &structure,
@@ -276,13 +276,14 @@ fn verify_dec_public_rejects_child_count_different_from_k_rho() {
             ell_d,
         )
         .is_err(),
-        "public DEC verifier accepted one child although params.k_rho is 14"
+        "public DEC verifier accepted one child although params.k_rho is {}",
+        params.k_rho()
     );
 }
 
 #[test]
 fn verify_dec_public_rejects_out_of_range_child_x_at_correct_arity() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let r = vec![k(19); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
@@ -356,7 +357,7 @@ fn verify_dec_public_rejects_out_of_range_child_x_at_correct_arity() {
 #[cfg(target_pointer_width = "64")]
 #[test]
 fn rlc_public_rejects_ell_d_that_cannot_describe_a_usize_domain() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let d_pad = 1usize << ell_d;
     let structure =
@@ -396,7 +397,7 @@ fn rlc_public_rejects_ell_d_that_cannot_describe_a_usize_domain() {
 fn rlc_public_rejects_instance_count_above_parameter_guard() {
     const INPUT_COUNT: usize = 512;
 
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let r = vec![k(23); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
@@ -421,7 +422,7 @@ fn rlc_public_rejects_instance_count_above_parameter_guard() {
 
 #[test]
 fn rlc_public_rejects_inputs_from_different_fold_transcripts() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let r = vec![k(29); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
@@ -443,7 +444,7 @@ fn rlc_public_rejects_inputs_from_different_fold_transcripts() {
 
 #[test]
 fn verify_dec_public_rejects_children_from_different_fold_transcript() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let r = vec![k(31); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
@@ -468,7 +469,7 @@ fn verify_dec_public_rejects_children_from_different_fold_transcript() {
 
 #[test]
 fn reduction_policy_rejects_parameter_modulus_different_from_field() {
-    let actual_field_params = NeoParams::nightstream_p64_k16()
+    let actual_field_params = NeoParams::nightstream_p64_k14()
         .with_lambda(100)
         .expect("lambda");
     let p = actual_field_params;
@@ -501,7 +502,7 @@ fn reduction_policy_rejects_parameter_modulus_different_from_field() {
 
 #[test]
 fn rlc_with_commit_rejects_mixed_public_widths_without_panicking() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let r = vec![K::ZERO; structure.n().next_power_of_two().max(2).trailing_zeros() as usize];

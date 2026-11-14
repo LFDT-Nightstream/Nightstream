@@ -9,7 +9,7 @@
 //! must read Lean's counts, charge Lean's error, pass `bits` and refuse
 //! `bits + 1`.
 
-use neo_params::{nightstream_p64_k16::CHALLENGE_ALPHABET, NeoParams, ParamsError};
+use neo_params::{nightstream_p64_k14::CHALLENGE_ALPHABET, NeoParams, ParamsError};
 use nightstream_fprime::load_bounded_depth_packages;
 use serde_json::Value;
 
@@ -51,7 +51,7 @@ fn the_gate_charges_the_lean_error_on_each_step_relation() {
             let context = format!("{name} circuit {}", package.circuit());
             let relation = Relation::new(package, bits).unwrap_or_else(|error| panic!("{context}: {error}"));
             let structure = relation.structure();
-            let summary = NeoParams::nightstream_p64_k16()
+            let summary = NeoParams::nightstream_p64_k14()
                 .padded_row_security_summary_for_shape(
                     structure.domain_rows(),
                     structure.m(),

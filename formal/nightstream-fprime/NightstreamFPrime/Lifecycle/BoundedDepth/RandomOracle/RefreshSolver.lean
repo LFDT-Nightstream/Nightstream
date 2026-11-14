@@ -201,10 +201,10 @@ noncomputable def solverChance (budget : ℕ) : ℝ :=
 
 theorem work_eq (queries : Nat) :
     Solver.work (RefreshSchedule.schedule logicalWidth publicFits) queries =
-      35 * queries + 653 := by
+      31 * queries + 523 := by
   unfold Solver.work
   rw [RefreshTest.challenges_length]
-  show 1 + 2 * 17 * (queries + 17) + (queries + 74) = 35 * queries + 653
+  show 1 + 2 * 15 * (queries + 15) + (queries + 72) = 31 * queries + 523
   omega
 
 /-- The refresh kernel chance is at most the refresh solver's chance plus
@@ -212,7 +212,7 @@ theorem work_eq (queries : Nat) :
 theorem kernelChance_le_solver {queries : Nat} (bounded : adversary.QueryBound queries)
     (budget : ℕ) :
     budget * (RefreshUniqueness.kernelChance ajtai key adversary -
-        solverChance ajtai key adversary budget) ≤ 35 * queries + 653 := by
+        solverChance ajtai key adversary budget) ≤ 31 * queries + 523 := by
   have bound := Solver.reductionChance_le_solver (RefreshFork.game ajtai key) adversary
     (kernelOf ajtai key) bounded budget
   rw [work_eq] at bound

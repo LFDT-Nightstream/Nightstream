@@ -203,7 +203,7 @@ theorem output_varsBelow (interface : Interface) (offset : Nat)
     cubeVariables_positive offset env assumptions
 
 theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
-    (coefficientExprs interface offset).length = 1024 := by
+    (coefficientExprs interface offset).length = 896 := by
   simp only [coefficientExprs, List.length_map]
   simp [canonicalPadCoordinates_length, productionShape,
     productionProfile, RingMatrixSource.ringShape,
@@ -217,20 +217,20 @@ theorem pointLength_eq (interface : Interface) (offset : Nat) :
       (coreInterface interface) offset cubeVariables_positive
 
 theorem hornerLength_eq (interface : Interface) (offset : Nat) :
-    hornerLength interface offset = 3069 := by
+    hornerLength interface offset = 2685 := by
   unfold hornerLength
   rw [PointWeightedHorner.Owned.hornerLength_eq]
-  change 3 * ((coefficientExprs interface offset).length - 1) = 3069
+  change 3 * ((coefficientExprs interface offset).length - 1) = 2685
   rw [coefficientExprs_length]
 
-def privateCount : Nat := 3179
+def privateCount : Nat := 2795
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 3179 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 2795 := by
   unfold circuit
   rw [PointWeightedHorner.Owned.localLength_eq]
   change (4 * productionShape.cubeVariables - 2) +
-    3 * ((coefficientExprs interface offset).length - 1) = 3179
+    3 * ((coefficientExprs interface offset).length - 1) = 2795
   rw [coefficientExprs_length]
   norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
@@ -241,11 +241,11 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      3179 := by
+      2795 := by
   unfold circuit
   rw [PointWeightedHorner.Owned.flatConstraints_length]
   change (4 * productionShape.cubeVariables - 2) +
-    3 * ((coefficientExprs interface offset).length - 1) = 3179
+    3 * ((coefficientExprs interface offset).length - 1) = 2795
   rw [coefficientExprs_length]
   norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 

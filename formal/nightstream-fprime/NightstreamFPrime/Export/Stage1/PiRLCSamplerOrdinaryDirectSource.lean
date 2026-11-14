@@ -19,7 +19,7 @@ def sourceRows : List R1CS.Row :=
     (publicFits := publicFits)).map Rows.CompiledRow.toR1CS
 
 @[simp] theorem sourceRows_length :
-    (sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits)).length = 15453 := by
+    (sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits)).length = 13635 := by
   rw [sourceRows, List.length_map]
   exact PiRLCSamplerOrdinaryRows.rows_length
 
@@ -38,11 +38,11 @@ theorem rangeSource_eq_var (source : Nat) (lane : Fin 5) (offset : Nat) :
   rfl
 
 inductive Source : Nat → Prop where
-  | poseidon (source : Nat) (lane : Fin 5) (sourceLt : source < 17) :
+  | poseidon (source : Nat) (lane : Fin 5) (sourceLt : source < 15) :
       Source (poseidonSource source lane)
-  | logical (source position : Nat) (sourceLt : source < 17) (positionLt : position < 769) :
+  | logical (source position : Nat) (sourceLt : source < 15) (positionLt : position < 769) :
       Source (coreStart source + position)
-  | word (source position : Nat) (sourceLt : source < 17) (positionLt : position < 64) :
+  | word (source position : Nat) (sourceLt : source < 15) (positionLt : position < 64) :
       Source (PiRLCStarts.challengeWordStart source + position)
 
 def Target (column : Nat) : Prop :=
@@ -61,7 +61,7 @@ theorem Source.bounded {column : Nat} (supported : Source column) :
   all_goals norm_num [WideReduction.HintProgram.helperCount_eq, Formal.logicalPrivateCount_eq] at *
   all_goals omega
 
-private theorem rangeConstraints_supported (source : Nat) (sourceLt : source < 17) :
+private theorem rangeConstraints_supported (source : Nat) (sourceLt : source < 15) :
     ∀ expression ∈ PiRLCSamplerOrdinaryRows.rangeConstraints
         (logicalWidth := logicalWidth) (publicFits := publicFits) source,
       expression.VarsSatisfy Source := by
@@ -77,7 +77,7 @@ private theorem rangeConstraints_supported (source : Nat) (sourceLt : source < 1
     rw [← eq]
     exact Source.logical source _ sourceLt positionLt
 
-private theorem wordConstraints_supported (source : Nat) (sourceLt : source < 17) :
+private theorem wordConstraints_supported (source : Nat) (sourceLt : source < 15) :
     ∀ expression ∈ PiRLCSamplerOrdinaryRows.wordConstraints source,
       expression.VarsSatisfy Source := by
   apply SamplerWords.flatConstraints_varsSatisfy
@@ -104,7 +104,7 @@ private theorem range_fresh (source : Nat) :
   rw [length] at total
   omega
 
-private theorem rangeLowered_supported (source : Nat) (sourceLt : source < 17) :
+private theorem rangeLowered_supported (source : Nat) (sourceLt : source < 15) :
     ∀ row ∈ (R1CS.lowerConstraints (PiRLCSamplerOrdinaryRows.rangeConstraints
         (logicalWidth := logicalWidth) (publicFits := publicFits) source)
         (PiRLCStarts.rangeFreshStart source)).rows,
@@ -120,7 +120,7 @@ private theorem rangeLowered_supported (source : Nat) (sourceLt : source < 17) :
   · exact supported
   · omega
 
-private theorem wordLowered_supported (source : Nat) (sourceLt : source < 17) :
+private theorem wordLowered_supported (source : Nat) (sourceLt : source < 15) :
     ∀ row ∈ (R1CS.lowerConstraints (PiRLCSamplerOrdinaryRows.wordConstraints source)
         (PiRLCStarts.rangeFreshStart source)).rows,
       row.VarsSatisfy Source := by
@@ -144,7 +144,7 @@ theorem sourceRows_varsSatisfy :
   intro row member
   obtain ⟨compiled, compiledMember, rfl⟩ := List.mem_map.mp member
   obtain ⟨source, sourceMember, sourceRowMember⟩ := List.mem_flatMap.mp compiledMember
-  have sourceLt : source < 17 := List.mem_range.mp sourceMember
+  have sourceLt : source < 15 := List.mem_range.mp sourceMember
   rcases List.mem_append.mp sourceRowMember with rangeMember | wordMember
   · have mapped : compiled.toR1CS ∈ (PiRLCSamplerOrdinaryRows.rangeRows
         (logicalWidth := logicalWidth) (publicFits := publicFits) source).map Rows.CompiledRow.toR1CS :=
@@ -176,12 +176,12 @@ theorem sourceRows_rowCount_le :
   rw [sourceRows_length]
   norm_num [Lifecycle.cubeVariables]
 
-def sourceListIndex (index : Fin 15453) :
+def sourceListIndex (index : Fin 13635) :
     Fin (sourceRows (logicalWidth := logicalWidth)
       (publicFits := publicFits)).length :=
   Fin.cast sourceRows_length.symm index
 
-def programRow (index : Fin 15453) : R1CS.Row :=
+def programRow (index : Fin 13635) : R1CS.Row :=
   (sourceRows (logicalWidth := logicalWidth)
     (publicFits := publicFits)).get (sourceListIndex index)
 
@@ -216,7 +216,7 @@ def SupportedProgram.toProgram {rows : List R1CS.Row}
 
 def supportedProgram : SupportedProgram
     (sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits)) where
-  rowCount := 15453
+  rowCount := 13635
   rowCount_le := by norm_num [Lifecycle.cubeVariables]
   row := programRow (logicalWidth := logicalWidth) (publicFits := publicFits)
   exactRows := programRows_eq
@@ -234,10 +234,10 @@ def program : OrdinarySourcePlan.Program PackageOrder.packageColumnCount :=
 
 @[simp] theorem program_rowCount :
     (program (logicalWidth := logicalWidth)
-      (publicFits := publicFits)).rowCount = 15453 := by
+      (publicFits := publicFits)).rowCount = 13635 := by
   rfl
 
-theorem programRow_bounded (index : Fin 15453) :
+theorem programRow_bounded (index : Fin 13635) :
     (programRow (logicalWidth := logicalWidth)
       (publicFits := publicFits) index).VarsBelow
         PackageOrder.packageColumnCount := by
@@ -261,7 +261,7 @@ private theorem predicate_iff_of_eq {Alpha : Type} (predicate : Alpha → Prop)
   rfl
 
 theorem programRows_hold_iff_rowsHold (env : Env) :
-    (∀ index : Fin 15453,
+    (∀ index : Fin 13635,
       (programRow (logicalWidth := logicalWidth)
         (publicFits := publicFits) index).Holds env) ↔
       R1CS.RowsHold env

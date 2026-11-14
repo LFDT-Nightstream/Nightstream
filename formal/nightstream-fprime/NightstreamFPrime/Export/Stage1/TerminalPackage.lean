@@ -45,7 +45,7 @@ def install (package : CircuitPackage) : CircuitPackage :=
   rfl
 
 theorem layoutFor_runningClaims (package : CircuitPackage) :
-    (layoutFor package).runningClaims = 16 := by
+    (layoutFor package).runningClaims = 14 := by
   rfl
 
 theorem layoutFor_freshClaims (package : CircuitPackage) :

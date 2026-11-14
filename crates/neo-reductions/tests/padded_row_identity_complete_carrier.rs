@@ -13,7 +13,7 @@ fn joint_row_domain_uses_the_complete_packed_carrier() {
         SparsePoly::new(1, Vec::new()),
     )
     .expect("valid rectangular structure");
-    let params = NeoParams::nightstream_p64_k16()
+    let params = NeoParams::nightstream_p64_k14()
         .with_lambda(115)
         .expect("parameters");
     let dimensions = build_joint_dims(&params, &structure, 1, 0).expect("dimensions");
@@ -28,7 +28,7 @@ fn joint_row_domain_uses_the_complete_packed_carrier() {
 
 #[test]
 fn norm_check_covers_the_first_completed_carrier_coordinate() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let logical_width: usize = 257;
     let carrier_width = logical_width.div_ceil(D) * D;
     let mut witness = Mat::zero(D, logical_width.div_ceil(D), F::ZERO);

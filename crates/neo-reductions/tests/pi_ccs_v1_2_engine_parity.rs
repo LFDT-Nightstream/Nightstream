@@ -53,14 +53,14 @@ fn rectangular_ccs(rows: usize, columns: usize) -> CcsStructure<F> {
 }
 
 fn selected_parameters(structure: &CcsStructure<F>) -> NeoParams {
-    let mut params = NeoParams::nightstream_p64_k16();
+    let mut params = NeoParams::nightstream_p64_k14();
     let summary = params
         .padded_row_security_summary_for_shape(
             structure.domain_rows(),
             structure.m(),
             structure.t(),
             structure.max_degree(),
-            neo_params::nightstream_p64_k16::CHALLENGE_ALPHABET.len() as u32,
+            neo_params::nightstream_p64_k14::CHALLENGE_ALPHABET.len() as u32,
         )
         .expect("shape census");
     params = params

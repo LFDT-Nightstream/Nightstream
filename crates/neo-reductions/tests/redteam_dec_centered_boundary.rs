@@ -1,5 +1,5 @@
 use neo_math::F;
-use neo_params::{nightstream_p64_k16 as profile, NeoParams};
+use neo_params::{nightstream_p64_k14 as profile, NeoParams};
 use p3_field::PrimeField64;
 
 #[test]

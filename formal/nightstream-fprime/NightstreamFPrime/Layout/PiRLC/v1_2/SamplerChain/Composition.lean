@@ -162,25 +162,25 @@ theorem totalFreshCount_eq (interface : Logical.Interface) (offset : Nat)
   unfold orderedConstraints childConstraintLists
   rw [totalFreshCount_sources interface offset inputs]
   simp only [List.length_range]
-  change 17 * 0 = 0
+  change 15 * 0 = 0
   norm_num
 
 theorem totalRowCount_eq (interface : Logical.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
     R1CS.totalRowCount (logicalConstraints interface offset) =
-      52717 := by
+      46515 := by
   rw [logicalConstraints_eq_ordered]
   unfold orderedConstraints childConstraintLists
   rw [totalRowCount_sources interface offset inputs]
   simp only [List.length_range]
-  change 17 * 3101 = 52717
+  change 15 * 3101 = 46515
   norm_num
 
 theorem physicalPrivateColumnCount_eq (interface : Logical.Interface)
     (offset : Nat) (inputs : InputsAffine interface offset) :
     localLength (Circuit.ops (Logical.main interface) offset) +
       R1CS.totalFreshCount (logicalConstraints interface offset) =
-      82841 := by
+      73095 := by
   change localLength (Logical.opsAt interface offset) + _ = _
   rw [Logical.localLength_eq, totalFreshCount_eq interface offset inputs]
   rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.counts.1]
@@ -189,7 +189,7 @@ def footprint (interface : Logical.Interface)
     (inputs : ∀ offset, InputsAffine interface offset) :
     R1CS.CircuitFootprint (Logical.circuit interface) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 52717
+  physicalRowCount := fun _ => 46515
   freshColumnCount_eq := fun offset =>
     totalFreshCount_eq interface offset (inputs offset)
   physicalRowCount_eq := fun offset =>

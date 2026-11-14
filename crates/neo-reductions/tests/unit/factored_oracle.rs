@@ -181,7 +181,7 @@ fn prove(source: &dyn MatrixRows, relation: &Relation, seed: u64) -> Run {
         ],
     );
     let structure = CcsStructure::new_verifier_artifact_header(ROWS, COLUMNS, MATRICES, gate).unwrap();
-    let params = neo_params::NeoParams::nightstream_p64_k16();
+    let params = neo_params::NeoParams::nightstream_p64_k14();
     let fresh = vec![CcsWitness {
         Z: signed_unit(&mut rng),
     }];

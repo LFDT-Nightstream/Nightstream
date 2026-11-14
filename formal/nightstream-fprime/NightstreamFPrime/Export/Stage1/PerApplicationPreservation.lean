@@ -414,7 +414,7 @@ private theorem samplerInvocation_witnessBound
       PackageOrder.sourceToPackage_sourceColumnCount] at mapped
     exact mapped.le
   obtain ⟨source, sourceMember, sourceInvocationMember⟩ := List.mem_flatMap.mp member
-  have sourceLt : source < 17 := List.mem_range.mp sourceMember
+  have sourceLt : source < 15 := List.mem_range.mp sourceMember
   rcases List.mem_append.mp sourceInvocationMember with entryMember | advanceMember
   · rw [samplerEntryInvocation_witnessStart source invocation entryMember]
     apply bounded

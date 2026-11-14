@@ -14,13 +14,13 @@ use super::{
 
 const WIDTH: usize = neo_ccs::crypto::poseidon2::WIDTH;
 const CUBE_VARIABLES: usize = PI_CCS_V1_2_ROUND_COUNT;
-const SOURCE_COUNT: usize = 17;
+const SOURCE_COUNT: usize = 1 + super::DECOMPOSITION_K_RHO as usize;
 const LIGHT_SOURCE_COUNT: usize = 2;
 /// The fold domains of the bounded-depth scheme's light and refresh PiCCS (Lean `BoundedDepth.Keys`).
 pub const LIGHT_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/light/v1";
 pub const REFRESH_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/refresh/v1";
 const EVALUATION_WORDS: usize = 2 * EVALUATIONS;
-const CHILD_WORDS: usize = 16 * (COMMITMENT_WORDS + EVALUATION_WORDS);
+const CHILD_WORDS: usize = super::DECOMPOSITION_K_RHO as usize * (COMMITMENT_WORDS + EVALUATION_WORDS);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiCcsV1_2Transcript {

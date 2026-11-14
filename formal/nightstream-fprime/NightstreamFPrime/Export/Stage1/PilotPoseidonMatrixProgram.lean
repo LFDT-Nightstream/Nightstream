@@ -13,37 +13,37 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 abbrev Program := Lifecycle.Stage1.Application.Program
 
 def previousRule {sourceWidth : Nat}
-    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 2410)
+    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 2111)
     (retainedStart : Nat) : PoseidonInput.Rule where
-  region := ⟨1, 2409, 0, 16⟩
+  region := ⟨1, 2110, 0, 16⟩
   term := .external
     (RetainedBlock.ofSemantic schedule.block retainedStart) 134 150
 
 def previousProgram {sourceWidth : Nat}
-    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 2410)
+    (schedule : PoseidonRetainedFamily.Schedule sourceWidth 2111)
     (retainedStart : Nat) : PoseidonInput.Program where
   rules := [previousRule schedule retainedStart]
 
 def fullInputRule {sourceWidth : Nat}
     (inputBlock : LowNormBlock.Block sourceWidth) (inputStart : Nat) :
     PoseidonInput.Rule where
-  region := ⟨0, 2409, 0, 12⟩
+  region := ⟨0, 2110, 0, 12⟩
   term := .retained (RetainedBlock.ofSemantic inputBlock inputStart) 0 12 1
 
 def tailInputRule {sourceWidth : Nat}
     (inputBlock : LowNormBlock.Block sourceWidth) (inputStart : Nat) :
     PoseidonInput.Rule where
-  region := ⟨2409, 1, 0, 5⟩
+  region := ⟨2110, 1, 0, 9⟩
   term := .retained (RetainedBlock.ofSemantic inputBlock inputStart)
-    28908 0 1
+    25320 0 1
 
-/-- `Spec.Poseidon2.pad`: the word 1 after the five tail words. -/
+/-- `Spec.Poseidon2.pad`: the word 1 after the nine tail words. -/
 def paddingRule : PoseidonInput.Rule where
-  region := ⟨2409, 1, 5, 1⟩
+  region := ⟨2110, 1, 9, 1⟩
   term := .constant 1
 
 def chainInputProgram {poseidonSourceWidth inputSourceWidth : Nat}
-    (schedule : PoseidonRetainedFamily.Schedule poseidonSourceWidth 2410)
+    (schedule : PoseidonRetainedFamily.Schedule poseidonSourceWidth 2111)
     (retainedStart : Nat) (inputBlock : LowNormBlock.Block inputSourceWidth)
     (inputStart : Nat) : PoseidonInput.Program where
   rules := [previousRule schedule retainedStart,
@@ -79,26 +79,26 @@ def outputBlock {program : Program} {logicalWidth : Nat}
 @[simp] theorem priorBlock_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth) :
-    (priorBlock geometry).rowCount = 361500 := by
+    (priorBlock geometry).rowCount = 316650 := by
   calc
-    (priorBlock geometry).rowCount = 2410 * 150 := by
+    (priorBlock geometry).rowCount = 2111 * 150 := by
       exact Poseidon.Block.ofSemantic_rowCount
         (PilotPoseidonPlan.priorSchedule program)
         (PiRLCRetainedGeometry.priorPoseidonStart program)
         (PiRLCPoseidonGeometry.oneColumn geometry) (priorInputProgram program)
-    _ = 361500 := by norm_num
+    _ = 316650 := by norm_num
 
 @[simp] theorem outputBlock_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth) :
-    (outputBlock geometry).rowCount = 361500 := by
+    (outputBlock geometry).rowCount = 316650 := by
   calc
-    (outputBlock geometry).rowCount = 2410 * 150 := by
+    (outputBlock geometry).rowCount = 2111 * 150 := by
       exact Poseidon.Block.ofSemantic_rowCount
         (PilotPoseidonPlan.outputSchedule program)
         (PiRLCRetainedGeometry.outputPoseidonStart program)
         (PiRLCPoseidonGeometry.oneColumn geometry) (outputInputProgram program)
-    _ = 361500 := by norm_num
+    _ = 316650 := by norm_num
 
 def matrixProgram {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth) :
@@ -109,7 +109,7 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
 @[simp] theorem matrixProgram_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 723000 := by
+    (matrixProgram geometry).rowCount = 633300 := by
   rw [matrixProgram, MatrixProgram.Program.append_rowCount]
   simp only [MatrixProgram.Program.singleton_rowCount]
   change (priorBlock geometry).rowCount + (outputBlock geometry).rowCount = _

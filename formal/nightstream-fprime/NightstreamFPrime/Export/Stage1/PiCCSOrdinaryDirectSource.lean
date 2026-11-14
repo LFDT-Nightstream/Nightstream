@@ -24,7 +24,7 @@ theorem sourceRows_length
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (sourceRows logicalWidth publicFits).length = 43517 := by
+    (sourceRows logicalWidth publicFits).length = 38553 := by
   rw [sourceRows, List.length_map,
     PiCCSArithmetic.arithmeticRows_length logicalWidth publicFits relation]
 
@@ -43,7 +43,7 @@ theorem sourceRows_varsBelow
     (PackageCompleteness.piCcsEmittedConstraints_varsBelow relation
       (fun _ => 0))
   rw [PiCCSCompleteness.emittedConstraints_totalFreshCount relation] at loweredScope
-  have endEq : PiCCSArithmetic.initialClaimFreshStart + 2956 =
+  have endEq : PiCCSArithmetic.initialClaimFreshStart + 2862 =
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset := by
     unfold PiCCSArithmetic.initialClaimFreshStart
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.initialClaimFreshStart
@@ -75,7 +75,7 @@ def sourceListIndex
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 43517) : Fin (sourceRows logicalWidth publicFits).length :=
+    (index : Fin 38553) : Fin (sourceRows logicalWidth publicFits).length :=
   Fin.cast (sourceRows_length relation).symm index
 
 def programRow
@@ -83,7 +83,7 @@ def programRow
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 43517) : R1CS.Row :=
+    (index : Fin 38553) : R1CS.Row :=
   (sourceRows logicalWidth publicFits).get (sourceListIndex relation index)
 
 theorem programRow_bounded
@@ -91,7 +91,7 @@ theorem programRow_bounded
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (index : Fin 43517) :
+    (index : Fin 38553) :
     (programRow relation index).VarsBelow PackageOrder.packageColumnCount := by
   exact sourceRows_varsBelow relation _
     (List.get_mem _ (sourceListIndex relation index))
@@ -142,7 +142,7 @@ def supportedProgram
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     SupportedProgram (sourceRows logicalWidth publicFits) where
-  rowCount := 43517
+  rowCount := 38553
   rowCount_le := by norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
   row := programRow relation
   exactRows := programRows_eq relation
@@ -161,7 +161,7 @@ def program
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (program relation).rowCount = 43517 := by
+    (program relation).rowCount = 38553 := by
   rfl
 
 theorem program_eq_of_same_shape
@@ -191,7 +191,7 @@ theorem programRows_hold_iff_rowsHold
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :
-    (∀ index : Fin 43517, (programRow relation index).Holds env) ↔
+    (∀ index : Fin 38553, (programRow relation index).Holds env) ↔
       R1CS.RowsHold env (sourceRows logicalWidth publicFits) := by
   exact (holds_iff_rowsHold_ofFn (programRow relation) env).trans
     (predicate_iff_of_eq (R1CS.RowsHold env) (programRows_eq relation))

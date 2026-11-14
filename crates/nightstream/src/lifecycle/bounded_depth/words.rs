@@ -201,7 +201,7 @@ pub(crate) fn base_step(
     let mut sampler = Poseidon2Transcript::from_state_and_absorbed(transcript.outgoing_state().map(F::from_u64), 0);
     let rho = sample_rot_rhos_n_typed(
         &mut sampler,
-        &neo_params::NeoParams::nightstream_p64_k16(),
+        &neo_params::NeoParams::nightstream_p64_k14(),
         &RotRing::profile(),
         1,
     )

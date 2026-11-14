@@ -55,7 +55,7 @@ fn read_coin(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, la
 }
 
 fn check_commitment(commitment: &Cmt) -> Result<(), PiCcsError> {
-    let kappa = neo_params::nightstream_p64_k16::KAPPA as usize;
+    let kappa = neo_params::nightstream_p64_k14::KAPPA as usize;
     if commitment.d() != D || commitment.kappa() != kappa || commitment.data().len() != D * kappa {
         return Err(PiCcsError::InvalidInput(
             "PaperExact v1_2 commitment does not have the fixed Ajtai shape".into(),

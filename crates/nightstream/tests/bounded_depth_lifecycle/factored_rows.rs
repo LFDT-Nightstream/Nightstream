@@ -6,6 +6,7 @@ use super::support::packages;
 use super::MINIMUM_SECURITY_BITS;
 use neo_ccs::Mat;
 use neo_math::{D, F};
+use neo_params::nightstream_p64_k14 as profile;
 use neo_reductions::superneo_eval::{MatrixRows, SuperneoZBlocks};
 use p3_field::PrimeCharacteristicRing;
 
@@ -58,8 +59,8 @@ fn native_power_and_affine_application_match_actual_factored_matrices() {
             1
         );
         let relation = Relation::new(package, MINIMUM_SECURITY_BITS).unwrap();
-        assert_eq!(relation.params().b(), 2);
-        assert_eq!(relation.params().k_rho(), 16);
+        assert_eq!(relation.params().b(), profile::B_BASE);
+        assert_eq!(relation.params().k_rho(), profile::K_RHO);
     }
     check_factored(&packages);
 }

@@ -47,7 +47,7 @@ theorem serializeRunningExpr_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (running : RunningExpr logicalWidth publicFits) :
-    (serializeRunningExpr running).length = 28888 := by
+    (serializeRunningExpr running).length = 25304 := by
   simp [serializeRunningExpr, serializeParentPublicExpr, serializePointExpr_length,
     serializeCommitmentExpr_length, serializeEvalKExpr_length,
     serializeEvalAExpr_length, productionShape, productionProfile,

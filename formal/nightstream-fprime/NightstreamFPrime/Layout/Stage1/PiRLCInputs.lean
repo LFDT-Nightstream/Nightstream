@@ -19,7 +19,7 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
 
-def phaseOffset : Nat := 6592681
+def phaseOffset : Nat := 5806589
 
 theorem piCcsLogicalFreshBase_le_phaseOffset :
     PiCCSStarts.logicalFreshBase ≤ phaseOffset := by
@@ -334,75 +334,75 @@ theorem inputShapes
   sampler := samplerInputs (logicalWidth := logicalWidth) (publicFits := publicFits)
   commitmentFresh := by
     change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCount
-      _ _ = 2545920
+      _ _ = 2246400
     rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCountEqProduction
       _ _ (commitmentProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
     change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
-      _ _ * 130 = 2545920
+      _ _ * 130 = 2246400
     rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.CommitmentCombination.logicalPrivateCount_eq]
   commitmentRows := by
     change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCount
-      _ _ = 2565504
+      _ _ = 2263680
     rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCountEqProduction
       _ _ (commitmentProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
     change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
-      _ _ * 131 = 2565504
+      _ _ * 131 = 2263680
     rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.CommitmentCombination.logicalPrivateCount_eq]
   publicInputFresh := by
     change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCount
-      _ _ = 707200
+      _ _ = 624000
     rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCountEqProduction
       _ _ (publicInputProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
     change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
-      _ _ * 130 = 707200
+      _ _ * 130 = 624000
     rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.PublicInputCombination.logicalPrivateCount_eq]
   publicInputRows := by
     change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCount
-      _ _ = 712640
+      _ _ = 628800
     rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCountEqProduction
       _ _ (publicInputProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
     change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
-      _ _ * 131 = 712640
+      _ _ * 131 = 628800
     rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.PublicInputCombination.logicalPrivateCount_eq]
   evalKFresh := by
     change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCount
-      _ _ = 282880
+      _ _ = 249600
     rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCountEqProduction
       _ _ (evalKProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
     change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
-      _ _ * 130 = 282880
+      _ _ * 130 = 249600
     rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalKCombination.logicalPrivateCount_eq]
   evalKRows := by
     change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCount
-      _ _ = 285056
+      _ _ = 251520
     rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCountEqProduction
       _ _ (evalKProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
     change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
-      _ _ * 131 = 285056
+      _ _ * 131 = 251520
     rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalKCombination.logicalPrivateCount_eq]
   evalAFresh := by
     change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCount
-      _ _ = 1131520
+      _ _ = 998400
     rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalFreshColumnCountEqProduction
       _ _ (evalAProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
     change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
-      _ _ * 130 = 1131520
+      _ _ * 130 = 998400
     rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalACombination.logicalPrivateCount_eq]
   evalARows := by
     change NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCount
-      _ _ = 1140224
+      _ _ = 1006080
     rw [NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.physicalRowCountEqProduction
       _ _ (evalAProductionInputs (logicalWidth := logicalWidth)
         (publicFits := publicFits))]
     change NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily.logicalPrivateCount
-      _ _ * 131 = 1140224
+      _ _ * 131 = 1006080
     rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalACombination.logicalPrivateCount_eq]
 
 end NightstreamFPrime.Layout.Stage1.PiRLCInputs

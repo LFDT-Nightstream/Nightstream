@@ -7,7 +7,7 @@ fn library() -> Value {
     json!({
         "format": "nightstream.matrix-templates",
         "version": 1,
-        "profile": [18446744073709551557u64, 2, 16, 65536, 64, 28, 4, 4],
+        "profile": super::PROFILE,
         "components": [{
             "id": "linear-example", "input_count": 2,
             "ports": [
@@ -48,8 +48,9 @@ fn rejects_bad_references_even_when_the_coefficient_is_zero() {
 
 #[test]
 fn rejects_incomplete_or_ambiguous_component_contracts() {
+    assert!(decode(&library()).is_ok(), "the unchanged fixture decodes");
     let mut wrong_profile = library();
-    wrong_profile["profile"][2] = json!(14);
+    wrong_profile["profile"][2] = json!(super::PROFILE[2] + 1);
     let mut wrong_version = library();
     wrong_version["version"] = json!(2);
     let mut overlap = library();

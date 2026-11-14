@@ -60,7 +60,7 @@ theorem combinationChallenge_eval
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Formal.Interface logicalWidth publicFits)
-    (offset : Nat) (env : Env) (source : Fin 17)
+    (offset : Nat) (env : Env) (source : Fin 15)
     (lane : Fin ringDegree) :
     (SamplerChain.outputChallenge offset
         (Fin.cast CombinationFamily.sourceCount_eq.symm source) lane).eval env =

@@ -132,7 +132,7 @@ fn end(phase: &str, step: Option<u64>, started: Instant) -> Result<()> {
 }
 
 fn compile(output: &Path) -> Result<()> {
-    let profile = neo_params::NeoParams::nightstream_p64_k16();
+    let profile = neo_params::NeoParams::nightstream_p64_k14();
     emit(json!({
         "event":"package_compile_started", "schema":2, "benchmark":"poseidon2_hash_chain_v1",
         "output":output,
@@ -153,7 +153,7 @@ fn compile(output: &Path) -> Result<()> {
 }
 
 fn benchmark(package: &Path, engine: Engine, steps: u64, minimum_security_bits: u32) -> Result<()> {
-    let profile = neo_params::NeoParams::nightstream_p64_k16();
+    let profile = neo_params::NeoParams::nightstream_p64_k14();
     emit(json!({
         "event":"benchmark_started", "schema":2, "benchmark":"poseidon2_hash_chain_v1",
         "timing_scope":"prepared_package_load_prove_verify", "package":package,

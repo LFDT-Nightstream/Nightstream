@@ -58,7 +58,7 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
     norm_num [productionShape, RingMatrixSource.ringShape,
       cubeVariables] at upper
     simpa [privateCount] using (Nat.lt_trans upper (by omega :
-      offset + 110 < offset + 3197))
+      offset + 110 < offset + 2813))
   have matrixLocal : ∀ index,
       matrixOffset interface offset ≤ index →
       index < matrixOffset interface offset + localLength
@@ -78,7 +78,7 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
       norm_num [productionShape, RingMatrixSource.ringShape,
         cubeVariables] at upper
       simpa [privateCount] using (Nat.lt_trans upper (by omega :
-        offset + 110 + 3072 < offset + 3197))
+        offset + 110 + 2688 < offset + 2813))
   have constraintLocal : ∀ index,
       constraintOffset interface offset ≤ index →
       index < constraintOffset interface offset + localLength

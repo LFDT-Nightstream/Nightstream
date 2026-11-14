@@ -18,8 +18,8 @@ def combinedBound : Nat := productionGlobalParams.bigB
 
 theorem production_parameters :
       productionGlobalParams.b = 2 /\
-      productionGlobalParams.k = 16 /\
-      combinedBound = 65536 := by
+      productionGlobalParams.k = 14 /\
+      combinedBound = 16384 := by
   decide
 
 def fieldOfNat (value : Nat) : F :=
@@ -400,7 +400,7 @@ private theorem fallbackDigit_recompose (value : F) :
     combineScalars EvaluationHomomorphism.PiDEC.radixWeight
         (fallbackDigit value) = value := by
   change combineScalars
-      (count := 15 + 1)
+      (count := 13 + 1)
       EvaluationHomomorphism.PiDEC.radixWeight
       (fallbackDigit value) = value
   rw [combineScalars_head_only

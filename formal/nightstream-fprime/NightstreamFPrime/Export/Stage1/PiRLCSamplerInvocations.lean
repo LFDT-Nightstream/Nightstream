@@ -21,7 +21,7 @@ variable {logicalWidth : Nat}
     RingCarrierLayout.carrierWidth logicalWidth}
 
 def phase : Nat := 7
-def sourceCount : Nat := 17
+def sourceCount : Nat := 15
 
 def chainInterface : SamplerChain.Interface :=
   PiRLCSamplerRows.samplerInterface
@@ -108,7 +108,7 @@ def invocations : List PermutationInvocation :=
 
 @[simp] theorem invocations_length :
     (invocations (logicalWidth := logicalWidth)
-      (publicFits := publicFits)).length = 34 := by
+      (publicFits := publicFits)).length = 30 := by
   simp [invocations, sourceCount]
 
 theorem entryState_affine (source : Nat) :

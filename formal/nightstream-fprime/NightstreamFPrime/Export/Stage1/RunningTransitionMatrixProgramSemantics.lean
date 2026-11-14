@@ -24,11 +24,11 @@ theorem rowSchedule_index?
     rowSchedule.index? index.val =
       some (RunningTransitionArithmetic.rowStart + index.val) := by
   have count := RunningTransitionDirectSource.program_rowCount relation
-  have bound : index.val < 28894 := by
+  have bound : index.val < 25310 := by
     calc
       index.val < (RunningTransitionDirectSource.program relation).rowCount :=
         index.isLt
-      _ = 28894 := count
+      _ = 25310 := count
   simp [rowSchedule, bound]
 
 private theorem programRow_support
@@ -139,7 +139,7 @@ theorem matrixProgram_row?
         global) := by
   have blockBound : global.val <
       (MatrixProgram.Block.ordinary (ordinaryBlock geometry)).rowCount := by
-    change global.val < 28894
+    change global.val < 25310
     have bound := global.isLt
     have count := RunningTransitionDirectPlan.plan_rowCount relation geometry
     omega

@@ -31,43 +31,43 @@ def witnessPrivateStart : Nat := 2 * PilotProduction.stateHashWords
 def firstPublicStart : Nat := privateColumnCount + 1
 def secondPublicStart : Nat := firstPublicStart + PriorStateHash.publicWidth
 
-theorem sourceColumnCount_eq : SourceColumnCount = 5341138 := by
+theorem sourceColumnCount_eq : SourceColumnCount = 4678562 := by
   rfl
 
 theorem publicColumnCount_value : publicColumnCount = 324 := by
   rfl
 
-theorem privateColumnCount_value : privateColumnCount = 5340814 := by
+theorem privateColumnCount_value : privateColumnCount = 4678238 := by
   rfl
 
-theorem constantColumn_value : constantColumn = 5340814 := by
+theorem constantColumn_value : constantColumn = 4678238 := by
   rfl
 
-theorem packageColumnCount_value : packageColumnCount = 5341139 := by
+theorem packageColumnCount_value : packageColumnCount = 4678563 := by
   rfl
 
-theorem priorPublicStart_value : priorPublicStart = 28913 := by
+theorem priorPublicStart_value : priorPublicStart = 25329 := by
   rfl
 
-theorem outputPreimageStart_value : outputPreimageStart = 29233 := by
+theorem outputPreimageStart_value : outputPreimageStart = 25649 := by
   rfl
 
-theorem outputDigestStart_value : outputDigestStart = 58146 := by
+theorem outputDigestStart_value : outputDigestStart = 50978 := by
   rfl
 
-theorem witnessStart_value : witnessStart = 58150 := by
+theorem witnessStart_value : witnessStart = 50982 := by
   rfl
 
-theorem secondPrivateStart_value : secondPrivateStart = 28913 := by
+theorem secondPrivateStart_value : secondPrivateStart = 25329 := by
   rfl
 
-theorem witnessPrivateStart_value : witnessPrivateStart = 57826 := by
+theorem witnessPrivateStart_value : witnessPrivateStart = 50658 := by
   rfl
 
-theorem firstPublicStart_value : firstPublicStart = 5340815 := by
+theorem firstPublicStart_value : firstPublicStart = 4678239 := by
   rfl
 
-theorem secondPublicStart_value : secondPublicStart = 5341135 := by
+theorem secondPublicStart_value : secondPublicStart = 4678559 := by
   rfl
 
 theorem sourceColumnCount_matches :

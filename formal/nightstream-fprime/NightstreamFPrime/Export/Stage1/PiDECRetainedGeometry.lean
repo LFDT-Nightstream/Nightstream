@@ -10,13 +10,13 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PilotOrdinaryRetainedGeometry.completeLogicalWidth program
 
-def parentCommitmentSlot : Nat := 16 * 18 * 64
+def parentCommitmentSlot : Nat := 14 * 18 * 64
 
-def parentPublicInputSlot : Nat := 17 * 18 * 64 + 16 * 5 * 64
+def parentPublicInputSlot : Nat := 15 * 18 * 64 + 14 * 5 * 64
 
-def parentEvalKSlot : Nat := 17 * (18 + 5) * 64 + 16 * 64 * 2
+def parentEvalKSlot : Nat := 15 * (18 + 5) * 64 + 14 * 64 * 2
 
-def parentEvalASlot : Nat := 17 * (18 + 5 + 2) * 64 + 16 * 4 * 64 * 2
+def parentEvalASlot : Nat := 15 * (18 + 5 + 2) * 64 + 14 * 4 * 64 * 2
 
 def parentCommitmentStart (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCRetainedGeometry.productOutputStart program + parentCommitmentSlot * 41
@@ -93,9 +93,9 @@ theorem parentCommitmentFits {program : Lifecycle.Stage1.Application.Program}
         (PiDECRetainedBlocks.parentCommitmentBlock program).coordinateCount ≤
       logicalWidth := by
   have fits := PiRLCRetainedGeometry.productOutputFits (piRlcGeometry geometry)
-  change PiRLCRetainedGeometry.productOutputStart program + 35904 * 41 ≤
+  change PiRLCRetainedGeometry.productOutputStart program + 31680 * 41 ≤
     logicalWidth at fits
-  change PiRLCRetainedGeometry.productOutputStart program + 18432 * 41 +
+  change PiRLCRetainedGeometry.productOutputStart program + 16128 * 41 +
     1152 * 41 ≤ logicalWidth
   omega
 
@@ -105,9 +105,9 @@ theorem parentPublicInputFits {program : Lifecycle.Stage1.Application.Program}
         (PiDECRetainedBlocks.parentPublicInputBlock program).coordinateCount ≤
       logicalWidth := by
   have fits := PiRLCRetainedGeometry.productOutputFits (piRlcGeometry geometry)
-  change PiRLCRetainedGeometry.productOutputStart program + 35904 * 41 ≤
+  change PiRLCRetainedGeometry.productOutputStart program + 31680 * 41 ≤
     logicalWidth at fits
-  change PiRLCRetainedGeometry.productOutputStart program + 24704 * 41 +
+  change PiRLCRetainedGeometry.productOutputStart program + 21760 * 41 +
     320 * 41 ≤ logicalWidth
   omega
 
@@ -117,9 +117,9 @@ theorem parentEvalKFits {program : Lifecycle.Stage1.Application.Program}
         (PiDECRetainedBlocks.parentEvalKBlock program).coordinateCount ≤
       logicalWidth := by
   have fits := PiRLCRetainedGeometry.productOutputFits (piRlcGeometry geometry)
-  change PiRLCRetainedGeometry.productOutputStart program + 35904 * 41 ≤
+  change PiRLCRetainedGeometry.productOutputStart program + 31680 * 41 ≤
     logicalWidth at fits
-  change PiRLCRetainedGeometry.productOutputStart program + 27072 * 41 +
+  change PiRLCRetainedGeometry.productOutputStart program + 23872 * 41 +
     128 * 41 ≤ logicalWidth
   omega
 
@@ -130,7 +130,7 @@ theorem parentEvalAFits {program : Lifecycle.Stage1.Application.Program}
       logicalWidth := by
   have fits := PiRLCRetainedGeometry.productOutputFits (piRlcGeometry geometry)
   have outputCount :
-      (PiRLCRetainedGeometry.productOutputBlock program).coordinateCount = 1472064 := by
+      (PiRLCRetainedGeometry.productOutputBlock program).coordinateCount = 1298880 := by
     simp [PiRLCRetainedGeometry.productOutputBlock]
   have evalACount : (PiDECRetainedBlocks.parentEvalABlock program).coordinateCount =
       Lifecycle.productionShape.matrixCount * (Spec.ringDegree * 2) * 41 := rfl
@@ -140,7 +140,7 @@ theorem parentEvalAFits {program : Lifecycle.Stage1.Application.Program}
   rw [matrices, ccs, degree] at evalACount
   have startEq : parentEvalAStart program =
       PiRLCRetainedGeometry.productOutputStart program + parentEvalASlot * 41 := rfl
-  have slotEq : parentEvalASlot = 35392 := rfl
+  have slotEq : parentEvalASlot = 31168 := rfl
   omega
 
 theorem proofFits {program : Lifecycle.Stage1.Application.Program}

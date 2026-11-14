@@ -15,7 +15,7 @@ use p3_field::{
 };
 use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
-pub const Q: u64 = neo_params::nightstream_p64_k16::Q;
+pub const Q: u64 = neo_params::nightstream_p64_k14::Q;
 
 /// `2^64 mod q`.
 pub(crate) const FOLD: u64 = Q.wrapping_neg();

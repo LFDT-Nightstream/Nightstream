@@ -13,17 +13,17 @@ open RunningTransitionRetainedBlocks
 open RunningTransitionRetainedGeometry
 
 private theorem stateRange_values (program : ApplicationProgram) :
-    (stateRange program).sourceStart = 28904 ∧
+    (stateRange program).sourceStart = 25320 ∧
       (stateRange program).sourceCount = 9 := by
   exact ⟨rfl, rfl⟩
 
 private theorem outputRange_values (program : ApplicationProgram) :
-    (outputRange program).sourceStart = 28913 ∧
-      (outputRange program).sourceCount = 28913 := by
+    (outputRange program).sourceStart = 25329 ∧
+      (outputRange program).sourceCount = 25329 := by
   exact ⟨rfl, rfl⟩
 
 private theorem pointGrid_values (program : ApplicationProgram) :
-    (PiCCSTranscriptOutputForms.pointGrid program).sourceStart = 5501254 ∧
+    (PiCCSTranscriptOutputForms.pointGrid program).sourceStart = 4836758 ∧
       (PiCCSTranscriptOutputForms.pointGrid program).majorCount = 28 ∧
       (PiCCSTranscriptOutputForms.pointGrid program).majorSourceStride = 2192 := by
   simp only [PiCCSTranscriptOutputForms.pointGrid,
@@ -32,8 +32,8 @@ private theorem pointGrid_values (program : ApplicationProgram) :
   exact ⟨rfl, rfl, rfl⟩
 
 private theorem piDecRange_values (program : ApplicationProgram) :
-    (piDecRange program).sourceStart = 11378618 ∧
-      (piDecRange program).sourceCount = 33792 := by
+    (piDecRange program).sourceStart = 10029436 ∧
+      (piDecRange program).sourceCount = 29568 := by
   exact ⟨rfl, rfl⟩
 
 private theorem freshRange_after_piDec (program : ApplicationProgram) :
@@ -50,7 +50,7 @@ private theorem freshRange_after_piDec (program : ApplicationProgram) :
 private theorem stateTarget (index : Fin RunningTransitionSourceSupport.stateCount) :
     PackageOrder.sourceToPackage
         (RunningTransitionSourceSupport.stateStart + index.val) =
-      28904 + index.val := by
+      25320 + index.val := by
   rw [PackageOrder.sourceToPackage_add_of_pilotPriorPrivate]
   · rw [RunningTransitionSourceSupport.stateStart_eq]
     rfl
@@ -66,9 +66,9 @@ private theorem outputTarget
     (index : Fin RunningTransitionSourceSupport.outputCount) :
     PackageOrder.sourceToPackage
         (RunningTransitionSourceSupport.outputStart + index.val) =
-      28913 + index.val := by
+      25329 + index.val := by
   have bound := index.isLt
-  change index.val < 28913 at bound
+  change index.val < 25329 at bound
   rw [RunningTransitionSourceSupport.outputStart_eq]
   unfold PackageOrder.sourceToPackage
   rw [ite_eq_left (by norm_num [PackageOrder.pilotSourceColumnCount]; omega)]
@@ -90,7 +90,7 @@ private theorem roundTarget
     (coordinate : Fin productionShape.cubeVariables) (component : Fin 2) :
     PackageOrder.sourceToPackage
         (PiCCSTranscriptOutputForms.pointSource coordinate component) =
-      5501254 + coordinate.val * 2192 + component.val := by
+      4836758 + coordinate.val * 2192 + component.val := by
   have grouped : PiCCSTranscriptOutputForms.pointSource coordinate component =
       PiCCSTranscriptOutputForms.pointSourceStart +
         (coordinate.val * RunningTransitionInputs.roundStride + component.val) := by
@@ -101,7 +101,7 @@ private theorem roundTarget
       PiCCSStarts.roundTranscriptWitnessStart_eq,
       RunningTransitionInputs.roundSampleC0Offset, PackageOrder.piCcsPhaseOffset])]
   have start : PackageOrder.sourceToPackage
-      PiCCSTranscriptOutputForms.pointSourceStart = 5501254 := rfl
+      PiCCSTranscriptOutputForms.pointSourceStart = 4836758 := rfl
   rw [start]
   norm_num [RunningTransitionInputs.roundStride]
   omega
@@ -214,7 +214,7 @@ theorem freshRange_form?
 
 private theorem piDecMappedStart (program : ApplicationProgram) :
     PackageOrder.sourceToPackage RunningTransitionSourceSupport.piDecStart =
-      11378618 := by
+      10029436 := by
   exact (piDecRange_values program).1
 
 private theorem freshMappedStart (program : ApplicationProgram) :
@@ -247,32 +247,32 @@ theorem substitution_location_form?
       simp only [RunningTransitionDirectPlan.Location.sourceColumn]
       rw [stateTarget]
       have outputNone := SourceRange.form?_eq_none_of_before
-        (outputRange program) logicalWidth (28904 + index.val) (by omega)
+        (outputRange program) logicalWidth (25320 + index.val) (by omega)
       have piDecNone := SourceRange.form?_eq_none_of_before
-        (piDecRange program) logicalWidth (28904 + index.val) (by omega)
+        (piDecRange program) logicalWidth (25320 + index.val) (by omega)
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (28904 + index.val) (by omega)
+        (freshRange program) logicalWidth (25320 + index.val) (by omega)
       have pointNone := SourceGrid.form?_eq_none_of_before
         (PiCCSTranscriptOutputForms.pointGrid program) logicalWidth
-          (28904 + index.val) (by omega)
+          (25320 + index.val) (by omega)
       simp [substitution, SourceSubstitution.form?, selected, outputNone,
         piDecNone, freshNone, pointNone]
   | output index =>
       have indexBound := index.isLt
-      change index.val < 28913 at indexBound
+      change index.val < 25329 at indexBound
       have selected := outputRange_form? geometry index
       rw [outputTarget] at selected
       simp only [RunningTransitionDirectPlan.Location.sourceColumn]
       rw [outputTarget]
       have stateNone := SourceRange.form?_eq_none_of_after
-        (stateRange program) logicalWidth (28913 + index.val) (by omega)
+        (stateRange program) logicalWidth (25329 + index.val) (by omega)
       have piDecNone := SourceRange.form?_eq_none_of_before
-        (piDecRange program) logicalWidth (28913 + index.val) (by omega)
+        (piDecRange program) logicalWidth (25329 + index.val) (by omega)
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (28913 + index.val) (by omega)
+        (freshRange program) logicalWidth (25329 + index.val) (by omega)
       have pointNone := SourceGrid.form?_eq_none_of_before
         (PiCCSTranscriptOutputForms.pointGrid program) logicalWidth
-          (28913 + index.val) (by omega)
+          (25329 + index.val) (by omega)
       simp [substitution, SourceSubstitution.form?, stateNone, selected,
         piDecNone, freshNone, pointNone]
   | roundC0 coordinate =>
@@ -285,16 +285,16 @@ theorem substitution_location_form?
       simp only [Fin.val_zero, Nat.add_zero] at selected ⊢
       have stateNone := SourceRange.form?_eq_none_of_after
         (stateRange program) logicalWidth
-          (5501254 + coordinate.val * 2192) (by omega)
+          (4836758 + coordinate.val * 2192) (by omega)
       have outputNone := SourceRange.form?_eq_none_of_after
         (outputRange program) logicalWidth
-          (5501254 + coordinate.val * 2192) (by omega)
+          (4836758 + coordinate.val * 2192) (by omega)
       have piDecNone := SourceRange.form?_eq_none_of_before
         (piDecRange program) logicalWidth
-          (5501254 + coordinate.val * 2192) (by omega)
+          (4836758 + coordinate.val * 2192) (by omega)
       have freshNone := SourceRange.form?_eq_none_of_before
         (freshRange program) logicalWidth
-          (5501254 + coordinate.val * 2192) (by omega)
+          (4836758 + coordinate.val * 2192) (by omega)
       simp [substitution, SourceSubstitution.form?, stateNone, outputNone,
         piDecNone, freshNone, selected]
   | roundC1 coordinate =>
@@ -307,34 +307,34 @@ theorem substitution_location_form?
       simp only [Fin.val_one] at selected ⊢
       have stateNone := SourceRange.form?_eq_none_of_after
         (stateRange program) logicalWidth
-          (5501254 + coordinate.val * 2192 + 1) (by omega)
+          (4836758 + coordinate.val * 2192 + 1) (by omega)
       have outputNone := SourceRange.form?_eq_none_of_after
         (outputRange program) logicalWidth
-          (5501254 + coordinate.val * 2192 + 1) (by omega)
+          (4836758 + coordinate.val * 2192 + 1) (by omega)
       have piDecNone := SourceRange.form?_eq_none_of_before
         (piDecRange program) logicalWidth
-          (5501254 + coordinate.val * 2192 + 1) (by omega)
+          (4836758 + coordinate.val * 2192 + 1) (by omega)
       have freshNone := SourceRange.form?_eq_none_of_before
         (freshRange program) logicalWidth
-          (5501254 + coordinate.val * 2192 + 1) (by omega)
+          (4836758 + coordinate.val * 2192 + 1) (by omega)
       simp [substitution, SourceSubstitution.form?, stateNone, outputNone,
         piDecNone, freshNone, selected]
   | piDec index =>
       have indexBound := index.isLt
-      change index.val < 33792 at indexBound
+      change index.val < 29568 at indexBound
       have selected := piDecRange_form? geometry index
       rw [piDecTarget, piDecMappedStart program] at selected
       simp only [RunningTransitionDirectPlan.Location.sourceColumn]
       rw [piDecTarget, piDecMappedStart program]
       have stateNone := SourceRange.form?_eq_none_of_after
-        (stateRange program) logicalWidth (11378618 + index.val) (by omega)
+        (stateRange program) logicalWidth (10029436 + index.val) (by omega)
       have outputNone := SourceRange.form?_eq_none_of_after
-        (outputRange program) logicalWidth (11378618 + index.val) (by omega)
+        (outputRange program) logicalWidth (10029436 + index.val) (by omega)
       have freshNone := SourceRange.form?_eq_none_of_before
-        (freshRange program) logicalWidth (11378618 + index.val) (by omega)
+        (freshRange program) logicalWidth (10029436 + index.val) (by omega)
       have pointNone := SourceGrid.form?_eq_none_of_after
         (PiCCSTranscriptOutputForms.pointGrid program) logicalWidth
-          (11378618 + index.val)
+          (10029436 + index.val)
         (by rw [pointStrideValue]; omega)
         (by rw [pointStartValue, pointCountValue, pointStrideValue]; omega)
       simp [substitution, SourceSubstitution.form?, stateNone, outputNone,

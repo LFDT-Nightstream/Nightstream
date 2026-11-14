@@ -1,4 +1,4 @@
-//! The parameters of the profile Nightstream P64, k_rho = 16.
+//! The parameters of the profile Nightstream P64, k_rho = 14.
 use neo_params::NeoParams;
 #[derive(Clone, Debug)]
 pub(crate) struct Params {
@@ -7,7 +7,7 @@ pub(crate) struct Params {
 impl Params {
     pub(crate) fn production() -> Self {
         Self {
-            inner: NeoParams::nightstream_p64_k16(),
+            inner: NeoParams::nightstream_p64_k14(),
         }
     }
     pub(crate) fn for_ccs_shape(
@@ -22,8 +22,8 @@ impl Params {
                 "minimum statistical security must be positive",
             ));
         }
-        let inner = NeoParams::nightstream_p64_k16();
-        let alphabet = neo_params::nightstream_p64_k16::CHALLENGE_ALPHABET.len() as u32;
+        let inner = NeoParams::nightstream_p64_k14();
+        let alphabet = neo_params::nightstream_p64_k14::CHALLENGE_ALPHABET.len() as u32;
         let summary =
             inner.padded_row_security_summary_for_shape(rows, columns, matrix_count, poly_degree, alphabet)?;
         // Lean `FoldGate.bits`: the error that it charges bounds the

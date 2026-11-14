@@ -9,14 +9,14 @@ fn engine_rejects_parameters_selected_for_fewer_matrices() {
     const ACTUAL_MATRIX_COUNT: usize = 100_000;
     const DEGREE: u32 = 8;
 
-    let base = NeoParams::nightstream_p64_k16();
+    let base = NeoParams::nightstream_p64_k14();
     let one_matrix = base
         .padded_row_security_summary_for_shape(
             SHAPE,
             SHAPE,
             1,
             DEGREE,
-            neo_params::nightstream_p64_k16::CHALLENGE_ALPHABET.len() as u32,
+            neo_params::nightstream_p64_k14::CHALLENGE_ALPHABET.len() as u32,
         )
         .expect("one-matrix census");
     let params = base

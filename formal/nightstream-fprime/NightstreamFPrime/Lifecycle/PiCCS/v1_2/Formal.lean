@@ -546,7 +546,7 @@ def statementBindingCircuit {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (StatementBinding.circuit (statementBindingInterface interface))
-    StateBinding.signCount 5632
+    StateBinding.signCount 4992
     (StatementBinding.localLength_eq (statementBindingInterface interface))
     (StatementBinding.flatConstraints_length (statementBindingInterface interface))
 
@@ -591,7 +591,7 @@ def initialClaimCircuit {logicalWidth degreeBound : Nat}
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (InitialClaim.circuit (initialClaimInterface interface)) 15357 15357
+    (InitialClaim.circuit (initialClaimInterface interface)) 13437 13437
     (InitialClaim.localLength_eq (initialClaimInterface interface))
     (InitialClaim.flatConstraints_length (initialClaimInterface interface))
 
@@ -645,7 +645,7 @@ def normCircuit
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (NormTerminal.circuit (normInterface relation interface)) 48 48
+    (NormTerminal.circuit (normInterface relation interface)) 42 42
     (NormTerminal.localLength_eq (normInterface relation interface))
     (NormTerminal.flatConstraints_length (normInterface relation interface))
 
@@ -656,7 +656,7 @@ def finalIdentityCircuit {logicalWidth degreeBound : Nat}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
     (FinalIdentity.circuit (finalIdentityInterface relation interface))
-      FinalIdentity.privateCount 3199
+      FinalIdentity.privateCount 2815
     (FinalIdentity.localLength_eq (finalIdentityInterface relation interface))
     (FinalIdentity.flatConstraints_length (finalIdentityInterface relation interface))
 
@@ -665,7 +665,7 @@ def outputBindingCircuit {logicalWidth degreeBound : Nat}
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : FormalCircuit :=
   FormalCircuit.withConstantFootprint
-    (OutputBinding.circuit (outputBindingInterface interface)) 994072 994072
+    (OutputBinding.circuit (outputBindingInterface interface)) 876800 876800
     (OutputBinding.localLength_eq (outputBindingInterface interface))
     (OutputBinding.flatConstraints_length (outputBindingInterface interface))
 

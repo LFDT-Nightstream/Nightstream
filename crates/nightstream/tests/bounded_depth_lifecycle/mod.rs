@@ -23,6 +23,7 @@ use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_ma
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
 use neo_math::{D, F};
+use neo_params::nightstream_p64_k14 as profile;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use support::{hash_chain_step, packages, words};
 
@@ -121,7 +122,7 @@ fn light_folds_and_a_refresh_verify() {
     rejects(&tampered, "fixed-key commitment differs from the witness");
 }
 
-/// The slot check holds a witness to `(1 + depth + k_rho) · T · (b − 1) = (17 + depth) · 128`, the Lean
+/// The slot check holds a witness to `(1 + depth + k_rho) · T · (b − 1)`, the Lean
 /// `accumulatorBound` of the production parameters, on both signs, and
 /// refuses a depth above the cap. No accepted proof can isolate this check in
 /// `verify`: a slot above its bound needs a second opening of its commitment.
@@ -140,7 +141,7 @@ fn a_slot_is_held_to_the_bound_of_its_depth() {
     );
     let q = F::ORDER_U64;
     for depth in [0, 1, LIGHT_FOLD_CAP] {
-        let bound = (17 + depth) * 128;
+        let bound = (1 + depth + u64::from(profile::K_RHO)) * u64::from(profile::T) * u64::from(profile::B_BASE - 1);
         slot.depth = depth;
         for (coefficient, accepted) in [
             (bound, true),

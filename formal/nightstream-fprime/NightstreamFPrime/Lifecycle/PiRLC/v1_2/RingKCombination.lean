@@ -55,13 +55,13 @@ abbrev SpecHolds {blockCount : Nat} (interface : Interface blockCount)
   CombinationFamily.CanonicalHolds (familyInterface interface) offset env
 
 def evalChallenges {blockCount : Nat} (interface : Interface blockCount)
-    (offset : Nat) (env : Env) : Fin 17 → RingF :=
+    (offset : Nat) (env : Env) : Fin 15 → RingF :=
   fun source lane =>
     (interface.challenge offset
       (Fin.cast CombinationFamily.sourceCount_eq.symm source) lane).eval env
 
 def evalInputs {blockCount : Nat} (interface : Interface blockCount)
-    (offset : Nat) (env : Env) : Fin 17 → Fin blockCount → RingK :=
+    (offset : Nat) (env : Env) : Fin 15 → Fin blockCount → RingK :=
   fun source block lane =>
     (interface.input offset
       (Fin.cast CombinationFamily.sourceCount_eq.symm source) block lane).eval env

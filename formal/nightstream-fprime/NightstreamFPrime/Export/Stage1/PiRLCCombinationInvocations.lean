@@ -14,7 +14,7 @@ open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Layout.Stage1
 
 def phase : Nat := 7
-def sourceCount : Nat := 17
+def sourceCount : Nat := 15
 
 def laneFreshCosts : List Nat :=
   List.ofFn NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
@@ -1308,23 +1308,23 @@ theorem familyInvocations_length (logicalStart rowStart freshStart blockCount
   simp [familyInvocations, CombinationStep.privateCount]
   ring
 
-theorem commitmentInvocations_length : commitmentInvocations.length = 19584 := by
+theorem commitmentInvocations_length : commitmentInvocations.length = 17280 := by
   rw [commitmentInvocations, familyInvocations_length]
   rfl
 
-theorem publicInputInvocations_length : publicInputInvocations.length = 5440 := by
+theorem publicInputInvocations_length : publicInputInvocations.length = 4800 := by
   rw [publicInputInvocations, familyInvocations_length]
   rfl
 
-theorem evalKInvocations_length : evalKInvocations.length = 2176 := by
+theorem evalKInvocations_length : evalKInvocations.length = 1920 := by
   rw [evalKInvocations, familyInvocations_length]
   rfl
 
-theorem evalAInvocations_length : evalAInvocations.length = 8704 := by
+theorem evalAInvocations_length : evalAInvocations.length = 7680 := by
   rw [evalAInvocations, familyInvocations_length]
   rfl
 
-theorem invocations_length : invocations.length = 35904 := by
+theorem invocations_length : invocations.length = 31680 := by
   simp [invocations, commitmentInvocations_length,
     publicInputInvocations_length, evalKInvocations_length,
     evalAInvocations_length]

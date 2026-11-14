@@ -1,6 +1,6 @@
 use neo_ccs::Mat;
 use neo_math::{Rq, D, ETA, F};
-use neo_params::{nightstream_p64_k16 as profile, NeoParams};
+use neo_params::{nightstream_p64_k14 as profile, NeoParams};
 use neo_reductions::PiCcsError;
 use neo_reductions::{rot_rhos_to_mats, sample_rot_rhos_n_typed, RotRing};
 use neo_transcript::Poseidon2Transcript;
@@ -33,7 +33,7 @@ fn test_profile_ring_expansion_factor() {
         "the expansion factor is that of SuperNeo v1.2 Theorem 5 for X^D + 1"
     );
 
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     assert_eq!(
         params.T(),
         profile::T,
@@ -43,7 +43,7 @@ fn test_profile_ring_expansion_factor() {
 
 #[test]
 fn test_sample_rot_rhos_succeeds_with_valid_params() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ring = RotRing::profile();
     let mut tr = Poseidon2Transcript::new_v1_2();
 
@@ -67,7 +67,7 @@ fn test_sample_rot_rhos_succeeds_with_valid_params() {
 
 #[test]
 fn test_sample_rot_rhos_rejects_nonzero_absorb_cursor() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ring = RotRing::profile();
     let state = Poseidon2Transcript::new_v1_2().state();
     let mut transcript = Poseidon2Transcript::from_state_and_absorbed(state, 1);
@@ -79,7 +79,7 @@ fn test_sample_rot_rhos_rejects_nonzero_absorb_cursor() {
 
 #[test]
 fn test_rot_rhos_k1_matches_first_sampled_rho() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ring = RotRing::profile();
     let mut tr_single = Poseidon2Transcript::new_v1_2();
     let mut tr_pair = Poseidon2Transcript::new_v1_2();
@@ -97,7 +97,7 @@ fn test_rot_rhos_k1_matches_first_sampled_rho() {
 
 #[test]
 fn test_rot_rhos_are_different() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ring = RotRing::profile();
     let mut tr = Poseidon2Transcript::new_v1_2();
 
@@ -114,7 +114,7 @@ fn test_rot_rhos_are_different() {
 
 #[test]
 fn test_rot_rhos_deterministic() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ring = RotRing::profile();
 
     let mut tr1 = Poseidon2Transcript::new_v1_2();
@@ -142,7 +142,7 @@ fn test_rot_rhos_deterministic() {
 
 #[test]
 fn test_rlc_bound_violation_detected() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ring = RotRing::profile();
     let mut tr = Poseidon2Transcript::new_v1_2();
 
@@ -164,7 +164,7 @@ fn test_strong_sampling_set_check() {
         }
     }
 
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ring = TestRing::bad_alphabet();
     let mut tr = Poseidon2Transcript::new_v1_2();
 
@@ -184,7 +184,7 @@ fn test_strong_sampling_set_check() {
 #[test]
 #[allow(non_snake_case)]
 fn test_parameter_t_consistency() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let ring = RotRing::profile();
 
     let c_max = ring
@@ -204,7 +204,7 @@ fn test_parameter_t_consistency() {
 
 #[test]
 fn sampled_rho_is_multiplication_in_the_negacyclic_ring() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     assert_eq!((params.d() as usize, params.eta() as usize), (D, ETA));
     let mut transcript = Poseidon2Transcript::new_v1_2();
     let rhos = sample_rot_rhos_n(&mut transcript, &params, &RotRing::profile(), 3).unwrap();
@@ -227,7 +227,7 @@ fn sampled_rho_is_multiplication_in_the_negacyclic_ring() {
 
 #[test]
 fn checked_rho_rejects_the_cyclic_rotation() {
-    let params = NeoParams::nightstream_p64_k16();
+    let params = NeoParams::nightstream_p64_k14();
     let mut transcript = Poseidon2Transcript::new_v1_2();
     let rho = sample_rot_rhos_n(&mut transcript, &params, &RotRing::profile(), 1)
         .unwrap()

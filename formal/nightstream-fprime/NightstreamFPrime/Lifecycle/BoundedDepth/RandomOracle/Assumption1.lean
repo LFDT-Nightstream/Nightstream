@@ -289,7 +289,7 @@ theorem refresh_failure_le (key : CircuitKey logicalWidth publicFits)
             ¬ UniquenessLink.Extracted ajtai (adversary.run oracle)
               (refreshExtract ajtai key adversary budget oracle tape) then (1 : ℝ) else 0) ≤
       RefreshKnowledge.knowledgeError ajtai key adversary queries +
-        17 * ((queries + 17 : Nat) : ℝ) / budget := by
+        15 * ((queries + 15 : Nat) : ℝ) / budget := by
   refine (Budgeted.failure_le (RefreshFork.game ajtai key) adversary
     (fun sample : Oracle logicalWidth publicFits => sample.2)
     (RefreshKnowledge.Extracts ajtai key adversary) uniform_refresh budget positive
@@ -301,7 +301,7 @@ theorem refresh_failure_le (key : CircuitKey logicalWidth publicFits)
     unfold refreshAnswer
     rw [dite_eq_left valid]
     exact holds
-  · show _ + ((17 : Nat) : ℝ) * ((queries + 17 : Nat) : ℝ) / budget = _
+  · show _ + ((15 : Nat) : ℝ) * ((queries + 15 : Nat) : ℝ) / budget = _
     rw [Nat.cast_ofNat]
 
 variable {circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits} {queries : Nat}
@@ -324,7 +324,7 @@ variable (queries) in
 /-- The budget loss: the expected reruns of the light and refresh games, `(Q + 1)` and
 `17 · (Q + 17)`, for each of the two keys, over `budget`. -/
 noncomputable def truncation (budget : Nat) : ℝ :=
-  2 * (((queries + 1 : Nat) : ℝ) + 17 * ((queries + 17 : Nat) : ℝ)) / budget
+  2 * (((queries + 1 : Nat) : ℝ) + 15 * ((queries + 15 : Nat) : ℝ)) / budget
 
 /-- The Assumption 1 error of a random-oracle adversary: both games' knowledge errors for both
 keys, and the budget loss. -/
@@ -460,7 +460,7 @@ theorem refreshFailure_expect_le (rom : RomAdversary circuitKeys queries) (budge
       𝔼 light : LightFork.Oracle logicalWidth publicFits,
           RefreshKnowledge.knowledgeError ajtai (circuitKeys slot)
             (restrictRefresh light (rom.run coin)) queries +
-        17 * ((queries + 17 : Nat) : ℝ) / budget := by
+        15 * ((queries + 15 : Nat) : ℝ) / budget := by
   calc
     _ = 𝔼 light : LightFork.Oracle logicalWidth publicFits,
           𝔼 refresh : RefreshFork.Oracle logicalWidth publicFits,
@@ -470,7 +470,7 @@ theorem refreshFailure_expect_le (rom : RomAdversary circuitKeys queries) (budge
     _ ≤ 𝔼 light : LightFork.Oracle logicalWidth publicFits,
           (RefreshKnowledge.knowledgeError ajtai (circuitKeys slot)
             (restrictRefresh light (rom.run coin)) queries +
-              17 * ((queries + 17 : Nat) : ℝ) / budget) :=
+              15 * ((queries + 15 : Nat) : ℝ) / budget) :=
       Finset.expect_le_expect fun light _ =>
         refresh_failure_le ajtai (circuitKeys slot) (restrictRefresh light (rom.run coin))
           (restrictRefresh_bound (rom.bounded coin) light) budget positive
@@ -527,7 +527,7 @@ theorem extraction_failure_le (rom : RomAdversary circuitKeys queries) (budget :
             (𝔼 light : LightFork.Oracle logicalWidth publicFits,
               RefreshKnowledge.knowledgeError ajtai (circuitKeys slot)
                 (restrictRefresh light (rom.run coin)) queries +
-                17 * ((queries + 17 : Nat) : ℝ) / budget)) := by
+                15 * ((queries + 15 : Nat) : ℝ) / budget)) := by
     calc
       _ ≤ 𝔼 oracle, 𝔼 tape : Fin budget → Oracle logicalWidth publicFits,
             ∑ slot, (lightFailure ajtai rom budget slot coin oracle tape +
@@ -552,7 +552,7 @@ theorem extraction_failure_le (rom : RomAdversary circuitKeys queries) (budget :
             (𝔼 light : LightFork.Oracle logicalWidth publicFits,
               RefreshKnowledge.knowledgeError ajtai (circuitKeys slot)
                 (restrictRefresh light (rom.run coin)) queries +
-                17 * ((queries + 17 : Nat) : ℝ) / budget)) :=
+                15 * ((queries + 15 : Nat) : ℝ) / budget)) :=
       Finset.sum_le_sum fun coin _ =>
         mul_le_mul_of_nonneg_left (perCoin coin) ENNReal.toReal_nonneg
     _ = _ := by

@@ -9,7 +9,7 @@ theorem exactPrivateCount_eq : exactPrivateCount = 320 := by
   norm_num [exactPrivateCount, exactCoordinateCount,
     SignedSplitScalar.exactPrivateCount, ringDegree, publicRingColumns]
 
-theorem exactRowCount_eq : exactRowCount = 5760 := by
+theorem exactRowCount_eq : exactRowCount = 5120 := by
   norm_num [exactRowCount, exactCoordinateCount,
     SignedSplitScalar.exactRowCount, ringDegree, publicRingColumns]
 

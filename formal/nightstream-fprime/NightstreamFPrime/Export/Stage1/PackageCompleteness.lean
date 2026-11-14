@@ -109,19 +109,19 @@ structure RunningTransitionRowsHold (env : Env) : Prop where
 private theorem piCcsArithmeticLogicalEnds :
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset + StateBinding.signCount ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
-      PiCCSArithmetic.initialClaimLogicalStart + 15357 ≤
+      PiCCSArithmetic.initialClaimLogicalStart + 13437 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.sumcheckLogicalStart + 672 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
-      PiCCSArithmetic.evalKLogicalStart + 3179 ≤
+      PiCCSArithmetic.evalKLogicalStart + 2795 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
-      PiCCSArithmetic.evalALogicalStart + 12395 ≤
+      PiCCSArithmetic.evalALogicalStart + 10859 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.ccsLogicalStart + 23 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
-      PiCCSArithmetic.normLogicalStart + 48 ≤
+      PiCCSArithmetic.normLogicalStart + 42 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
-      PiCCSArithmetic.finalIdentityLogicalStart + 3197 ≤
+      PiCCSArithmetic.finalIdentityLogicalStart + 2813 ≤
         PiCCSArithmetic.initialClaimFreshStart := by
   unfold PiCCSArithmetic.initialClaimFreshStart
     PiCCSArithmetic.initialClaimLogicalStart
@@ -442,7 +442,7 @@ theorem piCcsArithmeticRows_of_piRlcAgreesOutside
       (piCcsEmittedConstraints_varsBelow relation
         (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback before))
     rw [PiCCSCompleteness.emittedConstraints_totalFreshCount relation] at loweredScope
-    have endEq : PiCCSArithmetic.initialClaimFreshStart + 2956 =
+    have endEq : PiCCSArithmetic.initialClaimFreshStart + 2862 =
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset := by
       unfold PiCCSArithmetic.initialClaimFreshStart
         NightstreamFPrime.Layout.Stage1.PiCCSStarts.initialClaimFreshStart
@@ -978,7 +978,7 @@ theorem complete_piRlcRows
     ∃ completed,
       AgreesOutside env completed
           (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
-            NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset) 4786265 ∧
+            NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset) 4223175 ∧
         PiRLCRowsHold completed := by
   rcases PiRLCPackageCompleteness.completePackets relation ajtai env assumptions
       phase with ⟨completed, agrees, packets⟩
@@ -1268,7 +1268,7 @@ theorem complete_piCcsRows
   have stableInputs := schedule_stableInputs
     (PiCCSInvocations.invocations_scheduleWithin Data.logicalWidth
       Data.publicFits relation).1
-  have physicalEnd : PiCCSInvocations.invocationCeiling + 2956 ≤
+  have physicalEnd : PiCCSInvocations.invocationCeiling + 2862 ≤
       NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount := by
     rw [PiCCSInvocations.invocationCeiling_eq,
       NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount_eq]
@@ -1289,7 +1289,7 @@ theorem complete_piCcsRows
     intro invocation member
     apply NightstreamFPrime.Export.Pilot.permutationInvocationHolds_of_agreesOutside
       invocation afterOutput completed PiCCSInvocations.invocationCeiling
-        2956
+        2862
     · intro lane term termMember
       rcases stableInputs invocation member lane term termMember with
         inputBefore | inputPublic

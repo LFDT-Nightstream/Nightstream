@@ -14,7 +14,7 @@ theorem Leaves.SignedSplitScalar.freshColumnCount_value :
     Leaves.SignedSplitScalar.freshColumnCount = 0 := by rfl
 
 theorem Leaves.SignedSplitScalar.physicalRowCount_value :
-    Leaves.SignedSplitScalar.physicalRowCount = 18 := by rfl
+    Leaves.SignedSplitScalar.physicalRowCount = 16 := by rfl
 
 theorem Leaves.SignedSplitScalar.physicalPrivateColumnCount_value :
     Lifecycle.PiDEC.v1_2.SignedSplitScalar.exactPrivateCount +
@@ -24,7 +24,7 @@ theorem PublicInputSplit.freshColumnCount_value :
     PublicInputSplit.freshColumnCount = 0 := by rfl
 
 theorem PublicInputSplit.physicalRowCount_value :
-    PublicInputSplit.physicalRowCount = 5760 := by rfl
+    PublicInputSplit.physicalRowCount = 5120 := by rfl
 
 theorem CommitmentRecomposition.physicalRowCount_value :
     CommitmentRecomposition.physicalRowCount = 1152 := by rfl
@@ -39,14 +39,14 @@ theorem exactFreshDeltas_value :
     exactFreshDeltas = [0, 0, 0, 0, 0, 0] := by rfl
 
 theorem exactRowDeltas_value :
-    exactRowDeltas = [0, 5760, 1152, 128, 512, 0] := by rfl
+    exactRowDeltas = [0, 5120, 1152, 128, 512, 0] := by rfl
 
 theorem exactPhysicalColumnDeltas_value :
     exactPhysicalColumnDeltas = [0, 320, 0, 0, 0, 0] := by rfl
 
 theorem exactFreshCount_value : exactFreshCount = 0 := by rfl
 
-theorem exactRowCount_value : exactRowCount = 7552 := by rfl
+theorem exactRowCount_value : exactRowCount = 6912 := by rfl
 
 theorem exactPrivateCount_value :
     Formal.logicalPrivateCount + exactFreshCount = 320 := by
@@ -63,11 +63,11 @@ theorem cumulativeFootprints_eq
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
     cumulativePhysicalRows relation interface offset =
-        [0, 5760, 6912, 7040, 7552, 7552] ∧
+        [0, 5120, 6272, 6400, 6912, 6912] ∧
       cumulativePhysicalColumns relation interface offset =
         [0, 320, 320, 320, 320, 320] ∧
       cumulativeJointDomains relation interface offset =
-        [0, 5760, 6912, 7040, 7552, 7552] := by
+        [0, 5120, 6272, 6400, 6912, 6912] := by
   norm_num [cumulativePhysicalRows,
     physicalRowDeltas_eq relation interface offset inputs, exactRowDeltas_value,
     cumulativePhysicalColumns,

@@ -214,7 +214,7 @@ private theorem normAtMessage_eq_fresh
   let message := ProtocolPolynomial.messageAt extensionOps
     (ProtocolDataRefinement.toProtocolData baseOps K.embed
       (data.toUnifiedInputs baseOps)) point
-  have tailZero : ∀ index : Fin 16,
+  have tailZero : ∀ index : Fin 14,
       SignedJointIdentity.gammaTerm extensionOps gamma index.succ.val
         (ProtocolPolynomial.strictNormResidual extensionOps
           (message.sourceAssignment index.succ)) = K.zero := by
@@ -228,7 +228,7 @@ private theorem normAtMessage_eq_fresh
       runningAssignment_zero data runningZero point index
     rw [indexEqual, valueZero, strictNorm_zero]
     exact gammaTerm_zero gamma _
-  exact (sumMap_first (count := 16)
+  exact (sumMap_first (count := 14)
     (fun source => SignedJointIdentity.gammaTerm extensionOps gamma source.val
       (ProtocolPolynomial.strictNormResidual extensionOps
         (message.sourceAssignment source))) tailZero).trans
@@ -255,7 +255,7 @@ theorem qAtPoint_eq_fresh
       (data.toUnifiedInputs baseOps)
     let message := ProtocolPolynomial.messageAt extensionOps protocol point
     ProtocolPolynomial.qAtPoint extensionOps protocol alpha gamma point =
-      SignedJointIdentity.gammaTerm extensionOps gamma 5120
+      SignedJointIdentity.gammaTerm extensionOps gamma 4480
         (extensionOps.mul (SumCheckTruthPath.pointEquality extensionOps point alpha)
           (extensionOps.add
             (CCSResidualTable.evaluatePolynomial extensionOps protocol.constraintPolynomial

@@ -394,7 +394,7 @@ private theorem core_totalFreshCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal.circuit interface
-        ).main offset)) = 752 := by
+        ).main offset)) = 658 := by
   rw [flatConstraints_eq_recipeConstraints]
   rw [compile_totalFreshCount _ _ _ inputs.gamma
     (coefficientExprs_shape interface offset inputs)]
@@ -406,7 +406,7 @@ private theorem core_totalRowCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal.circuit interface
-        ).main offset)) = 800 := by
+        ).main offset)) = 700 := by
   rw [flatConstraints_eq_recipeConstraints]
   rw [compile_totalRowCount _ _ _ inputs.gamma
     (coefficientExprs_shape interface offset inputs)]
@@ -418,8 +418,8 @@ def footprint
     (inputs : ∀ offset,
       InputsLinear (Formal.normInterface relation interface) offset) :
     R1CS.CircuitFootprint (Formal.normCircuit relation interface) where
-  freshColumnCount := fun _ => 752
-  physicalRowCount := fun _ => 800
+  freshColumnCount := fun _ => 658
+  physicalRowCount := fun _ => 700
   freshColumnCount_eq := by
     intro offset
     unfold Formal.normCircuit
@@ -438,7 +438,7 @@ theorem freshColumnCount_eq
       InputsLinear (Formal.normInterface relation interface) offset)
     (offset : Nat) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
-      (Formal.normCircuit relation interface).main offset)) = 752 :=
+      (Formal.normCircuit relation interface).main offset)) = 658 :=
   (footprint relation interface inputs).freshColumnCount_eq offset
 
 theorem physicalRowCount_eq
@@ -448,7 +448,7 @@ theorem physicalRowCount_eq
       InputsLinear (Formal.normInterface relation interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.normCircuit relation interface).main offset)) = 800 :=
+      (Formal.normCircuit relation interface).main offset)) = 700 :=
   (footprint relation interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
@@ -460,10 +460,10 @@ theorem physicalPrivateColumnCount_eq
     localLength (Circuit.ops (Formal.normCircuit relation interface).main
         offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-        (Formal.normCircuit relation interface).main offset)) = 800 := by
+        (Formal.normCircuit relation interface).main offset)) = 700 := by
   have logicalColumns :
       localLength (Circuit.ops (Formal.normCircuit relation interface).main
-        offset) = 48 := by
+        offset) = 42 := by
     unfold Formal.normCircuit
     rw [FormalCircuit.withConstantFootprint_main]
     exact

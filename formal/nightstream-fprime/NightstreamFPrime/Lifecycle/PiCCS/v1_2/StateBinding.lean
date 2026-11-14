@@ -17,20 +17,20 @@ def fixedWords : List FixedWord :=
   (List.finRange stateDomainChunk.length).map fun index =>
     ⟨index.val, stateDomainChunk.getD index.val 0⟩
 
-def packedWordStart : Nat := 28740
+def packedWordStart : Nat := 25156
 
-def contextWordStart : Nat := 28900
+def contextWordStart : Nat := 25316
 
 theorem fixedWords_length : fixedWords.length = 12 := by
   simp [fixedWords, stateDomainChunk_length]
 
 theorem fixedWord_index_lt (word : FixedWord) (member : word ∈ fixedWords) :
-    word.index < 28913 := by
+    word.index < 25329 := by
   rw [fixedWords, List.mem_map] at member
   rcases member with ⟨index, _indexMember, rfl⟩
   have bound := index.isLt
   have chunkLength := stateDomainChunk_length
-  change index.val < 28913
+  change index.val < 25329
   omega
 
 def packWordExpr (low high : Expr) : Expr :=
@@ -640,12 +640,12 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
 
 private theorem wordAssertions_length (interface : Interface) (offset : Nat)
     (word : Fin packedParentWords) :
-    (wordAssertions interface offset word).length = 35 := by
+    (wordAssertions interface offset word).length = 31 := by
   simp [wordAssertions, laneAssertions, List.length_flatMap, productionGlobalParams]
 
 theorem assertions_length (interface : Interface) (offset : Nat) :
-    (assertions interface offset).length = 5632 := by
-  have children : (childAssertions interface offset).length = 5600 := by
+    (assertions interface offset).length = 4992 := by
+  have children : (childAssertions interface offset).length = 4960 := by
     rw [childAssertions, List.length_flatMap]
     simp only [wordAssertions_length, List.map_const', List.sum_replicate,
       List.length_finRange, smul_eq_mul]
@@ -654,7 +654,7 @@ theorem assertions_length (interface : Interface) (offset : Nat) :
     fixedWords_length, children]
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
-    (flatConstraints (Circuit.ops (main interface) offset)).length = 5632 := by
+    (flatConstraints (Circuit.ops (main interface) offset)).length = 4992 := by
   rw [main_ops, flatConstraints_opsAt, assertions_length]
 
 def circuit (interface : Interface) : FormalCircuit where

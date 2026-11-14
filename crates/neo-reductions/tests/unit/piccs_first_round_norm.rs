@@ -16,7 +16,7 @@ use serde::Deserialize;
 
 use super::{norm_coefficients, prefix, Assignment, EqualityWeights};
 
-const SOURCES: usize = 1 + neo_params::nightstream_p64_k16::K_RHO as usize;
+const SOURCES: usize = 1 + neo_params::nightstream_p64_k14::K_RHO as usize;
 const ROUNDS: usize = 28;
 const BLOCKS: usize = PRODUCTION_MESSAGE_COLUMNS as usize;
 

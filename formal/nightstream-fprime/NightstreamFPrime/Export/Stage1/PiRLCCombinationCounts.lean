@@ -179,7 +179,7 @@ theorem invocationsCompactRowCountFor
     (selection : ∀ source : Nat, ∀ lane : Fin ringDegree,
       templates[PiRLCCombinationTemplates.templateIndex source lane.val]? =
         some (PiRLCCombinationTemplates.template (firstSource source) lane)) :
-    compactRowCountFor templates invocations = 4703424 := by
+    compactRowCountFor templates invocations = 4150080 := by
   rw [invocations, compactRowCountFor_append, compactRowCountFor_append,
     compactRowCountFor_append]
   rw [commitmentInvocations, familyCompactRowCountFor templates selection,

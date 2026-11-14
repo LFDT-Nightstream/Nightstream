@@ -11,7 +11,7 @@ use p3_field::PrimeCharacteristicRing;
 #[test]
 fn raw_pi_ccs_verifier_rejects_malformed_ce_shape_without_panicking() {
     let s = CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).expect("valid identity CCS");
-    let params = NeoParams::nightstream_p64_k16()
+    let params = NeoParams::nightstream_p64_k14()
         .with_lambda(115)
         .expect("params");
     let commitment = Commitment::zeros(params.kappa() as usize);
@@ -55,7 +55,7 @@ fn raw_pi_ccs_verifier_rejects_malformed_ce_shape_without_panicking() {
 fn public_pi_ccs_verifier_handles_documented_unpadded_v1_2_evaluations() {
     let structure =
         CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).expect("valid identity CCS");
-    let params = NeoParams::nightstream_p64_k16()
+    let params = NeoParams::nightstream_p64_k14()
         .with_lambda(115)
         .expect("params");
     let commitment = Commitment::zeros(params.kappa() as usize);

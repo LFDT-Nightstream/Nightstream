@@ -18,7 +18,7 @@ def outputOffset : Nat := 184
 def statementCount : Nat := 124
 def challengeCount : Nat := 4
 def roundCount : Nat := 56
-def outputCount : Nat := 907
+def outputCount : Nat := 800
 
 theorem statementFits : statementOffset + statementCount ≤
     PiCCSActionPayloadBlock.invocationCount := by
@@ -82,8 +82,8 @@ theorem statementKindAt_eq (current : Fin statementCount) :
     statementOffset statementCount PiCCSActionPayloadBlock.kindAt
     PiCCSActionPayloadBlock.invocationCount
   rw [show
-      (⟨0 + current.val, by omega⟩ : Fin 1091) =
-        Fin.castAdd (4 + (56 + 907)) current by
+      (⟨0 + current.val, by omega⟩ : Fin 984) =
+        Fin.castAdd (4 + (56 + 800)) current by
     apply Fin.ext
     change 0 + current.val = current.val
     omega]
@@ -97,8 +97,8 @@ theorem challengeKindAt_eq (current : Fin challengeCount) :
     challengeCount PiCCSActionPayloadBlock.kindAt
     PiCCSActionPayloadBlock.invocationCount
   rw [show
-      (⟨124 + current.val, by omega⟩ : Fin 1091) =
-        Fin.natAdd 124 (Fin.castAdd (56 + 907) current) by
+      (⟨124 + current.val, by omega⟩ : Fin 984) =
+        Fin.natAdd 124 (Fin.castAdd (56 + 800) current) by
     apply Fin.ext
     change 124 + current.val = 124 + current.val
     rfl]
@@ -111,9 +111,9 @@ theorem roundKindAt_eq (current : Fin roundCount) :
   unfold roundKindAt PoseidonActionSemantics.sliceIndex roundOffset roundCount
     PiCCSActionPayloadBlock.kindAt PiCCSActionPayloadBlock.invocationCount
   rw [show
-      (⟨128 + current.val, by omega⟩ : Fin 1091) =
+      (⟨128 + current.val, by omega⟩ : Fin 984) =
         Fin.natAdd 124
-          (Fin.natAdd 4 (Fin.castAdd 907 current)) by
+          (Fin.natAdd 4 (Fin.castAdd 800 current)) by
     apply Fin.ext
     change 128 + current.val = 124 + (4 + current.val)
     omega]
@@ -126,7 +126,7 @@ theorem outputKindAt_eq (current : Fin outputCount) :
   unfold outputKindAt PoseidonActionSemantics.sliceIndex outputOffset outputCount
     PiCCSActionPayloadBlock.kindAt PiCCSActionPayloadBlock.invocationCount
   rw [show
-      (⟨184 + current.val, by omega⟩ : Fin 1091) =
+      (⟨184 + current.val, by omega⟩ : Fin 984) =
         Fin.natAdd 124 (Fin.natAdd 4 (Fin.natAdd 56 current)) by
     apply Fin.ext
     change 184 + current.val = 124 + (4 + (56 + current.val))
@@ -186,7 +186,7 @@ def challengeLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨127, by
 def roundLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨183, by
   norm_num [PiCCSActionPayloadBlock.invocationCount]⟩
 
-def outputLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨1090, by
+def outputLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨983, by
   norm_num [PiCCSActionPayloadBlock.invocationCount]⟩
 
 def sliceState {program : Lifecycle.Stage1.Application.Program}

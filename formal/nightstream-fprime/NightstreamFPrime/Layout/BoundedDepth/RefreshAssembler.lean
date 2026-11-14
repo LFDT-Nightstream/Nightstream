@@ -34,21 +34,21 @@ variable {logicalWidth : Nat}
 def childCommitmentsStart (base witnessWordCount : Nat) : Nat :=
   freshStart base witnessWordCount + 1472
 def childEvaluationsStart (base witnessWordCount : Nat) : Nat :=
-  childCommitmentsStart base witnessWordCount + 18432
+  childCommitmentsStart base witnessWordCount + 16128
 def digitsStart (base witnessWordCount : Nat) : Nat :=
-  childEvaluationsStart base witnessWordCount + 10240
-def roundsStart (base witnessWordCount : Nat) : Nat := digitsStart base witnessWordCount + 5120
+  childEvaluationsStart base witnessWordCount + 8960
+def roundsStart (base witnessWordCount : Nat) : Nat := digitsStart base witnessWordCount + 4480
 def outputStart (base witnessWordCount : Nat) : Nat := roundsStart base witnessWordCount + 504
 
 /-- The digest select's 12 words: the new slot's digest, then each slot's inner digest. -/
 def digestSelectStart (base witnessWordCount : Nat) : Nat :=
-  outputStart base witnessWordCount + 10880
+  outputStart base witnessWordCount + 9600
 
 /-- The first column after the shared words, where the step's gadgets start. -/
 def sharedEnd (base witnessWordCount : Nat) : Nat := digestSelectStart base witnessWordCount + 12
 
 theorem sharedEnd_eq (base witnessWordCount : Nat) :
-    sharedEnd base witnessWordCount = base + witnessWordCount + 61888 := by
+    sharedEnd base witnessWordCount = base + witnessWordCount + 56384 := by
   simp only [sharedEnd, digestSelectStart, outputStart, roundsStart, digitsStart, childEvaluationsStart,
     childCommitmentsStart, freshStart, digestsStart, slotsStart, witnessStart, slotWordCount]
   omega
@@ -243,7 +243,7 @@ theorem inputsBelow (base witnessWordCount : Nat) :
         have childBound := child.isLt
         have rowBound := row.isLt
         have laneBound := lane.isLt
-        change child.val < 16 at childBound
+        change child.val < 14 at childBound
         change row.val < 18 at rowBound
         change lane.val < 64 at laneBound
         show childCommitmentsStart base witnessWordCount + child.val * 1152 +
@@ -254,7 +254,7 @@ theorem inputsBelow (base witnessWordCount : Nat) :
       childPad := fun child coefficient => kAt_below _ _ (by
         have childBound := child.isLt
         have coefficientBound := coefficient.isLt
-        change child.val < 16 at childBound
+        change child.val < 14 at childBound
         change coefficient.val < 64 at coefficientBound
         rw [endEq]
         simp only [childEvaluationsStart, childCommitmentsStart, freshEq]
@@ -263,7 +263,7 @@ theorem inputsBelow (base witnessWordCount : Nat) :
         have childBound := child.isLt
         have matrixBound := matrix.isLt
         have coefficientBound := coefficient.isLt
-        change child.val < 16 at childBound
+        change child.val < 14 at childBound
         change matrix.val < 4 at matrixBound
         change coefficient.val < 64 at coefficientBound
         rw [endEq]
@@ -272,7 +272,7 @@ theorem inputsBelow (base witnessWordCount : Nat) :
       digit := fun child column => by
         have childBound := child.isLt
         have columnBound := column.isLt
-        change child.val < 16 at childBound
+        change child.val < 14 at childBound
         change column.val < 320 at columnBound
         show digitsStart base witnessWordCount + child.val * 320 + column.val < _
         rw [endEq]
@@ -289,7 +289,7 @@ theorem inputsBelow (base witnessWordCount : Nat) :
       outputPad := fun source coefficient => kAt_below _ _ (by
         have sourceBound := source.isLt
         have coefficientBound := coefficient.isLt
-        change source.val < 17 at sourceBound
+        change source.val < 15 at sourceBound
         change coefficient.val < 64 at coefficientBound
         rw [endEq]
         simp only [outputStart, roundsStart, digitsStart, childEvaluationsStart,
@@ -299,7 +299,7 @@ theorem inputsBelow (base witnessWordCount : Nat) :
         have sourceBound := source.isLt
         have matrixBound := matrix.isLt
         have coefficientBound := coefficient.isLt
-        change source.val < 17 at sourceBound
+        change source.val < 15 at sourceBound
         change matrix.val < 4 at matrixBound
         change coefficient.val < 64 at coefficientBound
         rw [endEq]

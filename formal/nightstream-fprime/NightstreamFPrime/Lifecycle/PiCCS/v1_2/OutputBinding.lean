@@ -150,7 +150,7 @@ private theorem sourceWords_length (output : OutputExpr)
   rw [sourceWords, List.length_append, padWords_length, matrixWords_length]
 
 theorem outputWords_length (interface : Interface) (offset : Nat) :
-    (outputWords interface offset).length = 10880 := by
+    (outputWords interface offset).length = 9600 := by
   unfold outputWords
   rw [flatMap_length_constant _ _ 640 (sourceWords_length _)]
   norm_num [productionShape, productionProfile,
@@ -255,14 +255,14 @@ private theorem inputChunks_length (input : List Expr) :
   rfl
 
 theorem recipeCount_eq (interface : Interface) (offset : Nat) :
-    recipeCount interface offset = 994072 := by
+    recipeCount interface offset = 876800 := by
   unfold recipeCount actions
   simp only [Formal.recipeCount, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero, Formal.Action.recipeCount]
   rw [inputChunks_length, outputWords_length]
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 994072 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 876800 := by
   change localLength (Formal.Owned.opsAt (duplexInterface interface) offset) = _
   rw [Formal.Owned.opsAt_localLength]
   unfold Formal.Owned.program
@@ -278,12 +278,12 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      994072 := by
+      876800 := by
   change (flatConstraints
     (Formal.Owned.opsAt (duplexInterface interface) offset)).length = _
   rw [Formal.Owned.flatConstraints_length]
   have recipes : Formal.recipeCount
-      ((duplexInterface interface).actions offset) = 994072 := by
+      ((duplexInterface interface).actions offset) = 876800 := by
     simpa [duplexInterface, recipeCount] using recipeCount_eq interface offset
   rw [recipes]
   simp [duplexInterface, actions, Formal.assertionCount,

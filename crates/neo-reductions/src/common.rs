@@ -6,7 +6,7 @@ use neo_ccs::{CcsStructure, Mat};
 use neo_math::{
     balanced::to_balanced_i128, balanced::within_nc_bound, superneo_bar_block, Fq, KExtensions, Rq, D, ETA, F, K,
 };
-use neo_params::{nightstream_p64_k16 as profile, NeoParams};
+use neo_params::{nightstream_p64_k14 as profile, NeoParams};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -371,7 +371,7 @@ impl<'de> serde::Deserialize<'de> for RotRho {
         DeserializerT: serde::Deserializer<'de>,
     {
         let rho = <Mat<F> as serde::Deserialize>::deserialize(deserializer)?;
-        Self::new_checked(&NeoParams::nightstream_p64_k16(), rho).map_err(serde::de::Error::custom)
+        Self::new_checked(&NeoParams::nightstream_p64_k14(), rho).map_err(serde::de::Error::custom)
     }
 }
 

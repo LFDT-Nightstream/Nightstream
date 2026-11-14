@@ -14,32 +14,32 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 
 def freshCommitmentRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (proofLogicalBlock program)
-    (proofLogicalStart program) 0 1152 5120
+    (proofLogicalStart program) 0 1152 4480
 
 def runningCommitmentGrid (program : Program) : SourceGrid :=
   SourceGrid.ofSemantic (priorInputBlock program) (priorInputStart program)
-    1152 16 1152 1 1152 1152
+    1152 14 1152 1 1152 1152
     (PiCCSInputs.runningCommitmentStart 0 - PilotProduction.priorPreimageStart)
     PiCCSInputs.runningCommitmentWords 0
 
 def freshPublicRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (freshPublicInputBlock program)
-    (freshPublicInputStart program) 19584 320 0
+    (freshPublicInputStart program) 17280 320 0
 
 def runningPublicGrid (program : Program) : SourceGrid :=
   SourceGrid.ofSemantic (proofLogicalBlock program) (proofLogicalStart program)
-    19904 16 320 1 320 320
+    17600 14 320 1 320 320
     (PiCCSInputs.runningPublicStart 0 - PiCCSInputs.priorChildrenStart)
     PiCCSInputs.runningPublicWords 0
 
 def evalKGrid (program : Program) : SourceGrid :=
   SourceGrid.ofSemantic (proofLogicalBlock program) (proofLogicalStart program)
-    25024 17 128 1 128 128
+    22080 15 128 1 128 128
     (PiCCSInputs.outputEvaluationStart - PiCCSInputs.priorChildrenStart) 640 0
 
 def evalAGrid (program : Program) : SourceGrid :=
   SourceGrid.ofSemantic (proofLogicalBlock program) (proofLogicalStart program)
-    27200 17 512 1 512 512
+    24000 15 512 1 512 512
     (PiCCSInputs.outputEvaluationStart + 128 - PiCCSInputs.priorChildrenStart)
     640 0
 
@@ -78,30 +78,30 @@ private theorem freshCommitmentRange_lookup {program : Program} {logicalWidth : 
     (index : Fin 1152) :
     (substitution program).form? logicalWidth (0 + index.val) =
       some ((proofLogicalBlock program).form (proofLogicalStart program)
-        (proofLogicalFits geometry) ⟨5120 + index.val, by
-          change 5120 + index.val < 55791
+        (proofLogicalFits geometry) ⟨4480 + index.val, by
+          change 4480 + index.val < 49641
           have bound := index.isLt
           omega⟩) := by
   have bound := index.isLt
   have selected := SourceRange.form?_ofSemantic (proofLogicalBlock program)
-    (proofLogicalStart program) 0 1152 5120 (proofLogicalFits geometry)
-    (by change 5120 + 1152 ≤ 55791; decide) index
+    (proofLogicalStart program) 0 1152 4480 (proofLogicalFits geometry)
+    (by change 4480 + 1152 ≤ 49641; decide) index
   change (freshCommitmentRange program).form? logicalWidth (0 + index.val) = _ at selected
   have none_freshPublicRange := SourceRange.form?_eq_none_of_before
     (freshPublicRange program) logicalWidth (0 + index.val) (by
-      change 0 + index.val < 19584; omega)
+      change 0 + index.val < 17280; omega)
   have none_runningCommitmentGrid := SourceGrid.form?_eq_none_of_before
     (runningCommitmentGrid program) logicalWidth (0 + index.val) (by
       change 0 + index.val < 1152; omega)
   have none_runningPublicGrid := SourceGrid.form?_eq_none_of_before
     (runningPublicGrid program) logicalWidth (0 + index.val) (by
-      change 0 + index.val < 19904; omega)
+      change 0 + index.val < 17600; omega)
   have none_evalKGrid := SourceGrid.form?_eq_none_of_before
     (evalKGrid program) logicalWidth (0 + index.val) (by
-      change 0 + index.val < 25024; omega)
+      change 0 + index.val < 22080; omega)
   have none_evalAGrid := SourceGrid.form?_eq_none_of_before
     (evalAGrid program) logicalWidth (0 + index.val) (by
-      change 0 + index.val < 27200; omega)
+      change 0 + index.val < 24000; omega)
   simp only [substitution, SourceSubstitution.form?, List.filterMap_cons,
     List.filterMap_nil, List.append_nil, selected,
     none_freshPublicRange,
@@ -112,22 +112,22 @@ private theorem freshCommitmentRange_lookup {program : Program} {logicalWidth : 
 
 private theorem runningCommitmentGrid_lookup {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
-    (source : Fin 16)
+    (source : Fin 14)
     (index : Fin 1152) :
     (substitution program).form? logicalWidth (1152 + source.val * 1152 + index.val) =
       some ((priorInputBlock program).form (priorInputStart program)
         (priorInputFits geometry) ⟨12 + source.val * 1152 + index.val, by
-          change 12 + source.val * 1152 + index.val < 28913
+          change 12 + source.val * 1152 + index.val < 25329
           have bound := index.isLt
           have sources := source.isLt
           omega⟩) := by
   have bound := index.isLt
   have sources := source.isLt
   have selected := SourceGrid.form?_ofSemantic (priorInputBlock program)
-    (priorInputStart program) 1152 16 1152 1 1152 1152
+    (priorInputStart program) 1152 14 1152 1 1152 1152
     12 1152 0 (priorInputFits geometry) (by decide) (by decide)
     source ⟨0, by decide⟩ index (by simp)
-    index.isLt (by change 12 + source.val * 1152 + index.val < 28913; omega)
+    index.isLt (by change 12 + source.val * 1152 + index.val < 25329; omega)
   change (runningCommitmentGrid program).form? logicalWidth
     (1152 + source.val * 1152 + 0 * 1152 + index.val) = _ at selected
   simp only [Nat.zero_mul, Nat.add_zero] at selected
@@ -136,16 +136,16 @@ private theorem runningCommitmentGrid_lookup {program : Program} {logicalWidth :
       change 0 + 1152 ≤ 1152 + source.val * 1152 + index.val; omega)
   have none_freshPublicRange := SourceRange.form?_eq_none_of_before
     (freshPublicRange program) logicalWidth (1152 + source.val * 1152 + index.val) (by
-      change 1152 + source.val * 1152 + index.val < 19584; omega)
+      change 1152 + source.val * 1152 + index.val < 17280; omega)
   have none_runningPublicGrid := SourceGrid.form?_eq_none_of_before
     (runningPublicGrid program) logicalWidth (1152 + source.val * 1152 + index.val) (by
-      change 1152 + source.val * 1152 + index.val < 19904; omega)
+      change 1152 + source.val * 1152 + index.val < 17600; omega)
   have none_evalKGrid := SourceGrid.form?_eq_none_of_before
     (evalKGrid program) logicalWidth (1152 + source.val * 1152 + index.val) (by
-      change 1152 + source.val * 1152 + index.val < 25024; omega)
+      change 1152 + source.val * 1152 + index.val < 22080; omega)
   have none_evalAGrid := SourceGrid.form?_eq_none_of_before
     (evalAGrid program) logicalWidth (1152 + source.val * 1152 + index.val) (by
-      change 1152 + source.val * 1152 + index.val < 27200; omega)
+      change 1152 + source.val * 1152 + index.val < 24000; omega)
   simp only [substitution, SourceSubstitution.form?, List.filterMap_cons,
     List.filterMap_nil, List.nil_append, selected,
     none_freshCommitmentRange,
@@ -157,7 +157,7 @@ private theorem runningCommitmentGrid_lookup {program : Program} {logicalWidth :
 private theorem freshPublicRange_lookup {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
     (index : Fin 320) :
-    (substitution program).form? logicalWidth (19584 + index.val) =
+    (substitution program).form? logicalWidth (17280 + index.val) =
       some ((freshPublicInputBlock program).form (freshPublicInputStart program)
         (freshPublicInputFits geometry) ⟨0 + index.val, by
           change 0 + index.val < 320
@@ -165,24 +165,24 @@ private theorem freshPublicRange_lookup {program : Program} {logicalWidth : Nat}
           omega⟩) := by
   have bound := index.isLt
   have selected := SourceRange.form?_ofSemantic (freshPublicInputBlock program)
-    (freshPublicInputStart program) 19584 320 0 (freshPublicInputFits geometry)
+    (freshPublicInputStart program) 17280 320 0 (freshPublicInputFits geometry)
     (by change 0 + 320 ≤ 320; decide) index
-  change (freshPublicRange program).form? logicalWidth (19584 + index.val) = _ at selected
+  change (freshPublicRange program).form? logicalWidth (17280 + index.val) = _ at selected
   have none_freshCommitmentRange := SourceRange.form?_eq_none_of_after
-    (freshCommitmentRange program) logicalWidth (19584 + index.val) (by
-      change 0 + 1152 ≤ 19584 + index.val; omega)
+    (freshCommitmentRange program) logicalWidth (17280 + index.val) (by
+      change 0 + 1152 ≤ 17280 + index.val; omega)
   have none_runningCommitmentGrid := SourceGrid.form?_eq_none_of_after
-    (runningCommitmentGrid program) logicalWidth (19584 + index.val) (by change 0 < 1152; decide) (by
-      change 1152 + 16 * 1152 ≤ 19584 + index.val; omega)
+    (runningCommitmentGrid program) logicalWidth (17280 + index.val) (by change 0 < 1152; decide) (by
+      change 1152 + 14 * 1152 ≤ 17280 + index.val; omega)
   have none_runningPublicGrid := SourceGrid.form?_eq_none_of_before
-    (runningPublicGrid program) logicalWidth (19584 + index.val) (by
-      change 19584 + index.val < 19904; omega)
+    (runningPublicGrid program) logicalWidth (17280 + index.val) (by
+      change 17280 + index.val < 17600; omega)
   have none_evalKGrid := SourceGrid.form?_eq_none_of_before
-    (evalKGrid program) logicalWidth (19584 + index.val) (by
-      change 19584 + index.val < 25024; omega)
+    (evalKGrid program) logicalWidth (17280 + index.val) (by
+      change 17280 + index.val < 22080; omega)
   have none_evalAGrid := SourceGrid.form?_eq_none_of_before
-    (evalAGrid program) logicalWidth (19584 + index.val) (by
-      change 19584 + index.val < 27200; omega)
+    (evalAGrid program) logicalWidth (17280 + index.val) (by
+      change 17280 + index.val < 24000; omega)
   simp only [substitution, SourceSubstitution.form?, List.filterMap_cons,
     List.filterMap_nil, List.append_nil, selected,
     none_freshCommitmentRange,
@@ -193,40 +193,40 @@ private theorem freshPublicRange_lookup {program : Program} {logicalWidth : Nat}
 
 private theorem runningPublicGrid_lookup {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
-    (source : Fin 16)
+    (source : Fin 14)
     (index : Fin 320) :
-    (substitution program).form? logicalWidth (19904 + source.val * 320 + index.val) =
+    (substitution program).form? logicalWidth (17600 + source.val * 320 + index.val) =
       some ((proofLogicalBlock program).form (proofLogicalStart program)
         (proofLogicalFits geometry) ⟨0 + source.val * 320 + index.val, by
-          change 0 + source.val * 320 + index.val < 55791
+          change 0 + source.val * 320 + index.val < 49641
           have bound := index.isLt
           have sources := source.isLt
           omega⟩) := by
   have bound := index.isLt
   have sources := source.isLt
   have selected := SourceGrid.form?_ofSemantic (proofLogicalBlock program)
-    (proofLogicalStart program) 19904 16 320 1 320 320
+    (proofLogicalStart program) 17600 14 320 1 320 320
     0 320 0 (proofLogicalFits geometry) (by decide) (by decide)
     source ⟨0, by decide⟩ index (by simp)
-    index.isLt (by change 0 + source.val * 320 + index.val < 55791; omega)
+    index.isLt (by change 0 + source.val * 320 + index.val < 49641; omega)
   change (runningPublicGrid program).form? logicalWidth
-    (19904 + source.val * 320 + 0 * 320 + index.val) = _ at selected
+    (17600 + source.val * 320 + 0 * 320 + index.val) = _ at selected
   simp only [Nat.zero_mul, Nat.add_zero] at selected
   have none_freshCommitmentRange := SourceRange.form?_eq_none_of_after
-    (freshCommitmentRange program) logicalWidth (19904 + source.val * 320 + index.val) (by
-      change 0 + 1152 ≤ 19904 + source.val * 320 + index.val; omega)
+    (freshCommitmentRange program) logicalWidth (17600 + source.val * 320 + index.val) (by
+      change 0 + 1152 ≤ 17600 + source.val * 320 + index.val; omega)
   have none_freshPublicRange := SourceRange.form?_eq_none_of_after
-    (freshPublicRange program) logicalWidth (19904 + source.val * 320 + index.val) (by
-      change 19584 + 320 ≤ 19904 + source.val * 320 + index.val; omega)
+    (freshPublicRange program) logicalWidth (17600 + source.val * 320 + index.val) (by
+      change 17280 + 320 ≤ 17600 + source.val * 320 + index.val; omega)
   have none_runningCommitmentGrid := SourceGrid.form?_eq_none_of_after
-    (runningCommitmentGrid program) logicalWidth (19904 + source.val * 320 + index.val) (by change 0 < 1152; decide) (by
-      change 1152 + 16 * 1152 ≤ 19904 + source.val * 320 + index.val; omega)
+    (runningCommitmentGrid program) logicalWidth (17600 + source.val * 320 + index.val) (by change 0 < 1152; decide) (by
+      change 1152 + 14 * 1152 ≤ 17600 + source.val * 320 + index.val; omega)
   have none_evalKGrid := SourceGrid.form?_eq_none_of_before
-    (evalKGrid program) logicalWidth (19904 + source.val * 320 + index.val) (by
-      change 19904 + source.val * 320 + index.val < 25024; omega)
+    (evalKGrid program) logicalWidth (17600 + source.val * 320 + index.val) (by
+      change 17600 + source.val * 320 + index.val < 22080; omega)
   have none_evalAGrid := SourceGrid.form?_eq_none_of_before
-    (evalAGrid program) logicalWidth (19904 + source.val * 320 + index.val) (by
-      change 19904 + source.val * 320 + index.val < 27200; omega)
+    (evalAGrid program) logicalWidth (17600 + source.val * 320 + index.val) (by
+      change 17600 + source.val * 320 + index.val < 24000; omega)
   simp only [substitution, SourceSubstitution.form?, List.filterMap_cons,
     List.filterMap_nil, List.nil_append, selected,
     none_freshCommitmentRange,
@@ -237,40 +237,40 @@ private theorem runningPublicGrid_lookup {program : Program} {logicalWidth : Nat
 
 private theorem evalKGrid_lookup {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
-    (source : Fin 17)
+    (source : Fin 15)
     (index : Fin 128) :
-    (substitution program).form? logicalWidth (25024 + source.val * 128 + index.val) =
+    (substitution program).form? logicalWidth (22080 + source.val * 128 + index.val) =
       some ((proofLogicalBlock program).form (proofLogicalStart program)
-        (proofLogicalFits geometry) ⟨6776 + source.val * 640 + index.val, by
-          change 6776 + source.val * 640 + index.val < 55791
+        (proofLogicalFits geometry) ⟨6136 + source.val * 640 + index.val, by
+          change 6136 + source.val * 640 + index.val < 49641
           have bound := index.isLt
           have sources := source.isLt
           omega⟩) := by
   have bound := index.isLt
   have sources := source.isLt
   have selected := SourceGrid.form?_ofSemantic (proofLogicalBlock program)
-    (proofLogicalStart program) 25024 17 128 1 128 128
-    6776 640 0 (proofLogicalFits geometry) (by decide) (by decide)
+    (proofLogicalStart program) 22080 15 128 1 128 128
+    6136 640 0 (proofLogicalFits geometry) (by decide) (by decide)
     source ⟨0, by decide⟩ index (by simp)
-    index.isLt (by change 6776 + source.val * 640 + index.val < 55791; omega)
+    index.isLt (by change 6136 + source.val * 640 + index.val < 49641; omega)
   change (evalKGrid program).form? logicalWidth
-    (25024 + source.val * 128 + 0 * 128 + index.val) = _ at selected
+    (22080 + source.val * 128 + 0 * 128 + index.val) = _ at selected
   simp only [Nat.zero_mul, Nat.add_zero] at selected
   have none_freshCommitmentRange := SourceRange.form?_eq_none_of_after
-    (freshCommitmentRange program) logicalWidth (25024 + source.val * 128 + index.val) (by
-      change 0 + 1152 ≤ 25024 + source.val * 128 + index.val; omega)
+    (freshCommitmentRange program) logicalWidth (22080 + source.val * 128 + index.val) (by
+      change 0 + 1152 ≤ 22080 + source.val * 128 + index.val; omega)
   have none_freshPublicRange := SourceRange.form?_eq_none_of_after
-    (freshPublicRange program) logicalWidth (25024 + source.val * 128 + index.val) (by
-      change 19584 + 320 ≤ 25024 + source.val * 128 + index.val; omega)
+    (freshPublicRange program) logicalWidth (22080 + source.val * 128 + index.val) (by
+      change 17280 + 320 ≤ 22080 + source.val * 128 + index.val; omega)
   have none_runningCommitmentGrid := SourceGrid.form?_eq_none_of_after
-    (runningCommitmentGrid program) logicalWidth (25024 + source.val * 128 + index.val) (by change 0 < 1152; decide) (by
-      change 1152 + 16 * 1152 ≤ 25024 + source.val * 128 + index.val; omega)
+    (runningCommitmentGrid program) logicalWidth (22080 + source.val * 128 + index.val) (by change 0 < 1152; decide) (by
+      change 1152 + 14 * 1152 ≤ 22080 + source.val * 128 + index.val; omega)
   have none_runningPublicGrid := SourceGrid.form?_eq_none_of_after
-    (runningPublicGrid program) logicalWidth (25024 + source.val * 128 + index.val) (by change 0 < 320; decide) (by
-      change 19904 + 16 * 320 ≤ 25024 + source.val * 128 + index.val; omega)
+    (runningPublicGrid program) logicalWidth (22080 + source.val * 128 + index.val) (by change 0 < 320; decide) (by
+      change 17600 + 14 * 320 ≤ 22080 + source.val * 128 + index.val; omega)
   have none_evalAGrid := SourceGrid.form?_eq_none_of_before
-    (evalAGrid program) logicalWidth (25024 + source.val * 128 + index.val) (by
-      change 25024 + source.val * 128 + index.val < 27200; omega)
+    (evalAGrid program) logicalWidth (22080 + source.val * 128 + index.val) (by
+      change 22080 + source.val * 128 + index.val < 24000; omega)
   simp only [substitution, SourceSubstitution.form?, List.filterMap_cons,
     List.filterMap_nil, List.nil_append, selected,
     none_freshCommitmentRange,
@@ -281,40 +281,40 @@ private theorem evalKGrid_lookup {program : Program} {logicalWidth : Nat}
 
 private theorem evalAGrid_lookup {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
-    (source : Fin 17)
+    (source : Fin 15)
     (index : Fin 512) :
-    (substitution program).form? logicalWidth (27200 + source.val * 512 + index.val) =
+    (substitution program).form? logicalWidth (24000 + source.val * 512 + index.val) =
       some ((proofLogicalBlock program).form (proofLogicalStart program)
-        (proofLogicalFits geometry) ⟨6904 + source.val * 640 + index.val, by
-          change 6904 + source.val * 640 + index.val < 55791
+        (proofLogicalFits geometry) ⟨6264 + source.val * 640 + index.val, by
+          change 6264 + source.val * 640 + index.val < 49641
           have bound := index.isLt
           have sources := source.isLt
           omega⟩) := by
   have bound := index.isLt
   have sources := source.isLt
   have selected := SourceGrid.form?_ofSemantic (proofLogicalBlock program)
-    (proofLogicalStart program) 27200 17 512 1 512 512
-    6904 640 0 (proofLogicalFits geometry) (by decide) (by decide)
+    (proofLogicalStart program) 24000 15 512 1 512 512
+    6264 640 0 (proofLogicalFits geometry) (by decide) (by decide)
     source ⟨0, by decide⟩ index (by simp)
-    index.isLt (by change 6904 + source.val * 640 + index.val < 55791; omega)
+    index.isLt (by change 6264 + source.val * 640 + index.val < 49641; omega)
   change (evalAGrid program).form? logicalWidth
-    (27200 + source.val * 512 + 0 * 512 + index.val) = _ at selected
+    (24000 + source.val * 512 + 0 * 512 + index.val) = _ at selected
   simp only [Nat.zero_mul, Nat.add_zero] at selected
   have none_freshCommitmentRange := SourceRange.form?_eq_none_of_after
-    (freshCommitmentRange program) logicalWidth (27200 + source.val * 512 + index.val) (by
-      change 0 + 1152 ≤ 27200 + source.val * 512 + index.val; omega)
+    (freshCommitmentRange program) logicalWidth (24000 + source.val * 512 + index.val) (by
+      change 0 + 1152 ≤ 24000 + source.val * 512 + index.val; omega)
   have none_freshPublicRange := SourceRange.form?_eq_none_of_after
-    (freshPublicRange program) logicalWidth (27200 + source.val * 512 + index.val) (by
-      change 19584 + 320 ≤ 27200 + source.val * 512 + index.val; omega)
+    (freshPublicRange program) logicalWidth (24000 + source.val * 512 + index.val) (by
+      change 17280 + 320 ≤ 24000 + source.val * 512 + index.val; omega)
   have none_runningCommitmentGrid := SourceGrid.form?_eq_none_of_after
-    (runningCommitmentGrid program) logicalWidth (27200 + source.val * 512 + index.val) (by change 0 < 1152; decide) (by
-      change 1152 + 16 * 1152 ≤ 27200 + source.val * 512 + index.val; omega)
+    (runningCommitmentGrid program) logicalWidth (24000 + source.val * 512 + index.val) (by change 0 < 1152; decide) (by
+      change 1152 + 14 * 1152 ≤ 24000 + source.val * 512 + index.val; omega)
   have none_runningPublicGrid := SourceGrid.form?_eq_none_of_after
-    (runningPublicGrid program) logicalWidth (27200 + source.val * 512 + index.val) (by change 0 < 320; decide) (by
-      change 19904 + 16 * 320 ≤ 27200 + source.val * 512 + index.val; omega)
+    (runningPublicGrid program) logicalWidth (24000 + source.val * 512 + index.val) (by change 0 < 320; decide) (by
+      change 17600 + 14 * 320 ≤ 24000 + source.val * 512 + index.val; omega)
   have none_evalKGrid := SourceGrid.form?_eq_none_of_after
-    (evalKGrid program) logicalWidth (27200 + source.val * 512 + index.val) (by change 0 < 128; decide) (by
-      change 25024 + 17 * 128 ≤ 27200 + source.val * 512 + index.val; omega)
+    (evalKGrid program) logicalWidth (24000 + source.val * 512 + index.val) (by change 0 < 128; decide) (by
+      change 22080 + 15 * 128 ≤ 24000 + source.val * 512 + index.val; omega)
   simp only [substitution, SourceSubstitution.form?, List.filterMap_cons,
     List.filterMap_nil, List.nil_append, selected,
     none_freshCommitmentRange,
@@ -339,7 +339,7 @@ private theorem substitution_form?_descriptor
           exact first
         subst source
         let index : Fin PiCCSOrdinaryRetainedBlocks.proofInputCount :=
-          ⟨5120 + block.val * ringDegree + lane.val, by
+          ⟨4480 + block.val * ringDegree + lane.val, by
             have blockBound := block.isLt
             have laneBound := lane.isLt
             rw [PiCCSOrdinaryRetainedBlocks.proofInputCount_eq]
@@ -413,9 +413,9 @@ private theorem substitution_form?_descriptor
           norm_num [PiRLCProductSchedule.Family.blockCount,
             PiRLCProductSchedule.Family.cellCount, ringDegree] at b l c
           omega⟩
-        let priorSource : Fin 16 := ⟨source.val - 1, by
+        let priorSource : Fin 14 := ⟨source.val - 1, by
           have bound := source.isLt
-          change source.val < 17 at bound
+          change source.val < 15 at bound
           omega⟩
         have key : (⟨.commitment, source, block, lane, cell⟩ :
             PiRLCProductSchedule.Descriptor).invocation.val = 1152 + priorSource.val * 1152 + operand.val := by
@@ -462,7 +462,7 @@ private theorem substitution_form?_descriptor
             PiRLCProductSchedule.Family.cellCount, ringDegree] at b l c
           omega⟩
         have key : (⟨.publicInput, zeroSource, block, lane, cell⟩ :
-            PiRLCProductSchedule.Descriptor).invocation.val = 19584 + operand.val := by
+            PiRLCProductSchedule.Descriptor).invocation.val = 17280 + operand.val := by
           have b := block.isLt
           have c := cell.isLt
           norm_num [PiRLCProductSchedule.Family.blockCount,
@@ -504,12 +504,12 @@ private theorem substitution_form?_descriptor
           norm_num [PiRLCProductSchedule.Family.blockCount,
             PiRLCProductSchedule.Family.cellCount, ringDegree] at b l c
           omega⟩
-        let priorSource : Fin 16 := ⟨source.val - 1, by
+        let priorSource : Fin 14 := ⟨source.val - 1, by
           have bound := source.isLt
-          change source.val < 17 at bound
+          change source.val < 15 at bound
           omega⟩
         have key : (⟨.publicInput, source, block, lane, cell⟩ :
-            PiRLCProductSchedule.Descriptor).invocation.val = 19904 + priorSource.val * 320 + operand.val := by
+            PiRLCProductSchedule.Descriptor).invocation.val = 17600 + priorSource.val * 320 + operand.val := by
           have b := block.isLt
           have c := cell.isLt
           norm_num [PiRLCProductSchedule.Family.blockCount,
@@ -526,7 +526,7 @@ private theorem substitution_form?_descriptor
           Nat.zero_add, Nat.add_assoc] using! runningPublicGrid_lookup geometry priorSource operand
   | evalK =>
       let index : Fin PiCCSOrdinaryRetainedBlocks.proofInputCount :=
-        ⟨6776 + source.val * 640 + lane.val * 2 + cell.val, by
+        ⟨6136 + source.val * 640 + lane.val * 2 + cell.val, by
           have sourceBound := source.isLt
           have laneBound := lane.isLt
           have cellBound := cell.isLt
@@ -558,7 +558,7 @@ private theorem substitution_form?_descriptor
           PiRLCProductSchedule.Family.cellCount, ringDegree] at b l c
         omega⟩
       have key : (⟨.evalK, source, block, lane, cell⟩ :
-          PiRLCProductSchedule.Descriptor).invocation.val = 25024 + source.val * 128 + operand.val := by
+          PiRLCProductSchedule.Descriptor).invocation.val = 22080 + source.val * 128 + operand.val := by
         have b := block.isLt
         have c := cell.isLt
         norm_num [PiRLCProductSchedule.Family.blockCount,
@@ -575,7 +575,7 @@ private theorem substitution_form?_descriptor
         Nat.zero_add, Nat.add_assoc] using! evalKGrid_lookup geometry source operand
   | evalA =>
       let index : Fin PiCCSOrdinaryRetainedBlocks.proofInputCount :=
-        ⟨6904 + source.val * 640 + block.val * 128 + lane.val * 2 + cell.val, by
+        ⟨6264 + source.val * 640 + block.val * 128 + lane.val * 2 + cell.val, by
           have sourceBound := source.isLt
           have blockBound := block.isLt
           have laneBound := lane.isLt
@@ -609,7 +609,7 @@ private theorem substitution_form?_descriptor
           PiRLCProductSchedule.Family.cellCount, ringDegree] at b l c
         omega⟩
       have key : (⟨.evalA, source, block, lane, cell⟩ :
-          PiRLCProductSchedule.Descriptor).invocation.val = 27200 + source.val * 512 + operand.val := by
+          PiRLCProductSchedule.Descriptor).invocation.val = 24000 + source.val * 512 + operand.val := by
         have b := block.isLt
         have c := cell.isLt
         norm_num [PiRLCProductSchedule.Family.blockCount,

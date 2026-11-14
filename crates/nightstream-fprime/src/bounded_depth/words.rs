@@ -16,7 +16,7 @@ pub type KWords = [Fq; 2];
 
 const POINT_COORDINATES: usize = crate::package::PI_CCS_V1_2_ROUND_COUNT;
 const ROUND_COEFFICIENTS: usize = crate::package::PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT;
-const CHILDREN: usize = 16;
+const CHILDREN: usize = crate::DECOMPOSITION_K_RHO as usize;
 
 /// A slot: its claim and its depth (`State.SlotData`). The evaluations are
 /// `Eval_K` (64) then `Eval_A` (four matrices of 64).

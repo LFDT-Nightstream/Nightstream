@@ -178,7 +178,7 @@ def footprint
     (inputs : ∀ offset, InputsAffine interface offset) :
     R1CS.CircuitFootprint (Formal.statementBindingCircuit interface) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 5632
+  physicalRowCount := fun _ => 4992
   freshColumnCount_eq := by
     intro offset
     apply R1CS.totalFreshCount_eq_zero_of_noFresh
@@ -207,7 +207,7 @@ theorem physicalRowCount_eq
     (inputs : ∀ offset, InputsAffine interface offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.statementBindingCircuit interface).main offset)) = 5632 :=
+      (Formal.statementBindingCircuit interface).main offset)) = 4992 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 end NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.StatementBinding

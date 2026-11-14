@@ -10,7 +10,7 @@ open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 def phaseLogicalStart : Nat := PiRLCInputs.phaseOffset
-def phaseRowStart : Nat := 6522569
+def phaseRowStart : Nat := 5744925
 
 def phaseFreshStart : Nat :=
   phaseLogicalStart + Formal.logicalPrivateCount
@@ -23,18 +23,18 @@ def evalALogicalStart : Nat := Formal.evalAOffset phaseLogicalStart
 def outputLogicalStart : Nat := Formal.outputBindingOffset phaseLogicalStart
 
 def samplerRowStart : Nat := phaseRowStart
-def commitmentRowStart : Nat := samplerRowStart + 52717
-def publicInputRowStart : Nat := commitmentRowStart + 2565504
-def evalKRowStart : Nat := publicInputRowStart + 712640
-def evalARowStart : Nat := evalKRowStart + 285056
-def outputRowStart : Nat := evalARowStart + 1140224
+def commitmentRowStart : Nat := samplerRowStart + 46515
+def publicInputRowStart : Nat := commitmentRowStart + 2263680
+def evalKRowStart : Nat := publicInputRowStart + 628800
+def evalARowStart : Nat := evalKRowStart + 251520
+def outputRowStart : Nat := evalARowStart + 1006080
 
 def samplerFreshStart : Nat := phaseFreshStart
 def commitmentFreshStart : Nat := samplerFreshStart
-def publicInputFreshStart : Nat := commitmentFreshStart + 2545920
-def evalKFreshStart : Nat := publicInputFreshStart + 707200
-def evalAFreshStart : Nat := evalKFreshStart + 282880
-def outputFreshStart : Nat := evalAFreshStart + 1131520
+def publicInputFreshStart : Nat := commitmentFreshStart + 2246400
+def evalKFreshStart : Nat := publicInputFreshStart + 624000
+def evalAFreshStart : Nat := evalKFreshStart + 249600
+def outputFreshStart : Nat := evalAFreshStart + 998400
 
 def samplerSourceLogicalStart (source : Nat) : Nat :=
   SamplerChain.sourceOffset samplerLogicalStart source
@@ -67,7 +67,7 @@ theorem challengeWordStart_eq (source : Nat) :
     Formal.samplerOffset SamplerChain.sourceOffset Sampler.wordsOffset Sampler.advanceOffset Sampler.rangeOffset
   rw [Sampler.counts.1, Gadgets.Sampling.WideReduction.Program.privateCount_eq]
 
-theorem phaseLogicalStart_eq : phaseLogicalStart = 6592681 := by
+theorem phaseLogicalStart_eq : phaseLogicalStart = 5806589 := by
   rfl
 
 theorem phaseRowStart_matches
@@ -79,41 +79,41 @@ theorem phaseRowStart_matches
   rw [PilotPiCCS.physicalRowCount_eq]
   rfl
 
-theorem phaseFreshStart_eq : phaseFreshStart = 6711426 := by
+theorem phaseFreshStart_eq : phaseFreshStart = 5911364 := by
   rfl
 
-theorem commitmentFreshStart_eq : commitmentFreshStart = 6711426 := by
+theorem commitmentFreshStart_eq : commitmentFreshStart = 5911364 := by
   rfl
 
-theorem publicInputFreshStart_eq : publicInputFreshStart = 9257346 := by
+theorem publicInputFreshStart_eq : publicInputFreshStart = 8157764 := by
   rfl
 
-theorem evalKFreshStart_eq : evalKFreshStart = 9964546 := by
+theorem evalKFreshStart_eq : evalKFreshStart = 8781764 := by
   rfl
 
-theorem evalAFreshStart_eq : evalAFreshStart = 10247426 := by
+theorem evalAFreshStart_eq : evalAFreshStart = 9031364 := by
   rfl
 
 theorem childLogicalStarts_eq :
     [samplerLogicalStart, commitmentLogicalStart, publicInputLogicalStart,
       evalKLogicalStart, evalALogicalStart, outputLogicalStart] =
-    [6592681, 6675522, 6695106, 6700546, 6702722, 6711426] := by
+    [5806589, 5879684, 5896964, 5901764, 5903684, 5911364] := by
   rfl
 
 theorem childRowStarts_eq :
     [samplerRowStart, commitmentRowStart, publicInputRowStart,
       evalKRowStart, evalARowStart, outputRowStart] =
-    [6522569, 6575286, 9140790, 9853430, 10138486, 11278710] := by
+    [5744925, 5791440, 8055120, 8683920, 8935440, 9941520] := by
   rfl
 
 theorem childFreshStarts_eq :
     [samplerFreshStart, commitmentFreshStart, publicInputFreshStart,
       evalKFreshStart, evalAFreshStart, outputFreshStart] =
-    [6711426, 6711426, 9257346, 9964546, 10247426, 11378946] := by
+    [5911364, 5911364, 8157764, 8781764, 9031364, 10029764] := by
   rfl
 
 theorem finalBoundaries_eq :
-    outputRowStart = 11278710 ∧ outputFreshStart = 11378946 := by
+    outputRowStart = 9941520 ∧ outputFreshStart = 10029764 := by
   exact ⟨rfl, rfl⟩
 
 end NightstreamFPrime.Layout.Stage1.PiRLCStarts

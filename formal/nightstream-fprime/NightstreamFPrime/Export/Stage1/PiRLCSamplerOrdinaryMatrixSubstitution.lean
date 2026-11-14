@@ -19,16 +19,16 @@ def wordSourceStart : Nat := frameSourceStart + 4809
 def poseidonGrid (program : Program) : SourceGrid :=
   SourceGrid.externalOfSemantic (PiRLCSamplerPoseidonPlan.retainedBlock program)
     (PiRLCSamplerPoseidonPlan.retainedStart program)
-    poseidonSourceStart 17 4873 1 4873 5 134 300 0
+    poseidonSourceStart 15 4873 1 4873 5 134 300 0
 
 def logicalGrid (program : Program) : SourceGrid :=
   SourceGrid.ofSemantic (logicalBlock program) (logicalStart program)
-    logicalSourceStart 17 4873 1 4873 769 0 769 0
+    logicalSourceStart 15 4873 1 4873 769 0 769 0
 
 def wordGrid (program : Program) : SourceGrid :=
   SourceGrid.ofSemantic (PiRLCRetainedGeometry.challengeBlock program)
     (PiRLCRetainedGeometry.challengeStart program)
-    wordSourceStart 17 4873 1 4873 64 0 64 0
+    wordSourceStart 15 4873 1 4873 64 0 64 0
 
 def substitution (program : Program) : SourceSubstitution where
   ranges := []
@@ -71,10 +71,10 @@ theorem logicalGrid_form? {program : Program} {logicalWidth : Nat}
     (logicalGrid program).form? logicalWidth (PackageOrder.sourceToPackage (Location.logical source position).sourceColumn) =
       some ((Location.logical source position).form geometry) := by
   rw [logicalTarget]
-  have sourceLt : source.val < 17 := source.isLt
+  have sourceLt : source.val < 15 := source.isLt
   have positionLt : position.val < 769 := position.isLt
   have direct := SourceGrid.form?_ofSemantic (logicalBlock program) (logicalStart program)
-    logicalSourceStart 17 4873 1 4873 769 0 769 0 (logicalFits geometry)
+    logicalSourceStart 15 4873 1 4873 769 0 769 0 (logicalFits geometry)
     (by decide) (by decide) source ⟨0, by decide⟩ position (by omega) (by omega)
     (by rw [logicalBlock_slotCount]; omega)
   simp only [Nat.zero_add, Nat.zero_mul, Nat.mul_zero, Nat.add_zero] at direct
@@ -90,12 +90,12 @@ theorem wordGrid_form? {program : Program} {logicalWidth : Nat}
     (wordGrid program).form? logicalWidth (PackageOrder.sourceToPackage (Location.word source position).sourceColumn) =
       some ((Location.word source position).form geometry) := by
   rw [wordTarget]
-  have sourceLt : source.val < 17 := source.isLt
+  have sourceLt : source.val < 15 := source.isLt
   have positionLt : position.val < 64 := position.isLt
-  have slotCount : (PiRLCRetainedGeometry.challengeBlock program).slotCount = 1088 := rfl
+  have slotCount : (PiRLCRetainedGeometry.challengeBlock program).slotCount = 960 := rfl
   have direct := SourceGrid.form?_ofSemantic (PiRLCRetainedGeometry.challengeBlock program)
     (PiRLCRetainedGeometry.challengeStart program)
-    wordSourceStart 17 4873 1 4873 64 0 64 0
+    wordSourceStart 15 4873 1 4873 64 0 64 0
     (PiRLCRetainedGeometry.challengeFits (piRlcGeometry geometry))
     (by decide) (by decide) source ⟨0, by decide⟩ position (by omega) (by omega)
     (by rw [slotCount]; omega)
@@ -114,11 +114,11 @@ theorem poseidonGrid_form? {program : Program} {logicalWidth : Nat}
     (poseidonGrid program).form? logicalWidth (PackageOrder.sourceToPackage (Location.poseidon source lane).sourceColumn) =
       some ((Location.poseidon source lane).form geometry) := by
   rw [poseidonTarget]
-  have sourceLt : source.val < 17 := source.isLt
+  have sourceLt : source.val < 15 := source.isLt
   have laneLt := lane.isLt
   have direct := SourceGrid.form?_externalOfSemantic
     (PiRLCSamplerPoseidonPlan.retainedBlock program) (PiRLCSamplerPoseidonPlan.retainedStart program)
-    poseidonSourceStart 17 4873 1 4873 5 134 300 0
+    poseidonSourceStart 15 4873 1 4873 5 134 300 0
     (PiRLCSamplerPoseidonPlan.retainedFits (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry))
     (by decide) (by decide) source ⟨0, by decide⟩ lane (by omega) (by omega) (by omega)
     (by intro selected; have selectedLt := selected.isLt
@@ -149,13 +149,13 @@ theorem poseidonGrid_form? {program : Program} {logicalWidth : Nat}
 
 private theorem frameGrid_none (grid : SourceGrid) (logicalWidth start offset : Nat)
     (origin : grid.sourceStart = frameSourceStart + start)
-    (shape : grid.majorCount = 17 ∧ grid.majorSourceStride = 4873 ∧
+    (shape : grid.majorCount = 15 ∧ grid.majorSourceStride = 4873 ∧
       grid.minorCount = 1 ∧ grid.minorSourceStride = 4873)
     (endBound : start + grid.runCount ≤ 4873)
     (source : Fin sourceCount) (offsetBound : offset < 4873)
     (outside : offset < start ∨ start + grid.runCount ≤ offset) :
     grid.form? logicalWidth (frameSourceStart + source.val * 4873 + offset) = none := by
-  have sourceLt : source.val < 17 := source.isLt
+  have sourceLt : source.val < 15 := source.isLt
   have gap (major : Fin grid.majorCount) (distance : Nat)
       (distanceBound : distance < 4873) (afterRun : grid.runCount ≤ distance) :
       grid.form? logicalWidth
@@ -287,7 +287,7 @@ variable {relationLogicalWidth : Nat}
   {relationPublicFits : ringDegree * publicRingColumns ≤
     RingCarrierLayout.carrierWidth relationLogicalWidth}
 
-private theorem programRow_support (index : Fin 15453) :
+private theorem programRow_support (index : Fin 13635) :
     (PiRLCSamplerOrdinaryDirectSource.programRow
       (logicalWidth := relationLogicalWidth)
       (publicFits := relationPublicFits) index).VarsSatisfy
@@ -300,7 +300,7 @@ private theorem programRow_support (index : Fin 15453) :
 
 theorem substitution_agrees_on_programRow
     {program : Program} {logicalWidth : Nat}
-    (geometry : Geometry program logicalWidth) (index : Fin 15453) :
+    (geometry : Geometry program logicalWidth) (index : Fin 13635) :
     let row := PiRLCSamplerOrdinaryDirectSource.programRow
       (logicalWidth := relationLogicalWidth)
       (publicFits := relationPublicFits) index

@@ -12,10 +12,10 @@ open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 
-def exactWordCount : Nat := 28888
+def exactWordCount : Nat := 25304
 def stateWordCount : Nat := 4
 def exactPrivateCount : Nat := 2
-def exactRowCount : Nat := 28894
+def exactRowCount : Nat := 25310
 
 abbrev WordIndex := Fin exactWordCount
 abbrev StateIndex := Fin stateWordCount
@@ -27,7 +27,7 @@ structure Interface (logicalWidth : Nat)
   initialState : Nat → StateIndex → Expr
   currentState : Nat → StateIndex → Expr
   recursive : Nat → StatementAbsorption.RunningExpr logicalWidth publicFits
-  output : Nat → Fin 28888 → Expr
+  output : Nat → Fin 25304 → Expr
 
 def iterationValue {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

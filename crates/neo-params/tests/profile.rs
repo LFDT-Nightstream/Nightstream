@@ -1,7 +1,7 @@
 //! The profile constants against independent recomputation
 //! (`decisions/field-2p64-59-ring-x64.md`).
 
-use neo_params::{nightstream_p64_k16 as profile, NeoParams, ParamsError};
+use neo_params::{nightstream_p64_k14 as profile, NeoParams, ParamsError};
 use num_bigint::BigUint;
 
 fn euler_phi(mut n: u64) -> u64 {
@@ -26,7 +26,7 @@ fn euler_phi(mut n: u64) -> u64 {
 fn modulus_is_two_to_the_64_minus_59() {
     assert_eq!(profile::Q, 18_446_744_073_709_551_557);
     assert_eq!(u128::from(profile::Q), (1u128 << 64) - 59);
-    assert_eq!(profile::NAME, "Nightstream P64, k_rho = 16");
+    assert_eq!(profile::NAME, "Nightstream P64, k_rho = 14");
 }
 
 #[test]
@@ -72,22 +72,21 @@ fn challenge_set_is_a_strong_sampling_set_above_128_bits() {
 }
 
 #[test]
-fn decomposition_is_binary_with_k_rho_16() {
+fn decomposition_is_binary_with_k_rho_14() {
     assert_eq!(profile::B_BASE, 2);
-    assert_eq!(profile::K_RHO, 16);
-    assert_eq!(profile::B, 1 << 16);
+    assert_eq!(profile::K_RHO, 14);
+    assert_eq!(profile::B, 1 << 14);
     assert_eq!(profile::KAPPA, 18);
     assert_eq!(profile::EXTENSION_DEGREE, 2);
 }
 
 #[test]
 fn rlc_guard_holds_and_bounds_the_fresh_count() {
-    let p = NeoParams::nightstream_p64_k16();
+    let p = NeoParams::nightstream_p64_k14();
     let fresh = u64::from(p.max_fresh_count_from_rlc_guard().unwrap());
     let per_input = u64::from(profile::T) * u64::from(profile::B_BASE - 1);
     let k = u64::from(profile::K_RHO);
 
-    assert_eq!(fresh, 495);
     assert!((fresh + k) * per_input < profile::B);
     assert!((fresh + 1 + k) * per_input >= profile::B);
     assert!((k + 1) * per_input < profile::B);
@@ -95,7 +94,7 @@ fn rlc_guard_holds_and_bounds_the_fresh_count() {
 
 #[test]
 fn constructor_returns_the_profile_constants() {
-    let p = NeoParams::nightstream_p64_k16();
+    let p = NeoParams::nightstream_p64_k14();
     assert_eq!(
         (p.q(), p.eta(), p.d(), p.kappa(), p.m()),
         (
@@ -123,12 +122,13 @@ fn constructor_returns_the_profile_constants() {
 fn maximum_geometry_padded_row_census_matches_formula() {
     let alphabet = profile::CHALLENGE_ALPHABET.len() as u32;
     let columns = (profile::M as usize / profile::D) * profile::D;
-    let p = NeoParams::nightstream_p64_k16().with_lambda(115).unwrap();
+    let p = NeoParams::nightstream_p64_k14().with_lambda(115).unwrap();
     let summary = p
         .padded_row_security_check_for_shape(1 << 26, columns, 3, 2, alphabet)
         .expect("115-bit padded-row census");
 
-    let (fresh, running, d, matrices) = (495u128, 16u128, 64u128, 3u128);
+    let fresh = u128::from(p.max_fresh_count_from_rlc_guard().unwrap());
+    let (running, d, matrices) = (u128::from(profile::K_RHO), profile::D as u128, 3u128);
     let mixing = fresh + (fresh + running) + running * (matrices + 1) * d - 1 + 30;
     assert_eq!(summary.cube_variables, 30);
     assert_eq!(summary.verifier_degree, 4);
@@ -143,21 +143,21 @@ fn maximum_geometry_padded_row_census_matches_formula() {
     let numerator = BigUint::from(summary.field_factor) * &summary.challenge_set_cardinality
         + BigUint::from(summary.fork_factor) * &field;
     let denominator = field * &summary.challenge_set_cardinality;
-    assert_eq!(summary.security_bits, 115);
-    assert!(&numerator << 115 <= denominator);
-    assert!(numerator << 116 > denominator);
-    assert_eq!(summary.slack_bits, 0);
+    let bits = summary.security_bits;
+    assert!(&numerator << bits <= denominator);
+    assert!(numerator << (bits + 1) > denominator);
+    assert_eq!(summary.slack_bits, bits as i32 - 115);
 
     let err = p
-        .with_lambda(116)
+        .with_lambda(bits + 1)
         .unwrap()
         .padded_row_security_check_for_shape(1 << 26, columns, 3, 2, alphabet)
         .unwrap_err();
     assert_eq!(
         err,
         ParamsError::InsufficientStatisticalSecurity {
-            required: 116,
-            available: 115
+            required: bits + 1,
+            available: bits
         }
     );
 }
@@ -165,7 +165,7 @@ fn maximum_geometry_padded_row_census_matches_formula() {
 #[test]
 fn census_charges_matrix_count_and_polynomial_degree() {
     let alphabet = profile::CHALLENGE_ALPHABET.len() as u32;
-    let p = NeoParams::nightstream_p64_k16();
+    let p = NeoParams::nightstream_p64_k14();
     let census = |matrices, degree| {
         p.padded_row_security_summary_for_shape(60, 60, matrices, degree, alphabet)
             .unwrap()

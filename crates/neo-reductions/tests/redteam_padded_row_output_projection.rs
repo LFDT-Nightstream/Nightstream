@@ -32,7 +32,7 @@ struct HonestProof {
 }
 
 fn honest_proof() -> HonestProof {
-    let params = NeoParams::nightstream_p64_k16()
+    let params = NeoParams::nightstream_p64_k14()
         .with_lambda(115)
         .expect("params");
     let structure = CcsStructure::new(

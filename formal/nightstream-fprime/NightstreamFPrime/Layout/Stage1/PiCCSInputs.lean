@@ -25,20 +25,20 @@ def runningCommitmentStart (source : Nat) : Nat :=
   priorRunningStart + source * runningCommitmentWords
 
 def runningEvalKStart (source : Nat) : Nat :=
-  priorRunningStart + 18432 + source * runningEvalKWords
+  priorRunningStart + 16128 + source * runningEvalKWords
 
 def runningEvalAStart (source : Nat) : Nat :=
-  priorRunningStart + 20480 + source * runningEvalAWords
+  priorRunningStart + 17920 + source * runningEvalAWords
 
-def runningPointStart : Nat := priorRunningStart + 28672
+def runningPointStart : Nat := priorRunningStart + 25088
 
-def expectedContextStart : Nat := 5341138
+def expectedContextStart : Nat := 4678562
 
 def expectedContextWords : Nat := 4
 
 def priorChildrenStart : Nat := expectedContextStart + expectedContextWords
 
-def priorChildrenWords : Nat := 5120
+def priorChildrenWords : Nat := 4480
 
 def runningPublicStart (source : Nat) : Nat :=
   priorChildrenStart + source * runningPublicWords
@@ -52,16 +52,16 @@ theorem expectedContextStart_matches_pilot :
   rw [PilotProduction.physicalColumnCount_eq]
   rfl
 
-theorem expectedContextStart_eq : expectedContextStart = 5341138 := by
+theorem expectedContextStart_eq : expectedContextStart = 4678562 := by
   rfl
 
 theorem expectedContextWords_eq : expectedContextWords = 4 := by
   rfl
 
-theorem priorChildrenStart_eq : priorChildrenStart = 5341142 := by
+theorem priorChildrenStart_eq : priorChildrenStart = 4678566 := by
   rfl
 
-theorem proofInputStart_eq : proofInputStart = 5346262 := by
+theorem proofInputStart_eq : proofInputStart = 4683046 := by
   rfl
 
 def freshCommitmentStart : Nat := proofInputStart
@@ -69,7 +69,7 @@ def freshCommitmentWords : Nat := 1152
 def roundMessageStart : Nat := freshCommitmentStart + freshCommitmentWords
 def roundMessageWords : Nat := 504
 def outputEvaluationStart : Nat := roundMessageStart + roundMessageWords
-def outputEvaluationWords : Nat := 10880
+def outputEvaluationWords : Nat := 9600
 def outputEvaluationSourceWords : Nat := 640
 def proofInputColumnCount : Nat :=
   freshCommitmentWords + roundMessageWords + outputEvaluationWords
@@ -92,10 +92,10 @@ theorem outputEvaluationWords_eq :
   norm_num [outputEvaluationWords, productionShape, productionProfile,
     RingMatrixSource.ringShape, Shape.sourceCount, ringDegree]
 
-theorem proofInputColumnCount_eq : proofInputColumnCount = 12536 := by
+theorem proofInputColumnCount_eq : proofInputColumnCount = 11256 := by
   rfl
 
-theorem phaseOffset_eq : phaseOffset = 5358798 := by
+theorem phaseOffset_eq : phaseOffset = 4694302 := by
   rfl
 
 def pairAt (start : Nat) : KExpr :=
@@ -230,15 +230,15 @@ private theorem publicColumn_lt_270
     publicRingColumns, ringDegree] at bound
   exact bound
 
-private theorem runningSource_lt_16
-    (source : Fin productionShape.runningCount) : source.val < 16 := by
+private theorem runningSource_lt_14
+    (source : Fin productionShape.runningCount) : source.val < 14 := by
   have bound := source.isLt
   norm_num [productionShape, productionProfile,
     RingMatrixSource.ringShape] at bound
   exact bound
 
-private theorem allSource_lt_17
-    (source : Fin productionShape.sourceCount) : source.val < 17 := by
+private theorem allSource_lt_15
+    (source : Fin productionShape.sourceCount) : source.val < 15 := by
   have bound := source.isLt
   norm_num [productionShape, productionProfile,
     RingMatrixSource.ringShape, Shape.sourceCount] at bound
@@ -346,7 +346,7 @@ theorem externalInputsBelow
     omega
   · intro source row coefficient
     simp only [interface, runningExpr, runningCommitment, Expr.VarsBelow]
-    have sourceBound := runningSource_lt_16 source
+    have sourceBound := runningSource_lt_14 source
     have rowBound := commitmentRow_lt_22 row
     have coefficientBound := ringCoefficient_lt_ringDegree coefficient
     rw [phaseOffset_eq]
@@ -355,7 +355,7 @@ theorem externalInputsBelow
     omega
   · intro source column
     simp only [interface, runningExpr, runningPublicInput, Expr.VarsBelow]
-    have sourceBound := runningSource_lt_16 source
+    have sourceBound := runningSource_lt_14 source
     have columnBound := publicColumn_lt_270 column
     rw [phaseOffset_eq]
     norm_num [runningPublicStart, priorChildrenStart, expectedContextStart,
@@ -364,7 +364,7 @@ theorem externalInputsBelow
   · intro source coefficient
     change (runningEval_K source coefficient).VarsBelow phaseOffset
     simp only [runningEval_K, pairAt, KExpr.VarsBelow, Expr.VarsBelow]
-    have sourceBound := runningSource_lt_16 source
+    have sourceBound := runningSource_lt_14 source
     have coefficientBound := coefficient_lt_ringDegree coefficient
     rw [phaseOffset_eq]
     norm_num [runningEvalKStart, priorRunningStart, runningEvalKWords]
@@ -372,7 +372,7 @@ theorem externalInputsBelow
   · intro source matrix coefficient
     change (runningEval_A source matrix coefficient).VarsBelow phaseOffset
     simp only [runningEval_A, pairAt, KExpr.VarsBelow, Expr.VarsBelow]
-    have sourceBound := runningSource_lt_16 source
+    have sourceBound := runningSource_lt_14 source
     have matrixBound := matrix_lt_4 matrix
     have coefficientBound := coefficient_lt_ringDegree coefficient
     rw [phaseOffset_eq]
@@ -411,7 +411,7 @@ theorem externalInputsBelow
   · intro source coefficient
     change (outputEval_K source coefficient).VarsBelow phaseOffset
     simp only [outputEval_K, pairAt, KExpr.VarsBelow, Expr.VarsBelow]
-    have sourceBound := allSource_lt_17 source
+    have sourceBound := allSource_lt_15 source
     have coefficientBound := coefficient_lt_ringDegree coefficient
     rw [phaseOffset_eq]
     norm_num [outputEvaluationStart, roundMessageStart,
@@ -423,7 +423,7 @@ theorem externalInputsBelow
   · intro source matrix coefficient
     change (outputEval_A source matrix coefficient).VarsBelow phaseOffset
     simp only [outputEval_A, pairAt, KExpr.VarsBelow, Expr.VarsBelow]
-    have sourceBound := allSource_lt_17 source
+    have sourceBound := allSource_lt_15 source
     have matrixBound := matrix_lt_4 matrix
     have coefficientBound := coefficient_lt_ringDegree coefficient
     rw [phaseOffset_eq]

@@ -338,11 +338,11 @@ theorem familyOutput_below {blockCount cellCount : Nat} [NeZero cellCount]
   have index := (Lifecycle.PiRLC.v1_2.CombinationStep.indexOf block lane cell).isLt
   have total : Lifecycle.PiRLC.v1_2.CombinationFamily.sourceCount *
       Lifecycle.PiRLC.v1_2.CombinationFamily.stepSize blockCount cellCount =
-      17 * Lifecycle.PiRLC.v1_2.CombinationFamily.stepSize blockCount cellCount := by
+      15 * Lifecycle.PiRLC.v1_2.CombinationFamily.stepSize blockCount cellCount := by
     rw [Lifecycle.PiRLC.v1_2.CombinationFamily.sourceCount_eq]
   have final : (Lifecycle.PiRLC.v1_2.CombinationFamily.sourceCount - 1) *
       Lifecycle.PiRLC.v1_2.CombinationFamily.stepSize blockCount cellCount =
-      16 * Lifecycle.PiRLC.v1_2.CombinationFamily.stepSize blockCount cellCount := by
+      14 * Lifecycle.PiRLC.v1_2.CombinationFamily.stepSize blockCount cellCount := by
     rw [Lifecycle.PiRLC.v1_2.CombinationFamily.sourceCount_eq]
   change _ < Lifecycle.PiRLC.v1_2.CombinationFamily.stepSize blockCount cellCount at index
   show start + (Lifecycle.PiRLC.v1_2.CombinationFamily.sourceCount - 1) *
@@ -355,13 +355,13 @@ theorem familyOutput_below {blockCount cellCount : Nat} [NeZero cellCount]
 omit below in
 /-- Today's Π_RLC output groups end at the output binding's offset, for any start. -/
 theorem rlcOutputs_le (start : Nat) :
-    Lifecycle.PiRLC.v1_2.Formal.commitmentOffset start + 19584 ≤
+    Lifecycle.PiRLC.v1_2.Formal.commitmentOffset start + 17280 ≤
         Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset start ∧
-      Lifecycle.PiRLC.v1_2.Formal.publicInputOffset start + 5440 ≤
+      Lifecycle.PiRLC.v1_2.Formal.publicInputOffset start + 4800 ≤
         Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset start ∧
-      Lifecycle.PiRLC.v1_2.Formal.evalKOffset start + 2176 ≤
+      Lifecycle.PiRLC.v1_2.Formal.evalKOffset start + 1920 ≤
         Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset start ∧
-      Lifecycle.PiRLC.v1_2.Formal.evalAOffset start + 8704 ≤
+      Lifecycle.PiRLC.v1_2.Formal.evalAOffset start + 7680 ≤
         Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset start ∧
       start ≤ Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset start := by
   unfold Lifecycle.PiRLC.v1_2.Formal.outputBindingOffset Lifecycle.PiRLC.v1_2.Formal.evalAOffset

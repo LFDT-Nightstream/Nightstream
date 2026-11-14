@@ -95,7 +95,7 @@ theorem wordRows_toR1CS (source : Nat) :
   simp [sourceRows]
 
 theorem rows_length :
-    (rows (logicalWidth := logicalWidth) (publicFits := publicFits)).length = 15453 := by
+    (rows (logicalWidth := logicalWidth) (publicFits := publicFits)).length = 13635 := by
   simp [rows, PiRLCSamplerInvocations.sourceCount]
 
 theorem rows_imply_sourceRows (source : Fin PiRLCSamplerInvocations.sourceCount) (env : Env)

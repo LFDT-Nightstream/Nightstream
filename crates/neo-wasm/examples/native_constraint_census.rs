@@ -205,8 +205,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         )?;
         let count = rows.row_count();
         let mut circuits = Vec::new();
-        for (kind, step) in [("light", &steps.light), ("refresh", &steps.refresh)] {
-            let (package, plan, layout) = (step.package(), step.rows(), step.layout());
+        for (kind, package, step) in [
+            ("light", compiled.light(), &steps.light),
+            ("refresh", compiled.refresh(), &steps.refresh),
+        ] {
+            let (plan, layout) = (step.rows(), step.layout());
             let source = package.source_rows()?;
             let spans = layout.spans();
             let compressed: [usize; 4] = std::array::from_fn(|port| {

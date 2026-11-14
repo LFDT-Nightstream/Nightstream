@@ -266,7 +266,6 @@ fn native_hash_chain_packages_are_lean_packages() {
     for (lean, native) in [(&lean.light, &native.light), (&lean.refresh, &native.refresh)] {
         let (lean_rows, native_rows) = (lean.rows(), native.rows());
         let (lean_layout, native_layout) = (lean.layout(), native.layout());
-        let (lean, native) = (lean.package(), native.package());
         assert_eq!(native.block_count(), lean.block_count());
         assert_eq!(native_rows.row_count(), lean_rows.row_count());
         assert_eq!(plan_sum(native_rows), plan_sum(lean_rows));

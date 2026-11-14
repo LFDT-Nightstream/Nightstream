@@ -241,9 +241,8 @@ impl Relation {
     /// columns follow, and the slot layout lowers them to digits.
     pub(crate) fn assignment(&self, words: &StepWords, locals: Option<&[F]>) -> Result<Vec<F>, RelationError> {
         let expanded = &self.step.expanded;
-        let package = expanded.package();
-        let columns = package.circuit_columns_with(&words.columns()?, locals)?;
-        let columns = package.relation_columns(columns, expanded.rows())?;
+        let columns = expanded.circuit_columns_with(&words.columns()?, locals)?;
+        let columns = expanded.relation_columns(columns)?;
         Ok(expanded.layout().assignment(&columns)?)
     }
 
@@ -252,9 +251,9 @@ impl Relation {
     #[cfg(test)]
     pub(crate) fn first_failing_row(&self, words: &StepWords) -> Result<Option<usize>, RelationError> {
         let expanded = &self.step.expanded;
-        let (package, rows) = (expanded.package(), expanded.rows());
-        let columns = package.circuit_columns(&words.columns()?)?;
-        let columns = package.relation_columns(columns, rows)?;
+        let columns = expanded.circuit_columns_with(&words.columns()?, None)?;
+        let columns = expanded.relation_columns(columns)?;
+        let rows = expanded.rows();
         Ok((0..rows.row_count()).find(|&row| rows.residual(row, &columns) != F::ZERO))
     }
 

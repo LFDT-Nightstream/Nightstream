@@ -230,8 +230,7 @@ fn compiled_slot_cost_is_an_integer_per_proved_read_port() {
             let after_source = new.source_rows().unwrap();
             assert_eq!(before_source.row_count() - after_source.row_count(), 33 * reads);
             let pairs = |expanded: &nightstream_fprime::ExpandedPackage| {
-                let package = expanded.package();
-                expanded.layout().spans().widths.len() - (package.sbox_start() + 150 * package.block_count())
+                expanded.layout().spans().widths.len() - (expanded.sbox_start() + 150 * expanded.block_count())
             };
             let (before_pairs, after_pairs) = (pairs(&old_expanded), pairs(&new_expanded));
             assert_eq!(before_pairs - after_pairs, 32 * reads);

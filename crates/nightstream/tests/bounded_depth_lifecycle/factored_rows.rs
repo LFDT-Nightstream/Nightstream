@@ -135,7 +135,7 @@ pub(super) fn check_factored(packages: &nightstream_fprime::BoundedDepthPackages
                     factored.row_value(port, row, &values),
                     layout.evaluate(rows, row, port, &logical).expect("row"),
                     "circuit {} row {row} port {port}",
-                    step.expanded().package().circuit()
+                    step.expanded().circuit()
                 );
             }
         }

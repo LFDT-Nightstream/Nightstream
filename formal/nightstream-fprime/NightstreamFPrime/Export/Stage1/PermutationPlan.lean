@@ -188,20 +188,20 @@ private def sequentialWitnessStarts : Nat → Nat → List Nat
   | _witnessStart, 0 => []
   | witnessStart, count + 1 =>
       NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage witnessStart ::
-        sequentialWitnessStarts (witnessStart + 1096) count
+        sequentialWitnessStarts (witnessStart + 1174) count
 
 private theorem sequentialWitnessStarts_add
     (witnessStart left right : Nat) :
     sequentialWitnessStarts witnessStart (left + right) =
       sequentialWitnessStarts witnessStart left ++
-        sequentialWitnessStarts (witnessStart + left * 1096) right := by
+        sequentialWitnessStarts (witnessStart + left * 1174) right := by
   induction left generalizing witnessStart with
   | zero => simp [sequentialWitnessStarts]
   | succ left inductionHypothesis =>
       simp only [Nat.succ_add, sequentialWitnessStarts, List.cons_append]
       rw [inductionHypothesis]
-      rw [show witnessStart + 1096 + left * 1096 =
-        witnessStart + Nat.succ left * 1096 by omega]
+      rw [show witnessStart + 1174 + left * 1174 =
+        witnessStart + Nat.succ left * 1174 by omega]
 
 private theorem sequentialWitnessStarts_length (witnessStart count : Nat) :
     (sequentialWitnessStarts witnessStart count).length = count := by
@@ -214,7 +214,7 @@ private theorem sequentialWitnessStarts_getD
     (witnessStart count index : Nat) (bound : index < count) :
     (sequentialWitnessStarts witnessStart count).getD index 0 =
       NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
-        (witnessStart + index * 1096) := by
+        (witnessStart + index * 1174) := by
   induction count generalizing witnessStart index with
   | zero => omega
   | succ count inductionHypothesis =>
@@ -222,7 +222,7 @@ private theorem sequentialWitnessStarts_getD
       | zero => simp [sequentialWitnessStarts]
       | succ index =>
           rw [sequentialWitnessStarts, List.getD_cons_succ,
-            inductionHypothesis (witnessStart + 1096) index (by omega)]
+            inductionHypothesis (witnessStart + 1174) index (by omega)]
           apply congrArg NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           omega
 
@@ -239,8 +239,8 @@ private theorem compileBlocks_witnessStarts
         Invocations.invocation_witnessStart, List.length_cons,
         sequentialWitnessStarts]
       rw [inductionHypothesis
-        (rowStart := rowStart + 1096)
-        (witnessStart := witnessStart + 1096)
+        (rowStart := rowStart + 1174)
+        (witnessStart := witnessStart + 1174)
         (state := Invocations.permutationOutput witnessStart)]
 
 private theorem compileActions_witnessStarts
@@ -391,7 +391,7 @@ theorem piCcsBlocks_expand :
 def piCcsWitnessStarts (_unit : Unit) : List Nat :=
   sequentialWitnessStarts PiCCSInvocations.statementWitnessStart 124 ++
     sequentialWitnessStarts PiCCSInvocations.challengeWitnessStart 4 ++
-    sequentialWitnessStarts PiCCSInvocations.roundWitnessStart 56 ++
+    sequentialWitnessStarts PiCCSInvocations.roundWitnessStart 28 ++
     sequentialWitnessStarts PiCCSInvocations.outputWitnessStart 800
 
 theorem piCcsWitnessStarts_materializes :
@@ -409,16 +409,16 @@ theorem piCcsWitnessStarts_materializes :
 
 private theorem piCcsWitnessStarts_transcriptPrefix :
     piCcsWitnessStarts () =
-      sequentialWitnessStarts PiCCSInvocations.statementWitnessStart 184 ++
+      sequentialWitnessStarts PiCCSInvocations.statementWitnessStart 156 ++
         sequentialWitnessStarts PiCCSInvocations.outputWitnessStart 800 := by
-  have challengeStart : PiCCSInvocations.statementWitnessStart + 124 * 1096 =
+  have challengeStart : PiCCSInvocations.statementWitnessStart + 124 * 1174 =
       PiCCSInvocations.challengeWitnessStart := by
     simp only [PiCCSInvocations.statementWitnessStart,
       PiCCSInvocations.challengeWitnessStart,
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq,
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart_eq]
   have roundStart : PiCCSInvocations.statementWitnessStart +
-      (124 + 4) * 1096 = PiCCSInvocations.roundWitnessStart := by
+      (124 + 4) * 1174 = PiCCSInvocations.roundWitnessStart := by
     simp only [PiCCSInvocations.statementWitnessStart,
       PiCCSInvocations.roundWitnessStart,
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq,
@@ -428,10 +428,10 @@ private theorem piCcsWitnessStarts_transcriptPrefix :
     ← sequentialWitnessStarts_add PiCCSInvocations.statementWitnessStart 124 4]
   rw [← roundStart,
     ← sequentialWitnessStarts_add PiCCSInvocations.statementWitnessStart
-      (124 + 4) 56]
+      (124 + 4) 28]
 
 private theorem piCcsWitnessStarts_length :
-    (piCcsWitnessStarts ()).length = 984 := by
+    (piCcsWitnessStarts ()).length = 956 := by
   rw [piCcsWitnessStarts_transcriptPrefix, List.length_append,
     sequentialWitnessStarts_length, sequentialWitnessStarts_length]
 
@@ -694,11 +694,11 @@ theorem canonicalWitnessStarts_materializes :
     piCcsWitnessStarts_materializes, samplerWitnessStartAt_materializes]
 
 private theorem canonicalWitnessStarts_transcript_getD
-    (index : Nat) (bound : index < 184) :
+    (index : Nat) (bound : index < 156) :
     (canonicalWitnessStarts ()).getD index 0 =
       NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         (NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart +
-          index * 1096) := by
+          index * 1174) := by
   rw [canonicalWitnessStarts, List.getD_append _ _ _ _ (by
     rw [piCcsWitnessStarts_length]
     omega)]
@@ -706,15 +706,15 @@ private theorem canonicalWitnessStarts_transcript_getD
     rw [sequentialWitnessStarts_length]
     exact bound)]
   exact sequentialWitnessStarts_getD PiCCSInvocations.statementWitnessStart
-    184 index bound
+    156 index bound
 
 theorem canonicalInvocation_witnessStart_of_transcript
     (index : Fin (Data.permutationInvocations ()).length)
-    (bound : index.val < 184) :
+    (bound : index.val < 156) :
     ((Data.permutationInvocations ()).get index).witnessStart =
       NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         (NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart +
-          index.val * 1096) := by
+          index.val * 1174) := by
   have selected := canonicalWitnessStarts_transcript_getD index.val bound
   rw [canonicalWitnessStarts_materializes] at selected
   have mappedBound : index.val <
@@ -725,10 +725,10 @@ theorem canonicalInvocation_witnessStart_of_transcript
   simpa only [List.getElem_map, List.get_eq_getElem] using selected
 
 private theorem canonicalWitnessStarts_output_getD
-    (index : Nat) (afterTranscript : 184 ≤ index) (bound : index < 984) :
+    (index : Nat) (afterTranscript : 156 ≤ index) (bound : index < 956) :
     (canonicalWitnessStarts ()).getD index 0 =
       NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
-        (PiCCSInvocations.outputWitnessStart + (index - 184) * 1096) := by
+        (PiCCSInvocations.outputWitnessStart + (index - 156) * 1174) := by
   rw [canonicalWitnessStarts, List.getD_append _ _ _ _ (by
     rw [piCcsWitnessStarts_length]
     exact bound)]
@@ -737,14 +737,14 @@ private theorem canonicalWitnessStarts_output_getD
     exact afterTranscript)]
   rw [sequentialWitnessStarts_length]
   exact sequentialWitnessStarts_getD PiCCSInvocations.outputWitnessStart
-    800 (index - 184) (by omega)
+    800 (index - 156) (by omega)
 
 theorem canonicalInvocation_witnessStart_of_output
     (index : Fin (Data.permutationInvocations ()).length)
-    (afterTranscript : 184 ≤ index.val) (bound : index.val < 984) :
+    (afterTranscript : 156 ≤ index.val) (bound : index.val < 956) :
     ((Data.permutationInvocations ()).get index).witnessStart =
       NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
-        (PiCCSInvocations.outputWitnessStart + (index.val - 184) * 1096) := by
+        (PiCCSInvocations.outputWitnessStart + (index.val - 156) * 1174) := by
   have selected := canonicalWitnessStarts_output_getD index.val afterTranscript bound
   rw [canonicalWitnessStarts_materializes] at selected
   have mappedBound : index.val <

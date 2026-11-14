@@ -1,11 +1,11 @@
 use neo_application::event_commitment::{commit_block, fold_blocks, EventCommitmentState};
 use neo_application::poseidon2::{
-    apply_full_round, apply_initial_linear, apply_partial_pair, external_linear, full_round_constants, sbox7,
+    apply_full_round, apply_initial_linear, apply_partial_round, external_linear, full_round_constants, sbox3,
 };
-use neo_application::{ConstraintTag, Pow7};
+use neo_application::{ConstraintTag, Pow3};
 use neo_application::{
-    EventCommitment, GadgetDescriptor, Poseidon2FullRound12, Poseidon2FullRoundChoice, Poseidon2PartialPair12,
-    Poseidon2PartialPairChoice, R1csBuilder, EVENT_COMMITMENT_AUX_COLUMNS,
+    EventCommitment, GadgetDescriptor, Poseidon2FullRound12, Poseidon2FullRoundChoice, Poseidon2PartialRounds12,
+    Poseidon2PartialRoundsChoice, R1csBuilder, EVENT_COMMITMENT_AUX_COLUMNS,
 };
 use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
@@ -28,10 +28,10 @@ fn native_commitment_matches_the_reference_permutation() {
     assert_eq!(
         first,
         [
-            f(8614005215749788708),
-            f(11184983940043411839),
-            f(8347397391263611332),
-            f(1249284246966106980),
+            f(3215577154690118596),
+            f(9354262255028013234),
+            f(16724184125603892297),
+            f(11238644592114362855),
         ]
     );
 
@@ -49,10 +49,10 @@ fn native_commitment_matches_the_reference_permutation() {
     assert_eq!(
         second,
         [
-            f(849658000895742526),
-            f(2588462337204377226),
-            f(8398268172638123514),
-            f(4047208784159907931),
+            f(18247048511679256249),
+            f(7512892810435760924),
+            f(14922076004926892490),
+            f(14369536937790421964),
         ]
     );
     assert_eq!(
@@ -62,18 +62,18 @@ fn native_commitment_matches_the_reference_permutation() {
 }
 
 #[test]
-fn pow7_assigns_all_powers_and_rejects_tampering() {
-    let gadget = Pow7 {
+fn pow3_assigns_all_powers_and_rejects_tampering() {
+    let gadget = Pow3 {
         expression: [(1, F::ONE)],
-        powers: [2, 3, 4, 5],
+        powers: [2, 3],
     };
     let mut builder = R1csBuilder::new(1, ONE).unwrap();
-    gadget.push_constraints(&mut builder.tagged(ConstraintTag::new("x^7", "test")));
-    let relation = builder.build(&test_columns(6)).unwrap();
-    let mut assignment = vec![F::ONE, F::from_u64(9), F::ZERO, F::ZERO, F::ZERO, F::ZERO];
+    gadget.push_constraints(&mut builder.tagged(ConstraintTag::new("x^3", "test")));
+    let relation = builder.build(&test_columns(4)).unwrap();
+    let mut assignment = vec![F::ONE, F::from_u64(9), F::ZERO, F::ZERO];
     gadget.assign(&mut assignment);
     assert_satisfied(&relation, &assignment);
-    assignment[5] += F::ONE;
+    assignment[3] += F::ONE;
     assert!(check_ccs_rowwise_zero(relation.structure(), &assignment[..1], &assignment[1..]).is_err());
 }
 
@@ -86,8 +86,8 @@ fn selectable_rounds_match_the_native_round_functions() {
     const FULL_AFTER: usize = STATE_BEFORE + 12;
     const PARTIAL_AFTER: usize = FULL_AFTER + 12;
     const FULL_POWERS: usize = PARTIAL_AFTER + 12;
-    const PARTIAL_POWERS: usize = FULL_POWERS + 48;
-    const WIDTH: usize = PARTIAL_POWERS + 8;
+    const PARTIAL_POWERS: usize = FULL_POWERS + 24;
+    const WIDTH: usize = PARTIAL_POWERS + 4;
 
     let before = core::array::from_fn(|lane| STATE_BEFORE + lane);
     let full_after = core::array::from_fn(|lane| FULL_AFTER + lane);
@@ -99,13 +99,16 @@ fn selectable_rounds_match_the_native_round_functions() {
         ],
         state_before: before,
         state_after: full_after,
-        powers: core::array::from_fn(|lane| core::array::from_fn(|power| FULL_POWERS + 4 * lane + power)),
+        powers: core::array::from_fn(|lane| core::array::from_fn(|power| FULL_POWERS + 2 * lane + power)),
     };
-    let partial = Poseidon2PartialPair12 {
-        choices: [Poseidon2PartialPairChoice::for_pair(SELECT_PARTIAL, 5)],
+    let partial = Poseidon2PartialRounds12 {
+        choices: [Poseidon2PartialRoundsChoice::for_first_round(SELECT_PARTIAL, 10)],
         state_before: before,
         state_after: partial_after,
-        powers: core::array::from_fn(|offset| PARTIAL_POWERS + offset),
+        powers: vec![
+            [PARTIAL_POWERS, PARTIAL_POWERS + 1],
+            [PARTIAL_POWERS + 2, PARTIAL_POWERS + 3],
+        ],
     };
     let mut builder = R1csBuilder::new(1, ONE).unwrap();
     let mut tagged = builder.tagged(ConstraintTag::new("round", "test"));
@@ -123,7 +126,8 @@ fn selectable_rounds_match_the_native_round_functions() {
     let mut expected_full = before.map(|column| assignment[column]);
     apply_full_round(0, &mut expected_full);
     let mut expected_partial = before.map(|column| assignment[column]);
-    apply_partial_pair(5, &mut expected_partial);
+    apply_partial_round(10, &mut expected_partial);
+    apply_partial_round(11, &mut expected_partial);
     for lane in 0..12 {
         assignment[full_after[lane]] = expected_full[lane];
         assignment[partial_after[lane]] = expected_partial[lane];
@@ -160,7 +164,7 @@ fn selectable_rounds_match_the_native_round_functions() {
         ambiguous[before[lane]] = F::from_u64(500 + lane as u64);
     }
     let mut blended = core::array::from_fn(|lane| {
-        sbox7(ambiguous[before[lane]] + full_round_constants(0)[lane] + full_round_constants(7)[lane])
+        sbox3(ambiguous[before[lane]] + full_round_constants(0)[lane] + full_round_constants(7)[lane])
     });
     external_linear(&mut blended);
     for lane in 0..12 {
@@ -190,9 +194,9 @@ fn unrolled_commitment_matches_native_and_retains_one_semantic_occurrence() {
     let relation = builder.build(&test_columns(WIDTH)).unwrap();
 
     assert_eq!(gadget.auxiliary_range(), AUXILIARY..WIDTH);
-    // 12 premix + 8 × (48 S-box + 12 output) + 11 × (8 S-box + 12 output)
-    // + 4 feed-forward rows.
-    assert_eq!(relation.structure().n(), 716);
+    // 12 premix + 8 × (24 S-box + 12 output) + 21 × (4 S-box + 12 output)
+    // + (2 S-box + 12 output) + 4 feed-forward rows.
+    assert_eq!(relation.structure().n(), 654);
     let [occurrence] = relation.catalog().gadget_occurrences() else {
         panic!("the composite must retain one semantic occurrence, not its internal rounds")
     };
@@ -237,8 +241,8 @@ fn grouped_round_order_matches_the_native_permutation() {
     for round in 0..4 {
         apply_full_round(round, &mut state);
     }
-    for pair in 0..11 {
-        apply_partial_pair(pair, &mut state);
+    for round in 0..43 {
+        apply_partial_round(round, &mut state);
     }
     for round in 4..8 {
         apply_full_round(round, &mut state);

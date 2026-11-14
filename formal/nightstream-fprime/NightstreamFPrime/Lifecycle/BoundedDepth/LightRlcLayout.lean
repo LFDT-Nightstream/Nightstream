@@ -207,8 +207,8 @@ light case of `stepHolds_iff`) for the relation of any circuit key. -/
 theorem foldHolds (relation target : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (slot : SlotClaim logicalWidth publicFits) (fresh : StepFresh logicalWidth publicFits)
-    (proof : Spec.Folding.Light.Proof LightShape 8)
-    (piccsInterface : LightPiCCSLayout.Interface logicalWidth 8 publicFits) (piccsOffset : Nat)
+    (proof : Spec.Folding.Light.Proof LightShape 4)
+    (piccsInterface : LightPiCCSLayout.Interface logicalWidth 4 publicFits) (piccsOffset : Nat)
     (rlcInterface : Interface logicalWidth publicFits) (rlcOffset : Nat) (env : Env)
     (piccsAssumptions : LightPiCCSLayout.Assumptions relation piccsInterface piccsOffset env)
     (piccsRows : holds env

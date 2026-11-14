@@ -7,8 +7,9 @@ control is accepted. The algorithms differ from derive.py on purpose:
 Lucas primality and trial division instead of Miller-Rabin, the
 characteristic polynomial by interpolation of det(xI - A) instead of
 Faddeev-LeVerrier, Berlekamp's rank test instead of Rabin's test, a round
-number search without the reference script's loop quirk, and the p3-style
-light linear layers instead of dense matrices.
+number search without the reference script's loop quirk, the resultant bound
+by real logarithms, a Grain LFSR on an integer register instead of a bit list,
+and the p3-style light linear layers instead of dense matrices.
 """
 
 import glob
@@ -103,6 +104,48 @@ def round_numbers(p, t, d):
         for rf in range(4, 100, 2)
         if secure(p, t, d, rf, rp)
     )[1:]
+
+
+def resultant_secure(d, rf, rp, m=128):
+    """ePrint 2026/1905 section 6: d^(2.5 (R_F - 1) + 1.5 R_P) >= 2^m."""
+    return (2.5 * (rf - 1) + 1.5 * rp) * math.log2(d) >= m
+
+
+def instance_rounds(p, t, d):
+    rf, rp = round_numbers(p, t, d)
+    while not resultant_secure(d, rf, rp):
+        rp += 1
+    return rf, rp
+
+
+def grain_words(p, t, rf, rp, count):
+    """The reference Grain LFSR as an 80-bit integer, bit 79 the oldest:
+    b_80 = b_62 + b_51 + b_38 + b_23 + b_13 + b_0, 160 clocks discarded,
+    self-shrinking output pairs, n-bit words most significant bit first,
+    words >= p rejected."""
+    n = p.bit_length()
+    register = (((((1 << 4 | 0) << 12 | n) << 12 | t) << 10 | rf) << 10 | rp) << 30 | (1 << 30) - 1
+
+    def clock():
+        nonlocal register
+        bit = 0
+        for tap in (0, 13, 23, 38, 51, 62):
+            bit ^= register >> (79 - tap) & 1
+        register = (register << 1 | bit) & ((1 << 80) - 1)
+        return bit
+
+    for _ in range(160):
+        clock()
+    words = []
+    while len(words) < count:
+        value = 0
+        for _ in range(n):
+            while not clock():
+                clock()
+            value = value << 1 | clock()
+        if value < p:
+            words.append(value)
+    return words
 
 
 def laplace_det(a):
@@ -290,6 +333,12 @@ def plonky3_goldilocks_kat(m4):
                         rows(block("GOLDILOCKS_POSEIDON2_RC_12_EXTERNAL_FINAL")), 7, GOLDILOCKS)
     report(len(expected) == 12 and got == expected,
            "light permutation with this M4 reproduces the p3-goldilocks 0.5.3 width-12 known answer")
+    grain = grain_words(GOLDILOCKS, 12, 8, 22, 8 * 12 + 22)
+    published = (block("GOLDILOCKS_POSEIDON2_RC_12_EXTERNAL_INITIAL") + block("GOLDILOCKS_POSEIDON2_RC_12_INTERNAL")
+                 + block("GOLDILOCKS_POSEIDON2_RC_12_EXTERNAL_FINAL"))
+    report(grain == published,
+           "positive control: the Grain LFSR on Goldilocks (t = 12, R_F = 8, R_P = 22) gives the 118 "
+           "p3-goldilocks 0.5.3 width-12 round constants")
 
 
 def check_instance(inst, m4, q, vectors, suffix):
@@ -297,20 +346,25 @@ def check_instance(inst, m4, q, vectors, suffix):
     tag = f"t={t}:"
     report(int(inst["q"]) == q, f"{tag} instance q matches the field")
     report(math.gcd(d, q - 1) == 1, f"{tag} gcd(d={d}, q - 1) = 1, so x^{d} is a permutation")
-    report(round_numbers(q, t, d) == (rf, rp),
-           f"{tag} (R_F, R_P) = ({rf}, {rp}) is the cheapest 128-bit choice with margin")
+    reference = round_numbers(q, t, d)
+    report(instance_rounds(q, t, d) == (rf, rp) and reference[0] == rf,
+           f"{tag} (R_F, R_P) = ({rf}, {rp}): the reference rule with margin gives {reference}, and R_P = {rp} "
+           f"is the least R_P at or above it with d^(2.5 (R_F - 1) + 1.5 R_P) >= 2^128")
+    negative_control(not resultant_secure(d, rf, rp - 1),
+                     f"{tag} the resultant bound at R_P = {rp - 1}")
     report(label == f"Nightstream/Poseidon2/q=2^64-59/t={t}/d={d}/rf={rf}/rp={rp}/v1",
            f"{tag} label binds q, t, d, R_F, R_P")
 
-    stream = field_elements(label, rf * t + rp, q)
-    initial = [stream[i * t:(i + 1) * t] for i in range(rf // 2)]
-    terminal = [stream[(rf // 2 + i) * t:(rf // 2 + i + 1) * t] for i in range(rf // 2)]
-    internal = stream[rf * t:]
+    stream = grain_words(q, t, rf, rp, rf * t + rp)
+    half = rf // 2 * t
+    initial = [stream[i:i + t] for i in range(0, half, t)]
+    internal = stream[half:half + rp]
+    terminal = [stream[i:i + t] for i in range(half + rp, len(stream), t)]
     stored = ([[int(v) for v in row] for row in inst["external_initial"]],
               [int(v) for v in inst["internal"]],
               [[int(v) for v in row] for row in inst["external_terminal"]])
     report(stored == (initial, internal, terminal),
-           f"{tag} {rf * t + rp} round constants regenerate from SHAKE128(label)")
+           f"{tag} {rf * t + rp} round constants regenerate from the Grain LFSR in round order")
     tampered = json.loads(json.dumps(stored))
     tampered[1][0] = (tampered[1][0] + 1) % q
     negative_control(tuple(tampered) != (initial, internal, terminal),

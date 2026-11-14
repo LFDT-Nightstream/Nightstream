@@ -40,7 +40,7 @@ fn packed_pairs_are_checked_in_both_fold_relations_and_after_recommitment() {
         } else {
             packages.refresh()
         };
-        let companion = package.sbox_start() + 150 * package.block_count();
+        let companion = package.sbox_start() + 171 * package.block_count();
         let (coordinate, kind) = package.layout().unwrap().slot(companion).unwrap();
         assert_eq!(kind.width(), 1);
         let mut changed = envelope.clone();

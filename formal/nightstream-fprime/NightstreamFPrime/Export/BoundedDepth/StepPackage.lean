@@ -205,11 +205,11 @@ theorem blocks_packageSpec :
 
 /-! ### The witness program -/
 
-/-- The column ranges that Rust fills natively: each block's 1,096 locals (outputs by the
+/-- The column ranges that Rust fills natively: each block's 1,174 locals (outputs by the
 permutation, the rest unused) and each ring piece's outputs (prior plus challenge times value). -/
 def nativeRanges (pieces : List Piece) : List (Nat × Nat) :=
   pieces.filterMap fun
-    | .permutation start _ => some (start, start + 1096)
+    | .permutation start _ => some (start, start + 1174)
     | .ringProduct cells start _ => some (start, start + ringDegree * cells)
     | .constraint _ => none
 
@@ -323,7 +323,7 @@ def PackagePiece.reads : PackagePiece → List Nat
 
 /-- A block's 16 output locals. The relation reads their forms, so they have no slot. -/
 def PackagePiece.outputs : PackagePiece → List Nat
-  | .block start _ => List.range' (start + 1080) 16
+  | .block start _ => List.range' (start + 1158) 16
   | _ => []
 
 /-- The columns that the rows of a rows piece force to 0 or 1 (`SlotLayout.forcedColumn?`). -/
@@ -364,7 +364,7 @@ and the slot is a bit only if `bits` names the column and a row forces it to 0 o
 row reads its dead locals, and each row reads the form of an output local. -/
 def runsOf (publicColumns sboxStart : Nat) (pieces : List PackagePiece) (bits : List Nat) :
     List (Nat × Nat × Nat) :=
-  let size := sboxStart + 150 * (pieces.filterMap PackagePiece.block?).length
+  let size := sboxStart + 171 * (pieces.filterMap PackagePiece.block?).length
   let empty := Array.replicate size false
   let code := slotCode sboxStart
     (pieces.foldl (fun mask piece => SlotLayout.markColumns mask piece.reads) empty)

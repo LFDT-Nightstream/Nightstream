@@ -1,5 +1,5 @@
 //! Poseidon2 over `F_q`, `q = 2^64 − 59` (`decisions/poseidon2-p64-instance.md`).
-//! The layers and the order of the constants are those of `p3-poseidon2`.
+//! The layers are those of `p3-poseidon2`.
 
 use neo_math::Fq;
 use p3_field::{InjectiveMonomial, PrimeCharacteristicRing};
@@ -9,7 +9,10 @@ pub use super::poseidon2_constants::{INSTANCE_12, INSTANCE_16};
 pub use neo_params::poseidon2::{CAPACITY, DIGEST_LEN, RATE, WIDTH};
 
 pub const HALF_FULL_ROUNDS: usize = 4;
-pub const PARTIAL_ROUNDS: usize = 22;
+pub const PARTIAL_ROUNDS: usize = 43;
+/// The S-box `x ↦ x^3` (Lean `Spec.Poseidon2.sbox_eq_pow`). It is also the
+/// degree of the S-box term of the step-circuit gate.
+pub const SBOX_DEGREE: u64 = 3;
 
 /// The constants of one width. `scripts/poseidon2/emit_rust.py` writes the
 /// two instances from `scripts/poseidon2/params.json`.
@@ -24,7 +27,7 @@ pub struct Instance<const T: usize> {
 
 #[inline(always)]
 fn sbox(x: Fq) -> Fq {
-    InjectiveMonomial::<7>::injective_exp_n(&x)
+    InjectiveMonomial::<3>::injective_exp_n(&x)
 }
 
 impl<const T: usize> Instance<T> {

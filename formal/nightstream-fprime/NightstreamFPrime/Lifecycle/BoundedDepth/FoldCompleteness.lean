@@ -91,7 +91,7 @@ theorem light_folds (key : CircuitKey logicalWidth publicFits)
       (witness.assignments (keys key.relation ajtai).light.runningSource))
     (truth : LightUniqueness.Truth ajtai key.relation (LightFork.runningOf start)
       (freshToLight fresh) witness) :
-    ∃ (proof : Light.Proof LightShape 8) (folded : SlotClaim logicalWidth publicFits)
+    ∃ (proof : Light.Proof LightShape 4) (folded : SlotClaim logicalWidth publicFits)
       (foldedWitness : PaperAlgebra.Assignment (logicalWidth := logicalWidth)
         (publicFits := publicFits)),
       BoundedDepthFolds.folds .light (keys key.relation ajtai) (toClaim (key.system ajtai) start) fresh
@@ -109,7 +109,7 @@ theorem light_folds (key : CircuitKey logicalWidth publicFits)
     (Fidelity.deployedOracle_deployed (logicalWidth := logicalWidth) (publicFits := publicFits)).1
   obtain ⟨rounds, honest⟩ := Light.complete (keys key.relation ajtai).light
     (LightFork.runningOf start) (freshToLight fresh) witness bound freshOpening runningOpening truth
-  let proof : Light.Proof LightShape 8 :=
+  let proof : Light.Proof LightShape 4 :=
     { piCcsRounds := rounds
       piCcsOutput := FullOutputCoordinates.FullOutput.honestAt
         (keys key.relation ajtai).light.baseOps (keys key.relation ajtai).light.extensionOps
@@ -306,7 +306,7 @@ theorem light_folds_of_holds (key : CircuitKey logicalWidth publicFits)
       (publicFits := publicFits))
     (slot : ForkLink.SlotHolds ajtai key bound claim running)
     (freshHolds : UniquenessLink.FreshHolds ajtai key fresh freshWitness) :
-    ∃ (proof : Light.Proof LightShape 8) (folded : SlotClaim logicalWidth publicFits)
+    ∃ (proof : Light.Proof LightShape 4) (folded : SlotClaim logicalWidth publicFits)
       (foldedWitness : PaperAlgebra.Assignment (logicalWidth := logicalWidth)
         (publicFits := publicFits)),
       BoundedDepthFolds.folds .light (keys key.relation ajtai) (toClaim (key.system ajtai) claim) fresh

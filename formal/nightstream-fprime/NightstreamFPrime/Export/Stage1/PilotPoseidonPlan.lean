@@ -140,7 +140,7 @@ def outputInterface {program : Lifecycle.Stage1.Application.Program}
     (PiRLCRetainedGeometry.outputPoseidonFits (prefixGeometry geometry))
     (oneColumn geometry) (outputInputState geometry)
 
-theorem familyRowCount_le : invocationCount * 150 ≤
+theorem familyRowCount_le : invocationCount * 171 ≤
     2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   rw [invocationCount_eq]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
@@ -171,7 +171,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
 
 @[simp] theorem plan_rowCount {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
-    (plan geometry).rowCount = 633300 := by
+    (plan geometry).rowCount = 721962 := by
   simp [plan, priorPlan, outputPlan, invocationCount_eq]
 
 theorem rowsZero_iff {program : Lifecycle.Stage1.Application.Program}

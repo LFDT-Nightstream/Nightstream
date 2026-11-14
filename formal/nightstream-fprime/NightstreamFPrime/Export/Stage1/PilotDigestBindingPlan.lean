@@ -37,8 +37,8 @@ def lastInvocation : Fin PilotPoseidonPlan.invocationCount :=
     rw [PilotPoseidonPlan.invocationCount_eq]
     omega⟩
 
-def finalSlot (lane : Fin laneCount) : Fin 1096 :=
-  ⟨1080 + lane.val, by
+def finalSlot (lane : Fin laneCount) : Fin 1174 :=
+  ⟨1158 + lane.val, by
     have laneBound := lane.isLt
     change lane.val < 4 at laneBound
     omega⟩

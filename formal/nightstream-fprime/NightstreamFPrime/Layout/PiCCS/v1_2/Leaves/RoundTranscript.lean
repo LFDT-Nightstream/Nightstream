@@ -371,13 +371,13 @@ theorem physicalRowCount_eq
             degreeBound :=
   (footprint interface inputs).physicalRowCount_eq offset
 
-theorem physicalRowCount_eq_of_degreeBound_eq_eight
+theorem physicalRowCount_eq_of_degreeBound_eq_four
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (inputs : ∀ offset,
       InputsAffine (Formal.roundTranscriptInterface interface) offset)
-    (offset : Nat) (degreeBound_eq : degreeBound = 8) :
+    (offset : Nat) (degreeBound_eq : degreeBound = 4) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.roundTranscriptCircuit interface).main offset)) = 61376 := by
+      (Formal.roundTranscriptCircuit interface).main offset)) = 32872 := by
   rw [physicalRowCount_eq interface inputs offset, degreeBound_eq]
   rfl
 

@@ -6,7 +6,7 @@ import NightstreamFPrime.Layout.BoundedDepth.LightStepBounds
 and selector (5), the key digests (8), the start, current and next states (12), the application
 witness, seven slots (7 × 2,169, each in the order of `SlotExpr.words`: the prior, active, inner
 and next slots), the slot and output digests (20), the fresh instance (1,472), the round messages
-(504), the Π_CCS output of both sources (1,280), and the new, inner and active digests (16). The
+(280), the Π_CCS output of both sources (1,280), and the new, inner and active digests (16). The
 light rows read the active slot's words only; the prior, inner and next slots keep the shared-word
 prefix equal to the refresh step's. The step's gadgets start at
 `sharedEnd`. -/
@@ -55,7 +55,7 @@ def digestsStart (base witnessWordCount : Nat) : Nat :=
   slotsStart base witnessWordCount + 7 * slotWordCount
 def freshStart (base witnessWordCount : Nat) : Nat := digestsStart base witnessWordCount + 20
 def roundsStart (base witnessWordCount : Nat) : Nat := freshStart base witnessWordCount + 1472
-def outputStart (base witnessWordCount : Nat) : Nat := roundsStart base witnessWordCount + 504
+def outputStart (base witnessWordCount : Nat) : Nat := roundsStart base witnessWordCount + 280
 /-- The digest select's 16 words: the new slot's digest, each slot's inner digest, then the
 active slot's digest. -/
 def digestSelectStart (base witnessWordCount : Nat) : Nat :=
@@ -65,7 +65,7 @@ def digestSelectStart (base witnessWordCount : Nat) : Nat :=
 def sharedEnd (base witnessWordCount : Nat) : Nat := digestSelectStart base witnessWordCount + 16
 
 theorem sharedEnd_eq (base witnessWordCount : Nat) :
-    sharedEnd base witnessWordCount = base + witnessWordCount + 18500 := by
+    sharedEnd base witnessWordCount = base + witnessWordCount + 18276 := by
   simp only [sharedEnd, digestSelectStart, outputStart, roundsStart, freshStart, digestsStart,
     slotsStart, witnessStart, slotWordCount]
   omega
@@ -98,7 +98,7 @@ def interface (base witnessWordCount : Nat) :
     ⟨fun _ row lane => .var (freshStart base witnessWordCount + row.val * ringDegree + lane.val),
       fun _ column => .var (freshStart base witnessWordCount + 1152 + column.val)⟩
   round := fun roundIndex => ⟨fun coefficient =>
-    kAt (roundsStart base witnessWordCount + 2 * (roundIndex.val * 9 + coefficient.val))⟩
+    kAt (roundsStart base witnessWordCount + 2 * (roundIndex.val * 5 + coefficient.val))⟩
   output := ⟨fun source coefficient =>
       kAt (outputStart base witnessWordCount + 2 * (source.val * 320 + coefficient.val)),
     fun source matrix coefficient =>
@@ -346,7 +346,7 @@ theorem rows_implies_stepHolds (program : Stage1.Application.Program)
     (rows : holds env (Circuit.ops (LightStepLayout.main program relation circuit
       (interface base program.witnessWordCount)) (sharedEnd base program.witnessWordCount)))
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-    (proof : Spec.Folding.Light.Proof LightShape 8)
+    (proof : Spec.Folding.Light.Proof LightShape 4)
     (represents : LightStepSoundness.StepRepresents program
       (interface base program.witnessWordCount) ajtai circuitKeys circuit input output proof env)
     (next : output.runningNext = DigestSelect.nextSlots input.iteration input.running

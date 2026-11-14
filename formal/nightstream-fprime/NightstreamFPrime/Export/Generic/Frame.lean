@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Generic.Pieces
 
 /-! The frame of packed Poseidon2 blocks (CW-5.8). A packed block keeps only its 16 output locals
-live; the packed rows do not constrain its other 1,080 locals (S-box powers and linear-layer
+live; the packed rows do not constrain its other 1,158 locals (S-box powers and linear-layer
 states), which are dead. `complete` refills each block's locals with the honest trace
 (`Pilot.completePermutationInvocationEnv`). When the blocks are separated, no lane reads a block's
 locals or a dead local (`Framed`, checked by `checkFrame`), and each block's outputs are the permutation
@@ -121,16 +121,16 @@ def Block.invocation (block : Block) : PermutationInvocation :=
     block.invocation.witnessStart = block.start :=
   rfl
 
-theorem outputLocalStart_eq : (PilotData.circuitPackage ()).permutation.outputLocalStart = 1080 :=
+theorem outputLocalStart_eq : (PilotData.circuitPackage ()).permutation.outputLocalStart = 1158 :=
   rfl
 
-/-- The block's 1,096 locals. -/
+/-- The block's 1,174 locals. -/
 def Block.covers (block : Block) (column : Nat) : Bool :=
-  block.start ≤ column && column < block.start + 1096
+  block.start ≤ column && column < block.start + 1174
 
-/-- The block's dead locals: all but the 16 output lanes from local 1,080. -/
+/-- The block's dead locals: all but the 16 output lanes from local 1,158. -/
 def Block.dead (block : Block) (column : Nat) : Bool :=
-  block.start ≤ column && column < block.start + 1080
+  block.start ≤ column && column < block.start + 1158
 
 def deadIn (blocks : List Block) (column : Nat) : Bool :=
   blocks.any fun block => block.dead column
@@ -141,14 +141,14 @@ def Block.input (block : Block) (env : Env) (lane : Fin 16) : F :=
 
 /-- The block's output lanes in `env`. -/
 def Block.output (block : Block) (env : Env) (lane : Fin 16) : F :=
-  env (block.start + 1080 + lane.val)
+  env (block.start + 1158 + lane.val)
 
 /-- Every block's outputs are the permutation of its inputs. -/
 def OutputsHold (blocks : List Block) (env : Env) : Prop :=
   ∀ block ∈ blocks, block.output env = Permutation.runF Permutation.schedule (block.input env)
 
 def Separated (first second : Block) : Prop :=
-  first.start + 1096 ≤ second.start ∨ second.start + 1096 ≤ first.start
+  first.start + 1174 ≤ second.start ∨ second.start + 1174 ≤ first.start
 
 structure Framed (blocks : List Block) : Prop where
   separated : blocks.Pairwise Separated
@@ -160,7 +160,7 @@ structure Framed (blocks : List Block) : Prop where
 
 def ordered : List Block → Bool
   | first :: second :: rest =>
-      decide (first.start + 1096 ≤ second.start) && ordered (second :: rest)
+      decide (first.start + 1174 ≤ second.start) && ordered (second :: rest)
   | _ => true
 
 def checkFrame (blocks : List Block) : Bool :=
@@ -168,7 +168,7 @@ def checkFrame (blocks : List Block) : Bool :=
     (linear? lane).isSome && avoids (fun column => block.covers column || deadIn blocks column) lane
 
 theorem ordered_pairwise : ∀ blocks : List Block, ordered blocks = true →
-    blocks.Pairwise fun first second => first.start + 1096 ≤ second.start
+    blocks.Pairwise fun first second => first.start + 1174 ≤ second.start
   | [], _ => List.Pairwise.nil
   | [_], _ => List.pairwise_singleton _ _
   | first :: second :: rest, check => by
@@ -261,7 +261,7 @@ theorem inputsOutside (frame : Framed blocks) {block : Block} (member : block �
     ∀ lane : Fin 16,
       ∀ term ∈ (invocationInputCombination block.invocation lane.val).toR1CS.terms,
         term.1 < block.invocation.witnessStart ∨
-          block.invocation.witnessStart + 1096 ≤ term.1 := by
+          block.invocation.witnessStart + 1174 ≤ term.1 := by
   intro lane term member'
   simp only [invocationInputCombination, Block.invocation, Pieces.invocation,
     SparseCombination.toR1CS, List.mem_map] at member'
@@ -285,7 +285,7 @@ theorem inputsOutside (frame : Framed blocks) {block : Block} (member : block �
 theorem completed_holds (frame : Framed blocks) {block : Block} (member : block ∈ blocks)
     (env : Env) :
     AgreesOutside env (Pilot.completePermutationInvocationEnv block.invocation env)
-        block.start 1096 ∧
+        block.start 1174 ∧
       PermutationInvocationHolds (PilotData.circuitPackage ()) block.invocation
         (Pilot.completePermutationInvocationEnv block.invocation env) :=
   Pilot.completePermutationInvocation block.invocation env (inputsOutside frame member)
@@ -316,8 +316,8 @@ theorem complete_live (frame : Framed blocks) {env : Env} (outputs : OutputsHold
     simp only [complete, find?_covers frame member covers]
     simp only [Block.covers, Block.dead, Bool.and_eq_true, Bool.and_eq_false_iff,
       decide_eq_true_eq, decide_eq_false_iff_not] at covers notDead
-    obtain ⟨lane, rfl⟩ : ∃ lane : Fin 16, column = block.start + 1080 + lane.val :=
-      ⟨⟨column - (block.start + 1080), by omega⟩, by simp only; omega⟩
+    obtain ⟨lane, rfl⟩ : ∃ lane : Fin 16, column = block.start + 1158 + lane.val :=
+      ⟨⟨column - (block.start + 1158), by omega⟩, by simp only; omega⟩
     have completed := completed_holds frame member env
     have honest := Pilot.canonicalPermutationInvocation_sound block.invocation _ completed.2
     rw [outputLocalStart_eq] at honest

@@ -49,7 +49,7 @@ structure Interface (logicalWidth : Nat)
   innerDigest : Fin 2 → Fin 4 → Expr
   activeDigest : Fin 4 → Expr
   fresh : StatementAbsorption.FreshExpr logicalWidth publicFits
-  round : Fin productionShape.cubeVariables → RoundTranscript.Message 8
+  round : Fin productionShape.cubeVariables → RoundTranscript.Message 4
   output : OutputBinding.ShapeOutputExpr LightShape
 
 variable {logicalWidth : Nat}
@@ -150,14 +150,14 @@ def piccsOffset : Nat :=
   Formal.nextOffset (nextStateCircuit program circuit interface)
     (nextStateOffset program interface offset)
 
-def piccsInterface : LightPiCCSLayout.Interface logicalWidth 8 publicFits where
+def piccsInterface : LightPiCCSLayout.Interface logicalWidth 4 publicFits where
   runningPoint := fun _ => interface.active.point
   runningEvaluation := fun _ => interface.active.evaluation
   fresh := fun _ => interface.fresh
   round := fun _ => interface.round
   output := fun _ => interface.output
 
-def piccsLeaves : LightPiCCSPhase.Leaves logicalWidth 8 publicFits :=
+def piccsLeaves : LightPiCCSPhase.Leaves logicalWidth 4 publicFits :=
   LightPiCCSLayout.leaves relation (piccsInterface program interface)
     (piccsOffset program circuit interface offset)
 

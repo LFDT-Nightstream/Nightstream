@@ -98,7 +98,7 @@ theorem output_le :
   le_nextOffset _ _
 
 theorem roundsOffset_eq :
-    roundsOffset interface offset = challengeOffset interface offset + 4384 := by
+    roundsOffset interface offset = challengeOffset interface offset + 4696 := by
   unfold roundsOffset Formal.nextOffset Formal.childLength challengeCircuit
   rw [ChallengeDerivation.localLength_eq]
 
@@ -289,7 +289,7 @@ theorem finalIdentity :
   have roundsLe : roundsOffset interface offset ≤
       finalIdentityOffset relation interface offset :=
     Nat.le_trans (initial_le interface offset) initialLe
-  have normEq : normOffset relation interface offset = ccsOffset interface offset + 23 := by
+  have normEq : normOffset relation interface offset = ccsOffset interface offset + 11 := by
     unfold normOffset Formal.nextOffset Formal.childLength ccsCircuit
     rw [CcsTerminal.localLength_eq]
     rfl

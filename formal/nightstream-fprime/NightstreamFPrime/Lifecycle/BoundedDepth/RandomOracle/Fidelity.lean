@@ -139,7 +139,7 @@ variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   {oracle : LightFork.Oracle logicalWidth publicFits}
   (running : LightFork.Running logicalWidth publicFits)
-  (fresh : LightFork.Statement logicalWidth publicFits) (proof : Light.Proof LightShape 8)
+  (fresh : LightFork.Statement logicalWidth publicFits) (proof : Light.Proof LightShape 4)
 
 theorem light_probe_eq (deployed : DeployedOn oracle) :
     LightTest.oracleProbe relation ajtai running oracle fresh proof =

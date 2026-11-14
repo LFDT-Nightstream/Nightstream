@@ -54,7 +54,7 @@ section Types
 
 variable (logicalWidth publicFits)
 
-abbrev Oracle := Point (LightSchedule.schedule logicalWidth publicFits) 8 → Answer
+abbrev Oracle := Point (LightSchedule.schedule logicalWidth publicFits) 4 → Answer
 
 abbrev Running :=
   Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment
@@ -77,11 +77,11 @@ def first : Fin (LightSchedule.schedule logicalWidth publicFits).rhoCount :=
 
 /-- The light proof that the light game reads from a refresh proof. A refresh proof never
 passes the light game's fold verifiers, so the value does not matter. -/
-def placeholder : Light.Proof LightShape 8 :=
-  ⟨fun _ => ⟨List.replicate (8 + 1) K.zero, by simp⟩,
+def placeholder : Light.Proof LightShape 4 :=
+  ⟨fun _ => ⟨List.replicate (4 + 1) K.zero, by simp⟩,
     ⟨fun _ _ => K.zero, fun _ _ _ => K.zero⟩⟩
 
-def proofOf : StepProof → Light.Proof LightShape 8
+def proofOf : StepProof → Light.Proof LightShape 4
   | .light proof => proof
   | .refresh _ => placeholder
 
@@ -120,19 +120,19 @@ variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
 
 /-- The light `ρ` that the transcript at `fresh` and `proof` reads from `oracle`. -/
 noncomputable def challenge (oracle : Oracle logicalWidth publicFits)
-    (fresh : Statement logicalWidth publicFits) (proof : Light.Proof LightShape 8) : RingF :=
+    (fresh : Statement logicalWidth publicFits) (proof : Light.Proof LightShape 4) : RingF :=
   Fork.rho oracle fresh (LightSchedule.messages proof) first
 
 noncomputable def outputs (oracle : Oracle logicalWidth publicFits)
     (running : Running logicalWidth publicFits) (fresh : Statement logicalWidth publicFits)
-    (proof : Light.Proof LightShape 8) :=
+    (proof : Light.Proof LightShape 4) :=
   ((keys relation ajtai).light.statement running fresh).publicOutput
     (LightTest.oracleProbe relation ajtai running oracle fresh proof)
 
 /-- The light Π_RLC output (`Light.Key.outputFor`) on the oracle probe, at `ρ = rho`. -/
 noncomputable def outputFor (oracle : Oracle logicalWidth publicFits)
     (running : Running logicalWidth publicFits) (fresh : Statement logicalWidth publicFits)
-    (proof : Light.Proof LightShape 8) (rho : RingF) : Claim logicalWidth publicFits :=
+    (proof : Light.Proof LightShape 4) (rho : RingF) : Claim logicalWidth publicFits :=
   Light.Rlc.output (keys relation ajtai).light.piRlcAlgebra (keys relation ajtai).light.one rho
     (keys relation ajtai).light.relationSource
     (LightTest.oracleProbe relation ajtai running oracle fresh proof).coins.roundPoint
@@ -143,7 +143,7 @@ noncomputable def outputFor (oracle : Oracle logicalWidth publicFits)
 with the coins and `ρ` read from `oracle`. -/
 noncomputable def verify (oracle : Oracle logicalWidth publicFits)
     (running : Running logicalWidth publicFits) (fresh : Statement logicalWidth publicFits)
-    (proof : Light.Proof LightShape 8) : Option (Claim logicalWidth publicFits) :=
+    (proof : Light.Proof LightShape 4) : Option (Claim logicalWidth publicFits) :=
   if Light.PiCCS.check (keys relation ajtai).light.extensionOps (keys relation ajtai).light.lift
       ((keys relation ajtai).light.statement running fresh)
       (ProductionKey.degreeBound relation)
@@ -155,7 +155,7 @@ noncomputable def verify (oracle : Oracle logicalWidth publicFits)
 /-- A new answer at the `ρ` point leaves the oracle probe unchanged. -/
 theorem oracleProbe_update (oracle : Oracle logicalWidth publicFits)
     (running : Running logicalWidth publicFits) (fresh : Statement logicalWidth publicFits)
-    (proof : Light.Proof LightShape 8) (answer : Answer) :
+    (proof : Light.Proof LightShape 4) (answer : Answer) :
     LightTest.oracleProbe relation ajtai running
         (Function.update oracle (point fresh (LightSchedule.messages proof) (.rho first)) answer :
           Oracle logicalWidth publicFits)
@@ -169,7 +169,7 @@ theorem oracleProbe_update (oracle : Oracle logicalWidth publicFits)
 
 theorem outputFor_update (oracle : Oracle logicalWidth publicFits)
     (running : Running logicalWidth publicFits) (fresh : Statement logicalWidth publicFits)
-    (proof : Light.Proof LightShape 8) (answer : Answer) (rho : RingF) :
+    (proof : Light.Proof LightShape 4) (answer : Answer) (rho : RingF) :
     outputFor relation ajtai
         (Function.update oracle (point fresh (LightSchedule.messages proof) (.rho first)) answer)
         running fresh proof rho =
@@ -177,7 +177,7 @@ theorem outputFor_update (oracle : Oracle logicalWidth publicFits)
   simp only [outputFor, outputs, oracleProbe_update]
 
 theorem challenge_update (oracle : Oracle logicalWidth publicFits)
-    (fresh : Statement logicalWidth publicFits) (proof : Light.Proof LightShape 8)
+    (fresh : Statement logicalWidth publicFits) (proof : Light.Proof LightShape 4)
     (answer : Answer) :
     challenge
         (Function.update oracle (point fresh (LightSchedule.messages proof) (.rho first)) answer)
@@ -272,7 +272,7 @@ theorem succeeds_holds {key : CircuitKey logicalWidth publicFits}
 section Fork
 
 variable {key : CircuitKey logicalWidth publicFits}
-  {adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 8) Answer
+  {adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 4) Answer
     (Attempt logicalWidth publicFits)}
   {oracle : Oracle logicalWidth publicFits}
   {retries : Fin (LightSchedule.schedule logicalWidth publicFits).rhoCount → Answer}
@@ -293,8 +293,8 @@ theorem retry_holds (valid : Fork.ForkValid (game ajtai key) adversary oracle re
   have statementEq : freshToLight (Retry).link.fold.fresh = freshToLight (Base).link.fold.fresh :=
     valid.identifies.1
   have proofEq : proofOf (Retry).link.fold.proof = proofOf (Base).link.fold.proof :=
-    congrArg (fun messages : (LightSchedule.schedule logicalWidth publicFits).Messages 8 =>
-      (⟨messages.rounds, messages.output⟩ : Light.Proof LightShape 8)) valid.identifies.2
+    congrArg (fun messages : (LightSchedule.schedule logicalWidth publicFits).Messages 4 =>
+      (⟨messages.rounds, messages.output⟩ : Light.Proof LightShape 4)) valid.identifies.2
   have startEq : (Retry).link.start = (Base).link.start := valid.start_eq
   rw [statementEq, proofEq, startEq] at holds
   have outputEq : outputFor key.relation ajtai
@@ -422,7 +422,7 @@ end Fork
 section Bounds
 
 variable (key : CircuitKey logicalWidth publicFits)
-  (adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 8) Answer
+  (adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 4) Answer
     (Attempt logicalWidth publicFits))
 
 /-- The chance that the light retry gives a collision of the base and retry prior states. -/

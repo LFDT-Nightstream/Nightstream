@@ -35,8 +35,8 @@ def outputExpressions (start : Nat) : Step → EState → EState
 
 def outputStart (start : Nat) : Step → Nat
   | .initialLayer => start
-  | .initialFullRound _ | .terminalFullRound _ => start + 64
-  | .partialRound _ => start + 4
+  | .initialFullRound _ | .terminalFullRound _ => start + 32
+  | .partialRound _ => start + 2
 
 theorem stepRecipes_eq (start : Nat) (step : Step) (state : EState) :
     Permutation.stepRecipes start step state =
@@ -72,7 +72,7 @@ def directRowCount (step : Step) : Nat :=
   rfl
 
 theorem schedule_directRowCount :
-    (Permutation.schedule.map directRowCount).sum = 646 := by
+    (Permutation.schedule.map directRowCount).sum = 1003 := by
   rfl
 
 def Holds (env : Env) (start : Nat) (step : Step) (state : EState) : Prop :=
@@ -96,7 +96,7 @@ theorem rows_imply_holds (env : Env) (start : Nat) (step : Step)
       have splitRows :
           ConstraintsHold env (recipeConstraints start
             (sboxProgram start (.initialFullRound round) state).recipes) ∧
-          ConstraintsHold env (recipeConstraints (start + 64)
+          ConstraintsHold env (recipeConstraints (start + 32)
             (List.ofFn (outputExpressions start
               (.initialFullRound round) state))) := by
         rw [stepRecipes_eq, Permutation.recipeConstraints_append] at rows
@@ -104,24 +104,24 @@ theorem rows_imply_holds (env : Env) (start : Nat) (step : Step)
       constructor
       · exact Permutation.compileSboxes_sound env start _ splitRows.1
       · rw [stepOutput_eq]
-        exact Permutation.stateRows_sound env (start + 64) _ splitRows.2
+        exact Permutation.stateRows_sound env (start + 32) _ splitRows.2
   | partialRound round =>
       have splitRows :
           ConstraintsHold env (recipeConstraints start
             (sboxProgram start (.partialRound round) state).recipes) ∧
-          ConstraintsHold env (recipeConstraints (start + 4)
+          ConstraintsHold env (recipeConstraints (start + 2)
             (List.ofFn (outputExpressions start (.partialRound round) state))) := by
         rw [stepRecipes_eq, Permutation.recipeConstraints_append] at rows
         simpa using! (constraintsHold_append env _ _).mp rows
       constructor
       · exact Permutation.compileSboxes_sound env start _ splitRows.1
       · rw [stepOutput_eq]
-        exact Permutation.stateRows_sound env (start + 4) _ splitRows.2
+        exact Permutation.stateRows_sound env (start + 2) _ splitRows.2
   | terminalFullRound round =>
       have splitRows :
           ConstraintsHold env (recipeConstraints start
             (sboxProgram start (.terminalFullRound round) state).recipes) ∧
-          ConstraintsHold env (recipeConstraints (start + 64)
+          ConstraintsHold env (recipeConstraints (start + 32)
             (List.ofFn (outputExpressions start
               (.terminalFullRound round) state))) := by
         rw [stepRecipes_eq, Permutation.recipeConstraints_append] at rows
@@ -129,7 +129,7 @@ theorem rows_imply_holds (env : Env) (start : Nat) (step : Step)
       constructor
       · exact Permutation.compileSboxes_sound env start _ splitRows.1
       · rw [stepOutput_eq]
-        exact Permutation.stateRows_sound env (start + 64) _ splitRows.2
+        exact Permutation.stateRows_sound env (start + 32) _ splitRows.2
 
 private theorem fullSboxState_of_holds (env : Env) (start : Nat)
     (rows : List (List Nat)) (round : Nat) (state : EState)

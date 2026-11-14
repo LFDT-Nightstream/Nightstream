@@ -14,9 +14,12 @@ Layer conventions match p3-poseidon2 0.5.3 as p3-goldilocks 0.5.3 uses it:
 - M_E = circ(2 M4, M4, ..., M4) in 4x4 blocks, with M4 = MDSMat4.
 - M_I = J + diag(D), J the all-ones matrix: (M_I x)_i = D_i x_i + sum(x),
   as in p3 `matmul_internal`.
-- Round constants come from one SHAKE128 stream in the draw order of p3
-  `Poseidon2::new_from_rng`: initial full rounds (row by row), terminal
-  full rounds, then partial rounds.
+- Round constants come from the Grain LFSR of the Poseidon2 reference
+  generator (HorizenLabs poseidon2_rust_params.sage, `init_generator`,
+  `grain_sr_generator`, `generate_constants`) in its round order: initial
+  full rounds (row by row), partial rounds, then terminal full rounds.
+
+The instance is shared with ProtogaLattice (decisions/poseidon2-p64-instance.md).
 """
 
 import hashlib
@@ -34,7 +37,7 @@ MERSENNE31 = 2**31 - 1
 SECURITY_BITS = 128
 WIDTHS = (16, 12)
 CANDIDATE_DEGREES = (3, 5, 7)
-SBOX_DEGREE = 7
+SBOX_DEGREE = 3
 SBOX_MULTIPLICATIONS = {3: 2, 5: 3, 7: 4}
 
 MDS_MAT4 = ((2, 3, 1, 1), (1, 2, 3, 1), (1, 1, 2, 3), (3, 1, 1, 2))
@@ -63,6 +66,9 @@ DIAGONAL_RULE = (
     "for n = t, t+1, ...: for each (t-1)-subset S of indices 0..n-2 in itertools.combinations order: "
     "candidate D = [P[i] for i in S] + [P[n-1]]; the first candidate that passes all M_I checks is chosen"
 )
+
+GRAIN_FIELD, GRAIN_SBOX = 1, 0
+HL_GOLDILOCKS_RC8_HEAD = (0xdd5743e7f2a5a5d9, 0xcb3a864e58ada44b, 0xffa2449ed32f8cdc)
 
 HERE = Path(__file__).resolve().parent
 
@@ -146,6 +152,19 @@ def round_numbers(p, t, d, m=SECURITY_BITS):
                 if best is None or cost < best[0] or (cost == best[0] and rf_margin < best[1]):
                     best = (cost, rf_margin, rp)
     return best[1], best[2]
+
+
+def resultant_rounds(d, rf, rp, m=SECURITY_BITS):
+    """ePrint 2026/1905 section 6: the conservative bound on the bivariate
+    resultant attack is d^(2.5 (R_F - 1) + 1.5 R_P). The least R_P >= rp
+    that puts it at or above 2^m: d^(5 (R_F - 1) + 3 R_P) >= 2^(2m)."""
+    while d ** (5 * (rf - 1) + 3 * rp) < 2 ** (2 * m):
+        rp += 1
+    return rp
+
+
+def resultant_bits(d, rf, rp):
+    return (2.5 * (rf - 1) + 1.5 * rp) * math.log2(d)
 
 
 def det(matrix):
@@ -317,6 +336,48 @@ def find_diagonal(t):
     raise RuntimeError("no diagonal found")
 
 
+def grain_bits(n, t, rf, rp):
+    """The reference `grain_sr_generator` after `init_generator`: an 80-bit
+    state of field (2 bits), S-box (4), n (12), t (12), R_F (10), R_P (10) and
+    30 ones; 160 clocks are discarded; then each pair of output bits whose
+    first bit is 1 gives its second bit."""
+    state = [int(c) for c in (f"{GRAIN_FIELD:02b}{GRAIN_SBOX:04b}{n:012b}{t:012b}{rf:010b}{rp:010b}")]
+    state += [1] * 30
+
+    def clock():
+        bit = state[62] ^ state[51] ^ state[38] ^ state[23] ^ state[13] ^ state[0]
+        state.pop(0)
+        state.append(bit)
+        return bit
+
+    for _ in range(160):
+        clock()
+    while True:
+        if clock():
+            yield clock()
+        else:
+            clock()
+
+
+def grain_round_constants(p, t, rf, rp):
+    """The reference `generate_constants`: R_F t + R_P words of n bits, most
+    significant bit first, each word >= p rejected, in round order."""
+    n = p.bit_length()
+    bits = grain_bits(n, t, rf, rp)
+
+    def word():
+        while True:
+            value = int("".join(str(next(bits)) for _ in range(n)), 2)
+            if value < p:
+                return value
+
+    take = lambda count: [word() for _ in range(count)]
+    initial = [take(t) for _ in range(rf // 2)]
+    internal = take(rp)
+    terminal = [take(t) for _ in range(rf // 2)]
+    return initial, terminal, internal
+
+
 def field_stream(label):
     xof = hashlib.shake_128(label.encode("ascii"))
     offset, size = 0, 1024
@@ -328,14 +389,6 @@ def field_stream(label):
             if word < Q:
                 yield word
         size *= 2
-
-
-def round_constants(label, t, rf, rp):
-    stream = field_stream(label)
-    take = lambda count: list(islice(stream, count))
-    initial = [take(t) for _ in range(rf // 2)]
-    terminal = [take(t) for _ in range(rf // 2)]
-    return initial, terminal, take(rp)
 
 
 def permute(instance, state):
@@ -385,14 +438,23 @@ def main():
           "(64-bit rows also recomputed for q)")
     assert mismatches == 0
 
-    print("Round numbers over F_q, 128-bit security, with margin:")
+    print("Round numbers over F_q, 128-bit security: the reference rule with margin, then the "
+          "ePrint 2026/1905 resultant bound d^(2.5 (R_F - 1) + 1.5 R_P) >= 2^128:")
     rounds = {}
     for t in WIDTHS:
         for d in CANDIDATE_DEGREES:
-            rf, rp = rounds[t, d] = round_numbers(Q, t, d)
+            rf, reference = round_numbers(Q, t, d)
+            rp = resultant_rounds(d, rf, reference)
+            rounds[t, d] = rf, rp
             sboxes = t * rf + rp
-            print(f"  t={t} d={d}: R_F={rf} R_P={rp} S-boxes={sboxes} "
-                  f"multiplications={sboxes * SBOX_MULTIPLICATIONS[d]}")
+            print(f"  t={t} d={d}: reference R_F={rf} R_P={reference} (resultant bound "
+                  f"2^{resultant_bits(d, rf, reference):.1f}); chosen R_P={rp} (2^{resultant_bits(d, rf, rp):.1f}) "
+                  f"S-boxes={sboxes} multiplications={sboxes * SBOX_MULTIPLICATIONS[d]}")
+
+    head = grain_round_constants(GOLDILOCKS, 8, 8, 22)[0][0][:3]
+    print(f"Grain on Goldilocks t=8 (8, 22) starts {[hex(v) for v in head]}, "
+          f"HorizenLabs RC8 starts {[hex(v) for v in HL_GOLDILOCKS_RC8_HEAD]}")
+    assert tuple(head) == HL_GOLDILOCKS_RC8_HEAD
 
     print(f"M4 = MDSMat4 {M4} MDS over F_q: {is_mds(M4)}; HLMDSMat4 MDS over F_q: {is_mds(HL_MAT4)}")
     assert is_mds(M4) and math.gcd(SBOX_DEGREE, Q - 1) == 1
@@ -407,7 +469,7 @@ def main():
         print(f"  chosen D = {diag} after {tried} candidates")
         me = external_matrix(t)
         assert det(me) != 0
-        initial, terminal, internal = round_constants(label, t, rf, rp)
+        initial, terminal, internal = grain_round_constants(Q, t, rf, rp)
         instances.append({
             "q": str(Q), "t": t, "d": d, "rf": rf, "rp": rp, "label": label,
             "internal_diagonal": decimal_strings(diag),
@@ -432,8 +494,12 @@ def main():
         "m4": [list(row) for row in M4],
         "external_matrix": "circ(2 M4, M4, ..., M4) in 4x4 blocks (p3 mds_light_permutation)",
         "internal_matrix": "J + diag(internal_diagonal), (M_I x)_i = D_i x_i + sum(x) (p3 matmul_internal)",
-        "constant_order": "SHAKE128(label) as 8-byte little-endian words, words >= q rejected; "
-                          "external_initial row by row, then external_terminal, then internal",
+        "round_rule": "the Poseidon2 reference rule with margin gives R_F and a least R_P; R_P is then "
+                      "raised until d^(2.5 (R_F - 1) + 1.5 R_P) >= 2^128 (ePrint 2026/1905 section 6)",
+        "constant_order": "Grain LFSR of the Poseidon2 reference generator (poseidon2_rust_params.sage), "
+                          "initialized with field 1, S-box 0, n = 64, t, R_F, R_P; 64-bit words, most "
+                          "significant bit first, words >= q rejected; external_initial row by row, then "
+                          "internal, then external_terminal",
         "permutation": "x <- M_E x; rf/2 full rounds; rp partial rounds (S-box on lane 0); rf/2 full rounds",
         "diagonal_rule": DIAGONAL_RULE,
         "test_state_label_suffix": TEST_STATE_SUFFIX,

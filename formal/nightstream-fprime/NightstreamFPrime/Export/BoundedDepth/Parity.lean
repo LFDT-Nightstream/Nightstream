@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.BoundedDepth.StepPackage
 
 /-! Parity data for Rust's expansion of the step packages (CW-7.1). A circuit's plan
-(`CircuitRelation.plan`) is one plan row per row of `Package.relationRows`, followed by 150 S-box
+(`CircuitRelation.plan`) is one plan row per row of `Package.relationRows`, followed by 171 S-box
 rows per block (`PoseidonSboxFamilyPlan.plan`). Rust expands the relation rows itself: each
 package piece, the ring rows and the binding rows. `summary` gives their count and a checksum that
 mixes every entry with its row, port and column, so a Rust test that recomputes the checksum from
@@ -41,7 +41,7 @@ Rust fills a circuit's columns with the package's witness program and computes t
 itself: a block's outputs by the permutation of its lanes, a ring piece's outputs by the ring
 product. Lean fills them with every witness batch of the circuit, so the two compare when the shared
 columns agree. The shared columns are fixed pseudo-random words; column 0 is the constant 1. A
-block's 1,080 dead locals are left out, because Rust leaves them 0. -/
+block's 1,158 dead locals are left out, because Rust leaves them 0. -/
 
 def sharedWord (column : Nat) : F :=
   if column = 0 then 1 else
@@ -69,7 +69,7 @@ def runBatches (sharedEnd size : Nat) (batches : List WitnessBatch) : Array F :=
 
 def deadMask (size : Nat) (blocks : List Frame.Block) : Array Bool :=
   blocks.foldl (fun mask block =>
-      (List.range 1080).foldl (fun mask offset => mask.set! (block.start + offset) true) mask)
+      (List.range 1158).foldl (fun mask offset => mask.set! (block.start + offset) true) mask)
     (Array.replicate size false)
 
 /-- Every live column's value times `mix 0 column`. -/
@@ -106,7 +106,7 @@ def summary (width : Nat) (pieces : List Pieces.Piece) (next sharedEnd : Nat)
   let witness := witnessSum values (deadMask next blocks)
   let logical := logicalSum values
     (StepPackage.slotRuns CircuitRelation.publicColumns pieces next batches) next
-  .array [.atom rows.length, .atom (150 * blocks.length), .atom (ordinarySum width rows 0).val,
+  .array [.atom rows.length, .atom (171 * blocks.length), .atom (ordinarySum width rows 0).val,
     .atom sharedEnd, .atom witness.val, .atom logical.val]
 
 /-- Two small packages whose identity Lean computes (`StepPackage.identityFast`): a probe for

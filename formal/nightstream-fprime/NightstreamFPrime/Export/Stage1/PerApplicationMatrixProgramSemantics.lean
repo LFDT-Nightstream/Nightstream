@@ -54,7 +54,7 @@ theorem Exact.append {logicalWidth : Nat}
 structure SourceCustody (application : ApplicationProgram)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (sourceRow : Nat → Option R1CS.Row) : Prop where
-  piCcsOrdinary : ∀ index : Fin 38553, ∀ sourceIndex,
+  piCcsOrdinary : ∀ index : Fin 38205, ∀ sourceIndex,
     PiCCSOrdinaryMatrixProgram.rowSchedule.index? index.val =
         some sourceIndex →
       sourceRow sourceIndex = some

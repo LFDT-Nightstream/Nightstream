@@ -29,7 +29,7 @@ use crate::{commit, verify, Error};
 
 /// The blocks of the light relation of the Poseidon2 hash chain, which a
 /// test of `nightstream` compares with the relation.
-const LIGHT_BLOCKS: usize = 74_146;
+const LIGHT_BLOCKS: usize = 79_726;
 
 fn random_point(rng: &mut ChaCha8Rng, count: usize) -> Vec<K> {
     (0..count).map(|_| random_extension(rng)).collect()

@@ -11,7 +11,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Export.Package
 
 private def finalSboxes : Layer.EState :=
-  fun lane => .var (1035 + 4 * lane.val)
+  fun lane => .var (1143 + 2 * lane.val)
 
 private def finalPrefix : List Permutation.Step := Permutation.schedule.dropLast
 
@@ -19,12 +19,12 @@ private theorem schedule_split :
     Permutation.schedule = finalPrefix ++ [.terminalFullRound 3] := by
   rfl
 
-private theorem finalPrefix_start : 16 + Permutation.scheduleSize finalPrefix = 1032 := by
+private theorem finalPrefix_start : 16 + Permutation.scheduleSize finalPrefix = 1142 := by
   rfl
 
 private theorem finalPrefix_output :
     (Permutation.compile 16 PilotData.canonicalState finalPrefix).output =
-      Permutation.freshState 1016 := by
+      Permutation.freshState 1126 := by
   funext lane
   rfl
 
@@ -52,38 +52,38 @@ private theorem compile_suffix_rows (env : Env) (start : Nat) (state : Layer.ESt
 private theorem canonical_finalLayer_rows (env : Env)
     (rows : ConstraintsHold env (PilotData.canonicalConstraints ())) :
     ConstraintsHold env
-      (recipeConstraints 1096 (List.ofFn (Layer.externalE finalSboxes))) := by
+      (recipeConstraints 1174 (List.ofFn (Layer.externalE finalSboxes))) := by
   have suffixRows := compile_suffix_rows env 16 PilotData.canonicalState
     finalPrefix [.terminalFullRound 3] (by
       simpa only [PilotData.canonicalConstraints, PilotData.canonicalRecipes,
         schedule_split] using rows)
   have lastRows : ConstraintsHold env
-      (recipeConstraints 1032 (Permutation.stepRecipes 1032 (.terminalFullRound 3)
-        (Permutation.freshState 1016))) := by
+      (recipeConstraints 1142 (Permutation.stepRecipes 1142 (.terminalFullRound 3)
+        (Permutation.freshState 1126))) := by
     rw [finalPrefix_start, finalPrefix_output] at suffixRows
     change ConstraintsHold env
-      (recipeConstraints 1032
-        (Permutation.stepRecipes 1032 (.terminalFullRound 3)
-          (Permutation.freshState 1016) ++ [])) at suffixRows
+      (recipeConstraints 1142
+        (Permutation.stepRecipes 1142 (.terminalFullRound 3)
+          (Permutation.freshState 1126) ++ [])) at suffixRows
     simpa only [List.append_nil] using suffixRows
   rw [Permutation.stepRecipes, Permutation.recipeConstraints_append] at lastRows
   have externalRows := (Permutation.constraintsHold_append env _ _).mp lastRows |>.2
   simp only [Permutation.compileSboxes_recipes_length, Permutation.fullInputs,
     List.length_ofFn] at externalRows
-  have sboxesEq : Permutation.fullSboxState 1032 Spec.Poseidon2.terminalConstants 3
-      (Permutation.freshState 1016) = finalSboxes := by
+  have sboxesEq : Permutation.fullSboxState 1142 Spec.Poseidon2.terminalConstants 3
+      (Permutation.freshState 1126) = finalSboxes := by
     funext lane
     fin_cases lane <;> rfl
   simpa only [sboxesEq] using externalRows
 
 private theorem finalSbox_locals : ∀ lane : Fin 16,
     (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val =
-      1019 + 4 * lane.val := by
+      1127 + 2 * lane.val := by
   decide +kernel
 
 private theorem finalSbox_local (lane : Fin 16) :
     (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val =
-      1019 + 4 * lane.val :=
+      1127 + 2 * lane.val :=
   finalSbox_locals lane
 
 theorem canonical_finalLayer (env : Env)
@@ -91,7 +91,7 @@ theorem canonical_finalLayer (env : Env)
     Layer.evalState env (Permutation.scheduleOutput PoseidonScheduleTrace.inputCount) =
       Layer.externalF (fun lane => env
         (PoseidonRetainedSlots.rows.get (PoseidonRetainedSlots.finalRow lane)).step.output.val) := by
-  have state := Permutation.stateRows_sound env 1096
+  have state := Permutation.stateRows_sound env 1174
     (Layer.externalE finalSboxes) (canonical_finalLayer_rows env rows)
   have external : Layer.evalState env (Layer.externalE finalSboxes) =
       Layer.externalF (Layer.evalState env finalSboxes) := by
@@ -101,7 +101,7 @@ theorem canonical_finalLayer (env : Env)
   have sboxes : Layer.evalState env finalSboxes = fun lane => env
       (PoseidonRetainedSlots.rows.get (PoseidonRetainedSlots.finalRow lane)).step.output.val := by
     funext lane
-    change env (1035 + 4 * lane.val) = _
+    change env (1143 + 2 * lane.val) = _
     apply congrArg env
     rw [PoseidonRetainedSlots.output_eq_input_add_local, finalSbox_local]
     simp only [PoseidonScheduleTrace.inputCount]
@@ -112,7 +112,7 @@ theorem canonical_finalLayer (env : Env)
 theorem invocation_finalLayer (invocation : PermutationInvocation) (env : Env)
     (rows : PermutationInvocationHolds
       (PilotData.circuitPackage ()) invocation env) :
-    (fun lane : Fin 16 => env (invocation.witnessStart + 1080 + lane.val)) =
+    (fun lane : Fin 16 => env (invocation.witnessStart + 1158 + lane.val)) =
       Layer.externalF (fun lane => env
         (invocation.witnessStart +
           (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val)) := by
@@ -120,20 +120,20 @@ theorem invocation_finalLayer (invocation : PermutationInvocation) (env : Env)
   have logical := Pilot.canonicalPermutationInvocation_implies_constraints
     invocation env rows
   have finalRows : ConstraintsHold localEnv
-      (recipeConstraints 1096 (List.ofFn (Layer.externalE finalSboxes))) := by
+      (recipeConstraints 1174 (List.ofFn (Layer.externalE finalSboxes))) := by
     exact canonical_finalLayer_rows localEnv logical
-  have finalState := Permutation.stateRows_sound localEnv 1096
+  have finalState := Permutation.stateRows_sound localEnv 1174
     (Layer.externalE finalSboxes) finalRows
   have external : Layer.evalState localEnv (Layer.externalE finalSboxes) =
       Layer.externalF (Layer.evalState localEnv finalSboxes) := by
     funext lane
     exact Layer.eval_externalE localEnv finalSboxes lane
   rw [external] at finalState
-  have output : Layer.evalState localEnv (Permutation.freshState 1096) =
-      fun lane : Fin 16 => env (invocation.witnessStart + 1080 + lane.val) := by
+  have output : Layer.evalState localEnv (Permutation.freshState 1174) =
+      fun lane : Fin 16 => env (invocation.witnessStart + 1158 + lane.val) := by
     funext lane
-    change Pilot.canonicalInvocationEnv invocation env (1096 + lane.val) = _
-    have indexEq : 1096 + lane.val = 16 + (1080 + lane.val) := by omega
+    change Pilot.canonicalInvocationEnv invocation env (1174 + lane.val) = _
+    have indexEq : 1174 + lane.val = 16 + (1158 + lane.val) := by omega
     rw [indexEq, Pilot.canonicalInvocationEnv_local]
     congr 1
     omega
@@ -142,8 +142,8 @@ theorem invocation_finalLayer (invocation : PermutationInvocation) (env : Env)
         (invocation.witnessStart +
           (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val) := by
     funext lane
-    change Pilot.canonicalInvocationEnv invocation env (1035 + 4 * lane.val) = _
-    have indexEq : 1035 + 4 * lane.val = 16 + (1019 + 4 * lane.val) := by omega
+    change Pilot.canonicalInvocationEnv invocation env (1143 + 2 * lane.val) = _
+    have indexEq : 1143 + 2 * lane.val = 16 + (1127 + 2 * lane.val) := by omega
     rw [indexEq, Pilot.canonicalInvocationEnv_local, finalSbox_local]
   rw [output, sboxes] at finalState
   exact finalState

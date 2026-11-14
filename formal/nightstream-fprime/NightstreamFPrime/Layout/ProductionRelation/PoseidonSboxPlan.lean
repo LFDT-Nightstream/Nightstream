@@ -68,10 +68,10 @@ def SboxRowsZero {logicalWidth : Nat}
     (rows : List (SboxRow.Forms logicalWidth)) : Prop :=
   ∀ row ∈ rows, row.residual assignment = 0
 
-private theorem seventhPower_eq_sboxF (value : F) :
-    Spec.ProductionRelation.RowSemantics.seventhPower value =
+private theorem cube_eq_sboxF (value : F) :
+    Spec.ProductionRelation.RowSemantics.cube value =
       Layer.sboxF value := by
-  simp [Spec.ProductionRelation.RowSemantics.seventhPower,
+  simp [Spec.ProductionRelation.RowSemantics.cube,
     Spec.Folding.PiCCS.PaperJoint.CCSResidualTable.pow,
     Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.baseOps,
     Layer.sboxF, Spec.Poseidon2.sbox, mul_assoc]
@@ -101,7 +101,7 @@ theorem fullRowsZero_lane {logicalWidth : Nat}
     · dsimp only [forms]
   have semantic := (SboxRow.Forms.residual_zero_iff forms assignment _ _
     preserves).mp zero
-  rw [seventhPower_eq_sboxF] at semantic
+  rw [cube_eq_sboxF] at semantic
   exact semantic.symm
 
 theorem partialRowsZero_output {logicalWidth : Nat}
@@ -125,7 +125,7 @@ theorem partialRowsZero_output {logicalWidth : Nat}
     · dsimp only [forms]
   have semantic := (SboxRow.Forms.residual_zero_iff forms assignment _ _
     preserves).mp zero
-  rw [seventhPower_eq_sboxF] at semantic
+  rw [cube_eq_sboxF] at semantic
   exact semantic.symm
 
 structure StepResult (logicalWidth : Nat) where
@@ -292,7 +292,7 @@ def trace {logicalWidth : Nat} (interface : Interface logicalWidth) :
 
 def directOutput {logicalWidth : Nat} (interface : Interface logicalWidth) :
     State logicalWidth :=
-  SparseLayer.external (fullOutput interface 134)
+  SparseLayer.external (fullOutput interface 155)
 
 @[simp] theorem trace_state_eq_directOutput {logicalWidth : Nat}
     (interface : Interface logicalWidth) :
@@ -412,7 +412,7 @@ theorem sboxRowsZero_of_equations {logicalWidth : Nat}
       (forms.input.eval assignment) (forms.output.eval assignment) :=
     ⟨rfl, rfl⟩
   apply (SboxRow.Forms.residual_zero_iff forms assignment _ _ preserves).mpr
-  rw [seventhPower_eq_sboxF]
+  rw [cube_eq_sboxF]
   exact (equations forms member).symm
 
 theorem pinRowsZero_of_equations {logicalWidth : Nat}
@@ -505,12 +505,12 @@ theorem rowsZero_implies_permute {logicalWidth : Nat}
 
 @[simp] theorem trace_nextSbox {logicalWidth : Nat}
     (interface : Interface logicalWidth) :
-    (trace interface).nextSbox = 150 := by
+    (trace interface).nextSbox = 171 := by
   rfl
 
 @[simp] theorem trace_rows_length {logicalWidth : Nat}
     (interface : Interface logicalWidth) :
-    (trace interface).rows.length = 150 := by
+    (trace interface).rows.length = 171 := by
   rfl
 
 @[simp] theorem outputRows_length {logicalWidth : Nat}
@@ -520,7 +520,7 @@ theorem rowsZero_implies_permute {logicalWidth : Nat}
 
 @[simp] theorem rows_length {logicalWidth : Nat}
     (interface : Interface logicalWidth) :
-    (rows interface).length = 166 := by
+    (rows interface).length = 187 := by
   simp [rows]
 
 def plan {logicalWidth : Nat} (interface : Interface logicalWidth) :
@@ -533,7 +533,7 @@ def plan {logicalWidth : Nat} (interface : Interface logicalWidth) :
 
 @[simp] theorem plan_rowCount {logicalWidth : Nat}
     (interface : Interface logicalWidth) :
-    (plan interface).rowCount = 166 := by
+    (plan interface).rowCount = 187 := by
   simp [plan]
 
 theorem plan_rowImage_at {logicalWidth : Nat}

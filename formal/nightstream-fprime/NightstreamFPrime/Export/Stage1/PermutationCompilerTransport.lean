@@ -21,7 +21,7 @@ private theorem compileSboxes_eval_eq (leftEnv rightEnv : Env) :
     ∀ (leftStart rightStart : Nat) (leftValues rightValues : List Expr),
       leftValues.map (Expr.eval leftEnv) =
           rightValues.map (Expr.eval rightEnv) →
-      (∀ index, index < leftValues.length * 4 →
+      (∀ index, index < leftValues.length * 2 →
         leftEnv (leftStart + index) = rightEnv (rightStart + index)) →
       (Permutation.compileSboxes leftStart leftValues).recipes.map
           (Expr.eval leftEnv) =
@@ -50,50 +50,44 @@ private theorem compileSboxes_eval_eq (leftEnv rightEnv : Env) :
           have local1 := localsEq 1 (by
             simp only [List.length_cons]
             omega)
-          have local2 := localsEq 2 (by
-            simp only [List.length_cons]
-            omega)
-          have local3 := localsEq 3 (by
-            simp only [List.length_cons]
-            omega)
           have local0' : leftEnv leftStart = rightEnv rightStart := by
             simpa using local0
-          have tailLocals : ∀ index, index < leftRest.length * 4 →
-              leftEnv (leftStart + 4 + index) =
-                rightEnv (rightStart + 4 + index) := by
+          have tailLocals : ∀ index, index < leftRest.length * 2 →
+              leftEnv (leftStart + 2 + index) =
+                rightEnv (rightStart + 2 + index) := by
             intro index bounded
-            have shifted := localsEq (4 + index) (by
+            have shifted := localsEq (2 + index) (by
               simp only [List.length_cons]
               omega)
             simpa [Nat.add_assoc] using shifted
-          have tail := inductionHypothesis (leftStart + 4) (rightStart + 4)
+          have tail := inductionHypothesis (leftStart + 2) (rightStart + 2)
             rightRest valuesEq.2 tailLocals
           have headRecipes :
               (Permutation.sboxRecipes leftStart leftValue).map
                   (Expr.eval leftEnv) =
                 (Permutation.sboxRecipes rightStart rightValue).map
                   (Expr.eval rightEnv) := by
-            simp [Permutation.sboxRecipes, valuesEq.1, local0', local1, local2]
+            simp [Permutation.sboxRecipes, valuesEq.1, local0']
           constructor
           · change
               ((Permutation.sboxRecipes leftStart leftValue ++
-                (Permutation.compileSboxes (leftStart + 4) leftRest).recipes).map
+                (Permutation.compileSboxes (leftStart + 2) leftRest).recipes).map
                   (Expr.eval leftEnv)) =
               ((Permutation.sboxRecipes rightStart rightValue ++
-                (Permutation.compileSboxes (rightStart + 4) rightRest).recipes).map
+                (Permutation.compileSboxes (rightStart + 2) rightRest).recipes).map
                   (Expr.eval rightEnv))
             simp only [List.map_append]
             rw [headRecipes, tail.1]
           · change
               ((Permutation.sboxOutput leftStart ::
-                (Permutation.compileSboxes (leftStart + 4) leftRest).outputs).map
+                (Permutation.compileSboxes (leftStart + 2) leftRest).outputs).map
                   (Expr.eval leftEnv)) =
               ((Permutation.sboxOutput rightStart ::
-                (Permutation.compileSboxes (rightStart + 4) rightRest).outputs).map
+                (Permutation.compileSboxes (rightStart + 2) rightRest).outputs).map
                   (Expr.eval rightEnv))
             simp only [List.map_cons, List.cons.injEq]
             constructor
-            · simpa [Permutation.sboxOutput] using local3
+            · simpa [Permutation.sboxOutput] using local1
             · exact tail.2
 
 private theorem fullStepRecipes_eval_eq (leftEnv rightEnv : Env)
@@ -101,7 +95,7 @@ private theorem fullStepRecipes_eval_eq (leftEnv rightEnv : Env)
     (leftState rightState : Permutation.EState)
     (stateEq : Layer.evalState leftEnv leftState =
       Layer.evalState rightEnv rightState)
-    (localsEq : ∀ index, index < 80 →
+    (localsEq : ∀ index, index < 48 →
       leftEnv (leftStart + index) = rightEnv (rightStart + index)) :
     (let leftSboxes := Permutation.compileSboxes leftStart
         (Permutation.fullInputs rows round leftState)
@@ -158,7 +152,7 @@ private theorem partialStepRecipes_eval_eq (leftEnv rightEnv : Env)
     (leftState rightState : Permutation.EState)
     (stateEq : Layer.evalState leftEnv leftState =
       Layer.evalState rightEnv rightState)
-    (localsEq : ∀ index, index < 20 →
+    (localsEq : ∀ index, index < 18 →
       leftEnv (leftStart + index) = rightEnv (rightStart + index)) :
     (let leftSboxes := Permutation.compileSboxes leftStart
         [Permutation.partialInput round leftState]
@@ -284,21 +278,21 @@ theorem compileRecipes_eval_eq (leftEnv rightEnv : Env)
         | initialFullRound round =>
             simpa [Permutation.stepOutput, Permutation.freshState,
               Layer.evalState, Nat.add_assoc] using
-              localsEq (64 + lane.val) (by
+              localsEq (32 + lane.val) (by
                 simp only [Permutation.scheduleSize, List.map_cons,
                   List.sum_cons, Permutation.stepSize]
                 omega)
         | partialRound round =>
             simpa [Permutation.stepOutput, Permutation.freshState,
               Layer.evalState, Nat.add_assoc] using
-              localsEq (4 + lane.val) (by
+              localsEq (2 + lane.val) (by
                 simp only [Permutation.scheduleSize, List.map_cons,
                   List.sum_cons, Permutation.stepSize]
                 omega)
         | terminalFullRound round =>
             simpa [Permutation.stepOutput, Permutation.freshState,
               Layer.evalState, Nat.add_assoc] using
-              localsEq (64 + lane.val) (by
+              localsEq (32 + lane.val) (by
                 simp only [Permutation.scheduleSize, List.map_cons,
                   List.sum_cons, Permutation.stepSize]
                 omega)

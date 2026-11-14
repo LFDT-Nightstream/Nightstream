@@ -37,7 +37,7 @@ def interface {program : Lifecycle.Stage1.Application.Program}
     (retainedStart program) (retainedFits geometry)
     (oneColumn geometry) (inputState payload geometry)
 
-theorem familyRowCount_le : invocationCount * 150 ≤
+theorem familyRowCount_le : invocationCount * 171 ≤
     2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   rw [invocationCount_eq]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
@@ -52,8 +52,8 @@ def plan {program : Lifecycle.Stage1.Application.Program}
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (payload : Payload logicalWidth)
     (geometry : Geometry program logicalWidth) :
-    (plan payload geometry).rowCount = 147600 := by
-  change invocationCount * 150 = 147600
+    (plan payload geometry).rowCount = 163476 := by
+  change invocationCount * 171 = 163476
   rw [invocationCount_eq]
 
 theorem rowsZero_iff

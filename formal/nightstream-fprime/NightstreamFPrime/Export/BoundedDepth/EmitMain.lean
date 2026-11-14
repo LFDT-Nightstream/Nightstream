@@ -28,7 +28,7 @@ import NightstreamFPrime.Spec.Nebula
 circuits for today's fixture application (`Poseidon2HashChainV1.program`). For each circuit it
 prints the constraints, the Poseidon2 blocks and ring products that `Pieces.split` recognizes,
 whether the blocks pack (`CircuitRelation.packable`), and the rows and columns of the circuit's
-relation (`CircuitRelation.relationRows` and 150 S-box rows per packed block), and the counts
+relation (`CircuitRelation.relationRows` and 171 S-box rows per packed block), and the counts
 for each top-level child, largest first. It then writes both packages (`StepPackage`) and the
 parity file that Rust's expansion test reads (`Parity`). -/
 
@@ -90,8 +90,8 @@ def census (name : String) (ops : List Op) (offset : Nat) (digestColumn : Fin 4 
   let packed := CircuitRelation.packable CircuitRelation.publicColumns pieces
   IO.println s!"{name}: blocks pack: {packed} ({(← IO.monoMsNow) - start} ms)"
   let rows := CircuitRelation.relationRows CircuitRelation.publicColumns pieces firstFresh width
-  let sboxRows := if packed then 150 * blocks else 0
-  let lastColumn := if packed then CircuitRelation.sboxStart pieces firstFresh + 150 * blocks
+  let sboxRows := if packed then 171 * blocks else 0
+  let lastColumn := if packed then CircuitRelation.sboxStart pieces firstFresh + 171 * blocks
     else LogicalPlan.rowsMax rows + 1
   IO.println s!"{name}: {rows.length} R1CS rows + {sboxRows} S-box rows = \
     {rows.length + sboxRows} logical rows; largest R1CS column {LogicalPlan.rowsMax rows}, \

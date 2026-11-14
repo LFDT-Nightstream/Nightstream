@@ -7,14 +7,14 @@ use super::{Linear, Piece, Row, StepPackage};
 use crate::PackageError;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct Power7 {
+pub(super) struct Power3 {
     pub input: Linear,
-    pub powers: [usize; 4],
+    pub powers: [usize; 2],
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct FieldLowering {
-    pub powers: BTreeMap<usize, Power7>,
+    pub powers: BTreeMap<usize, Power3>,
     pub affine: BTreeMap<usize, (usize, Linear)>,
     pub removed: BTreeSet<usize>,
     pub dead: BTreeSet<usize>,
@@ -112,41 +112,34 @@ impl FieldLowering {
             .collect::<Vec<_>>();
         let mut result = Self::default();
         let mut first = 0;
-        while first + 4 <= rows.len() {
-            let chain = &rows[first..first + 4];
+        while first + 2 <= rows.len() {
+            let chain = &rows[first..first + 2];
             let found = (|| {
-                let powers = [
-                    variable(&chain[0].c)?,
-                    variable(&chain[1].c)?,
-                    variable(&chain[2].c)?,
-                    variable(&chain[3].c)?,
-                ];
-                let [x2, x4, x6, _] = powers;
+                let powers = [variable(&chain[0].c)?, variable(&chain[1].c)?];
+                let [x2, x3] = powers;
                 let input = &chain[0].a;
                 if chain[0].a != chain[0].b
-                    || !product(&chain[1], &unit(x2), &unit(x2))
-                    || !product(&chain[2], &unit(x4), &unit(x2))
-                    || !product(&chain[3], &unit(x6), input)
-                    || powers.iter().copied().collect::<BTreeSet<_>>().len() != 4
+                    || !product(&chain[1], &unit(x2), input)
+                    || x2 == x3
                     || input
                         .terms
                         .iter()
                         .any(|&(column, _)| powers.contains(&column))
-                    || ![x2, x4, x6].into_iter().all(eligible)
-                    || [uses[x2], uses[x4], uses[x6]] != [4, 2, 2]
+                    || !eligible(x2)
+                    || uses[x2] != 2
                 {
                     return None;
                 }
-                Some(Power7 {
+                Some(Power3 {
                     input: input.clone(),
                     powers,
                 })
             })();
             if let Some(power) = found {
-                result.dead.extend(power.powers[..3].iter().copied());
-                result.removed.extend(first..first + 4);
+                result.dead.insert(power.powers[0]);
+                result.removed.extend(first..first + 2);
                 result.powers.insert(first, power);
-                first += 4;
+                first += 2;
             } else {
                 first += 1;
             }
@@ -224,14 +217,9 @@ impl FieldLowering {
         }
         for power in self.powers.values() {
             let x = evaluate(&power.input, columns)?;
-            let x2 = x * x;
-            let x4 = x2 * x2;
-            let x6 = x4 * x2;
-            for (&column, value) in power.powers[..3].iter().zip([x2, x4, x6]) {
-                *columns
-                    .get_mut(column)
-                    .ok_or(PackageError::Input("power reconstruction output"))? = value;
-            }
+            *columns
+                .get_mut(power.powers[0])
+                .ok_or(PackageError::Input("power reconstruction output"))? = x * x;
         }
         Ok(())
     }

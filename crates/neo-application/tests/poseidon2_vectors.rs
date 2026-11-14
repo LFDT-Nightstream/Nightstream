@@ -2,8 +2,8 @@
 //! `scripts/poseidon2/vectors.json` (`decisions/poseidon2-p64-instance.md`).
 
 use neo_application::poseidon2::{
-    apply_full_round, apply_initial_linear, apply_partial_pair, permute, POSEIDON2_HALF_FULL_ROUNDS,
-    POSEIDON2_PARTIAL_PAIRS, POSEIDON2_WIDTH,
+    apply_full_round, apply_initial_linear, apply_partial_round, permute, POSEIDON2_HALF_FULL_ROUNDS,
+    POSEIDON2_PARTIAL_ROUNDS, POSEIDON2_WIDTH,
 };
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -37,8 +37,8 @@ fn grouped(mut state: [F; POSEIDON2_WIDTH]) -> [F; POSEIDON2_WIDTH] {
     for round in 0..POSEIDON2_HALF_FULL_ROUNDS {
         apply_full_round(round, &mut state);
     }
-    for pair in 0..POSEIDON2_PARTIAL_PAIRS {
-        apply_partial_pair(pair, &mut state);
+    for round in 0..POSEIDON2_PARTIAL_ROUNDS {
+        apply_partial_round(round, &mut state);
     }
     for round in POSEIDON2_HALF_FULL_ROUNDS..2 * POSEIDON2_HALF_FULL_ROUNDS {
         apply_full_round(round, &mut state);

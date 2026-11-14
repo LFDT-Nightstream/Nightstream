@@ -12,7 +12,7 @@ abbrev SourceWidth := PoseidonScheduleTrace.sourceColumnCount
 def rows : List (PoseidonSourceRows.SboxSource SourceWidth) :=
   PoseidonTemplatePlan.plan.flatMap fun step => step.sboxes
 
-@[simp] theorem rows_length : rows.length = 150 := by
+@[simp] theorem rows_length : rows.length = 171 := by
   decide +kernel
 
 def slots : List (LowNormAssignment.Slot SourceWidth) :=
@@ -20,25 +20,25 @@ def slots : List (LowNormAssignment.Slot SourceWidth) :=
     { source := row.step.output
       kind := .field }
 
-@[simp] theorem slots_length : slots.length = 150 := by
+@[simp] theorem slots_length : slots.length = 171 := by
   decide +kernel
 
 @[simp] theorem slots_logicalWidth :
-    LowNormAssignment.logicalWidth slots = 6150 := by
+    LowNormAssignment.logicalWidth slots = 7011 := by
   have widths : slots.map LowNormAssignment.Slot.width =
       List.replicate rows.length 41 := by
-    simp [slots, Function.comp_def, LowNormAssignment.Slot.width,
-      List.map_const']
-    rfl
-  simp [LowNormAssignment.logicalWidth, widths, rows_length]
+    rw [slots, List.map_map]
+    exact List.map_const'
+  rw [LowNormAssignment.logicalWidth, widths, rows_length, List.sum_replicate]
+  rfl
 
 def finalRow (lane : Fin 16) : Fin rows.length :=
-  ⟨134 + lane.val, by
+  ⟨155 + lane.val, by
     rw [rows_length]
     omega⟩
 
 @[simp] theorem finalRow_val (lane : Fin 16) :
-    (finalRow lane).val = 134 + lane.val := by
+    (finalRow lane).val = 155 + lane.val := by
   rfl
 
 def slotIndex (row : Fin rows.length) : Fin slots.length :=

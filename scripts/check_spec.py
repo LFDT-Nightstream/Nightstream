@@ -95,7 +95,7 @@ LABELS = {
     "productionGlobalParams.msisNormBound": ("—", "The MSIS norm `8TB` of SuperNeo v1.2 Section 8, the chain norm at cap 0."),
     "numerator": ("—", "The numerator of the refresh fold's Π_CCS test error, `1 + k_rho` sources."),
     "ε_test": ("ε_test", "The refresh fold's Π_CCS test error, `numerator / q²`.", "over_q2"),
-    "testNumerator (shape 28) 8": ("—", "The numerator of the light fold's Π_CCS test error, 2 sources."),
+    "testNumerator (shape 28) 4": ("—", "The numerator of the light fold's Π_CCS test error, 2 sources."),
     "ε_test light": ("—", "The light fold's Π_CCS test error, `testNumerator / q²`.", "over_q2"),
     "forkCoordinates": ("—", "The `ρ` coordinates of a light fork. A refresh fork has `1 + k_rho`."),
     "msisChainBound productionGlobalParams productionLightFoldCap": ("—", "The chain MSIS norm `8T(B + cap·T·(b − 1))`."),
@@ -121,7 +121,7 @@ HEADER_LABELS = {
 }
 PARITY_LABELS = {
     "relationRows": "R1CS rows of the {} relation, from the pieces and the ring products.",
-    "sboxRows": "S-box rows of the {} relation, 150 for each Poseidon2 block.",
+    "sboxRows": "S-box rows of the {} relation, 171 for each Poseidon2 block.",
 }
 for circuit in ("light", "refresh"):
     LABELS.update({f"{circuit}.{field}": ("—", meaning) for field, meaning in HEADER_LABELS.items()})
@@ -212,7 +212,7 @@ def parity_rows():
     """The relation rows and the S-box rows of the light and the refresh circuit (`Parity.summary`:
     its first two entries)."""
     text = PARITY_SOURCE.read_text(encoding="utf-8")
-    if not re.search(r"\.array \[\.atom rows\.length, \.atom \(150 \* blocks\.length\)", text):
+    if not re.search(r"\.array \[\.atom rows\.length, \.atom \(171 \* blocks\.length\)", text):
         sys.exit(f"spec: {rel(PARITY_SOURCE)} no longer starts a summary with the relation rows and "
                  "the S-box rows")
     if not re.search(r"\.array \[\.atom 3, summary width light\.1 .*?,\s*summary width refresh\.1",
@@ -251,7 +251,7 @@ def rows():
     lean = {key: value for _, key, value in found}
     modulus = lean["productionProfile.global.q"]
     found.append(("computed", "ε_test", (lean["numerator"], modulus ** 2)))
-    found.append(("computed", "ε_test light", (lean["testNumerator (shape 28) 8"], modulus ** 2)))
+    found.append(("computed", "ε_test light", (lean["testNumerator (shape 28) 4"], modulus ** 2)))
     for name, path in PACKAGES:
         found.extend(package_rows(name, path))
     found.extend(parity_rows())

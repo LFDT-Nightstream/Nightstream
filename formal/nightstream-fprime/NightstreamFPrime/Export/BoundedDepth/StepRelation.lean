@@ -78,7 +78,7 @@ abbrev lightInterface :=
   LightAssembler.interface (logicalWidth := logicalWidth) (publicFits := publicFits) base
     program.witnessWordCount
 
-def lightProof (env : Env) : Spec.Folding.Light.Proof LightShape 8 :=
+def lightProof (env : Env) : Spec.Folding.Light.Proof LightShape 4 :=
   ⟨fun roundIndex =>
       ((lightInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program).round
         roundIndex).semanticPolynomial env,
@@ -342,7 +342,7 @@ abbrev refreshInterface :=
     program.witnessWordCount
 
 def refreshProof (env : Env) :
-    Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8 :=
+    Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 4 :=
   let interface :=
     refreshInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program
   let commitments := fun child row lane => (interface.childCommitment child row lane).eval env

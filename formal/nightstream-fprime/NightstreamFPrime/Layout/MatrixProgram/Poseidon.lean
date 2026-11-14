@@ -19,10 +19,10 @@ structure Block where
 deriving Repr, DecidableEq
 
 def Block.rowCount (block : Block) : Nat :=
-  block.invocationCount * 150
+  block.invocationCount * 171
 
 private def retainedSchedule (block : Block)
-    (slotCountEq : block.retained.slotCount = block.invocationCount * 150) :
+    (slotCountEq : block.retained.slotCount = block.invocationCount * 171) :
     PoseidonRetainedFamily.Schedule block.retained.slotCount
       block.invocationCount where
   block := block.retained.semantic
@@ -31,7 +31,7 @@ private def retainedSchedule (block : Block)
 
 def Block.invocationInterface (block : Block) (logicalWidth : Nat)
     (oneBound : block.oneColumn < logicalWidth)
-    (slotCountEq : block.retained.slotCount = block.invocationCount * 150)
+    (slotCountEq : block.retained.slotCount = block.invocationCount * 171)
     (retainedFits : block.retained.start +
       block.retained.coordinateCount ≤ logicalWidth)
     (input : InputState logicalWidth)
@@ -56,10 +56,10 @@ def Block.rowWithInput? (block : Block) (logicalWidth : Nat)
     if oneBound : block.oneColumn < logicalWidth then
       if fieldKind : block.retained.kind = .field then
         if slotCountEq : block.retained.slotCount =
-            block.invocationCount * 150 then
+            block.invocationCount * 171 then
           if retainedFits : block.retained.start +
               block.retained.coordinateCount ≤ logicalWidth then do
-            let decoded : Fin block.invocationCount × Fin 150 :=
+            let decoded : Fin block.invocationCount × Fin 171 :=
               Fin.decodeProd ⟨ordinal, rowBound⟩
             let input ← inputState decoded.1.val
             let interface := block.invocationInterface logicalWidth oneBound
@@ -99,15 +99,15 @@ theorem Block.rowWithInput?_of_valid (block : Block) (logicalWidth : Nat)
     (rowBound : ordinal < block.rowCount)
     (oneBound : block.oneColumn < logicalWidth)
     (fieldKind : block.retained.kind = .field)
-    (slotCountEq : block.retained.slotCount = block.invocationCount * 150)
+    (slotCountEq : block.retained.slotCount = block.invocationCount * 171)
     (retainedFits : block.retained.start +
       block.retained.coordinateCount ≤ logicalWidth)
     (input : InputState logicalWidth)
     (loaded : inputState
       (Fin.decodeProd (⟨ordinal, rowBound⟩ :
-        Fin (block.invocationCount * 150))).1.val = some input) :
+        Fin (block.invocationCount * 171))).1.val = some input) :
     block.rowWithInput? logicalWidth inputState ordinal =
-      let decoded : Fin block.invocationCount × Fin 150 :=
+      let decoded : Fin block.invocationCount × Fin 171 :=
         Fin.decodeProd ⟨ordinal, rowBound⟩
       some fun port =>
         ((PoseidonRetainedRows.rows
@@ -132,7 +132,7 @@ theorem Block.invocationInterface_ofSemantic
     (input : Fin invocationCount → InputState logicalWidth)
     (invocation : Fin invocationCount) :
     let block := Block.ofSemantic schedule retainedStart oneColumn inputProgram
-    let slotCountEq : block.retained.slotCount = invocationCount * 150 := by
+    let slotCountEq : block.retained.slotCount = invocationCount * 171 := by
       simpa only [block, Block.ofSemantic, RetainedBlock.ofSemantic,
         PoseidonRetainedSlots.rows_length] using schedule.slotCount_eq
     let retainedFits : block.retained.start +
@@ -157,11 +157,11 @@ theorem Block.rowWithInput?_ofSemantic
     (inputState : Nat → Option (InputState logicalWidth))
     (inputExact : ∀ invocation,
       inputState invocation.val = some (input invocation))
-    (global : Fin (invocationCount * 150)) :
+    (global : Fin (invocationCount * 171)) :
     let block := Block.ofSemantic schedule retainedStart oneColumn inputProgram
     block.rowWithInput? logicalWidth inputState
         global.val =
-      let decoded : Fin invocationCount × Fin 150 := Fin.decodeProd global
+      let decoded : Fin invocationCount × Fin 171 := Fin.decodeProd global
       some (PoseidonSboxFamilyPlan.rowForms
         (PoseidonRetainedFamily.familyInterface schedule retainedStart fits
           oneColumn input) decoded.1 decoded.2) := by
@@ -170,7 +170,7 @@ theorem Block.rowWithInput?_ofSemantic
     exact global.isLt
   have wireKind : block.retained.kind = .field := by
     exact fieldKind
-  have slotCountEq : block.retained.slotCount = invocationCount * 150 := by
+  have slotCountEq : block.retained.slotCount = invocationCount * 171 := by
     simpa only [block, Block.ofSemantic, RetainedBlock.ofSemantic,
       PoseidonRetainedSlots.rows_length] using schedule.slotCount_eq
   have retainedFits : block.retained.start +
@@ -180,13 +180,13 @@ theorem Block.rowWithInput?_ofSemantic
       using fits
   have globalEq :
       (⟨global.val, rowBound⟩ :
-        Fin (block.invocationCount * 150)) = global := by
+        Fin (block.invocationCount * 171)) = global := by
     apply Fin.ext
     rfl
-  let decoded : Fin invocationCount × Fin 150 := Fin.decodeProd global
+  let decoded : Fin invocationCount × Fin 171 := Fin.decodeProd global
   have loaded : inputState
       (Fin.decodeProd (⟨global.val, rowBound⟩ :
-        Fin (block.invocationCount * 150))).1.val =
+        Fin (block.invocationCount * 171))).1.val =
         some (input decoded.1) := by
     rw [globalEq]
     exact inputExact decoded.1
@@ -223,10 +223,10 @@ theorem Block.row?_ofSemantic
     (inputExact : ∀ invocation,
       inputProgram.state? logicalWidth oneColumn.val invocation.val =
         some (input invocation))
-    (global : Fin (invocationCount * 150)) :
+    (global : Fin (invocationCount * 171)) :
     let block := Block.ofSemantic schedule retainedStart oneColumn inputProgram
     block.row? logicalWidth global.val =
-      let decoded : Fin invocationCount × Fin 150 := Fin.decodeProd global
+      let decoded : Fin invocationCount × Fin 171 := Fin.decodeProd global
       some (PoseidonSboxFamilyPlan.rowForms
         (PoseidonRetainedFamily.familyInterface schedule retainedStart fits
           oneColumn input) decoded.1 decoded.2) := by
@@ -241,7 +241,7 @@ theorem Block.row?_ofSemantic
     (retainedStart : Nat) (oneColumn : Fin logicalWidth)
     (input : PoseidonInput.Program) :
     (Block.ofSemantic schedule retainedStart oneColumn input).rowCount =
-      invocationCount * 150 := by
+      invocationCount * 171 := by
   rfl
 
 end NightstreamFPrime.Layout.MatrixProgram.Poseidon

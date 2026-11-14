@@ -18,7 +18,7 @@ def program (interface : Interface) (offset : Nat) : Permutation.Program :=
 set_option maxRecDepth 100000 in -- fixed-size: one Poseidon2 permutation, not artifact data
 set_option maxHeartbeats 2000000 in -- fixed-size: one Poseidon2 permutation, not artifact data
 theorem program_recipes_length (interface : Interface) (offset : Nat) :
-    (program interface offset).recipes.length = 1096 := by
+    (program interface offset).recipes.length = 1174 := by
   unfold program
   exact Permutation.compile_schedule_recipe_count offset
     (interface.initialState offset)
@@ -61,7 +61,7 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
 
 set_option maxRecDepth 100000 in -- fixed-size: one Poseidon2 permutation, not artifact data
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (operations interface offset) = 1096 := by
+    localLength (operations interface offset) = 1174 := by
   unfold operations localLength
   simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
     Op.localLength, WitnessBatch.arithmetic_outputLength, Nat.add_zero]
@@ -69,7 +69,7 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
 
 set_option maxRecDepth 100000 in -- fixed-size: one Poseidon2 permutation, not artifact data
 theorem flatConstraints_length_eq (interface : Interface) (offset : Nat) :
-    (flatConstraints (operations interface offset)).length = 1096 := by
+    (flatConstraints (operations interface offset)).length = 1174 := by
   rw [flatConstraints_operations]
   rw [recipeConstraints_length]
   exact program_recipes_length interface offset
@@ -79,13 +79,13 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (assumptions : ∀ lane,
       (interface.initialState offset lane).VarsBelow offset) :
     ∀ expression ∈ flatConstraints (operations interface offset),
-      expression.VarsBelow (offset + 1096) := by
+      expression.VarsBelow (offset + 1174) := by
   rw [flatConstraints_operations]
   have causal := Permutation.compile_schedule_causal offset
     (interface.initialState offset) assumptions
   have scope := recipeConstraints_varsBelow_of_causal offset
     (program interface offset).recipes causal
-  rw [show (program interface offset).recipes.length = 1096 by
+  rw [show (program interface offset).recipes.length = 1174 by
     exact Permutation.compile_schedule_recipe_count offset
       (interface.initialState offset)] at scope
   exact scope
@@ -124,7 +124,7 @@ set_option maxRecDepth 100000 in -- fixed-size: one Poseidon2 permutation, not a
 theorem output_varsBelow (interface : Interface) (offset : Nat)
     (_assumptions : ∀ lane,
       (interface.initialState offset lane).VarsBelow offset) :
-    ∀ lane, (output interface offset lane).VarsBelow (offset + 1096) := by
+    ∀ lane, (output interface offset lane).VarsBelow (offset + 1174) := by
   intro lane
   have laneBound : lane.val < 16 := lane.isLt
   simp [output, Permutation.scheduleOutput, Permutation.freshState,
@@ -135,8 +135,8 @@ def circuit (interface : Interface) : FormalCircuit :=
   { main := main interface
     assumptions := Assumptions interface
     spec := SpecHolds interface
-    privateCount := fun _ => 1096
-    rowCount := fun _ => 1096
+    privateCount := fun _ => 1174
+    rowCount := fun _ => 1174
     privateCount_eq := by
       intro offset
       exact localLength_eq interface offset

@@ -15,15 +15,15 @@ private theorem invocationCount_cons (action : Formal.Action)
 
 private theorem lastOffset_cons (witnessStart headCount tailCount : Nat)
     (tailPositive : 0 < tailCount) :
-    witnessStart + headCount * 1096 + (tailCount - 1) * 1096 =
-      witnessStart + (headCount + tailCount - 1) * 1096 := by
+    witnessStart + headCount * 1174 + (tailCount - 1) * 1174 =
+      witnessStart + (headCount + tailCount - 1) * 1174 := by
   omega
 
 theorem compileBlocks_state_last (phase rowStart witnessStart : Nat)
     (state : EState) (blocks : List (List Expr)) (nonempty : blocks ≠ []) :
     (compileBlocks phase rowStart witnessStart state blocks).state =
       permutationOutput
-        (witnessStart + (blocks.length - 1) * 1096) := by
+        (witnessStart + (blocks.length - 1) * 1174) := by
   induction blocks generalizing rowStart witnessStart state with
   | nil => exact False.elim (nonempty rfl)
   | cons block blocks inductionHypothesis =>
@@ -33,18 +33,18 @@ theorem compileBlocks_state_last (phase rowStart witnessStart : Nat)
           apply congrArg permutationOutput
           simp
       | cons next rest =>
-          have tail := inductionHypothesis (rowStart + 1096)
-            (witnessStart + 1096) (permutationOutput witnessStart) (by simp)
+          have tail := inductionHypothesis (rowStart + 1174)
+            (witnessStart + 1174) (permutationOutput witnessStart) (by simp)
           calc
             (compileBlocks phase rowStart witnessStart state
                 (block :: next :: rest)).state =
-                (compileBlocks phase (rowStart + 1096) (witnessStart + 1096)
+                (compileBlocks phase (rowStart + 1174) (witnessStart + 1174)
                   (permutationOutput witnessStart) (next :: rest)).state := rfl
             _ = permutationOutput
-                (witnessStart + 1096 + ((next :: rest).length - 1) * 1096) :=
+                (witnessStart + 1174 + ((next :: rest).length - 1) * 1174) :=
               tail
             _ = permutationOutput
-                (witnessStart + ((block :: next :: rest).length - 1) * 1096) := by
+                (witnessStart + ((block :: next :: rest).length - 1) * 1174) := by
               apply congrArg permutationOutput
               simp only [List.length_cons]
               omega
@@ -74,7 +74,7 @@ theorem compileActions_state_last (phase rowStart witnessStart : Nat)
     (positive : 0 < invocationCount actions) :
     (compileActions phase rowStart witnessStart state actions).state =
       permutationOutput
-        (witnessStart + (invocationCount actions - 1) * 1096) := by
+        (witnessStart + (invocationCount actions - 1) * 1174) := by
   induction actions generalizing rowStart witnessStart state with
   | nil => simp [invocationCount] at positive
   | cons action actions inductionHypothesis =>
@@ -109,7 +109,7 @@ theorem compileActions_state_scheduleOutput
     (positive : 0 < invocationCount actions) :
     (compileActions phase rowStart witnessStart state actions).state =
       Permutation.scheduleOutput
-        (witnessStart + (invocationCount actions - 1) * 1096) := by
+        (witnessStart + (invocationCount actions - 1) * 1174) := by
   exact compileActions_state_last phase rowStart witnessStart state actions
     positive
 

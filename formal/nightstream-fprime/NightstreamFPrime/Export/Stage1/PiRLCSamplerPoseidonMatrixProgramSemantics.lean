@@ -89,7 +89,7 @@ private theorem samplerPreviousRule_succ
           rw [PiRLCSamplerPoseidonPlan.invocationCount_eq]
           omega⟩ lane)) := by
   have slotBound : ∀ selected : Fin 16,
-      134 + invocationOffset.val * 150 + selected.val <
+      155 + invocationOffset.val * 171 + selected.val <
         (PiRLCSamplerPoseidonPlan.schedule program).block.slotCount := by
     intro selected
     rw [(PiRLCSamplerPoseidonPlan.schedule program).slotCount_eq,
@@ -103,7 +103,7 @@ private theorem samplerPreviousRule_succ
           (PiRLCSamplerPoseidonPlan.schedule program).block.form
             (PiRLCSamplerPoseidonPlan.retainedStart program)
             (PiRLCSamplerPoseidonPlan.retainedFits geometry)
-            ⟨134 + invocationOffset.val * 150 + selected.val,
+            ⟨155 + invocationOffset.val * 171 + selected.val,
               slotBound selected⟩) lane)) by
     simpa [samplerPreviousRule] using!
       PoseidonInput.Rule.external_form?_ofSemantic
@@ -112,7 +112,7 @@ private theorem samplerPreviousRule_succ
         (PiRLCSamplerPoseidonPlan.schedule program).block
         (PiRLCSamplerPoseidonPlan.retainedStart program)
         (PiRLCSamplerPoseidonPlan.retainedFits geometry)
-        (PiRLCSamplerPoseidonPlan.oneColumn geometry).val 134 150 slotBound]
+        (PiRLCSamplerPoseidonPlan.oneColumn geometry).val 155 171 slotBound]
   apply congrArg some
   apply congrArg some
   unfold PoseidonRetainedFamily.outputState PoseidonRetainedFamily.form
@@ -287,9 +287,9 @@ theorem inputProgram_state?
 theorem block_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
-    (global : Fin (PiRLCSamplerPoseidonPlan.invocationCount * 150)) :
+    (global : Fin (PiRLCSamplerPoseidonPlan.invocationCount * 171)) :
     (block geometry).row? logicalWidth global.val =
-      let decoded : Fin PiRLCSamplerPoseidonPlan.invocationCount × Fin 150 :=
+      let decoded : Fin PiRLCSamplerPoseidonPlan.invocationCount × Fin 171 :=
         Fin.decodeProd global
       some (PoseidonSboxFamilyPlan.rowForms
         (PiRLCSamplerPoseidonPlan.interface geometry) decoded.1 decoded.2) := by
@@ -306,9 +306,9 @@ theorem matrixProgram_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (global : Fin (PiRLCSamplerPoseidonPlan.invocationCount * 150)) :
+    (global : Fin (PiRLCSamplerPoseidonPlan.invocationCount * 171)) :
     (matrixProgram geometry).row? logicalWidth sourceRow global.val =
-      let decoded : Fin PiRLCSamplerPoseidonPlan.invocationCount × Fin 150 :=
+      let decoded : Fin PiRLCSamplerPoseidonPlan.invocationCount × Fin 171 :=
         Fin.decodeProd global
       some (PoseidonSboxFamilyPlan.rowForms
         (PiRLCSamplerPoseidonPlan.interface geometry) decoded.1 decoded.2) := by
@@ -316,7 +316,7 @@ theorem matrixProgram_row?
       (MatrixProgram.Block.poseidon (block geometry)).rowCount := by
     change global.val < (block geometry).rowCount
     rw [show (block geometry).rowCount =
-        PiRLCSamplerPoseidonPlan.invocationCount * 150 by
+        PiRLCSamplerPoseidonPlan.invocationCount * 171 by
       exact Poseidon.Block.ofSemantic_rowCount
         (PiRLCSamplerPoseidonPlan.schedule program)
         (PiRLCSamplerPoseidonPlan.retainedStart program)

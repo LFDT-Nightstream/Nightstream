@@ -44,8 +44,8 @@ impl<'a, Owner> R1csColumnOccurrence<'a, Owner> {
 /// Semantic role played by a column in one retained shared gadget.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GadgetColumnRole {
-    Pow7Expression { term_index: usize, coefficient: F },
-    Pow7Power { exponent: u8 },
+    Pow3Expression { term_index: usize, coefficient: F },
+    Pow3Power { exponent: u8 },
     ZeroTestExpression { term_index: usize, coefficient: F },
     ZeroTestInverse,
     ZeroTestIsZero,
@@ -147,18 +147,18 @@ fn index_gadget_occurrence<'a, Owner>(
     };
 
     match occurrence.descriptor() {
-        GadgetDescriptor::Pow7 { expression, powers } => {
+        GadgetDescriptor::Pow3 { expression, powers } => {
             for (term_index, &(column, coefficient)) in expression.iter().enumerate() {
                 push(
                     column,
-                    GadgetColumnRole::Pow7Expression {
+                    GadgetColumnRole::Pow3Expression {
                         term_index,
                         coefficient,
                     },
                 );
             }
-            for (&column, exponent) in powers.iter().zip([2, 4, 6, 7]) {
-                push(column, GadgetColumnRole::Pow7Power { exponent });
+            for (&column, exponent) in powers.iter().zip([2, 3]) {
+                push(column, GadgetColumnRole::Pow3Power { exponent });
             }
         }
         GadgetDescriptor::ZeroTest {
@@ -220,7 +220,7 @@ fn index_gadget_occurrence<'a, Owner>(
                 push(column, GadgetColumnRole::Poseidon2RoundPower { index });
             }
         }
-        GadgetDescriptor::Poseidon2PartialPair12 {
+        GadgetDescriptor::Poseidon2PartialRounds12 {
             choices,
             state_before,
             state_after,
@@ -235,7 +235,7 @@ fn index_gadget_occurrence<'a, Owner>(
             for (lane, &column) in state_after.iter().enumerate() {
                 push(column, GadgetColumnRole::Poseidon2RoundStateAfter { lane });
             }
-            for (index, &column) in powers.iter().enumerate() {
+            for (index, &column) in powers.iter().flatten().enumerate() {
                 push(column, GadgetColumnRole::Poseidon2RoundPower { index });
             }
         }

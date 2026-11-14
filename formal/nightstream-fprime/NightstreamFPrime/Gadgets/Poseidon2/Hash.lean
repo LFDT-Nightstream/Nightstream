@@ -124,7 +124,7 @@ def compileAbsorptions (start : Nat) (state : EState) :
   | block :: rest =>
       let permutation := Permutation.compile start (absorbE state block)
         Permutation.schedule
-      let tail := compileAbsorptions (start + 1096) permutation.output rest
+      let tail := compileAbsorptions (start + 1174) permutation.output rest
       ⟨permutation.recipes ++ tail.recipes, tail.output⟩
 
 @[inline] def compileAbsorptionsTR (start : Nat) (state : EState)
@@ -136,7 +136,7 @@ where
     | output, current, block :: rest, recipesRev =>
         let permutation := Permutation.compile output
           (absorbE current block) Permutation.schedule
-        go (output + 1096) permutation.output rest
+        go (output + 1174) permutation.output rest
           (permutation.recipes.reverse ++ recipesRev)
 
 private theorem compileAbsorptionsTR_go_eq (start : Nat) (state : EState)
@@ -232,7 +232,7 @@ theorem padE_varsBelow (input : List Expr) (state : EState) {bound : Nat}
 @[simp] theorem compileAbsorptions_recipes_length (start : Nat)
     (state : EState) (blocks : List (List Expr)) :
     (compileAbsorptions start state blocks).recipes.length =
-      blocks.length * 1096 := by
+      blocks.length * 1174 := by
   induction blocks generalizing start state with
   | nil => rfl
   | cons block rest ih =>
@@ -242,7 +242,7 @@ theorem padE_varsBelow (input : List Expr) (state : EState) {bound : Nat}
 
 @[simp] theorem compile_recipes_length (start : Nat) (input : List Expr) :
     (compile start input).recipes.length =
-      input.length / Spec.Poseidon2.rate * 1096 + 1096 := by
+      input.length / Spec.Poseidon2.rate * 1174 + 1174 := by
   unfold compile
   dsimp only
   rw [List.length_append, compileAbsorptions_recipes_length,
@@ -268,13 +268,13 @@ theorem compileAbsorptions_causal (start : Nat) (state : EState)
         (absorbE state block) habsorb
       have houtput : ∀ lane,
           ((Permutation.compile start (absorbE state block)
-            Permutation.schedule).output lane).VarsBelow (start + 1096) := by
+            Permutation.schedule).output lane).VarsBelow (start + 1174) := by
         intro lane
         have outputBound := Permutation.compile_output_varsBelow start
           (absorbE state block) Permutation.schedule habsorb lane
         rw [Permutation.compile_schedule_recipe_count] at outputBound
         exact outputBound
-      have htail := ih (start + 1096)
+      have htail := ih (start + 1174)
         (Permutation.compile start (absorbE state block)
           Permutation.schedule).output houtput
         (blocksBelow_mono hrest (by omega))
@@ -300,13 +300,13 @@ theorem compileAbsorptions_output_varsBelow (start : Nat) (state : EState)
         absorbE_varsBelow state block hstate hblock
       have houtput : ∀ current,
           ((Permutation.compile start (absorbE state block)
-            Permutation.schedule).output current).VarsBelow (start + 1096) := by
+            Permutation.schedule).output current).VarsBelow (start + 1174) := by
         intro current
         have outputBound := Permutation.compile_output_varsBelow start
           (absorbE state block) Permutation.schedule habsorb current
         rw [Permutation.compile_schedule_recipe_count] at outputBound
         exact outputBound
-      have tail := ih (start + 1096)
+      have tail := ih (start + 1174)
         (Permutation.compile start (absorbE state block)
           Permutation.schedule).output houtput
         (blocksBelow_mono hrest (by omega))
@@ -328,15 +328,15 @@ theorem compileAbsorptions_sound (env : Env) (start : Nat) (state : EState)
         Permutation.schedule
       have splitRows :
           ConstraintsHold env (recipeConstraints start permutation.recipes) ∧
-          ConstraintsHold env (recipeConstraints (start + 1096)
-            (compileAbsorptions (start + 1096) permutation.output rest).recipes) := by
+          ConstraintsHold env (recipeConstraints (start + 1174)
+            (compileAbsorptions (start + 1174) permutation.output rest).recipes) := by
         rw [compileAbsorptions, Permutation.recipeConstraints_append] at hrows
         have separated :=
           (Permutation.constraintsHold_append env _ _).mp hrows
         simpa [permutation] using! separated
       have headSound := Permutation.compile_sound env start
         (absorbE state block) Permutation.schedule splitRows.1
-      have tailSound := ih (start + 1096) permutation.output splitRows.2
+      have tailSound := ih (start + 1174) permutation.output splitRows.2
       simpa [compileAbsorptions, absorbManyF, permutation, headSound] using
         tailSound
 

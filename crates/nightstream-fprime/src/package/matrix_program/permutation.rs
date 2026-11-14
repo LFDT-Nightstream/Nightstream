@@ -31,8 +31,8 @@ fn pairs(runs: &[MatrixRun]) -> Entries {
         .collect()
 }
 
-/// The 150 rows of `poseidon2-permutation-v1` with constant column 0, input
-/// lane forms `lanes`, and S-box outputs in the 150 columns from `sbox`.
+/// The 171 rows of `poseidon2-permutation-v1` with constant column 0, input
+/// lane forms `lanes`, and S-box outputs in the 171 columns from `sbox`.
 pub(crate) fn permutation_rows(
     lanes: &[Entries],
     sbox: usize,

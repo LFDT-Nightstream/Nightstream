@@ -137,25 +137,25 @@ variable {logicalWidth : Nat}
   (key : CircuitKey logicalWidth publicFits)
 
 theorem light_conditions :
-    Conditions (LightSchedule.schedule logicalWidth publicFits) (width := 8) lightUse :=
+    Conditions (LightSchedule.schedule logicalWidth publicFits) (width := 4) lightUse :=
   conditions _ rfl (by simp [lightUse, uses])
 
 theorem refresh_conditions :
-    Conditions (RefreshSchedule.schedule logicalWidth publicFits) (width := 8) refreshUse :=
+    Conditions (RefreshSchedule.schedule logicalWidth publicFits) (width := 4) refreshUse :=
   conditions _ rfl (by simp [refreshUse, uses])
 
 /-- A light adversary with at most `queries` oracle queries. -/
 abbrev LightAdversary (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth)
     (queries : ℕ) :=
-  {adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 8) Answer
+  {adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 4) Answer
     (Attempt logicalWidth publicFits) // adversary.QueryBound queries}
 
 /-- A refresh adversary with at most `queries` oracle queries. -/
 abbrev RefreshAdversary (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth)
     (queries : ℕ) :=
-  {adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 8) Answer
+  {adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 4) Answer
     (Attempt logicalWidth publicFits) // adversary.QueryBound queries}
 
 /-- The light model's wins: success without extraction, less the knowledge error past the
@@ -184,7 +184,7 @@ with the light conditions, the wins of each `world` are at most the statistical 
 `spongeError calls`. -/
 theorem light_knowledge_le {queries : ℕ} {World : Type} (winsOf : World → ℝ) (calls : ℕ)
     (premise : Sponge.Transfer
-      (Conditions (LightSchedule.schedule logicalWidth publicFits) (width := 8) lightUse) winsOf
+      (Conditions (LightSchedule.schedule logicalWidth publicFits) (width := 4) lightUse) winsOf
       (lightWins ajtai key (queries := queries)) calls)
     (world : World) :
     winsOf world ≤ LightKnowledge.statisticalError queries + Sponge.spongeError calls :=
@@ -195,7 +195,7 @@ theorem light_knowledge_le {queries : ℕ} {World : Type} (winsOf : World → �
 /-- Adversary 3 for the refresh fold, as `light_knowledge_le`. -/
 theorem refresh_knowledge_le {queries : ℕ} {World : Type} (winsOf : World → ℝ) (calls : ℕ)
     (premise : Sponge.Transfer
-      (Conditions (RefreshSchedule.schedule logicalWidth publicFits) (width := 8) refreshUse)
+      (Conditions (RefreshSchedule.schedule logicalWidth publicFits) (width := 4) refreshUse)
       winsOf (refreshWins ajtai key (queries := queries)) calls)
     (world : World) :
     winsOf world ≤ RefreshKnowledge.statisticalError queries + Sponge.spongeError calls :=

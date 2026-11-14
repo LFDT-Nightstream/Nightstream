@@ -174,7 +174,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let (refresh_source_entries, refresh_logical_entries) = matrix_entries(&refresh_rows, &refresh_layout);
         let refresh_count = refresh_rows.row_count();
         let refresh_source_count = refresh.source_rows()?.row_count();
-        let companions = layout.spans().widths.len() - (package.sbox_start() + 150 * package.block_count());
+        let companions = layout.spans().widths.len() - (package.sbox_start() + 171 * package.block_count());
         let pairs = package.packed_boolean_count();
         let products = package.packed_product_count();
         let zeros = package.packed_zero_count();
@@ -236,7 +236,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 "logical_coordinates": layout.width(),
                 "compressed_entries_per_matrix": compressed,
                 "expanded_entries_per_matrix": expanded,
-                "native_power7_rows": native_powers,
+                "native_power3_rows": native_powers,
                 "matrix_kind": "A*B-C+S^7",
                 "matrix_count": 4,
                 "fresh_norm_bound": 2,

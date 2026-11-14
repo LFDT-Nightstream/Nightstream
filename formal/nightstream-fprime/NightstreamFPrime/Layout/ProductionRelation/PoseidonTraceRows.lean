@@ -42,7 +42,7 @@ theorem residual_zero_iff {sourceWidth logicalWidth : Nat}
     (source : Circuit.Env) (one : assignment oneColumn = 1)
     (preserves : sourceMap.Preserves assignment source) :
     (step.compile sourceMap oneColumn).residual assignment = 0 ↔
-      Spec.ProductionRelation.RowSemantics.seventhPower
+      Spec.ProductionRelation.RowSemantics.cube
           (step.input.eval source) = source step.output.val :=
   SboxRow.Forms.residual_zero_iff _ _ _ _
     (step.compile_preserves sourceMap oneColumn assignment source one preserves)

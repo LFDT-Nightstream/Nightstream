@@ -174,7 +174,7 @@ theorem soundness (inputs : Application.InputsBelow i offset)
       Sponge.Assumptions (squeeze1 p app i offset) (squeeze1Start p app i offset) env := by
     refine ⟨fun lane => ?_, noBlocks _⟩
     have scope := Sponge.output_varsBelow (eta p app i offset) (etaStart p app i offset) env etaAssumptions lane
-    have bound : etaStart p app i offset + ((eta p app i offset).chunks (etaStart p app i offset)).length * 1096 =
+    have bound : etaStart p app i offset + ((eta p app i offset).chunks (etaStart p app i offset)).length * 1174 =
         squeeze1Start p app i offset := by
       rw [etaChunks_length]
       rfl
@@ -189,7 +189,7 @@ theorem soundness (inputs : Application.InputsBelow i offset)
     have scope := Sponge.output_varsBelow (squeeze1 p app i offset) (squeeze1Start p app i offset) env
       squeeze1Assumptions lane
     have bound : squeeze1Start p app i offset +
-        ((squeeze1 p app i offset).chunks (squeeze1Start p app i offset)).length * 1096 =
+        ((squeeze1 p app i offset).chunks (squeeze1Start p app i offset)).length * 1174 =
         squeeze2Start p app i offset := by
       simp only [squeeze2Start, squeeze1, permuting, List.length_singleton, one_mul]
     rw [Sponge.localLength_eq, bound] at scope
@@ -203,7 +203,7 @@ theorem soundness (inputs : Application.InputsBelow i offset)
     have scope := Sponge.output_varsBelow (squeeze2 p app i offset) (squeeze2Start p app i offset) env
       squeeze2Assumptions lane
     have bound : squeeze2Start p app i offset +
-        ((squeeze2 p app i offset).chunks (squeeze2Start p app i offset)).length * 1096 =
+        ((squeeze2 p app i offset).chunks (squeeze2Start p app i offset)).length * 1174 =
         squeeze3Start p app i offset := by
       simp only [squeeze3Start, squeeze2, permuting, List.length_singleton, one_mul]
     rw [Sponge.localLength_eq, bound] at scope

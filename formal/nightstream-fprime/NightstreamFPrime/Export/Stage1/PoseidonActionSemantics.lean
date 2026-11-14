@@ -288,7 +288,7 @@ theorem readsAt_of_outputs (env : Env) (stateAt : Nat → State) :
       List.ofFn (Layer.evalState env symbolic) = stateAt offset →
       (∀ index, index < Invocations.invocationCount actions →
         List.ofFn (Layer.evalState env
-          (Invocations.permutationOutput (start + index * 1096))) =
+          (Invocations.permutationOutput (start + index * 1174))) =
             stateAt (offset + index + 1)) →
       Formal.expectedSamples actions =
         (Formal.compile start symbolic actions).samples →
@@ -330,12 +330,12 @@ theorem readsAt_of_outputs (env : Env) (stateAt : Nat → State) :
               using samples
           rw [Hash.compileAbsorptions_recipes_length] at tailSamples
           change ReadsAt env stateAt (offset + blocks.length) actions
-          exact inductionHypothesis (start + blocks.length * 1096)
+          exact inductionHypothesis (start + blocks.length * 1174)
             (offset + blocks.length) absorbed.output nextEq (by
               intro index bound
               have output := outputsEq (blocks.length + index) (by omega)
-              have startEq : start + (blocks.length + index) * 1096 =
-                  start + blocks.length * 1096 + index * 1096 := by
+              have startEq : start + (blocks.length + index) * 1174 =
+                  start + blocks.length * 1174 + index * 1174 := by
                 rw [Nat.add_mul, Nat.add_assoc]
               rw [startEq] at output
               rw [output]

@@ -266,10 +266,10 @@ fn original_host_block_has_only_the_four_gated_output_readers() {
         );
         assert!(row.row().c_terms().is_empty());
     }
-    assert_eq!(block.len(), 716);
-    assert_eq!(nonlinear, 472);
+    assert_eq!(block.len(), 654);
+    assert_eq!(nonlinear, 278);
     eprintln!(
-        "shared_host_block_source_rows\t{}\tnonlinear\t{nonlinear}\tentries\t{entries}\tshared_columns\t728",
+        "shared_host_block_source_rows\t{}\tnonlinear\t{nonlinear}\tentries\t{entries}\tshared_columns\t666",
         block.len()
     );
 }

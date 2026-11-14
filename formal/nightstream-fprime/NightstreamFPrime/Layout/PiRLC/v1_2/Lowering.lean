@@ -120,7 +120,7 @@ theorem physicalRowCount_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
-    physicalRowCount relation interface offset = 4196595 := by
+    physicalRowCount relation interface offset = 4198935 := by
   rw [physicalRowCount_eq]
   exact totalRowCount_eq_production relation interface offset inputs
 
@@ -128,7 +128,7 @@ theorem physicalColumnCount_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
     (inputs : InputShapes relation interface offset) :
-    physicalColumnCount relation interface offset = offset + 4223175 := by
+    physicalColumnCount relation interface offset = offset + 4225515 := by
   rw [physicalColumnCount_eq, physicalFreshColumnCount_eq_production
     relation interface offset inputs]
   unfold logicalColumnCount Formal.logicalPrivateCount

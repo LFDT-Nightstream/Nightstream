@@ -901,29 +901,29 @@ theorem actions_length (interface : Interface) (offset : Nat) :
   rfl
 
 theorem layoutActions_recipeCount :
-    Formal.recipeCount layoutActions = 4384 := by
+    Formal.recipeCount layoutActions = 4696 := by
   rfl
 
 def recipeCount (interface : Interface) (offset : Nat) : Nat :=
   Formal.recipeCount (actions interface offset)
 
 theorem recipeCount_eq (interface : Interface) (offset : Nat) :
-    recipeCount interface offset = 4384 := by
+    recipeCount interface offset = 4696 := by
   unfold recipeCount
   rw [← Formal.compile_recipes_length offset (interface.initialState offset)]
-  change (program interface offset).recipes.length = 4384
+  change (program interface offset).recipes.length = 4696
   rw [(program_shape_eq_layout interface offset).1, layoutProgram,
     Formal.compile_recipes_length, layoutActions_recipeCount]
 
 @[simp] theorem program_recipes_length (interface : Interface) (offset : Nat) :
-    (program interface offset).recipes.length = 4384 := by
+    (program interface offset).recipes.length = 4696 := by
   change (Formal.compile offset (interface.initialState offset)
-    (actions interface offset)).recipes.length = 4384
+    (actions interface offset)).recipes.length = 4696
   rw [Formal.compile_recipes_length]
   exact recipeCount_eq interface offset
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 4384 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 4696 := by
   rw [circuit_ops, opsAt_localLength, program_recipes_length]
 
 theorem operations_length (interface : Interface) (offset : Nat) :
@@ -933,7 +933,7 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      4384 := by
+      4696 := by
   rw [circuit_ops, flatConstraints_opsAt, recipeConstraints_length,
     program_recipes_length]
 
@@ -1034,7 +1034,7 @@ theorem spec_implies_keyExecution_challenges
 /-- The circuit with its constant private count, for compiled evaluation
 (`Formal.childLength_eq_childLengthFast` reads it for every later offset). -/
 def circuitFast (interface : Interface) : FormalCircuit :=
-  (circuit interface).withPrivateCount (fun _ => 4384) (localLength_eq interface)
+  (circuit interface).withPrivateCount (fun _ => 4696) (localLength_eq interface)
 
 @[csimp] theorem circuit_eq_circuitFast : @circuit = @circuitFast := by
   funext interface

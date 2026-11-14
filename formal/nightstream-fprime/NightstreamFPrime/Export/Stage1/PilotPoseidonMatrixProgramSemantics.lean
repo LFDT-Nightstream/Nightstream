@@ -29,7 +29,7 @@ private theorem previousRule_succ
       some (some (PoseidonRetainedFamily.outputState schedule retainedStart fits
         ⟨invocationOffset.val, by omega⟩ lane)) := by
   have slotBound : ∀ selected : Fin 16,
-      134 + invocationOffset.val * 150 + selected.val <
+      155 + invocationOffset.val * 171 + selected.val <
         schedule.block.slotCount := by
     intro selected
     rw [schedule.slotCount_eq, PoseidonRetainedSlots.rows_length]
@@ -38,13 +38,13 @@ private theorem previousRule_succ
       (1 + invocationOffset.val) lane.val =
         some (some (SparseLayer.external (fun selected : Fin 16 =>
           schedule.block.form retainedStart fits
-            ⟨134 + invocationOffset.val * 150 + selected.val,
+            ⟨155 + invocationOffset.val * 171 + selected.val,
               slotBound selected⟩) lane)) by
     simpa [previousRule] using
       PoseidonInput.Rule.external_form?_ofSemantic
         (region := PoseidonInput.Region.mk 1 2110 0 16)
         invocationOffset lane lane.isLt schedule.block retainedStart fits
-        oneColumn 134 150 slotBound]
+        oneColumn 155 171 slotBound]
   apply congrArg some
   apply congrArg some
   unfold PoseidonRetainedFamily.outputState PoseidonRetainedFamily.form
@@ -397,9 +397,9 @@ theorem outputInputProgram_state?
 theorem priorBlock_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
-    (global : Fin (PilotPoseidonPlan.invocationCount * 150)) :
+    (global : Fin (PilotPoseidonPlan.invocationCount * 171)) :
     (priorBlock geometry).row? logicalWidth global.val =
-      let decoded : Fin PilotPoseidonPlan.invocationCount × Fin 150 :=
+      let decoded : Fin PilotPoseidonPlan.invocationCount × Fin 171 :=
         Fin.decodeProd global
       some (PoseidonSboxFamilyPlan.rowForms
         (PilotPoseidonPlan.priorInterface geometry) decoded.1 decoded.2) := by
@@ -416,9 +416,9 @@ theorem priorBlock_row?
 theorem outputBlock_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
-    (global : Fin (PilotPoseidonPlan.invocationCount * 150)) :
+    (global : Fin (PilotPoseidonPlan.invocationCount * 171)) :
     (outputBlock geometry).row? logicalWidth global.val =
-      let decoded : Fin PilotPoseidonPlan.invocationCount × Fin 150 :=
+      let decoded : Fin PilotPoseidonPlan.invocationCount × Fin 171 :=
         Fin.decodeProd global
       some (PoseidonSboxFamilyPlan.rowForms
         (PilotPoseidonPlan.outputInterface geometry) decoded.1 decoded.2) := by

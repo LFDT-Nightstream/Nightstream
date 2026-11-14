@@ -50,11 +50,11 @@ variable {logicalWidth : Nat}
     RingCarrierLayout.carrierWidth logicalWidth}
 
 
-def degreeBound (_relation : LogicalRelation logicalWidth publicFits) : Nat := 8
+def degreeBound (_relation : LogicalRelation logicalWidth publicFits) : Nat := 4
 
 theorem degreeBound_eq
     (relation : LogicalRelation logicalWidth publicFits) :
-    degreeBound relation = 8 := by
+    degreeBound relation = 4 := by
   rfl
 
 theorem derivedDegreeBound_eq
@@ -66,7 +66,7 @@ theorem derivedDegreeBound_eq
   unfold degreeBound matrixSource RingMatrixSource.source
   rw [ConstraintPolynomialLift.liftConstraintPolynomial_canonicalEqualityGatedDegreeBound]
   change Nat.max
-    ProductionRelation.polynomial.canonicalEqualityGatedDegreeBound 4 = 8
+    ProductionRelation.polynomial.canonicalEqualityGatedDegreeBound 4 = 4
   rw [ProductionRelation.polynomial_canonicalEqualityGatedDegreeBound]
   rfl
 

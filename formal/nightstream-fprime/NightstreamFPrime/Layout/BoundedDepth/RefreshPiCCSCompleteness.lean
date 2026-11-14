@@ -32,7 +32,7 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-  (interface : RefreshPiCCSLayout.Interface logicalWidth 8 publicFits) (offset : Nat)
+  (interface : RefreshPiCCSLayout.Interface logicalWidth 4 publicFits) (offset : Nat)
 
 /-- A fixed SumCheck chain has one terminal claim for given rounds and challenges. -/
 private theorem chain_terminal_unique {degree : Nat} :
@@ -93,7 +93,7 @@ variable (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFi
   (fresh : Spec.Folding.Nifs.PaperNonInteractive.Fresh PaperAlgebra.Commitment
     (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
     productionShape)
-  (proof : Spec.Folding.Nifs.PaperNonInteractive.Proof K PaperAlgebra.Commitment productionShape 8)
+  (proof : Spec.Folding.Nifs.PaperNonInteractive.Proof K PaperAlgebra.Commitment productionShape 4)
 
 /-- The external words keep what they carry when only words at or above the offset change. -/
 theorem represents_of_agree_below (below : RefreshPiCCSBounds.InputsBelow interface offset)

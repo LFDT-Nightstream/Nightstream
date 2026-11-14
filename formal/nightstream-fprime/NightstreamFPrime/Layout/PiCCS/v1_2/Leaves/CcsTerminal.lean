@@ -53,7 +53,7 @@ theorem output_varsBelow_norm
       (Formal.normOffset relation interface parentOffset)).VarsBelow
         (Formal.normOffset relation interface parentOffset) := by
   have normOffsetEq : Formal.normOffset relation interface parentOffset =
-      Formal.ccsOffset interface parentOffset + 23 := by
+      Formal.ccsOffset interface parentOffset + 11 := by
     calc
       Formal.normOffset relation interface parentOffset =
           Formal.normStart (Formal.atOffset interface parentOffset) :=
@@ -88,7 +88,7 @@ private theorem core_totalRowCount
     (offset : Nat)
     (inputs : InputsLinear (Formal.ccsInterface relation interface) offset) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.ccsCircuit relation interface).main offset)) = 23 := by
+      (Formal.ccsCircuit relation interface).main offset)) = 11 := by
   unfold Formal.ccsCircuit
   rw [FormalCircuit.withConstantFootprint_main]
   have rows :=
@@ -108,7 +108,7 @@ def footprint
       InputsLinear (Formal.ccsInterface relation interface) offset) :
     R1CS.CircuitFootprint (Formal.ccsCircuit relation interface) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 23
+  physicalRowCount := fun _ => 11
   freshColumnCount_eq := by
     intro offset
     exact core_totalFreshCount relation interface offset (inputs offset)
@@ -133,7 +133,7 @@ theorem physicalRowCount_eq
       InputsLinear (Formal.ccsInterface relation interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.ccsCircuit relation interface).main offset)) = 23 :=
+      (Formal.ccsCircuit relation interface).main offset)) = 11 :=
   (footprint relation interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
@@ -145,10 +145,10 @@ theorem physicalPrivateColumnCount_eq
     localLength (Circuit.ops (Formal.ccsCircuit relation interface).main
         offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-        (Formal.ccsCircuit relation interface).main offset)) = 23 := by
+        (Formal.ccsCircuit relation interface).main offset)) = 11 := by
   have logicalColumns :
       localLength (Circuit.ops (Formal.ccsCircuit relation interface).main
-        offset) = 23 := by
+        offset) = 11 := by
     unfold Formal.ccsCircuit
     rw [FormalCircuit.withConstantFootprint_main]
     exact

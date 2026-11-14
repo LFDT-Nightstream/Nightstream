@@ -66,7 +66,7 @@ section Groups
 variable (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
   (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-  (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8)
+  (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 4)
   (selected : Fin 2) (folded : SlotData logicalWidth publicFits)
 
 theorem active_group :
@@ -118,7 +118,7 @@ section Words
 variable (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
   (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-  (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8)
+  (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 4)
   (selected : Fin 2) (folded : SlotData logicalWidth publicFits)
   (program : Stage1.Application.Program) (base : Nat) (target : Env)
   (agree : ∀ column, column < sharedEnd base program.witnessWordCount →
@@ -275,7 +275,7 @@ theorem completePhasesFrom (program : Stage1.Application.Program)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits) (circuit : Fin 2)
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8)
+    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 4)
     (selected : Fin 2) (folded : SlotData logicalWidth publicFits) (foldedDepth : folded.2 = 0)
     {initial : Env} {start : Nat} (before : Sequence.Prefix initial start)
     (startEq : start + localLength before.operations = decOffset program circuit
@@ -476,7 +476,7 @@ theorem complete (program : Stage1.Application.Program)
     (circuit : Fin 2) (refresh : Spec.HyperNova.Construction2.BoundedDepth.circuitStep circuit = .refresh)
     (stepEq : program.step = step)
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8)
+    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 4)
     (selected : Fin 2) (folded : SlotClaim logicalWidth publicFits)
     (holds : StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step control
       circuit input output)

@@ -104,7 +104,7 @@ def chainFinal : Sponge.Interface :=
 def eta : Sponge.Interface := absorbing (etaBlocks p app i offset)
 
 /-- The sponge length of an absorbing child. -/
-def span (blocks : List (List Circuit.Expr)) : ℕ := (transcriptChunks blocks).length * 1096
+def span (blocks : List (List Circuit.Expr)) : ℕ := (transcriptChunks blocks).length * 1174
 
 /-- The rate chunks of blocks with the given word counts. -/
 def chunkCount (lengths : List ℕ) : ℕ := (lengths.map fun l => (l + 1 + 11) / 12).sum
@@ -122,14 +122,14 @@ def chainFinalStart : ℕ := chainInitialStart p app i offset +
   span (chainBlocks p app i offset .mem 4 (scanLanes p fun j => Words.initial p j 0))
 def etaStart : ℕ := chainFinalStart p app i offset +
   span (chainBlocks p app i offset .mem 8 (scanLanes p fun j => Words.final p j 0))
-def squeeze1Start : ℕ := etaStart p app i offset + etaChunkCount * 1096
-def squeeze2Start : ℕ := squeeze1Start p app i offset + 1096
-def squeeze3Start : ℕ := squeeze2Start p app i offset + 1096
-def endOffset : ℕ := squeeze3Start p app i offset + 1096
+def squeeze1Start : ℕ := etaStart p app i offset + etaChunkCount * 1174
+def squeeze2Start : ℕ := squeeze1Start p app i offset + 1174
+def squeeze3Start : ℕ := squeeze2Start p app i offset + 1174
+def endOffset : ℕ := squeeze3Start p app i offset + 1174
 
 /-- The challenge transcript's final state in closed form (`etaState_output`). -/
 def etaState : Sponge.EState :=
-  Permutation.freshState (etaStart p app i offset + (etaChunkCount - 1) * 1096 + 1080)
+  Permutation.freshState (etaStart p app i offset + (etaChunkCount - 1) * 1174 + 1158)
 def squeeze1 : Sponge.Interface := permuting (etaState p app i offset)
 def squeeze1State : Sponge.EState := Sponge.output (squeeze1 p app i offset) (squeeze1Start p app i offset)
 def squeeze2 : Sponge.Interface := permuting (squeeze1State p app i offset)

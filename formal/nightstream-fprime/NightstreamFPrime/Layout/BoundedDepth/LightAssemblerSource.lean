@@ -102,10 +102,10 @@ def freshColumn (fresh : StepFresh logicalWidth publicFits) (word : Nat) : F :=
   else fresh.publicInputs ⟨0, by decide⟩ (finAt 320 (by decide) (word - 1152))
 
 /-- The round polynomials' coefficients, nine per round. -/
-def roundColumn (rounds : Fin productionShape.cubeVariables → SumCheck.Finite.FixedPolynomial K 8)
+def roundColumn (rounds : Fin productionShape.cubeVariables → SumCheck.Finite.FixedPolynomial K 4)
     (word : Nat) : F :=
-  kColumn (fun index => (rounds (finAt 28 (by decide) (index / 9))).coefficients.getD
-    (index % 9) ⟨0, 0⟩) word
+  kColumn (fun index => (rounds (finAt 28 (by decide) (index / 5))).coefficients.getD
+    (index % 5) ⟨0, 0⟩) word
 
 /-- The Π_CCS output of both sources: per source 64 pad and 256 matrix coordinates. -/
 def outputColumn (output : FullOutputCoordinates.FullOutput K LightShape) (word : Nat) : F :=
@@ -128,7 +128,7 @@ structure Values (logicalWidth : Nat)
   slots : Fin 7 → SlotData logicalWidth publicFits
   digests : Fin 5 → List F
   fresh : StepFresh logicalWidth publicFits
-  rounds : Fin productionShape.cubeVariables → SumCheck.Finite.FixedPolynomial K 8
+  rounds : Fin productionShape.cubeVariables → SumCheck.Finite.FixedPolynomial K 4
   output : FullOutputCoordinates.FullOutput K LightShape
   digestSelect : Fin 4 → List F
 
@@ -263,7 +263,7 @@ theorem env_fresh (word : Nat) (bound : word < 1472) :
       unfold roundsStart; omega,
     ↓reduceIte, Nat.add_sub_cancel_left]
 
-theorem env_round (word : Nat) (bound : word < 504) :
+theorem env_round (word : Nat) (bound : word < 280) :
     env base witnessWordCount values (roundsStart base witnessWordCount + word) =
       roundColumn values.rounds word := by
   simp only [env, show ¬roundsStart base witnessWordCount + word < base by
@@ -343,7 +343,7 @@ section Readback
 
 variable {base witnessWordCount} (env : Env)
 
-private theorem fixedPolynomial_ext {left right : SumCheck.Finite.FixedPolynomial K 8}
+private theorem fixedPolynomial_ext {left right : SumCheck.Finite.FixedPolynomial K 4}
     (same : left.coefficients = right.coefficients) : left = right := by
   cases left
   cases right
@@ -513,8 +513,8 @@ theorem fresh_eval (fresh : StepFresh logicalWidth publicFits)
 
 /-- The round words carry the round polynomials whose columns `env` holds. -/
 theorem round_eval (rounds : Fin productionShape.cubeVariables →
-      SumCheck.Finite.FixedPolynomial K 8)
-    (columns : ∀ word, word < 504 →
+      SumCheck.Finite.FixedPolynomial K 4)
+    (columns : ∀ word, word < 280 →
       env (roundsStart base witnessWordCount + word) = roundColumn rounds word)
     (roundIndex : Fin productionShape.cubeVariables) :
     ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base
@@ -522,22 +522,22 @@ theorem round_eval (rounds : Fin productionShape.cubeVariables →
   have roundBound := roundIndex.isLt
   change roundIndex.val < 28 at roundBound
   apply fixedPolynomial_ext
-  change (List.ofFn fun coefficient : Fin 9 => kAt (roundsStart base witnessWordCount +
-    2 * (roundIndex.val * 9 + coefficient.val))).map (KExpr.eval env) = _
+  change (List.ofFn fun coefficient : Fin 5 => kAt (roundsStart base witnessWordCount +
+    2 * (roundIndex.val * 5 + coefficient.val))).map (KExpr.eval env) = _
   rw [List.map_ofFn, ← ofFn_getD ⟨0, 0⟩ (rounds roundIndex).coefficients
     (rounds roundIndex).coefficients_length]
   apply congrArg List.ofFn
   funext coefficient
   have coefficientBound := coefficient.isLt
   apply kAt_eval
-  · rw [columns (2 * (roundIndex.val * 9 + coefficient.val)) (by omega)]
+  · rw [columns (2 * (roundIndex.val * 5 + coefficient.val)) (by omega)]
     unfold roundColumn
-    rw [kColumn_low, show (roundIndex.val * 9 + coefficient.val) % 9 = coefficient.val by omega]
+    rw [kColumn_low, show (roundIndex.val * 5 + coefficient.val) % 5 = coefficient.val by omega]
     exact congrArg (fun index => ((rounds index).coefficients.getD coefficient.val ⟨0, 0⟩).c0)
       (Fin.ext (by rw [finAt_val]; omega))
-  · rw [Nat.add_assoc, columns (2 * (roundIndex.val * 9 + coefficient.val) + 1) (by omega)]
+  · rw [Nat.add_assoc, columns (2 * (roundIndex.val * 5 + coefficient.val) + 1) (by omega)]
     unfold roundColumn
-    rw [kColumn_high, show (roundIndex.val * 9 + coefficient.val) % 9 = coefficient.val by omega]
+    rw [kColumn_high, show (roundIndex.val * 5 + coefficient.val) % 5 = coefficient.val by omega]
     exact congrArg (fun index => ((rounds index).coefficients.getD coefficient.val ⟨0, 0⟩).c1)
       (Fin.ext (by rw [finAt_val]; omega))
 
@@ -620,7 +620,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2
 
 variable (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
   (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-  (proof : Spec.Folding.Light.Proof LightShape 8) (selected : Fin 2)
+  (proof : Spec.Folding.Light.Proof LightShape 4) (selected : Fin 2)
   (folded : SlotData logicalWidth publicFits)
 
 /-- The honest values of a light step: the counters with the iteration's inverse, the recursive
@@ -672,9 +672,9 @@ private theorem starts : keysStart base = base + 5 ∧ statesStart base = base +
     digestsStart base witnessWordCount = base + 25 + witnessWordCount + 15183 ∧
     freshStart base witnessWordCount = base + 25 + witnessWordCount + 15203 ∧
     roundsStart base witnessWordCount = base + 25 + witnessWordCount + 16675 ∧
-    outputStart base witnessWordCount = base + 25 + witnessWordCount + 17179 ∧
-    digestSelectStart base witnessWordCount = base + 25 + witnessWordCount + 18459 ∧
-    sharedEnd base witnessWordCount = base + 25 + witnessWordCount + 18475 := by
+    outputStart base witnessWordCount = base + 25 + witnessWordCount + 16955 ∧
+    digestSelectStart base witnessWordCount = base + 25 + witnessWordCount + 18235 ∧
+    sharedEnd base witnessWordCount = base + 25 + witnessWordCount + 18251 := by
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
     simp only [keysStart, statesStart, witnessStart, slotsStart, digestsStart, freshStart,
       roundsStart, outputStart, digestSelectStart, sharedEnd, slotWordCount]
@@ -727,7 +727,7 @@ theorem target_fresh (word : Nat) (bound : word < 1472) :
   (agree _ (by have := starts base witnessWordCount; omega)).trans
     (env_fresh base witnessWordCount _ word bound)
 
-theorem target_round (word : Nat) (bound : word < 504) :
+theorem target_round (word : Nat) (bound : word < 280) :
     target (roundsStart base witnessWordCount + word) = roundColumn proof.piCcsRounds word :=
   (agree _ (by have := starts base witnessWordCount; omega)).trans
     (env_round base witnessWordCount _ word bound)

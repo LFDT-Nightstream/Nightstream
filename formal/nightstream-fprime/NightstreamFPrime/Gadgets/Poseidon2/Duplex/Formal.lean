@@ -20,12 +20,12 @@ inductive ValueAction where
   | readK (pair : Read.Pair) (expected : K)
 
 def Action.recipeCount : Action → Nat
-  | .absorb input => (Hash.inputChunks input).length * 1096
+  | .absorb input => (Hash.inputChunks input).length * 1174
   | .readK _ _ => 0
 
 /-- Compiled code counts the chunks from the input length and builds no chunk. -/
 def Action.recipeCountFast : Action → Nat
-  | .absorb input => (input.length + Spec.Poseidon2.rate - 1) / Spec.Poseidon2.rate * 1096
+  | .absorb input => (input.length + Spec.Poseidon2.rate - 1) / Spec.Poseidon2.rate * 1174
   | .readK _ _ => 0
 
 @[csimp] theorem Action.recipeCount_eq_recipeCountFast :
@@ -127,13 +127,13 @@ structure AbsorbWiring where
 def compileAbsorbWiring : Nat → EState → List (List Expr) → AbsorbWiring
   | start, state, [] => ⟨start, state⟩
   | start, _state, _block :: blocks =>
-      compileAbsorbWiring (start + 1096)
+      compileAbsorbWiring (start + 1174)
         (Permutation.scheduleOutput start) blocks
 
 theorem compileAbsorbWiring_next (start : Nat) (state : EState)
     (blocks : List (List Expr)) :
     (compileAbsorbWiring start state blocks).next =
-      start + blocks.length * 1096 := by
+      start + blocks.length * 1174 := by
   induction blocks generalizing start state with
   | nil => rfl
   | cons block blocks inductionHypothesis =>
@@ -222,7 +222,7 @@ def compileAbsorbWiringLazy : Nat → (Unit → EState) →
     List (List Expr) → AbsorbWiring
   | start, delayed, [] => ⟨start, delayed ()⟩
   | start, _delayed, _block :: blocks =>
-      compileAbsorbWiringLazy (start + 1096)
+      compileAbsorbWiringLazy (start + 1174)
         (fun _ => Permutation.scheduleOutput start) blocks
 
 theorem compileAbsorbWiringLazy_eq (start : Nat)

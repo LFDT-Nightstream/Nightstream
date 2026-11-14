@@ -21,7 +21,7 @@ fn light_step_zero_holds_every_row() {
     let transcript = derive_light_transcript(
         &[0; COMMITMENT_WORDS],
         &canonical(&step.fresh_public_input),
-        &vec![vec![[0u64; 2]; 9]; 28],
+        &vec![vec![[0u64; 2]; 5]; 28],
         &vec![0; 2 * 2 * EVALUATIONS],
     )
     .expect("light transcript");
@@ -41,7 +41,7 @@ fn refresh_step_zero_holds_every_row() {
         &[0; COMMITMENT_WORDS],
         &canonical(&step.fresh_public_input),
         &vec![0; children * (COMMITMENT_WORDS + 2 * EVALUATIONS)],
-        &vec![vec![[0u64; 2]; 9]; 28],
+        &vec![vec![[0u64; 2]; 5]; 28],
         &vec![0; sources * 2 * EVALUATIONS],
     )
     .expect("refresh transcript");

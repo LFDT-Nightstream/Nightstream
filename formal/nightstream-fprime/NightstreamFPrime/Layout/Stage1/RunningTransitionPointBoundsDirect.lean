@@ -14,9 +14,9 @@ open NightstreamFPrime.Lifecycle.Stage1
 open NightstreamFPrime.Layout.Polynomial.Horner
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-def roundStride : Nat := 2192
-def roundSampleC0Offset : Nat := 2176
-def roundSampleC1Offset : Nat := 2177
+def roundStride : Nat := 1174
+def roundSampleC0Offset : Nat := 1158
+def roundSampleC1Offset : Nat := 1159
 
 def directRoundPoint (start : Nat)
     (coordinate : Fin productionShape.cubeVariables) : KExpr :=

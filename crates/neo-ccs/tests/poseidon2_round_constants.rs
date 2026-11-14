@@ -81,7 +81,14 @@ fn check_instance<const T: usize>(
 ) {
     assert_eq!(instance["t"], T);
     assert_eq!(instance["q"], Fq::ORDER_U64.to_string());
-    assert_eq!((instance["rf"].as_u64(), instance["rp"].as_u64()), (Some(8), Some(22)));
+    assert_eq!(
+        (instance["d"].as_u64(), instance["rf"].as_u64(), instance["rp"].as_u64()),
+        (
+            Some(p2::SBOX_DEGREE),
+            Some(2 * p2::HALF_FULL_ROUNDS as u64),
+            Some(p2::PARTIAL_ROUNDS as u64)
+        )
+    );
     assert_eq!(rows(&instance["external_initial"]), canonical(&rust.initial));
     assert_eq!(rows(&instance["external_terminal"]), canonical(&rust.terminal));
     assert_eq!(u64s(&instance["internal"]), canonical(&[rust.internal])[0]);

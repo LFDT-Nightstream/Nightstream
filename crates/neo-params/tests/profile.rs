@@ -114,7 +114,7 @@ fn constructor_returns_the_profile_constants() {
             profile::B,
             profile::T,
             profile::EXTENSION_DEGREE,
-            profile::LAMBDA
+            profile::TARGET_LAMBDA
         )
     );
 }

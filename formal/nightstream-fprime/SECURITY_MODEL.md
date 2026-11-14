@@ -228,7 +228,7 @@ not change terminal source checks.
   history recovers is at most `B + cap · T · (b − 1)`
   (`Spec.Folding.Schedule.recoveredBounds_le`). Trust item 2 gives the
   hardness premise.
-- **Error terms:** the light Π_CCS test numerator is 524, against 4,589 for
+- **Error terms:** the light Π_CCS test numerator is 574, against 5,389 for
   the refresh Π_CCS, and a light fork has one `ρ` coordinate, against 17 for
   a refresh fork (`Spec.Folding.Light.ErrorBudget.production_testNumerator`,
   `Spec.Folding.Light.ErrorBudget.production_forkCoordinates`,
@@ -244,6 +244,13 @@ not change terminal source checks.
   `(Q + 74) · 5390/2^128` for refresh
   (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.statisticalError_le`,
   `Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.statisticalError_le`).
+  The fold gate of Rust `Params::for_ccs_shape` charges one error for both
+  folds and computes its bits in integers. The statistical term of either
+  fold is at most `(Q + 1)/2^bits`, and `bits` is 109 at the step relations
+  (`Lifecycle.BoundedDepth.RandomOracle.FoldGate.refresh_statisticalError_le_bits`,
+  `Lifecycle.BoundedDepth.RandomOracle.FoldGate.light_statisticalError_le_bits`,
+  `Lifecycle.BoundedDepth.RandomOracle.FoldGate.production_bits`). The gate
+  certifies only the term at `Q = 0`.
   The kernel term is the probability that the binding reduction returns a
   short kernel vector of the Ajtai key at the chain norm. A black-box
   rewinding machine outputs that vector with at most `budget` adversary runs,

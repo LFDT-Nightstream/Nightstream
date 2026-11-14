@@ -19,7 +19,7 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_lib]]
 name = "NightstreamFPrimeTests"
-roots = ["tests.AxiomsSharedExports", "tests.SharedFormulas", "tests.AxiomAudit", "tests.Axioms", "tests.AxiomsFoundations", "tests.AxiomsPiRlcSampler", "tests.AxiomsAjtaiSetupV1", "tests.AxiomsPiCCSClosure", "tests.AxiomsNifsClosure", "tests.AxiomsPiRLCTail", "tests.AxiomsProductionMatrixPlan", "tests.AxiomsRecursivePublicInput", "tests.AxiomsStage1Accumulator", "tests.AxiomsStage1Application", "tests.AxiomsStage1Assembler", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1Security", "tests.AxiomsLightFold", "tests.AxiomsRefreshFold", "tests.AxiomsBoundedDepthRandomOracle", "tests.AxiomsSchedule", "tests.AxiomsBoundedDepthIvc", "tests.AxiomsChainBinding", "tests.NativePoseidon2Boundary", "tests.Poseidon2Vectors", "tests.PerApplicationEmitterFixture", "tests.EndpointCensus", "tests.AxiomsNebula", "tests.AxiomsCompression", "tests.AxiomsCompressionRust", "tests.AxiomsSharedAbsorb", "tests.AxiomsPaddingZero", "tests.AxiomsAuxRelocation", "tests.AxiomsBooleanInference", "tests.AxiomsNativeBooleanCompleteness", "tests.AxiomsReadOnlyValues", "tests.AxiomsPackedBoolean", "tests.AxiomsNativePower", "tests.AxiomsGuardFusion", "tests.AxiomsWordPacking", "tests.AxiomsPackedProduct", "tests.AxiomsPackedZero", "tests.AxiomsIntegerProduct"]
+roots = ["tests.AxiomsSharedExports", "tests.SharedFormulas", "tests.AxiomAudit", "tests.Axioms", "tests.AxiomsFoundations", "tests.AxiomsPiRlcSampler", "tests.AxiomsAjtaiSetupV1", "tests.AxiomsPiCCSClosure", "tests.AxiomsNifsClosure", "tests.AxiomsPiRLCTail", "tests.AxiomsProductionMatrixPlan", "tests.AxiomsRecursivePublicInput", "tests.AxiomsStage1Accumulator", "tests.AxiomsStage1Application", "tests.AxiomsStage1Assembler", "tests.AxiomsStage1PiDEC", "tests.AxiomsStage1PiRLCExport", "tests.AxiomsStage1Security", "tests.AxiomsLightFold", "tests.AxiomsRefreshFold", "tests.AxiomsBoundedDepthRandomOracle", "tests.AxiomsSchedule", "tests.AxiomsBoundedDepthIvc", "tests.AxiomsChainBinding", "tests.NativePoseidon2Boundary", "tests.Poseidon2Vectors", "tests.PerApplicationEmitterFixture", "tests.EndpointCensus", "tests.AxiomsNebula", "tests.AxiomsCompression", "tests.AxiomsCompressionRust", "tests.AxiomsFoldGate", "tests.AxiomsSharedAbsorb", "tests.AxiomsPaddingZero", "tests.AxiomsAuxRelocation", "tests.AxiomsBooleanInference", "tests.AxiomsNativeBooleanCompleteness", "tests.AxiomsReadOnlyValues", "tests.AxiomsPackedBoolean", "tests.AxiomsNativePower", "tests.AxiomsGuardFusion", "tests.AxiomsWordPacking", "tests.AxiomsPackedProduct", "tests.AxiomsPackedZero", "tests.AxiomsIntegerProduct"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
@@ -34,6 +34,11 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 [[lean_exe]]
 name = "emitPiCCSTestErrorParity"
 root = "NightstreamFPrime.Export.PiCCSTestErrorParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitFoldGateParity"
+root = "NightstreamFPrime.Export.FoldGateParityMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]

@@ -43,7 +43,7 @@ fn guard_rejects_tight_or_overflowing_profiles() {
         profile::KAPPA,
         profile::M,
         profile::EXTENSION_DEGREE,
-        profile::LAMBDA,
+        profile::TARGET_LAMBDA,
     );
     let q = profile::Q;
     let t = (profile::B / (profile::K_RHO as u64 + 1) + 1) as u32;
@@ -116,7 +116,7 @@ fn parameter_boundary_conditions() {
         profile::K_RHO,
         profile::T,
         profile::EXTENSION_DEGREE,
-        profile::LAMBDA,
+        profile::TARGET_LAMBDA,
     );
     let (q, eta, d, kappa, m, b, k, t, s, lambda) = base_params;
 
@@ -177,7 +177,7 @@ fn profile_security_invariants() {
 
     assert_eq!(p.q(), profile::Q);
     assert_eq!(p.s(), profile::EXTENSION_DEGREE);
-    assert_eq!(p.lambda(), profile::LAMBDA);
+    assert_eq!(p.lambda(), profile::TARGET_LAMBDA);
 
     println!("✅ RED TEAM: The profile satisfies all security invariants");
     println!(

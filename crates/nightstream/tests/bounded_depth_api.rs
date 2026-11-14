@@ -98,18 +98,6 @@ fn a_word_not_below_q_does_not_decode() {
     }
 }
 
-/// The gate charges the refresh fold's zero-query error of the random-oracle
-/// result (`RefreshKnowledge.statisticalError 0`, about `2^-109.15` with the
-/// census numerator 6377 of `neo-params`; SPEC.md section 3), so a
-/// prover or verifier that asks for 110 bits is refused.
-#[test]
-fn the_gate_refuses_more_bits_than_the_fold_error_gives() {
-    let compiled = circuit();
-    assert!(compiled.prover(Engine::Optimized, 109).is_ok());
-    assert!(compiled.prover(Engine::Optimized, 110).is_err());
-    assert!(compiled.verifier(Engine::Optimized, 110).is_err());
-}
-
 /// The reference hash chain compiles to Lean's own packages, so the circuit
 /// that ships is the one that Lean exports and that the Lean checks of Rust's
 /// files read.

@@ -1,7 +1,7 @@
 mod common;
 
 use neo_wasm::host_event_bindings::HostEventBindings;
-use neo_wasm::layout::{COL_OUTPUT_VALUE_LO_AFTER, COL_PC_ROM_CALL_RETURN_CHOICE, COL_STACK_READ_VALUE_LO};
+use neo_wasm::layout::{COL_CALL_STACK_RETURN_PC_VALUE, COL_OUTPUT_VALUE_LO_AFTER, COL_STACK_READ_VALUE_LO};
 use neo_wasm::{
     build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, preload_from_program_artifacts,
     sanity_check_memory_rows, traces_from_wasmtime_steps, WasmAuxOpcode, WasmOpcode, WasmRowKind, WasmVmStep,
@@ -407,7 +407,7 @@ fn nested_trap_may_finish_activation_with_nonempty_call_stack_depth() {
 }
 
 #[test]
-fn call_row_pins_return_pc_rom_choice() {
+fn call_row_pins_return_pc() {
     let wasm = add_one_wasm();
     let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
@@ -416,8 +416,8 @@ fn call_row_pins_return_pc_rom_choice() {
         .find(|row| row.call_stack_push.is_some())
         .expect("call row");
     let mut witness = neo_wasm::witness_builder::build_witness_vector(call_row).unwrap();
-    witness[COL_PC_ROM_CALL_RETURN_CHOICE] = neo_math::F::ZERO;
-    common::assert_rejected(&witness, "call row with unpinned return pc choice");
+    witness[COL_CALL_STACK_RETURN_PC_VALUE] += neo_math::F::ONE;
+    common::assert_rejected(&witness, "call row with a return pc that is not pc + 1");
 }
 
 #[test]

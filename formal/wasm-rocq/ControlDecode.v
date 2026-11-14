@@ -1,12 +1,13 @@
 (* The SpecTec configuration a circuit state denotes. A static control shape says
    where each frame is: a code path through nested labels. The decoder computes the
-   operand height below each enclosing label from the code, reads operand values
+   operand types below each enclosing label from the code, reads operand values
    and locals from memory and callers from the saved call contexts, and fails when
    a register or cell disagrees. The store is not in circuit memory, so it is an
    input; the program it holds must validate. *)
 From Stdlib Require Import List ZArith Bool.
 Require Import Wasm2 WasmIntegers R1CS MemoryTrace MemoryCatalog StraightLineSpec SpecTecCalls SpecTecBranches
   CallerSpec ProgramSpec TableState CodeLayout FunctionValidation FrameInitialization Locals Fragment.
+Require Export IntegerDecode StackTypes.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -38,67 +39,16 @@ Definition siteFunction (site : ActiveSite) : nat :=
   | siteEntering function => function
   end.
 
-(* An i32 occupies the low limb of its stack cell. *)
-Definition i32Cell (cell : option Z) : option Z :=
-  match cell with
-  | Some value => if (0 <=? value) && (value <? i32Modulus) then Some value else None
-  | None => None
-  end.
-
-Fixpoint readCells (cell : Z -> option Z) (first : Z) (count : nat) : option (list Z) :=
-  match count with
-  | O => Some []
-  | S count =>
-      let? value := i32Cell (cell first) in
-      let? values := readCells cell (first + 1) count in
-      Some (value :: values)
-  end.
-
 (* Operand values bottom-to-top, and a frame's locals. *)
 Definition readStack (memory : MemoryState) (first : Z) (count : nat) : option (list Z) :=
   readCells (fun index => memory stackId [2 * index]) first count.
 
 (* A frame's locals are its first stack cells, from fbp. *)
-Definition readLocals (memory : MemoryState) (fbp : Z) (count : nat) : option (list Z) :=
-  readStack memory fbp count.
+Definition readLocals (memory : MemoryState) (fbp : Z) (types : list valtype) : option (list val) :=
+  readIntegerCells memory (fun index => fbp + Z.of_nat index) types.
 
-(* A frame's operands from its base; while a move is pending, the top `moved`
-   operands still sit `distance` cells higher. *)
-Definition readOperands (memory : MemoryState) (base : Z) (count moved : nat) (distance : Z) : option (list Z) :=
-  let? low := readStack memory base (count - moved) in
-  let? high := readStack memory (base + Z.of_nat (count - moved) + distance) moved in
-  Some (low ++ high).
 
 Definition frameLocals (f : GuestFunction) : nat := (guestParams f + guestLocals f)%nat.
-
-Definition activeFrame (f : GuestFunction) (locals : list Z) : frame :=
-  MKframe (List.map i32Value locals) (guestModule f).
-
-(* The operand height below each enclosing label, and in the innermost code at
-   the offset, from the code's stack effects. *)
-Fixpoint pathHeights (callees : CalleeEnvironment) (code : list instr) (labels : list LabelSite) (offset : nat)
-    : option (list nat * nat) :=
-  match labels with
-  | [] => option_map (fun top => ([], top)) (sourceHeights callees (firstn offset code) 0)
-  | s :: rest =>
-      match siteEntry code s, sourceHeights callees (firstn (siteOffset s) code) 0 with
-      | Some (i, body), Some height =>
-          option_map (fun heights => (labelBase i height :: fst heights, snd heights))
-            (pathHeights callees body rest offset)
-      | _, _ => None
-      end
-  end.
-
-Lemma path_heights_length : forall callees labels code offset heights top,
-  pathHeights callees code labels offset = Some (heights, top) -> length heights = length labels.
-Proof.
-  intros callees. induction labels as [ | s rest IH]; intros code offset heights top H; cbn [pathHeights] in H.
-  - destruct (sourceHeights callees (firstn offset code) 0); cbn in H; [ | discriminate]. now injection H as <- _.
-  - destruct (siteEntry code s) as [[i body] | ]; [ | discriminate].
-    destruct (sourceHeights callees (firstn (siteOffset s) code) 0); [ | discriminate].
-    destruct (pathHeights callees body rest offset) as [[hs t] | ] eqn:Hin; cbn in H; [ | discriminate].
-    injection H as <- _. cbn [length]. f_equal. exact (IH _ _ _ _ Hin).
-Qed.
 
 Definition totalHeight (heights : list nat * nat) : nat := fold_right Nat.add (snd heights) (fst heights).
 
@@ -110,7 +60,7 @@ Fixpoint pathArities (code : list instr) (labels : list LabelSite) : list nat :=
   end.
 
 (* The operands below each label, then the innermost ones. *)
-Fixpoint splitSegments (heights : list nat) (values : list Z) : list (list Z) * list Z :=
+Fixpoint splitSegments {A : Type} (heights : list nat) (values : list A) : list (list A) * list A :=
   match heights with
   | [] => ([], values)
   | h :: rest => let split := splitSegments rest (skipn h values) in (firstn h values :: fst split, snd split)
@@ -118,17 +68,25 @@ Fixpoint splitSegments (heights : list nat) (values : list Z) : list (list Z) * 
 
 (* A configuration inside its enclosing labels: each label's operands and the
    code after its END stay outside its LABEL_. *)
-Fixpoint wrapLabels (code : list instr) (labels : list LabelSite) (segments : list (list Z)) (c : config) : config :=
+Fixpoint wrapValueLabels (code : list instr) (labels : list LabelSite) (segments : list (list val))
+    (c : config) : config :=
   match labels, segments with
-  | s :: rest, segment :: more =>
-      match siteEntry code s with
+  | site :: rest, segment :: more =>
+      match siteEntry code site with
       | Some (i, body) =>
-          stackPrefix segment (instructionSuffix (skipn (S (siteOffset s)) code)
-            (blockContext (labelArity i) (labelContinuation i) (wrapLabels body rest more c)))
+          valueStackPrefix segment (instructionSuffix (skipn (S (siteOffset site)) code)
+            (blockContext (labelArity i) (labelContinuation i) (wrapValueLabels body rest more c)))
       | None => c
       end
   | _, _ => c
   end.
+
+Definition typeHeights (types : list (list valtype) * list valtype) : list nat * nat :=
+  (map (@length valtype) (fst types), length (snd types)).
+
+Definition operandTypes (types : list (list valtype) * list valtype) : list valtype :=
+  concat (fst types) ++ snd types.
+
 
 Definition isIndirect (i : instr) : bool := match i with CALL_INDIRECT _ _ => true | _ => false end.
 
@@ -152,21 +110,23 @@ Definition decodeActive (program : Program) (s : store) (memory : MemoryState) (
   | siteCode position =>
       let labels := positionLabels position in
       let offset := positionOffset position in
-      let moved := Z.to_nat (boundaryMoveRemaining boundary) in
+      let remaining := Z.to_nat (boundaryMoveRemaining boundary) in
       let distance := boundaryMoveDistance boundary in
       let? f := functionAt program (positionFunction position) in
       let? inner := pathCode (guestBody f) labels in
-      let? heights := pathHeights (programCallees program (guestModule f)) (guestBody f) labels offset in
+      let? types := pathTypes (guestFrameTypes f) (programCallees program (guestModule f))
+        (guestBody f) labels offset in
+      let heights := typeHeights types in
       check initializationFlagsb boundary && (boundaryZeroRemaining boundary =? 0) &&
         (0 <=? fbp) && (base =? fbp + Z.of_nat (frameLocals f)) &&
         (boundarySP boundary =? base + Z.of_nat (totalHeight heights)) &&
         (boundaryPC boundary =? guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) &&
-        (moved <=? snd heights)%nat && (offset <=? length inner)%nat in
-      let? stack := readOperands memory base (totalHeight heights) moved distance in
-      let? locals := readLocals memory fbp (frameLocals f) in
+        (remaining <=? snd heights)%nat && (offset <=? length inner)%nat in
+      let? stack := readIntegerOperands memory base (operandTypes types) remaining distance in
+      let? locals := readLocals memory fbp (guestFrameTypes f) in
       let split := splitSegments (fst heights) stack in
-      Some (wrapLabels (guestBody f) labels (fst split)
-        (stackConfig (mk_state s (activeFrame f locals)) (snd split) (skipn offset inner)), True)
+      Some (wrapValueLabels (guestBody f) labels (fst split)
+        (valueStackConfig (mk_state s (MKframe locals (guestModule f))) (snd split) (skipn offset inner)), True)
   (* An indirect call has resolved: its function reference replaced the table
      index on top, and SpecTec calls that address next. *)
   | siteResolved position =>
@@ -175,7 +135,9 @@ Definition decodeActive (program : Program) (s : store) (memory : MemoryState) (
       let? f := functionAt program (positionFunction position) in
       let? inner := pathCode (guestBody f) labels in
       let? i := nth_error inner offset in
-      let? heights := pathHeights (programCallees program (guestModule f)) (guestBody f) labels offset in
+      let? types := pathTypes (guestFrameTypes f) (programCallees program (guestModule f))
+        (guestBody f) labels offset in
+      let heights := typeHeights types in
       let? reference := memory stackId [2 * (base + Z.of_nat (totalHeight heights - 1))] in
       let callee := Z.to_nat (reference - 1) in
       let? g := functionAt program callee in
@@ -185,18 +147,20 @@ Definition decodeActive (program : Program) (s : store) (memory : MemoryState) (
         (boundaryPC boundary =? guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset) + 1) &&
         (boundaryMoveRemaining boundary =? 0) && isIndirect i && callsIntob (guestModule f) i callee g &&
         (1 <=? reference) && (1 <=? snd heights)%nat in
-      let? stack := readOperands memory base (totalHeight heights - 1) 0 0 in
-      let? locals := readLocals memory fbp (frameLocals f) in
+      let? stack := readIntegerOperands memory base (firstn (totalHeight heights - 1) (operandTypes types)) 0 0 in
+      let? locals := readLocals memory fbp (guestFrameTypes f) in
       let split := splitSegments (fst heights) stack in
-      Some (wrapLabels (guestBody f) labels (fst split) (stackPrefix (snd split)
+      Some (wrapValueLabels (guestBody f) labels (fst split) (valueStackPrefix (snd split)
         (instructionSuffix (skipn (S offset) inner)
-          (mk_config (mk_state s (activeFrame f locals)) [CALL_ADDR (N.of_nat callee)]))), True)
+          (mk_config (mk_state s (MKframe locals (guestModule f))) [CALL_ADDR (N.of_nat callee)]))), True)
+  (* The zero countdown initializes declared locals after the typed arguments. *)
   | siteEntering function =>
       let? f := functionAt program function in
       check initializationFlagsb boundary && (boundaryMoveRemaining boundary =? 0) &&
         (0 <? boundaryZeroRemaining boundary) && (boundaryPC boundary =? guestEntry f) in
-      let? arguments := readStack memory fbp (guestParams f) in
-      Some (stackConfig (mk_state s (enteredFrame (guestModule f) arguments (guestLocals f))) [] (guestBody f),
+      let? arguments := readLocals memory fbp (guestParamTypes f) in
+      let? defaults := integerZeros (guestLocalTypes f) in
+      Some (valueStackConfig (mk_state s (MKframe (arguments ++ defaults) (guestModule f))) [] (guestBody f),
         InitializingFrame memory boundary arguments (Z.of_nat (guestLocals f)) (boundaryZeroRemaining boundary))
   end.
 
@@ -216,7 +180,9 @@ Fixpoint decodeCalls (program : Program) (memory : MemoryState) (callee : nat) (
       let? f := functionAt program callee in
       let? inner := pathCode (guestBody g) labels in
       let? i := nth_error inner offset in
-      let? heights := pathHeights (programCallees program (guestModule g)) (guestBody g) labels offset in
+      let? types := pathTypes (guestFrameTypes g) (programCallees program (guestModule g))
+        (guestBody g) labels offset in
+      let heights := typeHeights types in
       let? returnPC := memory callStackReturnPcId [depth - 1] in
       let? callerFbp := memory callStackCallerFbpId [depth - 1] in
       let? callerBase := memory callStackCallerSpBaseId [depth - 1] in
@@ -225,13 +191,14 @@ Fixpoint decodeCalls (program : Program) (memory : MemoryState) (callee : nat) (
         (returnPC =? guestEntry g + Z.of_nat (pathOffset (guestBody g) labels (S offset))) &&
         (0 <=? callerFbp) && (callerBase =? callerFbp + Z.of_nat (frameLocals g)) &&
         (fbp =? callerBase + Z.of_nat below) in
-      let? stack := readStack memory callerBase below in
-      let? locals := readLocals memory callerFbp (frameLocals g) in
+      let? stack := readIntegerCells memory (fun index => callerBase + Z.of_nat index)
+        (firstn below (operandTypes types)) in
+      let? locals := readLocals memory callerFbp (guestFrameTypes g) in
       let split := splitSegments (fst heights) stack in
       decodeCalls program memory (positionFunction site) callerFbp (depth - 1) rest
-        (wrapLabels (guestBody g) labels (fst split)
-          (stackPrefix (snd split) (instructionSuffix (skipn (S offset) inner)
-            (callContext (activeFrame g locals) (N.of_nat (guestResults f)) c))))
+        (wrapValueLabels (guestBody g) labels (fst split)
+          (valueStackPrefix (snd split) (instructionSuffix (skipn (S offset) inner)
+            (callContext (MKframe locals (guestModule g)) (N.of_nat (guestResults f)) c))))
         obligations
   end.
 

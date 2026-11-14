@@ -129,9 +129,12 @@ impl WasmApplication {
         )?))
     }
 
-    /// The program images of a preload, in the application's regions.
+    /// The program images of a preload, in the application's regions. A
+    /// preload in which two memories of one table own the same cell is
+    /// `CatalogBindingError::Preload`.
     pub fn program(&self, preload: &WasmMemoryPreload) -> Result<Program, CatalogBindingError> {
-        self.0.program(preload)
+        let tables = crate::memory_semantics::table_preload(preload).map_err(|_| CatalogBindingError::Preload)?;
+        self.0.program(&tables)
     }
 
     /// The rank-one rows of one step's relation: the rows of each trace row,
@@ -298,7 +301,6 @@ fn bits(value: u64) -> usize {
 #[derive(Clone, Copy)]
 enum Dimension {
     Pc,
-    Choice,
     Function,
     Event,
     Slot,
@@ -312,9 +314,8 @@ enum Dimension {
 }
 
 impl Dimension {
-    const ALL: [Self; 12] = [
+    const ALL: [Self; 11] = [
         Self::Pc,
-        Self::Choice,
         Self::Function,
         Self::Event,
         Self::Slot,
@@ -335,42 +336,35 @@ fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
     use Dimension as D;
     use WasmMemoryId as M;
     match id {
-        M::ProgramOpcode
+        M::ProgramHeader
         | M::ProgramBrTableLen
         | M::ProgramLocalIndex
         | M::ProgramGlobalIndex
-        | M::ProgramTableId
+        | M::ProgramTableDescriptor
         | M::ProgramMemoryOffset
-        | M::ProgramCallIndirectExpectedTypeId
         | M::ProgramI32ConstValue
         | M::ProgramI64ConstValueLo
         | M::ProgramI64ConstValueHi
+        | M::ProgramImmediate
+        | M::ProgramImmediateHi
         | M::ProgramRefFuncRef
-        | M::PcEdgeKind
-        | M::PcFunctionRef
-        | M::CallTarget => &[D::Pc],
-        M::PcRom | M::FrameSlideRemaining | M::FrameSlideDistance => &[D::Pc, D::Choice],
+        | M::CallTarget
+        | M::PcRom
+        | M::FrameSlideRemaining
+        | M::FrameSlideDistance => &[D::Pc],
         M::FunctionEntry
         | M::FunctionType
         | M::FunctionCallMetadata
         | M::FunctionLocalCount
-        | M::HostEventExportEntryScheduleCount
-        | M::HostEventExportExitScheduleCount
-        | M::HostEventImportScheduleCount => &[D::Function],
-        M::HostEventSlotKind
-        | M::HostEventSlotArg
-        | M::HostEventSlotVariant
-        | M::HostEventSlotImmediate0
-        | M::HostEventSlotImmediate1 => &[D::Function, D::Event, D::Slot],
+        | M::HostEventExportScheduleCount
+        | M::HostEventImportScheduleCount
+        | M::HostEventBase => &[D::Function],
+        M::HostEventSlotDescriptor | M::HostEventSlotImmediate0 | M::HostEventSlotImmediate1 => &[D::Event, D::Slot],
         M::Stack => &[D::Stack],
         M::LinearMemory => &[D::LinearMemory],
         M::GlobalLo | M::GlobalHi => &[D::Global],
         M::CallStackReturnPc | M::CallStackCallerFbp | M::CallStackCallerSpBase => &[D::CallDepth],
-        M::HostContextExport
-        | M::HostContextImport
-        | M::HostContextArgsBase
-        | M::HostContextParentDepth
-        | M::HostContextSp => &[D::HostDepth],
+        M::HostContextRefs | M::HostContextArgsDepth | M::HostContextSp => &[D::HostDepth],
         M::TableSize => &[D::Table],
         M::TableElement => &[D::Table, D::TableIndex],
     }
@@ -382,13 +376,11 @@ fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
 /// when each address part of the preload and of the active ports fits.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct WasmLimits {
-    /// A program counter.
+    /// A program counter. A control choice of a branch takes one.
     pub pc: usize,
-    /// A control choice at one program counter (`PcRom`, frame slides).
-    pub choice: usize,
     /// A function reference, imports included.
     pub function: usize,
-    /// A host event of one function.
+    /// A host event of the program: the templates share one run of events.
     pub event: usize,
     /// A slot of one host event.
     pub slot: usize,
@@ -487,7 +479,6 @@ impl WasmLimits {
     fn width(&mut self, dimension: Dimension) -> &mut usize {
         match dimension {
             Dimension::Pc => &mut self.pc,
-            Dimension::Choice => &mut self.choice,
             Dimension::Function => &mut self.function,
             Dimension::Event => &mut self.event,
             Dimension::Slot => &mut self.slot,
@@ -513,13 +504,13 @@ impl WasmLimits {
 /// deployment query count, retries, and recursive depth remain separate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WasmSize {
-    /// ROM of `2^14` cells and RAM of `2^10`: 256 instructions, 32 function
+    /// ROM of `2^13` cells and RAM of `2^10`: 256 instructions, 32 function
     /// references, steps of 64 rows, and segments of 8 steps.
     Small,
-    /// ROM of `2^15` cells and RAM of `2^11`: 512 instructions, 64 function
+    /// ROM of `2^14` cells and RAM of `2^11`: 512 instructions, 64 function
     /// references, steps of 64 rows, and segments of 16 steps.
     Medium,
-    /// ROM of `2^16` cells and RAM of `2^12`: 1,024
+    /// ROM of `2^15` cells and RAM of `2^12`: 1,024
     /// instructions, 128 function references, steps of 32 rows, and segments
     /// of 16 steps.
     Large,
@@ -532,17 +523,17 @@ impl WasmSize {
     /// segment, and the most segments.
     fn shape(self) -> (usize, usize, usize, usize) {
         match self {
-            Self::Small => (14, 64, 8, 32),
-            Self::Medium => (15, 64, 16, 16),
-            Self::Large => (16, 32, 16, 32),
+            Self::Small => (13, 64, 8, 32),
+            Self::Medium => (14, 64, 16, 16),
+            Self::Large => (15, 32, 16, 32),
         }
     }
 
-    /// The `log2` cells of the RAM: a sixteenth of the ROM. A segment scans
+    /// The `log2` cells of the RAM: an eighth of the ROM. A segment scans
     /// each cell of both, and the program tables in the ROM need far more
     /// cells than a run's stack and linear memory.
     fn ram_log2(self) -> usize {
-        self.shape().0 - 4
+        self.shape().0 - 3
     }
 
     /// The limits of the programs and runs that the size holds. Each memory
@@ -550,16 +541,15 @@ impl WasmSize {
     /// memory and a quarter for the stack.
     pub fn limits(self) -> WasmLimits {
         let log2 = self.ram_log2();
-        let (pc, function) = match self {
-            Self::Small => (8, 5),
-            Self::Medium => (9, 6),
-            Self::Large => (10, 7),
+        let (pc, function, event) = match self {
+            Self::Small => (8, 5, 6),
+            Self::Medium => (9, 6, 7),
+            Self::Large => (10, 7, 8),
         };
         WasmLimits {
             pc,
-            choice: 1,
             function,
-            event: 3,
+            event,
             slot: 3,
             stack: log2 - 2,
             linear_memory: log2 - 1,

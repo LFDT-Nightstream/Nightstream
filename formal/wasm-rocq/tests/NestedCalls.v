@@ -15,7 +15,7 @@ Definition nestedProgram :=
   [nestedFunction [LOCAL_GET (mk_uN 0)]; nestedFunction [CALL (mk_uN 0)]; nestedFunction [CALL (mk_uN 1)]].
 Definition nestedStore := MKstore nestedProgram [] [] [] [] [].
 Definition nestedGuest (address : N) (body : list instr) (entry : Z) :=
-  mkGuestFunction address nestedModule (mk_uN 0) 0 1 1 body entry.
+  mkGuestFunction address nestedModule (mk_uN 0) [] [valtype_I32] [valtype_I32] body entry.
 
 Example nested_layout :
   functionEntry nestedProgram 1 = 2 /\ functionEntry nestedProgram 2 = 4 /\

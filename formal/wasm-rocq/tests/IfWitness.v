@@ -6,6 +6,7 @@ From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals
   StraightLineSpec SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout ProgramSpec ProgramEncoding
   ProgramRefinement ControlDecode Fragment tests.BlockPrograms tests.WitnessCheck tests.IfTrace.
+Require Import ControlInvariant.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -23,7 +24,7 @@ Definition ifFunction := i32Function ifModule (mk_uN 0) 2 1 0 ifCode.
 Definition ifProgram := [ifFunction].
 Definition ifStore := MKstore ifProgram [] [] [] [] [].
 Definition ifContext := moduleContext [i32StackType 2 1] [i32StackType 2 1].
-Definition ifGuest := mkGuestFunction 0%N ifModule (mk_uN 0) 2 1 0 ifCode 0.
+Definition ifGuest := mkGuestFunction 0%N ifModule (mk_uN 0) [valtype_I32; valtype_I32] [valtype_I32] [] ifCode 0.
 
 Section Typing.
 Local Open Scope nat_scope.
@@ -84,7 +85,7 @@ Proof.
   - intros [ | index] g Hg; cbn in Hg; [injection Hg as <- | destruct index; discriminate].
     split.
     + cbn. repeat first [apply Forall_nil | apply Forall_cons | apply supported_if | apply supported_local_get |
-        apply supported_local_set | apply supported_i32_add | (left; reflexivity) | (right; reflexivity)].
+        apply supported_local_set | apply supported_i32_add | (left; reflexivity) | (right; left; reflexivity)].
     + vm_compute. repeat match goal with
         | |- _ /\ _ => split | |- Forall _ _ => constructor | |- True => exact I | |- _ => lia end.
 Qed.
@@ -105,7 +106,7 @@ Proof. split; [vm_compute; reflexivity | ]. apply callerRowb_sound. vm_compute. 
 
 Lemma if_start_config :
   CircuitConfig ifProgram ifStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    ifMemory ifStart (stackConfig (mk_state ifStore (activeFrame ifGuest [7; 0])) [] ifCode).
+    ifMemory ifStart (stackConfig (mk_state ifStore (activeFrame ifGuest (map i32Value [7; 0]))) [] ifCode).
 Proof.
   apply (function_start_config ifProgram ifStore 0 ifGuest [7; 0] _ ifStart);
     try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
@@ -120,7 +121,7 @@ Qed.
 (* The refinement's conclusion for this run. *)
 Example if_witness_refines : fieldPrime ->
   exists shape c,
-    Steps (stackConfig (mk_state ifStore (activeFrame ifGuest [7; 0])) [] ifCode) c /\
+    Steps (stackConfig (mk_state ifStore (activeFrame ifGuest (map i32Value [7; 0]))) [] ifCode) c /\
     CircuitConfig ifProgram ifStore 0 shape (replayed ifMemory ifWitness)
       (rowsFinalBoundary ifStart ifWitness) c.
 Proof.
@@ -131,18 +132,18 @@ Proof.
 Qed.
 
 (* The condition 0 takes the else-body (choice 0) at pc 2, past the then-body and
-   ELSE; its END at pc 6 falls through. The condition 7 takes the then-body
-   (choice 1) at pc 9, whose ELSE at pc 11 jumps past the else-body. The last
-   condition 0 skips the if with no else-body at pc 16. *)
+   ELSE; its END at pc 7 falls through. The condition 7 takes the then-body
+   (choice 1) at pc 10, whose ELSE at pc 13 jumps past the else-body. The last
+   condition 0 skips the if with no else-body at pc 18. An if takes two pcs. *)
 Example ifs_choose :
   let else_row := nth 2 ifWitness (rowWitness []) in
   let end_row := nth 4 ifWitness (rowWitness []) in
   let then_row := nth 7 ifWitness (rowWitness []) in
   let jump_row := nth 9 ifWitness (rowWitness []) in
   let skip_row := nth 12 ifWitness (rowWitness []) in
-  else_row COL_SEL_IF = 1 /\ else_row COL_CONTROL_CHOICE = 0 /\ else_row COL_PC_AFTER = 5 /\
-  end_row COL_SEL_END = 1 /\ end_row COL_PC_AFTER = 7 /\
-  then_row COL_SEL_IF = 1 /\ then_row COL_CONTROL_CHOICE = 1 /\ then_row COL_PC_AFTER = 10 /\
-  jump_row COL_SEL_ELSE = 1 /\ jump_row COL_PC_BEFORE = 11 /\ jump_row COL_PC_AFTER = 14 /\
-  skip_row COL_SEL_IF = 1 /\ skip_row COL_CONTROL_CHOICE = 0 /\ skip_row COL_PC_AFTER = 20.
+  else_row COL_SEL_IF = 1 /\ else_row COL_CONTROL_CHOICE = 0 /\ else_row COL_PC_AFTER = 6 /\
+  end_row COL_SEL_END = 1 /\ end_row COL_PC_AFTER = 8 /\
+  then_row COL_SEL_IF = 1 /\ then_row COL_CONTROL_CHOICE = 1 /\ then_row COL_PC_AFTER = 12 /\
+  jump_row COL_SEL_ELSE = 1 /\ jump_row COL_PC_BEFORE = 13 /\ jump_row COL_PC_AFTER = 16 /\
+  skip_row COL_SEL_IF = 1 /\ skip_row COL_CONTROL_CHOICE = 0 /\ skip_row COL_PC_AFTER = 23.
 Proof. vm_compute. repeat split; reflexivity. Qed.

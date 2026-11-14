@@ -8,14 +8,6 @@ pub use neo_application::{ColumnFamilySpec, ColumnWidth};
 pub use neo_application::ColumnId as Column;
 
 pub const PUBLIC_INPUTS: usize = 7;
-/// Reserved `control_choice` value under which `pc_rom` stores a call site's
-/// continuation pc (the instruction after the call): the return address for
-/// guest calls, the fall-through target for indirect host calls. Shares the
-/// choice axis with the per-opcode branch discriminants (`br_if`, `if`,
-/// `br_table` arms), which use 0/1/arm-index at their own pcs; the
-/// reservation is per call-site pc, not global.
-pub const PC_ROM_CALL_RETURN_CHOICE: u64 = 1;
-
 define_column_region! {
     region: "wasm_named",
     start: 0usize,
@@ -31,6 +23,7 @@ define_column_region! {
         COL_OUTPUT_VALUE_HI_BEFORE: Field => "carried output high limb before",
         COL_OUTPUT_VALUE_HI_AFTER: Field => "carried output high limb after",
         COL_OPCODE_CODE: U32 => "opcode decode selector source",
+        COL_PROGRAM_HEADER: Field => "opcode + 65536 * pc edge kind",
         COL_PC_BEFORE: U32 => "transition source pc",
         COL_PC_AFTER: U32 => "transition destination pc",
         COL_CONTROL_CHOICE: U32 => "control-edge choice",
@@ -44,6 +37,7 @@ define_column_region! {
         COL_ACTIVATION_FINISHED_AFTER: Boolean => "current activation has returned or trapped after this row",
         COL_IS_PROGRAM_ROW: Boolean => "decoded wasm program row",
         COL_PC_ROM_ACTIVE: Boolean => "static pc-edge ROM gate",
+        COL_PC_FALLTHROUGH: Boolean => "ordinary instruction advances pc by one",
         COL_FRAME_SLIDE_ACTIVE: Boolean => "branch or popping return row that seeds a static frame slide",
         COL_EXIT_SLIDE_DISTANCE: U32 => "clean activation return's static slide distance, which binds its result count",
         COL_PC_EDGE_KIND_IS_STATIC: Boolean => "static pc-edge flag",
@@ -78,9 +72,7 @@ define_column_region! {
         COL_CALL_STACK_DEPTH_BEFORE: U32 => "call return-context stack depth before this row",
         COL_CALL_STACK_DEPTH_AFTER: U32 => "call return-context stack depth after this row",
         COL_CALL_STACK_ADDR: U32 => "call return-context stack address read or written this row",
-        COL_PC_ROM_CALL_RETURN_CHOICE: U32 =>
-            "pc-rom control-choice coordinate for the call-site continuation-pc read (guest pushes and indirect host fall-through)",
-        COL_CURRENT_FUNCTION_REF: U32 => "normalized function reference for the currently executing frame",
+        COL_EDGE_ADDR: U32 => "pc-rom and slide-rom key: pc_before + control_choice",
         COL_ENTERED_FUNCTION_NUM_LOCALS: U32 => "verifier-bound local count of the entered function",
         COL_STACK_READS: U32 => "stack delta source",
         COL_STACK_WRITES: U32 => "stack delta destination",
@@ -177,7 +169,6 @@ define_column_region! {
         COL_PROGRAM_LOCAL_INDEX_ACTIVE: Boolean => "PC-indexed local immediate ROM gate",
         COL_PROGRAM_GLOBAL_INDEX_ACTIVE: Boolean => "PC-indexed global immediate ROM gate",
         COL_PROGRAM_TABLE_ID_ACTIVE: Boolean => "PC-indexed table-id immediate ROM gate",
-        COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE: Boolean => "PC-indexed call-indirect immediate ROM gate",
         COL_TABLE_READ_ENABLED: Boolean => "table memory read gate for table.get and indirect calls",
         COL_LOCALS_FBP_BEFORE: U32 => "current frame's base cell before this row",
         COL_LOCALS_FBP_AFTER: U32 => "current frame's base cell after this row",
@@ -189,7 +180,7 @@ define_column_region! {
         COL_GLOBAL_INDEX: U32 => "globals memory index",
         COL_GLOBAL_VALUE: U32 => "globals memory value",
         COL_GLOBAL_VALUE_HI: U32 => "globals memory high limb for future i64 support",
-        COL_TABLE_ID: U32 => "table state namespace selector",
+        COL_TABLE_ID: (Bits(crate::table_descriptor::TABLE_ID_BITS)) => "table state namespace selector",
         COL_TABLE_INDEX: U32 => "table element index",
         COL_TABLE_VALUE: U32 => "normalized table element value observed by this step",
         COL_TABLE_SIZE: U32 => "size of the referenced table observed by this step",
@@ -200,7 +191,8 @@ define_column_region! {
         COL_CALL_TARGET_METADATA: Field =>
             "packed call-target arity and guest flag; range follows from unpacking",
         COL_FUNCTION_TYPE_ID: U32 => "normalized deduplicated type id for the observed function reference",
-        COL_EXPECTED_TYPE_ID: U32 => "normalized deduplicated type id expected by the current opcode",
+        COL_EXPECTED_TYPE_ID: (Bits(crate::table_descriptor::EXPECTED_TYPE_ID_BITS)) => "normalized deduplicated type id expected by the current opcode",
+        COL_TABLE_DESCRIPTOR: Field => "table id + 256 * expected type id",
         COL_MEMORY_PAGES_BEFORE: U32 => "linear memory page count before this step",
         COL_MEMORY_PAGES_AFTER: U32 => "linear memory page count after this step",
         COL_MAX_MEMORY_PAGES_BEFORE: U32 =>
@@ -417,6 +409,9 @@ define_column_region! {
         COL_ACTIVATION_FINISHED_BEFORE: Boolean => "current activation has returned or trapped before this row",
         COL_BR_TABLE_LEN: U32 => "number of explicit br_table arms, read from the program ROM",
         COL_BR_TABLE_IN_BOUNDS: Boolean => "br_table row with an index below its arm count",
+        COL_STACK_SEPARATE: [Boolean; 3] => "read0, write0 low and write0 high outside in-place replacement",
+        COL_STACK_RMW: Boolean => "fixed-arity in-place stack replacement",
+        COL_STACK_READ0_HI_ACTIVE: Boolean => "separate read0 high limb, excluding wasm32 store addresses",
     ]
 }
 

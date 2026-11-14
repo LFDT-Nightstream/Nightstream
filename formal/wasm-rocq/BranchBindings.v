@@ -1,6 +1,7 @@
 (* br_if's condition, stack pop, unchanged locals, and selected PC-ROM edge. *)
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith Lia.
-Require Import R1CS Columns FullRelation Range Selectors CircuitFacts ZeroTest CallInitialization
+Require Import StackPorts R1CS Columns FullRelation Range Selectors CircuitFacts ZeroTest CallInitialization
   StackBindings LocalBindings MemoryTrace MemoryCatalog ProgramBinding OpcodeCatalog.
 Import ListNotations.
 Open Scope Z_scope.
@@ -84,7 +85,7 @@ Proof.
     rewrite Hone, Hguest, Hturn, Hpop in Hrow.
     pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE).
     pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER). field_linear Hrow.
-  - rewrite stack_writes_in_row. unfold stackPortWrites, writeIf.
+  - rewrite stack_writes_in_row. unfold stackPortWrites, writeIf. zero_stack_ports.
     rewrite Hwrite, HwriteHi, HlocalWrite, HgatherLocal, HgatherLocalLo. reflexivity.
 Qed.
 
@@ -228,34 +229,33 @@ Proof.
 Qed.
 
 Definition branchImage (memory : MemoryState) (pc fallthrough target : Z) : Prop :=
-  memory programOpcodeId [pc] = Some CODE_BR_IF /\
-  memory pcEdgeKindId [pc] = Some 0 /\
-  forall choice, memory pcRomId [pc; choice] =
-    if choice =? 0 then Some fallthrough else if choice =? 1 then Some target else Some 0.
+  opcodeAt memory [pc] = Some CODE_BR_IF /\
+  edgeKindAt memory [pc] = Some 0 /\
+  memory pcRomId [pc] = Some fallthrough /\ memory pcRomId [pc + 1] = Some target.
 
 (* An if's row: the opcode selects it, and the choice it reads (1 for a nonzero
    condition) picks its next pc. *)
 Lemma circuit_if_control : forall initial final (w : Witness) pc thenPC elsePC,
   fieldPrime -> FullRelation.satFull w -> Replay initial (eventsForRow memories w) final ->
   w COL_IS_PROGRAM_ROW = 1 -> w COL_PC_BEFORE = pc ->
-  initial programOpcodeId [pc] = Some CODE_IF -> initial pcEdgeKindId [pc] = Some 0 ->
-  (forall choice, initial pcRomId [pc; choice] =
-    if choice =? 1 then Some thenPC else if choice =? 0 then Some elsePC else Some 0) ->
+  opcodeAt initial [pc] = Some CODE_IF -> edgeKindAt initial [pc] = Some 0 ->
+  initial pcRomId [pc] = Some elsePC -> initial pcRomId [pc + 1] = Some thenPC ->
   w COL_SEL_IF = 1 /\ w COL_PC_AFTER =
     if Z.eqb (w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0 then elsePC else thenPC.
 Proof.
-  intros initial final w pc thenPC elsePC Hprime Hfull Hreplay Hprogram Hpc Hop Hkind Hedges.
-  pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
+  intros initial final w pc thenPC elsePC Hprime Hfull Hreplay Hprogram Hpc Hop Hkind Hzero Hone.
+  pose proof (circuit_row_opcode_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hfetch.
   rewrite Hpc, Hop in Hfetch. injection Hfetch as Hopcode.
   assert (Hchosen : w COL_SEL_IF = 1).
   { apply (full_opcode_selects w COL_SEL_IF CODE_IF Hprime Hfull Hprogram); [vm_compute; reflexivity | congruence]. }
-  pose proof (circuit_row_edge_kind_fetch _ _ _ Hreplay Hprogram) as HkindFetch.
+  pose proof (circuit_row_edge_kind_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as HkindFetch.
   rewrite Hpc, Hkind in HkindFetch. injection HkindFetch as HkindValue.
-  pose proof (full_static_pc_rom_active w Hprime Hfull Hprogram ltac:(congruence)) as Hgate.
-  pose proof (circuit_row_next_pc_fetch _ _ _ Hreplay Hgate) as Hnext.
-  rewrite Hpc, Hedges, (full_if_choice w Hprime Hfull Hchosen) in Hnext.
+  pose proof (full_fallthrough_flag w COL_SEL_IF CODE_IF Hprime Hfull ltac:(vm_compute; tauto) Hchosen) as Hfall.
+  pose proof (full_static_pc_rom_active w COL_SEL_IF Hprime Hfull ltac:(vm_compute; tauto) ltac:(vm_compute; intuition discriminate) Hchosen Hprogram ltac:(congruence) Hfall) as Hgate.
+  pose proof (circuit_row_next_pc_fetch _ _ _ Hprime Hfull Hreplay Hgate) as Hnext.
+  rewrite Hpc, (full_if_choice w Hprime Hfull Hchosen) in Hnext.
   split; [exact Hchosen | ]. destruct (Z.eqb (w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0);
-    cbn in Hnext; congruence.
+    [rewrite Z.add_0_r, Hzero in Hnext | rewrite Hone in Hnext]; congruence.
 Qed.
 
 Lemma circuit_br_if_control : forall initial final (w : Witness) pc fallthrough target,
@@ -264,16 +264,17 @@ Lemma circuit_br_if_control : forall initial final (w : Witness) pc fallthrough 
   w COL_SEL_BR_IF_EQZ = 1 /\ w COL_PC_AFTER =
     if Z.eqb (w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0 then fallthrough else target.
 Proof.
-  intros initial final w pc fallthrough target Hprime Hfull Hreplay Hprogram Hpc [Hop [Hkind Hedges]].
-  pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
+  intros initial final w pc fallthrough target Hprime Hfull Hreplay Hprogram Hpc [Hop [Hkind [Hzero Hone]]].
+  pose proof (circuit_row_opcode_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hfetch.
   rewrite Hpc, Hop in Hfetch. injection Hfetch as Hopcode.
   assert (Hchosen : w COL_SEL_BR_IF_EQZ = 1).
   { apply (full_opcode_selects w COL_SEL_BR_IF_EQZ CODE_BR_IF Hprime Hfull Hprogram); [vm_compute; reflexivity | congruence]. }
-  pose proof (circuit_row_edge_kind_fetch _ _ _ Hreplay Hprogram) as HkindFetch.
+  pose proof (circuit_row_edge_kind_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as HkindFetch.
   rewrite Hpc, Hkind in HkindFetch. injection HkindFetch as HkindValue.
-  pose proof (full_static_pc_rom_active w Hprime Hfull Hprogram ltac:(congruence)) as Hgate.
-  pose proof (circuit_row_next_pc_fetch _ _ _ Hreplay Hgate) as Hnext.
-  rewrite Hpc, Hedges, (full_br_if_choice w Hprime Hfull Hchosen) in Hnext.
+  pose proof (full_fallthrough_flag w COL_SEL_BR_IF_EQZ CODE_BR_IF Hprime Hfull ltac:(vm_compute; tauto) Hchosen) as Hfall.
+  pose proof (full_static_pc_rom_active w COL_SEL_BR_IF_EQZ Hprime Hfull ltac:(vm_compute; tauto) ltac:(vm_compute; intuition discriminate) Hchosen Hprogram ltac:(congruence) Hfall) as Hgate.
+  pose proof (circuit_row_next_pc_fetch _ _ _ Hprime Hfull Hreplay Hgate) as Hnext.
+  rewrite Hpc, (full_br_if_choice w Hprime Hfull Hchosen) in Hnext.
   split; [exact Hchosen | ]. destruct (Z.eqb (w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0);
-    cbn in Hnext; congruence.
+    [rewrite Z.add_0_r, Hzero in Hnext | rewrite Hone in Hnext]; congruence.
 Qed.

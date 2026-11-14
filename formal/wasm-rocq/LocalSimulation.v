@@ -2,7 +2,7 @@
 From Stdlib Require Import List ZArith NArith Lia.
 Require Import R1CS Columns FullRelation Range Selectors Wasm2 WasmIntegers Locals
   MemoryTrace MemoryCatalog StraightLineSpec StackSimulation
-  LocalBindings StackBindings.
+  LocalBindings StackBindings IntegerMemory IntegerStack.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -135,37 +135,25 @@ Lemma stack_matches_pop : forall w initial final prefix value local,
   w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) = value /\
   stackMatches final (afterBoundary w) prefix.
 Proof.
-  intros w initial final prefix value local Hshape Hreplay Hslide Hbelow [Hbase [Hsp [Hbounds Hcells]]].
-  cbn [beforeBoundary boundarySP boundaryStackBase] in Hbase, Hsp, Hcells.
+  intros w initial final prefix value local Hshape Hreplay Hslide Hbelow Hstack.
+  pose proof Hstack as [Hbase [Hsp [Hbounds Hcells]]].
+  cbn [beforeBoundary boundarySP boundaryStackBase] in Hsp, Hcells.
   rewrite length_app, Nat2Z.inj_add in Hsp. cbn [length] in Hsp.
-  assert (Hread : initial MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)] =
-      Some (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) /\
-    forall index, (index < length prefix)%nat ->
-      final MemoryCatalog.stackId [2 * (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat index)] =
-      initial MemoryCatalog.stackId [2 * (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat index)]).
+  assert (Hread : initial stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)] =
+      Some (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat))).
   { destruct local.
-    - destruct (local_set_stack_replay w initial final Hshape Hreplay) as [Hread Hfinal].
-      split; [exact Hread | ]. intros index Hindex. rewrite Hfinal.
-      destruct (Hbelow eq_refl). rewrite !update_other by cell_differs. reflexivity.
-    - destruct (pop_stack_replay w initial final Hshape Hreplay) as [Hread Hfinal].
-      split; [exact Hread | ]. intros index _. apply Hfinal. }
-  destruct Hread as [Hread Hfinal].
-  assert (Hlookup : nth_error (prefix ++ [value]) (length prefix) = Some value).
-  { rewrite nth_error_app2 by lia. rewrite Nat.sub_diag. reflexivity. }
-  pose proof (Hcells _ _ Hlookup) as Hcell.
-  rewrite (local_read_address w true local Hshape eq_refl) in Hread.
+    - exact (proj1 (local_set_stack_replay _ _ _ Hshape Hreplay)).
+    - exact (proj1 (pop_stack_replay _ _ _ Hshape Hreplay)). }
+  assert (Hcell : initial stackId [2 * (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length prefix))] = Some value).
+  { apply Hcells. rewrite nth_error_app2 by lia. rewrite Nat.sub_diag. reflexivity. }
+  rewrite (local_read_address _ _ _ Hshape Logic.eq_refl) in Hread.
   replace (2 * (w COL_SP_BEFORE - 1)) with
     (2 * (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length prefix))) in Hread by lia.
   split; [congruence | ].
-  unfold stackMatches. cbn [afterBoundary boundarySP boundaryStackBase].
-  rewrite (local_stack_base_after w true local Hshape), (local_stack_pointer_after w true local Hshape).
-  split; [exact Hbase | ]. split; [destruct local; [ | rewrite (Hslide Logic.eq_refl)]; cbn; lia | ].
-  apply Forall_app in Hbounds. split; [exact (proj1 Hbounds) | ].
-  intros index v HlookupPrefix.
-  assert (Hindex : (index < length prefix)%nat).
-  { apply nth_error_Some. rewrite HlookupPrefix. discriminate. }
-  rewrite Hfinal by exact Hindex.
-  apply Hcells. rewrite nth_error_app1; [exact HlookupPrefix | exact Hindex].
+  pose proof (proj2 (value_stack_matches_i32 _ _ _ Hbounds) Hstack) as Htyped.
+  rewrite map_app in Htyped. cbn [map] in Htyped.
+  apply (proj1 (value_stack_matches_i32 _ _ _ (proj1 (proj1 (Forall_app _ _ _) Hbounds)))).
+  eapply value_stack_matches_pop; eassumption.
 Qed.
 
 Lemma stack_matches_local_get : forall w initial final values,
@@ -174,32 +162,17 @@ Lemma stack_matches_local_get : forall w initial final values,
   0 <= w COL_STACK_WRITE0_VALUE_LO < i32Modulus ->
   stackMatches final (afterBoundary w) (values ++ [w COL_STACK_WRITE0_VALUE_LO]).
 Proof.
-  intros w initial final values Hshape Hreplay [Hbase [Hsp [Hbounds Hcells]]] Hresult.
-  cbn [beforeBoundary boundarySP boundaryStackBase] in Hbase, Hsp, Hcells.
-  destruct (local_get_stack_replay w initial final Hshape Hreplay) as [_ Hfinal].
-  unfold stackMatches. cbn [afterBoundary boundarySP boundaryStackBase].
-  rewrite (local_stack_base_after w false true Hshape), (local_stack_pointer_after w false true Hshape).
-  split; [exact Hbase | ]. split.
-  - rewrite length_app, Nat2Z.inj_add. cbn. lia.
-  - split.
-    + apply Forall_app. split; [exact Hbounds | ]. constructor; [exact Hresult | constructor].
-    + intros index value Hlookup. rewrite Hfinal.
-      rewrite update_other.
-      2: { rewrite (local_write_hi_address w false true Hshape eq_refl). cell_differs. }
-      destruct (Nat.lt_ge_cases index (length values)) as [Hinside | Houtside].
-      * rewrite update_other.
-        2: { rewrite (local_write_address w false true Hshape eq_refl).
-             apply Nat2Z.inj_lt in Hinside. cell_differs. }
-        apply Hcells. rewrite nth_error_app1 in Hlookup by exact Hinside. exact Hlookup.
-      * rewrite nth_error_app2 in Hlookup by exact Houtside.
-        destruct (index - length values)%nat as [ |n] eqn:Hindex.
-        -- cbn in Hlookup. inversion Hlookup; subst value.
-           assert (HindexEq : index = length values) by lia. subst index.
-           replace (2 * (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length values)))
-             with (w COL_STACK_WRITE0_ADDR_LO)
-             by (rewrite (local_write_address w false true Hshape eq_refl); lia).
-           apply update_same.
-        -- destruct n; discriminate.
+  intros w initial final values Hshape Hreplay Hstack Hresult.
+  pose proof (proj1 (proj2 (proj2 Hstack))) as Hbounds.
+  assert (Hout : Forall (fun value => 0 <= value < i32Modulus) (values ++ [w COL_STACK_WRITE0_VALUE_LO])).
+  { apply Forall_app. split; [exact Hbounds | constructor; [exact Hresult | constructor]]. }
+  apply (proj1 (value_stack_matches_i32 _ _ _ Hout)). rewrite map_app. cbn [map].
+  eapply value_stack_matches_push; [exact Hshape | exact Hreplay | | ].
+  - apply (proj2 (value_stack_matches_i32 _ _ _ Hbounds)). exact Hstack.
+  - destruct (local_get_stack_replay _ _ _ Hshape Hreplay) as [_ [_ Hfinal]].
+    constructor; [exact Hresult | ]. rewrite Hfinal,
+      (local_write_address _ _ _ Hshape Logic.eq_refl), (local_write_hi_address _ _ _ Hshape Logic.eq_refl).
+    apply write_cell_low.
 Qed.
 
 Lemma stack_has_last : forall (values : list Z),

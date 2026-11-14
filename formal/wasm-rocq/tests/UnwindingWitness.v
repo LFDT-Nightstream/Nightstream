@@ -6,12 +6,14 @@ Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm
   StraightLineSpec SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout ProgramSpec ProgramEncoding
   ProgramRefinement ControlDecode Fragment tests.BlockPrograms tests.WitnessCheck tests.UnwindingTrace
   tests.UnwindingRun.
+Require Import ControlInvariant.
 Import ListNotations.
 Open Scope Z_scope.
 
 Definition unwindingContext := moduleContext [i32StackType 1 1] [i32StackType 1 1].
 Definition unwindingBodyContext := functionContext unwindingContext unwindingFunction.
-Definition unwindingGuest := mkGuestFunction 0%N unwindingModule (mk_uN 0) 1 1 1 unwindingCode 0.
+Definition unwindingGuest :=
+  mkGuestFunction 0%N unwindingModule (mk_uN 0) [valtype_I32] [valtype_I32] [valtype_I32] unwindingCode 0.
 
 Section Typing.
 Local Open Scope nat_scope.
@@ -73,7 +75,7 @@ Proof. split; [vm_compute; reflexivity | ]. apply callerRowb_sound. vm_compute. 
 Lemma unwinding_start_config :
   CircuitConfig unwindingProgram unwindingStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
     unwindingMemory unwindingStart
-    (stackConfig (mk_state unwindingStore (activeFrame unwindingGuest [7; 0])) [] unwindingCode).
+    (stackConfig (mk_state unwindingStore (activeFrame unwindingGuest (map i32Value [7; 0]))) [] unwindingCode).
 Proof.
   apply (function_start_config unwindingProgram unwindingStore 0 unwindingGuest [7; 0] _ unwindingStart);
     try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
@@ -88,7 +90,7 @@ Qed.
 (* The refinement's conclusion for this run. *)
 Example unwinding_witness_refines : fieldPrime ->
   exists shape c,
-    Steps (stackConfig (mk_state unwindingStore (activeFrame unwindingGuest [7; 0])) [] unwindingCode) c /\
+    Steps (stackConfig (mk_state unwindingStore (activeFrame unwindingGuest (map i32Value [7; 0]))) [] unwindingCode) c /\
     CircuitConfig unwindingProgram unwindingStore 0 shape (replayed unwindingMemory unwindingWitness)
       (rowsFinalBoundary unwindingStart unwindingWitness) c.
 Proof.
@@ -99,9 +101,9 @@ Proof.
 Qed.
 
 (* The run takes the branch: the br_if at pc 5 slides by 2, from sp 5 down to the
-   outer block's base at 2, and resumes after the outer block's END at pc 10. *)
+   outer block's base at 2, and resumes after the outer block's END at pc 11. *)
 Example unwinding_branch_taken :
   let row := nth 5 unwindingWitness (rowWitness []) in
-  row COL_SEL_BR_IF_EQZ = 1 /\ row COL_PC_BEFORE = 5 /\ row COL_PC_AFTER = 10 /\
+  row COL_SEL_BR_IF_EQZ = 1 /\ row COL_PC_BEFORE = 5 /\ row COL_PC_AFTER = 11 /\
   row COL_SP_BEFORE = 5 /\ row COL_SP_AFTER = 2 /\ row COL_FRAME_MOVE_DISTANCE_AFTER = 2.
 Proof. vm_compute. repeat split; reflexivity. Qed.

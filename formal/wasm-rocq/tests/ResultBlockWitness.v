@@ -7,6 +7,7 @@ From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals
   StraightLineSpec SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout ProgramSpec ProgramEncoding
   ProgramRefinement ControlDecode Fragment tests.BlockPrograms tests.WitnessCheck tests.ResultBlockTrace.
+Require Import ControlInvariant.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -22,7 +23,8 @@ Definition resultFunction := i32Function resultModule (mk_uN 0) 2 1 0 resultCode
 Definition resultProgram := [resultFunction].
 Definition resultStore := MKstore resultProgram [] [] [] [] [].
 Definition resultContext := moduleContext [i32StackType 2 1] [i32StackType 2 1].
-Definition resultGuest := mkGuestFunction 0%N resultModule (mk_uN 0) 2 1 0 resultCode 0.
+Definition resultGuest :=
+  mkGuestFunction 0%N resultModule (mk_uN 0) [valtype_I32; valtype_I32] [valtype_I32] [] resultCode 0.
 
 Section Typing.
 Local Open Scope nat_scope.
@@ -74,8 +76,8 @@ Proof.
     + repeat constructor.
   - intros [ | index] g Hg; cbn in Hg; [injection Hg as <- | destruct index; discriminate].
     split; [ | vm_compute; repeat split; lia].
-    constructor; [ | constructor]. apply supported_block; [ | right; reflexivity].
-    constructor; [apply supported_block; [repeat constructor | right; reflexivity] | repeat constructor].
+    constructor; [ | constructor]. apply supported_block; [ | right; left; reflexivity].
+    constructor; [apply supported_block; [repeat constructor | right; left; reflexivity] | repeat constructor].
 Qed.
 
 (* The arguments 7 and 9, as the entry rows before the run left them. *)
@@ -94,7 +96,7 @@ Proof. split; [vm_compute; reflexivity | ]. apply callerRowb_sound. vm_compute. 
 
 Lemma result_start_config :
   CircuitConfig resultProgram resultStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    resultMemory resultStart (stackConfig (mk_state resultStore (activeFrame resultGuest [7; 9])) [] resultCode).
+    resultMemory resultStart (stackConfig (mk_state resultStore (activeFrame resultGuest (map i32Value [7; 9]))) [] resultCode).
 Proof.
   apply (function_start_config resultProgram resultStore 0 resultGuest [7; 9] _ resultStart);
     try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
@@ -109,7 +111,7 @@ Qed.
 (* The refinement's conclusion for this run. *)
 Example result_block_witness_refines : fieldPrime ->
   exists shape c,
-    Steps (stackConfig (mk_state resultStore (activeFrame resultGuest [7; 9])) [] resultCode) c /\
+    Steps (stackConfig (mk_state resultStore (activeFrame resultGuest (map i32Value [7; 9]))) [] resultCode) c /\
     CircuitConfig resultProgram resultStore 0 shape (replayed resultMemory resultWitness)
       (rowsFinalBoundary resultStart resultWitness) c.
 Proof.
@@ -125,7 +127,7 @@ Qed.
 Example result_branch_slides :
   let branch_row := nth 5 resultWitness (rowWitness []) in
   let move_row := nth 6 resultWitness (rowWitness []) in
-  branch_row COL_SEL_BR_IF_EQZ = 1 /\ branch_row COL_PC_BEFORE = 5 /\ branch_row COL_PC_AFTER = 8 /\
+  branch_row COL_SEL_BR_IF_EQZ = 1 /\ branch_row COL_PC_BEFORE = 5 /\ branch_row COL_PC_AFTER = 9 /\
   branch_row COL_SP_BEFORE = 5 /\ branch_row COL_SP_AFTER = 3 /\
   branch_row (List.nth 0 COL_STACK_READ_VALUE_LO 0%nat) = 7 /\
   branch_row COL_FRAME_MOVE_REMAINING_AFTER = 1 /\ branch_row COL_FRAME_MOVE_DISTANCE_AFTER = 1 /\

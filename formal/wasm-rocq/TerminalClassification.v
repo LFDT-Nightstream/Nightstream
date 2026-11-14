@@ -1,4 +1,5 @@
 (* The ROM prevents a terminal row from masquerading as an ordinary instruction. *)
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog Wasm2 StraightLineSpec StackSimulation CallerSpec
   ProgramSpec ProgramEncoding CodeLayout BlockEncoding BlockSpec Fragment CodeFacts ControlDecode ControlInvariant
@@ -9,20 +10,20 @@ Open Scope Z_scope.
 Lemma supported_opcode_exists : forall callees i program f pc targets,
   Supported callees i ->
   instructionAtPC program pc = Some (f, Some (flatInstruction (opInstr i) targets)) ->
-  exists opcode, instructionRom program programOpcodeId pc 0 = Some opcode.
+  exists opcode, instructionOpcode program pc = Some opcode.
 Proof.
-  intros callees i program f pc targets Hsup Hslot. unfold instructionRom. rewrite Hslot.
+  intros callees i program f pc targets Hsup Hslot. unfold instructionOpcode. rewrite Hslot.
   inversion Hsup; subst; destruct targets as [ | [target | ] [ | next rest]]; eexists; reflexivity.
 Qed.
 
 Lemma source_terminal_instruction : forall callees i program f pc targets offset height,
   Supported callees i -> instrBranches callees i height (length targets) ->
   instructionAtPC program pc = Some (f, Some (flatInstruction (opInstr i) (slotTargets targets offset i))) ->
-  romValue (instructionRom program pcEdgeKindId pc 0) <> 0 ->
+  romValue (instructionEdgeKind program pc) <> 0 ->
   i = UNREACHABLE \/ returnsFrom (length targets) i.
 Proof.
   intros callees i program f pc targets offset height Hsup Hbranches Hslot Hkind.
-  unfold instructionRom in Hkind. rewrite Hslot in Hkind.
+  unfold instructionEdgeKind in Hkind. rewrite Hslot in Hkind.
   inversion Hsup; subst; cbn [slotTargets branchTargets map] in Hkind;
     try solve [exfalso; apply Hkind; reflexivity];
     try solve [left; reflexivity]; try solve [right; left; reflexivity].
@@ -53,10 +54,9 @@ Proof.
   pose proof (encoded_path_head _ _ _ Hf _ _ _ _ Hpath Hi) as Hslot.
   unfold pathPC in Hslot. cbn [beforeBoundary boundaryPC] in Hpc. rewrite <- Hpc in Hslot.
   destruct (supported_opcode_exists _ _ _ _ _ _ Hsupported Hslot) as [opcode Hop].
-  assert (Hrom : initial programOpcodeId [row COL_PC_BEFORE] = Some opcode).
-  { program_cell Hloaded. unfold encodeProgram. cbn [Nat.eqb programOpcodeId pcRomId pcFunctionRefId
-      functionEntryId functionLocalCountId functionCallMetadataId orb]. rewrite Hop. reflexivity. }
-  pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
+  assert (Hrom : opcodeAt initial [row COL_PC_BEFORE] = Some opcode).
+  { rewrite (proj1 (loaded_header_views _ _ _ Hloaded)), Hop. reflexivity. }
+  pose proof (circuit_row_opcode_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hfetch.
   rewrite Hrom in Hfetch. injection Hfetch as Hcode.
   destruct (supported_opcode_trap_classification _ _ _ _ _ _ _ Hsupported Hslot Hop)
     as [[-> _] | [[x [y [-> _]]] | [chosen [Hin Hcodes]]]]; [left; reflexivity | right; left; eauto | ].
@@ -64,10 +64,10 @@ Proof.
     by (destruct Hcases; [left | right; right]; assumption).
   pose proof (full_opcode_selects_member row chosen opcode Hprime Hfull Hprogram Hcodes (eq_sym Hcode)) as Hsel.
   pose proof (full_nontrapping_finish_edge row chosen Hprime Hfull Hin Hsel Hfinish) as Hedge.
-  assert (HromKind : initial pcEdgeKindId [row COL_PC_BEFORE] =
-      Some (romValue (instructionRom program pcEdgeKindId (row COL_PC_BEFORE) 0))).
-  { program_cell Hloaded. reflexivity. }
-  pose proof (circuit_row_edge_kind_fetch _ _ _ Hreplay Hprogram) as Hkind.
+  assert (HromKind : edgeKindAt initial [row COL_PC_BEFORE] =
+      Some (romValue (instructionEdgeKind program (row COL_PC_BEFORE)))).
+  { exact (proj2 (loaded_header_views _ _ _ Hloaded)). }
+  pose proof (circuit_row_edge_kind_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hkind.
   rewrite HromKind in Hkind. injection Hkind as Hkind.
   assert (Hlength : length (pathTargets (guestBody f) (positionLabels (viewPosition view))) =
       length (positionLabels (viewPosition view))) by (eapply path_targets_length; exact Hpath).
@@ -104,8 +104,8 @@ Proof.
   change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (pathOffset (guestBody f) (labels' ++ [site']) offset)) in Hpc.
   rewrite <- Hpc in Himage.
   destruct Himage as [Hop [Hkind _]].
-  pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
-  pose proof (circuit_row_edge_kind_fetch _ _ _ Hreplay Hprogram) as HkindFetch.
+  pose proof (circuit_row_opcode_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hfetch.
+  pose proof (circuit_row_edge_kind_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as HkindFetch.
   rewrite Hop in Hfetch. injection Hfetch as Hcode.
   rewrite Hkind in HkindFetch. injection HkindFetch as Hzero.
   assert (Hmarker : armEndOpcode i (siteArm site') = CODE_END \/ armEndOpcode i (siteArm site') = CODE_ELSE).

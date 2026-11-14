@@ -118,7 +118,7 @@ Proof.
       pose proof Hframe as [_ [Hpath _]].
       pose proof (encoded_path_unreachable _ _ _ _ Hloaded Hactive _ _ _ Hpath Hi) as [Hop _].
       cbn [beforeBoundary boundaryPC] in Hpc. unfold pathPC in Hop. rewrite <- Hpc in Hop.
-      pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
+      pose proof (circuit_row_opcode_fetch _ _ _ Hprime Hfull Hreplay Hprogram) as Hfetch.
       rewrite Hop in Hfetch. injection Hfetch as Hcode.
       assert (Hsel : row COL_SEL_UNREACHABLE = 1).
       { apply (full_opcode_selects row COL_SEL_UNREACHABLE CODE_UNREACHABLE Hprime Hfull Hprogram);

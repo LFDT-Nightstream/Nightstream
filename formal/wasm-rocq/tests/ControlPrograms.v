@@ -1,3 +1,4 @@
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range Add TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals
@@ -26,7 +27,8 @@ Definition computedMemory condition := loadProgram computedProgram (computedRam 
 
 Definition computedContext := moduleContext [i32StackType 0 1] [i32StackType 0 1].
 Definition computedBodyContext := functionContext computedContext computedFunction.
-Definition computedGuest := mkGuestFunction 0%N computedModule (mk_uN 0) 0 1 2 computedCode 0.
+Definition computedGuest :=
+  mkGuestFunction 0%N computedModule (mk_uN 0) [] [valtype_I32] [valtype_I32; valtype_I32] computedCode 0.
 
 Section Typing.
 Local Open Scope nat_scope.
@@ -134,11 +136,11 @@ Proof.
 Qed.
 
 Example computed_branch_layout :
-  encodeProgram computedProgram pcRomId [4; 0] = Some 5 /\
-  encodeProgram computedProgram pcRomId [4; 1] = Some 10 /\
-  encodeProgram computedProgram pcRomId [6; 0] = Some 7 /\
-  encodeProgram computedProgram pcRomId [6; 1] = Some 10 /\
-  encodeProgram computedProgram programOpcodeId [9] = Some CODE_END.
+  encodeProgram computedProgram pcRomId [4] = Some 6 /\
+  encodeProgram computedProgram pcRomId [5] = Some 12 /\
+  encodeProgram computedProgram pcRomId [7] = Some 9 /\
+  encodeProgram computedProgram pcRomId [8] = Some 12 /\
+  opcodeAt (encodeProgram computedProgram) [11] = Some CODE_END.
 Proof. repeat split; reflexivity. Qed.
 
 (* After local.get 0; local.get 1; i32.sub, the value is 7 - 9 modulo 2^32.
@@ -242,7 +244,7 @@ Proof.
       destruct (callView top) as [[[ | caller] glabels goffset] gsegments gvalues glocals];
         cbn [viewPosition positionFunction positionLabels positionOffset] in Hg, Hcall; [ | destruct caller; discriminate].
       cbn in Hg. injection Hg as Hg. rewrite <- Hg in Hcall, Hcallee. exact (computed_no_call _ _ _ _ _ Hcall Hcallee).
-  - exfalso. destruct Hactive as [f' [Hf' [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]].
+  - exfalso. destruct Hactive as [f' [defaults [Hf' [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]]].
     destruct function as [ | function]; [ | destruct function; discriminate].
     injection Hf' as <-. cbn in Hpos. lia.
 Qed.

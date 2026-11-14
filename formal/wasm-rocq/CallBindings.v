@@ -42,17 +42,22 @@ Proof.
   repeat split; [field_linear Hguest | field_linear Hpush | field_linear Hpop].
 Qed.
 
+(* The saved return pc is the next address: a call takes one address. *)
 Lemma full_call_context_push : forall (w : Witness),
-  FullRelation.satFull w -> w COL_CALL_STACK_PUSH_PRESENT = 1 ->
+  fieldPrime -> FullRelation.satFull w -> w COL_CALL_STACK_PUSH_PRESENT = 1 ->
   w COL_CALL_STACK_ADDR = w COL_CALL_STACK_DEPTH_BEFORE /\
   w COL_CALL_STACK_CALLER_FBP_VALUE = w COL_LOCALS_FBP_BEFORE /\
   w COL_CALL_STACK_CALLER_SP_BASE_VALUE = w COL_STACK_FRAME_BASE_BEFORE /\
-  w COL_PC_ROM_CALL_RETURN_CHOICE = 1.
+  w COL_CALL_STACK_RETURN_PC_VALUE = w COL_PC_BEFORE + 1.
 Proof.
-  intros w Hfull Hpush.
+  intros w Hprime Hfull Hpush.
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
   repeat split;
     match goal with
+    | |- value _ ?a = value _ ?b + 1 =>
+      circuit_range a Ha; circuit_range b Hb;
+      circuit_row ([(COL_CALL_STACK_PUSH_PRESENT, 1)], [(a, 1); (b, -1); (COL_ONE, -1)], ([] : SparseRow)) Hrow;
+      expand_row Hrow; normalize_columns; rewrite Hpush, Hone in Hrow; field_linear Hrow
     | |- value _ ?a = value _ ?b =>
       circuit_row ([(COL_CALL_STACK_PUSH_PRESENT, 1)], [(a, 1); (b, -1)], ([] : SparseRow)) Hrow;
       expand_row Hrow; normalize_columns; rewrite Hpush in Hrow;

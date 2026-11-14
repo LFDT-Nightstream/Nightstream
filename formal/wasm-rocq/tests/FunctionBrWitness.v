@@ -6,6 +6,7 @@ From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals
   StraightLineSpec SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout ProgramSpec ProgramEncoding
   ProgramRefinement ControlDecode Fragment tests.BlockPrograms tests.WitnessCheck tests.FunctionBrTrace.
+Require Import ControlInvariant.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -17,7 +18,8 @@ Definition mainFunction := i32Function branchModule (mk_uN 0) 2 1 0 mainBody.
 Definition branchFunction := i32Function branchModule (mk_uN 0) 2 1 0 branchBody.
 Definition branchProgram := [mainFunction; branchFunction].
 Definition branchStore := MKstore branchProgram [] [] [] [] [].
-Definition mainGuest := mkGuestFunction 0%N branchModule (mk_uN 0) 2 1 0 mainBody 0.
+Definition mainGuest :=
+  mkGuestFunction 0%N branchModule (mk_uN 0) [valtype_I32; valtype_I32] [valtype_I32] [] mainBody 0.
 
 Definition branchContext := moduleContext [i32StackType 2 1] [i32StackType 2 1; i32StackType 2 1].
 
@@ -73,10 +75,11 @@ Proof.
     + apply branch_function_validates; [repeat constructor | exact branch_body_validates].
   - intros [ | [ | index]] g Hg; cbn in Hg; [injection Hg as <- .. | destruct index; discriminate].
     + split; [ | vm_compute; tauto]. constructor; [constructor | constructor; [constructor | constructor; [ | constructor]]].
-      apply supported_call with (f := mkGuestFunction 1%N branchModule (mk_uN 0) 2 1 0 branchBody 4);
+      apply supported_call with (f :=
+        mkGuestFunction 1%N branchModule (mk_uN 0) [valtype_I32; valtype_I32] [valtype_I32] [] branchBody 4);
         [reflexivity | cbn; lia | cbn; lia].
     + split.
-      * constructor; [ | constructor]. apply supported_block; [repeat constructor | right; reflexivity].
+      * constructor; [ | constructor]. apply supported_block; [repeat constructor | right; left; reflexivity].
       * vm_compute. repeat match goal with
           | |- _ /\ _ => split | |- Forall _ _ => constructor | |- True => exact I | |- _ => lia end.
 Qed.
@@ -97,7 +100,7 @@ Proof. split; [vm_compute; reflexivity | ]. apply callerRowb_sound. vm_compute. 
 
 Lemma branch_start_config :
   CircuitConfig branchProgram branchStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    branchMemory branchStart (stackConfig (mk_state branchStore (activeFrame mainGuest [7; 9])) [] mainBody).
+    branchMemory branchStart (stackConfig (mk_state branchStore (activeFrame mainGuest (map i32Value [7; 9]))) [] mainBody).
 Proof.
   apply (function_start_config branchProgram branchStore 0 mainGuest [7; 9] _ branchStart);
     try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
@@ -111,7 +114,7 @@ Qed.
 
 Example function_br_witness_refines : fieldPrime ->
   exists shape c,
-    Steps (stackConfig (mk_state branchStore (activeFrame mainGuest [7; 9])) [] mainBody) c /\
+    Steps (stackConfig (mk_state branchStore (activeFrame mainGuest (map i32Value [7; 9]))) [] mainBody) c /\
     CircuitConfig branchProgram branchStore 0 shape (replayed branchMemory branchWitness)
       (rowsFinalBoundary branchStart branchWitness) c.
 Proof.

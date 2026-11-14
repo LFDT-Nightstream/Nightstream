@@ -22,6 +22,7 @@ pub mod preprocess;
 pub mod range_check;
 pub mod relation_layout;
 mod sparse_r1cs;
+mod table_descriptor;
 pub mod tagged_r1cs_builder;
 pub mod witness_builder;
 mod witness_layout;

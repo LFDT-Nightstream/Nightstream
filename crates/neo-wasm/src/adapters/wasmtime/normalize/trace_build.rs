@@ -148,7 +148,7 @@ pub(super) fn build_trace(
             awaiting_host: false,
             suspend_pending: false,
             events_remaining: setup.entry_plans.len() as u32,
-            event_index: 0,
+            event_index: bindings.event_base(setup.fref),
             args_base: 0,
             slot_cursor: 0,
         };
@@ -750,7 +750,7 @@ pub(super) fn build_trace(
                 awaiting_host: host_event_state.awaiting_host,
                 suspend_pending: host_event_state.suspend_pending,
                 events_remaining: plan.blocks.len() as u32,
-                event_index: 0,
+                event_index: bindings.event_base(host_callee_fref),
                 args_base: plan.args_base,
                 slot_cursor: 0,
             };
@@ -775,7 +775,7 @@ pub(super) fn build_trace(
                     awaiting_host: host_event_state.host_frame_depth != 0,
                     suspend_pending: false,
                     events_remaining: plans.len() as u32,
-                    event_index: setup.template.entry.len() as u32,
+                    event_index: bindings.event_base(setup.fref) + setup.template.entry.len() as u32,
                     args_base: host_event_state.args_base,
                     slot_cursor: 0,
                 };

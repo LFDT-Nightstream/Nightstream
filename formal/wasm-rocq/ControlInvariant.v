@@ -1,60 +1,86 @@
 (* The proof invariant between two rows, a relational form of ControlDecode: the
    active frame at a code path and the suspended callers beneath it, with their
-   operands, locals and saved contexts in memory. Typing is not stored here; it
-   follows from the program's validation at each frame's position (FrameFacts). *)
+   operands, locals and saved contexts in memory. At code, typing follows from
+   validation at the frame's position (FrameFacts). Entry carries typed arguments
+   and the defaults of the function's declared locals. *)
 From Stdlib Require Import List ZArith.
 Require Import Wasm2 WasmIntegers R1CS MemoryTrace MemoryCatalog StraightLineSpec SpecTecCalls SpecTecBranches
-  CallerSpec ProgramSpec CodeLayout FrameInitialization Locals Fragment ControlDecode.
+  CallerSpec ProgramSpec CodeLayout FrameInitialization Locals Fragment ControlDecode IntegerMemory IntegerDecode.
 Import ListNotations.
 Open Scope Z_scope.
+
+(* Locals retain their SpecTec types in active and suspended frames. *)
+Definition activeFrame (f : GuestFunction) (locals : list val) : frame :=
+  MKframe locals (guestModule f).
+
+(* A configuration inside its enclosing labels: each label's operands and the
+   code after its END stay outside its LABEL_. *)
+Fixpoint wrapLabels (code : list instr) (labels : list LabelSite) (segments : list (list Z)) (c : config) : config :=
+  match labels, segments with
+  | s :: rest, segment :: more =>
+      match siteEntry code s with
+      | Some (i, body) =>
+          stackPrefix segment (instructionSuffix (skipn (S (siteOffset s)) code)
+            (blockContext (labelArity i) (labelContinuation i) (wrapLabels body rest more c)))
+      | None => c
+      end
+  | _, _ => c
+  end.
+
 
 (* A frame's dynamic state at a code path: the operands below each enclosing
    label, the operands in the innermost code, and the locals. *)
 Record FrameView := frameView {
   viewPosition : CodePosition;
-  viewSegments : list (list Z);
-  viewValues : list Z;
-  viewLocals : list Z
+  viewSegments : list (list val);
+  viewValues : list val;
+  viewLocals : list val
 }.
 
-Definition viewOperands (view : FrameView) : list Z := concat (viewSegments view) ++ viewValues view.
+Definition viewOperands (view : FrameView) : list val := concat (viewSegments view) ++ viewValues view.
 
 Definition innerCode (f : GuestFunction) (position : CodePosition) : list instr :=
   match pathCode (guestBody f) (positionLabels position) with Some inner => inner | None => [] end.
 
 (* A configuration of the frame's innermost code, inside the frame's labels. *)
 Definition frameConfig (f : GuestFunction) (view : FrameView) (c : config) : config :=
-  wrapLabels (guestBody f) (positionLabels (viewPosition view)) (viewSegments view) c.
+  wrapValueLabels (guestBody f) (positionLabels (viewPosition view)) (viewSegments view) c.
 
-(* Where a frame's operand `index` sits: from base, except that the top `moved`
-   of `count` operands still sit `distance` cells higher while a move is pending. *)
-Definition operandCell (base : Z) (count moved : nat) (distance : Z) (index : nat) : Z :=
-  base + Z.of_nat index + (if (index <? count - moved)%nat then 0 else distance).
+(* Pending operands have left this frame (call arguments or an indirect-call
+   index). Their types remain at the end of the source stack at this position. *)
+Definition FrameTyping (program : Program) (f : GuestFunction) (view : FrameView) (pending : nat) : Prop :=
+  exists pendingTypes,
+    length pendingTypes = pending /\
+    pathTypes (guestFrameTypes f) (programCallees program (guestModule f)) (guestBody f)
+      (positionLabels (viewPosition view)) (positionOffset (viewPosition view)) =
+      Some (map valueTypes (viewSegments view), valueTypes (viewValues view) ++ pendingTypes).
 
 (* A frame in memory: its locals are its first cells from fbp, and its operands
    follow from base = fbp + locals, at the code's static heights, with `pending`
-   more that have moved to a callee as its arguments. *)
-Definition FrameAt (program : Program) (memory : MemoryState) (base fbp : Z) (pending moved : nat)
+   more that have moved to a callee as its arguments. Operands retain their
+   SpecTec values and their types at the source position. *)
+Definition FrameAt (program : Program) (memory : MemoryState) (base fbp : Z) (pending remaining : nat)
     (distance : Z) (f : GuestFunction) (view : FrameView) : Prop :=
   let position := viewPosition view in
   functionAt program (positionFunction position) = Some f /\
   pathCode (guestBody f) (positionLabels position) = Some (innerCode f position) /\
   pathHeights (programCallees program (guestModule f)) (guestBody f) (positionLabels position)
     (positionOffset position) =
-    Some (map (@length Z) (viewSegments view), (length (viewValues view) + pending)%nat) /\
+    Some (map (@length val) (viewSegments view), (length (viewValues view) + pending)%nat) /\
   0 <= fbp /\ base = fbp + Z.of_nat (frameLocals f) /\
-  Forall (fun value => 0 <= value < i32Modulus) (viewOperands view) /\
+  Forall wf_val (viewOperands view) /\
   (forall index value, nth_error (viewOperands view) index = Some value ->
-    memory stackId [2 * operandCell base (length (viewOperands view)) moved distance index] = Some value) /\
+    CellMatches memory (operandCell base (length (viewOperands view)) remaining distance index) value) /\
   length (viewLocals view) = frameLocals f /\
-  Forall (fun value => 0 <= value < i32Modulus) (viewLocals view) /\
+  valuesTyped (guestFrameTypes f) (viewLocals view) /\
   (forall index value, nth_error (viewLocals view) index = Some value ->
-    memory stackId [2 * (fbp + Z.of_nat index)] = Some value).
+    CellMatches memory (fbp + Z.of_nat index) value) /\
+  FrameTyping program f view pending.
 
 Inductive ControlPosition :=
 | atCode (view : FrameView)
 | resolved (view : FrameView) (callee : nat)
-| entering (function : nat) (arguments : list Z).
+| entering (function : nat) (arguments : list val).
 
 (* The countdown flags follow the counters, as the circuit computes them on the row
    before this boundary; the next row's kind is fixed by them. A pending move runs
@@ -75,16 +101,16 @@ Definition ActiveState (program : Program) (s : store) (memory : MemoryState) (b
   match cursor with
   | atCode view => exists f,
       let position := viewPosition view in
-      let moved := Z.to_nat (boundaryMoveRemaining boundary) in
-      FrameAt program memory (boundaryStackBase boundary) (boundaryLocalsBase boundary) 0 moved
+      let remaining := Z.to_nat (boundaryMoveRemaining boundary) in
+      FrameAt program memory (boundaryStackBase boundary) (boundaryLocalsBase boundary) 0 remaining
         (boundaryMoveDistance boundary) f view /\
       (positionOffset position <= length (innerCode f position))%nat /\
       boundarySP boundary = boundaryStackBase boundary + Z.of_nat (length (viewOperands view)) /\
       boundaryPC boundary =
         guestEntry f + Z.of_nat (pathOffset (guestBody f) (positionLabels position) (positionOffset position)) /\
       initializationFlags boundary /\ boundaryZeroRemaining boundary = 0 /\
-      (moved <= length (viewValues view))%nat /\
-      c = frameConfig f view (stackConfig (mk_state s (activeFrame f (viewLocals view))) (viewValues view)
+      (remaining <= length (viewValues view))%nat /\
+      c = frameConfig f view (valueStackConfig (mk_state s (activeFrame f (viewLocals view))) (viewValues view)
         (skipn (positionOffset position) (innerCode f position)))
   (* The indirect call at the view's position has resolved to `callee`: its
      reference, callee + 1, sits above the view's operands, where the table index
@@ -100,17 +126,18 @@ Definition ActiveState (program : Program) (s : store) (memory : MemoryState) (b
       boundaryPC boundary =
         guestEntry f + Z.of_nat (pathOffset (guestBody f) (positionLabels position) (positionOffset position)) + 1 /\
       initializationFlags boundary /\ boundaryZeroRemaining boundary = 0 /\ boundaryMoveRemaining boundary = 0 /\
-      c = frameConfig f view (stackPrefix (viewValues view)
+      c = frameConfig f view (valueStackPrefix (viewValues view)
         (instructionSuffix (skipn (S (positionOffset position)) (innerCode f position))
           (mk_config (mk_state s (activeFrame f (viewLocals view))) [CALL_ADDR (N.of_nat callee)])))
-  | entering function arguments => exists f,
-      functionAt program function = Some f /\ length arguments = guestParams f /\
-      Forall (fun value => 0 <= value < i32Modulus) arguments /\
+  | entering function arguments => exists f defaults,
+      functionAt program function = Some f /\
+      Forall2 (fun t value => integerValueType value = Some t) (guestParamTypes f) arguments /\
+      integerZeros (guestLocalTypes f) = Some defaults /\
       InitializingFrame memory boundary arguments (Z.of_nat (guestLocals f)) (boundaryZeroRemaining boundary) /\
       initializationFlags boundary /\ boundaryMoveRemaining boundary = 0 /\
       0 < boundaryZeroRemaining boundary /\
       boundaryPC boundary = guestEntry f /\
-      c = stackConfig (mk_state s (enteredFrame (guestModule f) arguments (guestLocals f))) [] (guestBody f)
+      c = valueStackConfig (mk_state s (MKframe (arguments ++ defaults) (guestModule f))) [] (guestBody f)
   end.
 
 (* A caller suspended at a call inside its labels: its view holds the operands
@@ -128,7 +155,7 @@ Definition callerConfig (suspended : SuspendedCall) (c : config) : config :=
   let g := callerFunction suspended in
   let view := callView suspended in
   let position := viewPosition view in
-  frameConfig g view (stackPrefix (viewValues view)
+  frameConfig g view (valueStackPrefix (viewValues view)
     (instructionSuffix (skipn (S (positionOffset position)) (innerCode g position))
       (callContext (activeFrame g (viewLocals view)) (N.of_nat (callResults suspended)) c))).
 

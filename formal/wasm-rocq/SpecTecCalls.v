@@ -5,6 +5,46 @@ Require Import Wasm2 WasmIntegers Locals Add StraightLineSpec LocalSimulation.
 Import ListNotations.
 Open Scope Z_scope.
 
+Definition typedFunction (module : moduleinst) (typeIndex : typeidx)
+    (params results locals : list valtype) (body : list instr) : funcinst :=
+  MKfuncinst (mk_functype (mk_list _ params) (mk_list _ results)) module
+    (func_FUNC typeIndex (List.map LOCAL locals) body).
+
+Definition valueStackConfig (z : state) (values : list val) (code : list instr) : config :=
+  mk_config z (List.map admininstr_val values ++ List.map admininstr_instr code).
+
+Definition valueStackPrefix (values : list val) (c : config) : config :=
+  match c with mk_config z code => mk_config z (List.map admininstr_val values ++ code) end.
+
+Lemma value_admin_wf : forall value, wf_val value -> wf_admininstr (admininstr_val value).
+Proof. intros value H; destruct H; constructor; assumption. Qed.
+
+Lemma value_stack_prefix_wf : forall values c,
+  Forall wf_val values -> wf_config c -> wf_config (valueStackPrefix values c).
+Proof.
+  intros values [z code] Hvalues Hwf. inversion Hwf; subst.
+  constructor; [assumption | ]. apply Forall_app. split; [ | assumption].
+  apply Forall_map. eapply Forall_impl; [ | exact Hvalues]. intros value Hv. now apply value_admin_wf.
+Qed.
+
+Lemma steps_with_value_prefix : forall values before after,
+  Forall wf_val values -> Steps before after ->
+  Steps (valueStackPrefix values before) (valueStackPrefix values after).
+Proof.
+  intros values before after Hvalues Hsteps.
+  induction Hsteps as [z code Hwf | z code z'' code'' z' code' Hstep Hsteps IH Hb Ha Hm].
+  - apply Steps__refl. exact (value_stack_prefix_wf values _ Hvalues Hwf).
+  - assert (Hlift : Step (valueStackPrefix values (mk_config z code))
+        (valueStackPrefix values (mk_config z' code'))).
+    { destruct values as [ | value values]; [exact Hstep | ].
+      cbn [valueStackPrefix]. rewrite <- (app_nil_r code), <- (app_nil_r code').
+      apply ctxt_instrs; [exact Hstep | reflexivity | exact Hb | exact Hm]. }
+    eapply trans; [exact Hlift | exact IH | | | ].
+    + exact (value_stack_prefix_wf values _ Hvalues Hb).
+    + exact (value_stack_prefix_wf values _ Hvalues Ha).
+    + exact (value_stack_prefix_wf values _ Hvalues Hm).
+Qed.
+
 Definition i32Function (module : moduleinst) (typeIndex : typeidx)
     (params results locals : nat) (body : list instr) : funcinst :=
   MKfuncinst (mk_functype (mk_list _ (repeat valtype_I32 params))
@@ -50,6 +90,41 @@ Proof.
     unfold i32Modulus; lia.
 Qed.
 
+Lemma call_address_enters_frame : forall z address module typeIndex arguments params results locals body defaults,
+  nth_error (fun_funcinst z) (N.to_nat address) =
+    Some (typedFunction module typeIndex params results locals body) ->
+  wf_funcinst (typedFunction module typeIndex params results locals body) ->
+  length arguments = length params -> Forall wf_val arguments ->
+  Forall (fun t => default_ t != None) locals ->
+  defaults = List.map (fun t => the (default_ t)) locals -> Forall wf_val defaults ->
+  Step (mk_config z (List.map admininstr_val arguments ++ [CALL_ADDR address]))
+    (mk_config z [FRAME_ (N.of_nat (length results)) (MKframe (arguments ++ defaults) module)
+      [LABEL_ (N.of_nat (length results)) [] (List.map admininstr_instr body)]]).
+Proof.
+  intros z address module typeIndex arguments params results locals body defaults Hlookup Hwf Hlen Hargs
+    Hdefault -> Hdefaults.
+  assert (Hmodule : wf_moduleinst module) by (inversion Hwf; assumption).
+  assert (Hcode : wf_func (func_FUNC typeIndex (List.map LOCAL locals) body)) by (inversion Hwf; assumption).
+  assert (Hframe : wf_frame (MKframe (arguments ++ List.map (fun t => the (default_ t)) locals) module)).
+  { constructor; [apply Forall_app; auto | exact Hmodule]. }
+  apply read. eapply call_addr with (k := N.of_nat (length arguments)) (t_1_lst := params)
+    (t_2_lst := results) (t_lst := locals) (mm := module)
+    (v_func := func_FUNC typeIndex (List.map LOCAL locals) body) (x := typeIndex).
+  - apply N.ltb_lt. change (address < N.of_nat (length (fun_funcinst z)))%N.
+    assert (Hlength : (N.to_nat address < length (fun_funcinst z))%nat).
+    { apply nth_error_Some. rewrite Hlookup. discriminate. } lia.
+  - apply /eqP. apply spec_lookup_from_nth_error. exact Hlookup.
+  - apply /eqP. reflexivity.
+  - exact Hdefault.
+  - apply /eqP. reflexivity.
+  - exact Hwf.
+  - exact Hcode.
+  - exact Hframe.
+  - apply /eqP. reflexivity.
+  - apply /eqP. change (N.of_nat (length arguments) = N.of_nat (length params)). now rewrite Hlen.
+  - apply /eqP. reflexivity.
+Qed.
+
 Lemma call_address_enters_i32_frame : forall z address module typeIndex arguments results locals body,
   nth_error (fun_funcinst z) (N.to_nat address) =
     Some (i32Function module typeIndex (length arguments) results locals body) ->
@@ -60,37 +135,19 @@ Lemma call_address_enters_i32_frame : forall z address module typeIndex argument
       [LABEL_ (N.of_nat results) [] (List.map admininstr_instr body)]]).
 Proof.
   intros z address module typeIndex arguments results locals body Hlookup Hwf Hargs.
-  assert (Hmodule : wf_moduleinst module) by (inversion Hwf; assumption).
-  assert (Hcode : wf_func (func_FUNC typeIndex (List.map LOCAL (repeat valtype_I32 locals)) body))
-    by (inversion Hwf; assumption).
-  assert (Hframe := entered_frame_wf module arguments locals Hmodule Hargs).
-  assert (Hdefaults : seq.map (fun t => the (default_ t)) (repeat valtype_I32 locals) =
+  assert (Hdefaults : List.map (fun t => the (default_ t)) (repeat valtype_I32 locals) =
     repeat (i32Value 0) locals).
-  { clear Hlookup Hwf Hcode Hframe. induction locals; [reflexivity | ]. cbn. rewrite IHlocals. reflexivity. }
-  assert (Hvalues : List.map admininstr_val (List.map i32Value arguments) = List.map i32Constant arguments).
-  { rewrite map_map. reflexivity. }
-  rewrite <- Hvalues. apply read.
-  eapply call_addr with (k := N.of_nat (length arguments))
-    (t_1_lst := repeat valtype_I32 (length arguments))
-    (t_2_lst := repeat valtype_I32 results)
-    (t_lst := repeat valtype_I32 locals) (mm := module)
-    (v_func := func_FUNC typeIndex (List.map LOCAL (repeat valtype_I32 locals)) body) (x := typeIndex).
-  - apply N.ltb_lt. change (address < N.of_nat (length (fun_funcinst z)))%N.
-    assert (Hlength : (N.to_nat address < length (fun_funcinst z))%nat).
-    { apply nth_error_Some. rewrite Hlookup. discriminate. } lia.
-  - apply /eqP. apply spec_lookup_from_nth_error. exact Hlookup.
-  - apply /eqP. reflexivity.
-  - apply Forall_forall; intros v Hin; apply repeat_spec in Hin; subst v. reflexivity.
-  - apply /eqP. unfold enteredFrame. rewrite Hdefaults. reflexivity.
-  - exact Hwf.
-  - exact Hcode.
-  - rewrite Hdefaults. exact Hframe.
-  - apply /eqP. change (N.of_nat (length arguments) = N.of_nat (length (List.map i32Value arguments))).
-    rewrite length_map. reflexivity.
-  - apply /eqP. change (N.of_nat (length arguments) = N.of_nat (length (repeat valtype_I32 (length arguments)))).
-    rewrite repeat_length. reflexivity.
-  - apply /eqP. change (N.of_nat results = N.of_nat (length (repeat valtype_I32 results))).
-    rewrite repeat_length. reflexivity.
+  { clear Hlookup Hwf. induction locals; [reflexivity | ]. cbn. rewrite IHlocals. reflexivity. }
+  pose proof (call_address_enters_frame z address module typeIndex (List.map i32Value arguments)
+    (repeat valtype_I32 (length arguments)) (repeat valtype_I32 results)
+    (repeat valtype_I32 locals) body (repeat (i32Value 0) locals) Hlookup Hwf) as H.
+  rewrite !repeat_length map_map in H. apply H.
+  - rewrite length_map. reflexivity.
+  - apply Forall_map. eapply Forall_impl; [ | exact Hargs]. intros v Hv. now apply i32_value_wf.
+  - apply Forall_forall. intros t Ht. apply repeat_spec in Ht. subst t. reflexivity.
+  - symmetry. exact Hdefaults.
+  - apply Forall_forall. intros v Hv. apply repeat_spec in Hv. subst v.
+    apply i32_value_wf. unfold i32Modulus; lia.
 Qed.
 
 Lemma steps_refl_wf : forall c, wf_config c -> Steps c c.
@@ -141,6 +198,40 @@ Proof.
     destruct z, z', z''. eapply trans; eassumption.
 Qed.
 
+Lemma value_function_returns : forall s caller callee values,
+  wf_state (mk_state s caller) -> wf_frame callee ->
+  Forall wf_val values ->
+  Steps (mk_config (mk_state s caller)
+    [FRAME_ (N.of_nat (length values)) callee
+      [LABEL_ (N.of_nat (length values)) [] (List.map admininstr_val values)]])
+    (mk_config (mk_state s caller) (List.map admininstr_val values)).
+Proof.
+  intros s caller callee values Hstate Hcallee Hvalues.
+  assert (Hconstants : Forall wf_admininstr (List.map admininstr_val values)).
+  { apply Forall_map. eapply Forall_impl; [ | exact Hvalues]. intros value Hv. now apply value_admin_wf. }
+  assert (HinnerState : wf_state (mk_state s callee)) by (inversion Hstate; constructor; assumption).
+  assert (Hlabel : wf_config (mk_config (mk_state s callee)
+    [LABEL_ (N.of_nat (length values)) [] (List.map admininstr_val values)])).
+  { constructor; [exact HinnerState | ]. repeat constructor; assumption. }
+  assert (HinnerValues : wf_config (mk_config (mk_state s callee) (List.map admininstr_val values)))
+    by (constructor; assumption).
+  assert (Hbefore : wf_config (mk_config (mk_state s caller)
+    [FRAME_ (N.of_nat (length values)) callee
+      [LABEL_ (N.of_nat (length values)) [] (List.map admininstr_val values)]])).
+  { constructor; [exact Hstate | ]. repeat constructor; assumption. }
+  assert (Hmiddle : wf_config (mk_config (mk_state s caller)
+    [FRAME_ (N.of_nat (length values)) callee (List.map admininstr_val values)])).
+  { constructor; [exact Hstate | ]. repeat constructor; assumption. }
+  assert (Hafter : wf_config (mk_config (mk_state s caller) (List.map admininstr_val values)))
+    by (constructor; assumption).
+  eapply trans; [ | | exact Hbefore | exact Hafter | exact Hmiddle].
+  - apply ctxt_frame; [ | exact Hlabel | exact HinnerValues].
+    apply pure. apply label_vals.
+  - eapply trans; [ | apply Steps__refl; exact Hafter | exact Hmiddle | exact Hafter | exact Hafter].
+    apply pure. apply frame_vals. apply /eqP.
+    reflexivity.
+Qed.
+
 Lemma i32_function_returns : forall s caller callee values,
   wf_state (mk_state s caller) -> wf_frame callee ->
   Forall (fun value => 0 <= value < i32Modulus) values ->
@@ -150,33 +241,9 @@ Lemma i32_function_returns : forall s caller callee values,
     (mk_config (mk_state s caller) (List.map i32Constant values)).
 Proof.
   intros s caller callee values Hstate Hcallee Hvalues.
-  assert (Hconstants : Forall wf_admininstr (List.map i32Constant values)).
-  { apply Forall_map. eapply Forall_impl; [ | exact Hvalues].
-    intros value Hvalue. constructor. apply spectec_i32_well_formed. exact Hvalue. }
-  assert (Hmap : List.map admininstr_val (List.map i32Value values) = List.map i32Constant values).
-  { rewrite map_map. reflexivity. }
-  assert (HinnerState : wf_state (mk_state s callee)) by (inversion Hstate; constructor; assumption).
-  assert (Hlabel : wf_config (mk_config (mk_state s callee)
-    [LABEL_ (N.of_nat (length values)) [] (List.map i32Constant values)])).
-  { constructor; [exact HinnerState | ]. repeat constructor; assumption. }
-  assert (HinnerValues : wf_config (mk_config (mk_state s callee) (List.map i32Constant values)))
-    by (constructor; assumption).
-  assert (Hbefore : wf_config (mk_config (mk_state s caller)
-    [FRAME_ (N.of_nat (length values)) callee
-      [LABEL_ (N.of_nat (length values)) [] (List.map i32Constant values)]])).
-  { constructor; [exact Hstate | ]. repeat constructor; assumption. }
-  assert (Hmiddle : wf_config (mk_config (mk_state s caller)
-    [FRAME_ (N.of_nat (length values)) callee (List.map i32Constant values)])).
-  { constructor; [exact Hstate | ]. repeat constructor; assumption. }
-  assert (Hafter : wf_config (mk_config (mk_state s caller) (List.map i32Constant values)))
-    by (constructor; assumption).
-  eapply trans; [ | | exact Hbefore | exact Hafter | exact Hmiddle].
-  - apply ctxt_frame; [ | exact Hlabel | exact HinnerValues].
-    apply pure. rewrite <- Hmap. apply label_vals.
-  - eapply trans; [ | apply Steps__refl; exact Hafter | exact Hmiddle | exact Hafter | exact Hafter].
-    apply pure. rewrite <- Hmap. apply frame_vals. apply /eqP.
-    change (N.of_nat (length values) = N.of_nat (length (List.map i32Value values))).
-    rewrite length_map. reflexivity.
+  pose proof (value_function_returns s caller callee (List.map i32Value values) Hstate Hcallee) as H.
+  rewrite length_map map_map in H. apply H. apply Forall_map.
+  eapply Forall_impl; [ | exact Hvalues]. intros value Hv. now apply i32_value_wf.
 Qed.
 
 Lemma instruction_admin_wf : forall instruction,
@@ -266,19 +333,10 @@ Lemma steps_with_stack_prefix : forall values before after,
   Steps (stackPrefix values before) (stackPrefix values after).
 Proof.
   intros values before after Hvalues Hsteps.
-  induction Hsteps as [z code Hwf | z code z'' code'' z' code' Hstep Hsteps IH Hb Ha Hm].
-  - apply Steps__refl. exact (stack_prefix_wf values _ Hvalues Hwf).
-  - assert (Hlift : Step (stackPrefix values (mk_config z code)) (stackPrefix values (mk_config z' code'))).
-    { destruct values as [ | value values]; [exact Hstep | ].
-      assert (Hmap : List.map admininstr_val (List.map i32Value (value :: values)) =
-          List.map i32Constant (value :: values)) by (rewrite map_map; reflexivity).
-      cbn [stackPrefix]. rewrite <- Hmap.
-      rewrite <- (app_nil_r code), <- (app_nil_r code').
-      apply ctxt_instrs; [exact Hstep | reflexivity | exact Hb | exact Hm]. }
-    eapply trans; [exact Hlift | exact IH | | | ].
-    + exact (stack_prefix_wf values _ Hvalues Hb).
-    + exact (stack_prefix_wf values _ Hvalues Ha).
-    + exact (stack_prefix_wf values _ Hvalues Hm).
+  assert (Hwf : Forall wf_val (List.map i32Value values)).
+  { apply Forall_map. eapply Forall_impl; [ | exact Hvalues]. intros v Hv. now apply i32_value_wf. }
+  pose proof (steps_with_value_prefix _ _ _ Hwf Hsteps) as H.
+  destruct before, after. cbn [valueStackPrefix] in H. rewrite !map_map in H. exact H.
 Qed.
 
 (* A reduction may execute before a fixed, well-formed instruction continuation. *)
@@ -317,4 +375,98 @@ Proof.
     + exact (instruction_suffix_wf code _ Hcode Hb).
     + exact (instruction_suffix_wf code _ Hcode Ha).
     + exact (instruction_suffix_wf code _ Hcode Hm).
+Qed.
+
+Lemma value_stack_config_i32 : forall z values code,
+  valueStackConfig z (map i32Value values) code = stackConfig z values code.
+Proof. intros. unfold valueStackConfig, stackConfig. rewrite map_map. reflexivity. Qed.
+
+Lemma value_stack_prefix_i32 : forall values c,
+  valueStackPrefix (map i32Value values) c = stackPrefix values c.
+Proof. intros values [z code]. unfold valueStackPrefix, stackPrefix. rewrite map_map. reflexivity. Qed.
+
+Lemma value_stack_config_wf : forall z values code,
+  wf_state z -> Forall wf_val values -> Forall wf_instr code ->
+  wf_config (valueStackConfig z values code).
+Proof.
+  intros z values code Hz Hv Hcode. constructor; [exact Hz | ].
+  apply Forall_app. split; apply Forall_map.
+  - eapply Forall_impl; [ | exact Hv]. intros v H. now apply value_admin_wf.
+  - eapply Forall_impl; [ | exact Hcode]. intros i H. now apply instruction_admin_wf.
+Qed.
+
+Lemma i32_values_wf : forall values,
+  Forall (fun value => 0 <= value < i32Modulus) values -> Forall wf_val (List.map i32Value values).
+Proof.
+  intros values H. apply Forall_map. eapply Forall_impl; [ | exact H].
+  intros value Hv. now apply i32_value_wf.
+Qed.
+
+Lemma value_stack_prefix_config : forall z values more code,
+  valueStackPrefix values (valueStackConfig z more code) = valueStackConfig z (values ++ more) code.
+Proof. intros. unfold valueStackPrefix, valueStackConfig. rewrite List.map_app. rewrite <- List.app_assoc. reflexivity. Qed.
+
+Lemma value_instruction_suffix_config : forall z values code more,
+  instructionSuffix more (valueStackConfig z values code) = valueStackConfig z values (code ++ more).
+Proof. intros. unfold instructionSuffix, valueStackConfig. rewrite List.map_app. rewrite <- List.app_assoc. reflexivity. Qed.
+
+Lemma typed_entered_body_wf : forall s module typeIndex arguments params results locals body defaults,
+  wf_store s -> wf_funcinst (typedFunction module typeIndex params results locals body) ->
+  Forall wf_val arguments -> Forall wf_val defaults ->
+  wf_config (valueStackConfig (mk_state s (MKframe (arguments ++ defaults) module)) [] body).
+Proof.
+  intros s module typeIndex arguments params results locals body defaults Hstore Hfunc Hargs Hdefaults.
+  inversion Hfunc; subst.
+  apply value_stack_config_wf; [ | constructor | ].
+  - constructor; [exact Hstore | constructor; [apply Forall_app; auto | assumption]].
+  - match goal with H : wf_func _ |- _ => inversion H; assumption end.
+Qed.
+
+Lemma defaults_defined : forall types,
+  Forall (fun t => default_ t <> None) types ->
+  Forall (fun t => default_ t != None) types.
+Proof.
+  intros types H. eapply Forall_impl; [ | exact H].
+  intros t Ht. apply /eqP. exact Ht.
+Qed.
+
+Lemma direct_typed_call_enters : forall s caller index address module typeIndex arguments params results locals body defaults,
+  wf_state (mk_state s caller) -> wf_uN 32%N index ->
+  nth_error (fun_funcaddr (mk_state s caller)) (N.to_nat (index :> N)) = Some address ->
+  nth_error (fun_funcinst (mk_state s caller)) (N.to_nat address) =
+    Some (typedFunction module typeIndex params results locals body) ->
+  wf_funcinst (typedFunction module typeIndex params results locals body) ->
+  length arguments = length params -> Forall wf_val arguments ->
+  Forall (fun t => default_ t != None) locals ->
+  defaults = List.map (fun t => the (default_ t)) locals -> Forall wf_val defaults ->
+  Steps (valueStackConfig (mk_state s caller) arguments [CALL index])
+    (callContext caller (N.of_nat (length results))
+      (valueStackConfig (mk_state s (MKframe (arguments ++ defaults) module)) [] body)).
+Proof.
+  intros s caller index address module typeIndex arguments params results locals body defaults
+    Hz Hindex Haddress Hfunction Hfunc Hlen Hargs Hdefault Hdefaults HdefaultWf.
+  assert (HsmallBefore : wf_config (mk_config (mk_state s caller) [admininstr_CALL index]))
+    by (constructor; [exact Hz | repeat constructor; assumption]).
+  assert (HsmallAfter : wf_config (mk_config (mk_state s caller) [CALL_ADDR address]))
+    by (constructor; [exact Hz | repeat constructor]).
+  assert (Hbefore : wf_config (valueStackConfig (mk_state s caller) arguments [CALL index]))
+    by (apply value_stack_config_wf; [exact Hz | exact Hargs | repeat constructor; assumption]).
+  assert (Hmiddle : wf_config (mk_config (mk_state s caller) (map admininstr_val arguments ++ [CALL_ADDR address]))).
+  { change (wf_config (valueStackPrefix arguments (mk_config (mk_state s caller) [CALL_ADDR address]))).
+    apply value_stack_prefix_wf; assumption. }
+  assert (Hafter : wf_config (callContext caller (N.of_nat (length results))
+      (valueStackConfig (mk_state s (MKframe (arguments ++ defaults) module)) [] body))).
+  { apply call_context_wf; [inversion Hz; assumption | ].
+    eapply typed_entered_body_wf; [inversion Hz; assumption | exact Hfunc | exact Hargs | exact HdefaultWf]. }
+  assert (Hstep : Step (valueStackConfig (mk_state s caller) arguments [CALL index])
+      (mk_config (mk_state s caller) (map admininstr_val arguments ++ [CALL_ADDR address]))).
+  { destruct arguments as [ | argument arguments].
+    - apply direct_call_expands. exact Haddress.
+    - unfold valueStackConfig. cbn [List.map admininstr_instr].
+    replace [admininstr_CALL index] with ([admininstr_CALL index] ++ []) by reflexivity.
+    replace [CALL_ADDR address] with ([CALL_ADDR address] ++ []) by reflexivity.
+    apply ctxt_instrs with (val_lst := argument :: arguments); [apply direct_call_expands; exact Haddress | reflexivity | exact HsmallBefore | exact HsmallAfter]. }
+  eapply trans; [exact Hstep | | exact Hbefore | exact Hafter | exact Hmiddle].
+  eapply trans; [ | apply Steps__refl; exact Hafter | exact Hmiddle | exact Hafter | exact Hafter].
+  eapply call_address_enters_frame; eassumption.
 Qed.

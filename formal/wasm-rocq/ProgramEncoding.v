@@ -1,4 +1,5 @@
 (* Connect the executable ROM encoding to the instruction/call loading lemmas. *)
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith Lia Bool.
 Require Import Wasm2 SpecTecCalls MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec
   CallerSpec CallerRefinement CallSpec ProgramSpec StraightLineInstructions CodeLayout.
@@ -22,39 +23,43 @@ Proof.
   unfold programRomIds in Hin. repeat destruct Hin as [<- | Hin]; try contradiction; reflexivity.
 Qed.
 
-Lemma i32_types_repeat : forall types,
-  forallb i32Type types = true -> types = repeat valtype_I32 (length types).
-Proof.
-  induction types as [ | t types IH]; [reflexivity | ].
-  cbn. rewrite andb_true_iff. intros [Ht Hts]. destruct t; try discriminate.
-  cbn. f_equal. exact (IH Hts).
-Qed.
-
-Lemma i32_locals_repeat : forall locals,
-  forallb i32Local locals = true -> locals = map LOCAL (repeat valtype_I32 (length locals)).
-Proof.
-  induction locals as [ | [t] locals IH]; [reflexivity | ].
-  cbn. rewrite andb_true_iff. intros [Ht Hts]. destruct t; try discriminate.
-  cbn. f_equal. exact (IH Hts).
-Qed.
-
-Lemma function_at_sound : forall program index f,
+Lemma function_at_typed : forall program index f,
   functionAt program index = Some f ->
-  nth_error program index = Some (i32Function (guestModule f) (guestTypeIndex f)
-    (guestParams f) (guestResults f) (guestLocals f) (guestBody f)) /\
+  nth_error program index = Some (typedFunction (guestModule f) (guestTypeIndex f)
+    (guestParamTypes f) (guestResultTypes f) (guestLocalTypes f) (guestBody f)) /\
   guestAddress f = N.of_nat index /\ guestEntry f = functionEntry program index.
 Proof.
   intros program index f. unfold functionAt.
-  destruct (nth_error program index) as [[[ [params] [results]] module [typeIndex locals body]] | ] eqn:Hlookup;
+  destruct (nth_error program index) as [[[[params] [results]] module [ti locals body]] | ] eqn:Hlookup;
     [ | discriminate].
-  unfold decodeFunction. destruct (forallb i32Type params && forallb i32Type results && forallb i32Local locals)
+  unfold decodeFunction. destruct (forallb integerType params && forallb integerType results && forallb integerLocal locals);
+    [ | discriminate].
+  intros H. injection H as <-. cbn [guestModule guestTypeIndex guestParamTypes guestResultTypes
+    guestLocalTypes guestBody guestAddress guestEntry].
+  split; [ | auto]. unfold typedFunction. rewrite map_map.
+  assert (Hlocals : map (fun l => LOCAL (match l with LOCAL t => t end)) locals = locals).
+  { clear Hlookup. induction locals as [ | [t] rest IH]; [reflexivity | cbn; f_equal; exact IH]. }
+  now rewrite Hlocals.
+Qed.
+
+Lemma function_integer_types : forall program index f,
+  functionAt program index = Some f ->
+  Forall (fun t => t = valtype_I32 \/ t = valtype_I64) (guestParamTypes f) /\
+  Forall (fun t => t = valtype_I32 \/ t = valtype_I64) (guestResultTypes f) /\
+  Forall (fun t => t = valtype_I32 \/ t = valtype_I64) (guestLocalTypes f).
+Proof.
+  intros program index f. unfold functionAt.
+  destruct (nth_error program index) as [[[[params] [results]] module [ti locals body]] | ]; [ | discriminate].
+  unfold decodeFunction. destruct (forallb integerType params && forallb integerType results && forallb integerLocal locals)
     eqn:Hshape; [ | discriminate].
-  intros H. injection H as <-. cbn [guestModule guestTypeIndex guestParams guestResults guestLocals guestBody guestAddress guestEntry].
-  apply andb_true_iff in Hshape. destruct Hshape as [Htypes Hlocals].
-  apply andb_true_iff in Htypes. destruct Htypes as [Hparams Hresults].
-  split; [ | auto]. unfold i32Function.
-  rewrite <- (i32_types_repeat _ Hparams), <- (i32_types_repeat _ Hresults), <- (i32_locals_repeat _ Hlocals).
-  reflexivity.
+  intros H. injection H as <-. cbn [guestParamTypes guestResultTypes guestLocalTypes].
+  apply andb_true_iff in Hshape as [Htypes Hl]. apply andb_true_iff in Htypes as [Hp Hr].
+  assert (Htypes : forall ts, forallb integerType ts = true -> Forall (fun t => t = valtype_I32 \/ t = valtype_I64) ts).
+  { intros ts Hts. apply Forall_forall. intros t Ht. apply (proj1 (forallb_forall _ _) Hts) in Ht.
+    destruct t; cbn in Ht; intuition discriminate. }
+  split; [apply Htypes; exact Hp | ]. split; [apply Htypes; exact Hr | ].
+  apply Forall_map, Forall_forall. intros [t] Ht.
+  apply (proj1 (forallb_forall _ _) Hl) in Ht. destruct t; cbn in Ht; intuition discriminate.
 Qed.
 
 Lemma locate_function_pc : forall program index raw offset,
@@ -82,107 +87,112 @@ Qed.
 Lemma instruction_at_function_pc : forall program index f offset,
   functionAt program index = Some f -> (offset <= codeSize (guestBody f))%nat ->
   instructionAtPC program (guestEntry f + Z.of_nat offset) =
-    Some (i32Function (guestModule f) (guestTypeIndex f) (guestParams f) (guestResults f) (guestLocals f) (guestBody f),
+    Some (typedFunction (guestModule f) (guestTypeIndex f) (guestParamTypes f) (guestResultTypes f) (guestLocalTypes f) (guestBody f),
       nth_error (flattenCode (guestBody f)) offset).
 Proof.
   intros program index f offset Hf Hoffset.
-  destruct (function_at_sound _ _ _ Hf) as [Hlookup [_ Hentry]].
+  destruct (function_at_typed _ _ _ Hf) as [Hlookup [_ Hentry]].
   unfold instructionAtPC. rewrite Hentry.
   assert (Hnonneg : (functionEntry program index + Z.of_nat offset <? 0) = false).
   { apply Z.ltb_ge. unfold functionEntry. lia. }
-  rewrite Hnonneg, (locate_function_pc _ _ _ offset Hlookup ltac:(unfold functionSize; cbn [functionBody i32Function CODE]; lia)), Hlookup.
+  rewrite Hnonneg, (locate_function_pc _ _ _ offset Hlookup ltac:(unfold functionSize; cbn [functionBody typedFunction CODE]; lia)), Hlookup.
   reflexivity.
 Qed.
 
+Lemma slot_header_views : forall slot,
+  let header := romValue (match slotOpcode slot, slotEdgeKind slot with
+    | Some opcode, Some kind => Some (opcode + 65536 * kind) | _, _ => None end) in
+  header mod 65536 = romValue (slotOpcode slot) /\ header / 65536 = romValue (slotEdgeKind slot).
+Proof.
+  intros [ [[i | | | | l] targets] | ]; try (split; reflexivity).
+  destruct i; cbn [slotOpcode slotEdgeKind];
+    try (destruct targets as [ | [target | ] [ | next rest]]; split; reflexivity);
+    try (split; reflexivity);
+    match goal with |- context [encodedOpcode ?i] =>
+      destruct (encodedOpcode i) eqn:Hcode; [ | split; reflexivity];
+      destruct (encoded_opcode_cases _ _ Hcode) as [[_ ->] | [[_ ->] | [[x [_ ->]] | [x [_ ->]]]]];
+      split; reflexivity
+    end.
+Qed.
+
+Lemma loaded_header_views : forall program memory pc,
+  programLoaded program memory ->
+  opcodeAt memory [pc] = Some (romValue (instructionOpcode program pc)) /\
+  edgeKindAt memory [pc] = Some (romValue (instructionEdgeKind program pc)).
+Proof.
+  intros program memory pc Hloaded. unfold opcodeAt, edgeKindAt.
+  rewrite (Hloaded programHeaderId ltac:(cbn; tauto)).
+  change (option_map (fun header => header mod 65536) (Some (romValue (instructionRom program programHeaderId pc))) = Some (romValue (instructionOpcode program pc)) /\
+    option_map (fun header => header / 65536) (Some (romValue (instructionRom program programHeaderId pc))) = Some (romValue (instructionEdgeKind program pc))).
+  unfold instructionRom, instructionOpcode, instructionEdgeKind.
+  destruct (instructionAtPC program pc) as [[f slot] | ]; [ | split; reflexivity].
+  cbn [Nat.eqb programHeaderId pcRomId option_map].
+  destruct (slot_header_views slot) as [Hop Hkind]. split; f_equal; assumption.
+Qed.
+
 Ltac program_cell H :=
-  match goal with |- ?memory ?id ?address = _ =>
+  match goal with
+  | |- opcodeAt ?memory [?pc] = _ => rewrite (proj1 (loaded_header_views _ memory pc H)); unfold romValue
+  | |- edgeKindAt ?memory [?pc] = _ => rewrite (proj2 (loaded_header_views _ memory pc H)); unfold romValue
+  | |- ?memory ?id ?address = _ =>
     rewrite (H id ltac:(unfold programRomIds; simpl; tauto)); unfold romValue
   end.
-
-(* A frame of f, with f's locals: its function's local count is in the ROM. *)
-Lemma encoded_frame_image : forall program memory index f offset s values,
-  programLoaded program memory -> functionAt program index = Some f ->
-  (offset <= codeSize (guestBody f))%nat -> length values = (guestParams f + guestLocals f)%nat ->
-  callerFrameImage memory (guestEntry f + Z.of_nat offset) (mk_state s (MKframe values (guestModule f))).
-Proof.
-  intros program memory index f offset s values Hloaded Hf Hoffset Hcount.
-  destruct (function_at_sound _ _ _ Hf) as [Hlookup [Haddress Hentry]].
-  exists (Z.of_nat index + 1). split.
-  - program_cell Hloaded. unfold encodeProgram. cbn [Nat.eqb pcRomId pcFunctionRefId].
-    rewrite Hentry. assert (Hnonneg : (functionEntry program index + Z.of_nat offset <? 0) = false)
-      by (apply Z.ltb_ge; unfold functionEntry; lia).
-    rewrite Hnonneg, (locate_function_pc _ _ _ offset Hlookup ltac:(unfold functionSize; cbn [functionBody i32Function CODE]; lia)).
-    cbn. f_equal. lia.
-  - program_cell Hloaded. unfold encodeProgram. cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb].
-    unfold functionRom.
-    assert (Hpositive : (Z.of_nat index + 1 <=? 0) = false) by (apply Z.leb_gt; lia).
-    rewrite Hpositive. replace (Z.of_nat index + 1 - 1) with (Z.of_nat index) by lia.
-    rewrite Nat2Z.id, Hf. cbn [Nat.eqb functionEntryId functionLocalCountId]. change (length (stateLocals (mk_state s (MKframe values (guestModule f))))) with (length values). now rewrite Hcount.
-Qed.
 
 Lemma encoded_guest_image : forall program memory index f,
   programLoaded program memory -> functionAt program index = Some f ->
   guestFunctionImage memory (guestAddress f) (guestEntry f) (guestParams f) (guestResults f) (guestLocals f).
 Proof.
   intros program memory index f Hloaded Hf.
-  destruct (function_at_sound _ _ _ Hf) as [Hlookup [Haddress Hentry]].
+  destruct (function_at_typed _ _ _ Hf) as [Hlookup [Haddress Hentry]].
   unfold guestFunctionImage. rewrite Haddress.
   replace (Z.of_N (N.of_nat index)) with (Z.of_nat index) by lia.
   assert (Hpositive : (Z.of_nat index + 1 <=? 0) = false) by (apply Z.leb_gt; lia).
-  repeat split; program_cell Hloaded; unfold encodeProgram;
-    cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb].
-  all: try (unfold functionRom; rewrite Hpositive;
+  repeat split; program_cell Hloaded; try unfold encodeProgram;
+    cbn [Nat.eqb pcRomId functionEntryId functionLocalCountId functionCallMetadataId orb];
+    unfold functionRom; rewrite Hpositive;
     replace (Z.of_nat index + 1 - 1) with (Z.of_nat index) by lia;
-    rewrite Nat2Z.id, Hf; reflexivity).
-  rewrite Hentry.
-  assert (Hnonneg : (functionEntry program index <? 0) = false)
-    by (apply Z.ltb_ge; unfold functionEntry; lia).
-  rewrite Hnonneg.
-  replace (functionEntry program index) with (functionEntry program index + Z.of_nat 0) by lia.
-  rewrite (locate_function_pc _ _ _ 0 Hlookup ltac:(unfold functionSize; lia)).
-  cbn. f_equal. lia.
+    rewrite Nat2Z.id, Hf; reflexivity.
 Qed.
 
 Lemma encoded_function_end : forall program memory index f,
   programLoaded program memory -> functionAt program index = Some f ->
-  memory programOpcodeId [guestEntry f + Z.of_nat (codeSize (guestBody f))] = Some CODE_END /\
-  memory pcEdgeKindId [guestEntry f + Z.of_nat (codeSize (guestBody f))] = Some 1.
+  opcodeAt memory [guestEntry f + Z.of_nat (codeSize (guestBody f))] = Some CODE_END /\
+  edgeKindAt memory [guestEntry f + Z.of_nat (codeSize (guestBody f))] = Some 1.
 Proof.
   intros program memory index f Hloaded Hf.
   pose proof (instruction_at_function_pc _ _ _ (codeSize (guestBody f)) Hf ltac:(lia)) as Hpc.
   assert (Hnone : nth_error (flattenCode (guestBody f)) (codeSize (guestBody f)) = None) by (apply nth_error_None; rewrite flatten_code_length; lia).
-  rewrite Hnone in Hpc. split; program_cell Hloaded; unfold encodeProgram;
-    cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb];
-    unfold instructionRom; rewrite Hpc; reflexivity.
+  rewrite Hnone in Hpc. split; program_cell Hloaded; try unfold encodeProgram;
+    cbn [Nat.eqb pcRomId functionEntryId functionLocalCountId functionCallMetadataId orb];
+    unfold instructionOpcode, instructionEdgeKind; rewrite Hpc; reflexivity.
 Qed.
-Lemma slide_at_function_pc : forall program memory index f offset choice,
+Lemma slide_at_function_pc : forall program memory index f offset,
   functionAt program index = Some f -> (offset <= codeSize (guestBody f))%nat ->
-  slideRom program memory (guestEntry f + Z.of_nat offset) choice = functionSlide program memory f offset choice.
+  slideRom program memory (guestEntry f + Z.of_nat offset) = functionSlide program memory f offset.
 Proof.
-  intros program memory index f offset choice Hf Hoffset.
-  destruct (function_at_sound _ _ _ Hf) as [Hlookup [_ Hentry]].
+  intros program memory index f offset Hf Hoffset.
+  destruct (function_at_typed _ _ _ Hf) as [Hlookup [_ Hentry]].
   unfold slideRom. rewrite Hentry.
   assert (Hnonneg : (functionEntry program index + Z.of_nat offset <? 0) = false).
   { apply Z.ltb_ge. unfold functionEntry. lia. }
-  rewrite Hnonneg, (locate_function_pc _ _ _ offset Hlookup ltac:(unfold functionSize; cbn [functionBody i32Function CODE]; lia)), Hf.
+  rewrite Hnonneg, (locate_function_pc _ _ _ offset Hlookup ltac:(unfold functionSize; cbn [functionBody typedFunction CODE]; lia)), Hf.
   reflexivity.
 Qed.
 
 (* A function's END slides its results down over its locals. *)
-Lemma encoded_end_slide : forall program memory index f choice,
+Lemma encoded_end_slide : forall program memory index f,
   programLoaded program memory -> functionAt program index = Some f ->
   let pc := guestEntry f + Z.of_nat (codeSize (guestBody f)) in
   let frame := Z.of_nat (guestParams f + guestLocals f) in
-  memory frameSlideRemainingId [pc; choice] =
-    Some (if choice =? 0 then (if frame =? 0 then 0 else Z.of_nat (guestResults f)) else 0) /\
-  memory frameSlideDistanceId [pc; choice] = Some (if choice =? 0 then frame else 0).
+  memory frameSlideRemainingId [pc] = Some (if frame =? 0 then 0 else Z.of_nat (guestResults f)) /\
+  memory frameSlideDistanceId [pc] = Some frame.
 Proof.
-  intros program memory index f choice Hloaded Hf pc frame.
+  intros program memory index f Hloaded Hf pc frame.
   assert (Hnone : nth_error (flattenCode (guestBody f)) (codeSize (guestBody f)) = None)
     by (apply nth_error_None; rewrite flatten_code_length; lia).
-  split; program_cell Hloaded; unfold encodeProgram; cbn [Nat.eqb pcRomId frameSlideRemainingId frameSlideDistanceId orb];
-    unfold pc; rewrite (slide_at_function_pc _ _ _ _ (codeSize (guestBody f)) choice Hf ltac:(lia));
-    unfold functionSlide; rewrite Hnone; destruct (choice =? 0); try reflexivity;
+  split; program_cell Hloaded; try unfold encodeProgram; cbn [Nat.eqb pcRomId frameSlideRemainingId frameSlideDistanceId orb];
+    unfold pc; rewrite (slide_at_function_pc _ _ _ _ (codeSize (guestBody f)) Hf ltac:(lia));
+    unfold functionSlide; rewrite Hnone;
     unfold slideWord, frame; cbn [Nat.eqb frameSlideRemainingId frameSlideDistanceId];
     destruct (guestParams f + guestLocals f)%nat; reflexivity.
 Qed.
@@ -192,9 +202,9 @@ Lemma pc_entry_function : forall program index f offset,
   pcEntry program (guestEntry f + Z.of_nat offset) = guestEntry f.
 Proof.
   intros program index f offset Hf Hoffset.
-  destruct (function_at_sound _ _ _ Hf) as [Hlookup [_ Hentry]].
+  destruct (function_at_typed _ _ _ Hf) as [Hlookup [_ Hentry]].
   unfold pcEntry. rewrite Hentry, (locate_function_pc _ _ _ offset Hlookup
-    ltac:(unfold functionSize; cbn [functionBody i32Function CODE]; lia)).
+    ltac:(unfold functionSize; cbn [functionBody typedFunction CODE]; lia)).
   reflexivity.
 Qed.
 

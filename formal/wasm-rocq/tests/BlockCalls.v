@@ -1,5 +1,6 @@
 (* A call from inside two nested blocks: the suspended caller's operands, labels
    and continuation wrap the callee's configuration. *)
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog OpcodeCatalog TraceRefinement Wasm2 WasmIntegers Locals
@@ -18,16 +19,15 @@ Definition blockFunction (body : list instr) := i32Function blockModule (mk_uN 0
 Definition blockProgram := [blockFunction [LOCAL_GET (mk_uN 0)]; blockFunction callerBody].
 Definition blockStore := MKstore blockProgram [] [] [] [] [].
 Definition blockGuest (address : N) (body : list instr) (entry : Z) :=
-  mkGuestFunction address blockModule (mk_uN 0) 0 1 1 body entry.
+  mkGuestFunction address blockModule (mk_uN 0) [] [valtype_I32] [valtype_I32] body entry.
 
 Example block_call_layout :
   functionEntry blockProgram 1 = 2 /\
-  encodeProgram blockProgram programOpcodeId [4] = Some CODE_CALL /\
-  encodeProgram blockProgram pcRomId [4; 1] = Some 5 /\
-  encodeProgram blockProgram programOpcodeId [6] = Some CODE_END /\
-  encodeProgram blockProgram pcRomId [6; 0] = Some 7 /\
-  encodeProgram blockProgram pcRomId [7; 0] = Some 8 /\
-  encodeProgram blockProgram pcEdgeKindId [9] = Some 1.
+  opcodeAt (encodeProgram blockProgram) [4] = Some CODE_CALL /\
+  opcodeAt (encodeProgram blockProgram) [6] = Some CODE_END /\
+  encodeProgram blockProgram pcRomId [6] = Some 7 /\
+  encodeProgram blockProgram pcRomId [7] = Some 8 /\
+  edgeKindAt (encodeProgram blockProgram) [9] = Some 1.
 Proof. repeat split; reflexivity. Qed.
 
 Definition blockContext' :=

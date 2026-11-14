@@ -1,6 +1,7 @@
 (* Local stack-port bindings and their SpecTec state steps. *)
 From Stdlib Require Import List ZArith NArith Lia.
-Require Import R1CS Columns FullRelation Range Wasm2 Add.
+Require Import R1CS Columns FullRelation Range Wasm2 WasmIntegers CircuitFacts.
+Require Export WasmValues.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -57,16 +58,13 @@ Proof.
   - exact (sat_row w localSetCopyRowIndex _ Hall local_set_row_in_full).
 Qed.
 
-Definition i32Value (z : Z) : val :=
-  val_CONST I32 (mk_num__0 Inn_I32 (mk_uN (Z.to_N z))).
-
 Lemma full_local_value_wf : forall (w : Witness),
   Range.fieldPrime -> FullRelation.satFull w ->
   wf_val (i32Value (w COL_LOCAL_VALUE)).
 Proof.
   intros w Hprime Hfull.
   apply val_case_0.
-  apply Add.spectec_i32_well_formed.
+  apply WasmValues.spectec_i32_well_formed.
   exact (Range.full_local_value_u32 w Hprime Hfull).
 Qed.
 
@@ -94,5 +92,59 @@ Proof.
   intros w z x Hsel Hfull.
   pose proof (full_local_set_value w Hsel Hfull) as Hport.
   rewrite <- Hport.
+  apply Step__local_set.
+Qed.
+
+Lemma full_local_get_high_value : forall (w : Witness),
+  w COL_SEL_LOCAL_GET = 1 -> FullRelation.satFull w ->
+  w COL_LOCAL_VALUE_HI = w COL_STACK_WRITE0_VALUE_HI.
+Proof.
+  intros w Hsel Hfull.
+  circuit_row ([(COL_SEL_LOCAL_GET, 1)],
+    [(COL_LOCAL_VALUE_HI, 1); (COL_STACK_WRITE0_VALUE_HI, -1)], ([] : SparseRow)) Hrow.
+  eapply active_copy_row; eassumption.
+Qed.
+
+Lemma full_local_set_high_value : forall (w : Witness),
+  w COL_SEL_LOCAL_SET = 1 -> FullRelation.satFull w ->
+  w COL_LOCAL_VALUE_HI = w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat).
+Proof.
+  intros w Hsel Hfull.
+  circuit_row ([(COL_SEL_LOCAL_SET, 1)],
+    [(COL_LOCAL_VALUE_HI, 1); (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat, -1)], ([] : SparseRow)) Hrow.
+  eapply active_copy_row; eassumption.
+Qed.
+
+Lemma full_local_i64_value_wf : forall (w : Witness),
+  Range.fieldPrime -> FullRelation.satFull w ->
+  wf_val (i64Value (joinLimbs (w COL_LOCAL_VALUE) (w COL_LOCAL_VALUE_HI))).
+Proof.
+  intros w Hprime Hfull. apply i64_value_wf. apply join_limbs_bound.
+  - exact (Range.full_local_value_u32 w Hprime Hfull).
+  - circuit_range COL_LOCAL_VALUE_HI Hhi. unfold i32Modulus; lia.
+Qed.
+
+Theorem full_relation_implies_i64_local_get : forall (w : Witness) (z : state) (x : localidx),
+  w COL_SEL_LOCAL_GET = 1 -> FullRelation.satFull w ->
+  fun_local z x = i64Value (joinLimbs (w COL_LOCAL_VALUE) (w COL_LOCAL_VALUE_HI)) ->
+  Step (mk_config z [admininstr_LOCAL_GET x])
+    (mk_config z [admininstr_val
+      (i64Value (joinLimbs (w COL_STACK_WRITE0_VALUE_LO) (w COL_STACK_WRITE0_VALUE_HI)))]).
+Proof.
+  intros w z x Hsel Hfull Hlocal.
+  rewrite <- (full_local_get_value w Hsel Hfull), <- (full_local_get_high_value w Hsel Hfull), <- Hlocal.
+  apply read. apply Step_read__local_get.
+Qed.
+
+Theorem full_relation_implies_i64_local_set : forall (w : Witness) (z : state) (x : localidx),
+  w COL_SEL_LOCAL_SET = 1 -> FullRelation.satFull w ->
+  Step (mk_config z
+      [admininstr_val (i64Value (joinLimbs
+        (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat))
+        (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat)))); admininstr_LOCAL_SET x])
+    (mk_config (with_local z x (i64Value (joinLimbs (w COL_LOCAL_VALUE) (w COL_LOCAL_VALUE_HI)))) []).
+Proof.
+  intros w z x Hsel Hfull.
+  rewrite <- (full_local_set_value w Hsel Hfull), <- (full_local_set_high_value w Hsel Hfull).
   apply Step__local_set.
 Qed.

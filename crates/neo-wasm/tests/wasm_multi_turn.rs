@@ -280,12 +280,12 @@ fn exit_only_template_allows_reentry_and_commits_each_return() {
     assert_eq!(trace[boundary].host_event_initial_schedule_count, Some(1));
     assert_eq!(trace[boundary].host_event_exit_schedule_count, Some(1));
     let mut forged = witnesses[boundary].clone();
-    forged[neo_wasm::layout::COL_HOST_EVENT_EXIT_SCHEDULE_COUNT] = neo_math::F::ZERO;
+    set_export_counts(&mut forged, 1, 0);
     common::assert_rejected(&forged, "empty entry and exit cannot re-enter");
 
     // Changing the count and its inverse together must still fail the ROM.
     let mut forged_rows = witnesses;
-    forged_rows[boundary][neo_wasm::layout::COL_HOST_EVENT_EXIT_SCHEDULE_COUNT] = neo_math::F::from_u64(2);
+    set_export_counts(&mut forged_rows[boundary], 1, 2);
     common::assert_satisfied(&forged_rows[boundary], "row-local alternative nonempty count");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
@@ -628,6 +628,11 @@ fn ccs_rejects_forged_turn_boundary() {
     let witness = build_witness_vector(tb).unwrap();
     common::assert_satisfied(&witness, "untampered turn boundary");
 
+    // The event index of the next turn starts at the base that the row reads.
+    let mut forged = witness.clone();
+    forged[neo_wasm::layout::COL_HOST_EVENT_BASE] += neo_math::F::ONE;
+    common::assert_rejected(&forged, "boundary starting its events in another template");
+
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_OUTPUT_ENABLED_AFTER] = neo_math::F::ONE;
     common::assert_rejected(&forged, "boundary keeping the previous turn's output armed");
@@ -639,8 +644,7 @@ fn ccs_rejects_forged_turn_boundary() {
     // Silent re-entry: both schedules empty would re-run the export without
     // moving the transcript. The nonempty-template guard has no inverse.
     let mut forged = witness.clone();
-    forged[neo_wasm::layout::COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] = neo_math::F::ONE;
-    forged[neo_wasm::layout::COL_HOST_EVENT_EXIT_SCHEDULE_COUNT] = neo_math::F::ZERO;
+    set_export_counts(&mut forged, 1, 0);
     forged[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_AFTER] = neo_math::F::ZERO;
     common::assert_rejected(&forged, "boundary re-entering through an entirely empty template");
 
@@ -666,8 +670,7 @@ fn ccs_rejects_forged_turn_boundary() {
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_HOST_CALLEE_FREF_AFTER] = undeclared_fref;
     forged[neo_wasm::layout::COL_TURN_EXPORT_FREF_AFTER] = undeclared_fref;
-    forged[neo_wasm::layout::COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] = neo_math::F::ZERO;
-    forged[neo_wasm::layout::COL_HOST_EVENT_EXIT_SCHEDULE_COUNT] = neo_math::F::ZERO;
+    set_export_counts(&mut forged, 0, 0);
     common::assert_rejected(&forged, "boundary entering an undeclared fref with a normal schedule");
 
     // The only row-locally satisfiable assignment loads the poisoned
@@ -891,4 +894,22 @@ fn resultless_turn_can_precede_another_turn() {
         neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, &run.artifacts, Default::default()).is_err(),
         "output-dependent exit events on a resultless turn must be rejected"
     );
+}
+
+/// Sets the packed schedule word of a turn-boundary or exit-latch row to the
+/// biased entry count `initial` and the exit count `exit`, with each column
+/// that the row derives from the word.
+fn set_export_counts(witness: &mut Vec<neo_math::F>, initial: u64, exit: u64) {
+    use neo_math::F;
+    use neo_wasm::layout::*;
+    use p3_field::Field;
+    let exit_f = F::from_u64(exit);
+    witness[COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] = F::from_u64(initial);
+    witness[COL_HOST_EVENT_EXIT_SCHEDULE_COUNT] = exit_f;
+    witness[COL_HOST_INITIAL_COUNT] = F::from_u64(initial);
+    witness[COL_HOST_RETURN_COUNT] = exit_f;
+    witness[COL_HOST_RETURN_COUNT_IS_ZERO] = F::from_bool(exit == 0);
+    witness[COL_HOST_RETURN_COUNT_INV] = exit_f.try_inverse().unwrap_or(F::ZERO);
+    witness[COL_HOST_IMPORT_SCHEDULE_COUNTS] = F::from_u64(initial + (exit << 16));
+    neo_wasm::write_range_check_bits(witness);
 }

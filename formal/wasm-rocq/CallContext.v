@@ -14,14 +14,18 @@ Definition contextMemories : list (nat * Column) :=
    (callStackCallerSpBaseId, COL_CALL_STACK_CALLER_SP_BASE_VALUE)].
 
 (* A host suspend saves the same context in its own column, which a resume reads. *)
-Definition contextHostColumn (memory : nat) : Column := List.nth (memory - 1) COL_HOST_CONTEXT 0%nat.
+Definition contextHostColumn (memory : nat) : Column :=
+  if Nat.eqb memory callStackReturnPcId then List.nth 0 COL_HOST_CONTEXT_FRAME 0%nat
+  else if Nat.eqb memory callStackCallerFbpId then List.nth 1 COL_HOST_CONTEXT_FRAME 0%nat
+  else if Nat.eqb memory callStackCallerSpBaseId then List.nth 2 COL_HOST_CONTEXT_FRAME 0%nat
+  else 0%nat.
 
 Definition contextSpec (memory : nat) (column : Column) : MemorySpec :=
   mkMemory memory Ram
     [mkPort [COL_CALL_STACK_ADDR] column (Write None) (When COL_CALL_STACK_PUSH_PRESENT);
      mkPort [COL_CALL_STACK_ADDR] column Read (When COL_CALL_STACK_POP_PRESENT);
      mkPort [COL_HOST_CONTEXT_ADDR] (contextHostColumn memory) (Write None) (When COL_HOST_SUSPEND);
-     mkPort [COL_HOST_CONTEXT_ADDR] (contextHostColumn memory) Read (When COL_HOST_CONTEXT_READ)].
+     mkPort [COL_HOST_CONTEXT_ADDR] (contextHostColumn memory) Read (When COL_HOST_RESUME)].
 
 Lemma context_catalog_split : forall memory column,
   In (memory, column) contextMemories ->
@@ -46,7 +50,8 @@ Proof.
   apply Forall_app. split; [ | apply read_only_row; exact Hafter].
   unfold contextSpec. cbn [memoryId ports flat_map portEvent active activation addressColumns valueColumn portKind map].
   cbv [portEvent active]. cbn [activation addressColumns valueColumn portKind map option_map].
-  normalize_columns. rewrite Hpush, Hsuspend, Hread. cbn.
+  normalize_columns. rewrite Hpush, Hsuspend. cbn.
+  let resume := eval compute in COL_HOST_RESUME in destruct (w resume =? 1);
   let pop := eval compute in COL_CALL_STACK_POP_PRESENT in destruct (w pop =? 1); repeat constructor.
 Qed.
 
@@ -64,8 +69,9 @@ Proof.
   apply Forall_app. split; [ | apply read_only_row; exact Hafter].
   unfold contextSpec. cbn [memoryId ports flat_map portEvent active activation addressColumns valueColumn portKind map].
   cbv [portEvent active]. cbn [activation addressColumns valueColumn portKind map option_map].
-  normalize_columns. rewrite Hsuspend, Hread.
+  normalize_columns. rewrite Hsuspend.
   let push := eval compute in COL_CALL_STACK_PUSH_PRESENT in destruct (w push =? 1);
+  let resume := eval compute in COL_HOST_RESUME in destruct (w resume =? 1);
   let pop := eval compute in COL_CALL_STACK_POP_PRESENT in destruct (w pop =? 1);
   repeat first [apply Forall_nil | apply Forall_cons | exact I | (cbn; exact I) | (cbn; right; congruence)].
 Qed.
@@ -84,10 +90,11 @@ Proof.
   unfold contextSpec in Hport.
   cbn [memoryId ports flat_map portEvent active activation addressColumns valueColumn portKind map] in Hport.
   cbv [portEvent active] in Hport. cbn [activation addressColumns valueColumn portKind map option_map] in Hport.
-  normalize_columns. rewrite Hpush, Hsuspend, Hread in Hport. cbn in Hport.
+  normalize_columns. rewrite Hpush, Hsuspend in Hport. cbn in Hport.
   inversion Hport; subst. match goal with H : EventStep _ (WriteEvent _ _ _ _) _ |- _ => inversion H; subst end.
   match goal with H : Replay _ _ after |- _ =>
     rewrite (replay_preserves _ _ _ _ _ H); [apply update_same | ] end.
+  let resume := eval compute in COL_HOST_RESUME in destruct (w resume =? 1);
   let pop := eval compute in COL_CALL_STACK_POP_PRESENT in destruct (w pop =? 1); repeat constructor.
 Qed.
 
@@ -105,7 +112,7 @@ Proof.
   unfold contextSpec in Hport.
   cbn [memoryId ports flat_map portEvent active activation addressColumns valueColumn portKind map] in Hport.
   cbv [portEvent active] in Hport. cbn [activation addressColumns valueColumn portKind map option_map] in Hport.
-  normalize_columns. rewrite Hpush, Hpop, Hsuspend, Hread in Hport. cbn in Hport.
+  normalize_columns. rewrite Hpush, Hpop, Hsuspend in Hport. cbn in Hport.
   inversion Hport; subst. match goal with H : EventStep _ (ReadEvent _ _ _) _ |- _ => inversion H; subst end.
   rewrite <- (replay_preserves _ _ _ _ _ Hprefix (read_only_row _ _ _ _ Hbefore)). assumption.
 Qed.

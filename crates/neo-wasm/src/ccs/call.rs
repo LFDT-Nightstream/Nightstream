@@ -13,16 +13,16 @@ use super::super::layout::{
     COL_FRAME_MOVE_DISTANCE_BEFORE, COL_FRAME_MOVE_REMAINING_AFTER, COL_FRAME_MOVE_REMAINING_AFTER_INV,
     COL_FRAME_MOVE_REMAINING_AFTER_IS_ZERO, COL_FRAME_MOVE_REMAINING_BEFORE, COL_FRAME_SLIDE_ACTIVE, COL_FRAME_SP_DROP,
     COL_FUNCTION_REF, COL_GATHER_ACTIVE, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER,
-    COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENT_EXIT_LATCH, COL_IS_PROGRAM_ROW, COL_LOCALS_FBP_AFTER,
-    COL_LOCALS_FBP_BEFORE, COL_LOCAL_ZERO_ACTIVE_AFTER, COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_AFTER,
-    COL_LOCAL_ZERO_REMAINING_AFTER_INV, COL_LOCAL_ZERO_REMAINING_AFTER_IS_ZERO, COL_LOCAL_ZERO_REMAINING_BEFORE,
-    COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
-    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER,
-    COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PC_AFTER, COL_PC_BEFORE, COL_PC_ROM_CALL_RETURN_CHOICE,
+    COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_CALL_ACTIVE, COL_HOST_EVENT_EXIT_LATCH, COL_IS_PROGRAM_ROW,
+    COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_ZERO_ACTIVE_AFTER, COL_LOCAL_ZERO_ACTIVE_BEFORE,
+    COL_LOCAL_ZERO_REMAINING_AFTER, COL_LOCAL_ZERO_REMAINING_AFTER_INV, COL_LOCAL_ZERO_REMAINING_AFTER_IS_ZERO,
+    COL_LOCAL_ZERO_REMAINING_BEFORE, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_OUTPUT_CAPTURED,
+    COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE,
+    COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PC_AFTER, COL_PC_BEFORE,
     COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS,
     COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ADDR_LO,
     COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TARGET_FUNCTION_IS_GUEST,
-    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY, PC_ROM_CALL_RETURN_CHOICE,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
 use super::always;
@@ -433,11 +433,8 @@ pub(super) fn host_call_gate_terms() -> [(usize, F); 5] {
 }
 
 fn push_host_call_attribution_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    // Indirect host calls fall through to the instruction after the call.
-    // Direct calls get pc_after from the static pc ROM edge, and guest
-    // indirect calls from the `function_entries` binding. Indirect host calls
-    // use DynamicCallIndirect, so pc_after is bound through the call site's
-    // return-pc slot, gated on `indirect_call * (1 - is_guest)`.
+    // All host calls fall through arithmetically;
+    // guest calls bind their next PC through the function-entry ROM.
     b.push_row(
         [
             (selector_col(WasmOpcode::CallIndirect).unwrap(), F::ONE),
@@ -448,17 +445,8 @@ fn push_host_call_attribution_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     );
     push_gated_linear_zero(
         b,
-        COL_CI_HOST_CALL,
-        [
-            // force the control-choice of the next pc lookup to equal
-            // PC_ROM_CALL_RETURN_CHOICE
-            //
-            // this is sound because the synthetic aux opcodes don't allow
-            // changing the pc, so we can set it in advance before entering the
-            // host call mode
-            (COL_PC_ROM_CALL_RETURN_CHOICE, F::ONE),
-            (COL_ONE, -F::from_u64(PC_ROM_CALL_RETURN_CHOICE)),
-        ],
+        COL_HOST_CALL_ACTIVE,
+        [(COL_PC_AFTER, F::ONE), (COL_PC_BEFORE, -F::ONE), (COL_ONE, -F::ONE)],
     );
 
     // Callee attribution carry: a host call latches the (ROM/table-bound)
@@ -753,8 +741,9 @@ fn push_call_stack_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         b,
         push,
         [
-            (COL_PC_ROM_CALL_RETURN_CHOICE, F::ONE),
-            (COL_ONE, -F::from_u64(PC_ROM_CALL_RETURN_CHOICE)),
+            (COL_CALL_STACK_RETURN_PC_VALUE, F::ONE),
+            (COL_PC_BEFORE, -F::ONE),
+            (COL_ONE, -F::ONE),
         ],
     );
     push_gated_linear_zero(

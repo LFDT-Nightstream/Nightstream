@@ -122,9 +122,17 @@ development impractical.
   its length.
 - After the change, run the executable again and confirm that the emitted
   files are byte-identical.
-- The one-build-process rule still applies. Parallel work must occur inside
-  that one authorized build, test, emitter, or generator process. Do not start
-  competing Lean or Rust processes to obtain parallelism.
+- Run one Lean or Rust build process at a time per worktree (`lake build`,
+  `cargo build`, `cargo test`). A build may use all cores inside its own
+  process. Do not start a second build to obtain parallelism.
+- Emitter and generator executables that are already built may run as
+  parallel processes when each one writes only its own output files.
+  Regenerate the artifacts with `scripts/regenerate_artifacts.sh`, which runs
+  the independent emitter invocations in parallel, each under its own cap. Do
+  not run them one after another, and do not run a build while they run.
+- One emitter process uses one core. If a regeneration leaves most cores idle,
+  the work is serial: split it into independent processes, or make the
+  emitter parallel inside its process.
 - Speed work must not move semantic authority into Rust, weaken a proof, skip
   a gate, change canonical ordering, or make a digest authoritative. When a
   development path becomes materially slower, fix or redesign that path

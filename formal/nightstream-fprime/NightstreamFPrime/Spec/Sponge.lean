@@ -27,6 +27,8 @@ set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Sponge
 
+universe uWorld uModel
+
 open NightstreamFPrime.Spec.Poseidon2
 
 /-- The sponge state after absorbing the blocks from the zero state. -/
@@ -88,13 +90,13 @@ adversary `world` of the ideal-permutation model (`[P2-PERM]`) with `calls` perm
 a counterpart `model` in the use's random-oracle model whose wins `modelWins model` are at most
 `spongeError calls` below the wins `winsOf world`. A use states its conditions as a structure
 and proves them, so the premise applies only through that proof. -/
-def Transfer {World Model : Type} (conditions : Prop) (winsOf : World → ℝ)
+def Transfer {World : Type uWorld} {Model : Type uModel} (conditions : Prop) (winsOf : World → ℝ)
     (modelWins : Model → ℝ) (calls : ℕ) : Prop :=
   conditions → ∀ world, ∃ model, winsOf world ≤ modelWins model + spongeError calls
 
 /-- A bound of the random-oracle model holds in the ideal-permutation model, plus
 `spongeError calls`, once the use's conditions are proved. -/
-theorem transfer_le {World Model : Type} {conditions : Prop} {winsOf : World → ℝ}
+theorem transfer_le {World : Type uWorld} {Model : Type uModel} {conditions : Prop} {winsOf : World → ℝ}
     {modelWins : Model → ℝ} {calls : ℕ} {bound : ℝ}
     (premise : Transfer conditions winsOf modelWins calls) (proved : conditions)
     (modelBound : ∀ model, modelWins model ≤ bound) (world : World) :

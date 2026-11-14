@@ -103,7 +103,7 @@ the Rust code is held to the Lean definition (trust item 5).
 | Fold transcripts | `Lifecycle.RandomOracle.Schedule.challengeCalls` | `Lifecycle.RandomOracle.Schedule.challengeAddress_injective`, `Lifecycle.RandomOracle.Schedule.statementCalls_identify`, `Lifecycle.RandomOracle.Schedule.proverCalls_identify` | Indirect: package rows. The Π_RLC sampler is direct (`crates/neo-reductions/tests/pi_rlc_lean_parity.rs`) |
 | Compression transcript and Akita session bytes | None | Open: no Lean model | None |
 | Nebula record chains | `Lifecycle.Nebula.blocks` | `Lifecycle.Nebula.blocks_injective`, `Lifecycle.Nebula.blockChunks_injective` | Direct: fixtures (`crates/nightstream/tests/nebula/memory.rs`) |
-| Nebula `η` | `Lifecycle.Nebula.etaInputBlocks` | `Lifecycle.Nebula.etaInputBlocks_injective`, `Lifecycle.Nebula.EtaOracle.pointOf_injective` | Indirect: package rows |
+| Nebula `η` | `Lifecycle.Nebula.etaInputBlocks` | `Lifecycle.Nebula.etaInputBlocks_injective`, `Lifecycle.Nebula.EtaOracle.pointOf_injective`; the four reads: `Export.BoundedDepth.EtaSponge.reads_injective` | Indirect: package rows |
 | Nebula state words | `Lifecycle.Nebula.carryVector` | `Lifecycle.Nebula.carryVector_injective`, `Lifecycle.Nebula.stateWords_eq_or_collision` | Direct: terminal fixtures |
 | Application identity | None (`with_application`) | Open: Rust only | None |
 | Domain separation | `Export.DomainSeparation.uses` | `Export.DomainSeparation.separated`: two block lists whose words start with the tags of two distinct uses are distinct. A use owns its blocks: `Export.DomainSeparation.hash_owns`, `Export.DomainSeparation.fold_owns`, `Export.DomainSeparation.nebula_owns`. Open: inputs that an application hashes, which can start with any words. | Indirect for the tags that Lean defines. None for the four tags that Lean restates from Rust (circuit key, two compression domains, application identity) |
@@ -483,7 +483,12 @@ not change terminal source checks.
   are injective (`Lifecycle.Nebula.etaInputBlocks_injective`,
   `Lifecycle.Nebula.blockChunks_injective`). These are conditions of
   `[SPONGE]`, and the `η` domain is separated from the other uses
-  (`Export.DomainSeparation.separated`).
+  (`Export.DomainSeparation.separated`). With these conditions proved
+  (`Export.BoundedDepth.EtaSponge.conditions`), `[P2-PERM]` and `[SPONGE]`
+  move the bound, without the retry term, to the ideal-permutation model
+  plus `spongeError N` (`Export.BoundedDepth.EtaSponge.unbalanced_le`). That
+  bound is for a verifier that computes `η` outside a circuit. The step
+  circuit computes `η` with the permutation (trust item 6).
 
 ### 6. Final-proof adversary
 

@@ -2,6 +2,7 @@ import tests.AxiomAudit
 import NightstreamFPrime.Spec.Sponge
 import NightstreamFPrime.Export.BoundedDepth.IdentityBinding
 import NightstreamFPrime.Export.DomainSeparation
+import NightstreamFPrime.Export.BoundedDepth.EtaSponge
 
 #audit_axioms NightstreamFPrime.Spec.Sponge.spongeError_nonneg
 #audit_axioms NightstreamFPrime.Spec.Sponge.collision_blocks
@@ -25,3 +26,11 @@ import NightstreamFPrime.Export.DomainSeparation
 #audit_axioms NightstreamFPrime.Export.DomainSeparation.fold_owns
 #audit_axioms NightstreamFPrime.Export.DomainSeparation.chunks_eq_absorbCalls
 #audit_axioms NightstreamFPrime.Export.DomainSeparation.nebula_owns
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.EtaSponge.chunks_length
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.EtaSponge.blockChunks_eta_length
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.EtaSponge.reads_injective
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.EtaSponge.etaUse_mem
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.EtaSponge.reads_owned
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.EtaSponge.separated_eta
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.EtaSponge.conditions
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.EtaSponge.unbalanced_le

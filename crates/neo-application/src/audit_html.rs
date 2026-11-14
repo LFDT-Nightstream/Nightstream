@@ -293,14 +293,14 @@ fn terms(terms: &[(usize, F)]) -> Vec<TermRecord> {
 
 fn format_gadget_role(role: GadgetColumnRole) -> String {
     match role {
-        GadgetColumnRole::Pow7Expression {
+        GadgetColumnRole::Pow3Expression {
             term_index,
             coefficient,
         } => format!(
-            "x^7 expression term {term_index}, coefficient {}",
+            "x^3 expression term {term_index}, coefficient {}",
             to_balanced_i128(coefficient)
         ),
-        GadgetColumnRole::Pow7Power { exponent } => format!("x^{exponent} power"),
+        GadgetColumnRole::Pow3Power { exponent } => format!("x^{exponent} power"),
         GadgetColumnRole::ZeroTestExpression {
             term_index,
             coefficient,

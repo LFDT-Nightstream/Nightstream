@@ -1,5 +1,5 @@
 //! A step package's plan rows (`CircuitRelation.plan`): one row for each row
-//! of `Package.relationRows`, then 150 S-box rows for each block, block-major.
+//! of `Package.relationRows`, then 171 S-box rows for each block, block-major.
 //! Native applications use the experimental `NativePower` rewrite.
 //! The source view retains the original application rows.
 //! A row has four port forms over the logical columns: A, B, C and the S-box
@@ -10,6 +10,7 @@
 use std::collections::HashMap;
 use std::ops::Range;
 
+use neo_ccs::crypto::poseidon2::SBOX_DEGREE;
 use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -82,10 +83,10 @@ impl PlanRows {
             })
     }
 
-    /// The row's constraint `A * B - C + S^7` on `columns`.
+    /// The row's constraint `A * B - C + S^3` on `columns`.
     pub fn residual(&self, row: usize, columns: &[Fq]) -> Fq {
         self.evaluate(row, 0, columns) * self.evaluate(row, 1, columns) - self.evaluate(row, 2, columns)
-            + self.evaluate(row, 3, columns).exp_u64(7)
+            + self.evaluate(row, 3, columns).exp_u64(SBOX_DEGREE)
     }
 
     pub fn port(&self, row: usize, port: usize) -> impl Iterator<Item = (usize, Fq)> + '_ {
@@ -355,7 +356,7 @@ impl StepPackage {
                                     continue;
                                 }
                                 if let Some(power) = self.field_lowering.powers.get(&row_index) {
-                                    builder.push_power(&power.input, power.powers[3])?;
+                                    builder.push_power(&power.input, power.powers[1])?;
                                 }
                                 if self.field_lowering.removed.contains(&row_index)
                                     || self.guard_fusion.removed.contains(&row_index)

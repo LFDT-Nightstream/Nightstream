@@ -23,7 +23,7 @@ def rows(name, table):
 
 def instance(inst):
     t = inst["t"]
-    assert (inst["d"], inst["rf"], inst["rp"]) == (7, 8, 22), "the Rust permutation fixes x^7 and 8 + 22 rounds"
+    assert (inst["d"], inst["rf"], inst["rp"]) == (3, 8, 43), "the Rust permutation fixes x^3 and 8 + 43 rounds"
     return (
         f"/// `{inst['label']}`\n"
         f"pub static INSTANCE_{t}: Instance<{t}> = Instance {{\n"

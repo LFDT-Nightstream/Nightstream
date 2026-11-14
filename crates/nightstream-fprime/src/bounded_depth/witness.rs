@@ -2,7 +2,7 @@
 //! columns, the circuit's locals in column order (the witness batches and the
 //! native ranges), then the fresh columns of the relation piece by piece.
 
-use neo_ccs::crypto::poseidon2::permute_state;
+use neo_ccs::crypto::poseidon2::{permute_state, SBOX_DEGREE};
 use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -96,7 +96,7 @@ impl StepPackage {
     }
 
     /// The circuit's columns below `first_fresh` from `shared`, the columns
-    /// below the first local: column 0 is the constant 1. A block's 1,080 dead
+    /// below the first local: column 0 is the constant 1. A block's 1,158 dead
     /// locals stay 0, because no row reads them (`Frame.Framed`).
     pub fn circuit_columns(&self, shared: &[Fq]) -> Result<Vec<Fq>, PackageError> {
         self.circuit_columns_with(shared, None)
@@ -185,7 +185,7 @@ impl StepPackage {
             let [(column, _)] = rows.port(row, 2).collect::<Vec<_>>()[..] else {
                 return Err(PackageError::Malformed("bounded-depth S-box row output"));
             };
-            columns[column] = rows.evaluate(row, 3, &columns).exp_u64(7);
+            columns[column] = rows.evaluate(row, 3, &columns).exp_u64(SBOX_DEGREE);
         }
         if rows.piece_ranges().len() != self.pieces.len() {
             return Err(PackageError::Malformed("bounded-depth witness row pieces"));
@@ -242,7 +242,7 @@ impl StepPackage {
 
 impl StepPackage {
     /// Lean `Parity.witnessSum`: each live column below `first_fresh` times
-    /// `mix(0, column)`; a block's 1,080 dead locals are left out.
+    /// `mix(0, column)`; a block's 1,158 dead locals are left out.
     pub fn witness_checksum(&self, columns: &[Fq]) -> u64 {
         let mut dead = vec![false; self.first_fresh];
         for block in self.blocks() {

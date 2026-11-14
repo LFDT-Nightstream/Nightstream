@@ -150,7 +150,7 @@ fn assert_native_packages_match_lean(package: Package, stem: &str) {
         }
         let actual = coordinates(native);
         let mut expected = coordinates(lean);
-        let added_columns = layout.spans().widths.len() - (native.sbox_start() + 150 * native.block_count());
+        let added_columns = layout.spans().widths.len() - (native.sbox_start() + 171 * native.block_count());
         assert_eq!(
             added_columns,
             forced.len() + 2 * native.packed_product_count() + native.packed_zero_count()

@@ -35,8 +35,8 @@ pub const ELEMENT_INPUT_BYTES: usize = SETUP_ID.len() + 32 + 4 + 8;
 /// The commitment rows κ of the selected parameter profile.
 pub const PRODUCTION_VERIFIER_ROWS: u64 = neo_params::nightstream_p64_k14::KAPPA as u64;
 /// Lean `Poseidon2HashChainV1Setup.messageColumns_eq`: `blockCount` of the logical width
-/// 41,106,674 of `Poseidon2HashChainV1Package.logicalWidth`, which is `ceil(41_106_674 / D)`.
-pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 41_106_674_u64.div_ceil(D as u64);
+/// 45,399,128 of `Poseidon2HashChainV1Package.logicalWidth`, which is `ceil(45_399_128 / D)`.
+pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 45_399_128_u64.div_ceil(D as u64);
 pub const PRODUCTION_CARRIER_WIDTH: usize = PRODUCTION_MESSAGE_COLUMNS as usize * D;
 /// The whole ring columns in the 254,260,620 coefficients of the matrix of
 /// `decisions/fprime-ajtai-public-seed-msis-assumption.md`. The limit stays a count of

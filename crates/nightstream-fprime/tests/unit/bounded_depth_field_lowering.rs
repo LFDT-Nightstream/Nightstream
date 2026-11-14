@@ -62,18 +62,8 @@ fn chain() -> Vec<Row> {
         },
         Row {
             a: unit(5),
-            b: unit(5),
-            c: unit(6),
-        },
-        Row {
-            a: unit(6),
-            b: unit(5),
-            c: unit(7),
-        },
-        Row {
-            a: unit(7),
             b: x,
-            c: unit(8),
+            c: unit(6),
         },
     ]
 }
@@ -88,17 +78,17 @@ fn native(rows: &[Row]) -> BoundedDepthPackages {
 fn native_power_and_affine_rows_reconstruct_exact_source_constraints() {
     let mut rows = chain();
     rows.push(Row {
-        a: unit(8).scale(F::from_u64(3)),
+        a: unit(6).scale(F::from_u64(3)),
         b: Linear {
             constant: F::ONE,
             terms: vec![],
         },
-        c: unit(9),
+        c: unit(7),
     });
     rows.push(Row {
-        a: unit(9),
+        a: unit(7),
         b: unit(4),
-        c: unit(10),
+        c: unit(8),
     });
     let native = native(&rows);
     for package in [native.light(), native.refresh()] {
@@ -106,28 +96,26 @@ fn native_power_and_affine_rows_reconstruct_exact_source_constraints() {
         assert_eq!(package.field_lowering.affine.len(), 1);
         let plan = package.plan_rows().unwrap();
         let source = package.source_rows().unwrap();
-        assert_eq!(source.row_count() - plan.row_count(), 4);
+        assert_eq!(source.row_count() - plan.row_count(), 2);
         let layout = package.layout().unwrap();
-        for column in INPUT + 1..=INPUT + 3 {
-            assert!(layout.slot(column).is_none());
-        }
-        assert!(layout.slot(INPUT + 5).is_none());
+        assert!(layout.slot(INPUT + 1).is_none());
+        assert!(layout.slot(INPUT + 3).is_none());
         for x in [F::ZERO, F::ONE, F::NEG_ONE, F::from_u64(123456)] {
             let input = x + F::from_u64(19);
             let mut columns = vec![F::ZERO; package.source_end()];
             columns[0] = F::ONE;
             columns[INPUT] = x;
-            columns[INPUT + 4] = input.exp_u64(7);
-            columns[INPUT + 6] = F::from_u64(3) * input.exp_u64(7) * x;
+            columns[INPUT + 2] = input.exp_u64(3);
+            columns[INPUT + 4] = F::from_u64(3) * input.exp_u64(3) * x;
             package.field_lowering.reconstruct(&mut columns).unwrap();
-            assert!((0..6).all(|row| source.residual(row, &columns) == F::ZERO));
+            assert!((0..4).all(|row| source.residual(row, &columns) == F::ZERO));
             assert!((0..2).all(|row| plan.residual(row, &columns) == F::ZERO));
             let logical = layout.assignment(&columns).unwrap();
             assert!(logical
                 .iter()
                 .all(|value| [-F::ONE, F::ZERO, F::ONE].contains(value)));
             let restored = package.source_assignment(&logical).unwrap();
-            assert!((0..6).all(|row| source.residual(row, &restored) == F::ZERO));
+            assert!((0..4).all(|row| source.residual(row, &restored) == F::ZERO));
             for row in 0..2 {
                 for port in 0..4 {
                     assert_eq!(
@@ -136,11 +124,11 @@ fn native_power_and_affine_rows_reconstruct_exact_source_constraints() {
                     );
                 }
             }
-            columns[INPUT + 4] += F::ONE;
-            columns[INPUT + 6] = F::from_u64(3) * columns[INPUT + 4] * x;
+            columns[INPUT + 2] += F::ONE;
+            columns[INPUT + 4] = F::from_u64(3) * columns[INPUT + 2] * x;
             package.field_lowering.reconstruct(&mut columns).unwrap();
             assert_ne!(plan.residual(0, &columns), F::ZERO);
-            assert_ne!(source.residual(3, &columns), F::ZERO);
+            assert_ne!(source.residual(1, &columns), F::ZERO);
         }
     }
 }
@@ -148,7 +136,7 @@ fn native_power_and_affine_rows_reconstruct_exact_source_constraints() {
 #[test]
 fn wrong_chain_rows_and_external_intermediate_uses_cannot_disappear() {
     let base = packages();
-    for edited in 0..4 {
+    for edited in 0..2 {
         let mut rows = chain();
         rows[edited].c.constant += F::ONE;
         let native = base
@@ -158,24 +146,17 @@ fn wrong_chain_rows_and_external_intermediate_uses_cannot_disappear() {
             assert!(package.field_lowering.powers.is_empty());
         }
     }
-    for intermediate in 5..=7 {
-        let mut rows = chain();
-        rows.push(Row {
-            a: unit(intermediate),
-            b: unit(4),
-            c: unit(10),
-        });
-        let native = base
-            .with_application(record_rows(&rows), PRIVATE, &NativeShape::default())
-            .unwrap();
-        assert!(native.light().field_lowering.powers.is_empty());
-        assert!(native
-            .light()
-            .layout()
-            .unwrap()
-            .slot(INPUT + intermediate - 4)
-            .is_some());
-    }
+    let mut rows = chain();
+    rows.push(Row {
+        a: unit(5),
+        b: unit(4),
+        c: unit(10),
+    });
+    let native = base
+        .with_application(record_rows(&rows), PRIVATE, &NativeShape::default())
+        .unwrap();
+    assert!(native.light().field_lowering.powers.is_empty());
+    assert!(native.light().layout().unwrap().slot(INPUT + 1).is_some());
 }
 
 #[test]
@@ -188,7 +169,7 @@ fn persistent_and_native_piece_reads_protect_removed_columns() {
         package.pieces.push(Piece::Rows(vec![Row {
             a: unit(INPUT + 1),
             b: unit(INPUT),
-            c: unit(INPUT + 6),
+            c: unit(INPUT + 4),
         }]));
         assert!(FieldLowering::checked(&package).unwrap().powers.is_empty());
         package.pieces.pop();

@@ -13,9 +13,9 @@ use super::{
 };
 use crate::application::{permutation, Affine, ApplicationBuilder, ApplicationCircuit, ApplicationError, Variable};
 
-const WORDS: usize = 1096;
+const WORDS: usize = nightstream_fprime::BLOCK_LOCALS;
 
-/// An untrusted hint for 1,096 rows of the form `c - a*b`, and 1,096
+/// An untrusted hint for 1,174 rows of the form `c - a*b`, and 1,174
 /// contiguous private words in the canonical Poseidon2 trace order.
 #[derive(Clone, Debug)]
 pub struct Poseidon2Hint {

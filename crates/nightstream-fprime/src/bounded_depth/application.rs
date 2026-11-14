@@ -114,7 +114,7 @@ pub struct NativeShape {
     pub blocks: Vec<NativeBlock>,
 }
 
-/// One permutation as a block (`PackagePiece.block`): its 1,096 locals from
+/// One permutation as a block (`PackagePiece.block`): its 1,174 locals from
 /// variable `first_local` in the order of `Gadgets/Poseidon2/Permutation.lean`,
 /// the last 16 its output, and its input lanes.
 #[derive(Clone, Debug, PartialEq, Eq)]

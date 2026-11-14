@@ -13,6 +13,7 @@ use crate::folding::{
     Params, Structure,
 };
 use neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS;
+use neo_ccs::crypto::poseidon2::SBOX_DEGREE;
 use neo_ccs::poly::{SparsePoly, Term};
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
@@ -82,7 +83,7 @@ impl Relation {
                 },
                 Term {
                     coeff: F::ONE,
-                    exps: vec![0, 0, 0, 7],
+                    exps: vec![0, 0, 0, SBOX_DEGREE as u32],
                 },
             ],
         );
@@ -272,7 +273,7 @@ impl Relation {
             let (Ok(a), Ok(b), Ok(c), Ok(s)) = (a, b, c, s) else {
                 return Err("row evaluation");
             };
-            if a * b - c + s.exp_u64(7) != F::ZERO {
+            if a * b - c + s.exp_u64(SBOX_DEGREE) != F::ZERO {
                 return Err("a relation row fails");
             }
             Ok(())

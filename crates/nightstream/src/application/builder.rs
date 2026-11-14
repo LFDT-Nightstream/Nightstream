@@ -112,7 +112,7 @@ impl ApplicationBuilder {
         self.variable_count - self.generated_start
     }
 
-    /// Record that the next 1,096 locals are one permutation of `lanes`
+    /// Record that the next 1,174 locals are one permutation of `lanes`
     /// (`poseidon2::permutation`).
     pub(super) fn begin_block(&mut self, lanes: &[Affine; 16]) {
         self.shape.blocks.push(NativeBlock {

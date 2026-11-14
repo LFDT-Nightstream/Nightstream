@@ -32,7 +32,7 @@ pub use continuity::{
     ContinuityLink,
 };
 pub use event_commitment::{EventCommitment, EVENT_COMMITMENT_AUX_COLUMNS};
-pub use gadgets::{ConditionalSelect, GadgetDescriptor, GadgetOccurrence, Pow7, ZeroTest};
+pub use gadgets::{ConditionalSelect, GadgetDescriptor, GadgetOccurrence, Pow3, ZeroTest};
 pub use memory::{
     MemoryCatalog, MemoryCatalogError, MemoryKind, MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec,
 };
@@ -40,7 +40,7 @@ pub use memory_check::{
     check_memory_rows, MemoryCheckError, MemoryCheckPolicy, MemoryCheckPolicyError, MemoryPreload, RamInitialization,
 };
 pub use poseidon2::{
-    Poseidon2FullRound12, Poseidon2FullRoundChoice, Poseidon2PartialPair12, Poseidon2PartialPairChoice,
+    Poseidon2FullRound12, Poseidon2FullRoundChoice, Poseidon2PartialRounds12, Poseidon2PartialRoundsChoice,
     Poseidon2Permutation12, POSEIDON2_PERMUTATION_AUX_COLUMNS,
 };
 pub use r1cs::{

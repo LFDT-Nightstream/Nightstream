@@ -156,8 +156,7 @@ impl StepPackage {
     }
 
     /// The columns that `SPEC.md` section 7.11 refills and gives no slot:
-    /// the three intermediate powers of each chain
-    /// (`Export.Generic.NativePower.Chain.restore`) and each solved affine
+    /// the square of each chain (`Export.Generic.NativePower.Chain.restore`) and each solved affine
     /// column (`Export.Generic.Substitute.refill`).
     pub fn lowered_column_count(&self) -> usize {
         self.field_lowering.dead.len()
@@ -192,7 +191,7 @@ impl StepPackage {
     }
 
     fn source_end(&self) -> usize {
-        (self.sbox_start + 150 * self.block_count()).max(self.packed_booleans.end())
+        (self.sbox_start + SBOX_ROWS * self.block_count()).max(self.packed_booleans.end())
     }
 
     /// The application's witness word count, which places the shared words
@@ -285,7 +284,7 @@ impl StepPackage {
     }
 }
 
-/// A packed Poseidon2 block: its 1,096 locals start at `start`, and its
+/// A packed Poseidon2 block: its 1,174 locals start at `start`, and its
 /// output locals are the last 16.
 #[derive(Clone, Copy, Debug)]
 pub struct Block<'a> {

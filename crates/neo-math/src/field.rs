@@ -216,7 +216,8 @@ impl PrimeCharacteristicRing for Fq {
     }
 }
 
-/// `gcd(7, q − 1) = 1`, so `x ↦ x^7` is a permutation.
+/// `gcd(7, q − 1) = 1`, so `x ↦ x^7` is a permutation (Lean
+/// `Spec.Poseidon2.coprime_seven`, `Spec.Poseidon2.sbox_bijective`).
 impl InjectiveMonomial<7> for Fq {}
 
 impl PermutationMonomial<7> for Fq {

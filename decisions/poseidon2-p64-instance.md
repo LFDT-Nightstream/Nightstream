@@ -27,7 +27,7 @@ their constants from `params.json` and test against `vectors.json`.
 
 | Parameter | Value |
 |---|---|
-| S-box | `x^7`; `gcd(7, q − 1) = 1` |
+| S-box | `x^7`; `gcd(7, q − 1) = 1` (`Spec.Poseidon2.coprime_seven`), so the S-box is a permutation (`Spec.Poseidon2.sbox_bijective`) |
 | Rounds | 8 full, 22 partial, for both widths |
 | External matrix | `circ(2·M4, M4, …)` with the Plonky3 `MDSMat4` |
 | Internal matrix | `J + diag(D)` |

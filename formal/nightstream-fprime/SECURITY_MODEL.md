@@ -279,7 +279,9 @@ item 5).
   `2 · m_mem/q²` and a retry term, and each retry disagreement is a Poseidon2
   transcript collision (`Lifecycle.Nebula.badAt_bound`). Here
   `m_mem = R + M + N · B_ops`, and setup rule 6 keeps `2 · m_mem/q²` at most
-  `2^−109.91` (`Spec.Nebula.Geometry.secure_iff`).
+  `2^−109.91` (`Spec.Nebula.Geometry.secure_iff`). A proof has at most
+  `S_max` segments, so the runtime gate charges `S_max · 2 · m_mem/q²` with
+  exact integers (`SPEC.md` section 7.1).
 - **Random-oracle model of `η`:** when `η` comes from a uniform oracle on its
   input (the plan digest, `ts` and the three roots) in place of Poseidon2,
   then for every `η` sampler with `Q_η` queries, the event of the memory

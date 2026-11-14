@@ -294,9 +294,9 @@ impl<A: Application> Circuit<A> {
     }
 
     /// The prover of the circuit. `minimum_security_bits` separately gates
-    /// one fold and one memory fingerprint challenge
-    /// (`Geometry::memory_security_bits`). It does not account for recursive
-    /// depth, queries, retries, or concurrent attempts.
+    /// one fold and the memory fingerprint term of all `S_max` segments
+    /// (SPEC.md section 7.1). It does not account for recursive depth,
+    /// queries, retries, or concurrent attempts.
     pub fn prover(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<Prover<A>, crate::Error>
     where
         A: Clone,
@@ -310,9 +310,9 @@ impl<A: Application> Circuit<A> {
     }
 
     /// The verifier of the circuit. It may share the prover's circuit.
-    /// `minimum_security_bits` separately gates one fold and one memory
-    /// fingerprint challenge (`Geometry::memory_security_bits`). It is not an
-    /// end-to-end security bound.
+    /// `minimum_security_bits` separately gates one fold and the memory
+    /// fingerprint term of all `S_max` segments (SPEC.md section 7.1). It is
+    /// not an end-to-end security bound.
     pub fn verifier(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<Verifier<A>, crate::Error>
     where
         A: Clone,
@@ -327,17 +327,29 @@ impl<A: Application> Circuit<A> {
     }
 }
 
-/// Require the memory fingerprint term of `geometry` to meet
-/// `minimum_security_bits` (SPEC.md section 7.1, rule 6).
+/// The largest `k` with `S_max · 2 · m_mem / q² ≤ 2^−k`: each of the `S_max`
+/// segments of a proof adds its own fingerprint term (`SECURITY_MODEL.md`,
+/// adversary 5). The integers are exact, so no rounding accepts a larger `k`.
+fn segments_security_bits(geometry: &Geometry) -> u32 {
+    let q = u128::from(F::ORDER_U64);
+    (2 * geometry.max_tuples() as u128)
+        .checked_mul(geometry.s_max as u128)
+        .and_then(|error| (q * q).checked_div(error))
+        .and_then(u128::checked_ilog2)
+        .unwrap_or(0)
+}
+
+/// Require a valid and secure `geometry` (SPEC.md section 7.1) whose
+/// fingerprint term over all `S_max` segments meets `minimum_security_bits`.
 fn memory_security(geometry: &Geometry, minimum_security_bits: u32) -> Result<(), crate::Error> {
     if !geometry.is_valid() || !geometry.is_secure() {
         return Err(crate::Error::Circuit("the memory geometry breaks SPEC.md section 7.1"));
     }
-    let available = geometry.memory_security_bits();
-    if available < f64::from(minimum_security_bits) {
+    let available = segments_security_bits(geometry);
+    if available < minimum_security_bits {
         return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
             required: minimum_security_bits,
-            available: available.floor() as u32,
+            available,
         }
         .into());
     }

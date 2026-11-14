@@ -152,9 +152,9 @@ impl ApplicationBuilder {
         self.generate(a, b, recipe)
     }
 
+    /// The row `a · b = v` and the recipe of a new variable `v`. The callers
+    /// validate `a` and `b`; flattening keeps or drops variables, never adds one.
     fn generate(&mut self, a: Affine, b: Affine, recipe: Arc<Expression>) -> Result<Variable, ApplicationError> {
-        self.validate(&a, true)?;
-        self.validate(&b, true)?;
         let next = self
             .variable_count
             .checked_add(1)

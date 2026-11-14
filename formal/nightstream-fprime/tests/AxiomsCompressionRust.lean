@@ -27,3 +27,7 @@ import NightstreamFPrime.Spec.Compression
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.layoutNew_production
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.layout_soundness
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.layout_run_soundness
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.followsK_bind
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.sumcheck_followsK
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.game_follows
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.calls_draw

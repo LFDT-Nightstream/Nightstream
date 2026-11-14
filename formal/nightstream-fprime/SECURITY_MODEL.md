@@ -592,7 +592,10 @@ item 5).
      (`crates/neo-compress/artifacts/key20.vk`, `crates/neo-compress/artifacts/key30.vk`),
      not with a digest. Third, each draw is uniform for each query, which
      takes Poseidon2 as a random oracle. Lean does not model the bytes that
-     the transcript absorbs or its domains.
+     the transcript absorbs or its domains. It models their order: each
+     path of the game receives and draws the rows of `SPEC.md` section 5.4
+     in order (`Spec.Compression.Rust.game_follows`), and a test replays a
+     real proof in that order and checks each challenge of `verify`.
    - *The compression key.* The verifier's key is the key of `SPEC.md`
      Algorithm 11. It holds the Akita commitment of the key polynomial of
      the production Ajtai key, and Akita's commitments of the prefixes of

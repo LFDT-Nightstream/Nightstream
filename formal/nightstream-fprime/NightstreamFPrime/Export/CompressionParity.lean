@@ -1,5 +1,6 @@
 import Lean
 import NightstreamFPrime.Spec.Compression.Rust.Layout
+import NightstreamFPrime.Spec.Compression.Rust.Transcript
 
 /-! The compression parity file. For each production claim set, Lean's layout (`layoutNew`) and the
 exact value of Rust `error_bits` that bounds the soundness error of the argument
@@ -104,6 +105,36 @@ private def generatedEntry (input : List Claim × ℕ) : Lean.Json :=
       ("error", error (runError (l.counts 320 4)))])
   | .error e => Lean.Json.mkObj (entry ++ [("rejected", Lean.toJson e.name)])
 
+/-- The claims of the proof of `crates/neo-compress/tests/unit/transcript_order.rs`
+(`tests/support::instances`): their blocks and tables, under the key of 512 blocks, each with 128
+public cells, 14 point variables and 4 matrices. -/
+private def transcriptClaims : List Claim := [⟨61, some 2176⟩, ⟨100, some 300⟩, ⟨90, none⟩]
+
+private def call : Call → Lean.Json
+  | .absorb words => Lean.Json.arr #[Lean.toJson "absorb", Lean.toJson words]
+  | .bytes => Lean.Json.arr #[Lean.toJson "bytes"]
+  | .draw count => Lean.Json.arr #[Lean.toJson "draw", Lean.toJson count]
+
+private def transcript : Lean.Json :=
+  match layoutNew transcriptClaims 512 with
+  | .error e => Lean.Json.mkObj [("rejected", Lean.toJson e.name)]
+  | .ok l =>
+    let shape : Shape :=
+      { claims := transcriptClaims.map fun _ => (128, 14, 4)
+        tables := (transcriptClaims.filter fun c => c.table.isSome).length
+        spanVars := l.spanVars
+        witnessVars := l.witnessVars
+        keyBlockVars := l.keyVars - laneVars - rowVars }
+    Lean.Json.mkObj [
+      ("claims", Lean.Json.arr (transcriptClaims.map fun c => Lean.Json.arr #[Lean.toJson c.blocks,
+        match c.table with | some bound => Lean.toJson bound | none => Lean.Json.null,
+        Lean.toJson (128 : ℕ), Lean.toJson (14 : ℕ), Lean.toJson (4 : ℕ)]).toArray),
+      ("key_blocks", Lean.toJson (512 : ℕ)),
+      ("steps", Lean.Json.arr ((schedule shape).map fun step => Lean.Json.mkObj [
+        ("label", Lean.toJson step.1.name),
+        ("move", Lean.toJson (if step.1.move = .draw then "draw" else "recv")),
+        ("calls", Lean.Json.arr (step.2.map call).toArray)]).toArray)]
+
 def fixture : Lean.Json :=
   let depths := List.range (productionLightFoldCap + 1)
   Lean.Json.mkObj [
@@ -122,6 +153,7 @@ def fixture : Lean.Json :=
     ("bounds", Lean.toJson (depths.map productionGlobalParams.accumulatorBound)),
     ("production", Lean.Json.arr (([0, 1] : List (Fin 2)).flatMap (fun pc =>
       depths.flatMap fun d0 => depths.map fun d1 => production pc d0 d1)).toArray),
+    ("transcript", transcript),
     ("generated", Lean.Json.arr ((powerOfTwo :: (List.range 3000).map generated).map
       generatedEntry).toArray)]
 

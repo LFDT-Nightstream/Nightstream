@@ -219,6 +219,9 @@ impl StepPackage {
             ));
         }
         let mut package = Self {
+            circuit: self.circuit,
+            public_columns: self.public_columns,
+            width: self.width,
             first_fresh: moved(self.first_fresh, locals).ok_or(PackageError::Malformed("bounded-depth columns"))?,
             sbox_start: moved(self.sbox_start, fresh).ok_or(PackageError::Malformed("bounded-depth columns"))?,
             application: Region {
@@ -236,7 +239,6 @@ impl StepPackage {
             pieces: Vec::new(),
             witness: Vec::new(),
             slots: Vec::new(),
-            ..self.clone()
         };
         let mut pieces = package.native_pieces(records, shape)?;
         for piece in &self.pieces[old.pieces..] {
@@ -255,10 +257,15 @@ impl StepPackage {
                 ))
             })
             .collect::<Result<_, _>>()?;
-        package.slots = package.native_slots()?;
+        let (bits, forced) = package.slot_facts()?;
+        package.slots = package.rule_slots(&bits, &forced);
         package.pack_native_booleans()?;
+        // Field lowering changes neither the candidate bits nor the forced
+        // columns, so its slots reuse the facts of the packed rows.
+        let (bits, forced) = package.slot_facts()?;
+        package.slots = package.rule_slots(&bits, &forced);
         package.field_lowering = super::field_lowering::FieldLowering::checked(&package)?;
-        package.slots = package.native_slots()?;
+        package.slots = package.rule_slots(&bits, &forced);
         package.guard_fusion = super::guard_fusion::GuardFusion::checked(&package)?;
         package.word_packing = super::word_packing::WordPacking::checked(&package)?;
         package.check_packed_slots()?;
@@ -296,14 +303,18 @@ impl StepPackage {
     fn pack_native_booleans(&mut self) -> Result<(), PackageError> {
         let layout = self.layout()?;
         let region = self.application;
-        let blocks = self
+        let end = self
             .blocks()
-            .map(|block| block.start()..block.start() + BLOCK_LOCALS)
-            .collect::<Vec<_>>();
+            .map(|block| block.start() + BLOCK_LOCALS)
+            .max();
+        let mut in_block = vec![false; end.unwrap_or(0)];
+        for block in self.blocks() {
+            in_block[block.start()..block.start() + BLOCK_LOCALS].fill(true);
+        }
         let eligible = |column| {
             ((WITNESS_START..WITNESS_START + region.witness_words).contains(&column)
                 || (region.local_start..region.local_start + region.locals).contains(&column))
-                && !blocks.iter().any(|block| block.contains(&column))
+                && in_block.get(column) != Some(&true)
                 && layout
                     .slot(column)
                     .is_some_and(|(_, kind)| kind == super::layout::Kind::Bit)
@@ -314,7 +325,6 @@ impl StepPackage {
         };
         self.packed_booleans = PackedBooleans::lower(rows, start, self.width, eligible);
         self.packed_booleans.validate(rows, start, self.width)?;
-        self.slots = self.native_slots()?;
         Ok(())
     }
 
@@ -416,27 +426,31 @@ impl StepPackage {
         Ok(rows)
     }
 
-    fn native_slots(&self) -> Result<Vec<(usize, usize, u8)>, PackageError> {
+    /// The slot facts of the native application (`SPEC.md` section 7.9,
+    /// step 5): the candidate bit columns, and the columns that the original
+    /// rows or the packed pairs force to bits.
+    fn slot_facts(&self) -> Result<(Vec<usize>, Vec<usize>), PackageError> {
         let region = self.application;
-        let dead: Vec<_> = self
+        let end = self
             .blocks()
             .take(region.pieces - 1)
-            .map(|block| block.start()..block.outputs())
-            .collect();
+            .map(|block| block.outputs())
+            .max();
+        let mut dead = vec![false; end.unwrap_or(0)];
+        for block in self.blocks().take(region.pieces - 1) {
+            dead[block.start()..block.outputs()].fill(true);
+        }
+        let live = |column: &usize| dead.get(*column) != Some(&true);
         let mut bits = self.bit_columns();
         bits.extend(WITNESS_START..WITNESS_START + region.witness_words);
-        bits.extend(
-            (region.local_start..region.local_start + region.locals)
-                .filter(|column| !dead.iter().any(|locals| locals.contains(column))),
-        );
+        bits.extend((region.local_start..region.local_start + region.locals).filter(live));
         bits.extend(self.packed_booleans.start..self.packed_booleans.end());
         let mut eligible = vec![false; self.source_end()];
         for column in (WITNESS_START..WITNESS_START + region.witness_words)
             .chain(region.local_start..region.local_start + region.locals)
+            .filter(live)
         {
-            if !dead.iter().any(|locals| locals.contains(&column)) {
-                eligible[column] = true;
-            }
+            eligible[column] = true;
         }
         let seeds = self
             .packed_booleans
@@ -452,11 +466,7 @@ impl StepPackage {
             _ => Vec::new(),
         };
         inferred.extend(seeds);
-        Ok(if inferred.is_empty() {
-            self.rule_slots(&bits)
-        } else {
-            self.rule_slots_with_inferred(&bits, &inferred)
-        })
+        Ok((bits, inferred))
     }
 }
 

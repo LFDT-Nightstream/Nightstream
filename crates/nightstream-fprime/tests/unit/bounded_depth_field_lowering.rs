@@ -184,7 +184,7 @@ fn persistent_and_native_piece_reads_protect_removed_columns() {
     for native in [compiled.light(), compiled.refresh()] {
         let mut package = native.clone();
         package.field_lowering = FieldLowering::default();
-        package.slots = package.rule_slots(&[]);
+        package.slots = package.rule_slots(&[], &[]);
         package.pieces.push(Piece::Rows(vec![Row {
             a: unit(INPUT + 1),
             b: unit(INPUT),

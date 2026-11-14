@@ -106,7 +106,7 @@ the Rust code is held to the Lean definition (trust item 5).
 | Nebula `η` | `Lifecycle.Nebula.etaInputBlocks` | `Lifecycle.Nebula.etaInputBlocks_injective`, `Lifecycle.Nebula.EtaOracle.pointOf_injective` | Indirect: package rows |
 | Nebula state words | `Lifecycle.Nebula.carryVector` | `Lifecycle.Nebula.carryVector_injective`, `Lifecycle.Nebula.stateWords_eq_or_collision` | Direct: terminal fixtures |
 | Application identity | None (`with_application`) | Open: Rust only | None |
-| Domain separation | `Lifecycle.BoundedDepth.domainChunk` | Light against refresh: `Lifecycle.RandomOracle.Schedule.challengeCalls_separated`. Open between the other rows. | Indirect |
+| Domain separation | `Export.DomainSeparation.uses` | `Export.DomainSeparation.separated`: two block lists whose words start with the tags of two distinct uses are distinct. A use owns its blocks: `Export.DomainSeparation.hash_owns`, `Export.DomainSeparation.fold_owns`, `Export.DomainSeparation.nebula_owns`. Open: inputs that an application hashes, which can start with any words. | Indirect for the tags that Lean defines. None for the four tags that Lean restates from Rust (circuit key, two compression domains, application identity) |
 
 ## Applications and setups
 
@@ -355,9 +355,10 @@ not change terminal source checks.
   (`Lifecycle.RandomOracle.Schedule.challengeCalls_separated`). These are
   conditions of `[SPONGE]`. Under `[P2-PERM]` and `[SPONGE]`, the bound of
   the model holds for a verifier that reads the sponge outside a circuit, plus
-  `spongeError N`, when every condition holds. The separation from the other
-  uses of the sponge is open (section Hashed encodings), so this step is not
-  complete.
+  `spongeError N`, when every condition holds. The fold calls start with
+  their domain (`Export.DomainSeparation.fold_owns`), and the fold domains
+  are separated from the other uses (`Export.DomainSeparation.separated`).
+  No Lean statement applies `Spec.Sponge.Transfer` to the folds yet.
 - **Not covered:** the step circuits recompute the challenges with the
   Poseidon2 permutation, and no ideal-permutation model covers a circuit
   that evaluates the permutation. So this result bounds no deployed check of
@@ -481,7 +482,8 @@ not change terminal source checks.
   (`Lifecycle.Nebula.EtaOracle.pointOf_injective`), and the absorbed blocks
   are injective (`Lifecycle.Nebula.etaInputBlocks_injective`,
   `Lifecycle.Nebula.blockChunks_injective`). These are conditions of
-  `[SPONGE]`. The separation of the `η` domain from the other uses is open.
+  `[SPONGE]`, and the `η` domain is separated from the other uses
+  (`Export.DomainSeparation.separated`).
 
 ### 6. Final-proof adversary
 
@@ -766,7 +768,8 @@ not change terminal source checks.
    is a Poseidon2 collision. The owner chose this form
    (`decisions/nebula-memory-checking.md`). The model gives the `η` oracle no
    relation to the fold addresses (trust item 3). Their domain tags differ,
-   but no Lean result separates them (section Hashed encodings). The record
+   and two block lists with these tags are distinct
+   (`Export.DomainSeparation.separated`). The record
    chains need only the collision bound of trust item 2.
 7. **The compressed proof [AKITA] [KECCAK] [MSIS] [P2-PERM] [SPONGE].**
    Adversary 6 has these premises.
@@ -871,8 +874,9 @@ not change terminal source checks.
      unless these four lanes collide (trust item 2). The Π_CCS run and the
      argument have their own domain blocks, which differ from the fold
      domains. `[P2-PERM]` and `[KECCAK]` make the permutation and the Keccak
-     functions independent. No Lean result states that these domains
-     separate the compression transcript from the fold transcripts.
+     functions independent. The compression domains, as Lean restates them,
+     are separated from the fold domains (`Export.DomainSeparation.separated`),
+     but no emitted data compares the restated tags with Rust.
    - *The error of the argument.* Lean bounds it by `Q · error`, with
      `error < 2^−119` at the production shapes
      (`Spec.Compression.Verifier.production_error_lt`). Rust computes the

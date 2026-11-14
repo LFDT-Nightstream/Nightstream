@@ -1,6 +1,7 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Sponge
 import NightstreamFPrime.Export.BoundedDepth.IdentityBinding
+import NightstreamFPrime.Export.DomainSeparation
 
 #audit_axioms NightstreamFPrime.Spec.Sponge.spongeError_nonneg
 #audit_axioms NightstreamFPrime.Spec.Sponge.collision_blocks
@@ -14,3 +15,13 @@ import NightstreamFPrime.Export.BoundedDepth.IdentityBinding
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IdentityBinding.nodes_append_inj
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IdentityBinding.valuePreimage_injective
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IdentityBinding.identity_binds
+#audit_axioms NightstreamFPrime.Export.DomainSeparation.differs_spec
+#audit_axioms NightstreamFPrime.Export.DomainSeparation.tags_differ
+#audit_axioms NightstreamFPrime.Export.DomainSeparation.separated
+#audit_axioms NightstreamFPrime.Export.DomainSeparation.hash_owns
+#audit_axioms NightstreamFPrime.Export.DomainSeparation.statePreimage_starts
+#audit_axioms NightstreamFPrime.Export.DomainSeparation.identityInput_starts
+#audit_axioms NightstreamFPrime.Export.DomainSeparation.prefix_absorbCalls
+#audit_axioms NightstreamFPrime.Export.DomainSeparation.fold_owns
+#audit_axioms NightstreamFPrime.Export.DomainSeparation.chunks_eq_absorbCalls
+#audit_axioms NightstreamFPrime.Export.DomainSeparation.nebula_owns

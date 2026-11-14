@@ -91,7 +91,7 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem prefixLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    prefixLogicalWidth program = 39563106 := by
+    prefixLogicalWidth program = 39550806 := by
   unfold prefixLogicalWidth productOutputStart
     challengeStart
     productGroupStart laterPoseidonStart outputPoseidonStart priorPoseidonStart
@@ -108,7 +108,7 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   rfl
 
 def directPrefixLogicalWidth (_program : Lifecycle.Stage1.Application.Program) : Nat :=
-  39563106
+  39550806
 
 @[csimp] theorem prefixLogicalWidth_eq_directPrefixLogicalWidth :
     @prefixLogicalWidth = @directPrefixLogicalWidth := by

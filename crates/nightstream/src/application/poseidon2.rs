@@ -36,7 +36,7 @@ pub fn poseidon2_hash_chain_v1() -> Result<ApplicationCircuit, ApplicationError>
 }
 
 impl ApplicationBuilder {
-    /// Hashes field expressions with the native Poseidon2 absorb/finalize rule.
+    /// Hashes field expressions with `Spec.Poseidon2.hash`, the `10*` padded sponge.
     /// The caller must include a domain and lengths for variable-length inputs.
     /// Compilation validates each permutation before using its native block.
     pub fn poseidon2_hash(&mut self, preimage: &[Affine]) -> Result<[Affine; 4], ApplicationError> {
@@ -44,13 +44,19 @@ impl ApplicationBuilder {
             self.validate(value, true)?;
         }
         let mut state = std::array::from_fn(|_| scalar(0));
-        for block in preimage.chunks(RATE) {
+        let blocks = preimage.chunks_exact(RATE);
+        let last = blocks.remainder();
+        for block in blocks {
             for (lane, value) in state.iter_mut().enumerate() {
                 *value = value.clone() + block.get(lane).cloned().unwrap_or_else(|| scalar(0));
             }
             state = permutation(self, state)?;
         }
-        state[0] = state[0].clone() + scalar(1);
+        // `Hash.padE`: the last words, then 1 in the next lane.
+        for (lane, word) in last.iter().enumerate() {
+            state[lane] = state[lane].clone() + word.clone();
+        }
+        state[last.len()] = state[last.len()].clone() + scalar(1);
         state = permutation(self, state)?;
         Ok(std::array::from_fn(|lane| state[lane].clone()))
     }

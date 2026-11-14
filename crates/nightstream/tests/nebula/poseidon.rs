@@ -197,9 +197,10 @@ fn checked_port_hash_reconstructs_source_witness() {
         original.execute(prior, &erased).unwrap();
         prior = invocation.output;
     }
-    let expected =
-        neo_ccs::crypto::poseidon2::poseidon2_hash(&[F::from_u64(0x4e53504f52544831), F::from_u64(3 * 12345)])
-            .map(|value| value.as_canonical_u64());
+    // `Spec.Poseidon2.pad` of one full block: the second block is the word 1.
+    let mut block = [F::ZERO; neo_ccs::crypto::poseidon2::RATE];
+    block[..2].copy_from_slice(&[F::from_u64(0x4e53504f52544831), F::from_u64(3 * 12345)]);
+    let expected = neo_ccs::crypto::poseidon2::poseidon2_hash(&block).map(|value| value.as_canonical_u64());
     assert_eq!(*run.state(), expected);
 }
 

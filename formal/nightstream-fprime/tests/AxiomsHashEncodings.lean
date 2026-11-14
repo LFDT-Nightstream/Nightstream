@@ -6,6 +6,7 @@ import NightstreamFPrime.Export.BoundedDepth.EtaSponge
 import NightstreamFPrime.Export.BoundedDepth.FoldSponge
 
 #audit_axioms NightstreamFPrime.Spec.Sponge.spongeError_nonneg
+#audit_axioms NightstreamFPrime.Spec.Sponge.hash_eq_digest
 #audit_axioms NightstreamFPrime.Spec.Sponge.collision_blocks
 #audit_axioms NightstreamFPrime.Spec.Sponge.blocks_ne_of_differ
 #audit_axioms NightstreamFPrime.Spec.Sponge.padded_ne_of_differ

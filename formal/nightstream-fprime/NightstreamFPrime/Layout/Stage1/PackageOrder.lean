@@ -12,9 +12,9 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-def pilotSourceColumnCount : Nat := 5343330
+def pilotSourceColumnCount : Nat := 5341138
 
-def pilotPrivateColumnCount : Nat := 5343006
+def pilotPrivateColumnCount : Nat := 5340814
 
 def pilotInputPrivateColumnCount : Nat := 57826
 
@@ -22,11 +22,11 @@ def proofInputColumnCount : Nat := 17656
 
 def expectedContextColumnCount : Nat := 4
 
-def proofInputSourceStart : Nat := 5343334
+def proofInputSourceStart : Nat := 5341142
 
-def piCcsPhaseOffset : Nat := 5360990
+def piCcsPhaseOffset : Nat := 5358798
 
-def piCcsLocalStart : Nat := 5360662
+def piCcsLocalStart : Nat := 5358470
 
 def SourceColumnCount : Nat := RunningTransitionLayout.physicalEnd
 
@@ -585,7 +585,7 @@ theorem packageToSource_sourceToPackage (column : Nat)
           have positive : 0 < mapped - pilotPrivateColumnCount :=
             Nat.sub_pos_of_lt mappedAbove
           omega
-        have mappedBoundNumeric : mapped < 5343331 := by
+        have mappedBoundNumeric : mapped < 5341139 := by
           rw [PilotPackageOrder.packageColumnCount_eq,
             PilotPackageOrder.sourceColumnCount_eq] at mappedBound
           norm_num at mappedBound

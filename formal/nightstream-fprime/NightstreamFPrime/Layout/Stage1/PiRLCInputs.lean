@@ -19,7 +19,7 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
 
-def phaseOffset : Nat := 6594873
+def phaseOffset : Nat := 6592681
 
 theorem piCcsLogicalFreshBase_le_phaseOffset :
     PiCCSStarts.logicalFreshBase ≤ phaseOffset := by

@@ -61,14 +61,19 @@ def invocationInput (package : CircuitPackage) (chain : HashChain)
         (chain.witnessStart +
           (invocation - 1) * package.permutation.localColumnCount +
           package.permutation.outputLocalStart + lane)
+  let inputOffset := invocation * package.poseidon.rate + lane
+  let present := lane < package.poseidon.rate ∧ inputOffset < chain.inputLength
   if invocation < chain.absorbCount then
-    let inputOffset := invocation * package.poseidon.rate + lane
-    if lane < package.poseidon.rate ∧ inputOffset < chain.inputLength then
+    if present then
       R1CS.LinearCombination.add previous
         (R1CS.LinearCombination.ofVar (chain.inputStart + inputOffset))
     else
       previous
-  else if lane = 0 then
+  else if present then
+    R1CS.LinearCombination.add previous
+      (R1CS.LinearCombination.ofVar (chain.inputStart + inputOffset))
+  else if lane < package.poseidon.rate ∧ inputOffset = chain.inputLength then
+    -- `Spec.Poseidon2.pad`: the word 1 after the last input word.
     R1CS.LinearCombination.add previous R1CS.LinearCombination.one
   else
     previous

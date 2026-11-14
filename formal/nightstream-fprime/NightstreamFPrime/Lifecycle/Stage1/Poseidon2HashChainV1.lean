@@ -62,18 +62,17 @@ def circuit (interface : Application.Interface messageWordCount) :
   simp only [inputExpressions, List.length_append, List.length_map, List.length_ofFn]
   simp [Application.stateWordCount, messageWordCount]
 
-theorem inputChunks_length
+theorem fullBlockCount
     (interface : Application.Interface messageWordCount) (offset : Nat) :
-    (Hash.inputChunks (inputExpressions interface offset)).length = 4 := by
-  unfold Hash.inputChunks
-  rw [List.length_map, List.length_range, inputExpressions_length]
-  norm_num [Poseidon2.rate]
+    (inputExpressions interface offset).length / Poseidon2.rate = 4 := by
+  rw [inputExpressions_length]
+  rfl
 
 theorem compile_recipes_length
     (interface : Application.Interface messageWordCount) (offset : Nat) :
     (Hash.compile offset (inputExpressions interface offset)).recipes.length =
       5480 := by
-  rw [Hash.compile_recipes_length, inputChunks_length]
+  rw [Hash.compile_recipes_length, fullBlockCount]
 
 theorem circuit_localLength
     (interface : Application.Interface messageWordCount) (offset : Nat) :

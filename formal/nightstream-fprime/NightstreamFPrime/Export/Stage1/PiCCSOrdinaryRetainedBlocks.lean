@@ -85,10 +85,10 @@ def freshPublicInputBlock (program : Lifecycle.Stage1.Application.Program) :
       PilotProduction.stateHashWords_eq])
 
 def priorLastInvocation : Fin PoseidonRetainedBlock.priorInvocationCount :=
-  ⟨2410, by rw [PoseidonRetainedBlock.priorInvocationCount_eq]; omega⟩
+  ⟨2409, by rw [PoseidonRetainedBlock.priorInvocationCount_eq]; omega⟩
 
 def outputLastInvocation : Fin PoseidonRetainedBlock.outputInvocationCount :=
-  ⟨2410, by rw [PoseidonRetainedBlock.outputInvocationCount_eq]; omega⟩
+  ⟨2409, by rw [PoseidonRetainedBlock.outputInvocationCount_eq]; omega⟩
 
 def priorLastBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=

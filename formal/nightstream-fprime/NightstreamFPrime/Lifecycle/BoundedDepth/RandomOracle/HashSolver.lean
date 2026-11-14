@@ -47,9 +47,9 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink (Attempt Fol
 
 attribute [local instance low] Classical.propDecidable
 
-/-- A Poseidon2 collision: two different inputs of one length with one hash. `Poseidon2.hash`
-pads with zeros and does not encode the length, so `[x]` and `[x, 0]` share a hash with no
-collision of the permutation. -/
+/-- A Poseidon2 collision: two different inputs of one length with one hash. The finder
+outputs inputs of one length; the `10*` padding makes every collision of `Poseidon2.hash` a
+sponge collision (`Spec.Sponge.collision_blocks`). -/
 def PoseidonCollision : Type :=
   {pair : List F × List F // pair.1 ≠ pair.2 ∧ pair.1.length = pair.2.length ∧
     Poseidon2.hash pair.1 = Poseidon2.hash pair.2}

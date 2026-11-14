@@ -577,16 +577,26 @@ theorem pilotHashInvocationInput_varsBelow
           Spec.Poseidon2.rate,
           absorbing, inputPresent, R1CS.LinearCombination.VarsBelow,
           R1CS.LinearCombination.zero]
-    · by_cases zeroLane : lane.val = 0
-      · simp [invocationInput, 
-          
-          absorbing, zeroLane, R1CS.LinearCombination.VarsBelow,
-          R1CS.LinearCombination.zero, R1CS.LinearCombination.one,
-          R1CS.LinearCombination.add]
-      · simp [invocationInput, 
-          
-          absorbing, zeroLane, R1CS.LinearCombination.VarsBelow,
-          R1CS.LinearCombination.zero]
+    · by_cases inputPresent :
+          lane.val < 12 ∧ lane.val < chain.inputLength
+      · have inputBelow : chain.inputStart + lane.val < bound := by
+          omega
+        simp [invocationInput, PilotData.circuitPackage,
+          PilotData.poseidonSchedule, Spec.Poseidon2.rate,
+          absorbing, inputPresent, R1CS.LinearCombination.VarsBelow,
+          R1CS.LinearCombination.zero, R1CS.LinearCombination.ofVar,
+          R1CS.LinearCombination.add, inputBelow]
+      · by_cases next : lane.val < 12 ∧ lane.val = chain.inputLength
+        · simp [invocationInput, PilotData.circuitPackage,
+            PilotData.poseidonSchedule, Spec.Poseidon2.rate,
+            absorbing, next, R1CS.LinearCombination.VarsBelow,
+            R1CS.LinearCombination.zero, R1CS.LinearCombination.one,
+            R1CS.LinearCombination.add]
+          split <;> simp
+        · simp [invocationInput, PilotData.circuitPackage,
+            PilotData.poseidonSchedule, Spec.Poseidon2.rate,
+            absorbing, inputPresent, next, R1CS.LinearCombination.VarsBelow,
+            R1CS.LinearCombination.zero]
   · have previousBelow :
         chain.witnessStart + (invocation - 1) * 1096 + 1080 + lane.val <
           bound := by
@@ -610,18 +620,31 @@ theorem pilotHashInvocationInput_varsBelow
           invocationZero, absorbing, inputPresent,
           R1CS.LinearCombination.VarsBelow, R1CS.LinearCombination.ofVar,
           previousBelow]
-    · by_cases zeroLane : lane.val = 0
-      · simpa [invocationInput, PilotData.circuitPackage,
+    · by_cases inputPresent :
+          lane.val < 12 ∧
+            invocation * 12 + lane.val < chain.inputLength
+      · have inputBelow :
+            chain.inputStart + (invocation * 12 + lane.val) < bound := by
+          omega
+        simp [invocationInput, PilotData.circuitPackage,
           PilotData.poseidonSchedule, PilotData.permutationTemplate,
-          invocationZero, absorbing, zeroLane,
+          Spec.Poseidon2.rate,
+          invocationZero, absorbing, inputPresent,
           R1CS.LinearCombination.VarsBelow, R1CS.LinearCombination.ofVar,
-          R1CS.LinearCombination.one, R1CS.LinearCombination.add] using
-            previousBelow
-      · simpa [invocationInput, PilotData.circuitPackage,
-          PilotData.poseidonSchedule, PilotData.permutationTemplate,
-          invocationZero, absorbing, zeroLane,
-          R1CS.LinearCombination.VarsBelow, R1CS.LinearCombination.ofVar] using
-            previousBelow
+          R1CS.LinearCombination.add, previousBelow, inputBelow]
+      · by_cases next : lane.val < 12 ∧
+            invocation * 12 + lane.val = chain.inputLength
+        · simpa [invocationInput, PilotData.circuitPackage,
+            PilotData.poseidonSchedule, PilotData.permutationTemplate,
+            Spec.Poseidon2.rate, invocationZero, absorbing, inputPresent, next,
+            R1CS.LinearCombination.VarsBelow, R1CS.LinearCombination.ofVar,
+            R1CS.LinearCombination.one, R1CS.LinearCombination.add] using
+              previousBelow
+        · simpa [invocationInput, PilotData.circuitPackage,
+            PilotData.poseidonSchedule, PilotData.permutationTemplate,
+            Spec.Poseidon2.rate, invocationZero, absorbing, inputPresent, next,
+            R1CS.LinearCombination.VarsBelow, R1CS.LinearCombination.ofVar] using
+              previousBelow
 
 private theorem pilotCanonicalConstraints_varsBelow :
     ∀ expression ∈ PilotData.canonicalConstraints (),

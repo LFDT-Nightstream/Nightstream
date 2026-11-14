@@ -12,7 +12,7 @@ open PiRLCPoseidonGeometry
 
 def invocationCount : Nat := PoseidonRetainedBlock.priorInvocationCount
 
-@[simp] theorem invocationCount_eq : invocationCount = 2411 := by
+@[simp] theorem invocationCount_eq : invocationCount = 2410 := by
   exact PoseidonRetainedBlock.priorInvocationCount_eq
 
 def priorSchedule (program : Lifecycle.Stage1.Application.Program) :
@@ -73,9 +73,18 @@ def priorInputState {program : Lifecycle.Stage1.Application.Program}
           previous
       else
         previous
-    else if lane.val = 0 then
-      SparseForm.add previous <|
-        SparseForm.singleton (oneColumn geometry) 1
+    else if _rateLane : lane.val < Spec.Poseidon2.rate then
+      let offset := invocation.val * Spec.Poseidon2.rate + lane.val
+      if present : offset < Data.priorChain.inputLength then
+        SparseForm.add previous <|
+          (priorInputBlock program).form
+            (priorInputStart program) (priorInputFits geometry)
+              ⟨offset, present⟩
+      else if offset = Data.priorChain.inputLength then
+        SparseForm.add previous <|
+          SparseForm.singleton (oneColumn geometry) 1
+      else
+        previous
     else
       previous
 
@@ -100,9 +109,18 @@ def outputInputState {program : Lifecycle.Stage1.Application.Program}
           previous
       else
         previous
-    else if lane.val = 0 then
-      SparseForm.add previous <|
-        SparseForm.singleton (oneColumn geometry) 1
+    else if _rateLane : lane.val < Spec.Poseidon2.rate then
+      let offset := invocation.val * Spec.Poseidon2.rate + lane.val
+      if present : offset < Data.outputChain.inputLength then
+        SparseForm.add previous <|
+          (outputInputBlock program).form
+            (outputInputStart program) (outputInputFits geometry)
+              ⟨offset, present⟩
+      else if offset = Data.outputChain.inputLength then
+        SparseForm.add previous <|
+          SparseForm.singleton (oneColumn geometry) 1
+      else
+        previous
     else
       previous
 
@@ -153,7 +171,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
 
 @[simp] theorem plan_rowCount {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
-    (plan geometry).rowCount = 723300 := by
+    (plan geometry).rowCount = 723000 := by
   simp [plan, priorPlan, outputPlan, invocationCount_eq]
 
 theorem rowsZero_iff {program : Lifecycle.Stage1.Application.Program}

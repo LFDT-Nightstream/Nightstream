@@ -12,8 +12,8 @@ and section Hashed encodings).
 Each use absorbs a word stream that starts with its tag (`uses`). Every two tags of the table
 differ at a position of both (`tags_differ`), so two block lists whose word streams start with
 the tags of two distinct uses are distinct (`separated`). A use owns the block lists that it
-absorbs: the padded input of a hash use under `Spec.Sponge.Padding` (`hash_owns`), the calls of a
-fold transcript (`fold_owns`), and the framed blocks of a Nebula transcript (`nebula_owns`).
+absorbs: the `10*` padded blocks of a hash use (`hash_owns`), the calls of a fold transcript
+(`fold_owns`), and the framed blocks of a Nebula transcript (`nebula_owns`).
 
 The last four rows restate Rust tags that no Lean definition has: the circuit key digest, the
 two compression domains and the application identity (`SPEC.md` section 4.4, Algorithm 10). No
@@ -108,9 +108,9 @@ theorem separated_of_mem {use other : Use} (member : use ∈ uses) (otherMember 
   separated.forall member otherMember distinct.symm
 
 /-- A hash use owns the padded input of each input that starts with its tag. -/
-theorem hash_owns (padding : Sponge.Padding) {tag input : List F} (starts : tag <+: input) :
-    tag <+: (padding.pad input).flatten :=
-  starts.trans (padding.keeps input)
+theorem hash_owns {tag input : List F} (starts : tag <+: input) :
+    tag <+: (Sponge.padding.pad input).flatten :=
+  starts.trans (Sponge.padding.keeps input)
 
 theorem statePreimage_starts {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}

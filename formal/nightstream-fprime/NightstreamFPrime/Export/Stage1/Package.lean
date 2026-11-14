@@ -177,16 +177,16 @@ theorem proofInputStart_eq : Data.proofInputStart = 57826 := by
 theorem witnessStart_eq : Data.witnessStart = 75482 := by
   rfl
 
-theorem witnessLength_eq : Data.witnessLength = 11305328 := by
+theorem witnessLength_eq : Data.witnessLength = 11303136 := by
   rfl
 
 theorem circuitPackage_layout_values :
     let layout := (Data.circuitPackage ()).layout
-    layout.rowCount = 11317348 ∧
-      layout.privateColumnCount = 11414924 ∧
-      layout.constantColumn = 11414924 ∧
+    layout.rowCount = 11315156 ∧
+      layout.privateColumnCount = 11412732 ∧
+      layout.constantColumn = 11412732 ∧
       layout.publicColumnCount = 328 ∧
-      layout.totalColumnCount = 11415253 := by
+      layout.totalColumnCount = 11413061 := by
   rw [Data.circuitPackage_layout]
   dsimp [Data.physicalLayout]
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
@@ -1127,8 +1127,8 @@ theorem circuitPackage_implies_piCcsPhaseHolds
 
 private theorem hashChain_rows :
     Data.priorChain.witnessLength + Data.outputChain.witnessLength =
-      5284912 := by
-  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 5284912
+      5282720 := by
+  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 5282720
   norm_num [NightstreamFPrime.Layout.PilotValues.hashWitnessCount,
     NightstreamFPrime.Layout.PilotValues.absorbCount,
     NightstreamFPrime.Layout.PilotValues.stateHashWords,

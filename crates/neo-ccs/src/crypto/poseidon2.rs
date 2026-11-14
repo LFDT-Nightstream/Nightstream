@@ -56,6 +56,8 @@ pub fn permute_state(state: [Fq; WIDTH]) -> [Fq; WIDTH] {
     INSTANCE_16.permute(state)
 }
 
+/// `Spec.Poseidon2.hash`: the input with `10*` padding, in blocks of `RATE`
+/// words. The last block holds the words after the full blocks, then 1.
 pub fn poseidon2_hash(input: &[Fq]) -> [Fq; DIGEST_LEN] {
     let mut hasher = Poseidon2Hasher::default();
     hasher.update(input);
@@ -81,10 +83,7 @@ impl Poseidon2Hasher {
     }
 
     pub fn finalize(mut self) -> [Fq; DIGEST_LEN] {
-        if self.used != 0 {
-            self.state = permute_state(self.state);
-        }
-        self.state[0] += Fq::ONE;
+        self.state[self.used] += Fq::ONE;
         self.state = permute_state(self.state);
         self.state[..DIGEST_LEN]
             .try_into()

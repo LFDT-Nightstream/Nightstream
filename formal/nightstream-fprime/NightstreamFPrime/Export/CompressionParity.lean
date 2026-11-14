@@ -19,7 +19,7 @@ open NightstreamFPrime.Spec.Folding.Schedule (productionLightFoldCap)
 
 /-- The ring blocks of the light and the refresh relation of the reference application (Rust
 `Relation::blocks`). The Rust test fails when the relations have other counts. -/
-def productionBlocks : Fin 2 → ℕ := ![74530, 497376]
+def productionBlocks : Fin 2 → ℕ := ![74146, 496895]
 
 private def slice (s : Slice) : Lean.Json := Lean.toJson [s.offset, s.vars]
 

@@ -35,6 +35,11 @@ their constants from `params.json` and test against `vectors.json`.
 | `D`, width 12 | `[1, 2, −2, 3, −3, 4, −4, 5, 6, −6, −7, 8]` |
 | Round constants | SHAKE128 of a label that names `q`, the width, the degree, and the round counts; 8-byte little-endian words; a word that is not below `q` is rejected |
 
+The sponge hash `Spec.Poseidon2.hash` uses `10*` padding: after the full
+blocks of 12 words, the last block holds the `r < 12` other words in lanes 0
+to `r − 1` and 1 in lane `r`, so the padding is injective
+(`Spec.Poseidon2.blocks_injective`).
+
 The layer conventions and the order of the constants are those of Plonky3
 `p3-poseidon2` 0.5.3. So the shape of the step-circuit template does not
 change. Only the constants change.

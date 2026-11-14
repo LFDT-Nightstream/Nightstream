@@ -142,7 +142,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
     column < PackageOrder.SourceColumnCount := by
   have phaseValue := congrArg (fun starts : List Nat => starts[4]!)
     PiDECInputs.inputStarts_eq
-  change PiDECInputs.phaseOffset = 11414930 at phaseValue
+  change PiDECInputs.phaseOffset = 11412738 at phaseValue
   have sourceLower := PackageOrder.sourceColumnCount_ge_piDecPhaseOffset
   rw [phaseValue] at sourceLower
   apply Nat.lt_of_lt_of_le ?_ sourceLower
@@ -192,7 +192,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
                 PiCCSStarts.outputBindingWitnessStart_eq]
               unfold PiCCSStarts.initialClaimLogicalStart
               rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
-            _ ≤ 11414930 := by
+            _ ≤ 11412738 := by
               rw [PiCCSStarts.outputBindingWitnessStart_eq]
               norm_num)
   · exact Nat.lt_of_lt_of_le fresh.2 (by

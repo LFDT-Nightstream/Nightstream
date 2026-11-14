@@ -145,8 +145,8 @@ theorem valuePreimage_injective {value value' : Value} (fits : Fits value) (fits
 
 open StepPackage in
 /-- Two pairs of packages with one identity are equal, or their hash inputs are distinct and have
-one Poseidon2 hash. `Spec.Sponge.collision_blocks` turns the second case into a sponge collision
-under `Spec.Sponge.PaddingInjective`. -/
+one Poseidon2 hash. `Spec.Sponge.collision_blocks` turns the second case into a sponge collision.
+-/
 theorem identity_binds {light refresh light' refresh' : StepPackage.Package}
     (fits : Fits (identityValue light refresh)) (fits' : Fits (identityValue light' refresh'))
     (same : identity light refresh = identity light' refresh') :

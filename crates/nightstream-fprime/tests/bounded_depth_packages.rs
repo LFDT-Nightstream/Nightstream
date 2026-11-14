@@ -73,10 +73,7 @@ fn identity_code_matches_lean_on_the_probe_packages() {
 fn relation_rows_match_the_lean_checksum() {
     let fields = parity();
     let packages = packages();
-    for (package, summary, logical_rows) in [
-        (packages.light(), &fields[1], 112_458),
-        (packages.refresh(), &fields[2], 747_357),
-    ] {
+    for (package, summary) in [(packages.light(), &fields[1]), (packages.refresh(), &fields[2])] {
         let [ordinary, sbox, checksum, _, _, _] = words(summary)[..] else {
             panic!("a summary has six words");
         };
@@ -87,8 +84,11 @@ fn relation_rows_match_the_lean_checksum() {
             ordinary,
             "relation rows of circuit {circuit}"
         );
-        assert_eq!((rows.row_count() - rows.ordinary_row_count()) as u64, sbox);
-        assert_eq!(rows.row_count(), logical_rows, "census rows of circuit {circuit}");
+        assert_eq!(
+            rows.row_count() as u64,
+            ordinary + sbox,
+            "census rows of circuit {circuit}"
+        );
         assert_eq!(
             rows.ordinary_checksum(),
             checksum,

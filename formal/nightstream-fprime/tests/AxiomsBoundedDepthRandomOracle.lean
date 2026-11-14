@@ -366,8 +366,7 @@ import NightstreamFPrime.Spec.Nebula
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RandomOracleSetup.light_production_knowledge_error_lt_solvers
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RandomOracleSetup.refresh_production_knowledge_error_lt_solvers
 
-/-! The sponge pads with zeros and does not encode the length, so `[0]` and `[0, 0]` share a
-hash. A collision that the finder outputs has inputs of one length, and every witness of a
+/-! A collision that the finder outputs has inputs of one length, and every witness of a
 reached statement has the application's word count. -/
 
 example (collision : NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.HashSolver.PoseidonCollision) :

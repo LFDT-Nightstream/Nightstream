@@ -9,11 +9,10 @@ import NightstreamFPrime.Spec.Poseidon2
 indifferentiability theorem with the error `spongeError`. This file states the conditions of
 `[SPONGE]` as Lean predicates.
 
-- `PaddingInjective`: `Poseidon2.hash` is the sponge digest (`digest`) of a padding that is
-  injective, keeps its input as a prefix of the padded words and gives full rate blocks
-  (`Padding`). The branch `poseidon2-padding` discharges it; the zero padding of `hash` does not
-  meet it, because `hash m = hash (m ++ [0])` for a short `m`.
-- Under it, a collision of `hash` is a sponge collision on two distinct block lists
+- `Padding`: a padding that is injective, keeps its input as a prefix of the padded words and
+  gives full rate blocks. The `10*` padding of `Poseidon2.hash` is one (`padding`), and `hash` is
+  the sponge digest (`digest`) of its blocks (`hash_eq_digest`).
+- So a collision of `hash` is a sponge collision on two distinct block lists
   (`collision_blocks`).
 - Domain separation: two block lists whose words start with inputs that differ at a position of
   both are distinct (`blocks_ne_of_differ`), so two uses with such tags never absorb one block
@@ -46,9 +45,19 @@ structure Padding where
   nonempty : ∀ input, pad input ≠ []
   keeps : ∀ input, input <+: (pad input).flatten
 
-/-- The padding condition of `[SPONGE]` for `Poseidon2.hash`. -/
-def PaddingInjective : Prop :=
-  ∃ padding : Padding, ∀ input, Poseidon2.hash input = digest (padding.pad input)
+/-- The `10*` padding of `Poseidon2.hash` (`Poseidon2.blocks`) meets the conditions of
+`[SPONGE]`. -/
+def padding : Padding where
+  pad := Poseidon2.blocks
+  injective _ _ equal := Poseidon2.blocks_injective equal
+  full _ _ := Poseidon2.blocks_length
+  nonempty := Poseidon2.blocks_ne_nil
+  keeps input := by
+    rw [Poseidon2.blocks_flatten]
+    exact List.prefix_append _ _
+
+/-- `Poseidon2.hash` is the sponge digest of its padded blocks. -/
+theorem hash_eq_digest (input : List F) : Poseidon2.hash input = digest (padding.pad input) := rfl
 
 /-- The capacity term of `[SPONGE]` for `calls` permutation calls: `calls² / q^c`, with the
 capacity `c = width − rate = 4` lanes. -/
@@ -59,14 +68,11 @@ theorem spongeError_nonneg (calls : ℕ) : 0 ≤ spongeError calls := by
   unfold spongeError
   positivity
 
-/-- Under `PaddingInjective`, two distinct inputs with one hash give two distinct block lists
-with one sponge digest. -/
-theorem collision_blocks (padding : PaddingInjective) {left right : List F}
-    (distinct : left ≠ right) (same : Poseidon2.hash left = Poseidon2.hash right) :
-    ∃ blocks blocks', blocks ≠ blocks' ∧ digest blocks = digest blocks' := by
-  obtain ⟨padding, factors⟩ := padding
-  exact ⟨padding.pad left, padding.pad right, fun equal => distinct (padding.injective equal),
-    by rw [← factors, ← factors, same]⟩
+/-- Two distinct inputs with one hash give two distinct block lists with one sponge digest. -/
+theorem collision_blocks {left right : List F} (distinct : left ≠ right)
+    (same : Poseidon2.hash left = Poseidon2.hash right) :
+    padding.pad left ≠ padding.pad right ∧ digest (padding.pad left) = digest (padding.pad right) :=
+  ⟨fun equal => distinct (padding.injective equal), same⟩
 
 /-- Two block lists whose words start with inputs that differ at a position of both are
 distinct. -/
@@ -80,7 +86,7 @@ theorem blocks_ne_of_differ {blocks blocks' : List (List F)} {left right : List 
   rw [leftPrefix.getElem inLeft, rightPrefix.getElem inRight]
 
 /-- Two inputs that differ at a position of both have distinct padded block lists. -/
-theorem padded_ne_of_differ (padding : Padding) {left right : List F} {position : ℕ}
+theorem padded_ne_of_differ {left right : List F} {position : ℕ}
     (inLeft : position < left.length) (inRight : position < right.length)
     (differ : left[position] ≠ right[position]) : padding.pad left ≠ padding.pad right :=
   blocks_ne_of_differ (padding.keeps left) (padding.keeps right) inLeft inRight differ

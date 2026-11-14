@@ -529,21 +529,6 @@ theorem initialState64_denote :
     rfl
   · decide
 
-@[inline] private def pad64 (state : State64) : State64 :=
-  { state with
-    x0 := add64 state.x0 1
-    canonical := ⟨add64_canonical _ _ state.c0 (by decide), state.c1, state.c2, state.c3, state.c4, state.c5, state.c6, state.c7,
-      state.c8, state.c9, state.c10, state.c11, state.c12, state.c13, state.c14, state.c15⟩ }
-
-private theorem pad64_denote (state : State64) :
-    (pad64 state).denote = (List.range Poseidon2.width).map fun lane =>
-      if lane = 0 then state.denote.getD 0 0 + 1 else state.denote.getD lane 0 := by
-  simp only [pad64, State64.denote]
-  rw [add64_denote _ _ state.c0 (by decide)]
-  have oneDenote : (1 : UInt64).denote = (1 : F) := by decide
-  rw [oneDenote]
-  simp [Poseidon2.width, List.range_succ]
-
 structure Digest64 where
   x0 : UInt64
   x1 : UInt64
@@ -553,18 +538,19 @@ structure Digest64 where
 def Digest64.denote (digest : Digest64) : List F :=
   [digest.x0.denote, digest.x1.denote, digest.x2.denote, digest.x3.denote]
 
+/-- The padding block of `StreamingIdentity.finalize`: the pending words, then the word 1. -/
 private def finalState64 (state : HashState64) : State64 :=
-  State64.permute64 (pad64
-    (absorbWords64 state.sponge state.pending state.pendingCanonical))
+  absorbWords64 state.sponge (state.pending ++ [1]) (fun word member => by
+    rcases List.mem_append.mp member with pending | one
+    · exact state.pendingCanonical word pending
+    · rw [List.mem_singleton.mp one]
+      decide)
 
 private theorem finalState64_denote (state : HashState64) :
     (finalState64 state).denote =
-      let absorbed := Poseidon2.absorbBlock state.sponge.denote
-        (state.pending.map UInt64.denote)
-      Poseidon2.permute ((List.range Poseidon2.width).map fun lane =>
-        if lane = 0 then absorbed.getD 0 0 + 1 else absorbed.getD lane 0) := by
-  rw [finalState64, State64.permute64_denote, pad64_denote,
-    absorbWords64_denote]
+      Poseidon2.absorbBlock state.sponge.denote (state.pending.map UInt64.denote ++ [1]) := by
+  have oneDenote : (1 : UInt64).denote = (1 : F) := by decide
+  rw [finalState64, absorbWords64_denote, List.map_append, List.map_singleton, oneDenote]
 
 @[inline] def finalize64 (state : HashState64) : Digest64 :=
   let padded := finalState64 state

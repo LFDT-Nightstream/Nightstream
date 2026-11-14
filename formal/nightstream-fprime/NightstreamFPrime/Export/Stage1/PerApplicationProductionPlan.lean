@@ -126,7 +126,7 @@ def BlockKind.plan (application : ProgramApplication)
       (applicationGeometry application)
 
 def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
-  | .pilotPoseidon => 723300
+  | .pilotPoseidon => 723000
   | .piCcsPoseidon => 163650
   | .piCcsOrdinary => 43517
   | .pilotOrdinary => 596

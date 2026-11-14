@@ -57,22 +57,22 @@ def Target (column : Nat) : Prop :=
   ∃ source, Source source ∧ PackageOrder.sourceToPackage source = column
 
 @[simp] theorem parentCommitmentStart_eq :
-    parentCommitmentStart = 6696146 := by
+    parentCommitmentStart = 6693954 := by
   rfl
 
 @[simp] theorem parentPublicInputStart_eq :
-    parentPublicInputStart = 6702418 := by
+    parentPublicInputStart = 6700226 := by
   rfl
 
-@[simp] theorem parentEvalKStart_eq : parentEvalKStart = 6704786 := by
+@[simp] theorem parentEvalKStart_eq : parentEvalKStart = 6702594 := by
   rfl
 
-@[simp] theorem parentEvalAStart_eq : parentEvalAStart = 6713106 := by
+@[simp] theorem parentEvalAStart_eq : parentEvalAStart = 6710914 := by
   rfl
 
 @[simp] theorem parentStarts_eq :
     [parentCommitmentStart, parentPublicInputStart, parentEvalKStart,
-      parentEvalAStart] = [6696146, 6702418, 6704786, 6713106] := by
+      parentEvalAStart] = [6693954, 6700226, 6702594, 6710914] := by
   simp
 
 theorem parentCommitment (column : Nat)

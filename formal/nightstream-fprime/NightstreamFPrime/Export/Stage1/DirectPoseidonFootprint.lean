@@ -14,7 +14,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 def pilotPermutationCount : Nat :=
   2 * (PilotValues.absorbCount + 1)
 
-@[simp] theorem pilotPermutationCount_eq : pilotPermutationCount = 4822 := by
+@[simp] theorem pilotPermutationCount_eq : pilotPermutationCount = 4820 := by
   rfl
 
 def laterPermutationCount : Nat := 1091 + 34
@@ -37,14 +37,14 @@ theorem phaseInvocations_length (logicalWidth : Nat)
 def totalPermutationCount : Nat :=
   pilotPermutationCount + laterPermutationCount
 
-@[simp] theorem totalPermutationCount_eq : totalPermutationCount = 5947 := by
+@[simp] theorem totalPermutationCount_eq : totalPermutationCount = 5945 := by
   simp [totalPermutationCount]
 
 def directSboxFieldCount : Nat :=
   totalPermutationCount *
     PoseidonRetainedSlots.slots.length
 
-@[simp] theorem directSboxFieldCount_eq : directSboxFieldCount = 892050 := by
+@[simp] theorem directSboxFieldCount_eq : directSboxFieldCount = 891750 := by
   rw [directSboxFieldCount, totalPermutationCount_eq,
     PoseidonRetainedSlots.slots_length]
 
@@ -53,7 +53,7 @@ def directSboxCoordinateCount : Nat :=
     LowNormAssignment.logicalWidth PoseidonRetainedSlots.slots
 
 @[simp] theorem directSboxCoordinateCount_eq :
-    directSboxCoordinateCount = 36574050 := by
+    directSboxCoordinateCount = 36561750 := by
   rw [directSboxCoordinateCount, totalPermutationCount_eq,
     PoseidonRetainedSlots.slots_logicalWidth]
 

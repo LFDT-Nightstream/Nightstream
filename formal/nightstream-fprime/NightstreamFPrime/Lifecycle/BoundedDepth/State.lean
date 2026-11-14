@@ -175,9 +175,8 @@ theorem statePreimage_injective {left right : State logicalWidth publicFits}
     | ⟨1, _⟩ => exact digest1
 
 /-- A Poseidon2 collision on an input pair that two states fix: their state preimages, or the
-slot preimages of one slot. The two inputs have one length: `Poseidon2.hash` pads with zeros and
-does not encode the length, so inputs of two lengths can share a hash with no collision of the
-permutation. Slot preimages always have one length (`serializeSlot_length_eq`). -/
+slot preimages of one slot. The two inputs have one length. Slot preimages always have one
+length (`serializeSlot_length_eq`). -/
 def StateCollision (left right : State logicalWidth publicFits) : Prop :=
   (statePreimage left ≠ statePreimage right ∧
       (statePreimage left).length = (statePreimage right).length ∧

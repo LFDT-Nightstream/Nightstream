@@ -61,9 +61,10 @@ scope note.
   capacity is 4 lanes (`Spec.Sponge.spongeError`). `Spec.Sponge.Transfer`
   states the theorem for one use, and `Spec.Sponge.transfer_le` moves a bound
   of the use's random-oracle model to the ideal-permutation model. The theorem applies to a use only under its
-  conditions, which are Lean hypotheses: the hash pads injectively
-  (`Spec.Sponge.PaddingInjective`), each use absorbs an injective framing of its data, and
-  two uses never absorb the same block list (domain separation). Then two
+  conditions: the hash pads injectively, each use absorbs an injective framing of its data, and
+  two uses never absorb the same block list (domain separation). Lean proves the first for the
+  `10*` padding of `Spec.Poseidon2.hash` (`Spec.Sponge.padding`, `Spec.Sponge.hash_eq_digest`).
+  The other two are Lean hypotheses of each use. Then two
   distinct inputs give one 4-lane digest with probability at most `N²/q⁴` plus
   `spongeError N`, because they absorb distinct block lists
   (`Spec.Sponge.collision_blocks`). Two uses whose words start with tags that
@@ -94,7 +95,7 @@ the Rust code is held to the Lean definition (trust item 5).
 
 | Use | Lean definition | Injectivity | Rust parity |
 | --- | --- | --- | --- |
-| Hash padding | `Spec.Poseidon2.hash` | Finding: zero padding gives `hash(m) = hash(m ‖ 0)`. Branch `poseidon2-padding` changes the padding; until then `Spec.Sponge.PaddingInjective` is a hypothesis. | Vectors (`crates/neo-ccs/tests/poseidon2_lean_vectors.rs`) |
+| Hash padding | `Spec.Poseidon2.blocks` (`10*`) | `Spec.Poseidon2.blocks_injective`; `Spec.Sponge.padding` meets the conditions of `[SPONGE]` | Direct: Lean hash vectors (`artifacts/nightstream-fprime-poseidon2-hash-v1.json`, `crates/neo-ccs/tests/poseidon2_lean_vectors.rs`) |
 | State hash | `Lifecycle.BoundedDepth.statePreimage` | `Lifecycle.BoundedDepth.statePreimage_injective`, `Lifecycle.BoundedDepth.stateHash_collision` (well-formed states) | Indirect: the rows of the emitted packages (`crates/nightstream/tests/bounded_depth_base_steps.rs`) |
 | Slot digest | `Lifecycle.BoundedDepth.serializeSlot` | `Lifecycle.BoundedDepth.serializeSlot_injective` (shapes fixed by the type, depth below `q`) | Indirect, as above |
 | Fresh public input | `Lifecycle.encHash` | `Lifecycle.encHash_injective_fixed` | Indirect, as above |
@@ -340,11 +341,12 @@ not change terminal source checks.
   `Lifecycle.BoundedDepth.RandomOracle.RefreshSolver.kernelChance_le_solver`). The
   state-collision terms are the probability of a Poseidon2 collision on two
   named prior states, and a collision finder outputs the colliding input
-  pair, whose two inputs have one length (the sponge pads with zeros and does
-  not encode the length) (`Lifecycle.BoundedDepth.RandomOracle.HashSolver.hashCollisions_le_finder`).
-  Under `[P2-PERM]` and `[SPONGE]`, two distinct inputs of one length give
-  one digest with probability at most `N²/q⁴ + spongeError N`, when
-  `PaddingInjective` holds.
+  pair, whose two inputs have one length
+  (`Lifecycle.BoundedDepth.RandomOracle.HashSolver.hashCollisions_le_finder`).
+  Under `[P2-PERM]` and `[SPONGE]`, two distinct inputs give one digest with
+  probability at most `N²/q⁴ + spongeError N`, because the `10*` padding of
+  the sponge is injective (`Spec.Poseidon2.blocks_injective`,
+  `Spec.Sponge.collision_blocks`).
   Averaged over the SHAKE128 key setup at key width `2^26`, the kernel term is
   an MSIS advantage for a uniform matrix at the chain norm plus a programming
   error below `2^−192`, so each fold's bound uses only the two algorithms
@@ -666,7 +668,7 @@ not change terminal source checks.
      computes. Under `[P2-PERM]` and `[SPONGE]`, an algorithm with `N`
      permutation calls finds two distinct padded inputs with one digest with
      probability at most `N²/q⁴ + spongeError N`. Two distinct inputs of the
-     hash have distinct padded inputs only when `PaddingInjective` holds, and
+     hash have distinct padded inputs (`Spec.Sponge.collision_blocks`), and
      two distinct values of a row of section Hashed encodings have distinct
      inputs only by that row's injectivity theorem. The deployed permutation
      is fixed, so `[P2-PERM]` is a heuristic for it; algorithms that use its

@@ -29,7 +29,7 @@ def completeLogicalWidth
 theorem completeLogicalWidth_eq
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application =
-      46392230 + retainedCoordinateCount application := by
+      46379930 + retainedCoordinateCount application := by
   unfold completeLogicalWidth localStart witnessStart
   rw [PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth_eq]
   unfold retainedCoordinateCount
@@ -38,7 +38,7 @@ theorem completeLogicalWidth_eq
 theorem completeLogicalWidth_eq_applicationCounts
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application =
-      46392230 +
+      46379930 +
         (application.witnessWordCount + localCount application) * 41 := by
   rw [completeLogicalWidth_eq, retainedCoordinateCount_eq,
     retainedSlotCount_eq]
@@ -47,7 +47,7 @@ theorem completeLogicalWidth_le_twoPow28_iff
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application ≤
         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
-      application.witnessWordCount + localCount application ≤ 5415688 := by
+      application.witnessWordCount + localCount application ≤ 5415988 := by
   rw [completeLogicalWidth_eq_applicationCounts]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
   omega
@@ -57,7 +57,7 @@ theorem carrierWidth_le_twoPow28_iff
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
           (completeLogicalWidth application) ≤
         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
-      application.witnessWordCount + localCount application ≤ 5415688 := by
+      application.witnessWordCount + localCount application ≤ 5415988 := by
   rw [completeLogicalWidth_eq_applicationCounts]
   simp [NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth,
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteRingColumnLayout.blockCount,
@@ -72,7 +72,7 @@ structure FitsTwoPow28
 
 theorem fitsTwoPow28OfApplicationCounts
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : application.witnessWordCount + localCount application ≤ 5415688) :
+    (fits : application.witnessWordCount + localCount application ≤ 5415988) :
     FitsTwoPow28 application where
   complete :=
     (completeLogicalWidth_le_twoPow28_iff application).2 fits

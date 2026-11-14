@@ -56,6 +56,7 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightUniqueness
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightKnowledge
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshUniqueness
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge
+import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.FoldGate
 import NightstreamFPrime.Lifecycle.RandomOracle.Budgeted
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RomModel
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.Assumption1

@@ -5,7 +5,9 @@
 //!  2) extension policy v1 for field-space soundness factors; and
 //!  3) the production padded-row Π_CCS statistical census, which combines
 //!     the joint SumCheck, the paper mixing polynomial, and the corrected
-//!     coordinate-fork loss.
+//!     coordinate-fork loss; and
+//!  4) the statistical error of one fold that the fold gate charges, in
+//!     integers (Lean `FoldGate`).
 //!
 //! Symbols match the paper: q, η, d=φ(η), κ (kappa), m, b, k, B, T, s.
 //!
@@ -51,7 +53,15 @@ pub mod nightstream_p64_k16 {
     /// SuperNeo v1.2 Theorem 5 for a power-of-two cyclotomic ring: `T = 2·φ(η)`.
     pub const T: u32 = 128;
     pub const EXTENSION_DEGREE: u32 = 2;
-    pub const LAMBDA: u32 = 125;
+    /// The statistical target of `NeoParams::nightstream_p64_k16`, not a
+    /// bound. No gate certifies it: the census of each shape gives at most
+    /// 116 bits, and the fold error at most 112 (SPEC.md section 3). A gate
+    /// replaces it with the bits that it certifies (`NeoParams::with_lambda`).
+    /// Until then, the census check of the engines refuses the parameters.
+    pub const TARGET_LAMBDA: u32 = 125;
+    /// The law of a Π_RLC challenge is within `2^-173` of the uniform law on
+    /// the challenge set (Lean `PiRlcSampler.distance_lt`).
+    pub const CHALLENGE_DISTANCE_LOG2: u32 = 173;
     /// SuperNeo v1.2 Theorem 4: `floor(q^(1/2)/√2)`. A nonzero ring element
     /// with infinity norm at most this value is invertible.
     pub const B_INV_FLOOR: u64 = 3_037_000_499;
@@ -86,6 +96,20 @@ pub struct PaddedRowSecuritySummary {
     pub challenge_set_cardinality: BigUint,
     pub security_bits: u32,
     pub slack_bits: i32,
+    pub fold_error: FoldError,
+}
+
+/// The statistical error of one fold that the fold gate charges (Lean
+/// `FoldGate.error`), `count / denominator`: the Π_CCS test error at
+/// `2ℓ + 1 + S` challenges, and `S²` times `1/|C| + 2^-173`, the bound on
+/// the probability that one Π_RLC challenge takes a given value, with
+/// `S = 1 + k_rho`. `bits` is the largest `k` with
+/// `2^k · count ≤ denominator` (Lean `FoldGate.bits`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FoldError {
+    pub count: BigUint,
+    pub denominator: BigUint,
+    pub bits: u32,
 }
 
 #[derive(Error, Debug, PartialEq, Eq)]
@@ -241,7 +265,7 @@ impl NeoParams {
             nightstream_p64_k16::K_RHO,
             nightstream_p64_k16::T,
             nightstream_p64_k16::EXTENSION_DEGREE,
-            nightstream_p64_k16::LAMBDA,
+            nightstream_p64_k16::TARGET_LAMBDA,
         )
         .expect("Nightstream P64 k_rho=16 parameters")
     }
@@ -373,6 +397,7 @@ impl NeoParams {
         let total_denominator = &field_size * &challenge_set_cardinality;
         let security_bits = floor_log2_ratio(&total_denominator, &total_numerator);
         let slack_bits = signed_difference(security_bits, self.lambda);
+        let fold_error = self.fold_error(cube_variables, field_factor, &field_size, &challenge_set_cardinality);
 
         Ok(PaddedRowSecuritySummary {
             s_supported: self.s,
@@ -385,7 +410,29 @@ impl NeoParams {
             challenge_set_cardinality,
             security_bits,
             slack_bits,
+            fold_error,
         })
+    }
+
+    /// Lean `FoldGate.count` over `FoldGate.denominator`, with `field_size = q^s`.
+    fn fold_error(
+        &self,
+        cube_variables: u32,
+        field_factor: u128,
+        field_size: &BigUint,
+        challenge_set_cardinality: &BigUint,
+    ) -> FoldError {
+        let sources = BigUint::from(1 + u64::from(self.k_rho));
+        let challenges = BigUint::from(2 * u64::from(cube_variables) + 1) + &sources;
+        let distance = BigUint::from(1u8) << nightstream_p64_k16::CHALLENGE_DISTANCE_LOG2;
+        let count = challenges * field_factor * challenge_set_cardinality * &distance
+            + &sources * &sources * (field_size * &distance + field_size * challenge_set_cardinality);
+        let denominator = field_size * challenge_set_cardinality * distance;
+        FoldError {
+            bits: floor_log2_ratio(&denominator, &count),
+            count,
+            denominator,
+        }
     }
 
     pub fn pi_ccs_padded_row_field_factor_for_shape(

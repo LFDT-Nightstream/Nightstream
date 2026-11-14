@@ -9,6 +9,7 @@
 #   validate.sh lean-executable <built-Lean-executable> [arguments...]
 #   validate.sh pi-rlc-sampler-parity <path>
 #   validate.sh compression-parity <path>
+#   validate.sh fold-gate-parity <path>
 #   validate.sh ajtai-setup-v1-parity <path>
 #   validate.sh foundation-parity <directory>
 #   validate.sh all               static, both libraries, executables and census
@@ -93,6 +94,10 @@ case "$phase" in
   compression-parity)
     if (( $# != 2 )); then echo "usage: validate.sh compression-parity <path>" >&2; exit 2; fi
     capped lake exe emitCompressionParity -- "$2"
+    ;;
+  fold-gate-parity)
+    if (( $# != 2 )); then echo "usage: validate.sh fold-gate-parity <path>" >&2; exit 2; fi
+    capped lake exe emitFoldGateParity -- "$2"
     ;;
   foundation-parity)
     if (( $# != 2 )); then echo "usage: validate.sh foundation-parity <directory>" >&2; exit 2; fi

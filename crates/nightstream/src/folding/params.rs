@@ -26,21 +26,11 @@ impl Params {
         let alphabet = neo_params::nightstream_p64_k16::CHALLENGE_ALPHABET.len() as u32;
         let summary =
             inner.padded_row_security_summary_for_shape(rows, columns, matrix_count, poly_degree, alphabet)?;
-        // Lean `RefreshKnowledge.statisticalError 0`, the larger fold error,
-        // since either fold can run under either relation: the Π_CCS test
-        // error at each of the 2ℓ + 1 + sources transcript challenges, and
-        // the Π_RLC sample error `1/|C| + 2^-173` sources² times
-        // (`PiRlcSampler.distance_lt`).
-        let sources = f64::from(1 + inner.k_rho());
-        let challenges = 2.0 * f64::from(summary.cube_variables) + 1.0 + sources;
-        let test = (challenges * summary.field_factor as f64).log2() - f64::from(inner.s()) * (inner.q() as f64).log2();
-        let challenge_set = f64::from(alphabet).powi(inner.d() as i32);
-        let sample = sources * sources * (1.0 / challenge_set + (-173.0f64).exp2());
-        let fold_error_bits = -(test.exp2() + sample).log2();
-        let available = inner
-            .lambda()
-            .min(summary.security_bits)
-            .min(fold_error_bits.floor() as u32);
+        // Lean `FoldGate.bits`: the error that it charges bounds the
+        // statistical term of either fold's random-oracle result
+        // (`FoldGate.refresh_statisticalError_le_bits`,
+        // `FoldGate.light_statisticalError_le_bits`).
+        let available = summary.security_bits.min(summary.fold_error.bits);
         if available < minimum_security_bits {
             return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
                 required: minimum_security_bits,

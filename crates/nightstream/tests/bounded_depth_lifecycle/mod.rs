@@ -10,6 +10,7 @@ mod support;
 mod compression;
 mod compression_error;
 mod factored_rows;
+mod fold_gate;
 mod guard_fusion;
 #[cfg(feature = "metal")]
 mod metal_parity;

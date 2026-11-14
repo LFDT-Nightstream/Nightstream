@@ -101,7 +101,7 @@ impl Package {
     }
 
     /// The identity of the package's bounded-depth light and refresh packages.
-    fn bounded_depth_identity(self) -> [u64; 4] {
+    pub(crate) fn bounded_depth_identity(self) -> [u64; 4] {
         match self {
             Package::V1 => [
                 2_220_689_254_691_453_487,

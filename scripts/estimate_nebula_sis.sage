@@ -2,7 +2,7 @@
 
 These are the estimates of the prior profile: the Goldilocks prime and ring
 degree 54. `decisions/field-2p64-59-ring-x64.md` keeps their width limit as a
-count of coefficients for the profile Nightstream P64, k_rho = 16. No estimate
+count of coefficients for the profile Nightstream P64, k_rho = 14. No estimate
 was run for that profile with this script.
 
 Run with malb/lattice-estimator commit 3e48ef421ec256afddb3e7d2249a77eab6e9ba12:

@@ -3,6 +3,7 @@ import NightstreamFPrime.Spec.Sponge
 import NightstreamFPrime.Export.BoundedDepth.IdentityBinding
 import NightstreamFPrime.Export.DomainSeparation
 import NightstreamFPrime.Export.BoundedDepth.EtaSponge
+import NightstreamFPrime.Export.BoundedDepth.FoldSponge
 
 #audit_axioms NightstreamFPrime.Spec.Sponge.spongeError_nonneg
 #audit_axioms NightstreamFPrime.Spec.Sponge.collision_blocks
@@ -34,3 +35,10 @@ import NightstreamFPrime.Export.BoundedDepth.EtaSponge
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.EtaSponge.separated_eta
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.EtaSponge.conditions
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.EtaSponge.unbalanced_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FoldSponge.rho_length_ge
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FoldSponge.rho_ne
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FoldSponge.conditions
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FoldSponge.light_conditions
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FoldSponge.refresh_conditions
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FoldSponge.light_knowledge_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FoldSponge.refresh_knowledge_le

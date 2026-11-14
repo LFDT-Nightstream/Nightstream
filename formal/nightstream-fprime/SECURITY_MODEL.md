@@ -100,7 +100,7 @@ the Rust code is held to the Lean definition (trust item 5).
 | Fresh public input | `Lifecycle.encHash` | `Lifecycle.encHash_injective_fixed` | Indirect, as above |
 | Package identity | `Export.BoundedDepth.StepPackage.identity` | `Export.BoundedDepth.IdentityBinding.valuePreimage_injective`, `Export.BoundedDepth.IdentityBinding.identity_binds` (atoms and lengths below `2^64`) | Direct: `identity_code_matches_lean_on_the_probe_packages` |
 | Circuit key digest | None (`SPEC.md` section 4.4) | Open: Rust only | None |
-| Fold transcripts | `Lifecycle.RandomOracle.Schedule.challengeCalls` | `Lifecycle.RandomOracle.Schedule.challengeAddress_injective`, `Lifecycle.RandomOracle.Schedule.statementCalls_identify`, `Lifecycle.RandomOracle.Schedule.proverCalls_identify` | Indirect: package rows. The Π_RLC sampler is direct (`crates/neo-reductions/tests/pi_rlc_lean_parity.rs`) |
+| Fold transcripts | `Lifecycle.RandomOracle.Schedule.challengeCalls` | `Lifecycle.RandomOracle.Schedule.challengeAddress_injective`, `Lifecycle.RandomOracle.Schedule.statementCalls_identify`, `Lifecycle.RandomOracle.Schedule.proverCalls_identify`; disjoint lanes: `Export.BoundedDepth.FoldSponge.rho_ne` | Indirect: package rows. The Π_RLC sampler is direct (`crates/neo-reductions/tests/pi_rlc_lean_parity.rs`) |
 | Compression transcript and Akita session bytes | None | Open: no Lean model | None |
 | Nebula record chains | `Lifecycle.Nebula.blocks` | `Lifecycle.Nebula.blocks_injective`, `Lifecycle.Nebula.blockChunks_injective` | Direct: fixtures (`crates/nightstream/tests/nebula/memory.rs`) |
 | Nebula `η` | `Lifecycle.Nebula.etaInputBlocks` | `Lifecycle.Nebula.etaInputBlocks_injective`, `Lifecycle.Nebula.EtaOracle.pointOf_injective`; the four reads: `Export.BoundedDepth.EtaSponge.reads_injective` | Indirect: package rows |
@@ -358,7 +358,16 @@ not change terminal source checks.
   `spongeError N`, when every condition holds. The fold calls start with
   their domain (`Export.DomainSeparation.fold_owns`), and the fold domains
   are separated from the other uses (`Export.DomainSeparation.separated`).
-  No Lean statement applies `Spec.Sponge.Transfer` to the folds yet.
+  The model's answers at distinct points are independent, but a `Π_RLC`
+  draw reads lanes 0 to 4 and a coin of slot `s` reads lanes `2s` and
+  `2s + 1`. So a draw must never share its calls with a coin of slot 1 or 2:
+  it does not, because its calls are longer
+  (`Export.BoundedDepth.FoldSponge.rho_ne`). With these conditions proved
+  for every fold schedule (`Export.BoundedDepth.FoldSponge.conditions`), the
+  knowledge bound moves to the ideal-permutation model as the statistical
+  error plus `spongeError N`, with the collision and kernel terms as before
+  (`Export.BoundedDepth.FoldSponge.light_knowledge_le`,
+  `Export.BoundedDepth.FoldSponge.refresh_knowledge_le`).
 - **Not covered:** the step circuits recompute the challenges with the
   Poseidon2 permutation, and no ideal-permutation model covers a circuit
   that evaluates the permutation. So this result bounds no deployed check of

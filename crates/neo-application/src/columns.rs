@@ -12,12 +12,17 @@ impl From<usize> for ColumnId {
     }
 }
 
-/// Declared intrinsic width of a witness column.
+/// Declared range and enforcement policy of a witness column.
 ///
-/// This declaration is compilation input, not an enforcement mechanism.
-/// Relation construction must enforce it with constraints or a sound lookup
-/// mechanism. Witness-layout and proof-shape planners may consume it as fact,
-/// so an incorrect or unenforced declaration is a soundness error.
+/// Boolean, Byte, U32 and Bits request explicit range constraints. Implied and
+/// Repairable omit them and carry proof obligations instead. Soundness requires
+/// the application to discharge every such obligation against the actual relation
+/// with those checks omitted. Merely declaring or exporting an obligation does
+/// not prove it; this Rust metadata layer does not check the proof.
+///
+/// The proof method is application-specific: for example Rocq, Lean, or an SMT
+/// procedure that establishes the stated obligation. Neither annotation grants
+/// a narrower backend representation without a checked justification.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ColumnWidth {
     Boolean,
@@ -26,6 +31,14 @@ pub enum ColumnWidth {
     /// An unsigned value represented by exactly this many bits.
     /// Explicit Goldilocks decomposition supports widths `1..=63`.
     Bits(u8),
+    /// Requires proof that every accepted witness satisfies this unsigned bit bound
+    /// through other constraints. This is an obligation, not an established fact.
+    Implied(u8),
+    /// Requires proof that every accepted witness has an accepted bounded equivalent,
+    /// changing only this column and preserving all application-observable effects.
+    /// This does not assert that the original witness is bounded or prove application
+    /// soundness by itself; it justifies omitting this particular range check.
+    Repairable(u8),
     Field,
 }
 
@@ -60,7 +73,8 @@ impl ColumnFamilySpec {
 ///
 /// Scalar entries name their intrinsic width directly. Families use Rust's
 /// `[width; length]` array notation and generate arrays of absolute indices.
-/// Custom bit widths use `(Bits(n))` and `[(Bits(n)); length]` respectively.
+/// Bit bounds use `(Bits(n))`, `(Implied(n))`, or `(Repairable(n))`.
+/// Each also supports array notation, for example `[(Implied(32)); length]`.
 #[macro_export]
 macro_rules! define_column_region {
     (
@@ -104,7 +118,7 @@ macro_rules! define_column_region {
     (@declare $index_vis:vis, $idx:expr; $name:ident, $column_width:ident) => {
         $index_vis const $name: usize = $idx;
     };
-    (@declare $index_vis:vis, $idx:expr; $name:ident, (Bits($bits:expr))) => {
+    (@declare $index_vis:vis, $idx:expr; $name:ident, ($kind:ident($bits:expr))) => {
         $index_vis const $name: usize = $idx;
     };
     (@declare $index_vis:vis, $idx:expr; $name:ident, [$column_width:ident; $len:expr]) => {
@@ -118,7 +132,7 @@ macro_rules! define_column_region {
             indices
         };
     };
-    (@declare $index_vis:vis, $idx:expr; $name:ident, [(Bits($bits:expr)); $len:expr]) => {
+    (@declare $index_vis:vis, $idx:expr; $name:ident, [($kind:ident($bits:expr)); $len:expr]) => {
         $index_vis const $name: [usize; $len] = {
             let mut indices = [0; $len];
             let mut i = 0;
@@ -130,17 +144,17 @@ macro_rules! define_column_region {
         };
     };
     (@start $name:ident, $column_width:ident) => { $name };
-    (@start $name:ident, (Bits($bits:expr))) => { $name };
+    (@start $name:ident, ($kind:ident($bits:expr))) => { $name };
     (@start $name:ident, [$column_width:ident; $len:expr]) => { $name[0] };
-    (@start $name:ident, [(Bits($bits:expr)); $len:expr]) => { $name[0] };
+    (@start $name:ident, [($kind:ident($bits:expr)); $len:expr]) => { $name[0] };
     (@len $column_width:ident) => { 1usize };
-    (@len (Bits($bits:expr))) => { 1usize };
+    (@len ($kind:ident($bits:expr))) => { 1usize };
     (@len [$column_width:ident; $len:expr]) => { $len };
-    (@len [(Bits($bits:expr)); $len:expr]) => { $len };
+    (@len [($kind:ident($bits:expr)); $len:expr]) => { $len };
     (@width $column_width:ident) => { $crate::ColumnWidth::$column_width };
-    (@width (Bits($bits:expr))) => { $crate::ColumnWidth::Bits($bits) };
+    (@width ($kind:ident($bits:expr))) => { $crate::ColumnWidth::$kind($bits) };
     (@width [$column_width:ident; $len:expr]) => { $crate::ColumnWidth::$column_width };
-    (@width [(Bits($bits:expr)); $len:expr]) => { $crate::ColumnWidth::Bits($bits) };
+    (@width [($kind:ident($bits:expr)); $len:expr]) => { $crate::ColumnWidth::$kind($bits) };
 }
 
 /// Complete, ordered ownership map for an application witness vector.
@@ -173,7 +187,7 @@ impl ColumnRegistry {
                     name: family.name.clone(),
                 });
             }
-            if let ColumnWidth::Bits(bits) = family.width {
+            if let ColumnWidth::Bits(bits) | ColumnWidth::Implied(bits) | ColumnWidth::Repairable(bits) = family.width {
                 if bits == 0 || bits > 63 {
                     return Err(ColumnRegistryError::InvalidBitWidth {
                         name: family.name.clone(),

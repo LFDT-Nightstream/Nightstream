@@ -1268,7 +1268,6 @@ fn stack_replacements_bind_prior_values_in_nebula() {
         for invocation in run.segment(&traced.inputs).unwrap() {
             assert!(failing(&relation, &invocation.words).is_empty());
         }
-        let width = traced.rows[0].len();
         let replacements: Vec<_> = traced
             .rows
             .iter()
@@ -1283,7 +1282,8 @@ fn stack_replacements_bind_prior_values_in_nebula() {
                 neo_wasm::layout::COL_STACK_READ_VALUE_HI[0],
             ] {
                 let mut inputs = traced.inputs.clone();
-                inputs[index / rows].z[(index % rows) * width + prior] += F::ONE;
+                let (step, position) = setup.position(&app, index, prior);
+                inputs[step].z[position] += F::ONE;
                 let (_, mut run) = setup.run(&app, traced);
                 assert!(run.segment(&inputs).is_err(), "RMW must check both prior limbs");
             }

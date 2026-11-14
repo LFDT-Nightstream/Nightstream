@@ -74,6 +74,18 @@ packed word fits 32 bits and that remainder and division recover the two
 references. The theorem is included in the audit; it does not add host execution
 to the proved instruction fragment.
 
+`ColumnWidth::Implied(bits)` and `ColumnWidth::Repairable(bits)` omit explicit
+range constraints and decomposition bits. The exporter lists every annotated
+column in `Columns.rangeObligations`, including each element of an annotated
+family. `RangeObligations.range_obligations_sound` must discharge the entire list
+and is included in `auditedResults`. An implied bound holds for every accepted
+witness. A repairable bound requires an accepted bounded replacement that changes
+only that column and preserves memory events and continuity. Add the appropriate
+proof when adding or changing an annotation, then regenerate and run `make audit`.
+Neither annotation alone grants a narrower backend representation or changes the
+witness assignment. These obligations do not extend the instruction refinement's
+supported fragment.
+
 Requires the repository Rust toolchain (see `rust-toolchain.toml`), opam, and the
 checked versions of Coq/Rocq 9.0.1, MathComp ssreflect 2.4.0, and RecordUpdate 0.3.6:
 
@@ -93,8 +105,9 @@ files with the command below, then rebuild. `make` also generates the witness tr
 and rewrites only those that changed; `make traces` runs that step alone. SpecTec is not needed to build the
 checked-in `Wasm2.v`.
 
-Run `make audit` (requires Python 3) to build and print `run_refinement`
-and its assumptions. It fails if axiom names differ from `scripts/audit.expected`
+Run `make audit` (requires Python 3) to build the proofs and check the assumptions
+of `auditedResults` in `Audit.v`. The `Check` commands only display theorem types.
+The audit fails if axiom names differ from `scripts/audit.expected`
 or the report cannot be parsed. Review changes before editing that file; changes
 to existing axioms' types are not detected.
 

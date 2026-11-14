@@ -19,7 +19,7 @@ pub struct RangeCheckBitFamily {
 /// Number of explicit decomposition bits required by one declared column.
 pub const fn decomposition_bit_count(width: ColumnWidth) -> usize {
     match width {
-        ColumnWidth::Boolean | ColumnWidth::Field => 0,
+        ColumnWidth::Boolean | ColumnWidth::Field | ColumnWidth::Implied(_) | ColumnWidth::Repairable(_) => 0,
         ColumnWidth::Byte => 8,
         ColumnWidth::U32 => 32,
         ColumnWidth::Bits(bits) => {
@@ -118,13 +118,17 @@ impl RangeCheckLayout {
 
     /// Emit the standard Booleanity and recomposition rows. Each base family
     /// supplies the row label, while `owner` supplies the application domain.
+    ///
+    /// Implied and Repairable declarations emit no rows. Soundness requires the
+    /// application to discharge their obligations as specified by [`ColumnWidth`];
+    /// this pass neither checks those proofs nor repairs witnesses.
     pub fn push_constraints<Owner: Clone>(&self, builder: &mut TaggedR1csBuilder<'_, Owner>, owner: Owner) {
         for family in self.columns.families() {
             if family.start >= self.base_column_count {
                 break;
             }
             match family.width {
-                ColumnWidth::Field => {}
+                ColumnWidth::Field | ColumnWidth::Implied(_) | ColumnWidth::Repairable(_) => {}
                 ColumnWidth::Boolean => {
                     builder.with_tag(ConstraintTag::new(family.name.clone(), owner.clone()), |builder| {
                         for column in family.start..family.end() {
@@ -197,8 +201,9 @@ const fn variable_width(width: ColumnWidth) -> usize {
         ColumnWidth::U32 => 32,
         ColumnWidth::Bits(bits) => bits as usize,
         // Goldilocks is not exactly 64 bits wide, but its canonical field
-        // elements require a 64-bit representation.
-        ColumnWidth::Field => 64,
+        // elements require a 64-bit representation. Proof obligations alone do
+        // not authorize a narrower representation of the supplied witness.
+        ColumnWidth::Field | ColumnWidth::Implied(_) | ColumnWidth::Repairable(_) => 64,
     }
 }
 

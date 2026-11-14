@@ -121,22 +121,28 @@ fn exported_macro_declares_contiguous_indices_and_families() {
 #[test]
 fn column_registry_rejects_invalid_custom_bit_widths() {
     for bits in [0, 64] {
-        let error = ColumnRegistry::new([ColumnFamilySpec {
-            region: "invalid",
-            start: 0,
-            len: 1,
-            name: "INVALID_BITS".into(),
-            role: "invalid custom-width value",
-            width: ColumnWidth::Bits(bits),
-        }])
-        .expect_err("custom widths outside 1..=63 must be rejected");
-        assert_eq!(
-            error,
-            ColumnRegistryError::InvalidBitWidth {
+        for width in [
+            ColumnWidth::Bits(bits),
+            ColumnWidth::Implied(bits),
+            ColumnWidth::Repairable(bits),
+        ] {
+            let error = ColumnRegistry::new([ColumnFamilySpec {
+                region: "invalid",
+                start: 0,
+                len: 1,
                 name: "INVALID_BITS".into(),
-                bits,
-            }
-        );
+                role: "invalid custom-width value",
+                width,
+            }])
+            .expect_err("custom widths outside 1..=63 must be rejected");
+            assert_eq!(
+                error,
+                ColumnRegistryError::InvalidBitWidth {
+                    name: "INVALID_BITS".into(),
+                    bits,
+                }
+            );
+        }
     }
 }
 

@@ -1,7 +1,7 @@
 (* Locate concrete rows by shape; the kernel checks each resulting lookup.
    Search is proof automation, not an additional assumption about the circuit. *)
 From Stdlib Require Import List ZArith Bool Lia.
-Require Import R1CS Columns FullRelation Range Selectors ZeroTest.
+Require Import R1CS Columns FullRelation Range Selectors ZeroTest OpcodeCatalog.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -27,7 +27,7 @@ Ltac circuit_boolean column name :=
     clear Hrow
   end.
 
-Ltac circuit_range column name :=
+Ltac circuit_explicit_range column name :=
   let found := eval vm_compute in (findRow
     (fun row => let '(a, _, _) := row in
       rangeRowChecked FullRelation.rows column (length a) row) FullRelation.rows) in
@@ -67,6 +67,87 @@ Ltac circuit_zero_test input inverse flag name :=
   end.
 
 Ltac expand_row H := unfold sat in H; cbn [eval fold_right] in H; normalize_columns.
+
+(* SPEC.md section 7.6: these widths follow from retained circuit rows. *)
+Lemma full_opcode_code_bound : forall w,
+  fieldPrime -> FullRelation.satFull w -> 0 <= w COL_OPCODE_CODE <= 4294967295.
+Proof.
+  intros w Hprime Hfull.
+  destruct (full_opcode_selectors_one_hot w Hprime Hfull) as [Hbits _].
+  assert (Hterms : Forall (fun '(column, coeff) =>
+    0 <= coeff /\ (w column = 0 \/ w column = 1)) selectorCodes).
+  { apply Forall_forall. intros [column coeff] Hin. split.
+    - pose proof (proj1 (Forall_forall _ _) opcode_codes_bounded _ Hin). cbn in H. lia.
+    - apply (proj1 (Forall_forall _ _) Hbits).
+      apply opcode_selector_columns. change (In (fst (column, coeff)) (map fst selectorCodes)).
+      apply in_map. exact Hin. }
+  pose proof (bits_bound w selectorCodes Hterms) as Hsum.
+  assert (Hmax : eval (fun _ => 1) selectorCodes = 139508) by (vm_compute; reflexivity).
+  rewrite Hmax in Hsum.
+  pose proof (Range.in_full_sat w _ (proj2 Hfull) opcode_decode_in_full) as Hrow.
+  unfold sat, opcodeDecodeRow in Hrow.
+  change (((1 * w COL_OPCODE_CODE + eval w (map (fun '(c,k) => (c,-k)) selectorCodes)) *
+    (1 * w COL_ONE + 0) - 0) mod modulus = 0) in Hrow.
+  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  rewrite eval_negated_terms, Hone in Hrow.
+  pose proof (value_bound w COL_OPCODE_CODE). field_linear Hrow.
+Qed.
+
+Lemma full_stack_reads_bound : forall w,
+  fieldPrime -> FullRelation.satFull w -> 0 <= w COL_STACK_READS <= 4294967295.
+Proof.
+  intros w Hprime Hfull. assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_boolean (List.nth 0 COL_STACK_READ_ACTIVE 0%nat) H0.
+  circuit_boolean (List.nth 1 COL_STACK_READ_ACTIVE 0%nat) H1.
+  circuit_boolean (List.nth 2 COL_STACK_READ_ACTIVE 0%nat) H2.
+  circuit_row ([(List.nth 0 COL_STACK_READ_ACTIVE 0%nat,1);
+    (List.nth 1 COL_STACK_READ_ACTIVE 0%nat,1); (List.nth 2 COL_STACK_READ_ACTIVE 0%nat,1);
+    (COL_STACK_READS,-1)], [(COL_ONE,1)], ([] : SparseRow)) Hrow.
+  pose proof (value_bound w COL_STACK_READS).
+  expand_row Hrow. rewrite Hone in Hrow. field_linear Hrow.
+Qed.
+
+Lemma full_stack_writes_bound : forall w,
+  fieldPrime -> FullRelation.satFull w -> 0 <= w COL_STACK_WRITES <= 4294967295.
+Proof.
+  intros w Hprime Hfull. assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_boolean COL_STACK_WRITE0_ACTIVE Hbit.
+  circuit_row ([(COL_STACK_WRITE0_ACTIVE,1); (COL_STACK_WRITES,-1)], [(COL_ONE,1)], ([] : SparseRow)) Hrow.
+  pose proof (value_bound w COL_STACK_WRITES).
+  expand_row Hrow. rewrite Hone in Hrow. field_linear Hrow.
+Qed.
+
+Lemma full_import_schedule_counts_bound : forall w,
+  fieldPrime -> FullRelation.satFull w -> 0 <= w COL_HOST_IMPORT_SCHEDULE_COUNTS <= 4294967295.
+Proof.
+  intros w Hprime Hfull. assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_explicit_range COL_HOST_INITIAL_COUNT Hlo. circuit_explicit_range COL_HOST_RETURN_COUNT Hhi.
+  circuit_row ([(COL_HOST_IMPORT_SCHEDULE_COUNTS,1); (COL_HOST_INITIAL_COUNT,-1);
+    (COL_HOST_RETURN_COUNT,-65536)], [(COL_ONE,1)], ([] : SparseRow)) Hrow.
+  pose proof (value_bound w COL_HOST_IMPORT_SCHEDULE_COUNTS).
+  expand_row Hrow. rewrite Hone in Hrow. field_linear Hrow.
+Qed.
+
+Lemma full_max_memory_pages_after_bound : forall w,
+  fieldPrime -> FullRelation.satFull w -> 0 <= w COL_MAX_MEMORY_PAGES_AFTER <= 4294967295.
+Proof.
+  intros w Hprime Hfull. assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_explicit_range COL_MAX_MEMORY_PAGES_BEFORE Hbefore.
+  circuit_row ([(COL_MAX_MEMORY_PAGES_AFTER,1); (COL_MAX_MEMORY_PAGES_BEFORE,-1)],
+    [(COL_ONE,1)], ([] : SparseRow)) Hrow.
+  pose proof (value_bound w COL_MAX_MEMORY_PAGES_AFTER).
+  expand_row Hrow. rewrite Hone in Hrow. field_linear Hrow.
+Qed.
+
+Ltac circuit_range column name :=
+  match goal with Hprime : fieldPrime, Hfull : FullRelation.satFull ?w |- _ =>
+    first [constr_eq column COL_OPCODE_CODE; pose proof (full_opcode_code_bound w Hprime Hfull) as name
+    | constr_eq column COL_STACK_READS; pose proof (full_stack_reads_bound w Hprime Hfull) as name
+    | constr_eq column COL_STACK_WRITES; pose proof (full_stack_writes_bound w Hprime Hfull) as name
+    | constr_eq column COL_HOST_IMPORT_SCHEDULE_COUNTS; pose proof (full_import_schedule_counts_bound w Hprime Hfull) as name
+    | constr_eq column COL_MAX_MEMORY_PAGES_AFTER; pose proof (full_max_memory_pages_after_bound w Hprime Hfull) as name
+    | circuit_explicit_range column name]
+  end.
 
 Lemma full_aux_selectors_zero : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w -> w COL_IS_PROGRAM_ROW = 0 ->

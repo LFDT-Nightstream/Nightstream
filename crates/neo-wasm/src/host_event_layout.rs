@@ -44,7 +44,7 @@ define_column_region! {
         COL_HOST_CONTEXT_ARGS_BASE: (Bits(HOST_CONTEXT_HALF_BITS)) => "saved argument base",
         COL_HOST_CONTEXT_PARENT_DEPTH: (Bits(HOST_CONTEXT_HALF_BITS)) => "saved parent host depth",
         COL_HOST_CONTEXT_SP: U32 => "saved stack pointer",
-        COL_HOST_IMPORT_SCHEDULE_COUNTS: U32 => "packed schedule counts: import call/return, or export entry/exit",
+        COL_HOST_IMPORT_SCHEDULE_COUNTS: (Implied(32)) => "packed schedule counts: import call/return, or export entry/exit",
         COL_HOST_INITIAL_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "low half: import call-block or export entry-block count plus one",
         COL_HOST_RETURN_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "high half: zero for atomic, otherwise one plus the import return-schedule length; the exit count of an export",
         COL_HOST_RETURN_COUNT_IS_ZERO: Boolean => "selected import is atomic",

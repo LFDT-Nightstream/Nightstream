@@ -3,6 +3,7 @@ import NightstreamFPrime.Spec.FlatMap
 import NightstreamFPrime.Spec.Relation
 import NightstreamFPrime.Spec.Profile
 import NightstreamFPrime.Spec.Poseidon2
+import NightstreamFPrime.Spec.Sponge
 import NightstreamFPrime.Spec.SumCheck
 import NightstreamFPrime.Spec.Folding
 import NightstreamFPrime.Spec.HyperNova

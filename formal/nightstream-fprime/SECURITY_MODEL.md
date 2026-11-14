@@ -58,12 +58,17 @@ scope note.
   nonempty list of 12-lane rate blocks to the rate lanes of the sponge state
   is indifferentiable from a uniform function on such lists. The advantage is
   at most `spongeError N = N²/q⁴` for `N` permutation calls, because the
-  capacity is 4 lanes. The theorem applies to a use only under its
+  capacity is 4 lanes (`Spec.Sponge.spongeError`). `Spec.Sponge.Transfer`
+  states the theorem for one use, and `Spec.Sponge.transfer_le` moves a bound
+  of the use's random-oracle model to the ideal-permutation model. The theorem applies to a use only under its
   conditions, which are Lean hypotheses: the hash pads injectively
-  (`PaddingInjective`), each use absorbs an injective framing of its data, and
+  (`Spec.Sponge.PaddingInjective`), each use absorbs an injective framing of its data, and
   two uses never absorb the same block list (domain separation). Then two
   distinct inputs give one 4-lane digest with probability at most `N²/q⁴` plus
-  `spongeError N`.
+  `spongeError N`, because they absorb distinct block lists
+  (`Spec.Sponge.collision_blocks`). Two uses whose words start with tags that
+  differ at a position of both never absorb one block list
+  (`Spec.Sponge.blocks_ne_of_differ`).
 - `KECCAK`: SHAKE128, SHAKE256, SHA3-256 and the Keccak-f duplex of Akita in
   the classical random-oracle model: the Ajtai setup reads SHAKE128 output
   chunks as uniform words (trust item 1), and Akita reads its challenges as
@@ -89,7 +94,7 @@ the Rust code is held to the Lean definition (trust item 5).
 
 | Use | Lean definition | Injectivity | Rust parity |
 | --- | --- | --- | --- |
-| Hash padding | `Spec.Poseidon2.hash` | Finding: zero padding gives `hash(m) = hash(m ‖ 0)`. Branch `poseidon2-padding` changes the padding; until then `PaddingInjective` is a hypothesis. | Vectors (`crates/neo-ccs/tests/poseidon2_lean_vectors.rs`) |
+| Hash padding | `Spec.Poseidon2.hash` | Finding: zero padding gives `hash(m) = hash(m ‖ 0)`. Branch `poseidon2-padding` changes the padding; until then `Spec.Sponge.PaddingInjective` is a hypothesis. | Vectors (`crates/neo-ccs/tests/poseidon2_lean_vectors.rs`) |
 | State hash | `Lifecycle.BoundedDepth.statePreimage` | `Lifecycle.BoundedDepth.statePreimage_injective`, `Lifecycle.BoundedDepth.stateHash_collision` (well-formed states) | Indirect: the rows of the emitted packages (`crates/nightstream/tests/bounded_depth_base_steps.rs`) |
 | Slot digest | `Lifecycle.BoundedDepth.serializeSlot` | `Lifecycle.BoundedDepth.serializeSlot_injective` (shapes fixed by the type, depth below `q`) | Indirect, as above |
 | Fresh public input | `Lifecycle.encHash` | `Lifecycle.encHash_injective_fixed` | Indirect, as above |

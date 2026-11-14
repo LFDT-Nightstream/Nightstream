@@ -1352,6 +1352,7 @@ dependencies = [
  "neo-ccs",
  "neo-math",
  "nightstream",
+ "nightstream-fprime",
  "p3-field",
  "serde_json",
  "thiserror",

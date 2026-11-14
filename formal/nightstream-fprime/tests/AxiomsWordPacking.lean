@@ -1,0 +1,29 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Export.Generic.WordPacking
+
+open NightstreamFPrime.Export.Generic
+
+#audit_axioms BoundedWord.packNat_lt
+#audit_axioms BoundedWord.packNat_injective
+#audit_axioms BoundedWord.bitNat_le
+#audit_axioms BoundedWord.bitNat_field
+#audit_axioms BoundedWord.pack_field
+#audit_axioms BoundedWord.nat_bound
+#audit_axioms BoundedWord.packed_implies_equal
+#audit_axioms BoundedWord.equal_implies_packed
+#audit_axioms BoundedWord.common_guard_iff
+#audit_axioms WordPacking.linear_eval
+#audit_axioms WordPacking.row_iff
+#audit_axioms WordPacking.equal_swap
+#audit_axioms WordPacking.scaled_guard
+#audit_axioms WordPacking.source_row_iff
+#audit_axioms WordPacking.same_equal
+#audit_axioms WordPacking.group_iff
+#audit_axioms WordPacking.Certificate.valid
+#audit_axioms WordPacking.certified_valid
+#audit_axioms WordPacking.certified_bits
+#audit_axioms WordPacking.retained_iff
+#audit_axioms WordPacking.Certificate.logical_norm
+#audit_axioms WordPacking.matched_source_iff
+#audit_axioms WordPacking.rows_iff_of_members
+#audit_axioms WordPacking.ordered_iff

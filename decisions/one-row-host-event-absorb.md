@@ -19,7 +19,7 @@ its hash and block layout are fixed by `neo_application::event_commitment`.
 
 ## Decision
 
-The owner chose this design on 2026-11-09.
+The host-event chain uses this design.
 
 1. **Absorb on the gather row.** The gather row that stages slot seven of a
    block that is not advice folds the block into the chain on that row:
@@ -29,10 +29,13 @@ The owner chose this design on 2026-11-09.
    not change, so the chain digest of a run is the digest of the earlier
    design. `previous` is the chain before the row, or the restored outer chain
    when the row also copies the last root lane of an opaque object.
-3. **One gadget on every row.** Each row holds the R1CS form of
-   `commit_block` for its own inputs, and only the absorb row reads its
-   output. This costs every row the permutation's witness columns. Only some
-   rows could carry it (typed rows); that is a separate choice.
+3. **One shared gadget per group.** A multirow Nebula step uses one block
+   for each group of at most eight consecutive rows, with a final short group
+   when needed. Each absorbing row binds all 12 input lanes and four output
+   lanes. The checked cursor equations and row links exclude two absorbs in
+   one group. Soundness does not need that exclusion. The one-row constructor
+   keeps the original relation and witness layout. The source one-row WASM
+   relation remains unchanged. The rule is in `SPEC.md` section 7.6.
 4. **The staged word in the trace.** A gather row records its word
    (`WasmVmStep::host_event_word`), because the absorb row clears the buffer
    that held it.

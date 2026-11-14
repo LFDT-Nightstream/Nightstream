@@ -8,7 +8,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::expand::{mix, PlanRows};
 use super::{Linear, Piece, StepPackage};
-use crate::package::{PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, RING_DEGREE, RING_NODES, SBOX_ROWS};
+use crate::package::{PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, RING_DEGREE};
 use crate::witness::{execute_witness_batch, WitnessBatch};
 
 /// Something that fills columns from `start` in column order.
@@ -80,6 +80,21 @@ fn ring_operands(cells: usize, cell: usize, lanes: &[Linear], columns: &[Fq]) ->
 }
 
 impl StepPackage {
+    pub fn source_assignment(&self, logical: &[Fq]) -> Result<Vec<Fq>, PackageError> {
+        if logical.first() != Some(&Fq::ONE) {
+            return Err(PackageError::Input("bounded-depth constant column"));
+        }
+        let mut columns = self.layout()?.source_assignment(logical)?;
+        columns.resize(self.source_end(), Fq::ZERO);
+        for (output, form) in self.output_forms()? {
+            columns[output] = form.iter().fold(Fq::ZERO, |sum, &(column, coefficient)| {
+                sum + coefficient * columns[column]
+            });
+        }
+        self.field_lowering.reconstruct(&mut columns)?;
+        Ok(columns)
+    }
+
     /// The circuit's columns below `first_fresh` from `shared`, the columns
     /// below the first local: column 0 is the constant 1. A block's 1,080 dead
     /// locals stay 0, because no row reads them (`Frame.Framed`).
@@ -161,9 +176,10 @@ impl StepPackage {
     /// its row `a * b = f` and each ring piece's quotients. The S-box columns
     /// come first, because a row can read the form of a block output, which
     /// is over S-box columns. A block's lanes read only circuit columns and
-    /// outputs of blocks before it.
+    /// outputs of blocks before it. Finally, fill the companions, parity
+    /// pairs and zero-product sums (`SPEC.md` sections 7.9 and 7.10).
     pub fn relation_columns(&self, mut columns: Vec<Fq>, rows: &PlanRows) -> Result<Vec<Fq>, PackageError> {
-        let width = self.sbox_start + SBOX_ROWS * self.block_count();
+        let width = self.source_end();
         columns.resize(width, Fq::ZERO);
         for row in rows.ordinary_row_count()..rows.row_count() {
             let [(column, _)] = rows.port(row, 2).collect::<Vec<_>>()[..] else {
@@ -171,19 +187,20 @@ impl StepPackage {
             };
             columns[column] = rows.evaluate(row, 3, &columns).exp_u64(7);
         }
+        if rows.piece_ranges().len() != self.pieces.len() {
+            return Err(PackageError::Malformed("bounded-depth witness row pieces"));
+        }
         let mut next = self.first_fresh;
-        let mut row = 0;
-        for piece in &self.pieces {
+        for (piece, range) in self.pieces.iter().zip(rows.piece_ranges()) {
             match piece {
-                Piece::Rows(lowered) => {
-                    for _ in lowered {
+                Piece::Rows(_) => {
+                    for row in range.clone() {
                         if let [(column, coefficient)] = rows.port(row, 2).collect::<Vec<_>>()[..] {
                             if column == next && coefficient == Fq::ONE {
                                 columns[column] = rows.evaluate(row, 0, &columns) * rows.evaluate(row, 1, &columns);
                                 next += 1;
                             }
                         }
-                        row += 1;
                     }
                 }
                 Piece::Ring {
@@ -199,13 +216,25 @@ impl StepPackage {
                         columns[target..target + RING_DEGREE].copy_from_slice(&coefficients);
                     }
                     next += RING_DEGREE * cells;
-                    row += RING_NODES * cells;
                 }
                 Piece::Block { .. } => {}
             }
         }
         if next != self.sbox_start {
             return Err(PackageError::Malformed("bounded-depth fresh columns end"));
+        }
+        for (index, &source) in self.packed_booleans.sources.iter().enumerate() {
+            columns[self.packed_booleans.start + index] = Fq::ONE - columns[source];
+        }
+        self.field_lowering.reconstruct(&mut columns)?;
+        for (index, product) in self.packed_booleans.products.iter().enumerate() {
+            let column = self.packed_booleans.product_start() + 2 * index;
+            columns[column] =
+                columns[product.left] + columns[product.right] - Fq::from_u64(2) * columns[product.output];
+            columns[column + 1] = Fq::ONE - columns[column];
+        }
+        for (index, zero) in self.packed_booleans.zeros.iter().enumerate() {
+            columns[self.packed_booleans.zero_start() + index] = zero.left.value(&columns) + zero.right.value(&columns);
         }
         Ok(columns)
     }

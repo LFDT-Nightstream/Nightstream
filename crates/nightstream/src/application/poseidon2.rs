@@ -1,4 +1,4 @@
-//! Independent application builder for the existing Poseidon2HashChainV1.
+//! Poseidon2 application hashes and the existing Poseidon2HashChainV1.
 //! The round schedule follows Gadgets/Poseidon2/{Hash,Permutation,Layer}.lean.
 //! It consumes no exported application constraints or witness recipes.
 
@@ -31,16 +31,29 @@ pub fn poseidon2_hash_chain_v1() -> Result<ApplicationCircuit, ApplicationError>
         .collect();
     preimage.extend(builder.input_state().map(Affine::from));
     preimage.extend(builder.private_inputs().iter().copied().map(Affine::from));
-    let mut state = std::array::from_fn(|_| scalar(0));
-    for block in preimage.chunks(RATE) {
-        for (lane, value) in state.iter_mut().enumerate() {
-            *value = value.clone() + block.get(lane).cloned().unwrap_or_else(|| scalar(0));
+    let output = builder.poseidon2_hash(&preimage)?;
+    builder.finish(output)
+}
+
+impl ApplicationBuilder {
+    /// Hashes field expressions with the native Poseidon2 absorb/finalize rule.
+    /// The caller must include a domain and lengths for variable-length inputs.
+    /// Compilation validates each permutation before using its native block.
+    pub fn poseidon2_hash(&mut self, preimage: &[Affine]) -> Result<[Affine; 4], ApplicationError> {
+        for value in preimage {
+            self.validate(value, true)?;
         }
-        state = permutation(&mut builder, state)?;
+        let mut state = std::array::from_fn(|_| scalar(0));
+        for block in preimage.chunks(RATE) {
+            for (lane, value) in state.iter_mut().enumerate() {
+                *value = value.clone() + block.get(lane).cloned().unwrap_or_else(|| scalar(0));
+            }
+            state = permutation(self, state)?;
+        }
+        state[0] = state[0].clone() + scalar(1);
+        state = permutation(self, state)?;
+        Ok(std::array::from_fn(|lane| state[lane].clone()))
     }
-    state[0] = state[0].clone() + scalar(1);
-    state = permutation(&mut builder, state)?;
-    builder.finish(std::array::from_fn(|lane| state[lane].clone()))
 }
 
 fn scalar(value: u64) -> Affine {

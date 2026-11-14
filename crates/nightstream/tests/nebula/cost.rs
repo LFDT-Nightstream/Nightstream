@@ -369,11 +369,12 @@ fn r1cs_width(bits: usize) -> usize {
     logical_width(&memory_circuit(&geometry, &app).unwrap()).unwrap()
 }
 
-/// Each 0/1 column of an `R1csApplication` costs one coordinate: the row
-/// `x · (x − one)` reads the constant 1 in place of the one column
-/// (`R1csApplication::rows`), so the slot rule gives `x` a bit slot.
 #[test]
-fn each_bit_of_an_r1cs_application_is_one_coordinate() {
+fn each_forced_bit_of_an_r1cs_application_has_one_companion() {
     let (base, bits) = (r1cs_width(0), r1cs_width(8));
-    assert_eq!(bits - base, 8 * 2, "8 bit columns in each of 2 rows: {base} -> {bits}");
+    assert_eq!(
+        bits - base,
+        2 * 8 * 2,
+        "8 bit pairs in each of 2 rows: {base} -> {bits}"
+    );
 }

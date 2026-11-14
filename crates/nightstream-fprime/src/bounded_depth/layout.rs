@@ -3,9 +3,8 @@
 //! one low-norm slot for each source column in the package's runs. A field
 //! slot holds the 41 balanced-ternary digits of its value; a bit or centered
 //! slot holds the value itself. A source column without a slot is not a
-//! logical column. The runs follow Lean's rule (`StepPackage.runsOf`): a slot
-//! only for a column that a row reads and that is no output local of a block,
-//! a bit slot only for a column that a row forces to 0 or 1.
+//! logical column. Base runs follow `StepPackage.runsOf`. Native application
+//! runs also use `BooleanInference` and the fresh norm with `PackedBoolean`.
 
 use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -140,6 +139,26 @@ impl LogicalLayout {
         Ok(logical)
     }
 
+    pub fn source_assignment(&self, logical: &[Fq]) -> Result<Vec<Fq>, PackageError> {
+        if logical.len() != self.width {
+            return Err(PackageError::Input("bounded-depth logical assignment width"));
+        }
+        let mut columns = vec![Fq::ZERO; self.offsets.len().max(PUBLIC)];
+        columns[..PUBLIC].copy_from_slice(&logical[..PUBLIC]);
+        for &column in &self.slots {
+            let offset = self.offsets[column] as usize;
+            let width = self.kinds[column].width();
+            let mut coefficient = Fq::ONE;
+            let mut value = Fq::ZERO;
+            for &digit in &logical[offset..offset + width] {
+                value += coefficient * digit;
+                coefficient *= Fq::from_u64(FIELD_RATIO);
+            }
+            columns[column] = value;
+        }
+        Ok(columns)
+    }
+
     /// Lean `Parity.logicalSum`: the public columns and the digits of each
     /// slot below `limit`, each times `mix(1, logical column)`.
     pub fn checksum(&self, logical: &[Fq], limit: usize) -> u64 {
@@ -158,7 +177,7 @@ impl LogicalLayout {
 /// values 0 or 1. The row's terms read only `c` and the constant column 0,
 /// and with `x` at `c` it is `(a₀ + a₁x)(b₀ + b₁x) = c₀ + c₁x` with
 /// `a₁b₁ ≠ 0`, holding at `x = 0` and at `x = 1`.
-fn forced_column(row: &Row) -> Option<usize> {
+pub(super) fn forced_column(row: &Row) -> Option<usize> {
     let sides = [&row.a, &row.b, &row.c];
     let terms = || sides.iter().flat_map(|side| side.terms.iter());
     let column = terms()
@@ -188,17 +207,15 @@ impl StepPackage {
             .collect()
     }
 
-    /// Lean `StepPackage.runsOf`: the slot runs from the public columns to the
-    /// last S-box column. A column has a slot only if a row of the relation
-    /// reads it (`PackagePiece.reads`; the S-box rows read every S-box
-    /// column) and it is no output local of a block (`PackagePiece.outputs`:
-    /// a row reads the local's form), and the slot is a bit only if `bits`
-    /// names the column and a row forces it to 0 or 1. Every other slot is a
-    /// field element.
     pub(crate) fn rule_slots(&self, bits: &[usize]) -> Vec<(usize, usize, u8)> {
+        self.rule_slots_with_inferred(bits, &[])
+    }
+
+    pub(super) fn rule_slots_with_inferred(&self, bits: &[usize], inferred: &[usize]) -> Vec<(usize, usize, u8)> {
         const BIT: u8 = 0;
         const FIELD: u8 = 2;
-        let end = self.sbox_start + SBOX_COLUMNS * self.block_count();
+        let end = self.source_end();
+        let sbox_end = self.sbox_start + SBOX_COLUMNS * self.block_count();
         let mark = |mask: &mut Vec<bool>, columns: &mut dyn Iterator<Item = usize>| {
             for column in columns {
                 if let Some(marked) = mask.get_mut(column) {
@@ -246,9 +263,13 @@ impl StepPackage {
         }
         let mut candidates = vec![false; end];
         mark(&mut candidates, &mut bits.iter().copied());
+        mark(&mut forced, &mut inferred.iter().copied());
         let mut runs: Vec<(usize, usize, u8)> = Vec::new();
         for column in self.public_columns..end {
-            if !((reads[column] && !outputs[column]) || column >= self.sbox_start) {
+            if self.field_lowering.dead.contains(&column) {
+                continue;
+            }
+            if !((reads[column] && !outputs[column]) || (self.sbox_start..sbox_end).contains(&column)) {
                 continue;
             }
             let kind = if candidates[column] && forced[column] {

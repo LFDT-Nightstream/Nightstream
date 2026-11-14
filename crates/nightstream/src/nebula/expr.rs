@@ -157,7 +157,7 @@ fn affine_row(expression: &Expr) -> Option<Row> {
 }
 
 /// `rankOneConstraint`: `c − l · r` or `l · r` with affine parts.
-fn rank_one_row(expression: &Expr) -> Option<Row> {
+pub(super) fn rank_one_row(expression: &Expr) -> Option<Row> {
     match expression {
         Expr::Add(constant, scaled) => match &**scaled {
             Expr::Mul(coefficient, product) => match (&**coefficient, &**product) {

@@ -120,6 +120,9 @@ import NightstreamFPrime.Export.Generic.Frame
 import NightstreamFPrime.Export.Generic.Substitute
 import NightstreamFPrime.Export.Generic.CircuitRelation
 import NightstreamFPrime.Export.Generic.NativeBlock
+import NightstreamFPrime.Export.Generic.AuxRelocation
+import NightstreamFPrime.Export.Generic.ReadOnlyValues
+import NightstreamFPrime.Export.Generic.BooleanInference
 import NightstreamFPrime.Export.Generic.SlotLayout
 import NightstreamFPrime.Export.Generic.PieceRowsCompleteness
 import NightstreamFPrime.Export.Generic.RowReads
@@ -133,6 +136,16 @@ import NightstreamFPrime.Export.BoundedDepth.RandomOracleSetup
 import NightstreamFPrime.Export.BoundedDepth.IvcSecurity
 import NightstreamFPrime.Export.BoundedDepth.StepCompleteness
 import NightstreamFPrime.Export.BoundedDepth.NativeCompleteness
+import NightstreamFPrime.Export.BoundedDepth.NativeBooleanCompleteness
+import NightstreamFPrime.Export.Generic.PackedBoolean
+import NightstreamFPrime.Export.Generic.PackedProduct
+import NightstreamFPrime.Export.Generic.PackedZero
+import NightstreamFPrime.Export.Generic.NativePower
+import NightstreamFPrime.Export.Generic.GuardFusion
+import NightstreamFPrime.Export.Generic.WordPacking
+import NightstreamFPrime.Export.Generic.IntegerProduct
+import NightstreamFPrime.Export.BoundedDepth.PackedBooleanCompleteness
+import NightstreamFPrime.Export.BoundedDepth.PackedBudget
 import NightstreamFPrime.Lifecycle.BoundedDepth.BlockSupport
 import NightstreamFPrime.Lifecycle.BoundedDepth.FoldCompleteness
 import NightstreamFPrime.Export.BoundedDepth.StepExtend

@@ -14,7 +14,9 @@ use akita_types::{
 use akita_verifier::{AkitaVerifier, SetupPolicy};
 use neo_math::K;
 
-use super::{commitment, extension, failed, profile, row, setup_prefixes, Config, Polynomial, Shape, SCHEDULES};
+use super::{
+    commitment, extension, failed, on_large_stacks, profile, row, setup_prefixes, Config, Polynomial, Shape, SCHEDULES,
+};
 use crate::Error;
 
 /// The claim that the polynomial of `commitment` is `value` at `point`.
@@ -52,14 +54,16 @@ impl Verifier {
             num_field_elements: elements,
             setup_seed: seed.clone(),
         };
-        let expanded = AkitaExpandedSetup::from_trusted_seed_derived_parts_unchecked(
-            descriptor,
-            derive_public_matrix_prefix(elements, &seed),
-        );
-        let setup = AkitaVerifierSetup::from_parts(Arc::new(expanded), setup_prefixes(prefixes)?).map_err(failed)?;
-        let verifier =
+        let verifier = on_large_stacks(|| {
+            let expanded = AkitaExpandedSetup::from_trusted_seed_derived_parts_unchecked(
+                descriptor,
+                derive_public_matrix_prefix(elements, &seed),
+            );
+            let setup =
+                AkitaVerifierSetup::from_parts(Arc::new(expanded), setup_prefixes(prefixes)?).map_err(failed)?;
             AkitaVerifier::for_selection(setup, catalog, row.selection(), None, akita_verifier::SetupMode::Check)
-                .map_err(failed)?;
+                .map_err(failed)
+        })?;
         Ok(Self { row, verifier })
     }
 
@@ -86,8 +90,10 @@ impl Verifier {
             .collect::<Result<Vec<_>, Error>>()?;
         let claims = OpeningClaims::from_groups(groups).map_err(failed)?;
         let statement = GroupBatchStatement::new(self.row.selection(), claims).map_err(failed)?;
-        self.verifier
-            .batched_verify(proof, session, statement, BasisMode::Lagrange, SetupPolicy::Check(None))
-            .map_err(|_| Error::Rejected("the Akita opening fails"))
+        on_large_stacks(|| {
+            self.verifier
+                .batched_verify(proof, session, statement, BasisMode::Lagrange, SetupPolicy::Check(None))
+                .map_err(|_| Error::Rejected("the Akita opening fails"))
+        })
     }
 }

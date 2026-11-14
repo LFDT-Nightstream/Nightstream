@@ -12,7 +12,9 @@ use akita_pcs::{
 use akita_types::{CommittedGroup, SetupPrefixVerifierRegistry};
 use neo_math::K;
 
-use super::{bytes_of, commitment_bytes, extension, failed, profile, row, Base, Config, Extension, Polynomial};
+use super::{
+    bytes_of, commitment_bytes, extension, failed, on_large_stacks, profile, row, Base, Config, Extension, Polynomial,
+};
 use super::{Schedules, Shape};
 use crate::Error;
 
@@ -33,16 +35,18 @@ pub(crate) struct Committed {
 
 impl Prover {
     pub(crate) fn new(schedules: &Schedules) -> Result<Self, Error> {
-        let scheme = AkitaCommitmentScheme::new(schedules.catalog()?);
-        let max_vars = schedules
-            .rows
-            .iter()
-            .fold(schedules.key_vars, |max, &(witness, inverse)| {
-                max.max(witness).max(inverse)
-            });
-        let setup = scheme.setup_prover(max_vars, 3).map_err(failed)?;
-        let backend = Arc::new(CpuBackend::new(setup.expanded.clone()).map_err(failed)?);
-        Ok(Self { scheme, setup, backend })
+        on_large_stacks(|| {
+            let scheme = AkitaCommitmentScheme::new(schedules.catalog()?);
+            let max_vars = schedules
+                .rows
+                .iter()
+                .fold(schedules.key_vars, |max, &(witness, inverse)| {
+                    max.max(witness).max(inverse)
+                });
+            let setup = scheme.setup_prover(max_vars, 3).map_err(failed)?;
+            let backend = Arc::new(CpuBackend::new(setup.expanded.clone()).map_err(failed)?);
+            Ok(Self { scheme, setup, backend })
+        })
     }
 
     /// Commit `polynomial` of a proof with `shape`: its evaluation table is
@@ -55,21 +59,23 @@ impl Prover {
         };
         let schedules = self.scheme.schedules();
         let profile = profile(row(schedules, shape)?, polynomial);
-        let source = self
-            .backend
-            .import_source(vec![DensePoly::from_field_prefix(vars, prefix).map_err(failed)?])
-            .map_err(failed)?;
-        let CommitOutput {
-            committed_group,
-            private_handle,
-        } = self
-            .backend
-            .commit(schedules, &source, GroupContext::explicit(profile))
-            .map_err(failed)?;
-        Ok(Committed {
-            bytes: commitment_bytes(&committed_group)?,
-            commitment: committed_group,
-            handle: private_handle,
+        on_large_stacks(|| {
+            let source = self
+                .backend
+                .import_source(vec![DensePoly::from_field_prefix(vars, prefix).map_err(failed)?])
+                .map_err(failed)?;
+            let CommitOutput {
+                committed_group,
+                private_handle,
+            } = self
+                .backend
+                .commit(schedules, &source, GroupContext::explicit(profile))
+                .map_err(failed)?;
+            Ok(Committed {
+                bytes: commitment_bytes(&committed_group)?,
+                commitment: committed_group,
+                handle: private_handle,
+            })
         })
     }
 
@@ -100,8 +106,10 @@ impl Prover {
         let opening =
             SelectedProverOpeningData::from_committed_claims::<Config>(claims, handles, self.scheme.schedules())
                 .map_err(failed)?;
-        self.scheme
-            .batched_prove(&self.setup, opening, &self.backend, session, BasisMode::Lagrange)
-            .map_err(failed)
+        on_large_stacks(|| {
+            self.scheme
+                .batched_prove(&self.setup, opening, &self.backend, session, BasisMode::Lagrange)
+                .map_err(failed)
+        })
     }
 }

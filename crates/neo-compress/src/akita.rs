@@ -18,6 +18,8 @@ use akita_types::{sample_akita_setup_seed, CommittedGroup, SetupPrefixVerifierRe
 use jolt_field::Ring;
 use neo_math::{KExtensions, F, K};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use rayon::{ThreadPool, ThreadPoolBuilder};
+use std::sync::OnceLock;
 
 use crate::key::ROW_VARS;
 use crate::layout::LANE_VARS;
@@ -151,6 +153,25 @@ pub(crate) fn extension(value: K) -> Extension {
 
 pub(crate) fn failed(error: impl std::fmt::Display) -> Error {
     Error::Akita(error.to_string())
+}
+
+/// Run `work` on threads with 64 MB stacks. Under fat LTO, one level of
+/// the rayon split in Akita's NTT loops takes about 210 KB of stack, so the
+/// 2 MB default overflows after about ten levels. Where no thread can
+/// start, rayon runs `work` on the calling thread.
+pub(crate) fn on_large_stacks<R: Send>(work: impl FnOnce() -> R + Send) -> R {
+    static POOL: OnceLock<Option<ThreadPool>> = OnceLock::new();
+    let pool = POOL.get_or_init(|| {
+        ThreadPoolBuilder::new()
+            .num_threads(rayon::current_num_threads())
+            .stack_size(64 << 20)
+            .build()
+            .ok()
+    });
+    match pool {
+        Some(pool) => pool.install(work),
+        None => work(),
+    }
 }
 
 fn bytes_of(value: &impl AkitaSerialize) -> Result<Vec<u8>, Error> {

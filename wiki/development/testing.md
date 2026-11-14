@@ -22,13 +22,15 @@ timeout --signal=KILL 300 cargo test -p nightstream-fprime --release --lib bound
 
 The tests that compress a step of the hash chain hold the compression setup
 of 10 GB and need up to 30 GB, so they are ignored. The test of the large
-pinned key needs 6 GB and is ignored too. CI runs the last two commands
-alone, after the other tests (`scripts/ci_rust_tests.sh`). Run the first
-command by hand:
+pinned key needs 6 GB and is ignored too. CI runs the last three commands
+alone, after the other tests, with the release profile of `Cargo.toml` (fat
+LTO), which is the build that users run (`scripts/ci_rust_tests.sh`). The
+other CI tests turn LTO off. Run the first command by hand:
 
 ```sh
 timeout --signal=KILL 300 cargo test -p nightstream --release --lib lifecycle::bounded_depth::tests::compression -- --ignored --test-threads 1
 timeout --signal=KILL 300 cargo test -p nightstream --release --test compression -- --ignored
+timeout --signal=KILL 300 cargo test -p nightstream --release --test compression_at_cap -- --ignored
 timeout --signal=KILL 300 cargo test -p neo-compress --release --lib -- --ignored key::tests::the_large_pinned_key_is_the_key_of_the_public_seeds
 ```
 

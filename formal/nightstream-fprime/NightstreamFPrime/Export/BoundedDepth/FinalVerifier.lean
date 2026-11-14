@@ -12,8 +12,8 @@ runs (`Spec.Compression.Fresh.game`), and then the argument on the slot claims a
 claim of the run (`Spec.Compression.Verifier.afterTables`). The Akita openings are ideal: the
 prover names the tables.
 
-On each path that avoids the bad sets, an accepted statement has a proof with witnesses that
-`Verifies` accepts (`game_avoids`), and each bad set has density at most
+On each path that avoids the bad sets, `Verifies` accepts an accepted statement with the proof
+from `W` (`Setup.proofOf`, `game_avoids`), and each bad set has density at most
 `1/2^119 + 38/q²` (`game_densityLe`). So in the state-restoration experiment with `q` queries, the
 verifier accepts a statement without such a proof with probability at most
 `q · (1/2^119 + 38/q²)` (`soundness`). `AkitaKnowledge` names Akita's knowledge soundness with the
@@ -173,6 +173,15 @@ noncomputable def game : Compression.Game (Option (Outcome logicalWidth publicFi
         if Checks input.1 claims then .recv (ℕ → F) fun W => setup.afterW input.1 claims W
         else .pure none
 
+/-- The proof with witnesses of an outcome: the bottom proof, or the slots' claims and witness
+slices, the fresh claim, the fresh witness slice and `pc`, all from `W`. -/
+def proofOf (o : Outcome logicalWidth publicFits) :
+    Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits) :=
+  match o.2 with
+  | none => .bottom
+  | some (claims, W, _) => .recursive ⟨claims.running, fun s => setup.witness claims W s.castSucc,
+      setup.fresh o.1 claims, setup.witness claims W 2, claims.pc⟩
+
 end Setup
 
 /-- The premises of the theorem on the verifier's setup. `represents`: the dense rows of each
@@ -272,11 +281,12 @@ theorem verifies_of_bottom {statement : TerminalStatement AppState}
     Verifies setup.ajtai setup.circuitKeys step packageWidths cap control statement .bottom :=
   (verifies_bottom_iff _ _ _ _).mpr bottom
 
-/-- On each path that avoids the bad sets, an accepted statement has a proof with witnesses that
-the verifier of Algorithm 6 accepts. -/
+/-- On each path that avoids the bad sets, the verifier of Algorithm 6 accepts each accepted
+statement with the proof that its outcome gives (`Setup.proofOf`). -/
 theorem game_avoids (premises : Premises setup packageWidths) :
     setup.game.Avoids fun a => ∀ o, a = some o →
-      ∃ proof, Verifies setup.ajtai setup.circuitKeys step packageWidths cap control o.1 proof := by
+      Verifies setup.ajtai setup.circuitKeys step packageWidths cap control o.1
+        (setup.proofOf o) := by
   intro input
   obtain ⟨statement, claims?⟩ := input
   cases claims? with
@@ -285,7 +295,7 @@ theorem game_avoids (premises : Premises setup packageWidths) :
       dsimp only at equal
       split_ifs at equal with bottom
       cases equal
-      exact ⟨.bottom, verifies_of_bottom setup step cap control bottom⟩
+      exact verifies_of_bottom setup step cap control bottom
   | some claims =>
       dsimp only
       split_ifs with checks
@@ -325,8 +335,8 @@ theorem game_avoids (premises : Premises setup packageWidths) :
                 cases equal
                 have holds := relationGood found rfl
                 rw [same] at holds
-                exact ⟨_, verifies_of_run setup step cap control premises checks holds
-                  (freshGood probe rfl)⟩
+                exact verifies_of_run setup step cap control premises checks holds
+                  (freshGood probe rfl)
       · exact fun _ equal => nomatch equal
 
 /-- The bound on the density of each bad set: the argument's and Π_CCS's. -/
@@ -381,7 +391,8 @@ theorem soundness (premises : Premises setup packageWidths)
     (s : Strategy (Option (Option (Outcome logicalWidth publicFits)))) (q : ℕ) :
     prob s (restore setup.game q []) (Wins setup packageWidths step cap control) ≤
       q * finalError :=
-  restore_sound _ s _ _ (game_avoids setup step cap control premises)
+  restore_sound _ s _ _ ((game_avoids setup step cap control premises).mono fun _ verifies o
+      equal => ⟨_, verifies o equal⟩)
     (game_densityLe setup premises) (by unfold finalError; positivity) q
 
 /-- Akita's knowledge soundness with the error `εAkita`, as an assumption (SPEC.md, Algorithm 10;

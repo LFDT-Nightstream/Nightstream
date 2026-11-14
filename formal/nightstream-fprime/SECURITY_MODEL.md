@@ -324,6 +324,8 @@ not change terminal source checks.
   (`Lifecycle.BoundedDepth.RandomOracle.Assumption1.romAssumption1`). The bound
   here still takes Assumption 1 for the concrete hash as a premise, and it
   gives no concrete security for a long history (trust item 3).
+- **Final proof:** a prover of the final verifier is an adversary of this
+  kind, and adversary 6 joins the two bounds.
 
 ### 5. Memory adversary
 
@@ -451,11 +453,30 @@ not change terminal source checks.
   what the terminal relation accepts
   (`Export.BoundedDepth.RunCompleteness.holds_of_verifies`). So the results
   of adversaries 2, 4 and 5 apply to a statement that the final verifier
-  accepts. No Lean result joins their bounds with the bound of this
-  adversary. In particular, the bound above ends at the terminal relation,
-  and the validity of the history at each step is the separate result of
-  adversary 4. No result shows that an extractor of the three witnesses is
-  efficient.
+  accepts. Lean joins the bound above with the bound of adversary 4. A
+  prover of the experiment with `Q` queries is an IVC adversary: its tape
+  is the result of the experiment under the law of its draws, and its
+  output is the accepted statement with the proof from `W`
+  (`Export.BoundedDepth.FinalHistory.adversary`,
+  `Export.BoundedDepth.FinalVerifier.Setup.proofOf`). The event is a false
+  history: the final verifier accepts `(i, z0, zi)`, and no `i` steps of
+  the application, each valid at its state and with a witness of the
+  application's word count, lead from `z0` to `zi`
+  (`Export.BoundedDepth.FinalHistory.FalseHistory`). A false history is a
+  result in which `Verifies` rejects that proof, or a false acceptance of
+  this IVC adversary. So
+  `Pr[false history] ≤ Q · (2^−119 + 38/q²) + Σ_j (Pr[collision at visit j] + error(stage j))`
+  for the stages of this IVC adversary
+  (`Export.BoundedDepth.FinalHistory.soundness`). With Akita openings, the
+  bound adds `εAkita` (`Export.BoundedDepth.FinalHistory.real_soundness`).
+  The premises are those of trust item 7, Assumption 1 and the closure
+  premise of trust item 3, an admitted IVC adversary of the prover, the
+  digest length 4 of each circuit key, and a bound `depth` on the
+  iteration of each statement that the experiment accepts. The sum has the
+  limits of adversary 4, so it gives no concrete security for a long
+  history. No Lean result joins the bounds of adversaries 2 and 5 with the
+  bound of this adversary. No result shows that an extractor of the three
+  witnesses is efficient.
 - **Error:** Lean bounds the argument by `Q · error`, with `error` below
   `2^−119` at the production shapes (`SPEC.md` section 3). Rust computes a
   sum of six terms for one interactive run of the argument, about
@@ -692,8 +713,11 @@ not change terminal source checks.
      `Export.BoundedDepth.FinalVerifier.AkitaKnowledge` states this premise
      with the error `εAkita`: for each prover with Akita openings, a prover
      of the game wins at most `εAkita` less often. Lean does not bound
-     `εAkita`. `Export.BoundedDepth.FinalVerifier.Premises` collects the
-     premises on the setup: `Represents` for the dense rows of each circuit,
+     `εAkita`. `Export.BoundedDepth.FinalHistory.real_soundness` takes the
+     same premise for the event of a false history, at one prover of the
+     game, and that prover's IVC adversary must be admitted (trust item 3).
+     `Export.BoundedDepth.FinalVerifier.Premises` collects the premises on
+     the setup: `Represents` for the dense rows of each circuit,
      at most the blocks of its package for each claim, and a layout of Rust
      `Layout::new` that is well formed with the production bounds. The game
      takes the slot claims before `W` and the run of Π_CCS, and Rust absorbs
@@ -758,6 +782,9 @@ not change terminal source checks.
      premise is that the Poseidon2 sponge and the Keccak functions are
      independent oracles, and that these domains separate the compression
      transcript from the fold transcripts. No Lean result states either.
+     `Export.BoundedDepth.FinalHistory.soundness` puts the draws of the
+     argument and of the Π_CCS run on the tape of an IVC adversary whose
+     folds use Poseidon2 (trust item 3), so it also needs this separation.
    - *The error of the argument.* Lean bounds it by `Q · error`, with
      `error < 2^−119` at the production shapes
      (`Spec.Compression.Verifier.production_error_lt`). Rust computes the

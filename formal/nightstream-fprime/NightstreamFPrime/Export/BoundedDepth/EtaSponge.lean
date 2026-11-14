@@ -61,14 +61,8 @@ theorem reads_owned (input : EtaInput Nebula.Digest) (index : Fin 4) :
     etaUse.tag <+: ((reads input index).map List.ofFn).flatten :=
   nebula_owns _ _ _
 
-private theorem separated_symm {use use' : Use} (separated : Separated use use') :
-    Separated use' use :=
-  fun blocks blocks' first second equal => separated blocks' blocks second first equal.symm
-
-instance : Std.Symm Separated := ⟨fun _ _ => separated_symm⟩
-
 theorem separated_eta : ∀ use ∈ uses, use ≠ etaUse → Separated etaUse use :=
-  fun _ member distinct => separated.forall etaUse_mem member distinct.symm
+  fun _ member distinct => separated_of_mem etaUse_mem member distinct
 
 /-- The conditions of `[SPONGE]` for the `η` use. -/
 structure Conditions : Prop where

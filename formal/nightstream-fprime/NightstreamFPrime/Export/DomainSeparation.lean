@@ -96,6 +96,17 @@ theorem separated : uses.Pairwise Separated :=
     obtain ⟨position, inLeft, inRight, ne⟩ := differs_spec found
     exact Sponge.blocks_ne_of_differ leftPrefix rightPrefix inLeft inRight ne
 
+theorem Separated.symm {use use' : Use} (separated : Separated use use') :
+    Separated use' use :=
+  fun blocks blocks' first second equal => separated blocks' blocks second first equal.symm
+
+instance : Std.Symm Separated := ⟨fun _ _ => Separated.symm⟩
+
+/-- A row of the table is separated from every other row. -/
+theorem separated_of_mem {use other : Use} (member : use ∈ uses) (otherMember : other ∈ uses)
+    (distinct : other ≠ use) : Separated use other :=
+  separated.forall member otherMember distinct.symm
+
 /-- A hash use owns the padded input of each input that starts with its tag. -/
 theorem hash_owns (padding : Sponge.Padding) {tag input : List F} (starts : tag <+: input) :
     tag <+: (padding.pad input).flatten :=

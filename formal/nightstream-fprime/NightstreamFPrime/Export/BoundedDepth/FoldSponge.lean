@@ -114,12 +114,6 @@ structure Conditions (use : Use) : Prop where
       use.tag <+: ((schedule.challengeCalls statement messages challenge).map List.ofFn).flatten
   separated : ∀ other ∈ uses, other ≠ use → Separated use other
 
-private theorem separated_symm {use use' : Use} (separated : Separated use use') :
-    Separated use' use :=
-  fun blocks blocks' first second equal => separated blocks' blocks second first equal.symm
-
-instance : Std.Symm Separated := ⟨fun _ _ => separated_symm⟩
-
 /-- Every fold schedule whose domain is a row of the table meets the conditions. -/
 theorem conditions {use : Use} (tag : use.tag = schedule.domainChunk) (member : use ∈ uses) :
     Conditions schedule (width := width) use where
@@ -127,7 +121,7 @@ theorem conditions {use : Use} (tag : use.tag = schedule.domainChunk) (member : 
   identify challenge same := schedule.proverCalls_identify challenge same
   lanes := rho_ne schedule
   owned statement messages challenge := tag ▸ fold_owns schedule statement messages challenge
-  separated _ other distinct := separated.forall member other distinct.symm
+  separated _ other distinct := separated_of_mem member other distinct
 
 end Schedule
 

@@ -20,6 +20,8 @@ import NightstreamFPrime.Export.BoundedDepth.FoldSponge
 #audit_axioms NightstreamFPrime.Export.DomainSeparation.differs_spec
 #audit_axioms NightstreamFPrime.Export.DomainSeparation.tags_differ
 #audit_axioms NightstreamFPrime.Export.DomainSeparation.separated
+#audit_axioms NightstreamFPrime.Export.DomainSeparation.Separated.symm
+#audit_axioms NightstreamFPrime.Export.DomainSeparation.separated_of_mem
 #audit_axioms NightstreamFPrime.Export.DomainSeparation.hash_owns
 #audit_axioms NightstreamFPrime.Export.DomainSeparation.statePreimage_starts
 #audit_axioms NightstreamFPrime.Export.DomainSeparation.identityInput_starts

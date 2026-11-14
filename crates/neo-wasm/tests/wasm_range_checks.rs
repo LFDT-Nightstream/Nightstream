@@ -146,3 +146,71 @@ fn out_of_range_u32_is_rejected_by_the_column_range_row() {
         "rejection must come from the column's own range-check row, failed row {row_idx} is tagged {tag:?}"
     );
 }
+
+#[test]
+fn out_of_range_implied_columns_are_rejected_by_other_rows() {
+    use neo_wasm::layout::{
+        COL_HOST_IMPORT_SCHEDULE_COUNTS, COL_MAX_MEMORY_PAGES_AFTER, COL_OPCODE_CODE, COL_STACK_READS, COL_STACK_WRITES,
+    };
+    let checked =
+        common::checked_main(r#"(module (func (export "main") (result i32) i32.const 20 i32.const 22 i32.add))"#);
+    for column in [
+        COL_OPCODE_CODE,
+        COL_STACK_READS,
+        COL_STACK_WRITES,
+        COL_MAX_MEMORY_PAGES_AFTER,
+        COL_HOST_IMPORT_SCHEDULE_COUNTS,
+    ] {
+        let family = named_column_family(column).unwrap();
+        assert_eq!(family.width, ColumnWidth::Implied(32), "{}", family.name);
+        let mut witness = checked.witnesses[0].clone();
+        witness[column] = F::from_u64(1u64 << 32);
+        common::assert_rejected(&witness, &family.name);
+    }
+}
+
+#[test]
+fn byte_offset_is_bound_when_used() {
+    use neo_wasm::layout::COL_LINEAR_MEM_BYTE_OFFSET;
+    let checked =
+        common::checked_main(r#"(module (memory 1) (func (export "main") (result i32) i32.const 1 i32.load))"#);
+    let index = checked
+        .trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::I32Load)
+        .unwrap();
+    let mut witness = checked.witnesses[index].clone();
+    witness[COL_LINEAR_MEM_BYTE_OFFSET] = -F::ONE;
+    common::assert_rejected(&witness, "an active offset is bound by its byte selectors");
+}
+
+#[test]
+fn global_values_and_table_index_are_bound_when_used() {
+    use neo_wasm::layout::{COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_TABLE_INDEX};
+    let checked = common::checked_main(
+        r#"(module
+          (global $g (mut i64) (i64.const 0))
+          (table 1 funcref)
+          (func (export "main") (result i64)
+            i64.const 7 global.set $g
+            i32.const 0 i32.const 0 table.get 0 table.set 0
+            i32.const 0 table.get 0 drop
+            global.get $g))"#,
+    );
+    for (column, opcodes) in [
+        (COL_GLOBAL_VALUE, [WasmOpcode::GlobalGet, WasmOpcode::GlobalSet]),
+        (COL_GLOBAL_VALUE_HI, [WasmOpcode::GlobalGet, WasmOpcode::GlobalSet]),
+        (COL_TABLE_INDEX, [WasmOpcode::TableGet, WasmOpcode::TableSet]),
+    ] {
+        for opcode in opcodes {
+            let index = checked
+                .trace
+                .iter()
+                .position(|row| row.opcode == opcode)
+                .unwrap();
+            let mut witness = checked.witnesses[index].clone();
+            witness[column] = -F::ONE;
+            common::assert_rejected(&witness, "active advice equals the stack operand");
+        }
+    }
+}

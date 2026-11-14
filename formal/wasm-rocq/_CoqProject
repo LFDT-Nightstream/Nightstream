@@ -15,6 +15,9 @@ Range.v
 Selectors.v
 ZeroTest.v
 CircuitFacts.v
+InactiveOffset.v
+InactiveStackBindings.v
+RangeObligations.v
 TableDescriptor.v
 StackPorts.v
 Add.v

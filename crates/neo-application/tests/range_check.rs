@@ -155,3 +155,43 @@ fn range_check_constraints_accept_valid_values_and_reject_overflow() {
         }
     );
 }
+
+#[test]
+fn proof_obligations_skip_explicit_checks_without_narrowing_the_representation() {
+    neo_application::define_column_region! {
+        region: "obligations",
+        start: 0,
+        width: WIDTH,
+        families: FAMILIES,
+        indices:,
+        columns: [
+            CONSTANT: Boolean => "constant one",
+            IMPLIED: (Implied(32)) => "bound proved elsewhere",
+            REPAIRABLE: [(Repairable(32)); 2] => "equivalent bounded advice",
+            IMPLIED_BIT: (Implied(1)) => "Boolean bound proved elsewhere",
+        ]
+    }
+    let layout = RangeCheckLayout::new(
+        FAMILIES.iter().cloned(),
+        RangeCheckBitFamily {
+            region: "bits",
+            name: "BITS",
+            role: "explicit bits",
+        },
+    )
+    .unwrap();
+    assert!(layout.bit_columns().is_empty());
+    assert_eq!(range_checked_variable_widths(layout.columns()), vec![1, 64, 64, 64, 64]);
+    assert!(!FAMILIES[3].width.is_boolean());
+    let mut builder = R1csBuilder::new(1, CONSTANT).unwrap();
+    layout.push_constraints(
+        &mut builder.tagged(neo_application::ConstraintTag::new("ranges", "test")),
+        "test",
+    );
+    let relation = builder.build(layout.columns()).unwrap();
+    assert_eq!(
+        relation.catalog().len(),
+        1,
+        "only the Boolean row of CONSTANT; annotations carry obligations and emit no rows"
+    );
+}

@@ -37,6 +37,7 @@ import NightstreamFPrime.Spec.Folding.Light.RlcModule
 import NightstreamFPrime.Lifecycle.BoundedDepth.State
 import NightstreamFPrime.Lifecycle.BoundedDepth.Keys
 import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot
+import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh
 import NightstreamFPrime.Lifecycle.RandomOracle.Schedule
 import NightstreamFPrime.Lifecycle.RandomOracle.Test
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshSchedule

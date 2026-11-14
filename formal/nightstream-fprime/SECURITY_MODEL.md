@@ -324,8 +324,12 @@ item 5).
   Π_CCS run with one source. For each slot claim, `Relation` gives the
   claim under `Spec.CE.Holds` with the norm of its depth
   (`Lifecycle.BoundedDepth.CompressionSlot.slot_holds`), under the premise
-  `Spec.Compression.Claim.Represents` of trust item 7. The rows and the
-  norm of the fresh witness come from the Π_CCS run, outside this result. No
+  `Spec.Compression.Claim.Represents` of trust item 7. Lean models the
+  Π_CCS run with one source as a game of the same kind
+  (`Spec.Compression.Fresh.game`). On a path that avoids its bad sets, of
+  density at most `38/q²`, an accepted run whose output claims hold gives
+  the fresh instance under `Spec.CCS.Holds`
+  (`Lifecycle.BoundedDepth.CompressionFresh.game_avoids`). No
   Lean result joins the model to the Rust data, and no result states a full
   honest run or a bound for one interactive run. Rust implements the final
   verifier, and the tests check it on fixed inputs (`SPEC.md` lifecycle
@@ -637,8 +641,8 @@ item 5).
      section 5.4). Each term of the Rust sum of `SPEC.md` section 3 is for
      one interactive run. With Poseidon2 as a random oracle and `Q`
      queries, Lean bounds the non-interactive argument by `Q · error`
-     (`Spec.Compression.Verifier.soundness`). No result bounds the Π_CCS
-     run with one source in this model.
+     (`Spec.Compression.Verifier.soundness`), and the Π_CCS run with one
+     source by `Q · 38/q²` (`Spec.Compression.Fresh.soundness`).
    - *Separation of the two transcripts.* The session bytes of the Akita
      proof are a label and lanes 0 to 3 of the Poseidon2 sponge state
      after the last message of the argument, so they bind the opening to

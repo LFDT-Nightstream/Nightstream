@@ -110,6 +110,57 @@ theorem slot_publicInput (wf : WellFormed (params key matrices depths layout)) (
   simp only [cell, y.isLt, dite_true] at equation
   exact equation
 
+/-- `Eval_K`: lane `o` of the padded evaluation of a relation's ring source, with any counts of
+sources, at the claim's point. -/
+theorem relation_pad {fc rc : ℕ} (c : Fin 3)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (represents : Represents (matrices c) relation.matrices)
+    (values : st c = claimValues claim) (o : Fin ringDegree) :
+    (BooleanTable.tabulate fun vertex => K.embed (PaperLinearAlgebra.matrixVectorAt
+        ConcreteCarrier.baseOps
+        ((RingMatrixSource.source cubeVariables fc rc productionProfile.ccsMatrices logicalWidth
+          relation.system.matrices relation.system.constraintPolynomial).coefficientMatrixOf
+          ConcreteCarrier.baseOps (fun row column => (Folding.PiCCS.CanonicalRowLayout.layout
+            cubeVariables (RingCarrierLayout.carrierWidth logicalWidth) relation.cubeFits
+            ).paddedIdentityEntry ConcreteCarrier.baseOps.zero ConcreteCarrier.baseOps.one row
+            column) o)
+        (slotWitness (logicalWidth := logicalWidth) (publicFits := publicFits) matrices layout W c)
+        vertex)).evaluate ConcreteCarrier.extensionOps claim.point = claim.evaluations.pad o := by
+  have widths : productionProfile.commitmentWidth = 18 := rfl
+  have equation := ring_equation (key := key) (depths := depths) (st := st) holds c
+    (e := 18) (by omega) o.isLt
+  have o_lt : (o : ℕ) < productionShape.coefficientCount := o.isLt
+  simp only [Params.form, Params.right, Params.lanes, params, widths, lt_self_iff_false,
+    ↓reduceIte, values, claimValues, cell, o_lt, ↓reduceDIte] at equation
+  exact (evaluate_pad _ _ relation.cubeFits represents.cover W _ claim.point o).trans equation
+
+/-- `Eval_A`: lane `o` of the evaluation of matrix `m` of a relation's ring source, with any counts
+of sources, at the claim's point. -/
+theorem relation_matrix {fc rc : ℕ} (c : Fin 3)
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (represents : Represents (matrices c) relation.matrices)
+    (values : st c = claimValues claim) (m : Fin productionProfile.ccsMatrices)
+    (o : Fin ringDegree) :
+    (BooleanTable.tabulate fun vertex => K.embed (PaperLinearAlgebra.matrixVectorAt
+        ConcreteCarrier.baseOps
+        ((RingMatrixSource.source cubeVariables fc rc productionProfile.ccsMatrices logicalWidth
+          relation.system.matrices relation.system.constraintPolynomial).coefficientMatrix
+          ConcreteCarrier.baseOps m o)
+        (slotWitness (logicalWidth := logicalWidth) (publicFits := publicFits) matrices layout W c)
+        vertex)).evaluate ConcreteCarrier.extensionOps claim.point =
+      claim.evaluations.matrix m o := by
+  have widths : productionProfile.commitmentWidth = 18 := rfl
+  have matrixCount : productionProfile.ccsMatrices = 4 := rfl
+  have m_lt : (m : ℕ) < 4 := m.isLt
+  have o_lt : (o : ℕ) < productionShape.coefficientCount := o.isLt
+  have equation := ring_equation (key := key) (depths := depths) (st := st) holds c
+    (e := 19 + m) (by omega) o.isLt
+  simp only [Params.form, Params.right, params, widths, matrixCount,
+    show ¬ (19 + (m : ℕ) < 18) by omega, show 19 + (m : ℕ) ≠ 18 by omega, ↓reduceIte,
+    show 19 + (m : ℕ) - 18 - 1 = m by omega, values, claimValues, m_lt, ↓reduceDIte, cell,
+    o_lt] at equation
+  exact (evaluate_matrix _ _ represents W _ claim.point m o).trans equation
+
 /-- The evaluations: `Eval_K` and each `Eval_A` of `Relation` are the evaluations of the circuit's
 relation at the claim's point. -/
 theorem slot_evaluations (c : Fin 3)
@@ -117,8 +168,6 @@ theorem slot_evaluations (c : Fin 3)
     (values : st c = claimValues claim) :
     (semantics ajtai).evaluations (circuit.system ajtai) (slotWitness matrices layout W c)
       claim.point = #[claim.evaluations] := by
-  have widths : productionProfile.commitmentWidth = 18 := rfl
-  have matrixCount : productionProfile.ccsMatrices = 4 := rfl
   show #[evaluationFamily (relationSource (Folding.PiCCS.CanonicalRowLayout.layout cubeVariables
       (RingCarrierLayout.carrierWidth logicalWidth) circuit.relation.cubeFits)
       circuit.relation.system) _ claim.point] = #[claim.evaluations]
@@ -129,21 +178,9 @@ theorem slot_evaluations (c : Fin 3)
     ⟨claim.evaluations.pad, claim.evaluations.matrix⟩
   congr 1
   · funext o
-    have equation := ring_equation (key := key) (depths := depths) (st := st) holds c
-      (e := 18) (by omega) o.isLt
-    simp only [Params.form, Params.right, Params.lanes, params, widths, lt_self_iff_false,
-      ↓reduceIte, values, claimValues, cell, o.isLt, ↓reduceDIte] at equation
-    exact (evaluate_pad _ _ circuit.relation.cubeFits represents.cover W _ claim.point o).trans
-      equation
+    exact relation_pad holds claim c circuit.relation represents values o
   · funext m o
-    have m_lt : (m : ℕ) < 4 := m.isLt
-    have equation := ring_equation (key := key) (depths := depths) (st := st) holds c
-      (e := 19 + m) (by omega) o.isLt
-    simp only [Params.form, Params.right, params, widths, matrixCount,
-      show ¬ (19 + (m : ℕ) < 18) by omega, show 19 + (m : ℕ) ≠ 18 by omega, ↓reduceIte,
-      show 19 + (m : ℕ) - 18 - 1 = m by omega, values, claimValues, m_lt, ↓reduceDIte, cell,
-      o.isLt] at equation
-    exact (evaluate_matrix _ _ represents W _ claim.point m o).trans equation
+    exact relation_matrix holds claim c circuit.relation represents values m o
 
 /-- A slot claim of the argument holds under its circuit's relation as a combined claim. -/
 theorem slot_holds (wf : WellFormed (params key matrices depths layout)) (s : Fin 2)

@@ -1,6 +1,7 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Compression
 import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot
+import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh
 
 /-! Axiom audits for the compression argument over Akita (`Spec/Compression`). -/
 
@@ -260,3 +261,26 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot.slot_publicInput
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot.slot_evaluations
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot.slot_holds
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot.relation_pad
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot.relation_matrix
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.mem_chosen
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.density_chosen
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.card_coordinate_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.card_exists_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.finish_eq_some
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.roundGame_avoids
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.game_avoids
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.card_K_pos
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.alpha_density
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.gamma_density
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.round_density
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.roundGame_densityLe
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.game_densityLe
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.soundness
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh.degree_le
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh.ccs_of_source
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh.game_avoids
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh.ccsError_eq
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh.game_densityLe
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh.centeredMagnitude_lt_ambient
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh.fresh_ambient

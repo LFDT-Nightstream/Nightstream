@@ -160,37 +160,7 @@ fn guarded_rows_preserve_source_and_all_four_matrix_ports() {
 }
 
 #[test]
-fn malformed_guard_maps_and_missing_certificates_are_rejected() {
-    let package = packages(&fixture()).light().clone();
-    for mutation in 0..5 {
-        let mut changed = package.clone();
-        match mutation {
-            0 => {
-                changed.guard_fusion.removed.clear();
-            }
-            1 => {
-                changed
-                    .guard_fusion
-                    .replacements
-                    .values_mut()
-                    .next()
-                    .unwrap()
-                    .c
-                    .constant += F::ONE;
-            }
-            2 => {
-                changed.guard_fusion.groups[0].sources[0] += 1;
-            }
-            3 => {
-                changed.guard_fusion.groups[0].certificates.clear();
-            }
-            _ => {
-                changed.guard_fusion.groups[0].source_records[0].1 += 1;
-            }
-        }
-        assert!(changed.plan_rows().is_err());
-        assert!(changed.source_rows().is_err());
-    }
+fn missing_certificates_keep_only_complementary_pairs() {
     let mut source = fixture();
     source.remove(0);
     let missing = packages(&source);

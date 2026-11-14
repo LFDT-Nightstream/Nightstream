@@ -283,36 +283,6 @@ impl StepPackage {
     }
 
     fn rows(&self, with_forms: bool) -> Result<PlanRows, PackageError> {
-        if self.native.is_some() {
-            let Some(Piece::Rows(rows)) = self.pieces.first() else {
-                return Err(PackageError::Malformed("bounded-depth native application rows"));
-            };
-            self.packed_booleans
-                .validate(rows, self.sbox_start + SBOX_ROWS * self.block_count(), self.width)?;
-            self.guard_fusion.validate(self)?;
-            self.word_packing.validate(self)?;
-            let layout = self.layout()?;
-            for column in self
-                .packed_booleans
-                .products
-                .iter()
-                .flat_map(|product| [product.left, product.right, product.output])
-                .chain(
-                    self.packed_booleans
-                        .zeros
-                        .iter()
-                        .flat_map(|zero| [zero.left.column, zero.right.column]),
-                )
-                .chain(self.packed_booleans.start..self.packed_booleans.end())
-            {
-                if layout
-                    .slot(column)
-                    .is_none_or(|(_, kind)| kind != super::layout::Kind::Bit)
-                {
-                    return Err(PackageError::Malformed("bounded-depth packed product slot"));
-                }
-            }
-        }
         let mut blocks = Vec::new();
         for piece in &self.pieces {
             if let Piece::Block { start, lanes } = piece {

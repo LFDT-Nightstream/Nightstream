@@ -262,7 +262,36 @@ impl StepPackage {
         package.slots = package.native_slots()?;
         package.guard_fusion = super::guard_fusion::GuardFusion::checked(&package)?;
         package.word_packing = super::word_packing::WordPacking::checked(&package)?;
+        package.check_packed_slots()?;
         Ok(package)
+    }
+
+    /// Every column that a packed product or zero product reads, and every
+    /// added column, has a one-coordinate bit slot (`SPEC.md` section 7.10,
+    /// step 5).
+    fn check_packed_slots(&self) -> Result<(), PackageError> {
+        let layout = self.layout()?;
+        let packed = &self.packed_booleans;
+        let reads = packed
+            .products
+            .iter()
+            .flat_map(|product| [product.left, product.right, product.output])
+            .chain(
+                packed
+                    .zeros
+                    .iter()
+                    .flat_map(|zero| [zero.left.column, zero.right.column]),
+            )
+            .chain(packed.start..packed.end());
+        for column in reads {
+            if layout
+                .slot(column)
+                .is_none_or(|(_, kind)| kind != super::layout::Kind::Bit)
+            {
+                return Err(PackageError::Malformed("bounded-depth packed product slot"));
+            }
+        }
+        Ok(())
     }
 
     fn pack_native_booleans(&mut self) -> Result<(), PackageError> {

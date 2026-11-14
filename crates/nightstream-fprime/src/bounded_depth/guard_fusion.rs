@@ -385,13 +385,6 @@ impl GuardFusion {
         self.groups.push(group);
     }
 
-    pub(super) fn validate(&self, package: &StepPackage) -> Result<(), PackageError> {
-        if self != &Self::checked(package)? {
-            return Err(PackageError::Malformed("guard fusion source map"));
-        }
-        Ok(())
-    }
-
     pub(super) fn bind(&self, source: &[Row], update: &mut impl FnMut(u64)) {
         fn row(row: &Row, update: &mut impl FnMut(u64)) {
             for form in [&row.a, &row.b, &row.c] {

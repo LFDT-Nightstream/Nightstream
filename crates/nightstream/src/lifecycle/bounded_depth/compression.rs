@@ -27,9 +27,10 @@
 //! 1. The Π_CCS run has the test error of one fold with one source.
 //!    `Params::for_ccs_shape` gates the larger error of a fold with 17
 //!    sources, about `2^-109.15` for the Poseidon2 hash chain.
-//! 2. The argument has the error of `neo_compress::error_bits`: its batches,
-//!    its lookups, its two sum-checks and the point of `V`, `2^-119.02` for
-//!    the Poseidon2 hash chain. `compression_layout` gates it.
+//! 2. The argument has the error of its batches, its lookups, its two
+//!    sum-checks and the point of `V`, `2^-119.02` for the Poseidon2 hash
+//!    chain. `neo_compress::error_bits` bounds it by `2^-119` in integers,
+//!    and `compression_layout` gates that bound.
 //! 3. The Akita opening has the knowledge error of Akita's schedule row. No
 //!    gate here computes or bounds it. The argument also needs the
 //!    verification key to hold the commitment of the Ajtai key.
@@ -216,10 +217,11 @@ impl BoundedDepth {
     }
 
     /// The layout of the claims under a key of `key_blocks` blocks, when
-    /// `neo_compress::error_bits` of it is within the security minimum. That
-    /// number is the error of the batches, the lookups, the sum-checks and
-    /// the point of `V`. It has no term for the Π_CCS run or for the Akita
-    /// opening.
+    /// `neo_compress::error_bits` of it is at least the security minimum.
+    /// The error of the batches, the lookups, the sum-checks and the point
+    /// of `V` is at most `2^-error_bits`, and the comparison is of integers
+    /// (`Spec.Compression.Rust.params_run_soundness_bits`). It has no term
+    /// for the Π_CCS run or for the Akita opening.
     pub(crate) fn compression_layout(
         &self,
         key_blocks: usize,
@@ -227,7 +229,7 @@ impl BoundedDepth {
         depths: [u64; 2],
     ) -> Result<Layout, BoundedDepthError> {
         let layout = Layout::new(&self.compression_claims(pc, depths), key_blocks)?;
-        if neo_compress::error_bits(&layout, PUBLIC_WORDS, MATRICES) < f64::from(self.minimum_security_bits) {
+        if neo_compress::error_bits(&layout, PUBLIC_WORDS, MATRICES) < self.minimum_security_bits {
             return Err(BoundedDepthError::Statement(
                 "the batch, lookup and sum-check error of the compression argument is above the security minimum",
             ));

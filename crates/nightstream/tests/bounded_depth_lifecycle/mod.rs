@@ -8,6 +8,7 @@
 mod support;
 
 mod compression;
+mod compression_error;
 mod factored_rows;
 mod guard_fusion;
 #[cfg(feature = "metal")]

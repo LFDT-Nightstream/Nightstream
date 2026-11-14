@@ -77,10 +77,13 @@
 //! rows is exact, so the row point adds no error. No proof exists when `ω`
 //! has no row point, with probability `7 / |K|` (`key::row_point`).
 //!
-//! `error_bits` gives the sum without the Akita term. For the two step
-//! circuits of the Poseidon2 hash chain (`N = 2^25` and `2^23`, `T ≤ 20737`,
-//! `n ≤ 27`, `m = 320`, `t = 4`, `s = 3`, `b = 19`) the lookups give
-//! `2^-155.99`, the other terms `2^-119.02`, and the sum is `2^-119.02`.
+//! `error_bits` bounds the sum without the Akita term, in integers. It counts
+//! each lookup term as `1/|K|`, which holds when `(N + T)² ≤ q`, so the sum
+//! is at most `count/|K|`, and it gives the largest `k` with
+//! `2^k · count ≤ |K|`. For the two step circuits of the Poseidon2 hash
+//! chain (`N = 2^25` and `2^23`, `T ≤ 20737`, `n ≤ 27`, `m = 320`, `t = 4`,
+//! `s = 3`, `b = 19`) the exact sum is `2^-119.02`, `count ≤ 506 + 2` and
+//! `error_bits` is 119.
 //!
 //! The argument assumes that the commitment of the verification key is the
 //! Akita commitment of the key polynomial, and that Akita is binding and
@@ -304,19 +307,28 @@ fn inverse_point(layout: &Layout, rho: &[K], column: &[K]) -> Vec<K> {
     point
 }
 
-/// The sum of the soundness errors of this argument for `layout`, without
-/// the Akita openings, as `-log2`.
-pub fn error_bits(layout: &Layout, public_cells: usize, matrices: usize) -> f64 {
-    let extension = 2.0 * (F::ORDER_U64 as f64).log2();
-    let lookups: f64 = layout
-        .tables()
-        .map(|(_, witness, bound, _)| {
-            let poles = (witness.len() as f64 + 2.0 * bound as f64 + 1.0) / F::ORDER_U64 as f64;
-            poles.powi(layout::LOOKUPS as i32)
-        })
-        .sum();
+/// The largest `k` with `2^k · count ≤ |K|`, where `count/|K|` bounds the
+/// sum of the soundness errors of this argument for `layout`, without the
+/// Akita openings (SPEC.md section 3, `Spec.Compression.Rust.runBits`).
+/// `count` is the numerator of the terms over `|K|`, plus 1 for each table:
+/// a table with `(N + T)² ≤ q` has `((N + T)/q)^4 ≤ 1/|K|`. A table without
+/// this gives 0. The integers are exact, so no rounding accepts a larger `k`.
+pub fn error_bits(layout: &Layout, public_cells: usize, matrices: usize) -> u32 {
+    const { assert!(layout::LOOKUPS >= 4) };
+    let q = u128::from(F::ORDER_U64);
+    let mut count = 0;
+    for (_, witness, bound, _) in layout.tables() {
+        let poles = witness.len() as u128 + 2 * u128::from(bound) + 1;
+        if poles.checked_mul(poles).is_none_or(|square| square > q) {
+            return 0;
+        }
+        count += 1;
+    }
     let batch = weights::KAPPA + 1 + matrices + 63.max(public_cells.saturating_sub(1)) + layout.cells.len() - 1;
     let key = 2 * (layout::LANE_VARS + layout.key_block_vars());
-    let rest = (batch + 2 + layout.witness_vars + 3 * layout.witness_vars + 2 + key) as f64;
-    -(lookups + rest * (-extension).exp2()).log2()
+    count += (batch + 2 + layout.witness_vars + 3 * layout.witness_vars + 2 + key) as u128;
+    (q * q)
+        .checked_div(count)
+        .and_then(u128::checked_ilog2)
+        .unwrap_or(0)
 }

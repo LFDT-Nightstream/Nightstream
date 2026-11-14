@@ -1,0 +1,39 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Spec.Compression
+
+/-! Axiom audits for the links of the compression argument to Rust (`Spec/Compression/Rust`,
+`Spec/Compression/Verifier/Run.lean`). -/
+
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.game_costLe
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.run_soundness
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.runCost_le_runError
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.error_le_runError
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.params_run_soundness
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.runCount_pos
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.runError_le_runCount
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.runBits_spec
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.runError_le_runBits
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.params_run_soundness_bits
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.error_le_runBits
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.nextMultiple_spec
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.placeAll_spec
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.lookup_mem
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.lookup_isSome
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.lookup_slice
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.mem_groupOrder
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.mem_countRequests
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.tables_le_others
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.others_le_counts
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.cellOf_witness
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.cellOf_table
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.layoutNew_ok
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.fits_of
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.assemble_cell
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.claimsOf_getD
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.layoutNew_production
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.layout_soundness
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.layout_run_soundness
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.followsK_bind
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.sumcheck_followsK
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.game_follows
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.calls_draw

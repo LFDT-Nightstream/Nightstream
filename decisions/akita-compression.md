@@ -29,8 +29,9 @@ the sum-check that reduces the key's part of the weights, the row point, the
 schedule rows, the bytes of the key and their pin, and the four lookup
 challenges. Lean bounds the soundness of the argument of this record in a
 model with ideal Akita openings (`Spec.Compression.Verifier.soundness`,
-SPEC.md Algorithm 10). No Lean statement covers the layout, the key or the
-Π_CCS run with one source.
+SPEC.md Algorithm 10). Lean models the layout
+(`Spec.Compression.Rust.layoutNew`) and the Π_CCS run with one source
+(`Spec.Compression.Fresh.game`). No Lean statement covers the key.
 
 ## Problem
 
@@ -230,7 +231,9 @@ For the reference application, `N` is `2^23` and `2^25`, `T ≤ 20,737`,
 `n ≤ 27` and `n_A = 19`. At `L = 4` the lookups give about `2^−155.99`, the
 other terms give `(398 + 4n)/q² = 506/q²` at `n = 27`, about `2^−119.02`,
 and the sum is about `2^−119.02` (computed). `verify_final` and `compress`
-refuse a layout whose sum is above the caller's security minimum.
+count each lookup term as `1/q²` and refuse a layout when the largest `k`
+with `2^k · count ≤ q²` is below the caller's security minimum, in integers
+(`SPEC.md` section 3). For the reference application, `k` is 119.
 
 This sum is not a security level of the final proof. It does not include:
 
@@ -307,8 +310,8 @@ fails again. The prover can extend one step and then compress.
 
 - A review of the soundness of the committed key by a party outside the
   project.
-- A Lean statement of the Π_CCS run with one source, and a Lean link from
-  the soundness of the argument to `Spec.CE.Holds` and to the Rust data.
+- A Lean link from the soundness of the argument to the Rust data. Only
+  tests join the Lean layout and error sum to Rust.
 - Security against a quantum adversary of the transcript hashes.
 - A WASM build of the verifier.
 

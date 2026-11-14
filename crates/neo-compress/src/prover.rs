@@ -356,3 +356,7 @@ impl Committed<'_> {
 #[cfg(test)]
 #[path = "../tests/unit/cheating_prover.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../tests/unit/transcript_order.rs"]
+mod transcript_order;

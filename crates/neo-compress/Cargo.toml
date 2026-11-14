@@ -34,5 +34,7 @@ jolt-field = { git = "https://github.com/a16z/jolt", rev = "25d87ba68bde9f4a85ac
 nightstream-fprime = { path = "../nightstream-fprime" }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
+# The Lean parity file of `tests/unit/layout.rs`.
+serde_json = { workspace = true }
 # The digests of the schedule files of `artifacts/`.
 sha2 = "0.10.9"

@@ -142,7 +142,7 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
         let (single_time, single_times) = single.install(verify);
         let argument = &decoded.steps.as_ref().expect("steps").argument;
         let error_bits = neo_compress::error_bits(&layout, PUBLIC_WORDS, PI_CCS_V1_2_MATRIX_COUNT);
-        assert!(error_bits > 119.0, "the argument's own error is 2^-{error_bits:.2}");
+        assert!(error_bits >= 119, "the argument's own error is at most 2^-{error_bits}");
         let commitments = argument.witness_commitment.len() + argument.inverse_commitment.len();
         let sumchecks = 16 * (4 * argument.rounds.len() + 3 * argument.key_rounds.len());
         let values = 16 * (1 + argument.inverse_values.len() + 2);
@@ -165,7 +165,7 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
             values,
             bytes.len() - akita - sumchecks - values - lengths,
         );
-        println!("  argument error without PiCCS and the Akita opening: 2^-{error_bits:.2}");
+        println!("  argument error without PiCCS and the Akita opening: at most 2^-{error_bits}");
         println!("  compress {:.0} ms: {times}", milliseconds(compress));
         println!(
             "  verify_final {:.1} ms on {} threads: {verify_times}",

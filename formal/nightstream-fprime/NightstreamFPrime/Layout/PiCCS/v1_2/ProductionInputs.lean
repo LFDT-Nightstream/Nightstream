@@ -21,7 +21,7 @@ variable {logicalWidth : Nat}
     RingCarrierLayout.carrierWidth logicalWidth}
 
 structure ExternalInputsLinear
-    (interface : Formal.Interface logicalWidth 8 publicFits)
+    (interface : Formal.Interface logicalWidth 4 publicFits)
     (parentOffset : Nat) : Prop where
   below : Formal.ExternalInputsBelow interface parentOffset
   priorState : ∀ index,
@@ -65,7 +65,7 @@ structure ExternalInputsLinear
 
 theorem inputShapes
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 8 publicFits)
+    (interface : Formal.Interface logicalWidth 4 publicFits)
     (parentOffset : Nat)
     (external : ExternalInputsLinear interface parentOffset) :
     InputShapes relation interface parentOffset := by
@@ -311,7 +311,7 @@ theorem inputShapes
 
 theorem physicalFreshColumnCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 8 publicFits)
+    (interface : Formal.Interface logicalWidth 4 publicFits)
     (parentOffset : Nat)
     (external : ExternalInputsLinear interface parentOffset) :
     physicalFreshColumnCount relation interface parentOffset = 2862 :=
@@ -320,34 +320,34 @@ theorem physicalFreshColumnCount_eq
 
 theorem physicalRowCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 8 publicFits)
+    (interface : Formal.Interface logicalWidth 4 publicFits)
     (parentOffset : Nat)
     (external : ExternalInputsLinear interface parentOffset) :
-    physicalRowCount relation interface parentOffset = 1117017 :=
+    physicalRowCount relation interface parentOffset = 1160549 :=
   physicalRowCount_eq_production relation interface parentOffset
     (inputShapes relation interface parentOffset external)
 
 theorem physicalColumnCount_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 8 publicFits)
+    (interface : Formal.Interface logicalWidth 4 publicFits)
     (parentOffset : Nat)
     (external : ExternalInputsLinear interface parentOffset) :
     physicalColumnCount relation interface parentOffset =
-      parentOffset + 1112287 :=
+      parentOffset + 1155819 :=
   physicalColumnCount_eq_production relation interface parentOffset
     (inputShapes relation interface parentOffset external)
 
 theorem jointDomain_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 8 publicFits)
+    (interface : Formal.Interface logicalWidth 4 publicFits)
     (external : ExternalInputsLinear interface 0) :
-    jointDomain relation interface = 1117017 :=
+    jointDomain relation interface = 1160549 :=
   jointDomain_eq_production relation interface
     (inputShapes relation interface 0 external)
 
 theorem jointDomain_le_twoPow28
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 8 publicFits)
+    (interface : Formal.Interface logicalWidth 4 publicFits)
     (external : ExternalInputsLinear interface 0) :
     jointDomain relation interface ≤ 2 ^ 28 :=
   NightstreamFPrime.Layout.PiCCS.v1_2.jointDomain_le_twoPow28 relation interface

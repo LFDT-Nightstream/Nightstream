@@ -22,17 +22,17 @@ def PortValues.get (values : PortValues)
   | 3 => values.sboxInput
   | _ => 0
 
-def seventhPower (value : F) : F := pow baseOps value 7
+def cube (value : F) : F := pow baseOps value 3
 
 theorem evaluate (values : PortValues) :
     evaluatePolynomial baseOps polynomial values.get =
-      values.a * values.b - values.c + seventhPower values.sboxInput := by
+      values.a * values.b - values.c + cube values.sboxInput := by
   simp [polynomial, GatePolynomial.polynomial,
     GatePolynomial.terms, GatePolynomial.termData, GatePolynomial.monomial,
     GatePolynomial.Term.toMonomial, GatePolynomial.sboxTermData,
     GatePolynomial.powers, GatePolynomial.PortExponents.get,
     evaluatePolynomial, evaluateMonomial, canonicalFinIndices, List.foldl,
-    Fin.val_cast, pow, seventhPower, PortValues.get, baseOps]
+    Fin.val_cast, pow, cube, PortValues.get, baseOps]
   rw [sub_eq_add_neg]
 
 def multiplication (left right output : F) : PortValues :=
@@ -43,14 +43,14 @@ theorem evaluate_multiplication (left right output : F) :
         (multiplication left right output).get =
       left * right - output := by
   rw [evaluate]
-  simp [multiplication, seventhPower, pow, baseOps]
+  simp [multiplication, cube, pow, baseOps]
 
 def sbox (input output : F) : PortValues :=
   { c := output, sboxInput := input }
 
 theorem evaluate_sbox (input output : F) :
     evaluatePolynomial baseOps polynomial (sbox input output).get =
-      seventhPower input - output := by
+      cube input - output := by
   rw [evaluate]
   simp [sbox, sub_eq_add_neg, add_comm]
 

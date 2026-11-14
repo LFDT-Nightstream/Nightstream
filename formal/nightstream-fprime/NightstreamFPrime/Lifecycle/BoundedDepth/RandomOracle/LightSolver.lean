@@ -46,7 +46,7 @@ variable {logicalWidth : Nat}
 variable (logicalWidth publicFits) in
 /-- A view of the light game: a base run and its one retry. -/
 abbrev View :=
-  Reduction.View (LightSchedule.schedule logicalWidth publicFits) 8 (Attempt logicalWidth publicFits)
+  Reduction.View (LightSchedule.schedule logicalWidth publicFits) 4 (Attempt logicalWidth publicFits)
 
 section Fork
 
@@ -70,8 +70,8 @@ theorem retryHoldsOf
     identifies.1
   have proofEq : LightFork.proofOf (view.forks LightFork.first).link.fold.proof =
       LightFork.proofOf view.base.link.fold.proof :=
-    congrArg (fun messages : (LightSchedule.schedule logicalWidth publicFits).Messages 8 =>
-      (⟨messages.rounds, messages.output⟩ : Light.Proof LightShape 8)) identifies.2
+    congrArg (fun messages : (LightSchedule.schedule logicalWidth publicFits).Messages 4 =>
+      (⟨messages.rounds, messages.output⟩ : Light.Proof LightShape 4)) identifies.2
   have startEq : (view.forks LightFork.first).link.start = view.base.link.start := valid.2.2
   rw [statementEq, proofEq, startEq] at holds
   have outputEq : LightFork.outputFor key.relation ajtai
@@ -189,7 +189,7 @@ noncomputable def kernelOf (view other : View logicalWidth publicFits) :
     else none
   else none
 
-variable (adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 8) Answer
+variable (adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 4) Answer
   (Attempt logicalWidth publicFits))
 
 /-- On an adversary's views, `kernelOf` is `LightUniqueness.rerunKernel`. -/

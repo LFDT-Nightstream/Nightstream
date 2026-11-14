@@ -157,14 +157,14 @@ def parentInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
-    Formal.Interface logicalWidth 8 publicFits :=
+    Formal.Interface logicalWidth 4 publicFits :=
   PiCCSInvocations.parentInterface logicalWidth publicFits
 
 def sharedInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
-    Formal.Interface logicalWidth 8 publicFits :=
+    Formal.Interface logicalWidth 4 publicFits :=
   PiCCSInvocations.sharedInterface logicalWidth publicFits
 
 theorem initialClaimLogicalStart_matches
@@ -176,7 +176,7 @@ theorem initialClaimLogicalStart_matches
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
   calc
     initialClaimLogicalStart =
-        Formal.initialClaimRowOffset 8
+        Formal.initialClaimRowOffset 4
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
       rfl
     _ = _ := (Formal.initialClaimOffset_eq_initialClaimRowOffset
@@ -192,7 +192,7 @@ theorem sumcheckLogicalStart_matches
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
   calc
     sumcheckLogicalStart =
-        Formal.sumcheckRowOffset 8
+        Formal.sumcheckRowOffset 4
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
       rfl
     _ = _ := (Formal.sumcheckOffset_eq_sumcheckRowOffset
@@ -208,7 +208,7 @@ theorem evalKLogicalStart_matches
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
   calc
     evalKLogicalStart =
-        Formal.evalKRowOffset 8
+        Formal.evalKRowOffset 4
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
       rfl
     _ = _ := (Formal.evalKOffset_eq_evalKRowOffset
@@ -224,7 +224,7 @@ theorem evalALogicalStart_matches
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
   calc
     evalALogicalStart =
-        Formal.evalARowOffset 8
+        Formal.evalARowOffset 4
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
       rfl
     _ = _ := (Formal.evalAOffset_eq_evalARowOffset
@@ -240,7 +240,7 @@ theorem ccsLogicalStart_matches
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
   calc
     ccsLogicalStart =
-        Formal.ccsRowOffset 8
+        Formal.ccsRowOffset 4
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset := by
       rfl
     _ = _ := (Formal.ccsOffset_eq_ccsRowOffset
@@ -799,7 +799,7 @@ theorem sumcheckRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (sumcheckRows logicalWidth publicFits).length = 728 := by
+    (sumcheckRows logicalWidth publicFits).length = 392 := by
   rw [sumcheckRows, compilePacket_length]
   unfold sumcheckConstraints
   rw [sumcheckLogicalStart_matches logicalWidth publicFits]
@@ -844,7 +844,7 @@ theorem ccsRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (ccsRows logicalWidth publicFits).length = 23 := by
+    (ccsRows logicalWidth publicFits).length = 11 := by
   rw [ccsRows, compilePacket_length]
   unfold ccsConstraints mainConstraints
   rw [ccsLogicalStart_matches logicalWidth publicFits]
@@ -918,7 +918,7 @@ theorem arithmeticRows_length
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    (arithmeticRows logicalWidth publicFits).length = 38553 := by
+    (arithmeticRows logicalWidth publicFits).length = 38205 := by
   unfold arithmeticRows
   rw [List.length_append, List.length_append, List.length_append,
     List.length_append, List.length_append, List.length_append,

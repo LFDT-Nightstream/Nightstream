@@ -28,7 +28,7 @@ def block (sourceWidth invocationCount : Nat)
       witnessStart invocation + PoseidonScheduleTrace.localColumnCount ≤
         sourceWidth) :
     (block sourceWidth invocationCount witnessStart witnessBound).slotCount =
-      invocationCount * 150 := by
+      invocationCount * 171 := by
   simp [block]
 
 theorem block_coordinateCount (sourceWidth invocationCount : Nat)
@@ -37,7 +37,7 @@ theorem block_coordinateCount (sourceWidth invocationCount : Nat)
       witnessStart invocation + PoseidonScheduleTrace.localColumnCount ≤
         sourceWidth) :
     (block sourceWidth invocationCount witnessStart
-      witnessBound).coordinateCount = invocationCount * 150 * 41 := by
+      witnessBound).coordinateCount = invocationCount * 171 * 41 := by
   simp [LowNormBlock.Block.coordinateCount, block,
     LowNormSlot.Kind.width, BalancedTernary.width]
 

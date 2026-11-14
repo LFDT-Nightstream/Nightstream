@@ -32,16 +32,16 @@ use serde_json::Value;
 use crate::application_records::ApplicationRecords;
 use crate::identity::append_value_preimage;
 use crate::package::json::{array, exact_array, usize_atom};
-use crate::package::{IdentityKind, PackageError, BLOCK_OUTPUTS};
+use crate::package::{IdentityKind, PackageError, BLOCK_OUTPUTS, SBOX_ROWS};
 use crate::witness::{validate_witness_batch, validate_witness_batch_order, RawWitnessBatch, WitnessBatch};
 
 const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/packages/v1";
 /// The identity of the packages in `formal/nightstream-fprime/artifacts`.
 pub const BOUNDED_DEPTH_PACKAGES_IDENTITY: [u64; 4] = [
-    6_398_329_394_409_109_036,
-    11_988_409_427_770_984_119,
-    18_348_894_988_471_970_692,
-    15_767_711_981_777_023_634,
+    14_717_545_422_571_454_249,
+    13_287_200_450_213_481_625,
+    10_221_263_217_310_632_340,
+    2_033_727_466_863_458_689,
 ];
 
 /// A lane or a row side as `Pieces.linear?` reads it: a constant and terms.

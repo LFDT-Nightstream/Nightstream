@@ -239,7 +239,7 @@ theorem slotIndex_of_mem {width : Nat} {slots : List (LowNormAssignment.Slot wid
 
 /-- The number of columns that `StepPackage.runsOf` scans: up to the last S-box column. -/
 def runsSize (sboxStart : Nat) (pieces : List PackagePiece) : Nat :=
-  sboxStart + 150 * (pieces.filterMap PackagePiece.block?).length
+  sboxStart + 171 * (pieces.filterMap PackagePiece.block?).length
 
 /-- The code of each column, as `StepPackage.runsOf` computes it. -/
 def codeOf (sboxStart : Nat) (pieces : List PackagePiece) (bits : List Nat) : Nat → Nat :=

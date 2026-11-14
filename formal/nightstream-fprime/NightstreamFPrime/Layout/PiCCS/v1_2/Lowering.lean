@@ -127,20 +127,20 @@ theorem physicalColumnCount_eq
       (plan relation interface offset).freshColumnCount
   exact R1CS.LoweringPlan.next_eq _
 
-theorem logicalConstraints_length_eq_of_degreeBound_eq_eight
+theorem logicalConstraints_length_eq_of_degreeBound_eq_four
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
-    (offset : Nat) (degreeEq : degreeBound = 8) :
-    (logicalConstraints relation interface offset).length = 1114155 := by
+    (offset : Nat) (degreeEq : degreeBound = 4) :
+    (logicalConstraints relation interface offset).length = 1157687 := by
   rw [logicalConstraints_length]
-  exact Formal.rowCount_eq_of_degreeBound_eq_eight degreeBound degreeEq
+  exact Formal.rowCount_eq_of_degreeBound_eq_four degreeBound degreeEq
 
-theorem logicalColumnCount_eq_of_degreeBound_eq_eight
+theorem logicalColumnCount_eq_of_degreeBound_eq_four
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
-    (offset : Nat) (degreeEq : degreeBound = 8) :
-    logicalColumnCount relation interface offset = offset + 1109425 := by
+    (offset : Nat) (degreeEq : degreeBound = 4) :
+    logicalColumnCount relation interface offset = offset + 1152957 := by
   unfold logicalColumnCount
-  rw [Formal.privateCount_eq_of_degreeBound_eq_eight degreeBound degreeEq]
+  rw [Formal.privateCount_eq_of_degreeBound_eq_four degreeBound degreeEq]
 
 end NightstreamFPrime.Layout.PiCCS.v1_2

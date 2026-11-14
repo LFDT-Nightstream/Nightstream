@@ -21,7 +21,7 @@ private theorem previousRule_zero
 private theorem previousRule_succ
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (invocationOffset : Fin 983) (lane : Fin 16) :
+    (invocationOffset : Fin 955) (lane : Fin 16) :
     (previousRule program).form? logicalWidth
         (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val
         (1 + invocationOffset.val) lane.val =
@@ -34,7 +34,7 @@ private theorem previousRule_succ
           rw [PiCCSPoseidonPlan.invocationCount_eq]
           omega⟩ lane)) := by
   have slotBound : ∀ selected : Fin 16,
-      134 + invocationOffset.val * 150 + selected.val <
+      155 + invocationOffset.val * 171 + selected.val <
         (PiCCSPoseidonPlan.schedule program).block.slotCount := by
     intro selected
     rw [(PiCCSPoseidonPlan.schedule program).slotCount_eq,
@@ -49,17 +49,17 @@ private theorem previousRule_succ
             (PiCCSPoseidonPlan.retainedStart program)
             (PiCCSPoseidonPlan.retainedFits
           (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry))
-            ⟨134 + invocationOffset.val * 150 + selected.val,
+            ⟨155 + invocationOffset.val * 171 + selected.val,
               slotBound selected⟩) lane)) by
     simpa [previousRule] using!
       PoseidonInput.Rule.external_form?_ofSemantic
-        (region := PoseidonInput.Region.mk 1 983 0 16)
+        (region := PoseidonInput.Region.mk 1 955 0 16)
         invocationOffset lane lane.isLt
         (PiCCSPoseidonPlan.schedule program).block
         (PiCCSPoseidonPlan.retainedStart program)
         (PiCCSPoseidonPlan.retainedFits
           (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry))
-        (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val 134 150 slotBound]
+        (PiCCSOrdinaryRetainedGeometry.oneColumn geometry).val 155 171 slotBound]
   apply congrArg some
   apply congrArg some
   unfold PoseidonRetainedFamily.outputState PoseidonRetainedFamily.form
@@ -91,9 +91,9 @@ private theorem previousRule_result
     rw [invocationEq]
     exact previousRule_zero geometry lane
   · rw [ite_eq_right first]
-    let invocationOffset : Fin 983 :=
+    let invocationOffset : Fin 955 :=
       ⟨invocation.val - 1, by
-        have bound : invocation.val < 984 := by
+        have bound : invocation.val < 956 := by
           simpa only [PiCCSPoseidonPlan.invocationCount_eq] using
             invocation.isLt
         omega⟩
@@ -133,7 +133,7 @@ private theorem payloadRule_lane
       some (invocation.val, lane.val) := by
     simpa only [payloadRule, Nat.zero_add] using
       (PoseidonInput.Region.offsets?_of_offsets
-        (PoseidonInput.Region.mk 0 984 0 12) invocation lane)
+        (PoseidonInput.Region.mk 0 956 0 12) invocation lane)
   unfold PoseidonInput.Rule.form?
   rw [offsets]
   simp only
@@ -219,9 +219,9 @@ theorem inputProgram_state?
 theorem poseidonBlock_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (global : Fin (PiCCSPoseidonPlan.invocationCount * 150)) :
+    (global : Fin (PiCCSPoseidonPlan.invocationCount * 171)) :
     (poseidonBlock geometry).row? logicalWidth global.val =
-      let decoded : Fin PiCCSPoseidonPlan.invocationCount × Fin 150 :=
+      let decoded : Fin PiCCSPoseidonPlan.invocationCount × Fin 171 :=
         Fin.decodeProd global
       some (PoseidonSboxFamilyPlan.rowForms
         (PiCCSPoseidonPlan.interface (PiCCSPayloadWiring.form geometry)
@@ -240,9 +240,9 @@ theorem matrixProgram_poseidon_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (global : Fin (PiCCSPoseidonPlan.invocationCount * 150)) :
+    (global : Fin (PiCCSPoseidonPlan.invocationCount * 171)) :
     (matrixProgram geometry).row? logicalWidth sourceRow global.val =
-      let decoded : Fin PiCCSPoseidonPlan.invocationCount × Fin 150 :=
+      let decoded : Fin PiCCSPoseidonPlan.invocationCount × Fin 171 :=
         Fin.decodeProd global
       some (PoseidonSboxFamilyPlan.rowForms
         (PiCCSPoseidonPlan.interface (PiCCSPayloadWiring.form geometry)

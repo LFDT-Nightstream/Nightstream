@@ -67,22 +67,20 @@ private theorem internalE_supported (state : Layer.EState)
 
 private theorem sboxRecipes_supported (start : Nat) (value : Expr)
     (allowed : Nat → Prop) (valueSupported : value.VarsSatisfy allowed)
-    (targetsSupported : ∀ index, index < 4 → allowed (start + index)) :
+    (targetsSupported : ∀ index, index < 2 → allowed (start + index)) :
     ∀ recipe ∈ Permutation.sboxRecipes start value,
       recipe.VarsSatisfy allowed := by
   intro recipe member
   simp only [Permutation.sboxRecipes, List.mem_cons,
     List.not_mem_nil, or_false] at member
-  rcases member with rfl | rfl | rfl | rfl
+  rcases member with rfl | rfl
   · exact ⟨valueSupported, valueSupported⟩
-  · exact ⟨targetsSupported 0 (by decide), targetsSupported 0 (by decide)⟩
-  · exact ⟨targetsSupported 1 (by decide), targetsSupported 0 (by decide)⟩
-  · exact ⟨targetsSupported 2 (by decide), valueSupported⟩
+  · exact ⟨targetsSupported 0 (by decide), valueSupported⟩
 
 private theorem sboxOutput_supported (start : Nat) (allowed : Nat → Prop)
-    (targetsSupported : ∀ index, index < 4 → allowed (start + index)) :
+    (targetsSupported : ∀ index, index < 2 → allowed (start + index)) :
     (Permutation.sboxOutput start).VarsSatisfy allowed := by
-  exact targetsSupported 3 (by decide)
+  exact targetsSupported 1 (by decide)
 
 private theorem compileSboxes_supported (start : Nat) (values : List Expr)
     (allowed : Nat → Prop)
@@ -97,7 +95,7 @@ private theorem compileSboxes_supported (start : Nat) (values : List Expr)
   induction values generalizing start with
   | nil => simp [Permutation.compileSboxes]
   | cons value rest inductionHypothesis =>
-      have headTargets : ∀ index, index < 4 →
+      have headTargets : ∀ index, index < 2 →
           allowed (start + index) := by
         intro index indexBound
         apply targetsSupported index
@@ -106,17 +104,17 @@ private theorem compileSboxes_supported (start : Nat) (values : List Expr)
           Permutation.compileSboxes_recipes_length]
         omega
       have tailTargets : ∀ index,
-          index < (Permutation.compileSboxes (start + 4) rest).recipes.length →
-          allowed ((start + 4) + index) := by
+          index < (Permutation.compileSboxes (start + 2) rest).recipes.length →
+          allowed ((start + 2) + index) := by
         intro index indexBound
-        have bound : 4 + index <
+        have bound : 2 + index <
             (Permutation.compileSboxes start (value :: rest)).recipes.length := by
           rw [Permutation.compileSboxes_recipes_length] at indexBound ⊢
           simp only [List.length_cons]
           omega
-        have target := targetsSupported (4 + index) bound
+        have target := targetsSupported (2 + index) bound
         simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using target
-      have tail := inductionHypothesis (start + 4) (by
+      have tail := inductionHypothesis (start + 2) (by
         intro current currentMember
         exact valuesSupported current (by simp [currentMember])) tailTargets
       constructor
@@ -211,7 +209,7 @@ private theorem step_supported (start : Nat) (step : Permutation.Step)
         stateSupported
       have sboxes := compileSboxes_supported start _ allowed inputs (by
         intro index indexBound
-        have indexBound' : index < 64 := by
+        have indexBound' : index < 32 := by
           rw [Permutation.compileSboxes_recipes_length] at indexBound
           simpa [Permutation.fullInputs] using indexBound
         exact targetsSupported index (by
@@ -226,9 +224,9 @@ private theorem step_supported (start : Nat) (step : Permutation.Step)
           rcases member with ⟨lane, rfl⟩
           exact externalE_supported _ allowed
             (fullSboxState_supported start _ round state allowed sboxes.2) lane
-      · exact freshState_supported (start + 64) 16 allowed (by
+      · exact freshState_supported (start + 32) 16 allowed (by
           intro index indexBound
-          have supported := targetsSupported (64 + index) (by
+          have supported := targetsSupported (32 + index) (by
             simp [Permutation.stepSize]
             omega)
           simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using supported)
@@ -257,9 +255,9 @@ private theorem step_supported (start : Nat) (step : Permutation.Step)
           exact internalE_supported _ allowed
             (partialSboxState_supported start round state allowed
               stateSupported sboxes.2) lane
-      · exact freshState_supported (start + 4) 16 allowed (by
+      · exact freshState_supported (start + 2) 16 allowed (by
           intro index indexBound
-          have supported := targetsSupported (4 + index) (by
+          have supported := targetsSupported (2 + index) (by
             simp [Permutation.stepSize]
             omega)
           simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using supported)
@@ -270,7 +268,7 @@ private theorem step_supported (start : Nat) (step : Permutation.Step)
         stateSupported
       have sboxes := compileSboxes_supported start _ allowed inputs (by
         intro index indexBound
-        have indexBound' : index < 64 := by
+        have indexBound' : index < 32 := by
           rw [Permutation.compileSboxes_recipes_length] at indexBound
           simpa [Permutation.fullInputs] using indexBound
         exact targetsSupported index (by
@@ -285,9 +283,9 @@ private theorem step_supported (start : Nat) (step : Permutation.Step)
           rcases member with ⟨lane, rfl⟩
           exact externalE_supported _ allowed
             (fullSboxState_supported start _ round state allowed sboxes.2) lane
-      · exact freshState_supported (start + 64) 16 allowed (by
+      · exact freshState_supported (start + 32) 16 allowed (by
           intro index indexBound
-          have supported := targetsSupported (64 + index) (by
+          have supported := targetsSupported (32 + index) (by
             simp [Permutation.stepSize]
             omega)
           simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using supported)
@@ -397,7 +395,7 @@ theorem compileAbsorptions_supported (start : Nat)
   | cons block rest inductionHypothesis =>
       let permutation := Permutation.compile start (Hash.absorbE state block)
         Permutation.schedule
-      have permutationLength : permutation.recipes.length = 1096 := by
+      have permutationLength : permutation.recipes.length = 1174 := by
         simpa [permutation] using Permutation.compile_schedule_recipe_count
           start (Hash.absorbE state block)
       have blockSupported : ∀ expression ∈ block,
@@ -420,16 +418,16 @@ theorem compileAbsorptions_supported (start : Nat)
         (Hash.absorbE state block) Permutation.schedule allowed
         absorbedSupported headTargets
       have tailTargets : ∀ index,
-          index < (Hash.compileAbsorptions (start + 1096)
+          index < (Hash.compileAbsorptions (start + 1174)
             permutation.output rest).recipes.length →
-          allowed ((start + 1096) + index) := by
+          allowed ((start + 1174) + index) := by
         intro index indexBound
-        have target := targetsSupported (1096 + index) (by
+        have target := targetsSupported (1174 + index) (by
           rw [Hash.compileAbsorptions_recipes_length] at indexBound ⊢
           simp only [List.length_cons]
           omega)
         simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using target
-      have tail := inductionHypothesis (start + 1096) permutation.output
+      have tail := inductionHypothesis (start + 1174) permutation.output
         head.2 restSupported tailTargets
       constructor
       · intro recipe member
@@ -465,7 +463,7 @@ theorem hashCompile_supported (start : Nat) (input : List Expr)
         finalPermutation.output⟩ := by
     rfl
   have absorbedLength : absorbed.recipes.length =
-      input.length / Spec.Poseidon2.rate * 1096 := by
+      input.length / Spec.Poseidon2.rate * 1174 := by
     simp [absorbed, blocks, Spec.Poseidon2.fullBlocks]
   have zeroSupported : StateSupported Hash.zeroE allowed := by
     intro lane
@@ -478,7 +476,7 @@ theorem hashCompile_supported (start : Nat) (input : List Expr)
     apply targetsSupported index
     rw [Hash.compile_recipes_length]
     rw [absorbedLength] at indexBound
-    exact Nat.lt_add_right 1096 indexBound
+    exact Nat.lt_add_right 1174 indexBound
   have absorbedProof := compileAbsorptions_supported start Hash.zeroE blocks
     allowed zeroSupported blocksSupported absorbedTargets
   have finalTargets : ∀ index,
@@ -487,7 +485,7 @@ theorem hashCompile_supported (start : Nat) (input : List Expr)
     intro index indexBound
     have target := targetsSupported (absorbed.recipes.length + index) (by
       rw [Hash.compile_recipes_length, absorbedLength]
-      have finalLength : finalPermutation.recipes.length = 1096 := by
+      have finalLength : finalPermutation.recipes.length = 1174 := by
         simpa [finalPermutation] using
           Permutation.compile_schedule_recipe_count
             (start + absorbed.recipes.length) (Hash.padE last absorbed.output)

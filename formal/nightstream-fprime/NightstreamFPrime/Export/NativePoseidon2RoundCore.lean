@@ -355,9 +355,7 @@ theorem externalLayer64_denote (state : State64) :
   simp [Poseidon2.externalLayer, Poseidon2.width, Poseidon2.mat4, List.range_succ]
 
 @[inline] private def sbox64 (value : Word) : Word :=
-  let x2 := square64 value
-  let x4 := square64 x2
-  mul64 (mul64 x4 x2) value
+  mul64 (square64 value) value
 
 private theorem sbox64_canonical (value : Word) :
     (sbox64 value).toNat < fieldModulus := by
@@ -368,18 +366,9 @@ private theorem sbox64_denote (value : Word)
     (canonical : value.toNat < fieldModulus) :
     (sbox64 value).denote = Poseidon2.sbox value.denote := by
   let x2 := square64 value
-  let x4 := square64 x2
-  let x6 := mul64 x4 x2
   have x2Canonical : x2.toNat < fieldModulus := square64_canonical _
-  have x4Canonical : x4.toNat < fieldModulus := square64_canonical _
-  have x6Canonical : x6.toNat < fieldModulus := mul64_canonical _ _
-  change (mul64 x6 value).denote =
-    ((value.denote * value.denote) * (value.denote * value.denote)) *
-      (value.denote * value.denote) * value.denote
-  rw [mul64_denote x6 value x6Canonical canonical,
-    mul64_denote x4 x2 x4Canonical x2Canonical,
-    square64_denote x2 x2Canonical,
-    square64_denote value canonical]
+  change (mul64 x2 value).denote = value.denote * value.denote * value.denote
+  rw [mul64_denote x2 value x2Canonical canonical, square64_denote value canonical]
 
 @[noinline] def fullRound64 (state : State64) (constants : @& State64) : State64 :=
   externalLayer64 {

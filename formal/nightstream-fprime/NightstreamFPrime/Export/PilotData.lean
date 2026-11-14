@@ -35,7 +35,7 @@ def canonicalConstraints (_unit : Unit) : List Expr :=
   recipeConstraints 16 (canonicalRecipes ())
 
 def canonicalRows (_unit : Unit) : List R1CS.Row :=
-  (R1CS.lowerConstraints (canonicalConstraints ()) 1112).rows
+  (R1CS.lowerConstraints (canonicalConstraints ()) 1190).rows
 
 def columnRef (column : Nat) : ColumnRef :=
   if column < 16 then .input column else .local (column - 16)
@@ -59,8 +59,8 @@ def templateRows (_unit : Unit) : List TemplateRow :=
 
 def permutationTemplate (_unit : Unit) : PermutationTemplate where
   inputCount := 16
-  localColumnCount := 1096
-  outputLocalStart := 1080
+  localColumnCount := 1174
+  outputLocalStart := 1158
   rows := templateRows ()
 
 def priorHashRowStart : Nat := PilotValues.priorHashRowStart
@@ -100,8 +100,8 @@ def zeroCombination : SparseCombination := ⟨0, []⟩
 def oneCombination : SparseCombination := ⟨1, []⟩
 
 def digestRow (chain : HashChain) (lane : Fin 4) : SparseRow :=
-  let outputColumn := chain.witnessStart + chain.absorbCount * 1096 +
-    1080 + lane.val
+  let outputColumn := chain.witnessStart + chain.absorbCount * 1174 +
+    1158 + lane.val
   let expectedColumn := chain.digestStart + lane.val
   ⟨chain.rowStart + chain.witnessLength + lane.val,
     ⟨0, [⟨outputColumn, 1⟩, ⟨expectedColumn, (-1 : F).val⟩]⟩,
@@ -227,8 +227,8 @@ def poseidonSchedule : PoseidonSchedule where
   initialFullRounds := Spec.Poseidon2.halfFullRounds
   partialRounds := Spec.Poseidon2.partialRounds
   terminalFullRounds := Spec.Poseidon2.halfFullRounds
-  recipesPerPermutation := 1096
-  outputLocalStart := 1080
+  recipesPerPermutation := 1174
+  outputLocalStart := 1158
 
 def privateSegments : List Segment :=
   [⟨Role.priorPreimage, PilotValues.priorPreimageStart,

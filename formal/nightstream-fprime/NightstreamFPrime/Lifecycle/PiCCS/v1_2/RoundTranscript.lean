@@ -776,7 +776,7 @@ theorem actions_length {degreeBound : Nat}
   rfl
 
 def perRoundRecipeCount (degreeBound : Nat) : Nat :=
-  ((2 * degreeBound + 13) / 12) * 1096
+  ((2 * degreeBound + 13) / 12) * 1174
 
 private theorem serializeKExprs_length (values : List KExpr) :
     (serializeKExprs values).length = 2 * values.length := by
@@ -800,14 +800,14 @@ private theorem inputChunks_length (input : List Expr) :
 
 private theorem absorb_recipeCount (input : List Expr) :
     Formal.Action.recipeCount (.absorb input) =
-      ((input.length + 11) / 12) * 1096 := by
-  change (Hash.inputChunks input).length * 1096 = _
+      ((input.length + 11) / 12) * 1174 := by
+  change (Hash.inputChunks input).length * 1174 = _
   rw [inputChunks_length]
 
 private theorem messageAbsorb_recipeCount {degreeBound : Nat}
     (round : Message degreeBound) :
     Formal.Action.recipeCount (.absorb (serializeRoundExpr round)) =
-      ((2 * degreeBound + 13) / 12) * 1096 := by
+      ((2 * degreeBound + 13) / 12) * 1174 := by
   rw [absorb_recipeCount, serializeRoundExpr_length]
   have words : 2 * (degreeBound + 1) + 11 = 2 * degreeBound + 13 := by omega
   rw [words]

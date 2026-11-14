@@ -32,7 +32,7 @@ theorem StateSupported.mono {state : EState} {allowed larger : Nat → Prop}
 def OutputPrefix (allowed : Nat → Prop) (base count index : Nat) : Prop :=
   allowed index ∨
     ∃ (invocation : Fin count) (lane : Fin Spec.Poseidon2.width),
-      index = base + invocation.val * 1096 + 1080 + lane.val
+      index = base + invocation.val * 1174 + 1158 + lane.val
 
 theorem outputPrefix_mono {allowed : Nat → Prop} {base prior later index : Nat}
     (support : OutputPrefix allowed base prior index) (le : prior ≤ later) :
@@ -50,7 +50,7 @@ def permutationCount (actions : List Action) : Nat :=
   (actions.map Action.permutationCount).sum
 
 theorem recipeCount_eq_permutationCount_mul (actions : List Action) :
-    recipeCount actions = permutationCount actions * 1096 := by
+    recipeCount actions = permutationCount actions * 1174 := by
   induction actions with
   | nil => rfl
   | cons action actions inductionHypothesis =>
@@ -65,7 +65,7 @@ theorem recipeCount_eq_permutationCount_mul (actions : List Action) :
 
 private theorem scheduleOutput_outputPrefix_supported
     (allowed : Nat → Prop) (base count : Nat) :
-    StateSupported (Permutation.scheduleOutput (base + count * 1096))
+    StateSupported (Permutation.scheduleOutput (base + count * 1174))
       (OutputPrefix allowed base (count + 1)) := by
   intro lane
   simp only [Permutation.scheduleOutput, Permutation.freshState,
@@ -77,7 +77,7 @@ private theorem compileAbsorbWiring_outputPrefix_supported
     (blocks : List (List Expr))
     (stateSupport : StateSupported state (OutputPrefix allowed base prior)) :
     StateSupported
-      (compileAbsorbWiring (base + prior * 1096) state blocks).output
+      (compileAbsorbWiring (base + prior * 1174) state blocks).output
       (OutputPrefix allowed base (prior + blocks.length)) := by
   induction blocks generalizing prior state with
   | nil => simpa [compileAbsorbWiring] using stateSupport
@@ -85,8 +85,8 @@ private theorem compileAbsorbWiring_outputPrefix_supported
       simp only [compileAbsorbWiring, List.length_cons]
       have nextSupport := scheduleOutput_outputPrefix_supported allowed base prior
       have tail := inductionHypothesis (prior := prior + 1)
-        (state := Permutation.scheduleOutput (base + prior * 1096)) nextSupport
-      rw [show base + prior * 1096 + 1096 = base + (prior + 1) * 1096 by omega]
+        (state := Permutation.scheduleOutput (base + prior * 1174)) nextSupport
+      rw [show base + prior * 1174 + 1174 = base + (prior + 1) * 1174 by omega]
       rw [show prior + (blocks.length + 1) = prior + 1 + blocks.length by omega]
       exact tail
 
@@ -94,12 +94,12 @@ theorem compileAbsorbWiring_output_cons
     (start : Nat) (state : EState) (block : List Expr)
     (rest : List (List Expr)) :
     (compileAbsorbWiring start state (block :: rest)).output =
-      Permutation.scheduleOutput (start + rest.length * 1096) := by
+      Permutation.scheduleOutput (start + rest.length * 1174) := by
   induction rest generalizing start state block with
   | nil => rfl
   | cons next rest inductionHypothesis =>
       rw [compileAbsorbWiring]
-      rw [inductionHypothesis (start := start + 1096)
+      rw [inductionHypothesis (start := start + 1174)
         (state := Permutation.scheduleOutput start) (block := next)]
       congr 1
       simp only [List.length_cons]
@@ -122,11 +122,11 @@ theorem compileWiring_outputPrefix_supported
     (actions : List Action)
     (stateSupport : StateSupported state (OutputPrefix allowed base prior)) :
     (∀ sample ∈
-        (compileWiring (base + prior * 1096) state actions).samples,
+        (compileWiring (base + prior * 1174) state actions).samples,
       KSupported sample
         (OutputPrefix allowed base (prior + permutationCount actions))) ∧
       StateSupported
-        (compileWiring (base + prior * 1096) state actions).output
+        (compileWiring (base + prior * 1174) state actions).output
         (OutputPrefix allowed base (prior + permutationCount actions)) := by
   induction actions generalizing prior state with
   | nil =>
@@ -142,12 +142,12 @@ theorem compileWiring_outputPrefix_supported
             allowed base prior state blocks stateSupport
           have tail := inductionHypothesis (prior := prior + blocks.length)
             (state :=
-              (compileAbsorbWiring (base + prior * 1096) state blocks).output)
+              (compileAbsorbWiring (base + prior * 1174) state blocks).output)
             absorbedSupport
           simp only [compileWiring]
           rw [compileAbsorbWiring_next]
-          rw [show base + prior * 1096 + blocks.length * 1096 =
-              base + (prior + blocks.length) * 1096 by omega]
+          rw [show base + prior * 1174 + blocks.length * 1174 =
+              base + (prior + blocks.length) * 1174 by omega]
           have countEq :
               prior + permutationCount (.absorb input :: actions) =
                 prior + blocks.length + permutationCount actions := by
@@ -186,7 +186,7 @@ theorem sampleGetD_supported (samples : List KExpr) (index : Nat)
 private theorem scheduleOutput_supported (allowed : Nat → Prop)
     (base start : Nat) (baseLeStart : base ≤ start) :
     StateSupported (Permutation.scheduleOutput start)
-      (Extend allowed base (start + 1096)) := by
+      (Extend allowed base (start + 1174)) := by
   intro lane
   simp only [Permutation.scheduleOutput, Permutation.freshState,
     Expr.VarsSatisfy]
@@ -200,18 +200,18 @@ private theorem compileAbsorbWiring_output_supported
     (blocks : List (List Expr)) (baseLeStart : base ≤ start)
     (stateSupport : StateSupported state (Extend allowed base start)) :
     StateSupported (compileAbsorbWiring start state blocks).output
-      (Extend allowed base (start + blocks.length * 1096)) := by
+      (Extend allowed base (start + blocks.length * 1174)) := by
   induction blocks generalizing start state with
   | nil =>
       simpa [compileAbsorbWiring] using stateSupport
   | cons block blocks inductionHypothesis =>
       have nextSupport := scheduleOutput_supported allowed base start baseLeStart
       have tail := inductionHypothesis
-        (start := start + 1096) (state := Permutation.scheduleOutput start)
+        (start := start + 1174) (state := Permutation.scheduleOutput start)
         (by omega) nextSupport
       have endEq :
-          start + (List.length (block :: blocks)) * 1096 =
-            (start + 1096) + blocks.length * 1096 := by
+          start + (List.length (block :: blocks)) * 1174 =
+            (start + 1174) + blocks.length * 1174 := by
         simp only [List.length_cons]
         omega
       simpa only [compileAbsorbWiring, endEq] using tail

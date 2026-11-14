@@ -402,14 +402,14 @@ theorem scanLanes_length (slotStart : ℕ → ℕ) :
 
 theorem span_le (blocks : List (List Circuit.Expr)) (bound : ℕ)
     (size : (blocks.map fun b => b.length + 1).sum ≤ bound) :
-    MemoryApp.span blocks ≤ bound * 1096 :=
+    MemoryApp.span blocks ≤ bound * 1174 :=
   Nat.mul_le_mul_right _ ((transcriptChunks_length_le blocks).trans size)
 
-/-- A bound on the variables of the nine sponge children: chunks of 1,096
+/-- A bound on the variables of the nine sponge children: chunks of 1,174
 variables each. -/
 def localBound (geometry : Spec.Nebula.Geometry) (app : PortApp geometry) : ℕ :=
   (2 * (69 + app.width) + (geometry.bOps * geometry.opWidth + 39) + 2 * (geometry.bScan * geometry.scanWidth + 39) +
-    7 + 3) * 1096
+    7 + 3) * 1174
 
 theorem localLength_le :
     localLength (MemoryApp.opsAt geometry app (wires geometry app) (start geometry app)) ≤ localBound geometry app := by

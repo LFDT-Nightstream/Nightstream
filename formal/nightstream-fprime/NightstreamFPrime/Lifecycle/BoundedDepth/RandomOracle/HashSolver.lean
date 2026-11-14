@@ -125,14 +125,14 @@ section Game
 variable {schedule : Schedule}
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (key : CircuitKey logicalWidth publicFits)
-  (folds : (Point schedule 8 → Answer) → Folds logicalWidth publicFits)
+  (folds : (Point schedule 4 → Answer) → Folds logicalWidth publicFits)
   (statement : Attempt logicalWidth publicFits → schedule.Statement)
-  (messages : Attempt logicalWidth publicFits → schedule.Messages 8)
-  (adversary : OracleComp (Point schedule 8) Answer (Attempt logicalWidth publicFits))
+  (messages : Attempt logicalWidth publicFits → schedule.Messages 4)
+  (adversary : OracleComp (Point schedule 4) Answer (Attempt logicalWidth publicFits))
 
 /-- The uniqueness-step kernel: the prior-state collision of the two base outputs. -/
 noncomputable def stateKernel
-    (view other : Reduction.View schedule 8 (Attempt logicalWidth publicFits)) :
+    (view other : Reduction.View schedule 4 (Attempt logicalWidth publicFits)) :
     Option PoseidonCollision :=
   priorCollision view.base other.base
 
@@ -181,7 +181,7 @@ theorem collisionChance_le_finder {queries : Nat} (bounded : adversary.QueryBoun
       queries + schedule.rhoCount + 1 := by
   have bound := LineFinder.line_le (ForkLink.game ajtai key folds statement messages) index
     priorCollision adversary bounded budget
-  have each (oracle : Point schedule 8 → Answer) :
+  have each (oracle : Point schedule 4 → Answer) :
       ForkLink.collisionChance ajtai key folds statement messages adversary index oracle ≤
         LineFinder.retryCollision (ForkLink.game ajtai key folds statement messages) index
           priorCollision adversary oracle :=
@@ -210,13 +210,13 @@ theorem collisionChance_le_finder {queries : Nat} (bounded : adversary.QueryBoun
     _ ≤ _ := bound
 
 /-- Named: instance search exceeds its size limit on this type. -/
-noncomputable local instance (budget : ℕ) : Fintype (Fin budget → Point schedule 8 → Answer) :=
+noncomputable local instance (budget : ℕ) : Fintype (Fin budget → Point schedule 4 → Answer) :=
   Pi.instFintype
 
 /-- The Poseidon2 collision finder with target `target`: the line finder at a `ρ` coordinate,
 or the reduction with the state kernel. -/
 noncomputable def hashSolve (target : Option (Fin schedule.rhoCount)) (budget : ℕ)
-    (tape : Fin budget → Point schedule 8 → Answer) : Option PoseidonCollision :=
+    (tape : Fin budget → Point schedule 4 → Answer) : Option PoseidonCollision :=
   match target with
   | some index => LineFinder.lineSolve (ForkLink.game ajtai key folds statement messages) index
       priorCollision adversary budget tape
@@ -225,7 +225,7 @@ noncomputable def hashSolve (target : Option (Fin schedule.rhoCount)) (budget : 
 
 /-- The chance that the finder with target `target` outputs a Poseidon2 collision. -/
 noncomputable def targetChance (target : Option (Fin schedule.rhoCount)) (budget : ℕ) : ℝ :=
-  𝔼 tape : Fin budget → Point schedule 8 → Answer,
+  𝔼 tape : Fin budget → Point schedule 4 → Answer,
     if (hashSolve ajtai key folds statement messages adversary target budget tape).isSome
     then 1 else 0
 
@@ -293,7 +293,7 @@ section Light
 
 variable (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (key : CircuitKey logicalWidth publicFits)
-  (adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 8) Answer
+  (adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 4) Answer
     (Attempt logicalWidth publicFits))
 
 /-- The light Poseidon2 collision finder's chance with a uniform target. -/
@@ -330,7 +330,7 @@ section Refresh
 
 variable (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (key : CircuitKey logicalWidth publicFits)
-  (adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 8) Answer
+  (adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 4) Answer
     (Attempt logicalWidth publicFits))
 
 /-- The refresh Poseidon2 collision finder's chance with a uniform target. -/

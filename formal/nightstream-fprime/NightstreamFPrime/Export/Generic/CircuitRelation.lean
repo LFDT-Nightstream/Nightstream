@@ -8,7 +8,7 @@ import NightstreamFPrime.Export.Generic.PieceRows
 constraints of its output digest, are split into pieces (`Pieces.split`). When the Poseidon2
 blocks pack (`packable`: the frame check, every block after the public columns, and no other piece
 reading a dead local), the relation is the R1CS rows of the other pieces (`PieceRows.lowerPieces`)
-and today's `PoseidonSboxFamilyPlan`: 150 S-box rows per block on fresh columns. A block's 16
+and today's `PoseidonSboxFamilyPlan`: 171 S-box rows per block on fresh columns. A block's 16
 output locals are no columns of the relation: each row and each block input reads, in place of an
 output local, the local's linear form over the block's last 16 S-box columns (`outputForms`,
 `Substitute.substitute`). Otherwise every piece is lowered to R1CS rows. Soundness never depends
@@ -301,7 +301,7 @@ theorem toCombination_eval {width : Nat} (form : SparseForm width) (env : Env) :
 
 /-- Fresh column of S-box output `row` of block `block`, from `sboxStart`. -/
 def sboxColumn (sboxStart block row : Nat) : Nat :=
-  sboxStart + (block * 150 + row)
+  sboxStart + (block * 171 + row)
 
 def sboxOutputs {width : Nat} (blocks : List Block) (sboxStart : Nat) :
     Fin blocks.length → Fin PoseidonRetainedSlots.rows.length → SparseForm width :=
@@ -329,12 +329,12 @@ its block. -/
 def outputWrites (width sboxStart : Nat) (blocks : List Block) :
     List (Nat × R1CS.LinearCombination) :=
   blocks.zipIdx.flatMap fun entry => List.ofFn fun lane : Fin 16 =>
-    (entry.1.start + 1080 + lane.val,
+    (entry.1.start + 1158 + lane.val,
       toCombination (outputStateAt (width := width) sboxStart entry.2 lane))
 
 /-- A column count that covers every block. -/
 def tableSize (blocks : List Block) : Nat :=
-  blocks.foldl (fun size block => max size (block.start + 1096)) 0
+  blocks.foldl (fun size block => max size (block.start + 1174)) 0
 
 /-- The table of the forms of the output locals of the blocks. A definition that computes builds
 this table one time and reads it with `Substitute.lookup`. -/
@@ -348,13 +348,13 @@ abbrev outputForms (width : Nat) (blocks : List Block) (sboxStart : Nat) :
   Substitute.lookup (outputTable width sboxStart blocks)
 
 theorem foldl_max_le (blocks : List Block) (size : Nat) :
-    size ≤ blocks.foldl (fun size block => max size (block.start + 1096)) size ∧
+    size ≤ blocks.foldl (fun size block => max size (block.start + 1174)) size ∧
       ∀ block ∈ blocks,
-        block.start + 1096 ≤ blocks.foldl (fun size block => max size (block.start + 1096)) size := by
+        block.start + 1174 ≤ blocks.foldl (fun size block => max size (block.start + 1174)) size := by
   induction blocks generalizing size with
   | nil => simp
   | cons head rest hypothesis =>
-      obtain ⟨grows, covers⟩ := hypothesis (max size (head.start + 1096))
+      obtain ⟨grows, covers⟩ := hypothesis (max size (head.start + 1174))
       refine ⟨by simp only [List.foldl_cons]; omega, fun block member => ?_⟩
       simp only [List.foldl_cons]
       rcases List.mem_cons.mp member with rfl | inRest
@@ -363,7 +363,7 @@ theorem foldl_max_le (blocks : List Block) (size : Nat) :
 
 /-- A column is an output local of a block. -/
 def outputIn (blocks : List Block) (column : Nat) : Bool :=
-  blocks.any fun block => decide (block.start + 1080 ≤ column ∧ column < block.start + 1096)
+  blocks.any fun block => decide (block.start + 1158 ≤ column ∧ column < block.start + 1174)
 
 /-- A column that is no output local has no form. -/
 theorem outputForms_of_not_outputIn (width : Nat) {blocks : List Block} (sboxStart : Nat)
@@ -387,22 +387,22 @@ theorem outputForms_of_not_outputIn (width : Nat) {blocks : List Block} (sboxSta
 /-- An output local is a lane of a block of the list. -/
 theorem outputIn_get {blocks : List Block} {column : Nat} (output : outputIn blocks column = true) :
     ∃ (index : Fin blocks.length) (lane : Fin 16),
-      column = (blocks.get index).start + 1080 + lane.val := by
+      column = (blocks.get index).start + 1158 + lane.val := by
   simp only [outputIn, List.any_eq_true, decide_eq_true_eq] at output
   obtain ⟨block, blockMember, inside⟩ := output
   obtain ⟨index, rfl⟩ := List.mem_iff_get.mp blockMember
-  exact ⟨index, ⟨column - ((blocks.get index).start + 1080), by omega⟩, by simp only; omega⟩
+  exact ⟨index, ⟨column - ((blocks.get index).start + 1158), by omega⟩, by simp only; omega⟩
 
 /-- Output lane `lane` of block `index` has the block's output state as its form. -/
 theorem outputForms_output (width sboxStart : Nat) (blocks : List Block)
     (separated : blocks.Pairwise Separated) (index : Fin blocks.length) (lane : Fin 16) :
-    outputForms width blocks sboxStart ((blocks.get index).start + 1080 + lane.val) =
+    outputForms width blocks sboxStart ((blocks.get index).start + 1158 + lane.val) =
       some (toCombination (outputStateAt (width := width) sboxStart index.val lane)) := by
   have laneLt := lane.isLt
   show Substitute.lookup (Substitute.table (tableSize blocks)
     (outputWrites width sboxStart blocks)) _ = _
   apply Substitute.lookup_table_some (tableSize blocks) (outputWrites width sboxStart blocks)
-    ((blocks.get index).start + 1080 + lane.val,
+    ((blocks.get index).start + 1158 + lane.val,
       toCombination (outputStateAt (width := width) sboxStart index.val lane))
   · simp only [outputWrites, List.mem_flatMap, List.mem_ofFn]
     refine ⟨(blocks.get index, index.val), ?_, lane, rfl⟩
@@ -500,8 +500,8 @@ structure BlockFits (pieces : List Piece) (next width rowCount : Nat) : Prop whe
   inputs : ∀ block ∈ blocksOf pieces, ∀ lane : Fin 16,
     ∀ term ∈ (Substitute.substitute (outputForms width (blocksOf pieces) (sboxStart pieces next))
       (invocationInputCombination block.invocation lane.val).toR1CS).terms, term.1 < width
-  sboxColumns : sboxStart pieces next + (blocksOf pieces).length * 150 ≤ width
-  rowCount : rowCount + (blocksOf pieces).length * 150 ≤ 2 ^ cubeVariables
+  sboxColumns : sboxStart pieces next + (blocksOf pieces).length * 171 ≤ width
+  rowCount : rowCount + (blocksOf pieces).length * 171 ≤ 2 ^ cubeVariables
 
 /-- The relation fits the cube and the logical width. -/
 structure Fits (publicColumns : Nat) (pieces : List Piece) (next width : Nat) : Prop where
@@ -565,12 +565,12 @@ theorem outputsHold {publicColumns : Nat} {pieces : List Piece} {next width logi
     have bound : sboxColumn (sboxStart pieces next) index.val
         (PoseidonRetainedSlots.finalRow lane).val < width := by
       have room := (fits.blocks packed).sboxColumns
-      have row : (PoseidonRetainedSlots.finalRow lane).val < 150 := by
+      have row : (PoseidonRetainedSlots.finalRow lane).val < 171 := by
         simpa using (PoseidonRetainedSlots.finalRow lane).isLt
       have indexBound := index.isLt
       unfold sboxColumn
-      have : index.val * 150 + 150 ≤ (blocksOf pieces).length * 150 := by
-        have := Nat.mul_le_mul_right 150 (Nat.succ_le_of_lt indexBound)
+      have : index.val * 171 + 171 ≤ (blocksOf pieces).length * 171 := by
+        have := Nat.mul_le_mul_right 171 (Nat.succ_le_of_lt indexBound)
         simpa [Nat.succ_mul] using this
       omega
     simp only [SparseLayer.evalState, sboxInterface, sboxOutputs,
@@ -580,7 +580,7 @@ theorem outputsHold {publicColumns : Nat} {pieces : List Piece} {next width logi
       ((blocksOf pieces).get index).output (outputEnv pieces next layout assignment) := by
     funext lane
     have row : outputEnv pieces next layout assignment
-        (((blocksOf pieces).get index).start + 1080 + lane.val) =
+        (((blocksOf pieces).get index).start + 1158 + lane.val) =
         (outputState (width := width) (blocksOf pieces) (sboxStart pieces next) index lane).eval
           (fun column => LogicalPlan.sourceEnv layout assignment column.val) := by
       unfold outputEnv Substitute.refill

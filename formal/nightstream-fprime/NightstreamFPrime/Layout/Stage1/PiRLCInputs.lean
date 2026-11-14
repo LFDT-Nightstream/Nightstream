@@ -19,7 +19,7 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
 
-def phaseOffset : Nat := 5806589
+def phaseOffset : Nat := 6179213
 
 theorem piCcsLogicalFreshBase_le_phaseOffset :
     PiCCSStarts.logicalFreshBase ≤ phaseOffset := by
@@ -35,12 +35,12 @@ theorem phaseOffset_matches_piCcs
 
 def piCcsInterface :
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface
-      logicalWidth 8 publicFits :=
+      logicalWidth 4 publicFits :=
   PiCCSInputs.interface logicalWidth publicFits
 
 def piCcsSharedInterface :
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface
-      logicalWidth 8 publicFits :=
+      logicalWidth 4 publicFits :=
   NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.atOffset
     (piCcsInterface (logicalWidth := logicalWidth)
       (publicFits := publicFits)) PiCCSInputs.phaseOffset

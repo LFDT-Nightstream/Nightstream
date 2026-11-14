@@ -345,10 +345,10 @@ def sourceMap {program : Lifecycle.Stage1.Application.Program}
 
 private theorem Location.sourceColumn_afterTranscript (location : Location) :
     PiCCSStarts.statementWitnessStart +
-        PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
+        PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1174 ≤
       location.sourceColumn := by
   have first : PiCCSStarts.statementWitnessStart +
-      PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
+      PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1174 ≤
         PiDECSourceSupport.parentCommitmentStart := by decide
   exact Nat.le_trans first
     (PiDECSourceSupport.parentStart_le_source location.sourceSupport)

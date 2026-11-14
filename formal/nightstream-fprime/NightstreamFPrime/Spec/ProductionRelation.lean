@@ -26,11 +26,11 @@ def polynomial : ConstraintPolynomial F matrixCount :=
     polynomial.terms = GatePolynomial.terms := by
   rfl
 
-@[simp] theorem polynomial_degreeBound : polynomial.degreeBound = 8 := by
+@[simp] theorem polynomial_degreeBound : polynomial.degreeBound = 4 := by
   rfl
 
 theorem polynomial_canonicalEqualityGatedDegreeBound :
-    polynomial.canonicalEqualityGatedDegreeBound = 8 :=
+    polynomial.canonicalEqualityGatedDegreeBound = 4 :=
   GatePolynomial.polynomial_canonicalEqualityGatedDegreeBound
 
 private theorem exists_pos_of_sum_pos :

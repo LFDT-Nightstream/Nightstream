@@ -186,7 +186,7 @@ def footprint
     (Formal.atOffset interface parentOffset) parentOffset
   {
     freshColumnCount := fun _ => 0
-    physicalRowCount := fun _ => 4384
+    physicalRowCount := fun _ => 4696
     freshColumnCount_eq := by
       intro offset
       unfold Formal.challengeCircuit
@@ -205,7 +205,7 @@ def footprint
       dsimp only
       rw [FormalCircuit.withConstantFootprint_main]
       change R1CS.totalRowCount (flatConstraints
-        (opsAt child offset)) = 4384
+        (opsAt child offset)) = 4696
       rw [NightstreamFPrime.Lifecycle.PiCCS.v1_2.ChallengeDerivation.flatConstraints_opsAt]
       rw [R1CS.recipeConstraints_totalRowCount]
       exact NightstreamFPrime.Lifecycle.PiCCS.v1_2.ChallengeDerivation.program_recipes_length
@@ -237,7 +237,7 @@ theorem physicalRowCount_eq
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (Formal.challengeCircuit interface parentOffset).main offset)) =
-        4384 :=
+        4696 :=
   (footprint interface parentOffset inputs).physicalRowCount_eq offset
 
 end NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.ChallengeDerivation

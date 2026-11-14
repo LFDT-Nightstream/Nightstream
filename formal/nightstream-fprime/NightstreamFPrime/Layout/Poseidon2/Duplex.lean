@@ -32,7 +32,7 @@ theorem StateFresh.affine {state : Layer.EState}
 private theorem compileAbsorptions_cons_output (start : Nat) (state : Layer.EState)
     (block : List Expr) (rest : List (List Expr)) :
     (Hash.compileAbsorptions start state (block :: rest)).output =
-      (Hash.compileAbsorptions (start + 1096)
+      (Hash.compileAbsorptions (start + 1174)
         (Permutation.compile start (Hash.absorbE state block)
           Permutation.schedule).output rest).output :=
   rfl
@@ -46,11 +46,11 @@ private theorem compileAbsorptions_output_fresh_of_nonempty
   | cons block blocks inductionHypothesis =>
       cases blocks with
       | nil =>
-          refine ⟨start + 1080, ?_⟩
+          refine ⟨start + 1158, ?_⟩
           simp [Hash.compileAbsorptions, compile_schedule_output_eq]
       | cons next rest =>
           rw [compileAbsorptions_cons_output]
-          exact inductionHypothesis (start + 1096)
+          exact inductionHypothesis (start + 1174)
             (Permutation.compile start (Hash.absorbE state block)
               Permutation.schedule).output (by simp)
 

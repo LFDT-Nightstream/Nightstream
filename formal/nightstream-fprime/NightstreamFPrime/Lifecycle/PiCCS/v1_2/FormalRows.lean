@@ -165,7 +165,7 @@ theorem finalIdentityCircuit_main_eq_rowMain
   rfl
 
 def initialClaimRowOffset (degreeBound offset : Nat) : Nat :=
-  offset + 136224 + 4384 +
+  offset + 145896 + 4696 +
     productionShape.cubeVariables *
       RoundTranscript.perRoundRecipeCount degreeBound
 
@@ -315,7 +315,7 @@ def finalRowOffset
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Nat :=
-  outputBindingRowOffset interface offset + 876800
+  outputBindingRowOffset interface offset + 939200
 
 theorem finalOffset_eq_finalRowOffset
     {logicalWidth degreeBound : Nat}
@@ -336,7 +336,7 @@ theorem finalRowOffset_eq_add
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) :
     finalRowOffset interface offset =
-      offset + (1047377 + productionShape.cubeVariables *
+      offset + (1119749 + productionShape.cubeVariables *
         RoundTranscript.perRoundRecipeCount degreeBound +
         SumcheckChain.privateCount degreeBound) := by
   unfold finalRowOffset outputBindingRowOffset finalIdentityRowOffset
@@ -347,13 +347,13 @@ theorem finalRowOffset_eq_add
     EvalKTerminal.privateCount, InitialClaim.privateCount]
   omega
 
-theorem finalRowOffset_eq_add_of_degreeBound_eq_eight
+theorem finalRowOffset_eq_add_of_degreeBound_eq_four
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
-    (offset : Nat) (degreeEq : degreeBound = 8) :
-    finalRowOffset interface offset = offset + 1109425 := by
+    (offset : Nat) (degreeEq : degreeBound = 4) :
+    finalRowOffset interface offset = offset + 1152957 := by
   rw [finalRowOffset_eq_add, degreeEq]
   norm_num [RoundTranscript.perRoundRecipeCount, SumcheckChain.privateCount,
     NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.privateCount,

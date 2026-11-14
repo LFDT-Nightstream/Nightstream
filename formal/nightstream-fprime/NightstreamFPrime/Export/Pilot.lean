@@ -38,7 +38,7 @@ def canonicalTemplateEnv (value : ColumnRef → F) : Env :=
   fun column => (PilotData.columnRef column).eval value
 
 private theorem canonicalOutputLocalIndex (lane : Fin 16) :
-    1096 + lane.val - 16 = 1080 + lane.val := by
+    1174 + lane.val - 16 = 1158 + lane.val := by
   omega
 
 private theorem templateCombination_eval
@@ -141,23 +141,23 @@ theorem canonicalTemplateInvocation_sound (chain : HashChain)
   have logical : ConstraintsHold canonicalEnv
       (PilotData.canonicalConstraints ()) :=
     R1CS.lowerConstraints_sound canonicalEnv
-      (PilotData.canonicalConstraints ()) 1112 physical
+      (PilotData.canonicalConstraints ()) 1190 physical
   have sound := Permutation.compile_sound canonicalEnv 16
     PilotData.canonicalState Permutation.schedule logical
   rw [Poseidon2.compile_schedule_output_eq] at sound
   have outputBoundary :
-      Layer.evalState canonicalEnv (Permutation.freshState (16 + 1080)) =
+      Layer.evalState canonicalEnv (Permutation.freshState (16 + 1158)) =
         (fun lane : Fin 16 => env
           (invocationLocalStart (PilotData.circuitPackage ()) chain invocation +
             (PilotData.circuitPackage ()).permutation.outputLocalStart +
             lane.val)) := by
     funext lane
-    have refEq : PilotData.columnRef (1096 + lane.val) =
-        .local (1080 + lane.val) := by
+    have refEq : PilotData.columnRef (1174 + lane.val) =
+        .local (1158 + lane.val) := by
       unfold PilotData.columnRef
       rw [ite_eq_right (by omega)]
       rw [canonicalOutputLocalIndex lane]
-    change (PilotData.columnRef (1096 + lane.val)).eval value = _
+    change (PilotData.columnRef (1174 + lane.val)).eval value = _
     rw [refEq]
     simp [ColumnRef.eval, value, instantiateColumn, invocationLocalStart,
       PilotData.circuitPackage, PilotData.permutationTemplate, Nat.add_assoc]
@@ -233,7 +233,7 @@ theorem canonicalPermutationInvocation_implies_constraints
       (PilotData.canonicalRows ()) :=
     (canonicalPermutationInvocation_iff invocation env).mp rows
   exact R1CS.lowerConstraints_sound (canonicalInvocationEnv invocation env)
-    (PilotData.canonicalConstraints ()) 1112 physical
+    (PilotData.canonicalConstraints ()) 1190 physical
 
 theorem canonicalPermutationInvocation_complete
     (invocation : PermutationInvocation) (env : Env)
@@ -267,7 +267,7 @@ private def canonicalInvocationLocalCompleted
 
 private def canonicalInvocationWitnessRecipes
     (invocation : PermutationInvocation) (env : Env) : List Expr :=
-  List.ofFn fun index : Fin 1096 =>
+  List.ofFn fun index : Fin 1174 =>
     Expr.const (canonicalInvocationLocalCompleted invocation env
       (16 + index.val))
 
@@ -342,19 +342,19 @@ theorem completePermutationInvocation
     (inputsOutside : ∀ lane : Fin 16,
       ∀ term ∈ (invocationInputCombination invocation lane.val).toR1CS.terms,
         term.1 < invocation.witnessStart ∨
-          invocation.witnessStart + 1096 ≤ term.1) :
+          invocation.witnessStart + 1174 ≤ term.1) :
     AgreesOutside env (completePermutationInvocationEnv invocation env)
-        invocation.witnessStart 1096 ∧
+        invocation.witnessStart 1174 ∧
       PermutationInvocationHolds (PilotData.circuitPackage ()) invocation
         (completePermutationInvocationEnv invocation env) := by
   let completed := completePermutationInvocationEnv invocation env
   let localEnv := canonicalInvocationLocalCompleted invocation env
   have completedOutside : AgreesOutside env completed
-      invocation.witnessStart 1096 := by
+      invocation.witnessStart 1174 := by
     have agrees := executeRecipes_agreesOutside env invocation.witnessStart
       (canonicalInvocationWitnessRecipes invocation env)
     have recipeLength :
-        (canonicalInvocationWitnessRecipes invocation env).length = 1096 := by
+        (canonicalInvocationWitnessRecipes invocation env).length = 1174 := by
       unfold canonicalInvocationWitnessRecipes
       exact List.length_ofFn
     rw [recipeLength] at agrees
@@ -365,7 +365,7 @@ theorem completePermutationInvocation
     exact executeRecipes_agrees_below
       (canonicalInvocationInputEnv invocation env) 16
       (PilotData.canonicalRecipes ()) index below
-  have mappedAgrees : ∀ column, column < 1112 →
+  have mappedAgrees : ∀ column, column < 1190 →
       canonicalInvocationEnv invocation completed column = localEnv column := by
     intro column below
     by_cases input : column < 16
@@ -384,9 +384,9 @@ theorem completePermutationInvocation
       unfold canonicalInvocationInputEnv
       rw [ite_eq_left input]
       exact inputStable
-    · have localIndex : column - 16 < 1096 := by omega
+    · have localIndex : column - 16 < 1174 := by omega
       have written := executeConstantRecipes_at
-        (fun index : Fin 1096 =>
+        (fun index : Fin 1174 =>
           canonicalInvocationLocalCompleted invocation env (16 + index.val))
         env invocation.witnessStart ⟨column - 16, localIndex⟩
       unfold canonicalInvocationEnv canonicalTemplateEnv
@@ -402,14 +402,14 @@ theorem completePermutationInvocation
       rw [show 16 + (column - 16) = column by omega] at written
       exact written
   have canonicalScope : ∀ expression ∈ PilotData.canonicalConstraints (),
-      expression.VarsBelow 1112 := by
+      expression.VarsBelow 1190 := by
     intro expression member
     have scope := recipeConstraints_varsBelow_of_causal 16
       (PilotData.canonicalRecipes ())
       (Permutation.compile_schedule_causal 16 PilotData.canonicalState (by
         intro lane
         exact lane.isLt)) expression member
-    have recipeLength : (PilotData.canonicalRecipes ()).length = 1096 := by
+    have recipeLength : (PilotData.canonicalRecipes ()).length = 1174 := by
       exact Permutation.compile_schedule_recipe_count 16
         PilotData.canonicalState
     rw [recipeLength] at scope
@@ -420,7 +420,7 @@ theorem completePermutationInvocation
       (PilotData.canonicalConstraints ()) :=
     constraintsHold_of_agree_below localEnv
       (canonicalInvocationEnv invocation completed)
-      (PilotData.canonicalConstraints ()) 1112 canonicalScope mappedAgrees
+      (PilotData.canonicalConstraints ()) 1190 canonicalScope mappedAgrees
       (canonicalInvocationLocalCompleted_holds invocation env)
   constructor
   · exact completedOutside
@@ -432,14 +432,14 @@ theorem permutationInvocationHolds_of_agreement
     (inputsAgree : ∀ lane : Fin 16,
       (invocationInputCombination invocation lane.val).toR1CS.eval after =
         (invocationInputCombination invocation lane.val).toR1CS.eval before)
-    (localsAgree : ∀ index, index < 1096 →
+    (localsAgree : ∀ index, index < 1174 →
       after (invocation.witnessStart + index) =
         before (invocation.witnessStart + index))
     (holds : PermutationInvocationHolds
       (PilotData.circuitPackage ()) invocation before) :
     PermutationInvocationHolds
       (PilotData.circuitPackage ()) invocation after := by
-  have mappedAgrees : ∀ column, column < 1112 →
+  have mappedAgrees : ∀ column, column < 1190 →
       canonicalInvocationEnv invocation after column =
         canonicalInvocationEnv invocation before column := by
     intro column below
@@ -456,14 +456,14 @@ theorem permutationInvocationHolds_of_agreement
         R1CS.LinearCombination.eval_ofVar]
       exact localsAgree (column - 16) (by omega)
   have canonicalScope : ∀ expression ∈ PilotData.canonicalConstraints (),
-      expression.VarsBelow 1112 := by
+      expression.VarsBelow 1190 := by
     intro expression member
     have scope := recipeConstraints_varsBelow_of_causal 16
       (PilotData.canonicalRecipes ())
       (Permutation.compile_schedule_causal 16 PilotData.canonicalState (by
         intro lane
         exact lane.isLt)) expression member
-    have recipeLength : (PilotData.canonicalRecipes ()).length = 1096 := by
+    have recipeLength : (PilotData.canonicalRecipes ()).length = 1174 := by
       exact Permutation.compile_schedule_recipe_count 16
         PilotData.canonicalState
     rw [recipeLength] at scope
@@ -477,14 +477,14 @@ theorem permutationInvocationHolds_of_agreement
       (canonicalInvocationEnv invocation before)
       (PilotData.canonicalConstraints ()) := by
     unfold PilotData.canonicalRows at beforeRows
-    exact R1CS.lowerConstraints_sound _ _ 1112 beforeRows
+    exact R1CS.lowerConstraints_sound _ _ 1190 beforeRows
   have afterLogical : ConstraintsHold
       (canonicalInvocationEnv invocation after)
       (PilotData.canonicalConstraints ()) :=
     constraintsHold_of_agree_below
       (canonicalInvocationEnv invocation before)
       (canonicalInvocationEnv invocation after)
-      (PilotData.canonicalConstraints ()) 1112 canonicalScope mappedAgrees
+      (PilotData.canonicalConstraints ()) 1190 canonicalScope mappedAgrees
       beforeLogical
   exact canonicalPermutationInvocation_complete invocation after afterLogical
 
@@ -494,7 +494,7 @@ theorem permutationInvocationHolds_of_agreesOutside
     (inputsOutside : ∀ lane : Fin 16,
       ∀ term ∈ (invocationInputCombination invocation lane.val).toR1CS.terms,
         term.1 < start ∨ start + length ≤ term.1)
-    (localsOutside : ∀ index, index < 1096 →
+    (localsOutside : ∀ index, index < 1174 →
       invocation.witnessStart + index < start ∨
         start + length ≤ invocation.witnessStart + index)
     (agrees : AgreesOutside before after start length)
@@ -517,7 +517,7 @@ theorem permutationInvocationHolds_of_agree_below
     (inputsBelow : ∀ lane : Fin 16,
       ∀ term ∈ (invocationInputCombination invocation lane.val).toR1CS.terms,
         term.1 < bound)
-    (localsBelow : invocation.witnessStart + 1096 ≤ bound)
+    (localsBelow : invocation.witnessStart + 1174 ≤ bound)
     (agrees : ∀ index, index < bound → after index = before index)
     (holds : PermutationInvocationHolds
       (PilotData.circuitPackage ()) invocation before) :
@@ -552,23 +552,23 @@ theorem canonicalPermutationInvocation_sound
   have logical : ConstraintsHold canonicalEnv
       (PilotData.canonicalConstraints ()) :=
     R1CS.lowerConstraints_sound canonicalEnv
-      (PilotData.canonicalConstraints ()) 1112 physical
+      (PilotData.canonicalConstraints ()) 1190 physical
   have sound := Permutation.compile_sound canonicalEnv 16
     PilotData.canonicalState Permutation.schedule logical
   rw [Poseidon2.compile_schedule_output_eq] at sound
   have outputBoundary :
-      Layer.evalState canonicalEnv (Permutation.freshState (16 + 1080)) =
+      Layer.evalState canonicalEnv (Permutation.freshState (16 + 1158)) =
         (fun lane : Fin 16 => env
           (invocation.witnessStart +
             (PilotData.circuitPackage ()).permutation.outputLocalStart +
             lane.val)) := by
     funext lane
-    have refEq : PilotData.columnRef (1096 + lane.val) =
-        .local (1080 + lane.val) := by
+    have refEq : PilotData.columnRef (1174 + lane.val) =
+        .local (1158 + lane.val) := by
       unfold PilotData.columnRef
       rw [ite_eq_right (by omega)]
       rw [canonicalOutputLocalIndex lane]
-    change (PilotData.columnRef (1096 + lane.val)).eval value = _
+    change (PilotData.columnRef (1174 + lane.val)).eval value = _
     rw [refEq]
     simp [ColumnRef.eval, value, instantiateInvocationColumn,
       PilotData.circuitPackage, PilotData.permutationTemplate, Nat.add_assoc]
@@ -879,13 +879,13 @@ private theorem digestRow_sound (chain : HashChain) (lane : Fin 4)
     PilotData.oneCombination, PilotData.zeroCombination,
     fieldValue_neg_one] at equation
   have difference :
-      env (chain.witnessStart + chain.absorbCount * 1096 + 1080 + lane.val) -
+      env (chain.witnessStart + chain.absorbCount * 1174 + 1158 + lane.val) -
         env (chain.digestStart + lane.val) = 0 := by
     simpa [sub_eq_add_neg] using equation
   calc
     env (chain.digestStart + lane.val) =
-        env (chain.witnessStart + chain.absorbCount * 1096 +
-          1080 + lane.val) := (sub_eq_zero.mp difference).symm
+        env (chain.witnessStart + chain.absorbCount * 1174 +
+          1158 + lane.val) := (sub_eq_zero.mp difference).symm
     _ = chainOutputState chain chain.absorbCount env
         ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩ := by
       simp [chainOutputState, invocationLocalStart,
@@ -1118,8 +1118,8 @@ private theorem priorDigestWire_eval (env : Env) (lane : Fin 4) :
     PilotData.circuitPackageOf_permutation]
   simp only [PilotData.permutationTemplate, PilotData.priorChain,
     PilotData.priorWitnessStart]
-  rw [show PilotProduction.witnessOffset + 2110 * 1096 + 1080 + lane.val =
-      PilotProduction.witnessOffset + (2110 * 1096 + 1080 + lane.val) by
+  rw [show PilotProduction.witnessOffset + 2110 * 1174 + 1158 + lane.val =
+      PilotProduction.witnessOffset + (2110 * 1174 + 1158 + lane.val) by
     omega,
     PilotPackageOrder.sourceToPackage_pilotWitness]
   norm_num [PilotValues.absorbCount, PilotValues.stateHashWords,
@@ -1341,18 +1341,18 @@ theorem canonicalState_affine :
   exact R1CS.isAffine_var lane.val
 
 theorem canonicalRows_length :
-    (PilotData.canonicalRows ()).length = 1096 := by
+    (PilotData.canonicalRows ()).length = 1174 := by
   calc
     (PilotData.canonicalRows ()).length =
         R1CS.totalRowCount (PilotData.canonicalConstraints ()) := by
       exact R1CS.lowerConstraints_rows_length
-        (PilotData.canonicalConstraints ()) 1112
+        (PilotData.canonicalConstraints ()) 1190
     _ = (PilotData.canonicalRecipes ()).length := by
       exact R1CS.recipeConstraints_totalRowCount 16
         (PilotData.canonicalRecipes ())
         (Poseidon2.compile_schedule_direct 16 PilotData.canonicalState
           canonicalState_affine)
-    _ = 1096 := by
+    _ = 1174 := by
       exact Permutation.compile_schedule_recipe_count 16
         PilotData.canonicalState
 
@@ -1364,7 +1364,7 @@ theorem templateRowsFrom_length (output : Nat) (rows : List R1CS.Row) :
       simp [PilotData.templateRowsFrom, ih]
 
 theorem templateRows_length :
-    (PilotData.templateRows ()).length = 1096 := by
+    (PilotData.templateRows ()).length = 1174 := by
   rw [PilotData.templateRows, templateRowsFrom_length,
     canonicalRows_length]
 
@@ -1401,7 +1401,7 @@ theorem circuitPackage_decode_encode :
   Package.decode_encode (PilotData.circuitPackage ())
 
 theorem circuitPackage_template_rows :
-    (PilotData.circuitPackage ()).permutation.rows.length = 1096 :=
+    (PilotData.circuitPackage ()).permutation.rows.length = 1174 :=
   templateRows_length
 
 theorem circuitPackage_row_coverage :

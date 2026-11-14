@@ -309,7 +309,7 @@ not change terminal source checks.
   history recovers is at most `B + cap · T · (b − 1)`
   (`Spec.Folding.Schedule.recoveredBounds_le`). Trust item 2 gives the
   assumption `[MSIS]` at that norm.
-- **Error terms:** the light Π_CCS test numerator is 574, against 4,747 for
+- **Error terms:** the light Π_CCS test numerator is 462, against 4,635 for
   the refresh Π_CCS, and a light fork has one `ρ` coordinate, against 15 for
   a refresh fork (`Spec.Folding.Light.ErrorBudget.production_testNumerator`,
   `Spec.Folding.Light.ErrorBudget.production_forkCoordinates`,

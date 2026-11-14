@@ -9,69 +9,90 @@ open Fin.CommRing
 namespace State64
 
 private def initialConstant0 : State64 :=
-  ⟨12636804980880967846, 16736532232107165500, 4836694764141735874, 4639536440338654302,
-    15582121682392026614, 9230548520109342161, 6512674115442529763, 15623341923167353858,
-    1672953842270242786, 11188453102193896200, 7564734281139603135, 7054913528056871010,
-    1830995645382265875, 17768031537859440065, 14218342480096191686, 6340347240413876462, by decide⟩
+  ⟨17625877419914948618, 7043359134273770980, 8324781800510000080, 6444119057261225485,
+    17717541571092793106, 3986291954004622034, 690229812634116840, 12411915661887220387,
+    6363654443139256914, 12105449363599063910, 3497590068843640987, 4222579949428206412,
+    9871869144392188158, 6608483792230178088, 1361840775413654458, 8678242877107847347, by decide⟩
 private def initialConstant1 : State64 :=
-  ⟨11772294118312790256, 3542380241280516415, 5513546723254740663, 138615007802823419,
-    5647627248142650917, 10078658854564970516, 4162310934199293441, 10985814646094360523,
-    5508986491302979157, 12804574419876305617, 16809457995335845009, 10083824294548122199,
-    7091151999514037588, 2813780550927568854, 1505070123659706260, 15705593091285152329, by decide⟩
+  ⟨10884132779455466827, 2140996594960535156, 6875127883761382716, 2527369230034983186,
+    13363996391325744878, 8922005884211686156, 7168778978332361576, 856389527476709175,
+    737755066540146832, 13556839930373010819, 10871866087908657800, 9591461885764716448,
+    12537801773373699941, 3260007846858055737, 13363583202969484245, 4218638171078850311, by decide⟩
 private def initialConstant2 : State64 :=
-  ⟨16346592572221230289, 5917330695164472137, 10183339126308925573, 12014797672663882253,
-    9279946522805269125, 15657808947398157350, 8560220515539453181, 5866161307479662148,
-    8262117129289574491, 4491087910169738163, 14325169830526276512, 10135308560825186894,
-    5228070396315423026, 13336376921187837712, 2455568362154084154, 990495920709174079, by decide⟩
+  ⟨7865032564572175278, 836093766369726329, 12527643047030536902, 1194545980657409763,
+    12619589965719950681, 4280088488896281756, 15089781684263861043, 15828500408936832218,
+    6419605478123467032, 2370996673254346830, 8789802724387314278, 14988192665513313034,
+    4090662135633155679, 8312064199888872985, 13543758618702640312, 16933079866928560805, by decide⟩
 private def initialConstant3 : State64 :=
-  ⟨17055595709904449881, 15873439004876081665, 15766459368044885739, 11857706734817241399,
-    16051049577993660372, 7992040049950974682, 13545545069786182126, 14358843605013273411,
-    11318775708734409385, 3710328625670043923, 15408102934752366886, 7830543074676164584,
-    16038198064567788883, 9063004124435584042, 17444701252005907991, 18180745309129606155, by decide⟩
+  ⟨14849793775896549215, 5585003427041122008, 4039188622500476663, 8473588348029641541,
+    14983429621133257453, 10213932717772184020, 14126063598418757144, 9149271627910874493,
+    10568511515541199945, 8217860339194175559, 17410842106438810972, 9293755649055318357,
+    4035347364804663719, 680576525761979526, 3925491009028150975, 161661792350051539, by decide⟩
 
-private def partialConstant00 : UInt64 := 248129226802411505
-private def partialConstant01 : UInt64 := 13743530486470815716
-private def partialConstant02 : UInt64 := 5900121121239796588
-private def partialConstant03 : UInt64 := 11804998099291340661
-private def partialConstant04 : UInt64 := 8786293660148775452
-private def partialConstant05 : UInt64 := 6824681443996726608
-private def partialConstant06 : UInt64 := 15227704540163158519
-private def partialConstant07 : UInt64 := 8367187098120952855
-private def partialConstant08 : UInt64 := 16003535748082887266
-private def partialConstant09 : UInt64 := 13931382347329436468
-private def partialConstant10 : UInt64 := 11864186209076043354
-private def partialConstant11 : UInt64 := 10908150843957377599
-private def partialConstant12 : UInt64 := 15309098979312698196
-private def partialConstant13 : UInt64 := 7406323311710872823
-private def partialConstant14 : UInt64 := 16565046105017585879
-private def partialConstant15 : UInt64 := 18034087188624120274
-private def partialConstant16 : UInt64 := 12595505982365297677
-private def partialConstant17 : UInt64 := 14640114969567447657
-private def partialConstant18 : UInt64 := 13247398736086271596
-private def partialConstant19 : UInt64 := 212740773279947709
-private def partialConstant20 : UInt64 := 278419132071503090
-private def partialConstant21 : UInt64 := 8991094185839820623
+private def partialConstant00 : UInt64 := 1025323479709822526
+private def partialConstant01 : UInt64 := 6111066563283471619
+private def partialConstant02 : UInt64 := 11883645335560589882
+private def partialConstant03 : UInt64 := 5173392838145480224
+private def partialConstant04 : UInt64 := 12046738740207396666
+private def partialConstant05 : UInt64 := 11342877365108905038
+private def partialConstant06 : UInt64 := 9954226806870194281
+private def partialConstant07 : UInt64 := 284817437666484542
+private def partialConstant08 : UInt64 := 7855238300370871153
+private def partialConstant09 : UInt64 := 18340977697387037787
+private def partialConstant10 : UInt64 := 12536785651043586535
+private def partialConstant11 : UInt64 := 16922285383409970114
+private def partialConstant12 : UInt64 := 6304755170918535876
+private def partialConstant13 : UInt64 := 11920214520673410344
+private def partialConstant14 : UInt64 := 15734762412768547841
+private def partialConstant15 : UInt64 := 244322478157940423
+private def partialConstant16 : UInt64 := 15954689516362665467
+private def partialConstant17 : UInt64 := 17014463839077801966
+private def partialConstant18 : UInt64 := 7540924580042546453
+private def partialConstant19 : UInt64 := 8685971293749213383
+private def partialConstant20 : UInt64 := 11638412499393676635
+private def partialConstant21 : UInt64 := 9220075213657617084
+private def partialConstant22 : UInt64 := 11350647073967129101
+private def partialConstant23 : UInt64 := 10320484671217327025
+private def partialConstant24 : UInt64 := 945321669835615161
+private def partialConstant25 : UInt64 := 13689403322670363205
+private def partialConstant26 : UInt64 := 9683142702532056693
+private def partialConstant27 : UInt64 := 5152317403353772282
+private def partialConstant28 : UInt64 := 12964243777216042008
+private def partialConstant29 : UInt64 := 2572560616624767066
+private def partialConstant30 : UInt64 := 5182608262343950270
+private def partialConstant31 : UInt64 := 16474692687110834850
+private def partialConstant32 : UInt64 := 743293326911585472
+private def partialConstant33 : UInt64 := 1616451609802447080
+private def partialConstant34 : UInt64 := 13870644991934200425
+private def partialConstant35 : UInt64 := 6825873398398074331
+private def partialConstant36 : UInt64 := 8937369057000642915
+private def partialConstant37 : UInt64 := 13389634706674966780
+private def partialConstant38 : UInt64 := 15982711626548638113
+private def partialConstant39 : UInt64 := 12255367991153439320
+private def partialConstant40 : UInt64 := 792159564585665664
+private def partialConstant41 : UInt64 := 6095908108145386095
+private def partialConstant42 : UInt64 := 13648899865260407704
 
 private def terminalConstant0 : State64 :=
-  ⟨13299466096494452311, 12769097280806939949, 12980794758999292759, 12485718232377110686,
-    13508754101685200609, 5975847699931589519, 3809916015033307623, 17141578096760893684,
-    2149922062342650665, 16251838837471430008, 1764164040917344789, 12746115122662023609,
-    4260080277820885026, 10788845032470832763, 14353832261393182355, 4756649606211735290, by decide⟩
+  ⟨56971392948291674, 6529889566834057128, 12351691752271381888, 17534431371875637294,
+    6215672481047689667, 12917561096631389626, 8117077045244781265, 11392705445391554246,
+    7980869059539648603, 8342592727398070895, 12598706612339968649, 14640463469680921020,
+    2631864508405068938, 6769287453291648466, 10437499808121220125, 17140876581450999214, by decide⟩
 private def terminalConstant1 : State64 :=
-  ⟨4154961343765510954, 15940164003352720504, 11766889230861649991, 6257087493022936357,
-    4778990173478170575, 18415619616893099691, 12597246528008666129, 14211568158000976339,
-    4767115697445068110, 12570480850519731912, 4665827349589571727, 4774912573617945815,
-    186562210816135733, 14008215308940752777, 15013698295759921959, 11939373852127404977, by decide⟩
+  ⟨13871899794127076084, 2976067163615152067, 17978719630500811223, 1697476385485035771,
+    4624025223533863106, 16863109693143641675, 11259424642272530908, 12021139148564917949,
+    9937415099130005641, 13718025083052700970, 6859334593920279903, 11330696051914832680,
+    7582076360953008071, 8878013572368147473, 2039859730827428652, 7936695803456373494, by decide⟩
 private def terminalConstant2 : State64 :=
-  ⟨8839746612011749247, 7109953674418109544, 15161625799949739060, 10476369374187095481,
-    14819833511683759954, 536638751129487753, 17509512622715781686, 9414118451560315968,
-    2391520536790699897, 13866177019205733727, 14844228349995260905, 11938404480018823340,
-    4752806354978272429, 4329905090612702030, 10502326865601337258, 5633833814161874090, by decide⟩
+  ⟨11613291057305099669, 551761998716281552, 7542914500287710423, 8812857942695644507,
+    1690102753676828056, 15311849568606065067, 8830487934816023360, 6755221570880506368,
+    6171890655123760836, 12545410498335876764, 9618969152146346251, 17122735410931870227,
+    16462569480944052768, 6003165932848932655, 7670196776380585973, 4049877194394998303, by decide⟩
 private def terminalConstant3 : State64 :=
-  ⟨11635821469199330134, 1037445992391313205, 156723973773465148, 8936286655370992570,
-    14312401287329186061, 13241755096870787599, 12326958112711116003, 8544402462410608246,
-    8740390829074643229, 11244854067100363510, 4533544813859712987, 18401498054319815042,
-    6772245856459278760, 7992845694003848145, 1563664802427926635, 13262978740168500374, by decide⟩
+  ⟨17998679892441632083, 2244367866900113196, 9247992278828546609, 9597834897550131057,
+    10546074231789401477, 4261339652036653761, 13818713594235094297, 2019448978527439247,
+    14018620292311326206, 3735807046906337575, 12052117347272897982, 7812511896467295333,
+    9683662180518309794, 15034282915069102610, 9372870626443950502, 15048534190854756183, by decide⟩
 
 private def FullConstantMatch (constants : State64) (rows : List (List Nat))
     (round : Nat) : Prop :=
@@ -192,6 +213,69 @@ private theorem partialRound20_denote (s : State64) :
 private theorem partialRound21_denote (s : State64) :
     (partialRound64 s partialConstant21).denote = Poseidon2.partialRound 21 s.denote :=
   partialRound64_denote_at 21 _ (by decide) (by decide) s
+private theorem partialRound22_denote (s : State64) :
+    (partialRound64 s partialConstant22).denote = Poseidon2.partialRound 22 s.denote :=
+  partialRound64_denote_at 22 _ (by decide) (by decide) s
+private theorem partialRound23_denote (s : State64) :
+    (partialRound64 s partialConstant23).denote = Poseidon2.partialRound 23 s.denote :=
+  partialRound64_denote_at 23 _ (by decide) (by decide) s
+private theorem partialRound24_denote (s : State64) :
+    (partialRound64 s partialConstant24).denote = Poseidon2.partialRound 24 s.denote :=
+  partialRound64_denote_at 24 _ (by decide) (by decide) s
+private theorem partialRound25_denote (s : State64) :
+    (partialRound64 s partialConstant25).denote = Poseidon2.partialRound 25 s.denote :=
+  partialRound64_denote_at 25 _ (by decide) (by decide) s
+private theorem partialRound26_denote (s : State64) :
+    (partialRound64 s partialConstant26).denote = Poseidon2.partialRound 26 s.denote :=
+  partialRound64_denote_at 26 _ (by decide) (by decide) s
+private theorem partialRound27_denote (s : State64) :
+    (partialRound64 s partialConstant27).denote = Poseidon2.partialRound 27 s.denote :=
+  partialRound64_denote_at 27 _ (by decide) (by decide) s
+private theorem partialRound28_denote (s : State64) :
+    (partialRound64 s partialConstant28).denote = Poseidon2.partialRound 28 s.denote :=
+  partialRound64_denote_at 28 _ (by decide) (by decide) s
+private theorem partialRound29_denote (s : State64) :
+    (partialRound64 s partialConstant29).denote = Poseidon2.partialRound 29 s.denote :=
+  partialRound64_denote_at 29 _ (by decide) (by decide) s
+private theorem partialRound30_denote (s : State64) :
+    (partialRound64 s partialConstant30).denote = Poseidon2.partialRound 30 s.denote :=
+  partialRound64_denote_at 30 _ (by decide) (by decide) s
+private theorem partialRound31_denote (s : State64) :
+    (partialRound64 s partialConstant31).denote = Poseidon2.partialRound 31 s.denote :=
+  partialRound64_denote_at 31 _ (by decide) (by decide) s
+private theorem partialRound32_denote (s : State64) :
+    (partialRound64 s partialConstant32).denote = Poseidon2.partialRound 32 s.denote :=
+  partialRound64_denote_at 32 _ (by decide) (by decide) s
+private theorem partialRound33_denote (s : State64) :
+    (partialRound64 s partialConstant33).denote = Poseidon2.partialRound 33 s.denote :=
+  partialRound64_denote_at 33 _ (by decide) (by decide) s
+private theorem partialRound34_denote (s : State64) :
+    (partialRound64 s partialConstant34).denote = Poseidon2.partialRound 34 s.denote :=
+  partialRound64_denote_at 34 _ (by decide) (by decide) s
+private theorem partialRound35_denote (s : State64) :
+    (partialRound64 s partialConstant35).denote = Poseidon2.partialRound 35 s.denote :=
+  partialRound64_denote_at 35 _ (by decide) (by decide) s
+private theorem partialRound36_denote (s : State64) :
+    (partialRound64 s partialConstant36).denote = Poseidon2.partialRound 36 s.denote :=
+  partialRound64_denote_at 36 _ (by decide) (by decide) s
+private theorem partialRound37_denote (s : State64) :
+    (partialRound64 s partialConstant37).denote = Poseidon2.partialRound 37 s.denote :=
+  partialRound64_denote_at 37 _ (by decide) (by decide) s
+private theorem partialRound38_denote (s : State64) :
+    (partialRound64 s partialConstant38).denote = Poseidon2.partialRound 38 s.denote :=
+  partialRound64_denote_at 38 _ (by decide) (by decide) s
+private theorem partialRound39_denote (s : State64) :
+    (partialRound64 s partialConstant39).denote = Poseidon2.partialRound 39 s.denote :=
+  partialRound64_denote_at 39 _ (by decide) (by decide) s
+private theorem partialRound40_denote (s : State64) :
+    (partialRound64 s partialConstant40).denote = Poseidon2.partialRound 40 s.denote :=
+  partialRound64_denote_at 40 _ (by decide) (by decide) s
+private theorem partialRound41_denote (s : State64) :
+    (partialRound64 s partialConstant41).denote = Poseidon2.partialRound 41 s.denote :=
+  partialRound64_denote_at 41 _ (by decide) (by decide) s
+private theorem partialRound42_denote (s : State64) :
+    (partialRound64 s partialConstant42).denote = Poseidon2.partialRound 42 s.denote :=
+  partialRound64_denote_at 42 _ (by decide) (by decide) s
 
 private theorem terminalRound0_denote (s : State64) :
     (fullRound64 s terminalConstant0).denote = Poseidon2.fullRound Poseidon2.terminalConstants 0 s.denote :=
@@ -234,7 +318,28 @@ private theorem terminalRound3_denote (s : State64) :
   let state := partialRound64 state partialConstant18
   let state := partialRound64 state partialConstant19
   let state := partialRound64 state partialConstant20
-  partialRound64 state partialConstant21
+  let state := partialRound64 state partialConstant21
+  let state := partialRound64 state partialConstant22
+  let state := partialRound64 state partialConstant23
+  let state := partialRound64 state partialConstant24
+  let state := partialRound64 state partialConstant25
+  let state := partialRound64 state partialConstant26
+  let state := partialRound64 state partialConstant27
+  let state := partialRound64 state partialConstant28
+  let state := partialRound64 state partialConstant29
+  let state := partialRound64 state partialConstant30
+  let state := partialRound64 state partialConstant31
+  let state := partialRound64 state partialConstant32
+  let state := partialRound64 state partialConstant33
+  let state := partialRound64 state partialConstant34
+  let state := partialRound64 state partialConstant35
+  let state := partialRound64 state partialConstant36
+  let state := partialRound64 state partialConstant37
+  let state := partialRound64 state partialConstant38
+  let state := partialRound64 state partialConstant39
+  let state := partialRound64 state partialConstant40
+  let state := partialRound64 state partialConstant41
+  partialRound64 state partialConstant42
 
 @[inline] private def terminalRounds64 (state : State64) : State64 :=
   let state := fullRound64 state terminalConstant0
@@ -255,14 +360,17 @@ private theorem partialRounds64_denote (state : State64) :
     (partialRounds64 state).denote =
       Poseidon2.rounds Poseidon2.partialRound Poseidon2.partialRounds state.denote := by
   simp only [partialRounds64]
-  rw [partialRound21_denote, partialRound20_denote, partialRound19_denote,
-    partialRound18_denote, partialRound17_denote, partialRound16_denote,
-    partialRound15_denote, partialRound14_denote, partialRound13_denote,
-    partialRound12_denote, partialRound11_denote, partialRound10_denote,
-    partialRound09_denote, partialRound08_denote, partialRound07_denote,
-    partialRound06_denote, partialRound05_denote, partialRound04_denote,
-    partialRound03_denote, partialRound02_denote, partialRound01_denote,
-    partialRound00_denote]
+  rw [partialRound42_denote, partialRound41_denote, partialRound40_denote,
+    partialRound39_denote, partialRound38_denote, partialRound37_denote, partialRound36_denote,
+    partialRound35_denote, partialRound34_denote, partialRound33_denote, partialRound32_denote,
+    partialRound31_denote, partialRound30_denote, partialRound29_denote, partialRound28_denote,
+    partialRound27_denote, partialRound26_denote, partialRound25_denote, partialRound24_denote,
+    partialRound23_denote, partialRound22_denote, partialRound21_denote, partialRound20_denote,
+    partialRound19_denote, partialRound18_denote, partialRound17_denote, partialRound16_denote,
+    partialRound15_denote, partialRound14_denote, partialRound13_denote, partialRound12_denote,
+    partialRound11_denote, partialRound10_denote, partialRound09_denote, partialRound08_denote,
+    partialRound07_denote, partialRound06_denote, partialRound05_denote, partialRound04_denote,
+    partialRound03_denote, partialRound02_denote, partialRound01_denote, partialRound00_denote]
   rfl
 
 private theorem terminalRounds64_denote (state : State64) :

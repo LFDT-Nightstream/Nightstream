@@ -34,7 +34,7 @@ theorem sourceRows_length : sourceRows.length = 596 := by
   omega
 
 private theorem priorDigestStart_eq :
-    PilotProduction.priorDigestStart = 2364622 := by
+    PilotProduction.priorDigestStart = 2529280 := by
   unfold PilotProduction.priorDigestStart
   rw [PilotProduction.witnessOffset_eq, PilotProduction.absorbCount_eq]
   norm_num [PilotProduction.permutationRecipeCount,
@@ -43,7 +43,7 @@ private theorem priorDigestStart_eq :
 
 private theorem priorHashEnd_eq :
     PriorStateHash.hashEnd PilotProduction.priorInterface
-      PilotProduction.witnessOffset = 2364638 := by
+      PilotProduction.witnessOffset = 2529296 := by
   unfold PriorStateHash.hashEnd
   rw [PilotProduction.priorHashLogicalLength_eq,
     PilotProduction.witnessOffset_eq]
@@ -53,7 +53,7 @@ private theorem priorPublicInputStart_eq :
 
 private theorem outputStateStart_eq :
     PilotProduction.lifecycleOutputOffset +
-      PilotValues.absorbCount * 1096 + 1080 = 4678546 := by
+      PilotValues.absorbCount * 1174 + 1158 = 5007862 := by
   rw [PilotProduction.lifecycleOutputOffset_eq]
   norm_num [PilotValues.absorbCount, PilotValues.stateHashWords,
     PilotValues.stateHashBaseWords, Spec.Poseidon2.rate]
@@ -62,37 +62,37 @@ private theorem outputDigestStart_eq :
     PilotProduction.outputDigestStart = 50978 := by rfl
 
 private theorem sourceColumnCount_eq :
-    PilotValues.sourceColumnCount = 4678562 := by rfl
+    PilotValues.sourceColumnCount = 5007878 := by rfl
 
 private theorem outputChainAbsorbCount_eq :
     PilotData.outputChain.absorbCount = 2110 := by rfl
 
 private theorem outputChainWitnessStart_eq :
-    PilotData.outputChain.witnessStart = 2364582 := by rfl
+    PilotData.outputChain.witnessStart = 2529240 := by rfl
 
 private theorem outputChainDigestStart_eq :
-    PilotData.outputChain.digestStart = 4678559 := by rfl
+    PilotData.outputChain.digestStart = 5007875 := by rfl
 
 private theorem outputStateSource_eq (lane : Fin 4) :
     PilotProduction.lifecycleOutputOffset +
-        PilotData.outputChain.absorbCount * 1096 + 1080 + lane.val =
-      4678546 + lane.val := by
+        PilotData.outputChain.absorbCount * 1174 + 1158 + lane.val =
+      5007862 + lane.val := by
   rw [PilotProduction.lifecycleOutputOffset_eq,
     outputChainAbsorbCount_eq]
 
 private theorem outputStateTarget_eq (lane : Fin 4) :
     PilotData.outputChain.witnessStart +
-        PilotData.outputChain.absorbCount * 1096 + 1080 + lane.val =
-      4678222 + lane.val := by
+        PilotData.outputChain.absorbCount * 1174 + 1158 + lane.val =
+      5007538 + lane.val := by
   rw [outputChainWitnessStart_eq, outputChainAbsorbCount_eq]
 
 theorem priorDigest_targetColumn (lane : Fin 4) :
     PilotPackageOrder.sourceToPackage
         (PilotProduction.priorDigestStart + lane.val) =
-      2364298 + lane.val := by
+      2528956 + lane.val := by
   have sourceEq : PilotProduction.priorDigestStart + lane.val =
       PilotProduction.witnessOffset +
-        (PilotProduction.absorbCount * 1096 + 1080 + lane.val) := by
+        (PilotProduction.absorbCount * 1174 + 1158 + lane.val) := by
     unfold PilotProduction.priorDigestStart
     simp only [PilotProduction.permutationRecipeCount,
       PilotValues.permutationRecipeCount,
@@ -106,13 +106,13 @@ theorem priorDigest_targetColumn (lane : Fin 4) :
 theorem outputState_targetColumn (lane : Fin 4) :
     PilotPackageOrder.sourceToPackage
         (PilotProduction.lifecycleOutputOffset +
-          PilotValues.absorbCount * 1096 + 1080 + lane.val) =
-      4678222 + lane.val := by
+          PilotValues.absorbCount * 1174 + 1158 + lane.val) =
+      5007538 + lane.val := by
   have sourceEq : PilotProduction.lifecycleOutputOffset +
-      PilotValues.absorbCount * 1096 + 1080 + lane.val =
+      PilotValues.absorbCount * 1174 + 1158 + lane.val =
       PilotProduction.witnessOffset +
         (PilotValues.hashWitnessCount + PilotValues.priorCanonicalPrivateCount +
-          PilotValues.absorbCount * 1096 + 1080 + lane.val) := by
+          PilotValues.absorbCount * 1174 + 1158 + lane.val) := by
     rw [PilotProduction.lifecycleOutputOffset_eq,
       PilotProduction.witnessOffset_eq]
     norm_num [PilotValues.absorbCount, PilotValues.hashWitnessCount,
@@ -121,12 +121,12 @@ theorem outputState_targetColumn (lane : Fin 4) :
       Spec.Poseidon2.rate]
     omega
   rw [sourceEq, PilotPackageOrder.sourceToPackage_pilotWitness]
-  have hashCount : PilotValues.hashWitnessCount = 2313656 := by rfl
+  have hashCount : PilotValues.hashWitnessCount = 2478314 := by rfl
   have privateCount : PilotValues.priorCanonicalPrivateCount = 268 := by rfl
   have absorbCount : PilotValues.absorbCount = 2110 := by rfl
   rw [PilotPackageOrder.witnessPrivateStart_value, hashCount, privateCount,
     absorbCount]
-  change 50658 + (4627564 + lane.val) = 4678222 + lane.val
+  change 50658 + (4956880 + lane.val) = 5007538 + lane.val
   rw [← Nat.add_assoc]
 
 def InRange (start count column : Nat) : Prop :=
@@ -142,7 +142,7 @@ inductive LogicalSource (column : Nat) : Prop where
         PilotProduction.witnessOffset) 268 column → LogicalSource column
   | outputState : InRange
       (PilotProduction.lifecycleOutputOffset +
-        PilotValues.absorbCount * 1096 + 1080) 4 column → LogicalSource column
+        PilotValues.absorbCount * 1174 + 1158) 4 column → LogicalSource column
   | outputDigest : InRange PilotProduction.outputDigestStart 4 column →
       LogicalSource column
 
@@ -327,9 +327,9 @@ private theorem outputDigestRows_varsSatisfy :
   have outputStateMapped :
       PilotPackageOrder.sourceToPackage
           (PilotProduction.lifecycleOutputOffset +
-            PilotData.outputChain.absorbCount * 1096 + 1080 + lane.val) =
+            PilotData.outputChain.absorbCount * 1174 + 1158 + lane.val) =
         PilotData.outputChain.witnessStart +
-          PilotData.outputChain.absorbCount * 1096 + 1080 + lane.val := by
+          PilotData.outputChain.absorbCount * 1174 + 1158 + lane.val := by
     rw [outputStateSource_eq lane, outputStateTarget_eq lane]
     unfold PilotPackageOrder.sourceToPackage
     rw [ite_eq_right (by rw [PilotPackageOrder.priorPublicStart_value]; omega)]
@@ -362,7 +362,7 @@ private theorem outputDigestRows_varsSatisfy :
     rcases member with ⟨sourceTerm, sourceMember, rfl⟩
     rcases sourceMember with rfl | rfl
     · refine ⟨PilotProduction.lifecycleOutputOffset +
-          PilotData.outputChain.absorbCount * 1096 + 1080 + lane.val,
+          PilotData.outputChain.absorbCount * 1174 + 1158 + lane.val,
         ?_, ?_⟩
       · apply Or.inl
         apply LogicalSource.outputState

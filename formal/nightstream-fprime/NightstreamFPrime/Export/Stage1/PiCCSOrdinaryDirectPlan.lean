@@ -302,7 +302,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         apply Eq.symm
         apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (proofLogicalSource_lt index)
         left
-        have indexBound : index.val < 16056 := by
+        have indexBound : index.val < 15832 := by
           simpa only [proofInputCount_eq] using proof
         rw [proofLogicalSource, dite_eq_left proof]
         rw [PiCCSInputs.priorChildrenStart_eq, PiCCSStarts.statementWitnessStart_eq]
@@ -321,7 +321,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
               PiCCSTranscriptOutputForms.transcriptSource decoded.1 decoded.2 := by
             unfold transcriptOutputSource PiCCSTranscriptOutputForms.transcriptSource
               PiCCSTranscriptOutputForms.transcriptSourceStart
-            change PiCCSStarts.statementWitnessStart + decoded.1.val * 1096 + 1080 + decoded.2.val = _
+            change PiCCSStarts.statementWitnessStart + decoded.1.val * 1174 + 1158 + decoded.2.val = _
             omega
           rw [sourceEq]
           exact PiCCSTranscriptOutputForms.transcriptForm_eval (poseidonGeometry geometry)
@@ -373,31 +373,31 @@ def proofInputLocated {column : Nat}
     rw [Location.sourceColumn, proofLogicalSource_proofInput,
       rangeIndex_source inside]⟩
 
-def transcriptColumnStart : Nat := PiCCSStarts.statementWitnessStart + 1080
+def transcriptColumnStart : Nat := PiCCSStarts.statementWitnessStart + 1158
 
 def transcriptOffset (column : Nat) : Nat := column - transcriptColumnStart
 
 def transcriptInvocationIndex (column : Nat)
-    (bounded : transcriptOffset column / 1096 < transcriptInvocationCount) :
+    (bounded : transcriptOffset column / 1174 < transcriptInvocationCount) :
     Fin transcriptInvocationCount :=
-  ⟨transcriptOffset column / 1096, bounded⟩
+  ⟨transcriptOffset column / 1174, bounded⟩
 
 def transcriptLaneIndex (column : Nat)
-    (bounded : transcriptOffset column % 1096 < Spec.Poseidon2.width) :
+    (bounded : transcriptOffset column % 1174 < Spec.Poseidon2.width) :
     Fin Spec.Poseidon2.width :=
-  ⟨transcriptOffset column % 1096, bounded⟩
+  ⟨transcriptOffset column % 1174, bounded⟩
 
 private theorem transcriptDecoded_source_eq (column : Nat)
     (lower : transcriptColumnStart ≤ column)
-    (invocationBound : transcriptOffset column / 1096 < transcriptInvocationCount)
-    (laneBound : transcriptOffset column % 1096 < Spec.Poseidon2.width) :
+    (invocationBound : transcriptOffset column / 1174 < transcriptInvocationCount)
+    (laneBound : transcriptOffset column % 1174 < Spec.Poseidon2.width) :
     transcriptOutputSource
         (Fin.encodeProd (transcriptInvocationIndex column invocationBound,
           transcriptLaneIndex column laneBound)) =
       column := by
   rw [transcriptOutputSource_encodeProd]
   dsimp only [transcriptInvocationIndex, transcriptLaneIndex]
-  have divmod := Nat.mod_add_div (transcriptOffset column) 1096
+  have divmod := Nat.mod_add_div (transcriptOffset column) 1174
   unfold transcriptColumnStart at lower
   unfold transcriptOffset transcriptColumnStart at divmod ⊢
   omega
@@ -409,8 +409,8 @@ structure TranscriptDecoded (column : Nat) where
 def decodeTranscript (column : Nat) : Option (TranscriptDecoded column) :=
   if lower : transcriptColumnStart ≤ column then
     if invocationBound :
-        transcriptOffset column / 1096 < transcriptInvocationCount then
-      if laneBound : transcriptOffset column % 1096 < Spec.Poseidon2.width then
+        transcriptOffset column / 1174 < transcriptInvocationCount then
+      if laneBound : transcriptOffset column % 1174 < Spec.Poseidon2.width then
         some ⟨Fin.encodeProd
             (transcriptInvocationIndex column invocationBound,
               transcriptLaneIndex column laneBound),
@@ -429,33 +429,33 @@ theorem decodeTranscript_complete {column : Nat}
   have invocationBound := invocation.isLt
   have laneBound := lane.isLt
   have regroup :
-      PiCCSStarts.statementWitnessStart + invocation.val * 1096 + 1080 + lane.val =
-        (PiCCSStarts.statementWitnessStart + 1080) +
-          (invocation.val * 1096 + lane.val) := by
+      PiCCSStarts.statementWitnessStart + invocation.val * 1174 + 1158 + lane.val =
+        (PiCCSStarts.statementWitnessStart + 1158) +
+          (invocation.val * 1174 + lane.val) := by
     omega
   have lower : transcriptColumnStart ≤ column := by
     unfold transcriptColumnStart
     rw [equals, regroup]
     exact Nat.le_add_right _ _
-  have offsetEq : transcriptOffset column = invocation.val * 1096 + lane.val := by
+  have offsetEq : transcriptOffset column = invocation.val * 1174 + lane.val := by
     unfold transcriptOffset transcriptColumnStart
     rw [equals, regroup, Nat.add_sub_cancel_left]
-  have laneBoundLocal : lane.val < 1096 := by
+  have laneBoundLocal : lane.val < 1174 := by
     have laneBoundWidth := laneBound
     change lane.val < 16 at laneBoundWidth
     omega
-  have quotientEq : transcriptOffset column / 1096 = invocation.val := by
+  have quotientEq : transcriptOffset column / 1174 = invocation.val := by
     rw [offsetEq]
     omega
-  have remainderEq : transcriptOffset column % 1096 = lane.val := by
+  have remainderEq : transcriptOffset column % 1174 = lane.val := by
     rw [offsetEq]
     omega
   have decodedInvocationBound :
-      transcriptOffset column / 1096 < transcriptInvocationCount := by
+      transcriptOffset column / 1174 < transcriptInvocationCount := by
     rw [quotientEq]
     exact invocationBound
   have decodedLaneBound :
-      transcriptOffset column % 1096 < Spec.Poseidon2.width := by
+      transcriptOffset column % 1174 < Spec.Poseidon2.width := by
     rw [remainderEq]
     exact laneBound
   unfold decodeTranscript
@@ -709,7 +709,7 @@ private theorem programRow_support
       RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (index : Fin 38553) :
+    (index : Fin 38205) :
     (PiCCSOrdinaryDirectSource.programRow relation index).VarsSatisfy
       PiCCSOrdinarySourceSupport.Target := by
   exact PiCCSOrdinaryDirectSupport.sourceRows_varsSatisfy relation _
@@ -775,7 +775,7 @@ theorem programRow_preserve
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
-    (index : Fin 38553) :
+    (index : Fin 38205) :
     OrdinarySourcePlan.SourceMap.PreservesRow (sourceMap geometry) assignment
       (RunningTransitionDirectPlan.transitionEnv program base)
       (PiCCSOrdinaryDirectSource.programRow relation index)
@@ -796,7 +796,7 @@ def rowForms
       RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 38553) :
+    (geometry : Geometry program logicalWidth) (index : Fin 38205) :
     OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (sourceMap geometry) (oneColumn geometry)
     (PiCCSOrdinaryDirectSource.programRow relation index)
@@ -839,7 +839,7 @@ def plan
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) :
-    (plan relation geometry).rowCount = 38553 := by
+    (plan relation geometry).rowCount = 38205 := by
   rfl
 
 theorem plan_eq_of_same_shape

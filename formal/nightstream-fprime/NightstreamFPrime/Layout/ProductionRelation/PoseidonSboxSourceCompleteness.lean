@@ -140,9 +140,9 @@ private theorem step_rowsZero
     SboxRowsZero assignment (compileStep interface nextSbox state step).rows := by
   intro forms member
   rw [SboxRow.Forms.residual_eq, equations forms member]
-  have power : Spec.ProductionRelation.RowSemantics.seventhPower
+  have power : Spec.ProductionRelation.RowSemantics.cube
       (forms.input.eval assignment) = Layer.sboxF (forms.input.eval assignment) := by
-    simp [Spec.ProductionRelation.RowSemantics.seventhPower,
+    simp [Spec.ProductionRelation.RowSemantics.cube,
       Spec.Folding.PiCCS.PaperJoint.CCSResidualTable.pow,
       Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.baseOps,
       Layer.sboxF, Poseidon2.sbox, mul_assoc]

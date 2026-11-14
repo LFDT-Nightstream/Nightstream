@@ -11,9 +11,9 @@ open NightstreamFPrime.Spec
 abbrev Program := Lifecycle.Stage1.Application.Program
 
 def piCcsFinalSlotBase : Nat :=
-  (PiCCSPoseidonPlan.invocationCount - 1) * 150 + 134
+  (PiCCSPoseidonPlan.invocationCount - 1) * 171 + 155
 
-@[simp] theorem piCcsFinalSlotBase_eq : piCcsFinalSlotBase = 147584 := by
+@[simp] theorem piCcsFinalSlotBase_eq : piCcsFinalSlotBase = 163460 := by
   norm_num [piCcsFinalSlotBase, PiCCSPoseidonPlan.invocationCount_eq]
 
 def constantAt
@@ -39,7 +39,7 @@ def samplerPreviousRule (program : Program) : PoseidonInput.Rule where
   region := ⟨1, 29, 0, 16⟩
   term := .external
     (RetainedBlock.ofSemantic (PiRLCSamplerPoseidonPlan.retainedBlock program)
-      (PiRLCSamplerPoseidonPlan.retainedStart program)) 134 150
+      (PiRLCSamplerPoseidonPlan.retainedStart program)) 155 171
 
 def entryRule : PoseidonInput.Rule where
   region := ⟨0, 30, 0, 16⟩
@@ -63,21 +63,21 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
 @[simp] theorem block_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (block geometry).rowCount = 4500 := by
+    (block geometry).rowCount = 5130 := by
   calc
     (block geometry).rowCount =
-        PiRLCSamplerPoseidonPlan.invocationCount * 150 := by
+        PiRLCSamplerPoseidonPlan.invocationCount * 171 := by
       exact Poseidon.Block.ofSemantic_rowCount
         (PiRLCSamplerPoseidonPlan.schedule program)
         (PiRLCSamplerPoseidonPlan.retainedStart program)
         (PiRLCSamplerPoseidonPlan.oneColumn geometry) (inputProgram program)
-    _ = 4500 := by
+    _ = 5130 := by
       norm_num [PiRLCSamplerPoseidonPlan.invocationCount_eq]
 
 @[simp] theorem matrixProgram_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 4500 := by
+    (matrixProgram geometry).rowCount = 5130 := by
   rw [show matrixProgram geometry =
       MatrixProgram.Program.mk [.poseidon (block geometry)] by rfl]
   rw [MatrixProgram.Program.singleton_rowCount]

@@ -252,7 +252,7 @@ theorem completePackets
         phaseInterface PiRLCInputs.phaseOffset (PackageOrder.pullback env)) :
     ∃ completed,
       AgreesOutside env completed
-          (PackageOrder.sourceToPackage PiRLCInputs.phaseOffset) 4223175 ∧
+          (PackageOrder.sourceToPackage PiRLCInputs.phaseOffset) 4225515 ∧
         RemappedPacketRowsHold completed := by
   rcases PiRLCPhysicalCompleteness.completePhysicalRows relation ajtai env
       assumptions phase with ⟨completed, agrees, physical⟩

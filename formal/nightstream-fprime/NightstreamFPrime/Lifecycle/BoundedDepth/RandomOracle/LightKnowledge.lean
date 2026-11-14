@@ -8,10 +8,10 @@ attempt: the input claim at the base bound plus `T · (b − 1)` and the fresh i
 pair extracts or fails (`splits`, `LightUniqueness.extracted_of_truth`). `knowledge_error_le`: a
 successful run extracts, weighted by the retry law, except with `knowledgeError`, the sum of
 the statistical error (`statisticalError`: `(Q + 1) · sampleError` for the fork step and
-`(Q + 58) · 574/q²` for the test step), the prior-state collision chances of the fork step
+`(Q + 58) · 462/q²` for the test step), the prior-state collision chances of the fork step
 (`LightFork.collisionChance`) and the uniqueness step (`stateChance`), and the kernel chance
 (`LightUniqueness.kernelChance`). `statisticalError_le`: the statistical error is at most
-`(Q + 58) · 575/2^128`. -/
+`(Q + 58) · 463/2^128`. -/
 
 set_option autoImplicit false
 
@@ -33,28 +33,28 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightUniqueness (Retr
 attribute [local instance low] Classical.propDecidable
 
 /-- The statistical error of the light fold: `(Q + 1) · sampleError` for the fork step and
-`(Q + 58) · 574/q²` for the test step. -/
+`(Q + 58) · 462/q²` for the test step. -/
 noncomputable def statisticalError (queries : Nat) : ℝ :=
   ((queries + 1 : Nat) : ℝ) * Fork.sampleError +
-    ((queries + 58 : Nat) : ℝ) * ((574 : ℝ) / (fieldModulus : ℝ) ^ 2)
+    ((queries + 58 : Nat) : ℝ) * ((462 : ℝ) / (fieldModulus : ℝ) ^ 2)
 
 theorem statisticalError_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
     (queries : Nat) :
-    Uniqueness.statisticalError (LightSchedule.schedule logicalWidth publicFits) 8 queries =
+    Uniqueness.statisticalError (LightSchedule.schedule logicalWidth publicFits) 4 queries =
       statisticalError queries := by
   have test : IndependentExecution.testError
-      (LightSchedule.schedule logicalWidth publicFits).shape 8 =
-        (574 : ℝ) / (fieldModulus : ℝ) ^ 2 :=
+      (LightSchedule.schedule logicalWidth publicFits).shape 4 =
+        (462 : ℝ) / (fieldModulus : ℝ) ^ 2 :=
     LightTest.testError_eq
   unfold Uniqueness.statisticalError statisticalError
   rw [test, LightTest.challenges_length]
   show ((1 : Nat) : ℝ) * (((queries + 1 : Nat) : ℝ) * Fork.sampleError) + _ = _
   rw [Nat.cast_one, one_mul]
 
-/-- The statistical error is at most `(Q + 58) · 575/2^128`. -/
+/-- The statistical error is at most `(Q + 58) · 463/2^128`. -/
 theorem statisticalError_le (queries : Nat) :
-    statisticalError queries ≤ ((queries : ℝ) + 58) * (575 / 2 ^ 128) := by
+    statisticalError queries ≤ ((queries : ℝ) + 58) * (463 / 2 ^ 128) := by
   have sample : Fork.sampleError < 1 / 5 ^ 64 + 1 / 2 ^ 173 := by
     have distance := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt
     have count : (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.scalarCount : ℝ) = 5 ^ 64 := by
@@ -63,20 +63,20 @@ theorem statisticalError_le (queries : Nat) :
     unfold Fork.sampleError
     rw [count]
     linarith
-  have perQuery : Fork.sampleError + (574 : ℝ) / (fieldModulus : ℝ) ^ 2 <
-      575 / 2 ^ 128 := by
-    have numbers : (1 / 5 ^ 64 + 1 / 2 ^ 173 : ℝ) + 574 / (fieldModulus : ℝ) ^ 2 <
-        575 / 2 ^ 128 := by
+  have perQuery : Fork.sampleError + (462 : ℝ) / (fieldModulus : ℝ) ^ 2 <
+      463 / 2 ^ 128 := by
+    have numbers : (1 / 5 ^ 64 + 1 / 2 ^ 173 : ℝ) + 462 / (fieldModulus : ℝ) ^ 2 <
+        463 / 2 ^ 128 := by
       norm_num [fieldModulus]
     linarith
   have sampleNonnegative := Fork.sampleError_nonnegative
-  have testNonnegative : (0 : ℝ) ≤ 574 / (fieldModulus : ℝ) ^ 2 := by positivity
+  have testNonnegative : (0 : ℝ) ≤ 462 / (fieldModulus : ℝ) ^ 2 := by positivity
   have queriesNonnegative : (0 : ℝ) ≤ queries := Nat.cast_nonneg queries
   unfold statisticalError
   push_cast
   calc
     _ ≤ ((queries : ℝ) + 58) *
-        (Fork.sampleError + (574 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
+        (Fork.sampleError + (462 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
       nlinarith
     _ ≤ _ := mul_le_mul_of_nonneg_left perQuery.le (by positivity)
 
@@ -88,7 +88,7 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (key : CircuitKey logicalWidth publicFits)
-  (adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 8) Answer
+  (adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 4) Answer
     (Attempt logicalWidth publicFits))
 
 /-- A valid pair whose answer gives the walk's `Extracted` on the base attempt. -/

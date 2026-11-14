@@ -4,7 +4,7 @@ from the existing Lean Poseidon2 and ring product matrix definitions. Rust loads
 formulas as data. No Lean command runs during a Cargo build or protocol execution.
 
 The profile Nightstream P64, k_rho = 14 has `b = 2`, `k_rho = 14`, and `B = 16384`.
-The library contains one sixteen-word Poseidon2 permutation with 150 rows, its
+The library contains one sixteen-word Poseidon2 permutation with 171 rows, its
 external linear layer, and the ring product component `ring-product-v1` with
 128 rows. These rows check the complete ring product with its quotient
 polynomial.

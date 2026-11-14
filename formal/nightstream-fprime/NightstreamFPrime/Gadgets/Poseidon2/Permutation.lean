@@ -204,14 +204,12 @@ theorem recipesCausal_append_causal (start : Nat) (first second : List Expr)
 
 def sboxRecipes (start : Nat) (value : Expr) : List Expr :=
   [value * value,
-   Expr.var start * Expr.var start,
-   Expr.var (start + 1) * Expr.var start,
-   Expr.var (start + 2) * value]
+   Expr.var start * value]
 
-def sboxOutput (start : Nat) : Expr := Expr.var (start + 3)
+def sboxOutput (start : Nat) : Expr := Expr.var (start + 1)
 
 @[simp] theorem sboxRecipes_length (start : Nat) (value : Expr) :
-    (sboxRecipes start value).length = 4 := by
+    (sboxRecipes start value).length = 2 := by
   rfl
 
 theorem sboxRecipes_causal (start : Nat) (value : Expr)
@@ -219,8 +217,6 @@ theorem sboxRecipes_causal (start : Nat) (value : Expr)
     RecipesCausal start (sboxRecipes start value) := by
   simp only [sboxRecipes, RecipesCausal, Expr.VarsBelow]
   refine ⟨⟨hvalue, hvalue⟩, ?_⟩
-  refine ⟨⟨by omega, by omega⟩, ?_⟩
-  refine ⟨⟨by omega, by omega⟩, ?_⟩
   exact ⟨⟨by omega, Expr.VarsBelow.mono value hvalue (by omega)⟩, trivial⟩
 
 theorem sboxRows_sound (env : Env) (start : Nat) (value : Expr)
@@ -230,28 +226,16 @@ theorem sboxRows_sound (env : Env) (start : Nat) (value : Expr)
   have row0 := rows (Expr.var start - value * value) (by
     simp [sboxRecipes, recipeConstraints])
   have row1 := rows
-    (Expr.var (start + 1) - Expr.var start * Expr.var start) (by
-      simp [sboxRecipes, recipeConstraints])
-  have row2 := rows
-    (Expr.var (start + 2) - Expr.var (start + 1) * Expr.var start) (by
-      simp [sboxRecipes, recipeConstraints])
-  have row3 := rows
-    (Expr.var (start + 3) - Expr.var (start + 2) * value) (by
+    (Expr.var (start + 1) - Expr.var start * value) (by
       simp [sboxRecipes, recipeConstraints])
   have value0 : env start = value.eval env * value.eval env :=
     sub_eq_zero.mp (by simpa only [Expr.eval_sub, Expr.eval_var,
       Expr.eval_hmul] using row0)
-  have value1 : env (start + 1) = env start * env start :=
+  have value1 : env (start + 1) = env start * value.eval env :=
     sub_eq_zero.mp (by simpa only [Expr.eval_sub, Expr.eval_var,
       Expr.eval_hmul] using row1)
-  have value2 : env (start + 2) = env (start + 1) * env start :=
-    sub_eq_zero.mp (by simpa only [Expr.eval_sub, Expr.eval_var,
-      Expr.eval_hmul] using row2)
-  have value3 : env (start + 3) = env (start + 2) * value.eval env :=
-    sub_eq_zero.mp (by simpa only [Expr.eval_sub, Expr.eval_var,
-      Expr.eval_hmul] using row3)
   simp only [sboxOutput, Expr.eval_var]
-  rw [value3, value2, value1, value0]
+  rw [value1, value0]
   rfl
 
 structure SboxProgram where
@@ -261,13 +245,13 @@ structure SboxProgram where
 def compileSboxes : Nat → List Expr → SboxProgram
   | _, [] => ⟨[], []⟩
   | start, value :: rest =>
-      let tail := compileSboxes (start + 4) rest
+      let tail := compileSboxes (start + 2) rest
       ⟨sboxRecipes start value ++ tail.recipes,
         sboxOutput start :: tail.outputs⟩
 
 @[simp] theorem compileSboxes_recipes_length (start : Nat)
     (values : List Expr) :
-    (compileSboxes start values).recipes.length = values.length * 4 := by
+    (compileSboxes start values).recipes.length = values.length * 2 := by
   induction values generalizing start with
   | nil => rfl
   | cons value rest ih =>
@@ -289,7 +273,7 @@ theorem compileSboxes_causal (start : Nat) (values : List Expr)
   | cons value rest ih =>
       apply recipesCausal_append_causal
       · exact sboxRecipes_causal start value (hvalues value (by simp))
-      · simpa using ih (start + 4) (by
+      · simpa using ih (start + 2) (by
           intro current member
           exact Expr.VarsBelow.mono current
             (hvalues current (by simp [member])) (by omega))
@@ -304,7 +288,7 @@ theorem compileSboxes_outputs_below (start : Nat) (values : List Expr)
       rcases member with rfl | member
       · simp [sboxOutput, Expr.VarsBelow]
         omega
-      · have tail := ih (start + 4) member
+      · have tail := ih (start + 2) member
         convert tail using 1;
           simp only [compileSboxes, List.length_append, sboxRecipes_length,
             compileSboxes_recipes_length]; omega
@@ -319,13 +303,13 @@ theorem compileSboxes_sound (env : Env) (start : Nat) (values : List Expr)
   | cons value rest ih =>
       have splitRows :
           ConstraintsHold env (recipeConstraints start (sboxRecipes start value)) ∧
-          ConstraintsHold env (recipeConstraints (start + 4)
-            (compileSboxes (start + 4) rest).recipes) := by
+          ConstraintsHold env (recipeConstraints (start + 2)
+            (compileSboxes (start + 2) rest).recipes) := by
         rw [compileSboxes, recipeConstraints_append] at rows
         have separated := (constraintsHold_append env _ _).mp rows
         simpa using separated
       have head := sboxRows_sound env start value splitRows.1
-      have tail := ih (start + 4) splitRows.2
+      have tail := ih (start + 2) splitRows.2
       simp [compileSboxes, head, tail]
 
 structure Program where
@@ -353,8 +337,8 @@ def partialSboxState (start : Nat) (round : Nat) (state : EState) : EState :=
 
 def stepSize : Step → Nat
   | .initialLayer => 16
-  | .initialFullRound _ | .terminalFullRound _ => 80
-  | .partialRound _ => 20
+  | .initialFullRound _ | .terminalFullRound _ => 48
+  | .partialRound _ => 18
 
 def stepRecipes (start : Nat) : Step → EState → List Expr
   | .initialLayer, state => List.ofFn (Layer.externalE state)
@@ -414,8 +398,8 @@ def stepRecipesFast (start : Nat) : Step → EState → List Expr
 def stepOutput (start : Nat) : Step → EState
   | .initialLayer => freshState start
   | .initialFullRound _ | .terminalFullRound _ =>
-      freshState (start + 64)
-  | .partialRound _ => freshState (start + 4)
+      freshState (start + 32)
+  | .partialRound _ => freshState (start + 2)
 
 @[simp] theorem stepRecipes_length (start : Nat) (step : Step) (state : EState) :
     (stepRecipes start step state).length = stepSize step := by
@@ -441,7 +425,7 @@ def compileMemo (start : Nat) (state : EState) (steps : List Step) : Program :=
   funext start state steps
   simp only [compileMemo, Array.getElem_ofFn]
 
-def scheduleOutput (start : Nat) : EState := freshState (start + 1080)
+def scheduleOutput (start : Nat) : EState := freshState (start + 1158)
 
 theorem scheduleOutput_eq_compile (start : Nat) (state : EState) :
     scheduleOutput start = (compile start state schedule).output := by
@@ -629,7 +613,7 @@ theorem stepRows_sound (env : Env) (start : Nat) (step : Step)
       let sboxes := compileSboxes start inputs
       have splitRows :
           ConstraintsHold env (recipeConstraints start sboxes.recipes) ∧
-          ConstraintsHold env (recipeConstraints (start + 64)
+          ConstraintsHold env (recipeConstraints (start + 32)
             (List.ofFn (Layer.externalE (fullSboxState start
               Spec.Poseidon2.initialConstants round state)))) := by
         rw [stepRecipes, recipeConstraints_append] at rows
@@ -638,10 +622,10 @@ theorem stepRows_sound (env : Env) (start : Nat) (step : Step)
       have staged := fullSboxState_sound env start
         Spec.Poseidon2.initialConstants round state splitRows.1
       calc
-        Layer.evalState env (freshState (start + 64)) =
+        Layer.evalState env (freshState (start + 32)) =
             Layer.evalState env (Layer.externalE (fullSboxState start
               Spec.Poseidon2.initialConstants round state)) :=
-          stateRows_sound env (start + 64) _ splitRows.2
+          stateRows_sound env (start + 32) _ splitRows.2
         _ = Layer.externalF (Layer.evalState env (fullSboxState start
               Spec.Poseidon2.initialConstants round state)) := by
           funext lane
@@ -656,7 +640,7 @@ theorem stepRows_sound (env : Env) (start : Nat) (step : Step)
       let sboxes := compileSboxes start inputs
       have splitRows :
           ConstraintsHold env (recipeConstraints start sboxes.recipes) ∧
-          ConstraintsHold env (recipeConstraints (start + 64)
+          ConstraintsHold env (recipeConstraints (start + 32)
             (List.ofFn (Layer.externalE (fullSboxState start
               Spec.Poseidon2.terminalConstants round state)))) := by
         rw [stepRecipes, recipeConstraints_append] at rows
@@ -665,10 +649,10 @@ theorem stepRows_sound (env : Env) (start : Nat) (step : Step)
       have staged := fullSboxState_sound env start
         Spec.Poseidon2.terminalConstants round state splitRows.1
       calc
-        Layer.evalState env (freshState (start + 64)) =
+        Layer.evalState env (freshState (start + 32)) =
             Layer.evalState env (Layer.externalE (fullSboxState start
               Spec.Poseidon2.terminalConstants round state)) :=
-          stateRows_sound env (start + 64) _ splitRows.2
+          stateRows_sound env (start + 32) _ splitRows.2
         _ = Layer.externalF (Layer.evalState env (fullSboxState start
               Spec.Poseidon2.terminalConstants round state)) := by
           funext lane
@@ -682,7 +666,7 @@ theorem stepRows_sound (env : Env) (start : Nat) (step : Step)
       let sboxes := compileSboxes start [partialInput round state]
       have splitRows :
           ConstraintsHold env (recipeConstraints start sboxes.recipes) ∧
-          ConstraintsHold env (recipeConstraints (start + 4)
+          ConstraintsHold env (recipeConstraints (start + 2)
             (List.ofFn (Layer.internalE
               (partialSboxState start round state)))) := by
         rw [stepRecipes, recipeConstraints_append] at rows
@@ -690,10 +674,10 @@ theorem stepRows_sound (env : Env) (start : Nat) (step : Step)
         simpa [sboxes] using separated
       have staged := partialSboxState_sound env start round state splitRows.1
       calc
-        Layer.evalState env (freshState (start + 4)) =
+        Layer.evalState env (freshState (start + 2)) =
             Layer.evalState env (Layer.internalE
               (partialSboxState start round state)) :=
-          stateRows_sound env (start + 4) _ splitRows.2
+          stateRows_sound env (start + 2) _ splitRows.2
         _ = Layer.internalF (Layer.evalState env
               (partialSboxState start round state)) := by
           funext lane
@@ -816,7 +800,7 @@ theorem compile_schedule_causal (start : Nat) (state : EState)
   compile_causal start state schedule hstate
 
 theorem compile_schedule_recipe_count (start : Nat) (state : EState) :
-    (compile start state schedule).recipes.length = 1096 := by
+    (compile start state schedule).recipes.length = 1174 := by
   rw [compile_recipes_length]
   rfl
 

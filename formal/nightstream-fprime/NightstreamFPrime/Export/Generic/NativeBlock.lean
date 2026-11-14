@@ -5,15 +5,15 @@ import NightstreamFPrime.Spec.FieldPrime
 import NightstreamFPrime.Export.Generic.SlotLayout
 
 /-! Native Poseidon2 blocks and bit slots (CW-8.3). A Rust-built application can place each
-Poseidon2 permutation as an bounded-depth block (`Frame.Block`) instead of its 1,096 template rows: 150
-S-box rows (`PoseidonSboxFamilyPlan`) on S-box columns from `sboxStart`, and no slot for its 1,096
+Poseidon2 permutation as an bounded-depth block (`Frame.Block`) instead of its 1,174 template rows: 171
+S-box rows (`PoseidonSboxFamilyPlan`) on S-box columns from `sboxStart`, and no slot for its 1,174
 locals. Each row reads the form of an output local (`CircuitRelation.outputForms`) in place of the
 local. The statements hold for any blocks, rows, layout and assignment, whoever builds the package.
 
 Soundness (`blocks_sound`): when the S-box rows are zero and the other rows hold with the output
 forms, each block's outputs in the environment with the output forms (`outputEnv`) are
 `Spec.Poseidon2.permute` of its lanes, and an environment that differs from it only on the dead
-locals satisfies the other rows and every block's 1,096 template rows. It needs the frame
+locals satisfies the other rows and every block's 1,174 template rows. It needs the frame
 (`Frame.Framed`, checked by `Frame.checkFrame`) and other rows that read no dead local
 (`rowAvoids`). Completeness (`blocks_complete`): an honest template trace, read off the blocks'
 locals and with each S-box column at its template local, makes the S-box rows zero, and the
@@ -59,7 +59,7 @@ theorem laneEnv_eq (phase rowStart start : Nat) (lanes : List Expr) (linear : Li
     rw [Pilot.canonicalInvocationEnv_local]
     simp [laneSubst, invocation]
 
-/-- A block's template constraints hold exactly when its 1,096 template rows hold. -/
+/-- A block's template constraints hold exactly when its 1,174 template rows hold. -/
 theorem constraints_iff_invocation (phase rowStart start : Nat) (lanes : List Expr)
     (linear : LinearLanes lanes) (env : Env) :
     ConstraintsHold env
@@ -161,7 +161,7 @@ theorem outputEnv_output {width logicalWidth : Nat} {blocks : List Block}
     (separated : blocks.Pairwise Separated) (sboxStart : Nat)
     (layout : LogicalPlan.Layout width logicalWidth) (assignment : Assignment F logicalWidth)
     (index : Fin blocks.length) (lane : Fin 16) :
-    outputEnv blocks sboxStart layout assignment ((blocks.get index).start + 1080 + lane.val) =
+    outputEnv blocks sboxStart layout assignment ((blocks.get index).start + 1158 + lane.val) =
       (outputState (width := width) blocks sboxStart index lane).eval
         (fun column => LogicalPlan.sourceEnv layout assignment column.val) := by
   unfold outputEnv Substitute.refill
@@ -174,7 +174,7 @@ the width premise. -/
 theorem outputsHold_of_rows {width logicalWidth : Nat} (blocks : List Block) (sboxStart : Nat)
     (separated : blocks.Pairwise Separated)
     (layout : LogicalPlan.Layout width logicalWidth) (assignment : Assignment F logicalWidth)
-    (one : assignment layout.one = 1) (rowCount_le : blocks.length * 150 ≤ 2 ^ cubeVariables)
+    (one : assignment layout.one = 1) (rowCount_le : blocks.length * 171 ≤ 2 ^ cubeVariables)
     (sboxRows : (PoseidonSboxFamilyPlan.plan (sboxInterface layout blocks sboxStart)
       rowCount_le).RowsZero assignment) :
     OutputsHold blocks (outputEnv blocks sboxStart layout assignment) := by
@@ -225,7 +225,7 @@ theorem output_permute {blocks : List Block} {env : Env} (outputs : OutputsHold 
     Permutation.runReference_schedule]
 
 /-- Rows that read no dead local, with each block's outputs the permutation of its inputs, hold in
-an environment that differs from `env` only on the dead locals, where each block's 1,096 template
+an environment that differs from `env` only on the dead locals, where each block's 1,174 template
 rows and template constraints also hold. -/
 theorem completed_rows {blocks : List Block} (frame : Framed blocks) {rows : List R1CS.Row}
     (avoid : rows.all (rowAvoids (deadIn blocks)) = true) {env : Env}
@@ -248,7 +248,7 @@ theorem completed_rows {blocks : List Block} (frame : Framed blocks) {rows : Lis
 theorem blocks_sound {width logicalWidth : Nat} {blocks : List Block} (frame : Framed blocks)
     (sboxStart : Nat) {rows : List R1CS.Row} (avoid : rows.all (rowAvoids (deadIn blocks)) = true)
     (layout : LogicalPlan.Layout width logicalWidth) (assignment : Assignment F logicalWidth)
-    (one : assignment layout.one = 1) (rowCount_le : blocks.length * 150 ≤ 2 ^ cubeVariables)
+    (one : assignment layout.one = 1) (rowCount_le : blocks.length * 171 ≤ 2 ^ cubeVariables)
     (sboxRows : (PoseidonSboxFamilyPlan.plan (sboxInterface layout blocks sboxStart)
       rowCount_le).RowsZero assignment)
     (rowsHold : R1CS.RowsHold (LogicalPlan.sourceEnv layout assignment)
@@ -321,7 +321,7 @@ theorem lane_avoids {blocks : List Block} (frame : Framed blocks) {block : Block
 /-- A block's output locals are no block's dead locals. -/
 theorem output_live {blocks : List Block} (frame : Framed blocks) {block : Block}
     (member : block ∈ blocks) (lane : Fin 16) :
-    deadIn blocks (block.start + 1080 + lane.val) = false := by
+    deadIn blocks (block.start + 1158 + lane.val) = false := by
   have below := lane.isLt
   simp only [deadIn, List.any_eq_false, Block.dead, Bool.and_eq_true, decide_eq_true_eq]
   intro other otherMember inside
@@ -344,12 +344,12 @@ theorem outputEnv_honest {width logicalWidth : Nat} {blocks : List Block} (frame
       LogicalPlan.sourceEnv layout assignment (sboxColumn sboxStart index.val row.val) =
         honest (sboxLocal (blocks.get index) row))
     (lane : Fin 16) :
-    outputEnv blocks sboxStart layout assignment ((blocks.get index).start + 1080 + lane.val) =
-      honest ((blocks.get index).start + 1080 + lane.val) := by
+    outputEnv blocks sboxStart layout assignment ((blocks.get index).start + 1158 + lane.val) =
+      honest ((blocks.get index).start + 1158 + lane.val) := by
   have blockMember := List.get_mem blocks index
   have invocationHolds := (constraints_iff_invocation 0 0 _ _ (frame.linear _ blockMember)
     honest).mp templates
-  have final : honest ((blocks.get index).start + 1080 + lane.val) =
+  have final : honest ((blocks.get index).start + 1158 + lane.val) =
       Layer.externalF (fun lane => honest
         (sboxLocal (blocks.get index) (PoseidonRetainedSlots.finalRow lane))) lane :=
     congrFun (PermutationOutput.invocation_finalLayer _ honest invocationHolds) lane
@@ -374,7 +374,7 @@ honest one off the dead locals. -/
 theorem blocks_complete {width logicalWidth : Nat} {blocks : List Block} (frame : Framed blocks)
     (sboxStart : Nat) (layout : LogicalPlan.Layout width logicalWidth)
     (assignment : Assignment F logicalWidth) (one : assignment layout.one = 1)
-    (rowCount_le : blocks.length * 150 ≤ 2 ^ cubeVariables) (honest : Env)
+    (rowCount_le : blocks.length * 171 ≤ 2 ^ cubeVariables) (honest : Env)
     (templates : ∀ block ∈ blocks, ConstraintsHold honest
       ((Piece.permutation block.start block.lanes).constraints (PilotData.canonicalConstraints ())))
     (live : ∀ column, deadIn blocks column = false → outputIn blocks column = false →

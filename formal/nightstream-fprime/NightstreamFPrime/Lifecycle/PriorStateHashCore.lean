@@ -125,7 +125,7 @@ def compiledHashLength (interface : Interface) (offset : Nat) : Nat :=
   (RawFormal.program (hashInterface interface) offset).recipes.length
 
 def hashLength (interface : Interface) (offset : Nat) : Nat :=
-  (interface.preimage offset).length / Spec.Poseidon2.rate * 1096 + 1096
+  (interface.preimage offset).length / Spec.Poseidon2.rate * 1174 + 1174
 
 theorem compiledHashLength_eq_hashLength (interface : Interface) (offset : Nat) :
     compiledHashLength interface offset = hashLength interface offset := by

@@ -90,13 +90,13 @@ theorem holds_mono {claim : CE.Instance (PaperAlgebra.Structure logicalWidth)
 section Game
 
 variable {schedule : Schedule} (key : CircuitKey logicalWidth publicFits)
-  (folds : (Point schedule 8 → Answer) → Folds logicalWidth publicFits)
+  (folds : (Point schedule 4 → Answer) → Folds logicalWidth publicFits)
   (statement : Attempt logicalWidth publicFits → schedule.Statement)
-  (messages : Attempt logicalWidth publicFits → schedule.Messages 8)
-  (adversary : OracleComp (Point schedule 8) Answer (Attempt logicalWidth publicFits))
+  (messages : Attempt logicalWidth publicFits → schedule.Messages 4)
+  (adversary : OracleComp (Point schedule 4) Answer (Attempt logicalWidth publicFits))
 
 /-- A successful attempt's bound is within the chain bound. -/
-theorem bound_le_chain {oracle : Point schedule 8 → Answer}
+theorem bound_le_chain {oracle : Point schedule 4 → Answer}
     (succeeds : Fork.Succeeds (ForkLink.game ajtai key folds statement messages) adversary
       oracle) :
     (adversary.run oracle).bound ≤

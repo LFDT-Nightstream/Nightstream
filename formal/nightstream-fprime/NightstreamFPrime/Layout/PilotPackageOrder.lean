@@ -31,19 +31,19 @@ def witnessPrivateStart : Nat := 2 * PilotProduction.stateHashWords
 def firstPublicStart : Nat := privateColumnCount + 1
 def secondPublicStart : Nat := firstPublicStart + PriorStateHash.publicWidth
 
-theorem sourceColumnCount_eq : SourceColumnCount = 4678562 := by
+theorem sourceColumnCount_eq : SourceColumnCount = 5007878 := by
   rfl
 
 theorem publicColumnCount_value : publicColumnCount = 324 := by
   rfl
 
-theorem privateColumnCount_value : privateColumnCount = 4678238 := by
+theorem privateColumnCount_value : privateColumnCount = 5007554 := by
   rfl
 
-theorem constantColumn_value : constantColumn = 4678238 := by
+theorem constantColumn_value : constantColumn = 5007554 := by
   rfl
 
-theorem packageColumnCount_value : packageColumnCount = 4678563 := by
+theorem packageColumnCount_value : packageColumnCount = 5007879 := by
   rfl
 
 theorem priorPublicStart_value : priorPublicStart = 25329 := by
@@ -64,10 +64,10 @@ theorem secondPrivateStart_value : secondPrivateStart = 25329 := by
 theorem witnessPrivateStart_value : witnessPrivateStart = 50658 := by
   rfl
 
-theorem firstPublicStart_value : firstPublicStart = 4678239 := by
+theorem firstPublicStart_value : firstPublicStart = 5007555 := by
   rfl
 
-theorem secondPublicStart_value : secondPublicStart = 4678559 := by
+theorem secondPublicStart_value : secondPublicStart = 5007875 := by
   rfl
 
 theorem sourceColumnCount_matches :

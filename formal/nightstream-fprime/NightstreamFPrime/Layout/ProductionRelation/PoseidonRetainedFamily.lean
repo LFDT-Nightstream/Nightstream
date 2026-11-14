@@ -135,7 +135,7 @@ theorem trace_state_eq_outputState
   funext lane
   unfold PoseidonSboxPlan.fullOutput PoseidonSboxPlan.sboxOutputAt
     invocationInterface
-  have bounded : 134 + lane.val < PoseidonRetainedSlots.rows.length :=
+  have bounded : 155 + lane.val < PoseidonRetainedSlots.rows.length :=
     (PoseidonRetainedSlots.finalRow lane).isLt
   rw [dite_eq_left bounded]
   apply congrArg (form schedule start fits invocation)

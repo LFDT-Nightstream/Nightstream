@@ -163,7 +163,7 @@ impl fmt::Debug for VerificationKey {
 pub struct ProverKey {
     pub(crate) akita: Prover,
     pub(crate) committed: Committed,
-    /// Lane `h` of key element `(i, j)` at `(i·blocks + j)·64 + h`.
+    /// Lane `h` of key element `(i, j)` at `(64j + h)·κ + i` (`by_cell`).
     table: Vec<F>,
     verification: VerificationKey,
 }
@@ -184,6 +184,7 @@ impl ProverKey {
     ) -> Result<Self, Error> {
         let table = table(schedules.blocks(), element, F::new);
         let cells = table.par_iter().copied().map(akita::base).collect();
+        let table = by_cell(&table);
         let (akita, committed, verification) = committed(schedules, cells)?;
         Ok(Self {
             akita,
@@ -203,7 +204,17 @@ impl ProverKey {
     }
 }
 
-/// The rows of `table` batched with the powers of `omega`.
+/// The rows of the key polynomial with the κ rows of each cell adjacent, so
+/// that `fold` reads the table once, in order.
+fn by_cell(rows: &[F]) -> Vec<F> {
+    let slab = rows.len() / KAPPA;
+    (0..rows.len())
+        .into_par_iter()
+        .map(|index| rows[index % KAPPA * slab + index / KAPPA])
+        .collect()
+}
+
+/// The rows of `table` (`by_cell`) batched with the powers of `omega`.
 fn fold(table: &[F], omega: K) -> Vec<K> {
     let (real, imaginary): (Vec<F>, Vec<F>) = powers(omega, KAPPA)
         .iter()
@@ -212,12 +223,11 @@ fn fold(table: &[F], omega: K) -> Vec<K> {
             (real, imaginary)
         })
         .unzip();
-    let slab = table.len() / KAPPA;
-    (0..slab)
-        .into_par_iter()
+    table
+        .par_chunks(KAPPA)
         .with_min_len(CELLS_PER_TASK)
-        .map(|cell| {
-            let rows = table[cell..].iter().step_by(slab).copied();
+        .map(|rows| {
+            let rows = rows.iter().copied();
             K::from_coeffs([
                 F::sum_of_products(real.iter().copied().zip(rows.clone())),
                 F::sum_of_products(imaginary.iter().copied().zip(rows)),

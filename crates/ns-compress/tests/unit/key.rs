@@ -17,8 +17,8 @@ use akita_types::{AkitaSetupSeed, SetupPrefixVerifierRegistry};
 use jolt_field::Ring;
 
 use super::{
-    committed, fold, prefix_equality, production_element, row_point, table, weight_at, weight_table, ProverKey,
-    VerificationKey,
+    by_cell, committed, fold, prefix_equality, production_element, row_point, table, weight_at, weight_table,
+    ProverKey, VerificationKey,
 };
 use crate::akita::{self, Base, Schedules, SCHEDULES};
 use crate::layout::LANE_VARS;
@@ -95,7 +95,7 @@ fn the_reduction_gives_the_shake_value(blocks: usize, counts: &[usize], seed: u6
         .sum();
 
     let table = table(blocks, production_element, F::new);
-    let folded = fold(&table, omega);
+    let folded = fold(&by_cell(&table), omega);
     assert_eq!(weights::key_part(&uses, &folded), direct, "the prover's sum");
 
     // A prefix of the blocks is not a value of the folded table: the value

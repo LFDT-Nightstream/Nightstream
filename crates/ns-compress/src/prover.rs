@@ -278,8 +278,10 @@ impl Committed<'_> {
         let (weights, (witness, [check, sum, combined, scaled])) = rayon::join(
             || weights::table(statements, &self.layout, &challenges, &folded),
             || {
-                let witness = self.witness.par_iter().map(|&cell| K::from(cell)).collect();
-                (witness, self.lookup_tables(&tables, &challenges))
+                rayon::join(
+                    || self.witness.par_iter().map(|&cell| K::from(cell)).collect(),
+                    || self.lookup_tables(&tables, &challenges),
+                )
             },
         );
         let sum_tables = Tables {

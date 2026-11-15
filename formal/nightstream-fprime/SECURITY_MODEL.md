@@ -214,19 +214,24 @@ each head.
 | `Fold/freshOpening`, `Fold/runningOpening`, `Fold/truth`, `Fold/accumulatorHolds`, `Fold/freshHolds` | `*` | game | `SPEC.md` Algorithm 5: the honest prover holds a witness of each input claim |
 | `Fold/running.point.dimension`, `Fold/start.point.dimension`, `Fold/result.*`, `Fold/accumulator.*`, `Fold/parent.*` | `*` | game | `SPEC.md` section 2.5: a claim has a point of the cube dimension and a constraint system that fits its cube |
 | `Fold.light_complete/key.*`, `Fold.light_extracts/key.*`, `Fold.refresh_complete/key.*`, `Fold.refresh_extracts/key.*` | `*` | lean | `Spec.HyperNova.Construction2.BoundedDepthKeys.lightKey` and `Lifecycle.BoundedDepth.refreshKey` are the keys of the two folds, so they carry these proofs |
-| `Fold/laws.*` | `*` | lean | `Lifecycle.PaperExtractionAlgebra.extractionAlgebra` is the extraction algebra of the production key, so it carries these proofs |
-| `Fold/normLaw.sub_bound` | `*` | lean | `Spec.RingRelation.PiRLCAlgebra.LightNorm.sub_act_bound`, the production form of this law |
-| `Fold/oneEq` | `Eq` | open | Open: no Lean theorem applies `Claims.Fold.light_extracts` at the production keys, so no result gives this equation for them |
+| `Fold.light_extracts/laws.*` | `*` | lean | `Lifecycle.BoundedDepth.lightExtraction` is the extraction algebra of the production light key, so it carries these proofs |
+| `Fold.refresh_extracts/laws.*` | `*` | lean | `Lifecycle.PaperExtractionAlgebra.extractionAlgebra` is the extraction algebra of the production refresh key, so it carries these proofs |
+| `Fold/normLaw.sub_bound` | `*` | lean | `Lifecycle.BoundedDepth.lightExtractionNormLaw` is this law for `Lifecycle.BoundedDepth.lightExtraction` |
+| `Fold/oneEq` | `Eq` | open | Open: no Lean theorem applies `Claims.Fold.light_extracts` at the production keys, and no named result states this equation for them. The production path is `Lifecycle.BoundedDepth.RandomOracle.LightFork.extracted_ambient`, which uses the extraction lemmas directly |
 | `Fold/capFits`, `Ivc/capFits` | `LE.le` | lean | `Spec.Folding.Schedule.production_cap_fits`, at the production cap |
 | `Fold/p.rlc_bound`, `Ivc/p.rlc_bound` | `LT.lt` | lean | `Spec.productionGlobalParams` is the parameter record of the profile, so it carries this proof |
 | `Fold/admissible`, `Fold/member`, `Fold/start` | `*` | game | `SPEC.md` section 3: the claim is about each depth that an admissible schedule reaches |
 | `Fold/positive` | `LT.lt` | game | adversary 3: the work budget of the extractor is positive |
 | `Step/holds`, `Step/represents.*` | `*` | game | `SPEC.md` Algorithm 5: the honest prover has an assignment of the step circuit that carries its step and its fold |
 | `Step/below`, `Step/free`, `Step/packed`, `Step/publicBelow`, `Step/wideFits`, `Ivc/complete.*`, `Nebula/complete.*` | `*` | open | Open: the emitter evaluates these package checks before it writes a package (`lake exe emitBoundedDepth --checks`), and no theorem states them for the emitted packages |
-| `Ivc.accepted_bounds/accepted`, `Ivc/execution`, `Ivc/holds`, `Ivc/knowledge`, `Ivc/finalAtMostB`, `Ivc/start` | `*` | game | adversary 4, the result for one slot: an accepted history of the slot, and the knowledge of each of its folds |
+| `Ivc.accepted_bounds/accepted`, `Ivc/execution`, `Ivc/holds`, `Ivc/finalAtMostB`, `Ivc/start` | `*` | game | adversary 4, the result for one slot: an accepted history of the slot |
+| `Ivc/knowledge` | `*` | open | Open: `Spec.HyperNova.Construction2.BoundedDepthKnowledge.StepKnowledge` is the knowledge of each fold of the slot, and Lean has no instance of it for the production folds |
 | `Ivc/validRun`, `Ivc/witnessLengths`, `Ivc/runBelow`, `Ivc/z0Length`, `Ivc/iterationNext`, `Ivc/valid`, `Ivc/verifies`, `Ivc/witnessLength` | `*` | game | `SPEC.md` Algorithm 5: the honest prover extends an accepted proof by a valid step, with a counter below `q` |
 | `Nebula/accepted.*`, `Nebula/start`, `Nebula/steps`, `Nebula/terminal.*` | `*` | game | `SPEC.md` Algorithm 8: the memory verifier accepts the chain of steps and its terminal state |
 | `Nebula/count`, `Nebula/exec`, `Nebula/range`, `Nebula/width` | `*` | game | `SPEC.md` Algorithm 7: the honest prover runs an execution of the machine |
+| `Fold/bounded` | `Spec.RandomOracle.OracleComp.QueryBound` | game | adversary 3: the adversary makes at most `Q` oracle queries |
+| `Ivc.slot_history_failure/assumption` | `Spec.HyperNova.Construction2.BoundedDepthSecurity.Assumption1` | assumption | `[HN-A1]`, in the form for one slot |
+| `Compression.production_error/columns`, `Compression.production_error/depths_le`, `Compression.production_error/span_le` | `*` | open | Open: no Lean theorem states these conditions for the verifier data and the layout of the setup (row `premises.layout`) |
 <!-- premises:end -->
 
 ## Applications and setups
@@ -439,8 +444,8 @@ not change terminal source checks.
   value at the address of its sponge calls, for an adversary that makes at
   most `Q` queries, the probability that a fold succeeds and the extractor does not return its
   witnesses is at most a statistical term, a state-collision term and a
-  kernel term (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.knowledge_error_le`,
-  `Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.knowledge_error_le`). The
+  kernel term (`Claims.Fold.light_knowledge_in_random_oracle_model`,
+  `Claims.Fold.refresh_knowledge_in_random_oracle_model`). The
   test step charges each challenge's bad set at the challenge's own point, so
   it costs at most `(Q + 1)` times the Π_CCS test error
   (`Lifecycle.RandomOracle.Test.family_error_le`). The statistical term is at
@@ -472,8 +477,8 @@ not change terminal source checks.
   Averaged over the SHAKE128 key setup at key width `2^26`, the kernel term is
   an MSIS advantage for a uniform matrix at the chain norm plus a programming
   error below `2^−1129`, so each fold's bound uses only the two algorithms
-  (`Export.BoundedDepth.RandomOracleSetup.light_production_knowledge_error_lt_solvers`,
-  `Export.BoundedDepth.RandomOracleSetup.refresh_production_knowledge_error_lt_solvers`).
+  (`Claims.Fold.light_production_knowledge_error`,
+  `Claims.Fold.refresh_production_knowledge_error`).
   Lean bounds neither the MSIS advantage nor the collision advantage
   numerically (trust item 2), and it states the machines' work in adversary
   runs, not in time.
@@ -537,7 +542,7 @@ not change terminal source checks.
   from its tape, so a reduction that runs the stage outputs the colliding
   pair. Lean does not bound this probability (trust item 2).
 - **Per slot:** the earlier one-slot result,
-  `Spec.HyperNova.Construction2.BoundedDepthSecurity.history_failure_le`,
+  `Claims.Ivc.slot_history_failure`,
   takes the history as an adversary output and has no collision term. Without
   probabilities, the reverse run of one slot opens each running claim at its
   recovered bound, or it names a failed fold

@@ -98,8 +98,8 @@ theorem application_identity_binds
   @Lifecycle.BoundedDepth.ApplicationIdentity.Application.identity_binds left right leftCanonical
     rightCanonical same
 
-/-- Each two distinct uses of the Poseidon2 sponge start with tags that differ, so they never
-absorb one block list. -/
+/-- Each two distinct rows of the table `Export.DomainSeparation.uses` start with tags that
+differ, so two uses of the table never absorb one block list. -/
 theorem domains_separated :
     List.Pairwise Export.DomainSeparation.Separated Export.DomainSeparation.uses :=
   @Export.DomainSeparation.separated

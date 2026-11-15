@@ -4,6 +4,7 @@ import NightstreamFPrime.Export.BoundedDepth.TerminalBridge
 import NightstreamFPrime.Export.BoundedDepth.VerifierSecurity
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
+import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
 
 /-! # Claims: bounded-depth IVC
 
@@ -487,5 +488,88 @@ theorem step_extends
   @Export.BoundedDepth.RunCompleteness.verifies_step logicalWidth publicFits relation ajtai
     circuitKeys step cubeFits exports complete keysShaped cap control statement proof verifies
     witness valid iterationNext witnessLength
+
+/-- HyperNova Lemma 17 for one slot of the bounded-depth scheme: the chance that the slot's history is accepted
+but the reverse extractor does not return it is at most the stages' Assumption 1 errors. -/
+theorem slot_history_failure
+    {Prior : Type}
+    {Key : Type}
+    {Claim : Type}
+    {Fresh : Type}
+    {Proof : Type}
+    {ClaimWitness : Type}
+    {FreshWitness : Type}
+    {p : GlobalParams}
+    {cap : ℕ}
+    {folds : BoundedDepth.Folds Key Claim Fresh Proof}
+    {PriorLink : Prior → BoundedDepth.Running Claim → BoundedDepth.Fold Key Claim Fresh Proof → Prop}
+    {Holds : Key → ℕ → Claim → ClaimWitness → Prop}
+    {FreshHolds : Key → Fresh → FreshWitness → Prop}
+    {Admitted : BoundedDepthSecurity.NifsAdversary Prior Key Claim Fresh Proof ClaimWitness → Prop}
+    {StageAdmitted : BoundedDepthSecurity.Stage Prior Key Claim Fresh Proof ClaimWitness FreshWitness → Prop}
+    {Efficient : (adversary : BoundedDepthSecurity.NifsAdversary Prior Key Claim Fresh Proof ClaimWitness) →
+        BoundedDepthSecurity.NifsExtractor FreshWitness adversary → Prop}
+    {error : BoundedDepthSecurity.NifsAdversary Prior Key Claim Fresh Proof ClaimWitness → ℝ}
+    (assumption : BoundedDepthSecurity.Assumption1 p cap folds PriorLink Holds FreshHolds Admitted Efficient
+        error)
+    (closed : BoundedDepthSecurity.Closed p Admitted StageAdmitted Efficient)
+    (adversary : BoundedDepthSecurity.IvcAdversary Prior Key Claim Fresh Proof ClaimWitness)
+    (admitted : StageAdmitted (BoundedDepthSecurity.Stage.start adversary))
+    (depth : ℕ)
+    (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).back.length ≤ depth) :
+    ENNReal.toReal
+          (((↑(BoundedDepthSecurity.reverseStages (PriorLink := PriorLink) (Holds := Holds)
+                        (FreshHolds := FreshHolds) (Admitted := Admitted) (StageAdmitted :=
+                        StageAdmitted) (Efficient := Efficient) assumption closed adversary
+                        admitted depth) :
+                    BoundedDepthSecurity.Stage Prior Key Claim Fresh Proof ClaimWitness
+                      FreshWitness).tape.toOuterMeasure :
+              Set
+                  (↑(BoundedDepthSecurity.reverseStages assumption closed adversary admitted
+                          depth) :
+                      BoundedDepthSecurity.Stage Prior Key Claim Fresh Proof ClaimWitness
+                        FreshWitness).Tape →
+                ENNReal)
+            {tape :
+              (↑(BoundedDepthSecurity.reverseStages (PriorLink := PriorLink) (Holds := Holds)
+                      (FreshHolds := FreshHolds) (Admitted := Admitted) (StageAdmitted :=
+                      StageAdmitted) (Efficient := Efficient) assumption closed adversary admitted
+                      depth) :
+                  BoundedDepthSecurity.Stage Prior Key Claim Fresh Proof ClaimWitness
+                    FreshWitness).Tape |
+              BoundedDepthSecurity.Accepted p cap folds PriorLink Holds
+                  ((↑(BoundedDepthSecurity.reverseStages (PriorLink := PriorLink) (Holds := Holds)
+                            (FreshHolds := FreshHolds) (Admitted := Admitted) (StageAdmitted :=
+                            StageAdmitted) (Efficient := Efficient) assumption closed adversary
+                            admitted depth) :
+                        BoundedDepthSecurity.Stage Prior Key Claim Fresh Proof ClaimWitness
+                          FreshWitness).input
+                    tape) ∧
+                ¬BoundedDepthSecurity.HistoryReturned p Holds FreshHolds
+                    ((↑(BoundedDepthSecurity.reverseStages (PriorLink := PriorLink) (Holds :=
+                              Holds) (FreshHolds := FreshHolds) (Admitted := Admitted)
+                              (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
+                              closed adversary admitted depth) :
+                          BoundedDepthSecurity.Stage Prior Key Claim Fresh Proof ClaimWitness
+                            FreshWitness).input
+                      tape)
+                    ((↑(BoundedDepthSecurity.reverseStages (PriorLink := PriorLink) (Holds :=
+                              Holds) (FreshHolds := FreshHolds) (Admitted := Admitted)
+                              (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
+                              closed adversary admitted depth) :
+                          BoundedDepthSecurity.Stage Prior Key Claim Fresh Proof ClaimWitness
+                            FreshWitness).results
+                      tape)}) ≤
+        ∑ j : Fin depth,
+          error
+            (BoundedDepthSecurity.Stage.nifs p
+              (↑(BoundedDepthSecurity.reverseStages (PriorLink := PriorLink) (Holds := Holds)
+                    (FreshHolds := FreshHolds) (Admitted := Admitted) (StageAdmitted :=
+                    StageAdmitted) (Efficient := Efficient) assumption closed adversary admitted
+                    (↑j : ℕ)) :
+                BoundedDepthSecurity.Stage Prior Key Claim Fresh Proof ClaimWitness FreshWitness)) :=
+  @Spec.HyperNova.Construction2.BoundedDepthSecurity.history_failure_le Prior Key Claim Fresh
+    Proof ClaimWitness FreshWitness p cap folds PriorLink Holds FreshHolds Admitted StageAdmitted
+    Efficient error assumption closed adversary admitted depth depthBound
 
 end NightstreamFPrime.Claims.Ivc

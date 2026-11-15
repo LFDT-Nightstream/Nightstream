@@ -60,12 +60,12 @@ def premiseLines (space : Name) (decl : Name) : MetaM (Array String) := do
       lines := lines.push s!"{shown}\t-\t-"
     return lines
 
-/-- The constant that the proof of a claim applies, under its binders. -/
+/-- The constant that the proof of a claim applies to its own binders, under those binders. -/
 def proofHead : Expr → Option Name
   | .lam _ _ body _ => proofHead body
   | .mdata _ body => proofHead body
   | body => match body.getAppFn with
-    | .const name _ => some name
+    | .const name _ => if body.getAppArgs.all (·.isBVar) then some name else none
     | _ => none
 
 elab "#premise_census " path:str space:str root:str : command => do
@@ -82,7 +82,7 @@ elab "#premise_census " path:str space:str root:str : command => do
       | some head =>
         if claims.isPrefixOf head then
           throwError "the proof of {name} applies {head}, which is in {claims}"
-      | none => throwError "the proof of {name} is not one application of a theorem"
+      | none => throwError "the proof of {name} is not one theorem applied to the binders of {name}"
       let bad := (← liftCoreM <| collectAxioms name).toList.filter (fun a => !allowed.contains a)
       unless bad.isEmpty do throwError "{name} depends on disallowed axioms: {bad}"
       theorems := theorems.push name

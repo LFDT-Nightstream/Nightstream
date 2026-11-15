@@ -166,10 +166,19 @@ while IFS= read -r f; do
   done < <(grep -E '^import NightstreamFPrime\.' "$f" || true)
 done < <(find NightstreamFPrime -name '*.lean' -path 'NightstreamFPrime/*/*')
 
-# A claim shows each hypothesis in its signature (`NightstreamFPrime/Claims.lean`).
-if grep -nE '^(variable|section|private|@\[|set_option|macro|notation|local notation)' NightstreamFPrime/Claims/*.lean; then
+# A claim shows each hypothesis in its signature, and each claims file is one namespace
+# (`NightstreamFPrime/Claims.lean`).
+if grep -nE '^(variable|section|@\[|set_option|macro|notation)|\b(private|_root_|local notation)\b' \
+    NightstreamFPrime/Claims/*.lean; then
   fail "a Claims file hides a hypothesis or holds a declaration that is not a claim"
 fi
+for f in NightstreamFPrime/Claims/*.lean; do
+  space="NightstreamFPrime.Claims.$(basename "$f" .lean)"
+  if [[ "$(grep -cE '^(namespace|end) ' "$f")" != 2 || "$(grep -E '^namespace ' "$f")" != "namespace $space" \
+      || "$(tail -n 1 "$f")" != "end $space" ]]; then
+    fail "$f is not the one namespace $space"
+  fi
+done
 
 if ! timeout --signal=KILL 300s python3 -B scripts/check_matrix_codecs.py; then
   fail "physical declaration returned to the MatrixProgram codec owner"

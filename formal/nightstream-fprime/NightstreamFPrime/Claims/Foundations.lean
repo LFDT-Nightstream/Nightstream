@@ -36,7 +36,8 @@ theorem chain_norm :
         25165824 :=
   @Spec.Folding.Schedule.production_msisChainBound
 
-/-- The fallback bound of one key element of the Ajtai setup is below `2^-1155`. -/
+/-- The number `fallbackBound` is below `2^-1155`. It bounds the fallback event of one key element
+of the Ajtai setup (`Spec.AjtaiSetupV1.Rejection.card_fallback_le`). -/
 theorem setup_fallback_bound :
     AjtaiSetupV1.Rejection.fallbackBound < 1 / 2 ^ 1155 :=
   @Spec.AjtaiSetupV1.Rejection.fallbackBound_lt

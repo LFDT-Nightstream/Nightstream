@@ -1,7 +1,10 @@
 import NightstreamFPrime.Export.BoundedDepth.FoldSponge
+import NightstreamFPrime.Export.BoundedDepth.RandomOracleSetup
 import NightstreamFPrime.Lifecycle.BoundedDepth.FoldCompleteness
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.Assumption1
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.FoldGate
+import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightKnowledge
+import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge
 import NightstreamFPrime.Spec.Folding.Light.Completeness
 import NightstreamFPrime.Spec.Folding.Light.Security
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Law
@@ -18,12 +21,16 @@ Completeness and knowledge of the two folds of the bounded-depth scheme.
   argument, and each gives the witnesses or a Π_CCS bad event.
 - `light_knowledge`, `refresh_knowledge` and `assumption1_in_random_oracle_model` hold in the
   ideal-permutation or random-oracle model (`[P2-PERM]`, `[SPONGE]`).
+- `light_extracts` and `refresh_extracts` also take `strongSet`, the units of the strong
+  sampling set. It returns data, so the premise list does not show it.
+  `Claims.Foundations.low_norm_invertible` is the result behind it.
 - Open: no theorem joins `assumption1_in_random_oracle_model` to the bounds of `Claims.Ivc`,
   which take HyperNova errata Assumption 1 as a premise (`SECURITY_MODEL.md` trust item 3). -/
 
 namespace NightstreamFPrime.Claims.Fold
 
 open Spec Spec.Folding Lifecycle Lifecycle.BoundedDepth Lifecycle.BoundedDepth.RandomOracle Export.BoundedDepth
+attribute [local instance low] Classical.propDecidable
 
 /-- Cyclo Theorem 3, item 1, for one fresh source and one running source. -/
 theorem light_complete.{uCommitment, uPublicInput, uScalar, uState}
@@ -359,7 +366,9 @@ theorem honest_bounds
     p.accumulatorBound reached < p.bigB :=
   @Spec.Folding.Schedule.honest_bounds p cap capFits steps depth start admissible reached member
 
-/-- The statistical distance of the Π_RLC sampler is below `2^-173`. -/
+/-- The number `distance` is below `2^-173`. It bounds the difference between an expectation
+under the Π_RLC sampler and under its ideal law
+(`Spec.Folding.Nifs.NonInteractive.PiRlcSampler.expect_difference_abs_le`). -/
 theorem sampler_distance :
     Nifs.NonInteractive.PiRlcSampler.distance < 1 / 2 ^ 173 :=
   @Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt
@@ -436,5 +445,157 @@ theorem assumption1_in_random_oracle_model
         (Assumption1.romError ajtai circuitKeys queries budget) :=
   @Lifecycle.BoundedDepth.RandomOracle.Assumption1.romAssumption1 logicalWidth publicFits ajtai
     circuitKeys queries budget positive
+
+/-- The light fold's knowledge bound in the random-oracle model. -/
+theorem light_knowledge_in_random_oracle_model
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+        PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (key : CircuitKey logicalWidth publicFits)
+    (adversary : RandomOracle.OracleComp
+        (RandomOracle.Test.Point (LightSchedule.schedule logicalWidth publicFits) 8)
+        RandomOracle.Test.Answer (ForkLink.Attempt logicalWidth publicFits))
+    {queries : ℕ}
+    (bounded : adversary.QueryBound queries) :
+    (Finset.expect Finset.univ
+          fun
+            (oracle :
+              RandomOracle.Test.Point (LightSchedule.schedule logicalWidth publicFits) 8 →
+                RandomOracle.Test.Answer) =>
+          if RandomOracle.Fork.Succeeds (LightFork.game ajtai key) adversary oracle then 1
+          else 0) ≤
+        (Finset.expect Finset.univ
+            fun
+              (oracle :
+                RandomOracle.Test.Point (LightSchedule.schedule logicalWidth publicFits) 8 →
+                  RandomOracle.Test.Answer) =>
+            ∑ retries :
+              Fin (LightSchedule.schedule logicalWidth publicFits).rhoCount →
+                RandomOracle.Test.Answer,
+              RandomOracle.Uniqueness.weight (LightFork.game ajtai key) adversary oracle retries *
+                if LightKnowledge.Extracts ajtai key adversary oracle retries then 1 else 0) +
+          LightKnowledge.knowledgeError ajtai key adversary queries :=
+  @Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.knowledge_error_le logicalWidth publicFits
+    ajtai key adversary queries bounded
+
+/-- The refresh fold's knowledge bound in the random-oracle model. -/
+theorem refresh_knowledge_in_random_oracle_model
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+        PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (key : CircuitKey logicalWidth publicFits)
+    (adversary : RandomOracle.OracleComp
+        (RandomOracle.Test.Point (RefreshSchedule.schedule logicalWidth publicFits) 8)
+        RandomOracle.Test.Answer (ForkLink.Attempt logicalWidth publicFits))
+    {queries : ℕ}
+    (bounded : adversary.QueryBound queries) :
+    (Finset.expect Finset.univ
+          fun
+            (oracle :
+              RandomOracle.Test.Point (RefreshSchedule.schedule logicalWidth publicFits) 8 →
+                RandomOracle.Test.Answer) =>
+          if RandomOracle.Fork.Succeeds (RefreshFork.game ajtai key) adversary oracle then 1
+          else 0) ≤
+        (Finset.expect Finset.univ
+            fun
+              (oracle :
+                RandomOracle.Test.Point (RefreshSchedule.schedule logicalWidth publicFits) 8 →
+                  RandomOracle.Test.Answer) =>
+            ∑ retries :
+              Fin (RefreshSchedule.schedule logicalWidth publicFits).rhoCount →
+                RandomOracle.Test.Answer,
+              RandomOracle.Uniqueness.weight (RefreshFork.game ajtai key) adversary oracle
+                  retries *
+                if RefreshKnowledge.Extracts ajtai key adversary oracle retries then 1 else 0) +
+          RefreshKnowledge.knowledgeError ajtai key adversary queries :=
+  @Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.knowledge_error_le logicalWidth publicFits
+    ajtai key adversary queries bounded
+
+/-- The light knowledge bound at the bounded-depth scheme's key width with both terms of named problems as the
+advantage of an explicit algorithm: the MSIS solver and the Poseidon2 collision finder, each
+with `budget` adversary runs. -/
+theorem light_production_knowledge_error
+    (key : (RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+          AjtaiSetupV1.Rejection.Stream) →
+        CircuitKey StepRelation.keyWidth StepRelation.keyPublicFits)
+    (adversary : (RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+          AjtaiSetupV1.Rejection.Stream) →
+        RandomOracle.OracleComp
+          (RandomOracle.Test.Point
+            (LightSchedule.schedule StepRelation.keyWidth StepRelation.keyPublicFits) 8)
+          RandomOracle.Test.Answer
+          (ForkLink.Attempt StepRelation.keyWidth StepRelation.keyPublicFits))
+    {queries : ℕ}
+    (bounded : ∀
+        (chunks :
+          RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+            AjtaiSetupV1.Rejection.Stream),
+        (adversary chunks).QueryBound queries)
+    {budget : ℕ}
+    (positive : 0 < budget) :
+    (Finset.expect Finset.univ
+          fun
+            (chunks :
+              RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+                AjtaiSetupV1.Rejection.Stream) =>
+          RandomOracleSetup.lightSuccess key adversary chunks) <
+        (Finset.expect Finset.univ
+                    fun
+                      (chunks :
+                        RandomOracleSetup.SetupIndex StepRelation.keyWidth
+                            StepRelation.keyPublicFits →
+                          AjtaiSetupV1.Rejection.Stream) =>
+                    RandomOracleSetup.lightExtraction key adversary chunks) +
+                  LightKnowledge.statisticalError queries +
+                RandomOracleSetup.lightSolverAdvantage key adversary budget +
+              2 * RandomOracleSetup.lightHashAdvantage key adversary budget +
+            (7 * (↑queries : ℝ) + 124) / (↑budget : ℝ) +
+          1 / 2 ^ 1129 :=
+  @Export.BoundedDepth.RandomOracleSetup.light_production_knowledge_error_lt_solvers key adversary
+    queries bounded budget positive
+
+/-- The refresh knowledge bound at the bounded-depth scheme's key width with both terms of named problems as
+the advantage of an explicit algorithm. -/
+theorem refresh_production_knowledge_error
+    (key : (RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+          AjtaiSetupV1.Rejection.Stream) →
+        CircuitKey StepRelation.keyWidth StepRelation.keyPublicFits)
+    (adversary : (RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+          AjtaiSetupV1.Rejection.Stream) →
+        RandomOracle.OracleComp
+          (RandomOracle.Test.Point
+            (RefreshSchedule.schedule StepRelation.keyWidth StepRelation.keyPublicFits) 8)
+          RandomOracle.Test.Answer
+          (ForkLink.Attempt StepRelation.keyWidth StepRelation.keyPublicFits))
+    {queries : ℕ}
+    (bounded : ∀
+        (chunks :
+          RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+            AjtaiSetupV1.Rejection.Stream),
+        (adversary chunks).QueryBound queries)
+    {budget : ℕ}
+    (positive : 0 < budget) :
+    (Finset.expect Finset.univ
+          fun
+            (chunks :
+              RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+                AjtaiSetupV1.Rejection.Stream) =>
+          RandomOracleSetup.refreshSuccess key adversary chunks) <
+        (Finset.expect Finset.univ
+                    fun
+                      (chunks :
+                        RandomOracleSetup.SetupIndex StepRelation.keyWidth
+                            StepRelation.keyPublicFits →
+                          AjtaiSetupV1.Rejection.Stream) =>
+                    RandomOracleSetup.refreshExtraction key adversary chunks) +
+                  RefreshKnowledge.statisticalError queries +
+                RandomOracleSetup.refreshSolverAdvantage key adversary budget +
+              16 * RandomOracleSetup.refreshHashAdvantage key adversary budget +
+            (77 * (↑queries : ℝ) + 1286) / (↑budget : ℝ) +
+          1 / 2 ^ 1129 :=
+  @Export.BoundedDepth.RandomOracleSetup.refresh_production_knowledge_error_lt_solvers key
+    adversary queries bounded budget positive
 
 end NightstreamFPrime.Claims.Fold

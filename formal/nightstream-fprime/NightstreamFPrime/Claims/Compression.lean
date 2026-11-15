@@ -101,18 +101,20 @@ theorem production_sound
   @Spec.Compression.Production.params_soundness key rel which depths layout zeros wf slots_le
     key_fits s q
 
-/-- `error` at the production shapes, with each table bounded by the larger one: three claims,
-`E = 18 + 1 + 4`, `D = 64`, `m ≤ 320`, `span ≤ 27`, `cv = 2`, `L = 4`, `N + T ≤ 2^25 + 20737`. -/
-theorem production_error :
-    3 * (((2 ^ 25 + 20737 : ℕ) : ℝ) / (Verifier.fieldOrder : ℝ)) ^ 4 +
-                (((3 - 1 + (23 + max (64 - 1) (320 - 1)) : ℕ) : ℝ) /
-                    ((Verifier.fieldOrder ^ 2 : ℕ) : ℝ) +
-                  ((2 + 27 : ℕ) : ℝ) / ((Verifier.fieldOrder ^ 2 : ℕ) : ℝ)) +
-              3 / ((Verifier.fieldOrder ^ 2 : ℕ) : ℝ) +
-            2 / ((Verifier.fieldOrder ^ 2 : ℕ) : ℝ) +
-          2 / ((Verifier.fieldOrder ^ 2 : ℕ) : ℝ) <
-        1 / 2 ^ 119 :=
-  @Spec.Compression.Verifier.production_error_lt
+/-- At the production bounds of the layout, the error of `soundness` is below `2^−119`. -/
+theorem production_error
+    (key : ℕ → ℕ → ℕ → F)
+    (matrices : Fin 3 → Verifier.Matrices F)
+    (depths : Fin 2 → ℕ)
+    (layout : Production.Layout)
+    (vf : Verifier.VerifierData (Production.params key matrices depths layout))
+    (columns : vf.columnVars = 2)
+    (depths_le : ∀ (s : Fin 2), depths s ≤ Folding.Schedule.productionLightFoldCap)
+    (slots_le : ∀ (c : Fin 3), (↑c : ℕ) < 2 → (layout.witness c).vars ≤ 25)
+    (span_le : layout.spanVars ≤ 27) :
+    Verifier.error vf < 1 / 2 ^ 119 :=
+  @Spec.Compression.Production.params_error_lt key matrices depths layout vf columns depths_le
+    slots_le span_le
 
 /-- In the state-restoration experiment with `q` queries, a prover makes an accepted run whose
 output claims hold, without the input claims, with probability at most `q · ccsError`. -/

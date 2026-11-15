@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.PilotData
 import NightstreamFPrime.Export.RowSemantics
-import NightstreamFPrime.Layout.PilotSpartan
+import NightstreamFPrime.Layout.PilotPackageOrder
 import NightstreamFPrime.Layout.Poseidon2
 import NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
@@ -19,7 +19,7 @@ private theorem stateHashWords_match :
   rfl
 
 private theorem firstPublicStart_match :
-    PilotValues.firstPublicStart = PilotSpartan.firstPublicStart := by
+    PilotValues.firstPublicStart = PilotPackageOrder.firstPublicStart := by
   rfl
 
 private theorem fieldValue_val (value : F) : fieldValue value.val = value := by
@@ -693,11 +693,10 @@ theorem chainAbsorbed_eq_absorbManyF (chain : HashChain) (env : Env) :
           rw [List.take_succ_eq_append_getElem chunkBound,
             absorbManyF_append_single, chunkEq]
 
-private theorem chainChunks_eq_inputChunks (chain : HashChain) (env : Env)
-    (countEq : chain.absorbCount =
-      (chain.inputLength + Poseidon2.rate - 1) / Poseidon2.rate) :
-    chainChunks chain env = Hash.inputChunks (chainInputValues chain env) := by
-  unfold chainChunks Hash.inputChunks chainBlockList
+private theorem chainChunks_eq_fullBlocks (chain : HashChain) (env : Env)
+    (countEq : chain.absorbCount = chain.inputLength / Poseidon2.rate) :
+    chainChunks chain env = Poseidon2.fullBlocks (chainInputValues chain env) := by
+  unfold chainChunks Poseidon2.fullBlocks chainBlockList
   simp only [chainInputValues, List.length_ofFn]
   rw [countEq]
   rfl
@@ -761,61 +760,75 @@ theorem canonicalChainAbsorptions_sound (chain : HashChain) (env : Env)
           rw [ih (by omega)]
         _ = chainAbsorbed chain env (count + 1) := rfl
 
+/-- The previous state of the last invocation, as `invocationInput` reads it. -/
+private theorem finalPrevious_eval (chain : HashChain) (env : Env) (lane : Fin 16) :
+    (if chain.absorbCount = 0 then R1CS.LinearCombination.zero else
+      R1CS.LinearCombination.ofVar (chain.witnessStart +
+        (chain.absorbCount - 1) * (PilotData.circuitPackage ()).permutation.localColumnCount +
+        (PilotData.circuitPackage ()).permutation.outputLocalStart + lane.val)).eval env =
+      chainCarriedState chain chain.absorbCount env lane := by
+  by_cases empty : chain.absorbCount = 0 <;>
+    simp [chainCarriedState, chainOutputState, invocationLocalStart, empty, Hash.zeroF]
+
 theorem canonicalChainFinal_sound (chain : HashChain) (env : Env)
+    (countEq : chain.absorbCount = chain.inputLength / Poseidon2.rate)
     (holds : HashChainHolds (PilotData.circuitPackage ()) chain env) :
     chainOutputState chain chain.absorbCount env =
       Permutation.runF Permutation.schedule
-        (Hash.padF (chainAbsorbed chain env chain.absorbCount)) := by
+        (Hash.padF (Poseidon2.lastWords (chainInputValues chain env))
+          (chainAbsorbed chain env chain.absorbCount)) := by
   have invocationSound := canonicalTemplateInvocation_sound chain
     chain.absorbCount env (holds chain.absorbCount (by omega))
   change chainOutputState chain chain.absorbCount env =
     Permutation.runF Permutation.schedule (fun lane : Fin 16 =>
       (invocationInput (PilotData.circuitPackage ()) chain chain.absorbCount
         lane.val).eval env) at invocationSound
+  have rate : (PilotData.circuitPackage ()).poseidon.rate = Poseidon2.rate := rfl
+  have lastLength : (Poseidon2.lastWords (chainInputValues chain env)).length =
+      chain.inputLength - chain.absorbCount * Poseidon2.rate := by
+    simp [Poseidon2.lastWords, chainInputValues, countEq]
   have finalInput :
       (fun lane : Fin 16 =>
         (invocationInput (PilotData.circuitPackage ()) chain chain.absorbCount
           lane.val).eval env) =
-        Hash.padF (chainCarriedState chain chain.absorbCount env) := by
+        Hash.padF (Poseidon2.lastWords (chainInputValues chain env))
+          (chainCarriedState chain chain.absorbCount env) := by
     funext lane
-    by_cases empty : chain.absorbCount = 0
-    · by_cases zeroLane : lane = 0 <;>
-        simp [invocationInput, Hash.padF, chainCarriedState,
-          empty, Hash.zeroF, zeroLane]
-    · by_cases zeroLane : lane.val = 0
-      · have laneEq : lane = 0 := Fin.ext zeroLane
-        subst lane
-        simp [invocationInput, Hash.padF, chainCarriedState,
-          PilotData.circuitPackage, 
-          PilotData.permutationTemplate, chainOutputState,
-          invocationLocalStart, empty]
-      · simp [invocationInput, Hash.padF, chainCarriedState,
-          PilotData.circuitPackage, 
-          PilotData.permutationTemplate, chainOutputState,
-          invocationLocalStart, empty, zeroLane]
+    have previous := finalPrevious_eval chain env lane
+    have short : chain.inputLength - chain.absorbCount * Poseidon2.rate < Poseidon2.rate := by
+      rw [countEq, show Poseidon2.rate = 12 from rfl]
+      omega
+    have covered : chain.absorbCount * Poseidon2.rate ≤ chain.inputLength := by
+      rw [countEq]
+      exact Nat.div_mul_le_self _ _
+    unfold invocationInput Hash.padF
+    simp only [rate, Nat.lt_irrefl, ↓reduceIte, lastLength]
+    by_cases inside : lane.val < chain.inputLength - chain.absorbCount * Poseidon2.rate
+    · have word : (Poseidon2.lastWords (chainInputValues chain env)).getD lane.val 0 =
+          env (chain.inputStart + (chain.absorbCount * Poseidon2.rate + lane.val)) := by
+        rw [List.getD_eq_getElem _ _ (by rw [lastLength]; exact inside)]
+        simp [Poseidon2.lastWords, chainInputValues, countEq, Nat.add_comm]
+      rw [ite_eq_left ⟨by omega, by omega⟩, ite_eq_left inside, word,
+        R1CS.LinearCombination.eval_add, previous, R1CS.LinearCombination.eval_ofVar]
+    · rw [ite_eq_right (by omega), ite_eq_right inside]
+      by_cases next : lane.val = chain.inputLength - chain.absorbCount * Poseidon2.rate
+      · rw [ite_eq_left ⟨by omega, by omega⟩, ite_eq_left next,
+          R1CS.LinearCombination.eval_add, previous]
+        simp
+      · rw [ite_eq_right (by omega), ite_eq_right next, previous]
   have absorbed := canonicalChainAbsorptions_sound chain env holds
     chain.absorbCount (by omega)
-  calc
-    chainOutputState chain chain.absorbCount env =
-        Permutation.runF Permutation.schedule (fun lane : Fin 16 =>
-          (invocationInput (PilotData.circuitPackage ()) chain
-            chain.absorbCount lane.val).eval env) := invocationSound
-    _ = Permutation.runF Permutation.schedule
-        (Hash.padF (chainCarriedState chain chain.absorbCount env)) := by
-      rw [finalInput]
-    _ = Permutation.runF Permutation.schedule
-        (Hash.padF (chainAbsorbed chain env chain.absorbCount)) := by
-      rw [absorbed]
+  rw [invocationSound, finalInput, absorbed]
 
 theorem canonicalChainFinal_eq_hashF (chain : HashChain) (env : Env)
-    (countEq : chain.absorbCount =
-      (chain.inputLength + Poseidon2.rate - 1) / Poseidon2.rate)
+    (countEq : chain.absorbCount = chain.inputLength / Poseidon2.rate)
     (holds : HashChainHolds (PilotData.circuitPackage ()) chain env) :
     chainOutputState chain chain.absorbCount env =
       Permutation.runF Permutation.schedule
-        (Hash.padF (Hash.absorbManyF Hash.zeroF
-          (Hash.inputChunks (chainInputValues chain env)))) := by
-  have finalState := canonicalChainFinal_sound chain env holds
+        (Hash.padF (Poseidon2.lastWords (chainInputValues chain env))
+          (Hash.absorbManyF Hash.zeroF
+            (Poseidon2.fullBlocks (chainInputValues chain env)))) := by
+  have finalState := canonicalChainFinal_sound chain env countEq holds
   have absorbed := chainAbsorbed_eq_absorbManyF chain env
     chain.absorbCount (by omega)
   have chunksLength : (chainChunks chain env).length = chain.absorbCount := by
@@ -823,7 +836,7 @@ theorem canonicalChainFinal_eq_hashF (chain : HashChain) (env : Env)
   have absorbedStandard :
       chainAbsorbed chain env chain.absorbCount =
         Hash.absorbManyF Hash.zeroF
-          (Hash.inputChunks (chainInputValues chain env)) := by
+          (Poseidon2.fullBlocks (chainInputValues chain env)) := by
     calc
       chainAbsorbed chain env chain.absorbCount =
           Hash.absorbManyF Hash.zeroF
@@ -831,14 +844,13 @@ theorem canonicalChainFinal_eq_hashF (chain : HashChain) (env : Env)
       _ = Hash.absorbManyF Hash.zeroF (chainChunks chain env) := by
         rw [← chunksLength, List.take_length]
       _ = Hash.absorbManyF Hash.zeroF
-          (Hash.inputChunks (chainInputValues chain env)) := by
-        rw [chainChunks_eq_inputChunks chain env countEq]
+          (Poseidon2.fullBlocks (chainInputValues chain env)) := by
+        rw [chainChunks_eq_fullBlocks chain env countEq]
   rw [absorbedStandard] at finalState
   exact finalState
 
 theorem canonicalChainDigest_eq_hash (chain : HashChain) (env : Env)
-    (countEq : chain.absorbCount =
-      (chain.inputLength + Poseidon2.rate - 1) / Poseidon2.rate)
+    (countEq : chain.absorbCount = chain.inputLength / Poseidon2.rate)
     (holds : HashChainHolds (PilotData.circuitPackage ()) chain env) :
     List.ofFn (fun lane : Fin 4 =>
       chainOutputState chain chain.absorbCount env
@@ -915,17 +927,17 @@ theorem priorExtraConstraints_hold (env : Env)
       (PilotData.circuitPackage ()).witnessInstructions,
       instruction.Holds env)
     (assertions : AssertionsHold (PilotData.circuitPackage ()) env) :
-    ConstraintsHold (PilotSpartan.pullback env)
+    ConstraintsHold (PilotPackageOrder.pullback env)
       (PilotData.priorExtraConstraints ()) := by
   have physical := priorExtraRows_hold env instructions assertions
   rw [PilotData.priorExtraRows,
     PilotData.remapCompiledRows_toR1CS,
     Stage1.Rows.compileRowsTR_toR1CS] at physical
-  have sourceRows := (PilotSpartan.remapRows_hold env
+  have sourceRows := (PilotPackageOrder.remapRows_hold env
     (Stage1.Rows.lowerConstraintsTR (PilotData.priorExtraConstraints ())
       PilotValues.logicalColumnCount).rows).mp physical
   rw [Stage1.Rows.lowerConstraintsTR_eq] at sourceRows
-  exact R1CS.lowerConstraints_sound (PilotSpartan.pullback env)
+  exact R1CS.lowerConstraints_sound (PilotPackageOrder.pullback env)
     (PilotData.priorExtraConstraints ()) PilotValues.logicalColumnCount
     sourceRows
 
@@ -946,19 +958,17 @@ theorem canonicalAssertions_sound (env : Env)
 
 private theorem priorChain_count_eq :
     PilotData.priorChain.absorbCount =
-      (PilotData.priorChain.inputLength + Poseidon2.rate - 1) /
-        Poseidon2.rate := by
+      PilotData.priorChain.inputLength / Poseidon2.rate := by
   rfl
 
 private theorem outputChain_count_eq :
     PilotData.outputChain.absorbCount =
-      (PilotData.outputChain.inputLength + Poseidon2.rate - 1) /
-        Poseidon2.rate := by
+      PilotData.outputChain.inputLength / Poseidon2.rate := by
   rfl
 
 private theorem priorInputValues_eq (env : Env) :
     chainInputValues PilotData.priorChain env =
-      Hash.evalList (PilotSpartan.pullback env)
+      Hash.evalList (PilotPackageOrder.pullback env)
         (PilotProduction.priorPreimage PilotProduction.witnessOffset) := by
   simp only [chainInputValues, PilotData.priorChain, Hash.evalList,
     PilotProduction.priorPreimage, PilotProduction.variableExprs,
@@ -966,27 +976,27 @@ private theorem priorInputValues_eq (env : Env) :
   apply congrArg List.ofFn
   funext index
   change env (0 + index.val) =
-    PilotSpartan.pullback env
+    PilotPackageOrder.pullback env
       (PilotProduction.priorPreimageStart + index.val)
-  unfold PilotSpartan.pullback PilotSpartan.sourceToSpartan
+  unfold PilotPackageOrder.pullback PilotPackageOrder.sourceToPackage
   rw [ite_eq_left (by
     have indexBound : index.val < PilotProduction.stateHashWords := by
       rw [← stateHashWords_match]
       exact index.isLt
-    unfold PilotProduction.priorPreimageStart PilotSpartan.priorPublicStart
+    unfold PilotProduction.priorPreimageStart PilotPackageOrder.priorPublicStart
     omega)]
   rfl
 
-private theorem sourceToSpartan_outputPreimage
+private theorem sourceToPackage_outputPreimage
     (index : Fin PilotProduction.stateHashWords) :
-    PilotSpartan.sourceToSpartan
+    PilotPackageOrder.sourceToPackage
         (PilotProduction.outputPreimageStart + index.val) =
-      PilotSpartan.secondPrivateStart + index.val := by
-  have indexBound : index.val < 27819 := by
+      PilotPackageOrder.secondPrivateStart + index.val := by
+  have indexBound : index.val < 25329 := by
     calc
       index.val < PilotProduction.stateHashWords := index.isLt
-      _ = 27819 := PilotProduction.stateHashWords_eq
-  unfold PilotSpartan.sourceToSpartan
+      _ = 25329 := PilotProduction.stateHashWords_eq
+  unfold PilotPackageOrder.sourceToPackage
   all_goals try split
   all_goals try split
   all_goals try split
@@ -996,14 +1006,14 @@ private theorem sourceToSpartan_outputPreimage
     PilotProduction.priorPreimageStart, PilotProduction.stateHashWords,
     PilotProduction.digestWords, PriorStateHash.publicWidth,
     Spec.ringDegree, PaperAlgebra.publicRingColumns,
-    PilotSpartan.priorPublicStart, PilotSpartan.outputPreimageStart,
-    PilotSpartan.outputDigestStart, PilotSpartan.witnessStart,
-    PilotSpartan.secondPrivateStart, PilotSpartan.secondPublicStart,
-    PilotSpartan.witnessPrivateStart] at *; omega)
+    PilotPackageOrder.priorPublicStart, PilotPackageOrder.outputPreimageStart,
+    PilotPackageOrder.outputDigestStart, PilotPackageOrder.witnessStart,
+    PilotPackageOrder.secondPrivateStart, PilotPackageOrder.secondPublicStart,
+    PilotPackageOrder.witnessPrivateStart] at *; omega)
 
 private theorem outputInputValues_eq (env : Env) :
     chainInputValues PilotData.outputChain env =
-      Hash.evalList (PilotSpartan.pullback env)
+      Hash.evalList (PilotPackageOrder.pullback env)
         (PilotProduction.outputPreimage
           (Lifecycle.Pilot.outputOffset PilotProduction.interface
             PilotProduction.witnessOffset)) := by
@@ -1012,20 +1022,20 @@ private theorem outputInputValues_eq (env : Env) :
     List.map_ofFn]
   apply congrArg List.ofFn
   funext index
-  change env (PilotSpartan.secondPrivateStart + index.val) =
-    env (PilotSpartan.sourceToSpartan
+  change env (PilotPackageOrder.secondPrivateStart + index.val) =
+    env (PilotPackageOrder.sourceToPackage
       (PilotProduction.outputPreimageStart + index.val))
-  erw [sourceToSpartan_outputPreimage]
+  erw [sourceToPackage_outputPreimage]
 
-private theorem sourceToSpartan_priorPublic
+private theorem sourceToPackage_priorPublic
     (column : Fin PriorStateHash.publicWidth) :
-    PilotSpartan.sourceToSpartan
+    PilotPackageOrder.sourceToPackage
         (PilotProduction.priorPublicInputStart + column.val) =
-      PilotSpartan.firstPublicStart + column.val := by
-  have columnBound : column.val < 270 := by
+      PilotPackageOrder.firstPublicStart + column.val := by
+  have columnBound : column.val < 320 := by
     rw [← PriorStateHash.publicWidth_eq]
     exact column.isLt
-  unfold PilotSpartan.sourceToSpartan
+  unfold PilotPackageOrder.sourceToPackage
   all_goals try split
   all_goals try split
   all_goals try split
@@ -1034,28 +1044,28 @@ private theorem sourceToSpartan_priorPublic
     PilotProduction.priorPreimageStart, PilotProduction.stateHashWords,
     PilotProduction.digestWords, PriorStateHash.publicWidth,
     Spec.ringDegree, PaperAlgebra.publicRingColumns,
-    PilotSpartan.priorPublicStart, PilotSpartan.outputPreimageStart,
-    PilotSpartan.outputDigestStart, PilotSpartan.witnessStart,
-    PilotSpartan.firstPublicStart, PilotSpartan.secondPrivateStart,
-    PilotSpartan.secondPublicStart, PilotSpartan.witnessPrivateStart] at *; omega)
+    PilotPackageOrder.priorPublicStart, PilotPackageOrder.outputPreimageStart,
+    PilotPackageOrder.outputDigestStart, PilotPackageOrder.witnessStart,
+    PilotPackageOrder.firstPublicStart, PilotPackageOrder.secondPrivateStart,
+    PilotPackageOrder.secondPublicStart, PilotPackageOrder.witnessPrivateStart] at *; omega)
 
 private theorem priorPublicInput_eval (env : Env)
     (column : Fin PriorStateHash.publicWidth) :
     (PilotProduction.priorInterface.publicInput
       PilotProduction.witnessOffset column).eval
-        (PilotSpartan.pullback env) =
-      env (PilotSpartan.firstPublicStart + column.val) := by
+        (PilotPackageOrder.pullback env) =
+      env (PilotPackageOrder.firstPublicStart + column.val) := by
   rw [PilotProduction.priorInterface_publicInput_apply]
-  unfold PilotProduction.priorPublicInput PilotSpartan.pullback
-  change env (PilotSpartan.sourceToSpartan
+  unfold PilotProduction.priorPublicInput PilotPackageOrder.pullback
+  change env (PilotPackageOrder.sourceToPackage
     (PilotProduction.priorPublicInputStart + column.val)) = _
-  rw [sourceToSpartan_priorPublic]
+  rw [sourceToPackage_priorPublic]
 
-private theorem sourceToSpartan_outputDigest (lane : Fin 4) :
-    PilotSpartan.sourceToSpartan
+private theorem sourceToPackage_outputDigest (lane : Fin 4) :
+    PilotPackageOrder.sourceToPackage
         (PilotProduction.outputDigestStart + lane.val) =
-      PilotSpartan.secondPublicStart + lane.val := by
-  unfold PilotSpartan.sourceToSpartan
+      PilotPackageOrder.secondPublicStart + lane.val := by
+  unfold PilotPackageOrder.sourceToPackage
   all_goals try split
   all_goals try split
   all_goals try split
@@ -1066,34 +1076,34 @@ private theorem sourceToSpartan_outputDigest (lane : Fin 4) :
     PilotProduction.priorPreimageStart, PilotProduction.stateHashWords,
     PilotProduction.digestWords, PriorStateHash.publicWidth,
     Spec.ringDegree, PaperAlgebra.publicRingColumns,
-    PilotSpartan.priorPublicStart, PilotSpartan.outputPreimageStart,
-    PilotSpartan.outputDigestStart, PilotSpartan.witnessStart,
-    PilotSpartan.firstPublicStart, PilotSpartan.secondPrivateStart,
-    PilotSpartan.secondPublicStart, PilotSpartan.witnessPrivateStart,
+    PilotPackageOrder.priorPublicStart, PilotPackageOrder.outputPreimageStart,
+    PilotPackageOrder.outputDigestStart, PilotPackageOrder.witnessStart,
+    PilotPackageOrder.firstPublicStart, PilotPackageOrder.secondPrivateStart,
+    PilotPackageOrder.secondPublicStart, PilotPackageOrder.witnessPrivateStart,
     PilotValues.stateHashBaseWords, PilotValues.digestWords,
-    PilotSpartan.privateColumnCount_value] at *; omega)
+    PilotPackageOrder.privateColumnCount_value] at *; omega)
 
 private theorem outputDigestValues_eq (env : Env) :
     List.ofFn (fun lane : Fin 4 =>
       (PilotProduction.outputInterface.digest
         (Lifecycle.Pilot.outputOffset PilotProduction.interface
           PilotProduction.witnessOffset) lane).eval
-        (PilotSpartan.pullback env)) =
+        (PilotPackageOrder.pullback env)) =
       List.ofFn (fun lane : Fin 4 =>
         env (PilotData.outputChain.digestStart + lane.val)) := by
   apply congrArg List.ofFn
   funext lane
-  change env (PilotSpartan.sourceToSpartan
+  change env (PilotPackageOrder.sourceToPackage
       (PilotProduction.outputDigestStart + lane.val)) =
     env (PilotData.outputChain.digestStart + lane.val)
-  rw [sourceToSpartan_outputDigest]
+  rw [sourceToPackage_outputDigest]
   rfl
 
 private theorem priorDigestWire_eval (env : Env) (lane : Fin 4) :
     (RawFormal.digest
       (PriorStateHash.hashInterface PilotProduction.priorInterface)
       PilotProduction.witnessOffset lane).eval
-        (PilotSpartan.pullback env) =
+        (PilotPackageOrder.pullback env) =
       chainOutputState PilotData.priorChain
         PilotData.priorChain.absorbCount env
         ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩ := by
@@ -1101,20 +1111,20 @@ private theorem priorDigestWire_eval (env : Env) (lane : Fin 4) :
   rw [NightstreamFPrime.Layout.Poseidon2.hash_compile_output_eq]
   rw [PriorStateHash.hashInterface_input,
     PilotProduction.priorInterface_preimage_apply,
-    PilotProduction.priorPreimage_chunkCount]
+    PilotProduction.priorPreimage_blockCount]
   simp only [Hash.digestE, Permutation.freshState, Expr.eval_var]
-  unfold PilotSpartan.pullback chainOutputState invocationLocalStart
+  unfold PilotPackageOrder.pullback chainOutputState invocationLocalStart
   simp only [PilotData.circuitPackage,
     PilotData.circuitPackageOf_permutation]
   simp only [PilotData.permutationTemplate, PilotData.priorChain,
     PilotData.priorWitnessStart]
-  rw [show PilotProduction.witnessOffset + 2319 * 1096 + 1080 + lane.val =
-      PilotProduction.witnessOffset + (2319 * 1096 + 1080 + lane.val) by
+  rw [show PilotProduction.witnessOffset + 2110 * 1096 + 1080 + lane.val =
+      PilotProduction.witnessOffset + (2110 * 1096 + 1080 + lane.val) by
     omega,
-    PilotSpartan.sourceToSpartan_pilotWitness]
+    PilotPackageOrder.sourceToPackage_pilotWitness]
   norm_num [PilotValues.absorbCount, PilotValues.stateHashWords,
     PilotValues.stateHashBaseWords, PilotValues.digestWords,
-    Spec.Poseidon2.rate, PilotSpartan.witnessPrivateStart_value]
+    Spec.Poseidon2.rate, PilotPackageOrder.witnessPrivateStart_value]
   apply congrArg env
   omega
 
@@ -1127,14 +1137,14 @@ theorem priorRawSpec_of_chainHash (env : Env)
         Spec.Poseidon2.hash (chainInputValues PilotData.priorChain env)) :
     RawFormal.SpecHolds
       (PriorStateHash.hashInterface PilotProduction.priorInterface)
-      PilotProduction.witnessOffset (PilotSpartan.pullback env) := by
+      PilotProduction.witnessOffset (PilotPackageOrder.pullback env) := by
   unfold RawFormal.SpecHolds
   calc
     List.ofFn (fun lane : Fin 4 =>
         (RawFormal.digest
           (PriorStateHash.hashInterface PilotProduction.priorInterface)
           PilotProduction.witnessOffset lane).eval
-            (PilotSpartan.pullback env)) =
+            (PilotPackageOrder.pullback env)) =
         List.ofFn (fun lane : Fin 4 =>
           chainOutputState PilotData.priorChain
             PilotData.priorChain.absorbCount env
@@ -1144,7 +1154,7 @@ theorem priorRawSpec_of_chainHash (env : Env)
     _ = Spec.Poseidon2.hash
         (chainInputValues PilotData.priorChain env) := chainHash
     _ = Spec.Poseidon2.hash
-        (Hash.evalList (PilotSpartan.pullback env)
+        (Hash.evalList (PilotPackageOrder.pullback env)
           ((PriorStateHash.hashInterface
             PilotProduction.priorInterface).input
               PilotProduction.witnessOffset)) := by
@@ -1155,7 +1165,7 @@ theorem priorRawSpec_of_chainHash (env : Env)
 theorem canonicalPackage_hashes (env : Env)
     (holds : (PilotData.circuitPackage ()).RowsHold env) :
     PriorStateHash.SpecHolds PilotProduction.priorInterface
-        PilotProduction.witnessOffset (PilotSpartan.pullback env) ∧
+        PilotProduction.witnessOffset (PilotPackageOrder.pullback env) ∧
       List.ofFn (fun lane : Fin 4 =>
         env (PilotData.outputChain.digestStart + lane.val)) =
           Spec.Poseidon2.hash
@@ -1171,7 +1181,7 @@ theorem canonicalPackage_hashes (env : Env)
     apply chains _
     simp [PilotData.circuitPackage]
   have extraLogical := priorExtraConstraints_hold env instructions assertions
-  have postHashRows : holdsFlat (PilotSpartan.pullback env)
+  have postHashRows : holdsFlat (PilotPackageOrder.pullback env)
       (PriorStateHash.wordOps PilotProduction.priorInterface
           PilotProduction.witnessOffset ++
         PriorStateHash.bindingAssertions PilotProduction.priorInterface
@@ -1180,9 +1190,9 @@ theorem canonicalPackage_hashes (env : Env)
       PilotProduction.fastPriorWordOps_eq] at extraLogical
     simpa only [holdsFlat] using extraLogical
   have priorSpec := PriorStateHash.soundness_of_hash_and_postHash
-    PilotProduction.priorInterface (PilotSpartan.pullback env)
+    PilotProduction.priorInterface (PilotPackageOrder.pullback env)
     PilotProduction.witnessOffset
-    (PilotProduction.layoutAssumptions (PilotSpartan.pullback env)).1
+    (PilotProduction.layoutAssumptions (PilotPackageOrder.pullback env)).1
     (priorRawSpec_of_chainHash env
       (canonicalChainDigest_eq_hash PilotData.priorChain env
         priorChain_count_eq priorHolds)) postHashRows
@@ -1206,13 +1216,13 @@ theorem canonicalPackage_hashes (env : Env)
 theorem hashFacts_imply_spec (env : Env)
     (facts :
       PriorStateHash.SpecHolds PilotProduction.priorInterface
-        PilotProduction.witnessOffset (PilotSpartan.pullback env) ∧
+        PilotProduction.witnessOffset (PilotPackageOrder.pullback env) ∧
       List.ofFn (fun lane : Fin 4 =>
         env (PilotData.outputChain.digestStart + lane.val)) =
           Spec.Poseidon2.hash
             (chainInputValues PilotData.outputChain env)) :
     Lifecycle.Pilot.SpecHolds PilotProduction.interface
-      PilotProduction.witnessOffset (PilotSpartan.pullback env) := by
+      PilotProduction.witnessOffset (PilotPackageOrder.pullback env) := by
   constructor
   · rw [PilotProduction.interface_prior]
     exact facts.1
@@ -1228,13 +1238,13 @@ theorem hashFacts_imply_spec (env : Env)
 theorem canonicalPackage_implies_spec (env : Env)
     (holds : (PilotData.circuitPackage ()).RowsHold env) :
     Lifecycle.Pilot.SpecHolds PilotProduction.interface
-      PilotProduction.witnessOffset (PilotSpartan.pullback env) := by
+      PilotProduction.witnessOffset (PilotPackageOrder.pullback env) := by
   exact hashFacts_imply_spec env (canonicalPackage_hashes env holds)
 
 theorem hashFacts_imply_recursive_hash_slots
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * PaperAlgebra.publicRingColumns <=
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey
@@ -1253,7 +1263,7 @@ theorem hashFacts_imply_recursive_hash_slots
       (nextHashPreimage (setup relation ajtai vk) input output))
     (digestFixed : output.x.length = PilotProduction.digestWords)
     (env : Env)
-    (agrees : PilotProduction.AgreesBelow (PilotSpartan.pullback env)
+    (agrees : PilotProduction.AgreesBelow (PilotPackageOrder.pullback env)
       (PilotProduction.protocolEnv
         (priorHashPreimage (setup relation ajtai vk) input)
         ((machine publicFits F).freshPublic input.fresh)
@@ -1262,7 +1272,7 @@ theorem hashFacts_imply_recursive_hash_slots
       PilotProduction.witnessOffset)
     (facts :
       PriorStateHash.SpecHolds PilotProduction.priorInterface
-        PilotProduction.witnessOffset (PilotSpartan.pullback env) ∧
+        PilotProduction.witnessOffset (PilotPackageOrder.pullback env) ∧
       List.ofFn (fun lane : Fin 4 =>
         env (PilotData.outputChain.digestStart + lane.val)) =
           Spec.Poseidon2.hash
@@ -1279,16 +1289,16 @@ theorem hashFacts_imply_recursive_hash_slots
     ((machine publicFits F).freshPublic input.fresh)
     (nextHashPreimage (setup relation ajtai vk) input output)
     output.x priorFixed outputFixed digestFixed
-    (PilotSpartan.pullback env) agrees
+    (PilotPackageOrder.pullback env) agrees
   exact Lifecycle.Pilot.builders_imply_hash_slots
     PilotProduction.interface PilotProduction.witnessOffset
-    (PilotSpartan.pullback env) relation ajtai vk F input output specification
+    (PilotPackageOrder.pullback env) relation ajtai vk F input output specification
     represented.1 represented.2.1 represented.2.2.1 represented.2.2.2
 
 theorem canonicalPackage_implies_recursive_hash_slots
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * PaperAlgebra.publicRingColumns <=
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey
@@ -1307,7 +1317,7 @@ theorem canonicalPackage_implies_recursive_hash_slots
       (nextHashPreimage (setup relation ajtai vk) input output))
     (digestFixed : output.x.length = PilotProduction.digestWords)
     (env : Env)
-    (agrees : PilotProduction.AgreesBelow (PilotSpartan.pullback env)
+    (agrees : PilotProduction.AgreesBelow (PilotPackageOrder.pullback env)
       (PilotProduction.protocolEnv
         (priorHashPreimage (setup relation ajtai vk) input)
         ((machine publicFits F).freshPublic input.fresh)
@@ -1362,16 +1372,8 @@ theorem templateRows_length :
     (PilotData.digestRows chain).length = 4 := by
   simp [PilotData.digestRows]
 
-theorem tailBindingRows_length :
-    PilotData.tailBindingRows.length = 13 := by
-  simp [PilotData.tailBindingRows]
-
-theorem bindingRows_length :
-    (PilotData.bindingRows ()).length = 14 := by
-  simp [PilotData.bindingRows, tailBindingRows_length]
-
 theorem priorExtraRows_length :
-    (PilotData.priorExtraRows ()).length = 682 := by
+    (PilotData.priorExtraRows ()).length = 592 := by
   rw [PilotData.priorExtraRows, List.length_map,
     Stage1.Rows.compileRowsTR_length]
   rw [Stage1.Rows.lowerConstraintsTR_eq,
@@ -1383,7 +1385,7 @@ theorem priorExtraRows_length :
 
 theorem ordinaryRows_length :
     (PilotData.circuitPackage ()).witnessInstructions.length +
-      (PilotData.circuitPackage ()).assertionRows.length = 686 := by
+      (PilotData.circuitPackage ()).assertionRows.length = 596 := by
   rw [PilotData.circuitPackage,
     PilotData.circuitPackageOf_witnessInstructions,
     PilotData.circuitPackageOf_assertionRows]
@@ -1424,10 +1426,10 @@ theorem circuitPackage_layout_matches :
     layout.rowCount =
         Layout.Pilot.physicalRowCount PilotProduction.interface
           PilotProduction.witnessOffset ∧
-      layout.privateColumnCount = PilotSpartan.privateColumnCount ∧
-      layout.constantColumn = PilotSpartan.constantColumn ∧
-      layout.publicColumnCount = PilotSpartan.publicColumnCount ∧
-      layout.totalColumnCount = PilotSpartan.spartanColumnCount := by
+      layout.privateColumnCount = PilotPackageOrder.privateColumnCount ∧
+      layout.constantColumn = PilotPackageOrder.constantColumn ∧
+      layout.publicColumnCount = PilotPackageOrder.publicColumnCount ∧
+      layout.totalColumnCount = PilotPackageOrder.packageColumnCount := by
   dsimp [PilotData.circuitPackage, PilotData.physicalLayout]
   exact ⟨PilotProduction.physicalRowCount_eq.symm, rfl, rfl, rfl, rfl⟩
 

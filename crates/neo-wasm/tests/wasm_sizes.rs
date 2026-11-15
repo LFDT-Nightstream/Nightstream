@@ -5,11 +5,13 @@
 
 mod common;
 
+use neo_math::F;
 use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::memory_semantics::preload_host_event_tables;
 use neo_wasm::nebula::{step_inputs, WasmApplicationError, WasmLimits, WasmSize};
 use neo_wasm::{preload_from_program_artifacts, top_level_initial_state, WasmMemoryPreload, WasmStepState, WasmVmStep};
 use nightstream::nebula::{Application, Run};
+use p3_field::PrimeField64;
 
 /// Enzo's iterative Fibonacci program (`tests/wasm_fibonacci.rs`) with two
 /// loop rounds.
@@ -86,7 +88,12 @@ fn each_size_is_a_secure_geometry_whose_regions_fit_its_spaces() {
             "{size:?} uses {used:?}"
         );
         assert_eq!(size.application().unwrap().port_count(), geometry.b_ops);
-        assert_eq!(size.max_rows(), 16_384, "{size:?}");
+        let rows = match size {
+            WasmSize::Small => 9_728,
+            WasmSize::Medium => 9_216,
+            WasmSize::Large => 3_072,
+        };
+        assert_eq!(size.max_rows(), rows, "{size:?}");
         if let Some(smaller) = smaller {
             assert!(size.limits().holds(&smaller), "{size:?} holds the smaller sizes");
         }
@@ -121,34 +128,53 @@ fn the_starstream_test_transactions_fit_small_or_medium() {
     }
 }
 
-/// The memory security of each size is below 114 bits, so a prover that asks
-/// for 114 gets the named security error before it reads its circuit file.
+/// The memory fingerprint term of all segments of each size gives exactly 109
+/// bits (SPEC.md section 7.1), so a prover that asks for 110 gets the named
+/// security error before it reads its circuit file. One more segment would
+/// give less than 109 bits.
 #[test]
 fn a_size_refuses_more_security_than_its_memory_gives() {
     use nightstream::error::ParamsError;
     use nightstream::nebula::Prover;
-    for (size, available) in [(WasmSize::Small, 113), (WasmSize::Medium, 112), (WasmSize::Large, 111)] {
+    let q = u128::from(F::ORDER_U64);
+    for size in WasmSize::ALL {
+        let geometry = size.geometry();
+        let error = |segments: usize| (2 * geometry.max_tuples() as u128 * segments as u128).checked_mul(1 << 109);
+        assert!(
+            error(geometry.s_max).is_some_and(|e| e <= q * q),
+            "{size:?} keeps 109 bits"
+        );
+        assert!(
+            error(geometry.s_max + 1).is_none_or(|e| e > q * q),
+            "{size:?} has the most segments"
+        );
         let result = Prover::load(
             "no-circuit-file",
-            size.geometry(),
+            geometry,
             size.application().unwrap(),
             nightstream::Engine::Optimized,
-            114,
+            110,
         );
         let Err(nightstream::Error::Parameters(error)) = result else {
-            panic!("{size:?} accepts 114 bits");
+            panic!("{size:?} accepts 110 bits");
         };
         let error: ParamsError = error;
         assert!(
-            matches!(error, ParamsError::InsufficientStatisticalSecurity { required: 114, available: a } if a == available),
+            matches!(
+                error,
+                ParamsError::InsufficientStatisticalSecurity {
+                    required: 110,
+                    available: 109
+                }
+            ),
             "{size:?}: {error}"
         );
     }
 }
 
 /// Programs of more instructions need larger sizes, and one of 1,100
-/// instructions fits none. A run of more rows than every size holds fits
-/// none either.
+/// instructions fits none. A run of more rows than each size holds fits
+/// none either: Small holds the most rows.
 #[test]
 fn a_prover_takes_the_smallest_size_that_holds_the_run() {
     for (count, size) in [
@@ -164,11 +190,14 @@ fn a_prover_takes_the_smallest_size_that_holds_the_run() {
             (other, _) => panic!("{count} nops: {other:?}"),
         }
     }
-    assert_eq!(
-        WasmSize::smallest(&WasmLimits::default(), 16_384),
-        Some(WasmSize::Small)
-    );
-    assert_eq!(WasmSize::smallest(&WasmLimits::default(), 16_385), None);
+    let most = WasmSize::ALL
+        .map(WasmSize::max_rows)
+        .into_iter()
+        .max()
+        .unwrap();
+    assert_eq!(most, WasmSize::Small.max_rows());
+    assert_eq!(WasmSize::smallest(&WasmLimits::default(), most), Some(WasmSize::Small));
+    assert_eq!(WasmSize::smallest(&WasmLimits::default(), most + 1), None);
 }
 
 /// Fibonacci steps natively through Small in one segment. The 600 `nop`s
@@ -242,64 +271,6 @@ fn a_small_proof_verifies() {
     other.pc += 1;
     assert!(matches!(
         verifier.verify(&program, &initial, &other, &proof),
-        Err(VerifyError::Proof(_))
-    ));
-    eprintln!("total elapsed={:?}", started.elapsed());
-}
-
-/// Fibonacci proved in Small and compressed to the final proof (`SPEC.md`
-/// Algorithms 7 and 8). The final proof verifies with the verifier's own key,
-/// and a last state with another `pc` does not verify.
-#[test]
-#[ignore = "Full proof and compression at a fixed size; run it alone, only with approval for a run longer than 300 seconds."]
-fn a_small_proof_compresses() {
-    use nightstream::nebula::{Circuit, VerifyError};
-    use std::time::Instant;
-    let started = Instant::now();
-    let (preload, initial, trace) = run_of(FIB);
-    let size = WasmSize::for_run(&preload, &trace).unwrap();
-    let app = size.application().unwrap();
-    let program = app.program(&preload).unwrap();
-    let circuit = Circuit::compile(size.geometry(), app).unwrap();
-    let engine = nightstream::Engine::Optimized;
-    let prover = circuit.prover(engine, 109).unwrap();
-    let verifier = circuit.verifier(engine, 109).unwrap();
-    eprintln!("compile and setup elapsed={:?}", started.elapsed());
-
-    let proving = Instant::now();
-    let mut run = prover.start(&program, initial).unwrap();
-    for segment in size.segments(&trace).unwrap() {
-        run.segment(&segment.unwrap()).unwrap();
-    }
-    let last = *run.state();
-    let proof = run.finish().unwrap();
-    eprintln!("prove steps elapsed={:?}", proving.elapsed());
-    eprintln!("proof bytes={}", prover.encode_proof(&proof).unwrap().len());
-
-    let dir = std::env::temp_dir().join(format!("wasm-small-compression-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let setting = Instant::now();
-    let setup = prover.compression_setup(&dir);
-    eprintln!("compression setup elapsed={:?}", setting.elapsed());
-    let compressing = Instant::now();
-    let final_proof = setup.and_then(|setup| prover.compress(&proof, &setup));
-    eprintln!("compress elapsed={:?}", compressing.elapsed());
-    std::fs::remove_dir_all(&dir).unwrap();
-    let final_proof = final_proof.unwrap();
-
-    let keying = Instant::now();
-    let key = verifier.compression_key().unwrap();
-    eprintln!("compression key elapsed={:?}", keying.elapsed());
-    let verifying = Instant::now();
-    let verified = verifier
-        .verify_final(&program, &initial, &last, &key, &final_proof)
-        .unwrap();
-    eprintln!("verify final elapsed={:?}", verifying.elapsed());
-    assert_eq!(verified.steps, 8);
-    let mut other = last;
-    other.pc += 1;
-    assert!(matches!(
-        verifier.verify_final(&program, &initial, &other, &key, &final_proof),
         Err(VerifyError::Proof(_))
     ));
     eprintln!("total elapsed={:?}", started.elapsed());

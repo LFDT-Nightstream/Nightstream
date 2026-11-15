@@ -1,13 +1,16 @@
 //! The bounded-depth public API end to end on the Rust Poseidon2 hash chain:
-//! compile against the three embedded Lean packages, prove and extend, verify
-//! against the expected state, and compress and verify the final proof.
+//! compile against the two embedded Lean packages, prove and extend, and
+//! verify against the expected state.
+
+mod bounded_depth_support;
 
 use std::fs;
 
+use bounded_depth_support::fold_gate_bits;
+use neo_math::F;
 use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1};
 use nightstream::{Circuit, Prover};
 use nightstream::{Engine, PrimeCharacteristicRing, PrimeField64, State};
-use p3_goldilocks::Goldilocks as F;
 
 fn circuit() -> Circuit {
     Circuit::compile(poseidon2_hash_chain_v1().expect("hash chain")).expect("bounded-depth circuit")
@@ -23,9 +26,11 @@ fn hash_chain_proves_and_verifies() {
     let compiled = circuit();
     let path = std::env::temp_dir().join(format!("bounded-depth-circuit-{}", std::process::id()));
     compiled.write(&path).expect("saved application");
-    let prover = Prover::load(&path, Engine::Optimized, 109).expect("loaded prover");
+    let prover = Prover::load(&path, Engine::Optimized, fold_gate_bits()).expect("loaded prover");
     fs::remove_file(&path).expect("remove the saved application");
-    let verifier = compiled.verifier(Engine::Optimized, 109).expect("verifier");
+    let verifier = compiled
+        .verifier(Engine::Optimized, fold_gate_bits())
+        .expect("verifier");
     let initial = words([1, 2, 3, 4]);
     let message = words([5, 6, 7, 8]);
     let mut proof = prover.prove(initial, &message).expect("first step");
@@ -84,8 +89,12 @@ fn hash_chain_proves_and_verifies() {
 #[test]
 fn a_word_not_below_q_does_not_decode() {
     let compiled = circuit();
-    let prover = compiled.prover(Engine::Optimized, 109).expect("prover");
-    let verifier = compiled.verifier(Engine::Optimized, 109).expect("verifier");
+    let prover = compiled
+        .prover(Engine::Optimized, fold_gate_bits())
+        .expect("prover");
+    let verifier = compiled
+        .verifier(Engine::Optimized, fold_gate_bits())
+        .expect("verifier");
     let proof = prover
         .prove(words([1, 2, 3, 4]), &words([5, 6, 7, 8]))
         .expect("first step");
@@ -98,17 +107,6 @@ fn a_word_not_below_q_does_not_decode() {
     }
 }
 
-/// The gate charges the refresh fold's zero-query error of the random-oracle
-/// result (`RefreshKnowledge.statisticalError 0`, about `2^-109.6`), so a
-/// prover or verifier that asks for 110 bits is refused.
-#[test]
-fn the_gate_refuses_more_bits_than_the_fold_error_gives() {
-    let compiled = circuit();
-    assert!(compiled.prover(Engine::Optimized, 109).is_ok());
-    assert!(compiled.prover(Engine::Optimized, 110).is_err());
-    assert!(compiled.verifier(Engine::Optimized, 110).is_err());
-}
-
 /// The reference hash chain compiles to Lean's own packages, so the circuit
 /// that ships is the one that Lean exports and that the Lean checks of Rust's
 /// files read.
@@ -118,44 +116,4 @@ fn the_reference_hash_chain_keeps_lean_packages() {
         circuit().identity(),
         nightstream_fprime::BOUNDED_DEPTH_PACKAGES_IDENTITY
     );
-}
-
-/// Removes a setup folder when it drops, so a failed run frees its disk too.
-struct SetupDir(std::path::PathBuf);
-
-impl Drop for SetupDir {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
-/// The final proof of two steps verifies with the verifier's own key, and
-/// not for another state.
-#[test]
-fn hash_chain_final_proof_verifies() {
-    let circuit = circuit();
-    let prover = circuit.prover(Engine::Optimized, 109).expect("prover");
-    let initial = words([1, 2, 3, 4]);
-    let message = words([5, 6, 7, 8]);
-    let proof = prover
-        .extend(&prover.prove(initial, &message).expect("first step"), &message)
-        .expect("second step");
-    let dir = SetupDir(std::env::temp_dir().join(format!("bounded-depth-api-{}", std::process::id())));
-    fs::create_dir_all(&dir.0).expect("setup directory");
-    let final_proof = {
-        let setup = prover.compression_setup(&dir.0).expect("setup");
-        prover.compress(&proof, &setup).expect("final proof")
-    };
-    drop(dir);
-    let verifier = circuit.verifier(Engine::Optimized, 109).expect("verifier");
-    let key = verifier.compression_key().expect("key");
-    let state = proof.state();
-    verifier
-        .verify_final(&state, &key, &final_proof)
-        .expect("the final proof verifies");
-    let mut other = state.current();
-    other[0] += F::ONE;
-    assert!(verifier
-        .verify_final(&State::new(state.iteration(), state.z0(), other), &key, &final_proof)
-        .is_err());
 }

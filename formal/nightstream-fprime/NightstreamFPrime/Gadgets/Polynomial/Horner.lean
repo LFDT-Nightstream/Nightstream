@@ -28,11 +28,13 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
+/-- The stored cells of a product in `K`: the high product, `c0` and `c1`. The last coefficient
+is the non-residue 2 minus 1. Its node stays, because the layout gives it a column. -/
 def mulRecipes (start : Nat) (left right : KExpr) : List Expr :=
   [left.c1 * right.c1,
-    left.c0 * right.c0 + 7 * Expr.var start,
+    left.c0 * right.c0 + 2 * Expr.var start,
     (left.c0 + left.c1) * (right.c0 + right.c1) +
-      (-Expr.var (start + 1) + 6 * Expr.var start)]
+      (-Expr.var (start + 1) + 1 * Expr.var start)]
 
 def productAt (start : Nat) : KExpr :=
   ⟨Expr.var (start + 1), Expr.var (start + 2)⟩
@@ -275,28 +277,28 @@ theorem productAt_sound (env : Env) (start : Nat)
   have highRow : (Expr.var start - left.c1 * right.c1).eval env = 0 :=
     rows _ (by simp [mulRecipes, recipeConstraints])
   have c0Row : (Expr.var (start + 1) -
-      (left.c0 * right.c0 + 7 * Expr.var start)).eval env = 0 :=
+      (left.c0 * right.c0 + 2 * Expr.var start)).eval env = 0 :=
     rows _ (by simp [mulRecipes, recipeConstraints])
   have c1Row : (Expr.var (start + 1 + 1) -
       ((left.c0 + left.c1) * (right.c0 + right.c1) +
-        (-Expr.var (start + 1) + 6 * Expr.var start))).eval env = 0 :=
+        (-Expr.var (start + 1) + 1 * Expr.var start))).eval env = 0 :=
     rows _ (by simp [mulRecipes, recipeConstraints])
-  have seven : (7 : Expr).eval env = (7 : F) := rfl
-  have six : (6 : Expr).eval env = (6 : F) := rfl
+  have two : (2 : Expr).eval env = (2 : F) := rfl
+  have one : (1 : Expr).eval env = (1 : F) := rfl
   have high : env start = left.c1.eval env * right.c1.eval env :=
     sub_eq_zero.mp (by simpa using highRow)
   have c0 : env (start + 1) =
-      left.c0.eval env * right.c0.eval env + 7 * env start :=
-    sub_eq_zero.mp (by simpa [seven] using c0Row)
+      left.c0.eval env * right.c0.eval env + 2 * env start :=
+    sub_eq_zero.mp (by simpa [two] using c0Row)
   have c1 : env (start + 1 + 1) =
       (left.c0.eval env + left.c1.eval env) *
           (right.c0.eval env + right.c1.eval env) +
-        (-env (start + 1) + 6 * env start) :=
-    sub_eq_zero.mp (by simpa [six] using c1Row)
+        (-env (start + 1) + 1 * env start) :=
+    sub_eq_zero.mp (by simpa [one] using c1Row)
   apply congrArg₂ K.mk
   · change env (start + 1) =
       left.c0.eval env * right.c0.eval env +
-        7 * left.c1.eval env * right.c1.eval env
+        2 * left.c1.eval env * right.c1.eval env
     rw [c0, high]
     ring
   · change env (start + 1 + 1) =

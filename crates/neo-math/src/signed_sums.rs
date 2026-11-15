@@ -1,27 +1,20 @@
 //! Exact sums of signed monomial shifts of ring elements. Each coefficient
 //! enters as two bounded integer limbs, so every term is one i64 addition.
-//! Reduction modulo Phi_81 and Goldilocks runs once, after all terms.
+//! Reduction modulo `X^D + 1` and `q` runs once, after all terms.
 
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use crate::{
-    ring::{D, ETA, PHI_MID_DEGREE},
-    F,
-};
+use crate::{ring::D, F};
 
-pub const LIMB_BOUND: u128 = (1 << 32) + 3;
-const MAX_TERMS: u64 = 1 << 25;
-const X_POWERS: [(i64, i64); 8] = [(1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1), (1, 0), (0, 1)];
+/// Each limb of a `SplitRing` is in `[0, LIMB_BOUND)`.
+pub const LIMB_BOUND: u128 = 1 << 32;
+/// The most terms that one `SignedShiftSums` holds exactly.
+pub const MAX_TERMS: u64 = 1 << 24;
 
-#[inline(always)]
-pub fn wide256_signed_halves(words: [u32; 8]) -> (i64, i64) {
-    words
-        .iter()
-        .zip(X_POWERS)
-        .fold((0, 0), |(low, high), (&word, (one, x))| {
-            (low + one * i64::from(word), high + x * i64::from(word))
-        })
-}
+/// A coefficient position receives at most `D` shifts of each term.
+const _: () = assert!((D as u128) * LIMB_BOUND * (MAX_TERMS as u128) < (1u128 << 63));
+/// A `u64` mask has one bit for each coefficient.
+const _: () = assert!(D == u64::BITS as usize);
 
 pub struct SplitRing {
     low: [i64; D],
@@ -30,24 +23,15 @@ pub struct SplitRing {
 
 impl SplitRing {
     pub fn new(coefficients: &[F; D]) -> Self {
-        let canonical = coefficients.map(|value| value.as_canonical_u64());
-        Self {
-            low: canonical.map(|value| (value & 0xffff_ffff) as i64),
-            high: canonical.map(|value| (value >> 32) as i64),
-        }
+        Self::from_u64(&coefficients.map(|value| value.as_canonical_u64()))
     }
 
-    pub fn from_wide256(coefficients: [[u32; 8]; D]) -> Self {
-        let mut low = [0i64; D];
-        let mut high = [0i64; D];
-        for (lane, words) in coefficients.into_iter().enumerate() {
-            let (a, b) = wide256_signed_halves(words);
-            let b = b + (a >> 32);
-            let carry = b >> 32;
-            low[lane] = (a & 0xffff_ffff) - carry;
-            high[lane] = (b & 0xffff_ffff) + carry;
+    /// The ring element with these integer coefficients: each limb is 32 bits of one.
+    pub fn from_u64(coefficients: &[u64; D]) -> Self {
+        Self {
+            low: coefficients.map(|value| (value & 0xffff_ffff) as i64),
+            high: coefficients.map(|value| (value >> 32) as i64),
         }
-        Self { low, high }
     }
 }
 
@@ -58,8 +42,6 @@ pub struct SignedShiftSums {
     #[cfg(debug_assertions)]
     terms: u64,
 }
-
-const _: () = assert!((D as u128) * LIMB_BOUND * (MAX_TERMS as u128) < (1u128 << 63));
 
 impl SignedShiftSums {
     pub fn zero() -> Self {
@@ -73,11 +55,6 @@ impl SignedShiftSums {
 
     #[inline]
     pub fn add_signed_units(&mut self, element: &SplitRing, mut positive: u64, mut negative: u64) {
-        debug_assert_eq!(
-            (positive | negative) >> D,
-            0,
-            "signed-unit mask exceeds the ring dimension"
-        );
         #[cfg(debug_assertions)]
         {
             self.terms += 1;
@@ -127,16 +104,13 @@ impl SignedShiftSums {
     }
 
     pub fn reduce(&self) -> [F; D] {
-        let raw: [F; 2 * D - 1] = core::array::from_fn(|degree| {
-            let value = (i128::from(self.high[degree]) << 32) + i128::from(self.low[degree]);
-            F::from_u64(value.rem_euclid(i128::from(F::ORDER_U64)) as u64)
-        });
+        let raw = |degree: usize| F::from_i128((i128::from(self.high[degree]) << 32) + i128::from(self.low[degree]));
+        // X^D = −1.
         core::array::from_fn(|lane| {
-            if lane < PHI_MID_DEGREE {
-                let wrapped = raw.get(lane + ETA).copied().unwrap_or(F::ZERO);
-                raw[lane] - raw[lane + D] + wrapped
+            if lane + D < 2 * D - 1 {
+                raw(lane) - raw(lane + D)
             } else {
-                raw[lane] - raw[lane + PHI_MID_DEGREE]
+                raw(lane)
             }
         })
     }

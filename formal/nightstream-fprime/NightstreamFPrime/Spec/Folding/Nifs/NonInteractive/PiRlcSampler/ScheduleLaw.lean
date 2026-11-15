@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Poseidon2
 namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw
 
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.Phi81StrongSet
+open NightstreamFPrime.Spec.RingStrongSet
 open OracleModel
 
 def historyAt (initial : List Draw) (count : Nat) : List Draw :=

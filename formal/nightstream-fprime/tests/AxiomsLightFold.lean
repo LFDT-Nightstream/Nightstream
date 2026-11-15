@@ -1,7 +1,7 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Folding.Light.Bound
 import NightstreamFPrime.Spec.Folding.Light.PiCCSCompleteness
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.LightNorm
 import NightstreamFPrime.Spec.Folding.Light.Completeness
 import NightstreamFPrime.Spec.Folding.Light.Strong
 import NightstreamFPrime.Spec.Folding.Light.Binding
@@ -11,7 +11,7 @@ import NightstreamFPrime.Spec.Folding.Light.RoundByRound
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperCompleteness
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Norm
 
 #audit_axioms NightstreamFPrime.Spec.GlobalParams.accumulatorBound_lt_bigB
 #audit_axioms NightstreamFPrime.Spec.GlobalParams.production_accumulatorBound_lt_bigB
@@ -22,8 +22,8 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.PiCCS.initial_true
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.PiCCS.exists_honest_prover
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.complete
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm.act_one
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm.norm_law
+#audit_axioms NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.LightNorm.act_one
+#audit_axioms NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.LightNorm.norm_law
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.Key.statement_sumcheckDegreeBound_eq
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.complete
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.PiCCS.accepted_extracts_or_badEvent
@@ -32,7 +32,7 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.runningAssignment_normBounded
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.difference_commits
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.collisionAt
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm.sub_act_bound
+#audit_axioms NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.LightNorm.sub_act_bound
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.accepted_implies_securityOutcome_normFree
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.accepted_implies_securityOutcome
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.ErrorBudget.production_testNumerator

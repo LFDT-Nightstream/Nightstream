@@ -12,7 +12,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 structure RunningSupported {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (allowed : Nat → Prop) : Prop where
   point : ∀ coordinate,
@@ -33,7 +33,7 @@ structure RunningSupported {logicalWidth : Nat}
 
 structure InputsSupported {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (allowed : Nat → Prop) : Prop where
   iteration : (interface.iteration offset).VarsSatisfy allowed
@@ -61,7 +61,7 @@ private theorem serializeKExpr_varsSatisfy (value : KExpr)
 
 theorem serializeRunningExpr_varsSatisfy {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (allowed : Nat → Prop) (support : RunningSupported running allowed) :
     ∀ expression ∈ RunningWords.serializeRunningExpr running,
@@ -84,7 +84,7 @@ theorem serializeRunningExpr_varsSatisfy {logicalWidth : Nat}
 
 theorem runningWord_varsSatisfy {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
     (allowed : Nat → Prop) (support : RunningSupported running allowed)
     (index : WordIndex) :
@@ -99,7 +99,7 @@ theorem runningWord_varsSatisfy {logicalWidth : Nat}
 
 private theorem recursiveFlag_varsSatisfy {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (allowed : Nat → Prop)
     (support : InputsSupported interface offset allowed) :
@@ -108,7 +108,7 @@ private theorem recursiveFlag_varsSatisfy {logicalWidth : Nat}
 
 private theorem baseFlag_varsSatisfy {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (allowed : Nat → Prop)
     (support : InputsSupported interface offset allowed) :
@@ -118,7 +118,7 @@ private theorem baseFlag_varsSatisfy {logicalWidth : Nat}
 
 theorem flatConstraints_varsSatisfy {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (allowed : Nat → Prop)
     (support : InputsSupported interface offset allowed) :

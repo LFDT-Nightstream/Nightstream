@@ -106,7 +106,7 @@ fn validate_input_shape(
 }
 
 /// The light fold folds into one accumulator (Lean `Spec/Folding/Light`);
-/// every other fold into the 16 PiDEC children.
+/// every other fold into the 14 PiDEC children.
 fn running_count(pp: &Params, profile: &FoldProfile<'_>) -> usize {
     match profile.norm {
         NormSources::All => pp.k_rho() as usize,

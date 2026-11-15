@@ -3,8 +3,8 @@
 
 use std::{fmt, ops::ControlFlow};
 
+use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 use rayon::prelude::*;
 
 use crate::PackageError;
@@ -68,14 +68,14 @@ fn mul(a: usize, b: usize) -> Result<usize, PackageError> {
     a.checked_mul(b)
         .ok_or_else(|| malformed("application record count overflow"))
 }
-fn canonical(value: u64) -> Result<Goldilocks, PackageError> {
-    if value >= Goldilocks::ORDER_U64 {
+fn canonical(value: u64) -> Result<Fq, PackageError> {
+    if value >= Fq::ORDER_U64 {
         return Err(PackageError::NonCanonicalField {
             location: "application record",
             value,
         });
     }
-    Ok(Goldilocks::from_u64(value))
+    Ok(Fq::from_u64(value))
 }
 
 pub struct ApplicationRecordsWriter {
@@ -409,7 +409,7 @@ impl ApplicationRecords {
             .map(|part| {
                 let mut walk = self.walk();
                 for row in part * range..((part + 1) * range).min(self.row_count) {
-                    let [a, b, c] = walk.evaluate_row(row, &value)?.map(Goldilocks::from_u64);
+                    let [a, b, c] = walk.evaluate_row(row, &value)?.map(Fq::from_u64);
                     if a * b != c {
                         return Ok(Some(row));
                     }
@@ -492,7 +492,7 @@ impl ApplicationWalk<'_> {
             offset += size_of::<u64>() as u64;
             Ok(word)
         };
-        let mut values = [Goldilocks::ZERO; 3];
+        let mut values = [Fq::ZERO; 3];
         let mut counts = [0; 3];
         for form in 0..3 {
             values[form] = canonical(next()?)?;

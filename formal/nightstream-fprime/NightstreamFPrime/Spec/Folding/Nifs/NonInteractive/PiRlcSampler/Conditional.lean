@@ -3,7 +3,7 @@ import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Hybrid
 namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 
 open Finset
-open NightstreamFPrime.Spec.Phi81StrongSet
+open NightstreamFPrime.Spec.RingStrongSet
 
 section Conditional
 

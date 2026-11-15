@@ -4,6 +4,8 @@
 
 Accepted by the owner on 2026-08-31.
 
+Superseded in part on 2026-11-13: [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) replaces the Goldilocks field and the rank `κ = 22` of this record with `q = 2^64 − 59`, the ring `X^64 + 1` and `κ = 18`. The numbers below are those of the prior profile.
+
 The owner first approved `κ = 25`, then corrected the selected rank to
 `κ = 22` on 2026-08-31. The final approval is
 `nightstream-ajtai-chacha20-wide256-v1`,
@@ -17,6 +19,9 @@ fc404984d44c1b878d68a6a80092d7d7ab44d81ac17b45a8e7bd4c1f1e371702
 On 2026-09-29, [`fprime-ajtai-shake128-setup.md`](./fprime-ajtai-shake128-setup.md)
 superseded the ChaCha20 expander rules below. The rank, seed and wide
 reduction stay in force.
+
+On 2026-11-14, [`fprime-ajtai-rejection-sampling.md`](./fprime-ajtai-rejection-sampling.md)
+superseded the wide reduction with 8-byte rejection sampling and a fallback.
 
 ## Problem
 
@@ -93,7 +98,7 @@ This decision supersedes only the statement in
 commitment remains `κ = 18`. It does not change the accepted auxiliary
 rank-two limits in that decision.
 
-It does not change `b = 2`, `k_rho = 16`, `B = 2^16`, the `2^28` domain,
+It does not change `b = 2`, `k_rho`, `B = 2^k_rho`, the `2^28` domain,
 Poseidon2 protocol binding, the selected application, or any Stage 2 rule.
 
 ## Required closure after approval

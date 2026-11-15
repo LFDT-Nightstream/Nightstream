@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
+use neo_math::Fq as F;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as F;
 
 use super::packed_product::{self, Product, PRODUCTS_PER_ROW};
 use super::packed_zero::{self, ZeroProduct, ZEROS_PER_ROW};

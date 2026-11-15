@@ -61,7 +61,7 @@ theorem equal_swap (guard : F) (env : Env) (pair : Pair) :
 theorem scaled_guard (guard residual scale : F) (nonzero : scale ≠ 0) :
     (scale * guard) * residual = 0 ↔ guard * residual = 0 := by
   rw [mul_assoc]
-  exact ⟨fun holds => (GoldilocksPrime.baseFieldNoZeroDivisors _ _ holds).resolve_left nonzero,
+  exact ⟨fun holds => (FieldPrime.baseFieldNoZeroDivisors _ _ holds).resolve_left nonzero,
     fun holds => by rw [holds, mul_zero]⟩
 
 structure Source where

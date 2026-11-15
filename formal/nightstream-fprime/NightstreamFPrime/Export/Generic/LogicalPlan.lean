@@ -7,7 +7,7 @@ row becomes one row of a `ProductionRelation.Plan` through `OrdinarySourcePlan`,
 these rows and the packed Poseidon2 blocks.
 
 The logical assignment's first `ringDegree * publicRingColumns` columns are the public input
-`x` (`Phi81Relation.projectPublicInput`), so column 0 is the `encHash` marker 1 and serves as the
+`x` (`RingRelation.projectPublicInput`), so column 0 is the `encHash` marker 1 and serves as the
 constant column. Four extra constraints read the output digest back from `x`
 (`decodeHashWord`, as `RecursivePublicOutputPlan`). -/
 
@@ -95,7 +95,7 @@ def program (rows : List R1CS.Row) (width : Nat) (fits : Fits rows width) :
   bounded := fun index => fits.rowBounded (List.getElem_mem index.isLt)
 
 /-- Where the source columns live among the logical columns (CW-5.11). The source map gives each
-source column's form; the public source columns `0` to `269` are the logical public columns, and
+source column's form; the public source columns `0` to `319` are the logical public columns, and
 logical column `0`, the `encHash` marker, is the constant column. The concrete layout gives every
 other live source column a low-norm slot (`Layout/LowNormAssignment`), because SuperNeo's Π_CCS
 checks that each fresh witness coordinate lies in `{-1, 0, 1}`. -/
@@ -234,7 +234,7 @@ private theorem decodeFold_eval (env : Env) (word : Fin 4) :
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The public input that an environment's first columns carry. -/
 def publicInput (env : Env) :

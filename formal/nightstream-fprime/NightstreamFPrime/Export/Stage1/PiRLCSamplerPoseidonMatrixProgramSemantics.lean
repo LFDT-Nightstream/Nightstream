@@ -77,7 +77,7 @@ private theorem samplerPreviousRule_zero
 private theorem samplerPreviousRule_succ
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
-    (invocationOffset : Fin 33) (lane : Fin 16) :
+    (invocationOffset : Fin 29) (lane : Fin 16) :
     (samplerPreviousRule program).form? logicalWidth
         (PiRLCSamplerPoseidonPlan.oneColumn geometry).val
         (1 + invocationOffset.val) lane.val =
@@ -107,7 +107,7 @@ private theorem samplerPreviousRule_succ
               slotBound selected⟩) lane)) by
     simpa [samplerPreviousRule] using!
       PoseidonInput.Rule.external_form?_ofSemantic
-        (region := PoseidonInput.Region.mk 1 33 0 16)
+        (region := PoseidonInput.Region.mk 1 29 0 16)
         invocationOffset lane lane.isLt
         (PiRLCSamplerPoseidonPlan.schedule program).block
         (PiRLCSamplerPoseidonPlan.retainedStart program)
@@ -156,7 +156,7 @@ private theorem entryRule_entry
     simp [index, entry]
   simpa [entryRule, constants] using
     PoseidonInput.Rule.optionalConstant_form?_ofSemantic_of_some
-      (region := PoseidonInput.Region.mk 0 34 0 16) current lane
+      (region := PoseidonInput.Region.mk 0 30 0 16) current lane
       (PiRLCSamplerPoseidonPlan.oneColumn geometry) constantAt 16 index
       indexEq _ found
 
@@ -176,7 +176,7 @@ private theorem entryRule_nonentry
     simp [index, notEntry]
   simpa [entryRule, constants] using
     PoseidonInput.Rule.optionalConstant_form?_ofSemantic_of_none
-      (region := PoseidonInput.Region.mk 0 34 0 16) current lane
+      (region := PoseidonInput.Region.mk 0 30 0 16) current lane
       (PiRLCSamplerPoseidonPlan.oneColumn geometry).val constantAt 16 index
       indexEq found
 
@@ -220,9 +220,9 @@ theorem inputProgram_form?
       simpa [inputProgram, PiRLCSamplerPoseidonPlan.inputState, entry,
         SparseForm.add, SparseForm.empty] using folded
   · have piCcsResult := piCcsPreviousRule_outside geometry current lane first
-    let invocationOffset : Fin 33 :=
+    let invocationOffset : Fin 29 :=
       ⟨current.val - 1, by
-        have bound : current.val < 34 := by
+        have bound : current.val < 30 := by
           simpa only [PiRLCSamplerPoseidonPlan.invocationCount_eq] using
             current.isLt
         omega⟩

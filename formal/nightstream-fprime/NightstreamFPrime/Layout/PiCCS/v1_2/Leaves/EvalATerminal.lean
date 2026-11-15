@@ -9,15 +9,15 @@ Obligation: Lower
 Inputs:
 - the 28-coordinate verifier-derived point `r'` and prior point `r`;
 - verifier-derived `gamma`;
-- 3,456 CCS-matrix-family coefficients, with no Pad coefficient.
+- 4,096 CCS-matrix-family coefficients, with no Pad coefficient.
 
 Outputs:
 - the child-owned exact unshifted `Eval_A` terminal term.
 
 Constraint groups:
 - point equality: 110 logical columns, 665 fresh columns, 775 rows;
-- 3,456-term Horner: 10,365 logical columns, no fresh column,
-  10,365 rows;
+- 4,096-term Horner: 12,285 logical columns, no fresh column,
+  12,285 rows;
 - parent wiring: zero columns and zero rows.
 
 Parent coverage:
@@ -40,7 +40,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 structure InputsLinear
     (interface :
@@ -92,7 +92,7 @@ theorem output_varsBelow_ccs
 
 private theorem cubeVariables_positive :
     0 < productionShape.cubeVariables := by
-  norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+  norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 private theorem coefficientExprs_linear
     (interface :
@@ -136,7 +136,7 @@ private theorem core_totalFreshCount
             interface) cubeVariables_positive offset
           (coreInputs interface offset inputs)
     _ = 665 := by
-      norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+      norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 private theorem core_totalRowCount
     (interface :
@@ -144,7 +144,7 @@ private theorem core_totalRowCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalATerminal.circuit interface
-        ).main offset)) = 11140 := by
+        ).main offset)) = 11524 := by
   calc
     _ = (28 * productionShape.cubeVariables - 9) +
         3 * ((NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalATerminal.coefficientExprs
@@ -155,9 +155,9 @@ private theorem core_totalRowCount
           (NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalATerminal.coreInterface
             interface) cubeVariables_positive offset
           (coreInputs interface offset inputs)
-    _ = 11140 := by
+    _ = 11524 := by
       rw [NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalATerminal.coefficientExprs_length]
-      norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+      norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 def footprint
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -165,7 +165,7 @@ def footprint
       InputsLinear (Formal.evalAInterface interface) offset) :
     R1CS.CircuitFootprint (Formal.evalACircuit interface) where
   freshColumnCount := fun _ => 665
-  physicalRowCount := fun _ => 11140
+  physicalRowCount := fun _ => 11524
   freshColumnCount_eq := by
     intro offset
     unfold Formal.evalACircuit
@@ -192,7 +192,7 @@ theorem physicalRowCount_eq
       InputsLinear (Formal.evalAInterface interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.evalACircuit interface).main offset)) = 11140 :=
+      (Formal.evalACircuit interface).main offset)) = 11524 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
@@ -202,10 +202,10 @@ theorem physicalPrivateColumnCount_eq
     (offset : Nat) :
     localLength (Circuit.ops (Formal.evalACircuit interface).main offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-        (Formal.evalACircuit interface).main offset)) = 11140 := by
+        (Formal.evalACircuit interface).main offset)) = 11524 := by
   have logicalColumns :
       localLength (Circuit.ops (Formal.evalACircuit interface).main offset) =
-        10475 := by
+        10859 := by
     unfold Formal.evalACircuit
     erw [FormalCircuit.withConstantFootprint_main]
     exact

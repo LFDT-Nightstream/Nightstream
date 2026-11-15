@@ -15,31 +15,31 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 
 def sourceMap {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    SourceCompiler.SourceMap Spartan.SourceColumnCount logicalWidth where
+    SourceCompiler.SourceMap PackageOrder.SourceColumnCount logicalWidth where
   form := fun column => (PiCCSOrdinaryDirectPlan.sourceMap geometry).form
-    ⟨Spartan.sourceToSpartan column.val, Spartan.sourceToSpartan_lt _ column.isLt⟩
+    ⟨PackageOrder.sourceToPackage column.val, PackageOrder.sourceToPackage_lt _ column.isLt⟩
 
 theorem sourceMap_preserves {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth) :
     (sourceMap geometry).Preserves assignment
-      (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv geometry assignment)) := by
+      (PackageOrder.pullback (PiCCSAssignmentSoundness.decodedEnv geometry assignment)) := by
   intro column
   exact PiCCSAssignmentSoundness.decodedEnv_preserves geometry assignment
-    ⟨Spartan.sourceToSpartan column.val, Spartan.sourceToSpartan_lt _ column.isLt⟩
+    ⟨PackageOrder.sourceToPackage column.val, PackageOrder.sourceToPackage_lt _ column.isLt⟩
 
 def form? {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (index : Fin PiCCSActionPayloadBlock.payloadCount) :
     Option (SparseForm logicalWidth) := do
-  let lowered ← SourceCompiler.lowerAffine? Spartan.SourceColumnCount
+  let lowered ← SourceCompiler.lowerAffine? PackageOrder.SourceColumnCount
     (PiCCSActionPayloadBlock.payloadExpression index)
   pure (SourceCompiler.compileCombination (sourceMap geometry)
     (PiCCSOrdinaryRetainedGeometry.oneColumn geometry)
     lowered.combination lowered.bounded)
 
 theorem lowering?_isSome (index : Fin PiCCSActionPayloadBlock.payloadCount) :
-    (SourceCompiler.lowerAffine? Spartan.SourceColumnCount
+    (SourceCompiler.lowerAffine? PackageOrder.SourceColumnCount
       (PiCCSActionPayloadBlock.payloadExpression index)).isSome := by
   rcases PiCCSActionPayloadSupport.payloadExpression_affine index with
     ⟨lowered, loweredEq⟩
@@ -47,7 +47,7 @@ theorem lowering?_isSome (index : Fin PiCCSActionPayloadBlock.payloadCount) :
     (PiCCSActionPayloadBlock.payloadExpression index)
     PiCCSOrdinarySourceSupport.Source
     (PiCCSActionPayloadSupport.payloadExpression_supported index) lowered loweredEq
-  have bounded : SourceCompiler.CombinationBounded Spartan.SourceColumnCount
+  have bounded : SourceCompiler.CombinationBounded PackageOrder.SourceColumnCount
       lowered.combination := by
     intro term member
     exact PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount (supported term member)
@@ -55,19 +55,19 @@ theorem lowering?_isSome (index : Fin PiCCSActionPayloadBlock.payloadCount) :
   rw [loweredEq]
   dsimp only
   cases checked : SourceCompiler.combinationBoundedDecidable
-      Spartan.SourceColumnCount lowered.combination with
+      PackageOrder.SourceColumnCount lowered.combination with
   | isTrue proof => simp only []; rfl
   | isFalse rejected => exact False.elim (rejected bounded)
 
 def lowering (index : Fin PiCCSActionPayloadBlock.payloadCount) :
-    SourceCompiler.AffineSource Spartan.SourceColumnCount :=
-  (SourceCompiler.lowerAffine? Spartan.SourceColumnCount
+    SourceCompiler.AffineSource PackageOrder.SourceColumnCount :=
+  (SourceCompiler.lowerAffine? PackageOrder.SourceColumnCount
     (PiCCSActionPayloadBlock.payloadExpression index)).get (lowering?_isSome index)
 
 theorem lowering?_eq_some_lowering (index : Fin PiCCSActionPayloadBlock.payloadCount) :
-    SourceCompiler.lowerAffine? Spartan.SourceColumnCount
+    SourceCompiler.lowerAffine? PackageOrder.SourceColumnCount
       (PiCCSActionPayloadBlock.payloadExpression index) = some (lowering index) := by
-  cases found : SourceCompiler.lowerAffine? Spartan.SourceColumnCount
+  cases found : SourceCompiler.lowerAffine? PackageOrder.SourceColumnCount
       (PiCCSActionPayloadBlock.payloadExpression index) with
   | none =>
       have possible := lowering?_isSome index
@@ -84,12 +84,12 @@ theorem lowering_supported (index : Fin PiCCSActionPayloadBlock.payloadCount) :
       rw [loweredEq] at found
       dsimp only at found
       cases checked : SourceCompiler.combinationBoundedDecidable
-          Spartan.SourceColumnCount lowered.combination with
+          PackageOrder.SourceColumnCount lowered.combination with
       | isFalse rejected => simp [checked] at found
       | isTrue bounded =>
           rw [checked] at found
           have same := congrArg
-            (fun value : SourceCompiler.AffineSource Spartan.SourceColumnCount =>
+            (fun value : SourceCompiler.AffineSource PackageOrder.SourceColumnCount =>
               value.combination) (Option.some.inj found)
           change lowered.combination = (lowering index).combination at same
           rw [← same]
@@ -142,9 +142,9 @@ theorem form?_eval {program : Program} {logicalWidth : Nat}
     (one : assignment (PiCCSOrdinaryRetainedGeometry.oneColumn geometry) = 1) :
     form.eval assignment =
       (PiCCSActionPayloadBlock.payloadExpression index).eval
-        (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv geometry assignment)) := by
+        (PackageOrder.pullback (PiCCSAssignmentSoundness.decodedEnv geometry assignment)) := by
   unfold form? at found
-  cases loweredEq : SourceCompiler.lowerAffine? Spartan.SourceColumnCount
+  cases loweredEq : SourceCompiler.lowerAffine? PackageOrder.SourceColumnCount
       (PiCCSActionPayloadBlock.payloadExpression index) with
   | none => simp [loweredEq] at found
   | some lowered =>
@@ -157,7 +157,7 @@ theorem form?_eval {program : Program} {logicalWidth : Nat}
       rw [SourceCompiler.compileCombination_eval (sourceMap geometry)
         (PiCCSOrdinaryRetainedGeometry.oneColumn geometry)
         lowered.combination lowered.bounded assignment
-        (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv geometry assignment))
+        (PackageOrder.pullback (PiCCSAssignmentSoundness.decodedEnv geometry assignment))
         one (sourceMap_preserves geometry assignment)]
       exact SourceCompiler.lowerAffine?_sound
         (PiCCSActionPayloadBlock.payloadExpression index) lowered loweredEq _
@@ -169,7 +169,7 @@ theorem form_eval {program : Program} {logicalWidth : Nat}
     (one : assignment (PiCCSOrdinaryRetainedGeometry.oneColumn geometry) = 1) :
     (form geometry index).eval assignment =
       (PiCCSActionPayloadBlock.payloadExpression index).eval
-        (Spartan.pullback (PiCCSAssignmentSoundness.decodedEnv geometry assignment)) :=
+        (PackageOrder.pullback (PiCCSAssignmentSoundness.decodedEnv geometry assignment)) :=
   form?_eval geometry index (form geometry index)
     (form?_eq_some_form geometry index) assignment one
 
@@ -191,8 +191,8 @@ theorem form_eval_source {program : Program} {logicalWidth : Nat}
   apply Expr.eval_eq_of_agree_satisfy _ PiCCSOrdinarySourceSupport.Source _ _
     (PiCCSActionPayloadSupport.payloadExpression_supported index)
   intro source supported
-  let column : Fin Spartan.spartanColumnCount :=
-    ⟨Spartan.sourceToSpartan source, Spartan.sourceToSpartan_lt _
+  let column : Fin PackageOrder.packageColumnCount :=
+    ⟨PackageOrder.sourceToPackage source, PackageOrder.sourceToPackage_lt _
       (PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount supported)⟩
   exact (PiCCSAssignmentSoundness.decodedEnv_preserves geometry assignment column).symm.trans
     ((PiCCSOrdinaryDirectPlan.sourceMap_form_eval_of_target geometry assignment

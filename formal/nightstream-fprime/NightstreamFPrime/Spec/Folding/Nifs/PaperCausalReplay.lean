@@ -8,8 +8,8 @@ namespace NightstreamFPrime.Spec.Folding.Nifs.PaperCausalReplay
 
 open NightstreamFPrime.Spec
 open SumCheck.Finite
-open _root_.NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausal (Strategy)
-open _root_.NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausalTrace (issued)
+open _root_.NightstreamFPrime.Spec.SumCheck.Finite.FieldCausal (Strategy)
+open _root_.NightstreamFPrime.Spec.SumCheck.Finite.FieldCausalTrace (issued)
 open Folding.PiCCS.PaperJoint
 open StrongReduction
 

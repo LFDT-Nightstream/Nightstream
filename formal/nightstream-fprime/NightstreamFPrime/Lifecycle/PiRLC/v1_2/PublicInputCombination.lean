@@ -1,6 +1,6 @@
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily
 import NightstreamFPrime.Lifecycle.PaperAlgebra
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.PublicInput
 
 /-!
 Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1, equation
@@ -12,7 +12,7 @@ namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.PublicInputCombination
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle.PaperAlgebra
-open NightstreamFPrime.Spec.Phi81Relation
+open NightstreamFPrime.Spec.RingRelation
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 abbrev blockCount : Nat := publicRingColumns
@@ -20,7 +20,7 @@ abbrev cellCount : Nat := 1
 
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   challenge : Nat → Fin CombinationFamily.sourceCount → Fin ringDegree → Expr
   input : Nat → Fin CombinationFamily.sourceCount →
     Fin (FullShape logicalWidth publicFits).publicWidth → Expr
@@ -28,7 +28,7 @@ structure Interface (logicalWidth : Nat)
 def publicColumn
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (block : Fin blockCount) (lane : Fin ringDegree) :
     Fin (FullShape logicalWidth publicFits).publicWidth :=
   ⟨block.val * ringDegree + lane.val, by
@@ -41,7 +41,7 @@ def publicColumn
 theorem publicColumn_decode
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
     publicColumn
         (PiRLCAlgebra.PublicInput.publicBlockIndex
@@ -55,7 +55,7 @@ theorem publicColumn_decode
 def familyInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) :
     CombinationFamily.Interface blockCount cellCount where
   challenge := interface.challenge
@@ -67,7 +67,7 @@ def cell : Fin cellCount := ⟨0, by decide⟩
 def output
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) : Expr :=
   CombinationFamily.output (familyInterface interface) offset
@@ -78,7 +78,7 @@ def output
 abbrev Assumptions
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) :=
   CombinationFamily.Assumptions (familyInterface interface) offset env
@@ -86,7 +86,7 @@ abbrev Assumptions
 abbrev SpecHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) :=
   CombinationFamily.CanonicalHolds (familyInterface interface) offset env
@@ -94,9 +94,9 @@ abbrev SpecHolds
 def evalChallenges
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
-    Fin 17 → RingF :=
+    Fin 15 → RingF :=
   fun source lane =>
     (interface.challenge offset
       (Fin.cast CombinationFamily.sourceCount_eq.symm source) lane).eval env
@@ -104,9 +104,9 @@ def evalChallenges
 def evalInputs
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
-    Fin 17 → PublicInput (FullShape logicalWidth publicFits) :=
+    Fin 15 → PublicInput (FullShape logicalWidth publicFits) :=
   fun source column =>
     (interface.input offset
       (Fin.cast CombinationFamily.sourceCount_eq.symm source) column).eval env
@@ -114,13 +114,13 @@ def evalInputs
 def evalOutput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :
     PublicInput (FullShape logicalWidth publicFits) :=
   fun column => (output interface offset column).eval env
 
 private theorem rightCombination_eq_combinePublicInputs
-    {shape : Phi81Relation.Shape} {count : Nat}
+    {shape : RingRelation.Shape} {count : Nat}
     (challenges : Fin count → RingF)
     (inputs : Fin count → PublicInput shape)
     (column : Fin shape.publicWidth) :
@@ -155,7 +155,7 @@ private theorem rightCombination_eq_combinePublicInputs
 theorem parentCoverage
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env)
     (specification : SpecHolds interface offset env) :
     evalOutput interface offset env =
@@ -177,14 +177,14 @@ theorem parentCoverage
     _ = PiRLCAlgebra.PublicInput.combinePublicInputs
           (evalChallenges interface offset env)
           (evalInputs interface offset env) column := by
-      have challengeEq : ∀ source : Fin 17,
+      have challengeEq : ∀ source : Fin 15,
           CombinationFamily.challengeValue (familyInterface interface)
               offset env
               (Fin.cast CombinationFamily.sourceCount_eq.symm source) =
             evalChallenges interface offset env source := by
         intro source
         rfl
-      have inputEq : ∀ source : Fin 17,
+      have inputEq : ∀ source : Fin 15,
           CombinationFamily.inputValue (familyInterface interface)
               offset env
               (Fin.cast CombinationFamily.sourceCount_eq.symm source)
@@ -212,50 +212,50 @@ theorem parentCoverage
           (evalInputs interface offset env) column
 
 theorem logicalPrivateCount_eq :
-    CombinationFamily.logicalPrivateCount blockCount cellCount = 4590 := by
+    CombinationFamily.logicalPrivateCount blockCount cellCount = 4800 := by
   rw [CombinationFamily.logicalPrivateCount,
     CombinationFamily.sourceCount_eq]
   norm_num [CombinationFamily.stepSize, CombinationStep.privateCount,
     blockCount, cellCount, publicRingColumns, ringDegree]
 
 theorem logicalRowCount_eq :
-    CombinationFamily.logicalRowCount blockCount cellCount = 4590 := by
+    CombinationFamily.logicalRowCount blockCount cellCount = 4800 := by
   rw [CombinationFamily.logicalRowCount, logicalPrivateCount_eq]
 
 def circuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : FormalCircuit :=
   CombinationFamily.circuit (familyInterface interface)
 
 theorem localLength_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 4590 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 4800 := by
   rw [(circuit interface).privateCount_eq offset]
   exact logicalPrivateCount_eq
 
 theorem flatConstraints_length
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      4590 := by
+      4800 := by
   rw [(circuit interface).rowCount_eq offset]
   exact logicalRowCount_eq
 
 theorem flatConstraints_varsBelow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ expression ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
-      expression.VarsBelow (offset + 4590) := by
+      expression.VarsBelow (offset + 4800) := by
   simpa [circuit, logicalPrivateCount_eq] using!
     CombinationFamily.flatConstraints_varsBelow (familyInterface interface)
       offset env assumptions
@@ -263,7 +263,7 @@ theorem flatConstraints_varsBelow
 theorem soundness
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env)
     (assumptions : Assumptions interface offset env)
     (rows : holds env (Circuit.ops (circuit interface).main offset)) :
@@ -274,7 +274,7 @@ theorem soundness
 theorem complete
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env)
     (assumptions : Assumptions interface offset env) :
     ∃ completed,
@@ -286,7 +286,7 @@ theorem complete
 theorem completeness
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env)
     (assumptions : Assumptions interface offset env)
     (specification : SpecHolds interface offset env) :

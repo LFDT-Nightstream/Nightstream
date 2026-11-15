@@ -26,16 +26,16 @@ theorem polyRows_length : (Rows.polyRows SecondPlan.geometry SecondPlan.app).len
   decide +kernel
 
 theorem rows_le :
-    (PerApplicationPackage.applicationPlan (MemoryApp.program SecondPlan.geometry SecondPlan.app)).rowCount ≤ 257057539 :=
+    (PerApplicationPackage.applicationPlan (MemoryApp.program SecondPlan.geometry SecondPlan.app)).rowCount ≤ 258461709 :=
   NebulaMemoryPackage.rows_le SecondPlan.geometry SecondPlan.app polyRows_mulCount polyRows_length (by decide +kernel)
 
 theorem columns_le :
-    PerApplicationPackage.addedPrivateColumnCount (MemoryApp.program SecondPlan.geometry SecondPlan.app) ≤ 256970581 :=
+    PerApplicationPackage.addedPrivateColumnCount (MemoryApp.program SecondPlan.geometry SecondPlan.app) ≤ 258375801 :=
   NebulaMemoryPackage.columns_le SecondPlan.geometry SecondPlan.app polyRows_mulCount (by decide +kernel)
 
 theorem carrier_le :
     (MemoryApp.program SecondPlan.geometry SecondPlan.app).witnessWordCount +
-      ApplicationRetainedBlocks.localCount (MemoryApp.program SecondPlan.geometry SecondPlan.app) ≤ 5480402 :=
+      ApplicationRetainedBlocks.localCount (MemoryApp.program SecondPlan.geometry SecondPlan.app) ≤ 5550088 :=
   NebulaMemoryPackage.carrier_le SecondPlan.geometry SecondPlan.app polyRows_mulCount (by decide +kernel)
 
 /-- All physical-package, retained-carrier, and recursive-plan bounds for the
@@ -53,7 +53,7 @@ theorem plan_fixedPoint :
 
 theorem jointDomain_le_twoPow28 :
     max (PerApplicationFixedPoint.structuralPlan application fits).rowCount
-        (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+        (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
           (PerApplicationFixedPoint.logicalWidth application)) ≤
       2 ^ Lifecycle.cubeVariables :=
   PerApplicationFixedPoint.jointDomain_le_twoPow28 application fits

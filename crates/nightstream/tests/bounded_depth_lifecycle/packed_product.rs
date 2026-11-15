@@ -35,12 +35,7 @@ fn packed_products_restore_both_sources_and_reject_recommitted_signed_units() {
         assert_eq!(package.packed_boolean_count(), 4);
         assert_eq!(package.packed_zero_count(), 1);
     }
-    let mut prover = BoundedDepth::new(
-        packages.clone(),
-        MINIMUM_SECURITY_BITS,
-        crate::engine::Backend::Optimized,
-    )
-    .unwrap();
+    let mut prover = BoundedDepth::new(packages.clone(), fold_gate_bits(), crate::engine::Backend::Optimized).unwrap();
     prover.cap = 1;
     let initial = [F::ZERO; 4];
     let mut envelope = prover.initial(initial).unwrap();

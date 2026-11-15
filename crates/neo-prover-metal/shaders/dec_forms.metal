@@ -5,9 +5,9 @@ inline ulong dec_pow(ulong base, ulong exponent) {
     ulong value = 1;
     while (exponent != 0) {
         if ((exponent & 1) != 0) {
-            value = gl_mul(value, base);
+            value = fq_mul(value, base);
         }
-        base = gl_mul(base, base);
+        base = fq_mul(base, base);
         exponent >>= 1;
     }
     return value;
@@ -23,13 +23,13 @@ inline ulong dec_pattern_coefficient(
         if (((descriptor >> 24) & 0x3fu) != local) {
             return 0;
         }
-        return (descriptor & 0x40000000u) == 0 ? 1 : GOLDILOCKS_MODULUS - 1;
+        return (descriptor & 0x40000000u) == 0 ? 1 : FQ_MODULUS - 1;
     }
     uint pattern = descriptor & 0x7fffffffu;
     uint start = offsets[pattern];
     uint end = offsets[pattern + 1];
     if (end - start == RING_DEGREE) {
-        return gl_from_word(coefficients[start + local]);
+        return fq_from_word(coefficients[start + local]);
     }
     uint limit = end;
     while (start < end) {
@@ -41,7 +41,7 @@ inline ulong dec_pattern_coefficient(
         }
     }
     return start < limit && (ulong)locals[start] == local
-        ? gl_from_word(coefficients[start]) : 0;
+        ? fq_from_word(coefficients[start]) : 0;
 }
 
 inline Kx dec_factored_weight(
@@ -75,7 +75,7 @@ inline ulong dec_original_term(
     device const ulong *chi) {
     ulong coefficient = dec_pattern_coefficient(
         entry.y, local, pattern_offsets, pattern_locals, pattern_coefficients);
-    return gl_mul(chi[2 * (ulong)entry.x + component], coefficient);
+    return fq_mul(chi[2 * (ulong)entry.x + component], coefficient);
 }
 
 kernel void dec_build_ring_forms(
@@ -121,7 +121,7 @@ kernel void dec_build_ring_forms(
     }
     ulong value = 0;
     for (ulong entry = start; entry < end; ++entry) {
-        value = gl_add(value, dec_original_term(entries[entry], local, component,
+        value = fq_add(value, dec_original_term(entries[entry], local, component,
             pattern_offsets, pattern_locals, pattern_coefficients, chi));
     }
     forms[index] = value;
@@ -151,14 +151,14 @@ kernel void dec_build_parallel_original_forms(
     ulong end = active_offsets[active + 1];
     ulong value = 0;
     for (ulong entry = start + lane; entry < end; entry += DEC_FORM_REDUCTION_THREADS) {
-        value = gl_add(value, dec_original_term(entries[entry], local, component,
+        value = fq_add(value, dec_original_term(entries[entry], local, component,
             pattern_offsets, pattern_locals, pattern_coefficients, chi));
     }
     partials[lane] = value;
     threadgroup_barrier(mem_flags::mem_threadgroup);
     for (uint stride = DEC_FORM_REDUCTION_THREADS / 2; stride > 0; stride >>= 1) {
         if (lane < stride) {
-            partials[lane] = gl_add(partials[lane], partials[lane + stride]);
+            partials[lane] = fq_add(partials[lane], partials[lane + stride]);
         }
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
@@ -193,14 +193,14 @@ kernel void dec_build_parallel_original_form_tiles(
     ulong end = start + (ulong)tiles[descriptor + 2];
     ulong value = 0;
     for (ulong entry = start + lane; entry < end; entry += DEC_FORM_REDUCTION_THREADS) {
-        value = gl_add(value, dec_original_term(entries[entry], local, component,
+        value = fq_add(value, dec_original_term(entries[entry], local, component,
             pattern_offsets, pattern_locals, pattern_coefficients, chi));
     }
     partials[lane] = value;
     threadgroup_barrier(mem_flags::mem_threadgroup);
     for (uint stride = DEC_FORM_REDUCTION_THREADS / 2; stride > 0; stride >>= 1) {
         if (lane < stride) {
-            partials[lane] = gl_add(partials[lane], partials[lane + stride]);
+            partials[lane] = fq_add(partials[lane], partials[lane + stride]);
         }
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
@@ -228,13 +228,13 @@ kernel void dec_reduce_parallel_original_form_tiles(
     ulong end = tile_offsets[list + 1];
     ulong value = 0;
     for (ulong tile = start + lane; tile < end; tile += DEC_FORM_REDUCTION_THREADS) {
-        value = gl_add(value, gl_from_word(tile_partials[2 * tile + component]));
+        value = fq_add(value, fq_from_word(tile_partials[2 * tile + component]));
     }
     partials[lane] = value;
     threadgroup_barrier(mem_flags::mem_threadgroup);
     for (uint stride = DEC_FORM_REDUCTION_THREADS / 2; stride > 0; stride >>= 1) {
         if (lane < stride) {
-            partials[lane] = gl_add(partials[lane], partials[lane + stride]);
+            partials[lane] = fq_add(partials[lane], partials[lane + stride]);
         }
         threadgroup_barrier(mem_flags::mem_threadgroup);
     }
@@ -260,9 +260,9 @@ kernel void dec_geometric_span_weights(
         if (row >= shape[2] || row >= shape[3]) {
             continue;
         }
-        ulong coefficient = gl_from_word(coefficients[entry]);
-        value.c0 = gl_add(value.c0, gl_mul(gl_from_word(chi[2 * row]), coefficient));
-        value.c1 = gl_add(value.c1, gl_mul(gl_from_word(chi[2 * row + 1]), coefficient));
+        ulong coefficient = fq_from_word(coefficients[entry]);
+        value.c0 = fq_add(value.c0, fq_mul(fq_from_word(chi[2 * row]), coefficient));
+        value.c1 = fq_add(value.c1, fq_mul(fq_from_word(chi[2 * row + 1]), coefficient));
     }
     weights[2 * (ulong)span] = value.c0;
     weights[2 * (ulong)span + 1] = value.c1;
@@ -295,33 +295,25 @@ kernel void dec_add_geometric_span_forms(
         if (column >= start + (packed >> 32)) {
             continue;
         }
-        ulong power = dec_pow(gl_from_word(shapes[2 * span + 1]), column - start);
-        value.c0 = gl_add(value.c0, gl_mul(gl_from_word(weights[2 * span]), power));
-        value.c1 = gl_add(value.c1, gl_mul(gl_from_word(weights[2 * span + 1]), power));
+        ulong power = dec_pow(fq_from_word(shapes[2 * span + 1]), column - start);
+        value.c0 = fq_add(value.c0, fq_mul(fq_from_word(weights[2 * span]), power));
+        value.c1 = fq_add(value.c1, fq_mul(fq_from_word(weights[2 * span + 1]), power));
     }
     ulong output = (active - shape[5]) * 2 * RING_DEGREE + local;
-    forms[output] = gl_add(gl_from_word(forms[output]), value.c0);
-    forms[output + RING_DEGREE] = gl_add(gl_from_word(forms[output + RING_DEGREE]), value.c1);
+    forms[output] = fq_add(fq_from_word(forms[output]), value.c0);
+    forms[output + RING_DEGREE] = fq_add(fq_from_word(forms[output + RING_DEGREE]), value.c1);
 }
 
+// The transform of `neo_math::superneo_bar_block`: bar(b) = b_0 - sum over
+// j >= 1 of b_{D - j} X^j. Slot `s` owns lanes `s + 1` and `D - (s + 1)`.
 kernel void dec_bar_ring_forms_in_place(
     device ulong *forms [[buffer(0)]],
     uint index [[thread_position_in_grid]]) {
-    ulong slot = index % 14;
-    ulong output_base = (index / 14) * RING_DEGREE;
-    if (slot == 13) {
-        forms[output_base + 27] = gl_sub(0, forms[output_base + 27]);
-        return;
-    }
-
-    ulong low = slot + 1;
-    ulong reflected = 27 - low;
-    ulong low_value = forms[output_base + low];
-    ulong low_high_value = forms[output_base + 27 + low];
-    ulong reflected_value = forms[output_base + reflected];
-    ulong reflected_high_value = forms[output_base + 27 + reflected];
-    forms[output_base + reflected] = gl_sub(0, gl_add(low_value, low_high_value));
-    forms[output_base + 27 + reflected] = gl_sub(0, low_value);
-    forms[output_base + low] = gl_sub(0, gl_add(reflected_value, reflected_high_value));
-    forms[output_base + 27 + low] = gl_sub(0, reflected_value);
+    const ulong slots = RING_DEGREE / 2;
+    device ulong *element = forms + (index / slots) * RING_DEGREE;
+    ulong low = index % slots + 1;
+    ulong high = RING_DEGREE - low;
+    ulong low_value = element[low];
+    element[low] = fq_neg(element[high]);
+    element[high] = fq_neg(low_value);
 }

@@ -19,7 +19,7 @@ section
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns <=
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 noncomputable def nifsVerifier (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
@@ -40,7 +40,7 @@ noncomputable def setup (relation : LogicalRelation logicalWidth publicFits)
   defaultRunning := defaultRunning
 
 def machine (publicFits : ringDegree * publicRingColumns <=
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (F : AppState → AppWitness → AppState) :
     Machine KeyDigest Digest AppState AppWitness
       (Running (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -54,7 +54,7 @@ def machine (publicFits : ringDegree * publicRingColumns <=
   hash := stateHash (publicFits := publicFits)
 
 def machineFor (publicFits : ringDegree * publicRingColumns <=
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (application : Stage1.Application.Program) :
     Machine KeyDigest Digest AppState AppWitness
       (Running (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -112,7 +112,7 @@ def runningStatement (relation : LogicalRelation logicalWidth publicFits)
       PaperAlgebra.Point PaperAlgebra.Evaluation PaperAlgebra.Commitment where
   constraintSystem := PaperAlgebra.relationSource
     (NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout.layout cubeVariables
-      (Phi81CarrierLayout.carrierWidth logicalWidth) relation.cubeFits)
+      (RingCarrierLayout.carrierWidth logicalWidth) relation.cubeFits)
     relation.system
   commitment := running.commitments i
   publicInput := running.publicInputs i
@@ -127,7 +127,7 @@ def freshStatement (relation : LogicalRelation logicalWidth publicFits)
       PaperAlgebra.Commitment where
   constraintSystem := PaperAlgebra.relationSource
     (NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout.layout cubeVariables
-      (Phi81CarrierLayout.carrierWidth logicalWidth) relation.cubeFits)
+      (RingCarrierLayout.carrierWidth logicalWidth) relation.cubeFits)
     relation.system
   commitment := fresh.commitments ⟨0, by decide⟩
   publicInput := fresh.publicInputs ⟨0, by decide⟩

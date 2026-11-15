@@ -4,15 +4,14 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect
 import NightstreamFPrime.Lifecycle.BoundedDepth.LightStepLayout
 
 /-! The refresh step circuit's layout (CW-3.4b). The step's shared words are those of the light
-step (`LightStepLayout.Interface`) with the 16 Π_DEC children in place of the light proof's
+step (`LightStepLayout.Interface`) with the 14 Π_DEC children in place of the light proof's
 single source: the proof's commitments and evaluation families, and the digit words that split
 the active slot's public input. From a parent offset the layout places today's application
 gadget, the prior state hash with its two slot hashes, the next state hash, today's Π_DEC on the
 active slot, the refresh Π_CCS layout on the children, today's Π_RLC, the new slot's hash and the
 digest select. There is no depth guard, and the new slot's depth word is 0. `soundness` gives
 `RefreshStep.SpecHolds` for the relation of any circuit key, and the digest-select rows. The
-inner and next slots' words are for the finish circuit (`FinishStep`), whose slot select reads
-them; the refresh step's rows do not. -/
+refresh step's rows do not read the inner and next slots' words. -/
 
 namespace NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepLayout
 
@@ -27,7 +26,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.SlotWords
 /-- The step's shared words. -/
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) (witnessWordCount : Nat) where
+      RingCarrierLayout.carrierWidth logicalWidth) (witnessWordCount : Nat) where
   iteration : Expr
   inverse : Expr
   recursive : Expr
@@ -58,10 +57,10 @@ structure Interface (logicalWidth : Nat)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The running source of a Π_DEC child. -/
-def childOf (child : Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex) :
+def childOf (child : Spec.RingRelation.PiDECAlgebra.Radix.ChildIndex) :
     Fin productionShape.runningCount :=
   Fin.cast rfl child
 

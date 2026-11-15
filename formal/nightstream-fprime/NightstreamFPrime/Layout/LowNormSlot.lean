@@ -5,7 +5,7 @@ namespace NightstreamFPrime.Layout.LowNormSlot
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
 
 inductive Kind where
   | bit

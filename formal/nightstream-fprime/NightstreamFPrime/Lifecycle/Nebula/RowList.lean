@@ -1,6 +1,6 @@
 import NightstreamFPrime.Lifecycle.Nebula.RowExprs
 import NightstreamFPrime.Lifecycle.Nebula.PortApp
-import NightstreamFPrime.Spec.GoldilocksPrime
+import NightstreamFPrime.Spec.FieldPrime
 
 /-! Owns the polynomial rows of the memory-application circuit as expressions
 over the witness words: the memory rows, grouped by the spec check that names
@@ -78,8 +78,8 @@ def bitRow (x : Circuit.Expr) : Circuit.Expr := x * (x - 1)
 
 /-- In `F`, `x · (x − 1) = 0` exactly for the bits. -/
 theorem mul_sub_one_eq_zero_iff (x : F) : x * (x - 1) = 0 ↔ IsBit x := by
-  let : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
-  have key : ∀ y : ZMod goldilocksModulus, y * (y - 1) = 0 ↔ y = 0 ∨ y = 1 := fun y => by
+  let : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_natPrime⟩
+  have key : ∀ y : ZMod fieldModulus, y * (y - 1) = 0 ↔ y = 0 ∨ y = 1 := fun y => by
     rw [mul_eq_zero, sub_eq_zero]
   exact key x
 
@@ -116,7 +116,7 @@ def fingerprintRows (a : ℕ → Circuit.Expr) (t g v : Circuit.Expr) : List Cir
 /-- The rows of `next = prod · x` with the cross products `m = prod.c1 · x1`
 and `n = prod.c1 · x0`. -/
 def productRows (prod next : KExpr) (x0 x1 m n : Circuit.Expr) : List Circuit.Expr :=
-  [m - prod.c1 * x1, n - prod.c1 * x0, next.c0 - (prod.c0 * x0 + constE 7 * m),
+  [m - prod.c1 * x1, n - prod.c1 * x0, next.c0 - (prod.c0 * x0 + constE 2 * m),
     next.c1 - (prod.c0 * x1 + n)]
 
 /-- An ungated fingerprint step `next = prod · f` (rows S2 and S3) over the
@@ -174,7 +174,7 @@ def armRows : List Circuit.Expr := joinChecks (armChecks p)
 /-- The long-list branch preserves O7's per-bit rows for arbitrary geometries.
 See `PaddingZero.paddingRows_hold_iff`. -/
 def paddingRows (gate : Circuit.Expr) (bits : List Circuit.Expr) : List Circuit.Expr :=
-  if bits.length < goldilocksModulus then [gate * Expr.sum bits]
+  if bits.length < fieldModulus then [gate * Expr.sum bits]
   else bits.map (fun x => gate * x)
 
 def slotChecks (j : Fin p.bOps) : Checks :=

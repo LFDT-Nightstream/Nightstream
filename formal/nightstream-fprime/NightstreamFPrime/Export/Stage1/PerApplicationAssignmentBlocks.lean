@@ -181,7 +181,7 @@ def canonical (application : ProgramApplication) : List BlockPlan :=
   canonicalKinds.map (BlockPlan.ofKind application)
 
 @[simp] theorem canonical_length (application : ProgramApplication) :
-    (canonical application).length = 26 := by
+    (canonical application).length = 24 := by
   simp [canonical]
 
 theorem canonical_opcodes (application : ProgramApplication) :

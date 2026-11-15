@@ -18,8 +18,9 @@ fn assert_satisfied(relation: &neo_application::R1csRelation<&'static str>, assi
         .expect("gadget assignment must satisfy the relation");
 }
 
+/// The values come from a dense-matrix permutation built from `scripts/poseidon2/params.json`.
 #[test]
-fn native_commitment_retains_the_cross_repository_fixture() {
+fn native_commitment_matches_the_reference_permutation() {
     let f = F::from_u64;
     let previous = [F::ZERO; 4];
     let block = [f(1), f(1), f(2), f(3), f(4), f(5), f(6), f(7)];
@@ -27,10 +28,10 @@ fn native_commitment_retains_the_cross_repository_fixture() {
     assert_eq!(
         first,
         [
-            f(16060384774117980274),
-            f(6217562501851223455),
-            f(9809238410420041413),
-            f(4191298748431046296),
+            f(4192028811650997038),
+            f(9979536453768984863),
+            f(6864770941613403917),
+            f(3747877961716499512),
         ]
     );
 
@@ -48,10 +49,10 @@ fn native_commitment_retains_the_cross_repository_fixture() {
     assert_eq!(
         second,
         [
-            f(2581777910110991851),
-            f(4248944502313846729),
-            f(3337412769805346927),
-            f(12455009736376722043),
+            f(172433684891361549),
+            f(17600081721993912819),
+            f(12647029386074386593),
+            f(2694373790076566404),
         ]
     );
     assert_eq!(

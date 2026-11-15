@@ -2,7 +2,7 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink
 import NightstreamFPrime.Lifecycle.RandomOracle.Uniqueness
 import NightstreamFPrime.Lifecycle.Relation
 import NightstreamFPrime.Spec.Folding.PiRLC.ChainBinding
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.RelaxedBinding
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.RelaxedBinding
 
 /-! The part of the bounded-depth uniqueness step that the light and refresh folds share. The
 extraction target is the walk's `BoundedDepthReverse.Extracted` (`Extracted`): the answer opens
@@ -34,7 +34,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink (Attempt Fol
 attribute [local instance low] Classical.propDecidable
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
 /-- A fresh instance holds under the relation of `key` (the walk's `FreshHolds`). -/
@@ -55,11 +55,11 @@ abbrev Extracted (attempt : Attempt logicalWidth publicFits)
 /-- A relaxed binding collision on the production relation, read on the Ajtai key's relation. -/
 def ajtaiCollision {bound : Nat} {commitment : PaperAlgebra.Commitment}
     (collision : Folding.PiRLC.ChainBinding.CollisionAt (semantics ajtai) productionGlobalParams
-      (Phi81Relation.PiRLCAlgebra.Binding.relaxedOps (shape := FullShape logicalWidth publicFits)
+      (RingRelation.PiRLCAlgebra.Binding.relaxedOps (shape := FullShape logicalWidth publicFits)
         (rows := productionProfile.commitmentWidth)) bound commitment) :
     Folding.PiRLC.ChainBinding.CollisionAt
-      (Phi81Relation.relationSemantics (Phi81Relation.PiRLCAlgebra.Commitment.commit ajtai))
-      productionGlobalParams Phi81Relation.PiRLCAlgebra.Binding.relaxedOps bound commitment where
+      (RingRelation.relationSemantics (RingRelation.PiRLCAlgebra.Commitment.commit ajtai))
+      productionGlobalParams RingRelation.PiRLCAlgebra.Binding.relaxedOps bound commitment where
   collision :=
     { delta₁ := collision.collision.delta₁
       delta₂ := collision.collision.delta₂

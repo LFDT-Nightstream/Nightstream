@@ -71,7 +71,7 @@ theorem forkWitness_ambient
   simpa [piRlcBatch, Nifs.PaperNonInteractive.Key.piCcsOutputs, forkWitness] using extracted
 
 /-- SuperNeo v1.2 Theorem 13 and Lemma 4 for the refresh fold, for any Π_CCS output witness: when
-the Π_DEC input check accepts and the witness satisfies the 17 source claims, the fresh witnesses
+the Π_DEC input check accepts and the witness satisfies the 15 source claims, the fresh witnesses
 satisfy the CCS and the recomposed children open the input accumulator below `B`. -/
 theorem knowledge_of_sourceHolds
     (key : Key K Commitment PublicInput Scalar State shape columns blockCount degreeBound)

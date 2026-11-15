@@ -38,7 +38,7 @@ private theorem k_external_source {value : KExpr}
 private theorem externalInputsSource
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth} :
+      RingCarrierLayout.carrierWidth logicalWidth} :
     Formal.ExternalInputsSupported
       (PiCCSArithmetic.parentInterface logicalWidth publicFits)
       PiCCSInputs.phaseOffset Source := by
@@ -99,7 +99,7 @@ private theorem externalInputsSource
 private theorem sharedInputsSource
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth} :
+      RingCarrierLayout.carrierWidth logicalWidth} :
     Formal.ExternalInputsSupported
       (PiCCSArithmetic.sharedInterface logicalWidth publicFits)
       PiCCSInputs.phaseOffset Source := by
@@ -117,20 +117,20 @@ private theorem fixedLocal_source (start length : Nat)
 
 private theorem initialProgramLength
     (interface : InitialClaim.Interface) (offset : Nat) :
-    (InitialClaim.program interface offset).recipes.length = 12957 := by
+    (InitialClaim.program interface offset).recipes.length = 13437 := by
   unfold InitialClaim.program Horner.Owned.program
   rw [Horner.compile_recipes_length]
   change 3 * ((InitialClaim.coefficientExprs interface offset).length - 1) =
-    12957
+    13437
   rw [InitialClaim.coefficientExprs_length]
 
 private theorem normProgramLength
     (interface : NormTerminal.Interface) (offset : Nat) :
     (Horner.Owned.program (NormTerminal.ownedInterface interface) offset
-      ).recipes.length = 48 := by
+      ).recipes.length = 42 := by
   unfold Horner.Owned.program
   rw [Horner.compile_recipes_length]
-  change 3 * ((NormTerminal.coefficientExprs interface offset).length - 1) = 48
+  change 3 * ((NormTerminal.coefficientExprs interface offset).length - 1) = 42
   rw [NormTerminal.coefficientExprs_length]
 
 private theorem initial_le_initial :
@@ -139,7 +139,7 @@ private theorem initial_le_initial :
   Nat.le_refl _
 
 private theorem initial_finish_le :
-    PiCCSArithmetic.initialClaimLogicalStart + 12957 ≤
+    PiCCSArithmetic.initialClaimLogicalStart + 13437 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.initialClaimLogicalStart
@@ -174,7 +174,7 @@ private theorem initial_le_evalK :
   norm_num
 
 private theorem evalK_finish_le :
-    PiCCSArithmetic.evalKLogicalStart + 2699 ≤
+    PiCCSArithmetic.evalKLogicalStart + 2795 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.evalKLogicalStart
@@ -197,7 +197,7 @@ private theorem initial_le_evalA :
   norm_num
 
 private theorem evalA_finish_le :
-    PiCCSArithmetic.evalALogicalStart + 10475 ≤
+    PiCCSArithmetic.evalALogicalStart + 10859 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.evalALogicalStart
@@ -232,7 +232,7 @@ private theorem initial_le_norm :
   exact Nat.le_trans initial_le_ccs (Nat.le_add_right _ _)
 
 private theorem norm_finish_le :
-    PiCCSArithmetic.normLogicalStart + 48 ≤
+    PiCCSArithmetic.normLogicalStart + 42 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.normLogicalStart
@@ -268,7 +268,7 @@ private theorem final_finish_le :
 theorem emittedConstraints_varsSatisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth} :
+      RingCarrierLayout.carrierWidth logicalWidth} :
     ∀ expression ∈ PiCCSCompleteness.emittedConstraints
         logicalWidth publicFits,
       expression.VarsSatisfy Source := by
@@ -396,7 +396,7 @@ theorem emittedConstraints_varsSatisfy
           PiCCSArithmetic.evalKLogicalStart) → Source index := by
     intro index lower upper
     rw [EvalKTerminal.localLength_eq] at upper
-    apply fixedLocal_source PiCCSArithmetic.evalKLogicalStart 2699
+    apply fixedLocal_source PiCCSArithmetic.evalKLogicalStart 2795
       initial_le_evalK evalK_finish_le index lower upper
   have evalKRoundSupport : ∀ coordinate,
       Horner.KSupported
@@ -435,7 +435,7 @@ theorem emittedConstraints_varsSatisfy
           PiCCSArithmetic.evalALogicalStart) → Source index := by
     intro index lower upper
     rw [EvalATerminal.localLength_eq] at upper
-    apply fixedLocal_source PiCCSArithmetic.evalALogicalStart 10475
+    apply fixedLocal_source PiCCSArithmetic.evalALogicalStart 10859
       initial_le_evalA evalA_finish_le index lower upper
   have evalARoundSupport : ∀ coordinate,
       Horner.KSupported
@@ -604,7 +604,7 @@ theorem emittedConstraints_varsSatisfy
 theorem sourceRows_varsSatisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ∀ row ∈ PiCCSOrdinaryDirectSource.sourceRows logicalWidth publicFits,
       row.VarsSatisfy Target := by
@@ -616,7 +616,7 @@ theorem sourceRows_varsSatisfy
   have endEq :
       freshStart + R1CS.totalFreshCount constraints =
         PiRLCInputs.phaseOffset := by
-    rw [show R1CS.totalFreshCount constraints = 2956 by
+    rw [show R1CS.totalFreshCount constraints = 2862 by
       simpa [constraints] using
         PiCCSCompleteness.emittedConstraints_totalFreshCount relation]
     unfold freshStart PiCCSArithmetic.initialClaimFreshStart
@@ -638,7 +638,7 @@ theorem sourceRows_varsSatisfy
       exact upper
   rw [PiCCSOrdinaryDirectSource.sourceRows,
     PiCCSCompleteness.arithmeticRows_toR1CS_eq relation]
-  apply Spartan.remapRows_varsSatisfy Source Target _ loweredSource
+  apply PackageOrder.remapRows_varsSatisfy Source Target _ loweredSource
   intro column support
   exact source_target column support
 

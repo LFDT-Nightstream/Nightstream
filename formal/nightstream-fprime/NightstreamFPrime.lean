@@ -1,10 +1,11 @@
 import NightstreamFPrime.Spec
 import NightstreamFPrime.Spec.Nebula
+import NightstreamFPrime.Spec.Compression
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkLaw
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
@@ -16,7 +17,7 @@ import NightstreamFPrime.Layout
 import NightstreamFPrime.Export
 import NightstreamFPrime.Spec.Folding.Light.Bound
 import NightstreamFPrime.Spec.Folding.Light.Completeness
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.LightNorm
 import NightstreamFPrime.Spec.Folding.Light.Security
 import NightstreamFPrime.Spec.Folding.Light.Binding
 import NightstreamFPrime.Spec.Folding.Light.RunningBinding
@@ -35,6 +36,14 @@ import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKeys
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 import NightstreamFPrime.Lifecycle.BoundedDepth.State
 import NightstreamFPrime.Lifecycle.BoundedDepth.Keys
+import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot
+import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh
+import NightstreamFPrime.Export.BoundedDepth.FinalVerifier
+import NightstreamFPrime.Export.BoundedDepth.FinalHistory
+import NightstreamFPrime.Lifecycle.RandomOracle.ByteWords
+import NightstreamFPrime.Lifecycle.RandomOracle.WordSchema
+import NightstreamFPrime.Lifecycle.BoundedDepth.ApplicationIdentity
+import NightstreamFPrime.Lifecycle.RandomOracle.Pieces
 import NightstreamFPrime.Lifecycle.RandomOracle.Schedule
 import NightstreamFPrime.Lifecycle.RandomOracle.Test
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshSchedule
@@ -51,6 +60,7 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightUniqueness
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightKnowledge
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshUniqueness
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge
+import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.FoldGate
 import NightstreamFPrime.Lifecycle.RandomOracle.Budgeted
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RomModel
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.Assumption1
@@ -109,7 +119,6 @@ import NightstreamFPrime.Layout.BoundedDepth.RefreshStepCompleteness
 import NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerSource
 import NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCompleteness
 import NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCircuit
-import NightstreamFPrime.Layout.BoundedDepth.FinishAssemblerCompleteness
 import NightstreamFPrime.Layout.BoundedDepth.StepCircuits
 import NightstreamFPrime.Export.Generic.Pieces
 import NightstreamFPrime.Export.Generic.PieceRows
@@ -131,7 +140,7 @@ import NightstreamFPrime.Export.BoundedDepth.IvcWalk
 import NightstreamFPrime.Export.BoundedDepth.RomWalk
 import NightstreamFPrime.Export.BoundedDepth.RandomOracleSetup
 import NightstreamFPrime.Export.BoundedDepth.IvcSecurity
-import NightstreamFPrime.Export.BoundedDepth.FinishWalk
+import NightstreamFPrime.Export.BoundedDepth.VerifierSecurity
 import NightstreamFPrime.Export.BoundedDepth.StepCompleteness
 import NightstreamFPrime.Export.BoundedDepth.NativeCompleteness
 import NightstreamFPrime.Export.BoundedDepth.NativeBooleanCompleteness
@@ -151,8 +160,9 @@ import NightstreamFPrime.Export.BoundedDepth.RunCompleteness
 import NightstreamFPrime.Lifecycle.Nebula.EtaOracle
 import NightstreamFPrime.Lifecycle.Nebula.EtaRound
 import NightstreamFPrime.Export.BoundedDepth.NebulaSecurity
+import NightstreamFPrime.Export.BoundedDepth.NebulaFinal
 import NightstreamFPrime.Export.BoundedDepth.NebulaCompleteness
-import NightstreamFPrime.Export.BoundedDepth.FinishRelation
-import NightstreamFPrime.Export.BoundedDepth.FinishCompleteness
 import NightstreamFPrime.Export.BoundedDepth.Parity
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding
+import NightstreamFPrime.Export.MatrixPassParity
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ChainBinding
+import NightstreamFPrime.Spec.Nebula.SegmentGate

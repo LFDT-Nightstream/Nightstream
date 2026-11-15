@@ -34,7 +34,7 @@ fn witness(rows: usize, columns: usize, bad: Option<usize>) -> (Mat<F>, Vec<i64>
 
 #[test]
 fn packed_split_matches_scalar_balanced_digits_across_column_ranges() {
-    let (rows, columns, k) = (54, 3 * CHUNK_COLUMNS + 5, 16);
+    let (rows, columns, k) = (neo_math::D, 3 * CHUNK_COLUMNS + 5, 16);
     let (z, values) = witness(rows, columns, None);
     let (digits, flags) = split_base2_packed(&z, k).expect("every entry is in range");
     let mut used = vec![false; k];
@@ -59,7 +59,7 @@ fn packed_split_matches_scalar_balanced_digits_across_column_ranges() {
 
 #[test]
 fn packed_split_reports_the_out_of_range_entry() {
-    let (rows, columns) = (54, CHUNK_COLUMNS + 3);
+    let (rows, columns) = (neo_math::D, CHUNK_COLUMNS + 3);
     let (z, _) = witness(rows, columns, Some(7 * columns + CHUNK_COLUMNS + 1));
     assert_eq!(split_base2_packed(&z, 16).err(), Some(7 * columns + CHUNK_COLUMNS + 1));
     let error = super::super::split_b_matrix_k_with_nonzero_flags(&z, 16, 2).unwrap_err();

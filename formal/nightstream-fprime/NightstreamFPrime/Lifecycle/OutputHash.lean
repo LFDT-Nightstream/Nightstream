@@ -42,7 +42,7 @@ def compiledHashLength (interface : Interface) (offset : Nat) : Nat :=
   (Hash.compile offset (interface.preimage offset)).recipes.length
 
 def hashLength (interface : Interface) (offset : Nat) : Nat :=
-  (Hash.inputChunks (interface.preimage offset)).length * 1096 + 1096
+  (interface.preimage offset).length / Spec.Poseidon2.rate * 1096 + 1096
 
 theorem compiledHashLength_eq_hashLength (interface : Interface)
     (offset : Nat) :
@@ -173,7 +173,7 @@ section Relation
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns <=
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 def RepresentsPreimage (interface : Interface) (offset : Nat) (env : Env)
     (preimage : HashPreimage (logicalWidth := logicalWidth)

@@ -10,7 +10,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain
 
 /-! The refresh Π_CCS phase (CW-3.1). Today's production-shape Π_CCS leaves, with the refresh
 statement absorption (`RefreshPiCCS.statementActions`) and the wires of `Wired`, make the refresh
-key's Π_CCS check accept on the 16 Π_DEC children and the fresh instance: SuperNeo v1.2
+key's Π_CCS check accept on the 14 Π_DEC children and the fresh instance: SuperNeo v1.2
 Section 7.3, Step 4, with every source's norm term. The phase also gives the SumCheck point and
 the transcript state after the output binding, which the refresh Π_RLC reads. -/
 
@@ -30,7 +30,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RefreshPiCCS
 the statement absorption. -/
 structure Leaves (logicalWidth degreeBound : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   statement : StatementAbsorption.Interface logicalWidth publicFits
   statementOffset : Nat
   statementFinal : Layer.EState
@@ -57,7 +57,7 @@ structure Leaves (logicalWidth degreeBound : Nat)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
 
 /-- Each leaf's rows hold. The statement absorption is the trace from the refresh fold domain. -/

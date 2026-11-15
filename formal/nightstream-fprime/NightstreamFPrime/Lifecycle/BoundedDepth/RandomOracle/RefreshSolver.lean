@@ -1,22 +1,22 @@
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshUniqueness
 import NightstreamFPrime.Lifecycle.RandomOracle.Solver
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ChainBinding
 
 /-! The refresh fold's MSIS solver in the random-oracle model: `Solver` on the refresh game
 `RefreshFork.game`, with the binding step of `RefreshUniqueness` as the kernel.
 
 The solver sees the adversary only through its run records, so its kernel reads a pair as a
 view (`Reduction.View`). `forkOf` is `RefreshFork.fork` on a valid view: the base response and
-the 17 retry responses on the base batch (SuperNeo v1.2 Appendix B.3), with each retry's opening
+the 15 retry responses on the base batch (SuperNeo v1.2 Appendix B.3), with each retry's opening
 from `retryHoldsOf`, the view form of `RefreshFork.retry_holds`. Every response opens at the
 chain bound (`responsesBoundedOf`). `kernelOf` is `RefreshUniqueness.rerunKernel` on two views,
 and on the views of an adversary the two are equal by definition (`rerunKernel_eq`). So
 `RefreshUniqueness.kernelChance` is the reduction chance of `kernelOf` (`kernelChance_eq`).
 
 `kernelChance_le_solver`: with at most `Q` queries, `budget · (kernelChance − solverChance) ≤
-35Q + 653`, the work bound of the one-circuit solver (`RandomOracleSolver.kernelChance_le_solver`).
-The work is `Solver.work` with 17 `ρ` coordinates and 74 challenges:
-`1 + 2 · 17 · (Q + 17) + (Q + 74)` (`work_eq`). -/
+31Q + 523`, the work bound of the one-circuit solver (`RandomOracleSolver.kernelChance_le_solver`).
+The work is `Solver.work` with 15 `ρ` coordinates and 72 challenges:
+`1 + 2 · 15 · (Q + 15) + (Q + 72)` (`work_eq`). -/
 
 set_option autoImplicit false
 
@@ -39,11 +39,11 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink (Attempt)
 attribute [local instance low] Classical.propDecidable
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
 variable (logicalWidth publicFits) in
-/-- A view of the refresh game: a base run and its 17 retries. -/
+/-- A view of the refresh game: a base run and its 15 retries. -/
 abbrev View :=
   Reduction.View (RefreshSchedule.schedule logicalWidth publicFits) 8
     (Attempt logicalWidth publicFits)
@@ -137,7 +137,7 @@ variable (key : CircuitKey logicalWidth publicFits)
 /-- `RefreshUniqueness.rerunKernel` on two views: when the extracted witnesses differ at a
 coordinate, `PiRLC.ChainBinding.forkCollision` at the chain bound. -/
 noncomputable def kernelOf (view other : View logicalWidth publicFits) :
-    Option (Phi81Relation.PiRLCAlgebra.Binding.ShortKernelVector ajtai
+    Option (RingRelation.PiRLCAlgebra.Binding.ShortKernelVector ajtai
       (Folding.Schedule.msisChainBound productionGlobalParams
         Folding.Schedule.productionLightFoldCap)) :=
   if paired : Reduction.ValidOf (RefreshFork.game ajtai key) view ∧
@@ -150,7 +150,7 @@ noncomputable def kernelOf (view other : View logicalWidth publicFits) :
             RefreshFork.strongSet (forkOf ajtai paired.1) coordinate ≠
           extractedAssignment (normFreeLaws (PaperExtractionAlgebra.extractionAlgebra ajtai))
             RefreshFork.strongSet (forkOf ajtai paired.2.1) coordinate then
-      some (Phi81Relation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel ajtai _ le_rfl
+      some (RingRelation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel ajtai _ le_rfl
         (UniquenessLink.ajtaiCollision ajtai (PiRLC.ChainBinding.forkCollision
           (PaperExtractionAlgebra.extractionAlgebra ajtai) _
           (Nifs.BindingBridge.compatible key.relation ajtai) RefreshFork.strongSet
@@ -190,7 +190,7 @@ theorem kernelChance_eq :
 /-- The refresh MSIS solver: `Reduction.solve` with kernel `kernelOf`. -/
 noncomputable def solve (budget : ℕ)
     (tape : Fin budget → RefreshFork.Oracle logicalWidth publicFits) :
-    Option (Phi81Relation.PiRLCAlgebra.Binding.ShortKernelVector ajtai
+    Option (RingRelation.PiRLCAlgebra.Binding.ShortKernelVector ajtai
       (Folding.Schedule.msisChainBound productionGlobalParams
         Folding.Schedule.productionLightFoldCap)) :=
   Reduction.solve (RefreshFork.game ajtai key) (kernelOf ajtai key) adversary budget tape
@@ -201,18 +201,18 @@ noncomputable def solverChance (budget : ℕ) : ℝ :=
 
 theorem work_eq (queries : Nat) :
     Solver.work (RefreshSchedule.schedule logicalWidth publicFits) queries =
-      35 * queries + 653 := by
+      31 * queries + 523 := by
   unfold Solver.work
   rw [RefreshTest.challenges_length]
-  show 1 + 2 * 17 * (queries + 17) + (queries + 74) = 35 * queries + 653
+  show 1 + 2 * 15 * (queries + 15) + (queries + 72) = 31 * queries + 523
   omega
 
 /-- The refresh kernel chance is at most the refresh solver's chance plus
-`(35Q + 653) / budget`. -/
+`(31Q + 523) / budget`. -/
 theorem kernelChance_le_solver {queries : Nat} (bounded : adversary.QueryBound queries)
     (budget : ℕ) :
     budget * (RefreshUniqueness.kernelChance ajtai key adversary -
-        solverChance ajtai key adversary budget) ≤ 35 * queries + 653 := by
+        solverChance ajtai key adversary budget) ≤ 31 * queries + 523 := by
   have bound := Solver.reductionChance_le_solver (RefreshFork.game ajtai key) adversary
     (kernelOf ajtai key) bounded budget
   rw [work_eq] at bound

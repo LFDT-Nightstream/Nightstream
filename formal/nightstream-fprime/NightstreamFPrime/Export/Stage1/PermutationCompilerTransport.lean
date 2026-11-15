@@ -373,9 +373,9 @@ theorem compileConstraintsHold_of_transport (leftEnv rightEnv : Env)
 theorem invocation_complete_of_sourceConstraints
     (phase rowStart witnessStart : Nat) (state : Permutation.EState)
     (env : Env)
-    (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
+    (witnessLocal : PackageOrder.piCcsPhaseOffset ≤ witnessStart)
     (stateAffine : NightstreamFPrime.Layout.Poseidon2.StateAffine state)
-    (sourceHolds : ConstraintsHold (Spartan.pullback env)
+    (sourceHolds : ConstraintsHold (PackageOrder.pullback env)
       (recipeConstraints witnessStart
         (Permutation.compile witnessStart state Permutation.schedule).recipes)) :
     PermutationInvocationHolds (PilotData.circuitPackage ())
@@ -385,12 +385,12 @@ theorem invocation_complete_of_sourceConstraints
   unfold PilotData.canonicalConstraints PilotData.canonicalRecipes
   apply compileConstraintsHold_of_transport
     (NightstreamFPrime.Export.Pilot.canonicalInvocationEnv current env)
-    (Spartan.pullback env) 16 witnessStart PilotData.canonicalState state
+    (PackageOrder.pullback env) 16 witnessStart PilotData.canonicalState state
     Permutation.schedule
   · funext lane
     change NightstreamFPrime.Export.Pilot.canonicalInvocationEnv current env
         lane.val =
-      (state lane).eval (Spartan.pullback env)
+      (state lane).eval (PackageOrder.pullback env)
     rw [NightstreamFPrime.Export.Pilot.canonicalInvocationEnv_input]
     have selected : invocationInputCombination current lane.val =
         inputCombination (state lane) := by
@@ -404,9 +404,9 @@ theorem invocation_complete_of_sourceConstraints
     exact inputCombination_eval (stateAffine lane) env
   · intro index _
     rw [NightstreamFPrime.Export.Pilot.canonicalInvocationEnv_local]
-    change env (Spartan.sourceToSpartan witnessStart + index) =
-      env (Spartan.sourceToSpartan (witnessStart + index))
-    rw [Spartan.sourceToSpartan_add_of_piCcsLocal witnessStart index
+    change env (PackageOrder.sourceToPackage witnessStart + index) =
+      env (PackageOrder.sourceToPackage (witnessStart + index))
+    rw [PackageOrder.sourceToPackage_add_of_piCcsLocal witnessStart index
       witnessLocal]
   · exact sourceHolds
 

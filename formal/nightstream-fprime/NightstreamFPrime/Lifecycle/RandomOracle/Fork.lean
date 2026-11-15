@@ -1,7 +1,7 @@
 import Mathlib.Algebra.Order.Archimedean.Real.Basic
 import NightstreamFPrime.Lifecycle.RandomOracle.Test
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Law
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Challenge
 
 /-! The fork step of the random-oracle chain for any fold transcript `Schedule`: the step that
 `RandomOracleExtraction` states for the one-circuit fold. An oracle answer at a `ρ` point is one
@@ -43,15 +43,15 @@ open Spec.Folding.Nifs.NonInteractive.PiRlcSampler (sample)
 
 /-- The `ρ` challenge of one oracle answer: the production sampler's scalar of the draw. -/
 def readRho (answer : Answer) : RingF :=
-  Phi81StrongSet.embedScalar (sample answer)
+  RingStrongSet.embedScalar (sample answer)
 
 theorem readRho_valid (answer : Answer) :
-    Phi81Relation.PiRLCAlgebra.Challenge.challengeValid (readRho answer) :=
+    RingRelation.PiRLCAlgebra.Challenge.challengeValid (readRho answer) :=
   ⟨_, rfl⟩
 
 theorem readRho_eq_iff (left right : Answer) :
     readRho left = readRho right ↔ sample left = sample right :=
-  Phi81StrongSet.embedScalar_injective.eq_iff
+  RingStrongSet.embedScalar_injective.eq_iff
 
 /-- The sponge's `ρ` read is `readRho` of the state's sampler block. -/
 theorem sponge_readRho (state : Transcript.State) :
@@ -69,13 +69,13 @@ theorem sampleError_nonnegative : 0 ≤ sampleError := by
   have := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_nonnegative
   positivity
 
-theorem fiber_mass_le (scalar : Phi81StrongSet.Scalar) :
+theorem fiber_mass_le (scalar : RingStrongSet.Scalar) :
     mass {answer : Answer | sample answer = scalar} ≤ sampleError := by
   open Spec.Folding.Nifs.NonInteractive.PiRlcSampler in
   have card : Fintype.card Answer = drawCount := by
     simp only [Fintype.card_fun, Fintype.card_fin]
     rfl
-  let test : Phi81StrongSet.Scalar → ℝ := fun value => if value = scalar then 1 else 0
+  let test : RingStrongSet.Scalar → ℝ := fun value => if value = scalar then 1 else 0
   have sampled : mass {answer : Answer | sample answer = scalar} = sampledExpect test := by
     unfold mass sampledExpect
     rw [Finset.expect_eq_sum_div_card, Finset.card_univ, card]
@@ -108,7 +108,7 @@ noncomputable def rho (oracle : Point schedule width → Answer) (statement : sc
 
 theorem rho_valid (oracle : Point schedule width → Answer) (statement : schedule.Statement)
     (messages : schedule.Messages width) (index : Fin schedule.rhoCount) :
-    Phi81Relation.PiRLCAlgebra.Challenge.challengeValid (rho oracle statement messages index) :=
+    RingRelation.PiRLCAlgebra.Challenge.challengeValid (rho oracle statement messages index) :=
   readRho_valid _
 
 /-- Equal `ρ` points have equal statements and messages (`Schedule.proverCalls_identify`). -/

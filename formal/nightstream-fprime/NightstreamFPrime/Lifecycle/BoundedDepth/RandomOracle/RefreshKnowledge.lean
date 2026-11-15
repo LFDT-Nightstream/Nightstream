@@ -7,11 +7,11 @@ A valid pair extracts (`Extracts`) when its answer gives the walk's `Extracted` 
 attempt: the input claim at the refresh bound `B` and the fresh instance. A valid pair extracts
 or fails (`splits`, `RefreshUniqueness.extracted_of_truth`). `knowledge_error_le`: a successful
 run extracts, weighted by the retry law, except with `knowledgeError`, the sum of the
-statistical error (`statisticalError`: `17 · (Q + 17) · sampleError` for the fork step and
-`(Q + 74) · 4589/q²` for the test step), the prior-state collision chances of the fork step
+statistical error (`statisticalError`: `15 · (Q + 15) · sampleError` for the fork step and
+`(Q + 1) · 4747/q²` for the test step), the prior-state collision chances of the fork step
 (`RefreshFork.collisionChance`) and the uniqueness step (`stateChance`), and the kernel chance
 (`RefreshUniqueness.kernelChance`). `statisticalError_le`: the statistical error is at most
-`(Q + 74) · 50/(87 · 2^115)`, the bound of the one-circuit fold. -/
+`(Q + 1) · 4748/2^128`. -/
 
 set_option autoImplicit false
 
@@ -31,51 +31,50 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshUniqueness (Re
 
 attribute [local instance low] Classical.propDecidable
 
-/-- The statistical error of the refresh fold: `17 · (Q + 17) · sampleError` for the fork step
-and `(Q + 74) · 4589/q²` for the test step. -/
+/-- The statistical error of the refresh fold: `15 · (Q + 15) · sampleError` for the fork step
+and `(Q + 1) · 4747/q²` for the test step. -/
 noncomputable def statisticalError (queries : Nat) : ℝ :=
-  17 * (((queries + 17 : Nat) : ℝ) * Fork.sampleError) +
-    ((queries + 74 : Nat) : ℝ) * ((4589 : ℝ) / (goldilocksModulus : ℝ) ^ 2)
+  15 * (((queries + 15 : Nat) : ℝ) * Fork.sampleError) +
+    ((queries + 1 : Nat) : ℝ) * ((4747 : ℝ) / (fieldModulus : ℝ) ^ 2)
 
 theorem statisticalError_eq {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+    {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
     (queries : Nat) :
     Uniqueness.statisticalError (RefreshSchedule.schedule logicalWidth publicFits) 8 queries =
       statisticalError queries := by
   have test : IndependentExecution.testError
       (RefreshSchedule.schedule logicalWidth publicFits).shape 8 =
-        (4589 : ℝ) / (goldilocksModulus : ℝ) ^ 2 :=
+        (4747 : ℝ) / (fieldModulus : ℝ) ^ 2 :=
     Nifs.VerifierErrorBudget.test_error_eq
   unfold Uniqueness.statisticalError statisticalError
-  rw [test, RefreshTest.challenges_length]
-  show ((17 : Nat) : ℝ) * (((queries + 17 : Nat) : ℝ) * Fork.sampleError) + _ = _
+  rw [test]
+  show ((15 : Nat) : ℝ) * (((queries + 15 : Nat) : ℝ) * Fork.sampleError) + _ = _
   norm_num
 
-/-- The statistical error is at most `(Q + 74) · 50/(87 · 2^115)`. -/
+/-- The statistical error is at most `(Q + 1) · 4748/2^128`: `15 · (Q + 15) ≤ 225 · (Q + 1)`. -/
 theorem statisticalError_le (queries : Nat) :
-    statisticalError queries ≤ ((queries : ℝ) + 74) * (50 / (87 * 2 ^ 115)) := by
-  have sample : Fork.sampleError < 1 / 5 ^ 54 + 1 / 2 ^ 132 := by
+    statisticalError queries ≤ ((queries : ℝ) + 1) * (4748 / 2 ^ 128) := by
+  have sample : Fork.sampleError < 1 / 5 ^ 64 + 1 / 2 ^ 173 := by
     have distance := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt
-    have count : (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.scalarCount : ℝ) = 5 ^ 54 := by
+    have count : (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.scalarCount : ℝ) = 5 ^ 64 := by
       norm_num [Spec.Folding.Nifs.NonInteractive.PiRlcSampler.scalarCount,
-        Phi81StrongSet.alphabetSize, Phi81StrongSet.coefficientCount]
+        RingStrongSet.alphabetSize, RingStrongSet.coefficientCount, ringDegree]
     unfold Fork.sampleError
     rw [count]
     linarith
-  have perQuery : 17 * Fork.sampleError + (4589 : ℝ) / (goldilocksModulus : ℝ) ^ 2 <
-      50 / (87 * 2 ^ 115) := by
-    have numbers : (17 : ℝ) * (1 / 5 ^ 54 + 1 / 2 ^ 132) +
-        4589 / (goldilocksModulus : ℝ) ^ 2 < 50 / (87 * 2 ^ 115) := by
-      norm_num [goldilocksModulus]
+  have perQuery : 225 * Fork.sampleError + (4747 : ℝ) / (fieldModulus : ℝ) ^ 2 <
+      4748 / 2 ^ 128 := by
+    have numbers : (225 : ℝ) * (1 / 5 ^ 64 + 1 / 2 ^ 173) +
+        4747 / (fieldModulus : ℝ) ^ 2 < 4748 / 2 ^ 128 := by
+      norm_num [fieldModulus]
     linarith
   have sampleNonnegative := Fork.sampleError_nonnegative
-  have testNonnegative : (0 : ℝ) ≤ 4589 / (goldilocksModulus : ℝ) ^ 2 := by positivity
   have queriesNonnegative : (0 : ℝ) ≤ queries := Nat.cast_nonneg queries
   unfold statisticalError
   push_cast
   calc
-    _ ≤ ((queries : ℝ) + 74) *
-        (17 * Fork.sampleError + (4589 : ℝ) / (goldilocksModulus : ℝ) ^ 2) := by
+    _ ≤ ((queries : ℝ) + 1) *
+        (225 * Fork.sampleError + (4747 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
       nlinarith
     _ ≤ _ := mul_le_mul_of_nonneg_left perQuery.le (by positivity)
 
@@ -84,7 +83,7 @@ theorem statisticalError_two_pow_64 : statisticalError (2 ^ 64) < 1 / 2 ^ 51 := 
   norm_num
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (key : CircuitKey logicalWidth publicFits)
   (adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 8) Answer

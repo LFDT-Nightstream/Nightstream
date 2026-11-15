@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectPlan
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptDirectSemantics
 import NightstreamFPrime.Export.Stage1.InvocationLastOutput
 import NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan
-import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.Stage1.PackageOrderValues
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
 
@@ -45,7 +45,7 @@ private theorem statementActions_positive :
   have count := PiCCSInvocations.statementInvocationCount_eq
     Data.logicalWidth Data.publicFits
   change Invocations.invocationCount
-    PiCCSActionPayloadBlock.statementActions = 123 at count
+    PiCCSActionPayloadBlock.statementActions = 124 at count
   omega
 
 private theorem challengeActions_positive :
@@ -63,7 +63,7 @@ private theorem outputActions_positive :
   have count := PiCCSInvocations.outputInvocationCount_eq
     Data.logicalWidth Data.publicFits
   change Invocations.invocationCount
-    PiCCSActionPayloadBlock.outputActions = 765 at count
+    PiCCSActionPayloadBlock.outputActions = 800 at count
   omega
 
 def endpointInvocation (family : Fin familyCount) :
@@ -106,7 +106,7 @@ private theorem statementTrace_state_endpoint (lane : Fin laneCount) :
           (Invocations.invocationCount
             PiCCSActionPayloadBlock.statementActions - 1) * 1096) at compiled
   have count : Invocations.invocationCount
-      PiCCSActionPayloadBlock.statementActions = 123 := by
+      PiCCSActionPayloadBlock.statementActions = 124 := by
     exact PiCCSInvocations.statementInvocationCount_eq
       Data.logicalWidth Data.publicFits
   have endEq := PiCCSInvocations.statementEnd_eq_challengeStart
@@ -114,7 +114,7 @@ private theorem statementTrace_state_endpoint (lane : Fin laneCount) :
   rw [count] at compiled
   rw [PiCCSInvocations.statementInvocationCount_eq] at endEq
   have startEq :
-      PiCCSInvocations.statementWitnessStart + (123 - 1) * 1096 + 1080 =
+      PiCCSInvocations.statementWitnessStart + (124 - 1) * 1096 + 1080 =
         PiCCSInvocations.challengeWitnessStart - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.statementWitnessStart = start
@@ -205,7 +205,7 @@ private theorem outputTrace_state_endpoint (lane : Fin laneCount) :
           (Invocations.invocationCount PiCCSActionPayloadBlock.outputActions - 1) *
             1096) at compiled
   have count : Invocations.invocationCount
-      PiCCSActionPayloadBlock.outputActions = 765 := by
+      PiCCSActionPayloadBlock.outputActions = 800 := by
     exact PiCCSInvocations.outputInvocationCount_eq
       Data.logicalWidth Data.publicFits
   have endEq := PiCCSInvocations.outputEnd_eq_logicalFreshBase
@@ -213,7 +213,7 @@ private theorem outputTrace_state_endpoint (lane : Fin laneCount) :
   rw [count] at compiled
   rw [PiCCSInvocations.outputInvocationCount_eq] at endEq
   have startEq :
-      PiCCSInvocations.outputWitnessStart + (765 - 1) * 1096 + 1080 =
+      PiCCSInvocations.outputWitnessStart + (800 - 1) * 1096 + 1080 =
         PiCCSStarts.logicalFreshBase - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.outputWitnessStart = start
@@ -224,12 +224,12 @@ private theorem outputTrace_state_endpoint (lane : Fin laneCount) :
   rw [startEq]
 
 theorem endpointColumn_lt_source (family : Fin familyCount)
-    (lane : Fin laneCount) : endpointColumn family lane < Spartan.SourceColumnCount := by
+    (lane : Fin laneCount) : endpointColumn family lane < PackageOrder.SourceColumnCount := by
   have familyBound := family.isLt
   have laneBound := lane.isLt
   change lane.val < 16 at laneBound
   unfold endpointColumn endpointStart familyCount laneCount
-  rw [Spartan.sourceColumnCount_eq]
+  rw [PackageOrder.sourceColumnCount_eq]
   split <;> try split <;> try split
   all_goals
     try simp only [PiCCSInvocations.challengeWitnessStart,
@@ -246,11 +246,11 @@ theorem endpointColumn_lt_source (family : Fin familyCount)
 def endpointTranscriptInvocation (family : Fin familyCount) :
     Fin PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount :=
   if family.val = 0 then
-    ⟨122, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+    ⟨123, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
   else if family.val = 1 then
-    ⟨126, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+    ⟨127, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
   else
-    ⟨182, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
+    ⟨183, by rw [PiCCSOrdinaryRetainedBlocks.transcriptInvocationCount_eq]; omega⟩
 
 def endpointTranscriptIndex (family : Fin familyCount) (lane : Fin laneCount) :
     Fin PiCCSOrdinaryRetainedBlocks.transcriptOutputCount :=
@@ -291,8 +291,8 @@ def proofLogicalIndex (family : Fin familyCount) (_notOutput : family.val ≠ 3)
 
 private theorem packageSourceColumn_congr
     (program : Lifecycle.Stage1.Application.Program)
-    (left right : Nat) (leftBound : left < Spartan.SourceColumnCount)
-    (rightBound : right < Spartan.SourceColumnCount) (same : left = right) :
+    (left right : Nat) (leftBound : left < PackageOrder.SourceColumnCount)
+    (rightBound : right < PackageOrder.SourceColumnCount) (same : left = right) :
     RunningTransitionRetainedBlocks.packageSourceColumn program left leftBound =
       RunningTransitionRetainedBlocks.packageSourceColumn program right
         rightBound := by
@@ -731,7 +731,7 @@ theorem transcriptEnv_eq_transitionEnv_of_lt
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
-    (column : Nat) (bound : column < Spartan.spartanColumnCount) :
+    (column : Nat) (bound : column < PackageOrder.packageColumnCount) :
     transcriptEnv program base groupValue column =
       RunningTransitionDirectPlan.transitionEnv program base column := by
   exact PiCCSPoseidonPreservation.readout_sourceAssignment
@@ -747,7 +747,7 @@ private theorem zeroState_eq_evalZero (env : Env) :
 theorem statementActions_eq_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+      RingCarrierLayout.carrierWidth relationLogicalWidth) :
     PiCCSInvocations.statementActions relationLogicalWidth
         relationPublicFits =
       PiCCSActionPayloadBlock.statementActions := by
@@ -756,7 +756,7 @@ theorem statementActions_eq_of_shape
 private theorem statementTrace_state_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+      RingCarrierLayout.carrierWidth relationLogicalWidth)
     (lane : Fin laneCount) :
     (PiCCSInvocations.statementTrace relationLogicalWidth
       relationPublicFits).state lane =
@@ -785,7 +785,7 @@ private theorem statementTrace_state_endpoint_of_shape
     relationLogicalWidth relationPublicFits
   rw [count] at compiled endEq
   have startEq :
-      PiCCSInvocations.statementWitnessStart + (123 - 1) * 1096 + 1080 =
+      PiCCSInvocations.statementWitnessStart + (124 - 1) * 1096 + 1080 =
         PiCCSInvocations.challengeWitnessStart - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.statementWitnessStart = start
@@ -799,7 +799,7 @@ private theorem statementTrace_state_endpoint_of_shape
 theorem statementFinalState_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+      RingCarrierLayout.carrierWidth relationLogicalWidth)
     (lane : Fin laneCount) :
     StatementAbsorption.finalState
         (PiCCSInvocations.statementInterface relationLogicalWidth
@@ -817,7 +817,7 @@ theorem statementFinalState_endpoint_of_shape
 theorem challengeActions_eq_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+      RingCarrierLayout.carrierWidth relationLogicalWidth) :
     ChallengeDerivation.actions
         (PiCCSInvocations.challengeInterface relationLogicalWidth
           relationPublicFits)
@@ -828,7 +828,7 @@ theorem challengeActions_eq_of_shape
 private theorem challengeTrace_state_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+      RingCarrierLayout.carrierWidth relationLogicalWidth)
     (lane : Fin laneCount) :
     (PiCCSInvocations.challengeTrace relationLogicalWidth
       relationPublicFits).state lane =
@@ -884,7 +884,7 @@ private theorem challengeTrace_state_endpoint_of_shape
 theorem challengeFinalState_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+      RingCarrierLayout.carrierWidth relationLogicalWidth)
     (lane : Fin laneCount) :
     ChallengeDerivation.finalState
         (PiCCSInvocations.challengeInterface relationLogicalWidth
@@ -902,7 +902,7 @@ theorem challengeFinalState_endpoint_of_shape
 theorem roundActions_eq_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+      RingCarrierLayout.carrierWidth relationLogicalWidth) :
     RoundTranscript.actions
         (PiCCSInvocations.roundInterface relationLogicalWidth
           relationPublicFits)
@@ -913,7 +913,7 @@ theorem roundActions_eq_of_shape
 private theorem roundTrace_state_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+      RingCarrierLayout.carrierWidth relationLogicalWidth)
     (lane : Fin laneCount) :
     (PiCCSInvocations.roundTrace relationLogicalWidth
       relationPublicFits).state lane =
@@ -967,7 +967,7 @@ private theorem roundTrace_state_endpoint_of_shape
 theorem roundFinalState_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+      RingCarrierLayout.carrierWidth relationLogicalWidth)
     (lane : Fin laneCount) :
     RoundTranscript.finalState
         (PiCCSInvocations.roundInterface relationLogicalWidth
@@ -985,7 +985,7 @@ theorem roundFinalState_endpoint_of_shape
 theorem outputActions_eq_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+      RingCarrierLayout.carrierWidth relationLogicalWidth) :
     PiCCSInvocations.outputActions relationLogicalWidth relationPublicFits =
       PiCCSActionPayloadBlock.outputActions := by
   rfl
@@ -993,7 +993,7 @@ theorem outputActions_eq_of_shape
 private theorem outputTrace_state_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+      RingCarrierLayout.carrierWidth relationLogicalWidth)
     (lane : Fin laneCount) :
     (PiCCSInvocations.outputTrace relationLogicalWidth
       relationPublicFits).state lane =
@@ -1023,7 +1023,7 @@ private theorem outputTrace_state_endpoint_of_shape
     relationLogicalWidth relationPublicFits
   rw [count] at compiled endEq
   have startEq :
-      PiCCSInvocations.outputWitnessStart + (765 - 1) * 1096 + 1080 =
+      PiCCSInvocations.outputWitnessStart + (800 - 1) * 1096 + 1080 =
         PiCCSStarts.logicalFreshBase - 16 := by
     rw [← endEq]
     generalize PiCCSInvocations.outputWitnessStart = start
@@ -1036,7 +1036,7 @@ private theorem outputTrace_state_endpoint_of_shape
 private theorem outputTrace_state_matches_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+      RingCarrierLayout.carrierWidth relationLogicalWidth) :
     (PiCCSInvocations.outputTrace relationLogicalWidth
       relationPublicFits).state =
       OutputBinding.finalState
@@ -1054,7 +1054,7 @@ private theorem outputTrace_state_matches_of_shape
 theorem outputFinalState_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth)
+      RingCarrierLayout.carrierWidth relationLogicalWidth)
     (lane : Fin laneCount) :
     OutputBinding.finalState
         (PiCCSInvocations.outputInterface relationLogicalWidth
@@ -1072,7 +1072,7 @@ theorem outputFinalState_endpoint_of_shape
 theorem roundInitialState_eq_challengeFinalState_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+      RingCarrierLayout.carrierWidth relationLogicalWidth) :
     (PiCCSInvocations.roundInterface relationLogicalWidth
       relationPublicFits).initialState PiCCSInvocations.roundWitnessStart =
       ChallengeDerivation.finalState
@@ -1097,7 +1097,7 @@ theorem roundInitialState_eq_challengeFinalState_of_shape
 theorem outputInitialState_eq_roundFinalState_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth) :
+      RingCarrierLayout.carrierWidth relationLogicalWidth) :
     (PiCCSInvocations.outputInterface relationLogicalWidth
       relationPublicFits).initialState PiCCSInvocations.outputWitnessStart =
       RoundTranscript.finalState
@@ -1234,10 +1234,10 @@ theorem transcriptOutputs_of_encoding
     PiCCSOrdinaryRetainedBlocks.proofLogicalSource_transcriptOutput] at value
   rw [value]
   change transcriptEnv program base groupValue
-      (Spartan.sourceToSpartan
+      (PackageOrder.sourceToPackage
         (PiCCSOrdinaryRetainedBlocks.transcriptOutputSource slot)) = _
   exact transcriptEnv_eq_transitionEnv_of_lt program base groupValue _
-    (Spartan.sourceToSpartan_lt _
+    (PackageOrder.sourceToPackage_lt _
       (PiCCSOrdinaryRetainedBlocks.transcriptOutputSource_lt slot))
 
 theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
@@ -1258,14 +1258,14 @@ theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
       have state : StatementAbsorption.finalState
           (PiCCSInvocations.statementInterface Data.logicalWidth Data.publicFits)
           PiCCSInvocations.statementWitnessStart =
-            Invocations.permutationOutput (PiCCSStarts.statementWitnessStart + 122 * 1096) := by
+            Invocations.permutationOutput (PiCCSStarts.statementWitnessStart + 123 * 1096) := by
         rw [← endpoint_permutationOutput statementFamily _ (by
           change PiCCSStarts.challengeWitnessStart - 16 = _
           omega)]
         funext lane
         exact statementFinalState_endpoint_of_shape Data.logicalWidth
           Data.publicFits lane
-      rw [state, outputs 122 (by
+      rw [state, outputs 123 (by
         rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]; omega)]
       simp [PiCCSTranscriptDirectSemantics.sliceState,
         PoseidonActionSemantics.stateAfter, PoseidonActionSemantics.sliceInitial,
@@ -1273,10 +1273,10 @@ theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
     · intro index bound
       rw [PiCCSActionPayloadBlock.challengeInvocationCount_eq] at bound
       have position : PiCCSInvocations.challengeWitnessStart + index * 1096 =
-          PiCCSStarts.statementWitnessStart + (123 + index) * 1096 := by
+          PiCCSStarts.statementWitnessStart + (124 + index) * 1096 := by
         change PiCCSStarts.challengeWitnessStart + index * 1096 = _
         omega
-      rw [position, outputs (123 + index) (by
+      rw [position, outputs (124 + index) (by
         rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]; omega)]
       simp [PiCCSTranscriptDirectSemantics.sliceState,
         PoseidonActionSemantics.stateAfter, PoseidonActionSemantics.sliceOutput,
@@ -1296,14 +1296,14 @@ theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
       have state : ChallengeDerivation.finalState
           (PiCCSInvocations.challengeInterface Data.logicalWidth Data.publicFits)
           PiCCSInvocations.challengeWitnessStart =
-            Invocations.permutationOutput (PiCCSStarts.statementWitnessStart + 126 * 1096) := by
+            Invocations.permutationOutput (PiCCSStarts.statementWitnessStart + 127 * 1096) := by
         rw [← endpoint_permutationOutput challengeFamily _ (by
           change PiCCSStarts.roundTranscriptWitnessStart - 16 = _
           omega)]
         funext lane
         exact challengeFinalState_endpoint_of_shape Data.logicalWidth
           Data.publicFits lane
-      rw [state, outputs 126 (by
+      rw [state, outputs 127 (by
         rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]; omega)]
       simp [PiCCSTranscriptDirectSemantics.sliceState,
         PoseidonActionSemantics.stateAfter, PoseidonActionSemantics.sliceInitial,
@@ -1311,10 +1311,10 @@ theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
     · intro index bound
       rw [PiCCSActionPayloadBlock.roundInvocationCount_eq] at bound
       have position : PiCCSInvocations.roundWitnessStart + index * 1096 =
-          PiCCSStarts.statementWitnessStart + (127 + index) * 1096 := by
+          PiCCSStarts.statementWitnessStart + (128 + index) * 1096 := by
         change PiCCSStarts.roundTranscriptWitnessStart + index * 1096 = _
         omega
-      rw [position, outputs (127 + index) (by
+      rw [position, outputs (128 + index) (by
         rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]; omega)]
       simp [PiCCSTranscriptDirectSemantics.sliceState,
         PoseidonActionSemantics.stateAfter, PoseidonActionSemantics.sliceOutput,
@@ -1327,24 +1327,24 @@ theorem traces_and_endpoints_imply_transcriptSpecs
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
     (env : Env)
     (traces : PiCCSTranscriptDirectSemantics.Traces poseidonGeometry assignment
-      (Spartan.pullback env))
+      (PackageOrder.pullback env))
     (endpoints : ∀ family,
       PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
           (endpointInvocation family) =
         List.ofFn fun lane : Fin laneCount =>
-          Spartan.pullback env (endpointColumn family lane)) :
+          PackageOrder.pullback env (endpointColumn family lane)) :
     PiCCSInvocations.TranscriptSpecs relationLogicalWidth relationPublicFits env := by
   have endpointFinal (family : Fin familyCount) (finalState : Layer.EState)
       (finalEndpoint : ∀ lane : Fin laneCount,
         finalState lane = Expr.var (endpointColumn family lane)) :
       PiCCSPoseidonPreservation.valueState poseidonGeometry assignment
           (endpointInvocation family) =
-        List.ofFn (Layer.evalState (Spartan.pullback env) finalState) := by
+        List.ofFn (Layer.evalState (PackageOrder.pullback env) finalState) := by
     rw [endpoints family]
     apply congrArg List.ofFn
     funext lane
@@ -1387,7 +1387,7 @@ theorem traces_and_endpoints_imply_transcriptSpecs
   · unfold StatementAbsorption.SpecHolds
     have trace := traces.statement
     rw [statementEndpoint] at trace
-    rw [zeroState_eq_evalZero (Spartan.pullback env)] at trace
+    rw [zeroState_eq_evalZero (PackageOrder.pullback env)] at trace
     simpa [PiCCSActionPayloadBlock.statementActions,
       PiCCSInvocations.statementActions] using! trace
   · apply ChallengeDerivation.trace_implies_specHolds
@@ -1399,7 +1399,7 @@ theorem traces_and_endpoints_imply_transcriptSpecs
   · apply (RoundTranscript.trace_iff_specHolds
       (PiCCSInvocations.roundInterface relationLogicalWidth relationPublicFits)
       PiCCSInvocations.roundWitnessStart
-      (Spartan.pullback env)).mp
+      (PackageOrder.pullback env)).mp
     have trace := traces.rounds
     rw [challengeEndpoint, roundEndpoint] at trace
     rw [← roundInitialState_eq_challengeFinalState_of_shape

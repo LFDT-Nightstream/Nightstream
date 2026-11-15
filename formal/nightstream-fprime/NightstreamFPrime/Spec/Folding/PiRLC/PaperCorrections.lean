@@ -1,12 +1,12 @@
 import NightstreamFPrime.Spec.Profile
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Norm.Centered
 
 /-! Corrected SuperNeo v1.2 Appendix B.3. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiRLC.PaperCorrections
 
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm
+open NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Norm
 
 universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment
 
@@ -39,7 +39,7 @@ def CorrectedAmbientHolds
     semantics.evaluations statement.constraintSystem assignment statement.point =
       statement.evaluations
 
-def literalAmbientBound : Nat := goldilocksModulus / 2
+def literalAmbientBound : Nat := fieldModulus / 2
 
 def correctedAmbientBound : Nat := literalAmbientBound + 1
 
@@ -51,7 +51,7 @@ theorem production_correctedAmbientBoundFor_eq :
 
 def midpointResidue : F :=
   ⟨Centered.halfModulus, by
-    unfold Centered.halfModulus goldilocksModulus
+    unfold Centered.halfModulus fieldModulus
     decide⟩
 
 theorem centeredMagnitude_midpointResidue :

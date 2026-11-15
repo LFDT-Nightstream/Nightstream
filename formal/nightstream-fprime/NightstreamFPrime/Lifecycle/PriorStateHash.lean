@@ -15,7 +15,7 @@ section Relation
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns <=
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 def RepresentsPreimage (interface : Interface) (offset : Nat) (env : Env)
     (preimage : HashPreimage (logicalWidth := logicalWidth)

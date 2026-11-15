@@ -1,0 +1,123 @@
+import Mathlib.Algebra.Polynomial.Roots
+import Mathlib.Data.NNRat.Lemmas
+import NightstreamFPrime.Spec.FieldExtensionRing
+import NightstreamFPrime.Spec.FieldTower
+import NightstreamFPrime.Spec.SumCheck.FixedPhase
+
+namespace NightstreamFPrime.Spec.SumCheck.Finite.FieldRoots
+
+open scoped NightstreamFPrime.Spec.FieldExtensionRing
+
+
+def ops : Ops K := Folding.PiCCS.PaperJoint.ConcreteCarrier.extensionOps.toOps
+
+private noncomputable def polynomial : List K → Polynomial K
+  | [] => 0
+  | coefficient :: rest => Polynomial.C coefficient + Polynomial.X * polynomial rest
+
+private theorem polynomial_eval (coefficients : List K) (point : K) :
+    (polynomial coefficients).eval point =
+      Message.evaluateCoefficients ops point coefficients := by
+  induction coefficients with
+  | nil => simp only [polynomial, Polynomial.eval_zero, FieldExtensionRing.zero_eq]; rfl
+  | cons coefficient rest ih =>
+    simp only [polynomial, Polynomial.eval_add, Polynomial.eval_C,
+      Polynomial.eval_mul, Polynomial.eval_X, ih, FieldExtensionRing.add_eq,
+      FieldExtensionRing.mul_eq]
+    rfl
+
+private theorem polynomial_degree (coefficients : List K) :
+    (polynomial coefficients).natDegree ≤ coefficients.length - 1 := by
+  induction coefficients with
+  | nil => simp [polynomial]
+  | cons coefficient rest ih =>
+    cases rest with
+    | nil => simp [polynomial]
+    | cons next rest =>
+      have bound := Polynomial.natDegree_add_le (Polynomial.C coefficient)
+        (Polynomial.X * polynomial (next :: rest))
+      have productBound := Polynomial.natDegree_mul_le
+        (p := (Polynomial.X : Polynomial K)) (q := polynomial (next :: rest))
+      simp only [Polynomial.natDegree_C, Polynomial.natDegree_X,
+        List.length_cons] at bound productBound ih ⊢
+      change (Polynomial.C coefficient + Polynomial.X * polynomial (next :: rest)).natDegree ≤ _
+      omega
+
+theorem agreement_count_le {degree : Nat}
+    (claimed expected : FixedPolynomial K degree) (challenges : Finset K)
+    (different : ∃ point, claimed.evaluate ops point ≠ expected.evaluate ops point) :
+    (challenges.filter fun point =>
+      claimed.evaluate ops point = expected.evaluate ops point).card ≤ degree := by
+  let difference := polynomial claimed.coefficients - polynomial expected.coefficients
+  have evalDifference (point : K) : difference.eval point =
+      claimed.evaluate ops point - expected.evaluate ops point := by
+    simp only [difference, Polynomial.eval_sub, polynomial_eval,
+      FixedPolynomial.evaluate, FixedPolynomial.toMessage, Message.evaluate]
+  have nonzero : difference ≠ 0 := by
+    intro zero
+    obtain ⟨point, different⟩ := different
+    apply different
+    exact sub_eq_zero.mp (by simpa only [zero, Polynomial.eval_zero] using
+      (evalDifference point).symm)
+  have degreeBound : difference.natDegree ≤ degree := by
+    apply (Polynomial.natDegree_sub_le _ _).trans
+    apply max_le
+    · simpa only [claimed.coefficients_length, Nat.add_sub_cancel] using
+        polynomial_degree claimed.coefficients
+    · simpa only [expected.coefficients_length, Nat.add_sub_cancel] using
+        polynomial_degree expected.coefficients
+  apply (Polynomial.card_le_degree_of_subset_roots (p := difference) ?_).trans degreeBound
+  intro point member
+  apply (Polynomial.mem_roots nonzero).mpr
+  change difference.eval point = 0
+  rw [evalDifference, sub_eq_zero]
+  exact (Finset.mem_filter.mp member).2
+
+theorem uniform_agreement_probability_le {degree : Nat}
+    (claimed expected : FixedPolynomial K degree) (challenges : Finset K)
+    (_nonempty : challenges.Nonempty)
+    (different : ∃ point, claimed.evaluate ops point ≠ expected.evaluate ops point) :
+    ((challenges.filter fun point =>
+      claimed.evaluate ops point = expected.evaluate ops point).card : ℚ≥0) /
+      challenges.card ≤ (degree : ℚ≥0) / challenges.card := by
+  apply div_le_div_of_nonneg_right _ zero_le
+  exact_mod_cast agreement_count_le claimed expected challenges different
+
+
+noncomputable def fullChallengeSet : Finset K := Finset.univ
+
+theorem fullChallengeSet_card : fullChallengeSet.card = fieldModulus ^ 2 := by
+  rw [fullChallengeSet, Finset.card_univ, ← Nat.card_eq_fintype_card]
+  exact FieldTower.extension_cardinality
+
+theorem uniform_fullField_agreement_probability_le {degree : Nat}
+    (claimed expected : FixedPolynomial K degree)
+    (different : ∃ point, claimed.evaluate ops point ≠ expected.evaluate ops point) :
+    ((fullChallengeSet.filter fun point =>
+      claimed.evaluate ops point = expected.evaluate ops point).card : ℚ≥0) /
+      (fieldModulus ^ 2 : Nat) ≤ (degree : ℚ≥0) / (fieldModulus ^ 2 : Nat) := by
+  rw [← fullChallengeSet_card]
+  exact uniform_agreement_probability_le claimed expected fullChallengeSet
+    (by exact Finset.univ_nonempty) different
+
+theorem badChallenge_count_le {degree challengeSetSize : Nat}
+    (q : List K → K) (initial : K) (transcriptChallenges : List K)
+    (certificate : FixedPhase.Certificate K degree) (round : SumCheck.Round K K)
+    (bad : FixedPhase.BadChallenge ops q degree challengeSetSize initial
+      transcriptChallenges certificate round) (sampleSpace : Finset K) :
+    (sampleSpace.filter fun point => round.claimed point = round.expected point).card ≤ degree := by
+  obtain ⟨algebraic, claimed, expected, claimedRepresents, expectedRepresents⟩ := bad
+  dsimp only [FixedPhase.Represents] at claimedRepresents expectedRepresents
+  have different : ∃ point, claimed.evaluate ops point ≠ expected.evaluate ops point := by
+    by_contra same
+    apply algebraic.2.2.1
+    funext point
+    have atPoint : claimed.evaluate ops point = expected.evaluate ops point := by
+      by_contra unequal
+      exact same ⟨point, unequal⟩
+    rw [claimedRepresents point, expectedRepresents point] at atPoint
+    exact atPoint
+  have bound := agreement_count_le claimed expected sampleSpace different
+  simpa only [claimedRepresents, expectedRepresents] using bound
+
+end NightstreamFPrime.Spec.SumCheck.Finite.FieldRoots

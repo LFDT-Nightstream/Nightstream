@@ -1,7 +1,7 @@
 use std::num::NonZeroUsize;
 
+use neo_math::Fq as F;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as F;
 
 use super::R1csApplicationError;
 

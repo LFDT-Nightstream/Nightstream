@@ -114,13 +114,13 @@ def Term.form? (term : Term) (logicalWidth oneColumn : Nat)
       let form ← block.form? logicalWidth
         (slotBase + offsets.major * majorStride +
           offsets.middle * middleStride + offsets.minor * minorStride)
-      if coefficientBound : coefficient < goldilocksModulus then
+      if coefficientBound : coefficient < fieldModulus then
         let scalar : F := ⟨coefficient, coefficientBound⟩
         some (applyCoefficient scalar form)
       else none
   | .constant coefficient =>
       if oneBound : oneColumn < logicalWidth then
-        if coefficientBound : coefficient < goldilocksModulus then
+        if coefficientBound : coefficient < fieldModulus then
           some (SparseForm.singleton ⟨oneColumn, oneBound⟩
             ⟨coefficient, coefficientBound⟩)
         else none
@@ -144,13 +144,13 @@ theorem Term.retained_form?_ofSemantic
     let form ← (RetainedBlock.ofSemantic block retainedStart).form?
       logicalWidth (slotBase + offsets.major * majorStride +
         offsets.middle * middleStride + offsets.minor * minorStride)
-    if coefficientBound : coefficient.val < goldilocksModulus then
+    if coefficientBound : coefficient.val < fieldModulus then
       let scalar : F := ⟨coefficient.val, coefficientBound⟩
       some (applyCoefficient scalar form)
     else none) = _
   rw [RetainedBlock.form?_ofSemantic block retainedStart fits
     ⟨_, slotBound⟩]
-  change (if coefficientBound : coefficient.val < goldilocksModulus then
+  change (if coefficientBound : coefficient.val < fieldModulus then
       let scalar : F := ⟨coefficient.val, coefficientBound⟩
       some (applyCoefficient scalar
         (block.form retainedStart fits ⟨_, slotBound⟩))
@@ -163,7 +163,7 @@ theorem Term.constant_form? {logicalWidth : Nat}
     (Term.constant coefficient.val).form? logicalWidth oneColumn.val offsets =
       some (SparseForm.singleton oneColumn coefficient) := by
   change (if oneBound : oneColumn.val < logicalWidth then
-      if coefficientBound : coefficient.val < goldilocksModulus then
+      if coefficientBound : coefficient.val < fieldModulus then
         some (SparseForm.singleton ⟨oneColumn.val, oneBound⟩
           ⟨coefficient.val, coefficientBound⟩)
       else none

@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use neo_wasm::nebula::{WasmApplication, WasmSize};
 use neo_wasm::{build_wasm_relation_layout, plan_ordered_wasm_memory_slots};
-use nightstream::{nebula::Circuit, Goldilocks as F, PrimeCharacteristicRing, PrimeField64};
+use nightstream::{nebula::Circuit, Fq as F, PrimeCharacteristicRing, PrimeField64};
 use nightstream_fprime::{
     ApplicationRecords, Linear, NativeBlock, NativeShape, PlanRows, BOUNDED_DEPTH_PACKAGES_IDENTITY,
 };

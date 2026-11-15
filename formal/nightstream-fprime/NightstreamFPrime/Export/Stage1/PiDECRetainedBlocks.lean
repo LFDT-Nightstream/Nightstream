@@ -14,7 +14,7 @@ def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCRetainedGeometry.sourceWidth program
 
 def sourceFieldBlock (program : Lifecycle.Stage1.Application.Program)
-    (count start : Nat) (bounded : start + count ≤ Spartan.SourceColumnCount) :
+    (count start : Nat) (bounded : start + count ≤ PackageOrder.SourceColumnCount) :
     LowNormBlock.Block (sourceWidth program) where
   kind := .field
   slotCount := count

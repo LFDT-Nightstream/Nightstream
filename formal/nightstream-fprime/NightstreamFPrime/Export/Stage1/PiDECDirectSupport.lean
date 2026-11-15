@@ -42,7 +42,7 @@ private theorem combinationOutput_varsSatisfy
 theorem parentCommitment_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (row : Fin productionProfile.commitmentWidth) (lane : Fin ringDegree) :
     (((PiDECInputs.interface logicalWidth publicFits).parent
       PiDECInputs.phaseOffset).commitment row lane).VarsSatisfy Source := by
@@ -58,7 +58,7 @@ theorem parentCommitment_supported
 theorem parentPublicInput_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
     (((PiDECInputs.interface logicalWidth publicFits).parent
       PiDECInputs.phaseOffset).publicInput column).VarsSatisfy Source := by
@@ -74,7 +74,7 @@ theorem parentPublicInput_supported
 theorem parentEvalK_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (coefficient : Fin productionShape.coefficientCount) :
     RingKRecomposition.KSupported Source
       (((PiDECInputs.interface logicalWidth publicFits).parent
@@ -106,7 +106,7 @@ theorem parentEvalK_supported
 theorem parentEvalA_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount) :
     RingKRecomposition.KSupported Source
@@ -137,7 +137,7 @@ theorem parentEvalA_supported
     exact parent_source source (parentEvalA source inside)
 
 theorem messageCommitment_supported
-    (child : Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex)
+    (child : Spec.RingRelation.PiDECAlgebra.Radix.ChildIndex)
     (row : Fin productionProfile.commitmentWidth) (lane : Fin ringDegree) :
     ((PiDECInputs.message child).commitment row lane).VarsSatisfy Source := by
   simp only [PiDECInputs.message, PiDECInputs.childCommitment,
@@ -147,7 +147,7 @@ theorem messageCommitment_supported
     (Or.inl ⟨child, row, lane, rfl⟩)
 
 theorem messageEvalK_supported
-    (child : Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex)
+    (child : Spec.RingRelation.PiDECAlgebra.Radix.ChildIndex)
     (coefficient : Fin productionShape.coefficientCount) :
     RingKRecomposition.KSupported Source
       ((PiDECInputs.message child).evaluation.eval_K coefficient) := by
@@ -160,7 +160,7 @@ theorem messageEvalK_supported
       (Or.inr (Or.inr (Or.inl ⟨child, coefficient, Or.inr rfl⟩)))
 
 theorem messageEvalA_supported
-    (child : Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex)
+    (child : Spec.RingRelation.PiDECAlgebra.Radix.ChildIndex)
     (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount) :
     RingKRecomposition.KSupported Source
@@ -176,8 +176,8 @@ theorem messageEvalA_supported
 theorem digit_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
-    (child : Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex)
+      RingCarrierLayout.carrierWidth logicalWidth}
+    (child : Spec.RingRelation.PiDECAlgebra.Radix.ChildIndex)
     (coordinate : Fin
       (PiDEC.v1_2.PublicInputSplit.coordinateCount logicalWidth publicFits)) :
     ((PiDECInputs.interface logicalWidth publicFits).digit PiDECInputs.phaseOffset
@@ -196,7 +196,7 @@ structure ConstraintsSupported (constraints : List Expr) : Prop where
 theorem publicConstraints_varsSatisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth} :
+      RingCarrierLayout.carrierWidth logicalWidth} :
     ConstraintsSupported
       (PiDECArithmetic.publicInputConstraints logicalWidth publicFits) := by
   constructor
@@ -222,7 +222,7 @@ theorem publicConstraints_varsSatisfy
 theorem commitmentConstraints_varsSatisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth} :
+      RingCarrierLayout.carrierWidth logicalWidth} :
     ConstraintsSupported
       (PiDECArithmetic.commitmentConstraints logicalWidth publicFits) := by
   constructor
@@ -248,7 +248,7 @@ theorem commitmentConstraints_varsSatisfy
 theorem evalKConstraints_varsSatisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth} :
+      RingCarrierLayout.carrierWidth logicalWidth} :
     ConstraintsSupported
       (PiDECArithmetic.evalKConstraints logicalWidth publicFits) := by
   constructor
@@ -271,7 +271,7 @@ theorem evalKConstraints_varsSatisfy
 theorem evalAConstraints_varsSatisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth} :
+      RingCarrierLayout.carrierWidth logicalWidth} :
     ConstraintsSupported
       (PiDECArithmetic.evalAConstraints logicalWidth publicFits) := by
   constructor
@@ -294,7 +294,7 @@ theorem evalAConstraints_varsSatisfy
 theorem productionPublicConstraints_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth} :
+      RingCarrierLayout.carrierWidth logicalWidth} :
     ConstraintsSupported
       (PiDECArithmetic.publicInputConstraints logicalWidth publicFits) :=
   publicConstraints_varsSatisfy
@@ -303,7 +303,7 @@ theorem productionPublicConstraints_supported
 theorem productionCommitmentConstraints_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth} :
+      RingCarrierLayout.carrierWidth logicalWidth} :
     ConstraintsSupported
       (PiDECArithmetic.commitmentConstraints logicalWidth publicFits) :=
   commitmentConstraints_varsSatisfy
@@ -312,7 +312,7 @@ theorem productionCommitmentConstraints_supported
 theorem productionEvalKConstraints_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth} :
+      RingCarrierLayout.carrierWidth logicalWidth} :
     ConstraintsSupported
       (PiDECArithmetic.evalKConstraints logicalWidth publicFits) :=
   evalKConstraints_varsSatisfy
@@ -321,7 +321,7 @@ theorem productionEvalKConstraints_supported
 theorem productionEvalAConstraints_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth} :
+      RingCarrierLayout.carrierWidth logicalWidth} :
     ConstraintsSupported
       (PiDECArithmetic.evalAConstraints logicalWidth publicFits) :=
   evalAConstraints_varsSatisfy

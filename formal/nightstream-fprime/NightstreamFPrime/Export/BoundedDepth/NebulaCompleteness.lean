@@ -2,14 +2,13 @@ import NightstreamFPrime.Export.BoundedDepth.RunCompleteness
 import NightstreamFPrime.Lifecycle.Nebula.HonestRun
 import NightstreamFPrime.Lifecycle.Nebula.MemoryProgram
 
-/-! Completeness of a memory application on the bounded-depth scheme (CW-10.7, SPEC.md Algorithm 10). Every
+/-! Completeness of a memory application on the bounded-depth scheme (CW-10.7, SPEC.md Algorithm 8). Every
 execution of `S · N` steps with `1 ≤ S ≤ S_max` has a statement that passes the memory verifier's
 checks (steps 3 and 4, `MemoryApp.history_of_execution`), and the bounded-depth terminal accepts the
 honest prover's recursive proof of it (step 5, `memory_complete`). The proof is recursive because
 `T = S · N ≥ 1`. The join is generic: a step history is a valid run (`validFrom_of_history`), so
 `RunCompleteness.run_complete` accepts it (`accepts_of_history`), and `S · N < q` follows from the
-geometry rules (`steps_lt`). The step-proof branch of step 5 is covered; the final-proof branch
-needs the completeness of the finish step and compression. -/
+geometry rules (`steps_lt`). -/
 
 set_option autoImplicit false
 
@@ -28,7 +27,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth
 open NightstreamFPrime.Export.BoundedDepth.TerminalBridge
 open NightstreamFPrime.Export.BoundedDepth.StepExtend
 open NightstreamFPrime.Export.BoundedDepth.RunCompleteness
-open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
+open scoped NightstreamFPrime.Spec.FieldExtensionRing
 
 /-- The first `k` witnesses of a step history are a valid run from its first state, and they reach
 state `k`. -/
@@ -48,12 +47,12 @@ theorem validFrom_of_history (program : Stage1.Application.Program)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
   {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
   {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)}
   {circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits}
   {step : AppState → AppWitness → AppState}
-  {cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+  {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
 
 /-- A step history of a statement for the exported program, with witnesses of its witness length,
 a canonical iteration and a state of four words, is honestly accepted by the terminal. -/
@@ -64,7 +63,7 @@ theorem accepts_of_history (exports : Exports relation ajtai circuitKeys step cu
     {z witness : ℕ → List F} (history : EndToEnd.History program statement z witness)
     (lengths : ∀ i < statement.iteration, (witness i).length = program.witnessWordCount)
     (z0Length : statement.z0.length = Stage1.Application.stateWordCount)
-    (below : statement.iteration < goldilocksModulus) :
+    (below : statement.iteration < fieldModulus) :
     Accepts ajtai circuitKeys step complete.packageWidth cap control statement := by
   subst programEq
   obtain ⟨valid, reaches⟩ :=
@@ -90,16 +89,16 @@ theorem accepts_of_history (exports : Exports relation ajtai circuitKeys step cu
 
 /-- `S · N < q` for at most `S_max` segments of a valid geometry. -/
 theorem steps_lt {p : Plan} (valid : p.Valid) {segments : ℕ} (most : segments ≤ p.sMax) :
-    segments * p.n < goldilocksModulus := by
-  have encoding : 2 ^ p.wTs < goldilocksModulus :=
+    segments * p.n < fieldModulus := by
+  have encoding : 2 ^ p.wTs < fieldModulus :=
     lt_of_le_of_lt (Nat.pow_le_pow_right (by norm_num) valid.fieldEncoding)
-      (by norm_num [goldilocksModulus])
+      (by norm_num [fieldModulus])
   calc segments * p.n ≤ p.sMax * p.n := Nat.mul_le_mul_right _ most
     _ ≤ p.sMax * p.n * p.bOps := Nat.le_mul_of_pos_right _ valid.positive.1
     _ < 2 ^ p.wTs := valid.timestampRange
-    _ < goldilocksModulus := encoding
+    _ < fieldModulus := encoding
 
-/-- Completeness of a memory application (SPEC.md Algorithm 10): for every execution of `S · N`
+/-- Completeness of a memory application (SPEC.md Algorithm 8): for every execution of `S · N`
 steps with `1 ≤ S ≤ S_max`, the statement that the verifier computes passes its checks, and the
 bounded-depth terminal accepts the honest prover's recursive proof of it. -/
 theorem memory_complete {p : Plan} {app : PortApp p.toGeometry} (valid : p.Valid)

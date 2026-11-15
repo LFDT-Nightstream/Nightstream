@@ -27,7 +27,7 @@ def fieldFormat : Format F where
   encode := fun value => .atom value.val
   decode
     | .atom value =>
-        if bounded : value < goldilocksModulus then .ok ⟨value, bounded⟩
+        if bounded : value < fieldModulus then .ok ⟨value, bounded⟩
         else .error "field element out of range"
     | .array _ => .error "expected a field atom"
   decode_encode := by
@@ -437,11 +437,8 @@ def identityFast (light refresh : Package) : List F :=
 
 theorem identityFast_eq (light refresh : Package) :
     identityFast light refresh = identity light refresh := by
-  have absorbed := StreamingIdentity.prefixStreamed_eq 2 boundedDepthDomain
-    (identityValue light refresh) (by decide) (by decide) (by decide)
   rw [identity, Poseidon2.hash_eq_hashFast, ← StreamingIdentity.canonicalWords_eq_valuePreimage]
-  unfold identityFast StreamingIdentity.finalize Poseidon2.hashFast
-  dsimp only
-  rw [← identityValue, absorbed]
+  exact StreamingIdentity.finalize_prefixState 2 boundedDepthDomain
+    (identityValue light refresh) (by decide) (by decide)
 
 end NightstreamFPrime.Export.BoundedDepth.StepPackage

@@ -125,7 +125,7 @@ private theorem blockConstraints_totalFreshCount
     R1CS.totalFreshCount
         (blockConstraints logicalStart blockCount cellCount valueStride source
           valueSourceStart block) =
-      cellCount * 8100 := by
+      cellCount * 8320 := by
   unfold blockConstraints
   rw [totalFreshCount_flatten, List.map_ofFn]
   change (List.ofFn fun lane : Fin ringDegree =>
@@ -154,7 +154,7 @@ private theorem blockConstraints_totalFreshCount
         (List.ofFn fun lane : Fin ringDegree => laneFreshCost lane.val).sum :=
       sum_map_mul_left cellCount _
     _ = cellCount * laneFreshCosts.sum := by rw [laneFreshCosts_ofFn]
-    _ = cellCount * 8100 := by rw [laneFreshCosts_sum]
+    _ = cellCount * 8320 := by rw [laneFreshCosts_sum]
 
 private theorem sum_take_ofFn_const {count : Nat} (value : Nat)
     (index : Fin count) :
@@ -204,19 +204,19 @@ private theorem blockFreshPrefix
       R1CS.totalFreshCount
         (blockConstraints logicalStart blockCount cellCount valueStride source
           valueSourceStart current)).take block.val).sum =
-      block.val * (cellCount * 8100) := by
+      block.val * (cellCount * 8320) := by
   have countsEq :
       (List.ofFn fun current : Fin blockCount =>
         R1CS.totalFreshCount
           (blockConstraints logicalStart blockCount cellCount valueStride source
             valueSourceStart current)) =
-        List.ofFn (fun _ : Fin blockCount => cellCount * 8100) := by
+        List.ofFn (fun _ : Fin blockCount => cellCount * 8320) := by
     apply congrArg List.ofFn
     funext current
     exact blockConstraints_totalFreshCount logicalStart blockCount cellCount
       valueStride source valueSourceStart freshCount current
   rw [countsEq]
-  exact sum_take_ofFn_const (cellCount * 8100) block
+  exact sum_take_ofFn_const (cellCount * 8320) block
 
 private theorem laneFreshPrefix_total
     (logicalStart blockCount cellCount valueStride source : Nat)
@@ -338,7 +338,7 @@ private theorem sourceConstraints_totalFreshCount
         R1CS.totalFreshCount
           (blockConstraints logicalStart blockCount cellCount valueStride source
             valueSourceStart block)) =
-        List.ofFn (fun _ : Fin blockCount => cellCount * 8100) := by
+        List.ofFn (fun _ : Fin blockCount => cellCount * 8320) := by
     apply congrArg List.ofFn
     funext block
     exact blockConstraints_totalFreshCount logicalStart blockCount cellCount
@@ -381,7 +381,7 @@ theorem sourcePhysicalRows_imply_invocationRows
     {blockCount cellCount : Nat} [NeZero cellCount]
     (logicalStart rowStart freshStart valueStride source : Nat)
     (valueSourceStart : Nat → Nat → Nat → Nat)
-    (freshStartLocal : Spartan.piCcsPhaseOffset ≤ freshStart)
+    (freshStartLocal : PackageOrder.piCcsPhaseOffset ≤ freshStart)
     (freshCount : ∀ (block : Fin blockCount) (lane : Fin ringDegree)
       (cell : Fin cellCount),
       R1CS.constraintFreshCount
@@ -390,13 +390,13 @@ theorem sourcePhysicalRows_imply_invocationRows
         laneFreshCost lane.val)
     (valueAffine : ∀ (block : Fin blockCount) (cell : Fin cellCount)
       (offset : Nat), offset < ringDegree →
-      Spartan.sourceToSpartan
+      PackageOrder.sourceToPackage
           (valueSourceStart source block.val cell.val + offset * valueStride) =
-        Spartan.sourceToSpartan
+        PackageOrder.sourceToPackage
             (valueSourceStart source block.val cell.val) +
           offset * valueStride)
     (env : Env)
-    (rows : R1CS.RowsHold (Spartan.pullback env)
+    (rows : R1CS.RowsHold (PackageOrder.pullback env)
       (R1CS.lowerConstraints
         (sourceConstraints logicalStart blockCount cellCount valueStride source
           valueSourceStart)
@@ -413,14 +413,14 @@ theorem sourcePhysicalRows_imply_invocationRows
             valueSourceStart).localStart
         (PiRLCCombinationTemplates.template (firstSource source) lane)) := by
   rw [sourceConstraints_eq_blockConstraintLists] at rows
-  have blockSegments : R1CS.SegmentsHold (Spartan.pullback env)
+  have blockSegments : R1CS.SegmentsHold (PackageOrder.pullback env)
       (List.ofFn fun current : Fin blockCount =>
         blockConstraints logicalStart blockCount cellCount valueStride source
           valueSourceStart current)
       (freshStart + source * sourceFreshCount blockCount cellCount) := by
     apply (R1CS.rowsHold_flatten_iff _ _ _).mp
     simpa [blockConstraintLists] using rows
-  have blockRows := R1CS.segmentsHold_ofFn_get (Spartan.pullback env)
+  have blockRows := R1CS.segmentsHold_ofFn_get (PackageOrder.pullback env)
     (fun current : Fin blockCount =>
       blockConstraints logicalStart blockCount cellCount valueStride source
         valueSourceStart current)
@@ -428,36 +428,36 @@ theorem sourcePhysicalRows_imply_invocationRows
     blockSegments block
   rw [blockFreshPrefix logicalStart blockCount cellCount valueStride source
     valueSourceStart freshCount block] at blockRows
-  have laneSegments : R1CS.SegmentsHold (Spartan.pullback env)
+  have laneSegments : R1CS.SegmentsHold (PackageOrder.pullback env)
       (List.ofFn fun current : Fin ringDegree =>
         laneConstraints logicalStart blockCount cellCount valueStride source
           valueSourceStart block current)
       ((freshStart + source * sourceFreshCount blockCount cellCount) +
-        block.val * (cellCount * 8100)) := by
+        block.val * (cellCount * 8320)) := by
     apply (R1CS.rowsHold_flatten_iff _ _ _).mp
     simpa [blockConstraints] using blockRows
-  have laneRows := R1CS.segmentsHold_ofFn_get (Spartan.pullback env)
+  have laneRows := R1CS.segmentsHold_ofFn_get (PackageOrder.pullback env)
     (fun current : Fin ringDegree =>
       laneConstraints logicalStart blockCount cellCount valueStride source
         valueSourceStart block current)
     ((freshStart + source * sourceFreshCount blockCount cellCount) +
-      block.val * (cellCount * 8100)) laneSegments lane
+      block.val * (cellCount * 8320)) laneSegments lane
   rw [laneFreshPrefix_total logicalStart blockCount cellCount valueStride source
     valueSourceStart freshCount block lane] at laneRows
   have cellRows := R1CS.rowsHold_lowerConstraints_ofFn_get
-    (Spartan.pullback env)
+    (PackageOrder.pullback env)
     (fun current : Fin cellCount =>
       sourceConstraint logicalStart blockCount cellCount valueStride source
         block.val current.val valueSourceStart lane)
     (((freshStart + source * sourceFreshCount blockCount cellCount) +
-      block.val * (cellCount * 8100)) +
+      block.val * (cellCount * 8320)) +
         cellCount * laneFreshPrefix lane.val)
     (by simpa [laneConstraints] using laneRows) cell
   rw [cellFreshPrefix logicalStart blockCount cellCount valueStride source
     valueSourceStart freshCount block lane cell] at cellRows
   have startEq :
       ((((freshStart + source * sourceFreshCount blockCount cellCount) +
-          block.val * (cellCount * 8100)) +
+          block.val * (cellCount * 8320)) +
         cellCount * laneFreshPrefix lane.val) +
           cell.val * laneFreshCost lane.val) =
         invocationFreshSource freshStart blockCount cellCount source block.val
@@ -487,7 +487,7 @@ theorem familyPhysicalRows_imply_invocationRows
     {blockCount cellCount : Nat} [NeZero cellCount]
     (logicalStart rowStart freshStart valueStride : Nat)
     (valueSourceStart : Nat → Nat → Nat → Nat)
-    (freshStartLocal : Spartan.piCcsPhaseOffset ≤ freshStart)
+    (freshStartLocal : PackageOrder.piCcsPhaseOffset ≤ freshStart)
     (freshCount : ∀ (source : Fin sourceCount) (block : Fin blockCount)
       (lane : Fin ringDegree) (cell : Fin cellCount),
       R1CS.constraintFreshCount
@@ -496,28 +496,28 @@ theorem familyPhysicalRows_imply_invocationRows
         laneFreshCost lane.val)
     (valueAffine : ∀ (source : Fin sourceCount) (block : Fin blockCount)
       (cell : Fin cellCount) (offset : Nat), offset < ringDegree →
-      Spartan.sourceToSpartan
+      PackageOrder.sourceToPackage
           (valueSourceStart source.val block.val cell.val +
             offset * valueStride) =
-        Spartan.sourceToSpartan
+        PackageOrder.sourceToPackage
             (valueSourceStart source.val block.val cell.val) +
           offset * valueStride)
     (env : Env)
-    (rows : R1CS.RowsHold (Spartan.pullback env)
+    (rows : R1CS.RowsHold (PackageOrder.pullback env)
       (R1CS.lowerConstraints
         (familyConstraints logicalStart blockCount cellCount valueStride
           valueSourceStart) freshStart).rows) :
     FamilyInvocationRowsHold logicalStart rowStart freshStart blockCount
       cellCount valueStride valueSourceStart env := by
   rw [familyConstraints_eq_sourceConstraintLists] at rows
-  have sourceSegments : R1CS.SegmentsHold (Spartan.pullback env)
+  have sourceSegments : R1CS.SegmentsHold (PackageOrder.pullback env)
       (List.ofFn fun current : Fin sourceCount =>
         sourceConstraints logicalStart blockCount cellCount valueStride
           current.val valueSourceStart) freshStart :=
     (R1CS.rowsHold_flatten_iff _ _ _).mp rows
   intro source index
   dsimp only
-  have sourceRows := R1CS.segmentsHold_ofFn_get (Spartan.pullback env)
+  have sourceRows := R1CS.segmentsHold_ofFn_get (PackageOrder.pullback env)
     (fun current : Fin sourceCount =>
       sourceConstraints logicalStart blockCount cellCount valueStride
         current.val valueSourceStart)
@@ -564,10 +564,10 @@ private theorem sourceConstraint_freshCount_of_production
       lane cell constraintEq
 
 private theorem commitmentSourceFreshCount
-    (source : Fin sourceCount) (block : Fin 22) (lane : Fin ringDegree)
+    (source : Fin sourceCount) (block : Fin 18) (lane : Fin ringDegree)
     (cell : Fin 1) :
     R1CS.constraintFreshCount
-        (sourceConstraint PiRLCStarts.commitmentLogicalStart 22 1 1 source.val
+        (sourceConstraint PiRLCStarts.commitmentLogicalStart 18 1 1 source.val
           block.val cell.val commitmentValueSourceStart lane) =
       laneFreshCost lane.val := by
   let canonicalSource : Fin CombinationFamily.sourceCount :=
@@ -665,7 +665,7 @@ private theorem evalASourceFreshCount
 
 structure ProductionFamilyInvocationRowsHold (env : Env) : Prop where
   commitment : FamilyInvocationRowsHold PiRLCStarts.commitmentLogicalStart
-    PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart 22 1 1
+    PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart 18 1 1
     commitmentValueSourceStart env
   publicInput : FamilyInvocationRowsHold PiRLCStarts.publicInputLogicalStart
     PiRLCStarts.publicInputRowStart PiRLCStarts.publicInputFreshStart 5 1 1
@@ -681,31 +681,31 @@ theorem remappedPackets_imply_familyInvocationRows
     (env : Env)
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env) :
     ProductionFamilyInvocationRowsHold env := by
-  have commitmentRows := (Spartan.remapRows_hold env _).mp packets.commitment
+  have commitmentRows := (PackageOrder.remapRows_hold env _).mp packets.commitment
   have publicInputRows :=
-    (Spartan.remapRows_hold env _).mp packets.publicInput
-  have evalKRows := (Spartan.remapRows_hold env _).mp packets.evalK
-  have evalARows := (Spartan.remapRows_hold env _).mp packets.evalA
-  change R1CS.RowsHold (Spartan.pullback env)
+    (PackageOrder.remapRows_hold env _).mp packets.publicInput
+  have evalKRows := (PackageOrder.remapRows_hold env _).mp packets.evalK
+  have evalARows := (PackageOrder.remapRows_hold env _).mp packets.evalA
+  change R1CS.RowsHold (PackageOrder.pullback env)
     (R1CS.lowerConstraints
       (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.logicalConstraints
         (productionCommitmentFamilyInterface (logicalWidth := Data.logicalWidth)
           (publicFits := Data.publicFits)) PiRLCStarts.commitmentLogicalStart)
       PiRLCStarts.commitmentFreshStart).rows at commitmentRows
-  change R1CS.RowsHold (Spartan.pullback env)
+  change R1CS.RowsHold (PackageOrder.pullback env)
     (R1CS.lowerConstraints
       (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.logicalConstraints
         (productionPublicInputFamilyInterface
           (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
         PiRLCStarts.publicInputLogicalStart)
       PiRLCStarts.publicInputFreshStart).rows at publicInputRows
-  change R1CS.RowsHold (Spartan.pullback env)
+  change R1CS.RowsHold (PackageOrder.pullback env)
     (R1CS.lowerConstraints
       (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.logicalConstraints
         (productionEvalKFamilyInterface (logicalWidth := Data.logicalWidth)
           (publicFits := Data.publicFits)) PiRLCStarts.evalKLogicalStart)
       PiRLCStarts.evalKFreshStart).rows at evalKRows
-  change R1CS.RowsHold (Spartan.pullback env)
+  change R1CS.RowsHold (PackageOrder.pullback env)
     (R1CS.lowerConstraints
       (NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily.logicalConstraints
         (productionEvalAFamilyInterface (logicalWidth := Data.logicalWidth)
@@ -717,7 +717,7 @@ theorem remappedPackets_imply_familyInvocationRows
   rw [← evalAFamilyConstraints_eq_parent] at evalARows
   refine ⟨?_, ?_, ?_, ?_⟩
   · refine familyPhysicalRows_imply_invocationRows
-      (blockCount := 22) (cellCount := 1)
+      (blockCount := 18) (cellCount := 1)
       PiRLCStarts.commitmentLogicalStart PiRLCStarts.commitmentRowStart
       PiRLCStarts.commitmentFreshStart 1 commitmentValueSourceStart
       commitmentFreshStart_local commitmentSourceFreshCount ?_ env

@@ -29,7 +29,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.SlotWords
 /-- The step's shared words. -/
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) (witnessWordCount : Nat) where
+      RingCarrierLayout.carrierWidth logicalWidth) (witnessWordCount : Nat) where
   iteration : Expr
   inverse : Expr
   recursive : Expr
@@ -54,7 +54,7 @@ structure Interface (logicalWidth : Nat)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- A slot hash gadget over a slot's words, with its expected digest words. -/
 def slotHashInterface (words : List Expr) (digest : Fin 4 → Expr) : OutputHash.Interface where

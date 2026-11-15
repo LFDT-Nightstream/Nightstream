@@ -1,40 +1,31 @@
-//! Native and R1CS forms of the exact width-12 Goldilocks Poseidon2
-//! permutation. Event compression and application-specific round scheduling
-//! belong to their respective consumers.
+//! Native and R1CS forms of the width-12 Poseidon2 permutation of
+//! `decisions/poseidon2-p64-instance.md`. Event compression and
+//! application-specific round scheduling belong to their respective consumers.
 
 use std::{ops::Range, sync::OnceLock};
 
+use neo_ccs::crypto::poseidon2::{HALF_FULL_ROUNDS, INSTANCE_12, PARTIAL_ROUNDS};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::{
-    default_goldilocks_poseidon2_12, Poseidon2Goldilocks, GOLDILOCKS_POSEIDON2_RC_12_EXTERNAL_FINAL,
-    GOLDILOCKS_POSEIDON2_RC_12_EXTERNAL_INITIAL, GOLDILOCKS_POSEIDON2_RC_12_INTERNAL, MATRIX_DIAG_12_GOLDILOCKS,
-};
 use p3_poseidon2::{matmul_internal, mds_light_permutation, MDSMat4};
-use p3_symmetric::Permutation;
 
 use crate::gadgets::push_pow7_expression;
 use crate::{GadgetDescriptor, TaggedR1csBuilder};
 
 pub const POSEIDON2_WIDTH: usize = 12;
-pub const POSEIDON2_HALF_FULL_ROUNDS: usize = 4;
+pub const POSEIDON2_HALF_FULL_ROUNDS: usize = HALF_FULL_ROUNDS;
 pub const POSEIDON2_FULL_ROUNDS: usize = 2 * POSEIDON2_HALF_FULL_ROUNDS;
-pub const POSEIDON2_PARTIAL_ROUNDS: usize = 22;
+pub const POSEIDON2_PARTIAL_ROUNDS: usize = PARTIAL_ROUNDS;
 const _: () = assert!(POSEIDON2_PARTIAL_ROUNDS.is_multiple_of(2));
 pub const POSEIDON2_PARTIAL_PAIRS: usize = POSEIDON2_PARTIAL_ROUNDS / 2;
 pub const POSEIDON2_GROUPED_ROUNDS: usize = POSEIDON2_FULL_ROUNDS + POSEIDON2_PARTIAL_PAIRS;
 
-fn permutation() -> &'static Poseidon2Goldilocks<POSEIDON2_WIDTH> {
-    static PERMUTATION: OnceLock<Poseidon2Goldilocks<POSEIDON2_WIDTH>> = OnceLock::new();
-    PERMUTATION.get_or_init(default_goldilocks_poseidon2_12)
-}
-
-/// Apply the exact width-12 Goldilocks Poseidon2 permutation.
+/// Apply the width-12 Poseidon2 permutation.
 pub fn permute(state: [F; POSEIDON2_WIDTH]) -> [F; POSEIDON2_WIDTH] {
-    permutation().permute(state)
+    INSTANCE_12.permute(state)
 }
 
-/// Goldilocks Poseidon2 S-box `x -> x^7`.
+/// The Poseidon2 S-box `x -> x^7`.
 pub fn sbox7(x: F) -> F {
     let x2 = x * x;
     let x4 = x2 * x2;
@@ -45,19 +36,16 @@ pub fn sbox7(x: F) -> F {
 pub fn full_round_constants(round: usize) -> &'static [F; POSEIDON2_WIDTH] {
     assert!(round < POSEIDON2_FULL_ROUNDS, "full-round index out of range");
     if round < POSEIDON2_HALF_FULL_ROUNDS {
-        &GOLDILOCKS_POSEIDON2_RC_12_EXTERNAL_INITIAL[round]
+        &INSTANCE_12.initial[round]
     } else {
-        &GOLDILOCKS_POSEIDON2_RC_12_EXTERNAL_FINAL[round - POSEIDON2_HALF_FULL_ROUNDS]
+        &INSTANCE_12.terminal[round - POSEIDON2_HALF_FULL_ROUNDS]
     }
 }
 
 /// Constants for partial-round pair `0..11` in permutation order.
 pub fn partial_pair_constants(pair: usize) -> (F, F) {
     assert!(pair < POSEIDON2_PARTIAL_PAIRS, "partial-pair index out of range");
-    (
-        GOLDILOCKS_POSEIDON2_RC_12_INTERNAL[2 * pair],
-        GOLDILOCKS_POSEIDON2_RC_12_INTERNAL[2 * pair + 1],
-    )
+    (INSTANCE_12.internal[2 * pair], INSTANCE_12.internal[2 * pair + 1])
 }
 
 pub fn external_linear(state: &mut [F; POSEIDON2_WIDTH]) {
@@ -65,7 +53,7 @@ pub fn external_linear(state: &mut [F; POSEIDON2_WIDTH]) {
 }
 
 pub fn internal_linear(state: &mut [F; POSEIDON2_WIDTH]) {
-    matmul_internal(state, MATRIX_DIAG_12_GOLDILOCKS);
+    matmul_internal(state, INSTANCE_12.diagonal);
 }
 
 pub fn external_matrix() -> &'static [[F; POSEIDON2_WIDTH]; POSEIDON2_WIDTH] {

@@ -18,7 +18,7 @@ def rowStart : Nat :=
 theorem rowStart_eq_prefix
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     rowStart =
       NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC.physicalRowCount
@@ -37,7 +37,7 @@ abbrev Plan.rows (plan : Plan) : List Rows.CompiledRow :=
 def canonicalPlan
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Plan where
+      RingCarrierLayout.carrierWidth logicalWidth) : Plan where
   rowStart := rowStart
   freshStart :=
     NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.logicalColumnCount
@@ -54,7 +54,7 @@ def canonicalPlan
 abbrev canonicalLayoutPlan
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : R1CS.LoweringPlan :=
+      RingCarrierLayout.carrierWidth logicalWidth) : R1CS.LoweringPlan :=
   NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.plan
     logicalWidth publicFits
 
@@ -65,7 +65,7 @@ structure Plan.MatchesLayout (packagePlan : Plan)
 
 theorem Plan.rows_toR1CS (plan : Plan) :
     plan.rows.map Rows.CompiledRow.toR1CS =
-      NightstreamFPrime.Layout.Stage1.Spartan.remapRows
+      NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows
         (R1CS.lowerConstraints plan.constraints plan.freshStart).rows :=
   PiCCSArithmetic.compilePacket_toR1CS
     plan.rowStart plan.freshStart plan.constraints
@@ -74,20 +74,20 @@ theorem Plan.rows_to_layout (packagePlan : Plan)
     (layoutPlan : R1CS.LoweringPlan)
     (agreement : packagePlan.MatchesLayout layoutPlan) :
     packagePlan.rows.map Rows.CompiledRow.toR1CS =
-      NightstreamFPrime.Layout.Stage1.Spartan.remapRows layoutPlan.rows := by
+      NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows layoutPlan.rows := by
   calc
-    _ = NightstreamFPrime.Layout.Stage1.Spartan.remapRows
+    _ = NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows
         (R1CS.lowerConstraints packagePlan.constraints
           packagePlan.freshStart).rows := packagePlan.rows_toR1CS
-    _ = NightstreamFPrime.Layout.Stage1.Spartan.remapRows layoutPlan.rows := by
-      apply congrArg NightstreamFPrime.Layout.Stage1.Spartan.remapRows
+    _ = NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows layoutPlan.rows := by
+      apply congrArg NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows
       rw [agreement.constraints, agreement.freshStart]
       rfl
 
 theorem canonicalPlan_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     (canonicalPlan logicalWidth publicFits).MatchesLayout
       (canonicalLayoutPlan logicalWidth publicFits) := by
   constructor
@@ -113,10 +113,10 @@ theorem Plan.rows_length (plan : Plan) :
 theorem canonicalPlan_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalRowCount (canonicalPlan logicalWidth publicFits).constraints =
-      27800 := by
+      25310 := by
   change R1CS.totalRowCount
       (NightstreamFPrime.Lifecycle.Stage1.RunningTransition.flagConstraint
           (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
@@ -126,7 +126,7 @@ theorem canonicalPlan_rowCount
           (NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.interface
             logicalWidth publicFits)
           NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset) =
-    27800
+    25310
   rw [NightstreamFPrime.Lifecycle.Stage1.RunningTransition.constraintsFast_eq_constraints,
     ← logicalConstraints_eq]
   exact NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.totalRowCount_eq

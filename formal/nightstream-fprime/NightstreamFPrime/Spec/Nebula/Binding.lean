@@ -285,7 +285,7 @@ private theorem opsLane_length (p : Geometry) (c : List OpSlot) :
 
 /-- Every packed lane of a valid geometry has fewer than `q` elements. -/
 theorem Geometry.laneLength_lt {p : Geometry} (valid : p.Valid) (lane : Lane) :
-    p.laneLength lane < goldilocksModulus := by
+    p.laneLength lane < fieldModulus := by
   have shrink : ∀ n, packedLength n ≤ n := fun n => by unfold packedLength; omega
   cases lane
   · exact (shrink _).trans_lt valid.laneBits.1

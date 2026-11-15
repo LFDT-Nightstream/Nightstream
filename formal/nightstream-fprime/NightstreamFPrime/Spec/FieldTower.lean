@@ -9,10 +9,10 @@ private def coefficients : K ≃ F × F where
   left_inv value := by cases value; rfl
   right_inv value := by cases value; rfl
 
-theorem base_cardinality : Nat.card F = goldilocksModulus := Nat.card_fin _
+theorem base_cardinality : Nat.card F = fieldModulus := Nat.card_fin _
 
 theorem extension_cardinality :
-    Nat.card K = goldilocksModulus ^ productionProfile.extensionDegree := by
+    Nat.card K = fieldModulus ^ productionProfile.extensionDegree := by
   rw [Nat.card_congr coefficients, Nat.card_prod, base_cardinality]
   rfl
 

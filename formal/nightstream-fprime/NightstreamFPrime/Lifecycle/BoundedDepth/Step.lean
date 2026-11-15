@@ -24,23 +24,23 @@ open NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold (Accepts)
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- One step circuit: the key digest that the state hash binds and the circuit's relation. Both
 circuits share the Ajtai key, so the fold keys are `keys relation ajtai`. -/
 structure CircuitKey (logicalWidth : Nat)
     (publicFits :
-      ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) where
+      ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) where
   digest : KeyDigest
   relation : ProductionKey.LogicalRelation logicalWidth publicFits
 
 abbrev StepClaim (logicalWidth : Nat)
     (publicFits :
-      ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) :=
   BoundedDepthFolds.Claim PaperAlgebra.Commitment
     (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
-    productionShape (Phi81CarrierLayout.carrierWidth logicalWidth)
-    (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
+    productionShape (RingCarrierLayout.carrierWidth logicalWidth)
+    (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth))
 
 /-- A fold proof of either circuit. Every production relation has degree bound 8
 (`ProductionKey.degreeBound_eq`). -/
@@ -48,7 +48,7 @@ abbrev StepProof := BoundedDepthFolds.FoldProof PaperAlgebra.Commitment producti
 
 abbrev StepFresh (logicalWidth : Nat)
     (publicFits :
-      ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) :=
   Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)
 
 def toClaim (system : PaperAlgebra.Structure logicalWidth)
@@ -181,13 +181,13 @@ theorem hash_binds
 
 abbrev StepInput (logicalWidth : Nat)
     (publicFits :
-      ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) :=
   Paper.Input (CircuitKey logicalWidth publicFits) AppState AppWitness
     (SlotData logicalWidth publicFits) (StepFresh logicalWidth publicFits) StepProof 2
 
 abbrev StepOutput (logicalWidth : Nat)
     (publicFits :
-      ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) :=
   Paper.Output Digest AppState (SlotData logicalWidth publicFits) 2
 
 /-- The spec of the slot-select rows: at iteration 0 the initial state is the current state and

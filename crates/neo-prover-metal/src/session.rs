@@ -15,13 +15,9 @@ use objc2_metal::{
     MTLCreateSystemDefaultDevice, MTLDevice, MTLLibrary, MTLResourceOptions, MTLSize,
 };
 
-use crate::{poseidon2, MetalActivity, MetalError, BUFFER_LIMIT_BYTES};
+use crate::{MetalActivity, MetalError, BUFFER_LIMIT_BYTES};
 
-mod dft;
-mod gkr;
 mod joint;
-mod merkle;
-pub use gkr::MetalGkrLayer;
 mod masks;
 mod production_commitment;
 mod rlc;
@@ -36,8 +32,7 @@ type Pipeline = Retained<ProtocolObject<dyn MTLComputePipelineState>>;
 
 static BUFFER_ALLOCATION: Mutex<()> = Mutex::new(());
 
-/// Entries in a Metal kernel's buffer table, and in its threadgroup memory
-/// table (Apple's Metal feature set tables).
+/// Entries in a Metal kernel's buffer table (Apple's Metal feature set tables).
 const ARGUMENT_SLOTS: usize = 31;
 
 /// One kernel argument, at the index that the shader signature gives it.
@@ -47,10 +42,6 @@ enum Arg<'a> {
     Buffer(usize, &'a ProtocolObject<dyn MTLBuffer>),
     /// `[[buffer(index)]]` from a byte offset.
     BufferAt(usize, &'a ProtocolObject<dyn MTLBuffer>, usize),
-    /// `[[buffer(index)]]` as words that Metal copies into the command.
-    Words(usize, &'a [u64]),
-    /// `[[threadgroup(index)]]` memory of a byte length.
-    Threadgroup(usize, usize),
 }
 
 /// The threads of one dispatch.
@@ -76,15 +67,7 @@ struct ActivityCounters {
 pub struct MetalSession {
     device: Device,
     queue: Queue,
-    poseidon2_hash_rows_overwrite: Pipeline,
-    poseidon2_constants: Buffer,
     production_key_row: Pipeline,
-    production_key_weights: Pipeline,
-    dft_twiddles: Pipeline,
-    dft_dif_pass: Pipeline,
-    dft_bit_reverse: Pipeline,
-    gkr_message: Pipeline,
-    gkr_fold: Pipeline,
     production_ajtai_accumulate: Pipeline,
     production_ajtai_sum_groups: Pipeline,
     tensor_point_expand_k: Pipeline,
@@ -109,12 +92,11 @@ pub struct MetalSession {
     dec_split_base2_masks: Pipeline,
     dec_sparse_ring_partials: Pipeline,
     dec_dense_ring_partials: Pipeline,
-    dec_ring_half_sums: Pipeline,
     dec_sparse_ring_sum_chunks: Pipeline,
     joint_carried_projection: Pipeline,
     joint_carried_projection_dense: Pipeline,
     fe_weighted_row_table: Pipeline,
-    dec_ring_reduce_phi81: Pipeline,
+    dec_ring_reduce: Pipeline,
     // A prover keeps the production key rows after their first commitment;
     // `None` expands the needed rows in every call.
     production_key: Option<Mutex<production_commitment::ResidentKeyRows>>,
@@ -140,15 +122,7 @@ impl MetalSession {
         let library = device
             .newLibraryWithData_error(&data)
             .map_err(|error| MetalError::Library(format!("{error:?}")))?;
-        let poseidon2_hash_rows_overwrite = pipeline(&device, &library, "poseidon2_hash_rows_overwrite")?;
-        let poseidon2_constants = pre_session_buffer(&device, &poseidon2::round_constant_words())?;
         let production_key_row = pipeline(&device, &library, "production_key_row")?;
-        let production_key_weights = pipeline(&device, &library, "production_key_weights")?;
-        let dft_twiddles = pipeline(&device, &library, "dft_twiddles")?;
-        let dft_dif_pass = pipeline(&device, &library, "dft_dif_pass")?;
-        let dft_bit_reverse = pipeline(&device, &library, "dft_bit_reverse")?;
-        let gkr_message = pipeline(&device, &library, "gkr_message")?;
-        let gkr_fold = pipeline(&device, &library, "gkr_fold")?;
         let production_ajtai_accumulate = pipeline(&device, &library, "production_ajtai_accumulate")?;
         let production_ajtai_sum_groups = pipeline(&device, &library, "production_ajtai_sum_groups")?;
         let tensor_point_expand_k = pipeline(&device, &library, "tensor_point_expand_k")?;
@@ -175,24 +149,15 @@ impl MetalSession {
         let dec_split_base2_masks = pipeline(&device, &library, "dec_split_base2_masks")?;
         let dec_sparse_ring_partials = pipeline(&device, &library, "dec_sparse_ring_partials")?;
         let dec_dense_ring_partials = pipeline(&device, &library, "dec_dense_ring_partials")?;
-        let dec_ring_half_sums = pipeline(&device, &library, "dec_ring_half_sums")?;
         let dec_sparse_ring_sum_chunks = pipeline(&device, &library, "dec_sparse_ring_sum_chunks")?;
         let joint_carried_projection = pipeline(&device, &library, "joint_carried_projection")?;
         let joint_carried_projection_dense = pipeline(&device, &library, "joint_carried_projection_dense")?;
         let fe_weighted_row_table = pipeline(&device, &library, "fe_weighted_row_table")?;
-        let dec_ring_reduce_phi81 = pipeline(&device, &library, "dec_ring_reduce_phi81")?;
+        let dec_ring_reduce = pipeline(&device, &library, "dec_ring_reduce")?;
         Ok(Self {
             device,
             queue,
-            poseidon2_hash_rows_overwrite,
-            poseidon2_constants,
             production_key_row,
-            production_key_weights,
-            dft_twiddles,
-            dft_dif_pass,
-            dft_bit_reverse,
-            gkr_message,
-            gkr_fold,
             production_ajtai_accumulate,
             production_ajtai_sum_groups,
             tensor_point_expand_k,
@@ -217,12 +182,11 @@ impl MetalSession {
             dec_split_base2_masks,
             dec_sparse_ring_partials,
             dec_dense_ring_partials,
-            dec_ring_half_sums,
             dec_sparse_ring_sum_chunks,
             joint_carried_projection,
             joint_carried_projection_dense,
             fe_weighted_row_table,
-            dec_ring_reduce_phi81,
+            dec_ring_reduce,
             production_key: None,
             resident_matrices: Default::default(),
             resident_openings: Default::default(),
@@ -317,8 +281,7 @@ impl MetalSession {
         for &arg in args {
             // SAFETY: `slot` asserts that each index is inside the kernel's
             // argument table, and a `BufferAt` offset is asserted to be inside
-            // its buffer. `words` is a live slice of `size_of_val(words)`
-            // bytes, and Metal copies it before `setBytes` returns. A bound
+            // its buffer. A bound
             // buffer lives until its command completes: the command buffer
             // (from `commandBuffer`) retains it. A command runs only inside
             // `finish`, which commits it and waits. The session is not `Sync`,
@@ -329,9 +292,7 @@ impl MetalSession {
             // inside the bound buffers (from their offsets) and inside the
             // buffers that the caller made resident with `useResource`. The
             // kernel reads each slot as the element type that the caller
-            // stored there, at an offset aligned to that type. A `Threadgroup`
-            // length is a multiple of 16 bytes that fits beside the
-            // pipeline's static threadgroup memory.
+            // stored there, at an offset aligned to that type.
             unsafe {
                 match arg {
                     Arg::Buffer(index, buffer) => encoder.setBuffer_offset_atIndex(Some(buffer), 0, slot(index)),
@@ -342,12 +303,6 @@ impl MetalSession {
                         );
                         encoder.setBuffer_offset_atIndex(Some(buffer), offset, slot(index));
                     }
-                    Arg::Words(index, words) => encoder.setBytes_length_atIndex(
-                        std::ptr::NonNull::from(words).cast(),
-                        size_of_val(words),
-                        slot(index),
-                    ),
-                    Arg::Threadgroup(index, bytes) => encoder.setThreadgroupMemoryLength_atIndex(bytes, slot(index)),
                 }
             }
         }
@@ -379,16 +334,6 @@ impl MetalSession {
     fn finish(&self, command: &ProtocolObject<dyn MTLCommandBuffer>) -> Result<(), MetalError> {
         self.activity.host_waits.fetch_add(1, Ordering::Relaxed);
         finish(command)
-    }
-
-    /// `read_buffer` with the copy split over the CPU cores.
-    fn read_buffer_parallel<T: Pod>(&self, buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> Vec<T> {
-        use rayon::prelude::*;
-        let values = host_view::<T>(buffer, len);
-        self.activity
-            .downloaded_bytes
-            .fetch_add(size_of_val(values) as u64, Ordering::Relaxed);
-        values.par_iter().copied().collect()
     }
 
     fn read_buffer<T: Pod>(&self, buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> Vec<T> {
@@ -428,16 +373,9 @@ impl MetalSession {
 #[path = "../tests/unit/buffer_limit.rs"]
 mod buffer_limit_tests;
 
-/// Uploads `values` before the session exists, so outside its memory limit
-/// and activity counters.
-fn pre_session_buffer<T: Copy>(device: &ProtocolObject<dyn MTLDevice>, values: &[T]) -> Result<Buffer, MetalError> {
-    let bytes = size_of_val(values);
-    let buffer = device
-        .newBufferWithLength_options(bytes, MTLResourceOptions::StorageModeShared)
-        .ok_or(MetalError::Buffer { bytes })?;
-    upload(&buffer, values)?;
-    Ok(buffer)
-}
+#[cfg(test)]
+#[path = "../tests/unit/ring_kernels.rs"]
+mod ring_kernel_tests;
 
 /// Copy `values` to the start of `buffer`, a buffer that Metal allocated
 /// and that no command is using.

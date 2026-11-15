@@ -1,6 +1,6 @@
 import NightstreamFPrime.Lifecycle.Transcript
 import NightstreamFPrime.Spec.Nebula.Soundness
-import NightstreamFPrime.Spec.GoldilocksExtensionRing
+import NightstreamFPrime.Spec.FieldExtensionRing
 
 /-! Owns the concrete Poseidon2 framing of the Nebula memory phase: the
 framed-block transcript of SPEC.md section 7.4 over the Stage 1 sponge absorb, the
@@ -190,8 +190,8 @@ theorem absorbBlocks_eq (s : Poseidon2.State) (bs : List (List F)) :
     show absorbBlocks (Transcript.absorb s (block b)) bs = _
     rw [ih, absorb_eq, blockChunks_cons, List.foldl_append]
 
-theorem natWord_injective {a b : ℕ} (ha : a < goldilocksModulus)
-    (hb : b < goldilocksModulus) (same : natWord a = natWord b) : a = b := by
+theorem natWord_injective {a b : ℕ} (ha : a < fieldModulus)
+    (hb : b < fieldModulus) (same : natWord a = natWord b) : a = b := by
   have := congrArg Fin.val same
   simp only [natWord, Poseidon2.ofNat, Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hb] at this
   exact this
@@ -237,7 +237,7 @@ private theorem chunks_block_head (b : List F) (h : chunks (block b) ≠ []) :
 /-- Blocks whose lengths are canonical have different padded chunk
 sequences when they differ. -/
 theorem blockChunks_injective : ∀ {bs bs' : List (List F)},
-    (∀ b ∈ bs, b.length < goldilocksModulus) → (∀ b ∈ bs', b.length < goldilocksModulus) →
+    (∀ b ∈ bs, b.length < fieldModulus) → (∀ b ∈ bs', b.length < fieldModulus) →
       blockChunks bs = blockChunks bs' → bs = bs'
   | [], [], _, _, _ => rfl
   | [], b :: _, _, _, same => by
@@ -270,15 +270,15 @@ theorem blockChunks_injective : ∀ {bs bs' : List (List F)},
 /-- Framing of the challenge transcript (SPEC.md section 7.4): canonical inputs
 (`ts < q`) that differ absorb different padded chunk sequences. -/
 theorem etaInputBlocks_injective {inp inp' : EtaInput Digest}
-    (small : inp.ts < goldilocksModulus) (small' : inp'.ts < goldilocksModulus)
+    (small : inp.ts < fieldModulus) (small' : inp'.ts < fieldModulus)
     (same : blockChunks (etaInputBlocks inp) = blockChunks (etaInputBlocks inp')) :
     inp = inp' := by
-  have lengths (x : EtaInput Digest) : ∀ b ∈ etaInputBlocks x, b.length < goldilocksModulus := by
+  have lengths (x : EtaInput Digest) : ∀ b ∈ etaInputBlocks x, b.length < fieldModulus := by
     intro b hb
     simp only [etaInputBlocks, List.mem_cons, List.not_mem_nil, or_false] at hb
     rcases hb with rfl | rfl | rfl | rfl
     · decide
-    all_goals simp [digestWords, goldilocksModulus]
+    all_goals simp [digestWords, fieldModulus]
   have blocksEq := blockChunks_injective (lengths inp) (lengths inp') same
   simp only [etaInputBlocks, List.cons.injEq, and_true] at blocksEq
   obtain ⟨-, plan, ts, roots⟩ := blocksEq
@@ -302,7 +302,7 @@ private theorem chainTag_injective {l l' : Lane}
 
 private theorem packed_injective {P P' : List ℕ} (small : ∀ x ∈ P, x < 2 ^ 63)
     (small' : ∀ x ∈ P', x < 2 ^ 63) (same : P.map natWord = P'.map natWord) : P = P' := by
-  have modulus : (2 : ℕ) ^ 63 < goldilocksModulus := by decide
+  have modulus : (2 : ℕ) ^ 63 < fieldModulus := by decide
   apply List.ext_getElem (by simpa using congrArg List.length same)
   intro i h h'
   have word := congrArg (fun l => l[i]?) same
@@ -314,21 +314,21 @@ private theorem packed_injective {P P' : List ℕ} (small : ∀ x ∈ P, x < 2 ^
 /-- Canonical inputs have canonical block lengths. -/
 private theorem blocks_small {p : Geometry} (valid : p.Valid) {x : HashInput Digest}
     (canonical : x.Canonical p.laneLength p.n) :
-    ∀ b ∈ blocks x, b.length < goldilocksModulus := by
+    ∀ b ∈ blocks x, b.length < fieldModulus := by
   cases x with
   | header lane pd =>
     intro b hb
     simp only [blocks, List.mem_cons, List.mem_nil_iff, or_false] at hb
     rcases hb with rfl | rfl
     · cases lane <;> decide
-    · simp [digestWords, goldilocksModulus]
+    · simp [digestWords, fieldModulus]
   | chain lane j D P =>
     obtain ⟨-, length, -⟩ := canonical
     intro b hb
     simp only [blocks, List.mem_cons, List.mem_nil_iff, or_false] at hb
     rcases hb with rfl | rfl | rfl
     · cases lane <;> decide
-    · simp [digestWords, goldilocksModulus]
+    · simp [digestWords, fieldModulus]
     · rw [List.length_map, length]
       exact Geometry.laneLength_lt valid lane
 
@@ -336,7 +336,7 @@ private theorem blocks_small {p : Geometry} (valid : p.Valid) {x : HashInput Dig
 theorem blocks_injective {p : Geometry} (valid : p.Valid) {x y : HashInput Digest}
     (canonicalX : x.Canonical p.laneLength p.n) (canonicalY : y.Canonical p.laneLength p.n)
     (same : blocks x = blocks y) : x = y := by
-  have indices : p.n < goldilocksModulus := by
+  have indices : p.n < fieldModulus := by
     have := valid.belowModulus
     have := valid.exactCover
     have := valid.positive.2.1
@@ -360,7 +360,7 @@ theorem blocks_injective {p : Geometry} (valid : p.Valid) {x y : HashInput Diges
       rw [chainTag_injective tag, natWord_injective (hj.trans indices) (hj'.trans indices) index,
         List.ofFn_injective digest, packed_injective hP hP' packed]
 
-open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
+open scoped NightstreamFPrime.Spec.FieldExtensionRing
 
 /-- Framing of two input lists: if every input is canonical, a collision of the
 Poseidon2 chains between the lists is a Poseidon2 transcript collision. -/

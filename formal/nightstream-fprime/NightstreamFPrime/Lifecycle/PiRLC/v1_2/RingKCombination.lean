@@ -1,6 +1,6 @@
 import NightstreamFPrime.Circuit.Quadratic
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily
-import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLCFinite
+import NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.PiRLCFinite
 
 /-!
 Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1, evaluation
@@ -12,7 +12,7 @@ namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.RingKCombination
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
-open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
 
 abbrev cellCount : Nat := 2
 
@@ -55,13 +55,13 @@ abbrev SpecHolds {blockCount : Nat} (interface : Interface blockCount)
   CombinationFamily.CanonicalHolds (familyInterface interface) offset env
 
 def evalChallenges {blockCount : Nat} (interface : Interface blockCount)
-    (offset : Nat) (env : Env) : Fin 17 → RingF :=
+    (offset : Nat) (env : Env) : Fin 15 → RingF :=
   fun source lane =>
     (interface.challenge offset
       (Fin.cast CombinationFamily.sourceCount_eq.symm source) lane).eval env
 
 def evalInputs {blockCount : Nat} (interface : Interface blockCount)
-    (offset : Nat) (env : Env) : Fin 17 → Fin blockCount → RingK :=
+    (offset : Nat) (env : Env) : Fin 15 → Fin blockCount → RingK :=
   fun source block lane =>
     (interface.input offset
       (Fin.cast CombinationFamily.sourceCount_eq.symm source) block lane).eval env
@@ -149,15 +149,7 @@ theorem ringKMul_cell (cell : Fin cellCount)
       kCell cell
         (ringKMul (RingKAction.embedChallenge challenge) value lane) := by
   unfold ringFMul ringKMul
-  by_cases foldedLow : lane.val < ringMiddleDegree
-  · by_cases hasTwice :
-      lane.val + (ringDegree + ringMiddleDegree) ≤ 2 * (ringDegree - 1)
-    · simp [foldedLow, hasTwice, rawMulCoeffK_cell]
-    · simp [foldedLow, hasTwice, rawMulCoeffK_cell]
-  · by_cases hasTwice :
-      lane.val + (ringDegree + ringMiddleDegree) ≤ 2 * (ringDegree - 1)
-    · simp [foldedLow, hasTwice, rawMulCoeffK_cell]
-    · simp [foldedLow, hasTwice, rawMulCoeffK_cell]
+  simp [rawMulCoeffK_cell]
 
 private theorem rightCombination_eq_combineEvaluation_cell
     {count : Nat} (challenges : Fin count → RingF)

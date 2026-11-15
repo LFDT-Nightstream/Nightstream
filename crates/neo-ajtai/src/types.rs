@@ -1,5 +1,5 @@
+use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as Fq;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{AjtaiError, AjtaiResult};

@@ -10,7 +10,7 @@ namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 
 open Finset
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
-open NightstreamFPrime.Spec.Phi81StrongSet
+open NightstreamFPrime.Spec.RingStrongSet
 
 noncomputable def average {γ : Type*} [Fintype γ] (f : γ → ℝ) : ℝ :=
   (∑ x, f x) / Fintype.card γ

@@ -9,12 +9,12 @@ production matrix evaluations. `Eval_A` remains separate from Pad `Eval_K`.
 
 Inputs:
 - one parent `Eval_A` ring for each production matrix;
-- sixteen child `Eval_A` rings for each production matrix.
+- fourteen child `Eval_A` rings for each production matrix.
 
 Outputs: none.
 
 Constraint group:
-- A1: 4 matrices × 54 coefficients × 2 extension cells = 432 affine rows.
+- A1: 4 matrices × 64 coefficients × 2 extension cells = 512 affine rows.
 
 Parent coverage:
 - the matrix field of `PiDEC.PaperVerifier.Accepted.evaluationEquation`.
@@ -26,7 +26,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
 
 abbrev blockCount : Nat := productionShape.matrixCount
 
@@ -34,7 +34,7 @@ structure Interface where
   parent : Nat → Fin productionShape.matrixCount →
     Fin productionShape.coefficientCount → KExpr
   child : Nat →
-    NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex →
+    NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix.ChildIndex →
     Fin productionShape.matrixCount →
     Fin productionShape.coefficientCount → KExpr
 
@@ -59,7 +59,7 @@ def evalParent (interface : Interface) (offset : Nat) (env : Env) :
       (EvalKRecomposition.coefficient lane)).eval env
 
 def evalChildren (interface : Interface) (offset : Nat) (env : Env) :
-    NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex →
+    NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix.ChildIndex →
       Fin productionShape.matrixCount → RingK :=
   fun child matrix lane =>
     (interface.child offset child matrix
@@ -69,7 +69,7 @@ theorem parentCoverage (interface : Interface) (offset : Nat) (env : Env)
     (specification : SpecHolds interface offset env) :
     evalParent interface offset env = fun matrix =>
       BaseLinear.combineEvaluations
-        NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiDEC.radixWeight
+        NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.PiDEC.radixWeight
         (fun child => evalChildren interface offset env child matrix) := by
   simpa [evalParent, evalChildren, RingKRecomposition.evalParent,
     RingKRecomposition.evalChildren, ringInterface] using!
@@ -80,7 +80,7 @@ theorem specHolds_of_parentCoverage
     (interface : Interface) (offset : Nat) (env : Env)
     (equation : evalParent interface offset env = fun matrix =>
       BaseLinear.combineEvaluations
-        NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiDEC.radixWeight
+        NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.PiDEC.radixWeight
         (fun child => evalChildren interface offset env child matrix)) :
     SpecHolds interface offset env := by
   apply RingKRecomposition.specHolds_of_parentCoverage
@@ -89,10 +89,10 @@ theorem specHolds_of_parentCoverage
     RingKRecomposition.evalChildren, ringInterface] using! equation
 
 theorem coordinateCount_eq :
-    RingKRecomposition.coordinateCount blockCount = 432 := by
+    RingKRecomposition.coordinateCount blockCount = 512 := by
   norm_num [RingKRecomposition.coordinateCount,
     RingKRecomposition.cellCount, blockCount, productionShape,
-    Phi81MatrixSource.phi81Shape, productionProfile, ringDegree]
+    RingMatrixSource.ringShape, productionProfile, ringDegree]
 
 abbrev circuit (interface : Interface) : FormalCircuit :=
   RingKRecomposition.circuit (ringInterface interface)
@@ -103,11 +103,11 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      432 := by
+      512 := by
   calc
     _ = RingKRecomposition.coordinateCount blockCount :=
       (circuit interface).rowCount_eq offset
-    _ = 432 := coordinateCount_eq
+    _ = 512 := coordinateCount_eq
 
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :

@@ -1,6 +1,6 @@
 import Mathlib.Analysis.SpecificLimits.Basic
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Challenge
 
 set_option autoImplicit false
 

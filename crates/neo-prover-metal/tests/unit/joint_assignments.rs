@@ -43,7 +43,7 @@ fn encoded_device_prefix_matches_dense_cpu_through_every_fold() {
         let command = session.command_buffer("fold").unwrap();
         tables.fold(&session, &command, &masks, challenge).unwrap();
         session.finish(&command).unwrap();
-        assert_eq!(tables.encoding() as usize, [1, 1, 2, 16, 16, 16, 16][round]);
+        assert_eq!(tables.encoding() as usize, [1, 1, 2, 16, 16, 16, 16, 16][round]);
         assert_eq!(tables.len, expected[0].len());
         let read_k = |buffer: &Buffer, len| {
             session

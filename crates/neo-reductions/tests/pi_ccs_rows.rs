@@ -42,21 +42,19 @@ fn row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks() {
     )
     .unwrap();
     let cache = build_superneo_eval_cache(&structure).unwrap();
-    let mut params = NeoParams::nightstream_goldilocks_k16();
+    let mut params = NeoParams::nightstream_p64_k14();
     params = params
         .with_lambda(
-            params.lambda().min(
-                params
-                    .padded_row_security_summary_for_shape(
-                        rows,
-                        logical,
-                        structure.t(),
-                        structure.max_degree(),
-                        neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
-                    )
-                    .unwrap()
-                    .security_bits,
-            ),
+            params
+                .padded_row_security_summary_for_shape(
+                    rows,
+                    logical,
+                    structure.t(),
+                    structure.max_degree(),
+                    neo_params::nightstream_p64_k14::CHALLENGE_ALPHABET.len() as u32,
+                )
+                .unwrap()
+                .security_bits,
         )
         .unwrap();
     let mut fresh_values = vec![F::ZERO; width];

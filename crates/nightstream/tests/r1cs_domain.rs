@@ -4,7 +4,7 @@ use nightstream::nebula::{Geometry, R1csApplication, R1csApplicationError, RowRe
 use nightstream::relation::{
     ColumnFamilySpec, ColumnRegistry, ColumnWidth, ContinuityCatalog, ContinuityGroup, ContinuityLink, MemoryCatalog,
 };
-use nightstream::{Goldilocks as F, PrimeCharacteristicRing};
+use nightstream::{Fq as F, PrimeCharacteristicRing};
 
 fn columns(width: usize) -> ColumnRegistry {
     ColumnRegistry::new([ColumnFamilySpec {

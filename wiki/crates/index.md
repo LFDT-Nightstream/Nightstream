@@ -5,16 +5,16 @@ Workspace members (root `Cargo.toml`), lowest layer first:
 | Crate | Role | Page |
 |---|---|---|
 | `neo-params` | Validated parameter bundles + the canonical Poseidon2 config | [neo-params](neo-params.md) |
-| `neo-math` | Goldilocks `F`, extension `K`, ring `R_q`, bar transform, norms, S-action | [neo-math](neo-math.md) |
+| `neo-math` | Field `F` of `2^64 − 59`, extension `K`, ring `R_q`, bar transform, norms, S-action | [neo-math](neo-math.md) |
 | `neo-ccs` | CCS/CE relations, matrices, polynomial, R1CS→CCS | [neo-ccs](neo-ccs.md) |
 | `neo-transcript` | Poseidon2 Fiat-Shamir transcript | [neo-transcript](neo-transcript.md) |
 | `neo-ajtai` | Ajtai (module-SIS) commitments, decomposition, S-module | [neo-ajtai](neo-ajtai.md) |
 | `neo-reductions` | Π_CCS / Π_RLC / Π_DEC engines (optimized + paper-exact) | [neo-reductions](neo-reductions.md) |
-| `neo-spartan` | Compression layer 1: a succinct argument for one CE claim, with WHIR commitments | [source](../../crates/neo-spartan/src/lib.rs) |
+| `ns-compress` | The argument of the compressed proof: CE claims over the Akita commitment scheme | [source](../../crates/ns-compress/src/lib.rs) |
 | `neo-prover-metal` | Metal device state and row evaluation; `nightstream` does not use it now | [neo-prover-metal](../../crates/neo-prover-metal/README.md) |
 | `neo-prover-cuda` | CUDA backend target; construction fails until a canonical kernel exists | [source](../../crates/neo-prover-cuda/src/lib.rs) |
-| `nightstream` | Application compilation, proving, verification and compression | [nightstream](../../crates/nightstream/README.md) |
-| `nightstream-fprime` | Loading of the Lean-emitted light, refresh and finish packages | [source](../../crates/nightstream-fprime/src/lib.rs) |
+| `nightstream` | Application compilation, proving and verification | [nightstream](../../crates/nightstream/README.md) |
+| `nightstream-fprime` | Loading of the Lean-emitted light and refresh packages | [source](../../crates/nightstream-fprime/src/lib.rs) |
 
 See [Architecture](../architecture/index.md) for the current ownership boundaries.
 

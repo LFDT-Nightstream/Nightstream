@@ -5,17 +5,17 @@ import NightstreamFPrime.Lifecycle.Types
 Paper authority: SuperNeo v1.2, Section 7.5, verifier equation
 `y = sum_i b^i y_i` for the separate Pad evaluation family.
 
-Obligation: enforce fixed-radix recomposition of the one 54-coefficient
+Obligation: enforce fixed-radix recomposition of the one 64-coefficient
 `Eval_K` ring. `Eval_K` is not matrix zero and is not merged with `Eval_A`.
 
 Inputs:
 - one parent `Eval_K`;
-- sixteen child `Eval_K` values.
+- fourteen child `Eval_K` values.
 
 Outputs: none.
 
 Constraint group:
-- K1: 54 coefficients × 2 extension-field cells = 108 affine rows.
+- K1: 64 coefficients × 2 extension-field cells = 128 affine rows.
 
 Parent coverage:
 - the Pad field of `PiDEC.PaperVerifier.Accepted.evaluationEquation`.
@@ -27,7 +27,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
 
 def blockCount : Nat := 1
 def block : Fin blockCount := ⟨0, by decide⟩
@@ -43,7 +43,7 @@ def coefficient (lane : Fin ringDegree) :
 structure Interface where
   parent : Nat → Fin productionShape.coefficientCount → KExpr
   child : Nat →
-    NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex →
+    NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix.ChildIndex →
     Fin productionShape.coefficientCount → KExpr
 
 def ringInterface (interface : Interface) :
@@ -62,7 +62,7 @@ def evalParent (interface : Interface) (offset : Nat) (env : Env) : RingK :=
   fun lane => (interface.parent offset (coefficient lane)).eval env
 
 def evalChildren (interface : Interface) (offset : Nat) (env : Env) :
-    NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.ChildIndex → RingK :=
+    NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix.ChildIndex → RingK :=
   fun child lane =>
     (interface.child offset child (coefficient lane)).eval env
 
@@ -70,7 +70,7 @@ theorem parentCoverage (interface : Interface) (offset : Nat) (env : Env)
     (specification : SpecHolds interface offset env) :
     evalParent interface offset env =
       BaseLinear.combineEvaluations
-        NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiDEC.radixWeight
+        NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.PiDEC.radixWeight
         (evalChildren interface offset env) := by
   have all := RingKRecomposition.parentCoverage
     (ringInterface interface) offset env specification
@@ -82,7 +82,7 @@ theorem specHolds_of_parentCoverage
     (interface : Interface) (offset : Nat) (env : Env)
     (equation : evalParent interface offset env =
       BaseLinear.combineEvaluations
-        NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiDEC.radixWeight
+        NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.PiDEC.radixWeight
         (evalChildren interface offset env)) :
     SpecHolds interface offset env := by
   apply RingKRecomposition.specHolds_of_parentCoverage
@@ -99,7 +99,7 @@ theorem specHolds_of_parentCoverage
     RingKRecomposition.evalChildren, ringInterface, block] using! equation
 
 theorem coordinateCount_eq :
-    RingKRecomposition.coordinateCount blockCount = 108 := by
+    RingKRecomposition.coordinateCount blockCount = 128 := by
   norm_num [RingKRecomposition.coordinateCount,
     RingKRecomposition.cellCount, blockCount, ringDegree]
 
@@ -112,11 +112,11 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      108 := by
+      128 := by
   calc
     _ = RingKRecomposition.coordinateCount blockCount :=
       (circuit interface).rowCount_eq offset
-    _ = 108 := coordinateCount_eq
+    _ = 128 := coordinateCount_eq
 
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :

@@ -29,7 +29,7 @@ def completeLogicalWidth
 theorem completeLogicalWidth_eq
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application =
-      43738906 + retainedCoordinateCount application := by
+      40881830 + retainedCoordinateCount application := by
   unfold completeLogicalWidth localStart witnessStart
   rw [PiRLCSamplerOrdinaryRetainedGeometry.completeLogicalWidth_eq]
   unfold retainedCoordinateCount
@@ -38,7 +38,7 @@ theorem completeLogicalWidth_eq
 theorem completeLogicalWidth_eq_applicationCounts
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application =
-      43738906 +
+      40881830 +
         (application.witnessWordCount + localCount application) * 41 := by
   rw [completeLogicalWidth_eq, retainedCoordinateCount_eq,
     retainedSlotCount_eq]
@@ -47,20 +47,20 @@ theorem completeLogicalWidth_le_twoPow28_iff
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application ≤
         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
-      application.witnessWordCount + localCount application ≤ 5480403 := by
+      application.witnessWordCount + localCount application ≤ 5550088 := by
   rw [completeLogicalWidth_eq_applicationCounts]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
   omega
 
 theorem carrierWidth_le_twoPow28_iff
     (application : Lifecycle.Stage1.Application.Program) :
-    NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+    NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
           (completeLogicalWidth application) ≤
         2 ^ NightstreamFPrime.Lifecycle.cubeVariables ↔
-      application.witnessWordCount + localCount application ≤ 5480402 := by
+      application.witnessWordCount + localCount application ≤ 5550088 := by
   rw [completeLogicalWidth_eq_applicationCounts]
-  simp [NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth,
-    NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount,
+  simp [NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth,
+    NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteRingColumnLayout.blockCount,
     NightstreamFPrime.Spec.ringDegree,
     NightstreamFPrime.Lifecycle.cubeVariables]
   omega
@@ -72,7 +72,7 @@ structure FitsTwoPow28
 
 theorem fitsTwoPow28OfApplicationCounts
     (application : Lifecycle.Stage1.Application.Program)
-    (fits : application.witnessWordCount + localCount application ≤ 5480403) :
+    (fits : application.witnessWordCount + localCount application ≤ 5550088) :
     FitsTwoPow28 application where
   complete :=
     (completeLogicalWidth_le_twoPow28_iff application).2 fits
@@ -116,9 +116,9 @@ theorem inputFits {application : Lifecycle.Stage1.Application.Program}
       logicalWidth := by
   have pilot := PiRLCPoseidonGeometry.priorInputFits (pilotGeometry geometry)
   have full : (PiRLCPoseidonGeometry.priorInputBlock application).coordinateCount =
-      1140579 := by simp [PiRLCPoseidonGeometry.priorInputBlock]
+      1038489 := by simp [PiRLCPoseidonGeometry.priorInputBlock]
   rw [full] at pilot
-  change PiRLCPoseidonGeometry.priorInputStart application + 27815 * 41 + 4 * 41 ≤
+  change PiRLCPoseidonGeometry.priorInputStart application + 25325 * 41 + 4 * 41 ≤
     logicalWidth
   omega
 
@@ -136,9 +136,9 @@ theorem outputFits {application : Lifecycle.Stage1.Application.Program}
       logicalWidth := by
   have pilot := PiRLCPoseidonGeometry.outputInputFits (pilotGeometry geometry)
   have full : (PiRLCPoseidonGeometry.outputInputBlock application).coordinateCount =
-      1140579 := by simp [PiRLCPoseidonGeometry.outputInputBlock]
+      1038489 := by simp [PiRLCPoseidonGeometry.outputInputBlock]
   rw [full] at pilot
-  change PiRLCPoseidonGeometry.outputInputStart application + 27815 * 41 + 4 * 41 ≤
+  change PiRLCPoseidonGeometry.outputInputStart application + 25325 * 41 + 4 * 41 ≤
     logicalWidth
   omega
 

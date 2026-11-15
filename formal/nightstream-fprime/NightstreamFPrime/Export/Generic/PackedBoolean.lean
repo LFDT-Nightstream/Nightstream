@@ -8,7 +8,7 @@ namespace NightstreamFPrime.Export.Generic.PackedBoolean
 open NightstreamFPrime.Spec NightstreamFPrime.Circuit NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Lifecycle
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open NightstreamFPrime.Export.BoundedDepth.SlotCompleteness
@@ -40,11 +40,11 @@ theorem packNat_bound (digits : List Nat) (small : ∀ d ∈ digits, d ≤ 4) :
     simp only [packNat, List.length_cons, target]
     omega
 
-theorem target_capacity_lt_modulus : 2 * target capacity < goldilocksModulus := by
+theorem target_capacity_lt_modulus : 2 * target capacity < fieldModulus := by
   decide
 
 theorem packNat_below_modulus (digits : List Nat) (count : digits.length ≤ capacity)
-    (small : ∀ d ∈ digits, d ≤ 4) : packNat digits < goldilocksModulus := by
+    (small : ∀ d ∈ digits, d ≤ 4) : packNat digits < fieldModulus := by
   have bound := packNat_bound digits small
   have limit := target_mono count
   have maximum := target_capacity_lt_modulus
@@ -140,7 +140,7 @@ theorem packed_implies_pairs (pairs : List (F × F)) (count : pairs.length ≤ c
     obtain ⟨p, _, rfl⟩ := List.mem_map.mp member
     exact digit_le p
   have packedBound := packNat_below_modulus (pairs.map digit) (by simpa using count) small
-  have targetBound : target pairs.length < goldilocksModulus := by
+  have targetBound : target pairs.length < fieldModulus := by
     have limit := target_mono count
     have maximum := target_capacity_lt_modulus
     omega
@@ -553,7 +553,7 @@ theorem honest_extended_ordered_layout {width : Nat}
 
 theorem freshHolds_implies_original_rows {width wide : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth wide}
+      RingCarrierLayout.carrierWidth wide}
     (slots : List (LowNormAssignment.Slot width))
     (le : ProductionAssignment.logicalWidth slots ≤ wide)
     (original kept : List R1CS.Row) (groups : List (List Pair))
@@ -566,10 +566,10 @@ theorem freshHolds_implies_original_rows {width wide : Nat}
     (extra : ProductionRelation.Plan wide)
     (rowBound : (LogicalPlan.plan (kept ++ groups.map row) width fits
       (WideLayout.widen (SlotLayout.layout slots) le)).rowCount + extra.rowCount ≤ 2 ^ cubeVariables)
-    (cubeFits : Phi81CarrierLayout.carrierWidth wide ≤ 2 ^ cubeVariables)
+    (cubeFits : RingCarrierLayout.carrierWidth wide ≤ 2 ^ cubeVariables)
     (key : PaperAlgebra.AjtaiKey (logicalWidth := wide) (publicFits := publicFits))
     (fresh : Fresh (logicalWidth := wide) (publicFits := publicFits))
-    (assignment : Assignment F (Phi81CarrierLayout.carrierWidth wide))
+    (assignment : Assignment F (RingCarrierLayout.carrierWidth wide))
     (one : Plan.logicalAssignment assignment (WideLayout.widen (SlotLayout.layout slots) le).one = 1)
     (accepted : CCS.Holds (PaperAlgebra.semantics key) productionGlobalParams
       (freshStatement ((Plan.append
@@ -579,8 +579,8 @@ theorem freshHolds_implies_original_rows {width wide : Nat}
     R1CS.RowsHold (LogicalPlan.sourceEnv (WideLayout.widen (SlotLayout.layout slots) le)
       (Plan.logicalAssignment assignment)) original ∧
       extra.RowsZero (Plan.logicalAssignment assignment) ∧
-      Phi81Relation.projectPublicInput (shape := PaperAlgebra.FullShape wide publicFits)
-        (Phi81CarrierLayout.extendAssignment 0 (Plan.logicalAssignment assignment)) =
+      RingRelation.projectPublicInput (shape := PaperAlgebra.FullShape wide publicFits)
+        (RingCarrierLayout.extendAssignment 0 (Plan.logicalAssignment assignment)) =
           fresh.publicInputs ⟨0, by decide⟩ := by
   obtain ⟨allRows, publicInput, norm⟩ := Plan.freshHolds_implies_rowsPublicAndNorm
     (Plan.append (LogicalPlan.plan (kept ++ groups.map row) width fits

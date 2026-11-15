@@ -66,10 +66,10 @@ tests      axiom gate (explicit imports, `#audit_axioms` per theorem)
   the code cannot show, such as a paper citation or a leaf audit packet.
 - No generated modules, no embedded artifact data, no `native_decide`, no
   `sorry`/`admit`/`axiom`/`unsafe`, no file at or above 1,500 lines, no glob
-  in `lakefile.toml`, one profile (`b = 2`, `k_rho = 16`).
+  in `lakefile.toml`, one profile (`b = 2`, `k_rho = 14`).
 - No `maxRecDepth`/`maxHeartbeats` override, except a per-declaration
   `set_option … in -- fixed-size: …` whose cost axis is a protocol constant
-  (ring degree 54, Poseidon2 width) and never emitted data. Each such site is
+  (ring degree 64, Poseidon2 width) and never emitted data. Each such site is
   a recorded debt to replace by a structural proof. The boundary script
   rejects every other form.
 - Subcircuits are opaque to parents: a parent proof that unfolds a child's
@@ -122,9 +122,17 @@ development impractical.
   its length.
 - After the change, run the executable again and confirm that the emitted
   files are byte-identical.
-- The one-build-process rule still applies. Parallel work must occur inside
-  that one authorized build, test, emitter, or generator process. Do not start
-  competing Lean or Rust processes to obtain parallelism.
+- Run one Lean or Rust build process at a time per worktree (`lake build`,
+  `cargo build`, `cargo test`). A build may use all cores inside its own
+  process. Do not start a second build to obtain parallelism.
+- Emitter and generator executables that are already built may run as
+  parallel processes when each one writes only its own output files.
+  Regenerate the artifacts with `scripts/regenerate_artifacts.sh`, which runs
+  the independent emitter invocations in parallel, each under its own cap. Do
+  not run them one after another, and do not run a build while they run.
+- One emitter process uses one core. If a regeneration leaves most cores idle,
+  the work is serial: split it into independent processes, or make the
+  emitter parallel inside its process.
 - Speed work must not move semantic authority into Rust, weaken a proof, skip
   a gate, change canonical ordering, or make a digest authoritative. When a
   development path becomes materially slower, fix or redesign that path

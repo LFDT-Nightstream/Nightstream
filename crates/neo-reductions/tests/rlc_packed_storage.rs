@@ -56,7 +56,7 @@ fn packed_rlc_needs_no_nonzero_entry_lists() {
         .build()
         .unwrap();
     let columns = D + 1;
-    let all_lanes = (1u64 << D) - 1;
+    let all_lanes = u64::MAX >> (u64::BITS as usize - D);
     let positive: Vec<_> = (0..columns)
         .map(|column| if column % 2 == 0 { all_lanes } else { 0 })
         .collect();

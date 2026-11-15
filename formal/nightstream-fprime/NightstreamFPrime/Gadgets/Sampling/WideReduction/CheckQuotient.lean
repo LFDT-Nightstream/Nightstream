@@ -20,23 +20,23 @@ theorem integer_bounds (env : Env) (offset : Nat) (check : Fin checkCount)
     (resultBits : ∀ term ∈ resultTerms offset, (term.2.eval env).val ≤ 1)
     (sameInteger : linearValue env (drawTerms offset) = linearValue env (resultTerms offset)) :
     right env offset check ≤ left env offset check ∧
-      left env offset check < goldilocksModulus ∧
+      left env offset check < fieldModulus ∧
       modulus check ∣ left env offset check - right env offset check ∧
-      (left env offset check - right env offset check) / modulus check < 549 := by
+      (left env offset check - right env offset check) / modulus check < 684 := by
   let m := modulus check
   have positive := modulus_pos check
   have small := modulus_lt check
-  have lower : 293 * m ≤ left env offset check := by
+  have lower : 364 * m ≤ left env offset check := by
     unfold left checkBias quotientBitCount digitCount digitBitCount
     omega
-  have upper : left env offset check ≤ 256 * (m - 1) + 293 * m := by
+  have upper : left env offset check ≤ 320 * (m - 1) + 364 * m := by
     have bound := linearValue_le env (reduceTerms m (drawTerms offset)) (m - 1)
       (reduceTerms_bound m positive _) (reduceTerms_bits env m _ drawBits)
     rw [reduceTerms_length, length_drawTerms] at bound
     dsimp only [m] at bound ⊢
     unfold left checkBias quotientBitCount digitCount digitBitCount
     omega
-  have rightUpper : right env offset check ≤ 293 * (m - 1) := by
+  have rightUpper : right env offset check ≤ 364 * (m - 1) := by
     have bound := linearValue_le env (reduceTerms m (resultTerms offset)) (m - 1)
       (reduceTerms_bound m positive _) (reduceTerms_bits env m _ resultBits)
     rwa [reduceTerms_length, length_resultTerms] at bound
@@ -51,7 +51,7 @@ theorem integer_bounds (env : Env) (offset : Nat) (check : Fin checkCount)
     exact linearValue_reduce_modEq env m (resultTerms offset)
   refine ⟨ordered, ?_, ?_, ?_⟩
   · change m < 2 ^ 50 at small
-    norm_num [goldilocksModulus] at *
+    norm_num [fieldModulus] at *
     omega
   · exact (Nat.modEq_iff_dvd' ordered).mp (rightCongruence.trans leftCongruence.symm)
   · apply Nat.div_lt_of_lt_mul
@@ -82,7 +82,7 @@ theorem field_value (env : Env) (offset : Nat) (check : Fin checkCount)
     rw [fieldOfNat_mul, Nat.mul_div_cancel' divides]
   rw [subtraction, factor]
   have inverse := modulus_inverse check
-  change (fieldOfNat (modulus check) : ZMod goldilocksModulus) *
+  change (fieldOfNat (modulus check) : ZMod fieldModulus) *
     fieldOfNat ((left env offset check - right env offset check) / modulus check) * _ = _
   calc
     _ = fieldOfNat ((left env offset check - right env offset check) / modulus check) *

@@ -73,9 +73,10 @@ impl SuperneoEvalCache {
     }
 }
 
+/// `D` is a power of two, so ring element `block` covers the low cube at the high index `block`.
+const _: () = assert!(D.is_power_of_two());
+
 pub(super) fn pad_openings(witnesses: &[SuperneoZBlocks], point: &[K]) -> Vec<[K; D]> {
-    const LOW_WIDTH: usize = D.next_power_of_two();
-    const PHASES: usize = LOW_WIDTH >> D.trailing_zeros();
     let active: Vec<_> = witnesses
         .iter()
         .filter(|witness| !witness.real_is_zero())
@@ -83,81 +84,51 @@ pub(super) fn pad_openings(witnesses: &[SuperneoZBlocks], point: &[K]) -> Vec<[K
     let Some(blocks) = active.first().map(|witness| witness.block_len()) else {
         return vec![[K::ZERO; D]; witnesses.len()];
     };
-    let (low_point, high_point) = point.split_at(LOW_WIDTH.trailing_zeros() as usize);
+    let (low_point, high_point) = point.split_at(D.trailing_zeros() as usize);
     let low = EqualityWeights::new(low_point);
     let high = EqualityWeights::new(high_point);
-    let templates: Vec<[[K; D]; 2]> = (0..PHASES)
-        .map(|phase| {
-            let offset = phase * D % LOW_WIDTH;
-            std::array::from_fn(|side| {
-                let values: [K; D] = std::array::from_fn(|lane| {
-                    let local = offset + lane;
-                    if local / LOW_WIDTH == side {
-                        low.at(local % LOW_WIDTH)
-                    } else {
-                        K::ZERO
-                    }
-                });
-                let real = superneo_bar_block(values.map(|value| value.as_coeffs()[0]));
-                let imaginary = superneo_bar_block(values.map(|value| value.as_coeffs()[1]));
-                std::array::from_fn(|lane| K::from_coeffs([real[lane], imaginary[lane]]))
-            })
-        })
-        .collect();
-    let zero = || vec![[[K::ZERO; D]; 2]; active.len() * PHASES];
+    let template: [K; D] = {
+        let values: [K; D] = std::array::from_fn(|lane| low.at(lane));
+        let real = superneo_bar_block(values.map(|value| value.as_coeffs()[0]));
+        let imaginary = superneo_bar_block(values.map(|value| value.as_coeffs()[1]));
+        std::array::from_fn(|lane| K::from_coeffs([real[lane], imaginary[lane]]))
+    };
+    let zero = || vec![[K::ZERO; D]; active.len()];
     let task = |task: usize| {
         let mut sums = zero();
         for block in task * TASK_BLOCKS..((task + 1) * TASK_BLOCKS).min(blocks) {
-            let column = block * D;
-            let phase = block % PHASES;
-            let weights = [
-                high.at(column / LOW_WIDTH),
-                if column % LOW_WIDTH + D > LOW_WIDTH {
-                    high.at(column / LOW_WIDTH + 1)
-                } else {
-                    K::ZERO
-                },
-            ];
-            for (index, witness) in active.iter().enumerate() {
+            let weight = high.at(block);
+            if weight == K::ZERO {
+                continue;
+            }
+            for (sum, witness) in sums.iter_mut().zip(&active) {
                 if !witness.real_nonzero(block) {
                     continue;
                 }
-                let sum = &mut sums[index * PHASES + phase];
                 if let Some((positive, negative)) = witness.signed_unit_masks() {
-                    for (part, weight) in sum.iter_mut().zip(weights) {
-                        if weight == K::ZERO {
-                            continue;
-                        }
-                        let mut mask = positive[block];
-                        while mask != 0 {
-                            part[mask.trailing_zeros() as usize] += weight;
-                            mask &= mask - 1;
-                        }
-                        mask = negative[block];
-                        while mask != 0 {
-                            part[mask.trailing_zeros() as usize] -= weight;
-                            mask &= mask - 1;
-                        }
+                    let mut mask = positive[block];
+                    while mask != 0 {
+                        sum[mask.trailing_zeros() as usize] += weight;
+                        mask &= mask - 1;
+                    }
+                    mask = negative[block];
+                    while mask != 0 {
+                        sum[mask.trailing_zeros() as usize] -= weight;
+                        mask &= mask - 1;
                     }
                 } else {
-                    for (part, weight) in sum.iter_mut().zip(weights) {
-                        if weight != K::ZERO {
-                            for (lane, value) in part.iter_mut().enumerate() {
-                                *value += weight * K::from(witness.real_coefficient(block, lane));
-                            }
-                        }
+                    for (lane, value) in sum.iter_mut().enumerate() {
+                        *value += weight * K::from(witness.real_coefficient(block, lane));
                     }
                 }
             }
         }
         sums
     };
-    let combine = |mut left: Vec<[[K; D]; 2]>, right: Vec<[[K; D]; 2]>| {
+    let combine = |mut left: Vec<[K; D]>, right: Vec<[K; D]>| {
         for (left, right) in left.iter_mut().zip(right) {
             for (left, right) in left.iter_mut().zip(right) {
-                for (left, right) in left.iter_mut().zip(right) {
-                    *left += right;
-                }
+                *left += right;
             }
         }
         left
@@ -167,13 +138,9 @@ pub(super) fn pad_openings(witnesses: &[SuperneoZBlocks], point: &[K]) -> Vec<[K
     let sums = tasks.into_par_iter().map(task).reduce(zero, combine);
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     let sums = tasks.map(task).fold(zero(), combine);
-    let mut sums = sums.chunks_exact(PHASES).map(|phases| {
+    let mut sums = sums.iter().map(|sum| {
         let mut result = [K::ZERO; D];
-        for (sum, template) in phases.iter().zip(&templates) {
-            for (sum, template) in sum.iter().zip(template) {
-                add_ring_product(&mut result, sum, template);
-            }
-        }
+        add_ring_product(&mut result, sum, &template);
         result
     });
     witnesses
@@ -188,22 +155,17 @@ pub(super) fn pad_openings(witnesses: &[SuperneoZBlocks], point: &[K]) -> Vec<[K
 }
 
 fn add_ring_product(output: &mut [K; D], left: &[K; D], right: &[K; D]) {
-    let mut product = [K::ZERO; 2 * D - 1];
+    // X^D = −1 in the ring of SPEC.md section 2.2.
     for (i, &left) in left.iter().enumerate() {
         if left != K::ZERO {
             for (j, &right) in right.iter().enumerate() {
-                product[i + j] += left * right;
+                if i + j < D {
+                    output[i + j] += left * right;
+                } else {
+                    output[i + j - D] -= left * right;
+                }
             }
         }
-    }
-    // Exact reduction by Phi81 = X^54 + X^27 + 1, highest degree first.
-    for degree in (D..product.len()).rev() {
-        let coefficient = product[degree];
-        product[degree - D] -= coefficient;
-        product[degree - D / 2] -= coefficient;
-    }
-    for (out, value) in output.iter_mut().zip(product) {
-        *out += value;
     }
 }
 

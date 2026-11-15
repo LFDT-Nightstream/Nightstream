@@ -7,9 +7,9 @@
 //! own witness values. Its output rows are the `state_out` hash rows, which
 //! are not the last rows.
 
-use neo_ccs::crypto::poseidon2_goldilocks::{round_constants, Poseidon2RoundConstants, RATE, WIDTH};
+use neo_ccs::crypto::poseidon2::{RATE, WIDTH};
+use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as F;
 use std::collections::BTreeSet;
 
 use super::app::Application;
@@ -50,7 +50,6 @@ fn transcript_chunks(blocks: &[Vec<Expr>]) -> Vec<Vec<Affine>> {
 /// lanes (`absorbE`) and permutes.
 fn absorb(
     builder: &mut ApplicationBuilder,
-    constants: &Poseidon2RoundConstants,
     mut state: State,
     chunks: &[Vec<Affine>],
 ) -> Result<State, ApplicationError> {
@@ -62,7 +61,7 @@ fn absorb(
                 .unwrap_or_else(|| Affine::constant(F::ZERO));
             *value = value.clone() + word;
         }
-        state = permutation(builder, state, constants)?;
+        state = permutation(builder, state)?;
     }
     Ok(state)
 }
@@ -145,7 +144,6 @@ fn build<A: Application>(
     }
     let wires = shared.wires(&source_wires);
     let sym = Sym::new(geometry, layout, &wires, headers);
-    let constants = round_constants();
     let run = |count: usize, index: &dyn Fn(usize) -> usize| (0..count).map(|k| sym.word(index(k))).collect::<Vec<_>>();
 
     let state_blocks = |word: fn(&Layout, usize) -> usize, carry: usize| {
@@ -177,7 +175,7 @@ fn build<A: Application>(
     ];
 
     let absorbing = |builder: &mut ApplicationBuilder, blocks: &[Vec<Expr>]| {
-        absorb(builder, &constants, zero_state(), &transcript_chunks(blocks))
+        absorb(builder, zero_state(), &transcript_chunks(blocks))
     };
     let mut phases = Vec::new();
     let mut mark = |builder: &ApplicationBuilder, name: &'static str| {
@@ -208,9 +206,9 @@ fn build<A: Application>(
     mark(&builder, "Final-scan record chain sponge");
     let eta = absorbing(&mut builder, &eta_blocks)?;
     mark(&builder, "η transcript sponge");
-    let squeeze1 = absorb(&mut builder, &constants, eta.clone(), &[Vec::new()])?;
-    let squeeze2 = absorb(&mut builder, &constants, squeeze1.clone(), &[Vec::new()])?;
-    let squeeze3 = absorb(&mut builder, &constants, squeeze2.clone(), &[Vec::new()])?;
+    let squeeze1 = absorb(&mut builder, eta.clone(), &[Vec::new()])?;
+    let squeeze2 = absorb(&mut builder, squeeze1.clone(), &[Vec::new()])?;
+    let squeeze3 = absorb(&mut builder, squeeze2.clone(), &[Vec::new()])?;
     mark(&builder, "η squeezes");
 
     let input = builder.input_state();

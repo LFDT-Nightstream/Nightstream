@@ -1,10 +1,13 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use neo_math::Fq as F;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks as F;
 
 use super::{field_lowering::normalized, layout::forced_column, Linear, Piece, Row, StepPackage};
-use crate::{package::Entries, PackageError};
+use crate::{
+    package::{Entries, BLOCK_LOCALS},
+    PackageError,
+};
 
 type Key = Vec<(usize, u64)>;
 
@@ -341,7 +344,7 @@ impl GuardFusion {
             let mut dropped = BTreeSet::new();
             for block in package.blocks().take(package.application.pieces - 1) {
                 let first = block.start() - package.application.local_start;
-                for recipe in first..first + 1096 {
+                for recipe in first..first + BLOCK_LOCALS {
                     dropped.insert(records.recipe_row(recipe)?);
                 }
             }

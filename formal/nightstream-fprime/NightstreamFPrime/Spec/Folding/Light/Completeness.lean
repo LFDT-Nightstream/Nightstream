@@ -11,7 +11,7 @@ namespace NightstreamFPrime.Spec.Folding.Light
 
 open NightstreamFPrime.Spec
 open _root_.NightstreamFPrime.Spec.SumCheck.Finite
-open _root_.NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausalTrace (issued)
+open _root_.NightstreamFPrime.Spec.SumCheck.Finite.FieldCausalTrace (issued)
 open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction

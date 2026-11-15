@@ -37,7 +37,7 @@ private theorem inputColumn_lt_sourceWidth
   rw [Layout.Stage1.ApplicationInputs.inputColumn_value]
   have bound := index.isLt
   norm_num [Layout.Stage1.ApplicationInputs.witnessStart,
-    Layout.Stage1.Spartan.privateColumnCount,
+    Layout.Stage1.PackageOrder.privateColumnCount,
     Layout.Stage1.ApplicationInputs.currentWordStart,
     Lifecycle.Stage1.Application.stateWordCount] at bound ⊢
   omega
@@ -50,7 +50,7 @@ private theorem outputColumn_lt_sourceWidth
   rw [Layout.Stage1.ApplicationInputs.outputColumn_value]
   have bound := index.isLt
   norm_num [Layout.Stage1.ApplicationInputs.witnessStart,
-    Layout.Stage1.Spartan.privateColumnCount,
+    Layout.Stage1.PackageOrder.privateColumnCount,
     Layout.Stage1.ApplicationInputs.currentWordStart,
     Lifecycle.Stage1.Application.stateWordCount] at bound ⊢
   omega

@@ -21,17 +21,17 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity (StepLi
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 abbrev StepFold (logicalWidth : Nat)
     (publicFits :
-      ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) :=
   Spec.HyperNova.Construction2.BoundedDepth.Fold (CircuitKey logicalWidth publicFits) (SlotClaim logicalWidth publicFits)
     (StepFresh logicalWidth publicFits) StepProof
 
 abbrev PriorPreimage (logicalWidth : Nat)
     (publicFits :
-      ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) :=
   Paper.HashPreimage (CircuitKey logicalWidth publicFits) AppState (SlotData logicalWidth publicFits) 2
 
 /-- The fold's fresh instance commits to `prior`, whose selected slot holds `start`, and `prior`

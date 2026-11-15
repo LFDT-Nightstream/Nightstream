@@ -1,3 +1,5 @@
+use p3_field::PrimeField64;
+
 use super::*;
 
 fn form(column: usize) -> Linear {
@@ -66,7 +68,7 @@ fn lowering_follows_proved_inputs_without_circular_product_rows() {
 
 #[test]
 fn twenty_four_residuals_cannot_wrap_but_twenty_five_can() {
-    let modulus = u128::from(u64::MAX) - (1u128 << 32) + 2;
+    let modulus = u128::from(F::ORDER_U64);
     assert!(6u128.pow(24) - 1 < modulus);
     assert!(6u128.pow(25) - 1 > modulus);
     let gates = (0..25)

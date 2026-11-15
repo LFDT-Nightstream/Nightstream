@@ -8,7 +8,7 @@ open NightstreamFPrime.Gadgets.Sampling
 
 def count : Nat := ringDegree
 
-theorem count_eq : count = 54 := rfl
+theorem count_eq : count = 64 := rfl
 
 def recipe (rangeOffset : Nat) (index : Fin count) : Expr :=
   WideReduction.Program.outputWord rangeOffset index

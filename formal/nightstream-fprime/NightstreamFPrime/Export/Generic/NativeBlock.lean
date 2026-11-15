@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Generic.CircuitRelation
 import NightstreamFPrime.Export.PermutationOutput
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompleteness
-import NightstreamFPrime.Spec.GoldilocksPrime
+import NightstreamFPrime.Spec.FieldPrime
 import NightstreamFPrime.Export.Generic.SlotLayout
 
 /-! Native Poseidon2 blocks and bit slots (CW-8.3). A Rust-built application can place each
@@ -439,7 +439,7 @@ theorem bit_valid_of_boolean {value : F} (boolean : value * value = value) :
     LowNormSlot.Valid .bit value := by
   have product : value * (value - 1) = 0 := by
     rw [mul_sub, mul_one, boolean, sub_self]
-  rcases GoldilocksPrime.baseFieldNoZeroDivisors value (value - 1) product with zero | minusOne
+  rcases FieldPrime.baseFieldNoZeroDivisors value (value - 1) product with zero | minusOne
   · exact Or.inl zero
   · exact Or.inr (sub_eq_zero.mp minusOne)
 
@@ -452,9 +452,9 @@ theorem bit_of_quadratic {a₀ a₁ b₀ b₁ c₀ c₁ value : F} (lead : a₁ 
     LowNormSlot.Valid .bit value := by
   have product : (a₁ * b₁) * (value * (value - 1)) = 0 := by
     linear_combination holds - value * atOne + (value - 1) * atZero
-  rcases GoldilocksPrime.baseFieldNoZeroDivisors _ _ product with zero | root
+  rcases FieldPrime.baseFieldNoZeroDivisors _ _ product with zero | root
   · exact absurd zero lead
-  · rcases GoldilocksPrime.baseFieldNoZeroDivisors value (value - 1) root with zero | minusOne
+  · rcases FieldPrime.baseFieldNoZeroDivisors value (value - 1) root with zero | minusOne
     · exact Or.inl zero
     · exact Or.inr (sub_eq_zero.mp minusOne)
 

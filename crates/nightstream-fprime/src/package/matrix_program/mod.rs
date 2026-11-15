@@ -3,11 +3,11 @@
 //! This module owns wire decoding and row interpretation. It does not select
 //! phases, applications, row schedules, or matrix formulas.
 
-use p3_goldilocks::Goldilocks;
+use neo_math::Fq;
 
 use super::PackageError;
 
-const POSEIDON_WIDTH: usize = neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
+const POSEIDON_WIDTH: usize = neo_ccs::crypto::poseidon2::WIDTH;
 
 mod form;
 use form::Form;
@@ -21,7 +21,7 @@ pub(super) const MEANINGFUL_PORTS: usize = 4;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct Entry {
     pub(super) column: usize,
-    pub(super) coefficient: Goldilocks,
+    pub(super) coefficient: Fq,
 }
 
 pub(super) type RowView<'a> = [&'a [MatrixRun]; MEANINGFUL_PORTS];

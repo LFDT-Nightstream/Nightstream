@@ -9,10 +9,10 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness
 import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakSuffix
 
-import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
+import NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.RingFPolynomial
 import NightstreamFPrime.Spec
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
@@ -21,12 +21,12 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 #audit_axioms NightstreamFPrime.Spec.ProductionRelation.GatePolynomial.termData_toMonomial
 
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.coeff_toPolynomial
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.toPolynomial_injective
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.toPolynomial_zero
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.toPolynomial_one
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.modulus_monic
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.toPolynomial_ringFMul_mod
+#audit_axioms NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.RingFPolynomial.coeff_toPolynomial
+#audit_axioms NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.RingFPolynomial.toPolynomial_injective
+#audit_axioms NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.RingFPolynomial.toPolynomial_zero
+#audit_axioms NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.RingFPolynomial.toPolynomial_one
+#audit_axioms NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.RingFPolynomial.modulus_monic
+#audit_axioms NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.RingFPolynomial.toPolynomial_ringFMul_mod
 
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface.piRlcBatchForProbe_eq_piRlcBatch
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface.outputWitnessOfAssignments_at
@@ -43,9 +43,9 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness.honest_public_accepts
 #audit_axioms NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness.public_parent
 
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.degree_modulus
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.root_pow_mod
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial.image_mul
+#audit_axioms NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.RingFPolynomial.degree_modulus
+#audit_axioms NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.RingFPolynomial.root_pow_mod
+#audit_axioms NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism.RingFPolynomial.image_mul
 
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget.test_error_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget.test_error_eq_selected

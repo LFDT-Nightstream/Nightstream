@@ -15,7 +15,7 @@ open RunningTransitionInputs
 theorem inputsSupported
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     RunningTransition.InputsSupported
       (interface logicalWidth publicFits) phaseOffset Logical := by
   refine {
@@ -55,7 +55,7 @@ theorem inputsSupported
 theorem logicalConstraints_varsSatisfy
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     ∀ expression ∈ RunningTransitionLayout.logicalConstraints
         logicalWidth publicFits,
       expression.VarsSatisfy Logical := by

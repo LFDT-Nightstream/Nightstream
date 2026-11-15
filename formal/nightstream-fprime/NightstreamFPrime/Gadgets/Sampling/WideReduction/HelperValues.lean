@@ -9,22 +9,22 @@ open NightstreamFPrime.Spec NightstreamFPrime.Circuit
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 
 def quotient (draw : Draw) (round position : Nat) : Nat :=
-  HintValues.limb ((drawIndex draw).val / 5 ^ (round + 1)) (4 - position)
+  HintValues.limb ((drawIndex draw).val / 5 ^ (round + 1)) (5 - position)
 
 def remainder (draw : Draw) (round position : Nat) : Nat :=
-  (drawIndex draw).val / 5 ^ round / WitnessArithmetic.radix ^ (4 - position) % 5
+  (drawIndex draw).val / 5 ^ round / WitnessArithmetic.radix ^ (5 - position) % 5
 
 def value (draw : Draw) (index : Nat) : Nat :=
-  if index < 256 then
-    (draw ⟨index / 64 % 4, Nat.mod_lt _ (by decide)⟩).val / 2 ^ (index % 64) % 2
-  else if index < 864 then
-    let relative := index - 256
+  if index < 320 then
+    (draw ⟨index / 64 % 5, Nat.mod_lt _ (by decide)⟩).val / 2 ^ (index % 64) % 2
+  else if index < 1080 then
+    let relative := index - 320
     let accumulator := LimbArithmetic.accumulator draw (relative / 38)
     if relative % 38 = 0 then accumulator else accumulator / 2 ^ (relative % 38 - 1) % 2
   else
-    let relative := index - 864
-    if relative % 2 = 0 then quotient draw (relative / 10) (relative % 10 / 2)
-    else remainder draw (relative / 10) (relative % 10 / 2)
+    let relative := index - 1080
+    if relative % 2 = 0 then quotient draw (relative / 12) (relative % 12 / 2)
+    else remainder draw (relative / 12) (relative % 12 / 2)
 
 def environment (base : Env) (start : Nat) (draw : Draw) : Env :=
   fun index => if start ≤ index ∧ index < start + HintProgram.helperCount then
@@ -64,11 +64,11 @@ private theorem assigned (base : Env) (start : Nat) (draw : Draw) (position : Na
   unfold environment
   rw [ite_eq_left (by omega), Nat.add_sub_cancel_left]
 
-theorem source_bit (base : Env) (start : Nat) (draw : Draw) (lane : Fin 4) (bit : Nat)
+theorem source_bit (base : Env) (start : Nat) (draw : Draw) (lane : Fin 5) (bit : Nat)
     (bound : bit < 64) :
     environment base start draw (start + lane.val * 64 + bit) =
       fieldOfNat ((draw lane).val / 2 ^ bit % 2) := by
-  rw [Nat.add_assoc, assigned base start draw _ (by have := lane.isLt; change _ < 1404; omega)]
+  rw [Nat.add_assoc, assigned base start draw _ (by have := lane.isLt; change _ < 1848; omega)]
   unfold value
   rw [ite_eq_left (by have := lane.isLt; omega)]
   have divide : (lane.val * 64 + bit) / 64 = lane.val := by omega
@@ -76,29 +76,29 @@ theorem source_bit (base : Env) (start : Nat) (draw : Draw) (lane : Fin 4) (bit 
   simp only [divide, modulo, Nat.mod_eq_of_lt lane.isLt, Fin.eta]
 
 theorem accumulator (base : Env) (start : Nat) (draw : Draw) (position : Nat)
-    (bound : position < 16) :
+    (bound : position < 20) :
     environment base start draw (HintProgram.limbStart start position) =
       fieldOfNat (LimbArithmetic.accumulator draw position) := by
   unfold HintProgram.limbStart HintProgram.sourceBitCount HintProgram.limbStride
     HintProgram.accumulatorBits
-  rw [Nat.add_assoc, assigned base start draw _ (by change _ < 1404; omega)]
+  rw [Nat.add_assoc, assigned base start draw _ (by change _ < 1848; omega)]
   unfold value
   rw [ite_eq_right (by omega), ite_eq_left (by omega)]
   simp
 
 theorem accumulator_bit (base : Env) (start : Nat) (draw : Draw) (position bit : Nat)
-    (positionBound : position < 16) (bitBound : bit < 37) :
+    (positionBound : position < 20) (bitBound : bit < 37) :
     environment base start draw (HintProgram.limbStart start position + 1 + bit) =
       fieldOfNat (LimbArithmetic.accumulator draw position / 2 ^ bit % 2) := by
   have coordinate : HintProgram.limbStart start position + 1 + bit =
-      start + (256 + position * 38 + 1 + bit) := by
+      start + (320 + position * 38 + 1 + bit) := by
     unfold HintProgram.limbStart HintProgram.sourceBitCount HintProgram.limbStride
       HintProgram.accumulatorBits
     omega
-  rw [coordinate, assigned base start draw _ (by change _ < 1404; omega)]
+  rw [coordinate, assigned base start draw _ (by change _ < 1848; omega)]
   unfold value
   rw [ite_eq_right (by omega), ite_eq_left (by omega)]
-  have subtract : 256 + position * 38 + 1 + bit - 256 = position * 38 + 1 + bit := by omega
+  have subtract : 320 + position * 38 + 1 + bit - 320 = position * 38 + 1 + bit := by omega
   have divide : (position * 38 + 1 + bit) / 38 = position := by omega
   have modulo : (position * 38 + 1 + bit) % 38 = 1 + bit := by omega
   rw [subtract]
@@ -107,41 +107,41 @@ theorem accumulator_bit (base : Env) (start : Nat) (draw : Draw) (position bit :
   rw [show 1 + bit - 1 = bit by omega]
 
 theorem division (base : Env) (start : Nat) (draw : Draw) (round position : Nat)
-    (roundBound : round < 54) (positionBound : position < 5) :
+    (roundBound : round < 64) (positionBound : position < 6) :
     environment base start draw (HintProgram.divisionColumn start round position) =
         fieldOfNat (quotient draw round position) ∧
       environment base start draw (HintProgram.divisionColumn start round position + 1) =
         fieldOfNat (remainder draw round position) := by
   have coordinate : HintProgram.divisionColumn start round position =
-      start + (864 + round * 10 + 2 * position) := by
+      start + (1080 + round * 12 + 2 * position) := by
     unfold HintProgram.divisionColumn HintProgram.divisionStart HintProgram.sourceBitCount
       HintProgram.limbCount HintProgram.limbStride HintProgram.accumulatorBits
       HintProgram.divisionStride HintProgram.divisionLimbs
     omega
   rw [coordinate]
   constructor
-  · rw [assigned base start draw _ (by change _ < 1404; omega)]
+  · rw [assigned base start draw _ (by change _ < 1848; omega)]
     unfold value
     rw [ite_eq_right (by omega), ite_eq_right (by omega)]
-    have hsub : 864 + round * 10 + 2 * position - 864 = round * 10 + 2 * position := by omega
+    have hsub : 1080 + round * 12 + 2 * position - 1080 = round * 12 + 2 * position := by omega
     rw [hsub]
     dsimp only
     rw [ite_eq_left (by omega)]
-    have hround : (round * 10 + 2 * position) / 10 = round := by omega
-    have hposition : (round * 10 + 2 * position) % 10 / 2 = position := by omega
+    have hround : (round * 12 + 2 * position) / 12 = round := by omega
+    have hposition : (round * 12 + 2 * position) % 12 / 2 = position := by omega
     rw [hround, hposition]
-  · rw [show start + (864 + round * 10 + 2 * position) + 1 =
-        start + (864 + round * 10 + 2 * position + 1) by omega,
-        assigned base start draw _ (by change _ < 1404; omega)]
+  · rw [show start + (1080 + round * 12 + 2 * position) + 1 =
+        start + (1080 + round * 12 + 2 * position + 1) by omega,
+        assigned base start draw _ (by change _ < 1848; omega)]
     unfold value
     rw [ite_eq_right (by omega), ite_eq_right (by omega)]
-    have hsub : 864 + round * 10 + 2 * position + 1 - 864 =
-        round * 10 + 2 * position + 1 := by omega
+    have hsub : 1080 + round * 12 + 2 * position + 1 - 1080 =
+        round * 12 + 2 * position + 1 := by omega
     rw [hsub]
     dsimp only
     rw [ite_eq_right (by omega)]
-    have hround : (round * 10 + 2 * position + 1) / 10 = round := by omega
-    have hposition : (round * 10 + 2 * position + 1) % 10 / 2 = position := by omega
+    have hround : (round * 12 + 2 * position + 1) / 12 = round := by omega
+    have hposition : (round * 12 + 2 * position + 1) % 12 / 2 = position := by omega
     rw [hround, hposition]
 
 end NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperValues

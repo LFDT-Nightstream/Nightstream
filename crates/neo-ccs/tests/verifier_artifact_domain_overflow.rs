@@ -1,7 +1,7 @@
 //! A verifier-artifact header must not round its carrier width past `usize`.
 
 use neo_ccs::{poly::SparsePoly, CcsStructure};
-use p3_goldilocks::Goldilocks as F;
+use neo_math::Fq as F;
 
 #[cfg(target_pointer_width = "64")]
 #[test]

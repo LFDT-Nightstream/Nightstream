@@ -13,11 +13,11 @@ open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   parent : Nat → InputBinding.ParentExpr logicalWidth publicFits
   point : Nat → Fin productionShape.cubeVariables → KExpr
   message : Nat → Radix.ChildIndex → InputBinding.ChildMessageExpr
@@ -27,7 +27,7 @@ structure Interface (logicalWidth : Nat)
 def atOffset
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     Interface logicalWidth publicFits where
   parent := fun _ => interface.parent offset
@@ -38,7 +38,7 @@ def atOffset
 def inputBindingInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) :
     InputBinding.Interface logicalWidth publicFits where
   parent := interface.parent
@@ -48,7 +48,7 @@ def inputBindingInterface
 def publicInputInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) :
     PublicInputSplit.Interface logicalWidth publicFits where
   parent := fun offset => (interface.parent offset).publicInput
@@ -57,7 +57,7 @@ def publicInputInterface
 def commitmentInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) :
     CommitmentRecomposition.Interface where
   parent := fun offset => (interface.parent offset).commitment
@@ -66,7 +66,7 @@ def commitmentInterface
 def evalKInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) :
     EvalKRecomposition.Interface where
   parent := fun offset => (interface.parent offset).evaluation.eval_K
@@ -76,7 +76,7 @@ def evalKInterface
 def evalAInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) :
     EvalARecomposition.Interface where
   parent := fun offset => (interface.parent offset).evaluation.eval_A
@@ -86,7 +86,7 @@ def evalAInterface
 def outputBindingInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) :
     OutputBinding.Interface logicalWidth publicFits where
   point := interface.point
@@ -107,7 +107,7 @@ def finalOffset (offset : Nat) : Nat := recompositionOffset offset
 def inputBindingCircuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) : FormalCircuit :=
   InputBinding.circuit relation (inputBindingInterface interface)
@@ -115,35 +115,35 @@ def inputBindingCircuit
 def publicInputCircuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : FormalCircuit :=
   PublicInputSplit.circuit (publicInputInterface interface)
 
 def commitmentCircuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : FormalCircuit :=
   CommitmentRecomposition.circuit (commitmentInterface interface)
 
 def evalKCircuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : FormalCircuit :=
   EvalKRecomposition.circuit (evalKInterface interface)
 
 def evalACircuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : FormalCircuit :=
   EvalARecomposition.circuit (evalAInterface interface)
 
 def outputBindingCircuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) : FormalCircuit :=
   OutputBinding.circuit relation (outputBindingInterface interface)
@@ -154,7 +154,7 @@ def childOp (name : String) (child : FormalCircuit) (offset : Nat) : Op :=
 def opsAt
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) : List Op :=
   let shared := atOffset interface offset
@@ -174,7 +174,7 @@ def opsAt
 def main
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) : Circuit Unit := fun offset =>
   ((), finalOffset offset, opsAt relation interface offset)
@@ -182,7 +182,7 @@ def main
 @[simp] theorem main_ops
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     Circuit.ops (main relation interface) offset =
@@ -198,7 +198,7 @@ def logicalRowCount : Nat :=
 structure InputsBelow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) : Prop where
   point : ∀ coordinate, (interface.point offset coordinate).VarsBelow offset
   parentCommitment : ∀ row lane,
@@ -221,7 +221,7 @@ structure InputsBelow
 structure Assumptions
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (_env : Env) : Prop where
@@ -230,7 +230,7 @@ structure Assumptions
 theorem publicInputAssumptions
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {interface : Interface logicalWidth publicFits}
     {offset : Nat} {env : Env}
@@ -244,7 +244,7 @@ theorem publicInputAssumptions
 theorem commitmentAssumptions
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {interface : Interface logicalWidth publicFits}
     {offset : Nat} {env : Env}
@@ -268,7 +268,7 @@ theorem commitmentAssumptions
 theorem evalKAssumptions
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {interface : Interface logicalWidth publicFits}
     {offset : Nat} {env : Env}
@@ -293,7 +293,7 @@ theorem evalKAssumptions
 theorem evalAAssumptions
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {interface : Interface logicalWidth publicFits}
     {offset : Nat} {env : Env}
@@ -320,7 +320,7 @@ theorem evalAAssumptions
 structure SpecHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (env : Env) : Prop where
@@ -354,7 +354,7 @@ private theorem childSpec_of_rows
 theorem soundness
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits)
     (offset : Nat) (env : Env)
@@ -388,7 +388,7 @@ theorem soundness
 @[simp] private theorem inputBindingOp_localLength
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_2.input_binding"
@@ -400,7 +400,7 @@ theorem soundness
 @[simp] private theorem publicInputOp_localLength
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_2.public_input_split"
       (publicInputCircuit interface) offset).localLength =
@@ -421,7 +421,7 @@ theorem soundness
 @[simp] private theorem commitmentOp_localLength
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_2.commitment_recomposition"
       (commitmentCircuit interface) offset).localLength = 0 := by
@@ -432,7 +432,7 @@ theorem soundness
 @[simp] private theorem evalKOp_localLength
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_2.eval_K_recomposition"
       (evalKCircuit interface) offset).localLength = 0 := by
@@ -442,7 +442,7 @@ theorem soundness
 @[simp] private theorem evalAOp_localLength
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_2.eval_A_recomposition"
       (evalACircuit interface) offset).localLength = 0 := by
@@ -452,7 +452,7 @@ theorem soundness
 @[simp] private theorem outputBindingOp_localLength
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_2.output_binding"
@@ -464,7 +464,7 @@ theorem soundness
 @[simp] private theorem inputBindingOp_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_2.input_binding"
@@ -474,7 +474,7 @@ theorem soundness
 @[simp] private theorem publicInputOp_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_2.public_input_split"
       (publicInputCircuit interface) offset).rowCount =
@@ -486,7 +486,7 @@ theorem soundness
 @[simp] private theorem commitmentOp_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_2.commitment_recomposition"
       (commitmentCircuit interface) offset).rowCount =
@@ -496,7 +496,7 @@ theorem soundness
 @[simp] private theorem evalKOp_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_2.eval_K_recomposition"
       (evalKCircuit interface) offset).rowCount =
@@ -506,7 +506,7 @@ theorem soundness
 @[simp] private theorem evalAOp_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_2.eval_A_recomposition"
       (evalACircuit interface) offset).rowCount =
@@ -516,7 +516,7 @@ theorem soundness
 @[simp] private theorem outputBindingOp_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pidec.v1_2.output_binding"
@@ -526,7 +526,7 @@ theorem soundness
 theorem localLength_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     localLength (Circuit.ops (main relation interface) offset) =
@@ -537,7 +537,7 @@ theorem localLength_eq
 theorem flatConstraints_length
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (flatConstraints (Circuit.ops (main relation interface) offset)).length =

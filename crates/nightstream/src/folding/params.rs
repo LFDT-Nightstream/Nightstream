@@ -1,19 +1,13 @@
-//! Selected Nightstream Goldilocks k_rho = 16 parameters.
+//! The parameters of the profile Nightstream P64, k_rho = 14.
 use neo_params::NeoParams;
 #[derive(Clone, Debug)]
 pub(crate) struct Params {
     inner: NeoParams,
-    /// The caller's local minimum for one fold, in bits.
-    minimum_security_bits: u32,
-    /// `-log2` of one fold's zero-query statistical error (not floored).
-    fold_error_bits: f64,
 }
 impl Params {
     pub(crate) fn production() -> Self {
         Self {
-            inner: NeoParams::nightstream_goldilocks_k16(),
-            minimum_security_bits: 0,
-            fold_error_bits: f64::INFINITY,
+            inner: NeoParams::nightstream_p64_k14(),
         }
     }
     pub(crate) fn for_ccs_shape(
@@ -28,27 +22,15 @@ impl Params {
                 "minimum statistical security must be positive",
             ));
         }
-        let inner = NeoParams::nightstream_goldilocks_k16();
-        let summary = inner.padded_row_security_summary_for_shape(
-            rows,
-            columns,
-            matrix_count,
-            poly_degree,
-            neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
-        )?;
-        // Lean `RefreshKnowledge.statisticalError 0`, the larger fold error,
-        // since either fold can run under either relation: the Π_CCS test
-        // error at each of the 2ℓ + 1 + sources transcript challenges, and
-        // the Π_RLC sample error `1/|C| + 2^-132` sources² times.
-        let sources = f64::from(1 + inner.k_rho());
-        let challenges = 2.0 * f64::from(summary.cube_variables) + 1.0 + sources;
-        let test = (challenges * summary.field_factor as f64).log2() - f64::from(inner.s()) * (inner.q() as f64).log2();
-        let sample = sources * sources * (1.0 / summary.challenge_set_cardinality as f64 + (-132.0f64).exp2());
-        let fold_error_bits = -(test.exp2() + sample).log2();
-        let available = inner
-            .lambda()
-            .min(summary.security_bits)
-            .min(fold_error_bits.floor() as u32);
+        let inner = NeoParams::nightstream_p64_k14();
+        let alphabet = neo_params::nightstream_p64_k14::CHALLENGE_ALPHABET.len() as u32;
+        let summary =
+            inner.padded_row_security_summary_for_shape(rows, columns, matrix_count, poly_degree, alphabet)?;
+        // Lean `FoldGate.bits`: the error that it charges bounds the
+        // statistical term of either fold's random-oracle result
+        // (`FoldGate.refresh_statisticalError_le_bits`,
+        // `FoldGate.light_statisticalError_le_bits`).
+        let available = summary.security_bits.min(summary.fold_error.bits);
         if available < minimum_security_bits {
             return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
                 required: minimum_security_bits,
@@ -56,17 +38,7 @@ impl Params {
             });
         }
         let inner = inner.with_lambda(available)?;
-        Ok(Self {
-            inner,
-            minimum_security_bits,
-            fold_error_bits,
-        })
-    }
-    /// `-log2` of the error the compression argument may add after a final
-    /// fold, so that the total stays within the caller's minimum.
-    pub(crate) fn compression_security_bits(&self) -> Option<f64> {
-        let remaining = (-f64::from(self.minimum_security_bits)).exp2() - (-self.fold_error_bits).exp2();
-        (remaining > 0.0).then(|| -remaining.log2())
+        Ok(Self { inner })
     }
     pub(crate) fn b(&self) -> u32 {
         self.inner.b()
@@ -84,6 +56,6 @@ impl Params {
         &self.inner
     }
     pub(crate) fn ring(&self) -> neo_reductions::common::RotRing {
-        neo_reductions::common::RotRing::goldilocks()
+        neo_reductions::common::RotRing::profile()
     }
 }

@@ -1,7 +1,7 @@
 //! Native side of Nebula memory checking (SPEC.md section 7) for any application of
 //! the `Application` contract: the geometry and the program, the record
 //! chains and challenge transcript, the carry, the segment runner that writes
-//! each invocation's witness words, the SPEC.md Algorithm 10 terminal checks,
+//! each invocation's witness words, the SPEC.md Algorithm 8 terminal checks,
 //! the memory circuit, the memory prover and verifier, the memory backend of
 //! catalog applications (`CatalogBinding`), and the application of an R1CS
 //! relation of one row (`R1csApplication`). A public memory circuit comes
@@ -31,8 +31,8 @@ pub(crate) mod test_packages;
 mod transcript;
 mod words;
 
+use neo_math::F;
 use p3_field::PrimeField64;
-use p3_goldilocks::Goldilocks as F;
 
 pub use app::{Application, Memory, Transition};
 pub(crate) use carry::Carry;
@@ -89,8 +89,8 @@ impl Package {
     }
 
     /// Load the package's bounded-depth circuit: Lean's light and refresh
-    /// packages of the memory program (`EmitMain --program`) and the finish
-    /// package. `Circuit::load_packages` recomputes their identity
+    /// packages of the memory program (`EmitMain --program`).
+    /// `Circuit::load_packages` recomputes their identity
     /// and requires the package's pin.
     pub fn load(self, references: crate::References<'_>) -> Result<Circuit<Machine>, crate::Error> {
         Ok(Circuit {
@@ -101,19 +101,19 @@ impl Package {
     }
 
     /// The identity of the package's bounded-depth light and refresh packages.
-    fn bounded_depth_identity(self) -> [u64; 4] {
+    pub(crate) fn bounded_depth_identity(self) -> [u64; 4] {
         match self {
             Package::V1 => [
-                3_180_419_269_317_939_345,
-                12_753_092_109_696_569_961,
-                17_146_916_458_370_844_357,
-                13_202_109_808_588_181_401,
+                10_521_736_676_566_981_841,
+                17_030_416_327_257_820_028,
+                762_377_323_855_278_287,
+                7_177_439_307_360_311_678,
             ],
             Package::N1 => [
-                15_961_784_185_370_198_869,
-                9_045_685_272_713_122_869,
-                44_199_573_957_760_331,
-                15_634_264_822_030_694_132,
+                16_239_158_707_257_270_793,
+                17_449_761_050_757_552_364,
+                16_056_053_691_499_397_085,
+                5_834_940_975_242_953_709,
             ],
         }
     }
@@ -172,7 +172,7 @@ impl Program {
     }
 }
 
-/// The SPEC.md Algorithm 10 public statement of a memory proof over application states `S`.
+/// The SPEC.md Algorithm 8 public statement of a memory proof over application states `S`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Statement<S> {
     pub steps: u64,
@@ -185,7 +185,7 @@ pub(crate) struct Statement<S> {
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum TerminalError {
-    /// Canonical decoding (SPEC.md Algorithm 10, step 2): an integer of the
+    /// Canonical decoding (SPEC.md Algorithm 8, step 2): an integer of the
     /// statement that becomes a field word is not below `q`, so it has the
     /// word of a smaller integer.
     #[error("a statement integer is not a canonical field element")]
@@ -299,9 +299,9 @@ impl<A: Application> Circuit<A> {
     }
 
     /// The prover of the circuit. `minimum_security_bits` separately gates
-    /// one fold and one memory fingerprint challenge
-    /// (`Geometry::memory_security_bits`). It does not account for recursive
-    /// depth, queries, retries, or concurrent attempts.
+    /// one fold and the memory fingerprint term of all `S_max` segments
+    /// (SPEC.md section 7.1). It does not account for recursive depth,
+    /// queries, retries, or concurrent attempts.
     pub fn prover(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<Prover<A>, crate::Error>
     where
         A: Clone,
@@ -315,9 +315,9 @@ impl<A: Application> Circuit<A> {
     }
 
     /// The verifier of the circuit. It may share the prover's circuit.
-    /// `minimum_security_bits` separately gates one fold and one memory
-    /// fingerprint challenge (`Geometry::memory_security_bits`). It is not an
-    /// end-to-end security bound.
+    /// `minimum_security_bits` separately gates one fold and the memory
+    /// fingerprint term of all `S_max` segments (SPEC.md section 7.1). It is
+    /// not an end-to-end security bound.
     pub fn verifier(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<Verifier<A>, crate::Error>
     where
         A: Clone,
@@ -332,17 +332,29 @@ impl<A: Application> Circuit<A> {
     }
 }
 
-/// Require the memory fingerprint term of `geometry` to meet
-/// `minimum_security_bits` (SPEC.md section 7.1, rule 6).
+/// The largest `k` with `S_max · 2 · m_mem / q² ≤ 2^−k`: each of the `S_max`
+/// segments of a proof adds its own fingerprint term (`SECURITY_MODEL.md`,
+/// adversary 5). The integers are exact, so no rounding accepts a larger `k`.
+fn segments_security_bits(geometry: &Geometry) -> u32 {
+    let q = u128::from(F::ORDER_U64);
+    (2 * geometry.max_tuples() as u128)
+        .checked_mul(geometry.s_max as u128)
+        .and_then(|error| (q * q).checked_div(error))
+        .and_then(u128::checked_ilog2)
+        .unwrap_or(0)
+}
+
+/// Require a valid and secure `geometry` (SPEC.md section 7.1) whose
+/// fingerprint term over all `S_max` segments meets `minimum_security_bits`.
 fn memory_security(geometry: &Geometry, minimum_security_bits: u32) -> Result<(), crate::Error> {
     if !geometry.is_valid() || !geometry.is_secure() {
         return Err(crate::Error::Circuit("the memory geometry breaks SPEC.md section 7.1"));
     }
-    let available = geometry.memory_security_bits();
-    if available < f64::from(minimum_security_bits) {
+    let available = segments_security_bits(geometry);
+    if available < minimum_security_bits {
         return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
             required: minimum_security_bits,
-            available: available.floor() as u32,
+            available,
         }
         .into());
     }
@@ -351,7 +363,7 @@ fn memory_security(geometry: &Geometry, minimum_security_bits: u32) -> Result<()
 
 #[cfg(test)]
 impl<A: Application> Context<A> {
-    /// SPEC.md Algorithm 10: check the final carry against the statement and return the
+    /// SPEC.md Algorithm 8: check the final carry against the statement and return the
     /// initial and final Stage 1 states for the Stage 1 terminal check.
     pub fn terminal_states(
         &self,
@@ -480,7 +492,7 @@ impl<A: Application> Run<A> {
         Ok(segment.invocations)
     }
 
-    /// The SPEC.md Algorithm 10 statement of the run so far.
+    /// The SPEC.md Algorithm 8 statement of the run so far.
     #[cfg(test)]
     pub(crate) fn statement(&self) -> Statement<A::State> {
         Statement {
@@ -497,3 +509,7 @@ impl<A: Application> Run<A> {
 #[cfg(test)]
 #[path = "../../tests/nebula/memory.rs"]
 mod memory;
+
+#[cfg(test)]
+#[path = "../../tests/nebula/memory_gate.rs"]
+mod memory_gate;

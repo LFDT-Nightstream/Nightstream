@@ -6,7 +6,7 @@ namespace NightstreamFPrime.Export.Generic.PackedProduct
 
 open NightstreamFPrime.Spec NightstreamFPrime.Circuit NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
 open Fin.CommRing
 
 def capacity : Nat := 24
@@ -88,7 +88,7 @@ theorem packNat_bound (digits : List Nat) (small : ∀ d ∈ digits, d ≤ 9) :
     simp only [packNat, List.length_cons, target]
     omega
 
-theorem target_capacity_lt_modulus : 2 * target capacity < goldilocksModulus := by
+theorem target_capacity_lt_modulus : 2 * target capacity < fieldModulus := by
   decide
 
 theorem packNat_eq_target (digits : List Nat) (small : ∀ d ∈ digits, d ≤ 9)
@@ -129,10 +129,10 @@ theorem packed_implies_residuals (values : List Values) (count : values.length �
   have bound := packNat_bound (values.map Values.digit) small
   have limit := target_mono count
   have maximum := target_capacity_lt_modulus
-  have packedBound : packNat (values.map Values.digit) < goldilocksModulus := by
+  have packedBound : packNat (values.map Values.digit) < fieldModulus := by
     simp only [List.length_map] at bound
     exact lt_of_le_of_lt bound (lt_of_le_of_lt (Nat.mul_le_mul_left 2 limit) maximum)
-  have targetBound : target values.length < goldilocksModulus := by omega
+  have targetBound : target values.length < fieldModulus := by omega
   have field := pack_field values norm
   rw [zero, zero_add] at field
   have equal : packNat (values.map Values.digit) = target values.length := by

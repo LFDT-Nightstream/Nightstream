@@ -6,9 +6,9 @@ import NightstreamFPrime.Layout.BoundedDepth.LightAssembler
 is one variable in a source region that starts at `base`. The first groups are the light step's
 (`LightAssembler`): the counters and selector (5), the key digests (8), the start, current and
 next states (12), the application witness, the prior, active, inner and next slots
-(7 × 2,055), the slot and output digests (20) and the fresh instance (1,458). Then come the 16
-children's commitments (19,008) and evaluation families (8,640), their digit words (4,320), the
-round messages (504), the Π_CCS output of all 17 sources (9,180), and the new and inner digests
+(7 × 2,169), the slot and output digests (20) and the fresh instance (1,472). Then come the 14
+children's commitments (16,128) and evaluation families (8,960), their digit words (4,480), the
+round messages (504), the Π_CCS output of all 15 sources (9,600), and the new and inner digests
 (12). The step's gadgets start at `sharedEnd`. -/
 
 namespace NightstreamFPrime.Layout.BoundedDepth.RefreshAssembler
@@ -28,27 +28,27 @@ open NightstreamFPrime.Layout.BoundedDepth.LightAssembler (kAt slotAt slotAt_bel
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- Where each group of the refresh step's own shared words starts. -/
 def childCommitmentsStart (base witnessWordCount : Nat) : Nat :=
-  freshStart base witnessWordCount + 1458
+  freshStart base witnessWordCount + 1472
 def childEvaluationsStart (base witnessWordCount : Nat) : Nat :=
-  childCommitmentsStart base witnessWordCount + 19008
+  childCommitmentsStart base witnessWordCount + 16128
 def digitsStart (base witnessWordCount : Nat) : Nat :=
-  childEvaluationsStart base witnessWordCount + 8640
-def roundsStart (base witnessWordCount : Nat) : Nat := digitsStart base witnessWordCount + 4320
+  childEvaluationsStart base witnessWordCount + 8960
+def roundsStart (base witnessWordCount : Nat) : Nat := digitsStart base witnessWordCount + 4480
 def outputStart (base witnessWordCount : Nat) : Nat := roundsStart base witnessWordCount + 504
 
 /-- The digest select's 12 words: the new slot's digest, then each slot's inner digest. -/
 def digestSelectStart (base witnessWordCount : Nat) : Nat :=
-  outputStart base witnessWordCount + 9180
+  outputStart base witnessWordCount + 9600
 
 /-- The first column after the shared words, where the step's gadgets start. -/
 def sharedEnd (base witnessWordCount : Nat) : Nat := digestSelectStart base witnessWordCount + 12
 
 theorem sharedEnd_eq (base witnessWordCount : Nat) :
-    sharedEnd base witnessWordCount = base + witnessWordCount + 57552 := by
+    sharedEnd base witnessWordCount = base + witnessWordCount + 56384 := by
   simp only [sharedEnd, digestSelectStart, outputStart, roundsStart, digitsStart, childEvaluationsStart,
     childCommitmentsStart, freshStart, digestsStart, slotsStart, witnessStart, slotWordCount]
   omega
@@ -80,25 +80,25 @@ def interface (base witnessWordCount : Nat) :
     .var (digestSelectStart base witnessWordCount + 4 + 4 * slot.val + lane.val)
   fresh :=
     ⟨fun _ row lane => .var (freshStart base witnessWordCount + row.val * ringDegree + lane.val),
-      fun _ column => .var (freshStart base witnessWordCount + 1188 + column.val)⟩
+      fun _ column => .var (freshStart base witnessWordCount + 1152 + column.val)⟩
   childCommitment := fun child row lane =>
-    .var (childCommitmentsStart base witnessWordCount + child.val * 1188 + row.val * ringDegree +
+    .var (childCommitmentsStart base witnessWordCount + child.val * 1152 + row.val * ringDegree +
       lane.val)
   childEvaluation := fun child =>
     ⟨fun coefficient =>
-        kAt (childEvaluationsStart base witnessWordCount + child.val * 540 + 2 * coefficient.val),
+        kAt (childEvaluationsStart base witnessWordCount + child.val * 640 + 2 * coefficient.val),
       fun matrix coefficient =>
-        kAt (childEvaluationsStart base witnessWordCount + child.val * 540 + 108 +
-          2 * (matrix.val * 54 + coefficient.val))⟩
-  digit := fun child column => .var (digitsStart base witnessWordCount + child.val * 270 +
+        kAt (childEvaluationsStart base witnessWordCount + child.val * 640 + 128 +
+          2 * (matrix.val * 64 + coefficient.val))⟩
+  digit := fun child column => .var (digitsStart base witnessWordCount + child.val * 320 +
     column.val)
   round := fun roundIndex => ⟨fun coefficient =>
     kAt (roundsStart base witnessWordCount + 2 * (roundIndex.val * 9 + coefficient.val))⟩
   output := ⟨fun source coefficient =>
-      kAt (outputStart base witnessWordCount + 2 * (source.val * 270 + coefficient.val)),
+      kAt (outputStart base witnessWordCount + 2 * (source.val * 320 + coefficient.val)),
     fun source matrix coefficient =>
       kAt (outputStart base witnessWordCount +
-        2 * (source.val * 270 + 54 + matrix.val * 54 + coefficient.val))⟩
+        2 * (source.val * 320 + 64 + matrix.val * 64 + coefficient.val))⟩
 
 private theorem kAt_below (column bound : Nat) (below : column + 1 < bound) :
     (kAt column).VarsBelow bound :=
@@ -111,7 +111,7 @@ theorem inputsBelow (base witnessWordCount : Nat) :
       (sharedEnd base witnessWordCount) := by
   have endEq := sharedEnd_eq base witnessWordCount
   have slotsEq : slotsStart base witnessWordCount = base + 25 + witnessWordCount := rfl
-  have freshEq : freshStart base witnessWordCount = base + 25 + witnessWordCount + 14405 := by
+  have freshEq : freshStart base witnessWordCount = base + 25 + witnessWordCount + 15203 := by
     simp only [freshStart, digestsStart, slotsStart, witnessStart, slotWordCount]
   have activeWord := fun (word : Nat) (bounded : word < slotWordCount) =>
     (by rw [endEq, slotsEq] at *; simp only [slotWordCount] at *; omega :
@@ -158,35 +158,35 @@ theorem inputsBelow (base witnessWordCount : Nat) :
       activePoint := fun coordinate => kAt_below _ _ (by
         have coordinateBound := coordinate.isLt
         change coordinate.val < 28 at coordinateBound
-        have := activeWord (1728 + 2 * coordinate.val + 1) (by simp only [slotWordCount]; omega)
+        have := activeWord (1792 + 2 * coordinate.val + 1) (by simp only [slotWordCount]; omega)
         omega)
       activePad := fun coefficient => kAt_below _ _ (by
         have coefficientBound := coefficient.isLt
-        change coefficient.val < 54 at coefficientBound
-        have := activeWord (1188 + 2 * coefficient.val + 1) (by simp only [slotWordCount]; omega)
+        change coefficient.val < 64 at coefficientBound
+        have := activeWord (1152 + 2 * coefficient.val + 1) (by simp only [slotWordCount]; omega)
         omega)
       activeMatrix := fun matrix coefficient => kAt_below _ _ (by
         have matrixBound := matrix.isLt
         have coefficientBound := coefficient.isLt
         change matrix.val < 4 at matrixBound
-        change coefficient.val < 54 at coefficientBound
-        have := activeWord (1296 + 2 * (matrix.val * 54 + coefficient.val) + 1)
+        change coefficient.val < 64 at coefficientBound
+        have := activeWord (1280 + 2 * (matrix.val * 64 + coefficient.val) + 1)
           (by simp only [slotWordCount]; omega)
         simp only [ringDegree]
         omega)
       activeCommitment := fun row lane => by
         have rowBound := row.isLt
         have laneBound := lane.isLt
-        change row.val < 22 at rowBound
-        change lane.val < 54 at laneBound
-        have := activeWord (row.val * 54 + lane.val) (by simp only [slotWordCount]; omega)
+        change row.val < 18 at rowBound
+        change lane.val < 64 at laneBound
+        have := activeWord (row.val * 64 + lane.val) (by simp only [slotWordCount]; omega)
         show _ < _
         simp only [ringDegree]
         omega
       activePublicInput := fun column => by
         have columnBound := column.isLt
-        change column.val < 270 at columnBound
-        have := activeWord (1784 + column.val) (by simp only [slotWordCount]; omega)
+        change column.val < 320 at columnBound
+        have := activeWord (1848 + column.val) (by simp only [slotWordCount]; omega)
         show _ < _
         omega
       priorDigest := fun slot lane => by
@@ -227,26 +227,26 @@ theorem inputsBelow (base witnessWordCount : Nat) :
       freshCommitment := fun _ row lane => by
         have rowBound := row.isLt
         have laneBound := lane.isLt
-        change row.val < 22 at rowBound
-        change lane.val < 54 at laneBound
+        change row.val < 18 at rowBound
+        change lane.val < 64 at laneBound
         show freshStart base witnessWordCount + row.val * ringDegree + lane.val < _
         rw [endEq, freshEq]
         simp only [ringDegree]
         omega
       freshPublicInput := fun _ column => by
         have columnBound := column.isLt
-        change column.val < 270 at columnBound
-        show freshStart base witnessWordCount + 1188 + column.val < _
+        change column.val < 320 at columnBound
+        show freshStart base witnessWordCount + 1152 + column.val < _
         rw [endEq, freshEq]
         omega
       childCommitment := fun child row lane => by
         have childBound := child.isLt
         have rowBound := row.isLt
         have laneBound := lane.isLt
-        change child.val < 16 at childBound
-        change row.val < 22 at rowBound
-        change lane.val < 54 at laneBound
-        show childCommitmentsStart base witnessWordCount + child.val * 1188 +
+        change child.val < 14 at childBound
+        change row.val < 18 at rowBound
+        change lane.val < 64 at laneBound
+        show childCommitmentsStart base witnessWordCount + child.val * 1152 +
           row.val * ringDegree + lane.val < _
         rw [endEq]
         simp only [childCommitmentsStart, freshEq, ringDegree]
@@ -254,8 +254,8 @@ theorem inputsBelow (base witnessWordCount : Nat) :
       childPad := fun child coefficient => kAt_below _ _ (by
         have childBound := child.isLt
         have coefficientBound := coefficient.isLt
-        change child.val < 16 at childBound
-        change coefficient.val < 54 at coefficientBound
+        change child.val < 14 at childBound
+        change coefficient.val < 64 at coefficientBound
         rw [endEq]
         simp only [childEvaluationsStart, childCommitmentsStart, freshEq]
         omega)
@@ -263,18 +263,18 @@ theorem inputsBelow (base witnessWordCount : Nat) :
         have childBound := child.isLt
         have matrixBound := matrix.isLt
         have coefficientBound := coefficient.isLt
-        change child.val < 16 at childBound
+        change child.val < 14 at childBound
         change matrix.val < 4 at matrixBound
-        change coefficient.val < 54 at coefficientBound
+        change coefficient.val < 64 at coefficientBound
         rw [endEq]
         simp only [childEvaluationsStart, childCommitmentsStart, freshEq]
         omega)
       digit := fun child column => by
         have childBound := child.isLt
         have columnBound := column.isLt
-        change child.val < 16 at childBound
-        change column.val < 270 at columnBound
-        show digitsStart base witnessWordCount + child.val * 270 + column.val < _
+        change child.val < 14 at childBound
+        change column.val < 320 at columnBound
+        show digitsStart base witnessWordCount + child.val * 320 + column.val < _
         rw [endEq]
         simp only [digitsStart, childEvaluationsStart, childCommitmentsStart, freshEq]
         omega
@@ -289,8 +289,8 @@ theorem inputsBelow (base witnessWordCount : Nat) :
       outputPad := fun source coefficient => kAt_below _ _ (by
         have sourceBound := source.isLt
         have coefficientBound := coefficient.isLt
-        change source.val < 17 at sourceBound
-        change coefficient.val < 54 at coefficientBound
+        change source.val < 15 at sourceBound
+        change coefficient.val < 64 at coefficientBound
         rw [endEq]
         simp only [outputStart, roundsStart, digitsStart, childEvaluationsStart,
           childCommitmentsStart, freshEq]
@@ -299,9 +299,9 @@ theorem inputsBelow (base witnessWordCount : Nat) :
         have sourceBound := source.isLt
         have matrixBound := matrix.isLt
         have coefficientBound := coefficient.isLt
-        change source.val < 17 at sourceBound
+        change source.val < 15 at sourceBound
         change matrix.val < 4 at matrixBound
-        change coefficient.val < 54 at coefficientBound
+        change coefficient.val < 64 at coefficientBound
         rw [endEq]
         simp only [outputStart, roundsStart, digitsStart, childEvaluationsStart,
           childCommitmentsStart, freshEq]

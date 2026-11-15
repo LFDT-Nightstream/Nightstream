@@ -2,16 +2,16 @@
 
 use std::{collections::HashSet, ops::Range, sync::Arc};
 
+use neo_math::Fq;
 use nightstream_fprime::ApplicationRecipeNode;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 
 use super::{ApplicationError, Variable};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Expression {
     Variable(Variable),
-    Constant(Goldilocks),
+    Constant(Fq),
     Add(Arc<Self>, Arc<Self>),
     Multiply(Arc<Self>, Arc<Self>),
 }
@@ -83,7 +83,7 @@ impl Expression {
 
     pub(super) fn ordered_terms(&self) -> OrderedTerms<'_> {
         OrderedTerms {
-            stack: vec![(self, Goldilocks::ONE)],
+            stack: vec![(self, Fq::ONE)],
         }
     }
 
@@ -97,11 +97,11 @@ impl Expression {
 }
 
 pub(super) struct OrderedTerms<'a> {
-    stack: Vec<(&'a Expression, Goldilocks)>,
+    stack: Vec<(&'a Expression, Fq)>,
 }
 
 impl Iterator for OrderedTerms<'_> {
-    type Item = (Variable, Goldilocks);
+    type Item = (Variable, Fq);
     fn next(&mut self) -> Option<Self::Item> {
         while let Some((expression, scale)) = self.stack.pop() {
             match expression {

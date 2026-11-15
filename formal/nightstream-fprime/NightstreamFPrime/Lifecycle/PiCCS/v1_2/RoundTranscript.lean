@@ -286,7 +286,7 @@ theorem layoutSamples_eq_challenges {degreeBound : Nat}
         (challenge interface offset) := by
   apply List.ext_get
   · simp [layoutProgram_samples_length, canonicalFinIndices_length]
-    norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+    norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
   · intro index leftLt rightLt
     simp [canonicalFinIndices, challenge]
 
@@ -887,7 +887,7 @@ private theorem cubePoint_eq_of_coordinates
 theorem spec_implies_keyExecution_rounds
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

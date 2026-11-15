@@ -13,7 +13,7 @@ import NightstreamFPrime.Layout.SumCheck.FixedChain
 import NightstreamFPrime.Layout.Range.CanonicalU64
 import NightstreamFPrime.Layout.Pilot
 import NightstreamFPrime.Layout.PilotProduction
-import NightstreamFPrime.Layout.PilotSpartan
+import NightstreamFPrime.Layout.PilotPackageOrder
 import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.StatementBinding
 import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.StatementAbsorption
 import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.ChallengeDerivation
@@ -76,7 +76,7 @@ import NightstreamFPrime.Layout.Stage1.ApplicationSemantics
 import NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
-import NightstreamFPrime.Layout.Stage1.SpartanBounds
+import NightstreamFPrime.Layout.Stage1.PackageOrderBounds
 import NightstreamFPrime.Layout.BalancedTernary
 import NightstreamFPrime.Layout.LowNormSlot
 import NightstreamFPrime.Layout.LowNormAssignment
@@ -90,9 +90,9 @@ import NightstreamFPrime.Layout.ProductionRelation.SourceCompiler
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Layout.ProductionRelation.SboxRow
 import NightstreamFPrime.Layout.ProductionRelation.PinRow
-import NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan
+import NightstreamFPrime.Layout.ProductionRelation.RingProductPlan
 import NightstreamFPrime.Layout.ProductionRelation.PlanComposition
-import NightstreamFPrime.Layout.ProductionRelation.Phi81ProductFamilyPlan
+import NightstreamFPrime.Layout.ProductionRelation.RingProductFamilyPlan
 import NightstreamFPrime.Layout.ProductionRelation.ProductRetainedBlock
 import NightstreamFPrime.Layout.ProductionRelation.FieldSuffixBlock
 import NightstreamFPrime.Layout.ProductionRelation.MultiplicationFamilyPlan
@@ -109,4 +109,4 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompletenes
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxFamilyPlan
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedFamily
 import NightstreamFPrime.Layout.MatrixProgram.PlanBridge
-import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.Stage1.PackageOrderValues

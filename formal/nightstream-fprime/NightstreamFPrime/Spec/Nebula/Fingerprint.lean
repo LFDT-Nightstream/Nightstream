@@ -8,7 +8,7 @@ import NightstreamFPrime.Spec.Nebula.Records
 fingerprint bound: for
 fixed multisets `A ≠ B` of small tuples, at most `2·m·|E|` challenge pairs make
 the two fingerprint products equal. The carrier `E` is any finite domain of
-characteristic `q`; the Goldilocks instance is in `GoldilocksExtensionRing`.
+characteristic `q`; the concrete instance is in `FieldExtensionRing`.
 It does not own how the multisets arise (the row products) or the retry argument. -/
 
 namespace NightstreamFPrime.Spec.Nebula
@@ -43,7 +43,7 @@ theorem productEq_of_balanced (η : E × E) {m : Multisets} (balanced : m.Balanc
 `2^32`. Then `v + 2^32 · t < 2^63 < q`, so the field encoding is injective (SPEC.md
 section 7.1 rules 3 and 4). -/
 def Tuple.Small (τ : Tuple) : Prop :=
-  τ.1 < 2 ^ 31 ∧ τ.2.1 < goldilocksModulus ∧ τ.2.2 < 2 ^ 32
+  τ.1 < 2 ^ 31 ∧ τ.2.1 < fieldModulus ∧ τ.2.2 < 2 ^ 32
 
 section Polynomial
 
@@ -99,20 +99,20 @@ private theorem roots_prod [IsDomain E] (A : Multiset Tuple) :
     obtain ⟨τ, -, isZero⟩ := Multiset.mem_map.mp zero
     exact Polynomial.X_sub_C_ne_zero (root τ) (neg_eq_zero.mp ((neg_sub _ _).trans isZero))
 
-private theorem root_injective [CharP E goldilocksModulus] {τ σ : Tuple} (τSmall : τ.Small)
+private theorem root_injective [CharP E fieldModulus] {τ σ : Tuple} (τSmall : τ.Small)
     (σSmall : σ.Small) (same : root (E := E) τ = root σ) : τ = σ := by
-  have cast {a b : ℕ} (aSmall : a < goldilocksModulus) (bSmall : b < goldilocksModulus)
+  have cast {a b : ℕ} (aSmall : a < fieldModulus) (bSmall : b < fieldModulus)
       (equal : (a : E) = b) : a = b :=
-    CharP.natCast_injOn_Iio E goldilocksModulus aSmall bSmall equal
+    CharP.natCast_injOn_Iio E fieldModulus aSmall bSmall equal
   have constant := congrArg (·.coeff 0) same
   have linear := congrArg (·.coeff (Finsupp.single 0 1)) same
   simp only [root, AddMonoidAlgebra.coeff_add, Finsupp.add_apply, coeff_C, coeff_C_mul, coeff_X]
     at constant linear
   simp [@eq_comm (Fin 1 →₀ ℕ) 0] at constant linear
-  have packedSmall {ρ : Tuple} (small : ρ.Small) : ρ.2.2 + 2 ^ 32 * ρ.1 < goldilocksModulus := by
+  have packedSmall {ρ : Tuple} (small : ρ.Small) : ρ.2.2 + 2 ^ 32 * ρ.1 < fieldModulus := by
     have := small.1
     have := small.2.2
-    norm_num [goldilocksModulus]
+    norm_num [fieldModulus]
     omega
   have packed : τ.2.2 + 2 ^ 32 * τ.1 = σ.2.2 + 2 ^ 32 * σ.1 :=
     cast (packedSmall τSmall) (packedSmall σSmall) (by exact_mod_cast linear)
@@ -120,7 +120,7 @@ private theorem root_injective [CharP E goldilocksModulus] {τ σ : Tuple} (τSm
   have := σSmall.2.2
   exact Prod.ext (by omega) (Prod.ext (cast τSmall.2.1 σSmall.2.1 constant) (by omega))
 
-private theorem eq_of_map_root_eq [CharP E goldilocksModulus] {A B : Multiset Tuple}
+private theorem eq_of_map_root_eq [CharP E fieldModulus] {A B : Multiset Tuple}
     (small : ∀ τ ∈ A + B, τ.Small) (same : A.map (root (E := E)) = B.map root) : A = B := by
   have lift (D : Multiset Tuple) (smallD : ∀ τ ∈ D, τ.Small) :
       (D.pmap Subtype.mk smallD).map Subtype.val = D := by
@@ -138,7 +138,7 @@ private theorem eq_of_map_root_eq [CharP E goldilocksModulus] {A B : Multiset Tu
     Multiset.map_injective injective (by rw [liftRoot, liftRoot, same])
   rw [← lift A smallA, ← lift B smallB, lifted]
 
-private theorem difference_ne_zero [IsDomain E] [CharP E goldilocksModulus]
+private theorem difference_ne_zero [IsDomain E] [CharP E fieldModulus]
     {A B : Multiset Tuple} (different : A ≠ B) (small : ∀ τ ∈ A + B, τ.Small) :
     (A.map factor).prod - (B.map factor).prod ≠ (0 : MvPolynomial (Fin 2) E) := by
   intro zero
@@ -152,7 +152,7 @@ end Polynomial
 
 section Count
 
-variable [IsDomain E] [Fintype E] [DecidableEq E] [CharP E goldilocksModulus]
+variable [IsDomain E] [Fintype E] [DecidableEq E] [CharP E fieldModulus]
 
 /-- The challenge pairs on which the products of `A` and `B` agree. -/
 def BadChallenges (A B : Multiset Tuple) : Finset (E × E) :=

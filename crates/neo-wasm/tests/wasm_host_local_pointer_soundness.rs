@@ -1,5 +1,6 @@
 mod common;
 
+use neo_math::F;
 use neo_wasm::comm_chain::{fold_event_blocks, CommChainState};
 use neo_wasm::host_event_bindings::{EventBlock, ExportTemplate, HostEventBindings, Limb, MemoryBase, SlotBinding};
 use neo_wasm::witness_builder::build_witness_vector;
@@ -8,7 +9,6 @@ use neo_wasm::{
     traces_from_wasmtime_steps_with_host_events, WasmHostEventSlotKind,
 };
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as F;
 use wasmtime::component::Val as ComponentVal;
 
 const WAT: &str = r#"

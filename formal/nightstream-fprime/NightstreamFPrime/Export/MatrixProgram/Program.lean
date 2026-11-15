@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.MatrixProgram.Program
 import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Export.MatrixProgram.MultiplicationGrid
 import NightstreamFPrime.Export.MatrixProgram.Ordinary
-import NightstreamFPrime.Export.MatrixProgram.Phi81Product
+import NightstreamFPrime.Export.MatrixProgram.RingProduct
 import NightstreamFPrime.Export.MatrixProgram.Pin
 import NightstreamFPrime.Export.MatrixProgram.Poseidon
 
@@ -18,8 +18,8 @@ def Block.format : Format Block where
         .array [.atom 0, Ordinary.Block.format.encode block]
     | .multiplicationGrid block =>
         .array [.atom 4, MultiplicationGrid.Block.format.encode block]
-    | .phi81Product block =>
-        .array [.atom 3, Phi81Product.Block.format.encode block]
+    | .ringProduct block =>
+        .array [.atom 3, RingProduct.Block.format.encode block]
     | .pin block =>
         .array [.atom 1, Pin.Block.format.encode block]
     | .poseidon block =>
@@ -31,7 +31,7 @@ def Block.format : Format Block where
         pure (.multiplicationGrid
           (← MultiplicationGrid.Block.format.decode block))
     | .array [.atom 3, block] => do
-        pure (.phi81Product (← Phi81Product.Block.format.decode block))
+        pure (.ringProduct (← RingProduct.Block.format.decode block))
     | .array [.atom 1, block] => do
         pure (.pin (← Pin.Block.format.decode block))
     | .array [.atom 2, block] => do
@@ -42,7 +42,7 @@ def Block.format : Format Block where
     cases block <;>
       simp [Ordinary.Block.format.decode_encode,
         MultiplicationGrid.Block.format.decode_encode,
-        Phi81Product.Block.format.decode_encode,
+        RingProduct.Block.format.decode_encode,
         Pin.Block.format.decode_encode, Poseidon.Block.format.decode_encode]
 
 def Program.format : Format Program where

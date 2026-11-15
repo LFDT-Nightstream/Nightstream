@@ -39,7 +39,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 structure InputsLinear
     (interface :
@@ -85,7 +85,7 @@ private theorem core_totalRowCount
     ← NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.circuit_ops,
     NightstreamFPrime.Layout.SumCheck.FixedChain.ownedCircuit_totalRowCount _ offset inputs.initial
       (coreRounds_linear interface offset inputs)]
-  norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+  norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 def footprint
     (interface : Formal.Interface logicalWidth 8 publicFits)
@@ -139,7 +139,7 @@ theorem physicalPrivateColumnCount_eq
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.localLength_eq]
     norm_num [NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.privateCount,
       NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.privateCount,
-      productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+      productionShape, RingMatrixSource.ringShape, cubeVariables]
   rw [storedColumns, freshColumnCount_eq interface inputs offset]
 
 theorem output_varsBelow_finalIdentity

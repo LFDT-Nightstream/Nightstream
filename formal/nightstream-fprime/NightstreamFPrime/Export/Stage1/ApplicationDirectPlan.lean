@@ -154,7 +154,7 @@ def classifySource (application : Lifecycle.Stage1.Application.Program)
       rw [Location.sourceColumn]
       unfold Layout.Stage1.ApplicationInputs.witnessColumn
       exact rangeIndex_source witness⟩
-  else if output : InRange 55634
+  else if output : InRange 50654
       Lifecycle.Stage1.Application.stateWordCount column then
     some ⟨.output (rangeIndex output), by
       rw [Location.sourceColumn,
@@ -172,9 +172,9 @@ theorem classifySource_complete
     (application : Lifecycle.Stage1.Application.Program) {column : Nat}
     (support : ApplicationDirectSource.SourceAllowed application column) :
     (classifySource application column).isSome := by
-  have pilotPrivate := Layout.Stage1.Spartan.pilotPrivateColumnCount_le_constantColumn
-  rw [Layout.Stage1.Spartan.constantColumn_eq_private] at pilotPrivate
-  simp only [Layout.Stage1.Spartan.pilotPrivateColumnCount] at pilotPrivate
+  have pilotPrivate := Layout.Stage1.PackageOrder.pilotPrivateColumnCount_le_constantColumn
+  rw [Layout.Stage1.PackageOrder.constantColumn_eq_private] at pilotPrivate
+  simp only [Layout.Stage1.PackageOrder.pilotPrivateColumnCount] at pilotPrivate
   rcases support with input | witness | output | localSupport
   · rcases input with ⟨index, rfl⟩
     have inside : InRange Layout.Stage1.ApplicationInputs.currentWordStart
@@ -219,7 +219,7 @@ theorem classifySource_complete
       simp only [Layout.Stage1.ApplicationInputs.witnessStart,
         Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
       omega
-    have inside : InRange 55634 Lifecycle.Stage1.Application.stateWordCount
+    have inside : InRange 50654 Lifecycle.Stage1.Application.stateWordCount
         (Layout.Stage1.ApplicationInputs.outputColumn index) := by
       rw [Layout.Stage1.ApplicationInputs.outputColumn_value]
       exact ⟨by omega, by have := index.isLt; omega⟩
@@ -231,7 +231,7 @@ theorem classifySource_complete
         Lifecycle.Stage1.Application.stateWordCount column := by
       unfold InRange Layout.Stage1.ApplicationInputs.currentWordStart
         Lifecycle.Stage1.Application.stateWordCount
-      have startLarge : 27819 ≤
+      have startLarge : 25329 ≤
           Layout.Stage1.ApplicationInputs.localStart application := by
         unfold Layout.Stage1.ApplicationInputs.localStart
           Layout.Stage1.ApplicationInputs.witnessStart
@@ -242,10 +242,10 @@ theorem classifySource_complete
       unfold InRange
       unfold Layout.Stage1.ApplicationInputs.localStart at localSupport
       omega
-    have notOutput : ¬ InRange 55634
+    have notOutput : ¬ InRange 50654
         Lifecycle.Stage1.Application.stateWordCount column := by
       unfold InRange Lifecycle.Stage1.Application.stateWordCount
-      have startLarge : 55638 ≤
+      have startLarge : 50658 ≤
           Layout.Stage1.ApplicationInputs.localStart application := by
         unfold Layout.Stage1.ApplicationInputs.localStart
           Layout.Stage1.ApplicationInputs.witnessStart

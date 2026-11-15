@@ -11,8 +11,8 @@
 use std::collections::BTreeSet;
 
 use neo_application::{MemoryCatalog, MemoryKind, MemoryPortActivation, MemoryPortKind, MemoryPreload};
+use neo_math::F;
 use p3_field::PrimeField64;
-use p3_goldilocks::Goldilocks as F;
 
 use super::app::Memory;
 use super::expr::Expr;

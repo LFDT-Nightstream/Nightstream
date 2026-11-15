@@ -14,7 +14,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 def sharedInterface :
     NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Interface
@@ -53,7 +53,7 @@ theorem constraints_eq_samplerChain :
 theorem rows_toR1CS :
     (rows (logicalWidth := logicalWidth) (publicFits := publicFits)).map
         Rows.CompiledRow.toR1CS =
-      NightstreamFPrime.Layout.Stage1.Spartan.remapRows
+      NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows
         (R1CS.lowerConstraints
           (constraints (logicalWidth := logicalWidth)
             (publicFits := publicFits))
@@ -62,7 +62,7 @@ theorem rows_toR1CS :
 
 theorem rows_length :
     (rows (logicalWidth := logicalWidth) (publicFits := publicFits)).length =
-      52207 := by
+      46515 := by
   rw [rows, PiCCSArithmetic.compilePacket_length,
     constraints_eq_samplerChain]
   exact
@@ -76,7 +76,7 @@ theorem rows_length :
 theorem freshCount_eq :
     R1CS.totalFreshCount
         (constraints (logicalWidth := logicalWidth) (publicFits := publicFits)) =
-      2448 := by
+      0 := by
   rw [constraints_eq_samplerChain]
   exact
     NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain.totalFreshCount_eq
@@ -99,7 +99,7 @@ theorem rows_imply_relation (env : Env)
       (samplerInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   have logical := PiCCSArithmetic.compilePacket_sound
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerRowStart
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerFreshStart
@@ -109,7 +109,7 @@ theorem rows_imply_relation (env : Env)
   apply NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.soundness
     (samplerInterface (logicalWidth := logicalWidth)
       (publicFits := publicFits))
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart assumptions
   exact holdsFlat_implies_holds _ _ (by
     simpa only [NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain.logicalConstraints]

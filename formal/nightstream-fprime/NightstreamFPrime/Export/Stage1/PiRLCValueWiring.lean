@@ -194,7 +194,7 @@ theorem form_eval_eq_decodedEnv
     (invocation : Fin PiRLCProductSchedule.invocationCount) :
     (form geometry invocation).eval assignment =
       PiCCSAssignmentSoundness.decodedEnv geometry assignment
-        (Spartan.sourceToSpartan
+        (PackageOrder.sourceToPackage
           ((PiRLCProductSchedule.descriptor invocation).valueColumn
             (PiRLCProductSchedule.descriptor invocation).lane)) := by
   have read := (PiCCSAssignmentSoundness.decodedEnv_location geometry assignment
@@ -217,8 +217,8 @@ theorem form_eval_source
   let source := descriptor.valueColumn descriptor.lane
   have support := valueSource_support descriptor
   have bounded := PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount support
-  let column : Fin Spartan.spartanColumnCount :=
-    ⟨Spartan.sourceToSpartan source, Spartan.sourceToSpartan_lt source bounded⟩
+  let column : Fin PackageOrder.packageColumnCount :=
+    ⟨PackageOrder.sourceToPackage source, PackageOrder.sourceToPackage_lt source bounded⟩
   have direct := PiCCSOrdinaryDirectPlan.sourceMap_form_eval_of_target geometry
     assignment base groupValue encodes column
       (PiCCSOrdinarySourceSupport.source_target source support)

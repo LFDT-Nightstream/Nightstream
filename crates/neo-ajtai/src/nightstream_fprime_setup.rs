@@ -1,23 +1,28 @@
 //! Nightstream F-prime's verifier-owned indexed Ajtai setup.
 //!
 //! This module owns the Rust implementation of
-//! `nightstream-ajtai-shake128-wide256-v1`. Key element `(row, block)` is
-//! SHAKE128 of `setup ID ‖ seed ‖ row_u32_le ‖ block_u64_le`; lane `L` is
-//! output bytes `32L..32L + 32`, reduced modulo Goldilocks as one
-//! little-endian integer. Lean owns its semantics and authority framing.
+//! `nightstream-ajtai-shake128-reject64-v1`. Key element `(row, block)` is
+//! SHAKE128 of `setup ID ‖ seed ‖ row_u32_le ‖ block_u64_le`, read as 84
+//! little-endian 64-bit words. Coefficient `L` is the `L`-th word below `q`,
+//! and 0 when fewer than `L + 1` words are below `q`. Lean owns its
+//! semantics and authority framing.
 
 use std::{borrow::Borrow, ops::Range};
 
 mod key;
 
+#[doc(hidden)]
+pub use key::expanded_key_bytes;
+pub use key::{kept_coefficients, KEY_WORDS};
+
 use neo_ccs::Mat;
 use neo_math::{
     balanced::to_balanced_i128,
     ring::D,
-    signed_sums::{wide256_signed_halves, SignedShiftSums, LIMB_BOUND},
+    signed_sums::{SignedShiftSums, LIMB_BOUND, MAX_TERMS},
+    Fq,
 };
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
+use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 use sha3::{
@@ -27,25 +32,31 @@ use sha3::{
 
 use crate::{AjtaiError, AjtaiResult, Commitment};
 
-const GOLDILOCKS_MODULUS: u128 = 18_446_744_069_414_584_321;
-
-pub const SETUP_ID: &[u8] = b"nightstream-ajtai-shake128-wide256-v1";
+pub const SETUP_ID: &[u8] = b"nightstream-ajtai-shake128-reject64-v1";
 pub const ELEMENT_INPUT_BYTES: usize = SETUP_ID.len() + 32 + 4 + 8;
+/// The SHAKE128 output bytes that one key element reads.
+pub const ELEMENT_OUTPUT_BYTES: usize = 8 * KEY_WORDS;
 /// The commitment rows κ of the selected parameter profile.
-pub const PRODUCTION_VERIFIER_ROWS: u64 = neo_params::nightstream_goldilocks_k16::KAPPA as u64;
-// Lean authority: Poseidon2HashChainV1Setup.messageColumns_eq.
-pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 814_144;
+pub const PRODUCTION_VERIFIER_ROWS: u64 = neo_params::nightstream_p64_k14::KAPPA as u64;
+/// Lean `Poseidon2HashChainV1Setup.messageColumns_eq`: `blockCount` of the logical width
+/// 41,106,674 of `Poseidon2HashChainV1Package.logicalWidth`, which is `ceil(41_106_674 / D)`.
+pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 41_106_674_u64.div_ceil(D as u64);
 pub const PRODUCTION_CARRIER_WIDTH: usize = PRODUCTION_MESSAGE_COLUMNS as usize * D;
-// The same limit as the `columns` check of Lean `CompressionLean/Spec/Checks.lean`.
-pub const MAX_MESSAGE_COLUMNS: u64 = 4_708_530;
+/// The whole ring columns in the 254,260,620 coefficients of the matrix of
+/// `decisions/fprime-ajtai-public-seed-msis-assumption.md`. The limit stays a count of
+/// coefficients, below the width `2^28` of the security calculation of
+/// `decisions/field-2p64-59-ring-x64.md`.
+pub const MAX_MESSAGE_COLUMNS: u64 = 254_260_620 / D as u64;
 pub const MAX_CARRIER_WIDTH: usize = MAX_MESSAGE_COLUMNS as usize * D;
 pub const PRODUCTION_SEED: [u8; 32] = [
     252, 64, 73, 132, 212, 76, 27, 135, 141, 104, 166, 168, 0, 146, 215, 215, 171, 68, 216, 26, 193, 123, 69, 168, 231,
     189, 76, 31, 30, 55, 23, 2,
 ];
 
-const _: () = assert!(D == 54);
+const _: () = assert!(MAX_MESSAGE_COLUMNS == 3_972_822);
 const _: () = assert!(PRODUCTION_MESSAGE_COLUMNS <= MAX_MESSAGE_COLUMNS);
+/// One `SignedShiftSums` receives at most one term for each key column.
+const _: () = assert!(MAX_MESSAGE_COLUMNS <= MAX_TERMS);
 const _: () = assert!(MAX_MESSAGE_COLUMNS as u128 * D as u128 * LIMB_BOUND < (1_u128 << 63));
 
 pub fn element_input(seed: &[u8; 32], row: u32, block: u64) -> [u8; ELEMENT_INPUT_BYTES] {
@@ -58,36 +69,34 @@ pub fn element_input(seed: &[u8; 32], row: u32, block: u64) -> [u8; ELEMENT_INPU
     input
 }
 
-pub fn element_bytes(seed: &[u8; 32], row: u32, block: u64) -> [u8; 32 * D] {
+pub fn element_bytes(seed: &[u8; 32], row: u32, block: u64) -> [u8; ELEMENT_OUTPUT_BYTES] {
     let mut xof = Shake128::default();
     xof.update(&element_input(seed, row, block));
-    let mut bytes = [0_u8; 32 * D];
+    let mut bytes = [0_u8; ELEMENT_OUTPUT_BYTES];
+    key::count_expanded(bytes.len());
     xof.finalize_xof().read(&mut bytes);
     bytes
 }
 
 pub fn coefficient(seed: &[u8; 32], row: u32, block: u64, lane: u32) -> u64 {
-    let bytes = element_bytes(seed, row, block);
-    let chunk = &bytes[32 * lane as usize..32 * (lane as usize + 1)];
-    chunk.iter().rev().fold(0_u128, |value, byte| {
-        (value * 256 + u128::from(*byte)) % GOLDILOCKS_MODULUS
-    }) as u64
+    coefficient_block(seed, row, block)[lane as usize]
+}
+
+/// Key elements `(row, columns[0])` and `(row, columns[1])` of the production key. Each is
+/// `coefficient_block` of its column; the pair shares the CPU's parallel permutation.
+pub fn production_key_pair(row: u32, columns: [u64; 2]) -> [[u64; D]; 2] {
+    key::coefficient_pair(&PRODUCTION_SEED, row, columns)
 }
 
 pub fn coefficient_block(seed: &[u8; 32], row: u32, block: u64) -> [u64; D] {
     let bytes = element_bytes(seed, row, block);
-    core::array::from_fn(|lane| {
-        reduce_words(core::array::from_fn(|word| {
-            let start = 32 * lane + 4 * word;
-            u32::from_le_bytes(bytes[start..start + 4].try_into().expect("four-byte word"))
-        }))
-    })
-}
-
-#[inline(always)]
-fn reduce_words(words: [u32; 8]) -> u64 {
-    let (a, b) = wide256_signed_halves(words);
-    (Goldilocks::from_i64(a) + Goldilocks::from_i64(b) * Goldilocks::from_u64(1_u64 << 32)).as_canonical_u64()
+    kept_coefficients(&core::array::from_fn(|word| {
+        u64::from_le_bytes(
+            bytes[8 * word..8 * word + 8]
+                .try_into()
+                .expect("eight-byte word"),
+        )
+    }))
 }
 
 pub struct SignedBlock {
@@ -122,8 +131,8 @@ fn signed_sums(row: u32, blocks: &[SignedBlock]) -> SignedShiftSums {
     sums
 }
 
-/// With 22 key rows on 18 workers the second pass kept four busy; 65,536-column ranges cut the
-/// staged fresh commitment from 10.9 s to 7.3 s in one run (commit 9445eb5e5).
+/// Each task takes one key row and one range of 65,536 columns, so the workers stay busy when
+/// there are fewer key rows than workers.
 const TASK_COLUMNS: u64 = 1 << 16;
 
 fn column_slice<'a>(blocks: &'a [SignedBlock], columns: &Range<u64>) -> &'a [SignedBlock] {
@@ -195,7 +204,7 @@ pub fn commit_production_signed_units(carrier: &[i8]) -> AjtaiResult<Commitment>
     Ok(commit_signed_blocks(&blocks))
 }
 
-pub fn commit_production_signed_unit_matrix(witness: &Mat<Goldilocks>) -> AjtaiResult<Commitment> {
+pub fn commit_production_signed_unit_matrix(witness: &Mat<Fq>) -> AjtaiResult<Commitment> {
     let columns = PRODUCTION_MESSAGE_COLUMNS as usize;
     if witness.rows() != D || witness.cols() != columns {
         return Err(AjtaiError::InvalidDimensions(format!(
@@ -209,12 +218,12 @@ pub fn commit_production_signed_unit_matrix(witness: &Mat<Goldilocks>) -> AjtaiR
 
 /// Lean contract: `AjtaiSetupV1.Prefix.commit_zeroExtend` identifies this
 /// commitment with the full-key commitment after suffix zero-extension.
-pub fn commit_production_signed_unit_prefix_matrix(witness: &Mat<Goldilocks>) -> AjtaiResult<Commitment> {
+pub fn commit_production_signed_unit_prefix_matrix(witness: &Mat<Fq>) -> AjtaiResult<Commitment> {
     let blocks = signed_unit_prefix_blocks(witness)?;
     Ok(commit_signed_blocks(&blocks))
 }
 
-pub fn signed_unit_prefix_blocks(witness: &Mat<Goldilocks>) -> AjtaiResult<Vec<SignedBlock>> {
+pub fn signed_unit_prefix_blocks(witness: &Mat<Fq>) -> AjtaiResult<Vec<SignedBlock>> {
     let columns = witness.cols();
     if witness.rows() != D || columns == 0 || columns > MAX_MESSAGE_COLUMNS as usize {
         return Err(AjtaiError::InvalidDimensions(format!(
@@ -224,7 +233,7 @@ pub fn signed_unit_prefix_blocks(witness: &Mat<Goldilocks>) -> AjtaiResult<Vec<S
             columns
         )));
     }
-    if witness.virtual_constant_value() == Some(&Goldilocks::ZERO) {
+    if witness.virtual_constant_value() == Some(&Fq::ZERO) {
         return Ok(Vec::new());
     }
     let masks = witness.packed_signed_unit_column_masks();
@@ -237,11 +246,11 @@ pub fn signed_unit_prefix_blocks(witness: &Mat<Goldilocks>) -> AjtaiResult<Vec<S
             let mut negative = 0_u64;
             for lane in 0..D {
                 let value = witness[(lane, index)];
-                if value == Goldilocks::ONE {
+                if value == Fq::ONE {
                     positive |= 1_u64 << lane;
-                } else if value == -Goldilocks::ONE {
+                } else if value == -Fq::ONE {
                     negative |= 1_u64 << lane;
-                } else if value != Goldilocks::ZERO {
+                } else if value != Fq::ZERO {
                     return Err(AjtaiError::RangeViolation {
                         value: to_balanced_i128(value),
                         bound: 2,
@@ -281,7 +290,7 @@ impl SignedUnitBatchError {
     }
 }
 
-pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Goldilocks>>>(
+pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Fq>>>(
     witnesses: &[W],
 ) -> Result<Vec<Commitment>, SignedUnitBatchError> {
     let blocks = witnesses

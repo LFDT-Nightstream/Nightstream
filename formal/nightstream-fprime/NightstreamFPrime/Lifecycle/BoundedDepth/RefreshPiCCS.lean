@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption
 
 /-! The refresh Π_CCS statement (CW-3.1). The refresh key is today's production key with the
 refresh transcript (`Keys.refreshKey`): it absorbs the refresh fold domain, then the fresh
-instance's public-input blocks and the 16 Π_DEC children's commitments and evaluation families
+instance's public-input blocks and the 14 Π_DEC children's commitments and evaluation families
 (`refreshWords`). The statement absorption is the duplex gadget on these two actions
 (`statementActions`), and its trace ends in the refresh key's public-input state
 (`statementState_eq`). -/
@@ -20,9 +20,9 @@ open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
-/-- The 16 children's commitment and evaluation words, in the order of `childWords`. -/
+/-- The 14 children's commitment and evaluation words, in the order of `childWords`. -/
 def childWordsExpr (running : StatementAbsorption.RunningExpr logicalWidth publicFits) :
     List Expr :=
   (List.finRange productionShape.runningCount).flatMap fun child =>

@@ -1,6 +1,6 @@
-use neo_ccs::crypto::poseidon2_goldilocks::{poseidon2_hash, RATE};
+use neo_ccs::crypto::poseidon2::{poseidon2_hash, RATE};
 use nightstream::application::{Affine, ApplicationBuilder, ApplicationError};
-use nightstream::{Circuit, Goldilocks as F, PrimeCharacteristicRing};
+use nightstream::{Circuit, Fq as F, PrimeCharacteristicRing};
 
 #[test]
 fn public_hash_matches_native_hash_at_rate_boundaries() {

@@ -15,7 +15,7 @@ Every dependent layout theorem, package field, fixture, Rust loader check,
 relation identity, and final fixed-point proof must use this one value. Old
 `2^25` and `2^26` artifacts and identities are not evidence for this profile.
 
-This decision does not change `b = 2`, `k_rho = 16`, `B = 2^16`, the 14
+This decision does not change `b = 2`, `k_rho`, `B = 2^k_rho`, the 14
 separate CCS matrices, the Poseidon2-only binding rule, or the Stage 2 and
 proof-backend boundaries.
 

@@ -6,7 +6,7 @@
 use core::ops::Range;
 
 use neo_ccs::GeometricRowRun;
-use neo_math::{KExtensions, D, F, K};
+use neo_math::{sum_of_scaled, KExtensions, D, F, K};
 use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
@@ -32,6 +32,8 @@ pub struct FactoredSlots<'a> {
     pub ratio: F,
 }
 
+const SLOT_WEIGHT_PARTS: usize = 8;
+
 #[derive(Clone, Copy)]
 pub struct FactoredRows<'a> {
     shape: MatrixShape,
@@ -41,6 +43,19 @@ pub struct FactoredRows<'a> {
 
 impl<'a> FactoredRows<'a> {
     pub fn new(shape: MatrixShape, entries: FactoredEntries<'a>, slots: FactoredSlots<'a>) -> Result<Self, PiCcsError> {
+        Self::new_unchecked(shape, entries, slots).checked()
+    }
+
+    /// `new` without its checks: for tables that passed `checked` once and
+    /// do not change, so that each use does not read every entry again.
+    pub fn new_unchecked(shape: MatrixShape, entries: FactoredEntries<'a>, slots: FactoredSlots<'a>) -> Self {
+        Self { shape, entries, slots }
+    }
+
+    /// These rows, when their tables have the lengths, the offsets and the
+    /// slots that the rows need.
+    pub fn checked(self) -> Result<Self, PiCcsError> {
+        let Self { shape, entries, slots } = self;
         shape.validate(&(0..shape.rows))?;
         let invalid = |reason: &str| Err(PiCcsError::InvalidInput(format!("factored matrix rows: {reason}")));
         let FactoredEntries {
@@ -79,7 +94,7 @@ impl<'a> FactoredRows<'a> {
         }) {
             return invalid("an entry reads no slot");
         }
-        Ok(Self { shape, entries, slots })
+        Ok(self)
     }
 
     pub fn shape(&self) -> MatrixShape {
@@ -88,6 +103,10 @@ impl<'a> FactoredRows<'a> {
 
     pub fn slot_count(&self) -> usize {
         self.slots.starts.len()
+    }
+
+    pub fn slots(&self) -> FactoredSlots<'a> {
+        self.slots
     }
 
     fn range(&self, row: usize, matrix: usize) -> Range<usize> {
@@ -150,18 +169,60 @@ impl<'a> FactoredRows<'a> {
         slot_values
     }
 
+    /// `Lᵀ` of the row weights: slot `s` gets the sum of
+    /// `row_weight(row) · matrix_coefficients[j] · coefficient` over the
+    /// entries of `L_j` that read `s`. With `Gᵀ` on the slots this is the
+    /// transpose of `weighted_row`.
+    pub fn slot_weights(&self, row_weight: &(dyn Fn(usize) -> K + Sync), matrix_coefficients: &[K]) -> Vec<K> {
+        let part = |rows: Range<usize>| {
+            let mut weights = vec![K::ZERO; self.slot_count()];
+            for row in rows {
+                let row_weight = row_weight(row);
+                for (matrix, &coefficient) in matrix_coefficients.iter().enumerate() {
+                    let weight = row_weight * coefficient;
+                    for entry in self.range(row, matrix) {
+                        weights[self.entries.slots[entry] as usize] +=
+                            weight.scale_base(self.entries.coefficients[entry]);
+                    }
+                }
+            }
+            weights
+        };
+        // Each part owns one vector of slots, so the parts stay few.
+        let parts = SLOT_WEIGHT_PARTS.min(self.shape.rows);
+        let rows = |part: usize| part * self.shape.rows / parts..(part + 1) * self.shape.rows / parts;
+        let add = |mut left: Vec<K>, right: Vec<K>| {
+            for (left, right) in left.iter_mut().zip(right) {
+                *left += right;
+            }
+            left
+        };
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        return (0..parts)
+            .into_par_iter()
+            .map(|index| part(rows(index)))
+            .reduce(|| vec![K::ZERO; self.slot_count()], add);
+        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+        return (0..parts)
+            .map(|index| part(rows(index)))
+            .fold(vec![K::ZERO; self.slot_count()], add);
+    }
+
     pub fn weighted_row(&self, row: usize, matrix_coefficients: &[K], slot_values: &[K]) -> K {
         matrix_coefficients
             .iter()
             .enumerate()
-            .map(|(matrix, &weight)| {
-                weight
-                    * self
-                        .range(row, matrix)
-                        .map(|entry| {
-                            slot_values[self.entries.slots[entry] as usize].scale_base(self.entries.coefficients[entry])
-                        })
-                        .sum::<K>()
+            .filter_map(|(matrix, &weight)| {
+                let entries = self.range(row, matrix);
+                if entries.is_empty() {
+                    return None;
+                }
+                let slots = self.entries.slots[entries.clone()].iter();
+                let coefficients = &self.entries.coefficients[entries];
+                let pairs = slots
+                    .zip(coefficients)
+                    .map(|(&slot, &coefficient)| (coefficient, slot_values[slot as usize]));
+                Some(weight * sum_of_scaled(pairs))
             })
             .sum()
     }

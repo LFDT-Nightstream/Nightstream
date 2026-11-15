@@ -1,5 +1,0 @@
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Algebra
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput

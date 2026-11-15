@@ -196,8 +196,7 @@ const fn variable_width(width: ColumnWidth) -> usize {
         ColumnWidth::Byte => 8,
         ColumnWidth::U32 => 32,
         ColumnWidth::Bits(bits) => bits as usize,
-        // Goldilocks is not exactly 64 bits wide, but its canonical field
-        // elements require a 64-bit representation.
+        // `q` is below `2^64`, and a canonical field element needs 64 bits.
         ColumnWidth::Field => 64,
     }
 }

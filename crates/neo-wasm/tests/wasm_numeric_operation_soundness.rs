@@ -5,20 +5,22 @@ use neo_math::F;
 use neo_wasm::layout::{COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{audit_operation_witness, traces_from_wasmtime_wasm_bytes, WasmOpcode};
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 fn rows(wat: &str) -> Vec<neo_wasm::WasmVmStep> {
     let wasm = wat::parse_str(wat).expect("valid WAT");
     traces_from_wasmtime_wasm_bytes(&wasm, "main").expect("Wasmtime trace")
 }
 
+/// A count `c` has the alias `q + c` in two 32-bit limbs only for
+/// `c < 2^64 − q = 59`, so each count here is below 59.
 #[test]
-fn i64_counts_reject_goldilocks_alias() {
+fn i64_counts_reject_a_modulus_alias() {
     let trace = rows(
         r#"(module (func (export "main") (result i32)
-            i64.const 0 i64.clz drop
-            i64.const 0 i64.ctz drop
-            i64.const -1 i64.popcnt drop
+            i64.const 32 i64.clz drop
+            i64.const 32 i64.ctz drop
+            i64.const 7 i64.popcnt drop
             i32.const 7))"#,
     );
     for opcode in [WasmOpcode::I64Clz, WasmOpcode::I64Ctz, WasmOpcode::I64Popcnt] {
@@ -28,13 +30,17 @@ fn i64_counts_reject_goldilocks_alias() {
             .expect("count row");
         let honest = build_witness_vector(row).unwrap();
         audit_operation_witness(&honest).expect("honest count");
+        let count = honest[COL_STACK_WRITE0_VALUE_LO].as_canonical_u64();
+        let aliased = F::ORDER_U64
+            .checked_add(count)
+            .expect("the count has an alias below 2^64");
         let mut alias = honest;
-        alias[COL_STACK_WRITE0_VALUE_LO] = F::from_u64(65);
-        alias[COL_STACK_WRITE0_VALUE_HI] = F::from_u64(u64::from(u32::MAX));
+        alias[COL_STACK_WRITE0_VALUE_LO] = F::from_u64(aliased & 0xFFFF_FFFF);
+        alias[COL_STACK_WRITE0_VALUE_HI] = F::from_u64(aliased >> 32);
         neo_wasm::write_range_check_bits(&mut alias);
         assert!(
             audit_operation_witness(&alias).is_err(),
-            "{opcode:?} accepted q + 64 as a count of 64"
+            "{opcode:?} accepted q + {count} as a count of {count}"
         );
     }
 }

@@ -1,4 +1,4 @@
-use neo_math::{cf_inv, ct, superneo_bar_block, superneo_bar_matrix, superneo_bar_vec, Fq, D};
+use neo_math::{cf_inv, ct, superneo_bar_block, superneo_bar_matrix, superneo_bar_vec, Fq, Rq, D};
 use p3_field::PrimeCharacteristicRing;
 
 fn deterministic_block(seed: u64) -> [Fq; D] {
@@ -21,19 +21,62 @@ fn dot(a: &[Fq; D], b: &[Fq; D]) -> Fq {
     acc
 }
 
+/// SuperNeo v1.2 Section 5: `ct(a · bar(b)) = ⟨a, b⟩`.
 #[test]
 fn superneo_transform_matches_one_sided_inner_product_identity() {
-    let _ = superneo_bar_matrix();
+    let extreme = [-Fq::ONE; D];
+    assert_eq!(
+        ct(&cf_inv(extreme).mul(&cf_inv(superneo_bar_block(extreme)))),
+        dot(&extreme, &extreme)
+    );
 
     for round in 0..16u64 {
         let a = deterministic_block(0x1234_5678_9abc_def0 ^ round);
         let b = deterministic_block(0xfedc_ba98_7654_3210 ^ (round.wrapping_mul(17)));
 
-        let abar = superneo_bar_block(a);
-        let lhs = ct(&cf_inv(abar).mul(&cf_inv(b)));
-        let rhs = dot(&a, &b);
-        assert_eq!(lhs, rhs, "round={round}");
+        assert_eq!(
+            ct(&cf_inv(a).mul(&cf_inv(superneo_bar_block(b)))),
+            dot(&a, &b),
+            "round={round}"
+        );
+        assert_eq!(
+            ct(&cf_inv(superneo_bar_block(a)).mul(&cf_inv(b))),
+            dot(&a, &b),
+            "round={round}"
+        );
     }
+}
+
+/// The identity fixes the transform: its matrix is the inverse of the Gram
+/// matrix `G[i][j] = ct(X^i · X^j)`.
+#[test]
+fn superneo_transform_matrix_inverts_the_constant_term_gram_matrix() {
+    let monomial = |degree: usize| {
+        let mut coefficients = [Fq::ZERO; D];
+        coefficients[degree] = Fq::ONE;
+        Rq(coefficients)
+    };
+    let gram: Vec<[Fq; D]> = (0..D)
+        .map(|i| core::array::from_fn(|j| ct(&monomial(i).mul(&monomial(j)))))
+        .collect();
+    let bar = superneo_bar_matrix();
+    for i in 0..D {
+        for j in 0..D {
+            let entry = (0..D).fold(Fq::ZERO, |acc, r| acc + gram[i][r] * bar[r][j]);
+            assert_eq!(entry, Fq::from_bool(i == j), "(G · bar)[{i}][{j}]");
+        }
+    }
+}
+
+#[test]
+fn superneo_transform_is_b0_minus_the_reversed_tail() {
+    let b = deterministic_block(0x0bad_cafe);
+    let bar = superneo_bar_block(b);
+    assert_eq!(bar[0], b[0]);
+    for j in 1..D {
+        assert_eq!(bar[j], -b[D - j], "coefficient {j}");
+    }
+    assert_eq!(superneo_bar_block(bar), b);
 }
 
 #[test]

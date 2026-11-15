@@ -169,8 +169,8 @@ theorem native_complete (bits : List Nat)
         apply sourceEnv_honest _ completed inside
         by_cases isPublic : column < LogicalPlan.publicCount
         · exact Or.inl isPublic
-        · have publicEq : publicColumns = 270 := rfl
-          have countEq : LogicalPlan.publicCount = 270 := rfl
+        · have publicEq : publicColumns = 320 := rfl
+          have countEq : LogicalPlan.publicCount = 320 := rfl
           have sizeEq : SlotRuns.runsSize package.sboxStart package.pieces =
               slotEnd pieces package.firstFresh := by
             unfold SlotRuns.runsSize slotEnd
@@ -211,8 +211,8 @@ theorem native_complete (bits : List Nat)
   · rw [relationRows_eq piecesEq sboxEq packed, R1CS.rowsHold_append]
     exact ⟨nativeAt, leanRows⟩
   · rw [WideLayout.sourceEnv_widen]
-    have publicEq : publicColumns = 270 := rfl
-    have countEq : LogicalPlan.publicCount = 270 := rfl
+    have publicEq : publicColumns = 320 := rfl
+    have countEq : LogicalPlan.publicCount = 320 := rfl
     exact (sourceEnv_honest slots completed (by omega) (Or.inl (by omega))).trans
       (publicValue column inside)
 

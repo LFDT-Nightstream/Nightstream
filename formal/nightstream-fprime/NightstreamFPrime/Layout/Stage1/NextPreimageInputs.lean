@@ -31,13 +31,13 @@ def sourceInterface : NextPreimage.Interface where
   priorInitialState := fun _ index => .var (priorInitialStateSource index)
   outputInitialState := fun _ index => .var (outputInitialStateSource index)
 
-def spartanInterface : NextPreimage.Interface where
-  priorIteration := fun _ => .var (Spartan.sourceToSpartan priorIterationSource)
-  outputIteration := fun _ => .var (Spartan.sourceToSpartan outputIterationSource)
+def packageInterface : NextPreimage.Interface where
+  priorIteration := fun _ => .var (PackageOrder.sourceToPackage priorIterationSource)
+  outputIteration := fun _ => .var (PackageOrder.sourceToPackage outputIterationSource)
   priorInitialState := fun _ index =>
-    .var (Spartan.sourceToSpartan (priorInitialStateSource index))
+    .var (PackageOrder.sourceToPackage (priorInitialStateSource index))
   outputInitialState := fun _ index =>
-    .var (Spartan.sourceToSpartan (outputInitialStateSource index))
+    .var (PackageOrder.sourceToPackage (outputInitialStateSource index))
 
 private theorem priorIterationSource_supported :
     PiCCSOrdinarySourceSupport.Source priorIterationSource := by
@@ -92,70 +92,70 @@ private theorem outputInitialStateSource_supported
     omega
 
 private theorem priorIterationSource_lt :
-    priorIterationSource < Spartan.SourceColumnCount := by
+    priorIterationSource < PackageOrder.SourceColumnCount := by
   exact PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount
     priorIterationSource_supported
 
 private theorem outputIterationSource_lt :
-    outputIterationSource < Spartan.SourceColumnCount := by
+    outputIterationSource < PackageOrder.SourceColumnCount := by
   exact PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount
     outputIterationSource_supported
 
 private theorem priorInitialStateSource_lt
     (index : RunningTransition.StateIndex) :
-    priorInitialStateSource index < Spartan.SourceColumnCount := by
+    priorInitialStateSource index < PackageOrder.SourceColumnCount := by
   exact PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount
     (priorInitialStateSource_supported index)
 
 private theorem outputInitialStateSource_lt
     (index : RunningTransition.StateIndex) :
-    outputInitialStateSource index < Spartan.SourceColumnCount := by
+    outputInitialStateSource index < PackageOrder.SourceColumnCount := by
   exact PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount
     (outputInitialStateSource_supported index)
 
 theorem priorIterationTarget :
     PiCCSOrdinarySourceSupport.Target
-      (Spartan.sourceToSpartan priorIterationSource) := by
+      (PackageOrder.sourceToPackage priorIterationSource) := by
   exact PiCCSOrdinarySourceSupport.source_target _
     priorIterationSource_supported
 
 theorem outputIterationTarget :
     PiCCSOrdinarySourceSupport.Target
-      (Spartan.sourceToSpartan outputIterationSource) := by
+      (PackageOrder.sourceToPackage outputIterationSource) := by
   exact PiCCSOrdinarySourceSupport.source_target _
     outputIterationSource_supported
 
 theorem priorInitialStateTarget (index : RunningTransition.StateIndex) :
     PiCCSOrdinarySourceSupport.Target
-      (Spartan.sourceToSpartan (priorInitialStateSource index)) := by
+      (PackageOrder.sourceToPackage (priorInitialStateSource index)) := by
   exact PiCCSOrdinarySourceSupport.source_target _
     (priorInitialStateSource_supported index)
 
 theorem outputInitialStateTarget (index : RunningTransition.StateIndex) :
     PiCCSOrdinarySourceSupport.Target
-      (Spartan.sourceToSpartan (outputInitialStateSource index)) := by
+      (PackageOrder.sourceToPackage (outputInitialStateSource index)) := by
   exact PiCCSOrdinarySourceSupport.source_target _
     (outputInitialStateSource_supported index)
 
-theorem spartanConstraints_varsSatisfy (offset : Nat) :
+theorem packageConstraints_varsSatisfy (offset : Nat) :
     ∀ expression ∈ flatConstraints
-        (Circuit.ops (NextPreimage.main spartanInterface) offset),
+        (Circuit.ops (NextPreimage.main packageInterface) offset),
       expression.VarsSatisfy PiCCSOrdinarySourceSupport.Target := by
   intro expression member
   rw [NextPreimage.main_ops, NextPreimage.flatConstraints_opsAt,
     NextPreimage.assertions, List.mem_cons] at member
   rcases member with rfl | initialMember
   · exact Expr.VarsSatisfy.sub _ _ _ (by
-      simpa [spartanInterface, Expr.VarsSatisfy] using outputIterationTarget)
+      simpa [packageInterface, Expr.VarsSatisfy] using outputIterationTarget)
       (Expr.VarsSatisfy.add _ _ _ (by
-        simpa [spartanInterface, Expr.VarsSatisfy] using priorIterationTarget)
+        simpa [packageInterface, Expr.VarsSatisfy] using priorIterationTarget)
         trivial)
   · rw [NextPreimage.initialStateAssertions, List.mem_map] at initialMember
     rcases initialMember with ⟨index, _indexMember, rfl⟩
     exact Expr.VarsSatisfy.sub _ _ _ (by
-      simpa [spartanInterface, Expr.VarsSatisfy] using
+      simpa [packageInterface, Expr.VarsSatisfy] using
         outputInitialStateTarget index) (by
-      simpa [spartanInterface, Expr.VarsSatisfy] using
+      simpa [packageInterface, Expr.VarsSatisfy] using
         priorInitialStateTarget index)
 
 theorem sourceAssumptions (env : Env) :
@@ -205,88 +205,88 @@ theorem sourceAssumptions (env : Env) :
       at bound ⊢
     omega
 
-theorem spartanAssumptions (offset : Nat) (env : Env)
-    (fits : Spartan.spartanColumnCount ≤ offset) :
-    NextPreimage.Assumptions spartanInterface offset env := by
+theorem packageAssumptions (offset : Nat) (env : Env)
+    (fits : PackageOrder.packageColumnCount ≤ offset) :
+    NextPreimage.Assumptions packageInterface offset env := by
   refine {
     priorIteration := ?_
     outputIteration := ?_
     priorInitialState := fun index => ?_
     outputInitialState := fun index => ?_ }
-  all_goals simp only [spartanInterface, Expr.VarsBelow]
+  all_goals simp only [packageInterface, Expr.VarsBelow]
   · exact lt_of_lt_of_le
-      (Spartan.sourceToSpartan_lt _ priorIterationSource_lt) fits
+      (PackageOrder.sourceToPackage_lt _ priorIterationSource_lt) fits
   · exact lt_of_lt_of_le
-      (Spartan.sourceToSpartan_lt _ outputIterationSource_lt) fits
+      (PackageOrder.sourceToPackage_lt _ outputIterationSource_lt) fits
   · exact lt_of_lt_of_le
-      (Spartan.sourceToSpartan_lt _ (priorInitialStateSource_lt index)) fits
+      (PackageOrder.sourceToPackage_lt _ (priorInitialStateSource_lt index)) fits
   · exact lt_of_lt_of_le
-      (Spartan.sourceToSpartan_lt _ (outputInitialStateSource_lt index)) fits
+      (PackageOrder.sourceToPackage_lt _ (outputInitialStateSource_lt index)) fits
 
-theorem spartanInputsBelowConstant (env : Env) :
-    NextPreimage.Assumptions spartanInterface Spartan.constantColumn env := by
+theorem packageInputsBelowConstant (env : Env) :
+    NextPreimage.Assumptions packageInterface PackageOrder.constantColumn env := by
   refine {
     priorIteration := ?_
     outputIteration := ?_
     priorInitialState := fun index => ?_
     outputInitialState := fun index => ?_ }
   all_goals
-    simp only [spartanInterface, Expr.VarsBelow]
-    apply Nat.lt_of_lt_of_le ?_ Spartan.pilotPrivateColumnCount_le_constantColumn
+    simp only [packageInterface, Expr.VarsBelow]
+    apply Nat.lt_of_lt_of_le ?_ PackageOrder.pilotPrivateColumnCount_le_constantColumn
   · norm_num [priorIterationSource, RunningTransitionInputs.iterationWordIndex,
-      PilotProduction.priorPreimageStart, Spartan.sourceToSpartan,
-      Spartan.pilotSourceColumnCount, PilotSpartan.sourceToSpartan,
-      PilotSpartan.priorPublicStart_value, Spartan.liftPilotColumn,
-      Spartan.pilotInputPrivateColumnCount, Spartan.pilotPrivateColumnCount]
+      PilotProduction.priorPreimageStart, PackageOrder.sourceToPackage,
+      PackageOrder.pilotSourceColumnCount, PilotPackageOrder.sourceToPackage,
+      PilotPackageOrder.priorPublicStart_value, PackageOrder.liftPilotColumn,
+      PackageOrder.pilotInputPrivateColumnCount, PackageOrder.pilotPrivateColumnCount]
   · norm_num [outputIterationSource, RunningTransitionInputs.iterationWordIndex,
       PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart,
       PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
-      Lifecycle.PriorStateHash.publicWidth_eq, Spartan.sourceToSpartan,
-      Spartan.pilotSourceColumnCount, PilotSpartan.sourceToSpartan,
-      PilotSpartan.priorPublicStart_value, PilotSpartan.outputPreimageStart_value,
-      PilotSpartan.outputDigestStart_value, PilotSpartan.secondPrivateStart_value,
-      Spartan.liftPilotColumn, Spartan.pilotInputPrivateColumnCount,
-      Spartan.pilotPrivateColumnCount]
+      Lifecycle.PriorStateHash.publicWidth_eq, PackageOrder.sourceToPackage,
+      PackageOrder.pilotSourceColumnCount, PilotPackageOrder.sourceToPackage,
+      PilotPackageOrder.priorPublicStart_value, PilotPackageOrder.outputPreimageStart_value,
+      PilotPackageOrder.outputDigestStart_value, PilotPackageOrder.secondPrivateStart_value,
+      PackageOrder.liftPilotColumn, PackageOrder.pilotInputPrivateColumnCount,
+      PackageOrder.pilotPrivateColumnCount]
   · have bound := index.isLt
     norm_num [priorInitialStateSource,
       RunningTransitionInputs.initialStateWordStart, RunningTransition.stateWordCount,
-      PilotProduction.priorPreimageStart, Spartan.sourceToSpartan,
-      Spartan.pilotSourceColumnCount, PilotSpartan.sourceToSpartan,
-      PilotSpartan.priorPublicStart_value, Spartan.liftPilotColumn,
-      Spartan.pilotInputPrivateColumnCount, Spartan.pilotPrivateColumnCount] at bound ⊢
+      PilotProduction.priorPreimageStart, PackageOrder.sourceToPackage,
+      PackageOrder.pilotSourceColumnCount, PilotPackageOrder.sourceToPackage,
+      PilotPackageOrder.priorPublicStart_value, PackageOrder.liftPilotColumn,
+      PackageOrder.pilotInputPrivateColumnCount, PackageOrder.pilotPrivateColumnCount] at bound ⊢
     split_ifs <;> omega
   · have bound := index.isLt
     norm_num [outputInitialStateSource,
       RunningTransitionInputs.initialStateWordStart, RunningTransition.stateWordCount,
       PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart,
       PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
-      Lifecycle.PriorStateHash.publicWidth_eq, Spartan.sourceToSpartan,
-      Spartan.pilotSourceColumnCount, PilotSpartan.sourceToSpartan,
-      PilotSpartan.priorPublicStart_value, PilotSpartan.outputPreimageStart_value,
-      PilotSpartan.outputDigestStart_value, PilotSpartan.secondPrivateStart_value,
-      Spartan.liftPilotColumn, Spartan.pilotInputPrivateColumnCount,
-      Spartan.pilotPrivateColumnCount] at bound ⊢
+      Lifecycle.PriorStateHash.publicWidth_eq, PackageOrder.sourceToPackage,
+      PackageOrder.pilotSourceColumnCount, PilotPackageOrder.sourceToPackage,
+      PilotPackageOrder.priorPublicStart_value, PilotPackageOrder.outputPreimageStart_value,
+      PilotPackageOrder.outputDigestStart_value, PilotPackageOrder.secondPrivateStart_value,
+      PackageOrder.liftPilotColumn, PackageOrder.pilotInputPrivateColumnCount,
+      PackageOrder.pilotPrivateColumnCount] at bound ⊢
     split_ifs <;> omega
 
-theorem spartanSpec_iff_sourceSpec (offset : Nat) (env : Env) :
-    NextPreimage.SpecHolds spartanInterface offset env ↔
-      NextPreimage.SpecHolds sourceInterface offset (Spartan.pullback env) := by
+theorem packageOrderSpec_iff_sourceSpec (offset : Nat) (env : Env) :
+    NextPreimage.SpecHolds packageInterface offset env ↔
+      NextPreimage.SpecHolds sourceInterface offset (PackageOrder.pullback env) := by
   constructor
   · intro specification
     refine {
       iteration := ?_
       initialState := fun index => ?_ }
-    · simpa [spartanInterface, sourceInterface, Spartan.pullback] using
+    · simpa [packageInterface, sourceInterface, PackageOrder.pullback] using
         specification.iteration
-    · simpa [spartanInterface, sourceInterface, Spartan.pullback] using
+    · simpa [packageInterface, sourceInterface, PackageOrder.pullback] using
         specification.initialState index
   · intro specification
     refine {
       iteration := ?_
       initialState := fun index => ?_ }
-    · simpa [spartanInterface, sourceInterface, Spartan.pullback] using
+    · simpa [packageInterface, sourceInterface, PackageOrder.pullback] using
         specification.iteration
-    · simpa [spartanInterface, sourceInterface, Spartan.pullback] using
+    · simpa [packageInterface, sourceInterface, PackageOrder.pullback] using
         specification.initialState index
 
 end NightstreamFPrime.Layout.Stage1.NextPreimageInputs

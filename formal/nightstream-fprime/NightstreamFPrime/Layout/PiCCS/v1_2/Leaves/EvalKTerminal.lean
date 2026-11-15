@@ -9,15 +9,15 @@ Obligation: Lower
 Inputs:
 - the 28-coordinate verifier-derived point `r'` and prior point `r`;
 - verifier-derived `gamma`;
-- 864 Pad-family coefficients, with no CCS-matrix coefficient.
+- 1024 Pad-family coefficients, with no CCS-matrix coefficient.
 
 Outputs:
 - the child-owned exact unshifted `Eval_K` terminal term.
 
 Constraint groups:
 - point equality: 110 logical columns, 665 fresh columns, 775 rows;
-- 864-term Horner: 2,589 logical columns, no fresh column,
-  2,589 rows;
+- 1024-term Horner: 3,069 logical columns, no fresh column,
+  3,069 rows;
 - parent wiring: zero columns and zero rows.
 
 Parent coverage:
@@ -37,7 +37,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 structure InputsLinear
     (interface :
@@ -89,7 +89,7 @@ theorem output_varsBelow_evalA
 
 private theorem cubeVariables_positive :
     0 < productionShape.cubeVariables := by
-  norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+  norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 private theorem coefficientExprs_linear
     (interface :
@@ -133,7 +133,7 @@ private theorem core_totalFreshCount
             interface) cubeVariables_positive offset
           (coreInputs interface offset inputs)
     _ = 665 := by
-      norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+      norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 private theorem core_totalRowCount
     (interface :
@@ -141,7 +141,7 @@ private theorem core_totalRowCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalKTerminal.circuit interface
-        ).main offset)) = 3364 := by
+        ).main offset)) = 3460 := by
   calc
     _ = (28 * productionShape.cubeVariables - 9) +
         3 * ((NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalKTerminal.coefficientExprs
@@ -152,9 +152,9 @@ private theorem core_totalRowCount
           (NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalKTerminal.coreInterface
             interface) cubeVariables_positive offset
           (coreInputs interface offset inputs)
-    _ = 3364 := by
+    _ = 3460 := by
       rw [NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalKTerminal.coefficientExprs_length]
-      norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+      norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 def footprint
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -162,7 +162,7 @@ def footprint
       InputsLinear (Formal.evalKInterface interface) offset) :
     R1CS.CircuitFootprint (Formal.evalKCircuit interface) where
   freshColumnCount := fun _ => 665
-  physicalRowCount := fun _ => 3364
+  physicalRowCount := fun _ => 3460
   freshColumnCount_eq := by
     intro offset
     unfold Formal.evalKCircuit
@@ -189,7 +189,7 @@ theorem physicalRowCount_eq
       InputsLinear (Formal.evalKInterface interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.evalKCircuit interface).main offset)) = 3364 :=
+      (Formal.evalKCircuit interface).main offset)) = 3460 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
@@ -199,10 +199,10 @@ theorem physicalPrivateColumnCount_eq
     (offset : Nat) :
     localLength (Circuit.ops (Formal.evalKCircuit interface).main offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-        (Formal.evalKCircuit interface).main offset)) = 3364 := by
+        (Formal.evalKCircuit interface).main offset)) = 3460 := by
   have logicalColumns :
       localLength (Circuit.ops (Formal.evalKCircuit interface).main offset) =
-        2699 := by
+        2795 := by
     unfold Formal.evalKCircuit
     erw [FormalCircuit.withConstantFootprint_main]
     exact

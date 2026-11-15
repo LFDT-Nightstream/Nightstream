@@ -4,19 +4,18 @@
 
 use std::ops::ControlFlow;
 
+use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks;
 
 use super::form::entries;
 use super::template::RowScratch;
 use super::{external_layer, Entry, Form, MatrixRun, PackageError, MEANINGFUL_PORTS, POSEIDON_WIDTH};
+use crate::package::SBOX_ROWS;
 
 /// A sparse form as `(column, coefficient)` pairs.
-pub(crate) type Entries = Vec<(usize, Goldilocks)>;
+pub(crate) type Entries = Vec<(usize, Fq)>;
 
-const SBOX_ROWS: usize = 150;
-
-fn form(pairs: &[(usize, Goldilocks)]) -> Form {
+fn form(pairs: &[(usize, Fq)]) -> Form {
     Form::from_entries(
         pairs
             .iter()
@@ -43,9 +42,9 @@ pub(crate) fn permutation_rows(
     if lanes.len() != POSEIDON_WIDTH {
         return Err(PackageError::Malformed("Poseidon2 permutation lanes"));
     }
-    let forms: Vec<Form> = std::iter::once(Form::singleton(0, Goldilocks::ONE))
+    let forms: Vec<Form> = std::iter::once(Form::singleton(0, Fq::ONE))
         .chain(lanes.iter().map(|lane| form(lane)))
-        .chain((0..SBOX_ROWS).map(|row| Form::singleton(sbox + row, Goldilocks::ONE)))
+        .chain((0..SBOX_ROWS).map(|row| Form::singleton(sbox + row, Fq::ONE)))
         .collect();
     let _ = RowScratch::default().visit_rows_until(
         "poseidon2-permutation-v1",
@@ -65,7 +64,7 @@ pub(crate) fn permutation_rows(
 pub(crate) fn external_outputs(columns: &[usize], logical_width: usize) -> Result<Vec<Entries>, PackageError> {
     let state: Vec<Form> = columns
         .iter()
-        .map(|&column| Form::singleton(column, Goldilocks::ONE))
+        .map(|&column| Form::singleton(column, Fq::ONE))
         .collect();
     Ok(external_layer(&state, logical_width)?
         .iter()

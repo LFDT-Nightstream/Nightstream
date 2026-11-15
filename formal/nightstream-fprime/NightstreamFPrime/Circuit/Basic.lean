@@ -31,7 +31,7 @@ def eval (env : Env) : Expr → F
 
 instance : Add Expr := ⟨Expr.add⟩
 instance : Mul Expr := ⟨Expr.mul⟩
-instance (n : Nat) : OfNat Expr n := ⟨Expr.const (⟨n % goldilocksModulus, Nat.mod_lt _ (by decide)⟩)⟩
+instance (n : Nat) : OfNat Expr n := ⟨Expr.const (⟨n % fieldModulus, Nat.mod_lt _ (by decide)⟩)⟩
 
 def neg (e : Expr) : Expr := mul (const (-1)) e
 def sub (a b : Expr) : Expr := add a (neg b)
@@ -63,10 +63,10 @@ deriving Repr, DecidableEq
 namespace Hint
 
 def ofNat (value : Nat) : F :=
-  ⟨value % goldilocksModulus, Nat.mod_lt _ (by decide)⟩
+  ⟨value % fieldModulus, Nat.mod_lt _ (by decide)⟩
 
 def inverse (value : F) : F :=
-  ZMod.inv goldilocksModulus value
+  ZMod.inv fieldModulus value
 
 def eval (env : Env) : Hint → F
   | .bit source index =>

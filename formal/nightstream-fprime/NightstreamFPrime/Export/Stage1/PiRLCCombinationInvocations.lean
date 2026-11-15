@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationTemplates
 import NightstreamFPrime.Layout.Stage1.PiCCSInputs
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
-import NightstreamFPrime.Layout.Stage1.Spartan
+import NightstreamFPrime.Layout.Stage1.PackageOrder
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
 
@@ -14,7 +14,7 @@ open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Layout.Stage1
 
 def phase : Nat := 7
-def sourceCount : Nat := 17
+def sourceCount : Nat := 15
 
 def laneFreshCosts : List Nat :=
   List.ofFn NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep.laneFreshCount
@@ -33,17 +33,17 @@ def logicalIndex (cellCount block lane cell : Nat) : Nat :=
   block * (ringDegree * cellCount) + lane * cellCount + cell
 
 def sourceFreshCount (blockCount cellCount : Nat) : Nat :=
-  blockCount * cellCount * 8100
+  blockCount * cellCount * 8320
 
 def sourceRowCount (blockCount cellCount : Nat) : Nat :=
-  blockCount * cellCount * 8154
+  blockCount * cellCount * 8384
 
 def coordinateFreshPrefix (cellCount block lane cell : Nat) : Nat :=
-  block * cellCount * 8100 + cellCount * laneFreshPrefix lane +
+  block * cellCount * 8320 + cellCount * laneFreshPrefix lane +
     cell * laneFreshCost lane
 
 def coordinateRowPrefix (cellCount block lane cell : Nat) : Nat :=
-  block * cellCount * 8154 + cellCount * laneRowPrefix lane +
+  block * cellCount * 8384 + cellCount * laneRowPrefix lane +
     cell * laneRowCost lane
 
 def challengeSourceStart (source : Nat) : Nat :=
@@ -62,36 +62,36 @@ def publicInputValueSourceStart (source block _cell : Nat) : Nat :=
   else PiCCSInputs.runningPublicStart (source - 1) + block * ringDegree
 
 def evalKValueSourceStart (source _block cell : Nat) : Nat :=
-  PiCCSInputs.outputEvaluationStart + source * 540 + cell
+  PiCCSInputs.outputEvaluationStart + source * 640 + cell
 
 def evalAValueSourceStart (source block cell : Nat) : Nat :=
-  PiCCSInputs.outputEvaluationStart + source * 540 + 108 +
-    block * 108 + cell
+  PiCCSInputs.outputEvaluationStart + source * 640 + 128 +
+    block * 128 + cell
 
 theorem commitmentValueSource_affine (source block cell offset : Nat)
-    (sourceLt : source < sourceCount) (blockLt : block < 22)
+    (sourceLt : source < sourceCount) (blockLt : block < 18)
     (offsetLt : offset < ringDegree) :
-    Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage
         (commitmentValueSourceStart source block cell + offset) =
-      Spartan.sourceToSpartan
+      PackageOrder.sourceToPackage
           (commitmentValueSourceStart source block cell) + offset := by
   by_cases first : source = 0
   · subst source
     simp only [commitmentValueSourceStart]
-    apply Spartan.sourceToSpartan_add_of_proofInput
+    apply PackageOrder.sourceToPackage_add_of_proofInput
     · norm_num [PiCCSInputs.freshCommitmentStart,
         PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
         PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
-        PiCCSInputs.expectedContextWords, Spartan.proofInputSourceStart]
+        PiCCSInputs.expectedContextWords, PackageOrder.proofInputSourceStart]
       omega
     · norm_num [PiCCSInputs.freshCommitmentStart,
         PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
         PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
-        PiCCSInputs.expectedContextWords, Spartan.piCcsPhaseOffset,
+        PiCCSInputs.expectedContextWords, PackageOrder.piCcsPhaseOffset,
         ringDegree] at blockLt offsetLt ⊢
       omega
   · simp only [commitmentValueSourceStart, ite_eq_right first]
-    apply Spartan.sourceToSpartan_add_of_pilotPriorPrivate
+    apply PackageOrder.sourceToPackage_add_of_pilotPriorPrivate
     norm_num [PiCCSInputs.runningCommitmentStart,
       PiCCSInputs.priorRunningStart, PiCCSInputs.runningCommitmentWords,
       PilotProduction.priorPublicInputStart,
@@ -102,14 +102,14 @@ theorem commitmentValueSource_affine (source block cell offset : Nat)
 theorem publicInputValueSource_affine (source block cell offset : Nat)
     (sourceLt : source < sourceCount) (blockLt : block < 5)
     (offsetLt : offset < ringDegree) :
-    Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage
         (publicInputValueSourceStart source block cell + offset) =
-      Spartan.sourceToSpartan
+      PackageOrder.sourceToPackage
           (publicInputValueSourceStart source block cell) + offset := by
   by_cases first : source = 0
   · subst source
     simp [publicInputValueSourceStart]
-    apply Spartan.sourceToSpartan_add_of_pilotPriorPublic
+    apply PackageOrder.sourceToPackage_add_of_pilotPriorPublic
     · omega
     · norm_num [PilotProduction.outputPreimageStart,
         PilotProduction.priorPublicInputStart,
@@ -118,62 +118,62 @@ theorem publicInputValueSource_affine (source block cell offset : Nat)
         ringDegree] at blockLt offsetLt ⊢
       omega
   · simp only [publicInputValueSourceStart, ite_eq_right first]
-    apply Spartan.sourceToSpartan_add_of_proofInput
+    apply PackageOrder.sourceToPackage_add_of_proofInput
     · norm_num [PiCCSInputs.runningPublicStart, PiCCSInputs.priorChildrenStart,
         PiCCSInputs.expectedContextStart, PiCCSInputs.expectedContextWords,
-        Spartan.proofInputSourceStart]
+        PackageOrder.proofInputSourceStart]
       omega
     · norm_num [PiCCSInputs.runningPublicStart, PiCCSInputs.priorChildrenStart,
         PiCCSInputs.expectedContextStart, PiCCSInputs.expectedContextWords,
-        PiCCSInputs.runningPublicWords, Spartan.piCcsPhaseOffset,
+        PiCCSInputs.runningPublicWords, PackageOrder.piCcsPhaseOffset,
         sourceCount, ringDegree] at sourceLt blockLt offsetLt ⊢
       omega
 
 theorem evalKValueSource_affine (source block cell offset : Nat)
     (sourceLt : source < sourceCount) (cellLt : cell < 2)
     (offsetLt : offset < ringDegree) :
-    Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage
         (evalKValueSourceStart source block cell + offset * 2) =
-      Spartan.sourceToSpartan (evalKValueSourceStart source block cell) +
+      PackageOrder.sourceToPackage (evalKValueSourceStart source block cell) +
         offset * 2 := by
-  apply Spartan.sourceToSpartan_add_of_proofInput
+  apply PackageOrder.sourceToPackage_add_of_proofInput
   · norm_num [evalKValueSourceStart, PiCCSInputs.outputEvaluationStart,
       PiCCSInputs.roundMessageStart, PiCCSInputs.freshCommitmentStart,
       PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
         PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
       PiCCSInputs.expectedContextWords, PiCCSInputs.freshCommitmentWords,
-      PiCCSInputs.roundMessageWords, Spartan.proofInputSourceStart]
+      PiCCSInputs.roundMessageWords, PackageOrder.proofInputSourceStart]
     omega
   · norm_num [evalKValueSourceStart, PiCCSInputs.outputEvaluationStart,
       PiCCSInputs.roundMessageStart, PiCCSInputs.freshCommitmentStart,
       PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
         PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
       PiCCSInputs.expectedContextWords, PiCCSInputs.freshCommitmentWords,
-      PiCCSInputs.roundMessageWords, Spartan.piCcsPhaseOffset, sourceCount,
+      PiCCSInputs.roundMessageWords, PackageOrder.piCcsPhaseOffset, sourceCount,
       ringDegree] at sourceLt cellLt offsetLt ⊢
     omega
 
 theorem evalAValueSource_affine (source block cell offset : Nat)
     (sourceLt : source < sourceCount) (blockLt : block < 4)
     (cellLt : cell < 2) (offsetLt : offset < ringDegree) :
-    Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage
         (evalAValueSourceStart source block cell + offset * 2) =
-      Spartan.sourceToSpartan (evalAValueSourceStart source block cell) +
+      PackageOrder.sourceToPackage (evalAValueSourceStart source block cell) +
         offset * 2 := by
-  apply Spartan.sourceToSpartan_add_of_proofInput
+  apply PackageOrder.sourceToPackage_add_of_proofInput
   · norm_num [evalAValueSourceStart, PiCCSInputs.outputEvaluationStart,
       PiCCSInputs.roundMessageStart, PiCCSInputs.freshCommitmentStart,
       PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
         PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
       PiCCSInputs.expectedContextWords, PiCCSInputs.freshCommitmentWords,
-      PiCCSInputs.roundMessageWords, Spartan.proofInputSourceStart]
+      PiCCSInputs.roundMessageWords, PackageOrder.proofInputSourceStart]
     omega
   · norm_num [evalAValueSourceStart, PiCCSInputs.outputEvaluationStart,
       PiCCSInputs.roundMessageStart, PiCCSInputs.freshCommitmentStart,
       PiCCSInputs.proofInputStart, PiCCSInputs.priorChildrenStart,
         PiCCSInputs.priorChildrenWords, PiCCSInputs.expectedContextStart,
       PiCCSInputs.expectedContextWords, PiCCSInputs.freshCommitmentWords,
-      PiCCSInputs.roundMessageWords, Spartan.piCcsPhaseOffset, sourceCount,
+      PiCCSInputs.roundMessageWords, PackageOrder.piCcsPhaseOffset, sourceCount,
       ringDegree] at sourceLt blockLt cellLt offsetLt ⊢
     omega
 
@@ -185,13 +185,13 @@ def inputRanges (logicalStart blockCount cellCount valueStride source block
   let priorSource := if source = 0 then 0 else
     logicalStart + (source - 1) * stepSize blockCount cellCount + index
   [⟨PiRLCCombinationTemplates.challengeInputStart, ringDegree,
-      Spartan.sourceToSpartan (challengeSourceStart source), 1⟩,
+      PackageOrder.sourceToPackage (challengeSourceStart source), 1⟩,
    ⟨PiRLCCombinationTemplates.valueInputStart, ringDegree,
-      Spartan.sourceToSpartan (valueSourceStart source block cell), valueStride⟩,
+      PackageOrder.sourceToPackage (valueSourceStart source block cell), valueStride⟩,
    ⟨PiRLCCombinationTemplates.priorInput, 1,
-      Spartan.sourceToSpartan priorSource, 1⟩,
+      PackageOrder.sourceToPackage priorSource, 1⟩,
    ⟨PiRLCCombinationTemplates.outputInput, 1,
-      Spartan.sourceToSpartan outputSource, 1⟩]
+      PackageOrder.sourceToPackage outputSource, 1⟩]
 
 def invocationFreshSource (freshStart blockCount cellCount source block lane
     cell : Nat) : Nat :=
@@ -199,34 +199,34 @@ def invocationFreshSource (freshStart blockCount cellCount source block lane
     coordinateFreshPrefix cellCount block lane cell
 
 theorem phaseFreshStart_local :
-    Spartan.piCcsPhaseOffset ≤ PiRLCStarts.phaseFreshStart := by
+    PackageOrder.piCcsPhaseOffset ≤ PiRLCStarts.phaseFreshStart := by
   rw [PiRLCStarts.phaseFreshStart_eq]
-  norm_num [Spartan.piCcsPhaseOffset]
+  norm_num [PackageOrder.piCcsPhaseOffset]
 
 theorem commitmentFreshStart_local :
-    Spartan.piCcsPhaseOffset ≤ PiRLCStarts.commitmentFreshStart := by
+    PackageOrder.piCcsPhaseOffset ≤ PiRLCStarts.commitmentFreshStart := by
   rw [PiRLCStarts.commitmentFreshStart_eq]
-  norm_num [Spartan.piCcsPhaseOffset]
+  norm_num [PackageOrder.piCcsPhaseOffset]
 
 theorem publicInputFreshStart_local :
-    Spartan.piCcsPhaseOffset ≤ PiRLCStarts.publicInputFreshStart := by
+    PackageOrder.piCcsPhaseOffset ≤ PiRLCStarts.publicInputFreshStart := by
   rw [PiRLCStarts.publicInputFreshStart_eq]
-  norm_num [Spartan.piCcsPhaseOffset]
+  norm_num [PackageOrder.piCcsPhaseOffset]
 
 theorem evalKFreshStart_local :
-    Spartan.piCcsPhaseOffset ≤ PiRLCStarts.evalKFreshStart := by
+    PackageOrder.piCcsPhaseOffset ≤ PiRLCStarts.evalKFreshStart := by
   rw [PiRLCStarts.evalKFreshStart_eq]
-  norm_num [Spartan.piCcsPhaseOffset]
+  norm_num [PackageOrder.piCcsPhaseOffset]
 
 theorem evalAFreshStart_local :
-    Spartan.piCcsPhaseOffset ≤ PiRLCStarts.evalAFreshStart := by
+    PackageOrder.piCcsPhaseOffset ≤ PiRLCStarts.evalAFreshStart := by
   rw [PiRLCStarts.evalAFreshStart_eq]
-  norm_num [Spartan.piCcsPhaseOffset]
+  norm_num [PackageOrder.piCcsPhaseOffset]
 
 theorem invocationFreshSource_local (freshStart blockCount cellCount source
     block lane cell : Nat)
-    (freshStartLocal : Spartan.piCcsPhaseOffset ≤ freshStart) :
-    Spartan.piCcsPhaseOffset ≤
+    (freshStartLocal : PackageOrder.piCcsPhaseOffset ≤ freshStart) :
+    PackageOrder.piCcsPhaseOffset ≤
       invocationFreshSource freshStart blockCount cellCount source block lane
         cell := by
   unfold invocationFreshSource
@@ -251,7 +251,7 @@ def sourceInputColumn (logicalStart blockCount cellCount valueStride source
 def finalInputColumn (logicalStart blockCount cellCount valueStride source
     block lane cell input : Nat)
     (valueSourceStart : Nat → Nat → Nat → Nat) : Nat :=
-  Spartan.sourceToSpartan
+  PackageOrder.sourceToPackage
     (sourceInputColumn logicalStart blockCount cellCount valueStride source
       block lane cell input valueSourceStart)
 
@@ -260,7 +260,7 @@ def firstSource (source : Nat) : Bool := source == 0
 def productionSharedInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} : Formal.Interface logicalWidth publicFits :=
   Formal.atOffset
     (PiRLCInputs.interface (logicalWidth := logicalWidth)
@@ -269,7 +269,7 @@ def productionSharedInterface
 def productionCommitmentFamilyInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} :
     CombinationFamily.Interface CommitmentCombination.blockCount
       CommitmentCombination.cellCount :=
@@ -281,7 +281,7 @@ def productionCommitmentFamilyInterface
 def productionPublicInputFamilyInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} :
     CombinationFamily.Interface PublicInputCombination.blockCount
       PublicInputCombination.cellCount :=
@@ -293,7 +293,7 @@ def productionPublicInputFamilyInterface
 def productionEvalKFamilyInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} :
     CombinationFamily.Interface EvalKCombination.blockCount
       RingKCombination.cellCount :=
@@ -306,7 +306,7 @@ def productionEvalKFamilyInterface
 def productionEvalAFamilyInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} :
     CombinationFamily.Interface EvalACombination.blockCount
       RingKCombination.cellCount :=
@@ -332,7 +332,7 @@ def sourceValue (valueStride source block cell : Nat)
 theorem productionCommitmentValue_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount)
     (block : Fin CommitmentCombination.blockCount)
@@ -375,7 +375,7 @@ theorem productionCommitmentValue_eq
 theorem productionPublicInputValue_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount)
     (block : Fin PublicInputCombination.blockCount)
@@ -418,7 +418,7 @@ theorem productionPublicInputValue_eq
 theorem productionEvalKValue_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount)
     (block : Fin EvalKCombination.blockCount)
@@ -438,7 +438,7 @@ theorem productionEvalKValue_eq
 theorem productionEvalAValue_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount)
     (block : Fin EvalACombination.blockCount)
@@ -580,7 +580,7 @@ theorem sourceConstraint_eq_stepAssertion
 theorem commitmentSourceConstraint_eq_stepAssertion
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount)
     (block : Fin CommitmentCombination.blockCount)
@@ -620,7 +620,7 @@ theorem commitmentSourceConstraint_eq_stepAssertion
 theorem publicInputSourceConstraint_eq_stepAssertion
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount)
     (block : Fin PublicInputCombination.blockCount)
@@ -660,7 +660,7 @@ theorem publicInputSourceConstraint_eq_stepAssertion
 theorem evalKSourceConstraint_eq_stepAssertion
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount)
     (block : Fin EvalKCombination.blockCount)
@@ -697,7 +697,7 @@ theorem evalKSourceConstraint_eq_stepAssertion
 theorem evalASourceConstraint_eq_stepAssertion
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount)
     (block : Fin EvalACombination.blockCount)
@@ -753,7 +753,7 @@ theorem renamedConstraint_eq_sourceConstraint
         (PiRLCCombinationTemplates.challenge current)) =
       sourceChallenge source := by
     funext current
-    have currentBound : current.val < 54 := current.isLt
+    have currentBound : current.val < 64 := current.isLt
     simp [CompactRows.renameExpr, PiRLCCombinationTemplates.challenge,
       sourceChallenge,
       sourceInputColumn, PiRLCCombinationTemplates.challengeInputStart,
@@ -765,9 +765,9 @@ theorem renamedConstraint_eq_sourceConstraint
         (PiRLCCombinationTemplates.value current)) =
       sourceValue valueStride source block cell valueSourceStart := by
     funext current
-    have currentBound : current.val < 54 := current.isLt
-    have notChallenge : ¬ 54 + current.val < 54 := by omega
-    have beforePrior : 54 + current.val < 108 := by omega
+    have currentBound : current.val < 64 := current.isLt
+    have notChallenge : ¬ 64 + current.val < 64 := by omega
+    have beforePrior : 64 + current.val < 128 := by omega
     simp [CompactRows.renameExpr, PiRLCCombinationTemplates.value, sourceValue,
       sourceInputColumn,
       PiRLCCombinationTemplates.valueInputStart,
@@ -822,9 +822,9 @@ theorem inputColumnOfRanges_eq (logicalStart blockCount cellCount valueStride
     source block lane cell input : Nat)
     (valueSourceStart : Nat → Nat → Nat → Nat)
     (valueAffine : ∀ offset, offset < ringDegree →
-      Spartan.sourceToSpartan
+      PackageOrder.sourceToPackage
           (valueSourceStart source block cell + offset * valueStride) =
-        Spartan.sourceToSpartan (valueSourceStart source block cell) +
+        PackageOrder.sourceToPackage (valueSourceStart source block cell) +
           offset * valueStride)
     (inputBound : input < PiRLCCombinationTemplates.inputCount) :
     CompactRows.inputColumnOfRanges
@@ -832,44 +832,44 @@ theorem inputColumnOfRanges_eq (logicalStart blockCount cellCount valueStride
           lane cell valueSourceStart) input =
       finalInputColumn logicalStart blockCount cellCount valueStride source
         block lane cell input valueSourceStart := by
-  have phaseLocal : Spartan.piCcsPhaseOffset ≤ PiRLCStarts.phaseLogicalStart := by
-    norm_num [Spartan.piCcsPhaseOffset, PiRLCStarts.phaseLogicalStart,
+  have phaseLocal : PackageOrder.piCcsPhaseOffset ≤ PiRLCStarts.phaseLogicalStart := by
+    norm_num [PackageOrder.piCcsPhaseOffset, PiRLCStarts.phaseLogicalStart,
       PiRLCInputs.phaseOffset]
-  have challengeLocal : Spartan.piCcsPhaseOffset ≤ challengeSourceStart source := by
+  have challengeLocal : PackageOrder.piCcsPhaseOffset ≤ challengeSourceStart source := by
     rw [challengeSourceStart, PiRLCStarts.challengeWordStart_eq]
     omega
   have challengeAffine (offset : Nat) :
-      Spartan.sourceToSpartan (challengeSourceStart source + offset) =
-        Spartan.sourceToSpartan (challengeSourceStart source) + offset :=
-    Spartan.sourceToSpartan_add_of_piCcsLocal _ _ challengeLocal
+      PackageOrder.sourceToPackage (challengeSourceStart source + offset) =
+        PackageOrder.sourceToPackage (challengeSourceStart source) + offset :=
+    PackageOrder.sourceToPackage_add_of_piCcsLocal _ _ challengeLocal
   unfold CompactRows.inputColumnOfRanges compactInputColumn inputRanges
     finalInputColumn
     sourceInputColumn
   dsimp only
-  by_cases challenge : input < 54
+  by_cases challenge : input < 64
   · simp [PiRLCCombinationTemplates.challengeInputStart,
       PiRLCCombinationTemplates.valueInputStart,
       
       ringDegree, challenge,
       challengeAffine]
-  · by_cases value : input < 108
-    · have valueStart : 54 ≤ input := by omega
-      have valueOffsetBound : input - 54 < ringDegree := by
+  · by_cases value : input < 128
+    · have valueStart : 64 ≤ input := by omega
+      have valueOffsetBound : input - 64 < ringDegree := by
         norm_num [ringDegree]
         omega
-      have valueMapped := valueAffine (input - 54) valueOffsetBound
+      have valueMapped := valueAffine (input - 64) valueOffsetBound
       simp [PiRLCCombinationTemplates.challengeInputStart,
         PiRLCCombinationTemplates.valueInputStart,
         PiRLCCombinationTemplates.priorInput,
         PiRLCCombinationTemplates.outputInput, ringDegree, challenge, value,
         valueStart, valueMapped]
-    · by_cases prior : input = 108
+    · by_cases prior : input = 128
       · subst input
         simp [PiRLCCombinationTemplates.challengeInputStart,
           PiRLCCombinationTemplates.valueInputStart,
           PiRLCCombinationTemplates.priorInput,
           PiRLCCombinationTemplates.outputInput, ringDegree]
-      · have output : input = 109 := by
+      · have output : input = 129 := by
           unfold PiRLCCombinationTemplates.inputCount at inputBound
           omega
         subst input
@@ -878,12 +878,12 @@ theorem inputColumnOfRanges_eq (logicalStart blockCount cellCount valueStride
           PiRLCCombinationTemplates.priorInput,
           PiRLCCombinationTemplates.outputInput, ringDegree]
 
-theorem sourceToSpartan_zero : Spartan.sourceToSpartan 0 = 0 := by
+theorem sourceToPackage_zero : PackageOrder.sourceToPackage 0 = 0 := by
   rfl
 
-theorem spartanRemapRows_eq (rows : List R1CS.Row) :
-    Spartan.remapRows rows =
-      rows.map (CompactRows.renameRow Spartan.sourceToSpartan) := by
+theorem packageRemapRows_eq (rows : List R1CS.Row) :
+    PackageOrder.remapRows rows =
+      rows.map (CompactRows.renameRow PackageOrder.sourceToPackage) := by
   rfl
 
 def invocation (logicalStart rowStart freshStart blockCount cellCount valueStride
@@ -895,7 +895,7 @@ def invocation (logicalStart rowStart freshStart blockCount cellCount valueStrid
     templateIndex := PiRLCCombinationTemplates.templateIndex source lane
     rowStart := rowStart + source * sourceRowCount blockCount cellCount +
       coordinateRowPrefix cellCount block lane cell
-    localStart := Spartan.sourceToSpartan freshSource
+    localStart := PackageOrder.sourceToPackage freshSource
     inputRanges := inputRanges logicalStart blockCount cellCount valueStride
       source block lane cell valueSourceStart }
 
@@ -905,7 +905,7 @@ def invocation (logicalStart rowStart freshStart blockCount cellCount valueStrid
     (valueSourceStart : Nat → Nat → Nat → Nat) :
     (invocation logicalStart rowStart freshStart blockCount cellCount valueStride
       source block lane cell valueSourceStart).localStart =
-      Spartan.sourceToSpartan
+      PackageOrder.sourceToPackage
         (invocationFreshSource freshStart blockCount cellCount source block lane
           cell) := by
   rfl
@@ -925,16 +925,16 @@ theorem invocationOutputRecipe_eq_remappedSourceRecipe
       block cell : Nat) (lane : Fin ringDegree)
     (valueSourceStart : Nat → Nat → Nat → Nat)
     (valueAffine : ∀ offset, offset < ringDegree →
-      Spartan.sourceToSpartan
+      PackageOrder.sourceToPackage
           (valueSourceStart source block cell + offset * valueStride) =
-        Spartan.sourceToSpartan (valueSourceStart source block cell) +
+        PackageOrder.sourceToPackage (valueSourceStart source block cell) +
           offset * valueStride) :
     CompactRows.renameExpr
         (CompactRows.inputColumnOfRanges
           (invocation logicalStart rowStart freshStart blockCount cellCount
             valueStride source block lane.val cell valueSourceStart).inputRanges)
         (PiRLCCombinationTemplates.outputRecipe (firstSource source) lane) =
-      CompactRows.renameExpr Spartan.sourceToSpartan
+      CompactRows.renameExpr PackageOrder.sourceToPackage
         (sourcePrior logicalStart blockCount cellCount source block lane.val cell +
           CombinationStep.mulExpr (sourceChallenge source)
             (sourceValue valueStride source block cell valueSourceStart) lane) := by
@@ -961,7 +961,7 @@ theorem invocationOutputRecipe_eq_remappedSourceRecipe
   dsimp only
   rw [rangeEq]
   change CompactRows.renameExpr
-      (Spartan.sourceToSpartan ∘
+      (PackageOrder.sourceToPackage ∘
         (sourceInputColumn logicalStart blockCount cellCount valueStride source
           block lane.val cell · valueSourceStart))
       (PiRLCCombinationTemplates.outputRecipe (firstSource source) lane) = _
@@ -970,16 +970,16 @@ theorem invocationOutputRecipe_eq_remappedSourceRecipe
 
 theorem commitmentInvocationOutputRecipe_eq_remappedSourceRecipe
     (source block cell : Nat) (lane : Fin ringDegree)
-    (sourceLt : source < sourceCount) (blockLt : block < 22) :
+    (sourceLt : source < sourceCount) (blockLt : block < 18) :
     CompactRows.renameExpr
         (CompactRows.inputColumnOfRanges
           (invocation PiRLCStarts.commitmentLogicalStart
             PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
-            22 1 1 source block lane.val cell
+            18 1 1 source block lane.val cell
             commitmentValueSourceStart).inputRanges)
         (PiRLCCombinationTemplates.outputRecipe (firstSource source) lane) =
-      CompactRows.renameExpr Spartan.sourceToSpartan
-        (sourcePrior PiRLCStarts.commitmentLogicalStart 22 1 source block
+      CompactRows.renameExpr PackageOrder.sourceToPackage
+        (sourcePrior PiRLCStarts.commitmentLogicalStart 18 1 source block
             lane.val cell +
           CombinationStep.mulExpr (sourceChallenge source)
             (sourceValue 1 source block cell commitmentValueSourceStart)
@@ -999,7 +999,7 @@ theorem publicInputInvocationOutputRecipe_eq_remappedSourceRecipe
             5 1 1 source block lane.val cell
             publicInputValueSourceStart).inputRanges)
         (PiRLCCombinationTemplates.outputRecipe (firstSource source) lane) =
-      CompactRows.renameExpr Spartan.sourceToSpartan
+      CompactRows.renameExpr PackageOrder.sourceToPackage
         (sourcePrior PiRLCStarts.publicInputLogicalStart 5 1 source block
             lane.val cell +
           CombinationStep.mulExpr (sourceChallenge source)
@@ -1019,7 +1019,7 @@ theorem evalKInvocationOutputRecipe_eq_remappedSourceRecipe
             PiRLCStarts.evalKFreshStart 1 2 2 source block lane.val cell
             evalKValueSourceStart).inputRanges)
         (PiRLCCombinationTemplates.outputRecipe (firstSource source) lane) =
-      CompactRows.renameExpr Spartan.sourceToSpartan
+      CompactRows.renameExpr PackageOrder.sourceToPackage
         (sourcePrior PiRLCStarts.evalKLogicalStart 1 2 source block lane.val
             cell +
           CombinationStep.mulExpr (sourceChallenge source)
@@ -1039,7 +1039,7 @@ theorem evalAInvocationOutputRecipe_eq_remappedSourceRecipe
             PiRLCStarts.evalAFreshStart 4 2 2 source block lane.val cell
             evalAValueSourceStart).inputRanges)
         (PiRLCCombinationTemplates.outputRecipe (firstSource source) lane) =
-      CompactRows.renameExpr Spartan.sourceToSpartan
+      CompactRows.renameExpr PackageOrder.sourceToPackage
         (sourcePrior PiRLCStarts.evalALogicalStart 4 2 source block lane.val
             cell +
           CombinationStep.mulExpr (sourceChallenge source)
@@ -1053,13 +1053,13 @@ theorem invocationRows_eq_remappedSource
     (logicalStart rowStart freshStart blockCount cellCount valueStride source
       block cell : Nat) (lane : Fin ringDegree)
     (valueSourceStart : Nat → Nat → Nat → Nat)
-    (sourceLocal : Spartan.piCcsPhaseOffset ≤
+    (sourceLocal : PackageOrder.piCcsPhaseOffset ≤
       invocationFreshSource freshStart blockCount cellCount source block
         lane.val cell)
     (valueAffine : ∀ offset, offset < ringDegree →
-      Spartan.sourceToSpartan
+      PackageOrder.sourceToPackage
           (valueSourceStart source block cell + offset * valueStride) =
-        Spartan.sourceToSpartan (valueSourceStart source block cell) +
+        PackageOrder.sourceToPackage (valueSourceStart source block cell) +
           offset * valueStride) :
     CompactRows.instantiateRows
         (CompactRows.inputColumnOfRanges
@@ -1068,7 +1068,7 @@ theorem invocationRows_eq_remappedSource
         (invocation logicalStart rowStart freshStart blockCount cellCount
           valueStride source block lane.val cell valueSourceStart).localStart
         (PiRLCCombinationTemplates.template (firstSource source) lane) =
-      Spartan.remapRows
+      PackageOrder.remapRows
         (R1CS.lowerGenericConstraint
           (sourceConstraint logicalStart blockCount cellCount valueStride source
             block cell valueSourceStart lane)
@@ -1079,28 +1079,28 @@ theorem invocationRows_eq_remappedSource
   have sourceBound : PiRLCCombinationTemplates.inputCount ≤ sourceFresh := by
     dsimp [sourceFresh]
     norm_num [PiRLCCombinationTemplates.inputCount,
-      Spartan.piCcsPhaseOffset] at sourceLocal ⊢
+      PackageOrder.piCcsPhaseOffset] at sourceLocal ⊢
     omega
-  have finalLocal : Spartan.piCcsLocalStart ≤
-      Spartan.sourceToSpartan sourceFresh :=
-    Spartan.piCcsLocalStart_le_sourceToSpartan sourceFresh (by
+  have finalLocal : PackageOrder.piCcsLocalStart ≤
+      PackageOrder.sourceToPackage sourceFresh :=
+    PackageOrder.piCcsLocalStart_le_sourceToPackage sourceFresh (by
       simpa [sourceFresh] using sourceLocal)
   have finalBound : PiRLCCombinationTemplates.inputCount ≤
-      Spartan.sourceToSpartan sourceFresh := by
+      PackageOrder.sourceToPackage sourceFresh := by
     norm_num [PiRLCCombinationTemplates.inputCount,
-      Spartan.piCcsLocalStart] at finalLocal ⊢
+      PackageOrder.piCcsLocalStart] at finalLocal ⊢
     omega
   have rangeRows :
       CompactRows.instantiateRows
           (CompactRows.inputColumnOfRanges
             (inputRanges logicalStart blockCount cellCount valueStride source block
               lane.val cell valueSourceStart))
-          (Spartan.sourceToSpartan sourceFresh)
+          (PackageOrder.sourceToPackage sourceFresh)
           (PiRLCCombinationTemplates.template (firstSource source) lane) =
         CompactRows.instantiateRows
           (finalInputColumn logicalStart blockCount cellCount valueStride source
             block lane.val cell · valueSourceStart)
-          (Spartan.sourceToSpartan sourceFresh)
+          (PackageOrder.sourceToPackage sourceFresh)
           (PiRLCCombinationTemplates.template (firstSource source) lane) := by
     unfold PiRLCCombinationTemplates.template
     apply CompactRows.instantiate_compactTemplate_congr_inputs
@@ -1109,49 +1109,49 @@ theorem invocationRows_eq_remappedSource
       source block lane.val cell input valueSourceStart valueAffine inputBound
   have remappedRows := CompactRows.instantiate_compactTemplate_remap
     PiRLCCombinationTemplates.inputCount PiRLCCombinationTemplates.outputInput
-    sourceFresh (Spartan.sourceToSpartan sourceFresh)
+    sourceFresh (PackageOrder.sourceToPackage sourceFresh)
     (sourceInputColumn logicalStart blockCount cellCount valueStride source block
       lane.val cell · valueSourceStart)
-    Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage
     (PiRLCCombinationTemplates.outputRecipe (firstSource source) lane)
     sourceBound finalBound
     (PiRLCCombinationTemplates.constraint_varsBelow (firstSource source) lane)
-    (fun offset => Spartan.sourceToSpartan_add_of_piCcsLocal sourceFresh offset
+    (fun offset => PackageOrder.sourceToPackage_add_of_piCcsLocal sourceFresh offset
       (by simpa [sourceFresh] using sourceLocal))
   unfold invocation
   dsimp only
   rw [rangeRows]
   change CompactRows.instantiateRows
-      (fun input => Spartan.sourceToSpartan
+      (fun input => PackageOrder.sourceToPackage
         (sourceInputColumn logicalStart blockCount cellCount valueStride source
           block lane.val cell input valueSourceStart))
-      (Spartan.sourceToSpartan sourceFresh)
+      (PackageOrder.sourceToPackage sourceFresh)
       (CompactRows.compactTemplate PiRLCCombinationTemplates.inputCount
         PiRLCCombinationTemplates.outputInput
         (PiRLCCombinationTemplates.outputRecipe (firstSource source) lane)) = _
   rw [remappedRows]
   rw [renamedConstraint_eq_sourceConstraint]
-  exact (spartanRemapRows_eq _).symm
+  exact (packageRemapRows_eq _).symm
 
 theorem commitmentInvocationRows_eq_remappedSource
     (source block cell : Nat) (lane : Fin ringDegree)
-    (sourceLt : source < sourceCount) (blockLt : block < 22) :
+    (sourceLt : source < sourceCount) (blockLt : block < 18) :
     CompactRows.instantiateRows
         (CompactRows.inputColumnOfRanges
           (invocation PiRLCStarts.commitmentLogicalStart
             PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
-            22 1 1 source block lane.val cell
+            18 1 1 source block lane.val cell
             commitmentValueSourceStart).inputRanges)
         (invocation PiRLCStarts.commitmentLogicalStart
           PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
-          22 1 1 source block lane.val cell
+          18 1 1 source block lane.val cell
           commitmentValueSourceStart).localStart
         (PiRLCCombinationTemplates.template (firstSource source) lane) =
-      Spartan.remapRows
+      PackageOrder.remapRows
         (R1CS.lowerGenericConstraint
-          (sourceConstraint PiRLCStarts.commitmentLogicalStart 22 1 1 source
+          (sourceConstraint PiRLCStarts.commitmentLogicalStart 18 1 1 source
             block cell commitmentValueSourceStart lane)
-          (invocationFreshSource PiRLCStarts.commitmentFreshStart 22 1 source
+          (invocationFreshSource PiRLCStarts.commitmentFreshStart 18 1 source
             block lane.val cell)).rows := by
   apply invocationRows_eq_remappedSource
   · exact invocationFreshSource_local _ _ _ _ _ _ _
@@ -1174,7 +1174,7 @@ theorem publicInputInvocationRows_eq_remappedSource
           5 1 1 source block lane.val cell
           publicInputValueSourceStart).localStart
         (PiRLCCombinationTemplates.template (firstSource source) lane) =
-      Spartan.remapRows
+      PackageOrder.remapRows
         (R1CS.lowerGenericConstraint
           (sourceConstraint PiRLCStarts.publicInputLogicalStart 5 1 1 source
             block cell publicInputValueSourceStart lane)
@@ -1199,7 +1199,7 @@ theorem evalKInvocationRows_eq_remappedSource
           PiRLCStarts.evalKFreshStart 1 2 2 source block lane.val cell
           evalKValueSourceStart).localStart
         (PiRLCCombinationTemplates.template (firstSource source) lane) =
-      Spartan.remapRows
+      PackageOrder.remapRows
         (R1CS.lowerGenericConstraint
           (sourceConstraint PiRLCStarts.evalKLogicalStart 1 2 2 source block
             cell evalKValueSourceStart lane)
@@ -1224,7 +1224,7 @@ theorem evalAInvocationRows_eq_remappedSource
           PiRLCStarts.evalAFreshStart 4 2 2 source block lane.val cell
           evalAValueSourceStart).localStart
         (PiRLCCombinationTemplates.template (firstSource source) lane) =
-      Spartan.remapRows
+      PackageOrder.remapRows
         (R1CS.lowerGenericConstraint
           (sourceConstraint PiRLCStarts.evalALogicalStart 4 2 2 source block
             cell evalAValueSourceStart lane)
@@ -1250,7 +1250,7 @@ def familyInvocations (logicalStart rowStart freshStart blockCount cellCount
 def commitmentInvocations : List CompactRowInvocation :=
   familyInvocations PiRLCStarts.commitmentLogicalStart
     PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
-    22 1 1 commitmentValueSourceStart
+    18 1 1 commitmentValueSourceStart
 
 def publicInputInvocations : List CompactRowInvocation :=
   familyInvocations PiRLCStarts.publicInputLogicalStart
@@ -1288,15 +1288,15 @@ theorem familyInvocation_mem
   refine ⟨source.val, List.mem_range.mpr source.isLt, ?_⟩
   simp
 
-theorem laneFreshCosts_length : laneFreshCosts.length = 54 := by
+theorem laneFreshCosts_length : laneFreshCosts.length = 64 := by
   simp only [laneFreshCosts, List.length_ofFn]
   rfl
 
-theorem laneRowCosts_length : laneRowCosts.length = 54 := by
+theorem laneRowCosts_length : laneRowCosts.length = 64 := by
   simp only [laneRowCosts, laneFreshCosts, List.length_map, List.length_ofFn]
   rfl
 
-theorem laneFreshCosts_sum : laneFreshCosts.sum = 8100 := by
+theorem laneFreshCosts_sum : laneFreshCosts.sum = 8320 := by
   exact PiRLCCombinationTemplates.laneFreshCount_sum
 
 theorem familyInvocations_length (logicalStart rowStart freshStart blockCount
@@ -1308,32 +1308,32 @@ theorem familyInvocations_length (logicalStart rowStart freshStart blockCount
   simp [familyInvocations, CombinationStep.privateCount]
   ring
 
-theorem commitmentInvocations_length : commitmentInvocations.length = 20196 := by
+theorem commitmentInvocations_length : commitmentInvocations.length = 17280 := by
   rw [commitmentInvocations, familyInvocations_length]
   rfl
 
-theorem publicInputInvocations_length : publicInputInvocations.length = 4590 := by
+theorem publicInputInvocations_length : publicInputInvocations.length = 4800 := by
   rw [publicInputInvocations, familyInvocations_length]
   rfl
 
-theorem evalKInvocations_length : evalKInvocations.length = 1836 := by
+theorem evalKInvocations_length : evalKInvocations.length = 1920 := by
   rw [evalKInvocations, familyInvocations_length]
   rfl
 
-theorem evalAInvocations_length : evalAInvocations.length = 7344 := by
+theorem evalAInvocations_length : evalAInvocations.length = 7680 := by
   rw [evalAInvocations, familyInvocations_length]
   rfl
 
-theorem invocations_length : invocations.length = 33966 := by
+theorem invocations_length : invocations.length = 31680 := by
   simp [invocations, commitmentInvocations_length,
     publicInputInvocations_length, evalKInvocations_length,
     evalAInvocations_length]
 
 
 theorem familyBoundaries_eq :
-    PiRLCStarts.commitmentRowStart + sourceCount * sourceRowCount 22 1 =
+    PiRLCStarts.commitmentRowStart + sourceCount * sourceRowCount 18 1 =
         PiRLCStarts.publicInputRowStart ∧
-    PiRLCStarts.commitmentFreshStart + sourceCount * sourceFreshCount 22 1 =
+    PiRLCStarts.commitmentFreshStart + sourceCount * sourceFreshCount 18 1 =
         PiRLCStarts.publicInputFreshStart ∧
     PiRLCStarts.publicInputRowStart + sourceCount * sourceRowCount 5 1 =
         PiRLCStarts.evalKRowStart ∧

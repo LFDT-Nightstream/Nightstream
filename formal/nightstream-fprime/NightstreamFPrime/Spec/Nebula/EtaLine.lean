@@ -66,10 +66,10 @@ theorem ClosesAt.openTs_lt_pow [CommRing E] (valid : ctx.plan.Valid)
 
 /-- A segment that closes opens at a canonical timestamp. -/
 theorem ClosesAt.openTs_lt [CommRing E] (valid : ctx.plan.Valid) (closes : v.ClosesAt ctx η) :
-    v.openTs < goldilocksModulus :=
+    v.openTs < fieldModulus :=
   lt_of_lt_of_le (closes.openTs_lt_pow valid)
     ((Nat.pow_le_pow_right (by norm_num) valid.fieldEncoding).trans
-      (by norm_num [goldilocksModulus]))
+      (by norm_num [fieldModulus]))
 
 end SegmentView
 

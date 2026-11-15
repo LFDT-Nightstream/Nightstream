@@ -1,48 +1,93 @@
-//! Exact indexed SHAKE128 expansion. Two independent key elements share
-//! the CPU's parallel permutation; scalar backends keep the same framing.
+//! Exact indexed SHAKE128 expansion with 8-byte rejection sampling. Two
+//! independent key elements share the CPU's parallel permutation; scalar
+//! backends keep the same framing.
+
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 
 use keccak::{Backend, BackendClosure, Keccak, ParState1600};
-use neo_math::signed_sums::SplitRing;
+use neo_math::{field::Q, signed_sums::SplitRing};
 
 use super::{element_input, D, ELEMENT_INPUT_BYTES};
 
-const RATE: usize = 168;
-const OUTPUT_BYTES: usize = 32 * D;
-const _: () = assert!(ELEMENT_INPUT_BYTES < RATE);
+/// The SHAKE128 rate of 168 bytes in 64-bit words.
+const RATE_WORDS: usize = 21;
+/// Lean `AjtaiSetupV1.keyWords`: one key element reads four blocks of the rate.
+pub const KEY_WORDS: usize = 4 * RATE_WORDS;
+const _: () = assert!(ELEMENT_INPUT_BYTES < 8 * RATE_WORDS);
+const _: () = assert!(D <= KEY_WORDS);
+
+/// Lean `AjtaiSetupV1.keptCoefficientNat`: coefficient `L` is the `L`-th word
+/// below `q`, and 0 when fewer than `L + 1` words are below `q`.
+pub fn kept_coefficients(words: &[u64; KEY_WORDS]) -> [u64; D] {
+    let mut kept: [u64; D] = core::array::from_fn(|lane| words[lane]);
+    // 59 of the 2^64 words are `q` or more, so the first `D` words are kept
+    // for all but about one element in 2^52.
+    if kept
+        .iter()
+        .fold(false, |rejected, &word| rejected | (word >= Q))
+    {
+        kept = [0; D];
+        for (coefficient, &word) in kept.iter_mut().zip(words.iter().filter(|&&word| word < Q)) {
+            *coefficient = word;
+        }
+    }
+    kept
+}
 
 // ARM SHA3 processes two independent 64-bit lanes in each vector register.
 pub(super) fn split_pair(seed: &[u8; 32], row: u32, columns: [u64; 2]) -> [SplitRing; 2] {
-    word_pair(seed, row, columns).map(SplitRing::from_wide256)
+    word_pair(seed, row, columns).map(|words| SplitRing::from_u64(&kept_coefficients(&words)))
 }
 
-#[cfg(test)]
 pub(super) fn coefficient_pair(seed: &[u8; 32], row: u32, columns: [u64; 2]) -> [[u64; D]; 2] {
-    word_pair(seed, row, columns).map(|words| words.map(super::reduce_words))
+    word_pair(seed, row, columns).map(|words| kept_coefficients(&words))
 }
 
-fn word_pair(seed: &[u8; 32], row: u32, columns: [u64; 2]) -> [[[u32; 8]; D]; 2] {
-    let mut bytes = [[0u8; OUTPUT_BYTES]; 2];
+/// One counter for each thread, on its own cache lines: a thread that expands
+/// key elements writes no line that another thread reads.
+#[repr(align(128))]
+struct Count(AtomicU64);
+
+static COUNTS: [Count; 64] = [const { Count(AtomicU64::new(0)) }; 64];
+static THREADS: AtomicUsize = AtomicUsize::new(0);
+
+thread_local! {
+    static COUNT: usize = THREADS.fetch_add(1, Ordering::Relaxed) % COUNTS.len();
+}
+
+/// Each expansion of key elements records its SHAKE128 output bytes here.
+pub(super) fn count_expanded(bytes: usize) {
+    COUNT.with(|&count| COUNTS[count].0.fetch_add(bytes as u64, Ordering::Relaxed));
+}
+
+/// The SHAKE128 output bytes of the key elements that this process expanded.
+/// A test reads it before and after a call to show that the call expands no
+/// key element.
+pub fn expanded_key_bytes() -> u64 {
+    COUNTS
+        .iter()
+        .map(|count| count.0.load(Ordering::Relaxed))
+        .sum()
+}
+
+/// The first `KEY_WORDS` 64-bit words of the SHAKE128 output of each element.
+fn word_pair(seed: &[u8; 32], row: u32, columns: [u64; 2]) -> [[u64; KEY_WORDS]; 2] {
+    count_expanded(2 * 8 * KEY_WORDS);
+    let mut words = [[0u64; KEY_WORDS]; 2];
     Keccak::new().with_backend(KeyPair {
         seed,
         row,
         columns,
-        output: &mut bytes,
+        output: &mut words,
     });
-    bytes.map(|bytes| {
-        core::array::from_fn(|lane| {
-            core::array::from_fn(|word| {
-                let start = 32 * lane + 4 * word;
-                u32::from_le_bytes(bytes[start..start + 4].try_into().expect("four-byte word"))
-            })
-        })
-    })
+    words
 }
 
 struct KeyPair<'a> {
     seed: &'a [u8; 32],
     row: u32,
     columns: [u64; 2],
-    output: &'a mut [[u8; OUTPUT_BYTES]; 2],
+    output: &'a mut [[u64; KEY_WORDS]; 2],
 }
 
 impl BackendClosure for KeyPair<'_> {
@@ -63,15 +108,12 @@ impl BackendClosure for KeyPair<'_> {
                 }
                 // SHAKE domain suffix and multi-rate padding, unchanged from sha3::Shake128.
                 state[ELEMENT_INPUT_BYTES / 8] ^= 0x1f << (8 * (ELEMENT_INPUT_BYTES % 8));
-                state[RATE / 8 - 1] ^= 0x80 << 56;
+                state[RATE_WORDS - 1] ^= 0x80 << 56;
             }
-            for start in (0..OUTPUT_BYTES).step_by(RATE) {
+            for start in (0..KEY_WORDS).step_by(RATE_WORDS) {
                 permute(&mut states);
-                let length = RATE.min(OUTPUT_BYTES - start);
                 for (state, output) in states.iter().zip(outputs.iter_mut()) {
-                    for (bytes, word) in output[start..start + length].chunks_exact_mut(8).zip(state) {
-                        bytes.copy_from_slice(&word.to_le_bytes());
-                    }
+                    output[start..start + RATE_WORDS].copy_from_slice(&state[..RATE_WORDS]);
                 }
             }
         }

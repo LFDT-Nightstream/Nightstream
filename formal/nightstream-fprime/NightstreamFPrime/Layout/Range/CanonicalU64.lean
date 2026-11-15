@@ -15,8 +15,8 @@ abbrev auxiliaryCount :=
   NightstreamFPrime.Gadgets.Range.CanonicalU64.auxiliaryCount
 abbrev exactRowCount :=
   NightstreamFPrime.Gadgets.Range.CanonicalU64.exactRowCount
-abbrev flagRecipe :=
-  NightstreamFPrime.Gadgets.Range.CanonicalU64.flagRecipe
+abbrev recipes :=
+  NightstreamFPrime.Gadgets.Range.CanonicalU64.recipes
 abbrev booleanConstraint :=
   NightstreamFPrime.Gadgets.Range.CanonicalU64.booleanConstraint
 abbrev booleanConstraints :=
@@ -92,14 +92,14 @@ private theorem recomposition_affine (interface : Logical.Interface)
   unfold Logical.recompositionConstraint
   exact sub_affine inputs.source (word_affine offset)
 
-private theorem flagFreshCount_eq (offset : Nat) :
+private theorem recipeFreshCount_eq (offset : Nat) :
     R1CS.totalFreshCount (recipeConstraints
-      (offset + CanonicalU64.bitCount + 1) [Logical.flagRecipe offset]) = 36 := by
+      (offset + CanonicalU64.bitCount + 1) (Logical.recipes offset)) = 0 := by
   rfl
 
-private theorem flagRowCount_eq (offset : Nat) :
+private theorem recipeRowCount_eq (offset : Nat) :
     R1CS.totalRowCount (recipeConstraints
-      (offset + CanonicalU64.bitCount + 1) [Logical.flagRecipe offset]) = 37 := by
+      (offset + CanonicalU64.bitCount + 1) (Logical.recipes offset)) = 2 := by
   rfl
 
 private theorem booleanFreshCount_eq (offset index : Nat) :
@@ -138,11 +138,11 @@ private theorem canonicalityRowCount_eq (offset : Nat) :
 
 theorem totalFreshCount_eq (interface : Logical.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
-    R1CS.totalFreshCount (logicalConstraints interface offset) = 36 := by
+    R1CS.totalFreshCount (logicalConstraints interface offset) = 0 := by
   unfold logicalConstraints
   rw [Logical.flatConstraints_operations,
     R1CS.totalFreshCount_append, R1CS.totalFreshCount_append,
-    flagFreshCount_eq, booleanFreshTotal_eq]
+    recipeFreshCount_eq, booleanFreshTotal_eq]
   simp only [R1CS.totalFreshCount, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero]
   rw [R1CS.constraintFreshCount_eq_zero_of_affine _
@@ -151,11 +151,11 @@ theorem totalFreshCount_eq (interface : Logical.Interface) (offset : Nat)
 
 theorem totalRowCount_eq (interface : Logical.Interface) (offset : Nat)
     (inputs : InputsAffine interface offset) :
-    R1CS.totalRowCount (logicalConstraints interface offset) = 103 := by
+    R1CS.totalRowCount (logicalConstraints interface offset) = 68 := by
   unfold logicalConstraints
   rw [Logical.flatConstraints_operations,
     R1CS.totalRowCount_append, R1CS.totalRowCount_append,
-    flagRowCount_eq, booleanRowTotal_eq]
+    recipeRowCount_eq, booleanRowTotal_eq]
   simp only [R1CS.totalRowCount, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero]
   rw [R1CS.constraintRowCount_eq_one_of_affine _
@@ -165,8 +165,8 @@ theorem totalRowCount_eq (interface : Logical.Interface) (offset : Nat)
 def footprint (interface : Logical.Interface)
     (inputs : ∀ offset, InputsAffine interface offset) :
     R1CS.CircuitFootprint (Logical.circuit interface) where
-  freshColumnCount := fun _ => 36
-  physicalRowCount := fun _ => 103
+  freshColumnCount := fun _ => 0
+  physicalRowCount := fun _ => 68
   freshColumnCount_eq := fun offset =>
     totalFreshCount_eq interface offset (inputs offset)
   physicalRowCount_eq := fun offset =>
@@ -175,9 +175,9 @@ def footprint (interface : Logical.Interface)
 theorem physicalPrivateColumnCount_eq (interface : Logical.Interface)
     (offset : Nat) (inputs : InputsAffine interface offset) :
     localLength (Circuit.ops (Logical.circuit interface).main offset) +
-      R1CS.totalFreshCount (logicalConstraints interface offset) = 102 := by
+      R1CS.totalFreshCount (logicalConstraints interface offset) = 67 := by
   change localLength (Logical.operations interface offset) +
-    R1CS.totalFreshCount (logicalConstraints interface offset) = 102
+    R1CS.totalFreshCount (logicalConstraints interface offset) = 67
   rw [Logical.localLength_eq, totalFreshCount_eq interface offset inputs]
   rfl
 
@@ -203,7 +203,7 @@ theorem physical_complete (interface : Logical.Interface) (offset : Nat)
     (assumptions : Logical.Assumptions interface offset env)
     (specification : Logical.SpecHolds interface offset env) :
     ∃ completed,
-      AgreesOutside env completed offset 102 ∧
+      AgreesOutside env completed offset 67 ∧
       PhysicalHolds interface offset completed := by
   rcases Logical.completeness interface env offset assumptions specification with
     ⟨logicalEnv, logicalAgrees, logicalRows⟩

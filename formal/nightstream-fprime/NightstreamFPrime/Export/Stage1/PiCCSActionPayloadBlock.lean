@@ -50,7 +50,7 @@ theorem roundInvocationCount_eq :
   exact same.trans (PiCCSInvocations.roundInvocationCount_eq
     Data.logicalWidth Data.publicFits)
 
-def statementKindAt : Fin 123 → PoseidonActionSchedule.Kind :=
+def statementKindAt : Fin 124 → PoseidonActionSchedule.Kind :=
   fun index => PoseidonActionSchedule.kindAt statementActions <|
     Fin.cast (PiCCSInvocations.statementInvocationCount_eq
       Data.logicalWidth Data.publicFits).symm index
@@ -63,7 +63,7 @@ def roundKindAt : Fin 56 → PoseidonActionSchedule.Kind :=
   fun index => PoseidonActionSchedule.kindAt roundActions <|
     Fin.cast roundInvocationCount_eq.symm index
 
-def outputKindAt : Fin 765 → PoseidonActionSchedule.Kind :=
+def outputKindAt : Fin 800 → PoseidonActionSchedule.Kind :=
   fun index => PoseidonActionSchedule.kindAt outputActions <|
     Fin.cast (PiCCSInvocations.outputInvocationCount_eq
       Data.logicalWidth Data.publicFits).symm index
@@ -114,14 +114,14 @@ theorem outputKindAt_materializes :
     _ = PoseidonActionSchedule.kinds outputActions :=
       PoseidonActionSchedule.kindAt_materializes outputActions
 
-def invocationCount : Nat := 948
+def invocationCount : Nat := 984
 
-@[simp] theorem invocationCount_eq : invocationCount = 948 := by
+@[simp] theorem invocationCount_eq : invocationCount = 984 := by
   rfl
 
 def payloadCount : Nat := invocationCount * Spec.Poseidon2.rate
 
-@[simp] theorem payloadCount_eq : payloadCount = 11376 := by
+@[simp] theorem payloadCount_eq : payloadCount = 11808 := by
   rw [payloadCount, invocationCount_eq]
   rfl
 
@@ -254,7 +254,7 @@ def payloadColumn (program : Lifecycle.Stage1.Application.Program)
 
 def packageEnv (program : Lifecycle.Stage1.Application.Program)
     (prefixAssignment : Fin (prefixSourceWidth program) → F) : Env :=
-  NightstreamFPrime.Layout.Stage1.Spartan.pullback <|
+  NightstreamFPrime.Layout.Stage1.PackageOrder.pullback <|
     PiCCSTranscriptReadout.env <|
       PerApplicationPackage.baseEnv program
         (SourceCompiler.sourceEnv prefixAssignment)

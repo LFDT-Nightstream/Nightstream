@@ -26,8 +26,7 @@ column counts into a document.
 | Circuit | Lean layout | Gadgets, in order |
 |---|---|---|
 | Light | `Lifecycle/BoundedDepth/LightStepLayout.lean` | The application, the depth guard on the depth word of the active slot, the prior state hash with its two slot hashes, the next state hash with its two slot hashes, the light Π_CCS and Π_RLC on the active slot, and the slot select. |
-| Refresh | `Lifecycle/BoundedDepth/RefreshStepLayout.lean` | The application, the prior state hash with its two slot hashes, the next state hash with its two slot hashes, Π_DEC on the active slot, the refresh Π_CCS on the 16 children, Π_RLC, and the slot select. There is no depth guard, and the new depth of the slot is 0. |
-| Finish | `Lifecycle/BoundedDepth/FinishStep.lean` | The last fold of a compressed proof. It is the refresh step circuit without the application and without the hashes of the next slots and the next state. |
+| Refresh | `Lifecycle/BoundedDepth/RefreshStepLayout.lean` | The application, the prior state hash with its two slot hashes, the next state hash with its two slot hashes, Π_DEC on the active slot, the refresh Π_CCS on the 14 children, Π_RLC, and the slot select. There is no depth guard, and the new depth of the slot is 0. |
 
 `Lifecycle/BoundedDepth/Step.lean` states the step relation (`stepHolds_iff`).
 `LightStep.lean` and `RefreshStep.lean` give its two cases from the rows of
@@ -44,12 +43,11 @@ are the authority for the departures from SuperNeo v1.2.
 `lake exe emitBoundedDepth` (`Export/BoundedDepth/EmitMain.lean`) writes the light and
 refresh packages, `artifacts/nightstream-fprime-bounded-depth-light-v1.json` and
 `artifacts/nightstream-fprime-bounded-depth-refresh-v1.json`.
-`lake exe emitBoundedDepth --finish` writes
-`artifacts/nightstream-fprime-bounded-depth-finish-v1.json`. Before it writes a
-package, the emitter runs the package's completeness checks and stops when one
-fails. With `--checks`, it runs only these checks and writes nothing. Rust pins the
-identities of these packages (`BOUNDED_DEPTH_PACKAGES_IDENTITY` and
-`BOUNDED_DEPTH_FINISH_IDENTITY` in `crates/nightstream-fprime/src/bounded_depth.rs`).
+Before it writes a package, the emitter runs the package's completeness checks
+and stops when one fails. With `--checks`, it runs only these checks and writes
+nothing. Rust pins the identity of the light and refresh packages
+(`BOUNDED_DEPTH_PACKAGES_IDENTITY` in
+`crates/nightstream-fprime/src/bounded_depth.rs`).
 
 ## Credits
 
@@ -64,10 +62,10 @@ The code is a fresh implementation. The headers of `Circuit/Basic.lean` and
 Prove the soundness and completeness of the concrete checks, exact transcript
 and public-input binding, parameter bounds, and the links consumed by the
 selected verifier. Keep Pad and the matrix-evaluation families separate.
-The selected profile is Nightstream Goldilocks, k_rho = 16, with `b = 2` and
-`B = 65536`. A light fold has two sources, the fresh instance and the
-accumulator. A refresh fold has 17 ordered sources, the fresh instance and the
-16 Π_DEC children of the accumulator. Protocol binding uses Poseidon2.
+The selected profile is Nightstream P64, k_rho = 14, with `q = 2^64 − 59`, the
+ring `X^64 + 1`, `b = 2` and `B = 16384`. A light fold has two sources, the fresh instance and the
+accumulator. A refresh fold has 15 ordered sources, the fresh instance and the
+14 Π_DEC children of the accumulator. Protocol binding uses Poseidon2.
 
 The project does not require a full proof of every cryptographic primitive.
 Established cryptographic security results can remain explicit assumptions.
@@ -136,8 +134,6 @@ recorded execution scope; they are not universal proofs of Rust semantics.
 Package or relation changes require the corresponding identity and consumer
 checks. A digest alone is not protocol authority.
 
-Run `scripts/validate.sh static`, `scripts/validate.sh build`,
-`scripts/validate.sh axioms`, and `scripts/validate.sh compression`, in that
-order, before a proof checkpoint. The last one rebuilds `../compression-lean`,
-which imports this package.
+Run `scripts/validate.sh static`, `scripts/validate.sh build` and
+`scripts/validate.sh axioms`, in that order, before a proof checkpoint.
 Follow [AGENTS.md](AGENTS.md) for bounded commands and the single build queue.

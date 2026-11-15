@@ -1,13 +1,13 @@
 //! The memory prover and the memory verifier of a circuit (SPEC.md
-//! Algorithm 9 and Algorithm 10). The prover runs each segment natively,
+//! Algorithm 7 and Algorithm 8). The prover runs each segment natively,
 //! proves its invocations, and keeps only the last proof. The proof carries
 //! the final carry, which the final Stage 1 state binds, so the verifier
 //! reads every statement integer from it and the caller never moves a carry.
 
 use std::path::Path;
 
+use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks as F;
 
 use super::app::Application;
 use super::carry::Carry;
@@ -91,7 +91,8 @@ impl<A: Application + Clone> Prover<A> {
     /// Load the prover of a circuit that `Circuit::write` saved for
     /// `geometry` and `app`. A verifier compiles its own circuit and never
     /// loads this file. `minimum_security_bits` separately gates one fold and
-    /// one memory challenge, not the cumulative proof or deployment error.
+    /// the memory fingerprint term of all `S_max` segments, before it reads
+    /// the file. It is not the cumulative proof or deployment error.
     pub fn load(
         path: impl AsRef<Path>,
         geometry: Geometry,
@@ -128,18 +129,13 @@ impl<A: Application + Clone> Prover<A> {
         Ok(bytes)
     }
 
-    /// `crate::Prover::compression_setup` of the circuit.
-    pub fn compression_setup(&self, dir: impl AsRef<Path>) -> Result<crate::CompressionSetup, crate::Error> {
-        self.stage1.compression_setup(dir)
+    /// The prover's key of the compression (`crate::Prover::compression_setup`).
+    pub fn compression_setup(&self) -> Result<crate::CompressionSetup, crate::Error> {
+        self.stage1.compression_setup()
     }
 
-    /// Reopen this circuit's layer-1 setups (SPEC.md Algorithm 7).
-    pub fn open_compression_setup(&self, dir: impl AsRef<Path>) -> Result<crate::CompressionSetup, crate::Error> {
-        self.stage1.open_compression_setup(dir)
-    }
-
-    /// Compress `proof` (`crate::Prover::compress`). The carry
-    /// does not change.
+    /// Compress `proof` (`crate::Prover::compress`). The carry does not
+    /// change.
     pub fn compress(&self, proof: &Proof, setup: &crate::CompressionSetup) -> Result<FinalProof, crate::Error> {
         Ok(FinalProof {
             stage1: self.stage1.compress(&proof.stage1, setup)?,
@@ -198,7 +194,7 @@ impl<A: Application + Clone> Proving<'_, A> {
 }
 
 /// The memory verifier of one circuit (`Circuit::verifier`): the SPEC.md
-/// Algorithm 10 terminal checks, then the Stage 1 verifier of the circuit's
+/// Algorithm 8 terminal checks, then the Stage 1 verifier of the circuit's
 /// relation. It verifies proofs of every program of the circuit's geometry.
 pub struct Verifier<A> {
     geometry: Geometry,
@@ -222,7 +218,7 @@ impl<A: Application> Verifier<A> {
     }
 
     /// Verify a memory proof of `program` from `initial` to `last` (SPEC.md
-    /// Algorithm 10). The statement integers come from the proof's carry, so
+    /// Algorithm 8). The statement integers come from the proof's carry, so
     /// the terminal checks on them and the final Stage 1 state bind the
     /// carry. The initial state opens the start carry, which holds the
     /// program's `D_init` (`Program::d_init`).
@@ -238,9 +234,15 @@ impl<A: Application> Verifier<A> {
         Ok(verified(&proof.carry, &program.geometry))
     }
 
-    /// The trusted compression key of the circuit (`crate::Verifier::compression_key`).
+    /// The compression key of the circuit (`crate::Verifier::compression_key`).
     pub fn compression_key(&self) -> Result<crate::CompressionKey, crate::Error> {
         self.stage1.compression_key()
+    }
+
+    /// Decode the bytes of the compression key of the circuit
+    /// (`crate::Verifier::decode_compression_key`).
+    pub fn decode_compression_key(&self, bytes: &[u8]) -> Result<crate::CompressionKey, crate::Error> {
+        self.stage1.decode_compression_key(bytes)
     }
 
     /// Verify a compressed memory proof as `verify` does: the terminal
@@ -277,7 +279,7 @@ impl<A: Application> Verifier<A> {
         Ok(())
     }
 
-    /// The SPEC.md Algorithm 10 statement of `carry` and its terminal checks.
+    /// The SPEC.md Algorithm 8 statement of `carry` and its terminal checks.
     fn terminal(
         &self,
         program: &Program,

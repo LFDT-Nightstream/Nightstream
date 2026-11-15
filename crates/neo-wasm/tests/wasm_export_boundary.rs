@@ -133,10 +133,10 @@ fn export_boundary_folds_entry_and_exit_events() {
     let exit = absorbed_blocks(&template.exit, &exit).expect("absorbed exit");
     expected.extend_from_slice(&exit);
     assert_eq!(expected, staged, "claimed transcript must match the staged blocks");
-    let lift = |blocks: &[[u64; 8]]| -> Vec<[p3_goldilocks::Goldilocks; 8]> {
+    let lift = |blocks: &[[u64; 8]]| -> Vec<[neo_math::F; 8]> {
         blocks
             .iter()
-            .map(|block| block.map(p3_goldilocks::Goldilocks::from_u64))
+            .map(|block| block.map(neo_math::F::from_u64))
             .collect()
     };
     let final_chain = trace.last().expect("rows").state_after.comm_chain;

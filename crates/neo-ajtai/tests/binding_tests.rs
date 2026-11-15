@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 use neo_ajtai::*;
+use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as Fq;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 
@@ -16,7 +16,7 @@ fn random_Z(rng: &mut StdRng, d: usize, m: usize, b: u32) -> Vec<Fq> {
 
 #[test]
 fn binding_harness_no_collision() {
-    let d = 54usize;
+    let d = neo_math::D;
     let m = 64usize;
     let kappa = 16usize;
     let b = 2u32;

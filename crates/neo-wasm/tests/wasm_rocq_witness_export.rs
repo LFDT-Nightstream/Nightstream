@@ -289,7 +289,7 @@ fn export_witnesses() {
 #[test]
 #[ignore = "regenerates Rocq files"]
 fn export_integer_local_witnesses() {
-    // Both limbs are nonzero, and the unsigned value exceeds Goldilocks.
+    // Both limbs are nonzero, and the unsigned value exceeds `q`.
     export_witness_format(
         r#"(module (func (export "main") (local i64)
             i64.const -1 local.set 0 local.get 0 drop))"#,

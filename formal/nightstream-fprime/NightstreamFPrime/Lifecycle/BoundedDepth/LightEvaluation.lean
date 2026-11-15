@@ -6,7 +6,7 @@ import NightstreamFPrime.Spec.Folding.Light.RlcModule
 Figure 3, step 6, on SuperNeo v1.2 Section 7.4, verifier Step 1) as one `CombinationStep` with
 the running family as the prior. Block 0 is `Eval_K` (the pad family) and block `m + 1` is
 `Eval_A` of matrix `m`; each `K` value is two field cells, so the step has
-5 × 54 × 2 = 540 rows, against 1,836 + 7,344 = 9,180 for today's combinations
+5 × 64 × 2 = 640 rows, against 2,176 + 8,704 = 10,880 for today's combinations
 (`EvalKCombination`, `EvalACombination`). `output_eq` gives the
 evaluation family of the production light key's Π_RLC output. -/
 
@@ -15,7 +15,7 @@ namespace NightstreamFPrime.Lifecycle.BoundedDepth.LightEvaluation
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
-open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
 open NightstreamFPrime.Lifecycle.PiRLC.v1_2
@@ -60,7 +60,7 @@ def evalRunning (interface : Interface) (offset : Nat) (env : Env) : Fin blockCo
 def evalFresh (interface : Interface) (offset : Nat) (env : Env) : Fin blockCount → RingK :=
   fun block lane => (interface.fresh offset block lane).eval env
 
-theorem rowCount : CombinationStep.privateCount blockCount cellCount = 540 := by
+theorem rowCount : CombinationStep.privateCount blockCount cellCount = 640 := by
   rfl
 
 private theorem expressionCell_eval (env : Env) (cell : Fin cellCount) (value : KExpr) :
@@ -93,7 +93,7 @@ theorem output_combination (interface : Interface) (offset : Nat) (env : Env)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- With the circuit's words for `ρ` and both families, the rows give the first evaluation family
 of the production light key's Π_RLC output. -/
@@ -101,12 +101,12 @@ theorem output_eq (relation : ProductionKey.LogicalRelation logicalWidth publicF
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (interface : Interface) (offset : Nat) (env : Env)
     (spec : CombinationStep.SpecHolds (stepInterface interface) offset env)
-    (system : RelationSource LightShape (Phi81CarrierLayout.carrierWidth logicalWidth)
-      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth)))
+    (system : RelationSource LightShape (RingCarrierLayout.carrierWidth logicalWidth)
+      (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth)))
     (point : CubePoint K LightShape.cubeVariables)
     (fresh running : CE.Instance (RelationSource LightShape
-      (Phi81CarrierLayout.carrierWidth logicalWidth)
-      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth)))
+      (RingCarrierLayout.carrierWidth logicalWidth)
+      (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth)))
       (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       (CubePoint K LightShape.cubeVariables) (EvaluationFamily K LightShape)
       PaperAlgebra.Commitment)

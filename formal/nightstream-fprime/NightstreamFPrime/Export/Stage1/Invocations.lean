@@ -1,5 +1,5 @@
 import NightstreamFPrime.Export.Stage1.Rows
-import NightstreamFPrime.Layout.Stage1.Spartan
+import NightstreamFPrime.Layout.Stage1.PackageOrder
 import NightstreamFPrime.Export.Pilot
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
 import NightstreamFPrime.Layout.Poseidon2.Duplex
@@ -32,35 +32,35 @@ theorem affineCombination_eq
 
 def inputCombination (expression : Expr) : SparseCombination :=
   sparseCombination
-    (Spartan.remapCombination (affineCombination expression))
+    (PackageOrder.remapCombination (affineCombination expression))
 
 theorem inputCombination_eval {expression : Expr}
     (affine : R1CS.IsAffine expression) (env : Env) :
     (inputCombination expression).toR1CS.eval env =
-      expression.eval (Spartan.pullback env) := by
+      expression.eval (PackageOrder.pullback env) := by
   rcases affine with ⟨lowered, loweredEq⟩
   unfold inputCombination
-  rw [sparseCombination_toR1CS, Spartan.remapCombination_eval,
+  rw [sparseCombination_toR1CS, PackageOrder.remapCombination_eval,
     affineCombination_eq loweredEq, lowered.sound]
 
 theorem inputCombination_termsOutside (expression : Expr)
     (start ceiling : Nat)
-    (startLocal : Spartan.piCcsPhaseOffset ≤ start)
-    (ceilingPrivate : ceiling ≤ Spartan.privateColumnCount)
+    (startLocal : PackageOrder.piCcsPhaseOffset ≤ start)
+    (ceilingPrivate : ceiling ≤ PackageOrder.privateColumnCount)
     (affine : R1CS.IsAffine expression)
     (scope : expression.VarsBelow start) :
     ∀ term ∈ (inputCombination expression).toR1CS.terms,
-      term.1 < Spartan.sourceToSpartan start ∨ ceiling ≤ term.1 := by
+      term.1 < PackageOrder.sourceToPackage start ∨ ceiling ≤ term.1 := by
   rcases affine with ⟨lowered, loweredEq⟩
   have sourceScope := R1CS.lowerAffine_varsBelow expression start scope
     lowered loweredEq
   intro term member
   rw [inputCombination, sparseCombination_toR1CS,
     affineCombination_eq loweredEq] at member
-  unfold Spartan.remapCombination at member
+  unfold PackageOrder.remapCombination at member
   simp only [List.mem_map] at member
   rcases member with ⟨sourceTerm, sourceMember, rfl⟩
-  rcases Spartan.sourceToSpartan_before_piCcsLocal sourceTerm.1 start
+  rcases PackageOrder.sourceToPackage_before_piCcsLocal sourceTerm.1 start
       startLocal (sourceScope sourceTerm sourceMember) with
     mappedBefore | mappedPublic
   · exact Or.inl mappedBefore
@@ -77,13 +77,13 @@ def invocation (phase rowStart witnessStart : Nat)
     (state : EState) : PermutationInvocation where
   phase := phase
   rowStart := rowStart
-  witnessStart := Spartan.sourceToSpartan witnessStart
+  witnessStart := PackageOrder.sourceToPackage witnessStart
   inputs := invocationInputs state
 
 @[simp] theorem invocation_witnessStart
     (phase rowStart witnessStart : Nat) (state : EState) :
     (invocation phase rowStart witnessStart state).witnessStart =
-      Spartan.sourceToSpartan witnessStart := by
+      PackageOrder.sourceToPackage witnessStart := by
   rfl
 
 def InvocationInputsOutside (ceiling : Nat)
@@ -94,8 +94,8 @@ def InvocationInputsOutside (ceiling : Nat)
 
 theorem invocation_inputsOutside (phase rowStart witnessStart ceiling : Nat)
     (state : EState)
-    (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
-    (ceilingPrivate : ceiling ≤ Spartan.privateColumnCount)
+    (witnessLocal : PackageOrder.piCcsPhaseOffset ≤ witnessStart)
+    (ceilingPrivate : ceiling ≤ PackageOrder.privateColumnCount)
     (stateAffine : Poseidon2.StateAffine state)
     (stateBelow : ∀ lane, (state lane).VarsBelow witnessStart) :
     InvocationInputsOutside ceiling
@@ -130,13 +130,13 @@ theorem permutationOutput_eq_compile (witnessStart : Nat) (state : EState) :
 
 theorem invocation_sound (phase rowStart witnessStart : Nat)
     (state : EState) (env : Env)
-    (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
+    (witnessLocal : PackageOrder.piCcsPhaseOffset ≤ witnessStart)
     (stateAffine : Poseidon2.StateAffine state)
     (holds : PermutationInvocationHolds (PilotData.circuitPackage ())
       (invocation phase rowStart witnessStart state) env) :
-    Layer.evalState (Spartan.pullback env) (permutationOutput witnessStart) =
+    Layer.evalState (PackageOrder.pullback env) (permutationOutput witnessStart) =
       Permutation.runF Permutation.schedule
-        (Layer.evalState (Spartan.pullback env) state) := by
+        (Layer.evalState (PackageOrder.pullback env) state) := by
   have canonical :=
     NightstreamFPrime.Export.Pilot.canonicalPermutationInvocation_sound
       (invocation phase rowStart witnessStart state) env holds
@@ -145,19 +145,19 @@ theorem invocation_sound (phase rowStart witnessStart : Nat)
         ((invocation phase rowStart witnessStart state).witnessStart +
           (PilotData.circuitPackage ()).permutation.outputLocalStart +
           lane.val)) =
-        Layer.evalState (Spartan.pullback env)
+        Layer.evalState (PackageOrder.pullback env)
           (permutationOutput witnessStart) := by
     funext lane
-    change env (Spartan.sourceToSpartan witnessStart + 1080 + lane.val) =
-      env (Spartan.sourceToSpartan (witnessStart + 1080 + lane.val))
+    change env (PackageOrder.sourceToPackage witnessStart + 1080 + lane.val) =
+      env (PackageOrder.sourceToPackage (witnessStart + 1080 + lane.val))
     apply congrArg env
     calc
-      Spartan.sourceToSpartan witnessStart + 1080 + lane.val =
-          Spartan.sourceToSpartan witnessStart + (1080 + lane.val) := by omega
-      _ = Spartan.sourceToSpartan (witnessStart + (1080 + lane.val)) :=
-        (Spartan.sourceToSpartan_add_of_piCcsLocal witnessStart
+      PackageOrder.sourceToPackage witnessStart + 1080 + lane.val =
+          PackageOrder.sourceToPackage witnessStart + (1080 + lane.val) := by omega
+      _ = PackageOrder.sourceToPackage (witnessStart + (1080 + lane.val)) :=
+        (PackageOrder.sourceToPackage_add_of_piCcsLocal witnessStart
           (1080 + lane.val) witnessLocal).symm
-      _ = Spartan.sourceToSpartan (witnessStart + 1080 + lane.val) := by
+      _ = PackageOrder.sourceToPackage (witnessStart + 1080 + lane.val) := by
         congr 1
         omega
   have inputBoundary :
@@ -165,7 +165,7 @@ theorem invocation_sound (phase rowStart witnessStart : Nat)
         (invocationInputCombination
           (invocation phase rowStart witnessStart state) lane.val).toR1CS.eval
             env) =
-        Layer.evalState (Spartan.pullback env) state := by
+        Layer.evalState (PackageOrder.pullback env) state := by
     funext lane
     have selected : invocationInputCombination
         (invocation phase rowStart witnessStart state) lane.val =
@@ -201,16 +201,16 @@ def compileBlocks (phase : Nat) : Nat → Nat → EState →
 
 theorem compileBlocks_sound (phase rowStart witnessStart : Nat)
     (state : EState) (blocks : List (List Expr)) (env : Env)
-    (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
+    (witnessLocal : PackageOrder.piCcsPhaseOffset ≤ witnessStart)
     (stateAffine : Poseidon2.StateAffine state)
     (blocksAffine : Poseidon2.BlocksAffine blocks)
     (holds : ∀ current ∈
       (compileBlocks phase rowStart witnessStart state blocks).invocations,
       PermutationInvocationHolds (PilotData.circuitPackage ()) current env) :
-    Layer.evalState (Spartan.pullback env)
+    Layer.evalState (PackageOrder.pullback env)
         (compileBlocks phase rowStart witnessStart state blocks).state =
-      Hash.absorbManyF (Layer.evalState (Spartan.pullback env) state)
-        (blocks.map (Hash.evalList (Spartan.pullback env))) := by
+      Hash.absorbManyF (Layer.evalState (PackageOrder.pullback env) state)
+        (blocks.map (Hash.evalList (PackageOrder.pullback env))) := by
   induction blocks generalizing rowStart witnessStart state with
   | nil => rfl
   | cons block blocks inductionHypothesis =>
@@ -241,7 +241,7 @@ theorem compileBlocks_sound (phase rowStart witnessStart : Nat)
       have tailSound := inductionHypothesis (rowStart + 1096)
         (witnessStart + 1096) (permutationOutput witnessStart) (by omega)
         outputAffine restAffine tailHolds
-      change Layer.evalState (Spartan.pullback env)
+      change Layer.evalState (PackageOrder.pullback env)
           (compileBlocks phase (rowStart + 1096) (witnessStart + 1096)
             (permutationOutput witnessStart) blocks).state = _
       rw [tailSound, headSound, Hash.eval_absorbE]
@@ -336,7 +336,7 @@ theorem expectedSamples_eq_samples_of_assertionCount_zero
 
 theorem compileActions_traceHolds (phase rowStart witnessStart : Nat)
     (state : EState) (actions : List Action) (env : Env)
-    (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
+    (witnessLocal : PackageOrder.piCcsPhaseOffset ≤ witnessStart)
     (stateAffine : Poseidon2.StateAffine state)
     (actionsAffine :
       NightstreamFPrime.Layout.Poseidon2.Duplex.ActionsAffine actions)
@@ -346,9 +346,9 @@ theorem compileActions_traceHolds (phase rowStart witnessStart : Nat)
       (compileActions phase rowStart witnessStart state actions).invocations,
       PermutationInvocationHolds (PilotData.circuitPackage ()) current env) :
     Formal.TraceHolds
-      (List.ofFn (Layer.evalState (Spartan.pullback env) state))
-      (actions.map (Formal.Action.eval (Spartan.pullback env)))
-      (List.ofFn (Layer.evalState (Spartan.pullback env)
+      (List.ofFn (Layer.evalState (PackageOrder.pullback env) state))
+      (actions.map (Formal.Action.eval (PackageOrder.pullback env)))
+      (List.ofFn (Layer.evalState (PackageOrder.pullback env)
         (compileActions phase rowStart witnessStart state actions).state)) := by
   induction actions generalizing rowStart witnessStart state with
   | nil => rfl
@@ -405,27 +405,27 @@ theorem compileActions_traceHolds (phase rowStart witnessStart : Nat)
             absorbed.witnessNext absorbed.state (by omega) absorbedAffine
             tailAffine tailExpected tailHolds
           have absorbedReference :
-              List.ofFn (Layer.evalState (Spartan.pullback env)
+              List.ofFn (Layer.evalState (PackageOrder.pullback env)
                 absorbed.state) =
                 Absorb.reference
-                  (List.ofFn (Layer.evalState (Spartan.pullback env) state))
-                  (Hash.evalList (Spartan.pullback env) input) := by
+                  (List.ofFn (Layer.evalState (PackageOrder.pullback env) state))
+                  (Hash.evalList (PackageOrder.pullback env) input) := by
             calc
               _ = List.ofFn (Hash.absorbManyF
-                    (Layer.evalState (Spartan.pullback env) state)
+                    (Layer.evalState (PackageOrder.pullback env) state)
                     (blocks.map
-                      (Hash.evalList (Spartan.pullback env)))) :=
+                      (Hash.evalList (PackageOrder.pullback env)))) :=
                 congrArg List.ofFn absorbedSound
               _ = (blocks.map
-                    (Hash.evalList (Spartan.pullback env))).foldl
+                    (Hash.evalList (PackageOrder.pullback env))).foldl
                     Spec.Poseidon2.absorbBlock
                     (List.ofFn
-                      (Layer.evalState (Spartan.pullback env) state)) :=
+                      (Layer.evalState (PackageOrder.pullback env) state)) :=
                 Hash.absorbManyF_eq_reference _ _
               _ = Absorb.reference
                     (List.ofFn
-                      (Layer.evalState (Spartan.pullback env) state))
-                    (Hash.evalList (Spartan.pullback env) input) := by
+                      (Layer.evalState (PackageOrder.pullback env) state))
+                    (Hash.evalList (PackageOrder.pullback env) input) := by
                 unfold blocks Absorb.reference
                 rw [Hash.inputChunks_eval]
           simp only [List.map_cons, Formal.Action.eval, Formal.TraceHolds]
@@ -655,7 +655,7 @@ def ScheduleWithin : Nat → Nat → List PermutationInvocation → Prop
       bound ≤ invocation.witnessStart ∧
         invocation.witnessStart + 1096 ≤ ceiling ∧
           InvocationInputsOutside ceiling invocation ∧
-            InvocationInputsOutside Spartan.privateColumnCount invocation ∧
+            InvocationInputsOutside PackageOrder.privateColumnCount invocation ∧
               ScheduleWithin (invocation.witnessStart + 1096) ceiling rest
 
 theorem ScheduleWithin.cons
@@ -664,7 +664,7 @@ theorem ScheduleWithin.cons
     (startsAfter : bound ≤ invocation.witnessStart)
     (endsBefore : invocation.witnessStart + 1096 ≤ ceiling)
     (inputs : InvocationInputsOutside ceiling invocation)
-    (stableInputs : InvocationInputsOutside Spartan.privateColumnCount
+    (stableInputs : InvocationInputsOutside PackageOrder.privateColumnCount
       invocation)
     (restSchedule : ScheduleWithin (invocation.witnessStart + 1096)
       ceiling rest) :
@@ -729,17 +729,17 @@ theorem ScheduleWithin.append
 theorem compileBlocks_scheduleWithin
     (phase rowStart witnessStart ceiling : Nat) (state : EState)
     (blocks : List (List Expr))
-    (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
-    (ceilingPrivate : ceiling ≤ Spartan.privateColumnCount)
-    (endWithin : Spartan.sourceToSpartan
+    (witnessLocal : PackageOrder.piCcsPhaseOffset ≤ witnessStart)
+    (ceilingPrivate : ceiling ≤ PackageOrder.privateColumnCount)
+    (endWithin : PackageOrder.sourceToPackage
       (witnessStart + blocks.length * 1096) ≤ ceiling)
     (stateAffine : Poseidon2.StateAffine state)
     (stateBelow : ∀ lane, (state lane).VarsBelow witnessStart)
     (blocksAffine : Poseidon2.BlocksAffine blocks)
     (blocksBelow : Hash.BlocksBelow witnessStart blocks) :
-    ScheduleWithin (Spartan.sourceToSpartan witnessStart) ceiling
+    ScheduleWithin (PackageOrder.sourceToPackage witnessStart) ceiling
         (compileBlocks phase rowStart witnessStart state blocks).invocations ∧
-      InvocationsBefore (Spartan.sourceToSpartan
+      InvocationsBefore (PackageOrder.sourceToPackage
         (witnessStart + blocks.length * 1096))
         (compileBlocks phase rowStart witnessStart state blocks).invocations := by
   induction blocks generalizing rowStart witnessStart state with
@@ -767,7 +767,7 @@ theorem compileBlocks_scheduleWithin
         ceiling (Hash.absorbE state block) witnessLocal ceilingPrivate
         absorbedAffine absorbedBelow
       have headStableInputs := invocation_inputsOutside phase rowStart
-        witnessStart Spartan.privateColumnCount (Hash.absorbE state block)
+        witnessStart PackageOrder.privateColumnCount (Hash.absorbE state block)
         witnessLocal (by exact le_rfl) absorbedAffine absorbedBelow
       have outputAffine : Poseidon2.StateAffine
           (permutationOutput witnessStart) := by
@@ -783,7 +783,7 @@ theorem compileBlocks_scheduleWithin
           witnessStart + (block :: blocks).length * 1096 := by
         simp
         omega
-      have restEndWithin : Spartan.sourceToSpartan
+      have restEndWithin : PackageOrder.sourceToPackage
           ((witnessStart + 1096) + blocks.length * 1096) ≤ ceiling := by
         rw [sourceEndEq]
         exact endWithin
@@ -794,38 +794,38 @@ theorem compileBlocks_scheduleWithin
           (state := permutationOutput witnessStart) (by omega)
           restEndWithin outputAffine outputBelow restAffine widenedRestBelow with
         ⟨restSchedule, restBefore⟩
-      have nextMap := Spartan.sourceToSpartan_add_of_piCcsLocal witnessStart
+      have nextMap := PackageOrder.sourceToPackage_add_of_piCcsLocal witnessStart
         1096 witnessLocal
-      have finalMap := Spartan.sourceToSpartan_add_of_piCcsLocal
+      have finalMap := PackageOrder.sourceToPackage_add_of_piCcsLocal
         (witnessStart + 1096) (blocks.length * 1096) (by omega)
-      have mappedEndEq := congrArg Spartan.sourceToSpartan sourceEndEq
+      have mappedEndEq := congrArg PackageOrder.sourceToPackage sourceEndEq
       constructor
       · refine ⟨le_rfl, ?_, headInputs, headStableInputs, ?_⟩
-        · change Spartan.sourceToSpartan witnessStart + 1096 ≤ ceiling
+        · change PackageOrder.sourceToPackage witnessStart + 1096 ≤ ceiling
           calc
-            _ = Spartan.sourceToSpartan (witnessStart + 1096) := nextMap.symm
-            _ ≤ Spartan.sourceToSpartan
+            _ = PackageOrder.sourceToPackage (witnessStart + 1096) := nextMap.symm
+            _ ≤ PackageOrder.sourceToPackage
                 ((witnessStart + 1096) + blocks.length * 1096) := by
               rw [finalMap]
               omega
             _ ≤ ceiling := restEndWithin
         · change ScheduleWithin
-            (Spartan.sourceToSpartan witnessStart + 1096) ceiling _
+            (PackageOrder.sourceToPackage witnessStart + 1096) ceiling _
           rw [← nextMap]
           exact restSchedule
       · intro current member
         simp only [compileBlocks, List.mem_cons] at member
         rcases member with rfl | member
-        · change Spartan.sourceToSpartan witnessStart + 1096 ≤ _
+        · change PackageOrder.sourceToPackage witnessStart + 1096 ≤ _
           calc
-            _ = Spartan.sourceToSpartan (witnessStart + 1096) := nextMap.symm
-            _ ≤ Spartan.sourceToSpartan
+            _ = PackageOrder.sourceToPackage (witnessStart + 1096) := nextMap.symm
+            _ ≤ PackageOrder.sourceToPackage
                 ((witnessStart + 1096) + blocks.length * 1096) := by
               rw [finalMap]
               omega
             _ = _ := mappedEndEq
         · calc
-            current.witnessStart + 1096 ≤ Spartan.sourceToSpartan
+            current.witnessStart + 1096 ≤ PackageOrder.sourceToPackage
                 ((witnessStart + 1096) + blocks.length * 1096) :=
               restBefore current member
             _ = _ := mappedEndEq
@@ -833,17 +833,17 @@ theorem compileBlocks_scheduleWithin
 theorem compileActions_scheduleWithin
     (phase rowStart witnessStart ceiling : Nat) (state : EState)
     (actions : List Action)
-    (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
-    (ceilingPrivate : ceiling ≤ Spartan.privateColumnCount)
-    (endWithin : Spartan.sourceToSpartan
+    (witnessLocal : PackageOrder.piCcsPhaseOffset ≤ witnessStart)
+    (ceilingPrivate : ceiling ≤ PackageOrder.privateColumnCount)
+    (endWithin : PackageOrder.sourceToPackage
       (witnessStart + invocationCount actions * 1096) ≤ ceiling)
     (stateAffine : Poseidon2.StateAffine state)
     (stateBelow : ∀ lane, (state lane).VarsBelow witnessStart)
     (actionsAffine : ActionsInvocationInputsAffine actions)
     (actionsBelow : ActionsInvocationInputsBelow witnessStart actions) :
-    ScheduleWithin (Spartan.sourceToSpartan witnessStart) ceiling
+    ScheduleWithin (PackageOrder.sourceToPackage witnessStart) ceiling
         (compileActions phase rowStart witnessStart state actions).invocations ∧
-      InvocationsBefore (Spartan.sourceToSpartan
+      InvocationsBefore (PackageOrder.sourceToPackage
         (witnessStart + invocationCount actions * 1096))
         (compileActions phase rowStart witnessStart state actions).invocations := by
   induction actions generalizing rowStart witnessStart state with
@@ -884,23 +884,23 @@ theorem compileActions_scheduleWithin
             dsimp [blocks]
             unfold invocationCount
             omega
-          have tailEndWithin : Spartan.sourceToSpartan
+          have tailEndWithin : PackageOrder.sourceToPackage
               (absorbed.witnessNext + invocationCount actions * 1096) ≤
                 ceiling := by
             rw [totalSourceEq]
             exact endWithin
-          have absorbedLocal : Spartan.piCcsPhaseOffset ≤
+          have absorbedLocal : PackageOrder.piCcsPhaseOffset ≤
               absorbed.witnessNext := by
             rw [absorbedWitnessNext]
             omega
-          have tailMap := Spartan.sourceToSpartan_add_of_piCcsLocal
+          have tailMap := PackageOrder.sourceToPackage_add_of_piCcsLocal
             absorbed.witnessNext (invocationCount actions * 1096)
             absorbedLocal
-          have absorbedEndWithin : Spartan.sourceToSpartan
+          have absorbedEndWithin : PackageOrder.sourceToPackage
               absorbed.witnessNext ≤ ceiling := by
             rw [tailMap] at tailEndWithin
             omega
-          have blockEndWithin : Spartan.sourceToSpartan
+          have blockEndWithin : PackageOrder.sourceToPackage
               (witnessStart + blocks.length * 1096) ≤ ceiling := by
             rw [← absorbedWitnessNext]
             exact absorbedEndWithin
@@ -938,23 +938,23 @@ theorem compileActions_scheduleWithin
               absorbedStateAffine absorbedStateBelow tailAffine
               widenedTailBelow with ⟨tailSchedule, tailBefore⟩
           have blockBefore' : InvocationsBefore
-              (Spartan.sourceToSpartan absorbed.witnessNext)
+              (PackageOrder.sourceToPackage absorbed.witnessNext)
               absorbed.invocations := by
             rw [absorbedWitnessNext]
             exact blockBefore
-          have mappedStartToAbsorbed : Spartan.sourceToSpartan witnessStart ≤
-              Spartan.sourceToSpartan absorbed.witnessNext := by
+          have mappedStartToAbsorbed : PackageOrder.sourceToPackage witnessStart ≤
+              PackageOrder.sourceToPackage absorbed.witnessNext := by
             rw [absorbedWitnessNext]
-            have mapped := Spartan.sourceToSpartan_add_of_piCcsLocal
+            have mapped := PackageOrder.sourceToPackage_add_of_piCcsLocal
               witnessStart (blocks.length * 1096) witnessLocal
             rw [mapped]
             omega
           have schedule := ScheduleWithin.append blockSchedule blockBefore'
             mappedStartToAbsorbed tailSchedule
-          have mappedTotalEq := congrArg Spartan.sourceToSpartan totalSourceEq
-          change ScheduleWithin (Spartan.sourceToSpartan witnessStart) ceiling
+          have mappedTotalEq := congrArg PackageOrder.sourceToPackage totalSourceEq
+          change ScheduleWithin (PackageOrder.sourceToPackage witnessStart) ceiling
               (absorbed.invocations ++ tail.invocations) ∧
-            InvocationsBefore (Spartan.sourceToSpartan
+            InvocationsBefore (PackageOrder.sourceToPackage
               (witnessStart +
                 invocationCount (.absorb input :: actions) * 1096))
               (absorbed.invocations ++ tail.invocations)
@@ -965,16 +965,16 @@ theorem compileActions_scheduleWithin
             rcases member with blockMember | tailMember
             · calc
                 current.witnessStart + 1096 ≤
-                    Spartan.sourceToSpartan absorbed.witnessNext :=
+                    PackageOrder.sourceToPackage absorbed.witnessNext :=
                   blockBefore' current blockMember
-                _ ≤ Spartan.sourceToSpartan
+                _ ≤ PackageOrder.sourceToPackage
                     (absorbed.witnessNext +
                       invocationCount actions * 1096) := by
                   rw [tailMap]
                   omega
                 _ = _ := mappedTotalEq
             · calc
-                current.witnessStart + 1096 ≤ Spartan.sourceToSpartan
+                current.witnessStart + 1096 ≤ PackageOrder.sourceToPackage
                     (absorbed.witnessNext +
                       invocationCount actions * 1096) :=
                   tailBefore current tailMember

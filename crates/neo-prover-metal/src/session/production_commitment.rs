@@ -14,14 +14,14 @@ use neo_ajtai::{
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use objc2_foundation::NSString;
-use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputePipelineState, MTLDevice};
+use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputePipelineState};
 use p3_field::PrimeCharacteristicRing;
 
 use super::{Arg, Buffer, Grid, MetalSession};
 use crate::MetalError;
 
-/// Measured on an M5 Max with 16 dense witnesses at production width: 128,
-/// 512 and 2,048 columns took 5.01 s, 4.91 s and 5.12 s.
+/// Measured on an M5 Ultra with 16 dense witnesses at production width and a
+/// kept key: 128, 512 and 2,048 columns took 1.13 s, 1.15 s and 1.27 s.
 const COLUMNS_PER_GROUP: usize = 512;
 
 /// The production key rows over columns `0..columns`, kept on the device by a
@@ -41,8 +41,8 @@ enum KeyRows<'a> {
 }
 
 impl MetalSession {
-    /// SHAKE128 input bytes 0..69 (setup ID and seed) as nine little-endian
-    /// lanes; the kernel adds each row and column.
+    /// The 70 SHAKE128 input bytes of the setup ID and the seed as nine
+    /// little-endian lanes; the kernel adds each row and column.
     fn production_key_prefix(&self) -> Result<Buffer, MetalError> {
         let fixed = SETUP_ID.len() + PRODUCTION_SEED.len();
         let input = element_input(&PRODUCTION_SEED, 0, 0);
@@ -98,84 +98,6 @@ impl MetalSession {
         self.finish(&command)?;
         *key = ResidentKeyRows { columns, rows };
         Ok(())
-    }
-
-    /// `Σ_i λ_i·a_{i,e}` over key rows `i < powers.len()` for every key
-    /// coefficient `e < columns·D` (column-major, `D` per column), with each
-    /// `λ_i` and result a cubic-extension value as three base words. Each row
-    /// is expanded into one reused buffer and added in, so the weights hold
-    /// one key row on the device, not the key.
-    pub(crate) fn production_key_weights(
-        &self,
-        powers: &[[u64; 3]],
-        columns: usize,
-    ) -> Result<Vec<[u64; 3]>, MetalError> {
-        if powers.is_empty() || powers.len() > PRODUCTION_VERIFIER_ROWS as usize {
-            return Err(MetalError::Shape("key weights take one power per key row"));
-        }
-        let elements = columns
-            .checked_mul(D)
-            .ok_or(MetalError::Shape("key weights overflow"))?;
-        let row = self.buffer(elements * size_of::<u64>())?;
-        let out = self.buffer(elements * 3 * size_of::<u64>())?;
-        let prefix = self.production_key_prefix()?;
-        let all_columns = self.buffer_from_slice(&(0..columns as u32).collect::<Vec<_>>())?;
-        let shape_words: Vec<u64> = (0..powers.len() as u64)
-            .flat_map(|row| [columns as u64, 0, 0, 0, row, 0])
-            .collect();
-        let shapes = self.buffer_from_slice(&shape_words)?;
-        let inputs = powers
-            .iter()
-            .enumerate()
-            .map(|(row, power)| {
-                Ok((
-                    self.buffer_from_slice(power)?,
-                    self.buffer_from_slice(&[elements as u64, u64::from(row == 0)])?,
-                ))
-            })
-            .collect::<Result<Vec<_>, MetalError>>()?;
-        // Encoders run in order: each row's expansion waits for the previous
-        // row's sum to finish reading the buffer.
-        let command = self.command_buffer("nightstream.production_key_weights")?;
-        for (index, (power, shape)) in inputs.iter().enumerate() {
-            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            self.launch(
-                &encoder,
-                &self.production_key_row,
-                &[
-                    Arg::Buffer(0, &prefix),
-                    Arg::Buffer(1, &all_columns),
-                    Arg::BufferAt(2, &shapes, index * 6 * size_of::<u64>()),
-                    Arg::Buffer(3, &row),
-                ],
-                Grid::Threads(columns),
-            );
-            encoder.endEncoding();
-            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            self.launch(
-                &encoder,
-                &self.production_key_weights,
-                &[
-                    Arg::Buffer(0, &row),
-                    Arg::Buffer(1, &out),
-                    Arg::Buffer(2, power),
-                    Arg::Buffer(3, shape),
-                ],
-                Grid::Threads(elements),
-            );
-            encoder.endEncoding();
-        }
-        self.finish(&command)?;
-        Ok(self.read_buffer::<[u64; 3]>(&out, elements))
-    }
-
-    /// Free the kept key rows. A kept key expands them again at its next
-    /// commitment.
-    pub(crate) fn release_production_key_rows(&self) {
-        if let Some(key) = &self.production_key {
-            *key.lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) = ResidentKeyRows::default();
-        }
     }
 
     pub(crate) fn commit_production_prefixes<W: Borrow<Mat<F>>>(
@@ -234,12 +156,11 @@ impl MetalSession {
         let accumulate = &self.production_ajtai_accumulate;
         let witnesses_per_group = active
             .len()
-            .min(accumulate.maxTotalThreadsPerThreadgroup() / 64);
-        let scratch_bytes = (witnesses_per_group * (2 * D - 1) * size_of::<u64>()).next_multiple_of(16);
-        if witnesses_per_group == 0
-            || scratch_bytes + accumulate.staticThreadgroupMemoryLength() > self.device.maxThreadgroupMemoryLength()
-        {
-            return Err(MetalError::Shape("device cannot hold production commitment scratch"));
+            .min(accumulate.maxTotalThreadsPerThreadgroup() / D);
+        if witnesses_per_group == 0 {
+            return Err(MetalError::Shape(
+                "device cannot hold one production commitment witness",
+            ));
         }
         let groups = count.div_ceil(COLUMNS_PER_GROUP);
         let witness_blocks = active.len().div_ceil(witnesses_per_group);
@@ -324,11 +245,10 @@ impl MetalSession {
                     Arg::BufferAt(2, &shapes, shape_offset),
                     Arg::Buffer(3, &partials),
                     Arg::Buffer(4, &key_columns),
-                    Arg::Threadgroup(0, scratch_bytes),
                 ],
                 Grid::Groups {
                     groups: groups * witness_blocks,
-                    threads: 64 * witnesses_per_group,
+                    threads: D * witnesses_per_group,
                 },
             );
             encoder.endEncoding();

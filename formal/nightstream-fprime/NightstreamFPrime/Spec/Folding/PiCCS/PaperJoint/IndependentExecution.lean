@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 
 /-! SuperNeo v1.2 Appendix B.2, Equation (14). -/
 
@@ -16,8 +16,8 @@ attribute [local instance] Classical.propDecidable
 universe uCommitment uPublicInput
 
 noncomputable def testError (shape : Shape) (width : Nat) : ℝ :=
-  (shape.cubeVariables : ℝ) * width / (goldilocksModulus ^ 2 : Nat) +
+  (shape.cubeVariables : ℝ) * width / (fieldModulus ^ 2 : Nat) +
     ((shape.jointCoefficientCount - 1 + shape.cubeVariables : Nat) : ℝ) /
-      (goldilocksModulus ^ 2 : Nat)
+      (fieldModulus ^ 2 : Nat)
 
 end NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution

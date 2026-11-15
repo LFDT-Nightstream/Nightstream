@@ -16,19 +16,19 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 def phaseInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     Formal.Interface logicalWidth publicFits :=
   NightstreamFPrime.Layout.Stage1.PiDECInputs.interface logicalWidth publicFits
 
 def publicInputConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   let shared := Formal.atOffset (phaseInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
   NightstreamFPrime.Layout.PiDEC.v1_2.childConstraints
@@ -39,7 +39,7 @@ def publicInputConstraints
 def commitmentConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   let shared := Formal.atOffset (phaseInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
   NightstreamFPrime.Layout.PiDEC.v1_2.childConstraints
@@ -50,7 +50,7 @@ def commitmentConstraints
 def evalKConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   let shared := Formal.atOffset (phaseInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
   NightstreamFPrime.Layout.PiDEC.v1_2.childConstraints
@@ -60,7 +60,7 @@ def evalKConstraints
 def evalAConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   let shared := Formal.atOffset (phaseInterface logicalWidth publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
   NightstreamFPrime.Layout.PiDEC.v1_2.childConstraints
@@ -70,7 +70,7 @@ def evalAConstraints
 def constraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : List Expr :=
+      RingCarrierLayout.carrierWidth logicalWidth) : List Expr :=
   publicInputConstraints logicalWidth publicFits ++
     commitmentConstraints logicalWidth publicFits ++
       evalKConstraints logicalWidth publicFits ++
@@ -79,7 +79,7 @@ def constraints
 theorem constraints_eq_nonBoundary
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     constraints logicalWidth publicFits =
       NightstreamFPrime.Layout.PiDEC.v1_2.nonBoundaryConstraints
         (phaseInterface logicalWidth publicFits)
@@ -108,7 +108,7 @@ abbrev Plan.rows (plan : Plan) : List Rows.CompiledRow :=
 def canonicalPlan
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) : Plan where
+      RingCarrierLayout.carrierWidth logicalWidth) : Plan where
   rowStart := NightstreamFPrime.Layout.Stage1.PiDECStarts.phaseRowStart
   freshStart := NightstreamFPrime.Layout.Stage1.PiDECStarts.phaseFreshStart
   constraints := constraints logicalWidth publicFits
@@ -127,7 +127,7 @@ structure Plan.MatchesLayout (packagePlan : Plan)
 
 theorem Plan.rows_toR1CS (plan : Plan) :
     plan.rows.map Rows.CompiledRow.toR1CS =
-      NightstreamFPrime.Layout.Stage1.Spartan.remapRows
+      NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows
         (R1CS.lowerConstraints plan.constraints plan.freshStart).rows :=
   PiCCSArithmetic.compilePacket_toR1CS
     plan.rowStart plan.freshStart plan.constraints
@@ -136,13 +136,13 @@ theorem Plan.rows_to_layout (packagePlan : Plan)
     (layoutPlan : R1CS.LoweringPlan)
     (agreement : packagePlan.MatchesLayout layoutPlan) :
     packagePlan.rows.map Rows.CompiledRow.toR1CS =
-      NightstreamFPrime.Layout.Stage1.Spartan.remapRows layoutPlan.rows := by
+      NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows layoutPlan.rows := by
   calc
-    _ = NightstreamFPrime.Layout.Stage1.Spartan.remapRows
+    _ = NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows
         (R1CS.lowerConstraints packagePlan.constraints
           packagePlan.freshStart).rows := packagePlan.rows_toR1CS
-    _ = NightstreamFPrime.Layout.Stage1.Spartan.remapRows layoutPlan.rows := by
-      apply congrArg NightstreamFPrime.Layout.Stage1.Spartan.remapRows
+    _ = NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows layoutPlan.rows := by
+      apply congrArg NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows
       rw [agreement.constraints, agreement.freshStart]
       rfl
 
@@ -162,8 +162,8 @@ theorem Plan.rows_length (plan : Plan) :
 theorem canonicalPlan_rowCount
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalRowCount (canonicalPlan logicalWidth publicFits).constraints =
-      6588 := by
-  change R1CS.totalRowCount (constraints logicalWidth publicFits) = 6588
+      6912 := by
+  change R1CS.totalRowCount (constraints logicalWidth publicFits) = 6912
   rw [constraints_eq_logical relation]
   exact NightstreamFPrime.Layout.PiDEC.v1_2.totalRowCount_eq relation
     (phaseInterface logicalWidth publicFits)

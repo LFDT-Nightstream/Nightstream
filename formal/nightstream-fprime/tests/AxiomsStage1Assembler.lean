@@ -14,7 +14,7 @@ import NightstreamFPrime.Export.MatrixProgram
 import NightstreamFPrime.Export.MatrixProgram.AffineGrid
 import NightstreamFPrime.Export.MatrixProgram.MultiplicationGrid
 import NightstreamFPrime.Export.MatrixProgram.Ordinary
-import NightstreamFPrime.Export.MatrixProgram.Phi81Product
+import NightstreamFPrime.Export.MatrixProgram.RingProduct
 import NightstreamFPrime.Export.MatrixProgram.Pin
 import NightstreamFPrime.Export.MatrixProgram.PoseidonInput
 import NightstreamFPrime.Export.MatrixProgram.Poseidon
@@ -44,7 +44,7 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.CcsTerminal
 import NightstreamFPrime.Lifecycle.Stage1.Terminal
 import NightstreamFPrime.Spec
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
@@ -83,7 +83,7 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.output_eq_of_cross_components
 #audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.phaseHolds_of_parent_output_eq
 #audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.phaseHolds_of_cross_parent_output_eq
-#audit_axioms NightstreamFPrime.Layout.Stage1.NextPreimageInputs.spartanInputsBelowConstant
+#audit_axioms NightstreamFPrime.Layout.Stage1.NextPreimageInputs.packageInputsBelowConstant
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport.roundOutputs_outputPrefix_supported
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport.roundPoint_outputPrefix_supported
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport.roundFinalState_outputPrefix_supported
@@ -236,8 +236,8 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.IndexSchedule.indices_length
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.IndexSchedule.index?_eq_getElem?
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Ordinary.Block.row?_eq_compileRow
-#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Phi81Product.loadFin?_of_some
-#audit_axioms NightstreamFPrime.Layout.MatrixProgram.Phi81Product.Block.row?_of_loaded
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.RingProduct.loadFin?_of_some
+#audit_axioms NightstreamFPrime.Layout.MatrixProgram.RingProduct.Block.row?_of_loaded
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Pin.Block.ofSemantic_rowCount
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Pin.Block.row?_ofSemantic
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.PoseidonInput.Region.offsets?_of_offsets
@@ -346,8 +346,6 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSchedule.rowSchedule_index?_eq_arithmeticRowIndex?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSubstitution.poseidonTarget
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSubstitution.logicalTarget
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSubstitution.freshTarget
-#audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSubstitution.freshGrid_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSubstitution.poseidonGrid_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSubstitution.substitution_location_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSubstitution.substitution_agrees_on_target
@@ -475,13 +473,11 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram.priorDigestRange_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram.canonicalLocalRange_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram.outputStateRange_form?
-#audit_axioms NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram.canonicalFreshRange_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram.priorPublicRange_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram.outputDigestRange_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram.substitution_priorDigest_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram.substitution_canonicalLocal_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram.substitution_outputState_form?
-#audit_axioms NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram.substitution_canonicalFresh_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram.substitution_priorPublic_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram.substitution_outputDigest_form?
 #audit_axioms NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram.substitution_location_form?

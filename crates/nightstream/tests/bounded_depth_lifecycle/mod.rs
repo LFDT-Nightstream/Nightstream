@@ -7,14 +7,16 @@
 #[path = "../bounded_depth_support/mod.rs"]
 mod support;
 
+mod compression;
+mod compression_error;
+mod encodings;
 mod factored_rows;
-mod final_ir;
+mod fold_gate;
 mod guard_fusion;
 #[cfg(feature = "metal")]
 mod metal_parity;
 mod packed_boolean;
 mod packed_product;
-mod setup_runs;
 
 use super::{BoundedDepth, BoundedDepthError, Envelope, LIGHT_FOLD_CAP};
 use crate::application::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder, ApplicationCircuit};
@@ -22,13 +24,12 @@ use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_ma
 use neo_ajtai::Commitment;
 use neo_ccs::Mat;
 use neo_math::{D, F};
+use neo_params::nightstream_p64_k14 as profile;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use support::{hash_chain_step, packages, words};
-
-const MINIMUM_SECURITY_BITS: u32 = 109;
+use support::{fold_gate_bits, hash_chain_step, packages, words};
 
 fn prover(cap: u64) -> BoundedDepth {
-    let mut prover = BoundedDepth::new(packages(), MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized)
+    let mut prover = BoundedDepth::new(packages(), fold_gate_bits(), crate::engine::Backend::Optimized)
         .expect("bounded-depth prover");
     prover.cap = cap;
     prover
@@ -98,7 +99,11 @@ fn light_folds_and_a_refresh_verify() {
         fresh.claim.c = commit_production_signed_unit_prefix_matrix(&fresh.witness.Z).expect("commitment");
         tampered
     };
-    rejects(&recommitted(300), "a relation row fails");
+    // Coordinate 30 of the first slot after the public words.
+    rejects(
+        &recommitted(nightstream_fprime::PUBLIC_WORDS + 30),
+        "a relation row fails",
+    );
     let blocks = envelope
         .fresh
         .as_ref()
@@ -116,7 +121,7 @@ fn light_folds_and_a_refresh_verify() {
     rejects(&tampered, "fixed-key commitment differs from the witness");
 }
 
-/// The slot check holds a witness to `(17 + depth) · 216`, the Lean
+/// The slot check holds a witness to `(1 + depth + k_rho) · T · (b − 1)`, the Lean
 /// `accumulatorBound` of the production parameters, on both signs, and
 /// refuses a depth above the cap. No accepted proof can isolate this check in
 /// `verify`: a slot above its bound needs a second opening of its commitment.
@@ -135,7 +140,7 @@ fn a_slot_is_held_to_the_bound_of_its_depth() {
     );
     let q = F::ORDER_U64;
     for depth in [0, 1, LIGHT_FOLD_CAP] {
-        let bound = (17 + depth) * 216;
+        let bound = (1 + depth + u64::from(profile::K_RHO)) * u64::from(profile::T) * u64::from(profile::B_BASE - 1);
         slot.depth = depth;
         for (coefficient, accepted) in [
             (bound, true),
@@ -188,8 +193,8 @@ fn native_application_verifies(application: ApplicationCircuit) {
             application.shape(),
         )
         .expect("packages with the application");
-    let mut prover = BoundedDepth::new(packages, MINIMUM_SECURITY_BITS, crate::engine::Backend::Optimized)
-        .expect("bounded-depth prover");
+    let mut prover =
+        BoundedDepth::new(packages, fold_gate_bits(), crate::engine::Backend::Optimized).expect("bounded-depth prover");
     prover.cap = 1;
     let z0 = words([10, 11, 12, 13]);
     let mut envelope = prover.initial(z0).expect("initial proof");
@@ -324,140 +329,4 @@ fn bounded_depth_step_times() {
             verifying.elapsed()
         );
     }
-}
-
-/// Removes a setup folder when it drops, so a failed run frees its disk too.
-struct SetupDir(std::path::PathBuf);
-
-impl Drop for SetupDir {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
-/// CW-6.4: the final program (the finish package's rows and both layer-1
-/// verifiers) accepts the last fold of three steps, and the shrink proof of
-/// it verifies. A run with a changed row column, current word or key word,
-/// or with slot 1 carrying slot 0's layer-1 proof, fails its own check; a
-/// final proof for another current state rejects.
-#[test]
-fn final_proof_verifies() {
-    use super::final_program::Finish;
-    use neo_spartan::shrink::Program;
-    let started = std::time::Instant::now();
-    // Keys for a minimum below the production one have fewer layer bits, so
-    // a production verifier must refuse them (the end of this test).
-    let mut prover =
-        BoundedDepth::new(packages(), 105, crate::engine::Backend::Optimized).expect("bounded-depth prover");
-    prover.cap = 2;
-    let finish = Finish::new(
-        nightstream_fprime::load_bounded_depth_finish(
-            &support::artifact("nightstream-fprime-bounded-depth-finish-v1.json"),
-            nightstream_fprime::BOUNDED_DEPTH_FINISH_IDENTITY,
-        )
-        .expect("finish package"),
-    )
-    .expect("finish rows");
-    let z0 = words([10, 11, 12, 13]);
-    let mut envelope = prover.initial(z0).expect("initial proof");
-    for step in 0..3 {
-        let message = words([20 + step, 21 + step, 22 + step, 23 + step]);
-        let next = hash_chain_step(envelope.current, message);
-        envelope = prover
-            .extend(&envelope, &message, next, None)
-            .expect("step");
-    }
-    let dir = SetupDir(std::env::temp_dir().join(format!("bounded-depth-final-{}", std::process::id())));
-    let (witness, keys) = {
-        let setups = prover.compression_setups(&dir.0).expect("layer-1 setups");
-        eprintln!("compression setups elapsed={:?}", started.elapsed());
-        let witnessing = std::time::Instant::now();
-        let witness = prover
-            .final_witness(&envelope, &setups, &finish)
-            .expect("final witness");
-        eprintln!("final witness elapsed={:?}", witnessing.elapsed());
-        (witness, setups.keys().clone())
-    };
-    drop(dir);
-    assert_eq!(
-        (
-            nightstream_fprime::PUBLIC_WORDS / D,
-            nightstream_fprime::PI_CCS_V1_2_ROUND_COUNT
-        ),
-        (5, 28),
-        "the layer-1 relations take Production.lean's public blocks and point variables"
-    );
-    assert!(
-        keys.bound < 1 << 16,
-        "each slot's honest bound lies below Production.normLimit"
-    );
-    let (iteration, current) = (envelope.iteration, envelope.current);
-    let statement = (iteration, z0, current);
-    let relations = [
-        super::BoundedDepth::layer1_relation(&keys, 0).expect("light relation"),
-        super::BoundedDepth::layer1_relation(&keys, 1).expect("refresh relation"),
-    ];
-    let run = |witness: &super::final_program::FinalWitness| {
-        prover
-            .final_program(&finish, [&relations[0], &relations[1]], statement, Some(witness))
-            .run(&mut neo_spartan::Native)
-    };
-    run(&witness).expect("the final program accepts the honest witness");
-    let rejects = |witness: super::final_program::FinalWitness, expected: &str| match run(&witness) {
-        Err(error) => assert!(error.to_string().contains(expected), "{expected}: {error}"),
-        Ok(()) => panic!("{expected}: accepted"),
-    };
-    // `witness.columns` holds one word for each live column, in column order.
-    let live = finish.live();
-    let changed = |column: usize| {
-        assert!(live[column], "the final program reads column {column}");
-        let cell = live[..column].iter().filter(|&&live| live).count();
-        let mut columns = witness.columns.clone();
-        columns[cell] = columns[cell].wrapping_add(1) % 18_446_744_069_414_584_321;
-        super::final_program::FinalWitness {
-            columns,
-            layer1: witness.layer1.clone(),
-        }
-    };
-    rejects(changed(finish.package().first_fresh()), "finish package");
-    rejects(changed(287), "current word");
-    rejects(changed(275), "key word");
-    rejects(
-        super::final_program::FinalWitness {
-            columns: witness.columns.clone(),
-            layer1: [witness.layer1[0].clone(), witness.layer1[0].clone()],
-        },
-        "layer-1",
-    );
-
-    let proving = std::time::Instant::now();
-    let proof = prover
-        .prove_final(&keys, &finish, statement, &witness)
-        .expect("final proof");
-    eprintln!("final proof elapsed={:?}", proving.elapsed());
-    eprintln!("final proof bytes: {}", proof.shrink.to_bytes().len());
-    let again = prover
-        .prove_final(&keys, &finish, statement, &witness)
-        .expect("second final proof");
-    assert!(
-        proof.shrink.to_bytes() == again.shrink.to_bytes(),
-        "two runs of the final prover give the same bytes"
-    );
-    let verifying = std::time::Instant::now();
-    prover
-        .verify_final(&keys, &finish, iteration, z0, current, &proof)
-        .expect("the final proof verifies");
-    eprintln!("final verification elapsed={:?}", verifying.elapsed());
-    let wrong_current = [current[0] + F::ONE, current[1], current[2], current[3]];
-    let mut moved = proof.clone();
-    moved.current = wrong_current;
-    assert!(prover
-        .verify_final(&keys, &finish, iteration, z0, wrong_current, &moved)
-        .is_err());
-    assert!(
-        self::prover(2)
-            .verify_final(&keys, &finish, iteration, z0, current, &proof)
-            .is_err(),
-        "a verifier at the production minimum refuses keys made for 105 bits"
-    );
 }

@@ -64,12 +64,11 @@ theorem constraints_rowCount :
         (Layout.Stage1.ApplicationInputs.localStart application)) = 5484 := by
   rw [constraints_eq_hashConstraints,
     Layout.Poseidon2.hashConstraints_rowCount _ _ hashInterface_affine]
-  change (NightstreamFPrime.Gadgets.Poseidon2.Hash.inputChunks
-    (Lifecycle.Stage1.Poseidon2HashChainV1.inputExpressions
+  change (Lifecycle.Stage1.Poseidon2HashChainV1.inputExpressions
       (Layout.Stage1.ApplicationInputs.interface application)
-      (Layout.Stage1.ApplicationInputs.localStart application))).length *
-        1096 + 1100 = 5484
-  rw [Lifecycle.Stage1.Poseidon2HashChainV1.inputChunks_length
+      (Layout.Stage1.ApplicationInputs.localStart application)).length /
+        NightstreamFPrime.Spec.Poseidon2.rate * 1096 + 1100 = 5484
+  rw [Lifecycle.Stage1.Poseidon2HashChainV1.fullBlockCount
     (Layout.Stage1.ApplicationInputs.interface application)]
 
 @[simp] theorem applicationPlan_rowCount :
@@ -130,26 +129,26 @@ theorem fits : PerApplicationFixedPoint.FitsTwoPow28 application :=
     (by rw [retainedApplicationWordCount]; norm_num)
 
 @[simp] theorem logicalWidth :
-    PerApplicationFixedPoint.logicalWidth application = 43963750 := by
+    PerApplicationFixedPoint.logicalWidth application = 41106674 := by
   unfold PerApplicationFixedPoint.logicalWidth
   rw [ApplicationRetainedGeometry.completeLogicalWidth_eq_applicationCounts,
     retainedApplicationWordCount]
 
 @[simp] theorem structuralRowCount :
     (PerApplicationFixedPoint.structuralPlan application fits).rowCount =
-      1004131 := by
+      939331 := by
   rw [PerApplicationFixedPoint.structuralPlan_rowCount,
     applicationPlan_rowCount]
 
 @[simp] theorem physicalPackageRowCount :
-    (PerApplicationPackage.package application).layout.rowCount = 11383401 := by
+    (PerApplicationPackage.package application).layout.rowCount = 9979231 := by
   rw [PerApplicationPackage.package_rowCount,
     PerApplicationPackage.basePackage_rowCount_eq,
     applicationPlan_rowCount]
 
 @[simp] theorem physicalPackageTotalColumnCount :
     (PerApplicationPackage.package application).layout.totalColumnCount =
-      11470359 := by
+      10065139 := by
   rw [PerApplicationPackage.package_totalColumnCount,
     PerApplicationPackage.basePackage_totalColumnCount_eq,
     addedPrivateColumnCount]
@@ -163,7 +162,7 @@ theorem plan_fixedPoint :
 
 theorem jointDomain_le_twoPow28 :
     max (PerApplicationFixedPoint.structuralPlan application fits).rowCount
-        (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+        (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
           (PerApplicationFixedPoint.logicalWidth application)) ≤
       2 ^ Lifecycle.cubeVariables :=
   PerApplicationFixedPoint.jointDomain_le_twoPow28 application fits

@@ -6,8 +6,8 @@ use std::{
     rc::Rc,
 };
 
+use neo_math::Fq as F;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as F;
 
 use super::{
     expr::{lower_affine, rank_one_row},

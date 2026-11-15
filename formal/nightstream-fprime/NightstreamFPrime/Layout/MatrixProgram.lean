@@ -18,7 +18,7 @@ deriving Repr, DecidableEq
 def WireEntry.semantic? (entry : WireEntry) (logicalWidth : Nat) :
     Option (ProductionRelation.SparseEntry logicalWidth) :=
   if columnBound : entry.column < logicalWidth then
-    if coefficientBound : entry.coefficient < Spec.goldilocksModulus then
+    if coefficientBound : entry.coefficient < Spec.fieldModulus then
       some ⟨⟨entry.column, columnBound⟩,
         ⟨entry.coefficient, coefficientBound⟩⟩
     else

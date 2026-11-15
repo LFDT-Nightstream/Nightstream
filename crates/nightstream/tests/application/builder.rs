@@ -1,6 +1,6 @@
 use crate::application::{Affine, ApplicationBuilder, ApplicationError};
+use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks;
 
 #[test]
 fn shared_affine_operations_do_not_expand_the_saved_records() {
@@ -10,7 +10,7 @@ fn shared_affine_operations_do_not_expand_the_saved_records() {
     let mut shared = Affine::from(input[1]);
     for _ in 0..16 {
         doubled = doubled.clone() + doubled;
-        shared = (shared.clone() + Affine::constant(Goldilocks::ONE)) + shared;
+        shared = (shared.clone() + Affine::constant(Fq::ONE)) + shared;
     }
     let a = builder.affine(doubled).unwrap();
     let b = builder.affine(shared).unwrap();
@@ -19,11 +19,8 @@ fn shared_affine_operations_do_not_expand_the_saved_records() {
         .unwrap();
     assert_eq!(circuit.records().row_header(0).unwrap().term_counts, [1, 0, 1]);
     assert_eq!(circuit.records().row_header(1).unwrap().term_counts, [1, 0, 1]);
-    let witness = circuit.execute([Goldilocks::ONE; 4], &[]).unwrap();
-    assert_eq!(
-        witness.output_state(),
-        [65_536, 131_071, 1, 1].map(Goldilocks::from_u64)
-    );
+    let witness = circuit.execute([Fq::ONE; 4], &[]).unwrap();
+    assert_eq!(witness.output_state(), [65_536, 131_071, 1, 1].map(Fq::from_u64));
 }
 
 #[test]
@@ -31,7 +28,7 @@ fn rust_defined_addition_uses_the_same_application_interface() {
     let mut builder = ApplicationBuilder::new(4).unwrap();
     let input = builder.input_state();
     let private = builder.private_inputs().to_vec();
-    let mut outputs = std::array::from_fn(|_| Affine::constant(Goldilocks::ZERO));
+    let mut outputs = std::array::from_fn(|_| Affine::constant(Fq::ZERO));
     for lane in 0..4 {
         outputs[lane] = builder
             .affine(Affine::from(input[lane]) + Affine::from(private[lane]))
@@ -39,13 +36,13 @@ fn rust_defined_addition_uses_the_same_application_interface() {
             .into();
     }
     let circuit = builder.finish(outputs).unwrap();
-    let input = [1, 2, 3, 4].map(Goldilocks::from_u64);
-    let private = [5, 6, 7, 8].map(Goldilocks::from_u64);
+    let input = [1, 2, 3, 4].map(Fq::from_u64);
+    let private = [5, 6, 7, 8].map(Fq::from_u64);
     let witness = circuit.execute(input, &private).unwrap();
-    assert_eq!(witness.output_state(), [6, 8, 10, 12].map(Goldilocks::from_u64));
+    assert_eq!(witness.output_state(), [6, 8, 10, 12].map(Fq::from_u64));
     circuit.check(witness.values()).unwrap();
     let mut changed = witness.values().to_vec();
-    changed[circuit.output_state()[2].index()] += Goldilocks::ONE;
+    changed[circuit.output_state()[2].index()] += Fq::ONE;
     assert!(matches!(
         circuit.check(&changed),
         Err(ApplicationError::UnsatisfiedRow(_))
@@ -63,14 +60,14 @@ fn builder_rejects_overflow_unallocated_variables_and_output_dependencies() {
         Err(ApplicationError::DimensionOverflow)
     ));
     let mut other = ApplicationBuilder::new(0).unwrap();
-    let out_of_scope = other.affine(Affine::constant(Goldilocks::ONE)).unwrap();
+    let out_of_scope = other.affine(Affine::constant(Fq::ONE)).unwrap();
     let mut builder = ApplicationBuilder::new(0).unwrap();
     assert!(matches!(
         builder.affine(out_of_scope.into()),
         Err(ApplicationError::VariableOutOfScope(index)) if index == out_of_scope.index()
     ));
     assert!(matches!(
-        builder.affine(Affine::from(out_of_scope) * Goldilocks::ZERO),
+        builder.affine(Affine::from(out_of_scope) * Fq::ZERO),
         Err(ApplicationError::VariableOutOfScope(index)) if index == out_of_scope.index()
     ));
     assert!(matches!(
@@ -83,7 +80,7 @@ fn builder_rejects_overflow_unallocated_variables_and_output_dependencies() {
         Err(ApplicationError::OutputDependency(index)) if index == output.index()
     ));
     assert!(matches!(
-        builder.affine(Affine::from(output) * Goldilocks::ZERO),
+        builder.affine(Affine::from(output) * Fq::ZERO),
         Err(ApplicationError::OutputDependency(index)) if index == output.index()
     ));
     assert!(matches!(
@@ -101,13 +98,13 @@ fn sealed_rows_keep_raw_terms_and_both_output_lowerings() {
     let mut builder = ApplicationBuilder::new(0).unwrap();
     let input = builder.input_state();
     let generated = builder
-        .affine(Affine::from(input[0]) + Affine::from(input[1]) + Affine::from(input[0]) * Goldilocks::ZERO)
+        .affine(Affine::from(input[0]) + Affine::from(input[1]) + Affine::from(input[0]) * Fq::ZERO)
         .unwrap();
     let circuit = builder
         .finish([
             Affine::from(input[0]) + Affine::from(input[1]) - Affine::from(input[1]),
-            Affine::from(input[1]) * Goldilocks::from_u64(2) + Affine::constant(Goldilocks::from_u64(3)),
-            Affine::from(input[2]) * Goldilocks::ZERO + Affine::constant(Goldilocks::from_u64(7)),
+            Affine::from(input[1]) * Fq::from_u64(2) + Affine::constant(Fq::from_u64(3)),
+            Affine::from(input[2]) * Fq::ZERO + Affine::constant(Fq::from_u64(7)),
             generated.into(),
         ])
         .unwrap();
@@ -141,10 +138,8 @@ fn sealed_rows_keep_raw_terms_and_both_output_lowerings() {
         nodes,
         [Add, Add, Variable(0), Variable(1), Multiply, Constant(0), Variable(0)]
     );
-    let witness = clone
-        .execute([2, 3, 5, 7].map(Goldilocks::from_u64), &[])
-        .unwrap();
-    assert_eq!(witness.output_state(), [2, 9, 7, 5].map(Goldilocks::from_u64));
+    let witness = clone.execute([2, 3, 5, 7].map(Fq::from_u64), &[]).unwrap();
+    assert_eq!(witness.output_state(), [2, 9, 7, 5].map(Fq::from_u64));
     assert_eq!(
         circuit
             .records()
@@ -160,12 +155,12 @@ fn assertions_restrict_the_generated_witness() {
     let mut builder = ApplicationBuilder::new(0).unwrap();
     let input = builder.input_state();
     builder
-        .assert_equal(input[0].into(), Affine::constant(Goldilocks::ONE))
+        .assert_equal(input[0].into(), Affine::constant(Fq::ONE))
         .unwrap();
     let circuit = builder.finish(input.map(Affine::from)).unwrap();
-    circuit.execute([Goldilocks::ONE; 4], &[]).unwrap();
+    circuit.execute([Fq::ONE; 4], &[]).unwrap();
     assert!(matches!(
-        circuit.execute([Goldilocks::ZERO; 4], &[]),
+        circuit.execute([Fq::ZERO; 4], &[]),
         Err(ApplicationError::UnsatisfiedRow(0))
     ));
 }

@@ -1,10 +1,10 @@
 namespace NightstreamFPrime.Spec
 
-def goldilocksModulus : Nat := 18446744069414584321
+def fieldModulus : Nat := 18446744073709551557
 
-instance : NeZero goldilocksModulus := ⟨by decide⟩
+instance : NeZero fieldModulus := ⟨by decide⟩
 
-abbrev F := Fin goldilocksModulus
+abbrev F := Fin fieldModulus
 
 structure K where
   c0 : F
@@ -19,14 +19,12 @@ def embed (x : F) : K := ⟨x, 0⟩
 def add (a b : K) : K := ⟨a.c0 + b.c0, a.c1 + b.c1⟩
 def sub (a b : K) : K := ⟨a.c0 - b.c0, a.c1 - b.c1⟩
 def mul (a b : K) : K :=
-  ⟨a.c0 * b.c0 + 7 * a.c1 * b.c1,
+  ⟨a.c0 * b.c0 + 2 * a.c1 * b.c1,
    a.c0 * b.c1 + a.c1 * b.c0⟩
 
 end K
 
-def ringDegree : Nat := 54
-
-def ringMiddleDegree : Nat := 27
+def ringDegree : Nat := 64
 
 abbrev RingF := Fin ringDegree → F
 abbrev RingK := Fin ringDegree → K
@@ -61,27 +59,13 @@ def rawMulCoeffK (a b : RingK) (degree : Nat) : K :=
     else acc) K.zero
 
 def ringFMul (a b : RingF) : RingF := fun out =>
-  let i := out.val
-  let folded := if i < ringMiddleDegree then
-      rawMulCoeffF a b (i + ringDegree)
-    else
-      rawMulCoeffF a b (i + ringMiddleDegree)
-  let twice := if i + (ringDegree + ringMiddleDegree) ≤ 2 * (ringDegree - 1) then
-      rawMulCoeffF a b (i + (ringDegree + ringMiddleDegree)) else 0
-  rawMulCoeffF a b i - folded + twice
+  rawMulCoeffF a b out.val - rawMulCoeffF a b (out.val + ringDegree)
 
 def ringKMul (a b : RingK) : RingK := fun out =>
-  let i := out.val
-  let folded := if i < ringMiddleDegree then
-      rawMulCoeffK a b (i + ringDegree)
-    else
-      rawMulCoeffK a b (i + ringMiddleDegree)
-  let twice := if i + (ringDegree + ringMiddleDegree) ≤ 2 * (ringDegree - 1) then
-      rawMulCoeffK a b (i + (ringDegree + ringMiddleDegree)) else K.zero
-  K.add (K.sub (rawMulCoeffK a b i) folded) twice
+  K.sub (rawMulCoeffK a b out.val) (rawMulCoeffK a b (out.val + ringDegree))
 
 def centeredMagnitude (x : F) : Nat :=
-  min x.val (goldilocksModulus - x.val)
+  min x.val (fieldModulus - x.val)
 
 def normBounded (bound : Nat) (z : List F) : Prop :=
   ∀ x ∈ z, centeredMagnitude x < bound

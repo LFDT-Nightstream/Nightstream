@@ -13,7 +13,7 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 def piCcsFinalSlotBase : Nat :=
   (PiCCSPoseidonPlan.invocationCount - 1) * 150 + 134
 
-@[simp] theorem piCcsFinalSlotBase_eq : piCcsFinalSlotBase = 142184 := by
+@[simp] theorem piCcsFinalSlotBase_eq : piCcsFinalSlotBase = 147584 := by
   norm_num [piCcsFinalSlotBase, PiCCSPoseidonPlan.invocationCount_eq]
 
 def constantAt
@@ -36,13 +36,13 @@ def piCcsPreviousRule (program : Program) : PoseidonInput.Rule where
       (PiCCSPoseidonPlan.retainedStart program)) piCcsFinalSlotBase 0
 
 def samplerPreviousRule (program : Program) : PoseidonInput.Rule where
-  region := ⟨1, 33, 0, 16⟩
+  region := ⟨1, 29, 0, 16⟩
   term := .external
     (RetainedBlock.ofSemantic (PiRLCSamplerPoseidonPlan.retainedBlock program)
       (PiRLCSamplerPoseidonPlan.retainedStart program)) 134 150
 
 def entryRule : PoseidonInput.Rule where
-  region := ⟨0, 34, 0, 16⟩
+  region := ⟨0, 30, 0, 16⟩
   term := .optionalConstant constants 16
 
 def inputProgram (program : Program) : PoseidonInput.Program where
@@ -63,7 +63,7 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
 @[simp] theorem block_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (block geometry).rowCount = 5100 := by
+    (block geometry).rowCount = 4500 := by
   calc
     (block geometry).rowCount =
         PiRLCSamplerPoseidonPlan.invocationCount * 150 := by
@@ -71,13 +71,13 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
         (PiRLCSamplerPoseidonPlan.schedule program)
         (PiRLCSamplerPoseidonPlan.retainedStart program)
         (PiRLCSamplerPoseidonPlan.oneColumn geometry) (inputProgram program)
-    _ = 5100 := by
+    _ = 4500 := by
       norm_num [PiRLCSamplerPoseidonPlan.invocationCount_eq]
 
 @[simp] theorem matrixProgram_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 5100 := by
+    (matrixProgram geometry).rowCount = 4500 := by
   rw [show matrixProgram geometry =
       MatrixProgram.Program.mk [.poseidon (block geometry)] by rfl]
   rw [MatrixProgram.Program.singleton_rowCount]

@@ -15,11 +15,11 @@ open PiRLCSamplerOrdinaryRetainedGeometry
 
 variable {relationLogicalWidth : Nat}
   {relationPublicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+    RingCarrierLayout.carrierWidth relationLogicalWidth}
 
 def directForms
     {program : Program} {logicalWidth : Nat}
-    (geometry : Geometry program logicalWidth) (index : Fin 14943) :
+    (geometry : Geometry program logicalWidth) (index : Fin 13635) :
     OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow
     (PiRLCSamplerOrdinaryDirectPlan.sourceMap geometry)
@@ -35,7 +35,7 @@ theorem plan_forms
     {program : Program} {logicalWidth : Nat}
     (relation : Lifecycle.ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 14943) :
+    (geometry : Geometry program logicalWidth) (index : Fin 13635) :
     (PiRLCSamplerOrdinaryDirectPlan.plan relation geometry).forms index =
       (directForms
         (relationLogicalWidth := relationLogicalWidth)
@@ -45,7 +45,7 @@ theorem plan_forms
 
 theorem compile_programRow?
     {program : Program} {logicalWidth : Nat}
-    (geometry : Geometry program logicalWidth) (index : Fin 14943) :
+    (geometry : Geometry program logicalWidth) (index : Fin 13635) :
     Ordinary.compileRow? (substitution program) logicalWidth
         (oneColumn geometry).val
         (PiRLCSamplerOrdinaryDirectSource.programRow
@@ -71,7 +71,7 @@ theorem compile_programRow?
 theorem block_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
-    (sourceRow : Nat → Option R1CS.Row) (index : Fin 14943)
+    (sourceRow : Nat → Option R1CS.Row) (index : Fin 13635)
     (sourceIndex : Nat)
     (selected : rowSchedule.index? index.val = some sourceIndex)
     (loaded : sourceRow sourceIndex =
@@ -120,7 +120,7 @@ theorem matrixProgram_row?
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
     (sourceRow : Nat → Option R1CS.Row)
-    (loaded : ∀ index : Fin 14943, ∀ sourceIndex,
+    (loaded : ∀ index : Fin 13635, ∀ sourceIndex,
       rowSchedule.index? index.val = some sourceIndex →
       sourceRow sourceIndex =
         some (PerApplicationSourceProjection.basePackageRow program
@@ -132,7 +132,7 @@ theorem matrixProgram_row?
     (matrixProgram geometry).row? logicalWidth sourceRow global.val =
       some ((PiRLCSamplerOrdinaryDirectPlan.plan relation geometry).forms
         global) := by
-  change Fin 14943 at global
+  change Fin 13635 at global
   have scheduleBound : global.val < rowSchedule.indices.length := by
     rw [IndexSchedule.indices_length, rowSchedule_count]
     exact global.isLt

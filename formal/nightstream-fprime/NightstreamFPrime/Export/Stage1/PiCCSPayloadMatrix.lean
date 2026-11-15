@@ -11,13 +11,13 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Spec
 
 def combination (index : Fin PiCCSActionPayloadBlock.payloadCount) : R1CS.LinearCombination :=
-  NightstreamFPrime.Layout.R1CS.mapCombinationColumns Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.R1CS.mapCombinationColumns PackageOrder.sourceToPackage
     (PiCCSPayloadWiring.lowering index).combination
 
 private def compileWord? (expression : Circuit.Expr) : Option Affine.Form := do
-  let lowered ← SourceCompiler.lowerAffine? Spartan.SourceColumnCount expression
+  let lowered ← SourceCompiler.lowerAffine? PackageOrder.SourceColumnCount expression
   pure <| Affine.Form.ofSemantic <|
-    NightstreamFPrime.Layout.R1CS.mapCombinationColumns Spartan.sourceToSpartan lowered.combination
+    NightstreamFPrime.Layout.R1CS.mapCombinationColumns PackageOrder.sourceToPackage lowered.combination
 
 private theorem compileWord?_payload (index : Fin PiCCSActionPayloadBlock.payloadCount) :
     compileWord? (PiCCSActionPayloadBlock.payloadExpression index) =
@@ -64,23 +64,23 @@ private theorem compileMappedTerms
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (terms : List (Nat × F))
-    (bounded : ∀ term ∈ terms, term.1 < Spartan.SourceColumnCount)
+    (bounded : ∀ term ∈ terms, term.1 < PackageOrder.SourceColumnCount)
     (supported : ∀ term ∈ terms, PiCCSOrdinarySourceSupport.Source term.1) :
     Ordinary.compileTerms? (PiCCSOrdinaryMatrixProgram.substitution program) logicalWidth
-        (terms.map fun term => (Spartan.sourceToSpartan term.1, term.2)) =
+        (terms.map fun term => (PackageOrder.sourceToPackage term.1, term.2)) =
       some (SourceCompiler.compileTerms (PiCCSPayloadWiring.sourceMap geometry) terms bounded) := by
   induction terms with
   | nil => rfl
   | cons term rest inductionHypothesis =>
       have headBound := bounded term (by simp)
-      have tailBound : ∀ value ∈ rest, value.1 < Spartan.SourceColumnCount := by
+      have tailBound : ∀ value ∈ rest, value.1 < PackageOrder.SourceColumnCount := by
         intro value member
         exact bounded value (by simp [member])
       have tailSupport : ∀ value ∈ rest, PiCCSOrdinarySourceSupport.Source value.1 := by
         intro value member
         exact supported value (by simp [member])
-      let column : Fin Spartan.spartanColumnCount :=
-        ⟨Spartan.sourceToSpartan term.1, Spartan.sourceToSpartan_lt _ headBound⟩
+      let column : Fin PackageOrder.packageColumnCount :=
+        ⟨PackageOrder.sourceToPackage term.1, PackageOrder.sourceToPackage_lt _ headBound⟩
       have head := PiCCSOrdinaryMatrixProgram.substitution_agrees_on_target geometry column
         (PiCCSOrdinarySourceSupport.source_target term.1 (supported term (by simp)))
       rw [List.map_cons, Ordinary.compileTerms?, head,

@@ -50,11 +50,15 @@ def absorbE (state : EState) (block : List Expr) : EState :=
 def absorbF (state : FState) (block : List F) : FState :=
   fun lane => state lane + block.getD lane.val 0
 
-def padE (state : EState) : EState :=
-  fun lane => if lane.val = 0 then state lane + 1 else state lane
+/-- The last block of `Spec.Poseidon2.pad`: the last words in their lanes, then the word 1 in the
+next lane. -/
+def padE (last : List Expr) (state : EState) : EState :=
+  fun lane => if lane.val < last.length then state lane + last.getD lane.val 0
+    else if lane.val = last.length then state lane + 1 else state lane
 
-def padF (state : FState) : FState :=
-  fun lane => if lane.val = 0 then state lane + 1 else state lane
+def padF (last : List F) (state : FState) : FState :=
+  fun lane => if lane.val < last.length then state lane + last.getD lane.val 0
+    else if lane.val = last.length then state lane + 1 else state lane
 
 def digestE (state : EState) : Fin 4 → Expr :=
   fun lane => state ⟨lane.val, Nat.lt_trans lane.isLt (by decide)⟩
@@ -78,18 +82,21 @@ def digestF (state : FState) : Fin 4 → F :=
     (block.map (Expr.eval env)).getD lane.val (0 : F)
   have evalZero : (0 : Expr).eval env = (0 : F) := by
     apply Fin.ext
-    norm_num [Expr.eval, goldilocksModulus]
+    norm_num [Expr.eval, fieldModulus]
   rw [← evalZero]
   exact (List.getD_map (n := lane.val) block (0 : Expr) (Expr.eval env)).symm
 
-@[simp] theorem eval_padE (env : Env) (state : EState) :
-    Layer.evalState env (padE state) = padF (Layer.evalState env state) := by
+@[simp] theorem eval_padE (env : Env) (last : List Expr) (state : EState) :
+    Layer.evalState env (padE last state) =
+      padF (evalList env last) (Layer.evalState env state) := by
   have evalOne : (1 : Expr).eval env = (1 : F) := by
     apply Fin.ext
-    norm_num [Expr.eval, goldilocksModulus]
+    norm_num [Expr.eval, fieldModulus]
   funext lane
-  by_cases hzero : lane.val = 0 <;>
-    simp [Layer.evalState, padE, padF, hzero, evalOne]
+  by_cases inside : lane.val < last.length
+  · simp [Layer.evalState, padE, padF, inside, evalList]
+  · by_cases next : lane.val = last.length <;>
+      simp [Layer.evalState, padE, padF, inside, next, evalList, evalOne]
 
 theorem eval_digestE (env : Env) (state : EState) :
     (fun lane => (digestE state lane).eval env) =
@@ -104,7 +111,8 @@ def absorbManyF : FState → List (List F) → FState
 
 def hashF (input : List F) : Fin 4 → F :=
   digestF (Permutation.runF Permutation.schedule
-    (padF (absorbManyF zeroF (inputChunks input))))
+    (padF (Spec.Poseidon2.lastWords input)
+      (absorbManyF zeroF (Spec.Poseidon2.fullBlocks input))))
 
 structure AbsorbProgram where
   recipes : List Expr
@@ -157,11 +165,13 @@ structure Program where
   recipes : List Expr
   output : EState
 
+/-- `Spec.Poseidon2.hash_eq_last`: one permutation for each full block, then one for the last
+words and the word 1. -/
 def compile (start : Nat) (input : List Expr) : Program :=
-  let absorbed := compileAbsorptions start zeroE (inputChunks input)
+  let absorbed := compileAbsorptions start zeroE (Spec.Poseidon2.fullBlocks input)
   let finalStart := start + absorbed.recipes.length
   let finalPermutation := Permutation.compile finalStart
-    (padE absorbed.output) Permutation.schedule
+    (padE (Spec.Poseidon2.lastWords input) absorbed.output) Permutation.schedule
   ⟨absorbed.recipes ++ finalPermutation.recipes, finalPermutation.output⟩
 
 def BlocksBelow (bound : Nat) (blocks : List (List Expr)) : Prop :=
@@ -183,6 +193,15 @@ theorem inputChunks_below (input : List Expr) (bound : Nat)
   apply hinput expression
   exact List.mem_of_mem_drop (List.mem_of_mem_take hexpression)
 
+theorem fullBlocks_below (input : List Expr) (bound : Nat)
+    (hinput : ∀ expression ∈ input, expression.VarsBelow bound) :
+    BlocksBelow bound (Spec.Poseidon2.fullBlocks input) := by
+  intro block hblock expression hexpression
+  simp only [Spec.Poseidon2.fullBlocks, List.mem_map] at hblock
+  rcases hblock with ⟨chunk, _, rfl⟩
+  apply hinput expression
+  exact List.mem_of_mem_drop (List.mem_of_mem_take hexpression)
+
 theorem absorbE_varsBelow (state : EState) (block : List Expr) {bound : Nat}
     (hstate : ∀ lane, (state lane).VarsBelow bound)
     (hblock : ∀ expression ∈ block, expression.VarsBelow bound)
@@ -196,12 +215,19 @@ theorem absorbE_varsBelow (state : EState) (block : List Expr) {bound : Nat}
       exact hblock (block.get ⟨lane.val, hin⟩) (List.get_mem _ _)
     · simp [List.getD, hin, Expr.VarsBelow]
 
-theorem padE_varsBelow (state : EState) {bound : Nat}
+theorem padE_varsBelow (input : List Expr) (state : EState) {bound : Nat}
+    (hinput : ∀ expression ∈ input, expression.VarsBelow bound)
     (hstate : ∀ lane, (state lane).VarsBelow bound) (lane : Fin 16) :
-    (padE state lane).VarsBelow bound := by
-  by_cases hzero : lane.val = 0
-  · simp [padE, hzero, Expr.VarsBelow, hstate]
-  · simp [padE, hzero, hstate]
+    (padE (Spec.Poseidon2.lastWords input) state lane).VarsBelow bound := by
+  unfold padE
+  split
+  · rename_i inside
+    refine ⟨hstate lane, ?_⟩
+    rw [List.getD_eq_getElem _ _ inside]
+    exact hinput _ (List.mem_of_mem_drop (List.getElem_mem inside))
+  · split
+    · exact ⟨hstate lane, trivial⟩
+    · exact hstate lane
 
 @[simp] theorem compileAbsorptions_recipes_length (start : Nat)
     (state : EState) (blocks : List (List Expr)) :
@@ -216,11 +242,12 @@ theorem padE_varsBelow (state : EState) {bound : Nat}
 
 @[simp] theorem compile_recipes_length (start : Nat) (input : List Expr) :
     (compile start input).recipes.length =
-      (inputChunks input).length * 1096 + 1096 := by
+      input.length / Spec.Poseidon2.rate * 1096 + 1096 := by
   unfold compile
   dsimp only
   rw [List.length_append, compileAbsorptions_recipes_length,
-    Permutation.compile_schedule_recipe_count]
+    Permutation.compile_schedule_recipe_count, Spec.Poseidon2.fullBlocks, List.length_map,
+    List.length_range]
 
 theorem compileAbsorptions_causal (start : Nat) (state : EState)
     (blocks : List (List Expr))
@@ -316,19 +343,22 @@ theorem compileAbsorptions_sound (env : Env) (start : Nat) (state : EState)
 theorem compile_causal (start : Nat) (input : List Expr)
     (hinput : ∀ expression ∈ input, expression.VarsBelow start) :
     RecipesCausal start (compile start input).recipes := by
-  let blocks := inputChunks input
+  let blocks := Spec.Poseidon2.fullBlocks input
   let absorbed := compileAbsorptions start zeroE blocks
   have hzero : ∀ lane, (zeroE lane).VarsBelow start := by
     intro lane
     trivial
-  have hblocks : BlocksBelow start blocks := inputChunks_below input start hinput
+  have hblocks : BlocksBelow start blocks := fullBlocks_below input start hinput
   have habsorbed := compileAbsorptions_causal start zeroE blocks hzero hblocks
   have houtput : ∀ lane, (absorbed.output lane).VarsBelow
       (start + absorbed.recipes.length) :=
     compileAbsorptions_output_varsBelow start zeroE blocks hzero hblocks
   have hfinal := Permutation.compile_schedule_causal
-    (start + absorbed.recipes.length) (padE absorbed.output)
-    (padE_varsBelow absorbed.output houtput)
+    (start + absorbed.recipes.length)
+    (padE (Spec.Poseidon2.lastWords input) absorbed.output)
+    (padE_varsBelow input absorbed.output
+      (fun expression member => Expr.VarsBelow.mono expression (hinput expression member)
+        (Nat.le_add_right _ _)) houtput)
   apply Permutation.recipesCausal_append_causal start _ _ habsorbed
   exact hfinal
 
@@ -337,24 +367,27 @@ theorem compile_output_varsBelow (start : Nat) (input : List Expr)
     (lane : Fin 16) :
     ((compile start input).output lane).VarsBelow
       (start + (compile start input).recipes.length) := by
-  let blocks := inputChunks input
+  let blocks := Spec.Poseidon2.fullBlocks input
   let absorbed := compileAbsorptions start zeroE blocks
+  let last := Spec.Poseidon2.lastWords input
   have hzero : ∀ current, (zeroE current).VarsBelow start := by
     intro current
     trivial
   have hblocks : BlocksBelow start blocks :=
-    inputChunks_below input start hinput
+    fullBlocks_below input start hinput
   have houtput : ∀ current, (absorbed.output current).VarsBelow
       (start + absorbed.recipes.length) :=
     compileAbsorptions_output_varsBelow start zeroE blocks hzero hblocks
   have finalOutput := Permutation.compile_output_varsBelow
-    (start + absorbed.recipes.length) (padE absorbed.output)
-    Permutation.schedule (padE_varsBelow absorbed.output houtput) lane
+    (start + absorbed.recipes.length) (padE last absorbed.output)
+    Permutation.schedule (padE_varsBelow input absorbed.output
+      (fun expression member => Expr.VarsBelow.mono expression (hinput expression member)
+        (Nat.le_add_right _ _)) houtput) lane
   change ((Permutation.compile (start + absorbed.recipes.length)
-      (padE absorbed.output) Permutation.schedule).output lane).VarsBelow
+      (padE last absorbed.output) Permutation.schedule).output lane).VarsBelow
     (start + (absorbed.recipes ++
       (Permutation.compile (start + absorbed.recipes.length)
-        (padE absorbed.output) Permutation.schedule).recipes).length)
+        (padE last absorbed.output) Permutation.schedule).recipes).length)
   convert finalOutput using 1;
     simp only [List.length_append,
       Permutation.compile_schedule_recipe_count]; omega
@@ -398,13 +431,23 @@ theorem absorbManyF_eq_reference (state : FState) (blocks : List (List F)) :
               (List.ofFn state) := by
           simp only [List.foldl_cons]
 
-theorem padF_input_eq_reference (state : FState) :
-    List.ofFn (padF state) =
-      (List.range Spec.Poseidon2.width).map fun index =>
-        if index = 0 then (List.ofFn state).getD 0 0 + 1
-        else (List.ofFn state).getD index 0 := by
-  rw [Layer.ofFn_state (padF state), Layer.ofFn_state state]
-  simp [padF, Spec.Poseidon2.width, List.range_succ]
+/-- The padding block adds the last words and the word 1; the lanes after them add zero. -/
+theorem padF_eq_absorbF (last : List F) (state : FState) :
+    padF last state = absorbF state (last ++ [1]) := by
+  funext lane
+  unfold padF absorbF
+  split
+  · rename_i inside
+    rw [List.getD_eq_getElem _ _ inside, List.getD_eq_getElem _ _ (by simp; omega),
+      List.getElem_append_left inside]
+  · rename_i outside
+    split
+    · rename_i next
+      rw [List.getD_eq_getElem _ _ (by simp; omega), List.getElem_append_right (by omega)]
+      simp [next]
+    · rename_i after
+      rw [List.getD_eq_default _ _ (by simp; omega)]
+      simp
 
 theorem digestF_eq_take (state : FState) :
     List.ofFn (digestF state) =
@@ -414,25 +457,19 @@ theorem digestF_eq_take (state : FState) :
 
 theorem hashF_eq_reference (input : List F) :
     List.ofFn (hashF input) = Spec.Poseidon2.hash input := by
-  let absorbed := absorbManyF zeroF (inputChunks input)
+  let absorbed := absorbManyF zeroF (Spec.Poseidon2.fullBlocks input)
   calc
     List.ofFn (hashF input) =
         (List.ofFn (Permutation.runF Permutation.schedule
-          (padF absorbed))).take Spec.Poseidon2.digestLen := by
-      change List.ofFn (digestF (Permutation.runF Permutation.schedule
-        (padF absorbed))) = _
+          (absorbF absorbed (Spec.Poseidon2.lastWords input ++ [1])))).take
+          Spec.Poseidon2.digestLen := by
+      rw [← padF_eq_absorbF]
       exact digestF_eq_take _
-    _ = (Spec.Poseidon2.permute (List.ofFn (padF absorbed))).take
-          Spec.Poseidon2.digestLen := by
-      rw [Permutation.runF_eq_reference, Permutation.runReference_schedule]
-    _ = (Spec.Poseidon2.permute
-          ((List.range Spec.Poseidon2.width).map fun index =>
-            if index = 0 then (List.ofFn absorbed).getD 0 0 + 1
-            else (List.ofFn absorbed).getD index 0)).take
-          Spec.Poseidon2.digestLen := by
-      rw [padF_input_eq_reference]
+    _ = (Spec.Poseidon2.absorbBlock (List.ofFn absorbed)
+          (Spec.Poseidon2.lastWords input ++ [1])).take Spec.Poseidon2.digestLen := by
+      rw [absorbStepF_eq_reference]
     _ = Spec.Poseidon2.hash input := by
-      rw [absorbManyF_eq_reference]
+      rw [absorbManyF_eq_reference, Spec.Poseidon2.hash_eq_last]
       rfl
 
 theorem inputChunks_eval (env : Env) (input : List Expr) :
@@ -440,17 +477,28 @@ theorem inputChunks_eval (env : Env) (input : List Expr) :
       inputChunks (evalList env input) := by
   simp [inputChunks, evalList, List.map_map, Function.comp_def]
 
+theorem fullBlocks_eval (env : Env) (input : List Expr) :
+    (Spec.Poseidon2.fullBlocks input).map (evalList env) =
+      Spec.Poseidon2.fullBlocks (evalList env input) := by
+  simp [Spec.Poseidon2.fullBlocks, evalList, List.map_map, Function.comp_def]
+
+theorem lastWords_eval (env : Env) (input : List Expr) :
+    evalList env (Spec.Poseidon2.lastWords input) =
+      Spec.Poseidon2.lastWords (evalList env input) := by
+  simp [Spec.Poseidon2.lastWords, evalList]
+
 theorem compile_sound (env : Env) (start : Nat) (input : List Expr)
     (hrows : ConstraintsHold env
       (recipeConstraints start (compile start input).recipes)) :
     List.ofFn (fun lane =>
       (digestE (compile start input).output lane).eval env) =
       Spec.Poseidon2.hash (evalList env input) := by
-  let blocks := inputChunks input
+  let blocks := Spec.Poseidon2.fullBlocks input
+  let last := Spec.Poseidon2.lastWords input
   let absorbed := compileAbsorptions start zeroE blocks
   let finalStart := start + absorbed.recipes.length
   let finalPermutation := Permutation.compile finalStart
-    (padE absorbed.output) Permutation.schedule
+    (padE last absorbed.output) Permutation.schedule
   have splitRows :
       ConstraintsHold env (recipeConstraints start absorbed.recipes) ∧
       ConstraintsHold env
@@ -459,26 +507,27 @@ theorem compile_sound (env : Env) (start : Nat) (input : List Expr)
     exact (Permutation.constraintsHold_append env _ _).mp hrows
   have absorbedSound := compileAbsorptions_sound env start zeroE blocks splitRows.1
   have finalSound := Permutation.compile_sound env finalStart
-    (padE absorbed.output) Permutation.schedule splitRows.2
+    (padE last absorbed.output) Permutation.schedule splitRows.2
   have outputSound :
       Layer.evalState env finalPermutation.output =
         Permutation.runF Permutation.schedule
-          (padF (absorbManyF zeroF (inputChunks (evalList env input)))) := by
+          (padF (Spec.Poseidon2.lastWords (evalList env input))
+            (absorbManyF zeroF (Spec.Poseidon2.fullBlocks (evalList env input)))) := by
     calc
       Layer.evalState env finalPermutation.output =
           Permutation.runF Permutation.schedule
-            (Layer.evalState env (padE absorbed.output)) := finalSound
+            (Layer.evalState env (padE last absorbed.output)) := finalSound
       _ = Permutation.runF Permutation.schedule
-            (padF (Layer.evalState env absorbed.output)) := by
+            (padF (evalList env last) (Layer.evalState env absorbed.output)) := by
           rw [eval_padE]
       _ = Permutation.runF Permutation.schedule
-            (padF (absorbManyF zeroF
+            (padF (evalList env last) (absorbManyF zeroF
               (blocks.map (evalList env)))) := by
           rw [absorbedSound, eval_zeroE]
       _ = Permutation.runF Permutation.schedule
-            (padF (absorbManyF zeroF
-              (inputChunks (evalList env input)))) := by
-          rw [inputChunks_eval]
+            (padF (Spec.Poseidon2.lastWords (evalList env input))
+              (absorbManyF zeroF (Spec.Poseidon2.fullBlocks (evalList env input)))) := by
+          rw [fullBlocks_eval, lastWords_eval]
   calc
     List.ofFn (fun lane =>
         (digestE (compile start input).output lane).eval env) =

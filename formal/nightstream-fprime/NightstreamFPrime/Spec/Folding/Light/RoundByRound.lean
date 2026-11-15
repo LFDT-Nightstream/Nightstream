@@ -55,9 +55,9 @@ theorem falseAcceptance_splits
             (shape.cubeVariables - round.val - 1) := by
   intro data
   rcases accepted_extracts_or_badEvent baseLaws baseZeroAgreement
-      GoldilocksPrime.baseFieldNoZeroDivisors extensionOps extensionLaws extensionZeroLaws K.embed
+      FieldPrime.baseFieldNoZeroDivisors extensionOps extensionLaws extensionZeroLaws K.embed
       protocolLift openingMaps params statement constantLaw width degreeCovers
-      (goldilocksModulus ^ 2) probe witness ambient accepted with
+      (fieldModulus ^ 2) probe witness ambient accepted with
     truth | mixing | failure
   · exact absurd truth invalid
   · rcases mixingRoot_splits _ _ _ mixing with alpha | gamma

@@ -4,15 +4,14 @@ import NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerCircuit
 import NightstreamFPrime.Layout.ProductionRelation.AcceptedOpening
 
 /-! The bounded-depth step relations (CW-5.3). Each step circuit is exported with its shared words at
-`base = 270`, after the public input `x` (`LogicalPlan`). From a satisfying assignment of a
+`base = 320`, after the public input `x` (`LogicalPlan`). From a satisfying assignment of a
 circuit's logical relation, the decoders read the step's input, output, key digests and fold proof
 from the shared words, with the next slots that the digest select fixes; `lightRepresents` and
 `refreshRepresents` hold by construction. The light circuit reads only the active slot's words, so
 its decoder takes the other slot from outside (`lightInput`): the terminal bridge gives the
 terminal's slot. The light step relation then needs the other slot's prior digest word to be that
 slot's digest (`OtherDigest`); `light_freshWords` gives, from the rows alone, the words that the
-bridge reads to show it. The finish circuit's decoder (`finishStepOutput`) reads the next slots'
-words instead. With
+bridge reads to show it. With
 `CircuitRelation.rowsZero_implies_spec` this gives each circuit's case of the bounded-depth step
 relation (`light_stepHolds`, `refresh_stepHolds`) and the output digest that `x` encodes, in the
 environment that the assignment decodes to (`lightEnv`, `refreshEnv`): the assignment with the
@@ -39,9 +38,9 @@ open NightstreamFPrime.Export.Generic
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
-/-- The public input occupies source columns 0 to 269; the shared words start after it. -/
+/-- The public input occupies source columns 0 to 319; the shared words start after it. -/
 def base : Nat := ringDegree * PaperAlgebra.publicRingColumns
 
 /-- The logical width that both circuit keys share. It is at least each step circuit's logical
@@ -49,10 +48,10 @@ width, so a key with fewer columns commits a witness that is zero past them. -/
 def keyWidth : Nat := 2 ^ 26
 
 theorem keyPublicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth keyWidth := by
+    RingCarrierLayout.carrierWidth keyWidth := by
   decide
 
-theorem keyCubeFits : Phi81CarrierLayout.carrierWidth keyWidth ≤ 2 ^ cubeVariables := by
+theorem keyCubeFits : RingCarrierLayout.carrierWidth keyWidth ≤ 2 ^ cubeVariables := by
   decide
 
 /-- The relation argument of the step circuits at `keyWidth`. The emitter builds the circuits with
@@ -104,11 +103,11 @@ theorem slotDigest_wordDepth (slot : SlotData logicalWidth publicFits) :
   rw [slotDigest, slotDigest, serializeSlot_wordDepth]
 
 theorem wordDepth_lt (slot : SlotData logicalWidth publicFits) :
-    (wordDepth slot).2 < goldilocksModulus :=
+    (wordDepth slot).2 < fieldModulus :=
   Fin.isLt _
 
 theorem wordDepth_of_lt {slot : SlotData logicalWidth publicFits}
-    (bound : slot.2 < goldilocksModulus) : wordDepth slot = slot := by
+    (bound : slot.2 < fieldModulus) : wordDepth slot = slot := by
   obtain ⟨claim, depth⟩ := slot
   show (claim, (natWord depth).val) = (claim, depth)
   simp only [natWord, Poseidon2.ofNat, Nat.mod_eq_of_lt bound]
@@ -134,7 +133,7 @@ def lightInput (running : Fin 2 → SlotData logicalWidth publicFits) (env : Env
 theorem lightInput_depth (running : Fin 2 → SlotData logicalWidth publicFits) (env : Env)
     (slot : Fin 2) :
     ((lightInput (logicalWidth := logicalWidth) (publicFits := publicFits) program running
-      env).running slot).2 < goldilocksModulus := by
+      env).running slot).2 < fieldModulus := by
   simp only [lightInput]
   split
   · exact Fin.isLt _
@@ -406,16 +405,6 @@ theorem refreshOutput_runningNext
           (RefreshAssembler.sharedEnd base program.witnessWordCount)).value env) :=
   rfl
 
-/-- The finish circuit's output: its next slots are the next slots' words, which the finish
-circuit's slot select fixes and its final program reads. -/
-def finishStepOutput (circuit : Fin 2) (env : Env) : StepOutput logicalWidth publicFits :=
-  let interface :=
-    refreshInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program
-  { zNext := List.ofFn fun lane => (interface.nextState lane).eval env
-    runningNext := fun slot => (interface.next slot).value env
-    pcNext := circuit
-    x := List.ofFn fun lane => (interface.outputDigest lane).eval env }
-
 theorem refreshRepresents (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits) (circuit : Fin 2) (env : Env) :
@@ -506,18 +495,18 @@ theorem publicInput_eq_project {width : Nat} (layout : LogicalPlan.Layout width 
     (assignment : Assignment F logicalWidth)
     (publicInside : ringDegree * PaperAlgebra.publicRingColumns ≤ width) :
     LogicalPlan.publicInput (publicFits := publicFits) (LogicalPlan.sourceEnv layout assignment) =
-      Phi81Relation.projectPublicInput
+      RingRelation.projectPublicInput
         (shape := PaperAlgebra.FullShape logicalWidth publicFits)
-        (Phi81CarrierLayout.extendAssignment 0 assignment) := by
+        (RingCarrierLayout.extendAssignment 0 assignment) := by
   funext column
   have inside : column.val < logicalWidth :=
     Nat.lt_of_lt_of_le column.isLt layout.publicFits
   have same : (PaperAlgebra.FullShape logicalWidth publicFits).publicColumn column =
-      Phi81CarrierLayout.embedLogical (⟨column.val, inside⟩ : Fin logicalWidth) := by
+      RingCarrierLayout.embedLogical (⟨column.val, inside⟩ : Fin logicalWidth) := by
     apply Fin.ext
     rfl
   change LogicalPlan.sourceEnv layout assignment column.val = _
-  rw [Phi81Relation.projectPublicInput, same, Phi81CarrierLayout.extendAssignment_embedLogical,
+  rw [RingRelation.projectPublicInput, same, RingCarrierLayout.extendAssignment_embedLogical,
     LogicalPlan.sourceEnv_public layout assignment column.val column.isLt
       (Nat.lt_of_lt_of_le column.isLt publicInside)]
 
@@ -536,10 +525,10 @@ theorem light_freshHolds (program : Stage1.Application.Program)
       (LightAssembler.sharedEnd base program.witnessWordCount)
       (lightDigestColumn program)) firstFresh width)
     (layout : LogicalPlan.Layout width logicalWidth)
-    (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
+    (cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
     (publicInside : ringDegree * PaperAlgebra.publicRingColumns ≤ width)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (assignment : Assignment F (Phi81CarrierLayout.carrierWidth logicalWidth))
+    (assignment : Assignment F (RingCarrierLayout.carrierWidth logicalWidth))
     (digest : Digest) (encoded : fresh.publicInputs ⟨0, by decide⟩ = encHash digest)
     (accepted : CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
       (freshStatement ((CircuitRelation.plan _ _ firstFresh width fits layout).logicalRelation
@@ -580,10 +569,10 @@ theorem light_freshWords (program : Stage1.Application.Program)
       (LightAssembler.sharedEnd base program.witnessWordCount)
       (lightDigestColumn program)) firstFresh width)
     (layout : LogicalPlan.Layout width logicalWidth)
-    (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
+    (cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
     (publicInside : ringDegree * PaperAlgebra.publicRingColumns ≤ width)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (assignment : Assignment F (Phi81CarrierLayout.carrierWidth logicalWidth))
+    (assignment : Assignment F (RingCarrierLayout.carrierWidth logicalWidth))
     (digest : Digest) (encoded : fresh.publicInputs ⟨0, by decide⟩ = encHash digest)
     (accepted : CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
       (freshStatement ((CircuitRelation.plan _ _ firstFresh width fits layout).logicalRelation
@@ -621,10 +610,10 @@ theorem refresh_freshHolds (program : Stage1.Application.Program)
       (RefreshAssembler.sharedEnd base program.witnessWordCount)
       (refreshDigestColumn program)) firstFresh width)
     (layout : LogicalPlan.Layout width logicalWidth)
-    (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
+    (cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
     (publicInside : ringDegree * PaperAlgebra.publicRingColumns ≤ width)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (assignment : Assignment F (Phi81CarrierLayout.carrierWidth logicalWidth))
+    (assignment : Assignment F (RingCarrierLayout.carrierWidth logicalWidth))
     (digest : Digest) (encoded : fresh.publicInputs ⟨0, by decide⟩ = encHash digest)
     (accepted : CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
       (freshStatement ((CircuitRelation.plan _ _ firstFresh width fits layout).logicalRelation

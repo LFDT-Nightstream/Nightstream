@@ -85,7 +85,7 @@ def Term.form? (term : Term) (logicalWidth oneColumn : Nat)
           laneOffset * laneStride)
   | .constant coefficient =>
       if oneBound : oneColumn < logicalWidth then
-        if coefficientBound : coefficient < Spec.goldilocksModulus then
+        if coefficientBound : coefficient < Spec.fieldModulus then
           some (SparseForm.singleton ⟨oneColumn, oneBound⟩
             ⟨coefficient, coefficientBound⟩)
         else none
@@ -99,7 +99,7 @@ def Term.form? (term : Term) (logicalWidth oneColumn : Nat)
       | some none => some SparseForm.empty
       | some (some coefficient) =>
           if oneBound : oneColumn < logicalWidth then
-            if coefficientBound : coefficient < Spec.goldilocksModulus then
+            if coefficientBound : coefficient < Spec.fieldModulus then
               some (SparseForm.singleton ⟨oneColumn, oneBound⟩
                 ⟨coefficient, coefficientBound⟩)
             else none
@@ -136,7 +136,7 @@ theorem Term.constant_form? {logicalWidth : Nat}
         invocationOffset laneOffset =
       some (SparseForm.singleton oneColumn coefficient) := by
   change (if oneBound : oneColumn.val < logicalWidth then
-      if coefficientBound : coefficient.val < goldilocksModulus then
+      if coefficientBound : coefficient.val < fieldModulus then
         some (SparseForm.singleton ⟨oneColumn.val, oneBound⟩
           ⟨coefficient.val, coefficientBound⟩)
       else none
@@ -177,7 +177,7 @@ theorem Term.optionalConstant_form?_ofSemantic_of_some
     | some none => some SparseForm.empty
     | some (some encoded) =>
         if oneBound : oneColumn.val < logicalWidth then
-          if coefficientBound : encoded < goldilocksModulus then
+          if coefficientBound : encoded < fieldModulus then
             some (SparseForm.singleton ⟨oneColumn.val, oneBound⟩
               ⟨encoded, coefficientBound⟩)
           else none
@@ -200,7 +200,7 @@ theorem Term.optionalConstant_form?_ofSemantic_of_none
     | some none => some SparseForm.empty
     | some (some encoded) =>
         if oneBound : oneColumn < logicalWidth then
-          if coefficientBound : encoded < goldilocksModulus then
+          if coefficientBound : encoded < fieldModulus then
             some (SparseForm.singleton ⟨oneColumn, oneBound⟩
               ⟨encoded, coefficientBound⟩)
           else none

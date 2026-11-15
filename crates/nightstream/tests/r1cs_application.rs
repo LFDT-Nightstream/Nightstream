@@ -15,7 +15,7 @@ use nightstream::relation::{
     MemoryCatalog, MemoryKind, MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemoryPreload, MemorySpec,
     R1csBuilder, R1csCheckError, R1csRelation,
 };
-use nightstream::{Goldilocks as F, PrimeCharacteristicRing};
+use nightstream::{Fq as F, PrimeCharacteristicRing};
 
 const ONE: usize = 0;
 const BEFORE: usize = 1;

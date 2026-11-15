@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Folding.Light.RlcModule
 /-! The light Π_RLC public input `x = x_running + ρ · x_fresh` under the coefficient embedding
 (Cyclo, ePrint 2026/359, Figure 3, step 6, on SuperNeo v1.2 Section 7.4, verifier Step 1) as one
 `CombinationStep` over the five public ring columns, with the running public input as the prior:
-5 × 54 = 270 rows, against 4,590 for today's 17-source combination
+5 × 64 = 320 rows, against 4,800 for today's 15-source combination
 (`PublicInputCombination.logicalRowCount_eq`). `output_eq` gives the public
 input of `Light.Rlc.output` for the production light key. -/
 
@@ -13,7 +13,7 @@ namespace NightstreamFPrime.Lifecycle.BoundedDepth.LightPublicInput
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
-open NightstreamFPrime.Spec.Phi81Relation
+open NightstreamFPrime.Spec.RingRelation
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiRLC.v1_2
@@ -25,11 +25,11 @@ abbrev cellCount : Nat := 1
 def cell : Fin cellCount := ⟨0, by decide⟩
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 structure Interface (logicalWidth : Nat)
     (publicFits :
-      ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) where
+      ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) where
   challenge : Nat → Fin ringDegree → Expr
   running : Nat → Fin (FullShape logicalWidth publicFits).publicWidth → Expr
   fresh : Nat → Fin (FullShape logicalWidth publicFits).publicWidth → Expr
@@ -63,7 +63,7 @@ def evalFresh (interface : Interface logicalWidth publicFits) (offset : Nat) (en
     PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   fun column => (interface.fresh offset column).eval env
 
-theorem rowCount : CombinationStep.privateCount blockCount cellCount = 270 := by
+theorem rowCount : CombinationStep.privateCount blockCount cellCount = 320 := by
   norm_num [CombinationStep.privateCount, publicRingColumns, ringDegree]
 
 /-- The rows compute `x_running + ρ · x_fresh`. -/
@@ -101,12 +101,12 @@ theorem output_eq (relation : ProductionKey.LogicalRelation logicalWidth publicF
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env)
     (spec : CombinationStep.SpecHolds (stepInterface interface) offset env)
     (system : StrongReduction.RelationSource BoundedDepth.LightShape
-      (Phi81CarrierLayout.carrierWidth logicalWidth)
-      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth)))
+      (RingCarrierLayout.carrierWidth logicalWidth)
+      (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth)))
     (point : CubePoint K BoundedDepth.LightShape.cubeVariables)
     (fresh running : CE.Instance (StrongReduction.RelationSource BoundedDepth.LightShape
-      (Phi81CarrierLayout.carrierWidth logicalWidth)
-      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth)))
+      (RingCarrierLayout.carrierWidth logicalWidth)
+      (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth)))
       (PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       (CubePoint K BoundedDepth.LightShape.cubeVariables)
       (StrongReduction.EvaluationFamily K BoundedDepth.LightShape) PaperAlgebra.Commitment)

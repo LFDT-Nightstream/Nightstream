@@ -3,7 +3,7 @@ import NightstreamFPrime.Gadgets.Sampling.WideReduction.HintSupport
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.HintCertificate
 
 /-! The sequential helper program constructs the integer reference values
-from the four input fields, using only the existing hint meanings. -/
+from the five input fields, using only the existing hint meanings. -/
 
 namespace NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperExecution
 
@@ -32,7 +32,7 @@ theorem source_bits (interface : Interface) (base : Env) (start : Nat)
         (HelperValues.below base start _)
 
 theorem limb (base : Env) (start : Nat) (draw : Draw) (position : Nat)
-    (bound : position < 16) :
+    (bound : position < 20) :
     Valid (HelperValues.environment base start draw) (HintProgram.limbStart start position)
       (HintProgram.limbHints start position) := by
   unfold HintProgram.limbHints
@@ -57,14 +57,14 @@ theorem limb (base : Env) (start : Nat) (draw : Draw) (position : Nat)
       exact HelperValues.accumulator base start draw position bound
 
 theorem division_pair (base : Env) (start : Nat) (draw : Draw) (round position : Nat)
-    (roundBound : round < 54) (positionBound : position < 5) :
+    (roundBound : round < 64) (positionBound : position < 6) :
     Valid (HelperValues.environment base start draw) (HintProgram.divisionColumn start round position)
       [.quotientFive (HintProgram.divisionInput start round position),
         .remainderFive (HintProgram.divisionInput start round position)] := by
   have source := HintSupport.divisionInput_below start round position
   have meaning := HelperExpressions.division_input base start draw round position roundBound positionBound
-  have bound := HintValues.division_source_bound ((drawIndex draw).val / 5 ^ round) (4 - position)
-  have step := HintValues.division_step ((drawIndex draw).val / 5 ^ round) (4 - position)
+  have bound := HintValues.division_source_bound ((drawIndex draw).val / 5 ^ round) (5 - position)
+  have step := HintValues.division_step ((drawIndex draw).val / 5 ^ round) (5 - position)
   refine ⟨source, ?_, Expr.VarsBelow.mono _ source (by omega), ?_, trivial⟩
   · rw [(HelperValues.division base start draw round position roundBound positionBound).1,
       WitnessArithmetic.quotient_hint _ _ _ bound meaning, step.1]
@@ -75,7 +75,7 @@ theorem division_pair (base : Env) (start : Nat) (draw : Draw) (round position :
     rfl
 
 theorem division_round (base : Env) (start : Nat) (draw : Draw) (round : Nat)
-    (bound : round < 54) :
+    (bound : round < 64) :
     Valid (HelperValues.environment base start draw)
       (HintProgram.divisionStart start + round * HintProgram.divisionStride)
       (HintProgram.divisionHints start round) := by

@@ -1,10 +1,11 @@
 //! Nightstream F-prime's verifier-owned indexed Ajtai setup.
 //!
 //! This module owns the Rust implementation of
-//! `nightstream-ajtai-shake128-wide256-v1`. Key element `(row, block)` is
-//! SHAKE128 of `setup ID ‖ seed ‖ row_u32_le ‖ block_u64_le`; lane `L` is
-//! output bytes `32L..32L + 32`, reduced modulo `q` as one
-//! little-endian integer. Lean owns its semantics and authority framing.
+//! `nightstream-ajtai-shake128-reject64-v1`. Key element `(row, block)` is
+//! SHAKE128 of `setup ID ‖ seed ‖ row_u32_le ‖ block_u64_le`, read as 84
+//! little-endian 64-bit words. Coefficient `L` is the `L`-th word below `q`,
+//! and 0 when fewer than `L + 1` words are below `q`. Lean owns its
+//! semantics and authority framing.
 
 use std::{borrow::Borrow, ops::Range};
 
@@ -12,15 +13,16 @@ mod key;
 
 #[doc(hidden)]
 pub use key::expanded_key_bytes;
+pub use key::{kept_coefficients, KEY_WORDS};
 
 use neo_ccs::Mat;
 use neo_math::{
     balanced::to_balanced_i128,
     ring::D,
-    signed_sums::{wide256_halves, SignedShiftSums, LIMB_BOUND, MAX_TERMS},
+    signed_sums::{SignedShiftSums, LIMB_BOUND, MAX_TERMS},
     Fq,
 };
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeCharacteristicRing;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 use sha3::{
@@ -30,8 +32,10 @@ use sha3::{
 
 use crate::{AjtaiError, AjtaiResult, Commitment};
 
-pub const SETUP_ID: &[u8] = b"nightstream-ajtai-shake128-wide256-v1";
+pub const SETUP_ID: &[u8] = b"nightstream-ajtai-shake128-reject64-v1";
 pub const ELEMENT_INPUT_BYTES: usize = SETUP_ID.len() + 32 + 4 + 8;
+/// The SHAKE128 output bytes that one key element reads.
+pub const ELEMENT_OUTPUT_BYTES: usize = 8 * KEY_WORDS;
 /// The commitment rows κ of the selected parameter profile.
 pub const PRODUCTION_VERIFIER_ROWS: u64 = neo_params::nightstream_p64_k14::KAPPA as u64;
 /// Lean `Poseidon2HashChainV1Setup.messageColumns_eq`: `blockCount` of the logical width
@@ -65,21 +69,17 @@ pub fn element_input(seed: &[u8; 32], row: u32, block: u64) -> [u8; ELEMENT_INPU
     input
 }
 
-pub fn element_bytes(seed: &[u8; 32], row: u32, block: u64) -> [u8; 32 * D] {
+pub fn element_bytes(seed: &[u8; 32], row: u32, block: u64) -> [u8; ELEMENT_OUTPUT_BYTES] {
     let mut xof = Shake128::default();
     xof.update(&element_input(seed, row, block));
-    let mut bytes = [0_u8; 32 * D];
+    let mut bytes = [0_u8; ELEMENT_OUTPUT_BYTES];
     key::count_expanded(bytes.len());
     xof.finalize_xof().read(&mut bytes);
     bytes
 }
 
 pub fn coefficient(seed: &[u8; 32], row: u32, block: u64, lane: u32) -> u64 {
-    let bytes = element_bytes(seed, row, block);
-    let chunk = &bytes[32 * lane as usize..32 * (lane as usize + 1)];
-    chunk.iter().rev().fold(0_u128, |value, byte| {
-        (value * 256 + u128::from(*byte)) % u128::from(Fq::ORDER_U64)
-    }) as u64
+    coefficient_block(seed, row, block)[lane as usize]
 }
 
 /// Key elements `(row, columns[0])` and `(row, columns[1])` of the production key. Each is
@@ -90,18 +90,13 @@ pub fn production_key_pair(row: u32, columns: [u64; 2]) -> [[u64; D]; 2] {
 
 pub fn coefficient_block(seed: &[u8; 32], row: u32, block: u64) -> [u64; D] {
     let bytes = element_bytes(seed, row, block);
-    core::array::from_fn(|lane| {
-        reduce_words(core::array::from_fn(|word| {
-            let start = 32 * lane + 4 * word;
-            u32::from_le_bytes(bytes[start..start + 4].try_into().expect("four-byte word"))
-        }))
-    })
-}
-
-#[inline(always)]
-fn reduce_words(words: [u32; 8]) -> u64 {
-    let (a, b) = wide256_halves(words);
-    (Fq::from_u64(a) + Fq::from_u64(b) * Fq::from_u64(1_u64 << 32)).as_canonical_u64()
+    kept_coefficients(&core::array::from_fn(|word| {
+        u64::from_le_bytes(
+            bytes[8 * word..8 * word + 8]
+                .try_into()
+                .expect("eight-byte word"),
+        )
+    }))
 }
 
 pub struct SignedBlock {

@@ -18,8 +18,8 @@ theorem verifierKey_prefix {rows smallColumns largeColumns : Nat}
     small.verifierKey row block = large.verifierKey row (Fin.castLE fits block) := by
   funext lane
   apply Fin.ext
-  change wideCoefficientNat small.seed.bytes row.val block.val lane.val =
-    wideCoefficientNat large.seed.bytes row.val block.val lane.val
+  change elementCoefficientNat small.seed.bytes row.val block.val lane.val =
+    elementCoefficientNat large.seed.bytes row.val block.val lane.val
   rw [sameSeed]
 
 def zeroExtend {Value : Type*} [Zero Value] {smallWidth largeWidth : Nat}

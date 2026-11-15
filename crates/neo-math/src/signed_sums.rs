@@ -4,21 +4,10 @@
 
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use crate::{field::FOLD, ring::D, F};
-
-/// `2^(64·i) mod q` for the four 64-bit words of a 256-bit integer.
-const WORD_WEIGHTS: [u64; 4] = [1, FOLD, FOLD * FOLD, FOLD * FOLD * FOLD];
-const WEIGHT_SUM: u64 = WORD_WEIGHTS[0] + WORD_WEIGHTS[1] + WORD_WEIGHTS[2] + WORD_WEIGHTS[3];
+use crate::{ring::D, F};
 
 /// Each limb of a `SplitRing` is in `[0, LIMB_BOUND)`.
-///
-/// `SplitRing::new` gives limbs below `2^32`. In `from_wide256`, each half
-/// is at most `WEIGHT_SUM·(2^32 − 1)`. The carry of the low half into the
-/// high half is then at most `WEIGHT_SUM − 1`, so the high half stays below
-/// `WEIGHT_SUM·2^32` and its own carry is at most `WEIGHT_SUM − 1`. That
-/// carry has weight `2^64 ≡ 59`, so the low limb is below
-/// `2^32 + 59·WEIGHT_SUM`.
-pub const LIMB_BOUND: u128 = (1 << 32) + (FOLD * WEIGHT_SUM) as u128;
+pub const LIMB_BOUND: u128 = 1 << 32;
 /// The most terms that one `SignedShiftSums` holds exactly.
 pub const MAX_TERMS: u64 = 1 << 24;
 
@@ -27,22 +16,6 @@ const _: () = assert!((D as u128) * LIMB_BOUND * (MAX_TERMS as u128) < (1u128 <<
 /// A `u64` mask has one bit for each coefficient.
 const _: () = assert!(D == u64::BITS as usize);
 
-/// Two integers `(a, b)` with `a + b·2^32` congruent modulo `q` to the
-/// little-endian 256-bit integer `words`. Each is at most
-/// `WEIGHT_SUM·(2^32 − 1)`, which is below `2^50`.
-#[inline(always)]
-pub fn wide256_halves(words: [u32; 8]) -> (u64, u64) {
-    WORD_WEIGHTS
-        .iter()
-        .enumerate()
-        .fold((0, 0), |(low, high), (word, weight)| {
-            (
-                low + weight * u64::from(words[2 * word]),
-                high + weight * u64::from(words[2 * word + 1]),
-            )
-        })
-}
-
 pub struct SplitRing {
     low: [i64; D],
     high: [i64; D],
@@ -50,23 +23,15 @@ pub struct SplitRing {
 
 impl SplitRing {
     pub fn new(coefficients: &[F; D]) -> Self {
-        let canonical = coefficients.map(|value| value.as_canonical_u64());
-        Self {
-            low: canonical.map(|value| (value & 0xffff_ffff) as i64),
-            high: canonical.map(|value| (value >> 32) as i64),
-        }
+        Self::from_u64(&coefficients.map(|value| value.as_canonical_u64()))
     }
 
-    pub fn from_wide256(coefficients: [[u32; 8]; D]) -> Self {
-        let mut low = [0i64; D];
-        let mut high = [0i64; D];
-        for (lane, words) in coefficients.into_iter().enumerate() {
-            let (a, b) = wide256_halves(words);
-            let b = b + (a >> 32);
-            low[lane] = ((a & 0xffff_ffff) + FOLD * (b >> 32)) as i64;
-            high[lane] = (b & 0xffff_ffff) as i64;
+    /// The ring element with these integer coefficients: each limb is 32 bits of one.
+    pub fn from_u64(coefficients: &[u64; D]) -> Self {
+        Self {
+            low: coefficients.map(|value| (value & 0xffff_ffff) as i64),
+            high: coefficients.map(|value| (value >> 32) as i64),
         }
-        Self { low, high }
     }
 }
 

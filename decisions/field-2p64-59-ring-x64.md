@@ -111,7 +111,9 @@ This decision supersedes the rank `κ = 22` and the field of
 [`fprime-stage1-main-ajtai-setup.md`](./fprime-stage1-main-ajtai-setup.md).
 The SHAKE128 setup rules of
 [`fprime-ajtai-shake128-setup.md`](./fprime-ajtai-shake128-setup.md) stay in
-force with the new modulus.
+force with the new modulus. On 2026-11-14,
+[`fprime-ajtai-rejection-sampling.md`](./fprime-ajtai-rejection-sampling.md)
+replaced the wide reduction of those rules.
 
 It does not change `b = 2`, the `2^28` domain, the selected application, or
 the recursion.

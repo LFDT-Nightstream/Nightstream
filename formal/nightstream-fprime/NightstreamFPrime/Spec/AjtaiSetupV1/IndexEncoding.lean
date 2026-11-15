@@ -12,7 +12,7 @@ theorem littleEndianBytes_mod (count left right : Nat)
       rw [Nat.pow_succ', Nat.mod_mul, Nat.mod_mul, same.1, ih _ _ same.2]
 
 theorem elementInput_length (seed : Seed) (row block : Nat) :
-    (elementInput seed.bytes row block).length = 81 := by
+    (elementInput seed.bytes row block).length = 82 := by
   simp [elementInput, seed.length_eq]
 
 theorem elementInput_injective (left right : Seed)
@@ -39,9 +39,5 @@ theorem elementInput_injective (left right : Seed)
   cases right
   cases seedBytes
   rfl
-
-theorem elementLanes_length (seed : List Nat) (row block : Nat) :
-    (elementLanes seed row block).length = 4 * ringDegree :=
-  Shake128.lanes_length _ _
 
 end NightstreamFPrime.Spec.AjtaiSetupV1

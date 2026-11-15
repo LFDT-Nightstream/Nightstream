@@ -7,6 +7,8 @@ Accepted by the owner on 2026-09-29. It supersedes only the expander rules of
 
 Changed on 2026-11-13: [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) keeps these setup rules and replaces the Goldilocks prime with `q = 2^64 − 59`.
 
+Superseded in part on 2026-11-14: [`fprime-ajtai-rejection-sampling.md`](./fprime-ajtai-rejection-sampling.md) replaces the setup ID, the 256-bit wide reduction and the rule "no rejection, fallback" of this record with 8-byte rejection sampling and a fallback. The seed, the input layout and the premises stay in force.
+
 ## Problem
 
 The seed is public, so anyone can compute the key. Pseudorandomness of the

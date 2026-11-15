@@ -82,50 +82,36 @@ inline void production_keccak_f(thread ulong *st) {
     for (uint round = 0; round < 24; ++round) production_keccak_round(st, PRODUCTION_KECCAK_RC[round]);
 }
 
-static_assert(FQ_FOLD < (1ul << 10), "the half sums of a 256-bit chunk stay below 2^64");
+// One key element reads four blocks of the SHAKE128 rate: 84 words (Lean `AjtaiSetupV1.keyWords`).
+constant uint PRODUCTION_KEY_BLOCKS = 4;
 
-// The field value of the 256-bit integer with 64-bit words q0..q3, as
-// `neo_math::signed_sums::wide256_halves` reduces it: word `i` weighs
-// FQ_FOLD^i, and the low and high 32-bit halves of the words sum apart.
-inline ulong production_wide_coefficient(ulong q0, ulong q1, ulong q2, ulong q3) {
-    const ulong w1 = FQ_FOLD;
-    const ulong w2 = w1 * FQ_FOLD;
-    const ulong w3 = w2 * FQ_FOLD;
-    ulong a = (q0 & LIMB_MASK) + w1 * (q1 & LIMB_MASK) + w2 * (q2 & LIMB_MASK) + w3 * (q3 & LIMB_MASK);
-    ulong b = (q0 >> 32) + w1 * (q1 >> 32) + w2 * (q2 >> 32) + w3 * (q3 >> 32);
-    ulong lo = a + (b << 32);
-    return fq_reduce_wide(WideProduct{lo, (b >> 32) + (lo < a)});
-}
-
-// Input: SHAKE128(setup ID ‖ seed ‖ row_u32_le ‖ column_u64_le), 81 bytes. `prefix` holds bytes 0..68.
+// Input: SHAKE128(setup ID ‖ seed ‖ row_u32_le ‖ column_u64_le), 82 bytes. `prefix` holds the 70
+// bytes of the setup ID and the seed.
+// Coefficient L is the L-th output word below q, and 0 when fewer than L + 1 words are below q
+// (Lean `AjtaiSetupV1.keptCoefficientNat`).
 inline void production_ajtai_element(
     device const ulong *prefix, uint row, ulong column, device ulong *out, ulong stride) {
     ulong st[25];
     for (uint i = 0; i < 25; ++i) st[i] = 0;
     for (uint i = 0; i < 9; ++i) st[i] = prefix[i];
-    st[8] |= ((ulong)row & 0xFFFFFFul) << 40;
-    st[9] = ((ulong)row >> 24) | (column << 8);
-    // Byte 80 is the last column byte; byte 81 starts the SHAKE padding.
-    st[10] = (column >> 56) | (0x1Ful << 8);
+    st[8] |= ((ulong)row & 0xFFFFul) << 48;
+    st[9] = ((ulong)row >> 16) | (column << 16);
+    // Byte 81 is the last column byte; byte 82 starts the SHAKE padding.
+    st[10] = (column >> 48) | (0x1Ful << 16);
     st[PRODUCTION_SHAKE128_RATE_LANES - 1] ^= 0x80ul << 56;
-    // The last four lanes shift through q0..q3, so every state index stays fixed.
-    ulong q0 = 0, q1 = 0, q2 = 0, q3 = 0;
-    uint words = 0, lane = 0;
-    for (;;) {
+    uint kept = 0;
+    for (uint block = 0; block < PRODUCTION_KEY_BLOCKS; ++block) {
         production_keccak_f(st);
         #pragma unroll
         for (uint i = 0; i < PRODUCTION_SHAKE128_RATE_LANES; ++i) {
-            q0 = q1;
-            q1 = q2;
-            q2 = q3;
-            q3 = st[i];
-            if (++words == 4) {
-                out[lane * stride] = production_wide_coefficient(q0, q1, q2, q3);
-                words = 0;
-                if (++lane == RING_DEGREE) return;
+            ulong word = st[i];
+            if (kept < RING_DEGREE && word < FQ_MODULUS) {
+                out[kept * stride] = word;
+                ++kept;
             }
         }
     }
+    for (; kept < RING_DEGREE; ++kept) out[kept * stride] = 0;
 }
 
 kernel void production_key_row(

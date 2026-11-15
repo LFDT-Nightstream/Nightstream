@@ -5,10 +5,10 @@ import NightstreamFPrime.Spec.AjtaiSetupV1
 namespace NightstreamFPrime.Export.Stage1.AjtaiSetupV1Parity
 
 open NightstreamFPrime.Export.Codec
-open NightstreamFPrime.Spec (ringDegree)
+open NightstreamFPrime.Spec (fieldModulus ringDegree)
 open NightstreamFPrime.Spec.AjtaiSetupV1
 
-def schema : Nat := 4
+def schema : Nat := 5
 
 def testSeedBytes : List Nat := List.range 32
 
@@ -25,7 +25,25 @@ def natListValue (values : List Nat) : Value :=
 
 def coordinateValue (seed : Seed) (row block lane : Nat) : Value :=
   .array [.atom row, .atom block, .atom lane,
-    .atom (wideCoefficientNat seed.bytes row block lane)]
+    .atom (elementCoefficientNat seed.bytes row block lane)]
+
+/-- Streams of `keyWords` words for the sampler `keptCoefficientNat`. No index of the production
+key gives a rejected word in practice (59 of the `2^64` words), so these words are synthetic:
+one rejected word; alternate kept and rejected words, so the fallback gives the last
+coefficients; 20 rejected words, so the last word is the last coefficient; 21 rejected words, so
+the fallback gives one coefficient; each word rejected; the words next to `q`. -/
+def samplerStreams : List (List Nat) :=
+  ([fun word => if word = 0 then fieldModulus else word,
+    fun word => if word % 2 = 0 then fieldModulus - 1 - word else fieldModulus + word % 59,
+    fun word => if word < 20 then 2 ^ 64 - 1 - word else 1000 + word,
+    fun word => if word % 4 = 3 then fieldModulus + word % 59 else fieldModulus - 1 - word,
+    fun _ => 2 ^ 64 - 1,
+    fun word => fieldModulus - 2 + word % 4] : List (Nat → Nat)).map
+    fun stream => (List.range keyWords).map stream
+
+def samplerValue (words : List Nat) : Value :=
+  .array [natListValue words,
+    natListValue ((List.range ringDegree).map (keptCoefficientNat words))]
 
 /-- Entry 3 is the FIPS 202 SHAKE128 example for the empty message. -/
 def parityValue : Value :=
@@ -46,6 +64,7 @@ def parityValue : Value :=
     natListValue Poseidon2HashChainV1SetupAuthority.authorityNats,
     natListValue (Shake128.bytes
       (elementInput Poseidon2HashChainV1SetupAuthority.productionSeed.bytes 1 32768)
-      (32 * ringDegree))]
+      (8 * keyWords)),
+    .array (samplerStreams.map samplerValue)]
 
 end NightstreamFPrime.Export.Stage1.AjtaiSetupV1Parity

@@ -22,7 +22,7 @@ def productionSeed : AjtaiSetupV1.Seed where
     omega
 
 def authorityNats : List Nat :=
-  [37] ++ AjtaiSetupV1.setupIdBytes ++
+  [38] ++ AjtaiSetupV1.setupIdBytes ++
     [verifierRows, messageColumns, 32] ++ productionSeedBytes
 
 end NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1SetupAuthority

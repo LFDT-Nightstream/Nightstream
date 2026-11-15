@@ -18,7 +18,10 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Prefix.verifierKey_prefix
 #audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Prefix.commit_zeroExtend
 #audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Prefix.extendShortKernel
-#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.wideCoefficientNat_lt
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.keptCoefficientNat_of_kept
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.keptCoefficientNat_fallback
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.keptCoefficientNat_lt
+#audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.elementCoefficientNat_lt
 #audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Setup.coefficientNat_lt
 #audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Setup.authorityNats_length
 #audit_axioms NightstreamFPrime.Spec.AjtaiSetupV1.Setup.authorityWords_length

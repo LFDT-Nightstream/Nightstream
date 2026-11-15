@@ -50,7 +50,7 @@ def authorityWords (setup : Setup) : List F :=
   PerApplicationCanonicalPackage.commitmentKeyWords setup
 
 @[simp] theorem authorityWords_length (setup : Setup) :
-    (authorityWords setup).length = 73 := by
+    (authorityWords setup).length = 74 := by
   exact setup.authorityWords_length
 
 theorem authorityWords_injective : Function.Injective authorityWords := by
@@ -101,7 +101,7 @@ def productionAjtaiKey := ajtaiKey productionSetup
 def productionAuthorityWords : List F := authorityWords productionSetup
 
 @[simp] theorem productionAuthorityWords_length :
-    productionAuthorityWords.length = 73 := by
+    productionAuthorityWords.length = 74 := by
   exact authorityWords_length productionSetup
 
 def directProductionAuthorityNats : List Nat :=

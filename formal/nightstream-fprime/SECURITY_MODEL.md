@@ -72,7 +72,7 @@ scope note.
   (`Spec.Sponge.blocks_ne_of_differ`).
 - `KECCAK`: SHAKE128, SHAKE256, SHA3-256 and the Keccak-f duplex of Akita in
   the classical random-oracle model: the Ajtai setup reads SHAKE128 output
-  chunks as uniform words (trust item 1), and Akita reads its challenges as
+  as uniform 64-bit words (trust item 1), and Akita reads its challenges as
   uniform (trust item 7). The owner accepted this hash family for Akita on
   2026-11-13 (`decisions/akita-compression.md`).
 - `MSIS`: Module-SIS for a uniform matrix of `κ = 18` rows over
@@ -351,7 +351,7 @@ not change terminal source checks.
   `Spec.Sponge.collision_blocks`).
   Averaged over the SHAKE128 key setup at key width `2^26`, the kernel term is
   an MSIS advantage for a uniform matrix at the chain norm plus a programming
-  error below `2^−192`, so each fold's bound uses only the two algorithms
+  error below `2^−1129`, so each fold's bound uses only the two algorithms
   (`Export.BoundedDepth.RandomOracleSetup.light_production_knowledge_error_lt_solvers`,
   `Export.BoundedDepth.RandomOracleSetup.refresh_production_knowledge_error_lt_solvers`).
   Lean bounds neither the MSIS advantage nor the collision advantage
@@ -627,13 +627,26 @@ not change terminal source checks.
 
 ## What you trust
 
-1. **The Ajtai setup [KECCAK] (premise P1).** Each key coefficient is one
-   SHAKE128 output chunk reduced modulo `q`
-   (`Spec.AjtaiSetupV1.Programming.verifierKey_eq`). With uniform chunks, an
+1. **The Ajtai setup [KECCAK] (premise P1).** Each key element reads one
+   stream of 84 SHAKE128 output words of 64 bits. A word below `q` is kept, a
+   word of `q` or more is rejected, and coefficient `h` is kept word `h`, or
+   0 when fewer than `h + 1` words are kept (the fallback)
+   (`Spec.AjtaiSetupV1.Programming.verifierKey_eq`). The experiment is one
+   uniform stream. Each ring element is the element of the same number of
+   streams that take no fallback (`Spec.AjtaiSetupV1.Rejection.card_element`),
+   so the element is exactly uniform outside the fallback event. The event is
+   that 21 or more of the 84 words are rejected, and its probability for one
+   element is at most `fallbackBound = C(84, 21) · 59^21/2^1344`, below
+   `2^−1155` (`Spec.AjtaiSetupV1.Rejection.card_fallback_le`,
+   `Spec.AjtaiSetupV1.Rejection.fallbackBound_lt`). With uniform streams, an
    event has at most its probability under a uniform matrix, plus
-   `2 · 59^4/2^256` for each coefficient
-   (`Spec.AjtaiSetupV1.Programming.expect_le_programmed`), so MSIS for a
-   uniform matrix applies (`decisions/fprime-ajtai-shake128-setup.md`,
+   `2 · fallbackBound` for each key element
+   (`Spec.AjtaiSetupV1.Programming.element_bias_le`,
+   `Spec.AjtaiSetupV1.Programming.expect_le_programmed`). For the
+   `18 · 2^20` elements of the bounded-depth key the sum is below `2^−1129`
+   (`Export.BoundedDepth.RandomOracleSetup.programmingError_lt`). So MSIS for
+   a uniform matrix applies (`decisions/fprime-ajtai-shake128-setup.md`,
+   `decisions/fprime-ajtai-rejection-sampling.md`,
    `decisions/fprime-ajtai-shake128-security-argument.md`). The seed is
    fixed and public, so an adversary that is precomputed for that seed is
    outside this premise. Lean does not join this step to the results above.

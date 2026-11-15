@@ -1,10 +1,10 @@
 //! Lean/Rust parity for the Nightstream F-prime indexed Ajtai setup.
 
 use neo_ajtai::nightstream_fprime_setup::{
-    authority_words, coefficient, element_bytes, element_input, production_authority_words, PRODUCTION_MESSAGE_COLUMNS,
-    PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS, SETUP_ID,
+    authority_words, coefficient, element_bytes, element_input, kept_coefficients, production_authority_words,
+    KEY_WORDS, PRODUCTION_MESSAGE_COLUMNS, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS, SETUP_ID,
 };
-use neo_math::D;
+use neo_math::{field::Q, D};
 use serde_json::Value;
 use sha3::{
     digest::{ExtendableOutput, XofReader},
@@ -52,8 +52,8 @@ fn external_lean_setup_vectors_match_current_rust() {
 fn check_lean_setup_fixture(bytes: &[u8]) {
     let fixture: Value = serde_json::from_slice(bytes).expect("decode Lean setup fixture");
     let root = array(&fixture);
-    assert_eq!(root.len(), 8);
-    assert_eq!(nat(&root[0]), 4, "setup fixture schema");
+    assert_eq!(root.len(), 9);
+    assert_eq!(nat(&root[0]), 5, "setup fixture schema");
     assert_eq!(
         nat_list(&root[1]),
         SETUP_ID.iter().copied().map(u64::from).collect::<Vec<_>>()
@@ -104,11 +104,32 @@ fn check_lean_setup_fixture(bytes: &[u8]) {
         assert_eq!(nat(&entry[3]), coefficient(&PRODUCTION_SEED, row, block, lane));
     }
     assert_eq!(nat_list(&root[6]), production_authority_words());
-    assert_eq!(production_authority_words().len(), 73);
+    assert_eq!(production_authority_words().len(), 74);
 
     assert_eq!(
         nat_list(&root[7]),
         element_bytes(&PRODUCTION_SEED, 1, 32_768).map(u64::from)
+    );
+
+    // Lean's sampler on streams with rejected words, which no index of the
+    // production key gives in practice: 59 of the 2^64 words are rejected.
+    let streams = array(&root[8]);
+    let mut rejected = 0;
+    let mut fallbacks = 0;
+    for stream in streams {
+        let stream = array(stream);
+        assert_eq!(stream.len(), 2);
+        let words: [u64; KEY_WORDS] = nat_list(&stream[0])
+            .try_into()
+            .expect("one stream of key words");
+        assert_eq!(nat_list(&stream[1]), kept_coefficients(&words));
+        let kept = words.iter().filter(|&&word| word < Q).count();
+        rejected += KEY_WORDS - kept;
+        fallbacks += usize::from(kept < D);
+    }
+    assert!(
+        rejected > 0 && fallbacks > 0,
+        "the fixture exercises rejection and the fallback"
     );
 
     let mut changed_seed = test_seed();

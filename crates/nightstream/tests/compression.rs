@@ -9,15 +9,15 @@
 mod bounded_depth_support;
 
 use bounded_depth_support::fold_gate_bits;
-use neo_ajtai::nightstream_fprime_setup::expanded_key_bytes;
+use neo_ajtai::nightstream_fprime_setup::{expanded_key_bytes, ELEMENT_OUTPUT_BYTES};
 use neo_math::F;
 use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1};
 use nightstream::{Circuit, FinalProof};
 use nightstream::{Engine, PrimeCharacteristicRing, State};
 
-/// The 18 rows of 2^19 blocks of the Ajtai key, 2,048 bytes of SHAKE128
-/// output for each key element.
-const KEY_BYTES: u64 = 18 * (1 << 19) * 2048;
+/// The 18 rows of 2^19 blocks of the Ajtai key, with the SHAKE128 output
+/// bytes of each key element.
+const KEY_BYTES: u64 = 18 * (1 << 19) * ELEMENT_OUTPUT_BYTES as u64;
 
 fn circuit() -> Circuit {
     Circuit::compile(poseidon2_hash_chain_v1().expect("hash chain")).expect("bounded-depth circuit")

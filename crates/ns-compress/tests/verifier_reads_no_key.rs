@@ -6,21 +6,21 @@
 
 mod support;
 
-use neo_ajtai::nightstream_fprime_setup::expanded_key_bytes;
+use neo_ajtai::nightstream_fprime_setup::{expanded_key_bytes, ELEMENT_OUTPUT_BYTES};
 use neo_math::K;
 use neo_transcript::Poseidon2Transcript;
 use ns_compress::{commit, verify, Layout, ProverKey, VerificationKey};
 use p3_field::PrimeCharacteristicRing;
 use support::{instances, statements};
 
-/// The setup expands each of the 18 rows of 512 blocks once, 2,048 bytes of
-/// SHAKE128 output each. The verifier accepts the proof and rejects changed
+/// The setup expands each of the 18 rows of 512 blocks once, with the
+/// SHAKE128 output bytes of each key element. The verifier accepts the proof and rejects changed
 /// proofs with the count where it was.
 #[test]
 fn the_verifier_expands_no_key_element() {
     let before = expanded_key_bytes();
     let key = ProverKey::new(100).expect("key");
-    assert_eq!(expanded_key_bytes() - before, 18 * 512 * 2048);
+    assert_eq!(expanded_key_bytes() - before, 18 * 512 * ELEMENT_OUTPUT_BYTES as u64);
 
     let instances = instances();
     let claims: Vec<_> = instances

@@ -72,8 +72,8 @@ theorem verifierKey_eq_of_authorityWords {rows columns : Nat}
     rowsBound columnsBound rowsBound columnsBound).mp sameWords).2.2
   funext row block lane
   apply Fin.ext
-  change wideCoefficientNat left.seed.bytes row.val block.val lane.val =
-    wideCoefficientNat right.seed.bytes row.val block.val lane.val
+  change elementCoefficientNat left.seed.bytes row.val block.val lane.val =
+    elementCoefficientNat right.seed.bytes row.val block.val lane.val
   rw [sameSeed]
 
 end NightstreamFPrime.Spec.AjtaiSetupV1.Setup

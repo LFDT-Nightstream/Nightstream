@@ -1,6 +1,7 @@
 use super::{coefficient_pair, expanded_key_bytes, split_pair};
 use crate::nightstream_fprime_setup::{
-    coefficient_block, production_key_pair, MAX_MESSAGE_COLUMNS, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS,
+    coefficient_block, production_key_pair, ELEMENT_OUTPUT_BYTES, MAX_MESSAGE_COLUMNS, PRODUCTION_SEED,
+    PRODUCTION_VERIFIER_ROWS,
 };
 use neo_math::{signed_sums::SignedShiftSums, F};
 use p3_field::PrimeCharacteristicRing;
@@ -30,12 +31,12 @@ fn paired_key_coefficients_match_independent_shake128() {
     }
 }
 
-/// Each path to a key element adds the 2,048 output bytes of the element,
-/// from each thread. Other tests of this binary expand elements too, so the
+/// Each path to a key element adds the output bytes of the element, from
+/// each thread. Other tests of this binary expand elements too, so the
 /// count has a lower bound only.
 #[test]
 fn each_expansion_adds_its_output_bytes_to_the_count() {
-    const ELEMENT_BYTES: u64 = 2048;
+    const ELEMENT_BYTES: u64 = ELEMENT_OUTPUT_BYTES as u64;
     let before = expanded_key_bytes();
     coefficient_block(&PRODUCTION_SEED, 0, 0);
     assert!(expanded_key_bytes() - before >= ELEMENT_BYTES);

@@ -20,6 +20,9 @@ On 2026-09-29, [`fprime-ajtai-shake128-setup.md`](./fprime-ajtai-shake128-setup.
 superseded the ChaCha20 expander rules below. The rank, seed and wide
 reduction stay in force.
 
+On 2026-11-14, [`fprime-ajtai-rejection-sampling.md`](./fprime-ajtai-rejection-sampling.md)
+superseded the wide reduction with 8-byte rejection sampling and a fallback.
+
 ## Problem
 
 The prior main commitment rank was `κ = 18`. At the concrete

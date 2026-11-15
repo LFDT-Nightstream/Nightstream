@@ -1,9 +1,8 @@
 use neo_math::{
-    signed_sums::{wide256_halves, SignedShiftSums, SplitRing, LIMB_BOUND},
+    signed_sums::{SignedShiftSums, SplitRing},
     Fq, Rq, D,
 };
-use num_bigint::BigUint;
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeCharacteristicRing;
 
 fn element(seed: u64) -> [Fq; D] {
     let mut x = seed;
@@ -63,93 +62,5 @@ fn repeated_negative_terms_stay_exact() {
     }
     let product = Rq(coefficients).mul(&signed_unit(0, u64::MAX));
     let expected: [Fq; D] = core::array::from_fn(|lane| product.0[lane] * Fq::from_u64(10_000));
-    assert_eq!(sums.reduce(), expected);
-}
-
-#[test]
-fn wide_integer_limbs_match_division_and_signed_ring_products() {
-    let mut random = 0x1234_5678_9abc_def0u64;
-    let mut actual = SignedShiftSums::zero();
-    let mut expected = Rq::zero();
-    for case in 0..128 {
-        let words: [[u32; 8]; D] = core::array::from_fn(|lane| match (case + lane) % 12 {
-            0 => [0; 8],
-            1 => [u32::MAX; 8],
-            2 => [1, u32::MAX, 0, 0, 0, 0, 0, 0],
-            3 => [2, u32::MAX, 0, 0, 0, 0, 0, 0],
-            4 => [0, 0, 0, 1, 0, 0, 0, 0],
-            5 => [0, 0, 0, 0, 0, 1, 0, 0],
-            _ => core::array::from_fn(|_| {
-                random = random.wrapping_mul(6364136223846793005).wrapping_add(1);
-                (random >> 32) as u32
-            }),
-        });
-        let coefficients = words.map(|words| {
-            Fq::from_u64(words.iter().rev().fold(0u128, |value, &word| {
-                ((value << 32) + u128::from(word)) % u128::from(Fq::ORDER_U64)
-            }) as u64)
-        });
-        let positive = random.rotate_left(17);
-        let negative = !positive;
-        actual.add_signed_units(&SplitRing::from_wide256(words), positive, negative);
-        actual.add_signed_units(&SplitRing::from_wide256(words), positive, positive);
-        expected = expected.add(&Rq(coefficients).mul(&signed_unit(positive, negative)));
-    }
-    assert_eq!(actual.reduce(), expected.0);
-}
-
-fn wide_value(words: [u32; 8]) -> BigUint {
-    words
-        .iter()
-        .rev()
-        .fold(BigUint::ZERO, |value, &word| (value << 32) + word)
-}
-
-#[test]
-fn wide_halves_match_the_big_integer_and_stay_below_the_limb_bound() {
-    let q = BigUint::from(Fq::ORDER_U64);
-    let mut random = 0x0dd_ba11u64;
-    let mut cases = vec![
-        [0; 8],
-        [u32::MAX; 8],
-        [0, 0, 0, 0, 0, 0, 0, u32::MAX],
-        [u32::MAX, 0, 0, 0, 0, 0, 0, 0],
-    ];
-    cases.extend((0..8).map(|word| core::array::from_fn(|i| u32::from(i == word))));
-    cases.extend((0..64).map(|_| {
-        core::array::from_fn(|_| {
-            random = random.wrapping_mul(6364136223846793005).wrapping_add(1);
-            (random >> 32) as u32
-        })
-    }));
-
-    let weight_sum = 1 + 59 + 59 * 59 + 59 * 59 * 59;
-    assert_eq!(LIMB_BOUND, (1 << 32) + 59 * weight_sum);
-    for words in cases {
-        let (a, b) = wide256_halves(words);
-        assert!(u128::from(a.max(b)) <= weight_sum * u128::from(u32::MAX));
-        assert_eq!(
-            (BigUint::from(a) + (BigUint::from(b) << 32)) % &q,
-            wide_value(words) % &q
-        );
-    }
-    assert_eq!(
-        wide256_halves([u32::MAX; 8]).0,
-        (weight_sum * u128::from(u32::MAX)) as u64
-    );
-}
-
-#[test]
-fn extreme_wide_terms_stay_exact_over_many_additions() {
-    let q = BigUint::from(Fq::ORDER_U64);
-    let words = [[u32::MAX; 8]; D];
-    let coefficient = Fq::from_u64((wide_value([u32::MAX; 8]) % &q).try_into().unwrap());
-    let element = SplitRing::from_wide256(words);
-    let mut sums = SignedShiftSums::zero();
-    for _ in 0..50_000 {
-        sums.add_signed_units(&element, u64::MAX, 0);
-    }
-    let product = Rq([coefficient; D]).mul(&Rq([Fq::ONE; D]));
-    let expected: [Fq; D] = core::array::from_fn(|lane| product.0[lane] * Fq::from_u64(50_000));
     assert_eq!(sums.reduce(), expected);
 }

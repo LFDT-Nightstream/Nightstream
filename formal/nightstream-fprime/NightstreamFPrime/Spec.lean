@@ -13,6 +13,7 @@ import NightstreamFPrime.Spec.FieldPrime
 import NightstreamFPrime.Spec.FieldExtension
 import NightstreamFPrime.Spec.SumCheck.FieldRoots
 import NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias
+import NightstreamFPrime.Spec.AjtaiSetupV1.Rejection
 import NightstreamFPrime.Spec.AjtaiSetupV1.Programming
 import NightstreamFPrime.Spec.AjtaiSetupV1.Prefix
 import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.RelaxedBinding

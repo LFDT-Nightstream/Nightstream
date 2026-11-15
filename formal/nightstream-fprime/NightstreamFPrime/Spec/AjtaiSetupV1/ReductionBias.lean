@@ -1,8 +1,4 @@
 import Mathlib.Data.Nat.Count
-import Mathlib.Data.Rat.Cast.Order
-import Mathlib.Tactic.FieldSimp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.NormNum
 import NightstreamFPrime.Spec.Algebra
 
 namespace NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias
@@ -32,49 +28,5 @@ theorem event_count (samples modulus : Nat) (event : Nat → Prop)
   congr 1
   funext value
   simp [Nat.add_mod]
-
-def frequency (samples modulus : Nat) (event : Nat → Prop) [DecidablePred event] : ℚ :=
-  (Nat.count (fun value => event (value % modulus)) samples : ℚ) / samples
-
-theorem frequency_error_le (samples modulus : Nat)
-    (samplesPositive : 0 < samples) (modulusPositive : 0 < modulus)
-    (event : Nat → Prop) [DecidablePred event] :
-    |frequency samples modulus event - frequency modulus modulus event| ≤
-      (samples % modulus : Nat) / (samples : ℚ) := by
-  let count := Nat.count (fun value => event (value % modulus))
-  have fullBound : (count modulus : ℚ) ≤ modulus := by exact_mod_cast Nat.count_le _
-  have tailBound : (count (samples % modulus) : ℚ) ≤ (samples % modulus : Nat) := by
-    exact_mod_cast Nat.count_le _
-  have fullNonnegative : (0 : ℚ) ≤ count modulus := by positivity
-  have tailNonnegative : (0 : ℚ) ≤ count (samples % modulus) := by positivity
-  have counts : (count samples : ℚ) =
-      (samples / modulus : Nat) * (count modulus : ℚ) + count (samples % modulus) := by
-    exact_mod_cast event_count samples modulus event
-  have division : (samples : ℚ) =
-      (modulus : ℚ) * (samples / modulus : Nat) + (samples % modulus : Nat) := by
-    exact_mod_cast (Nat.div_add_mod samples modulus).symm
-  have samplesPos : (0 : ℚ) < samples := by exact_mod_cast samplesPositive
-  have modulusPos : (0 : ℚ) < modulus := by exact_mod_cast modulusPositive
-  have remainderNonnegative : (0 : ℚ) ≤ (samples % modulus : Nat) := by positivity
-  change |(count samples : ℚ) / samples - (count modulus : ℚ) / modulus| ≤ _
-  rw [abs_sub_le_iff]
-  constructor
-  · apply (le_div_iff₀ samplesPos).mpr
-    field_simp
-    nlinarith [mul_le_mul_of_nonneg_left tailBound modulusPos.le,
-      mul_nonneg remainderNonnegative fullNonnegative]
-  · apply (le_div_iff₀ samplesPos).mpr
-    field_simp
-    nlinarith [mul_le_mul_of_nonneg_left fullBound remainderNonnegative,
-      mul_nonneg modulusPos.le tailNonnegative]
-
-theorem wide_remainder_eq : 2 ^ 256 % fieldModulus = 12117361 := by decide
-
-theorem wide_frequency_error_le (event : Nat → Prop) [DecidablePred event] :
-    |frequency (2 ^ 256) fieldModulus event -
-      frequency fieldModulus fieldModulus event| ≤
-      (12117361 : ℚ) / 2 ^ 256 := by
-  simpa only [wide_remainder_eq, Nat.cast_pow, Nat.cast_ofNat] using!
-    frequency_error_le (2 ^ 256) fieldModulus (by decide) (by decide) event
 
 end NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias

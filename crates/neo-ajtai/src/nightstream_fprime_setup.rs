@@ -134,6 +134,12 @@ impl KeyTable {
         &self.cells
     }
 
+    /// The cells of key row `row`: lane `h` of block `j` at `64j + h`.
+    pub fn row(&self, row: usize) -> &[Fq] {
+        let cells = self.blocks * D;
+        &self.cells[row * cells..(row + 1) * cells]
+    }
+
     fn element(&self, row: u32, block: u64) -> SplitRing {
         let start = (row as usize * self.blocks + block as usize) * D;
         SplitRing::new(

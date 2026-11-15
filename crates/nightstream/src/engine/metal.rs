@@ -4,6 +4,7 @@
 //! buffer stay below `neo_prover_metal::BUFFER_LIMIT_BYTES`.
 
 use std::borrow::Borrow;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use neo_ajtai::Commitment;
@@ -12,10 +13,16 @@ use neo_math::F;
 use neo_prover_metal::MetalRowProver;
 use neo_reductions::PiCcsError;
 
-use super::{CommitError, DeviceError, Engine, EngineError};
+use super::{CommitError, DeviceError, Engine, EngineError, KeptKey};
 
 #[derive(Clone)]
-pub(crate) struct Device(Arc<Mutex<MetalRowProver>>);
+pub(crate) struct Device(Arc<Mutex<MetalRowProver>>, Option<Arc<HostKey>>);
+
+/// The key rows of a prover on the host, and whether the session has them.
+struct HostKey {
+    key: KeptKey,
+    given: AtomicBool,
+}
 
 impl Device {
     pub(crate) fn new() -> Result<Self, EngineError> {
@@ -24,7 +31,7 @@ impl Device {
             reason: error.to_string(),
         })?;
         prover.keep_commitment_key();
-        Ok(Self(Arc::new(Mutex::new(prover))))
+        Ok(Self(Arc::new(Mutex::new(prover)), None))
     }
 
     /// The device session. A panic during a device call poisons the lock and
@@ -33,8 +40,31 @@ impl Device {
         self.0.lock().map_err(|_| poisoned())
     }
 
+    /// The session reads `key` in place of rows that it expands itself.
+    pub(crate) fn keep_key(&mut self, key: KeptKey) {
+        self.1 = Some(Arc::new(HostKey {
+            key,
+            given: AtomicBool::new(false),
+        }));
+    }
+
+    pub(crate) fn kept_key(&self) -> Option<&KeptKey> {
+        self.1.as_deref().map(|host| &host.key)
+    }
+
     pub(crate) fn commit<W: Borrow<Mat<F>>>(&self, witnesses: &[W]) -> Result<Vec<Commitment>, CommitError> {
-        self.lock()?
+        let mut prover = self.lock()?;
+        if let Some(host) = &self.1 {
+            if !host.given.swap(true, Ordering::Relaxed) {
+                prover
+                    .keep_commitment_key_table(host.key.table().clone())
+                    .map_err(|error| EngineError::Failure {
+                        engine: Engine::Metal,
+                        reason: error.to_string(),
+                    })?;
+            }
+        }
+        prover
             .commit_production_prefixes(witnesses)
             .map_err(|error| match error {
                 PiCcsError::BackendFailure { reason, .. } => EngineError::Failure {

@@ -22,6 +22,7 @@ pub(crate) const FOLD: u64 = Q.wrapping_neg();
 
 /// An element of `F_q`. The value is always the canonical one, in `[0, q)`.
 #[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
 pub struct Fq(u64);
 
 pub type K = BinomialExtensionField<Fq, 2>;

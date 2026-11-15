@@ -3,11 +3,14 @@
 //! rows it needs in every call; a prover session keeps the complete key rows
 //! after their first use.
 
-use std::{borrow::Borrow, sync::MutexGuard};
+use std::{
+    borrow::Borrow,
+    sync::{Arc, Mutex, MutexGuard},
+};
 
 use neo_ajtai::{
     nightstream_fprime_setup::{
-        element_input, signed_unit_prefix_blocks, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS, SETUP_ID,
+        element_input, signed_unit_prefix_blocks, KeyTable, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS, SETUP_ID,
     },
     Commitment,
 };
@@ -30,6 +33,9 @@ const COLUMNS_PER_GROUP: usize = 512;
 pub(super) struct ResidentKeyRows {
     columns: usize,
     rows: Vec<Buffer>,
+    /// The host table that `rows` wrap. It is after `rows`, so the buffers
+    /// are released first.
+    _table: Option<Arc<KeyTable>>,
 }
 
 /// Where one commitment call reads its key rows.
@@ -96,7 +102,27 @@ impl MetalSession {
             encoder.endEncoding();
         }
         self.finish(&command)?;
-        *key = ResidentKeyRows { columns, rows };
+        *key = ResidentKeyRows {
+            columns,
+            rows,
+            _table: None,
+        };
+        Ok(())
+    }
+
+    /// Keep the rows of `table`, which is a production key table, as the key
+    /// rows of this session. The device reads the host memory of the table
+    /// where it can wrap it, so the session and the host share one copy. A
+    /// witness wider than the table expands new rows on the device.
+    pub(crate) fn keep_production_key_table(&mut self, table: Arc<KeyTable>) -> Result<(), MetalError> {
+        let rows = (0..PRODUCTION_VERIFIER_ROWS as usize)
+            .map(|row| self.read_only_buffer(table.row(row)))
+            .collect::<Result<Vec<_>, _>>()?;
+        self.production_key = Some(Mutex::new(ResidentKeyRows {
+            columns: table.blocks(),
+            rows,
+            _table: Some(table),
+        }));
         Ok(())
     }
 

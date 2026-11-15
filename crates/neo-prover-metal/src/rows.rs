@@ -28,6 +28,15 @@ impl MetalRowProver {
         self.session.keep_production_key();
     }
 
+    /// Keep the rows of the production key table `table` as the commitment
+    /// key. The device shares the host memory of the table where it can.
+    pub fn keep_commitment_key_table(
+        &mut self,
+        table: std::sync::Arc<neo_ajtai::nightstream_fprime_setup::KeyTable>,
+    ) -> Result<(), MetalError> {
+        self.session.keep_production_key_table(table)
+    }
+
     /// Device bytes a kept commitment key holds over `columns` commitment
     /// columns, at 8 bytes per key coefficient.
     pub fn commitment_key_bytes(columns: usize) -> usize {

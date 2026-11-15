@@ -227,6 +227,38 @@ impl MetalSession {
         Ok(buffer)
     }
 
+    /// A buffer that kernels only read, over the memory of `values` when the
+    /// device can wrap it, else over a copy. The caller keeps `values` alive
+    /// and unchanged while the buffer lives.
+    fn read_only_buffer(&self, values: &[neo_math::F]) -> Result<Buffer, MetalError> {
+        // The page size of Apple silicon; a multiple of each smaller page size.
+        const PAGE_BYTES: usize = 16_384;
+        let bytes = size_of_val(values);
+        let Some(pointer) = std::ptr::NonNull::new(values.as_ptr().cast_mut().cast::<std::ffi::c_void>()) else {
+            return self.buffer_from_slice(values);
+        };
+        if bytes == 0 || !bytes.is_multiple_of(PAGE_BYTES) || !pointer.as_ptr().addr().is_multiple_of(PAGE_BYTES) {
+            return self.buffer_from_slice(values);
+        }
+        // SAFETY: `pointer` is the start of `bytes` initialized bytes, and
+        // both are multiples of the page size, as a wrapped buffer needs.
+        // `F` is a transparent `u64`, the element type that the kernels read.
+        // The caller keeps the memory alive and unchanged while the buffer
+        // lives, no kernel writes a buffer of this function, and no host
+        // code views or uploads into it. With no deallocator, Metal does not
+        // free the memory.
+        unsafe {
+            self.device
+                .newBufferWithBytesNoCopy_length_options_deallocator(
+                    pointer,
+                    bytes,
+                    MTLResourceOptions::StorageModeShared,
+                    None,
+                )
+        }
+        .ok_or(MetalError::Buffer { bytes })
+    }
+
     fn buffer_from_slice<T: Copy>(&self, values: &[T]) -> Result<Buffer, MetalError> {
         let buffer = self.buffer(size_of_val(values))?;
         self.write_shared(&buffer, values)?;

@@ -104,6 +104,37 @@ fn kept_production_key_matches_cpu_and_grows_for_a_wider_witness() {
     assert_eq!(dispatches, [3 * rows, 3 * rows, 2 * rows]);
 }
 
+/// A session with a key table commits as the CPU does, reads the table's
+/// rows without a new expansion, and expands rows for a wider witness.
+#[test]
+fn a_kept_key_table_matches_cpu_and_gives_way_to_a_wider_witness() {
+    let blocks = 1 << 13;
+    let table = Arc::new(KeyTable::production(blocks));
+    let mut session = MetalSession::new().unwrap();
+    let uploaded = session.activity().uploaded_bytes;
+    session.keep_production_key_table(table.clone()).unwrap();
+    if table.row(0).as_ptr().addr().is_multiple_of(16_384) {
+        assert_eq!(
+            session.activity().uploaded_bytes,
+            uploaded,
+            "the device wraps an aligned table"
+        );
+    }
+    let rows = PRODUCTION_VERIFIER_ROWS;
+    for (witnesses, dispatches) in [
+        (
+            sparse_witnesses(blocks, &[0, 5, COLUMNS_PER_GROUP, blocks - 1]),
+            2 * rows,
+        ),
+        (sparse_witnesses(blocks + 1, &[1, blocks]), 3 * rows),
+    ] {
+        let before = session.activity().dispatches;
+        let expected = commit_production_signed_unit_prefix_matrices(&witnesses).unwrap();
+        assert_eq!(session.commit_production_prefixes(&witnesses).unwrap(), expected);
+        assert_eq!(session.activity().dispatches - before, dispatches);
+    }
+}
+
 #[test]
 fn production_key_coefficients_use_exact_first_and_last_indexed_addresses() {
     let session = MetalSession::new().unwrap();

@@ -95,21 +95,25 @@ impl Backend {
         }
     }
 
-    /// `Optimized` keeps the first `blocks` blocks of the key rows; a device
-    /// engine holds its own key.
+    /// The engine keeps the first `blocks` blocks of the key rows.
     pub(crate) fn keep_key(&mut self, blocks: usize) {
-        if matches!(self, Self::Optimized) {
-            *self = Self::OptimizedKeptKey(KeptKey {
-                blocks,
-                table: OnceLock::new(),
-            });
+        let key = KeptKey {
+            blocks,
+            table: OnceLock::new(),
+        };
+        match self {
+            Self::Optimized | Self::OptimizedKeptKey(_) => *self = Self::OptimizedKeptKey(key),
+            #[cfg(feature = "metal")]
+            Self::Metal(device) => device.keep_key(key),
         }
     }
 
     pub(crate) fn kept_key(&self) -> Option<&KeptKey> {
         match self {
+            Self::Optimized => None,
             Self::OptimizedKeptKey(key) => Some(key),
-            _ => None,
+            #[cfg(feature = "metal")]
+            Self::Metal(device) => device.kept_key(),
         }
     }
 

@@ -1023,6 +1023,6 @@ Each row is a verifier that a caller reaches through the `nightstream` crate. Th
 | `crates/nightstream/src/circuit.rs`, `verify` | Algorithm 6 | `Export.BoundedDepth.VerifierSecurity.soundness` (`2f5c3bb5bfc5223f`) |
 | `crates/nightstream/src/circuit.rs`, `verify_final` | Algorithm 10 | `Export.BoundedDepth.FinalHistory.real_soundness` (`d910d9ba7348783f`) |
 | `crates/nightstream/src/nebula/proving.rs`, `verify` | Algorithm 8 | `Export.BoundedDepth.NebulaSecurity.bad_le` (`e68e4f7b2501c2d6`) |
-| `crates/nightstream/src/nebula/proving.rs`, `verify_final` | Algorithms 8 and 10 | Open: no Lean result joins the memory bound of Algorithm 8 with the bound of the final proof (`SECURITY_MODEL.md`, adversary 6). |
+| `crates/nightstream/src/nebula/proving.rs`, `verify_final` | Algorithms 8 and 10 | `Export.BoundedDepth.NebulaFinal.real_soundness` (`2be888dad876fe9e`) |
 | `crates/neo-wasm/src/nebula.rs`, the WASM application at the two memory entry points | Algorithms 8 and 10 | Open: Rust builds the WASM relation, and no Lean package fixes it, so the memory bound has no instance of this application (`SECURITY_MODEL.md`, Out of scope). |
 <!-- /entry-points -->

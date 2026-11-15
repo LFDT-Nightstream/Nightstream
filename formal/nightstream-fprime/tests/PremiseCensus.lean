@@ -23,3 +23,5 @@ open NightstreamFPrime in
   Export.BoundedDepth.FinalVerifier.real_soundness
   Export.BoundedDepth.FinalHistory.soundness
   Export.BoundedDepth.FinalHistory.real_soundness
+  Export.BoundedDepth.NebulaFinal.soundness
+  Export.BoundedDepth.NebulaFinal.real_soundness

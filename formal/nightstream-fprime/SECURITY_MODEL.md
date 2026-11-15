@@ -538,7 +538,9 @@ not change terminal source checks.
   with an unbalanced segment that passes the product test. A win counts only
   on a sample whose answers cover the statement's iteration; on the law of
   the theorem this holds when the adversary's iteration is at most the
-  number of stages.
+  number of stages. For a compressed memory proof, adversary 6 joins this
+  bound with the bound of the final proof
+  (`Export.BoundedDepth.NebulaFinal.real_soundness`).
 - **Deterministic part:** an accepted run gives an execution, a Poseidon2
   collision among the run's own chain inputs and the `D_init` chain, or a
   segment that passes the product test with unbalanced multisets
@@ -680,9 +682,28 @@ not change terminal source checks.
   digest length 4 of each circuit key, and a bound `depth` on the
   iteration of each statement that the experiment accepts. The sum has the
   limits of adversary 4, so it gives no concrete security for a long
-  history. No Lean result joins the bounds of adversaries 2 and 5 with the
-  bound of this adversary. No result shows that an extractor of the three
-  witnesses is efficient.
+  history. Lean also joins the bound above with the bound of adversary 5,
+  for the memory verifier of a final proof (Rust
+  `nebula::Verifier::verify_final`, `SPEC.md` Algorithms 8 and 10). The
+  prover names a memory statement with each result of the experiment, with
+  any law for each result. With that statement on its tape it is an IVC
+  adversary with the output above
+  (`Export.BoundedDepth.NebulaFinal.adversary`). The event is a false
+  memory statement: the final verifier accepts `(i, z0, zi)`, the checks of
+  `SPEC.md` Algorithm 8 hold for `(i, z0, zi)` and the memory statement, and
+  the history that the walk of adversary 4 decodes does not attest the
+  memory statement (`Export.BoundedDepth.NebulaFinal.FalseMemory`). The law
+  is that of the walk's last stage: the result, the memory statement and
+  the coins of each stage's extractor. A false memory statement is a tape
+  on which `Verifies` rejects the proof from `W`, or a win of adversary 5
+  for this IVC adversary. So its probability is at most
+  `Q · (2^−119 + 38/q²)` plus the terms of adversary 5
+  (`Export.BoundedDepth.NebulaFinal.soundness`). With Akita openings, the
+  bound adds `εAkita` (`Export.BoundedDepth.NebulaFinal.real_soundness`).
+  The premises are those of the two joined results, so the memory round
+  (trust item 6) stays a premise. No Lean result joins the bound of
+  adversary 2 with the bound of this adversary. No result shows that an
+  extractor of the three witnesses is efficient.
 - **Error:** Lean bounds the argument by `Q · error`, with `error` below
   `2^−119` at the production shapes (`SPEC.md` section 3). Rust bounds a
   sum of six terms for one interactive run of the argument, about

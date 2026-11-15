@@ -4,6 +4,7 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot
 import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh
 import NightstreamFPrime.Export.BoundedDepth.FinalVerifier
 import NightstreamFPrime.Export.BoundedDepth.FinalHistory
+import NightstreamFPrime.Export.BoundedDepth.NebulaFinal
 
 /-! Axiom audits for the compression argument over Akita (`Spec/Compression`). -/
 
@@ -299,3 +300,6 @@ import NightstreamFPrime.Export.BoundedDepth.FinalHistory
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.real_soundness
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalHistory.soundness
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalHistory.real_soundness
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaFinal.map_fst_bind
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaFinal.soundness
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaFinal.real_soundness

@@ -78,7 +78,7 @@ jobs:
     - name: Check Lean artifact digests and links
       run: timeout --signal=KILL 300 python3 -B formal/nightstream-fprime/scripts/check_artifacts.py
 
-    - name: Check that each premise of the top-level theorems has one class
+    - name: Check that each premise of the claims has one class
       run: timeout --signal=KILL 300 python3 -B formal/nightstream-fprime/scripts/check_premises.py
 
     - name: Check SPEC.md paths, pin form and parameters table

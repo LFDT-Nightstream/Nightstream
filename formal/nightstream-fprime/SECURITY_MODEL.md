@@ -9,11 +9,14 @@ adversary of the compressed proof, has a Lean result for the argument only,
 in a model with ideal Akita openings. No Lean result gives its aim. Section
 Assumptions lists every assumption of the results, section Hashed
 encodings lists every place that hashes or absorbs data, and section Premises
-gives the class of each hypothesis of the top-level theorems.
+gives the class of each hypothesis of the claims. Nightstream claims exactly
+the theorems of the namespace `Claims` (`NightstreamFPrime/Claims/`). Each
+claim states one result with every hypothesis in its signature, and its proof
+is one application of the theorem that this page describes.
 
 Names omit the common `NightstreamFPrime` namespace.
 `tests/EndpointCensus.lean` checks that every name on this page that starts
-with `Export.`, `Layout.`, `Lifecycle.` or `Spec.` exists, and that every cited
+with `Claims.`, `Export.`, `Layout.`, `Lifecycle.` or `Spec.` exists, and that every cited
 theorem uses only `propext`, `Classical.choice` and `Quot.sound`. Shorter names
 are not checked.
 
@@ -32,7 +35,7 @@ are not checked.
   because the `Circuit` monad has the name of its namespace. It is a naming
   lint, not a check of any proof.
 - Strong-set low-norm invertibility (SuperNeo v1.2 Theorem 4) is proved
-  (`Spec.RingStrongSet.lowNormInvertibility`), so no security result takes it
+  (`Claims.Foundations.low_norm_invertible`), so no security result takes it
   as a premise.
 
 ## Assumptions
@@ -96,12 +99,12 @@ the Rust code is held to the Lean definition (trust item 5).
 
 | Use | Lean definition | Injectivity | Rust parity |
 | --- | --- | --- | --- |
-| Hash padding | `Spec.Poseidon2.blocks` (`10*`) | `Spec.Poseidon2.blocks_injective`; `Spec.Sponge.padding` meets the conditions of `[SPONGE]` | Direct: Lean hash vectors (`artifacts/nightstream-fprime-poseidon2-vectors-v1.json`, `crates/neo-ccs/tests/poseidon2_lean_vectors.rs`) |
-| State hash | `Lifecycle.BoundedDepth.statePreimage` | `Lifecycle.BoundedDepth.statePreimage_injective`, `Lifecycle.BoundedDepth.stateHash_collision` (well-formed states) | Indirect: the rows of the emitted packages (`crates/nightstream/tests/bounded_depth_base_steps.rs`) |
+| Hash padding | `Spec.Poseidon2.blocks` (`10*`) | `Claims.Encodings.hash_padding_injective`; `Spec.Sponge.padding` meets the conditions of `[SPONGE]` | Direct: Lean hash vectors (`artifacts/nightstream-fprime-poseidon2-vectors-v1.json`, `crates/neo-ccs/tests/poseidon2_lean_vectors.rs`) |
+| State hash | `Lifecycle.BoundedDepth.statePreimage` | `Lifecycle.BoundedDepth.statePreimage_injective`, `Claims.Encodings.state_hash_binds` (well-formed states) | Indirect: the rows of the emitted packages (`crates/nightstream/tests/bounded_depth_base_steps.rs`) |
 | Slot digest | `Lifecycle.BoundedDepth.serializeSlot` | `Lifecycle.BoundedDepth.serializeSlot_injective` (shapes fixed by the type, depth below `q`) | Indirect, as above |
 | Fresh public input | `Lifecycle.encHash` | `Lifecycle.encHash_injective_fixed` | Indirect, as above |
-| Package identity | `Export.BoundedDepth.StepPackage.identity` | `Export.BoundedDepth.IdentityBinding.valuePreimage_injective`, `Export.BoundedDepth.IdentityBinding.identity_binds` (atoms and lengths below `2^64`) | Direct: `identity_code_matches_lean_on_the_probe_packages` |
-| Circuit key digest | `Lifecycle.BoundedDepth.CircuitKeyDigest.input` | `Lifecycle.BoundedDepth.CircuitKeyDigest.input_injective`, `Lifecycle.BoundedDepth.CircuitKeyDigest.digest_binds` (an identity of any length) | Direct: `circuit_key_is_the_lean_digest` on three identities (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/nightstream/tests/bounded_depth_lifecycle/encodings.rs`) |
+| Package identity | `Export.BoundedDepth.StepPackage.identity` | `Export.BoundedDepth.IdentityBinding.valuePreimage_injective`, `Claims.Encodings.package_identity_binds` (atoms and lengths below `2^64`) | Direct: `identity_code_matches_lean_on_the_probe_packages` |
+| Circuit key digest | `Lifecycle.BoundedDepth.CircuitKeyDigest.input` | `Lifecycle.BoundedDepth.CircuitKeyDigest.input_injective`, `Claims.Encodings.circuit_key_binds` (an identity of any length) | Direct: `circuit_key_is_the_lean_digest` on three identities (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/nightstream/tests/bounded_depth_lifecycle/encodings.rs`) |
 | Fold transcripts | `Lifecycle.RandomOracle.Schedule.challengeCalls`, `Lifecycle.RandomOracle.Schedule.pieces` | `Lifecycle.RandomOracle.Schedule.challengeAddress_injective`, `Lifecycle.RandomOracle.Schedule.statementCalls_identify`, `Lifecycle.RandomOracle.Schedule.proverCalls_identify`; fixed lengths: `Lifecycle.RandomOracle.Schedule.pieces_alike`, `Lifecycle.RandomOracle.Schedule.calls_pieces`; disjoint lanes: `Export.BoundedDepth.FoldSponge.rho_ne` | Direct: `the_light_transcript_absorbs_the_lean_pieces`, `the_refresh_transcript_absorbs_the_lean_pieces` (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/nightstream-fprime/tests/fold_transcript_lean.rs`). The Π_RLC sampler is direct (`crates/neo-reductions/tests/pi_rlc_lean_parity.rs`). Indirect for the fold prover: package rows |
 | Compression transcript | `Export.BoundedDepth.CompressionSponge.pieces`, with `Lifecycle.RandomOracle.Sponge.byteWords` for a byte string and `Export.BoundedDepth.CompressionSponge.Claim.words` for a claim | `Export.BoundedDepth.CompressionSponge.calls_injective` (two runs of one statement shape, each byte string below `q` bytes), from `Export.BoundedDepth.CompressionSponge.pieces_alike`, `Lifecycle.RandomOracle.Sponge.byteWords_injective` and `Export.BoundedDepth.CompressionSponge.Claim.words_injective`. Rows 4 to 17 have the operations and counts of `Spec.Compression.Rust.schedule`: `Export.BoundedDepth.CompressionSponge.argumentPieces_fit` | Direct for the words: `byte_words_are_the_lean_words`, `claim_words_are_the_lean_words`, `the_domain_and_the_session_label_are_the_lean_ones`, `the_compression_domain_is_the_lean_domain`, and for the zero blocks of the reads: `a_replay_of_the_lean_pieces_ends_in_the_lean_session` (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/ns-compress/tests/unit/transcript.rs`). Direct for the order and the counts of rows 4 to 17 on a real proof: `a_replay_in_the_lean_order_draws_the_challenges_of_verify`. Open: no test compares rows 1 to 3 of a real proof with the Lean pieces. Rust makes them with the functions of a fold transcript (section Absorbs without a frame) |
 | Akita session bytes | `Export.BoundedDepth.CompressionSponge.session` | `Lifecycle.RandomOracle.Sponge.sessionBytes_injective`; `Export.BoundedDepth.CompressionSponge.session_binds`: two runs with one session are equal, or their transcripts are two distinct lists of sponge calls with the same lanes 0 to 3 | Direct: `the_session_is_the_lean_session`, `a_replay_of_the_lean_pieces_ends_in_the_lean_session` |
@@ -109,8 +112,8 @@ the Rust code is held to the Lean definition (trust item 5).
 | Nebula record chains | `Lifecycle.Nebula.blocks` | `Lifecycle.Nebula.blocks_injective`, `Lifecycle.Nebula.blockChunks_injective` | Direct: fixtures (`crates/nightstream/tests/nebula/memory.rs`) |
 | Nebula `η` | `Lifecycle.Nebula.etaInputBlocks` | `Lifecycle.Nebula.etaInputBlocks_injective`, `Lifecycle.Nebula.EtaOracle.pointOf_injective`; the four reads: `Export.BoundedDepth.EtaSponge.reads_injective` | Indirect: package rows |
 | Nebula state words | `Lifecycle.Nebula.carryVector` | `Lifecycle.Nebula.carryVector_injective`, `Lifecycle.Nebula.stateWords_eq_or_collision` | Direct: terminal fixtures |
-| Application identity | `Lifecycle.BoundedDepth.ApplicationIdentity.Application.words`: a schema of the records that Rust `BoundedDepthPackages::with_application` hashes (`crates/nightstream-fprime/src/bounded_depth/application.rs`). The words are the tag, one word for each byte, the Lean package identity, the witness word count, the rows, the row of each recipe, the blocks, and the layouts of the light and the refresh package (`SPEC.md` section 4.4) | `Lifecycle.BoundedDepth.ApplicationIdentity.Application.words_injective`: the words fix the records. `Lifecycle.BoundedDepth.ApplicationIdentity.Application.body_prefixFree`: the words after the tag fix them before any later words, because each list has its count before it or a length that the format fixes. `Lifecycle.BoundedDepth.ApplicationIdentity.Application.identity_binds`: two applications with one identity have the same records, or their padded hash inputs are two distinct block lists with one sponge digest. The condition is that no word of the two streams is at or above `q` (`Lifecycle.BoundedDepth.ApplicationIdentity.Application.Canonical`). Then no word is reduced (`Lifecycle.BoundedDepth.ApplicationIdentity.Application.input_val`). The tag meets the condition (`Lifecycle.BoundedDepth.ApplicationIdentity.Application.tagWords_canonical`). Rust refuses a record constant at or above `q` (`ApplicationRecordsWriter::append_row`) and a stream with a word at or above `q` (`with_application`, the test `a_word_at_or_above_q_is_refused`). Limit: these results bind the records. They do not say what the records mean. The Rust application path and the WASM relation have no Lean package (Out of scope), so no theorem states that the rows of the records are the relation that the step circuits check, or that the layouts in the stream are the layouts of the records. The stream does not hold the nodes of a recipe or the rows that give the output state. Rust reads them only to make a witness | Direct: `the_identity_words_are_the_lean_words` on four applications that have each record kind and each list at 0, at 1 and at more entries (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/nightstream-fprime/tests/unit/application_identity_lean.rs`). For an application of the public builder, `a_built_application_has_the_lean_words_and_their_hash`: the words before the layouts are Lean's, the layouts have the form of `Lifecycle.BoundedDepth.ApplicationIdentity.Layout.words`, and the identity is the hash of the words (`crates/nightstream/tests/application/identity_lean.rs`). Indirect for the layouts of a real application: no Lean data has their values |
-| Domain separation | `Export.DomainSeparation.uses` | `Export.DomainSeparation.separated`: two block lists whose words start with the tags of two distinct uses are distinct. A use owns its blocks: `Export.DomainSeparation.hash_owns`, `Export.DomainSeparation.circuitKey_owns`, `Export.DomainSeparation.fold_owns`, `Export.DomainSeparation.nebula_owns`, `Export.DomainSeparation.applicationIdentity_owns`. Open: inputs that an application hashes, which can start with any words. | Indirect for the tags that Lean defines. Direct for the circuit key tag and the two compression domains (rows Circuit key digest and Compression transcript). The compression transcript is one sponge that starts with the domain of its Π_CCS run (`Export.DomainSeparation.compression_owns`) and absorbs the domain of the argument after that run. Direct for the application identity tag (row Application identity) |
+| Application identity | `Lifecycle.BoundedDepth.ApplicationIdentity.Application.words`: a schema of the records that Rust `BoundedDepthPackages::with_application` hashes (`crates/nightstream-fprime/src/bounded_depth/application.rs`). The words are the tag, one word for each byte, the Lean package identity, the witness word count, the rows, the row of each recipe, the blocks, and the layouts of the light and the refresh package (`SPEC.md` section 4.4) | `Lifecycle.BoundedDepth.ApplicationIdentity.Application.words_injective`: the words fix the records. `Lifecycle.BoundedDepth.ApplicationIdentity.Application.body_prefixFree`: the words after the tag fix them before any later words, because each list has its count before it or a length that the format fixes. `Claims.Encodings.application_identity_binds`: two applications with one identity have the same records, or their padded hash inputs are two distinct block lists with one sponge digest. The condition is that no word of the two streams is at or above `q` (`Lifecycle.BoundedDepth.ApplicationIdentity.Application.Canonical`). Then no word is reduced (`Lifecycle.BoundedDepth.ApplicationIdentity.Application.input_val`). The tag meets the condition (`Lifecycle.BoundedDepth.ApplicationIdentity.Application.tagWords_canonical`). Rust refuses a record constant at or above `q` (`ApplicationRecordsWriter::append_row`) and a stream with a word at or above `q` (`with_application`, the test `a_word_at_or_above_q_is_refused`). Limit: these results bind the records. They do not say what the records mean. The Rust application path and the WASM relation have no Lean package (Out of scope), so no theorem states that the rows of the records are the relation that the step circuits check, or that the layouts in the stream are the layouts of the records. The stream does not hold the nodes of a recipe or the rows that give the output state. Rust reads them only to make a witness | Direct: `the_identity_words_are_the_lean_words` on four applications that have each record kind and each list at 0, at 1 and at more entries (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/nightstream-fprime/tests/unit/application_identity_lean.rs`). For an application of the public builder, `a_built_application_has_the_lean_words_and_their_hash`: the words before the layouts are Lean's, the layouts have the form of `Lifecycle.BoundedDepth.ApplicationIdentity.Layout.words`, and the identity is the hash of the words (`crates/nightstream/tests/application/identity_lean.rs`). Indirect for the layouts of a real application: no Lean data has their values |
+| Domain separation | `Export.DomainSeparation.uses` | `Claims.Encodings.domains_separated`: two block lists whose words start with the tags of two distinct uses are distinct. A use owns its blocks: `Export.DomainSeparation.hash_owns`, `Export.DomainSeparation.circuitKey_owns`, `Export.DomainSeparation.fold_owns`, `Export.DomainSeparation.nebula_owns`, `Export.DomainSeparation.applicationIdentity_owns`. Open: inputs that an application hashes, which can start with any words. | Indirect for the tags that Lean defines. Direct for the circuit key tag and the two compression domains (rows Circuit key digest and Compression transcript). The compression transcript is one sponge that starts with the domain of its Π_CCS run (`Export.DomainSeparation.compression_owns`) and absorbs the domain of the argument after that run. Direct for the application identity tag (row Application identity) |
 
 ### Absorbs without a frame
 
@@ -140,8 +143,11 @@ fixed. `κd = 1,152`, `d = 64`, `ℓ = 28` and `t = 4`.
 
 ## Premises
 
-Each row is a hypothesis of a top-level security theorem. Lean writes the
-hypotheses of the theorems of `tests/PremiseCensus.lean` to
+Each row is a hypothesis of a claim. `tests/PremiseCensus.lean` reads every
+theorem of the namespace `Claims`. It fails when a declaration of the
+namespace is not a theorem, when a claim uses an axiom outside the three of
+section What Lean checks, or when the proof of a claim is not one application
+of a theorem outside the namespace. Lean writes the hypotheses of the claims to
 `artifacts/nightstream-fprime-premises-v1.tsv`, and the Lean build fails when
 that file is not current. A hypothesis is a binder whose type is a proposition,
 or a proof field of a binder whose type is a structure of the package.
@@ -161,8 +167,10 @@ are these.
   theorem. The evidence is the place that states it.
 - `open`: no evidence. Each such row is a gap of the results.
 
-A name that ends in `.*` covers each field under it. The head is the constant
-at the head of the hypothesis, and `*` is each head.
+A name that ends in `.*` covers each field under it. A name `Scope/name`
+covers only the claims of the file or the claim `Scope` in the namespace
+`Claims`, and a name without a scope covers each claim. The head is the constant at the head of the hypothesis, and `*` is
+each head.
 
 <!-- premises:begin -->
 | Premise | Head | Class | Evidence |
@@ -170,8 +178,8 @@ at the head of the hypothesis, and `*` is each head.
 | `publicFits` | `LE.le` | lean | `Export.BoundedDepth.StepRelation.keyPublicFits`, at the key width `2^26` |
 | `cubeFits`, `relation.cubeFits`, `key.relation.cubeFits` | `LE.le` | lean | `Export.BoundedDepth.StepRelation.keyCubeFits`, at the key width `2^26` |
 | `program.*`, `exports.program.*` | `*` | lean | `Lifecycle.Stage1.Poseidon2HashChainV1.program` and `Export.Stage1.NebulaMemoryV1Package.application` are programs, so they carry these proofs. A Rust application has no such instance (Out of scope) |
-| `stepEq`, `validControl`, `encoded`, `rowsZero`, `others` | `*` | lean | `Export.BoundedDepth.TerminalBridge.bridge` joins the two step results and takes none of these |
-| `fits.*`, `layout.*` | `*` | lean | `Export.BoundedDepth.TerminalBridge.bridge` takes them as fields of its `exports` (rows below) |
+| `stepEq`, `validControl`, `encoded`, `rowsZero`, `others` | `*` | lean | `Claims.Ivc.terminal_bridge` joins the two step results and takes none of these |
+| `fits.*`, `layout.*` | `*` | lean | `Claims.Ivc.terminal_bridge` takes them as fields of its `exports` (rows below) |
 | `programEq` | `Eq` | game | adversary 5: the memory application is the exported program |
 | `exports.programStep` | `Eq` | game | `SPEC.md` Algorithm 3: the step of the relation is the step of the application |
 | `exports.lightKey`, `exports.refreshKey` | `Eq` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`, `relation_rows_match_the_lean_checksum`: the rows that Rust expands from each package have the checksum of Lean's rows |
@@ -190,13 +198,35 @@ at the head of the hypothesis, and `*` is each head.
 | `wf.*`, `slots_le`, `key_fits` | `*` | lean | `Spec.Compression.Rust.layoutNew_production`, for the layout of the Lean model of `Layout::new` |
 | `counts` | `Spec.Compression.Verifier.CountsNonzero` | lean | `Spec.Compression.Production.params_countsNonzero` |
 | `matrix` | `Spec.Compression.Verifier.MatrixSpec` | lean | `Spec.Compression.Production.verifierData_matrixSpec`, for the Lean model of Rust `matrix_part`. Rust `matrix_part` gives the output of the model on three sample cases (`formal/nightstream-fprime/artifacts/nightstream-fprime-matrix-pass-parity-v1.json`, `the_matrix_part_is_the_lean_matrix_pass`). No data compares the two on the rows of the step circuits |
-| `columns`, `rows` | `LE.le` | lean | `Spec.Compression.Production.params_soundness` |
+| `columns`, `rows` | `LE.le` | lean | `Claims.Compression.production_sound` |
 | `statement.*`, `constantLaw.*` | `*` | game | adversary 6: the statement of the Π_CCS run and the law of its constant |
-| `params.rlc_bound`, `freshBound`, `degreeCovers` | `*` | lean | `Export.BoundedDepth.FinalVerifier.soundness` uses the Π_CCS run at the production parameters and takes none of these |
+| `params.rlc_bound`, `freshBound`, `degreeCovers` | `*` | lean | `Claims.Final.verifier_sound` uses the Π_CCS run at the production parameters and takes none of these |
 | `premises.layout` | `And` | open | Open: `layout_new_is_lean_layout_new_on_each_claim_set` compares Rust `Layout::new` with the Lean model on recorded claim sets, and `Spec.Compression.Rust.layoutNew_production` gives the bounds of the model. No theorem gives `spanVars ≤ 27`, and no theorem joins the layout of the setup to the model |
 | `premises.represents` | `Spec.Compression.Claim.Represents` | open | Open: no Lean result states `Represents` for the dense rows of a package (trust item 7) |
 | `premises.support` | `LE.le` | open | Open: no Lean result bounds the blocks of a claim by the blocks of its package (trust item 7) |
 | `depthBound` | `LE.le` | open | Open: no result bounds the iteration of an accepted statement. The bound is a parameter of the result |
+| `Encodings/same`, `Encodings/equal`, `Encodings/different` | `*` | game | `SPEC.md` section 4: the event of each encoding claim is two inputs with one digest or one block list |
+| `Encodings/leftWell.*`, `Encodings/rightWell.*` | `*` | game | `SPEC.md` section 4.2: the two states are well formed |
+| `Encodings/leftCanonical`, `Encodings/rightCanonical` | `*` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-encoding-parity-v1.json`, `the_identity_words_are_the_lean_words`: Rust makes the words of Lean, and it refuses a stream with a word at or above `q` (`a_word_at_or_above_q_is_refused`) |
+| `Encodings/fits`, `Encodings/fits'` | `*` | game | `SPEC.md` section 4.4: each atom and each array length of a package is below `2^64`, the range of Rust `u64` |
+| `Foundations/accepted`, `Foundations/truth`, `Foundations/falseClaim`, `Foundations/represents`, `Foundations/message.coefficients_length`, `Foundations/semantic.coefficients_length` | `*` | game | `SPEC.md` Algorithm 4: the event of the sum-check claims is an accepted transcript with a false claim, and a round polynomial of the stated degree |
+| `Fold/accepted`, `Fold/fork.*`, `Fold/system`, `Fold/combined` | `*` | game | `SPEC.md` Algorithm 4: the fold verifier accepts a claim of the key's relation, and the fork of its challenges is an input of the two extraction claims |
+| `Fold/freshOpening`, `Fold/runningOpening`, `Fold/truth`, `Fold/accumulatorHolds`, `Fold/freshHolds` | `*` | game | `SPEC.md` Algorithm 5: the honest prover holds a witness of each input claim |
+| `Fold/running.point.dimension`, `Fold/start.point.dimension`, `Fold/result.*`, `Fold/accumulator.*`, `Fold/parent.*` | `*` | game | `SPEC.md` section 2.5: a claim has a point of the cube dimension and a constraint system that fits its cube |
+| `Fold.light_complete/key.*`, `Fold.light_extracts/key.*`, `Fold.refresh_complete/key.*`, `Fold.refresh_extracts/key.*` | `*` | lean | `Spec.HyperNova.Construction2.BoundedDepthKeys.lightKey` and `Lifecycle.BoundedDepth.refreshKey` are the keys of the two folds, so they carry these proofs |
+| `Fold/laws.*` | `*` | lean | `Lifecycle.PaperExtractionAlgebra.extractionAlgebra` is the extraction algebra of the production key, so it carries these proofs |
+| `Fold/normLaw.sub_bound` | `*` | lean | `Spec.RingRelation.PiRLCAlgebra.LightNorm.sub_act_bound`, the production form of this law |
+| `Fold/oneEq` | `Eq` | open | Open: no Lean theorem applies `Claims.Fold.light_extracts` at the production keys, so no result gives this equation for them |
+| `Fold/capFits`, `Ivc/capFits` | `LE.le` | lean | `Spec.Folding.Schedule.production_cap_fits`, at the production cap |
+| `Fold/p.rlc_bound`, `Ivc/p.rlc_bound` | `LT.lt` | lean | `Spec.productionGlobalParams` is the parameter record of the profile, so it carries this proof |
+| `Fold/admissible`, `Fold/member`, `Fold/start` | `*` | game | `SPEC.md` section 3: the claim is about each depth that an admissible schedule reaches |
+| `Fold/positive` | `LT.lt` | game | adversary 3: the work budget of the extractor is positive |
+| `Step/holds`, `Step/represents.*` | `*` | game | `SPEC.md` Algorithm 5: the honest prover has an assignment of the step circuit that carries its step and its fold |
+| `Step/below`, `Step/free`, `Step/packed`, `Step/publicBelow`, `Step/wideFits`, `Ivc/complete.*`, `Nebula/complete.*` | `*` | open | Open: the emitter evaluates these package checks before it writes a package (`lake exe emitBoundedDepth --checks`), and no theorem states them for the emitted packages |
+| `Ivc.accepted_bounds/accepted`, `Ivc/execution`, `Ivc/holds`, `Ivc/knowledge`, `Ivc/finalAtMostB`, `Ivc/start` | `*` | game | adversary 4, the result for one slot: an accepted history of the slot, and the knowledge of each of its folds |
+| `Ivc/validRun`, `Ivc/witnessLengths`, `Ivc/runBelow`, `Ivc/z0Length`, `Ivc/iterationNext`, `Ivc/valid`, `Ivc/verifies`, `Ivc/witnessLength` | `*` | game | `SPEC.md` Algorithm 5: the honest prover extends an accepted proof by a valid step, with a counter below `q` |
+| `Nebula/accepted.*`, `Nebula/start`, `Nebula/steps`, `Nebula/terminal.*` | `*` | game | `SPEC.md` Algorithm 8: the memory verifier accepts the chain of steps and its terminal state |
+| `Nebula/count`, `Nebula/exec`, `Nebula/range`, `Nebula/width` | `*` | game | `SPEC.md` Algorithm 7: the honest prover runs an execution of the machine |
 <!-- premises:end -->
 
 ## Applications and setups
@@ -219,7 +249,7 @@ encoding of the light and refresh packages
 (`Export.BoundedDepth.StepPackage.identity`), and every format decodes what it
 encodes. Two pairs of packages with one identity are equal, or their two hash
 inputs are distinct and have one hash
-(`Export.BoundedDepth.IdentityBinding.identity_binds`), when each atom and each
+(`Claims.Encodings.package_identity_binds`), when each atom and each
 array length of the encoding is below `2^64`, the range of Rust `u64`. The
 node words are injective on such values
 (`Export.BoundedDepth.IdentityBinding.valuePreimage_injective`).
@@ -244,8 +274,8 @@ item 5).
   encodes a digest, but the circuit's case of the step relation does not hold
   with that digest as its output hash.
 - **Result:** no such win, for the light circuit
-  (`Export.BoundedDepth.StepRelation.light_stepHolds`) and for the refresh circuit
-  (`Export.BoundedDepth.StepRelation.refresh_stepHolds`). The step holds in an
+  (`Claims.Step.light_sound`) and for the refresh circuit
+  (`Claims.Step.refresh_sound`). The step holds in an
   environment that agrees with the assignment on the public input and
   differs only on dead Poseidon2 locals. The package rows are the relation's
   rows (`Export.BoundedDepth.StepPackage.relationRows_packageOf`), and the rows of
@@ -354,14 +384,14 @@ not change terminal source checks.
   on it at the production cap, under the setup's keys, and it ends in the
   terminal's statement, or its next state and the terminal's state collide,
   or the step is light and its next state's words and the terminal's state
-  preimage collide (`Export.BoundedDepth.TerminalBridge.bridge`,
+  preimage collide (`Claims.Ivc.terminal_bridge`,
   `Export.BoundedDepth.TerminalBridge.Collision`,
   `Export.BoundedDepth.TerminalBridge.WordCollision`). A light step's other slot
   is the terminal's slot, because the light circuit reads only the active
   slot's words (`Export.BoundedDepth.StepRelation.lightInput`). The terminal is
   `Lifecycle.BoundedDepth.Terminal.HoldsFor`. Two well-formed states with one state
   hash are equal or give a Poseidon2 collision on an input pair that the two
-  states fix (`Lifecycle.BoundedDepth.stateHash_collision`,
+  states fix (`Claims.Encodings.state_hash_binds`,
   `Lifecycle.BoundedDepth.StateCollision`). The bridge reads each counter as
   one word, so it gives the depth words and not the depths
   (`Export.BoundedDepth.TerminalBridge.stateHash_binds_words`). The result is
@@ -385,11 +415,11 @@ not change terminal source checks.
   input accumulator at the output bound plus `T(b − 1)`, and the claims are
   true at the prior point, or a Π_CCS bad event occurred: a mixing root of
   `α` and `γ`, or a sum-check failure
-  (`Spec.Folding.Light.accepted_implies_securityOutcome`; Cyclo, ePrint
+  (`Claims.Fold.light_extracts`; Cyclo, ePrint
   2026/359, Theorem 3, item 2; `Lifecycle.BoundedDepth.lightExtractionNormLaw`).
   For a refresh fold, the extracted fresh witnesses satisfy the CCS and the
   recomposed children open the input accumulator below `B`, or a Π_CCS bad
-  event occurred (`Spec.Folding.Refresh.accepted_implies_securityOutcome`).
+  event occurred (`Claims.Fold.refresh_extracts`).
   The fork outputs of a refresh fold need no norm bound. These results are
   deterministic.
 - **Binding:** two openings of one commitment at a recovered bound give a
@@ -420,8 +450,8 @@ not change terminal source checks.
   The fold gate of Rust `Params::for_ccs_shape` charges one error for both
   folds and computes its bits in integers. The statistical term of either
   fold is at most `(Q + 1)/2^bits`, and `bits` is 115 at the step relations
-  (`Lifecycle.BoundedDepth.RandomOracle.FoldGate.refresh_statisticalError_le_bits`,
-  `Lifecycle.BoundedDepth.RandomOracle.FoldGate.light_statisticalError_le_bits`,
+  (`Claims.Fold.refresh_error_bits`,
+  `Claims.Fold.light_error_bits`,
   `Lifecycle.BoundedDepth.RandomOracle.FoldGate.production_bits`). The gate
   certifies only the term at `Q = 0`.
   The kernel term is the probability that the binding reduction returns a
@@ -437,7 +467,7 @@ not change terminal source checks.
   (`Lifecycle.BoundedDepth.RandomOracle.HashSolver.hashCollisions_le_finder`).
   Under `[P2-PERM]` and `[SPONGE]`, two distinct inputs give one digest with
   probability at most `N²/q⁴ + spongeError N`, because the `10*` padding of
-  the sponge is injective (`Spec.Poseidon2.blocks_injective`,
+  the sponge is injective (`Claims.Encodings.hash_padding_injective`,
   `Spec.Sponge.collision_blocks`).
   Averaged over the SHAKE128 key setup at key width `2^26`, the kernel term is
   an MSIS advantage for a uniform matrix at the chain norm plus a programming
@@ -458,7 +488,7 @@ not change terminal source checks.
   the model holds for a verifier that reads the sponge outside a circuit, plus
   `spongeError N`, when every condition holds. The fold calls start with
   their domain (`Export.DomainSeparation.fold_owns`), and the fold domains
-  are separated from the other uses (`Export.DomainSeparation.separated`).
+  are separated from the other uses (`Claims.Encodings.domains_separated`).
   The model's answers at distinct points are independent, but a `Π_RLC`
   draw reads lanes 0 to 4 and a coin of slot `s` reads lanes `2s` and
   `2s + 1`. So a draw must never share its calls with a coin of slot 1 or 2:
@@ -467,8 +497,8 @@ not change terminal source checks.
   for every fold schedule (`Export.BoundedDepth.FoldSponge.conditions`), the
   knowledge bound moves to the ideal-permutation model as the statistical
   error plus `spongeError N`, with the collision and kernel terms as before
-  (`Export.BoundedDepth.FoldSponge.light_knowledge_le`,
-  `Export.BoundedDepth.FoldSponge.refresh_knowledge_le`).
+  (`Claims.Fold.light_knowledge`,
+  `Claims.Fold.refresh_knowledge`).
 - **Not covered:** the step circuits recompute the challenges with the
   Poseidon2 permutation, and no ideal-permutation model covers a circuit
   that evaluates the permutation. So this result bounds no deployed check of
@@ -485,7 +515,7 @@ not change terminal source checks.
 - **Result:** under Assumption 1 and the closure premise,
   `Pr[false acceptance] ≤ Σ_j (Pr[collision at visit j] + error(stage j))`
   for `j` below a bound on the adversary's iteration
-  (`Export.BoundedDepth.IvcSecurity.probability_bound`). The reverse extractor
+  (`Claims.Ivc.false_acceptance_bound`). The reverse extractor
   walks back from the terminal one step per stage
   (`Export.BoundedDepth.IvcWalk`). At each visit, the fresh witness decodes to the
   last step (`Export.BoundedDepth.TerminalBridge.Exports.decode`). When that step
@@ -511,7 +541,7 @@ not change terminal source checks.
   takes the history as an adversary output and has no collision term. Without
   probabilities, the reverse run of one slot opens each running claim at its
   recovered bound, or it names a failed fold
-  (`Spec.HyperNova.Construction2.BoundedDepthKnowledge.execution_extracts`).
+  (`Claims.Ivc.execution_extracts`).
 - **Validity:** a false acceptance has no list of witnesses that are valid
   for the application and that its step maps from `z0` to `zi`
   (`Export.BoundedDepth.IvcWalk.Reaches`). The bridge's selector returns the
@@ -521,7 +551,7 @@ not change terminal source checks.
   holds each slot to the bound of its depth
   (`Export.BoundedDepth.RunCompleteness.Verifies`). The same sum bounds the
   probability that this verifier accepts and no such steps lead from `z0` to
-  `zi` (`Export.BoundedDepth.VerifierSecurity.soundness`). `SPEC.md`
+  `zi` (`Claims.Ivc.verifier_sound`). `SPEC.md`
   section 9 gives the theorem of each verifier entry point.
 - **Knowledge form:** HyperNova Definition 11 (ii) states knowledge
   soundness: its event is on the witnesses that the extractor returns. The
@@ -529,12 +559,12 @@ not change terminal source checks.
   relation accepts, and the witnesses of the walk's trail are not `iteration`
   valid steps from `z0` to `zi`
   (`Export.BoundedDepth.IvcSecurity.ExtractionFailure`,
-  `Export.BoundedDepth.IvcSecurity.extraction_bound`). Its law is the adversary's
+  `Claims.Ivc.extraction_bound`). Its law is the adversary's
   tape and the coins of each stage's extractor. A false acceptance is an
   extraction failure, so the result above follows from this one.
 - **Gaps:** Lean derives Assumption 1 with an explicit `error` only in a
   random-oracle model of the folds
-  (`Lifecycle.BoundedDepth.RandomOracle.Assumption1.romAssumption1`). The bound
+  (`Claims.Fold.assumption1_in_random_oracle_model`). The bound
   here still takes Assumption 1 for the concrete hash as a premise, and it
   gives no concrete security for a long history (trust item 3).
 - **Final proof:** a prover of the final verifier is an adversary of this
@@ -556,7 +586,7 @@ not change terminal source checks.
   gives and the reverse extractor's sample, the mass of wins is at most the
   collision and stage terms of adversary 4, the state-link and chain
   collision masses of the extracted runs, and the memory-round error of the
-  last stage (`Export.BoundedDepth.NebulaSecurity.bad_le`). The extracted history
+  last stage (`Claims.Nebula.memory_sound`). The extracted history
   is the steps that adversary 4's walk decodes (`Export.BoundedDepth.IvcWalk.trail`),
   so every event reads data of the sample. The walk meets the extraction
   premise of `Lifecycle.Nebula.EndToEnd.Stage1Extraction`
@@ -568,13 +598,13 @@ not change terminal source checks.
   the theorem this holds when the adversary's iteration is at most the
   number of stages. For a compressed memory proof, adversary 6 joins this
   bound with the bound of the final proof
-  (`Export.BoundedDepth.NebulaFinal.real_soundness`).
+  (`Claims.Final.memory_sound_with_akita`).
 - **Deterministic part:** an accepted run gives an execution, a Poseidon2
   collision among the run's own chain inputs and the `D_init` chain, or a
   segment that passes the product test with unbalanced multisets
-  (`Spec.Nebula.soundness`). With the state links, an accepted chain of valid
+  (`Claims.Nebula.model_sound`). With the state links, an accepted chain of valid
   steps gives such a run or a state-digest collision
-  (`Lifecycle.Nebula.accepts_or_collision`).
+  (`Claims.Nebula.accepts_or_collision`).
 - **Challenge game:** in the interactive game where `η` comes after the
   roots and `ts`, segment slot `k` is bad with frequency at most
   `2 · m_mem/q²` and a retry term, and each retry disagreement is a Poseidon2
@@ -599,7 +629,7 @@ not change terminal source checks.
   chain inputs of two runs with the same `η` input
   (`Lifecycle.Nebula.EtaRound.retry_collision`). For a secure geometry, the
   first term is at most `(Q_η + 1) · 2^−109.91`
-  (`Export.BoundedDepth.NebulaSecurity.romMemoryRound`). The model takes the
+  (`Claims.Nebula.memory_round_in_random_oracle_model`). The model takes the
   adversary and the extractor as one sampler, so `Q_η` counts the queries of
   every rerun. At the Poseidon2 oracle the event is the event of the memory
   round (`Lifecycle.Nebula.EtaRound.unbalancedIn_deployed`), but no result
@@ -609,10 +639,10 @@ not change terminal source checks.
   are injective (`Lifecycle.Nebula.etaInputBlocks_injective`,
   `Lifecycle.Nebula.blockChunks_injective`). These are conditions of
   `[SPONGE]`, and the `η` domain is separated from the other uses
-  (`Export.DomainSeparation.separated`). With these conditions proved
+  (`Claims.Encodings.domains_separated`). With these conditions proved
   (`Export.BoundedDepth.EtaSponge.conditions`), `[P2-PERM]` and `[SPONGE]`
   move the bound, without the retry term, to the ideal-permutation model
-  plus `spongeError N` (`Export.BoundedDepth.EtaSponge.unbalanced_le`). That
+  plus `spongeError N` (`Claims.Nebula.eta_balanced`). That
   bound is for a verifier that computes `η` outside a circuit. The step
   circuit computes `η` with the permutation (trust item 6).
 
@@ -633,12 +663,12 @@ not change terminal source checks.
   state-restoration experiment, a prover with `Q` oracle queries makes the
   verifier accept claims whose committed `W` does not satisfy
   `Spec.Compression.Verifier.Relation` with probability at most
-  `Q · error` (`Spec.Compression.Verifier.soundness`). `Relation` gives,
+  `Q · error` (`Claims.Compression.argument_sound`). `Relation` gives,
   for each claim, the 18 Ajtai rows of its commitment, `Eval_K`, each
   `Eval_A` relative to the abstract matrix weights, its public input and,
   for a claim with a table, each cell in `[−bound, bound]`
   (`Spec.Compression.Verifier.game_avoids`). At the production shapes,
-  `error < 2^−119` (`Spec.Compression.Verifier.production_error_lt`). The
+  `error < 2^−119` (`Claims.Compression.production_error`). The
   premises of the theorem, and how Rust meets each one, are in trust item 7.
   Lean has no definition of the compression key. Its model of the layout
   (`Spec.Compression.Rust.layoutNew`) meets the layout premises of the
@@ -656,9 +686,9 @@ not change terminal source checks.
   (`Export.BoundedDepth.FinalVerifier.Setup.game`). With `Q` queries, it accepts
   a statement for which no proof with witnesses satisfies `Verifies` with
   probability at most `Q · (2^−119 + 38/q²)`
-  (`Export.BoundedDepth.FinalVerifier.soundness`), and with Akita openings
+  (`Claims.Final.verifier_sound`), and with Akita openings
   at most `Q · (2^−119 + 38/q²) + εAkita`
-  (`Export.BoundedDepth.FinalVerifier.real_soundness`), under the
+  (`Claims.Final.verifier_sound_with_akita`), under the
   premises of trust item 7. Lean bounds one interactive run of the
   argument by the exact Rust error sum
   (`Spec.Compression.Rust.params_run_soundness`). Only tests join the model
@@ -703,8 +733,8 @@ not change terminal source checks.
   this IVC adversary. So
   `Pr[false history] ≤ Q · (2^−119 + 38/q²) + Σ_j (Pr[collision at visit j] + error(stage j))`
   for the stages of this IVC adversary
-  (`Export.BoundedDepth.FinalHistory.soundness`). With Akita openings, the
-  bound adds `εAkita` (`Export.BoundedDepth.FinalHistory.real_soundness`).
+  (`Claims.Final.history_sound`). With Akita openings, the
+  bound adds `εAkita` (`Claims.Final.history_sound_with_akita`).
   The premises are those of trust item 7, `[HN-A1]` and the closure
   premise of trust item 3, an admitted IVC adversary of the prover, the
   digest length 4 of each circuit key, and a bound `depth` on the
@@ -726,8 +756,8 @@ not change terminal source checks.
   on which `Verifies` rejects the proof from `W`, or a win of adversary 5
   for this IVC adversary. So its probability is at most
   `Q · (2^−119 + 38/q²)` plus the terms of adversary 5
-  (`Export.BoundedDepth.NebulaFinal.soundness`). With Akita openings, the
-  bound adds `εAkita` (`Export.BoundedDepth.NebulaFinal.real_soundness`).
+  (`Claims.Final.memory_sound`). With Akita openings, the
+  bound adds `εAkita` (`Claims.Final.memory_sound_with_akita`).
   The premises are those of the two joined results, so the memory round
   (trust item 6) stays a premise. No Lean result joins the bound of
   adversary 2 with the bound of this adversary. No result shows that an
@@ -761,13 +791,13 @@ not change terminal source checks.
    that 21 or more of the 84 words are rejected, and its probability for one
    element is at most `fallbackBound = C(84, 21) · 59^21/2^1344`, below
    `2^−1155` (`Spec.AjtaiSetupV1.Rejection.card_fallback_le`,
-   `Spec.AjtaiSetupV1.Rejection.fallbackBound_lt`). With uniform streams, an
+   `Claims.Foundations.setup_fallback_bound`). With uniform streams, an
    event has at most its probability under a uniform matrix, plus
    `2 · fallbackBound` for each key element
-   (`Spec.AjtaiSetupV1.Programming.element_bias_le`,
+   (`Claims.Foundations.setup_element_bias`,
    `Spec.AjtaiSetupV1.Programming.expect_le_programmed`). For the
    `18 · 2^20` elements of the bounded-depth key the sum is below `2^−1129`
-   (`Export.BoundedDepth.RandomOracleSetup.programmingError_lt`). So MSIS for
+   (`Claims.Foundations.setup_error`). So MSIS for
    a uniform matrix applies (`decisions/fprime-ajtai-shake128-setup.md`,
    `decisions/fprime-ajtai-rejection-sampling.md`,
    `decisions/fprime-ajtai-shake128-security-argument.md`). The seed is
@@ -777,7 +807,7 @@ not change terminal source checks.
    - *MSIS at the chain norm.* Binding needs MSIS for a uniform matrix of
      `κ = 18` rows of elements of `F_q[X]/(X^64 + 1)` (degree 64) at the chain norm
      `msisChainBound = 8 · T · (B + cap · T · (b − 1)) = 25,165,824`, about
-     `2^24.58` (`Spec.Folding.Schedule.production_msisChainBound`). It is the
+     `2^24.58` (`Claims.Foundations.chain_norm`). It is the
      SuperNeo v1.2 Section 8 norm `8TB` with `B` replaced by the largest
      recovered bound (`Spec.Folding.Schedule.msisChainBound_zero`). The
      terminal verifier checks each slot at the bound of its depth. By Cyclo
@@ -904,7 +934,7 @@ not change terminal source checks.
    Assumption 1 holds with an explicit error: adversary 3's knowledge errors
    for each circuit key plus a truncation loss `2 · ((Q + 1) + 15 · (Q + 15))
    / budget` for an extractor with its own oracle coins and `budget` reruns
-   (`Lifecycle.BoundedDepth.RandomOracle.Assumption1.romAssumption1`). At an
+   (`Claims.Fold.assumption1_in_random_oracle_model`). At an
    oracle that answers like the Poseidon2 sponge, the model's success and
    extraction events are the walk's
    (`Export.BoundedDepth.RomWalk.succeeds_iff_walkSucceeds`,
@@ -931,7 +961,7 @@ not change terminal source checks.
    selector of the application state and witness (`Lifecycle.BoundedDepth.machine`,
    `Lifecycle.BoundedDepth.stepHolds_iff`). Both bounded-depth circuits run the same
    application step, so the selector does not change the computed state.
-   `Export.BoundedDepth.TerminalBridge.bridge` takes the selector that returns the
+   `Claims.Ivc.terminal_bridge` takes the selector that returns the
    circuit that ran on a valid step (`Export.BoundedDepth.TerminalBridge.chosen`),
    so the prover picks the circuit. Rust picks it from the depth of the selected slot
    (`SPEC.md` Algorithm 5): a light fold below the cap and a refresh fold at
@@ -959,11 +989,11 @@ not change terminal source checks.
    (`decisions/nebula-memory-checking.md`). The model gives the `η` oracle no
    relation to the fold addresses (trust item 3). Their domain tags differ,
    and two block lists with these tags are distinct
-   (`Export.DomainSeparation.separated`). The record
+   (`Claims.Encodings.domains_separated`). The record
    chains need only the collision bound of trust item 2.
 7. **The compressed proof [AKITA] [KECCAK] [MSIS] [P2-PERM] [SPONGE].**
    Adversary 6 has these premises.
-   - *The premises of the Lean result.* `Spec.Compression.Verifier.soundness`
+   - *The premises of the Lean result.* `Claims.Compression.argument_sound`
      takes these hypotheses.
      `Spec.Compression.Verifier.WellFormed` (each slice is aligned and
      inside the cube of `W`), the bound `2^25` on the cells of a witness
@@ -981,7 +1011,7 @@ not change terminal source checks.
      (the verifier's matrix part is the multilinear extension of the matrix
      weights) is a theorem for the Lean model of Rust `matrix_part`
      (`Spec.Compression.Verifier.matrixPass_spec`), and
-     `Spec.Compression.Production.params_soundness` states the bound at the
+     `Claims.Compression.production_sound` states the bound at the
      production parameters without it. The model is a transcription of the
      Rust code by hand. Lean emits the output of the model on three sample
      cases: relations of 5 to 16 rows with slots across one and two block
@@ -1009,7 +1039,7 @@ not change terminal source checks.
      `Export.BoundedDepth.FinalVerifier.AkitaKnowledge` states this premise
      with the error `εAkita`: for each prover with Akita openings, a prover
      of the game wins at most `εAkita` less often. Lean does not bound
-     `εAkita`. `Export.BoundedDepth.FinalHistory.real_soundness` takes the
+     `εAkita`. `Claims.Final.history_sound_with_akita` takes the
      same premise for the event of a false history, at one prover of the
      game, and that prover's IVC adversary must be admitted (trust item 3).
      `Export.BoundedDepth.FinalVerifier.Premises` collects the premises on
@@ -1033,7 +1063,7 @@ not change terminal source checks.
      (`Export.BoundedDepth.CompressionSponge.calls_injective`), and they
      start with a domain that no other use starts with
      (`Export.DomainSeparation.compression_owns`,
-     `Export.DomainSeparation.separated`). Rust tests compare the words with
+     `Claims.Encodings.domains_separated`). Rust tests compare the words with
      Rust (section Hashed encodings). The gap is the join: no theorem states
      that the draws of `Spec.Compression.Verifier.game` are the reads of this
      sponge, so no result applies `Spec.Sponge.Transfer` to the game. Lean
@@ -1088,10 +1118,10 @@ not change terminal source checks.
      (`Spec.Compression.Rust.params_run_soundness`). In the
      state-restoration model with `Q` queries, Lean bounds the
      non-interactive argument by `Q · error`
-     (`Spec.Compression.Verifier.soundness`), and `error` is at most the
+     (`Claims.Compression.argument_sound`), and `error` is at most the
      exact sum (`Spec.Compression.Rust.error_le_runError`). Lean bounds the
      Π_CCS run with one source by `Q · 38/q²`
-     (`Spec.Compression.Fresh.soundness`). The sponge meets this model, up
+     (`Claims.Compression.fresh_sound`). The sponge meets this model, up
      to `spongeError N`, only under the open conditions of the third premise
      above.
    - *Separation of the two transcripts.* The session bytes of the Akita
@@ -1102,15 +1132,15 @@ not change terminal source checks.
      argument have their own domain blocks, which differ from the fold
      domains. `[P2-PERM]` and `[KECCAK]` make the permutation and the Keccak
      functions independent. The compression domains, as Lean restates them,
-     are separated from the fold domains (`Export.DomainSeparation.separated`),
+     are separated from the fold domains (`Claims.Encodings.domains_separated`),
      but no emitted data compares the restated tags with Rust.
-     `Export.BoundedDepth.FinalHistory.soundness` puts the draws of the
+     `Claims.Final.history_sound` puts the draws of the
      argument and of the Π_CCS run on the tape of an IVC adversary whose
      folds use Poseidon2 (trust item 3), so it also needs the separation of
      the compression domains from the fold domains.
    - *The error of the argument.* Lean bounds it by `Q · error`, with
      `error < 2^−119` at the production shapes
-     (`Spec.Compression.Verifier.production_error_lt`). Rust bounds the
+     (`Claims.Compression.production_error`). Rust bounds the
      sum of `SPEC.md` section 3 for one interactive run, about `2^−119.02`
      for the reference application at 4 lookup challenges, by `2^−119` in
      integers. To either, add
@@ -1126,10 +1156,10 @@ not change terminal source checks.
 - Completeness does not follow from a knowledge bound: a bound on the
   adversary is not evidence that an honest proof is accepted. The honest
   prover has separate results: an honest light fold and an honest refresh
-  fold are accepted (`Spec.Folding.Light.complete`,
-  `Spec.Folding.Refresh.complete`), the bound `accumulatorBound` of each
+  fold are accepted (`Claims.Fold.light_complete`,
+  `Claims.Fold.refresh_complete`), the bound `accumulatorBound` of each
   depth of an admissible schedule stays below `B`
-  (`Spec.Folding.Schedule.honest_bounds`, arithmetic only), and, given an
+  (`Claims.Fold.honest_bounds`, arithmetic only), and, given an
   accepted fold, an honest step of either circuit has an assignment in which
   every row of its source layout holds
   (`Layout.BoundedDepth.LightAssemblerCompleteness.complete`,
@@ -1137,16 +1167,16 @@ not change terminal source checks.
   results. Along an honest run, each slot's witness stays within the bound
   of its depth (`Export.BoundedDepth.StepExtend.Honest`). An honest step's witness
   satisfies the exported relation at the key's widened slot layout
-  (`Export.BoundedDepth.StepCompleteness.light_complete`,
-  `Export.BoundedDepth.StepCompleteness.refresh_complete`). The terminal accepts
+  (`Claims.Step.light_complete`,
+  `Claims.Step.refresh_complete`). The terminal accepts
   the honest proof of every valid run
-  (`Export.BoundedDepth.RunCompleteness.run_complete`) and of every memory
-  execution (`Export.BoundedDepth.NebulaCompleteness.memory_complete`). HyperNova
+  (`Claims.Ivc.run_complete`) and of every memory
+  execution (`Claims.Nebula.memory_complete`). HyperNova
   Definition 11 (i) extends each proof that the verifier accepts. The
   terminal verifier holds each slot to the bound of its depth
   (`Export.BoundedDepth.RunCompleteness.Verifies`, `SPEC.md` Algorithm 6), and one
   valid step extends each proof that it accepts
-  (`Export.BoundedDepth.RunCompleteness.verifies_step`). These
+  (`Claims.Ivc.step_extends`). These
   results take as premises three package checks that the emitter evaluates
   (`Export.BoundedDepth.StepExtend.Complete`), key digests of four words, and
   witnesses of the application's witness length. Each application promises that its step keeps the state width

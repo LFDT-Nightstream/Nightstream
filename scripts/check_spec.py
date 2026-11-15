@@ -58,7 +58,7 @@ ENTRY_FUNCTION = re.compile(r"^\s*pub fn (verify\w*)\(", re.M)
 SPEC_FILES = {"SPEC.md", "scripts/gpuscope/SPEC.md"}
 OLD_CITATION = re.compile(r"[Ss]pec §")
 
-PIN = re.compile(r"`((?:Export|Layout|Lifecycle|Spec)\.[^`\s]*)` \(`([^`\s.]*)`\)")
+PIN = re.compile(r"`((?:Claims|Export|Layout|Lifecycle|Spec)\.[^`\s]*)` \(`([^`\s.]*)`\)")
 FINGERPRINT = re.compile(r"[0-9a-f]{16}")
 TICKED = re.compile(r"`([^`\n]+)`")
 PATH = re.compile(r"[^/\s`]\S*/(\S*\.[A-Za-z][A-Za-z0-9]*)?")

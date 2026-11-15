@@ -115,7 +115,8 @@ end DocumentCensus
 
 open Lean Elab Command in
 elab "#endpoint_census " path:str : command =>
-  DocumentCensus.census path.getString `NightstreamFPrime ["Export.", "Layout.", "Lifecycle.", "Spec."] false
+  DocumentCensus.census path.getString `NightstreamFPrime
+    ["Claims.", "Export.", "Layout.", "Lifecycle.", "Spec."] false
 
 -- `#spec_census "path" "Namespace" "Root." ...`: every cited theorem also needs its current pin.
 open Lean Elab Command in

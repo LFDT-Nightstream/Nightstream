@@ -153,7 +153,7 @@ if [[ "$package" != "$ROOT" ]]; then
   exit $status
 fi
 
-declare -A rank=([Spec]=0 [Circuit]=1 [Gadgets]=2 [Lifecycle]=3 [Layout]=4 [Export]=5)
+declare -A rank=([Spec]=0 [Circuit]=1 [Gadgets]=2 [Lifecycle]=3 [Layout]=4 [Export]=5 [Claims]=6)
 while IFS= read -r f; do
   layer="$(echo "$f" | sed -E 's#^NightstreamFPrime/([A-Za-z]+).*#\1#')"
   [[ -n "${rank[$layer]:-}" ]] || continue
@@ -165,6 +165,11 @@ while IFS= read -r f; do
     fi
   done < <(grep -E '^import NightstreamFPrime\.' "$f" || true)
 done < <(find NightstreamFPrime -name '*.lean' -path 'NightstreamFPrime/*/*')
+
+# A claim shows each hypothesis in its signature (`NightstreamFPrime/Claims.lean`).
+if grep -nE '^(variable|section|private|@\[|set_option|macro|notation|local notation)' NightstreamFPrime/Claims/*.lean; then
+  fail "a Claims file hides a hypothesis or holds a declaration that is not a claim"
+fi
 
 if ! timeout --signal=KILL 300s python3 -B scripts/check_matrix_codecs.py; then
   fail "physical declaration returned to the MatrixProgram codec owner"

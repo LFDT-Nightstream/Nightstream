@@ -15,6 +15,32 @@ states the adversaries that the results protect against, the Lean result for
 each, and what you must trust. `tests/Axioms*.lean` lists every audited
 theorem.
 
+## Claims
+
+Nightstream claims exactly the theorems of `NightstreamFPrime/Claims/`. Each
+other theorem is a lemma. Read that folder first: one file for each protocol
+part, with soundness and completeness together.
+
+| File | Claims |
+|---|---|
+| `Claims/Foundations.lean` | The strong sampling set, the chain norm, the Ajtai setup, sum-check |
+| `Claims/Encodings.lean` | Each hashed encoding fixes its input, or gives a collision |
+| `Claims/Fold.lean` | The light fold and the refresh fold |
+| `Claims/Step.lean` | The two step circuits, on the rows of the exported relation |
+| `Claims/Ivc.lean` | The terminal relation, the reverse extractor, a complete run |
+| `Claims/Nebula.lean` | Nebula memory |
+| `Claims/Compression.lean` | The argument of the compressed proof |
+| `Claims/Final.lean` | The final verifier and the full history |
+
+A claim states one result with every hypothesis in its signature. Its proof
+is one application of the theorem that proves it, so the Lean kernel checks
+the claim against that theorem. `tests/PremiseCensus.lean` reads the namespace:
+it audits the axioms of each claim, checks the form of each proof, and lists
+each hypothesis. [SECURITY_MODEL.md](SECURITY_MODEL.md), section Premises,
+gives the class of each hypothesis. A theorem is a claim when its hypotheses
+are about an object that a reader outside the project holds: an emitted
+package, a verifier entry point, or a protocol relation of the paper.
+
 ## Step circuits
 
 The bounded-depth scheme has two step circuits (`Layout/BoundedDepth/StepCircuits.lean`). Circuit 0
@@ -30,9 +56,12 @@ column counts into a document.
 
 `Lifecycle/BoundedDepth/Step.lean` states the step relation (`stepHolds_iff`).
 `LightStep.lean` and `RefreshStep.lean` give its two cases from the rows of
-each circuit, and `StepCircuits.soundness` gives the case of either circuit.
-`LightAssemblerCompleteness.complete` and
-`RefreshAssemblerCompleteness.complete` give completeness.
+each circuit. `Claims.Step.light_sound` and `Claims.Step.refresh_sound` give
+each case from the rows of the exported relation and the public input, and
+`Claims.Step.light_complete` and `Claims.Step.refresh_complete` give
+completeness. `StepCircuits.soundness` is a lemma: it gives the case of either
+circuit from the logical circuit, and it takes as a premise what the two
+claims derive.
 `Lifecycle/BoundedDepth/Terminal.lean` owns the terminal relation.
 `Export/BoundedDepth/StepRelation.lean` and `Export/BoundedDepth/TerminalBridge.lean`
 connect the exported relations to the step relation and the terminal.

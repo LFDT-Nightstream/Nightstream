@@ -173,8 +173,8 @@ fn a_size_refuses_more_security_than_its_memory_gives() {
 }
 
 /// Programs of more instructions need larger sizes, and one of 1,100
-/// instructions fits none. A run of more rows than every size holds fits
-/// none either.
+/// instructions fits none. A run of more rows than each size holds fits
+/// none either: Small holds the most rows.
 #[test]
 fn a_prover_takes_the_smallest_size_that_holds_the_run() {
     for (count, size) in [
@@ -190,8 +190,14 @@ fn a_prover_takes_the_smallest_size_that_holds_the_run() {
             (other, _) => panic!("{count} nops: {other:?}"),
         }
     }
-    assert_eq!(WasmSize::smallest(&WasmLimits::default(), 9_728), Some(WasmSize::Small));
-    assert_eq!(WasmSize::smallest(&WasmLimits::default(), 9_729), None);
+    let most = WasmSize::ALL
+        .map(WasmSize::max_rows)
+        .into_iter()
+        .max()
+        .unwrap();
+    assert_eq!(most, WasmSize::Small.max_rows());
+    assert_eq!(WasmSize::smallest(&WasmLimits::default(), most), Some(WasmSize::Small));
+    assert_eq!(WasmSize::smallest(&WasmLimits::default(), most + 1), None);
 }
 
 /// Fibonacci steps natively through Small in one segment. The 600 `nop`s

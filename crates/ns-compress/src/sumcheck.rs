@@ -115,16 +115,16 @@ impl Tables {
     }
 
     fn bind(&mut self, challenge: K) {
-        for table in [
+        [
             &mut self.witness,
             &mut self.weights,
             &mut self.check,
             &mut self.sum,
             &mut self.inverse,
             &mut self.scaled_inverse,
-        ] {
-            bind(table, challenge);
-        }
+        ]
+        .into_par_iter()
+        .for_each(|table| bind(table, challenge));
     }
 }
 
@@ -189,8 +189,7 @@ pub(crate) fn prove_product(
         absorb_extension(transcript, &coefficients);
         let challenge = challenge(transcript);
         claim = poly_eval_k(&coefficients, challenge);
-        bind(&mut values, challenge);
-        bind(&mut weights, challenge);
+        rayon::join(|| bind(&mut values, challenge), || bind(&mut weights, challenge));
         messages.push(coefficients);
         point.push(challenge);
     }

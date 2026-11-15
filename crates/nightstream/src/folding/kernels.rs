@@ -67,7 +67,7 @@ pub(crate) fn prove_pi_rlc_refs(
     mix_rhos_commits: RlcMixer,
 ) -> Result<(CeClaim, Mat<F>), Error> {
     match backend {
-        Backend::Optimized => nr::rlc_with_commit_refs(
+        Backend::Optimized | Backend::OptimizedKeptKey(_) => nr::rlc_with_commit_refs(
             FoldingMode::Optimized,
             s,
             pp.inner(),

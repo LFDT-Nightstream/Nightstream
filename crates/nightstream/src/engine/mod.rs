@@ -5,8 +5,10 @@
 //! assembly and every public check stay on the host.
 
 use std::borrow::Borrow;
+use std::sync::{Arc, OnceLock};
 
-use neo_ajtai::{nightstream_fprime_setup, Commitment};
+use neo_ajtai::nightstream_fprime_setup::{self, KeyTable};
+use neo_ajtai::Commitment;
 use neo_ccs::{CcsStructure, Mat, V1_2Evaluations};
 use neo_math::{F, K};
 use neo_reductions::optimized_engine::PaperJointOracleBackend;
@@ -49,9 +51,28 @@ pub enum CommitError {
     Engine(#[from] EngineError),
 }
 
+/// The rows of the Ajtai key that a prover keeps (SPEC.md Algorithm 1). The
+/// first commitment expands them once, and each later commitment and the
+/// compression setup read them. A verifier keeps no key.
+pub(crate) struct KeptKey {
+    blocks: usize,
+    table: OnceLock<Arc<KeyTable>>,
+}
+
+impl KeptKey {
+    /// No caller is a rayon task: the expansion is parallel, and a task that
+    /// waits for it here can stop it.
+    pub(crate) fn table(&self) -> &Arc<KeyTable> {
+        self.table
+            .get_or_init(|| Arc::new(KeyTable::production(self.blocks)))
+    }
+}
+
 /// The selected engine's device state.
 pub(crate) enum Backend {
     Optimized,
+    /// `Optimized` with the key rows of the prover.
+    OptimizedKeptKey(KeptKey),
     #[cfg(feature = "metal")]
     Metal(metal::Device),
 }
@@ -74,9 +95,27 @@ impl Backend {
         }
     }
 
+    /// `Optimized` keeps the first `blocks` blocks of the key rows; a device
+    /// engine holds its own key.
+    pub(crate) fn keep_key(&mut self, blocks: usize) {
+        if matches!(self, Self::Optimized) {
+            *self = Self::OptimizedKeptKey(KeptKey {
+                blocks,
+                table: OnceLock::new(),
+            });
+        }
+    }
+
+    pub(crate) fn kept_key(&self) -> Option<&KeptKey> {
+        match self {
+            Self::OptimizedKeptKey(key) => Some(key),
+            _ => None,
+        }
+    }
+
     pub(crate) fn engine(&self) -> Engine {
         match self {
-            Self::Optimized => Engine::Optimized,
+            Self::Optimized | Self::OptimizedKeptKey(_) => Engine::Optimized,
             #[cfg(feature = "metal")]
             Self::Metal(_) => Engine::Metal,
         }
@@ -84,12 +123,13 @@ impl Backend {
 
     /// The production-key commitment of each signed-unit witness.
     pub(crate) fn commit<W: Borrow<Mat<F>>>(&self, witnesses: &[W]) -> Result<Vec<Commitment>, CommitError> {
+        let table = self.kept_key().map(|key| &**key.table());
         match self {
-            Self::Optimized => match witnesses {
-                [witness] => nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix(witness.borrow())
+            Self::Optimized | Self::OptimizedKeptKey(_) => match witnesses {
+                [witness] => nightstream_fprime_setup::commit_signed_unit_prefix_matrix(table, witness.borrow())
                     .map(|commitment| vec![commitment])
                     .map_err(|error| CommitError::Input(error.to_string())),
-                _ => nightstream_fprime_setup::commit_production_signed_unit_prefix_matrices(witnesses)
+                _ => nightstream_fprime_setup::commit_signed_unit_prefix_matrices(table, witnesses)
                     .map_err(|error| CommitError::Input(error.to_string())),
             },
             #[cfg(feature = "metal")]
@@ -100,7 +140,7 @@ impl Backend {
     /// The engine's PiCCS round oracle, held for one PiCCS proof.
     pub(crate) fn oracle(&self) -> Result<Oracle<'_>, EngineError> {
         Ok(match self {
-            Self::Optimized => Oracle::Cpu(std::marker::PhantomData),
+            Self::Optimized | Self::OptimizedKeptKey(_) => Oracle::Cpu(std::marker::PhantomData),
             #[cfg(feature = "metal")]
             Self::Metal(device) => Oracle::Metal(device.lock()?),
         })
@@ -116,7 +156,7 @@ impl Backend {
         width: usize,
     ) -> Result<Vec<V1_2Evaluations<K>>, DeviceError> {
         match self {
-            Self::Optimized => {
+            Self::Optimized | Self::OptimizedKeptKey(_) => {
                 let blocks = children
                     .iter()
                     .map(|witness| SuperneoZBlocks::from_witness_mat(witness, width))
@@ -143,7 +183,7 @@ impl Backend {
         witness: &Mat<F>,
     ) -> Option<Result<Option<usize>, DeviceError>> {
         match self {
-            Self::Optimized => {
+            Self::Optimized | Self::OptimizedKeptKey(_) => {
                 let _ = (rows, workspace_bytes, structure, witness);
                 None
             }

@@ -4,13 +4,13 @@
 
 mod support;
 
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
-use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
+use neo_ajtai::nightstream_fprime_setup::{commit_production_signed_unit_prefix_matrix, KeyTable};
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
 use neo_transcript::Poseidon2Transcript;
-use ns_compress::{commit, verify, Error, Layout, Norm, Proof, VerificationKey};
+use ns_compress::{commit, verify, Error, Layout, Norm, Proof, ProverKey, VerificationKey};
 use p3_field::PrimeCharacteristicRing;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
@@ -204,6 +204,18 @@ fn the_pinned_verification_key_is_the_key_of_the_prover() {
     assert_eq!(&VerificationKey::new(1).expect("key"), key().verification_key());
     assert_eq!(VerificationKey::new(513).expect("key").blocks(), 1 << 19);
     assert!(matches!(VerificationKey::new((1 << 19) + 1), Err(Error::Layout(_))));
+}
+
+/// The key of a shared key table is the prover's key of the table's size,
+/// and a table of another size than a key polynomial gives no key.
+#[test]
+fn the_key_of_a_shared_table_is_the_key_of_the_prover() {
+    let shared = ProverKey::with_table(Arc::new(KeyTable::production(512))).expect("key");
+    assert_eq!(shared.verification_key(), key().verification_key());
+    assert!(matches!(
+        ProverKey::with_table(Arc::new(KeyTable::production(100))),
+        Err(Error::Key(_))
+    ));
 }
 
 /// A claim of 513 blocks reads a key element that the key polynomial of 512

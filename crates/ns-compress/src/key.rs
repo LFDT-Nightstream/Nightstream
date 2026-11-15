@@ -27,7 +27,7 @@
 use std::fmt;
 use std::sync::{Arc, OnceLock};
 
-use neo_ajtai::nightstream_fprime_setup::production_key_pair;
+use neo_ajtai::nightstream_fprime_setup::KeyTable;
 use neo_math::{KExtensions, D, F, K};
 use p3_field::{Field, PrimeCharacteristicRing};
 use rayon::prelude::*;
@@ -163,8 +163,7 @@ impl fmt::Debug for VerificationKey {
 pub struct ProverKey {
     pub(crate) akita: Prover,
     pub(crate) committed: Committed,
-    /// Lane `h` of key element `(i, j)` at `(i·blocks + j)·64 + h`.
-    table: Vec<F>,
+    table: Arc<KeyTable>,
     verification: VerificationKey,
 }
 
@@ -173,17 +172,32 @@ impl ProverKey {
     /// polynomial from SHAKE128 once and commits it.
     pub fn new(blocks: usize) -> Result<Self, Error> {
         let schedules = schedules_for(blocks)?;
-        Self::of_elements(schedules, production_element)
+        Self::of_table(schedules, Arc::new(KeyTable::production(schedules.blocks())))
     }
 
+    /// `ProverKey::new` of the blocks of `table`, which is the production
+    /// key table of `key_blocks` blocks. The key shares the table.
+    pub fn with_table(table: Arc<KeyTable>) -> Result<Self, Error> {
+        let schedules = schedules_for(table.blocks())?;
+        if schedules.blocks() != table.blocks() {
+            return Err(Error::Key("the key table is not of the size of a key polynomial"));
+        }
+        Self::of_table(schedules, table)
+    }
+
+    #[cfg(test)]
     /// The key of the polynomial whose key elements are `element(row, pair)`
     /// for the blocks `2·pair` and `2·pair + 1`.
     pub(crate) fn of_elements(
         schedules: &'static Schedules,
         element: impl Fn(u32, u64) -> [[u64; D]; 2] + Sync,
     ) -> Result<Self, Error> {
-        let table = table(schedules.blocks(), element, F::new);
-        let cells = table.par_iter().copied().map(akita::base).collect();
+        let table = KeyTable::from_cells(schedules.blocks(), table(schedules.blocks(), element, F::new));
+        Self::of_table(schedules, Arc::new(table))
+    }
+
+    fn of_table(schedules: &'static Schedules, table: Arc<KeyTable>) -> Result<Self, Error> {
+        let cells = table.cells().par_iter().copied().map(akita::base).collect();
         let (akita, committed, verification) = committed(schedules, cells)?;
         Ok(Self {
             akita,
@@ -199,7 +213,7 @@ impl ProverKey {
 
     /// `F = Σ_i ω^i · A(·, ·, i)`: lane `h` of block `j` at `64j + h`.
     pub(crate) fn fold(&self, omega: K) -> Vec<K> {
-        fold(&self.table, omega)
+        fold(self.table.cells(), omega)
     }
 }
 
@@ -241,10 +255,12 @@ fn schedules_for(blocks: usize) -> Result<&'static Schedules, Error> {
         .ok_or(Error::Layout("no Akita schedule row has a key for this many blocks"))
 }
 
+#[cfg(test)]
 fn production_element(row: u32, pair: u64) -> [[u64; D]; 2] {
-    production_key_pair(row, [2 * pair, 2 * pair + 1])
+    neo_ajtai::nightstream_fprime_setup::production_key_pair(row, [2 * pair, 2 * pair + 1])
 }
 
+#[cfg(test)]
 /// The cells of the rows below κ of the key polynomial of `blocks` blocks.
 fn table<T: Send>(
     blocks: usize,

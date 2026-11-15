@@ -186,7 +186,22 @@ impl BoundedDepth {
     /// The prover's key of the compression: the commitment of the Ajtai key
     /// rows that the relations read, with the rows.
     pub(crate) fn compression_setup(&self) -> Result<ProverKey, BoundedDepthError> {
-        Ok(ProverKey::new(self.key_blocks())?)
+        Ok(match self.backend.kept_key() {
+            Some(key) => ProverKey::with_table(key.table().clone())?,
+            None => ProverKey::new(self.key_blocks())?,
+        })
+    }
+
+    /// The prover keeps the key rows of `compression_setup` and commits each
+    /// witness with them. A circuit with no key of the compression keeps
+    /// none, and neither does a 32-bit target, which cannot hold the rows of
+    /// the reference application.
+    pub(crate) fn keep_key(&mut self) {
+        if cfg!(target_pointer_width = "64") {
+            if let Ok(blocks) = ns_compress::key_blocks(self.key_blocks()) {
+                self.backend.keep_key(blocks);
+            }
+        }
     }
 
     /// The verification key of this circuit: the pinned key of the size of

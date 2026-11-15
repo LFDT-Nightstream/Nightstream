@@ -299,8 +299,10 @@ impl Circuit {
     }
 
     fn prover_on(&self, backend: Backend, minimum_security_bits: u32) -> Result<Prover, Error> {
+        let mut lifecycle = lifecycle::BoundedDepth::new(self.packages.clone(), minimum_security_bits, backend)?;
+        lifecycle.keep_key();
         Ok(Prover {
-            lifecycle: lifecycle::BoundedDepth::new(self.packages.clone(), minimum_security_bits, backend)?,
+            lifecycle,
             application: self.application.clone(),
         })
     }
@@ -494,8 +496,9 @@ impl Prover {
         Ok(self.lifecycle.encode_proof(&proof.0)?)
     }
 
-    /// Expand the rows of the Ajtai key that the prover's circuit reads and
-    /// commit them, once for each prover. A verifier of the same circuit
+    /// Commit the rows of the Ajtai key that the prover's circuit reads,
+    /// once for each prover. The setup shares the rows that the prover keeps
+    /// for its commitments, and the first of the two expands them. A verifier of the same circuit
     /// takes the key of these proofs itself (`Verifier::compression_key`).
     pub fn compression_setup(&self) -> Result<CompressionSetup, Error> {
         Ok(CompressionSetup(self.lifecycle.compression_setup()?))

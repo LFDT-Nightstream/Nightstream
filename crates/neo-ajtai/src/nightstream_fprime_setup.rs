@@ -17,7 +17,7 @@ use neo_ccs::Mat;
 use neo_math::{
     balanced::to_balanced_i128,
     ring::D,
-    signed_sums::{wide256_halves, SignedShiftSums, LIMB_BOUND, MAX_TERMS},
+    signed_sums::{wide256_halves, SignedShiftSums, SplitRing, LIMB_BOUND, MAX_TERMS},
     Fq,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -88,6 +88,72 @@ pub fn production_key_pair(row: u32, columns: [u64; 2]) -> [[u64; D]; 2] {
     key::coefficient_pair(&PRODUCTION_SEED, row, columns)
 }
 
+/// Rows `0..κ` and blocks `0..blocks` of the production key (SPEC.md
+/// Algorithm 1), expanded once. A commitment that takes it reads these key
+/// elements and expands only the elements of a block from `blocks`.
+pub struct KeyTable {
+    blocks: usize,
+    /// Lane `h` of key element `(i, j)` at `(i·blocks + j)·64 + h`.
+    cells: Vec<Fq>,
+}
+
+impl KeyTable {
+    /// `blocks` must be even: the expansion makes two blocks in one call.
+    pub fn production(blocks: usize) -> Self {
+        assert!(blocks.is_multiple_of(2), "a key table holds an even number of blocks");
+        let pairs = blocks / 2;
+        let elements = 0..PRODUCTION_VERIFIER_ROWS as usize * pairs;
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        let elements = elements.into_par_iter();
+        let cells = elements
+            .map(|index| {
+                production_key_pair(
+                    (index / pairs) as u32,
+                    [0, 1].map(|block| 2 * (index % pairs) as u64 + block),
+                )
+                .map(|block| block.map(Fq::new))
+            })
+            .collect::<Vec<_>>()
+            .into_flattened()
+            .into_flattened();
+        Self { blocks, cells }
+    }
+
+    /// The table of `cells`, in the layout of `cells()`.
+    pub fn from_cells(blocks: usize, cells: Vec<Fq>) -> Self {
+        assert_eq!(cells.len(), PRODUCTION_VERIFIER_ROWS as usize * blocks * D);
+        Self { blocks, cells }
+    }
+
+    pub fn blocks(&self) -> usize {
+        self.blocks
+    }
+
+    /// Lane `h` of key element `(i, j)` at `(i·blocks + j)·64 + h`.
+    pub fn cells(&self) -> &[Fq] {
+        &self.cells
+    }
+
+    fn element(&self, row: u32, block: u64) -> SplitRing {
+        let start = (row as usize * self.blocks + block as usize) * D;
+        SplitRing::new(
+            self.cells[start..start + D]
+                .try_into()
+                .expect("one key element"),
+        )
+    }
+}
+
+/// Key elements `(row, columns[0])` and `(row, columns[1])`, from `table` when it holds both.
+fn key_pair(table: Option<&KeyTable>, row: u32, columns: [u64; 2]) -> [SplitRing; 2] {
+    match table {
+        Some(table) if columns.iter().all(|&column| column < table.blocks as u64) => {
+            columns.map(|column| table.element(row, column))
+        }
+        _ => key::split_pair(&PRODUCTION_SEED, row, columns),
+    }
+}
+
 pub fn coefficient_block(seed: &[u8; 32], row: u32, block: u64) -> [u64; D] {
     let bytes = element_bytes(seed, row, block);
     core::array::from_fn(|lane| {
@@ -124,11 +190,11 @@ impl SignedBlock {
     }
 }
 
-fn signed_sums(row: u32, blocks: &[SignedBlock]) -> SignedShiftSums {
+fn signed_sums(table: Option<&KeyTable>, row: u32, blocks: &[SignedBlock]) -> SignedShiftSums {
     let mut sums = SignedShiftSums::zero();
     for pair in blocks.chunks(2) {
         let columns = [pair[0].index, pair.last().expect("nonempty pair").index];
-        let keys = key::split_pair(&PRODUCTION_SEED, row, columns);
+        let keys = key_pair(table, row, columns);
         for (block, key) in pair.iter().zip(keys) {
             sums.add_signed_units(&key, block.positive, block.negative);
         }
@@ -206,7 +272,7 @@ pub fn commit_production_signed_units(carrier: &[i8]) -> AjtaiResult<Commitment>
             });
         }
     }
-    Ok(commit_signed_blocks(&blocks))
+    Ok(commit_signed_blocks(None, &blocks))
 }
 
 pub fn commit_production_signed_unit_matrix(witness: &Mat<Fq>) -> AjtaiResult<Commitment> {
@@ -224,8 +290,13 @@ pub fn commit_production_signed_unit_matrix(witness: &Mat<Fq>) -> AjtaiResult<Co
 /// Lean contract: `AjtaiSetupV1.Prefix.commit_zeroExtend` identifies this
 /// commitment with the full-key commitment after suffix zero-extension.
 pub fn commit_production_signed_unit_prefix_matrix(witness: &Mat<Fq>) -> AjtaiResult<Commitment> {
+    commit_signed_unit_prefix_matrix(None, witness)
+}
+
+/// `commit_production_signed_unit_prefix_matrix` with the key elements of `table`.
+pub fn commit_signed_unit_prefix_matrix(table: Option<&KeyTable>, witness: &Mat<Fq>) -> AjtaiResult<Commitment> {
     let blocks = signed_unit_prefix_blocks(witness)?;
-    Ok(commit_signed_blocks(&blocks))
+    Ok(commit_signed_blocks(table, &blocks))
 }
 
 pub fn signed_unit_prefix_blocks(witness: &Mat<Fq>) -> AjtaiResult<Vec<SignedBlock>> {
@@ -298,6 +369,14 @@ impl SignedUnitBatchError {
 pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Fq>>>(
     witnesses: &[W],
 ) -> Result<Vec<Commitment>, SignedUnitBatchError> {
+    commit_signed_unit_prefix_matrices(None, witnesses)
+}
+
+/// `commit_production_signed_unit_prefix_matrices` with the key elements of `table`.
+pub fn commit_signed_unit_prefix_matrices<W: Borrow<Mat<Fq>>>(
+    table: Option<&KeyTable>,
+    witnesses: &[W],
+) -> Result<Vec<Commitment>, SignedUnitBatchError> {
     let blocks = witnesses
         .iter()
         .enumerate()
@@ -333,7 +412,7 @@ pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Fq>>>(
             .collect();
         let start = columns.partition_point(|&column| column < range.start);
         let end = columns.partition_point(|&column| column < range.end);
-        batch_sums(row, &columns[start..end], &blocks)
+        batch_sums(table, row, &columns[start..end], &blocks)
     });
     for (row, totals) in totals.into_iter().enumerate() {
         for (commitment, total) in commitments.iter_mut().zip(totals) {
@@ -343,11 +422,11 @@ pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Fq>>>(
     Ok(commitments)
 }
 
-fn batch_sums(row: u32, columns: &[u64], blocks: &[&[SignedBlock]]) -> Vec<SignedShiftSums> {
+fn batch_sums(table: Option<&KeyTable>, row: u32, columns: &[u64], blocks: &[&[SignedBlock]]) -> Vec<SignedShiftSums> {
     let mut sums = vec![SignedShiftSums::zero(); blocks.len()];
     let mut positions = vec![0usize; blocks.len()];
     for pair in columns.chunks(2) {
-        let keys = key::split_pair(&PRODUCTION_SEED, row, [pair[0], *pair.last().expect("nonempty pair")]);
+        let keys = key_pair(table, row, [pair[0], *pair.last().expect("nonempty pair")]);
         for (&column, key) in pair.iter().zip(keys) {
             for ((witness, position), sum) in blocks.iter().zip(&mut positions).zip(&mut sums) {
                 if let Some(block) = witness.get(*position).filter(|block| block.index == column) {
@@ -360,13 +439,13 @@ fn batch_sums(row: u32, columns: &[u64], blocks: &[&[SignedBlock]]) -> Vec<Signe
     sums
 }
 
-fn commit_signed_blocks(blocks: &[SignedBlock]) -> Commitment {
+fn commit_signed_blocks(table: Option<&KeyTable>, blocks: &[SignedBlock]) -> Commitment {
     let mut commitment = Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize);
     let Some(last) = blocks.last() else {
         return commitment;
     };
     let totals = row_totals(last.index + 1, |row, columns| {
-        vec![signed_sums(row, column_slice(blocks, &columns))]
+        vec![signed_sums(table, row, column_slice(blocks, &columns))]
     });
     for (output, totals) in commitment.data_mut().chunks_mut(D).zip(totals) {
         output.copy_from_slice(&totals[0].reduce());

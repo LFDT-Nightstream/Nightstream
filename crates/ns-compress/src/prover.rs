@@ -171,10 +171,10 @@ impl Committed<'_> {
     /// the inverse check, the weight of the sum, and the two combinations of
     /// the inverses.
     fn lookup_tables(&self, tables: &[(Slice, Inverses)], challenges: &Challenges) -> [Vec<K>; 4] {
-        let mut check = vec![K::ZERO; self.codes.len()];
-        let mut sum = vec![K::ZERO; self.codes.len()];
-        let mut inverse = vec![K::ZERO; self.codes.len()];
-        let mut scaled = vec![K::ZERO; self.codes.len()];
+        // One thread for each table writes its zeros (`weights::table`).
+        let zeros = || vec![K::ZERO; self.codes.len()];
+        let pair = || rayon::join(zeros, zeros);
+        let ((mut check, mut sum), (mut inverse, mut scaled)) = rayon::join(pair, pair);
         let scaled_psi: [K; LOOKUPS] = std::array::from_fn(|k| challenges.psi[k] * challenges.taus[k]);
         for (table, (slice, inverses)) in tables.iter().enumerate() {
             let equality = EqualityWeights::new(&challenges.beta[..slice.vars]);
@@ -183,7 +183,9 @@ impl Committed<'_> {
                 .par_iter_mut()
                 .enumerate()
                 .for_each(|(cell, weight)| *weight = xi * equality.at(cell));
-            sum[slice.range()].fill(lambda);
+            sum[slice.range()]
+                .par_iter_mut()
+                .for_each(|cell| *cell = lambda);
             for (output, combined) in [
                 (&mut inverse, inverses.combine(&challenges.psi)),
                 (&mut scaled, inverses.combine(&scaled_psi)),

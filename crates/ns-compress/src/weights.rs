@@ -210,23 +210,27 @@ pub(crate) fn table(
     folded: &[K],
 ) -> Result<Vec<K>, Error> {
     let point = Point::new(challenges.delta);
-    let prepared = statements
-        .par_iter()
-        .zip(&layout.cells)
-        .map(|(statement, cells)| {
-            let omega = omega_powers(statement, challenges.omega);
-            let matrices = Matrices::new(statement, &omega)?;
-            let evaluation = Evaluation::new(statement, &omega);
-            let blocks = equality(evaluation.r_high, cells.blocks);
-            Ok((evaluation, blocks, matrices.rows.column_weights(&matrices.slots)))
-        })
-        .collect::<Result<Vec<_>, Error>>()?;
-    let mut table = vec![K::ZERO; layout.witness_len];
+    let prepare = || {
+        statements
+            .par_iter()
+            .zip(&layout.cells)
+            .map(|(statement, cells)| {
+                let omega = omega_powers(statement, challenges.omega);
+                let matrices = Matrices::new(statement, &omega)?;
+                let evaluation = Evaluation::new(statement, &omega);
+                let blocks = equality(evaluation.r_high, cells.blocks);
+                Ok((evaluation, blocks, matrices.rows.column_weights(&matrices.slots)))
+            })
+            .collect::<Result<Vec<_>, Error>>()
+    };
+    // One thread writes the zeros: the first write of a large table is the
+    // page faults of its memory, and threads that share them wait.
+    let (prepared, mut table) = rayon::join(prepare, || vec![K::ZERO; layout.witness_len]);
     let mut tables = 0;
     for (((statement, cells), (evaluation, blocks, columns)), mu) in statements
         .iter()
         .zip(&layout.cells)
-        .zip(prepared)
+        .zip(prepared?)
         .zip(powers(challenges.mu, statements.len()))
     {
         let witness = &mut table[cells.witness.range()][..cells.blocks * D];

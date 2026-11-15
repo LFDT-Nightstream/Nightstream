@@ -38,10 +38,10 @@ use crate::witness::{validate_witness_batch, validate_witness_batch_order, RawWi
 const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/packages/v1";
 /// The identity of the packages in `formal/nightstream-fprime/artifacts`.
 pub const BOUNDED_DEPTH_PACKAGES_IDENTITY: [u64; 4] = [
-    13_276_045_247_463_402_763,
-    10_227_249_901_569_048_592,
-    9_409_622_928_757_300_415,
-    14_920_281_440_332_491_387,
+    12_096_774_549_834_946_229,
+    14_010_018_720_179_246_948,
+    8_308_383_773_775_391_137,
+    13_324_862_456_486_381_448,
 ];
 
 /// A lane or a row side as `Pieces.linear?` reads it: a constant and terms.

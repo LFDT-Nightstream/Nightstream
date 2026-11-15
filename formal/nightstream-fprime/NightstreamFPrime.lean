@@ -40,6 +40,7 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot
 import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh
 import NightstreamFPrime.Export.BoundedDepth.FinalVerifier
 import NightstreamFPrime.Export.BoundedDepth.FinalHistory
+import NightstreamFPrime.Lifecycle.RandomOracle.Pieces
 import NightstreamFPrime.Lifecycle.RandomOracle.Schedule
 import NightstreamFPrime.Lifecycle.RandomOracle.Test
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshSchedule

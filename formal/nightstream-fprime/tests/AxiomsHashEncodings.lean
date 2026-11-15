@@ -4,6 +4,7 @@ import NightstreamFPrime.Export.BoundedDepth.IdentityBinding
 import NightstreamFPrime.Export.DomainSeparation
 import NightstreamFPrime.Export.BoundedDepth.EtaSponge
 import NightstreamFPrime.Export.BoundedDepth.FoldSponge
+import NightstreamFPrime.Lifecycle.RandomOracle.Pieces
 
 #audit_axioms NightstreamFPrime.Spec.Sponge.spongeError_nonneg
 #audit_axioms NightstreamFPrime.Spec.Sponge.hash_eq_digest
@@ -51,3 +52,9 @@ import NightstreamFPrime.Export.BoundedDepth.FoldSponge
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FoldSponge.refresh_conditions
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FoldSponge.light_knowledge_le
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FoldSponge.refresh_knowledge_le
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Sponge.absorbCalls_append_inj
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Sponge.absorbCalls_not_injective
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Sponge.Piece.alike_of_length
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Sponge.calls_injective
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.pieces_alike
+#audit_axioms NightstreamFPrime.Lifecycle.RandomOracle.Schedule.calls_pieces

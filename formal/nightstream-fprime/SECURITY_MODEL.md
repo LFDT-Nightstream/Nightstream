@@ -102,13 +102,39 @@ the Rust code is held to the Lean definition (trust item 5).
 | Fresh public input | `Lifecycle.encHash` | `Lifecycle.encHash_injective_fixed` | Indirect, as above |
 | Package identity | `Export.BoundedDepth.StepPackage.identity` | `Export.BoundedDepth.IdentityBinding.valuePreimage_injective`, `Export.BoundedDepth.IdentityBinding.identity_binds` (atoms and lengths below `2^64`) | Direct: `identity_code_matches_lean_on_the_probe_packages` |
 | Circuit key digest | `Lifecycle.BoundedDepth.CircuitKeyDigest.input` | `Lifecycle.BoundedDepth.CircuitKeyDigest.input_injective`, `Lifecycle.BoundedDepth.CircuitKeyDigest.digest_binds` (an identity of any length) | Direct: `circuit_key_is_the_lean_digest` on three identities (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/nightstream/tests/bounded_depth_lifecycle/circuit_key.rs`) |
-| Fold transcripts | `Lifecycle.RandomOracle.Schedule.challengeCalls` | `Lifecycle.RandomOracle.Schedule.challengeAddress_injective`, `Lifecycle.RandomOracle.Schedule.statementCalls_identify`, `Lifecycle.RandomOracle.Schedule.proverCalls_identify`; disjoint lanes: `Export.BoundedDepth.FoldSponge.rho_ne` | Indirect: package rows. The Π_RLC sampler is direct (`crates/neo-reductions/tests/pi_rlc_lean_parity.rs`) |
+| Fold transcripts | `Lifecycle.RandomOracle.Schedule.challengeCalls`, `Lifecycle.RandomOracle.Schedule.pieces` | `Lifecycle.RandomOracle.Schedule.challengeAddress_injective`, `Lifecycle.RandomOracle.Schedule.statementCalls_identify`, `Lifecycle.RandomOracle.Schedule.proverCalls_identify`; fixed lengths: `Lifecycle.RandomOracle.Schedule.pieces_alike`, `Lifecycle.RandomOracle.Schedule.calls_pieces`; disjoint lanes: `Export.BoundedDepth.FoldSponge.rho_ne` | Direct: `the_light_transcript_absorbs_the_lean_pieces`, `the_refresh_transcript_absorbs_the_lean_pieces` (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/nightstream-fprime/tests/fold_transcript_lean.rs`). The Π_RLC sampler is direct (`crates/neo-reductions/tests/pi_rlc_lean_parity.rs`). Indirect for the fold prover: package rows |
 | Compression transcript and Akita session bytes | None | Open: no Lean model | None |
 | Nebula record chains | `Lifecycle.Nebula.blocks` | `Lifecycle.Nebula.blocks_injective`, `Lifecycle.Nebula.blockChunks_injective` | Direct: fixtures (`crates/nightstream/tests/nebula/memory.rs`) |
 | Nebula `η` | `Lifecycle.Nebula.etaInputBlocks` | `Lifecycle.Nebula.etaInputBlocks_injective`, `Lifecycle.Nebula.EtaOracle.pointOf_injective`; the four reads: `Export.BoundedDepth.EtaSponge.reads_injective` | Indirect: package rows |
 | Nebula state words | `Lifecycle.Nebula.carryVector` | `Lifecycle.Nebula.carryVector_injective`, `Lifecycle.Nebula.stateWords_eq_or_collision` | Direct: terminal fixtures |
 | Application identity | None (`with_application`) | Open: Rust only | None |
 | Domain separation | `Export.DomainSeparation.uses` | `Export.DomainSeparation.separated`: two block lists whose words start with the tags of two distinct uses are distinct. A use owns its blocks: `Export.DomainSeparation.hash_owns`, `Export.DomainSeparation.circuitKey_owns`, `Export.DomainSeparation.fold_owns`, `Export.DomainSeparation.nebula_owns`. Open: inputs that an application hashes, which can start with any words. | Indirect for the tags that Lean defines. Direct for the circuit key tag (row Circuit key digest). None for the three tags that Lean restates from Rust (two compression domains, application identity) |
+
+### Absorbs without a frame
+
+Rust `absorb_v1_2` (`crates/neo-transcript/src/poseidon2.rs`) adds each 12
+words of a message to the rate lanes and permutes. It writes no length word
+and no padding. So a message and the same message with one more zero word
+give one list of sponge calls
+(`Lifecycle.RandomOracle.Sponge.absorbCalls_not_injective`). The sponge
+calls of a transcript fix its messages only when, at each position, the two
+transcripts read the same number of challenges, or absorb two messages whose
+calls fix their length (`Lifecycle.RandomOracle.Sponge.Piece.Alike`,
+`Lifecycle.RandomOracle.Sponge.calls_injective`). Two messages of one length
+meet this condition (`Lifecycle.RandomOracle.Sponge.Piece.alike_of_length`).
+Each row is a call site of `absorb_v1_2` and the reason why its lengths are
+fixed. `κd = 1,152`, `d = 64`, `ℓ = 28` and `t = 4`.
+
+| Call site | Words of each absorb | Fixed by |
+| --- | --- | --- |
+| `read_coin_v1_2` (`crates/neo-transcript/src/poseidon2.rs`) | 12 zero words after the read at position 5 | `Lifecycle.RandomOracle.Sponge.calls`: the count of the reads fixes each zero block |
+| `sample_rot_rhos_n` (`crates/neo-reductions/src/common.rs`) | 2: the tag 4 and the coordinate, for each Π_RLC challenge | `Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw.queryAt`; direct parity (`crates/neo-reductions/tests/pi_rlc_lean_parity.rs`) |
+| `bind_and_sample_with_trace`, `prove_phase`, `verify_phase`, `absorb_outputs` (`crates/neo-reductions/src/engines/pi_ccs_joint_protocol.rs`), as the prover of a light or a refresh fold | 12; 1,476 for a light fold or 26,564 for a refresh fold; 18 for each of the `ℓ` rounds; 1,280 for a light fold or 9,600 for a refresh fold | The verifier of a fold is the step circuit, which has the schedule of Lean. `Lifecycle.RandomOracle.Schedule.pieces_alike` gives one length at each position for every statement and every prover message. A prover with another length makes no accepted step |
+| The same functions, as the Π_CCS verifier of `verify_final` (`crates/nightstream/src/lifecycle/bounded_depth/compression.rs`) | 12; 1,476 plus the byte words of the commitment of `W`; 18 for each round; 640 | Open: no Lean definition has these pieces (row Compression transcript and Akita session bytes). Rust sets `m_in = 320`, checks the shape of the commitment, the count and the length of the rounds and the shape of the output, and the byte words start with the byte count |
+| `append` (`crates/neo-reductions/src/engines/paper_exact_engine/transcript.rs`) | The lengths of the row above for a fold | No function of `nightstream` or `neo-wasm` selects this engine |
+| `derive` (`crates/nightstream-fprime/src/package/pi_ccs_v1_2_transcript.rs`) | 12; 1,476 or 26,564; 18 for each round; 1,280 or 9,600 | `validate_shapes` rejects each other length. Direct parity: the two tests of row Fold transcripts compare the state after these absorbs with Lean and check the rejections |
+| `absorb_statements` (`crates/ns-compress/src/lib.rs`) | 12; the byte words of the compression key; `5 + κd + m_in + 2ℓ + 2d + 2td` for each claim | Open: `Spec.Compression.Rust.calls` gives the counts, and a test replays a proof with them (`crates/ns-compress/tests/unit/transcript_order.rs`). No theorem gives injectivity (row Compression transcript and Akita session bytes) |
+| `absorb_extension`, `absorb_bytes` (`crates/ns-compress/src/transcript.rs`) | 8 for each round; 2, 8 and 2 for the values; 6 for each key round; 2 for the key value; the byte words of each Akita commitment | Open, as the row above |
 
 ## Premises
 

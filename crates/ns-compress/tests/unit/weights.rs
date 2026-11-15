@@ -1,4 +1,6 @@
-//! `matrix_part` equals its definition on random rows and on the rows of the
+//! `matrix_part` equals the output of its Lean model
+//! (`Spec.Compression.Verifier.matrixPass`) on the sample relations that Lean
+//! emits, and it equals its definition on random rows and on the rows of the
 //! light and refresh circuits:
 //! `Σ_claims c · Σ_runs ω^(κ+1+j) · eq(r, row) · Σ_k initial · ratio^k · Φ(start + k)`,
 //! where each entry of matrix `j` is a geometric run of columns
@@ -268,5 +270,163 @@ fn the_matrix_part_is_its_definition_on_the_step_circuits() {
             },
         ];
         assert_matches_direct(&mut rng, &statements);
+    }
+}
+
+/// Factored rows from the tables of a Lean relation.
+struct LeanRows {
+    shape: MatrixShape,
+    offsets: Vec<usize>,
+    slots: Vec<u32>,
+    coefficients: Vec<F>,
+    starts: Vec<u32>,
+    widths: Vec<u8>,
+    ratio: F,
+}
+
+impl LeanRows {
+    /// `[rows, columns, ratio, starts, widths, entries]`, with the pairs
+    /// `[slot, coefficient]` of each row and matrix in `entries`.
+    fn new(relation: &serde_json::Value) -> Self {
+        let number = |value: &serde_json::Value| value.as_u64().expect("a natural number");
+        let numbers = |value: &serde_json::Value| -> Vec<u64> {
+            let numbers = value.as_array().expect("numbers").iter();
+            numbers.map(number).collect()
+        };
+        let (mut offsets, mut slots, mut coefficients) = (vec![0], Vec::new(), Vec::new());
+        let rows = relation[5].as_array().expect("rows");
+        for row in rows {
+            let matrices = row.as_array().expect("matrices");
+            assert_eq!(matrices.len(), MATRICES);
+            for matrix in matrices {
+                for entry in matrix.as_array().expect("entries") {
+                    slots.push(number(&entry[0]) as u32);
+                    coefficients.push(F::from_u64(number(&entry[1])));
+                }
+                offsets.push(slots.len());
+            }
+        }
+        assert_eq!(rows.len() as u64, number(&relation[0]));
+        Self {
+            shape: MatrixShape {
+                rows: rows.len(),
+                columns: number(&relation[1]) as usize,
+                matrices: MATRICES,
+            },
+            offsets,
+            slots,
+            coefficients,
+            starts: numbers(&relation[3]).into_iter().map(|start| start as u32).collect(),
+            widths: numbers(&relation[4]).into_iter().map(|width| width as u8).collect(),
+            ratio: F::from_u64(number(&relation[2])),
+        }
+    }
+
+    fn rows(&self) -> FactoredRows<'_> {
+        FactoredRows::new(
+            self.shape,
+            FactoredEntries {
+                offsets: &self.offsets,
+                slots: &self.slots,
+                coefficients: &self.coefficients,
+            },
+            FactoredSlots {
+                starts: &self.starts,
+                widths: &self.widths,
+                ratio: self.ratio,
+            },
+        )
+        .expect("factored rows")
+    }
+}
+
+impl MatrixRows for LeanRows {
+    fn shape(&self) -> MatrixShape {
+        self.shape
+    }
+
+    fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
+        self.rows().visit_rows(rows, sink)
+    }
+
+    fn factored(&self) -> Result<Option<FactoredRows<'_>>, PiCcsError> {
+        Ok(Some(self.rows()))
+    }
+}
+
+/// Lean emits the output of its model of `matrix_part` on sample relations:
+/// slots across one and two block borders, two claims on one relation, and
+/// claims on two relations of one size.
+#[test]
+fn the_matrix_part_is_the_lean_matrix_pass() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../formal/nightstream-fprime/artifacts/nightstream-fprime-matrix-pass-parity-v1.json");
+    let file: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(path).expect("Lean matrix pass file")).expect("JSON");
+    assert_eq!(file[0].as_u64(), Some(1), "Lean matrix pass schema");
+    let scalars = |value: &serde_json::Value| -> Vec<K> {
+        let scalars = value.as_array().expect("values of K").iter();
+        let word = |word: &serde_json::Value| F::from_u64(word.as_u64().expect("u64"));
+        scalars.map(|pair| neo_math::from_complex(word(&pair[0]), word(&pair[1]))).collect()
+    };
+    let cases = file[1].as_array().expect("cases");
+    assert_eq!(cases.len(), 3);
+    for case in cases {
+        let relations: Vec<LeanRows> = case[0].as_array().expect("relations").iter().map(LeanRows::new).collect();
+        assert!(relations.iter().any(|rows| {
+            let wide = |(&start, &width): (&u32, &u8)| start as usize / D + 2 <= (start as usize + width as usize - 1) / D;
+            rows.starts.iter().zip(&rows.widths).any(wide)
+        }));
+        let claims: Vec<(usize, CeClaim, Norm)> = case[1]
+            .as_array()
+            .expect("claims")
+            .iter()
+            .map(|claim| {
+                let norm = match claim[2].as_u64().expect("the norm word") {
+                    0 => Norm::Caller,
+                    word => Norm::Table { bound: word - 1 },
+                };
+                let relation = claim[0].as_u64().expect("relation") as usize;
+                let claim = CeClaim {
+                    c: Commitment::zeros(KAPPA),
+                    X: Mat::from_row_major(D, 0, Vec::new()),
+                    r: scalars(&claim[1]),
+                    eval_k: Vec::new(),
+                    eval_a: vec![Vec::new(); MATRICES],
+                    m_in: 0,
+                    fold_digest: [0; 32],
+                    adv: None,
+                };
+                (relation, claim, norm)
+            })
+            .collect();
+        let statements: Vec<Statement<'_>> = claims
+            .iter()
+            .map(|(relation, claim, norm)| Statement {
+                claim,
+                rows: &relations[*relation],
+                norm: *norm,
+            })
+            .collect();
+        let sizes: Vec<(usize, Norm)> = statements.iter().map(|statement| (statement.blocks(), statement.norm)).collect();
+        let layout = crate::Layout::new(&sizes, 512).expect("layout");
+        let [mu, omega, delta] = scalars(&case[2]).try_into().expect("three challenges");
+        let challenges = Challenges {
+            taus: [F::ZERO; 4],
+            omega,
+            delta,
+            gamma: K::ZERO,
+            mu,
+            psi: [K::ZERO; 4],
+            xi: Vec::new(),
+            lambda: Vec::new(),
+            beta: Vec::new(),
+        };
+        let rho = scalars(&case[3]);
+        assert_eq!(rho.len(), layout.witness_vars);
+        let uses = Uses::new(&layout, &challenges, &rho);
+        let expected = scalars(&serde_json::Value::Array(vec![case[4].clone()]))[0];
+        assert_eq!(matrix_part(&statements, &challenges, &uses).expect("matrix part"), expected);
+        assert_eq!(direct(&statements, &challenges, &uses), expected);
     }
 }

@@ -161,5 +161,6 @@ import NightstreamFPrime.Export.BoundedDepth.NebulaSecurity
 import NightstreamFPrime.Export.BoundedDepth.NebulaFinal
 import NightstreamFPrime.Export.BoundedDepth.NebulaCompleteness
 import NightstreamFPrime.Export.BoundedDepth.Parity
+import NightstreamFPrime.Export.MatrixPassParity
 import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ChainBinding
 import NightstreamFPrime.Spec.Nebula.SegmentGate

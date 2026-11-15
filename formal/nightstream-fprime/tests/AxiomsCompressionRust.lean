@@ -1,5 +1,6 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Compression
+import NightstreamFPrime.Export.MatrixPassParity
 
 /-! Axiom audits for the links of the compression argument to Rust (`Spec/Compression/Rust`,
 `Spec/Compression/Verifier/Run.lean`). -/
@@ -37,3 +38,8 @@ import NightstreamFPrime.Spec.Compression
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.sumcheck_followsK
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.game_follows
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.calls_draw
+#audit_axioms NightstreamFPrime.Export.MatrixPassParity.pow_card_sub_one
+#audit_axioms NightstreamFPrime.Export.MatrixPassParity.mul_inverse
+#audit_axioms NightstreamFPrime.Export.MatrixPassParity.inverse_zero
+#audit_axioms NightstreamFPrime.Export.MatrixPassParity.matrixPass_runParams
+#audit_axioms NightstreamFPrime.Export.MatrixPassParity.pass_matrixSpec

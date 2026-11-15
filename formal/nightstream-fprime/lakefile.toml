@@ -47,6 +47,11 @@ root = "NightstreamFPrime.Export.EncodingParityMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
+name = "emitMatrixPassParity"
+root = "NightstreamFPrime.Export.MatrixPassParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
 name = "emitNebulaGateParity"
 root = "NightstreamFPrime.Export.NebulaGateParityMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

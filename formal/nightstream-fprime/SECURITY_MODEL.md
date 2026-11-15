@@ -189,7 +189,7 @@ at the head of the hypothesis, and `*` is each head.
 | `sampler.*` | `*` | game | adversary 5: the `η` sampler and its query bound |
 | `wf.*`, `slots_le`, `key_fits` | `*` | lean | `Spec.Compression.Rust.layoutNew_production`, for the layout of the Lean model of `Layout::new` |
 | `counts` | `Spec.Compression.Verifier.CountsNonzero` | lean | `Spec.Compression.Production.params_countsNonzero` |
-| `matrix` | `Spec.Compression.Verifier.MatrixSpec` | lean | `Spec.Compression.Production.verifierData_matrixSpec`, for the Lean model of Rust `matrix_part` |
+| `matrix` | `Spec.Compression.Verifier.MatrixSpec` | lean | `Spec.Compression.Production.verifierData_matrixSpec`, for the Lean model of Rust `matrix_part`. Rust `matrix_part` gives the output of the model on three sample cases (`formal/nightstream-fprime/artifacts/nightstream-fprime-matrix-pass-parity-v1.json`, `the_matrix_part_is_the_lean_matrix_pass`). No data compares the two on the rows of the step circuits |
 | `columns`, `rows` | `LE.le` | lean | `Spec.Compression.Production.params_soundness` |
 | `statement.*`, `constantLaw.*` | `*` | game | adversary 6: the statement of the Π_CCS run and the law of its constant |
 | `params.rlc_bound`, `freshBound`, `degreeCovers` | `*` | lean | `Export.BoundedDepth.FinalVerifier.soundness` uses the Π_CCS run at the production parameters and takes none of these |
@@ -983,7 +983,17 @@ not change terminal source checks.
      (`Spec.Compression.Verifier.matrixPass_spec`), and
      `Spec.Compression.Production.params_soundness` states the bound at the
      production parameters without it. The model is a transcription of the
-     Rust code by hand, and no check compares the two. `L ≤ 2^2` and
+     Rust code by hand. Lean emits the output of the model on three sample
+     cases: relations of 5 to 16 rows with slots across one and two block
+     borders, two claims on one relation and claims on two relations of one
+     size (`Export.MatrixPassParity.pass_matrixSpec` gives `MatrixSpec` for
+     the function that the emitter runs). The Rust test
+     `the_matrix_part_is_the_lean_matrix_pass` requires that `matrix_part`
+     gives these outputs. No data compares the two on the rows of the step
+     circuits: Lean has no definition of the factored rows of a package, and
+     the model takes about 0.1 s for each row of a sample relation, which
+     is hours for the more than 650,000 rows of the two circuits. Rust tests compare `matrix_part` with
+     its Rust definition on those rows. `L ≤ 2^2` and
      `κ ≤ 2^5` are const asserts in Rust, and `params_soundness` proves them
      at the production values. `slot_holds` also takes the hypothesis
      `Spec.Compression.Claim.Represents`: the dense rows of a slot claim are

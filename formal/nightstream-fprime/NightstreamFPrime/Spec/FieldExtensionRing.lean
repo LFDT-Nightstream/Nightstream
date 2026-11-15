@@ -3,7 +3,7 @@ import Mathlib.Algebra.Ring.TransferInstance
 import NightstreamFPrime.Spec.FieldExtension
 import NightstreamFPrime.Spec.FieldTower
 
-/-! Owns the Mathlib structure on the challenge field `K = F_q[U]/(U² − 7)`:
+/-! Owns the Mathlib structure on the challenge field `K = F_q[U]/(U² − 2)`:
 commutative ring, domain, finite type, and characteristic `q`, as one scoped
 instance block, with the equations that match it to `K`'s own operations. A
 consumer opens `NightstreamFPrime.Spec.FieldExtensionRing`. -/
@@ -11,7 +11,7 @@ consumer opens `NightstreamFPrime.Spec.FieldExtensionRing`. -/
 namespace NightstreamFPrime.Spec.FieldExtensionRing
 
 /-- `K` as Mathlib's quadratic algebra over `ZMod q`. -/
-def carrierEquiv : K ≃ QuadraticAlgebra (ZMod fieldModulus) 7 0 where
+def carrierEquiv : K ≃ QuadraticAlgebra (ZMod fieldModulus) 2 0 where
   toFun value := ⟨value.c0, value.c1⟩
   invFun value := ⟨value.re, value.im⟩
   left_inv _ := rfl
@@ -71,7 +71,7 @@ scoped instance : IsDomain K := NoZeroDivisors.to_isDomain K
 attribute [scoped instance] kFintype
 
 scoped instance : CharP K fieldModulus := by
-  have : CharP (QuadraticAlgebra (ZMod fieldModulus) 7 0) fieldModulus :=
+  have : CharP (QuadraticAlgebra (ZMod fieldModulus) 2 0) fieldModulus :=
     charP_of_injective_algebraMap QuadraticAlgebra.algebraMap_injective _
   exact charP_of_injective_ringHom (f := carrierEquiv.ringEquiv.symm.toRingHom)
     carrierEquiv.ringEquiv.symm.injective _

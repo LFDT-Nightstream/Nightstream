@@ -98,7 +98,7 @@ impl KExpr {
 
     pub(super) fn mul(self, rhs: Self) -> Self {
         Self::of(
-            self.c0.clone() * rhs.c0.clone() + Expr::constant(7) * self.c1.clone() * rhs.c1.clone(),
+            self.c0.clone() * rhs.c0.clone() + Expr::constant(2) * self.c1.clone() * rhs.c1.clone(),
             self.c0 * rhs.c1 + self.c1 * rhs.c0,
         )
     }

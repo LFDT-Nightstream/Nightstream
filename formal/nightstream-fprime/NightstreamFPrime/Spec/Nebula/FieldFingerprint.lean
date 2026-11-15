@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.FieldExtensionRing
 import NightstreamFPrime.Spec.Nebula.RetryAveraging
 
 /-! Owns the fingerprint bound on the trunk challenge field
-`K = F_q[U]/(U² − 7)`: part 1, `ε_test ≤ 2·m / q²`, and part 2 for one segment.
+`K = F_q[U]/(U² − 2)`: part 1, `ε_test ≤ 2·m / q²`, and part 2 for one segment.
 The ring structure on `K` is the scoped instance block of
 `FieldExtensionRing`. -/
 

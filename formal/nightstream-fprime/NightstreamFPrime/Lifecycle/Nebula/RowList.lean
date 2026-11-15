@@ -116,7 +116,7 @@ def fingerprintRows (a : ℕ → Circuit.Expr) (t g v : Circuit.Expr) : List Cir
 /-- The rows of `next = prod · x` with the cross products `m = prod.c1 · x1`
 and `n = prod.c1 · x0`. -/
 def productRows (prod next : KExpr) (x0 x1 m n : Circuit.Expr) : List Circuit.Expr :=
-  [m - prod.c1 * x1, n - prod.c1 * x0, next.c0 - (prod.c0 * x0 + constE 7 * m),
+  [m - prod.c1 * x1, n - prod.c1 * x0, next.c0 - (prod.c0 * x0 + constE 2 * m),
     next.c1 - (prod.c0 * x1 + n)]
 
 /-- An ungated fingerprint step `next = prod · f` (rows S2 and S3) over the

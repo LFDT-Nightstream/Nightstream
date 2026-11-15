@@ -1,4 +1,4 @@
-//! `F_q` with `q = 2^64 − 59` and `K = F_q[u]/(u² − 7)`, against integer
+//! `F_q` with `q = 2^64 − 59` and `K = F_q[u]/(u² − 2)`, against integer
 //! references (`decisions/field-2p64-59-ring-x64.md`).
 
 use neo_math::{Fq, KExtensions, K};
@@ -241,17 +241,17 @@ fn serde_round_trips_and_rejects_values_at_or_above_the_modulus() {
 }
 
 #[test]
-fn seven_is_not_a_square() {
-    assert_eq!(pow_mod(7, (Q - 1) / 2, Q), Q - 1);
-    assert_eq!(<Fq as BinomiallyExtendable<2>>::W, Fq::from_u64(7));
-    assert_eq!(Fq::from_u64(7).exp_u64((Q - 1) / 2), Fq::NEG_ONE);
+fn two_is_not_a_square() {
+    assert_eq!(pow_mod(2, (Q - 1) / 2, Q), Q - 1);
+    assert_eq!(<Fq as BinomiallyExtendable<2>>::W, Fq::TWO);
+    assert_eq!(Fq::TWO.exp_u64((Q - 1) / 2), Fq::NEG_ONE);
     assert_eq!(<Fq as BinomiallyExtendable<2>>::DTH_ROOT, Fq::NEG_ONE);
 }
 
 #[test]
-fn k_is_the_field_with_u_squared_equal_to_7() {
+fn k_is_the_field_with_u_squared_equal_to_2() {
     let u = K::from_coeffs([Fq::ZERO, Fq::ONE]);
-    assert_eq!(u * u, K::from(Fq::from_u64(7)));
+    assert_eq!(u * u, K::from(Fq::TWO));
 
     let values = samples();
     for (i, &re) in values.iter().enumerate() {
@@ -259,10 +259,9 @@ fn k_is_the_field_with_u_squared_equal_to_7() {
         let b = K::from_coeffs([Fq::from_u64(values[(i + 11) % values.len()]), Fq::from_u64(re)]);
         let [a0, a1] = a.as_coeffs();
         let [b0, b1] = b.as_coeffs();
-        let seven = Fq::from_u64(7);
-        assert_eq!((a * b).as_coeffs(), [a0 * b0 + seven * a1 * b1, a0 * b1 + a1 * b0]);
+        assert_eq!((a * b).as_coeffs(), [a0 * b0 + Fq::TWO * a1 * b1, a0 * b1 + a1 * b0]);
         assert_eq!(a.conj().conj(), a);
-        assert_eq!((a * a.conj()).as_coeffs(), [a0 * a0 - seven * a1 * a1, Fq::ZERO]);
+        assert_eq!((a * a.conj()).as_coeffs(), [a0 * a0 - Fq::TWO * a1 * a1, Fq::ZERO]);
         if a != K::ZERO {
             assert_eq!(a * a.inv(), K::ONE);
         }

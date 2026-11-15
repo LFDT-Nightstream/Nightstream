@@ -117,7 +117,7 @@ private theorem factorProduct_c0_lowerAffine_eq_none
       R1CS.lowerAffine (KExpr.mul coordinate.left difference).c0 = none := by
     change R1CS.lowerAffine
       (coordinate.left.c0 * difference.c0 +
-        7 * coordinate.left.c1 * difference.c1) = none
+        2 * coordinate.left.c1 * difference.c1) = none
     exact lowerAffine_add_eq_none_of_left _ _ firstProductNone
   exact productNone
 

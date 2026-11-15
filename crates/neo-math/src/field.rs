@@ -1,4 +1,4 @@
-//! Field layer: `F_q` with `q = 2^64 − 59`, and `K = F_q[u]/(u² − 7)`
+//! Field layer: `F_q` with `q = 2^64 − 59`, and `K = F_q[u]/(u² − 2)`
 //! (`decisions/field-2p64-59-ring-x64.md`).
 
 use core::array;
@@ -305,14 +305,15 @@ impl PrimeField64 for Fq {
 impl BinomiallyExtendableAlgebra<Self, 2> for Fq {}
 
 impl BinomiallyExtendable<2> for Fq {
-    /// 7 is not a square modulo `q`, so `u² − 7` is irreducible.
-    const W: Self = Self(7);
+    /// 2 is not a square modulo `q`, so `u² − 2` is irreducible (Lean
+    /// `Spec.FieldExtension.twoProjectiveNonresidue`).
+    const W: Self = Self::TWO;
 
     /// `W^((q − 1)/2)`.
     const DTH_ROOT: Self = Self::NEG_ONE;
 
-    /// `2 + u` generates `K*`; `q + 1 = 2 · 3 · 7 · 439208192231179799`.
-    const EXT_GENERATOR: [Self; 2] = [Self::TWO, Self::ONE];
+    /// `3 + u` generates `K*`; `q + 1 = 2 · 3 · 7 · 439208192231179799`.
+    const EXT_GENERATOR: [Self; 2] = [Self(3), Self::ONE];
 }
 
 pub trait KExtensions {

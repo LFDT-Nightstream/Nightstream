@@ -19,7 +19,7 @@ def embed (x : F) : K := ⟨x, 0⟩
 def add (a b : K) : K := ⟨a.c0 + b.c0, a.c1 + b.c1⟩
 def sub (a b : K) : K := ⟨a.c0 - b.c0, a.c1 - b.c1⟩
 def mul (a b : K) : K :=
-  ⟨a.c0 * b.c0 + 7 * a.c1 * b.c1,
+  ⟨a.c0 * b.c0 + 2 * a.c1 * b.c1,
    a.c0 * b.c1 + a.c1 * b.c0⟩
 
 end K

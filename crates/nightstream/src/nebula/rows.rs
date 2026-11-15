@@ -265,7 +265,7 @@ impl<'a> Sym<'a> {
         vec![
             m.clone() - prod.c1.clone() * x1.clone(),
             n.clone() - prod.c1 * x0.clone(),
-            next.c0 - (prod.c0.clone() * x0 + c(7) * m),
+            next.c0 - (prod.c0.clone() * x0 + c(2) * m),
             next.c1 - (prod.c0 * x1 + n),
         ]
     }

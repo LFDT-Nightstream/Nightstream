@@ -25,7 +25,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
-#audit_axioms NightstreamFPrime.Spec.FieldExtension.sevenProjectiveNonresidue
+#audit_axioms NightstreamFPrime.Spec.FieldExtension.twoProjectiveNonresidue
 #audit_axioms NightstreamFPrime.Spec.FieldExtension.extensionNoZeroDivisors
 #audit_axioms NightstreamFPrime.Spec.RingStrongSet.scalar_cardinality
 #audit_axioms NightstreamFPrime.Spec.RingStrongSet.productionMember_cardinality

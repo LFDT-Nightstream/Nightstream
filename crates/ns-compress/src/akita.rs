@@ -17,7 +17,7 @@ use akita_serialization::{AkitaDeserialize, AkitaSerialize};
 use akita_types::{sample_akita_setup_seed, CommittedGroup, SetupPrefixVerifierRegistry};
 use jolt_field::Ring;
 use neo_math::{KExtensions, F, K};
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
+use p3_field::PrimeField64;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use std::sync::OnceLock;
 
@@ -31,7 +31,7 @@ use crate::Error;
 pub(crate) type Config = RecursiveCommitmentConfig<fp64::Dense>;
 /// Akita's `F_q`, with the modulus of `neo_math::F`.
 pub(crate) type Base = fp64::Field;
-/// Akita's `F_q[u]/(u² − 2)`.
+/// Akita's `F_q[u]/(u² − 2)`, which is `K` with the same basis.
 pub(crate) type Extension = fp64::ExtensionField;
 
 /// The schedule rows for one size of the key polynomial. Akita checks each
@@ -134,21 +134,13 @@ pub(crate) fn profile(row: &ResolvedScheduleRow, polynomial: Polynomial) -> &Gro
     }
 }
 
-/// `c` with `2c² = 7`. `K` is `F_q[u]/(u² − 7)`, so `a + b·u ↦ a + (b·c)·u`
-/// is the isomorphism of `K` onto `Extension`.
-const BRIDGE: u64 = 6_880_439_088_830_499_533;
-const _: () = {
-    let q = neo_math::field::Q as u128;
-    assert!((BRIDGE as u128 * BRIDGE as u128 % q) * 2 % q == 7);
-};
-
 pub(crate) fn base(value: F) -> Base {
     Base::from_u64(value.as_canonical_u64())
 }
 
 pub(crate) fn extension(value: K) -> Extension {
     let [real, imaginary] = value.as_coeffs();
-    Extension::new(base(real), base(imaginary * F::from_u64(BRIDGE)))
+    Extension::new(base(real), base(imaginary))
 }
 
 pub(crate) fn failed(error: impl std::fmt::Display) -> Error {

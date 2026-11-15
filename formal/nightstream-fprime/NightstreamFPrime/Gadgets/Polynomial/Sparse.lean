@@ -372,7 +372,7 @@ structure Interface (matrixCount : Nat) where
 
 def scale (coefficient : K) (value : KExpr) : KExpr :=
   ⟨Expr.const coefficient.c0 * value.c0 +
-      Expr.const (7 * coefficient.c1) * value.c1,
+      Expr.const (2 * coefficient.c1) * value.c1,
     Expr.const coefficient.c0 * value.c1 +
       Expr.const coefficient.c1 * value.c0⟩
 

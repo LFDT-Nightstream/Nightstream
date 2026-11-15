@@ -6,7 +6,9 @@ Accepted by the owner on 2026-11-13: the prime, the ring, rank 18, and SHAKE
 for the Akita challenges. The other entries (the 5-lane sampler, the limit of
 the auxiliary maps, the profile name, the wording of the hash rule) follow
 from these and wait for the owner's review. The owner approved `k_rho = 14`
-and the Module-SIS method of section Security calculation on 2026-11-14.
+and the Module-SIS method of section Security calculation on 2026-11-14. The owner
+agreed with the sister project ProtogaLattice on `K = F_q[u]/(u² − 2)` on
+2026-11-14.
 
 ## Problem
 
@@ -39,7 +41,7 @@ Nightstream uses one profile, "Nightstream P64, k_rho = 14":
 |---|---|
 | Prime `q` | `2^64 − 59 = 18446744073709551557` |
 | Ring | `F_q[X]/(X^64 + 1)`, `η = 128`, `d = 64` |
-| Sum-check field `K` | `F_q[u]/(u² − 7)` |
+| Sum-check field `K` | `F_q[u]/(u² − 2)` |
 | Challenge alphabet | `{−2, −1, 0, 1, 2}` |
 | Expansion factor `T` | `128` |
 | Decomposition | `b = 2`, `k_rho = 14`, `B = 2^14` |
@@ -57,7 +59,10 @@ There is no second profile and no compatibility path.
 - Two elements of the alphabet differ by at most 4, so the challenge set is a
   strong sampling set. It has `5^64` elements, about `2^148.6`.
 - For a power-of-two cyclotomic ring, Theorem 5 gives `T = φ(η) · 2 = 128`.
-- 7 is not a square modulo `q`, so `K` is a field.
+- `q ≡ 5 (mod 8)`, so 2 is not a square modulo `q`, and `K` is a field
+  (`Spec.FieldExtension.twoProjectiveNonresidue`). Akita's 64-bit profile and
+  the sister project ProtogaLattice use the same `K`, so no map between two
+  forms of the field is necessary.
 - `gcd(7, q − 1) = 1`, so the Poseidon2 S-box `x^7` is a permutation.
 - Why 14: at `T = 128` the deepest accumulator is
   `(1 + cap + k_rho)·T = 79·128 = 10,112 ≤ 2^14 − 1`. The old ring had

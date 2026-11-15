@@ -152,7 +152,7 @@ private theorem c0_directConstraint_eq_none (output : Nat)
     (rightShape : ResidualShape right) :
     R1CS.directConstraint
       (Expr.var (output + 1) -
-        (point.c0 * right.c0 + 7 * Expr.var output)) = none := by
+        (point.c0 * right.c0 + 2 * Expr.var output)) = none := by
   have productNone : R1CS.lowerAffine (.mul point.c0 right.c0) = none :=
     lowerAffine_mul_eq_none pointLinear.c0_nonconstant
       rightShape.c0_nonconstant
@@ -160,7 +160,7 @@ private theorem c0_directConstraint_eq_none (output : Nat)
     (.add (.var (output + 1))
       (.mul (.const (-1))
         (.add (.mul point.c0 right.c0)
-          (.mul (.const 7) (.var output))))) = none
+          (.mul (.const 2) (.var output))))) = none
   cases pointAffine : R1CS.lowerAffine point.c0 <;>
     simp [R1CS.directConstraint, R1CS.directRecipeRow,
       R1CS.productSumRecipeRow?, R1CS.affineConstraint, R1CS.lowerAffine,
@@ -171,13 +171,13 @@ private theorem c1_directConstraint_eq_none (output : Nat)
     R1CS.directConstraint
       (Expr.var (output + 1 + 1) -
         ((point.c0 + point.c1) * (right.c0 + right.c1) +
-          (-Expr.var (output + 1) + 6 * Expr.var output))) = none := by
+          (-Expr.var (output + 1) + 1 * Expr.var output))) = none := by
   change R1CS.directConstraint
     (.add (.var (output + 1 + 1))
       (.mul (.const (-1))
         (.add (.mul (.add point.c0 point.c1) (.add right.c0 right.c1))
           (.add (.mul (.const (-1)) (.var (output + 1)))
-            (.mul (.const 6) (.var output)))))) = none
+            (.mul (.const 1) (.var output)))))) = none
   cases pointAffine : R1CS.lowerAffine (.add point.c0 point.c1) <;>
     simp_all [R1CS.directConstraint, R1CS.directRecipeRow,
       R1CS.productSumRecipeRow?, R1CS.affineConstraint, R1CS.lowerAffine,
@@ -196,12 +196,12 @@ private theorem c0_mulCount_eq (output : Nat)
     (rightShape : ResidualShape right) :
     R1CS.mulCount
       (Expr.var (output + 1) -
-        (point.c0 * right.c0 + 7 * Expr.var output)) = 13 := by
+        (point.c0 * right.c0 + 2 * Expr.var output)) = 13 := by
   change R1CS.mulCount
     (.add (.var (output + 1))
       (.mul (.const (-1))
         (.add (.mul point.c0 right.c0)
-          (.mul (.const 7) (.var output))))) = 13
+          (.mul (.const 2) (.var output))))) = 13
   simp only [R1CS.mulCount, pointLinear.c0_mulCount, rightShape.c0_mulCount]
 
 private theorem c1_mulCount_eq (output : Nat)
@@ -210,13 +210,13 @@ private theorem c1_mulCount_eq (output : Nat)
     R1CS.mulCount
       (Expr.var (output + 1 + 1) -
         ((point.c0 + point.c1) * (right.c0 + right.c1) +
-          (-Expr.var (output + 1) + 6 * Expr.var output))) = 23 := by
+          (-Expr.var (output + 1) + 1 * Expr.var output))) = 23 := by
   change R1CS.mulCount
     (.add (.var (output + 1 + 1))
       (.mul (.const (-1))
         (.add (.mul (.add point.c0 point.c1) (.add right.c0 right.c1))
           (.add (.mul (.const (-1)) (.var (output + 1)))
-            (.mul (.const 6) (.var output)))))) = 23
+            (.mul (.const 1) (.var output)))))) = 23
   simp only [R1CS.mulCount, pointLinear.c0_mulCount, pointLinear.c1_mulCount,
     rightShape.c0_mulCount, rightShape.c1_mulCount]
 

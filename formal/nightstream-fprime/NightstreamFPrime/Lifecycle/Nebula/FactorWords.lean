@@ -49,7 +49,7 @@ theorem gate_eq (pad : F) (f : K) : kOf ((1 - pad) * f.c0 + pad) ((1 - pad) * f.
 
 /-- A product row `next = prod · x` in coordinates, with its two cross products. -/
 theorem product_iff (prod x next : K) (m n : F) (cross : m = prod.c1 * x.c1 ∧ n = prod.c1 * x.c0) :
-    (next.c0 = prod.c0 * x.c0 + 7 * m ∧ next.c1 = prod.c0 * x.c1 + n) ↔ next = K.mul prod x := by
+    (next.c0 = prod.c0 * x.c0 + 2 * m ∧ next.c1 = prod.c0 * x.c1 + n) ↔ next = K.mul prod x := by
   obtain ⟨rfl, rfl⟩ := cross
   cases next
   simp only [K.mul, K.mk.injEq]
@@ -65,7 +65,7 @@ theorem scanFactorWords_iff (η1 η2 prod next : K) (t g v : F) (a : Fin 4 → F
     (a 0 = η1.c0 * (v + natWord (2 ^ 32) * t) + (g - η2.c0) ∧
       a 1 = η1.c1 * (v + natWord (2 ^ 32) * t) - η2.c1 ∧
       a 2 = prod.c1 * a 1 ∧ a 3 = prod.c1 * a 0 ∧
-      next.c0 = prod.c0 * a 0 + 7 * a 2 ∧ next.c1 = prod.c0 * a 1 + a 3) ↔
+      next.c0 = prod.c0 * a 0 + 2 * a 2 ∧ next.c1 = prod.c0 * a 1 + a 3) ↔
     (a = scanFactorWords η1 η2 prod t g v ∧ next = K.mul prod (fingerprintK η1 η2 t g v)) := by
   rw [← fingerprintWords_eq]
   constructor
@@ -89,7 +89,7 @@ theorem opsFactorWords_iff (η1 η2 prod next : K) (pad t g v : F) (a : Fin 6 �
       a 1 = η1.c1 * (v + natWord (2 ^ 32) * t) - η2.c1 ∧
       a 2 = (1 - pad) * a 0 + pad ∧ a 3 = (1 - pad) * a 1 ∧
       a 4 = prod.c1 * a 3 ∧ a 5 = prod.c1 * a 2 ∧
-      next.c0 = prod.c0 * a 2 + 7 * a 4 ∧ next.c1 = prod.c0 * a 3 + a 5) ↔
+      next.c0 = prod.c0 * a 2 + 2 * a 4 ∧ next.c1 = prod.c0 * a 3 + a 5) ↔
     (a = opsFactorWords η1 η2 prod pad t g v ∧
       next = K.mul prod (gatedK pad (fingerprintK η1 η2 t g v))) := by
   rw [← fingerprintWords_eq, ← gate_eq]

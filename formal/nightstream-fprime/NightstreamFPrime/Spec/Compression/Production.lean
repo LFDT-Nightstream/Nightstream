@@ -5,7 +5,7 @@ import NightstreamFPrime.Spec.Folding.Schedule
 import NightstreamFPrime.Spec.RingRelation.Semantics
 
 /-! The production instance of the argument (SPEC.md section 3, Algorithms 9 and 11). `F` is `F_q`
-with `q = 2^64 − 59` and `K` is `F_q[u]/(u² − 7)`, a ring block has `D = 64` lanes, the key has
+with `q = 2^64 − 59` and `K` is `F_q[u]/(u² − 2)`, a ring block has `D = 64` lanes, the key has
 `κ = 18` rows below `2^5`, a relation has `t = 4` matrices, there are `L = 4` lookup challenges,
 and the claims are slot 0, slot 1 and the fresh instance, in this order. `params` builds `Params`
 from the Ajtai key, the CCS matrices of each claim's relation, the depths of the slots and the

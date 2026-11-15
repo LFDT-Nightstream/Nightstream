@@ -73,7 +73,7 @@ argument over Akita. It has no witness and cannot be extended.
 | Item | Value |
 |---|---|
 | Commitment scheme | Akita, git revision `d50f700fb1a292395a717cef0e6f437c7ce2cdb1`, crate version 0.1.0 |
-| Akita configuration | `RecursiveCommitmentConfig<proof_optimized::fp64::Dense>`: base field `F_q`, extension `F_q[v]/(v² − 2)`, schedules that offload Akita's own setup |
+| Akita configuration | `RecursiveCommitmentConfig<proof_optimized::fp64::Dense>`: base field `F_q`, extension `F_q[u]/(u² − 2)`, which is `K`, schedules that offload Akita's own setup |
 | Schedule files | `crates/ns-compress/artifacts/key20.aks`, SHA-256 `8ee08715b2120cfb576227f195fde041e5e1dd828511ca5e75d5df73d4c097b5`, and `crates/ns-compress/artifacts/key30.aks`, SHA-256 `b71861d25a4cb23b8eb68b20365bc5b76336224dcacdcada86242c9d9c084f94` |
 | Source of the schedule files | Akita's planner at the pinned revision, family `fp64_dense_recursive`, run by `scripts/akita_schedules.sh` |
 | Schedule rows | Each row opens three polynomials in one proof. `key20.aks`: a key polynomial of 20 variables, `W` of 16 and `V` of 16, for tests. `key30.aks`: a key polynomial of 30 variables, `W` of 26 or 27 and `V` of 28 |
@@ -81,7 +81,6 @@ argument over Akita. It has no witness and cannot be extended.
 | Key polynomial | Cell `h + 64·j + 64·n·i` holds coefficient `h` of key element `(i, j)`, for `n` blocks, a power of two. Each cell of a row from `κ` is 0 |
 | Lookup table of slot `s` | `[−accumulatorBound(depth_s), accumulatorBound(depth_s)]`, at most 20,737 values |
 | Lookup repetitions `L` | 4 challenges of `F_q`, one for each column of `V` |
-| Field map | `a + b·u ↦ a + (b·c)·v` with `c = 6880439088830499533` and `2c² = 7 (mod q)` |
 | Transcript domains | `Nightstream/OptionB/compress/ccs/v1` for Π_CCS, `Nightstream/compress/akita/v2` for the argument |
 | Byte tags | `NS-OPTIONB-FIN-2` for a final proof, `NS-COMPRESS-VK-1` for a verification key |
 | Rust toolchain | 1.99.1, which Akita requires |
@@ -181,10 +180,9 @@ argument over Akita. It has no witness and cannot be extended.
     the number of variables of each polynomial from its key and its own
     layout of the claims, and the schedule row from the embedded files. A
     value that the proof carries is not authority.
-18. **The field map.** `K` and Akita's extension are both the field of `q²`
-    elements. The map is a field isomorphism that fixes `F_q`, so an
-    evaluation of a polynomial over `F_q` at a point of `K` maps to its
-    evaluation at the mapped point.
+18. **The extension field.** `K` and Akita's extension are both
+    `F_q[u]/(u² − 2)` with the basis `(1, u)`. A point or a value of `K` goes
+    to Akita with the same two coefficients.
 19. **The fresh zero tail.** The argument commits only the ring blocks of
     each circuit's package, so no other block exists. It does not prove that
     the fresh witness is zero from the width to the end of its last block.

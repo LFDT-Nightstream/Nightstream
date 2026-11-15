@@ -145,12 +145,10 @@ inline Kx kx_sub(Kx lhs, Kx rhs) {
     return Kx{fq_sub(lhs.c0, rhs.c0), fq_sub(lhs.c1, rhs.c1)};
 }
 
-static_assert(KX_NON_RESIDUE == 7, "fq_mul_by_non_residue adds seven copies");
+static_assert(KX_NON_RESIDUE == 2, "fq_mul_by_non_residue adds two copies");
 
 inline ulong fq_mul_by_non_residue(ulong value) {
-    ulong twice = fq_add(value, value);
-    ulong four_times = fq_add(twice, twice);
-    return fq_add(fq_add(four_times, twice), value);
+    return fq_add(value, value);
 }
 
 inline Kx kx_mul(Kx lhs, Kx rhs) {

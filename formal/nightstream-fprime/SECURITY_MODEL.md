@@ -1207,6 +1207,15 @@ not change terminal source checks.
   A universal proof that the Rust transformation and shared-column map realize
   the Lean group relation remains open. The original one-row relation remains
   the source of all constraints outside the selected commitment input rewrite.
+- A prover that chooses arbitrary private decomposition bits at internal batch
+  boundaries. Continuity-range restoration keeps the payload and all input
+  auxiliaries fixed. It requires equal-width input and output checks, retained
+  input checks and continuity equalities, and output bits absent from every
+  other constraint and observable. The Rust recognizer checks these conditions
+  against row uses, shared columns, continuity endpoints, and the memory catalog.
+  The last output check stays in the batch. The proof does not require a valid prior execution.
+  Lean proves restoration for the separated representation; universal refinement
+  of the Rust recognizer into that representation remains outside the proof.
 - A prover that picks the WASM size of its proof
   (`neo_wasm::nebula::WasmSize`). The results hold for each of the three
   fixed sizes, not for a choice among them.

@@ -793,6 +793,23 @@ When the plan names each checked port once, each slot shows at most one active p
 
 **Source.** A shared block satisfies each row of its group (`Lifecycle.Nebula.SharedAbsorb.groupRows_iff_forall` (`51e6328a77c67750`)). The group rewrite is sound without a bound on its absorbing rows (`Lifecycle.Nebula.SharedAbsorb.groupRows_sound` (`51cdd58960ffc316`)). It is complete when all absorbing rows have the same input (`Lifecycle.Nebula.SharedAbsorb.groupRows_complete` (`9b36a5e89766ad0c`)). The checked cursor rows give absorb cursor seven and reset zero (`Lifecycle.Nebula.SharedAbsorb.checked_absorb_cursor` (`381e0cc823cafab5`)), bounded advance (`Lifecycle.Nebula.SharedAbsorb.checked_cursor_advance` (`d5a6678701cc2f44`)), and eight-row spacing (`Lifecycle.Nebula.SharedAbsorb.checked_absorbs_apart` (`2306029b1941b517`)). Finite groups have at most one absorb (`Lifecycle.Nebula.SharedAbsorb.finite_absorbs_unique` (`bcccb0532693f4ef`)) and have shared witnesses from valid own-row witnesses (`Lifecycle.Nebula.SharedAbsorb.finite_group_complete` (`d06999a2a749e64f`)). These results require no valid execution outside the group and no link after its last row. The checked field-cursor model is `Lifecycle.Nebula.SharedAbsorb.CursorRows`. The Rust constructor is `R1csApplication::with_shared` in `crates/nightstream/src/nebula/r1cs.rs`. The WASM transformation is in `crates/neo-wasm/src/nebula/shared_host.rs`. The executable cursor-row comparison and shared-column mutation tests are in `crates/neo-wasm/tests/wasm_shared_host.rs`. The complete Rust-to-Lean relation and column-map correspondence remains outside the formal proof scope.
 
+**Private range checks across batch boundaries.**
+
+**Input.** A one-row relation, its continuity and memory catalogs, its shared-column layout, and a positive trace-row count `k`.
+
+**Output.** A batch relation with the same accepted state transitions and memory events. Private decomposition witnesses can differ from those of the one-row relation.
+
+**Steps.**
+
+1. Recognize unconditional binary decompositions of 1 through 63 bits, with coefficients in increasing power-of-two order and one Boolean constraint per distinct bit. Each bit must occur only in its Boolean constraint and recomposition constraint. It must not be a constant, shared column, continuity endpoint, or memory address, value, prior value, or activation column.
+2. Select continuity pairs whose output and input have recognized decompositions of the same width. Do not select an output column that is also an input endpoint of any link.
+3. Keep every input check and every continuity equality. Omit the selected output checks only on rows with a successor inside the batch. Keep all output checks on the last row. A one-row batch is unchanged.
+4. To restore a witness of the original relation, copy the next row's input bits into the omitted output bits. Continuity gives equal recomposed values. The private-bit condition leaves every other constraint, memory event, and state value unchanged. An original valid witness already satisfies the retained subset.
+
+**Rejects.** A violated retained constraint or continuity equality. A candidate that fails recognition keeps its original checks. No initial-state assumption or check outside this batch replaces a retained check.
+
+**Source.** The restoration theorem is `Lifecycle.Nebula.ContinuityRanges.sound` (`ab4093b12ffda4e1`); completeness is `Lifecycle.Nebula.ContinuityRanges.complete` (`6f10166b08e0faf0`). The model separates output auxiliaries from the unchanged payload and all other constraints. The Rust recognizer is `crates/nightstream/src/nebula/r1cs/ranges.rs`; boundary, restoration, and private-column rejection tests are in `crates/nightstream/tests/r1cs_ranges.rs`. The exact correspondence between the Rust recognizer and this separation model is not formally proved.
+
 ### 7.7 Native pieces
 
 A Rust-built application in a bounded-depth step package (`Export.BoundedDepth.StepPackage.Package`) places each Poseidon2 permutation as a block. A live word gets a bit slot when the slot rule below proves it is 0 or 1. The rule includes the directly forced bits of Lean's slot rule and the inferred bits described below.

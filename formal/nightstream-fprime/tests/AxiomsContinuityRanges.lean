@@ -1,0 +1,5 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Lifecycle.Nebula.ContinuityRanges
+
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.ContinuityRanges.sound
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.ContinuityRanges.complete

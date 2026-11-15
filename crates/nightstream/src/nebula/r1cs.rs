@@ -5,7 +5,8 @@
 //! witnesses `z` of its rows. The default layout uses one block of the one-row
 //! width per row. `with_shared` stores local columns by row and selected shared
 //! columns by group. Both layouts use one constant-one column. Its relation is the
-//! rank-one rows of each row, then one equality row for each continuity link
+//! rank-one rows, with private output range checks omitted at internal boundaries,
+//! then one equality row for each continuity link
 //! between neighbor rows. Its state is the continuity words, one per link:
 //! the `next_step_column`s of its first row in, the `previous_step_column`s
 //! of its last row out. `CatalogBinding` checks every memory of the batched
@@ -27,6 +28,7 @@ use super::geometry::Geometry;
 use super::rows::View;
 use super::{MemoryPreload, Program};
 
+mod ranges;
 mod shared;
 pub use shared::SharedColumns;
 use shared::StepLayout;
@@ -273,8 +275,9 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
         if !binding.host_checked().is_empty() {
             return Err(R1csApplicationError::Unchecked);
         }
+        let omitted = ranges::internal_output_checks(&relation, &links, &layout, catalog);
         Ok(Self {
-            relation: Arc::new(step_relation(&relation, &links, &layout)),
+            relation: Arc::new(step_relation(&relation, &links, &layout, &omitted)),
             links: Arc::new(links),
             layout,
             binding,
@@ -426,8 +429,14 @@ impl<Id: Clone + Eq> Application for R1csApplication<Id> {
 }
 
 /// SPEC.md section 7.6. Place each source row, retaining a row over only
-/// shared columns and the constant once per group, then append the links.
-fn step_relation(relation: &RowRelation, links: &[(usize, usize)], layout: &StepLayout) -> Vec<[Terms; 3]> {
+/// shared columns and the constant once per group, omitting selected internal
+/// output checks, then append the links.
+fn step_relation(
+    relation: &RowRelation,
+    links: &[(usize, usize)],
+    layout: &StepLayout,
+    omitted: &std::collections::BTreeSet<usize>,
+) -> Vec<[Terms; 3]> {
     let column = |row: usize, column: usize| layout.column(row, column);
     let block_only = |sides: &[Terms; 3]| {
         let mut columns = sides.iter().flatten().map(|(column, _)| *column);
@@ -437,7 +446,10 @@ fn step_relation(relation: &RowRelation, links: &[(usize, usize)], layout: &Step
     let rows = layout.rows.get();
     let mut step = Vec::new();
     for row in 0..rows {
-        for sides in &relation.rows {
+        for (index, sides) in relation.rows.iter().enumerate() {
+            if row + 1 < rows && omitted.contains(&index) {
+                continue;
+            }
             if row % layout.group_rows.get() != 0 && block_only(sides) {
                 continue;
             }

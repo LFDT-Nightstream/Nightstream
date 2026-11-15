@@ -55,8 +55,8 @@ at most 115 bits. The memory fingerprint term of a Nebula circuit accepts at
 most 109 bits (`SPEC.md` section 7.1).
 
 `minimum_security_bits` is not an end-to-end security claim. It gates the
-selected one-fold error. A Nebula circuit also compares it with one memory
-fingerprint challenge. The deployment must account separately for recursive
+selected one-fold error. A Nebula circuit also compares it with the memory
+fingerprint term of its maximum number of segments. The deployment must account separately for recursive
 depth, adversary queries, failed retries, and concurrent attempts.
 
 Steps prove and verify on the CPU path only (`Engine::Optimized`).
@@ -73,7 +73,7 @@ At iteration 0, the current state must equal `z0`. At a later iteration, the
 public input of the fresh instance must be the hash of the state with both
 slots. The claim of each slot must hold under the relation of its circuit.
 The depth of the slot must be at most 64, and the norm of its witness must be
-at most `(17 + depth) · 128`, the bound of an honest slot at that depth. So
+at most `(15 + depth) · 128`, the bound of an honest slot at that depth. So
 `extend` works on each proof that `verify` accepts. The fresh
 instance must hold under the relation of the circuit that ran last.
 

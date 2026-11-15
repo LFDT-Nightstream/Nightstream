@@ -149,17 +149,12 @@ pub(crate) fn failed(error: impl std::fmt::Display) -> Error {
 
 /// Run `work` on threads with 64 MB stacks. Under fat LTO, one level of
 /// the rayon split in Akita's NTT loops takes about 210 KB of stack, so the
-/// 2 MB default overflows after about ten levels. Where no thread can
-/// start, rayon runs `work` on the calling thread.
+/// 2 MB default overflows after about ten levels. The pool has rayon's
+/// default thread count, not the count of the first caller's pool. Where no
+/// thread can start, rayon runs `work` on the calling thread.
 pub(crate) fn on_large_stacks<R: Send>(work: impl FnOnce() -> R + Send) -> R {
     static POOL: OnceLock<Option<ThreadPool>> = OnceLock::new();
-    let pool = POOL.get_or_init(|| {
-        ThreadPoolBuilder::new()
-            .num_threads(rayon::current_num_threads())
-            .stack_size(64 << 20)
-            .build()
-            .ok()
-    });
+    let pool = POOL.get_or_init(|| ThreadPoolBuilder::new().stack_size(64 << 20).build().ok());
     match pool {
         Some(pool) => pool.install(work),
         None => work(),

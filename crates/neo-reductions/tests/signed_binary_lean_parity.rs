@@ -46,7 +46,7 @@ fn active_lean_signed_binary_matches_runtime() {
     let mut lines = BufReader::new(std::fs::File::open(path).expect("open Lean split vectors")).lines();
     let header: Vec<u64> =
         serde_json::from_str(&lines.next().expect("header").expect("read header")).expect("decode header");
-    assert_eq!(header, [F::ORDER_U64, 2, 16, 1 << 16]);
+    assert_eq!(header, [F::ORDER_U64, 2, 14, 1 << 14]);
     let [_, base, digit_count, bound]: [u64; 4] = header.try_into().unwrap();
     let mut vectors = Vec::with_capacity(D * 2);
     for magnitude in 0..bound {

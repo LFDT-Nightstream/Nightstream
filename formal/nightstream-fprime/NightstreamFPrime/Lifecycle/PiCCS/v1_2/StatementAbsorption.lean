@@ -471,15 +471,15 @@ private theorem inputChunks_length (input : List Expr) :
 
 private theorem absorb_recipeCount (input : List Expr) :
     Formal.Action.recipeCount (.absorb input) =
-      ((input.length + 11) / 12) * 1174 := by
-  change (Hash.inputChunks input).length * 1174 = _
+      ((input.length + 11) / 12) * 1096 := by
+  change (Hash.inputChunks input).length * 1096 = _
   rw [inputChunks_length]
 
 @[simp] private theorem domain_recipeCount :
     Formal.Action.recipeCount
         (.absorb (constantWords
           NightstreamFPrime.Lifecycle.Transcript.foldDomainChunk)) =
-      1174 := by
+      1096 := by
   rw [absorb_recipeCount, constantWords_length]
   rw [NightstreamFPrime.Lifecycle.Transcript.foldDomainChunk_length]
 
@@ -498,7 +498,7 @@ private theorem publicInputActions_recipeCount {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    Formal.recipeCount (publicInputActions interface offset) = 145576 := by
+    Formal.recipeCount (publicInputActions interface offset) = 135904 := by
   unfold publicInputActions
   simp only [Formal.recipeCount, List.map_cons, List.map_nil]
   rw [List.sum_cons, List.sum_cons, List.sum_nil, domain_recipeCount, absorb_recipeCount,
@@ -538,7 +538,7 @@ def finalStateFast {logicalWidth : Nat}
       RingCarrierLayout.carrierWidth logicalWidth}
     (_interface : Interface logicalWidth publicFits) (offset : Nat) :
     Layer.EState :=
-  Permutation.scheduleOutput (offset + 123 * 1174)
+  Permutation.scheduleOutput (offset + 123 * 1096)
 
 theorem finalState_eq_finalStateFast_pointwise {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -562,7 +562,7 @@ theorem finalState_eq_finalStateFast_pointwise {logicalWidth : Nat}
   simp only [actions, publicInputActions, Formal.compileWiring]
   rw [chunksEq, Formal.compileAbsorbWiring_output_cons, restLength,
     Formal.compileAbsorbWiring_next, domainLength,
-    show offset + 1 * 1174 + 122 * 1174 = offset + 123 * 1174 by omega]
+    show offset + 1 * 1096 + 122 * 1096 = offset + 123 * 1096 by omega]
   rfl
 
 @[csimp] theorem finalState_eq_finalStateFast :
@@ -801,16 +801,16 @@ theorem recipeCount_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    recipeCount interface offset = 145576 := by
+    recipeCount interface offset = 135904 := by
   exact publicInputActions_recipeCount interface offset
 
 @[simp] theorem program_recipes_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    (program interface offset).recipes.length = 145576 := by
+    (program interface offset).recipes.length = 135904 := by
   change (Formal.compile offset Hash.zeroE
-    (actions interface offset)).recipes.length = 145576
+    (actions interface offset)).recipes.length = 135904
   rw [Formal.compile_recipes_length]
   exact recipeCount_eq interface offset
 
@@ -818,7 +818,7 @@ theorem localLength_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 145576 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 135904 := by
   rw [circuit_ops, opsAt_localLength]
   exact program_recipes_length interface offset
 
@@ -834,7 +834,7 @@ theorem flatConstraints_length {logicalWidth : Nat}
       RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      145576 := by
+      135904 := by
   rw [circuit_ops, flatConstraints_opsAt, recipeConstraints_length]
   exact program_recipes_length interface offset
 

@@ -40,13 +40,13 @@ def retainedBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem retainedBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (retainedBlock program).slotCount = 5130 := by
+    (retainedBlock program).slotCount = 4500 := by
   rw [retainedBlock, LowNormBlock.Block.lift_slotCount,
     LaterPoseidonRetainedBlocks.samplerBlock_slotCount]
 
 @[simp] theorem retainedBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (retainedBlock program).coordinateCount = 210330 := by
+    (retainedBlock program).coordinateCount = 184500 := by
   rw [retainedBlock, LowNormBlock.Block.lift_coordinateCount,
     LaterPoseidonRetainedBlocks.samplerBlock_coordinateCount]
 
@@ -173,7 +173,7 @@ def interface {program : Lifecycle.Stage1.Application.Program}
     (retainedStart program) (retainedFits geometry)
     (oneColumn geometry) (inputState geometry)
 
-theorem familyRowCount_le : invocationCount * 171 ≤
+theorem familyRowCount_le : invocationCount * 150 ≤
     2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   rw [invocationCount_eq]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
@@ -187,7 +187,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
 @[simp] theorem plan_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (plan geometry).rowCount = 5130 := by
+    (plan geometry).rowCount = 4500 := by
   rw [plan, PoseidonSboxFamilyPlan.plan_rowCount, invocationCount_eq]
 
 theorem rowsZero_iff

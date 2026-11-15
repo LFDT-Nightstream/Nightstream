@@ -48,7 +48,7 @@ def parentInterface
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface
-      logicalWidth 4 publicFits :=
+      logicalWidth 8 publicFits :=
   NightstreamFPrime.Layout.Stage1.PiCCSInputs.interface
     logicalWidth publicFits
 
@@ -57,7 +57,7 @@ def sharedInterface
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.Interface
-      logicalWidth 4 publicFits :=
+      logicalWidth 8 publicFits :=
   NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.atOffset
     (parentInterface logicalWidth publicFits) phaseOffset
 
@@ -817,7 +817,7 @@ theorem statementInvocations_length
   have fixed := StatementAbsorption.recipeCount_eq
     (statementInterface logicalWidth publicFits) statementWitnessStart
   change Formal.recipeCount (statementActions logicalWidth publicFits) =
-    145576 at fixed
+    135904 at fixed
   rw [fixed] at compiled
   omega
 
@@ -839,7 +839,7 @@ theorem challengeInvocations_length
     (challengeInterface logicalWidth publicFits) challengeWitnessStart
   change Formal.recipeCount
     (ChallengeDerivation.actions (challengeInterface logicalWidth publicFits)
-      challengeWitnessStart) = 4696 at fixed
+      challengeWitnessStart) = 4384 at fixed
   rw [fixed] at compiled
   rw [← sameCount]
   omega
@@ -848,7 +848,7 @@ theorem roundInvocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
-    (roundTrace logicalWidth publicFits).invocations.length = 28 := by
+    (roundTrace logicalWidth publicFits).invocations.length = 56 := by
   rw [roundTrace, compileActions_invocations_length]
   have sameCount := invocationCount_eq_of_shapes
     (RoundTranscript.actions (roundInterface logicalWidth publicFits)
@@ -864,7 +864,7 @@ theorem roundInvocations_length
     (RoundTranscript.actions (roundInterface logicalWidth publicFits)
       roundWitnessStart) =
       productionShape.cubeVariables *
-        RoundTranscript.perRoundRecipeCount 4 at fixed
+        RoundTranscript.perRoundRecipeCount 9 at fixed
   norm_num [RoundTranscript.perRoundRecipeCount, productionShape,
     RingMatrixSource.ringShape, cubeVariables] at fixed
   rw [fixed] at compiled
@@ -882,7 +882,7 @@ theorem outputInvocations_length
   have fixed := OutputBinding.recipeCount_eq
     (outputInterface logicalWidth publicFits) outputWitnessStart
   change Formal.recipeCount (outputActions logicalWidth publicFits) =
-    939200 at fixed
+    876800 at fixed
   rw [fixed] at compiled
   omega
 
@@ -890,7 +890,7 @@ theorem invocations_length
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
-    (invocations logicalWidth publicFits).length = 956 := by
+    (invocations logicalWidth publicFits).length = 984 := by
   unfold invocations
   rw [List.length_append, List.length_append, List.length_append,
     statementInvocations_length, challengeInvocations_length,
@@ -899,7 +899,7 @@ theorem invocations_length
 def invocationCeiling : Nat :=
   NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
-theorem invocationCeiling_eq : invocationCeiling = 6176023 := by
+theorem invocationCeiling_eq : invocationCeiling = 5803399 := by
   unfold invocationCeiling NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
   rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
   norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage,
@@ -930,7 +930,7 @@ theorem challengeInvocationCount_eq (logicalWidth : Nat)
 theorem roundInvocationCount_eq (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
-    invocationCount (roundActions logicalWidth publicFits) = 28 := by
+    invocationCount (roundActions logicalWidth publicFits) = 56 := by
   have count := roundInvocations_length logicalWidth publicFits
   rw [roundTrace, compileActions_invocations_length] at count
   exact count
@@ -945,7 +945,7 @@ theorem statementEnd_eq_challengeStart (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
     statementWitnessStart +
-        invocationCount (statementActions logicalWidth publicFits) * 1174 =
+        invocationCount (statementActions logicalWidth publicFits) * 1096 =
       challengeWitnessStart := by
   rw [statementInvocationCount_eq]
   unfold statementWitnessStart challengeWitnessStart
@@ -955,7 +955,7 @@ theorem challengeEnd_eq_roundStart (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
     challengeWitnessStart +
-        invocationCount (challengeActions logicalWidth publicFits) * 1174 =
+        invocationCount (challengeActions logicalWidth publicFits) * 1096 =
       roundWitnessStart := by
   rw [challengeInvocationCount_eq]
   unfold challengeWitnessStart roundWitnessStart
@@ -965,7 +965,7 @@ theorem roundEnd_lt_outputStart (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
     roundWitnessStart +
-        invocationCount (roundActions logicalWidth publicFits) * 1174 <
+        invocationCount (roundActions logicalWidth publicFits) * 1096 <
       outputWitnessStart := by
   rw [roundInvocationCount_eq]
   unfold roundWitnessStart outputWitnessStart
@@ -976,7 +976,7 @@ theorem outputEnd_eq_logicalFreshBase (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
     outputWitnessStart +
-        invocationCount (outputActions logicalWidth publicFits) * 1174 =
+        invocationCount (outputActions logicalWidth publicFits) * 1096 =
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase := by
   rw [outputInvocationCount_eq]
   unfold outputWitnessStart
@@ -1009,12 +1009,12 @@ theorem outputFinalState_varsBelow_samplerStart
   have startMatch := outputWitnessStart_matches logicalWidth publicFits relation
   rw [← startMatch] at finalBelow
   rw [OutputBinding.localLength_eq] at finalBelow
-  have endMatch : outputWitnessStart + 939200 =
+  have endMatch : outputWitnessStart + 876800 =
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase := by
     calc
-      outputWitnessStart + 939200 =
+      outputWitnessStart + 876800 =
           outputWitnessStart +
-            invocationCount (outputActions logicalWidth publicFits) * 1174 := by
+            invocationCount (outputActions logicalWidth publicFits) * 1096 := by
         rw [outputInvocationCount_eq]
       _ = NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase :=
         outputEnd_eq_logicalFreshBase logicalWidth publicFits
@@ -1102,7 +1102,7 @@ theorem statementTrace_scheduleWithin (logicalWidth : Nat)
     rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]; norm_num
   have endWithin : NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
       (statementWitnessStart +
-        invocationCount (statementActions logicalWidth publicFits) * 1174) ≤
+        invocationCount (statementActions logicalWidth publicFits) * 1096) ≤
       invocationCeiling := by
     rw [statementEnd_eq_challengeStart]
     exact (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt_of_piCcsLocal
@@ -1194,7 +1194,7 @@ theorem challengeTrace_scheduleWithin (logicalWidth : Nat)
     rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]; norm_num
   have endWithin : NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
       (challengeWitnessStart +
-        invocationCount (challengeActions logicalWidth publicFits) * 1174) ≤
+        invocationCount (challengeActions logicalWidth publicFits) * 1096) ≤
       invocationCeiling := by
     rw [challengeEnd_eq_roundStart]
     exact (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt_of_piCcsLocal
@@ -1225,7 +1225,7 @@ theorem roundTrace_scheduleWithin (logicalWidth : Nat)
       InvocationsBefore
         (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           (roundWitnessStart +
-            invocationCount (roundActions logicalWidth publicFits) * 1174))
+            invocationCount (roundActions logicalWidth publicFits) * 1096))
         (roundTrace logicalWidth publicFits).invocations := by
   let external :=
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear
@@ -1281,7 +1281,7 @@ theorem roundTrace_scheduleWithin (logicalWidth : Nat)
   have endSourceLocal :
       NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         roundWitnessStart +
-          invocationCount (roundActions logicalWidth publicFits) * 1174 := by
+          invocationCount (roundActions logicalWidth publicFits) * 1096 := by
     have roundLocal :
         NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
           roundWitnessStart := by
@@ -1296,12 +1296,12 @@ theorem roundTrace_scheduleWithin (logicalWidth : Nat)
     unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
     rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]; norm_num
   have endStrict : roundWitnessStart +
-      invocationCount (roundActions logicalWidth publicFits) * 1174 <
+      invocationCount (roundActions logicalWidth publicFits) * 1096 <
         NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase :=
     lt_trans (roundEnd_lt_outputStart logicalWidth publicFits) outputStrict
   have endWithin : NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
       (roundWitnessStart +
-        invocationCount (roundActions logicalWidth publicFits) * 1174) ≤
+        invocationCount (roundActions logicalWidth publicFits) * 1096) ≤
       invocationCeiling :=
     (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt_of_piCcsLocal
       _ NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
@@ -1385,7 +1385,7 @@ theorem outputTrace_scheduleWithin (logicalWidth : Nat)
     outputWitnessStart (outputActions logicalWidth publicFits) strongBelow
   have endWithin : NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
       (outputWitnessStart +
-        invocationCount (outputActions logicalWidth publicFits) * 1174) ≤
+        invocationCount (outputActions logicalWidth publicFits) * 1096) ≤
       invocationCeiling := by
     rw [outputEnd_eq_logicalFreshBase]
     exact le_rfl

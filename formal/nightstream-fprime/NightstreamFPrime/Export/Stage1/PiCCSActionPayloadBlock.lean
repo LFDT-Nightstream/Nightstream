@@ -41,7 +41,7 @@ theorem challengeInvocationCount_eq :
     Data.logicalWidth Data.publicFits)
 
 theorem roundInvocationCount_eq :
-    Invocations.invocationCount roundActions = 28 := by
+    Invocations.invocationCount roundActions = 56 := by
   have same := Invocations.invocationCount_eq_of_shapes roundActions
     (PiCCSInvocations.roundActions Data.logicalWidth Data.publicFits) (by
       unfold roundActions
@@ -59,7 +59,7 @@ def challengeKindAt : Fin 4 → PoseidonActionSchedule.Kind :=
   fun index => PoseidonActionSchedule.kindAt challengeActions <|
     Fin.cast challengeInvocationCount_eq.symm index
 
-def roundKindAt : Fin 28 → PoseidonActionSchedule.Kind :=
+def roundKindAt : Fin 56 → PoseidonActionSchedule.Kind :=
   fun index => PoseidonActionSchedule.kindAt roundActions <|
     Fin.cast roundInvocationCount_eq.symm index
 
@@ -114,14 +114,14 @@ theorem outputKindAt_materializes :
     _ = PoseidonActionSchedule.kinds outputActions :=
       PoseidonActionSchedule.kindAt_materializes outputActions
 
-def invocationCount : Nat := 956
+def invocationCount : Nat := 984
 
-@[simp] theorem invocationCount_eq : invocationCount = 956 := by
+@[simp] theorem invocationCount_eq : invocationCount = 984 := by
   rfl
 
 def payloadCount : Nat := invocationCount * Spec.Poseidon2.rate
 
-@[simp] theorem payloadCount_eq : payloadCount = 11472 := by
+@[simp] theorem payloadCount_eq : payloadCount = 11808 := by
   rw [payloadCount, invocationCount_eq]
   rfl
 

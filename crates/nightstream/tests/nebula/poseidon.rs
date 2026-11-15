@@ -71,7 +71,7 @@ impl PortHash {
                 let [a, b, c] = expected_row(&reference, row, &input, &aux).unwrap();
                 rows.push(expr(&c) - expr(&a) * expr(&b));
             }
-            lanes = std::array::from_fn(|i| view.aux(block * WORDS + 1158 + i));
+            lanes = std::array::from_fn(|i| view.aux(block * WORDS + 1080 + i));
             if block == 0 {
                 lanes[0] = lanes[0].clone() + Expr::constant(1);
             }
@@ -96,7 +96,7 @@ impl PortHash {
             Fault::OutputLane => rows[WORDS - 1] = view.aux(WORDS - 2) - Expr::constant(1) * Expr::constant(1),
             Fault::Carry => hints[0].lanes[0] = Expr::Var(Variable(4 + words::CARRY_IN)),
             Fault::Eta => hints[0].lanes[0] = Expr::Var(Variable(4 + words::ETA_FRESH)),
-            Fault::Cycle => hints[0].lanes[0] = view.aux(WORDS + 1158),
+            Fault::Cycle => hints[0].lanes[0] = view.aux(WORDS + 1080),
             Fault::DeadRead => rows.push(view.aux(0)),
             Fault::None | Fault::PriorDeadInput => (),
         }
@@ -141,7 +141,7 @@ impl Application for PortHash {
             let witness = reference.execute([F::ZERO; 4], &lanes).unwrap();
             let trace = &witness.values()[reference.generated_range()];
             aux.extend_from_slice(trace);
-            lanes.copy_from_slice(&trace[1158..]);
+            lanes.copy_from_slice(&trace[1080..]);
             if block == 0 {
                 lanes[0] += F::ONE;
             }
@@ -232,9 +232,9 @@ fn checked_port_hash_rejects_malformed_hints() {
 }
 
 /// The two hints make two native blocks (`SPEC.md` section 7.7), each in
-/// place of its 1,174 source rows. The plan rows do not change: section 7.11 lowers each unhinted trace to one cube-power
-/// row for each of its 171 S-boxes (`Export.Generic.NativePower.Chain.sound`)
-/// and substitutes its affine rows, and a block has 171 S-box rows.
+/// place of its 1,096 source rows. The plan rows do not change: section 7.11 lowers each unhinted trace to one seventh-power
+/// row for each of its 150 S-boxes (`Export.Generic.NativePower.Chain.sound`)
+/// and substitutes its affine rows, and a block has 150 S-box rows.
 #[test]
 fn checked_port_hash_compiles_to_two_native_blocks() {
     let compile = |optimized| {
@@ -265,7 +265,7 @@ fn checked_port_hash_compiles_to_two_native_blocks() {
         assert_eq!(new.block_count() - old.block_count(), 2);
         assert_eq!(
             old.source_rows().unwrap().ordinary_row_count() - new.source_rows().unwrap().ordinary_row_count(),
-            2 * 1174
+            2 * 1096
         );
         assert_eq!(old_rows.row_count(), new_rows.row_count());
         eprintln!("port_hash {name} before_rows={} after_rows={} before_entries={} after_entries={} before_coordinates={} after_coordinates={}",

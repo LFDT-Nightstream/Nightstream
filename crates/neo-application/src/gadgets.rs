@@ -15,37 +15,41 @@ fn evaluate_linear_expression(expression: &[(usize, F)], assignment: &[F]) -> F 
         })
 }
 
-pub(crate) fn push_pow3_expression<Owner: Clone>(
+pub(crate) fn push_pow7_expression<Owner: Clone>(
     builder: &mut TaggedR1csBuilder<'_, Owner>,
     expression: &[(usize, F)],
-    powers: [usize; 2],
+    powers: [usize; 4],
 ) {
-    let [x2, x3] = powers;
+    let [x2, x4, x6, x7] = powers;
     builder.push_row(expression.iter().copied(), expression.iter().copied(), [(x2, F::ONE)]);
-    builder.push_row([(x2, F::ONE)], expression.iter().copied(), [(x3, F::ONE)]);
+    builder.push_row([(x2, F::ONE)], [(x2, F::ONE)], [(x4, F::ONE)]);
+    builder.push_row([(x4, F::ONE)], [(x2, F::ONE)], [(x6, F::ONE)]);
+    builder.push_row([(x6, F::ONE)], expression.iter().copied(), [(x7, F::ONE)]);
 }
 
-pub(crate) fn assign_pow3_expression(expression: &[(usize, F)], powers: [usize; 2], assignment: &mut [F]) {
+pub(crate) fn assign_pow7_expression(expression: &[(usize, F)], powers: [usize; 4], assignment: &mut [F]) {
     let x = evaluate_linear_expression(expression, assignment);
-    let [x2, x3] = powers;
+    let [x2, x4, x6, x7] = powers;
     assignment[x2] = x * x;
-    assignment[x3] = assignment[x2] * x;
+    assignment[x4] = assignment[x2] * assignment[x2];
+    assignment[x6] = assignment[x2] * assignment[x4];
+    assignment[x7] = assignment[x6] * x;
 }
 
-/// Constrains two auxiliary columns to `x²` and `x³` for a linear field
-/// expression `x`.
+/// Constrains four auxiliary columns to `x²`, `x⁴`, `x⁶`, and `x⁷` for a
+/// linear field expression `x`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Pow3<const N: usize = 1> {
+pub struct Pow7<const N: usize = 1> {
     pub expression: [(usize, F); N],
-    pub powers: [usize; 2],
+    pub powers: [usize; 4],
 }
 
-impl<const N: usize> Pow3<N> {
+impl<const N: usize> Pow7<N> {
     pub fn push_constraints<Owner: Clone>(&self, builder: &mut TaggedR1csBuilder<'_, Owner>) {
         let first_row = builder.next_row_index();
-        push_pow3_expression(builder, &self.expression, self.powers);
+        push_pow7_expression(builder, &self.expression, self.powers);
         builder.record_gadget(
-            GadgetDescriptor::Pow3 {
+            GadgetDescriptor::Pow7 {
                 expression: self.expression.to_vec(),
                 powers: self.powers,
             },
@@ -54,7 +58,7 @@ impl<const N: usize> Pow3<N> {
     }
 
     pub fn assign(&self, assignment: &mut [F]) {
-        assign_pow3_expression(&self.expression, self.powers, assignment);
+        assign_pow7_expression(&self.expression, self.powers, assignment);
     }
 }
 
@@ -194,9 +198,9 @@ impl<const N: usize> ConditionalSelect<N> {
 /// Machine-readable semantics retained for one shared gadget invocation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum GadgetDescriptor {
-    Pow3 {
+    Pow7 {
         expression: Vec<(usize, F)>,
-        powers: [usize; 2],
+        powers: [usize; 4],
     },
     ZeroTest {
         expression: Vec<(usize, F)>,
@@ -215,13 +219,13 @@ pub enum GadgetDescriptor {
         choices: Vec<(usize, usize)>,
         state_before: [usize; 12],
         state_after: [usize; 12],
-        powers: Vec<[usize; 2]>,
+        powers: Vec<[usize; 4]>,
     },
-    Poseidon2PartialRounds12 {
+    Poseidon2PartialPair12 {
         choices: Vec<(usize, usize)>,
         state_before: [usize; 12],
         state_after: [usize; 12],
-        powers: Vec<[usize; 2]>,
+        powers: [usize; 8],
     },
     Poseidon2Permutation12 {
         input: [usize; 12],

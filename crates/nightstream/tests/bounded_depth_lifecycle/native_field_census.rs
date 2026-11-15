@@ -88,7 +88,7 @@ fn row_categories(plan: &PlanRows, layout: &LogicalLayout, range: Range<usize>) 
     let mut products = BTreeMap::<String, usize>::new();
     for row in range.clone() {
         let kind = if plan.port(row, 3).next().is_some() {
-            "native_power3"
+            "native_power7"
         } else {
             let mut sides = [form_kind(plan, layout, row, 0), form_kind(plan, layout, row, 1)];
             if sides.contains(&"constant") {
@@ -149,7 +149,7 @@ fn census(capacity: usize) {
             "kind":kind, "rows":shape.rows, "matrix_count":shape.matrices,
             "padded_logical_coordinates":shape.columns, "logical_coordinates":layout.width(),
             "source_columns":factored.slot_count(), "entries_per_matrix":sink.entries,
-            "expanded_entries_per_matrix":sink.expanded, "native_power3_rows":powers,
+            "expanded_entries_per_matrix":sink.expanded, "native_power7_rows":powers,
             "minimum_security_bits":109, "fresh_norm_bound":relation.params().b(), "k_rho":relation.params().k_rho(),
             "all_actual_matrix_runs_match_plan_and_slots":true,
             "application_ordinary":row_categories(&plan, &layout, application.clone()),

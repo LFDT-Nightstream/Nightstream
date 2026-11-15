@@ -135,7 +135,7 @@ def plan : List StepPlan := compilePlan?.getD []
 theorem compilePlan?_eq : compilePlan? = some plan := by
   rfl
 
-@[simp] theorem plan_length : plan.length = 52 := by
+@[simp] theorem plan_length : plan.length = 31 := by
   decide +kernel
 
 @[simp] theorem plan_records_eq :
@@ -143,15 +143,15 @@ theorem compilePlan?_eq : compilePlan? = some plan := by
   rfl
 
 @[simp] theorem sboxRowCount_eq :
-    (plan.map fun step => step.sboxes.length).sum = 171 := by
+    (plan.map fun step => step.sboxes.length).sum = 150 := by
   decide +kernel
 
 @[simp] theorem outputRowCount_eq :
-    (plan.map fun step => step.outputs.length).sum = 832 := by
+    (plan.map fun step => step.outputs.length).sum = 496 := by
   decide +kernel
 
 @[simp] theorem directRowCount_eq :
-    (plan.map fun step => step.sboxes.length + step.outputs.length).sum = 1003 := by
+    (plan.map fun step => step.sboxes.length + step.outputs.length).sum = 646 := by
   decide +kernel
 
 private theorem map_eq_map_of_forall_mem {α β : Type}
@@ -190,10 +190,10 @@ def PlanRowsZero {logicalWidth : Nat}
     Prop :=
   ∀ step ∈ plan, step.RowsZero sourceMap oneColumn assignment
 
-private theorem cube_eq_sboxF (value : F) :
-    Spec.ProductionRelation.RowSemantics.cube value =
+private theorem seventhPower_eq_sboxF (value : F) :
+    Spec.ProductionRelation.RowSemantics.seventhPower value =
       Layer.sboxF value := by
-  simp [Spec.ProductionRelation.RowSemantics.cube,
+  simp [Spec.ProductionRelation.RowSemantics.seventhPower,
     CCSResidualTable.pow, ConcreteCarrier.baseOps, Layer.sboxF,
     Spec.Poseidon2.sbox, mul_assoc]
 
@@ -211,7 +211,7 @@ theorem StepPlan.rowsZero_iff_holds {logicalWidth : Nat} (step : StepPlan)
       have zero := (PoseidonSourceRows.SboxSource.residual_zero_iff row
         sourceMap oneColumn assignment env one preserves).mp
           (sboxes row member)
-      rw [← cube_eq_sboxF]
+      rw [← seventhPower_eq_sboxF]
       exact zero.symm
     · intro row member
       exact (PoseidonSourceRows.OutputSource.residual_zero_iff row
@@ -222,7 +222,7 @@ theorem StepPlan.rowsZero_iff_holds {logicalWidth : Nat} (step : StepPlan)
     · intro row member
       apply (PoseidonSourceRows.SboxSource.residual_zero_iff row
         sourceMap oneColumn assignment env one preserves).mpr
-      rw [cube_eq_sboxF]
+      rw [seventhPower_eq_sboxF]
       exact (sboxes row member).symm
     · intro row member
       exact (PoseidonSourceRows.OutputSource.residual_zero_iff row

@@ -381,7 +381,7 @@ private theorem mapped_lt_basePackage (source : Nat)
     PackageOrder.sourceToPackage source <
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have mapped := PackageOrder.sourceToPackage_lt source bound
-  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 10434619 :=
+  have total : PiRLCProductPlan.basePackage.layout.totalColumnCount = 10059655 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total]
   simpa [PackageOrder.packageColumnCount] using mapped
@@ -414,7 +414,7 @@ theorem transitionEnv_of_outside
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (column : Nat) (bound : column < PackageOrder.SourceColumnCount)
     (outside : column < PiCCSStarts.statementWitnessStart ∨
-      PiCCSStarts.statementWitnessStart + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1174 ≤
+      PiCCSStarts.statementWitnessStart + PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
         column) :
     transitionEnv program base (PackageOrder.sourceToPackage column) =
       packageEnv program base (PackageOrder.sourceToPackage column) := by
@@ -458,12 +458,12 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply transitionEnv_of_notTranscript program base _ (Location.state index).sourceColumn_lt
       rintro ⟨invocation, lane, same⟩
       have indexBound : index.val < 9 := index.isLt
-      have invocationBound : invocation.val < 156 := by
+      have invocationBound : invocation.val < 184 := by
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
       have address : 25320 + index.val =
-          5023714 + invocation.val * 1174 + 1158 + lane.val := by
+          4694622 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.stateStart_eq,
           PiCCSStarts.statementWitnessStart_eq] using same
       omega
@@ -479,12 +479,12 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply transitionEnv_of_notTranscript program base _ (Location.output index).sourceColumn_lt
       rintro ⟨invocation, lane, same⟩
       have indexBound : index.val < 25329 := index.isLt
-      have invocationBound : invocation.val < 156 := by
+      have invocationBound : invocation.val < 184 := by
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
       have address : 25649 + index.val =
-          5023714 + invocation.val * 1174 + 1158 + lane.val := by
+          4694622 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.outputStart_eq,
           PiCCSStarts.statementWitnessStart_eq] using same
       omega
@@ -500,12 +500,12 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply transitionEnv_of_notTranscript program base _ (Location.piDec index).sourceColumn_lt
       rintro ⟨invocation, lane, same⟩
       have indexBound : index.val < 29568 := index.isLt
-      have invocationBound : invocation.val < 156 := by
+      have invocationBound : invocation.val < 184 := by
         simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           using invocation.isLt
       have laneBound : lane.val < 16 := lane.isLt
-      have address : 10404728 + index.val =
-          5023714 + invocation.val * 1174 + 1158 + lane.val := by
+      have address : 10029764 + index.val =
+          4694622 + invocation.val * 1096 + 1080 + lane.val := by
         simpa only [sourceColumn, RunningTransitionSourceSupport.piDecStart_eq,
           PiCCSStarts.statementWitnessStart_eq] using same
       omega
@@ -521,10 +521,10 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       apply transitionEnv_of_outside program base _ (Location.fresh index).sourceColumn_lt
       apply Or.inr
       change PiCCSStarts.statementWitnessStart +
-          PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1174 ≤
+          PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
         RunningTransitionInputs.phaseOffset + index.val
       exact Nat.le_trans (show PiCCSStarts.statementWitnessStart +
-          PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1174 ≤
+          PiCCSOrdinarySourceSupport.transcriptInvocationCount * 1096 ≤
             PiDECInputs.phaseOffset by decide)
         (Nat.le_trans RunningTransitionInputs.piDecPhaseOffset_le
           (Nat.le_add_right _ _))

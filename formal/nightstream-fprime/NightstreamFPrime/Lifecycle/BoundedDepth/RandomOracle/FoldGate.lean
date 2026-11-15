@@ -59,13 +59,13 @@ def count (c : Counts) : ℕ :=
 /-- The largest `k` with `2^k · count ≤ denominator`. -/
 def bits (c : Counts) : ℕ := Nat.log 2 (denominator / count c)
 
-/-- The counts of each step circuit: `ℓ = 28`, degree 4 and 4 matrices. -/
+/-- The counts of each step circuit: `ℓ = 28`, degree 8 and 4 matrices. -/
 def production : Counts where
   cubeVariables := Lifecycle.cubeVariables
   width := Nifs.SelectedTestNumerator.width
   matrices := productionProfile.ccsMatrices
 
-theorem production_numerator : production.numerator = 4859 := by
+theorem production_numerator : production.numerator = 4971 := by
   rfl
 
 private theorem cardinality_eq : productionChallengeSetCardinality = 5 ^ 64 := rfl
@@ -130,7 +130,7 @@ private theorem sampleError_lt : Fork.sampleError < 1 / 5 ^ 64 + 1 / 2 ^ 173 := 
 
 private theorem error_production :
     ((error production : ℚ) : ℝ) =
-      4859 * (1 / (fieldModulus : ℝ) ^ 2) + 225 * (1 / 5 ^ 64 + 1 / 2 ^ 173) := by
+      4971 * (1 / (fieldModulus : ℝ) ^ 2) + 225 * (1 / 5 ^ 64 + 1 / 2 ^ 173) := by
   unfold error
   rw [production_numerator, sources_eq, cardinality_eq]
   push_cast
@@ -146,7 +146,7 @@ theorem refresh_statisticalError_le (queries : ℕ) :
   have queriesNonnegative : (0 : ℝ) ≤ queries := Nat.cast_nonneg queries
   unfold RefreshKnowledge.statisticalError
   push_cast
-  rw [div_eq_mul_one_div (4635 : ℝ)]
+  rw [div_eq_mul_one_div (4747 : ℝ)]
   nlinarith [mul_nonneg queriesNonnegative inverse.le,
     mul_nonneg queriesNonnegative (sub_nonneg.mpr sample.le),
     mul_nonneg queriesNonnegative nonnegative]
@@ -161,7 +161,7 @@ theorem light_statisticalError_le (queries : ℕ) :
   have queriesNonnegative : (0 : ℝ) ≤ queries := Nat.cast_nonneg queries
   unfold LightKnowledge.statisticalError
   push_cast
-  rw [div_eq_mul_one_div (462 : ℝ)]
+  rw [div_eq_mul_one_div (574 : ℝ)]
   nlinarith [mul_nonneg queriesNonnegative inverse.le,
     mul_nonneg queriesNonnegative (sub_nonneg.mpr sample.le),
     mul_nonneg queriesNonnegative nonnegative]

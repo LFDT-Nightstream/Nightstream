@@ -39,7 +39,7 @@ structure Leaves (logicalWidth : Nat)
   newSlotOffset : Nat
   dec : Lifecycle.PiDEC.v1_2.Formal.Interface logicalWidth publicFits
   decOffset : Nat
-  piccs : RefreshPiCCSPhase.Leaves logicalWidth 4 publicFits
+  piccs : RefreshPiCCSPhase.Leaves logicalWidth 8 publicFits
   rlc : Lifecycle.PiRLC.v1_2.Formal.Interface logicalWidth publicFits
   rlcOffset : Nat
 
@@ -73,7 +73,7 @@ variable (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFi
 prior-circuit selector and `proof` the refresh proof that its words carry; the proof matters only
 after the base case. -/
 structure Represents (leaves : Leaves logicalWidth publicFits witnessWordCount) (selected : Fin 2)
-    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 4) (env : Env) :
+    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8) (env : Env) :
     Prop where
   applicationInput :
     Stage1.Application.inputState leaves.application leaves.applicationOffset env = input.zi
@@ -111,7 +111,7 @@ structure Represents (leaves : Leaves logicalWidth publicFits witnessWordCount) 
 relation of a refresh circuit (`stepHolds_iff`) at the production cap. -/
 theorem spec_implies_stepHolds (refresh : Spec.HyperNova.Construction2.BoundedDepth.circuitStep circuit = .refresh)
     (leaves : Leaves logicalWidth publicFits witnessWordCount) (selected : Fin 2)
-    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 4) (env : Env)
+    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8) (env : Env)
     (specification : SpecHolds (circuitKeys selected).relation step control circuit leaves env)
     (represents : Represents ajtai circuitKeys circuit input output leaves selected proof env)
     (select : SelectSpec input output selected

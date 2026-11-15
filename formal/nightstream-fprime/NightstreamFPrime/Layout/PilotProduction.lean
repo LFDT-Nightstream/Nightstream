@@ -53,15 +53,15 @@ theorem absorbCount_eq : absorbCount = 2110 := by
     PilotValues.stateHashBaseWords, PilotValues.digestWords,
     NightstreamFPrime.Spec.Poseidon2.rate]
 
-theorem hashWitnessCount_eq : hashWitnessCount = 2478314 := by
+theorem hashWitnessCount_eq : hashWitnessCount = 2313656 := by
   norm_num [hashWitnessCount, absorbCount_eq, permutationRecipeCount,
     PilotValues.permutationRecipeCount]
 
-theorem hashRowCount_eq : hashRowCount = 2478318 := by
+theorem hashRowCount_eq : hashRowCount = 2313660 := by
   norm_num [hashRowCount, hashWitnessCount_eq, digestWords,
     PilotValues.digestWords]
 
-theorem physicalRowCountValue_eq : physicalRowCountValue = 4957224 := by
+theorem physicalRowCountValue_eq : physicalRowCountValue = 4627908 := by
   norm_num [physicalRowCountValue, hashWitnessCount_eq, hashRowCount_eq,
     priorBindingRowCount, PilotValues.priorBindingRowCount,
     PilotValues.priorExtraRowCount, PilotValues.priorCanonicalRowCount,
@@ -298,7 +298,7 @@ theorem priorHash_freshCount :
     (priorPreimage witnessOffset) (priorPreimage_affine witnessOffset)
 
 theorem priorHash_rowCount :
-    R1CS.totalRowCount (priorRawConstraints ()) = 2478314 := by
+    R1CS.totalRowCount (priorRawConstraints ()) = 2313656 := by
   rw [priorRawConstraints_eq,
     Poseidon2.hash_recipeConstraints_rowCount witnessOffset
       (priorPreimage witnessOffset) (priorPreimage_affine witnessOffset),
@@ -395,7 +395,7 @@ theorem outputHash_rowCount :
     R1CS.totalRowCount
       (Poseidon2.hashConstraints
         (OutputHash.hashInterface outputInterface)
-        (Pilot.outputOffset interface witnessOffset)) = 2478318 := by
+        (Pilot.outputOffset interface witnessOffset)) = 2313660 := by
   rw [Poseidon2.hashConstraints_rowCount _ _ outputHash_affine,
     outputHashInterface_input,
     outputPreimage_blockCount]
@@ -494,7 +494,7 @@ theorem priorConstraints_freshCount :
 
 theorem priorConstraints_rowCount :
     R1CS.totalRowCount
-      (Pilot.priorConstraints interface witnessOffset) = 2478906 := by
+      (Pilot.priorConstraints interface witnessOffset) = 2314248 := by
   rw [priorConstraints_decomposition, R1CS.totalRowCount_append,
     R1CS.totalRowCount_append, priorHash_rowCount,
     priorWordConstraints_rowCount, priorBindingConstraints_rowCount]
@@ -506,7 +506,7 @@ theorem outputConstraints_freshCount :
 
 theorem outputConstraints_rowCount :
     R1CS.totalRowCount
-      (Pilot.outputConstraints interface witnessOffset) = 2478318 := by
+      (Pilot.outputConstraints interface witnessOffset) = 2313660 := by
   rw [outputConstraints_decomposition, outputHash_rowCount]
 
 theorem logicalConstraints_freshCount :
@@ -518,41 +518,41 @@ theorem logicalConstraints_freshCount :
 
 theorem logicalConstraints_rowCount :
     R1CS.totalRowCount
-      (Pilot.logicalConstraints interface witnessOffset) = 4957224 := by
+      (Pilot.logicalConstraints interface witnessOffset) = 4627908 := by
   unfold Pilot.logicalConstraints
   rw [R1CS.totalRowCount_append, priorConstraints_rowCount,
     outputConstraints_rowCount]
 
 theorem physicalRowCount_eq :
-    Pilot.physicalRowCount interface witnessOffset = 4957224 := by
+    Pilot.physicalRowCount interface witnessOffset = 4627908 := by
   rw [Pilot.physicalRowCount_eq, logicalConstraints_rowCount]
 
 theorem priorHashLogicalLength_eq :
-    PriorStateHash.hashLength priorInterface witnessOffset = 2478314 := by
+    PriorStateHash.hashLength priorInterface witnessOffset = 2313656 := by
   rw [PriorStateHash.hashLength, priorInterface_preimage_apply,
     priorPreimage_blockCount]
 
 theorem priorWitnessCount :
     PriorStateHash.logicalPrivateCount priorInterface witnessOffset =
-      2478582 := by
+      2313924 := by
   unfold PriorStateHash.logicalPrivateCount
   rw [priorHashLogicalLength_eq]
 
 theorem outputWitnessCount :
     OutputHash.hashLength outputInterface
-      (Pilot.outputOffset interface witnessOffset) = 2478314 := by
+      (Pilot.outputOffset interface witnessOffset) = 2313656 := by
   unfold OutputHash.hashLength
   rw [outputInterface_preimage_apply, outputPreimage_blockCount]
 
 theorem outputOffset_eq :
-    Pilot.outputOffset interface witnessOffset = 2529564 := by
+    Pilot.outputOffset interface witnessOffset = 2364906 := by
   unfold Pilot.outputOffset Lifecycle.Pilot.outputOffset
   rw [interface_prior, priorWitnessCount]
   unfold witnessOffset
   rw [externalColumnCount_eq]
 
 def lifecycleOutputOffset : Nat :=
-  2529564
+  2364906
 
 theorem lifecycleOutputOffset_matches :
     lifecycleOutputOffset =
@@ -567,7 +567,7 @@ theorem lifecycleOutputOffset_matches_layout :
     Lifecycle.Pilot.outputOffset interface witnessOffset
   exact lifecycleOutputOffset_matches
 
-theorem lifecycleOutputOffset_eq : lifecycleOutputOffset = 2529564 := by
+theorem lifecycleOutputOffset_eq : lifecycleOutputOffset = 2364906 := by
   rfl
 
 theorem witnessOffset_eq : witnessOffset = 50982 := by
@@ -581,17 +581,17 @@ theorem witnessOffset_le_lifecycleOutputOffset :
   norm_num
 
 theorem logicalColumnCount_eq :
-    Pilot.logicalColumnCount interface witnessOffset = 5007878 := by
+    Pilot.logicalColumnCount interface witnessOffset = 4678562 := by
   unfold Pilot.logicalColumnCount
   rw [interface_output, outputWitnessCount, outputOffset_eq]
 
 theorem physicalColumnCount_eq :
-    Pilot.physicalColumnCount interface witnessOffset = 5007878 := by
+    Pilot.physicalColumnCount interface witnessOffset = 4678562 := by
   rw [Pilot.physicalColumnCount_eq, logicalConstraints_freshCount,
     logicalColumnCount_eq]
 
 def jointDomain : Nat :=
-  5007878
+  4678562
 
 theorem jointDomain_matches :
     jointDomain =
@@ -600,7 +600,7 @@ theorem jointDomain_matches :
   rw [physicalRowCount_eq, physicalColumnCount_eq]
   rfl
 
-theorem jointDomain_eq : jointDomain = 5007878 := by
+theorem jointDomain_eq : jointDomain = 4678562 := by
   rfl
 
 theorem jointDomain_le_twoPow28 : jointDomain ≤ 2 ^ 28 := by

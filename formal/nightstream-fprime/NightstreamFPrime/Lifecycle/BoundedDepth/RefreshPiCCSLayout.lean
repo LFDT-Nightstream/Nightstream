@@ -274,7 +274,7 @@ private theorem childSpec_of_rows (name : String) (child : FormalCircuit)
 
 /-- The rows give each leaf's spec. The CCS terminal is the same for every production relation,
 so the leaves hold for the relation of any circuit key. -/
-theorem soundness (interface : Interface logicalWidth 4 publicFits) (env : Env)
+theorem soundness (interface : Interface logicalWidth 8 publicFits) (env : Env)
     (assumptions : Assumptions relation interface offset env)
     (rows : holds env (Circuit.ops (main relation interface) offset))
     (target : ProductionKey.LogicalRelation logicalWidth publicFits) :
@@ -327,8 +327,8 @@ structure Represents (children : Children logicalWidth publicFits)
       (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       productionShape)
     (proof : Spec.Folding.Nifs.PaperNonInteractive.Proof K PaperAlgebra.Commitment
-      productionShape 4)
-    (interface : Interface logicalWidth 4 publicFits) (offset : Nat) (env : Env) : Prop where
+      productionShape 8)
+    (interface : Interface logicalWidth 8 publicFits) (offset : Nat) (env : Env) : Prop where
   fresh : StatementAbsorption.evalFresh (interface.fresh offset) env = fresh
   point : (canonicalFinIndices productionShape.cubeVariables).map
       (fun coordinate => ((interface.running offset).point coordinate).eval env) =
@@ -363,8 +363,8 @@ theorem wired (target : ProductionKey.LogicalRelation logicalWidth publicFits)
       (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       productionShape)
     (proof : Spec.Folding.Nifs.PaperNonInteractive.Proof K PaperAlgebra.Commitment
-      productionShape 4)
-    (interface : Interface logicalWidth 4 publicFits)
+      productionShape 8)
+    (interface : Interface logicalWidth 8 publicFits)
     (env : Env) (represents : Represents children fresh proof interface offset env) :
     RefreshPiCCSPhase.Wired target ajtai children fresh proof (leaves relation interface offset)
       env where
@@ -419,7 +419,7 @@ theorem wired (target : ProductionKey.LogicalRelation logicalWidth publicFits)
 
 /-- The layout's rows and external words give the refresh Π_CCS phase: the refresh key's check
 accepts, with its SumCheck point and outgoing transcript state. -/
-theorem phaseHolds (interface : Interface logicalWidth 4 publicFits) (env : Env)
+theorem phaseHolds (interface : Interface logicalWidth 8 publicFits) (env : Env)
     (assumptions : Assumptions relation interface offset env)
     (rows : holds env (Circuit.ops (main relation interface) offset))
     (target : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -429,7 +429,7 @@ theorem phaseHolds (interface : Interface logicalWidth 4 publicFits) (env : Env)
       (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       productionShape)
     (proof : Spec.Folding.Nifs.PaperNonInteractive.Proof K PaperAlgebra.Commitment
-      productionShape 4)
+      productionShape 8)
     (represents : Represents children fresh proof interface offset env) :
     RefreshPiCCSPhase.PhaseHolds target ajtai children fresh proof
       (leaves relation interface offset) env :=

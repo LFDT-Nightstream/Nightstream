@@ -58,7 +58,7 @@ impl Harness {
         let first = application.generated_range().start;
         let mut blocked = vec![false; records.row_count()];
         for block in &application.shape().blocks {
-            for local in block.first_local..block.first_local + 1174 {
+            for local in block.first_local..block.first_local + 1096 {
                 blocked[records.recipe_row(local - first).unwrap()] = true;
             }
         }

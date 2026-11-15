@@ -27,33 +27,33 @@ theorem localLength_cons (o : Op) (l : List Op) : localLength (o :: l) = o.local
 
 theorem child_localLength (child : Sponge.Interface) (name : String) (start : ℕ) :
     (Sequence.childOp name (Sponge.circuit child) start).localLength =
-      (child.chunks start).length * 1174 :=
+      (child.chunks start).length * 1096 :=
   (Sequence.childOp_localLength _ _ _).trans (Sponge.localLength_eq child start)
 
 /-- Each child ends where the next starts. -/
 theorem child_ends :
-    offset + ((stateIn p app i offset).chunks offset).length * 1174 = stateOutStart p app i offset ∧
-    stateOutStart p app i offset + ((stateOut p app i offset).chunks (stateOutStart p app i offset)).length * 1174 =
+    offset + ((stateIn p app i offset).chunks offset).length * 1096 = stateOutStart p app i offset ∧
+    stateOutStart p app i offset + ((stateOut p app i offset).chunks (stateOutStart p app i offset)).length * 1096 =
       chainOpsStart p app i offset ∧
     chainOpsStart p app i offset +
-      ((chainOps p app i offset).chunks (chainOpsStart p app i offset)).length * 1174 =
+      ((chainOps p app i offset).chunks (chainOpsStart p app i offset)).length * 1096 =
       chainInitialStart p app i offset ∧
     chainInitialStart p app i offset +
-      ((chainInitial p app i offset).chunks (chainInitialStart p app i offset)).length * 1174 =
+      ((chainInitial p app i offset).chunks (chainInitialStart p app i offset)).length * 1096 =
       chainFinalStart p app i offset ∧
     chainFinalStart p app i offset +
-      ((chainFinal p app i offset).chunks (chainFinalStart p app i offset)).length * 1174 =
+      ((chainFinal p app i offset).chunks (chainFinalStart p app i offset)).length * 1096 =
       etaStart p app i offset ∧
-    etaStart p app i offset + ((eta p app i offset).chunks (etaStart p app i offset)).length * 1174 =
+    etaStart p app i offset + ((eta p app i offset).chunks (etaStart p app i offset)).length * 1096 =
       squeeze1Start p app i offset ∧
     squeeze1Start p app i offset +
-      ((squeeze1 p app i offset).chunks (squeeze1Start p app i offset)).length * 1174 =
+      ((squeeze1 p app i offset).chunks (squeeze1Start p app i offset)).length * 1096 =
       squeeze2Start p app i offset ∧
     squeeze2Start p app i offset +
-      ((squeeze2 p app i offset).chunks (squeeze2Start p app i offset)).length * 1174 =
+      ((squeeze2 p app i offset).chunks (squeeze2Start p app i offset)).length * 1096 =
       squeeze3Start p app i offset ∧
     squeeze3Start p app i offset +
-      ((squeeze3 p app i offset).chunks (squeeze3Start p app i offset)).length * 1174 =
+      ((squeeze3 p app i offset).chunks (squeeze3Start p app i offset)).length * 1096 =
       endOffset p app i offset := by
   refine ⟨rfl, rfl, rfl, rfl, rfl, by rw [etaChunks_length]; rfl, ?_, ?_, ?_⟩
   · simp only [squeeze2Start, squeeze1, permuting, List.length_singleton, one_mul]
@@ -77,7 +77,7 @@ theorem supported (allowed : ℕ → Prop) (inputs : Application.InputsSupported
   have total := localLength_opsAt p app i offset
   obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := child_ends p app i offset
   have within : ∀ (child : Sponge.Interface) (start : ℕ), offset ≤ start →
-      start + (child.chunks start).length * 1174 ≤ endOffset p app i offset →
+      start + (child.chunks start).length * 1096 ≤ endOffset p app i offset →
       ∀ index, start ≤ index → index < start + localLength (Circuit.ops (Sponge.main child) start) →
         allowed index := by
     intro child start lower upper index low high

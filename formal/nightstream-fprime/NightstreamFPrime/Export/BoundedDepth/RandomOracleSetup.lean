@@ -132,7 +132,7 @@ section Light
 
 variable (key : (SetupIndex logicalWidth publicFits → Chunk) → CircuitKey logicalWidth publicFits)
   (adversary : (SetupIndex logicalWidth publicFits → Chunk) →
-    OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 4) Answer
+    OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 8) Answer
       (Attempt logicalWidth publicFits))
 
 /-- The chance that the light attempt succeeds, for the key of `chunks`. -/
@@ -242,7 +242,7 @@ section Refresh
 
 variable (key : (SetupIndex logicalWidth publicFits → Chunk) → CircuitKey logicalWidth publicFits)
   (adversary : (SetupIndex logicalWidth publicFits → Chunk) →
-    OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 4) Answer
+    OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 8) Answer
       (Attempt logicalWidth publicFits))
 
 /-- The chance that the refresh attempt succeeds, for the key of `chunks`. -/
@@ -375,7 +375,7 @@ variable (key : (SetupIndex Width Fits → Chunk) → CircuitKey Width Fits)
 /-- The light knowledge bound at the bounded-depth scheme's key width. -/
 theorem light_production_knowledge_error_lt
     (adversary : (SetupIndex Width Fits → Chunk) →
-      OracleComp (Point (LightSchedule.schedule Width Fits) 4) Answer (Attempt Width Fits))
+      OracleComp (Point (LightSchedule.schedule Width Fits) 8) Answer (Attempt Width Fits))
     {queries : Nat} (bounded : ∀ chunks, (adversary chunks).QueryBound queries) :
     𝔼 chunks, lightSuccess key adversary chunks <
       𝔼 chunks, (lightExtraction key adversary chunks + lightHashCollisions key adversary chunks) +
@@ -388,7 +388,7 @@ theorem light_production_knowledge_error_lt
 /-- The refresh knowledge bound at the bounded-depth scheme's key width. -/
 theorem refresh_production_knowledge_error_lt
     (adversary : (SetupIndex Width Fits → Chunk) →
-      OracleComp (Point (RefreshSchedule.schedule Width Fits) 4) Answer (Attempt Width Fits))
+      OracleComp (Point (RefreshSchedule.schedule Width Fits) 8) Answer (Attempt Width Fits))
     {queries : Nat} (bounded : ∀ chunks, (adversary chunks).QueryBound queries) :
     𝔼 chunks, refreshSuccess key adversary chunks <
       𝔼 chunks, (refreshExtraction key adversary chunks +
@@ -402,7 +402,7 @@ theorem refresh_production_knowledge_error_lt
 /-- The light knowledge bound at the bounded-depth scheme's key width with `2^64` queries. -/
 theorem light_production_knowledge_error_two_pow_64
     (adversary : (SetupIndex Width Fits → Chunk) →
-      OracleComp (Point (LightSchedule.schedule Width Fits) 4) Answer (Attempt Width Fits))
+      OracleComp (Point (LightSchedule.schedule Width Fits) 8) Answer (Attempt Width Fits))
     (bounded : ∀ chunks, (adversary chunks).QueryBound (2 ^ 64)) :
     𝔼 chunks, lightSuccess key adversary chunks <
       𝔼 chunks, (lightExtraction key adversary chunks + lightHashCollisions key adversary chunks) +
@@ -414,7 +414,7 @@ theorem light_production_knowledge_error_two_pow_64
 /-- The refresh knowledge bound at the bounded-depth scheme's key width with `2^64` queries. -/
 theorem refresh_production_knowledge_error_two_pow_64
     (adversary : (SetupIndex Width Fits → Chunk) →
-      OracleComp (Point (RefreshSchedule.schedule Width Fits) 4) Answer (Attempt Width Fits))
+      OracleComp (Point (RefreshSchedule.schedule Width Fits) 8) Answer (Attempt Width Fits))
     (bounded : ∀ chunks, (adversary chunks).QueryBound (2 ^ 64)) :
     𝔼 chunks, refreshSuccess key adversary chunks <
       𝔼 chunks, (refreshExtraction key adversary chunks +
@@ -429,7 +429,7 @@ advantage of an explicit algorithm: the MSIS solver and the Poseidon2 collision 
 with `budget` adversary runs. -/
 theorem light_production_knowledge_error_lt_solvers
     (adversary : (SetupIndex Width Fits → Chunk) →
-      OracleComp (Point (LightSchedule.schedule Width Fits) 4) Answer (Attempt Width Fits))
+      OracleComp (Point (LightSchedule.schedule Width Fits) 8) Answer (Attempt Width Fits))
     {queries : Nat} (bounded : ∀ chunks, (adversary chunks).QueryBound queries) {budget : ℕ}
     (positive : 0 < budget) :
     𝔼 chunks, lightSuccess key adversary chunks <
@@ -448,7 +448,7 @@ theorem light_production_knowledge_error_lt_solvers
 the advantage of an explicit algorithm. -/
 theorem refresh_production_knowledge_error_lt_solvers
     (adversary : (SetupIndex Width Fits → Chunk) →
-      OracleComp (Point (RefreshSchedule.schedule Width Fits) 4) Answer (Attempt Width Fits))
+      OracleComp (Point (RefreshSchedule.schedule Width Fits) 8) Answer (Attempt Width Fits))
     {queries : Nat} (bounded : ∀ chunks, (adversary chunks).QueryBound queries) {budget : ℕ}
     (positive : 0 < budget) :
     𝔼 chunks, refreshSuccess key adversary chunks <

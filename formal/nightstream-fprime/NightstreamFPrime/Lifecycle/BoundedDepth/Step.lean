@@ -42,9 +42,9 @@ abbrev StepClaim (logicalWidth : Nat)
     productionShape (RingCarrierLayout.carrierWidth logicalWidth)
     (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth))
 
-/-- A fold proof of either circuit. Every production relation has degree bound 4
+/-- A fold proof of either circuit. Every production relation has degree bound 8
 (`ProductionKey.degreeBound_eq`). -/
-abbrev StepProof := BoundedDepthFolds.FoldProof PaperAlgebra.Commitment productionShape 4 4
+abbrev StepProof := BoundedDepthFolds.FoldProof PaperAlgebra.Commitment productionShape 8 8
 
 abbrev StepFresh (logicalWidth : Nat)
     (publicFits :

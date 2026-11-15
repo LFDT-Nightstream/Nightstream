@@ -2,7 +2,6 @@
 //! `decisions/poseidon2-p64-instance.md`. Event compression and
 //! application-specific round scheduling belong to their respective consumers.
 
-use std::collections::BTreeMap;
 use std::{ops::Range, sync::OnceLock};
 
 use neo_ccs::crypto::poseidon2::{HALF_FULL_ROUNDS, INSTANCE_12, PARTIAL_ROUNDS};
@@ -10,27 +9,27 @@ use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 use p3_poseidon2::{matmul_internal, mds_light_permutation, MDSMat4};
 
-use crate::gadgets::push_pow3_expression;
+use crate::gadgets::push_pow7_expression;
 use crate::{GadgetDescriptor, TaggedR1csBuilder};
 
 pub const POSEIDON2_WIDTH: usize = 12;
 pub const POSEIDON2_HALF_FULL_ROUNDS: usize = HALF_FULL_ROUNDS;
 pub const POSEIDON2_FULL_ROUNDS: usize = 2 * POSEIDON2_HALF_FULL_ROUNDS;
 pub const POSEIDON2_PARTIAL_ROUNDS: usize = PARTIAL_ROUNDS;
-/// The partial rounds that one output row set covers: the permutation
-/// groups the 43 rounds into 21 pairs and one last single round.
-pub const POSEIDON2_PARTIAL_GROUP: usize = 2;
-pub const POSEIDON2_PARTIAL_GROUPS: usize = POSEIDON2_PARTIAL_ROUNDS.div_ceil(POSEIDON2_PARTIAL_GROUP);
-pub const POSEIDON2_GROUPED_ROUNDS: usize = POSEIDON2_FULL_ROUNDS + POSEIDON2_PARTIAL_GROUPS;
+const _: () = assert!(POSEIDON2_PARTIAL_ROUNDS.is_multiple_of(2));
+pub const POSEIDON2_PARTIAL_PAIRS: usize = POSEIDON2_PARTIAL_ROUNDS / 2;
+pub const POSEIDON2_GROUPED_ROUNDS: usize = POSEIDON2_FULL_ROUNDS + POSEIDON2_PARTIAL_PAIRS;
 
 /// Apply the width-12 Poseidon2 permutation.
 pub fn permute(state: [F; POSEIDON2_WIDTH]) -> [F; POSEIDON2_WIDTH] {
     INSTANCE_12.permute(state)
 }
 
-/// The Poseidon2 S-box `x -> x^3`.
-pub fn sbox3(x: F) -> F {
-    x * x * x
+/// The Poseidon2 S-box `x -> x^7`.
+pub fn sbox7(x: F) -> F {
+    let x2 = x * x;
+    let x4 = x2 * x2;
+    x4 * x2 * x
 }
 
 /// Round constants for full round `0..8` in permutation order.
@@ -43,17 +42,10 @@ pub fn full_round_constants(round: usize) -> &'static [F; POSEIDON2_WIDTH] {
     }
 }
 
-/// The constant of partial round `0..43`.
-pub fn partial_round_constant(round: usize) -> F {
-    assert!(round < POSEIDON2_PARTIAL_ROUNDS, "partial-round index out of range");
-    INSTANCE_12.internal[round]
-}
-
-/// The first partial round and the round count of partial group `0..22`.
-pub fn partial_group(group: usize) -> Range<usize> {
-    assert!(group < POSEIDON2_PARTIAL_GROUPS, "partial-group index out of range");
-    let first = group * POSEIDON2_PARTIAL_GROUP;
-    first..(first + POSEIDON2_PARTIAL_GROUP).min(POSEIDON2_PARTIAL_ROUNDS)
+/// Constants for partial-round pair `0..11` in permutation order.
+pub fn partial_pair_constants(pair: usize) -> (F, F) {
+    assert!(pair < POSEIDON2_PARTIAL_PAIRS, "partial-pair index out of range");
+    (INSTANCE_12.internal[2 * pair], INSTANCE_12.internal[2 * pair + 1])
 }
 
 pub fn external_linear(state: &mut [F; POSEIDON2_WIDTH]) {
@@ -95,34 +87,40 @@ pub fn apply_initial_linear(state: &mut [F; POSEIDON2_WIDTH]) {
 /// Apply one full round to a state that has already received the initial layer.
 pub fn apply_full_round(round: usize, state: &mut [F; POSEIDON2_WIDTH]) {
     for (lane, &constant) in state.iter_mut().zip(full_round_constants(round)) {
-        *lane = sbox3(*lane + constant);
+        *lane = sbox7(*lane + constant);
     }
     external_linear(state);
 }
 
-/// Apply partial round `round`.
-pub fn apply_partial_round(round: usize, state: &mut [F; POSEIDON2_WIDTH]) {
-    state[0] = sbox3(state[0] + partial_round_constant(round));
-    internal_linear(state);
+/// Apply two consecutive partial rounds.
+pub fn apply_partial_pair(pair: usize, state: &mut [F; POSEIDON2_WIDTH]) {
+    let (first, second) = partial_pair_constants(pair);
+    for constant in [first, second] {
+        state[0] = sbox7(state[0] + constant);
+        internal_linear(state);
+    }
 }
 
-const FULL_ROUND_POWER_COLUMNS: usize = 2 * POSEIDON2_WIDTH;
+const FULL_ROUND_POWER_COLUMNS: usize = 4 * POSEIDON2_WIDTH;
+const PARTIAL_PAIR_POWER_COLUMNS: usize = 8;
 const INTERMEDIATE_STATES: usize = POSEIDON2_GROUPED_ROUNDS - 1;
 
 /// Auxiliary columns used by one fully unrolled width-12 permutation.
 pub const POSEIDON2_PERMUTATION_AUX_COLUMNS: usize = POSEIDON2_WIDTH
     + POSEIDON2_FULL_ROUNDS * FULL_ROUND_POWER_COLUMNS
-    + 2 * POSEIDON2_PARTIAL_ROUNDS
+    + POSEIDON2_PARTIAL_PAIRS * PARTIAL_PAIR_POWER_COLUMNS
     + INTERMEDIATE_STATES * POSEIDON2_WIDTH;
 
 fn columns<const N: usize>(start: usize) -> [usize; N] {
     core::array::from_fn(|offset| start + offset)
 }
 
-fn assign_powers(value: F, powers: [usize; 2], assignment: &mut [F]) {
-    let [x2, x3] = powers;
+fn assign_powers(value: F, powers: [usize; 4], assignment: &mut [F]) {
+    let [x2, x4, x6, x7] = powers;
     assignment[x2] = value * value;
-    assignment[x3] = assignment[x2] * value;
+    assignment[x4] = assignment[x2] * assignment[x2];
+    assignment[x6] = assignment[x2] * assignment[x4];
+    assignment[x7] = assignment[x6] * value;
 }
 
 fn push_at_most_one_selectors<Owner: Clone, const N: usize>(
@@ -146,7 +144,7 @@ fn push_at_most_one_selectors<Owner: Clone, const N: usize>(
 fn assign_full_round_auxiliaries(
     constants: [F; POSEIDON2_WIDTH],
     state_before: [usize; POSEIDON2_WIDTH],
-    powers: [[usize; 2]; POSEIDON2_WIDTH],
+    powers: [[usize; 4]; POSEIDON2_WIDTH],
     assignment: &mut [F],
 ) {
     for lane in 0..POSEIDON2_WIDTH {
@@ -180,7 +178,7 @@ pub struct Poseidon2FullRound12<const N: usize = 1> {
     pub choices: [Poseidon2FullRoundChoice; N],
     pub state_before: [usize; POSEIDON2_WIDTH],
     pub state_after: [usize; POSEIDON2_WIDTH],
-    pub powers: [[usize; 2]; POSEIDON2_WIDTH],
+    pub powers: [[usize; 4]; POSEIDON2_WIDTH],
 }
 
 impl<const N: usize> Poseidon2FullRound12<N> {
@@ -225,7 +223,7 @@ impl<const N: usize> Poseidon2FullRound12<N> {
                         .map(|choice| (choice.selector, full_round_constants(choice.round)[lane])),
                 )
                 .collect();
-            push_pow3_expression(builder, &expression, self.powers[lane]);
+            push_pow7_expression(builder, &expression, self.powers[lane]);
         }
 
         let gate: Vec<_> = self
@@ -239,7 +237,7 @@ impl<const N: usize> Poseidon2FullRound12<N> {
                 matrix[lane]
                     .iter()
                     .enumerate()
-                    .map(|(input, &coefficient)| (self.powers[input][1], -coefficient)),
+                    .map(|(input, &coefficient)| (self.powers[input][3], -coefficient)),
             );
             builder.push_row(gate.iter().copied(), terms, []);
         }
@@ -262,52 +260,55 @@ impl<const N: usize> Poseidon2FullRound12<N> {
 fn assign_fixed_full_round(
     round: usize,
     state_before: [usize; POSEIDON2_WIDTH],
-    powers: [[usize; 2]; POSEIDON2_WIDTH],
+    powers: [[usize; 4]; POSEIDON2_WIDTH],
     assignment: &mut [F],
 ) -> [F; POSEIDON2_WIDTH] {
     assign_full_round_auxiliaries(*full_round_constants(round), state_before, powers, assignment);
-    let mut state = core::array::from_fn(|lane| assignment[powers[lane][1]]);
+    let mut state = core::array::from_fn(|lane| assignment[powers[lane][3]]);
     external_linear(&mut state);
     state
 }
 
-/// One selector and the first round of a selectable group of partial rounds.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Poseidon2PartialRoundsChoice {
-    pub selector: usize,
-    pub first: usize,
+fn assign_partial_pair_auxiliaries(
+    constants: (F, F),
+    state_before: [usize; POSEIDON2_WIDTH],
+    powers: [usize; PARTIAL_PAIR_POWER_COLUMNS],
+    assignment: &mut [F],
+) -> [F; POSEIDON2_WIDTH] {
+    let (first_constant, second_constant) = constants;
+    let mut state = state_before.map(|column| assignment[column]);
+    assign_powers(state[0] + first_constant, powers[..4].try_into().unwrap(), assignment);
+    state[0] = assignment[powers[3]];
+    internal_linear(&mut state);
+    assign_powers(state[0] + second_constant, powers[4..].try_into().unwrap(), assignment);
+    state
 }
 
-impl Poseidon2PartialRoundsChoice {
-    pub fn for_first_round(selector: usize, first: usize) -> Self {
-        assert!(first < POSEIDON2_PARTIAL_ROUNDS, "partial-round index out of range");
-        Self { selector, first }
+/// One selector and pair index in a selectable pair of partial rounds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Poseidon2PartialPairChoice {
+    pub selector: usize,
+    pub pair: usize,
+}
+
+impl Poseidon2PartialPairChoice {
+    pub fn for_pair(selector: usize, pair: usize) -> Self {
+        assert!(pair < POSEIDON2_PARTIAL_PAIRS, "partial-pair index out of range");
+        Self { selector, pair }
     }
 }
 
-/// Consecutive width-12 partial rounds, one `x^3` power pair per round, that
-/// share one set of output rows. Each S-box input and each output lane is a
-/// linear form in `state_before`, the earlier S-box outputs and the selected
-/// round constants.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Poseidon2PartialRounds12<const N: usize = 1> {
-    pub choices: [Poseidon2PartialRoundsChoice; N],
+/// Two width-12 partial rounds sharing eight `x^7` power columns.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Poseidon2PartialPair12<const N: usize = 1> {
+    pub choices: [Poseidon2PartialPairChoice; N],
     pub state_before: [usize; POSEIDON2_WIDTH],
     pub state_after: [usize; POSEIDON2_WIDTH],
-    pub powers: Vec<[usize; 2]>,
+    pub powers: [usize; PARTIAL_PAIR_POWER_COLUMNS],
 }
 
-/// A linear form over columns, with merged terms in column order.
-type Form = BTreeMap<usize, F>;
-
-fn add_scaled(sum: &mut Form, form: &Form, scale: F) {
-    for (&column, &coefficient) in form {
-        *sum.entry(column).or_insert(F::ZERO) += scale * coefficient;
-    }
-}
-
-impl<const N: usize> Poseidon2PartialRounds12<N> {
-    /// Emit self-contained selectable rounds, including Booleanity and
+impl<const N: usize> Poseidon2PartialPair12<N> {
+    /// Emit a self-contained selectable pair, including Booleanity and
     /// at-most-one enforcement for its selectors.
     pub fn push_constraints<Owner: Clone>(&self, builder: &mut TaggedR1csBuilder<'_, Owner>) {
         let first_row = builder.next_row_index();
@@ -316,7 +317,7 @@ impl<const N: usize> Poseidon2PartialRounds12<N> {
         builder.record_gadget(self.descriptor(), first_row);
     }
 
-    /// Emit only the round equations when the surrounding application already
+    /// Emit only the pair equations when the surrounding application already
     /// constrains every selector to be Boolean and at most one to be active.
     /// Without that guarantee, blended round constants can remain satisfiable.
     pub fn push_constraints_assuming_preconstrained_selectors<Owner: Clone>(
@@ -331,91 +332,108 @@ impl<const N: usize> Poseidon2PartialRounds12<N> {
     /// Fill only the S-box power columns. `state_after` remains application
     /// owned and is checked by the emitted output constraints.
     pub fn assign_auxiliaries(&self, assignment: &mut [F]) {
-        let constants = self.selected_constants(assignment);
-        let _ = self.assign_rounds(&constants, assignment);
-    }
-
-    fn selected_constants(&self, assignment: &[F]) -> Vec<F> {
-        (0..self.powers.len())
-            .map(|offset| {
-                self.choices.iter().fold(F::ZERO, |constant, choice| {
-                    constant + assignment[choice.selector] * partial_round_constant(choice.first + offset)
-                })
-            })
-            .collect()
-    }
-
-    fn assign_rounds(&self, constants: &[F], assignment: &mut [F]) -> [F; POSEIDON2_WIDTH] {
-        let mut state = self.state_before.map(|column| assignment[column]);
-        for (&powers, &constant) in self.powers.iter().zip(constants) {
-            assign_powers(state[0] + constant, powers, assignment);
-            state[0] = assignment[powers[1]];
-            internal_linear(&mut state);
-        }
-        state
+        let constants = self
+            .choices
+            .iter()
+            .fold((F::ZERO, F::ZERO), |(first, second), choice| {
+                let (choice_first, choice_second) = partial_pair_constants(choice.pair);
+                let selector = assignment[choice.selector];
+                (first + selector * choice_first, second + selector * choice_second)
+            });
+        let _ = assign_partial_pair_auxiliaries(constants, self.state_before, self.powers, assignment);
     }
 
     fn emit_constraints<Owner: Clone>(&self, builder: &mut TaggedR1csBuilder<'_, Owner>) {
+        let first_input: Vec<_> = core::iter::once((self.state_before[0], F::ONE))
+            .chain(
+                self.choices
+                    .iter()
+                    .map(|choice| (choice.selector, partial_pair_constants(choice.pair).0)),
+            )
+            .collect();
+        push_pow7_expression(builder, &first_input, self.powers[..4].try_into().unwrap());
+
         let matrix = internal_matrix();
-        let mut lanes: [Form; POSEIDON2_WIDTH] = self
-            .state_before
-            .map(|column| Form::from([(column, F::ONE)]));
-        for (offset, &powers) in self.powers.iter().enumerate() {
-            let mut input = lanes[0].clone();
-            for choice in &self.choices {
-                add_scaled(
-                    &mut input,
-                    &Form::from([(choice.selector, F::ONE)]),
-                    partial_round_constant(choice.first + offset),
-                );
-            }
-            let input: Vec<_> = input.into_iter().collect();
-            push_pow3_expression(builder, &input, powers);
-            lanes[0] = Form::from([(powers[1], F::ONE)]);
-            lanes = core::array::from_fn(|lane| {
-                let mut sum = Form::new();
-                for (source, &coefficient) in matrix[lane].iter().enumerate() {
-                    add_scaled(&mut sum, &lanes[source], coefficient);
-                }
-                sum
-            });
-        }
+        let first_output = self.powers[3];
+        let mut second_input = vec![(first_output, matrix[0][0])];
+        second_input.extend(
+            matrix[0]
+                .iter()
+                .enumerate()
+                .skip(1)
+                .map(|(lane, &coefficient)| (self.state_before[lane], coefficient)),
+        );
+        second_input.extend(
+            self.choices
+                .iter()
+                .map(|choice| (choice.selector, partial_pair_constants(choice.pair).1)),
+        );
+        push_pow7_expression(builder, &second_input, self.powers[4..].try_into().unwrap());
 
         let gate: Vec<_> = self
             .choices
             .iter()
             .map(|choice| (choice.selector, F::ONE))
             .collect();
-        for (lane, form) in lanes.iter().enumerate() {
-            let terms = core::iter::once((self.state_after[lane], F::ONE)).chain(
-                form.iter()
-                    .map(|(&column, &coefficient)| (column, -coefficient)),
-            );
+        let second_output = self.powers[7];
+        for lane in 0..POSEIDON2_WIDTH {
+            let mut coefficient_first_output = F::ZERO;
+            let mut coefficient_state = [F::ZERO; POSEIDON2_WIDTH];
+            for intermediate in 1..POSEIDON2_WIDTH {
+                coefficient_first_output += matrix[lane][intermediate] * matrix[intermediate][0];
+                for input in 1..POSEIDON2_WIDTH {
+                    coefficient_state[input] += matrix[lane][intermediate] * matrix[intermediate][input];
+                }
+            }
+            let terms = core::iter::once((self.state_after[lane], F::ONE))
+                .chain([
+                    (second_output, -matrix[lane][0]),
+                    (first_output, -coefficient_first_output),
+                ])
+                .chain(
+                    coefficient_state
+                        .into_iter()
+                        .enumerate()
+                        .skip(1)
+                        .map(|(input, coefficient)| (self.state_before[input], -coefficient)),
+                );
             builder.push_row(gate.iter().copied(), terms, []);
         }
     }
 
     fn descriptor(&self) -> GadgetDescriptor {
-        GadgetDescriptor::Poseidon2PartialRounds12 {
+        GadgetDescriptor::Poseidon2PartialPair12 {
             choices: self
                 .choices
                 .iter()
-                .map(|choice| (choice.selector, choice.first))
+                .map(|choice| (choice.selector, choice.pair))
                 .collect(),
             state_before: self.state_before,
             state_after: self.state_after,
-            powers: self.powers.clone(),
+            powers: self.powers,
         }
     }
 }
 
-#[derive(Clone)]
-enum RoundKind {
-    Full(usize),
-    Partial(Range<usize>),
+fn assign_fixed_partial_pair(
+    pair: usize,
+    state_before: [usize; POSEIDON2_WIDTH],
+    powers: [usize; PARTIAL_PAIR_POWER_COLUMNS],
+    assignment: &mut [F],
+) -> [F; POSEIDON2_WIDTH] {
+    let mut state = assign_partial_pair_auxiliaries(partial_pair_constants(pair), state_before, powers, assignment);
+    state[0] = assignment[powers[7]];
+    internal_linear(&mut state);
+    state
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
+enum RoundKind {
+    Full(usize),
+    PartialPair(usize),
+}
+
+#[derive(Clone, Copy)]
 struct RoundLayout {
     kind: RoundKind,
     state_before: [usize; POSEIDON2_WIDTH],
@@ -436,16 +454,17 @@ fn permutation_layout(auxiliary_start: usize, output: [usize; POSEIDON2_WIDTH]) 
 
     for position in 0..POSEIDON2_GROUPED_ROUNDS {
         let last = position + 1 == POSEIDON2_GROUPED_ROUNDS;
-        let kind = if position < POSEIDON2_HALF_FULL_ROUNDS {
-            RoundKind::Full(position)
-        } else if position >= POSEIDON2_HALF_FULL_ROUNDS + POSEIDON2_PARTIAL_GROUPS {
-            RoundKind::Full(position - POSEIDON2_PARTIAL_GROUPS)
+        let full_round = if position < POSEIDON2_HALF_FULL_ROUNDS {
+            Some(position)
+        } else if position >= POSEIDON2_HALF_FULL_ROUNDS + POSEIDON2_PARTIAL_PAIRS {
+            Some(position - POSEIDON2_PARTIAL_PAIRS)
         } else {
-            RoundKind::Partial(partial_group(position - POSEIDON2_HALF_FULL_ROUNDS))
+            None
         };
-        let power_columns = match &kind {
-            RoundKind::Full(_) => FULL_ROUND_POWER_COLUMNS,
-            RoundKind::Partial(rounds) => 2 * rounds.len(),
+        let power_columns = if full_round.is_some() {
+            FULL_ROUND_POWER_COLUMNS
+        } else {
+            PARTIAL_PAIR_POWER_COLUMNS
         };
         let powers_start = cursor;
         cursor += power_columns;
@@ -455,6 +474,11 @@ fn permutation_layout(auxiliary_start: usize, output: [usize; POSEIDON2_WIDTH]) 
             let state = columns(cursor);
             cursor += POSEIDON2_WIDTH;
             state
+        };
+        let kind = if let Some(round) = full_round {
+            RoundKind::Full(round)
+        } else {
+            RoundKind::PartialPair(position - POSEIDON2_HALF_FULL_ROUNDS)
         };
         rounds.push(RoundLayout {
             kind,
@@ -466,17 +490,6 @@ fn permutation_layout(auxiliary_start: usize, output: [usize; POSEIDON2_WIDTH]) 
     }
     debug_assert_eq!(cursor, auxiliary_start + POSEIDON2_PERMUTATION_AUX_COLUMNS);
     PermutationLayout { premix, rounds }
-}
-
-fn partial_rounds(round: &RoundLayout, rounds: &Range<usize>, selector: usize) -> Poseidon2PartialRounds12 {
-    Poseidon2PartialRounds12 {
-        choices: [Poseidon2PartialRoundsChoice::for_first_round(selector, rounds.start)],
-        state_before: round.state_before,
-        state_after: round.state_after,
-        powers: (0..rounds.len())
-            .map(|offset| columns(round.powers_start + 2 * offset))
-            .collect(),
-    }
 }
 
 /// Fully unrolled width-12 Poseidon2 permutation.
@@ -526,16 +539,22 @@ impl Poseidon2Permutation12 {
         }
 
         let selector = builder.const_one_column();
-        for round in &layout.rounds {
-            match &round.kind {
+        for round in layout.rounds {
+            match round.kind {
                 RoundKind::Full(round_index) => Poseidon2FullRound12 {
-                    choices: [Poseidon2FullRoundChoice::for_round(selector, *round_index)],
+                    choices: [Poseidon2FullRoundChoice::for_round(selector, round_index)],
                     state_before: round.state_before,
                     state_after: round.state_after,
-                    powers: core::array::from_fn(|lane| columns(round.powers_start + 2 * lane)),
+                    powers: core::array::from_fn(|lane| columns(round.powers_start + 4 * lane)),
                 }
                 .emit_constraints(builder),
-                RoundKind::Partial(rounds) => partial_rounds(round, rounds, selector).emit_constraints(builder),
+                RoundKind::PartialPair(pair) => Poseidon2PartialPair12 {
+                    choices: [Poseidon2PartialPairChoice::for_pair(selector, pair)],
+                    state_before: round.state_before,
+                    state_after: round.state_after,
+                    powers: columns(round.powers_start),
+                }
+                .emit_constraints(builder),
             }
         }
     }
@@ -549,17 +568,16 @@ impl Poseidon2Permutation12 {
         }
 
         let round_count = layout.rounds.len();
-        for (position, round) in layout.rounds.iter().enumerate() {
-            let state_after = match &round.kind {
+        for (position, round) in layout.rounds.into_iter().enumerate() {
+            let state_after = match round.kind {
                 RoundKind::Full(round_index) => assign_fixed_full_round(
-                    *round_index,
+                    round_index,
                     round.state_before,
-                    core::array::from_fn(|lane| columns(round.powers_start + 2 * lane)),
+                    core::array::from_fn(|lane| columns(round.powers_start + 4 * lane)),
                     assignment,
                 ),
-                RoundKind::Partial(rounds) => {
-                    let constants: Vec<_> = rounds.clone().map(partial_round_constant).collect();
-                    partial_rounds(round, rounds, 0).assign_rounds(&constants, assignment)
+                RoundKind::PartialPair(pair) => {
+                    assign_fixed_partial_pair(pair, round.state_before, columns(round.powers_start), assignment)
                 }
             };
             if position + 1 < round_count || assign_output {

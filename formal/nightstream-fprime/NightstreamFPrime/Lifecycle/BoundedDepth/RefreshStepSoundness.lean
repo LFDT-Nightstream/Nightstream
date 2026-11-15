@@ -51,7 +51,7 @@ structure StepRepresents (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logical
       (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits) (circuit : Fin 2)
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 4) (env : Env) :
+    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8) (env : Env) :
     Prop where
   iteration : interface.iteration.eval env = natWord input.iteration
   iterationBound : input.iteration < fieldModulus
@@ -100,7 +100,7 @@ section Wires
 variable (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits) (circuit : Fin 2)
   (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-  (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 4) (env : Env)
+  (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8) (env : Env)
   (represents : StepRepresents program interface ajtai circuitKeys circuit input output proof env)
   (selected : Fin 2) (activeValue : interface.active.value env = input.running selected)
 
@@ -215,7 +215,7 @@ theorem rows_implies_stepHolds
     (rows : holds env (Circuit.ops (RefreshStepLayout.main program relation circuit interface)
       offset))
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 4)
+    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8)
     (represents : StepRepresents program interface ajtai circuitKeys circuit input output proof
       env)
     (next : output.runningNext = DigestSelect.nextSlots input.iteration input.running

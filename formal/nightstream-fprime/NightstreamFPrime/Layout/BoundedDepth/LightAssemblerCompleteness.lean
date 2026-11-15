@@ -53,7 +53,7 @@ section Facts
 variable (program : Stage1.Application.Program)
   (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
   (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-  (proof : Spec.Folding.Light.Proof LightShape 4) (selected : Fin 2)
+  (proof : Spec.Folding.Light.Proof LightShape 8) (selected : Fin 2)
   (folded : SlotData logicalWidth publicFits) (base : Nat) (target : Env)
   (agree : ∀ column, column < sharedEnd base program.witnessWordCount →
     target column = honestEnv circuitKeys input output proof selected folded base
@@ -124,7 +124,7 @@ section Groups
 
 variable (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
   (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-  (proof : Spec.Folding.Light.Proof LightShape 4) (selected : Fin 2)
+  (proof : Spec.Folding.Light.Proof LightShape 8) (selected : Fin 2)
   (folded : SlotData logicalWidth publicFits)
 
 theorem active_group :
@@ -195,7 +195,7 @@ theorem complete (program : Stage1.Application.Program)
     (circuit : Fin 2) (light : Spec.HyperNova.Construction2.BoundedDepth.circuitStep circuit = .light)
     (stepEq : program.step = step)
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-    (proof : Spec.Folding.Light.Proof LightShape 4) (selected : Fin 2)
+    (proof : Spec.Folding.Light.Proof LightShape 8) (selected : Fin 2)
     (folded : SlotClaim logicalWidth publicFits)
     (holds : StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step control
       circuit input output)

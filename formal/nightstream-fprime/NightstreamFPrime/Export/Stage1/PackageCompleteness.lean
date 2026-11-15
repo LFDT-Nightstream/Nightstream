@@ -111,13 +111,13 @@ private theorem piCcsArithmeticLogicalEnds :
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.initialClaimLogicalStart + 13437 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
-      PiCCSArithmetic.sumcheckLogicalStart + 336 ≤
+      PiCCSArithmetic.sumcheckLogicalStart + 672 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.evalKLogicalStart + 2795 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.evalALogicalStart + 10859 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
-      PiCCSArithmetic.ccsLogicalStart + 11 ≤
+      PiCCSArithmetic.ccsLogicalStart + 23 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
       PiCCSArithmetic.normLogicalStart + 42 ≤
         PiCCSArithmetic.initialClaimFreshStart ∧
@@ -555,7 +555,7 @@ theorem pilotHashInvocationInput_varsBelow
     (invocationBound : invocation ≤ chain.absorbCount)
     (inputBound : chain.inputStart + chain.inputLength ≤ bound)
     (witnessBound : chain.witnessStart +
-      (chain.absorbCount + 1) * 1174 ≤ bound) :
+      (chain.absorbCount + 1) * 1096 ≤ bound) :
     (invocationInput (PilotData.circuitPackage ()) chain invocation lane.val
       ).VarsBelow bound := by
   have laneBound := lane.isLt
@@ -598,7 +598,7 @@ theorem pilotHashInvocationInput_varsBelow
             absorbing, inputPresent, next, R1CS.LinearCombination.VarsBelow,
             R1CS.LinearCombination.zero]
   · have previousBelow :
-        chain.witnessStart + (invocation - 1) * 1174 + 1158 + lane.val <
+        chain.witnessStart + (invocation - 1) * 1096 + 1080 + lane.val <
           bound := by
       omega
     by_cases absorbing : invocation < chain.absorbCount
@@ -648,7 +648,7 @@ theorem pilotHashInvocationInput_varsBelow
 
 private theorem pilotCanonicalConstraints_varsBelow :
     ∀ expression ∈ PilotData.canonicalConstraints (),
-      expression.VarsBelow 1190 := by
+      expression.VarsBelow 1112 := by
   intro expression member
   have scope := recipeConstraints_varsBelow_of_causal 16
     (PilotData.canonicalRecipes ())
@@ -656,7 +656,7 @@ private theorem pilotCanonicalConstraints_varsBelow :
       16 PilotData.canonicalState (by
         intro lane
         exact lane.isLt)) expression member
-  have recipeLength : (PilotData.canonicalRecipes ()).length = 1174 := by
+  have recipeLength : (PilotData.canonicalRecipes ()).length = 1096 := by
     exact NightstreamFPrime.Gadgets.Poseidon2.Permutation.compile_schedule_recipe_count
       16 PilotData.canonicalState
   rw [recipeLength] at scope
@@ -667,7 +667,7 @@ private theorem pilotHashChainHolds_of_agree_below
     (chain : HashChain) (before after : Env) (bound : Nat)
     (inputBound : chain.inputStart + chain.inputLength ≤ bound)
     (witnessBound : chain.witnessStart +
-      (chain.absorbCount + 1) * 1174 ≤ bound)
+      (chain.absorbCount + 1) * 1096 ≤ bound)
     (agrees : ∀ index, index < bound → after index = before index)
     (holds : HashChainHolds (PilotData.circuitPackage ()) chain before) :
     HashChainHolds (PilotData.circuitPackage ()) chain after := by
@@ -676,7 +676,7 @@ private theorem pilotHashChainHolds_of_agree_below
     (PilotData.columnRef column).eval (fun reference =>
       (instantiateColumn (PilotData.circuitPackage ()) chain invocation
         reference).eval current)
-  have mappedAgrees : ∀ column, column < 1190 →
+  have mappedAgrees : ∀ column, column < 1112 →
       mapped after column = mapped before column := by
     intro column columnBound
     by_cases input : column < 16
@@ -707,11 +707,11 @@ private theorem pilotHashChainHolds_of_agree_below
       (PilotData.canonicalConstraints ()) := by
     unfold PilotData.canonicalRows at beforeRows
     exact R1CS.lowerConstraints_sound (mapped before)
-      (PilotData.canonicalConstraints ()) 1190 beforeRows
+      (PilotData.canonicalConstraints ()) 1112 beforeRows
   have afterLogical : ConstraintsHold (mapped after)
       (PilotData.canonicalConstraints ()) :=
     constraintsHold_of_agree_below (mapped before) (mapped after)
-      (PilotData.canonicalConstraints ()) 1190
+      (PilotData.canonicalConstraints ()) 1112
       pilotCanonicalConstraints_varsBelow mappedAgrees beforeLogical
   apply (NightstreamFPrime.Export.Pilot.canonicalTemplateInvocation_iff chain
     invocation after).mpr
@@ -978,7 +978,7 @@ theorem complete_piRlcRows
     ∃ completed,
       AgreesOutside env completed
           (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
-            NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset) 4225515 ∧
+            NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset) 4223175 ∧
         PiRLCRowsHold completed := by
   rcases PiRLCPackageCompleteness.completePackets relation ajtai env assumptions
       phase with ⟨completed, agrees, packets⟩

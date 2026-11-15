@@ -81,24 +81,24 @@ theorem start_eq_or_collision {folds folds' : Folds logicalWidth publicFits}
 section Game
 
 variable {schedule : Schedule} (key : CircuitKey logicalWidth publicFits)
-  (folds : (Point schedule 4 → Answer) → Folds logicalWidth publicFits)
+  (folds : (Point schedule 8 → Answer) → Folds logicalWidth publicFits)
   (statement : Attempt logicalWidth publicFits → schedule.Statement)
-  (messages : Attempt logicalWidth publicFits → schedule.Messages 4)
+  (messages : Attempt logicalWidth publicFits → schedule.Messages 8)
 
 /-- The fork game of one bounded-depth fold with circuit key `key`: the fold verifiers read from the
 oracle, the transcript's statement and messages of an attempt, and its start slot. -/
 def game :
-    Fork.Game schedule 4 (Attempt logicalWidth publicFits) (SlotData logicalWidth publicFits) where
+    Fork.Game schedule 8 (Attempt logicalWidth publicFits) (SlotData logicalWidth publicFits) where
   statement := statement
   messages := messages
   start attempt := attempt.link.start
   Succeeds oracle attempt := attempt.link.fold.key = key ∧ Succeeds ajtai (folds oracle) attempt
 
-variable (adversary : OracleComp (Point schedule 4) Answer (Attempt logicalWidth publicFits))
+variable (adversary : OracleComp (Point schedule 8) Answer (Attempt logicalWidth publicFits))
 
 /-- The chance that a retry at `index` gives a collision of the base and retry prior states. -/
 noncomputable def collisionChance (index : Fin schedule.rhoCount)
-    (oracle : Point schedule 4 → Answer) : ℝ :=
+    (oracle : Point schedule 8 → Answer) : ℝ :=
   Fork.retryChance (game ajtai key folds statement messages) adversary (fun answer =>
     StateCollision (toState (adversary.run oracle).link.prior)
       (toState (adversary.run (Function.update oracle
@@ -112,7 +112,7 @@ the fresh instance. -/
 theorem mismatchChance_le
     (freshOf : ∀ {attempt attempt'}, statement attempt = statement attempt' →
       attempt.link.fold.fresh = attempt'.link.fold.fresh)
-    {oracle : Point schedule 4 → Answer}
+    {oracle : Point schedule 8 → Answer}
     (succeeds : Fork.Succeeds (game ajtai key folds statement messages) adversary oracle)
     (index : Fin schedule.rhoCount) :
     Fork.mismatchChance (game ajtai key folds statement messages) adversary index oracle ≤

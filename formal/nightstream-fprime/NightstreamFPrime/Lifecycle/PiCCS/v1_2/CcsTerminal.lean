@@ -135,11 +135,11 @@ theorem productCount_eq
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
-    Sparse.Owned.productCount (polynomial relation) = 9 := by
+    Sparse.Owned.productCount (polynomial relation) = 21 := by
   rfl
 
-def privateCount : Nat := 11
-def rowCount : Nat := 11
+def privateCount : Nat := 23
+def rowCount : Nat := 23
 
 theorem localLength_eq
     {logicalWidth : Nat}

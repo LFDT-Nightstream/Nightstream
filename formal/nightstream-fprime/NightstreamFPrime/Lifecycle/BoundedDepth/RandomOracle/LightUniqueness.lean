@@ -122,7 +122,7 @@ theorem folds_light {oracle : Oracle} {step : Folding.Schedule.Step}
   | refresh => cases proof <;> exact absurd accepted (by simp [LightFork.folds])
 
 variable {key : CircuitKey logicalWidth publicFits}
-  {adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 4) Answer
+  {adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 8) Answer
     (Attempt logicalWidth publicFits)}
   {oracle : LightFork.Oracle logicalWidth publicFits} {retries : Retries logicalWidth publicFits}
 
@@ -168,7 +168,7 @@ end Knowledge
 section Uniqueness
 
 variable (key : CircuitKey logicalWidth publicFits)
-  (adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 4) Answer
+  (adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 8) Answer
     (Attempt logicalWidth publicFits))
 
 /-- The witness that a valid pair extracts. -/
@@ -196,7 +196,7 @@ theorem source_degreeCovers
     (pair : LightFork.Oracle logicalWidth publicFits ×
       (Fin (LightSchedule.schedule logicalWidth publicFits).rhoCount → Answer))
     (statement : LightFork.Statement logicalWidth publicFits) :
-    (source ajtai key adversary pair statement).toVerifierInput.sumcheckDegreeBound ≤ 4 :=
+    (source ajtai key adversary pair statement).toVerifierInput.sumcheckDegreeBound ≤ 8 :=
   LightTest.source_degreeCovers key.relation ajtai _ _ statement
 
 /-- A valid pair whose extracted witness makes a light source claim false. -/
@@ -326,7 +326,7 @@ claim. -/
 theorem outputs_commitment_eq {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {oracle other : Oracle} {running running' : LightFork.Running logicalWidth publicFits}
     {fresh fresh' : LightFork.Statement logicalWidth publicFits}
-    {proof proof' : Light.Proof LightShape 4} {source : Fin LightShape.sourceCount}
+    {proof proof' : Light.Proof LightShape 8} {source : Fin LightShape.sourceCount}
     (runningEq : running = running') (freshEq : fresh = fresh') :
     (LightFork.outputs relation ajtai oracle running fresh proof source).commitment =
       (LightFork.outputs relation ajtai other running' fresh' proof' source).commitment := by
@@ -334,7 +334,7 @@ theorem outputs_commitment_eq {relation : ProductionKey.LogicalRelation logicalW
   rfl
 
 variable {key : CircuitKey logicalWidth publicFits}
-  {adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 4) Answer
+  {adversary : OracleComp (Point (LightSchedule.schedule logicalWidth publicFits) 8) Answer
     (Attempt logicalWidth publicFits)}
 
 /-- The fork of a valid pair at the chain bound, which bounds the base and retry bounds. -/

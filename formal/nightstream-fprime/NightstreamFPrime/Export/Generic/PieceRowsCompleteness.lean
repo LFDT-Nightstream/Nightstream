@@ -46,7 +46,7 @@ theorem exprBelow_iff (bound : Nat) (expression : Expr) :
 product by its lanes and its locals. -/
 def pieceBelow (bound : Nat) : Piece → Bool
   | .constraint expression => exprBelow bound expression
-  | .permutation start lanes => lanes.all (exprBelow bound) && decide (start + 1174 ≤ bound)
+  | .permutation start lanes => lanes.all (exprBelow bound) && decide (start + 1096 ≤ bound)
   | .ringProduct cells start lanes =>
       lanes.all (exprBelow bound) && decide (start + ringDegree * cells ≤ bound)
 

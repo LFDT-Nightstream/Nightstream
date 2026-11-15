@@ -112,23 +112,23 @@ open NightstreamFPrime.Export.BoundedDepth.PackedBooleanCompleteness
 private def pieces : List Pieces.Piece :=
   [.permutation 1000 (List.ofFn fun lane : Fin 16 => .var (600 + lane.val))]
 
-private def outputRow : R1CS.Row := BooleanInference.booleanRow 2158
+private def outputRow : R1CS.Row := BooleanInference.booleanRow 2080
 
-private def copyRow : R1CS.Row := ⟨.ofVar 2158, .one, .ofVar 2180⟩
+private def copyRow : R1CS.Row := ⟨.ofVar 2080, .one, .ofVar 2100⟩
 
 private def nativeRows : List R1CS.Row :=
   [outputRow, copyRow, BooleanInference.booleanRow 500]
 
 private def copyGate : BooleanInference.Gate where
-  left := 2158
+  left := 2080
   right := 0
-  output := 2180
+  output := 2100
   a := ⟨0, 1, 0⟩
   b := ⟨1, 0, 0⟩
   rest := ⟨0, 0, 0⟩
   coefficient := 1
 
-private theorem copied_derived : BooleanInference.Derived nativeRows 2180 := by
+private theorem copied_derived : BooleanInference.Derived nativeRows 2100 := by
   refine .gate (row := copyRow) copyGate (by simp [nativeRows]) ?_ (by decide) ?_ .one
   · intro env _
     simp [copyRow, copyGate, R1CS.Row.Holds, BooleanInference.Gate.Holds,
@@ -138,24 +138,24 @@ private theorem copied_derived : BooleanInference.Derived nativeRows 2180 := by
 example : PackedBoolean.SourceForced nativeRows 500 := by
   exact ⟨BooleanInference.booleanRow 500, by simp [nativeRows], by decide⟩
 
-example : CircuitRelation.outputIn (CircuitRelation.blocksOf pieces) 2158 = true := by decide
+example : CircuitRelation.outputIn (CircuitRelation.blocksOf pieces) 2080 = true := by decide
 
-example : CircuitRelation.outputIn (CircuitRelation.blocksOf pieces) 2180 = false := by decide
+example : CircuitRelation.outputIn (CircuitRelation.blocksOf pieces) 2100 = false := by decide
 
-example : NativeSlotKind nativeRows pieces 2181 [500]
-    ({ source := ⟨2180, by decide⟩, kind := .bit } : LowNormAssignment.Slot 4096) := by
+example : NativeSlotKind nativeRows pieces 2101 [500]
+    ({ source := ⟨2100, by decide⟩, kind := .bit } : LowNormAssignment.Slot 4096) := by
   exact Or.inr ⟨rfl, Or.inl ⟨by decide, Or.inl copied_derived⟩⟩
 
 private def outputForm : R1CS.LinearCombination :=
   CircuitRelation.toCombination
-    (CircuitRelation.outputStateAt (width := 4096) 2181 0 ⟨0, by decide⟩)
+    (CircuitRelation.outputStateAt (width := 4096) 2101 0 ⟨0, by decide⟩)
 
 example : SlotLayout.forcedColumn?
-    (Substitute.row (fun column => if column = 2158 then some outputForm else none) outputRow) = none := by
+    (Substitute.row (fun column => if column = 2080 then some outputForm else none) outputRow) = none := by
   decide
 
 example (env : Env) (holds : R1CS.RowsHold env nativeRows) (one : env 0 = 1) :
-    LowNormSlot.Valid .bit (RelationCompleteness.completeEnv pieces 2181 env 2180) := by
+    LowNormSlot.Valid .bit (RelationCompleteness.completeEnv pieces 2101 env 2100) := by
   apply native_derived_valid nativeRows (by decide) (by decide) _ _ env holds one copied_derived
   · intro r member
     simp only [nativeRows, List.mem_cons, List.not_mem_nil, or_false] at member

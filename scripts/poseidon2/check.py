@@ -106,9 +106,13 @@ def round_numbers(p, t, d):
     )[1:]
 
 
+def resultant_bits(d, rf, rp):
+    return (2.5 * (rf - 1) + 1.5 * rp) * math.log2(d)
+
+
 def resultant_secure(d, rf, rp, m=128):
     """ePrint 2026/1905 section 6: d^(2.5 (R_F - 1) + 1.5 R_P) >= 2^m."""
-    return (2.5 * (rf - 1) + 1.5 * rp) * math.log2(d) >= m
+    return resultant_bits(d, rf, rp) >= m
 
 
 def instance_rounds(p, t, d):
@@ -350,8 +354,11 @@ def check_instance(inst, m4, q, vectors, suffix):
     report(instance_rounds(q, t, d) == (rf, rp) and reference[0] == rf,
            f"{tag} (R_F, R_P) = ({rf}, {rp}): the reference rule with margin gives {reference}, and R_P = {rp} "
            f"is the least R_P at or above it with d^(2.5 (R_F - 1) + 1.5 R_P) >= 2^128")
-    negative_control(not resultant_secure(d, rf, rp - 1),
-                     f"{tag} the resultant bound at R_P = {rp - 1}")
+    report(resultant_secure(d, rf, rp),
+           f"{tag} the resultant bound d^(2.5 (R_F - 1) + 1.5 R_P) is 2^{resultant_bits(d, rf, rp):.1f}, "
+           f"at least 2^128")
+    report(instance_rounds(q, t, 3) == (8, 43),
+           f"{tag} the same rule gives (8, 43) for x^3, the S-box of ProtogaLattice")
     report(label == f"Nightstream/Poseidon2/q=2^64-59/t={t}/d={d}/rf={rf}/rp={rp}/v1",
            f"{tag} label binds q, t, d, R_F, R_P")
 
@@ -432,6 +439,8 @@ def main():
 
     report(is_mds(m4, q), f"M4 = {m4} is MDS over F_q (all 69 square minors nonzero)")
     negative_control(not is_mds(NON_MDS_M4, q), f"MDS check on {NON_MDS_M4}")
+    negative_control(not resultant_secure(3, 8, 42),
+                     f"the resultant bound for x^3 at (8, 42), 2^{resultant_bits(3, 8, 42):.1f}")
 
     for p, name, values in PLONKY3_DIAGONALS:
         diag = [parse_fraction(v, p) for v in values]

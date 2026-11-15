@@ -55,7 +55,7 @@ section Types
 
 variable (logicalWidth publicFits)
 
-abbrev Oracle := Point (RefreshSchedule.schedule logicalWidth publicFits) 4 → Answer
+abbrev Oracle := Point (RefreshSchedule.schedule logicalWidth publicFits) 8 → Answer
 
 abbrev Accumulator :=
   Refresh.Accumulator PaperAlgebra.Commitment
@@ -65,14 +65,14 @@ abbrev Accumulator :=
 
 end Types
 
-abbrev RefreshProof := Refresh.Proof PaperAlgebra.Commitment productionShape 4
+abbrev RefreshProof := Refresh.Proof PaperAlgebra.Commitment productionShape 8
 
 /-- The refresh proof that the refresh game reads from a light proof. A light proof never passes
 the refresh game's fold verifiers, so the value does not matter. -/
 def placeholder : RefreshProof :=
   let family : EvaluationFamily K productionShape := ⟨fun _ => K.zero, fun _ _ => K.zero⟩
   ⟨⟨fun _ => RingRelation.PiRLCAlgebra.Commitment.commitmentZero, fun _ => family⟩,
-    ⟨fun _ => ⟨List.replicate (4 + 1) K.zero, by simp⟩,
+    ⟨fun _ => ⟨List.replicate (8 + 1) K.zero, by simp⟩,
       ⟨fun _ _ => K.zero, fun _ _ _ => K.zero⟩,
       fun _ => RingRelation.PiRLCAlgebra.Commitment.commitmentZero, fun _ => family⟩⟩
 
@@ -264,7 +264,7 @@ theorem succeeds_holds {key : CircuitKey logicalWidth publicFits}
 section Fork
 
 variable {key : CircuitKey logicalWidth publicFits}
-  {adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 4) Answer
+  {adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 8) Answer
     (Attempt logicalWidth publicFits)}
   {oracle : Oracle logicalWidth publicFits}
   {retries : Fin (RefreshSchedule.schedule logicalWidth publicFits).rhoCount → Answer}
@@ -392,7 +392,7 @@ end Fork
 section Bounds
 
 variable (key : CircuitKey logicalWidth publicFits)
-  (adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 4) Answer
+  (adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 8) Answer
     (Attempt logicalWidth publicFits))
 
 /-- The chance that a refresh retry gives a collision of the base and retry prior states. -/

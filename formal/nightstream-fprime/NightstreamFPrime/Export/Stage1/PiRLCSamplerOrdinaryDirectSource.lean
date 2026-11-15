@@ -24,7 +24,7 @@ def sourceRows : List R1CS.Row :=
   exact PiRLCSamplerOrdinaryRows.rows_length
 
 def poseidonSource (source : Nat) (lane : Fin 5) : Nat :=
-  PiRLCStarts.samplerSourceLogicalStart source + 1158 + lane.val
+  PiRLCStarts.samplerSourceLogicalStart source + 1080 + lane.val
 
 def coreStart (source : Nat) : Nat :=
   WideReduction.Program.coreOffset (PiRLCStarts.rangeLogicalStart source)

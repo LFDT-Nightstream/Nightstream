@@ -14,9 +14,9 @@ prover names the tables.
 
 On each path that avoids the bad sets, `Verifies` accepts an accepted statement with the proof
 from `W` (`Setup.proofOf`, `game_avoids`), and each bad set has density at most
-`1/2^119 + 34/q²` (`game_densityLe`). So in the state-restoration experiment with `q` queries, the
+`1/2^119 + 38/q²` (`game_densityLe`). So in the state-restoration experiment with `q` queries, the
 verifier accepts a statement without such a proof with probability at most
-`q · (1/2^119 + 34/q²)` (`soundness`). `AkitaKnowledge` names Akita's knowledge soundness with the
+`q · (1/2^119 + 38/q²)` (`soundness`). `AkitaKnowledge` names Akita's knowledge soundness with the
 error `εAkita` as an assumption, and `real_soundness` adds `εAkita` for the verifier with Akita
 openings. -/
 
@@ -145,7 +145,7 @@ no check of a definitional equality runs its `ℓ` rounds. -/
     (claims : Claims logicalWidth publicFits) (W : ℕ → F) :
     Compression.Game (Option (Probe K CompressionFresh.oneShape)) :=
   Compression.Fresh.game (setup.piCCS statement claims)
-    (CompressionFresh.witnessOf (setup.witness claims W 2)) 4
+    (CompressionFresh.witnessOf (setup.witness claims W 2)) 8
 
 /-- After the prover names `W`: Π_CCS on the fresh instance, then the argument. -/
 noncomputable def afterW (statement : TerminalStatement AppState)
@@ -340,11 +340,11 @@ theorem game_avoids (premises : Premises setup packageWidths) :
       · exact fun _ equal => nomatch equal
 
 /-- The bound on the density of each bad set: the argument's and Π_CCS's. -/
-noncomputable def finalError : ℝ := 1 / 2 ^ 119 + 34 / (fieldModulus : ℝ) ^ 2
+noncomputable def finalError : ℝ := 1 / 2 ^ 119 + 38 / (fieldModulus : ℝ) ^ 2
 
 theorem game_densityLe (premises : Premises setup packageWidths) :
     setup.game.DensityLe finalError := by
-  have ccsLe : (34 / (fieldModulus : ℝ) ^ 2) ≤ finalError := by
+  have ccsLe : (38 / (fieldModulus : ℝ) ^ 2) ≤ finalError := by
     unfold finalError
     linarith [show (0 : ℝ) ≤ 1 / 2 ^ 119 by positivity]
   intro input
@@ -359,7 +359,7 @@ theorem game_densityLe (premises : Premises setup packageWidths) :
         have errorLe : error (setup.verifier claims) ≤ finalError := by
           have := params_error_lt _ _ _ _ (setup.verifier claims) rfl checks.2.2.2 slots_le span_le
           unfold finalError
-          linarith [show (0 : ℝ) ≤ 34 / (fieldModulus : ℝ) ^ 2 by positivity]
+          linarith [show (0 : ℝ) ≤ 38 / (fieldModulus : ℝ) ^ 2 by positivity]
         unfold Setup.afterW
         have freshDensity : (setup.freshRun statement claims W).DensityLe finalError := by
           unfold Setup.freshRun
@@ -386,7 +386,7 @@ def Wins (setup : Setup logicalWidth publicFits) (packageWidths : Fin 2 → ℕ)
 
 /-- In the state-restoration experiment with `q` queries, the final verifier accepts a statement
 for which no proof with witnesses satisfies `Verifies` with probability at most
-`q · (1/2^119 + 34/q²)`. -/
+`q · (1/2^119 + 38/q²)`. -/
 theorem soundness (premises : Premises setup packageWidths)
     (s : Strategy (Option (Option (Outcome logicalWidth publicFits)))) (q : ℕ) :
     prob s (restore setup.game q []) (Wins setup packageWidths step cap control) ≤

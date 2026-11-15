@@ -82,7 +82,7 @@ theorem inferred_native_complete (bits : List Nat)
     (nativeBelow : ∀ row ∈ nativeRows, row.VarsBelow package.firstFresh)
     (nativeLive : ∀ row ∈ nativeRows, NativeBlock.rowAvoids (deadIn (blocksOf pieces)) row = true)
     (rowsFit : LogicalPlan.Fits package.relationRows package.width)
-    (rowCount : package.blocks.length * 171 ≤ 2 ^ cubeVariables) {wide : Nat}
+    (rowCount : package.blocks.length * 150 ≤ 2 ^ cubeVariables) {wide : Nat}
     (wideFits : ProductionAssignment.logicalWidth
       (SlotLayout.runSlots package.width package.slots) ≤ wide)
     (env : Env)
@@ -192,7 +192,7 @@ theorem inferred_native_complete (bits : List Nat)
           exact List.mem_cons_self
   have sboxAt : ∀ (blocks : List Block) (start : Nat), blocks = blocksOf pieces →
       start = sboxStart pieces package.firstFresh →
-      ∀ count : blocks.length * 171 ≤ 2 ^ cubeVariables,
+      ∀ count : blocks.length * 150 ≤ 2 ^ cubeVariables,
         (PoseidonSboxFamilyPlan.plan (sboxInterface layout blocks start) count).RowsZero
           assignment := by
     intro blocks start blocksSame startSame count

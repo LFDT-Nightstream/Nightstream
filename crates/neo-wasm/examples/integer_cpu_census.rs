@@ -138,7 +138,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         let rows = package.plan_rows()?;
         let layout = package.layout()?;
         let count = rows.row_count();
-        let companions = layout.spans().widths.len() - (package.sbox_start() + 171 * package.block_count());
+        let companions = layout.spans().widths.len() - (package.sbox_start() + 150 * package.block_count());
         let value = serde_json::json!({
             "trace_rows":n,"compiled_light_rows":count,
             "added_trace_row_constraints":previous.map(|before|count-before),

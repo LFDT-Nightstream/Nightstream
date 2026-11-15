@@ -19,7 +19,9 @@ Layer conventions match p3-poseidon2 0.5.3 as p3-goldilocks 0.5.3 uses it:
   `grain_sr_generator`, `generate_constants`) in its round order: initial
   full rounds (row by row), partial rounds, then terminal full rounds.
 
-The instance is shared with ProtogaLattice (decisions/poseidon2-p64-instance.md).
+Nightstream and ProtogaLattice share this rule and this generator. Each project
+selects its S-box degree: `SBOX_DEGREE` is 7 for Nightstream and 3 for
+ProtogaLattice (decisions/poseidon2-p64-instance.md).
 """
 
 import hashlib
@@ -37,7 +39,7 @@ MERSENNE31 = 2**31 - 1
 SECURITY_BITS = 128
 WIDTHS = (16, 12)
 CANDIDATE_DEGREES = (3, 5, 7)
-SBOX_DEGREE = 3
+SBOX_DEGREE = 7
 SBOX_MULTIPLICATIONS = {3: 2, 5: 3, 7: 4}
 
 MDS_MAT4 = ((2, 3, 1, 1), (1, 2, 3, 1), (1, 1, 2, 3), (3, 1, 1, 2))

@@ -8,21 +8,21 @@ open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Layout.ProductionRelation
 
 def witnessStart (start : Nat) {count : Nat} (index : Fin count) : Nat :=
-  start + index.val * 1174
+  start + index.val * 1096
 
 def outputColumn (start : Nat) {count : Nat} (index : Fin count) (lane : Fin 16) : Nat :=
-  witnessStart start index + 1158 + lane.val
+  witnessStart start index + 1080 + lane.val
 
 def sboxColumn (start : Nat) {count : Nat} (index : Fin count) (lane : Fin 16) : Nat :=
   witnessStart start index +
     (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val
 
 def decode (start count column : Nat) : Option (Fin count × Fin 16) :=
-  if _lower : start + 1158 ≤ column then
-    let offset := column - (start + 1158)
-    if invocationBound : offset / 1174 < count then
-      if laneBound : offset % 1174 < 16 then
-        some (⟨offset / 1174, invocationBound⟩, ⟨offset % 1174, laneBound⟩)
+  if _lower : start + 1080 ≤ column then
+    let offset := column - (start + 1080)
+    if invocationBound : offset / 1096 < count then
+      if laneBound : offset % 1096 < 16 then
+        some (⟨offset / 1096, invocationBound⟩, ⟨offset % 1096, laneBound⟩)
       else none
     else none
   else none
@@ -30,16 +30,16 @@ def decode (start count column : Nat) : Option (Fin count × Fin 16) :=
 theorem decode_outputColumn (start : Nat) {count : Nat}
     (index : Fin count) (lane : Fin 16) :
     decode start count (outputColumn start index lane) = some (index, lane) := by
-  have lower : start + 1158 ≤ outputColumn start index lane := by
+  have lower : start + 1080 ≤ outputColumn start index lane := by
     unfold outputColumn witnessStart
     omega
-  have offset : outputColumn start index lane - (start + 1158) =
-      index.val * 1174 + lane.val := by
+  have offset : outputColumn start index lane - (start + 1080) =
+      index.val * 1096 + lane.val := by
     unfold outputColumn witnessStart
     omega
   have laneBound := lane.isLt
-  have quotient : (index.val * 1174 + lane.val) / 1174 = index.val := by omega
-  have remainder : (index.val * 1174 + lane.val) % 1174 = lane.val := by omega
+  have quotient : (index.val * 1096 + lane.val) / 1096 = index.val := by omega
+  have remainder : (index.val * 1096 + lane.val) % 1096 = lane.val := by omega
   unfold decode
   rw [dite_eq_left lower]
   simp only [offset, quotient, remainder, dite_eq_left index.isLt, dite_eq_left lane.isLt]
@@ -58,7 +58,7 @@ theorem decode_source (start : Nat) {count column : Nat}
         have indexEq := congrArg (fun pair : Fin count × Fin 16 => pair.1.val) selected
         have laneEq := congrArg (fun pair : Fin count × Fin 16 => pair.2.val) selected
         dsimp only at indexEq laneEq
-        have divmod := Nat.mod_add_div (column - (start + 1158)) 1174
+        have divmod := Nat.mod_add_div (column - (start + 1080)) 1096
         unfold outputColumn witnessStart
         omega
       · cases found
@@ -66,18 +66,18 @@ theorem decode_source (start : Nat) {count column : Nat}
   · cases found
 
 private theorem sboxOffset_bounds_all : ∀ lane : Fin 16,
-    1127 ≤ (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val ∧
-    (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val ≤ 1157 := by
+    1019 ≤ (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val ∧
+    (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val ≤ 1079 := by
   decide +kernel
 
 private theorem sboxOffset_bounds (lane : Fin 16) :
-    1127 ≤ (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val ∧
-    (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val ≤ 1157 :=
+    1019 ≤ (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val ∧
+    (PoseidonRetainedSlots.localOutput (PoseidonRetainedSlots.finalRow lane)).val ≤ 1079 :=
   sboxOffset_bounds_all lane
 
 theorem sboxColumn_lt_end (start : Nat) {count : Nat}
     (index : Fin count) (lane : Fin 16) :
-    sboxColumn start index lane < start + count * 1174 := by
+    sboxColumn start index lane < start + count * 1096 := by
   have slotBound := sboxOffset_bounds lane
   have indexBound := index.isLt
   unfold sboxColumn witnessStart

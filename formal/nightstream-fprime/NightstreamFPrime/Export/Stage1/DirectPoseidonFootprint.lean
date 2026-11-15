@@ -17,9 +17,9 @@ def pilotPermutationCount : Nat :=
 @[simp] theorem pilotPermutationCount_eq : pilotPermutationCount = 4222 := by
   rfl
 
-def laterPermutationCount : Nat := 956 + 30
+def laterPermutationCount : Nat := 984 + 30
 
-@[simp] theorem laterPermutationCount_eq : laterPermutationCount = 986 := by
+@[simp] theorem laterPermutationCount_eq : laterPermutationCount = 1014 := by
   rfl
 
 theorem phaseInvocations_length (logicalWidth : Nat)
@@ -37,14 +37,14 @@ theorem phaseInvocations_length (logicalWidth : Nat)
 def totalPermutationCount : Nat :=
   pilotPermutationCount + laterPermutationCount
 
-@[simp] theorem totalPermutationCount_eq : totalPermutationCount = 5208 := by
+@[simp] theorem totalPermutationCount_eq : totalPermutationCount = 5236 := by
   simp [totalPermutationCount]
 
 def directSboxFieldCount : Nat :=
   totalPermutationCount *
     PoseidonRetainedSlots.slots.length
 
-@[simp] theorem directSboxFieldCount_eq : directSboxFieldCount = 890568 := by
+@[simp] theorem directSboxFieldCount_eq : directSboxFieldCount = 785400 := by
   rw [directSboxFieldCount, totalPermutationCount_eq,
     PoseidonRetainedSlots.slots_length]
 
@@ -53,7 +53,7 @@ def directSboxCoordinateCount : Nat :=
     LowNormAssignment.logicalWidth PoseidonRetainedSlots.slots
 
 @[simp] theorem directSboxCoordinateCount_eq :
-    directSboxCoordinateCount = 36513288 := by
+    directSboxCoordinateCount = 32201400 := by
   rw [directSboxCoordinateCount, totalPermutationCount_eq,
     PoseidonRetainedSlots.slots_logicalWidth]
 

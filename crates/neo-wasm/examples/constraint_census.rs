@@ -147,7 +147,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     let full_rounds = INSTANCE_16.initial.len() + INSTANCE_16.terminal.len();
     let partial_rounds = INSTANCE_16.internal.len();
     let sboxes = full_rounds * WIDTH + partial_rounds;
-    let raw_permutation_rows = WIDTH + full_rounds * (3 * WIDTH) + partial_rounds * (2 + WIDTH);
+    let raw_permutation_rows = WIDTH + full_rounds * (5 * WIDTH) + partial_rounds * (4 + WIDTH);
     println!("native_permutation\traw_rows\t{raw_permutation_rows}");
     println!("native_permutation\tcompiled_sbox_rows\t{sboxes}");
     let mut variable = rows.len();

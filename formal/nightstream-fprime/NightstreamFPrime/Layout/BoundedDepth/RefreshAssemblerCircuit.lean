@@ -47,7 +47,7 @@ def decodedFresh : StepFresh logicalWidth publicFits :=
 
 /-- The refresh proof that the shared words carry. The Π_DEC fields of the inner proof are not
 read by the refresh fold; they repeat the children. -/
-def decodedProof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 4 where
+def decodedProof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8 where
   split :=
     ⟨fun child row lane => ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).childCommitment child row lane).eval source,
       fun child => StatementAbsorption.evalEvaluation ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).childEvaluation child) source⟩

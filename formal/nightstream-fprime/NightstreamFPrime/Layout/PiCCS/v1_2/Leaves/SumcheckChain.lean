@@ -43,7 +43,7 @@ variable {logicalWidth : Nat}
 
 structure InputsLinear
     (interface :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.Interface 4)
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.Interface 8)
     (offset : Nat) : Prop where
   initial : KExprLinear (interface.initial offset)
   coefficient : ∀ roundIndex coefficientIndex,
@@ -54,7 +54,7 @@ structure InputsLinear
 
 private theorem coreRounds_linear
     (interface :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.Interface 4)
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.Interface 8)
     (offset : Nat) (inputs : InputsLinear interface offset) :
     ∀ roundIndex, RoundLinear
       ((NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.coreInterface
@@ -64,7 +64,7 @@ private theorem coreRounds_linear
 
 private theorem core_totalFreshCount
     (interface :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.Interface 4)
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.Interface 8)
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.circuit interface
@@ -76,11 +76,11 @@ private theorem core_totalFreshCount
 
 private theorem core_totalRowCount
     (interface :
-      NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.Interface 4)
+      NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.Interface 8)
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.circuit interface
-        ).main offset)) = 392 := by
+        ).main offset)) = 728 := by
   rw [NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.circuit_ops,
     ← NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.circuit_ops,
     NightstreamFPrime.Layout.SumCheck.FixedChain.ownedCircuit_totalRowCount _ offset inputs.initial
@@ -88,12 +88,12 @@ private theorem core_totalRowCount
   norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 def footprint
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (inputs : ∀ offset,
       InputsLinear (Formal.sumcheckInterface interface) offset) :
     R1CS.CircuitFootprint (Formal.sumcheckCircuit interface) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 392
+  physicalRowCount := fun _ => 728
   freshColumnCount_eq := by
     intro offset
     unfold Formal.sumcheckCircuit
@@ -106,7 +106,7 @@ def footprint
     exact core_totalRowCount _ offset (inputs offset)
 
 theorem freshColumnCount_eq
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (inputs : ∀ offset,
       InputsLinear (Formal.sumcheckInterface interface) offset)
     (offset : Nat) :
@@ -115,25 +115,25 @@ theorem freshColumnCount_eq
   (footprint interface inputs).freshColumnCount_eq offset
 
 theorem physicalRowCount_eq
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (inputs : ∀ offset,
       InputsLinear (Formal.sumcheckInterface interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.sumcheckCircuit interface).main offset)) = 392 :=
+      (Formal.sumcheckCircuit interface).main offset)) = 728 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (inputs : ∀ offset,
       InputsLinear (Formal.sumcheckInterface interface) offset)
     (offset : Nat) :
     localLength (Circuit.ops (Formal.sumcheckCircuit interface).main offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-      (Formal.sumcheckCircuit interface).main offset)) = 336 := by
+      (Formal.sumcheckCircuit interface).main offset)) = 672 := by
   have storedColumns :
       localLength (Circuit.ops (Formal.sumcheckCircuit interface).main
-        offset) = 336 := by
+        offset) = 672 := by
     unfold Formal.sumcheckCircuit
     rw [FormalCircuit.withConstantFootprint_main,
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain.localLength_eq]
@@ -196,7 +196,7 @@ theorem output_varsBelow_finalIdentity
       (Nat.le_trans evalALeCcs (Nat.le_trans ccsLeNorm normLeFinal)))
 
 theorem output_linear
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (offset : Nat)
     (inputs : InputsLinear (Formal.sumcheckInterface interface)
       (Formal.sumcheckStart interface)) :

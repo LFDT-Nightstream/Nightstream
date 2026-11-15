@@ -5,7 +5,7 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep
 /-! The pieces of a circuit's flat constraints, for the generic exporter of the bounded-depth step
 circuits (CW-5). A block of constraints that is the canonical Poseidon2 permutation
 (`PilotData.canonicalConstraints`) under a substitution is one permutation piece. The package
-exports it as an invocation of today's permutation template, which Rust packs into 171 CCS rows.
+exports it as an invocation of today's permutation template, which Rust packs into 150 CCS rows.
 A block that is one `CombinationStep` block of the Π_RLC combinations (`ringTemplate`, one or two
 cells) is one ring-product piece, which `PieceRows` checks with 128 rows per cell. Every other
 constraint is its own piece and is lowered to R1CS rows. `split` makes a block piece only after a

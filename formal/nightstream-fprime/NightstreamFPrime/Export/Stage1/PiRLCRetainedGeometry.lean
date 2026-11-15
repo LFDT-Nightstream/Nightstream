@@ -45,13 +45,13 @@ def laterPoseidonBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem laterPoseidonBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (laterPoseidonBlock program).slotCount = 168606 := by
+    (laterPoseidonBlock program).slotCount = 152100 := by
   rw [laterPoseidonBlock, LowNormBlock.Block.lift_slotCount,
     PoseidonRetainedBlock.laterBlock_slotCount]
 
 @[simp] theorem laterPoseidonBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (laterPoseidonBlock program).coordinateCount = 6912846 := by
+    (laterPoseidonBlock program).coordinateCount = 6236100 := by
   rw [laterPoseidonBlock, LowNormBlock.Block.lift_coordinateCount,
     PoseidonRetainedBlock.laterBlock_coordinateCount]
 
@@ -91,7 +91,7 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 @[simp] theorem prefixLogicalWidth_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    prefixLogicalWidth program = 39150728 := by
+    prefixLogicalWidth program = 34838840 := by
   unfold prefixLogicalWidth productOutputStart
     challengeStart
     productGroupStart laterPoseidonStart outputPoseidonStart priorPoseidonStart
@@ -108,7 +108,7 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   rfl
 
 def directPrefixLogicalWidth (_program : Lifecycle.Stage1.Application.Program) : Nat :=
-  39150728
+  34838840
 
 @[csimp] theorem prefixLogicalWidth_eq_directPrefixLogicalWidth :
     @prefixLogicalWidth = @directPrefixLogicalWidth := by

@@ -17,14 +17,14 @@ abbrev referenceBlock := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcrip
 abbrev EState := Layer.EState
 abbrev Interface := v1_2.TranscriptAbsorption.Interface
 
-def rangeOffset (offset : Nat) : Nat := offset + 1174
+def rangeOffset (offset : Nat) : Nat := offset + 1096
 def advanceOffset (offset : Nat) : Nat := rangeOffset offset + WideReduction.Program.privateCount
-def wordsOffset (offset : Nat) : Nat := advanceOffset offset + 1174
-def logicalPrivateCount : Nat := 1174 + WideReduction.Program.privateCount + 1174 + SamplerWords.count
-def logicalRowCount : Nat := 1174 + WideReduction.rowCount + 1174 + SamplerWords.count
+def wordsOffset (offset : Nat) : Nat := advanceOffset offset + 1096
+def logicalPrivateCount : Nat := 1096 + WideReduction.Program.privateCount + 1096 + SamplerWords.count
+def logicalRowCount : Nat := 1096 + WideReduction.rowCount + 1096 + SamplerWords.count
 
 def entry (interface : Interface) (coordinate : Nat) : FormalCircuit :=
-  (v1_2.TranscriptAbsorption.circuit interface coordinate).withConstantFootprint 1174 1174
+  (v1_2.TranscriptAbsorption.circuit interface coordinate).withConstantFootprint 1096 1096
     (v1_2.TranscriptAbsorption.localLength_eq interface coordinate)
     (v1_2.TranscriptAbsorption.flatConstraints_length interface coordinate)
 
@@ -84,7 +84,7 @@ structure SpecHolds (interface : Interface) (coordinate : Nat) (offset : Nat) (e
       WideReduction.fieldOfNat ((Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample
         (referenceBlock (referenceEnter (evalState env (interface.initialState offset)) coordinate)) position).val)
 
-theorem counts : logicalPrivateCount = 5029 ∧ logicalRowCount = 3257 := ⟨rfl, rfl⟩
+theorem counts : logicalPrivateCount = 4873 ∧ logicalRowCount = 3101 := ⟨rfl, rfl⟩
 
 theorem localLength_eq (interface : Interface) (coordinate : Nat) (offset : Nat) :
     localLength (opsAt interface coordinate offset) = logicalPrivateCount := by
@@ -94,7 +94,7 @@ theorem localLength_eq (interface : Interface) (coordinate : Nat) (offset : Nat)
   simp only [entryOp, rangeOp, advanceOp, wordsOp, Sequence.childOp, Op.localLength,
     FormalCircuit.asSubcircuit_localLength]
   rw [entry, FormalCircuit.withConstantFootprint_main, v1_2.TranscriptAbsorption.localLength_eq]
-  change 1174 + (localLength (WideReduction.Program.operations _ _) +
+  change 1096 + (localLength (WideReduction.Program.operations _ _) +
     (localLength (Permutation.Owned.operations _ _) +
       (localLength (SamplerWords.operations _ _) + 0))) = logicalPrivateCount
   rw [WideReduction.Program.localLength_eq, Permutation.Owned.localLength_eq, SamplerWords.localLength_eq]
@@ -108,7 +108,7 @@ theorem rowCount_eq (interface : Interface) (coordinate : Nat) (offset : Nat) :
     entryOp, rangeOp, advanceOp, wordsOp, Sequence.childOp, Op.rowCount,
     FormalCircuit.asSubcircuit_rowCount]
   rw [entry, FormalCircuit.withConstantFootprint_rowCount]
-  change 1174 + (WideReduction.rowCount + (1174 + (SamplerWords.count + 0))) = logicalRowCount
+  change 1096 + (WideReduction.rowCount + (1096 + (SamplerWords.count + 0))) = logicalRowCount
   unfold logicalRowCount
   omega
 
@@ -285,7 +285,7 @@ theorem complete (interface : Interface) (coordinate : Nat) (env : Env) (offset 
     (advance_scope interface coordinate offset inputs) advanced advanceAgreement advanceRows
   have thirdStart : offset + localLength third.operations = wordsOffset offset := by
     have count := Permutation.Owned.localLength_eq (advanceInterface interface coordinate offset) (advanceOffset offset)
-    change localLength (Circuit.ops (advance interface coordinate offset).main (advanceOffset offset)) = 1174 at count
+    change localLength (Circuit.ops (advance interface coordinate offset).main (advanceOffset offset)) = 1096 at count
     rw [count] at thirdEnd
     exact thirdEnd
   obtain ⟨words, wordAgreement, wordRows⟩ := SamplerWords.complete

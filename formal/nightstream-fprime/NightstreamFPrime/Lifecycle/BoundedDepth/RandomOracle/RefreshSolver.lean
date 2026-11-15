@@ -45,7 +45,7 @@ variable {logicalWidth : Nat}
 variable (logicalWidth publicFits) in
 /-- A view of the refresh game: a base run and its 15 retries. -/
 abbrev View :=
-  Reduction.View (RefreshSchedule.schedule logicalWidth publicFits) 4
+  Reduction.View (RefreshSchedule.schedule logicalWidth publicFits) 8
     (Attempt logicalWidth publicFits)
 
 section Fork
@@ -164,7 +164,7 @@ noncomputable def kernelOf (view other : View logicalWidth publicFits) :
     else none
   else none
 
-variable (adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 4)
+variable (adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 8)
   Answer (Attempt logicalWidth publicFits))
 
 /-- On an adversary's views, `kernelOf` is `RefreshUniqueness.rerunKernel`. -/

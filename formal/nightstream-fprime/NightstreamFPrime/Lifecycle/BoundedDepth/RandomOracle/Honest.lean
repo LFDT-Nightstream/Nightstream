@@ -91,7 +91,7 @@ theorem light_honest {oracle : RomModel.Oracle logicalWidth publicFits}
       (witness.assignments (keys key.relation ajtai).light.runningSource))
     (truth : LightUniqueness.Truth ajtai key.relation (LightFork.runningOf start.1)
       (freshToLight fresh) witness) :
-    ∃ (proof : Light.Proof LightShape 4) (output : SlotData logicalWidth publicFits)
+    ∃ (proof : Light.Proof LightShape 8) (output : SlotData logicalWidth publicFits)
       (outputWitness : PaperAlgebra.Assignment (logicalWidth := logicalWidth)
         (publicFits := publicFits)),
       RomModel.Succeeds ajtai (oracle,
@@ -101,7 +101,7 @@ theorem light_honest {oracle : RomModel.Oracle logicalWidth publicFits}
   obtain ⟨rounds, honest⟩ := Light.complete (keys key.relation ajtai).light
     (LightFork.runningOf start.1) (freshToLight fresh) witness bound freshOpening runningOpening
     truth
-  let proof : Light.Proof LightShape 4 :=
+  let proof : Light.Proof LightShape 8 :=
     { piCcsRounds := rounds
       piCcsOutput := FullOutputCoordinates.FullOutput.honestAt
         (keys key.relation ajtai).light.baseOps (keys key.relation ajtai).light.extensionOps

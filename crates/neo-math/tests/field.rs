@@ -139,11 +139,11 @@ fn generator_has_order_q_minus_1() {
 }
 
 #[test]
-fn cube_is_a_permutation_with_the_given_root() {
-    assert!(Q_MINUS_1_FACTORS.iter().all(|&(p, _)| p != 3));
+fn seventh_power_is_a_permutation_with_the_given_root() {
+    assert!(Q_MINUS_1_FACTORS.iter().all(|&(p, _)| p != 7));
     for x in samples() {
         let x = Fq::from_u64(x);
-        assert_eq!(x.exp_u64(3).injective_exp_root_n(), x);
+        assert_eq!(x.exp_u64(7).injective_exp_root_n(), x);
     }
 }
 

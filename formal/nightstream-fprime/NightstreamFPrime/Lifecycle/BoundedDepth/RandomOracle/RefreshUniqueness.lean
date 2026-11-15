@@ -120,7 +120,7 @@ theorem folds_refresh {oracle : Oracle} {step : Folding.Schedule.Step}
   | light => cases proof <;> exact absurd accepted (by simp [RefreshFork.folds])
 
 variable {key : CircuitKey logicalWidth publicFits}
-  {adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 4) Answer
+  {adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 8) Answer
     (Attempt logicalWidth publicFits)}
   {oracle : RefreshFork.Oracle logicalWidth publicFits} {retries : Retries logicalWidth publicFits}
 
@@ -161,7 +161,7 @@ end Knowledge
 section Uniqueness
 
 variable (key : CircuitKey logicalWidth publicFits)
-  (adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 4) Answer
+  (adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 8) Answer
     (Attempt logicalWidth publicFits))
 
 /-- The witness that a valid pair extracts. -/
@@ -188,7 +188,7 @@ noncomputable def source
 theorem source_degreeCovers
     (pair : RefreshFork.Oracle logicalWidth publicFits × Retries logicalWidth publicFits)
     (statement : (RefreshSchedule.schedule logicalWidth publicFits).Statement) :
-    (source ajtai key adversary pair statement).toVerifierInput.sumcheckDegreeBound ≤ 4 :=
+    (source ajtai key adversary pair statement).toVerifierInput.sumcheckDegreeBound ≤ 8 :=
   RefreshTest.source_degreeCovers key.relation ajtai _ _ statement
 
 /-- A valid pair whose extracted witness makes a refresh source claim false. -/
@@ -278,7 +278,7 @@ theorem batch_phi {relation : ProductionKey.LogicalRelation logicalWidth publicF
   rw [splitEq]
 
 variable {key : CircuitKey logicalWidth publicFits}
-  {adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 4) Answer
+  {adversary : OracleComp (Point (RefreshSchedule.schedule logicalWidth publicFits) 8) Answer
     (Attempt logicalWidth publicFits)}
 
 /-- Every response of a valid pair's fork opens at the chain bound. -/

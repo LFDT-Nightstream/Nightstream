@@ -12,11 +12,11 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open MeasureTheory
 
-theorem test_error_eq : IndependentExecution.testError productionShape 4 =
-    (4635 : ℝ) / (fieldModulus : ℝ) ^ 2 := by
+theorem test_error_eq : IndependentExecution.testError productionShape 8 =
+    (4747 : ℝ) / (fieldModulus : ℝ) ^ 2 := by
   unfold IndependentExecution.testError
   rw [Nat.cast_pow]
-  change (28 : ℝ) * 4 / (fieldModulus : ℝ) ^ 2 +
+  change (28 : ℝ) * 8 / (fieldModulus : ℝ) ^ 2 +
     4523 / (fieldModulus : ℝ) ^ 2 = _
   ring
 
@@ -31,15 +31,15 @@ theorem any_test_error_le
     (law : Measure Trace) [IsProbabilityMeasure law]
     (calls : Nat) (test : Fin calls → Set Trace)
     (testBound : ∀ index, law (test index) ≤
-      ENNReal.ofReal (IndependentExecution.testError productionShape 4)) :
+      ENNReal.ofReal (IndependentExecution.testError productionShape 8)) :
     law (⋃ index, test index) ≤
-      min 1 (ENNReal.ofReal ((calls : ℝ) * IndependentExecution.testError productionShape 4)) := by
+      min 1 (ENNReal.ofReal ((calls : ℝ) * IndependentExecution.testError productionShape 8)) := by
   apply le_min prob_le_one
   calc
     _ ≤ ∑ index : Fin calls, law (test index) := measure_iUnion_fintype_le law _
-    _ ≤ ∑ _index : Fin calls, ENNReal.ofReal (IndependentExecution.testError productionShape 4) :=
+    _ ≤ ∑ _index : Fin calls, ENNReal.ofReal (IndependentExecution.testError productionShape 8) :=
       Finset.sum_le_sum (fun index _ => testBound index)
-    _ = ENNReal.ofReal ((calls : ℝ) * IndependentExecution.testError productionShape 4) := by
+    _ = ENNReal.ofReal ((calls : ℝ) * IndependentExecution.testError productionShape 8) := by
       simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin,
         nsmul_eq_mul, ENNReal.ofReal_mul (Nat.cast_nonneg calls), ENNReal.ofReal_natCast]
 

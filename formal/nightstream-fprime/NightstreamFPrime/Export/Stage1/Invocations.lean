@@ -115,7 +115,7 @@ theorem invocation_inputsOutside (phase rowStart witnessStart ceiling : Nat)
     witnessLocal ceilingPrivate (stateAffine lane) (stateBelow lane) term member
 
 def permutationOutput (witnessStart : Nat) : EState :=
-  Permutation.freshState (witnessStart + 1158)
+  Permutation.freshState (witnessStart + 1080)
 
 theorem permutationOutput_affine (witnessStart : Nat) :
     Poseidon2.StateAffine (permutationOutput witnessStart) := by
@@ -148,16 +148,16 @@ theorem invocation_sound (phase rowStart witnessStart : Nat)
         Layer.evalState (PackageOrder.pullback env)
           (permutationOutput witnessStart) := by
     funext lane
-    change env (PackageOrder.sourceToPackage witnessStart + 1158 + lane.val) =
-      env (PackageOrder.sourceToPackage (witnessStart + 1158 + lane.val))
+    change env (PackageOrder.sourceToPackage witnessStart + 1080 + lane.val) =
+      env (PackageOrder.sourceToPackage (witnessStart + 1080 + lane.val))
     apply congrArg env
     calc
-      PackageOrder.sourceToPackage witnessStart + 1158 + lane.val =
-          PackageOrder.sourceToPackage witnessStart + (1158 + lane.val) := by omega
-      _ = PackageOrder.sourceToPackage (witnessStart + (1158 + lane.val)) :=
+      PackageOrder.sourceToPackage witnessStart + 1080 + lane.val =
+          PackageOrder.sourceToPackage witnessStart + (1080 + lane.val) := by omega
+      _ = PackageOrder.sourceToPackage (witnessStart + (1080 + lane.val)) :=
         (PackageOrder.sourceToPackage_add_of_piCcsLocal witnessStart
-          (1158 + lane.val) witnessLocal).symm
-      _ = PackageOrder.sourceToPackage (witnessStart + 1158 + lane.val) := by
+          (1080 + lane.val) witnessLocal).symm
+      _ = PackageOrder.sourceToPackage (witnessStart + 1080 + lane.val) := by
         congr 1
         omega
   have inputBoundary :
@@ -194,8 +194,8 @@ def compileBlocks (phase : Nat) : Nat → Nat → EState →
       ⟨rowStart, witnessStart, state, []⟩
   | rowStart, witnessStart, state, block :: blocks =>
       let input := Hash.absorbE state block
-      let tail := compileBlocks phase (rowStart + 1174)
-        (witnessStart + 1174) (permutationOutput witnessStart) blocks
+      let tail := compileBlocks phase (rowStart + 1096)
+        (witnessStart + 1096) (permutationOutput witnessStart) blocks
       ⟨tail.rowNext, tail.witnessNext, tail.state,
         invocation phase rowStart witnessStart input :: tail.invocations⟩
 
@@ -229,7 +229,7 @@ theorem compileBlocks_sound (phase rowStart witnessStart : Nat)
       have headSound := invocation_sound phase rowStart witnessStart
         (Hash.absorbE state block) env witnessLocal absorbedAffine headHolds
       have tailHolds : ∀ current ∈
-          (compileBlocks phase (rowStart + 1174) (witnessStart + 1174)
+          (compileBlocks phase (rowStart + 1096) (witnessStart + 1096)
             (permutationOutput witnessStart) blocks).invocations,
           PermutationInvocationHolds (PilotData.circuitPackage ()) current env := by
         intro current member
@@ -238,11 +238,11 @@ theorem compileBlocks_sound (phase rowStart witnessStart : Nat)
           (permutationOutput witnessStart) := by
         intro lane
         simp [permutationOutput, Permutation.freshState]
-      have tailSound := inductionHypothesis (rowStart + 1174)
-        (witnessStart + 1174) (permutationOutput witnessStart) (by omega)
+      have tailSound := inductionHypothesis (rowStart + 1096)
+        (witnessStart + 1096) (permutationOutput witnessStart) (by omega)
         outputAffine restAffine tailHolds
       change Layer.evalState (PackageOrder.pullback env)
-          (compileBlocks phase (rowStart + 1174) (witnessStart + 1174)
+          (compileBlocks phase (rowStart + 1096) (witnessStart + 1096)
             (permutationOutput witnessStart) blocks).state = _
       rw [tailSound, headSound, Hash.eval_absorbE]
       rfl
@@ -265,7 +265,7 @@ theorem compileBlocks_witnessNext
     (phase rowStart witnessStart : Nat) (state : EState)
     (blocks : List (List Expr)) :
     (compileBlocks phase rowStart witnessStart state blocks).witnessNext =
-      witnessStart + blocks.length * 1174 := by
+      witnessStart + blocks.length * 1096 := by
   induction blocks generalizing rowStart witnessStart state with
   | nil => rfl
   | cons block blocks inductionHypothesis =>
@@ -580,12 +580,12 @@ theorem invocationCount_eq_of_shapes (left right : List Action)
   simpa only [compileActions_invocations_length] using lengths
 
 theorem recipeCount_eq_invocationCount_mul (actions : List Action) :
-    Formal.recipeCount actions = invocationCount actions * 1174 := by
+    Formal.recipeCount actions = invocationCount actions * 1096 := by
   induction actions with
   | nil => rfl
   | cons action actions inductionHypothesis =>
       change Formal.Action.recipeCount action + Formal.recipeCount actions =
-        (Action.invocationCount action + invocationCount actions) * 1174
+        (Action.invocationCount action + invocationCount actions) * 1096
       rw [inductionHypothesis, Nat.add_mul]
       cases action with
       | absorb input =>
@@ -597,7 +597,7 @@ theorem compileActions_witnessNext
     (phase rowStart witnessStart : Nat) (state : EState)
     (actions : List Action) :
     (compileActions phase rowStart witnessStart state actions).witnessNext =
-      witnessStart + invocationCount actions * 1174 := by
+      witnessStart + invocationCount actions * 1096 := by
   induction actions generalizing rowStart witnessStart state with
   | nil => rfl
   | cons action actions inductionHypothesis =>
@@ -653,27 +653,27 @@ def ScheduleWithin : Nat → Nat → List PermutationInvocation → Prop
   | _, _, [] => True
   | bound, ceiling, invocation :: rest =>
       bound ≤ invocation.witnessStart ∧
-        invocation.witnessStart + 1174 ≤ ceiling ∧
+        invocation.witnessStart + 1096 ≤ ceiling ∧
           InvocationInputsOutside ceiling invocation ∧
             InvocationInputsOutside PackageOrder.privateColumnCount invocation ∧
-              ScheduleWithin (invocation.witnessStart + 1174) ceiling rest
+              ScheduleWithin (invocation.witnessStart + 1096) ceiling rest
 
 theorem ScheduleWithin.cons
     {bound ceiling : Nat} {invocation : PermutationInvocation}
     {rest : List PermutationInvocation}
     (startsAfter : bound ≤ invocation.witnessStart)
-    (endsBefore : invocation.witnessStart + 1174 ≤ ceiling)
+    (endsBefore : invocation.witnessStart + 1096 ≤ ceiling)
     (inputs : InvocationInputsOutside ceiling invocation)
     (stableInputs : InvocationInputsOutside PackageOrder.privateColumnCount
       invocation)
-    (restSchedule : ScheduleWithin (invocation.witnessStart + 1174)
+    (restSchedule : ScheduleWithin (invocation.witnessStart + 1096)
       ceiling rest) :
     ScheduleWithin bound ceiling (invocation :: rest) :=
   ⟨startsAfter, endsBefore, inputs, stableInputs, restSchedule⟩
 
 def InvocationsBefore (bound : Nat)
     (invocations : List PermutationInvocation) : Prop :=
-  ∀ invocation ∈ invocations, invocation.witnessStart + 1174 ≤ bound
+  ∀ invocation ∈ invocations, invocation.witnessStart + 1096 ≤ bound
 
 theorem InvocationsBefore.mono
     {lower upper : Nat} {invocations : List PermutationInvocation}
@@ -732,7 +732,7 @@ theorem compileBlocks_scheduleWithin
     (witnessLocal : PackageOrder.piCcsPhaseOffset ≤ witnessStart)
     (ceilingPrivate : ceiling ≤ PackageOrder.privateColumnCount)
     (endWithin : PackageOrder.sourceToPackage
-      (witnessStart + blocks.length * 1174) ≤ ceiling)
+      (witnessStart + blocks.length * 1096) ≤ ceiling)
     (stateAffine : Poseidon2.StateAffine state)
     (stateBelow : ∀ lane, (state lane).VarsBelow witnessStart)
     (blocksAffine : Poseidon2.BlocksAffine blocks)
@@ -740,7 +740,7 @@ theorem compileBlocks_scheduleWithin
     ScheduleWithin (PackageOrder.sourceToPackage witnessStart) ceiling
         (compileBlocks phase rowStart witnessStart state blocks).invocations ∧
       InvocationsBefore (PackageOrder.sourceToPackage
-        (witnessStart + blocks.length * 1174))
+        (witnessStart + blocks.length * 1096))
         (compileBlocks phase rowStart witnessStart state blocks).invocations := by
   induction blocks generalizing rowStart witnessStart state with
   | nil =>
@@ -775,58 +775,58 @@ theorem compileBlocks_scheduleWithin
         simp [permutationOutput, Permutation.freshState]
       have outputBelow : ∀ lane,
           (permutationOutput witnessStart lane).VarsBelow
-            (witnessStart + 1174) := by
+            (witnessStart + 1096) := by
         intro lane
         simpa [permutationOutput, Nat.add_assoc] using
-          Permutation.freshState_varsBelow (witnessStart + 1158) lane
-      have sourceEndEq : (witnessStart + 1174) + blocks.length * 1174 =
-          witnessStart + (block :: blocks).length * 1174 := by
+          Permutation.freshState_varsBelow (witnessStart + 1080) lane
+      have sourceEndEq : (witnessStart + 1096) + blocks.length * 1096 =
+          witnessStart + (block :: blocks).length * 1096 := by
         simp
         omega
       have restEndWithin : PackageOrder.sourceToPackage
-          ((witnessStart + 1174) + blocks.length * 1174) ≤ ceiling := by
+          ((witnessStart + 1096) + blocks.length * 1096) ≤ ceiling := by
         rw [sourceEndEq]
         exact endWithin
-      have widenedRestBelow : Hash.BlocksBelow (witnessStart + 1174) blocks :=
+      have widenedRestBelow : Hash.BlocksBelow (witnessStart + 1096) blocks :=
         Hash.blocksBelow_mono restBelow (by omega)
-      rcases inductionHypothesis (rowStart := rowStart + 1174)
-          (witnessStart := witnessStart + 1174)
+      rcases inductionHypothesis (rowStart := rowStart + 1096)
+          (witnessStart := witnessStart + 1096)
           (state := permutationOutput witnessStart) (by omega)
           restEndWithin outputAffine outputBelow restAffine widenedRestBelow with
         ⟨restSchedule, restBefore⟩
       have nextMap := PackageOrder.sourceToPackage_add_of_piCcsLocal witnessStart
-        1174 witnessLocal
+        1096 witnessLocal
       have finalMap := PackageOrder.sourceToPackage_add_of_piCcsLocal
-        (witnessStart + 1174) (blocks.length * 1174) (by omega)
+        (witnessStart + 1096) (blocks.length * 1096) (by omega)
       have mappedEndEq := congrArg PackageOrder.sourceToPackage sourceEndEq
       constructor
       · refine ⟨le_rfl, ?_, headInputs, headStableInputs, ?_⟩
-        · change PackageOrder.sourceToPackage witnessStart + 1174 ≤ ceiling
+        · change PackageOrder.sourceToPackage witnessStart + 1096 ≤ ceiling
           calc
-            _ = PackageOrder.sourceToPackage (witnessStart + 1174) := nextMap.symm
+            _ = PackageOrder.sourceToPackage (witnessStart + 1096) := nextMap.symm
             _ ≤ PackageOrder.sourceToPackage
-                ((witnessStart + 1174) + blocks.length * 1174) := by
+                ((witnessStart + 1096) + blocks.length * 1096) := by
               rw [finalMap]
               omega
             _ ≤ ceiling := restEndWithin
         · change ScheduleWithin
-            (PackageOrder.sourceToPackage witnessStart + 1174) ceiling _
+            (PackageOrder.sourceToPackage witnessStart + 1096) ceiling _
           rw [← nextMap]
           exact restSchedule
       · intro current member
         simp only [compileBlocks, List.mem_cons] at member
         rcases member with rfl | member
-        · change PackageOrder.sourceToPackage witnessStart + 1174 ≤ _
+        · change PackageOrder.sourceToPackage witnessStart + 1096 ≤ _
           calc
-            _ = PackageOrder.sourceToPackage (witnessStart + 1174) := nextMap.symm
+            _ = PackageOrder.sourceToPackage (witnessStart + 1096) := nextMap.symm
             _ ≤ PackageOrder.sourceToPackage
-                ((witnessStart + 1174) + blocks.length * 1174) := by
+                ((witnessStart + 1096) + blocks.length * 1096) := by
               rw [finalMap]
               omega
             _ = _ := mappedEndEq
         · calc
-            current.witnessStart + 1174 ≤ PackageOrder.sourceToPackage
-                ((witnessStart + 1174) + blocks.length * 1174) :=
+            current.witnessStart + 1096 ≤ PackageOrder.sourceToPackage
+                ((witnessStart + 1096) + blocks.length * 1096) :=
               restBefore current member
             _ = _ := mappedEndEq
 
@@ -836,7 +836,7 @@ theorem compileActions_scheduleWithin
     (witnessLocal : PackageOrder.piCcsPhaseOffset ≤ witnessStart)
     (ceilingPrivate : ceiling ≤ PackageOrder.privateColumnCount)
     (endWithin : PackageOrder.sourceToPackage
-      (witnessStart + invocationCount actions * 1174) ≤ ceiling)
+      (witnessStart + invocationCount actions * 1096) ≤ ceiling)
     (stateAffine : Poseidon2.StateAffine state)
     (stateBelow : ∀ lane, (state lane).VarsBelow witnessStart)
     (actionsAffine : ActionsInvocationInputsAffine actions)
@@ -844,7 +844,7 @@ theorem compileActions_scheduleWithin
     ScheduleWithin (PackageOrder.sourceToPackage witnessStart) ceiling
         (compileActions phase rowStart witnessStart state actions).invocations ∧
       InvocationsBefore (PackageOrder.sourceToPackage
-        (witnessStart + invocationCount actions * 1174))
+        (witnessStart + invocationCount actions * 1096))
         (compileActions phase rowStart witnessStart state actions).invocations := by
   induction actions generalizing rowStart witnessStart state with
   | nil =>
@@ -869,23 +869,23 @@ theorem compileActions_scheduleWithin
           have blocksBelow : Hash.BlocksBelow witnessStart blocks :=
             Hash.inputChunks_below input witnessStart headBelow
           have absorbedWitnessNext : absorbed.witnessNext =
-              witnessStart + blocks.length * 1174 := by
+              witnessStart + blocks.length * 1096 := by
             exact compileBlocks_witnessNext phase rowStart witnessStart state
               blocks
           have totalSourceEq : absorbed.witnessNext +
-              invocationCount actions * 1174 =
+              invocationCount actions * 1096 =
               witnessStart +
-                invocationCount (.absorb input :: actions) * 1174 := by
+                invocationCount (.absorb input :: actions) * 1096 := by
             rw [absorbedWitnessNext]
             simp only [invocationCount, Action.invocationCount,
               List.map_cons, List.sum_cons]
-            change witnessStart + blocks.length * 1174 +
-                invocationCount actions * 1174 = _
+            change witnessStart + blocks.length * 1096 +
+                invocationCount actions * 1096 = _
             dsimp [blocks]
             unfold invocationCount
             omega
           have tailEndWithin : PackageOrder.sourceToPackage
-              (absorbed.witnessNext + invocationCount actions * 1174) ≤
+              (absorbed.witnessNext + invocationCount actions * 1096) ≤
                 ceiling := by
             rw [totalSourceEq]
             exact endWithin
@@ -894,14 +894,14 @@ theorem compileActions_scheduleWithin
             rw [absorbedWitnessNext]
             omega
           have tailMap := PackageOrder.sourceToPackage_add_of_piCcsLocal
-            absorbed.witnessNext (invocationCount actions * 1174)
+            absorbed.witnessNext (invocationCount actions * 1096)
             absorbedLocal
           have absorbedEndWithin : PackageOrder.sourceToPackage
               absorbed.witnessNext ≤ ceiling := by
             rw [tailMap] at tailEndWithin
             omega
           have blockEndWithin : PackageOrder.sourceToPackage
-              (witnessStart + blocks.length * 1174) ≤ ceiling := by
+              (witnessStart + blocks.length * 1096) ≤ ceiling := by
             rw [← absorbedWitnessNext]
             exact absorbedEndWithin
           have absorbedStateAffine : Poseidon2.StateAffine absorbed.state := by
@@ -946,7 +946,7 @@ theorem compileActions_scheduleWithin
               PackageOrder.sourceToPackage absorbed.witnessNext := by
             rw [absorbedWitnessNext]
             have mapped := PackageOrder.sourceToPackage_add_of_piCcsLocal
-              witnessStart (blocks.length * 1174) witnessLocal
+              witnessStart (blocks.length * 1096) witnessLocal
             rw [mapped]
             omega
           have schedule := ScheduleWithin.append blockSchedule blockBefore'
@@ -956,7 +956,7 @@ theorem compileActions_scheduleWithin
               (absorbed.invocations ++ tail.invocations) ∧
             InvocationsBefore (PackageOrder.sourceToPackage
               (witnessStart +
-                invocationCount (.absorb input :: actions) * 1174))
+                invocationCount (.absorb input :: actions) * 1096))
               (absorbed.invocations ++ tail.invocations)
           constructor
           · exact schedule
@@ -964,19 +964,19 @@ theorem compileActions_scheduleWithin
             rw [List.mem_append] at member
             rcases member with blockMember | tailMember
             · calc
-                current.witnessStart + 1174 ≤
+                current.witnessStart + 1096 ≤
                     PackageOrder.sourceToPackage absorbed.witnessNext :=
                   blockBefore' current blockMember
                 _ ≤ PackageOrder.sourceToPackage
                     (absorbed.witnessNext +
-                      invocationCount actions * 1174) := by
+                      invocationCount actions * 1096) := by
                   rw [tailMap]
                   omega
                 _ = _ := mappedTotalEq
             · calc
-                current.witnessStart + 1174 ≤ PackageOrder.sourceToPackage
+                current.witnessStart + 1096 ≤ PackageOrder.sourceToPackage
                     (absorbed.witnessNext +
-                      invocationCount actions * 1174) :=
+                      invocationCount actions * 1096) :=
                   tailBefore current tailMember
                 _ = _ := mappedTotalEq
       | readK pair expected =>
@@ -993,7 +993,7 @@ def AgreesOutsideInvocations (before after : Env)
   ∀ index,
     (∀ invocation ∈ invocations,
       index < invocation.witnessStart ∨
-        invocation.witnessStart + 1174 ≤ index) →
+        invocation.witnessStart + 1096 ≤ index) →
       after index = before index
 
 theorem completeInvocations
@@ -1023,18 +1023,18 @@ theorem completeInvocations
       let headEnv :=
         NightstreamFPrime.Export.Pilot.completePermutationInvocationEnv
           head env
-      rcases inductionHypothesis headEnv (head.witnessStart + 1174)
+      rcases inductionHypothesis headEnv (head.witnessStart + 1096)
         restSchedule with
           ⟨completed, restAgrees, restExact, restHolds⟩
-      have restSpan : head.witnessStart + 1174 +
-          (ceiling - (head.witnessStart + 1174)) = ceiling := by
+      have restSpan : head.witnessStart + 1096 +
+          (ceiling - (head.witnessStart + 1096)) = ceiling := by
         omega
       have headHolds : PermutationInvocationHolds
           (PilotData.circuitPackage ()) head completed := by
         apply
           NightstreamFPrime.Export.Pilot.permutationInvocationHolds_of_agreesOutside
-            head headEnv completed (head.witnessStart + 1174)
-              (ceiling - (head.witnessStart + 1174))
+            head headEnv completed (head.witnessStart + 1096)
+              (ceiling - (head.witnessStart + 1096))
         · intro lane term member
           rcases inputsOutside lane term member with before | after
           · exact Or.inl (by omega)
@@ -1051,14 +1051,14 @@ theorem completeInvocations
           rcases outside with before | after
           · exact Or.inl before
           · exact Or.inr (by omega)
-        have outsideRest : index < head.witnessStart + 1174 ∨
-            head.witnessStart + 1174 +
-                (ceiling - (head.witnessStart + 1174)) ≤ index := by
+        have outsideRest : index < head.witnessStart + 1096 ∨
+            head.witnessStart + 1096 +
+                (ceiling - (head.witnessStart + 1096)) ≤ index := by
           rcases location with before | after
           · exact Or.inl (by omega)
           · exact Or.inr (by omega)
         have outsideHead : index < head.witnessStart ∨
-            head.witnessStart + 1174 ≤ index := by
+            head.witnessStart + 1096 ≤ index := by
           rcases location with before | after
           · exact Or.inl (by omega)
           · exact Or.inr (by omega)
@@ -1069,7 +1069,7 @@ theorem completeInvocations
         have outsideHead := outsideAll head (by simp)
         have outsideRest : ∀ invocation ∈ rest,
             index < invocation.witnessStart ∨
-              invocation.witnessStart + 1174 ≤ index := by
+              invocation.witnessStart + 1096 ≤ index := by
           intro invocation member
           exact outsideAll invocation (by simp [member])
         calc

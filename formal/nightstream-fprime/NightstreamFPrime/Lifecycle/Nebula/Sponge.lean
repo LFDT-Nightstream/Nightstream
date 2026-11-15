@@ -27,19 +27,19 @@ without compiling the recipes. -/
 def output (i : Interface) (offset : Nat) : EState :=
   match i.chunks offset with
   | [] => i.initial offset
-  | chunks => Permutation.freshState (offset + (chunks.length - 1) * 1174 + 1158)
+  | chunks => Permutation.freshState (offset + (chunks.length - 1) * 1096 + 1080)
 
 def opsAt (i : Interface) (offset : Nat) : List Op :=
   [Op.witness (WitnessBatch.arithmetic offset (program i offset).recipes)]
 
 def main (i : Interface) : Circuit Unit := fun offset =>
-  ((), offset + (i.chunks offset).length * 1174, opsAt i offset)
+  ((), offset + (i.chunks offset).length * 1096, opsAt i offset)
 
 /-- The final state of a nonempty absorption is its last permutation's fresh
 outputs. -/
 theorem compileAbsorptions_output (chunks : List (List Expr)) (nonempty : chunks ≠ []) :
     ∀ (start : Nat) (state : EState), (Hash.compileAbsorptions start state chunks).output =
-      Permutation.freshState (start + (chunks.length - 1) * 1174 + 1158) := by
+      Permutation.freshState (start + (chunks.length - 1) * 1096 + 1080) := by
   induction chunks with
   | nil => exact absurd rfl nonempty
   | cons b rest ih =>
@@ -84,7 +84,7 @@ theorem localLength_ops (i : Interface) (offset : Nat) :
   simp [opsAt, localLength, Op.localLength]
 
 theorem localLength_eq (i : Interface) (offset : Nat) :
-    localLength (Circuit.ops (main i) offset) = (i.chunks offset).length * 1174 := by
+    localLength (Circuit.ops (main i) offset) = (i.chunks offset).length * 1096 := by
   rw [localLength_ops, program, Hash.compileAbsorptions_recipes_length]
 
 theorem flatConstraints_eq (i : Interface) (offset : Nat) :
@@ -93,7 +93,7 @@ theorem flatConstraints_eq (i : Interface) (offset : Nat) :
   simp [flatConstraints, opsAt, Op.flatConstraints]
 
 theorem rowCount_eq (i : Interface) (offset : Nat) :
-    (flatConstraints (Circuit.ops (main i) offset)).length = (i.chunks offset).length * 1174 := by
+    (flatConstraints (Circuit.ops (main i) offset)).length = (i.chunks offset).length * 1096 := by
   rw [flatConstraints_eq, recipeConstraints_length, program, Hash.compileAbsorptions_recipes_length]
 
 theorem soundness (i : Interface) (env : Env) (offset : Nat)

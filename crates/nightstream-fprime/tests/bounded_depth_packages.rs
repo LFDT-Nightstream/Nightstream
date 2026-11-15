@@ -118,7 +118,7 @@ fn block_rows_compute_the_native_permutation() {
     let packages = packages();
     let light = packages.light();
     let rows = light.plan_rows().expect("plan rows");
-    let width = light.sbox_start() + 171 * light.block_count();
+    let width = light.sbox_start() + 150 * light.block_count();
     let mut state = 0x9e37_79b9_7f4a_7c15u64;
     let mut assignment: Vec<Fq> = (0..width)
         .map(|_| {
@@ -138,7 +138,7 @@ fn block_rows_compute_the_native_permutation() {
             panic!("an S-box row's C port is one S-box column");
         };
         assert_eq!(coefficient, Fq::ONE);
-        assignment[column] = rows.evaluate(row, 3, &assignment).exp_u64(3);
+        assignment[column] = rows.evaluate(row, 3, &assignment).exp_u64(7);
     }
     for row in rows.sbox_rows() {
         assert_eq!(rows.residual(row, &assignment).as_canonical_u64(), 0, "row {row}");

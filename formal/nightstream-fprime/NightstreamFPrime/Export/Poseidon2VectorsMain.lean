@@ -1,8 +1,8 @@
 import NightstreamFPrime.Export.ParityEmitter
 import NightstreamFPrime.Spec.Poseidon2
 
-/-! Cross-check vectors of the Poseidon2 instance that Nightstream and ProtogaLattice share
-(`decisions/poseidon2-p64-instance.md`). The value is
+/-! Cross-check vectors of the Nightstream Poseidon2 instance, for a project that has the same
+rule and generator (`decisions/poseidon2-p64-instance.md`). The value is
 `[q, [width, rate, digestLen, fullRounds, partialRounds], permutations, hashes]`. `permutations`
 holds `[input, Spec.Poseidon2.permute input]` for the words `0, 1, …, 15` and three chained calls
 from it, the zero state and the state of `q − 1` words. `hashes` holds

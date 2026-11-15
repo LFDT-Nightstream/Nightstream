@@ -91,7 +91,7 @@ theorem words_fresh (offset : Nat) :
 theorem counts (interface : Logical.Interface) (coordinate offset : Nat)
     (inputs : ∀ current, StateAffine (interface.initialState current)) :
     R1CS.totalFreshCount (flatConstraints (Lifecycle.PiRLC.v1_2.Sampler.opsAt interface coordinate offset)) = 0 ∧
-      R1CS.totalRowCount (flatConstraints (Lifecycle.PiRLC.v1_2.Sampler.opsAt interface coordinate offset)) = 3257 := by
+      R1CS.totalRowCount (flatConstraints (Lifecycle.PiRLC.v1_2.Sampler.opsAt interface coordinate offset)) = 3101 := by
   have fresh : R1CS.totalFreshCount (flatConstraints (Lifecycle.PiRLC.v1_2.Sampler.opsAt interface coordinate offset)) = 0 := by
     simp only [Lifecycle.PiRLC.v1_2.Sampler.opsAt, flatConstraints, List.flatMap_cons, List.flatMap_nil, List.append_nil,
       R1CS.totalFreshCount_append, entry_fresh interface coordinate offset inputs,
@@ -112,14 +112,14 @@ theorem totalFreshCount_eq (interface : Logical.Interface) (coordinate offset : 
 
 theorem totalRowCount_eq (interface : Logical.Interface) (coordinate offset : Nat)
     (inputs : ∀ current, InputsAffine interface current) :
-    R1CS.totalRowCount (logicalConstraints interface coordinate offset) = 3257 :=
+    R1CS.totalRowCount (logicalConstraints interface coordinate offset) = 3101 :=
   (counts interface coordinate offset (fun current => (inputs current).initialState)).2
 
 def footprint (interface : Logical.Interface) (coordinate : Nat)
     (inputs : ∀ current, InputsAffine interface current) :
     R1CS.CircuitFootprint (Logical.circuit interface coordinate) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 3257
+  physicalRowCount := fun _ => 3101
   freshColumnCount_eq := fun offset => totalFreshCount_eq interface coordinate offset inputs
   physicalRowCount_eq := fun offset => totalRowCount_eq interface coordinate offset inputs
 

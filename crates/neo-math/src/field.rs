@@ -216,14 +216,14 @@ impl PrimeCharacteristicRing for Fq {
     }
 }
 
-/// `gcd(3, q − 1) = 1`, so `x ↦ x^3` is a permutation (Lean
-/// `Spec.Poseidon2.coprime_three`, `Spec.Poseidon2.sbox_bijective`).
-impl InjectiveMonomial<3> for Fq {}
+/// `gcd(7, q − 1) = 1`, so `x ↦ x^7` is a permutation (Lean
+/// `Spec.Poseidon2.coprime_seven`, `Spec.Poseidon2.sbox_bijective`).
+impl InjectiveMonomial<7> for Fq {}
 
-impl PermutationMonomial<3> for Fq {
+impl PermutationMonomial<7> for Fq {
     fn injective_exp_root_n(&self) -> Self {
-        // 3 · 12297829382473034371 ≡ 1 (mod q − 1).
-        self.exp_u64(12_297_829_382_473_034_371)
+        // 7 · 10540996613548315175 ≡ 1 (mod q − 1).
+        self.exp_u64(10_540_996_613_548_315_175)
     }
 }
 

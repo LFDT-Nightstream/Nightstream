@@ -28,7 +28,7 @@ theorem physical_complete (interface : Logical.Interface) (offset : Nat)
     (env : Env) (inputs : InputsAffine interface offset)
     (assumptions : Logical.Assumptions interface offset) :
     ∃ completed,
-      AgreesOutside env completed offset 75435 ∧
+      AgreesOutside env completed offset 73095 ∧
       PhysicalHolds interface offset completed := by
   rcases Logical.complete interface env offset assumptions with
     ⟨logicalEnv, logicalAgrees, logicalRows⟩
@@ -58,7 +58,7 @@ theorem physical_complete (interface : Logical.Interface) (offset : Nat)
     exact agrees
   refine ⟨completed, ?_, ?_⟩
   · have combined := logicalAgreesFixed.append physicalAgreesFixed
-    have logicalCount : Logical.logicalPrivateCount = 75435 :=
+    have logicalCount : Logical.logicalPrivateCount = 73095 :=
       NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.counts.1
     rw [logicalCount] at combined
     simpa using combined

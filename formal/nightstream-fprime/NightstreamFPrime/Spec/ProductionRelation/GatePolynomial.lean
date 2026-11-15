@@ -64,11 +64,11 @@ def Term.toMonomial (term : Term) : Monomial F matrixCount :=
   rfl
 
 def sboxTermData : Term :=
-  ⟨1, powers (sboxInput := 3)⟩
+  ⟨1, powers (sboxInput := 7)⟩
 
 def sboxTerm : Monomial F matrixCount := sboxTermData.toMonomial
 
-@[simp] theorem sboxTerm_totalDegree : sboxTerm.totalDegree = 3 := by
+@[simp] theorem sboxTerm_totalDegree : sboxTerm.totalDegree = 7 := by
   simp [sboxTerm, sboxTermData, Term.toMonomial, powers, PortExponents.totalDegree]
 
 def termData : List Term :=
@@ -88,10 +88,10 @@ theorem termData_toMonomial : termData.map Term.toMonomial = terms := by
 theorem termData_length : termData.length = 3 := by
   rfl
 
-theorem term_totalDegree_le_three
+theorem term_totalDegree_le_seven
     (candidate : Monomial F matrixCount)
     (member : candidate ∈ terms) :
-    candidate.totalDegree ≤ 3 := by
+    candidate.totalDegree ≤ 7 := by
   have degreeMember :
       candidate.totalDegree ∈ terms.map Monomial.totalDegree :=
     List.mem_map_of_mem member
@@ -111,23 +111,23 @@ theorem term_totalDegree_pos
   omega
 
 def polynomial : ConstraintPolynomial F matrixCount where
-  degreeBound := 4
+  degreeBound := 8
   terms := terms
   termsBelowDegree := by
     intro candidate member
-    exact Nat.lt_succ_of_le (term_totalDegree_le_three candidate member)
+    exact Nat.lt_succ_of_le (term_totalDegree_le_seven candidate member)
 
 @[simp] theorem polynomial_terms : polynomial.terms = terms := by
   rfl
 
-@[simp] theorem polynomial_degreeBound : polynomial.degreeBound = 4 := by
+@[simp] theorem polynomial_degreeBound : polynomial.degreeBound = 8 := by
   rfl
 
 theorem sboxTerm_mem : sboxTerm ∈ polynomial.terms := by
   simp [polynomial, terms, termData, Term.toMonomial, sboxTerm, sboxTermData]
 
 theorem polynomial_canonicalEqualityGatedDegreeBound :
-    polynomial.canonicalEqualityGatedDegreeBound = 4 := by
+    polynomial.canonicalEqualityGatedDegreeBound = 8 := by
   apply Nat.le_antisymm
   · simpa [polynomial] using
       ConstraintPolynomial.canonicalEqualityGatedDegreeBound_le_degreeBound

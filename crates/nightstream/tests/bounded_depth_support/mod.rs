@@ -168,7 +168,7 @@ impl StepZero {
             ],
             fresh_commitment: vec![F::ZERO; COMMITMENT_WORDS],
             fresh_public_input: self.fresh_public_input.clone(),
-            rounds: vec![[[F::ZERO; 2]; 5]; 28],
+            rounds: vec![[[F::ZERO; 2]; 9]; 28],
             fold,
         }
     }
@@ -200,7 +200,7 @@ pub fn assert_every_row_holds(package: &StepPackage, step: &StepWords) -> Vec<F>
             .expect("logical row")
     };
     let failing: Vec<usize> = (0..rows.row_count())
-        .filter(|&row| port(row, 0) * port(row, 1) - port(row, 2) + port(row, 3).exp_u64(3) != F::ZERO)
+        .filter(|&row| port(row, 0) * port(row, 1) - port(row, 2) + port(row, 3).exp_u64(7) != F::ZERO)
         .collect();
     assert!(
         failing.is_empty(),

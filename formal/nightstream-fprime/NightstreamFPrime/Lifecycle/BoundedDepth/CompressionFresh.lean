@@ -7,7 +7,7 @@ import NightstreamFPrime.Spec.Compression.Fresh
 source, no running source (`oneShape`), with the ring source of the relation. An accepted run
 whose output claims hold, on a path that avoids the bad sets of `Spec.Compression.Fresh.game`,
 gives the fresh instance under `Spec.CCS.Holds` as `Lifecycle.Relation.freshStatement`
-(`game_avoids`). Each bad set has density at most `34 / q²` (`game_densityLe`, `ccsError_eq`).
+(`game_avoids`). Each bad set has density at most `38 / q²` (`game_densityLe`, `ccsError_eq`).
 When `Relation` of the argument holds for the fresh claim with the values of the run's output,
 the output claims hold (`fresh_ambient`). -/
 
@@ -56,7 +56,7 @@ def witnessOf (z : PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publi
 theorem degree_le (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (c : PaperAlgebra.Commitment)
     (x : PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    ((statement relation c x).verifierInput K.embed).sumcheckDegreeBound ≤ 4 :=
+    ((statement relation c x).verifierInput K.embed).sumcheckDegreeBound ≤ 8 :=
   (ProductionKey.derivedDegreeBound_eq relation).le
 
 /-- The input claim of the run is the fresh instance under `Spec.CCS.Holds`. -/
@@ -78,31 +78,31 @@ theorem game_avoids (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (z : PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (Compression.Fresh.game (statement relation (fresh.commitments ⟨0, by decide⟩)
-        (fresh.publicInputs ⟨0, by decide⟩)) (witnessOf z) 4).Avoids fun out =>
+        (fresh.publicInputs ⟨0, by decide⟩)) (witnessOf z) 8).Avoids fun out =>
       ∀ probe, out = some probe →
         AmbientOutputHolds extensionOps K.embed (openingMaps ajtai) productionGlobalParams
           (statement relation (fresh.commitments ⟨0, by decide⟩)
             (fresh.publicInputs ⟨0, by decide⟩)) probe (witnessOf z) →
           CCS.Holds (semantics ajtai) productionGlobalParams (freshStatement relation fresh) z :=
-  (Compression.Fresh.game_avoids _ _ 4 rfl RingCoefficientKernel.ringConstantTermLaw
+  (Compression.Fresh.game_avoids _ _ 8 rfl RingCoefficientKernel.ringConstantTermLaw
     (degree_le relation _ _)).mono fun _ holds probe equal ambient =>
       ccs_of_source ajtai relation fresh z (holds probe equal ambient)
 
-theorem ccsError_eq : Compression.Fresh.ccsError oneShape 4 = 34 / (fieldModulus : ℝ) ^ 2 := by
-  have count : oneShape.cubeVariables + oneShape.jointCoefficientCount + 4 = 34 := rfl
+theorem ccsError_eq : Compression.Fresh.ccsError oneShape 8 = 38 / (fieldModulus : ℝ) ^ 2 := by
+  have count : oneShape.cubeVariables + oneShape.jointCoefficientCount + 8 = 38 := rfl
   unfold Compression.Fresh.ccsError
   rw [count, card_K]
   push_cast
   rfl
 
-/-- Each bad set of the run has density at most `34 / q²`. -/
+/-- Each bad set of the run has density at most `38 / q²`. -/
 theorem game_densityLe (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (c : PaperAlgebra.Commitment)
     (x : PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
     (z : PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    (Compression.Fresh.game (statement relation c x) (witnessOf z) 4).DensityLe
-      (34 / (fieldModulus : ℝ) ^ 2) :=
-  ccsError_eq ▸ Compression.Fresh.game_densityLe _ _ 4 (degree_le relation c x)
+    (Compression.Fresh.game (statement relation c x) (witnessOf z) 8).DensityLe
+      (38 / (fieldModulus : ℝ) ^ 2) :=
+  ccsError_eq ▸ Compression.Fresh.game_densityLe _ _ 8 (degree_le relation c x)
 
 theorem centeredMagnitude_lt_ambient (value : F) :
     centeredMagnitude value < productionGlobalParams.ambientBound := by

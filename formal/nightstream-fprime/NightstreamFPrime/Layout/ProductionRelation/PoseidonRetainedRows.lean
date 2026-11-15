@@ -11,7 +11,7 @@ def rows {logicalWidth : Nat} (interface : PoseidonSboxPlan.Interface logicalWid
 
 @[simp] theorem rows_length {logicalWidth : Nat}
     (interface : PoseidonSboxPlan.Interface logicalWidth) :
-    (rows interface).length = 171 := by
+    (rows interface).length = 150 := by
   simp [rows]
 
 theorem rowsZero_iff {logicalWidth : Nat}

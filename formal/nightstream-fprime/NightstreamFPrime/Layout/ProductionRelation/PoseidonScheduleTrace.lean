@@ -9,7 +9,7 @@ abbrev Step := Permutation.Step
 abbrev EState := Permutation.EState
 
 def inputCount : Nat := 16
-def localColumnCount : Nat := 1174
+def localColumnCount : Nat := 1096
 def sourceColumnCount : Nat := inputCount + localColumnCount
 
 def canonicalState : EState := fun lane => Expr.var lane.val
@@ -34,10 +34,10 @@ def finalStart : Nat → List Step → Nat
   | start, step :: rest =>
       finalStart (start + Permutation.stepSize step) rest
 
-@[simp] theorem sourceColumnCount_eq : sourceColumnCount = 1190 := by
+@[simp] theorem sourceColumnCount_eq : sourceColumnCount = 1112 := by
   rfl
 
-@[simp] theorem records_length : records.length = 52 := by
+@[simp] theorem records_length : records.length = 31 := by
   rfl
 
 @[simp] theorem finalStart_eq :
@@ -46,10 +46,10 @@ def finalStart : Nat → List Step → Nat
 
 @[simp] theorem directRowCount_eq :
     (records.map fun record =>
-      PoseidonStepTrace.directRowCount record.step).sum = 1003 := by
+      PoseidonStepTrace.directRowCount record.step).sum = 646 := by
   rfl
 
-@[simp] theorem removedRowCount_eq : localColumnCount - 1003 = 171 := by
+@[simp] theorem removedRowCount_eq : localColumnCount - 646 = 450 := by
   rfl
 
 theorem recordsFrom_imply_runF (env : Env) (start : Nat) (state : EState)

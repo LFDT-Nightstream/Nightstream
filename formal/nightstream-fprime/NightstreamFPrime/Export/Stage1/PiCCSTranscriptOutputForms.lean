@@ -20,7 +20,7 @@ abbrev TranscriptIndex := Fin PiCCSOrdinarySourceSupport.transcriptInvocationCou
 
 def invocation (index : TranscriptIndex) : Fin PiCCSPoseidonPlan.invocationCount :=
   ⟨index.val, by
-    have bound : index.val < 156 := by
+    have bound : index.val < 184 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
         using index.isLt
     rw [PiCCSPoseidonPlan.invocationCount_eq]
@@ -42,7 +42,7 @@ theorem transcriptForm_eq_outputState
 
 def pointInvocation (coordinate : Fin Lifecycle.productionShape.cubeVariables) :
     TranscriptIndex :=
-  ⟨128 + coordinate.val, by
+  ⟨129 + coordinate.val * 2, by
     have coordinateBound := coordinate.isLt
     change coordinate.val < 28 at coordinateBound
     rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
@@ -69,10 +69,10 @@ theorem pointForm_eq_outputState
         (invocation (pointInvocation coordinate)) (pointLane component) := by
   rfl
 
-def transcriptSourceStart : Nat := PiCCSStarts.statementWitnessStart + 1158
+def transcriptSourceStart : Nat := PiCCSStarts.statementWitnessStart + 1080
 
 def transcriptSource (index : TranscriptIndex) (lane : Fin Poseidon2.width) : Nat :=
-  transcriptSourceStart + index.val * 1174 + lane.val
+  transcriptSourceStart + index.val * 1096 + lane.val
 
 def pointSourceStart : Nat :=
   PiCCSStarts.roundTranscriptWitnessStart +
@@ -118,7 +118,7 @@ def transcriptGrid (program : ApplicationProgram) : SourceGrid :=
     (PiCCSPoseidonPlan.retainedBlock program)
     (PiCCSPoseidonPlan.retainedStart program)
     (PackageOrder.sourceToPackage transcriptSourceStart)
-    PiCCSOrdinarySourceSupport.transcriptInvocationCount 1174 1 16 16 155 171 0
+    PiCCSOrdinarySourceSupport.transcriptInvocationCount 1096 1 16 16 134 150 0
 
 def pointGrid (program : ApplicationProgram) : SourceGrid :=
   SourceGrid.externalOfSemantic
@@ -126,7 +126,7 @@ def pointGrid (program : ApplicationProgram) : SourceGrid :=
     (PiCCSPoseidonPlan.retainedStart program)
     (PackageOrder.sourceToPackage pointSourceStart)
     Lifecycle.productionShape.cubeVariables RunningTransitionInputs.roundStride
-    1 2 2 22043 171 0
+    1 2 2 19484 300 0
 
 theorem transcriptGrid_form?
     {program : ApplicationProgram} {logicalWidth : Nat}
@@ -135,7 +135,7 @@ theorem transcriptGrid_form?
     (transcriptGrid program).form? logicalWidth
         (PackageOrder.sourceToPackage (transcriptSource index lane)) =
       some (transcriptForm geometry index lane) := by
-  have indexBound : index.val < 156 := by
+  have indexBound : index.val < 184 := by
     simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
       using index.isLt
   have laneBound := lane.isLt
@@ -143,7 +143,7 @@ theorem transcriptGrid_form?
   have sourceEq :
       PackageOrder.sourceToPackage (transcriptSource index lane) =
         PackageOrder.sourceToPackage transcriptSourceStart +
-          index.val * 1174 + lane.val := by
+          index.val * 1096 + lane.val := by
     unfold transcriptSource
     rw [Nat.add_assoc, PackageOrder.sourceToPackage_add_of_piCcsLocal]
     · omega
@@ -155,7 +155,7 @@ theorem transcriptGrid_form?
     (PiCCSPoseidonPlan.retainedBlock program)
     (PiCCSPoseidonPlan.retainedStart program)
     (PackageOrder.sourceToPackage transcriptSourceStart)
-    PiCCSOrdinarySourceSupport.transcriptInvocationCount 1174 1 16 16 155 171 0
+    PiCCSOrdinarySourceSupport.transcriptInvocationCount 1096 1 16 16 134 150 0
     (PiCCSPoseidonPlan.retainedFits geometry) (by omega) (by omega)
     index minor lane (by omega) laneBound laneBound (by
       intro selected
@@ -167,7 +167,7 @@ theorem transcriptGrid_form?
         (PiCCSPoseidonPlan.retainedBlock program).form
           (PiCCSPoseidonPlan.retainedStart program)
           (PiCCSPoseidonPlan.retainedFits geometry)
-          ⟨155 + index.val * 171 + minor.val * 0 + selected.val, by
+          ⟨134 + index.val * 150 + minor.val * 0 + selected.val, by
             have selectedBound := selected.isLt
             rw [PiCCSPoseidonPlan.retainedBlock_slotCount]
             omega⟩) lane = transcriptForm geometry index lane := by
@@ -223,7 +223,7 @@ theorem pointGrid_form?
     (PiCCSPoseidonPlan.retainedStart program)
     (PackageOrder.sourceToPackage pointSourceStart)
     Lifecycle.productionShape.cubeVariables RunningTransitionInputs.roundStride
-    1 2 2 22043 171 0
+    1 2 2 19484 300 0
     (PiCCSPoseidonPlan.retainedFits geometry)
     (by norm_num [RunningTransitionInputs.roundStride]) (by omega)
     coordinate minor offset
@@ -238,7 +238,7 @@ theorem pointGrid_form?
         (PiCCSPoseidonPlan.retainedBlock program).form
           (PiCCSPoseidonPlan.retainedStart program)
           (PiCCSPoseidonPlan.retainedFits geometry)
-          ⟨22043 + coordinate.val * 171 + minor.val * 0 + selected.val, by
+          ⟨19484 + coordinate.val * 300 + minor.val * 0 + selected.val, by
             have selectedBound := selected.isLt
             rw [PiCCSPoseidonPlan.retainedBlock_slotCount]
             omega⟩) ⟨offset.val, by simp only [offset]; omega⟩ =
@@ -269,11 +269,11 @@ theorem transcriptSource_column (index : TranscriptIndex) (lane : Fin 16) :
     PermutationOutput.Readout.outputColumn PiCCSTranscriptReadout.transcriptStart
         index lane = PackageOrder.sourceToPackage (transcriptSource index lane) := by
   have sourceEq : transcriptSource index lane =
-      PiCCSStarts.statementWitnessStart + (index.val * 1174 + 1158 + lane.val) := by
+      PiCCSStarts.statementWitnessStart + (index.val * 1096 + 1080 + lane.val) := by
     unfold transcriptSource transcriptSourceStart
     omega
   rw [sourceEq, PackageOrder.sourceToPackage_add_of_piCcsLocal
-    PiCCSStarts.statementWitnessStart (index.val * 1174 + 1158 + lane.val) (by
+    PiCCSStarts.statementWitnessStart (index.val * 1096 + 1080 + lane.val) (by
       norm_num [PiCCSStarts.statementWitnessStart_eq, PackageOrder.piCcsPhaseOffset])]
   unfold PermutationOutput.Readout.outputColumn
     PermutationOutput.Readout.witnessStart PiCCSTranscriptReadout.transcriptStart

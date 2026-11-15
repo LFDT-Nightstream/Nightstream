@@ -95,7 +95,7 @@ the Rust code is held to the Lean definition (trust item 5).
 
 | Use | Lean definition | Injectivity | Rust parity |
 | --- | --- | --- | --- |
-| Hash padding | `Spec.Poseidon2.blocks` (`10*`) | `Spec.Poseidon2.blocks_injective`; `Spec.Sponge.padding` meets the conditions of `[SPONGE]` | Direct: Lean hash vectors (`artifacts/nightstream-fprime-poseidon2-hash-v1.json`, `crates/neo-ccs/tests/poseidon2_lean_vectors.rs`) |
+| Hash padding | `Spec.Poseidon2.blocks` (`10*`) | `Spec.Poseidon2.blocks_injective`; `Spec.Sponge.padding` meets the conditions of `[SPONGE]` | Direct: Lean hash vectors (`artifacts/nightstream-fprime-poseidon2-vectors-v1.json`, `crates/neo-ccs/tests/poseidon2_lean_vectors.rs`) |
 | State hash | `Lifecycle.BoundedDepth.statePreimage` | `Lifecycle.BoundedDepth.statePreimage_injective`, `Lifecycle.BoundedDepth.stateHash_collision` (well-formed states) | Indirect: the rows of the emitted packages (`crates/nightstream/tests/bounded_depth_base_steps.rs`) |
 | Slot digest | `Lifecycle.BoundedDepth.serializeSlot` | `Lifecycle.BoundedDepth.serializeSlot_injective` (shapes fixed by the type, depth below `q`) | Indirect, as above |
 | Fresh public input | `Lifecycle.encHash` | `Lifecycle.encHash_injective_fixed` | Indirect, as above |
@@ -309,7 +309,7 @@ not change terminal source checks.
   history recovers is at most `B + cap · T · (b − 1)`
   (`Spec.Folding.Schedule.recoveredBounds_le`). Trust item 2 gives the
   assumption `[MSIS]` at that norm.
-- **Error terms:** the light Π_CCS test numerator is 462, against 4,635 for
+- **Error terms:** the light Π_CCS test numerator is 574, against 4,747 for
   the refresh Π_CCS, and a light fork has one `ρ` coordinate, against 15 for
   a refresh fork (`Spec.Folding.Light.ErrorBudget.production_testNumerator`,
   `Spec.Folding.Light.ErrorBudget.production_forkCoordinates`,
@@ -324,7 +324,7 @@ not change terminal source checks.
   test step charges each challenge's bad set at the challenge's own point, so
   it costs at most `(Q + 1)` times the Π_CCS test error
   (`Lifecycle.RandomOracle.Test.family_error_le`). The statistical term is at
-  most `(Q + 1) · 463/2^128` for light and `(Q + 1) · 4636/2^128` for refresh
+  most `(Q + 1) · 575/2^128` for light and `(Q + 1) · 4748/2^128` for refresh
   (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.statisticalError_le`,
   `Lifecycle.BoundedDepth.RandomOracle.RefreshKnowledge.statisticalError_le`).
   The fold gate of Rust `Params::for_ccs_shape` charges one error for both

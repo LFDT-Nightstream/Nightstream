@@ -56,7 +56,7 @@ def residual {logicalWidth : Nat} (forms : Forms logicalWidth)
 theorem residual_eq {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth) :
     forms.residual assignment =
-      Spec.ProductionRelation.RowSemantics.cube
+      Spec.ProductionRelation.RowSemantics.seventhPower
           (forms.input.eval assignment) -
         forms.output.eval assignment := by
   unfold residual
@@ -72,7 +72,7 @@ theorem residual_zero_iff {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth) (input output : F)
     (preserves : forms.Preserves assignment input output) :
     forms.residual assignment = 0 ↔
-      Spec.ProductionRelation.RowSemantics.cube input = output := by
+      Spec.ProductionRelation.RowSemantics.seventhPower input = output := by
   rcases preserves with ⟨inputEqual, outputEqual⟩
   rw [residual_eq, inputEqual, outputEqual]
   exact Lean.Grind.AddCommGroup.sub_eq_zero_iff

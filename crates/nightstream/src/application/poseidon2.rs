@@ -68,7 +68,9 @@ fn scalar(value: u64) -> Affine {
 
 fn sbox(builder: &mut ApplicationBuilder, value: Affine) -> Result<Affine, ApplicationError> {
     let square = builder.multiply(value.clone(), value.clone())?;
-    Ok(builder.multiply(square.into(), value)?.into())
+    let fourth = builder.multiply(square.into(), square.into())?;
+    let sixth = builder.multiply(fourth.into(), square.into())?;
+    Ok(builder.multiply(sixth.into(), value)?.into())
 }
 
 fn mat4(state: &[Affine; WIDTH], base: usize, lane: usize) -> Affine {
@@ -119,7 +121,7 @@ fn full_round(
     Ok(())
 }
 
-/// One Poseidon2 permutation of `state`: 1174 generated variables in the
+/// One Poseidon2 permutation of `state`: 1096 generated variables in the
 /// order of `Gadgets/Poseidon2/Permutation.lean`. The step packages place it
 /// as one block (`NativeShape::blocks`).
 pub(crate) fn permutation(

@@ -210,8 +210,8 @@ theorem compactConstraintTemplate_rowWithin (inputCount outputInput : Nat)
       (Expr.var outputInput - outputRecipe) inputCount scope sourceRow
       sourceMember)
 
-private theorem pilotColumnRef_refWithin (column : Nat) (bound : column < 1190) :
-    RefWithin 16 1174 (PilotData.columnRef column) := by
+private theorem pilotColumnRef_refWithin (column : Nat) (bound : column < 1112) :
+    RefWithin 16 1096 (PilotData.columnRef column) := by
   by_cases input : column < 16
   · simp [RefWithin, PilotData.columnRef, input]
   · simp [RefWithin, PilotData.columnRef, input]
@@ -219,8 +219,8 @@ private theorem pilotColumnRef_refWithin (column : Nat) (bound : column < 1190) 
 
 private theorem pilotTemplateCombination_within
     (combination : Layout.R1CS.LinearCombination)
-    (scope : combination.VarsBelow 1190) :
-    CombinationWithin 16 1174 (PilotData.templateCombination combination) := by
+    (scope : combination.VarsBelow 1112) :
+    CombinationWithin 16 1096 (PilotData.templateCombination combination) := by
   intro term member
   unfold PilotData.templateCombination at member
   simp only [List.mem_map] at member
@@ -228,8 +228,8 @@ private theorem pilotTemplateCombination_within
   exact pilotColumnRef_refWithin sourceTerm.1 (scope sourceTerm sourceMember)
 
 private theorem pilotTemplateRow_within (output : Nat)
-    (row : Layout.R1CS.Row) (scope : row.VarsBelow 1190) :
-    TemplateRowWithin 16 1174
+    (row : Layout.R1CS.Row) (scope : row.VarsBelow 1112) :
+    TemplateRowWithin 16 1096
       { outputLocal := output
         a := PilotData.templateCombination row.a
         b := PilotData.templateCombination row.b
@@ -240,9 +240,9 @@ private theorem pilotTemplateRow_within (output : Nat)
 
 private theorem pilotTemplateRowsFrom_within (output : Nat)
     (rows : List Layout.R1CS.Row)
-    (scope : ∀ row ∈ rows, row.VarsBelow 1190) :
+    (scope : ∀ row ∈ rows, row.VarsBelow 1112) :
     ∀ row ∈ PilotData.templateRowsFrom output rows,
-      TemplateRowWithin 16 1174 row := by
+      TemplateRowWithin 16 1096 row := by
   induction rows generalizing output with
   | nil => simp [PilotData.templateRowsFrom]
   | cons head rest inductionHypothesis =>
@@ -256,7 +256,7 @@ private theorem pilotTemplateRowsFrom_within (output : Nat)
 
 private theorem canonicalConstraints_scope :
     ∀ expression ∈ PilotData.canonicalConstraints (),
-      expression.VarsBelow 1190 := by
+      expression.VarsBelow 1112 := by
   intro expression member
   have scope := recipeConstraints_varsBelow_of_causal 16
     (PilotData.canonicalRecipes ())
@@ -264,18 +264,18 @@ private theorem canonicalConstraints_scope :
       16 PilotData.canonicalState (by
         intro lane
         exact lane.isLt)) expression member
-  have recipeLength : (PilotData.canonicalRecipes ()).length = 1174 := by
+  have recipeLength : (PilotData.canonicalRecipes ()).length = 1096 := by
     exact NightstreamFPrime.Gadgets.Poseidon2.Permutation.compile_schedule_recipe_count
       16 PilotData.canonicalState
   rw [recipeLength] at scope
   norm_num at scope
   exact scope
 
-set_option maxRecDepth 100000 in -- fixed-size: 1174 canonical permutation rows
+set_option maxRecDepth 100000 in -- fixed-size: 1096 canonical permutation rows
 private theorem canonicalRows_scope :
-    ∀ row ∈ PilotData.canonicalRows (), row.VarsBelow 1190 := by
+    ∀ row ∈ PilotData.canonicalRows (), row.VarsBelow 1112 := by
   have scope := Layout.R1CS.lowerConstraints_rows_varsBelow
-    (PilotData.canonicalConstraints ()) 1190 canonicalConstraints_scope
+    (PilotData.canonicalConstraints ()) 1112 canonicalConstraints_scope
   have noFresh : Layout.R1CS.totalFreshCount
       (PilotData.canonicalConstraints ()) = 0 := by
     decide +kernel
@@ -283,7 +283,7 @@ private theorem canonicalRows_scope :
 
 theorem canonicalPermutationTemplate_rowWithin (row : TemplateRow)
     (member : row ∈ basePackage.permutation.rows) :
-    TemplateRowWithin 16 1174 row := by
+    TemplateRowWithin 16 1096 row := by
   change row ∈ PilotData.templateRows () at member
   exact pilotTemplateRowsFrom_within 0 (PilotData.canonicalRows ())
     canonicalRows_scope row member
@@ -320,9 +320,9 @@ theorem shiftedInvocationInputCombination
 theorem shiftedInvocationColumn
     (program : Lifecycle.Stage1.Application.Program)
     (invocation : PermutationInvocation)
-    (witnessBound : invocation.witnessStart + 1174 ≤
+    (witnessBound : invocation.witnessStart + 1096 ≤
       basePackage.layout.constantColumn)
-    (reference : ColumnRef) (within : RefWithin 16 1174 reference) :
+    (reference : ColumnRef) (within : RefWithin 16 1096 reference) :
     instantiateInvocationColumn
         (shiftPermutationInvocation program invocation) reference =
       mapCombinationColumns (shiftColumn program)
@@ -344,7 +344,7 @@ theorem shiftedInvocationColumn
 private theorem scheduleWithin_member_witnessBound
     {bound ceiling : Nat} {invocations : List PermutationInvocation}
     (schedule : Invocations.ScheduleWithin bound ceiling invocations) :
-    ∀ invocation ∈ invocations, invocation.witnessStart + 1174 ≤ ceiling := by
+    ∀ invocation ∈ invocations, invocation.witnessStart + 1096 ≤ ceiling := by
   induction invocations generalizing bound with
   | nil => simp
   | cons head rest inductionHypothesis =>
@@ -359,7 +359,7 @@ private theorem piCcsInvocation_witnessBound
     (invocation : PermutationInvocation)
     (member : invocation ∈
       PiCCSInvocations.invocations Data.logicalWidth Data.publicFits) :
-    invocation.witnessStart + 1174 ≤ basePackage.layout.constantColumn := by
+    invocation.witnessStart + 1096 ≤ basePackage.layout.constantColumn := by
   let layoutWitness : ProductionKey.LogicalRelation
       Data.logicalWidth Data.publicFits :=
     { matrices := fun _ _ _ => 0
@@ -404,13 +404,13 @@ private theorem samplerInvocation_witnessBound
     (invocation : PermutationInvocation)
     (member : invocation ∈ PiRLCSamplerInvocations.invocations
       (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)) :
-    invocation.witnessStart + 1174 ≤ basePackage.layout.constantColumn := by
+    invocation.witnessStart + 1096 ≤ basePackage.layout.constantColumn := by
   have bounded (start : Nat) (after : PackageOrder.piCcsPhaseOffset ≤ start)
-      (before : start + 1174 < PackageOrder.SourceColumnCount) :
-      PackageOrder.sourceToPackage start + 1174 ≤ basePackage.layout.constantColumn := by
-    have mapped := PackageOrder.sourceToPackage_lt_of_piCcsLocal (start + 1174)
+      (before : start + 1096 < PackageOrder.SourceColumnCount) :
+      PackageOrder.sourceToPackage start + 1096 ≤ basePackage.layout.constantColumn := by
+    have mapped := PackageOrder.sourceToPackage_lt_of_piCcsLocal (start + 1096)
       PackageOrder.SourceColumnCount (by omega) before
-    rw [PackageOrder.sourceToPackage_add_of_piCcsLocal start 1174 after,
+    rw [PackageOrder.sourceToPackage_add_of_piCcsLocal start 1096 after,
       PackageOrder.sourceToPackage_sourceColumnCount] at mapped
     exact mapped.le
   obtain ⟨source, sourceMember, sourceInvocationMember⟩ := List.mem_flatMap.mp member
@@ -451,7 +451,7 @@ private theorem samplerInvocation_witnessBound
 theorem canonicalPermutationInvocation_witnessBound
     (invocation : PermutationInvocation)
     (member : invocation ∈ basePackage.permutationInvocations) :
-    invocation.witnessStart + 1174 ≤ basePackage.layout.constantColumn := by
+    invocation.witnessStart + 1096 ≤ basePackage.layout.constantColumn := by
   change invocation ∈ Data.permutationInvocations () at member
   rw [Data.permutationInvocations_eq, List.mem_append] at member
   rcases member with member | member
@@ -463,7 +463,7 @@ structure HashChainPrivate (chain : HashChain) : Prop where
     basePackage.layout.constantColumn
   witnessEnd : chain.witnessStart + chain.witnessLength ≤
     basePackage.layout.constantColumn
-  witnessLength : chain.witnessLength = (chain.absorbCount + 1) * 1174
+  witnessLength : chain.witnessLength = (chain.absorbCount + 1) * 1096
 
 theorem canonicalHashChain_private (chain : HashChain)
     (member : chain ∈ basePackage.hashChains) : HashChainPrivate chain := by
@@ -487,16 +487,16 @@ theorem canonicalHashChain_private (chain : HashChain)
 theorem canonicalHashInvocation_witnessBound (chain : HashChain)
     (member : chain ∈ basePackage.hashChains)
     (invocation : Fin (chain.absorbCount + 1)) :
-    chain.witnessStart + invocation.val * 1174 + 1174 ≤
+    chain.witnessStart + invocation.val * 1096 + 1096 ≤
       basePackage.layout.constantColumn := by
   have privateLayout := canonicalHashChain_private chain member
   have invocationSucc : invocation.val + 1 ≤ chain.absorbCount + 1 := by
     omega
-  have scaled := Nat.mul_le_mul_right 1174 invocationSucc
+  have scaled := Nat.mul_le_mul_right 1096 invocationSucc
   calc
-    chain.witnessStart + invocation.val * 1174 + 1174 =
-        chain.witnessStart + (invocation.val + 1) * 1174 := by ring
-    _ ≤ chain.witnessStart + (chain.absorbCount + 1) * 1174 :=
+    chain.witnessStart + invocation.val * 1096 + 1096 =
+        chain.witnessStart + (invocation.val + 1) * 1096 := by ring
+    _ ≤ chain.witnessStart + (chain.absorbCount + 1) * 1096 :=
       Nat.add_le_add_left scaled _
     _ = chain.witnessStart + chain.witnessLength := by
       rw [privateLayout.witnessLength]
@@ -510,15 +510,15 @@ private theorem shiftedHashInvocationInput
         invocation lane =
       mapCombinationColumns (shiftColumn program)
         (invocationInput basePackage chain invocation lane) := by
-  have baseLocalCount : basePackage.permutation.localColumnCount = 1174 := by
+  have baseLocalCount : basePackage.permutation.localColumnCount = 1096 := by
     rfl
   have finalLocalCount :
-      (package program).permutation.localColumnCount = 1174 := by
+      (package program).permutation.localColumnCount = 1096 := by
     rfl
-  have baseOutputStart : basePackage.permutation.outputLocalStart = 1158 := by
+  have baseOutputStart : basePackage.permutation.outputLocalStart = 1080 := by
     rfl
   have finalOutputStart :
-      (package program).permutation.outputLocalStart = 1158 := by
+      (package program).permutation.outputLocalStart = 1080 := by
     rfl
   have baseRate : basePackage.poseidon.rate = 12 := by
     rfl
@@ -562,27 +562,27 @@ private theorem shiftedHashInvocationInput
   · have witnessEnd := layout.witnessEnd
     have previousShift :
         shiftColumn program
-            (chain.witnessStart + (invocation - 1) * 1174 + 1158 + lane) =
+            (chain.witnessStart + (invocation - 1) * 1096 + 1080 + lane) =
           shiftColumn program chain.witnessStart +
-            (invocation - 1) * 1174 + 1158 + lane := by
+            (invocation - 1) * 1096 + 1080 + lane := by
       have offsetBound :
-          (invocation - 1) * 1174 + 1158 + lane < chain.witnessLength := by
+          (invocation - 1) * 1096 + 1080 + lane < chain.witnessLength := by
         rw [layout.witnessLength]
         omega
       have shifted := shiftColumn_add_of_private program chain.witnessStart
-        ((invocation - 1) * 1174 + 1158 + lane) (by omega)
+        ((invocation - 1) * 1096 + 1080 + lane) (by omega)
       calc
         shiftColumn program
-            (chain.witnessStart + (invocation - 1) * 1174 + 1158 + lane) =
+            (chain.witnessStart + (invocation - 1) * 1096 + 1080 + lane) =
             shiftColumn program
               (chain.witnessStart +
-                ((invocation - 1) * 1174 + 1158 + lane)) := by
+                ((invocation - 1) * 1096 + 1080 + lane)) := by
               congr 1
               omega
         _ = shiftColumn program chain.witnessStart +
-              ((invocation - 1) * 1174 + 1158 + lane) := shifted
+              ((invocation - 1) * 1096 + 1080 + lane) := shifted
         _ = shiftColumn program chain.witnessStart +
-              (invocation - 1) * 1174 + 1158 + lane := by omega
+              (invocation - 1) * 1096 + 1080 + lane := by omega
     simp only [isFirst, ite_false]
     by_cases absorbing : invocation < chain.absorbCount
     · simp only [absorbing, ite_eq_left]
@@ -606,7 +606,7 @@ private theorem shiftedHashColumn
     (program : Lifecycle.Stage1.Application.Program) (chain : HashChain)
     (layout : HashChainPrivate chain) (invocation : Nat)
     (invocationBound : invocation ≤ chain.absorbCount)
-    (reference : ColumnRef) (within : RefWithin 16 1174 reference) :
+    (reference : ColumnRef) (within : RefWithin 16 1096 reference) :
     instantiateColumn (package program) (shiftHashChain program chain)
         invocation reference =
       mapCombinationColumns (shiftColumn program)
@@ -621,28 +621,28 @@ private theorem shiftedHashColumn
       simp only [RefWithin] at within
       unfold instantiateColumn invocationLocalStart shiftHashChain
       rw [mapCombinationColumns_ofVar]
-      rw [show (package program).permutation.localColumnCount = 1174 by rfl,
-        show basePackage.permutation.localColumnCount = 1174 by rfl]
+      rw [show (package program).permutation.localColumnCount = 1096 by rfl,
+        show basePackage.permutation.localColumnCount = 1096 by rfl]
       change Layout.R1CS.LinearCombination.ofVar
-          (shiftColumn program chain.witnessStart + invocation * 1174 + index) =
+          (shiftColumn program chain.witnessStart + invocation * 1096 + index) =
         Layout.R1CS.LinearCombination.ofVar
           (shiftColumn program
-            (chain.witnessStart + invocation * 1174 + index))
-      have offsetBound : invocation * 1174 + index < chain.witnessLength := by
+            (chain.witnessStart + invocation * 1096 + index))
+      have offsetBound : invocation * 1096 + index < chain.witnessLength := by
         rw [layout.witnessLength]
         omega
       have witnessEnd := layout.witnessEnd
       have shifted := shiftColumn_add_of_private program chain.witnessStart
-        (invocation * 1174 + index) (by omega)
+        (invocation * 1096 + index) (by omega)
       apply congrArg Layout.R1CS.LinearCombination.ofVar
       calc
-        shiftColumn program chain.witnessStart + invocation * 1174 + index =
+        shiftColumn program chain.witnessStart + invocation * 1096 + index =
             shiftColumn program chain.witnessStart +
-              (invocation * 1174 + index) := by omega
+              (invocation * 1096 + index) := by omega
         _ = shiftColumn program
-              (chain.witnessStart + (invocation * 1174 + index)) := shifted.symm
+              (chain.witnessStart + (invocation * 1096 + index)) := shifted.symm
         _ = shiftColumn program
-              (chain.witnessStart + invocation * 1174 + index) := by
+              (chain.witnessStart + invocation * 1096 + index) := by
                 congr 1
                 omega
 
@@ -757,7 +757,7 @@ theorem canonicalHashRows
   intro chain chainMember invocation invocationBound row rowMember
   exact instantiateRow_mapColumns_of_within
     (package program) basePackage (shiftHashChain program chain) chain
-    invocation (shiftColumn program) 16 1174 row
+    invocation (shiftColumn program) 16 1096 row
     (canonicalPermutationTemplate_rowWithin row rowMember)
     (shiftedHashColumn program chain
       (canonicalHashChain_private chain chainMember) invocation
@@ -774,7 +774,7 @@ theorem canonicalPermutationRows
   intro invocation invocationMember row rowMember
   exact instantiateInvocationRow_mapColumns_of_within
     (shiftPermutationInvocation program invocation) invocation
-    (shiftColumn program) 16 1174 row
+    (shiftColumn program) 16 1096 row
     (canonicalPermutationTemplate_rowWithin row rowMember)
     (shiftedInvocationColumn program invocation
       (canonicalPermutationInvocation_witnessBound invocation invocationMember))

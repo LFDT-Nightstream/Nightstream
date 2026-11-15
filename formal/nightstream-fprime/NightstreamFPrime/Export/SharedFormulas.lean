@@ -60,7 +60,7 @@ private def poseidonInterface : PoseidonSboxPlan.Interface poseidonWidth :=
         omega⟩ 1
     sboxOutput
     output := SparseLayer.external fun lane => sboxOutput
-      ⟨155 + lane.val, by
+      ⟨134 + lane.val, by
         have bound := lane.isLt
         rw [PoseidonRetainedSlots.rows_length]
         omega⟩ }

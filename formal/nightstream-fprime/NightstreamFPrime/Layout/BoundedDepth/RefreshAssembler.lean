@@ -8,7 +8,7 @@ is one variable in a source region that starts at `base`. The first groups are t
 next states (12), the application witness, the prior, active, inner and next slots
 (7 × 2,169), the slot and output digests (20) and the fresh instance (1,472). Then come the 14
 children's commitments (16,128) and evaluation families (8,960), their digit words (4,480), the
-round messages (280), the Π_CCS output of all 15 sources (9,600), and the new and inner digests
+round messages (504), the Π_CCS output of all 15 sources (9,600), and the new and inner digests
 (12). The step's gadgets start at `sharedEnd`. -/
 
 namespace NightstreamFPrime.Layout.BoundedDepth.RefreshAssembler
@@ -38,7 +38,7 @@ def childEvaluationsStart (base witnessWordCount : Nat) : Nat :=
 def digitsStart (base witnessWordCount : Nat) : Nat :=
   childEvaluationsStart base witnessWordCount + 8960
 def roundsStart (base witnessWordCount : Nat) : Nat := digitsStart base witnessWordCount + 4480
-def outputStart (base witnessWordCount : Nat) : Nat := roundsStart base witnessWordCount + 280
+def outputStart (base witnessWordCount : Nat) : Nat := roundsStart base witnessWordCount + 504
 
 /-- The digest select's 12 words: the new slot's digest, then each slot's inner digest. -/
 def digestSelectStart (base witnessWordCount : Nat) : Nat :=
@@ -48,7 +48,7 @@ def digestSelectStart (base witnessWordCount : Nat) : Nat :=
 def sharedEnd (base witnessWordCount : Nat) : Nat := digestSelectStart base witnessWordCount + 12
 
 theorem sharedEnd_eq (base witnessWordCount : Nat) :
-    sharedEnd base witnessWordCount = base + witnessWordCount + 56160 := by
+    sharedEnd base witnessWordCount = base + witnessWordCount + 56384 := by
   simp only [sharedEnd, digestSelectStart, outputStart, roundsStart, digitsStart, childEvaluationsStart,
     childCommitmentsStart, freshStart, digestsStart, slotsStart, witnessStart, slotWordCount]
   omega
@@ -93,7 +93,7 @@ def interface (base witnessWordCount : Nat) :
   digit := fun child column => .var (digitsStart base witnessWordCount + child.val * 320 +
     column.val)
   round := fun roundIndex => ⟨fun coefficient =>
-    kAt (roundsStart base witnessWordCount + 2 * (roundIndex.val * 5 + coefficient.val))⟩
+    kAt (roundsStart base witnessWordCount + 2 * (roundIndex.val * 9 + coefficient.val))⟩
   output := ⟨fun source coefficient =>
       kAt (outputStart base witnessWordCount + 2 * (source.val * 320 + coefficient.val)),
     fun source matrix coefficient =>
@@ -324,7 +324,7 @@ theorem rows_implies_stepHolds (program : Stage1.Application.Program)
     (rows : holds env (Circuit.ops (RefreshStepLayout.main program relation circuit
       (interface base program.witnessWordCount)) (sharedEnd base program.witnessWordCount)))
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 4)
+    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8)
     (represents : RefreshStepSoundness.StepRepresents program
       (interface base program.witnessWordCount) ajtai circuitKeys circuit input output proof env)
     (next : output.runningNext = DigestSelect.nextSlots input.iteration input.running

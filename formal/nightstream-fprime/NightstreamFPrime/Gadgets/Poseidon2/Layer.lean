@@ -25,7 +25,9 @@ def getF (state : FState) (index : Nat) : F :=
   if h : index < 16 then state ⟨index, h⟩ else 0
 
 def sboxE (value : Expr) : Expr :=
-  value * value * value
+  let square := value * value
+  let fourth := square * square
+  fourth * square * value
 
 def sboxF (value : F) : F :=
   Spec.Poseidon2.sbox value

@@ -265,7 +265,7 @@ fn native_hash_chain_packages_are_lean_packages() {
         assert_eq!(plan_sum(&native_rows), plan_sum(&lean_rows));
         let (lean_layout, native_layout) = (lean.layout().expect("layout"), native.layout().expect("layout"));
         assert_eq!(native_layout.width(), lean_layout.width());
-        let end = lean.sbox_start() + 171 * lean.block_count();
+        let end = lean.sbox_start() + 150 * lean.block_count();
         assert!((0..end).all(|column| native_layout.slot(column) == lean_layout.slot(column)));
     }
 }

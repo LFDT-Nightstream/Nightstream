@@ -38,10 +38,10 @@ use crate::witness::{validate_witness_batch, validate_witness_batch_order, RawWi
 const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/packages/v1";
 /// The identity of the packages in `formal/nightstream-fprime/artifacts`.
 pub const BOUNDED_DEPTH_PACKAGES_IDENTITY: [u64; 4] = [
-    14_717_545_422_571_454_249,
-    13_287_200_450_213_481_625,
-    10_221_263_217_310_632_340,
-    2_033_727_466_863_458_689,
+    13_276_045_247_463_402_763,
+    10_227_249_901_569_048_592,
+    9_409_622_928_757_300_415,
+    14_920_281_440_332_491_387,
 ];
 
 /// A lane or a row side as `Pieces.linear?` reads it: a constant and terms.
@@ -156,7 +156,8 @@ impl StepPackage {
     }
 
     /// The columns that `SPEC.md` section 7.11 refills and gives no slot:
-    /// the square of each chain (`Export.Generic.NativePower.Chain.restore`) and each solved affine
+    /// the three intermediate powers of each chain
+    /// (`Export.Generic.NativePower.Chain.restore`) and each solved affine
     /// column (`Export.Generic.Substitute.refill`).
     pub fn lowered_column_count(&self) -> usize {
         self.field_lowering.dead.len()
@@ -284,7 +285,7 @@ impl StepPackage {
     }
 }
 
-/// A packed Poseidon2 block: its 1,174 locals start at `start`, and its
+/// A packed Poseidon2 block: its 1,096 locals start at `start`, and its
 /// output locals are the last 16.
 #[derive(Clone, Copy, Debug)]
 pub struct Block<'a> {

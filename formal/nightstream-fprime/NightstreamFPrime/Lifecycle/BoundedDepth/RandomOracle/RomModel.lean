@@ -48,9 +48,9 @@ section Types
 
 variable (logicalWidth publicFits)
 
-abbrev LightPoint := Test.Point (LightSchedule.schedule logicalWidth publicFits) 4
+abbrev LightPoint := Test.Point (LightSchedule.schedule logicalWidth publicFits) 8
 
-abbrev RefreshPoint := Test.Point (RefreshSchedule.schedule logicalWidth publicFits) 4
+abbrev RefreshPoint := Test.Point (RefreshSchedule.schedule logicalWidth publicFits) 8
 
 /-- A point of the bounded-depth random oracle: a light or a refresh transcript address. -/
 abbrev Point := LightPoint logicalWidth publicFits ⊕ RefreshPoint logicalWidth publicFits

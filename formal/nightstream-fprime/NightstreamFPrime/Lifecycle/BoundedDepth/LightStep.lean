@@ -41,7 +41,7 @@ structure Leaves (logicalWidth : Nat)
   nextDigest : Fin 2 → Fin 4 → Expr
   newSlot : OutputHash.Interface
   newSlotOffset : Nat
-  piccs : LightPiCCSPhase.Leaves logicalWidth 4 publicFits
+  piccs : LightPiCCSPhase.Leaves logicalWidth 8 publicFits
   rlc : LightFold.RlcLeaves logicalWidth publicFits
 
 variable {witnessWordCount : Nat}
@@ -73,7 +73,7 @@ variable (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFi
 prior-circuit selector and `proof` the light proof that its words carry; the proof and the
 depth bound matter only after the base case. -/
 structure Represents (leaves : Leaves logicalWidth publicFits witnessWordCount) (selected : Fin 2)
-    (proof : Spec.Folding.Light.Proof LightShape 4) (env : Env) : Prop where
+    (proof : Spec.Folding.Light.Proof LightShape 8) (env : Env) : Prop where
   applicationInput :
     Stage1.Application.inputState leaves.application leaves.applicationOffset env = input.zi
   applicationWitness :
@@ -110,7 +110,7 @@ case, prior digests that are the prior slots' digests give the step relation of 
 (`stepHolds_iff`) at the production cap. -/
 theorem spec_implies_stepHolds (light : Spec.HyperNova.Construction2.BoundedDepth.circuitStep circuit = .light)
     (leaves : Leaves logicalWidth publicFits witnessWordCount) (selected : Fin 2)
-    (proof : Spec.Folding.Light.Proof LightShape 4) (env : Env)
+    (proof : Spec.Folding.Light.Proof LightShape 8) (env : Env)
     (specification : SpecHolds (circuitKeys selected).relation step control circuit leaves env)
     (represents : Represents ajtai circuitKeys circuit input output leaves selected proof env)
     (select : SelectSpec input output selected (LightFold.nextSlot leaves.piccs leaves.rlc env)

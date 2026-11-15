@@ -61,18 +61,18 @@ theorem constraints_rowCount :
     R1CS.totalRowCount
       (ApplicationPackage.constraints application
         (ApplicationPackage.productionColumns application)
-        (Layout.Stage1.ApplicationInputs.localStart application)) = 5874 := by
+        (Layout.Stage1.ApplicationInputs.localStart application)) = 5484 := by
   rw [constraints_eq_hashConstraints,
     Layout.Poseidon2.hashConstraints_rowCount _ _ hashInterface_affine]
   change (Lifecycle.Stage1.Poseidon2HashChainV1.inputExpressions
       (Layout.Stage1.ApplicationInputs.interface application)
       (Layout.Stage1.ApplicationInputs.localStart application)).length /
-        NightstreamFPrime.Spec.Poseidon2.rate * 1174 + 1178 = 5874
+        NightstreamFPrime.Spec.Poseidon2.rate * 1096 + 1100 = 5484
   rw [Lifecycle.Stage1.Poseidon2HashChainV1.fullBlockCount
     (Layout.Stage1.ApplicationInputs.interface application)]
 
 @[simp] theorem applicationPlan_rowCount :
-    (PerApplicationPackage.applicationPlan application).rowCount = 5874 := by
+    (PerApplicationPackage.applicationPlan application).rowCount = 5484 := by
   rw [PerApplicationPackage.applicationPlan,
     ApplicationPackage.productionPlan_rowCount]
   unfold ApplicationPackage.compiledRows
@@ -84,19 +84,19 @@ theorem operations_localLength :
     localLength
       (ApplicationPackage.operations application
         (ApplicationPackage.productionColumns application)
-        (Layout.Stage1.ApplicationInputs.localStart application)) = 5870 := by
+        (Layout.Stage1.ApplicationInputs.localStart application)) = 5480 := by
   unfold ApplicationPackage.operations application
   exact Lifecycle.Stage1.Poseidon2HashChainV1.program_localLength _ _
 
 @[simp] theorem applicationPlan_privateCount :
     (PerApplicationPackage.applicationPlan application).privateCount =
-      5870 := by
+      5480 := by
   rw [PerApplicationPackage.applicationPlan,
     ApplicationPackage.productionPlan_privateCount]
   rw [constraints_freshCount, operations_localLength]
 
 @[simp] theorem addedPrivateColumnCount :
-    PerApplicationPackage.addedPrivateColumnCount application = 5874 := by
+    PerApplicationPackage.addedPrivateColumnCount application = 5484 := by
   rw [PerApplicationPackage.addedPrivateColumnCount,
     applicationPlan_privateCount]
   simp [application, Lifecycle.Stage1.Poseidon2HashChainV1.program,
@@ -104,12 +104,12 @@ theorem operations_localLength :
 
 theorem sourceWidth :
     ApplicationDirectSource.sourceWidth application =
-      Layout.Stage1.ApplicationInputs.localStart application + 5870 := by
+      Layout.Stage1.ApplicationInputs.localStart application + 5480 := by
   unfold ApplicationDirectSource.sourceWidth ApplicationPackage.r1csFreshStart
   rw [constraints_freshCount, operations_localLength]
 
 @[simp] theorem retainedLocalCount :
-    ApplicationRetainedBlocks.localCount application = 5870 := by
+    ApplicationRetainedBlocks.localCount application = 5480 := by
   unfold ApplicationRetainedBlocks.localCount
     ApplicationRetainedBlocks.sourceWidth
   rw [sourceWidth]
@@ -117,7 +117,7 @@ theorem sourceWidth :
 
 @[simp] theorem retainedApplicationWordCount :
     application.witnessWordCount +
-      ApplicationRetainedBlocks.localCount application = 5874 := by
+      ApplicationRetainedBlocks.localCount application = 5484 := by
   rw [retainedLocalCount]
   simp [application, Lifecycle.Stage1.Poseidon2HashChainV1.program,
     Lifecycle.Stage1.Poseidon2HashChainV1.messageWordCount]
@@ -129,26 +129,26 @@ theorem fits : PerApplicationFixedPoint.FitsTwoPow28 application :=
     (by rw [retainedApplicationWordCount]; norm_num)
 
 @[simp] theorem logicalWidth :
-    PerApplicationFixedPoint.logicalWidth application = 45399128 := by
+    PerApplicationFixedPoint.logicalWidth application = 41106674 := by
   unfold PerApplicationFixedPoint.logicalWidth
   rw [ApplicationRetainedGeometry.completeLogicalWidth_eq_applicationCounts,
     retainedApplicationWordCount]
 
 @[simp] theorem structuralRowCount :
     (PerApplicationFixedPoint.structuralPlan application fits).rowCount =
-      1044541 := by
+      939331 := by
   rw [PerApplicationFixedPoint.structuralPlan_rowCount,
     applicationPlan_rowCount]
 
 @[simp] theorem physicalPackageRowCount :
-    (PerApplicationPackage.package application).layout.rowCount = 10354809 := by
+    (PerApplicationPackage.package application).layout.rowCount = 9979231 := by
   rw [PerApplicationPackage.package_rowCount,
     PerApplicationPackage.basePackage_rowCount_eq,
     applicationPlan_rowCount]
 
 @[simp] theorem physicalPackageTotalColumnCount :
     (PerApplicationPackage.package application).layout.totalColumnCount =
-      10440493 := by
+      10065139 := by
   rw [PerApplicationPackage.package_totalColumnCount,
     PerApplicationPackage.basePackage_totalColumnCount_eq,
     addedPrivateColumnCount]

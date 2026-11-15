@@ -37,9 +37,9 @@ private theorem constant_le_total :
     PiRLCProductPlan.basePackage.layout.constantColumn ≤
       PiRLCProductPlan.basePackage.layout.totalColumnCount := by
   have constant : PiRLCProductPlan.basePackage.layout.constantColumn =
-      10434290 := Package.circuitPackage_layout_values.2.2.1
+      10059326 := Package.circuitPackage_layout_values.2.2.1
   have total : PiRLCProductPlan.basePackage.layout.totalColumnCount =
-      10434619 := Package.circuitPackage_layout_values.2.2.2.2
+      10059655 := Package.circuitPackage_layout_values.2.2.2.2
   rw [constant, total]
   omega
 
@@ -52,7 +52,7 @@ private theorem sourceAssignment_privatePhysical
     (sourceEq : source.val = column)
     (privateBound : column <
       PiRLCProductPlan.basePackage.layout.constantColumn)
-    (beforeTranscript : column < PiCCSTranscriptReadout.transcriptStart + 1158) :
+    (beforeTranscript : column < PiCCSTranscriptReadout.transcriptStart + 1080) :
     sourceAssignment program base groupValue source =
       RunningTransitionDirectPlan.transitionEnv program base column := by
   have totalBound : column <
@@ -138,7 +138,7 @@ theorem priorInputForm_eval
     _ (Data.priorChain.inputStart + index.val) (by rfl)
     (priorInputPrivate index) (by
       have bound : index.val < 25329 := index.isLt
-      change 0 + index.val < PiCCSTranscriptReadout.transcriptStart + 1158
+      change 0 + index.val < PiCCSTranscriptReadout.transcriptStart + 1080
       rw [PiCCSTranscriptReadout.transcriptStart_eq]
       omega)]
   unfold PilotOrdinaryDirectPlan.pilotEnv
@@ -162,7 +162,7 @@ theorem outputInputForm_eval
     _ (Data.outputChain.inputStart + index.val) (by rfl)
     (outputInputPrivate index) (by
       have bound : index.val < 25329 := index.isLt
-      change 25329 + index.val < PiCCSTranscriptReadout.transcriptStart + 1158
+      change 25329 + index.val < PiCCSTranscriptReadout.transcriptStart + 1080
       rw [PiCCSTranscriptReadout.transcriptStart_eq]
       omega)]
   unfold PilotOrdinaryDirectPlan.pilotEnv

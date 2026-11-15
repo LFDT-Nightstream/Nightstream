@@ -90,7 +90,7 @@ fn substitution_binds_the_application_and_refuses_a_wrong_region() {
 }
 
 const FIRST_LOCAL: usize = 12;
-const BLOCK: usize = 1174;
+const BLOCK: usize = 1096;
 
 /// Four witness words and `locals` locals, each its own recipe
 /// `local · 1 = previous` from witness word 0; then `output_k · 1 = read`,
@@ -161,7 +161,7 @@ fn block(first_local: usize, lane: usize) -> NativeBlock {
 #[test]
 fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
     let packages = packages();
-    let records = chained(2 * BLOCK, FIRST_LOCAL + 2 * BLOCK - 1, &[5, 0, FIRST_LOCAL + 1158]);
+    let records = chained(2 * BLOCK, FIRST_LOCAL + 2 * BLOCK - 1, &[5, 0, FIRST_LOCAL + 1080]);
     let shape = NativeShape {
         blocks: vec![block(FIRST_LOCAL, 4), block(FIRST_LOCAL + BLOCK, 5)],
     };
@@ -186,8 +186,8 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
                 .map(|(_, kind)| kind)
         };
         assert_eq!(kind(FIRST_LOCAL), None);
-        assert_eq!(kind(FIRST_LOCAL + BLOCK + 1157), None);
-        assert_eq!(kind(FIRST_LOCAL + 1158), None);
+        assert_eq!(kind(FIRST_LOCAL + BLOCK + 1079), None);
+        assert_eq!(kind(FIRST_LOCAL + 1080), None);
         assert_eq!(kind(FIRST_LOCAL + 1081), None);
         assert_eq!(kind(5), Some(Kind::Bit));
         assert_eq!(kind(4), Some(Kind::Field));
@@ -199,8 +199,8 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
         }
         let plain_layout = plain.layout().expect("layout");
         for (local, expected) in [
-            (FIRST_LOCAL + 1157, Kind::Bit),
-            (FIRST_LOCAL + 1158, Kind::Bit),
+            (FIRST_LOCAL + 1079, Kind::Bit),
+            (FIRST_LOCAL + 1080, Kind::Bit),
             (FIRST_LOCAL + 2 * BLOCK - 1, Kind::Bit),
         ] {
             assert_eq!(
@@ -211,18 +211,18 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
                 expected
             );
         }
-        for local in FIRST_LOCAL..FIRST_LOCAL + 1157 {
+        for local in FIRST_LOCAL..FIRST_LOCAL + 1079 {
             assert!(plain_layout
                 .slot(plain.variable_column(local).unwrap())
                 .is_none());
         }
         assert_eq!(
-            layout.width() - packed.packed_booleans.sources.len() + (2 * BLOCK - 1157),
-            plain_layout.width() - plain.packed_booleans.sources.len() + 41 * 2 * 171
+            layout.width() - packed.packed_booleans.sources.len() + (2 * BLOCK - 1079),
+            plain_layout.width() - plain.packed_booleans.sources.len() + 41 * 2 * 150
         );
         assert_eq!(
             packed.source_rows().expect("rows").row_count() + 2 * BLOCK,
-            plain.source_rows().expect("rows").row_count() + 2 * 171
+            plain.source_rows().expect("rows").row_count() + 2 * 150
         );
     }
     let one_lane = NativeShape {

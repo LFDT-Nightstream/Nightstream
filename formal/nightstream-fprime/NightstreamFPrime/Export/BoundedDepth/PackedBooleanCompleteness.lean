@@ -23,8 +23,8 @@ variable {pieces : List Piece} {next width : Nat}
 theorem completeEnv_output (packed : packable publicColumns pieces = true)
     (below : ∀ piece ∈ pieces, pieceBelow next piece = true) (env : Env)
     (index : Fin (blocksOf pieces).length) (lane : Fin 16) :
-    completeEnv pieces next env (((blocksOf pieces).get index).start + 1158 + lane.val) =
-      env (((blocksOf pieces).get index).start + 1158 + lane.val) := by
+    completeEnv pieces next env (((blocksOf pieces).get index).start + 1080 + lane.val) =
+      env (((blocksOf pieces).get index).start + 1080 + lane.val) := by
   have nextLe := next_le_sboxStart pieces next
   have member := permutation_mem_of_block (List.get_mem (blocksOf pieces) index)
   have bound := below _ member
@@ -65,10 +65,10 @@ theorem completeEnv_refill (fits : Fits publicColumns pieces next width)
         (sboxColumn (sboxStart pieces next) index.val (PoseidonRetainedSlots.finalRow target).val))).eval
           (fun coordinate => completeEnv pieces next env coordinate.val) = _
       have room := (fits.blocks packed).sboxColumns
-      have rowBound : (PoseidonRetainedSlots.finalRow target).val < 171 := by
+      have rowBound : (PoseidonRetainedSlots.finalRow target).val < 150 := by
         simpa using (PoseidonRetainedSlots.finalRow target).isLt
-      have indexRoom : index.val * 171 + 171 ≤ (blocksOf pieces).length * 171 := by
-        have bound := Nat.mul_le_mul_right 171 (Nat.succ_le_of_lt index.isLt)
+      have indexRoom : index.val * 150 + 150 ≤ (blocksOf pieces).length * 150 := by
+        have bound := Nat.mul_le_mul_right 150 (Nat.succ_le_of_lt index.isLt)
         simpa [Nat.succ_mul] using bound
       rw [formOf_ofVar_eval _ _ (by unfold sboxColumn; omega)]
       exact completeEnv_sbox index (PoseidonRetainedSlots.finalRow target)

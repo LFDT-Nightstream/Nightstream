@@ -32,7 +32,7 @@ def runningEvalAStart (source : Nat) : Nat :=
 
 def runningPointStart : Nat := priorRunningStart + 25088
 
-def expectedContextStart : Nat := 5007878
+def expectedContextStart : Nat := 4678562
 
 def expectedContextWords : Nat := 4
 
@@ -52,22 +52,22 @@ theorem expectedContextStart_matches_pilot :
   rw [PilotProduction.physicalColumnCount_eq]
   rfl
 
-theorem expectedContextStart_eq : expectedContextStart = 5007878 := by
+theorem expectedContextStart_eq : expectedContextStart = 4678562 := by
   rfl
 
 theorem expectedContextWords_eq : expectedContextWords = 4 := by
   rfl
 
-theorem priorChildrenStart_eq : priorChildrenStart = 5007882 := by
+theorem priorChildrenStart_eq : priorChildrenStart = 4678566 := by
   rfl
 
-theorem proofInputStart_eq : proofInputStart = 5012362 := by
+theorem proofInputStart_eq : proofInputStart = 4683046 := by
   rfl
 
 def freshCommitmentStart : Nat := proofInputStart
 def freshCommitmentWords : Nat := 1152
 def roundMessageStart : Nat := freshCommitmentStart + freshCommitmentWords
-def roundMessageWords : Nat := 280
+def roundMessageWords : Nat := 504
 def outputEvaluationStart : Nat := roundMessageStart + roundMessageWords
 def outputEvaluationWords : Nat := 9600
 def outputEvaluationSourceWords : Nat := 640
@@ -81,7 +81,7 @@ theorem freshCommitmentWords_eq :
 
 theorem roundMessageWords_eq :
     roundMessageWords =
-      productionShape.cubeVariables * (4 + 1) * 2 := by
+      productionShape.cubeVariables * (8 + 1) * 2 := by
   norm_num [roundMessageWords, productionShape, cubeVariables,
     RingMatrixSource.ringShape]
 
@@ -92,10 +92,10 @@ theorem outputEvaluationWords_eq :
   norm_num [outputEvaluationWords, productionShape, productionProfile,
     RingMatrixSource.ringShape, Shape.sourceCount, ringDegree]
 
-theorem proofInputColumnCount_eq : proofInputColumnCount = 11032 := by
+theorem proofInputColumnCount_eq : proofInputColumnCount = 11256 := by
   rfl
 
-theorem phaseOffset_eq : phaseOffset = 5023394 := by
+theorem phaseOffset_eq : phaseOffset = 4694302 := by
   rfl
 
 def pairAt (start : Nat) : KExpr :=
@@ -165,7 +165,7 @@ def freshPublicInput
 
 def roundCoefficient
     (roundIndex : Fin productionShape.cubeVariables)
-    (coefficient : Fin (4 + 1)) : KExpr :=
+    (coefficient : Fin (8 + 1)) : KExpr :=
   pairAt (roundMessageStart + roundIndex.val * 18 + coefficient.val * 2)
 
 def outputEval_K
@@ -189,7 +189,7 @@ def freshExpr
   publicInput := freshPublicInput
 
 def roundMessage (roundIndex : Fin productionShape.cubeVariables) :
-    RoundTranscript.Message 4 where
+    RoundTranscript.Message 8 where
   coefficient := roundCoefficient roundIndex
 
 def outputExpr : OutputBinding.OutputExpr where
@@ -209,7 +209,7 @@ def interface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) :
-    Formal.Interface logicalWidth 4 publicFits where
+    Formal.Interface logicalWidth 8 publicFits where
   baseOffset := phaseOffset
   priorState := fun _ => priorStateWord
   outputState := fun _ => outputStateWord

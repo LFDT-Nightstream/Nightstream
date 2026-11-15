@@ -17,7 +17,7 @@ def previousRule {sourceWidth : Nat}
     (retainedStart : Nat) : PoseidonInput.Rule where
   region := ⟨1, 2110, 0, 16⟩
   term := .external
-    (RetainedBlock.ofSemantic schedule.block retainedStart) 155 171
+    (RetainedBlock.ofSemantic schedule.block retainedStart) 134 150
 
 def previousProgram {sourceWidth : Nat}
     (schedule : PoseidonRetainedFamily.Schedule sourceWidth 2111)
@@ -79,26 +79,26 @@ def outputBlock {program : Program} {logicalWidth : Nat}
 @[simp] theorem priorBlock_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth) :
-    (priorBlock geometry).rowCount = 360981 := by
+    (priorBlock geometry).rowCount = 316650 := by
   calc
-    (priorBlock geometry).rowCount = 2111 * 171 := by
+    (priorBlock geometry).rowCount = 2111 * 150 := by
       exact Poseidon.Block.ofSemantic_rowCount
         (PilotPoseidonPlan.priorSchedule program)
         (PiRLCRetainedGeometry.priorPoseidonStart program)
         (PiRLCPoseidonGeometry.oneColumn geometry) (priorInputProgram program)
-    _ = 360981 := by norm_num
+    _ = 316650 := by norm_num
 
 @[simp] theorem outputBlock_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth) :
-    (outputBlock geometry).rowCount = 360981 := by
+    (outputBlock geometry).rowCount = 316650 := by
   calc
-    (outputBlock geometry).rowCount = 2111 * 171 := by
+    (outputBlock geometry).rowCount = 2111 * 150 := by
       exact Poseidon.Block.ofSemantic_rowCount
         (PilotPoseidonPlan.outputSchedule program)
         (PiRLCRetainedGeometry.outputPoseidonStart program)
         (PiRLCPoseidonGeometry.oneColumn geometry) (outputInputProgram program)
-    _ = 360981 := by norm_num
+    _ = 316650 := by norm_num
 
 def matrixProgram {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth) :
@@ -109,7 +109,7 @@ def matrixProgram {program : Program} {logicalWidth : Nat}
 @[simp] theorem matrixProgram_rowCount
     {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 721962 := by
+    (matrixProgram geometry).rowCount = 633300 := by
   rw [matrixProgram, MatrixProgram.Program.append_rowCount]
   simp only [MatrixProgram.Program.singleton_rowCount]
   change (priorBlock geometry).rowCount + (outputBlock geometry).rowCount = _

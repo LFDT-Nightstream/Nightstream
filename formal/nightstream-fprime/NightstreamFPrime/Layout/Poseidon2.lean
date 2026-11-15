@@ -111,6 +111,10 @@ theorem sboxRecipes_direct (start : Nat) (value : Expr)
   exact ⟨
     R1CS.IsDirectRecipe.mul start valueAffine valueAffine,
     R1CS.IsDirectRecipe.mul (start + 1)
+      (R1CS.isAffine_var _) (R1CS.isAffine_var _),
+    R1CS.IsDirectRecipe.mul (start + 1 + 1)
+      (R1CS.isAffine_var _) (R1CS.isAffine_var _),
+    R1CS.IsDirectRecipe.mul (start + 1 + 1 + 1)
       (R1CS.isAffine_var _) valueAffine,
     trivial⟩
 
@@ -124,7 +128,7 @@ theorem compileSboxes_direct (start : Nat) (values : List Expr)
       unfold Permutation.compileSboxes
       apply R1CS.recipesDirect_append
       · exact sboxRecipes_direct start value (valuesAffine value (by simp))
-      · simpa using ih (start + 2) (by
+      · simpa using ih (start + 4) (by
           intro current member
           exact valuesAffine current (by simp [member]))
 
@@ -138,7 +142,7 @@ theorem compileSboxes_outputs_affine (start : Nat) (values : List Expr)
       simp only [Permutation.compileSboxes, List.mem_cons] at member
       rcases member with rfl | member
       · exact R1CS.isAffine_var _
-      · exact ih (start + 2) member
+      · exact ih (start + 4) member
 
 theorem fullInputs_affine (rows : List (List Nat)) (round : Nat)
     (state : Layer.EState) (stateAffine : StateAffine state) :
@@ -256,7 +260,7 @@ theorem compile_schedule_output_affine (start : Nat) (state : Layer.EState)
 
 theorem compile_schedule_output_eq (start : Nat) (state : Layer.EState) :
     (Permutation.compile start state Permutation.schedule).output =
-      Permutation.freshState (start + 1158) := by
+      Permutation.freshState (start + 1080) := by
   rfl
 
 def ListAffine (values : List Expr) : Prop :=
@@ -329,7 +333,7 @@ theorem compileAbsorptions_direct (start : Nat) (state : Layer.EState)
         (Hash.absorbE state block) absorbedAffine
       have headOutputAffine := compile_schedule_output_affine start
         (Hash.absorbE state block) absorbedAffine
-      have tailDirect := ih (start + 1174)
+      have tailDirect := ih (start + 1096)
         (Permutation.compile start (Hash.absorbE state block)
           Permutation.schedule).output headOutputAffine restAffine
       unfold Hash.compileAbsorptions
@@ -351,7 +355,7 @@ theorem compileAbsorptions_output_affine (start : Nat) (state : Layer.EState)
       have absorbedAffine := absorbE_affine state block stateAffine blockAffine
       have headOutputAffine := compile_schedule_output_affine start
         (Hash.absorbE state block) absorbedAffine
-      have tailOutputAffine := ih (start + 1174)
+      have tailOutputAffine := ih (start + 1096)
         (Permutation.compile start (Hash.absorbE state block)
           Permutation.schedule).output headOutputAffine restAffine
       simpa [Hash.compileAbsorptions] using tailOutputAffine
@@ -381,7 +385,7 @@ theorem hash_compile_direct (start : Nat) (input : List Expr)
 theorem hash_compile_output_eq (start : Nat) (input : List Expr) :
     (Hash.compile start input).output =
       Permutation.freshState
-        (start + input.length / Spec.Poseidon2.rate * 1174 + 1158) := by
+        (start + input.length / Spec.Poseidon2.rate * 1096 + 1080) := by
   unfold Hash.compile
   dsimp only
   rw [compile_schedule_output_eq,
@@ -399,7 +403,7 @@ theorem hash_recipeConstraints_rowCount (start : Nat) (input : List Expr)
     (inputAffine : ListAffine input) :
     R1CS.totalRowCount
       (recipeConstraints start (Hash.compile start input).recipes) =
-        input.length / Spec.Poseidon2.rate * 1174 + 1174 := by
+        input.length / Spec.Poseidon2.rate * 1096 + 1096 := by
   rw [R1CS.recipeConstraints_totalRowCount start _
     (hash_compile_direct start input inputAffine)]
   exact Hash.compile_recipes_length start input
@@ -464,7 +468,7 @@ theorem hashConstraints_freshCount (interface : Formal.Interface)
 theorem hashConstraints_rowCount (interface : Formal.Interface)
     (offset : Nat) (affine : HashInterfaceAffine interface offset) :
     R1CS.totalRowCount (hashConstraints interface offset) =
-      (interface.input offset).length / Spec.Poseidon2.rate * 1174 + 1178 := by
+      (interface.input offset).length / Spec.Poseidon2.rate * 1096 + 1100 := by
   rw [R1CS.totalRowCount_eq_length_of_rowsOne _
     (hashConstraints_rowsOne interface offset affine)]
   unfold hashConstraints

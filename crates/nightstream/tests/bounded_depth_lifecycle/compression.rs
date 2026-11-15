@@ -99,7 +99,7 @@ fn increment(commitment: &mut Commitment, word: usize) {
 fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
     let prover = prover(2);
     // `ns-compress` tests its key reduction on this number of blocks.
-    assert_eq!(prover.relations[0].blocks(), 79_726);
+    assert_eq!(prover.relations[0].blocks(), 74_146);
     let envelopes = envelopes(&prover);
     let (setup, setup_time) = setup_and_time(&prover);
     let key_bytes = setup.verification_key().to_bytes();
@@ -251,7 +251,7 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
         ),
         (
             "PiCCS round coefficient",
-            Box::new(|proof| proof.steps.as_mut().unwrap().pi_ccs.sumcheck_rounds[27][4] += K::ONE),
+            Box::new(|proof| proof.steps.as_mut().unwrap().pi_ccs.sumcheck_rounds[27][8] += K::ONE),
         ),
         (
             "sum-check round coefficient",

@@ -45,7 +45,7 @@ def decodedFresh : StepFresh logicalWidth publicFits :=
   StatementAbsorption.evalFresh (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).fresh source
 
 /-- The light proof that the shared words carry. -/
-def decodedProof : Spec.Folding.Light.Proof LightShape 4 where
+def decodedProof : Spec.Folding.Light.Proof LightShape 8 where
   piCcsRounds := fun roundIndex => ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).round roundIndex).semanticPolynomial source
   piCcsOutput := ⟨fun origin coefficient => ((interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount).output.padCoordinate origin coefficient).eval source,
     fun origin matrix coefficient =>

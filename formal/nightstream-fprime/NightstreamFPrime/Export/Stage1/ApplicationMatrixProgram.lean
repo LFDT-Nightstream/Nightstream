@@ -44,7 +44,7 @@ def rowSchedule (application : ApplicationProgram) : IndexSchedule :=
     (PerApplicationPackage.applicationPlan application).rowCount⟩]
 
 def directRowSchedule (application : ApplicationProgram) : IndexSchedule :=
-  .rangeList [⟨10348930,
+  .rangeList [⟨9973742,
     (PerApplicationPackage.directApplicationPlan application).rowCount⟩]
 
 theorem directRowSchedule_eq_rowSchedule (application : ApplicationProgram) :

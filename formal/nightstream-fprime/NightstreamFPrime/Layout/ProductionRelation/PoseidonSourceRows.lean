@@ -54,7 +54,7 @@ theorem SboxSource.residual_zero_iff {sourceWidth logicalWidth : Nat}
     (env : Circuit.Env) (one : assignment oneColumn = 1)
     (preserves : sourceMap.Preserves assignment env) :
     (source.step.compile sourceMap oneColumn).residual assignment = 0 ↔
-      Spec.ProductionRelation.RowSemantics.cube
+      Spec.ProductionRelation.RowSemantics.seventhPower
           (source.inputExpression.eval env) =
         source.outputExpression.eval env := by
   rw [PoseidonTraceRows.SboxStep.residual_zero_iff source.step sourceMap

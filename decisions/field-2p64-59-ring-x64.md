@@ -58,7 +58,7 @@ There is no second profile and no compatibility path.
   strong sampling set. It has `5^64` elements, about `2^148.6`.
 - For a power-of-two cyclotomic ring, Theorem 5 gives `T = φ(η) · 2 = 128`.
 - 7 is not a square modulo `q`, so `K` is a field.
-- `gcd(3, q − 1) = 1`, so the Poseidon2 S-box `x^3` is a permutation.
+- `gcd(7, q − 1) = 1`, so the Poseidon2 S-box `x^7` is a permutation.
 - Why 14: at `T = 128` the deepest accumulator is
   `(1 + cap + k_rho)·T = 79·128 = 10,112 ≤ 2^14 − 1`. The old ring had
   `T = 216` and needed at least 15. The owner approved 14 on 2026-11-14.

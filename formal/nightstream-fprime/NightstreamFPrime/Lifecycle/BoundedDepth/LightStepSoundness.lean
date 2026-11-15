@@ -56,7 +56,7 @@ structure StepRepresents (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logical
       (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits) (circuit : Fin 2)
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-    (proof : Spec.Folding.Light.Proof LightShape 4) (env : Env) : Prop where
+    (proof : Spec.Folding.Light.Proof LightShape 8) (env : Env) : Prop where
   iteration : interface.iteration.eval env = natWord input.iteration
   iterationBound : input.iteration < fieldModulus
   priorPc : interface.priorPc.eval env = natWord input.priorPc
@@ -95,7 +95,7 @@ theorem piccsRepresents
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits) (circuit : Fin 2)
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-    (proof : Spec.Folding.Light.Proof LightShape 4) (env : Env)
+    (proof : Spec.Folding.Light.Proof LightShape 8) (env : Env)
     (represents : StepRepresents program interface ajtai circuitKeys circuit input output proof
       env)
     (selected : Fin 2) (activeValue : interface.active.value env = input.running selected)
@@ -126,7 +126,7 @@ theorem rlcRepresents (relation : ProductionKey.LogicalRelation logicalWidth pub
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-    (proof : Spec.Folding.Light.Proof LightShape 4) (env : Env)
+    (proof : Spec.Folding.Light.Proof LightShape 8) (env : Env)
     (represents : StepRepresents program interface ajtai circuitKeys circuit input output proof
       env)
     (selected : Fin 2) (activeValue : interface.active.value env = input.running selected) :
@@ -160,7 +160,7 @@ theorem rows_implies_stepHolds
     (rows : holds env (Circuit.ops (LightStepLayout.main program relation circuit interface)
       offset))
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-    (proof : Spec.Folding.Light.Proof LightShape 4)
+    (proof : Spec.Folding.Light.Proof LightShape 8)
     (represents : StepRepresents program interface ajtai circuitKeys circuit input output proof
       env)
     (next : output.runningNext = DigestSelect.nextSlots input.iteration input.running

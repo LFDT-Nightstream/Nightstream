@@ -132,7 +132,7 @@ end Step
 /-- A slot gadget hashes 2,181 words: 181 full blocks and the padding block. -/
 theorem slotGadget_hashLength {gadget : OutputHash.Interface} {offset : Nat} {env : Env}
     {slot : SlotData logicalWidth publicFits} (represents : SlotRepresents gadget offset env slot) :
-    OutputHash.hashLength gadget offset = 213668 := by
+    OutputHash.hashLength gadget offset = 199472 := by
   have length := congrArg List.length represents
   simp only [Hash.evalList, List.length_map, List.length_append, serializeSlot_length_eq] at length
   simp [OutputHash.hashLength, length, slotDomainChunk, domainChunk, Poseidon2.rate]
@@ -142,7 +142,7 @@ theorem stateGadget_hashLength {gadget : OutputHash.Interface} {offset : Nat}
     {digests : Fin 2 → Digest} {env : Env} {state : State logicalWidth publicFits}
     (well : state.WellFormed) (digestLength : ∀ slot, (digests slot).length = 4)
     (represents : StateRepresents (gadget.preimage offset) digests env state) :
-    OutputHash.hashLength gadget offset = 4696 := by
+    OutputHash.hashLength gadget offset = 4384 := by
   have length := congrArg List.length represents
   simp only [Hash.evalList, List.length_map, List.length_append, List.length_singleton,
     digestLength, well.verifierKeys, well.z0, well.current] at length

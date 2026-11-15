@@ -52,7 +52,7 @@ structure Interface (logicalWidth : Nat)
   childEvaluation : Fin productionShape.runningCount → StatementAbsorption.EvaluationExpr
   digit : Fin productionShape.runningCount →
     Fin (PaperAlgebra.FullShape logicalWidth publicFits).publicWidth → Expr
-  round : Fin productionShape.cubeVariables → RoundTranscript.Message 4
+  round : Fin productionShape.cubeVariables → RoundTranscript.Message 8
   output : OutputBinding.OutputExpr
 
 variable {logicalWidth : Nat}
@@ -148,7 +148,7 @@ def piccsOffset : Nat :=
 
 /-- The refresh Π_CCS reads the children: the slot's point, the proof's commitments and
 evaluation families, and the digit words as public inputs. -/
-def piccsInterface : RefreshPiCCSLayout.Interface logicalWidth 4 publicFits where
+def piccsInterface : RefreshPiCCSLayout.Interface logicalWidth 8 publicFits where
   running := fun _ =>
     { point := interface.active.point
       commitment := interface.childCommitment
@@ -158,7 +158,7 @@ def piccsInterface : RefreshPiCCSLayout.Interface logicalWidth 4 publicFits wher
   round := fun _ => interface.round
   output := fun _ => interface.output
 
-def piccsLeaves : RefreshPiCCSPhase.Leaves logicalWidth 4 publicFits :=
+def piccsLeaves : RefreshPiCCSPhase.Leaves logicalWidth 8 publicFits :=
   RefreshPiCCSLayout.leaves relation (piccsInterface program interface)
     (piccsOffset program circuit interface offset)
 

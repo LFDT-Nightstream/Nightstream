@@ -27,8 +27,8 @@ open NightstreamFPrime.Lifecycle.BoundedDepth
 open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle
 
 /-- HyperNova's zero proof on the light key: zero rounds and zero outputs. -/
-def zeroProof : Light.Proof LightShape 4 where
-  piCcsRounds := fun _ => SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 4
+def zeroProof : Light.Proof LightShape 8 where
+  piCcsRounds := fun _ => SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 8
   piCcsOutput := {
     padCoordinate := fun _ _ => K.zero
     matrixCoordinate := fun _ _ _ => K.zero }
@@ -123,7 +123,7 @@ private theorem strictNormResidual_zero :
 private theorem zero_chain (challenges : List K) :
     SumCheck.Finite.FixedPhase.Chain extensionOps.toOps K.zero
       (List.replicate challenges.length
-        (SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 4))
+        (SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 8))
       challenges K.zero := by
   induction challenges with
   | nil => rfl
@@ -203,7 +203,7 @@ theorem check_zero (key : CircuitKey logicalWidth publicFits) (digest : Digest) 
       SignedJointIdentity.gammaTerm, extension_mul_zero, extension_zero_add]
   have roundsEqual : List.ofFn zeroProof.piCcsRounds = List.replicate
       probe.coins.roundPoint.coordinates.length
-        (SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 4) := by
+        (SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 8) := by
     rw [probe.coins.roundPoint.dimension]
     exact List.ofFn_const _ _
   change SumCheck.Finite.FixedPhase.Chain extensionOps.toOps

@@ -18,7 +18,7 @@ abbrev Index := Fin PiCCSOrdinarySourceSupport.transcriptInvocationCount
 
 def transcriptStart : Nat := PackageOrder.sourceToPackage PiCCSStarts.statementWitnessStart
 
-theorem transcriptStart_eq : transcriptStart = 5023386 := by
+theorem transcriptStart_eq : transcriptStart = 4694294 := by
   unfold transcriptStart
   rw [PiCCSStarts.statementWitnessStart_eq]
   rfl
@@ -36,17 +36,17 @@ def env (source : Env) : Env :=
     PiCCSOrdinarySourceSupport.transcriptInvocationCount source
 
 def sourceColumn (index : Index) (lane : Fin 16) : Nat :=
-  PiCCSStarts.statementWitnessStart + index.val * 1174 + 1158 + lane.val
+  PiCCSStarts.statementWitnessStart + index.val * 1096 + 1080 + lane.val
 
 theorem sourceColumn_target (index : Index) (lane : Fin 16) :
     PackageOrder.sourceToPackage (sourceColumn index lane) =
       PermutationOutput.Readout.outputColumn transcriptStart index lane := by
   unfold sourceColumn PermutationOutput.Readout.outputColumn
     PermutationOutput.Readout.witnessStart transcriptStart
-  have combined : PiCCSStarts.statementWitnessStart + index.val * 1174 + 1158 + lane.val =
-      PiCCSStarts.statementWitnessStart + (index.val * 1174 + 1158 + lane.val) := by omega
+  have combined : PiCCSStarts.statementWitnessStart + index.val * 1096 + 1080 + lane.val =
+      PiCCSStarts.statementWitnessStart + (index.val * 1096 + 1080 + lane.val) := by omega
   rw [combined, PackageOrder.sourceToPackage_add_of_piCcsLocal
-    PiCCSStarts.statementWitnessStart (index.val * 1174 + 1158 + lane.val) (by
+    PiCCSStarts.statementWitnessStart (index.val * 1096 + 1080 + lane.val) (by
       norm_num [PiCCSStarts.statementWitnessStart_eq, PackageOrder.piCcsPhaseOffset])]
   omega
 
@@ -75,7 +75,7 @@ theorem env_source_of_notTranscript (source : Env) (column : Nat)
 private def physicalIndex (index : Index) :
     Fin PoseidonRetainedBlock.basePackage.permutationInvocations.length :=
   ⟨index.val, by
-    have bound : index.val < 156 := by
+    have bound : index.val < 184 := by
       simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] using index.isLt
     rw [PoseidonRetainedBlock.basePackage_permutationInvocations_length]
     rw [PoseidonRetainedBlock.laterInvocationCount_eq]
@@ -87,7 +87,7 @@ def invocation (index : Index) : PermutationInvocation :=
 theorem invocation_witnessStart (index : Index) :
     (invocation index).witnessStart =
       PermutationOutput.Readout.witnessStart transcriptStart index := by
-  have bound : index.val < 156 := by
+  have bound : index.val < 184 := by
     simpa only [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq] using index.isLt
   let selected : Fin (Data.permutationInvocations ()).length :=
     ⟨index.val, by
@@ -114,7 +114,7 @@ theorem invocation_witnessStart (index : Index) :
     Option.some.inj listEq
   rw [same, PermutationPlan.canonicalInvocation_witnessStart_of_transcript selected bound]
   exact PackageOrder.sourceToPackage_add_of_piCcsLocal PiCCSStarts.statementWitnessStart
-    (index.val * 1174) (by
+    (index.val * 1096) (by
       norm_num [PiCCSStarts.statementWitnessStart_eq, PackageOrder.piCcsPhaseOffset])
 
 theorem env_eq_of_invocations (source : Env)

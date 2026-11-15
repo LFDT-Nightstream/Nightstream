@@ -267,7 +267,7 @@ theorem light_complete (relation : ProductionKey.LogicalRelation logicalWidth pu
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-    (proof : Spec.Folding.Light.Proof LightShape 4) (env : Env)
+    (proof : Spec.Folding.Light.Proof LightShape 8) (env : Env)
     (holds : holdsFlat env (Circuit.ops
       (LightAssemblerCircuit.stepCircuit program StepRelation.base relation 0 ajtai).main
       (LightAssembler.sharedEnd StepRelation.base program.witnessWordCount)))
@@ -311,7 +311,7 @@ theorem refresh_complete (relation : ProductionKey.LogicalRelation logicalWidth 
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
     (input : StepInput logicalWidth publicFits) (output : StepOutput logicalWidth publicFits)
-    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 4) (env : Env)
+    (proof : Spec.Folding.Refresh.Proof PaperAlgebra.Commitment productionShape 8) (env : Env)
     (holds : holdsFlat env (Circuit.ops
       (RefreshAssemblerCircuit.stepCircuit program StepRelation.base relation 1 ajtai).main
       (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount)))

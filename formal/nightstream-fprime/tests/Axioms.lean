@@ -15,6 +15,7 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Spec.Poseidon2.constant_table_shape
 #audit_axioms NightstreamFPrime.Spec.Poseidon2.internalDiagonal_signed
 #audit_axioms NightstreamFPrime.Spec.Poseidon2.pow_bijective_of_coprime
+#audit_axioms NightstreamFPrime.Spec.Poseidon2.coprime_seven
 #audit_axioms NightstreamFPrime.Spec.Poseidon2.coprime_three
 #audit_axioms NightstreamFPrime.Spec.Poseidon2.sbox_eq_pow
 #audit_axioms NightstreamFPrime.Spec.Poseidon2.sbox_bijective
@@ -735,8 +736,8 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.rowCount
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.localLength_eq
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.flatConstraints_length_eq
-#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.privateCount_eq_of_degreeBound_eq_four
-#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.rowCount_eq_of_degreeBound_eq_four
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.privateCount_eq_of_degreeBound_eq_eight
+#audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.rowCount_eq_of_degreeBound_eq_eight
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.completeness
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.challengeInterface_initialState
 #audit_axioms NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.initialClaimOffset_eq_initialClaimRowOffset
@@ -848,7 +849,7 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.RoundTranscript.footprint
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.RoundTranscript.freshColumnCount_eq
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.RoundTranscript.physicalRowCount_eq
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.RoundTranscript.physicalRowCount_eq_of_degreeBound_eq_four
+#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.RoundTranscript.physicalRowCount_eq_of_degreeBound_eq_eight
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.InitialClaim.coefficientExprs_linear
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.InitialClaim.footprint
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.InitialClaim.freshColumnCount_eq
@@ -897,8 +898,8 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount_eq
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.physicalRowCount_eq
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.physicalColumnCount_eq
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.logicalConstraints_length_eq_of_degreeBound_eq_four
-#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount_eq_of_degreeBound_eq_four
+#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.logicalConstraints_length_eq_of_degreeBound_eq_eight
+#audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.logicalColumnCount_eq_of_degreeBound_eq_eight
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.logicalConstraints_eq_ordered
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.totalFreshCount_eq_deltas
 #audit_axioms NightstreamFPrime.Layout.PiCCS.v1_2.totalRowCount_eq_deltas

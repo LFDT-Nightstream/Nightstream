@@ -98,7 +98,7 @@ theorem Plan.encode_injective : Function.Injective Plan.format.encode := by
   rw [Plan.decode_encode, Plan.decode_encode] at decoded
   exact Except.ok.inj decoded
 
-def permutationRowCount : Nat := 1174
+def permutationRowCount : Nat := 1096
 
 def Plan.expandedRowCount (plan : Plan) : Nat :=
   (plan.hashChains.map fun chain => chain.witnessLength).sum +

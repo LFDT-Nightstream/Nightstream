@@ -153,7 +153,7 @@ private theorem initial_le_sumcheck :
   Nat.le_add_right _ _
 
 private theorem sumcheck_finish_le :
-    PiCCSArithmetic.sumcheckLogicalStart + 336 ≤
+    PiCCSArithmetic.sumcheckLogicalStart + 672 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.sumcheckLogicalStart
@@ -214,7 +214,7 @@ private theorem initial_le_ccs :
   exact Nat.le_trans initial_le_evalA (Nat.le_add_right _ _)
 
 private theorem ccs_finish_le :
-    PiCCSArithmetic.ccsLogicalStart + 11 ≤
+    PiCCSArithmetic.ccsLogicalStart + 23 ≤
       PiCCSStarts.outputBindingWitnessStart := by
   rw [PiCCSStarts.outputBindingWitnessStart_eq]
   unfold PiCCSArithmetic.ccsLogicalStart
@@ -380,8 +380,8 @@ theorem emittedConstraints_varsSatisfy
   have sumcheckLocal : ∀ index,
       PiCCSArithmetic.sumcheckLogicalStart ≤ index →
       index < PiCCSArithmetic.sumcheckLogicalStart +
-        SumcheckChain.privateCount 4 → Source index :=
-    fixedLocal_source PiCCSArithmetic.sumcheckLogicalStart 336
+        SumcheckChain.privateCount 8 → Source index :=
+    fixedLocal_source PiCCSArithmetic.sumcheckLogicalStart 672
       initial_le_sumcheck sumcheck_finish_le
   have sumcheckRows := SumcheckChain.flatConstraints_varsSatisfy
     sumcheckInterface PiCCSArithmetic.sumcheckLogicalStart Source
@@ -475,10 +475,10 @@ theorem emittedConstraints_varsSatisfy
           PiCCSArithmetic.ccsLogicalStart) → Source index := by
     intro index lower upper
     have productCountEq :
-        Sparse.Owned.productCount Formal.ccsRowPolynomial = 9 := by
+        Sparse.Owned.productCount Formal.ccsRowPolynomial = 21 := by
       rfl
     rw [Sparse.Owned.localLength_eq, productCountEq] at upper
-    apply fixedLocal_source PiCCSArithmetic.ccsLogicalStart 11
+    apply fixedLocal_source PiCCSArithmetic.ccsLogicalStart 23
       initial_le_ccs ccs_finish_le index lower upper
   have ccsPointSupport : ∀ matrix,
       Horner.KSupported

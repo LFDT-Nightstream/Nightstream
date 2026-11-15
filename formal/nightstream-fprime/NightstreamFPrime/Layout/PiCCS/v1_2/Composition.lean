@@ -29,7 +29,7 @@ variable {logicalWidth degreeBound : Nat}
 
 structure InputShapes
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat) : Prop where
   statementBinding : ∀ childOffset,
     Leaves.StatementBinding.InputsAffine
@@ -81,7 +81,7 @@ structure InputShapes
 
 def terminalFreshCost
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat) : Nat :=
   Leaves.FinalIdentity.terminalFreshColumnCount
     (Formal.finalIdentityInterface relation
@@ -90,7 +90,7 @@ def terminalFreshCost
 
 def terminalRowCost
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat) : Nat :=
   Leaves.FinalIdentity.terminalPhysicalRowCount
     (Formal.finalIdentityInterface relation
@@ -99,7 +99,7 @@ def terminalRowCost
 
 private theorem terminalInputShapes
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     Leaves.FinalIdentity.TerminalInputShapes
@@ -142,7 +142,7 @@ private theorem terminalInputShapes
 
 theorem terminalFreshCost_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     terminalFreshCost relation interface parentOffset = 209 := by
@@ -154,7 +154,7 @@ theorem terminalFreshCost_eq
 
 theorem terminalRowCost_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     terminalRowCost relation interface parentOffset = 211 := by
@@ -346,7 +346,7 @@ theorem totalRowCount_eq_deltas
 
 theorem physicalFreshDeltas_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     physicalFreshDeltas relation interface parentOffset =
@@ -395,13 +395,13 @@ theorem physicalFreshDeltas_eq
 
 theorem physicalRowDeltas_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     physicalRowDeltas relation interface parentOffset =
-      [4992, 145576, 4696, 32872, 13437, 392, 3460, 11524,
-        11, 700, 3478 + terminalRowCost relation interface parentOffset,
-        939200] := by
+      [4992, 135904, 4384, 61376, 13437, 728, 3460, 11524,
+        23, 700, 3478 + terminalRowCost relation interface parentOffset,
+        876800] := by
   unfold physicalRowDeltas childConstraintLists childConstraints
   simp only [List.map_cons, List.map_nil]
   rw [Leaves.StatementBinding.physicalRowCount_eq
@@ -413,7 +413,7 @@ theorem physicalRowDeltas_eq
     Leaves.ChallengeDerivation.physicalRowCount_eq interface parentOffset
       inputs.challengeDerivation
       (Formal.challengeOffset interface parentOffset),
-    Leaves.RoundTranscript.physicalRowCount_eq_of_degreeBound_eq_four
+    Leaves.RoundTranscript.physicalRowCount_eq_of_degreeBound_eq_eight
       (Formal.atOffset interface parentOffset) inputs.roundTranscript
       (Formal.roundTranscriptOffset interface parentOffset) rfl,
     Leaves.InitialClaim.physicalRowCount_eq
@@ -445,11 +445,11 @@ theorem physicalRowDeltas_eq
 
 theorem logicalPrivateDeltas_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat) :
     logicalPrivateDeltas relation interface parentOffset =
-      [320, 145576, 4696, 32872, 13437, 336, 2795, 10859, 11, 42,
-        2813, 939200] := by
+      [320, 135904, 4384, 61376, 13437, 672, 2795, 10859, 23, 42,
+        2813, 876800] := by
   unfold logicalPrivateDeltas Formal.opsAt
   simp only [List.map_cons, List.map_nil, Formal.childOp_privateCount]
   unfold Formal.statementBindingCircuit Formal.statementAbsorptionCircuit
@@ -466,23 +466,23 @@ theorem logicalPrivateDeltas_eq_production
 
 theorem physicalRowDeltas_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     physicalRowDeltas relation interface parentOffset =
-      [4992, 145576, 4696, 32872, 13437, 392, 3460, 11524,
-        11, 700, 3689, 939200] := by
+      [4992, 135904, 4384, 61376, 13437, 728, 3460, 11524,
+        23, 700, 3689, 876800] := by
   rw [physicalRowDeltas_eq relation interface parentOffset inputs,
     terminalRowCost_eq relation interface parentOffset inputs]
 
 theorem physicalColumnDeltas_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     physicalColumnDeltas relation interface parentOffset =
-      [320, 145576, 4696, 32872, 13437, 336, 3460, 11524,
-        11, 700, 3687, 939200] := by
+      [320, 135904, 4384, 61376, 13437, 672, 3460, 11524,
+        23, 700, 3687, 876800] := by
   unfold physicalColumnDeltas
   rw [logicalPrivateDeltas_eq_production,
     physicalFreshDeltas_eq relation interface parentOffset inputs,
@@ -491,18 +491,18 @@ theorem physicalColumnDeltas_eq_production
 
 theorem cumulativeFootprints_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     cumulativePhysicalRows relation interface parentOffset =
-        [4992, 150568, 155264, 188136, 201573, 201965, 205425, 216949,
-          216960, 217660, 221349, 1160549] ∧
+        [4992, 140896, 145280, 206656, 220093, 220821, 224281, 235805,
+          235828, 236528, 240217, 1117017] ∧
       cumulativePhysicalColumns relation interface parentOffset =
-        [320, 145896, 150592, 183464, 196901, 197237, 200697, 212221,
-          212232, 212932, 216619, 1155819] ∧
+        [320, 136224, 140608, 201984, 215421, 216093, 219553, 231077,
+          231100, 231800, 235487, 1112287] ∧
       cumulativeJointDomains relation interface parentOffset =
-        [4992, 150568, 155264, 188136, 201573, 201965, 205425, 216949,
-          216960, 217660, 221349, 1160549] := by
+        [4992, 140896, 145280, 206656, 220093, 220821, 224281, 235805,
+          235828, 236528, 240217, 1117017] := by
   rw [cumulativePhysicalRows, physicalRowDeltas_eq_production
       relation interface parentOffset inputs,
     cumulativePhysicalColumns, physicalColumnDeltas_eq_production
@@ -519,8 +519,8 @@ private theorem freshDeltaSum_eq (terminal : Nat) :
   omega
 
 private theorem rowFixedCost_eq :
-    4992 + 145576 + 4696 + 32872 + 13437 + 392 + 3460 + 11524 +
-      11 + 700 + 3478 + 939200 = 1160338 := by
+    4992 + 135904 + 4384 + 61376 + 13437 + 728 + 3460 + 11524 +
+      23 + 700 + 3478 + 876800 = 1116806 := by
   norm_num
 
 private theorem rowDeltaSum_reassociate
@@ -531,18 +531,18 @@ private theorem rowDeltaSum_reassociate
   ac_rfl
 
 private theorem rowDeltaSum_eq (terminal : Nat) :
-    [4992, 145576, 4696, 32872, 13437, 392, 3460, 11524,
-      11, 700, 3478 + terminal, 939200].sum =
-        1160338 + terminal := by
+    [4992, 135904, 4384, 61376, 13437, 728, 3460, 11524,
+      23, 700, 3478 + terminal, 876800].sum =
+        1116806 + terminal := by
   calc
-    _ = (4992 + 145576 + 4696 + 32872 + 13437 + 392 + 3460 + 11524 +
-          11 + 700 + 3478 + 939200) + terminal :=
+    _ = (4992 + 135904 + 4384 + 61376 + 13437 + 728 + 3460 + 11524 +
+          23 + 700 + 3478 + 876800) + terminal :=
       rowDeltaSum_reassociate _ _ _ _ _ _ _ _ _ _ _ _ _
     _ = _ := by rw [rowFixedCost_eq]
 
 theorem totalFreshCount_eq_fixed
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     R1CS.totalFreshCount
@@ -559,25 +559,25 @@ theorem totalFreshCount_eq_fixed
 
 theorem totalRowCount_eq_fixed
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     R1CS.totalRowCount (logicalConstraints relation interface parentOffset) =
-      1160338 + terminalRowCost relation interface parentOffset := by
+      1116806 + terminalRowCost relation interface parentOffset := by
   calc
     _ = (physicalRowDeltas relation interface parentOffset).sum :=
       totalRowCount_eq_deltas relation interface parentOffset
-    _ = [4992, 145576, 4696, 32872, 13437, 392, 3460, 11524,
-          11, 700,
+    _ = [4992, 135904, 4384, 61376, 13437, 728, 3460, 11524,
+          23, 700,
           3478 + terminalRowCost relation interface parentOffset,
-          939200].sum :=
+          876800].sum :=
       congrArg List.sum
         (physicalRowDeltas_eq relation interface parentOffset inputs)
     _ = _ := rowDeltaSum_eq _
 
 theorem physicalFreshColumnCount_eq_fixed
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     physicalFreshColumnCount relation interface parentOffset =
@@ -586,48 +586,48 @@ theorem physicalFreshColumnCount_eq_fixed
 
 theorem physicalRowCount_eq_fixed
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     physicalRowCount relation interface parentOffset =
-      1160338 + terminalRowCost relation interface parentOffset := by
+      1116806 + terminalRowCost relation interface parentOffset := by
   rw [physicalRowCount_eq]
   exact totalRowCount_eq_fixed relation interface parentOffset inputs
 
 theorem physicalColumnCount_eq_fixed
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     physicalColumnCount relation interface parentOffset =
-      parentOffset + 1155610 +
+      parentOffset + 1112078 +
         terminalFreshCost relation interface parentOffset := by
   rw [physicalColumnCount_eq,
-    logicalColumnCount_eq_of_degreeBound_eq_four relation interface
+    logicalColumnCount_eq_of_degreeBound_eq_eight relation interface
       parentOffset rfl,
     physicalFreshColumnCount_eq_fixed relation interface parentOffset inputs]
   omega
 
 def jointDomain
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits) : Nat :=
+    (interface : Formal.Interface logicalWidth 8 publicFits) : Nat :=
   max (physicalRowCount relation interface 0)
     (physicalColumnCount relation interface 0)
 
 theorem jointDomain_eq_fixed
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (inputs : InputShapes relation interface 0) :
     jointDomain relation interface =
-      max (1160338 + terminalRowCost relation interface 0)
-        (1155610 + terminalFreshCost relation interface 0) := by
+      max (1116806 + terminalRowCost relation interface 0)
+        (1112078 + terminalFreshCost relation interface 0) := by
   unfold jointDomain
   rw [physicalRowCount_eq_fixed relation interface 0 inputs,
     physicalColumnCount_eq_fixed relation interface 0 inputs]
 
 theorem physicalFreshColumnCount_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     physicalFreshColumnCount relation interface parentOffset = 2862 := by
@@ -636,28 +636,28 @@ theorem physicalFreshColumnCount_eq_production
 
 theorem physicalRowCount_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
-    physicalRowCount relation interface parentOffset = 1160549 := by
+    physicalRowCount relation interface parentOffset = 1117017 := by
   rw [physicalRowCount_eq_fixed relation interface parentOffset inputs,
     terminalRowCost_eq relation interface parentOffset inputs]
 
 theorem physicalColumnCount_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (inputs : InputShapes relation interface parentOffset) :
     physicalColumnCount relation interface parentOffset =
-      parentOffset + 1155819 := by
+      parentOffset + 1112287 := by
   rw [physicalColumnCount_eq_fixed relation interface parentOffset inputs,
     terminalFreshCost_eq relation interface parentOffset inputs]
 
 theorem jointDomain_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (inputs : InputShapes relation interface 0) :
-    jointDomain relation interface = 1160549 := by
+    jointDomain relation interface = 1117017 := by
   unfold jointDomain
   rw [physicalRowCount_eq_production relation interface 0 inputs,
     physicalColumnCount_eq_production relation interface 0 inputs]
@@ -665,7 +665,7 @@ theorem jointDomain_eq_production
 
 theorem jointDomain_le_twoPow28
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (interface : Formal.Interface logicalWidth 4 publicFits)
+    (interface : Formal.Interface logicalWidth 8 publicFits)
     (inputs : InputShapes relation interface 0) :
     jointDomain relation interface ≤ 2 ^ 28 := by
   rw [jointDomain_eq_production relation interface inputs]

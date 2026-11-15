@@ -7,7 +7,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompletenes
 /-! Completeness of a circuit's packed relation (CW-10.2), the converse of
 `CircuitRelation.rowsZero_implies_pieces`. Take an environment in which every piece's constraints
 hold. Set the blocks' dead locals to 0 (`liveEnv`), add the lowering's fresh columns
-(`PieceRowsCompleteness.executePieces`), and put each block's 171 S-box outputs from `sboxStart`,
+(`PieceRowsCompleteness.executePieces`), and put each block's 150 S-box outputs from `sboxStart`,
 read from the block's locals (`completeEnv`). An assignment whose layout reads this environment
 on each column that the relation reads (`Reads`) satisfies the relation's plan
 (`rowsZero_of_holds`): the lowered rows by `executePieces_spec`, the S-box rows because the
@@ -142,7 +142,7 @@ theorem eval_live {dead : Nat → Bool} {bound : Nat} {left right : Env} :
 
 /-- The column after the last S-box output. The relation's rows read no column at or past it. -/
 def slotEnd (pieces : List Piece) (next : Nat) : Nat :=
-  sboxStart pieces next + 171 * (blocksOf pieces).length
+  sboxStart pieces next + 150 * (blocksOf pieces).length
 
 /-- `env` with every dead local of the blocks set to 0. -/
 def liveEnv (pieces : List Piece) (env : Env) : Env :=
@@ -154,9 +154,9 @@ locals in `env`. -/
 noncomputable def completeEnv (pieces : List Piece) (next : Nat) (env : Env) : Env :=
   fun column =>
     if inside : sboxStart pieces next ≤ column ∧ column < slotEnd pieces next then
-      env (((blocksOf pieces).get ⟨(column - sboxStart pieces next) / 171, by
+      env (((blocksOf pieces).get ⟨(column - sboxStart pieces next) / 150, by
           unfold slotEnd at inside; omega⟩).start +
-        (PoseidonRetainedSlots.localOutput ⟨(column - sboxStart pieces next) % 171, by
+        (PoseidonRetainedSlots.localOutput ⟨(column - sboxStart pieces next) % 150, by
           rw [PoseidonRetainedSlots.rows_length]; omega⟩).val)
     else
       PieceRowsCompleteness.executePieces (PilotData.canonicalConstraints ()) (liveEnv pieces env)
@@ -174,19 +174,19 @@ theorem completeEnv_sbox {pieces : List Piece} {next : Nat} {env : Env}
     (index : Fin (blocksOf pieces).length) (row : Fin PoseidonRetainedSlots.rows.length) :
     completeEnv pieces next env (sboxColumn (sboxStart pieces next) index.val row.val) =
       env (((blocksOf pieces).get index).start + (PoseidonRetainedSlots.localOutput row).val) := by
-  have rowBound : row.val < 171 := by simpa using row.isLt
+  have rowBound : row.val < 150 := by simpa using row.isLt
   have indexBound := index.isLt
-  have room : index.val * 171 + 171 ≤ (blocksOf pieces).length * 171 := by
-    have := Nat.mul_le_mul_right 171 (Nat.succ_le_of_lt indexBound)
+  have room : index.val * 150 + 150 ≤ (blocksOf pieces).length * 150 := by
+    have := Nat.mul_le_mul_right 150 (Nat.succ_le_of_lt indexBound)
     simpa [Nat.succ_mul] using this
   unfold completeEnv
   rw [dite_eq_left (by unfold sboxColumn slotEnd; omega)]
   have offset : sboxColumn (sboxStart pieces next) index.val row.val - sboxStart pieces next =
-      index.val * 171 + row.val := by
+      index.val * 150 + row.val := by
     unfold sboxColumn
     omega
-  have indexEq : (index.val * 171 + row.val) / 171 = index.val := by omega
-  have rowEq : (index.val * 171 + row.val) % 171 = row.val := by omega
+  have indexEq : (index.val * 150 + row.val) / 150 = index.val := by omega
+  have rowEq : (index.val * 150 + row.val) % 150 = row.val := by omega
   simp only [offset, indexEq, rowEq]
 
 /-- The columns that the packed relation reads: a column of a term of a lowered row or of a
@@ -261,10 +261,10 @@ theorem outputEnv_complete (packed : packable publicColumns pieces = true)
       LogicalPlan.sourceEnv layout assignment column = completeEnv pieces next env column)
     (index : Fin (blocksOf pieces).length) (lane : Fin 16) :
     NativeBlock.outputEnv (blocksOf pieces) (sboxStart pieces next) layout assignment
-        (((blocksOf pieces).get index).start + 1158 + lane.val) =
-        env (((blocksOf pieces).get index).start + 1158 + lane.val) ∧
-      completeEnv pieces next env (((blocksOf pieces).get index).start + 1158 + lane.val) =
-        env (((blocksOf pieces).get index).start + 1158 + lane.val) := by
+        (((blocksOf pieces).get index).start + 1080 + lane.val) =
+        env (((blocksOf pieces).get index).start + 1080 + lane.val) ∧
+      completeEnv pieces next env (((blocksOf pieces).get index).start + 1080 + lane.val) =
+        env (((blocksOf pieces).get index).start + 1080 + lane.val) := by
   have frame := packable_framed packed
   have nextLe : next ≤ (sboxStart pieces next) := next_le_sboxStart pieces next
   have member := permutation_mem_of_block (List.get_mem (blocksOf pieces) index)
@@ -274,9 +274,9 @@ theorem outputEnv_complete (packed : packable publicColumns pieces = true)
   constructor
   · refine NativeBlock.outputEnv_honest frame _ layout assignment env index (holds _ member)
       (fun row => ?_) lane
-    have rowLt : row.val < 171 := by simpa using row.isLt
-    have room : index.val * 171 + 171 ≤ (blocksOf pieces).length * 171 := by
-      have := Nat.mul_le_mul_right 171 (Nat.succ_le_of_lt index.isLt)
+    have rowLt : row.val < 150 := by simpa using row.isLt
+    have room : index.val * 150 + 150 ≤ (blocksOf pieces).length * 150 := by
+      have := Nat.mul_le_mul_right 150 (Nat.succ_le_of_lt index.isLt)
       simpa [Nat.succ_mul] using this
     rw [represents _ (Or.inr ⟨by unfold sboxColumn; omega, by unfold sboxColumn slotEnd; omega⟩)]
     exact completeEnv_sbox index row
@@ -310,7 +310,7 @@ theorem rowsZero_of_holds (fits : Fits publicColumns pieces next width)
     rw [represents column read, completeEnv_low (by omega),
       executePieces_below _ _ _ _ _ columnBelow]
     simp [liveEnv, live]
-  have rowBound : sboxStart pieces next + (blocksOf pieces).length * 171 ≤ width :=
+  have rowBound : sboxStart pieces next + (blocksOf pieces).length * 150 ≤ width :=
     (fits.blocks packed).sboxColumns
   let interface := sboxInterface layout (blocksOf pieces) (sboxStart pieces next)
   let star := NativeBlock.outputEnv (blocksOf pieces) (sboxStart pieces next) layout assignment
@@ -318,9 +318,9 @@ theorem rowsZero_of_holds (fits : Fits publicColumns pieces next width)
       sboxColumn (sboxStart pieces next) index.val row.val < slotEnd pieces next ∧
         sboxColumn (sboxStart pieces next) index.val row.val < width := by
     intro index row
-    have rowLt : row.val < 171 := by simpa using row.isLt
-    have room : index.val * 171 + 171 ≤ (blocksOf pieces).length * 171 := by
-      have := Nat.mul_le_mul_right 171 (Nat.succ_le_of_lt index.isLt)
+    have rowLt : row.val < 150 := by simpa using row.isLt
+    have room : index.val * 150 + 150 ≤ (blocksOf pieces).length * 150 := by
+      have := Nat.mul_le_mul_right 150 (Nat.succ_le_of_lt index.isLt)
       simpa [Nat.succ_mul] using this
     unfold sboxColumn slotEnd
     constructor <;> omega
@@ -339,8 +339,8 @@ theorem rowsZero_of_holds (fits : Fits publicColumns pieces next width)
     exact sboxSource index row
   -- An output local in the environment with the output forms has its value in `env`.
   have starOutput : ∀ (index : Fin (blocksOf pieces).length) (lane : Fin 16),
-      star (((blocksOf pieces).get index).start + 1158 + lane.val) =
-        env (((blocksOf pieces).get index).start + 1158 + lane.val) := by
+      star (((blocksOf pieces).get index).start + 1080 + lane.val) =
+        env (((blocksOf pieces).get index).start + 1080 + lane.val) := by
     intro index lane
     exact NativeBlock.outputEnv_honest frame _ layout assignment env index
       (holds _ (permutation_mem_of_block (List.get_mem (blocksOf pieces) index)))
@@ -364,7 +364,7 @@ theorem rowsZero_of_holds (fits : Fits publicColumns pieces next width)
       LinearLanes ((blocksOf pieces).get index).lanes ∧
         (∀ lane : Fin 16, (((blocksOf pieces).get index).lanes.getD lane.val 0).eval star =
           (((blocksOf pieces).get index).lanes.getD lane.val 0).eval env) ∧
-        ((blocksOf pieces).get index).start + 1174 ≤ next ∧
+        ((blocksOf pieces).get index).start + 1096 ≤ next ∧
         ConstraintsHold env ((Piece.permutation ((blocksOf pieces).get index).start
           ((blocksOf pieces).get index).lanes).constraints canonical) := by
     intro index
@@ -461,14 +461,14 @@ theorem subst_varsBelow {inner outer : Nat} (wires : Nat → Expr)
       exact ⟨subst_varsBelow wires wiresBelow left below.1,
         subst_varsBelow wires wiresBelow right below.2⟩
 
-/-- The canonical permutation reads its 16 inputs and its 1,174 locals. -/
+/-- The canonical permutation reads its 16 inputs and its 1,096 locals. -/
 theorem canonical_varsBelow :
-    ∀ expression ∈ PilotData.canonicalConstraints (), expression.VarsBelow 1190 := by
+    ∀ expression ∈ PilotData.canonicalConstraints (), expression.VarsBelow 1112 := by
   intro expression member
   have scope := recipeConstraints_varsBelow_of_causal 16 (PilotData.canonicalRecipes ())
     (Permutation.compile_schedule_causal 16 PilotData.canonicalState fun lane => lane.isLt)
     expression member
-  rw [show (PilotData.canonicalRecipes ()).length = 1174 from
+  rw [show (PilotData.canonicalRecipes ()).length = 1096 from
     Permutation.compile_schedule_recipe_count 16 PilotData.canonicalState] at scope
   exact scope
 

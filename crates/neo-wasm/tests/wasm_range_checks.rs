@@ -5,8 +5,8 @@ use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
 use neo_wasm::ccs::host_event_chain::{AUX_COLUMN_FAMILIES, AUX_WIDTH};
 use neo_wasm::layout::{
-    column_families, named_column_family, ColumnWidth, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT,
-    COL_CALL_STACK_RETURN_PC_VALUE, NAMED_COLUMN_COUNT,
+    column_families, named_column_family, ColumnWidth, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_GLOBAL_INDEX,
+    NAMED_COLUMN_COUNT,
 };
 use neo_wasm::range_check::range_checked_bit_columns;
 use neo_wasm::{
@@ -102,19 +102,14 @@ fn packed_function_metadata_counts_are_byte_ranged() {
     );
 }
 
-/// An out-of-range value in a column no semantic row pins (the call-stack
-/// return-pc cell on a row that neither pushes nor pops) must be rejected,
+/// An out-of-range value in a column no semantic row pins (the global-index
+/// word on a row that does not access globals) must be rejected,
 /// and the failing row must be one of that column's own range-check rows,
 /// proving nothing else constrains the value.
 #[test]
 fn out_of_range_u32_is_rejected_by_the_column_range_row() {
     // The invariant under attack: the column is declared as a 32-bit value.
-    assert_eq!(
-        named_column_family(COL_CALL_STACK_RETURN_PC_VALUE)
-            .unwrap()
-            .width,
-        ColumnWidth::U32
-    );
+    assert_eq!(named_column_family(COL_GLOBAL_INDEX).unwrap().width, ColumnWidth::U32);
 
     let checked =
         common::checked_main(r#"(module (func (export "main") (result i32) i32.const 20 i32.const 22 i32.add))"#);
@@ -125,13 +120,13 @@ fn out_of_range_u32_is_rejected_by_the_column_range_row() {
         .expect("i32.add row");
     let mut wit = checked.witnesses[add_idx].clone();
 
-    wit[COL_CALL_STACK_RETURN_PC_VALUE] = F::from_u64(1u64 << 32);
+    wit[COL_GLOBAL_INDEX] = F::from_u64(1u64 << 32);
     write_range_check_bits(&mut wit);
 
     let relation = build_wasm_relation().expect("valid WASM relation");
     let m_in = relation.r1cs().public_input_count();
     let err = check_ccs_rowwise_zero(relation.r1cs().structure(), &wit[..m_in], &wit[m_in..])
-        .expect_err("the range-checked CCS must reject an out-of-range call-stack return pc value");
+        .expect_err("the range-checked CCS must reject an out-of-range global index");
 
     let detail = err.to_string();
     let row_idx = detail
@@ -142,7 +137,7 @@ fn out_of_range_u32_is_rejected_by_the_column_range_row() {
     let tag = relation.r1cs().catalog().rows()[row_idx].tag();
     assert_eq!(
         tag.label(),
-        "COL_CALL_STACK_RETURN_PC_VALUE",
+        "COL_GLOBAL_INDEX",
         "rejection must come from the column's own range-check row, failed row {row_idx} is tagged {tag:?}"
     );
 }
@@ -267,4 +262,41 @@ fn call_stack_advice_is_bound_when_active_and_repairable_when_inactive() {
         common::assert_satisfied(&forged[inactive], "zero repairs the inactive word");
         neo_wasm::sanity_check_memory_rows(layout, &forged, &preload).unwrap();
     }
+}
+
+#[test]
+fn memory_bounds_reject_a_return_pc_that_the_row_alone_accepts() {
+    use neo_wasm::layout::{COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_EDGE_ADDR, COL_PC_BEFORE};
+    let checked = common::checked_main(r#"(module (func $callee) (func (export "main") call $callee))"#);
+    let index = checked
+        .witnesses
+        .iter()
+        .position(|w| w[COL_CALL_STACK_PUSH_PRESENT] == F::ONE)
+        .unwrap();
+    let mut witness = checked.witnesses[index].clone();
+    witness[COL_PC_BEFORE] = F::from_u32(u32::MAX);
+    witness[COL_EDGE_ADDR] = F::from_u32(u32::MAX);
+    witness[COL_CALL_STACK_RETURN_PC_VALUE] = F::from_u64(1 << 32);
+    write_range_check_bits(&mut witness);
+    common::assert_satisfied(&witness, "pc + 1 needs the active memory-value bound");
+    let layout = neo_wasm::build_wasm_relation_layout();
+    let preload = neo_wasm::preload_from_program_artifacts(&checked.artifacts);
+    let error = neo_wasm::sanity_check_memory_rows(layout, &[witness], &preload).unwrap_err();
+    assert!(
+        error.contains("call_stack_return_pc") && error.contains("does not fit u32"),
+        "{error}"
+    );
+
+    let inactive = checked
+        .witnesses
+        .iter()
+        .find(|w| {
+            w[COL_CALL_STACK_PUSH_PRESENT] == F::ZERO && w[neo_wasm::layout::COL_CALL_STACK_POP_PRESENT] == F::ZERO
+        })
+        .unwrap();
+    let mut witness = inactive.clone();
+    witness[COL_CALL_STACK_RETURN_PC_VALUE] = -F::ONE;
+    common::assert_satisfied(&witness, "inactive memory value is not unconditionally bounded");
+    witness[COL_CALL_STACK_RETURN_PC_VALUE] = F::ZERO;
+    common::assert_satisfied(&witness, "inactive return pc admits a bounded repair");
 }

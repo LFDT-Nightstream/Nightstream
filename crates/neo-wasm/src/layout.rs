@@ -63,7 +63,7 @@ define_column_region! {
         COL_CALL_STACK_PUSH_PRESENT: Boolean => "flag indicating that this row saves a caller return context",
         COL_CALL_STACK_POP_PRESENT: Boolean =>
             "flag indicating that this row restores a saved caller return context",
-        COL_CALL_STACK_RETURN_PC_VALUE: U32 =>
+        COL_CALL_STACK_RETURN_PC_VALUE: MemoryRepairable =>
             "call-stack return-pc cell value: written on guest-call push, read back on pop into pc_after",
         COL_CALL_STACK_CALLER_FBP_VALUE: (Repairable(32)) =>
             "call-stack caller-fbp cell value: written on guest-call push, read back on pop into locals_fbp_after",

@@ -55,7 +55,7 @@ Proof.
   repeat split;
     match goal with
     | |- value _ ?a = value _ ?b + 1 =>
-      circuit_range a Ha; circuit_range b Hb;
+      pose proof (value_bound w a) as Ha; circuit_range b Hb;
       circuit_row ([(COL_CALL_STACK_PUSH_PRESENT, 1)], [(a, 1); (b, -1); (COL_ONE, -1)], ([] : SparseRow)) Hrow;
       expand_row Hrow; normalize_columns; rewrite Hpush, Hone in Hrow; field_linear Hrow
     | |- value _ ?a = value _ ?b =>

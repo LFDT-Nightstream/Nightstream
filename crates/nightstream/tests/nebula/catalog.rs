@@ -1003,3 +1003,14 @@ fn catalog_proof_verifies_and_rejects_a_broken_row_on_cpu() {
     ));
     eprintln!("catalog elapsed={:?}", started.elapsed());
 }
+
+#[test]
+fn circuit_binds_read_write_and_prior_values_to_u32_slots() {
+    let setup = setup();
+    let rows = honest_rows();
+    for column in [CODE_VALUE, HEAP_WRITE_VALUE, HEAP_PRIOR] {
+        for value in [1u64 << 32, F::ORDER_U64 - 1] {
+            setup.reject("active memory value exceeds U32", None, &rows, 0, &[(column, value)]);
+        }
+    }
+}

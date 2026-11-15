@@ -107,7 +107,10 @@ fn run() -> Result<(), Box<dyn Error>> {
             family.region != neo_wasm::RANGE_BITS_REGION
                 && !matches!(
                     family.width,
-                    ColumnWidth::Field | ColumnWidth::Implied(_) | ColumnWidth::Repairable(_)
+                    ColumnWidth::Field
+                        | ColumnWidth::Implied(_)
+                        | ColumnWidth::Repairable(_)
+                        | ColumnWidth::MemoryRepairable
                 )
         })
         .map(|family| family.name.as_ref())

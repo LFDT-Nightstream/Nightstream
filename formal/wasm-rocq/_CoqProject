@@ -18,6 +18,7 @@ CircuitFacts.v
 InactiveOffset.v
 InactiveStackBindings.v
 RangeObligations.v
+MemoryRanges.v
 TableDescriptor.v
 StackPorts.v
 Add.v

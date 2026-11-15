@@ -169,6 +169,7 @@ fn proof_obligations_skip_explicit_checks_without_narrowing_the_representation()
             IMPLIED: (Implied(32)) => "bound proved elsewhere",
             REPAIRABLE: [(Repairable(32)); 2] => "equivalent bounded advice",
             IMPLIED_BIT: (Implied(1)) => "Boolean bound proved elsewhere",
+            MEMORY: MemoryRepairable => "bound requires checked memory events",
         ]
     }
     let layout = RangeCheckLayout::new(
@@ -181,7 +182,10 @@ fn proof_obligations_skip_explicit_checks_without_narrowing_the_representation()
     )
     .unwrap();
     assert!(layout.bit_columns().is_empty());
-    assert_eq!(range_checked_variable_widths(layout.columns()), vec![1, 64, 64, 64, 64]);
+    assert_eq!(
+        range_checked_variable_widths(layout.columns()),
+        vec![1, 64, 64, 64, 64, 64]
+    );
     assert!(!FAMILIES[3].width.is_boolean());
     let mut builder = R1csBuilder::new(1, CONSTANT).unwrap();
     layout.push_constraints(

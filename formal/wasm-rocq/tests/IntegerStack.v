@@ -40,7 +40,7 @@ Example add_preserves_wide_prefix : fieldPrime ->
   valueStackMatches addFinal (afterBoundary addRow) [wide; i32Value 16].
 Proof.
   intros Hprime.
-  destruct (validRunb_sound _ _ add_row_checks) as [Hfull [_ Hreplay]].
+  destruct (validRunb_sound _ _ add_row_checks) as [Hfull [_ [Hreplay _]]].
   inversion Hfull as [ | ? ? Hrow Htail]; subst.
   change (Replay addInitial (eventsForRow memories addRow ++ []) addFinal) in Hreplay.
   rewrite app_nil_r in Hreplay.
@@ -80,7 +80,7 @@ Example local_pair_preserves_wide_prefix : fieldPrime ->
   valueStackMatches localFinal (afterBoundary getRow) [wide; maxI64].
 Proof.
   intros Hprime.
-  destruct (validRunb_sound _ _ local_rows_check) as [Hfull [_ Hreplay]].
+  destruct (validRunb_sound _ _ local_rows_check) as [Hfull [_ [Hreplay _]]].
   change (Forall FullRelation.satFull [setRow; getRow]) in Hfull.
   inversion Hfull as [ | ? ? Hset Htail]; subst.
   inversion Htail as [ | ? ? Hget Hnil]; subst.

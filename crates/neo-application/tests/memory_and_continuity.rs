@@ -475,3 +475,36 @@ fn continuity_catalog_rejects_reused_and_unknown_columns() {
         }
     );
 }
+
+#[test]
+fn memory_repairable_columns_require_value_bindings() {
+    for column in [ADDRESS, VALUE, VALUE_BEFORE, STATE_AFTER] {
+        let mut families = test_columns().families().to_vec();
+        families
+            .iter_mut()
+            .find(|family| family.start == column)
+            .unwrap()
+            .width = ColumnWidth::MemoryRepairable;
+        let columns = ColumnRegistry::new(families).unwrap();
+        let catalog = MemoryCatalog::new(
+            [MemorySpec {
+                id: TestMemory::State,
+                kind: MemoryKind::Ram,
+                ports: vec![MemoryPortSpec {
+                    address_columns: vec![ADDRESS],
+                    value_column: VALUE,
+                    kind: MemoryPortKind::Write {
+                        value_before_column: Some(VALUE_BEFORE),
+                    },
+                    activation: MemoryPortActivation::When(ACTIVE),
+                }],
+            }],
+            &columns,
+        );
+        if [VALUE, VALUE_BEFORE].contains(&column) {
+            assert!(catalog.is_ok());
+        } else {
+            assert_eq!(catalog, Err(MemoryCatalogError::MissingValueBinding { column }));
+        }
+    }
+}

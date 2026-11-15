@@ -170,7 +170,7 @@ Proof.
   intros baseDepth cursor rows. revert cursor.
   induction rows as [ | row rows IH]; intros cursor initial final boundary c0 Hprime Hloaded Htables Hrun
     [Hstart Hkinds] Hstate.
-  - destruct Hrun as [_ [_ Hreplay]]. inversion Hreplay; subst final.
+  - destruct Hrun as [_ [_ [Hreplay _]]]. inversion Hreplay; subst final.
     exists cursor, c0. split; [reflexivity | ]. split; [apply steps_refl_wf; eapply control_state_wf; eassumption | ].
     split; [exact Hloaded | exact Hstate].
   - cbn [runStartsAt] in Hstart. subst boundary.
@@ -179,7 +179,10 @@ Proof.
       (Forall_inv Hkinds) Hstate) as [cursor1 [c1 [Hroot1 [Hsteps1 Hstate1]]]].
     assert (Hsingle : validCircuitRun initial [row] middle).
     { split; [constructor; [exact Hfull | constructor] | ]. split; [constructor | ].
-      cbn [eventsForTrace flat_map]. rewrite app_nil_r. exact Hreplay. }
+      split; [cbn [eventsForTrace flat_map]; rewrite app_nil_r; exact Hreplay | ].
+      constructor.
+      - eapply valid_run_memory_bounds; [exact Hrun | left; reflexivity].
+      - constructor. }
     assert (Hloaded1 : programLoaded program middle)
       by (eapply program_loaded_preserved; [eapply run_preserves_roms; exact Hsingle | exact Hloaded]).
     assert (Hfragment : runFragment (afterBoundary row) baseDepth rows).

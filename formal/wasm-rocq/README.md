@@ -86,6 +86,22 @@ Neither annotation alone grants a narrower backend representation or changes the
 witness assignment. These obligations do not extend the instruction refinement's
 supported fragment.
 
+`ColumnWidth::MemoryRepairable` carries a separate, fixed-U32 obligation in
+`Columns.memoryRangeObligations`. `MemoryRanges.memory_range_obligations_sound`
+requires bounded active memory events as well as the row relation. It checks
+catalog value/prior-value membership and proves an equivalent U32 witness that
+changes only the tagged column and preserves events and continuity. Inactive
+uses still need a repair proof. The Rust catalog rejects a tag with no value or
+prior-value binding; an address binding alone is insufficient. The range pass
+emits no checks or bits for the tag and retains a conservative backend width.
+
+`validCircuitRun` includes the bounded-event premise, and
+`MemoryRanges.memory_range_obligations_run` connects it to the generated list.
+The executable witness checker also checks this premise. Nebula's 32-bit slot
+values and active catalog bindings supply it in the implementation. Rocq does
+not prove that Rust-to-Nebula correspondence or assume a bound on inactive
+columns. The original row-only obligation theorem receives no new premise.
+
 Requires the repository Rust toolchain (see `rust-toolchain.toml`), opam, and the
 checked versions of Coq/Rocq 9.0.1, MathComp ssreflect 2.4.0, and RecordUpdate 0.3.6:
 

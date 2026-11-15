@@ -14,14 +14,14 @@ impl From<usize> for ColumnId {
 
 /// Declared range and enforcement policy of a witness column.
 ///
-/// Boolean, Byte, U32 and Bits request explicit range constraints. Implied and
-/// Repairable omit them and carry proof obligations instead. Soundness requires
+/// Boolean, Byte, U32 and Bits request explicit range constraints. Implied,
+/// Repairable and MemoryRepairable omit them and carry proof obligations. Soundness requires
 /// the application to discharge every such obligation against the actual relation
 /// with those checks omitted. Merely declaring or exporting an obligation does
 /// not prove it; this Rust metadata layer does not check the proof.
 ///
 /// The proof method is application-specific: for example Rocq, Lean, or an SMT
-/// procedure that establishes the stated obligation. Neither annotation grants
+/// procedure that establishes the stated obligation. No obligation annotation grants
 /// a narrower backend representation without a checked justification.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ColumnWidth {
@@ -39,6 +39,13 @@ pub enum ColumnWidth {
     /// This does not assert that the original witness is bounded or prove application
     /// soundness by itself; it justifies omitting this particular range check.
     Repairable(u8),
+    /// Requires an accepted U32 equivalent under the additional premise that all
+    /// active memory values and prior values are U32. Change only this column and
+    /// preserve all observable effects, including memory events and continuity.
+    /// The catalog must identify this column as a value or prior value. Catalog
+    /// membership alone does not discharge the proof, including inactive uses.
+    /// A backend using this tag must enforce and bind the memory-value premise.
+    MemoryRepairable,
     Field,
 }
 

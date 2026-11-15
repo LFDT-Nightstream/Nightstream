@@ -2,7 +2,7 @@
 From Stdlib Require Import List.
 Import ListNotations.
 
-Inductive Width := Boolean | Byte | U32 | Bits (n : nat) | Implied (n : nat) | Repairable (n : nat) | Field.
+Inductive Width := Boolean | Byte | U32 | Bits (n : nat) | Implied (n : nat) | Repairable (n : nat) | MemoryRepairable | Field.
 Definition Family := (nat * nat * Width)%type.
 
 Definition COL_ONE : nat := 0%nat.
@@ -433,10 +433,10 @@ Definition GMEM_HALF : nat := 1213%nat.
 Definition TURN_SCHEDULE_COUNT_INV : nat := 1214%nat.
 Definition OBJECT_ROOT_LANE : list nat := [1215%nat; 1216%nat; 1217%nat; 1218%nat].
 Definition OBJECT_SAVED_LANE : list nat := [1219%nat; 1220%nat; 1221%nat; 1222%nat].
-Definition RANGE_BITS : list nat := seq 1223%nat 2664%nat.
+Definition RANGE_BITS : list nat := seq 1223%nat 2632%nat.
 
 Definition namedColumnCount : nat := 465%nat.
-Definition columnCount : nat := 3887%nat.
+Definition columnCount : nat := 3855%nat.
 
 Definition families : list Family :=
   [(0%nat, 1%nat, Field);
@@ -485,7 +485,7 @@ Definition families : list Family :=
    (43%nat, 1%nat, Boolean);
    (44%nat, 1%nat, Boolean);
    (45%nat, 1%nat, Boolean);
-   (46%nat, 1%nat, U32);
+   (46%nat, 1%nat, MemoryRepairable);
    (47%nat, 1%nat, (Repairable 32%nat));
    (48%nat, 1%nat, (Repairable 32%nat));
    (49%nat, 1%nat, U32);
@@ -867,7 +867,7 @@ Definition families : list Family :=
    (1214%nat, 1%nat, Field);
    (1215%nat, 4%nat, Boolean);
    (1219%nat, 4%nat, Boolean);
-   (1223%nat, 2664%nat, Boolean)].
+   (1223%nat, 2632%nat, Boolean)].
 
 Definition rangeObligations : list (nat * Width) :=
   [(7%nat, (Implied 32%nat));
@@ -884,3 +884,6 @@ Definition rangeObligations : list (nat * Width) :=
    (176%nat, (Implied 32%nat));
    (196%nat, (Repairable 32%nat));
    (386%nat, (Implied 32%nat))].
+
+Definition memoryRangeObligations : list nat :=
+  [46%nat].

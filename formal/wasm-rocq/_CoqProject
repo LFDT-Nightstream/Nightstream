@@ -3,6 +3,7 @@ R1CS.v
 Columns.v
 FullRelation.v
 MemoryTrace.v
+MemoryEventRepair.v
 MemoryCatalog.v
 InstructionHeader.v
 OpcodeCatalog.v

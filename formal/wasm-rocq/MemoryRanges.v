@@ -113,17 +113,7 @@ Ltac finish_memory_repair column repairGates :=
     end in prove_gates
     | exact Hfull]
  | split; [rewrite zero_column_value; lia|]; split;
-   [cbv beta iota zeta delta [eventsForRow memories flat_map ports memoryId portEvent
-      active activation addressColumns valueColumn portKind map option_map];
-    repeat match goal with
-    | |- context [value (zeroColumn ?col ?wit) ?c] =>
-      let Hneq := fresh in
-      assert (Hneq : c <> col) by (vm_compute; discriminate);
-      rewrite (zero_column_same col wit c Hneq); clear Hneq
-    end;
-    normalize_columns;
-    repeat match goal with H : _ = 0 |- _ => progress rewrite H end;
-    reflexivity
+   [repair_memory_events column
    | split; [reflexivity|apply zero_column_same]]]
  end.
 

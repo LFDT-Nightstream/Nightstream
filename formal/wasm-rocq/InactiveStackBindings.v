@@ -1,5 +1,5 @@
 From Stdlib Require Import List ZArith Lia Bool.
-Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog InactiveOffset.
+Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog MemoryEventRepair InactiveOffset.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -17,6 +17,21 @@ Proof.
  intros column w. unfold value, zeroColumn.
  cbv beta iota zeta delta [entries]. destruct (Nat.eq_dec column column); [reflexivity|contradiction].
 Qed.
+
+Ltac repair_memory_events changedColumn :=
+ let inactiveGates := eval vm_compute in
+   (flat_map (fun memory => flat_map (fun port =>
+     if existsb (Nat.eqb changedColumn) (portColumns port) then
+       match activation port with When gate => [gate] | _ => [] end
+     else []) (ports memory)) memories) in
+ eapply events_repair_safe with (column := changedColumn) (off := inactiveGates);
+ [apply zero_column_same |
+  normalize_columns;
+  let rec prove_off := lazymatch goal with
+  | |- Forall _ [] => constructor
+  | |- Forall _ (_ :: _) => constructor; [assumption | prove_off]
+  end in prove_off |
+  vm_compute; reflexivity].
 
 Definition privateRowSafe (column : nat) (gates : list SparseRow) (row : Row) : bool :=
  let '(a,b,c) := row in
@@ -159,14 +174,7 @@ Proof.
      * unfold globalGates. repeat constructor; cbn [eval fold_right]; rewrite ?Hget, ?Hset; reflexivity.
      * exact Hfull.
    + split; [rewrite zero_column_value; lia|]. split.
-     * cbv beta iota zeta delta [eventsForRow memories flat_map ports memoryId portEvent active activation addressColumns valueColumn portKind map option_map].
-       repeat match goal with
-       | |- context [value (zeroColumn ?column ?witness) ?c] =>
-           let Hneq := fresh in
-           assert (Hneq : c <> column) by (vm_compute; discriminate);
-           rewrite (zero_column_same column witness c Hneq); clear Hneq
-       end.
-       normalize_columns. rewrite Hget, Hset. reflexivity.
+     * repair_memory_events COL_GLOBAL_VALUE.
      * split; [reflexivity|apply zero_column_same].
 Qed.
 
@@ -194,14 +202,7 @@ Proof.
      * unfold globalGates. repeat constructor; cbn [eval fold_right]; rewrite ?Hget, ?Hset; reflexivity.
      * exact Hfull.
    + split; [rewrite zero_column_value; lia|]. split.
-     * cbv beta iota zeta delta [eventsForRow memories flat_map ports memoryId portEvent active activation addressColumns valueColumn portKind map option_map].
-       repeat match goal with
-       | |- context [value (zeroColumn ?column ?witness) ?c] =>
-           let Hneq := fresh in
-           assert (Hneq : c <> column) by (vm_compute; discriminate);
-           rewrite (zero_column_same column witness c Hneq); clear Hneq
-       end.
-       normalize_columns. rewrite Hget, Hset. reflexivity.
+     * repair_memory_events COL_GLOBAL_VALUE_HI.
      * split; [reflexivity|apply zero_column_same].
 Qed.
 
@@ -229,14 +230,7 @@ Proof.
      * unfold tableIndexGates. repeat constructor; cbn [eval fold_right]; rewrite ?Hget, ?Hset, ?Hresolve; reflexivity.
      * exact Hfull.
    + split; [rewrite zero_column_value; lia|]. split.
-     * cbv beta iota zeta delta [eventsForRow memories flat_map ports memoryId portEvent active activation addressColumns valueColumn portKind map option_map].
-       repeat match goal with
-       | |- context [value (zeroColumn ?column ?witness) ?c] =>
-           let Hneq := fresh in
-           assert (Hneq : c <> column) by (vm_compute; discriminate);
-           rewrite (zero_column_same column witness c Hneq); clear Hneq
-       end.
-       normalize_columns. rewrite ?Hget, ?Hset, ?Hresolve, ?Hread, ?Hwrite. reflexivity.
+     * repair_memory_events COL_TABLE_INDEX.
      * split; [reflexivity|apply zero_column_same].
 Qed.
 
@@ -288,14 +282,7 @@ Ltac finish_call_stack_repair column :=
    | unfold callStackGates; repeat constructor; cbn [eval fold_right]; rewrite ?Hpush, ?Hpop; reflexivity
    | exact Hfull ]
  | split; [rewrite zero_column_value; lia|]; split;
-   [ cbv beta iota zeta delta [eventsForRow memories flat_map ports memoryId portEvent active activation addressColumns valueColumn portKind map option_map];
-     repeat match goal with
-     | |- context [value (zeroColumn ?column ?witness) ?c] =>
-         let Hneq := fresh in
-         assert (Hneq : c <> column) by (vm_compute; discriminate);
-         rewrite (zero_column_same column witness c Hneq); clear Hneq
-     end;
-     normalize_columns; rewrite Hpush, Hpop; reflexivity
+   [ repair_memory_events column
    | split; [reflexivity|apply zero_column_same] ] ]
  end.
 

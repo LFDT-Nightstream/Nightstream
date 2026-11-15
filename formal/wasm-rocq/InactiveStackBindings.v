@@ -239,3 +239,107 @@ Proof.
        normalize_columns. rewrite ?Hget, ?Hset, ?Hresolve, ?Hread, ?Hwrite. reflexivity.
      * split; [reflexivity|apply zero_column_same].
 Qed.
+
+Definition callStackGates : list SparseRow :=
+ [[(COL_CALL_STACK_PUSH_PRESENT,1)]; [(COL_CALL_STACK_POP_PRESENT,1)]].
+
+Lemma bound_or_reverse_gate_zero : forall (w : Witness) column source gate,
+ fieldPrime ->
+ 4294967296 <= w column -> 0 <= w source < 4294967296 ->
+ (w gate = 0 \/ w gate = 1) ->
+ sat w ([(gate,1)], [(source,1); (column,-1)], []) -> w gate = 0.
+Proof.
+ intros w column source gate Hprime Hlarge Hsource Hgate Hsat.
+ destruct Hgate as [Hgate|Hgate]; [exact Hgate|].
+ pose proof (value_bound w column).
+ unfold sat in Hsat. cbn [eval fold_right] in Hsat. rewrite Hgate in Hsat.
+ apply Z.mod_divide in Hsat; [|unfold modulus;lia].
+ destruct Hsat as [k Hsat]. unfold modulus in *; nia.
+Qed.
+
+Ltac inactive_restored_binding column source :=
+ match goal with Hfull : FullRelation.satFull ?w |- _ =>
+ let Hrange := fresh "Hrange" in let Hbool := fresh "Hbool" in let Hrow := fresh "Hrow" in
+ circuit_range source Hrange; circuit_boolean COL_CALL_STACK_POP_PRESENT Hbool;
+ circuit_row ([(COL_CALL_STACK_POP_PRESENT,1)], [(source,1);(column,-1)], ([] : SparseRow)) Hrow;
+ let Hz := fresh "Hz" in
+ assert (Hz : w COL_CALL_STACK_POP_PRESENT = 0) by
+   (eapply bound_or_reverse_gate_zero; eauto; lia);
+ clear Hrange Hbool Hrow
+ end.
+
+Ltac repair_call_stack column :=
+ intros w Hprime Hfull;
+ destruct (Z_lt_ge_dec (w column) 4294967296) as [Hsmall|Hlarge];
+ [ exists w; split; [exact Hfull|]; split; [pose proof (value_bound w column);lia|];
+   repeat split; reflexivity
+ | idtac ].
+
+Ltac finish_call_stack_repair column :=
+ match goal with
+ | Hfull : FullRelation.satFull ?w |- _ =>
+ let Hpush := fresh "Hpush" in let Hpop := fresh "Hpop" in
+ assert (Hpush : w COL_CALL_STACK_PUSH_PRESENT = 0) by assumption;
+ assert (Hpop : w COL_CALL_STACK_POP_PRESENT = 0) by assumption;
+ exists (zeroColumn column w); split;
+ [ eapply private_full_repair with (gates := callStackGates);
+   [ vm_compute; discriminate
+   | vm_compute; reflexivity
+   | unfold callStackGates; repeat constructor; cbn [eval fold_right]; rewrite ?Hpush, ?Hpop; reflexivity
+   | exact Hfull ]
+ | split; [rewrite zero_column_value; lia|]; split;
+   [ cbv beta iota zeta delta [eventsForRow memories flat_map ports memoryId portEvent active activation addressColumns valueColumn portKind map option_map];
+     repeat match goal with
+     | |- context [value (zeroColumn ?column ?witness) ?c] =>
+         let Hneq := fresh in
+         assert (Hneq : c <> column) by (vm_compute; discriminate);
+         rewrite (zero_column_same column witness c Hneq); clear Hneq
+     end;
+     normalize_columns; rewrite Hpush, Hpop; reflexivity
+   | split; [reflexivity|apply zero_column_same] ] ]
+ end.
+
+Theorem full_call_stack_fbp_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> exists w',
+ FullRelation.satFull w' /\
+ 0 <= w' COL_CALL_STACK_CALLER_FBP_VALUE < 4294967296 /\
+ eventsForRow memories w' = eventsForRow memories w /\
+ map (fun '(a,b) => (w' a,w' b)) continuityLinks =
+ map (fun '(a,b) => (w a,w b)) continuityLinks /\
+ (forall c, c <> COL_CALL_STACK_CALLER_FBP_VALUE -> w' c = w c).
+Proof.
+ repair_call_stack COL_CALL_STACK_CALLER_FBP_VALUE.
+ inactive_binding COL_CALL_STACK_CALLER_FBP_VALUE COL_LOCALS_FBP_BEFORE COL_CALL_STACK_PUSH_PRESENT.
+ inactive_restored_binding COL_CALL_STACK_CALLER_FBP_VALUE COL_LOCALS_FBP_AFTER.
+ finish_call_stack_repair COL_CALL_STACK_CALLER_FBP_VALUE.
+Qed.
+
+Theorem full_call_stack_sp_base_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> exists w',
+ FullRelation.satFull w' /\
+ 0 <= w' COL_CALL_STACK_CALLER_SP_BASE_VALUE < 4294967296 /\
+ eventsForRow memories w' = eventsForRow memories w /\
+ map (fun '(a,b) => (w' a,w' b)) continuityLinks =
+ map (fun '(a,b) => (w a,w b)) continuityLinks /\
+ (forall c, c <> COL_CALL_STACK_CALLER_SP_BASE_VALUE -> w' c = w c).
+Proof.
+ repair_call_stack COL_CALL_STACK_CALLER_SP_BASE_VALUE.
+ inactive_binding COL_CALL_STACK_CALLER_SP_BASE_VALUE COL_STACK_FRAME_BASE_BEFORE COL_CALL_STACK_PUSH_PRESENT.
+ inactive_restored_binding COL_CALL_STACK_CALLER_SP_BASE_VALUE COL_STACK_FRAME_BASE_AFTER.
+ finish_call_stack_repair COL_CALL_STACK_CALLER_SP_BASE_VALUE.
+Qed.
+
+Theorem full_call_stack_addr_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> exists w',
+ FullRelation.satFull w' /\
+ 0 <= w' COL_CALL_STACK_ADDR < 4294967296 /\
+ eventsForRow memories w' = eventsForRow memories w /\
+ map (fun '(a,b) => (w' a,w' b)) continuityLinks =
+ map (fun '(a,b) => (w a,w b)) continuityLinks /\
+ (forall c, c <> COL_CALL_STACK_ADDR -> w' c = w c).
+Proof.
+ repair_call_stack COL_CALL_STACK_ADDR.
+ inactive_binding COL_CALL_STACK_ADDR COL_CALL_STACK_DEPTH_BEFORE COL_CALL_STACK_PUSH_PRESENT.
+ inactive_binding COL_CALL_STACK_ADDR COL_CALL_STACK_DEPTH_AFTER COL_CALL_STACK_POP_PRESENT.
+ finish_call_stack_repair COL_CALL_STACK_ADDR.
+Qed.

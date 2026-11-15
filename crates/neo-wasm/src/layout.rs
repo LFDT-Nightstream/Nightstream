@@ -65,13 +65,13 @@ define_column_region! {
             "flag indicating that this row restores a saved caller return context",
         COL_CALL_STACK_RETURN_PC_VALUE: U32 =>
             "call-stack return-pc cell value: written on guest-call push, read back on pop into pc_after",
-        COL_CALL_STACK_CALLER_FBP_VALUE: U32 =>
+        COL_CALL_STACK_CALLER_FBP_VALUE: (Repairable(32)) =>
             "call-stack caller-fbp cell value: written on guest-call push, read back on pop into locals_fbp_after",
-        COL_CALL_STACK_CALLER_SP_BASE_VALUE: U32 =>
+        COL_CALL_STACK_CALLER_SP_BASE_VALUE: (Repairable(32)) =>
             "call-stack caller operand-stack base: written on push and restored on pop",
         COL_CALL_STACK_DEPTH_BEFORE: U32 => "call return-context stack depth before this row",
         COL_CALL_STACK_DEPTH_AFTER: U32 => "call return-context stack depth after this row",
-        COL_CALL_STACK_ADDR: U32 => "call return-context stack address read or written this row",
+        COL_CALL_STACK_ADDR: (Repairable(32)) => "call return-context stack address read or written this row",
         COL_EDGE_ADDR: U32 => "pc-rom and slide-rom key: pc_before + control_choice",
         COL_ENTERED_FUNCTION_NUM_LOCALS: U32 => "verifier-bound local count of the entered function",
         COL_STACK_READS: (Implied(32)) => "stack delta source",

@@ -28,6 +28,9 @@ Proof.
  { change (0 <= w COL_OPCODE_CODE < 4294967296).
    pose proof (full_opcode_code_bound w Hprime Hfull); lia. }
  apply Forall_cons. { exact (full_control_choice_bound w Hprime Hfull). }
+ apply Forall_cons. { exact (full_call_stack_fbp_repair w Hprime Hfull). }
+ apply Forall_cons. { exact (full_call_stack_sp_base_repair w Hprime Hfull). }
+ apply Forall_cons. { exact (full_call_stack_addr_repair w Hprime Hfull). }
  apply Forall_cons.
  { change (0 <= w COL_STACK_READS < 4294967296).
    pose proof (full_stack_reads_bound w Hprime Hfull); lia. }

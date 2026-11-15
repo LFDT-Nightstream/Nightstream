@@ -214,3 +214,55 @@ fn global_values_and_table_index_are_bound_when_used() {
         }
     }
 }
+
+#[test]
+fn call_stack_advice_is_bound_when_active_and_repairable_when_inactive() {
+    use neo_wasm::layout::{
+        COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE,
+        COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
+    };
+    let checked = common::checked_main(
+        r#"(module
+          (func $callee (param i32) (result i32) local.get 0)
+          (func (export "main") (result i32) i32.const 7 call $callee))"#,
+    );
+    let push = checked
+        .witnesses
+        .iter()
+        .position(|w| w[COL_CALL_STACK_PUSH_PRESENT] == F::ONE)
+        .unwrap();
+    let pop = checked
+        .witnesses
+        .iter()
+        .position(|w| w[COL_CALL_STACK_POP_PRESENT] == F::ONE)
+        .unwrap();
+    let inactive = checked
+        .witnesses
+        .iter()
+        .position(|w| w[COL_CALL_STACK_PUSH_PRESENT] == F::ZERO && w[COL_CALL_STACK_POP_PRESENT] == F::ZERO)
+        .unwrap();
+    for column in [
+        COL_CALL_STACK_ADDR,
+        COL_CALL_STACK_CALLER_FBP_VALUE,
+        COL_CALL_STACK_CALLER_SP_BASE_VALUE,
+    ] {
+        for index in [push, pop] {
+            let mut witness = checked.witnesses[index].clone();
+            witness[column] = -F::ONE;
+            common::assert_rejected(&witness, "active call-stack advice equals a bounded state word");
+        }
+        let mut forged = checked.witnesses.clone();
+        forged[inactive][column] = -F::ONE;
+        common::assert_satisfied(&forged[inactive], "inactive call-stack advice has no local effect");
+        let layout = neo_wasm::build_wasm_relation_layout();
+        let mut preload = neo_wasm::preload_from_program_artifacts(&checked.artifacts);
+        let bindings = neo_wasm::host_event_bindings::HostEventBindings::import_free(
+            checked.trace[0].state_before.host_events.turn_export_fref,
+        );
+        neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &checked.artifacts);
+        neo_wasm::sanity_check_memory_rows(layout, &forged, &preload).unwrap();
+        forged[inactive][column] = F::ZERO;
+        common::assert_satisfied(&forged[inactive], "zero repairs the inactive word");
+        neo_wasm::sanity_check_memory_rows(layout, &forged, &preload).unwrap();
+    }
+}

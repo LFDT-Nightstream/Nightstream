@@ -101,14 +101,14 @@ the Rust code is held to the Lean definition (trust item 5).
 | Slot digest | `Lifecycle.BoundedDepth.serializeSlot` | `Lifecycle.BoundedDepth.serializeSlot_injective` (shapes fixed by the type, depth below `q`) | Indirect, as above |
 | Fresh public input | `Lifecycle.encHash` | `Lifecycle.encHash_injective_fixed` | Indirect, as above |
 | Package identity | `Export.BoundedDepth.StepPackage.identity` | `Export.BoundedDepth.IdentityBinding.valuePreimage_injective`, `Export.BoundedDepth.IdentityBinding.identity_binds` (atoms and lengths below `2^64`) | Direct: `identity_code_matches_lean_on_the_probe_packages` |
-| Circuit key digest | None (`SPEC.md` section 4.4) | Open: Rust only | None |
+| Circuit key digest | `Lifecycle.BoundedDepth.CircuitKeyDigest.input` | `Lifecycle.BoundedDepth.CircuitKeyDigest.input_injective`, `Lifecycle.BoundedDepth.CircuitKeyDigest.digest_binds` (an identity of any length) | Direct: `circuit_key_is_the_lean_digest` on three identities (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/nightstream/tests/bounded_depth_lifecycle/circuit_key.rs`) |
 | Fold transcripts | `Lifecycle.RandomOracle.Schedule.challengeCalls` | `Lifecycle.RandomOracle.Schedule.challengeAddress_injective`, `Lifecycle.RandomOracle.Schedule.statementCalls_identify`, `Lifecycle.RandomOracle.Schedule.proverCalls_identify`; disjoint lanes: `Export.BoundedDepth.FoldSponge.rho_ne` | Indirect: package rows. The Π_RLC sampler is direct (`crates/neo-reductions/tests/pi_rlc_lean_parity.rs`) |
 | Compression transcript and Akita session bytes | None | Open: no Lean model | None |
 | Nebula record chains | `Lifecycle.Nebula.blocks` | `Lifecycle.Nebula.blocks_injective`, `Lifecycle.Nebula.blockChunks_injective` | Direct: fixtures (`crates/nightstream/tests/nebula/memory.rs`) |
 | Nebula `η` | `Lifecycle.Nebula.etaInputBlocks` | `Lifecycle.Nebula.etaInputBlocks_injective`, `Lifecycle.Nebula.EtaOracle.pointOf_injective`; the four reads: `Export.BoundedDepth.EtaSponge.reads_injective` | Indirect: package rows |
 | Nebula state words | `Lifecycle.Nebula.carryVector` | `Lifecycle.Nebula.carryVector_injective`, `Lifecycle.Nebula.stateWords_eq_or_collision` | Direct: terminal fixtures |
 | Application identity | None (`with_application`) | Open: Rust only | None |
-| Domain separation | `Export.DomainSeparation.uses` | `Export.DomainSeparation.separated`: two block lists whose words start with the tags of two distinct uses are distinct. A use owns its blocks: `Export.DomainSeparation.hash_owns`, `Export.DomainSeparation.fold_owns`, `Export.DomainSeparation.nebula_owns`. Open: inputs that an application hashes, which can start with any words. | Indirect for the tags that Lean defines. None for the four tags that Lean restates from Rust (circuit key, two compression domains, application identity) |
+| Domain separation | `Export.DomainSeparation.uses` | `Export.DomainSeparation.separated`: two block lists whose words start with the tags of two distinct uses are distinct. A use owns its blocks: `Export.DomainSeparation.hash_owns`, `Export.DomainSeparation.circuitKey_owns`, `Export.DomainSeparation.fold_owns`, `Export.DomainSeparation.nebula_owns`. Open: inputs that an application hashes, which can start with any words. | Indirect for the tags that Lean defines. Direct for the circuit key tag (row Circuit key digest). None for the three tags that Lean restates from Rust (two compression domains, application identity) |
 
 ## Premises
 
@@ -149,7 +149,7 @@ at the head of the hypothesis, and `*` is each head.
 | `exports.lightKey`, `exports.refreshKey` | `Eq` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`, `relation_rows_match_the_lean_checksum`: the rows that Rust expands from each package have the checksum of Lean's rows |
 | `exports.lightFits.*`, `exports.refreshFits.*`, `exports.lightLayout.*`, `exports.refreshLayout.*`, `exports.lightInside`, `exports.refreshInside` | `*` | open | Open: Lean has no instance of `Export.BoundedDepth.TerminalBridge.Exports` for the emitted packages, so no theorem states that their rows fit their width or that their slot layout has the public form |
 | `accepted` | `Lifecycle.BoundedDepth.Terminal.HoldsFor` | game | `SPEC.md` Algorithm 6 |
-| `keysShaped` | `Eq` | open | Open: the circuit key digest has no Lean definition (section Hashed encodings), so no theorem gives its length 4 |
+| `keysShaped` | `Eq` | lean | `Lifecycle.BoundedDepth.CircuitKeyDigest.keys_shaped`, for the keys `Lifecycle.BoundedDepth.CircuitKeyDigest.keys` of a package identity. Rust `circuit_key` computes these digests (section Hashed encodings, row Circuit key digest) |
 | `assumption` | `Spec.HyperNova.ReverseStages.Assumption1` | assumption | `[HN-A1]` |
 | `closed.*`, `admitted` | `*` | assumption | `[HN-A1]`, in the form of trust item 3: the closure premise and the admitted adversary |
 | `premise` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]` |

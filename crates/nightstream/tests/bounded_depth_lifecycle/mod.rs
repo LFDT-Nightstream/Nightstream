@@ -7,6 +7,7 @@
 #[path = "../bounded_depth_support/mod.rs"]
 mod support;
 
+mod circuit_key;
 mod compression;
 mod compression_error;
 mod factored_rows;

@@ -26,6 +26,12 @@ import NightstreamFPrime.Export.BoundedDepth.FoldSponge
 #audit_axioms NightstreamFPrime.Export.DomainSeparation.hash_owns
 #audit_axioms NightstreamFPrime.Export.DomainSeparation.statePreimage_starts
 #audit_axioms NightstreamFPrime.Export.DomainSeparation.identityInput_starts
+#audit_axioms NightstreamFPrime.Export.DomainSeparation.circuitKey_owns
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CircuitKeyDigest.digest_length
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CircuitKeyDigest.domain_prefix
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CircuitKeyDigest.input_injective
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CircuitKeyDigest.digest_binds
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CircuitKeyDigest.keys_shaped
 #audit_axioms NightstreamFPrime.Export.DomainSeparation.prefix_absorbCalls
 #audit_axioms NightstreamFPrime.Export.DomainSeparation.fold_owns
 #audit_axioms NightstreamFPrime.Export.DomainSeparation.chunks_eq_absorbCalls

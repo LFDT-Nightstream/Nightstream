@@ -1,5 +1,6 @@
 import NightstreamFPrime.Spec.Sponge
 import NightstreamFPrime.Export.BoundedDepth.StepPackage
+import NightstreamFPrime.Lifecycle.BoundedDepth.CircuitKeyDigest
 import NightstreamFPrime.Lifecycle.BoundedDepth.Keys
 import NightstreamFPrime.Lifecycle.RandomOracle.Schedule
 import NightstreamFPrime.Lifecycle.Nebula.Framing
@@ -15,9 +16,9 @@ the tags of two distinct uses are distinct (`separated`). A use owns the block l
 absorbs: the `10*` padded blocks of a hash use (`hash_owns`), the calls of a fold transcript
 (`fold_owns`), and the framed blocks of a Nebula transcript (`nebula_owns`).
 
-The last four rows restate Rust tags that no Lean definition has: the circuit key digest, the
-two compression domains and the application identity (`SPEC.md` section 4.4, Algorithm 10). No
-emitted data compares them with Rust yet. -/
+The last three rows restate Rust tags that no Lean definition has: the two compression domains
+and the application identity (`SPEC.md` section 4.4, Algorithm 10). No emitted data compares them
+with Rust yet. -/
 
 set_option autoImplicit false
 
@@ -58,7 +59,7 @@ def uses : List Use :=
    ⟨"Nebula memory chain", nebulaTag (Nebula.chainTag .mem)⟩,
    ⟨"Nebula eta", nebulaTag "Nightstream/Nebula/v3/eta"⟩,
    ⟨"Nebula state", nebulaTag "Nightstream/Nebula/v3/state"⟩,
-   ⟨"circuit key digest", BoundedDepth.domainChunk "Nightstream/OptionB/circuit-key/v1"⟩,
+   ⟨"circuit key digest", BoundedDepth.CircuitKeyDigest.domain⟩,
    ⟨"compression Pi_CCS", BoundedDepth.domainChunk "Nightstream/OptionB/compress/ccs/v1"⟩,
    ⟨"compression argument", BoundedDepth.domainChunk "Nightstream/compress/akita/v2"⟩,
    ⟨"application identity",
@@ -118,6 +119,12 @@ theorem statePreimage_starts {logicalWidth : Nat}
     BoundedDepth.stateDomainChunk <+: BoundedDepth.statePreimage state := by
   simp only [BoundedDepth.statePreimage, List.append_assoc]
   exact List.prefix_append _ _
+
+/-- The circuit key digest owns the padded blocks of its hash input. -/
+theorem circuitKey_owns (identity : List F) (circuit : Fin 2) :
+    BoundedDepth.CircuitKeyDigest.domain <+:
+      (Sponge.padding.pad (BoundedDepth.CircuitKeyDigest.input identity circuit)).flatten :=
+  hash_owns (BoundedDepth.CircuitKeyDigest.domain_prefix identity circuit)
 
 theorem identityInput_starts (light refresh : Export.BoundedDepth.StepPackage.Package) :
     Export.BoundedDepth.StepPackage.boundedDepthDomain <+:

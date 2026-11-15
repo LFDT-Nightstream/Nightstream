@@ -117,6 +117,15 @@ pub(crate) struct Folded {
     proof: crate::folding::bounded_depth::Proof,
 }
 
+/// The key digest of circuit `circuit` (SPEC.md section 4.4, step 2; Lean
+/// `Lifecycle.BoundedDepth.CircuitKeyDigest.digest`).
+fn circuit_key(identity: [u64; 4], circuit: u64) -> [F; 4] {
+    let mut input = domain_chunk_v1_2(KEY_DOMAIN).to_vec();
+    input.extend(identity.map(F::from_u64));
+    input.push(F::from_u64(circuit));
+    poseidon2_hash(&input)
+}
+
 impl BoundedDepth {
     pub(crate) fn new(
         packages: BoundedDepthPackages,
@@ -127,13 +136,8 @@ impl BoundedDepth {
             Relation::new(packages.light(), minimum_security_bits)?,
             Relation::new(packages.refresh(), minimum_security_bits)?,
         ];
-        let identity = packages.identity().map(F::from_u64);
-        let keys = [0u64, 1].map(|circuit| {
-            let mut input = domain_chunk_v1_2(KEY_DOMAIN).to_vec();
-            input.extend(identity);
-            input.push(F::from_u64(circuit));
-            poseidon2_hash(&input)
-        });
+        let identity = packages.identity();
+        let keys = [0u64, 1].map(|circuit| circuit_key(identity, circuit));
         Ok(Self {
             backend,
             packages,

@@ -54,7 +54,7 @@ fn addition(scale: u64) -> Arc<ApplicationRecords> {
     Arc::new(writer.finish().expect("records"))
 }
 
-fn packages() -> BoundedDepthPackages {
+pub(super) fn packages() -> BoundedDepthPackages {
     load_bounded_depth_packages(
         &artifact("nightstream-fprime-bounded-depth-light-v1.json"),
         &artifact("nightstream-fprime-bounded-depth-refresh-v1.json"),
@@ -89,8 +89,8 @@ fn substitution_binds_the_application_and_refuses_a_wrong_region() {
     }
 }
 
-const FIRST_LOCAL: usize = 12;
-const BLOCK: usize = 1096;
+pub(super) const FIRST_LOCAL: usize = 12;
+pub(super) const BLOCK: usize = 1096;
 
 /// Four witness words and `locals` locals, each its own recipe
 /// `local · 1 = previous` from witness word 0; then `output_k · 1 = read`,
@@ -148,7 +148,7 @@ fn chained(locals: usize, read: usize, bits: &[usize]) -> Arc<ApplicationRecords
     Arc::new(writer.finish().expect("records"))
 }
 
-fn block(first_local: usize, lane: usize) -> NativeBlock {
+pub(super) fn block(first_local: usize, lane: usize) -> NativeBlock {
     NativeBlock {
         first_local,
         lanes: std::array::from_fn(|_| Linear {

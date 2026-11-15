@@ -169,3 +169,7 @@ mod builder_tests;
 #[cfg(test)]
 #[path = "../../tests/application/poseidon2.rs"]
 mod poseidon2_tests;
+
+#[cfg(test)]
+#[path = "../../tests/application/identity_lean.rs"]
+mod identity_lean_tests;

@@ -426,12 +426,142 @@ impl StepPackage {
     }
 }
 
+/// The words of the application identity before the layouts: the tag, the
+/// packages' identity, the witness word count, the rows, the row of each
+/// recipe and the shape (Lean
+/// `Lifecycle.BoundedDepth.ApplicationIdentity.Application.words`).
+fn record_words(
+    identity: [u64; 4],
+    records: &ApplicationRecords,
+    witness_words: usize,
+    shape: &NativeShape,
+    update: &mut impl FnMut(u64),
+) -> Result<(), PackageError> {
+    IDENTITY_DOMAIN
+        .iter()
+        .for_each(|&byte| update(u64::from(byte)));
+    identity.into_iter().for_each(&mut *update);
+    update(witness_words as u64);
+    update(records.row_count() as u64);
+    for row in 0..records.row_count() {
+        let header = records.row_header(row)?;
+        for form in 0..3 {
+            update(header.constants[form]);
+            update(header.term_counts[form] as u64);
+        }
+        let _: ControlFlow<()> = records.visit_terms(row, |term| {
+            update(term.variable as u64);
+            update(term.coefficient);
+            Ok(ControlFlow::Continue(()))
+        })?;
+    }
+    update(records.recipe_count() as u64);
+    for recipe in 0..records.recipe_count() {
+        update(records.recipe_row(recipe)? as u64);
+    }
+    update(shape.blocks.len() as u64);
+    for block in &shape.blocks {
+        update(block.first_local as u64);
+        for lane in &block.lanes {
+            update(lane.constant.as_canonical_u64());
+            update(lane.terms.len() as u64);
+            for &(variable, coefficient) in &lane.terms {
+                update(variable as u64);
+                update(coefficient.as_canonical_u64());
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The words of the application identity for one package with the
+/// application (Lean `Lifecycle.BoundedDepth.ApplicationIdentity.Layout.words`).
+/// The first piece of such a package is its rows piece (`native_pieces`).
+fn layout_words(package: &StepPackage, update: &mut impl FnMut(u64)) -> Result<(), PackageError> {
+    let Some(Piece::Rows(rows)) = package.pieces.first() else {
+        return Err(PackageError::Malformed("bounded-depth native application rows"));
+    };
+    package.guard_fusion.bind(rows, update);
+    package.word_packing.bind(rows, update);
+    update(package.packed_booleans.start as u64);
+    update(package.packed_booleans.sources.len() as u64);
+    for &column in &package.packed_booleans.sources {
+        update(column as u64);
+    }
+    update(package.packed_booleans.removed.len() as u64);
+    for &(row, _) in &package.packed_booleans.removed {
+        update(row as u64);
+    }
+    update(package.packed_booleans.products.len() as u64);
+    for product in &package.packed_booleans.products {
+        for column in [product.row, product.left, product.right, product.output] {
+            update(column as u64);
+        }
+    }
+    update(package.packed_booleans.zeros.len() as u64);
+    for zero in &package.packed_booleans.zeros {
+        for word in [
+            zero.row,
+            zero.left.column,
+            usize::from(zero.left.complement),
+            zero.right.column,
+            usize::from(zero.right.complement),
+        ] {
+            update(word as u64);
+        }
+    }
+    update(package.slots.len() as u64);
+    for &(start, count, kind) in &package.slots {
+        update(start as u64);
+        update(count as u64);
+        update(u64::from(kind));
+    }
+    Ok(())
+}
+
 impl BoundedDepthPackages {
+    /// Both step packages with the application, after `update` took each
+    /// word of the application identity.
+    fn substitute(
+        &self,
+        records: &Arc<ApplicationRecords>,
+        witness_words: usize,
+        shape: &NativeShape,
+        update: &mut impl FnMut(u64),
+    ) -> Result<[StepPackage; 2], PackageError> {
+        record_words(self.identity, records, witness_words, shape, update)?;
+        let packages = [
+            self.light.with_application(records, witness_words, shape)?,
+            self.refresh
+                .with_application(records, witness_words, shape)?,
+        ];
+        for package in &packages {
+            layout_words(package, update)?;
+        }
+        Ok(packages)
+    }
+
+    /// The words of the identity of `with_application`, for the tests that
+    /// compare them with Lean.
+    pub fn application_identity_words(
+        &self,
+        records: &Arc<ApplicationRecords>,
+        witness_words: usize,
+        shape: &NativeShape,
+    ) -> Result<Vec<u64>, PackageError> {
+        let mut words = Vec::new();
+        self.substitute(records, witness_words, shape, &mut |word| words.push(word))?;
+        Ok(words)
+    }
+
     /// Both packages with a native application in place of Lean's. The
     /// identity binds the packages' identity, the witness word count, the
     /// application's rows and recipe rows, the shape, and the realized light
     /// and refresh companion, product, zero-product, guard, word equality, and slot maps.
     /// Power and affine maps derive from these inputs (`Export.Generic.NativePower`).
+    /// It is the Poseidon2 hash of one field element for each word, and no
+    /// word is at or above `q` (Lean
+    /// `Lifecycle.BoundedDepth.ApplicationIdentity.Application.Canonical`).
     pub fn with_application(
         &self,
         records: Arc<ApplicationRecords>,
@@ -439,85 +569,18 @@ impl BoundedDepthPackages {
         shape: &NativeShape,
     ) -> Result<Self, PackageError> {
         let mut input = poseidon2::Poseidon2Hasher::default();
-        let mut update = |word: u64| input.update(&[Fq::from_u64(word)]);
-        IDENTITY_DOMAIN
-            .iter()
-            .for_each(|&byte| update(u64::from(byte)));
-        self.identity.into_iter().for_each(&mut update);
-        update(witness_words as u64);
-        update(records.row_count() as u64);
-        for row in 0..records.row_count() {
-            let header = records.row_header(row)?;
-            for form in 0..3 {
-                update(header.constants[form]);
-                update(header.term_counts[form] as u64);
+        let mut reduced = None;
+        let [light, refresh] = self.substitute(&records, witness_words, shape, &mut |word| {
+            if word >= Fq::ORDER_U64 {
+                reduced.get_or_insert(word);
             }
-            let _: ControlFlow<()> = records.visit_terms(row, |term| {
-                update(term.variable as u64);
-                update(term.coefficient);
-                Ok(ControlFlow::Continue(()))
-            })?;
-        }
-        update(records.recipe_count() as u64);
-        for recipe in 0..records.recipe_count() {
-            update(records.recipe_row(recipe)? as u64);
-        }
-        update(shape.blocks.len() as u64);
-        for block in &shape.blocks {
-            update(block.first_local as u64);
-            for lane in &block.lanes {
-                update(lane.constant.as_canonical_u64());
-                update(lane.terms.len() as u64);
-                for &(variable, coefficient) in &lane.terms {
-                    update(variable as u64);
-                    update(coefficient.as_canonical_u64());
-                }
-            }
-        }
-        let light = self
-            .light
-            .with_application(&records, witness_words, shape)?;
-        let refresh = self
-            .refresh
-            .with_application(&records, witness_words, shape)?;
-        for package in [&light, &refresh] {
-            if let Some(Piece::Rows(rows)) = package.pieces.first() {
-                package.guard_fusion.bind(rows, &mut update);
-                package.word_packing.bind(rows, &mut update);
-            }
-            update(package.packed_booleans.start as u64);
-            update(package.packed_booleans.sources.len() as u64);
-            for &column in &package.packed_booleans.sources {
-                update(column as u64);
-            }
-            update(package.packed_booleans.removed.len() as u64);
-            for &(row, _) in &package.packed_booleans.removed {
-                update(row as u64);
-            }
-            update(package.packed_booleans.products.len() as u64);
-            for product in &package.packed_booleans.products {
-                for column in [product.row, product.left, product.right, product.output] {
-                    update(column as u64);
-                }
-            }
-            update(package.packed_booleans.zeros.len() as u64);
-            for zero in &package.packed_booleans.zeros {
-                for word in [
-                    zero.row,
-                    zero.left.column,
-                    usize::from(zero.left.complement),
-                    zero.right.column,
-                    usize::from(zero.right.complement),
-                ] {
-                    update(word as u64);
-                }
-            }
-            update(package.slots.len() as u64);
-            for &(start, count, kind) in &package.slots {
-                update(start as u64);
-                update(count as u64);
-                update(u64::from(kind));
-            }
+            input.update(&[Fq::from_u64(word)]);
+        })?;
+        if let Some(value) = reduced {
+            return Err(PackageError::NonCanonicalField {
+                location: "application identity",
+                value,
+            });
         }
         Ok(Self {
             light,
@@ -530,3 +593,7 @@ impl BoundedDepthPackages {
 #[cfg(test)]
 #[path = "../../tests/unit/bounded_depth_application.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../../tests/unit/application_identity_lean.rs"]
+mod identity_lean;

@@ -13,7 +13,7 @@ const PAIRS_PER_ROW: usize = 63;
 type Key = Vec<(usize, u64)>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum Bit {
+pub(super) enum Bit {
     Zero,
     One,
     Column(usize),
@@ -22,16 +22,16 @@ enum Bit {
 type Pair = (Bit, Bit);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct Group {
-    sources: Vec<usize>,
-    certificates: Vec<usize>,
-    guard: Linear,
-    pairs: Vec<Pair>,
+pub(super) struct Group {
+    pub(super) sources: Vec<usize>,
+    pub(super) certificates: Vec<usize>,
+    pub(super) guard: Linear,
+    pub(super) pairs: Vec<Pair>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct WordPacking {
-    groups: Vec<Group>,
+    pub(super) groups: Vec<Group>,
 }
 
 fn binary_pairs(form: &Linear, known: &BTreeMap<usize, usize>) -> Option<Vec<Pair>> {

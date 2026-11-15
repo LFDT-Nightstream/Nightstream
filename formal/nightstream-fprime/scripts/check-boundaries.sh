@@ -200,6 +200,10 @@ if ! timeout --signal=KILL 300s python3 -B scripts/check_assumptions.py; then
   fail "SECURITY_MODEL.md states an assumption that is not on the allowed list"
 fi
 
+if ! timeout --signal=KILL 300s python3 -B scripts/check_premises.py; then
+  fail "a hypothesis of a top-level security theorem has no class in SECURITY_MODEL.md"
+fi
+
 for retired in crates/neo-fold-legacy crates/wip-spartan tools/recursive-constraint-minimizer/bridge; do
   if [[ -f "$ROOT/../../$retired/Cargo.toml" ]]; then
     fail "retired Rust consumer remains supported: $retired"

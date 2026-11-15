@@ -7,8 +7,9 @@ declaration. `SPEC.md` describes the protocol: two step circuits, a light
 circuit and a refresh circuit, that fold into two slots. Adversary 6, the
 adversary of the compressed proof, has a Lean result for the argument only,
 in a model with ideal Akita openings. No Lean result gives its aim. Section
-Assumptions lists every assumption of the results, and section Hashed
-encodings lists every place that hashes or absorbs data.
+Assumptions lists every assumption of the results, section Hashed
+encodings lists every place that hashes or absorbs data, and section Premises
+gives the class of each hypothesis of the top-level theorems.
 
 Names omit the common `NightstreamFPrime` namespace.
 `tests/EndpointCensus.lean` checks that every name on this page that starts
@@ -108,6 +109,67 @@ the Rust code is held to the Lean definition (trust item 5).
 | Nebula state words | `Lifecycle.Nebula.carryVector` | `Lifecycle.Nebula.carryVector_injective`, `Lifecycle.Nebula.stateWords_eq_or_collision` | Direct: terminal fixtures |
 | Application identity | None (`with_application`) | Open: Rust only | None |
 | Domain separation | `Export.DomainSeparation.uses` | `Export.DomainSeparation.separated`: two block lists whose words start with the tags of two distinct uses are distinct. A use owns its blocks: `Export.DomainSeparation.hash_owns`, `Export.DomainSeparation.fold_owns`, `Export.DomainSeparation.nebula_owns`. Open: inputs that an application hashes, which can start with any words. | Indirect for the tags that Lean defines. None for the four tags that Lean restates from Rust (circuit key, two compression domains, application identity) |
+
+## Premises
+
+Each row is a hypothesis of a top-level security theorem. Lean writes the
+hypotheses of the theorems of `tests/PremiseCensus.lean` to
+`artifacts/nightstream-fprime-premises-v1.tsv`, and the Lean build fails when
+that file is not current. A hypothesis is a binder whose type is a proposition,
+or a proof field of a binder whose type is a structure of the package.
+`scripts/check_premises.py`, in the `static` phase of `scripts/validate.sh`,
+fails when a hypothesis has no row or two rows, when a row covers no
+hypothesis, or when a row does not have the evidence of its class. The classes
+are these.
+
+- `assumption`: an assumption of section Assumptions.
+- `lean`: Lean proves the hypothesis. The evidence is the theorem or the
+  instance that discharges it at the production parameters, or the result
+  that joins the theorem and does not take the hypothesis.
+- `link`: Rust meets the hypothesis by data that Lean emits. The evidence is
+  the emitted file and the Rust test that compares it. A test is a check on
+  recorded inputs (trust item 5).
+- `game`: the hypothesis is the accept condition or the experiment of the
+  theorem. The evidence is the place that states it.
+- `open`: no evidence. Each such row is a gap of the results.
+
+A name that ends in `.*` covers each field under it. The head is the constant
+at the head of the hypothesis, and `*` is each head.
+
+<!-- premises:begin -->
+| Premise | Head | Class | Evidence |
+| --- | --- | --- | --- |
+| `publicFits` | `LE.le` | lean | `Export.BoundedDepth.StepRelation.keyPublicFits`, at the key width `2^26` |
+| `cubeFits`, `relation.cubeFits`, `key.relation.cubeFits` | `LE.le` | lean | `Export.BoundedDepth.StepRelation.keyCubeFits`, at the key width `2^26` |
+| `program.*`, `exports.program.*` | `*` | lean | `Lifecycle.Stage1.Poseidon2HashChainV1.program` and `Export.Stage1.NebulaMemoryV1Package.application` are programs, so they carry these proofs. A Rust application has no such instance (Out of scope) |
+| `stepEq`, `validControl`, `encoded`, `rowsZero`, `others` | `*` | lean | `Export.BoundedDepth.TerminalBridge.bridge` joins the two step results and takes none of these |
+| `fits.*`, `layout.*` | `*` | lean | `Export.BoundedDepth.TerminalBridge.bridge` takes them as fields of its `exports` (rows below) |
+| `programEq` | `Eq` | game | adversary 5: the memory application is the exported program |
+| `exports.programStep` | `Eq` | game | `SPEC.md` Algorithm 3: the step of the relation is the step of the application |
+| `exports.lightKey`, `exports.refreshKey` | `Eq` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`, `relation_rows_match_the_lean_checksum`: the rows that Rust expands from each package have the checksum of Lean's rows |
+| `exports.lightFits.*`, `exports.refreshFits.*`, `exports.lightLayout.*`, `exports.refreshLayout.*`, `exports.lightInside`, `exports.refreshInside` | `*` | open | Open: Lean has no instance of `Export.BoundedDepth.TerminalBridge.Exports` for the emitted packages, so no theorem states that their rows fit their width or that their slot layout has the public form |
+| `accepted` | `Lifecycle.BoundedDepth.Terminal.HoldsFor` | game | `SPEC.md` Algorithm 6 |
+| `keysShaped` | `Eq` | open | Open: the circuit key digest has no Lean definition (section Hashed encodings), so no theorem gives its length 4 |
+| `assumption` | `Spec.HyperNova.ReverseStages.Assumption1` | assumption | `[HN-A1]` |
+| `closed.*`, `admitted` | `*` | assumption | `[HN-A1]`, in the form of trust item 3: the closure premise and the admitted adversary |
+| `premise` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]` |
+| `akita` | `*` | assumption | `[AKITA]` |
+| `valid.toValid.*`, `secure` | `*` | open | Open: Rust checks rules 1 to 6 of `SPEC.md` section 7.1 on each geometry at run time, with its own numbers. No emitted data compares that check with `Spec.Nebula.Geometry.Valid` and `Spec.Nebula.Geometry.Secure`. `Lifecycle.Nebula.FirstPlan.valid` covers the test geometry only |
+| `valid.romWords`, `valid.ramWords` | `LT.lt` | open | Open: no Lean theorem states that each word of an emitted program image is below `2^32` |
+| `app.*` | `*` | open | Open: `Lifecycle.Nebula.FirstPlan.app` is the test machine. A Rust-built memory application, the WASM relation included, has no instance (Out of scope) |
+| `round` | `Export.BoundedDepth.NebulaSecurity.MemoryRound` | open | Open: trust item 6. No result derives the memory round from the assumption list |
+| `sampler.*` | `*` | game | adversary 5: the `η` sampler and its query bound |
+| `wf.*`, `slots_le`, `key_fits` | `*` | lean | `Spec.Compression.Rust.layoutNew_production`, for the layout of the Lean model of `Layout::new` |
+| `counts` | `Spec.Compression.Verifier.CountsNonzero` | lean | `Spec.Compression.Production.params_countsNonzero` |
+| `matrix` | `Spec.Compression.Verifier.MatrixSpec` | lean | `Spec.Compression.Production.verifierData_matrixSpec`, for the Lean model of Rust `matrix_part` |
+| `columns`, `rows` | `LE.le` | lean | `Spec.Compression.Production.params_soundness` |
+| `statement.*`, `constantLaw.*` | `*` | game | adversary 6: the statement of the Π_CCS run and the law of its constant |
+| `params.rlc_bound`, `freshBound`, `degreeCovers` | `*` | lean | `Export.BoundedDepth.FinalVerifier.soundness` uses the Π_CCS run at the production parameters and takes none of these |
+| `premises.layout` | `And` | open | Open: `layout_new_is_lean_layout_new_on_each_claim_set` compares Rust `Layout::new` with the Lean model on recorded claim sets, and `Spec.Compression.Rust.layoutNew_production` gives the bounds of the model. No theorem gives `spanVars ≤ 27`, and no theorem joins the layout of the setup to the model |
+| `premises.represents` | `Spec.Compression.Claim.Represents` | open | Open: no Lean result states `Represents` for the dense rows of a package (trust item 7) |
+| `premises.support` | `LE.le` | open | Open: no Lean result bounds the blocks of a claim by the blocks of its package (trust item 7) |
+| `depthBound` | `LE.le` | open | Open: no result bounds the iteration of an accepted statement. The bound is a parameter of the result |
+<!-- premises:end -->
 
 ## Applications and setups
 

@@ -155,7 +155,7 @@ fn core_export_input_local_bootstraps_parameter() -> Result<(), Box<dyn std::err
     builder.export(export_fref, entry, exit)?;
 
     let bindings = builder.finish()?;
-    let run = neo_wasm::collect_wasmtime_steps(&wasm, &bindings, "run", &[37])?;
+    let run = neo_wasm::collect_wasmtime_steps(&wasm, &bindings, "run", &[wasmtime::Val::I32(37)])?;
     let trace =
         neo_wasm::traces_from_wasmtime_steps_with_host_events(&run.steps, run.artifacts(), CommChainState::default())?;
 

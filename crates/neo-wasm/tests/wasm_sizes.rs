@@ -89,8 +89,9 @@ fn each_size_is_a_secure_geometry_whose_regions_fit_its_spaces() {
         );
         assert_eq!(size.application().unwrap().port_count(), geometry.b_ops);
         let rows = match size {
-            WasmSize::Small | WasmSize::Medium => 5_120,
-            WasmSize::Large => 1_536,
+            WasmSize::Small => 9_728,
+            WasmSize::Medium => 9_216,
+            WasmSize::Large => 3_072,
         };
         assert_eq!(size.max_rows(), rows, "{size:?}");
         if let Some(smaller) = smaller {
@@ -107,7 +108,6 @@ fn each_size_is_a_secure_geometry_whose_regions_fit_its_spaces() {
 fn the_starstream_test_transactions_fit_small_or_medium() {
     let need = |pc, function, event, linear_memory, global| WasmLimits {
         pc,
-        choice: 1,
         function,
         event,
         slot: 3,
@@ -190,8 +190,8 @@ fn a_prover_takes_the_smallest_size_that_holds_the_run() {
             (other, _) => panic!("{count} nops: {other:?}"),
         }
     }
-    assert_eq!(WasmSize::smallest(&WasmLimits::default(), 5_120), Some(WasmSize::Small));
-    assert_eq!(WasmSize::smallest(&WasmLimits::default(), 5_121), None);
+    assert_eq!(WasmSize::smallest(&WasmLimits::default(), 9_728), Some(WasmSize::Small));
+    assert_eq!(WasmSize::smallest(&WasmLimits::default(), 9_729), None);
 }
 
 /// Fibonacci steps natively through Small in one segment. The 600 `nop`s

@@ -7,6 +7,11 @@
 use crate::host_event_bindings::IMPORT_SCHEDULE_COUNT_BITS;
 use neo_application::define_column_region;
 
+// Rocq `ProgramBinding.full_host_context_refs` and `full_host_context_args_depth`:
+// each packed context word holds two bounded halves.
+pub(crate) const HOST_CONTEXT_HALF_BITS: u8 = 16;
+pub(crate) const HOST_CONTEXT_HALF_FACTOR: u32 = 1 << HOST_CONTEXT_HALF_BITS;
+
 define_column_region! {
     region: "host_event_interface",
     start: crate::layout::WASM_COLUMN_COUNT,
@@ -31,10 +36,17 @@ define_column_region! {
         COL_HOST_NESTED_EXIT: Boolean => "export exit above a suspended host frame",
         COL_HOST_CONTEXT_READ: Boolean => "read suspended context at nested entry or resume",
         COL_HOST_CONTEXT_ADDR: U32 => "suspended context call-stack address",
-        COL_HOST_CONTEXT: [U32; 8] => "saved pc, fbp, stack base, export, import, args base, parent host depth, sp",
-        COL_HOST_IMPORT_SCHEDULE_COUNTS: U32 => "packed import call/return biased counts",
-        COL_HOST_INITIAL_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "import call-block count plus one",
-        COL_HOST_RETURN_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "zero for atomic, otherwise one plus the import return-schedule length",
+        COL_HOST_CONTEXT_FRAME: [U32; 3] => "saved pc, locals frame base, operand-stack base",
+        COL_HOST_CONTEXT_REFS: Field => "saved export + 65536 * saved import; bounded by the decoded references",
+        COL_HOST_CONTEXT_EXPORT: (Bits(HOST_CONTEXT_HALF_BITS)) => "saved export function reference",
+        COL_HOST_CONTEXT_IMPORT: (Bits(HOST_CONTEXT_HALF_BITS)) => "saved import function reference",
+        COL_HOST_CONTEXT_ARGS_DEPTH: Field => "saved argument base + 65536 * saved parent host depth",
+        COL_HOST_CONTEXT_ARGS_BASE: (Bits(HOST_CONTEXT_HALF_BITS)) => "saved argument base",
+        COL_HOST_CONTEXT_PARENT_DEPTH: (Bits(HOST_CONTEXT_HALF_BITS)) => "saved parent host depth",
+        COL_HOST_CONTEXT_SP: U32 => "saved stack pointer",
+        COL_HOST_IMPORT_SCHEDULE_COUNTS: U32 => "packed schedule counts: import call/return, or export entry/exit",
+        COL_HOST_INITIAL_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "low half: import call-block or export entry-block count plus one",
+        COL_HOST_RETURN_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "high half: zero for atomic, otherwise one plus the import return-schedule length; the exit count of an export",
         COL_HOST_RETURN_COUNT_IS_ZERO: Boolean => "selected import is atomic",
         COL_HOST_RETURN_COUNT_INV: Field => "inverse witness for return count",
         COL_HOST_CLEAR_ACTIVATION_FINISHED: Boolean => "entry or resume clears the previous activation-finished flag",
@@ -71,10 +83,11 @@ define_column_region! {
             "stack slot index of the current call's first argument, after this row",
         COL_HOST_EVENT_SLOT_CURSOR_BEFORE: Field => "next block word a gather row stages (0..=7), before this row",
         COL_HOST_EVENT_SLOT_CURSOR_AFTER: Field => "next block word a gather row stages (0..=7), after this row",
-        COL_HOST_EVENT_SLOT_KIND: Field =>
+        COL_HOST_EVENT_SLOT_DESCRIPTOR: Field => "kind + 32 * arg + 8192 * variant",
+        COL_HOST_EVENT_SLOT_KIND: (Bits(5)) =>
             "host-event ROM slot binding kind (0 const, 1 arg, 2 result, 3 input-local, 4 output, 5 memory-read, 6 memory-write)",
-        COL_HOST_EVENT_SLOT_ARG: Field => "host-event ROM slot argument or input index",
-        COL_HOST_EVENT_SLOT_VARIANT: Field =>
+        COL_HOST_EVENT_SLOT_ARG: (Bits(8)) => "host-event ROM slot argument or input index",
+        COL_HOST_EVENT_SLOT_VARIANT: (Bits(4)) =>
             "encoded host-event ROM slot variant: value kinds use 0 lo / 1 hi; memory kinds use bit 0 for local base, bit 1 for byte width, bit 2 for half width, and bit 3 for captured-output base",
         COL_HOST_EVENT_SLOT_IMMEDIATE0: Field =>
             "host-event ROM slot immediate 0; see WasmHostEventRomEntry",
@@ -82,6 +95,8 @@ define_column_region! {
             "host-event ROM slot immediate 1; see WasmHostEventRomEntry",
         COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT: Field =>
             "host-event ROM initial-schedule count for the called import or entered export (biased +1; reread to offset export-exit indices)",
+        COL_HOST_EVENT_BASE: U32 =>
+            "host-event ROM first event row of the template that this row loads",
         COL_HOST_EVENT_EXIT_SCHEDULE_COUNT: Field =>
             "host-event ROM exit-schedule count for the returning export",
         COL_GATHER_LOCAL_WRITE: Boolean =>
@@ -92,8 +107,6 @@ define_column_region! {
             "clean activation-return row: loads the export's exit-event schedule",
         COL_TURN_BOUNDARY: Boolean =>
             "multi-turn re-entry row: re-arms the output, loads the next export's entry schedule, jumps to its entry pc",
-        COL_PC_FREF_ACTIVE: Boolean =>
-            "pc -> function-ref ROM gate: every row except gather rows (post-return exit gathers sit past the last pc)",
         COL_CI_HOST_CALL: Boolean => "call_indirect invocation row targeting a host import",
     ]
 }

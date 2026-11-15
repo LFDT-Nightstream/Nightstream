@@ -69,7 +69,7 @@ Proof.
   intros callees i callee below H. destruct i; try contradiction; cbn [callsInto] in H;
     cbn [sourceHeight callOperands]; rewrite H.
   - destruct (Nat.leb_spec (guestParams callee) (below + guestParams callee)); [f_equal; lia | lia].
-  - unfold guestType. cbv beta iota. rewrite !repeat_length.
+  - unfold guestType. cbv beta iota. fold (guestParams callee) (guestResults callee).
     destruct (Nat.leb_spec (S (guestParams callee)) (below + S (guestParams callee))); [f_equal; lia | lia].
 Qed.
 
@@ -134,9 +134,9 @@ Inductive Supported (callees : CalleeEnvironment) : instr -> Prop :=
    metadata holds the parameter and result counts in one byte each. *)
 | supported_call : forall x f, callees (x :> N) = Some f ->
     (guestParams f < 256)%nat -> (guestResults f < 256)%nat -> Supported callees (CALL x)
-(* Blocks without parameters and with at most one i32 result, nested to any depth. *)
+(* Blocks without parameters and with at most one integer result, nested to any depth. *)
 | supported_block : forall result body, Forall (Supported callees) body ->
-    (result = None \/ result = Some valtype_I32) -> Supported callees (BLOCK (_RESULT result) body)
+    (result = None \/ result = Some valtype_I32 \/ result = Some valtype_I64) -> Supported callees (BLOCK (_RESULT result) body)
 (* Branches to an enclosing label, where codeBranches allows them. *)
 | supported_br_if : forall l, Supported callees (BR_IF l)
 | supported_br : forall l, Supported callees (BR l)
@@ -145,15 +145,16 @@ Inductive Supported (callees : CalleeEnvironment) : instr -> Prop :=
 | supported_return : Supported callees RETURN
 (* Ifs like blocks, each arm in the fragment. *)
 | supported_if : forall result t e, Forall (Supported callees) t -> Forall (Supported callees) e ->
-    (result = None \/ result = Some valtype_I32) -> Supported callees (IFELSE (_RESULT result) t e)
+    (result = None \/ result = Some valtype_I32 \/ result = Some valtype_I64) -> Supported callees (IFELSE (_RESULT result) t e)
 (* Loops like blocks: branches to a loop's label keep nothing and run it again. *)
 | supported_loop : forall result body, Forall (Supported callees) body ->
-    (result = None \/ result = Some valtype_I32) -> Supported callees (LOOP (_RESULT result) body)
-(* Indirect calls to i32 functions, typed as the call metadata allows. Any
+    (result = None \/ result = Some valtype_I32 \/ result = Some valtype_I64) -> Supported callees (LOOP (_RESULT result) body)
+(* Indirect calls to integer functions, typed as the call metadata allows. Any
    function may be called, so every function must be a guest of this module. *)
 | supported_call_indirect : forall x y params results,
-    nth_error (envTypes callees) (N.to_nat (y :> N)) = Some (i32StackType params results) ->
-    (params < 256)%nat -> (results < 256)%nat -> indirectReady callees ->
+    nth_error (envTypes callees) (N.to_nat (y :> N)) = Some (mk_functype (mk_list _ params) (mk_list _ results)) ->
+    (length params < 256)%nat -> (length results < 256)%nat ->
+    Forall (fun t => t = valtype_I32 \/ t = valtype_I64) (params ++ results) -> indirectReady callees ->
     Supported callees (CALL_INDIRECT x y)
 | supported_nop : Supported callees NOP
 | supported_unreachable : Supported callees UNREACHABLE.

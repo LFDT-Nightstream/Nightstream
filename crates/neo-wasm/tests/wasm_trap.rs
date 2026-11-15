@@ -245,9 +245,11 @@ fn assert_hidden_table_oob_is_rejected(wat: &str, export_fref: u32, opcode: Wasm
         },
     );
 
-    let honest = collect_wasmtime_steps(&wasm, &bindings, "main", &[0]).expect("in-bounds reference run");
+    let honest =
+        collect_wasmtime_steps(&wasm, &bindings, "main", &[wasmtime::Val::I32(0)]).expect("in-bounds reference run");
     assert_eq!(honest.results, ["7"]);
-    let native = collect_wasmtime_steps(&wasm, &bindings, "main", &[5]).expect("the table trap is modeled");
+    let native =
+        collect_wasmtime_steps(&wasm, &bindings, "main", &[wasmtime::Val::I32(5)]).expect("the table trap is modeled");
     assert!(native.results.is_empty());
     assert_eq!(native.steps.last().and_then(|row| row.opcode_decoded), Some(opcode));
 

@@ -1,3 +1,4 @@
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog OpcodeCatalog TableState TraceRefinement
@@ -22,15 +23,15 @@ Definition sourceMemory (stale : Z) := loadProgram sourceProgram (sourceRam stal
 
 Example source_program_layout :
   functionEntry sourceProgram 0 = 0 /\ functionEntry sourceProgram 1 = 2 /\
-  encodeProgram sourceProgram programOpcodeId [3] = Some CODE_CALL /\
+  opcodeAt (encodeProgram sourceProgram) [3] = Some CODE_CALL /\
   encodeProgram sourceProgram callTargetId [3] = Some 1 /\
-  encodeProgram sourceProgram pcRomId [3; 0] = Some 0 /\
-  encodeProgram sourceProgram pcRomId [3; 1] = Some 4 /\
+  encodeProgram sourceProgram pcRomId [3] = None /\
+  encodeProgram sourceProgram functionEntryId [1] = Some 0 /\
   encodeProgram sourceProgram programLocalIndexId [4] = Some 0 /\
   encodeProgram sourceProgram functionLocalCountId [2] = Some 1 /\
-  encodeProgram sourceProgram programOpcodeId [5] = Some CODE_END /\
-  encodeProgram sourceProgram pcEdgeKindId [5] = Some 1 /\
-  encodeProgram sourceProgram pcRomId [5; 0] = None.
+  opcodeAt (encodeProgram sourceProgram) [5] = Some CODE_END /\
+  edgeKindAt (encodeProgram sourceProgram) [5] = Some 1 /\
+  encodeProgram sourceProgram pcRomId [5] = None.
 Proof. repeat split; reflexivity. Qed.
 
 Example source_program_loaded : forall stale, programLoaded sourceProgram (sourceMemory stale).
@@ -98,7 +99,8 @@ Qed.
 Example source_body_supported : supportedCode (programCallees sourceProgram callModule) getCallAdd.
 Proof.
   constructor; [constructor | constructor; [ | constructor; [constructor | constructor]]].
-  apply supported_call with (f := mkGuestFunction 0%N callModule (mk_uN 0) 0 1 1 readZeroBody 0);
+  apply supported_call with (f :=
+    mkGuestFunction 0%N callModule (mk_uN 0) [] [valtype_I32] [valtype_I32] readZeroBody 0);
     [reflexivity | cbn; lia | cbn; lia].
 Qed.
 
@@ -130,12 +132,11 @@ Definition indirectProgram : Program :=
 
 Example indirect_call_layout :
   functionEntry indirectProgram 1 = 2 /\
-  map (fun pc => encodeProgram indirectProgram programOpcodeId [pc]) [3; 4; 5] =
+  map (fun pc => opcodeAt (encodeProgram indirectProgram) [pc]) [3; 4; 5] =
     [Some CODE_CALL_INDIRECT_RESOLVE; Some CODE_CALL_INDIRECT; Some CODE_NOP] /\
-  map (fun pc => encodeProgram indirectProgram pcEdgeKindId [pc]) [3; 4] = [Some 0; Some 2] /\
-  map (encodeProgram indirectProgram pcRomId) [[3; 0]; [4; 0]; [4; 1]] = [Some 4; None; Some 5] /\
-  encodeProgram indirectProgram programTableId [3] = Some 3 /\
-  encodeProgram indirectProgram expectedTypeId [3] = Some 1 /\
+  map (fun pc => edgeKindAt (encodeProgram indirectProgram) [pc]) [3; 4] = [Some 0; Some 2] /\
+  map (encodeProgram indirectProgram pcRomId) [[3]; [4]] = [Some 4; None] /\
+  encodeProgram indirectProgram programTableDescriptorId [3] = Some 259 /\
   map (fun reference => encodeProgram indirectProgram functionTypeId [reference]) [1; 2] = [Some 1; Some 2].
 Proof. vm_compute. repeat split. Qed.
 
@@ -159,8 +160,8 @@ Proof.
   rewrite update_same in H. discriminate.
 Qed.
 
-Example non_i32_function_rejected :
-  functionAt [MKfuncinst (mk_functype (mk_list _ [valtype_I64]) (mk_list _ [])) callModule
+Example float_function_rejected :
+  functionAt [MKfuncinst (mk_functype (mk_list _ [valtype_F32]) (mk_list _ [])) callModule
     (func_FUNC (mk_uN 0) [] [])] 0 = None.
 Proof. reflexivity. Qed.
 
@@ -266,7 +267,7 @@ Proof.
         cbn in Hcall;
         destruct goffset as [ | [ | [ | goffset]]]; try discriminate; try (destruct goffset; discriminate);
         injection Hcall as <-; cbn [callsInto] in Hcallee; first [contradiction | discriminate Hcallee].
-  - exfalso. destruct Hactive as [f' [Hf' [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]].
+  - exfalso. destruct Hactive as [f' [defaults [Hf' [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]]].
     destruct function as [ | [ | function]]; try (destruct function; discriminate);
       injection Hf' as <-; cbn in Hpos; lia.
 Qed.

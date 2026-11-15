@@ -119,6 +119,6 @@ Proof.
     rewrite spectec_eqz_value by exact Hread0.
     unfold num__eqb, ssrbool.is_left.
     destruct (num__eq_dec _ _); [reflexivity|contradiction].
-  - apply Add.spectec_i32_well_formed.
+  - apply WasmValues.spectec_i32_well_formed.
     exact Hwrite.
 Qed.

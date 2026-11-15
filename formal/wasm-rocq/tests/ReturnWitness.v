@@ -5,6 +5,7 @@ Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout Fragment
   ProgramSpec ProgramEncoding ControlDecode ExecutionSpec ExecutionRefinement
   tests.BlockPrograms tests.WitnessCheck tests.TerminalWitness tests.NopWitness tests.BaseReturnTrace tests.VoidReturnTrace.
+Require Import ControlInvariant.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -28,7 +29,7 @@ Definition baseReturnCode := [BLOCK (_RESULT (Some valtype_I32)) [LOCAL_GET (mk_
 Definition baseReturnFunction := i32Function nopModule (mk_uN 0) 1 1 0 baseReturnCode.
 Definition baseReturnProgram := [baseReturnFunction].
 Definition baseReturnStore := MKstore baseReturnProgram [] [] [] [] [].
-Definition baseReturnGuest := mkGuestFunction 0%N nopModule (mk_uN 0) 1 1 0 baseReturnCode 0.
+Definition baseReturnGuest := mkGuestFunction 0%N nopModule (mk_uN 0) [valtype_I32] [valtype_I32] [] baseReturnCode 0.
 Definition baseReturnMemory := loadProgram baseReturnProgram (exportSchedules 5 1 (fun memory address =>
   if Nat.eqb memory stackId then match address with [0] => Some 7 | [1] => Some 0 | _ => None end else None)).
 Definition baseReturnWitness := map rowWitness baseReturnRows.
@@ -51,14 +52,14 @@ Proof.
   - constructor; [ | constructor]. function_validates nopContext base_return_module base_return_body.
   - intros [ | index] f H; cbn in H; [injection H as <- | destruct index; discriminate].
     split; [ | vm_compute; tauto].
-    constructor; [apply supported_block; [repeat constructor | right; reflexivity] | constructor].
+    constructor; [apply supported_block; [repeat constructor | right; left; reflexivity] | constructor].
 Qed.
 Lemma base_return_valid_run : validRunb baseReturnMemory baseReturnWitness = true.
 Proof. vm_compute; reflexivity. Qed.
 Lemma base_return_fragment : executionFragment nopStart 0 baseReturnWitness.
 Proof. vm_compute. repeat first [split | left; reflexivity | right; repeat split; reflexivity | reflexivity | exact I]. Qed.
 Lemma base_return_initial : CircuitConfig baseReturnProgram baseReturnStore 0 entryShape baseReturnMemory nopStart
-    (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest [7])) [] baseReturnCode).
+    (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest (map i32Value [7]))) [] baseReturnCode).
 Proof.
   apply (function_start_config baseReturnProgram baseReturnStore 0 baseReturnGuest [7] _ nopStart);
     try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
@@ -70,20 +71,21 @@ Proof.
 Qed.
 Example base_return_refines : fieldPrime ->
   Steps (callContext (outerFrame nopModule) 1
-    (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest [7])) [] baseReturnCode))
+    (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest (map i32Value [7]))) [] baseReturnCode))
     (mk_config (mk_state baseReturnStore (outerFrame nopModule)) [i32Constant 7]).
 Proof.
   intros Hprime.
   assert (Hstart : ActivationConfig baseReturnProgram baseReturnStore (outerFrame nopModule) 0 0 entryShape
       baseReturnMemory nopStart (callContext (outerFrame nopModule) 1
-        (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest [7])) [] baseReturnCode))).
-  { split; [reflexivity | ]. split; [repeat constructor | ]. split; [reflexivity | ]. exists baseReturnGuest, (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest [7])) [] baseReturnCode).
+        (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest (map i32Value [7]))) [] baseReturnCode))).
+  { split; [reflexivity | ]. split; [repeat constructor | ]. split; [reflexivity | ]. exists baseReturnGuest, (stackConfig (mk_state baseReturnStore (activeFrame baseReturnGuest (map i32Value [7]))) [] baseReturnCode).
     split; [reflexivity | ]. split; [exact base_return_initial | reflexivity]. }
   destruct (run_refinement _ _ _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _)
     (validRunb_sound _ _ base_return_valid_run) base_return_fragment Hstart) as [outcome [c [Hsteps [_ Hconfig]]]].
   replace c with (mk_config (mk_state baseReturnStore (outerFrame nopModule)) [i32Constant 7]) in Hsteps; [exact Hsteps | ].
-  symmetry. eapply terminal_return_decodes with (row := rowWitness (List.last baseReturnRows []));
-    [exact Hconfig | reflexivity | | | | ]; vm_compute; reflexivity.
+  symmetry. eapply terminal_return_decodes with (values := [i32Value 7]) (row := rowWitness (List.last baseReturnRows []));
+    [exact Hconfig | reflexivity | vm_compute; reflexivity | vm_compute; reflexivity | ].
+  intros f Hf. change (Some baseReturnGuest = Some f) in Hf. injection Hf as <-. vm_compute; reflexivity.
 Qed.
 
 Definition voidModule := MKmoduleinst [i32StackType 0 0] [0%N] [] [] [] [] [] [].
@@ -91,7 +93,7 @@ Definition voidFunction := i32Function voidModule (mk_uN 0) 0 0 0 [NOP].
 Definition voidProgram := [voidFunction].
 Definition voidStore := MKstore voidProgram [] [] [] [] [].
 Definition voidContext := moduleContext [i32StackType 0 0] [i32StackType 0 0].
-Definition voidGuest := mkGuestFunction 0%N voidModule (mk_uN 0) 0 0 0 [NOP] 0.
+Definition voidGuest := mkGuestFunction 0%N voidModule (mk_uN 0) [] [] [] [NOP] 0.
 Definition voidMemory := loadProgram voidProgram (exportSchedules 1 0 (fun _ _ => Some 0)).
 Definition voidWitness := map rowWitness voidReturnRows.
 Lemma void_module : Moduleinst_ok voidStore voidModule voidContext.
@@ -133,9 +135,11 @@ Proof.
     row COL_TRAPPED_AFTER = 0 /\ row COL_OUTPUT_CAPTURED = 0).
   { exists (rowWitness (List.last voidReturnRows [])). split; [reflexivity | ]. vm_compute; repeat split; reflexivity. }
   destruct Hlast as [row [Hlast [Hfinish [Htrap Hcapture]]]].
-  destruct outcome as [shape | | [v | ]].
-  - destruct Hconfig as [Hflag _]. rewrite Hlast in Hflag; congruence.
-  - destruct Hconfig as [last [Hlast' [_ [Ht _]]]]. rewrite Hlast in Hlast'; injection Hlast' as <-; congruence.
-  - destruct Hconfig as [last [Hlast' [_ [_ [[Hcap _] _]]]]]. rewrite Hlast in Hlast'; injection Hlast' as <-; congruence.
-  - destruct Hconfig as [last [Hlast' [_ [_ [_ Hc]]]]]. rewrite <- Hc; exact Hsteps.
+  assert (Hc : c = mk_config (mk_state voidStore (outerFrame voidModule)) []).
+  { change (c = mk_config (mk_state voidStore (outerFrame voidModule)) (map admininstr_val [])).
+    eapply terminal_return_decodes; [exact Hconfig | exact Hlast | exact Hfinish | exact Htrap | ].
+    intros f Hf. change (Some voidGuest = Some f) in Hf. injection Hf as <-.
+    change ((if row COL_OUTPUT_CAPTURED =? 0 then Some ([] : list val) else None) = Some []).
+    rewrite Hcapture. reflexivity. }
+  rewrite <- Hc. exact Hsteps.
 Qed.

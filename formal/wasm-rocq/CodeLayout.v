@@ -9,8 +9,11 @@ Require Import Wasm2 StraightLineSpec StraightLineInstructions StackSimulation.
 Import ListNotations.
 
 (* A slot holds an instruction, one of the markers that delimit structured code,
-   or an indirect call's invocation, which follows its resolve slot. *)
-Inductive FlatOp := opInstr (i : instr) | opElse | opEnd | opInvoke.
+   an indirect call's invocation, which follows its resolve slot, or a later edge
+   of the instruction before it. An instruction with k control choices takes k
+   slots: its own, which is the edge of choice 0, then one for each later choice.
+   An edge slot names the branch label of its edge; an if's true edge has none. *)
+Inductive FlatOp := opInstr (i : instr) | opElse | opEnd | opInvoke | opEdge (label : option labelidx).
 
 Record FlatInstruction := flatInstruction {
   flatOpcode : FlatOp;
@@ -27,8 +30,9 @@ Fixpoint instructionSize (i : instr) : nat :=
     match code with [] => 0 | j :: rest => instructionSize j + codeSize rest end in
   match i with
   | BLOCK _ body | LOOP _ body => S (S (codeSize body))
-  | IFELSE _ t e => S (S (codeSize t + match e with [] => 0 | _ => S (codeSize e) end))
-  | CALL_INDIRECT _ _ => 2
+  | IFELSE _ t e => S (S (S (codeSize t + match e with [] => 0 | _ => S (codeSize e) end)))
+  | CALL_INDIRECT _ _ | BR_IF _ => 2
+  | BR_TABLE ls _ => S (length ls)
   | _ => 1
   end.
 
@@ -41,9 +45,19 @@ Definition codeOffset (code : list instr) (offset : nat) := codeSize (firstn off
    loop's body, otherwise after its END. *)
 Definition labelTarget (i : instr) : nat := match i with LOOP _ _ => 1 | _ => instructionSize i end.
 
+(* The labels of a branch's choices after 0: a br_if's taken edge (its choice 0
+   falls through), and a br_table's arms (its choice 0 is the default). *)
+Definition edgeLabels (i : instr) : list labelidx :=
+  match i with BR_IF l => [l] | BR_TABLE ls _ => ls | _ => [] end.
+
+(* The edge slots of a branch: one for each choice after 0. *)
+Definition edgeSlots (labels : list nat) (i : instr) : list FlatInstruction :=
+  map (fun l => flatInstruction (opEdge (Some l)) [nth_error labels (N.to_nat (l :> N))]) (edgeLabels i).
+
 (* An instruction's slots at function address `base`; `labels` holds, innermost
    first, where each enclosing label's branches land. An if's false edge lands
-   past its then-body and ELSE: at its else-body, or after its END. *)
+   past its then-body and ELSE: at its else-body, or after its END. Its true
+   edge is its second slot, and lands at its then-body. *)
 Fixpoint flattenAt (labels : list nat) (base : nat) (i : instr) {struct i} : list FlatInstruction :=
   let bodyAt := fix bodyAt (labels : list nat) (base : nat) (code : list instr) : list FlatInstruction :=
     match code with
@@ -55,14 +69,16 @@ Fixpoint flattenAt (labels : list nat) (base : nat) (i : instr) {struct i} : lis
   | BLOCK _ body | LOOP _ body =>
       flatInstruction (opInstr i) [] :: bodyAt inner (S base) body ++ [flatInstruction opEnd []]
   | IFELSE _ t e =>
-      flatInstruction (opInstr i) [Some (base + S (S (codeSize t)))] ::
-        bodyAt inner (S base) t ++
+      flatInstruction (opInstr i) [Some (base + S (S (S (codeSize t))))] ::
+        flatInstruction (opEdge None) [Some (S (S base))] ::
+        bodyAt inner (S (S base)) t ++
         match e with
         | [] => []
-        | _ => flatInstruction opElse [Some (base + instructionSize i)] :: bodyAt inner (base + S (S (codeSize t))) e
+        | _ => flatInstruction opElse [Some (base + instructionSize i)] :: bodyAt inner (base + S (S (S (codeSize t)))) e
         end ++ [flatInstruction opEnd []]
   | BR_IF _ | BR _ | BR_TABLE _ _ =>
-      [flatInstruction (opInstr i) (map (fun l => nth_error labels (N.to_nat (l :> N))) (branchTargets i))]
+      flatInstruction (opInstr i) (map (fun l => nth_error labels (N.to_nat (l :> N))) (branchTargets i)) ::
+        edgeSlots labels i
   | CALL_INDIRECT _ _ => [flatInstruction (opInstr i) []; flatInstruction opInvoke []]
   | _ => [flatInstruction (opInstr i) []]
   end.
@@ -79,7 +95,7 @@ Definition flattenCode (code : list instr) := bodyAt [] 0 code.
 (* An instruction's first slot. *)
 Definition slotTargets (labels : list nat) (base : nat) (i : instr) : list (option nat) :=
   match i with
-  | IFELSE _ t _ => [Some (base + S (S (codeSize t)))]
+  | IFELSE _ t _ => [Some (base + S (S (S (codeSize t))))]
   | BR_IF _ | BR _ | BR_TABLE _ _ => map (fun l => nth_error labels (N.to_nat (l :> N))) (branchTargets i)
   | _ => []
   end.
@@ -87,6 +103,14 @@ Definition slotTargets (labels : list nat) (base : nat) (i : instr) : list (opti
 Lemma flatten_head : forall labels base i, exists more,
   flattenAt labels base i = flatInstruction (opInstr i) (slotTargets labels base i) :: more.
 Proof. intros labels base i. destruct i; eexists; reflexivity. Qed.
+
+(* A function's first slot is an instruction, or its END: never an edge slot. *)
+Lemma flatten_code_first : forall code l targets,
+  nth_error (flattenCode code) 0 <> Some (flatInstruction (opEdge l) targets).
+Proof.
+  intros [ | i rest] l targets; [discriminate | ]. unfold flattenCode. cbn [bodyAt].
+  destruct (flatten_head [] 0 i) as [more ->]. discriminate.
+Qed.
 
 Lemma body_at_cons : forall labels base j rest,
   bodyAt labels base (j :: rest) = flattenAt labels base j ++ bodyAt labels (base + instructionSize j) rest.
@@ -105,9 +129,9 @@ Lemma loop_instruction_size : forall bt body, instructionSize (LOOP bt body) = (
 Proof. intros. change (S (S (codeSize body)) = codeSize body + 2)%nat. lia. Qed.
 
 Lemma if_instruction_size : forall bt t e,
-  instructionSize (IFELSE bt t e) = (S (S (codeSize t)) + match e with [] => 0 | _ => S (codeSize e) end)%nat.
-Proof. intros. change (S (S (codeSize t + match e with [] => 0 | _ => S (codeSize e) end)) =
-  S (S (codeSize t)) + match e with [] => 0 | _ => S (codeSize e) end)%nat. lia. Qed.
+  instructionSize (IFELSE bt t e) = (S (S (S (codeSize t))) + match e with [] => 0 | _ => S (codeSize e) end)%nat.
+Proof. intros. change (S (S (S (codeSize t + match e with [] => 0 | _ => S (codeSize e) end))) =
+  S (S (S (codeSize t))) + match e with [] => 0 | _ => S (codeSize e) end)%nat. lia. Qed.
 
 Lemma flatten_block : forall labels base bt body,
   flattenAt labels base (BLOCK bt body) = flatInstruction (opInstr (BLOCK bt body)) [] ::
@@ -121,12 +145,13 @@ Proof. reflexivity. Qed.
 
 Lemma flatten_if : forall labels base bt t e,
   flattenAt labels base (IFELSE bt t e) =
-    flatInstruction (opInstr (IFELSE bt t e)) [Some (base + S (S (codeSize t)))] ::
-      bodyAt (base + labelTarget (IFELSE bt t e) :: labels) (S base) t ++
+    flatInstruction (opInstr (IFELSE bt t e)) [Some (base + S (S (S (codeSize t))))] ::
+      flatInstruction (opEdge None) [Some (S (S base))] ::
+      bodyAt (base + labelTarget (IFELSE bt t e) :: labels) (S (S base)) t ++
       match e with
       | [] => []
       | _ => flatInstruction opElse [Some (base + instructionSize (IFELSE bt t e))] ::
-          bodyAt (base + labelTarget (IFELSE bt t e) :: labels) (base + S (S (codeSize t))) e
+          bodyAt (base + labelTarget (IFELSE bt t e) :: labels) (base + S (S (S (codeSize t)))) e
       end ++ [flatInstruction opEnd []].
 Proof. reflexivity. Qed.
 
@@ -151,7 +176,8 @@ Proof.
       - rewrite flatten_if. rewrite if_instruction_size in *. cbn [length].
         rewrite !length_app, IHc by lia.
         match goal with |- context [match ?e with [] => _ | _ => _ end] => destruct e end;
-          cbn [length codeSize] in *; rewrite ?IHc by (cbn [codeSize]; lia); cbn [codeSize]; lia. }
+          cbn [length codeSize] in *; rewrite ?IHc by (cbn [codeSize]; lia); cbn [codeSize]; lia.
+      - cbn. unfold edgeSlots. rewrite length_map. reflexivity. }
     split; [exact Hi | ].
     induction code as [ | j rest IH]; intros labels base H; [reflexivity | ].
     rewrite body_at_cons, length_app. cbn [codeSize] in H |- *. pose proof (instruction_size_pos j).
@@ -229,7 +255,7 @@ Definition instrArm (i : instr) (arm : nat) : option (list instr) :=
 
 (* Where an arm's body starts, relative to its instruction. *)
 Definition armStart (i : instr) (arm : nat) : nat :=
-  match i, arm with IFELSE _ t _, 1 => S (S (codeSize t)) | _, _ => 1 end.
+  match i, arm with IFELSE _ t _, 1 => S (S (S (codeSize t))) | IFELSE _ _ _, _ => 2 | _, _ => 1 end.
 
 (* An arm's last slot: an if's then-body ends at its ELSE when it has an
    else-body; every other arm ends at its instruction's END. *)
@@ -302,8 +328,8 @@ Proof.
     cbn [labelTarget]. rewrite ?Nat.add_1_r. reflexivity.
   - rewrite flatten_loop. cbn [armStart armEnd]. replace (1 + k)%nat with (S k) by lia. cbn [nth_error].
     cbn [labelTarget]. rewrite ?Nat.add_1_r. reflexivity.
-  - rewrite flatten_if. cbn [armStart]. replace (1 + k)%nat with (S k) by lia. cbn [nth_error].
-    cbn [labelTarget]. rewrite ?Nat.add_1_r.
+  - rewrite flatten_if. cbn [armStart]. replace (2 + k)%nat with (S (S k)) by lia. cbn [nth_error].
+    cbn [labelTarget]. replace (base + 2)%nat with (S (S base)) by lia.
     match goal with |- context [armEnd (IFELSE _ _ ?e)] => destruct e as [ | e0 e] end; cbv beta iota; cbn [armEnd].
     + reflexivity.
     + destruct (Nat.lt_ge_cases k (codeSize body)) as [Hlt | Hge].
@@ -311,15 +337,15 @@ Proof.
       * replace k with (codeSize body) by lia.
         assert (Hat : forall (xs ys : list FlatInstruction), nth_error (xs ++ ys) (length xs) = nth_error ys 0)
           by (intros; rewrite nth_error_app2, Nat.sub_diag by lia; reflexivity).
-        match goal with |- context [bodyAt ?ls (S base) body] => rewrite <- (body_length body ls (S base)) end.
+        match goal with |- context [bodyAt ?ls (S (S base)) body] => rewrite <- (body_length body ls (S (S base))) end.
         rewrite !Hat. reflexivity.
   - cbn [instrArm] in Harm.
     match type of Harm with context [match ?e with [] => _ | _ :: _ => _ end] => destruct e as [ | e0 e] end;
       [discriminate | ].
     injection Harm as Hbody; subst.
     rewrite flatten_if. cbv beta iota. cbn [armStart armEnd].
-    match goal with |- context [S (S (codeSize ?t))] =>
-      replace (S (S (codeSize t)) + k)%nat with (S (codeSize t + S k))%nat by lia end.
+    match goal with |- context [S (S (S (codeSize ?t)))] =>
+      replace (S (S (S (codeSize t))) + k)%nat with (S (S (codeSize t + S k)))%nat by lia end.
     cbn [nth_error]. rewrite nth_error_app2 by (rewrite body_length; lia).
     rewrite body_length. match goal with |- context [(codeSize ?t + S k - codeSize ?t)%nat] =>
       replace (codeSize t + S k - codeSize t)%nat with (S k) by lia end. reflexivity.
@@ -430,6 +456,36 @@ Lemma flatten_at_invoke : forall code labels inner offset x y,
 Proof.
   intros code labels inner offset x y Hpath Hi. unfold flattenCode.
   rewrite <- Nat.add_1_r. rewrite (path_slots _ _ _ _ _ [] 0 1 Hpath Hi ltac:(cbn; lia)). reflexivity.
+Qed.
+
+(* An if's true edge follows its head and lands at its then-body. *)
+Lemma flatten_at_if_edge : forall code labels inner offset bt t e,
+  pathCode code labels = Some inner -> nth_error inner offset = Some (IFELSE bt t e) ->
+  nth_error (flattenCode code) (S (pathOffset code labels offset)) =
+    Some (flatInstruction (opEdge None) [Some (S (S (pathOffset code labels offset)))]).
+Proof.
+  intros code labels inner offset bt t e Hpath Hi. unfold flattenCode.
+  rewrite <- Nat.add_1_r. rewrite (path_slots _ _ _ _ _ [] 0 1 Hpath Hi ltac:(rewrite if_instruction_size; lia)).
+  rewrite flatten_if. cbn [nth_error]. repeat (f_equal; try lia).
+Qed.
+
+(* A branch's edge slots follow its head: the slot of choice k + 1 names the
+   k-th of its later labels and where that label's branches land. *)
+Lemma flatten_at_edge : forall code labels inner offset i k l,
+  pathCode code labels = Some inner -> nth_error inner offset = Some i -> nth_error (edgeLabels i) k = Some l ->
+  nth_error (flattenCode code) (pathOffset code labels offset + S k) =
+    Some (flatInstruction (opEdge (Some l)) [nth_error (pathTargets code labels) (N.to_nat (l :> N))]).
+Proof.
+  intros code labels inner offset i k l Hpath Hi Hl. unfold flattenCode.
+  assert (Hk : (S k < instructionSize i)%nat).
+  { assert (k < length (edgeLabels i))%nat by (apply nth_error_Some; rewrite Hl; discriminate).
+    destruct i; cbn [edgeLabels length] in *; try lia; cbn; lia. }
+  rewrite (path_slots _ _ _ _ _ [] 0 (S k) Hpath Hi Hk), app_nil_r.
+  replace (map (Nat.add 0) (pathTargets code labels)) with (pathTargets code labels)
+    by (rewrite <- (map_id (pathTargets code labels)) at 1; apply map_ext; reflexivity).
+  assert (Hslots : forall targets base, nth_error (flattenAt targets base i) (S k) = nth_error (edgeSlots targets i) k).
+  { intros targets base. destruct i; cbn [edgeLabels] in Hl; try (destruct k; discriminate); reflexivity. }
+  rewrite Hslots. unfold edgeSlots. rewrite nth_error_map, Hl. reflexivity.
 Qed.
 
 Lemma flatten_arm_end : forall code pre s inner,

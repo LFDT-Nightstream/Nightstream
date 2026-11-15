@@ -1,9 +1,10 @@
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range Add TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog TableState Wasm2 WasmIntegers Locals
   StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerValidation FunctionValidation
   BlockSpec CodeLayout ProgramSpec ProgramEncoding ProgramRefinement ControlDecode ControlInvariant ControlBridge
-  Fragment.
+  Fragment IntegerMemory IntegerDecode FrameFacts.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -31,7 +32,8 @@ Ltac typed_step inputs outputs extra :=
 (* A function's first instruction, with its locals as its first cells. *)
 Lemma function_start_config : forall program s index f locals memory boundary,
   store_FUNCS s = program -> wf_store s -> programValidated program s -> tablesLoaded s memory ->
-  functionAt program index = Some f -> length locals = frameLocals f ->
+  functionAt program index = Some f ->
+  guestFrameTypes f = repeat valtype_I32 (frameLocals f) -> length locals = frameLocals f ->
   Forall (fun v => 0 <= v < i32Modulus) locals ->
   (forall i v, nth_error locals i = Some v ->
     memory stackId [2 * (boundaryLocalsBase boundary + Z.of_nat i)] = Some v) ->
@@ -41,27 +43,34 @@ Lemma function_start_config : forall program s index f locals memory boundary,
   boundaryPC boundary = guestEntry f -> initializationIdle boundary ->
   0 <= boundaryCallDepth boundary ->
   CircuitConfig program s (boundaryCallDepth boundary) (controlShape [] (siteCode (codePosition index [] 0)))
-    memory boundary (stackConfig (mk_state s (activeFrame f locals)) [] (guestBody f)).
+    memory boundary (stackConfig (mk_state s (activeFrame f (map i32Value locals))) [] (guestBody f)).
 Proof.
-  intros program s index f locals memory boundary Hstore Hwf Hvalid Htables Hf Hlen Hbounds Hcells Hfbp Hbase Hsp Hpc Hidle
+  intros program s index f locals memory boundary Hstore Hwf Hvalid Htables Hf Htypes Hlen Hbounds Hcells Hfbp Hbase Hsp Hpc Hidle
     Hdepth.
-  apply (control_state_circuit _ _ _ (controlCursor [] (atCode (frameView (codePosition index [] 0) [] [] locals))));
+  apply (control_state_circuit _ _ _ (controlCursor [] (atCode (frameView (codePosition index [] 0) [] [] (map i32Value locals)))));
     [exact Hstore | exact Hwf | exact Hvalid | exact Htables | ].
-  exists f, (stackConfig (mk_state s (activeFrame f locals)) [] (guestBody f)).
+  exists f, (stackConfig (mk_state s (activeFrame f (map i32Value locals))) [] (guestBody f)).
   split; [exact Hf | ]. split.
   - pose proof (FrameRows.idle_active_state program s memory boundary f
-      (frameView (codePosition index [] 0) [] [] locals)) as Hstate.
+      (frameView (codePosition index [] 0) [] [] (map i32Value locals))) as Hstate.
     cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset] in Hstate.
     unfold innerCode in Hstate. cbn [pathCode] in Hstate.
-    replace (stackConfig (mk_state s (activeFrame f locals)) [] (guestBody f)) with
-      (frameConfig f (frameView (codePosition index [] 0) [] [] locals)
-        (stackConfig (mk_state s (activeFrame f locals)) [] (skipn 0 (guestBody f)))) by reflexivity.
+    replace (stackConfig (mk_state s (activeFrame f (map i32Value locals))) [] (guestBody f)) with
+      (frameConfig f (frameView (codePosition index [] 0) [] [] (map i32Value locals))
+        (stackConfig (mk_state s (activeFrame f (map i32Value locals))) [] (skipn 0 (guestBody f)))) by reflexivity.
     apply Hstate; clear Hstate.
     + apply FrameRows.frame_at_unmoved_intro; unfold viewOperands;
         cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset concat app];
         try assumption; try reflexivity.
       * constructor.
       * intros [ | i] v Hv; discriminate.
+      * rewrite length_map. exact Hlen.
+      * rewrite Htypes, <- Hlen.
+        apply values_typed_i32. exact Hbounds.
+      * intros i v Hv. rewrite nth_error_map in Hv.
+        destruct (nth_error locals i) as [raw | ] eqn:Hraw; [injection Hv as <- | discriminate].
+        constructor; [exact (proj1 (Forall_forall _ _) Hbounds _ (nth_error_In _ _ Hraw)) | exact (Hcells _ _ Hraw)].
+      * apply frame_typing_idle. reflexivity.
     + cbn. lia.
     + unfold viewOperands. cbn. lia.
     + rewrite Hpc. cbn. lia.
@@ -89,18 +98,18 @@ Definition conditionalContext := moduleContext [i32StackType 0 1] [i32StackType 
 Definition conditionalBodyContext := functionContext conditionalContext conditionalFunction.
 
 Example conditional_layout :
-  codeSize conditionalCode = 7%nat /\
-  encodeProgram conditionalProgram programOpcodeId [0] = Some CODE_BLOCK /\
-  encodeProgram conditionalProgram pcRomId [0; 0] = Some 1 /\
-  encodeProgram conditionalProgram programOpcodeId [2] = Some CODE_BR_IF /\
-  encodeProgram conditionalProgram pcRomId [2; 0] = Some 3 /\
-  encodeProgram conditionalProgram pcRomId [2; 1] = Some 6 /\
-  encodeProgram conditionalProgram programLocalIndexId [4] = Some 1 /\
-  encodeProgram conditionalProgram programOpcodeId [5] = Some CODE_END /\
-  encodeProgram conditionalProgram pcEdgeKindId [5] = Some 0 /\
-  encodeProgram conditionalProgram pcRomId [5; 0] = Some 6 /\
-  encodeProgram conditionalProgram programOpcodeId [7] = Some CODE_END /\
-  encodeProgram conditionalProgram pcEdgeKindId [7] = Some 1.
+  codeSize conditionalCode = 8%nat /\
+  opcodeAt (encodeProgram conditionalProgram) [0] = Some CODE_BLOCK /\
+  encodeProgram conditionalProgram pcRomId [0] = Some 1 /\
+  opcodeAt (encodeProgram conditionalProgram) [2] = Some CODE_BR_IF /\
+  encodeProgram conditionalProgram pcRomId [2] = Some 4 /\
+  encodeProgram conditionalProgram pcRomId [3] = Some 7 /\
+  encodeProgram conditionalProgram programLocalIndexId [5] = Some 1 /\
+  opcodeAt (encodeProgram conditionalProgram) [6] = Some CODE_END /\
+  edgeKindAt (encodeProgram conditionalProgram) [6] = Some 0 /\
+  encodeProgram conditionalProgram pcRomId [6] = Some 7 /\
+  opcodeAt (encodeProgram conditionalProgram) [8] = Some CODE_END /\
+  edgeKindAt (encodeProgram conditionalProgram) [8] = Some 1.
 Proof. repeat split; reflexivity. Qed.
 
 Example conditional_block_validates :
@@ -194,7 +203,7 @@ Example conditional_initial_config : forall condition,
 Proof.
   intros condition Hcondition.
   apply (function_start_config conditionalProgram conditionalStore 0
-    (mkGuestFunction 0%N conditionalModule (mk_uN 0) 0 1 2 conditionalCode 0) [condition; 9] _
+    (mkGuestFunction 0%N conditionalModule (mk_uN 0) [] [valtype_I32] [valtype_I32; valtype_I32] conditionalCode 0) [condition; 9] _
     (mkBoundary 0 9 9 7 0 0 0 0 0 0 0)); try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
   - split; [constructor; [apply (conditional_function_validates 0) | constructor] | exact conditional_program_supported].

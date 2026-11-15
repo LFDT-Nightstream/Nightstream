@@ -1,8 +1,8 @@
 (* Source functions, their ROM encoding, and what a program and a run must satisfy.
-   This encoder covers i32 guest functions without imports. Blocks occupy
+   This encoder covers i32/i64 guest functions without imports. Blocks occupy
    flattened instruction addresses; each function also has one trailing END. *)
 From Stdlib Require Import List ZArith Bool.
-Require Import R1CS Columns Wasm2 MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallerSpec FunctionValidation SpecTecCalls CodeLayout Fragment.
+Require Import TableDescriptor R1CS Columns Wasm2 MemoryTrace MemoryCatalog OpcodeCatalog StraightLineSpec CallerSpec FunctionValidation SpecTecCalls CodeLayout Fragment.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -16,15 +16,15 @@ Definition functionSize (f : funcinst) : nat := S (codeSize (functionBody f)).
 Definition functionEntry (program : Program) (function : nat) : Z :=
   Z.of_nat (fold_right (fun f size => functionSize f + size)%nat 0%nat (firstn function program)).
 
-Definition i32Type (t : valtype) : bool := match t with valtype_I32 => true | _ => false end.
-Definition i32Local (l : local) : bool := match l with LOCAL t => i32Type t end.
+Definition integerType (t : valtype) : bool := match t with valtype_I32 | valtype_I64 => true | _ => false end.
+Definition integerLocal (l : local) : bool := match l with LOCAL t => integerType t end.
 
 Definition decodeFunction (address : nat) (entry : Z) (f : funcinst) : option GuestFunction :=
   match f with
   | MKfuncinst (mk_functype (mk_list params) (mk_list results)) module (func_FUNC typeIndex locals body) =>
-      if forallb i32Type params && forallb i32Type results && forallb i32Local locals then
-        Some (mkGuestFunction (N.of_nat address) module typeIndex (length params)
-          (length results) (length locals) body entry)
+      if forallb integerType params && forallb integerType results && forallb integerLocal locals then
+        Some (mkGuestFunction (N.of_nat address) module typeIndex params
+          results (map (fun l => match l with LOCAL t => t end) locals) body entry)
       else None
   end.
 
@@ -102,58 +102,67 @@ Definition pcEntry (program : Program) (pc : Z) : Z :=
 Definition callAddress (f : funcinst) (index : idx) : option N :=
   nth_error (FUNCS (funcinst_MODULE f)) (N.to_nat (index :> N)).
 
-Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : Z) : option Z :=
+Definition slotOpcode (slot : option FlatInstruction) : option Z :=
+  match slot with
+  | Some (flatInstruction (opEdge _) _) => None
+  | Some (flatInstruction (opInstr (CALL _)) _) => Some CODE_CALL
+  | Some (flatInstruction (opInstr (BLOCK _ _)) _) => Some CODE_BLOCK
+  | Some (flatInstruction (opInstr (LOOP _ _)) _) => Some CODE_LOOP
+  | Some (flatInstruction (opInstr (IFELSE _ _ _)) _) => Some CODE_IF
+  | Some (flatInstruction opElse _) => Some CODE_ELSE
+  | Some (flatInstruction (opInstr (BR_IF _)) _) => Some CODE_BR_IF
+  | Some (flatInstruction (opInstr (BR _)) [None]) => Some CODE_RETURN
+  | Some (flatInstruction (opInstr (BR _)) _) => Some CODE_BR
+  | Some (flatInstruction (opInstr (BR_TABLE _ _)) _) => Some CODE_BR_TABLE
+  | Some (flatInstruction (opInstr RETURN) _) => Some CODE_RETURN
+  | Some (flatInstruction (opInstr NOP) _) => Some CODE_NOP
+  | Some (flatInstruction (opInstr UNREACHABLE) _) => Some CODE_UNREACHABLE
+  | Some (flatInstruction (opInstr (CALL_INDIRECT _ _)) _) => Some CODE_CALL_INDIRECT_RESOLVE
+  | Some (flatInstruction opInvoke _) => Some CODE_CALL_INDIRECT
+  | Some (flatInstruction (opInstr i) _) => encodedOpcode i
+  | _ => Some CODE_END end.
+Definition slotEdgeKind (slot : option FlatInstruction) : option Z :=
+  match slot with
+  | Some (flatInstruction (opEdge _) _) => None
+  | Some (flatInstruction (opInstr RETURN) _) | Some (flatInstruction (opInstr (BR _)) [None]) | None => Some 1
+  | Some (flatInstruction (opInstr UNREACHABLE) _) => Some 3
+  | Some (flatInstruction opInvoke _) => Some 2
+  | Some _ => Some 0
+  end.
+Definition instructionOpcode (program : Program) (pc : Z) : option Z :=
+  match instructionAtPC program pc with Some (_, slot) => slotOpcode slot | None => None end.
+Definition instructionEdgeKind (program : Program) (pc : Z) : option Z :=
+  match instructionAtPC program pc with Some (_, slot) => slotEdgeKind slot | None => None end.
+
+(* The ROM word at an encoded address. The pc ROM holds the edge of choice 0 at
+   an instruction's own address and each later edge at its edge slot, so the key
+   of an edge is the instruction's address plus its choice. A call's return
+   address is not here: the circuit pins it to the next address. *)
+Definition romValue (entry : option Z) : Z := match entry with Some v => v | None => 0 end.
+
+Definition instructionRom (program : Program) (memory : nat) (pc : Z) : option Z :=
   match instructionAtPC program pc with
   | None => None
   | Some (f, slot) =>
       if Nat.eqb memory pcRomId then
         match slot with
-        | Some (flatInstruction (opInstr (CALL index)) _) =>
-            if choice =? 1 then Some (pc + 1) else if choice =? 0 then
-              option_map (fun address => functionEntry program (N.to_nat address)) (callAddress f index)
-            else None
-        | Some (flatInstruction (opInstr (BR_IF _)) [Some target]) =>
-            if choice =? 0 then Some (pc + 1) else if choice =? 1 then Some (pcEntry program pc + Z.of_nat target)
-            else None
-        | Some (flatInstruction (opInstr (IFELSE _ _ _)) [Some target]) =>
-            if choice =? 1 then Some (pc + 1) else if choice =? 0 then Some (pcEntry program pc + Z.of_nat target)
-            else None
-        | Some (flatInstruction (opInstr (BR _ | BR_TABLE _ _)) targets) | Some (flatInstruction opElse targets) =>
-            if choice <? 0 then None else
-            match nth_error targets (Z.to_nat choice) with
-            | Some (Some target) => Some (pcEntry program pc + Z.of_nat target)
+        | Some (flatInstruction (opInstr (BR_IF _)) _) => Some (pc + 2)
+        | Some (flatInstruction (opInstr (IFELSE _ _ _ | BR _ | BR_TABLE _ _)) targets)
+        | Some (flatInstruction (opElse | opEdge _) targets) =>
+            match targets with
+            | Some target :: _ => Some (pcEntry program pc + Z.of_nat target)
             | _ => None
             end
         | Some (flatInstruction (opInstr (RETURN | UNREACHABLE)) _) => None
         (* The callee's entry comes from the function-entry ROM, not from here. *)
-        | Some (flatInstruction opInvoke _) => if choice =? 1 then Some (pc + 1) else None
-        | Some _ => if choice =? 0 then Some (pc + 1) else None
-        | None => None end
-      else if Nat.eqb memory programOpcodeId then
-        match slot with
-        | Some (flatInstruction (opInstr (CALL _)) _) => Some CODE_CALL
-        | Some (flatInstruction (opInstr (BLOCK _ _)) _) => Some CODE_BLOCK
-        | Some (flatInstruction (opInstr (LOOP _ _)) _) => Some CODE_LOOP
-        | Some (flatInstruction (opInstr (IFELSE _ _ _)) _) => Some CODE_IF
-        | Some (flatInstruction opElse _) => Some CODE_ELSE
-        | Some (flatInstruction (opInstr (BR_IF _)) _) => Some CODE_BR_IF
-        | Some (flatInstruction (opInstr (BR _)) [None]) => Some CODE_RETURN
-        | Some (flatInstruction (opInstr (BR _)) _) => Some CODE_BR
-        | Some (flatInstruction (opInstr (BR_TABLE _ _)) _) => Some CODE_BR_TABLE
-        | Some (flatInstruction (opInstr RETURN) _) => Some CODE_RETURN
-        | Some (flatInstruction (opInstr NOP) _) => Some CODE_NOP
-        | Some (flatInstruction (opInstr UNREACHABLE) _) => Some CODE_UNREACHABLE
-        | Some (flatInstruction (opInstr (CALL_INDIRECT _ _)) _) => Some CODE_CALL_INDIRECT_RESOLVE
-        | Some (flatInstruction opInvoke _) => Some CODE_CALL_INDIRECT
-        | Some (flatInstruction (opInstr i) _) => encodedOpcode i
-        | _ => Some CODE_END end
-      else if Nat.eqb memory pcEdgeKindId then
-        match slot with
-        | Some (flatInstruction (opInstr RETURN) _) | Some (flatInstruction (opInstr (BR _)) [None]) | None => Some 1
-        | Some (flatInstruction (opInstr UNREACHABLE) _) => Some 3
-        | Some (flatInstruction opInvoke _) => Some 2
-        | Some _ => Some 0
-        end
+        | Some (flatInstruction (opInstr (CALL _)) _) | Some (flatInstruction opInvoke _) => None
+        | Some (flatInstruction (opInstr (BLOCK _ _ | LOOP _ _ | CALL_INDIRECT _ _)) _)
+        | Some (flatInstruction opEnd _) => Some (pc + 1)
+        | _ => None end
+      else if Nat.eqb memory programHeaderId then
+        match slotOpcode slot, slotEdgeKind slot with
+        | Some opcode, Some kind => Some (opcode + 65536 * kind)
+        | _, _ => None end
       else if Nat.eqb memory programLocalIndexId then
         match slot with
         | Some (flatInstruction (opInstr (LOCAL_GET x)) _)
@@ -161,13 +170,12 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
         | _ => Some 0 end
       else if Nat.eqb memory programBrTableLenId then
         match slot with Some (flatInstruction (opInstr (BR_TABLE ls _)) _) => Some (Z.of_nat (length ls)) | _ => None end
-      (* A resolve slot's table, by store address, and its expected type's id. *)
-      else if Nat.eqb memory programTableId then
-        match slot with Some (flatInstruction (opInstr (CALL_INDIRECT x _)) _) =>
-          option_map Z.of_N (nth_error (TABLES (funcinst_MODULE f)) (N.to_nat (x :> N))) | _ => None end
-      else if Nat.eqb memory expectedTypeId then
-        match slot with Some (flatInstruction (opInstr (CALL_INDIRECT _ y)) _) =>
-          option_map (typeId (funcinst_MODULE f)) (nth_error (TYPES (funcinst_MODULE f)) (N.to_nat (y :> N)))
+      (* The table store address and expected type share one checked descriptor. *)
+      else if Nat.eqb memory programTableDescriptorId then
+        match slot with Some (flatInstruction (opInstr (CALL_INDIRECT x y)) _) =>
+          Some (tableDescriptor
+            (romValue (option_map Z.of_N (nth_error (TABLES (funcinst_MODULE f)) (N.to_nat (x :> N)))))
+            (romValue (option_map (typeId (funcinst_MODULE f)) (nth_error (TYPES (funcinst_MODULE f)) (N.to_nat (y :> N))))))
         | _ => None end
       else if Nat.eqb memory callTargetId then
         match slot with Some (flatInstruction (opInstr (CALL x)) _) =>
@@ -228,11 +236,13 @@ Fixpoint instructionContexts (callees : CalleeEnvironment) (heights arities : li
   | BLOCK _ body | LOOP _ body =>
       None :: bodyContexts innerHeights (labelArity i :: arities) body entered ++ [None]
   | IFELSE _ t e =>
-      None :: bodyContexts innerHeights (labelArity i :: arities) t entered ++
+      None :: None :: bodyContexts innerHeights (labelArity i :: arities) t entered ++
         match e with [] => [] | _ => None :: bodyContexts innerHeights (labelArity i :: arities) e entered end ++
         [None]
   | CALL_INDIRECT _ _ => [option_map (fun h => (heights, arities, h)) height; None]
-  | _ => [option_map (fun h => (heights, arities, h)) height]
+  (* An edge slot has the context of its branch. *)
+  | _ => option_map (fun h => (heights, arities, h)) height ::
+      map (fun _ => option_map (fun h => (heights, arities, h)) height) (edgeLabels i)
   end.
 
 (* A function body runs inside its own label, which holds the results. *)
@@ -254,8 +264,9 @@ Definition slideWord (remaining : bool) (kept distance : nat) : Z :=
    slide: f's END and returns drop its locals too; a br, a br_if's taken edge and
    each br_table edge slide within the frame. A return is the branch to the
    function's own label, the outermost one, and a br to that label is a return.
-   Other slots have none. *)
-Definition functionSlide (program : Program) (memory : nat) (f : GuestFunction) (offset : nat) (choice : Z)
+   A br_if's own slot is its fall-through, which slides nothing; a br_table's is
+   its default. Each later edge is at its edge slot. Other slots have none. *)
+Definition functionSlide (program : Program) (memory : nat) (f : GuestFunction) (offset : nat)
     : option Z :=
   let frame := (guestParams f + guestLocals f)%nat in
   let remaining := Nat.eqb memory frameSlideRemainingId in
@@ -263,64 +274,51 @@ Definition functionSlide (program : Program) (memory : nat) (f : GuestFunction) 
     option_map (fun kept_dropped => slideWord remaining (fst kept_dropped) (base + snd kept_dropped)) slide in
   let contexts := codeContexts (programCallees program (guestModule f)) (guestResults f) (guestBody f) (Some 0%nat) in
   match nth_error (flattenCode (guestBody f)) offset, nth_error contexts offset with
-  | None, _ => if choice =? 0 then Some (slideWord remaining (guestResults f) frame) else None
+  | None, _ => Some (slideWord remaining (guestResults f) frame)
   | Some (flatInstruction (opInstr i) _), Some (Some (heights, arities, h)) =>
       match i with
-      | RETURN => if choice =? 0 then word frame (labelSlide heights arities h (length arities - 1)) else None
+      | RETURN => word frame (labelSlide heights arities h (length arities - 1))
       | BR l =>
           let frameDrop := if Nat.eqb (N.to_nat (l :> N)) (length arities - 1) then frame else 0%nat in
-          if choice =? 0 then word frameDrop (labelSlide heights arities h (N.to_nat (l :> N))) else None
-      | BR_IF l =>
-          if choice =? 0 then Some 0
-          else if choice =? 1 then word 0%nat (branchSlide heights arities h (N.to_nat (l :> N))) else None
-      | BR_TABLE ls l =>
-          if choice <? 0 then None else
-          match nth_error (l :: ls) (Z.to_nat choice) with
-          | Some target => word 0%nat (branchSlide heights arities h (N.to_nat (target :> N)))
-          | None => None
-          end
+          word frameDrop (labelSlide heights arities h (N.to_nat (l :> N)))
+      | BR_IF _ => Some 0
+      | BR_TABLE _ l => word 0%nat (branchSlide heights arities h (N.to_nat (l :> N)))
       | _ => None
       end
+  | Some (flatInstruction (opEdge (Some l)) _), Some (Some (heights, arities, h)) =>
+      word 0%nat (branchSlide heights arities h (N.to_nat (l :> N)))
   | _, _ => None
   end.
 
-Definition slideRom (program : Program) (memory : nat) (pc choice : Z) : option Z :=
+Definition slideRom (program : Program) (memory : nat) (pc : Z) : option Z :=
   if pc <? 0 then None else
   match locatePC program (Z.to_nat pc) with
   | None => None
   | Some (function, offset) =>
       match functionAt program function with
       | None => None
-      | Some f => functionSlide program memory f offset choice
+      | Some f => functionSlide program memory f offset
       end
   end.
 
-Definition programRomIds := [programOpcodeId; programLocalIndexId; programTableId; expectedTypeId; pcEdgeKindId; pcRomId;
-  callTargetId; pcFunctionRefId; functionEntryId; functionTypeId; functionLocalCountId; functionCallMetadataId;
+Definition programRomIds := [programHeaderId; programLocalIndexId; programTableDescriptorId; pcRomId;
+  callTargetId; functionEntryId; functionTypeId; functionLocalCountId; functionCallMetadataId;
   frameSlideRemainingId; frameSlideDistanceId; programBrTableLenId].
 
 Definition encodeProgram (program : Program) : MemoryState := fun memory address =>
   match address with
-  | [pc; choice] =>
-      if Nat.eqb memory pcRomId then instructionRom program memory pc choice
-      else if Nat.eqb memory frameSlideRemainingId || Nat.eqb memory frameSlideDistanceId then
-        slideRom program memory pc choice
-      else None
   | [key] =>
-      if Nat.eqb memory pcRomId then None else
-      if Nat.eqb memory pcFunctionRefId then
-        if key <? 0 then None else
-        option_map (fun location => Z.of_nat (fst location + 1)) (locatePC program (Z.to_nat key))
+      if Nat.eqb memory frameSlideRemainingId || Nat.eqb memory frameSlideDistanceId then
+        slideRom program memory key
       else if Nat.eqb memory functionEntryId || Nat.eqb memory functionTypeId || Nat.eqb memory functionLocalCountId ||
         Nat.eqb memory functionCallMetadataId
         then functionRom program memory key
-      else instructionRom program memory key 0
+      else instructionRom program memory key
   | _ => None
   end.
 
 (* The ROMs are dense: every key holds a word, and keys the encoder does not list
    hold 0, so a read alone never shows that a key belongs to the program. *)
-Definition romValue (entry : option Z) : Z := match entry with Some v => v | None => 0 end.
 
 (* Only the program's ROMs are fixed; RAM and unrelated tables remain independent. *)
 Definition programLoaded (program : Program) (memory : MemoryState) : Prop :=

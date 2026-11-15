@@ -9,16 +9,20 @@ Record GuestFunction := mkGuestFunction {
   guestAddress : N;
   guestModule : moduleinst;
   guestTypeIndex : typeidx;
-  guestParams : nat;
-  guestResults : nat;
-  guestLocals : nat;
+  guestParamTypes : list valtype;
+  guestResultTypes : list valtype;
+  guestLocalTypes : list valtype;
   guestBody : list instr;
   guestEntry : Z
 }.
 
-(* A guest function's type: i32 parameters and results. *)
+Definition guestParams (f : GuestFunction) : nat := length (guestParamTypes f).
+Definition guestResults (f : GuestFunction) : nat := length (guestResultTypes f).
+Definition guestLocals (f : GuestFunction) : nat := length (guestLocalTypes f).
+Definition guestFrameTypes (f : GuestFunction) : list valtype := guestParamTypes f ++ guestLocalTypes f.
+
 Definition guestType (f : GuestFunction) : functype :=
-  mk_functype (mk_list _ (repeat valtype_I32 (guestParams f))) (mk_list _ (repeat valtype_I32 (guestResults f))).
+  mk_functype (mk_list _ (guestParamTypes f)) (mk_list _ (guestResultTypes f)).
 
 (* What a function's code can name: callees by function index, local to its
    module, and the module's types. An indirect call may reach any function, so it

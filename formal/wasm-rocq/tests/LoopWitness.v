@@ -6,6 +6,7 @@ From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals
   StraightLineSpec SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout ProgramSpec ProgramEncoding
   ProgramRefinement ControlDecode Fragment tests.BlockPrograms tests.WitnessCheck tests.LoopTrace.
+Require Import ControlInvariant.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -23,7 +24,8 @@ Definition loopFunction := i32Function loopModule (mk_uN 0) 2 1 1 loopCode.
 Definition loopProgram := [loopFunction].
 Definition loopStore := MKstore loopProgram [] [] [] [] [].
 Definition loopContext := moduleContext [i32StackType 2 1] [i32StackType 2 1].
-Definition loopGuest := mkGuestFunction 0%N loopModule (mk_uN 0) 2 1 1 loopCode 0.
+Definition loopGuest :=
+  mkGuestFunction 0%N loopModule (mk_uN 0) [valtype_I32; valtype_I32] [valtype_I32] [valtype_I32] loopCode 0.
 
 Section Typing.
 Local Open Scope nat_scope.
@@ -67,7 +69,7 @@ Proof.
     + repeat constructor.
   - intros [ | index] g Hg; cbn in Hg; [injection Hg as <- | destruct index; discriminate].
     split.
-    + constructor; [ | constructor]. apply supported_loop; [repeat constructor | right; reflexivity].
+    + constructor; [ | constructor]. apply supported_loop; [repeat constructor | right; left; reflexivity].
     + vm_compute. repeat match goal with
         | |- _ /\ _ => split | |- Forall _ _ => constructor | |- True => exact I | |- _ => lia end.
 Qed.
@@ -91,7 +93,7 @@ Proof. split; [vm_compute; reflexivity | ]. apply callerRowb_sound. vm_compute. 
 
 Lemma loop_start_config :
   CircuitConfig loopProgram loopStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    loopMemory loopStart (stackConfig (mk_state loopStore (activeFrame loopGuest [3; 1; 0])) [] loopCode).
+    loopMemory loopStart (stackConfig (mk_state loopStore (activeFrame loopGuest (map i32Value [3; 1; 0]))) [] loopCode).
 Proof.
   apply (function_start_config loopProgram loopStore 0 loopGuest [3; 1; 0] _ loopStart);
     try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
@@ -106,7 +108,7 @@ Qed.
 (* The refinement's conclusion for this run. *)
 Example loop_witness_refines : fieldPrime ->
   exists shape c,
-    Steps (stackConfig (mk_state loopStore (activeFrame loopGuest [3; 1; 0])) [] loopCode) c /\
+    Steps (stackConfig (mk_state loopStore (activeFrame loopGuest (map i32Value [3; 1; 0]))) [] loopCode) c /\
     CircuitConfig loopProgram loopStore 0 shape (replayed loopMemory loopWitness)
       (rowsFinalBoundary loopStart loopWitness) c.
 Proof.
@@ -119,7 +121,7 @@ Qed.
 (* The LOOP at pc 0 enters its body at pc 1. The first two br_ifs at pc 11 are
    taken: each drops the sum below its condition (sp 5 to 3, the loop's base) and
    moves nothing, and runs the body again from pc 1. The third falls through, and
-   the loop's END at pc 12 keeps the sum as its result. *)
+   the loop's END at pc 13 keeps the sum as its result. *)
 Example loop_rows :
   let loop_row := nth 0 loopWitness (rowWitness []) in
   let back_row := nth 11 loopWitness (rowWitness []) in
@@ -128,7 +130,7 @@ Example loop_rows :
   loop_row COL_SEL_LOOP = 1 /\ loop_row COL_PC_AFTER = 1 /\
   back_row COL_SEL_BR_IF_EQZ = 1 /\ back_row COL_PC_BEFORE = 11 /\ back_row COL_PC_AFTER = 1 /\
   back_row COL_SP_BEFORE = 5 /\ back_row COL_SP_AFTER = 3 /\ back_row COL_FRAME_MOVE_REMAINING_AFTER = 0 /\
-  exit_row COL_SEL_BR_IF_EQZ = 1 /\ exit_row COL_PC_AFTER = 12 /\ exit_row COL_SP_AFTER = 4 /\
-  end_row COL_SEL_END = 1 /\ end_row COL_PC_BEFORE = 12 /\ end_row COL_PC_AFTER = 13 /\
+  exit_row COL_SEL_BR_IF_EQZ = 1 /\ exit_row COL_PC_AFTER = 13 /\ exit_row COL_SP_AFTER = 4 /\
+  end_row COL_SEL_END = 1 /\ end_row COL_PC_BEFORE = 13 /\ end_row COL_PC_AFTER = 14 /\
   end_row COL_SP_AFTER = 4.
 Proof. vm_compute. repeat split; reflexivity. Qed.

@@ -3,6 +3,7 @@
 use super::adapters::wasmtime::WasmProgramArtifacts;
 use super::relation_layout::WasmRelationLayout;
 use super::WasmMemoryId;
+use crate::isa::opcode_info_from_code;
 use neo_application::{check_memory_rows, MemoryCheckPolicy, MemoryKind, MemoryPreload, RamInitialization};
 use neo_math::F;
 use std::collections::BTreeMap;
@@ -24,23 +25,72 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
         u32::try_from(value)
             .unwrap_or_else(|_| panic!("program table field `{field}` value {value} does not fit in u32"))
     }
+    let edge_kinds: BTreeMap<_, _> = tables.pc_edge_kinds.iter().copied().collect();
     for entry in &tables.program_decode {
         let pc = narrow(entry.pc, "program_decode.pc");
-        preload.insert(WasmMemoryId::ProgramOpcode, vec![pc], entry.opcode_code);
-        preload.insert(WasmMemoryId::ProgramBrTableLen, vec![pc], entry.br_table_len);
-        preload.insert(WasmMemoryId::ProgramLocalIndex, vec![pc], entry.local_index);
-        preload.insert(WasmMemoryId::ProgramGlobalIndex, vec![pc], entry.global_index);
-        preload.insert(WasmMemoryId::ProgramTableId, vec![pc], entry.table_id);
-        preload.insert(WasmMemoryId::ProgramMemoryOffset, vec![pc], entry.memory_offset);
+        let kind = edge_kinds[&entry.pc];
+        assert!(kind <= 3 && entry.opcode_code <= u16::MAX.into());
         preload.insert(
-            WasmMemoryId::ProgramCallIndirectExpectedTypeId,
+            WasmMemoryId::ProgramHeader,
             vec![pc],
-            entry.call_indirect_expected_type_id,
+            entry.opcode_code + ((kind as u32) << 16),
         );
-        preload.insert(WasmMemoryId::ProgramI32ConstValue, vec![pc], entry.i32_const_value);
-        preload.insert(WasmMemoryId::ProgramI64ConstValueLo, vec![pc], entry.i64_const_value_lo);
-        preload.insert(WasmMemoryId::ProgramI64ConstValueHi, vec![pc], entry.i64_const_value_hi);
-        preload.insert(WasmMemoryId::ProgramRefFuncRef, vec![pc], entry.ref_func_ref);
+        // An immediate cell exists only at the pc of an instruction that reads
+        // it, so the memories of one table do not own the same cell.
+        let opcode = opcode_info_from_code(entry.opcode_code as u16).opcode;
+        use crate::isa::WasmOpcode as Op;
+        for (reads, memory, value) in [
+            (
+                opcode == Op::BrTable,
+                WasmMemoryId::ProgramBrTableLen,
+                entry.br_table_len,
+            ),
+            (
+                opcode.uses_local_index_immediate(),
+                WasmMemoryId::ProgramLocalIndex,
+                entry.local_index,
+            ),
+            (
+                opcode.uses_global_index_immediate(),
+                WasmMemoryId::ProgramGlobalIndex,
+                entry.global_index,
+            ),
+            (
+                opcode.uses_table_id_immediate(),
+                WasmMemoryId::ProgramTableDescriptor,
+                crate::table_descriptor::pack_table_descriptor(entry.table_id, entry.call_indirect_expected_type_id)
+                    .expect("program table descriptor fits its declared bounds"),
+            ),
+            (
+                opcode.uses_linear_memory(),
+                WasmMemoryId::ProgramMemoryOffset,
+                entry.memory_offset,
+            ),
+            (
+                opcode == Op::I32Const,
+                WasmMemoryId::ProgramI32ConstValue,
+                entry.i32_const_value,
+            ),
+            (
+                opcode == Op::I64Const,
+                WasmMemoryId::ProgramI64ConstValueLo,
+                entry.i64_const_value_lo,
+            ),
+            (
+                opcode == Op::I64Const,
+                WasmMemoryId::ProgramI64ConstValueHi,
+                entry.i64_const_value_hi,
+            ),
+            (
+                opcode == Op::RefFunc,
+                WasmMemoryId::ProgramRefFuncRef,
+                entry.ref_func_ref,
+            ),
+        ] {
+            if reads {
+                preload.insert(memory, vec![pc], value);
+            }
+        }
     }
     for &(index, lo, hi) in &tables.globals_init {
         preload.insert(WasmMemoryId::GlobalLo, vec![index], lo);
@@ -55,34 +105,14 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
     for &(pc_before, control_choice, pc_after) in &tables.pc_rom {
         preload.insert(
             WasmMemoryId::PcRom,
-            vec![
-                narrow(pc_before, "pc_rom.state_before.pc"),
-                narrow(control_choice, "pc_rom.control_choice"),
-            ],
+            vec![narrow(pc_before + control_choice, "pc_rom.key")],
             narrow(pc_after, "pc_rom.state_after.pc"),
         );
     }
     for &(pc_before, control_choice, remaining, distance) in &tables.frame_slides {
-        let key = vec![
-            narrow(pc_before, "frame_slides.pc"),
-            narrow(control_choice, "frame_slides.control_choice"),
-        ];
+        let key = vec![narrow(pc_before + control_choice, "frame_slides.key")];
         preload.insert(WasmMemoryId::FrameSlideRemaining, key.clone(), remaining);
         preload.insert(WasmMemoryId::FrameSlideDistance, key, distance);
-    }
-    for &(pc_before, edge_kind) in &tables.pc_edge_kinds {
-        preload.insert(
-            WasmMemoryId::PcEdgeKind,
-            vec![narrow(pc_before, "pc_edge_kinds.state_before.pc")],
-            narrow(edge_kind, "pc_edge_kinds.edge_kind"),
-        );
-    }
-    for &(pc_before, function_ref) in &tables.pc_function_refs {
-        preload.insert(
-            WasmMemoryId::PcFunctionRef,
-            vec![narrow(pc_before, "pc_function_refs.state_before.pc")],
-            narrow(function_ref, "pc_function_refs.function_ref"),
-        );
     }
     for &(function_ref, entry_pc) in &tables.function_entries {
         preload.insert(
@@ -144,7 +174,7 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
 
 /// Preload the event-template ROM families from verifier-authored bindings
 /// and program-derived parameter, host-scalar, and value-width flags:
-/// per-slot source descriptors keyed by `(fref, event_index, slot_cursor)`
+/// per-slot source descriptors keyed by `(event_base(fref) + event_index, slot_cursor)`
 /// (exports number entry events then exit events) and the per-fref event
 /// counts. Call after [`preload_from_program_artifacts`] when checking a
 /// event-bound trace.
@@ -329,13 +359,16 @@ pub fn preload_host_event_tables(
     let insert_slots = |preload: &mut WasmMemoryPreload, fref: u32, events: Vec<&EventBlock>| {
         for (event_index, event) in events.into_iter().enumerate() {
             for (slot_index, source) in event.block.iter().enumerate() {
-                let key = vec![fref, event_index as u32, slot_index as u32];
+                let key = vec![bindings.event_base(fref) + event_index as u32, slot_index as u32];
                 let (kind, arg, variant, immediate0, immediate1) = encode(fref, source);
                 // Advice uses the next code range above the raw slot kinds.
                 let kind = kind + WasmHostEventSlotKind::COUNT as u32 * u32::from(!event.absorb);
-                preload.insert(WasmMemoryId::HostEventSlotKind, key.clone(), kind);
-                preload.insert(WasmMemoryId::HostEventSlotArg, key.clone(), arg);
-                preload.insert(WasmMemoryId::HostEventSlotVariant, key.clone(), variant);
+                assert!(kind < 32 && arg < 256 && variant < 16);
+                preload.insert(
+                    WasmMemoryId::HostEventSlotDescriptor,
+                    key.clone(),
+                    kind + 32 * arg + 8192 * variant,
+                );
                 preload.insert(WasmMemoryId::HostEventSlotImmediate0, key.clone(), immediate0);
                 preload.insert(WasmMemoryId::HostEventSlotImmediate1, key, immediate1);
             }
@@ -348,6 +381,9 @@ pub fn preload_host_event_tables(
     // events_remaining = p-1. See the relation-layout family comment for the full
     // non-termination argument. Export exit counts stay raw: their read key
     // is bound within an already-entered turn.
+    for &fref in bindings.imports.keys().chain(bindings.exports.keys()) {
+        preload.insert(WasmMemoryId::HostEventBase, vec![fref], bindings.event_base(fref));
+    }
     for (&fref, template) in &bindings.imports {
         preload.insert(
             WasmMemoryId::HostEventImportScheduleCount,
@@ -366,17 +402,31 @@ pub fn preload_host_event_tables(
     }
     for (&fref, template) in &bindings.exports {
         preload.insert(
-            WasmMemoryId::HostEventExportEntryScheduleCount,
+            WasmMemoryId::HostEventExportScheduleCount,
             vec![fref],
-            template.entry.len() as u32 + 1,
-        );
-        preload.insert(
-            WasmMemoryId::HostEventExportExitScheduleCount,
-            vec![fref],
-            template.exit.len() as u32,
+            template.packed_schedule_counts(),
         );
         insert_slots(preload, fref, template.entry.iter().chain(&template.exit).collect());
     }
+}
+
+/// The preload of the tables of the catalog: each cell of `preload` under the
+/// table of its memory (`WasmMemoryId::table`). Refuses a preload in which two
+/// memories of one table own the same cell, because a read of that cell would
+/// not have one meaning.
+pub fn table_preload(preload: &WasmMemoryPreload) -> Result<WasmMemoryPreload, String> {
+    let mut tables = WasmMemoryPreload::default();
+    let mut owners = BTreeMap::new();
+    for (memory, address, value) in preload.entries() {
+        let table = memory.table();
+        if let Some(owner) = owners.insert((table, address.clone()), memory) {
+            return Err(format!(
+                "memories `{owner}` and `{memory}` own cell {address:?} of table `{table}`"
+            ));
+        }
+        tables.insert(table, address, value);
+    }
+    Ok(tables)
 }
 
 pub fn sanity_check_memory_rows(
@@ -386,6 +436,7 @@ pub fn sanity_check_memory_rows(
 ) -> Result<(), String> {
     let columns = crate::witness_layout::range_checked_column_registry();
     let policy = wasm_memory_check_policy(layout)?;
+    let preload = &table_preload(preload)?;
     check_memory_rows(&layout.auxiliary.memory, &columns, witness_rows, preload, &policy)
         .map_err(|error| error.to_string())
 }
@@ -410,10 +461,8 @@ fn wasm_memory_check_policy(layout: &WasmRelationLayout) -> Result<MemoryCheckPo
 
 fn memory_init_mode(memory: WasmMemoryId) -> Option<RamInitialization> {
     match memory {
-        WasmMemoryId::HostContextExport
-        | WasmMemoryId::HostContextImport
-        | WasmMemoryId::HostContextArgsBase
-        | WasmMemoryId::HostContextParentDepth
+        WasmMemoryId::HostContextRefs
+        | WasmMemoryId::HostContextArgsDepth
         | WasmMemoryId::HostContextSp
         | WasmMemoryId::CallStackReturnPc
         | WasmMemoryId::CallStackCallerFbp

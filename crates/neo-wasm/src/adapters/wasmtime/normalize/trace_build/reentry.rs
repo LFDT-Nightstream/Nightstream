@@ -74,7 +74,7 @@ pub(super) fn enter<'a>(
     after.host_events.turn_export_fref = setup.fref;
     after.host_events.awaiting_host = false;
     after.host_events.events_remaining = setup.entry_plans.len() as u32;
-    after.host_events.event_index = 0;
+    after.host_events.event_index = bindings.event_base(setup.fref);
     after.host_events.slot_cursor = 0;
     // The entered frame starts above every suspended cell, or at the stack
     // bottom for a root entry; its parameters are reserved for the inputs.
@@ -181,7 +181,7 @@ pub(super) fn resume(
     after.call_stack_depth -= 1;
     after.activation_finished = false;
     after.output = WasmOutputState::ZERO;
-    after.host_events.event_index = template.events.len() as u32;
+    after.host_events.event_index = bindings.event_base(saved.context.import_fref) + template.events.len() as u32;
     after.host_events.events_remaining = plan.blocks.len() as u32;
     after.host_events.slot_cursor = 0;
     out.push(WasmVmStep {

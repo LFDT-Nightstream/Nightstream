@@ -2,7 +2,7 @@
    distance. These are consequences of the exported constraints and ports. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range Selectors CircuitFacts CallContext CallInitialization TrapFacts
-  MemoryTrace MemoryCatalog ProgramBinding OpcodeCatalog.
+  MemoryTrace MemoryCatalog LocalBindings ProgramBinding OpcodeCatalog.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -67,14 +67,15 @@ Proof.
   split; [field_linear Hcapture | ]. pose proof (value_bound w COL_SP_AFTER). field_linear Hsp.
 Qed.
 
-Definition exitDistancePort := mkPort [COL_PC_BEFORE; COL_CONTROL_CHOICE] COL_EXIT_SLIDE_DISTANCE
+Definition exitDistancePort := mkPort [COL_EDGE_ADDR] COL_EXIT_SLIDE_DISTANCE
   Read (When COL_HOST_EVENT_EXIT_LATCH).
 
 Lemma circuit_row_exit_distance_fetch : forall initial final (w : Witness),
+  fieldPrime -> FullRelation.satFull w ->
   Replay initial (eventsForRow memories w) final -> w COL_HOST_EVENT_EXIT_LATCH = 1 ->
-  initial frameSlideDistanceId [w COL_PC_BEFORE; w COL_CONTROL_CHOICE] = Some (w COL_EXIT_SLIDE_DISTANCE).
+  initial frameSlideDistanceId [w COL_PC_BEFORE + w COL_CONTROL_CHOICE] = Some (w COL_EXIT_SLIDE_DISTANCE).
 Proof.
-  intros initial final w Hreplay Hactive.
+  intros initial final w Hprime Hfull Hreplay Hactive. rewrite <- (ProgramBinding.full_edge_addr w Hprime Hfull).
   eapply replay_read_from_initial; [exact Hreplay | apply read_only_row; vm_compute; reflexivity | ].
   eapply port_event_in_row with
     (specification := nth frameSlideDistanceId memories (mkMemory 0%nat Rom [])) (port := exitDistancePort).
@@ -84,28 +85,36 @@ Proof.
   - unfold portEvent, active, exitDistancePort. simpl. rewrite Hactive. reflexivity.
 Qed.
 
-Lemma captured_stack_read : forall initial final (w : Witness),
+Lemma captured_stack_reads : forall initial final (w : Witness),
   Replay initial (eventsForRow memories w) final -> w COL_OUTPUT_CAPTURED = 1 ->
+  filter isStackWrite (eventsForRow memories w) = [] ->
   initial stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)] =
-    Some (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)).
+    Some (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) /\
+  initial stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)] =
+    Some (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat)).
 Proof.
-  intros initial final w Hreplay Hcapture.
-  assert (Hprefix : exists suffix, eventsForRow memories w =
-    ReadEvent stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)]
-      (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) :: suffix).
-  { change (exists suffix,
-      flat_map (fun p => match portEvent stackId w p with Some e => [e] | None => [] end)
-        (ports (hd (mkMemory 0%nat Ram []) memories)) ++ eventsForRow (tl memories) w =
-      ReadEvent stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)]
-        (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) :: suffix).
-    cbn [hd memories ports flat_map portEvent active activation addressColumns valueColumn portKind map option_map].
-    unfold portEvent, active. cbn [activation addressColumns valueColumn portKind map option_map].
-    normalize_columns. rewrite Hcapture.
-    destruct (w (List.nth 0%nat COL_STACK_READ_ACTIVE 0%nat) =? 1) eqn:Hr;
-      cbn [COL_STACK_READ_ACTIVE List.nth] in Hr; rewrite Hr; eexists; reflexivity. }
-
-  destruct Hprefix as [suffix Hprefix]. rewrite Hprefix in Hreplay.
-  inversion Hreplay; subst. match goal with H : EventStep _ _ _ |- _ => inversion H; subst; assumption end.
+  intros initial final w Hreplay Hcapture Hwrites.
+  assert (Hquiet : forall address, Forall (NoWriteTo stackId address) (eventsForRow memories w)).
+  { intros address. apply Forall_forall. intros event Hin.
+    destruct event as [memory addr value | memory addr value prior]; [exact I | ].
+    left. intro Heq. subst memory.
+    assert (Hfiltered : In (WriteEvent stackId addr value prior)
+      (filter isStackWrite (eventsForRow memories w)))
+      by (apply filter_In; split; [exact Hin | reflexivity]).
+    rewrite Hwrites in Hfiltered. contradiction. }
+  assert (Hread : forall address value,
+    In (mkPort [address] value Read (When COL_OUTPUT_CAPTURED))
+      (ports (hd (mkMemory 0%nat Ram []) memories)) ->
+    initial stackId [w address] = Some (w value)).
+  { intros address value Hport.
+    eapply replay_read_from_initial; [exact Hreplay | apply Hquiet | ].
+    eapply port_event_in_row with (specification := hd (mkMemory 0%nat Ram []) memories)
+      (port := mkPort [address] value Read (When COL_OUTPUT_CAPTURED)).
+    - left. reflexivity.
+    - exact Hport.
+    - unfold portEvent, active. cbn [activation addressColumns valueColumn portKind map memoryId hd memories].
+      rewrite Hcapture. reflexivity. }
+  split; apply Hread; vm_compute; tauto.
 Qed.
 
 Lemma full_capture_value : forall (w : Witness),
@@ -118,6 +127,18 @@ Proof.
   expand_row Hrow. normalize_columns. rewrite Hcapture in Hrow.
   pose proof (value_bound w COL_OUTPUT_VALUE_LO_AFTER).
   pose proof (value_bound w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)). field_linear Hrow.
+Qed.
+
+Lemma full_capture_value_hi : forall (w : Witness),
+  FullRelation.satFull w -> w COL_OUTPUT_CAPTURED = 1 ->
+  w COL_OUTPUT_VALUE_HI_AFTER = w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat).
+Proof.
+  intros w Hfull Hcapture.
+  circuit_row ([(COL_OUTPUT_CAPTURED, 1)],
+    [(COL_OUTPUT_VALUE_HI_AFTER, 1); (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat, -1)], ([] : SparseRow)) Hrow.
+  expand_row Hrow. normalize_columns. rewrite Hcapture in Hrow.
+  pose proof (value_bound w COL_OUTPUT_VALUE_HI_AFTER).
+  pose proof (value_bound w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat)). field_linear Hrow.
 Qed.
 
 Lemma full_capture_address : forall (w : Witness),

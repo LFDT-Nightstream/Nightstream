@@ -94,7 +94,7 @@ Proof.
   - rewrite <- Hvalue.
     apply fun_binop___fun_binop__case_2.
     rewrite Hvalue.
-    apply Add.spectec_i32_well_formed.
+    apply WasmValues.spectec_i32_well_formed.
     split; assumption.
   - reflexivity.
   - reflexivity.

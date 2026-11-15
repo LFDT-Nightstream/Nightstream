@@ -8,3 +8,4 @@
 Makefile.coq*
 .Makefile.coq*
 __pycache__/
+tests/*Trace.v

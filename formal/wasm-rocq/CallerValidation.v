@@ -9,7 +9,7 @@ Open Scope Z_scope.
 
 Definition calleeTypes (C : context) (callees : CalleeEnvironment) : Prop :=
   forall x f, callees x = Some f ->
-    nth_error (context_FUNCS C) (N.to_nat x) = Some (i32StackType (guestParams f) (guestResults f)).
+    nth_error (context_FUNCS C) (N.to_nat x) = Some (guestType f).
 
 Lemma i32_validation_frame : forall C i inputs outputs extra,
   Instr_ok C i (i32StackType inputs outputs) -> wf_context C -> wf_instr i ->

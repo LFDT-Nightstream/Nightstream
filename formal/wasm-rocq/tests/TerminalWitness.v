@@ -6,6 +6,7 @@ Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm
   ProgramSpec ProgramEncoding ControlDecode ExecutionSpec ExecutionRefinement
   tests.BlockPrograms tests.WitnessCheck tests.NopWitness tests.NopTerminalTrace
   tests.TrapTrace.
+Require Import ControlInvariant.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -13,32 +14,31 @@ Definition outerFrame module := MKframe [] module.
 Definition entryShape := controlShape [] (siteCode (codePosition 0 [] 0)).
 
 (* Returning outcomes are determined by the row, not chosen by the existential. *)
-Lemma terminal_return_decodes : forall program s caller depth root memory boundary rows outcome c row value,
+Lemma terminal_return_decodes : forall program s caller depth root memory boundary rows outcome c row values,
   ExecutionConfig program s caller depth root memory boundary rows outcome c ->
   lastRow rows = Some row -> row COL_ACTIVATION_FINISHED_AFTER = 1 -> row COL_TRAPPED_AFTER = 0 ->
-  row COL_OUTPUT_CAPTURED = 1 -> row COL_OUTPUT_VALUE_LO_AFTER = value ->
-  c = mk_config (mk_state s caller) [i32Constant value].
+  (forall f, functionAt program root = Some f -> capturedValues row (guestResultTypes f) = Some values) ->
+  c = mk_config (mk_state s caller) (map admininstr_val values).
 Proof.
-  intros program s caller depth root memory boundary rows outcome c row value H Hlast Hfinish Htrap Hcapture Hvalue.
-  destruct outcome as [shape | | [v | ]]; cbn [ExecutionConfig] in H.
+  intros program s caller depth root memory boundary rows outcome c row values H Hlast Hfinish Htrap Hvalues.
+  destruct outcome as [shape | | returned]; cbn [ExecutionConfig] in H.
   - destruct H as [Hflag _]. rewrite Hlast in Hflag; congruence.
   - destruct H as [last [Hlast' [_ [Ht _]]]]. rewrite Hlast in Hlast'; injection Hlast' as <-; congruence.
-  - destruct H as [last [Hlast' [_ [_ [[Hcap Hv] ->]]]]]. rewrite Hlast in Hlast'; injection Hlast' as <-.
-    congruence.
-  - destruct H as [last [Hlast' [_ [_ [Hcap _]]]]]. rewrite Hlast in Hlast'; injection Hlast' as <-; congruence.
+  - destruct H as [last [Hlast' [_ [_ [[f [Hf Hv]] ->]]]]].
+    rewrite Hlast in Hlast'; injection Hlast' as <-. specialize (Hvalues f Hf). congruence.
 Qed.
 
 (* The terminal row also checks the host schedule of export reference 1. *)
 Definition exportSchedules (entryCount exitCount : Z) (ram : MemoryState) : MemoryState :=
   fun memory address =>
-    if Nat.eqb memory exportEntryScheduleCountId then
-      match address with [1] => Some entryCount | _ => None end
-    else if Nat.eqb memory exportExitScheduleCountId then
-      match address with [1] => Some exitCount | _ => None end
+    if Nat.eqb memory exportScheduleCountId then
+      match address with [1] => Some (entryCount + 65536 * exitCount) | _ => None end
+    else if Nat.eqb memory hostEventBaseId then
+      match address with [1] => Some 0 | _ => None end
     else ram memory address.
 Definition nopCompleteMemory := loadProgram nopProgram (exportSchedules 5 1 nopMemory).
 Lemma nop_complete_start : CircuitConfig nopProgram nopStore 0 entryShape nopCompleteMemory nopStart
-    (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode).
+    (stackConfig (mk_state nopStore (activeFrame nopGuest (map i32Value [7]))) [] nopCode).
 Proof.
   apply (function_start_config nopProgram nopStore 0 nopGuest [7] _ nopStart); try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
@@ -56,20 +56,21 @@ Proof. vm_compute. repeat first [split | left; reflexivity | right; repeat split
 
 Example nop_complete_refines : fieldPrime ->
   Steps (callContext (outerFrame nopModule) 1
-    (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode))
+    (stackConfig (mk_state nopStore (activeFrame nopGuest (map i32Value [7]))) [] nopCode))
     (mk_config (mk_state nopStore (outerFrame nopModule)) [i32Constant 7]).
 Proof.
   intros Hprime.
   assert (Hstart : ActivationConfig nopProgram nopStore (outerFrame nopModule) 0 0 entryShape nopCompleteMemory nopStart
-      (callContext (outerFrame nopModule) 1 (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode))).
-  { split; [reflexivity | ]. split; [repeat constructor | ]. split; [reflexivity | ]. exists nopGuest, (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode).
+      (callContext (outerFrame nopModule) 1 (stackConfig (mk_state nopStore (activeFrame nopGuest (map i32Value [7]))) [] nopCode))).
+  { split; [reflexivity | ]. split; [repeat constructor | ]. split; [reflexivity | ]. exists nopGuest, (stackConfig (mk_state nopStore (activeFrame nopGuest (map i32Value [7]))) [] nopCode).
     split; [reflexivity | ]. split; [exact nop_complete_start | reflexivity]. }
   destruct (run_refinement _ _ _ _ _ _ _ _ _ _ _ Hprime (load_program_loaded _ _)
     (validRunb_sound _ _ nop_complete_valid) nop_complete_fragment Hstart)
     as [outcome [c [Hsteps [_ Hconfig]]]].
   replace c with (mk_config (mk_state nopStore (outerFrame nopModule)) [i32Constant 7]) in Hsteps; [exact Hsteps | ].
-  symmetry. eapply terminal_return_decodes with (row := rowWitness (List.last nopTerminalRows []));
-    [exact Hconfig | reflexivity | | | | ]; vm_compute; reflexivity.
+  symmetry. eapply terminal_return_decodes with (values := [i32Value 7]) (row := rowWitness (List.last nopTerminalRows []));
+    [exact Hconfig | reflexivity | vm_compute; reflexivity | vm_compute; reflexivity | ].
+  intros f Hf. change (Some nopGuest = Some f) in Hf. injection Hf as <-. vm_compute; reflexivity.
 Qed.
 
 Definition trapModule := MKmoduleinst [i32StackType 0 0] [0%N; 1%N] [] [] [] [] [] [].
@@ -80,7 +81,7 @@ Definition trapCallee := i32Function trapModule (mk_uN 0) 0 0 0 trapCalleeCode.
 Definition trapProgram := [trapMain; trapCallee].
 Definition trapStore := MKstore trapProgram [] [] [] [] [].
 Definition trapContext := moduleContext [i32StackType 0 0] [i32StackType 0 0; i32StackType 0 0].
-Definition trapGuest := mkGuestFunction 0%N trapModule (mk_uN 0) 0 0 0 trapMainCode 0.
+Definition trapGuest := mkGuestFunction 0%N trapModule (mk_uN 0) [] [] [] trapMainCode 0.
 
 Lemma trap_module_validates : Moduleinst_ok trapStore trapModule trapContext.
 Proof.
@@ -112,7 +113,7 @@ Proof.
   - split.
     + constructor; [apply supported_block; [ | left; reflexivity] | constructor].
       constructor; [ | constructor].
-      apply supported_call with (f := mkGuestFunction 1%N trapModule (mk_uN 0) 0 0 0 trapCalleeCode 4);
+      apply supported_call with (f := mkGuestFunction 1%N trapModule (mk_uN 0) [] [] [] trapCalleeCode 4);
         [reflexivity | cbn; lia | cbn; lia].
     + vm_compute; tauto.
   - split; [repeat constructor | vm_compute; tauto].

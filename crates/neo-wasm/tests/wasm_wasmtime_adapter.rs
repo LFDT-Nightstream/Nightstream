@@ -1329,7 +1329,8 @@ fn pc_rom_keeps_both_if_edges_and_else_fallthrough() {
         let mut pc_before = 0;
         while !reader.eof() {
             let operator = reader.read().expect("operator");
-            let pc_after = pc_before + 1;
+            // An `if` takes two pcs: one for each control choice.
+            let pc_after = pc_before + 1 + u64::from(matches!(operator, wasmparser::Operator::If { .. }));
             match operator {
                 wasmparser::Operator::If { .. } => {
                     if_pc = Some(pc_before);

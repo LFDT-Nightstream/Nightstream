@@ -6,6 +6,7 @@ From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals
   StraightLineSpec SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout ProgramSpec ProgramEncoding
   ProgramRefinement ControlDecode Fragment tests.BlockPrograms tests.WitnessCheck tests.EarlyReturnTrace.
+Require Import ControlInvariant.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -17,7 +18,7 @@ Definition mainFunction := i32Function returnModule (mk_uN 0) 1 1 0 mainBody.
 Definition returningFunction := i32Function returnModule (mk_uN 0) 1 1 1 returnBody.
 Definition returnProgram := [mainFunction; returningFunction].
 Definition returnStore := MKstore returnProgram [] [] [] [] [].
-Definition mainGuest := mkGuestFunction 0%N returnModule (mk_uN 0) 1 1 0 mainBody 0.
+Definition mainGuest := mkGuestFunction 0%N returnModule (mk_uN 0) [valtype_I32] [valtype_I32] [] mainBody 0.
 
 Definition returnContext := moduleContext [i32StackType 1 1] [i32StackType 1 1; i32StackType 1 1].
 
@@ -77,7 +78,8 @@ Proof.
     + apply return_function_validates; [lia | repeat constructor | exact return_body_validates].
   - intros [ | [ | index]] g Hg; cbn in Hg; [injection Hg as <- .. | destruct index; discriminate].
     + split; [ | vm_compute; tauto]. constructor; [constructor | constructor; [ | constructor]].
-      apply supported_call with (f := mkGuestFunction 1%N returnModule (mk_uN 0) 1 1 1 returnBody 3);
+      apply supported_call with (f :=
+        mkGuestFunction 1%N returnModule (mk_uN 0) [valtype_I32] [valtype_I32] [valtype_I32] returnBody 3);
         [reflexivity | cbn; lia | cbn; lia].
     + split; [ | vm_compute; tauto]. repeat constructor.
 Qed.
@@ -97,7 +99,7 @@ Proof. split; [vm_compute; reflexivity | ]. apply callerRowb_sound. vm_compute. 
 
 Lemma return_start_config :
   CircuitConfig returnProgram returnStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    returnMemory returnStart (stackConfig (mk_state returnStore (activeFrame mainGuest [7])) [] mainBody).
+    returnMemory returnStart (stackConfig (mk_state returnStore (activeFrame mainGuest (map i32Value [7]))) [] mainBody).
 Proof.
   apply (function_start_config returnProgram returnStore 0 mainGuest [7] _ returnStart);
     try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
@@ -110,7 +112,7 @@ Qed.
 
 Example early_return_witness_refines : fieldPrime ->
   exists shape c,
-    Steps (stackConfig (mk_state returnStore (activeFrame mainGuest [7])) [] mainBody) c /\
+    Steps (stackConfig (mk_state returnStore (activeFrame mainGuest (map i32Value [7]))) [] mainBody) c /\
     CircuitConfig returnProgram returnStore 0 shape (replayed returnMemory returnWitness)
       (rowsFinalBoundary returnStart returnWitness) c.
 Proof.

@@ -10,8 +10,7 @@ use crate::layout::{
     COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALL_ACTIVE,
     COL_HOST_EVENT_EXIT_LATCH, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_LANE_LOAD_ACTIVE, COL_LINEAR_MEM_LANE_STORE_ACTIVE,
     COL_LINEAR_MEM_USE_LANE0, COL_LOCAL_WRITE_ENABLED, COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_OUTPUT_CAPTURED,
-    COL_PC_FREF_ACTIVE, COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
-    COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE,
+    COL_PC_ROM_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE,
     COL_STACK_READ_ACTIVE, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_HI_ACTIVE, COL_TABLE_READ_ENABLED,
     COL_TABLE_SET_LIVE, COL_TABLE_SIZE_READ_ENABLED, COL_TURN_BOUNDARY, SELECTOR_COLS,
 };
@@ -69,7 +68,7 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
         [selector_col(WasmOpcode::TableSet).unwrap()],
     );
 
-    let immediate_gates: [(&str, usize, fn(WasmOpcode) -> bool); 5] = [
+    let immediate_gates: [(&str, usize, fn(WasmOpcode) -> bool); 4] = [
         (
             "program local-index immediates",
             COL_PROGRAM_LOCAL_INDEX_ACTIVE,
@@ -84,11 +83,6 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
             "program table-id immediates",
             COL_PROGRAM_TABLE_ID_ACTIVE,
             WasmOpcode::uses_table_id_immediate,
-        ),
-        (
-            "program call-indirect immediates",
-            COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
-            WasmOpcode::uses_call_indirect_immediates,
         ),
         (
             "program linear-memory offsets",
@@ -208,15 +202,11 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
         &mut supports,
         "static pc-ROM reads",
         COL_PC_ROM_ACTIVE,
-        opcode_selectors(WasmOpcode::supported().into_iter().filter(|opcode| {
-            !matches!(
-                opcode,
-                WasmOpcode::CallIndirect
-                    | WasmOpcode::ReturnCallIndirect
-                    | WasmOpcode::Return
-                    | WasmOpcode::Unreachable
-            )
-        })),
+        opcode_selectors(
+            WasmOpcode::supported()
+                .into_iter()
+                .filter(|opcode| opcode.uses_pc_rom()),
+        ),
     );
 
     insert_derived_activation_support(
@@ -312,15 +302,38 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
         insert_derived_activation_support(&mut supports, name, gate, [COL_GATHER_ACTIVE]);
     }
 
-    insert_derived_activation_support(
-        &mut supports,
-        "pc-to-function reads",
-        COL_PC_FREF_ACTIVE,
-        program_selectors.iter().copied().chain([
-            COL_FRAME_MOVE_ACTIVE_BEFORE,
-            COL_LOCAL_ZERO_ACTIVE_BEFORE,
-            crate::layout::COL_HOST_SUSPEND,
-        ]),
+    let replacements: BTreeSet<_> = opcode_selectors(
+        WasmOpcode::supported()
+            .into_iter()
+            .filter(|op| op.uses_stack_rmw()),
+    )
+    .into_iter()
+    .collect();
+    supports.insert(crate::layout::COL_STACK_RMW, replacements.clone());
+    for (separate, original) in crate::layout::COL_STACK_SEPARATE.into_iter().zip([
+        COL_STACK_READ_ACTIVE[0],
+        COL_STACK_WRITE0_ACTIVE,
+        COL_STACK_WRITE0_HI_ACTIVE,
+    ]) {
+        let atoms = supports[&original]
+            .difference(&replacements)
+            .copied()
+            .collect();
+        supports.insert(separate, atoms);
+    }
+    let low_only = opcode_selectors(
+        WasmOpcode::supported()
+            .into_iter()
+            .filter(|op| op.omits_stack_read0_hi()),
+    )
+    .into_iter()
+    .collect();
+    supports.insert(
+        crate::layout::COL_STACK_READ0_HI_ACTIVE,
+        supports[&crate::layout::COL_STACK_SEPARATE[0]]
+            .difference(&low_only)
+            .copied()
+            .collect(),
     );
     supports
 }
@@ -386,4 +399,58 @@ fn insert_derived_activation_support(
         supports.insert(gate, unique).is_none(),
         "activation support {name:?} repeats gate column {gate}",
     )
+}
+
+/// SPEC.md section 7.6: additional disjoint activations used by the slot plan.
+/// The Rocq export includes this entire list; GateExclusions proves every pair
+/// from FullRelation, without adding constraints to the circuit.
+pub(crate) fn gate_exclusions() -> Vec<(usize, usize)> {
+    use crate::ccs::host_event_chain::{
+        gather_memory_local_base_col, gather_memory_read_kind_col, gather_memory_write_kind_col,
+    };
+    use crate::layout::*;
+    let mut pairs = vec![
+        (COL_PC_ROM_ACTIVE, COL_HOST_EVENT_EXIT_LATCH),
+        (COL_PC_ROM_ACTIVE, COL_CALL_STACK_POP_PRESENT),
+        (COL_CALL_STACK_POP_PRESENT, COL_HOST_EVENT_EXIT_LATCH),
+        (COL_CALL_STACK_PUSH_PRESENT, COL_HOST_CALL_ACTIVE),
+        (COL_CALL_STACK_PUSH_PRESENT, COL_CI_HOST_CALL),
+        (COL_STACK_READ_ACTIVE[0], COL_GATHER_LOCAL_WRITE),
+        (COL_STACK_READ_ACTIVE[0], COL_GATHER_LOCAL_WRITE_LO),
+        (COL_STACK_READ_ACTIVE[0], gather_memory_local_base_col()),
+        (COL_STACK_WRITE0_ACTIVE, COL_GATHER_LOCAL_WRITE),
+        (COL_STACK_WRITE0_ACTIVE, COL_GATHER_LOCAL_WRITE_LO),
+        (COL_STACK_WRITE0_ACTIVE, gather_memory_local_base_col()),
+        (COL_STACK_WRITE0_HI_ACTIVE, COL_GATHER_LOCAL_WRITE),
+        (COL_STACK_WRITE0_HI_ACTIVE, gather_memory_local_base_col()),
+        (COL_SEL_RETURN_CALL, COL_HOST_CALL_ACTIVE),
+        (COL_SEL_RETURN_CALL_INDIRECT, COL_HOST_CALL_ACTIVE),
+        (COL_GATHER_LOCAL_WRITE, gather_memory_local_base_col()),
+        (COL_GATHER_LOCAL_WRITE_LO, gather_memory_local_base_col()),
+        (gather_memory_read_kind_col(), gather_memory_write_kind_col()),
+    ];
+    for (separate, original) in COL_STACK_SEPARATE
+        .into_iter()
+        .zip([
+            COL_STACK_READ_ACTIVE[0],
+            COL_STACK_WRITE0_ACTIVE,
+            COL_STACK_WRITE0_HI_ACTIVE,
+        ])
+        .chain([(COL_STACK_READ0_HI_ACTIVE, COL_STACK_SEPARATE[0])])
+    {
+        let extra: Vec<_> = pairs
+            .iter()
+            .filter_map(|&(a, b)| {
+                if a == original {
+                    Some((separate, b))
+                } else if b == original {
+                    Some((a, separate))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        pairs.extend(extra);
+    }
+    pairs
 }

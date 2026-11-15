@@ -1,3 +1,5 @@
+mod common;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use neo_application::{MemoryKind, MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec};
@@ -17,8 +19,8 @@ fn slot_plan_is_deterministic_and_covers_every_logical_port_once() {
     assert_eq!(ports, (0..plan.logical_ports).collect::<Vec<_>>());
     assert!(plan.slots.iter().all(|slot| !slot.is_empty()));
     let max_load = plan.support_loads.values().copied().max().unwrap();
-    assert_eq!((plan.logical_ports, plan.slots.len(), max_load), (97, 15, 15));
-    assert!(plan.slots.len() >= max_load + plan.conservative_singletons);
+    assert_eq!((plan.logical_ports, plan.slots.len(), max_load), (90, 8, 13));
+    assert_eq!(plan.gate_exclusions.len(), 29);
     assert!(plan.slots.len() < plan.logical_ports);
     assert_eq!(
         plan.conservative_singletons, 0,
@@ -68,7 +70,18 @@ fn sharing_requires_disjoint_supports_and_unknown_gates_stay_dedicated() {
 fn enforced_supports() -> BTreeMap<usize, BTreeSet<usize>> {
     let relation = build_wasm_relation().expect("the WASM relation");
     let mut supports: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
+    let mut atoms = BTreeSet::new();
     for tagged in relation.r1cs().catalog().rows() {
+        if matches!(tagged.tag().label(), "row kind one hot" | "opcode selector one hot") {
+            atoms.extend(
+                tagged
+                    .row()
+                    .a_terms()
+                    .iter()
+                    .map(|(column, _)| *column)
+                    .filter(|column| ![COL_ONE, COL_IS_PROGRAM_ROW].contains(column)),
+            );
+        }
         if tagged.tag().label() != "memory activation support" {
             continue;
         }
@@ -84,7 +97,7 @@ fn enforced_supports() -> BTreeMap<usize, BTreeSet<usize>> {
             .collect();
         supports.insert(*gate, atoms);
     }
-    let atoms: BTreeSet<usize> = supports.values().flatten().copied().collect();
+    assert!(supports.values().all(|support| support.is_subset(&atoms)));
     supports.extend(atoms.into_iter().map(|atom| (atom, BTreeSet::from([atom]))));
     supports
 }
@@ -92,11 +105,11 @@ fn enforced_supports() -> BTreeMap<usize, BTreeSet<usize>> {
 /// SPEC.md section 7.6 I1 and I2 accept a row whose active ports sit in distinct
 /// slots, with each pair of one memory and a write in catalog order. So two
 /// ports that the relation lets be active together must sit in distinct
-/// slots, and in increasing slots when they are such a pair. The ports whose
-/// supports share an atom may all be active together, so a plan from these
-/// supports needs at least the largest support load of slots.
+/// slots, and in increasing slots when they are such a pair. The exported
+/// exclusions refine the coarse supports; GateExclusions proves those pairs
+/// cannot activate together under the full relation.
 #[test]
-fn ordered_slot_plan_keeps_dependent_pairs_in_catalog_order_wherever_the_relation_allows() {
+fn ordered_slot_plan_keeps_dependent_pairs_in_catalog_order_using_exported_gate_exclusions() {
     use MemoryPortActivation::When;
     let layout = build_wasm_relation_layout();
     let memories = layout.auxiliary.memory.entries();
@@ -110,9 +123,20 @@ fn ordered_slot_plan_keeps_dependent_pairs_in_catalog_order_wherever_the_relatio
         When(gate) => supports.get(&gate),
         _ => None,
     };
-    let together = |p: usize, q: usize| match (support(p), support(q)) {
-        (Some(a), Some(b)) => !a.is_disjoint(b),
-        _ => true,
+    let together = |p: usize, q: usize| {
+        if let (When(a), When(b)) = (ports[p].1.activation, ports[q].1.activation) {
+            if plan
+                .gate_exclusions
+                .iter()
+                .any(|&(x, y)| (a == x && b == y) || (a == y && b == x))
+            {
+                return false;
+            }
+        }
+        match (support(p), support(q)) {
+            (Some(a), Some(b)) => !a.is_disjoint(b),
+            _ => true,
+        }
     };
     let writes = |port: usize| matches!(ports[port].1.kind, MemoryPortKind::Write { .. });
     let dependent = |p: usize, q: usize| ports[p].0 == ports[q].0 && (writes(p) || writes(q));
@@ -143,11 +167,8 @@ fn ordered_slot_plan_keeps_dependent_pairs_in_catalog_order_wherever_the_relatio
         *loads.entry(*atom).or_insert(0) += 1;
     }
     let largest = loads.values().copied().max().unwrap();
-    assert_eq!(
-        plan.slots.len(),
-        largest,
-        "the plan has the fewest slots its supports allow"
-    );
+    assert_eq!(largest, 13, "coarse support bound before pair exclusions");
+    assert_eq!(plan.slots.len(), 8);
     assert_eq!(plan.logical_ports, ports.len());
 
     eprintln!(

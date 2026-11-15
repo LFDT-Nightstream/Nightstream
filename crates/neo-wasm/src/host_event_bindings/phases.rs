@@ -1,6 +1,6 @@
 //! Static import phase boundaries. No gather or opaque operation spans suspension.
 
-use super::{opaque, ImportTemplate, SlotBinding};
+use super::{opaque, ExportTemplate, ImportTemplate, SlotBinding};
 use crate::WasmBuildError;
 
 pub(crate) const IMPORT_SCHEDULE_COUNT_BITS: u8 = 16;
@@ -15,6 +15,29 @@ fn biased_count(blocks: usize) -> u32 {
         "import schedule must be validated before encoding"
     );
     blocks as u32 + 1
+}
+
+impl ExportTemplate {
+    /// Low half: entry blocks + 1. High half: exit blocks. One read gives
+    /// both counts, as the import word does.
+    pub(crate) fn packed_schedule_counts(&self) -> u32 {
+        assert!(
+            self.exit.len() < IMPORT_SCHEDULE_COUNT_FACTOR as usize,
+            "export schedule must be validated before encoding"
+        );
+        biased_count(self.entry.len()) + IMPORT_SCHEDULE_COUNT_FACTOR * self.exit.len() as u32
+    }
+
+    pub(super) fn validate_phases(&self) -> Result<(), WasmBuildError> {
+        for (phase, blocks) in [("entry", self.entry.len()), ("exit", self.exit.len())] {
+            if blocks > MAX_IMPORT_PHASE_BLOCKS {
+                return Err(WasmBuildError::Trace(format!(
+                    "export {phase} phase has {blocks} event blocks; maximum is {MAX_IMPORT_PHASE_BLOCKS}"
+                )));
+            }
+        }
+        Ok(())
+    }
 }
 
 impl ImportTemplate {

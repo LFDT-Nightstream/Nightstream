@@ -7,6 +7,7 @@ From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals
   StraightLineSpec SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout ProgramSpec ProgramEncoding
   ProgramRefinement ControlDecode Fragment tests.BlockPrograms tests.WitnessCheck tests.BrTrace.
+Require Import ControlInvariant.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -18,7 +19,7 @@ Definition brFunction := i32Function brModule (mk_uN 0) 2 1 0 brCode.
 Definition brProgram := [brFunction].
 Definition brStore := MKstore brProgram [] [] [] [] [].
 Definition brContext := moduleContext [i32StackType 2 1] [i32StackType 2 1].
-Definition brGuest := mkGuestFunction 0%N brModule (mk_uN 0) 2 1 0 brCode 0.
+Definition brGuest := mkGuestFunction 0%N brModule (mk_uN 0) [valtype_I32; valtype_I32] [valtype_I32] [] brCode 0.
 
 Section Typing.
 Local Open Scope nat_scope.
@@ -65,7 +66,7 @@ Proof.
     + repeat constructor.
   - intros [ | index] g Hg; cbn in Hg; [injection Hg as <- | destruct index; discriminate].
     split; [ | vm_compute; repeat split; lia].
-    constructor; [ | constructor]. apply supported_block; [ | right; reflexivity].
+    constructor; [ | constructor]. apply supported_block; [ | right; left; reflexivity].
     constructor; [constructor | constructor; [ | constructor]].
     apply supported_block; [repeat constructor | left; reflexivity].
 Qed.
@@ -86,7 +87,7 @@ Proof. split; [vm_compute; reflexivity | ]. apply callerRowb_sound. vm_compute. 
 
 Lemma br_start_config :
   CircuitConfig brProgram brStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    brMemory brStart (stackConfig (mk_state brStore (activeFrame brGuest [7; 9])) [] brCode).
+    brMemory brStart (stackConfig (mk_state brStore (activeFrame brGuest (map i32Value [7; 9]))) [] brCode).
 Proof.
   apply (function_start_config brProgram brStore 0 brGuest [7; 9] _ brStart);
     try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
@@ -101,7 +102,7 @@ Qed.
 (* The refinement's conclusion for this run. *)
 Example br_witness_refines : fieldPrime ->
   exists shape c,
-    Steps (stackConfig (mk_state brStore (activeFrame brGuest [7; 9])) [] brCode) c /\
+    Steps (stackConfig (mk_state brStore (activeFrame brGuest (map i32Value [7; 9]))) [] brCode) c /\
     CircuitConfig brProgram brStore 0 shape (replayed brMemory brWitness)
       (rowsFinalBoundary brStart brWitness) c.
 Proof.

@@ -5,7 +5,8 @@ fn main() {
     let max_load = plan.support_loads.values().copied().max().unwrap_or(0);
     println!("logical ports: {}", plan.logical_ports);
     println!("physical slots (ordered): {}", plan.slots.len());
-    println!("maximum support load: {max_load}");
+    println!("maximum coarse support load (before pair exclusions): {max_load}");
+    println!("additional gate exclusions: {}", plan.gate_exclusions.len());
     println!("conservative singleton slots: {}", plan.conservative_singletons);
     for (&atom, &load) in &plan.support_loads {
         if load == max_load {

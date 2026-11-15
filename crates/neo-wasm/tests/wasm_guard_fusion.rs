@@ -62,7 +62,7 @@ fn host_public_proof(per_step: usize) {
     let (id, address, value) = preload
         .entries()
         .into_iter()
-        .find(|(id, _, _)| *id == neo_wasm::WasmMemoryId::ProgramOpcode)
+        .find(|(id, _, _)| *id == neo_wasm::WasmMemoryId::ProgramHeader)
         .unwrap();
     other_preload.insert(id, address, value ^ 1);
     let other_program = application.program(&other_preload).unwrap();

@@ -115,6 +115,7 @@ pub fn host_event_top_level_initial_state(
     state.host_callee_fref = export_fref;
     state.host_events.turn_export_fref = export_fref;
     state.host_events.events_remaining = template.entry.len() as u32;
+    state.host_events.event_index = bindings.event_base(export_fref);
     Ok(state)
 }
 

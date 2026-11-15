@@ -25,6 +25,78 @@ fn trace_from_wat(wat_src: &str) -> Vec<WasmVmStep> {
 }
 
 #[test]
+fn stores_read_only_the_low_address_limb() {
+    use neo_application::MemoryPortKind;
+    use neo_wasm::layout::{COL_STACK_READ0_HI_ACTIVE, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO};
+    use neo_wasm::WasmMemoryId;
+
+    for (instruction, value_type, opcode) in [
+        ("i32.store", "i32", WasmOpcode::I32Store),
+        ("i32.store8", "i32", WasmOpcode::I32Store8),
+        ("i32.store16", "i32", WasmOpcode::I32Store16),
+        ("i64.store", "i64", WasmOpcode::I64Store),
+        ("i64.store8", "i64", WasmOpcode::I64Store8),
+        ("i64.store16", "i64", WasmOpcode::I64Store16),
+        ("i64.store32", "i64", WasmOpcode::I64Store32),
+    ] {
+        for address in [0, 1, 1_000_000] {
+            let run = common::checked_main(&format!(
+                "(module (memory 1) (func (export \"main\")
+                  i32.const {address} {value_type}.const -1 {instruction}))"
+            ));
+            let i = run
+                .trace
+                .iter()
+                .position(|row| row.opcode == opcode)
+                .unwrap();
+            let z = &run.witnesses[i];
+            let layout = build_wasm_relation_layout();
+            let stack_reads: Vec<_> = layout
+                .auxiliary
+                .memory
+                .entries()
+                .iter()
+                .filter(|m| m.id == WasmMemoryId::Stack)
+                .flat_map(|m| &m.ports)
+                .filter(|p| neo_wasm::nebula::is_active(z, p.activation).unwrap())
+                .map(|p| {
+                    assert!(matches!(p.kind, MemoryPortKind::Read));
+                    p.value_column
+                })
+                .collect();
+            assert_eq!(
+                stack_reads,
+                [
+                    COL_STACK_READ_VALUE_LO[0],
+                    COL_STACK_READ_VALUE_LO[1],
+                    COL_STACK_READ_VALUE_HI[1]
+                ],
+                "{instruction} at {address}"
+            );
+            let mut forged = z.clone();
+            forged[COL_STACK_READ0_HI_ACTIVE] = F::ONE;
+            assert_rejected(&forged, "stores cannot enable the unused address high read");
+
+            let mut preload = preload_from_program_artifacts(&run.artifacts);
+            neo_wasm::memory_semantics::preload_host_event_tables(
+                &mut preload,
+                &HostEventBindings::import_free(run.trace[0].state_before.host_events.turn_export_fref),
+                &run.artifacts,
+            );
+            for column in [
+                COL_STACK_READ_VALUE_LO[0],
+                COL_STACK_READ_VALUE_LO[1],
+                COL_STACK_READ_VALUE_HI[1],
+            ] {
+                let mut forged = run.witnesses.clone();
+                forged[i][column] += F::ONE;
+                assert!(sanity_check_memory_rows(&layout, &forged, &preload).is_err());
+            }
+        }
+    }
+}
+
+#[test]
 fn i32_store8_row_rejects_tampered_unselected_byte() {
     let trace = trace_from_wat(
         r#"(module

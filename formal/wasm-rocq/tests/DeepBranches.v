@@ -1,4 +1,5 @@
 (* br_if 1 from inside two nested blocks: it jumps past the outer block's END. *)
+Require Import InstructionHeader.
 From Stdlib Require Import List ZArith Lia.
 From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range TraceRefinement MemoryTrace MemoryCatalog OpcodeCatalog Wasm2 WasmIntegers Locals
@@ -16,16 +17,16 @@ Definition deepModule := MKmoduleinst [i32StackType 0 1] [0%N] [] [] [] [] [] []
 Definition deepFunction := i32Function deepModule (mk_uN 0) 0 1 2 deepCode.
 Definition deepProgram := [deepFunction].
 Definition deepStore := MKstore deepProgram [] [] [] [] [].
-Definition deepGuest := mkGuestFunction 0%N deepModule (mk_uN 0) 0 1 2 deepCode 0.
+Definition deepGuest := mkGuestFunction 0%N deepModule (mk_uN 0) [] [valtype_I32] [valtype_I32; valtype_I32] deepCode 0.
 Definition deepState condition := mk_state deepStore (MKframe [i32Value condition; i32Value 9] deepModule).
 
-(* PCs: 0 and 1 enter the blocks, 3 is the br_if, 6 and 9 are the ENDs, 10 follows. *)
+(* PCs: 0 and 1 enter the blocks, 3 is the br_if and 4 its taken edge, 7 and 10 are the ENDs, 11 follows. *)
 Example deep_layout :
-  encodeProgram deepProgram programOpcodeId [3] = Some CODE_BR_IF /\
-  encodeProgram deepProgram pcRomId [3; 0] = Some 4 /\
-  encodeProgram deepProgram pcRomId [3; 1] = Some 10 /\
-  encodeProgram deepProgram programOpcodeId [9] = Some CODE_END /\
-  encodeProgram deepProgram pcRomId [9; 0] = Some 10.
+  opcodeAt (encodeProgram deepProgram) [3] = Some CODE_BR_IF /\
+  encodeProgram deepProgram pcRomId [3] = Some 5 /\
+  encodeProgram deepProgram pcRomId [4] = Some 11 /\
+  opcodeAt (encodeProgram deepProgram) [10] = Some CODE_END /\
+  encodeProgram deepProgram pcRomId [10] = Some 11.
 Proof. repeat split; reflexivity. Qed.
 
 Definition deepContext := moduleContext [i32StackType 0 1] [i32StackType 0 1].

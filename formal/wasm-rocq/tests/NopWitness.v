@@ -5,6 +5,7 @@ From mathcomp Require Import ssrbool eqtype.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 WasmIntegers Locals
   StraightLineSpec SpecTecCalls CallerSpec CallerValidation FunctionValidation CodeLayout ProgramSpec ProgramEncoding
   ProgramRefinement ControlDecode Fragment tests.BlockPrograms tests.WitnessCheck tests.NopTrace.
+Require Import ControlInvariant.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -15,7 +16,7 @@ Definition nopFunction := i32Function nopModule (mk_uN 0) 1 1 0 nopCode.
 Definition nopProgram := [nopFunction].
 Definition nopStore := MKstore nopProgram [] [] [] [] [].
 Definition nopContext := moduleContext [i32StackType 1 1] [i32StackType 1 1].
-Definition nopGuest := mkGuestFunction 0%N nopModule (mk_uN 0) 1 1 0 nopCode 0.
+Definition nopGuest := mkGuestFunction 0%N nopModule (mk_uN 0) [valtype_I32] [valtype_I32] [] nopCode 0.
 
 Section Typing.
 Local Open Scope nat_scope.
@@ -81,7 +82,7 @@ Proof. split; [vm_compute; reflexivity | ]. apply callerRowb_sound. vm_compute. 
 
 Lemma nop_start_config :
   CircuitConfig nopProgram nopStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    nopMemory nopStart (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode).
+    nopMemory nopStart (stackConfig (mk_state nopStore (activeFrame nopGuest (map i32Value [7]))) [] nopCode).
 Proof.
   apply (function_start_config nopProgram nopStore 0 nopGuest [7] _ nopStart); try reflexivity; try (apply TableState.no_tables_loaded; reflexivity); try (cbn; lia).
   - repeat constructor.
@@ -94,7 +95,7 @@ Qed.
 (* The refinement's conclusion for this run. *)
 Example nop_witness_refines : fieldPrime ->
   exists shape c,
-    Steps (stackConfig (mk_state nopStore (activeFrame nopGuest [7])) [] nopCode) c /\
+    Steps (stackConfig (mk_state nopStore (activeFrame nopGuest (map i32Value [7]))) [] nopCode) c /\
     CircuitConfig nopProgram nopStore 0 shape (replayed nopMemory nopWitness) (rowsFinalBoundary nopStart nopWitness) c.
 Proof.
   intros Hprime.

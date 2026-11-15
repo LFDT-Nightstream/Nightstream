@@ -1,8 +1,8 @@
 (* A running activation has an outer SpecTec function frame. A terminal outcome
-   is bound to the final row's trap flag or captured i32 result. Runs stop on their
+   is bound to the final row's trap flag or captured integer result. Runs stop on their
    terminal row; host transitions and padding after termination are not covered. *)
 From Stdlib Require Import List ZArith.
-Require Import R1CS Columns Wasm2 MemoryTrace StraightLineSpec SpecTecCalls CallerSpec ProgramSpec ControlDecode.
+Require Import R1CS Columns Wasm2 MemoryTrace StraightLineSpec SpecTecCalls CallerSpec ProgramSpec ControlDecode IntegerDecode WasmValues WasmIntegers.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -37,20 +37,32 @@ Definition executionFragment (boundary : Boundary) (baseDepth : Z) (rows : list 
 Inductive RunOutcome :=
 | running (shape : ControlShape)
 | trapped
-| returned (result : option Z).
+| returned (values : list val).
 
 Definition lastRow (rows : list Witness) : option Witness := hd_error (rev rows).
 
-Definition TerminalConfig (s : store) (caller : frame) (row : Witness) (outcome : RunOutcome) (c : config) : Prop :=
+(* The source result types choose how to read the output limbs. The circuit
+   currently captures at most one value at an activation's end. *)
+Definition capturedValues (row : Witness) (types : list valtype) : option (list val) :=
+  match types with
+  | [] => if row COL_OUTPUT_CAPTURED =? 0 then Some [] else None
+  | [valtype_I32] => if row COL_OUTPUT_CAPTURED =? 1 then
+      option_map (fun lo => [i32Value lo]) (i32Cell (Some (row COL_OUTPUT_VALUE_LO_AFTER))) else None
+  | [valtype_I64] => if row COL_OUTPUT_CAPTURED =? 1 then
+      match i32Cell (Some (row COL_OUTPUT_VALUE_LO_AFTER)), i32Cell (Some (row COL_OUTPUT_VALUE_HI_AFTER)) with
+      | Some lo, Some hi => Some [i64Value (joinLimbs lo hi)]
+      | _, _ => None end else None
+  | _ => None
+  end.
+
+Definition TerminalConfig (program : Program) (root : nat) (s : store) (caller : frame) (row : Witness) (outcome : RunOutcome) (c : config) : Prop :=
   row COL_ACTIVATION_FINISHED_AFTER = 1 /\
   match outcome with
   | running _ => False
   | trapped => row COL_TRAPPED_AFTER = 1 /\ c = mk_config (mk_state s caller) [admininstr_TRAP]
-  | returned result => row COL_TRAPPED_AFTER = 0 /\
-      (match result with None => row COL_OUTPUT_CAPTURED = 0
-      | Some value => row COL_OUTPUT_CAPTURED = 1 /\ row COL_OUTPUT_VALUE_LO_AFTER = value end) /\
-      c = mk_config (mk_state s caller)
-        (match result with None => [] | Some value => [i32Constant value] end)
+  | returned values => row COL_TRAPPED_AFTER = 0 /\
+      (exists f, functionAt program root = Some f /\ capturedValues row (guestResultTypes f) = Some values) /\
+      c = mk_config (mk_state s caller) (map admininstr_val values)
   end.
 
 Definition ExecutionConfig (program : Program) (s : store) (caller : frame) (baseDepth : Z) (root : nat)
@@ -59,5 +71,5 @@ Definition ExecutionConfig (program : Program) (s : store) (caller : frame) (bas
   | running shape =>
       (match lastRow rows with None => True | Some row => row COL_ACTIVATION_FINISHED_AFTER = 0 end) /\
       ActivationConfig program s caller baseDepth root shape memory boundary c
-  | _ => exists row, lastRow rows = Some row /\ TerminalConfig s caller row outcome c
+  | _ => exists row, lastRow rows = Some row /\ TerminalConfig program root s caller row outcome c
   end.

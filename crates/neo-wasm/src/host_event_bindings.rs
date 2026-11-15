@@ -243,6 +243,7 @@ impl ExportTemplate {
     /// output.
     /// The stack-based import sources (`ArgElem`/`ResultElem`) never apply.
     pub fn validate(&self, local_bound: u32, result_count: u8) -> Result<(), WasmBuildError> {
+        self.validate_phases()?;
         opaque::validate(&self.entry)?;
         opaque::validate(&self.exit)?;
         let err = |msg: String| Err(WasmBuildError::Trace(msg));
@@ -369,6 +370,28 @@ pub struct HostEventBindings {
 }
 
 impl HostEventBindings {
+    /// The first event row of the template of `fref` in the host-event slot
+    /// ROMs. The templates take consecutive rows: the imports, then the
+    /// exports, each in function order. A function without a template gets
+    /// the row after the last template.
+    pub fn event_base(&self, fref: u32) -> u32 {
+        let imports = self.imports.iter().map(|(&import, template)| {
+            (
+                import,
+                template.events.len() + template.return_events.as_ref().map_or(0, Vec::len),
+            )
+        });
+        let exports = self
+            .exports
+            .iter()
+            .map(|(&export, template)| (export, template.entry.len() + template.exit.len()));
+        imports
+            .chain(exports)
+            .take_while(|&(template, _)| template != fref)
+            .map(|(_, events)| events as u32)
+            .sum()
+    }
+
     /// The canonical bindings of an import-free, parameterless single-shot
     /// program: no import templates and an empty export boundary template.
     /// Parameterized exports need explicit entry bindings, even for one turn.

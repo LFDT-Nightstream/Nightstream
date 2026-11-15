@@ -5,6 +5,17 @@ Require Import R1CS Columns FullRelation MemoryTrace MemoryCatalog TraceRefineme
 Import ListNotations.
 Open Scope Z_scope.
 
+(* Inputs for row-level tests, taken from non-stack reads. Each test supplies
+   its stack cells; this does not check a program image. *)
+Fixpoint readInputs (events : list Event) : MemoryState :=
+  match events with
+  | [] => fun _ _ => None
+  | ReadEvent memory address value :: rest =>
+      if Nat.eqb memory stackId then readInputs rest
+      else update (readInputs rest) memory address value
+  | _ :: rest => readInputs rest
+  end.
+
 Lemma modulus_pos : 0 < modulus.
 Proof. reflexivity. Qed.
 

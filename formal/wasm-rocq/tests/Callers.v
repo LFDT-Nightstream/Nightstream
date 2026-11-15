@@ -3,7 +3,7 @@ Require Import Wasm2 StraightLineSpec CallerSpec Fragment tests.Calls.
 Import ListNotations.
 Open Scope Z_scope.
 
-Definition readZeroCallee := mkGuestFunction 0%N callModule (mk_uN 0) 0 1 1 readZeroBody 10.
+Definition readZeroCallee := mkGuestFunction 0%N callModule (mk_uN 0) [] [valtype_I32] [valtype_I32] readZeroBody 10.
 Definition callerCallees : CalleeEnvironment := calleeEnvironment (fun index =>
   if N.eqb index 0 then Some readZeroCallee else None) [] [] True.
 Definition getCallAdd : list instr :=

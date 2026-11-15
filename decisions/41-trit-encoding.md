@@ -1,37 +1,39 @@
-# Canonical 41-Trit Field Opening
+# 41-Trit Field Slot
 
 ## Status
 
 Accepted.
 
-Changed on 2026-11-13: [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) replaces the Goldilocks field and `d = 54` of this record with `q = 2^64 − 59` and `d = 64`. The 41-trit rule does not change, because `3^41` is larger than `2^64`.
-
 ## Problem
 
-Auxiliary protocol-binding SIS maps consume general Goldilocks field values,
-but Ajtai binding requires low-norm message coefficients. A direct field
-residue can exceed the selected bound `b = 2`. Each authoritative field slot
-also needs one unambiguous low-norm opening.
+The Ajtai commitment binds only a witness whose coefficients have a norm
+below `b = 2`. A step circuit has columns that hold a general value of `F_q`.
+Such a value can be larger than the bound, so each such column needs a
+low-norm encoding.
 
 ## SuperNeo
 
-SuperNeo requires `‖z‖∞ < b` and selects `b = 2` and ring degree
-`d = 54` for its Goldilocks profile. Its coefficient embedding does not define
-an encoding for an arbitrary field value. See
-[Definition 20](../docs/superneo-paper-v1_2/07_superneo_folding_scheme_for_ccs.md)
-and [Section 8.2](../docs/superneo-paper-v1_2/08_concrete_parameters.md) of SuperNeo v1.2.
+SuperNeo v1.2 requires `‖z‖∞ < b` for a fresh witness (Definition 20). Its
+coefficient embedding does not define an encoding for an arbitrary field
+value.
 
 ## Decision
 
-Each authoritative Goldilocks field slot that enters an auxiliary
-protocol-binding SIS map must use exactly 41 balanced trits
-`d_i ∈ {-1,0,1}`. The constraints must bind those trits to the field slot and
-must enforce the canonical residue interval. All consumers of the same owned
-slot reuse that opening. Equal values in different authoritative slots do not
-share ownership.
+A field slot of a step package holds exactly 41 balanced trits
+`d_i ∈ {−1, 0, 1}` (`Layout.BalancedTernary.width`,
+`Layout.LowNormSlot.Kind`). The value of the slot is `Σ d_i · 3^i` in `F_q`
+(`Layout.BalancedTernary.recompose`). Each row that reads the column reads
+this linear form of the slot (`Export.Generic.SlotLayout.layout`,
+[SPEC.md](../SPEC.md) section 4.4). Equal values in two columns have two
+slots.
 
-Forty-one is minimal because `3^40 < p < 3^41`. Lean proved the coverage and
-minimality in `formal/ajtai-lean/Ajtai/Parameters.lean` at commit `f7e093d8f`.
-That project was later deleted. Physical
-gate, row, and column counts belong to lowering conformance evidence, not this
-decision.
+The honest digits are the balanced-ternary digits of the centered value.
+Each digit has a norm below 2 (`Layout.BalancedTernary.digits_norm`), and the
+digits give the value again (`Layout.BalancedTernary.recompose_digits`).
+
+41 is the least count. 41 trits reach each magnitude up to `(3^41 − 1)/2`,
+which is not below `(q − 1)/2` (`Layout.BalancedTernary.halfModulus_le_radius`).
+40 trits reach only `(3^40 − 1)/2`, which is below `(q − 1)/2` (computed).
+
+A column that a row forces to 0 or 1 has a slot of one coordinate instead
+([`bounded-depth-slots-of-read-columns.md`](./bounded-depth-slots-of-read-columns.md)).

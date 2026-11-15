@@ -19,8 +19,8 @@ geometry.
 
 ## Decision
 
-The owner asked on 2026-11-02 for this choice to be made without Enzo, and
-approved it on 2026-11-03.
+The owner approved this on 2026-11-03, the shapes of item 3 on 2026-11-09,
+and the segment counts of item 5 on 2026-11-14.
 
 1. **Three sizes.** `neo_wasm::nebula::WasmSize` has Small, Medium and
    Large, with ROMs of `2^13`, `2^14` and `2^15` cells. The RAM of a size has
@@ -36,20 +36,16 @@ approved it on 2026-11-03.
    function references 5, 6 and 7 bits. The host events of all the templates
    of a program have 6, 7 and 8 bits. Each size has 3 bits for the slots of
    an event. In the RAM, linear memory takes half of the space, the stack a
-   quarter, and each of the two global tables a thirty-second. The four smaller test transactions of Starstream `159bedc` fit
-   Small, and the two larger fit Medium.
+   quarter, and each of the two global tables a thirty-second.
 3. **Steps and segments.** Small and Medium prove 64 rows in each step, in
    segments of 8 and 16 steps. Large proves 32 rows in each step, in
    segments of 16 steps. Small has at most 19 segments, Medium 9 and Large
    6 (item 5), so Small holds runs of up to 9,728 trace rows, Medium of up
    to 9,216 and Large of up to 3,072.
    The fixed cost of a step changes little with its rows, so fewer and
-   larger steps cost less for each row. The owner approved these shapes on
-   2026-11-09 after CPU measurements on memories with the same step shape: a
-   512-row Small segment took 89 s in place of 251 s, and a Large row took
-   0.28 s in place of 1.35 s. Small and Medium keep 512 and 1,024 rows in
-   each segment. Large has 512 rows in each segment, so a short Large run
-   pads to 512 rows. Its rule 6 count is 40,960, below 139,509.
+   larger steps cost less for each row. Small has 512 rows in each segment,
+   Medium 1,024 and Large 512, so a short Large run pads to 512 rows. The
+   rule 6 count of Large is 40,960, below 139,509.
 4. **The prover selects, the verifier takes.** The prover takes the
    smallest size that holds the program and its run. The size is part of the
    statement, and the verifier compiles the circuit of that size. It never
@@ -60,8 +56,6 @@ approved it on 2026-11-03.
    has the most segments for which `S_max · 2·m_mem/q²` is at most `2^−109`,
    so a caller asks for at most 109 bits of security. With 8 memory slots
    in each row, `m_mem` is 13,312, 26,624 and 40,960, so the counts are 19,
-   9 and 6. On 2026-11-13 the owner kept 109 bits with fewer segments, in
-   place of 107, 107 and 105 bits with the earlier 32, 16 and 32 segments.
-   On 2026-11-14 the owner confirmed the segment counts 19, 9 and 6 (largest
-   runs 9,728, 9,216 and 3,072 trace rows), which the rule "most segments at
-   `2^−109`" gives after PR #261 halved the ROMs.
+   9 and 6 (`Spec.Nebula.WasmSize.shape`,
+   `Spec.Nebula.WasmSize.segmentBits_eq`,
+   `Spec.Nebula.WasmSize.segmentBits_succ_lt`).

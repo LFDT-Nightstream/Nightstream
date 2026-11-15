@@ -2,8 +2,6 @@
 
 **Status:** Accepted
 
-Changed on 2026-11-13: [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) replaces the ring degree 54 of this record with 64.
-
 ## Problem
 
 Nightstream has rectangular CCS matrices. The PiCCS reference and optimized
@@ -36,8 +34,10 @@ valid only when the application constraint polynomial is zero on the all-zero
 matrix-output vector. The implementation must reject a structure that does not
 have this property.
 
-The Nightstream compiler pads the public-input prefix to complete degree-54
-ring slots. It marks the added coordinates as public zeros. This is a relation
+The Nightstream compiler pads the public-input prefix to complete ring
+elements of degree 64. The public input is 320 columns, which is five ring
+elements ([SPEC.md](../SPEC.md) section 2.4). It marks the added coordinates
+as public zeros. This is a relation
 parameter restriction, not a change to PiCCS. It prevents a public ring slot
 from also containing private witness coefficients.
 

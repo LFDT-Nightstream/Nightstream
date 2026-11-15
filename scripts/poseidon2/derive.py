@@ -60,7 +60,7 @@ PLONKY3_ROUNDS_128 = {
 }
 PLONKY3_PRIME = {31: MERSENNE31, 64: GOLDILOCKS}
 
-LABEL = "Nightstream/Poseidon2/q=2^64-59/t={t}/d={d}/rf={rf}/rp={rp}/v1"
+LABEL = "Nightstream/Poseidon2/q=2^64-59/t={t}/d={d}/rf={rf}/rp={rp}/v2"
 TEST_STATE_SUFFIX = "/test-states"
 TEST_STATE_COUNT = 3
 DIAGONAL_RULE = (

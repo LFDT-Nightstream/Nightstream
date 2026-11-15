@@ -34,6 +34,13 @@ check between the two projects, Lean emits
 `Spec.Poseidon2.permute`, the first of the words 0 to 15, and 52 sponge
 hashes of `Spec.Poseidon2.hash`, for the lengths 0 to 25.
 
+Each instance has a label in `params.json`, for example
+`Nightstream/Poseidon2/q=2^64-59/t=16/d=7/rf=8/rp=22/v2`. The owner approved
+the version `v2` on 2026-11-14: the round constants changed from a SHAKE128
+stream to the Grain generator, and two constant sets must not share one
+label. The label is an input of the three `shake` test states of each width
+in `vectors.json` only. It is not an input of a constant.
+
 | Parameter | Nightstream | ProtogaLattice |
 |---|---|---|
 | S-box | `x^7`; `gcd(7, q − 1) = 1` (`Spec.Poseidon2.coprime_seven`), so the S-box is a permutation (`Spec.Poseidon2.sbox_bijective`) | `x^3`; `gcd(3, q − 1) = 1` (`Spec.Poseidon2.coprime_three`) |

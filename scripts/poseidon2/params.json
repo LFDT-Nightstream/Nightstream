@@ -48,7 +48,7 @@
    "d": 7,
    "rf": 8,
    "rp": 22,
-   "label": "Nightstream/Poseidon2/q=2^64-59/t=16/d=7/rf=8/rp=22/v1",
+   "label": "Nightstream/Poseidon2/q=2^64-59/t=16/d=7/rf=8/rp=22/v2",
    "internal_diagonal": [
     "1",
     "2",
@@ -265,7 +265,7 @@
    "d": 7,
    "rf": 8,
    "rp": 22,
-   "label": "Nightstream/Poseidon2/q=2^64-59/t=12/d=7/rf=8/rp=22/v1",
+   "label": "Nightstream/Poseidon2/q=2^64-59/t=12/d=7/rf=8/rp=22/v2",
    "internal_diagonal": [
     "1",
     "2",

@@ -359,7 +359,7 @@ def check_instance(inst, m4, q, vectors, suffix):
            f"at least 2^128")
     report(instance_rounds(q, t, 3) == (8, 43),
            f"{tag} the same rule gives (8, 43) for x^3, the S-box of ProtogaLattice")
-    report(label == f"Nightstream/Poseidon2/q=2^64-59/t={t}/d={d}/rf={rf}/rp={rp}/v1",
+    report(label == f"Nightstream/Poseidon2/q=2^64-59/t={t}/d={d}/rf={rf}/rp={rp}/v2",
            f"{tag} label binds q, t, d, R_F, R_P")
 
     stream = grain_words(q, t, rf, rp, rf * t + rp)

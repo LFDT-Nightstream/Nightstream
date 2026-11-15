@@ -84,3 +84,32 @@ fn metal_steps_equal_cpu_steps() {
         }
     }
 }
+
+/// A Metal prover that keeps its key reads the rows of the compression setup
+/// after the setup made them. Its steps before and after are the CPU's steps.
+#[test]
+#[ignore = "Holds the compression setup of the reference application, about 10 GB; run it by hand."]
+fn metal_steps_equal_cpu_steps_before_and_after_the_compression_setup() {
+    let [cpu, mut metal] = provers(2);
+    metal.keep_key();
+    let z0 = words([10, 11, 12, 13]);
+    let (mut on_cpu, mut on_metal) = (cpu.initial(z0).expect("initial"), metal.initial(z0).expect("initial"));
+    let mut setup = None;
+    for step in 0..5 {
+        if step == 2 {
+            setup = Some(metal.compression_setup().expect("compression setup"));
+        }
+        let message = words([20 + step, 21 + step, 22 + step, 23 + step]);
+        let next = hash_chain_step(on_cpu.current, message);
+        on_cpu = cpu.extend(&on_cpu, &message, next, None).expect("CPU step");
+        on_metal = metal
+            .extend(&on_metal, &message, next, None)
+            .expect("Metal step");
+        assert_eq!(
+            cpu.encode_proof(&on_cpu).expect("CPU bytes"),
+            metal.encode_proof(&on_metal).expect("Metal bytes"),
+            "step {step}"
+        );
+    }
+    drop(setup);
+}

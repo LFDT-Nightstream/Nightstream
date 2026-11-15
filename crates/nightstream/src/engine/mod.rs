@@ -127,7 +127,10 @@ impl Backend {
 
     /// The production-key commitment of each signed-unit witness.
     pub(crate) fn commit<W: Borrow<Mat<F>>>(&self, witnesses: &[W]) -> Result<Vec<Commitment>, CommitError> {
-        let table = self.kept_key().map(|key| &**key.table());
+        let table = match self {
+            Self::OptimizedKeptKey(key) => Some(&**key.table()),
+            _ => None,
+        };
         match self {
             Self::Optimized | Self::OptimizedKeptKey(_) => match witnesses {
                 [witness] => nightstream_fprime_setup::commit_signed_unit_prefix_matrix(table, witness.borrow())

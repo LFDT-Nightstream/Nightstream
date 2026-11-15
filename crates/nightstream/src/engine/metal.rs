@@ -40,7 +40,8 @@ impl Device {
         self.0.lock().map_err(|_| poisoned())
     }
 
-    /// The session reads `key` in place of rows that it expands itself.
+    /// The session reads `key`, once the compression setup made its table,
+    /// in place of rows that it expands itself.
     pub(crate) fn keep_key(&mut self, key: KeptKey) {
         self.1 = Some(Arc::new(HostKey {
             key,
@@ -54,10 +55,16 @@ impl Device {
 
     pub(crate) fn commit<W: Borrow<Mat<F>>>(&self, witnesses: &[W]) -> Result<Vec<Commitment>, CommitError> {
         let mut prover = self.lock()?;
-        if let Some(host) = &self.1 {
+        // The session expands its own rows faster than the host does, so it
+        // takes the host table only after the compression setup made it.
+        if let Some((host, table)) = self
+            .1
+            .as_ref()
+            .and_then(|host| Some((host, host.key.table.get()?)))
+        {
             if !host.given.swap(true, Ordering::Relaxed) {
                 prover
-                    .keep_commitment_key_table(host.key.table().clone())
+                    .keep_commitment_key_table(table.clone())
                     .map_err(|error| EngineError::Failure {
                         engine: Engine::Metal,
                         reason: error.to_string(),

@@ -78,6 +78,8 @@ THEOREMS = [
 DEFINITIONS = [
     (FPRIME / "Spec/Folding/Schedule.lean", "productionLightFoldCap"),
     (FPRIME / "Export/BoundedDepth/StepRelation.lean", "keyWidth"),
+    (FPRIME / "Spec/Nebula/SegmentGate.lean", "secureTuples"),
+    (FPRIME / "Spec/Nebula/SegmentGate.lean", "gateBits"),
 ]
 
 # Each value's symbol and meaning. A key is the left side of a theorem's equation or a field
@@ -109,6 +111,8 @@ LABELS = {
     "msisChainBound productionGlobalParams productionLightFoldCap": ("—", "The chain MSIS norm `8T(B + cap·T·(b − 1))`."),
     "productionLightFoldCap": ("cap", "The depth at which the light circuit rejects a fold."),
     "keyWidth": ("—", "The logical width of both circuit keys, `2^26`."),
+    "secureTuples": ("—", "The bound of section 7.1, rule 6 on `m_mem = R + M + N · B_ops`."),
+    "gateBits": ("—", "The bits that the memory gate certifies for all segments of each fixed WASM size (section 7.1)."),
 }
 # The header fields of a step package (`StepPackage.Package.format`) and the row counts of the
 # parity file, for each circuit.

@@ -42,6 +42,11 @@ root = "NightstreamFPrime.Export.FoldGateParityMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
+name = "emitNebulaGateParity"
+root = "NightstreamFPrime.Export.NebulaGateParityMain"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
 name = "emitCompressionParity"
 root = "NightstreamFPrime.Export.CompressionParityMain"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

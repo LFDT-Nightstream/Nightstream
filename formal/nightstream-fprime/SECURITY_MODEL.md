@@ -154,7 +154,7 @@ at the head of the hypothesis, and `*` is each head.
 | `closed.*`, `admitted` | `*` | assumption | `[HN-A1]`, in the form of trust item 3: the closure premise and the admitted adversary |
 | `premise` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]` |
 | `akita` | `*` | assumption | `[AKITA]` |
-| `valid.toValid.*`, `secure` | `*` | open | Open: Rust checks rules 1 to 6 of `SPEC.md` section 7.1 on each geometry at run time, with its own numbers. No emitted data compares that check with `Spec.Nebula.Geometry.Valid` and `Spec.Nebula.Geometry.Secure`. `Lifecycle.Nebula.FirstPlan.valid` covers the test geometry only |
+| `valid.toValid.*`, `secure` | `*` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-nebula-gate-parity-v1.json`, `is_valid_and_is_secure_are_the_lean_decisions`: Rust checks rules 1 to 6 of `SPEC.md` section 7.1 on each geometry at run time, and the test compares that check with Lean's decisions. For the fixed WASM sizes Lean proves both (`Spec.Nebula.WasmSize.valid`, `Spec.Nebula.WasmSize.secure`), and `each_wasm_size_has_the_lean_geometry_and_rows` compares the geometries |
 | `valid.romWords`, `valid.ramWords` | `LT.lt` | open | Open: no Lean theorem states that each word of an emitted program image is below `2^32` |
 | `app.*` | `*` | open | Open: `Lifecycle.Nebula.FirstPlan.app` is the test machine. A Rust-built memory application, the WASM relation included, has no instance (Out of scope) |
 | `round` | `Export.BoundedDepth.NebulaSecurity.MemoryRound` | open | Open: trust item 6. No result derives the memory round from the assumption list |
@@ -552,7 +552,13 @@ not change terminal source checks.
   `m_mem = R + M + N · B_ops`, and setup rule 6 keeps `2 · m_mem/q²` at most
   `2^−109.91` (`Spec.Nebula.Geometry.secure_iff`). A proof has at most
   `S_max` segments, so the runtime gate charges `S_max · 2 · m_mem/q²` with
-  exact integers (`SPEC.md` section 7.1).
+  exact integers (`SPEC.md` section 7.1). Lean defines the bits of that
+  gate and proves that the charge is at most `2^−bits`
+  (`Spec.Nebula.Geometry.segmentBits`, `Spec.Nebula.Geometry.segmentError_le`).
+  Each fixed WASM size certifies exactly 109 bits, and one more segment
+  certifies fewer (`Spec.Nebula.WasmSize.segmentBits_eq`,
+  `Spec.Nebula.WasmSize.segmentBits_succ_lt`). Lean emits these numbers, and
+  Rust tests compare them (trust item 5).
 - **Random-oracle model of `η`:** when `η` comes from a uniform oracle on its
   input (the plan digest, `ts` and the three roots) in place of Poseidon2,
   then for every `η` sampler with `Q_η` queries, the event of the memory

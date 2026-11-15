@@ -509,3 +509,7 @@ impl<A: Application> Run<A> {
 #[cfg(test)]
 #[path = "../../tests/nebula/memory.rs"]
 mod memory;
+
+#[cfg(test)]
+#[path = "../../tests/nebula/memory_gate.rs"]
+mod memory_gate;

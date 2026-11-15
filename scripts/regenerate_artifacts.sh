@@ -54,6 +54,7 @@ for pair in \
   "emitAjtaiSetupV1Parity:$A/nightstream-fprime-ajtai-setup-v1-parity.json" \
   "emitPoseidon2Vectors:$A/nightstream-fprime-poseidon2-vectors-v1.json" \
   "emitFoldGateParity:$A/nightstream-fprime-fold-gate-parity-v1.json" \
+  "emitNebulaGateParity:$A/nightstream-fprime-nebula-gate-parity-v1.json" \
   "emitCompressionParity:$A/nightstream-fprime-compression-parity-v1.json"; do
   runs+=("$B/${pair%%:*} ${pair#*:}|${pair#*:}")
 done

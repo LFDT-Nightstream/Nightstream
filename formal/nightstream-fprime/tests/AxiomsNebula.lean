@@ -1,4 +1,5 @@
 import tests.AxiomAudit
+import NightstreamFPrime.Spec.Nebula.SegmentGate
 import NightstreamFPrime.Spec.Nebula
 import NightstreamFPrime.Lifecycle.Nebula.Framing
 import NightstreamFPrime.Lifecycle.Nebula.MemoryBound
@@ -736,3 +737,10 @@ plans (`SlotPlan`), batched catalogs (`Batch`) and the free application
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.unbalanced_le
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.EtaSampler.unbalancedChance_le
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EtaRound.EtaSampler.unbalancedChance_le_secure
+#audit_axioms NightstreamFPrime.Spec.Nebula.Geometry.secure_iff_secureTuples
+#audit_axioms NightstreamFPrime.Spec.Nebula.Geometry.segmentBits_eq_iff
+#audit_axioms NightstreamFPrime.Spec.Nebula.Geometry.segmentError_le
+#audit_axioms NightstreamFPrime.Spec.Nebula.WasmSize.valid
+#audit_axioms NightstreamFPrime.Spec.Nebula.WasmSize.secure
+#audit_axioms NightstreamFPrime.Spec.Nebula.WasmSize.segmentBits_eq
+#audit_axioms NightstreamFPrime.Spec.Nebula.WasmSize.segmentBits_succ_lt

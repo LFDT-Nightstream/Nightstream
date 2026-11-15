@@ -11,7 +11,8 @@ position 5.
 
 The call list fixes the pieces when the two piece lists are alike at each position
 (`calls_injective`): two reads have one count, and the calls of two messages fix their length
-(`Piece.Alike`). Two messages of one length are alike (`Piece.alike_of_length`). A fold transcript
+(`Piece.Alike`). Two messages of one length are alike (`Piece.alike_of_length`), and so are two
+messages with a count word that fixes their length (`Piece.alike_of_counted`). A fold transcript
 is the piece list `Schedule.pieces`. Its pieces have one length at each position for every
 statement and every prover message (`Schedule.pieces_alike`), and its calls are the calls of the
 schedule (`Schedule.calls_pieces`). -/
@@ -31,6 +32,40 @@ theorem absorbCalls_append_inj {left right : List F} {rest rest' : List Call}
   obtain ⟨calls, tail⟩ := List.append_inj same
     (by rw [absorbCalls_length, absorbCalls_length, lengthEqual])
   exact ⟨absorbCalls_injective lengthEqual calls, tail⟩
+
+/-- Word `position` of a message is lane `position mod 12` of call `position / 12`. -/
+theorem absorbCalls_word (words : List F) {position : ℕ} (inside : position < words.length) :
+    ((absorbCalls words)[position / Poseidon2.rate]?.map fun call =>
+      call ⟨position % Poseidon2.rate, Nat.mod_lt _ (by decide)⟩) = some words[position] := by
+  have chunk : position / Poseidon2.rate <
+      (words.length + Poseidon2.rate - 1) / Poseidon2.rate := by
+    unfold Poseidon2.rate at *
+    omega
+  have split : position / Poseidon2.rate * Poseidon2.rate + position % Poseidon2.rate =
+      position := by
+    rw [Nat.mul_comm]
+    exact Nat.div_add_mod position Poseidon2.rate
+  simp [absorbCalls, chunk, padChunk, List.getD_eq_getElem?_getD,
+    Nat.mod_lt _ (show 0 < Poseidon2.rate by decide), List.getElem?_drop, split,
+    List.getElem?_eq_getElem inside]
+
+/-- The calls of two messages, before any later calls, fix each word at a position of both. -/
+theorem absorbCalls_append_word {left right : List F} {rest rest' : List Call}
+    (same : absorbCalls left ++ rest = absorbCalls right ++ rest') {position : ℕ}
+    (inLeft : position < left.length) (inRight : position < right.length) :
+    left[position] = right[position] := by
+  have bound : ∀ {words : List F}, position < words.length →
+      position / Poseidon2.rate < (absorbCalls words).length := by
+    intro words inside
+    rw [absorbCalls_length]
+    unfold Poseidon2.rate at *
+    omega
+  have call := congrArg (fun calls : List Call => calls[position / Poseidon2.rate]?) same
+  simp only [List.getElem?_append_left (bound inLeft),
+    List.getElem?_append_left (bound inRight)] at call
+  have word := absorbCalls_word left inLeft
+  rw [call, absorbCalls_word right inRight] at word
+  exact (Option.some.inj word).symm
 
 /-- An absorb has no length word and no padding: a message and the same message with one more
 zero word have one call list. -/
@@ -72,6 +107,18 @@ def Piece.Alike : Piece → Piece → Prop
 theorem Piece.alike_of_length {words words' : List F} (lengthEqual : words.length = words'.length) :
     Piece.Alike (.absorb words) (.absorb words') :=
   fun _ _ _ => lengthEqual
+
+/-- Two messages are alike when each has a front of one length, then a count word that fixes
+the length of the words after it. -/
+theorem Piece.alike_of_counted {front front' body body' : List F} {count count' : F}
+    (fronts : front.length = front'.length)
+    (rule : count = count' → body.length = body'.length) :
+    Piece.Alike (.absorb (front ++ count :: body)) (.absorb (front' ++ count' :: body')) := by
+  intro rest rest' same
+  have word := absorbCalls_append_word same (position := front.length) (by simp)
+    (by simp [fronts])
+  have counts : count = count' := by simpa [fronts] using word
+  simp [fronts, rule counts]
 
 /-- The calls of a transcript fix its pieces, when the pieces are alike at each position. -/
 theorem calls_injective {left right : List Piece} (alike : List.Forall₂ Piece.Alike left right) :

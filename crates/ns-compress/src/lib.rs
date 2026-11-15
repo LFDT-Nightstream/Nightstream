@@ -231,34 +231,41 @@ fn layout(statements: &[Statement<'_>], key_blocks: usize) -> Result<Layout, Err
     Layout::new(&claims, key_blocks)
 }
 
+/// The words of a claim (SPEC.md section 5.4, row 6; Lean
+/// `Export.BoundedDepth.CompressionSponge.Claim.words`): its sizes, then
+/// its commitment, public input, point and evaluation families.
+fn claim_words(statement: &Statement<'_>) -> Vec<F> {
+    let claim = statement.claim;
+    let bound = match statement.norm {
+        Norm::Table { bound } => bound + 1,
+        Norm::Caller => 0,
+    };
+    let sizes = [
+        statement.blocks() as u64,
+        bound,
+        claim.m_in as u64,
+        claim.r.len() as u64,
+        claim.eval_a.len() as u64,
+    ];
+    let mut words: Vec<F> = sizes.map(F::from_u64).to_vec();
+    words.extend_from_slice(claim.c.data());
+    words.extend(claim.X.to_dense_vec());
+    let extension = claim
+        .r
+        .iter()
+        .chain(&claim.eval_k[..D])
+        .chain(claim.eval_a.iter().flat_map(|family| &family[..D]));
+    words.extend(extension.flat_map(|value| value.as_coeffs()));
+    words
+}
+
 /// Bind the verification key and the statements: the bytes of the key,
-/// then for each claim its sizes and its words.
+/// then the words of each claim.
 fn absorb_statements(transcript: &mut Poseidon2Transcript, key: &VerificationKey, statements: &[Statement<'_>]) {
     transcript.absorb_v1_2(&domain_chunk_v1_2(DOMAIN));
     transcript::absorb_bytes(transcript, &key.to_bytes());
     for statement in statements {
-        let claim = statement.claim;
-        let bound = match statement.norm {
-            Norm::Table { bound } => bound + 1,
-            Norm::Caller => 0,
-        };
-        let sizes = [
-            statement.blocks() as u64,
-            bound,
-            claim.m_in as u64,
-            claim.r.len() as u64,
-            claim.eval_a.len() as u64,
-        ];
-        let mut words: Vec<F> = sizes.map(F::from_u64).to_vec();
-        words.extend_from_slice(claim.c.data());
-        words.extend(claim.X.to_dense_vec());
-        let extension = claim
-            .r
-            .iter()
-            .chain(&claim.eval_k[..D])
-            .chain(claim.eval_a.iter().flat_map(|family| &family[..D]));
-        words.extend(extension.flat_map(|value| value.as_coeffs()));
-        transcript.absorb_v1_2(&words);
+        transcript.absorb_v1_2(&claim_words(statement));
     }
 }
 

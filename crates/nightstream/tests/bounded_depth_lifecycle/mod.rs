@@ -7,9 +7,9 @@
 #[path = "../bounded_depth_support/mod.rs"]
 mod support;
 
-mod circuit_key;
 mod compression;
 mod compression_error;
+mod encodings;
 mod factored_rows;
 mod fold_gate;
 mod guard_fusion;

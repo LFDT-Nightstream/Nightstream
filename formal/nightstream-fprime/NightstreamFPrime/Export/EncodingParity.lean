@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.Codec
+import NightstreamFPrime.Export.BoundedDepth.CompressionSponge
 import NightstreamFPrime.Export.BoundedDepth.StepRelation
 import NightstreamFPrime.Lifecycle.BoundedDepth.CircuitKeyDigest
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightSchedule
@@ -6,16 +7,22 @@ import NightstreamFPrime.Lifecycle.RandomOracle.Pieces
 
 /-! Vectors of the hashed encodings that Rust computes outside the step packages
 (`SECURITY_MODEL.md`, section Hashed encodings). The value is
-`[schema, circuitKeys, foldTranscripts]`.
+`[schema, circuitKeys, foldTranscripts, compression]`.
 
 `circuitKeys` holds `[identity, digest 0, digest 1]` of
 `Lifecycle.BoundedDepth.CircuitKeyDigest.digest` for each identity of `identities`. Rust must
-give the same words (`crates/nightstream/tests/bounded_depth_lifecycle/circuit_key.rs`).
+give the same words (`crates/nightstream/tests/bounded_depth_lifecycle/encodings.rs`).
 
 `foldTranscripts` holds the light and the refresh fold transcript on sample data
 (`foldTranscript`): the pieces of `Lifecycle.RandomOracle.Schedule.pieces`, the first and the last
 round challenge and the sponge state after the output. Rust must absorb the same lengths and reach the same
-state (`crates/nightstream-fprime/tests/fold_transcript_lean.rs`). -/
+state (`crates/nightstream-fprime/tests/fold_transcript_lean.rs`).
+
+`compression` holds the encodings of `Export.BoundedDepth.CompressionSponge`: the two domains and
+the session label, `[bytes, byteWords bytes]` for byte strings of several lengths, a claim with
+its words, a sponge state with its session bytes, and the pieces of a sample run with its
+session. Rust must give the same words and bytes (`crates/ns-compress/tests/unit/transcript.rs`,
+`crates/nightstream/tests/bounded_depth_lifecycle/encodings.rs`). -/
 
 namespace NightstreamFPrime.Export.EncodingParity
 
@@ -101,6 +108,74 @@ def foldTranscripts : Value :=
           fun child => sampleEvaluations productionShape (40 + 5 * child.val)⟩)
       (sampleMessages refresh foldDegree (sampleOutput productionShape))]
 
-def parityValue : Value := .array [.atom schema, circuitKeys, foldTranscripts]
+section Compression
+
+open NightstreamFPrime.Export.BoundedDepth.CompressionSponge
+open NightstreamFPrime.Lifecycle.RandomOracle.Sponge
+
+def bytes (values : List Byte) : Value :=
+  .array (values.map fun value => .atom value.val)
+
+def sampleBytes (seed length : Nat) : List Byte :=
+  (List.range length).map fun index => Fin.ofNat 256 (seed + 37 * index)
+
+def sampleWords (seed length : Nat) : List F := (List.range length).map (sample seed)
+
+/-- A claim of the shape `(m_in, ℓ, t)`. -/
+def sampleClaim (seed : Nat) (shape : Nat × Nat × Nat) : Claim where
+  blocks := 61 + seed
+  norm := 2177 + seed
+  commitment := sampleWords (seed + 1) (18 * 64)
+  cells := sampleWords (seed + 2) shape.1
+  point := sampleWords (seed + 3) (2 * shape.2.1)
+  evalK := sampleWords (seed + 4) (2 * 64)
+  evalA := sampleWords (seed + 5) (2 * (shape.2.2 * 64))
+
+def sampleSizes : Sizes := ⟨30, 7, 18, 20⟩
+
+def sampleShape : Compression.Rust.Shape where
+  claims := [(64, 3, 1), (128, 3, 2)]
+  tables := 1
+  spanVars := 3
+  witnessVars := 4
+  keyBlockVars := 1
+
+def sampleRun : Run where
+  fresh := sampleWords 50 sampleSizes.fresh
+  ccsRounds := (List.range sampleSizes.rounds).map fun round =>
+    sampleWords (51 + round) sampleSizes.roundWords
+  ccsOutput := sampleWords 60 sampleSizes.output
+  argument :=
+    { key := sampleBytes 61 30
+      claims := [sampleClaim 62 (64, 3, 1), sampleClaim 70 (128, 3, 2)]
+      witness := sampleBytes 80 45
+      inverse := sampleBytes 81 14
+      rounds := (List.range sampleShape.witnessVars).map fun round => sampleWords (82 + round) 8
+      witnessValue := sampleWords 90 2
+      inverseValues := sampleWords 91 8
+      keyWeight := sampleWords 92 2
+      keyRounds := (List.range (Compression.Rust.laneVars + sampleShape.keyBlockVars)).map
+        fun round => sampleWords (93 + round) 6
+      keyValue := sampleWords 110 2 }
+
+def compression : Value :=
+  let piece : Piece → Value
+    | .absorb values => .array [.atom 0, words values]
+    | .draw count => .array [.atom 1, .atom count]
+  let state := sampleWords 120 Poseidon2.width
+  let claim := sampleClaim 0 (128, 14, 4)
+  .array [
+    .array [words ccsDomain, words argumentDomain, bytes sessionLabel],
+    .array (([0, 1, 6, 7, 8, 13, 14, 15, 50].map (sampleBytes 5)).map fun values =>
+      .array [bytes values, words (byteWords values)]),
+    .array [.atom claim.blocks, .atom claim.norm, words claim.commitment, words claim.cells,
+      words claim.point, words claim.evalK, words claim.evalA, words claim.words],
+    .array [words state, bytes (sessionBytes sessionLabel state)],
+    .array [.array ((pieces sampleSizes sampleShape sampleRun).map piece),
+      bytes (session sampleSizes sampleShape sampleRun)]]
+
+end Compression
+
+def parityValue : Value := .array [.atom schema, circuitKeys, foldTranscripts, compression]
 
 end NightstreamFPrime.Export.EncodingParity

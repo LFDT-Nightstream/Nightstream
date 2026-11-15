@@ -42,3 +42,7 @@ pub(crate) fn absorb_bytes(transcript: &mut Poseidon2Transcript, bytes: &[u8]) {
 pub(crate) fn session(transcript: &Poseidon2Transcript, label: &[u8]) -> Vec<u8> {
     [label, &transcript.state_prefix_v1_2()].concat()
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/transcript.rs"]
+mod tests;

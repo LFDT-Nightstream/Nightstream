@@ -1,4 +1,5 @@
 import NightstreamFPrime.Spec.Sponge
+import NightstreamFPrime.Export.BoundedDepth.CompressionSponge
 import NightstreamFPrime.Export.BoundedDepth.StepPackage
 import NightstreamFPrime.Lifecycle.BoundedDepth.CircuitKeyDigest
 import NightstreamFPrime.Lifecycle.BoundedDepth.Keys
@@ -16,9 +17,10 @@ the tags of two distinct uses are distinct (`separated`). A use owns the block l
 absorbs: the `10*` padded blocks of a hash use (`hash_owns`), the calls of a fold transcript
 (`fold_owns`), and the framed blocks of a Nebula transcript (`nebula_owns`).
 
-The last three rows restate Rust tags that no Lean definition has: the two compression domains
-and the application identity (`SPEC.md` section 4.4, Algorithm 10). No emitted data compares them
-with Rust yet. -/
+The compression transcript is one sponge: it starts with the domain of its Π_CCS run
+(`compression_owns`) and absorbs the domain of the argument after that run. The last row restates
+a Rust tag that no Lean definition has: the application identity (`SPEC.md` section 4.4). No
+emitted data compares it with Rust. -/
 
 set_option autoImplicit false
 
@@ -60,8 +62,8 @@ def uses : List Use :=
    ⟨"Nebula eta", nebulaTag "Nightstream/Nebula/v3/eta"⟩,
    ⟨"Nebula state", nebulaTag "Nightstream/Nebula/v3/state"⟩,
    ⟨"circuit key digest", BoundedDepth.CircuitKeyDigest.domain⟩,
-   ⟨"compression Pi_CCS", BoundedDepth.domainChunk "Nightstream/OptionB/compress/ccs/v1"⟩,
-   ⟨"compression argument", BoundedDepth.domainChunk "Nightstream/compress/akita/v2"⟩,
+   ⟨"compression Pi_CCS", Export.BoundedDepth.CompressionSponge.ccsDomain⟩,
+   ⟨"compression argument", Export.BoundedDepth.CompressionSponge.argumentDomain⟩,
    ⟨"application identity",
      byteWords "Nightstream/OptionB/application/combined-native-experiment/v1"⟩]
 
@@ -216,5 +218,17 @@ theorem nebula_owns (first : List F) (rest : List (List F))
   rw [Nebula.blockChunks_cons, List.append_assoc, List.map_append, List.flatten_append]
   rw [chunks_eq_absorbCalls]
   exact (prefix_absorbCalls (block first)).trans (List.prefix_append _ _)
+
+/-- The compression transcript owns its sponge calls: they start with the domain of its Π_CCS
+run. -/
+theorem compression_owns (sizes : Export.BoundedDepth.CompressionSponge.Sizes)
+    (shape : Compression.Rust.Shape) (run : Export.BoundedDepth.CompressionSponge.Run) :
+    Export.BoundedDepth.CompressionSponge.ccsDomain <+:
+      ((RandomOracle.Sponge.calls 0
+        (Export.BoundedDepth.CompressionSponge.pieces sizes shape run)).map List.ofFn).flatten := by
+  simp only [Export.BoundedDepth.CompressionSponge.pieces,
+    Export.BoundedDepth.CompressionSponge.ccsPieces, List.cons_append, RandomOracle.Sponge.calls,
+    List.map_append, List.flatten_append]
+  exact (prefix_absorbCalls _).trans (List.prefix_append _ _)
 
 end NightstreamFPrime.Export.DomainSeparation

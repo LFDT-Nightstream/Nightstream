@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
-use neo_math::{KExtensions, D, F, K};
+use neo_math::{KExtensions, F, K};
 use neo_transcript::{domain_chunk_v1_2, Poseidon2Transcript};
 use p3_field::PrimeCharacteristicRing;
 use serde_json::Value;
@@ -23,7 +23,7 @@ use crate::layout::{Layout, LOOKUPS};
 use crate::support::{instances, key, layout, statements};
 use crate::transcript::{byte_words, challenges};
 use crate::weights::{self, Challenges, Uses};
-use crate::{claimed_sum, inverse_point, verify, Norm, Proof, Statement, DOMAIN, SESSION};
+use crate::{claim_words, claimed_sum, inverse_point, verify, Norm, Proof, Statement, DOMAIN, SESSION};
 
 fn lean_schedule() -> Value {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -38,32 +38,6 @@ fn number(value: &Value) -> usize {
 
 fn words(values: &[K]) -> Vec<F> {
     values.iter().flat_map(|value| value.as_coeffs()).collect()
-}
-
-/// The words of a claim in SPEC.md section 5.4, row 6.
-fn claim_words(statement: &Statement<'_>) -> Vec<F> {
-    let claim = statement.claim;
-    let bound = match statement.norm {
-        Norm::Table { bound } => bound + 1,
-        Norm::Caller => 0,
-    };
-    let sizes = [
-        (statement.rows.shape().columns / D) as u64,
-        bound,
-        claim.m_in as u64,
-        claim.r.len() as u64,
-        claim.eval_a.len() as u64,
-    ];
-    let mut words: Vec<F> = sizes.map(F::from_u64).to_vec();
-    words.extend_from_slice(claim.c.data());
-    words.extend(claim.X.to_dense_vec());
-    let extension = claim
-        .r
-        .iter()
-        .chain(&claim.eval_k[..D])
-        .chain(claim.eval_a.iter().flat_map(|family| &family[..D]));
-    words.extend(extension.flat_map(|value| value.as_coeffs()));
-    words
 }
 
 /// The messages of each Lean label, in order.

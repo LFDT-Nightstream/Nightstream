@@ -20,6 +20,11 @@ The repository has one protocol specification (`AGENTS.md`, Specs). So the scrip
 a tracked file is in a `specs/` folder, when a Markdown file outside SPEC_FILES has "spec" in its
 name, or when a Lean or Rust file cites `spec §`, the citation form of the deleted spec files.
 
+SPEC.md also holds the table of verifier entry points between `<!-- entry-points -->` and
+`<!-- /entry-points -->`. Each public `verify…` function of `crates/nightstream/src/` needs a row,
+and each row cites exactly one pinned theorem of the Lean-emitted premise list PREMISES, or it
+starts with `Open:`.
+
   python3 scripts/check_spec.py            check pins, paths, the table and the spec files
   python3 scripts/check_spec.py --write    rewrite the table (pins are never edited)
 """
@@ -45,6 +50,9 @@ PARITY = ARTIFACTS / "nightstream-fprime-bounded-depth-parity-v1.json"
 FORMATS = FPRIME / "Export/BoundedDepth/StepPackage.lean"
 PARITY_SOURCE = FPRIME / "Export/BoundedDepth/Parity.lean"
 BEGIN, END = "<!-- params -->", "<!-- /params -->"
+ENTRY_BEGIN, ENTRY_END = "<!-- entry-points -->", "<!-- /entry-points -->"
+PREMISES = ARTIFACTS / "nightstream-fprime-premises-v1.tsv"
+ENTRY_FUNCTION = re.compile(r"^\s*pub fn (verify\w*)\(", re.M)
 # The Markdown files whose names say "spec": the protocol specification and the scope of a
 # profiling tool.
 SPEC_FILES = {"SPEC.md", "scripts/gpuscope/SPEC.md"}
@@ -311,6 +319,34 @@ def path_errors(text):
                    f"{', '.join(rel(base) or '.' for base in BASES)}")
 
 
+def entry_point_errors(text):
+    """Each public verifier of the `nightstream` crate has one row, and each row has one pinned
+    theorem of the premise list or starts with `Open:`."""
+    if text.count(ENTRY_BEGIN) != 1 or text.count(ENTRY_END) != 1:
+        yield f"SPEC.md needs one {ENTRY_BEGIN} … {ENTRY_END} table"
+        return
+    rows = {}
+    for line in text.split(ENTRY_BEGIN)[1].split(ENTRY_END)[0].splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        found = re.match(r"`(crates/[^`]+)`, (?:`(\w+)`)?", cells[0])
+        if len(cells) == 3 and found:
+            rows[(found.group(1), found.group(2))] = cells[2]
+    listed = {line.split("\t")[0] for line in PREMISES.read_text(encoding="utf-8").splitlines()}
+    for (path, name), theorem in rows.items():
+        pins = PIN.findall(theorem)
+        if theorem.startswith("Open:"):
+            continue
+        if len(pins) != 1:
+            yield f"entry point `{path}` `{name}` needs exactly one pinned theorem, or `Open:`"
+        elif pins[0][0] not in listed:
+            yield (f"`{pins[0][0]}` of entry point `{path}` `{name}` is not in {rel(PREMISES)}: "
+                   "add it to tests/PremiseCensus.lean")
+    for source in sorted((ROOT / "crates/nightstream/src").rglob("*.rs")):
+        for name in ENTRY_FUNCTION.findall(source.read_text(encoding="utf-8")):
+            if (rel(source), name) not in rows:
+                yield f"`{rel(source)}` `{name}` is a public verifier without an entry-point row"
+
+
 def tracked_files():
     listing = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True)
     return [path for path in listing.stdout.decode("utf-8").split("\0") if path]
@@ -354,7 +390,7 @@ def main():
         args.spec.write_text(new, encoding="utf-8")
         print(f"spec: wrote the parameters table of {args.spec.name}")
         return
-    errors = [*pin_errors(text), *path_errors(text)]
+    errors = [*pin_errors(text), *path_errors(text), *entry_point_errors(text)]
     if new != text:
         errors.append("the parameters table is stale; run python3 scripts/check_spec.py --write")
     for error in errors:

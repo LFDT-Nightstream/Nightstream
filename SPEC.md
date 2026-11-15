@@ -1009,3 +1009,17 @@ An implementation conforms when it reproduces these vectors and passes these che
 | the WASM application | `cargo test -p neo-wasm --release` (CI) | the catalog rows of a WASM program at 1, 2 and 4 rows in each step, a load that reads a store of an earlier row of its step, and a step of rows that are not neighbors; ignored tests prove it at 1 and 2 rows in each step |
 
 These checks cover their recorded inputs. No theorem covers arbitrary Rust execution (`SECURITY_MODEL.md`, trust item 5).
+
+### Verifier entry points
+
+Each row is a verifier that a caller reaches through the `nightstream` crate. The theorem of a row is the one Lean result whose event is the whole accept condition of the entry point. `SECURITY_MODEL.md`, section Premises, gives the class of each hypothesis of that theorem. A row without such a theorem starts with "Open:". `scripts/check_spec.py` fails when a public `verify` or `verify_final` function of `crates/nightstream/src/` has no row, when a row has not exactly one pin and is not open, or when the theorem of a row is not in the premise list `formal/nightstream-fprime/artifacts/nightstream-fprime-premises-v1.tsv`. The `neo-wasm` crate has no verifier of its own: a WASM proof goes through the two memory entry points with the WASM application.
+
+<!-- entry-points -->
+| Entry point | Algorithm | Theorem |
+|---|---|---|
+| `crates/nightstream/src/circuit.rs`, `verify` | Algorithm 6 | `Export.BoundedDepth.VerifierSecurity.soundness` (`82cd33303ebf595d`) |
+| `crates/nightstream/src/circuit.rs`, `verify_final` | Algorithm 10 | `Export.BoundedDepth.FinalHistory.real_soundness` (`092353136c1c4c1d`) |
+| `crates/nightstream/src/nebula/proving.rs`, `verify` | Algorithm 8 | `Export.BoundedDepth.NebulaSecurity.bad_le` (`f9411a643ebe4f76`) |
+| `crates/nightstream/src/nebula/proving.rs`, `verify_final` | Algorithms 8 and 10 | Open: no Lean result joins the memory bound of Algorithm 8 with the bound of the final proof (`SECURITY_MODEL.md`, adversary 6). |
+| `crates/neo-wasm/src/nebula.rs`, the WASM application at the two memory entry points | Algorithms 8 and 10 | Open: Rust builds the WASM relation, and no Lean package fixes it, so the memory bound has no instance of this application (`SECURITY_MODEL.md`, Out of scope). |
+<!-- /entry-points -->

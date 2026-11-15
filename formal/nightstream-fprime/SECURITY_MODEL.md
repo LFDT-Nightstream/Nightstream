@@ -489,6 +489,12 @@ not change terminal source checks.
   (`Export.BoundedDepth.IvcWalk.Reaches`). The bridge's selector returns the
   circuit that ran only on a valid step (`Export.BoundedDepth.TerminalBridge.chosen`),
   so each decoded step is valid (`Export.BoundedDepth.TerminalBridge.valid_of_chosen`).
+- **The verifier:** the terminal verifier of `SPEC.md` Algorithm 6 also
+  holds each slot to the bound of its depth
+  (`Export.BoundedDepth.RunCompleteness.Verifies`). The same sum bounds the
+  probability that this verifier accepts and no such steps lead from `z0` to
+  `zi` (`Export.BoundedDepth.VerifierSecurity.soundness`). `SPEC.md`
+  section 9 gives the theorem of each verifier entry point.
 - **Knowledge form:** HyperNova Definition 11 (ii) states knowledge
   soundness: its event is on the witnesses that the extractor returns. The
   same sum bounds the probability of an extraction failure: the terminal

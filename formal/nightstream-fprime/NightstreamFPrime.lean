@@ -136,6 +136,7 @@ import NightstreamFPrime.Export.BoundedDepth.IvcWalk
 import NightstreamFPrime.Export.BoundedDepth.RomWalk
 import NightstreamFPrime.Export.BoundedDepth.RandomOracleSetup
 import NightstreamFPrime.Export.BoundedDepth.IvcSecurity
+import NightstreamFPrime.Export.BoundedDepth.VerifierSecurity
 import NightstreamFPrime.Export.BoundedDepth.StepCompleteness
 import NightstreamFPrime.Export.BoundedDepth.NativeCompleteness
 import NightstreamFPrime.Export.BoundedDepth.NativeBooleanCompleteness

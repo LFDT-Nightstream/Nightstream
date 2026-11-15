@@ -12,6 +12,7 @@ open NightstreamFPrime in
   Export.BoundedDepth.FoldSponge.refresh_knowledge_le
   Export.BoundedDepth.IvcSecurity.extraction_bound
   Export.BoundedDepth.IvcSecurity.probability_bound
+  Export.BoundedDepth.VerifierSecurity.soundness
   Export.BoundedDepth.NebulaSecurity.bad_le
   Export.BoundedDepth.NebulaSecurity.romMemoryRound
   Export.BoundedDepth.EtaSponge.unbalanced_le

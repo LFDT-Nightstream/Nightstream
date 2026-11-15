@@ -301,16 +301,10 @@ pub(crate) fn weight_table(uses: &Uses) -> Vec<K> {
             .zip(equality(claim.point, claim.blocks))
             .for_each(|(sum, weight)| *sum += claim.coefficient * weight);
     }
-    let mut table = vec![K::ZERO; blocks * D];
-    table
-        .par_chunks_mut(D)
-        .zip(&by_block)
-        .for_each(|(lanes, &block)| {
-            for (cell, &lane) in lanes.iter_mut().zip(&uses.form) {
-                *cell = lane * block;
-            }
-        });
-    table
+    (0..blocks * D)
+        .into_par_iter()
+        .map(|cell| uses.form[cell % D] * by_block[cell / D])
+        .collect()
 }
 
 /// The verifier's value of those weights at the point `(λ, β′)` where the

@@ -7,6 +7,10 @@ ideal-model steps of section 5 (section 7). Premises P1 and P2 stay external,
 and no external review has checked the argument. The seed and domain policy
 (section 6) is still an owner choice.
 
+Changed on 2026-11-14: [`fprime-ajtai-rejection-sampling.md`](./fprime-ajtai-rejection-sampling.md) replaces the 256-bit wide reduction with 8-byte rejection sampling and a fallback. Sections 4, 5 and 7 state the new rule.
+
+Superseded in part on 2026-11-13: [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) replaces the Goldilocks prime, the ring `X^54 + X^27 + 1` and the 22 rows of this argument with `q = 2^64 − 59`, the ring `X^64 + 1` and 18 rows. The numbers below are those of the prior profile.
+
 ## 1. Purpose
 
 The current setup rests on a premise about one fixed matrix
@@ -28,7 +32,7 @@ reduction.
   `8TB = 113,246,208` for relaxed binding (`RelaxedBinding.lean`). The
   random-oracle knowledge theorem computes such a kernel vector from each
   counted rerun of its binding reduction (`RandomOracleBinding.rerunKernel`),
-  and with the key drawn from uniform chunks inside its game it bounds the
+  and with the key drawn from uniform streams inside its game it bounds the
   binding term by an MSIS solver's success on a uniform matrix
   (`RandomOracleSetup.knowledge_error_le_setup`, through
   `Programming.expect_le_programmed`). Hardness of the kernel problem is a
@@ -50,27 +54,28 @@ reduction.
 Kyber uses the same form of premise: its proofs model SHAKE-128, which
 expands its matrix, as a random oracle (specification round 3, §5.4). FrodoKEM
 proves the expansion step in the ideal model and states that it covers an
-attacker who knows the seed (specification 2021, §5.1.3). Only the indexed
-XOF structure follows Kyber: Kyber samples coefficients by rejection, and this
-construction reduces 256-bit chunks instead.
+attacker who knows the seed (specification 2021, §5.1.3). The indexed XOF
+structure and the rejection sampling follow Kyber. This construction reads a
+fixed number of words for each element and has a fallback.
 
 ## 4. Construction
 
 ```text
-domain = setup_id ‖ seed        (37 + 32 bytes)
-setup_id = "nightstream-ajtai-shake128-wide256-v1"
-input(row, column) = domain ‖ row_u32_le ‖ column_u64_le        (81 bytes)
+domain = setup_id ‖ seed        (38 + 32 bytes)
+setup_id = "nightstream-ajtai-shake128-reject64-v1"
+input(row, column) = domain ‖ row_u32_le ‖ column_u64_le        (82 bytes)
+words(row, column) = the first 84 little-endian 64-bit words of
+    SHAKE128(input(row, column))
 coefficient(row, column, lane) =
-    reduce( SHAKE128(input(row, column))[32·lane .. 32·lane + 32] )
+    the lane-th word of words(row, column) below q,
+    or 0 when fewer than lane + 1 words are below q
 ```
 
-- `reduce` interprets 32 bytes as a little-endian integer and reduces it modulo
-  the Goldilocks prime. It is the previous wide reduction.
+- A word of `q` or more is rejected. The 0 is the fallback.
 - Every input has the same length, so the map from `(row, column)` to the input
   is injective for rows below `2^32` and columns below `2^64`. Lean proves this
-  (`elementInput_injective`). Each key element has its own XOF input, and its
-  54 lanes use disjoint output bytes of one 1,728-byte output
-  (`elementLanes_length`).
+  (`elementInput_injective`). Each key element has its own XOF input and reads
+  the 84 words of one 672-byte output (`elementWords_length`).
 - `seed` is the existing 32-byte verifier-owned seed. A package domain
   (section 6) would replace it.
 - Generation stays indexed and lazy: one XOF call gives one key element.
@@ -86,36 +91,37 @@ input, and wins if it outputs a binding collision for the expanded key.
 is indifferentiable from a random oracle in the ideal-permutation model, with
 an advantage of about `N² / 2^(c+1)`, where `N` counts all permutation calls
 and `c = 256` for SHAKE128 (Bertoni, Daemen, Peeters, Van Assche, 2008). `N`
-includes the setup expansion itself: at most 22 × 4,708,530 elements times 11
-calls, below `2^31`.
+includes the setup expansion itself: at most 22 × 4,708,530 elements times 4
+calls, below `2^29`.
 
 **Game 2.** The reduction receives a uniform MSIS matrix `A` (P2). It answers
 the oracle as follows:
 
-- For a setup input `x(row, column)`, it samples each 32-byte chunk
-  uniformly from the integers in `[0, 2^256)` that reduce to
-  `A[row][column][lane]`. It does this lazily and stores the answer.
+- For a setup input `x(row, column)`, it samples the 84 words uniformly from
+  the streams whose kept words give the ring element `A[row][column]`. It
+  does this lazily and stores the answer.
 - For every other input, it returns fresh uniform bytes and stores them.
 - It answers repeated inputs from storage.
 
 The attacker's own queries to setup inputs therefore return the same bytes
 that define the key, so its view stays consistent. The reduction recognizes a
-setup input by its fixed 81-byte format and its 69-byte domain prefix.
+setup input by its fixed 82-byte format and its 70-byte domain prefix.
 
-**Distance between Game 1 and Game 2.** In both games a chunk is a uniform
-preimage of its residue. Only the residue distribution differs: it is uniform
-in Game 2, and it is the reduction of a uniform 256-bit integer in Game 1.
-With `r = 2^256 mod q = 2^32 - 1`, the residue weights differ by at most
-`2r / 2^256` in total absolute difference. For `N` independent coefficients,
+**Distance between Game 1 and Game 2.** In both games a stream is a uniform
+preimage of its ring element. Only the law of the element differs. It is
+uniform in Game 2. In Game 1 it is exactly uniform unless the fallback gives
+a coefficient, which needs 21 or more rejected words of the 84. With
+`ε = C(84, 21) · 59^21 / 2^1344`, below `2^-1155`, the two laws differ by at
+most `2ε` in total absolute difference. For `N` independent key elements,
 the probability of any event of the attacker's view changes by at most
-`2Nr / 2^256`. The production key has `N = 3,826,660,860`, so the change is
-below `2^-190`.
+`2Nε`. The bounded-depth key has `N = 18 · 2^20`, so the change is below
+`2^-1129`.
 
 **Result.** A collision in Game 2 gives a short kernel vector for `A` through
 the existing Lean reduction. So
 
 ```text
-Adv_binding ≤ Adv_MSIS(uniform) + N² / 2^257 + 2^-190
+Adv_binding ≤ Adv_MSIS(uniform) + N² / 2^257 + 2^-1129
 ```
 
 in the classical random-oracle model, with the attacker's work, including any
@@ -150,22 +156,24 @@ The owner must select a global domain or a domain for each package.
 1. Specify the expander: the input encoding, its injectivity and the disjoint
    output slices. Done: `Spec/AjtaiSetupV1.lean`,
    `Spec/AjtaiSetupV1/Shake128.lean` and `Spec/AjtaiSetupV1/IndexEncoding.lean`.
-2. Reuse the existing bias bound for the reduction of uniform 256-bit
-   integers (`ReductionBias.wide_frequency_error_le`).
+2. Done. The law of one key element: `Rejection.card_element` (each ring
+   element is the element of the same number of streams with no fallback),
+   `Rejection.card_fallback_le` and `Rejection.fallbackBound_lt` (the
+   probability of the fallback).
 3. Done. The programming step: `Programming.real_sub_programmed_le` bounds
-   the change of any event of the attacker's complete view, all setup chunks
-   and every other value it reads (`Extra`), when each chunk becomes a uniform
-   preimage of a uniform matrix entry. The per-coordinate bound is
-   `reducedWeight_difference_le`, which reuses step 2; the product bound is
+   the change of any event of the attacker's complete view, all setup streams
+   and every other value it reads (`Extra`), when each stream becomes a
+   uniform preimage of a uniform matrix element. The bound for one element is
+   `Programming.element_bias_le`, which uses step 2; the product bound is
    `product_difference_le`.
 4. Done. `Programming.binding_le_solver` composes step 3 with
    `IsCollision.shortKernel`, the existing collision-to-kernel reduction.
-   `production_binding_lt_solver` instantiates it at the production key with
-   an error below `2^-190`, and `productionKey_eq_chunks` shows that the
-   production key is the residue key of its SHAKE128 chunks.
+   `RandomOracleSetup.programmingError_lt` bounds the error at the
+   bounded-depth key below `2^-1129`, and `Programming.verifierKey_eq` shows
+   that the key is the element key of its SHAKE128 streams.
 
-Not proved in Lean: P1 and P2; that P1 applied to the distinct 81-byte inputs
-gives independent uniform 32-byte chunks (each chunk encodes its bytes
+Not proved in Lean: P1 and P2; that P1 applied to the distinct 82-byte inputs
+gives independent uniform 64-bit words (each word encodes its bytes
 bijectively); the running time of the simulation; and the indifferentiability
 term `N² / 2^257`. The Lean result stays conditional on P1 and P2.
 

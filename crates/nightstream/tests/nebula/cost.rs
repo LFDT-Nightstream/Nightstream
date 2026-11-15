@@ -301,7 +301,7 @@ fn r1cs_width(bits: usize) -> usize {
         ContinuityLink, MemoryCatalog, MemoryKind, MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec,
         R1csBuilder,
     };
-    use crate::{Goldilocks as F, PrimeCharacteristicRing};
+    use crate::{Fq as F, PrimeCharacteristicRing};
     const ONE: usize = 0;
     const BEFORE: usize = 1;
     const AFTER: usize = 2;

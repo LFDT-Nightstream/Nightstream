@@ -17,22 +17,22 @@ abbrev ApplicationProgram := Lifecycle.Stage1.Application.Program
 
 def stateRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (stateBlock program) (stateStart program)
-    (Spartan.sourceToSpartan RunningTransitionSourceSupport.stateStart)
+    (PackageOrder.sourceToPackage RunningTransitionSourceSupport.stateStart)
     RunningTransitionSourceSupport.stateCount 0
 
 def outputRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (outputBlock program) (outputStart program)
-    (Spartan.sourceToSpartan RunningTransitionSourceSupport.outputStart)
+    (PackageOrder.sourceToPackage RunningTransitionSourceSupport.outputStart)
     RunningTransitionSourceSupport.outputCount 0
 
 def piDecRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (piDecBlock program) (piDecStart program)
-    (Spartan.sourceToSpartan RunningTransitionSourceSupport.piDecStart)
+    (PackageOrder.sourceToPackage RunningTransitionSourceSupport.piDecStart)
     RunningTransitionSourceSupport.piDecCount 0
 
 def freshRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (freshBlock program) (freshStart program)
-    (Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset) freshCount 0
+    (PackageOrder.sourceToPackage RunningTransitionInputs.phaseOffset) freshCount 0
 
 def substitution (program : ApplicationProgram) : SourceSubstitution where
   ranges := [stateRange program, outputRange program, piDecRange program,
@@ -40,9 +40,9 @@ def substitution (program : ApplicationProgram) : SourceSubstitution where
   grids := [PiCCSTranscriptOutputForms.pointGrid program]
 
 def rowSchedule : IndexSchedule :=
-  .rangeList [⟨RunningTransitionArithmetic.rowStart, 27800⟩]
+  .rangeList [⟨RunningTransitionArithmetic.rowStart, 25310⟩]
 
-@[simp] theorem rowSchedule_count : rowSchedule.count = 27800 := by
+@[simp] theorem rowSchedule_count : rowSchedule.count = 25310 := by
   rfl
 
 def ordinaryBlock {program : ApplicationProgram} {logicalWidth : Nat}
@@ -59,7 +59,7 @@ def matrixProgram {program : ApplicationProgram} {logicalWidth : Nat}
 @[simp] theorem matrixProgram_rowCount
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) :
-    (matrixProgram geometry).rowCount = 27800 := by
+    (matrixProgram geometry).rowCount = 25310 := by
   rfl
 
 end NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram

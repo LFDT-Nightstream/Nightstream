@@ -1,11 +1,11 @@
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshTest
 import NightstreamFPrime.Spec.Folding.PiRLC.NormFreeFork
-import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
+import NightstreamFPrime.Spec.RingStrongSet.LowNormInvertibility
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 
 /-! The refresh fold's fork step in the random-oracle model: `Fork` on the refresh schedule,
-which has 17 `ρ` challenges. `verify` is `Refresh.verify` with the Π_CCS coins and the `ρ`
+which has 15 `ρ` challenges. `verify` is `Refresh.verify` with the Π_CCS coins and the `ρ`
 challenges read from the oracle (`RefreshTest.oracleProbe`, `Fork.rho`); the Π_RLC parent is the
 combined output of the batch on the oracle probe (`batch`, `parentFor`). `folds` is `slotFolds`
 at a refresh step with `verify` in its place. An adversary outputs a bounded-depth attempt; the
@@ -16,14 +16,14 @@ A successful attempt passes the Π_DEC input check and the refresh Π_CCS check 
 coins, and its witness opens the parent at the attempt's bound (`succeeds_holds`). The oracle
 probe reads only the split and the Π_CCS messages of a proof (`oracleProbe_congr`), so a valid
 retry at coordinate `i` has the base run's batch, and its witness opens the parent at the base
-run's challenges with coordinate `i` replaced (`retry_holds`). The base run and the 17 retries
+run's challenges with coordinate `i` replaced (`retry_holds`). The base run and the 15 retries
 are SuperNeo v1.2 Appendix B.3's complete fork without norms on the base batch (`fork`). It
-extracts the 17 Π_CCS outputs at the ambient bound (`extractedWitness`, `extracted_ambient`,
+extracts the 15 Π_CCS outputs at the ambient bound (`extractedWitness`, `extracted_ambient`,
 through `NormFreeFork.correctedAmbientHolds`).
 
-With `rhoCount = 17`: an invalid retry family has probability at most
-`17 · (Q + 17) · sampleError` plus the prior-state collision chance (`fork_failure_le`), and the
-expected number of reruns is at most `17 · (Q + 17)` (`expected_retries_le`). -/
+With `rhoCount = 15`: an invalid retry family has probability at most
+`15 · (Q + 15) · sampleError` plus the prior-state collision chance (`fork_failure_le`), and the
+expected number of reruns is at most `15 · (Q + 15)` (`expected_retries_le`). -/
 
 set_option autoImplicit false
 
@@ -49,7 +49,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink (Attempt Fol
 attribute [local instance low] Classical.propDecidable
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 section Types
 
@@ -60,8 +60,8 @@ abbrev Oracle := Point (RefreshSchedule.schedule logicalWidth publicFits) 8 → 
 abbrev Accumulator :=
   Refresh.Accumulator PaperAlgebra.Commitment
     (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
-    productionShape (Phi81CarrierLayout.carrierWidth logicalWidth)
-    (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
+    productionShape (RingCarrierLayout.carrierWidth logicalWidth)
+    (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth))
 
 end Types
 
@@ -71,10 +71,10 @@ abbrev RefreshProof := Refresh.Proof PaperAlgebra.Commitment productionShape 8
 the refresh game's fold verifiers, so the value does not matter. -/
 def placeholder : RefreshProof :=
   let family : EvaluationFamily K productionShape := ⟨fun _ => K.zero, fun _ _ => K.zero⟩
-  ⟨⟨fun _ => Phi81Relation.PiRLCAlgebra.Commitment.commitmentZero, fun _ => family⟩,
+  ⟨⟨fun _ => RingRelation.PiRLCAlgebra.Commitment.commitmentZero, fun _ => family⟩,
     ⟨fun _ => ⟨List.replicate (8 + 1) K.zero, by simp⟩,
       ⟨fun _ _ => K.zero, fun _ _ _ => K.zero⟩,
-      fun _ => Phi81Relation.PiRLCAlgebra.Commitment.commitmentZero, fun _ => family⟩⟩
+      fun _ => RingRelation.PiRLCAlgebra.Commitment.commitmentZero, fun _ => family⟩⟩
 
 def proofOf : StepProof → RefreshProof
   | .refresh proof => proof
@@ -85,7 +85,7 @@ section Verifier
 variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
-/-- The refresh Π_RLC batch on the oracle probe: the 17 Π_CCS outputs at the oracle's round
+/-- The refresh Π_RLC batch on the oracle probe: the 15 Π_CCS outputs at the oracle's round
 point (`PaperStrongInterface.piRlcBatchForProbe`). -/
 noncomputable def batch (oracle : Oracle logicalWidth publicFits)
     (accumulator : Accumulator logicalWidth publicFits) (fresh : StepFresh logicalWidth publicFits)
@@ -106,7 +106,7 @@ noncomputable def parentFor (oracle : Oracle logicalWidth publicFits)
     (batch relation ajtai oracle accumulator fresh proof).inputs rho
 
 /-- `Refresh.verify` in the random-oracle model: the Π_DEC input check, the refresh Π_CCS check
-on the oracle coins, and the Π_RLC parent at the oracle's 17 `ρ` challenges. -/
+on the oracle coins, and the Π_RLC parent at the oracle's 15 `ρ` challenges. -/
 noncomputable def verify (oracle : Oracle logicalWidth publicFits)
     (accumulator : Accumulator logicalWidth publicFits) (fresh : StepFresh logicalWidth publicFits)
     (proof : RefreshProof) : Option (Accumulator logicalWidth publicFits) :=
@@ -357,13 +357,13 @@ noncomputable def fork (succeeds : Fork.Succeeds (game ajtai key) adversary orac
 
 /-- SuperNeo v1.2 Lemma 8's strong set for the production refresh key. -/
 noncomputable abbrev strongSet :=
-  Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits Phi81StrongSet.lowNormInvertibility
+  RingRelation.PiRLCAlgebra.ForkStrongSet.strongSetUnits RingStrongSet.lowNormInvertibility
 
 /-- The Π_CCS output witness that the fork extracts (`Refresh.forkWitness` on the oracle
 probe). -/
 noncomputable def extractedWitness (succeeds : Fork.Succeeds (game ajtai key) adversary oracle)
     (valid : ∀ index, Fork.ForkValid (game ajtai key) adversary oracle retries index) :
-    OutputWitness productionShape (Phi81CarrierLayout.carrierWidth logicalWidth) :=
+    OutputWitness productionShape (RingCarrierLayout.carrierWidth logicalWidth) :=
   Nifs.PaperStrongInterface.outputWitnessOfAssignments (refreshKey key.relation ajtai)
     fun coordinate => extractedAssignment
       (normFreeLaws (PaperExtractionAlgebra.extractionAlgebra ajtai)) strongSet
@@ -405,7 +405,7 @@ noncomputable def collisionChance
     index oracle
 
 /-- `Fork.fork_failure_le` for the refresh fold: a successful run whose retry family is invalid
-has probability at most `17 · (Q + 17) · sampleError` plus the expected prior-state collision
+has probability at most `15 · (Q + 15) · sampleError` plus the expected prior-state collision
 chance. -/
 theorem fork_failure_le {queries : Nat} (bounded : adversary.QueryBound queries) :
     𝔼 oracle, (if Fork.Succeeds (game ajtai key) adversary oracle then
@@ -413,14 +413,14 @@ theorem fork_failure_le {queries : Nat} (bounded : adversary.QueryBound queries)
           (if ∀ index, Fork.ForkValid (game ajtai key) adversary oracle retries index
             then 0 else 1)
       else 0) ≤
-      17 * (((queries + 17 : Nat) : ℝ) * Fork.sampleError) +
+      15 * (((queries + 15 : Nat) : ℝ) * Fork.sampleError) +
         𝔼 oracle, (if Fork.Succeeds (game ajtai key) adversary oracle then
           ∑ index, collisionChance ajtai key adversary index oracle else 0) := by
   have count : ((RefreshSchedule.schedule logicalWidth publicFits).rhoCount : ℝ) *
       (((queries + (RefreshSchedule.schedule logicalWidth publicFits).rhoCount : Nat) : ℝ) *
         Fork.sampleError) =
-      17 * (((queries + 17 : Nat) : ℝ) * Fork.sampleError) := by
-    show ((17 : Nat) : ℝ) * (((queries + 17 : Nat) : ℝ) * Fork.sampleError) = _
+      15 * (((queries + 15 : Nat) : ℝ) * Fork.sampleError) := by
+    show ((15 : Nat) : ℝ) * (((queries + 15 : Nat) : ℝ) * Fork.sampleError) = _
     norm_num
   have failure := ForkLink.fork_failure_le ajtai key (folds ajtai)
     (statement := fun attempt => (attempt.link.fold.fresh, (proofOf attempt.link.fold.proof).split))
@@ -429,17 +429,17 @@ theorem fork_failure_le {queries : Nat} (bounded : adversary.QueryBound queries)
   rw [count] at failure
   exact failure
 
-/-- `Fork.expected_retries_le` for the refresh fold: at most `17 · (Q + 17)` expected
+/-- `Fork.expected_retries_le` for the refresh fold: at most `15 · (Q + 15)` expected
 reruns. -/
 theorem expected_retries_le {queries : Nat} (bounded : adversary.QueryBound queries) :
     𝔼 oracle, (if Fork.Succeeds (game ajtai key) adversary oracle then
         ∑ index, retryCount (Fork.Hits (game ajtai key) adversary index)
           (Fork.rhoPoint (game ajtai key) adversary index oracle) oracle else 0) ≤
-      17 * ((queries + 17 : Nat) : ℝ) := by
+      15 * ((queries + 15 : Nat) : ℝ) := by
   have count : ((RefreshSchedule.schedule logicalWidth publicFits).rhoCount : ℝ) *
       ((queries + (RefreshSchedule.schedule logicalWidth publicFits).rhoCount : Nat) : ℝ) =
-      17 * ((queries + 17 : Nat) : ℝ) := by
-    show ((17 : Nat) : ℝ) * ((queries + 17 : Nat) : ℝ) = _
+      15 * ((queries + 15 : Nat) : ℝ) := by
+    show ((15 : Nat) : ℝ) * ((queries + 15 : Nat) : ℝ) = _
     norm_num
   have retries := Fork.expected_retries_le (game ajtai key) adversary bounded
   rw [count] at retries

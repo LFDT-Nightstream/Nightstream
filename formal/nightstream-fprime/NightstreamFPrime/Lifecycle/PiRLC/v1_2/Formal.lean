@@ -16,7 +16,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   baseOffset : Nat := 0
   initialState : Nat → SamplerChain.EState
   point : Nat → Fin productionShape.cubeVariables → KExpr
@@ -26,7 +26,7 @@ structure Interface (logicalWidth : Nat)
 def atOffset
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     Interface logicalWidth publicFits where
   baseOffset := offset
@@ -37,7 +37,7 @@ def atOffset
 def inputBindingInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) :
     InputBinding.Interface logicalWidth publicFits where
   point := interface.point
@@ -46,14 +46,14 @@ def inputBindingInterface
 def samplerInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : SamplerChain.Interface where
   initialState := interface.initialState
 
 def commitmentInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) :
     CommitmentCombination.Interface where
   challenge := fun _ source =>
@@ -63,7 +63,7 @@ def commitmentInterface
 def publicInputInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) :
     PublicInputCombination.Interface logicalWidth publicFits where
   challenge := fun _ source =>
@@ -73,7 +73,7 @@ def publicInputInterface
 def evalKInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : EvalKCombination.Interface where
   challenge := fun _ source =>
     SamplerChain.outputChallenge interface.baseOffset source
@@ -82,7 +82,7 @@ def evalKInterface
 def evalAInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : EvalACombination.Interface where
   challenge := fun _ source =>
     SamplerChain.outputChallenge interface.baseOffset source
@@ -99,23 +99,23 @@ def commitmentOffset (offset : Nat) : Nat :=
   samplerOffset offset + SamplerChain.logicalPrivateCount
 
 def publicInputOffset (offset : Nat) : Nat :=
-  commitmentOffset offset + 20196
+  commitmentOffset offset + 17280
 
 def evalKOffset (offset : Nat) : Nat :=
-  publicInputOffset offset + 4590
+  publicInputOffset offset + 4800
 
 def evalAOffset (offset : Nat) : Nat :=
-  evalKOffset offset + 1836
+  evalKOffset offset + 1920
 
 def outputBindingOffset (offset : Nat) : Nat :=
-  evalAOffset offset + 7344
+  evalAOffset offset + 7680
 
 def finalOffset (offset : Nat) : Nat := outputBindingOffset offset
 
 def outputBindingInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (phaseOffset : Nat) :
     OutputBinding.Interface logicalWidth publicFits where
   point := interface.point
@@ -131,7 +131,7 @@ def outputBindingInterface
 def inputBindingCircuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) : FormalCircuit :=
   InputBinding.circuit relation (inputBindingInterface interface)
@@ -139,42 +139,42 @@ def inputBindingCircuit
 def samplerCircuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : FormalCircuit :=
   SamplerChain.circuit (samplerInterface interface)
 
 def commitmentCircuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : FormalCircuit :=
   CommitmentCombination.circuit (commitmentInterface interface)
 
 def publicInputCircuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : FormalCircuit :=
   PublicInputCombination.circuit (publicInputInterface interface)
 
 def evalKCircuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : FormalCircuit :=
   EvalKCombination.circuit (evalKInterface interface)
 
 def evalACircuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) : FormalCircuit :=
   EvalACombination.circuit (evalAInterface interface)
 
 def outputBindingCircuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (phaseOffset : Nat) :
     FormalCircuit :=
@@ -191,7 +191,7 @@ theorem childOp_privateCount (name : String) (child : FormalCircuit)
 def opsAt
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) : List Op :=
   let shared := atOffset interface offset
@@ -213,7 +213,7 @@ def opsAt
 def main
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) : Circuit Unit := fun offset =>
   ((), finalOffset offset, opsAt relation interface offset)
@@ -221,23 +221,23 @@ def main
 @[simp] theorem main_ops
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     Circuit.ops (main relation interface) offset =
       opsAt relation interface offset := by
   rfl
 
-def logicalPrivateCount : Nat := 106505
-def logicalRowCount : Nat := 83725
+def logicalPrivateCount : Nat := 104775
+def logicalRowCount : Nat := 78195
 
-theorem logicalPrivateCount_eq : logicalPrivateCount = 106505 := by
+theorem logicalPrivateCount_eq : logicalPrivateCount = 104775 := by
   rfl
 
 structure Assumptions
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) : Prop where
@@ -255,7 +255,7 @@ structure Assumptions
 structure SpecHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) : Prop where
@@ -288,7 +288,7 @@ private theorem childSpec_of_rows
 theorem soundness
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat)
     (env : Env) (assumptions : Assumptions relation interface offset env)
@@ -322,7 +322,7 @@ theorem soundness
 @[simp] private theorem inputBindingOp_localLength
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.input_binding" (inputBindingCircuit relation interface)
@@ -333,7 +333,7 @@ theorem soundness
 @[simp] private theorem samplerOp_localLength
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.sampler_chain" (samplerCircuit interface) offset).localLength =
       SamplerChain.logicalPrivateCount := by
@@ -343,47 +343,47 @@ theorem soundness
 @[simp] private theorem commitmentOp_localLength
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.commitment_combination" (commitmentCircuit interface)
-      offset).localLength = 20196 := by
+      offset).localLength = 17280 := by
   rw [childOp, Sequence.childOp_localLength]
   exact CommitmentCombination.localLength_eq (commitmentInterface interface) offset
 
 @[simp] private theorem publicInputOp_localLength
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.public_input_combination" (publicInputCircuit interface)
-      offset).localLength = 4590 := by
+      offset).localLength = 4800 := by
   rw [childOp, Sequence.childOp_localLength]
   exact PublicInputCombination.localLength_eq (publicInputInterface interface) offset
 
 @[simp] private theorem evalKOp_localLength
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.eval_K_combination" (evalKCircuit interface)
-      offset).localLength = 1836 := by
+      offset).localLength = 1920 := by
   rw [childOp, Sequence.childOp_localLength]
   exact EvalKCombination.localLength_eq (evalKInterface interface) offset
 
 @[simp] private theorem evalAOp_localLength
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.eval_A_combination" (evalACircuit interface)
-      offset).localLength = 7344 := by
+      offset).localLength = 7680 := by
   rw [childOp, Sequence.childOp_localLength]
   exact EvalACombination.localLength_eq (evalAInterface interface) offset
 
 @[simp] private theorem outputBindingOp_localLength
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (phaseOffset offset : Nat) :
     (childOp "pirlc.v1_2.output_binding"
@@ -395,7 +395,7 @@ theorem soundness
 @[simp] private theorem inputBindingOp_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.input_binding" (inputBindingCircuit relation interface)
@@ -404,7 +404,7 @@ theorem soundness
 @[simp] private theorem samplerOp_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.sampler_chain" (samplerCircuit interface) offset).rowCount =
       SamplerChain.logicalRowCount := by rfl
@@ -412,51 +412,51 @@ theorem soundness
 @[simp] private theorem commitmentOp_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.commitment_combination" (commitmentCircuit interface)
-      offset).rowCount = 20196 := by
+      offset).rowCount = 17280 := by
   change CombinationFamily.logicalRowCount CommitmentCombination.blockCount
-    CommitmentCombination.cellCount = 20196
+    CommitmentCombination.cellCount = 17280
   exact CommitmentCombination.logicalRowCount_eq
 
 @[simp] private theorem publicInputOp_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.public_input_combination" (publicInputCircuit interface)
-      offset).rowCount = 4590 := by
+      offset).rowCount = 4800 := by
   change CombinationFamily.logicalRowCount PublicInputCombination.blockCount
-    PublicInputCombination.cellCount = 4590
+    PublicInputCombination.cellCount = 4800
   exact PublicInputCombination.logicalRowCount_eq
 
 @[simp] private theorem evalKOp_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.eval_K_combination" (evalKCircuit interface)
-      offset).rowCount = 1836 := by
+      offset).rowCount = 1920 := by
   change CombinationFamily.logicalRowCount EvalKCombination.blockCount
-    RingKCombination.cellCount = 1836
+    RingKCombination.cellCount = 1920
   exact EvalKCombination.logicalRowCount_eq
 
 @[simp] private theorem evalAOp_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (childOp "pirlc.v1_2.eval_A_combination" (evalACircuit interface)
-      offset).rowCount = 7344 := by
+      offset).rowCount = 7680 := by
   change CombinationFamily.logicalRowCount EvalACombination.blockCount
-    RingKCombination.cellCount = 7344
+    RingKCombination.cellCount = 7680
   exact EvalACombination.logicalRowCount_eq
 
 @[simp] private theorem outputBindingOp_rowCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (phaseOffset offset : Nat) :
     (childOp "pirlc.v1_2.output_binding"
@@ -466,7 +466,7 @@ theorem soundness
 theorem localLength_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     localLength (Circuit.ops (main relation interface) offset) =
@@ -478,7 +478,7 @@ theorem localLength_eq
 theorem flatConstraints_length
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     (flatConstraints (Circuit.ops (main relation interface) offset)).length =

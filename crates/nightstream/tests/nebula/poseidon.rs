@@ -197,11 +197,10 @@ fn checked_port_hash_reconstructs_source_witness() {
         original.execute(prior, &erased).unwrap();
         prior = invocation.output;
     }
-    let expected = neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash(&[
-        F::from_u64(0x4e53504f52544831),
-        F::from_u64(3 * 12345),
-    ])
-    .map(|value| value.as_canonical_u64());
+    // `Spec.Poseidon2.pad` of one full block: the second block is the word 1.
+    let mut block = [F::ZERO; neo_ccs::crypto::poseidon2::RATE];
+    block[..2].copy_from_slice(&[F::from_u64(0x4e53504f52544831), F::from_u64(3 * 12345)]);
+    let expected = neo_ccs::crypto::poseidon2::poseidon2_hash(&block).map(|value| value.as_canonical_u64());
     assert_eq!(*run.state(), expected);
 }
 
@@ -232,10 +231,8 @@ fn checked_port_hash_rejects_malformed_hints() {
     }
 }
 
-/// The two hints make two native blocks (`SPEC.md` section 7.7). The final
-/// program then checks each block as one permutation in place of its 1,096
-/// source rows (`CompressionLean.BoundedDepth.finishRows`). The plan rows do
-/// not change: section 7.11 lowers each unhinted trace to one seventh-power
+/// The two hints make two native blocks (`SPEC.md` section 7.7), each in
+/// place of its 1,096 source rows. The plan rows do not change: section 7.11 lowers each unhinted trace to one seventh-power
 /// row for each of its 150 S-boxes (`Export.Generic.NativePower.Chain.sound`)
 /// and substitutes its affine rows, and a block has 150 S-box rows.
 #[test]

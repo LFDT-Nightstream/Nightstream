@@ -90,10 +90,10 @@ fn a_thirty_second_zero_residual_would_wrap_the_modulus() {
     let mut unbounded = F::ZERO;
     let mut coefficient = F::ONE;
     for (index, zero) in zeros.iter().enumerate() {
-        if index == 0 || index >= 16 {
+        if index != 2 {
             values[65 + index] = F::NEG_ONE;
         }
-        if index >= 16 {
+        if index >= 3 {
             values[zero.left.column] = F::ONE;
             values[zero.right.column] = F::ONE;
         }

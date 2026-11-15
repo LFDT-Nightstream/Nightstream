@@ -49,12 +49,12 @@ pub(crate) const CALL_INDIRECT_TYPE_ZERO_TEST: ZeroTest<2> = ZeroTest {
 /// to it.
 ///
 /// The reason for this is that the result is in [0, 2^64) and the
-/// Goldilocks modulus is q = 2^64 - 2^32 + 1
+/// modulus is q = 2^64 - 59
 ///
-/// This means only the last 2^64 - q = 2^32 - 1 values overflow/are aliased.
+/// This means only the last 2^64 - q = 59 values overflow/are aliased.
 ///
-/// So for values in [0, 2^32 - 1) there are two preimages, but 2^63 >
-/// 2^32 - 2 so it has a unique combination of limbs.
+/// So for values in [0, 59) there are two preimages, but 2^63 >
+/// 58 so it has a unique combination of limbs.
 ///
 /// For i32 the combination is just straight-forwardly injective in the
 /// whole range. And the high limb is pinned to zero in that case by the

@@ -105,7 +105,7 @@ theorem directConstraint_sub_add_eq_none
 
 private theorem scaledHigh_lowerAffine_none (left right : KExpr)
     (rightLinear : KExprLinear right) :
-    R1CS.lowerAffine ((7 : Expr) * left.c1 * right.c1) = none :=
+    R1CS.lowerAffine ((2 : Expr) * left.c1 * right.c1) = none :=
   lowerAffine_mul_eq_none (by simp [Nonconstant, HMul.hMul, Mul.mul])
     rightLinear.c1_nonconstant
 
@@ -117,7 +117,7 @@ private theorem c0_directConstraint_eq_none (output : Nat)
       (Expr.var output - (KExpr.mul left right).c0) = none := by
   change R1CS.directConstraint
     (Expr.var output -
-      (left.c0 * right.c0 + (7 : Expr) * left.c1 * right.c1)) = none
+      (left.c0 * right.c0 + (2 : Expr) * left.c1 * right.c1)) = none
   apply directConstraint_sub_add_eq_none
   · exact lowerAffine_mul_eq_none leftLinear.c0_nonconstant
       rightLinear.c0_nonconstant
@@ -148,7 +148,7 @@ private theorem c0_constraint_mulCount_eq (output : Nat)
     (.add (.var output)
       (.mul (.const (-1))
         (.add (.mul left.c0 right.c0)
-          (.mul (.mul (.const 7) left.c1) right.c1)))) = 4
+          (.mul (.mul (.const 2) left.c1) right.c1)))) = 4
   simp only [R1CS.mulCount, leftLinear.c0_mulCount,
     leftLinear.c1_mulCount, rightLinear.c0_mulCount,
     rightLinear.c1_mulCount]

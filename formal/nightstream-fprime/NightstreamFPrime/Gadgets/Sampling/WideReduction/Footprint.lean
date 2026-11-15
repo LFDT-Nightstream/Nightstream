@@ -3,9 +3,9 @@ import NightstreamFPrime.Gadgets.Sampling.WideReduction
 
 /-!
 Owns the exact footprint of the whole-vector sampler constraints:
-681 logical rows, and `264 + h` private variables for a witness program with
-`h` outputs. A witness program that allocates exactly the 353 new bits gives
-617 private variables. This module does not provide that executable program
+845 logical rows, and `335 + h` private variables for a witness program with
+`h` outputs. A witness program that allocates exactly the 434 new bits gives
+769 private variables. This module does not provide that executable program
 or a retained-coordinate layout.
 -/
 
@@ -14,14 +14,14 @@ namespace NightstreamFPrime.Gadgets.Sampling.WideReduction
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Range
 
-def rowCount : Nat := 681
+def rowCount : Nat := 845
 
 theorem newBits_length (offset : Nat) : (newBits offset).length = newBitCount := by
   simp [newBits, newBitCount, List.length_flatMap, quotientBitCount, digitCount, digitBitCount,
     checkBitCount]
   omega
 
-theorem newBitCount_eq : newBitCount = 353 := rfl
+theorem newBitCount_eq : newBitCount = 434 := rfl
 
 theorem rowCount_eq (interface : Interface) (hints : Nat → List Hint) (offset : Nat) :
     (flatConstraints (operations interface hints offset)).length = rowCount := by
@@ -50,6 +50,6 @@ theorem localLength_eq_privateCount (interface : Interface) (hints : Nat → Lis
   rw [localLength_eq, allocates]
   rfl
 
-theorem privateCount_eq : privateCount = 617 := rfl
+theorem privateCount_eq : privateCount = 769 := rfl
 
 end NightstreamFPrime.Gadgets.Sampling.WideReduction

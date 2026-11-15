@@ -12,7 +12,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding
 open PiCCS.PaperJoint PiCCS.PaperJoint.StrongReduction
 open _root_.NightstreamFPrime.Spec.SumCheck.Finite
-open _root_.NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausalTrace (issued)
+open _root_.NightstreamFPrime.Spec.SumCheck.Finite.FieldCausalTrace (issued)
 open PiRLC.CoordinateForkLaw
 
 universe uCommitment uPublicInput uScalar uState

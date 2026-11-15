@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 import NightstreamFPrime.Layout.Stage1.RunningTransitionCost
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPointBoundsDirect
-import NightstreamFPrime.Layout.Stage1.Spartan
+import NightstreamFPrime.Layout.Stage1.PackageOrder
 import NightstreamFPrime.Layout.Stage1.RunningTransitionOutputBounds
 
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
@@ -11,7 +11,7 @@ open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 open RunningTransitionInputs
 
 def InRange (start count column : Nat) : Prop :=
@@ -38,7 +38,7 @@ def PiDecField (column : Nat) : Prop :=
       (coefficient : Fin ringDegree),
     column = PiDECInputs.childCommitmentStart source +
       row.val * ringDegree + coefficient.val) ∨
-  (∃ (source : Radix.ChildIndex) (coordinate : Fin 270),
+  (∃ (source : Radix.ChildIndex) (coordinate : Fin 320),
     column = PiDECInputs.childPublicInputStart source + coordinate.val) ∨
   (∃ (source : Radix.ChildIndex)
       (coefficient : Fin productionShape.coefficientCount),
@@ -69,21 +69,21 @@ def Source (column : Nat) : Prop :=
   External column ∨ (phaseOffset ≤ column ∧ column < physicalEnd)
 
 def Target (column : Nat) : Prop :=
-  ∃ source, Source source ∧ column = Spartan.sourceToSpartan source
+  ∃ source, Source source ∧ column = PackageOrder.sourceToPackage source
 
-@[simp] theorem stateStart_eq : stateStart = 27810 := by
+@[simp] theorem stateStart_eq : stateStart = 25320 := by
   rfl
 
-@[simp] theorem outputStart_eq : outputStart = 28089 := by
+@[simp] theorem outputStart_eq : outputStart = 25649 := by
   rfl
 
-@[simp] theorem outputCount_eq : outputCount = 27819 := by
+@[simp] theorem outputCount_eq : outputCount = 25329 := by
   exact PilotProduction.stateHashWords_eq
 
-@[simp] theorem piDecStart_eq : piDecStart = 11432634 := by
+@[simp] theorem piDecStart_eq : piDecStart = 10029764 := by
   rfl
 
-@[simp] theorem piDecCount_eq : piDecCount = 31968 := by
+@[simp] theorem piDecCount_eq : piDecCount = 29568 := by
   exact PiDECInputs.proofInputColumnCount_eq
 
 theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
@@ -94,20 +94,20 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
     have sourceBound := source.isLt
     have rowBound := row.isLt
     have coefficientBound := coefficient.isLt
-    change source.val < 16 at sourceBound
-    change row.val < 22 at rowBound
-    change coefficient.val < 54 at coefficientBound
-    change InRange 11432634 31968
-      (11432634 + source.val * 1188 + row.val * 54 + coefficient.val)
+    change source.val < 14 at sourceBound
+    change row.val < 18 at rowBound
+    change coefficient.val < 64 at coefficientBound
+    change InRange 10029764 29568
+      (10029764 + source.val * 1152 + row.val * 64 + coefficient.val)
     unfold InRange
     omega
   · rcases publicInput with ⟨source, coordinate, rfl⟩
     have sourceBound := source.isLt
     have coordinateBound := coordinate.isLt
-    change source.val < 16 at sourceBound
-    change coordinate.val < 270 at coordinateBound
-    change InRange 11432634 31968
-      (11460282 + source.val * 270 + coordinate.val)
+    change source.val < 14 at sourceBound
+    change coordinate.val < 320 at coordinateBound
+    change InRange 10029764 29568
+      (10054852 + source.val * 320 + coordinate.val)
     unfold InRange
     omega
   · rcases evalK with ⟨source, coefficient, low | high⟩
@@ -115,15 +115,15 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
     all_goals
       have sourceBound := source.isLt
       have coefficientBound := coefficient.isLt
-      change source.val < 16 at sourceBound
-      change coefficient.val < 54 at coefficientBound
+      change source.val < 14 at sourceBound
+      change coefficient.val < 64 at coefficientBound
       first
-      | change InRange 11432634 31968
-          (11451642 + source.val * 108 + coefficient.val * 2)
+      | change InRange 10029764 29568
+          (10045892 + source.val * 128 + coefficient.val * 2)
         unfold InRange
         omega
-      | change InRange 11432634 31968
-          (11451642 + source.val * 108 + coefficient.val * 2 + 1)
+      | change InRange 10029764 29568
+          (10045892 + source.val * 128 + coefficient.val * 2 + 1)
         unfold InRange
         omega
   · rcases evalA with ⟨source, matrix, coefficient, low | high⟩
@@ -132,24 +132,24 @@ theorem piDecField_inRange {column : Nat} (field : PiDecField column) :
       have sourceBound := source.isLt
       have matrixBound := matrix.isLt
       have coefficientBound := coefficient.isLt
-      change source.val < 16 at sourceBound
+      change source.val < 14 at sourceBound
       change matrix.val < 4 at matrixBound
-      change coefficient.val < 54 at coefficientBound
+      change coefficient.val < 64 at coefficientBound
       first
-      | change InRange 11432634 31968
-          (11453370 + source.val * 432 + matrix.val * 108 +
+      | change InRange 10029764 29568
+          (10047684 + source.val * 512 + matrix.val * 128 +
             coefficient.val * 2)
         unfold InRange
         omega
-      | change InRange 11432634 31968
-          (11453370 + source.val * 432 + matrix.val * 108 +
+      | change InRange 10029764 29568
+          (10047684 + source.val * 512 + matrix.val * 128 +
             coefficient.val * 2 + 1)
         unfold InRange
         omega
 
 theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
-    column < Spartan.SourceColumnCount := by
-  have phaseLower := Spartan.sourceColumnCount_ge_piDecPhaseOffset
+    column < PackageOrder.SourceColumnCount := by
+  have phaseLower := PackageOrder.sourceColumnCount_ge_piDecPhaseOffset
   rw [PiDECInputs.phaseOffset, PiDECInputs.proofInputStart,
     PiDECInputs.proofInputColumnCount_eq, PiRLCStarts.finalBoundaries_eq.2]
     at phaseLower
@@ -175,7 +175,7 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
       rw [piDecStart_eq, piDecCount_eq] at inside
       omega
   · change phaseOffset ≤ column ∧ column < physicalEnd at fresh
-    rw [Spartan.sourceColumnCount_eq_physicalEnd]
+    rw [PackageOrder.sourceColumnCount_eq_physicalEnd]
     exact fresh.2
 
 theorem logical_state {column : Nat}

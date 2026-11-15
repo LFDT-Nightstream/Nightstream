@@ -15,13 +15,13 @@ deriving Repr, DecidableEq
 private def readTerms : List WireEntry → Option (List (Nat × F))
   | [] => some []
   | term :: rest =>
-      if canonical : term.coefficient < goldilocksModulus then do
+      if canonical : term.coefficient < fieldModulus then do
         let tail ← readTerms rest
         pure ((term.column, ⟨term.coefficient, canonical⟩) :: tail)
       else none
 
 def Form.semantic? (form : Form) : Option R1CS.LinearCombination :=
-  if canonical : form.constant < goldilocksModulus then do
+  if canonical : form.constant < fieldModulus then do
     let terms ← readTerms form.terms.entries
     pure ⟨⟨form.constant, canonical⟩, terms⟩
   else none

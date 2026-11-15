@@ -206,7 +206,7 @@ pub(crate) fn validate_rlc_batch_compatibility(
             )));
         }
     }
-    let required = crate::common::min_k_rho_for_rlc_count(params, &crate::common::RotRing::goldilocks(), claims.len())?;
+    let required = crate::common::min_k_rho_for_rlc_count(params, &crate::common::RotRing::profile(), claims.len())?;
     if params.k_rho() < required {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: {} inputs require k_rho >= {required}, got {}",

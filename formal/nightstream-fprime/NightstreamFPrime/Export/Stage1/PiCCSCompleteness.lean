@@ -14,7 +14,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 def preOutputInvocations
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     List PermutationInvocation :=
   (PiCCSInvocations.statementTrace logicalWidth publicFits).invocations ++
     (PiCCSInvocations.challengeTrace logicalWidth publicFits).invocations ++
@@ -23,7 +23,7 @@ def preOutputInvocations
 theorem roundEnd_eq_initialClaimLogicalStart
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     PiCCSInvocations.roundWitnessStart +
         Invocations.invocationCount
           (PiCCSInvocations.roundActions logicalWidth publicFits) * 1096 =
@@ -37,10 +37,10 @@ theorem roundEnd_eq_initialClaimLogicalStart
 private theorem preOutput_schedule
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     Invocations.ScheduleWithin
-      (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         PiCCSInvocations.statementWitnessStart)
       PiCCSInvocations.invocationCeiling
       (preOutputInvocations logicalWidth publicFits) := by
@@ -51,17 +51,17 @@ private theorem preOutput_schedule
   have rounds := PiCCSInvocations.roundTrace_scheduleWithin
     logicalWidth publicFits relation
   have statementLocal :
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         PiCCSInvocations.statementWitnessStart := by
     unfold PiCCSInvocations.statementWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart_eq]
-    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+    norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset]
   have challengeLocal :
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         PiCCSInvocations.challengeWitnessStart := by
     unfold PiCCSInvocations.challengeWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart_eq]
-    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+    norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset]
   have statementStrict : PiCCSInvocations.statementWitnessStart <
       PiCCSInvocations.challengeWitnessStart := by
     calc
@@ -87,12 +87,12 @@ private theorem preOutput_schedule
       _ = PiCCSInvocations.roundWitnessStart :=
         PiCCSInvocations.challengeEnd_eq_roundStart logicalWidth publicFits
   have statementToChallenge :=
-    (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt_of_piCcsLocal
       PiCCSInvocations.statementWitnessStart
       PiCCSInvocations.challengeWitnessStart statementLocal
       statementStrict).le
   have challengeToRound :=
-    (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt_of_piCcsLocal
       PiCCSInvocations.challengeWitnessStart
       PiCCSInvocations.roundWitnessStart challengeLocal challengeStrict).le
   have statementChallenge := Invocations.ScheduleWithin.append statement.1
@@ -109,10 +109,10 @@ private theorem preOutput_schedule
 theorem preOutput_invocationsBeforeArithmetic
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     Invocations.InvocationsBefore
-      (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         PiCCSArithmetic.initialClaimLogicalStart)
       (preOutputInvocations logicalWidth publicFits) := by
   have statement := PiCCSInvocations.statementTrace_scheduleWithin
@@ -122,17 +122,17 @@ theorem preOutput_invocationsBeforeArithmetic
   have rounds := PiCCSInvocations.roundTrace_scheduleWithin
     logicalWidth publicFits relation
   have challengeLocal :
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         PiCCSInvocations.challengeWitnessStart := by
     unfold PiCCSInvocations.challengeWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.challengeWitnessStart_eq]
-    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+    norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset]
   have roundLocal :
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         PiCCSInvocations.roundWitnessStart := by
     unfold PiCCSInvocations.roundWitnessStart
     rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.roundTranscriptWitnessStart_eq]
-    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+    norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset]
   have challengeStrict : PiCCSInvocations.challengeWitnessStart <
       PiCCSInvocations.roundWitnessStart := by
     calc
@@ -151,11 +151,11 @@ theorem preOutput_invocationsBeforeArithmetic
     rw [PiCCSInvocations.roundInvocationCount_eq]
     omega
   have challengeToRound :=
-    (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt_of_piCcsLocal
       PiCCSInvocations.challengeWitnessStart
       PiCCSInvocations.roundWitnessStart challengeLocal challengeStrict).le
   have roundToArithmetic :=
-    (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt_of_piCcsLocal
       PiCCSInvocations.roundWitnessStart
       PiCCSArithmetic.initialClaimLogicalStart roundLocal roundStrict).le
   have statementBefore := Invocations.InvocationsBefore.mono statement.2
@@ -163,7 +163,7 @@ theorem preOutput_invocationsBeforeArithmetic
   have challengeBefore := Invocations.InvocationsBefore.mono challenge.2
     roundToArithmetic
   have roundsBefore : Invocations.InvocationsBefore
-      (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         PiCCSArithmetic.initialClaimLogicalStart)
       (PiCCSInvocations.roundTrace logicalWidth publicFits).invocations := by
     rw [← roundEnd_eq_initialClaimLogicalStart logicalWidth publicFits]
@@ -175,15 +175,15 @@ theorem preOutput_invocationsBeforeArithmetic
 theorem complete_preOutputInvocations
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :
     ∃ completed,
       AgreesOutside env completed
-          (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+          (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
             PiCCSInvocations.statementWitnessStart)
           (PiCCSInvocations.invocationCeiling -
-            NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+            NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
               PiCCSInvocations.statementWitnessStart) ∧
         Invocations.AgreesOutsideInvocations env completed
           (preOutputInvocations logicalWidth publicFits) ∧
@@ -191,7 +191,7 @@ theorem complete_preOutputInvocations
           PermutationInvocationHolds (PilotData.circuitPackage ()) invocation
             completed := by
   exact Invocations.completeInvocations env
-    (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
       PiCCSInvocations.statementWitnessStart)
     PiCCSInvocations.invocationCeiling
     (preOutputInvocations logicalWidth publicFits)
@@ -200,25 +200,25 @@ theorem complete_preOutputInvocations
 structure PreOutputTranscriptSpecs
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (env : Env) : Prop where
   statementAbsorption : StatementAbsorption.SpecHolds
     (PiCCSInvocations.statementInterface logicalWidth publicFits)
     PiCCSInvocations.statementWitnessStart
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   challenge : ChallengeDerivation.SpecHolds
     (PiCCSInvocations.challengeInterface logicalWidth publicFits)
     PiCCSInvocations.challengeWitnessStart
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   rounds : RoundTranscript.SpecHolds
     (PiCCSInvocations.roundInterface logicalWidth publicFits)
     PiCCSInvocations.roundWitnessStart
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
 
 theorem preOutputInvocations_imply_specs
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth)
+      RingCarrierLayout.carrierWidth logicalWidth)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env)
     (holds : ∀ invocation ∈ preOutputInvocations logicalWidth publicFits,
@@ -244,7 +244,7 @@ theorem preOutputInvocations_imply_specs
 theorem PreOutputTranscriptSpecs.statement_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {env : Env}
     (specs : PreOutputTranscriptSpecs logicalWidth publicFits env) :
     StatementAbsorption.SpecHolds
@@ -255,20 +255,20 @@ theorem PreOutputTranscriptSpecs.statement_parent
       (Formal.statementAbsorptionOffset
         (PiCCSInvocations.parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   change StatementAbsorption.SpecHolds
     (PiCCSInvocations.statementInterface logicalWidth publicFits)
     (Formal.statementAbsorptionOffset
       (PiCCSInvocations.parentInterface logicalWidth publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   rw [← PiCCSInvocations.statementWitnessStart_matches]
   exact specs.statementAbsorption
 
 theorem PreOutputTranscriptSpecs.challenge_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {env : Env}
     (specs : PreOutputTranscriptSpecs logicalWidth publicFits env) :
     ChallengeDerivation.SpecHolds
@@ -278,20 +278,20 @@ theorem PreOutputTranscriptSpecs.challenge_parent
       (Formal.challengeOffset
         (PiCCSInvocations.parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   change ChallengeDerivation.SpecHolds
     (PiCCSInvocations.challengeInterface logicalWidth publicFits)
     (Formal.challengeOffset
       (PiCCSInvocations.parentInterface logicalWidth publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   rw [← PiCCSInvocations.challengeWitnessStart_matches]
   exact specs.challenge
 
 theorem PreOutputTranscriptSpecs.rounds_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {env : Env}
     (specs : PreOutputTranscriptSpecs logicalWidth publicFits env) :
     RoundTranscript.SpecHolds
@@ -302,20 +302,20 @@ theorem PreOutputTranscriptSpecs.rounds_parent
       (Formal.roundTranscriptOffset
         (PiCCSInvocations.parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   change RoundTranscript.SpecHolds
     (PiCCSInvocations.roundInterface logicalWidth publicFits)
     (Formal.roundTranscriptOffset
       (PiCCSInvocations.parentInterface logicalWidth publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   rw [← PiCCSInvocations.roundWitnessStart_matches]
   exact specs.rounds
 
 def arithmeticLogicalOps
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     List Op :=
   Formal.CompletenessSupport.evaluationPrefixOps
@@ -328,7 +328,7 @@ def arithmeticLogicalOps
 theorem complete_arithmeticLogical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -339,25 +339,25 @@ theorem complete_arithmeticLogical
       (Formal.evalRunning
         (PiCCSInvocations.parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env))
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env))
       (Formal.evalFresh
         (PiCCSInvocations.parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env))
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env))
       (Formal.evalProof relation
         (PiCCSInvocations.parentInterface logicalWidth publicFits)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) template))
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) template))
     (transcript : PreOutputTranscriptSpecs logicalWidth publicFits env) :
     ∃ completed : Sequence.Prefix
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
         PiCCSArithmetic.initialClaimLogicalStart,
       completed.operations = arithmeticLogicalOps relation ∧
         PiCCSArithmetic.initialClaimLogicalStart +
             localLength completed.operations =
           PiCCSInvocations.outputWitnessStart := by
   let parent := PiCCSInvocations.parentInterface logicalWidth publicFits
-  let source := NightstreamFPrime.Layout.Stage1.Spartan.pullback env
+  let source := NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env
   let assumptions := NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production
     relation parent NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
     (NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear
@@ -417,7 +417,7 @@ theorem arithmeticLogicalEnd_eq :
   omega
 
 private theorem arithmeticStartLocal :
-    NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+    NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
       PiCCSArithmetic.initialClaimLogicalStart := by
   unfold PiCCSArithmetic.initialClaimLogicalStart
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.initialClaimLogicalStart
@@ -426,32 +426,32 @@ private theorem arithmeticStartLocal :
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementWitnessStart
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementBindingLogicalStart
   rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
-  norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+  norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset]
 
 theorem arithmeticMappedEnd_eq :
-    NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+    NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           PiCCSArithmetic.initialClaimLogicalStart + arithmeticLogicalLength =
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         PiCCSInvocations.outputWitnessStart := by
   have mapped :=
-    NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_add_of_piCcsLocal
+    NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_add_of_piCcsLocal
       PiCCSArithmetic.initialClaimLogicalStart arithmeticLogicalLength
       arithmeticStartLocal
   rw [arithmeticLogicalEnd_eq] at mapped
   exact mapped.symm
 
 theorem arithmeticMappedEnd_le_invocationCeiling :
-    NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+    NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           PiCCSArithmetic.initialClaimLogicalStart + arithmeticLogicalLength ≤
       PiCCSInvocations.invocationCeiling := by
   rw [arithmeticMappedEnd_eq]
   exact
-    (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_lt_of_piCcsLocal
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_lt_of_piCcsLocal
       PiCCSInvocations.outputWitnessStart
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase (by
         unfold PiCCSInvocations.outputWitnessStart
         rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingWitnessStart_eq]
-        norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]) (by
+        norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset]) (by
           unfold PiCCSInvocations.outputWitnessStart
             NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
           rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingWitnessStart_eq,
@@ -478,7 +478,7 @@ theorem schedule_stableInputs
     (schedule : Invocations.ScheduleWithin bound ceiling invocations) :
     ∀ invocation ∈ invocations,
       Invocations.InvocationInputsOutside
-        NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount
+        NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount
         invocation := by
   induction invocations generalizing bound with
   | nil => simp
@@ -493,16 +493,16 @@ theorem schedule_stableInputs
 theorem copyArithmetic_pullback_eq
     (base : Env)
     (completed : Sequence.Prefix
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback base)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback base)
       PiCCSArithmetic.initialClaimLogicalStart)
     (endEq : PiCCSArithmetic.initialClaimLogicalStart +
         localLength completed.operations = PiCCSInvocations.outputWitnessStart) :
-    NightstreamFPrime.Layout.Stage1.Spartan.pullback
-        (NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval base
+    NightstreamFPrime.Layout.Stage1.PackageOrder.pullback
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.copyMappedInterval base
           completed.current PiCCSArithmetic.initialClaimLogicalStart
           arithmeticLogicalLength) =
       completed.current := by
-  apply NightstreamFPrime.Layout.Stage1.Spartan.pullback_copyMappedInterval_eq
+  apply NightstreamFPrime.Layout.Stage1.PackageOrder.pullback_copyMappedInterval_eq
   · exact arithmeticStartLocal
   · exact Nat.le_trans arithmeticMappedEnd_le_invocationCeiling
       PiCCSInvocations.invocationCeiling_le_private
@@ -517,7 +517,7 @@ theorem copyArithmetic_pullback_eq
 theorem preOutputHolds_after_copyArithmetic
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (before : Env)
     (source : Env)
@@ -526,7 +526,7 @@ theorem preOutputHolds_after_copyArithmetic
         before) :
     ∀ invocation ∈ preOutputInvocations logicalWidth publicFits,
       PermutationInvocationHolds (PilotData.circuitPackage ()) invocation
-        (NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval before
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.copyMappedInterval before
           source PiCCSArithmetic.initialClaimLogicalStart
           arithmeticLogicalLength) := by
   intro invocation member
@@ -536,9 +536,9 @@ theorem preOutputHolds_after_copyArithmetic
     (preOutput_schedule logicalWidth publicFits relation) invocation member
   apply NightstreamFPrime.Export.Pilot.permutationInvocationHolds_of_agreesOutside
     invocation before
-      (NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval before source
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.copyMappedInterval before source
         PiCCSArithmetic.initialClaimLogicalStart arithmeticLogicalLength)
-      (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         PiCCSArithmetic.initialClaimLogicalStart)
       arithmeticLogicalLength
   · intro lane term termMember
@@ -549,7 +549,7 @@ theorem preOutputHolds_after_copyArithmetic
   · intro index below
     exact Or.inl (lt_of_lt_of_le (by omega) beforeArithmetic)
   · exact
-      NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval_agreesOutside
+      NightstreamFPrime.Layout.Stage1.PackageOrder.copyMappedInterval_agreesOutside
         before source PiCCSArithmetic.initialClaimLogicalStart
         arithmeticLogicalLength
   · exact holds invocation member
@@ -557,15 +557,15 @@ theorem preOutputHolds_after_copyArithmetic
 theorem complete_outputInvocations
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :
     ∃ completed,
       AgreesOutside env completed
-          (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+          (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
             PiCCSInvocations.outputWitnessStart)
           (PiCCSInvocations.invocationCeiling -
-            NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+            NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
               PiCCSInvocations.outputWitnessStart) ∧
         Invocations.AgreesOutsideInvocations env completed
           (PiCCSInvocations.outputTrace logicalWidth publicFits).invocations ∧
@@ -574,7 +574,7 @@ theorem complete_outputInvocations
           PermutationInvocationHolds (PilotData.circuitPackage ()) invocation
             completed := by
   exact Invocations.completeInvocations env
-    (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
       PiCCSInvocations.outputWitnessStart)
     PiCCSInvocations.invocationCeiling
     (PiCCSInvocations.outputTrace logicalWidth publicFits).invocations
@@ -582,14 +582,14 @@ theorem complete_outputInvocations
       relation).1
 
 theorem outputIntervalEnd_eq :
-    NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+    NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           PiCCSInvocations.outputWitnessStart +
         (PiCCSInvocations.invocationCeiling -
-          NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+          NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
             PiCCSInvocations.outputWitnessStart) =
       PiCCSInvocations.invocationCeiling := by
   have outputStartLe :
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           PiCCSInvocations.outputWitnessStart ≤
         PiCCSInvocations.invocationCeiling := by
     rw [← arithmeticMappedEnd_eq]
@@ -599,23 +599,23 @@ theorem outputIntervalEnd_eq :
 theorem pullback_after_output_agreesBelow
     (before after : Env)
     (agrees : AgreesOutside before after
-      (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         PiCCSInvocations.outputWitnessStart)
       (PiCCSInvocations.invocationCeiling -
-        NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           PiCCSInvocations.outputWitnessStart)) :
     ∀ column, column < PiCCSInvocations.outputWitnessStart →
-      NightstreamFPrime.Layout.Stage1.Spartan.pullback after column =
-        NightstreamFPrime.Layout.Stage1.Spartan.pullback before column := by
+      NightstreamFPrime.Layout.Stage1.PackageOrder.pullback after column =
+        NightstreamFPrime.Layout.Stage1.PackageOrder.pullback before column := by
   intro column below
-  unfold NightstreamFPrime.Layout.Stage1.Spartan.pullback
+  unfold NightstreamFPrime.Layout.Stage1.PackageOrder.pullback
   apply agrees
   rcases
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_before_piCcsLocal
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_before_piCcsLocal
         column PiCCSInvocations.outputWitnessStart (by
           unfold PiCCSInvocations.outputWitnessStart
           rw [NightstreamFPrime.Layout.Stage1.PiCCSStarts.outputBindingWitnessStart_eq]
-          norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset])
+          norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset])
         below with mappedBefore | mappedPublic
   · exact Or.inl mappedBefore
   · exact Or.inr (by
@@ -626,14 +626,14 @@ theorem pullback_after_output_agreesBelow
 theorem preOutputHolds_after_output
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (before after : Env)
     (agrees : AgreesOutside before after
-      (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         PiCCSInvocations.outputWitnessStart)
       (PiCCSInvocations.invocationCeiling -
-        NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           PiCCSInvocations.outputWitnessStart))
     (holds : ∀ invocation ∈ preOutputInvocations logicalWidth publicFits,
       PermutationInvocationHolds (PilotData.circuitPackage ()) invocation
@@ -648,19 +648,19 @@ theorem preOutputHolds_after_output
     (preOutput_schedule logicalWidth publicFits relation) invocation member
   apply NightstreamFPrime.Export.Pilot.permutationInvocationHolds_of_agreesOutside
     invocation before after
-      (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         PiCCSInvocations.outputWitnessStart)
       (PiCCSInvocations.invocationCeiling -
-        NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           PiCCSInvocations.outputWitnessStart)
   · intro lane term termMember
     rcases inputs lane term termMember with inputBefore | inputAfter
     · exact Or.inl (lt_of_lt_of_le inputBefore (by
         calc
           invocation.witnessStart ≤ invocation.witnessStart + 1096 := by omega
-          _ ≤ NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+          _ ≤ NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
               PiCCSArithmetic.initialClaimLogicalStart := beforeArithmetic
-          _ ≤ NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+          _ ≤ NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
               PiCCSInvocations.outputWitnessStart := by
             rw [← arithmeticMappedEnd_eq]
             omega))
@@ -670,7 +670,7 @@ theorem preOutputHolds_after_output
     calc
       invocation.witnessStart + index < invocation.witnessStart + 1096 := by
         omega
-      _ ≤ NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      _ ≤ NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           PiCCSInvocations.outputWitnessStart :=
         Nat.le_trans beforeArithmetic (by
           rw [← arithmeticMappedEnd_eq]
@@ -681,7 +681,7 @@ theorem preOutputHolds_after_output
 def packetConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     List Expr :=
   PiCCSArithmetic.initialClaimConstraints logicalWidth publicFits ++
     (PiCCSArithmetic.sumcheckConstraints logicalWidth publicFits ++
@@ -695,7 +695,7 @@ def packetConstraints
 def emittedConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     List Expr :=
   PiCCSArithmetic.statementBindingConstraints logicalWidth publicFits ++
     packetConstraints logicalWidth publicFits
@@ -703,7 +703,7 @@ def emittedConstraints
 theorem statementBindingConstraints_hold
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (env : Env)
     (specification : StateBinding.SpecHolds
       (Formal.statementBindingInterface
@@ -733,7 +733,7 @@ theorem statementBindingConstraints_hold
 theorem statementBindingConstraints_varsBelow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (env : Env)
     (assumptions : StateBinding.Assumptions
       (Formal.statementBindingInterface
@@ -766,7 +766,7 @@ private theorem childOp_flatConstraints (name : String)
 theorem initialClaimConstraints_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
         (Formal.initialClaimCircuit
           (Formal.atOffset
@@ -784,7 +784,7 @@ theorem initialClaimConstraints_eq
 theorem sumcheckConstraints_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
         (Formal.sumcheckCircuit
           (Formal.atOffset
@@ -802,7 +802,7 @@ theorem sumcheckConstraints_eq
 theorem evalKConstraints_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
         (Formal.evalKCircuit
           (Formal.atOffset
@@ -820,7 +820,7 @@ theorem evalKConstraints_eq
 theorem evalAConstraints_eq
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
         (Formal.evalACircuit
           (Formal.atOffset
@@ -838,7 +838,7 @@ theorem evalAConstraints_eq
 theorem ccsConstraints_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
         (Formal.ccsCircuit relation
@@ -860,7 +860,7 @@ theorem ccsConstraints_eq
 theorem normConstraints_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
         (Formal.normCircuit relation
@@ -886,7 +886,7 @@ theorem normConstraints_eq
 theorem finalIdentityConstraints_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints
         (Formal.finalIdentityCircuit relation
@@ -913,7 +913,7 @@ theorem finalIdentityConstraints_eq
 theorem arithmeticLogicalOps_constraints
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     flatConstraints (arithmeticLogicalOps relation) =
       packetConstraints logicalWidth publicFits := by
@@ -934,22 +934,22 @@ theorem arithmeticLogicalOps_constraints
 theorem arithmeticLogicalHolds_after_output
     {logicalWidth : Nat} {initial : Env}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (logicalBase after : Env)
     (completed : Sequence.Prefix initial PiCCSArithmetic.initialClaimLogicalStart)
     (operations : completed.operations = arithmeticLogicalOps relation)
     (endEq : PiCCSArithmetic.initialClaimLogicalStart +
         localLength completed.operations = PiCCSInvocations.outputWitnessStart)
-    (pullbackEq : NightstreamFPrime.Layout.Stage1.Spartan.pullback logicalBase =
+    (pullbackEq : NightstreamFPrime.Layout.Stage1.PackageOrder.pullback logicalBase =
       completed.current)
     (outputAgrees : AgreesOutside logicalBase after
-      (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         PiCCSInvocations.outputWitnessStart)
       (PiCCSInvocations.invocationCeiling -
-        NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+        NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           PiCCSInvocations.outputWitnessStart)) :
-    ConstraintsHold (NightstreamFPrime.Layout.Stage1.Spartan.pullback after)
+    ConstraintsHold (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback after)
       (packetConstraints logicalWidth publicFits) := by
   have logicalHolds : ConstraintsHold completed.current
       (packetConstraints logicalWidth publicFits) := by
@@ -969,13 +969,13 @@ theorem arithmeticLogicalHolds_after_output
     rw [endEq] at below
     exact below
   apply constraintsHold_of_agree_below completed.current
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback after)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback after)
     (packetConstraints logicalWidth publicFits)
     PiCCSInvocations.outputWitnessStart scope
   · intro index below
     calc
-      NightstreamFPrime.Layout.Stage1.Spartan.pullback after index =
-          NightstreamFPrime.Layout.Stage1.Spartan.pullback logicalBase index :=
+      NightstreamFPrime.Layout.Stage1.PackageOrder.pullback after index =
+          NightstreamFPrime.Layout.Stage1.PackageOrder.pullback logicalBase index :=
         pullback_after_output_agreesBelow logicalBase after outputAgrees index
           below
       _ = completed.current index := congrFun pullbackEq index
@@ -984,7 +984,7 @@ theorem arithmeticLogicalHolds_after_output
 theorem initialClaimFreshCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount
       (PiCCSArithmetic.initialClaimConstraints logicalWidth publicFits) =
@@ -1002,7 +1002,7 @@ theorem initialClaimFreshCount_eq
 theorem statementBindingFreshCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount
       (PiCCSArithmetic.statementBindingConstraints logicalWidth publicFits) =
@@ -1023,7 +1023,7 @@ theorem statementBindingFreshCount_eq
 theorem sumcheckFreshCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount
       (PiCCSArithmetic.sumcheckConstraints logicalWidth publicFits) =
@@ -1041,7 +1041,7 @@ theorem sumcheckFreshCount_eq
 theorem evalKFreshCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount
       (PiCCSArithmetic.evalKConstraints logicalWidth publicFits) = 665 := by
@@ -1058,7 +1058,7 @@ theorem evalKFreshCount_eq
 theorem evalAFreshCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount
       (PiCCSArithmetic.evalAConstraints logicalWidth publicFits) = 665 := by
@@ -1075,7 +1075,7 @@ theorem evalAFreshCount_eq
 theorem ccsFreshCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount
       (PiCCSArithmetic.ccsConstraints logicalWidth publicFits) = 0 := by
@@ -1093,10 +1093,10 @@ theorem ccsFreshCount_eq
 theorem normFreshCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount
-      (PiCCSArithmetic.normConstraints logicalWidth publicFits) = 752 := by
+      (PiCCSArithmetic.normConstraints logicalWidth publicFits) = 658 := by
   unfold PiCCSArithmetic.normConstraints PiCCSArithmetic.mainConstraints
   rw [PiCCSArithmetic.normLogicalStart_matches logicalWidth publicFits,
     ← Formal.normOffset_eq_normRowOffset relation
@@ -1114,7 +1114,7 @@ theorem normFreshCount_eq
 theorem finalIdentityFreshCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount
       (PiCCSArithmetic.finalIdentityConstraints logicalWidth publicFits) =
@@ -1146,10 +1146,10 @@ theorem finalIdentityFreshCount_eq
 theorem packetConstraints_totalFreshCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount (packetConstraints logicalWidth publicFits) =
-      2956 := by
+      2862 := by
   unfold packetConstraints
   rw [R1CS.totalFreshCount_append, R1CS.totalFreshCount_append,
     R1CS.totalFreshCount_append, R1CS.totalFreshCount_append,
@@ -1162,10 +1162,10 @@ theorem packetConstraints_totalFreshCount
 theorem emittedConstraints_totalFreshCount
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount (emittedConstraints logicalWidth publicFits) =
-      2956 := by
+      2862 := by
   rw [emittedConstraints, R1CS.totalFreshCount_append,
     statementBindingFreshCount_eq relation,
     packetConstraints_totalFreshCount relation]
@@ -1173,7 +1173,7 @@ theorem emittedConstraints_totalFreshCount
 private theorem initialNext_eq_sumcheckFresh
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     PiCCSArithmetic.initialClaimFreshStart + R1CS.totalFreshCount
         (PiCCSArithmetic.initialClaimConstraints logicalWidth publicFits) =
@@ -1184,7 +1184,7 @@ private theorem initialNext_eq_sumcheckFresh
 private theorem sumcheckNext_eq_evalKFresh
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     PiCCSArithmetic.sumcheckFreshStart + R1CS.totalFreshCount
         (PiCCSArithmetic.sumcheckConstraints logicalWidth publicFits) =
@@ -1195,7 +1195,7 @@ private theorem sumcheckNext_eq_evalKFresh
 private theorem evalKNext_eq_evalAFresh
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     PiCCSArithmetic.evalKFreshStart + R1CS.totalFreshCount
         (PiCCSArithmetic.evalKConstraints logicalWidth publicFits) =
@@ -1206,7 +1206,7 @@ private theorem evalKNext_eq_evalAFresh
 private theorem evalANext_eq_ccsFresh
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     PiCCSArithmetic.evalAFreshStart + R1CS.totalFreshCount
         (PiCCSArithmetic.evalAConstraints logicalWidth publicFits) =
@@ -1217,7 +1217,7 @@ private theorem evalANext_eq_ccsFresh
 private theorem ccsNext_eq_normFresh
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     PiCCSArithmetic.ccsFreshStart + R1CS.totalFreshCount
         (PiCCSArithmetic.ccsConstraints logicalWidth publicFits) =
@@ -1228,7 +1228,7 @@ private theorem ccsNext_eq_normFresh
 private theorem normNext_eq_finalIdentityFresh
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     PiCCSArithmetic.normFreshStart + R1CS.totalFreshCount
         (PiCCSArithmetic.normConstraints logicalWidth publicFits) =
@@ -1239,7 +1239,7 @@ private theorem normNext_eq_finalIdentityFresh
 theorem lowerPacketConstraints_rows
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (R1CS.lowerConstraints (packetConstraints logicalWidth publicFits)
       PiCCSArithmetic.initialClaimFreshStart).rows =
@@ -1282,7 +1282,7 @@ theorem lowerPacketConstraints_rows
 theorem lowerEmittedConstraints_rows
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (R1CS.lowerConstraints (emittedConstraints logicalWidth publicFits)
       PiCCSArithmetic.initialClaimFreshStart).rows =
@@ -1299,11 +1299,11 @@ theorem lowerEmittedConstraints_rows
 theorem arithmeticRows_toR1CS_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     (PiCCSArithmetic.arithmeticRows logicalWidth publicFits).map
         Rows.CompiledRow.toR1CS =
-      NightstreamFPrime.Layout.Stage1.Spartan.remapRows
+      NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows
         (R1CS.lowerConstraints (emittedConstraints logicalWidth publicFits)
           PiCCSArithmetic.initialClaimFreshStart).rows := by
   have statementFreshEq : PiCCSArithmetic.statementBindingFreshStart =
@@ -1318,43 +1318,43 @@ theorem arithmeticRows_toR1CS_eq
   rw [lowerEmittedConstraints_rows relation,
     lowerPacketConstraints_rows relation]
   rw [statementFreshEq]
-  simp only [NightstreamFPrime.Layout.Stage1.Spartan.remapRows,
+  simp only [NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows,
     List.map_append, List.append_assoc]
 
 theorem complete_arithmeticRows
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env)
     (scope : ∀ expression ∈ emittedConstraints logicalWidth publicFits,
       expression.VarsBelow PiCCSArithmetic.initialClaimFreshStart)
     (logical : ConstraintsHold
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
       (emittedConstraints logicalWidth publicFits)) :
     ∃ completed,
-      AgreesOutside env completed PiCCSInvocations.invocationCeiling 2956 ∧
+      AgreesOutside env completed PiCCSInvocations.invocationCeiling 2862 ∧
         R1CS.RowsHold completed
           ((PiCCSArithmetic.arithmeticRows logicalWidth publicFits).map
             Rows.CompiledRow.toR1CS) := by
   rcases R1CS.lowerConstraints_complete
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
       (emittedConstraints logicalWidth publicFits)
       PiCCSArithmetic.initialClaimFreshStart scope logical with
     ⟨source, sourceAgrees, sourceRows⟩
   have totalFresh := emittedConstraints_totalFreshCount relation
   have sourceAgreesFixed : AgreesOutside
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) source
-      PiCCSArithmetic.initialClaimFreshStart 2956 := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) source
+      PiCCSArithmetic.initialClaimFreshStart 2862 := by
     rw [totalFresh] at sourceAgrees
     exact sourceAgrees
   have mappedStart :
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
           PiCCSArithmetic.initialClaimFreshStart =
         PiCCSInvocations.invocationCeiling := by
     rfl
   have startLocal :
-      NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
+      NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset ≤
         PiCCSArithmetic.initialClaimFreshStart := by
     unfold PiCCSArithmetic.initialClaimFreshStart
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.initialClaimFreshStart
@@ -1364,28 +1364,28 @@ theorem complete_arithmeticRows
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.statementBindingFreshStart
       NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
     rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
-    norm_num [NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset]
+    norm_num [NightstreamFPrime.Layout.Stage1.PackageOrder.piCcsPhaseOffset]
   have targetEndPrivate :
-      NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-          PiCCSArithmetic.initialClaimFreshStart + 2956 ≤
-        NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount := by
+      NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
+          PiCCSArithmetic.initialClaimFreshStart + 2862 ≤
+        NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount := by
     rw [mappedStart, PiCCSInvocations.invocationCeiling_eq,
-      NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount_eq]
+      NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount_eq]
     norm_num
   let completed :=
-    NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval env source
-      PiCCSArithmetic.initialClaimFreshStart 2956
+    NightstreamFPrime.Layout.Stage1.PackageOrder.copyMappedInterval env source
+      PiCCSArithmetic.initialClaimFreshStart 2862
   refine ⟨completed, ?_, ?_⟩
   · rw [← mappedStart]
     exact
-      NightstreamFPrime.Layout.Stage1.Spartan.copyMappedInterval_agreesOutside
-        env source PiCCSArithmetic.initialClaimFreshStart 2956
+      NightstreamFPrime.Layout.Stage1.PackageOrder.copyMappedInterval_agreesOutside
+        env source PiCCSArithmetic.initialClaimFreshStart 2862
   · rw [arithmeticRows_toR1CS_eq relation]
     exact
-      NightstreamFPrime.Layout.Stage1.Spartan.remapRows_hold_copyMappedInterval
+      NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows_hold_copyMappedInterval
         (R1CS.lowerConstraints (emittedConstraints logicalWidth publicFits)
           PiCCSArithmetic.initialClaimFreshStart).rows env source
-        PiCCSArithmetic.initialClaimFreshStart 2956 startLocal
+        PiCCSArithmetic.initialClaimFreshStart 2862 startLocal
         targetEndPrivate sourceAgreesFixed sourceRows
 
 end NightstreamFPrime.Export.Stage1.PiCCSCompleteness

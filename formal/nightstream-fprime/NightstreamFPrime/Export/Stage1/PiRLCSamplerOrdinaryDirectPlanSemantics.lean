@@ -13,7 +13,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 variable {relationLogicalWidth : Nat}
   {relationPublicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+    RingCarrierLayout.carrierWidth relationLogicalWidth}
 
 @[simp] theorem plan_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -21,7 +21,7 @@ variable {relationLogicalWidth : Nat}
       relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
       logicalWidth) :
-    (plan relation geometry).rowCount = 14943 := by
+    (plan relation geometry).rowCount = 13635 := by
   rfl
 
 theorem plan_eq_of_same_shape

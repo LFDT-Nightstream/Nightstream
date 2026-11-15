@@ -12,7 +12,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
 
 abbrev blockCount : Nat := productionShape.matrixCount
 
@@ -41,11 +41,11 @@ abbrev SpecHolds (interface : Interface) (offset : Nat) (env : Env) :=
   RingKCombination.SpecHolds (ringInterface interface) offset env
 
 def evalChallenges (interface : Interface) (offset : Nat) (env : Env) :
-    Fin 17 → RingF :=
+    Fin 15 → RingF :=
   RingKCombination.evalChallenges (ringInterface interface) offset env
 
 def evalInputs (interface : Interface) (offset : Nat) (env : Env) :
-    Fin 17 → Fin productionShape.matrixCount → RingK :=
+    Fin 15 → Fin productionShape.matrixCount → RingK :=
   fun source matrix lane =>
     (interface.input offset
       (Fin.cast CombinationFamily.sourceCount_eq.symm source) matrix
@@ -71,36 +71,36 @@ theorem parentCoverage (interface : Interface) (offset : Nat) (env : Env)
 
 theorem logicalPrivateCount_eq :
     CombinationFamily.logicalPrivateCount blockCount
-      RingKCombination.cellCount = 7344 := by
+      RingKCombination.cellCount = 7680 := by
   rw [CombinationFamily.logicalPrivateCount,
     CombinationFamily.sourceCount_eq]
   norm_num [CombinationFamily.stepSize, CombinationStep.privateCount,
     blockCount, RingKCombination.cellCount, productionShape,
-    Phi81MatrixSource.phi81Shape, productionProfile, ringDegree]
+    RingMatrixSource.ringShape, productionProfile, ringDegree]
 
 theorem logicalRowCount_eq :
     CombinationFamily.logicalRowCount blockCount
-      RingKCombination.cellCount = 7344 := by
+      RingKCombination.cellCount = 7680 := by
   rw [CombinationFamily.logicalRowCount, logicalPrivateCount_eq]
 
 def circuit (interface : Interface) : FormalCircuit :=
   RingKCombination.circuit (ringInterface interface)
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 7344 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 7680 := by
   rw [(circuit interface).privateCount_eq offset]
   exact logicalPrivateCount_eq
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      7344 := by
+      7680 := by
   rw [(circuit interface).rowCount_eq offset]
   exact logicalRowCount_eq
 
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ expression ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
-      expression.VarsBelow (offset + 7344) := by
+      expression.VarsBelow (offset + 7680) := by
   simpa [circuit, RingKCombination.circuit, logicalPrivateCount_eq] using!
     CombinationFamily.flatConstraints_varsBelow
       (RingKCombination.familyInterface (ringInterface interface))

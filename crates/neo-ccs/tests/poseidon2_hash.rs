@@ -1,10 +1,8 @@
 //! Direct behavior checks for the Poseidon2 hash helpers.
 
-use neo_ccs::crypto::poseidon2_goldilocks::{poseidon2_hash, poseidon2_hash_single, Poseidon2Hasher, RATE};
+use neo_ccs::crypto::poseidon2::{poseidon2_hash, poseidon2_hash_single, Poseidon2Hasher, RATE};
+use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks;
-
-type F = Goldilocks;
 
 #[test]
 fn poseidon2_determinism() {

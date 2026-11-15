@@ -7,7 +7,7 @@ use std::num::NonZeroUsize;
 use std::path::Path;
 
 use neo_application::ColumnWidth;
-use neo_ccs::crypto::poseidon2_goldilocks::{round_constants, WIDTH};
+use neo_ccs::crypto::poseidon2::{INSTANCE_16, WIDTH};
 use neo_wasm::nebula::{WasmApplication, WasmSize};
 use neo_wasm::operations::r1cs::operation_circuit;
 use neo_wasm::tagged_r1cs_builder::WasmConstraintScope;
@@ -144,9 +144,8 @@ fn run() -> Result<(), Box<dyn Error>> {
     println!("work\tphysical_slots_per_trace_row\t{slots}");
     let first = sample(1, slots)?;
     let second = sample(2, slots)?;
-    let constants = round_constants();
-    let full_rounds = constants.initial.len() + constants.terminal.len();
-    let partial_rounds = constants.internal.len();
+    let full_rounds = INSTANCE_16.initial.len() + INSTANCE_16.terminal.len();
+    let partial_rounds = INSTANCE_16.internal.len();
     let sboxes = full_rounds * WIDTH + partial_rounds;
     let raw_permutation_rows = WIDTH + full_rounds * (5 * WIDTH) + partial_rounds * (4 + WIDTH);
     println!("native_permutation\traw_rows\t{raw_permutation_rows}");

@@ -1,6 +1,6 @@
 import NightstreamFPrime.Layout.MatrixProgram.Ordinary
 import NightstreamFPrime.Layout.MatrixProgram.MultiplicationGrid
-import NightstreamFPrime.Layout.MatrixProgram.Phi81Product
+import NightstreamFPrime.Layout.MatrixProgram.RingProduct
 import NightstreamFPrime.Layout.MatrixProgram.Pin
 import NightstreamFPrime.Layout.MatrixProgram.Poseidon
 
@@ -12,7 +12,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 inductive Block where
   | ordinary (block : Ordinary.Block)
   | multiplicationGrid (block : MultiplicationGrid.Block)
-  | phi81Product (block : Phi81Product.Block)
+  | ringProduct (block : RingProduct.Block)
   | pin (block : Pin.Block)
   | poseidon (block : Poseidon.Block)
 deriving Repr, DecidableEq
@@ -20,7 +20,7 @@ deriving Repr, DecidableEq
 def Block.rowCount : Block → Nat
   | .ordinary block => block.rowCount
   | .multiplicationGrid block => block.rowCount
-  | .phi81Product block => block.rowCount
+  | .ringProduct block => block.rowCount
   | .pin block => block.rowCount
   | .poseidon block => block.rowCount
 
@@ -34,7 +34,7 @@ def Block.row? (block : Block) (logicalWidth : Nat)
   | .multiplicationGrid multiplicationBlock => do
       let forms ← multiplicationBlock.row? logicalWidth ordinal
       pure forms.meaningfulForm
-  | .phi81Product productBlock =>
+  | .ringProduct productBlock =>
       productBlock.row? logicalWidth ordinal
   | .pin pinBlock => do
       let forms ← pinBlock.row? logicalWidth ordinal

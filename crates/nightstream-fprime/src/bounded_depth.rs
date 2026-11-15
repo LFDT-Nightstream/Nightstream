@@ -24,45 +24,35 @@ pub use expand::PlanRows;
 
 use std::sync::Arc;
 
-use neo_ccs::crypto::poseidon2_goldilocks as poseidon2;
+use neo_ccs::crypto::poseidon2;
+use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
 use crate::application_records::ApplicationRecords;
 use crate::identity::append_value_preimage;
 use crate::package::json::{array, exact_array, usize_atom};
-use crate::package::{IdentityKind, PackageError};
+use crate::package::{IdentityKind, PackageError, BLOCK_OUTPUTS, SBOX_ROWS};
 use crate::witness::{validate_witness_batch, validate_witness_batch_order, RawWitnessBatch, WitnessBatch};
 
 const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/packages/v1";
-const FINISH_IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/finish/v1";
-
-/// The identity of the finish package in `formal/nightstream-fprime/artifacts`.
-pub const BOUNDED_DEPTH_FINISH_IDENTITY: [u64; 4] = [
-    503_609_614_388_367_041,
-    7_644_005_157_041_270_037,
-    14_871_096_991_768_929_597,
-    6_590_892_341_288_072_932,
-];
-
 /// The identity of the packages in `formal/nightstream-fprime/artifacts`.
 pub const BOUNDED_DEPTH_PACKAGES_IDENTITY: [u64; 4] = [
-    9_707_591_829_227_951_822,
-    2_741_336_479_425_895_323,
-    6_230_668_085_004_830_174,
-    14_367_988_604_119_679_107,
+    12_096_774_549_834_946_229,
+    14_010_018_720_179_246_948,
+    8_308_383_773_775_391_137,
+    13_324_862_456_486_381_448,
 ];
 
 /// A lane or a row side as `Pieces.linear?` reads it: a constant and terms.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Linear {
-    pub constant: Goldilocks,
-    pub terms: Vec<(usize, Goldilocks)>,
+    pub constant: Fq,
+    pub terms: Vec<(usize, Fq)>,
 }
 
 impl Linear {
-    fn scale(mut self, factor: Goldilocks) -> Self {
+    fn scale(mut self, factor: Fq) -> Self {
         self.constant *= factor;
         for term in &mut self.terms {
             term.1 *= factor;
@@ -202,7 +192,7 @@ impl StepPackage {
     }
 
     fn source_end(&self) -> usize {
-        (self.sbox_start + 150 * self.block_count()).max(self.packed_booleans.end())
+        (self.sbox_start + SBOX_ROWS * self.block_count()).max(self.packed_booleans.end())
     }
 
     /// The application's witness word count, which places the shared words
@@ -310,18 +300,11 @@ impl Block<'_> {
 
     /// The first output local.
     pub fn outputs(&self) -> usize {
-        self.start + 1080
-    }
-
-    /// The input lanes as their constant and terms.
-    pub fn lane_forms(&self) -> impl Iterator<Item = (Goldilocks, &[(usize, Goldilocks)])> + '_ {
-        self.lanes
-            .iter()
-            .map(|lane| (lane.constant, lane.terms.as_slice()))
+        self.start + BLOCK_OUTPUTS
     }
 
     /// The input lanes evaluated on `assignment`.
-    pub fn lane_values(&self, assignment: &[Goldilocks]) -> Vec<Goldilocks> {
+    pub fn lane_values(&self, assignment: &[Fq]) -> Vec<Fq> {
         self.lanes
             .iter()
             .map(|lane| {
@@ -367,16 +350,12 @@ impl ExpandedPackage {
     }
 
     /// `StepPackage::circuit_columns_with`.
-    pub fn circuit_columns_with(
-        &self,
-        shared: &[Goldilocks],
-        locals: Option<&[Goldilocks]>,
-    ) -> Result<Vec<Goldilocks>, PackageError> {
+    pub fn circuit_columns_with(&self, shared: &[Fq], locals: Option<&[Fq]>) -> Result<Vec<Fq>, PackageError> {
         self.package.circuit_columns_with(shared, locals)
     }
 
     /// `StepPackage::relation_columns` with the package's plan rows.
-    pub fn relation_columns(&self, columns: Vec<Goldilocks>) -> Result<Vec<Goldilocks>, PackageError> {
+    pub fn relation_columns(&self, columns: Vec<Fq>) -> Result<Vec<Fq>, PackageError> {
         self.package.relation_columns(columns, &self.rows)
     }
 }
@@ -496,50 +475,15 @@ fn decode_pair(light: &[u8], refresh: &[u8]) -> Result<(Value, StepPackage, Step
     Ok((pair, light, refresh))
 }
 
-/// The finish package (`FinishRelation`): the refresh step's layout without
-/// the application and the next hashes. Its identity hashes its canonical
-/// preimage under its own domain.
-pub fn load_bounded_depth_finish(bytes: &[u8], expected: [u64; 4]) -> Result<StepPackage, PackageError> {
-    let value = parse_atoms(bytes)?;
-    let package = decode_finish(&value)?;
-    let identity = hashed_identity(FINISH_IDENTITY_DOMAIN, &value)?;
-    if identity != expected {
-        return Err(PackageError::IdentityMismatch {
-            kind: IdentityKind::Package,
-            expected,
-            computed: identity,
-        });
-    }
-    Ok(package)
-}
-
-/// Decodes the finish package without hashing it, under the rule of
-/// `load_pinned_bounded_depth_packages`.
-pub fn load_pinned_bounded_depth_finish(bytes: &[u8]) -> Result<StepPackage, PackageError> {
-    decode_finish(&parse_atoms(bytes)?)
-}
-
-fn decode_finish(value: &Value) -> Result<StepPackage, PackageError> {
-    let package = StepPackage::decode(value)?;
-    if package.circuit != 2 {
-        return Err(PackageError::Malformed("bounded-depth finish circuit index"));
-    }
-    Ok(package)
-}
-
-fn hashed_identity(domain: &[u8], value: &Value) -> Result<[u64; 4], PackageError> {
-    let mut input = poseidon2::Poseidon2Hasher::default();
-    for &byte in domain {
-        input.update(&[Goldilocks::from_u64(u64::from(byte))]);
-    }
-    append_value_preimage(value, &mut input)?;
-    Ok(input.finalize().map(|word| word.as_canonical_u64()))
-}
-
 /// `StepPackage.identity`: Poseidon2 over the domain words and the canonical
 /// preimage of the package pair.
 pub fn bounded_depth_identity(pair: &Value) -> Result<[u64; 4], PackageError> {
-    hashed_identity(IDENTITY_DOMAIN, pair)
+    let mut input = poseidon2::Poseidon2Hasher::default();
+    for &byte in IDENTITY_DOMAIN {
+        input.update(&[Fq::from_u64(u64::from(byte))]);
+    }
+    append_value_preimage(pair, &mut input)?;
+    Ok(input.finalize().map(|word| word.as_canonical_u64()))
 }
 
 /// Reads Lean's rendering of a `Codec.Value`: arrays and natural numbers. It
@@ -592,16 +536,16 @@ pub fn parse_atoms(bytes: &[u8]) -> Result<Value, PackageError> {
     done.ok_or(PackageError::Malformed("empty package"))
 }
 
-fn field(value: &Value, location: &'static str) -> Result<Goldilocks, PackageError> {
+fn field(value: &Value, location: &'static str) -> Result<Fq, PackageError> {
     let word = value.as_u64().ok_or(PackageError::Malformed(location))?;
-    if word >= Goldilocks::ORDER_U64 {
+    if word >= Fq::ORDER_U64 {
         return Err(PackageError::NonCanonicalField { location, value: word });
     }
-    Ok(Goldilocks::from_u64(word))
+    Ok(Fq::from_u64(word))
 }
 
 /// `(column, coefficient)` pairs.
-fn decode_terms(value: &Value) -> Result<Vec<(usize, Goldilocks)>, PackageError> {
+fn decode_terms(value: &Value) -> Result<Vec<(usize, Fq)>, PackageError> {
     array(value, "bounded-depth terms")?
         .iter()
         .map(|term| {
@@ -643,8 +587,8 @@ fn decode_linear(value: &Value) -> Result<Linear, PackageError> {
         .ok_or(PackageError::Malformed("bounded-depth expression tag"))?;
     match (tag, fields) {
         (0, [_, column]) => Ok(Linear {
-            constant: Goldilocks::ZERO,
-            terms: vec![(usize_atom(column, "bounded-depth expression column")?, Goldilocks::ONE)],
+            constant: Fq::ZERO,
+            terms: vec![(usize_atom(column, "bounded-depth expression column")?, Fq::ONE)],
         }),
         (1, [_, constant]) => Ok(Linear {
             constant: field(constant, "bounded-depth expression constant")?,
@@ -660,7 +604,7 @@ fn decode_linear(value: &Value) -> Result<Linear, PackageError> {
     }
 }
 
-fn constant_node(value: &Value) -> Result<Option<Goldilocks>, PackageError> {
+fn constant_node(value: &Value) -> Result<Option<Fq>, PackageError> {
     match array(value, "bounded-depth expression")? {
         [tag, constant] if tag.as_u64() == Some(1) => Ok(Some(field(constant, "bounded-depth expression constant")?)),
         _ => Ok(None),

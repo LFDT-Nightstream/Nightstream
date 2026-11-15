@@ -1,5 +1,5 @@
 import NightstreamFPrime.Lifecycle.Nebula.StepInvoke
-import NightstreamFPrime.Spec.GoldilocksExtensionRing
+import NightstreamFPrime.Spec.FieldExtensionRing
 
 /-! Owns the honest witness of one memory-application invocation: the field
 words that an honest prover writes for a reachable carry, an invocation that
@@ -11,7 +11,7 @@ namespace NightstreamFPrime.Lifecycle.Nebula
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
-open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
+open scoped NightstreamFPrime.Spec.FieldExtensionRing
 
 /-! ### Field encodings -/
 
@@ -53,11 +53,11 @@ theorem bitsWord_natBits {n x : ℕ} (small : x < 2 ^ n) : bitsWord (natBits n x
   rw [bitsWord_eq bits, bitsNat_natBits small]
 
 /-- The field inverse, `0` at `0`. -/
-def fieldInverse (x : F) : F := @Inv.inv (ZMod goldilocksModulus) _ x
+def fieldInverse (x : F) : F := @Inv.inv (ZMod fieldModulus) _ x
 
 theorem mul_fieldInverse {x : F} (nonzero : x ≠ 0) : x * fieldInverse x = 1 := by
-  let : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
-  have key : ∀ y : ZMod goldilocksModulus, y ≠ 0 → y * y⁻¹ = 1 := fun _ h => mul_inv_cancel₀ h
+  let : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_natPrime⟩
+  have key : ∀ y : ZMod fieldModulus, y ≠ 0 → y * y⁻¹ = 1 := fun _ h => mul_inv_cancel₀ h
   exact key x nonzero
 
 /-- The bits of a typed operation slot, with O4 difference bits `diff`. -/

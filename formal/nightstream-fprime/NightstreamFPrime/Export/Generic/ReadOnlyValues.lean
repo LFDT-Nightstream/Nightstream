@@ -25,7 +25,7 @@ theorem read_rows_bits_eq {coefficient flag : F} {read write : Fin 32 → F}
     (readBits : ∀ k, IsBit (read k)) (writeBits : ∀ k, IsBit (write k))
     (keeps : (1 - flag) * (bitsWord write - bitsWord read) = 0) : read = write := by
   have zero : flag = 0 :=
-    (GoldilocksPrime.baseFieldNoZeroDivisors coefficient flag flagRow).resolve_left nonzero
+    (FieldPrime.baseFieldNoZeroDivisors coefficient flag flagRow).resolve_left nonzero
   rw [zero, sub_zero, one_mul, sub_eq_zero] at keeps
   exact word_bits_eq readBits writeBits keeps.symm
 

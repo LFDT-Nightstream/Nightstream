@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Nebula.Soundness
 import NightstreamFPrime.Spec.Nebula.Completeness
 import NightstreamFPrime.Spec.Nebula.RetryAveraging
-import NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint
+import NightstreamFPrime.Spec.Nebula.FieldFingerprint
 import NightstreamFPrime.Spec.Nebula.SetupCheck
 import NightstreamFPrime.Spec.Nebula.Game
 import NightstreamFPrime.Spec.Nebula.EventBinding

@@ -90,7 +90,7 @@ theorem sourceConstraint_freshCount_eq
 theorem commitmentSourceConstraints_eq_childConstraints
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount) :
     sourceConstraints PiRLCStarts.commitmentLogicalStart
@@ -109,7 +109,7 @@ theorem commitmentSourceConstraints_eq_childConstraints
 theorem publicInputSourceConstraints_eq_childConstraints
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount) :
     sourceConstraints PiRLCStarts.publicInputLogicalStart
@@ -128,7 +128,7 @@ theorem publicInputSourceConstraints_eq_childConstraints
 theorem evalKSourceConstraints_eq_childConstraints
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount) :
     sourceConstraints PiRLCStarts.evalKLogicalStart
@@ -147,7 +147,7 @@ theorem evalKSourceConstraints_eq_childConstraints
 theorem evalASourceConstraints_eq_childConstraints
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (source : Fin CombinationFamily.sourceCount) :
     sourceConstraints PiRLCStarts.evalALogicalStart
@@ -198,7 +198,7 @@ theorem familyConstraints_eq_orderedConstraints
 theorem commitmentFamilyConstraints_eq_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} :
     familyConstraints PiRLCStarts.commitmentLogicalStart
         CommitmentCombination.blockCount CommitmentCombination.cellCount 1
@@ -214,7 +214,7 @@ theorem commitmentFamilyConstraints_eq_parent
 theorem publicInputFamilyConstraints_eq_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} :
     familyConstraints PiRLCStarts.publicInputLogicalStart
         PublicInputCombination.blockCount PublicInputCombination.cellCount 1
@@ -230,7 +230,7 @@ theorem publicInputFamilyConstraints_eq_parent
 theorem evalKFamilyConstraints_eq_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} :
     familyConstraints PiRLCStarts.evalKLogicalStart
         EvalKCombination.blockCount RingKCombination.cellCount 2
@@ -246,7 +246,7 @@ theorem evalKFamilyConstraints_eq_parent
 theorem evalAFamilyConstraints_eq_parent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth} :
     familyConstraints PiRLCStarts.evalALogicalStart
         EvalACombination.blockCount RingKCombination.cellCount 2
@@ -277,13 +277,13 @@ theorem invocationRows_imply_sourceConstraint
     (logicalStart rowStart freshStart blockCount cellCount valueStride source
       block cell : Nat) (lane : Fin ringDegree)
     (valueSourceStart : Nat → Nat → Nat → Nat)
-    (sourceLocal : Spartan.piCcsPhaseOffset ≤
+    (sourceLocal : PackageOrder.piCcsPhaseOffset ≤
       invocationFreshSource freshStart blockCount cellCount source block
         lane.val cell)
     (valueAffine : ∀ offset, offset < ringDegree →
-      Spartan.sourceToSpartan
+      PackageOrder.sourceToPackage
           (valueSourceStart source block cell + offset * valueStride) =
-        Spartan.sourceToSpartan (valueSourceStart source block cell) +
+        PackageOrder.sourceToPackage (valueSourceStart source block cell) +
           offset * valueStride)
     (env : Env)
     (holds : R1CS.RowsHold env
@@ -295,27 +295,27 @@ theorem invocationRows_imply_sourceConstraint
           valueStride source block lane.val cell valueSourceStart).localStart
         (PiRLCCombinationTemplates.template (firstSource source) lane))) :
     (sourceConstraint logicalStart blockCount cellCount valueStride source block
-      cell valueSourceStart lane).eval (Spartan.pullback env) = 0 := by
+      cell valueSourceStart lane).eval (PackageOrder.pullback env) = 0 := by
   rw [invocationRows_eq_remappedSource logicalStart rowStart freshStart
     blockCount cellCount valueStride source block cell lane valueSourceStart
     sourceLocal valueAffine] at holds
   apply R1CS.lowerGenericConstraint_sound
-  exact (Spartan.remapRows_hold env _).mp holds
+  exact (PackageOrder.remapRows_hold env _).mp holds
 
 theorem sourceRows_imply_invocationRows
     (logicalStart rowStart freshStart blockCount cellCount valueStride source
       block cell : Nat) (lane : Fin ringDegree)
     (valueSourceStart : Nat → Nat → Nat → Nat)
-    (sourceLocal : Spartan.piCcsPhaseOffset ≤
+    (sourceLocal : PackageOrder.piCcsPhaseOffset ≤
       invocationFreshSource freshStart blockCount cellCount source block
         lane.val cell)
     (valueAffine : ∀ offset, offset < ringDegree →
-      Spartan.sourceToSpartan
+      PackageOrder.sourceToPackage
           (valueSourceStart source block cell + offset * valueStride) =
-        Spartan.sourceToSpartan (valueSourceStart source block cell) +
+        PackageOrder.sourceToPackage (valueSourceStart source block cell) +
           offset * valueStride)
     (env : Env)
-    (holds : R1CS.RowsHold (Spartan.pullback env)
+    (holds : R1CS.RowsHold (PackageOrder.pullback env)
       (R1CS.lowerGenericConstraint
         (sourceConstraint logicalStart blockCount cellCount valueStride source
           block cell valueSourceStart lane)
@@ -332,26 +332,26 @@ theorem sourceRows_imply_invocationRows
   rw [invocationRows_eq_remappedSource logicalStart rowStart freshStart
     blockCount cellCount valueStride source block cell lane valueSourceStart
     sourceLocal valueAffine]
-  exact (Spartan.remapRows_hold env _).mpr holds
+  exact (PackageOrder.remapRows_hold env _).mpr holds
 
 theorem commitmentInvocationRows_imply_sourceConstraint
     (source block cell : Nat) (lane : Fin ringDegree)
-    (sourceLt : source < sourceCount) (blockLt : block < 22)
+    (sourceLt : source < sourceCount) (blockLt : block < 18)
     (env : Env)
     (holds : R1CS.RowsHold env
       (CompactRows.instantiateRows
         (CompactRows.inputColumnOfRanges
           (invocation PiRLCStarts.commitmentLogicalStart
             PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
-            22 1 1 source block lane.val cell
+            18 1 1 source block lane.val cell
             commitmentValueSourceStart).inputRanges)
         (invocation PiRLCStarts.commitmentLogicalStart
           PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart
-          22 1 1 source block lane.val cell
+          18 1 1 source block lane.val cell
           commitmentValueSourceStart).localStart
         (PiRLCCombinationTemplates.template (firstSource source) lane))) :
-    (sourceConstraint PiRLCStarts.commitmentLogicalStart 22 1 1 source block
-      cell commitmentValueSourceStart lane).eval (Spartan.pullback env) = 0 := by
+    (sourceConstraint PiRLCStarts.commitmentLogicalStart 18 1 1 source block
+      cell commitmentValueSourceStart lane).eval (PackageOrder.pullback env) = 0 := by
   apply invocationRows_imply_sourceConstraint
   · exact invocationFreshSource_local _ _ _ _ _ _ _
       commitmentFreshStart_local
@@ -376,7 +376,7 @@ theorem publicInputInvocationRows_imply_sourceConstraint
           publicInputValueSourceStart).localStart
         (PiRLCCombinationTemplates.template (firstSource source) lane))) :
     (sourceConstraint PiRLCStarts.publicInputLogicalStart 5 1 1 source block
-      cell publicInputValueSourceStart lane).eval (Spartan.pullback env) = 0 := by
+      cell publicInputValueSourceStart lane).eval (PackageOrder.pullback env) = 0 := by
   apply invocationRows_imply_sourceConstraint
   · exact invocationFreshSource_local _ _ _ _ _ _ _
       publicInputFreshStart_local
@@ -399,7 +399,7 @@ theorem evalKInvocationRows_imply_sourceConstraint
           evalKValueSourceStart).localStart
         (PiRLCCombinationTemplates.template (firstSource source) lane))) :
     (sourceConstraint PiRLCStarts.evalKLogicalStart 1 2 2 source block cell
-      evalKValueSourceStart lane).eval (Spartan.pullback env) = 0 := by
+      evalKValueSourceStart lane).eval (PackageOrder.pullback env) = 0 := by
   apply invocationRows_imply_sourceConstraint
   · exact invocationFreshSource_local _ _ _ _ _ _ _ evalKFreshStart_local
   · intro offset offsetLt
@@ -422,7 +422,7 @@ theorem evalAInvocationRows_imply_sourceConstraint
           evalAValueSourceStart).localStart
         (PiRLCCombinationTemplates.template (firstSource source) lane))) :
     (sourceConstraint PiRLCStarts.evalALogicalStart 4 2 2 source block cell
-      evalAValueSourceStart lane).eval (Spartan.pullback env) = 0 := by
+      evalAValueSourceStart lane).eval (PackageOrder.pullback env) = 0 := by
   apply invocationRows_imply_sourceConstraint
   · exact invocationFreshSource_local _ _ _ _ _ _ _ evalAFreshStart_local
   · intro offset offsetLt
@@ -460,7 +460,7 @@ theorem familyConstraintZeros_imply_prefix
         let coordinates := CombinationStep.coordinates index
         (sourceConstraint logicalStart blockCount cellCount valueStride
           source.val coordinates.1.val coordinates.2.2.val valueSourceStart
-            coordinates.2.1).eval (Spartan.pullback env) = 0)
+            coordinates.2.1).eval (PackageOrder.pullback env) = 0)
     (constraintEq : ∀ source : Fin sourceCount,
       ∀ block : Fin blockCount, ∀ lane : Fin ringDegree,
       ∀ cell : Fin cellCount,
@@ -476,7 +476,7 @@ theorem familyConstraintZeros_imply_prefix
                 cellCount)
               (CombinationStep.indexOf block lane cell)) :
     CombinationFamily.PrefixHolds interface logicalStart
-      (Spartan.pullback env) := by
+      (PackageOrder.pullback env) := by
   intro source index
   let coordinates := CombinationStep.coordinates index
   have zero := zeros source index
@@ -491,31 +491,31 @@ theorem familyConstraintZeros_imply_prefix
   have outputEq :
       (CombinationStep.output
         (CombinationFamily.stepOffset logicalStart source.val blockCount
-          cellCount) index).eval (Spartan.pullback env) =
+          cellCount) index).eval (PackageOrder.pullback env) =
       (CombinationStep.recipe
         (CombinationFamily.stepInterface interface logicalStart source.val)
         (CombinationFamily.stepOffset logicalStart source.val blockCount
-          cellCount) index).eval (Spartan.pullback env) :=
+          cellCount) index).eval (PackageOrder.pullback env) :=
     sub_eq_zero.mp (by simpa [Expr.eval_sub] using zero)
   exact outputEq.trans
     (CombinationStep.recipe_eval
       (CombinationFamily.stepInterface interface logicalStart source.val)
       (CombinationFamily.stepOffset logicalStart source.val blockCount cellCount)
-      (Spartan.pullback env) index)
+      (PackageOrder.pullback env) index)
 
 theorem commitmentFamilyRows_imply_canonical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (env : Env)
     (rows : FamilyInvocationRowsHold PiRLCStarts.commitmentLogicalStart
-      PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart 22 1 1
+      PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart 18 1 1
       commitmentValueSourceStart env) :
     CombinationFamily.CanonicalHolds
       (productionCommitmentFamilyInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits))
-      PiRLCStarts.commitmentLogicalStart (Spartan.pullback env) := by
+      PiRLCStarts.commitmentLogicalStart (PackageOrder.pullback env) := by
   apply CombinationFamily.relation_implies_canonical
   apply CombinationFamily.parentCoverage
   apply familyConstraintZeros_imply_prefix
@@ -536,7 +536,7 @@ theorem commitmentFamilyRows_imply_canonical
 theorem publicInputFamilyRows_imply_canonical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (env : Env)
     (rows : FamilyInvocationRowsHold PiRLCStarts.publicInputLogicalStart
@@ -545,7 +545,7 @@ theorem publicInputFamilyRows_imply_canonical
     CombinationFamily.CanonicalHolds
       (productionPublicInputFamilyInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits))
-      PiRLCStarts.publicInputLogicalStart (Spartan.pullback env) := by
+      PiRLCStarts.publicInputLogicalStart (PackageOrder.pullback env) := by
   apply CombinationFamily.relation_implies_canonical
   apply CombinationFamily.parentCoverage
   apply familyConstraintZeros_imply_prefix
@@ -566,7 +566,7 @@ theorem publicInputFamilyRows_imply_canonical
 theorem evalKFamilyRows_imply_canonical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (env : Env)
     (rows : FamilyInvocationRowsHold PiRLCStarts.evalKLogicalStart
@@ -575,7 +575,7 @@ theorem evalKFamilyRows_imply_canonical
     CombinationFamily.CanonicalHolds
       (productionEvalKFamilyInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits))
-      PiRLCStarts.evalKLogicalStart (Spartan.pullback env) := by
+      PiRLCStarts.evalKLogicalStart (PackageOrder.pullback env) := by
   apply CombinationFamily.relation_implies_canonical
   apply CombinationFamily.parentCoverage
   apply familyConstraintZeros_imply_prefix
@@ -596,7 +596,7 @@ theorem evalKFamilyRows_imply_canonical
 theorem evalAFamilyRows_imply_canonical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (env : Env)
     (rows : FamilyInvocationRowsHold PiRLCStarts.evalALogicalStart
@@ -605,7 +605,7 @@ theorem evalAFamilyRows_imply_canonical
     CombinationFamily.CanonicalHolds
       (productionEvalAFamilyInterface (logicalWidth := logicalWidth)
         (publicFits := publicFits))
-      PiRLCStarts.evalALogicalStart (Spartan.pullback env) := by
+      PiRLCStarts.evalALogicalStart (PackageOrder.pullback env) := by
   apply CombinationFamily.relation_implies_canonical
   apply CombinationFamily.parentCoverage
   apply familyConstraintZeros_imply_prefix

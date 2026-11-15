@@ -12,27 +12,27 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 def verifierRows : Nat := productionProfile.commitmentWidth
 
 def messageColumns : Nat :=
-  Phi81ColumnLayout.blockCount
-    (Phi81CarrierLayout.carrierWidth
+  ConcreteRingColumnLayout.blockCount
+    (RingCarrierLayout.carrierWidth
       (PerApplicationFixedPoint.logicalWidth
         Poseidon2HashChainV1Package.application))
 
-@[simp] theorem verifierRows_eq : verifierRows = 22 := by
+@[simp] theorem verifierRows_eq : verifierRows = 18 := by
   rfl
 
 @[simp] theorem carrierWidth_eq :
-    Phi81CarrierLayout.carrierWidth
+    RingCarrierLayout.carrierWidth
         (PerApplicationFixedPoint.logicalWidth
           Poseidon2HashChainV1Package.application) =
-      43963776 := by
+      41106688 := by
   rw [Poseidon2HashChainV1Package.logicalWidth]
-  norm_num [Phi81CarrierLayout.carrierWidth, Phi81ColumnLayout.blockCount,
+  norm_num [RingCarrierLayout.carrierWidth, ConcreteRingColumnLayout.blockCount,
     ringDegree]
 
-@[simp] theorem messageColumns_eq : messageColumns = 814144 := by
+@[simp] theorem messageColumns_eq : messageColumns = 642292 := by
   unfold messageColumns
   rw [carrierWidth_eq]
-  norm_num [Phi81ColumnLayout.blockCount, ringDegree]
+  norm_num [ConcreteRingColumnLayout.blockCount, ringDegree]
 
 abbrev Setup :=
   PerApplicationCanonicalPackage.CommitmentSetup
@@ -50,15 +50,15 @@ def authorityWords (setup : Setup) : List F :=
   PerApplicationCanonicalPackage.commitmentKeyWords setup
 
 @[simp] theorem authorityWords_length (setup : Setup) :
-    (authorityWords setup).length = 73 := by
+    (authorityWords setup).length = 74 := by
   exact setup.authorityWords_length
 
 theorem authorityWords_injective : Function.Injective authorityWords := by
   intro left right sameWords
-  have rowsBound : verifierRows < goldilocksModulus := by
+  have rowsBound : verifierRows < fieldModulus := by
     rw [verifierRows_eq]
     decide
-  have columnsBound : messageColumns < goldilocksModulus := by
+  have columnsBound : messageColumns < fieldModulus := by
     rw [messageColumns_eq]
     decide
   have sameSeed := (AjtaiSetupV1.Setup.authorityWords_eq_iff left right
@@ -101,7 +101,7 @@ def productionAjtaiKey := ajtaiKey productionSetup
 def productionAuthorityWords : List F := authorityWords productionSetup
 
 @[simp] theorem productionAuthorityWords_length :
-    productionAuthorityWords.length = 73 := by
+    productionAuthorityWords.length = 74 := by
   exact authorityWords_length productionSetup
 
 def directProductionAuthorityNats : List Nat :=

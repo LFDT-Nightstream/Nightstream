@@ -69,7 +69,7 @@ fn full_wasm_word_packing_proof_checks_memory_control_and_program() {
 }
 
 #[test]
-#[ignore = "Creates retained compression setup files. Run this test alone."]
+#[ignore = "Full production-profile proof and compression; run alone under the 300-second cap."]
 fn full_wasm_packed_range_terminal_proof_checks_memory_control_and_program() {
     let per_step = per_step(4);
     let source = [module(42), module(43)];
@@ -111,18 +111,7 @@ fn full_wasm_packed_range_terminal_proof_checks_memory_control_and_program() {
     assert!(verifier
         .verify(&programs[0], &trace.initial, &trace.last, &proofs[1])
         .is_err());
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    let directory = std::env::temp_dir().join(format!(
-        "nightstream-packed-range-compression-{}-{stamp}",
-        std::process::id()
-    ));
-    std::fs::create_dir(&directory).unwrap();
-    eprintln!("packed_range_terminal_setup\t{}", directory.display());
-    drop(prover.compression_setup(&directory).unwrap());
-    let compression = prover.open_compression_setup(&directory).unwrap();
+    let compression = prover.compression_setup().unwrap();
     let final_proof = prover.compress(&proofs[0], &compression).unwrap();
     let key = verifier.compression_key().unwrap();
     verifier

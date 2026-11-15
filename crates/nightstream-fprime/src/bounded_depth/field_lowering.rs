@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use neo_math::Fq as F;
 use p3_field::{Field, PrimeCharacteristicRing};
-use p3_goldilocks::Goldilocks as F;
 
 use super::{Linear, Piece, Row, StepPackage};
 use crate::PackageError;

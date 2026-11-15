@@ -4,18 +4,18 @@
 
 use std::collections::BTreeSet;
 
+use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 use serde::Deserialize;
 use thiserror::Error;
 
 // The selected Nightstream profile, in the exported profile field order.
 const PROFILE: [u64; 8] = [
-    Goldilocks::ORDER_U64,
+    Fq::ORDER_U64,
     crate::DECOMPOSITION_BASE,
     crate::DECOMPOSITION_K_RHO as u64,
     crate::DECOMPOSITION_NORM_BOUND,
-    crate::PI_CCS_V1_2_COEFFICIENT_COUNT as u64,
+    crate::RING_DEGREE as u64,
     crate::PI_CCS_V1_2_ROUND_COUNT as u64,
     crate::PI_CCS_V1_2_MATRIX_COUNT as u64,
     MATRIX_PORTS as u64,
@@ -33,24 +33,24 @@ pub(crate) enum ComponentError {
 /// Canonical sparse linear form over field-valued columns.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct SparseForm {
-    entries: Vec<(usize, Goldilocks)>,
+    entries: Vec<(usize, Fq)>,
 }
 
 impl SparseForm {
     pub(crate) fn new(entries: impl IntoIterator<Item = (usize, u64)>) -> Result<Self, ComponentError> {
         let mut terms = Vec::new();
         for (column, coefficient) in entries {
-            if coefficient >= Goldilocks::ORDER_U64 {
+            if coefficient >= Fq::ORDER_U64 {
                 return Err(ComponentError::Invalid("noncanonical field coefficient"));
             }
-            terms.push((column, Goldilocks::from_u64(coefficient)));
+            terms.push((column, Fq::from_u64(coefficient)));
         }
         Ok(Self::canonical(terms))
     }
 
     pub(crate) fn variable(column: usize) -> Self {
         Self {
-            entries: vec![(column, Goldilocks::ONE)],
+            entries: vec![(column, Fq::ONE)],
         }
     }
 
@@ -60,17 +60,17 @@ impl SparseForm {
             .map(|(column, coefficient)| (*column, coefficient.as_canonical_u64()))
     }
 
-    fn canonical(mut entries: Vec<(usize, Goldilocks)>) -> Self {
+    fn canonical(mut entries: Vec<(usize, Fq)>) -> Self {
         entries.sort_unstable_by_key(|entry| entry.0);
-        let mut result: Vec<(usize, Goldilocks)> = Vec::with_capacity(entries.len());
+        let mut result: Vec<(usize, Fq)> = Vec::with_capacity(entries.len());
         for (column, coefficient) in entries {
-            if coefficient == Goldilocks::ZERO {
+            if coefficient == Fq::ZERO {
                 continue;
             }
             if let Some(last) = result.last_mut() {
                 if last.0 == column {
                     last.1 += coefficient;
-                    if last.1 == Goldilocks::ZERO {
+                    if last.1 == Fq::ZERO {
                         result.pop();
                     }
                     continue;

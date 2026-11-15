@@ -1,4 +1,3 @@
-import NightstreamFPrime.Export.BoundedDepth.FinishRelation
 import NightstreamFPrime.Export.BoundedDepth.Parity
 import NightstreamFPrime.Export.BoundedDepth.StepCompleteness
 import NightstreamFPrime.Export.Stage1.Rows
@@ -20,7 +19,7 @@ import NightstreamFPrime.Lifecycle.Nebula.ProgramSoundness
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.CcsTerminal
 import NightstreamFPrime.Lifecycle.Stage1.Terminal
 import NightstreamFPrime.Spec
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import NightstreamFPrime.Spec.Nebula
@@ -52,7 +51,8 @@ abbrev relation := StepRelation.keyRelation
 def program : Stage1.Application.Program := Stage1.Poseidon2HashChainV1.program
 
 /-- The application that `--program` selects and the stem of its package files: today's fixture
-by default, or a Nebula memory program (`NebulaMemoryV1Package`, `NebulaMemoryN1Package`). -/
+by default or by its name `poseidon2-hash-chain-v1`, or a Nebula memory program
+(`NebulaMemoryV1Package`, `NebulaMemoryN1Package`). -/
 def selected (arguments : List String) : IO (Stage1.Application.Program × String) :=
   match arguments.dropWhile (· != "--program") with
   | _ :: "nebula-v1" :: _ => pure (Export.Stage1.NebulaMemoryV1Package.application, "nebula-v1-")
@@ -60,6 +60,7 @@ def selected (arguments : List String) : IO (Stage1.Application.Program × Strin
   | _ :: "nebula-r1" :: _ => pure (Export.Stage1.NebulaMemoryPackage.application
       ⟨Nebula.ThirdPlan.geometry, Nebula.ThirdPlan.valid, Nebula.ThirdPlan.secure⟩ Nebula.ThirdPlan.app,
       "nebula-r1-")
+  | _ :: "poseidon2-hash-chain-v1" :: _ => pure (program, "")
   | _ :: name :: _ => throw (IO.userError s!"unknown program {name}")
   | _ => pure (program, "")
 
@@ -122,23 +123,11 @@ def completenessChecks (pieces : List Pieces.Piece) (firstFresh : Nat) : Bool ×
   let scope := (pieces.filter fun piece => !PieceRowsCompleteness.pieceBelow firstFresh piece).length
   (scope == 0, scope)
 
-/-- The completeness checks of the finish package (`FinishCompleteness.FinishComplete`): every
-piece reads only columns below the first fresh column, and the shared words, which end at
-`offset`, lie below it. For a failure, also the pieces that read a fresh column. -/
-def finishChecks (pieces : List Pieces.Piece) (offset firstFresh : Nat) : Bool × Nat :=
-  if pieces.all (PieceRowsCompleteness.pieceBelow firstFresh) && decide (offset ≤ firstFresh) then
-    (true, 0)
-  else
-    (false, (pieces.filter fun piece => !PieceRowsCompleteness.pieceBelow firstFresh piece).length)
-
 /-- Writes the circuit's package (`StepPackage.packageOf`); the blocks must pack and start at or
-after the shared words (`FinishRelation.checks_finish` reads the words below them). The finish
-package has no application: its region is the witness words alone, and its fresh columns start
-after the refresh step's locals (`firstFresh`), whose layout its gadgets keep. Before it writes, it
-runs the package's completeness checks (`completenessChecks` for a step package, `finishChecks`
-for the finish package) and checks that no row of the circuit reads a public column. -/
+after the shared words. Before it writes, it runs the package's completeness checks
+(`completenessChecks`) and checks that no row of the circuit reads a public column. -/
 def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
-    (pieces : List Pieces.Piece) (firstFresh : Option Nat := none)
+    (pieces : List Pieces.Piece)
     (program : Stage1.Application.Program := program) (stem : String := "")
     (write : Bool := true) :
     IO StepPackage.Package := do
@@ -147,32 +136,22 @@ def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
     throw (IO.userError s!"{name}: the Poseidon2 blocks do not pack")
   unless CircuitRelation.startsFrom offset pieces do
     throw (IO.userError s!"{name}: a Poseidon2 block starts below the shared end")
-  let firstFresh := firstFresh.getD (offset + localLength ops)
+  let firstFresh := offset + localLength ops
   unless CircuitRelation.publicColumns ≤ firstFresh do
     throw (IO.userError s!"{name}: the first fresh column is inside the public input")
   let free := StepCompleteness.publicFree (flatConstraints ops)
-  if circuit < 2 then
-    let (complete, scope) := completenessChecks pieces firstFresh
-    say s!"{name}: completeness checks pass: {complete}, rows read no public column: {free} \
-      ({(← IO.monoMsNow) - start} ms)"
-    unless complete && free do
-      throw (IO.userError s!"{name}: the completeness checks fail: {scope} pieces read a fresh \
-        column, rows read no public column: {free}")
-  else
-    let (complete, scope) := finishChecks pieces offset firstFresh
-    say s!"{name}: completeness checks pass: {complete}, rows read no public column: {free} \
-      ({(← IO.monoMsNow) - start} ms)"
-    unless complete && free do
-      throw (IO.userError s!"{name}: the completeness checks fail: {scope} pieces read a fresh \
-        column, shared words end at {offset}, first fresh column {firstFresh}")
+  let (complete, scope) := completenessChecks pieces firstFresh
+  say s!"{name}: completeness checks pass: {complete}, rows read no public column: {free} \
+    ({(← IO.monoMsNow) - start} ms)"
+  unless complete && free do
+    throw (IO.userError s!"{name}: the completeness checks fail: {scope} pieces read a fresh \
+      column, rows read no public column: {free}")
   unless write do
     return StepPackage.packageOf circuit CircuitRelation.publicColumns pieces firstFresh width
       (witnesses ops) (program.witnessWordCount, offset, 0, 0, 0)
   let package := StepPackage.packageOf circuit CircuitRelation.publicColumns pieces
     firstFresh width (witnesses ops) (program.witnessWordCount, offset, 0, 0, 0)
-  let region ← if circuit < 2 then
-      applicationRegion name program.witnessWordCount ops offset firstFresh package.pieces
-    else pure package.application
+  let region ← applicationRegion name program.witnessWordCount ops offset firstFresh package.pieces
   let package := { package with application := region }
   let logical := ProductionAssignment.logicalWidth (SlotLayout.runSlots width package.slots)
   unless logical ≤ StepRelation.keyWidth do
@@ -207,26 +186,6 @@ def childCensus (name : String) (ops : List Op) : IO Unit := do
     IO.println s!"{name} child {label}: {permutations} blocks, {products} ring products, \
       {constraints} other constraints, {rows} other rows"
 
-/-- Writes the finish package (`FinishRelation`): the refresh step's layout without the
-application and the next hashes, with fresh columns after the refresh step's locals. Without
-`write`, it only runs the completeness checks. -/
-def emitFinish (write : Bool) : IO Unit := do
-  let start ← IO.monoMsNow
-  let base := StepRelation.base
-  let words := program.witnessWordCount
-  let refreshOffset := RefreshAssembler.sharedEnd base words
-  let interface := RefreshAssembler.interface (logicalWidth := StepRelation.keyWidth)
-    (publicFits := StepRelation.keyPublicFits) base words
-  let refreshOps := Circuit.ops (BoundedDepth.RefreshStepLayout.main program relation 1 interface)
-    refreshOffset
-  let finishOps := Circuit.ops (BoundedDepth.FinishStep.main program relation 1 interface) refreshOffset
-  let _ ← emitPackage "finish" 2 finishOps refreshOffset
-    (FinishRelation.pieces (logicalWidth := StepRelation.keyWidth)
-      (publicFits := StepRelation.keyPublicFits) program relation)
-    (some (refreshOffset + localLength refreshOps)) (write := write)
-  say s!"finish {if write then "package written" else "checks done"} \
-    ({(← IO.monoMsNow) - start} ms)"
-
 /-- FNV-1a over the little-endian bytes of `word`. -/
 def fnvWord (hash word : UInt64) : UInt64 := Id.run do
   let mut hash := hash
@@ -249,7 +208,8 @@ def sideWords (toVariable : Nat → Except String Nat) (side : R1CS.LinearCombin
 /-- The rows of `program`'s application, and their digest in the Rust application's variable
 order (`ApplicationCircuit`): the input state, the witness words, the output state, then the
 locals and the lowering's fresh columns. `tests/nebula/parity.rs` requires the Rust-built
-memory circuit to have the same digest. -/
+memory circuit to have the same digest, and `tests/application/poseidon2.rs` requires it of the
+Rust-built hash chain. -/
 def applicationDigest (program : Stage1.Application.Program) : Except String (Nat × UInt64) := do
   let columns := Export.Stage1.ApplicationPackage.productionColumns program
   let privateStart := Layout.Stage1.ApplicationInputs.localStart program
@@ -287,7 +247,7 @@ def nebulaStart (plan : Spec.Nebula.Plan) : String :=
   "{\"d_init\":[" ++ ",".intercalate ((Lifecycle.Nebula.initRootWords plan).map (toString ·.val)) ++ "]}\n"
 
 /-- The memory fixtures that the Rust tests read: the named row ranges, `D_init` and the
-SPEC.md Algorithm 10 terminal-check cases (`NebulaMemoryTerminal.fixture`). -/
+SPEC.md Algorithm 8 terminal-check cases (`NebulaMemoryTerminal.fixture`). -/
 def nebulaFixture : List String → Option String
   | ["--application-rows", "nebula-v1"] => some (nebulaRows Stage1.NebulaMemoryV1Package.namedRowRanges)
   | ["--application-rows", "nebula-n1"] => some (nebulaRows Stage1.NebulaMemoryN1Package.namedRowRanges)
@@ -301,16 +261,12 @@ def nebulaFixture : List String → Option String
   | _ => none
 
 /-- Writes both step packages of the `--program` application (`selected`), and for today's
-fixture the parity file; with `--finish`, only the finish package (one Lean run renders
-at most two packages under the 1,500 s cap); with `--checks`, only runs the completeness checks of
-both step packages, or with `--finish` of the finish package, and writes nothing; with
+fixture the parity file; with `--checks`, only runs the completeness checks of
+both step packages and writes nothing; with
 `--census`, prints the row census first; with `--identity`, also computes their one identity
 (`StepPackage.identityFast`), which the spec field arithmetic makes slow: Rust computes it
 natively. -/
 def main (arguments : List String) : IO Unit := do
-  if arguments.contains "--finish" then
-    emitFinish (!arguments.contains "--checks")
-    return
   if let [mode, name, path] := arguments then
     if let some text := nebulaFixture [mode, name] then
       IO.FS.writeFile path text

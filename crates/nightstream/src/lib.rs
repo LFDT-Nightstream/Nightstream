@@ -1,5 +1,4 @@
-//! Recursive proving of an application's steps over circuits that Lean emits,
-//! and compression of the final proof.
+//! Recursive proving of an application's steps over circuits that Lean emits.
 
 pub mod application;
 pub mod error;
@@ -18,7 +17,7 @@ pub use circuit::{
     ApplicationSize, Circuit, CompressionKey, CompressionSetup, Error, FinalProof, Proof, Prover, State, Verifier,
 };
 pub use engine::{Engine, EngineError};
-/// The Goldilocks field of every state, input and output word, and the
+pub use neo_math::Fq;
+/// The field `F_q`, `q = 2^64 − 59`, of every state, input and output word, and the
 /// Plonky3 traits that build and read its elements.
 pub use p3_field::{PrimeCharacteristicRing, PrimeField64};
-pub use p3_goldilocks::Goldilocks;

@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.Nifs.BindingBridge
 import NightstreamFPrime.Spec.Folding.Light.Security
 import NightstreamFPrime.Spec.Folding.Light.RunningBinding
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ChainBinding
 
 /-! The light fold's uniqueness step in the random-oracle model: `Uniqueness` on the light game
 `LightFork.game`.
@@ -51,7 +51,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink (Attempt)
 attribute [local instance low] Classical.propDecidable
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
 variable (logicalWidth publicFits) in
@@ -59,7 +59,7 @@ variable (logicalWidth publicFits) in
 abbrev Retries := Fin (LightSchedule.schedule logicalWidth publicFits).rhoCount → Answer
 
 local notation "LightWitness" =>
-  OutputWitness LightShape (Phi81CarrierLayout.carrierWidth logicalWidth)
+  OutputWitness LightShape (RingCarrierLayout.carrierWidth logicalWidth)
 local notation "Oracle" => LightFork.Oracle logicalWidth publicFits
 
 section Knowledge
@@ -68,7 +68,7 @@ section Knowledge
 def Truth (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (running : LightFork.Running logicalWidth publicFits)
     (fresh : LightFork.Statement logicalWidth publicFits)
-    (witness : OutputWitness LightShape (Phi81CarrierLayout.carrierWidth logicalWidth)) : Prop :=
+    (witness : OutputWitness LightShape (RingCarrierLayout.carrierWidth logicalWidth)) : Prop :=
   Light.PiCCS.SemanticTruth
     ((((keys relation ajtai).light.statement running fresh).sourceConnectedInputs
       witness).toUnifiedInputs (keys relation ajtai).light.baseOps)
@@ -76,7 +76,7 @@ def Truth (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (keys relation ajtai).light.lift
 
 /-- The answer of a light output witness: the running witness, then the fresh witness. -/
-def answerOf (witness : OutputWitness LightShape (Phi81CarrierLayout.carrierWidth logicalWidth)) :
+def answerOf (witness : OutputWitness LightShape (RingCarrierLayout.carrierWidth logicalWidth)) :
     PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits) ×
       PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   (witness.assignments ⟨1, by decide⟩, witness.assignments ⟨0, by decide⟩)
@@ -174,12 +174,12 @@ variable (key : CircuitKey logicalWidth publicFits)
 /-- The witness that a valid pair extracts. -/
 noncomputable def witnessOf (oracle : LightFork.Oracle logicalWidth publicFits)
     (retries : Fin (LightSchedule.schedule logicalWidth publicFits).rhoCount → Answer) :
-    Option (OutputWitness LightShape (Phi81CarrierLayout.carrierWidth logicalWidth)) :=
+    Option (OutputWitness LightShape (RingCarrierLayout.carrierWidth logicalWidth)) :=
   if valid : Uniqueness.Valid (LightFork.game ajtai key) adversary oracle retries then
     some (LightFork.extractedWitness ajtai valid.1 valid.2)
   else none
 
-def zeroWitness : OutputWitness LightShape (Phi81CarrierLayout.carrierWidth logicalWidth) :=
+def zeroWitness : OutputWitness LightShape (RingCarrierLayout.carrierWidth logicalWidth) :=
   ⟨fun _ _ => 0⟩
 
 /-- The claimed light Π_CCS data of a pair: the base run's start claim, read through the pair's
@@ -289,7 +289,7 @@ theorem lightHolds_mono {relation : ProductionKey.LogicalRelation logicalWidth p
 theorem compatible (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     PiRLC.PaperForkBinding.Compatible (algebra := (keys relation ajtai).light.piRlcAlgebra)
       (lightExtraction ajtai)
-      (Phi81Relation.PiRLCAlgebra.Binding.relaxedOps (shape := FullShape logicalWidth publicFits)
+      (RingRelation.PiRLCAlgebra.Binding.relaxedOps (shape := FullShape logicalWidth publicFits)
         (rows := productionProfile.commitmentWidth)) :=
   { differenceValid := (Nifs.BindingBridge.compatible relation ajtai).differenceValid
     assignmentAction := (Nifs.BindingBridge.compatible relation ajtai).assignmentAction
@@ -301,11 +301,11 @@ def lightCollision {relation : ProductionKey.LogicalRelation logicalWidth public
     {bound : Nat} {commitment : PaperAlgebra.Commitment}
     (collision : PiRLC.ChainBinding.CollisionAt (keys relation ajtai).light.piRlcSemantics
       productionGlobalParams
-      (Phi81Relation.PiRLCAlgebra.Binding.relaxedOps (shape := FullShape logicalWidth publicFits)
+      (RingRelation.PiRLCAlgebra.Binding.relaxedOps (shape := FullShape logicalWidth publicFits)
         (rows := productionProfile.commitmentWidth)) bound commitment) :
     PiRLC.ChainBinding.CollisionAt
-      (Phi81Relation.relationSemantics (Phi81Relation.PiRLCAlgebra.Commitment.commit ajtai))
-      productionGlobalParams Phi81Relation.PiRLCAlgebra.Binding.relaxedOps bound commitment where
+      (RingRelation.relationSemantics (RingRelation.PiRLCAlgebra.Commitment.commit ajtai))
+      productionGlobalParams RingRelation.PiRLCAlgebra.Binding.relaxedOps bound commitment where
   collision :=
     { delta₁ := collision.collision.delta₁
       delta₂ := collision.collision.delta₂
@@ -377,7 +377,7 @@ their extracted witnesses differ. -/
 noncomputable def rerunKernel (oracle : Oracle) (retries : Retries logicalWidth publicFits)
     (other : Oracle)
     (otherRetries : Retries logicalWidth publicFits) :
-    Option (Phi81Relation.PiRLCAlgebra.Binding.ShortKernelVector ajtai
+    Option (RingRelation.PiRLCAlgebra.Binding.ShortKernelVector ajtai
       (Folding.Schedule.msisChainBound productionGlobalParams
         Folding.Schedule.productionLightFoldCap)) :=
   if paired : Uniqueness.Valid (LightFork.game ajtai key) adversary oracle retries ∧
@@ -416,7 +416,7 @@ noncomputable def rerunKernel (oracle : Oracle) (retries : Retries logicalWidth 
             LightFork.strongSet ≠
           (boundedFork ajtai paired.2.1.1 paired.2.1.2).freshAssignment (lightExtraction ajtai)
             LightFork.strongSet then
-      some (Phi81Relation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel ajtai _ le_rfl
+      some (RingRelation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel ajtai _ le_rfl
         (lightCollision ajtai (relation := key.relation)
           (Light.Rlc.collisionAbove (lightExtraction ajtai) _
           (compatible ajtai key.relation) LightFork.strongSet rfl
@@ -428,7 +428,7 @@ noncomputable def rerunKernel (oracle : Oracle) (retries : Retries logicalWidth 
             LightFork.strongSet ≠
           (boundedFork ajtai paired.2.1.1 paired.2.1.2).runningAssignment (lightExtraction ajtai)
             LightFork.strongSet then
-      some (Phi81Relation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel ajtai _ le_rfl
+      some (RingRelation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel ajtai _ le_rfl
         (lightCollision ajtai (relation := key.relation)
           (Light.Rlc.runningCollisionAbove (lightExtraction ajtai) _
           (compatible ajtai key.relation) LightFork.strongSet rfl

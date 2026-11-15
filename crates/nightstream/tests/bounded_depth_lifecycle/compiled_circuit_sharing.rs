@@ -1,7 +1,7 @@
-//! A compiled circuit expands its step packages and builds its finish
-//! circuit once. Its provers and verifiers read that one read-only copy, so
-//! making them expands nothing again. Each keeps its own matrix window, the
-//! one part a fold fills, so a verifier reads nothing a prover filled.
+//! A compiled circuit expands its step packages once. Its provers and
+//! verifiers read that one read-only copy, so making them expands nothing
+//! again. Each keeps its own matrix window, the one part a fold fills, so a
+//! verifier reads nothing a prover filled.
 
 use std::sync::Arc;
 
@@ -54,8 +54,5 @@ fn provers_and_verifiers_read_the_circuit_expansion() {
                 );
             }
         }
-    }
-    for finish in [&provers[0].finish, &provers[1].finish, &verifier.finish] {
-        assert!(Arc::ptr_eq(finish, &circuit.finish), "another finish circuit");
     }
 }

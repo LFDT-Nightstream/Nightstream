@@ -108,7 +108,7 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      4712 := by
+      4992 := by
   exact StateBinding.flatConstraints_length interface.state offset
 
 theorem flatConstraints_eq_stateAssertions (interface : Interface)
@@ -142,7 +142,7 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
 theorem spec_implies_keyStatement
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns <=
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

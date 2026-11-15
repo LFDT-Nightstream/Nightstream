@@ -4,7 +4,7 @@ import NightstreamFPrime.Spec.Folding.Light.RlcModule
 
 /-! The light Π_RLC commitment `c = c_running + ρ · c_fresh` (Cyclo, ePrint 2026/359, Figure 3,
 step 6, on SuperNeo v1.2 Section 7.4, verifier Step 1) as one `CombinationStep` with the
-running commitment as the prior: 22 × 54 = 1,188 rows, against 20,196 for today's 17-source
+running commitment as the prior: 18 × 64 = 1,152 rows, against 17,280 for today's 15-source
 combination (`CommitmentCombination.logicalRowCount_eq`). `output_eq` gives the commitment of
 `Light.Rlc.output` for the production light key. -/
 
@@ -12,7 +12,7 @@ namespace NightstreamFPrime.Lifecycle.BoundedDepth.LightCommitment
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
-open NightstreamFPrime.Spec.Phi81Relation
+open NightstreamFPrime.Spec.RingRelation
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 
@@ -49,7 +49,7 @@ def evalFresh (interface : Interface) (offset : Nat) (env : Env) :
     PiRLCAlgebra.Commitment.Value blockCount :=
   fun row lane => (interface.fresh offset row lane).eval env
 
-theorem rowCount : CombinationStep.privateCount blockCount cellCount = 1188 := by
+theorem rowCount : CombinationStep.privateCount blockCount cellCount = 1152 := by
   norm_num [CombinationStep.privateCount, blockCount, productionProfile, ringDegree]
 
 /-- The rows compute `c_running + ρ · c_fresh`. -/
@@ -67,7 +67,7 @@ theorem output_combination (interface : Interface) (offset : Nat) (env : Env)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The production Π_RLC commitment of `ρ · c_fresh + 1 · c_running`. -/
 theorem combine_eq (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth)
@@ -88,12 +88,12 @@ theorem output_eq (relation : ProductionKey.LogicalRelation logicalWidth publicF
     (interface : Interface) (offset : Nat) (env : Env)
     (spec : CombinationStep.SpecHolds (stepInterface interface) offset env)
     (system : StrongReduction.RelationSource BoundedDepth.LightShape
-      (Phi81CarrierLayout.carrierWidth logicalWidth)
-      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth)))
+      (RingCarrierLayout.carrierWidth logicalWidth)
+      (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth)))
     (point : CubePoint K BoundedDepth.LightShape.cubeVariables)
     (fresh running : CE.Instance (StrongReduction.RelationSource BoundedDepth.LightShape
-      (Phi81CarrierLayout.carrierWidth logicalWidth)
-      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth)))
+      (RingCarrierLayout.carrierWidth logicalWidth)
+      (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth)))
       (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
       (CubePoint K BoundedDepth.LightShape.cubeVariables)
       (StrongReduction.EvaluationFamily K BoundedDepth.LightShape) PaperAlgebra.Commitment)

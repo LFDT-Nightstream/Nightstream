@@ -52,10 +52,10 @@ def decodeCarry (v : Fin 39 → F) : MemoryCarry where
 
 /-- A carry whose counters are canonical field values. -/
 def MemoryCarry.Canonical (c : MemoryCarry) : Prop :=
-  c.segIdx < goldilocksModulus ∧ c.idx < goldilocksModulus ∧ c.ts < goldilocksModulus
+  c.segIdx < fieldModulus ∧ c.idx < fieldModulus ∧ c.ts < fieldModulus
 
 /-- A natural value below `q` is its field word's value. -/
-theorem natWord_val {n : ℕ} (small : n < goldilocksModulus) : (natWord n).val = n := by
+theorem natWord_val {n : ℕ} (small : n < fieldModulus) : (natWord n).val = n := by
   simp [natWord, Poseidon2.ofNat, Nat.mod_eq_of_lt small]
 
 theorem natWord_of_val (x : F) : natWord x.val = x := by
@@ -123,15 +123,15 @@ def StateCollision (app carry app' carry' : List F) : Prop :=
 /-- Equal state words bind the application words and the carry words, or give
 a Poseidon2 transcript collision. -/
 theorem stateWords_eq_or_collision {app carry app' carry' : List F}
-    (small : app.length < goldilocksModulus) (small' : app'.length < goldilocksModulus)
-    (carrySmall : carry.length < goldilocksModulus)
-    (carrySmall' : carry'.length < goldilocksModulus)
+    (small : app.length < fieldModulus) (small' : app'.length < fieldModulus)
+    (carrySmall : carry.length < fieldModulus)
+    (carrySmall' : carry'.length < fieldModulus)
     (same : stateWords app carry = stateWords app' carry') :
     (app = app' ∧ carry = carry') ∨ StateCollision app carry app' carry' := by
   by_cases chunks : blockChunks [textWords "Nightstream/Nebula/v3/state", app, carry] =
       blockChunks [textWords "Nightstream/Nebula/v3/state", app', carry']
-  · have tag : (textWords "Nightstream/Nebula/v3/state").length < goldilocksModulus := by
-      simp [textWords, goldilocksModulus]
+  · have tag : (textWords "Nightstream/Nebula/v3/state").length < fieldModulus := by
+      simp [textWords, fieldModulus]
     have blocksEq := blockChunks_injective
       (bs := [textWords "Nightstream/Nebula/v3/state", app, carry])
       (bs' := [textWords "Nightstream/Nebula/v3/state", app', carry'])

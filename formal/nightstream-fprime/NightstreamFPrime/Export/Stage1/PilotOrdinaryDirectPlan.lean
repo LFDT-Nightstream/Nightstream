@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryRetainedGeometry
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
-import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.Stage1.PackageOrderValues
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectSource
 
 namespace NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectPlan
@@ -32,10 +32,9 @@ def finalSlot (lane : Fin 4) : Fin 1096 :=
 
 inductive Location where
   | priorDigest (lane : Fin 4)
-  | priorPublic (index : Fin 270)
-  | canonicalLocal (index : Fin 264)
+  | priorPublic (index : Fin 320)
+  | canonicalLocal (index : Fin 268)
   | outputState (lane : Fin 4)
-  | canonicalFresh (index : Fin 144)
   | outputDigest (lane : Fin 4)
 
 namespace Location
@@ -48,7 +47,6 @@ def sourceColumn : Location → Nat
         PilotProduction.witnessOffset + index.val
   | .outputState lane => PilotProduction.lifecycleOutputOffset +
       PilotValues.absorbCount * 1096 + 1080 + lane.val
-  | .canonicalFresh index => PilotValues.logicalColumnCount + index.val
   | .outputDigest lane => PilotProduction.outputDigestStart + lane.val
 
 theorem physicalSupport (location : Location) :
@@ -65,7 +63,7 @@ theorem physicalSupport (location : Location) :
   | priorPublic index =>
       apply Or.inl
       apply LogicalSource.priorPublic
-      change InRange PilotProduction.priorPublicInputStart 270
+      change InRange PilotProduction.priorPublicInputStart 320
         (PilotProduction.priorPublicInputStart + index.val)
       unfold InRange
       have bound := index.isLt
@@ -75,7 +73,7 @@ theorem physicalSupport (location : Location) :
       apply LogicalSource.canonicalLocal
       change InRange
         (PriorStateHash.hashEnd PilotProduction.priorInterface
-          PilotProduction.witnessOffset) 264
+          PilotProduction.witnessOffset) 268
         (PriorStateHash.hashEnd PilotProduction.priorInterface
           PilotProduction.witnessOffset + index.val)
       unfold InRange
@@ -92,26 +90,6 @@ theorem physicalSupport (location : Location) :
       unfold InRange
       have bound := lane.isLt
       omega
-  | canonicalFresh index =>
-      apply Or.inr
-      constructor
-      · change PilotValues.logicalColumnCount ≤
-          PilotValues.logicalColumnCount + index.val
-        omega
-      · have bound := index.isLt
-        change index.val < 144 at bound
-        change PilotValues.logicalColumnCount + index.val <
-          PilotValues.sourceColumnCount
-        norm_num [PilotValues.logicalColumnCount,
-          PilotValues.sourceColumnCount, PilotValues.externalColumnCount,
-          PilotValues.outputDigestStart, PilotValues.outputPreimageStart,
-          PilotValues.priorPublicInputStart, PilotValues.priorPreimageStart,
-          PilotValues.stateHashWords, PilotValues.stateHashBaseWords,
-          PilotValues.hashWitnessCount, PilotValues.absorbCount,
-          PilotValues.permutationRecipeCount, Spec.Poseidon2.rate,
-          PilotValues.priorCanonicalPrivateCount,
-          PilotValues.priorCanonicalFreshCount] at bound ⊢
-        omega
   | outputDigest lane =>
       apply Or.inl
       apply LogicalSource.outputDigest
@@ -122,23 +100,23 @@ theorem physicalSupport (location : Location) :
       omega
 
 theorem sourceColumn_lt (location : Location) :
-    location.sourceColumn < PilotSpartan.SourceColumnCount := by
+    location.sourceColumn < PilotPackageOrder.SourceColumnCount := by
   exact physicalSource_lt location.sourceColumn location.physicalSupport
 
 theorem targetColumn_lt (location : Location) :
-    PilotSpartan.sourceToSpartan location.sourceColumn <
-      PilotSpartan.spartanColumnCount :=
-  PilotSpartan.sourceToSpartan_lt location.sourceColumn location.sourceColumn_lt
+    PilotPackageOrder.sourceToPackage location.sourceColumn <
+      PilotPackageOrder.packageColumnCount :=
+  PilotPackageOrder.sourceToPackage_lt location.sourceColumn location.sourceColumn_lt
 
 theorem stage1Map (location : Location) :
-    Spartan.sourceToSpartan location.sourceColumn =
-      Spartan.liftPilotColumn
-        (PilotSpartan.sourceToSpartan location.sourceColumn) := by
-  unfold Spartan.sourceToSpartan
+    PackageOrder.sourceToPackage location.sourceColumn =
+      PackageOrder.liftPilotColumn
+        (PilotPackageOrder.sourceToPackage location.sourceColumn) := by
+  unfold PackageOrder.sourceToPackage
   rw [ite_eq_left]
   have bound := location.sourceColumn_lt
-  rw [PilotSpartan.sourceColumnCount_eq] at bound
-  simpa [Spartan.pilotSourceColumnCount] using bound
+  rw [PilotPackageOrder.sourceColumnCount_eq] at bound
+  simpa [PackageOrder.pilotSourceColumnCount] using bound
 
 def form {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
@@ -163,10 +141,6 @@ def form {program : Lifecycle.Stage1.Application.Program}
         (PiCCSOrdinaryRetainedGeometry.outputLastStart program)
         (PiCCSOrdinaryRetainedGeometry.outputLastFits (piCcsGeometry geometry))
         (finalSlot lane)
-  | .canonicalFresh index =>
-      (PilotOrdinaryRetainedBlocks.canonicalFreshBlock program).form
-        (PilotOrdinaryRetainedGeometry.canonicalFreshStart program)
-        (PilotOrdinaryRetainedGeometry.canonicalFreshFits geometry) index
   | .outputDigest lane =>
       (PilotOrdinaryRetainedBlocks.outputDigestBlock program).form
         (PilotOrdinaryRetainedGeometry.outputDigestStart program)
@@ -196,12 +170,12 @@ def classifySource (source : Nat) : Option (Located source) :=
   if priorDigest : InRange PilotProduction.priorDigestStart 4 source then
     some ⟨.priorDigest (rangeIndex priorDigest), by
       rw [Location.sourceColumn, rangeIndex_source priorDigest]⟩
-  else if priorPublic : InRange PilotProduction.priorPublicInputStart 270 source then
+  else if priorPublic : InRange PilotProduction.priorPublicInputStart 320 source then
     some ⟨.priorPublic (rangeIndex priorPublic), by
       rw [Location.sourceColumn, rangeIndex_source priorPublic]⟩
   else if canonicalLocal : InRange
       (PriorStateHash.hashEnd PilotProduction.priorInterface
-        PilotProduction.witnessOffset) 264 source then
+        PilotProduction.witnessOffset) 268 source then
     some ⟨.canonicalLocal (rangeIndex canonicalLocal), by
       rw [Location.sourceColumn, rangeIndex_source canonicalLocal]⟩
   else if outputState : InRange
@@ -209,22 +183,10 @@ def classifySource (source : Nat) : Option (Located source) :=
         PilotValues.absorbCount * 1096 + 1080) 4 source then
     some ⟨.outputState (rangeIndex outputState), by
       rw [Location.sourceColumn, rangeIndex_source outputState]⟩
-  else if canonicalFresh : InRange PilotValues.logicalColumnCount 144 source then
-    some ⟨.canonicalFresh (rangeIndex canonicalFresh), by
-      rw [Location.sourceColumn, rangeIndex_source canonicalFresh]⟩
   else if outputDigest : InRange PilotProduction.outputDigestStart 4 source then
     some ⟨.outputDigest (rangeIndex outputDigest), by
       rw [Location.sourceColumn, rangeIndex_source outputDigest]⟩
   else none
-
-private theorem fresh_inRange {source : Nat}
-    (fresh : PilotValues.logicalColumnCount ≤ source ∧
-      source < PilotValues.sourceColumnCount) :
-    InRange PilotValues.logicalColumnCount 144 source := by
-  unfold InRange
-  have endEq : PilotValues.sourceColumnCount =
-      PilotValues.logicalColumnCount + 144 := by rfl
-  omega
 
 theorem classifySource_complete {source : Nat}
     (support : PhysicalSource source) : (classifySource source).isSome := by
@@ -239,10 +201,8 @@ theorem classifySource_complete {source : Nat}
   · rfl
   split
   · rfl
-  split
-  · rfl
   · rename_i noPriorDigest noPriorPublic noCanonicalLocal noOutputState
-      noCanonicalFresh noOutputDigest
+      noOutputDigest
     exfalso
     rcases support with logical | fresh
     · rcases logical with priorDigest | priorPublic | canonicalLocal |
@@ -252,7 +212,9 @@ theorem classifySource_complete {source : Nat}
       · exact noCanonicalLocal canonicalLocal
       · exact noOutputState outputState
       · exact noOutputDigest outputDigest
-    · exact noCanonicalFresh (fresh_inRange fresh)
+    · have endEq : PilotValues.sourceColumnCount =
+          PilotValues.logicalColumnCount := by rfl
+      omega
 
 structure Decoded where
   source : Nat
@@ -260,7 +222,7 @@ structure Decoded where
   owns : location.sourceColumn = source
 
 def classifyTarget (column : Nat) : Option Decoded :=
-  match PilotSpartan.spartanToSource column with
+  match PilotPackageOrder.packageToSource column with
   | none => none
   | some source =>
       match classifySource source with
@@ -269,10 +231,10 @@ def classifyTarget (column : Nat) : Option Decoded :=
 
 theorem classifyTarget_complete {column : Nat} (support : Target column) :
     ∃ decoded, classifyTarget column = some decoded ∧
-      PilotSpartan.sourceToSpartan decoded.source = column := by
+      PilotPackageOrder.sourceToPackage decoded.source = column := by
   rcases support with ⟨source, sourceSupport, rfl⟩
   have bound := physicalSource_lt source sourceSupport
-  have inverse := PilotSpartan.spartanToSource_sourceToSpartan source bound
+  have inverse := PilotPackageOrder.packageToSource_sourceToPackage source bound
   have complete := classifySource_complete sourceSupport
   cases found : classifySource source with
   | none => simp [found] at complete
@@ -283,7 +245,7 @@ theorem classifyTarget_complete {column : Nat} (support : Target column) :
 def sourceMap {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    SourceCompiler.SourceMap PilotSpartan.spartanColumnCount logicalWidth where
+    SourceCompiler.SourceMap PilotPackageOrder.packageColumnCount logicalWidth where
   form := fun column =>
     match classifyTarget column.val with
     | none => .empty
@@ -292,7 +254,7 @@ def sourceMap {program : Lifecycle.Stage1.Application.Program}
 def pilotEnv (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F) : Env :=
   fun column => RunningTransitionDirectPlan.transitionEnv program base
-    (Spartan.liftPilotColumn column)
+    (PackageOrder.liftPilotColumn column)
 
 structure Encodes {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
@@ -308,10 +270,10 @@ structure Encodes {program : Lifecycle.Stage1.Application.Program}
       program base groupValue)
 
 theorem Location.stage1SourceColumn_lt (location : Location) :
-    location.sourceColumn < Spartan.SourceColumnCount := by
+    location.sourceColumn < PackageOrder.SourceColumnCount := by
   have bound := location.sourceColumn_lt
-  rw [PilotSpartan.sourceColumnCount_eq] at bound
-  rw [Spartan.sourceColumnCount_eq]
+  rw [PilotPackageOrder.sourceColumnCount_eq] at bound
+  rw [PackageOrder.sourceColumnCount_eq]
   omega
 
 theorem sourceAssignment_at
@@ -323,7 +285,7 @@ theorem sourceAssignment_at
         (RunningTransitionRetainedBlocks.packageSourceColumn program
           location.sourceColumn location.stage1SourceColumn_lt) =
       pilotEnv program base
-        (PilotSpartan.sourceToSpartan location.sourceColumn) := by
+        (PilotPackageOrder.sourceToPackage location.sourceColumn) := by
   rw [RunningTransitionDirectPlan.sourceAssignment_packageSource
     program base groupValue location.sourceColumn
     location.stage1SourceColumn_lt]
@@ -331,7 +293,7 @@ theorem sourceAssignment_at
     location.sourceColumn location.stage1SourceColumn_lt (by
       left
       have bound := location.sourceColumn_lt
-      rw [PilotSpartan.sourceColumnCount_eq] at bound
+      rw [PilotPackageOrder.sourceColumnCount_eq] at bound
       rw [PiCCSStarts.statementWitnessStart_eq]
       omega)]
   unfold pilotEnv
@@ -339,69 +301,69 @@ theorem sourceAssignment_at
 
 private theorem priorLastWitnessStart_eq :
     PoseidonRetainedBlock.priorWitnessStart
-      PiCCSOrdinaryRetainedBlocks.priorLastInvocation = 2612454 := by rfl
+      PiCCSOrdinaryRetainedBlocks.priorLastInvocation = 2378954 := by rfl
 
 private theorem outputLastWitnessStart_eq :
     PoseidonRetainedBlock.outputWitnessStart
-      PiCCSOrdinaryRetainedBlocks.outputLastInvocation = 5155438 := by rfl
+      PiCCSOrdinaryRetainedBlocks.outputLastInvocation = 4692878 := by rfl
 
 private theorem liftPriorDigestTarget (lane : Fin 4) :
-    Spartan.liftPilotColumn (2598342 + lane.val) = 2613534 + lane.val := by
+    PackageOrder.liftPilotColumn (2364298 + lane.val) = 2380034 + lane.val := by
   have laneBound := lane.isLt
-  unfold Spartan.liftPilotColumn
-  rw [ite_eq_right (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
-  rw [ite_eq_left (by norm_num [Spartan.pilotPrivateColumnCount]; omega)]
-  norm_num [Spartan.proofInputColumnCount]
+  unfold PackageOrder.liftPilotColumn
+  rw [ite_eq_right (by norm_num [PackageOrder.pilotInputPrivateColumnCount]; omega)]
+  rw [ite_eq_left (by norm_num [PackageOrder.pilotPrivateColumnCount]; omega)]
+  norm_num [PackageOrder.proofInputColumnCount]
   omega
 
 private theorem liftOutputStateTarget (lane : Fin 4) :
-    Spartan.liftPilotColumn (5141326 + lane.val) = 5156518 + lane.val := by
+    PackageOrder.liftPilotColumn (4678222 + lane.val) = 4693958 + lane.val := by
   have laneBound := lane.isLt
-  unfold Spartan.liftPilotColumn
-  rw [ite_eq_right (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
-  rw [ite_eq_left (by norm_num [Spartan.pilotPrivateColumnCount]; omega)]
-  norm_num [Spartan.proofInputColumnCount]
+  unfold PackageOrder.liftPilotColumn
+  rw [ite_eq_right (by norm_num [PackageOrder.pilotInputPrivateColumnCount]; omega)]
+  rw [ite_eq_left (by norm_num [PackageOrder.pilotPrivateColumnCount]; omega)]
+  norm_num [PackageOrder.proofInputColumnCount]
   omega
 
 private theorem priorFinalColumn_eq (lane : Fin 4) :
     PoseidonRetainedBlock.priorWitnessStart
           PiCCSOrdinaryRetainedBlocks.priorLastInvocation +
         (finalSlot lane).val =
-      Spartan.sourceToSpartan (Location.priorDigest lane).sourceColumn := by
+      PackageOrder.sourceToPackage (Location.priorDigest lane).sourceColumn := by
   have sourceBound : (Location.priorDigest lane).sourceColumn <
-      Spartan.pilotSourceColumnCount := by
+      PackageOrder.pilotSourceColumnCount := by
     have bound := (Location.priorDigest lane).sourceColumn_lt
-    rw [PilotSpartan.sourceColumnCount_eq] at bound
-    simpa [Spartan.pilotSourceColumnCount] using bound
-  unfold Spartan.sourceToSpartan
+    rw [PilotPackageOrder.sourceColumnCount_eq] at bound
+    simpa [PackageOrder.pilotSourceColumnCount] using bound
+  unfold PackageOrder.sourceToPackage
   rw [ite_eq_left sourceBound]
-  change _ = Spartan.liftPilotColumn
-    (PilotSpartan.sourceToSpartan
+  change _ = PackageOrder.liftPilotColumn
+    (PilotPackageOrder.sourceToPackage
       (PilotProduction.priorDigestStart + lane.val))
   rw [PilotOrdinaryDirectSource.priorDigest_targetColumn,
     liftPriorDigestTarget, priorLastWitnessStart_eq]
-  change 2612454 + (1080 + lane.val) = 2613534 + lane.val
+  change 2378954 + (1080 + lane.val) = 2380034 + lane.val
   omega
 
 private theorem outputFinalColumn_eq (lane : Fin 4) :
     PoseidonRetainedBlock.outputWitnessStart
           PiCCSOrdinaryRetainedBlocks.outputLastInvocation +
         (finalSlot lane).val =
-      Spartan.sourceToSpartan (Location.outputState lane).sourceColumn := by
+      PackageOrder.sourceToPackage (Location.outputState lane).sourceColumn := by
   have sourceBound : (Location.outputState lane).sourceColumn <
-      Spartan.pilotSourceColumnCount := by
+      PackageOrder.pilotSourceColumnCount := by
     have bound := (Location.outputState lane).sourceColumn_lt
-    rw [PilotSpartan.sourceColumnCount_eq] at bound
-    simpa [Spartan.pilotSourceColumnCount] using bound
-  unfold Spartan.sourceToSpartan
+    rw [PilotPackageOrder.sourceColumnCount_eq] at bound
+    simpa [PackageOrder.pilotSourceColumnCount] using bound
+  unfold PackageOrder.sourceToPackage
   rw [ite_eq_left sourceBound]
-  change _ = Spartan.liftPilotColumn
-    (PilotSpartan.sourceToSpartan
+  change _ = PackageOrder.liftPilotColumn
+    (PilotPackageOrder.sourceToPackage
       (PilotProduction.lifecycleOutputOffset +
         PilotValues.absorbCount * 1096 + 1080 + lane.val))
   rw [PilotOrdinaryDirectSource.outputState_targetColumn,
     liftOutputStateTarget, outputLastWitnessStart_eq]
-  change 5155438 + (1080 + lane.val) = 5156518 + lane.val
+  change 4692878 + (1080 + lane.val) = 4693958 + lane.val
   omega
 
 private theorem priorFinalColumn_bound (lane : Fin 4) :
@@ -411,9 +373,9 @@ private theorem priorFinalColumn_bound (lane : Fin 4) :
       PerApplicationPackage.basePackage.layout.totalColumnCount := by
   have laneBound := (finalSlot lane).isLt
   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      11464875 := Package.circuitPackage_layout_values.2.2.2.2
+      10059655 := Package.circuitPackage_layout_values.2.2.2.2
   rw [priorLastWitnessStart_eq, total]
-  change 2612454 + (1080 + lane.val) < 11464875
+  change 2378954 + (1080 + lane.val) < 10059655
   omega
 
 private theorem outputFinalColumn_bound (lane : Fin 4) :
@@ -423,9 +385,9 @@ private theorem outputFinalColumn_bound (lane : Fin 4) :
       PerApplicationPackage.basePackage.layout.totalColumnCount := by
   have laneBound := (finalSlot lane).isLt
   have total : PerApplicationPackage.basePackage.layout.totalColumnCount =
-      11464875 := Package.circuitPackage_layout_values.2.2.2.2
+      10059655 := Package.circuitPackage_layout_values.2.2.2.2
   rw [outputLastWitnessStart_eq, total]
-  change 5155438 + (1080 + lane.val) < 11464875
+  change 4692878 + (1080 + lane.val) < 10059655
   omega
 
 private theorem priorLastBlock_source
@@ -482,7 +444,7 @@ theorem Location.form_eval
     (location : Location) :
     (location.form geometry).eval assignment =
       pilotEnv program base
-        (PilotSpartan.sourceToSpartan location.sourceColumn) := by
+        (PilotPackageOrder.sourceToPackage location.sourceColumn) := by
   cases location with
   | priorDigest lane =>
       rw [form, LowNormBlock.Block.form_eval
@@ -531,19 +493,6 @@ theorem Location.form_eval
         (finalSlot lane)]
       rw [outputLastBlock_source program lane]
       exact sourceAssignment_at base groupValue (.outputState lane)
-  | canonicalFresh index =>
-      rw [form, LowNormBlock.Block.form_eval
-        (PilotOrdinaryRetainedBlocks.canonicalFreshBlock program)
-        (PilotOrdinaryRetainedGeometry.canonicalFreshStart program)
-        (PilotOrdinaryRetainedGeometry.canonicalFreshFits geometry) assignment
-        (PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue) encodes.added.canonicalFresh index]
-      change PiRLCRetainedPreservation.sourceAssignment
-          program base groupValue
-          (RunningTransitionRetainedBlocks.packageSourceColumn program
-            (Location.canonicalFresh index).sourceColumn
-            (Location.canonicalFresh index).stage1SourceColumn_lt) = _
-      exact sourceAssignment_at base groupValue (.canonicalFresh index)
   | outputDigest lane =>
       rw [form, LowNormBlock.Block.form_eval
         (PilotOrdinaryRetainedBlocks.outputDigestBlock program)
@@ -565,7 +514,7 @@ theorem priorDigest_form_eval_chainOutput
     (env : Env)
     (values : ∀ lane : Fin 4,
       ((Location.priorDigest lane).form geometry).eval assignment =
-        env (PilotSpartan.sourceToSpartan (Location.priorDigest lane).sourceColumn))
+        env (PilotPackageOrder.sourceToPackage (Location.priorDigest lane).sourceColumn))
     (lane : Fin 4) :
     ((Location.priorDigest lane).form geometry).eval assignment =
       NightstreamFPrime.Export.Pilot.chainOutputState PilotData.priorChain
@@ -575,7 +524,7 @@ theorem priorDigest_form_eval_chainOutput
   unfold NightstreamFPrime.Export.Pilot.chainOutputState
     NightstreamFPrime.Export.Package.invocationLocalStart
   change env
-      (PilotSpartan.sourceToSpartan
+      (PilotPackageOrder.sourceToPackage
         (PilotProduction.priorDigestStart + lane.val)) = _
   rw [PilotOrdinaryDirectSource.priorDigest_targetColumn]
   norm_num [PilotData.circuitPackage, PilotData.permutationTemplate,
@@ -590,7 +539,7 @@ theorem outputState_form_eval_chainOutput
     (env : Env)
     (values : ∀ lane : Fin 4,
       ((Location.outputState lane).form geometry).eval assignment =
-        env (PilotSpartan.sourceToSpartan (Location.outputState lane).sourceColumn))
+        env (PilotPackageOrder.sourceToPackage (Location.outputState lane).sourceColumn))
     (lane : Fin 4) :
     ((Location.outputState lane).form geometry).eval assignment =
       NightstreamFPrime.Export.Pilot.chainOutputState PilotData.outputChain
@@ -600,7 +549,7 @@ theorem outputState_form_eval_chainOutput
   unfold NightstreamFPrime.Export.Pilot.chainOutputState
     NightstreamFPrime.Export.Package.invocationLocalStart
   change env
-      (PilotSpartan.sourceToSpartan
+      (PilotPackageOrder.sourceToPackage
         (PilotProduction.lifecycleOutputOffset +
           PilotValues.absorbCount * 1096 + 1080 + lane.val)) = _
   rw [PilotOrdinaryDirectSource.outputState_targetColumn]
@@ -613,7 +562,7 @@ theorem sourceMap_form_eval_of_target
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment base groupValue)
-    (column : Fin PilotSpartan.spartanColumnCount)
+    (column : Fin PilotPackageOrder.packageColumnCount)
     (support : Target column.val) :
     ((sourceMap geometry).form column).eval assignment =
       pilotEnv program base column.val := by
@@ -625,7 +574,7 @@ theorem sourceMap_form_eval_of_target
   rw [Location.form_eval geometry assignment base groupValue encodes
     decoded.location]
   have mappedLocation :
-      PilotSpartan.sourceToSpartan decoded.location.sourceColumn =
+      PilotPackageOrder.sourceToPackage decoded.location.sourceColumn =
         column.val := by
     rw [decoded.owns, mapped]
   rw [mappedLocation]
@@ -639,7 +588,7 @@ private theorem preservesCombination
     (encodes : Encodes geometry assignment base groupValue)
     (combination : R1CS.LinearCombination)
     (bounded : SourceCompiler.CombinationBounded
-      PilotSpartan.spartanColumnCount combination)
+      PilotPackageOrder.packageColumnCount combination)
     (scope : combination.VarsSatisfy Target) :
     OrdinarySourcePlan.SourceMap.PreservesCombination (sourceMap geometry)
       assignment (pilotEnv program base) combination bounded := by
@@ -647,7 +596,7 @@ private theorem preservesCombination
   exact sourceMap_form_eval_of_target geometry assignment base groupValue encodes ⟨term.1, bounded term member⟩ (scope term member)
 
 private theorem programRow_support
-    (index : Fin 686) :
+    (index : Fin 596) :
     (PilotOrdinaryDirectSource.programRow index).VarsSatisfy Target := by
   exact sourceRows_varsSatisfy _
     (List.get_mem _ (Fin.cast sourceRows_length.symm index))
@@ -692,7 +641,7 @@ theorem programRow_preserve
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment base groupValue)
-    (index : Fin 686) :
+    (index : Fin 596) :
     OrdinarySourcePlan.SourceMap.PreservesRow (sourceMap geometry) assignment
       (pilotEnv program base) (PilotOrdinaryDirectSource.programRow index)
       (PilotOrdinaryDirectSource.programRow_bounded index) := by
@@ -708,7 +657,7 @@ theorem programRow_preserve
 def rowForms
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
-    (index : Fin 686) : OrdinaryRow.Forms logicalWidth :=
+    (index : Fin 596) : OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (sourceMap geometry) (oneColumn geometry)
     (PilotOrdinaryDirectSource.programRow index)
     (PilotOrdinaryDirectSource.programRow_bounded index)
@@ -723,7 +672,7 @@ def plan
 @[simp] theorem plan_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth) :
-    (plan geometry).rowCount = 686 := by
+    (plan geometry).rowCount = 596 := by
   rfl
 
 theorem rowsZero_iff_rowsHold

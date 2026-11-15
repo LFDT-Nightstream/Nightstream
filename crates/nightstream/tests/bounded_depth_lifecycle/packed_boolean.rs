@@ -23,7 +23,7 @@ fn packed_pairs_are_checked_in_both_fold_relations_and_after_recommitment() {
         .unwrap();
     let mut prover = BoundedDepth::new(
         &CompiledSteps::new(packages.clone()).unwrap(),
-        MINIMUM_SECURITY_BITS,
+        fold_gate_bits(),
         crate::engine::Backend::Optimized,
     )
     .unwrap();

@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Lifecycle.VerifierContext
 import NightstreamFPrime.Spec
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
@@ -19,10 +19,10 @@ private def parseVerifierKeyWord (label word : String) : Except String F := do
   let some value := word.toNat?
     | throw s!"invalid verifier-key word {label}: expected decimal UInt64"
   if _ : value < UInt64.size then
-    if canonical : value < goldilocksModulus then
+    if canonical : value < fieldModulus then
       pure ⟨value, canonical⟩
     else
-      throw s!"invalid verifier-key word {label}: not a canonical Goldilocks element"
+      throw s!"invalid verifier-key word {label}: not a canonical field element"
   else
     throw s!"invalid verifier-key word {label}: expected decimal UInt64"
 

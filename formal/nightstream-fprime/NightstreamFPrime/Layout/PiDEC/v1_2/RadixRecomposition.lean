@@ -6,7 +6,7 @@ namespace NightstreamFPrime.Layout.PiDEC.v1_2.RadixRecomposition
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Layout.Polynomial.Horner
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 namespace Logical
 

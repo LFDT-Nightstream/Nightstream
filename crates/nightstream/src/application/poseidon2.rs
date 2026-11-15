@@ -4,23 +4,18 @@
 
 use std::collections::BTreeMap;
 
-use neo_ccs::crypto::poseidon2_goldilocks::{poseidon2_hash, round_constants, Poseidon2RoundConstants, RATE, WIDTH};
-use nightstream_fprime::{ApplicationWalk, Linear};
+use neo_ccs::crypto::poseidon2::{poseidon2_hash, INSTANCE_16, RATE, WIDTH};
+use neo_math::Fq;
+use nightstream_fprime::{ApplicationWalk, Linear, BLOCK_LOCALS};
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks;
 
 use super::{Affine, ApplicationBuilder, ApplicationCircuit, ApplicationError};
-
-const BLOCK_LOCALS: usize = 1096;
 
 const DOMAIN_TAG: &[u8; 40] = b"Nightstream/Stage1/Poseidon2HashChain/v1";
 
 /// Native result of one Poseidon2HashChainV1 application step.
-pub fn poseidon2_hash_chain_step(current: [Goldilocks; 4], message: [Goldilocks; 4]) -> [Goldilocks; 4] {
-    let mut preimage: Vec<_> = DOMAIN_TAG
-        .iter()
-        .map(|byte| Goldilocks::from_u8(*byte))
-        .collect();
+pub fn poseidon2_hash_chain_step(current: [Fq; 4], message: [Fq; 4]) -> [Fq; 4] {
+    let mut preimage: Vec<_> = DOMAIN_TAG.iter().map(|byte| Fq::from_u8(*byte)).collect();
     preimage.extend(current);
     preimage.extend(message);
     poseidon2_hash(&preimage)
@@ -40,29 +35,34 @@ pub fn poseidon2_hash_chain_v1() -> Result<ApplicationCircuit, ApplicationError>
 }
 
 impl ApplicationBuilder {
-    /// Hashes field expressions with the native Poseidon2 absorb/finalize rule.
+    /// Hashes field expressions with `Spec.Poseidon2.hash`, the `10*` padded sponge.
     /// The caller must include a domain and lengths for variable-length inputs.
     /// Compilation validates each permutation before using its native block.
     pub fn poseidon2_hash(&mut self, preimage: &[Affine]) -> Result<[Affine; 4], ApplicationError> {
         for value in preimage {
             self.validate(value, true)?;
         }
-        let constants = round_constants();
         let mut state = std::array::from_fn(|_| scalar(0));
-        for block in preimage.chunks(RATE) {
+        let blocks = preimage.chunks_exact(RATE);
+        let last = blocks.remainder();
+        for block in blocks {
             for (lane, value) in state.iter_mut().enumerate() {
                 *value = value.clone() + block.get(lane).cloned().unwrap_or_else(|| scalar(0));
             }
-            state = permutation(self, state, &constants)?;
+            state = permutation(self, state)?;
         }
-        state[0] = state[0].clone() + scalar(1);
-        state = permutation(self, state, &constants)?;
+        // `Hash.padE`: the last words, then 1 in the next lane.
+        for (lane, word) in last.iter().enumerate() {
+            state[lane] = state[lane].clone() + word.clone();
+        }
+        state[last.len()] = state[last.len()].clone() + scalar(1);
+        state = permutation(self, state)?;
         Ok(std::array::from_fn(|lane| state[lane].clone()))
     }
 }
 
 fn scalar(value: u64) -> Affine {
-    Affine::constant(Goldilocks::from_u64(value))
+    Affine::constant(Fq::from_u64(value))
 }
 
 fn sbox(builder: &mut ApplicationBuilder, value: Affine) -> Result<Affine, ApplicationError> {
@@ -86,7 +86,7 @@ fn mat4(state: &[Affine; WIDTH], base: usize, lane: usize) -> Affine {
             if *coefficient == 1 {
                 state[base + offset].clone()
             } else {
-                state[base + offset].clone() * Goldilocks::from_u64(*coefficient)
+                state[base + offset].clone() * Fq::from_u64(*coefficient)
             }
         })
         .reduce(|sum, value| sum + value)
@@ -111,10 +111,10 @@ fn external(builder: &mut ApplicationBuilder, state: &[Affine; WIDTH]) -> Result
 fn full_round(
     builder: &mut ApplicationBuilder,
     state: &mut [Affine; WIDTH],
-    constants: &[u64; WIDTH],
+    constants: &[Fq; WIDTH],
 ) -> Result<(), ApplicationError> {
     for (value, constant) in state.iter_mut().zip(constants) {
-        *value = sbox(builder, value.clone() + scalar(*constant))?;
+        *value = sbox(builder, value.clone() + Affine::constant(*constant))?;
     }
     *state = external(builder, state)?;
     Ok(())
@@ -126,15 +126,14 @@ fn full_round(
 pub(crate) fn permutation(
     builder: &mut ApplicationBuilder,
     state: [Affine; WIDTH],
-    constants: &Poseidon2RoundConstants,
 ) -> Result<[Affine; WIDTH], ApplicationError> {
     builder.begin_block(&state);
     let mut state = external(builder, &state)?;
-    for round in &constants.initial {
+    for round in &INSTANCE_16.initial {
         full_round(builder, &mut state, round)?;
     }
-    for constant in &constants.internal {
-        state[0] = sbox(builder, state[0].clone() + scalar(*constant))?;
+    for constant in &INSTANCE_16.internal {
+        state[0] = sbox(builder, state[0].clone() + Affine::constant(*constant))?;
         let sum = state
             .iter()
             .cloned()
@@ -142,11 +141,11 @@ pub(crate) fn permutation(
         let prior = state.clone();
         for lane in 0..WIDTH {
             state[lane] = builder
-                .affine(prior[lane].clone() * Goldilocks::from_u64(constants.diag[lane]) + sum.clone())?
+                .affine(prior[lane].clone() * INSTANCE_16.diagonal[lane] + sum.clone())?
                 .into();
         }
     }
-    for round in &constants.terminal {
+    for round in &INSTANCE_16.terminal {
         full_round(builder, &mut state, round)?;
     }
     Ok(state)
@@ -154,7 +153,7 @@ pub(crate) fn permutation(
 
 /// A row's three sides: the constant and the terms, equal variables merged and
 /// zero coefficients dropped.
-type Sides = [(Goldilocks, BTreeMap<usize, Goldilocks>); 3];
+type Sides = [(Fq, BTreeMap<usize, Fq>); 3];
 
 /// The sides of the row that `recipe` generates.
 fn recipe_sides(walk: &mut ApplicationWalk<'_>, recipe: usize) -> Result<Sides, ApplicationError> {
@@ -163,15 +162,15 @@ fn recipe_sides(walk: &mut ApplicationWalk<'_>, recipe: usize) -> Result<Sides, 
     let header = walk.row(row, &mut terms)?;
     let mut sides: Sides = header
         .constants
-        .map(|constant| (Goldilocks::from_u64(constant), BTreeMap::new()));
+        .map(|constant| (Fq::from_u64(constant), BTreeMap::new()));
     for term in terms {
         *sides[term.form.index()]
             .1
             .entry(term.variable)
-            .or_insert(Goldilocks::ZERO) += Goldilocks::from_u64(term.coefficient);
+            .or_insert(Fq::ZERO) += Fq::from_u64(term.coefficient);
     }
     for (_, terms) in &mut sides {
-        terms.retain(|_, coefficient| *coefficient != Goldilocks::ZERO);
+        terms.retain(|_, coefficient| *coefficient != Fq::ZERO);
     }
     Ok(sides)
 }
@@ -188,7 +187,7 @@ pub(crate) fn check_blocks(application: &ApplicationCircuit) -> Result<(), Appli
     }
     let mut scratch = ApplicationBuilder::new(WIDTH)?;
     let inputs = std::array::from_fn(|lane| Affine::from(scratch.private_inputs()[lane]));
-    let state = permutation(&mut scratch, inputs, &round_constants())?;
+    let state = permutation(&mut scratch, inputs)?;
     let reference = scratch.finish(std::array::from_fn(|lane| state[lane].clone()))?;
     let (inputs, locals) = (4..4 + WIDTH, reference.generated_range().start);
     let mut walk = reference.records().walk();
@@ -203,8 +202,8 @@ pub(crate) fn check_blocks(application: &ApplicationCircuit) -> Result<(), Appli
                 Some(block.lanes[variable - 4].clone())
             } else {
                 Some(Linear {
-                    constant: Goldilocks::ZERO,
-                    terms: vec![(block.first_local + variable.checked_sub(locals)?, Goldilocks::ONE)],
+                    constant: Fq::ZERO,
+                    terms: vec![(block.first_local + variable.checked_sub(locals)?, Fq::ONE)],
                 })
             }
         };
@@ -221,10 +220,10 @@ pub(crate) fn check_blocks(application: &ApplicationCircuit) -> Result<(), Appli
                     let linear = substitute(variable).ok_or(ApplicationError::Block(index))?;
                     *constant += coefficient * linear.constant;
                     for (term, scale) in linear.terms {
-                        *mapped.entry(term).or_insert(Goldilocks::ZERO) += coefficient * scale;
+                        *mapped.entry(term).or_insert(Fq::ZERO) += coefficient * scale;
                     }
                 }
-                mapped.retain(|_, coefficient| *coefficient != Goldilocks::ZERO);
+                mapped.retain(|_, coefficient| *coefficient != Fq::ZERO);
                 *terms = mapped;
             }
             if actual != expected {

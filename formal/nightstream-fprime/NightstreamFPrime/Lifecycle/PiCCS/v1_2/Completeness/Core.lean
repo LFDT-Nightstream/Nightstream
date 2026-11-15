@@ -35,7 +35,7 @@ private theorem proof_ext
 theorem evalRunning_eq_of_agree_below
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (left right : Env)
     (below : ExternalInputsBelow interface offset)
@@ -76,7 +76,7 @@ theorem evalRunning_eq_of_agree_below
 theorem evalFresh_eq_of_agree_below
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (left right : Env)
     (below : ExternalInputsBelow interface offset)
@@ -96,7 +96,7 @@ theorem evalFresh_eq_of_agree_below
 theorem evalOutput_eq_of_agree_below
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (left right : Env)
     (below : ExternalInputsBelow interface offset)
@@ -116,7 +116,7 @@ theorem evalOutput_eq_of_agree_below
 theorem evalProof_eq_of_agree_below
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface logicalWidth
       (ProductionKey.degreeBound relation) publicFits)
@@ -148,7 +148,7 @@ theorem evalProof_eq_of_agree_below
 theorem accepted_of_agree_below
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -215,7 +215,7 @@ theorem stateBindingAssumptionsAt
 theorem assumptionsAt
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {interface : Interface logicalWidth degreeBound publicFits}
     {offset : Nat} {env : Env}

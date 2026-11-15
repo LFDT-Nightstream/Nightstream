@@ -14,7 +14,6 @@ use neo_wasm::layout::*;
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{WasmHostEventSlotKind, WasmVmStep};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 
 const ZERO: SlotBinding = SlotBinding::Const(0);
 const SCHEMA: [u64; 4] = [11, 12, 13, 14];
@@ -53,8 +52,8 @@ fn native_roots_cover_empty_partial_and_multiple_blocks_at_every_position() {
     assert_ne!(root, opaque_value_root(SCHEMA, &[2, 1]).unwrap());
     assert_ne!(root, opaque_value_root([12, 12, 13, 14], &[1, 2]).unwrap());
     assert_ne!(opaque_value_root(SCHEMA, &[]).unwrap(), [0; 4]);
-    assert!(opaque_value_root(SCHEMA, &[Goldilocks::ORDER_U64]).is_err());
-    assert!(opaque_value_root([Goldilocks::ORDER_U64; 4], &[]).is_err());
+    assert!(opaque_value_root(SCHEMA, &[F::ORDER_U64]).is_err());
+    assert!(opaque_value_root([F::ORDER_U64; 4], &[]).is_err());
 }
 
 #[test]
@@ -234,7 +233,7 @@ fn early_enter_skips_only_prefix_padding_at_every_root_position() {
             Default::default(),
             &expected
                 .iter()
-                .map(|block| block.map(Goldilocks::from_u64))
+                .map(|block| block.map(F::from_u64))
                 .collect::<Vec<_>>()
         )
         .canonical_u64()
@@ -439,7 +438,7 @@ fn opaque_import_and_export_effects_share_one_permutation_and_match_native_roots
         Default::default(),
         &blocks
             .iter()
-            .map(|b| b.map(Goldilocks::from_u64))
+            .map(|b| b.map(F::from_u64))
             .collect::<Vec<_>>(),
     );
     assert_eq!(

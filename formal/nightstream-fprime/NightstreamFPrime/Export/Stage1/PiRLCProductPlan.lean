@@ -1,10 +1,10 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationPackage
 import NightstreamFPrime.Export.Stage1.Package
 import NightstreamFPrime.Export.Stage1.PiRLCProductRingSchedule
-import NightstreamFPrime.Layout.ProductionRelation.Phi81ProductFamilyPlan
+import NightstreamFPrime.Layout.ProductionRelation.RingProductFamilyPlan
 import NightstreamFPrime.Layout.ProductionRelation.ProductRetainedBlock
 import NightstreamFPrime.Layout.ProductionRelation.SourceCompiler
-import NightstreamFPrime.Layout.Stage1.SpartanValues
+import NightstreamFPrime.Layout.Stage1.PackageOrderValues
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductPlan
 
@@ -24,7 +24,7 @@ def baseSourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   (PerApplicationPackage.package program).layout.totalColumnCount
 
 def directBaseSourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  11464875 + PerApplicationPackage.directAddedPrivateColumnCount program
+  10059655 + PerApplicationPackage.directAddedPrivateColumnCount program
 
 theorem directBaseSourceWidth_eq_baseSourceWidth
     (program : Lifecycle.Stage1.Application.Program) :
@@ -45,23 +45,23 @@ def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
     PiRLCProductSchedule.invocationCount
 
 private theorem basePackage_constantColumn :
-    basePackage.layout.constantColumn = 11464596 := by
+    basePackage.layout.constantColumn = 10059326 := by
   exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
 
 private theorem commitmentLogicalStart_eq :
-    PiRLCStarts.commitmentLogicalStart = 6301320 := by
+    PiRLCStarts.commitmentLogicalStart = 5879684 := by
   rfl
 
 private theorem publicInputLogicalStart_eq :
-    PiRLCStarts.publicInputLogicalStart = 6321516 := by
+    PiRLCStarts.publicInputLogicalStart = 5896964 := by
   rfl
 
 private theorem evalKLogicalStart_eq :
-    PiRLCStarts.evalKLogicalStart = 6326106 := by
+    PiRLCStarts.evalKLogicalStart = 5901764 := by
   rfl
 
 private theorem evalALogicalStart_eq :
-    PiRLCStarts.evalALogicalStart = 6327942 := by
+    PiRLCStarts.evalALogicalStart = 5903684 := by
   rfl
 
 theorem basePackage_fits (program : Lifecycle.Stage1.Application.Program) :
@@ -71,10 +71,10 @@ theorem basePackage_fits (program : Lifecycle.Stage1.Application.Program) :
     PerApplicationPackage.basePackage.layout.totalColumnCount +
       PerApplicationPackage.addedPrivateColumnCount program
   have constant :
-      PerApplicationPackage.basePackage.layout.constantColumn = 11464596 :=
+      PerApplicationPackage.basePackage.layout.constantColumn = 10059326 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
   have total :
-      PerApplicationPackage.basePackage.layout.totalColumnCount = 11464875 :=
+      PerApplicationPackage.basePackage.layout.totalColumnCount = 10059655 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [constant, total]
   omega
@@ -86,7 +86,7 @@ theorem shiftColumn_lt_baseSourceWidth
   rw [baseSourceWidth, PerApplicationPackage.package_totalColumnCount]
   change column < PerApplicationPackage.basePackage.layout.totalColumnCount at bound
   have total :
-      PerApplicationPackage.basePackage.layout.totalColumnCount = 11464875 :=
+      PerApplicationPackage.basePackage.layout.totalColumnCount = 10059655 :=
     NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   rw [total] at bound ⊢
   unfold PerApplicationPackage.shiftColumn
@@ -99,23 +99,23 @@ def shiftedPackageColumn (program : Lifecycle.Stage1.Application.Program)
   ⟨PerApplicationPackage.shiftColumn program column,
     shiftColumn_lt_baseSourceWidth program column bound⟩
 
-theorem sourceToSpartan_lt_basePackage (column : Nat)
+theorem sourceToPackage_lt_basePackage (column : Nat)
     (bound : column < basePackage.layout.constantColumn) :
-    Spartan.sourceToSpartan column < basePackage.layout.totalColumnCount := by
-  have sourceBound : column < Spartan.SourceColumnCount := by
+    PackageOrder.sourceToPackage column < basePackage.layout.totalColumnCount := by
+  have sourceBound : column < PackageOrder.SourceColumnCount := by
     rw [basePackage_constantColumn] at bound
-    rw [Spartan.sourceColumnCount_eq]
+    rw [PackageOrder.sourceColumnCount_eq]
     omega
-  have mapped := Spartan.sourceToSpartan_lt column sourceBound
-  have total : basePackage.layout.totalColumnCount = 11464875 := by
+  have mapped := PackageOrder.sourceToPackage_lt column sourceBound
+  have total : basePackage.layout.totalColumnCount = 10059655 := by
     exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
-  simpa only [total, Spartan.spartanColumnCount_eq] using mapped
+  simpa only [total, PackageOrder.packageColumnCount_eq] using mapped
 
 def mappedPackageColumn (program : Lifecycle.Stage1.Application.Program)
     (column : Nat) (bound : column < basePackage.layout.constantColumn) :
     Fin (baseSourceWidth program) :=
-  shiftedPackageColumn program (Spartan.sourceToSpartan column)
-    (sourceToSpartan_lt_basePackage column bound)
+  shiftedPackageColumn program (PackageOrder.sourceToPackage column)
+    (sourceToPackage_lt_basePackage column bound)
 
 private theorem challengeColumn_lt_basePackage
     (descriptor : PiRLCProductSchedule.Descriptor)
@@ -303,7 +303,7 @@ def sourceAssignment (program : Lifecycle.Stage1.Application.Program)
 
 def baseEnv (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (baseSourceWidth program) → F) : Env :=
-  Spartan.pullback <|
+  PackageOrder.pullback <|
     PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base)
 
 theorem baseEnv_eq_mappedPackageColumn
@@ -312,9 +312,9 @@ theorem baseEnv_eq_mappedPackageColumn
     (column : Nat) (bound : column < basePackage.layout.constantColumn) :
     baseEnv program base column = base (mappedPackageColumn program column bound) := by
   have mappedBound := shiftColumn_lt_baseSourceWidth program
-    (Spartan.sourceToSpartan column)
-    (sourceToSpartan_lt_basePackage column bound)
-  unfold baseEnv Spartan.pullback PerApplicationPackage.baseEnv
+    (PackageOrder.sourceToPackage column)
+    (sourceToPackage_lt_basePackage column bound)
+  unfold baseEnv PackageOrder.pullback PerApplicationPackage.baseEnv
     SourceCompiler.sourceEnv mappedPackageColumn shiftedPackageColumn
   rw [dite_eq_left mappedBound]
 
@@ -354,7 +354,7 @@ def valueForm {program : Lifecycle.Stage1.Application.Program}
 def challengeState {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (inputs : Inputs program logicalWidth)
     (invocation : Fin PiRLCProductSchedule.invocationCount) :
-    Phi81ProductPlan.State logicalWidth :=
+    RingProductPlan.State logicalWidth :=
   fun lane =>
     SparseForm.add
       (challengeForm inputs invocation lane)
@@ -363,7 +363,7 @@ def challengeState {program : Lifecycle.Stage1.Application.Program}
 def valueState {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (inputs : Inputs program logicalWidth)
     (invocation : Fin PiRLCProductSchedule.invocationCount) :
-    Phi81ProductPlan.State logicalWidth :=
+    RingProductPlan.State logicalWidth :=
   fun lane => valueForm inputs invocation lane
 
 def priorForm {program : Lifecycle.Stage1.Application.Program}
@@ -388,7 +388,7 @@ def groupForm {program : Lifecycle.Stage1.Application.Program}
 
 def interface {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (inputs : Inputs program logicalWidth) :
-    Phi81ProductFamilyPlan.Interface logicalWidth
+    RingProductFamilyPlan.Interface logicalWidth
       PiRLCProductRingSchedule.invocationCount :=
   { left := fun ring => challengeState inputs
       (PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane)
@@ -401,7 +401,7 @@ def interface {program : Lifecycle.Stage1.Application.Program}
     output := fun ring lane => outputForm inputs
       (PiRLCProductRingSchedule.laneInvocation ring lane) }
 
-theorem rowCount_le : PiRLCProductRingSchedule.invocationCount * 108 ≤
+theorem rowCount_le : PiRLCProductRingSchedule.invocationCount * 128 ≤
     2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by
   rw [PiRLCProductRingSchedule.invocationCount_eq]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
@@ -409,12 +409,12 @@ theorem rowCount_le : PiRLCProductRingSchedule.invocationCount * 108 ≤
 def plan {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (inputs : Inputs program logicalWidth) :
     ProductionRelation.Plan logicalWidth :=
-  Phi81ProductFamilyPlan.plan (interface inputs) rowCount_le
+  RingProductFamilyPlan.plan (interface inputs) rowCount_le
 
 @[simp] theorem plan_rowCount {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (inputs : Inputs program logicalWidth) :
-    (plan inputs).rowCount = 67932 := by
-  rw [plan, Phi81ProductFamilyPlan.plan_rowCount,
+    (plan inputs).rowCount = 63360 := by
+  rw [plan, RingProductFamilyPlan.plan_rowCount,
     PiRLCProductRingSchedule.invocationCount_eq]
 
 def challengeRing (program : Lifecycle.Stage1.Application.Program)
@@ -489,10 +489,10 @@ private theorem challengeState_eval
     (one : assignment inputs.oneColumn = 1)
     (preserves : Preserves inputs assignment base groupValue)
     (invocation : Fin PiRLCProductSchedule.invocationCount) :
-    Phi81ProductPlan.evalState assignment (challengeState inputs invocation) =
+    RingProductPlan.evalState assignment (challengeState inputs invocation) =
       challengeRing program base (PiRLCProductSchedule.descriptor invocation) := by
   funext lane
-  simp [Phi81ProductPlan.evalState, challengeState, challengeRing,
+  simp [RingProductPlan.evalState, challengeState, challengeRing,
     preserves.challenge invocation lane, one,
     sub_eq_add_neg]
 
@@ -504,7 +504,7 @@ private theorem valueState_eval
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (preserves : Preserves inputs assignment base groupValue)
     (invocation : Fin PiRLCProductSchedule.invocationCount) :
-    Phi81ProductPlan.evalState assignment (valueState inputs invocation) =
+    RingProductPlan.evalState assignment (valueState inputs invocation) =
       valueRing program base (PiRLCProductSchedule.descriptor invocation) := by
   funext lane
   exact preserves.value invocation lane
@@ -552,7 +552,7 @@ theorem rowsZero_implies_equation
             (PiRLCProductSchedule.descriptor invocation))
           (PiRLCProductSchedule.descriptor invocation).lane := by
   let ring := PiRLCProductRingSchedule.ringInvocation invocation
-  have equation := Phi81ProductFamilyPlan.planRowsZero_implies_ringProduct
+  have equation := RingProductFamilyPlan.planRowsZero_implies_ringProduct
     (interface inputs) rowCount_le assignment rowsZero ring
   have coefficient := congrFun equation
     (PiRLCProductSchedule.descriptor invocation).lane
@@ -561,9 +561,9 @@ theorem rowsZero_implies_equation
     (priorForm inputs (PiRLCProductRingSchedule.laneInvocation ring
       (PiRLCProductSchedule.descriptor invocation).lane)).eval assignment +
       ringFMul
-        (Phi81ProductPlan.evalState assignment (challengeState inputs
+        (RingProductPlan.evalState assignment (challengeState inputs
           (PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane)))
-        (Phi81ProductPlan.evalState assignment (valueState inputs
+        (RingProductPlan.evalState assignment (valueState inputs
           (PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane)))
         (PiRLCProductSchedule.descriptor invocation).lane at coefficient
   rw [PiRLCProductRingSchedule.laneInvocation_ringInvocation] at coefficient
@@ -649,9 +649,9 @@ def honestGroupValue
     (_group : Fin 1) : F :=
   let ring := PiRLCProductRingSchedule.ringInvocation invocation
   let representative := PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane
-  Phi81Relation.QuotientProduct.quotientCoeff
-    (Phi81ProductPlan.evalState assignment (challengeState inputs representative))
-    (Phi81ProductPlan.evalState assignment (valueState inputs representative))
+  RingRelation.QuotientProduct.quotientCoeff
+    (RingProductPlan.evalState assignment (challengeState inputs representative))
+    (RingProductPlan.evalState assignment (valueState inputs representative))
     (PiRLCProductSchedule.descriptor invocation).lane
 
 theorem sourceConstraints_imply_rowsZero
@@ -666,14 +666,14 @@ theorem sourceConstraints_imply_rowsZero
       (PiRLCProductSchedule.descriptor invocation).sourceConstraint.eval
         (baseEnv program base) = 0) :
     (plan inputs).RowsZero assignment := by
-  apply (Phi81ProductFamilyPlan.planRowsZero_iff
+  apply (RingProductFamilyPlan.planRowsZero_iff
     (interface inputs) rowCount_le assignment).mpr
   intro ring
-  let current := Phi81ProductFamilyPlan.ringInterface (interface inputs) ring
-  let left := Phi81ProductPlan.evalState assignment current.left
-  let right := Phi81ProductPlan.evalState assignment current.right
-  let prior := Phi81ProductPlan.evalState assignment current.prior
-  have output : Phi81ProductPlan.evalState assignment current.output =
+  let current := RingProductFamilyPlan.ringInterface (interface inputs) ring
+  let left := RingProductPlan.evalState assignment current.left
+  let right := RingProductPlan.evalState assignment current.right
+  let prior := RingProductPlan.evalState assignment current.prior
+  have output : RingProductPlan.evalState assignment current.output =
       ringFAdd prior (ringFMul left right) := by
     funext lane
     have constraint := constraints (PiRLCProductRingSchedule.laneInvocation ring lane)
@@ -684,9 +684,9 @@ theorem sourceConstraints_imply_rowsZero
       (priorForm inputs
         (PiRLCProductRingSchedule.laneInvocation ring lane)).eval assignment +
         ringFMul
-          (Phi81ProductPlan.evalState assignment (challengeState inputs
+          (RingProductPlan.evalState assignment (challengeState inputs
             (PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane)))
-          (Phi81ProductPlan.evalState assignment (valueState inputs
+          (RingProductPlan.evalState assignment (valueState inputs
             (PiRLCProductRingSchedule.laneInvocation ring PiRLCProductRingSchedule.zeroLane))) lane
     rw [outputForm_eval inputs assignment base
       (honestGroupValue inputs assignment) preserves,
@@ -710,8 +710,8 @@ theorem sourceConstraints_imply_rowsZero
       cases family <;> rfl
     rw [challengeSame, valueSame]
     exact recurrence
-  have quotient : Phi81ProductPlan.evalState assignment current.quotient =
-      Phi81Relation.QuotientProduct.quotient left right := by
+  have quotient : RingProductPlan.evalState assignment current.quotient =
+      RingRelation.QuotientProduct.quotient left right := by
     funext lane
     change (groupForm inputs
         (PiRLCProductRingSchedule.laneInvocation ring lane) 0).eval assignment = _
@@ -720,23 +720,23 @@ theorem sourceConstraints_imply_rowsZero
       PiRLCProductRingSchedule.ringInvocation_laneInvocation,
       PiRLCProductRingSchedule.descriptor_laneInvocation,
       PiRLCProductRingSchedule.Descriptor.withLane]
-    exact Phi81Relation.QuotientProduct.quotientCoeff_eq_quotient left right lane
+    exact RingRelation.QuotientProduct.quotientCoeff_eq_quotient left right lane
   intro point
-  change Phi81Relation.QuotientProduct.evaluate left
-        (Phi81Relation.QuotientProduct.node point) *
-      Phi81Relation.QuotientProduct.evaluate right
-        (Phi81Relation.QuotientProduct.node point) =
-    Phi81Relation.QuotientProduct.evaluate
-        (Phi81ProductPlan.evalState assignment current.output)
-        (Phi81Relation.QuotientProduct.node point) -
-      Phi81Relation.QuotientProduct.evaluate prior
-        (Phi81Relation.QuotientProduct.node point) +
-      Phi81Relation.QuotientProduct.modulusValue
-        (Phi81Relation.QuotientProduct.node point) *
-        Phi81Relation.QuotientProduct.evaluate
-          (Phi81ProductPlan.evalState assignment current.quotient)
-          (Phi81Relation.QuotientProduct.node point)
+  change RingRelation.QuotientProduct.evaluate left
+        (RingRelation.QuotientProduct.node point) *
+      RingRelation.QuotientProduct.evaluate right
+        (RingRelation.QuotientProduct.node point) =
+    RingRelation.QuotientProduct.evaluate
+        (RingProductPlan.evalState assignment current.output)
+        (RingRelation.QuotientProduct.node point) -
+      RingRelation.QuotientProduct.evaluate prior
+        (RingRelation.QuotientProduct.node point) +
+      RingRelation.QuotientProduct.modulusValue
+        (RingRelation.QuotientProduct.node point) *
+        RingRelation.QuotientProduct.evaluate
+          (RingProductPlan.evalState assignment current.quotient)
+          (RingRelation.QuotientProduct.node point)
   rw [output, quotient]
-  exact Phi81Relation.QuotientProduct.complete_add left right prior point
+  exact RingRelation.QuotientProduct.complete_add left right prior point
 
 end NightstreamFPrime.Export.Stage1.PiRLCProductPlan

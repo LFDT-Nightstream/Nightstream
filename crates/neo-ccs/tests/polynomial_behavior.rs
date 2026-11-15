@@ -1,10 +1,8 @@
 //! Direct behavior checks for sparse-polynomial evaluation and shape changes.
 
 use neo_ccs::{SparsePoly, Term};
+use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks;
-
-type F = Goldilocks;
 
 fn build_test_poly() -> SparsePoly<F> {
     SparsePoly::new(

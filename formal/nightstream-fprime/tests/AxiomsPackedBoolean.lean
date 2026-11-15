@@ -78,8 +78,8 @@ open NightstreamFPrime.Export.Generic.PackedBoolean
 
 private def wrappingPairs : List (F × F) :=
   List.ofFn fun index : Fin 32 =>
-    if index.val = 0 then (0, 0)
-    else if 16 ≤ index.val then (-1, -1)
+    if index.val < 2 then (0, 0)
+    else if 3 ≤ index.val then (-1, -1)
     else (0, 1)
 
 example : pack wrappingPairs = 0 := by decide

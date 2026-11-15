@@ -4,9 +4,9 @@ namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1SetupAuthority
 
 open NightstreamFPrime.Spec
 
-def verifierRows : Nat := 22
+def verifierRows : Nat := 18
 
-def messageColumns : Nat := 814144
+def messageColumns : Nat := 642292
 
 def productionSeedBytes : List Nat :=
   [252, 64, 73, 132, 212, 76, 27, 135, 141, 104, 166, 168, 0, 146,
@@ -22,7 +22,7 @@ def productionSeed : AjtaiSetupV1.Seed where
     omega
 
 def authorityNats : List Nat :=
-  [37] ++ AjtaiSetupV1.setupIdBytes ++
+  [38] ++ AjtaiSetupV1.setupIdBytes ++
     [verifierRows, messageColumns, 32] ++ productionSeedBytes
 
 end NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1SetupAuthority

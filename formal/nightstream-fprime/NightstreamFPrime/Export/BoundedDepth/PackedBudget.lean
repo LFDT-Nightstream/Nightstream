@@ -14,7 +14,7 @@ open NightstreamFPrime.Export NightstreamFPrime.Export.Generic
 open NightstreamFPrime.Export.Generic.CircuitRelation
 open NightstreamFPrime.Export.Generic.RelationCompleteness
 open NightstreamFPrime.Export.Generic.PackedBoolean (Pair companions Covers)
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
 
 variable {α β γ : Type}
 

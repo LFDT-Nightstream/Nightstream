@@ -18,12 +18,12 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction (Evaluation
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- A slot's accumulator claim. The slot's key fixes the constraint system and the norm stage,
 so the claim does not carry them. -/
 structure SlotClaim (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
+    (publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth)
     where
   commitment : PaperAlgebra.Commitment
   publicInput : PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)
@@ -34,7 +34,7 @@ structure SlotClaim (logicalWidth : Nat)
 (`Spec.HyperNova.Construction2.BoundedDepth.Running`). -/
 abbrev SlotData (logicalWidth : Nat)
     (publicFits :
-      ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth) :=
   SlotClaim logicalWidth publicFits × Nat
 
 /-- Twelve words: the ASCII bytes of `label`, packed eight to a word (SPEC.md 4.2). -/
@@ -56,7 +56,7 @@ def slotDigest (slot : SlotData logicalWidth publicFits) : Digest :=
 
 /-- What the state hash binds. -/
 structure State (logicalWidth : Nat)
-    (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
+    (publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth)
     where
   verifierKeys : Fin 2 → KeyDigest
   iteration : Nat
@@ -78,9 +78,9 @@ structure State.WellFormed (state : State logicalWidth publicFits) : Prop where
   verifierKeys : ∀ circuit, (state.verifierKeys circuit).length = 4
   z0 : state.z0.length = 4
   current : state.current.length = 4
-  iteration : state.iteration < goldilocksModulus
-  pc : state.pc < goldilocksModulus
-  depth : ∀ slot, (state.slots slot).2 < goldilocksModulus
+  iteration : state.iteration < fieldModulus
+  pc : state.pc < fieldModulus
+  depth : ∀ slot, (state.slots slot).2 < fieldModulus
 
 theorem domainChunks_distinct :
     slotDomainChunk ≠ stateDomainChunk ∧ slotDomainChunk ≠ Lifecycle.stateDomainChunk ∧
@@ -89,8 +89,8 @@ theorem domainChunks_distinct :
       stateDomainChunk ≠ Transcript.foldDomainChunk := by
   decide
 
-theorem natWord_injective {left right : Nat} (leftBound : left < goldilocksModulus)
-    (rightBound : right < goldilocksModulus) (same : natWord left = natWord right) :
+theorem natWord_injective {left right : Nat} (leftBound : left < fieldModulus)
+    (rightBound : right < fieldModulus) (same : natWord left = natWord right) :
     left = right := by
   have values := congrArg Fin.val same
   simpa [natWord, Poseidon2.ofNat, Nat.mod_eq_of_lt leftBound, Nat.mod_eq_of_lt rightBound]
@@ -112,10 +112,10 @@ theorem serializeSlot_length (slot : SlotData logicalWidth publicFits) :
         cubeVariables * 2 + (FullShape logicalWidth publicFits).publicWidth + 1 := by
   simp [serializeSlot, Nat.add_assoc]
 
-/-- A slot is 2,055 words: κd = 1,188, `Eval_K` and `Eval_A` 540, the point 56, the public input
-270 and the depth 1 (the CW-0 census number). -/
+/-- A slot is 2,169 words: κd = 1,152, `Eval_K` and `Eval_A` 640, the point 56, the public input
+320 and the depth 1 (the CW-0 census number). -/
 theorem serializeSlot_length_eq (slot : SlotData logicalWidth publicFits) :
-    (serializeSlot slot).length = 2055 := by
+    (serializeSlot slot).length = 2169 := by
   rw [serializeSlot_length, publicWidth_eq]
   rfl
 
@@ -127,7 +127,7 @@ theorem statePreimage_length {state : State logicalWidth publicFits} (well : sta
   rfl
 
 theorem serializeSlot_injective {left right : SlotData logicalWidth publicFits}
-    (leftDepth : left.2 < goldilocksModulus) (rightDepth : right.2 < goldilocksModulus)
+    (leftDepth : left.2 < fieldModulus) (rightDepth : right.2 < fieldModulus)
     (same : serializeSlot left = serializeSlot right) : left = right := by
   unfold serializeSlot at same
   obtain ⟨rest, depthWords⟩ := List.append_inj' same rfl
@@ -175,9 +175,8 @@ theorem statePreimage_injective {left right : State logicalWidth publicFits}
     | ⟨1, _⟩ => exact digest1
 
 /-- A Poseidon2 collision on an input pair that two states fix: their state preimages, or the
-slot preimages of one slot. The two inputs have one length: `Poseidon2.hash` pads with zeros and
-does not encode the length, so inputs of two lengths can share a hash with no collision of the
-permutation. Slot preimages always have one length (`serializeSlot_length_eq`). -/
+slot preimages of one slot. The two inputs have one length. Slot preimages always have one
+length (`serializeSlot_length_eq`). -/
 def StateCollision (left right : State logicalWidth publicFits) : Prop :=
   (statePreimage left ≠ statePreimage right ∧
       (statePreimage left).length = (statePreimage right).length ∧

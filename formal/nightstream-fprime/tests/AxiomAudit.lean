@@ -16,7 +16,7 @@ namespace DocumentCensus
 open Lean Elab Command
 
 -- Declarations outside these packages come from the pinned toolchain and Mathlib.
-def packageRoots : List Name := [`NightstreamFPrime, `CompressionLean, `tests, `CompressionLeanTests]
+def packageRoots : List Name := [`NightstreamFPrime, `tests]
 
 def inPackage (env : Environment) (name : Name) : Bool :=
   match env.getModuleIdxFor? name with

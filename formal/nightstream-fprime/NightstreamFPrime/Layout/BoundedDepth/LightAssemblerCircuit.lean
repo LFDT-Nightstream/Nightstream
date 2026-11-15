@@ -33,7 +33,7 @@ open NightstreamFPrime.Layout.BoundedDepth.LightAssembler
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
   (program : Stage1.Application.Program) (base : Nat) (source : Env)
 
 /-- The active slot's claim that the shared words carry. -/

@@ -126,17 +126,17 @@ def BlockKind.plan (application : ProgramApplication)
       (applicationGeometry application)
 
 def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
-  | .pilotPoseidon => 696000
-  | .piCcsPoseidon => 142200
-  | .piCcsOrdinary => 37317
-  | .pilotOrdinary => 686
+  | .pilotPoseidon => 633300
+  | .piCcsPoseidon => 147600
+  | .piCcsOrdinary => 38553
+  | .pilotOrdinary => 596
   | .pilotDigestBinding => 8
   | .piCcsEndpoint => 64
-  | .samplerPoseidon => 5100
-  | .samplerOrdinary => 14943
-  | .piRlc => 67932
-  | .piDec => 6588
-  | .runningTransition => 27800
+  | .samplerPoseidon => 4500
+  | .samplerOrdinary => 13635
+  | .piRlc => 63360
+  | .piDec => 6912
+  | .runningTransition => 25310
   | .application => (PerApplicationPackage.applicationPlan application).rowCount
   | .nextPreimage => 5
   | .recursivePublicOutput => 4

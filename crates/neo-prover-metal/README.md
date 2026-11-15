@@ -13,6 +13,5 @@ Run the tests on Apple Silicon macOS:
 timeout 300s cargo test -p neo-prover-metal --release --features metal
 ```
 
-`tests/metal_arithmetic.rs` checks the Merkle, DFT, GKR, and key-weight
-kernels against CPU references. The unit tests in `tests/unit/` check the
-joint oracle, the openings, and the commitments.
+The unit tests in `tests/unit/` check the joint oracle, the openings, and the
+commitments.

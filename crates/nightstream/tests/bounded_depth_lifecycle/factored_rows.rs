@@ -2,10 +2,11 @@
 //! `SlotLayout.layout`).
 
 use super::super::{CompiledSteps, Relation};
+use super::support::fold_gate_bits;
 use super::support::packages;
-use super::MINIMUM_SECURITY_BITS;
 use neo_ccs::Mat;
 use neo_math::{D, F};
+use neo_params::nightstream_p64_k14 as profile;
 use neo_reductions::superneo_eval::{MatrixRows, SuperneoZBlocks};
 use p3_field::PrimeCharacteristicRing;
 
@@ -57,9 +58,9 @@ fn native_power_and_affine_application_match_actual_factored_matrices() {
                 .count(),
             1
         );
-        let relation = Relation::new(step, MINIMUM_SECURITY_BITS).unwrap();
-        assert_eq!(relation.params().b(), 2);
-        assert_eq!(relation.params().k_rho(), 16);
+        let relation = Relation::new(step, fold_gate_bits()).unwrap();
+        assert_eq!(relation.params().b(), profile::B_BASE);
+        assert_eq!(relation.params().k_rho(), profile::K_RHO);
     }
     check_factored(&packages);
 }
@@ -103,7 +104,7 @@ pub(super) fn check_factored(packages: &nightstream_fprime::BoundedDepthPackages
         .expect("compiled steps")
         .steps()
     {
-        let relation = Relation::new(step, MINIMUM_SECURITY_BITS).expect("relation");
+        let relation = Relation::new(step, fold_gate_bits()).expect("relation");
         let (rows, layout) = (step.expanded().rows(), step.expanded().layout());
         let mut state = 0x9e37_79b9_7f4a_7c15u64;
         let logical: Vec<F> = (0..layout.width())

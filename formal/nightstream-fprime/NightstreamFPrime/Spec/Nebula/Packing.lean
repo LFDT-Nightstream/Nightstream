@@ -91,23 +91,23 @@ theorem pack_injective {xs ys : List Bool} (length : xs.length = ys.length)
     have tails := ih (by simp [length]) same.2
     rw [← List.take_append_drop 63 xs, ← List.take_append_drop 63 ys, heads, tails]
 
-private theorem map_cast_injective {R : Type} [AddGroupWithOne R] [CharP R goldilocksModulus] :
+private theorem map_cast_injective {R : Type} [AddGroupWithOne R] [CharP R fieldModulus] :
     ∀ {l₁ l₂ : List ℕ}, (∀ x ∈ l₁, x < 2 ^ 63) → (∀ x ∈ l₂, x < 2 ^ 63) →
       l₁.map (Nat.cast : ℕ → R) = l₂.map Nat.cast → l₁ = l₂
   | [], [], _, _, _ => rfl
   | [], _ :: _, _, _, same => by simp at same
   | _ :: _, [], _, _, same => by simp at same
   | a :: l₁, b :: l₂, small₁, small₂, same => by
-    have modulus : 2 ^ 63 < goldilocksModulus := by simp [goldilocksModulus]
+    have modulus : 2 ^ 63 < fieldModulus := by simp [fieldModulus]
     simp only [List.map_cons, List.cons.injEq] at same
-    have heads : a = b := CharP.natCast_injOn_Iio R goldilocksModulus
+    have heads : a = b := CharP.natCast_injOn_Iio R fieldModulus
       (lt_trans (small₁ a (by simp)) modulus) (lt_trans (small₂ b (by simp)) modulus) same.1
     rw [heads, map_cast_injective (fun x mem => small₁ x (by simp [mem]))
       (fun x mem => small₂ x (by simp [mem])) same.2]
 
 /-- Packing injectivity, over a ring of characteristic `q`: the field values of the
 packed elements determine the bit string. -/
-theorem pack_cast_injective {R : Type} [AddGroupWithOne R] [CharP R goldilocksModulus]
+theorem pack_cast_injective {R : Type} [AddGroupWithOne R] [CharP R fieldModulus]
     {xs ys : List Bool} (length : xs.length = ys.length)
     (same : (pack xs).map (Nat.cast : ℕ → R) = (pack ys).map (Nat.cast : ℕ → R)) :
     xs = ys :=

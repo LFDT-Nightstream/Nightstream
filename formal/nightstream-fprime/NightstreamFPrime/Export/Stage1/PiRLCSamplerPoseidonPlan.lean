@@ -8,13 +8,13 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
-def sourceCount : Nat := 17
+def sourceCount : Nat := 15
 def invocationsPerSource : Nat := 2
 def invocationCount : Nat := sourceCount * invocationsPerSource
 
-@[simp] theorem sourceCount_eq : sourceCount = 17 := by rfl
+@[simp] theorem sourceCount_eq : sourceCount = 15 := by rfl
 @[simp] theorem invocationsPerSource_eq : invocationsPerSource = 2 := by rfl
-@[simp] theorem invocationCount_eq : invocationCount = 34 := by rfl
+@[simp] theorem invocationCount_eq : invocationCount = 30 := by rfl
 
 def descriptor (invocation : Fin invocationCount) :
     Fin sourceCount × Fin invocationsPerSource :=
@@ -40,13 +40,13 @@ def retainedBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem retainedBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (retainedBlock program).slotCount = 5100 := by
+    (retainedBlock program).slotCount = 4500 := by
   rw [retainedBlock, LowNormBlock.Block.lift_slotCount,
     LaterPoseidonRetainedBlocks.samplerBlock_slotCount]
 
 @[simp] theorem retainedBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (retainedBlock program).coordinateCount = 209100 := by
+    (retainedBlock program).coordinateCount = 184500 := by
   rw [retainedBlock, LowNormBlock.Block.lift_coordinateCount,
     LaterPoseidonRetainedBlocks.samplerBlock_coordinateCount]
 
@@ -187,7 +187,7 @@ def plan {program : Lifecycle.Stage1.Application.Program}
 @[simp] theorem plan_rowCount
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth) :
-    (plan geometry).rowCount = 5100 := by
+    (plan geometry).rowCount = 4500 := by
   rw [plan, PoseidonSboxFamilyPlan.plan_rowCount, invocationCount_eq]
 
 theorem rowsZero_iff

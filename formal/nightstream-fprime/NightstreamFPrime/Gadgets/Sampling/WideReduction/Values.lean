@@ -5,9 +5,9 @@ import NightstreamFPrime.Gadgets.Sampling.WideReduction
 
 /-!
 Owns the values of the whole-vector sampler linear forms under an arbitrary
-environment: the draw form equals the base-`p` draw integer when the four
-children hold, the result form equals `Q 5^54 + R`, check terms are multiples
-of their modulus, and the six moduli combine by the Chinese remainder theorem.
+environment: the draw form equals the base-`p` draw integer when the five
+children hold, the result form equals `Q 5^64 + R`, check terms are multiples
+of their modulus, and the seven moduli combine by the Chinese remainder theorem.
 Soundness and completeness both use these facts.
 -/
 
@@ -18,7 +18,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Range
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
-open NightstreamFPrime.Spec.Phi81StrongSet
+open NightstreamFPrime.Spec.RingStrongSet
 open Finset
 
 theorem foldl_range (term : Nat → Nat) (count : Nat) :
@@ -80,7 +80,7 @@ theorem fieldWord (spec : CanonicalU64.SpecHolds (childInterface interface offse
 theorem fieldTerms_value (spec : CanonicalU64.SpecHolds (childInterface interface offset index)
       (childOffset offset index) env) :
     linearValue env (fieldTerms offset index.val) =
-      goldilocksModulus ^ index.val * ((interface.source index offset).eval env).val := by
+      fieldModulus ^ index.val * ((interface.source index offset).eval env).val := by
   unfold fieldTerms
   rw [linearValue_rangeMap, ← fieldWord spec, Finset.mul_sum]
   refine Finset.sum_congr rfl fun bit _ => ?_
@@ -92,24 +92,27 @@ theorem drawTerms_value
     linearValue env (drawTerms offset) = (drawIndex (drawOf interface env offset)).val := by
   have value := fun index => fieldTerms_value (children index)
   have v0 : linearValue env (fieldTerms offset 0) =
-      goldilocksModulus ^ 0 * ((interface.source 0 offset).eval env).val := value 0
+      fieldModulus ^ 0 * ((interface.source 0 offset).eval env).val := value 0
   have v1 : linearValue env (fieldTerms offset 1) =
-      goldilocksModulus ^ 1 * ((interface.source 1 offset).eval env).val := value 1
+      fieldModulus ^ 1 * ((interface.source 1 offset).eval env).val := value 1
   have v2 : linearValue env (fieldTerms offset 2) =
-      goldilocksModulus ^ 2 * ((interface.source 2 offset).eval env).val := value 2
+      fieldModulus ^ 2 * ((interface.source 2 offset).eval env).val := value 2
   have v3 : linearValue env (fieldTerms offset 3) =
-      goldilocksModulus ^ 3 * ((interface.source 3 offset).eval env).val := value 3
+      fieldModulus ^ 3 * ((interface.source 3 offset).eval env).val := value 3
+  have v4 : linearValue env (fieldTerms offset 4) =
+      fieldModulus ^ 4 * ((interface.source 4 offset).eval env).val := value 4
   rw [drawIndex_val]
   change linearValue env (fieldTerms offset 0 ++ fieldTerms offset 1 ++ fieldTerms offset 2 ++
-      fieldTerms offset 3) =
-    ∑ index : Fin 4, ((interface.source index offset).eval env).val * goldilocksModulus ^ index.val
-  rw [Fin.sum_univ_four]
+      fieldTerms offset 3 ++ fieldTerms offset 4) =
+    ∑ index : Fin 5, ((interface.source index offset).eval env).val * fieldModulus ^ index.val
+  rw [Fin.sum_univ_five]
   simp only [linearValue_append]
-  rw [v0, v1, v2, v3]
-  change _ = ((interface.source 0 offset).eval env).val * goldilocksModulus ^ 0 +
-    ((interface.source 1 offset).eval env).val * goldilocksModulus ^ 1 +
-    ((interface.source 2 offset).eval env).val * goldilocksModulus ^ 2 +
-    ((interface.source 3 offset).eval env).val * goldilocksModulus ^ 3
+  rw [v0, v1, v2, v3, v4]
+  change _ = ((interface.source 0 offset).eval env).val * fieldModulus ^ 0 +
+    ((interface.source 1 offset).eval env).val * fieldModulus ^ 1 +
+    ((interface.source 2 offset).eval env).val * fieldModulus ^ 2 +
+    ((interface.source 3 offset).eval env).val * fieldModulus ^ 3 +
+    ((interface.source 4 offset).eval env).val * fieldModulus ^ 4
   ring
 
 def quotientValue (env : Env) (offset : Nat) : Nat :=
@@ -160,10 +163,10 @@ section Checks
 
 variable {offset : Nat}
 
-theorem length_drawTerms : (drawTerms offset).length = 256 := by
+theorem length_drawTerms : (drawTerms offset).length = 320 := by
   simp [drawTerms, fieldTerms, CanonicalU64.bitCount]
 
-theorem length_resultTerms : (resultTerms offset).length = 293 := by
+theorem length_resultTerms : (resultTerms offset).length = 364 := by
   simp [resultTerms, quotientTerms, digitTerms, quotientBitCount, digitCount, digitBitCount,
     List.length_flatMap]
 
@@ -172,7 +175,7 @@ theorem length_checkTerms (check : Fin checkCount) :
   simp [checkTerms, checkBitCount]
 
 def modulusProduct : Nat :=
-  modulus 0 * modulus 1 * modulus 2 * modulus 3 * modulus 4 * modulus 5
+  modulus 0 * modulus 1 * modulus 2 * modulus 3 * modulus 4 * modulus 5 * modulus 6
 
 theorem crt {left right : Nat}
     (congruent : ∀ check : Fin checkCount, left ≡ right [MOD modulus check]) :
@@ -181,7 +184,8 @@ theorem crt {left right : Nat}
   have c012 := (Nat.modEq_and_modEq_iff_modEq_mul (by decide)).mp ⟨c01, congruent 2⟩
   have c0123 := (Nat.modEq_and_modEq_iff_modEq_mul (by decide)).mp ⟨c012, congruent 3⟩
   have c01234 := (Nat.modEq_and_modEq_iff_modEq_mul (by decide)).mp ⟨c0123, congruent 4⟩
-  exact (Nat.modEq_and_modEq_iff_modEq_mul (by decide)).mp ⟨c01234, congruent 5⟩
+  have c012345 := (Nat.modEq_and_modEq_iff_modEq_mul (by decide)).mp ⟨c01234, congruent 5⟩
+  exact (Nat.modEq_and_modEq_iff_modEq_mul (by decide)).mp ⟨c012345, congruent 6⟩
 
 theorem drawCount_le_product : drawCount ≤ modulusProduct := by decide
 

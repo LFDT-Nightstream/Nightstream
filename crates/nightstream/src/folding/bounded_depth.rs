@@ -2,9 +2,9 @@
 //! accumulator (Lean `Spec/Folding/Light`, `Spec/Folding/Refresh`). The light
 //! fold runs PiCCS over the fresh instance and the accumulator, with norm
 //! terms on the fresh source only, then PiRLC with weights ρ and 1. The
-//! refresh fold splits the accumulator with PiDEC, binds the 16 children
+//! refresh fold splits the accumulator with PiDEC, binds the 14 children
 //! after the statement, then runs PiCCS over the fresh instance and the
-//! children and PiRLC with 17 sampled challenges. Neither fold ends in PiDEC.
+//! children and PiRLC with 15 sampled challenges. Neither fold ends in PiDEC.
 use super::{
     ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsInstance, CeClaim, Error, FoldContext,
     RunningInstance,

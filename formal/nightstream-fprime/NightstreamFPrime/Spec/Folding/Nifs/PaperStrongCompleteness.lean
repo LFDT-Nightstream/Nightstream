@@ -7,8 +7,8 @@ namespace NightstreamFPrime.Spec.Folding.Nifs.PaperStrongCompleteness
 
 open NightstreamFPrime.Spec
 open _root_.NightstreamFPrime.Spec.SumCheck.Finite
-open GoldilocksCausal (Strategy)
-open GoldilocksCausalTrace (issued)
+open FieldCausal (Strategy)
+open FieldCausalTrace (issued)
 
 private noncomputable def honestStrategy (ops : Ops K) (q : List K → K)
     (degree roundCount : Nat)

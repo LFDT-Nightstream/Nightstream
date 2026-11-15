@@ -19,7 +19,7 @@ open PiCCSOrdinaryRetainedGeometry
 
 inductive Location where
   | priorInput (index : Fin PilotProduction.stateHashWords)
-  | freshPublicInput (index : Fin 270)
+  | freshPublicInput (index : Fin 320)
   | outputInput (index : Fin PilotProduction.stateHashWords)
   | expectedContext (index : Fin PiCCSInputs.expectedContextWords)
   | proofLogical (index : Fin proofLogicalCount)
@@ -58,7 +58,7 @@ theorem sourceSupport (location : Location) :
         omega
       · have bound := index.isLt
         change PilotProduction.priorPublicInputStart + index.val <
-          PilotProduction.priorPublicInputStart + 270
+          PilotProduction.priorPublicInputStart + 320
         omega
   | outputInput index =>
       apply PiCCSOrdinarySourceSupport.external_source
@@ -86,7 +86,7 @@ theorem sourceSupport (location : Location) :
       exact proofLogicalSource_support index
   | fresh index =>
       have bound := index.isLt
-      change index.val < 2956 at bound
+      change index.val < 2862 at bound
       apply PiCCSOrdinarySourceSupport.fresh_source
       · change PiCCSStarts.initialClaimFreshStart ≤
           PiCCSArithmetic.initialClaimFreshStart + index.val
@@ -104,7 +104,7 @@ theorem sourceSupport (location : Location) :
         omega
 
 theorem sourceColumn_lt (location : Location) :
-    location.sourceColumn < Spartan.SourceColumnCount :=
+    location.sourceColumn < PackageOrder.SourceColumnCount :=
   PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount location.sourceSupport
 
 def form {program : Lifecycle.Stage1.Application.Program}
@@ -214,7 +214,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
     (location : Location) :
     (location.form geometry).eval assignment =
       RunningTransitionDirectPlan.transitionEnv program base
-        (Spartan.sourceToSpartan location.sourceColumn) := by
+        (PackageOrder.sourceToPackage location.sourceColumn) := by
   cases location with
   | priorInput index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.priorInput index]
@@ -226,7 +226,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
       apply Eq.symm
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.priorInput index).sourceColumn_lt
-      have indexBound : index.val < 27819 := index.isLt
+      have indexBound : index.val < 25329 := index.isLt
       left
       norm_num [sourceColumn, PilotProduction.priorPreimageStart, PiCCSStarts.statementWitnessStart_eq]
       omega
@@ -240,7 +240,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
       apply Eq.symm
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.freshPublicInput index).sourceColumn_lt
-      have indexBound : index.val < 270 := index.isLt
+      have indexBound : index.val < 320 := index.isLt
       left
       norm_num [sourceColumn, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, PiCCSStarts.statementWitnessStart_eq]
       omega
@@ -254,7 +254,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       rw [sourceEq, RunningTransitionDirectPlan.sourceAssignment_packageSource]
       apply Eq.symm
       apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (Location.outputInput index).sourceColumn_lt
-      have indexBound : index.val < 27819 := index.isLt
+      have indexBound : index.val < 25329 := index.isLt
       left
       norm_num [sourceColumn, PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, Lifecycle.PriorStateHash.publicWidth, Lifecycle.PaperAlgebra.publicRingColumns, Spec.ringDegree, PiCCSStarts.statementWitnessStart_eq]
       omega
@@ -302,7 +302,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         apply Eq.symm
         apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (proofLogicalSource_lt index)
         left
-        have indexBound : index.val < 15462 := by
+        have indexBound : index.val < 16056 := by
           simpa only [proofInputCount_eq] using proof
         rw [proofLogicalSource, dite_eq_left proof]
         rw [PiCCSInputs.priorChildrenStart_eq, PiCCSStarts.statementWitnessStart_eq]
@@ -479,7 +479,7 @@ def classifySource (column : Nat) : Option (Located column) :=
     some ⟨.priorInput (rangeIndex prior), by
       rw [Location.sourceColumn, rangeIndex_source prior]⟩
   else if freshPublic : PiCCSOrdinarySourceSupport.InRange
-      PilotProduction.priorPublicInputStart 270 column then
+      PilotProduction.priorPublicInputStart 320 column then
     some ⟨.freshPublicInput (rangeIndex freshPublic), by
       rw [Location.sourceColumn, rangeIndex_source freshPublic]⟩
   else if output : PiCCSOrdinarySourceSupport.InRange
@@ -556,7 +556,7 @@ theorem classifySource_complete {column : Nat}
     rw [dite_eq_left prior]
     rfl
   by_cases freshPublic : PiCCSOrdinarySourceSupport.InRange
-      PilotProduction.priorPublicInputStart 270 column
+      PilotProduction.priorPublicInputStart 320 column
   · unfold classifySource
     rw [dite_eq_right prior, dite_eq_left freshPublic]
     rfl
@@ -618,7 +618,7 @@ structure Decoded where
   owns : location.sourceColumn = source
 
 def classifyTarget (column : Nat) : Option Decoded :=
-  match Spartan.spartanToSource column with
+  match PackageOrder.packageToSource column with
   | none => none
   | some source =>
       match classifySource source with
@@ -628,9 +628,9 @@ def classifyTarget (column : Nat) : Option Decoded :=
 theorem classifyTarget_complete {column : Nat}
     (support : PiCCSOrdinarySourceSupport.Target column) :
     ∃ decoded, classifyTarget column = some decoded ∧
-      Spartan.sourceToSpartan decoded.source = column := by
+      PackageOrder.sourceToPackage decoded.source = column := by
   rcases support with ⟨source, sourceSupport, rfl⟩
-  have inverse := Spartan.spartanToSource_sourceToSpartan source
+  have inverse := PackageOrder.packageToSource_sourceToPackage source
     (PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount sourceSupport)
   have complete := classifySource_complete sourceSupport
   cases found : classifySource source with
@@ -641,8 +641,8 @@ theorem classifyTarget_complete {column : Nat}
 
 def endpointForm {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
-    (column : Fin Spartan.spartanColumnCount) : SparseForm logicalWidth :=
-  match Spartan.spartanToSource column.val with
+    (column : Fin PackageOrder.packageColumnCount) : SparseForm logicalWidth :=
+  match PackageOrder.packageToSource column.val with
   | none => .empty
   | some source =>
       if inside : PiCCSOrdinarySourceSupport.InRange
@@ -654,7 +654,7 @@ def endpointForm {program : Lifecycle.Stage1.Application.Program}
 
 def sourceMap {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth) :
-    SourceCompiler.SourceMap Spartan.spartanColumnCount logicalWidth where
+    SourceCompiler.SourceMap PackageOrder.packageColumnCount logicalWidth where
   form := fun column =>
     match classifyTarget column.val with
     | none => endpointForm geometry column
@@ -668,7 +668,7 @@ theorem sourceMap_form_eval_of_target
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
-    (column : Fin Spartan.spartanColumnCount)
+    (column : Fin PackageOrder.packageColumnCount)
     (support : PiCCSOrdinarySourceSupport.Target column.val) :
     ((sourceMap geometry).form column).eval assignment =
       RunningTransitionDirectPlan.transitionEnv program base column.val := by
@@ -680,7 +680,7 @@ theorem sourceMap_form_eval_of_target
   rw [Location.form_eval geometry assignment base groupValue
     encodes decoded.location]
   have mappedLocation :
-      Spartan.sourceToSpartan decoded.location.sourceColumn = column.val := by
+      PackageOrder.sourceToPackage decoded.location.sourceColumn = column.val := by
     rw [decoded.owns, mapped]
   rw [mappedLocation]
 
@@ -693,7 +693,7 @@ private theorem preservesCombination
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
     (combination : R1CS.LinearCombination)
-    (bounded : SourceCompiler.CombinationBounded Spartan.spartanColumnCount
+    (bounded : SourceCompiler.CombinationBounded PackageOrder.packageColumnCount
       combination)
     (scope : combination.VarsSatisfy PiCCSOrdinarySourceSupport.Target) :
     OrdinarySourcePlan.SourceMap.PreservesCombination (sourceMap geometry)
@@ -706,10 +706,10 @@ private theorem preservesCombination
 private theorem programRow_support
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (index : Fin 37317) :
+    (index : Fin 38553) :
     (PiCCSOrdinaryDirectSource.programRow relation index).VarsSatisfy
       PiCCSOrdinarySourceSupport.Target := by
   exact PiCCSOrdinaryDirectSupport.sourceRows_varsSatisfy relation _
@@ -720,7 +720,7 @@ def inputs
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) :
@@ -732,7 +732,7 @@ theorem inputs_preserve
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
@@ -766,7 +766,7 @@ theorem programRow_preserve
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth)
@@ -775,7 +775,7 @@ theorem programRow_preserve
     (groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F)
     (encodes : Encodes geometry assignment
       (PiRLCRetainedPreservation.sourceAssignment program base groupValue))
-    (index : Fin 37317) :
+    (index : Fin 38553) :
     OrdinarySourcePlan.SourceMap.PreservesRow (sourceMap geometry) assignment
       (RunningTransitionDirectPlan.transitionEnv program base)
       (PiCCSOrdinaryDirectSource.programRow relation index)
@@ -793,10 +793,10 @@ def rowForms
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
-    (geometry : Geometry program logicalWidth) (index : Fin 37317) :
+    (geometry : Geometry program logicalWidth) (index : Fin 38553) :
     OrdinaryRow.Forms logicalWidth :=
   SourceCompiler.compileRow (sourceMap geometry) (oneColumn geometry)
     (PiCCSOrdinaryDirectSource.programRow relation index)
@@ -806,7 +806,7 @@ theorem rowForms_eq_of_same_shape
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (left right : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) :
@@ -823,7 +823,7 @@ def plan
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) :
@@ -835,18 +835,18 @@ def plan
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) :
-    (plan relation geometry).rowCount = 37317 := by
+    (plan relation geometry).rowCount = 38553 := by
   rfl
 
 theorem plan_eq_of_same_shape
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (left right : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth) :
@@ -858,7 +858,7 @@ theorem rowsZero_iff_rowsHold
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth relationLogicalWidth}
+      RingCarrierLayout.carrierWidth relationLogicalWidth}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth
       relationPublicFits)
     (geometry : Geometry program logicalWidth)

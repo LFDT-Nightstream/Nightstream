@@ -26,7 +26,7 @@ def sub (left right : KExpr) : KExpr :=
   ⟨left.c0 - right.c0, left.c1 - right.c1⟩
 
 def mul (left right : KExpr) : KExpr :=
-  ⟨left.c0 * right.c0 + 7 * left.c1 * right.c1,
+  ⟨left.c0 * right.c0 + 2 * left.c1 * right.c1,
     left.c0 * right.c1 + left.c1 * right.c0⟩
 
 @[simp] theorem eval_zero (env : Env) : zero.eval env = K.zero := by

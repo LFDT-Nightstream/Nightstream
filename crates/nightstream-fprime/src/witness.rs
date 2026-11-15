@@ -1,7 +1,7 @@
 //! Decoder and evaluator for the Lean-owned symbolic witness-expression IR.
 
+use neo_math::Fq;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -13,7 +13,7 @@ pub(super) struct RawWitnessBatch(pub(super) u64, pub(super) Vec<Value>, pub(sup
 #[derive(Clone, Debug)]
 pub(super) enum WitnessExpr {
     Var(usize),
-    Const(Goldilocks),
+    Const(Fq),
     Add(Box<WitnessExpr>, Box<WitnessExpr>),
     Mul(Box<WitnessExpr>, Box<WitnessExpr>),
 }
@@ -77,22 +77,22 @@ impl WitnessBatch {
 }
 
 impl WitnessHint {
-    fn eval(&self, assignment: &[Goldilocks]) -> Goldilocks {
+    fn eval(&self, assignment: &[Fq]) -> Fq {
         match self {
             Self::Bit(source, index) => {
                 let value = source.eval(assignment).as_canonical_u64();
-                Goldilocks::from_u64(value.checked_shr(*index as u32).unwrap_or(0) & 1)
+                Fq::from_u64(value.checked_shr(*index as u32).unwrap_or(0) & 1)
             }
             Self::InverseOrZero(source) => {
                 let value = source.eval(assignment);
-                if value == Goldilocks::ZERO {
-                    Goldilocks::ZERO
+                if value == Fq::ZERO {
+                    Fq::ZERO
                 } else {
                     value.inverse()
                 }
             }
-            Self::QuotientFive(source) => Goldilocks::from_u64(source.eval(assignment).as_canonical_u64() / 5),
-            Self::RemainderFive(source) => Goldilocks::from_u64(source.eval(assignment).as_canonical_u64() % 5),
+            Self::QuotientFive(source) => Fq::from_u64(source.eval(assignment).as_canonical_u64() / 5),
+            Self::RemainderFive(source) => Fq::from_u64(source.eval(assignment).as_canonical_u64() % 5),
         }
     }
 }
@@ -107,11 +107,11 @@ impl WitnessExpr {
         })
     }
 
-    fn eval(&self, assignment: &[Goldilocks]) -> Goldilocks {
+    fn eval(&self, assignment: &[Fq]) -> Fq {
         self.eval_with(&|column| assignment[column])
     }
 
-    pub(super) fn eval_with(&self, value: &impl Fn(usize) -> Goldilocks) -> Goldilocks {
+    pub(super) fn eval_with(&self, value: &impl Fn(usize) -> Fq) -> Fq {
         match self {
             Self::Var(column) => value(*column),
             Self::Const(value) => *value,
@@ -164,7 +164,7 @@ pub(super) fn validate_witness_batch_order(batches: &[WitnessBatch]) -> Result<(
     Ok(())
 }
 
-pub(super) fn execute_witness_batch(batch: &WitnessBatch, assignment: &mut [Goldilocks]) {
+pub(super) fn execute_witness_batch(batch: &WitnessBatch, assignment: &mut [Fq]) {
     for (offset, recipe) in batch.recipes.iter().enumerate() {
         assignment[batch.start + offset] = recipe.eval(assignment);
     }
@@ -259,13 +259,13 @@ fn decode_expr_with(
             let constant = constant
                 .as_u64()
                 .ok_or(PackageError::Malformed("witness expression constant"))?;
-            if constant >= Goldilocks::ORDER_U64 {
+            if constant >= Fq::ORDER_U64 {
                 return Err(PackageError::NonCanonicalField {
                     location: "witness expression constant",
                     value: constant,
                 });
             }
-            Ok(WitnessExpr::Const(Goldilocks::from_u64(constant)))
+            Ok(WitnessExpr::Const(Fq::from_u64(constant)))
         }
         (2, [_, left, right]) => Ok(WitnessExpr::Add(
             Box::new(decode_expr_with(left, validate_column)?),

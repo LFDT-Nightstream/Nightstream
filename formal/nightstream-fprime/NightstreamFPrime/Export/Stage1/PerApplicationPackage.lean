@@ -26,7 +26,7 @@ def applicationPlan (program : Lifecycle.Stage1.Application.Program) :
 
 def directApplicationPlan (program : Lifecycle.Stage1.Application.Program) :
     ApplicationPackage.Plan :=
-  ApplicationPackage.productionPlan program 11377912
+  ApplicationPackage.productionPlan program 9973742
 
 theorem directApplicationPlan_eq_applicationPlan
     (program : Lifecycle.Stage1.Application.Program) :
@@ -79,7 +79,7 @@ def nextPreimageRowStart
 
 def directNextPreimageRowStart
     (program : Lifecycle.Stage1.Application.Program) : Nat :=
-  11377912 + directApplicationRowCount program
+  9973742 + directApplicationRowCount program
 
 theorem directNextPreimageRowStart_eq_nextPreimageRowStart
     (program : Lifecycle.Stage1.Application.Program) :
@@ -558,7 +558,7 @@ theorem packageRows_imply_nextPreimageSpec
     Lifecycle.Stage1.NextPreimage.SpecHolds
       Layout.Stage1.NextPreimageInputs.sourceInterface
       Layout.Stage1.RunningTransitionInputs.phaseOffset
-      (Layout.Stage1.Spartan.pullback env) := by
+      (Layout.Stage1.PackageOrder.pullback env) := by
   let rowStart := nextPreimageRowStart program
   let rows := NextPreimagePackage.compiledRows rowStart
   have instructions : ∀ instruction ∈
@@ -583,10 +583,10 @@ theorem packageRows_imply_nextPreimageSpec
     rw [NextPreimagePackage.sourceRows_eq,
       ← NextPreimagePackage.compiledRows_toR1CS rowStart]
     exact compiled
-  have spartanSpec := NextPreimagePackage.sourceRows_imply_spec env sourceRows
+  have packageOrderSpec := NextPreimagePackage.sourceRows_imply_spec env sourceRows
   have sourceSpec :=
-    (Layout.Stage1.NextPreimageInputs.spartanSpec_iff_sourceSpec
-      NextPreimagePackage.privateStart env).mp spartanSpec
+    (Layout.Stage1.NextPreimageInputs.packageOrderSpec_iff_sourceSpec
+      NextPreimagePackage.privateStart env).mp packageOrderSpec
   refine {
     iteration := ?_
     initialState := fun index => ?_ }
@@ -596,19 +596,19 @@ theorem packageRows_imply_nextPreimageSpec
       sourceSpec.initialState index
 
 @[simp] theorem basePackage_rowCount_eq :
-    basePackage.layout.rowCount = 11377912 := by
+    basePackage.layout.rowCount = 9973742 := by
   rw [basePackage, Data.circuitPackage_layout]
   rfl
 
 @[simp] theorem basePackage_totalColumnCount_eq :
-    basePackage.layout.totalColumnCount = 11464875 := by
+    basePackage.layout.totalColumnCount = 10059655 := by
   rw [basePackage, Data.circuitPackage_layout]
   rfl
 
 theorem package_rowCount_le_twoPow28_iff
     (program : Lifecycle.Stage1.Application.Program) :
     (package program).layout.rowCount ≤ 2 ^ Lifecycle.cubeVariables ↔
-      (applicationPlan program).rowCount ≤ 257057539 := by
+      (applicationPlan program).rowCount ≤ 258461709 := by
   rw [package_rowCount, basePackage_rowCount_eq]
   norm_num [Lifecycle.cubeVariables]
   omega
@@ -616,7 +616,7 @@ theorem package_rowCount_le_twoPow28_iff
 theorem package_totalColumnCount_le_twoPow28_iff
     (program : Lifecycle.Stage1.Application.Program) :
     (package program).layout.totalColumnCount ≤ 2 ^ Lifecycle.cubeVariables ↔
-      addedPrivateColumnCount program ≤ 256970581 := by
+      addedPrivateColumnCount program ≤ 258375801 := by
   rw [package_totalColumnCount, basePackage_totalColumnCount_eq]
   norm_num [Lifecycle.cubeVariables]
   omega
@@ -628,8 +628,8 @@ structure FitsTwoPow28 (program : Lifecycle.Stage1.Application.Program) : Prop w
 
 theorem fitsTwoPow28OfApplicationBounds
     (program : Lifecycle.Stage1.Application.Program)
-    (rows : (applicationPlan program).rowCount ≤ 257057539)
-    (columns : addedPrivateColumnCount program ≤ 256970581) :
+    (rows : (applicationPlan program).rowCount ≤ 258461709)
+    (columns : addedPrivateColumnCount program ≤ 258375801) :
     FitsTwoPow28 program where
   rows := (package_rowCount_le_twoPow28_iff program).2 rows
   columns := (package_totalColumnCount_le_twoPow28_iff program).2 columns
@@ -646,7 +646,7 @@ theorem jointDomain_le_twoPow28
 
 theorem recursivePublicWidth_fixed
     (program : Lifecycle.Stage1.Application.Program) :
-    (package program).layout.publicColumnCount = 278 := by
+    (package program).layout.publicColumnCount = 328 := by
   rw [package_publicColumnCount]
   rfl
 

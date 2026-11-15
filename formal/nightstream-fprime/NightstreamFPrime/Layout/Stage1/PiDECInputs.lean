@@ -10,7 +10,7 @@ open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra
 
 def proofInputStart : Nat := PiRLCStarts.outputFreshStart
 
@@ -39,19 +39,19 @@ def phaseOffset : Nat := proofInputStart + proofInputColumnCount
 theorem proofInputStart_matches_piRlc
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     proofInputStart = PilotPiCCSPiRLC.physicalColumnCount relation := by
   rw [PilotPiCCSPiRLC.physicalColumnCount_eq]
   rfl
 
-theorem proofInputColumnCount_eq : proofInputColumnCount = 31968 := by
+theorem proofInputColumnCount_eq : proofInputColumnCount = 29568 := by
   rfl
 
 theorem inputStarts_eq :
     [commitmentInputStart, evalKInputStart, evalAInputStart, publicInputStart,
       phaseOffset] =
-    [11432634, 11451642, 11453370, 11460282, 11464602] := by
+    [10029764, 10045892, 10047684, 10054852, 10059332] := by
   rfl
 
 def childCommitmentStart (child : Radix.ChildIndex) : Nat :=
@@ -84,33 +84,33 @@ def childEvalA (child : Radix.ChildIndex)
   ⟨Expr.var start, Expr.var (start + 1)⟩
 
 def childPublicInput (child : Radix.ChildIndex)
-    (coordinate : Fin 270) : Expr :=
+    (coordinate : Fin 320) : Expr :=
   Expr.var (childPublicInputStart child + coordinate.val)
 
 def piRlcInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)
 
 def piRlcSharedInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.atOffset
     (piRlcInterface logicalWidth publicFits) PiRLCInputs.phaseOffset
 
 def piRlcOutputInterface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.outputBindingInterface
     (piRlcSharedInterface logicalWidth publicFits) PiRLCInputs.phaseOffset
 
 def parent
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     NightstreamFPrime.Lifecycle.PiDEC.v1_2.InputBinding.ParentExpr
       logicalWidth publicFits where
   commitment := (piRlcOutputInterface logicalWidth publicFits).commitment
@@ -133,7 +133,7 @@ def message (child : Radix.ChildIndex) :
 def interface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.Interface
       logicalWidth publicFits where
   parent := fun _ => parent logicalWidth publicFits
@@ -151,7 +151,7 @@ def interface
 theorem inputShapes
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     NightstreamFPrime.Layout.PiDEC.v1_2.InputShapes relation
       (interface logicalWidth publicFits) phaseOffset where

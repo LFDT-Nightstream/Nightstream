@@ -10,7 +10,8 @@ for stage `j`'s NIFS adversary, which attacks the `j`-th fold from the end. Then
 
 Assumption 1 (HyperNova errata, Definition 7 form) is a premise, as for Stage 1; it is needed
 only at output bounds up to `B + cap · T · (b − 1)`, where the relaxed binding of
-`chainCollision_to_shortKernel` and the κ = 22 MSIS estimate at that norm apply. The IVC
+`chainCollision_to_shortKernel` applies and Module-SIS at that norm is a premise
+(`decisions/field-2p64-59-ring-x64.md`: the estimate at that norm is open for κ = 18). The IVC
 adversary outputs the slot's history; Stage 1 reads it back from step witnesses and adds a
 state-hash collision term, which this file does not model. -/
 

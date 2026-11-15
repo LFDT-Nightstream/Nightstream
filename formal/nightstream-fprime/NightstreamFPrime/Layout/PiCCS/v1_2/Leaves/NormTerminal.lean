@@ -9,14 +9,14 @@ for the fixed strict `b = 2` profile.
 
 Inputs:
 - verifier-derived `gamma`;
-- 17 source assignments in exact `K + k` order.
+- 15 source assignments in exact `K + k` order.
 
 Outputs:
 - the child-owned strict-norm residual sum.
 
 Constraint groups:
 - one symbolic cubic residual per source;
-- one reusable Horner multiplication for each of 16 source transitions;
+- one reusable Horner multiplication for each of 14 source transitions;
 - no expected-output copy row.
 
 Parent coverage:
@@ -37,7 +37,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 structure ResidualShape (value : KExpr) : Prop where
   c0_mulCount : R1CS.mulCount value.c0 = 10
@@ -152,7 +152,7 @@ private theorem c0_directConstraint_eq_none (output : Nat)
     (rightShape : ResidualShape right) :
     R1CS.directConstraint
       (Expr.var (output + 1) -
-        (point.c0 * right.c0 + 7 * Expr.var output)) = none := by
+        (point.c0 * right.c0 + 2 * Expr.var output)) = none := by
   have productNone : R1CS.lowerAffine (.mul point.c0 right.c0) = none :=
     lowerAffine_mul_eq_none pointLinear.c0_nonconstant
       rightShape.c0_nonconstant
@@ -160,7 +160,7 @@ private theorem c0_directConstraint_eq_none (output : Nat)
     (.add (.var (output + 1))
       (.mul (.const (-1))
         (.add (.mul point.c0 right.c0)
-          (.mul (.const 7) (.var output))))) = none
+          (.mul (.const 2) (.var output))))) = none
   cases pointAffine : R1CS.lowerAffine point.c0 <;>
     simp [R1CS.directConstraint, R1CS.directRecipeRow,
       R1CS.productSumRecipeRow?, R1CS.affineConstraint, R1CS.lowerAffine,
@@ -171,13 +171,13 @@ private theorem c1_directConstraint_eq_none (output : Nat)
     R1CS.directConstraint
       (Expr.var (output + 1 + 1) -
         ((point.c0 + point.c1) * (right.c0 + right.c1) +
-          (-Expr.var (output + 1) + 6 * Expr.var output))) = none := by
+          (-Expr.var (output + 1) + 1 * Expr.var output))) = none := by
   change R1CS.directConstraint
     (.add (.var (output + 1 + 1))
       (.mul (.const (-1))
         (.add (.mul (.add point.c0 point.c1) (.add right.c0 right.c1))
           (.add (.mul (.const (-1)) (.var (output + 1)))
-            (.mul (.const 6) (.var output)))))) = none
+            (.mul (.const 1) (.var output)))))) = none
   cases pointAffine : R1CS.lowerAffine (.add point.c0 point.c1) <;>
     simp_all [R1CS.directConstraint, R1CS.directRecipeRow,
       R1CS.productSumRecipeRow?, R1CS.affineConstraint, R1CS.lowerAffine,
@@ -196,12 +196,12 @@ private theorem c0_mulCount_eq (output : Nat)
     (rightShape : ResidualShape right) :
     R1CS.mulCount
       (Expr.var (output + 1) -
-        (point.c0 * right.c0 + 7 * Expr.var output)) = 13 := by
+        (point.c0 * right.c0 + 2 * Expr.var output)) = 13 := by
   change R1CS.mulCount
     (.add (.var (output + 1))
       (.mul (.const (-1))
         (.add (.mul point.c0 right.c0)
-          (.mul (.const 7) (.var output))))) = 13
+          (.mul (.const 2) (.var output))))) = 13
   simp only [R1CS.mulCount, pointLinear.c0_mulCount, rightShape.c0_mulCount]
 
 private theorem c1_mulCount_eq (output : Nat)
@@ -210,13 +210,13 @@ private theorem c1_mulCount_eq (output : Nat)
     R1CS.mulCount
       (Expr.var (output + 1 + 1) -
         ((point.c0 + point.c1) * (right.c0 + right.c1) +
-          (-Expr.var (output + 1) + 6 * Expr.var output))) = 23 := by
+          (-Expr.var (output + 1) + 1 * Expr.var output))) = 23 := by
   change R1CS.mulCount
     (.add (.var (output + 1 + 1))
       (.mul (.const (-1))
         (.add (.mul (.add point.c0 point.c1) (.add right.c0 right.c1))
           (.add (.mul (.const (-1)) (.var (output + 1)))
-            (.mul (.const 6) (.var output)))))) = 23
+            (.mul (.const 1) (.var output)))))) = 23
   simp only [R1CS.mulCount, pointLinear.c0_mulCount, pointLinear.c1_mulCount,
     rightShape.c0_mulCount, rightShape.c1_mulCount]
 
@@ -394,7 +394,7 @@ private theorem core_totalFreshCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal.circuit interface
-        ).main offset)) = 752 := by
+        ).main offset)) = 658 := by
   rw [flatConstraints_eq_recipeConstraints]
   rw [compile_totalFreshCount _ _ _ inputs.gamma
     (coefficientExprs_shape interface offset inputs)]
@@ -406,7 +406,7 @@ private theorem core_totalRowCount
     (offset : Nat) (inputs : InputsLinear interface offset) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
       (NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal.circuit interface
-        ).main offset)) = 800 := by
+        ).main offset)) = 700 := by
   rw [flatConstraints_eq_recipeConstraints]
   rw [compile_totalRowCount _ _ _ inputs.gamma
     (coefficientExprs_shape interface offset inputs)]
@@ -418,8 +418,8 @@ def footprint
     (inputs : ∀ offset,
       InputsLinear (Formal.normInterface relation interface) offset) :
     R1CS.CircuitFootprint (Formal.normCircuit relation interface) where
-  freshColumnCount := fun _ => 752
-  physicalRowCount := fun _ => 800
+  freshColumnCount := fun _ => 658
+  physicalRowCount := fun _ => 700
   freshColumnCount_eq := by
     intro offset
     unfold Formal.normCircuit
@@ -438,7 +438,7 @@ theorem freshColumnCount_eq
       InputsLinear (Formal.normInterface relation interface) offset)
     (offset : Nat) :
     R1CS.totalFreshCount (flatConstraints (Circuit.ops
-      (Formal.normCircuit relation interface).main offset)) = 752 :=
+      (Formal.normCircuit relation interface).main offset)) = 658 :=
   (footprint relation interface inputs).freshColumnCount_eq offset
 
 theorem physicalRowCount_eq
@@ -448,7 +448,7 @@ theorem physicalRowCount_eq
       InputsLinear (Formal.normInterface relation interface) offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.normCircuit relation interface).main offset)) = 800 :=
+      (Formal.normCircuit relation interface).main offset)) = 700 :=
   (footprint relation interface inputs).physicalRowCount_eq offset
 
 theorem physicalPrivateColumnCount_eq
@@ -460,10 +460,10 @@ theorem physicalPrivateColumnCount_eq
     localLength (Circuit.ops (Formal.normCircuit relation interface).main
         offset) +
       R1CS.totalFreshCount (flatConstraints (Circuit.ops
-        (Formal.normCircuit relation interface).main offset)) = 800 := by
+        (Formal.normCircuit relation interface).main offset)) = 700 := by
   have logicalColumns :
       localLength (Circuit.ops (Formal.normCircuit relation interface).main
-        offset) = 48 := by
+        offset) = 42 := by
     unfold Formal.normCircuit
     rw [FormalCircuit.withConstantFootprint_main]
     exact

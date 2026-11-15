@@ -17,39 +17,39 @@ abbrev ApplicationProgram := Lifecycle.Stage1.Application.Program
 def parentCommitmentRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (parentCommitmentBlock program)
     (parentCommitmentStart program)
-    (Spartan.sourceToSpartan PiDECSourceSupport.parentCommitmentStart)
+    (PackageOrder.sourceToPackage PiDECSourceSupport.parentCommitmentStart)
     PiDECInputs.commitmentWordsPerChild 0
 
 def parentPublicInputRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (parentPublicInputBlock program)
     (parentPublicInputStart program)
-    (Spartan.sourceToSpartan PiDECSourceSupport.parentPublicInputStart)
+    (PackageOrder.sourceToPackage PiDECSourceSupport.parentPublicInputStart)
     PiDECInputs.publicInputWordsPerChild 0
 
 def parentEvalKRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (parentEvalKBlock program)
     (parentEvalKStart program)
-    (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalKStart)
+    (PackageOrder.sourceToPackage PiDECSourceSupport.parentEvalKStart)
     PiDECInputs.evalKWordsPerChild 0
 
 def parentEvalARange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (parentEvalABlock program)
     (parentEvalAStart program)
-    (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalAStart)
+    (PackageOrder.sourceToPackage PiDECSourceSupport.parentEvalAStart)
     PiDECInputs.evalAWordsPerChild 0
 
 def proofRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (proofBlock program) (proofStart program)
-    (Spartan.sourceToSpartan PiDECInputs.proofInputStart)
+    (PackageOrder.sourceToPackage PiDECInputs.proofInputStart)
     PiDECInputs.proofInputColumnCount 0
 
 def logicalRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (logicalBlock program) (logicalStart program)
-    (Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart) logicalCount 0
+    (PackageOrder.sourceToPackage PiDECStarts.phaseLogicalStart) logicalCount 0
 
 def freshRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (freshBlock program) (freshStart program)
-    (Spartan.sourceToSpartan PiDECStarts.phaseFreshStart) freshCount 0
+    (PackageOrder.sourceToPackage PiDECStarts.phaseFreshStart) freshCount 0
 
 def substitution (program : ApplicationProgram) : SourceSubstitution where
   ranges := [parentCommitmentRange program, parentPublicInputRange program,

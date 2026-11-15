@@ -11,7 +11,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 structure ExternalInputsSupported
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (allowed : Nat → Prop) : Prop where
   priorStateFixed : ∀ word ∈ StateBinding.fixedWords,
@@ -75,7 +75,7 @@ structure ExternalInputsSupported
 theorem ExternalInputsSupported.mono
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     {interface : Interface logicalWidth degreeBound publicFits}
     {offset : Nat} {allowed larger : Nat → Prop}
     (support : ExternalInputsSupported interface offset allowed)

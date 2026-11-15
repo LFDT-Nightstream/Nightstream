@@ -67,7 +67,7 @@ def invocationCount : Nat :=
   familyCount .commitment +
     (familyCount .publicInput + (familyCount .evalK + familyCount .evalA))
 
-@[simp] theorem invocationCount_eq : invocationCount = 629 := by
+@[simp] theorem invocationCount_eq : invocationCount = 495 := by
   rfl
 
 def descriptor : Fin invocationCount → Descriptor :=

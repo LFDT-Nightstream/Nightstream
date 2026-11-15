@@ -47,7 +47,7 @@ private theorem hashChainHolds_pilotTemplate
 
 private def pilotEnv (env : Env) : Env :=
   fun column => env
-    (NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn column)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn column)
 
 private theorem liftPilotCombination_eval
     (combination : SparseCombination) (env : Env) :
@@ -103,28 +103,28 @@ private theorem combinedAssertions_imply_pilotAssertions
 theorem chainInputValues_lift
     (chain : HashChain) (env : Env)
     (bound : chain.inputStart + chain.inputLength ≤
-      NightstreamFPrime.Layout.Stage1.Spartan.pilotInputPrivateColumnCount) :
+      NightstreamFPrime.Layout.Stage1.PackageOrder.pilotInputPrivateColumnCount) :
     NightstreamFPrime.Export.Pilot.chainInputValues chain (pilotEnv env) =
       NightstreamFPrime.Export.Pilot.chainInputValues
         (Data.liftPilotChain chain) env := by
   unfold NightstreamFPrime.Export.Pilot.chainInputValues
   apply congrArg List.ofFn
   funext index
-  change env (NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn
+  change env (NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn
       (chain.inputStart + index.val)) =
-    env (NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn
+    env (NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn
       chain.inputStart + index.val)
   apply congrArg env
-  apply NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn_add_of_input
+  apply NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn_add_of_input
   have indexBound := index.isLt
   omega
 
 theorem chainOutputState_lift
     (chain : HashChain) (env : Env)
-    (lower : NightstreamFPrime.Layout.Stage1.Spartan.pilotInputPrivateColumnCount
+    (lower : NightstreamFPrime.Layout.Stage1.PackageOrder.pilotInputPrivateColumnCount
       ≤ chain.witnessStart)
     (upper : chain.witnessStart + chain.absorbCount * 1096 + 1080 + 15 <
-      NightstreamFPrime.Layout.Stage1.Spartan.pilotPrivateColumnCount) :
+      NightstreamFPrime.Layout.Stage1.PackageOrder.pilotPrivateColumnCount) :
     NightstreamFPrime.Export.Pilot.chainOutputState chain chain.absorbCount
         (pilotEnv env) =
       NightstreamFPrime.Export.Pilot.chainOutputState
@@ -132,23 +132,23 @@ theorem chainOutputState_lift
   funext lane
   unfold NightstreamFPrime.Export.Pilot.chainOutputState
     invocationLocalStart pilotEnv Data.liftPilotChain
-  change env (NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn
+  change env (NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn
       (chain.witnessStart + chain.absorbCount * 1096 + 1080 + lane.val)) =
-    env (NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn
+    env (NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn
       chain.witnessStart + chain.absorbCount * 1096 + 1080 + lane.val)
   have offsetBound : chain.witnessStart +
       (chain.absorbCount * 1096 + 1080 + lane.val) <
-        NightstreamFPrime.Layout.Stage1.Spartan.pilotPrivateColumnCount := by
+        NightstreamFPrime.Layout.Stage1.PackageOrder.pilotPrivateColumnCount := by
     have laneBound := lane.isLt
     omega
   have columnEq :=
-    NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn_add_of_private
+    NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn_add_of_private
       chain.witnessStart (chain.absorbCount * 1096 + 1080 + lane.val)
       lower offsetBound
   have normalized :
-      NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn
+      NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn
           (chain.witnessStart + chain.absorbCount * 1096 + 1080 + lane.val) =
-        NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn
+        NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn
             chain.witnessStart + chain.absorbCount * 1096 + 1080 + lane.val := by
     simpa [Nat.add_assoc] using columnEq
   exact congrArg env normalized
@@ -164,29 +164,29 @@ theorem circuitPackage_hash_chains :
   rfl
 
 theorem circuitPackage_permutation_invocations :
-    (Data.circuitPackage ()).permutationInvocations.length = 982 := by
+    (Data.circuitPackage ()).permutationInvocations.length = 1014 := by
   rw [Data.circuitPackage_permutationInvocations,
     Data.components_permutationInvocations,
     Data.permutationInvocations_eq, List.length_append,
     PiCCSInvocations.invocations_length Data.logicalWidth Data.publicFits,
     PiRLCSamplerInvocations.invocations_length]
 
-theorem proofInputStart_eq : Data.proofInputStart = 55638 := by
+theorem proofInputStart_eq : Data.proofInputStart = 50658 := by
   rfl
 
-theorem witnessStart_eq : Data.witnessStart = 70830 := by
+theorem witnessStart_eq : Data.witnessStart = 66394 := by
   rfl
 
-theorem witnessLength_eq : Data.witnessLength = 11361526 := by
+theorem witnessLength_eq : Data.witnessLength = 9963042 := by
   rfl
 
 theorem circuitPackage_layout_values :
     let layout := (Data.circuitPackage ()).layout
-    layout.rowCount = 11377912 ∧
-      layout.privateColumnCount = 11464596 ∧
-      layout.constantColumn = 11464596 ∧
-      layout.publicColumnCount = 278 ∧
-      layout.totalColumnCount = 11464875 := by
+    layout.rowCount = 9973742 ∧
+      layout.privateColumnCount = 10059326 ∧
+      layout.constantColumn = 10059326 ∧
+      layout.publicColumnCount = 328 ∧
+      layout.totalColumnCount = 10059655 := by
   rw [Data.circuitPackage_layout]
   dsimp [Data.physicalLayout]
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
@@ -196,17 +196,17 @@ theorem circuitPackage_jointDomain_le_twoPow28 :
       ((Data.circuitPackage ()).layout.totalColumnCount - 1) ≤ 2 ^ 28 := by
   rw [Data.circuitPackage_layout]
   norm_num [Data.physicalLayout,
-    NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount]
+    NightstreamFPrime.Layout.Stage1.PackageOrder.packageColumnCount]
 
 theorem arithmetic_partition
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Rows.witnessInstructions (Data.arithmeticRows ())).length +
-      (Rows.assertionRows (Data.arithmeticRows ())).length = 86648 := by
+      (Rows.assertionRows (Data.arithmeticRows ())).length = 84410 := by
   calc
     _ = (Data.arithmeticRows ()).length :=
       Rows.witnessInstructions_length_add_assertionRows_length _
-    _ = 86648 := by
+    _ = 84410 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
@@ -221,16 +221,16 @@ theorem circuitPackage_ordinary_rows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
     (Data.components ()).toCircuitPackage.witnessInstructions.length +
-      (Data.components ()).toCircuitPackage.assertionRows.length = 87334 := by
+      (Data.components ()).toCircuitPackage.assertionRows.length = 85006 := by
   calc
     _ = (PilotData.circuitPackage ()).witnessInstructions.length +
         (PilotData.circuitPackage ()).assertionRows.length +
           (Data.components ()).arithmeticRows.length :=
       Data.Components.ordinaryRows_length (Data.components ())
-    _ = 686 + (Data.arithmeticRows ()).length := by
+    _ = 596 + (Data.arithmeticRows ()).length := by
       rw [NightstreamFPrime.Export.Pilot.ordinaryRows_length,
         Data.components_arithmeticRows]
-    _ = 686 + 86648 := by
+    _ = 596 + 84410 := by
       rw [Data.arithmeticRows_eq, List.length_append, List.length_append,
         List.length_append,
         PiCCSArithmetic.arithmeticRows_length Data.logicalWidth
@@ -240,7 +240,7 @@ theorem circuitPackage_ordinary_rows
         PiDECArithmetic.canonicalPlan_rowCount relation,
         RunningTransitionArithmetic.Plan.rows_length,
         RunningTransitionArithmetic.canonicalPlan_rowCount relation]
-    _ = 87334 := by norm_num
+    _ = 85006 := by norm_num
 
 theorem complete_piCcsInvocations
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
@@ -255,7 +255,7 @@ theorem complete_piCcsInvocations
   have schedule := PiCCSInvocations.invocations_scheduleWithin
     Data.logicalWidth Data.publicFits relation
   rcases Invocations.completeInvocations env
-      (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
         PiCCSInvocations.statementWitnessStart)
       PiCCSInvocations.invocationCeiling
       (PiCCSInvocations.invocations Data.logicalWidth Data.publicFits)
@@ -412,12 +412,12 @@ theorem circuitPackage_implies_piDecPhaseHolds
       NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.Assumptions relation
         (PiDECArithmetic.phaseInterface Data.logicalWidth Data.publicFits)
         NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
-        (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)) :
+        (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)) :
     NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics.PhaseHolds
       relation ajtai
       (PiDECArithmetic.phaseInterface Data.logicalWidth Data.publicFits)
       NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   have packageRows := circuitPackage_implies_piDecArithmeticRows env holds
   have exactRows := PiDECArithmetic.Plan.rows_to_layout
     (PiDECArithmetic.canonicalPlan Data.logicalWidth Data.publicFits)
@@ -425,13 +425,13 @@ theorem circuitPackage_implies_piDecPhaseHolds
     (PiDECArithmetic.canonicalPlan_matches relation)
   rw [exactRows] at packageRows
   have physical :=
-    (NightstreamFPrime.Layout.Stage1.Spartan.remapRows_hold env _).mp
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.remapRows_hold env _).mp
       packageRows
   exact NightstreamFPrime.Layout.PiDEC.v1_2.physical_implies_phaseHolds
     relation ajtai
     (PiDECArithmetic.phaseInterface Data.logicalWidth Data.publicFits)
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
-    (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+    (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
     assumptions physical
 
 theorem circuitPackage_implies_piRlcSamplerInvocations
@@ -462,7 +462,7 @@ theorem circuitPackage_implies_piRlcEntry
           (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
           source))
       source (PiRLCSamplerInvocations.sourceLogicalStart source)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   apply PiRLCSamplerInvocations.entryTrace_implies_spec source env
   intro invocation member
   apply circuitPackage_implies_piRlcSamplerInvocations env holds invocation
@@ -482,7 +482,7 @@ theorem circuitPackage_implies_piRlcAdvance
           (publicFits := Data.publicFits) source) source
         (PiRLCSamplerInvocations.sourceLogicalStart source))
       (Layout.Stage1.PiRLCStarts.advanceLogicalStart source)
-      (Layout.Stage1.Spartan.pullback env) := by
+      (Layout.Stage1.PackageOrder.pullback env) := by
   apply PiRLCSamplerInvocations.advanceInvocation_implies_spec source env
   apply circuitPackage_implies_piRlcSamplerInvocations env holds
   apply List.mem_flatMap.mpr
@@ -519,7 +519,7 @@ theorem circuitPackage_implies_piRlcSamplerSpec
       (PiRLCSamplerInvocations.sourceInterface (logicalWidth := Data.logicalWidth)
         (publicFits := Data.publicFits) source)
       source (PiRLCSamplerInvocations.sourceLogicalStart source)
-      (Layout.Stage1.Spartan.pullback env) := by
+      (Layout.Stage1.PackageOrder.pullback env) := by
   have ordinary := samplerSourceRows env holds source sourceLt
   have range := PiRLCSamplerOrdinaryRows.rangeRows_imply_spec source env
     (by rw [PiRLCSamplerOrdinaryRows.rangeInterface_eq]; exact Sampler.range_inputs _ _ _ assumptions) ordinary.1
@@ -545,10 +545,10 @@ theorem circuitPackage_implies_piRlcSamplerChain
     SamplerChain.SpecHolds
       (PiRLCSamplerRows.samplerInterface (logicalWidth := Data.logicalWidth)
         (publicFits := Data.publicFits)) Layout.Stage1.PiRLCStarts.samplerLogicalStart
-      (Layout.Stage1.Spartan.pullback env) := by
+      (Layout.Stage1.PackageOrder.pullback env) := by
   apply SamplerChain.soundness
     (PiRLCSamplerRows.samplerInterface (logicalWidth := Data.logicalWidth)
-      (publicFits := Data.publicFits)) (Layout.Stage1.Spartan.pullback env)
+      (publicFits := Data.publicFits)) (Layout.Stage1.PackageOrder.pullback env)
     Layout.Stage1.PiRLCStarts.samplerLogicalStart
   · exact @assumptions
   intro operation member
@@ -588,7 +588,7 @@ theorem circuitPackage_piRlcCombinationTemplateSelection :
 
 theorem piRlcCombination_compactRowCount :
     compactRowCountFor PiRLCCombinationTemplates.templates
-      PiRLCCombinationInvocations.invocations = 5128866 := by
+      PiRLCCombinationInvocations.invocations = 4150080 := by
   exact PiRLCCombinationInvocations.invocationsCompactRowCountFor
     PiRLCCombinationTemplates.templates
     piRlcPackageTemplates_selectCombination
@@ -629,7 +629,7 @@ structure PiRLCCombinationRowsHold (env : Env) : Prop where
   commitment : PiRLCCombinationConformance.FamilyInvocationRowsHold
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.commitmentLogicalStart
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.commitmentRowStart
-    NightstreamFPrime.Layout.Stage1.PiRLCStarts.commitmentFreshStart 22 1 1
+    NightstreamFPrime.Layout.Stage1.PiRLCStarts.commitmentFreshStart 18 1 1
     PiRLCCombinationInvocations.commitmentValueSourceStart env
   publicInput : PiRLCCombinationConformance.FamilyInvocationRowsHold
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.publicInputLogicalStart
@@ -696,13 +696,13 @@ theorem circuitPackage_implies_piRlcSpecHolds_of_combinationRows
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env))
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env))
     (combinationRows : PiRLCCombinationRowsHold env) :
     Formal.SpecHolds relation
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   refine {
     inputBinding := ?_
     sampler := ?_
@@ -760,13 +760,13 @@ theorem circuitPackage_implies_piRlcPhaseHolds_of_combinationRows
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env))
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env))
     (combinationRows : PiRLCCombinationRowsHold env) :
     Semantics.PhaseHolds relation ajtai
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   apply Semantics.spec_implies_phaseHolds
   exact circuitPackage_implies_piRlcSpecHolds_of_combinationRows relation env
     holds assumptions
@@ -781,12 +781,12 @@ theorem circuitPackage_implies_piRlcSpecHolds
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)) :
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)) :
     Formal.SpecHolds relation
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   exact circuitPackage_implies_piRlcSpecHolds_of_combinationRows relation env
     holds assumptions (circuitPackage_implies_piRlcCombinationRows env holds)
 
@@ -801,12 +801,12 @@ theorem circuitPackage_implies_piRlcPhaseHolds
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)) :
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)) :
     Semantics.PhaseHolds relation ajtai
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   apply Semantics.spec_implies_phaseHolds
   exact circuitPackage_implies_piRlcSpecHolds relation env holds assumptions
 
@@ -815,7 +815,7 @@ theorem circuitPackage_implies_pilotHashFacts
     (holds : (Data.circuitPackage ()).RowsHold env) :
     PriorStateHash.SpecHolds PilotProduction.priorInterface
         PilotProduction.witnessOffset
-        (PilotSpartan.pullback (pilotEnv env)) ∧
+        (PilotPackageOrder.pullback (pilotEnv env)) ∧
       List.ofFn (fun lane : Fin 4 =>
         pilotEnv env (PilotData.outputChain.digestStart + lane.val)) =
         Spec.Poseidon2.hash
@@ -843,17 +843,17 @@ theorem circuitPackage_implies_pilotHashFacts
     combinedAssertions_imply_pilotAssertions env holds.2.2.2.2
   have priorInputs := chainInputValues_lift PilotData.priorChain env (by
     norm_num [PilotData.priorChain,
-      NightstreamFPrime.Layout.Stage1.Spartan.pilotInputPrivateColumnCount])
+      NightstreamFPrime.Layout.Stage1.PackageOrder.pilotInputPrivateColumnCount])
   have outputInputs := chainInputValues_lift PilotData.outputChain env (by
     norm_num [PilotData.outputChain,
-      NightstreamFPrime.Layout.Stage1.Spartan.pilotInputPrivateColumnCount])
+      NightstreamFPrime.Layout.Stage1.PackageOrder.pilotInputPrivateColumnCount])
   have priorState := chainOutputState_lift PilotData.priorChain env (by
     norm_num [PilotData.priorChain, PilotData.priorWitnessStart,
       NightstreamFPrime.Layout.PilotValues.priorWitnessStart,
       NightstreamFPrime.Layout.PilotValues.witnessPrivateStart,
       NightstreamFPrime.Layout.PilotValues.stateHashWords,
       NightstreamFPrime.Layout.PilotValues.stateHashBaseWords,
-      NightstreamFPrime.Layout.Stage1.Spartan.pilotInputPrivateColumnCount]) (by
+      NightstreamFPrime.Layout.Stage1.PackageOrder.pilotInputPrivateColumnCount]) (by
     norm_num [PilotData.priorChain, PilotData.priorWitnessStart,
       NightstreamFPrime.Layout.PilotValues.priorWitnessStart,
       NightstreamFPrime.Layout.PilotValues.witnessPrivateStart,
@@ -861,7 +861,7 @@ theorem circuitPackage_implies_pilotHashFacts
       NightstreamFPrime.Layout.PilotValues.stateHashWords,
       NightstreamFPrime.Layout.PilotValues.stateHashBaseWords,
       Spec.Poseidon2.rate,
-      NightstreamFPrime.Layout.Stage1.Spartan.pilotPrivateColumnCount])
+      NightstreamFPrime.Layout.Stage1.PackageOrder.pilotPrivateColumnCount])
   have outputState := chainOutputState_lift PilotData.outputChain env
     (by decide) (by decide)
   have pilotPriorHash :
@@ -893,7 +893,7 @@ theorem circuitPackage_implies_pilotHashFacts
   have extraLogical :=
     NightstreamFPrime.Export.Pilot.priorExtraConstraints_hold
       (pilotEnv env) pilotInstructions pilotAssertions
-  have postHashRows : holdsFlat (PilotSpartan.pullback (pilotEnv env))
+  have postHashRows : holdsFlat (PilotPackageOrder.pullback (pilotEnv env))
       (PriorStateHash.wordOps PilotProduction.priorInterface
           PilotProduction.witnessOffset ++
         PriorStateHash.bindingAssertions PilotProduction.priorInterface
@@ -902,10 +902,10 @@ theorem circuitPackage_implies_pilotHashFacts
       PilotProduction.fastPriorWordOps_eq] at extraLogical
     simpa only [holdsFlat] using extraLogical
   have priorSpec := PriorStateHash.soundness_of_hash_and_postHash
-    PilotProduction.priorInterface (PilotSpartan.pullback (pilotEnv env))
+    PilotProduction.priorInterface (PilotPackageOrder.pullback (pilotEnv env))
     PilotProduction.witnessOffset
     (PilotProduction.layoutAssumptions
-      (PilotSpartan.pullback (pilotEnv env))).1
+      (PilotPackageOrder.pullback (pilotEnv env))).1
     rawSpec postHashRows
   have outputRows := NightstreamFPrime.Export.Pilot.canonicalAssertions_sound
     (pilotEnv env) pilotAssertions
@@ -941,14 +941,14 @@ theorem circuitPackage_implies_pilotSpec
     (holds : (Data.circuitPackage ()).RowsHold env) :
     Lifecycle.Pilot.SpecHolds PilotProduction.interface
       PilotProduction.witnessOffset
-      (PilotSpartan.pullback (pilotEnv env)) := by
+      (PilotPackageOrder.pullback (pilotEnv env)) := by
   exact NightstreamFPrime.Export.Pilot.hashFacts_imply_spec
     (pilotEnv env) (circuitPackage_implies_pilotHashFacts env holds)
 
 theorem circuitPackage_implies_recursive_hash_slots
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * PaperAlgebra.publicRingColumns <=
-      Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
+      Spec.Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth
         logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -968,7 +968,7 @@ theorem circuitPackage_implies_recursive_hash_slots
     (digestFixed : output.x.length = PilotProduction.digestWords)
     (env : Env)
     (agrees : PilotProduction.AgreesBelow
-      (PilotSpartan.pullback (pilotEnv env))
+      (PilotPackageOrder.pullback (pilotEnv env))
       (PilotProduction.protocolEnv
         (priorHashPreimage (setup relation ajtai vk) input)
         ((machine publicFits F).freshPublic input.fresh)
@@ -1012,14 +1012,14 @@ theorem circuitPackage_implies_piCcsSpecHolds
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.SpecHolds relation
       (PiCCSInvocations.parentInterface Data.logicalWidth Data.publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) := by
   let parent := PiCCSInvocations.parentInterface Data.logicalWidth Data.publicFits
   have assumptions :=
     NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production relation parent
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear
         Data.logicalWidth Data.publicFits)
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env)
   have transcripts := circuitPackage_implies_piCcsTranscriptSpecs relation env
     holds
   have arithmeticRows := circuitPackage_implies_piCcsArithmeticRows env holds
@@ -1056,7 +1056,7 @@ theorem circuitPackage_implies_piCcsSpecHolds
 def SelectedVerifierContext
     (authority : VerifierContext.Authority) (env : Env) : Prop :=
   ∀ lane : Fin 4,
-    env (NightstreamFPrime.Layout.Stage1.Spartan.expectedContextPublicStart +
+    env (NightstreamFPrime.Layout.Stage1.PackageOrder.expectedContextPublicStart +
       lane.val) = (VerifierContext.digest authority).getD lane.val 0
 
 theorem circuitPackage_implies_selectedVerifierContext
@@ -1069,13 +1069,13 @@ theorem circuitPackage_implies_selectedVerifierContext
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorStateWord
         (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart +
           lane.val)).eval
-          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
+          (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) =
         (VerifierContext.digest authority).getD lane.val 0) ∧
     (∀ lane : Fin 4,
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.outputStateWord
         (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart +
           lane.val)).eval
-          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
+          (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) =
         (VerifierContext.digest authority).getD lane.val 0) := by
   have specification := circuitPackage_implies_piCcsSpecHolds relation env holds
   constructor
@@ -1085,14 +1085,14 @@ theorem circuitPackage_implies_selectedVerifierContext
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorStateWord
         (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart +
           lane.val)).eval
-          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
+          (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) =
         (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContext lane).eval
-          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) at context
+          (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) at context
     rw [context]
-    change env (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+    change env (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart +
         lane.val)) = _
-    rw [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_expectedContext]
+    rw [NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_expectedContext]
     exact selected lane
   · intro lane
     have context := specification.statementBinding.state.outputContext lane
@@ -1100,14 +1100,14 @@ theorem circuitPackage_implies_selectedVerifierContext
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.outputStateWord
         (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart +
           lane.val)).eval
-          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) =
+          (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) =
         (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContext lane).eval
-          (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) at context
+          (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) at context
     rw [context]
-    change env (NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+    change env (NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
       (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart +
         lane.val)) = _
-    rw [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_expectedContext]
+    rw [NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage_expectedContext]
     exact selected lane
 
 theorem circuitPackage_implies_piCcsPhaseHolds
@@ -1120,15 +1120,15 @@ theorem circuitPackage_implies_piCcsPhaseHolds
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds relation ajtai
       (PiCCSInvocations.parentInterface Data.logicalWidth Data.publicFits)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) template := by
+      (NightstreamFPrime.Layout.Stage1.PackageOrder.pullback env) template := by
   apply NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.spec_implies_phaseHolds
     relation ajtai
   exact circuitPackage_implies_piCcsSpecHolds relation env holds
 
 private theorem hashChain_rows :
     Data.priorChain.witnessLength + Data.outputChain.witnessLength =
-      5085440 := by
-  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 5085440
+      4627312 := by
+  change 2 * NightstreamFPrime.Layout.PilotValues.hashWitnessCount = 4627312
   norm_num [NightstreamFPrime.Layout.PilotValues.hashWitnessCount,
     NightstreamFPrime.Layout.PilotValues.absorbCount,
     NightstreamFPrime.Layout.PilotValues.stateHashWords,
@@ -1138,7 +1138,7 @@ private theorem hashChain_rows :
     Spec.Poseidon2.rate]
 
 theorem circuitPackage_compactRowCount :
-    (Data.components ()).toCircuitPackage.compactRowCount = 5128866 := by
+    (Data.components ()).toCircuitPackage.compactRowCount = 4150080 := by
   unfold CircuitPackage.compactRowCount
   rw [Data.Components.toCircuitPackage_compactRowTemplates,
     Data.Components.toCircuitPackage_compactRowInvocations,

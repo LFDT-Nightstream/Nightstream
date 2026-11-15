@@ -46,7 +46,7 @@ def packageFieldBlock (program : Lifecycle.Stage1.Application.Program)
     omega)
 
 def sourceFieldBlock (program : Lifecycle.Stage1.Application.Program)
-    (count start : Nat) (bounded : start + count ≤ Spartan.SourceColumnCount) :
+    (count start : Nat) (bounded : start + count ≤ PackageOrder.SourceColumnCount) :
     LowNormBlock.Block (sourceWidth program) where
   kind := .field
   slotCount := count
@@ -60,7 +60,7 @@ def priorInputBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
   sourceFieldBlock program PilotProduction.stateHashWords
     PilotProduction.priorPreimageStart (by
-      rw [Spartan.sourceColumnCount_eq]
+      rw [PackageOrder.sourceColumnCount_eq]
       norm_num [PilotProduction.priorPreimageStart,
         PilotProduction.stateHashWords_eq])
 
@@ -68,7 +68,7 @@ def outputInputBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
   sourceFieldBlock program PilotProduction.stateHashWords
     PilotProduction.outputPreimageStart (by
-      rw [Spartan.sourceColumnCount_eq]
+      rw [PackageOrder.sourceColumnCount_eq]
       norm_num [PilotProduction.outputPreimageStart,
         PilotProduction.priorPublicInputStart,
         PilotProduction.priorPreimageStart,
@@ -78,17 +78,17 @@ def outputInputBlock (program : Lifecycle.Stage1.Application.Program) :
 
 def freshPublicInputBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
-  sourceFieldBlock program 270 PilotProduction.priorPublicInputStart (by
-    rw [Spartan.sourceColumnCount_eq]
+  sourceFieldBlock program 320 PilotProduction.priorPublicInputStart (by
+    rw [PackageOrder.sourceColumnCount_eq]
     norm_num [PilotProduction.priorPublicInputStart,
       PilotProduction.priorPreimageStart,
       PilotProduction.stateHashWords_eq])
 
 def priorLastInvocation : Fin PoseidonRetainedBlock.priorInvocationCount :=
-  ⟨2319, by rw [PoseidonRetainedBlock.priorInvocationCount_eq]; omega⟩
+  ⟨2110, by rw [PoseidonRetainedBlock.priorInvocationCount_eq]; omega⟩
 
 def outputLastInvocation : Fin PoseidonRetainedBlock.outputInvocationCount :=
-  ⟨2319, by rw [PoseidonRetainedBlock.outputInvocationCount_eq]; omega⟩
+  ⟨2110, by rw [PoseidonRetainedBlock.outputInvocationCount_eq]; omega⟩
 
 def priorLastBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
@@ -110,7 +110,7 @@ def expectedContextBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
   sourceFieldBlock program PiCCSInputs.expectedContextWords
     PiCCSInputs.expectedContextStart (by
-      rw [PiCCSInputs.expectedContextStart_eq, Spartan.sourceColumnCount_eq]
+      rw [PiCCSInputs.expectedContextStart_eq, PackageOrder.sourceColumnCount_eq]
       norm_num [PiCCSInputs.expectedContextWords])
 
 def proofInputCount : Nat :=
@@ -129,20 +129,20 @@ def ordinaryLogicalCount : Nat :=
 def proofLogicalCount : Nat :=
   proofInputCount + transcriptOutputCount + ordinaryLogicalCount
 
-@[simp] theorem proofInputCount_eq : proofInputCount = 15462 := by
+@[simp] theorem proofInputCount_eq : proofInputCount = 16056 := by
   exact PiCCSOrdinarySourceSupport.proofInputCount_eq
 
 @[simp] theorem transcriptInvocationCount_eq :
-    transcriptInvocationCount = 183 := by
+    transcriptInvocationCount = 184 := by
   exact PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq
 
-@[simp] theorem transcriptOutputCount_eq : transcriptOutputCount = 2928 := by
+@[simp] theorem transcriptOutputCount_eq : transcriptOutputCount = 2944 := by
   exact PiCCSOrdinarySourceSupport.transcriptOutputCount_eq
 
-@[simp] theorem ordinaryLogicalCount_eq : ordinaryLogicalCount = 29591 := by
+@[simp] theorem ordinaryLogicalCount_eq : ordinaryLogicalCount = 30641 := by
   exact PiCCSOrdinarySourceSupport.ordinaryLogicalCount_eq
 
-@[simp] theorem proofLogicalCount_eq : proofLogicalCount = 47981 := by
+@[simp] theorem proofLogicalCount_eq : proofLogicalCount = 49641 := by
   norm_num [proofLogicalCount, proofInputCount_eq, transcriptOutputCount_eq,
     ordinaryLogicalCount_eq]
 
@@ -171,7 +171,7 @@ theorem transcriptOutputSource_support (index : Fin transcriptOutputCount) :
   exact ⟨decoded.1, decoded.2, rfl⟩
 
 theorem transcriptOutputSource_lt (index : Fin transcriptOutputCount) :
-    transcriptOutputSource index < Spartan.SourceColumnCount :=
+    transcriptOutputSource index < PackageOrder.SourceColumnCount :=
   PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount
     (transcriptOutputSource_support index)
 
@@ -190,9 +190,9 @@ theorem proofLogicalSource_support (index : Fin proofLogicalCount) :
   unfold proofLogicalSource
   split
   · rename_i proof
-    have proofBound : index.val < 15462 := by
+    have proofBound : index.val < 16056 := by
       simpa only [proofInputCount_eq] using proof
-    by_cases caller : index.val < 15192
+    by_cases caller : index.val < 15736
     · apply PiCCSOrdinarySourceSupport.external_source
       apply PiCCSOrdinarySourceSupport.external_proof
       unfold PiCCSOrdinarySourceSupport.InRange
@@ -209,23 +209,23 @@ theorem proofLogicalSource_support (index : Fin proofLogicalCount) :
       apply PiCCSOrdinarySourceSupport.ordinary_logical_source
       unfold PiCCSOrdinarySourceSupport.OrdinaryLogical
         PiCCSOrdinarySourceSupport.InRange
-      have indexBound : index.val < 47981 := by
+      have indexBound : index.val < 49641 := by
         simpa only [proofLogicalCount_eq] using index.isLt
       rw [PiCCSOrdinarySourceSupport.ordinaryLogicalCount_eq]
-      have notTranscriptNumeric : ¬index.val < 18390 := by
+      have notTranscriptNumeric : ¬index.val < 19000 := by
         simpa only [proofInputCount_eq, transcriptOutputCount_eq] using
           notTranscript
       simp only [proofInputCount_eq, transcriptOutputCount_eq]
       constructor <;> omega
 
 theorem proofLogicalSource_lt (index : Fin proofLogicalCount) :
-    proofLogicalSource index < Spartan.SourceColumnCount :=
+    proofLogicalSource index < PackageOrder.SourceColumnCount :=
   PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount
     (proofLogicalSource_support index)
 
 def proofInputSlot (index : Fin proofInputCount) : Fin proofLogicalCount :=
   ⟨index.val, by
-    have bound : index.val < 15462 := by
+    have bound : index.val < 16056 := by
       simpa only [proofInputCount_eq] using index.isLt
     rw [proofLogicalCount_eq]
     omega⟩
@@ -233,7 +233,7 @@ def proofInputSlot (index : Fin proofInputCount) : Fin proofLogicalCount :=
 def transcriptOutputSlot (index : Fin transcriptOutputCount) :
     Fin proofLogicalCount :=
   ⟨proofInputCount + index.val, by
-    have bound : index.val < 2928 := by
+    have bound : index.val < 2944 := by
       simpa only [transcriptOutputCount_eq] using index.isLt
     rw [proofLogicalCount_eq, proofInputCount_eq]
     omega⟩
@@ -241,7 +241,7 @@ def transcriptOutputSlot (index : Fin transcriptOutputCount) :
 def ordinaryLogicalSlot (index : Fin ordinaryLogicalCount) :
     Fin proofLogicalCount :=
   ⟨proofInputCount + transcriptOutputCount + index.val, by
-    have bound : index.val < 29591 := by
+    have bound : index.val < 30641 := by
       simpa only [ordinaryLogicalCount_eq] using index.isLt
     rw [proofLogicalCount_eq, proofInputCount_eq, transcriptOutputCount_eq]
     omega⟩
@@ -293,10 +293,10 @@ def outputEndpointBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
   sourceFieldBlock program 16 outputEndpointStart (by
     unfold outputEndpointStart PiCCSStarts.logicalFreshBase
-    rw [PiCCSInputs.phaseOffset_eq, Spartan.sourceColumnCount_eq]
+    rw [PiCCSInputs.phaseOffset_eq, PackageOrder.sourceColumnCount_eq]
     norm_num)
 
-def freshCount : Nat := 2956
+def freshCount : Nat := 2862
 
 def freshBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
@@ -305,7 +305,7 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
       PiCCSStarts.initialClaimFreshStart PiCCSStarts.roundTranscriptFreshStart
       PiCCSStarts.challengeFreshStart PiCCSStarts.statementAbsorptionFreshStart
       PiCCSStarts.statementBindingFreshStart PiCCSStarts.logicalFreshBase
-    rw [PiCCSInputs.phaseOffset_eq, Spartan.sourceColumnCount_eq]
+    rw [PiCCSInputs.phaseOffset_eq, PackageOrder.sourceColumnCount_eq]
     norm_num [freshCount])
 
 @[simp] theorem retainedSlotCount_eq
@@ -316,7 +316,7 @@ def freshBlock (program : Lifecycle.Stage1.Application.Program) :
       (expectedContextBlock program).slotCount +
       (proofLogicalBlock program).slotCount +
       (outputEndpointBlock program).slotCount +
-      (freshBlock program).slotCount = 53419 := by
+      (freshBlock program).slotCount = 55035 := by
   norm_num [freshPublicInputBlock,
     priorLastBlock, outputLastBlock, expectedContextBlock, proofLogicalBlock,
     outputEndpointBlock, freshBlock, packageFieldBlock, sourceFieldBlock,
@@ -338,7 +338,7 @@ def retainedCoordinateCount (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 2190179 := by
+    retainedCoordinateCount program = 2256435 := by
   simp only [retainedCoordinateCount, LowNormBlock.Block.coordinateCount,
     freshPublicInputBlock, priorLastBlock,
     outputLastBlock, expectedContextBlock, proofLogicalBlock, freshBlock,

@@ -3,25 +3,24 @@
 //! This module does not select a circuit or accept a proof; it derives
 //! verifier-owned challenges and the post-output state from fixed-profile public messages.
 
+use neo_math::Fq;
 use neo_transcript::{domain_chunk_v1_2, Poseidon2Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 
-use super::{canonical_field, PackageError, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_2_ROUND_COUNT};
+use super::{
+    canonical_field, PackageError, COMMITMENT_WORDS, EVALUATIONS, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT,
+    PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS,
+};
 
-const WIDTH: usize = neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
+const WIDTH: usize = neo_ccs::crypto::poseidon2::WIDTH;
 const CUBE_VARIABLES: usize = PI_CCS_V1_2_ROUND_COUNT;
-const SOURCE_COUNT: usize = 17;
+const SOURCE_COUNT: usize = 1 + super::DECOMPOSITION_K_RHO as usize;
 const LIGHT_SOURCE_COUNT: usize = 2;
 /// The fold domains of the bounded-depth scheme's light and refresh PiCCS (Lean `BoundedDepth.Keys`).
 pub const LIGHT_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/light/v1";
 pub const REFRESH_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/refresh/v1";
-const CHILD_WORDS: usize = 16 * (COMMITMENT_WORDS + EVALUATION_WORDS);
-const MATRIX_COUNT: usize = super::PI_CCS_V1_2_MATRIX_COUNT;
-const COEFFICIENT_COUNT: usize = 54;
-const COMMITMENT_WORDS: usize = 1_188;
-const PUBLIC_INPUT_WORDS: usize = 270;
-const EVALUATION_WORDS: usize = (MATRIX_COUNT + 1) * COEFFICIENT_COUNT * 2;
+const EVALUATION_WORDS: usize = 2 * EVALUATIONS;
+const CHILD_WORDS: usize = super::DECOMPOSITION_K_RHO as usize * (COMMITMENT_WORDS + EVALUATION_WORDS);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiCcsV1_2Transcript {
@@ -60,7 +59,7 @@ pub fn derive_light_transcript(
     )
 }
 
-/// The refresh fold's transcript (`BoundedDepth.refreshWords`): the 16 Π_DEC
+/// The refresh fold's transcript (`BoundedDepth.refreshWords`): the 14 Π_DEC
 /// children's commitments and evaluation families follow the statement.
 pub fn derive_refresh_transcript(
     fresh_commitment: &[u64],
@@ -84,7 +83,7 @@ pub fn derive_refresh_transcript(
 }
 
 fn derive(
-    domain: [Goldilocks; neo_ccs::crypto::poseidon2_goldilocks::RATE],
+    domain: [Fq; neo_ccs::crypto::poseidon2::RATE],
     fresh_commitment: &[u64],
     fresh_public_input: &[u64],
     extra_words: &[u64],
@@ -129,7 +128,7 @@ fn validate_shapes(
     source_count: usize,
 ) -> Result<(), PackageError> {
     if commitment.len() != COMMITMENT_WORDS
-        || public_input.len() != PUBLIC_INPUT_WORDS
+        || public_input.len() != PUBLIC_WORDS
         || rounds.len() != CUBE_VARIABLES
         || rounds
             .iter()
@@ -141,12 +140,12 @@ fn validate_shapes(
     Ok(())
 }
 
-fn canonical_words(words: &[u64]) -> Result<Vec<Goldilocks>, PackageError> {
+fn canonical_words(words: &[u64]) -> Result<Vec<Fq>, PackageError> {
     words
         .iter()
         .map(|&value| {
             canonical_field(value, "PiCCS v1_2 transcript word")?;
-            Ok(Goldilocks::from_u64(value))
+            Ok(Fq::from_u64(value))
         })
         .collect()
 }

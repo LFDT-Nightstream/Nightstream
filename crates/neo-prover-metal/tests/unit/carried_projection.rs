@@ -22,7 +22,7 @@ fn carried_projection_scratch_does_not_grow_with_carrier_width() {
 
 #[test]
 fn omitted_zero_sources_keep_their_logical_gamma_indices() {
-    let count = neo_params::NeoParams::nightstream_goldilocks_k16().k_rho() as usize;
+    let count = neo_params::NeoParams::nightstream_p64_k14().k_rho() as usize;
     let zero_sources = (0..=count)
         .filter(|&source| source != 2)
         .collect::<Vec<_>>();
@@ -67,19 +67,17 @@ fn carried_projection_case(rows: usize, columns: usize, zero_sources: &[usize]) 
     let structure =
         CcsStructure::new_verifier_artifact_header(rows, columns, matrix_count, SparsePoly::new(matrix_count, vec![]))
             .unwrap();
-    let mut params = neo_params::NeoParams::nightstream_goldilocks_k16();
+    let mut params = neo_params::NeoParams::nightstream_p64_k14();
     let security = params
         .padded_row_security_summary_for_shape(
             rows,
             columns,
             matrix_count,
             structure.max_degree(),
-            neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+            neo_params::nightstream_p64_k14::CHALLENGE_ALPHABET.len() as u32,
         )
         .unwrap();
-    params = params
-        .with_lambda(params.lambda().min(security.security_bits))
-        .unwrap();
+    params = params.with_lambda(security.security_bits).unwrap();
     let count = params.k_rho() as usize;
     let dims = build_joint_dims(&params, &structure, 1, count).unwrap();
     let gamma = K::from_coeffs([F::from_u64(3), F::from_u64(5)]);

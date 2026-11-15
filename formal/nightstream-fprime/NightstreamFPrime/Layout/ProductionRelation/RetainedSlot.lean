@@ -7,7 +7,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
 
 def coordinateForms {sourceWidth : Nat}
     (slots : List (LowNormAssignment.Slot sourceWidth))

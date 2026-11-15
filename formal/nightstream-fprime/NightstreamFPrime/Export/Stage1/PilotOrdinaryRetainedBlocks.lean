@@ -13,33 +13,20 @@ def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
 
 def canonicalLocalBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
-  PiCCSOrdinaryRetainedBlocks.sourceFieldBlock program 264
+  PiCCSOrdinaryRetainedBlocks.sourceFieldBlock program 268
     (PriorStateHash.hashEnd PilotProduction.priorInterface
       PilotProduction.witnessOffset) (by
-        rw [Spartan.sourceColumnCount_eq]
+        rw [PackageOrder.sourceColumnCount_eq]
         unfold PriorStateHash.hashEnd
         rw [PilotProduction.priorHashLogicalLength_eq,
           PilotProduction.witnessOffset_eq]
         norm_num)
 
-def canonicalFreshBlock (program : Lifecycle.Stage1.Application.Program) :
-    LowNormBlock.Block (sourceWidth program) :=
-  PiCCSOrdinaryRetainedBlocks.sourceFieldBlock program 144
-    PilotValues.logicalColumnCount (by
-      rw [Spartan.sourceColumnCount_eq]
-      norm_num [PilotValues.logicalColumnCount,
-        PilotValues.externalColumnCount, PilotValues.outputDigestStart,
-        PilotValues.outputPreimageStart, PilotValues.priorPublicInputStart,
-        PilotValues.priorPreimageStart, PilotValues.stateHashWords,
-        PilotValues.stateHashBaseWords, PilotValues.hashWitnessCount,
-        PilotValues.absorbCount, PilotValues.permutationRecipeCount,
-        Spec.Poseidon2.rate, PilotValues.priorCanonicalPrivateCount])
-
 def outputDigestBlock (program : Lifecycle.Stage1.Application.Program) :
     LowNormBlock.Block (sourceWidth program) :=
   PiCCSOrdinaryRetainedBlocks.sourceFieldBlock program 4
     PilotProduction.outputDigestStart (by
-      rw [Spartan.sourceColumnCount_eq]
+      rw [PackageOrder.sourceColumnCount_eq]
       norm_num [PilotProduction.outputDigestStart,
         PilotProduction.outputPreimageStart,
         PilotProduction.priorPublicInputStart,
@@ -48,11 +35,7 @@ def outputDigestBlock (program : Lifecycle.Stage1.Application.Program) :
 
 @[simp] theorem canonicalLocalBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
-    (canonicalLocalBlock program).slotCount = 264 := by rfl
-
-@[simp] theorem canonicalFreshBlock_slotCount
-    (program : Lifecycle.Stage1.Application.Program) :
-    (canonicalFreshBlock program).slotCount = 144 := by rfl
+    (canonicalLocalBlock program).slotCount = 268 := by rfl
 
 @[simp] theorem outputDigestBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
@@ -60,24 +43,22 @@ def outputDigestBlock (program : Lifecycle.Stage1.Application.Program) :
 
 def retainedSlotCount (program : Lifecycle.Stage1.Application.Program) : Nat :=
   (canonicalLocalBlock program).slotCount +
-    (canonicalFreshBlock program).slotCount +
     (outputDigestBlock program).slotCount
 
 @[simp] theorem retainedSlotCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedSlotCount program = 412 := by
+    retainedSlotCount program = 272 := by
   simp [retainedSlotCount]
 
 def retainedCoordinateCount
     (program : Lifecycle.Stage1.Application.Program) : Nat :=
   (canonicalLocalBlock program).coordinateCount +
-    (canonicalFreshBlock program).coordinateCount +
     (outputDigestBlock program).coordinateCount
 
 @[simp] theorem retainedCoordinateCount_eq
     (program : Lifecycle.Stage1.Application.Program) :
-    retainedCoordinateCount program = 16892 := by
-  change 264 * 41 + 144 * 41 + 4 * 41 = 16892
+    retainedCoordinateCount program = 11152 := by
+  change 268 * 41 + 4 * 41 = 11152
   norm_num
 
 end NightstreamFPrime.Export.Stage1.PilotOrdinaryRetainedBlocks

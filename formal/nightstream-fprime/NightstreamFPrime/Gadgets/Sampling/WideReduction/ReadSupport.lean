@@ -55,8 +55,8 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (hints : Nat → Lis
   have draw : ∀ term ∈ drawTerms offset, term.2.VarsSatisfy allowed := by
     intro term member
     simp only [drawTerms, fieldTerms, List.mem_append, List.mem_map, List.mem_range] at member
-    rcases member with ((⟨bit, below, rfl⟩ | ⟨bit, below, rfl⟩) | ⟨bit, below, rfl⟩) | ⟨bit, below, rfl⟩ <;>
-      exact field _ bit (by decide) below
+    rcases member with (((⟨bit, below, rfl⟩ | ⟨bit, below, rfl⟩) | ⟨bit, below, rfl⟩) |
+      ⟨bit, below, rfl⟩) | ⟨bit, below, rfl⟩ <;> exact field _ bit (by decide) below
   have result : ∀ term ∈ resultTerms offset, term.2.VarsSatisfy allowed := by
     intro term member
     simp only [resultTerms, quotientTerms, digitTerms, List.mem_append, List.mem_map,

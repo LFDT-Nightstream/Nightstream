@@ -41,7 +41,7 @@ structure Interface where
 def polynomial
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     ConstraintPolynomial K productionShape.matrixCount :=
   ConstraintPolynomialLift.liftConstraintPolynomial K.embed
@@ -54,7 +54,7 @@ def sparseInterface (interface : Interface) :
 def output
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) (offset : Nat) : KExpr :=
   Sparse.Owned.output (polynomial relation) (sparseInterface interface) offset
@@ -62,7 +62,7 @@ def output
 abbrev Assumptions
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) (offset : Nat) (env : Env) : Prop :=
   Sparse.Owned.Assumptions (polynomial relation) (sparseInterface interface)
@@ -71,7 +71,7 @@ abbrev Assumptions
 abbrev SpecHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) (offset : Nat) (env : Env) : Prop :=
   Sparse.Owned.SpecHolds (polynomial relation) (sparseInterface interface)
@@ -80,7 +80,7 @@ abbrev SpecHolds
 def circuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) : FormalCircuit :=
   Sparse.Owned.circuit (polynomial relation) (sparseInterface interface)
@@ -88,7 +88,7 @@ def circuit
 theorem soundness
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env)
@@ -101,7 +101,7 @@ theorem soundness
 theorem build
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env) :
@@ -117,7 +117,7 @@ theorem build
 theorem completeness
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions relation interface offset env)
@@ -133,7 +133,7 @@ theorem completeness
 theorem productCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     Sparse.Owned.productCount (polynomial relation) = 21 := by
   rfl
@@ -144,7 +144,7 @@ def rowCount : Nat := 23
 theorem localLength_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) (offset : Nat) :
     localLength (Circuit.ops (circuit relation interface).main offset) =
@@ -155,7 +155,7 @@ theorem localLength_eq
 theorem operations_length
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) (offset : Nat) :
     (Circuit.ops (circuit relation interface).main offset).length = 1 :=
@@ -165,7 +165,7 @@ theorem operations_length
 theorem flatConstraints_length
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) (offset : Nat) :
     (flatConstraints
@@ -177,7 +177,7 @@ theorem flatConstraints_length
 theorem flatConstraints_varsBelow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Interface) (offset : Nat)
     (_assumptions : Assumptions relation interface offset (fun _ => 0)) :
@@ -192,7 +192,7 @@ theorem flatConstraints_varsBelow
 private def freshIndex : Fin productionShape.freshCount :=
   ⟨0, by
     norm_num [productionShape, productionProfile,
-      Phi81MatrixSource.phi81Shape]⟩
+      RingMatrixSource.ringShape]⟩
 
 theorem ccsAtMessage_eq_singleFresh
     (input : ProtocolPolynomial.VerifierInput K productionShape)
@@ -204,13 +204,13 @@ theorem ccsAtMessage_eq_singleFresh
   simp [ProtocolPolynomial.ccsAtMessage, SignedJointIdentity.sumMap,
     SignedJointIdentity.gammaTerm, TargetPolynomial.power,
     BooleanTable.finiteSum, canonicalFinIndices, productionShape,
-    productionProfile, Phi81MatrixSource.phi81Shape, freshIndex,
+    productionProfile, RingMatrixSource.ringShape, freshIndex,
     extensionLaws.one_mul, extensionLaws.add_zero]
 
 theorem spec_implies_keyCcsAtMessage
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

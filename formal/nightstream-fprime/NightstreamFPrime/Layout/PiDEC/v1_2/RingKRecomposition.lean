@@ -6,7 +6,7 @@ namespace NightstreamFPrime.Layout.PiDEC.v1_2.RingKRecomposition
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.Phi81Relation
+open NightstreamFPrime.Spec.RingRelation
 
 namespace Logical
 

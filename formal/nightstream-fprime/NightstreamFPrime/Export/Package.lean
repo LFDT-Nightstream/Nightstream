@@ -611,7 +611,7 @@ def encodeExpr : Expr → Value
 def decodeExpr : Value → Except String Expr
   | .array [.atom 0, .atom index] => .ok (.var index)
   | .array [.atom 1, .atom value] =>
-      if bound : value < goldilocksModulus then
+      if bound : value < fieldModulus then
         .ok (.const ⟨value, bound⟩)
       else
         .error "noncanonical witness-expression constant"

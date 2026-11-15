@@ -1,6 +1,6 @@
 import Mathlib.Tactic.NormNum.Basic
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Commitment
 
 /-!
 Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1, equation
@@ -11,7 +11,7 @@ namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.CommitmentCombination
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
-open NightstreamFPrime.Spec.Phi81Relation
+open NightstreamFPrime.Spec.RingRelation
 
 def blockCount : Nat := productionProfile.commitmentWidth
 abbrev cellCount : Nat := 1
@@ -40,13 +40,13 @@ abbrev SpecHolds (interface : Interface) (offset : Nat) (env : Env) :=
   CombinationFamily.CanonicalHolds (familyInterface interface) offset env
 
 def evalChallenges (interface : Interface) (offset : Nat) (env : Env) :
-    Fin 17 → RingF :=
+    Fin 15 → RingF :=
   fun source lane =>
     (interface.challenge offset
       (Fin.cast CombinationFamily.sourceCount_eq.symm source) lane).eval env
 
 def evalInputs (interface : Interface) (offset : Nat) (env : Env) :
-    Fin 17 → PiRLCAlgebra.Commitment.Value blockCount :=
+    Fin 15 → PiRLCAlgebra.Commitment.Value blockCount :=
   fun source row lane =>
     (interface.input offset
       (Fin.cast CombinationFamily.sourceCount_eq.symm source) row lane).eval env
@@ -99,33 +99,33 @@ theorem parentCoverage (interface : Interface) (offset : Nat) (env : Env)
           (evalInputs interface offset env) row) lane
 
 theorem logicalPrivateCount_eq :
-    CombinationFamily.logicalPrivateCount blockCount cellCount = 20196 := by
+    CombinationFamily.logicalPrivateCount blockCount cellCount = 17280 := by
   rw [CombinationFamily.logicalPrivateCount, CombinationFamily.sourceCount_eq]
   norm_num [CombinationFamily.stepSize, CombinationStep.privateCount, blockCount,
     cellCount, productionProfile, ringDegree]
 
 theorem logicalRowCount_eq :
-    CombinationFamily.logicalRowCount blockCount cellCount = 20196 := by
+    CombinationFamily.logicalRowCount blockCount cellCount = 17280 := by
   rw [CombinationFamily.logicalRowCount, logicalPrivateCount_eq]
 
 def circuit (interface : Interface) : FormalCircuit :=
   CombinationFamily.circuit (familyInterface interface)
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 20196 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 17280 := by
   rw [(circuit interface).privateCount_eq offset]
   exact logicalPrivateCount_eq
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      20196 := by
+      17280 := by
   rw [(circuit interface).rowCount_eq offset]
   exact logicalRowCount_eq
 
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ expression ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
-      expression.VarsBelow (offset + 20196) := by
+      expression.VarsBelow (offset + 17280) := by
   simpa [circuit, logicalPrivateCount_eq] using!
     CombinationFamily.flatConstraints_varsBelow (familyInterface interface)
       offset env assumptions

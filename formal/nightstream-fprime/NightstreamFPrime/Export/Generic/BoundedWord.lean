@@ -6,7 +6,7 @@ set_option autoImplicit false
 namespace NightstreamFPrime.Export.Generic.BoundedWord
 
 open NightstreamFPrime.Spec NightstreamFPrime.Circuit NightstreamFPrime.Layout
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
 open Fin.CommRing
 
 def packNat : List Nat → Nat
@@ -76,13 +76,13 @@ theorem pack_field (pairs : List (F × F)) (bits : Bits pairs) :
     ring
 
 theorem nat_bound (pairs : List (F × F)) (count : pairs.length ≤ 63) (side : F × F → F) :
-    packNat (pairs.map fun p => bitNat (side p)) < goldilocksModulus := by
+    packNat (pairs.map fun p => bitNat (side p)) < fieldModulus := by
   have small := packNat_lt (pairs.map fun p => bitNat (side p)) (by
     intro v member
     obtain ⟨p, _, rfl⟩ := List.mem_map.mp member
     exact bitNat_le (side p))
   have power : 2 ^ pairs.length ≤ 2 ^ 63 := Nat.pow_le_pow_right (by decide) count
-  have bound : 2 ^ 63 < goldilocksModulus := by decide
+  have bound : 2 ^ 63 < fieldModulus := by decide
   simp only [List.length_map] at small
   omega
 
@@ -123,13 +123,13 @@ theorem common_guard_iff (gate : F) (pairs : List (F × F)) (count : pairs.lengt
   · simp [zero]
   constructor
   · intro holds
-    have packed := (GoldilocksPrime.baseFieldNoZeroDivisors _ _ holds).resolve_left zero
+    have packed := (FieldPrime.baseFieldNoZeroDivisors _ _ holds).resolve_left zero
     intro p hp
     rw [packed_implies_equal pairs count bits packed p hp, sub_self, mul_zero]
   · intro holds
     have equal : ∀ p ∈ pairs, p.1 = p.2 := by
       intro p hp
-      exact sub_eq_zero.mp ((GoldilocksPrime.baseFieldNoZeroDivisors _ _ (holds p hp)).resolve_left zero)
+      exact sub_eq_zero.mp ((FieldPrime.baseFieldNoZeroDivisors _ _ (holds p hp)).resolve_left zero)
     rw [equal_implies_packed pairs equal, mul_zero]
 
 

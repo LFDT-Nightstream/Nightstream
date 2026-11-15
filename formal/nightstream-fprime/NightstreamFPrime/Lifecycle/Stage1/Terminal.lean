@@ -14,7 +14,7 @@ section
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 abbrev RunningWitness := Fin productionShape.runningCount →
   PaperAlgebra.Assignment
@@ -48,7 +48,7 @@ def relations
       (freshStatement relation fresh) witness
 
 def StatementValid (statement : TerminalStatement AppState) : Prop :=
-  statement.iteration < goldilocksModulus ∧
+  statement.iteration < fieldModulus ∧
     statement.z0.length = Application.stateWordCount ∧
     statement.zi.length = Application.stateWordCount
 
@@ -88,7 +88,7 @@ theorem rejects_counter_shift
     (statement : TerminalStatement AppState)
     (proof : ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     ¬ HoldsFor relation ajtai vk application
-      { statement with iteration := statement.iteration + goldilocksModulus } proof := by
+      { statement with iteration := statement.iteration + fieldModulus } proof := by
   intro accepted
   have bound := accepted.1.1
   dsimp only at bound

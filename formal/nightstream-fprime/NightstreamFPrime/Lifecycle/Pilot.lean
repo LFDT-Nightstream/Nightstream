@@ -58,7 +58,7 @@ section Relation
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns <=
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 theorem base_branch_output_slot
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

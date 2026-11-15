@@ -1,11 +1,11 @@
 import NightstreamFPrime.Lifecycle.Nebula.StepInvoke
-import NightstreamFPrime.Spec.GoldilocksExtensionRing
+import NightstreamFPrime.Spec.FieldExtensionRing
 
 /-! Owns the run-level link of a memory application (SPEC.md section 7.5 and
-Algorithms 9 and 10).
+Algorithms 7 and 8).
 The input is what the Stage 1 relation chain and its terminal check
 authenticate: the state words `z_0 … z_T`, one step witness per invocation
-whose rows hold from `z_i` to `z_{i+1}`, and the terminal checks of SPEC.md Algorithm 10 with the
+whose rows hold from `z_i` to `z_{i+1}`, and the terminal checks of SPEC.md Algorithm 8 with the
 prover's final carry. The output is the model's `Accepts` on the extracted
 run, or a Poseidon2 collision between two state-digest inputs of the run. It
 does not own the Stage 1 fold, the circuit that checks the rows, or the memory
@@ -16,7 +16,7 @@ namespace NightstreamFPrime.Lifecycle.Nebula
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
 open NightstreamFPrime.Circuit
-open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
+open scoped NightstreamFPrime.Spec.FieldExtensionRing
 
 section Geometry
 
@@ -42,7 +42,7 @@ theorem invocation_ports (w : StepWitness p app.toAppShape) :
 
 end StepWitness
 
-/-- The SPEC.md Algorithm 10 terminal checks on the final state words `zT`, with the
+/-- The SPEC.md Algorithm 8 terminal checks on the final state words `zT`, with the
 statement fields and the prover's final carry words. -/
 structure TerminalChecks {width : ℕ} (p : Geometry) (zT : List F) (finalApp : Fin width → F)
     (carry : Fin 39 → F)
@@ -57,13 +57,13 @@ structure TerminalChecks {width : ℕ} (p : Geometry) (zT : List F) (finalApp : 
 
 /-- Equal state words over `n` application words and 39 carry words give
 equal words, or a collision between these two inputs. -/
-theorem state_eq_or_collision {n : ℕ} (small : n < goldilocksModulus) {app app' : Fin n → F}
+theorem state_eq_or_collision {n : ℕ} (small : n < fieldModulus) {app app' : Fin n → F}
     {carry carry' : Fin 39 → F}
     (same : stateWords (List.ofFn app) (List.ofFn carry) =
       stateWords (List.ofFn app') (List.ofFn carry')) :
     (app = app' ∧ carry = carry') ∨
       StateCollision (List.ofFn app) (List.ofFn carry) (List.ofFn app') (List.ofFn carry') := by
-  have carrySmall : 39 < goldilocksModulus := by decide
+  have carrySmall : 39 < fieldModulus := by decide
   rcases stateWords_eq_or_collision (by simpa using small) (by simpa using small)
       (by simpa using carrySmall) (by simpa using carrySmall) same with ⟨appEq, carryEq⟩ | collision
   · exact Or.inl ⟨List.ofFn_injective appEq, List.ofFn_injective carryEq⟩
@@ -100,8 +100,8 @@ variable {p : Plan} {a : AppShape}
 
 theorem decodeCarry_startCarry (valid : p.Valid) :
     decodeCarry (carryVector (startCarry (context p))) = startCarry (context p) :=
-  decodeCarry_carryVector ⟨by simp [startCarry, goldilocksModulus], Geometry.n_lt valid.toValid,
-    by simp [startCarry, goldilocksModulus]⟩
+  decodeCarry_carryVector ⟨by simp [startCarry, fieldModulus], Geometry.n_lt valid.toValid,
+    by simp [startCarry, fieldModulus]⟩
 
 /-- The application words and the carry words after `k` invocations. -/
 def wordsAfter (w : ℕ → StepWitness p.toGeometry a) (initialApp : Fin a.width → F) :
@@ -182,7 +182,7 @@ theorem prefix_or_collision (valid : p.Valid) {T : ℕ} {z : ℕ → List F}
       exact Or.inr ⟨j, by omega, collision⟩
 
 /-- The run-level link: a chain of Stage 1 states whose steps satisfy the
-memory rows and the application's rows, with the SPEC.md Algorithm 10 terminal checks, is
+memory rows and the application's rows, with the SPEC.md Algorithm 8 terminal checks, is
 accepted by the model on the extracted run, or two state-digest inputs of the
 run collide. -/
 theorem accepts_or_collision (valid : p.Valid) {T : ℕ} {z : ℕ → List F}

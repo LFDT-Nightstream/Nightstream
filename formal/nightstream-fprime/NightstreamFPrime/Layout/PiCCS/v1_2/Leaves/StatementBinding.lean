@@ -15,7 +15,7 @@ Constraint groups:
 - the twelve domain-chunk words of each state;
 - four prior-context and four output-context equalities to the expected
   verifier-owned public value;
-- for each of the 90 packed prior words: three lanes of one sign row and
+- for each of the 160 packed prior words: two lanes of one sign row and
   sixteen rank-one digit rows over one hinted sign column, then one affine
   packing row.
 
@@ -34,7 +34,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 structure InputsAffine
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -159,7 +159,7 @@ private theorem constraint_direct
         digit.2 (subNonconstant _ _)
     · subst expression
       apply ofAffine
-      have recomposed (lane : Fin 3) :
+      have recomposed (lane : Fin 2) :
           R1CS.IsAffine (PiDEC.v1_2.SignedSplitScalar.recomposeDigits fun child =>
             (interface.running offset).publicInput
               (Fin.cast runningCount_eq_radixChildCount.symm child)
@@ -171,14 +171,14 @@ private theorem constraint_direct
       exact sub_affine (inputs.priorState _)
         (StateBinding.packWordExpr_closed R1CS.IsAffine (fun _ _ => R1CS.IsAffine.add)
           (fun weight _ => R1CS.IsAffine.const_mul weight)
-          (recomposed 0) (recomposed 1) (recomposed 2))
+          (recomposed 0) (recomposed 1))
 
 def footprint
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (inputs : ∀ offset, InputsAffine interface offset) :
     R1CS.CircuitFootprint (Formal.statementBindingCircuit interface) where
   freshColumnCount := fun _ => 0
-  physicalRowCount := fun _ => 4712
+  physicalRowCount := fun _ => 4992
   freshColumnCount_eq := by
     intro offset
     apply R1CS.totalFreshCount_eq_zero_of_noFresh
@@ -207,7 +207,7 @@ theorem physicalRowCount_eq
     (inputs : ∀ offset, InputsAffine interface offset)
     (offset : Nat) :
     R1CS.totalRowCount (flatConstraints (Circuit.ops
-      (Formal.statementBindingCircuit interface).main offset)) = 4712 :=
+      (Formal.statementBindingCircuit interface).main offset)) = 4992 :=
   (footprint interface inputs).physicalRowCount_eq offset
 
 end NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.StatementBinding

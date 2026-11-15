@@ -17,7 +17,7 @@ theorem complementary_iff (gate left right : F) (bit : gate = 0 ∨ gate = 1) :
   rcases bit with rfl | rfl <;> simp
 
 theorem sum_bit_exclusive {n : Nat} (gates : Fin n → F)
-    (small : n < goldilocksModulus) (bits : ∀ i, gates i = 0 ∨ gates i = 1)
+    (small : n < fieldModulus) (bits : ∀ i, gates i = 0 ∨ gates i = 1)
     (total : (∑ i, gates i) = 0 ∨ (∑ i, gates i) = 1) :
     ∀ i j, i ≠ j → gates i * gates j = 0 := by
   classical
@@ -31,7 +31,7 @@ theorem sum_bit_exclusive {n : Nat} (gates : Fin n → F)
         intro i _
         rcases bits i with bit | bit <;> simp [bit]
       _ = (active.card : F) := by simp [active]
-  have countSmall : active.card < goldilocksModulus := lt_of_le_of_lt count small
+  have countSmall : active.card < fieldModulus := lt_of_le_of_lt count small
   have atMostOne : active.card ≤ 1 := by
     rw [sum] at total
     rcases total with zero | one
@@ -61,7 +61,7 @@ theorem subset_bit {n : Nat} (gates : Fin n → F) (subset : Finset (Fin n))
   · obtain ⟨i, member, nonzero⟩ := active
     have others : ∀ j, j ≠ i → gates j = 0 := by
       intro j different
-      exact (GoldilocksPrime.baseFieldNoZeroDivisors _ _
+      exact (FieldPrime.baseFieldNoZeroDivisors _ _
         (exclusive i j (Ne.symm different))).resolve_left nonzero
     have sum : (∑ j ∈ subset, gates j) = gates i := by
       apply Finset.sum_eq_single i
@@ -103,7 +103,7 @@ theorem family_iff {n : Nat} (gates constants : Fin n → F) (common : F)
     · simp [zero]
     have others : ∀ j, j ≠ i → gates j = 0 := by
       intro j different
-      exact (GoldilocksPrime.baseFieldNoZeroDivisors _ _ (exclusive i j (Ne.symm different))).resolve_left zero
+      exact (FieldPrime.baseFieldNoZeroDivisors _ _ (exclusive i j (Ne.symm different))).resolve_left zero
     have sumGates : (∑ j, gates j) = gates i := by
       apply Finset.sum_eq_single i
       · intro j _ different

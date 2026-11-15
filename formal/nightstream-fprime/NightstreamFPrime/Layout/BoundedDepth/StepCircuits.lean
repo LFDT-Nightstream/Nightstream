@@ -22,7 +22,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- Where the gadgets of circuit `circuit` start. -/
 def sharedEnd (base witnessWordCount : Nat) (circuit : Fin 2) : Nat :=

@@ -5,18 +5,18 @@ import NightstreamFPrime.Spec.Folding.PiCCS.Accepted
 /-!
 Paper authority: SuperNeo v1.2, Section 7.3, Steps 3 and 5; the
 Fiat–Shamir handoff to `Pi_RLC`.
-Obligation: Reuse the complete prover `y′` family as the 17 reduced CE
+Obligation: Reuse the complete prover `y′` family as the 15 reduced CE
 evaluation families, absorb it in canonical source/Pad/matrix order, and
 bind the verifier-owned outgoing transcript state.
 
 Inputs:
 - the verifier-derived final SumCheck point and transcript state;
-- all 17 separate Pad (`Eval_K`) output families;
-- all 17 × 4 CCS-matrix (`Eval_A`) output families.
+- all 15 separate Pad (`Eval_K`) output families;
+- all 15 × 4 CCS-matrix (`Eval_A`) output families.
 
 Outputs:
 - zero-copy reduced point, `Eval_K`, and `Eval_A` views;
-- the transcript state from which `Pi_RLC` samples all 17 challenges.
+- the transcript state from which `Pi_RLC` samples all 15 challenges.
 
 Constraint groups:
 - C1: one complete output absorption, with no length prefix, through the
@@ -122,39 +122,39 @@ end Shape
 
 private theorem padWords_length (output : OutputExpr)
     (source : Fin productionShape.sourceCount) :
-    (padWords output source).length = 108 := by
+    (padWords output source).length = 128 := by
   unfold padWords
   rw [flatMap_length_constant _ _ 2 (fun _ => rfl)]
   norm_num [productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape, ringDegree]
+    RingMatrixSource.ringShape, ringDegree]
 
 private theorem matrixWords_length (output : OutputExpr)
     (source : Fin productionShape.sourceCount) :
-    (matrixWords output source).length = 432 := by
+    (matrixWords output source).length = 512 := by
   have coefficientLength : ∀ matrix,
       ((List.finRange productionShape.coefficientCount).flatMap
         fun coefficient => StatementAbsorption.serializeKExpr
-          (output.matrixCoordinate source matrix coefficient)).length = 108 := by
+          (output.matrixCoordinate source matrix coefficient)).length = 128 := by
     intro matrix
     rw [flatMap_length_constant _ _ 2 (fun _ => rfl)]
     norm_num [productionShape, productionProfile,
-      Phi81MatrixSource.phi81Shape, ringDegree]
+      RingMatrixSource.ringShape, ringDegree]
   unfold matrixWords
-  rw [flatMap_length_constant _ _ 108 coefficientLength]
+  rw [flatMap_length_constant _ _ 128 coefficientLength]
   norm_num [productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape, ringDegree]
+    RingMatrixSource.ringShape, ringDegree]
 
 private theorem sourceWords_length (output : OutputExpr)
     (source : Fin productionShape.sourceCount) :
-    (sourceWords output source).length = 540 := by
+    (sourceWords output source).length = 640 := by
   rw [sourceWords, List.length_append, padWords_length, matrixWords_length]
 
 theorem outputWords_length (interface : Interface) (offset : Nat) :
-    (outputWords interface offset).length = 9180 := by
+    (outputWords interface offset).length = 9600 := by
   unfold outputWords
-  rw [flatMap_length_constant _ _ 540 (sourceWords_length _)]
+  rw [flatMap_length_constant _ _ 640 (sourceWords_length _)]
   norm_num [productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape, Shape.sourceCount]
+    RingMatrixSource.ringShape, Shape.sourceCount]
 
 section Shape
 
@@ -255,14 +255,14 @@ private theorem inputChunks_length (input : List Expr) :
   rfl
 
 theorem recipeCount_eq (interface : Interface) (offset : Nat) :
-    recipeCount interface offset = 838440 := by
+    recipeCount interface offset = 876800 := by
   unfold recipeCount actions
   simp only [Formal.recipeCount, List.map_cons, List.map_nil,
     List.sum_cons, List.sum_nil, Nat.add_zero, Formal.Action.recipeCount]
   rw [inputChunks_length, outputWords_length]
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 838440 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 876800 := by
   change localLength (Formal.Owned.opsAt (duplexInterface interface) offset) = _
   rw [Formal.Owned.opsAt_localLength]
   unfold Formal.Owned.program
@@ -278,12 +278,12 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      838440 := by
+      876800 := by
   change (flatConstraints
     (Formal.Owned.opsAt (duplexInterface interface) offset)).length = _
   rw [Formal.Owned.flatConstraints_length]
   have recipes : Formal.recipeCount
-      ((duplexInterface interface).actions offset) = 838440 := by
+      ((duplexInterface interface).actions offset) = 876800 := by
     simpa [duplexInterface, recipeCount] using recipeCount_eq interface offset
   rw [recipes]
   simp [duplexInterface, actions, Formal.assertionCount,
@@ -451,7 +451,7 @@ theorem outputWords_eval (interface : Interface) (offset : Nat) (env : Env)
 theorem spec_implies_keyOutgoingState
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -512,7 +512,7 @@ theorem spec_implies_keyOutgoingState
 theorem key_output_eval_K
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -531,7 +531,7 @@ theorem key_output_eval_K
 theorem key_output_eval_A
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

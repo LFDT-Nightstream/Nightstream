@@ -19,13 +19,13 @@ open NightstreamFPrime.Spec.HyperNova.Construction2
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The gadgets of the refresh step circuit and their offsets. The prior state hash reads two slot
 gadgets; the next state hash reads two digests, and one slot gadget hashes the new slot. -/
 structure Leaves (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) (witnessWordCount : Nat) where
+      RingCarrierLayout.carrierWidth logicalWidth) (witnessWordCount : Nat) where
   application : Stage1.Application.Interface witnessWordCount
   applicationOffset : Nat
   prior : PriorStateHash.Interface

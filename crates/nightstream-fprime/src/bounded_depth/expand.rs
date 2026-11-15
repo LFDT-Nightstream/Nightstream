@@ -10,20 +10,19 @@
 use std::collections::HashMap;
 use std::ops::Range;
 
+use neo_ccs::crypto::poseidon2::SBOX_DEGREE;
+use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 
 use super::{Linear, Piece, Row, StepPackage};
-use crate::package::{external_outputs, permutation_rows, Entries, PackageError};
+use crate::package::{
+    external_outputs, permutation_rows, Entries, PackageError, BLOCK_OUTPUTS, RING_DEGREE, RING_NODES, SBOX_ROWS,
+};
 
 const PORTS: usize = 4;
-const RING_DEGREE: usize = 54;
-const RING_MIDDLE_DEGREE: u64 = 27;
-const RING_NODES: usize = 108;
-const BLOCK_LANES: usize = 16;
-const SBOX_ROWS: usize = 150;
-const BLOCK_OUTPUTS: usize = 1080;
-const FINAL_SBOX: usize = 134;
+const BLOCK_LANES: usize = neo_ccs::crypto::poseidon2::WIDTH;
+/// The S-box rows of the last full round, whose outputs the output forms read.
+const FINAL_SBOX: usize = SBOX_ROWS - BLOCK_LANES;
 
 /// Plan rows in compressed sparse form: the entries of port `port` of row
 /// `row` are `offsets[4 * row + port]..offsets[4 * row + port + 1]`, in
@@ -35,7 +34,7 @@ pub struct PlanRows {
     rings: Vec<Range<usize>>,
     offsets: Vec<usize>,
     columns: Vec<u32>,
-    coefficients: Vec<Goldilocks>,
+    coefficients: Vec<Fq>,
 }
 
 impl PlanRows {
@@ -71,7 +70,7 @@ impl PlanRows {
         &self.columns
     }
 
-    pub fn coefficients(&self) -> &[Goldilocks] {
+    pub fn coefficients(&self) -> &[Fq] {
         &self.coefficients
     }
 
@@ -84,20 +83,20 @@ impl PlanRows {
         self.ordinary..self.row_count()
     }
 
-    pub fn evaluate(&self, row: usize, port: usize, columns: &[Goldilocks]) -> Goldilocks {
+    pub fn evaluate(&self, row: usize, port: usize, columns: &[Fq]) -> Fq {
         self.port(row, port)
-            .fold(Goldilocks::ZERO, |sum, (column, coefficient)| {
+            .fold(Fq::ZERO, |sum, (column, coefficient)| {
                 sum + coefficient * columns[column]
             })
     }
 
     /// The row's constraint `A * B - C + S^7` on `columns`.
-    pub fn residual(&self, row: usize, columns: &[Goldilocks]) -> Goldilocks {
+    pub fn residual(&self, row: usize, columns: &[Fq]) -> Fq {
         self.evaluate(row, 0, columns) * self.evaluate(row, 1, columns) - self.evaluate(row, 2, columns)
-            + self.evaluate(row, 3, columns).exp_u64(7)
+            + self.evaluate(row, 3, columns).exp_u64(SBOX_DEGREE)
     }
 
-    pub fn port(&self, row: usize, port: usize) -> impl Iterator<Item = (usize, Goldilocks)> + '_ {
+    pub fn port(&self, row: usize, port: usize) -> impl Iterator<Item = (usize, Fq)> + '_ {
         let slot = PORTS * row + port;
         let range = self.offsets[slot]..self.offsets[slot + 1];
         self.columns[range.clone()]
@@ -109,7 +108,7 @@ impl PlanRows {
     /// Lean `Parity.summary`'s checksum of the relation rows: the sum over
     /// every entry of its coefficient times `mix(4 * row + port, column)`.
     pub fn ordinary_checksum(&self) -> u64 {
-        let mut total = Goldilocks::ZERO;
+        let mut total = Fq::ZERO;
         for slot in 0..PORTS * self.ordinary {
             let unit = slot as u64;
             for index in self.offsets[slot]..self.offsets[slot + 1] {
@@ -120,9 +119,9 @@ impl PlanRows {
     }
 }
 
-pub(super) fn mix(unit: u64, column: u64) -> Goldilocks {
-    let point = Goldilocks::from_u64(unit * 16_777_259 + column + 1);
-    point * point * point + Goldilocks::from_u64(unit)
+pub(super) fn mix(unit: u64, column: u64) -> Fq {
+    let point = Fq::from_u64(unit * 16_777_259 + column + 1);
+    point * point * point + Fq::from_u64(unit)
 }
 
 struct Builder {
@@ -136,7 +135,7 @@ struct Builder {
 
 impl Builder {
     /// Adds a term to the open port (`Substitute.term`).
-    fn push(&mut self, column: usize, coefficient: Goldilocks) -> Result<(), PackageError> {
+    fn push(&mut self, column: usize, coefficient: Fq) -> Result<(), PackageError> {
         if column >= self.width {
             return Err(PackageError::Malformed("bounded-depth plan column beyond the width"));
         }
@@ -158,7 +157,7 @@ impl Builder {
             while let Some((_, more)) = entries.next_if(|&(next, _)| next == column) {
                 coefficient += more;
             }
-            if coefficient != Goldilocks::ZERO {
+            if coefficient != Fq::ZERO {
                 self.rows.columns.push(column as u32);
                 self.rows.coefficients.push(coefficient);
             }
@@ -186,13 +185,13 @@ impl Builder {
     fn push_power(&mut self, input: &Linear, output: usize) -> Result<(), PackageError> {
         self.end_port();
         self.end_port();
-        self.push(output, Goldilocks::ONE)?;
+        self.push(output, Fq::ONE)?;
         self.end_port();
         self.push_linear(input)
     }
 
-    /// `PieceRows.ringRows`: for each cell and each of the 108 nodes,
-    /// `challenge * value = output - prior + Φ81 * quotient` at the node.
+    /// `PieceRows.ringRows`: for each cell and each node,
+    /// `challenge * value = output - prior + (X^64 + 1) * quotient` at the node.
     fn push_ring(&mut self, cells: usize, start: usize, quotient: usize, lanes: &[Linear]) -> Result<(), PackageError> {
         if lanes.len() != RING_DEGREE + 2 * RING_DEGREE * cells {
             return Err(PackageError::Malformed("bounded-depth ring lane count"));
@@ -201,25 +200,24 @@ impl Builder {
         let prior = |lane: usize, cell: usize| RING_DEGREE + RING_DEGREE * cells + lane * cells + cell;
         for cell in 0..cells {
             for node in 0..RING_NODES {
-                let point = Goldilocks::from_u64(node as u64);
-                let powers: Vec<Goldilocks> =
-                    std::iter::successors(Some(Goldilocks::ONE), |power| Some(*power * point))
-                        .take(RING_DEGREE)
-                        .collect();
-                let modulus = point.exp_u64(RING_DEGREE as u64) + point.exp_u64(RING_MIDDLE_DEGREE) + Goldilocks::ONE;
+                let point = Fq::from_u64(node as u64);
+                let powers: Vec<Fq> = std::iter::successors(Some(Fq::ONE), |power| Some(*power * point))
+                    .take(RING_DEGREE)
+                    .collect();
+                let modulus = point.exp_u64(RING_DEGREE as u64) + Fq::ONE;
                 let evaluation = |lane_of: &dyn Fn(usize) -> Linear| {
                     (0..RING_DEGREE).fold(Linear::default(), |sum, lane| {
                         sum.plus(lane_of(lane).scale(powers[lane]))
                     })
                 };
                 let variable = |column: usize| Linear {
-                    constant: Goldilocks::ZERO,
-                    terms: vec![(column, Goldilocks::ONE)],
+                    constant: Fq::ZERO,
+                    terms: vec![(column, Fq::ONE)],
                 };
                 let a = evaluation(&|lane| lanes[lane].clone());
                 let b = evaluation(&|lane| lanes[value(lane, cell)].clone());
                 let c = evaluation(&|lane| variable(start + lane * cells + cell))
-                    .plus(evaluation(&|lane| lanes[prior(lane, cell)].clone()).scale(-Goldilocks::ONE))
+                    .plus(evaluation(&|lane| lanes[prior(lane, cell)].clone()).scale(-Fq::ONE))
                     .plus(evaluation(&|lane| variable(quotient + cell * RING_DEGREE + lane)).scale(modulus));
                 self.push_row(&Row { a, b, c })?;
             }
@@ -227,7 +225,7 @@ impl Builder {
         Ok(())
     }
 
-    fn push_entries(&mut self, entries: &[(usize, Goldilocks)]) -> Result<(), PackageError> {
+    fn push_entries(&mut self, entries: &[(usize, Fq)]) -> Result<(), PackageError> {
         for &(column, coefficient) in entries {
             self.push(column, coefficient)?;
         }
@@ -283,8 +281,7 @@ impl StepPackage {
     }
 
     /// The original source rows before the native rewrites, where
-    /// a port reads an output local itself. The final program checks these
-    /// rows and each block as a permutation (`FinishRelation.package_finish`).
+    /// a port reads an output local itself.
     pub fn source_rows(&self) -> Result<PlanRows, PackageError> {
         self.rows(false)
     }

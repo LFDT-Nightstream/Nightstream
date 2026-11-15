@@ -15,28 +15,28 @@ def logicalWidth (application : Lifecycle.Stage1.Application.Program) : Nat :=
 
 theorem publicFits (application : Lifecycle.Stage1.Application.Program) :
     ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth (logicalWidth application) := by
+      RingCarrierLayout.carrierWidth (logicalWidth application) := by
   apply Nat.le_trans (m := logicalWidth application)
   · unfold logicalWidth
     rw [ApplicationRetainedGeometry.completeLogicalWidth_eq]
     norm_num [ringDegree, publicRingColumns]
     omega
-  · exact Phi81CarrierLayout.logicalWidth_le_carrierWidth _
+  · exact RingCarrierLayout.logicalWidth_le_carrierWidth _
 
 structure FitsTwoPow28
     (application : Lifecycle.Stage1.Application.Program) : Prop where
   package : PerApplicationPackage.FitsTwoPow28 application
-  carrier : Phi81CarrierLayout.carrierWidth (logicalWidth application) ≤
+  carrier : RingCarrierLayout.carrierWidth (logicalWidth application) ≤
     2 ^ Lifecycle.cubeVariables
 
 theorem fitsTwoPow28OfApplicationBounds
     (application : Lifecycle.Stage1.Application.Program)
     (rows : (PerApplicationPackage.applicationPlan application).rowCount ≤
-      257057539)
+      258461709)
     (columns : PerApplicationPackage.addedPrivateColumnCount application ≤
-      256970581)
+      258375801)
     (carrierWords : application.witnessWordCount +
-      ApplicationRetainedBlocks.localCount application ≤ 5480402) :
+      ApplicationRetainedBlocks.localCount application ≤ 5550088) :
     FitsTwoPow28 application where
   package := PerApplicationPackage.fitsTwoPow28OfApplicationBounds application
     rows columns
@@ -90,7 +90,7 @@ theorem plan_fixedPoint (application : Lifecycle.Stage1.Application.Program)
     (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
     (structuralPlan application fits).rowCount =
-      998638 + (PerApplicationPackage.applicationPlan application).rowCount +
+      933838 + (PerApplicationPackage.applicationPlan application).rowCount +
         9 := by
   unfold structuralPlan
   exact DirectApplicationPrefixPlan.plan_rowCount _ fits.package
@@ -107,7 +107,7 @@ theorem jointDomain_le_twoPow28
     (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
     max (structuralPlan application fits).rowCount
-        (Phi81CarrierLayout.carrierWidth (logicalWidth application)) ≤
+        (RingCarrierLayout.carrierWidth (logicalWidth application)) ≤
       2 ^ Lifecycle.cubeVariables := by
   exact Nat.max_le.mpr
     ⟨structuralPlan_rowCount_le application fits, fits.carrier⟩

@@ -540,75 +540,66 @@ theorem absorbBlocksFast_add (first second : Nat)
 
 private theorem rate_eq : Poseidon2.rate = 12 := rfl
 
-theorem processNodes_finalAbsorb (state : HashState) (stream : List Node)
-    (odd : state.pending.length % 2 = 1)
+private theorem blockCount_drop (input : List F) (count : Nat)
+    (covered : count * Poseidon2.rate ≤ input.length) :
+    input.length / Poseidon2.rate =
+      count + (input.drop (count * Poseidon2.rate)).length / Poseidon2.rate := by
+  rw [List.length_drop]
+  rw [rate_eq] at covered ⊢
+  omega
+
+private theorem lastWords_drop (input : List F) (count : Nat)
+    (covered : count * Poseidon2.rate ≤ input.length) :
+    Poseidon2.lastWords input = Poseidon2.lastWords (input.drop (count * Poseidon2.rate)) := by
+  unfold Poseidon2.lastWords
+  rw [List.drop_drop, ← Nat.add_mul, ← blockCount_drop input count covered]
+
+/-- After the stream, the sponge has absorbed the full blocks of the pending words and the
+stream's words, and the other words are pending. -/
+theorem processNodes_eq (state : HashState) (stream : List Node)
     (short : state.pending.length < Poseidon2.rate) :
-    Poseidon2.absorbBlocksFast
-        ((state.pending.length + stream.length * 4 + Poseidon2.rate - 1) /
-          Poseidon2.rate)
-        state.sponge (state.pending ++ stream.flatMap Node.words) =
-      Poseidon2.absorbBlock (processNodes state stream).sponge
-        (processNodes state stream).pending := by
+    processNodes state stream =
+      ⟨Poseidon2.absorbBlocksFast
+          ((state.pending ++ stream.flatMap Node.words).length / Poseidon2.rate)
+          state.sponge (state.pending ++ stream.flatMap Node.words),
+        Poseidon2.lastWords (state.pending ++ stream.flatMap Node.words)⟩ := by
   rcases state with ⟨sponge, pending⟩
-  dsimp only at odd short ⊢
+  dsimp only at short ⊢
   induction stream generalizing sponge pending with
   | nil =>
-      have count : (pending.length + (List.length ([] : List Node)) * 4 +
-          Poseidon2.rate - 1) / Poseidon2.rate = 0 + 1 := by
-        simp only [List.length_nil, rate_eq] at short ⊢
-        omega
-      rw [count, Poseidon2.absorbBlocksFast, Poseidon2.absorbBlocksFast]
-      simp [processNodes, List.take_of_length_le (Nat.le_of_lt short)]
+      simp [processNodes, Poseidon2.lastWords, Nat.div_eq_of_lt short,
+        Poseidon2.absorbBlocksFast]
   | cons node rest inductionHypothesis =>
       have words : node.words.length = 4 := Node.words_length node
-      change Poseidon2.absorbBlocksFast _ sponge
-          (pending ++ (node.words ++ rest.flatMap Node.words)) =
-        Poseidon2.absorbBlock
-          (processNodes (pushNode ⟨sponge, pending⟩ node) rest).sponge
-          (processNodes (pushNode ⟨sponge, pending⟩ node) rest).pending
-      rw [← List.append_assoc, List.length_cons]
+      change processNodes (pushNode ⟨sponge, pending⟩ node) rest = _
+      rw [List.flatMap_cons, ← List.append_assoc]
       by_cases full : Poseidon2.rate ≤ pending.length + 4
       · have pushed : pushNode ⟨sponge, pending⟩ node =
-            ⟨Poseidon2.absorbBlock sponge
-                ((pending ++ node.words).take Poseidon2.rate),
+            ⟨Poseidon2.absorbBlock sponge ((pending ++ node.words).take Poseidon2.rate),
               (pending ++ node.words).drop Poseidon2.rate⟩ := by
           simp [pushNode, words, full]
-        have count : (pending.length + (rest.length + 1) * 4 +
-              Poseidon2.rate - 1) / Poseidon2.rate =
-            (((pending ++ node.words).drop Poseidon2.rate).length +
-              rest.length * 4 + Poseidon2.rate - 1) / Poseidon2.rate + 1 := by
-          simp only [List.length_drop, List.length_append, words, rate_eq]
-            at full ⊢
-          omega
         have long : Poseidon2.rate ≤ (pending ++ node.words).length := by
           simp only [List.length_append, words]
           exact full
-        rw [count, Poseidon2.absorbBlocksFast,
-          List.take_append_of_le_length long,
-          List.drop_append_of_le_length long, pushed]
-        apply inductionHypothesis
-        · simp only [List.length_drop, List.length_append, words, rate_eq]
-            at full short ⊢
+        have covered : 1 * Poseidon2.rate ≤
+            (pending ++ node.words ++ rest.flatMap Node.words).length := by
+          simp only [List.length_append, words, Nat.one_mul] at full ⊢
           omega
-        · simp only [List.length_drop, List.length_append, words, rate_eq]
-            at full short ⊢
-          omega
+        rw [pushed, inductionHypothesis _ _ (by
+            simp only [List.length_drop, List.length_append, words, rate_eq] at full short ⊢
+            omega),
+          blockCount_drop (pending ++ node.words ++ rest.flatMap Node.words) 1 covered,
+          lastWords_drop (pending ++ node.words ++ rest.flatMap Node.words) 1 covered,
+          absorbBlocksFast_add]
+        simp only [Nat.one_mul, List.drop_append_of_le_length long, Poseidon2.absorbBlocksFast,
+          List.take_append_of_le_length long]
       · have pushed : pushNode ⟨sponge, pending⟩ node =
             ⟨sponge, pending ++ node.words⟩ := by
           simp [pushNode, words, full]
-        have count : (pending.length + (rest.length + 1) * 4 +
-              Poseidon2.rate - 1) / Poseidon2.rate =
-            ((pending ++ node.words).length + rest.length * 4 +
-              Poseidon2.rate - 1) / Poseidon2.rate := by
-          simp only [List.length_append, words]
-          congr 1
-          omega
-        rw [count, pushed]
+        rw [pushed]
         apply inductionHypothesis
-        · simp only [List.length_append, words]
-          omega
-        · simp only [List.length_append, words, rate_eq] at full ⊢
-          omega
+        simp only [List.length_append, words]
+        omega
 
 def prefixState (blocks : Nat) (words : List F) : HashState where
   sponge := Poseidon2.absorbBlocksFast blocks Poseidon2.zeroState words
@@ -632,54 +623,46 @@ theorem absorbBlocksFast_append (blocks : Nat) (state : Poseidon2.State)
       rw [Nat.succ_mul] at covered
       omega
 
+/-- Streaming `value` after the prefix `words` reaches the state of `Poseidon2.hashFast` before
+its padding block. -/
 theorem prefixStreamed_eq (blocks : Nat) (words : List F) (value : Value)
     (covered : blocks * Poseidon2.rate ≤ words.length)
-    (short : words.length < blocks * Poseidon2.rate + Poseidon2.rate)
-    (odd : (words.length - blocks * Poseidon2.rate) % 2 = 1) :
-    Poseidon2.absorbBlocksFast
-        (((words ++ canonicalWords value).length + Poseidon2.rate - 1) /
-          Poseidon2.rate)
-        Poseidon2.zeroState (words ++ canonicalWords value) =
-      Poseidon2.absorbBlock (processValue value (prefixState blocks words)).sponge
-        (processValue value (prefixState blocks words)).pending := by
-  have pendingLength :
-      (prefixState blocks words).pending.length =
-        words.length - blocks * Poseidon2.rate := by
-    simp [prefixState]
-  have count :
-      ((words ++ canonicalWords value).length + Poseidon2.rate - 1) /
-          Poseidon2.rate =
-        blocks + ((prefixState blocks words).pending.length +
-          (nodes value).length * 4 + Poseidon2.rate - 1) / Poseidon2.rate := by
-    rw [pendingLength, List.length_append, canonicalWords_length]
-    simp only [rate_eq] at covered short ⊢
+    (short : words.length < blocks * Poseidon2.rate + Poseidon2.rate) :
+    processValue value (prefixState blocks words) =
+      ⟨Poseidon2.absorbBlocksFast ((words ++ canonicalWords value).length / Poseidon2.rate)
+          Poseidon2.zeroState (words ++ canonicalWords value),
+        Poseidon2.lastWords (words ++ canonicalWords value)⟩ := by
+  have inside : blocks * Poseidon2.rate ≤ (words ++ canonicalWords value).length := by
+    rw [List.length_append]
     omega
-  rw [count, absorbBlocksFast_add, absorbBlocksFast_append _ _ _ _ covered,
-    List.drop_append_of_le_length covered, processValue_eq_processNodes]
-  exact processNodes_finalAbsorb (prefixState blocks words) (nodes value)
-    (by rw [pendingLength]; exact odd)
-    (by rw [pendingLength]; omega)
+  have tail : (words ++ canonicalWords value).drop (blocks * Poseidon2.rate) =
+      (prefixState blocks words).pending ++ (nodes value).flatMap Node.words := by
+    rw [List.drop_append_of_le_length covered]
+    rfl
+  rw [processValue_eq_processNodes, processNodes_eq _ _ (by
+      simp only [prefixState, List.length_drop]
+      omega),
+    blockCount_drop (words ++ canonicalWords value) blocks inside,
+    lastWords_drop (words ++ canonicalWords value) blocks inside, absorbBlocksFast_add,
+    absorbBlocksFast_append _ _ _ _ covered, tail]
+  rfl
 
 def initialState : HashState := prefixState 2 Package.identityDomain
 
 @[simp] theorem identityDomain_length : Package.identityDomain.length = 29 := by
   rfl
 
-theorem streamedAbsorbed_eq (value : Value) :
-    Poseidon2.absorbBlocksFast
-        (((Package.identityDomain ++ canonicalWords value).length +
-          Poseidon2.rate - 1) / Poseidon2.rate)
-        Poseidon2.zeroState
-        (Package.identityDomain ++ canonicalWords value) =
-      Poseidon2.absorbBlock (processValue value initialState).sponge
-        (processValue value initialState).pending := by
-  apply prefixStreamed_eq <;> simp [rate_eq]
-
+/-- The padding block of `Poseidon2.hashFast`: the pending words, then the word 1. -/
 def finalize (state : HashState) : List F :=
-  let absorbed := Poseidon2.absorbBlock state.sponge state.pending
-  let padded := Poseidon2.permute ((List.range Poseidon2.width).map fun lane =>
-    if lane = 0 then absorbed.getD 0 0 + 1 else absorbed.getD lane 0)
-  padded.take Poseidon2.digestLen
+  (Poseidon2.absorbBlock state.sponge (state.pending ++ [1])).take Poseidon2.digestLen
+
+theorem finalize_prefixState (blocks : Nat) (words : List F) (value : Value)
+    (covered : blocks * Poseidon2.rate ≤ words.length)
+    (short : words.length < blocks * Poseidon2.rate + Poseidon2.rate) :
+    finalize (processValue value (prefixState blocks words)) =
+      Poseidon2.hashFast (words ++ canonicalWords value) := by
+  rw [prefixStreamed_eq blocks words value covered short]
+  rfl
 
 def relationIdentifierValueFast (value : Value) : List F :=
   finalize (processValue value initialState)
@@ -689,8 +672,7 @@ theorem relationIdentifierValueFast_eq (value : Value) :
       Package.relationIdentifierValue value := by
   rw [Package.relationIdentifierValue, Poseidon2.hash_eq_hashFast,
     ← canonicalWords_eq_valuePreimage]
-  unfold relationIdentifierValueFast finalize Poseidon2.hashFast
-  dsimp only
-  rw [streamedAbsorbed_eq]
+  exact finalize_prefixState 2 Package.identityDomain value (by simp [rate_eq])
+    (by simp [rate_eq])
 
 end NightstreamFPrime.Export.StreamingIdentity

@@ -1,5 +1,5 @@
 import NightstreamFPrime.Lifecycle.Relation
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Commitment
 
 /-! SuperNeo v1.2 Definition 21. -/
 
@@ -7,13 +7,13 @@ namespace NightstreamFPrime.Lifecycle.PilotZeroRunning
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
+open NightstreamFPrime.Spec.RingRelation.EvaluationHomomorphism
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
 theorem defaultRunning_holds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits)) :
@@ -23,8 +23,8 @@ theorem defaultRunning_holds
         BaseLinear.assignmentZero := by
   intro index
   refine ⟨⟨?_, rfl, ?_⟩, trivial, ?_⟩
-  · exact Phi81Relation.PiRLCAlgebra.Commitment.commit_zero ajtai
-  · change ∀ column : Fin (Phi81CarrierLayout.carrierWidth logicalWidth),
+  · exact RingRelation.PiRLCAlgebra.Commitment.commit_zero ajtai
+  · change ∀ column : Fin (RingCarrierLayout.carrierWidth logicalWidth),
       centeredMagnitude (0 : F) < 2
     intro column
     simp
@@ -39,7 +39,7 @@ theorem defaultRunning_holds
         (canonicalStructure (publicFits := publicFits) source)
         (padMatrix source) zeroPoint
     have matrixZero :
-        (fun matrix => Phi81Relation.matrixEvaluation
+        (fun matrix => RingRelation.matrixEvaluation
           (canonicalStructure (publicFits := publicFits) source)
           BaseLinear.assignmentZero zeroPoint matrix) =
         (fun _ => BaseLinear.evaluationZero) := by

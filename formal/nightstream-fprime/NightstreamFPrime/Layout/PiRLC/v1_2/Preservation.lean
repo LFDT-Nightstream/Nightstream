@@ -13,7 +13,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 def PhysicalHolds
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -170,7 +170,7 @@ theorem physical_complete_production
     (assumptions : Formal.Assumptions relation interface offset env)
     (phase : Semantics.PhaseHolds relation ajtai interface offset env) :
     ∃ completed,
-      AgreesOutside env completed offset 5203853 ∧
+      AgreesOutside env completed offset 4223175 ∧
       PhysicalHolds relation interface offset completed := by
   rcases physical_complete relation ajtai interface offset env assumptions phase with
     ⟨completed, agrees, rows⟩

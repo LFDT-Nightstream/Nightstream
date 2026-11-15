@@ -52,12 +52,12 @@ theorem boolean_of_truth {product rest coefficient output : F}
     have zero : coefficient * output = 0 := by
       have := holds.symm.trans truth
       exact add_left_cancel (this.trans (add_zero rest).symm)
-    exact (GoldilocksPrime.baseFieldNoZeroDivisors _ _ zero).resolve_left nonzero
+    exact (FieldPrime.baseFieldNoZeroDivisors _ _ zero).resolve_left nonzero
   · right
     have same : coefficient * output = coefficient := add_left_cancel (holds.symm.trans truth)
     have zero : coefficient * (output - 1) = 0 := by
       rw [mul_sub, mul_one, same, sub_self]
-    exact sub_eq_zero.mp ((GoldilocksPrime.baseFieldNoZeroDivisors _ _ zero).resolve_left nonzero)
+    exact sub_eq_zero.mp ((FieldPrime.baseFieldNoZeroDivisors _ _ zero).resolve_left nonzero)
 
 theorem checked_truth {gate : Gate} (checked : gate.checked = true)
     {left right : F} (leftBit : LowNormSlot.Valid .bit left)

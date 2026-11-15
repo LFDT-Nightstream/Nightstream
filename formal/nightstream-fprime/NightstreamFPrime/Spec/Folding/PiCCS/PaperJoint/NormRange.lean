@@ -5,7 +5,7 @@ namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NormRange
 open NightstreamFPrime.Spec
 
 def representedMinusOne : F :=
-  ⟨goldilocksModulus - 1, by simp [goldilocksModulus]⟩
+  ⟨fieldModulus - 1, by simp [fieldModulus]⟩
 
 def representedRoots : List F :=
   [representedMinusOne, 0, 1]
@@ -13,17 +13,17 @@ def representedRoots : List F :=
 def BaseFieldNoZeroDivisors : Prop :=
   ∀ left right : F, left * right = 0 → left = 0 ∨ right = 0
 
-def GoldilocksModulusEuclid : Prop :=
+def FieldModulusEuclid : Prop :=
   ∀ left right : Nat,
-    left * right % goldilocksModulus = 0 →
-      left % goldilocksModulus = 0 ∨ right % goldilocksModulus = 0
+    left * right % fieldModulus = 0 →
+      left % fieldModulus = 0 ∨ right % fieldModulus = 0
 
 theorem baseFieldNoZeroDivisors_of_modulusEuclid
-    (euclid : GoldilocksModulusEuclid) :
+    (euclid : FieldModulusEuclid) :
     BaseFieldNoZeroDivisors := by
   intro left right productZero
   have productValuesZero :
-      left.val * right.val % goldilocksModulus = 0 := by
+      left.val * right.val % fieldModulus = 0 := by
     have values := congrArg Fin.val productZero
     simpa [Fin.val_mul] using values
   rcases euclid left.val right.val productValuesZero with
@@ -40,7 +40,7 @@ def cubicResidual (value : F) : F :=
 
 theorem representedRoots_values :
     representedRoots.map Fin.val =
-      [goldilocksModulus - 1, 0, 1] := by
+      [fieldModulus - 1, 0, 1] := by
   rfl
 
 theorem representedRoots_nodup :
@@ -53,10 +53,10 @@ private theorem add_one_eq_zero_implies_representedMinusOne
     value = representedMinusOne := by
   apply Fin.eq_of_val_eq
   have modularZero :
-      (value.val + 1) % goldilocksModulus = 0 := by
+      (value.val + 1) % fieldModulus = 0 := by
     have values := congrArg Fin.val zero
     simpa [Fin.val_add] using! values
-  have valueSuccLe : value.val + 1 ≤ goldilocksModulus := by
+  have valueSuccLe : value.val + 1 ≤ fieldModulus := by
     omega
   rcases Nat.lt_or_eq_of_le valueSuccLe with strict | equal
   · rw [Nat.mod_eq_of_lt strict] at modularZero
@@ -94,24 +94,24 @@ theorem strictNormTwo_iff_representedRoot (value : F) :
   · intro bounded
     unfold centeredMagnitude at bounded
     by_cases lowerHalf :
-        value.val ≤ goldilocksModulus - value.val
+        value.val ≤ fieldModulus - value.val
     · rw [Nat.min_eq_left lowerHalf] at bounded
       rcases Nat.eq_zero_or_pos value.val with zero | positive
       · exact Or.inr (Or.inl (Fin.eq_of_val_eq zero))
       · have one : value.val = 1 := by omega
         exact Or.inr (Or.inr (Fin.eq_of_val_eq one))
     · have upperHalf :
-          goldilocksModulus - value.val ≤ value.val := by
+          fieldModulus - value.val ≤ value.val := by
         omega
       rw [Nat.min_eq_right upperHalf] at bounded
       have differencePositive :
-          0 < goldilocksModulus - value.val :=
+          0 < fieldModulus - value.val :=
         Nat.sub_pos_of_lt value.isLt
       have differenceOne :
-          goldilocksModulus - value.val = 1 := by
+          fieldModulus - value.val = 1 := by
         omega
       have valueIsMinusOne :
-          value.val = goldilocksModulus - 1 := by
+          value.val = fieldModulus - 1 := by
         omega
       exact Or.inl (Fin.eq_of_val_eq valueIsMinusOne)
   · intro root

@@ -12,27 +12,27 @@ namespace Logical
 
 abbrev Interface (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :=
+      RingCarrierLayout.carrierWidth logicalWidth) :=
   NightstreamFPrime.Lifecycle.PiRLC.v1_2.PublicInputCombination.Interface
     logicalWidth publicFits
 abbrev familyInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) :=
   NightstreamFPrime.Lifecycle.PiRLC.v1_2.PublicInputCombination.familyInterface
     interface
 abbrev Assumptions
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :=
   NightstreamFPrime.Lifecycle.PiRLC.v1_2.PublicInputCombination.Assumptions
     interface offset env
 abbrev SpecHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env) :=
   NightstreamFPrime.Lifecycle.PiRLC.v1_2.PublicInputCombination.SpecHolds
     interface offset env
@@ -41,7 +41,7 @@ end Logical
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 abbrev logicalConstraints
     (interface : Logical.Interface logicalWidth publicFits) (offset : Nat) :=

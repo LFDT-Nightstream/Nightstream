@@ -33,9 +33,9 @@ class CheckSpecTests(unittest.TestCase):
 
     def test_hand_edited_table_fails(self):
         text = SPEC.read_text(encoding="utf-8")
-        row = "| `productionProfile.global.expansionT` | `T` | 216 |"
+        row = "| `productionProfile.global.expansionT` | `T` | 128 |"
         self.assertIn(row, text)
-        result = check(text.replace(row, row.replace("216", "217")))
+        result = check(text.replace(row, row.replace("128", "129")))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("parameters table is stale", result.stdout)
 

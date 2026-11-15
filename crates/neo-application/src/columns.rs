@@ -24,7 +24,7 @@ pub enum ColumnWidth {
     Byte,
     U32,
     /// An unsigned value represented by exactly this many bits.
-    /// Explicit Goldilocks decomposition supports widths `1..=63`.
+    /// Explicit decomposition supports widths `1..=63`.
     Bits(u8),
     Field,
 }

@@ -16,8 +16,8 @@ use crate::ir::{
     WasmHostEventRomVariant, WasmHostEventSlotKind,
 };
 use crate::WasmProgramTables;
+use neo_math::F;
 use p3_field::PrimeField64;
-use p3_goldilocks::Goldilocks;
 use std::collections::BTreeMap;
 
 mod builder;
@@ -277,7 +277,7 @@ impl ExportTemplate {
                         SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => {
                         }
                         SlotBinding::Const(value) => {
-                            if value >= Goldilocks::ORDER_U64 {
+                            if value >= F::ORDER_U64 {
                                 return err(ctx("constant is not a canonical field element"));
                             }
                         }
@@ -606,7 +606,7 @@ impl ImportTemplate {
                 match *slot {
                     SlotBinding::EnterOpaque | SlotBinding::OpaqueSaved { .. } | SlotBinding::OpaqueRoot { .. } => {}
                     SlotBinding::Const(value) => {
-                        if value >= Goldilocks::ORDER_U64 {
+                        if value >= F::ORDER_U64 {
                             return err(ctx("constant is not a canonical field element"));
                         }
                     }
@@ -889,7 +889,7 @@ fn check_inputs(phase: &str, inputs: &[u64], declared: u8) -> Result<(), WasmBui
             inputs.len()
         )));
     }
-    if let Some(idx) = inputs.iter().position(|&v| v >= Goldilocks::ORDER_U64) {
+    if let Some(idx) = inputs.iter().position(|&v| v >= F::ORDER_U64) {
         return Err(WasmBuildError::Trace(format!(
             "{phase} input {idx} is not a canonical field element"
         )));

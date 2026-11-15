@@ -27,9 +27,14 @@ fn public_verifier_accepts_count_alias(wat: &str, opcode: WasmOpcode, reference:
         .position(|row| row.opcode == opcode)
         .unwrap();
     let old = checked.trace[row_index].stack_write0.unwrap();
+    // `q + count` in two 32-bit limbs. It fits in 64 bits only for
+    // `count < 2^64 − q = 59`.
+    let alias = <neo_math::F as p3_field::PrimeField64>::ORDER_U64
+        .checked_add(u64::from(count))
+        .expect("the count has an alias below 2^64");
     let mut bad = old;
-    bad.value_lo = count + 1;
-    bad.value_hi = Some(u32::MAX);
+    bad.value_lo = alias as u32;
+    bad.value_hi = Some((alias >> 32) as u32);
     assert_ne!(bad, old);
     checked.trace[row_index].stack_write0 = Some(bad);
     let mut output_captured = false;
@@ -99,11 +104,11 @@ fn public_verifier_accepts_count_alias(wat: &str, opcode: WasmOpcode, reference:
 fn i64_clz_must_not_accept_a_field_modulus_alias() {
     let wat = r#"(module
         (func (export "main") (result i64)
-            i64.const 1
+            i64.const 32
             i64.clz))"#;
     assert!(
-        !public_verifier_accepts_count_alias(wat, WasmOpcode::I64Clz, "63", 63),
-        "the public verifier accepted q+63 as i64.clz(1), which Wasmtime returns as 63"
+        !public_verifier_accepts_count_alias(wat, WasmOpcode::I64Clz, "58", 58),
+        "the public verifier accepted q+58 as i64.clz(32), which Wasmtime returns as 58"
     );
 }
 

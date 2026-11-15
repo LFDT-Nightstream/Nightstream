@@ -16,29 +16,29 @@ open NightstreamFPrime.Layout.Polynomial.Horner
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 def priorRunningStart : Nat := 12
-def runningCommitmentWords : Nat := 1188
-def runningEvalKWords : Nat := 108
-def runningEvalAWords : Nat := 432
-def runningPublicWords : Nat := 270
+def runningCommitmentWords : Nat := 1152
+def runningEvalKWords : Nat := 128
+def runningEvalAWords : Nat := 512
+def runningPublicWords : Nat := 320
 
 def runningCommitmentStart (source : Nat) : Nat :=
   priorRunningStart + source * runningCommitmentWords
 
 def runningEvalKStart (source : Nat) : Nat :=
-  priorRunningStart + 19008 + source * runningEvalKWords
+  priorRunningStart + 16128 + source * runningEvalKWords
 
 def runningEvalAStart (source : Nat) : Nat :=
-  priorRunningStart + 20736 + source * runningEvalAWords
+  priorRunningStart + 17920 + source * runningEvalAWords
 
-def runningPointStart : Nat := priorRunningStart + 27648
+def runningPointStart : Nat := priorRunningStart + 25088
 
-def expectedContextStart : Nat := 5141760
+def expectedContextStart : Nat := 4678562
 
 def expectedContextWords : Nat := 4
 
 def priorChildrenStart : Nat := expectedContextStart + expectedContextWords
 
-def priorChildrenWords : Nat := 4320
+def priorChildrenWords : Nat := 4480
 
 def runningPublicStart (source : Nat) : Nat :=
   priorChildrenStart + source * runningPublicWords
@@ -52,25 +52,25 @@ theorem expectedContextStart_matches_pilot :
   rw [PilotProduction.physicalColumnCount_eq]
   rfl
 
-theorem expectedContextStart_eq : expectedContextStart = 5141760 := by
+theorem expectedContextStart_eq : expectedContextStart = 4678562 := by
   rfl
 
 theorem expectedContextWords_eq : expectedContextWords = 4 := by
   rfl
 
-theorem priorChildrenStart_eq : priorChildrenStart = 5141764 := by
+theorem priorChildrenStart_eq : priorChildrenStart = 4678566 := by
   rfl
 
-theorem proofInputStart_eq : proofInputStart = 5146084 := by
+theorem proofInputStart_eq : proofInputStart = 4683046 := by
   rfl
 
 def freshCommitmentStart : Nat := proofInputStart
-def freshCommitmentWords : Nat := 1188
+def freshCommitmentWords : Nat := 1152
 def roundMessageStart : Nat := freshCommitmentStart + freshCommitmentWords
 def roundMessageWords : Nat := 504
 def outputEvaluationStart : Nat := roundMessageStart + roundMessageWords
-def outputEvaluationWords : Nat := 9180
-def outputEvaluationSourceWords : Nat := 540
+def outputEvaluationWords : Nat := 9600
+def outputEvaluationSourceWords : Nat := 640
 def proofInputColumnCount : Nat :=
   freshCommitmentWords + roundMessageWords + outputEvaluationWords
 def phaseOffset : Nat := proofInputStart + proofInputColumnCount
@@ -83,19 +83,19 @@ theorem roundMessageWords_eq :
     roundMessageWords =
       productionShape.cubeVariables * (8 + 1) * 2 := by
   norm_num [roundMessageWords, productionShape, cubeVariables,
-    Phi81MatrixSource.phi81Shape]
+    RingMatrixSource.ringShape]
 
 theorem outputEvaluationWords_eq :
     outputEvaluationWords =
       productionShape.sourceCount * (productionShape.matrixCount + 1) *
         productionShape.coefficientCount * 2 := by
   norm_num [outputEvaluationWords, productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape, Shape.sourceCount, ringDegree]
+    RingMatrixSource.ringShape, Shape.sourceCount, ringDegree]
 
-theorem proofInputColumnCount_eq : proofInputColumnCount = 10872 := by
+theorem proofInputColumnCount_eq : proofInputColumnCount = 11256 := by
   rfl
 
-theorem phaseOffset_eq : phaseOffset = 5156956 := by
+theorem phaseOffset_eq : phaseOffset = 4694302 := by
   rfl
 
 def pairAt (start : Nat) : KExpr :=
@@ -119,7 +119,7 @@ def runningCommitment
 def runningPublicInput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (source : Fin productionShape.runningCount)
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) : Expr :=
   Expr.var (runningPublicStart source.val + column.val)
@@ -133,12 +133,12 @@ def runningEval_A
     (source : Fin productionShape.runningCount)
     (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount) : KExpr :=
-  pairAt (runningEvalAStart source.val + matrix.val * 108 + coefficient.val * 2)
+  pairAt (runningEvalAStart source.val + matrix.val * 128 + coefficient.val * 2)
 
 def runningExpr
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     StatementAbsorption.RunningExpr logicalWidth publicFits where
   point := runningPoint
   commitment := runningCommitment
@@ -158,7 +158,7 @@ def freshCommitment
 def freshPublicInput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (_source : Fin productionShape.freshCount)
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) : Expr :=
   Expr.var (PilotProduction.priorPublicInputStart + column.val)
@@ -171,19 +171,19 @@ def roundCoefficient
 def outputEval_K
     (source : Fin productionShape.sourceCount)
     (coefficient : Fin productionShape.coefficientCount) : KExpr :=
-  pairAt (outputEvaluationStart + source.val * 540 + coefficient.val * 2)
+  pairAt (outputEvaluationStart + source.val * 640 + coefficient.val * 2)
 
 def outputEval_A
     (source : Fin productionShape.sourceCount)
     (matrix : Fin productionShape.matrixCount)
     (coefficient : Fin productionShape.coefficientCount) : KExpr :=
-  pairAt (outputEvaluationStart + source.val * 540 + 108 +
-    matrix.val * 108 + coefficient.val * 2)
+  pairAt (outputEvaluationStart + source.val * 640 + 128 +
+    matrix.val * 128 + coefficient.val * 2)
 
 def freshExpr
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     StatementAbsorption.FreshExpr logicalWidth publicFits where
   commitment := freshCommitment
   publicInput := freshPublicInput
@@ -208,7 +208,7 @@ def expectedContext (lane : Fin 4) : Expr :=
 def interface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     Formal.Interface logicalWidth 8 publicFits where
   baseOffset := phaseOffset
   priorState := fun _ => priorStateWord
@@ -222,26 +222,26 @@ def interface
 private theorem publicColumn_lt_270
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
-    column.val < 270 := by
+    column.val < 320 := by
   have bound := column.isLt
-  norm_num [FullShape, fullShape, Phi81Relation.Shape.publicWidth,
+  norm_num [FullShape, fullShape, RingRelation.Shape.publicWidth,
     publicRingColumns, ringDegree] at bound
   exact bound
 
-private theorem runningSource_lt_16
-    (source : Fin productionShape.runningCount) : source.val < 16 := by
+private theorem runningSource_lt_14
+    (source : Fin productionShape.runningCount) : source.val < 14 := by
   have bound := source.isLt
   norm_num [productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape] at bound
+    RingMatrixSource.ringShape] at bound
   exact bound
 
-private theorem allSource_lt_17
-    (source : Fin productionShape.sourceCount) : source.val < 17 := by
+private theorem allSource_lt_15
+    (source : Fin productionShape.sourceCount) : source.val < 15 := by
   have bound := source.isLt
   norm_num [productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape, Shape.sourceCount] at bound
+    RingMatrixSource.ringShape, Shape.sourceCount] at bound
   exact bound
 
 private theorem round_lt_28
@@ -249,32 +249,32 @@ private theorem round_lt_28
     roundIndex.val < 28 := by
   have bound := roundIndex.isLt
   norm_num [productionShape, cubeVariables,
-    Phi81MatrixSource.phi81Shape] at bound
+    RingMatrixSource.ringShape] at bound
   exact bound
 
 private theorem matrix_lt_4
     (matrix : Fin productionShape.matrixCount) : matrix.val < 4 := by
   have bound := matrix.isLt
   norm_num [productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape] at bound
+    RingMatrixSource.ringShape] at bound
   exact bound
 
-private theorem coefficient_lt_54
+private theorem coefficient_lt_ringDegree
     (coefficient : Fin productionShape.coefficientCount) :
-    coefficient.val < 54 := by
+    coefficient.val < 64 := by
   have bound := coefficient.isLt
-  norm_num [productionShape, Phi81MatrixSource.phi81Shape,
+  norm_num [productionShape, RingMatrixSource.ringShape,
     ringDegree] at bound
   exact bound
 
 private theorem commitmentRow_lt_22
-    (row : Fin productionProfile.commitmentWidth) : row.val < 22 := by
+    (row : Fin productionProfile.commitmentWidth) : row.val < 18 := by
   have bound := row.isLt
   norm_num [productionProfile] at bound
   exact bound
 
-private theorem ringCoefficient_lt_54
-    (coefficient : Fin ringDegree) : coefficient.val < 54 := by
+private theorem ringCoefficient_lt_ringDegree
+    (coefficient : Fin ringDegree) : coefficient.val < 64 := by
   have bound := coefficient.isLt
   norm_num [ringDegree] at bound
   exact bound
@@ -288,7 +288,7 @@ private theorem freshSource_lt_1
 theorem externalInputsBelow
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     Formal.ExternalInputsBelow (interface logicalWidth publicFits)
       phaseOffset := by
   constructor
@@ -346,16 +346,16 @@ theorem externalInputsBelow
     omega
   · intro source row coefficient
     simp only [interface, runningExpr, runningCommitment, Expr.VarsBelow]
-    have sourceBound := runningSource_lt_16 source
+    have sourceBound := runningSource_lt_14 source
     have rowBound := commitmentRow_lt_22 row
-    have coefficientBound := ringCoefficient_lt_54 coefficient
+    have coefficientBound := ringCoefficient_lt_ringDegree coefficient
     rw [phaseOffset_eq]
     norm_num [runningCommitmentStart, priorRunningStart, runningCommitmentWords,
       ringDegree]
     omega
   · intro source column
     simp only [interface, runningExpr, runningPublicInput, Expr.VarsBelow]
-    have sourceBound := runningSource_lt_16 source
+    have sourceBound := runningSource_lt_14 source
     have columnBound := publicColumn_lt_270 column
     rw [phaseOffset_eq]
     norm_num [runningPublicStart, priorChildrenStart, expectedContextStart,
@@ -364,17 +364,17 @@ theorem externalInputsBelow
   · intro source coefficient
     change (runningEval_K source coefficient).VarsBelow phaseOffset
     simp only [runningEval_K, pairAt, KExpr.VarsBelow, Expr.VarsBelow]
-    have sourceBound := runningSource_lt_16 source
-    have coefficientBound := coefficient_lt_54 coefficient
+    have sourceBound := runningSource_lt_14 source
+    have coefficientBound := coefficient_lt_ringDegree coefficient
     rw [phaseOffset_eq]
     norm_num [runningEvalKStart, priorRunningStart, runningEvalKWords]
     omega
   · intro source matrix coefficient
     change (runningEval_A source matrix coefficient).VarsBelow phaseOffset
     simp only [runningEval_A, pairAt, KExpr.VarsBelow, Expr.VarsBelow]
-    have sourceBound := runningSource_lt_16 source
+    have sourceBound := runningSource_lt_14 source
     have matrixBound := matrix_lt_4 matrix
-    have coefficientBound := coefficient_lt_54 coefficient
+    have coefficientBound := coefficient_lt_ringDegree coefficient
     rw [phaseOffset_eq]
     norm_num [runningEvalAStart, priorRunningStart, runningEvalAWords]
     omega
@@ -382,7 +382,7 @@ theorem externalInputsBelow
     simp only [interface, freshExpr, freshCommitment, Expr.VarsBelow]
     have sourceBound := freshSource_lt_1 source
     have rowBound := commitmentRow_lt_22 row
-    have coefficientBound := ringCoefficient_lt_54 coefficient
+    have coefficientBound := ringCoefficient_lt_ringDegree coefficient
     rw [phaseOffset_eq]
     norm_num [freshCommitmentStart, proofInputStart, priorChildrenStart,
       priorChildrenWords, expectedContextStart, expectedContextWords,
@@ -406,13 +406,13 @@ theorem externalInputsBelow
       proofInputStart, priorChildrenStart, priorChildrenWords,
       expectedContextStart, expectedContextWords,
       freshCommitmentWords, productionShape, cubeVariables,
-      Phi81MatrixSource.phi81Shape]
+      RingMatrixSource.ringShape]
     omega
   · intro source coefficient
     change (outputEval_K source coefficient).VarsBelow phaseOffset
     simp only [outputEval_K, pairAt, KExpr.VarsBelow, Expr.VarsBelow]
-    have sourceBound := allSource_lt_17 source
-    have coefficientBound := coefficient_lt_54 coefficient
+    have sourceBound := allSource_lt_15 source
+    have coefficientBound := coefficient_lt_ringDegree coefficient
     rw [phaseOffset_eq]
     norm_num [outputEvaluationStart, roundMessageStart,
       freshCommitmentStart, proofInputStart, priorChildrenStart,
@@ -423,9 +423,9 @@ theorem externalInputsBelow
   · intro source matrix coefficient
     change (outputEval_A source matrix coefficient).VarsBelow phaseOffset
     simp only [outputEval_A, pairAt, KExpr.VarsBelow, Expr.VarsBelow]
-    have sourceBound := allSource_lt_17 source
+    have sourceBound := allSource_lt_15 source
     have matrixBound := matrix_lt_4 matrix
-    have coefficientBound := coefficient_lt_54 coefficient
+    have coefficientBound := coefficient_lt_ringDegree coefficient
     rw [phaseOffset_eq]
     norm_num [outputEvaluationStart, roundMessageStart,
       freshCommitmentStart, proofInputStart, priorChildrenStart,
@@ -437,7 +437,7 @@ theorem externalInputsBelow
 theorem externalInputsLinear
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth) :
+      RingCarrierLayout.carrierWidth logicalWidth) :
     NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs.ExternalInputsLinear
       (interface logicalWidth publicFits) phaseOffset where
   below := externalInputsBelow logicalWidth publicFits

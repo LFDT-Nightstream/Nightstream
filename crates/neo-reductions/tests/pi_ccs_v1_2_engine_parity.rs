@@ -53,19 +53,17 @@ fn rectangular_ccs(rows: usize, columns: usize) -> CcsStructure<F> {
 }
 
 fn selected_parameters(structure: &CcsStructure<F>) -> NeoParams {
-    let mut params = NeoParams::nightstream_goldilocks_k16();
+    let mut params = NeoParams::nightstream_p64_k14();
     let summary = params
         .padded_row_security_summary_for_shape(
             structure.domain_rows(),
             structure.m(),
             structure.t(),
             structure.max_degree(),
-            neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+            neo_params::nightstream_p64_k14::CHALLENGE_ALPHABET.len() as u32,
         )
         .expect("shape census");
-    params = params
-        .with_lambda(params.lambda().min(summary.security_bits))
-        .unwrap();
+    params = params.with_lambda(summary.security_bits).unwrap();
     params
 }
 
@@ -208,14 +206,7 @@ fn prove_mode_and_state(
     witnesses: &[CcsWitness<F>],
     running: &[Output],
     running_witnesses: &[Mat<F>],
-) -> Result<
-    (
-        Vec<Output>,
-        PiCcsProof,
-        [F; neo_ccs::crypto::poseidon2_goldilocks::WIDTH],
-    ),
-    PiCcsError,
-> {
+) -> Result<(Vec<Output>, PiCcsProof, [F; neo_ccs::crypto::poseidon2::WIDTH]), PiCcsError> {
     let mut transcript = Poseidon2Transcript::new_v1_2();
     let (outputs, proof) = mode_prove(
         mode,

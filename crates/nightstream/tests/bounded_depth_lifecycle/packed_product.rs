@@ -37,7 +37,7 @@ fn packed_products_restore_both_sources_and_reject_recommitted_signed_units() {
     }
     let mut prover = BoundedDepth::new(
         &CompiledSteps::new(packages.clone()).unwrap(),
-        MINIMUM_SECURITY_BITS,
+        fold_gate_bits(),
         crate::engine::Backend::Optimized,
     )
     .unwrap();

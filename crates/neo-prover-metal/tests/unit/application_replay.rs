@@ -85,19 +85,17 @@ impl Fixture {
         }
         let structure = CcsStructure::new_sparse(matrices, SparsePoly::new(MATRIX_COUNT, terms)).unwrap();
         let cache = OptimizedStructureCache::build(&structure).unwrap();
-        let mut params = neo_params::NeoParams::nightstream_goldilocks_k16();
+        let mut params = neo_params::NeoParams::nightstream_p64_k14();
         let security = params
             .padded_row_security_summary_for_shape(
                 rows,
                 columns,
                 MATRIX_COUNT,
                 structure.max_degree(),
-                neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+                neo_params::nightstream_p64_k14::CHALLENGE_ALPHABET.len() as u32,
             )
             .unwrap();
-        params = params
-            .with_lambda(params.lambda().min(security.security_bits))
-            .unwrap();
+        params = params.with_lambda(security.security_bits).unwrap();
         let dims = build_joint_dims(&params, &structure, 1, params.k_rho() as usize).unwrap();
         let blocks = columns.div_ceil(D);
         let mut fresh = Mat::zero(D, blocks, F::ZERO);
@@ -198,7 +196,7 @@ fn extension(real: usize, imaginary: usize) -> K {
 struct PhaseResult {
     proof_bytes: Vec<u8>,
     trace: ProtocolTrace,
-    transcript_state: [F; neo_ccs::crypto::poseidon2_goldilocks::WIDTH],
+    transcript_state: [F; neo_ccs::crypto::poseidon2::WIDTH],
     transcript_cursor: usize,
     openings: Vec<V1_2Evaluations<K>>,
 }

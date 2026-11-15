@@ -66,7 +66,7 @@ fn guarded_rows_reject_fresh_recommitted_changes_in_both_relations() {
         .unwrap();
     let mut prover = BoundedDepth::new(
         &CompiledSteps::new(packages.clone()).unwrap(),
-        MINIMUM_SECURITY_BITS,
+        fold_gate_bits(),
         crate::engine::Backend::Optimized,
     )
     .unwrap();

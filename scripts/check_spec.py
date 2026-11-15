@@ -20,6 +20,11 @@ The repository has one protocol specification (`AGENTS.md`, Specs). So the scrip
 a tracked file is in a `specs/` folder, when a Markdown file outside SPEC_FILES has "spec" in its
 name, or when a Lean or Rust file cites `spec §`, the citation form of the deleted spec files.
 
+SPEC.md also holds the table of verifier entry points between `<!-- entry-points -->` and
+`<!-- /entry-points -->`. Each public `verify…` function of `crates/nightstream/src/` needs a row,
+and each row cites exactly one pinned theorem of the Lean-emitted premise list PREMISES, or it
+starts with `Open:`.
+
   python3 scripts/check_spec.py            check pins, paths, the table and the spec files
   python3 scripts/check_spec.py --write    rewrite the table (pins are never edited)
 """
@@ -35,23 +40,25 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = ROOT / "SPEC.md"
 FPRIME = ROOT / "formal/nightstream-fprime/NightstreamFPrime"
-COMPRESSION = ROOT / "formal/compression-lean/CompressionLean"
-BASES = [ROOT, FPRIME, COMPRESSION]
+BASES = [ROOT, FPRIME]
 ARTIFACTS = ROOT / "formal/nightstream-fprime/artifacts"
-# The bounded-depth packages of the reference application: the light and refresh step circuits and
-# the finish circuit (`Export/BoundedDepth/EmitMain.lean`).
+# The bounded-depth packages of the reference application: the light and refresh step circuits
+# (`Export/BoundedDepth/EmitMain.lean`).
 PACKAGES = [(name, ARTIFACTS / f"nightstream-fprime-bounded-depth-{name}-v1.json")
-            for name in ("light", "refresh", "finish")]
+            for name in ("light", "refresh")]
 PARITY = ARTIFACTS / "nightstream-fprime-bounded-depth-parity-v1.json"
 FORMATS = FPRIME / "Export/BoundedDepth/StepPackage.lean"
 PARITY_SOURCE = FPRIME / "Export/BoundedDepth/Parity.lean"
 BEGIN, END = "<!-- params -->", "<!-- /params -->"
+ENTRY_BEGIN, ENTRY_END = "<!-- entry-points -->", "<!-- /entry-points -->"
+PREMISES = ARTIFACTS / "nightstream-fprime-premises-v1.tsv"
+ENTRY_FUNCTION = re.compile(r"^\s*pub fn (verify\w*)\(", re.M)
 # The Markdown files whose names say "spec": the protocol specification and the scope of a
 # profiling tool.
 SPEC_FILES = {"SPEC.md", "scripts/gpuscope/SPEC.md"}
 OLD_CITATION = re.compile(r"[Ss]pec §")
 
-PIN = re.compile(r"`((?:Export|Layout|Lifecycle|Spec|CompressionLean)\.[^`\s]*)` \(`([^`\s.]*)`\)")
+PIN = re.compile(r"`((?:Export|Layout|Lifecycle|Spec)\.[^`\s]*)` \(`([^`\s.]*)`\)")
 FINGERPRINT = re.compile(r"[0-9a-f]{16}")
 TICKED = re.compile(r"`([^`\n]+)`")
 PATH = re.compile(r"[^/\s`]\S*/(\S*\.[A-Za-z][A-Za-z0-9]*)?")
@@ -71,42 +78,46 @@ THEOREMS = [
 DEFINITIONS = [
     (FPRIME / "Spec/Folding/Schedule.lean", "productionLightFoldCap"),
     (FPRIME / "Export/BoundedDepth/StepRelation.lean", "keyWidth"),
+    (FPRIME / "Spec/Nebula/SegmentGate.lean", "secureTuples"),
+    (FPRIME / "Spec/Nebula/SegmentGate.lean", "gateBits"),
 ]
 
 # Each value's symbol and meaning. A key is the left side of a theorem's equation or a field
 # path of the package header. `over_q2` shows the value as a probability `value / q^2`.
 LABELS = {
-    "productionProfile.global.q": ("q", "The field modulus, the Goldilocks prime."),
+    "productionProfile.global.q": ("q", "The field modulus, `2^64 − 59`."),
     "productionProfile.global.b": ("b", "The decomposition base and the fresh norm bound."),
     "productionProfile.global.k": ("k_rho", "The decomposition digits, and the Π_DEC children."),
     "productionProfile.global.maxFresh": ("—", "The largest fresh count with `(maxFresh + k_rho)·T·(b − 1) < B` (SuperNeo v1.2 Definition 22)."),
     "productionProfile.global.expansionT": ("T", "The expansion factor of the challenge set."),
     "productionProfile.global.bigB": ("B", "The combined norm bound, `b^k_rho`."),
-    "productionProfile.eta": ("η", "The cyclotomic index: `R_q = F_q[X]/Φ_η`."),
+    "productionProfile.eta": ("η", "The cyclotomic index: `R_q = F_q[X]/Φ_η`, and `Φ_128 = X^64 + 1`."),
     "productionProfile.ringDegree": ("d", "The ring degree, `φ(η)`."),
     "productionProfile.commitmentWidth": ("κ", "The rows of the Ajtai key."),
     "productionProfile.extensionDegree": ("—", "The degree of `K` over `F_q`."),
     "productionProfile.challengeSetBitsFloor": ("—", "A floor of `log₂ |C|`."),
-    "productionProfile.piRlcInputs": ("—", "The Π_RLC inputs of a refresh fold, the fresh claim and the 16 Π_DEC children."),
+    "productionProfile.piRlcInputs": ("—", "The Π_RLC inputs of a refresh fold, the fresh claim and the `k_rho` Π_DEC children."),
     "productionProfile.piDecChildren": ("—", "The Π_DEC children of the accumulator that a refresh fold splits."),
     "productionProfile.ccsMatrices": ("t", "The CCS matrices."),
     "NormStage.bound productionGlobalParams .fresh": ("—", "The norm bound of a fresh witness, `b`."),
     "NormStage.bound productionGlobalParams .combined": ("—", "The norm bound of a Π_RLC parent, `B`."),
     "NormStage.bound productionGlobalParams .ambient": ("—", "The ambient bound, `q/2 + 1`."),
     "productionGlobalParams.msisNormBound": ("—", "The MSIS norm `8TB` of SuperNeo v1.2 Section 8, the chain norm at cap 0."),
-    "numerator": ("—", "The numerator of the refresh fold's Π_CCS test error, 17 sources."),
+    "numerator": ("—", "The numerator of the refresh fold's Π_CCS test error, `1 + k_rho` sources."),
     "ε_test": ("ε_test", "The refresh fold's Π_CCS test error, `numerator / q²`.", "over_q2"),
     "testNumerator (shape 28) 8": ("—", "The numerator of the light fold's Π_CCS test error, 2 sources."),
     "ε_test light": ("—", "The light fold's Π_CCS test error, `testNumerator / q²`.", "over_q2"),
-    "forkCoordinates": ("—", "The `ρ` coordinates of a light fork. A refresh fork has 17."),
+    "forkCoordinates": ("—", "The `ρ` coordinates of a light fork. A refresh fork has `1 + k_rho`."),
     "msisChainBound productionGlobalParams productionLightFoldCap": ("—", "The chain MSIS norm `8T(B + cap·T·(b − 1))`."),
     "productionLightFoldCap": ("cap", "The depth at which the light circuit rejects a fold."),
     "keyWidth": ("—", "The logical width of both circuit keys, `2^26`."),
+    "secureTuples": ("—", "The bound of section 7.1, rule 6 on `m_mem = R + M + N · B_ops`."),
+    "gateBits": ("—", "The bits that the memory gate certifies for all segments of each fixed WASM size (section 7.1)."),
 }
 # The header fields of a step package (`StepPackage.Package.format`) and the row counts of the
 # parity file, for each circuit.
 HEADER_LABELS = {
-    "circuit": "The circuit index: 0 light, 1 refresh, 2 finish.",
+    "circuit": "The circuit index: 0 light, 1 refresh.",
     "publicColumns": "The public input columns, five ring elements.",
     "width": "The source width. Every source column is below it.",
     "firstFresh": "The first fresh lowering column.",
@@ -124,7 +135,7 @@ PARITY_LABELS = {
     "relationRows": "R1CS rows of the {} relation, from the pieces and the ring products.",
     "sboxRows": "S-box rows of the {} relation, 150 for each Poseidon2 block.",
 }
-for circuit in ("light", "refresh", "finish"):
+for circuit in ("light", "refresh"):
     LABELS.update({f"{circuit}.{field}": ("—", meaning) for field, meaning in HEADER_LABELS.items()})
 for circuit in ("light", "refresh"):
     LABELS.update({f"{circuit}.{field}": ("—", meaning.format(circuit))
@@ -312,6 +323,34 @@ def path_errors(text):
                    f"{', '.join(rel(base) or '.' for base in BASES)}")
 
 
+def entry_point_errors(text):
+    """Each public verifier of the `nightstream` crate has one row, and each row has one pinned
+    theorem of the premise list or starts with `Open:`."""
+    if text.count(ENTRY_BEGIN) != 1 or text.count(ENTRY_END) != 1:
+        yield f"SPEC.md needs one {ENTRY_BEGIN} … {ENTRY_END} table"
+        return
+    rows = {}
+    for line in text.split(ENTRY_BEGIN)[1].split(ENTRY_END)[0].splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        found = re.match(r"`(crates/[^`]+)`, (?:`(\w+)`)?", cells[0])
+        if len(cells) == 3 and found:
+            rows[(found.group(1), found.group(2))] = cells[2]
+    listed = {line.split("\t")[0] for line in PREMISES.read_text(encoding="utf-8").splitlines()}
+    for (path, name), theorem in rows.items():
+        pins = PIN.findall(theorem)
+        if theorem.startswith("Open:"):
+            continue
+        if len(pins) != 1:
+            yield f"entry point `{path}` `{name}` needs exactly one pinned theorem, or `Open:`"
+        elif pins[0][0] not in listed:
+            yield (f"`{pins[0][0]}` of entry point `{path}` `{name}` is not in {rel(PREMISES)}: "
+                   "add it to tests/PremiseCensus.lean")
+    for source in sorted((ROOT / "crates/nightstream/src").rglob("*.rs")):
+        for name in ENTRY_FUNCTION.findall(source.read_text(encoding="utf-8")):
+            if (rel(source), name) not in rows:
+                yield f"`{rel(source)}` `{name}` is a public verifier without an entry-point row"
+
+
 def tracked_files():
     listing = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True)
     return [path for path in listing.stdout.decode("utf-8").split("\0") if path]
@@ -355,7 +394,7 @@ def main():
         args.spec.write_text(new, encoding="utf-8")
         print(f"spec: wrote the parameters table of {args.spec.name}")
         return
-    errors = [*pin_errors(text), *path_errors(text)]
+    errors = [*pin_errors(text), *path_errors(text), *entry_point_errors(text)]
     if new != text:
         errors.append("the parameters table is stale; run python3 scripts/check_spec.py --write")
     for error in errors:

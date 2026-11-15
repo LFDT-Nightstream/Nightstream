@@ -2,7 +2,7 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.Keys
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain
 
 /-! The light Π_RLC challenge: one production sampler at coordinate 0 (`lightChallenge`). The
-`Sampler` gadget has 2,927 rows (`Sampler.counts`); today's step samples 17 challenges. -/
+`Sampler` gadget has 3,101 rows (`Sampler.counts`); today's step samples 15 challenges. -/
 
 namespace NightstreamFPrime.Lifecycle.BoundedDepth.LightSampler
 
@@ -25,7 +25,7 @@ theorem challenge_eq (interface : Sampler.Interface) (env : Env) (offset : Nat)
 
 theorem challenge_valid (interface : Sampler.Interface) (env : Env) (offset : Nat)
     (spec : Sampler.SpecHolds interface 0 offset env) :
-    Phi81Relation.PiRLCAlgebra.Challenge.challengeValid
+    RingRelation.PiRLCAlgebra.Challenge.challengeValid
       (fun position => (Sampler.outputChallenge offset position).eval env) := by
   rw [challenge_eq interface env offset spec]
   exact lightChallenge_valid _

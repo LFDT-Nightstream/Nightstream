@@ -1,10 +1,9 @@
 # Nightstream
 
-The `nightstream` crate proves the steps of an application recursively,
-verifies the proofs, and compresses a proof into a final proof. Lean emits
-three circuit packages in `formal/nightstream-fprime/artifacts`. They are the
-light step circuit, the refresh step circuit and the finish circuit. The
-crate embeds them as zstd copies (`artifacts/README.md`). Builds and proofs do
+The `nightstream` crate proves the steps of an application recursively and
+verifies the proofs. Lean emits the light step circuit and the refresh step
+circuit as packages in `formal/nightstream-fprime/artifacts`. The crate
+embeds them as zstd copies (`artifacts/README.md`). Builds and proofs do
 not run Lean.
 
 ## Compile an application
@@ -17,14 +16,13 @@ circuit.write("app.nsc")?;
 ```
 
 `Circuit::compile` puts the Rust application in place of the Lean application
-in both step circuits of the three embedded packages. The reference hash chain
+in both embedded step circuits. The reference hash chain
 (`poseidon2_hash_chain_v1`) keeps Lean's packages, because it computes the step
 of Lean's application region, so its circuit is the one that the Lean checks
 read. The crate decodes the
-packages once per process, and their identities are their pins
-(`BOUNDED_DEPTH_PACKAGES_IDENTITY` and `BOUNDED_DEPTH_FINISH_IDENTITY` in
-`nightstream-fprime`). A test checks that each embedded copy hashes to its
-pin (`artifacts/README.md`). `Circuit::identity` returns the identity of
+packages once per process, and their identity is its pin
+(`BOUNDED_DEPTH_PACKAGES_IDENTITY` in `nightstream-fprime`). A test checks
+that the embedded copies hash to the pin (`artifacts/README.md`). `Circuit::identity` returns the identity of
 the packages with this application.
 
 `Circuit::write` saves only the application. The destination must not exist.
@@ -48,14 +46,17 @@ verifier.verify(&State::new(2, initial_state, expected_state), &second)?;
 
 The caller sets `minimum_security_bits` from its own security policy. The
 value must be positive. Prover and verifier creation fail when the
-statistical security of a step relation is below this minimum. That
-security is the zero-query error of a refresh fold in Lean's
-random-oracle result, about `2^-109.4`, so the selected profile accepts
-a minimum of at most 109 bits.
+statistical security of a step relation is below this minimum. The gate
+charges one error for both folds, which bounds the zero-query statistical
+term of either fold in Lean's random-oracle result. Rust computes the error
+and its bits in integers, and Lean emits the same bits: 115 for each step
+relation (`SPEC.md` section 3). So the selected profile accepts a minimum of
+at most 115 bits. The memory fingerprint term of a Nebula circuit accepts at
+most 109 bits (`SPEC.md` section 7.1).
 
 `minimum_security_bits` is not an end-to-end security claim. It gates the
-selected one-fold error. A Nebula circuit also compares it with one memory
-fingerprint challenge. The deployment must account separately for recursive
+selected one-fold error. A Nebula circuit also compares it with the memory
+fingerprint term of its maximum number of segments. The deployment must account separately for recursive
 depth, adversary queries, failed retries, and concurrent attempts.
 
 Steps prove and verify on the CPU path only (`Engine::Optimized`).
@@ -72,8 +73,8 @@ At iteration 0, the current state must equal `z0`. At a later iteration, the
 public input of the fresh instance must be the hash of the state with both
 slots. The claim of each slot must hold under the relation of its circuit.
 The depth of the slot must be at most 64, and the norm of its witness must be
-at most `(17 + depth) · 216`, the bound of an honest slot at that depth. So
-`extend` and `finish` work on each proof that `verify` accepts. The fresh
+at most `(15 + depth) · 128`, the bound of an honest slot at that depth. So
+`extend` works on each proof that `verify` accepts. The fresh
 instance must hold under the relation of the circuit that ran last.
 
 `Prover::encode_proof` returns the strict bytes of a proof with its
@@ -98,39 +99,17 @@ that instance. There are two kinds of fold.
   over the fresh instance and the accumulator, then Π_RLC with the weights ρ
   and 1. It adds 1 to the depth.
 - A refresh fold runs when the depth is 64. Π_DEC splits the accumulator into
-  16 children. Then Π_CCS runs over the fresh instance and the 16 children,
-  and Π_RLC runs with 17 sampled challenges. The depth becomes 0.
+  14 children. Then Π_CCS runs over the fresh instance and the 14 children,
+  and Π_RLC runs with 15 sampled challenges. The depth becomes 0.
 
 No fold ends with Π_DEC. With `cap = 64`, the first period of steps is
 `(L^(cap+1) R)^(cap+1) R`, and each later period is `(L^(cap+1) R)^cap R`
 (`src/lifecycle/bounded_depth/mod.rs`, `src/folding/bounded_depth.rs`).
 
-## Final proof
-
-`Prover::compression_setup(dir)` writes the two layer-1 setups into the
-existing directory `dir`, and returns them with their key.
-`Prover::open_compression_setup(dir)` reopens those files after a restart.
-It derives the keys from the current circuit's relations and checks the files
-against those keys. The files do not supply a trusted key.
-`Prover::compress(&proof, &setup)` compresses a proof. The proof does not
-change. The last fold is a refresh fold of the last fresh instance into its
-slot. Then one layer-1 proof (`neo-spartan`) for each slot proves the claim of
-that slot under the relation of its circuit. Last, a shrink proof shows that
-the final program accepts. The final program is the rows of the finish
-package and the two layer-1 verifiers. The final proof has no witness, and you
-cannot extend it.
-
-`Verifier::compression_key` derives the key from the relations, without
-files. Use this key, or a copy that you pinned, as the authority for
-`Verifier::verify_final`. Do not take the key from a prover.
-`Verifier::verify_final(expected, key, final_proof)` checks a final proof
-against the expected state. `formal/compression-lean` proves a soundness bound
-for this final verifier under the assumptions in its `TRUST.md`.
-
 ## Applications
 
 `nightstream::application` builds applications. An application reads four
-Goldilocks state words and a number of private input words, and writes four
+field state words and a number of private input words, and writes four
 state words. `ApplicationBuilder` gives affine operations, multiplication and
 equality assertions. `poseidon2_hash_chain_v1` is the reference application.
 `poseidon2_hash_chain_step` computes its step natively.
@@ -145,10 +124,10 @@ The tests read the Lean packages in `formal/nightstream-fprime/artifacts` and
 the recorded Lean outputs in [`tests/fixtures`](tests/fixtures/README.md).
 They do not run Lean.
 
-- `tests/application_poseidon2.rs` compares the Rust Poseidon2 application
-  with the recorded Lean application, row by row and value by value.
+- `tests/application/poseidon2.rs` compares the rows of the Rust Poseidon2
+  application with the row digest of the Lean application.
 - `tests/bounded_depth_api.rs` runs the public API from compilation to
-  `verify_final`.
+  `verify`.
 - `tests/bounded_depth_lifecycle/` holds the lifecycle tests. They compile into
   the library, so `--lib lifecycle::` selects them.
 
@@ -168,7 +147,7 @@ The binary writes one JSON line when each phase starts and stops. Only
 ```sh
 cargo build -p nightstream --release --bin nightstream-poseidon2-bench
 timeout --signal=KILL 300 target/release/nightstream-poseidon2-bench compile --output app.nsc > compile.jsonl
-/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine optimized --steps 3 --minimum-security-bits 109 > cpu.jsonl 2> cpu.time
+/usr/bin/time -l timeout --foreground --signal=KILL 300 target/release/nightstream-poseidon2-bench run --package app.nsc --engine optimized --steps 3 --minimum-security-bits 115 > cpu.jsonl 2> cpu.time
 ```
 
 The 300-second cap comes from the repository `AGENTS.md`. A run that reaches

@@ -285,7 +285,7 @@ pub struct WasmStepState {
     /// (the event absorb) read it only on rows of the event that set it, so
     /// the stale value between events is inert.
     pub host_callee_fref: u32,
-    /// Active commitment chain (canonical Goldilocks limbs; see [`crate::comm_chain`]).
+    /// Active commitment chain (canonical field limbs; see [`crate::comm_chain`]).
     /// Each permutation folds into this chain. Opaque Enter saves it in
     /// `event_absorb.outer_chain` and resets it to zero; the final root-copy
     /// restores it. Outside object mode this is the outer transcript commitment.

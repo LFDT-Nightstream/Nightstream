@@ -19,14 +19,14 @@ def phaseInterface :
     (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 private theorem samplerFreshCount
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     R1CS.totalFreshCount
         (NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.samplerPacketConstraints
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset) =
-      2448 := by
+      0 := by
   unfold NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.samplerPacketConstraints
   exact NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain.totalFreshCount_eq
     (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerInterface
@@ -40,7 +40,7 @@ private theorem commitmentFreshCount
     R1CS.totalFreshCount
         (NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.commitmentPacketConstraints
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset) =
-      3029400 := by
+      2246400 := by
   unfold NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.commitmentPacketConstraints
   rw [NightstreamFPrime.Layout.PiRLC.v1_2.CommitmentCombination.totalFreshCount_eq]
   exact (PiRLCInputs.inputShapes relation).commitmentFresh
@@ -50,7 +50,7 @@ private theorem publicInputFreshCount
     R1CS.totalFreshCount
         (NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.publicInputPacketConstraints
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset) =
-      688500 := by
+      624000 := by
   unfold NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.publicInputPacketConstraints
   rw [NightstreamFPrime.Layout.PiRLC.v1_2.PublicInputCombination.totalFreshCount_eq]
   exact (PiRLCInputs.inputShapes relation).publicInputFresh
@@ -60,7 +60,7 @@ private theorem evalKFreshCount
     R1CS.totalFreshCount
         (NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.evalKPacketConstraints
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset) =
-      275400 := by
+      249600 := by
   unfold NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.evalKPacketConstraints
   rw [NightstreamFPrime.Layout.PiRLC.v1_2.EvalKCombination.totalFreshCount_eq]
   exact (PiRLCInputs.inputShapes relation).evalKFresh
@@ -194,27 +194,27 @@ theorem sourcePhysicalRows_imply_packets
 
 structure RemappedPacketRowsHold (env : Env) : Prop where
   sampler : R1CS.RowsHold env
-    (Spartan.remapRows (R1CS.lowerConstraints
+    (PackageOrder.remapRows (R1CS.lowerConstraints
       (NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.samplerPacketConstraints
         phaseInterface PiRLCInputs.phaseOffset)
       PiRLCStarts.samplerFreshStart).rows)
   commitment : R1CS.RowsHold env
-    (Spartan.remapRows (R1CS.lowerConstraints
+    (PackageOrder.remapRows (R1CS.lowerConstraints
       (NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.commitmentPacketConstraints
         phaseInterface PiRLCInputs.phaseOffset)
       PiRLCStarts.commitmentFreshStart).rows)
   publicInput : R1CS.RowsHold env
-    (Spartan.remapRows (R1CS.lowerConstraints
+    (PackageOrder.remapRows (R1CS.lowerConstraints
       (NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.publicInputPacketConstraints
         phaseInterface PiRLCInputs.phaseOffset)
       PiRLCStarts.publicInputFreshStart).rows)
   evalK : R1CS.RowsHold env
-    (Spartan.remapRows (R1CS.lowerConstraints
+    (PackageOrder.remapRows (R1CS.lowerConstraints
       (NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.evalKPacketConstraints
         phaseInterface PiRLCInputs.phaseOffset)
       PiRLCStarts.evalKFreshStart).rows)
   evalA : R1CS.RowsHold env
-    (Spartan.remapRows (R1CS.lowerConstraints
+    (PackageOrder.remapRows (R1CS.lowerConstraints
       (NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries.evalAPacketConstraints
         phaseInterface PiRLCInputs.phaseOffset)
       PiRLCStarts.evalAFreshStart).rows)
@@ -223,21 +223,21 @@ theorem remappedPhysicalRows_imply_packets
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env)
     (physical : R1CS.RowsHold env
-      (Spartan.remapRows
+      (PackageOrder.remapRows
         (NightstreamFPrime.Layout.PiRLC.v1_2.physicalRows relation
           (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset))) :
     RemappedPacketRowsHold env := by
   have sourcePhysical :=
-    (Spartan.remapRows_hold env
+    (PackageOrder.remapRows_hold env
       (NightstreamFPrime.Layout.PiRLC.v1_2.physicalRows relation
         (PiRLCInputs.interface (logicalWidth := logicalWidth) (publicFits := publicFits)) PiRLCInputs.phaseOffset)).mp physical
   have packets := sourcePhysicalRows_imply_packets relation
-    (Spartan.pullback env) sourcePhysical
-  exact ⟨(Spartan.remapRows_hold env _).mpr packets.sampler,
-    (Spartan.remapRows_hold env _).mpr packets.commitment,
-    (Spartan.remapRows_hold env _).mpr packets.publicInput,
-    (Spartan.remapRows_hold env _).mpr packets.evalK,
-    (Spartan.remapRows_hold env _).mpr packets.evalA⟩
+    (PackageOrder.pullback env) sourcePhysical
+  exact ⟨(PackageOrder.remapRows_hold env _).mpr packets.sampler,
+    (PackageOrder.remapRows_hold env _).mpr packets.commitment,
+    (PackageOrder.remapRows_hold env _).mpr packets.publicInput,
+    (PackageOrder.remapRows_hold env _).mpr packets.evalK,
+    (PackageOrder.remapRows_hold env _).mpr packets.evalA⟩
 
 theorem completePackets
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
@@ -246,13 +246,13 @@ theorem completePackets
     (env : Env)
     (assumptions :
       NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Assumptions relation
-        phaseInterface PiRLCInputs.phaseOffset (Spartan.pullback env))
+        phaseInterface PiRLCInputs.phaseOffset (PackageOrder.pullback env))
     (phase :
       NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds relation ajtai
-        phaseInterface PiRLCInputs.phaseOffset (Spartan.pullback env)) :
+        phaseInterface PiRLCInputs.phaseOffset (PackageOrder.pullback env)) :
     ∃ completed,
       AgreesOutside env completed
-          (Spartan.sourceToSpartan PiRLCInputs.phaseOffset) 5203853 ∧
+          (PackageOrder.sourceToPackage PiRLCInputs.phaseOffset) 4223175 ∧
         RemappedPacketRowsHold completed := by
   rcases PiRLCPhysicalCompleteness.completePhysicalRows relation ajtai env
       assumptions phase with ⟨completed, agrees, physical⟩

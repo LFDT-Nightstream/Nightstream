@@ -1,6 +1,6 @@
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightUniqueness
 import NightstreamFPrime.Lifecycle.RandomOracle.Solver
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ChainBinding
 
 /-! The light fold's MSIS solver in the random-oracle model: `Solver` on the light game
 `LightFork.game`, with the binding step of `LightUniqueness` as the kernel.
@@ -40,7 +40,7 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink (Attempt)
 attribute [local instance low] Classical.propDecidable
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
 variable (logicalWidth publicFits) in
@@ -133,7 +133,7 @@ variable (key : CircuitKey logicalWidth publicFits)
 `Light.Rlc.collisionAbove`, else different running witnesses through
 `Light.Rlc.runningCollisionAbove`, both on the forks at the chain bound. -/
 noncomputable def kernelOf (view other : View logicalWidth publicFits) :
-    Option (Phi81Relation.PiRLCAlgebra.Binding.ShortKernelVector ajtai
+    Option (RingRelation.PiRLCAlgebra.Binding.ShortKernelVector ajtai
       (Folding.Schedule.msisChainBound productionGlobalParams
         Folding.Schedule.productionLightFoldCap)) :=
   if paired : Reduction.ValidOf (LightFork.game ajtai key) view ∧
@@ -167,7 +167,7 @@ noncomputable def kernelOf (view other : View logicalWidth publicFits) :
             LightFork.strongSet ≠
           (boundedForkOf ajtai paired.2.1).freshAssignment (lightExtraction ajtai)
             LightFork.strongSet then
-      some (Phi81Relation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel ajtai _ le_rfl
+      some (RingRelation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel ajtai _ le_rfl
         (LightUniqueness.lightCollision ajtai (relation := key.relation)
           (Light.Rlc.collisionAbove (lightExtraction ajtai) _
           (LightUniqueness.compatible ajtai key.relation) LightFork.strongSet rfl
@@ -179,7 +179,7 @@ noncomputable def kernelOf (view other : View logicalWidth publicFits) :
             LightFork.strongSet ≠
           (boundedForkOf ajtai paired.2.1).runningAssignment (lightExtraction ajtai)
             LightFork.strongSet then
-      some (Phi81Relation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel ajtai _ le_rfl
+      some (RingRelation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel ajtai _ le_rfl
         (LightUniqueness.lightCollision ajtai (relation := key.relation)
           (Light.Rlc.runningCollisionAbove (lightExtraction ajtai) _
           (LightUniqueness.compatible ajtai key.relation) LightFork.strongSet rfl
@@ -214,7 +214,7 @@ theorem kernelChance_eq :
 /-- The light MSIS solver: `Reduction.solve` with kernel `kernelOf`. -/
 noncomputable def solve (budget : ℕ)
     (tape : Fin budget → LightFork.Oracle logicalWidth publicFits) :
-    Option (Phi81Relation.PiRLCAlgebra.Binding.ShortKernelVector ajtai
+    Option (RingRelation.PiRLCAlgebra.Binding.ShortKernelVector ajtai
       (Folding.Schedule.msisChainBound productionGlobalParams
         Folding.Schedule.productionLightFoldCap)) :=
   Reduction.solve (LightFork.game ajtai key) (kernelOf ajtai key) adversary budget tape

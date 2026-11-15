@@ -1,20 +1,20 @@
 import NightstreamFPrime.Export.Codec
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
-import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCoefficientKernel
+import NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.NoZeroDivisors
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiDEC
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Challenge
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Export.Codec
-open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingCoefficientKernel
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
 
 private def emitBar (path : System.FilePath) : IO Unit := do
   let handle ← IO.FS.Handle.mk path .write
-  handle.putStrLn (Value.array [.atom goldilocksModulus, .atom ringDegree]).render
+  handle.putStrLn (Value.array [.atom fieldModulus, .atom ringDegree]).render
   for output in List.finRange ringDegree do
     let row := (List.finRange ringDegree).map fun input =>
       Value.atom (nativeBarEntry output input).val
@@ -30,14 +30,14 @@ private def writeSplit (handle : IO.FS.Handle) (value : F) : IO Unit := do
 
 private def emitSplit (path : System.FilePath) : IO Unit := do
   let handle ← IO.FS.Handle.mk path .write
-  handle.putStrLn (Value.array [.atom goldilocksModulus,
+  handle.putStrLn (Value.array [.atom fieldModulus,
     .atom productionGlobalParams.b, .atom productionGlobalParams.k,
     .atom combinedBound]).render
   for magnitude in [0:combinedBound] do
     let value := fieldOfNat magnitude
     writeSplit handle value
     if magnitude != 0 then writeSplit handle (-value)
-  for magnitude in [combinedBound, combinedBound + 1, goldilocksModulus / 2] do
+  for magnitude in [combinedBound, combinedBound + 1, fieldModulus / 2] do
     let value := fieldOfNat magnitude
     writeSplit handle value
     writeSplit handle (-value)

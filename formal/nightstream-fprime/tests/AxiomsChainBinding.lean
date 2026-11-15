@@ -1,10 +1,10 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Folding.Light.Binding
 import NightstreamFPrime.Spec.Folding.Light.RunningBinding
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ChainBinding
 import NightstreamFPrime.Lifecycle.Nifs.BindingBridge
 import NightstreamFPrime.Spec
-import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
+import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FieldCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
@@ -17,6 +17,6 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.running_eq_of_cross
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.base_difference_commits
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.runningCollisionAbove
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding.collisionAt_to_shortKernel
-#audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel
+#audit_axioms NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Binding.collisionAt_to_shortKernel
+#audit_axioms NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel
 #audit_axioms NightstreamFPrime.Lifecycle.Nifs.BindingBridge.differenceBounded

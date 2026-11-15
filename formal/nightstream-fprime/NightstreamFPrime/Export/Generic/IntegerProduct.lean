@@ -5,7 +5,7 @@ set_option autoImplicit false
 namespace NightstreamFPrime.Export.Generic.IntegerProduct
 
 open NightstreamFPrime.Spec
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
 open Fin.CommRing
 
 def base : Nat := 4194304
@@ -14,13 +14,13 @@ theorem column_bounds (p0 p1 p2 addend carry digit next : Nat)
     (h0 : p0 < base * base) (h1 : p1 < base * base) (h2 : p2 < base * base)
     (ha : addend < base) (hc : carry < 16777216)
     (hd : digit < base) (hn : next < 16777216) :
-    p0 + p1 + p2 + addend + carry < goldilocksModulus ∧
-      digit + base * next < goldilocksModulus := by
-  dsimp [base, goldilocksModulus] at *
+    p0 + p1 + p2 + addend + carry < fieldModulus ∧
+      digit + base * next < fieldModulus := by
+  dsimp [base, fieldModulus] at *
   omega
 
 theorem column_field_iff (left right : Nat)
-    (hl : left < goldilocksModulus) (hr : right < goldilocksModulus) :
+    (hl : left < fieldModulus) (hr : right < fieldModulus) :
     fieldOfNat left = fieldOfNat right ↔ left = right := by
   constructor
   · intro equal

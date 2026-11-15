@@ -82,51 +82,36 @@ inline void production_keccak_f(thread ulong *st) {
     for (uint round = 0; round < 24; ++round) production_keccak_round(st, PRODUCTION_KECCAK_RC[round]);
 }
 
-// For x = 2^32, x^2 = x - 1 and x^6 = 1, so a 32-byte chunk reduces to a + b*x.
-inline long2 wide256_signed_halves(ulong q0, ulong q1, ulong q2, ulong q3) {
-    uint w0 = (uint)q0, w1 = (uint)(q0 >> 32), w2 = (uint)q1, w3 = (uint)(q1 >> 32);
-    uint w4 = (uint)q2, w5 = (uint)(q2 >> 32), w6 = (uint)q3, w7 = (uint)(q3 >> 32);
-    return long2((long)w0 - w2 - w3 + w5 + w6, (long)w1 + w2 - w4 - w5 + w7);
-}
+// One key element reads four blocks of the SHAKE128 rate: 84 words (Lean `AjtaiSetupV1.keyWords`).
+constant uint PRODUCTION_KEY_BLOCKS = 4;
 
-inline ulong production_wide_coefficient(ulong q0, ulong q1, ulong q2, ulong q3) {
-    long2 halves = wide256_signed_halves(q0, q1, q2, q3);
-    long a = halves.x;
-    long b = halves.y;
-    ulong a_field = a < 0 ? GOLDILOCKS_MODULUS - (ulong)(-a) : (ulong)a;
-    ulong b_field = b < 0 ? GOLDILOCKS_MODULUS - (ulong)(-b) : (ulong)b;
-    return gl_add(a_field, gl_mul_native(b_field, 1ul << 32));
-}
-
-// Input: SHAKE128(setup ID ‖ seed ‖ row_u32_le ‖ column_u64_le), 81 bytes. `prefix` holds bytes 0..68.
+// Input: SHAKE128(setup ID ‖ seed ‖ row_u32_le ‖ column_u64_le), 82 bytes. `prefix` holds the 70
+// bytes of the setup ID and the seed.
+// Coefficient L is the L-th output word below q, and 0 when fewer than L + 1 words are below q
+// (Lean `AjtaiSetupV1.keptCoefficientNat`).
 inline void production_ajtai_element(
     device const ulong *prefix, uint row, ulong column, device ulong *out, ulong stride) {
     ulong st[25];
     for (uint i = 0; i < 25; ++i) st[i] = 0;
     for (uint i = 0; i < 9; ++i) st[i] = prefix[i];
-    st[8] |= ((ulong)row & 0xFFFFFFul) << 40;
-    st[9] = ((ulong)row >> 24) | (column << 8);
-    // Byte 80 is the last column byte; byte 81 starts the SHAKE padding.
-    st[10] = (column >> 56) | (0x1Ful << 8);
+    st[8] |= ((ulong)row & 0xFFFFul) << 48;
+    st[9] = ((ulong)row >> 16) | (column << 16);
+    // Byte 81 is the last column byte; byte 82 starts the SHAKE padding.
+    st[10] = (column >> 48) | (0x1Ful << 16);
     st[PRODUCTION_SHAKE128_RATE_LANES - 1] ^= 0x80ul << 56;
-    // The last four lanes shift through q0..q3, so every state index stays fixed.
-    ulong q0 = 0, q1 = 0, q2 = 0, q3 = 0;
-    uint words = 0, lane = 0;
-    for (;;) {
+    uint kept = 0;
+    for (uint block = 0; block < PRODUCTION_KEY_BLOCKS; ++block) {
         production_keccak_f(st);
         #pragma unroll
         for (uint i = 0; i < PRODUCTION_SHAKE128_RATE_LANES; ++i) {
-            q0 = q1;
-            q1 = q2;
-            q2 = q3;
-            q3 = st[i];
-            if (++words == 4) {
-                out[lane * stride] = production_wide_coefficient(q0, q1, q2, q3);
-                words = 0;
-                if (++lane == RING_DEGREE) return;
+            ulong word = st[i];
+            if (kept < RING_DEGREE && word < FQ_MODULUS) {
+                out[kept * stride] = word;
+                ++kept;
             }
         }
     }
+    for (; kept < RING_DEGREE; ++kept) out[kept * stride] = 0;
 }
 
 kernel void production_key_row(
@@ -139,49 +124,48 @@ kernel void production_key_row(
     production_ajtai_element(prefix, (uint)shape[4], columns[position], slab + position * RING_DEGREE, 1);
 }
 
-struct ProductionHalfSums {
-    ulong low_lo;
-    ulong low_hi;
-    ulong high_lo;
-    ulong high_hi;
-};
-
+// X^RING_DEGREE = -1: a shift that passes the last lane adds to `wrapped`,
+// the sum of the opposite sign.
 inline void production_add_bits(
-    uint bits, uint offset, device const uint2 *key, uint lane, thread ProductionHalfSums &sums) {
+    uint bits,
+    uint offset,
+    device const uint2 *key,
+    uint lane,
+    thread HalfSums &direct,
+    thread HalfSums &wrapped) {
     while (bits != 0) {
         uint shift = offset + ctz(bits);
         bits &= bits - 1;
         bool low = lane >= shift;
         uint2 value = key[low ? lane - shift : lane + RING_DEGREE - shift];
-        sums.low_lo += low ? value.x : 0u;
-        sums.low_hi += low ? value.y : 0u;
-        sums.high_lo += low ? 0u : value.x;
-        sums.high_hi += low ? 0u : value.y;
+        direct.lo += low ? value.x : 0u;
+        direct.hi += low ? value.y : 0u;
+        wrapped.lo += low ? 0u : value.x;
+        wrapped.hi += low ? 0u : value.y;
     }
 }
 
 inline void production_add_digits(
-    ulong digits, device const ulong *key, uint lane, thread ProductionHalfSums &sums) {
+    ulong digits,
+    device const ulong *key,
+    uint lane,
+    thread HalfSums &direct,
+    thread HalfSums &wrapped) {
     device const uint2 *halves = (device const uint2 *)key;
-    production_add_bits((uint)digits, 0, halves, lane, sums);
-    production_add_bits((uint)(digits >> 32), 32, halves, lane, sums);
-}
-
-inline ulong production_join_halves(ulong lo, ulong hi) {
-    ulong low = lo + (hi << 32);
-    ulong high = (hi >> 32) + (low < lo ? 1ul : 0ul);
-    return gl_reduce_sum(low, high);
+    production_add_bits((uint)digits, 0, halves, lane, direct, wrapped);
+    production_add_bits((uint)(digits >> 32), 32, halves, lane, direct, wrapped);
 }
 
 // The integer work is 32-bit where it can be: the GPU emulates 64-bit
-// operations, and this loop is ALU-bound.
+// operations, and this loop is ALU-bound. A thread owns one lane of one
+// witness and one column group: at most `columns_per_group * RING_DEGREE`
+// terms for each sum.
 kernel void production_ajtai_accumulate(
     device const ulong *key [[buffer(0)]],
     device const ulong2 *masks [[buffer(1)]],
     device const ulong *shape [[buffer(2)]],
     device ulong *partials [[buffer(3)]],
     device const uint *key_columns [[buffer(4)]],
-    threadgroup ulong *scratch [[threadgroup(0)]],
     uint group_index [[threadgroup_position_in_grid]],
     uint thread_index [[thread_index_in_threadgroup]]) {
     ulong count = shape[0];
@@ -190,43 +174,23 @@ kernel void production_ajtai_accumulate(
     ulong columns_per_group = shape[3];
     ulong witnesses_per_group = shape[5];
     ulong group = group_index % groups;
-    uint lane = thread_index % 64;
-    ulong witness = (group_index / groups) * witnesses_per_group + thread_index / 64;
-    bool active = witness < witnesses && lane < RING_DEGREE;
-    ProductionHalfSums positive = {0, 0, 0, 0};
-    ProductionHalfSums negative = {0, 0, 0, 0};
+    uint lane = thread_index % RING_DEGREE;
+    ulong witness = (group_index / groups) * witnesses_per_group + thread_index / RING_DEGREE;
+    if (witness >= witnesses) {
+        return;
+    }
+    HalfSums positive = {0, 0};
+    HalfSums negative = {0, 0};
     ulong first = group * columns_per_group;
     ulong end = min(first + columns_per_group, count);
-    if (active) {
-        for (ulong position = first; position < end; ++position) {
-            ulong2 digits = masks[witness * count + position];
-            device const ulong *element = key + (ulong)key_columns[position] * RING_DEGREE;
-            production_add_digits(digits.x, element, lane, positive);
-            production_add_digits(digits.y, element, lane, negative);
-        }
+    for (ulong position = first; position < end; ++position) {
+        ulong2 digits = masks[witness * count + position];
+        device const ulong *element = key + (ulong)key_columns[position] * RING_DEGREE;
+        production_add_digits(digits.x, element, lane, positive, negative);
+        production_add_digits(digits.y, element, lane, negative, positive);
     }
-    threadgroup ulong *raw = scratch + (thread_index / 64) * RING_PRODUCT_COEFFICIENTS;
-    if (active) {
-        raw[lane] = gl_sub(
-            production_join_halves(positive.low_lo, positive.low_hi),
-            production_join_halves(negative.low_lo, negative.low_hi));
-        if (lane + RING_DEGREE < RING_PRODUCT_COEFFICIENTS) {
-            raw[lane + RING_DEGREE] = gl_sub(
-                production_join_halves(positive.high_lo, positive.high_hi),
-                production_join_halves(negative.high_lo, negative.high_hi));
-        }
-    }
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-    if (active) {
-        ulong value;
-        if (lane < RING_DEGREE / 2) {
-            value = gl_sub(raw[lane], raw[lane + RING_DEGREE]);
-            if (lane + 81 < RING_PRODUCT_COEFFICIENTS) value = gl_add(value, raw[lane + 81]);
-        } else {
-            value = gl_sub(raw[lane], raw[lane + RING_DEGREE / 2]);
-        }
-        partials[(witness * groups + group) * RING_DEGREE + lane] = value;
-    }
+    partials[(witness * groups + group) * RING_DEGREE + lane] =
+        fq_sub(half_sums_reduce(positive), half_sums_reduce(negative));
 }
 
 kernel void production_ajtai_sum_groups(
@@ -239,25 +203,7 @@ kernel void production_ajtai_sum_groups(
     ulong coefficient = index % RING_DEGREE;
     ulong value = 0;
     for (ulong group = 0; group < groups; ++group) {
-        value = gl_add(value, partials[(witness * groups + group) * RING_DEGREE + coefficient]);
+        value = fq_add(value, partials[(witness * groups + group) * RING_DEGREE + coefficient]);
     }
     output[index] = value;
-}
-
-// One key row's part of Σ_i λ_i·a_i: out[3e + c] = (out[3e + c] +) λ[c]·row[e]
-// for every coefficient e < shape[0]; shape[1] = 1 starts the sum. λ is a
-// cubic-extension value given as its three base coordinates.
-kernel void production_key_weights(
-    device const ulong *row [[buffer(0)]],
-    device ulong *out [[buffer(1)]],
-    device const ulong *power [[buffer(2)]],
-    device const ulong *shape [[buffer(3)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong value = row[index];
-    bool first = shape[1] != 0;
-    for (uint c = 0; c < 3; ++c) {
-        ulong term = gl_mul(value, power[c]);
-        ulong at = 3 * (ulong)index + c;
-        out[at] = first ? term : gl_add(out[at], term);
-    }
 }

@@ -1,13 +1,13 @@
 import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Lifecycle.Transcript
-import NightstreamFPrime.Spec.GoldilocksPrime
-import NightstreamFPrime.Spec.Phi81StrongSet.Cardinality
+import NightstreamFPrime.Spec.FieldPrime
+import NightstreamFPrime.Spec.RingStrongSet.Cardinality
 import NightstreamFPrime.Spec.ProductionRelation
 import NightstreamFPrime.Spec.Folding.Nifs.PaperProfile
 import NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout
 import NightstreamFPrime.Spec.Folding.Nifs
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
+import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Challenge
 
 namespace NightstreamFPrime.Lifecycle.ProductionKey
 
@@ -21,24 +21,24 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 
 structure LogicalRelation (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns <=
-      Phi81CarrierLayout.carrierWidth logicalWidth) where
+      RingCarrierLayout.carrierWidth logicalWidth) where
   matrices : Fin productionProfile.ccsMatrices →
     PaperLinearAlgebra.BooleanMatrix F cubeVariables logicalWidth
-  cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth <= 2 ^ cubeVariables
+  cubeFits : RingCarrierLayout.carrierWidth logicalWidth <= 2 ^ cubeVariables
 
 def LogicalRelation.system
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns <=
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : LogicalRelation logicalWidth publicFits) :
-    Phi81Relation.Structure (FullShape logicalWidth publicFits) where
+    RingRelation.Structure (FullShape logicalWidth publicFits) where
   matrices := relation.matrices
   constraintPolynomial := ProductionRelation.polynomial
 
 @[simp] theorem LogicalRelation.system_constraintPolynomial
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns <=
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : LogicalRelation logicalWidth publicFits) :
     relation.system.constraintPolynomial = ProductionRelation.polynomial := by
   rfl
@@ -47,7 +47,7 @@ section
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns <=
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 
 def degreeBound (_relation : LogicalRelation logicalWidth publicFits) : Nat := 8
@@ -63,7 +63,7 @@ theorem derivedDegreeBound_eq
       (ConstraintPolynomialLift.liftConstraintPolynomial K.embed
         (matrixSource relation.system).constraintPolynomial
         ).canonicalEqualityGatedDegreeBound 4 = degreeBound relation := by
-  unfold degreeBound matrixSource Phi81MatrixSource.source
+  unfold degreeBound matrixSource RingMatrixSource.source
   rw [ConstraintPolynomialLift.liftConstraintPolynomial_canonicalEqualityGatedDegreeBound]
   change Nat.max
     ProductionRelation.polynomial.canonicalEqualityGatedDegreeBound 4 = 8
@@ -73,8 +73,8 @@ theorem derivedDegreeBound_eq
 abbrev KeyType (relation : LogicalRelation logicalWidth publicFits) :=
   Key K PaperAlgebra.Commitment
     (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
-    RingF Transcript.State productionShape (Phi81CarrierLayout.carrierWidth logicalWidth)
-    (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
+    RingF Transcript.State productionShape (RingCarrierLayout.carrierWidth logicalWidth)
+    (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth))
     (degreeBound relation)
 
 def priorDigest
@@ -115,7 +115,7 @@ theorem piRlcResponse_valid
     (response : Fin (Nifs.PaperProfile.arity).total → RingF)
     (returned : piRlcResponse state = some response)
     (index : Fin (Nifs.PaperProfile.arity).total) :
-    Phi81Relation.PiRLCAlgebra.Challenge.challengeValid (response index) := by
+    RingRelation.PiRLCAlgebra.Challenge.challengeValid (response index) := by
   have same := Option.some.inj returned
   rw [← same]
   exact Transcript.PiRlcSampler.piRlcChallenges_member state _ index
@@ -130,7 +130,7 @@ noncomputable def key (relation : LogicalRelation logicalWidth publicFits)
   baseOps := baseOps
   baseLaws := baseLaws
   baseZero := baseZeroAgreement
-  noZeroDivisors := GoldilocksPrime.baseFieldNoZeroDivisors
+  noZeroDivisors := FieldPrime.baseFieldNoZeroDivisors
   extensionOps := extensionOps
   extensionLaws := extensionLaws
   extensionZeroLaws := extensionZeroLaws
@@ -145,22 +145,22 @@ noncomputable def key (relation : LogicalRelation logicalWidth publicFits)
   outputCount_eq := rfl
   kPositive := by decide
   cubeLayout := NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout.layout cubeVariables
-    (Phi81CarrierLayout.carrierWidth logicalWidth) relation.cubeFits
+    (RingCarrierLayout.carrierWidth logicalWidth) relation.cubeFits
   matrixSource := matrixSource relation.system
   degreeBoundExact := derivedDegreeBound_eq relation
-  constantLaw := Phi81CoefficientKernel.phi81ConstantTermLaw
+  constantLaw := RingCoefficientKernel.ringConstantTermLaw
   challengeSetSize := productionChallengeSetCardinality
   piRlcSemantics := semantics ajtai
   openingAgreement := openingAgreement ajtai
   ambientAgreement := ambientAgreement ajtai
     (NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout.layout cubeVariables
-      (Phi81CarrierLayout.carrierWidth logicalWidth) relation.cubeFits)
+      (RingCarrierLayout.carrierWidth logicalWidth) relation.cubeFits)
     relation.system
   evaluationAgreement := by
     intro assignment point
     exact ⟨True.intro, evaluations_eq_paper ajtai
       (NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout.layout cubeVariables
-        (Phi81CarrierLayout.carrierWidth logicalWidth) relation.cubeFits)
+        (RingCarrierLayout.carrierWidth logicalWidth) relation.cubeFits)
       relation.system assignment point⟩
   piRlcEvaluationsSize := semantics_evaluations_size ajtai
   piRlcAlgebra := piRlcAlgebra ajtai
@@ -181,9 +181,9 @@ theorem key_challengeSetSize_cardinality
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (key relation ajtai).challengeSetSize =
-      Nat.card {value : RingF // Phi81StrongSet.ProductionMember value} := by
+      Nat.card {value : RingF // RingStrongSet.ProductionMember value} := by
   change productionChallengeSetCardinality = _
-  exact Phi81StrongSet.productionMember_cardinality.symm
+  exact RingStrongSet.productionMember_cardinality.symm
 
 theorem key_bigB_below_half_modulus
     (relation : LogicalRelation logicalWidth publicFits)

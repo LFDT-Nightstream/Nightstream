@@ -160,7 +160,7 @@ fn word_packing_preserves_all_ports_and_source_assignments() {
 }
 
 #[test]
-fn sixty_four_pairs_are_split_before_goldilocks_wraparound() {
+fn sixty_four_pairs_are_split_before_field_wraparound() {
     let group = Group {
         sources: vec![0, 1, 2],
         certificates: Vec::new(),

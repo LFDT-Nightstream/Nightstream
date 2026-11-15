@@ -84,9 +84,9 @@ fn the_thirty_second_pair_would_allow_modulus_wrap() {
     let mut coefficient = F::ONE;
     let mut invalid_single_row = F::ZERO;
     for index in 0..32 {
-        let (source, companion) = if index == 0 {
+        let (source, companion) = if index < 2 {
             (F::ZERO, F::ZERO)
-        } else if index >= 16 {
+        } else if index >= 3 {
             (F::NEG_ONE, F::NEG_ONE)
         } else {
             (F::ZERO, F::ONE)

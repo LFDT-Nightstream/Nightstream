@@ -1,299 +1,639 @@
-//! The bounded-depth scheme's compressed proof before the shrink layer (CW-6.2). The last
-//! fold refreshes the last step's instance into its slot (a refresh is
-//! admissible at any depth, `Schedule.Admissible`), so both slots then hold
-//! claims below their bounds and nothing is fresh. One layer-1 argument
-//! (`neo-spartan`) proves each slot's claim under its circuit's relation.
+//! The compressed proof (SPEC.md section 6): the statement, both slot claims,
+//! and an argument over the Akita commitment scheme that the verifier of
+//! `BoundedDepth::verify` accepts some witnesses for them. It carries no
+//! witness and cannot be extended.
 //!
-//! Owns the compressed proof and its native verifier. The keys are derived
-//! from the relations; nothing a proof carries is authority.
+//! The terminal check has three CE claims. Each slot's accumulator is one,
+//! with the bound of its depth. The fresh instance becomes one by a Π_CCS
+//! run with no running claim: its sum-check proves each row of the relation
+//! and that each coefficient is in {-1, 0, 1}, given the evaluations of the
+//! claim. That run binds the Akita commitment of the witnesses before its
+//! challenges, so the committed fresh witness is the one that it judges.
+//! `ns-compress` proves the three claims.
+//!
+//! The verifier does not expand the Ajtai key. `compression_setup` commits
+//! the key rows once as one polynomial, for the blocks of the larger
+//! relation up to a power of two, and `verify_final` reads the commitment
+//! from its verification key. The key is a function of the public seeds and
+//! of that power of two only, so `ns-compress` pins the key of each size,
+//! and a test computes each pinned key again from the seeds. The verifier
+//! takes the pinned key of its circuit (`compression_key`), and no proof and
+//! no prover value carries it.
+//!
+//! The soundness error is the sum of three parts. The caller's
+//! `minimum_security_bits` gates the first two, each alone and never their
+//! sum. The public API has no default for it, and no fold reaches 116 bits.
+//!
+//! 1. The Π_CCS run has the test error of one fold with one source.
+//!    `Params::for_ccs_shape` gates the larger error of a fold with 15
+//!    sources, about `2^-115.72` for the Poseidon2 hash chain.
+//! 2. The argument has the error of its batches, its lookups, its two
+//!    sum-checks and the point of `V`, `2^-119.02` for the Poseidon2 hash
+//!    chain. `ns_compress::error_bits` bounds it by `2^-119` in integers,
+//!    and `compression_layout` gates that bound.
+//! 3. The Akita opening has the knowledge error of Akita's schedule row. No
+//!    gate here computes or bounds it. The argument also needs the
+//!    verification key to hold the commitment of the Ajtai key.
 
-use std::path::Path;
+use std::time::{Duration, Instant};
 
-use neo_math::F;
+use neo_ajtai::Commitment;
+use neo_ccs::Mat;
+use neo_math::{KExtensions, D, F, K};
+use neo_reductions::optimized_engine::optimized_verify_with_profile;
+use neo_reductions::{FoldProfile, NormSources};
 use neo_transcript::{domain_chunk_v1_2, Poseidon2Transcript};
-use p3_field::PrimeCharacteristicRing;
+use nightstream_fprime::{
+    encode_digest, BoundedDepthState, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT as ROUND_COEFFICIENTS,
+    PI_CCS_V1_2_ROUND_COUNT as ROUNDS, PUBLIC_WORDS,
+};
+use ns_compress::{Layout, Norm, ProverKey, Statement, VerificationKey};
+use p3_field::PrimeField64;
 
-use super::final_program::{FinalProgram, FinalWitness, Finish};
+use super::super::encoding::{Reader, Shape, Writer};
+use super::super::ProofCodecError;
 use super::{words, BoundedDepth, BoundedDepthError, Envelope, LIGHT_FOLD_CAP};
-use crate::folding::bounded_depth::{self as fold, Kind};
-use crate::folding::{CcsClaim, CeClaim};
-use neo_spartan::shrink::{Shape, Shrink};
+use crate::folding::transcript::Transcript;
+use crate::folding::{pi_ccs, CcsClaim, CeClaim, RunningInstance};
 
-pub(super) const SEED_DOMAIN: &[u8] = b"Nightstream/OptionB/compression/v1";
+const PI_CCS_DOMAIN: &[u8] = b"Nightstream/OptionB/compress/ccs/v1";
+const MATRICES: usize = nightstream_fprime::PI_CCS_V1_2_MATRIX_COUNT;
 
-/// The verifier's constants: one layer-1 key per circuit's relation, the
-/// honest norm bound of a slot and the bits each layer must reach.
-#[derive(Clone)]
-pub(crate) struct Keys {
-    pub(super) layer1: [neo_spartan::Key; 2],
-    pub(super) bound: u32,
-    pub(super) layer_bits: f64,
-}
-
-/// The prover's layer-1 setups and their keys.
-pub(crate) struct Setups {
-    layer1: [neo_spartan::Setup; 2],
-    keys: Keys,
-}
-
-/// What finishing a proof makes before the shrink layer: the last step's
-/// claim, the last fold and its next claim, and one layer-1 proof per slot.
-pub(crate) struct Compressed {
-    fresh: CcsClaim,
-    fold: fold::Proof,
-    next: CeClaim,
-    layer1: [neo_spartan::Proof; 2],
-}
-
-impl BoundedDepth {
-    /// An error of a compression prover on the engine's accelerator. A
-    /// device failure judged nothing, so it is an engine failure.
-    fn accelerator_error(&self, error: neo_spartan::Error) -> BoundedDepthError {
-        match error {
-            neo_spartan::Error::Device(reason) => BoundedDepthError::Engine(crate::EngineError::Failure {
-                engine: self.backend.engine(),
-                reason,
-            }),
-            error => error.into(),
-        }
-    }
-
-    /// Each slot's honest bound below `B`: a slot at the cap after the
-    /// refresh's 17 sources (`Light.accumulatorBound cap`).
-    fn compression_bound(&self) -> u32 {
-        self.accumulator_bound(LIGHT_FOLD_CAP) as u32
-    }
-
-    /// Layer 1 of each slot and the shrink layer each take a quarter of the
-    /// error that the last fold leaves under the minimum.
-    fn compression_layer_bits(&self) -> Result<f64, BoundedDepthError> {
-        self.relations
-            .iter()
-            .map(|relation| relation.params().compression_security_bits())
-            .try_fold(f64::INFINITY, |bits, slot| slot.map(|slot| bits.min(slot + 2.0)))
-            .ok_or(BoundedDepthError::Statement(
-                "the fold error leaves no room under the security minimum",
-            ))
-    }
-
-    pub(crate) fn compression_keys(&self) -> Result<Keys, BoundedDepthError> {
-        Ok(Keys {
-            layer1: [
-                neo_spartan::Key::derive(&self.relations[0])?,
-                neo_spartan::Key::derive(&self.relations[1])?,
-            ],
-            bound: self.compression_bound(),
-            layer_bits: self.compression_layer_bits()?,
-        })
-    }
-
-    /// Writes both layer-1 setups under `dir` (`light/`, `refresh/`).
-    pub(crate) fn compression_setups(&self, dir: &Path) -> Result<Setups, BoundedDepthError> {
-        let build = |relation, name| -> Result<neo_spartan::Setup, BoundedDepthError> {
-            let dir = dir.join(name);
-            std::fs::create_dir_all(&dir).map_err(neo_spartan::Error::from)?;
-            Ok(neo_spartan::Setup::build(relation, &dir)?)
-        };
-        let layer1 = [
-            build(&self.relations[0], "light")?,
-            build(&self.relations[1], "refresh")?,
-        ];
-        let keys = Keys {
-            layer1: [layer1[0].key().clone(), layer1[1].key().clone()],
-            bound: self.compression_bound(),
-            layer_bits: self.compression_layer_bits()?,
-        };
-        Ok(Setups { layer1, keys })
-    }
-
-    pub(crate) fn open_compression_setups(&self, dir: &Path) -> Result<Setups, BoundedDepthError> {
-        let keys = self.compression_keys()?;
-        let layer1 = [
-            neo_spartan::Setup::open(&self.relations[0], &dir.join("light"), &keys.layer1[0])?,
-            neo_spartan::Setup::open(&self.relations[1], &dir.join("refresh"), &keys.layer1[1])?,
-        ];
-        Ok(Setups { layer1, keys })
-    }
-
-    /// The transcript that layer 1 of `slot` continues: the domain, the hash
-    /// of the state before the last fold and the slot.
-    fn layer1_seed(state: [F; 4], slot: usize) -> Poseidon2Transcript {
-        let mut transcript = Poseidon2Transcript::new_v1_2();
-        transcript.absorb_v1_2(&domain_chunk_v1_2(SEED_DOMAIN));
-        let mut words = state.to_vec();
-        words.push(F::from_u64(slot as u64));
-        transcript.absorb_v1_2(&words);
-        transcript
-    }
-
-    pub(super) fn layer1_relation<'a>(
-        keys: &'a Keys,
-        slot: usize,
-    ) -> Result<neo_spartan::Relation<'a>, BoundedDepthError> {
-        Ok(neo_spartan::Relation::new(
-            &keys.layer1[slot],
-            nightstream_fprime::PUBLIC_WORDS / neo_math::D,
-            nightstream_fprime::PI_CCS_V1_2_ROUND_COUNT,
-            keys.bound,
-            keys.layer_bits,
-        )?)
-    }
-
-    /// Compresses `envelope`, which does not change.
-    pub(crate) fn finish(&self, envelope: &Envelope, setups: &Setups) -> Result<Compressed, BoundedDepthError> {
-        let Some(fresh) = envelope.fresh.clone() else {
-            return Err(BoundedDepthError::Statement("an initial proof has no fold to finish"));
-        };
-        let selected = (envelope.pc - 1) as usize;
-        let state = self.state(envelope).hash();
-        let (next, proof) = fold::prove(
-            Kind::Refresh,
-            &self.backend,
-            self.relations[selected].context(),
-            fresh.clone(),
-            envelope.slots[selected].accumulator.clone(),
-        )?;
-        self.backend.release_commitment_key()?;
-        let accelerator = self.backend.accelerator();
-        let mut accumulators = [
-            envelope.slots[0].accumulator.clone(),
-            envelope.slots[1].accumulator.clone(),
-        ];
-        accumulators[selected] = next.clone();
-        let layer1 = [0, 1].map(|slot| {
-            let relation = Self::layer1_relation(&setups.keys, slot)?;
-            neo_spartan::prove(
-                &relation,
-                &setups.layer1[slot],
-                &accelerator,
-                Self::layer1_seed(state, slot),
-                &accumulators[slot].claim,
-                &accumulators[slot].witness,
-            )
-            .map_err(|error| self.accelerator_error(error))
-        });
-        let [light, refresh] = layer1;
-        Ok(Compressed {
-            fresh: fresh.claim,
-            fold: proof,
-            next: next.claim,
-            layer1: [light?, refresh?],
-        })
-    }
-}
-
-/// A finished proof: the statement and a shrink proof that the final program
-/// accepts it. It carries no witness and cannot be extended.
+/// A proof of `iteration` steps from `z0` to `current` without witnesses.
 #[derive(Clone)]
 pub(crate) struct FinalProof {
-    iteration: u64,
-    z0: [F; 4],
+    pub(super) iteration: u64,
+    pub(super) z0: [F; 4],
     pub(super) current: [F; 4],
-    pub(super) shrink: neo_spartan::shrink::ShrinkProof,
+    /// `None` for the proof of zero steps.
+    pub(super) steps: Option<Steps>,
+}
+
+/// What a compressed proof of one or more steps carries.
+#[derive(Clone)]
+pub(super) struct Steps {
+    pub(super) pc: u64,
+    /// Each slot's accumulator claim and depth.
+    pub(super) slots: [(CeClaim, u64); 2],
+    pub(super) fresh: Fresh,
+    pub(super) pi_ccs: pi_ccs::SumcheckProof,
+    pub(super) argument: ns_compress::Proof,
+}
+
+/// The CE claim that Π_CCS makes of the fresh instance, without its public
+/// input, which is the hash of the state. Π_CCS checks the point and the
+/// digest against its transcript.
+#[derive(Clone)]
+pub(super) struct Fresh {
+    pub(super) c: Commitment,
+    pub(super) r: Vec<K>,
+    pub(super) eval_k: Vec<K>,
+    pub(super) eval_a: Vec<Vec<K>>,
+    pub(super) fold_digest: [u8; 32],
+}
+
+impl Fresh {
+    fn claim(&self, x: &[F]) -> CeClaim {
+        let columns = x.len() / D;
+        let cells = (0..D)
+            .flat_map(|lane| (0..columns).map(move |block| x[block * D + lane]))
+            .collect();
+        CeClaim {
+            c: self.c.clone(),
+            X: Mat::from_row_major(D, columns, cells),
+            r: self.r.clone(),
+            eval_k: self.eval_k.clone(),
+            eval_a: self.eval_a.clone(),
+            m_in: x.len(),
+            fold_digest: self.fold_digest,
+            adv: None,
+        }
+    }
+}
+
+impl FinalProof {
+    pub(crate) fn state(&self) -> crate::State {
+        crate::State::new(self.iteration, self.z0, self.current)
+    }
+}
+
+/// Where `compress` spends its time.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CompressTimes {
+    pi_ccs: Duration,
+    argument: ns_compress::ProverTimes,
+}
+
+/// Where `verify_final` spends its time.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct VerifyTimes {
+    pi_ccs: Duration,
+    argument: ns_compress::VerifierTimes,
+}
+
+fn milliseconds(duration: Duration) -> f64 {
+    duration.as_secs_f64() * 1e3
+}
+
+impl std::fmt::Display for CompressTimes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let times = &self.argument;
+        write!(
+            f,
+            "commit W {:.0} ms, PiCCS {:.0} ms, commit V {:.0} ms, weights {:.0} ms, sum-check {:.0} ms, \
+             key sum-check {:.0} ms, opening {:.0} ms",
+            milliseconds(times.commit_witness),
+            milliseconds(self.pi_ccs),
+            milliseconds(times.commit_inverse),
+            milliseconds(times.weights),
+            milliseconds(times.sumcheck),
+            milliseconds(times.key),
+            milliseconds(times.opening),
+        )
+    }
+}
+
+impl std::fmt::Display for VerifyTimes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "PiCCS {:.1} ms, matrix pass {:.1} ms, sum-checks and other weights {:.1} ms, Akita setup {:.1} ms, \
+             Akita opening {:.1} ms",
+            milliseconds(self.pi_ccs),
+            milliseconds(self.argument.matrices),
+            milliseconds(self.argument.rest),
+            milliseconds(self.argument.akita_setup),
+            milliseconds(self.argument.akita),
+        )
+    }
 }
 
 impl BoundedDepth {
-    pub(super) fn final_program<'a>(
+    /// The claims of the terminal check: slot 0, slot 1, then the fresh
+    /// instance of circuit `pc − 1`.
+    fn compression_claims(&self, pc: u64, depths: [u64; 2]) -> [(usize, Norm); 3] {
+        let slot = |slot: usize| {
+            let bound = self.accumulator_bound(depths[slot]);
+            (self.relations[slot].blocks(), Norm::Table { bound })
+        };
+        [
+            slot(0),
+            slot(1),
+            (self.relations[(pc - 1) as usize].blocks(), Norm::Caller),
+        ]
+    }
+
+    /// The prover's key of the compression: the commitment of the Ajtai key
+    /// rows that the relations read, with the rows.
+    pub(crate) fn compression_setup(&self) -> Result<ProverKey, BoundedDepthError> {
+        Ok(ProverKey::new(self.key_blocks())?)
+    }
+
+    /// The verification key of this circuit: the pinned key of the size of
+    /// `compression_setup`, which is the key of that setup without the rows.
+    pub(crate) fn compression_key(&self) -> Result<VerificationKey, BoundedDepthError> {
+        Ok(VerificationKey::new(self.key_blocks())?)
+    }
+
+    /// Decode the bytes of the verification key of this circuit. Only the
+    /// bytes of `compression_key` decode.
+    pub(crate) fn decode_compression_key(&self, bytes: &[u8]) -> Result<VerificationKey, BoundedDepthError> {
+        let key = VerificationKey::from_bytes(bytes)?;
+        self.check_key_size(&key)?;
+        Ok(key)
+    }
+
+    /// The key of `compression_key` has the size of this circuit.
+    fn check_key_size(&self, key: &VerificationKey) -> Result<(), BoundedDepthError> {
+        if key.blocks() != ns_compress::key_blocks(self.key_blocks())? {
+            return Err(ns_compress::Error::Key("the key is for another circuit size").into());
+        }
+        Ok(())
+    }
+
+    /// The blocks that the key of the compression must hold.
+    pub(super) fn key_blocks(&self) -> usize {
+        self.relations[0].blocks().max(self.relations[1].blocks())
+    }
+
+    /// The layout of the claims under a key of `key_blocks` blocks, when
+    /// `ns_compress::error_bits` of it is at least the security minimum.
+    /// The error of the batches, the lookups, the sum-checks and the point
+    /// of `V` is at most `2^-error_bits`, and the comparison is of integers
+    /// (`Spec.Compression.Rust.params_run_soundness_bits`). It has no term
+    /// for the Π_CCS run or for the Akita opening.
+    pub(crate) fn compression_layout(
         &self,
-        finish: &'a Finish,
-        relations: [&'a neo_spartan::Relation<'a>; 2],
-        statement: (u64, [F; 4], [F; 4]),
-        witness: Option<&'a FinalWitness>,
-    ) -> FinalProgram<'a> {
-        FinalProgram {
-            keys: self.keys,
-            finish,
-            relations,
-            statement,
-            witness,
+        key_blocks: usize,
+        pc: u64,
+        depths: [u64; 2],
+    ) -> Result<Layout, BoundedDepthError> {
+        let layout = Layout::new(&self.compression_claims(pc, depths), key_blocks)?;
+        if ns_compress::error_bits(&layout, PUBLIC_WORDS, MATRICES) < self.minimum_security_bits {
+            return Err(BoundedDepthError::Statement(
+                "the batch, lookup and sum-check error of the compression argument is above the security minimum",
+            ));
+        }
+        Ok(layout)
+    }
+
+    /// The Π_CCS profile of the fresh instance: it binds `commitment`, the
+    /// Akita commitment of the witnesses, after the statement.
+    pub(super) fn compression_profile(commitment: &[F]) -> FoldProfile<'_> {
+        FoldProfile {
+            domain: domain_chunk_v1_2(PI_CCS_DOMAIN),
+            children: commitment,
+            norm: NormSources::Fresh,
         }
     }
 
-    /// What the final program reads for `envelope`: the last fold and both
-    /// layer-1 proofs (`finish`), and the finish package's columns on the last
-    /// fold's words.
-    pub(crate) fn final_witness(
-        &self,
-        envelope: &Envelope,
-        setups: &Setups,
-        finish: &Finish,
-    ) -> Result<FinalWitness, BoundedDepthError> {
-        let compressed = self.finish(envelope, setups)?;
-        let prior = self.state(envelope);
-        let witness_words = vec![F::ZERO; finish.package().witness_words()];
-        let (words, _) = words::fold_step(
-            &prior,
-            prior.current,
-            &witness_words,
-            Kind::Refresh,
-            &compressed.next,
-            compressed.fresh.c.data(),
-            &compressed.fold,
-        );
-        Ok(FinalWitness {
-            columns: finish.columns(&words)?,
-            layer1: compressed.layer1,
-        })
+    pub(super) fn compression_statements<'a>(
+        &'a self,
+        pc: u64,
+        slots: [(&'a CeClaim, u64); 2],
+        fresh: &'a CeClaim,
+    ) -> [Statement<'a>; 3] {
+        let slot = |slot: usize| Statement {
+            claim: slots[slot].0,
+            rows: &self.relations[slot],
+            norm: Norm::Table {
+                bound: self.accumulator_bound(slots[slot].1),
+            },
+        };
+        [
+            slot(0),
+            slot(1),
+            Statement {
+                claim: fresh,
+                rows: &self.relations[(pc - 1) as usize],
+                norm: Norm::Caller,
+            },
+        ]
     }
 
-    /// The shrink proof that the final program accepts `witness` for the
-    /// statement. The proof passes the verifier of `verify_final` before it
-    /// returns, so a prover fault gives an error and not a bad proof.
-    pub(crate) fn prove_final(
+    /// Compress `envelope`, which does not change. The proof is not checked
+    /// here: an envelope that `verify` rejects gives an error or a proof that
+    /// `verify_final` rejects.
+    pub(crate) fn compress(
         &self,
-        keys: &Keys,
-        finish: &Finish,
-        statement: (u64, [F; 4], [F; 4]),
-        witness: &FinalWitness,
-    ) -> Result<FinalProof, BoundedDepthError> {
-        let relations = [Self::layer1_relation(keys, 0)?, Self::layer1_relation(keys, 1)?];
-        let shape = Shape::derive(&self.final_program(finish, [&relations[0], &relations[1]], statement, None))?;
-        let layer = Shrink::new(shape, keys.layer_bits)?;
-        let program = self.final_program(finish, [&relations[0], &relations[1]], statement, Some(witness));
-        let shrink = neo_spartan::shrink::prove(&layer, &program, &self.backend.accelerator())
-            .map_err(|error| self.accelerator_error(error))?;
-        let checked = self.final_program(finish, [&relations[0], &relations[1]], statement, None);
-        neo_spartan::shrink::verify(&layer, &checked, &shrink)?;
-        let (iteration, z0, current) = statement;
-        Ok(FinalProof {
+        setup: &ProverKey,
+        envelope: &Envelope,
+    ) -> Result<(FinalProof, CompressTimes), BoundedDepthError> {
+        let Envelope {
             iteration,
             z0,
             current,
-            shrink,
-        })
+            pc,
+            ..
+        } = *envelope;
+        let Some(fresh) = &envelope.fresh else {
+            let proof = FinalProof {
+                iteration,
+                z0,
+                current,
+                steps: None,
+            };
+            let times = CompressTimes {
+                pi_ccs: Duration::ZERO,
+                argument: ns_compress::ProverTimes::default(),
+            };
+            return Ok((proof, times));
+        };
+        if !matches!(pc, 1 | 2) {
+            return Err(BoundedDepthError::Statement(
+                "a recursive proof needs a step and a circuit",
+            ));
+        }
+        let slots = envelope.slots.each_ref();
+        let layout = self.compression_layout(setup.verification_key().blocks(), pc, slots.map(|slot| slot.depth))?;
+        let committed = ns_compress::commit(
+            setup,
+            layout,
+            &[
+                &slots[0].accumulator.witness,
+                &slots[1].accumulator.witness,
+                &fresh.witness.Z,
+            ],
+        )?;
+
+        let start = Instant::now();
+        let commitment = ns_compress::byte_words(committed.commitment());
+        let mut transcript = Transcript::session();
+        let mut ccs = pi_ccs::prove_from_parts_with_rows(
+            &mut transcript,
+            &self.backend,
+            self.relations[(pc - 1) as usize].context(),
+            &Self::compression_profile(&commitment),
+            &fresh.claim,
+            &fresh.witness,
+            &RunningInstance::default(),
+        )
+        .map_err(crate::folding::Error::from)?;
+        let pi_ccs = start.elapsed();
+
+        let fresh = ccs.outputs.swap_remove(0);
+        let statements =
+            self.compression_statements(pc, slots.map(|slot| (&slot.accumulator.claim, slot.depth)), &fresh);
+        let (argument, argument_times) = committed.prove(transcript.inner_mut(), &statements)?;
+        let proof = FinalProof {
+            iteration,
+            z0,
+            current,
+            steps: Some(Steps {
+                pc,
+                slots: slots.map(|slot| (slot.accumulator.claim.clone(), slot.depth)),
+                fresh: Fresh {
+                    c: fresh.c,
+                    r: fresh.r,
+                    eval_k: fresh.eval_k,
+                    eval_a: fresh.eval_a,
+                    fold_digest: fresh.fold_digest,
+                },
+                pi_ccs: ccs.sumcheck,
+                argument,
+            }),
+        };
+        let times = CompressTimes {
+            pi_ccs,
+            argument: argument_times,
+        };
+        Ok((proof, times))
     }
 
-    /// Checks a finished proof against the expected statement and the keys,
-    /// which the verifier derives (`compression_keys`). Keys with fewer layer
-    /// bits than this verifier's minimum needs, or another norm bound, fail.
+    /// Accept `proof` for the expected statement exactly when `verify`
+    /// accepts some proof with witnesses for it (Lean
+    /// `RunCompleteness.Verifies`), up to the soundness error of the
+    /// argument under `key`, which must have the size of `compression_key`.
+    /// No proof carries the key.
     pub(crate) fn verify_final(
         &self,
-        keys: &Keys,
-        finish: &Finish,
+        key: &VerificationKey,
         iteration: u64,
         z0: [F; 4],
         current: [F; 4],
         proof: &FinalProof,
-    ) -> Result<(), BoundedDepthError> {
-        if keys.layer_bits < self.compression_layer_bits()? || keys.bound != self.compression_bound() {
-            return Err(BoundedDepthError::Statement(
-                "the key does not meet this verifier's security minimum",
-            ));
-        }
+    ) -> Result<VerifyTimes, BoundedDepthError> {
         if (proof.iteration, proof.z0, proof.current) != (iteration, z0, current) {
             return Err(BoundedDepthError::Statement(
                 "the proof's statement differs from the expected one",
             ));
         }
-        let relations = [Self::layer1_relation(keys, 0)?, Self::layer1_relation(keys, 1)?];
-        let program = self.final_program(finish, [&relations[0], &relations[1]], (iteration, z0, current), None);
-        let layer = Shrink::new(Shape::derive(&program)?, keys.layer_bits)?;
-        Ok(neo_spartan::shrink::verify(&layer, &program, &proof.shrink)?)
+        if iteration >= F::ORDER_U64 {
+            return Err(BoundedDepthError::Statement(
+                "iteration is not a canonical field counter",
+            ));
+        }
+        let Some(steps) = &proof.steps else {
+            return if iteration == 0 && current == z0 {
+                Ok(VerifyTimes::default())
+            } else {
+                Err(BoundedDepthError::Statement("zero steps require equal endpoints"))
+            };
+        };
+        if iteration == 0 || !matches!(steps.pc, 1 | 2) {
+            return Err(BoundedDepthError::Statement(
+                "a recursive proof needs a step and a circuit",
+            ));
+        }
+        for (index, (claim, depth)) in steps.slots.iter().enumerate() {
+            let slot = |reason: &str| BoundedDepthError::Slot {
+                slot: index,
+                reason: reason.into(),
+            };
+            self.relations[index].shape(claim).map_err(slot)?;
+            if *depth > LIGHT_FOLD_CAP {
+                return Err(slot("depth is above the light fold cap"));
+            }
+        }
+        let slots = steps.slots.each_ref();
+        self.check_key_size(key)?;
+        self.compression_layout(key.blocks(), steps.pc, slots.map(|slot| slot.1))?;
+        let state = BoundedDepthState {
+            keys: self.keys,
+            iteration,
+            z0,
+            current,
+            pc: steps.pc,
+            slots: slots.map(|(claim, depth)| words::slot(claim, *depth)),
+        };
+        let relation = &self.relations[(steps.pc - 1) as usize];
+        let fresh = CcsClaim {
+            c: steps.fresh.c.clone(),
+            x: encode_digest(state.hash()),
+            m_in: PUBLIC_WORDS,
+            adv: None,
+        };
+        let output = steps.fresh.claim(&fresh.x);
+
+        let start = Instant::now();
+        let commitment = ns_compress::byte_words(&steps.argument.witness_commitment);
+        let mut transcript = Poseidon2Transcript::new_v1_2();
+        let accepted = optimized_verify_with_profile(
+            &mut transcript,
+            relation.params().inner(),
+            relation.structure(),
+            std::slice::from_ref(&fresh),
+            &[],
+            std::slice::from_ref(&output),
+            &steps.pi_ccs,
+            &Self::compression_profile(&commitment),
+        )
+        .map_err(|error| BoundedDepthError::Fresh(fresh_failure(error)))?;
+        if !accepted {
+            return Err(BoundedDepthError::Fresh("the PiCCS proof of the fresh instance fails"));
+        }
+        let pi_ccs = start.elapsed();
+
+        let statements = self.compression_statements(steps.pc, slots.map(|(claim, depth)| (claim, *depth)), &output);
+        let argument = ns_compress::verify(&mut transcript, key, &statements, &steps.argument)?;
+        Ok(VerifyTimes { pi_ccs, argument })
     }
 }
 
-impl Setups {
-    pub(crate) fn keys(&self) -> &Keys {
-        &self.keys
+const MAGIC: &[u8; 16] = b"NS-OPTIONB-FIN-2";
+const SHAPE: Shape = Shape {
+    public_width: PUBLIC_WORDS,
+    witness_columns: 0,
+    matrices: MATRICES,
+};
+/// No polynomial of a proof has more variables than this.
+const MAX_ROUNDS: u64 = 30;
+
+/// A byte string after its length.
+fn write_bytes(output: &mut Writer, bytes: &[u8]) {
+    output.word(bytes.len() as u64);
+    output.0.extend_from_slice(bytes);
+}
+
+fn read_bytes(input: &mut Reader<'_>) -> Result<Vec<u8>, ProofCodecError> {
+    let length = usize::try_from(input.word()?).map_err(|_| ProofCodecError("byte string length"))?;
+    Ok(input.take(length)?.to_vec())
+}
+
+fn write_extension(output: &mut Writer, values: &[K]) {
+    for value in values {
+        output.fields(&value.as_coeffs());
+    }
+}
+
+fn read_extension(input: &mut Reader<'_>, count: usize) -> Result<Vec<K>, ProofCodecError> {
+    (0..count).map(|_| input.extension()).collect()
+}
+
+/// The rounds of one sum-check of the argument after their count.
+fn read_rounds<const COEFFICIENTS: usize>(input: &mut Reader<'_>) -> Result<Vec<[K; COEFFICIENTS]>, ProofCodecError> {
+    let rounds = input.word()?;
+    if rounds > MAX_ROUNDS {
+        return Err(ProofCodecError("argument round count"));
+    }
+    (0..rounds)
+        .map(|_| {
+            Ok(read_extension(input, COEFFICIENTS)?
+                .try_into()
+                .expect("the coefficients of one round"))
+        })
+        .collect()
+}
+
+impl FinalProof {
+    /// The strict bytes of the proof: the statement, then for one or more
+    /// steps each slot's depth and claim, the fresh claim without its public
+    /// input, the Π_CCS rounds and the argument. Field words are below the
+    /// modulus, and each byte string of Akita and the rounds of each
+    /// sum-check follow their count.
+    pub(crate) fn to_bytes(&self) -> Result<Vec<u8>, ProofCodecError> {
+        let mut output = Writer(MAGIC.to_vec());
+        output.word(self.steps.as_ref().map_or(0, |steps| steps.pc));
+        output.word(self.iteration);
+        output.fields(&self.z0);
+        output.fields(&self.current);
+        let Some(steps) = &self.steps else {
+            return Ok(output.0);
+        };
+        for (claim, depth) in &steps.slots {
+            output.word(*depth);
+            output.claim(claim, &SHAPE)?;
+        }
+        let fresh = &steps.fresh;
+        if fresh.r.len() != ROUNDS || fresh.eval_a.len() != MATRICES {
+            return Err(ProofCodecError("fresh claim shape"));
+        }
+        output.commitment(&fresh.c)?;
+        write_extension(&mut output, &fresh.r);
+        output.evaluations(&fresh.eval_k);
+        for family in &fresh.eval_a {
+            output.evaluations(family);
+        }
+        output.0.extend_from_slice(&fresh.fold_digest);
+        let rounds = &steps.pi_ccs.sumcheck_rounds;
+        if rounds.len() != ROUNDS || rounds.iter().any(|round| round.len() != ROUND_COEFFICIENTS) {
+            return Err(ProofCodecError("PiCCS round shape"));
+        }
+        for round in rounds {
+            write_extension(&mut output, round);
+        }
+        let argument = &steps.argument;
+        write_bytes(&mut output, &argument.witness_commitment);
+        write_bytes(&mut output, &argument.inverse_commitment);
+        output.word(argument.rounds.len() as u64);
+        for round in &argument.rounds {
+            write_extension(&mut output, round);
+        }
+        write_extension(&mut output, &[argument.witness_value]);
+        write_extension(&mut output, &argument.inverse_values);
+        write_extension(&mut output, &[argument.key_weight]);
+        output.word(argument.key_rounds.len() as u64);
+        for round in &argument.key_rounds {
+            write_extension(&mut output, round);
+        }
+        write_extension(&mut output, &[argument.key_value]);
+        write_bytes(&mut output, &argument.opening);
+        Ok(output.0)
+    }
+
+    /// Decode untrusted bytes. Acceptance still needs `verify_final`.
+    pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self, ProofCodecError> {
+        let mut input = Reader(bytes);
+        if input.take(MAGIC.len())? != MAGIC {
+            return Err(ProofCodecError("format tag"));
+        }
+        let pc = input.word()?;
+        let iteration = input.field()?.as_canonical_u64();
+        let (z0, current) = (input.four()?, input.four()?);
+        let steps = match pc {
+            0 if iteration == 0 && z0 == current => None,
+            0 => return Err(ProofCodecError("an initial proof starts at its initial state")),
+            1 | 2 => {
+                let mut slot = || -> Result<(CeClaim, u64), ProofCodecError> {
+                    let depth = input.field()?.as_canonical_u64();
+                    Ok((input.claim(&SHAPE)?, depth))
+                };
+                let slots = [slot()?, slot()?];
+                let c = input.commitment()?;
+                let r = read_extension(&mut input, ROUNDS)?;
+                let eval_k = input.evaluations()?;
+                let eval_a = (0..MATRICES)
+                    .map(|_| input.evaluations())
+                    .collect::<Result<Vec<_>, _>>()?;
+                let mut fold_digest = [0u8; 32];
+                for lane in fold_digest.chunks_exact_mut(8) {
+                    lane.copy_from_slice(&input.field()?.as_canonical_u64().to_le_bytes());
+                }
+                let pi_ccs = (0..ROUNDS)
+                    .map(|_| read_extension(&mut input, ROUND_COEFFICIENTS))
+                    .collect::<Result<Vec<_>, _>>()?;
+                let witness_commitment = read_bytes(&mut input)?;
+                let inverse_commitment = read_bytes(&mut input)?;
+                let rounds = read_rounds(&mut input)?;
+                let witness_value = input.extension()?;
+                let inverse_values = read_extension(&mut input, 4)?
+                    .try_into()
+                    .expect("four values");
+                let key_weight = input.extension()?;
+                let key_rounds = read_rounds(&mut input)?;
+                let key_value = input.extension()?;
+                Some(Steps {
+                    pc,
+                    slots,
+                    fresh: Fresh {
+                        c,
+                        r,
+                        eval_k,
+                        eval_a,
+                        fold_digest,
+                    },
+                    pi_ccs: pi_ccs::SumcheckProof::new(pi_ccs),
+                    argument: ns_compress::Proof {
+                        witness_commitment,
+                        inverse_commitment,
+                        rounds,
+                        witness_value,
+                        inverse_values,
+                        key_weight,
+                        key_rounds,
+                        key_value,
+                        opening: read_bytes(&mut input)?,
+                    },
+                })
+            }
+            _ => return Err(ProofCodecError("program counter")),
+        };
+        if !input.0.is_empty() {
+            return Err(ProofCodecError("bytes after the proof"));
+        }
+        Ok(Self {
+            iteration,
+            z0,
+            current,
+            steps,
+        })
+    }
+}
+
+fn fresh_failure(error: neo_reductions::PiCcsError) -> &'static str {
+    match error {
+        neo_reductions::PiCcsError::SumcheckError(_) => "a PiCCS round of the fresh instance fails",
+        neo_reductions::PiCcsError::ProtocolError(_) => "the PiCCS outputs of the fresh instance differ",
+        _ => "the PiCCS proof of the fresh instance has another shape",
     }
 }

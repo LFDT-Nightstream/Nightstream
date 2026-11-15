@@ -42,7 +42,7 @@ open NightstreamFPrime.Lifecycle.RandomOracle.Test (Answer)
 open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink (Attempt Folds)
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 section Types
 

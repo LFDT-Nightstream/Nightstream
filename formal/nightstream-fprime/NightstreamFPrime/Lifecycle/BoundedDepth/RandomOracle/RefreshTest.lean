@@ -8,10 +8,10 @@ fixed; the adversary outputs the fresh claim and the refresh proof. The Π_CCS i
 fresh claim and the children that the proof's split gives for the accumulator
 (`Refresh.children`), and the schedule statement is the fresh claim with that split. A false
 acceptance (`FalseAcceptance`) is the refresh Π_CCS check on the oracle coins with the output
-claims open at the ambient bound and false source claims (`¬ SourceHolds`, `b = 2` on all 17
+claims open at the ambient bound and false source claims (`¬ SourceHolds`, `b = 2` on all 15
 sources). `RoundByRound.falseAcceptance_splits` turns it into a hit (`falseAcceptance_hits`), so
-its probability is at most `(Q + 1) · 4589/q²` (`test_error_le`,
-`Nifs.VerifierErrorBudget.test_error_eq`). The refresh transcript has `28 + 1 + 28 + 17 = 74`
+its probability is at most `(Q + 1) · 4747/q²` (`test_error_le`,
+`Nifs.VerifierErrorBudget.test_error_eq`). The refresh transcript has `28 + 1 + 28 + 15 = 72`
 challenges (`challenges_length`). -/
 
 set_option autoImplicit false
@@ -32,10 +32,10 @@ open StrongReduction ConcreteCarrier
 attribute [local instance low] Classical.propDecidable
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 theorem challenges_length :
-    (Test.challenges (RefreshSchedule.schedule logicalWidth publicFits)).length = 74 := by
+    (Test.challenges (RefreshSchedule.schedule logicalWidth publicFits)).length = 72 := by
   rw [Test.challenges_length]
   rfl
 
@@ -43,9 +43,9 @@ variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (accumulator : Refresh.Accumulator PaperAlgebra.Commitment
     (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
-    productionShape (Phi81CarrierLayout.carrierWidth logicalWidth)
-    (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth)))
-  (witness : OutputWitness productionShape (Phi81CarrierLayout.carrierWidth logicalWidth))
+    productionShape (RingCarrierLayout.carrierWidth logicalWidth)
+    (ConcreteRingColumnLayout.blockCount (RingCarrierLayout.carrierWidth logicalWidth)))
+  (witness : OutputWitness productionShape (RingCarrierLayout.carrierWidth logicalWidth))
 
 local notation "Width" => ProductionKey.degreeBound relation
 local notation "RefreshStatement" =>
@@ -112,7 +112,7 @@ theorem falseAcceptance_hits (oracle : Oracle)
       invalid _ ambient accepted)
 
 /-- The test step for the refresh fold: an adversary with at most `Q` queries makes a refresh Π_CCS
-false acceptance with probability at most `(Q + 1) · 4589/q²`. -/
+false acceptance with probability at most `(Q + 1) · 4747/q²`. -/
 theorem test_error_le {Output : Type}
     (adversary : OracleComp
       (Test.Point (RefreshSchedule.schedule logicalWidth publicFits) Width) Test.Answer Output)
@@ -121,7 +121,7 @@ theorem test_error_le {Output : Type}
     (proof : Output → RefreshProof) :
     𝔼 oracle, (if FalseAcceptance relation ajtai accumulator witness oracle
         (fresh (adversary.run oracle)) (proof (adversary.run oracle)) then (1 : ℝ) else 0) ≤
-      (queries + 1) * ((4589 : ℝ) / (goldilocksModulus : ℝ) ^ 2) := by
+      (queries + 1) * ((4747 : ℝ) / (fieldModulus : ℝ) ^ 2) := by
   refine (Test.test_error_le (source relation ajtai accumulator witness)
     (source_degreeCovers relation ajtai accumulator witness) adversary bounded
     (fun output => (fresh output, (proof output).split))

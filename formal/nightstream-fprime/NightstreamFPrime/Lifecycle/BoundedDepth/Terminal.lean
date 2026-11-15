@@ -18,7 +18,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 abbrev Witness := PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits)
 
@@ -41,7 +41,7 @@ noncomputable def relations
     CCS.Holds (semantics ajtai) productionGlobalParams (freshStatement key.relation fresh) witness
 
 def StatementValid (statement : TerminalStatement AppState) : Prop :=
-  statement.iteration < goldilocksModulus ∧
+  statement.iteration < fieldModulus ∧
     statement.z0.length = Stage1.Application.stateWordCount ∧
     statement.zi.length = Stage1.Application.stateWordCount
 
@@ -115,7 +115,7 @@ theorem rejects_counter_shift (cap : Nat)
     (statement : TerminalStatement AppState)
     (proof : ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     ¬ HoldsFor cap ajtai circuitKeys step control
-      { statement with iteration := statement.iteration + goldilocksModulus } proof := by
+      { statement with iteration := statement.iteration + fieldModulus } proof := by
   intro accepted
   have bound := accepted.1.1
   dsimp only at bound

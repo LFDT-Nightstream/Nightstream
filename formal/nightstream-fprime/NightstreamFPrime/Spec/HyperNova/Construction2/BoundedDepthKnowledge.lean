@@ -11,7 +11,7 @@ event whose probability that layer bounds.
 
 Run backward over the folds a slot receives, the contracts give every running claim a witness at
 its recovered bound, at most `B + cap · T · (b − 1)`, or they name a failed fold. The relaxed
-binding of `Phi81Relation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel` covers openings at
+binding of `RingRelation.PiRLCAlgebra.Binding.chainCollision_to_shortKernel` covers openings at
 these bounds. The history is an input here; reading it from the step witnesses is the
 probabilistic layer's work. -/
 

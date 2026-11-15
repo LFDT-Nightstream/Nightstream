@@ -101,16 +101,8 @@ private theorem rawExprMulCount
     (foldlMulCount (List.range ringDegree) degree challenge value 0
       (by simp) challengeCount valueCount)
 
-def foldedDegree (lane : Fin ringDegree) : Nat :=
-  if lane.val < ringMiddleDegree then lane.val + ringDegree
-  else lane.val + ringMiddleDegree
-
-def twiceTermCount (lane : Fin ringDegree) : Nat :=
-  if lane.val + 81 ≤ 106 then termCount (lane.val + 81) else 0
-
 def laneMulCount (lane : Fin ringDegree) : Nat :=
-  2 * (termCount lane.val + termCount (foldedDegree lane) +
-    twiceTermCount lane) + 1
+  2 * (termCount lane.val + termCount (lane.val + ringDegree)) + 1
 
 def laneFreshCount (lane : Fin ringDegree) : Nat := laneMulCount lane + 1
 
@@ -142,11 +134,9 @@ private theorem mulExprMulCount
     intro current
     exact valueMulCount interface offset inputs block current cell
   unfold NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep.mulExpr
-    laneMulCount foldedDegree twiceTermCount
-  split <;> split <;>
-    simp [R1CS.mulCount, mulCountSub,
-      rawExprMulCount _ _ _ challengeCount valueCount]
-  all_goals omega
+    laneMulCount
+  simp only [mulCountSub, rawExprMulCount _ _ _ challengeCount valueCount]
+  omega
 
 private theorem challengeFunctionExists
     {blockCount cellCount : Nat} [NeZero cellCount]
@@ -287,7 +277,7 @@ private theorem totalFreshCountOfFn {count : Nat}
   exact pointwise index
 
 private theorem laneFreshCountSum :
-    (List.ofFn laneFreshCount).sum = 8100 := by
+    (List.ofFn laneFreshCount).sum = 8320 := by
   decide +kernel
 
 private theorem listSumOfFn {count : Nat} (values : Fin count → Nat) :
@@ -302,7 +292,7 @@ private theorem indexedLaneFreshCountSum
     (List.ofFn fun index : Fin (Logical.privateCount blockCount cellCount) =>
       laneFreshCount
         (NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep.laneOf
-          index)).sum = blockCount * cellCount * 8100 := by
+          index)).sum = blockCount * cellCount * 8320 := by
   rw [listSumOfFn]
   let outerEquiv :
       Fin (Logical.privateCount blockCount cellCount) ≃
@@ -347,8 +337,8 @@ private theorem indexedLaneFreshCountSum
           apply Finset.sum_congr rfl
           intro lane _
           simp
-    _ = blockCount * cellCount * 8100 := by
-      have laneSum : ∑ lane : Fin ringDegree, laneFreshCount lane = 8100 := by
+    _ = blockCount * cellCount * 8320 := by
+      have laneSum : ∑ lane : Fin ringDegree, laneFreshCount lane = 8320 := by
         rw [← listSumOfFn]
         exact laneFreshCountSum
       rw [laneSum]
@@ -359,7 +349,7 @@ theorem physicalFreshColumnCountEqProduction
     (interface : Logical.Interface blockCount cellCount) (offset : Nat)
     (inputs : ProductionInputs interface offset) :
     physicalFreshColumnCount interface offset =
-      Logical.privateCount blockCount cellCount * 150 := by
+      Logical.privateCount blockCount cellCount * 130 := by
   unfold physicalFreshColumnCount logicalConstraints
   rw [NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep.flatConstraints_operations]
   change R1CS.totalFreshCount
@@ -374,7 +364,7 @@ theorem physicalFreshColumnCountEqProduction
   unfold Logical.privateCount
     NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep.privateCount
     ringDegree
-  rw [show 8100 = 54 * 150 by rfl]
+  rw [show 8320 = 64 * 130 by rfl]
   simp [Nat.mul_assoc, Nat.mul_comm]
 
 end NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep

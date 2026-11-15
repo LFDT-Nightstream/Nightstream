@@ -1,8 +1,7 @@
 //! The prover and verifier: a light and a refresh step circuit that Lean
-//! emits, with the Rust application in place of Lean's, two slots, and a
-//! final proof that the shrink layer compresses.
+//! emits, with the Rust application in place of Lean's, and two slots.
 //!
-//! The crate embeds the three packages (`artifacts`); the caller selects the
+//! The crate embeds the two packages (`artifacts`); the caller selects the
 //! application, and the verifier derives everything else from them. Nothing
 //! a proof carries is authority.
 
@@ -16,7 +15,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::engine::{Backend, Engine, EngineError};
-use crate::lifecycle::bounded_depth::{self as lifecycle, CompiledSteps, Finish};
+use crate::lifecycle::bounded_depth::{self as lifecycle, CompiledSteps};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -158,28 +157,26 @@ fn encode_application(application: &ApplicationCircuit) -> Result<Vec<u8>, Error
     Ok(bytes)
 }
 
-/// The three Lean-emitted packages: the light and refresh step circuits and
-/// the finish circuit (`formal/nightstream-fprime/artifacts`), for the tests
-/// that load Lean's own packages (`load_packages`).
+/// The two Lean-emitted packages: the light and refresh step circuits
+/// (`formal/nightstream-fprime/artifacts`), for the tests that load Lean's
+/// own packages (`load_packages`).
 #[cfg(test)]
 #[derive(Clone, Copy)]
 pub(crate) struct References<'a> {
     pub(crate) light: &'a [u8],
     pub(crate) refresh: &'a [u8],
-    pub(crate) finish: &'a [u8],
 }
 
 /// The packages and their application: a Rust application in place of
 /// Lean's (`compile`), or Lean's own (`load_packages`), whose witness program
 /// fills its locals from the witness words and the output state. It holds
-/// the expanded step circuits and the finish circuit once; each prover and
-/// verifier of the circuit shares them.
+/// the expanded step circuits once; each prover and verifier of the circuit
+/// shares them.
 pub struct Circuit {
     steps: CompiledSteps,
-    finish: Arc<Finish>,
     application: Option<ApplicationCircuit>,
     /// A memory relation: only `nebula::Circuit::verifier` verifies it,
-    /// because this verifier checks no SPEC.md Algorithm 10 terminal
+    /// because this verifier checks no SPEC.md Algorithm 8 terminal
     /// condition.
     memory: bool,
 }
@@ -217,35 +214,23 @@ impl Circuit {
             };
             Ok(CompiledSteps::new(packages)?)
         };
-        let finish =
-            || -> Result<Finish, Error> { Ok(Finish::new(embedded.finish.with_witness_words(witness_words)?)?) };
-        let (checked, (steps, finish)) = rayon::join(
-            || crate::application::check_blocks(&application),
-            || rayon::join(steps, finish),
-        );
+        let (checked, steps) = rayon::join(|| crate::application::check_blocks(&application), steps);
         checked?;
         Ok(Self {
             steps: steps?,
-            finish: Arc::new(finish?),
             application: Some(application),
             memory: false,
         })
     }
 
     /// Check the pinned identity of Lean-emitted light and refresh packages
-    /// whose application is Lean's (`expected`), and of the finish package,
-    /// which moves to their witness words. Only the tests load Lean packages.
+    /// whose application is Lean's (`expected`). Only the tests load Lean
+    /// packages.
     #[cfg(test)]
     pub(crate) fn load_packages(references: References<'_>, expected: [u64; 4]) -> Result<Self, Error> {
         let packages = nightstream_fprime::load_bounded_depth_packages(references.light, references.refresh, expected)?;
-        let finish = nightstream_fprime::load_bounded_depth_finish(
-            references.finish,
-            nightstream_fprime::BOUNDED_DEPTH_FINISH_IDENTITY,
-        )?
-        .with_witness_words(packages.light().witness_words())?;
         Ok(Self {
             steps: CompiledSteps::new(packages)?,
-            finish: Arc::new(Finish::new(finish)?),
             application: None,
             memory: false,
         })
@@ -334,7 +319,6 @@ impl Circuit {
     fn prover_on(&self, backend: Backend, minimum_security_bits: u32) -> Result<Prover, Error> {
         Ok(Prover {
             lifecycle: lifecycle::BoundedDepth::new(&self.steps, minimum_security_bits, backend)?,
-            finish: Arc::clone(&self.finish),
             application: self.application.clone(),
         })
     }
@@ -355,7 +339,6 @@ impl Circuit {
     pub(crate) fn stage1_verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
         Ok(Verifier {
             lifecycle: lifecycle::BoundedDepth::new(&self.steps, minimum_security_bits, Backend::new(engine)?)?,
-            finish: Arc::clone(&self.finish),
         })
     }
 }
@@ -371,21 +354,60 @@ impl Proof {
     }
 }
 
-/// A finished proof: the statement and the shrink proof. It carries no
-/// witness and cannot be extended.
+/// A finished proof: the statement and an argument that some proof with
+/// witnesses verifies for it (SPEC.md section 6). It carries no witness and
+/// cannot be extended.
 #[derive(Clone)]
 pub struct FinalProof(lifecycle::FinalProof);
 
-/// The verifier's compression constants, derived from the relations.
-#[derive(Clone)]
-pub struct CompressionKey(lifecycle::Keys);
+impl FinalProof {
+    pub fn state(&self) -> State {
+        self.0.state()
+    }
 
-/// The prover's layer-1 setup files and their key.
-pub struct CompressionSetup(lifecycle::Setups);
+    /// The proof's strict bytes, for `FinalProof::from_bytes`.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, Error> {
+        Ok(self.0.to_bytes()?)
+    }
+
+    /// Decode untrusted bytes. A proof has one encoding: each field word is
+    /// below the modulus, and no byte follows the proof. Acceptance still
+    /// needs `Verifier::verify_final`.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        Ok(Self(lifecycle::FinalProof::from_bytes(bytes)?))
+    }
+}
+
+/// The prover's key of the compression: the rows of the Ajtai key that the
+/// circuit reads and their commitment. It holds about 10 GB for the
+/// Poseidon2 hash chain. `Prover::compression_setup` makes it once from the
+/// prover's circuit, and each `Prover::compress` reads it. It gives the
+/// verifier nothing: a verifier takes its own `CompressionKey`.
+pub struct CompressionSetup(ns_compress::ProverKey);
+
+/// The verifier's key of the compression: the commitment of the rows of the
+/// Ajtai key, in place of the rows (SPEC.md section 6). It is a function of
+/// the public seeds and of the size of the verifier's circuit. No proof
+/// carries it.
+///
+/// The key of each size is pinned in this library, and a test computes each
+/// pinned key again from the public seeds. `Verifier::compression_key` gives
+/// the pinned key of the verifier's circuit and expands no key element.
+/// `Verifier::decode_compression_key` accepts exactly the bytes of that
+/// pinned key, so a decoded key is checked against the pin and is not
+/// trusted input.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CompressionKey(ns_compress::VerificationKey);
+
+impl CompressionKey {
+    /// The key's strict bytes, for `Verifier::decode_compression_key`.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.0.to_bytes()
+    }
+}
 
 pub struct Prover {
     lifecycle: lifecycle::BoundedDepth,
-    finish: Arc<Finish>,
     application: Option<ApplicationCircuit>,
 }
 
@@ -486,35 +508,23 @@ impl Prover {
         Ok(self.lifecycle.encode_proof(&proof.0)?)
     }
 
-    /// Write both layer-1 setups into the existing directory `dir`.
-    pub fn compression_setup(&self, dir: impl AsRef<Path>) -> Result<CompressionSetup, Error> {
-        Ok(CompressionSetup(self.lifecycle.compression_setups(dir.as_ref())?))
+    /// Expand the rows of the Ajtai key that the prover's circuit reads and
+    /// commit them, once for each prover. A verifier of the same circuit
+    /// takes the key of these proofs itself (`Verifier::compression_key`).
+    pub fn compression_setup(&self) -> Result<CompressionSetup, Error> {
+        Ok(CompressionSetup(self.lifecycle.compression_setup()?))
     }
 
-    /// Reopen both layer-1 setups with keys derived from this circuit's
-    /// relations (SPEC.md Algorithm 7). Stored roots have no authority.
-    pub fn open_compression_setup(&self, dir: impl AsRef<Path>) -> Result<CompressionSetup, Error> {
-        Ok(CompressionSetup(self.lifecycle.open_compression_setups(dir.as_ref())?))
-    }
-
-    /// Compress `proof`; `proof` does not change.
+    /// Compress `proof`, which does not change, for `Verifier::verify_final`
+    /// with the key of `setup`. The result is not checked here: it verifies
+    /// when `proof` does.
     pub fn compress(&self, proof: &Proof, setup: &CompressionSetup) -> Result<FinalProof, Error> {
-        let witness = self
-            .lifecycle
-            .final_witness(&proof.0, &setup.0, &self.finish)?;
-        let state = proof.state();
-        Ok(FinalProof(self.lifecycle.prove_final(
-            setup.0.keys(),
-            &self.finish,
-            (state.iteration(), state.z0(), state.current()),
-            &witness,
-        )?))
+        Ok(FinalProof(self.lifecycle.compress(&setup.0, &proof.0)?.0))
     }
 }
 
 pub struct Verifier {
     lifecycle: lifecycle::BoundedDepth,
-    finish: Arc<Finish>,
 }
 
 impl Verifier {
@@ -532,23 +542,35 @@ impl Verifier {
             .verify(expected.iteration(), expected.z0(), expected.current(), &proof.0)?)
     }
 
-    /// Derive the compression key from the relations, without files. This
-    /// key, or a copy you pinned, is the authority for `verify_final`.
+    /// The compression key of this verifier's circuit: the pinned key of
+    /// its size (`CompressionKey`). A prover of the same circuit makes
+    /// proofs for this key (`Prover::compression_setup`). Make the key once
+    /// and use it for each proof: it keeps the Akita verifier setup that its
+    /// first proof makes.
     pub fn compression_key(&self) -> Result<CompressionKey, Error> {
-        Ok(CompressionKey(self.lifecycle.compression_keys()?))
+        Ok(CompressionKey(self.lifecycle.compression_key()?))
     }
 
-    /// Check a finished proof against the expected state and a trusted key.
-    /// A key that a verifier at a lower security minimum derived is refused.
+    /// Decode the bytes of the compression key of this verifier's circuit.
+    /// Only the bytes of the pinned key of the circuit's size decode
+    /// (`CompressionKey`).
+    pub fn decode_compression_key(&self, bytes: &[u8]) -> Result<CompressionKey, Error> {
+        Ok(CompressionKey(self.lifecycle.decode_compression_key(bytes)?))
+    }
+
+    /// Check a finished proof against the expected state under the key of
+    /// this verifier (`compression_key`). The verifier derives the relations
+    /// from its circuit and reads no row of the Ajtai key. Nothing that the
+    /// proof carries is authority, and the key is no part of the proof.
     pub fn verify_final(&self, expected: &State, key: &CompressionKey, proof: &FinalProof) -> Result<(), Error> {
-        Ok(self.lifecycle.verify_final(
+        self.lifecycle.verify_final(
             &key.0,
-            &self.finish,
             expected.iteration(),
             expected.z0(),
             expected.current(),
             &proof.0,
-        )?)
+        )?;
+        Ok(())
     }
 }
 

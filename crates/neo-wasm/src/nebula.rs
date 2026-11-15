@@ -67,8 +67,22 @@ pub enum WasmApplicationError {
     RowLength { actual: usize, minimum: usize },
     #[error("a run needs at least one trace row")]
     EmptyTrace,
-    #[error("no WASM size holds the program and its run, which need {0:?}")]
+    #[error("no WASM size holds the program and its run: {limit}; they need {0:?}", limit = unheld_limit(.0))]
     TooLarge(WasmLimits),
+    /// The run has more trace rows than one proof of `size` holds. From
+    /// `WasmSize::for_run`, `size` holds the program and has the most rows of
+    /// the sizes that hold it.
+    #[error(
+        "the run has {rows} trace rows, but the WASM size {size:?} proves at most {max_rows} rows in one proof \
+         ({segments} segments of {segment_rows} rows at 109 bits); split the run or use fewer rows",
+        segments = .max_rows / .size.segment_rows(),
+        segment_rows = .size.segment_rows()
+    )]
+    RunTooLong {
+        rows: usize,
+        max_rows: usize,
+        size: WasmSize,
+    },
     #[error("the trace of {trace} rows does not fit {steps} steps of {rows} rows")]
     Steps {
         trace: usize,
@@ -234,7 +248,7 @@ fn relation() -> Result<RowRelation, WasmApplicationError> {
 
 /// The state words of `state`: the integers of its continuity words, before
 /// their reduction to field words. A field of `q` or more keeps a word of `q`
-/// or more, which the terminal check of SPEC.md Algorithm 10 refuses, so a
+/// or more, which the terminal check of SPEC.md Algorithm 8 refuses, so a
 /// claim cannot name a field that differs from the proved word by a multiple
 /// of `q` (test `a_state_field_of_q_or_more_has_no_canonical_word`).
 pub fn state_words(state: WasmStepState) -> Vec<u64> {
@@ -298,7 +312,7 @@ fn bits(value: u64) -> usize {
 }
 
 /// What one address part of a WASM memory counts.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum Dimension {
     Pc,
     Function,
@@ -327,6 +341,24 @@ impl Dimension {
         Self::Table,
         Self::TableIndex,
     ];
+}
+
+/// The first limit of `limits` that no size holds, for the message of
+/// `WasmApplicationError::TooLarge`.
+fn unheld_limit(limits: &WasmLimits) -> String {
+    let mut limits = *limits;
+    for dimension in Dimension::ALL {
+        let needed = *limits.width(dimension);
+        let largest = WasmSize::ALL
+            .into_iter()
+            .map(|size| *size.limits().width(dimension))
+            .max()
+            .expect("a size");
+        if needed > largest {
+            return format!("{dimension:?} needs {needed} address bits and the largest size has {largest}");
+        }
+    }
+    "each limit fits a size, but no size holds all of them".into()
 }
 
 /// The dimension of each address part of memory `id`, least significant part
@@ -497,22 +529,25 @@ impl WasmLimits {
 /// geometry, and the rows of one step. Each size is one circuit, so a
 /// verifier compiles at most three. It takes the size of a proof from the
 /// proof's statement, never from the prover's run. A prover takes the
-/// smallest size that holds the run (`WasmSize::for_run`). Each size holds
-/// runs of up to 16,384 trace rows. Its one-challenge memory-fingerprint term
-/// is at least 109.91 bits (SPEC.md section 7.1, rule 6), so the runtime gate
-/// accepts at most 109 bits. This is not an end-to-end security level: the
-/// deployment query count, retries, and recursive depth remain separate.
+/// smallest size that holds the run (`WasmSize::for_run`). Each size has the
+/// most segments for which the memory fingerprint term of all its segments,
+/// `S_max · 2·m_mem/q²`, is at most `2^−109` (SPEC.md section 7.1), so the
+/// runtime gate accepts at most 109 bits. This is not an end-to-end security
+/// level: the deployment query count, retries, and recursive depth remain
+/// separate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WasmSize {
     /// ROM of `2^13` cells and RAM of `2^10`: 256 instructions, 32 function
-    /// references, steps of 64 rows, and segments of 8 steps.
+    /// references, steps of 64 rows, and at most 19 segments of 8 steps:
+    /// runs of up to 9,728 rows.
     Small,
     /// ROM of `2^14` cells and RAM of `2^11`: 512 instructions, 64 function
-    /// references, steps of 64 rows, and segments of 16 steps.
+    /// references, steps of 64 rows, and at most 9 segments of 16 steps: runs
+    /// of up to 9,216 rows.
     Medium,
     /// ROM of `2^15` cells and RAM of `2^12`: 1,024
-    /// instructions, 128 function references, steps of 32 rows, and segments
-    /// of 16 steps.
+    /// instructions, 128 function references, steps of 32 rows, and at most 6
+    /// segments of 16 steps: runs of up to 3,072 rows.
     Large,
 }
 
@@ -523,9 +558,9 @@ impl WasmSize {
     /// segment, and the most segments.
     fn shape(self) -> (usize, usize, usize, usize) {
         match self {
-            Self::Small => (13, 64, 8, 32),
-            Self::Medium => (14, 64, 16, 16),
-            Self::Large => (15, 32, 16, 32),
+            Self::Small => (13, 64, 8, 19),
+            Self::Medium => (14, 64, 16, 9),
+            Self::Large => (15, 32, 16, 6),
         }
     }
 
@@ -615,7 +650,19 @@ impl WasmSize {
         for row in trace {
             limits.hold_row(&build_batched_witness(std::slice::from_ref(row), 1, 0)?)?;
         }
-        Self::smallest(&limits, trace.len()).ok_or(WasmApplicationError::TooLarge(limits))
+        Self::smallest(&limits, trace.len()).ok_or_else(|| {
+            let holds_program = Self::ALL
+                .into_iter()
+                .filter(|size| size.limits().holds(&limits));
+            match holds_program.max_by_key(|size| size.max_rows()) {
+                Some(size) => WasmApplicationError::RunTooLong {
+                    rows: trace.len(),
+                    max_rows: size.max_rows(),
+                    size,
+                },
+                None => WasmApplicationError::TooLarge(limits),
+            }
+        })
     }
 
     /// The step inputs of each segment of the run `trace` in this size: the
@@ -625,16 +672,15 @@ impl WasmSize {
         self,
         trace: &[WasmVmStep],
     ) -> Result<impl Iterator<Item = Result<Vec<WasmStep>, WasmApplicationError>> + '_, WasmApplicationError> {
-        let (_, _, n, s_max) = self.shape();
+        let (_, _, n, _) = self.shape();
         if trace.is_empty() {
             return Err(WasmApplicationError::EmptyTrace);
         }
-        let segments = trace.len().div_ceil(self.segment_rows());
-        if segments > s_max {
-            return Err(WasmApplicationError::Steps {
-                trace: trace.len(),
-                steps: s_max * n,
-                rows: self.rows(),
+        if trace.len() > self.max_rows() {
+            return Err(WasmApplicationError::RunTooLong {
+                rows: trace.len(),
+                max_rows: self.max_rows(),
+                size: self,
             });
         }
         Ok(trace

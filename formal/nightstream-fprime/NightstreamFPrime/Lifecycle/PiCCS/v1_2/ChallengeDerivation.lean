@@ -273,7 +273,7 @@ def alpha (interface : Interface) (offset : Nat)
 def gamma (interface : Interface) (offset : Nat) : KExpr :=
   (layoutProgram interface offset).samples.get
     ⟨productionShape.cubeVariables, by
-      simp [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]⟩
+      simp [productionShape, RingMatrixSource.ringShape, cubeVariables]⟩
 
 def alphaFast (interface : Interface) (offset : Nat)
     (coordinate : Fin productionShape.cubeVariables) : KExpr :=
@@ -406,7 +406,7 @@ theorem actions_eq_labelled (interface : Interface) (offset : Nat) :
         (FiatShamir.alphaLabels productionShape).length := by
     rw [List.length_take, layoutProgram_samples_length]
     norm_num [FiatShamir.alphaLabels, canonicalFinIndices_length,
-      productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+      productionShape, RingMatrixSource.ringShape, cubeVariables]
   unfold actions alphaSchedule
   rw [scheduleActions_zip_eq_labelled _ _ alphaLength]
   change labelledActions (FiatShamir.alphaLabels productionShape)
@@ -537,7 +537,7 @@ def evalAlpha (interface : Interface) (offset : Nat) (env : Env) :
     rw [List.length_map, List.length_zip]
     simp [FiatShamir.alphaLabels, canonicalFinIndices_length,
       layoutProgram_samples_length, productionShape,
-      Phi81MatrixSource.phi81Shape, cubeVariables]
+      RingMatrixSource.ringShape, cubeVariables]
 
 def evalGamma (interface : Interface) (offset : Nat) (env : Env) : K :=
   (gamma interface offset).eval env
@@ -613,7 +613,7 @@ private theorem alphaSchedule_labels (interface : Interface) (offset : Nat) :
   apply List.map_fst_zip
   rw [List.length_take, layoutProgram_samples_length]
   norm_num [FiatShamir.alphaLabels, canonicalFinIndices_length,
-    productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+    productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 theorem alphaSchedule_values (interface : Interface) (offset : Nat) :
     (alphaSchedule interface offset).map Prod.snd =
@@ -633,7 +633,7 @@ theorem alphaSchedule_values (interface : Interface) (offset : Nat) :
     exact (List.ofFn_get values).symm.trans (List.ofFn_congr valuesLength values.get)
   · rw [List.length_take, layoutProgram_samples_length]
     norm_num [FiatShamir.alphaLabels, canonicalFinIndices_length,
-      productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+      productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 theorem evalAlpha_coordinates (interface : Interface) (offset : Nat)
     (env : Env) :
@@ -891,7 +891,7 @@ theorem alphaSchedule_length (interface : Interface) (offset : Nat) :
   rw [alphaSchedule, List.length_zip, List.length_take,
     layoutProgram_samples_length]
   norm_num [FiatShamir.alphaLabels, canonicalFinIndices_length,
-    productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+    productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 theorem actions_length (interface : Interface) (offset : Nat) :
     (actions interface offset).length = 33 := by
@@ -958,7 +958,7 @@ theorem spec_implies_derivePreSumcheck
 noncomputable def productionContext
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -975,7 +975,7 @@ noncomputable def productionContext
 theorem spec_implies_keyExecution_challenges
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

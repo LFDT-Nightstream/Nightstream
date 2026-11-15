@@ -1,4 +1,4 @@
-//! The first Nebula memory application: native segment runs and SPEC.md Algorithm 10
+//! The first Nebula memory application: native segment runs and SPEC.md Algorithm 8
 //! terminal checks, the generic runner's checks on an application, and
 //! (ignored, production profile) SPEC.md section 9 conformance proofs over the
 //! Lean-emitted packages and the Rust-built circuit.
@@ -11,8 +11,8 @@ use super::{
     Application, Context, Expr, Machine, MachineError, MachineState, Memory, Package, Program, ProgramError, Run,
     SegmentError, Statement, Step, TerminalError, Transition, View,
 };
+use neo_math::F;
 use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks as F;
 
 /// The Stage 1 input state that an invocation's own words open to. The carry
 /// words come first; the machine's five words come last (input state, output
@@ -79,7 +79,7 @@ fn native_run_closes_every_segment_and_passes_the_terminal() {
     );
 }
 
-/// Canonical decoding (SPEC.md Algorithm 10, step 2): an integer of the
+/// Canonical decoding (SPEC.md Algorithm 8, step 2): an integer of the
 /// statement that becomes a field word must be below `q`. Otherwise `v` and
 /// `v + q` give one word, and the proof of the honest statement also verifies
 /// the second one.
@@ -279,7 +279,7 @@ fn canonical_words(words: &[F]) -> Vec<u64> {
     words.iter().map(|word| word.as_canonical_u64()).collect()
 }
 
-/// The SPEC.md Algorithm 10 terminal check agrees with Lean's `TerminalChecks` on every
+/// The SPEC.md Algorithm 8 terminal check agrees with Lean's `TerminalChecks` on every
 /// case of `emitBoundedDepth --application-terminal`. It accepts exactly when every
 /// statement integer is below `q` and every check holds, with Lean's final
 /// state words. Otherwise it fails at the first false check in its own order:
@@ -355,12 +355,64 @@ fn memory_security_bits_match_the_lean_setup_boundary() {
     }
 }
 
+/// SPEC.md section 7.1: the memory gate charges every segment of a proof,
+/// `S_max · 2·m_mem/q²`, and accepts a minimum `k` exactly when
+/// `2^k · S_max · 2·m_mem ≤ q²`. At the setup boundary `m_mem = 139,509`, one
+/// segment gives 109.91 bits and four segments give 107.91, so the gate
+/// accepts 107 and rejects 108, also before a prover reads a saved circuit.
+#[test]
+fn the_memory_gate_charges_every_segment_exactly() {
+    use super::{memory_security, segments_security_bits, Geometry, Prover};
+    use crate::{Engine, Error};
+    use neo_params::ParamsError;
+
+    let q = u128::from(F::ORDER_U64);
+    let edge = Geometry::new(17, 12, 4341, 1, 4).expect("a secure geometry at the boundary");
+    assert_eq!(edge.max_tuples(), 139_509);
+    let mut geometries = vec![edge, Package::V1.geometry(), Package::N1.geometry()];
+    for s_max in [1, 2, 3, 7, 64, 1000, 65_536] {
+        geometries.extend(Geometry::new(10, 8, 2, 1, s_max));
+        geometries.extend(Geometry::new(14, 10, 40, 8, s_max));
+    }
+    assert!(geometries.len() > 10);
+    for geometry in &geometries {
+        let charge = 2 * geometry.max_tuples() as u128 * geometry.s_max as u128;
+        let bits = segments_security_bits(geometry);
+        assert!(
+            charge
+                .checked_mul(1 << bits)
+                .is_some_and(|error| error <= q * q),
+            "{geometry:?}"
+        );
+        assert!(
+            charge
+                .checked_mul(1 << (bits + 1))
+                .is_none_or(|error| error > q * q),
+            "{geometry:?}"
+        );
+    }
+
+    assert_eq!(segments_security_bits(&edge), 107);
+    assert!(memory_security(&edge, 107).is_ok());
+    let rejected = |result: Result<(), Error>| {
+        matches!(
+            result,
+            Err(Error::Parameters(ParamsError::InsufficientStatisticalSecurity {
+                required: 108,
+                available: 107
+            }))
+        )
+    };
+    assert!(rejected(memory_security(&edge, 108)));
+    let load = Prover::load("", edge, Machine, Engine::Optimized, 108).map(|_| ());
+    assert!(rejected(load), "the gate must reject before it reads a saved circuit");
+}
+
 /// Lean's bounded-depth packages (`formal/nightstream-fprime/artifacts`): the
-/// light and refresh step packages of an application and the finish package.
+/// light and refresh step packages of an application.
 struct Packages {
     light: Vec<u8>,
     refresh: Vec<u8>,
-    finish: Vec<u8>,
 }
 
 impl Packages {
@@ -379,7 +431,6 @@ impl Packages {
         Self {
             light: Self::read(&format!("nightstream-fprime-bounded-depth-{stem}light-v1.json")),
             refresh: Self::read(&format!("nightstream-fprime-bounded-depth-{stem}refresh-v1.json")),
-            finish: Self::read("nightstream-fprime-bounded-depth-finish-v1.json"),
         }
     }
 
@@ -387,7 +438,6 @@ impl Packages {
         crate::References {
             light: &self.light,
             refresh: &self.refresh,
-            finish: &self.finish,
         }
     }
 }
@@ -461,6 +511,22 @@ fn n1_accept(engine: crate::Engine) {
             &run.statement(),
             run.carry(),
             proof.as_ref().unwrap(),
+        )
+        .unwrap();
+    // The memory prover's compressed proof verifies as the proof does.
+    let memory = circuit.prover(engine, 109).unwrap();
+    let proof = super::proving::Proof::from_parts(proof.unwrap(), *run.carry());
+    let key = verifier.compression_key().unwrap();
+    let setup = memory.compression_setup().unwrap();
+    let compressed = memory.compress(&proof, &setup).unwrap();
+    let statement = run.statement();
+    verifier
+        .verify_final(
+            &Package::N1.program(),
+            &statement.initial,
+            &statement.final_,
+            &key,
+            &compressed,
         )
         .unwrap();
 }
@@ -561,7 +627,7 @@ fn memory_conformance(engine: crate::Engine) {
         Err(VerifyError::Terminal(TerminalError::OpenCarry))
     ));
 
-    // The Stage 1 initial envelope (`T = 0`): reject (SPEC.md Algorithm 10).
+    // The Stage 1 initial envelope (`T = 0`): reject (SPEC.md Algorithm 8).
     let mut empty = statement.clone();
     empty.steps = 0;
     empty.segments = 0;

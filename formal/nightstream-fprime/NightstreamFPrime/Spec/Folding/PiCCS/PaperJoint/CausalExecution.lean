@@ -1,13 +1,13 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
-import NightstreamFPrime.Spec.SumCheck.GoldilocksCausalTrace
+import NightstreamFPrime.Spec.SumCheck.FieldCausalTrace
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
 
 open NightstreamFPrime.Spec
 open _root_.NightstreamFPrime.Spec.SumCheck.Finite
 open StrongReduction
-open _root_.NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausal (Strategy)
-open _root_.NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausalTrace (issued)
+open _root_.NightstreamFPrime.Spec.SumCheck.Finite.FieldCausal (Strategy)
+open _root_.NightstreamFPrime.Spec.SumCheck.Finite.FieldCausalTrace (issued)
 
 structure Prover (shape : Shape) (columns width : Nat) where
   rounds : CubePoint K shape.cubeVariables → K → Strategy width

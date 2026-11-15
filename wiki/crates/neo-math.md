@@ -1,14 +1,14 @@
 # neo-math
 
-Field, ring, and embedding primitives. `#![forbid(unsafe_code)]`.
+Field, ring, and embedding primitives. `#![deny(unsafe_code)]`.
 
 ## Owns
 
-- **`field`** — `Fq` (Goldilocks, `q = 2⁶⁴ − 2³² + 1`; workspace-wide alias
+- **`field`** — `Fq` (`q = 2⁶⁴ − 59`; workspace-wide alias
   `neo_math::F`) and the degree-2 extension `K = F_{q²}` used for sum-check
   soundness (`KExtensions`, `from_complex`).
-- **`ring`** — `Rq = F_q[X]/Φ_81(X)` with `Φ_81 = X⁵⁴ + X²⁷ + 1` (`D = 54`,
-  `ETA = 81`); the coefficient maps `cf` / `cf_inv` and constant-term functional `ct`;
+- **`ring`** — `Rq = F_q[X]/(X⁶⁴ + 1)` (`D = 64`,
+  `ETA = 128`); the coefficient maps `cf` / `cf_inv` and constant-term functional `ct`;
   the SuperNeo §5 lifted transform `superneo_bar_block` / `superneo_bar_vec` /
   `superneo_bar_matrix` realizing `Mz = ct(bar(M)·z)`.
 - **`balanced`** — centered (balanced) representation, the ℓ∞ norm, and `split_b`

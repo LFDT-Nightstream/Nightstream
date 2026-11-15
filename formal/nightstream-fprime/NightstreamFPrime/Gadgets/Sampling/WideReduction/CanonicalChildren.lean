@@ -1,6 +1,6 @@
 import NightstreamFPrime.Gadgets.Sampling.WideReduction
 
-/-! Concrete execution of the four canonical input children. Each call
+/-! Concrete execution of the five canonical input children. Each call
 uses the existing proved hint-and-recipe construction. -/
 
 namespace NightstreamFPrime.Gadgets.Sampling.WideReduction.CanonicalChildren

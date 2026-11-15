@@ -6,7 +6,7 @@ namespace NightstreamFPrime.Export.Generic.PackedZero
 
 open NightstreamFPrime.Spec NightstreamFPrime.Circuit NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
-open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
+open NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
 open Fin.CommRing
 
 structure Values where
@@ -71,7 +71,7 @@ theorem packed_implies_residuals (values : List Values)
     (by simpa using count) small
   have limit := PackedBoolean.target_mono count
   have maximum := PackedBoolean.target_capacity_lt_modulus
-  have targetBound : PackedBoolean.target values.length < goldilocksModulus := by omega
+  have targetBound : PackedBoolean.target values.length < fieldModulus := by omega
   have field := pack_field values norm
   rw [zero, zero_add] at field
   have equal : PackedBoolean.packNat (values.map Values.digit) =

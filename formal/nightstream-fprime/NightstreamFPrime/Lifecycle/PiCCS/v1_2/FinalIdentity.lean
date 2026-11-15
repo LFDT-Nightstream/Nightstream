@@ -7,7 +7,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 /-!
 Paper authority: SuperNeo v1.2, Section 7.3, Step 4, `v = Q(r')`.
 Obligation: Enforce
-`E_K + gamma^864 E_A + gamma^4320 eq(r',alpha) (F + gamma N)`.
+`E_K + gamma^1024 E_A + gamma^5120 eq(r',alpha) (F + gamma N)`.
 
 Inputs:
 - verifier-derived `r'`, `alpha`, and `gamma`;
@@ -19,9 +19,9 @@ Outputs:
 
 Constraint groups:
 - C1: one opaque owned `PointEquality` child;
-- C2: one opaque owned `Power` child for `gamma^864`;
-- C3: one opaque owned `Power` child that raises `gamma^864` to `t + 1 = 5`,
-  giving `gamma^4320`;
+- C2: one opaque owned `Power` child for `gamma^1024`;
+- C3: one opaque owned `Power` child that raises `gamma^1024` to `t + 1 = 5`,
+  giving `gamma^5120`;
 - C4: two extension-component final-identity assertions.
 
 Parent coverage:
@@ -57,19 +57,19 @@ def constraintExponentOf (shape : Shape) : Nat := shape.constraintOffset
 /-- The circuit computes `γ ^ constraintExponentOf` as `(γ ^ matrixExponentOf) ^ (t + 1)`. -/
 def constraintFactorOf (shape : Shape) : Nat := shape.matrixCount + 1
 
-theorem matrixExponent_eq : matrixExponentOf productionShape = 864 := by
+theorem matrixExponent_eq : matrixExponentOf productionShape = 896 := by
   norm_num [matrixExponentOf, productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape, Shape.matrixEvaluationOffset,
+    RingMatrixSource.ringShape, Shape.matrixEvaluationOffset,
     Shape.padEvaluationCount, ringDegree]
 
-theorem constraintExponent_eq : constraintExponentOf productionShape = 4320 := by
+theorem constraintExponent_eq : constraintExponentOf productionShape = 4480 := by
   norm_num [constraintExponentOf, productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape, Shape.constraintOffset,
+    RingMatrixSource.ringShape, Shape.constraintOffset,
     Shape.padEvaluationCount, Shape.matrixEvaluationCount, ringDegree]
 
 theorem constraintFactor_eq : constraintFactorOf productionShape = 5 := by
   norm_num [constraintFactorOf, productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape]
+    RingMatrixSource.ringShape]
 
 theorem constraintExponent_eq_mul (shape : Shape) :
     constraintExponentOf shape = matrixExponentOf shape * constraintFactorOf shape := by
@@ -101,7 +101,7 @@ theorem gammaFreshPower_of_one {shape : Shape} (fresh : shape.freshCount = 1) (g
 theorem gammaFreshPower_eq (gamma : K) :
     TargetPolynomial.power extensionOps.toOps gamma
       productionShape.freshCount = gamma := by
-  simpa [productionShape, productionProfile, Phi81MatrixSource.phi81Shape,
+  simpa [productionShape, productionProfile, RingMatrixSource.ringShape,
     TargetPolynomial.power] using extensionLaws.mul_one gamma
 
 /-- The leaf's inputs for a Π_CCS shape: the production shape, or the bounded-depth scheme's light shape. -/
@@ -841,7 +841,7 @@ def shapeCircuitFast (interface : ShapeInterface shape) (positive : 0 < shape.cu
   exact FormalCircuit.eq_withPrivateCount _ _ _
 
 private theorem cubeVariables_positive : 0 < productionShape.cubeVariables := by
-  norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+  norm_num [productionShape, RingMatrixSource.ringShape, cubeVariables]
 
 theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
@@ -874,7 +874,7 @@ private theorem pointLength_eq (interface : Interface) (offset : Nat) :
   rfl
 
 private theorem matrixLength_eq (interface : Interface) (offset : Nat) :
-    matrixLength interface offset = 2592 := by
+    matrixLength interface offset = 2688 := by
   rw [matrixLength_eq_mul, matrixExponent_eq]
 
 private theorem constraintLength_eq (interface : Interface) (offset : Nat) :
@@ -1015,17 +1015,17 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
         (offset + localLength (Circuit.ops (circuit interface).main offset)) :=
   shapeFlatConstraints_varsBelow interface cubeVariables_positive offset env assumptions
 
-def privateCount : Nat := 2717
+def privateCount : Nat := 2813
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 2717 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 2813 := by
   change localLength (opsAt interface offset) = _
   rw [opsAt_localLength, pointLength_eq, matrixLength_eq, constraintLength_eq]
 
 /-- The circuit with its constant private count, for compiled evaluation
 (`Formal.childLength_eq_childLengthFast` reads it for every later offset). -/
 def circuitFast (interface : Interface) : FormalCircuit :=
-  (circuit interface).withPrivateCount (fun _ => 2717) (localLength_eq interface)
+  (circuit interface).withPrivateCount (fun _ => 2813) (localLength_eq interface)
 
 @[csimp] theorem circuit_eq_circuitFast : @circuit = @circuitFast := by
   funext interface
@@ -1038,20 +1038,20 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      2719 := by
+      2815 := by
   change (flatConstraints (opsAt interface offset)).length = _
   have pointFlat :
       (flatConstraints (Circuit.ops (pointCircuitAt interface offset).main
         offset)).length = 110 := by
     unfold pointCircuitAt
-    simpa [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables] using
+    simpa [productionShape, RingMatrixSource.ringShape, cubeVariables] using
       PointEquality.Owned.flatConstraints_length_of_positive
         (pointInterfaceAt interface offset) offset (by
-          norm_num [productionShape, Phi81MatrixSource.phi81Shape,
+          norm_num [productionShape, RingMatrixSource.ringShape,
             cubeVariables])
   have matrixFlat :
       (flatConstraints (Circuit.ops (matrixPowerCircuitAt interface offset).main
-        (matrixOffset interface offset))).length = 2592 := by
+        (matrixOffset interface offset))).length = 2688 := by
     unfold matrixPowerCircuitAt
     rw [Power.flatConstraints_length, matrixExponent_eq]
   have constraintFlat :
@@ -1127,7 +1127,7 @@ theorem terminal_implies_spec (interface : ShapeInterface shape) (offset : Nat) 
 theorem spec_implies_keyTerminal
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -1213,7 +1213,7 @@ theorem spec_implies_keyTerminal
 theorem keyTerminal_implies_spec
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

@@ -6,8 +6,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 
 use crate::application_records::{
     ApplicationForm, ApplicationRecipeNode, ApplicationRecords, ApplicationRecordsWriter, ApplicationRowHeader,
@@ -54,7 +54,7 @@ fn addition(scale: u64) -> Arc<ApplicationRecords> {
     Arc::new(writer.finish().expect("records"))
 }
 
-fn packages() -> BoundedDepthPackages {
+pub(super) fn packages() -> BoundedDepthPackages {
     load_bounded_depth_packages(
         &artifact("nightstream-fprime-bounded-depth-light-v1.json"),
         &artifact("nightstream-fprime-bounded-depth-refresh-v1.json"),
@@ -89,8 +89,8 @@ fn substitution_binds_the_application_and_refuses_a_wrong_region() {
     }
 }
 
-const FIRST_LOCAL: usize = 12;
-const BLOCK: usize = 1096;
+pub(super) const FIRST_LOCAL: usize = 12;
+pub(super) const BLOCK: usize = 1096;
 
 /// Four witness words and `locals` locals, each its own recipe
 /// `local · 1 = previous` from witness word 0; then `output_k · 1 = read`,
@@ -148,12 +148,12 @@ fn chained(locals: usize, read: usize, bits: &[usize]) -> Arc<ApplicationRecords
     Arc::new(writer.finish().expect("records"))
 }
 
-fn block(first_local: usize, lane: usize) -> NativeBlock {
+pub(super) fn block(first_local: usize, lane: usize) -> NativeBlock {
     NativeBlock {
         first_local,
         lanes: std::array::from_fn(|_| Linear {
-            constant: Goldilocks::ZERO,
-            terms: vec![(lane, Goldilocks::ONE)],
+            constant: Fq::ZERO,
+            terms: vec![(lane, Fq::ONE)],
         }),
     }
 }
@@ -246,7 +246,6 @@ fn lean_packages_follow_the_slot_rule() {
     for name in [
         "light",
         "refresh",
-        "finish",
         "nebula-v1-light",
         "nebula-v1-refresh",
         "nebula-n1-light",
@@ -353,7 +352,7 @@ fn inferred_application_bits_keep_the_compact_layout() {
                 },
                 [
                     (ApplicationForm::A, 4, 1),
-                    (ApplicationForm::B, 5, Goldilocks::NEG_ONE.as_canonical_u64()),
+                    (ApplicationForm::B, 5, Fq::NEG_ONE.as_canonical_u64()),
                 ]
                 .into_iter()
                 .map(|(form, variable, coefficient)| {
@@ -403,10 +402,10 @@ fn inferred_application_bits_keep_the_compact_layout() {
         ]);
         let old_slots = inferred.rule_slots(&old_bits, &[]);
         assert_ne!(old_slots, inferred.slots);
-        let mut shared = vec![Goldilocks::ZERO; inferred.application.local_start];
-        shared[0] = Goldilocks::ONE;
+        let mut shared = vec![Fq::ZERO; inferred.application.local_start];
+        shared[0] = Fq::ONE;
         for variable in 4..7 {
-            shared[inferred.variable_column(variable).unwrap()] = Goldilocks::ONE;
+            shared[inferred.variable_column(variable).unwrap()] = Fq::ONE;
         }
         let columns = inferred.circuit_columns(&shared).unwrap();
         let plan = inferred.plan_rows().unwrap();
@@ -442,9 +441,9 @@ fn source_and_packed_row_orders_fill_the_same_fresh_columns() {
         .with_application(chained(0, 4, &[4, 5, 6]), 4, &NativeShape::default())
         .unwrap();
     for package in [native.light(), native.refresh()] {
-        let mut shared = vec![Goldilocks::ZERO; package.application.local_start];
-        shared[0] = Goldilocks::ONE;
-        shared[package.variable_column(5).unwrap()] = Goldilocks::ONE;
+        let mut shared = vec![Fq::ZERO; package.application.local_start];
+        shared[0] = Fq::ONE;
+        shared[package.variable_column(5).unwrap()] = Fq::ONE;
         let columns = package.circuit_columns(&shared).unwrap();
         let plan = package.plan_rows().unwrap();
         let source = package.source_rows().unwrap();

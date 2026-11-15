@@ -7,14 +7,14 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 def quadraticNorm (value : K) : F :=
-  value.c0 * value.c0 - 7 * value.c1 * value.c1
+  value.c0 * value.c0 - 2 * value.c1 * value.c1
 
 def conjugate (value : K) : K :=
   ⟨value.c0, -value.c1⟩
 
-def SevenProjectiveNonresidue : Prop :=
+def TwoProjectiveNonresidue : Prop :=
   ∀ real imaginary : F,
-    real * real - 7 * imaginary * imaginary = 0 →
+    real * real - 2 * imaginary * imaginary = 0 →
       real = 0 ∧ imaginary = 0
 
 def ExtensionNoZeroDivisors : Prop :=
@@ -29,11 +29,11 @@ theorem conjugate_mul_self (value : K) :
   · rw [Fin.sub_eq_add_neg]
     congr 1
     calc
-      7 * -imaginary * imaginary =
-          (-imaginary) * (7 * imaginary) := by ac_rfl
-      _ = -(imaginary * (7 * imaginary)) :=
+      2 * -imaginary * imaginary =
+          (-imaginary) * (2 * imaginary) := by ac_rfl
+      _ = -(imaginary * (2 * imaginary)) :=
         ConcreteCarrier.baseLaws.neg_mul _ _
-      _ = -(7 * imaginary * imaginary) := by congr 1 <;> ac_rfl
+      _ = -(2 * imaginary * imaginary) := by congr 1 <;> ac_rfl
   · have negMul : -imaginary * real = -(imaginary * real) := by
       simpa [ConcreteCarrier.baseOps] using!
         (ConcreteCarrier.baseLaws.neg_mul imaginary real)
@@ -49,20 +49,20 @@ theorem conjugate_mul_self (value : K) :
       _ = 0 := ConcreteCarrier.baseLaws.add_neg _
 
 theorem quadraticNorm_eq_zero_iff
-    (sevenNonresidue : SevenProjectiveNonresidue)
+    (twoNonresidue : TwoProjectiveNonresidue)
     (value : K) :
     quadraticNorm value = 0 ↔ value = K.zero := by
   constructor
   · intro normZero
-    have coefficients := sevenNonresidue value.c0 value.c1 normZero
+    have coefficients := twoNonresidue value.c0 value.c1 normZero
     rcases value with ⟨real, imaginary⟩
     simpa [K.zero] using coefficients
   · rintro rfl
     rfl
 
-theorem extensionNoZeroDivisors_of_base_and_seven
+theorem extensionNoZeroDivisors_of_base_and_two
     (baseNoZeroDivisors : NormRange.BaseFieldNoZeroDivisors)
-    (sevenNonresidue : SevenProjectiveNonresidue) :
+    (twoNonresidue : TwoProjectiveNonresidue) :
     ExtensionNoZeroDivisors := by
   intro left right productZero
   by_cases leftZero : left = K.zero
@@ -71,7 +71,7 @@ theorem extensionNoZeroDivisors_of_base_and_seven
     have normNonzero : quadraticNorm left ≠ 0 := by
       intro normZero
       exact leftZero
-        ((quadraticNorm_eq_zero_iff sevenNonresidue left).mp normZero)
+        ((quadraticNorm_eq_zero_iff twoNonresidue left).mp normZero)
     have scaledRightZero :
         K.mul (K.embed (quadraticNorm left)) right = K.zero := by
       calc

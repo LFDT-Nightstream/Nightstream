@@ -2,8 +2,8 @@
 # Mechanical enforcement of the architecture boundaries in AGENTS.md. Every
 # check is a hard failure.
 #   check-boundaries.sh [package-dir]
-# With no argument, it checks F′. Another package, such as
-# ../compression-lean, gets only the package-wide checks. The layer,
+# With no argument, it checks F′. Another package gets only the
+# package-wide checks. The layer,
 # matrix and consumer rules belong to F′.
 set -euo pipefail
 
@@ -178,8 +178,8 @@ from rebuild_radius import graph, dependents
 
 prefix = 'NightstreamFPrime.Layout.Stage1.'
 interfaces = {prefix + name for name in
-              ('Spartan', 'PiDECSourceSupportData', 'RunningTransitionSourceSupportData')}
-restricted_owners = ('RunningTransitionLowering', 'SpartanValues')
+              ('PackageOrder', 'PiDECSourceSupportData', 'RunningTransitionSourceSupportData')}
+restricted_owners = ('RunningTransitionLowering', 'PackageOrderValues')
 edges, _ = graph(Path('.'))
 failures = []
 for name in restricted_owners:
@@ -194,6 +194,14 @@ print('[layout-interfaces] data interfaces exclude row plans and default-value p
 PY
 then
   fail "row plans or default-value proofs crossed an allocation data interface"
+fi
+
+if ! timeout --signal=KILL 300s python3 -B scripts/check_assumptions.py; then
+  fail "SECURITY_MODEL.md states an assumption that is not on the allowed list"
+fi
+
+if ! timeout --signal=KILL 300s python3 -B scripts/check_premises.py; then
+  fail "a hypothesis of a top-level security theorem has no class in SECURITY_MODEL.md"
 fi
 
 for retired in crates/neo-fold-legacy crates/wip-spartan tools/recursive-constraint-minimizer/bridge; do

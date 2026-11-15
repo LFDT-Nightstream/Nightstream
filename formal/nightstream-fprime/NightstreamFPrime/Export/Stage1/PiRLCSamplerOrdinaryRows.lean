@@ -10,7 +10,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open PiRLCSamplerInvocations (sourceInterface sourceLogicalStart)
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 def rangeInterface (source : Nat) : WideReduction.Interface where
   source := fun lane _ => PiRLCSamplerInvocations.fastAdvanceState
@@ -40,7 +40,7 @@ def rangeRows (source : Nat) : List Rows.CompiledRow :=
 
 def wordRows (source : Nat) : List Rows.CompiledRow :=
   PiCCSArithmetic.compilePacket (Layout.Stage1.PiRLCStarts.challengeWordRowStart source)
-    (Layout.Stage1.PiRLCStarts.rangeFreshStart source + 144) (wordConstraints source)
+    (Layout.Stage1.PiRLCStarts.rangeFreshStart source) (wordConstraints source)
 
 def sourceRows (source : Nat) : List Rows.CompiledRow :=
   rangeRows (logicalWidth := logicalWidth) (publicFits := publicFits) source ++ wordRows source
@@ -61,19 +61,19 @@ theorem rangeConstraints_eq (source : Nat) :
 
 theorem rangeRows_toR1CS (source : Nat) :
     (rangeRows (logicalWidth := logicalWidth) (publicFits := publicFits) source).map Rows.CompiledRow.toR1CS =
-      Layout.Stage1.Spartan.remapRows (R1CS.lowerConstraints
+      Layout.Stage1.PackageOrder.remapRows (R1CS.lowerConstraints
         (rangeConstraints (logicalWidth := logicalWidth) (publicFits := publicFits) source)
         (Layout.Stage1.PiRLCStarts.rangeFreshStart source)).rows :=
   PiCCSArithmetic.compilePacket_toR1CS _ _ _
 
 theorem wordRows_toR1CS (source : Nat) :
     (wordRows source).map Rows.CompiledRow.toR1CS =
-      Layout.Stage1.Spartan.remapRows (R1CS.lowerConstraints (wordConstraints source)
-        (Layout.Stage1.PiRLCStarts.rangeFreshStart source + 144)).rows :=
+      Layout.Stage1.PackageOrder.remapRows (R1CS.lowerConstraints (wordConstraints source)
+        (Layout.Stage1.PiRLCStarts.rangeFreshStart source)).rows :=
   PiCCSArithmetic.compilePacket_toR1CS _ _ _
 
 @[simp] theorem rangeRows_length (source : Nat) :
-    (rangeRows (logicalWidth := logicalWidth) (publicFits := publicFits) source).length = 825 := by
+    (rangeRows (logicalWidth := logicalWidth) (publicFits := publicFits) source).length = 845 := by
   rw [rangeRows, PiCCSArithmetic.compilePacket_length]
   unfold rangeConstraints
   rw [rangeInterface_eq, WideReduction.Program.constraints_eq]
@@ -82,20 +82,20 @@ theorem wordRows_toR1CS (source : Nat) :
       (sourceInterface (logicalWidth := logicalWidth) (publicFits := publicFits) source)
       source (sourceLogicalStart source) (Sampler.rateLane lane))).2
 
-@[simp] theorem wordRows_length (source : Nat) : (wordRows source).length = 54 := by
+@[simp] theorem wordRows_length (source : Nat) : (wordRows source).length = 64 := by
   rw [wordRows, PiCCSArithmetic.compilePacket_length, R1CS.totalRowCount_eq_fresh_add_length]
   have fresh := Layout.PiRLC.v1_2.Sampler.words_fresh (sourceLogicalStart source)
   change R1CS.totalFreshCount (wordConstraints source) = 0 at fresh
   rw [fresh]
-  change 0 + (flatConstraints (SamplerWords.operations _ _)).length = 54
+  change 0 + (flatConstraints (SamplerWords.operations _ _)).length = 64
   rw [SamplerWords.rowCount_eq, SamplerWords.count_eq]
 
 @[simp] theorem sourceRows_length (source : Nat) :
-    (sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits) source).length = 879 := by
+    (sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits) source).length = 909 := by
   simp [sourceRows]
 
 theorem rows_length :
-    (rows (logicalWidth := logicalWidth) (publicFits := publicFits)).length = 14943 := by
+    (rows (logicalWidth := logicalWidth) (publicFits := publicFits)).length = 13635 := by
   simp [rows, PiRLCSamplerInvocations.sourceCount]
 
 theorem rows_imply_sourceRows (source : Fin PiRLCSamplerInvocations.sourceCount) (env : Env)
@@ -118,7 +118,7 @@ theorem rangeRows_imply_spec (source : Nat) (env : Env)
       (publicFits := publicFits) source).map Rows.CompiledRow.toR1CS)) :
     (WideReduction.Program.circuit
       (rangeInterface (logicalWidth := logicalWidth) (publicFits := publicFits) source)).spec
-      (Layout.Stage1.PiRLCStarts.rangeLogicalStart source) (Layout.Stage1.Spartan.pullback env) := by
+      (Layout.Stage1.PiRLCStarts.rangeLogicalStart source) (Layout.Stage1.PackageOrder.pullback env) := by
   have logical := PiCCSArithmetic.compilePacket_sound _ _ _ env held
   exact (WideReduction.Program.circuit _).soundness _ _ inputs
     (holdsFlat_implies_holds _ _ logical)
@@ -126,7 +126,7 @@ theorem rangeRows_imply_spec (source : Nat) (env : Env)
 theorem wordRows_imply_spec (source : Nat) (env : Env)
     (held : R1CS.RowsHold env ((wordRows source).map Rows.CompiledRow.toR1CS)) :
     SamplerWords.SpecHolds (Layout.Stage1.PiRLCStarts.rangeLogicalStart source)
-      (Layout.Stage1.PiRLCStarts.challengeWordStart source) (Layout.Stage1.Spartan.pullback env) := by
+      (Layout.Stage1.PiRLCStarts.challengeWordStart source) (Layout.Stage1.PackageOrder.pullback env) := by
   have logical := PiCCSArithmetic.compilePacket_sound _ _ _ env held
   exact SamplerWords.soundness _ _ _ (holdsFlat_implies_holds _ _ logical)
 

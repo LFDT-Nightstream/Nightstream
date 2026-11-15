@@ -8,7 +8,7 @@ Obligation: Enforce
 
 Inputs:
 - the verifier-derived challenge `gamma`;
-- all 17 output source-assignment values in exact `K + k` order.
+- all 15 output source-assignment values in exact `K + k` order.
 
 Outputs:
 - the child-owned exact strict-`b = 2` norm residual term.
@@ -139,19 +139,19 @@ theorem spec_implies_normAtMessage (interface : ShapeInterface shape) (offset : 
 end Shape
 
 theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
-    (coefficientExprs interface offset).length = 17 := by
+    (coefficientExprs interface offset).length = 15 := by
   simp [coefficientExprs, canonicalFinIndices_length, productionShape,
-    productionProfile, Phi81MatrixSource.phi81Shape, Shape.sourceCount]
+    productionProfile, RingMatrixSource.ringShape, Shape.sourceCount]
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 48 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 42 := by
   change localLength
     (Circuit.ops (Horner.Owned.circuit (ownedInterface interface)).main offset) = _
   rw [Horner.Owned.localLength_eq]
-  change 3 * ((coefficientExprs interface offset).length - 1) = 48
+  change 3 * ((coefficientExprs interface offset).length - 1) = 42
   rw [coefficientExprs_length]
 
-def privateCount : Nat := 48
+def privateCount : Nat := 42
 
 theorem operations_length (interface : Interface) (offset : Nat) :
     (Circuit.ops (circuit interface).main offset).length = 1 :=
@@ -159,12 +159,12 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      48 := by
+      42 := by
   change (flatConstraints
     (Circuit.ops (Horner.Owned.circuit
       (ownedInterface interface)).main offset)).length = _
   rw [Horner.Owned.flatConstraints_length]
-  change 3 * ((coefficientExprs interface offset).length - 1) = 48
+  change 3 * ((coefficientExprs interface offset).length - 1) = 42
   rw [coefficientExprs_length]
 
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
@@ -180,7 +180,7 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
 theorem spec_implies_keyNormAtMessage
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

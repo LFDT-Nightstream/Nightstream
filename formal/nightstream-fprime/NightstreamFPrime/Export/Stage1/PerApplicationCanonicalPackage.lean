@@ -28,8 +28,8 @@ abbrev FitsTwoPow28 (program : Program) :=
 
 abbrev CommitmentSetup (program : Program) :=
   AjtaiSetupV1.Setup productionProfile.commitmentWidth
-    (Phi81ColumnLayout.blockCount
-      (Phi81CarrierLayout.carrierWidth
+    (ConcreteRingColumnLayout.blockCount
+      (RingCarrierLayout.carrierWidth
         (PerApplicationFixedPoint.logicalWidth program)))
 
 def commitmentKey {program : Program} (setup : CommitmentSetup program) :
@@ -50,7 +50,7 @@ def recursiveRelation (program : Program) (fits : FitsTwoPow28 program) :
     Lifecycle.cubeVariables
 
 def directStructuralRowCount (program : Program) : Nat :=
-  998638 + (PerApplicationPackage.directApplicationPlan program).rowCount + 9
+  933838 + (PerApplicationPackage.directApplicationPlan program).rowCount + 9
 
 theorem directStructuralRowCount_eq
     (program : Program) (fits : FitsTwoPow28 program) :
@@ -61,7 +61,7 @@ theorem directStructuralRowCount_eq
     PerApplicationFixedPoint.structuralPlan_rowCount]
 
 def directLogicalWidth (program : Program) : Nat :=
-  43738906 +
+  40881830 +
     (program.witnessWordCount + ApplicationRetainedBlocks.localCount program) * 41
 
 theorem directLogicalWidth_eq (program : Program) :
@@ -247,7 +247,7 @@ theorem nextPreimageRange_endsAtPackageEnd (program : Program)
 
 def logicalPublicInputCount : Nat := ProductionAssignment.publicWidth
 
-@[simp] theorem logicalPublicInputCount_eq : logicalPublicInputCount = 270 :=
+@[simp] theorem logicalPublicInputCount_eq : logicalPublicInputCount = 320 :=
   ProductionAssignment.publicWidth_eq
 
 def sealedPackageSchema : Nat := 6

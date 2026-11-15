@@ -134,21 +134,21 @@ theorem spec_implies_initial (interface : ShapeInterface shape) (offset : Nat) (
 end Shape
 
 theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
-    (coefficientExprs interface offset).length = 4320 := by
+    (coefficientExprs interface offset).length = 4480 := by
   simp only [coefficientExprs, List.length_append, List.length_map]
   simp [canonicalPadCoordinates_length,
     canonicalMatrixCoordinates_length, productionShape, productionProfile,
-    Phi81MatrixSource.phi81Shape, Shape.padEvaluationCount,
+    RingMatrixSource.ringShape, Shape.padEvaluationCount,
     Shape.matrixEvaluationCount, cubeVariables, ringDegree]
 
-def privateCount : Nat := 12957
+def privateCount : Nat := 13437
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
-    localLength (Circuit.ops (circuit interface).main offset) = 12957 := by
+    localLength (Circuit.ops (circuit interface).main offset) = 13437 := by
   change localLength (Circuit.ops
-    (Horner.Owned.circuit (ownedInterface interface)).main offset) = 12957
+    (Horner.Owned.circuit (ownedInterface interface)).main offset) = 13437
   rw [Horner.Owned.localLength_eq]
-  change 3 * ((coefficientExprs interface offset).length - 1) = 12957
+  change 3 * ((coefficientExprs interface offset).length - 1) = 13437
   rw [coefficientExprs_length]
 
 theorem operations_length (interface : Interface) (offset : Nat) :
@@ -157,17 +157,17 @@ theorem operations_length (interface : Interface) (offset : Nat) :
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
-      12957 := by
+      13437 := by
   change (flatConstraints (Circuit.ops
-    (Horner.Owned.circuit (ownedInterface interface)).main offset)).length = 12957
+    (Horner.Owned.circuit (ownedInterface interface)).main offset)).length = 13437
   rw [Horner.Owned.flatConstraints_length]
-  change 3 * ((coefficientExprs interface offset).length - 1) = 12957
+  change 3 * ((coefficientExprs interface offset).length - 1) = 13437
   rw [coefficientExprs_length]
 
 theorem spec_implies_keyInitial
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
-      Phi81CarrierLayout.carrierWidth logicalWidth}
+      RingCarrierLayout.carrierWidth logicalWidth}
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey
       (logicalWidth := logicalWidth) (publicFits := publicFits))

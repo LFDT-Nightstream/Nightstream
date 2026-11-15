@@ -5,7 +5,7 @@ import NightstreamFPrime.Lifecycle.RandomOracle.Schedule
 key's reads of it. The refresh transcript absorbs the fresh claim and the commitments and
 evaluation families of the Π_DEC children (`BoundedDepth.refreshWords`). So its statement is the
 fresh claim with the children split of the refresh proof (`Statement`, `statement`). The
-refresh key's Π_CCS coins (`coins_eq_reads`, `piCcsProbe_coins`) and its 17 Π_RLC challenges
+refresh key's Π_CCS coins (`coins_eq_reads`, `piCcsProbe_coins`) and its 15 Π_RLC challenges
 (`rho_seal`) are the schedule's reads. This is `TranscriptCoverage` for `BoundedDepth.refreshKey`.
 The words of the fresh claim (`freshWords_injective`) are also the light statement's words. -/
 
@@ -23,7 +23,7 @@ open NightstreamFPrime.Lifecycle.RandomOracle
 open NightstreamFPrime.Lifecycle.RandomOracle.Sponge
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 section Words
 
@@ -118,7 +118,7 @@ theorem fullOutputWords_eq (output : FullOutputCoordinates.FullOutput K producti
   rfl
 
 variable (logicalWidth publicFits) in
-/-- The refresh transcript's schedule: production shape, the refresh domain, and 17 Π_RLC
+/-- The refresh transcript's schedule: production shape, the refresh domain, and 15 Π_RLC
 challenges. -/
 def schedule : Schedule where
   shape := productionShape

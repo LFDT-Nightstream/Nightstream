@@ -36,7 +36,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 def logicalConstraints
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -131,7 +131,7 @@ theorem logicalConstraints_length_eq_of_degreeBound_eq_eight
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (degreeEq : degreeBound = 8) :
-    (logicalConstraints relation interface offset).length = 1073369 := by
+    (logicalConstraints relation interface offset).length = 1114155 := by
   rw [logicalConstraints_length]
   exact Formal.rowCount_eq_of_degreeBound_eq_eight degreeBound degreeEq
 
@@ -139,7 +139,7 @@ theorem logicalColumnCount_eq_of_degreeBound_eq_eight
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (degreeEq : degreeBound = 8) :
-    logicalColumnCount relation interface offset = offset + 1068869 := by
+    logicalColumnCount relation interface offset = offset + 1109425 := by
   unfold logicalColumnCount
   rw [Formal.privateCount_eq_of_degreeBound_eq_eight degreeBound degreeEq]
 

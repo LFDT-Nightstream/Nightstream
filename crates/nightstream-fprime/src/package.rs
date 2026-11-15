@@ -7,10 +7,13 @@ use json::canonical_field;
 mod matrix_program;
 pub(crate) use matrix_program::{external_outputs, permutation_rows, Entries};
 mod v1_2;
-pub use v1_2::PI_CCS_V1_2_ROUND_COUNT;
+pub use v1_2::{
+    BLOCK_LOCALS, COMMITMENT_WORDS, EVALUATIONS, PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT,
+    PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS,
+};
 pub(crate) use v1_2::{
-    DECOMPOSITION_BASE, DECOMPOSITION_K_RHO, DECOMPOSITION_NORM_BOUND, PI_CCS_V1_2_COEFFICIENT_COUNT,
-    PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT,
+    BLOCK_OUTPUTS, DECOMPOSITION_BASE, DECOMPOSITION_K_RHO, DECOMPOSITION_NORM_BOUND, RING_DEGREE, RING_NODES,
+    SBOX_ROWS,
 };
 mod pi_ccs_v1_2_transcript;
 pub use pi_ccs_v1_2_transcript::{
@@ -39,7 +42,7 @@ pub enum PackageError {
     },
     #[error("unsatisfied assertion row {row}")]
     UnsatisfiedAssertionRow { row: usize },
-    #[error("noncanonical Goldilocks word in {location}: {value}")]
+    #[error("noncanonical field word in {location}: {value}")]
     NonCanonicalField { location: &'static str, value: u64 },
     #[error("{kind} does not match: expected {expected:?}, computed {computed:?}")]
     IdentityMismatch {

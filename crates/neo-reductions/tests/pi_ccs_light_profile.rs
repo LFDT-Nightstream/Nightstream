@@ -79,18 +79,18 @@ impl Fold {
         )
         .unwrap();
         let cache = build_superneo_eval_cache(&structure).unwrap();
-        let base = NeoParams::nightstream_goldilocks_k16();
+        let base = NeoParams::nightstream_p64_k14();
         let bits = base
             .padded_row_security_summary_for_shape(
                 ROWS,
                 LOGICAL,
                 structure.t(),
                 structure.max_degree(),
-                neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+                neo_params::nightstream_p64_k14::CHALLENGE_ALPHABET.len() as u32,
             )
             .unwrap()
             .security_bits;
-        let params = base.with_lambda(base.lambda().min(bits)).unwrap();
+        let params = base.with_lambda(bits).unwrap();
         let mut fresh_values = vec![F::ZERO; WIDTH];
         fresh_values[0] = F::ONE;
         fresh_values[LOGICAL - 1] = -F::ONE;

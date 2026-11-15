@@ -1,2 +1,0 @@
-import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra
-import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra

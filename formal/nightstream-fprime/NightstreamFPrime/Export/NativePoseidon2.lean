@@ -9,69 +9,69 @@ open Fin.CommRing
 namespace State64
 
 private def initialConstant0 : State64 :=
-  ⟨15504881536434223753, 2212164856944708396, 1885257220781225929, 17531637481572944510,
-    16769640728293682348, 445908668462176974, 1308472042479836079, 17465001500823438575,
-    1922033642430128704, 2657514617275794404, 17238706657248448792, 7348277157222259646,
-    10777112892842897939, 1771261721914735482, 9409693344407549465, 16619731096074499912, by decide⟩
+  ⟨1579613653969377219, 15509510893087893340, 10090715174060125222, 5625716564419252202,
+    3006005019077469174, 18314693207014427912, 10170571510627764565, 2027625550790675754,
+    3983470257916202094, 3423470109396435354, 3450488264035752368, 3151070045406026687,
+    13462781804006123550, 13288575772684627216, 13745549378090937523, 7780139165529418388, by decide⟩
 private def initialConstant1 : State64 :=
-  ⟨1922036059108268922, 2681686362645798986, 12432722052283819565, 2826979200512189741,
-    5080805286413226676, 16827966425431695029, 9196241087337510154, 2350771591198563053,
-    2989012136977041732, 4359939046747977080, 16089932437481530267, 6601984573273403484,
-    13005272261058756234, 17128237926164276121, 8240789415616872849, 8676316357341090631, by decide⟩
+  ⟨11699769881923825909, 4349260652212695338, 8228348357294662898, 12037145371429260559,
+    7743383997471469184, 7842006993218978420, 18369471830829996810, 10157815501749214163,
+    11128005290408113568, 12272917402811871099, 106820976709770637, 6178857985076893256,
+    14036787039817180193, 1659458828486927362, 15938183887757779615, 10060334973073197601, by decide⟩
 private def initialConstant2 : State64 :=
-  ⟨16452552554259143025, 17874550554210084887, 3031715677034868367, 18215520516675091549,
-    18186005068527139405, 11138995707668647102, 15098195648006184282, 2025927025270509469,
-    9957669227203243937, 11554336633716867616, 9729067570563846225, 4239770196713589268,
-    4390607796152185292, 17647511975646925721, 7671337049037340193, 4209452938403606590, by decide⟩
+  ⟨12437259172286625042, 3143835545170851304, 14361575850007152549, 11810209965918630788,
+    17667700303515849362, 13451932870729425780, 17496644301504593329, 1778669202480014256,
+    11124488067381312952, 14273583775934080755, 13257379154210125715, 15182093233826554989,
+    5343815959848316783, 5696193414571279556, 6089787229781325813, 3717595218375990594, by decide⟩
 private def initialConstant3 : State64 :=
-  ⟨6593973666654839090, 8390781086037206386, 7324343054784993307, 17780748563735894140,
-    15974082699116886783, 13213371256836887512, 7312926934405385057, 10393853239698468203,
-    2710107888698774842, 2801523468128575786, 15894340394120906162, 13510783799941644149,
-    7917164295139071913, 13839801071899888959, 6672989303670154677, 4519956214037211385, by decide⟩
+  ⟨12355842859741995537, 14160921043125059199, 13682913322779819091, 12343504462597575239,
+    14249643564311509087, 15849758561085927402, 12186564686511703262, 690520822232718983,
+    684200944081655198, 6008958449718781068, 3098079696536837500, 12083506578988585239,
+    6489163969976034646, 1186411428667285248, 11192474480021157091, 17095617549195818058, by decide⟩
 
-private def partialConstant00 : UInt64 := 3785078240232899765
-private def partialConstant01 : UInt64 := 13753534232687663059
-private def partialConstant02 : UInt64 := 15164579152346391244
-private def partialConstant03 : UInt64 := 7188840087678967607
-private def partialConstant04 : UInt64 := 14466302407008998516
-private def partialConstant05 : UInt64 := 13002203018489042439
-private def partialConstant06 : UInt64 := 6216879054540921071
-private def partialConstant07 : UInt64 := 8639253411382064186
-private def partialConstant08 : UInt64 := 4983986534873630152
-private def partialConstant09 : UInt64 := 2915380551046574730
-private def partialConstant10 : UInt64 := 7837744426713061492
-private def partialConstant11 : UInt64 := 10524728973359902812
-private def partialConstant12 : UInt64 := 9778451922853050075
-private def partialConstant13 : UInt64 := 13310295482970625397
-private def partialConstant14 : UInt64 := 10551647698332907197
-private def partialConstant15 : UInt64 := 8509293821221348719
-private def partialConstant16 : UInt64 := 4319821126274335035
-private def partialConstant17 : UInt64 := 1417436523646501240
-private def partialConstant18 : UInt64 := 447570613036226838
-private def partialConstant19 : UInt64 := 16267896682506996530
-private def partialConstant20 : UInt64 := 14710998805405468930
-private def partialConstant21 : UInt64 := 3269000544927978862
+private def partialConstant00 : UInt64 := 2949845317987848448
+private def partialConstant01 : UInt64 := 6935557324168256069
+private def partialConstant02 : UInt64 := 2055390472619727748
+private def partialConstant03 : UInt64 := 12399309956582731760
+private def partialConstant04 : UInt64 := 3088058410657255303
+private def partialConstant05 : UInt64 := 8790959064194804235
+private def partialConstant06 : UInt64 := 4582664136559626757
+private def partialConstant07 : UInt64 := 14821962908959377092
+private def partialConstant08 : UInt64 := 2002685046256118388
+private def partialConstant09 : UInt64 := 15689593639089632368
+private def partialConstant10 : UInt64 := 10512046881800463697
+private def partialConstant11 : UInt64 := 11973738501993105496
+private def partialConstant12 : UInt64 := 13009070935614847359
+private def partialConstant13 : UInt64 := 12908033183314664096
+private def partialConstant14 : UInt64 := 9530849385991780809
+private def partialConstant15 : UInt64 := 17528314872631229800
+private def partialConstant16 : UInt64 := 17869527288639567155
+private def partialConstant17 : UInt64 := 7829055113315023688
+private def partialConstant18 : UInt64 := 3256047469251174543
+private def partialConstant19 : UInt64 := 3015723851705964382
+private def partialConstant20 : UInt64 := 5177282273995529875
+private def partialConstant21 : UInt64 := 16035152896984012190
 
 private def terminalConstant0 : State64 :=
-  ⟨7482194551502142718, 3471957803411196592, 8846669050136897522, 4431017908497072775,
-    14382646627736292998, 15636596632746594248, 14521990061611210983, 4351091752509404379,
-    14119848206371842921, 528205008764728916, 15379406877060454284, 13572057177474709483,
-    780214424511389757, 10591233664360718633, 1849508423779478786, 7345390174439848870, by decide⟩
+  ⟨15766898731627159621, 6714370142978148338, 5906664861467821209, 2197120128337974909,
+    9400421283898153864, 16740473708727660723, 7287335615015370599, 12399217337488717232,
+    12655834778591227242, 7516917516498792203, 17291898461659961460, 3483661079725019706,
+    18038566855851505564, 6166154478921479976, 8824538844032254328, 17138720803294251067, by decide⟩
 private def terminalConstant1 : State64 :=
-  ⟨14580881241235634775, 8777273265976228774, 1758781345554053863, 9701442189086298420,
-    15685565327448534444, 5672331717709479627, 7675233227955155107, 8852669876726984824,
-    1218164705289579190, 13224810758441726241, 557024023478380004, 3923346290699247117,
-    4196774554581694822, 16262909137268628555, 6531098975686849205, 538070144030448988, by decide⟩
+  ⟨4158286797471309733, 1589482450994236426, 4836112672767737407, 6108317238076822824,
+    11174425919404088598, 2755155124184744585, 13202523778257173956, 6643835433125335951,
+    2748965361441888477, 14297205492001640506, 12595977886586773319, 257624298448087449,
+    2744326799038764281, 9097808034015176417, 5523099006222423939, 7256201493271212720, by decide⟩
 private def terminalConstant2 : State64 :=
-  ⟨16157559630818414765, 3330859574359708906, 13312877616183741059, 15699706004066187344,
-    2181468677625794151, 12293285838251430515, 17109377825740910727, 11746958123598489878,
-    7654965179475073269, 15178922343313110770, 14240408894833620294, 4224192993509995210,
-    13093043512401634422, 16636225261759530156, 13489384640167770266, 8105602514957866176, by decide⟩
+  ⟨9738621014989498753, 237412858668409460, 6405904454922718574, 16343835012250148340,
+    9342245617122491936, 824922755340087111, 5398764608665671277, 16030622638137836774,
+    4921899302518525668, 10676667276121395674, 16304445044992359788, 587812931475326787,
+    7627897473303434798, 2633542348821978290, 5714662808802647771, 15665352327749112015, by decide⟩
 private def terminalConstant3 : State64 :=
-  ⟨13910460326211973254, 13010277363854955001, 8570865802160232388, 14830753997593808291,
-    16178721091989175194, 10926358020058189153, 8413180834413067310, 1124528750616792490,
-    16054199595598201491, 729673474029476808, 1545919217216143455, 15484244716222357662,
-    9149791094276206087, 3342519128264714984, 14246551315881547762, 6145097356981870399, by decide⟩
+  ⟨8041781683128153420, 13172746155287932121, 6611413049825339003, 9076340683484238287,
+    12295614633782496176, 11414162089917699064, 13658053783093222498, 16216654076620539925,
+    17782598995085730495, 18362903988365127450, 11596821426909532371, 13499421621575350806,
+    15256312875610823807, 1558929959921731273, 17567284148478398281, 4615393526180652407, by decide⟩
 
 private def FullConstantMatch (constants : State64) (rows : List (List Nat))
     (round : Nat) : Prop :=
@@ -103,7 +103,7 @@ private theorem fullRound64_denote_at (rows : List (List Nat)) (round : Nat)
   simp [Poseidon2.width, denote, List.range_succ, h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15]
 
 private theorem partialRound64_denote_at (round : Nat) (constant : UInt64)
-    (constantCanonical : constant.toNat < goldilocksModulus)
+    (constantCanonical : constant.toNat < fieldModulus)
     (constantMatch : constant.denote =
       Poseidon2.ofNat (Poseidon2.internalConstants.getD round 0))
     (state : State64) :
@@ -287,31 +287,31 @@ end State64
 
 @[inline] def ofNat64 (value : Nat) : UInt64 :=
   if value < UInt64.size then
-    if value < goldilocksModulus then UInt64.ofNat value
-    else UInt64.ofNat (value - goldilocksModulus)
-  else UInt64.ofNat (value % goldilocksModulus)
+    if value < fieldModulus then UInt64.ofNat value
+    else UInt64.ofNat (value - fieldModulus)
+  else UInt64.ofNat (value % fieldModulus)
 
 private theorem ofNat64_toNat (value : Nat) :
-    (ofNat64 value).toNat = value % goldilocksModulus := by
+    (ofNat64 value).toNat = value % fieldModulus := by
   simp only [ofNat64]
   split <;> rename_i sizeBranch
   · split <;> rename_i modulusBranch
     · rw [UInt64.toNat_ofNat_of_lt' sizeBranch,
         Nat.mod_eq_of_lt modulusBranch]
-    · have modulusLe : goldilocksModulus ≤ value := by omega
-      have differenceSize : value - goldilocksModulus < UInt64.size := by omega
-      have differenceModulus : value - goldilocksModulus < goldilocksModulus := by
-        have sizeLtTwice : UInt64.size < 2 * goldilocksModulus := by decide
+    · have modulusLe : fieldModulus ≤ value := by omega
+      have differenceSize : value - fieldModulus < UInt64.size := by omega
+      have differenceModulus : value - fieldModulus < fieldModulus := by
+        have sizeLtTwice : UInt64.size < 2 * fieldModulus := by decide
         omega
       rw [UInt64.toNat_ofNat_of_lt' differenceSize,
         Nat.mod_eq_sub_mod modulusLe, Nat.mod_eq_of_lt differenceModulus]
-  · have residueModulus := Nat.mod_lt value (by decide : 0 < goldilocksModulus)
-    have residueSize : value % goldilocksModulus < UInt64.size :=
+  · have residueModulus := Nat.mod_lt value (by decide : 0 < fieldModulus)
+    have residueSize : value % fieldModulus < UInt64.size :=
       Nat.lt_trans residueModulus (by decide)
     rw [UInt64.toNat_ofNat_of_lt' residueSize]
 
 theorem ofNat64_canonical (value : Nat) :
-    (ofNat64 value).toNat < goldilocksModulus := by
+    (ofNat64 value).toNat < fieldModulus := by
   rw [ofNat64_toNat]
   exact Nat.mod_lt _ (by decide)
 
@@ -350,8 +350,8 @@ private theorem fastCarry_denote (value : Nat) (bound : value < UInt64.size) :
   decide
 
 private theorem getD_canonical (words : List UInt64)
-    (canonical : ∀ word ∈ words, word.toNat < goldilocksModulus) (index : Nat) :
-    (words.getD index 0).toNat < goldilocksModulus := by
+    (canonical : ∀ word ∈ words, word.toNat < fieldModulus) (index : Nat) :
+    (words.getD index 0).toNat < fieldModulus := by
   rw [List.getD_eq_getElem?_getD]
   cases member : words[index]? with
   | none => decide
@@ -365,7 +365,7 @@ private theorem getElem?_getD_denote (words : List UInt64) (index : Nat) :
   | some word => rfl
 
 @[inline] def absorbWords64 (state : State64) (words : List UInt64)
-    (canonical : ∀ word ∈ words, word.toNat < goldilocksModulus) : State64 :=
+    (canonical : ∀ word ∈ words, word.toNat < fieldModulus) : State64 :=
   State64.permute64 {
     x0 := add64 state.x0 (words.getD 0 0)
     x1 := add64 state.x1 (words.getD 1 0)
@@ -401,7 +401,7 @@ private theorem getElem?_getD_denote (words : List UInt64) (index : Nat) :
       add64_canonical _ _ state.c15 (getD_canonical words canonical 15)⟩ }
 
 @[simp] theorem absorbWords64_denote (state : State64) (words : List UInt64)
-    (canonical : ∀ word ∈ words, word.toNat < goldilocksModulus) :
+    (canonical : ∀ word ∈ words, word.toNat < fieldModulus) :
     (absorbWords64 state words canonical).denote =
       Poseidon2.absorbBlock state.denote (words.map UInt64.denote) := by
   rw [absorbWords64, State64.permute64_denote]
@@ -436,7 +436,7 @@ private theorem getElem?_getD_denote (words : List UInt64) (index : Nat) :
       ofNat64 (node.value / (Package.limbBase * Package.limbBase))]
 
 theorem nodeWords64_canonical (node : StreamingIdentity.Node) :
-    ∀ word ∈ nodeWords64 node, word.toNat < goldilocksModulus := by
+    ∀ word ∈ nodeWords64 node, word.toNat < fieldModulus := by
   unfold nodeWords64
   split
   · simp only [List.mem_cons, List.not_mem_nil, or_false]
@@ -465,7 +465,7 @@ theorem nodeWords64_denote (node : StreamingIdentity.Node) :
 structure HashState64 where
   sponge : State64
   pending : List UInt64
-  pendingCanonical : ∀ word ∈ pending, word.toNat < goldilocksModulus
+  pendingCanonical : ∀ word ∈ pending, word.toNat < fieldModulus
 
 def HashState64.denote (state : HashState64) : StreamingIdentity.HashState where
   sponge := state.sponge.denote
@@ -474,7 +474,7 @@ def HashState64.denote (state : HashState64) : StreamingIdentity.HashState where
 @[noinline] def pushNode64 (state : HashState64)
     (node : StreamingIdentity.Node) : HashState64 :=
   let buffer := state.pending ++ nodeWords64 node
-  have bufferCanonical : ∀ word ∈ buffer, word.toNat < goldilocksModulus := by
+  have bufferCanonical : ∀ word ∈ buffer, word.toNat < fieldModulus := by
     intro word member
     rcases List.mem_append.mp member with pending | fresh
     · exact state.pendingCanonical word pending
@@ -529,21 +529,6 @@ theorem initialState64_denote :
     rfl
   · decide
 
-@[inline] private def pad64 (state : State64) : State64 :=
-  { state with
-    x0 := add64 state.x0 1
-    canonical := ⟨add64_canonical _ _ state.c0 (by decide), state.c1, state.c2, state.c3, state.c4, state.c5, state.c6, state.c7,
-      state.c8, state.c9, state.c10, state.c11, state.c12, state.c13, state.c14, state.c15⟩ }
-
-private theorem pad64_denote (state : State64) :
-    (pad64 state).denote = (List.range Poseidon2.width).map fun lane =>
-      if lane = 0 then state.denote.getD 0 0 + 1 else state.denote.getD lane 0 := by
-  simp only [pad64, State64.denote]
-  rw [add64_denote _ _ state.c0 (by decide)]
-  have oneDenote : (1 : UInt64).denote = (1 : F) := by decide
-  rw [oneDenote]
-  simp [Poseidon2.width, List.range_succ]
-
 structure Digest64 where
   x0 : UInt64
   x1 : UInt64
@@ -553,18 +538,19 @@ structure Digest64 where
 def Digest64.denote (digest : Digest64) : List F :=
   [digest.x0.denote, digest.x1.denote, digest.x2.denote, digest.x3.denote]
 
+/-- The padding block of `StreamingIdentity.finalize`: the pending words, then the word 1. -/
 private def finalState64 (state : HashState64) : State64 :=
-  State64.permute64 (pad64
-    (absorbWords64 state.sponge state.pending state.pendingCanonical))
+  absorbWords64 state.sponge (state.pending ++ [1]) (fun word member => by
+    rcases List.mem_append.mp member with pending | one
+    · exact state.pendingCanonical word pending
+    · rw [List.mem_singleton.mp one]
+      decide)
 
 private theorem finalState64_denote (state : HashState64) :
     (finalState64 state).denote =
-      let absorbed := Poseidon2.absorbBlock state.sponge.denote
-        (state.pending.map UInt64.denote)
-      Poseidon2.permute ((List.range Poseidon2.width).map fun lane =>
-        if lane = 0 then absorbed.getD 0 0 + 1 else absorbed.getD lane 0) := by
-  rw [finalState64, State64.permute64_denote, pad64_denote,
-    absorbWords64_denote]
+      Poseidon2.absorbBlock state.sponge.denote (state.pending.map UInt64.denote ++ [1]) := by
+  have oneDenote : (1 : UInt64).denote = (1 : F) := by decide
+  rw [finalState64, absorbWords64_denote, List.map_append, List.map_singleton, oneDenote]
 
 @[inline] def finalize64 (state : HashState64) : Digest64 :=
   let padded := finalState64 state

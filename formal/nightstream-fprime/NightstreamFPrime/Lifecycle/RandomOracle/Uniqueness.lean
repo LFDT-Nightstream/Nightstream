@@ -14,10 +14,10 @@ failing pair, a valid resampled pair at the same index has one of three outcomes
 witness differs (`Collides`), or both stay. In the third case the fold shows that the base
 pair's data are false on the resampled run (`FalseFor`): a hit of the Π_CCS bad sets with the
 witness fixed. `worst_error_le` bounds that event with the worst pair fixed by the context
-(`worst`, `worstBad`), through `Test.checked_error_le`.
+(`worst`, `worstBad`), through `Test.family_error_le`.
 
 `source_error_le`: the weighted chance of a failing pair is at most
-`(Q + challenge count) · testError` plus the chances of the two other outcomes
+`(Q + 1) · testError` plus the chances of the two other outcomes
 (`collisionChance`, `startChance`). `knowledge_error_le` adds the fork step
 (`Fork.fork_failure_le_of_mismatch`): a successful run extracts except with the statistical
 error `statisticalError` and the chances of a moved start claim and a collision. -/
@@ -536,7 +536,7 @@ theorem worstBad_mass_le
     obtain ⟨statement, extends_, _⟩ := inside
     exact absurd ⟨statement, extends_⟩ located
 
-/-- The test step with the worst pair fixed: `Test.checked_error_le` on `worstBad`. -/
+/-- The test step with the worst pair fixed: `Test.family_error_le` on `worstBad`. -/
 theorem worst_error_le
     (degreeCovers : ∀ pair statement,
       (source pair statement).toVerifierInput.sumcheckDegreeBound ≤ width)
@@ -544,12 +544,11 @@ theorem worst_error_le
     𝔼 oracle, (if FalseFor game adversary source
         (worst game adversary source (forkIndex game adversary oracle) oracle) oracle
       then (1 : ℝ) else 0) ≤
-      ((queries + (Test.challenges schedule).length : Nat) : ℝ) *
-        IndependentExecution.testError schedule.shape width :=
-  Test.checked_error_le adversary game.statement game.messages (worstBad game adversary source)
-    (worstBad_local game adversary source) (worstBad_mass_le game adversary source degreeCovers)
-    bounded _ fun _ false_ => hits_mono (fun challenge _ member =>
-      ⟨_, extends_point _ _ challenge, member⟩) false_
+      ((queries + 1 : Nat) : ℝ) * IndependentExecution.testError schedule.shape width :=
+  (Test.family_error_le (worstBad game adversary source) (worstBad_local game adversary source)
+    (worstBad_mass_le game adversary source degreeCovers) adversary bounded game.statement
+    game.messages _ fun _ false_ => hits_mono (fun challenge _ member =>
+      ⟨_, extends_point _ _ challenge, member⟩) false_).trans_eq (by rw [Nat.cast_add_one])
 
 noncomputable def agreeChance (oracle : Oracle) : ℝ :=
   testChance game adversary source (forkIndex game adversary oracle) oracle
@@ -679,7 +678,7 @@ theorem sum_success {queries : Nat} (bounded : adversary.QueryBound queries)
       outside
 
 /-- The uniqueness step: the weighted chance of a failing pair is at most
-`(Q + challenge count) · testError` plus the collision and start chances. -/
+`(Q + 1) · testError` plus the collision and start chances. -/
 theorem source_error_le
     (failsValid : ∀ {oracle retries}, Fails oracle retries →
       Valid game adversary oracle retries)
@@ -694,8 +693,7 @@ theorem source_error_le
     {queries : Nat} (bounded : adversary.QueryBound queries) :
     𝔼 oracle, ∑ retries, weight game adversary oracle retries *
         (if Fails oracle retries then 1 else 0) ≤
-      ((queries + (Test.challenges schedule).length : Nat) : ℝ) *
-          IndependentExecution.testError schedule.shape width +
+      ((queries + 1 : Nat) : ℝ) * IndependentExecution.testError schedule.shape width +
         collisionChance game adversary witnessOf + startChance game adversary := by
   have pointwise (oracle : Oracle) (retries : Retries) :
       weight game adversary oracle retries * (if Fails oracle retries then 1 else 0) ≤
@@ -760,8 +758,7 @@ theorem source_error_le
   have agreement :
       𝔼 oracle, retryMass game adversary oracle (Valid game adversary oracle) *
           agreeChance game adversary source oracle ≤
-        ((queries + (Test.challenges schedule).length : Nat) : ℝ) *
-          IndependentExecution.testError schedule.shape width := by
+        ((queries + 1 : Nat) : ℝ) * IndependentExecution.testError schedule.shape width := by
     simp only [agreeChance, ← mul_div_assoc, sum_success game adversary bounded
       (fun index oracle => testChance game adversary source index oracle
         (worst game adversary source index oracle))]
@@ -793,8 +790,7 @@ variable (schedule width) in
 error. -/
 noncomputable def statisticalError (queries : Nat) : ℝ :=
   schedule.rhoCount * (((queries + schedule.rhoCount : Nat) : ℝ) * Fork.sampleError) +
-    ((queries + (Test.challenges schedule).length : Nat) : ℝ) *
-      IndependentExecution.testError schedule.shape width
+    ((queries + 1 : Nat) : ℝ) * IndependentExecution.testError schedule.shape width
 
 /-- `RandomOracleKnowledge.knowledge_error_le` on any schedule: a successful run extracts
 (`Extracts`, weighted by the retry law), except with the statistical error, the mismatch bound

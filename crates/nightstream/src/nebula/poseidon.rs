@@ -3,9 +3,9 @@
 
 use std::{collections::BTreeMap, ops::ControlFlow, rc::Rc};
 
-use neo_ccs::crypto::poseidon2_goldilocks::{round_constants, WIDTH};
+use neo_ccs::crypto::poseidon2::WIDTH;
+use neo_math::Fq as F;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as F;
 
 use super::{
     expr::{lower_affine, lower_constraint, rank_one_row},
@@ -13,7 +13,7 @@ use super::{
 };
 use crate::application::{permutation, Affine, ApplicationBuilder, ApplicationCircuit, ApplicationError, Variable};
 
-const WORDS: usize = 1096;
+const WORDS: usize = nightstream_fprime::BLOCK_LOCALS;
 
 /// An untrusted hint for 1,096 rows of the form `c - a*b`, and 1,096
 /// contiguous private words in the canonical Poseidon2 trace order.
@@ -49,7 +49,7 @@ fn substitute(expression: &Expr, aliases: &Aliases) -> Expr {
 fn reference() -> Result<ApplicationCircuit, ApplicationError> {
     let mut builder = ApplicationBuilder::new(WIDTH)?;
     let input = std::array::from_fn(|lane| builder.private_inputs()[lane].into());
-    let output = permutation(&mut builder, input, &round_constants())?;
+    let output = permutation(&mut builder, input)?;
     builder.finish(std::array::from_fn(|lane| output[lane].clone()))
 }
 
@@ -163,7 +163,7 @@ pub(super) fn lower(
             )
         });
         let first = builder.private_inputs().len() + 8 + builder.local_count();
-        permutation(builder, mapped, &round_constants())?;
+        permutation(builder, mapped)?;
         for (offset, source) in trace.iter().enumerate() {
             aliases.insert(*source, Variable(first + offset));
         }

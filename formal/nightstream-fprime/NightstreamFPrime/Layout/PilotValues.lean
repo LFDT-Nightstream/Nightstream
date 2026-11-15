@@ -3,10 +3,10 @@ import NightstreamFPrime.Spec.Poseidon2
 namespace NightstreamFPrime.Layout.PilotValues
 
 abbrev digestWords : Nat := 4
-abbrev stateHashBaseWords : Nat := 27807
+abbrev stateHashBaseWords : Nat := 25317
 abbrev stateHashWords : Nat :=
   stateHashBaseWords + digestWords + digestWords + digestWords
-abbrev priorPublicInputWords : Nat := 270
+abbrev priorPublicInputWords : Nat := 320
 
 abbrev priorPreimageStart : Nat := 0
 abbrev priorPublicInputStart : Nat := priorPreimageStart + stateHashWords
@@ -16,17 +16,16 @@ abbrev outputDigestStart : Nat := outputPreimageStart + stateHashWords
 abbrev externalColumnCount : Nat := outputDigestStart + digestWords
 
 abbrev absorbCount : Nat :=
-  (stateHashWords + NightstreamFPrime.Spec.Poseidon2.rate - 1) /
-    NightstreamFPrime.Spec.Poseidon2.rate
+  stateHashWords / NightstreamFPrime.Spec.Poseidon2.rate
 abbrev permutationRecipeCount : Nat := 1096
 abbrev permutationOutputLocalStart : Nat := 1080
 abbrev hashWitnessCount : Nat :=
   (absorbCount + 1) * permutationRecipeCount
 abbrev outputHashRowCount : Nat := hashWitnessCount + digestWords
-abbrev priorCanonicalPrivateCount : Nat := 4 * 66
-abbrev priorCanonicalFreshCount : Nat := 4 * 36
-abbrev priorCanonicalRowCount : Nat := 4 * 167
-abbrev priorFixedRowCount : Nat := 14
+abbrev priorCanonicalPrivateCount : Nat := 4 * 67
+abbrev priorCanonicalFreshCount : Nat := 0
+abbrev priorCanonicalRowCount : Nat := 4 * 132
+abbrev priorFixedRowCount : Nat := 64
 abbrev priorExtraRowCount : Nat :=
   priorCanonicalRowCount + priorFixedRowCount
 abbrev priorHashRowCount : Nat := hashWitnessCount + priorExtraRowCount
@@ -46,7 +45,7 @@ abbrev sourceColumnCount : Nat :=
   logicalColumnCount + priorCanonicalFreshCount
 abbrev privateColumnCount : Nat := sourceColumnCount - publicColumnCount
 abbrev constantColumn : Nat := privateColumnCount
-abbrev spartanColumnCount : Nat :=
+abbrev packageColumnCount : Nat :=
   privateColumnCount + 1 + publicColumnCount
 
 abbrev secondPrivateStart : Nat := stateHashWords

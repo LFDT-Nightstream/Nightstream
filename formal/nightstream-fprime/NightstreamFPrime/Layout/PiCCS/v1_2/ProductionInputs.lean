@@ -18,7 +18,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth}
+    RingCarrierLayout.carrierWidth logicalWidth}
 
 structure ExternalInputsLinear
     (interface : Formal.Interface logicalWidth 8 publicFits)
@@ -314,7 +314,7 @@ theorem physicalFreshColumnCount_eq
     (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (external : ExternalInputsLinear interface parentOffset) :
-    physicalFreshColumnCount relation interface parentOffset = 2956 :=
+    physicalFreshColumnCount relation interface parentOffset = 2862 :=
   physicalFreshColumnCount_eq_production relation interface parentOffset
     (inputShapes relation interface parentOffset external)
 
@@ -323,7 +323,7 @@ theorem physicalRowCount_eq
     (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat)
     (external : ExternalInputsLinear interface parentOffset) :
-    physicalRowCount relation interface parentOffset = 1076325 :=
+    physicalRowCount relation interface parentOffset = 1117017 :=
   physicalRowCount_eq_production relation interface parentOffset
     (inputShapes relation interface parentOffset external)
 
@@ -333,7 +333,7 @@ theorem physicalColumnCount_eq
     (parentOffset : Nat)
     (external : ExternalInputsLinear interface parentOffset) :
     physicalColumnCount relation interface parentOffset =
-      parentOffset + 1071825 :=
+      parentOffset + 1112287 :=
   physicalColumnCount_eq_production relation interface parentOffset
     (inputShapes relation interface parentOffset external)
 
@@ -341,7 +341,7 @@ theorem jointDomain_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 8 publicFits)
     (external : ExternalInputsLinear interface 0) :
-    jointDomain relation interface = 1076325 :=
+    jointDomain relation interface = 1117017 :=
   jointDomain_eq_production relation interface
     (inputShapes relation interface 0 external)
 

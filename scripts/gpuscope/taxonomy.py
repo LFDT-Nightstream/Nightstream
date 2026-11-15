@@ -35,7 +35,7 @@ SOURCE_ROWS = [
     ("fold.superneo.pi_ccs", "reduce/ccs/mod.rs", "pi_ccs_fe.rs pi_ccs_nc.rs csr.rs"),
     ("fold.superneo.pi_ccs.sumcheck.fe", "reduce/ccs/fe.rs", "pi_ccs_fe.rs"),
     ("fold.superneo.pi_ccs.sumcheck.nc", "reduce/ccs/nc.rs", "pi_ccs_nc.rs"),
-    ("fold.superneo.pi_rlc", "reduce/rlc.rs", "goldilocks.rs"),
+    ("fold.superneo.pi_rlc", "reduce/rlc.rs", ""),
     ("fold.superneo.pi_rlc.output.X", "reduce/rlc.rs", "pi_rlc.rs"),
     ("fold.superneo.pi_rlc.output.k_surfaces", "reduce/rlc.rs", "pi_rlc.rs"),
     ("fold.superneo.pi_rlc.output.k_surfaces.device", "reduce/rlc.rs", "pi_rlc.rs"),

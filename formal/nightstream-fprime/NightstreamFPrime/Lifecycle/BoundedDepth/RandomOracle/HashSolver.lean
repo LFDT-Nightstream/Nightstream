@@ -47,15 +47,15 @@ open NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.ForkLink (Attempt Fol
 
 attribute [local instance low] Classical.propDecidable
 
-/-- A Poseidon2 collision: two different inputs of one length with one hash. `Poseidon2.hash`
-pads with zeros and does not encode the length, so `[x]` and `[x, 0]` share a hash with no
-collision of the permutation. -/
+/-- A Poseidon2 collision: two different inputs of one length with one hash. The finder
+outputs inputs of one length; the `10*` padding makes every collision of `Poseidon2.hash` a
+sponge collision (`Spec.Sponge.collision_blocks`). -/
 def PoseidonCollision : Type :=
   {pair : List F × List F // pair.1 ≠ pair.2 ∧ pair.1.length = pair.2.length ∧
     Poseidon2.hash pair.1 = Poseidon2.hash pair.2}
 
 variable {logicalWidth : Nat}
-  {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
 
 /-- The slot preimages of one slot of two states. -/
 def slotInputs (left right : State logicalWidth publicFits) (slot : Fin 2) : List F × List F :=
@@ -347,13 +347,13 @@ theorem refresh_hashCollisions_le_finder {queries : Nat} (bounded : adversary.Qu
     𝔼 oracle, (if Fork.Succeeds (RefreshFork.game ajtai key) adversary oracle then
         ∑ index, RefreshFork.collisionChance ajtai key adversary index oracle else 0) +
         RefreshKnowledge.stateChance ajtai key adversary ≤
-      18 * refreshFinderChance ajtai key adversary budget + (52 * queries + 959) / budget := by
+      16 * refreshFinderChance ajtai key adversary budget + (46 * queries + 763) / budget := by
   have bound := hashCollisions_le_finder ajtai key (RefreshFork.folds ajtai)
     (fun attempt => (attempt.link.fold.fresh, (RefreshFork.proofOf attempt.link.fold.proof).split))
     (fun attempt => RefreshSchedule.messages (RefreshFork.proofOf attempt.link.fold.proof).nifs)
     adversary bounded positive
-  have count : ((RefreshSchedule.schedule logicalWidth publicFits).rhoCount : ℝ) = 17 := by
-    show ((17 : Nat) : ℝ) = 17
+  have count : ((RefreshSchedule.schedule logicalWidth publicFits).rhoCount : ℝ) = 15 := by
+    show ((15 : Nat) : ℝ) = 15
     norm_num
   rw [count, RefreshSolver.work_eq] at bound
   calc

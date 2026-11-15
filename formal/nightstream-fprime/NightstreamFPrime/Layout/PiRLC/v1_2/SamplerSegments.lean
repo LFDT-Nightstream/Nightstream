@@ -23,9 +23,9 @@ structure ChildRows (interface : Logical.Interface) (coordinate offset : Nat) (e
   range : R1CS.RowsHold env (R1CS.lowerConstraints
     (Lifecycle.PiRLC.v1_2.Sampler.rangeOp interface coordinate offset).flatConstraints start).rows
   advance : R1CS.RowsHold env (R1CS.lowerConstraints
-    (Lifecycle.PiRLC.v1_2.Sampler.advanceOp interface coordinate offset).flatConstraints (start + 144)).rows
+    (Lifecycle.PiRLC.v1_2.Sampler.advanceOp interface coordinate offset).flatConstraints start).rows
   words : R1CS.RowsHold env (R1CS.lowerConstraints
-    (Lifecycle.PiRLC.v1_2.Sampler.wordsOp offset).flatConstraints (start + 144)).rows
+    (Lifecycle.PiRLC.v1_2.Sampler.wordsOp offset).flatConstraints start).rows
 
 theorem rowsHold_implies_childRows (interface : Logical.Interface) (coordinate offset : Nat)
     (env : Env) (start : Nat) (inputs : ∀ current, InputsAffine interface current)

@@ -16,7 +16,7 @@ use crate::engines::pi_ccs_joint::{
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 use crate::error::PiCcsError;
 
-const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
+const RATE: usize = neo_ccs::crypto::poseidon2::RATE;
 
 /// What a fold's PiCCS binds besides its claims, and whose norm terms it
 /// checks. SuperNeo v1.2's fold (`production`) checks every source. The bounded-depth scheme's

@@ -1,8 +1,8 @@
 //! Linear matrix expressions keep retained fields as geometric coefficient runs.
 //! Expansion is reserved for the scalar-row reference interface.
 
+use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks;
 
 use super::{Entry, PackageError};
 
@@ -10,8 +10,8 @@ use super::{Entry, PackageError};
 pub(crate) struct MatrixRun {
     column: usize,
     count: usize,
-    coefficient: Goldilocks,
-    ratio: Goldilocks,
+    coefficient: Fq,
+    ratio: Fq,
 }
 
 impl MatrixRun {
@@ -19,7 +19,7 @@ impl MatrixRun {
         (self.column, self.count, self.ratio.as_canonical_u64())
     }
 
-    pub(super) fn scaled(mut self, scalar: Goldilocks) -> Self {
+    pub(super) fn scaled(mut self, scalar: Fq) -> Self {
         self.coefficient *= scalar;
         self
     }
@@ -32,10 +32,10 @@ pub(super) fn normalize_terms(terms: &mut Vec<MatrixRun>) {
         let term = terms[read];
         if written != 0 && terms[written - 1].key() == term.key() {
             terms[written - 1].coefficient += term.coefficient;
-            if terms[written - 1].coefficient == Goldilocks::ZERO {
+            if terms[written - 1].coefficient == Fq::ZERO {
                 written -= 1;
             }
-        } else if term.coefficient != Goldilocks::ZERO {
+        } else if term.coefficient != Fq::ZERO {
             terms[written] = term;
             written += 1;
         }
@@ -61,13 +61,13 @@ pub(super) fn entries(terms: &[MatrixRun]) -> Vec<Entry> {
         if let Some(last) = combined.last_mut() {
             if last.column == entry.column {
                 last.coefficient += entry.coefficient;
-                if last.coefficient == Goldilocks::ZERO {
+                if last.coefficient == Fq::ZERO {
                     combined.pop();
                 }
                 continue;
             }
         }
-        if entry.coefficient != Goldilocks::ZERO {
+        if entry.coefficient != Fq::ZERO {
             combined.push(entry);
         }
     }
@@ -83,15 +83,15 @@ pub(in crate::package) enum Form {
 }
 
 impl Form {
-    pub(in crate::package) fn singleton(column: usize, coefficient: Goldilocks) -> Self {
-        if coefficient == Goldilocks::ZERO {
+    pub(in crate::package) fn singleton(column: usize, coefficient: Fq) -> Self {
+        if coefficient == Fq::ZERO {
             return Self::Empty;
         }
         Self::One(MatrixRun {
             column,
             count: 1,
             coefficient,
-            ratio: Goldilocks::ONE,
+            ratio: Fq::ONE,
         })
     }
 
@@ -102,7 +102,7 @@ impl Form {
                 column: entry.column,
                 count: 1,
                 coefficient: entry.coefficient,
-                ratio: Goldilocks::ONE,
+                ratio: Fq::ONE,
             })
             .collect::<Vec<_>>();
         terms.sort_unstable_by_key(MatrixRun::key);
@@ -111,13 +111,13 @@ impl Form {
             if let Some(last) = combined.last_mut() {
                 if last.key() == term.key() {
                     last.coefficient += term.coefficient;
-                    if last.coefficient == Goldilocks::ZERO {
+                    if last.coefficient == Fq::ZERO {
                         combined.pop();
                     }
                     continue;
                 }
             }
-            if term.coefficient != Goldilocks::ZERO {
+            if term.coefficient != Fq::ZERO {
                 combined.push(term);
             }
         }
@@ -127,9 +127,7 @@ impl Form {
     pub(super) fn from_terms(mut terms: Vec<MatrixRun>) -> Self {
         debug_assert!(
             terms.windows(2).all(|pair| pair[0].key() < pair[1].key())
-                && terms
-                    .iter()
-                    .all(|term| term.coefficient != Goldilocks::ZERO),
+                && terms.iter().all(|term| term.coefficient != Fq::ZERO),
             "matrix form terms must be sorted, unique and nonzero"
         );
         match terms.len() {

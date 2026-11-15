@@ -46,11 +46,11 @@ def logicalWidth : Nat :=
   PhaseReference.logicalWidth
 
 theorem publicFits : ringDegree * publicRingColumns ≤
-    Phi81CarrierLayout.carrierWidth logicalWidth :=
+    RingCarrierLayout.carrierWidth logicalWidth :=
   PhaseReference.publicFits
 
 def liftPilotTerm (term : SparseTerm) : SparseTerm :=
-  ⟨NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn term.column,
+  ⟨NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn term.column,
     term.coefficient⟩
 
 def liftPilotCombination (combination : SparseCombination) :
@@ -66,7 +66,7 @@ def liftPilotRows (rows : List SparseRow) : List SparseRow :=
 
 def liftPilotExpr : Expr → Expr
   | .var index =>
-      .var (NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn index)
+      .var (NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn index)
   | .const value => .const value
   | .add left right => .add (liftPilotExpr left) (liftPilotExpr right)
   | .mul left right => .mul (liftPilotExpr left) (liftPilotExpr right)
@@ -78,7 +78,7 @@ def liftPilotHint : Hint → Hint
   | .remainderFive source => .remainderFive (liftPilotExpr source)
 
 def liftPilotBatch (batch : WitnessBatch) : WitnessBatch where
-  start := NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn batch.start
+  start := NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn batch.start
   recipes := batch.recipes.map liftPilotExpr
   hints := batch.hints.map liftPilotHint
 
@@ -89,7 +89,7 @@ def liftPilotInstruction (instruction : WitnessInstruction) :
     WitnessInstruction where
   rowIndex := instruction.rowIndex
   target :=
-    NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn instruction.target
+    NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn instruction.target
   a := liftPilotCombination instruction.a
   b := liftPilotCombination instruction.b
 
@@ -114,55 +114,55 @@ theorem liftPilotInstruction_mem {instruction : WitnessInstruction}
 def liftPilotChain (chain : HashChain) : HashChain :=
   { chain with
     inputStart :=
-      NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn chain.inputStart
+      NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn chain.inputStart
     witnessStart :=
-      NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn chain.witnessStart
+      NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn chain.witnessStart
     digestStart :=
-      NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn chain.digestStart }
+      NightstreamFPrime.Layout.Stage1.PackageOrder.liftPilotColumn chain.digestStart }
 
 def priorChain : HashChain := liftPilotChain PilotData.priorChain
 def outputChain : HashChain := liftPilotChain PilotData.outputChain
 
 def proofInputStart : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.pilotInputPrivateColumnCount
+  NightstreamFPrime.Layout.Stage1.PackageOrder.pilotInputPrivateColumnCount
 
 def witnessStart : Nat :=
   proofInputStart +
-    NightstreamFPrime.Layout.Stage1.Spartan.proofInputColumnCount
+    NightstreamFPrime.Layout.Stage1.PackageOrder.proofInputColumnCount
 
 def witnessLength : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
       NightstreamFPrime.Layout.Stage1.PiDECInputs.proofInputStart - witnessStart
 
 def piDecCommitmentStart : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
     NightstreamFPrime.Layout.Stage1.PiDECInputs.commitmentInputStart
 
 def piDecEvalKStart : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
     NightstreamFPrime.Layout.Stage1.PiDECInputs.evalKInputStart
 
 def piDecEvalAStart : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
     NightstreamFPrime.Layout.Stage1.PiDECInputs.evalAInputStart
 
 def piDecPublicInputStart : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
     NightstreamFPrime.Layout.Stage1.PiDECInputs.publicInputStart
 
 def piDecWitnessStart : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
     NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset
 
 def runningTransitionWitnessStart : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
+  NightstreamFPrime.Layout.Stage1.PackageOrder.sourceToPackage
     NightstreamFPrime.Layout.Stage1.RunningTransitionInputs.phaseOffset
 
 def piDecWitnessLength : Nat :=
   runningTransitionWitnessStart - piDecWitnessStart
 
 def runningTransitionWitnessLength : Nat :=
-  NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount -
+  NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount -
     runningTransitionWitnessStart
 
 theorem piDecPrivateSegments_contiguous :
@@ -186,7 +186,7 @@ theorem piDecPrivateSegments_contiguous :
       piDecWitnessStart + piDecWitnessLength =
         runningTransitionWitnessStart ∧
       runningTransitionWitnessStart + runningTransitionWitnessLength =
-        NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount := by
+        NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount := by
   rcases Layout.Stage1.PiDECSourceSupport.mapped_input_ranges_contiguous with
     ⟨commitment, evalK, evalA, publicInput⟩
   exact ⟨by decide, commitment, evalK, evalA, publicInput,
@@ -261,10 +261,10 @@ def privateSegments : List Segment :=
           runningTransitionWitnessLength⟩]
 
 @[simp] theorem piCcsOutputSegments_length :
-    piCcsOutputSegments.length = 34 := by
+    piCcsOutputSegments.length = 30 := by
   norm_num [piCcsOutputSegments, productionShape, productionProfile,
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Shape.sourceCount,
-    NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81MatrixSource.phi81Shape]
+    NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RingMatrixSource.ringShape]
 
 theorem outputEval_KSegment_mem
     (source : Fin productionShape.sourceCount) :
@@ -282,25 +282,25 @@ theorem outputEval_ASegment_mem
 
 def publicSegments : List Segment :=
   [⟨Role.priorPublicInput,
-      NightstreamFPrime.Layout.Stage1.Spartan.constantColumn + 1,
+      NightstreamFPrime.Layout.Stage1.PackageOrder.constantColumn + 1,
       NightstreamFPrime.Layout.PilotValues.priorPublicInputWords⟩,
    ⟨Role.outputDigest,
-      NightstreamFPrime.Layout.Stage1.Spartan.constantColumn + 1 +
+      NightstreamFPrime.Layout.Stage1.PackageOrder.constantColumn + 1 +
         NightstreamFPrime.Layout.PilotValues.priorPublicInputWords,
       NightstreamFPrime.Layout.PilotValues.digestWords⟩,
    ⟨Role.verifierContext,
-      NightstreamFPrime.Layout.Stage1.Spartan.expectedContextPublicStart,
-      NightstreamFPrime.Layout.Stage1.Spartan.expectedContextColumnCount⟩]
+      NightstreamFPrime.Layout.Stage1.PackageOrder.expectedContextPublicStart,
+      NightstreamFPrime.Layout.Stage1.PackageOrder.expectedContextColumnCount⟩]
 
 def physicalLayout : PhysicalLayout where
-  rowCount := 11377912
+  rowCount := 9973742
   privateColumnCount :=
-    NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount
-  constantColumn := NightstreamFPrime.Layout.Stage1.Spartan.constantColumn
+    NightstreamFPrime.Layout.Stage1.PackageOrder.privateColumnCount
+  constantColumn := NightstreamFPrime.Layout.Stage1.PackageOrder.constantColumn
   publicColumnCount :=
-    NightstreamFPrime.Layout.Stage1.Spartan.publicColumnCount
+    NightstreamFPrime.Layout.Stage1.PackageOrder.publicColumnCount
   totalColumnCount :=
-    NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount
+    NightstreamFPrime.Layout.Stage1.PackageOrder.packageColumnCount
   privateSegments := privateSegments
   publicSegments := publicSegments
 
@@ -505,18 +505,18 @@ theorem Components.ordinaryRows_length (components : Components) :
         PilotData.circuitPackageOf_assertionRows]
 
 theorem Components.rowCoverage (components : Components)
-    (arithmeticRows_length : components.arithmeticRows.length = 86648)
+    (arithmeticRows_length : components.arithmeticRows.length = 84410)
     (permutationInvocations_length :
-      components.permutationInvocations.length = 982)
+      components.permutationInvocations.length = 1014)
     (templateRows_length :
       (PilotData.permutationTemplate ()).rows.length = 1096)
     (pilotOrdinaryRows_length :
       (PilotData.circuitPackage ()).witnessInstructions.length +
-        (PilotData.circuitPackage ()).assertionRows.length = 686)
+        (PilotData.circuitPackage ()).assertionRows.length = 596)
     (hashChainRows :
-      priorChain.witnessLength + outputChain.witnessLength = 5085440)
+      priorChain.witnessLength + outputChain.witnessLength = 4627312)
     (compactRows_length :
-      components.toCircuitPackage.compactRowCount = 5128866) :
+      components.toCircuitPackage.compactRowCount = 4150080) :
     (components.toCircuitPackage.hashChains.map
         (fun chain => chain.witnessLength)).sum +
       components.toCircuitPackage.permutationInvocations.length *
@@ -527,15 +527,15 @@ theorem Components.rowCoverage (components : Components)
       components.toCircuitPackage.layout.rowCount := by
   have ordinaryFixed :
       components.toCircuitPackage.witnessInstructions.length +
-      components.toCircuitPackage.assertionRows.length = 87334 := by
+      components.toCircuitPackage.assertionRows.length = 85006 := by
     calc
       _ = (PilotData.circuitPackage ()).witnessInstructions.length +
           (PilotData.circuitPackage ()).assertionRows.length +
             components.arithmeticRows.length :=
         components.ordinaryRows_length
-      _ = 686 + 86648 := by
+      _ = 596 + 84410 := by
         rw [pilotOrdinaryRows_length, arithmeticRows_length]
-      _ = 87334 := by norm_num
+      _ = 85006 := by norm_num
   rw [components.toCircuitPackage_hashChains,
     components.toCircuitPackage_permutationInvocations,
     components.toCircuitPackage_permutation,
@@ -543,17 +543,17 @@ theorem Components.rowCoverage (components : Components)
   simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
     Nat.add_zero]
   rw [permutationInvocations_length, templateRows_length]
-  rw [show physicalLayout.rowCount = 11377912 from rfl]
+  rw [show physicalLayout.rowCount = 9973742 from rfl]
   calc
     _ = (priorChain.witnessLength + outputChain.witnessLength) +
-          982 * 1096 +
+          1014 * 1096 +
           components.toCircuitPackage.compactRowCount +
           (components.toCircuitPackage.witnessInstructions.length +
           components.toCircuitPackage.assertionRows.length) := by
       omega
-    _ = 5085440 + 982 * 1096 + 5128866 + 87334 := by
+    _ = 4627312 + 1014 * 1096 + 4150080 + 85006 := by
       rw [hashChainRows, compactRows_length, ordinaryFixed]
-    _ = 11377912 := by norm_num
+    _ = 9973742 := by norm_num
 
 def components (_unit : Unit) : Components :=
   Components.of (arithmeticRows ()) (permutationInvocations ())

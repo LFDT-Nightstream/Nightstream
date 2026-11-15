@@ -1,13 +1,13 @@
 //! Balanced base-3 digits of a centered field word (`encode_field`).
 
+use neo_math::Fq;
 use p3_field::PrimeField64;
-use p3_goldilocks::Goldilocks;
 
-const CENTERED_HALF_MODULUS: u64 = (Goldilocks::ORDER_U64 - 1) / 2;
+const CENTERED_HALF_MODULUS: u64 = (Fq::ORDER_U64 - 1) / 2;
 
 pub(crate) fn encode_field(value: u64, output: &mut [i8]) {
     let negative = value > CENTERED_HALF_MODULUS;
-    let mut magnitude = if negative { Goldilocks::ORDER_U64 - value } else { value };
+    let mut magnitude = if negative { Fq::ORDER_U64 - value } else { value };
     for coordinate in output {
         let remainder = magnitude % 3;
         let unsigned = match remainder {

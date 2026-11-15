@@ -9,7 +9,7 @@ light shape: one fresh source and one running source.
 
 - Event: the light Π_CCS accepts while `Light.accepted_implies_securityOutcome` gives a
   mixing root or a sum-check failure. Experiment: `α`, `γ` and the round challenges drawn
-  from `K`. Per-call bound: `testNumerator / |K|`, 524 at the production cube against 4,589
+  from `K`. Per-call bound: `testNumerator / |K|`, 574 at the production cube against 4,747
   for the SuperNeo fold.
 - Event: the two `ρ` of a light fork collide. Experiment: one coefficient drawn from the
   strong set `C`. Per-call bound: `forkCoordinates / |C|`, one coordinate against SuperNeo's 17.
@@ -34,7 +34,7 @@ def testNumerator (shape : Shape) (width : Nat) : Nat :=
 
 def forkCoordinates : Nat := (shape 0).freshCount
 
-theorem production_testNumerator : testNumerator (shape 28) 8 = 524 := by
+theorem production_testNumerator : testNumerator (shape 28) 8 = 574 := by
   rfl
 
 theorem production_forkCoordinates : forkCoordinates = 1 := by
@@ -43,13 +43,13 @@ theorem production_forkCoordinates : forkCoordinates = 1 := by
 /-- The per-call test error of SuperNeo v1.2 Appendix B.2 is `testNumerator / |K|`. -/
 theorem testError_eq (shape : Shape) (width : Nat) :
     IndependentExecution.testError shape width =
-      (testNumerator shape width : ℝ) / (goldilocksModulus : ℝ) ^ 2 := by
+      (testNumerator shape width : ℝ) / (fieldModulus : ℝ) ^ 2 := by
   unfold IndependentExecution.testError testNumerator
   push_cast
   ring
 
 theorem production_testError :
-    IndependentExecution.testError (shape 28) 8 = (524 : ℝ) / (goldilocksModulus : ℝ) ^ 2 := by
+    IndependentExecution.testError (shape 28) 8 = (574 : ℝ) / (fieldModulus : ℝ) ^ 2 := by
   rw [testError_eq, production_testNumerator]
   norm_num
 

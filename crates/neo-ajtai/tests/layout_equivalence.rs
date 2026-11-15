@@ -2,9 +2,9 @@
 
 use neo_ajtai::{commit, commit_row_major, setup};
 use neo_ccs::Mat;
+use neo_math::Fq;
 use neo_math::D;
 use p3_field::PrimeCharacteristicRing;
-use p3_goldilocks::Goldilocks as Fq;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 

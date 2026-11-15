@@ -14,6 +14,7 @@ use crate::folding::{
     Params, Structure,
 };
 use neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS;
+use neo_ccs::crypto::poseidon2::SBOX_DEGREE;
 use neo_ccs::poly::{SparsePoly, Term};
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
@@ -69,6 +70,7 @@ impl CompiledStep {
             expanded,
             workspace_bytes: 0,
         };
+        step.factored_rows().checked()?;
         let payload = 2 * MATRICES * size_of::<K>() + size_of::<F>() + size_of::<K>();
         step.workspace_bytes =
             MatrixWindow::required_workspace(&step, 0..step.expanded.rows().row_count(), payload)? * 2;
@@ -84,9 +86,10 @@ impl CompiledStep {
         self.expanded.layout().width().div_ceil(D)
     }
 
-    fn factored_rows(&self) -> Result<FactoredRows<'_>, PiCcsError> {
+    /// The factored rows. `new` checks them once, and they do not change.
+    fn factored_rows(&self) -> FactoredRows<'_> {
         let rows = self.expanded.rows();
-        FactoredRows::new(
+        FactoredRows::new_unchecked(
             MatrixRows::shape(self),
             FactoredEntries {
                 offsets: rows.offsets(),
@@ -112,11 +115,11 @@ impl MatrixRows for CompiledStep {
     }
 
     fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
-        self.factored_rows()?.visit_rows(rows, sink)
+        self.factored_rows().visit_rows(rows, sink)
     }
 
     fn factored(&self) -> Result<Option<FactoredRows<'_>>, PiCcsError> {
-        self.factored_rows().map(Some)
+        Ok(Some(self.factored_rows()))
     }
 }
 
@@ -148,7 +151,7 @@ impl Relation {
                 },
                 Term {
                     coeff: F::ONE,
-                    exps: vec![0, 0, 0, 7],
+                    exps: vec![0, 0, 0, SBOX_DEGREE as u32],
                 },
             ],
         );
@@ -255,7 +258,7 @@ impl Relation {
     }
 
     /// The shape that a slot's claim and the state words need: the selected
-    /// commitment, the 270 public words, the 28-coordinate point and canonical
+    /// commitment, the public words, the 28-coordinate point and canonical
     /// evaluations.
     pub(crate) fn shape(&self, claim: &CeClaim) -> Result<(), &'static str> {
         if claim.adv.is_some()
@@ -331,7 +334,7 @@ impl Relation {
             let (Ok(a), Ok(b), Ok(c), Ok(s)) = (a, b, c, s) else {
                 return Err("row evaluation");
             };
-            if a * b - c + s.exp_u64(7) != F::ZERO {
+            if a * b - c + s.exp_u64(SBOX_DEGREE) != F::ZERO {
                 return Err("a relation row fails");
             }
             Ok(())

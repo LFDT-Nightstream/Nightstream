@@ -9,7 +9,5 @@ workspace = true
 
 [dependencies]
 p3-field = { workspace = true }
-p3-goldilocks = { workspace = true }
-p3-symmetric = { workspace = true }
 neo-math = { path = "../neo-math" }
 neo-ccs = { path = "../neo-ccs" }

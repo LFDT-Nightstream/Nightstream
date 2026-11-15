@@ -8,16 +8,14 @@
 //! `(L^(cap+1) R)^cap R`.
 mod compression;
 mod encoding;
-mod final_program;
 mod relation;
 mod words;
 
 use crate::engine::{Backend, CommitError, EngineError};
 use crate::folding::bounded_depth::{prove, Kind};
 use crate::folding::{pi_dec, pi_rlc, CcsInstance, RunningInstance};
-pub(crate) use compression::{FinalProof, Keys, Setups};
-pub(crate) use final_program::Finish;
-use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
+pub(crate) use compression::FinalProof;
+use neo_ccs::crypto::poseidon2::poseidon2_hash;
 use neo_math::F;
 use neo_transcript::domain_chunk_v1_2;
 use nightstream_fprime::{
@@ -48,9 +46,9 @@ pub enum BoundedDepthError {
     #[error("bounded-depth slot {slot}: {reason}")]
     Slot { slot: usize, reason: String },
     #[error(transparent)]
-    Layer1(#[from] neo_spartan::Error),
-    #[error(transparent)]
     Engine(#[from] EngineError),
+    #[error(transparent)]
+    Compression(#[from] ns_compress::Error),
 }
 
 impl BoundedDepthError {
@@ -142,6 +140,7 @@ pub(crate) struct BoundedDepth {
     relations: [Relation; 2],
     keys: [[F; 4]; 2],
     cap: u64,
+    minimum_security_bits: u32,
 }
 
 /// `BoundedDepth::fold`'s result.
@@ -149,6 +148,15 @@ pub(crate) struct Folded {
     kind: Kind,
     accumulator: pi_rlc::Output,
     proof: crate::folding::bounded_depth::Proof,
+}
+
+/// The key digest of circuit `circuit` (SPEC.md section 4.4, step 2; Lean
+/// `Lifecycle.BoundedDepth.CircuitKeyDigest.digest`).
+fn circuit_key(identity: [u64; 4], circuit: u64) -> [F; 4] {
+    let mut input = domain_chunk_v1_2(KEY_DOMAIN).to_vec();
+    input.extend(identity.map(F::from_u64));
+    input.push(F::from_u64(circuit));
+    poseidon2_hash(&input)
 }
 
 impl BoundedDepth {
@@ -161,18 +169,14 @@ impl BoundedDepth {
             Relation::new(&steps.steps[0], minimum_security_bits)?,
             Relation::new(&steps.steps[1], minimum_security_bits)?,
         ];
-        let identity = steps.identity.map(F::from_u64);
-        let keys = [0u64, 1].map(|circuit| {
-            let mut input = domain_chunk_v1_2(KEY_DOMAIN).to_vec();
-            input.extend(identity);
-            input.push(F::from_u64(circuit));
-            poseidon2_hash(&input)
-        });
+        let identity = steps.identity;
+        let keys = [0u64, 1].map(|circuit| circuit_key(identity, circuit));
         Ok(Self {
             backend,
             relations,
             keys,
             cap: LIGHT_FOLD_CAP,
+            minimum_security_bits,
         })
     }
 
@@ -229,7 +233,7 @@ impl BoundedDepth {
     /// The slot checks of `StepExtend.Honest` that the bytes do not fix: the
     /// depth is at most the light cap, and each coefficient of the witness is
     /// within the accumulator bound of that depth (Cyclo Theorem 3 item 1).
-    /// The next light fold and the final proof need this bound.
+    /// The next light fold needs this bound.
     fn slot_within_depth_bound(&self, slot: &Slot) -> Result<(), &'static str> {
         if slot.depth > LIGHT_FOLD_CAP {
             return Err("depth is above the light fold cap");
@@ -364,9 +368,8 @@ impl BoundedDepth {
     /// otherwise the fresh instance's public input is the hash of the state
     /// with both slots, every slot's claim holds under its circuit's relation
     /// within the bound of the slot's depth, and the fresh instance holds
-    /// under the relation of the circuit that ran last. So `extend` and
-    /// `finish` work on each proof that this accepts
-    /// (`RunCompleteness.verifies_step`, `FinishCompleteness.finish_complete`).
+    /// under the relation of the circuit that ran last. So `extend` works on
+    /// each proof that this accepts (`RunCompleteness.verifies_step`).
     pub(crate) fn verify(
         &self,
         iteration: u64,
@@ -381,7 +384,7 @@ impl BoundedDepth {
         }
         if iteration >= F::ORDER_U64 {
             return Err(BoundedDepthError::Statement(
-                "iteration is not a canonical Goldilocks counter",
+                "iteration is not a canonical field counter",
             ));
         }
         let Some(fresh) = &envelope.fresh else {

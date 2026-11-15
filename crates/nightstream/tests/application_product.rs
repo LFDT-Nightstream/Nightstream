@@ -1,5 +1,5 @@
 use nightstream::application::{Affine, ApplicationBuilder, ApplicationError};
-use nightstream::{Circuit, Goldilocks as F, PrimeCharacteristicRing};
+use nightstream::{Circuit, Fq as F, PrimeCharacteristicRing};
 
 fn scalar(value: u64) -> Affine {
     Affine::constant(F::from_u64(value))

@@ -288,18 +288,30 @@ theorem absorbE_affine (state : Layer.EState) (block : List Expr)
   exact R1CS.IsAffine.add (stateAffine lane)
     (getD_affine block blockAffine lane.val 0 (R1CS.isAffine_const _))
 
-theorem padE_affine (state : Layer.EState) (stateAffine : StateAffine state) :
-    StateAffine (Hash.padE state) := by
+theorem padE_affine (last : List Expr) (state : Layer.EState) (lastAffine : ListAffine last)
+    (stateAffine : StateAffine state) :
+    StateAffine (Hash.padE last state) := by
   intro lane
   unfold Hash.padE
   split
-  · exact R1CS.IsAffine.add (stateAffine lane) (R1CS.isAffine_const _)
-  · exact stateAffine lane
+  · exact R1CS.IsAffine.add (stateAffine lane)
+      (getD_affine last lastAffine lane.val 0 (R1CS.isAffine_const _))
+  · split
+    · exact R1CS.IsAffine.add (stateAffine lane) (R1CS.isAffine_const _)
+    · exact stateAffine lane
 
 theorem inputChunks_affine (input : List Expr) (inputAffine : ListAffine input) :
     BlocksAffine (Hash.inputChunks input) := by
   intro block blockMember expression expressionMember
   simp only [Hash.inputChunks, List.mem_map] at blockMember
+  rcases blockMember with ⟨chunk, _, rfl⟩
+  apply inputAffine expression
+  exact List.mem_of_mem_drop (List.mem_of_mem_take expressionMember)
+
+theorem fullBlocks_affine (input : List Expr) (inputAffine : ListAffine input) :
+    BlocksAffine (Spec.Poseidon2.fullBlocks input) := by
+  intro block blockMember expression expressionMember
+  simp only [Spec.Poseidon2.fullBlocks, List.mem_map] at blockMember
   rcases blockMember with ⟨chunk, _, rfl⟩
   apply inputAffine expression
   exact List.mem_of_mem_drop (List.mem_of_mem_take expressionMember)
@@ -351,17 +363,20 @@ theorem compileAbsorptions_output_affine (start : Nat) (state : Layer.EState)
 theorem hash_compile_direct (start : Nat) (input : List Expr)
     (inputAffine : ListAffine input) :
     R1CS.RecipesDirect start (Hash.compile start input).recipes := by
-  let blocks := Hash.inputChunks input
+  let blocks := Spec.Poseidon2.fullBlocks input
+  let last := Spec.Poseidon2.lastWords input
   let absorbed := Hash.compileAbsorptions start Hash.zeroE blocks
   have blocksAffine : BlocksAffine blocks :=
-    inputChunks_affine input inputAffine
+    fullBlocks_affine input inputAffine
   have absorbedDirect := compileAbsorptions_direct start Hash.zeroE blocks
     zeroE_affine blocksAffine
   have absorbedOutputAffine := compileAbsorptions_output_affine start
     Hash.zeroE blocks zeroE_affine blocksAffine
   have finalDirect := compile_schedule_direct
-    (start + absorbed.recipes.length) (Hash.padE absorbed.output)
-    (padE_affine absorbed.output absorbedOutputAffine)
+    (start + absorbed.recipes.length) (Hash.padE last absorbed.output)
+    (padE_affine last absorbed.output
+      (fun expression member => inputAffine expression (List.mem_of_mem_drop member))
+      absorbedOutputAffine)
   unfold Hash.compile
   apply R1CS.recipesDirect_append
   · exact absorbedDirect
@@ -370,11 +385,12 @@ theorem hash_compile_direct (start : Nat) (input : List Expr)
 theorem hash_compile_output_eq (start : Nat) (input : List Expr) :
     (Hash.compile start input).output =
       Permutation.freshState
-        (start + (Hash.inputChunks input).length * 1096 + 1080) := by
+        (start + input.length / Spec.Poseidon2.rate * 1096 + 1080) := by
   unfold Hash.compile
   dsimp only
   rw [compile_schedule_output_eq,
-    Hash.compileAbsorptions_recipes_length]
+    Hash.compileAbsorptions_recipes_length, Spec.Poseidon2.fullBlocks, List.length_map,
+    List.length_range]
 
 theorem hash_recipeConstraints_freshCount (start : Nat) (input : List Expr)
     (inputAffine : ListAffine input) :
@@ -387,7 +403,7 @@ theorem hash_recipeConstraints_rowCount (start : Nat) (input : List Expr)
     (inputAffine : ListAffine input) :
     R1CS.totalRowCount
       (recipeConstraints start (Hash.compile start input).recipes) =
-        (Hash.inputChunks input).length * 1096 + 1096 := by
+        input.length / Spec.Poseidon2.rate * 1096 + 1096 := by
   rw [R1CS.recipeConstraints_totalRowCount start _
     (hash_compile_direct start input inputAffine)]
   exact Hash.compile_recipes_length start input
@@ -452,7 +468,7 @@ theorem hashConstraints_freshCount (interface : Formal.Interface)
 theorem hashConstraints_rowCount (interface : Formal.Interface)
     (offset : Nat) (affine : HashInterfaceAffine interface offset) :
     R1CS.totalRowCount (hashConstraints interface offset) =
-      (Hash.inputChunks (interface.input offset)).length * 1096 + 1100 := by
+      (interface.input offset).length / Spec.Poseidon2.rate * 1096 + 1100 := by
   rw [R1CS.totalRowCount_eq_length_of_rowsOne _
     (hashConstraints_rowsOne interface offset affine)]
   unfold hashConstraints

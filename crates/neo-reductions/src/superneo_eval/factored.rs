@@ -171,7 +171,7 @@ impl<'a> FactoredRows<'a> {
 
     /// `Lᵀ` of the row weights: slot `s` gets the sum of
     /// `row_weight(row) · matrix_coefficients[j] · coefficient` over the
-    /// entries of `L_j` that read `s`. With `column_weights` this is the
+    /// entries of `L_j` that read `s`. With `Gᵀ` on the slots this is the
     /// transpose of `weighted_row`.
     pub fn slot_weights(&self, row_weight: &(dyn Fn(usize) -> K + Sync), matrix_coefficients: &[K]) -> Vec<K> {
         let part = |rows: Range<usize>| {
@@ -206,20 +206,6 @@ impl<'a> FactoredRows<'a> {
         return (0..parts)
             .map(|index| part(rows(index)))
             .fold(vec![K::ZERO; self.slot_count()], add);
-    }
-
-    /// `Gᵀ` of `slot_weights`: column `k` of slot `s` gets
-    /// `slot_weights[s] · ratio^k`.
-    pub fn column_weights(&self, slot_weights: &[K]) -> Vec<K> {
-        let mut columns = vec![K::ZERO; self.shape.columns];
-        for (slot, &weight) in slot_weights.iter().enumerate() {
-            let mut term = weight;
-            for column in &mut columns[self.columns(slot)] {
-                *column += term;
-                term = term.scale_base(self.slots.ratio);
-            }
-        }
-        columns
     }
 
     pub fn weighted_row(&self, row: usize, matrix_coefficients: &[K], slot_values: &[K]) -> K {

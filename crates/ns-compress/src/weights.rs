@@ -11,7 +11,7 @@
 
 use neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS;
 use neo_math::{KExtensions, D, F, K};
-use neo_reductions::superneo_eval::{EqualityWeights, FactoredRows, FactoredSlots};
+use neo_reductions::superneo_eval::{EqualityWeights, FactoredSlots};
 use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
@@ -105,11 +105,19 @@ fn omega_powers(statement: &Statement<'_>, omega: K) -> Vec<K> {
     powers(omega, KAPPA + 2 + statement.claim.eval_a.len())
 }
 
-/// The matrices of one claim in the weights: `Lᵀ` of `eq(r, ·)` with the
-/// `Eval_A` powers of `ω`.
+/// The columns of one task of `Matrices::add_columns`, a multiple of `D`.
+const COLUMNS_PER_TASK: usize = 1 << 16;
+
+/// The matrices of one claim in the weights: `Mᵀ = Gᵀ · Lᵀ` of `eq(r, ·)`
+/// with the `Eval_A` powers of `ω` (Lean `SlotLayout.layout`,
+/// `LogicalPlan.plan`).
 struct Matrices<'a> {
-    rows: FactoredRows<'a>,
-    slots: Vec<K>,
+    slots: FactoredSlots<'a>,
+    /// `Lᵀ`: the weight of each slot.
+    weights: Vec<K>,
+    /// The slots that each task of columns meets, for each part of the
+    /// slots. The slots are in no order and their columns overlap.
+    met: Vec<Vec<Vec<u32>>>,
 }
 
 impl<'a> Matrices<'a> {
@@ -120,8 +128,49 @@ impl<'a> Matrices<'a> {
             .ok_or(Error::Statement("the matrix rows have no factored form"))?;
         let row_weights = EqualityWeights::new(&statement.claim.r);
         let matrices = statement.claim.eval_a.len();
-        let slots = rows.slot_weights(&|row| row_weights.at(row), &omega[KAPPA + 1..][..matrices]);
-        Ok(Self { rows, slots })
+        let weights = rows.slot_weights(&|row| row_weights.at(row), &omega[KAPPA + 1..][..matrices]);
+        Ok(Self::of_slots(rows.slots(), weights, rows.shape().columns))
+    }
+
+    fn of_slots(slots: FactoredSlots<'a>, weights: Vec<K>, columns: usize) -> Self {
+        let tasks = columns.div_ceil(COLUMNS_PER_TASK);
+        let met = slots
+            .starts
+            .par_iter()
+            .zip(slots.widths)
+            .enumerate()
+            .with_min_len(1 << 16)
+            .fold(
+                || vec![Vec::new(); tasks],
+                |mut met, (slot, (&start, &width))| {
+                    let end = start as usize + usize::from(width);
+                    for task in start as usize / COLUMNS_PER_TASK..end.div_ceil(COLUMNS_PER_TASK) {
+                        met[task].push(slot as u32);
+                    }
+                    met
+                },
+            )
+            .collect();
+        Self { slots, weights, met }
+    }
+
+    /// `Gᵀ` on the columns of task `task`: column `k` of slot `s` gets
+    /// `weights[s] · ratio^k`, added to `output`.
+    fn add_columns(&self, task: usize, output: &mut [K]) {
+        let first = task * COLUMNS_PER_TASK;
+        for &slot in self.met.iter().flat_map(|met| &met[task]) {
+            let slot = slot as usize;
+            let mut term = self.weights[slot];
+            for column in (self.slots.starts[slot] as usize..).take(usize::from(self.slots.widths[slot])) {
+                if let Some(cell) = column
+                    .checked_sub(first)
+                    .and_then(|column| output.get_mut(column))
+                {
+                    *cell += term;
+                }
+                term = term.scale_base(self.slots.ratio);
+            }
+        }
     }
 }
 
@@ -219,7 +268,7 @@ pub(crate) fn table(
                 let matrices = Matrices::new(statement, &omega)?;
                 let evaluation = Evaluation::new(statement, &omega);
                 let blocks = equality(evaluation.r_high, cells.blocks);
-                Ok((evaluation, blocks, matrices.rows.column_weights(&matrices.slots)))
+                Ok((evaluation, blocks, matrices))
             })
             .collect::<Result<Vec<_>, Error>>()
     };
@@ -227,7 +276,7 @@ pub(crate) fn table(
     // page faults of its memory, and threads that share them wait.
     let (prepared, mut table) = rayon::join(prepare, || vec![K::ZERO; layout.witness_len]);
     let mut tables = 0;
-    for (((statement, cells), (evaluation, blocks, columns)), mu) in statements
+    for (((statement, cells), (evaluation, blocks, matrices)), mu) in statements
         .iter()
         .zip(&layout.cells)
         .zip(prepared?)
@@ -235,16 +284,26 @@ pub(crate) fn table(
     {
         let witness = &mut table[cells.witness.range()][..cells.blocks * D];
         witness
-            .par_chunks_mut(D)
-            .zip(columns.par_chunks(D))
-            .zip(folded.par_chunks(D))
-            .zip(&blocks)
-            .for_each(|(((output, columns), key), &block)| {
-                let columns = conjugate(columns.try_into().expect("D columns"));
-                let element: [K; D] =
-                    std::array::from_fn(|lane| evaluation.lanes[lane] * block + columns[lane] + key[lane]);
-                for (output, lane) in output.iter_mut().zip(point.lanes(&element)) {
-                    *output = mu * lane;
+            .par_chunks_mut(COLUMNS_PER_TASK)
+            .enumerate()
+            .for_each_init(Vec::new, |columns, (task, output)| {
+                columns.clear();
+                columns.resize(output.len(), K::ZERO);
+                matrices.add_columns(task, columns);
+                let first = task * COLUMNS_PER_TASK;
+                let (key, blocks) = (&folded[first..], &blocks[first / D..]);
+                for (((output, columns), key), &block) in output
+                    .chunks_mut(D)
+                    .zip(columns.chunks(D))
+                    .zip(key.chunks(D))
+                    .zip(blocks)
+                {
+                    let columns = conjugate(columns.try_into().expect("D columns"));
+                    let element: [K; D] =
+                        std::array::from_fn(|lane| evaluation.lanes[lane] * block + columns[lane] + key[lane]);
+                    for (output, lane) in output.iter_mut().zip(point.lanes(&element)) {
+                        *output = mu * lane;
+                    }
                 }
             });
         let mut public = mu * evaluation.public;

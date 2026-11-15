@@ -23,7 +23,7 @@ use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
 
-use super::{matrix_part, Challenges, Uses, KAPPA};
+use super::{matrix_part, Challenges, Matrices, Uses, COLUMNS_PER_TASK, KAPPA};
 use crate::support::{self, claim_of, conjugate, equality, random_extension, random_witness, Rows, MATRICES};
 use crate::{key_blocks, layout, CeClaim, Norm, Statement};
 
@@ -156,6 +156,41 @@ fn the_matrix_part_is_its_definition_on_random_rows() {
         },
     ]);
     assert_matches_direct(&mut rng, &statements);
+}
+
+/// Slots in no order, whose columns overlap and cross the tasks of
+/// `Matrices::add_columns`.
+#[test]
+fn the_column_weights_are_their_definition_across_tasks() {
+    let mut rng = ChaCha8Rng::seed_from_u64(0x636f_6c73);
+    let columns = 3 * COLUMNS_PER_TASK + 77;
+    let (starts, widths): (Vec<u32>, Vec<u8>) = (0..20_000)
+        .map(|_| {
+            let width = rng.next_u32() as u8;
+            (rng.next_u32() % (columns - usize::from(width) + 1) as u32, width)
+        })
+        .unzip();
+    let weights: Vec<K> = starts.iter().map(|_| random_extension(&mut rng)).collect();
+    let ratio = F::from_u64(7);
+    let mut expected = vec![K::ZERO; columns];
+    for ((&start, &width), &weight) in starts.iter().zip(&widths).zip(&weights) {
+        let mut term = weight;
+        for column in &mut expected[start as usize..][..usize::from(width)] {
+            *column += term;
+            term = term.scale_base(ratio);
+        }
+    }
+    let slots = FactoredSlots {
+        starts: &starts,
+        widths: &widths,
+        ratio,
+    };
+    let matrices = Matrices::of_slots(slots, weights, columns);
+    let mut actual = vec![K::ZERO; columns];
+    for (task, output) in actual.chunks_mut(COLUMNS_PER_TASK).enumerate() {
+        matrices.add_columns(task, output);
+    }
+    assert!(actual == expected);
 }
 
 /// The rows of a step circuit as `nightstream` reads them.

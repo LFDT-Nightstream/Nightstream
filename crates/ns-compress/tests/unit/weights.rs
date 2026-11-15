@@ -316,8 +316,14 @@ impl LeanRows {
             offsets,
             slots,
             coefficients,
-            starts: numbers(&relation[3]).into_iter().map(|start| start as u32).collect(),
-            widths: numbers(&relation[4]).into_iter().map(|width| width as u8).collect(),
+            starts: numbers(&relation[3])
+                .into_iter()
+                .map(|start| start as u32)
+                .collect(),
+            widths: numbers(&relation[4])
+                .into_iter()
+                .map(|width| width as u8)
+                .collect(),
             ratio: F::from_u64(number(&relation[2])),
         }
     }
@@ -367,14 +373,22 @@ fn the_matrix_part_is_the_lean_matrix_pass() {
     let scalars = |value: &serde_json::Value| -> Vec<K> {
         let scalars = value.as_array().expect("values of K").iter();
         let word = |word: &serde_json::Value| F::from_u64(word.as_u64().expect("u64"));
-        scalars.map(|pair| neo_math::from_complex(word(&pair[0]), word(&pair[1]))).collect()
+        scalars
+            .map(|pair| neo_math::from_complex(word(&pair[0]), word(&pair[1])))
+            .collect()
     };
     let cases = file[1].as_array().expect("cases");
     assert_eq!(cases.len(), 3);
     for case in cases {
-        let relations: Vec<LeanRows> = case[0].as_array().expect("relations").iter().map(LeanRows::new).collect();
+        let relations: Vec<LeanRows> = case[0]
+            .as_array()
+            .expect("relations")
+            .iter()
+            .map(LeanRows::new)
+            .collect();
         assert!(relations.iter().any(|rows| {
-            let wide = |(&start, &width): (&u32, &u8)| start as usize / D + 2 <= (start as usize + width as usize - 1) / D;
+            let wide =
+                |(&start, &width): (&u32, &u8)| start as usize / D + 2 <= (start as usize + width as usize - 1) / D;
             rows.starts.iter().zip(&rows.widths).any(wide)
         }));
         let claims: Vec<(usize, CeClaim, Norm)> = case[1]
@@ -408,7 +422,10 @@ fn the_matrix_part_is_the_lean_matrix_pass() {
                 norm: *norm,
             })
             .collect();
-        let sizes: Vec<(usize, Norm)> = statements.iter().map(|statement| (statement.blocks(), statement.norm)).collect();
+        let sizes: Vec<(usize, Norm)> = statements
+            .iter()
+            .map(|statement| (statement.blocks(), statement.norm))
+            .collect();
         let layout = crate::Layout::new(&sizes, 512).expect("layout");
         let [mu, omega, delta] = scalars(&case[2]).try_into().expect("three challenges");
         let challenges = Challenges {
@@ -426,7 +443,10 @@ fn the_matrix_part_is_the_lean_matrix_pass() {
         assert_eq!(rho.len(), layout.witness_vars);
         let uses = Uses::new(&layout, &challenges, &rho);
         let expected = scalars(&serde_json::Value::Array(vec![case[4].clone()]))[0];
-        assert_eq!(matrix_part(&statements, &challenges, &uses).expect("matrix part"), expected);
+        assert_eq!(
+            matrix_part(&statements, &challenges, &uses).expect("matrix part"),
+            expected
+        );
         assert_eq!(direct(&statements, &challenges, &uses), expected);
     }
 }

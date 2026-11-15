@@ -30,12 +30,16 @@ fn lean() -> Value {
 
 fn numbers(value: &Value) -> Vec<u64> {
     let numbers = value.as_array().expect("numbers").iter();
-    numbers.map(|number| number.as_u64().expect("u64")).collect()
+    numbers
+        .map(|number| number.as_u64().expect("u64"))
+        .collect()
 }
 
 fn bytes(value: &Value) -> Vec<u8> {
     let bytes = numbers(value).into_iter();
-    bytes.map(|byte| u8::try_from(byte).expect("a byte")).collect()
+    bytes
+        .map(|byte| u8::try_from(byte).expect("a byte"))
+        .collect()
 }
 
 fn fields(value: &Value) -> Vec<F> {
@@ -44,7 +48,10 @@ fn fields(value: &Value) -> Vec<F> {
 
 fn extension(value: &Value) -> Vec<K> {
     let pairs = fields(value);
-    pairs.chunks(2).map(|pair| from_complex(pair[0], pair[1])).collect()
+    pairs
+        .chunks(2)
+        .map(|pair| from_complex(pair[0], pair[1]))
+        .collect()
 }
 
 fn canonical(words: &[F]) -> Vec<u64> {
@@ -114,7 +121,9 @@ fn a_replay_of_the_lean_pieces_ends_in_the_lean_session() {
     let lean = lean();
     let mut transcript = Poseidon2Transcript::new_v1_2();
     let pieces = lean[4][0].as_array().expect("pieces");
-    assert!(pieces.iter().any(|piece| piece[1].as_u64().is_some_and(|count| count > 12)));
+    assert!(pieces
+        .iter()
+        .any(|piece| piece[1].as_u64().is_some_and(|count| count > 12)));
     for piece in pieces {
         match piece[0].as_u64() {
             Some(0) => transcript.absorb_v1_2(&fields(&piece[1])),

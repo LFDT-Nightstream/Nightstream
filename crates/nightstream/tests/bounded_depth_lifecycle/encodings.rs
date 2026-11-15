@@ -24,7 +24,10 @@ fn lean() -> Value {
 #[test]
 fn the_compression_domain_is_the_lean_domain() {
     let domain = super::super::BoundedDepth::compression_profile(&[]).domain;
-    assert_eq!(domain.map(|word| word.as_canonical_u64()).to_vec(), words(&lean()[3][0][0]));
+    assert_eq!(
+        domain.map(|word| word.as_canonical_u64()).to_vec(),
+        words(&lean()[3][0][0])
+    );
 }
 
 #[test]
@@ -36,7 +39,10 @@ fn circuit_key_is_the_lean_digest() {
         let identity: [u64; 4] = words(&case[0]).try_into().expect("an identity");
         for circuit in [0, 1] {
             let key = super::super::circuit_key(identity, circuit as u64);
-            assert_eq!(key.map(|word| word.as_canonical_u64()).to_vec(), words(&case[1 + circuit]));
+            assert_eq!(
+                key.map(|word| word.as_canonical_u64()).to_vec(),
+                words(&case[1 + circuit])
+            );
         }
     }
 }

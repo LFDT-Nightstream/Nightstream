@@ -55,11 +55,17 @@ fn lean(index: usize, domain: &[u8]) -> Transcript {
         .map(|round| {
             assert_eq!(reads(&pieces[4 + 2 * round]), 1);
             let coefficients = absorb(&pieces[3 + 2 * round]);
-            coefficients.chunks(2).map(|pair| [pair[0], pair[1]]).collect()
+            coefficients
+                .chunks(2)
+                .map(|pair| [pair[0], pair[1]])
+                .collect()
         })
         .collect();
     let public_input = statement[4 + COMMITMENT_WORDS..4 + COMMITMENT_WORDS + PUBLIC_WORDS].to_vec();
-    let fields: Vec<Fq> = public_input.iter().map(|&word| Fq::from_u64(word)).collect();
+    let fields: Vec<Fq> = public_input
+        .iter()
+        .map(|&word| Fq::from_u64(word))
+        .collect();
     let prior = neo_transcript::prior_digest_v1_2(&fields).map(|word| word.as_canonical_u64());
     assert_eq!(statement[..4], prior, "the prior digest of the public input");
     Transcript {
@@ -68,7 +74,12 @@ fn lean(index: usize, domain: &[u8]) -> Transcript {
         children: statement[4 + COMMITMENT_WORDS + PUBLIC_WORDS..].to_vec(),
         rounds,
         output: absorb(pieces.last().expect("the output")),
-        challenges: transcript[1].as_array().expect("challenges").iter().map(words).collect(),
+        challenges: transcript[1]
+            .as_array()
+            .expect("challenges")
+            .iter()
+            .map(words)
+            .collect(),
         state: words(&transcript[2]),
     }
 }
@@ -80,7 +91,10 @@ fn other_lengths(words: &[u64]) -> [Vec<u64>; 2] {
 
 /// `derive` reaches the Lean state on the Lean messages, and it rejects each
 /// message with another length.
-fn check(transcript: &Transcript, derive: impl Fn(&[u64], &[u64], &[u64], &[Vec<[u64; 2]>], &[u64]) -> Option<Derived>) {
+fn check(
+    transcript: &Transcript,
+    derive: impl Fn(&[u64], &[u64], &[u64], &[Vec<[u64; 2]>], &[u64]) -> Option<Derived>,
+) {
     let Transcript {
         commitment,
         public_input,

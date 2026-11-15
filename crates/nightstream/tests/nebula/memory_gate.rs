@@ -31,7 +31,12 @@ fn numbers(value: &Value) -> Vec<usize> {
 }
 
 fn rows(value: &Value) -> Vec<Vec<usize>> {
-    value.as_array().expect("rows").iter().map(numbers).collect()
+    value
+        .as_array()
+        .expect("rows")
+        .iter()
+        .map(numbers)
+        .collect()
 }
 
 fn geometry(row: &[usize]) -> Geometry {
@@ -66,8 +71,14 @@ fn is_valid_and_is_secure_are_the_lean_decisions() {
     let lean = lean();
     let bound = usize::try_from(lean[1].as_u64().expect("the bound of rule 6")).expect("usize");
     let cases = rows(&lean[4]);
-    assert!(cases.iter().any(|row| row[7] == 1 && row[8] == 0), "a valid case that is not secure");
-    assert!(cases.iter().filter(|row| row[7] == 0).count() >= 6, "a case for each rule");
+    assert!(
+        cases.iter().any(|row| row[7] == 1 && row[8] == 0),
+        "a valid case that is not secure"
+    );
+    assert!(
+        cases.iter().filter(|row| row[7] == 0).count() >= 6,
+        "a case for each rule"
+    );
     for row in cases {
         let case = geometry(&row);
         assert_eq!(case.is_valid(), row[7] == 1, "{case:?}");

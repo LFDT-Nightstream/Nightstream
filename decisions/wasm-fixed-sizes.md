@@ -62,3 +62,6 @@ approved it on 2026-11-03.
    in each row, `m_mem` is 13,312, 26,624 and 40,960, so the counts are 19,
    9 and 6. On 2026-11-13 the owner kept 109 bits with fewer segments, in
    place of 107, 107 and 105 bits with the earlier 32, 16 and 32 segments.
+   On 2026-11-14 the owner confirmed the segment counts 19, 9 and 6 (largest
+   runs 9,728, 9,216 and 3,072 trace rows), which the rule "most segments at
+   `2^−109`" gives after PR #261 halved the ROMs.

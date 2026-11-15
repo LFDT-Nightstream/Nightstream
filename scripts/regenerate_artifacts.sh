@@ -62,6 +62,9 @@ for pair in \
 done
 
 start=$(mktemp)
+# `-nt` compares whole seconds in bash 3.2, so a run that ends in the second of `start`
+# would look as if it did not write its file.
+sleep 1
 emit() { # <index> <run>
   local command=${2%%|*}
   # shellcheck disable=SC2086

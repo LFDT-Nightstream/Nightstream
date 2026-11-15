@@ -173,7 +173,7 @@ define_column_region! {
         COL_LOCALS_FBP_BEFORE: U32 => "current frame's base cell before this row",
         COL_LOCALS_FBP_AFTER: U32 => "current frame's base cell after this row",
         COL_LOCAL_INDEX: U32 => "local index within the current frame",
-        COL_LOCAL_ADDR_LO: U32 => "stack-memory address of the local's low limb",
+        COL_LOCAL_ADDR_LO: (Implied(32)) => "stack-memory address of the local's low limb",
         COL_LOCAL_ADDR_HI: U32 => "stack-memory address of the local's high limb",
         COL_LOCAL_VALUE: U32 => "local value",
         COL_LOCAL_VALUE_HI: U32 => "local value high limb",

@@ -37,6 +37,9 @@ Proof.
  apply Forall_cons.
  { change (0 <= w COL_STACK_WRITES < 4294967296).
    pose proof (full_stack_writes_bound w Hprime Hfull); lia. }
+ apply Forall_cons.
+ { change (0 <= w COL_LOCAL_ADDR_LO < 4294967296).
+   pose proof (full_local_addr_lo_bound w Hprime Hfull); lia. }
  apply Forall_cons. { exact (full_global_lo_repair w Hprime Hfull). }
  apply Forall_cons. { exact (full_global_hi_repair w Hprime Hfull). }
  apply Forall_cons. { exact (full_table_index_repair w Hprime Hfull). }

@@ -139,6 +139,23 @@ Proof.
   expand_row Hrow. rewrite Hone in Hrow. field_linear Hrow.
 Qed.
 
+Lemma full_local_addr_lo_bound : forall w,
+  fieldPrime -> FullRelation.satFull w -> 0 <= w COL_LOCAL_ADDR_LO <= 4294967295.
+Proof.
+  intros w Hprime Hfull. assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_explicit_range COL_LOCALS_FBP_BEFORE Hbase.
+  circuit_explicit_range COL_LOCAL_INDEX Hindex.
+  circuit_explicit_range COL_LOCAL_ADDR_HI Hhi.
+  circuit_row ([(COL_LOCAL_ADDR_LO,1); (COL_LOCALS_FBP_BEFORE,-2); (COL_LOCAL_INDEX,-2)],
+    [(COL_ONE,1)], ([] : SparseRow)) Hsum.
+  circuit_row ([(COL_LOCAL_ADDR_HI,1); (COL_LOCAL_ADDR_LO,-1); (COL_ONE,-1)],
+    [(COL_ONE,1)], ([] : SparseRow)) Hadjacent.
+  pose proof (value_bound w COL_LOCAL_ADDR_LO).
+  assert (Haddress : w COL_LOCAL_ADDR_LO = 2 * w COL_LOCALS_FBP_BEFORE + 2 * w COL_LOCAL_INDEX).
+  { expand_row Hsum. rewrite Hone in Hsum. field_linear Hsum. }
+  expand_row Hadjacent. rewrite Hone in Hadjacent. field_linear Hadjacent.
+Qed.
+
 Ltac circuit_range column name :=
   match goal with Hprime : fieldPrime, Hfull : FullRelation.satFull ?w |- _ =>
     first [constr_eq column COL_OPCODE_CODE; pose proof (full_opcode_code_bound w Hprime Hfull) as name
@@ -146,6 +163,7 @@ Ltac circuit_range column name :=
     | constr_eq column COL_STACK_WRITES; pose proof (full_stack_writes_bound w Hprime Hfull) as name
     | constr_eq column COL_HOST_IMPORT_SCHEDULE_COUNTS; pose proof (full_import_schedule_counts_bound w Hprime Hfull) as name
     | constr_eq column COL_MAX_MEMORY_PAGES_AFTER; pose proof (full_max_memory_pages_after_bound w Hprime Hfull) as name
+    | constr_eq column COL_LOCAL_ADDR_LO; pose proof (full_local_addr_lo_bound w Hprime Hfull) as name
     | circuit_explicit_range column name]
   end.
 

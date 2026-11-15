@@ -150,7 +150,8 @@ fn out_of_range_u32_is_rejected_by_the_column_range_row() {
 #[test]
 fn out_of_range_implied_columns_are_rejected_by_other_rows() {
     use neo_wasm::layout::{
-        COL_HOST_IMPORT_SCHEDULE_COUNTS, COL_MAX_MEMORY_PAGES_AFTER, COL_OPCODE_CODE, COL_STACK_READS, COL_STACK_WRITES,
+        COL_HOST_IMPORT_SCHEDULE_COUNTS, COL_LOCAL_ADDR_LO, COL_MAX_MEMORY_PAGES_AFTER, COL_OPCODE_CODE,
+        COL_STACK_READS, COL_STACK_WRITES,
     };
     let checked =
         common::checked_main(r#"(module (func (export "main") (result i32) i32.const 20 i32.const 22 i32.add))"#);
@@ -158,6 +159,7 @@ fn out_of_range_implied_columns_are_rejected_by_other_rows() {
         COL_OPCODE_CODE,
         COL_STACK_READS,
         COL_STACK_WRITES,
+        COL_LOCAL_ADDR_LO,
         COL_MAX_MEMORY_PAGES_AFTER,
         COL_HOST_IMPORT_SCHEDULE_COUNTS,
     ] {

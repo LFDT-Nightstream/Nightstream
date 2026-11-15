@@ -433,10 +433,10 @@ Definition GMEM_HALF : nat := 1213%nat.
 Definition TURN_SCHEDULE_COUNT_INV : nat := 1214%nat.
 Definition OBJECT_ROOT_LANE : list nat := [1215%nat; 1216%nat; 1217%nat; 1218%nat].
 Definition OBJECT_SAVED_LANE : list nat := [1219%nat; 1220%nat; 1221%nat; 1222%nat].
-Definition RANGE_BITS : list nat := seq 1223%nat 2696%nat.
+Definition RANGE_BITS : list nat := seq 1223%nat 2664%nat.
 
 Definition namedColumnCount : nat := 465%nat.
-Definition columnCount : nat := 3919%nat.
+Definition columnCount : nat := 3887%nat.
 
 Definition families : list Family :=
   [(0%nat, 1%nat, Field);
@@ -591,7 +591,7 @@ Definition families : list Family :=
    (151%nat, 1%nat, U32);
    (152%nat, 1%nat, U32);
    (153%nat, 1%nat, U32);
-   (154%nat, 1%nat, U32);
+   (154%nat, 1%nat, (Implied 32%nat));
    (155%nat, 1%nat, U32);
    (156%nat, 1%nat, U32);
    (157%nat, 1%nat, U32);
@@ -867,7 +867,7 @@ Definition families : list Family :=
    (1214%nat, 1%nat, Field);
    (1215%nat, 4%nat, Boolean);
    (1219%nat, 4%nat, Boolean);
-   (1223%nat, 2696%nat, Boolean)].
+   (1223%nat, 2664%nat, Boolean)].
 
 Definition rangeObligations : list (nat * Width) :=
   [(7%nat, (Implied 32%nat));
@@ -877,6 +877,7 @@ Definition rangeObligations : list (nat * Width) :=
    (51%nat, (Repairable 32%nat));
    (54%nat, (Implied 32%nat));
    (55%nat, (Implied 32%nat));
+   (154%nat, (Implied 32%nat));
    (159%nat, (Repairable 32%nat));
    (160%nat, (Repairable 32%nat));
    (162%nat, (Repairable 32%nat));

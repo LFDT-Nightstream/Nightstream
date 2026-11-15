@@ -2,11 +2,10 @@
 //!
 //! Enforces:
 //!  1) (k+1)·T·(b−1) < B where B=b^k  [Π_RLC bound]
-//!  2) extension policy v1 for field-space soundness factors; and
-//!  3) the production padded-row Π_CCS statistical census, which combines
+//!  2) the production padded-row Π_CCS statistical census, which combines
 //!     the joint SumCheck, the paper mixing polynomial, and the corrected
 //!     coordinate-fork loss; and
-//!  4) the statistical error of one fold that the fold gate charges, in
+//!  3) the statistical error of one fold that the fold gate charges, in
 //!     integers (Lean `FoldGate`).
 //!
 //! Symbols match the paper: q, η, d=φ(η), κ (kappa), m, b, k, B, T, s.
@@ -35,7 +34,10 @@ pub struct NeoParams {
     B: u64,
     T: u32,
     s: u32,
-    lambda: u32,
+    /// The statistical bits that a gate certified (`NeoParams::with_lambda`).
+    /// `None` means that no gate certified these parameters, and the census
+    /// check of the engines refuses them.
+    lambda: Option<u32>,
 }
 
 /// The only profile, "Nightstream P64, k_rho = 14": `q = 2^64 − 59` and the
@@ -53,12 +55,6 @@ pub mod nightstream_p64_k14 {
     /// SuperNeo v1.2 Theorem 5 for a power-of-two cyclotomic ring: `T = 2·φ(η)`.
     pub const T: u32 = 128;
     pub const EXTENSION_DEGREE: u32 = 2;
-    /// The statistical target of `NeoParams::nightstream_p64_k14`, not a
-    /// bound. No gate certifies it: the census of each shape gives at most
-    /// 117 bits, and the fold error at most 112 (SPEC.md section 3). A gate
-    /// replaces it with the bits that it certifies (`NeoParams::with_lambda`).
-    /// Until then, the census check of the engines refuses the parameters.
-    pub const TARGET_LAMBDA: u32 = 125;
     /// The law of a Π_RLC challenge is within `2^-173` of the uniform law on
     /// the challenge set (Lean `PiRlcSampler.distance_lt`).
     pub const CHALLENGE_DISTANCE_LOG2: u32 = 173;
@@ -77,13 +73,6 @@ pub mod nightstream_p64_k14 {
     pub static CHALLENGE_ALPHABET: [i8; 5] = [-2, -1, 0, 1, 2];
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ExtensionSummary {
-    pub s_min: u32,
-    pub s_supported: u32,
-    pub slack_bits: i32,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PaddedRowSecuritySummary {
     pub s_supported: u32,
@@ -95,7 +84,6 @@ pub struct PaddedRowSecuritySummary {
     pub fork_factor: u128,
     pub challenge_set_cardinality: BigUint,
     pub security_bits: u32,
-    pub slack_bits: i32,
     pub fold_error: FoldError,
 }
 
@@ -126,6 +114,8 @@ pub enum ParamsError {
         "padded-row statistical security target is {required} bits, but the combined field and coordinate-fork census provides only {available} bits"
     )]
     InsufficientStatisticalSecurity { required: u32, available: u32 },
+    #[error("no gate certified the statistical security of these parameters")]
+    UncertifiedStatisticalSecurity,
 }
 
 impl NeoParams {
@@ -140,7 +130,6 @@ impl NeoParams {
         k_rho: u32,
         T: u32,
         s: u32,
-        lambda: u32,
     ) -> Result<Self, ParamsError> {
         if q == 0 {
             return Err(ParamsError::Invalid("q must be nonzero"));
@@ -169,9 +158,6 @@ impl NeoParams {
         if s != 2 {
             return Err(ParamsError::UnsupportedExtension { required: s });
         }
-        if lambda == 0 {
-            return Err(ParamsError::Invalid("lambda must be > 0"));
-        }
 
         let B = pow_u64_checked(b as u64, k_rho)?;
         if (B as u128) * 2 >= q as u128 {
@@ -193,7 +179,7 @@ impl NeoParams {
             B,
             T,
             s,
-            lambda,
+            lambda: None,
         })
     }
 
@@ -242,16 +228,21 @@ impl NeoParams {
         self.s
     }
 
-    pub fn lambda(&self) -> u32 {
+    /// The statistical bits that a gate certified, if one did.
+    pub fn lambda(&self) -> Option<u32> {
         self.lambda
     }
 
-    /// The same parameters with a different positive statistical target.
+    /// The same parameters with the positive statistical bits that a gate
+    /// certified.
     pub fn with_lambda(self, lambda: u32) -> Result<Self, ParamsError> {
         if lambda == 0 {
             return Err(ParamsError::Invalid("lambda must be > 0"));
         }
-        Ok(Self { lambda, ..self })
+        Ok(Self {
+            lambda: Some(lambda),
+            ..self
+        })
     }
 
     pub fn nightstream_p64_k14() -> Self {
@@ -265,83 +256,12 @@ impl NeoParams {
             nightstream_p64_k14::K_RHO,
             nightstream_p64_k14::T,
             nightstream_p64_k14::EXTENSION_DEGREE,
-            nightstream_p64_k14::TARGET_LAMBDA,
         )
         .expect("Nightstream P64 k_rho=14 parameters")
     }
 
-    #[inline]
-    fn bitlen_u128(x: u128) -> u32 {
-        if x == 0 {
-            0
-        } else {
-            128 - x.leading_zeros()
-        }
-    }
-
-    fn s2_feasible_factor(&self, soundness_factor: u128) -> Option<bool> {
-        let q2 = (self.q as u128).checked_mul(self.q as u128)?;
-        let pow2 = 1u128.checked_shl(self.lambda)?;
-        let rhs = pow2.checked_mul(soundness_factor)?;
-        Some(q2 >= rhs)
-    }
-
-    pub fn s_min(&self, ell: u32, d_sc: u32) -> u32 {
-        let factor = (ell as u128) * (d_sc as u128);
-        self.s_min_factor(factor)
-    }
-
-    pub fn s_min_factor(&self, soundness_factor: u128) -> u32 {
-        if let Some(pow2) = 1u128.checked_shl(self.lambda) {
-            if let Some(rhs) = pow2.checked_mul(soundness_factor) {
-                if (self.q as u128) >= rhs {
-                    return 1;
-                }
-            }
-        }
-
-        match self.s2_feasible_factor(soundness_factor) {
-            Some(true) => 2,
-            Some(false) => 3,
-            None => 3,
-        }
-    }
-
-    pub fn extension_check(&self, ell: u32, d_sc: u32) -> Result<ExtensionSummary, ParamsError> {
-        let factor = (ell as u128)
-            .checked_mul(d_sc as u128)
-            .ok_or(ParamsError::UnsupportedExtension { required: 3 })?;
-        self.extension_check_factor(factor)
-    }
-
-    pub fn extension_check_factor(&self, soundness_factor: u128) -> Result<ExtensionSummary, ParamsError> {
-        let s_min = self.s_min_factor(soundness_factor);
-        if s_min > 2 {
-            return Err(ParamsError::UnsupportedExtension { required: s_min });
-        }
-
-        let q = self.q as u128;
-        let q2 = q * q;
-
-        let rhs = 1u128
-            .checked_shl(self.lambda)
-            .and_then(|p| p.checked_mul(soundness_factor))
-            .ok_or(ParamsError::UnsupportedExtension { required: 3 })?;
-
-        let mut slack_bits = Self::bitlen_u128(q2) as i32 - Self::bitlen_u128(rhs) as i32;
-        if let Some(shifted) = rhs.checked_shl(slack_bits as u32) {
-            if q2 < shifted {
-                slack_bits -= 1;
-            }
-        }
-
-        Ok(ExtensionSummary {
-            s_min,
-            s_supported: 2,
-            slack_bits,
-        })
-    }
-
+    /// The census of the shape. Refuses parameters that no gate certified,
+    /// and parameters whose certified bits are above the census bits.
     pub fn padded_row_security_check_for_shape(
         &self,
         row_count: usize,
@@ -357,9 +277,12 @@ impl NeoParams {
             poly_degree,
             challenge_alphabet_size,
         )?;
-        if summary.slack_bits < 0 {
+        let required = self
+            .lambda
+            .ok_or(ParamsError::UncertifiedStatisticalSecurity)?;
+        if summary.security_bits < required {
             return Err(ParamsError::InsufficientStatisticalSecurity {
-                required: self.lambda,
+                required,
                 available: summary.security_bits,
             });
         }
@@ -396,7 +319,6 @@ impl NeoParams {
             BigUint::from(field_factor) * &challenge_set_cardinality + BigUint::from(fork_factor) * &field_size;
         let total_denominator = &field_size * &challenge_set_cardinality;
         let security_bits = floor_log2_ratio(&total_denominator, &total_numerator);
-        let slack_bits = signed_difference(security_bits, self.lambda);
         let fold_error = self.fold_error(field_factor, &field_size, &challenge_set_cardinality);
 
         Ok(PaddedRowSecuritySummary {
@@ -409,7 +331,6 @@ impl NeoParams {
             fork_factor,
             challenge_set_cardinality,
             security_bits,
-            slack_bits,
             fold_error,
         })
     }
@@ -603,11 +524,6 @@ fn floor_log2_ratio(denominator: &BigUint, numerator: &BigUint) -> u32 {
     bits
 }
 
-fn signed_difference(left: u32, right: u32) -> i32 {
-    let difference = left as i64 - right as i64;
-    difference.clamp(i32::MIN as i64, i32::MAX as i64) as i32
-}
-
 fn pow_u64_checked(base: u64, mut exp: u32) -> Result<u64, ParamsError> {
     let mut acc: u128 = 1;
     let mut b: u128 = base as u128;
@@ -630,8 +546,12 @@ impl fmt::Display for NeoParams {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "NeoParams{{ q=0x{:016X}, η={}, d={}, κ={}, m={}, b={}, k_rho={}, B={}, T={}, s={}, λ={} }}",
-            self.q, self.eta, self.d, self.kappa, self.m, self.b, self.k_rho, self.B, self.T, self.s, self.lambda
-        )
+            "NeoParams{{ q=0x{:016X}, η={}, d={}, κ={}, m={}, b={}, k_rho={}, B={}, T={}, s={}, λ=",
+            self.q, self.eta, self.d, self.kappa, self.m, self.b, self.k_rho, self.B, self.T, self.s
+        )?;
+        match self.lambda {
+            Some(bits) => write!(f, "{bits} }}"),
+            None => write!(f, "uncertified }}"),
+        }
     }
 }

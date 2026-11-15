@@ -8,8 +8,8 @@ workspace dependencies — this is the root crate.
 - **`NeoParams`** — the full symbol set with paper names: `q, η, d, κ, m, b, k_rho,
   B, T, s, λ`. Constructors validate; invalid bundles do not exist as values.
   - Π_RLC bound: `(k+1)·T·(b−1) < B` where `B = b^k`.
-  - Extension policy v1: `s_min = ceil((λ + log₂(soundness_factor)) / log₂(q))`;
-    only `s = 2` supported; `s_min > 2` is a configuration error; slack recorded.
+  - `λ` is the statistical bits that a gate certified. It is absent until
+    `with_lambda`, and the census check refuses parameters without it.
 - **`nightstream_p64_k14`** — the constants of the one profile, "Nightstream P64,
   k_rho = 14" (single source of truth; values in [SPEC.md](../../SPEC.md),
   section 3), including `CHALLENGE_ALPHABET = {−2…2}`.

@@ -106,16 +106,16 @@ fn constructor_returns_the_profile_constants() {
         )
     );
     assert_eq!(
-        (p.b(), p.k_rho(), p.B(), p.T(), p.s(), p.lambda()),
+        (p.b(), p.k_rho(), p.B(), p.T(), p.s()),
         (
             profile::B_BASE,
             profile::K_RHO,
             profile::B,
             profile::T,
-            profile::EXTENSION_DEGREE,
-            profile::TARGET_LAMBDA
+            profile::EXTENSION_DEGREE
         )
     );
+    assert_eq!(p.lambda(), None);
 }
 
 #[test]
@@ -146,7 +146,16 @@ fn maximum_geometry_padded_row_census_matches_formula() {
     let bits = summary.security_bits;
     assert!(&numerator << bits <= denominator);
     assert!(numerator << (bits + 1) > denominator);
-    assert_eq!(summary.slack_bits, bits as i32 - 115);
+    assert_eq!(
+        NeoParams::nightstream_p64_k14().padded_row_security_check_for_shape(1 << 26, columns, 3, 2, alphabet),
+        Err(ParamsError::UncertifiedStatisticalSecurity)
+    );
+    assert_eq!(
+        p.with_lambda(bits)
+            .unwrap()
+            .padded_row_security_check_for_shape(1 << 26, columns, 3, 2, alphabet),
+        Ok(summary)
+    );
 
     let err = p
         .with_lambda(bits + 1)

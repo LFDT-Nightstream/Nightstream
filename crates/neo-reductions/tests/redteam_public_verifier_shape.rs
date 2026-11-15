@@ -483,9 +483,10 @@ fn reduction_policy_rejects_parameter_modulus_different_from_field() {
         p.k_rho(),
         p.T(),
         p.s(),
-        p.lambda(),
     )
-    .expect("new accepts any modulus that bounds 2B");
+    .expect("new accepts any modulus that bounds 2B")
+    .with_lambda(100)
+    .expect("lambda");
     let structure =
         CcsStructure::new(vec![Mat::identity(1)], SparsePoly::new(1, Vec::new())).expect("minimal CCS structure");
 

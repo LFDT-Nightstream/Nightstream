@@ -15,7 +15,6 @@ fn neo_params_rejects_dec_bound_outside_centered_field_interval() {
         63,
         profile::T,
         2,
-        125,
     );
 
     assert!(

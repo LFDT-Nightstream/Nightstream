@@ -4,12 +4,19 @@ This directory records why Nightstream selects project-specific designs that
 the SuperNeo paper does not fix. These records are tracked rationale. They do
 not define accepted proofs or verifier behavior.
 
-Authority is separate:
+Authority is separate. A record does not override these sources. Where a
+record and a source differ, the source is correct and the record has a defect.
 
-- `docs/superneo-paper-v1_2/` contains the reviewed paper. It is a local folder and is not in git.
-- `formal/nightstream-fprime/SECURITY_MODEL.md` states the production proof
-  authority.
-- Rust and Lean provide implementation and proof evidence.
+- Lean in `formal/nightstream-fprime/` is the source of truth for the
+  circuits and the proofs.
+- [SPEC.md](../SPEC.md) is the only protocol specification. It restates the
+  Lean.
+- `formal/nightstream-fprime/SECURITY_MODEL.md` gives each adversary and each
+  premise.
+- Rust implements the protocol.
+- `docs/superneo-paper-v1_2/` contains the reviewed paper. It is a local
+  folder and is not in git, so a record cites the paper by its v1.2 numbers
+  and does not link to it.
 
 Each decision must use one kebab-case file with these sections:
 

@@ -8,47 +8,33 @@ The HyperNova step relation contains an application transition `F`. A generic
 package that lets the prover select `F`, its circuit, or its static key material
 would not define one verifier-owned recursive relation.
 
-PiCCS, PiRLC, PiDEC, and the accumulator can supply phase-local evidence before
-the final application exists. They cannot receive final conformance status
-until the application, final package, verifier context, verification key, and
-recursive fixed point are one closed object.
+## SuperNeo
+
+SuperNeo v1.2 folds instances of one fixed CCS structure. HyperNova
+Definitions 7 and 11 let the adversary or the IVC prover choose the
+structure ([SPEC.md](../SPEC.md) section 8).
 
 ## Decision
 
-Production uses verifier-owned, Lean-authored per-application packages.
+The verifier owns the packages of each application. The prover cannot select
+`F`, the packages, or any static key material.
 
-For each production application `F`:
+1. Lean emits the light and refresh step packages of an application
+   (`Export.BoundedDepth.StepPackage.Package`).
+2. The package identity binds both packages
+   (`Export.BoundedDepth.StepPackage.identity`).
+3. The key digest of each circuit binds the identity and the circuit index
+   (`Lifecycle.BoundedDepth.CircuitKeyDigest.digest`), and each state hash
+   carries both key digests ([SPEC.md](../SPEC.md) sections 4.2 and 4.4).
+4. The verifier pins the identity of the packages
+   ([SPEC.md](../SPEC.md) Algorithm 2).
 
-1. Lean assembles one canonical Stage 1 package for the exact application.
-2. The package identity binds the exact application and all static key
-   material.
-3. The verifier-context digest binds the exact application and all static key
-   material.
-4. The verification key binds the exact application and all static key
-   material.
-5. The production verifier pins or allowlists the final package identity.
-6. The prover cannot select `F`, the package, or any static key material.
+A carried digest is compression only. The verifier must recompute or pin
+each authoritative value from verifier-owned inputs.
 
-The binding construction must be acyclic or have a proved recursive fixed
-point. A carried digest is compression only. The verifier must recompute or pin
-every authoritative value from verifier-owned inputs.
-
-## Closure rule
-
-No per-application package is Conformance-closed until all of the following
-exist for that exact application:
-
-- the concrete Lean application relation and circuit;
-- the complete Lean Stage 1 assembler;
-- the recursive fixed point;
-- the final canonical package identity;
-- the final verifier-context digest and verification key binding;
-- a production verifier path that pins or allowlists the identity; and
-- a complete rerun of every required Lean, exact-matrix, independent-assignment,
-  nonzero-parity, mutation, loader, identity, and exact-cut external-review
-  gate on that final identity.
-
-This decision authorizes application, accumulator, terminal, and Stage 1
-assembler work on phase-local evidence. It does not close any phase, authorize
-Stage 2, authorize a proof backend, or make backend acceptance evidence for
-Lean semantics or Rust assignment conformance.
+A Rust application that a caller compiles replaces the application region of
+Lean's packages and gets its own identity ([SPEC.md](../SPEC.md) Algorithm 2,
+step 3). Lean exports only its own packages, so the Lean results do not
+cover that relation
+([security model](../formal/nightstream-fprime/SECURITY_MODEL.md), Out of
+scope).

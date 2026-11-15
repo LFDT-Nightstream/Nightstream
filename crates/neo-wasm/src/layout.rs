@@ -209,7 +209,7 @@ define_column_region! {
         COL_STACK_WRITE0_VALUE_HI: U32 => "operand-stack write lane 0 high limb for future i64 support",
         COL_WIDE_AUX0: Boolean => "",
         COL_WIDE_AUX1: Boolean => "",
-        COL_LINEAR_MEM_IMM_OFFSET: U32 => "linear-memory immediate offset in bytes",
+        COL_LINEAR_MEM_IMM_OFFSET: MemoryRepairable => "linear-memory immediate offset in bytes",
         COL_LINEAR_MEM_BYTE_OFFSET: (Repairable(32)) => "linear-memory byte offset within the first word lane",
         COL_LINEAR_MEM_USE_LANE1: Boolean => "linear-memory second-lane flag for unaligned accesses",
         COL_LINEAR_MEM_USE_LANE2: Boolean => "linear-memory third-lane flag for wide unaligned accesses",

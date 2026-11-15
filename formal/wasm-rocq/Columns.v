@@ -433,10 +433,10 @@ Definition GMEM_HALF : nat := 1213%nat.
 Definition TURN_SCHEDULE_COUNT_INV : nat := 1214%nat.
 Definition OBJECT_ROOT_LANE : list nat := [1215%nat; 1216%nat; 1217%nat; 1218%nat].
 Definition OBJECT_SAVED_LANE : list nat := [1219%nat; 1220%nat; 1221%nat; 1222%nat].
-Definition RANGE_BITS : list nat := seq 1223%nat 2632%nat.
+Definition RANGE_BITS : list nat := seq 1223%nat 2440%nat.
 
 Definition namedColumnCount : nat := 465%nat.
-Definition columnCount : nat := 3855%nat.
+Definition columnCount : nat := 3663%nat.
 
 Definition families : list Family :=
   [(0%nat, 1%nat, Field);
@@ -624,7 +624,7 @@ Definition families : list Family :=
    (192%nat, 1%nat, U32);
    (193%nat, 1%nat, Boolean);
    (194%nat, 1%nat, Boolean);
-   (195%nat, 1%nat, U32);
+   (195%nat, 1%nat, MemoryRepairable);
    (196%nat, 1%nat, (Repairable 32%nat));
    (197%nat, 1%nat, Boolean);
    (198%nat, 1%nat, Boolean);
@@ -793,14 +793,14 @@ Definition families : list Family :=
    (373%nat, 1%nat, Boolean);
    (374%nat, 1%nat, Boolean);
    (375%nat, 1%nat, U32);
-   (376%nat, 3%nat, U32);
+   (376%nat, 3%nat, MemoryRepairable);
    (379%nat, 1%nat, Field);
    (380%nat, 1%nat, (Bits 16%nat));
    (381%nat, 1%nat, (Bits 16%nat));
    (382%nat, 1%nat, Field);
    (383%nat, 1%nat, (Bits 16%nat));
    (384%nat, 1%nat, (Bits 16%nat));
-   (385%nat, 1%nat, U32);
+   (385%nat, 1%nat, MemoryRepairable);
    (386%nat, 1%nat, (Implied 32%nat));
    (387%nat, 1%nat, (Bits 16%nat));
    (388%nat, 1%nat, (Bits 16%nat));
@@ -841,7 +841,7 @@ Definition families : list Family :=
    (455%nat, 1%nat, Field);
    (456%nat, 1%nat, Field);
    (457%nat, 1%nat, Field);
-   (458%nat, 1%nat, U32);
+   (458%nat, 1%nat, MemoryRepairable);
    (459%nat, 1%nat, Field);
    (460%nat, 1%nat, Boolean);
    (461%nat, 1%nat, Boolean);
@@ -867,7 +867,7 @@ Definition families : list Family :=
    (1214%nat, 1%nat, Field);
    (1215%nat, 4%nat, Boolean);
    (1219%nat, 4%nat, Boolean);
-   (1223%nat, 2632%nat, Boolean)].
+   (1223%nat, 2440%nat, Boolean)].
 
 Definition rangeObligations : list (nat * Width) :=
   [(7%nat, (Implied 32%nat));
@@ -886,4 +886,4 @@ Definition rangeObligations : list (nat * Width) :=
    (386%nat, (Implied 32%nat))].
 
 Definition memoryRangeObligations : list nat :=
-  [46%nat].
+  [46%nat; 195%nat; 376%nat; 377%nat; 378%nat; 385%nat; 458%nat].

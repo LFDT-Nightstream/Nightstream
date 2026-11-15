@@ -1,5 +1,5 @@
 From Stdlib Require Import List ZArith Lia Bool.
-Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog CircuitFacts
+Require Import R1CS Columns FullRelation Range Selectors MemoryTrace MemoryCatalog CircuitFacts
   InactiveStackBindings RangeObligations TraceRefinement.
 Import ListNotations.
 Open Scope Z_scope.
@@ -63,13 +63,207 @@ Proof.
    finish_call_stack_repair COL_CALL_STACK_RETURN_PC_VALUE.
 Qed.
 
+Ltac memory_value_inactive column gate :=
+ lazymatch goal with
+ | Hfull : FullRelation.satFull ?w,
+   Hbounds : boundedMemoryEvents (eventsForRow memories ?w) |- _ =>
+ let selected := eval vm_compute in
+   (find (fun pair => Nat.eqb (valueColumn (snd pair)) column &&
+      match activation (snd pair) with When g => Nat.eqb g gate | _ => false end)
+     (flat_map (fun m => map (fun p => (m,p)) (ports m)) memories)) in
+ lazymatch selected with
+ | Some (?memory, ?chosenPort) =>
+   let Hb := fresh "Hb" in let Hz := fresh "Hz" in
+   circuit_boolean gate Hb;
+   assert (Hz : w gate = 0) by
+     (destruct Hb as [Hb|Hb]; [exact Hb|];
+      let Hr := fresh "Hr" in
+      assert (Hr : u32Value (w column)) by
+        (eapply bounded_port_value with (specification := memory) (port := chosenPort);
+         [exact Hbounds | vm_compute; tauto | vm_compute; tauto |
+          change (Z.eqb (w gate) 1 = true); rewrite Hb; reflexivity]);
+      unfold u32Value in Hr; lia);
+   clear Hb
+ end
+ end.
+
+Ltac start_memory_repair column :=
+ intros w Hprime Hfull Hbounds; unfold rangeObligation;
+ change (exists w', FullRelation.satFull w' /\
+   0 <= w' column < 4294967296 /\
+   eventsForRow memories w' = eventsForRow memories w /\
+   map (fun '(a,b) => (w' a,w' b)) continuityLinks =
+   map (fun '(a,b) => (w a,w b)) continuityLinks /\
+   (forall c, c <> column -> w' c = w c));
+ destruct (Z_lt_ge_dec (w column) 4294967296) as [Hsmall|Hlarge];
+ [exists w; split; [exact Hfull|]; split;
+  [pose proof (value_bound w column); lia|]; repeat split; reflexivity | ].
+
+Ltac finish_memory_repair column repairGates :=
+ lazymatch goal with Hfull : FullRelation.satFull ?w |- _ =>
+ exists (zeroColumn column w); split;
+ [ eapply private_full_repair with (gates := repairGates);
+   [vm_compute; discriminate | vm_compute; reflexivity |
+    let rec prove_gates := lazymatch goal with
+    | |- Forall _ [] => constructor
+    | |- Forall _ (_ :: _) => apply Forall_cons;
+      [try assumption; cbn [eval fold_right]; normalize_columns;
+       repeat match goal with H : _ = 0 |- _ => progress rewrite H end;
+       reflexivity | prove_gates]
+    end in prove_gates
+    | exact Hfull]
+ | split; [rewrite zero_column_value; lia|]; split;
+   [cbv beta iota zeta delta [eventsForRow memories flat_map ports memoryId portEvent
+      active activation addressColumns valueColumn portKind map option_map];
+    repeat match goal with
+    | |- context [value (zeroColumn ?col ?wit) ?c] =>
+      let Hneq := fresh in
+      assert (Hneq : c <> col) by (vm_compute; discriminate);
+      rewrite (zero_column_same col wit c Hneq); clear Hneq
+    end;
+    normalize_columns;
+    repeat match goal with H : _ = 0 |- _ => progress rewrite H end;
+    reflexivity
+   | split; [reflexivity|apply zero_column_same]]]
+ end.
+
+Lemma full_host_frame_0_memory_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
+ rangeObligation w ((List.nth 0%nat COL_HOST_CONTEXT_FRAME 0%nat), Repairable 32%nat).
+Proof.
+ start_memory_repair (List.nth 0%nat COL_HOST_CONTEXT_FRAME 0%nat).
+ memory_value_inactive (List.nth 0%nat COL_HOST_CONTEXT_FRAME 0%nat) COL_HOST_SUSPEND.
+ memory_value_inactive (List.nth 0%nat COL_HOST_CONTEXT_FRAME 0%nat) COL_HOST_RESUME.
+ finish_memory_repair (List.nth 0%nat COL_HOST_CONTEXT_FRAME 0%nat)
+   [[(COL_HOST_SUSPEND,1)]; [(COL_HOST_RESUME,1)]].
+Qed.
+
+Lemma full_host_frame_1_memory_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
+ rangeObligation w ((List.nth 1%nat COL_HOST_CONTEXT_FRAME 0%nat), Repairable 32%nat).
+Proof.
+ start_memory_repair (List.nth 1%nat COL_HOST_CONTEXT_FRAME 0%nat).
+ memory_value_inactive (List.nth 1%nat COL_HOST_CONTEXT_FRAME 0%nat) COL_HOST_SUSPEND.
+ memory_value_inactive (List.nth 1%nat COL_HOST_CONTEXT_FRAME 0%nat) COL_HOST_RESUME.
+ finish_memory_repair (List.nth 1%nat COL_HOST_CONTEXT_FRAME 0%nat)
+   [[(COL_HOST_SUSPEND,1)]; [(COL_HOST_RESUME,1)]].
+Qed.
+
+Lemma full_host_frame_2_memory_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
+ rangeObligation w ((List.nth 2%nat COL_HOST_CONTEXT_FRAME 0%nat), Repairable 32%nat).
+Proof.
+ start_memory_repair (List.nth 2%nat COL_HOST_CONTEXT_FRAME 0%nat).
+ memory_value_inactive (List.nth 2%nat COL_HOST_CONTEXT_FRAME 0%nat) COL_HOST_SUSPEND.
+ memory_value_inactive (List.nth 2%nat COL_HOST_CONTEXT_FRAME 0%nat) COL_HOST_RESUME.
+ finish_memory_repair (List.nth 2%nat COL_HOST_CONTEXT_FRAME 0%nat)
+   [[(COL_HOST_SUSPEND,1)]; [(COL_HOST_RESUME,1)]].
+Qed.
+
+Lemma full_host_sp_memory_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
+ rangeObligation w (COL_HOST_CONTEXT_SP, Repairable 32%nat).
+Proof.
+ start_memory_repair COL_HOST_CONTEXT_SP.
+ memory_value_inactive COL_HOST_CONTEXT_SP COL_HOST_SUSPEND.
+ memory_value_inactive COL_HOST_CONTEXT_SP COL_HOST_CONTEXT_READ.
+ circuit_boolean COL_HOST_NESTED_ENTRY Bentry.
+ circuit_boolean COL_HOST_RESUME Bresume.
+ circuit_row ([(COL_HOST_CONTEXT_READ,1); (COL_HOST_NESTED_ENTRY,-1); (COL_HOST_RESUME,-1)],
+   [(COL_ONE,1)], ([] : SparseRow)) Hr.
+ assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+ expand_row Hr. rewrite Hone in Hr.
+ assert (Hzentry : w COL_HOST_NESTED_ENTRY = 0 /\ w COL_HOST_RESUME = 0)
+   by (repeat match goal with H : w _ = 0 |- _ => rewrite H in Hr end; field_linear Hr).
+ destruct Hzentry as [Hzentry Hzresume].
+ finish_memory_repair COL_HOST_CONTEXT_SP
+   [[(COL_HOST_SUSPEND,1)]; [(COL_HOST_NESTED_ENTRY,1)]; [(COL_HOST_RESUME,1)]].
+Qed.
+
+Lemma full_host_event_base_memory_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
+ rangeObligation w (COL_HOST_EVENT_BASE, Repairable 32%nat).
+Proof.
+ start_memory_repair COL_HOST_EVENT_BASE.
+ memory_value_inactive COL_HOST_EVENT_BASE COL_HOST_CALL_ACTIVE.
+ memory_value_inactive COL_HOST_EVENT_BASE COL_HOST_RESUME.
+ memory_value_inactive COL_HOST_EVENT_BASE COL_HOST_EVENT_EXIT_LATCH.
+ memory_value_inactive COL_HOST_EVENT_BASE COL_TURN_BOUNDARY.
+ finish_memory_repair COL_HOST_EVENT_BASE
+   [[(COL_HOST_CALL_ACTIVE,1)]; [(COL_HOST_RESUME,1)];
+    [(COL_HOST_EVENT_EXIT_LATCH,1)]; [(COL_TURN_BOUNDARY,1)]].
+Qed.
+
+Definition memoryOffsetGates : list SparseRow := [[(COL_SEL_I32_LOAD,1); (COL_SEL_I32_LOAD8_S,1); (COL_SEL_I32_LOAD8_U,1); (COL_SEL_I32_LOAD16_S,1); (COL_SEL_I32_LOAD16_U,1); (COL_SEL_I64_LOAD,1); (COL_SEL_I32_STORE,1); (COL_SEL_I32_STORE8,1); (COL_SEL_I32_STORE16,1); (COL_SEL_I64_STORE,1); (COL_SEL_I64_STORE8,1); (COL_SEL_I64_STORE16,1); (COL_SEL_I64_STORE32,1); (COL_SEL_I64_LOAD8_U,1); (COL_SEL_I64_LOAD16_U,1); (COL_SEL_I64_LOAD32_U,1); (COL_SEL_I64_LOAD8_S,1); (COL_SEL_I64_LOAD16_S,1); (COL_SEL_I64_LOAD32_S,1)]].
+
+Lemma full_memory_offset_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
+ rangeObligation w (COL_LINEAR_MEM_IMM_OFFSET, Repairable 32%nat).
+Proof.
+ start_memory_repair COL_LINEAR_MEM_IMM_OFFSET.
+ memory_value_inactive COL_LINEAR_MEM_IMM_OFFSET COL_LINEAR_MEM_USE_LANE0.
+ circuit_boolean COL_SEL_I32_LOAD B0.
+ assert (R0 : 0 <= w COL_SEL_I32_LOAD <= 1) by lia; clear B0.
+ circuit_boolean COL_SEL_I32_LOAD8_S B1.
+ assert (R1 : 0 <= w COL_SEL_I32_LOAD8_S <= 1) by lia; clear B1.
+ circuit_boolean COL_SEL_I32_LOAD8_U B2.
+ assert (R2 : 0 <= w COL_SEL_I32_LOAD8_U <= 1) by lia; clear B2.
+ circuit_boolean COL_SEL_I32_LOAD16_S B3.
+ assert (R3 : 0 <= w COL_SEL_I32_LOAD16_S <= 1) by lia; clear B3.
+ circuit_boolean COL_SEL_I32_LOAD16_U B4.
+ assert (R4 : 0 <= w COL_SEL_I32_LOAD16_U <= 1) by lia; clear B4.
+ circuit_boolean COL_SEL_I64_LOAD B5.
+ assert (R5 : 0 <= w COL_SEL_I64_LOAD <= 1) by lia; clear B5.
+ circuit_boolean COL_SEL_I32_STORE B6.
+ assert (R6 : 0 <= w COL_SEL_I32_STORE <= 1) by lia; clear B6.
+ circuit_boolean COL_SEL_I32_STORE8 B7.
+ assert (R7 : 0 <= w COL_SEL_I32_STORE8 <= 1) by lia; clear B7.
+ circuit_boolean COL_SEL_I32_STORE16 B8.
+ assert (R8 : 0 <= w COL_SEL_I32_STORE16 <= 1) by lia; clear B8.
+ circuit_boolean COL_SEL_I64_STORE B9.
+ assert (R9 : 0 <= w COL_SEL_I64_STORE <= 1) by lia; clear B9.
+ circuit_boolean COL_SEL_I64_STORE8 B10.
+ assert (R10 : 0 <= w COL_SEL_I64_STORE8 <= 1) by lia; clear B10.
+ circuit_boolean COL_SEL_I64_STORE16 B11.
+ assert (R11 : 0 <= w COL_SEL_I64_STORE16 <= 1) by lia; clear B11.
+ circuit_boolean COL_SEL_I64_STORE32 B12.
+ assert (R12 : 0 <= w COL_SEL_I64_STORE32 <= 1) by lia; clear B12.
+ circuit_boolean COL_SEL_I64_LOAD8_U B13.
+ assert (R13 : 0 <= w COL_SEL_I64_LOAD8_U <= 1) by lia; clear B13.
+ circuit_boolean COL_SEL_I64_LOAD16_U B14.
+ assert (R14 : 0 <= w COL_SEL_I64_LOAD16_U <= 1) by lia; clear B14.
+ circuit_boolean COL_SEL_I64_LOAD32_U B15.
+ assert (R15 : 0 <= w COL_SEL_I64_LOAD32_U <= 1) by lia; clear B15.
+ circuit_boolean COL_SEL_I64_LOAD8_S B16.
+ assert (R16 : 0 <= w COL_SEL_I64_LOAD8_S <= 1) by lia; clear B16.
+ circuit_boolean COL_SEL_I64_LOAD16_S B17.
+ assert (R17 : 0 <= w COL_SEL_I64_LOAD16_S <= 1) by lia; clear B17.
+ circuit_boolean COL_SEL_I64_LOAD32_S B18.
+ assert (R18 : 0 <= w COL_SEL_I64_LOAD32_S <= 1) by lia; clear B18.
+ circuit_row ([(COL_LINEAR_MEM_USE_LANE0,1); (COL_SEL_I32_LOAD,-1); (COL_SEL_I32_LOAD8_S,-1); (COL_SEL_I32_LOAD8_U,-1); (COL_SEL_I32_LOAD16_S,-1); (COL_SEL_I32_LOAD16_U,-1); (COL_SEL_I64_LOAD,-1); (COL_SEL_I32_STORE,-1); (COL_SEL_I32_STORE8,-1); (COL_SEL_I32_STORE16,-1); (COL_SEL_I64_STORE,-1); (COL_SEL_I64_STORE8,-1); (COL_SEL_I64_STORE16,-1); (COL_SEL_I64_STORE32,-1); (COL_SEL_I64_LOAD8_U,-1); (COL_SEL_I64_LOAD16_U,-1); (COL_SEL_I64_LOAD32_U,-1); (COL_SEL_I64_LOAD8_S,-1); (COL_SEL_I64_LOAD16_S,-1); (COL_SEL_I64_LOAD32_S,-1)], [(COL_ONE,1)], ([] : SparseRow)) Hr.
+ assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+ expand_row Hr. rewrite Hone in Hr.
+ assert (Hzsum : eval w [(COL_SEL_I32_LOAD,1); (COL_SEL_I32_LOAD8_S,1); (COL_SEL_I32_LOAD8_U,1); (COL_SEL_I32_LOAD16_S,1); (COL_SEL_I32_LOAD16_U,1); (COL_SEL_I64_LOAD,1); (COL_SEL_I32_STORE,1); (COL_SEL_I32_STORE8,1); (COL_SEL_I32_STORE16,1); (COL_SEL_I64_STORE,1); (COL_SEL_I64_STORE8,1); (COL_SEL_I64_STORE16,1); (COL_SEL_I64_STORE32,1); (COL_SEL_I64_LOAD8_U,1); (COL_SEL_I64_LOAD16_U,1); (COL_SEL_I64_LOAD32_U,1); (COL_SEL_I64_LOAD8_S,1); (COL_SEL_I64_LOAD16_S,1); (COL_SEL_I64_LOAD32_S,1)] = 0).
+ { cbn [eval fold_right]; normalize_columns.
+   repeat match goal with H : w _ = 0 |- _ => rewrite H in Hr end.
+   field_linear Hr. }
+ let gates := eval cbv delta [memoryOffsetGates] in memoryOffsetGates in
+ finish_memory_repair COL_LINEAR_MEM_IMM_OFFSET gates.
+Qed.
+
 Theorem memory_range_obligations_sound : forall w,
  fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
  Forall (memoryRangeObligation w) memoryRangeObligations.
 Proof.
  intros w Hprime Hfull Hbounds. unfold memoryRangeObligations.
- constructor; [|constructor]. split; [vm_compute;reflexivity|].
- exact (full_return_pc_memory_repair w Hprime Hfull Hbounds).
+ constructor; [split; [vm_compute; reflexivity | exact (full_return_pc_memory_repair w Hprime Hfull Hbounds)] | ].
+ constructor; [split; [vm_compute; reflexivity | exact (full_memory_offset_repair w Hprime Hfull Hbounds)] | ].
+ constructor; [split; [vm_compute; reflexivity | exact (full_host_frame_0_memory_repair w Hprime Hfull Hbounds)] | ].
+ constructor; [split; [vm_compute; reflexivity | exact (full_host_frame_1_memory_repair w Hprime Hfull Hbounds)] | ].
+ constructor; [split; [vm_compute; reflexivity | exact (full_host_frame_2_memory_repair w Hprime Hfull Hbounds)] | ].
+ constructor; [split; [vm_compute; reflexivity | exact (full_host_sp_memory_repair w Hprime Hfull Hbounds)] | ].
+ constructor; [split; [vm_compute; reflexivity | exact (full_host_event_base_memory_repair w Hprime Hfull Hbounds)] | ].
+ constructor.
 Qed.
 
 Theorem memory_range_obligations_run : forall initial rows final w,

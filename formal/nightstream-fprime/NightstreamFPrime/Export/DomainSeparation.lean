@@ -1,6 +1,7 @@
 import NightstreamFPrime.Spec.Sponge
 import NightstreamFPrime.Export.BoundedDepth.CompressionSponge
 import NightstreamFPrime.Export.BoundedDepth.StepPackage
+import NightstreamFPrime.Lifecycle.BoundedDepth.ApplicationIdentity
 import NightstreamFPrime.Lifecycle.BoundedDepth.CircuitKeyDigest
 import NightstreamFPrime.Lifecycle.BoundedDepth.Keys
 import NightstreamFPrime.Lifecycle.RandomOracle.Schedule
@@ -18,9 +19,8 @@ absorbs: the `10*` padded blocks of a hash use (`hash_owns`), the calls of a fol
 (`fold_owns`), and the framed blocks of a Nebula transcript (`nebula_owns`).
 
 The compression transcript is one sponge: it starts with the domain of its Π_CCS run
-(`compression_owns`) and absorbs the domain of the argument after that run. The last row restates
-a Rust tag that no Lean definition has: the application identity (`SPEC.md` section 4.4). No
-emitted data compares it with Rust. -/
+(`compression_owns`) and absorbs the domain of the argument after that run. The application
+identity owns the padded blocks of its hash input (`applicationIdentity_owns`). -/
 
 set_option autoImplicit false
 
@@ -35,9 +35,6 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 structure Use where
   name : String
   tag : List F
-
-/-- ASCII text, one word per byte. -/
-def byteWords (text : String) : List F := text.toList.map fun c => Poseidon2.ofNat c.toNat
 
 /-- The first framed block of a Nebula transcript: the tag's length, then its bytes. -/
 def nebulaTag (text : String) : List F := block (Nebula.textWords text)
@@ -64,8 +61,7 @@ def uses : List Use :=
    ⟨"circuit key digest", BoundedDepth.CircuitKeyDigest.domain⟩,
    ⟨"compression Pi_CCS", Export.BoundedDepth.CompressionSponge.ccsDomain⟩,
    ⟨"compression argument", Export.BoundedDepth.CompressionSponge.argumentDomain⟩,
-   ⟨"application identity",
-     byteWords "Nightstream/OptionB/application/combined-native-experiment/v1"⟩]
+   ⟨"application identity", BoundedDepth.ApplicationIdentity.domain⟩]
 
 /-- `left` and `right` differ at a position of both. -/
 def differs (left right : List F) : Bool := (left.zip right).any fun pair => pair.1 != pair.2
@@ -127,6 +123,11 @@ theorem circuitKey_owns (identity : List F) (circuit : Fin 2) :
     BoundedDepth.CircuitKeyDigest.domain <+:
       (Sponge.padding.pad (BoundedDepth.CircuitKeyDigest.input identity circuit)).flatten :=
   hash_owns (BoundedDepth.CircuitKeyDigest.domain_prefix identity circuit)
+
+/-- The application identity owns the padded blocks of its hash input. -/
+theorem applicationIdentity_owns (application : BoundedDepth.ApplicationIdentity.Application) :
+    BoundedDepth.ApplicationIdentity.domain <+: (Sponge.padding.pad application.input).flatten :=
+  hash_owns (BoundedDepth.ApplicationIdentity.Application.domain_prefix application)
 
 theorem identityInput_starts (light refresh : Export.BoundedDepth.StepPackage.Package) :
     Export.BoundedDepth.StepPackage.boundedDepthDomain <+:

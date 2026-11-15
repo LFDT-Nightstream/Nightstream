@@ -41,6 +41,8 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh
 import NightstreamFPrime.Export.BoundedDepth.FinalVerifier
 import NightstreamFPrime.Export.BoundedDepth.FinalHistory
 import NightstreamFPrime.Lifecycle.RandomOracle.ByteWords
+import NightstreamFPrime.Lifecycle.RandomOracle.WordSchema
+import NightstreamFPrime.Lifecycle.BoundedDepth.ApplicationIdentity
 import NightstreamFPrime.Lifecycle.RandomOracle.Pieces
 import NightstreamFPrime.Lifecycle.RandomOracle.Schedule
 import NightstreamFPrime.Lifecycle.RandomOracle.Test

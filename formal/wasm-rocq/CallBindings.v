@@ -84,7 +84,8 @@ Proof.
   pose proof (full_row_kind_exclusive w COL_IS_PROGRAM_ROW COL_TURN_BOUNDARY
     Hprime Hfull ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hprogram) as Hturn.
   circuit_range COL_LOCALS_FBP_AFTER Hfa.
-  circuit_range COL_ENTERED_FUNCTION_NUM_LOCALS Hlocals.
+  pose proof (full_guest_initialization_seed w Hprime Hfull Hprogram Hguest) as Hlocals.
+  circuit_range COL_LOCAL_ZERO_REMAINING_AFTER Hremaining.
   circuit_range COL_STACK_FRAME_BASE_AFTER Hbase.
   circuit_range COL_SP_AFTER Hsp.
   circuit_range COL_CALL_PARAM_COUNT Hparams.

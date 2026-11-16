@@ -5,7 +5,7 @@ use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
 use neo_wasm::ccs::host_event_chain::{AUX_COLUMN_FAMILIES, AUX_WIDTH};
 use neo_wasm::layout::{
-    column_families, named_column_family, ColumnWidth, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_GLOBAL_INDEX,
+    column_families, named_column_family, ColumnWidth, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_TABLE_SIZE,
     NAMED_COLUMN_COUNT,
 };
 use neo_wasm::range_check::range_checked_bit_columns;
@@ -102,14 +102,14 @@ fn packed_function_metadata_counts_are_byte_ranged() {
     );
 }
 
-/// An out-of-range value in a column no semantic row pins (the global-index
-/// word on a row that does not access globals) must be rejected,
+/// An out-of-range value in a column no semantic row pins (the table-size
+/// word on a row that does not access tables) must be rejected,
 /// and the failing row must be one of that column's own range-check rows,
 /// proving nothing else constrains the value.
 #[test]
 fn out_of_range_u32_is_rejected_by_the_column_range_row() {
     // The invariant under attack: the column is declared as a 32-bit value.
-    assert_eq!(named_column_family(COL_GLOBAL_INDEX).unwrap().width, ColumnWidth::U32);
+    assert_eq!(named_column_family(COL_TABLE_SIZE).unwrap().width, ColumnWidth::U32);
 
     let checked =
         common::checked_main(r#"(module (func (export "main") (result i32) i32.const 20 i32.const 22 i32.add))"#);
@@ -120,13 +120,13 @@ fn out_of_range_u32_is_rejected_by_the_column_range_row() {
         .expect("i32.add row");
     let mut wit = checked.witnesses[add_idx].clone();
 
-    wit[COL_GLOBAL_INDEX] = F::from_u64(1u64 << 32);
+    wit[COL_TABLE_SIZE] = F::from_u64(1u64 << 32);
     write_range_check_bits(&mut wit);
 
     let relation = build_wasm_relation().expect("valid WASM relation");
     let m_in = relation.r1cs().public_input_count();
     let err = check_ccs_rowwise_zero(relation.r1cs().structure(), &wit[..m_in], &wit[m_in..])
-        .expect_err("the range-checked CCS must reject an out-of-range global index");
+        .expect_err("the range-checked CCS must reject an out-of-range table size");
 
     let detail = err.to_string();
     let row_idx = detail
@@ -137,7 +137,7 @@ fn out_of_range_u32_is_rejected_by_the_column_range_row() {
     let tag = relation.r1cs().catalog().rows()[row_idx].tag();
     assert_eq!(
         tag.label(),
-        "COL_GLOBAL_INDEX",
+        "COL_TABLE_SIZE",
         "rejection must come from the column's own range-check row, failed row {row_idx} is tagged {tag:?}"
     );
 }

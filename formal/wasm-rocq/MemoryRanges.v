@@ -241,12 +241,43 @@ Proof.
  finish_memory_repair COL_LINEAR_MEM_IMM_OFFSET gates.
 Qed.
 
+Lemma full_function_locals_memory_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
+ rangeObligation w (COL_ENTERED_FUNCTION_NUM_LOCALS, Repairable 32%nat).
+Proof.
+ start_memory_repair COL_ENTERED_FUNCTION_NUM_LOCALS.
+ memory_value_inactive COL_ENTERED_FUNCTION_NUM_LOCALS COL_GUEST_ENTRY_ACTIVE.
+ memory_value_inactive COL_ENTERED_FUNCTION_NUM_LOCALS COL_TURN_BOUNDARY.
+ finish_memory_repair COL_ENTERED_FUNCTION_NUM_LOCALS
+   [[(COL_GUEST_ENTRY_ACTIVE,1); (COL_TURN_BOUNDARY,1)]].
+Qed.
+
+Lemma full_global_index_memory_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
+ rangeObligation w (COL_GLOBAL_INDEX, Repairable 32%nat).
+Proof.
+ start_memory_repair COL_GLOBAL_INDEX.
+ memory_value_inactive COL_GLOBAL_INDEX COL_PROGRAM_GLOBAL_INDEX_ACTIVE.
+ circuit_boolean COL_SEL_GLOBAL_GET Bget.
+ circuit_boolean COL_SEL_GLOBAL_SET Bset.
+ circuit_row ([(COL_PROGRAM_GLOBAL_INDEX_ACTIVE,1); (COL_SEL_GLOBAL_GET,-1); (COL_SEL_GLOBAL_SET,-1)],
+   [(COL_ONE,1)], ([] : SparseRow)) Hr.
+ assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+ expand_row Hr. rewrite Hone in Hr.
+ assert (HglobalOff : w COL_SEL_GLOBAL_GET = 0 /\ w COL_SEL_GLOBAL_SET = 0)
+   by (repeat match goal with H : w _ = 0 |- _ => rewrite H in Hr end; field_linear Hr).
+ destruct HglobalOff as [Hget Hset].
+ finish_memory_repair COL_GLOBAL_INDEX ([] : list SparseRow).
+Qed.
+
 Theorem memory_range_obligations_sound : forall w,
  fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
  Forall (memoryRangeObligation w) memoryRangeObligations.
 Proof.
  intros w Hprime Hfull Hbounds. unfold memoryRangeObligations.
  constructor; [split; [vm_compute; reflexivity | exact (full_return_pc_memory_repair w Hprime Hfull Hbounds)] | ].
+ constructor; [split; [vm_compute; reflexivity | exact (full_function_locals_memory_repair w Hprime Hfull Hbounds)] | ].
+ constructor; [split; [vm_compute; reflexivity | exact (full_global_index_memory_repair w Hprime Hfull Hbounds)] | ].
  constructor; [split; [vm_compute; reflexivity | exact (full_memory_offset_repair w Hprime Hfull Hbounds)] | ].
  constructor; [split; [vm_compute; reflexivity | exact (full_host_frame_0_memory_repair w Hprime Hfull Hbounds)] | ].
  constructor; [split; [vm_compute; reflexivity | exact (full_host_frame_1_memory_repair w Hprime Hfull Hbounds)] | ].

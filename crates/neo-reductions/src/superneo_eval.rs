@@ -307,6 +307,29 @@ impl DenseBlockStore {
         };
     }
 
+    /// Visits the nonzero coefficients of pattern `index` as `(local, coefficient)`.
+    #[inline]
+    fn for_each_coefficient(&self, index: usize, mut visit: impl FnMut(usize, F)) {
+        match self {
+            DenseBlockStore::Building(blocks) => {
+                for (local, &coefficient) in blocks[index].0.iter().enumerate() {
+                    if coefficient != F::ZERO {
+                        visit(local, coefficient);
+                    }
+                }
+            }
+            DenseBlockStore::Compact {
+                offsets,
+                locals,
+                coefficients,
+            } => {
+                for entry in offsets[index] as usize..offsets[index + 1] as usize {
+                    visit(locals[entry] as usize, coefficients[entry]);
+                }
+            }
+        }
+    }
+
     fn expanded(&self, index: usize) -> Rq {
         match self {
             DenseBlockStore::Building(blocks) => blocks[index],

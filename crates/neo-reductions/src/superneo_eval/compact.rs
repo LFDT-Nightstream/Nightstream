@@ -206,29 +206,14 @@ impl SuperneoMatrixCache {
                 continue;
             }
             let dense_row = self.dense_row_blocks[block.dense_index().expect("dense compact block")];
-            let dense = dense_row.pattern();
-            match &self.dense_orig {
-                DenseBlockStore::Building(blocks) => {
-                    for (local, &coefficient) in blocks[dense].0.iter().enumerate() {
-                        if coefficient != F::ZERO {
-                            visit(dense_row.block() as u32, local as u8, coefficient);
-                        }
-                    }
-                }
-                DenseBlockStore::Compact {
-                    offsets,
-                    locals,
-                    coefficients,
-                } => {
-                    for entry in offsets[dense] as usize..offsets[dense + 1] as usize {
-                        visit(dense_row.block() as u32, locals[entry], coefficients[entry]);
-                    }
-                }
-            }
+            self.dense_orig
+                .for_each_coefficient(dense_row.pattern(), |local, coefficient| {
+                    visit(dense_row.block() as u32, local as u8, coefficient)
+                });
         }
     }
 
-    fn dense_coefficient_count(&self, dense: usize) -> usize {
+    pub(super) fn dense_coefficient_count(&self, dense: usize) -> usize {
         match &self.dense_orig {
             DenseBlockStore::Building(blocks) => blocks[dense]
                 .0

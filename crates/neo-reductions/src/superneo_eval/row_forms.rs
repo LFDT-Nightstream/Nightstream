@@ -5,7 +5,7 @@ use core::cmp::min;
 use neo_math::{KExtensions, D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
-use super::{scratch::ScratchPart, RingEvalScratch, SuperneoMatrixCache, SuperneoZBlocks};
+use super::{part_plan::RowSpan, scratch::ScratchPart, RingEvalScratch, SuperneoMatrixCache, SuperneoZBlocks};
 
 impl SuperneoMatrixCache {
     pub fn fill_row_dots_real_with_blocks(&self, out: &mut [K], z_blocks: &SuperneoZBlocks) {
@@ -120,7 +120,8 @@ impl SuperneoMatrixCache {
     ) {
         debug_assert!(row_cap <= self.rows);
         scratch.ensure_block_count(self.cols.div_ceil(D));
-        self.accumulate_original_ring_form_part(0..row_cap, &mut scratch.part(), weight);
+        let rows = (0..row_cap).map(|row| self.whole_row(row));
+        self.accumulate_original_ring_form_part(rows, &mut scratch.part(), weight);
     }
 
     pub(super) fn accumulate_barred_ring_form_parallel(
@@ -132,15 +133,19 @@ impl SuperneoMatrixCache {
         scratch.ensure_block_count(self.cols.div_ceil(D));
         let plan = self.part_plan();
         scratch.fill_parts(plan.bounds(), |index, part| {
-            let rows = plan.rows(index).iter().map(|&row| row as usize);
-            self.accumulate_original_ring_form_part(rows.take_while(|&row| row < row_cap), part, &weight);
+            let rows = plan.rows(index).iter().copied();
+            self.accumulate_original_ring_form_part(
+                rows.take_while(|span| (span.row as usize) < row_cap),
+                part,
+                &weight,
+            );
             part.bar_active();
         });
     }
 
     fn accumulate_original_ring_form_part(
         &self,
-        rows: impl Iterator<Item = usize> + Clone,
+        rows: impl Iterator<Item = RowSpan> + Clone,
         part: &mut ScratchPart<'_>,
         weight: impl Fn(usize) -> K,
     ) {
@@ -149,16 +154,17 @@ impl SuperneoMatrixCache {
         }
         let event_ratio = self.event_ratio();
         if let Some(ratio) = event_ratio {
-            for row in rows.clone() {
-                let [w_re, w_im] = weight(row).as_coeffs();
+            for span in rows.clone() {
+                let [w_re, w_im] = weight(span.row as usize).as_coeffs();
                 if w_re != F::ZERO || w_im != F::ZERO {
-                    self.add_geometric_events(row, w_re, w_im, ratio, part);
+                    self.add_geometric_events(&self.geometric_runs[span.runs()], w_re, w_im, ratio, part);
                 }
             }
             part.resolve_geometric(ratio);
         }
         let blocks = part.blocks();
-        for row in rows {
+        for span in rows {
+            let row = span.row as usize;
             let [w_re, w_im] = weight(row).as_coeffs();
             if w_re == F::ZERO && w_im == F::ZERO {
                 continue;
@@ -170,7 +176,7 @@ impl SuperneoMatrixCache {
                 }
                 continue;
             }
-            for compact in self.row_blocks_for(row).iter().copied() {
+            for compact in self.row_blocks[span.compact()].iter().copied() {
                 let block = self.row_block_index(compact);
                 if !blocks.contains(&block) {
                     continue;
@@ -178,11 +184,13 @@ impl SuperneoMatrixCache {
                 if let Some((_, local, coefficient)) = compact.single_parts() {
                     part.add_coefficient(block, local, w_re * coefficient, w_im * coefficient);
                 } else {
-                    let orig = self.dense_block(self.dense_pattern_index(compact));
-                    part.add_scaled(block, &orig, w_re, w_im);
+                    self.dense_orig
+                        .for_each_coefficient(self.dense_pattern_index(compact), |local, coefficient| {
+                            part.add_coefficient(block, local, w_re * coefficient, w_im * coefficient)
+                        });
                 }
             }
-            self.accumulate_geometric_ring_form_row(row, w_re, w_im, event_ratio, part);
+            self.accumulate_geometric_ring_form_row(&self.geometric_runs[span.runs()], w_re, w_im, event_ratio, part);
         }
     }
 }

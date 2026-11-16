@@ -160,12 +160,6 @@ impl ScratchPart<'_> {
         }
     }
 
-    pub(super) fn add_scaled(&mut self, block: usize, original: &Rq, real: F, imaginary: F) {
-        for (value, &coefficient) in self.slot(block).iter_mut().zip(&original.0) {
-            *value += K::from_coeffs([real * coefficient, imaginary * coefficient]);
-        }
-    }
-
     pub(super) fn bar_active(&mut self) {
         for &block in self.active_blocks.iter() {
             let local = block - self.first_block;

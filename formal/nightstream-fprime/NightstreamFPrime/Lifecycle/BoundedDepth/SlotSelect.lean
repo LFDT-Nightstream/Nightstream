@@ -136,4 +136,38 @@ theorem baseStateRows_below {bound : Nat} (recursive : (interface.recursive offs
   exact Expr.VarsBelow.mul _ _ _ (Expr.VarsBelow.sub _ _ _ trivial recursive)
     (Expr.VarsBelow.sub _ _ _ (initialState lane) (currentState lane))
 
+theorem isSelected_satisfy {allowed : Nat → Prop}
+    (selector : (interface.selector offset).VarsSatisfy allowed) (slot : Fin 2) :
+    (isSelected interface offset slot).VarsSatisfy allowed := by
+  unfold isSelected
+  split
+  · exact Expr.VarsSatisfy.sub _ _ _ trivial selector
+  · exact selector
+
+theorem flagRows_satisfy {allowed : Nat → Prop}
+    (iteration : (interface.iteration offset).VarsSatisfy allowed)
+    (inverse : (interface.inverse offset).VarsSatisfy allowed)
+    (recursive : (interface.recursive offset).VarsSatisfy allowed)
+    (priorPc : (interface.priorPc offset).VarsSatisfy allowed)
+    (selector : (interface.selector offset).VarsSatisfy allowed) :
+    ∀ row ∈ flagRows interface offset, row.VarsSatisfy allowed := by
+  intro row member
+  simp only [flagRows, List.mem_cons, List.not_mem_nil, or_false] at member
+  rcases member with rfl | rfl | rfl | rfl
+  · exact Expr.VarsSatisfy.sub _ _ _ recursive (Expr.VarsSatisfy.mul _ _ _ iteration inverse)
+  · exact Expr.VarsSatisfy.mul _ _ _ iteration (Expr.VarsSatisfy.sub _ _ _ trivial recursive)
+  · exact Expr.VarsSatisfy.mul _ _ _ selector (Expr.VarsSatisfy.sub _ _ _ selector trivial)
+  · exact Expr.VarsSatisfy.mul _ _ _ recursive
+      (Expr.VarsSatisfy.sub _ _ _ (Expr.VarsSatisfy.sub _ _ _ priorPc selector) trivial)
+
+theorem baseStateRows_satisfy {allowed : Nat → Prop}
+    (recursive : (interface.recursive offset).VarsSatisfy allowed)
+    (initialState : ∀ lane, (interface.initialState offset lane).VarsSatisfy allowed)
+    (currentState : ∀ lane, (interface.currentState offset lane).VarsSatisfy allowed) :
+    ∀ row ∈ baseStateRows interface offset, row.VarsSatisfy allowed := by
+  intro row member
+  obtain ⟨lane, rfl⟩ := List.mem_ofFn.mp member
+  exact Expr.VarsSatisfy.mul _ _ _ (Expr.VarsSatisfy.sub _ _ _ trivial recursive)
+    (Expr.VarsSatisfy.sub _ _ _ (initialState lane) (currentState lane))
+
 end NightstreamFPrime.Lifecycle.BoundedDepth.SlotSelect

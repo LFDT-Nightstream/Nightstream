@@ -273,4 +273,42 @@ theorem completeness {blockCount : Nat} (interface : Interface blockCount)
   CombinationFamily.completeness (familyInterface interface) offset env
     assumptions specification
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem marks_nil {blockCount : Nat} (interface : Interface blockCount) (offset : Nat) :
+    marks (Circuit.ops (circuit interface).main offset) = [] :=
+  CombinationFamily.marks_nil (familyInterface interface) offset
+
+/-- The rows read the challenges, both components of the inputs and the gadget's own locals. -/
+theorem free {blockCount : Nat} (interface : Interface blockCount) (offset : Nat)
+    {live : Nat → Prop}
+    (challenge : ∀ source lane, (interface.challenge offset source lane).VarsSatisfy live)
+    (input : ∀ source block lane,
+      (interface.input offset source block lane).c0.VarsSatisfy live ∧
+        (interface.input offset source block lane).c1.VarsSatisfy live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) →
+        live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
+      row.VarsSatisfy live :=
+  CombinationFamily.free (familyInterface interface) offset challenge
+    (fun source block lane cell => by
+      show (expressionCell cell (interface.input offset source block lane)).VarsSatisfy live
+      unfold expressionCell
+      split
+      · exact (input source block lane).1
+      · exact (input source block lane).2)
+    locals
+
+theorem output_live {blockCount : Nat} (interface : Interface blockCount) (offset : Nat)
+    {live : Nat → Prop}
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) →
+        live column)
+    (block : Fin blockCount) (lane : Fin ringDegree) :
+    (output interface offset block lane).c0.VarsSatisfy live ∧
+      (output interface offset block lane).c1.VarsSatisfy live :=
+  ⟨CombinationFamily.output_live (familyInterface interface) offset locals block lane c0Cell,
+    CombinationFamily.output_live (familyInterface interface) offset locals block lane c1Cell⟩
+
 end NightstreamFPrime.Lifecycle.PiRLC.v1_2.RingKCombination

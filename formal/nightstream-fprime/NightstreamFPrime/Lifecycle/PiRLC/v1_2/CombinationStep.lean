@@ -1,4 +1,5 @@
 import NightstreamFPrime.Circuit.StraightLine
+import NightstreamFPrime.Circuit.StraightLineSupport
 import Mathlib.Logic.Equiv.Fin.Basic
 
 /-!
@@ -381,5 +382,93 @@ def circuit {blockCount cellCount : Nat} [NeZero cellCount]
   rowCount_eq := flatConstraints_length interface
   soundness := soundness interface
   completeness := completeness interface
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+private theorem exprCoeff_varsSatisfy
+    (value : Fin ringDegree → Expr) (allowed : Nat → Prop) (index : Nat)
+    (reads : ∀ lane, (value lane).VarsSatisfy allowed) :
+    (exprCoeff value index).VarsSatisfy allowed := by
+  unfold exprCoeff
+  split
+  · exact reads _
+  · trivial
+
+private theorem foldl_varsSatisfy
+    (indices : List Nat) (degree : Nat) (allowed : Nat → Prop)
+    (challenge value : Fin ringDegree → Expr)
+    (challengeReads : ∀ lane, (challenge lane).VarsSatisfy allowed)
+    (valueReads : ∀ lane, (value lane).VarsSatisfy allowed)
+    (initial : Expr) (initialReads : initial.VarsSatisfy allowed) :
+    (indices.foldl (fun accumulated source =>
+      if source ≤ degree ∧ degree - source < ringDegree then
+        accumulated + exprCoeff challenge source *
+          exprCoeff value (degree - source)
+      else accumulated) initial).VarsSatisfy allowed := by
+  induction indices generalizing initial with
+  | nil => exact initialReads
+  | cons source rest inductionHypothesis =>
+      simp only [List.foldl_cons]
+      split
+      · apply inductionHypothesis
+        apply Expr.VarsSatisfy.add _ _ _ initialReads
+        apply Expr.VarsSatisfy.mul
+        · exact exprCoeff_varsSatisfy challenge allowed source challengeReads
+        · exact exprCoeff_varsSatisfy value allowed (degree - source) valueReads
+      · exact inductionHypothesis initial initialReads
+
+theorem mulExpr_varsSatisfy
+    (challenge value : Fin ringDegree → Expr) (lane : Fin ringDegree)
+    (allowed : Nat → Prop)
+    (challengeReads : ∀ current, (challenge current).VarsSatisfy allowed)
+    (valueReads : ∀ current, (value current).VarsSatisfy allowed) :
+    (mulExpr challenge value lane).VarsSatisfy allowed := by
+  unfold mulExpr rawExpr
+  exact Expr.VarsSatisfy.sub _ _ _
+    (foldl_varsSatisfy (List.range ringDegree) lane.val allowed challenge value challengeReads
+      valueReads 0 trivial)
+    (foldl_varsSatisfy (List.range ringDegree) (lane.val + ringDegree) allowed challenge value
+      challengeReads valueReads 0 trivial)
+
+theorem marks_nil {blockCount cellCount : Nat} [NeZero cellCount]
+    (interface : Interface blockCount cellCount) (offset : Nat) :
+    marks (Circuit.ops (circuit interface).main offset) = [] :=
+  rfl
+
+/-- The rows read the challenge, the prior and value families and the gadget's own locals. -/
+theorem free {blockCount cellCount : Nat} [NeZero cellCount]
+    (interface : Interface blockCount cellCount) (offset : Nat) {live : Nat → Prop}
+    (challenge : ∀ lane, (interface.challenge offset lane).VarsSatisfy live)
+    (prior : ∀ block lane cell, (interface.prior offset block lane cell).VarsSatisfy live)
+    (value : ∀ block lane cell, (interface.value offset block lane cell).VarsSatisfy live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) →
+        live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
+      row.VarsSatisfy live := by
+  change ∀ row ∈ flatConstraints (operations interface offset), row.VarsSatisfy live
+  rw [flatConstraints_operations]
+  apply recipeConstraints_varsSatisfy
+  · intro expression member
+    obtain ⟨index, rfl⟩ := List.mem_ofFn.mp member
+    exact Expr.VarsSatisfy.add _ _ _ (prior _ _ _)
+      (mulExpr_varsSatisfy _ _ _ live challenge fun current => value _ current _)
+  · intro index below
+    rw [recipes_length] at below
+    refine locals (offset + index) (Nat.le_add_right _ _) ?_
+    change offset + index < offset + localLength (operations interface offset)
+    rw [localLength_eq]
+    omega
+
+theorem output_live {blockCount cellCount : Nat} [NeZero cellCount]
+    (interface : Interface blockCount cellCount) (offset : Nat) {live : Nat → Prop}
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) →
+        live column)
+    (index : Fin (privateCount blockCount cellCount)) : (output offset index).VarsSatisfy live := by
+  refine locals (offset + index.val) (Nat.le_add_right _ _) ?_
+  change offset + index.val < offset + localLength (operations interface offset)
+  rw [localLength_eq]
+  exact Nat.add_lt_add_left index.isLt _
 
 end NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep

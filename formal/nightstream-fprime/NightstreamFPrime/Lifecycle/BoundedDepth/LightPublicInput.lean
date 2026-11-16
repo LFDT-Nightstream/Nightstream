@@ -120,4 +120,32 @@ theorem output_eq (relation : ProductionKey.LogicalRelation logicalWidth publicF
   rw [output_combination interface offset env spec, challengeWords, runningWords, freshWords]
   exact (combine_eq ajtai challenge fresh.publicInput running.publicInput).symm
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+/-- The rows read `ρ`, both public inputs and the step's own locals. -/
+theorem free (interface : Interface logicalWidth publicFits) (offset : Nat) {live : Nat → Prop}
+    (challenge : ∀ lane, (interface.challenge offset lane).VarsSatisfy live)
+    (running : ∀ column, (interface.running offset column).VarsSatisfy live)
+    (fresh : ∀ column, (interface.fresh offset column).VarsSatisfy live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength
+        (Circuit.ops (CombinationStep.circuit (stepInterface interface)).main offset) →
+        live column) :
+    ∀ row ∈ flatConstraints
+        (Circuit.ops (CombinationStep.circuit (stepInterface interface)).main offset),
+      row.VarsSatisfy live :=
+  CombinationStep.free (stepInterface interface) offset challenge
+    (fun block lane _ => running (PublicInputCombination.publicColumn block lane))
+    (fun block lane _ => fresh (PublicInputCombination.publicColumn block lane)) locals
+
+theorem output_live (interface : Interface logicalWidth publicFits) (offset : Nat)
+    {live : Nat → Prop}
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength
+        (Circuit.ops (CombinationStep.circuit (stepInterface interface)).main offset) →
+        live column)
+    (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
+    (output (publicFits := publicFits) offset column).VarsSatisfy live :=
+  CombinationStep.output_live (stepInterface interface) offset locals _
+
 end NightstreamFPrime.Lifecycle.BoundedDepth.LightPublicInput

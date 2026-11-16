@@ -609,6 +609,21 @@ structure WordsBelow (bound : Nat) : Prop where
   innerDigest : ∀ slot lane, (interface.innerDigest offset slot lane).VarsBelow bound
   nextDigest : ∀ slot lane, (interface.nextDigest offset slot lane).VarsBelow bound
 
+/-- The words of the digest select that its rows read, other than the slot words, read only
+`allowed` columns. -/
+structure WordsSatisfy (allowed : Nat → Prop) : Prop where
+  iteration : (interface.iteration offset).VarsSatisfy allowed
+  inverse : (interface.inverse offset).VarsSatisfy allowed
+  recursive : (interface.recursive offset).VarsSatisfy allowed
+  priorPc : (interface.priorPc offset).VarsSatisfy allowed
+  selector : (interface.selector offset).VarsSatisfy allowed
+  initialState : ∀ lane, (interface.initialState offset lane).VarsSatisfy allowed
+  currentState : ∀ lane, (interface.currentState offset lane).VarsSatisfy allowed
+  priorDigest : ∀ slot lane, (interface.priorDigest offset slot lane).VarsSatisfy allowed
+  newDigest : ∀ lane, (interface.newDigest offset lane).VarsSatisfy allowed
+  innerDigest : ∀ slot lane, (interface.innerDigest offset slot lane).VarsSatisfy allowed
+  nextDigest : ∀ slot lane, (interface.nextDigest offset slot lane).VarsSatisfy allowed
+
 variable {interface offset}
 
 theorem controlRows_below {bound : Nat} (below : WordsBelow interface offset bound) :
@@ -650,6 +665,62 @@ theorem rows_below {bound : Nat} (below : WordsBelow interface offset bound)
   · exact digestRows_below below 0 row first
   · exact digestRows_below below 1 row second
 
+theorem controlRows_satisfy {allowed : Nat → Prop} (reads : WordsSatisfy interface offset allowed) :
+    ∀ row ∈ SlotSelect.flagRows (control interface) offset ++
+      SlotSelect.baseStateRows (control interface) offset, row.VarsSatisfy allowed := by
+  intro row member
+  rcases List.mem_append.mp member with member | member
+  · exact SlotSelect.flagRows_satisfy (control interface) offset reads.iteration reads.inverse
+      reads.recursive reads.priorPc reads.selector row member
+  · exact SlotSelect.baseStateRows_satisfy (control interface) offset reads.recursive
+      reads.initialState reads.currentState row member
+
+theorem digestRows_satisfy {allowed : Nat → Prop} (reads : WordsSatisfy interface offset allowed)
+    (slot : Fin 2) : ∀ row ∈ digestRows interface offset slot, row.VarsSatisfy allowed := by
+  intro row member
+  rcases List.mem_append.mp member with member | member
+  · exact selectRows_satisfy
+      (SlotSelect.isSelected_satisfy (control interface) offset reads.selector slot)
+      (ofFn_satisfy (reads.priorDigest slot)) (ofFn_satisfy reads.newDigest)
+      (ofFn_satisfy (reads.innerDigest slot)) row member
+  · refine selectRows_satisfy reads.recursive ?_ (ofFn_satisfy (reads.innerDigest slot))
+      (ofFn_satisfy (reads.nextDigest slot)) row member
+    intro word inside
+    simp only [defaultDigest, List.mem_map] at inside
+    obtain ⟨_, _, rfl⟩ := inside
+    trivial
+
+/-- Every row of the digest select reads only `allowed` columns when its words do. -/
+theorem rows_satisfy {allowed : Nat → Prop} (reads : WordsSatisfy interface offset allowed)
+    (prior : ∀ slot, ∀ word ∈ (interface.prior offset slot).words, word.VarsSatisfy allowed)
+    (active : ∀ word ∈ (interface.active offset).words, word.VarsSatisfy allowed) :
+    ∀ row ∈ rows interface offset, row.VarsSatisfy allowed := by
+  intro row member
+  simp only [rows, List.mem_append] at member
+  rcases member with (((control | control) | select) | first) | second
+  · exact controlRows_satisfy reads row (List.mem_append_left _ control)
+  · exact controlRows_satisfy reads row (List.mem_append_right _ control)
+  · exact selectRows_satisfy reads.selector (prior 0) (prior 1) active row select
+  · exact digestRows_satisfy reads 0 row first
+  · exact digestRows_satisfy reads 1 row second
+
 end Scope
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem marks_nil : marks (Circuit.ops (circuit interface).main offset) = [] := by
+  simp [circuit, Circuit.ops, marks, Op.marks]
+
+/-- The rows read only the gadget's words. -/
+theorem free {live : Nat → Prop} (words : WordsSatisfy interface offset live)
+    (prior : ∀ slot, ∀ word ∈ (interface.prior offset slot).words, word.VarsSatisfy live)
+    (active : ∀ word ∈ (interface.active offset).words, word.VarsSatisfy live) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
+      row.VarsSatisfy live := by
+  intro row member
+  simp only [circuit, Circuit.ops, flatConstraints, List.flatMap_map, List.mem_flatMap,
+    Op.flatConstraints, List.mem_singleton] at member
+  obtain ⟨original, inside, rfl⟩ := member
+  exact rows_satisfy words prior active _ inside
 
 end NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect

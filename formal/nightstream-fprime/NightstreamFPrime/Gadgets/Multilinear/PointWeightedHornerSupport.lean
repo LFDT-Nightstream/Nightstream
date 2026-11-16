@@ -128,4 +128,45 @@ theorem output_varsSatisfy {variableCount : Nat}
         exact upper)
   exact Horner.KSupported.mul pointSupport hornerSupport
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem marks_nil {variableCount : Nat} (interface : Interface variableCount)
+    (positive : 0 < variableCount) (offset : Nat) :
+    marks (Circuit.ops (circuit interface positive).main offset) = [] := by
+  show marks (opsAt interface offset) = []
+  rw [opsAt, marks_cons, marks_cons, NightstreamFPrime.Circuit.marks_nil, pointOp, hornerOp,
+    Op.marks, Op.marks, FormalCircuit.asSubcircuit_marks, FormalCircuit.asSubcircuit_marks,
+    pointCircuitAt, hornerCircuitAt, PointEquality.Owned.marks_nil, Horner.Owned.marks_nil]
+  rfl
+
+/-- The rows read both points, the Horner point and coefficients, and the gadget's own
+locals. -/
+theorem free {variableCount : Nat} (interface : Interface variableCount)
+    (positive : 0 < variableCount) (offset : Nat) {live : Nat → Prop}
+    (left : ∀ coordinate, Horner.KSupported (interface.left offset coordinate) live)
+    (right : ∀ coordinate, Horner.KSupported (interface.right offset coordinate) live)
+    (hornerPoint : Horner.KSupported (interface.hornerPoint offset) live)
+    (coefficients : ∀ coefficient ∈ interface.coefficients offset,
+      Horner.KSupported coefficient live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface positive).main offset) →
+        live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface positive).main offset),
+      row.VarsSatisfy live :=
+  flatConstraints_varsSatisfy interface positive offset live left right hornerPoint coefficients
+    locals
+
+theorem output_live {variableCount : Nat} (interface : Interface variableCount)
+    (positive : 0 < variableCount) (offset : Nat) {live : Nat → Prop}
+    (left : ∀ coordinate, Horner.KSupported (interface.left offset coordinate) live)
+    (right : ∀ coordinate, Horner.KSupported (interface.right offset coordinate) live)
+    (hornerPoint : Horner.KSupported (interface.hornerPoint offset) live)
+    (coefficients : ∀ coefficient ∈ interface.coefficients offset,
+      Horner.KSupported coefficient live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface positive).main offset) →
+        live column) :
+    Horner.KSupported (output interface offset) live :=
+  output_varsSatisfy interface positive offset live left right hornerPoint coefficients locals
+
 end NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.Owned

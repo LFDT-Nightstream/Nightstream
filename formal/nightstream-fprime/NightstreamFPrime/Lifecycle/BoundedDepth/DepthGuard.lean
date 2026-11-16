@@ -151,4 +151,21 @@ def highBitsCircuit (rangeOffset : Nat) : FormalCircuit where
     obtain ⟨index, bound, rfl⟩ := member
     exact zero (index + 6) (by omega) (by simp only [CanonicalU64.bitCount]; omega)
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem marks_nil (rangeOffset offset : Nat) :
+    marks (Circuit.ops (highBitsCircuit rangeOffset).main offset) = [] := by
+  simp [highBitsCircuit, Circuit.ops, highBitOps, marks, Op.marks]
+
+/-- The rows read only the bit columns of the decomposition at `rangeOffset`. -/
+theorem free (rangeOffset offset : Nat) {live : Nat → Prop}
+    (bits : ∀ index, index < CanonicalU64.bitCount → live (rangeOffset + index)) :
+    ∀ row ∈ flatConstraints (Circuit.ops (highBitsCircuit rangeOffset).main offset),
+      row.VarsSatisfy live := by
+  intro row member
+  simp only [highBitsCircuit, Circuit.ops, flatConstraints, highBitOps, List.flatMap_map,
+    List.mem_flatMap, List.mem_range, Op.flatConstraints, List.mem_singleton] at member
+  obtain ⟨index, bound, rfl⟩ := member
+  exact bits (index + 6) (by simp only [CanonicalU64.bitCount]; omega)
+
 end NightstreamFPrime.Lifecycle.BoundedDepth.DepthGuard

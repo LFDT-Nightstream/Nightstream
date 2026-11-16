@@ -107,4 +107,29 @@ theorem output_eq (relation : ProductionKey.LogicalRelation logicalWidth publicF
   rw [output_combination interface offset env spec, challengeWords, runningWords, freshWords]
   exact (combine_eq ajtai challenge fresh.commitment running.commitment).symm
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+/-- The rows read `ρ`, both commitments and the step's own locals. -/
+theorem free (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (challenge : ∀ lane, (interface.challenge offset lane).VarsSatisfy live)
+    (running : ∀ block lane, (interface.running offset block lane).VarsSatisfy live)
+    (fresh : ∀ block lane, (interface.fresh offset block lane).VarsSatisfy live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength
+        (Circuit.ops (CombinationStep.circuit (stepInterface interface)).main offset) →
+        live column) :
+    ∀ row ∈ flatConstraints
+        (Circuit.ops (CombinationStep.circuit (stepInterface interface)).main offset),
+      row.VarsSatisfy live :=
+  CombinationStep.free (stepInterface interface) offset challenge
+    (fun block lane _ => running block lane) (fun block lane _ => fresh block lane) locals
+
+theorem output_live (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength
+        (Circuit.ops (CombinationStep.circuit (stepInterface interface)).main offset) →
+        live column)
+    (row : Fin blockCount) (lane : Fin ringDegree) : (output offset row lane).VarsSatisfy live :=
+  CombinationStep.output_live (stepInterface interface) offset locals _
+
 end NightstreamFPrime.Lifecycle.BoundedDepth.LightCommitment

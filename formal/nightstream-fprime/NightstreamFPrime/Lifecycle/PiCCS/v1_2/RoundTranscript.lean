@@ -1,4 +1,4 @@
-import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
+import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Clean
 import NightstreamFPrime.Gadgets.SumCheck.FixedChain
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.ChallengeDerivation
@@ -957,5 +957,72 @@ def circuitFast {degreeBound : Nat} (interface : Interface degreeBound) : Formal
     @circuit = @circuitFast := by
   funext degreeBound interface
   exact FormalCircuit.eq_withPrivateCount _ _ _
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem ops_eq_batch {degreeBound : Nat} (interface : Interface degreeBound) (offset : Nat) :
+    Circuit.ops (circuit interface).main offset =
+      Formal.batchOps offset (interface.initialState offset) (actions interface offset) :=
+  rfl
+
+/-- The transcript absorbs the components of the round messages' coefficients. -/
+theorem absorbed_words {degreeBound : Nat} (interface : Interface degreeBound) (offset : Nat)
+    {word : Expr} (member : word ∈ Formal.absorbedWords (actions interface offset)) :
+    ∃ roundIndex coefficient,
+      word = ((interface.round offset roundIndex).coefficient coefficient).c0 ∨
+        word = ((interface.round offset roundIndex).coefficient coefficient).c1 := by
+  obtain ⟨input, inputMember, wordMember⟩ := Formal.mem_absorbedWords member
+  obtain ⟨roundIndex, _, actionMember⟩ := List.mem_flatMap.mp inputMember
+  rcases List.mem_cons.mp actionMember with same | rest
+  · injection same with inputEq
+    subst inputEq
+    obtain ⟨value, valueMember, wordIn⟩ := List.mem_flatMap.mp wordMember
+    obtain ⟨coefficient, rfl⟩ := List.mem_ofFn.mp valueMember
+    simp only [serializeKExpr, List.mem_cons, List.not_mem_nil, or_false] at wordIn
+    exact ⟨roundIndex, coefficient, wordIn⟩
+  · rcases List.mem_singleton.mp rest with same
+    cases same
+
+theorem placed {degreeBound : Nat} (interface : Interface degreeBound) (offset : Nat) :
+    Placed offset (localLength (Circuit.ops (circuit interface).main offset))
+      (Circuit.ops (circuit interface).main offset) := by
+  rw [ops_eq_batch]
+  exact Formal.batch_placed _ _ _
+
+/-- The transcript's rows are its permutations' rows, and its challenges and final state are
+live, when the round messages are affine and live before the transcript. -/
+theorem clean {degreeBound : Nat} (interface : Interface degreeBound) (offset : Nat)
+    {live : Nat → Prop}
+    (stateFacts : Formal.StateFacts live offset (interface.initialState offset))
+    (message : ∀ roundIndex coefficient,
+      Formal.WordFacts live offset ((interface.round offset roundIndex).coefficient coefficient).c0 ∧
+        Formal.WordFacts live offset
+          ((interface.round offset roundIndex).coefficient coefficient).c1)
+    (own : OwnLive live offset (localLength (Circuit.ops (circuit interface).main offset))
+      (Circuit.ops (circuit interface).main offset)) :
+    Clean live (Circuit.ops (circuit interface).main offset) ∧
+      (∀ roundIndex, (challenge interface offset roundIndex).c0.VarsSatisfy live ∧
+        (challenge interface offset roundIndex).c1.VarsSatisfy live) ∧
+      Formal.StateFacts live (offset + localLength (Circuit.ops (circuit interface).main offset))
+        (finalState interface offset) := by
+  have words : ∀ word ∈ Formal.absorbedWords (actions interface offset),
+      Formal.WordFacts live offset word := by
+    intro word member
+    obtain ⟨roundIndex, coefficient, same | same⟩ := absorbed_words interface offset member
+    · rw [same]
+      exact (message roundIndex coefficient).1
+    · rw [same]
+      exact (message roundIndex coefficient).2
+  rw [ops_eq_batch] at own ⊢
+  obtain ⟨clean, samples, output⟩ := Formal.batch_clean offset (interface.initialState offset)
+    (actions interface offset) stateFacts (fun word member => (words word member).1)
+    (fun word member => (words word member).2) own
+  refine ⟨clean, fun roundIndex => samples _ ?_, ?_⟩
+  · rw [show (Formal.compile offset (interface.initialState offset)
+        (actions interface offset)).samples = (program interface offset).samples from rfl,
+      (program_shape_eq_layout interface offset).2.1]
+    exact List.get_mem _ _
+  · rw [Formal.batchOps_localLength]
+    exact output
 
 end NightstreamFPrime.Lifecycle.PiCCS.v1_2.RoundTranscript

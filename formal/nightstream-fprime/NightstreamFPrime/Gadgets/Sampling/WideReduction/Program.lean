@@ -223,4 +223,63 @@ def circuit (interface : Interface) : FormalCircuit where
     rw [localLength_eq]
     exact completeEnv_correct interface env start inputs
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+private theorem checked_marks (interface : Interface) (start : Nat) :
+    marks (Circuit.ops (checked interface start).main (coreOffset start)) =
+      marks (WideReduction.operations (coreInterface interface start)
+        (HintProgram.resultHints start) (coreOffset start)) :=
+  rfl
+
+theorem marks_nil (interface : Interface) (start : Nat) :
+    marks (Circuit.ops (circuit interface).main start) = [] := by
+  have children : marks (WideReduction.childOps (coreInterface interface start)
+      (coreOffset start)) = [] := by
+    unfold marks WideReduction.childOps
+    rw [List.flatMap_eq_nil_iff]
+    intro op member
+    obtain ⟨index, _, rfl⟩ := List.mem_map.mp member
+    exact Range.CanonicalU64.marks_nil
+      (childInterface (coreInterface interface start) (coreOffset start) index)
+      (childOffset (coreOffset start) index)
+  have rows : marks (WideReduction.rowOps (coreOffset start)) = [] := by
+    unfold marks WideReduction.rowOps
+    rw [List.flatMap_eq_nil_iff]
+    intro op member
+    simp only [List.mem_append, List.mem_map] at member
+    rcases member with (⟨_, _, rfl⟩ | ⟨_, _, rfl⟩) | ⟨_, _, rfl⟩ <;> rfl
+  have core : marks (WideReduction.operations (coreInterface interface start)
+      (HintProgram.resultHints start) (coreOffset start)) = [] := by
+    rw [WideReduction.operations, marks_append, marks_append, children, rows]
+    rfl
+  rw [show Circuit.ops (circuit interface).main start = operations interface start from rfl,
+    operations, marks_cons, marks_cons, NightstreamFPrime.Circuit.marks_nil,
+    show Op.marks (Op.witness (WitnessBatch.hinted start (HintProgram.helpers interface start))) =
+      [] from rfl,
+    checkedOp, Sequence.childOp, Op.marks, FormalCircuit.asSubcircuit_marks, checked_marks, core]
+  rfl
+
+/-- The rows read the sources and the gadget's own locals. -/
+theorem free (interface : Interface) (start : Nat) {live : Nat → Prop}
+    (sources : ∀ lane, (interface.source lane start).VarsSatisfy live)
+    (locals : ∀ column, start ≤ column →
+      column < start + localLength (Circuit.ops (circuit interface).main start) → live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface).main start), row.VarsSatisfy live :=
+  flatConstraints_varsSatisfy interface start live sources fun column lower upper => by
+    have length := localLength_eq interface start
+    unfold coreOffset at lower upper
+    unfold privateCount at length
+    exact locals column (by omega) (by change column < start + localLength (operations _ _); omega)
+
+/-- The output words read only the gadget's own locals. -/
+theorem outputWord_live (interface : Interface) (start : Nat) {live : Nat → Prop}
+    (locals : ∀ column, start ≤ column →
+      column < start + localLength (Circuit.ops (circuit interface).main start) → live column)
+    (position : Fin ringDegree) : (outputWord start position).VarsSatisfy live :=
+  outputWord_varsSatisfy start position live fun column lower upper => by
+    have length := localLength_eq interface start
+    unfold coreOffset at lower upper
+    unfold privateCount at length
+    exact locals column (by omega) (by change column < start + localLength (operations _ _); omega)
+
 end NightstreamFPrime.Gadgets.Sampling.WideReduction.Program

@@ -58,4 +58,28 @@ theorem output_varsSatisfy (exponent : Nat) (interface : Interface)
       simpa [circuit] using! upper)
   simpa [output] using supported
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem marks_nil (exponent : Nat) (interface : Interface) (offset : Nat) :
+    marks (Circuit.ops (circuit exponent interface).main offset) = [] :=
+  Horner.Owned.marks_nil (hornerInterface exponent interface) offset
+
+/-- The rows read the point and the gadget's own locals. -/
+theorem free (exponent : Nat) (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (point : Horner.KSupported (interface.point offset) live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit exponent interface).main offset) →
+        live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit exponent interface).main offset),
+      row.VarsSatisfy live :=
+  flatConstraints_varsSatisfy exponent interface offset live point locals
+
+theorem output_live (exponent : Nat) (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (point : Horner.KSupported (interface.point offset) live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit exponent interface).main offset) →
+        live column) :
+    Horner.KSupported (output exponent interface offset) live :=
+  output_varsSatisfy exponent interface offset live point locals
+
 end NightstreamFPrime.Gadgets.Polynomial.Power

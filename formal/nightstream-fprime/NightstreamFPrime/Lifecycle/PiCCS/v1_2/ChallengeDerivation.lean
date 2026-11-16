@@ -1,4 +1,4 @@
-import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
+import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Clean
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.Transcript
 
@@ -1040,5 +1040,78 @@ def circuitFast (interface : Interface) : FormalCircuit :=
 @[csimp] theorem circuit_eq_circuitFast : @circuit = @circuitFast := by
   funext interface
   exact FormalCircuit.eq_withPrivateCount _ _ _
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem ops_eq_batch (interface : Interface) (offset : Nat) :
+    Circuit.ops (circuit interface).main offset =
+      Formal.batchOps offset (interface.initialState offset) (actions interface offset) :=
+  rfl
+
+private theorem labelActions_absorb {label : FiatShamir.ChallengeLabel productionShape}
+    {expected : KExpr} {input : List Expr}
+    (member : Formal.Action.absorb input ∈ labelActions label expected) :
+    input = constantWords NightstreamFPrime.Lifecycle.Transcript.zeroChunk := by
+  unfold labelActions refreshActions at member
+  split at member
+  · rcases List.mem_cons.mp member with same | rest
+    · cases same
+    · rcases List.mem_singleton.mp rest with same
+      injection same
+  · rcases List.mem_singleton.mp member with same
+    cases same
+
+/-- The derivation absorbs only constant words. -/
+theorem absorbed_constant (interface : Interface) (offset : Nat) :
+    ∀ word ∈ Formal.absorbedWords (actions interface offset), ∃ value, word = Expr.const value := by
+  intro word member
+  obtain ⟨input, inputMember, wordMember⟩ := Formal.mem_absorbedWords member
+  have inputEq : input = constantWords NightstreamFPrime.Lifecycle.Transcript.zeroChunk := by
+    unfold actions scheduleActions at inputMember
+    rcases List.mem_append.mp inputMember with scheduled | last
+    · obtain ⟨item, _, itemMember⟩ := List.mem_flatMap.mp scheduled
+      exact labelActions_absorb itemMember
+    · exact labelActions_absorb last
+  subst inputEq
+  obtain ⟨value, _, rfl⟩ := List.mem_map.mp wordMember
+  exact ⟨value, rfl⟩
+
+theorem placed (interface : Interface) (offset : Nat) :
+    Placed offset (localLength (Circuit.ops (circuit interface).main offset))
+      (Circuit.ops (circuit interface).main offset) := by
+  rw [ops_eq_batch]
+  exact Formal.batch_placed _ _ _
+
+/-- The derivation's rows are its permutations' rows, and `α`, `γ` and its final state are live.
+`α` and `γ` are samples of `layoutProgram`, which has the samples of `program`
+(`program_shape_eq_layout`). -/
+theorem clean (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (stateFacts : Formal.StateFacts live offset (interface.initialState offset))
+    (own : OwnLive live offset (localLength (Circuit.ops (circuit interface).main offset))
+      (Circuit.ops (circuit interface).main offset)) :
+    Clean live (Circuit.ops (circuit interface).main offset) ∧
+      (∀ coordinate, (alpha interface offset coordinate).c0.VarsSatisfy live ∧
+        (alpha interface offset coordinate).c1.VarsSatisfy live) ∧
+      ((gamma interface offset).c0.VarsSatisfy live ∧
+        (gamma interface offset).c1.VarsSatisfy live) ∧
+      Formal.StateFacts live (offset + localLength (Circuit.ops (circuit interface).main offset))
+        (finalState interface offset) := by
+  rw [ops_eq_batch] at own ⊢
+  obtain ⟨clean, samples, output⟩ := Formal.batch_clean offset (interface.initialState offset)
+    (actions interface offset) stateFacts
+    (fun word member =>
+      (Formal.constant_facts (absorbed_constant interface offset word member) live).1)
+    (fun word member => (Formal.constant_facts (absorbed_constant interface offset word member)
+      fun column => column < offset ∧ live column).2)
+    own
+  have layoutSamples : ∀ sample ∈ (layoutProgram interface offset).samples,
+      sample.c0.VarsSatisfy live ∧ sample.c1.VarsSatisfy live := by
+    intro sample member
+    rw [← (program_shape_eq_layout interface offset).2.1] at member
+    exact samples sample member
+  refine ⟨clean, fun coordinate => layoutSamples _ ?_, layoutSamples _ (List.get_mem _ _), ?_⟩
+  · exact List.mem_of_mem_take (List.get_mem _ _)
+  · rw [Formal.batchOps_localLength]
+    exact output
 
 end NightstreamFPrime.Lifecycle.PiCCS.v1_2.ChallengeDerivation

@@ -1,4 +1,4 @@
-import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
+import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Clean
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption
 import NightstreamFPrime.Spec.Folding.PiCCS.Accepted
 
@@ -547,5 +547,73 @@ theorem key_output_eval_A
           (runningSourceIndex coordinate.running) coordinate.matrix
             coordinate.coefficient := by
   rfl
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+section Exporter
+
+variable {shape : Shape}
+
+private theorem outputWords_all (interface : ShapeInterface shape) (offset : Nat)
+    {property : Expr → Prop}
+    (pad : ∀ source coefficient,
+      property ((interface.output offset).padCoordinate source coefficient).c0 ∧
+        property ((interface.output offset).padCoordinate source coefficient).c1)
+    (matrix : ∀ source matrix coefficient,
+      property ((interface.output offset).matrixCoordinate source matrix coefficient).c0 ∧
+        property ((interface.output offset).matrixCoordinate source matrix coefficient).c1) :
+    ∀ word ∈ outputWords interface offset, property word := by
+  intro word member
+  obtain ⟨source, _, sourceMember⟩ := List.mem_flatMap.mp member
+  rcases List.mem_append.mp sourceMember with padMember | matrixMember
+  · obtain ⟨coefficient, _, wordMember⟩ := List.mem_flatMap.mp padMember
+    simp only [StatementAbsorption.serializeKExpr, List.mem_cons, List.not_mem_nil, or_false]
+      at wordMember
+    rcases wordMember with rfl | rfl
+    · exact (pad source coefficient).1
+    · exact (pad source coefficient).2
+  · obtain ⟨matrixIndex, _, rowMember⟩ := List.mem_flatMap.mp matrixMember
+    obtain ⟨coefficient, _, wordMember⟩ := List.mem_flatMap.mp rowMember
+    simp only [StatementAbsorption.serializeKExpr, List.mem_cons, List.not_mem_nil, or_false]
+      at wordMember
+    rcases wordMember with rfl | rfl
+    · exact (matrix source matrixIndex coefficient).1
+    · exact (matrix source matrixIndex coefficient).2
+
+theorem placed (interface : ShapeInterface shape) (offset : Nat) :
+    Placed offset (localLength (Circuit.ops (circuit interface).main offset))
+      (Circuit.ops (circuit interface).main offset) :=
+  Formal.Owned.placed (duplexInterface interface) offset
+
+/-- The binding's rows are its permutations' rows, and its output state is live, when the output
+words are affine and live before the binding. -/
+theorem clean (interface : ShapeInterface shape) (offset : Nat) {live : Nat → Prop}
+    (stateFacts : Formal.StateFacts live offset (interface.initialState offset))
+    (pad : ∀ source coefficient,
+      Formal.WordFacts live offset ((interface.output offset).padCoordinate source coefficient).c0 ∧
+        Formal.WordFacts live offset
+          ((interface.output offset).padCoordinate source coefficient).c1)
+    (matrix : ∀ source matrix coefficient,
+      Formal.WordFacts live offset
+          ((interface.output offset).matrixCoordinate source matrix coefficient).c0 ∧
+        Formal.WordFacts live offset
+          ((interface.output offset).matrixCoordinate source matrix coefficient).c1)
+    (own : OwnLive live offset (localLength (Circuit.ops (circuit interface).main offset))
+      (Circuit.ops (circuit interface).main offset)) :
+    Clean live (Circuit.ops (circuit interface).main offset) ∧
+      Formal.StateFacts live (offset + localLength (Circuit.ops (circuit interface).main offset))
+        (finalState interface offset) := by
+  have words : ∀ word ∈ Formal.absorbedWords ((duplexInterface interface).actions offset),
+      Formal.WordFacts live offset word := by
+    intro word member
+    simp only [duplexInterface, actions, Formal.absorbedWords, List.append_nil] at member
+    exact outputWords_all interface offset pad matrix word member
+  exact Formal.Owned.output_facts (duplexInterface interface) offset stateFacts
+    (fun word member => (words word member).1) (fun word member => (words word member).2)
+    (fun word member => by
+      simp [duplexInterface, actions, Formal.expectedWords] at member)
+    own
+
+end Exporter
 
 end NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding

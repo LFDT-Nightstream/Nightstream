@@ -80,20 +80,20 @@ theorem marks_facts :
       (∀ word ∈ absorbedWords actions, word.Affine) →
       (∀ word ∈ absorbedWords actions,
         word.VarsSatisfy fun column => column < start ∧ live column) →
-      (∀ word ∈ expectedWords actions, word.VarsSatisfy live) →
       (∀ column, start ≤ column → column < start + recipeCount actions →
         ¬ InnerOf (marks start state actions) column → live column) →
       (∀ mark ∈ marks start state actions, mark.Lanes live) ∧
-        (∀ row ∈ (compile start state actions).assertions, row.VarsSatisfy live) ∧
+        ((∀ word ∈ expectedWords actions, word.VarsSatisfy live) →
+          ∀ row ∈ (compile start state actions).assertions, row.VarsSatisfy live) ∧
         (∀ sample ∈ (compile start state actions).samples,
           sample.c0.VarsSatisfy live ∧ sample.c1.VarsSatisfy live) ∧
         StateFacts live (start + recipeCount actions) (compile start state actions).output
-  | [], start, state, stateFacts, _, _, _, _ => by
+  | [], start, state, stateFacts, _, _, _ => by
       refine ⟨fun _ member => by simp only [marks, List.not_mem_nil] at member,
-        fun _ member => by simp only [compile, List.not_mem_nil] at member,
+        fun _ _ member => by simp only [compile, List.not_mem_nil] at member,
         fun _ member => by simp only [compile, List.not_mem_nil] at member, ?_⟩
       simpa [compile, recipeCount] using stateFacts
-  | .absorb input :: actions, start, state, stateFacts, wordsAffine, wordsRead, expected, own => by
+  | .absorb input :: actions, start, state, stateFacts, wordsAffine, wordsRead, own => by
       have chunkWord : ∀ chunk ∈ (Hash.inputChunks input), ∀ word ∈ chunk, word ∈ input := by
         intro chunk member word wordMember
         simp only [Hash.inputChunks, List.mem_map] at member
@@ -137,7 +137,6 @@ theorem marks_facts :
         (fun word member => wordsAffine word (restWord word member))
         (fun word member => (wordsRead word (restWord word member)).mono word
           fun column inside => ⟨Nat.lt_of_lt_of_le inside.1 (Nat.le_add_right _ _), inside.2⟩)
-        (fun word member => expected word member)
         (fun column lower upper outside => own column (Nat.le_trans (Nat.le_add_right _ _) lower)
           (by rw [recipeCount_absorb, ← Nat.add_assoc]; exact upper) fun ⟨mark, member, inner⟩ => by
             simp only [marks, List.mem_append] at member
@@ -166,17 +165,16 @@ theorem marks_facts :
           Hash.compileAbsorptions_output, recipeCount_absorb]
         exact tailOutput.mono (Nat.add_assoc _ _ _).le
   | .readK pair expectedSample :: actions, start, state, stateFacts, wordsAffine, wordsRead,
-      expected, own => by
+      own => by
       obtain ⟨tailLanes, tailRows, tailSamples, tailOutput⟩ := marks_facts actions start state
         stateFacts wordsAffine wordsRead
-        (fun word member => expected word (List.mem_append_right _ member))
         (fun column lower upper outside => own column lower
           (by rw [recipeCount_readK]; exact upper) outside)
       have sampleLive : (Read.sample state pair).c0.VarsSatisfy live ∧
           (Read.sample state pair).c1.VarsSatisfy live :=
         ⟨((stateFacts _).2).mono _ fun _ inside => inside.2,
           ((stateFacts _).2).mono _ fun _ inside => inside.2⟩
-      refine ⟨fun mark member => tailLanes mark member, fun row member => ?_,
+      refine ⟨fun mark member => tailLanes mark member, fun expected row member => ?_,
         fun sample member => ?_, by simpa [compile, recipeCount_readK] using tailOutput⟩
       · simp only [compile, List.mem_append, KExpr.equalities, List.mem_cons,
           List.not_mem_nil, or_false] at member
@@ -185,7 +183,8 @@ theorem marks_facts :
             (expected _ (List.mem_cons_self))
         · exact Expr.VarsSatisfy.sub _ _ _ sampleLive.2
             (expected _ (List.mem_cons_of_mem _ List.mem_cons_self))
-        · exact tailRows row member
+        · exact tailRows (fun word member => expected word (List.mem_append_right _ member)) row
+            member
       · simp only [compile, List.mem_cons] at member
         rcases member with rfl | member
         · exact sampleLive
@@ -218,7 +217,6 @@ theorem batch_clean (offset : Nat) (state : EState) (actions : List Action)
     (wordsAffine : ∀ word ∈ absorbedWords actions, word.Affine)
     (wordsRead : ∀ word ∈ absorbedWords actions,
       word.VarsSatisfy fun column => column < offset ∧ live column)
-    (expected : ∀ word ∈ expectedWords actions, word.VarsSatisfy live)
     (own : OwnLive live offset (localLength (batchOps offset state actions))
       (batchOps offset state actions)) :
     Clean live (batchOps offset state actions) ∧
@@ -227,7 +225,7 @@ theorem batch_clean (offset : Nat) (state : EState) (actions : List Action)
       StateFacts live (offset + recipeCount actions) (compile offset state actions).output := by
   rw [batchOps_localLength] at own
   obtain ⟨lanes, _, samples, output⟩ := marks_facts actions offset state stateFacts wordsAffine
-    wordsRead expected fun column lower upper outside => own column lower upper (by
+    wordsRead fun column lower upper outside => own column lower upper (by
       simpa [batchOps, Circuit.marks, Op.marks] using outside)
   exact ⟨.batch (compile_windows _ _ _) lanes, samples, output⟩
 
@@ -275,13 +273,71 @@ theorem clean (interface : Interface) (offset : Nat)
     refine own column lower (by simpa [program, compile_recipes_length] using upper) ?_
     simpa [(RowsOnly.map (allAssertions interface offset)).marks_nil, Op.marks] using outside
   obtain ⟨lanes, rows, samples, output⟩ := marks_facts (interface.actions offset) offset
-    (interface.initial offset) stateFacts wordsAffine wordsRead expected rowsOwn
+    (interface.initial offset) stateFacts wordsAffine wordsRead rowsOwn
   refine ⟨?_, samples, by simpa [program, compile_recipes_length] using output⟩
   rw [main_ops, opsAt_split]
   exact (Clean.batch (compile_windows _ _ _) lanes).append
     (.of_rows (RowsOnly.map _) fun row member =>
-      rows row (by simpa [allAssertions, program] using member))
+      rows expected row (by simpa [allAssertions, program] using member))
 
 end Owned
+
+/-! ### Absorbed words -/
+
+theorem absorbedWords_append (first second : List Action) :
+    absorbedWords (first ++ second) = absorbedWords first ++ absorbedWords second := by
+  induction first with
+  | nil => rfl
+  | cons action rest ih =>
+      cases action with
+      | absorb input => simp only [List.cons_append, absorbedWords, ih, List.append_assoc]
+      | readK pair expected => simp only [List.cons_append, absorbedWords, ih]
+
+/-- An absorbed word comes from the input of an absorption among the actions. -/
+theorem mem_absorbedWords {actions : List Action} {word : Expr}
+    (member : word ∈ absorbedWords actions) :
+    ∃ input, Action.absorb input ∈ actions ∧ word ∈ input := by
+  induction actions with
+  | nil => simp [absorbedWords] at member
+  | cons action rest ih =>
+      cases action with
+      | absorb input =>
+          simp only [absorbedWords, List.mem_append] at member
+          rcases member with member | member
+          · exact ⟨input, List.mem_cons_self, member⟩
+          · obtain ⟨other, otherMember, wordMember⟩ := ih member
+            exact ⟨other, List.mem_cons_of_mem _ otherMember, wordMember⟩
+      | readK pair expected =>
+          obtain ⟨other, otherMember, wordMember⟩ := ih member
+          exact ⟨other, List.mem_cons_of_mem _ otherMember, wordMember⟩
+
+/-- A word that a duplex absorbs at `bound`: affine, and live before `bound`. -/
+def WordFacts (live : Nat → Prop) (bound : Nat) (word : Expr) : Prop :=
+  word.Affine ∧ word.VarsSatisfy fun column => column < bound ∧ live column
+
+/-- Constant words are affine and read no column. -/
+theorem constant_facts {word : Expr} (constant : ∃ value, word = Expr.const value)
+    (allowed : Nat → Prop) : word.Affine ∧ word.VarsSatisfy allowed := by
+  obtain ⟨value, rfl⟩ := constant
+  exact ⟨.const value, trivial⟩
+
+/-! ### The owned duplex's output -/
+
+theorem Owned.output_facts (interface : Owned.Interface) (offset : Nat)
+    (stateFacts : StateFacts live offset (interface.initial offset))
+    (wordsAffine : ∀ word ∈ absorbedWords (interface.actions offset), word.Affine)
+    (wordsRead : ∀ word ∈ absorbedWords (interface.actions offset),
+      word.VarsSatisfy fun column => column < offset ∧ live column)
+    (expected : ∀ word ∈ expectedWords (interface.actions offset), word.VarsSatisfy live)
+    (own : OwnLive live offset (localLength (Circuit.ops (Owned.main interface) offset))
+      (Circuit.ops (Owned.main interface) offset)) :
+    Clean live (Circuit.ops (Owned.main interface) offset) ∧
+      StateFacts live (offset + localLength (Circuit.ops (Owned.main interface) offset))
+        (Owned.output interface offset) := by
+  obtain ⟨clean, _, output⟩ := Owned.clean interface offset stateFacts wordsAffine wordsRead
+    expected own
+  refine ⟨clean, ?_⟩
+  rw [Owned.main_ops, Owned.opsAt_localLength]
+  exact output
 
 end NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal

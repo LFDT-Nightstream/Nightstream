@@ -55,7 +55,7 @@ jobs:
 
   test:
     name: Nightstream and shared regression tests
-    runs-on: [self-hosted, Linux, X64, nico-runner]
+    runs-on: self-hosted
     
     steps:
     - name: Install Git LFS if missing

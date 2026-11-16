@@ -76,6 +76,7 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import NightstreamFPrime.Spec.Nebula
 import NightstreamFPrime.Export.Generic.MarkedBlocks
 import NightstreamFPrime.Gadgets.Poseidon2.Formal
+import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 
@@ -727,6 +728,19 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.Generic.PermutationWindow.window_eq_markWindow
 #audit_axioms NightstreamFPrime.Export.Generic.MarkedBlocks.splitAux_segmented
 #audit_axioms NightstreamFPrime.Export.Generic.MarkedBlocks.packable_of_segmented
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.pieces_packable
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.lightPieces_packable
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.refreshPieces_packable
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.LightStepLayout.placed
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.LightStepLayout.liveRows
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepLayout.placed
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepLayout.liveRows
+#audit_axioms NightstreamFPrime.Layout.BoundedDepth.LightAssembler.inputsLive
+#audit_axioms NightstreamFPrime.Layout.BoundedDepth.RefreshAssembler.inputsLive
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.marksPlaced
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.marksLiveRows
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1.marksPlaced
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1.marksLiveRows
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.decodeFold_below
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.decodeConstraints_below
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.lightPieces_readOwnColumns

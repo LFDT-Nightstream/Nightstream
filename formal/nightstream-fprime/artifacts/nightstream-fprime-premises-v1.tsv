@@ -65,6 +65,8 @@ Claims.Final.history_sound	exports.program.step_length	Eq
 Claims.Final.history_sound	exports.program.spec_iff	Iff
 Claims.Final.history_sound	exports.program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Final.history_sound	exports.program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Final.history_sound	exports.program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Final.history_sound	exports.program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Final.history_sound	exports.programStep	Eq
 Claims.Final.history_sound	exports.lightFitsPackage.rows.rowCount	LE.le
 Claims.Final.history_sound	exports.lightFitsPackage.rows.columns	LT.lt
@@ -96,6 +98,8 @@ Claims.Final.history_sound_with_akita	exports.program.step_length	Eq
 Claims.Final.history_sound_with_akita	exports.program.spec_iff	Iff
 Claims.Final.history_sound_with_akita	exports.program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Final.history_sound_with_akita	exports.program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Final.history_sound_with_akita	exports.program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Final.history_sound_with_akita	exports.program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Final.history_sound_with_akita	exports.programStep	Eq
 Claims.Final.history_sound_with_akita	exports.lightFitsPackage.rows.rowCount	LE.le
 Claims.Final.history_sound_with_akita	exports.lightFitsPackage.rows.columns	LT.lt
@@ -133,6 +137,8 @@ Claims.Final.memory_sound	exports.program.step_length	Eq
 Claims.Final.memory_sound	exports.program.spec_iff	Iff
 Claims.Final.memory_sound	exports.program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Final.memory_sound	exports.program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Final.memory_sound	exports.program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Final.memory_sound	exports.program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Final.memory_sound	exports.programStep	Eq
 Claims.Final.memory_sound	exports.lightFitsPackage.rows.rowCount	LE.le
 Claims.Final.memory_sound	exports.lightFitsPackage.rows.columns	LT.lt
@@ -179,6 +185,8 @@ Claims.Final.memory_sound_with_akita	exports.program.step_length	Eq
 Claims.Final.memory_sound_with_akita	exports.program.spec_iff	Iff
 Claims.Final.memory_sound_with_akita	exports.program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Final.memory_sound_with_akita	exports.program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Final.memory_sound_with_akita	exports.program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Final.memory_sound_with_akita	exports.program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Final.memory_sound_with_akita	exports.programStep	Eq
 Claims.Final.memory_sound_with_akita	exports.lightFitsPackage.rows.rowCount	LE.le
 Claims.Final.memory_sound_with_akita	exports.lightFitsPackage.rows.columns	LT.lt
@@ -736,6 +744,8 @@ Claims.Ivc.extraction_bound	exports.program.step_length	Eq
 Claims.Ivc.extraction_bound	exports.program.spec_iff	Iff
 Claims.Ivc.extraction_bound	exports.program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Ivc.extraction_bound	exports.program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Ivc.extraction_bound	exports.program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Ivc.extraction_bound	exports.program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Ivc.extraction_bound	exports.programStep	Eq
 Claims.Ivc.extraction_bound	exports.lightFitsPackage.rows.rowCount	LE.le
 Claims.Ivc.extraction_bound	exports.lightFitsPackage.rows.columns	LT.lt
@@ -764,6 +774,8 @@ Claims.Ivc.false_acceptance_bound	exports.program.step_length	Eq
 Claims.Ivc.false_acceptance_bound	exports.program.spec_iff	Iff
 Claims.Ivc.false_acceptance_bound	exports.program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Ivc.false_acceptance_bound	exports.program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Ivc.false_acceptance_bound	exports.program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Ivc.false_acceptance_bound	exports.program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Ivc.false_acceptance_bound	exports.programStep	Eq
 Claims.Ivc.false_acceptance_bound	exports.lightFitsPackage.rows.rowCount	LE.le
 Claims.Ivc.false_acceptance_bound	exports.lightFitsPackage.rows.columns	LT.lt
@@ -792,6 +804,8 @@ Claims.Ivc.run_complete	exports.program.step_length	Eq
 Claims.Ivc.run_complete	exports.program.spec_iff	Iff
 Claims.Ivc.run_complete	exports.program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Ivc.run_complete	exports.program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Ivc.run_complete	exports.program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Ivc.run_complete	exports.program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Ivc.run_complete	exports.programStep	Eq
 Claims.Ivc.run_complete	exports.lightFitsPackage.rows.rowCount	LE.le
 Claims.Ivc.run_complete	exports.lightFitsPackage.rows.columns	LT.lt
@@ -809,12 +823,10 @@ Claims.Ivc.run_complete	exports.lightKey	Eq
 Claims.Ivc.run_complete	exports.refreshKey	Eq
 Claims.Ivc.run_complete	complete.lightFitsKeyWidth	LE.le
 Claims.Ivc.run_complete	complete.lightLayout	Eq
-Claims.Ivc.run_complete	complete.lightBlocksPack	Eq
 Claims.Ivc.run_complete	complete.lightFreshAfterLocals	LE.le
 Claims.Ivc.run_complete	complete.lightPublicBelow	LE.le
 Claims.Ivc.run_complete	complete.refreshFitsKeyWidth	LE.le
 Claims.Ivc.run_complete	complete.refreshLayout	Eq
-Claims.Ivc.run_complete	complete.refreshBlocksPack	Eq
 Claims.Ivc.run_complete	complete.refreshFreshAfterLocals	LE.le
 Claims.Ivc.run_complete	complete.refreshPublicBelow	LE.le
 Claims.Ivc.run_complete	keysShaped	Eq
@@ -835,6 +847,8 @@ Claims.Ivc.step_extends	exports.program.step_length	Eq
 Claims.Ivc.step_extends	exports.program.spec_iff	Iff
 Claims.Ivc.step_extends	exports.program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Ivc.step_extends	exports.program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Ivc.step_extends	exports.program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Ivc.step_extends	exports.program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Ivc.step_extends	exports.programStep	Eq
 Claims.Ivc.step_extends	exports.lightFitsPackage.rows.rowCount	LE.le
 Claims.Ivc.step_extends	exports.lightFitsPackage.rows.columns	LT.lt
@@ -852,12 +866,10 @@ Claims.Ivc.step_extends	exports.lightKey	Eq
 Claims.Ivc.step_extends	exports.refreshKey	Eq
 Claims.Ivc.step_extends	complete.lightFitsKeyWidth	LE.le
 Claims.Ivc.step_extends	complete.lightLayout	Eq
-Claims.Ivc.step_extends	complete.lightBlocksPack	Eq
 Claims.Ivc.step_extends	complete.lightFreshAfterLocals	LE.le
 Claims.Ivc.step_extends	complete.lightPublicBelow	LE.le
 Claims.Ivc.step_extends	complete.refreshFitsKeyWidth	LE.le
 Claims.Ivc.step_extends	complete.refreshLayout	Eq
-Claims.Ivc.step_extends	complete.refreshBlocksPack	Eq
 Claims.Ivc.step_extends	complete.refreshFreshAfterLocals	LE.le
 Claims.Ivc.step_extends	complete.refreshPublicBelow	LE.le
 Claims.Ivc.step_extends	keysShaped	Eq
@@ -872,6 +884,8 @@ Claims.Ivc.terminal_bridge	exports.program.step_length	Eq
 Claims.Ivc.terminal_bridge	exports.program.spec_iff	Iff
 Claims.Ivc.terminal_bridge	exports.program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Ivc.terminal_bridge	exports.program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Ivc.terminal_bridge	exports.program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Ivc.terminal_bridge	exports.program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Ivc.terminal_bridge	exports.programStep	Eq
 Claims.Ivc.terminal_bridge	exports.lightFitsPackage.rows.rowCount	LE.le
 Claims.Ivc.terminal_bridge	exports.lightFitsPackage.rows.columns	LT.lt
@@ -896,6 +910,8 @@ Claims.Ivc.verifier_sound	exports.program.step_length	Eq
 Claims.Ivc.verifier_sound	exports.program.spec_iff	Iff
 Claims.Ivc.verifier_sound	exports.program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Ivc.verifier_sound	exports.program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Ivc.verifier_sound	exports.program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Ivc.verifier_sound	exports.program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Ivc.verifier_sound	exports.programStep	Eq
 Claims.Ivc.verifier_sound	exports.lightFitsPackage.rows.rowCount	LE.le
 Claims.Ivc.verifier_sound	exports.lightFitsPackage.rows.columns	LT.lt
@@ -973,6 +989,8 @@ Claims.Nebula.memory_complete	exports.program.step_length	Eq
 Claims.Nebula.memory_complete	exports.program.spec_iff	Iff
 Claims.Nebula.memory_complete	exports.program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Nebula.memory_complete	exports.program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Nebula.memory_complete	exports.program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Nebula.memory_complete	exports.program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Nebula.memory_complete	exports.programStep	Eq
 Claims.Nebula.memory_complete	exports.lightFitsPackage.rows.rowCount	LE.le
 Claims.Nebula.memory_complete	exports.lightFitsPackage.rows.columns	LT.lt
@@ -991,12 +1009,10 @@ Claims.Nebula.memory_complete	exports.refreshKey	Eq
 Claims.Nebula.memory_complete	programEq	Eq
 Claims.Nebula.memory_complete	complete.lightFitsKeyWidth	LE.le
 Claims.Nebula.memory_complete	complete.lightLayout	Eq
-Claims.Nebula.memory_complete	complete.lightBlocksPack	Eq
 Claims.Nebula.memory_complete	complete.lightFreshAfterLocals	LE.le
 Claims.Nebula.memory_complete	complete.lightPublicBelow	LE.le
 Claims.Nebula.memory_complete	complete.refreshFitsKeyWidth	LE.le
 Claims.Nebula.memory_complete	complete.refreshLayout	Eq
-Claims.Nebula.memory_complete	complete.refreshBlocksPack	Eq
 Claims.Nebula.memory_complete	complete.refreshFreshAfterLocals	LE.le
 Claims.Nebula.memory_complete	complete.refreshPublicBelow	LE.le
 Claims.Nebula.memory_complete	keysShaped	Eq
@@ -1015,6 +1031,8 @@ Claims.Nebula.memory_round_in_random_oracle_model	exports.program.step_length	Eq
 Claims.Nebula.memory_round_in_random_oracle_model	exports.program.spec_iff	Iff
 Claims.Nebula.memory_round_in_random_oracle_model	exports.program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Nebula.memory_round_in_random_oracle_model	exports.program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Nebula.memory_round_in_random_oracle_model	exports.program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Nebula.memory_round_in_random_oracle_model	exports.program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Nebula.memory_round_in_random_oracle_model	exports.programStep	Eq
 Claims.Nebula.memory_round_in_random_oracle_model	exports.lightFitsPackage.rows.rowCount	LE.le
 Claims.Nebula.memory_round_in_random_oracle_model	exports.lightFitsPackage.rows.columns	LT.lt
@@ -1053,6 +1071,8 @@ Claims.Nebula.memory_sound	exports.program.step_length	Eq
 Claims.Nebula.memory_sound	exports.program.spec_iff	Iff
 Claims.Nebula.memory_sound	exports.program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Nebula.memory_sound	exports.program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Nebula.memory_sound	exports.program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Nebula.memory_sound	exports.program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Nebula.memory_sound	exports.programStep	Eq
 Claims.Nebula.memory_sound	exports.lightFitsPackage.rows.rowCount	LE.le
 Claims.Nebula.memory_sound	exports.lightFitsPackage.rows.columns	LT.lt
@@ -1115,6 +1135,8 @@ Claims.Step.light_complete	program.step_length	Eq
 Claims.Step.light_complete	program.spec_iff	Iff
 Claims.Step.light_complete	program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Step.light_complete	program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Step.light_complete	program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Step.light_complete	program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Step.light_complete	relation.cubeFits	LE.le
 Claims.Step.light_complete	holds	Circuit.holdsFlat
 Claims.Step.light_complete	represents.iteration	Eq
@@ -1139,7 +1161,6 @@ Claims.Step.light_complete	publicEq	Eq
 Claims.Step.light_complete	fitsPackage.rows.rowCount	LE.le
 Claims.Step.light_complete	fitsPackage.rows.columns	LT.lt
 Claims.Step.light_complete	fitsPackage.blocks	Export.Generic.CircuitRelation.BlockFits
-Claims.Step.light_complete	blocksPack	Eq
 Claims.Step.light_complete	readsOwnColumns	Eq
 Claims.Step.light_complete	publicBelow	LE.le
 Claims.Step.light_complete	fitsKeyWidth	LE.le
@@ -1149,6 +1170,8 @@ Claims.Step.light_sound	program.step_length	Eq
 Claims.Step.light_sound	program.spec_iff	Iff
 Claims.Step.light_sound	program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Step.light_sound	program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Step.light_sound	program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Step.light_sound	program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Step.light_sound	relation.cubeFits	LE.le
 Claims.Step.light_sound	stepEq	Eq
 Claims.Step.light_sound	validControl	Eq
@@ -1165,6 +1188,8 @@ Claims.Step.refresh_complete	program.step_length	Eq
 Claims.Step.refresh_complete	program.spec_iff	Iff
 Claims.Step.refresh_complete	program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Step.refresh_complete	program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Step.refresh_complete	program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Step.refresh_complete	program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Step.refresh_complete	relation.cubeFits	LE.le
 Claims.Step.refresh_complete	holds	Circuit.holdsFlat
 Claims.Step.refresh_complete	represents.iteration	Eq
@@ -1191,7 +1216,6 @@ Claims.Step.refresh_complete	publicEq	Eq
 Claims.Step.refresh_complete	fitsPackage.rows.rowCount	LE.le
 Claims.Step.refresh_complete	fitsPackage.rows.columns	LT.lt
 Claims.Step.refresh_complete	fitsPackage.blocks	Export.Generic.CircuitRelation.BlockFits
-Claims.Step.refresh_complete	blocksPack	Eq
 Claims.Step.refresh_complete	readsOwnColumns	Eq
 Claims.Step.refresh_complete	publicBelow	LE.le
 Claims.Step.refresh_complete	fitsKeyWidth	LE.le
@@ -1201,6 +1225,8 @@ Claims.Step.refresh_sound	program.step_length	Eq
 Claims.Step.refresh_sound	program.spec_iff	Iff
 Claims.Step.refresh_sound	program.assumptions_of_inputsBelow	Circuit.FormalCircuit.assumptions
 Claims.Step.refresh_sound	program.constraintsSupported	Circuit.Expr.VarsSatisfy
+Claims.Step.refresh_sound	program.marksPlaced	Gadgets.Poseidon2.Placed
+Claims.Step.refresh_sound	program.marksLiveRows	Gadgets.Poseidon2.LiveRows
 Claims.Step.refresh_sound	relation.cubeFits	LE.le
 Claims.Step.refresh_sound	stepEq	Eq
 Claims.Step.refresh_sound	validControl	Eq

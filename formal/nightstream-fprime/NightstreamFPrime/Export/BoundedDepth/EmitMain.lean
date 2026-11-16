@@ -124,8 +124,9 @@ def completenessChecks (pieces : List Pieces.Piece) (firstFresh : Nat) : Bool ×
   let scope := (pieces.filter fun piece => !PieceRowsCompleteness.pieceBelow firstFresh piece).length
   (scope == 0, scope)
 
-/-- Writes the circuit's package (`StepPackage.packageOf`); the blocks must pack and start at or
-after the shared words. Before it writes, it runs the package's completeness checks
+/-- Writes the circuit's package (`StepPackage.packageOf`); its blocks pack
+(`StepCompleteness.lightPieces_packable`) and must start at or after the shared words. Before it
+writes, it runs the package's completeness checks
 (`completenessChecks`) and checks that no row of the circuit reads a public column. -/
 def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
     (pieces : List Pieces.Piece)
@@ -133,8 +134,6 @@ def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
     (write : Bool := true) :
     IO StepPackage.Package := do
   let start ← IO.monoMsNow
-  unless CircuitRelation.packable CircuitRelation.publicColumns pieces do
-    throw (IO.userError s!"{name}: the Poseidon2 blocks do not pack")
   unless CircuitRelation.startsFrom offset pieces do
     throw (IO.userError s!"{name}: a Poseidon2 block starts below the shared end")
   let firstFresh := offset + localLength ops

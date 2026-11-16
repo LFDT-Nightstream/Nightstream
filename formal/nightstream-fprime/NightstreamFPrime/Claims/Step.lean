@@ -142,9 +142,6 @@ theorem light_complete
     (width : ℕ)
     (fitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns
         (StepCompleteness.lightPieces program relation ajtai) firstFresh width)
-    (blocksPack : CircuitRelation.packable CircuitRelation.publicColumns
-          (StepCompleteness.lightPieces program relation ajtai) =
-        true)
     (readsOwnColumns : (StepCompleteness.lightPieces program relation ajtai).all
           (PieceRowsCompleteness.pieceBelow firstFresh) =
         true)
@@ -183,7 +180,7 @@ theorem light_complete
                 ↑column →
               RingCarrierLayout.extendAssignment 0 assignment column = 0 :=
   @Export.BoundedDepth.StepCompleteness.light_complete logicalWidth publicFits program relation
-    ajtai circuitKeys input output proof env holds represents publicEq firstFresh width fitsPackage blocksPack
+    ajtai circuitKeys input output proof env holds represents publicEq firstFresh width fitsPackage
     readsOwnColumns publicBelow batches fitsKeyWidth cubeFits
 
 /-- An honest refresh step's assignment (`RefreshAssemblerCompleteness.complete`) gives a fresh
@@ -211,9 +208,6 @@ theorem refresh_complete
     (width : ℕ)
     (fitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns
         (StepCompleteness.refreshPieces program relation ajtai) firstFresh width)
-    (blocksPack : CircuitRelation.packable CircuitRelation.publicColumns
-          (StepCompleteness.refreshPieces program relation ajtai) =
-        true)
     (readsOwnColumns : (StepCompleteness.refreshPieces program relation ajtai).all
           (PieceRowsCompleteness.pieceBelow firstFresh) =
         true)
@@ -253,7 +247,7 @@ theorem refresh_complete
                 ↑column →
               RingCarrierLayout.extendAssignment 0 assignment column = 0 :=
   @Export.BoundedDepth.StepCompleteness.refresh_complete logicalWidth publicFits program relation
-    ajtai circuitKeys input output proof env holds represents publicEq firstFresh width fitsPackage blocksPack
+    ajtai circuitKeys input output proof env holds represents publicEq firstFresh width fitsPackage
     readsOwnColumns publicBelow batches fitsKeyWidth cubeFits
 
 end NightstreamFPrime.Claims.Step

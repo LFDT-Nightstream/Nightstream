@@ -88,9 +88,10 @@ of the bundle unfolds the operations of a circuit. `Emitted` fixes them to the e
 
 variable (lightFresh refreshFresh : Nat) (lightBatches refreshBatches : List WitnessBatch)
 
-/-- The facts of the two packages of `program` that Lean does not prove. The emitter checks
-`BlocksPack` of each package before it writes the package. It prints the sizes of `FitsPackage`
-but does not check them. -/
+/-- The facts of the two packages of `program` that Lean does not prove. The emitter prints the
+sizes of `FitsPackage` but does not check them. Lean proves that the Poseidon2 blocks of both
+packages pack (`StepCompleteness.lightPieces_packable`, `StepCompleteness.refreshPieces_packable`).
+-/
 structure Facts where
   /-- The rows, the columns and the Poseidon2 blocks of the light package fit its size. -/
   lightFitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns
@@ -106,14 +107,6 @@ structure Facts where
   refreshFitsKeyWidth : ProductionAssignment.logicalWidth (SlotLayout.runSlots sourceWidth
     (StepPackage.slotRuns CircuitRelation.publicColumns (refreshPieces program relation ajtai)
       refreshFresh refreshBatches)) ≤ logicalWidth
-  /-- The Poseidon2 blocks of the light package pack into its S-box columns. -/
-  lightBlocksPack :
-    CircuitRelation.packable CircuitRelation.publicColumns (lightPieces program relation ajtai) =
-      true
-  /-- The Poseidon2 blocks of the refresh package pack into its S-box columns. -/
-  refreshBlocksPack :
-    CircuitRelation.packable CircuitRelation.publicColumns (refreshPieces program relation ajtai) =
-      true
 
 variable {program relation ajtai lightFresh refreshFresh lightBatches refreshBatches}
 
@@ -177,13 +170,11 @@ def Facts.complete
   lightBatches := lightBatches
   lightFitsKeyWidth := facts.lightFitsKeyWidth
   lightLayout := by dsimp only [Facts.exports]; rfl
-  lightBlocksPack := facts.lightBlocksPack
   lightFreshAfterLocals := lightAfterLocals
   lightPublicBelow := lightPublicBelow
   refreshBatches := refreshBatches
   refreshFitsKeyWidth := facts.refreshFitsKeyWidth
   refreshLayout := by dsimp only [Facts.exports]; rfl
-  refreshBlocksPack := facts.refreshBlocksPack
   refreshFreshAfterLocals := refreshAfterLocals
   refreshPublicBelow := refreshPublicBelow
 

@@ -1,6 +1,9 @@
 import NightstreamFPrime.Export.BoundedDepth.SlotCompleteness
 import NightstreamFPrime.Export.BoundedDepth.StepRelation
 import NightstreamFPrime.Layout.ProductionRelation.CcsOpening
+import NightstreamFPrime.Export.Generic.MarkedBlocks
+import NightstreamFPrime.Layout.BoundedDepth.LightAssemblerLiveRows
+import NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerLiveRows
 
 /-! Completeness of the exported step relations (CW-10.2), the converse of
 `StepRelation.light_freshHolds` and `StepRelation.refresh_freshHolds`. Take an environment in
@@ -15,8 +18,9 @@ fresh CCS statement with public input `encHash digest` (`fresh_complete`). The a
 the package's logical width with zeros (`WideLayout.extend`), so it is zero past that width.
 `light_complete` and `refresh_complete` read the digest from the step's output.
 
-One premise is a computed check on the package, as `CircuitRelation.packable` is: the blocks
-pack. That every piece reads only columns below the first fresh column
+The blocks of every honest step package pack (`lightPieces_packable`, `refreshPieces_packable`):
+each gadget marks its Poseidon2 permutations, and no other row reads their inner locals
+(`Gadgets.Poseidon2.LiveRows`). That every piece reads only columns below the first fresh column
 (`PieceRowsCompleteness.pieceBelow`) follows when every row of the circuit reads only columns
 before the end of its locals, as the assembler gives it for an honest step, and the first fresh
 column is at or after that end (`lightPieces_readOwnColumns`, `refreshPieces_readOwnColumns`).
@@ -389,6 +393,84 @@ theorem refreshPieces_readOwnColumns
       LightAssembler.slotsStart, LightAssembler.witnessStart, LightAssembler.slotWordCount]
     omega
 
+/-! ### The blocks pack (SPEC.md section 4.4) -/
+
+/-- The pieces of a step circuit pack. Take as live the columns that are no inner local of a
+mark. The shared columns are live, because every mark starts at or after the shared end; so the
+circuit's rows have live rows, and the decode rows read only shared columns. The rows are then
+segmented, and `MarkedBlocks.packable_of_segmented` applies. -/
+theorem pieces_packable {ops : List Op} {shared : Nat} {digestColumn : Fin 4 → Nat}
+    (placed : Gadgets.Poseidon2.Placed shared (localLength ops) ops)
+    (rows : ∀ live : Nat → Prop, (∀ column, column < shared → live column) →
+      Gadgets.Poseidon2.OwnLive live shared (localLength ops) ops →
+      Gadgets.Poseidon2.LiveRows live ops)
+    (publicBelow : publicColumns ≤ shared) (digest : ∀ word, digestColumn word < shared) :
+    packable publicColumns (piecesOf ops digestColumn) = true := by
+  let live : Nat → Prop := fun column => ¬ InnerOf (marks ops) column
+  have sharedLive : ∀ column, column < shared → live column := by
+    rintro column below ⟨mark, member, lower, -⟩
+    have := (placed.inside mark member).1
+    omega
+  have liveRows := rows live sharedLive fun _ _ _ outside => outside
+  have decodeFree : ∀ row ∈ LogicalPlan.decodeConstraints digestColumn, row.VarsSatisfy live :=
+    fun row member => ((Expr.varsSatisfy_lt_iff_varsBelow row shared).mpr
+      (decodeConstraints_below digestColumn digest (le_trans (by decide) publicBelow) row
+        member)).mono row sharedLive
+  have segmented := liveRows.segmented.append (Segmented.ofFree decodeFree)
+  rw [List.append_nil] at segmented
+  exact NightstreamFPrime.Export.Generic.MarkedBlocks.packable_of_segmented segmented
+    liveRows.lanes placed.ascend fun mark member => le_trans publicBelow (placed.inside mark member).1
+
+theorem lightDigest_below (word : Fin 4) :
+    StepRelation.lightDigestColumn program word <
+      LightAssembler.sharedEnd StepRelation.base program.witnessWordCount := by
+  have := word.isLt
+  simp only [StepRelation.lightDigestColumn, LightAssembler.sharedEnd,
+    LightAssembler.digestSelectStart, LightAssembler.outputStart, LightAssembler.roundsStart,
+    LightAssembler.freshStart]
+  omega
+
+theorem refreshDigest_below (word : Fin 4) :
+    StepRelation.refreshDigestColumn program word <
+      RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount := by
+  have := word.isLt
+  rw [RefreshAssembler.sharedEnd_eq]
+  simp only [StepRelation.refreshDigestColumn, LightAssembler.digestsStart,
+    LightAssembler.slotsStart, LightAssembler.witnessStart, LightAssembler.slotWordCount]
+  omega
+
+/-- The Poseidon2 blocks of every honest light package pack. -/
+theorem lightPieces_packable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    packable publicColumns (lightPieces program relation ajtai) = true := by
+  rw [← piecesOf_lightOps program relation ajtai]
+  exact pieces_packable
+    (LightStepLayout.placed program relation 0
+      (LightAssembler.interface StepRelation.base program.witnessWordCount)
+      (LightAssembler.sharedEnd StepRelation.base program.witnessWordCount))
+    (fun _ shared own => LightStepLayout.liveRows program relation 0 _ _
+      (LightAssembler.inputsLive program StepRelation.base shared) own)
+    (by
+      rw [LightAssembler.sharedEnd_eq]
+      exact (Nat.le_add_right _ _).trans (Nat.le_add_right _ _))
+    (lightDigest_below program)
+
+/-- The Poseidon2 blocks of every honest refresh package pack. -/
+theorem refreshPieces_packable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    packable publicColumns (refreshPieces program relation ajtai) = true := by
+  rw [← piecesOf_refreshOps program relation ajtai]
+  exact pieces_packable
+    (RefreshStepLayout.placed program relation 1
+      (RefreshAssembler.interface StepRelation.base program.witnessWordCount)
+      (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount))
+    (fun _ shared own => RefreshStepLayout.liveRows program relation 1 _ _
+      (RefreshAssembler.inputsLive program StepRelation.base shared) own)
+    (by
+      rw [RefreshAssembler.sharedEnd_eq]
+      exact (Nat.le_add_right _ _).trans (Nat.le_add_right _ _))
+    (refreshDigest_below program)
+
 /-- An honest light step's assignment (`LightAssemblerCompleteness.complete`) gives a fresh
 instance with public input `encHash` of the step's output hash that holds under the light key,
 with a witness that is zero past the package's logical width. -/
@@ -407,7 +489,6 @@ theorem light_complete (relation : ProductionKey.LogicalRelation logicalWidth pu
       env column = encHash (publicFits := publicFits) output.x ⟨column, inside⟩)
     (firstFresh width : Nat)
     (fitsPackage : Fits publicColumns (lightPieces program relation ajtai) firstFresh width)
-    (blocksPack : packable publicColumns (lightPieces program relation ajtai) = true)
     (readsOwnColumns : (lightPieces program relation ajtai).all (pieceBelow firstFresh) = true)
     (publicBelow : publicColumns ≤ firstFresh) (batches : List WitnessBatch)
     (fitsKeyWidth : ProductionAssignment.logicalWidth (SlotLayout.runSlots width
@@ -429,7 +510,8 @@ theorem light_complete (relation : ProductionKey.LogicalRelation logicalWidth pu
             batches)) ≤ column.val →
         RingCarrierLayout.extendAssignment 0 assignment column = 0 :=
   fresh_complete _ _ _ env holds output.x (digest_getD represents.outputDigest)
-    (digestColumn_above program) publicEq firstFresh width fitsPackage blocksPack readsOwnColumns publicBelow batches
+    (digestColumn_above program) publicEq firstFresh width fitsPackage
+    (lightPieces_packable program relation ajtai) readsOwnColumns publicBelow batches
     fitsKeyWidth cubeFits ajtai
 
 /-- An honest refresh step's assignment (`RefreshAssemblerCompleteness.complete`) gives a fresh
@@ -450,7 +532,6 @@ theorem refresh_complete (relation : ProductionKey.LogicalRelation logicalWidth 
       env column = encHash (publicFits := publicFits) output.x ⟨column, inside⟩)
     (firstFresh width : Nat)
     (fitsPackage : Fits publicColumns (refreshPieces program relation ajtai) firstFresh width)
-    (blocksPack : packable publicColumns (refreshPieces program relation ajtai) = true)
     (readsOwnColumns : (refreshPieces program relation ajtai).all (pieceBelow firstFresh) = true)
     (publicBelow : publicColumns ≤ firstFresh) (batches : List WitnessBatch)
     (fitsKeyWidth : ProductionAssignment.logicalWidth (SlotLayout.runSlots width
@@ -472,7 +553,8 @@ theorem refresh_complete (relation : ProductionKey.LogicalRelation logicalWidth 
             batches)) ≤ column.val →
         RingCarrierLayout.extendAssignment 0 assignment column = 0 :=
   fresh_complete _ _ _ env holds output.x (digest_getD represents.outputDigest)
-    (digestColumn_above program) publicEq firstFresh width fitsPackage blocksPack readsOwnColumns publicBelow batches
+    (digestColumn_above program) publicEq firstFresh width fitsPackage
+    (refreshPieces_packable program relation ajtai) readsOwnColumns publicBelow batches
     fitsKeyWidth cubeFits ajtai
 
 end Steps

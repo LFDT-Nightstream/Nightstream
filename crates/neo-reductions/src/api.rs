@@ -39,6 +39,24 @@ pub enum FoldingMode {
     OptimizedWithCrosscheck,
 }
 
+// A macro, not a fn, so that without `paper-exact` the reference arms and
+// their engine calls drop out before name resolution.
+macro_rules! by_mode {
+    ($mode:expr, $optimized:expr, $reference:expr, |$o:ident, $r:ident| $crosscheck:expr) => {
+        match $mode {
+            FoldingMode::Optimized => $optimized,
+            #[cfg(feature = "paper-exact")]
+            FoldingMode::PaperExact => $reference,
+            #[cfg(feature = "paper-exact")]
+            FoldingMode::OptimizedWithCrosscheck => {
+                let $o = $optimized;
+                let $r = $reference;
+                $crosscheck
+            }
+        }
+    };
+}
+
 #[cfg(feature = "paper-exact")]
 fn require_rlc_crosscheck(
     optimized: (CeClaim<Cmt, F, K>, Mat<F>),
@@ -74,12 +92,10 @@ pub fn rlc_with_commit(
     validate_rlc_refs("rlc_with_commit", s, params, rhos, me_inputs, &z_refs, ell_d)?;
     let rho_mats = crate::common::rot_rhos_to_mats(rhos);
 
-    let (out, Z_mix) = match mode {
-        FoldingMode::Optimized => {
-            OptimizedRlcDec::rlc_with_commit(s, params, &rho_mats, me_inputs, Zs, ell_d, mix_commits)
-        }
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::PaperExact => crate::engines::paper_exact_engine::rlc_reduction_paper_exact_with_commit_mix(
+    Ok(by_mode!(
+        mode,
+        OptimizedRlcDec::rlc_with_commit(s, params, &rho_mats, me_inputs, Zs, ell_d, mix_commits),
+        crate::engines::paper_exact_engine::rlc_reduction_paper_exact_with_commit_mix(
             s,
             params,
             &rho_mats,
@@ -88,22 +104,8 @@ pub fn rlc_with_commit(
             ell_d,
             mix_commits,
         ),
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck => {
-            let optimized = OptimizedRlcDec::rlc_with_commit(s, params, &rho_mats, me_inputs, Zs, ell_d, mix_commits);
-            let reference = crate::engines::paper_exact_engine::rlc_reduction_paper_exact_with_commit_mix(
-                s,
-                params,
-                &rho_mats,
-                me_inputs,
-                Zs,
-                ell_d,
-                mix_commits,
-            );
-            return require_rlc_crosscheck(optimized, reference);
-        }
-    };
-    Ok((out, Z_mix))
+        |optimized, reference| require_rlc_crosscheck(optimized, reference)?
+    ))
 }
 
 fn validate_rlc_refs(
@@ -157,8 +159,9 @@ pub fn rlc_with_commit_refs(
     validate_rlc_refs("rlc_with_commit_refs", s, params, rhos, me_inputs, Zs, ell_d)?;
     let rho_mats = crate::common::rot_rhos_to_mats(rhos);
 
-    let (out, Z_mix) = match mode {
-        FoldingMode::Optimized => crate::engines::optimized_engine::rlc_reduction_optimized_with_commit_mix(
+    Ok(by_mode!(
+        mode,
+        crate::engines::optimized_engine::rlc_reduction_optimized_with_commit_mix(
             s,
             params,
             &rho_mats,
@@ -167,8 +170,7 @@ pub fn rlc_with_commit_refs(
             ell_d,
             mix_commits,
         ),
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::PaperExact => {
+        {
             let owned_zs: Vec<Mat<F>> = Zs.iter().map(|z| (*z).clone()).collect();
             crate::engines::paper_exact_engine::rlc_reduction_paper_exact_with_commit_mix(
                 s,
@@ -179,32 +181,9 @@ pub fn rlc_with_commit_refs(
                 ell_d,
                 mix_commits,
             )
-        }
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck => {
-            let optimized = crate::engines::optimized_engine::rlc_reduction_optimized_with_commit_mix(
-                s,
-                params,
-                &rho_mats,
-                me_inputs,
-                Zs,
-                ell_d,
-                mix_commits,
-            );
-            let owned_zs: Vec<Mat<F>> = Zs.iter().map(|z| (*z).clone()).collect();
-            let reference = crate::engines::paper_exact_engine::rlc_reduction_paper_exact_with_commit_mix(
-                s,
-                params,
-                &rho_mats,
-                me_inputs,
-                &owned_zs,
-                ell_d,
-                mix_commits,
-            );
-            return require_rlc_crosscheck(optimized, reference);
-        }
-    };
-    Ok((out, Z_mix))
+        },
+        |optimized, reference| require_rlc_crosscheck(optimized, reference)?
+    ))
 }
 
 pub fn dec_children_with_commit<Comb>(
@@ -234,49 +213,28 @@ where
         return DecOutcome::rejected();
     }
 
-    match mode {
-        FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit(
+    by_mode!(
+        mode,
+        OptimizedRlcDec::dec_children_with_commit(
             s,
             params,
             parent,
             Z_split,
             ell_d,
             child_commitments,
-            combine_b_pows,
+            &combine_b_pows,
         ),
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
+        crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
             s,
             params,
             parent,
             Z_split,
             ell_d,
             child_commitments,
-            combine_b_pows,
+            &combine_b_pows,
         ),
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck => {
-            let optimized = OptimizedRlcDec::dec_children_with_commit(
-                s,
-                params,
-                parent,
-                Z_split,
-                ell_d,
-                child_commitments,
-                &combine_b_pows,
-            );
-            let reference = crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
-                s,
-                params,
-                parent,
-                Z_split,
-                ell_d,
-                child_commitments,
-                &combine_b_pows,
-            );
-            require_dec_crosscheck(optimized, reference)
-        }
-    }
+        |optimized, reference| require_dec_crosscheck(optimized, reference)
+    )
 }
 
 pub fn dec_children_with_commit_superneo_cached_with_digit_flags<Comb>(
@@ -311,8 +269,9 @@ where
         return DecOutcome::rejected();
     }
 
-    match mode {
-        FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit_superneo_cached_with_digit_flags(
+    by_mode!(
+        mode,
+        OptimizedRlcDec::dec_children_with_commit_superneo_cached_with_digit_flags(
             s,
             params,
             parent,
@@ -320,46 +279,21 @@ where
             digit_nonzero,
             ell_d,
             child_commitments,
-            combine_b_pows,
+            &combine_b_pows,
             superneo_cache,
             None,
         ),
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
+        crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
             s,
             params,
             parent,
             Z_split,
             ell_d,
             child_commitments,
-            combine_b_pows,
+            &combine_b_pows,
         ),
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck => {
-            let optimized = OptimizedRlcDec::dec_children_with_commit_superneo_cached_with_digit_flags(
-                s,
-                params,
-                parent,
-                Z_split,
-                digit_nonzero,
-                ell_d,
-                child_commitments,
-                &combine_b_pows,
-                superneo_cache,
-                None,
-            );
-            let reference = crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
-                s,
-                params,
-                parent,
-                Z_split,
-                ell_d,
-                child_commitments,
-                &combine_b_pows,
-            );
-            require_dec_crosscheck(optimized, reference)
-        }
-    }
+        |optimized, reference| require_dec_crosscheck(optimized, reference)
+    )
 }
 
 pub fn dec_children_with_commit_superneo_cached_from_trusted_split_digits<Comb>(
@@ -396,53 +330,30 @@ where
         return DecOutcome::rejected();
     }
 
-    match mode {
-        FoldingMode::Optimized => OptimizedRlcDec::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
+    by_mode!(
+        mode,
+        OptimizedRlcDec::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
             s,
             params,
             parent,
             split,
             ell_d,
             child_commitments,
-            combine_b_pows,
+            &combine_b_pows,
             superneo_cache,
             precomputed_openings,
         ),
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::PaperExact => crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
+        crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
             s,
             params,
             parent,
             Z_split,
             ell_d,
             child_commitments,
-            combine_b_pows,
+            &combine_b_pows,
         ),
-        #[cfg(feature = "paper-exact")]
-        FoldingMode::OptimizedWithCrosscheck => {
-            let optimized = OptimizedRlcDec::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
-                s,
-                params,
-                parent,
-                split,
-                ell_d,
-                child_commitments,
-                &combine_b_pows,
-                superneo_cache,
-                precomputed_openings,
-            );
-            let reference = crate::engines::paper_exact_engine::dec_reduction_paper_exact_with_commit_check(
-                s,
-                params,
-                parent,
-                Z_split,
-                ell_d,
-                child_commitments,
-                &combine_b_pows,
-            );
-            require_dec_crosscheck(optimized, reference)
-        }
-    }
+        |optimized, reference| require_dec_crosscheck(optimized, reference)
+    )
 }
 
 pub fn rlc_public(

@@ -12,8 +12,9 @@ frontend, `neo-wasm`.
   inside each step.
 - Nebula is the memory layer (`nightstream::nebula`, `SPEC.md` section 7).
 - Akita (ePrint 2026/1983) is the polynomial commitment scheme for the
-  compression of the final proof. The Spartan, WHIR, and shrink path was
-  removed. The compression layer over Akita is not written yet.
+  compression of the final proof (`ns-compress`, `SPEC.md` Algorithm 9,
+  `decisions/akita-compression.md`). The Spartan, WHIR, and shrink path was
+  removed.
 - The papers are in `docs/` (local only, not in git): `superneo-paper-v1_2`,
   `hypernova-paper`, and `nebula-paper`.
 

@@ -1,4 +1,5 @@
 import tests.AxiomAudit
+import NightstreamFPrime.Export.BoundedDepth.EmittedPackages
 import NightstreamFPrime.Export.BoundedDepth.VerifierSecurity
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
@@ -697,6 +698,9 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.FoldCompleteness.refresh_folds_bounded
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.accumulatorBound_succ
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.bound_le_bigB
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.EmittedPackages.inside
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.EmittedPackages.publicColumns_le_lightFresh
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.EmittedPackages.publicColumns_le_refreshFresh
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.normBounded_mono
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.Complete.packageWidth_zero
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.Complete.packageWidth_one

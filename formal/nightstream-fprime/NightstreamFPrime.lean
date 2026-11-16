@@ -156,6 +156,7 @@ import NightstreamFPrime.Export.BoundedDepth.PackedBudget
 import NightstreamFPrime.Lifecycle.BoundedDepth.BlockSupport
 import NightstreamFPrime.Lifecycle.BoundedDepth.FoldCompleteness
 import NightstreamFPrime.Export.BoundedDepth.StepExtend
+import NightstreamFPrime.Export.BoundedDepth.EmittedPackages
 import NightstreamFPrime.Export.BoundedDepth.RunCompleteness
 import NightstreamFPrime.Lifecycle.Nebula.EtaOracle
 import NightstreamFPrime.Lifecycle.Nebula.EtaRound

@@ -192,7 +192,7 @@ each head.
 | `premise` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]` |
 | `akita` | `*` | assumption | `[AKITA]` |
 | `valid.toValid.*`, `secure` | `*` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-nebula-gate-parity-v1.json`, `is_valid_and_is_secure_are_the_lean_decisions`: Rust checks rules 1 to 6 of `SPEC.md` section 7.1 on each geometry at run time, and the test compares that check with Lean's decisions. For the fixed WASM sizes Lean proves both (`Spec.Nebula.WasmSize.valid`, `Spec.Nebula.WasmSize.secure`), and `each_wasm_size_has_the_lean_geometry_and_rows` compares the geometries |
-| `valid.romWords`, `valid.ramWords` | `LT.lt` | open | Open: no Lean theorem states that each word of an emitted program image is below `2^32` |
+| `valid.romWords`, `valid.ramWords` | `LT.lt` | game | `SPEC.md` section 7.1: a program is two images of words below `2^32`, so these bounds define the statements of the game. Rust holds each image as `Vec<u32>` (`nebula::Program`), so each program that the verifier receives meets them |
 | `app.*` | `*` | open | Open: `Lifecycle.Nebula.FirstPlan.app` is the test machine. A Rust-built memory application, the WASM relation included, has no instance (Out of scope) |
 | `round` | `Export.BoundedDepth.NebulaSecurity.MemoryRound` | open | Open: trust item 6. No result derives the memory round from the assumption list |
 | `sampler.*` | `*` | game | adversary 5: the `η` sampler and its query bound |
@@ -205,7 +205,7 @@ each head.
 | `premises.layout` | `And` | open | Open: `layout_new_is_lean_layout_new_on_each_claim_set` compares Rust `Layout::new` with the Lean model on recorded claim sets, and `Spec.Compression.Rust.layoutNew_production` gives the bounds of the model. No theorem gives `spanVars ≤ 27`, and no theorem joins the layout of the setup to the model |
 | `premises.represents` | `Spec.Compression.Claim.Represents` | open | Open: no Lean result states `Represents` for the dense rows of a package (trust item 7) |
 | `premises.support` | `LE.le` | open | Open: no Lean result bounds the blocks of a claim by the blocks of its package (trust item 7) |
-| `depthBound` | `LE.le` | open | Open: no result bounds the iteration of an accepted statement. The bound is a parameter of the result |
+| `depthBound` | `LE.le` | game | adversary 4: the result bounds the error over the stages below a bound `depth` on the iteration of the adversary's statements, so `depth` is a parameter of the adversary class, and the error grows with it. The final-proof results of adversary 6 take the same parameter |
 | `Encodings/same`, `Encodings/equal`, `Encodings/different` | `*` | game | `SPEC.md` section 4: the event of each encoding claim is two inputs with one digest or one block list |
 | `Encodings/leftWell.*`, `Encodings/rightWell.*` | `*` | game | `SPEC.md` section 4.2: the two states are well formed |
 | `Encodings/leftCanonical`, `Encodings/rightCanonical` | `*` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-encoding-parity-v1.json`, `the_identity_words_are_the_lean_words`: Rust makes the words of Lean, and it refuses a stream with a word at or above `q` (`a_word_at_or_above_q_is_refused`) |

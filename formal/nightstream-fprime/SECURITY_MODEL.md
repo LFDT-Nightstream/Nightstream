@@ -947,7 +947,13 @@ not change terminal source checks.
    meets the success event (`Lifecycle.BoundedDepth.RandomOracle.Honest.light_honest`,
    `Lifecycle.BoundedDepth.RandomOracle.Honest.refresh_honest`). One fixed oracle
    carries no probability, so this does not prove the premise for the
-   concrete hash; it gives the value of `error` that the premise asks for.
+   concrete hash. The two adversaries also have different types. A
+   random-oracle attempt is a pair of an oracle and a walk attempt
+   (`Lifecycle.BoundedDepth.RandomOracle.RomModel.RomAttempt`), and the IVC
+   adversary has no oracle (`Spec.HyperNova.ReverseStages.IvcAdversary`),
+   because the step circuits evaluate the fixed permutation. So `romError`
+   bounds the same events in another experiment, and no theorem gives the
+   `error` of the premise from it.
    Lean has no random-oracle closure premise, because the query bound of a
    stage grows with its depth. The sum has
    one Assumption 1 error for each stage of the reverse extractor, which is

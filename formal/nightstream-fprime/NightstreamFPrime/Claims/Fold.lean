@@ -24,8 +24,9 @@ Completeness and knowledge of the two folds of the bounded-depth scheme.
 - `light_extracts` and `refresh_extracts` also take `strongSet`, the units of the strong
   sampling set. It returns data, so the premise list does not show it.
   `Claims.Foundations.low_norm_invertible` is the result behind it.
-- Open: no theorem joins `assumption1_in_random_oracle_model` to the bounds of `Claims.Ivc`,
-  which take HyperNova errata Assumption 1 as a premise (`SECURITY_MODEL.md` trust item 3). -/
+- `assumption1_in_random_oracle_model` does not give the premise of the bounds of `Claims.Ivc`.
+  Its adversary queries a uniform oracle. The IVC adversary has no oracle, because the step
+  circuits evaluate the fixed Poseidon2 permutation (`SECURITY_MODEL.md` trust item 3). -/
 
 namespace NightstreamFPrime.Claims.Fold
 

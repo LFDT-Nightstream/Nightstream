@@ -84,10 +84,19 @@ impl PlanRows {
     }
 
     pub fn evaluate(&self, row: usize, port: usize, columns: &[Fq]) -> Fq {
-        self.port(row, port)
-            .fold(Fq::ZERO, |sum, (column, coefficient)| {
-                sum + coefficient * columns[column]
-            })
+        Fq::sum_of_products(
+            self.port(row, port)
+                .map(|(column, coefficient)| (coefficient, columns[column])),
+        )
+    }
+
+    /// The entry of port `port` of `row` when the port has exactly one.
+    pub fn single(&self, row: usize, port: usize) -> Option<(usize, Fq)> {
+        let slot = PORTS * row + port;
+        (self.offsets[slot + 1] == self.offsets[slot] + 1).then(|| {
+            let index = self.offsets[slot];
+            (self.columns[index] as usize, self.coefficients[index])
+        })
     }
 
     /// The row's constraint `A * B - C + S^7` on `columns`.

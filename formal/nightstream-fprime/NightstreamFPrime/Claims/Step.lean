@@ -33,7 +33,7 @@ theorem light_sound
         program.valid state witness → control state witness = 0)
     (firstFresh : ℕ)
     (width : ℕ)
-    (fits : CircuitRelation.Fits CircuitRelation.publicColumns
+    (fitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns
         (CircuitRelation.pieces
           (LightAssemblerCircuit.stepCircuit program StepRelation.base relation 0 ajtai)
           (LightAssembler.sharedEnd StepRelation.base program.witnessWordCount)
@@ -49,7 +49,7 @@ theorem light_sound
               (LightAssemblerCircuit.stepCircuit program StepRelation.base relation 0 ajtai)
               (LightAssembler.sharedEnd StepRelation.base program.witnessWordCount)
               (StepRelation.lightDigestColumn program))
-            firstFresh width fits layout).RowsZero
+            firstFresh width fitsPackage layout).RowsZero
         assignment)
     (running : Fin 2 → SlotData logicalWidth publicFits)
     (others : StepRelation.OtherDigest program running
@@ -65,7 +65,7 @@ theorem light_sound
         (StepRelation.lightOutput program relation 0 running env).x =
           List.ofFn (n := 4) fun (word : Fin 4) => List.getD digest (↑word) 0 :=
   @Export.BoundedDepth.StepRelation.light_stepHolds logicalWidth publicFits program relation ajtai
-    circuitKeys step control stepEq validControl firstFresh width fits layout assignment digest
+    circuitKeys step control stepEq validControl firstFresh width fitsPackage layout assignment digest
     encoded rowsZero running others
 
 /-- A satisfying assignment of the refresh circuit's logical relation whose public input
@@ -85,7 +85,7 @@ theorem refresh_sound
         program.valid state witness → control state witness = 1)
     (firstFresh : ℕ)
     (width : ℕ)
-    (fits : CircuitRelation.Fits CircuitRelation.publicColumns
+    (fitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns
         (CircuitRelation.pieces
           (RefreshAssemblerCircuit.stepCircuit program StepRelation.base relation 1 ajtai)
           (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount)
@@ -101,7 +101,7 @@ theorem refresh_sound
               (RefreshAssemblerCircuit.stepCircuit program StepRelation.base relation 1 ajtai)
               (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount)
               (StepRelation.refreshDigestColumn program))
-            firstFresh width fits layout).RowsZero
+            firstFresh width fitsPackage layout).RowsZero
         assignment) :
     have env := StepRelation.refreshEnv program relation ajtai firstFresh layout assignment;
       BoundedDepth.StepHolds Folding.Schedule.productionLightFoldCap ajtai
@@ -114,7 +114,7 @@ theorem refresh_sound
         (StepRelation.refreshOutput program relation 1 env).x =
           List.ofFn (n := 4) fun (word : Fin 4) => List.getD digest (↑word) 0 :=
   @Export.BoundedDepth.StepRelation.refresh_stepHolds logicalWidth publicFits program relation
-    ajtai circuitKeys step control stepEq validControl firstFresh width fits layout assignment
+    ajtai circuitKeys step control stepEq validControl firstFresh width fitsPackage layout assignment
     digest encoded rowsZero
 
 /-- An honest light step's assignment (`LightAssemblerCompleteness.complete`) gives a fresh
@@ -136,7 +136,7 @@ theorem light_complete
           (LightAssembler.sharedEnd StepRelation.base program.witnessWordCount)))
     (represents : LightStepSoundness.StepRepresents program (StepRelation.lightInterface program) ajtai
         circuitKeys 0 input output proof env)
-    (free : StepCompleteness.publicFree
+    (readsNoPublicColumn : StepCompleteness.publicFree
           (Circuit.flatConstraints
             ((LightAssemblerCircuit.stepCircuit program StepRelation.base relation 0
                     ajtai).main.ops
@@ -144,17 +144,17 @@ theorem light_complete
         true)
     (firstFresh : ℕ)
     (width : ℕ)
-    (fits : CircuitRelation.Fits CircuitRelation.publicColumns
+    (fitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns
         (StepCompleteness.lightPieces program relation ajtai) firstFresh width)
-    (packed : CircuitRelation.packable CircuitRelation.publicColumns
+    (blocksPack : CircuitRelation.packable CircuitRelation.publicColumns
           (StepCompleteness.lightPieces program relation ajtai) =
         true)
-    (below : (StepCompleteness.lightPieces program relation ajtai).all
+    (readsOwnColumns : (StepCompleteness.lightPieces program relation ajtai).all
           (PieceRowsCompleteness.pieceBelow firstFresh) =
         true)
     (publicBelow : CircuitRelation.publicColumns ≤ firstFresh)
     (batches : List Circuit.WitnessBatch)
-    (wideFits : Layout.ProductionAssignment.logicalWidth
+    (fitsKeyWidth : Layout.ProductionAssignment.logicalWidth
           (SlotLayout.runSlots width
             (StepPackage.slotRuns CircuitRelation.publicColumns
               (StepCompleteness.lightPieces program relation ajtai) firstFresh batches)) ≤
@@ -164,14 +164,14 @@ theorem light_complete
         CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
             (freshStatement
               ((CircuitRelation.plan CircuitRelation.publicColumns
-                    (StepCompleteness.lightPieces program relation ajtai) firstFresh width fits
+                    (StepCompleteness.lightPieces program relation ajtai) firstFresh width fitsPackage
                     (WideLayout.widen
                       (SlotLayout.layout
                         (SlotLayout.runSlots width
                           (StepPackage.slotRuns CircuitRelation.publicColumns
                             (StepCompleteness.lightPieces program relation ajtai) firstFresh
                             batches)))
-                      wideFits)).logicalRelation
+                      fitsKeyWidth)).logicalRelation
                 cubeFits)
               {
                 commitments := fun (_ : Fin productionShape.freshCount) =>
@@ -187,8 +187,8 @@ theorem light_complete
                 ↑column →
               RingCarrierLayout.extendAssignment 0 assignment column = 0 :=
   @Export.BoundedDepth.StepCompleteness.light_complete logicalWidth publicFits program relation
-    ajtai circuitKeys input output proof env holds represents free firstFresh width fits packed
-    below publicBelow batches wideFits cubeFits
+    ajtai circuitKeys input output proof env holds represents readsNoPublicColumn firstFresh width fitsPackage blocksPack
+    readsOwnColumns publicBelow batches fitsKeyWidth cubeFits
 
 /-- An honest refresh step's assignment (`RefreshAssemblerCompleteness.complete`) gives a fresh
 instance with public input `encHash` of the step's output hash that holds under the refresh key,
@@ -209,7 +209,7 @@ theorem refresh_complete
           (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount)))
     (represents : RefreshStepSoundness.StepRepresents program (StepRelation.refreshInterface program) ajtai
         circuitKeys 1 input output proof env)
-    (free : StepCompleteness.publicFree
+    (readsNoPublicColumn : StepCompleteness.publicFree
           (Circuit.flatConstraints
             ((RefreshAssemblerCircuit.stepCircuit program StepRelation.base relation 1
                     ajtai).main.ops
@@ -217,17 +217,17 @@ theorem refresh_complete
         true)
     (firstFresh : ℕ)
     (width : ℕ)
-    (fits : CircuitRelation.Fits CircuitRelation.publicColumns
+    (fitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns
         (StepCompleteness.refreshPieces program relation ajtai) firstFresh width)
-    (packed : CircuitRelation.packable CircuitRelation.publicColumns
+    (blocksPack : CircuitRelation.packable CircuitRelation.publicColumns
           (StepCompleteness.refreshPieces program relation ajtai) =
         true)
-    (below : (StepCompleteness.refreshPieces program relation ajtai).all
+    (readsOwnColumns : (StepCompleteness.refreshPieces program relation ajtai).all
           (PieceRowsCompleteness.pieceBelow firstFresh) =
         true)
     (publicBelow : CircuitRelation.publicColumns ≤ firstFresh)
     (batches : List Circuit.WitnessBatch)
-    (wideFits : Layout.ProductionAssignment.logicalWidth
+    (fitsKeyWidth : Layout.ProductionAssignment.logicalWidth
           (SlotLayout.runSlots width
             (StepPackage.slotRuns CircuitRelation.publicColumns
               (StepCompleteness.refreshPieces program relation ajtai) firstFresh batches)) ≤
@@ -237,14 +237,14 @@ theorem refresh_complete
         CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
             (freshStatement
               ((CircuitRelation.plan CircuitRelation.publicColumns
-                    (StepCompleteness.refreshPieces program relation ajtai) firstFresh width fits
+                    (StepCompleteness.refreshPieces program relation ajtai) firstFresh width fitsPackage
                     (WideLayout.widen
                       (SlotLayout.layout
                         (SlotLayout.runSlots width
                           (StepPackage.slotRuns CircuitRelation.publicColumns
                             (StepCompleteness.refreshPieces program relation ajtai) firstFresh
                             batches)))
-                      wideFits)).logicalRelation
+                      fitsKeyWidth)).logicalRelation
                 cubeFits)
               {
                 commitments := fun (_ : Fin productionShape.freshCount) =>
@@ -261,7 +261,7 @@ theorem refresh_complete
                 ↑column →
               RingCarrierLayout.extendAssignment 0 assignment column = 0 :=
   @Export.BoundedDepth.StepCompleteness.refresh_complete logicalWidth publicFits program relation
-    ajtai circuitKeys input output proof env holds represents free firstFresh width fits packed
-    below publicBelow batches wideFits cubeFits
+    ajtai circuitKeys input output proof env holds represents readsNoPublicColumn firstFresh width fitsPackage blocksPack
+    readsOwnColumns publicBelow batches fitsKeyWidth cubeFits
 
 end NightstreamFPrime.Claims.Step

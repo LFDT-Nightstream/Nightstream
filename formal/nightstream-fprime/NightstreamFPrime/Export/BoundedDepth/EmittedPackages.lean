@@ -87,35 +87,45 @@ of the bundle unfolds the operations of a circuit. `Emitted` fixes them to the e
 
 variable (lightFresh refreshFresh : Nat) (lightBatches refreshBatches : List WitnessBatch)
 
-/-- The facts of the two packages of `program` that Lean does not prove. `lightFits` and
-`refreshFits` bound the rows, the columns and the Poseidon2 blocks of each package. `lightWide`
-and `refreshWide` bound its slot layout by the key width. The emitter checks `lightPacked`,
-`lightBelow` and `lightFree`, and their refresh forms, before it writes a package. -/
+/-- The facts of the two packages of `program` that Lean does not prove. The emitter checks the
+three facts `BlocksPack`, `ReadsOwnColumns` and `ReadsNoPublicColumn` of each package before it
+writes the package. It prints the sizes of `FitsPackage` but does not check them. -/
 structure Facts where
-  lightFits : CircuitRelation.Fits CircuitRelation.publicColumns (lightPieces program relation ajtai)
-    lightFresh sourceWidth
-  refreshFits : CircuitRelation.Fits CircuitRelation.publicColumns
+  /-- The rows, the columns and the Poseidon2 blocks of the light package fit its size. -/
+  lightFitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns
+    (lightPieces program relation ajtai) lightFresh sourceWidth
+  /-- The rows, the columns and the Poseidon2 blocks of the refresh package fit its size. -/
+  refreshFitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns
     (refreshPieces program relation ajtai) refreshFresh sourceWidth
-  lightWide : ProductionAssignment.logicalWidth (SlotLayout.runSlots sourceWidth
+  /-- The slot layout of the light package fits the key width. -/
+  lightFitsKeyWidth : ProductionAssignment.logicalWidth (SlotLayout.runSlots sourceWidth
     (StepPackage.slotRuns CircuitRelation.publicColumns (lightPieces program relation ajtai)
       lightFresh lightBatches)) ≤ logicalWidth
-  refreshWide : ProductionAssignment.logicalWidth (SlotLayout.runSlots sourceWidth
+  /-- The slot layout of the refresh package fits the key width. -/
+  refreshFitsKeyWidth : ProductionAssignment.logicalWidth (SlotLayout.runSlots sourceWidth
     (StepPackage.slotRuns CircuitRelation.publicColumns (refreshPieces program relation ajtai)
       refreshFresh refreshBatches)) ≤ logicalWidth
-  lightPacked :
+  /-- The Poseidon2 blocks of the light package pack into its S-box columns. -/
+  lightBlocksPack :
     CircuitRelation.packable CircuitRelation.publicColumns (lightPieces program relation ajtai) =
       true
-  refreshPacked :
+  /-- The Poseidon2 blocks of the refresh package pack into its S-box columns. -/
+  refreshBlocksPack :
     CircuitRelation.packable CircuitRelation.publicColumns (refreshPieces program relation ajtai) =
       true
-  lightBelow : (lightPieces program relation ajtai).all
+  /-- Each piece of the light package reads only columns before its first fresh column. -/
+  lightReadsOwnColumns : (lightPieces program relation ajtai).all
     (PieceRowsCompleteness.pieceBelow lightFresh) = true
-  refreshBelow : (refreshPieces program relation ajtai).all
+  /-- Each piece of the refresh package reads only columns before its first fresh
+    column. -/
+  refreshReadsOwnColumns : (refreshPieces program relation ajtai).all
     (PieceRowsCompleteness.pieceBelow refreshFresh) = true
-  lightFree : publicFree (flatConstraints (Circuit.ops
+  /-- No row of the light circuit reads a public column. -/
+  lightReadsNoPublicColumn : publicFree (flatConstraints (Circuit.ops
     (LightAssemblerCircuit.stepCircuit program StepRelation.base relation 0 ajtai).main
     (LightAssembler.sharedEnd StepRelation.base program.witnessWordCount))) = true
-  refreshFree : publicFree (flatConstraints (Circuit.ops
+  /-- No row of the refresh circuit reads a public column. -/
+  refreshReadsNoPublicColumn : publicFree (flatConstraints (Circuit.ops
     (RefreshAssemblerCircuit.stepCircuit program StepRelation.base relation 1 ajtai).main
     (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount))) = true
 
@@ -125,13 +135,13 @@ variable {program relation ajtai lightFresh refreshFresh lightBatches refreshBat
 def Facts.lightLayout
     (facts : Facts program relation ajtai lightFresh refreshFresh lightBatches refreshBatches) :
     LogicalPlan.Layout sourceWidth logicalWidth :=
-  WideLayout.widen (SlotLayout.layout _) facts.lightWide
+  WideLayout.widen (SlotLayout.layout _) facts.lightFitsKeyWidth
 
 /-- The slot layout of the refresh package, widened to the key width. -/
 def Facts.refreshLayout
     (facts : Facts program relation ajtai lightFresh refreshFresh lightBatches refreshBatches) :
     LogicalPlan.Layout sourceWidth logicalWidth :=
-  WideLayout.widen (SlotLayout.layout _) facts.refreshWide
+  WideLayout.widen (SlotLayout.layout _) facts.refreshFitsKeyWidth
 
 variable {circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits}
   {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
@@ -140,10 +150,10 @@ variable {circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits}
 def Facts.exports
     (facts : Facts program relation ajtai lightFresh refreshFresh lightBatches refreshBatches)
     (lightKey : (circuitKeys 0).relation =
-      (CircuitRelation.plan _ _ lightFresh sourceWidth facts.lightFits
+      (CircuitRelation.plan _ _ lightFresh sourceWidth facts.lightFitsPackage
         facts.lightLayout).logicalRelation (publicFits := publicFits) cubeFits)
     (refreshKey : (circuitKeys 1).relation =
-      (CircuitRelation.plan _ _ refreshFresh sourceWidth facts.refreshFits
+      (CircuitRelation.plan _ _ refreshFresh sourceWidth facts.refreshFitsPackage
         facts.refreshLayout).logicalRelation (publicFits := publicFits) cubeFits) :
     TerminalBridge.Exports relation ajtai circuitKeys program.step cubeFits where
   program := program
@@ -152,8 +162,8 @@ def Facts.exports
   refreshFresh := refreshFresh
   lightWidth := sourceWidth
   refreshWidth := sourceWidth
-  lightFits := facts.lightFits
-  refreshFits := facts.refreshFits
+  lightFitsPackage := facts.lightFitsPackage
+  refreshFitsPackage := facts.refreshFitsPackage
   lightLayout := facts.lightLayout
   refreshLayout := facts.refreshLayout
   lightInside := inside
@@ -166,28 +176,28 @@ public columns. -/
 def Facts.complete
     (facts : Facts program relation ajtai lightFresh refreshFresh lightBatches refreshBatches)
     (lightKey : (circuitKeys 0).relation =
-      (CircuitRelation.plan _ _ lightFresh sourceWidth facts.lightFits
+      (CircuitRelation.plan _ _ lightFresh sourceWidth facts.lightFitsPackage
         facts.lightLayout).logicalRelation (publicFits := publicFits) cubeFits)
     (refreshKey : (circuitKeys 1).relation =
-      (CircuitRelation.plan _ _ refreshFresh sourceWidth facts.refreshFits
+      (CircuitRelation.plan _ _ refreshFresh sourceWidth facts.refreshFitsPackage
         facts.refreshLayout).logicalRelation (publicFits := publicFits) cubeFits)
     (lightPublicBelow : CircuitRelation.publicColumns ≤ lightFresh)
     (refreshPublicBelow : CircuitRelation.publicColumns ≤ refreshFresh) :
     StepExtend.Complete (facts.exports lightKey refreshKey) where
   lightBatches := lightBatches
-  lightWide := facts.lightWide
+  lightFitsKeyWidth := facts.lightFitsKeyWidth
   lightLayout := by dsimp only [Facts.exports]; rfl
-  lightPacked := facts.lightPacked
-  lightBelow := facts.lightBelow
+  lightBlocksPack := facts.lightBlocksPack
+  lightReadsOwnColumns := facts.lightReadsOwnColumns
   lightPublicBelow := lightPublicBelow
-  lightFree := facts.lightFree
+  lightReadsNoPublicColumn := facts.lightReadsNoPublicColumn
   refreshBatches := refreshBatches
-  refreshWide := facts.refreshWide
+  refreshFitsKeyWidth := facts.refreshFitsKeyWidth
   refreshLayout := by dsimp only [Facts.exports]; rfl
-  refreshPacked := facts.refreshPacked
-  refreshBelow := facts.refreshBelow
+  refreshBlocksPack := facts.refreshBlocksPack
+  refreshReadsOwnColumns := facts.refreshReadsOwnColumns
   refreshPublicBelow := refreshPublicBelow
-  refreshFree := facts.refreshFree
+  refreshReadsNoPublicColumn := facts.refreshReadsNoPublicColumn
 
 end Bundle
 
@@ -203,10 +213,10 @@ variable {program relation ajtai}
 public columns (`publicColumns_le_lightFresh`, `publicColumns_le_refreshFresh`). -/
 def Emitted.complete (facts : Emitted program relation ajtai)
     (lightKey : (circuitKeys 0).relation =
-      (CircuitRelation.plan _ _ (lightFresh program relation) sourceWidth facts.lightFits
+      (CircuitRelation.plan _ _ (lightFresh program relation) sourceWidth facts.lightFitsPackage
         facts.lightLayout).logicalRelation (publicFits := publicFits) cubeFits)
     (refreshKey : (circuitKeys 1).relation =
-      (CircuitRelation.plan _ _ (refreshFresh program relation) sourceWidth facts.refreshFits
+      (CircuitRelation.plan _ _ (refreshFresh program relation) sourceWidth facts.refreshFitsPackage
         facts.refreshLayout).logicalRelation (publicFits := publicFits) cubeFits) :
     StepExtend.Complete (facts.exports lightKey refreshKey) :=
   Facts.complete facts lightKey refreshKey (publicColumns_le_lightFresh program relation)

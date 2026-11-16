@@ -274,22 +274,22 @@ theorem light_complete (relation : ProductionKey.LogicalRelation logicalWidth pu
     (represents : LightStepSoundness.StepRepresents program
       (StepRelation.lightInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       ajtai circuitKeys 0 input output proof env)
-    (free : publicFree (flatConstraints (Circuit.ops
+    (readsNoPublicColumn : publicFree (flatConstraints (Circuit.ops
       (LightAssemblerCircuit.stepCircuit program StepRelation.base relation 0 ajtai).main
       (LightAssembler.sharedEnd StepRelation.base program.witnessWordCount))) = true)
     (firstFresh width : Nat)
-    (fits : Fits publicColumns (lightPieces program relation ajtai) firstFresh width)
-    (packed : packable publicColumns (lightPieces program relation ajtai) = true)
-    (below : (lightPieces program relation ajtai).all (pieceBelow firstFresh) = true)
+    (fitsPackage : Fits publicColumns (lightPieces program relation ajtai) firstFresh width)
+    (blocksPack : packable publicColumns (lightPieces program relation ajtai) = true)
+    (readsOwnColumns : (lightPieces program relation ajtai).all (pieceBelow firstFresh) = true)
     (publicBelow : publicColumns ≤ firstFresh) (batches : List WitnessBatch)
-    (wideFits : ProductionAssignment.logicalWidth (SlotLayout.runSlots width
+    (fitsKeyWidth : ProductionAssignment.logicalWidth (SlotLayout.runSlots width
       (StepPackage.slotRuns publicColumns (lightPieces program relation ajtai) firstFresh batches)) ≤
         logicalWidth)
     (cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables) :
     ∃ assignment : Assignment F logicalWidth,
       CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
-        (freshStatement ((CircuitRelation.plan publicColumns _ firstFresh width fits
-            (WideLayout.widen (SlotLayout.layout _) wideFits)).logicalRelation
+        (freshStatement ((CircuitRelation.plan publicColumns _ firstFresh width fitsPackage
+            (WideLayout.widen (SlotLayout.layout _) fitsKeyWidth)).logicalRelation
               (publicFits := publicFits) cubeFits)
           { commitments := fun _ => RingRelation.PiRLCAlgebra.Commitment.commit ajtai
               (RingCarrierLayout.extendAssignment 0 assignment)
@@ -301,8 +301,8 @@ theorem light_complete (relation : ProductionKey.LogicalRelation logicalWidth pu
             batches)) ≤ column.val →
         RingCarrierLayout.extendAssignment 0 assignment column = 0 :=
   fresh_complete _ _ _ env holds output.x (digest_getD represents.outputDigest)
-    (digestColumn_above program) free firstFresh width fits packed below publicBelow batches
-    wideFits cubeFits ajtai
+    (digestColumn_above program) readsNoPublicColumn firstFresh width fitsPackage blocksPack readsOwnColumns publicBelow batches
+    fitsKeyWidth cubeFits ajtai
 
 /-- An honest refresh step's assignment (`RefreshAssemblerCompleteness.complete`) gives a fresh
 instance with public input `encHash` of the step's output hash that holds under the refresh key,
@@ -318,22 +318,22 @@ theorem refresh_complete (relation : ProductionKey.LogicalRelation logicalWidth 
     (represents : RefreshStepSoundness.StepRepresents program
       (StepRelation.refreshInterface (logicalWidth := logicalWidth) (publicFits := publicFits)
         program) ajtai circuitKeys 1 input output proof env)
-    (free : publicFree (flatConstraints (Circuit.ops
+    (readsNoPublicColumn : publicFree (flatConstraints (Circuit.ops
       (RefreshAssemblerCircuit.stepCircuit program StepRelation.base relation 1 ajtai).main
       (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount))) = true)
     (firstFresh width : Nat)
-    (fits : Fits publicColumns (refreshPieces program relation ajtai) firstFresh width)
-    (packed : packable publicColumns (refreshPieces program relation ajtai) = true)
-    (below : (refreshPieces program relation ajtai).all (pieceBelow firstFresh) = true)
+    (fitsPackage : Fits publicColumns (refreshPieces program relation ajtai) firstFresh width)
+    (blocksPack : packable publicColumns (refreshPieces program relation ajtai) = true)
+    (readsOwnColumns : (refreshPieces program relation ajtai).all (pieceBelow firstFresh) = true)
     (publicBelow : publicColumns ≤ firstFresh) (batches : List WitnessBatch)
-    (wideFits : ProductionAssignment.logicalWidth (SlotLayout.runSlots width
+    (fitsKeyWidth : ProductionAssignment.logicalWidth (SlotLayout.runSlots width
       (StepPackage.slotRuns publicColumns (refreshPieces program relation ajtai) firstFresh
         batches)) ≤ logicalWidth)
     (cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables) :
     ∃ assignment : Assignment F logicalWidth,
       CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
-        (freshStatement ((CircuitRelation.plan publicColumns _ firstFresh width fits
-            (WideLayout.widen (SlotLayout.layout _) wideFits)).logicalRelation
+        (freshStatement ((CircuitRelation.plan publicColumns _ firstFresh width fitsPackage
+            (WideLayout.widen (SlotLayout.layout _) fitsKeyWidth)).logicalRelation
               (publicFits := publicFits) cubeFits)
           { commitments := fun _ => RingRelation.PiRLCAlgebra.Commitment.commit ajtai
               (RingCarrierLayout.extendAssignment 0 assignment)
@@ -345,8 +345,8 @@ theorem refresh_complete (relation : ProductionKey.LogicalRelation logicalWidth 
             batches)) ≤ column.val →
         RingCarrierLayout.extendAssignment 0 assignment column = 0 :=
   fresh_complete _ _ _ env holds output.x (digest_getD represents.outputDigest)
-    (digestColumn_above program) free firstFresh width fits packed below publicBelow batches
-    wideFits cubeFits ajtai
+    (digestColumn_above program) readsNoPublicColumn firstFresh width fitsPackage blocksPack readsOwnColumns publicBelow batches
+    fitsKeyWidth cubeFits ajtai
 
 end Steps
 

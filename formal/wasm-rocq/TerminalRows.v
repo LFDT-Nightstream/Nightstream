@@ -12,6 +12,7 @@ Open Scope Z_scope.
 Lemma terminal_control_row : forall program s baseDepth cursor root f initial final row inner caller,
   store_FUNCS s = program -> wf_store s -> programValidated program s ->
   fieldPrime -> programLoaded program initial -> tablesLoaded s initial -> FullRelation.satFull row ->
+  boundedMemoryEvents (eventsForRow memories row) ->
   Replay initial (eventsForRow memories row) final -> terminalRow row -> row COL_HOST_FRAME_DEPTH_BEFORE = baseDepth -> wf_frame caller ->
   functionAt program root = Some f -> cursorRoot cursor = root ->
   ControlState program s baseDepth cursor initial (beforeBoundary row) inner ->
@@ -19,7 +20,7 @@ Lemma terminal_control_row : forall program s baseDepth cursor root f initial fi
     TerminalConfig program root s caller row outcome c1.
 Proof.
   intros program s baseDepth [stack position] root base initial final row inner caller Hstore Hwf Hvalid Hprime
-    Hloaded Htables Hfull Hreplay [Hprogram Hfinish] Hhost Hcaller Hroot Hindex
+    Hloaded Htables Hfull HmemoryBounds Hreplay [Hprogram Hfinish] Hhost Hcaller Hroot Hindex
     [f [active [Hf [Hstate [Hsusp [Hbase0 [Hdepth ->]]]]]]].
   cbn [activePosition suspendedCalls] in Hf, Hstate, Hsusp, Hdepth.
   cbn [beforeBoundary boundaryCallDepth boundaryLocalsBase] in Hsusp, Hdepth.
@@ -72,7 +73,7 @@ Proof.
       exists trapped, (mk_config (mk_state s caller) [admininstr_TRAP]).
       split; [exact Hsteps | ]. split; [exact Hfinish | ]. split; [exact Htrap | reflexivity].
     + destruct (resolve_trap_row program s stack view f x y initial final row active caller
-        (N.of_nat (guestResults base)) Hstore Hwf Hvalid Hprime Hloaded Htables Hfull Hprogram Hfinish Hreplay
+        (N.of_nat (guestResults base)) Hstore Hwf Hvalid Hprime Hloaded Htables Hfull HmemoryBounds Hprogram Hfinish Hreplay
         Hcaller Hstate Hf Hi Hsusp) as [Htrap Hsteps].
       exists trapped, (mk_config (mk_state s caller) [admininstr_TRAP]).
       split; [exact Hsteps | ]. split; [exact Hfinish | ]. split; [exact Htrap | reflexivity].

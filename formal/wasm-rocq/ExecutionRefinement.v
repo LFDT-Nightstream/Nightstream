@@ -114,10 +114,12 @@ Proof.
       rewrite (running_host_depth_preserved baseDepth prefix boundary Hprime (proj1 HrunPrefix)
         (proj1 (proj2 HrunPrefix)) (prefix_starts_at _ _ _ Hstart) Hprefix). exact Hhost. }
     rewrite Hboundary in Hstate'.
+    assert (HmemoryBounds : boundedMemoryEvents (eventsForRow memories row))
+      by (eapply valid_run_memory_bounds; [exact HrunRow | left; reflexivity]).
     destruct HrunRow as [Hsat [_ [Hreplay _]]].
     cbn [eventsForTrace flat_map] in Hreplay. rewrite app_nil_r in Hreplay.
     destruct (terminal_control_row program s baseDepth cursor' root f middle final row inner' caller Hstore Hwf Hvalid
-      Hprime HloadedMiddle (run_preserves_tables _ _ _ _ _ Hprime Hloaded HrunPrefix Htables) (Forall_inv Hsat) Hreplay Hterminal HhostRow Hcaller Hroot ltac:(congruence) Hstate')
+      Hprime HloadedMiddle (run_preserves_tables _ _ _ _ _ Hprime Hloaded HrunPrefix Htables) (Forall_inv Hsat) HmemoryBounds Hreplay Hterminal HhostRow Hcaller Hroot ltac:(congruence) Hstate')
       as [outcome [c1 [HterminalSteps HterminalConfig]]].
     exists outcome, c1. split.
     + eapply spec_steps_transitive; [apply steps_in_call_frame; eassumption | exact HterminalSteps].

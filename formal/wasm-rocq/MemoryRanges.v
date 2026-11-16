@@ -270,6 +270,88 @@ Proof.
  finish_memory_repair COL_GLOBAL_INDEX ([] : list SparseRow).
 Qed.
 
+Lemma full_br_table_len_memory_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
+ rangeObligation w (COL_BR_TABLE_LEN, Repairable 32%nat).
+Proof.
+ start_memory_repair COL_BR_TABLE_LEN.
+ memory_value_inactive COL_BR_TABLE_LEN COL_SEL_BR_TABLE.
+ finish_memory_repair COL_BR_TABLE_LEN [[(COL_SEL_BR_TABLE,1)]].
+Qed.
+
+Lemma full_table_size_memory_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
+ rangeObligation w (COL_TABLE_SIZE, Repairable 32%nat).
+Proof.
+ start_memory_repair COL_TABLE_SIZE.
+ memory_value_inactive COL_TABLE_SIZE COL_TABLE_SIZE_READ_ENABLED.
+ circuit_boolean COL_SEL_TABLE_SIZE Bsize.
+ circuit_boolean COL_SEL_TABLE_GET Bget.
+ circuit_boolean COL_SEL_TABLE_SET Bset.
+ circuit_boolean COL_SEL_CALL_INDIRECT_RESOLVE Bresolve.
+ circuit_row ([(COL_TABLE_SIZE_READ_ENABLED,1); (COL_SEL_TABLE_SIZE,-1); (COL_SEL_TABLE_GET,-1);
+   (COL_SEL_TABLE_SET,-1); (COL_SEL_CALL_INDIRECT_RESOLVE,-1)], [(COL_ONE,1)], ([] : SparseRow)) Hr.
+ assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+ expand_row Hr. rewrite Hone in Hr.
+ assert (Hoff : w COL_SEL_TABLE_SIZE = 0 /\ w COL_SEL_TABLE_GET = 0 /\
+   w COL_SEL_TABLE_SET = 0 /\ w COL_SEL_CALL_INDIRECT_RESOLVE = 0)
+   by (repeat match goal with H : w _ = 0 |- _ => rewrite H in Hr end; field_linear Hr).
+ destruct Hoff as [Hsize [Hget [Hset Hresolve]]].
+ finish_memory_repair COL_TABLE_SIZE
+   [[(COL_SEL_TABLE_SIZE,1)]; [(COL_SEL_TABLE_GET,1); (COL_SEL_TABLE_SET,1); (COL_SEL_CALL_INDIRECT_RESOLVE,1)]].
+Qed.
+
+Ltac local_writes_inactive :=
+ let Bset := fresh "Bset" in let Btee := fresh "Btee" in let Hr := fresh "Hr" in
+ circuit_boolean COL_SEL_LOCAL_SET Bset;
+ circuit_boolean COL_SEL_LOCAL_TEE Btee;
+ circuit_row ([(COL_LOCAL_WRITE_ENABLED,1); (COL_SEL_LOCAL_SET,-1); (COL_SEL_LOCAL_TEE,-1)],
+   [(COL_ONE,1)], ([] : SparseRow)) Hr;
+ lazymatch goal with Hfull : FullRelation.satFull ?w |- _ =>
+ assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull);
+ expand_row Hr; rewrite Hone in Hr;
+ assert (Hoff : w COL_SEL_LOCAL_SET = 0 /\ w COL_SEL_LOCAL_TEE = 0)
+   by (repeat match goal with H : w _ = 0 |- _ => rewrite H in Hr end; field_linear Hr);
+ destruct Hoff as [Hset Htee]
+ end.
+
+Lemma full_local_value_memory_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
+ rangeObligation w (COL_LOCAL_VALUE, Repairable 32%nat).
+Proof.
+ start_memory_repair COL_LOCAL_VALUE.
+ memory_value_inactive COL_LOCAL_VALUE COL_SEL_LOCAL_GET.
+ memory_value_inactive COL_LOCAL_VALUE COL_LOCAL_WRITE_ENABLED.
+ memory_value_inactive COL_LOCAL_VALUE COL_GATHER_LOCAL_WRITE_LO.
+ memory_value_inactive COL_LOCAL_VALUE GMEM_LOCAL.
+ local_writes_inactive.
+ finish_memory_repair COL_LOCAL_VALUE
+   [[(COL_SEL_LOCAL_GET,1)]; [(COL_SEL_LOCAL_SET,1)]; [(COL_SEL_LOCAL_TEE,1)];
+    [(COL_GATHER_LOCAL_WRITE_LO,1)]; [(GMEM_LOCAL,1)]].
+Qed.
+
+Lemma full_local_value_hi_memory_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
+ rangeObligation w (COL_LOCAL_VALUE_HI, Repairable 32%nat).
+Proof.
+ start_memory_repair COL_LOCAL_VALUE_HI.
+ memory_value_inactive COL_LOCAL_VALUE_HI COL_SEL_LOCAL_GET.
+ memory_value_inactive COL_LOCAL_VALUE_HI COL_LOCAL_WRITE_ENABLED.
+ memory_value_inactive COL_LOCAL_VALUE_HI COL_GATHER_LOCAL_WRITE.
+ memory_value_inactive COL_LOCAL_VALUE_HI GMEM_LOCAL.
+ local_writes_inactive.
+ circuit_boolean COL_GATHER_LOCAL_WRITE_LO Blo.
+ circuit_row ([(COL_GATHER_LOCAL_WRITE_LO,1)], [(COL_LOCAL_VALUE_HI,1)], ([] : SparseRow)) Hlo.
+ expand_row Hlo.
+ assert (Hzlo : w COL_GATHER_LOCAL_WRITE_LO = 0).
+ { destruct Blo as [H|H]; [exact H|]. rewrite H in Hlo.
+   pose proof (value_bound w COL_LOCAL_VALUE_HI). field_linear Hlo. }
+ finish_memory_repair COL_LOCAL_VALUE_HI
+   [[(COL_SEL_LOCAL_GET,1)]; [(COL_SEL_LOCAL_SET,1)]; [(COL_SEL_LOCAL_TEE,1)];
+    [(COL_GATHER_LOCAL_WRITE_LO,1)]; [(COL_GATHER_LOCAL_WRITE,1); (COL_GATHER_LOCAL_WRITE_LO,-1)];
+    [(GMEM_LOCAL,1)]].
+Qed.
+
 Theorem memory_range_obligations_sound : forall w,
  fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
  Forall (memoryRangeObligation w) memoryRangeObligations.
@@ -277,8 +359,12 @@ Proof.
  intros w Hprime Hfull Hbounds. unfold memoryRangeObligations.
  constructor; [split; [vm_compute; reflexivity | exact (full_return_pc_memory_repair w Hprime Hfull Hbounds)] | ].
  constructor; [split; [vm_compute; reflexivity | exact (full_function_locals_memory_repair w Hprime Hfull Hbounds)] | ].
+ constructor; [split; [vm_compute; reflexivity | exact (full_local_value_memory_repair w Hprime Hfull Hbounds)] | ].
+ constructor; [split; [vm_compute; reflexivity | exact (full_local_value_hi_memory_repair w Hprime Hfull Hbounds)] | ].
  constructor; [split; [vm_compute; reflexivity | exact (full_global_index_memory_repair w Hprime Hfull Hbounds)] | ].
+ constructor; [split; [vm_compute; reflexivity | exact (full_table_size_memory_repair w Hprime Hfull Hbounds)] | ].
  constructor; [split; [vm_compute; reflexivity | exact (full_memory_offset_repair w Hprime Hfull Hbounds)] | ].
+ constructor; [split; [vm_compute; reflexivity | exact (full_br_table_len_memory_repair w Hprime Hfull Hbounds)] | ].
  constructor; [split; [vm_compute; reflexivity | exact (full_host_frame_0_memory_repair w Hprime Hfull Hbounds)] | ].
  constructor; [split; [vm_compute; reflexivity | exact (full_host_frame_1_memory_repair w Hprime Hfull Hbounds)] | ].
  constructor; [split; [vm_compute; reflexivity | exact (full_host_frame_2_memory_repair w Hprime Hfull Hbounds)] | ].

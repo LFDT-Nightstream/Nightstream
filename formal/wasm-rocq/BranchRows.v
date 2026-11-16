@@ -678,14 +678,15 @@ Qed.
    above the target's base, and resumes after the target's END, with the results
    still to move down. *)
 Lemma code_br_table_row : forall view f ls l initial final row inner,
-  fieldPrime -> programLoaded program initial -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
+  fieldPrime -> programLoaded program initial -> FullRelation.satFull row ->
+  boundedMemoryEvents (eventsForRow memories row) -> row COL_IS_PROGRAM_ROW = 1 ->
   Replay initial (eventsForRow memories row) final ->
   ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
   functionAt program (positionFunction (viewPosition view)) = Some f ->
   nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view)) = Some (BR_TABLE ls l) ->
   RowResult initial final row f inner view.
 Proof.
-  intros view f ls l initial final row inner Hprime Hloaded Hfull Hprogram Hreplay Hstate Hf Hi.
+  intros view f ls l initial final row inner Hprime Hloaded Hfull HmemoryBounds Hprogram Hreplay Hstate Hf Hi.
   destruct (program_row_active _ _ _ _ _ _ Hprime Hfull Hprogram Hstate)
     as [f' [Hframe [Hoffset [Hsp [Hpc [Hidle ->]]]]]].
   pose proof Hframe as [Hf' [Hpath [Hheights [Hfbp0 [Hbase0 [Hbounds [_ [Hllen [Hlb [Hlc Htyping]]]]]]]]]].
@@ -746,7 +747,7 @@ Proof.
       (2 * (row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length (concat segments ++ under))))
       in HreadCell by (rewrite Hsp, !length_app; cbn [length]; lia).
     congruence. }
-  pose proof (full_br_table_choice row Hprime Hfull Hchosen) as Hchoice. rewrite Hread, <- HlenValue in Hchoice.
+  pose proof (full_br_table_choice row Hprime Hfull HmemoryBounds Hchosen) as Hchoice. rewrite Hread, <- HlenValue in Hchoice.
   set (k := if tableIndexRaw <? Z.of_nat (length ls) then S (Z.to_nat tableIndexRaw) else 0%nat).
   assert (HchoiceK : row COL_CONTROL_CHOICE = Z.of_nat k).
   { rewrite Hchoice. unfold k. destruct (tableIndexRaw <? Z.of_nat (length ls)); [lia | reflexivity]. }

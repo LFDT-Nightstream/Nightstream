@@ -282,7 +282,6 @@ fn complete_first_round_window_serves_the_openings_without_another_visit() {
     assert_eq!(source.visits.load(Ordering::Relaxed), visits, "no second row visit");
 }
 
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 #[test]
 fn pair_workers_match_serial_with_exact_payload_budgets() {
     let source = OriginalRows::new(17);
@@ -392,7 +391,6 @@ fn fresh_table_build_uses_existing_output_slices() {
     );
 }
 
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 #[test]
 fn table_folds_match_serial_without_another_value_allocation() {
     let source = OriginalRows::new(17);

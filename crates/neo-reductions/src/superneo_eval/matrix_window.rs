@@ -20,7 +20,6 @@ use super::{
 };
 use crate::PiCcsError;
 
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 mod chunks;
 
 pub struct MatrixWindow {
@@ -129,7 +128,6 @@ impl MatrixWindow {
         workspace_bytes: usize,
         payload_bytes_per_row: usize,
     ) -> Result<Self, PiCcsError> {
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         if requested.len() >= 2 * chunks::CHUNK_ROWS && rayon::current_num_threads() > 1 {
             if let Some(window) = chunks::load_complete(
                 source,

@@ -5,8 +5,6 @@ use neo_ccs::{SparsePoly, V1_2Evaluations};
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
-#[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-use super::eval_ring_scratch_real_z_blocks;
 use super::{
     check_ccs_relation_zero_cached_with_blocks, fill, openings::pad_openings, EqualityWeights, MatrixRows,
     MatrixWindow, RingEvalScratch, SuperneoCachedRelationError, SuperneoZBlocks,
@@ -145,16 +143,10 @@ fn evaluate_rows(
                 break;
             };
             cache.accumulate_barred_ring_form_parallel(range.len(), scratch, |row| row_weights[row]);
-            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             let values = {
                 let active: Vec<_> = active.iter().map(|&index| &witnesses[index]).collect();
                 super::parallel::eval_active_blocks_many(scratch, &active)
             };
-            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-            let values: Vec<_> = active
-                .iter()
-                .map(|&index| eval_ring_scratch_real_z_blocks(scratch, &witnesses[index]))
-                .collect();
             for (&index, value) in active.iter().zip(values) {
                 for (total, part) in result[index].eval_a[matrix].iter_mut().zip(value) {
                     *total += part;

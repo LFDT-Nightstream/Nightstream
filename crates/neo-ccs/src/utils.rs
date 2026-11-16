@@ -1,5 +1,4 @@
 use p3_field::Field;
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 pub fn validate_power_of_two(n: usize) -> bool {
@@ -38,7 +37,6 @@ where
     let n = 1usize << ell;
     let mut out = vec![K::ONE; n];
 
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     const PAR_THRESHOLD: usize = 1 << 14;
 
     for (i, &ri) in r.iter().enumerate() {
@@ -46,7 +44,6 @@ where
         let block_len = 2 * stride;
         let one_minus = K::ONE - ri;
 
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         {
             if n >= PAR_THRESHOLD && rayon::current_num_threads() > 1 {
                 out.par_chunks_mut(block_len).for_each(|block| {

@@ -5,7 +5,6 @@ use neo_ccs::crypto::poseidon2::{permute_state, RATE, WIDTH};
 use neo_ccs::{CcsMatrix, CcsStructure, CeClaim};
 use neo_math::{Fq, K};
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 pub fn shared_me_input_r<C, Ff>(me_inputs: &[CeClaim<C, Ff, K>], ell_n: usize) -> Result<Option<&[K]>, PiCcsError>
@@ -288,11 +287,7 @@ fn digest_ccs_matrices_tree<Ff: Field + PrimeField64 + Sync>(s: &CcsStructure<Ff
         }
     }
 
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let leaf_digests: Vec<[Fq; 4]> = leaves.par_iter().map(digest_ccs_matrix_leaf).collect();
-
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let leaf_digests: Vec<[Fq; 4]> = leaves.iter().map(digest_ccs_matrix_leaf).collect();
 
     let mut state = [Fq::ZERO; WIDTH];
     let mut absorbed = 0usize;

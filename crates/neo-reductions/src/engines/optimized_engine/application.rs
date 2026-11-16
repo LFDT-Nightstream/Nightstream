@@ -4,7 +4,6 @@
 use neo_ccs::SparsePoly;
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 use std::ops::Range;
 
@@ -13,7 +12,6 @@ use crate::engines::pi_ccs_joint::gamma_power;
 use crate::superneo_eval::{fill, EqualityWeights, MatrixRows, MatrixShape, MatrixWindow, SuperneoZBlocks};
 use crate::PiCcsError;
 
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 const ROW_DOT_CHUNK: usize = 1 << 14;
 
 struct Values {
@@ -171,7 +169,6 @@ impl ApplicationTables {
             if self.challenges.is_empty() {
                 let matrices = window.cache().matrix_caches();
                 let range = original.start - row_start..original.end - row_start;
-                #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
                 output
                     .words
                     .par_chunks_mut(rows)
@@ -185,17 +182,6 @@ impl ApplicationTables {
                             .for_each(|(chunk, values)| {
                                 matrix.fill_row_dots_real_from(chunk * ROW_DOT_CHUNK, values, witness)
                             });
-                    });
-                #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-                output
-                    .words
-                    .chunks_mut(rows)
-                    .enumerate()
-                    .for_each(|(table, values)| {
-                        matrices[table % self.shape.matrices].fill_row_dots_real_with_blocks(
-                            &mut values[range.clone()],
-                            &witnesses[table / self.shape.matrices],
-                        )
                     });
                 start = original.end;
                 if original == (0..self.shape.rows) {
@@ -314,7 +300,6 @@ impl ApplicationTables {
             .checked_sub(live_bytes)
             .ok_or_else(|| invalid("CPU application values exceed the supplied workspace"))?;
         let pairs = values.rows.div_ceil(2);
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         {
             let workers = rayon::current_num_threads()
                 .min(pairs)
@@ -354,8 +339,6 @@ impl ApplicationTables {
                 return Ok(peak);
             }
         }
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        let _ = available;
         self.accumulate_pairs(
             values,
             row_start,
@@ -502,10 +485,7 @@ impl ApplicationTables {
                     table[row] = prefix::interpolate(low, high, challenge);
                 }
             };
-            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             values.words.par_chunks_mut(rows).for_each(fold_table);
-            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-            values.words.chunks_mut(rows).for_each(fold_table);
             for table in 1..self.fresh_count * self.shape.matrices {
                 values
                     .words

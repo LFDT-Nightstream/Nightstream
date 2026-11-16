@@ -52,7 +52,6 @@ impl OptimizedStructureCache {
     pub fn build(s: &CcsStructure<F>) -> Result<Self, PiCcsError> {
         #[cfg(feature = "perf-timers")]
         let t_total = std::time::Instant::now();
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         let (superneo, matrix_digest) = {
             let (superneo, matrix_digest) = rayon::join(
                 || {
@@ -90,39 +89,6 @@ impl OptimizedStructureCache {
                 },
             );
             (superneo?, matrix_digest?)
-        };
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        let (superneo, matrix_digest) = {
-            #[cfg(feature = "perf-timers")]
-            let t_superneo = std::time::Instant::now();
-            let superneo = build_superneo_eval_cache(s).ok_or_else(|| {
-                PiCcsError::InvalidInput(format!(
-                    "optimized cache requires SuperNeo-compatible CCS shape (m={}, matrices={})",
-                    s.m,
-                    s.matrices.len()
-                ))
-            })?;
-            #[cfg(feature = "perf-timers")]
-            eprintln!(
-                "OptimizedStructureCache::build: superneo           {:.2?}",
-                t_superneo.elapsed()
-            );
-            #[cfg(feature = "perf-timers")]
-            let t_digest = std::time::Instant::now();
-            let matrix_digest: [F; 4] = digest_ccs_matrices(s)
-                .try_into()
-                .map_err(|digest: Vec<F>| {
-                    PiCcsError::ProtocolError(format!(
-                        "optimized cache expected 4 CCS digest limbs, got {}",
-                        digest.len()
-                    ))
-                })?;
-            #[cfg(feature = "perf-timers")]
-            eprintln!(
-                "OptimizedStructureCache::build: matrix digest      {:.2?}",
-                t_digest.elapsed()
-            );
-            (superneo, matrix_digest)
         };
         #[cfg(feature = "perf-timers")]
         eprintln!(

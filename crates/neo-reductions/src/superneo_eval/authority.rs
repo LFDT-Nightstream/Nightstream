@@ -5,7 +5,6 @@ use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 use super::{SuperneoEvalCache, SuperneoZBlocks};
@@ -58,7 +57,6 @@ pub fn check_ccs_relation_zero_cached_with_blocks(
         return Err(SuperneoCachedRelationError::NonRealAssignment);
     }
 
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let matrix_rows = cache
         .mats
         .par_iter()
@@ -68,18 +66,7 @@ pub fn check_ccs_relation_zero_cached_with_blocks(
             values
         })
         .collect::<Vec<_>>();
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let matrix_rows = cache
-        .mats
-        .iter()
-        .map(|matrix| {
-            let mut values = vec![F::ZERO; rows];
-            matrix.fill_row_dots_base_with_blocks(&mut values, assignment);
-            values
-        })
-        .collect::<Vec<_>>();
 
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let failed_row = if rows >= 4_096 && rayon::current_num_threads() > 1 {
         (0..rows)
             .into_par_iter()
@@ -97,8 +84,6 @@ pub fn check_ccs_relation_zero_cached_with_blocks(
     } else {
         first_unsatisfied_row(polynomial, &matrix_rows, rows)
     };
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let failed_row = first_unsatisfied_row(polynomial, &matrix_rows, rows);
 
     failed_row.map_or(Ok(()), |row| Err(SuperneoCachedRelationError::UnsatisfiedRow { row }))
 }

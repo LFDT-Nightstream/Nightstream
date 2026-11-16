@@ -6,7 +6,6 @@ use neo_ccs::{CcsMatrix, CcsStructure, GeometricRowRun};
 use neo_math::{D, F, K};
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 fn build_matrix_cache<Ff>(mat: &CcsMatrix<Ff>) -> SuperneoMatrixCache
@@ -293,14 +292,11 @@ where
     {
         return None;
     }
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let mut mats: Vec<SuperneoMatrixCache> = structure
         .matrices()
         .par_iter()
         .map(build_matrix_cache)
         .collect();
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let mut mats: Vec<SuperneoMatrixCache> = structure.matrices.iter().map(build_matrix_cache).collect();
 
     for matrix in &mut mats {
         matrix.compact_row_offsets();
@@ -430,24 +426,8 @@ where
 
     let explicit_matrix_masks = if mats.len() <= u16::BITS as usize {
         let rows = mats.first().map_or(0, |matrix| matrix.rows);
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         let masks = (0..rows)
             .into_par_iter()
-            .map(|row| {
-                mats.iter().enumerate().fold(0u16, |mask, (matrix, cache)| {
-                    if !cache.identity
-                        && (cache.row_offsets.get(row) != cache.row_offsets.get(row + 1)
-                            || cache.has_compact_geometric_row(row))
-                    {
-                        mask | (1u16 << matrix)
-                    } else {
-                        mask
-                    }
-                })
-            })
-            .collect();
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        let masks = (0..rows)
             .map(|row| {
                 mats.iter().enumerate().fold(0u16, |mask, (matrix, cache)| {
                     if !cache.identity

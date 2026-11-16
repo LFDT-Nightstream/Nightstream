@@ -7,7 +7,6 @@ use neo_ccs::{CcsStructure, CeClaim, Mat};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use p3_field::PrimeCharacteristicRing;
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 use crate::error::PiCcsError;
@@ -510,13 +509,9 @@ pub fn rlc_public(
     }
 
     let mut eval_a = vec![vec![K::ZERO; d_pad]; matrix_count];
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let allow_parallel =
         rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() && matrix_count >= 128;
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let _allow_parallel = false;
 
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     if allow_parallel {
         eval_a.par_iter_mut().enumerate().for_each(|(j, acc)| {
             for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
@@ -535,25 +530,6 @@ pub fn rlc_public(
             }
         });
     } else {
-        for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
-            for (j, acc) in eval_a.iter_mut().enumerate() {
-                let src = &inst.eval_a[j];
-                for k in 0..d {
-                    let yk = src[k];
-                    if yk == K::ZERO {
-                        continue;
-                    }
-                    let col_off = k * d;
-                    let col = &rho_k[col_off..col_off + d];
-                    for r in 0..d {
-                        acc[r] += col[r] * yk;
-                    }
-                }
-            }
-        }
-    }
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    {
         for (rho_k, inst) in rho_k_mats.iter().zip(inputs.iter()) {
             for (j, acc) in eval_a.iter_mut().enumerate() {
                 let src = &inst.eval_a[j];

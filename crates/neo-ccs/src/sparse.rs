@@ -3,7 +3,6 @@
 use crate::geometric::GeometricRowRun;
 use crate::matrix::Mat;
 use p3_field::{Field, PrimeCharacteristicRing};
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 
@@ -104,17 +103,12 @@ impl<Ff: Field> CscMat<Ff> {
 impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
     pub fn from_triplets(mut triplets: Vec<(usize, usize, Ff)>, nrows: usize, ncols: usize) -> Self {
         triplets.retain(|&(_, _, v)| v != Ff::ZERO);
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         {
             if rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() && triplets.len() >= 16_384 {
                 triplets.par_sort_unstable_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
             } else {
                 triplets.sort_unstable_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
             }
-        }
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        {
-            triplets.sort_unstable_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
         }
 
         let mut entries: Vec<(usize, usize, Ff)> = Vec::with_capacity(triplets.len());
@@ -307,7 +301,6 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         let (nrows, ncols) = (a.rows(), a.cols());
 
         let (col_counts, triplets): (Vec<usize>, Vec<(usize, usize, Ff)>) = {
-            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             {
                 (0..nrows)
                     .into_par_iter()
@@ -335,21 +328,6 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
                             (a_counts, a_trips)
                         },
                     )
-            }
-            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-            {
-                let mut col_counts = vec![0usize; ncols];
-                let mut triplets = Vec::<(usize, usize, Ff)>::new();
-                for r in 0..nrows {
-                    let row = a.row(r);
-                    for (c, &v) in row.iter().enumerate() {
-                        if v != Ff::ZERO {
-                            col_counts[c] += 1;
-                            triplets.push((r, c, v));
-                        }
-                    }
-                }
-                (col_counts, triplets)
             }
         };
 

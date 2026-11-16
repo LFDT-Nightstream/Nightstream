@@ -3,7 +3,6 @@
 use neo_ccs::V1_2Evaluations;
 use neo_math::{superneo_bar_block, KExtensions, D, K};
 use p3_field::PrimeCharacteristicRing;
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 use super::block_sums::TASK_BLOCKS;
@@ -134,10 +133,7 @@ pub(super) fn pad_openings(witnesses: &[SuperneoZBlocks], point: &[K]) -> Vec<[K
         left
     };
     let tasks = 0..blocks.div_ceil(TASK_BLOCKS);
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let sums = tasks.into_par_iter().map(task).reduce(zero, combine);
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let sums = tasks.map(task).fold(zero(), combine);
     let mut sums = sums.iter().map(|sum| {
         let mut result = [K::ZERO; D];
         add_ring_product(&mut result, sum, &template);

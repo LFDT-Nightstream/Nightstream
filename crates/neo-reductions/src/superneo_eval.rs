@@ -2,7 +2,6 @@ use core::cmp::min;
 use neo_ccs::{CcsMatrix, Mat};
 use neo_math::{ct, KExtensions, Rq, D, F, K};
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 mod authority;
@@ -462,7 +461,6 @@ pub fn eval_ring_linear_forms_real_z_blocks(
     forms: &[SuperneoRingLinearForm],
     z_blocks: &SuperneoZBlocks,
 ) -> Vec<[K; D]> {
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     {
         if forms.len() > 1 && rayon::current_num_threads() > 1 {
             const CHUNK_ENTRIES: usize = 2048;
@@ -1104,7 +1102,6 @@ impl SuperneoEvalCache {
         let mut scratch = RingEvalScratch::reuse(storage, block_count);
         for (matrix_index, matrix) in self.mats.iter().enumerate() {
             matrix.accumulate_ring_form_split_chi(&chi_re, &chi_im, n_eff, &mut scratch);
-            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             let matrix_values: Vec<[K; D]> = if active.len() > 1 && rayon::current_num_threads() > 1 {
                 active
                     .par_iter()
@@ -1116,11 +1113,6 @@ impl SuperneoEvalCache {
                     .map(|&index| eval_ring_scratch_real_z_blocks(&scratch, &witnesses[index]))
                     .collect()
             };
-            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-            let matrix_values: Vec<[K; D]> = active
-                .iter()
-                .map(|&index| eval_ring_scratch_real_z_blocks(&scratch, &witnesses[index]))
-                .collect();
             scratch.clear_active();
             for (&witness_index, value) in active.iter().zip(matrix_values) {
                 out[witness_index][matrix_index] = value;
@@ -1132,17 +1124,9 @@ impl SuperneoEvalCache {
     #[inline]
     pub fn build_weighted_matrix_caches(&self, weights: &[K; D]) -> Vec<SuperneoWeightedMatrixCache> {
         let (basis_re_forms, basis_im_forms) = weighted_projection_basis_forms_from_k(weights);
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         {
             self.mats
                 .par_iter()
-                .map(|m| m.compile_weighted_rows_with_basis(&basis_re_forms, &basis_im_forms))
-                .collect()
-        }
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        {
-            self.mats
-                .iter()
                 .map(|m| m.compile_weighted_rows_with_basis(&basis_re_forms, &basis_im_forms))
                 .collect()
         }
@@ -1252,7 +1236,6 @@ pub fn eval_all_mats_ring_cached_with_split_chi(
         return eval_all_mats_ring_cached_with_blocks(cache, z_blocks, &chi_r, n_eff);
     }
 
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     {
         if cache.mats.len() > 1
             && z_blocks.block_len() >= 1024

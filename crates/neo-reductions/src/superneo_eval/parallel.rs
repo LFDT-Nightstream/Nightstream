@@ -1,15 +1,12 @@
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use super::block_sums::{add_pair_sums, to_extension, zero_pair_sums, TaskSums, TASK_BLOCKS};
 use super::{is_all_zero, RingEvalScratch, SuperneoZBlocks, F};
 use neo_math::{KExtensions, D, K};
 use p3_field::PrimeCharacteristicRing;
 
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 #[inline]
 pub(super) fn eval_active_blocks(scratch: &RingEvalScratch, z_blocks: &SuperneoZBlocks) -> Option<[K; D]> {
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     {
         if rayon::current_num_threads() <= 1 || rayon::current_thread_index().is_some() {
             return None;
@@ -49,14 +46,8 @@ pub(super) fn eval_active_blocks(scratch: &RingEvalScratch, z_blocks: &SuperneoZ
         }
         Some(out)
     }
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    {
-        let _ = (scratch, z_blocks);
-        None
-    }
 }
 
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 pub(super) fn eval_active_blocks_many(scratch: &RingEvalScratch, witnesses: &[&SuperneoZBlocks]) -> Vec<[K; D]> {
     let sums = scratch
         .active_blocks

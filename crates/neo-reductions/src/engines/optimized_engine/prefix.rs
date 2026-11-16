@@ -3,7 +3,6 @@
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 use crate::superneo_eval::EqualityWeights;
@@ -30,10 +29,7 @@ fn fold_pairs<T: Copy + Send + Sync>(values: &mut Vec<T>, zero: T, combine: impl
         return;
     }
     let next_len = previous_len.div_ceil(2);
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let workers = rayon::current_num_threads();
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let workers = 1;
     let chunk_len = 2 * next_len.div_ceil(workers);
     let fold_chunk = |chunk: &mut [T]| {
         for index in 0..chunk.len().div_ceil(2) {
@@ -42,10 +38,7 @@ fn fold_pairs<T: Copy + Send + Sync>(values: &mut Vec<T>, zero: T, combine: impl
             chunk[index] = combine(low, high);
         }
     };
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     values.par_chunks_mut(chunk_len).for_each(fold_chunk);
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    values.chunks_mut(chunk_len).for_each(fold_chunk);
     for start in (chunk_len..previous_len).step_by(chunk_len) {
         let count = (previous_len - start).min(chunk_len).div_ceil(2);
         values.copy_within(start..start + count, start / 2);
@@ -174,13 +167,10 @@ impl<'a> Assignment<'a> {
                 Some(pairs) => pairs.code(index) as u16,
                 None => code(2 * index) + base as u16 * code(2 * index + 1),
             };
-            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             let codes = (0..self.len().div_ceil(2))
                 .into_par_iter()
                 .map(pair_code)
                 .collect();
-            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-            let codes = (0..self.len().div_ceil(2)).map(pair_code).collect();
             *self = Self::Encoded {
                 codes,
                 values: next_values,
@@ -197,10 +187,7 @@ impl<'a> Assignment<'a> {
             let (low, high) = self.pair(index);
             interpolate(low, high, challenge)
         };
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         let next = (0..pairs).into_par_iter().map(value).collect();
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        let next = (0..pairs).map(value).collect();
         *self = Self::Folded(next);
     }
 }
@@ -267,14 +254,11 @@ pub(super) fn early_norm_coefficients(early: &EarlyPairs<'_>, pairs: usize, weig
         }
         left
     };
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let buckets = (0..pairs)
         .into_par_iter()
         .with_min_len(1 << 14)
         .fold(zero, add)
         .reduce(zero, merge);
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let buckets = (0..pairs).fold(zero(), add);
     let mut result = [K::ZERO; 4];
     for (code, weight) in buckets.into_iter().enumerate() {
         if weight == K::ZERO {

@@ -9,7 +9,6 @@ use neo_math::{D, K};
 use neo_params::NeoParams;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 fn add_signed_unit_columns<Ff>(acc: &mut Mat<Ff>, rho_data: &[Ff], positive: &[u64], negative: &[u64])
@@ -39,7 +38,6 @@ where
         }
     };
 
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     if rayon::current_num_threads() > 1 {
         acc.as_mut_slice()
             .par_chunks_exact_mut(m)
@@ -81,7 +79,6 @@ where
                 *entry += value;
             }
         };
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         if rayon::current_num_threads() > 1 {
             acc.as_mut_slice()
                 .par_chunks_exact_mut(m)
@@ -110,7 +107,6 @@ where
         rho_coeffs[row] = rho_data[row * D];
     }
 
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     {
         if rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() {
             let products: Vec<[Ff; D]> = (0..cols)

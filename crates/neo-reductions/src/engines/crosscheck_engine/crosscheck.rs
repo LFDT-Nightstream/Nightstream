@@ -12,7 +12,6 @@ use neo_math::{F, K};
 use neo_params::NeoParams;
 use neo_transcript::Poseidon2Transcript;
 
-#[cfg(not(target_arch = "wasm32"))]
 fn run_pair<Optimized, Reference, RunOptimized, RunReference>(
     run_optimized: RunOptimized,
     run_reference: RunReference,
@@ -30,18 +29,6 @@ where
             .map_err(|_| PiCcsError::ProtocolError("PaperExact crosscheck worker panicked".into()))?;
         Ok((optimized, reference))
     })
-}
-
-#[cfg(target_arch = "wasm32")]
-fn run_pair<Optimized, Reference, RunOptimized, RunReference>(
-    run_optimized: RunOptimized,
-    run_reference: RunReference,
-) -> Result<(Optimized, Reference), PiCcsError>
-where
-    RunOptimized: FnOnce() -> Optimized,
-    RunReference: FnOnce() -> Reference,
-{
-    Ok((run_optimized(), run_reference()))
 }
 
 fn checkpoint(transcript: &Poseidon2Transcript) -> ([F; neo_ccs::crypto::poseidon2::WIDTH], usize) {

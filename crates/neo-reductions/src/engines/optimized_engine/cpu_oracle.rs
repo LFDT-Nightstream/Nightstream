@@ -3,7 +3,6 @@
 use neo_ccs::{CcsStructure, CcsWitness, Mat};
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 #[path = "application.rs"]
@@ -38,18 +37,11 @@ fn pair_norm_coefficients(table: &Assignment<'_>, pairs: usize, weights: &Equali
         let (low, high) = table.pair(index);
         prefix::norm_pair(low, high).map(|value| value * weights.at(index))
     };
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     {
         (0..pairs).into_par_iter().map(term).reduce(
             || [K::ZERO; 4],
             |left, right| std::array::from_fn(|index| left[index] + right[index]),
         )
-    }
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    {
-        (0..pairs).map(term).fold([K::ZERO; 4], |left, right| {
-            std::array::from_fn(|index| left[index] + right[index])
-        })
     }
 }
 
@@ -173,18 +165,11 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             let weight = weights.at(index);
             [weight * low, weight * (high - low)]
         };
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         {
             (0..self.evaluation_table.len().div_ceil(2))
                 .into_par_iter()
                 .map(term)
                 .reduce(|| [K::ZERO; 2], |left, right| [left[0] + right[0], left[1] + right[1]])
-        }
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        {
-            (0..self.evaluation_table.len().div_ceil(2))
-                .map(term)
-                .fold([K::ZERO; 2], |left, right| [left[0] + right[0], left[1] + right[1]])
         }
     }
 }

@@ -10,7 +10,6 @@ workspace = true
 [features]
 default = []
 testing = []
-wasm-threads = ["neo-ccs/wasm-threads"]
 
 [dependencies]
 neo-math = { path = "../neo-math" }

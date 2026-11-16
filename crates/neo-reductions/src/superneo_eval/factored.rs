@@ -8,7 +8,6 @@ use core::ops::Range;
 use neo_ccs::GeometricRowRun;
 use neo_math::{sum_of_scaled, KExtensions, D, F, K};
 use p3_field::PrimeCharacteristicRing;
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 use super::{MatrixRowSink, MatrixShape, SuperneoZBlocks};
@@ -197,15 +196,10 @@ impl<'a> FactoredRows<'a> {
             }
             left
         };
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-        return (0..parts)
+        (0..parts)
             .into_par_iter()
             .map(|index| part(rows(index)))
-            .reduce(|| vec![K::ZERO; self.slot_count()], add);
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        return (0..parts)
-            .map(|index| part(rows(index)))
-            .fold(vec![K::ZERO; self.slot_count()], add);
+            .reduce(|| vec![K::ZERO; self.slot_count()], add)
     }
 
     pub fn weighted_row(&self, row: usize, matrix_coefficients: &[K], slot_values: &[K]) -> K {
@@ -229,19 +223,11 @@ impl<'a> FactoredRows<'a> {
 }
 
 pub(crate) fn fill<T: Send>(out: &mut [T], value: impl Fn(usize) -> T + Sync + Send) {
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     out.par_iter_mut()
-        .enumerate()
-        .for_each(|(index, slot)| *slot = value(index));
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    out.iter_mut()
         .enumerate()
         .for_each(|(index, slot)| *slot = value(index));
 }
 
 fn all<T: Sync>(items: &[T], test: impl Fn(&T) -> bool + Sync + Send) -> bool {
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    return items.par_iter().all(test);
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    return items.iter().all(test);
+    items.par_iter().all(test)
 }

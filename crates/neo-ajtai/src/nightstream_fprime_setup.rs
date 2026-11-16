@@ -23,7 +23,6 @@ use neo_math::{
     Fq,
 };
 use p3_field::PrimeCharacteristicRing;
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
@@ -147,7 +146,6 @@ fn row_totals(
 ) -> Vec<Vec<SignedShiftSums>> {
     let ranges = column_count.div_ceil(TASK_COLUMNS);
     let tasks = 0..PRODUCTION_VERIFIER_ROWS * ranges;
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let tasks = tasks.into_par_iter();
     let partial: Vec<_> = tasks
         .map(|task| {

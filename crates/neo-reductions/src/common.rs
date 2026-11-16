@@ -9,12 +9,10 @@ use neo_math::{
 use neo_params::{nightstream_p64_k14 as profile, NeoParams};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 use crate::error::PiCcsError;
 
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 mod packed_split;
 mod pi_rlc_sampler;
 pub use pi_rlc_sampler::{decode_pi_rlc_coefficients, PI_RLC_DRAW_LANES};
@@ -124,7 +122,6 @@ pub fn split_b_matrix_k_with_nonzero_flags(Z: &Mat<F>, k: usize, b: u32) -> Resu
         ))
     };
 
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     if b == 2 && Z_rows <= u64::BITS as usize && (1..i64::BITS as usize - 1).contains(&k) {
         return packed_split::split_base2_packed(Z, k)
             .map(|(planes, nonzero)| SplitDigits { planes, nonzero })
@@ -721,10 +718,7 @@ where
     let entry = |col: usize| Z[(col % D, col / D)];
     let fails = |&col: &usize| !is_dec_representable(params, entry(col));
     let width = superneo_carrier_width(expected_m);
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let first = (0..width).into_par_iter().find_first(fails);
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let first = (0..width).find(fails);
     if let Some(col) = first {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: witness carrier_col={col} is not representable in k_rho={} balanced base-{} digits (centered value {})",

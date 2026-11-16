@@ -13,7 +13,6 @@ default = ["paper-exact"]
 paper-exact = []
 debug-logs = []
 perf-timers = []
-wasm-threads = ["neo-ajtai/wasm-threads", "neo-ccs/wasm-threads"]
 
 [dependencies]
 neo-math = { path = "../neo-math" }

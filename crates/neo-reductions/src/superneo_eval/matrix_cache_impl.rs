@@ -155,17 +155,8 @@ impl SuperneoMatrixCache {
 
         const CHUNK_ROWS: usize = 2048;
         let chunk_count = self.rows.div_ceil(CHUNK_ROWS);
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         let chunks: Vec<(Vec<usize>, Vec<WeightedRowBlock>)> = (0..chunk_count)
             .into_par_iter()
-            .map(|chunk| {
-                let row_start = chunk * CHUNK_ROWS;
-                let row_end = core::cmp::min(row_start + CHUNK_ROWS, self.rows);
-                compile_rows(row_start, row_end)
-            })
-            .collect();
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        let chunks: Vec<(Vec<usize>, Vec<WeightedRowBlock>)> = (0..chunk_count)
             .map(|chunk| {
                 let row_start = chunk * CHUNK_ROWS;
                 let row_end = core::cmp::min(row_start + CHUNK_ROWS, self.rows);

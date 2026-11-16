@@ -4,7 +4,6 @@ use std::ops::Range;
 
 use neo_math::{superneo_bar_block, KExtensions, Rq, D, F, K};
 use p3_field::PrimeCharacteristicRing;
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 #[derive(Clone, Debug)]
@@ -55,7 +54,6 @@ impl RingEvalScratch {
     }
 
     pub(super) fn fill_parts(&mut self, fill: impl Fn(&mut ScratchPart<'_>) + Sync) {
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         {
             let block_count = self.touched.len();
             let per_part = block_count.div_ceil(rayon::current_num_threads()).max(1);
@@ -77,8 +75,6 @@ impl RingEvalScratch {
                 self.active_blocks.extend(part);
             }
         }
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        fill(&mut self.part());
     }
 
     #[inline]

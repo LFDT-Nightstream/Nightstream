@@ -2,7 +2,6 @@ use super::{Rq, SuperneoEvalCache, SuperneoMatrixCache, SuperneoZBlocks};
 use neo_math::{superneo_bar_block, KExtensions, D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 impl SuperneoMatrixCache {
@@ -151,7 +150,6 @@ impl SuperneoEvalCache {
             !has_identity_contribution || n_eff <= identity_projection.len(),
             "eval_weighted_row_table: identity rows exceed witness projection"
         );
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         {
             out.par_iter_mut()
                 .take(n_eff)
@@ -164,17 +162,6 @@ impl SuperneoEvalCache {
                     };
                     *out_r = identity + self.eval_weighted_explicit_row(row, mat_coeffs, identity_projection);
                 });
-        }
-        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        {
-            for (row, out_r) in out.iter_mut().take(n_eff).enumerate() {
-                let identity = if has_identity_contribution {
-                    identity_coeff * identity_projection[row]
-                } else {
-                    K::ZERO
-                };
-                *out_r = identity + self.eval_weighted_explicit_row(row, mat_coeffs, identity_projection);
-            }
         }
         #[cfg(feature = "perf-timers")]
         eprintln!(
@@ -221,12 +208,7 @@ pub(crate) fn weighted_identity_projection(z_blocks: &SuperneoZBlocks, weights: 
         }
     };
 
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     out.par_chunks_mut(D)
-        .enumerate()
-        .for_each(|(block, output)| fill_block(block, output));
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    out.chunks_mut(D)
         .enumerate()
         .for_each(|(block, output)| fill_block(block, output));
     out
@@ -319,10 +301,7 @@ pub(crate) fn fill_combined_projection(
             *value = K::from_coeffs([out_re.0[lane], out_im.0[lane]]);
         }
     };
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     output.par_chunks_mut(D).enumerate().for_each(fill);
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    output.chunks_mut(D).enumerate().for_each(fill);
 }
 
 #[inline]

@@ -11,7 +11,6 @@ use neo_ccs::{CcsStructure, CeClaim, Mat};
 use neo_math::{D, K};
 use neo_params::NeoParams;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 fn extension_block(values: &[K]) -> [K; D] {
@@ -143,13 +142,10 @@ where
         }
     };
 
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let children: Vec<_> = (0..Z_split.len())
         .into_par_iter()
         .map(build_child)
         .collect();
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let children: Vec<_> = (0..Z_split.len()).map(build_child).collect();
 
     let base_f = Ff::from_u64(params.b() as u64);
     let base_k = K::from(base_f);
@@ -217,19 +213,10 @@ where
     let active: Vec<_> = (0..Z_split.len())
         .filter(|&index| digit_nonzero.is_none_or(|flags| flags[index]))
         .collect();
-    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let blocks: Vec<_> = active
         .par_iter()
         .map(|&index| {
             crate::superneo_eval::SuperneoZBlocks::from_witness_mat(&Z_split[index], s.m())
-                .unwrap_or_else(|error| panic!("PiDEC child block view failed: {error}"))
-        })
-        .collect();
-    #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let blocks: Vec<_> = active
-        .iter()
-        .map(|&index| {
-            crate::superneo_eval::SuperneoZBlocks::from_witness_mat(&Z_split[index], s.m)
                 .unwrap_or_else(|error| panic!("PiDEC child block view failed: {error}"))
         })
         .collect();

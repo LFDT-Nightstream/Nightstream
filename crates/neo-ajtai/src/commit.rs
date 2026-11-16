@@ -4,7 +4,6 @@ use neo_ccs::Mat;
 use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rand::{CryptoRng, RngCore};
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
 use neo_math::ring::{cf, cf_inv as cf_unmap, Rq as RqEl, D};
@@ -384,7 +383,6 @@ pub fn commit_precomp_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
         debug_assert_eq!(row.len(), m);
 
         let acc = {
-            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             {
                 row.par_iter()
                     .zip(Z.par_chunks_exact(d))
@@ -406,21 +404,6 @@ pub fn commit_precomp_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
                         a
                     })
                     .unwrap_or_else(Acc::new)
-            }
-            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-            {
-                let mut st = Acc::new();
-                for (&a_ij, z_col) in row.iter().zip(Z.chunks_exact(d)) {
-                    precompute_rot_columns(a_ij, &mut st.cols);
-                    for t in 0..d {
-                        let mask = z_col[t];
-                        let col_t = &st.cols[t];
-                        for r in 0..d {
-                            st.acc[r] += col_t[r] * mask;
-                        }
-                    }
-                }
-                st
             }
         };
 
@@ -467,7 +450,6 @@ fn commit_precomp_ct_row_major(pp: &PP<RqEl>, Z: &Mat<Fq>) -> Commitment {
         debug_assert_eq!(row.len(), m);
 
         let acc = {
-            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             {
                 row.par_iter()
                     .enumerate()
@@ -489,21 +471,6 @@ fn commit_precomp_ct_row_major(pp: &PP<RqEl>, Z: &Mat<Fq>) -> Commitment {
                         a
                     })
                     .unwrap_or_else(Acc::new)
-            }
-            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-            {
-                let mut st = Acc::new();
-                for (j, &a_ij) in row.iter().enumerate() {
-                    precompute_rot_columns(a_ij, &mut st.cols);
-                    for t in 0..d {
-                        let mask = z_rows[t][j];
-                        let col_t = &st.cols[t];
-                        for r in 0..d {
-                            st.acc[r] += col_t[r] * mask;
-                        }
-                    }
-                }
-                st
             }
         };
 

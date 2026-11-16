@@ -196,4 +196,55 @@ theorem clean (i : Interface) (offset : Nat) {live : Nat → Prop}
     List.append_nil] at member
   exact outside mark member inner
 
+theorem marks_opsAt (i : Interface) (offset : Nat) :
+    marks (opsAt i offset) = Hash.absorptionMarks offset (i.initial offset) (i.chunks offset) := by
+  simp only [opsAt, marks, List.flatMap_cons, List.flatMap_nil, Op.marks, List.nil_append,
+    List.append_nil]
+
+theorem output_affine (i : Interface) (offset : Nat)
+    (initialAffine : ∀ lane, (i.initial offset lane).Affine) (lane : Fin 16) :
+    (output i offset lane).Affine := by
+  unfold output
+  generalize i.chunks offset = chunks
+  cases chunks
+  · exact initialAffine lane
+  · exact .var _
+
+/-- The output lanes are live before the child ends: they are the initial state, or the last
+permutation's outputs, which are no inner local of a mark. -/
+theorem output_live (i : Interface) (offset : Nat) {live : Nat → Prop}
+    (initialReads : ∀ lane, (i.initial offset lane).VarsSatisfy
+      fun column => column < offset ∧ live column)
+    (own : OwnLive live offset (localLength (opsAt i offset)) (opsAt i offset)) (lane : Fin 16) :
+    (output i offset lane).VarsSatisfy
+      fun column => column < offset + (i.chunks offset).length * 1096 ∧ live column := by
+  rw [localLength_opsAt] at own
+  have outside : ∀ column, offset ≤ column →
+      column < offset + (i.chunks offset).length * 1096 →
+      ¬ InnerOf (Hash.absorptionMarks offset (i.initial offset) (i.chunks offset)) column →
+      live column := fun column lower upper inner =>
+    own column lower upper (by rwa [marks_opsAt])
+  revert outside
+  unfold output
+  generalize i.chunks offset = chunks
+  intro outside
+  cases chunks with
+  | nil =>
+      exact (initialReads lane).mono _ fun column inside => ⟨by simpa using inside.1, inside.2⟩
+  | cons chunk rest =>
+      show (Expr.var (offset + ((chunk :: rest).length - 1) * 1096 + 1080 + lane.val)).VarsSatisfy
+        fun column => column < offset + (chunk :: rest).length * 1096 ∧ live column
+      rw [List.length_cons, Nat.add_sub_cancel]
+      have small := lane.isLt
+      have upper : offset + rest.length * 1096 + 1080 + lane.val <
+          offset + (rest.length + 1) * 1096 := by
+        rw [Nat.add_mul, Nat.one_mul]
+        omega
+      refine ⟨upper, outside _ (by omega) upper ?_⟩
+      rintro ⟨mark, member, lower, inner⟩
+      obtain ⟨index, below, starts⟩ := absorptionMarks_starts offset _ _ mark member
+      rw [starts] at lower inner
+      have := Nat.mul_le_mul_right 1096 (Nat.lt_succ_iff.mp below)
+      omega
+
 end NightstreamFPrime.Lifecycle.Nebula.Sponge

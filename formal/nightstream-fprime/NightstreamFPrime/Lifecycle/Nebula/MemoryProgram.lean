@@ -1,3 +1,4 @@
+import NightstreamFPrime.Lifecycle.Nebula.MemoryClean
 import NightstreamFPrime.Lifecycle.Nebula.MemoryCompleteness
 
 /-! Owns a memory application as a closed Stage 1 `Application.Program`: the
@@ -29,36 +30,6 @@ theorem child_localLength (child : Sponge.Interface) (name : String) (start : �
     (Sequence.childOp name (Sponge.circuit child) start).localLength =
       (child.chunks start).length * 1096 :=
   (Sequence.childOp_localLength _ _ _).trans (Sponge.localLength_eq child start)
-
-/-- Each child ends where the next starts. -/
-theorem child_ends :
-    offset + ((stateIn p app i offset).chunks offset).length * 1096 = stateOutStart p app i offset ∧
-    stateOutStart p app i offset + ((stateOut p app i offset).chunks (stateOutStart p app i offset)).length * 1096 =
-      chainOpsStart p app i offset ∧
-    chainOpsStart p app i offset +
-      ((chainOps p app i offset).chunks (chainOpsStart p app i offset)).length * 1096 =
-      chainInitialStart p app i offset ∧
-    chainInitialStart p app i offset +
-      ((chainInitial p app i offset).chunks (chainInitialStart p app i offset)).length * 1096 =
-      chainFinalStart p app i offset ∧
-    chainFinalStart p app i offset +
-      ((chainFinal p app i offset).chunks (chainFinalStart p app i offset)).length * 1096 =
-      etaStart p app i offset ∧
-    etaStart p app i offset + ((eta p app i offset).chunks (etaStart p app i offset)).length * 1096 =
-      squeeze1Start p app i offset ∧
-    squeeze1Start p app i offset +
-      ((squeeze1 p app i offset).chunks (squeeze1Start p app i offset)).length * 1096 =
-      squeeze2Start p app i offset ∧
-    squeeze2Start p app i offset +
-      ((squeeze2 p app i offset).chunks (squeeze2Start p app i offset)).length * 1096 =
-      squeeze3Start p app i offset ∧
-    squeeze3Start p app i offset +
-      ((squeeze3 p app i offset).chunks (squeeze3Start p app i offset)).length * 1096 =
-      endOffset p app i offset := by
-  refine ⟨rfl, rfl, rfl, rfl, rfl, by rw [etaChunks_length]; rfl, ?_, ?_, ?_⟩
-  · simp only [squeeze2Start, squeeze1, permuting, List.length_singleton, one_mul]
-  · simp only [squeeze3Start, squeeze2, permuting, List.length_singleton, one_mul]
-  · simp only [endOffset, squeeze3, permuting, List.length_singleton, one_mul]
 
 /-- The circuit allocates exactly the children's variables. -/
 theorem localLength_opsAt : offset + localLength (opsAt p app i offset) = endOffset p app i offset := by
@@ -172,6 +143,9 @@ def program : Application.Program where
   assumptions_of_inputsBelow := fun _ _ _ inputs => inputs
   constraintsSupported := fun i offset _ allowed _ inputs localSupport =>
     supported p app i offset allowed inputs localSupport
+  marksPlaced := fun i offset => marksPlaced p app i offset
+  marksClean := fun i offset live affine inputs own =>
+    marksClean p app i offset live affine inputs own
 
 /-- One setup per geometry (SPEC.md section 7.1): the memory program takes a geometry and
 no image, so two plans with one geometry have the same memory program. -/

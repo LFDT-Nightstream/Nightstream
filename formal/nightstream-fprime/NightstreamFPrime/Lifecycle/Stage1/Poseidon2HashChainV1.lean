@@ -180,6 +180,37 @@ theorem constraintsSupported
       simpa [circuit] using! upper)
   simpa [circuit] using! supported
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem inputExpressions_affine (interface : Application.Interface messageWordCount)
+    (offset : Nat) (affine : Application.InputsAffine interface offset) :
+    ∀ word ∈ inputExpressions interface offset, word.Affine := by
+  intro word member
+  simp only [inputExpressions, List.mem_append] at member
+  rcases member with (tagMember | inputMember) | witnessMember
+  · obtain ⟨value, _, rfl⟩ := List.mem_map.mp tagMember
+    exact .const value
+  · obtain ⟨index, rfl⟩ := List.mem_ofFn.mp inputMember
+    exact affine.input index
+  · obtain ⟨index, rfl⟩ := List.mem_ofFn.mp witnessMember
+    exact affine.witness index
+
+theorem marksPlaced (interface : Application.Interface messageWordCount) (offset : Nat) :
+    Placed offset (localLength (Circuit.ops (circuit interface).main offset))
+      (Circuit.ops (circuit interface).main offset) :=
+  Formal.placed (hashInterface interface) offset
+
+theorem marksClean (interface : Application.Interface messageWordCount) (offset : Nat)
+    (live : Nat → Prop) (affine : Application.InputsAffine interface offset)
+    (inputs : Application.InputsSupported interface offset
+      fun column => column < offset ∧ live column)
+    (own : OwnLive live offset (localLength (Circuit.ops (circuit interface).main offset))
+      (Circuit.ops (circuit interface).main offset)) :
+    Clean live (Circuit.ops (circuit interface).main offset) :=
+  Formal.clean (hashInterface interface) offset (inputExpressions_affine interface offset affine)
+    (inputExpressions_varsSatisfy interface offset _ inputs)
+    (fun lane => (inputs.output lane).mono _ fun _ inside => inside.2) own
+
 def program : Application.Program where
   witnessWordCount := messageWordCount
   step := step
@@ -190,6 +221,8 @@ def program : Application.Program where
     (spec_iff interface offset env).trans (and_true _).symm.to_iff
   assumptions_of_inputsBelow := assumptions_of_inputsBelow
   constraintsSupported := constraintsSupported
+  marksPlaced := marksPlaced
+  marksClean := marksClean
 
 @[simp] theorem program_witnessWordCount : program.witnessWordCount = 4 := by
   rfl

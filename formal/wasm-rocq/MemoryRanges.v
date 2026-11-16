@@ -352,11 +352,38 @@ Proof.
     [(GMEM_LOCAL,1)]].
 Qed.
 
+Lemma full_exit_slide_distance_memory_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
+ rangeObligation w (COL_EXIT_SLIDE_DISTANCE, Repairable 32%nat).
+Proof.
+ start_memory_repair COL_EXIT_SLIDE_DISTANCE.
+ memory_value_inactive COL_EXIT_SLIDE_DISTANCE COL_HOST_EVENT_EXIT_LATCH.
+ circuit_boolean COL_ACTIVATION_FINISHED_AFTER Bafter.
+ circuit_boolean COL_ACTIVATION_FINISHED_BEFORE Bbefore.
+ circuit_boolean COL_TRAPPED_AFTER BtrapAfter.
+ circuit_boolean COL_TRAPPED_BEFORE BtrapBefore.
+ circuit_boolean COL_HOST_CLEAR_ACTIVATION_FINISHED Bclear.
+ circuit_row ([(COL_ACTIVATION_FINISHED_AFTER,1); (COL_ACTIVATION_FINISHED_BEFORE,-1);
+   (COL_TRAPPED_AFTER,-1); (COL_TRAPPED_BEFORE,1); (COL_HOST_CLEAR_ACTIVATION_FINISHED,1);
+   (COL_HOST_EVENT_EXIT_LATCH,-1)], [(COL_ONE,1)], ([] : SparseRow)) Hgate.
+ pose proof (proj1 Hfull) as Hone.
+ expand_row Hgate. rewrite Hone in Hgate.
+ assert (Hoff : eval w [(COL_ACTIVATION_FINISHED_AFTER,1); (COL_ACTIVATION_FINISHED_BEFORE,-1);
+   (COL_TRAPPED_AFTER,-1); (COL_TRAPPED_BEFORE,1); (COL_HOST_CLEAR_ACTIVATION_FINISHED,1)] = 0).
+ { cbn [eval fold_right]; normalize_columns.
+   repeat match goal with H : w _ = 0 |- _ => rewrite H in Hgate end.
+   field_linear Hgate. }
+ finish_memory_repair COL_EXIT_SLIDE_DISTANCE
+   [[(COL_ACTIVATION_FINISHED_AFTER,1); (COL_ACTIVATION_FINISHED_BEFORE,-1);
+     (COL_TRAPPED_AFTER,-1); (COL_TRAPPED_BEFORE,1); (COL_HOST_CLEAR_ACTIVATION_FINISHED,1)]].
+Qed.
+
 Theorem memory_range_obligations_sound : forall w,
  fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
  Forall (memoryRangeObligation w) memoryRangeObligations.
 Proof.
  intros w Hprime Hfull Hbounds. unfold memoryRangeObligations.
+ constructor; [split; [vm_compute; reflexivity | exact (full_exit_slide_distance_memory_repair w Hprime Hfull Hbounds)] | ].
  constructor; [split; [vm_compute; reflexivity | exact (full_return_pc_memory_repair w Hprime Hfull Hbounds)] | ].
  constructor; [split; [vm_compute; reflexivity | exact (full_function_locals_memory_repair w Hprime Hfull Hbounds)] | ].
  constructor; [split; [vm_compute; reflexivity | exact (full_local_value_memory_repair w Hprime Hfull Hbounds)] | ].

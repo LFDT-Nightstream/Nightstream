@@ -35,7 +35,7 @@ define_column_region! {
         COL_HOST_NESTED_ENTRY: Boolean => "export entry above a suspended host frame",
         COL_HOST_NESTED_EXIT: Boolean => "export exit above a suspended host frame",
         COL_HOST_CONTEXT_READ: Boolean => "read suspended context at nested entry or resume",
-        COL_HOST_CONTEXT_ADDR: U32 => "suspended context call-stack address",
+        COL_HOST_CONTEXT_ADDR: (Repairable(32)) => "suspended context call-stack address",
         COL_HOST_CONTEXT_FRAME: [MemoryRepairable; 3] => "saved pc, locals frame base, operand-stack base",
         COL_HOST_CONTEXT_REFS: Field => "saved export + 65536 * saved import; bounded by the decoded references",
         COL_HOST_CONTEXT_EXPORT: (Bits(HOST_CONTEXT_HALF_BITS)) => "saved export function reference",

@@ -47,6 +47,7 @@ Proof.
  { change (0 <= w COL_MAX_MEMORY_PAGES_AFTER < 4294967296).
    pose proof (full_max_memory_pages_after_bound w Hprime Hfull); lia. }
  apply Forall_cons. { exact (full_offset_repair w Hprime Hfull). }
+ apply Forall_cons. { exact (full_host_context_addr_repair w Hprime Hfull). }
  apply Forall_cons.
  { change (0 <= w COL_HOST_IMPORT_SCHEDULE_COUNTS < 4294967296).
    pose proof (full_import_schedule_counts_bound w Hprime Hfull); lia. }

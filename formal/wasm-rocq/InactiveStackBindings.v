@@ -330,3 +330,49 @@ Proof.
  inactive_binding COL_CALL_STACK_ADDR COL_CALL_STACK_DEPTH_AFTER COL_CALL_STACK_POP_PRESENT.
  finish_call_stack_repair COL_CALL_STACK_ADDR.
 Qed.
+
+Theorem full_host_context_addr_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> exists w',
+ FullRelation.satFull w' /\
+ 0 <= w' COL_HOST_CONTEXT_ADDR < 4294967296 /\
+ eventsForRow memories w' = eventsForRow memories w /\
+ map (fun '(a,b) => (w' a,w' b)) continuityLinks =
+ map (fun '(a,b) => (w a,w b)) continuityLinks /\
+ (forall c, c <> COL_HOST_CONTEXT_ADDR -> w' c = w c).
+Proof.
+ repair_call_stack COL_HOST_CONTEXT_ADDR.
+ inactive_binding COL_HOST_CONTEXT_ADDR COL_CALL_STACK_DEPTH_BEFORE COL_HOST_SUSPEND.
+ circuit_boolean COL_HOST_CONTEXT_READ Bread.
+ circuit_range COL_HOST_FRAME_DEPTH_BEFORE Hdepth.
+ pose proof (value_bound w COL_HOST_CONTEXT_ADDR) as Haddr.
+ pose proof (proj1 Hfull) as Hone.
+ circuit_zero_test COL_HOST_FRAME_DEPTH_BEFORE COL_HOST_FRAME_DEPTH_INV COL_HOST_FRAME_DEPTH_IS_ZERO Hzero.
+ circuit_row ([(COL_HOST_CONTEXT_READ,1)], [(COL_HOST_FRAME_DEPTH_IS_ZERO,1)], ([] : SparseRow)) Hnonzero.
+ circuit_row ([(COL_HOST_CONTEXT_READ,1)],
+   [(COL_HOST_CONTEXT_ADDR,1); (COL_HOST_FRAME_DEPTH_BEFORE,-1); (COL_ONE,1)], ([] : SparseRow)) Hread.
+ expand_row Hnonzero. expand_row Hread. rewrite Hone in Hread.
+ assert (HreadOff : w COL_HOST_CONTEXT_READ = 0).
+ { destruct Bread as [HreadOff|HreadOn]; [exact HreadOff|].
+   rewrite HreadOn in Hnonzero, Hread.
+   assert (Hpositive : 0 < w COL_HOST_FRAME_DEPTH_BEFORE).
+   { destruct (Z.eq_dec (w COL_HOST_FRAME_DEPTH_BEFORE) 0) as [Hzdepth|Hzdepth]; normalize_columns; [|lia].
+     rewrite Hzdepth in Hzero. cbn in Hzero. rewrite Hzero in Hnonzero. field_linear Hnonzero. }
+   normalize_columns. field_linear Hread. }
+ circuit_boolean COL_HOST_NESTED_ENTRY Bentry.
+ circuit_boolean COL_HOST_RESUME Bresume.
+ circuit_row ([(COL_HOST_CONTEXT_READ,1); (COL_HOST_NESTED_ENTRY,-1); (COL_HOST_RESUME,-1)],
+   [(COL_ONE,1)], ([] : SparseRow)) Hgate.
+ expand_row Hgate. rewrite Hone, HreadOff in Hgate.
+ assert (Hoff : w COL_HOST_NESTED_ENTRY = 0 /\ w COL_HOST_RESUME = 0) by field_linear Hgate.
+ destruct Hoff as [HentryOff HresumeOff].
+ exists (zeroColumn COL_HOST_CONTEXT_ADDR w). split.
+ - eapply private_full_repair with (gates := [[(COL_HOST_SUSPEND,1)]; [(COL_HOST_CONTEXT_READ,1)]]).
+   + vm_compute; discriminate.
+   + vm_compute; reflexivity.
+   + repeat constructor; cbn [eval fold_right]; normalize_columns;
+       repeat match goal with H : _ = 0 |- _ => progress rewrite H end; reflexivity.
+   + exact Hfull.
+ - split; [rewrite zero_column_value; lia|]. split.
+   + repair_memory_events COL_HOST_CONTEXT_ADDR.
+   + split; [reflexivity|apply zero_column_same].
+Qed.

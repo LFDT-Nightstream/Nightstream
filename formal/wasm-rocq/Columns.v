@@ -433,10 +433,10 @@ Definition GMEM_HALF : nat := 1213%nat.
 Definition TURN_SCHEDULE_COUNT_INV : nat := 1214%nat.
 Definition OBJECT_ROOT_LANE : list nat := [1215%nat; 1216%nat; 1217%nat; 1218%nat].
 Definition OBJECT_SAVED_LANE : list nat := [1219%nat; 1220%nat; 1221%nat; 1222%nat].
-Definition RANGE_BITS : list nat := seq 1223%nat 2248%nat.
+Definition RANGE_BITS : list nat := seq 1223%nat 2184%nat.
 
 Definition namedColumnCount : nat := 465%nat.
-Definition columnCount : nat := 3471%nat.
+Definition columnCount : nat := 3407%nat.
 
 Definition families : list Family :=
   [(0%nat, 1%nat, Field);
@@ -463,7 +463,7 @@ Definition families : list Family :=
    (21%nat, 1%nat, Boolean);
    (22%nat, 1%nat, Boolean);
    (23%nat, 1%nat, Boolean);
-   (24%nat, 1%nat, U32);
+   (24%nat, 1%nat, MemoryRepairable);
    (25%nat, 1%nat, Boolean);
    (26%nat, 1%nat, Field);
    (27%nat, 1%nat, Boolean);
@@ -792,7 +792,7 @@ Definition families : list Family :=
    (372%nat, 1%nat, Boolean);
    (373%nat, 1%nat, Boolean);
    (374%nat, 1%nat, Boolean);
-   (375%nat, 1%nat, U32);
+   (375%nat, 1%nat, (Repairable 32%nat));
    (376%nat, 3%nat, MemoryRepairable);
    (379%nat, 1%nat, Field);
    (380%nat, 1%nat, (Bits 16%nat));
@@ -867,7 +867,7 @@ Definition families : list Family :=
    (1214%nat, 1%nat, Field);
    (1215%nat, 4%nat, Boolean);
    (1219%nat, 4%nat, Boolean);
-   (1223%nat, 2248%nat, Boolean)].
+   (1223%nat, 2184%nat, Boolean)].
 
 Definition rangeObligations : list (nat * Width) :=
   [(7%nat, (Implied 32%nat));
@@ -883,7 +883,8 @@ Definition rangeObligations : list (nat * Width) :=
    (162%nat, (Repairable 32%nat));
    (176%nat, (Implied 32%nat));
    (196%nat, (Repairable 32%nat));
+   (375%nat, (Repairable 32%nat));
    (386%nat, (Implied 32%nat))].
 
 Definition memoryRangeObligations : list nat :=
-  [46%nat; 53%nat; 156%nat; 157%nat; 158%nat; 164%nat; 195%nat; 352%nat; 376%nat; 377%nat; 378%nat; 385%nat; 458%nat].
+  [24%nat; 46%nat; 53%nat; 156%nat; 157%nat; 158%nat; 164%nat; 195%nat; 352%nat; 376%nat; 377%nat; 378%nat; 385%nat; 458%nat].

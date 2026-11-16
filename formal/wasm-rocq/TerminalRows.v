@@ -55,9 +55,9 @@ Proof.
       TerminalConfig program root s caller row outcome c1).
   { intros Hleaves.
     destruct (finish_function_row program s view f initial final row active caller Hstore Hwf Hvalid Hprime
-      Hloaded Hfull Hprogram Hfinish Hreplay Hcaller Hstate Hf Hleaves)
+      Hloaded Hfull HmemoryBounds Hprogram Hfinish Hreplay Hcaller Hstate Hf Hleaves)
       as [result [Htrap [Hcapture Hsteps]]].
-    destruct (full_clean_finish row Hprime Hfull Hprogram Hfinish Htrap) as [_ [HsameDepth _]].
+    destruct (full_clean_finish_boundary row Hprime Hfull Hprogram Hfinish Htrap) as [_ HsameDepth].
     assert (Hnil : stack = []) by (destruct stack; [reflexivity | cbn in Hdepth; lia]). subst stack.
     change (positionFunction (viewPosition view) = root) in Hindex. rewrite Hindex, Hroot in Hf.
     injection Hf as <-.

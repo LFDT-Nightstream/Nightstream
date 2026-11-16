@@ -116,7 +116,7 @@ theorem pieces_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn :
   intro piece member expression inPiece
   apply all
   show expression ∈ CircuitRelation.constraints circuit offset digestColumn
-  rw [← flatMap_split (PilotData.canonicalConstraints ())
+  rw [← flatMap_split (PilotData.canonicalConstraints ()) (marks (Circuit.ops circuit.main offset))
     (CircuitRelation.constraints circuit offset digestColumn)]
   exact List.mem_flatMap.mpr ⟨piece, member, inPiece⟩
 
@@ -169,7 +169,7 @@ theorem fresh_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn : 
     rw [atColumn]
     exact encHash_norm (publicFits := publicFits) digest ⟨column, inside⟩
   obtain ⟨rows, bounded⟩ := SlotCompleteness.rowsZero_of_holds fits packed
-    (fun piece member => valid_split _ _ piece member)
+    (fun piece member => valid_split _ _ _ piece member)
     (fun piece member => List.all_eq_true.mp below piece member) publicBelow batches wideFits
     (withPublic (publicFits := publicFits) digest env) piecesHold marker publicNorm
   refine ⟨_, Layout.ProductionRelation.Plan.rowsZero_implies_freshHolds _ cubeFits ajtai _ _ rows
@@ -255,7 +255,7 @@ def refreshOps (relation : ProductionKey.LogicalRelation logicalWidth publicFits
 /-- The pieces that the emitter writes for a step circuit: the pieces of the circuit's
 constraints, then of the decode constraints of its output digest. -/
 def piecesOf (ops : List Op) (digestColumn : Fin 4 → Nat) : List Piece :=
-  split (PilotData.canonicalConstraints ())
+  split (PilotData.canonicalConstraints ()) (marks ops)
     (flatConstraints ops ++ LogicalPlan.decodeConstraints digestColumn)
 
 /-- The emitter's light pieces are the pieces of `StepRelation.light_stepHolds` and
@@ -295,6 +295,28 @@ theorem canonical_last :
   recipeConstraints_last 16 1095 _
     (Gadgets.Poseidon2.Permutation.compile_schedule_recipe_count 16 PilotData.canonicalState)
 
+/-- The first constraint of the permutation template: its first local is the first lane of the
+initial linear layer. -/
+theorem canonical_head :
+    Expr.var 16 - Gadgets.Poseidon2.Layer.externalE PilotData.canonicalState ⟨0, by decide⟩ ∈
+      PilotData.canonicalConstraints () := by
+  obtain ⟨tail, schedule⟩ : ∃ tail, Gadgets.Poseidon2.Permutation.schedule =
+      Gadgets.Poseidon2.Permutation.Step.initialLayer :: tail := ⟨_, rfl⟩
+  unfold PilotData.canonicalConstraints PilotData.canonicalRecipes
+  rw [schedule]
+  simp only [Gadgets.Poseidon2.Permutation.compile, Gadgets.Poseidon2.Permutation.stepRecipes,
+    List.ofFn_succ, List.cons_append, recipeConstraints]
+  exact List.mem_cons_self
+
+/-- Each of the 16 lanes is read by a constraint of the permutation template. -/
+theorem canonical_lanes : ∀ lane, lane < 16 → ∃ pattern ∈ PilotData.canonicalConstraints (),
+    PieceRowsCompleteness.readsColumn lane pattern = true := by
+  have reads : ∀ lane, lane < 16 → PieceRowsCompleteness.readsColumn lane
+      (Expr.var 16 - Gadgets.Poseidon2.Layer.externalE PilotData.canonicalState ⟨0, by decide⟩) =
+        true := by
+    decide
+  exact fun lane inside => ⟨_, canonical_head, reads lane inside⟩
+
 theorem decodeFold_below (word : Fin 4) {bound : Nat} (bits : 257 ≤ bound) :
     ∀ (indices : List Nat) (initial : Expr), initial.VarsBelow bound →
       (indices.foldl (fun value bit => value + Expr.const (Poseidon2.ofNat (2 ^ bit)) *
@@ -330,7 +352,7 @@ theorem lightPieces_readOwnColumns
     (publicBelow : publicColumns ≤ firstFresh) :
     (lightPieces program relation ajtai).all (pieceBelow firstFresh) = true := by
   rw [← piecesOf_lightOps program relation ajtai]
-  refine split_below _ _ canonical_last fun constraint member => ?_
+  refine split_below _ _ _ canonical_last canonical_lanes fun constraint member => ?_
   rcases List.mem_append.mp member with member | member
   · exact scope constraint member
   · refine decodeConstraints_below _ (fun word => ?_) (le_trans (by decide) publicBelow)
@@ -355,7 +377,7 @@ theorem refreshPieces_readOwnColumns
     (publicBelow : publicColumns ≤ firstFresh) :
     (refreshPieces program relation ajtai).all (pieceBelow firstFresh) = true := by
   rw [← piecesOf_refreshOps program relation ajtai]
-  refine split_below _ _ canonical_last fun constraint member => ?_
+  refine split_below _ _ _ canonical_last canonical_lanes fun constraint member => ?_
   rcases List.mem_append.mp member with member | member
   · exact scope constraint member
   · refine decodeConstraints_below _ (fun word => ?_) (le_trans (by decide) publicBelow)

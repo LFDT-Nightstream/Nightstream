@@ -74,6 +74,8 @@ import NightstreamFPrime.Spec
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import NightstreamFPrime.Spec.Nebula
+import NightstreamFPrime.Export.Generic.MarkedBlocks
+import NightstreamFPrime.Gadgets.Poseidon2.Formal
 
 open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 
@@ -402,7 +404,9 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Export.Generic.Pieces.permutation_sound
 #audit_axioms NightstreamFPrime.Export.Generic.Pieces.split_sound
 #audit_axioms NightstreamFPrime.Export.Generic.Pieces.matchTemplate_spec
-#audit_axioms NightstreamFPrime.Export.Generic.Pieces.recognize_spec
+#audit_axioms NightstreamFPrime.Export.Generic.Pieces.recognizeRing_spec
+#audit_axioms NightstreamFPrime.Export.Generic.Pieces.otherPiece_spec
+#audit_axioms NightstreamFPrime.Export.Generic.Pieces.nextPiece_spec
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRows.laneCombination_eval
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRows.evaluation_eval
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRows.ring_of_equations
@@ -591,12 +595,16 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.exprBelow_iff
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.lanes_below
-#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.matchExpr_below
-#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.matchAll_below
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.matchExpr_satisfies
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.matchAll_satisfies
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.matchTemplate_lanes_satisfy
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.matchTemplate_lanes_below
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.local_below
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.ringTemplate_last
-#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.recognize_below
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.wire_below
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.recognizeRing_below
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.otherPiece_below
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.nextPiece_below
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.splitAux_below
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.split_below
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.output_of_constraints
@@ -696,6 +704,29 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.piecesOf_refreshOps
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.recipeConstraints_last
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.canonical_last
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.canonical_head
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.canonical_lanes
+#audit_axioms NightstreamFPrime.Circuit.Segmented.append
+#audit_axioms NightstreamFPrime.Circuit.Segmented.split_head
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Permutation.markWindow_markOf
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Hash.compileAbsorptions_windows
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Hash.compile_windows
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.compile_windows
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Placed.append
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Clean.append
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.OwnLive.left
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.OwnLive.right
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Clean.batch
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.absorptionMarks_lanes
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.hashMarks_lanes
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.hash_clean
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.hash_digest_live
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Formal.placed
+#audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Formal.clean
+#audit_axioms NightstreamFPrime.Export.Generic.PermutationWindow.compile_subst
+#audit_axioms NightstreamFPrime.Export.Generic.PermutationWindow.window_eq_markWindow
+#audit_axioms NightstreamFPrime.Export.Generic.MarkedBlocks.splitAux_segmented
+#audit_axioms NightstreamFPrime.Export.Generic.MarkedBlocks.packable_of_segmented
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.decodeFold_below
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.decodeConstraints_below
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.lightPieces_readOwnColumns

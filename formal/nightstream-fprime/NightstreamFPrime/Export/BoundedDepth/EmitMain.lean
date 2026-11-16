@@ -108,7 +108,8 @@ def applicationRegion (name : String) (words : Nat) (ops : List Op) (offset firs
       unless child.name == s!"{name}.application" do
         throw (IO.userError s!"{name}: the first child is {child.name}")
   | _ => throw (IO.userError s!"{name}: the first operation is not the application")
-  let own := Pieces.split (PilotData.canonicalConstraints ()) application.flatConstraints
+  let own := Pieces.split (PilotData.canonicalConstraints ()) application.marks
+    application.flatConstraints
   let render := fun (piece : StepPackage.PackagePiece) =>
     (StepPackage.PackagePiece.format.encode piece).render
   unless (StepPackage.packagePieces own firstFresh).map render ==
@@ -176,7 +177,8 @@ def childCensus (name : String) (ops : List Op) : IO Unit := do
       | .subcircuit child => child.name
       | .witness _ => "witness"
       | .assertZero _ => "assertion"
-    let pieces := Pieces.split canonical op.flatConstraints
+      | .mark _ => "marks"
+    let pieces := Pieces.split canonical op.marks op.flatConstraints
     let permutations := (pieces.filter fun | .permutation .. => true | _ => false).length
     let generic := Pieces.genericConstraints pieces
     (label, permutations, ringProducts pieces, generic.length,

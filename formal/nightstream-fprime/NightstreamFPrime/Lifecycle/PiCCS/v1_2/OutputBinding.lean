@@ -270,8 +270,8 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
   simpa [duplexInterface, recipeCount] using recipeCount_eq interface offset
 
 theorem operations_length (interface : Interface) (offset : Nat) :
-    (Circuit.ops (circuit interface).main offset).length = 1 := by
-  change (Formal.Owned.opsAt (duplexInterface interface) offset).length = 1
+    (Circuit.ops (circuit interface).main offset).length = 2 := by
+  change (Formal.Owned.opsAt (duplexInterface interface) offset).length = 2
   rw [Formal.Owned.operations_length]
   simp [duplexInterface, actions, Formal.assertionCount,
     Formal.Action.assertionCount]

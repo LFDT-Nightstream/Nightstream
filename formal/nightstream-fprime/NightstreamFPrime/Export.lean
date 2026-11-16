@@ -19,6 +19,8 @@ import NightstreamFPrime.Export.PilotData
 import NightstreamFPrime.Export.RowSemantics
 import NightstreamFPrime.Export.PackageExpansion
 import NightstreamFPrime.Export.Pilot
+import NightstreamFPrime.Export.Generic.PermutationWindow
+import NightstreamFPrime.Export.Generic.MarkedBlocks
 import NightstreamFPrime.Export.Stage1.Rows
 import NightstreamFPrime.Export.Stage1.Invocations
 import NightstreamFPrime.Export.Stage1.PiCCSInvocations

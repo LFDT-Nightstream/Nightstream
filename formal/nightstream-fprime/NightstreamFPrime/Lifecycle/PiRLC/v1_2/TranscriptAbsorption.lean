@@ -167,9 +167,9 @@ theorem localLength_eq (interface : Interface) (coordinate offset : Nat) :
   exact recipeCount_eq coordinate
 
 theorem operations_length (interface : Interface) (coordinate offset : Nat) :
-    (Circuit.ops (circuit interface coordinate).main offset).length = 1 := by
+    (Circuit.ops (circuit interface coordinate).main offset).length = 2 := by
   rw [circuit_ops, Formal.Owned.operations_length]
-  change 1 + Formal.assertionCount (actions coordinate) = 1
+  change 2 + Formal.assertionCount (actions coordinate) = 2
   rw [assertionCount_eq]
 
 theorem flatConstraints_length (interface : Interface)

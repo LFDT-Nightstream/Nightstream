@@ -1,3 +1,4 @@
+import NightstreamFPrime.Gadgets.Poseidon2.Clean
 import NightstreamFPrime.Gadgets.Poseidon2.Support
 
 /-! Owns one proof-carrying Poseidon2 sponge child: it absorbs an explicit list
@@ -30,7 +31,8 @@ def output (i : Interface) (offset : Nat) : EState :=
   | chunks => Permutation.freshState (offset + (chunks.length - 1) * 1096 + 1080)
 
 def opsAt (i : Interface) (offset : Nat) : List Op :=
-  [Op.witness (WitnessBatch.arithmetic offset (program i offset).recipes)]
+  [Op.witness (WitnessBatch.arithmetic offset (program i offset).recipes),
+    Op.mark (Hash.absorptionMarks offset (i.initial offset) (i.chunks offset))]
 
 def main (i : Interface) : Circuit Unit := fun offset =>
   ((), offset + (i.chunks offset).length * 1096, opsAt i offset)
@@ -159,5 +161,39 @@ def circuit (i : Interface) : FormalCircuit where
   spec := SpecHolds i
   soundness := soundness i
   completeness := fun env offset assumptions _ => completeness i env offset assumptions
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem localLength_opsAt (i : Interface) (offset : Nat) :
+    localLength (opsAt i offset) = (i.chunks offset).length * 1096 :=
+  (localLength_batch offset _ _).trans (Hash.compileAbsorptions_recipes_length _ _ _)
+
+theorem placed (i : Interface) (offset : Nat) :
+    Placed offset (localLength (opsAt i offset)) (opsAt i offset) := by
+  rw [localLength_opsAt]
+  refine ⟨fun mark member => ?_, ?_⟩
+  · simp only [opsAt, marks, List.flatMap_cons, List.flatMap_nil, Op.marks, List.nil_append,
+      List.append_nil] at member
+    exact absorptionMarks_inside offset _ _ mark member
+  · simpa [opsAt, marks, Op.marks] using absorptionMarks_ascend offset (i.initial offset)
+      (i.chunks offset)
+
+theorem clean (i : Interface) (offset : Nat) {live : Nat → Prop}
+    (initialAffine : ∀ lane, (i.initial offset lane).Affine)
+    (initialReads : ∀ lane, (i.initial offset lane).VarsSatisfy
+      fun column => column < offset ∧ live column)
+    (chunksAffine : ∀ chunk ∈ i.chunks offset, ∀ word ∈ chunk, word.Affine)
+    (chunksRead : ∀ chunk ∈ i.chunks offset, ∀ word ∈ chunk,
+      word.VarsSatisfy fun column => column < offset ∧ live column)
+    (own : OwnLive live offset (localLength (opsAt i offset)) (opsAt i offset)) :
+    Clean live (opsAt i offset) := by
+  rw [localLength_opsAt] at own
+  refine .batch (Hash.compileAbsorptions_windows _ _ _)
+    (absorptionMarks_lanes offset _ _ initialAffine initialReads chunksAffine chunksRead
+      fun column lower upper outside => own column lower upper ?_)
+  rintro ⟨mark, member, inner⟩
+  simp only [opsAt, marks, List.flatMap_cons, List.flatMap_nil, Op.marks, List.nil_append,
+    List.append_nil] at member
+  exact outside mark member inner
 
 end NightstreamFPrime.Lifecycle.Nebula.Sponge

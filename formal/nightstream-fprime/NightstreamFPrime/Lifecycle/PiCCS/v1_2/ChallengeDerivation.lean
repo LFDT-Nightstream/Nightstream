@@ -702,7 +702,8 @@ theorem duplexSpec_iff_specHolds
 
 def opsAt (interface : Interface) (offset : Nat) : List Op :=
   [Op.witness (WitnessBatch.arithmetic offset
-    (program interface offset).recipes)]
+    (program interface offset).recipes),
+    Op.mark (Formal.marks offset (interface.initialState offset) (actions interface offset))]
 
 def main (interface : Interface) : Circuit Unit := fun offset =>
   ((), offset + (program interface offset).recipes.length,
@@ -927,7 +928,7 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
   rw [circuit_ops, opsAt_localLength, program_recipes_length]
 
 theorem operations_length (interface : Interface) (offset : Nat) :
-    (Circuit.ops (circuit interface).main offset).length = 1 := by
+    (Circuit.ops (circuit interface).main offset).length = 2 := by
   rw [circuit_ops]
   rfl
 

@@ -533,7 +533,8 @@ theorem trace_iff_specHolds {degreeBound : Nat}
 def opsAt {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) : List Op :=
   [Op.witness (WitnessBatch.arithmetic offset
-    (program interface offset).recipes)]
+    (program interface offset).recipes),
+    Op.mark (Formal.marks offset (interface.initialState offset) (actions interface offset))]
 
 def main {degreeBound : Nat}
     (interface : Interface degreeBound) : Circuit Unit := fun offset =>
@@ -865,7 +866,7 @@ theorem localLength_eq {degreeBound : Nat}
 
 theorem operations_length {degreeBound : Nat}
     (interface : Interface degreeBound) (offset : Nat) :
-    (Circuit.ops (circuit interface).main offset).length = 1 := by
+    (Circuit.ops (circuit interface).main offset).length = 2 := by
   rfl
 
 theorem flatConstraints_length {degreeBound : Nat}

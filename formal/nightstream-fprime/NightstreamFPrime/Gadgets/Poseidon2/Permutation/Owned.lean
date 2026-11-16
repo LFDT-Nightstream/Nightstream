@@ -1,3 +1,4 @@
+import NightstreamFPrime.Gadgets.Poseidon2.Clean
 import NightstreamFPrime.Circuit.StraightLine
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation
 
@@ -27,7 +28,8 @@ def output (_interface : Interface) (offset : Nat) : EState :=
   Permutation.scheduleOutput offset
 
 def operations (interface : Interface) (offset : Nat) : List Op :=
-  [.witness (WitnessBatch.arithmetic offset (program interface offset).recipes)]
+  [.witness (WitnessBatch.arithmetic offset (program interface offset).recipes),
+    .mark [Permutation.markOf offset (interface.initialState offset)]]
 
 theorem flatConstraints_operations (interface : Interface) (offset : Nat) :
     flatConstraints (operations interface offset) =
@@ -149,5 +151,46 @@ def circuit (interface : Interface) : FormalCircuit :=
     completeness := by
       intro env offset assumptions specification
       exact completeness interface env offset assumptions specification }
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem localLength_operations (interface : Interface) (offset : Nat) :
+    localLength (operations interface offset) = 1096 :=
+  (localLength_batch offset _ _).trans (program_recipes_length interface offset)
+
+theorem placed (interface : Interface) (offset : Nat) :
+    Placed offset (localLength (operations interface offset)) (operations interface offset) := by
+  rw [localLength_operations]
+  refine ⟨fun mark member => ?_, by simp [operations, marks, Op.marks]⟩
+  simp only [operations, marks, List.flatMap_cons, List.flatMap_nil, Op.marks, List.nil_append,
+    List.append_nil, List.mem_singleton] at member
+  subst member
+  simp
+
+theorem clean (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (affine : ∀ lane, (interface.initialState offset lane).Affine)
+    (reads : ∀ lane, (interface.initialState offset lane).VarsSatisfy
+      fun column => column < offset ∧ live column) :
+    Clean live (operations interface offset) :=
+  .batch (by simp [Permutation.markWindow_markOf, program])
+    (fun mark member => by
+      simp only [List.mem_singleton] at member
+      subst member
+      exact Permutation.markOf_lanes_facts offset _ affine reads)
+
+/-- The permutation's outputs are live. -/
+theorem output_live (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (own : OwnLive live offset (localLength (operations interface offset))
+      (operations interface offset)) (lane : Fin 16) :
+    (output interface offset lane).VarsSatisfy live := by
+  rw [localLength_operations] at own
+  have small := lane.isLt
+  refine own (offset + 1080 + lane.val) (by omega) (by omega) ?_
+  rintro ⟨mark, member, lower, upper⟩
+  simp only [operations, marks, List.flatMap_cons, List.flatMap_nil, Op.marks, List.nil_append,
+    List.append_nil, List.mem_singleton] at member
+  subst member
+  simp only [Permutation.markOf_start] at upper
+  omega
 
 end NightstreamFPrime.Gadgets.Poseidon2.Permutation.Owned

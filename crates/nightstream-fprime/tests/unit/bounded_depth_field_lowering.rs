@@ -104,10 +104,10 @@ fn native_power_and_affine_rows_reconstruct_exact_source_constraints() {
     for package in [native.light(), native.refresh()] {
         assert_eq!(package.field_lowering.powers.len(), 1);
         assert_eq!(package.field_lowering.affine.len(), 1);
-        let plan = package.plan_rows().unwrap();
+        let expanded = package.clone().expand().unwrap();
+        let (plan, layout) = (expanded.rows(), expanded.layout());
         let source = package.source_rows().unwrap();
         assert_eq!(source.row_count() - plan.row_count(), 4);
-        let layout = package.layout().unwrap();
         for column in INPUT + 1..=INPUT + 3 {
             assert!(layout.slot(column).is_none());
         }
@@ -126,13 +126,13 @@ fn native_power_and_affine_rows_reconstruct_exact_source_constraints() {
             assert!(logical
                 .iter()
                 .all(|value| [-F::ONE, F::ZERO, F::ONE].contains(value)));
-            let restored = package.source_assignment(&logical).unwrap();
+            let restored = expanded.source_assignment(&logical).unwrap();
             assert!((0..6).all(|row| source.residual(row, &restored) == F::ZERO));
             for row in 0..2 {
                 for port in 0..4 {
                     assert_eq!(
                         plan.evaluate(row, port, &columns),
-                        layout.evaluate(&plan, row, port, &logical).unwrap()
+                        layout.evaluate(plan, row, port, &logical).unwrap()
                     );
                 }
             }
@@ -184,7 +184,7 @@ fn persistent_and_native_piece_reads_protect_removed_columns() {
     for native in [compiled.light(), compiled.refresh()] {
         let mut package = native.clone();
         package.field_lowering = FieldLowering::default();
-        package.slots = package.rule_slots(&[]);
+        package.slots = package.rule_slots(&[], &[]);
         package.pieces.push(Piece::Rows(vec![Row {
             a: unit(INPUT + 1),
             b: unit(INPUT),

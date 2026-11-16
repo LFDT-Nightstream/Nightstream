@@ -10,12 +10,12 @@ use std::path::Path;
 use std::sync::Arc;
 
 use neo_math::F;
-use nightstream_fprime::{BoundedDepthPackages, Linear, NativeBlock, NativeShape};
+use nightstream_fprime::{Linear, NativeBlock, NativeShape};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::engine::{Backend, Engine, EngineError};
-use crate::lifecycle::bounded_depth as lifecycle;
+use crate::lifecycle::bounded_depth::{self as lifecycle, CompiledSteps};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -169,9 +169,11 @@ pub(crate) struct References<'a> {
 
 /// The packages and their application: a Rust application in place of
 /// Lean's (`compile`), or Lean's own (`load_packages`), whose witness program
-/// fills its locals from the witness words and the output state.
+/// fills its locals from the witness words and the output state. It holds
+/// the expanded step circuits once; each prover and verifier of the circuit
+/// shares them.
 pub struct Circuit {
-    packages: BoundedDepthPackages,
+    steps: CompiledSteps,
     application: Option<ApplicationCircuit>,
     /// A memory relation: only `nebula::Circuit::verifier` verifies it,
     /// because this verifier checks no SPEC.md Algorithm 8 terminal
@@ -186,20 +188,36 @@ impl Circuit {
     /// packages: it computes the step of Lean's application region, and the
     /// Lean checks of Rust's files read those packages.
     pub fn compile(application: ApplicationCircuit) -> Result<Self, Error> {
-        crate::application::check_blocks(&application)?;
         let embedded = crate::artifacts::embedded();
         let witness_words = application.private_input_count();
-        let packages = if encode_application(&application)?
-            == encode_application(&crate::application::poseidon2_hash_chain_v1()?)?
-        {
-            embedded.packages.clone()
-        } else {
-            embedded
-                .packages
-                .with_application(application.records().clone(), witness_words, application.shape())?
+        let steps = || -> Result<CompiledSteps, Error> {
+            let reference = crate::application::poseidon2_hash_chain_v1()?;
+            // The saved form holds these counts, so applications with other
+            // counts have other saved forms.
+            let counts = |application: &ApplicationCircuit| {
+                let records = application.records();
+                (
+                    application.private_input_count(),
+                    records.row_count(),
+                    records.recipe_count(),
+                    application.shape().blocks.len(),
+                )
+            };
+            let packages = if counts(&application) == counts(&reference)
+                && encode_application(&application)? == encode_application(&reference)?
+            {
+                embedded.packages.clone()
+            } else {
+                embedded
+                    .packages
+                    .with_application(application.records().clone(), witness_words, application.shape())?
+            };
+            Ok(CompiledSteps::new(packages)?)
         };
+        let (checked, steps) = rayon::join(|| crate::application::check_blocks(&application), steps);
+        checked?;
         Ok(Self {
-            packages,
+            steps: steps?,
             application: Some(application),
             memory: false,
         })
@@ -212,7 +230,7 @@ impl Circuit {
     pub(crate) fn load_packages(references: References<'_>, expected: [u64; 4]) -> Result<Self, Error> {
         let packages = nightstream_fprime::load_bounded_depth_packages(references.light, references.refresh, expected)?;
         Ok(Self {
-            packages,
+            steps: CompiledSteps::new(packages)?,
             application: None,
             memory: false,
         })
@@ -242,7 +260,7 @@ impl Circuit {
 
     /// The packages' identity with the application.
     pub fn identity(&self) -> [u64; 4] {
-        self.packages.identity()
+        self.steps.identity()
     }
 
     /// Save the application for a prover in another process
@@ -300,7 +318,7 @@ impl Circuit {
 
     fn prover_on(&self, backend: Backend, minimum_security_bits: u32) -> Result<Prover, Error> {
         Ok(Prover {
-            lifecycle: lifecycle::BoundedDepth::new(self.packages.clone(), minimum_security_bits, backend)?,
+            lifecycle: lifecycle::BoundedDepth::new(&self.steps, minimum_security_bits, backend)?,
             application: self.application.clone(),
         })
     }
@@ -320,11 +338,7 @@ impl Circuit {
     /// The step verifier inside `nebula::Verifier`.
     pub(crate) fn stage1_verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
         Ok(Verifier {
-            lifecycle: lifecycle::BoundedDepth::new(
-                self.packages.clone(),
-                minimum_security_bits,
-                Backend::new(engine)?,
-            )?,
+            lifecycle: lifecycle::BoundedDepth::new(&self.steps, minimum_security_bits, Backend::new(engine)?)?,
         })
     }
 }
@@ -563,3 +577,7 @@ impl Verifier {
 #[cfg(test)]
 #[path = "../tests/bounded_depth_lifecycle/native_field_census.rs"]
 mod native_field_census;
+
+#[cfg(test)]
+#[path = "../tests/bounded_depth_lifecycle/compiled_circuit_sharing.rs"]
+mod sharing;

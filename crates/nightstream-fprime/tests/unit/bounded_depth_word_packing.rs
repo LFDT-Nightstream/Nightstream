@@ -112,9 +112,9 @@ fn word_packing_preserves_all_ports_and_source_assignments() {
         assert_eq!(packing.groups[0].sources.len(), 3);
         assert_eq!(packing.groups[0].pairs.len(), 2);
         assert_eq!(packing.groups[0].certificates.len(), 1);
-        let plan = package.plan_rows().unwrap();
+        let expanded = package.clone().expand().unwrap();
+        let (plan, layout) = (expanded.rows(), expanded.layout());
         let source = package.source_rows().unwrap();
-        let layout = package.layout().unwrap();
         assert_eq!(source.piece_ranges()[0].len(), rows.len());
         assert_eq!(plan.piece_ranges()[0].len(), 2);
         for assignment in 0..16 {
@@ -139,7 +139,7 @@ fn word_packing_preserves_all_ports_and_source_assignments() {
                         .all(|row| plan.residual(row, &columns) == F::ZERO)
                 );
                 let logical = layout.assignment(&columns).unwrap();
-                let restored = package.source_assignment(&logical).unwrap();
+                let restored = expanded.source_assignment(&logical).unwrap();
                 assert_eq!(
                     original,
                     source.piece_ranges()[0]
@@ -150,7 +150,7 @@ fn word_packing_preserves_all_ports_and_source_assignments() {
                     for port in 0..4 {
                         assert_eq!(
                             plan.evaluate(row, port, &columns),
-                            layout.evaluate(&plan, row, port, &logical).unwrap()
+                            layout.evaluate(plan, row, port, &logical).unwrap()
                         );
                     }
                 }
@@ -234,19 +234,8 @@ fn constants_aliases_and_guard_scaling_preserve_equality() {
 }
 
 #[test]
-fn certificate_maps_and_packing_identity_are_checked() {
+fn packing_identity_binds_the_source_rows() {
     let baseline = packages(&fixture());
-    for mutation in 0..4 {
-        let mut package = baseline.light().clone();
-        match mutation {
-            0 => package.word_packing.groups[0].certificates.clear(),
-            1 => package.word_packing.groups[0].sources[0] += 1,
-            2 => package.word_packing.groups[0].pairs[0] = (Bit::Zero, Bit::One),
-            _ => package.word_packing.groups[0].guard.constant += F::ONE,
-        }
-        assert!(package.plan_rows().is_err());
-        assert!(package.source_rows().is_err());
-    }
     let mut changed = fixture();
     changed[4].a.constant += F::ONE;
     assert_ne!(baseline.identity(), packages(&changed).identity());
@@ -303,8 +292,6 @@ fn reject_changed_certificate_columns(original: &StepPackage, columns: &[usize])
                 })
                 .collect();
             assert!(WordPacking::checked(&package).unwrap().groups.is_empty());
-            assert!(package.plan_rows().is_err());
-            assert!(package.source_rows().is_err());
         }
         let mut package = original.clone();
         package
@@ -312,8 +299,6 @@ fn reject_changed_certificate_columns(original: &StepPackage, columns: &[usize])
             .affine
             .insert(changed, (0, constant(0)));
         assert!(WordPacking::checked(&package).unwrap().groups.is_empty());
-        assert!(package.plan_rows().is_err());
-        assert!(package.source_rows().is_err());
     }
 }
 

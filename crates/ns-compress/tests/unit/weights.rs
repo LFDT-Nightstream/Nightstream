@@ -16,7 +16,7 @@ use neo_reductions::superneo_eval::{
 };
 use neo_reductions::PiCcsError;
 use nightstream_fprime::{
-    load_bounded_depth_packages, PlanRows, SlotSpans, StepPackage, BOUNDED_DEPTH_PACKAGES_IDENTITY, PUBLIC_WORDS,
+    load_bounded_depth_packages, ExpandedPackage, SlotSpans, BOUNDED_DEPTH_PACKAGES_IDENTITY, PUBLIC_WORDS,
 };
 use p3_field::PrimeCharacteristicRing;
 use rand::{RngCore, SeedableRng};
@@ -195,28 +195,29 @@ fn the_column_weights_are_their_definition_across_tasks() {
 
 /// The rows of a step circuit as `nightstream` reads them.
 struct Circuit {
-    rows: PlanRows,
+    expanded: ExpandedPackage,
     spans: SlotSpans,
     blocks: usize,
 }
 
 impl Circuit {
-    fn new(package: &StepPackage) -> Self {
-        let layout = package.layout().expect("layout");
+    fn new(expanded: ExpandedPackage) -> Self {
+        let layout = expanded.layout();
         Self {
-            rows: package.plan_rows().expect("rows"),
             spans: layout.spans(),
             blocks: layout.width().div_ceil(D),
+            expanded,
         }
     }
 
     fn rows(&self) -> FactoredRows<'_> {
+        let rows = self.expanded.rows();
         FactoredRows::new(
             self.shape(),
             FactoredEntries {
-                offsets: self.rows.offsets(),
-                slots: self.rows.columns(),
-                coefficients: self.rows.coefficients(),
+                offsets: rows.offsets(),
+                slots: rows.columns(),
+                coefficients: rows.coefficients(),
             },
             FactoredSlots {
                 starts: &self.spans.starts,
@@ -231,7 +232,7 @@ impl Circuit {
 impl MatrixRows for Circuit {
     fn shape(&self) -> MatrixShape {
         MatrixShape {
-            rows: self.rows.row_count(),
+            rows: self.expanded.rows().row_count(),
             columns: self.blocks * D,
             matrices: MATRICES,
         }
@@ -280,9 +281,10 @@ fn the_matrix_part_is_its_definition_on_the_step_circuits() {
         &artifact("refresh"),
         BOUNDED_DEPTH_PACKAGES_IDENTITY,
     )
-    .expect("packages");
-    let circuits = [Circuit::new(packages.light()), Circuit::new(packages.refresh())];
-    drop(packages);
+    .expect("packages")
+    .expand()
+    .expect("expanded packages");
+    let circuits = [Circuit::new(packages.light), Circuit::new(packages.refresh)];
     let mut rng = ChaCha8Rng::seed_from_u64(0x7374_6570);
     let claims: [CeClaim; 3] = std::array::from_fn(|_| random_claim(&mut rng));
     let table = Norm::Table { bound: 10_368 };

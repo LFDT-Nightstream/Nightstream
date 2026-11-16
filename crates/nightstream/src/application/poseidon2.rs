@@ -3,11 +3,10 @@
 //! It consumes no exported application constraints or witness recipes.
 
 use std::collections::BTreeMap;
-use std::ops::ControlFlow;
 
 use neo_ccs::crypto::poseidon2::{poseidon2_hash, INSTANCE_16, RATE, WIDTH};
 use neo_math::Fq;
-use nightstream_fprime::{ApplicationRecords, Linear, BLOCK_LOCALS};
+use nightstream_fprime::{ApplicationWalk, Linear, BLOCK_LOCALS};
 use p3_field::PrimeCharacteristicRing;
 
 use super::{Affine, ApplicationBuilder, ApplicationCircuit, ApplicationError};
@@ -156,18 +155,20 @@ pub(crate) fn permutation(
 /// zero coefficients dropped.
 type Sides = [(Fq, BTreeMap<usize, Fq>); 3];
 
-fn sides(records: &ApplicationRecords, row: usize) -> Result<Sides, ApplicationError> {
-    let header = records.row_header(row)?;
+/// The sides of the row that `recipe` generates.
+fn recipe_sides(walk: &mut ApplicationWalk<'_>, recipe: usize) -> Result<Sides, ApplicationError> {
+    let row = walk.recipe_row(recipe)?;
+    let mut terms = Vec::new();
+    let header = walk.row(row, &mut terms)?;
     let mut sides: Sides = header
         .constants
         .map(|constant| (Fq::from_u64(constant), BTreeMap::new()));
-    let _: ControlFlow<()> = records.visit_terms(row, |term| {
+    for term in terms {
         *sides[term.form.index()]
             .1
             .entry(term.variable)
             .or_insert(Fq::ZERO) += Fq::from_u64(term.coefficient);
-        Ok(ControlFlow::Continue(()))
-    })?;
+    }
     for (_, terms) in &mut sides {
         terms.retain(|_, coefficient| *coefficient != Fq::ZERO);
     }
@@ -189,7 +190,11 @@ pub(crate) fn check_blocks(application: &ApplicationCircuit) -> Result<(), Appli
     let state = permutation(&mut scratch, inputs)?;
     let reference = scratch.finish(std::array::from_fn(|lane| state[lane].clone()))?;
     let (inputs, locals) = (4..4 + WIDTH, reference.generated_range().start);
-    let records = application.records();
+    let mut walk = reference.records().walk();
+    let reference = (0..BLOCK_LOCALS)
+        .map(|local| recipe_sides(&mut walk, local))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut walk = application.records().walk();
     let first = application.generated_range().start;
     for (index, block) in blocks.iter().enumerate() {
         let substitute = |variable: usize| -> Option<Linear> {
@@ -206,9 +211,9 @@ pub(crate) fn check_blocks(application: &ApplicationCircuit) -> Result<(), Appli
             .first_local
             .checked_sub(first)
             .ok_or(ApplicationError::Block(index))?;
-        for local in 0..BLOCK_LOCALS {
-            let actual = sides(records, records.recipe_row(recipe + local)?)?;
-            let mut expected = sides(reference.records(), reference.records().recipe_row(local)?)?;
+        for (local, expected) in reference.iter().enumerate() {
+            let actual = recipe_sides(&mut walk, recipe + local)?;
+            let mut expected = expected.clone();
             for (constant, terms) in &mut expected {
                 let mut mapped = BTreeMap::new();
                 for (&variable, &coefficient) in terms.iter() {

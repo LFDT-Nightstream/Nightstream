@@ -11,7 +11,7 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use super::super::compression::{FinalProof, Fresh, Steps};
-use super::super::{BoundedDepth, BoundedDepthError, Envelope};
+use super::super::{BoundedDepth, BoundedDepthError, CompiledSteps, Envelope};
 use super::support::{fold_gate_bits, hash_chain_step, packages, words};
 use super::{addition, prover};
 use crate::folding::transcript::Transcript;
@@ -676,8 +676,12 @@ fn a_verifier_of_other_keys_rejects_the_proof() {
             application.shape(),
         )
         .expect("packages with the application");
-    let other_circuit = BoundedDepth::new(packages, fold_gate_bits(), crate::engine::Backend::Optimized)
-        .expect("bounded-depth verifier");
+    let other_circuit = BoundedDepth::new(
+        &CompiledSteps::new(packages).expect("compiled steps"),
+        fold_gate_bits(),
+        crate::engine::Backend::Optimized,
+    )
+    .expect("bounded-depth verifier");
     assert_ne!(other_circuit.keys, prover.keys);
     assert!(!accepts(&other_circuit, &envelope, &proof));
 }

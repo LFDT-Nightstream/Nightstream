@@ -13,7 +13,7 @@ use neo_params::{nightstream_p64_k14::CHALLENGE_ALPHABET, NeoParams, ParamsError
 use nightstream_fprime::load_bounded_depth_packages;
 use serde_json::Value;
 
-use super::super::{Relation, RelationError};
+use super::super::{CompiledSteps, Relation, RelationError};
 use super::support::{artifact, packages};
 use crate::nebula::{test_packages::bounded_depth_packages, Package};
 
@@ -47,9 +47,12 @@ fn the_gate_charges_the_lean_error_on_each_step_relation() {
         ("nebula-v1-", nebula(Package::V1, "nebula-v1-")),
         ("nebula-n1-", nebula(Package::N1, "nebula-n1-")),
     ] {
-        for package in [packages.light(), packages.refresh()] {
-            let context = format!("{name} circuit {}", package.circuit());
-            let relation = Relation::new(package, bits).unwrap_or_else(|error| panic!("{context}: {error}"));
+        for step in CompiledSteps::new(packages)
+            .expect("compiled steps")
+            .steps()
+        {
+            let context = format!("{name} circuit {}", step.expanded().circuit());
+            let relation = Relation::new(step, bits).unwrap_or_else(|error| panic!("{context}: {error}"));
             let structure = relation.structure();
             let summary = NeoParams::nightstream_p64_k14()
                 .padded_row_security_summary_for_shape(
@@ -89,7 +92,7 @@ fn the_gate_charges_the_lean_error_on_each_step_relation() {
             );
             assert!(
                 matches!(
-                    Relation::new(package, bits + 1),
+                    Relation::new(step, bits + 1),
                     Err(RelationError::Parameters(ParamsError::InsufficientStatisticalSecurity { required, available }))
                         if required == bits + 1 && available == bits
                 ),

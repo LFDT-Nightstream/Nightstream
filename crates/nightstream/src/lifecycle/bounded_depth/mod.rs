@@ -19,11 +19,12 @@ use neo_ccs::crypto::poseidon2::poseidon2_hash;
 use neo_math::F;
 use neo_transcript::domain_chunk_v1_2;
 use nightstream_fprime::{
-    encode_digest, BoundedDepthPackages, BoundedDepthState, PackageError, StepPackage, PUBLIC_WORDS,
+    encode_digest, BoundedDepthPackages, BoundedDepthState, ExpandedPackages, PackageError, PUBLIC_WORDS,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 pub use relation::RelationError;
-pub(crate) use relation::{Holds, Relation};
+pub(crate) use relation::{CompiledStep, Holds, Relation};
+use std::sync::Arc;
 
 /// `Schedule.productionLightFoldCap`: the light circuit's depth guard admits
 /// depths below 64.
@@ -101,9 +102,41 @@ impl Envelope {
     }
 }
 
+/// The light and the refresh step circuits, compiled, and the identity of
+/// their packages. A compiled circuit builds them once, and each of its
+/// provers and verifiers shares them.
+#[derive(Clone)]
+pub(crate) struct CompiledSteps {
+    identity: [u64; 4],
+    steps: [Arc<CompiledStep>; 2],
+}
+
+impl CompiledSteps {
+    pub(crate) fn new(packages: BoundedDepthPackages) -> Result<Self, BoundedDepthError> {
+        let ExpandedPackages {
+            light,
+            refresh,
+            identity,
+        } = packages.expand()?;
+        let (light, refresh) = rayon::join(|| CompiledStep::new(light), || CompiledStep::new(refresh));
+        Ok(Self {
+            identity,
+            steps: [Arc::new(light?), Arc::new(refresh?)],
+        })
+    }
+
+    pub(crate) fn identity(&self) -> [u64; 4] {
+        self.identity
+    }
+
+    #[cfg(test)]
+    pub(crate) fn steps(&self) -> &[Arc<CompiledStep>; 2] {
+        &self.steps
+    }
+}
+
 pub(crate) struct BoundedDepth {
     backend: Backend,
-    packages: BoundedDepthPackages,
     relations: [Relation; 2],
     keys: [[F; 4]; 2],
     cap: u64,
@@ -128,24 +161,28 @@ fn circuit_key(identity: [u64; 4], circuit: u64) -> [F; 4] {
 
 impl BoundedDepth {
     pub(crate) fn new(
-        packages: BoundedDepthPackages,
+        steps: &CompiledSteps,
         minimum_security_bits: u32,
         backend: Backend,
     ) -> Result<Self, BoundedDepthError> {
         let relations = [
-            Relation::new(packages.light(), minimum_security_bits)?,
-            Relation::new(packages.refresh(), minimum_security_bits)?,
+            Relation::new(&steps.steps[0], minimum_security_bits)?,
+            Relation::new(&steps.steps[1], minimum_security_bits)?,
         ];
-        let identity = packages.identity();
+        let identity = steps.identity;
         let keys = [0u64, 1].map(|circuit| circuit_key(identity, circuit));
         Ok(Self {
             backend,
-            packages,
             relations,
             keys,
             cap: LIGHT_FOLD_CAP,
             minimum_security_bits,
         })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn relations(&self) -> &[Relation; 2] {
+        &self.relations
     }
 
     /// The proof of zero steps from `z0`, with both slots at the default
@@ -217,13 +254,6 @@ impl BoundedDepth {
             Ok(())
         } else {
             Err("witness norm is above the bound of the slot's depth")
-        }
-    }
-
-    fn package(&self, kind: Kind) -> &StepPackage {
-        match kind {
-            Kind::Light => self.packages.light(),
-            Kind::Refresh => self.packages.refresh(),
         }
     }
 
@@ -306,10 +336,10 @@ impl BoundedDepth {
             _ => (Kind::Light, words::base_step(&prior, next, witness)?.0),
         };
         let relation = &self.relations[words::pc(kind) as usize - 1];
-        let logical = relation.assignment(self.package(kind), &step, locals)?;
+        let logical = relation.assignment(&step, locals)?;
         #[cfg(test)]
         if CHECK_ROWS.get() {
-            FAILED_ROW.set(relation.first_failing_row(self.package(kind), &step)?);
+            FAILED_ROW.set(relation.first_failing_row(&step)?);
         }
         #[cfg(test)]
         let keeps_faulty = CHECK_ROWS.get();

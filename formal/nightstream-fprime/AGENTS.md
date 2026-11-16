@@ -44,7 +44,7 @@ Imports flow downward only. `scripts/check-boundaries.sh` enforces it.
 Spec       paper semantics (field, ring, Poseidon2, sumcheck, PiCCS/PiRLC/PiDEC
            verifiers, HyperNova F′ relation)
 Circuit    the DSL: expressions, offset variables, operations, circuit monad,
-           one FormalCircuit record, the circuit_norm simp set
+           one FormalCircuit record, permutation marks (`Op.mark`)
 Gadgets    one directory per gadget; exports only its FormalCircuit
 Lifecycle  concrete F′ phase order, carried state, public layout, XOut
 Layout     physical lowering and layout-preservation theorems

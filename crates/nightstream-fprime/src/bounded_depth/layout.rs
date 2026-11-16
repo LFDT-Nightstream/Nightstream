@@ -371,12 +371,31 @@ impl LogicalLayout {
     ) -> Result<Fq, PackageError> {
         let mut total = Fq::ZERO;
         self.visit_runs(rows, row, port, |run| {
-            let mut coefficient = run.coefficient;
-            for value in &logical[run.column..run.column + run.count] {
-                total += coefficient * *value;
-                coefficient *= run.ratio;
-            }
+            total += run.coefficient * run_value(&logical[run.column..run.column + run.count], run.ratio);
         })?;
         Ok(total)
     }
+}
+
+/// `Σ ratio^i · digits[i]`. The digits of a field slot are trits, so with
+/// ratio 3 the sum is exact in `i128` (below `3^41`) before one reduction.
+fn run_value(digits: &[Fq], ratio: Fq) -> Fq {
+    if ratio == Fq::from_u64(FIELD_RATIO) && digits.len() <= FIELD_DIGITS {
+        let trits = digits.iter().rev().try_fold(0i128, |sum, &digit| {
+            let trit = match digit {
+                Fq::ZERO => 0,
+                Fq::ONE => 1,
+                Fq::NEG_ONE => -1,
+                _ => return None,
+            };
+            Some(3 * sum + trit)
+        });
+        if let Some(sum) = trits {
+            return Fq::from_i128(sum);
+        }
+    }
+    digits
+        .iter()
+        .rev()
+        .fold(Fq::ZERO, |sum, &digit| sum * ratio + digit)
 }

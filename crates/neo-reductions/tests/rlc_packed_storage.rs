@@ -1,5 +1,5 @@
 use std::alloc::{GlobalAlloc, Layout, System};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::cell::Cell;
 
 use neo_ccs::Mat;
 use neo_math::{D, F};
@@ -7,12 +7,14 @@ use neo_reductions::optimized_engine::rlc_mix_witnesses;
 use p3_field::PrimeCharacteristicRing;
 
 struct AllocationProbe;
-static RECORD: AtomicBool = AtomicBool::new(false);
-static ALLOCATED: AtomicUsize = AtomicUsize::new(0);
+thread_local! {
+    static RECORD: Cell<bool> = const { Cell::new(false) };
+    static ALLOCATED: Cell<usize> = const { Cell::new(0) };
+}
 
 fn record(bytes: usize) {
-    if RECORD.load(Ordering::Relaxed) {
-        ALLOCATED.fetch_add(bytes, Ordering::Relaxed);
+    if RECORD.get() {
+        ALLOCATED.set(ALLOCATED.get() + bytes);
     }
 }
 
@@ -38,15 +40,15 @@ unsafe impl GlobalAlloc for AllocationProbe {
 static ALLOCATOR: AllocationProbe = AllocationProbe;
 
 fn measured_mix(witness: &Mat<F>, rhos: &[Mat<F>]) -> (Mat<F>, usize) {
-    ALLOCATED.store(0, Ordering::Relaxed);
-    RECORD.store(true, Ordering::Relaxed);
+    ALLOCATED.set(0);
+    RECORD.set(true);
     let result = rlc_mix_witnesses(
         D * witness.cols(),
         std::hint::black_box(rhos),
         &[std::hint::black_box(witness)],
     );
-    RECORD.store(false, Ordering::Relaxed);
-    (result, ALLOCATED.load(Ordering::Relaxed))
+    RECORD.set(false);
+    (result, ALLOCATED.get())
 }
 
 #[test]

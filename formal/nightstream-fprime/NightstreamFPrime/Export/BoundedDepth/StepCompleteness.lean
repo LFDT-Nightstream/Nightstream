@@ -6,8 +6,8 @@ import NightstreamFPrime.Layout.ProductionRelation.CcsOpening
 `StepRelation.light_freshHolds` and `StepRelation.refresh_freshHolds`. Take an environment in
 which the step circuit's rows hold, as the assembler gives it for an honest step
 (`Layout.BoundedDepth.LightAssemblerCompleteness.complete`, `RefreshAssemblerCompleteness.complete`).
-Set its public columns to `encHash` of its output digest (`withPublic`). The circuit reads no
-public column, so its rows still hold, and the decode constraints hold (`constraints_complete`,
+Its public columns carry `encHash` of its output digest, as the assembler's source columns put
+it there, so the circuit's rows and the decode constraints hold in it (`constraints_complete`,
 `pieces_complete`).
 `SlotCompleteness.rowsZero_of_holds` then gives an assignment that satisfies the relation at the
 key's widened slot layout, with small coordinates, and `Plan.rowsZero_implies_freshHolds` gives the
@@ -15,12 +15,13 @@ fresh CCS statement with public input `encHash digest` (`fresh_complete`). The a
 the package's logical width with zeros (`WideLayout.extend`), so it is zero past that width.
 `light_complete` and `refresh_complete` read the digest from the step's output.
 
-Two premises are computed checks on the package, as `CircuitRelation.packable` is: the blocks
-pack, and no row of the circuit reads a public column (`publicFree`). The third, that every piece
-reads only columns below the first fresh column (`PieceRowsCompleteness.pieceBelow`), follows when
-every row of the circuit reads only columns before the end of its locals, as the assembler gives
-it for an honest step, and the first fresh column is at or after that end
-(`lightPieces_readOwnColumns`, `refreshPieces_readOwnColumns`). -/
+One premise is a computed check on the package, as `CircuitRelation.packable` is: the blocks
+pack. That every piece reads only columns below the first fresh column
+(`PieceRowsCompleteness.pieceBelow`) follows when every row of the circuit reads only columns
+before the end of its locals, as the assembler gives it for an honest step, and the first fresh
+column is at or after that end (`lightPieces_readOwnColumns`, `refreshPieces_readOwnColumns`).
+The emitter also checks that no row of the circuit reads a public column (`publicFree`); the
+proofs do not need it. -/
 
 set_option autoImplicit false
 
@@ -65,22 +66,31 @@ theorem publicInput_withPublic (digest : Digest) (env : Env) :
   show (if inside : column.val < publicColumns then _ else _) = _
   rw [dite_eq_left (show column.val < publicColumns from column.isLt)]
 
-/-- Rows that hold and read no public column, with the decode constraints of the digest that the
-words `digestColumn` carry, hold once the public columns carry `encHash digest`. -/
+/-- An environment whose public columns carry `encHash digest` is its own `withPublic`. -/
+theorem withPublic_eq (digest : Digest) (env : Env)
+    (publicEq : ∀ column (inside : column < publicColumns),
+      env column = encHash (publicFits := publicFits) digest ⟨column, inside⟩) :
+    withPublic (publicFits := publicFits) digest env = env := by
+  funext column
+  unfold withPublic
+  split
+  · rename_i inside
+    exact (publicEq column inside).symm
+  · rfl
+
+/-- Rows that hold in an environment whose public columns carry `encHash digest`, with the
+decode constraints of the digest that the words `digestColumn` carry, hold in its `withPublic`. -/
 theorem constraints_complete (ops : List Op) (digestColumn : Fin 4 → Nat) (env : Env)
     (holds : holdsFlat env ops) (digest : Digest)
     (digestWords : ∀ word, env (digestColumn word) = digest.getD word.val 0)
     (digestAbove : ∀ word, publicColumns ≤ digestColumn word)
-    (free : publicFree (flatConstraints ops) = true) :
+    (publicEq : ∀ column (inside : column < publicColumns),
+      env column = encHash (publicFits := publicFits) digest ⟨column, inside⟩) :
     ConstraintsHold (withPublic (publicFits := publicFits) digest env)
       (flatConstraints ops ++ LogicalPlan.decodeConstraints digestColumn) := by
   intro expression member
   rcases List.mem_append.mp member with flat | decode
-  · have above := List.all_eq_true.mp free expression flat
-    rw [RowReads.eval_of_columns (right := env) expression fun column read => by
-      have bound := List.all_eq_true.mp above column read
-      simp only [decide_eq_true_eq] at bound
-      simp [withPublic, not_lt.mpr bound]]
+  · rw [withPublic_eq digest env publicEq]
     exact holds expression flat
   · obtain ⟨word, rfl⟩ := List.mem_ofFn.mp decode
     rw [LogicalPlan.decodeConstraint, Expr.eval_sub, Expr.eval_var,
@@ -89,19 +99,20 @@ theorem constraints_complete (ops : List Op) (digestColumn : Fin 4 → Nat) (env
     simp [withPublic, not_lt.mpr (digestAbove word), digestWords]
 
 /-- The circuit's rows with the decode constraints of its output digest hold, piece by piece,
-once the public columns carry `encHash digest`. -/
+when the public columns carry `encHash digest`. -/
 theorem pieces_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn : Fin 4 → Nat)
     (env : Env) (holds : holdsFlat env (Circuit.ops circuit.main offset)) (digest : Digest)
     (digestWords : ∀ word, env (digestColumn word) = digest.getD word.val 0)
     (digestAbove : ∀ word, publicColumns ≤ digestColumn word)
-    (free : publicFree (flatConstraints (Circuit.ops circuit.main offset)) = true) :
+    (publicEq : ∀ column (inside : column < publicColumns),
+      env column = encHash (publicFits := publicFits) digest ⟨column, inside⟩) :
     ∀ piece ∈ CircuitRelation.pieces circuit offset digestColumn,
       ConstraintsHold (withPublic (publicFits := publicFits) digest env)
         (piece.constraints (PilotData.canonicalConstraints ())) := by
   have all : ConstraintsHold (withPublic (publicFits := publicFits) digest env)
       (CircuitRelation.constraints circuit offset digestColumn) :=
     constraints_complete (publicFits := publicFits) _ digestColumn env holds digest digestWords
-      digestAbove free
+      digestAbove publicEq
   intro piece member expression inPiece
   apply all
   show expression ∈ CircuitRelation.constraints circuit offset digestColumn
@@ -117,7 +128,8 @@ theorem fresh_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn : 
     (env : Env) (holds : holdsFlat env (Circuit.ops circuit.main offset)) (digest : Digest)
     (digestWords : ∀ word, env (digestColumn word) = digest.getD word.val 0)
     (digestAbove : ∀ word, publicColumns ≤ digestColumn word)
-    (free : publicFree (flatConstraints (Circuit.ops circuit.main offset)) = true)
+    (publicEq : ∀ column (inside : column < publicColumns),
+      env column = encHash (publicFits := publicFits) digest ⟨column, inside⟩)
     (firstFresh width : Nat)
     (fits : Fits publicColumns (CircuitRelation.pieces circuit offset digestColumn) firstFresh width)
     (packed : packable publicColumns (CircuitRelation.pieces circuit offset digestColumn) = true)
@@ -143,7 +155,7 @@ theorem fresh_complete (circuit : FormalCircuit) (offset : Nat) (digestColumn : 
             firstFresh batches)) ≤ column.val →
         RingCarrierLayout.extendAssignment 0 assignment column = 0 := by
   have piecesHold := pieces_complete (publicFits := publicFits) circuit offset digestColumn env
-    holds digest digestWords digestAbove free
+    holds digest digestWords digestAbove publicEq
   have marker : (withPublic (publicFits := publicFits) digest env) 0 = 1 := by
     have atMarker := congrFun (publicInput_withPublic (publicFits := publicFits) digest env)
       encHashMarkerIndex
@@ -369,9 +381,8 @@ theorem light_complete (relation : ProductionKey.LogicalRelation logicalWidth pu
     (represents : LightStepSoundness.StepRepresents program
       (StepRelation.lightInterface (logicalWidth := logicalWidth) (publicFits := publicFits) program)
       ajtai circuitKeys 0 input output proof env)
-    (readsNoPublicColumn : publicFree (flatConstraints (Circuit.ops
-      (LightAssemblerCircuit.stepCircuit program StepRelation.base relation 0 ajtai).main
-      (LightAssembler.sharedEnd StepRelation.base program.witnessWordCount))) = true)
+    (publicEq : ∀ column (inside : column < publicColumns),
+      env column = encHash (publicFits := publicFits) output.x ⟨column, inside⟩)
     (firstFresh width : Nat)
     (fitsPackage : Fits publicColumns (lightPieces program relation ajtai) firstFresh width)
     (blocksPack : packable publicColumns (lightPieces program relation ajtai) = true)
@@ -396,7 +407,7 @@ theorem light_complete (relation : ProductionKey.LogicalRelation logicalWidth pu
             batches)) ≤ column.val →
         RingCarrierLayout.extendAssignment 0 assignment column = 0 :=
   fresh_complete _ _ _ env holds output.x (digest_getD represents.outputDigest)
-    (digestColumn_above program) readsNoPublicColumn firstFresh width fitsPackage blocksPack readsOwnColumns publicBelow batches
+    (digestColumn_above program) publicEq firstFresh width fitsPackage blocksPack readsOwnColumns publicBelow batches
     fitsKeyWidth cubeFits ajtai
 
 /-- An honest refresh step's assignment (`RefreshAssemblerCompleteness.complete`) gives a fresh
@@ -413,9 +424,8 @@ theorem refresh_complete (relation : ProductionKey.LogicalRelation logicalWidth 
     (represents : RefreshStepSoundness.StepRepresents program
       (StepRelation.refreshInterface (logicalWidth := logicalWidth) (publicFits := publicFits)
         program) ajtai circuitKeys 1 input output proof env)
-    (readsNoPublicColumn : publicFree (flatConstraints (Circuit.ops
-      (RefreshAssemblerCircuit.stepCircuit program StepRelation.base relation 1 ajtai).main
-      (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount))) = true)
+    (publicEq : ∀ column (inside : column < publicColumns),
+      env column = encHash (publicFits := publicFits) output.x ⟨column, inside⟩)
     (firstFresh width : Nat)
     (fitsPackage : Fits publicColumns (refreshPieces program relation ajtai) firstFresh width)
     (blocksPack : packable publicColumns (refreshPieces program relation ajtai) = true)
@@ -440,7 +450,7 @@ theorem refresh_complete (relation : ProductionKey.LogicalRelation logicalWidth 
             batches)) ≤ column.val →
         RingCarrierLayout.extendAssignment 0 assignment column = 0 :=
   fresh_complete _ _ _ env holds output.x (digest_getD represents.outputDigest)
-    (digestColumn_above program) readsNoPublicColumn firstFresh width fitsPackage blocksPack readsOwnColumns publicBelow batches
+    (digestColumn_above program) publicEq firstFresh width fitsPackage blocksPack readsOwnColumns publicBelow batches
     fitsKeyWidth cubeFits ajtai
 
 end Steps

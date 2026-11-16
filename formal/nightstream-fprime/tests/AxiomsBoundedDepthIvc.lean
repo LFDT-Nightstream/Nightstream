@@ -168,6 +168,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.keys
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.lightExtraction
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.lightExtractionNormLaw
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.lightExtraction_one
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.keys_coherent
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKeys.light_verify_output
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKeys.refresh_verify_output
@@ -313,6 +314,7 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.LightStepBounds.newSlot_below
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.LightAssemblerSource.slot_value
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.LightAssemblerSource.stepRepresents
+#audit_axioms NightstreamFPrime.Layout.BoundedDepth.LightAssemblerSource.env_public
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.LightAssemblerCompleteness.complete
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.LightSelect.rows_of_select
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect.controlRows_holds
@@ -684,6 +686,7 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.SlotCompleteness.norm_of_runs
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.SlotCompleteness.rowsZero_of_holds
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.publicInput_withPublic
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.withPublic_eq
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.constraints_complete
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.pieces_complete
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.fresh_complete

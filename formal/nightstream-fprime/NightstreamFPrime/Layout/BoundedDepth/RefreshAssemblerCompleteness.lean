@@ -468,7 +468,8 @@ theorem completePhasesFrom (program : Stage1.Application.Program)
     exact congrArg serializeSlot (Prod.ext nextEq foldedDepth.symm)
 
 /-- Completeness of the refresh step circuit at the source layout. Each row of the circuit reads
-only columns before the end of its locals. -/
+only columns before the end of its locals, and the columns below `base` carry `encHash` of the
+step's output hash. -/
 theorem complete (program : Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) (base : Nat)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -505,7 +506,9 @@ theorem complete (program : Stage1.Application.Program)
     ∃ env, holdsFlat env (Circuit.ops (RefreshStepLayout.main program relation circuit
         (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)) (sharedEnd base program.witnessWordCount)) ∧
       RefreshStepSoundness.StepRepresents program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) ajtai circuitKeys circuit input output
-        proof env := by
+        proof env ∧
+      ∀ column (inside : column < ringDegree * PaperAlgebra.publicRingColumns), column < base →
+        env column = encHash (publicFits := publicFits) output.x ⟨column, inside⟩ := by
   obtain ⟨_, pcNext, zNextEq, xEq, cases⟩ := (stepHolds_iff _ _ _ _ _ _ _ _).mp holds
   have xLength : output.x.length = 4 := by
     rw [xEq]
@@ -785,7 +788,13 @@ theorem complete (program : Stage1.Application.Program)
     exact DigestSelect.rows_below selectWords below.prior
       (LightAssembler.slotAt_below (slotsStart base program.witnessWordCount + 2 * slotWordCount)
         _ activeFits) _ inside
-  refine ⟨?_, p3.current, ?_, rep3⟩
+  have publicWords : ∀ column (inside : column < ringDegree * PaperAlgebra.publicRingColumns),
+      column < base →
+        p3.current column = encHash (publicFits := publicFits) output.x ⟨column, inside⟩ :=
+    fun column inside below => (agreeOf p3 column (by rw [sharedEnd_eq]; omega)).trans
+      ((env_light base program.witnessWordCount _ column (by rw [childStart_eq]; omega)).trans
+        (LightAssemblerSource.env_public base program.witnessWordCount _ column below inside))
+  refine ⟨?_, p3.current, ?_, rep3, publicWords⟩
   · have front := p3.scope
     rw [ops3, ops2, ops1] at front
     simp only [Sequence.empty, List.nil_append] at front

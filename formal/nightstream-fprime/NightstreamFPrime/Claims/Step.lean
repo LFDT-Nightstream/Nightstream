@@ -136,12 +136,8 @@ theorem light_complete
           (LightAssembler.sharedEnd StepRelation.base program.witnessWordCount)))
     (represents : LightStepSoundness.StepRepresents program (StepRelation.lightInterface program) ajtai
         circuitKeys 0 input output proof env)
-    (readsNoPublicColumn : StepCompleteness.publicFree
-          (Circuit.flatConstraints
-            ((LightAssemblerCircuit.stepCircuit program StepRelation.base relation 0
-                    ajtai).main.ops
-              (LightAssembler.sharedEnd StepRelation.base program.witnessWordCount))) =
-        true)
+    (publicEq : ∀ (column : ℕ) (inside : column < CircuitRelation.publicColumns),
+        env column = encHash (publicFits := publicFits) output.x ⟨column, inside⟩)
     (firstFresh : ℕ)
     (width : ℕ)
     (fitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns
@@ -187,7 +183,7 @@ theorem light_complete
                 ↑column →
               RingCarrierLayout.extendAssignment 0 assignment column = 0 :=
   @Export.BoundedDepth.StepCompleteness.light_complete logicalWidth publicFits program relation
-    ajtai circuitKeys input output proof env holds represents readsNoPublicColumn firstFresh width fitsPackage blocksPack
+    ajtai circuitKeys input output proof env holds represents publicEq firstFresh width fitsPackage blocksPack
     readsOwnColumns publicBelow batches fitsKeyWidth cubeFits
 
 /-- An honest refresh step's assignment (`RefreshAssemblerCompleteness.complete`) gives a fresh
@@ -209,12 +205,8 @@ theorem refresh_complete
           (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount)))
     (represents : RefreshStepSoundness.StepRepresents program (StepRelation.refreshInterface program) ajtai
         circuitKeys 1 input output proof env)
-    (readsNoPublicColumn : StepCompleteness.publicFree
-          (Circuit.flatConstraints
-            ((RefreshAssemblerCircuit.stepCircuit program StepRelation.base relation 1
-                    ajtai).main.ops
-              (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount))) =
-        true)
+    (publicEq : ∀ (column : ℕ) (inside : column < CircuitRelation.publicColumns),
+        env column = encHash (publicFits := publicFits) output.x ⟨column, inside⟩)
     (firstFresh : ℕ)
     (width : ℕ)
     (fitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns
@@ -261,7 +253,7 @@ theorem refresh_complete
                 ↑column →
               RingCarrierLayout.extendAssignment 0 assignment column = 0 :=
   @Export.BoundedDepth.StepCompleteness.refresh_complete logicalWidth publicFits program relation
-    ajtai circuitKeys input output proof env holds represents readsNoPublicColumn firstFresh width fitsPackage blocksPack
+    ajtai circuitKeys input output proof env holds represents publicEq firstFresh width fitsPackage blocksPack
     readsOwnColumns publicBelow batches fitsKeyWidth cubeFits
 
 end NightstreamFPrime.Claims.Step

@@ -190,7 +190,8 @@ assignment where every row holds and the words carry the step. The honest step i
 with the application's validity predicate, the fresh instance's binding to the prior state
 (which the circuit checks at every iteration), a light proof that the light fold accepts for the
 selected slot with result `folded`, and an active depth below the cap. Each row of the circuit
-reads only columns before the end of its locals. -/
+reads only columns before the end of its locals, and the columns below `base` carry `encHash` of
+the step's output hash. -/
 theorem complete (program : Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) (base : Nat)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -229,7 +230,9 @@ theorem complete (program : Stage1.Application.Program)
     ∃ env, holdsFlat env (Circuit.ops (LightStepLayout.main program relation circuit
         (interface base program.witnessWordCount)) (sharedEnd base program.witnessWordCount)) ∧
       LightStepSoundness.StepRepresents program (interface base program.witnessWordCount) ajtai
-        circuitKeys circuit input output proof env := by
+        circuitKeys circuit input output proof env ∧
+      ∀ column (inside : column < ringDegree * PaperAlgebra.publicRingColumns), column < base →
+        env column = encHash (publicFits := publicFits) output.x ⟨column, inside⟩ := by
   obtain ⟨_, pcNext, zNextEq, xEq, cases⟩ := (stepHolds_iff _ _ _ _ _ _ _ _).mp holds
   have xLength : output.x.length = 4 := by
     rw [xEq]
@@ -749,7 +752,12 @@ theorem complete (program : Stage1.Application.Program)
       List.mem_singleton] at member
     obtain ⟨original, inside, rfl⟩ := member
     exact LightSelect.rows_below selectWords below.activeDigest _ inside
-  refine ⟨?_, p4.current, ?_, rep4⟩
+  have publicWords : ∀ column (inside : column < ringDegree * PaperAlgebra.publicRingColumns),
+      column < base →
+        p4.current column = encHash (publicFits := publicFits) output.x ⟨column, inside⟩ :=
+    fun column inside below => (agreeOf p4 column (by rw [sharedEnd_eq]; omega)).trans
+      (env_public base program.witnessWordCount _ column below inside)
+  refine ⟨?_, p4.current, ?_, rep4, publicWords⟩
   · have front := p4.scope
     rw [ops4, ops3, ops2, ops1] at front
     simp only [Sequence.empty, List.nil_append] at front

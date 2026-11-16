@@ -132,10 +132,17 @@ structure Values (logicalWidth : Nat)
   output : FullOutputCoordinates.FullOutput K LightShape
   digestSelect : Fin 4 → List F
 
-/-- The source columns from `base`, in the layout of `LightAssembler.interface`. -/
+/-- The public columns: `encHash` of the output digest, the fifth digest group. -/
+def publicColumn (values : Values logicalWidth publicFits) (column : Nat) : F :=
+  if inside : column < ringDegree * PaperAlgebra.publicRingColumns then
+    encHash (publicFits := publicFits) (values.digests ⟨4, by decide⟩) ⟨column, inside⟩
+  else 0
+
+/-- The source columns: the public columns below `base`, then the shared words from `base`, in the
+layout of `LightAssembler.interface`. -/
 def env (base witnessWordCount : Nat) (values : Values logicalWidth publicFits) : Env :=
   fun column =>
-    if column < base then 0
+    if column < base then publicColumn values column
     else if column < keysStart base then values.counters.getD (column - base) 0
     else if column < statesStart base then
       quadColumn (by decide) values.keys (column - keysStart base)
@@ -158,6 +165,12 @@ def env (base witnessWordCount : Nat) (values : Values logicalWidth publicFits) 
     else quadColumn (by decide) values.digestSelect (column - digestSelectStart base witnessWordCount)
 
 variable (base witnessWordCount : Nat) (values : Values logicalWidth publicFits)
+
+theorem env_public (column : Nat) (below : column < base)
+    (inside : column < ringDegree * PaperAlgebra.publicRingColumns) :
+    env base witnessWordCount values column =
+      encHash (publicFits := publicFits) (values.digests ⟨4, by decide⟩) ⟨column, inside⟩ := by
+  simp only [env, below, ↓reduceIte, publicColumn, inside, dite_true]
 
 theorem env_counter (word : Nat) (bound : word < 5) :
     env base witnessWordCount values (base + word) = values.counters.getD word 0 := by

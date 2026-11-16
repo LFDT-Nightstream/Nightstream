@@ -11,7 +11,8 @@ Lean proves the other fields of the bundles from these choices: the slot layouts
 columns inside the source width, and the first fresh column after the public columns and at the
 end of the circuit's locals. `Facts` holds each fact that the bundles need and that Lean does not
 prove for the emitted packages: the row, column and block bounds (`CircuitRelation.Fits`), the key
-width of the slot layout, and two checks that the emitter runs before it writes a package. -/
+width of the slot layout, and that the Poseidon2 blocks pack, which the emitter checks before it
+writes a package. -/
 
 set_option autoImplicit false
 
@@ -87,9 +88,9 @@ of the bundle unfolds the operations of a circuit. `Emitted` fixes them to the e
 
 variable (lightFresh refreshFresh : Nat) (lightBatches refreshBatches : List WitnessBatch)
 
-/-- The facts of the two packages of `program` that Lean does not prove. The emitter checks the
-two facts `BlocksPack` and `ReadsNoPublicColumn` of each package before it writes the package. It
-prints the sizes of `FitsPackage` but does not check them. -/
+/-- The facts of the two packages of `program` that Lean does not prove. The emitter checks
+`BlocksPack` of each package before it writes the package. It prints the sizes of `FitsPackage`
+but does not check them. -/
 structure Facts where
   /-- The rows, the columns and the Poseidon2 blocks of the light package fit its size. -/
   lightFitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns
@@ -113,14 +114,6 @@ structure Facts where
   refreshBlocksPack :
     CircuitRelation.packable CircuitRelation.publicColumns (refreshPieces program relation ajtai) =
       true
-  /-- No row of the light circuit reads a public column. -/
-  lightReadsNoPublicColumn : publicFree (flatConstraints (Circuit.ops
-    (LightAssemblerCircuit.stepCircuit program StepRelation.base relation 0 ajtai).main
-    (LightAssembler.sharedEnd StepRelation.base program.witnessWordCount))) = true
-  /-- No row of the refresh circuit reads a public column. -/
-  refreshReadsNoPublicColumn : publicFree (flatConstraints (Circuit.ops
-    (RefreshAssemblerCircuit.stepCircuit program StepRelation.base relation 1 ajtai).main
-    (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount))) = true
 
 variable {program relation ajtai lightFresh refreshFresh lightBatches refreshBatches}
 
@@ -187,14 +180,12 @@ def Facts.complete
   lightBlocksPack := facts.lightBlocksPack
   lightFreshAfterLocals := lightAfterLocals
   lightPublicBelow := lightPublicBelow
-  lightReadsNoPublicColumn := facts.lightReadsNoPublicColumn
   refreshBatches := refreshBatches
   refreshFitsKeyWidth := facts.refreshFitsKeyWidth
   refreshLayout := by dsimp only [Facts.exports]; rfl
   refreshBlocksPack := facts.refreshBlocksPack
   refreshFreshAfterLocals := refreshAfterLocals
   refreshPublicBelow := refreshPublicBelow
-  refreshReadsNoPublicColumn := facts.refreshReadsNoPublicColumn
 
 end Bundle
 

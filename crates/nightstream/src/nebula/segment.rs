@@ -529,8 +529,8 @@ impl<A: Application> Context<A> {
             advanced
         };
         // Words.
-        w[words::CARRY_IN..words::CARRY_IN + 39].copy_from_slice(&input.words());
-        w[words::CARRY_OUT..words::CARRY_OUT + 39].copy_from_slice(&output.words());
+        w[words::CARRY_IN..words::CARRY_IN + Carry::WORDS].copy_from_slice(&input.words());
+        w[words::CARRY_OUT..words::CARRY_OUT + Carry::WORDS].copy_from_slice(&output.words());
         w[words::PROPOSAL..words::PROPOSAL + 4].copy_from_slice(&proposal.0);
         w[words::PROPOSAL + 4..words::PROPOSAL + 8].copy_from_slice(&proposal.1);
         for (k, word) in step.words_in.iter().enumerate() {

@@ -10,6 +10,7 @@ use std::collections::BTreeSet;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
+use super::carry::Carry;
 use super::expr::{Expr, KExpr};
 use super::geometry::Geometry;
 use super::words::{self, Layout};
@@ -69,7 +70,7 @@ impl<'a> Sym<'a> {
     }
 
     pub(super) fn c_in(&self, k: usize) -> Expr {
-        if k < 39 {
+        if k < Carry::WORDS {
             self.word(words::CARRY_IN + k)
         } else {
             c(0)
@@ -77,7 +78,7 @@ impl<'a> Sym<'a> {
     }
 
     pub(super) fn c_out(&self, k: usize) -> Expr {
-        if k < 39 {
+        if k < Carry::WORDS {
             self.word(words::CARRY_OUT + k)
         } else {
             c(0)

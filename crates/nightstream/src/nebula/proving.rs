@@ -18,7 +18,7 @@ use super::{memory_security, terminal_states, Program, Run, Statement, TerminalE
 use crate::lifecycle::ProofCodecError;
 
 /// The bytes of the 39 carry words at the start of an encoded proof.
-const CARRY_BYTES: usize = 39 * 8;
+const CARRY_BYTES: usize = Carry::WORDS * 8;
 
 /// A memory proof: the step proof of every invocation and the final carry.
 pub struct Proof {
@@ -324,7 +324,7 @@ fn decode_carry(bytes: &[u8]) -> Result<(Carry, &[u8]), crate::Error> {
     if bytes.len() < CARRY_BYTES {
         return Err(ProofCodecError("memory carry length").into());
     }
-    let mut words = [F::default(); 39];
+    let mut words = [F::default(); Carry::WORDS];
     for (word, chunk) in words.iter_mut().zip(bytes[..CARRY_BYTES].chunks_exact(8)) {
         let value = u64::from_le_bytes(chunk.try_into().expect("eight bytes"));
         if value >= F::ORDER_U64 {

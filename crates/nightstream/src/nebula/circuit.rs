@@ -13,6 +13,7 @@ use p3_field::PrimeCharacteristicRing;
 use std::collections::BTreeSet;
 
 use super::app::Application;
+use super::carry::Carry;
 use super::expr::{lower_affine, lower_constraint, Expr};
 use super::rows::{pack, Sym, View};
 use super::transcript::{chain_tag, header, plan_digest, text, Lane, ETA_TAG, STATE_TAG};
@@ -150,7 +151,7 @@ fn build<A: Application>(
         vec![
             text_words(STATE_TAG),
             run(layout.width(), &|k| word(&layout, k)),
-            run(39, &|k| carry + k),
+            run(Carry::WORDS, &|k| carry + k),
         ]
     };
     let chain_blocks = |lane: Lane, previous: usize, lanes: Vec<Expr>| {

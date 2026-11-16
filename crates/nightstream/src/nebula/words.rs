@@ -3,11 +3,13 @@
 //! first, then the application's input state words, its output state words,
 //! and its private words. `app_var` mirrors `Words.appVar` of `PortApp.lean`.
 
+use super::carry::Carry;
 use super::geometry::Geometry;
 
 pub const CARRY_IN: usize = 0;
 pub const CARRY_OUT: usize = 39;
 pub const PROPOSAL: usize = 78;
+const _: () = assert!(CARRY_OUT == CARRY_IN + Carry::WORDS && PROPOSAL == CARRY_OUT + Carry::WORDS);
 pub const IS_OPEN: usize = 86;
 pub const OPEN_INVERSE: usize = 87;
 pub const IS_CLOSE: usize = 88;

@@ -46,6 +46,9 @@ pub fn k_words(value: K) -> [F; 2] {
 }
 
 impl Carry {
+    /// The carry word count of SPEC.md section 7.5 (Lean `carryWords_length`).
+    pub const WORDS: usize = 39;
+
     /// The closed start carry of SPEC.md section 7.5: `idx = N`, every root `D_init`.
     pub fn start(n: usize, d_init: Digest) -> Self {
         Self {
@@ -61,8 +64,8 @@ impl Carry {
     }
 
     /// The 39 carry words in SPEC.md section 7.5 order.
-    pub fn words(&self) -> [F; 39] {
-        let mut words = Vec::with_capacity(39);
+    pub fn words(&self) -> [F; Self::WORDS] {
+        let mut words = Vec::with_capacity(Self::WORDS);
         words.push(F::from_u64(self.seg_idx));
         words.push(F::from_u64(self.idx));
         words.push(F::from_u64(self.ts));
@@ -87,7 +90,7 @@ impl Carry {
 
     /// The carry of 39 words in SPEC.md section 7.5 order, the inverse of
     /// `words`.
-    pub fn from_words(words: &[F; 39]) -> Self {
+    pub fn from_words(words: &[F; Self::WORDS]) -> Self {
         let k = |at: usize| K::from_basis_coefficients_slice(&words[at..at + 2]).expect("two coefficients");
         let digest = |at: usize| -> Digest { words[at..at + 4].try_into().expect("four words") };
         Self {

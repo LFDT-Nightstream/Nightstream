@@ -1,5 +1,6 @@
 use neo_math::{
-    signed_sums::{SignedShiftSums, SplitRing},
+    field::Q,
+    signed_sums::{SignedLimbs, SignedShiftSums, SmallDigits, SplitRing, SMALL_DIGIT_BOUND},
     Fq, Rq, D,
 };
 use p3_field::PrimeCharacteristicRing;
@@ -63,4 +64,85 @@ fn repeated_negative_terms_stay_exact() {
     let product = Rq(coefficients).mul(&signed_unit(0, u64::MAX));
     let expected: [Fq; D] = core::array::from_fn(|lane| product.0[lane] * Fq::from_u64(10_000));
     assert_eq!(sums.reduce(), expected);
+}
+
+fn digits(seed: u64, bound: i64) -> [Fq; D] {
+    let mut x = seed;
+    core::array::from_fn(|lane| {
+        x = x
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        let digit = match lane % 7 {
+            0 => bound,
+            1 => -bound,
+            _ => (x >> 1) as i64 % (2 * bound + 1) - bound,
+        };
+        Fq::from_i64(digit)
+    })
+}
+
+fn limb_edges(seed: u64) -> [Fq; D] {
+    let edges = [
+        0,
+        1,
+        (1 << 31) - 1,
+        1 << 31,
+        (1 << 63) - (1 << 31) - 1,
+        (1 << 63) - (1 << 31),
+        1 << 63,
+        Q - (1 << 31),
+        Q - 1,
+    ];
+    let mut values = element(seed);
+    for (value, edge) in values.iter_mut().zip(edges) {
+        *value = Fq::from_u64(edge);
+    }
+    values
+}
+
+#[test]
+fn small_digit_products_match_ring_products() {
+    let bound = SMALL_DIGIT_BOUND as i64;
+    // These forms and constant digits put every product of one output at the
+    // largest limb magnitude, so its i64 sum is close to the bound of 2^62.
+    let largest_high_limb = [Fq::from_u64((1 << 63) - (1 << 31) - 1); D];
+    let smallest_low_limb = [Fq::from_u64(Q - (1 << 31)); D];
+    for seed in 0..64 {
+        let all_digits = [
+            digits(seed, bound),
+            digits(seed, 16_256),
+            digits(seed, 2),
+            [Fq::from_i64(bound); D],
+            [Fq::from_i64(-bound); D],
+        ];
+        for digits in all_digits {
+            let small = SmallDigits::new(&digits).expect("digits within the bound");
+            for form in [element(seed), limb_edges(seed), largest_high_limb, smallest_low_limb] {
+                assert_eq!(small.mul(&SignedLimbs::new(&form)), Rq(form).mul(&Rq(digits)).0);
+            }
+        }
+    }
+}
+
+#[test]
+fn small_digits_reject_values_above_the_bound() {
+    let bound = SMALL_DIGIT_BOUND as i64;
+    for digit in [bound + 1, -bound - 1, 1 << 40] {
+        let mut digits = digits(7, 3);
+        digits[D - 1] = Fq::from_i64(digit);
+        assert!(SmallDigits::new(&digits).is_none());
+    }
+}
+
+#[test]
+fn small_digits_report_signed_unit_masks() {
+    let mut digits = [Fq::ZERO; D];
+    digits[0] = Fq::ONE;
+    digits[D - 1] = -Fq::ONE;
+    assert_eq!(
+        SmallDigits::new(&digits).unwrap().signed_unit_masks(),
+        Some((1, 1 << (D - 1)))
+    );
+    digits[5] = Fq::TWO;
+    assert_eq!(SmallDigits::new(&digits).unwrap().signed_unit_masks(), None);
 }

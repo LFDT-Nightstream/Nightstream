@@ -279,33 +279,33 @@ theorem prefix_placed (interface : Interface) (offset count : Nat) :
       exact child_placed interface offset count
 
 /-- The first `count` samplers' rows, their challenge words and the state after them. -/
-theorem prefix_clean (interface : Interface) (offset : Nat) {live : Nat → Prop}
+theorem prefix_liveRows (interface : Interface) (offset : Nat) {live : Nat → Prop}
     (stateFacts : Duplex.Formal.StateFacts live offset (interface.initialState offset))
     (count : Nat)
     (own : OwnLive live offset (localLength (prefixOps interface offset count))
       (prefixOps interface offset count)) :
-    Clean live (prefixOps interface offset count) ∧
+    LiveRows live (prefixOps interface offset count) ∧
       (∀ source, source < count → ∀ position,
         (Sampler.outputChallenge (sourceOffset offset source) position).VarsSatisfy live) ∧
       Duplex.Formal.StateFacts live (sourceOffset offset count)
         (stateAtExpr interface offset count) := by
   induction count with
   | zero =>
-      exact ⟨Clean.nil, fun _ below => absurd below (Nat.not_lt_zero _),
+      exact ⟨LiveRows.nil, fun _ below => absurd below (Nat.not_lt_zero _),
         stateFacts.mono (Nat.le_add_right _ _)⟩
   | succ count ih =>
       rw [prefix_succ, Sequence.localLength_append] at own
       have childPlaced := child_placed interface offset count
       rw [← prefix_length] at childPlaced
-      obtain ⟨prefixClean, challenges, state⟩ := ih (own.left childPlaced)
+      obtain ⟨prefixLiveRows, challenges, state⟩ := ih (own.left childPlaced)
       have childOwn := own.right (prefix_placed interface offset count)
       rw [prefix_length] at childOwn
       obtain ⟨samplerOwn, -⟩ := childOwn.child_cons (child_localLength interface offset count)
         (Sampler.placed _ _ _) (Placed.nil _)
-      obtain ⟨samplerClean, challenge, next⟩ := Sampler.clean
+      obtain ⟨samplerLiveRows, challenge, next⟩ := Sampler.liveRows
         (childInterface interface offset count) count (sourceOffset offset count) state samplerOwn
       rw [prefix_succ]
-      refine ⟨prefixClean.append (Clean.child_cons samplerClean Clean.nil),
+      refine ⟨prefixLiveRows.append (LiveRows.child_cons samplerLiveRows LiveRows.nil),
         fun source below => ?_, next.mono (Nat.le_of_eq ?_)⟩
       · rcases Nat.lt_succ_iff_lt_or_eq.mp below with below | rfl
         · exact challenges source below
@@ -322,16 +322,16 @@ theorem placed (interface : Interface) (offset : Nat) :
   prefix_placed interface offset sourceCount
 
 /-- The chain's rows, every sampler's challenge words and the state after the chain. -/
-theorem clean (interface : Interface) (offset : Nat) {live : Nat → Prop}
+theorem liveRows (interface : Interface) (offset : Nat) {live : Nat → Prop}
     (stateFacts : Duplex.Formal.StateFacts live offset (interface.initialState offset))
     (own : OwnLive live offset (localLength (Circuit.ops (circuit interface).main offset))
       (Circuit.ops (circuit interface).main offset)) :
-    Clean live (Circuit.ops (circuit interface).main offset) ∧
+    LiveRows live (Circuit.ops (circuit interface).main offset) ∧
       (∀ source position, (outputChallenge offset source position).VarsSatisfy live) ∧
       Duplex.Formal.StateFacts live (offset + logicalPrivateCount)
         (outputState interface offset) := by
-  obtain ⟨prefixClean, challenges, state⟩ :=
-    prefix_clean interface offset stateFacts sourceCount own
-  exact ⟨prefixClean, fun source position => challenges source.val source.isLt position, state⟩
+  obtain ⟨prefixLiveRows, challenges, state⟩ :=
+    prefix_liveRows interface offset stateFacts sourceCount own
+  exact ⟨prefixLiveRows, fun source position => challenges source.val source.isLt position, state⟩
 
 end NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain

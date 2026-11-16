@@ -1,4 +1,4 @@
-import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Clean
+import NightstreamFPrime.Gadgets.Poseidon2.Duplex.LiveRows
 import NightstreamFPrime.Gadgets.SumCheck.FixedChain
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.ChallengeDerivation
@@ -1018,7 +1018,7 @@ private theorem challenge_mem {degreeBound : Nat} (interface : Interface degreeB
 
 /-- The transcript's rows are its permutations' rows, and its challenges and final state are
 live, when the round messages are affine and live before the transcript. -/
-theorem clean {degreeBound : Nat} (interface : Interface degreeBound) (offset : Nat)
+theorem liveRows {degreeBound : Nat} (interface : Interface degreeBound) (offset : Nat)
     {live : Nat → Prop}
     (stateFacts : Formal.StateFacts live offset (interface.initialState offset))
     (message : ∀ roundIndex coefficient,
@@ -1027,17 +1027,17 @@ theorem clean {degreeBound : Nat} (interface : Interface degreeBound) (offset : 
           ((interface.round offset roundIndex).coefficient coefficient).c1)
     (own : OwnLive live offset (localLength (Circuit.ops (circuit interface).main offset))
       (Circuit.ops (circuit interface).main offset)) :
-    Clean live (Circuit.ops (circuit interface).main offset) ∧
+    LiveRows live (Circuit.ops (circuit interface).main offset) ∧
       (∀ roundIndex, (challenge interface offset roundIndex).c0.VarsSatisfy live ∧
         (challenge interface offset roundIndex).c1.VarsSatisfy live) ∧
       Formal.StateFacts live (offset + localLength (Circuit.ops (circuit interface).main offset))
         (finalState interface offset) := by
   have words := absorbed_facts interface offset message
   rw [ops_eq_batch] at own ⊢
-  obtain ⟨clean, samples, output⟩ := Formal.batch_clean offset (interface.initialState offset)
+  obtain ⟨liveRows, samples, output⟩ := Formal.batch_liveRows offset (interface.initialState offset)
     (actions interface offset) stateFacts (fun word member => (words word member).1)
     (fun word member => (words word member).2) own
-  refine ⟨clean, fun roundIndex => samples _ (challenge_mem interface offset roundIndex), ?_⟩
+  refine ⟨liveRows, fun roundIndex => samples _ (challenge_mem interface offset roundIndex), ?_⟩
   rw [Formal.batchOps_localLength]
   exact output
 

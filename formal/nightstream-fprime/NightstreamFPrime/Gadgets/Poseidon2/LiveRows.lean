@@ -5,12 +5,12 @@ permutation and gives its 1,080 inner locals no column, so no other row may read
 states what this needs of its operations at `offset` with `count` locals:
 
 * `Placed`: its marks lie in its locals and ascend, 1,096 locals apart;
-* `Clean live`: its rows are free rows that read only `live` columns and its marks' rows, in
+* `LiveRows live`: its rows are free rows that read only `live` columns and its marks' rows, in
   order, and each mark has 16 affine lanes that read only `live` columns before it.
 
-A gadget proves `Clean live` for every `live` that its inputs read and that holds on its locals
+A gadget proves `LiveRows live` for every `live` that its inputs read and that holds on its locals
 outside its marks' inner locals (`OwnLive`). Gadgets compose: appended operations keep both
-(`Placed.append`, `Clean.append`), and each part's locals inherit `OwnLive` because the other part's
+(`Placed.append`, `LiveRows.append`), and each part's locals inherit `OwnLive` because the other part's
 marks lie in the other part's locals (`OwnLive.left`, `OwnLive.right`). At the step circuit,
 `live` is the set of columns that are no inner local of a mark. -/
 
@@ -32,7 +32,7 @@ def OwnLive (live : Nat → Prop) (offset count : Nat) (ops : List Op) : Prop :=
 
 /-- The operations' rows are free rows that read only `live` columns and their marks' rows, in
 order, and each mark has 16 affine lanes that read only `live` columns before it. -/
-structure Clean (live : Nat → Prop) (ops : List Op) : Prop where
+structure LiveRows (live : Nat → Prop) (ops : List Op) : Prop where
   segmented : Segmented live Permutation.markWindow (marks ops) (flatConstraints ops)
   lanes : ∀ mark ∈ marks ops, mark.Lanes live
 
@@ -74,8 +74,8 @@ theorem Placed.of_marks_nil {offset count : Nat} {ops : List Op} (none : marks o
     Placed offset count ops :=
   ⟨by simp [none], by simp [none]⟩
 
-theorem Clean.of_free {ops : List Op} (none : marks ops = [])
-    (free : ∀ row ∈ flatConstraints ops, row.VarsSatisfy live) : Clean live ops :=
+theorem LiveRows.of_free {ops : List Op} (none : marks ops = [])
+    (free : ∀ row ∈ flatConstraints ops, row.VarsSatisfy live) : LiveRows live ops :=
   ⟨none ▸ Segmented.ofFree free, by simp [none]⟩
 
 theorem OwnLive.of_marks_nil {offset count : Nat} {ops : List Op} (none : marks ops = [])
@@ -83,9 +83,9 @@ theorem OwnLive.of_marks_nil {offset count : Nat} {ops : List Op} (none : marks 
     ∀ column, offset ≤ column → column < offset + count → live column :=
   fun column lower upper => own column lower upper (by simp [none, InnerOf])
 
-theorem Clean.free {ops : List Op} (clean : Clean live ops) (none : marks ops = []) :
+theorem LiveRows.free {ops : List Op} (liveRows : LiveRows live ops) (none : marks ops = []) :
     ∀ row ∈ flatConstraints ops, row.VarsSatisfy live := by
-  have segmented := clean.segmented
+  have segmented := liveRows.segmented
   rw [none] at segmented
   exact segmented.free_of_nil
 
@@ -108,16 +108,16 @@ theorem Placed.append {offset firstCount secondCount : Nat} {first second : List
     have := secondPlaced.inside late lateMember
     omega
 
-theorem Clean.append {first second : List Op} (firstClean : Clean live first)
-    (secondClean : Clean live second) : Clean live (first ++ second) := by
+theorem LiveRows.append {first second : List Op} (firstLiveRows : LiveRows live first)
+    (secondLiveRows : LiveRows live second) : LiveRows live (first ++ second) := by
   refine ⟨?_, ?_⟩
   · rw [marks_append, flatConstraints_append]
-    exact firstClean.segmented.append secondClean.segmented
+    exact firstLiveRows.segmented.append secondLiveRows.segmented
   · intro mark member
     rw [marks_append, List.mem_append] at member
     rcases member with member | member
-    · exact firstClean.lanes mark member
-    · exact secondClean.lanes mark member
+    · exact firstLiveRows.lanes mark member
+    · exact secondLiveRows.lanes mark member
 
 theorem OwnLive.left {offset firstCount secondCount : Nat} {first second : List Op}
     (own : OwnLive live offset (firstCount + secondCount) (first ++ second))
@@ -179,14 +179,14 @@ theorem Placed.subcircuit {circuit : FormalCircuit} {name : String} {offset coun
   · rw [marks_subcircuit]
     exact placed.ascend
 
-theorem Clean.subcircuit {circuit : FormalCircuit} {name : String} {offset : Nat}
-    (clean : Clean live (Circuit.ops circuit.main offset)) :
-    Clean live [Op.subcircuit (circuit.asSubcircuit name offset)] := by
+theorem LiveRows.subcircuit {circuit : FormalCircuit} {name : String} {offset : Nat}
+    (liveRows : LiveRows live (Circuit.ops circuit.main offset)) :
+    LiveRows live [Op.subcircuit (circuit.asSubcircuit name offset)] := by
   refine ⟨?_, ?_⟩
   · rw [marks_subcircuit, flatConstraints_subcircuit]
-    exact clean.segmented
+    exact liveRows.segmented
   · rw [marks_subcircuit]
-    exact clean.lanes
+    exact liveRows.lanes
 
 theorem OwnLive.subcircuit {circuit : FormalCircuit} {name : String} {offset count : Nat}
     (own : OwnLive live offset count [Op.subcircuit (circuit.asSubcircuit name offset)]) :
@@ -199,8 +199,8 @@ theorem Placed.assertions {offset : Nat} (rows : List Expr) :
     Placed offset 0 (rows.map Op.assertZero) :=
   .of_marks_nil (by simp [marks, Op.marks])
 
-theorem Clean.assertions {rows : List Expr} (free : ∀ row ∈ rows, row.VarsSatisfy live) :
-    Clean live (rows.map Op.assertZero) := by
+theorem LiveRows.assertions {rows : List Expr} (free : ∀ row ∈ rows, row.VarsSatisfy live) :
+    LiveRows live (rows.map Op.assertZero) := by
   refine .of_free (by simp [marks, Op.marks]) fun row member => ?_
   simp only [flatConstraints, List.flatMap_map, Op.flatConstraints, List.flatMap_singleton']
     at member
@@ -226,8 +226,8 @@ theorem RowsOnly.localLength_zero {ops : List Op} (rowsOnly : RowsOnly ops) :
       simp only [localLength, List.map_cons, List.sum_cons, Op.localLength, Nat.zero_add]
       exact ih fun other member => rowsOnly other (List.mem_cons_of_mem _ member)
 
-theorem Clean.of_rows {ops : List Op} (rowsOnly : RowsOnly ops)
-    (free : ∀ row, Op.assertZero row ∈ ops → row.VarsSatisfy live) : Clean live ops := by
+theorem LiveRows.of_rows {ops : List Op} (rowsOnly : RowsOnly ops)
+    (free : ∀ row, Op.assertZero row ∈ ops → row.VarsSatisfy live) : LiveRows live ops := by
   refine .of_free rowsOnly.marks_nil fun row member => ?_
   simp only [flatConstraints, List.mem_flatMap] at member
   obtain ⟨op, opMember, rowMember⟩ := member
@@ -250,10 +250,10 @@ theorem RowsOnly.map (rows : List Expr) : RowsOnly (rows.map Op.assertZero) := b
 /-! ### Permutation batches -/
 
 /-- A batch of marked permutations and its mark. -/
-theorem Clean.batch {start : Nat} {recipes : List Expr} {permutations : List PermutationMark}
+theorem LiveRows.batch {start : Nat} {recipes : List Expr} {permutations : List PermutationMark}
     (rows : recipeConstraints start recipes = permutations.flatMap Permutation.markWindow)
     (lanes : ∀ mark ∈ permutations, mark.Lanes live) :
-    Clean live [Op.witness (WitnessBatch.arithmetic start recipes), Op.mark permutations] := by
+    LiveRows live [Op.witness (WitnessBatch.arithmetic start recipes), Op.mark permutations] := by
   refine ⟨?_, ?_⟩
   · simp only [marks, flatConstraints, List.flatMap_cons, List.flatMap_nil, Op.marks,
       Op.flatConstraints, WitnessBatch.arithmetic_start, WitnessBatch.arithmetic_recipes,
@@ -562,11 +562,11 @@ theorem hashMarks_lanes {start : Nat} {input : List Expr}
         · exact stateReads
 
 /-- The hash's batch and mark. -/
-theorem hash_clean {start : Nat} {input : List Expr}
+theorem hash_liveRows {start : Nat} {input : List Expr}
     (inputAffine : ∀ word ∈ input, word.Affine)
     (inputReads : ∀ word ∈ input, word.VarsSatisfy fun column => column < start ∧ live column)
     (own : HashOwnLive live start input) :
-    Clean live [Op.witness (WitnessBatch.arithmetic start (Hash.compile start input).recipes),
+    LiveRows live [Op.witness (WitnessBatch.arithmetic start (Hash.compile start input).recipes),
       Op.mark (Hash.marks start input)] :=
   .batch (Hash.compile_windows start input) (hashMarks_lanes inputAffine inputReads own)
 

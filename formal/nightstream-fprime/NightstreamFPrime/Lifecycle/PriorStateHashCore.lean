@@ -1,5 +1,5 @@
 import NightstreamFPrime.Circuit.Sequence
-import NightstreamFPrime.Gadgets.Poseidon2.CleanChildren
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRowsChildren
 import NightstreamFPrime.Gadgets.Poseidon2.RawFormal
 import NightstreamFPrime.Gadgets.Range.CanonicalPublicU64
 import NightstreamFPrime.Lifecycle.XOut
@@ -888,14 +888,14 @@ theorem placed (interface : Interface) (offset : Nat) :
 /-- The prior state hash's rows: the hash's permutations and rows that read its digest, the
 public input and the gadget's own locals. The preimage words are affine and live before the
 gadget. -/
-theorem clean (interface : Interface) (offset : Nat) {live : Nat → Prop}
+theorem liveRows (interface : Interface) (offset : Nat) {live : Nat → Prop}
     (preimageAffine : ∀ word ∈ interface.preimage offset, word.Affine)
     (preimageReads : ∀ word ∈ interface.preimage offset,
       word.VarsSatisfy fun column => column < offset ∧ live column)
     (publicReads : ∀ column, (interface.publicInput offset column).VarsSatisfy live)
     (own : OwnLive live offset (localLength (Circuit.ops (circuit interface).main offset))
       (Circuit.ops (circuit interface).main offset)) :
-    Clean live (Circuit.ops (circuit interface).main offset) := by
+    LiveRows live (Circuit.ops (circuit interface).main offset) := by
   obtain ⟨hashOwn, postOwn⟩ := own.child_cons rfl
     (RawFormal.placed (hashInterface interface) offset)
     (.of_marks_nil (postHash_marks_nil interface offset))
@@ -903,8 +903,8 @@ theorem clean (interface : Interface) (offset : Nat) {live : Nat → Prop}
   have hashLength_eq : localLength (Circuit.ops (hashCircuit interface).main offset) =
       hashLength interface offset := by
     rw [hashCircuit_localLength_compiled, compiledHashLength_eq_hashLength]
-  refine Clean.child_cons
-    (RawFormal.clean (hashInterface interface) offset preimageAffine preimageReads hashOwn)
+  refine LiveRows.child_cons
+    (RawFormal.liveRows (hashInterface interface) offset preimageAffine preimageReads hashOwn)
     (.of_free (postHash_marks_nil interface offset) (postHash_free interface offset publicReads
       (RawFormal.digest_live (hashInterface interface) offset hashOwn)
       fun column lower upper => postLocals column ?_ ?_))

@@ -1,6 +1,6 @@
 import NightstreamFPrime.Layout.BoundedDepth.RefreshAssembler
-import NightstreamFPrime.Layout.BoundedDepth.LightAssemblerClean
-import NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepClean
+import NightstreamFPrime.Layout.BoundedDepth.LightAssemblerLiveRows
+import NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepLiveRows
 
 /-! The refresh step's shared words for the exporter's blocks (SPEC.md section 4.4). Each shared
 word of the source layout is a column before `sharedEnd`, so it is affine, and it is live before

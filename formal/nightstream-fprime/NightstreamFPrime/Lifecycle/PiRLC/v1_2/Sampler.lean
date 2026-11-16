@@ -2,7 +2,7 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerWords
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.Program
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation.Owned
-import NightstreamFPrime.Gadgets.Poseidon2.CleanChildren
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRowsChildren
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript
 
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler
@@ -404,12 +404,12 @@ theorem placed (interface : Interface) (coordinate offset : Nat) :
   Placed.nil _
 
 /-- The sampler's rows, its centred challenge words and its output state. -/
-theorem clean (interface : Interface) (coordinate offset : Nat) {live : Nat → Prop}
+theorem liveRows (interface : Interface) (coordinate offset : Nat) {live : Nat → Prop}
     (stateFacts : Duplex.Formal.StateFacts live offset (interface.initialState offset))
     (own : OwnLive live offset
       (localLength (Circuit.ops (circuit interface coordinate).main offset))
       (Circuit.ops (circuit interface coordinate).main offset)) :
-    Clean live (Circuit.ops (circuit interface coordinate).main offset) ∧
+    LiveRows live (Circuit.ops (circuit interface coordinate).main offset) ∧
       (∀ position, (outputChallenge offset position).VarsSatisfy live) ∧
       Duplex.Formal.StateFacts live (offset + logicalPrivateCount)
         (outputState interface coordinate offset) := by
@@ -438,30 +438,30 @@ theorem clean (interface : Interface) (coordinate offset : Nat) {live : Nat → 
   obtain ⟨wordsOwn, -⟩ := wordsRest.child_cons (words_localLength offset)
     (.of_marks_nil (SamplerWords.marks_nil _ _)) (Placed.nil _)
   rw [entry_ops] at entryOwn
-  obtain ⟨entryClean, entered⟩ :=
-    TranscriptAbsorption.clean interface coordinate offset stateFacts entryOwn
+  obtain ⟨entryLiveRows, entered⟩ :=
+    TranscriptAbsorption.liveRows interface coordinate offset stateFacts entryOwn
   rw [TranscriptAbsorption.localLength_eq] at entered
-  rw [← entry_ops] at entryClean
+  rw [← entry_ops] at entryLiveRows
   have rangeLocals := OwnLive.of_marks_nil (range_marks_nil interface coordinate offset) rangeOwn
-  have rangeClean : Clean live
+  have rangeLiveRows : LiveRows live
       (Circuit.ops (rangeCircuit interface coordinate offset).main (rangeOffset offset)) :=
     .of_free (range_marks_nil interface coordinate offset)
       (WideReduction.Program.free _ _ (fun lane => (entered _).2.mono _ fun _ inside => inside.2)
         rangeLocals)
-  have advanceClean : Clean live
+  have advanceLiveRows : LiveRows live
       (Circuit.ops (advance interface coordinate offset).main (advanceOffset offset)) :=
-    Permutation.Owned.clean (advanceInterface interface coordinate offset) (advanceOffset offset)
+    Permutation.Owned.liveRows (advanceInterface interface coordinate offset) (advanceOffset offset)
       (fun lane => (entered lane).1)
       (fun lane => (entered lane).2.mono _ fun _ inside =>
         ⟨Nat.lt_of_lt_of_le inside.1 (Nat.le_add_right _ _), inside.2⟩)
   have wordsLocals := OwnLive.of_marks_nil (SamplerWords.marks_nil _ _) wordsOwn
-  have wordsClean : Clean live
+  have wordsLiveRows : LiveRows live
       (Circuit.ops (SamplerWords.circuit (rangeOffset offset)).main (wordsOffset offset)) :=
     .of_free (SamplerWords.marks_nil _ _)
       (SamplerWords.free _ _ (fun position =>
         WideReduction.Program.outputWord_live _ _ rangeLocals position) wordsLocals)
-  refine ⟨Clean.child_cons entryClean <| Clean.child_cons rangeClean <|
-    Clean.child_cons advanceClean <| Clean.child_cons wordsClean Clean.nil, fun position => ?_,
+  refine ⟨LiveRows.child_cons entryLiveRows <| LiveRows.child_cons rangeLiveRows <|
+    LiveRows.child_cons advanceLiveRows <| LiveRows.child_cons wordsLiveRows LiveRows.nil, fun position => ?_,
     fun lane => ⟨.var _, ?_⟩⟩
   · exact Expr.VarsSatisfy.sub _ _ _
       (SamplerWords.outputWord_live _ _ wordsLocals position) trivial

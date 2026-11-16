@@ -1,4 +1,4 @@
-import NightstreamFPrime.Gadgets.Poseidon2.Clean
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRows
 import NightstreamFPrime.Gadgets.Poseidon2.RawFormal
 import NightstreamFPrime.Circuit.StraightLine
 
@@ -244,20 +244,20 @@ theorem placed (interface : Interface) (offset : Nat) :
 
 /-- The hash's rows are its permutations' rows and its digest rows, which read its digest and its
 expected words. -/
-theorem clean (interface : Interface) (offset : Nat) {live : Nat → Prop}
+theorem liveRows (interface : Interface) (offset : Nat) {live : Nat → Prop}
     (inputAffine : ∀ word ∈ interface.input offset, word.Affine)
     (inputReads : ∀ word ∈ interface.input offset,
       word.VarsSatisfy fun column => column < offset ∧ live column)
     (expectedReads : ∀ lane, (interface.expected offset lane).VarsSatisfy live)
     (own : OwnLive live offset (localLength (Circuit.ops (main interface) offset))
       (Circuit.ops (main interface) offset)) :
-    Clean live (Circuit.ops (main interface) offset) := by
+    LiveRows live (Circuit.ops (main interface) offset) := by
   have hashOwn : HashOwnLive live offset (interface.input offset) := by
     rw [main_ops, opsAt_localLength, opsAt_split] at own
     refine own.mono ?_
     simp [(assertions_rowsOnly interface offset).marks_nil]
   rw [main_ops, opsAt_split]
-  refine (hash_clean inputAffine inputReads hashOwn).append
+  refine (hash_liveRows inputAffine inputReads hashOwn).append
     (.of_rows (assertions_rowsOnly interface offset) fun row member => ?_)
   rw [assertions, List.mem_ofFn'] at member
   obtain ⟨lane, equal⟩ := member

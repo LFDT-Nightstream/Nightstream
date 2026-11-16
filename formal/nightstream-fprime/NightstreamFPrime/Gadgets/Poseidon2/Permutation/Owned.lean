@@ -1,4 +1,4 @@
-import NightstreamFPrime.Gadgets.Poseidon2.Clean
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRows
 import NightstreamFPrime.Circuit.StraightLine
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation
 
@@ -167,11 +167,11 @@ theorem placed (interface : Interface) (offset : Nat) :
   subst member
   simp
 
-theorem clean (interface : Interface) (offset : Nat) {live : Nat → Prop}
+theorem liveRows (interface : Interface) (offset : Nat) {live : Nat → Prop}
     (affine : ∀ lane, (interface.initialState offset lane).Affine)
     (reads : ∀ lane, (interface.initialState offset lane).VarsSatisfy
       fun column => column < offset ∧ live column) :
-    Clean live (operations interface offset) :=
+    LiveRows live (operations interface offset) :=
   .batch (by simp [Permutation.markWindow_markOf, program])
     (fun mark member => by
       simp only [List.mem_singleton] at member

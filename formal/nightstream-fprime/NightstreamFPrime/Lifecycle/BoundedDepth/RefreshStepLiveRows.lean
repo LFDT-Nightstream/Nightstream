@@ -1,5 +1,5 @@
 import NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepLayout
-import NightstreamFPrime.Lifecycle.BoundedDepth.LightStepClean
+import NightstreamFPrime.Lifecycle.BoundedDepth.LightStepLiveRows
 
 /-! The refresh step circuit's rows for the exporter's blocks (SPEC.md section 4.4). The step
 places its children one after another: the application, the two prior slot hashes, the prior and
@@ -7,7 +7,7 @@ next state hashes, today's Π_DEC, the refresh Π_CCS layout and today's Π_RLC 
 slot's hash and the digest select. Each child's marks lie in its locals and ascend (`placed`).
 When the shared words that the children read are affine and live before the layout
 (`InputsLive`), and the layout's locals outside its marks' inner locals are live, each child is
-clean (`clean`): the words that the new slot hashes (the Π_CCS round point and the Π_RLC outputs)
+has live rows (`liveRows`): the words that the new slot hashes (the Π_CCS round point and the Π_RLC outputs)
 are affine and live before it. -/
 
 namespace NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepLayout
@@ -250,12 +250,12 @@ theorem rlcInputs {live P : Nat → Prop} (inputs : InputsLive program interface
     · simp only [rlcInterface, Fin.addCases_right]
       exact wordReads (inputs.digit child column) lift
 
-/-- The step's rows: each child's rows are clean, when the shared words are live before the layout
+/-- The step's rows: each child has live rows, when the shared words are live before the layout
 and the layout's locals outside its marks' inner locals are live. -/
-theorem clean {live : Nat → Prop} (inputs : InputsLive program interface offset live)
+theorem liveRows {live : Nat → Prop} (inputs : InputsLive program interface offset live)
     (own : OwnLive live offset (localLength (opsAt program relation circuit interface offset))
       (opsAt program relation circuit interface offset)) :
-    Clean live (opsAt program relation circuit interface offset) := by
+    LiveRows live (opsAt program relation circuit interface offset) := by
   rw [opsAt_eq] at own ⊢
   -- Each child's tail, from the last child back.
   have selectTail := Placed.child_cons (name := "refresh.digest_select") rfl
@@ -337,7 +337,7 @@ theorem clean {live : Nat → Prop} (inputs : InputsLive program interface offse
       newSlotOffset program relation circuit interface offset :=
     Nat.le_trans (initial_le_final relation _ _) rlcLe
   -- The application.
-  have applicationClean := program.marksClean (applicationInterface program interface) offset live
+  have applicationLiveRows := program.marksLiveRows (applicationInterface program interface) offset live
     ⟨fun index => (inputs.currentState index).1, fun index => (inputs.witness index).1,
       fun index => (inputs.nextState index).1⟩
     ⟨fun index => (inputs.currentState index).2, fun index => (inputs.witness index).2,
@@ -345,14 +345,14 @@ theorem clean {live : Nat → Prop} (inputs : InputsLive program interface offse
   -- The prior slot hashes and the state hashes.
   have priorZeroPreimage := slotPreimage_forall (wordFacts_const live _) fun word member =>
     (inputs.prior 0 word member).mono priorZeroLe
-  have priorZeroClean := OutputHash.clean (priorSlotInterface program interface 0)
+  have priorZeroLiveRows := OutputHash.liveRows (priorSlotInterface program interface 0)
     (priorSlotZeroOffset program interface offset)
     (fun word member => (priorZeroPreimage word member).1)
     (fun word member => (priorZeroPreimage word member).2)
     (fun lane => (inputs.priorDigest 0 lane).varsSatisfy) priorZeroOwn
   have priorOnePreimage := slotPreimage_forall (wordFacts_const live _) fun word member =>
     (inputs.prior 1 word member).mono priorOneLe
-  have priorOneClean := OutputHash.clean (priorSlotInterface program interface 1)
+  have priorOneLiveRows := OutputHash.liveRows (priorSlotInterface program interface 1)
     (priorSlotOneOffset program interface offset)
     (fun word member => (priorOnePreimage word member).1)
     (fun word member => (priorOnePreimage word member).2)
@@ -365,7 +365,7 @@ theorem clean {live : Nat → Prop} (inputs : InputsLive program interface offse
       (fun lane => (inputs.initialState lane).mono priorLe)
       (fun lane => (inputs.currentState lane).mono priorLe) (inputs.priorPc.mono priorLe)
       (fun slot lane => (inputs.priorDigest slot lane).mono priorLe)
-  have priorClean := PriorStateHash.clean (priorStateInterface program interface)
+  have priorLiveRows := PriorStateHash.liveRows (priorStateInterface program interface)
     (priorStateOffset program interface offset) (fun word member => (priorPreimage word member).1)
     (fun word member => (priorPreimage word member).2)
     (fun column => (inputs.freshPublicInput _ column).varsSatisfy) priorOwn
@@ -379,7 +379,7 @@ theorem clean {live : Nat → Prop} (inputs : InputsLive program interface offse
       (fun lane => (inputs.initialState lane).mono nextLe)
       (fun lane => (inputs.nextState lane).mono nextLe) (wordFacts_const live _ _)
       (fun slot lane => (inputs.nextDigest slot lane).mono nextLe)
-  have nextClean := OutputHash.clean (nextStateInterface program circuit interface)
+  have nextLiveRows := OutputHash.liveRows (nextStateInterface program circuit interface)
     (nextStateOffset program interface offset) (fun word member => (nextPreimage word member).1)
     (fun word member => (nextPreimage word member).2)
     (fun lane => (inputs.outputDigest lane).varsSatisfy) nextOwn
@@ -388,19 +388,19 @@ theorem clean {live : Nat → Prop} (inputs : InputsLive program interface offse
     (decOffset program circuit interface offset)
     (decInputs program circuit interface offset inputs)
     (OwnLive.of_marks_nil decMarks decOwn)
-  obtain ⟨piccsClean, roundPoint, piccsState⟩ := RefreshPiCCSLayout.clean relation
+  obtain ⟨piccsLiveRows, roundPoint, piccsState⟩ := RefreshPiCCSLayout.liveRows relation
     (piccsInterface program interface) (piccsOffset program circuit interface offset)
     (piccsInputs program circuit interface offset inputs) piccsOwn
   have rlcState : StateFacts live (rlcOffset program relation circuit interface offset)
       (OutputBinding.finalState (piccsLeaves program relation circuit interface offset).output
         (piccsLeaves program relation circuit interface offset).outputOffset) :=
     piccsState
-  obtain ⟨rlcClean, -⟩ := Lifecycle.PiRLC.v1_2.Formal.clean relation
+  obtain ⟨rlcLiveRows, -⟩ := Lifecycle.PiRLC.v1_2.Formal.liveRows relation
     (rlcInterface program relation circuit interface offset)
     (rlcOffset program relation circuit interface offset)
     (by dsimp only [rlcInterface]; exact rlcState)
     (rlcInputs program relation circuit interface offset inputs fun _ _ alive => alive) rlcOwn
-  obtain ⟨-, rlcOutputs⟩ := Lifecycle.PiRLC.v1_2.Formal.clean
+  obtain ⟨-, rlcOutputs⟩ := Lifecycle.PiRLC.v1_2.Formal.liveRows
     (live := fun column => column < newSlotOffset program relation circuit interface offset ∧
       live column) relation
     (rlcInterface program relation circuit interface offset)
@@ -432,7 +432,7 @@ theorem clean {live : Nat → Prop} (inputs : InputsLive program interface offse
           (rlcOffset program relation circuit interface offset)) column⟩)
       ⟨affine_ofNat 0, trivial⟩
   have newPreimage := slotPreimage_forall (wordFacts_const live _) newWords
-  have newSlotClean := OutputHash.clean (newSlotInterface program relation circuit interface offset)
+  have newSlotLiveRows := OutputHash.liveRows (newSlotInterface program relation circuit interface offset)
     (newSlotOffset program relation circuit interface offset)
     (fun word member => (newPreimage word member).1)
     (fun word member => (newPreimage word member).2)
@@ -450,11 +450,11 @@ theorem clean {live : Nat → Prop} (inputs : InputsLive program interface offse
       fun slot lane => (inputs.nextDigest slot lane).varsSatisfy⟩
     (fun slot word member => (inputs.prior slot word member).varsSatisfy)
     (fun word member => (inputs.active word member).varsSatisfy)
-  exact Clean.child_cons applicationClean <| Clean.child_cons priorZeroClean <|
-    Clean.child_cons priorOneClean <| Clean.child_cons priorClean <|
-    Clean.child_cons nextClean <|
-    (Clean.of_free decMarks decFree).append <| piccsClean.append <| rlcClean.append <|
-    Clean.child_cons newSlotClean <|
-    Clean.child_cons (.of_free (DigestSelect.marks_nil _ _) selectFree) Clean.nil
+  exact LiveRows.child_cons applicationLiveRows <| LiveRows.child_cons priorZeroLiveRows <|
+    LiveRows.child_cons priorOneLiveRows <| LiveRows.child_cons priorLiveRows <|
+    LiveRows.child_cons nextLiveRows <|
+    (LiveRows.of_free decMarks decFree).append <| piccsLiveRows.append <| rlcLiveRows.append <|
+    LiveRows.child_cons newSlotLiveRows <|
+    LiveRows.child_cons (.of_free (DigestSelect.marks_nil _ _) selectFree) LiveRows.nil
 
 end NightstreamFPrime.Lifecycle.BoundedDepth.RefreshStepLayout

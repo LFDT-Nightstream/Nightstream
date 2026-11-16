@@ -1,4 +1,4 @@
-import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Clean
+import NightstreamFPrime.Gadgets.Poseidon2.Duplex.LiveRows
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.WiringSupport
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.Statement

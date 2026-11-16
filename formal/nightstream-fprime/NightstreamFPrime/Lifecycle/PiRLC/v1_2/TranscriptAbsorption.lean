@@ -1,4 +1,4 @@
-import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Clean
+import NightstreamFPrime.Gadgets.Poseidon2.Duplex.LiveRows
 import NightstreamFPrime.Lifecycle.Transcript
 
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption
@@ -199,11 +199,11 @@ theorem placed (interface : Interface) (coordinate offset : Nat) :
   Formal.Owned.placed (ownedInterface interface coordinate) offset
 
 /-- The absorption's rows are its permutation's rows, and its output state is live. -/
-theorem clean (interface : Interface) (coordinate offset : Nat) {live : Nat → Prop}
+theorem liveRows (interface : Interface) (coordinate offset : Nat) {live : Nat → Prop}
     (stateFacts : Formal.StateFacts live offset (interface.initialState offset))
     (own : OwnLive live offset (localLength (Circuit.ops (circuit interface coordinate).main offset))
       (Circuit.ops (circuit interface coordinate).main offset)) :
-    Clean live (Circuit.ops (circuit interface coordinate).main offset) ∧
+    LiveRows live (Circuit.ops (circuit interface coordinate).main offset) ∧
       Formal.StateFacts live
         (offset + localLength (Circuit.ops (circuit interface coordinate).main offset))
         (output interface coordinate offset) := by

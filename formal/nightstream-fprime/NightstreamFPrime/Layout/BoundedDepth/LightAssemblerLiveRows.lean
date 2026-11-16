@@ -1,5 +1,5 @@
 import NightstreamFPrime.Layout.BoundedDepth.LightAssembler
-import NightstreamFPrime.Lifecycle.BoundedDepth.LightStepClean
+import NightstreamFPrime.Lifecycle.BoundedDepth.LightStepLiveRows
 
 /-! The light step's shared words for the exporter's blocks (SPEC.md section 4.4). Each shared
 word of the source layout is a column before `sharedEnd`, so it is affine, and it is live before

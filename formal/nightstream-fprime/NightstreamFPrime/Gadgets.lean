@@ -5,9 +5,9 @@ import NightstreamFPrime.Gadgets.Poseidon2.Hash
 import NightstreamFPrime.Gadgets.Poseidon2.Formal
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation.Mark
 import NightstreamFPrime.Gadgets.Poseidon2.HashMarks
-import NightstreamFPrime.Gadgets.Poseidon2.Clean
-import NightstreamFPrime.Gadgets.Poseidon2.CleanChildren
-import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Clean
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRows
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRowsChildren
+import NightstreamFPrime.Gadgets.Poseidon2.Duplex.LiveRows
 import NightstreamFPrime.Gadgets.Poseidon2.Support
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
 import NightstreamFPrime.Gadgets.SumCheck.FixedChain

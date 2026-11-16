@@ -1,5 +1,5 @@
 import NightstreamFPrime.Circuit.VariableSupport
-import NightstreamFPrime.Gadgets.Poseidon2.Clean
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRows
 import NightstreamFPrime.Lifecycle.Types
 
 namespace NightstreamFPrime.Lifecycle.Stage1.Application
@@ -107,13 +107,13 @@ structure Program where
   /-- The circuit's rows are free rows that read only `live` columns and its marks' rows, when
   its words are affine and live before it and its locals outside its marks' inner locals are
   live (SPEC.md section 4.4). -/
-  marksClean : ∀ interface offset (live : Nat → Prop),
+  marksLiveRows : ∀ interface offset (live : Nat → Prop),
     InputsAffine interface offset →
     InputsSupported interface offset (fun column => column < offset ∧ live column) →
     Gadgets.Poseidon2.OwnLive live offset
       (localLength (Circuit.ops (circuit interface).main offset))
       (Circuit.ops (circuit interface).main offset) →
-    Gadgets.Poseidon2.Clean live (Circuit.ops (circuit interface).main offset)
+    Gadgets.Poseidon2.LiveRows live (Circuit.ops (circuit interface).main offset)
 
 namespace Program
 

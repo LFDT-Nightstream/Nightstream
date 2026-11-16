@@ -1,4 +1,4 @@
-import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Clean
+import NightstreamFPrime.Gadgets.Poseidon2.Duplex.LiveRows
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.Transcript
 
@@ -1085,11 +1085,11 @@ theorem placed (interface : Interface) (offset : Nat) :
 /-- The derivation's rows are its permutations' rows, and `α`, `γ` and its final state are live.
 `α` and `γ` are samples of `layoutProgram`, which has the samples of `program`
 (`program_shape_eq_layout`). -/
-theorem clean (interface : Interface) (offset : Nat) {live : Nat → Prop}
+theorem liveRows (interface : Interface) (offset : Nat) {live : Nat → Prop}
     (stateFacts : Formal.StateFacts live offset (interface.initialState offset))
     (own : OwnLive live offset (localLength (Circuit.ops (circuit interface).main offset))
       (Circuit.ops (circuit interface).main offset)) :
-    Clean live (Circuit.ops (circuit interface).main offset) ∧
+    LiveRows live (Circuit.ops (circuit interface).main offset) ∧
       (∀ coordinate, (alpha interface offset coordinate).c0.VarsSatisfy live ∧
         (alpha interface offset coordinate).c1.VarsSatisfy live) ∧
       ((gamma interface offset).c0.VarsSatisfy live ∧
@@ -1097,7 +1097,7 @@ theorem clean (interface : Interface) (offset : Nat) {live : Nat → Prop}
       Formal.StateFacts live (offset + localLength (Circuit.ops (circuit interface).main offset))
         (finalState interface offset) := by
   rw [ops_eq_batch] at own ⊢
-  obtain ⟨clean, samples, output⟩ := Formal.batch_clean offset (interface.initialState offset)
+  obtain ⟨liveRows, samples, output⟩ := Formal.batch_liveRows offset (interface.initialState offset)
     (actions interface offset) stateFacts
     (fun word member =>
       (Formal.constant_facts (absorbed_constant interface offset word member) live).1)
@@ -1109,7 +1109,7 @@ theorem clean (interface : Interface) (offset : Nat) {live : Nat → Prop}
     intro sample member
     rw [← (program_shape_eq_layout interface offset).2.1] at member
     exact samples sample member
-  refine ⟨clean, fun coordinate => layoutSamples _ ?_, layoutSamples _ (List.get_mem _ _), ?_⟩
+  refine ⟨liveRows, fun coordinate => layoutSamples _ ?_, layoutSamples _ (List.get_mem _ _), ?_⟩
   · exact List.mem_of_mem_take (List.get_mem _ _)
   · rw [Formal.batchOps_localLength]
     exact output

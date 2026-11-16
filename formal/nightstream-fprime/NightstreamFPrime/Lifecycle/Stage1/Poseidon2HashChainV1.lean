@@ -200,14 +200,14 @@ theorem marksPlaced (interface : Application.Interface messageWordCount) (offset
       (Circuit.ops (circuit interface).main offset) :=
   Formal.placed (hashInterface interface) offset
 
-theorem marksClean (interface : Application.Interface messageWordCount) (offset : Nat)
+theorem marksLiveRows (interface : Application.Interface messageWordCount) (offset : Nat)
     (live : Nat → Prop) (affine : Application.InputsAffine interface offset)
     (inputs : Application.InputsSupported interface offset
       fun column => column < offset ∧ live column)
     (own : OwnLive live offset (localLength (Circuit.ops (circuit interface).main offset))
       (Circuit.ops (circuit interface).main offset)) :
-    Clean live (Circuit.ops (circuit interface).main offset) :=
-  Formal.clean (hashInterface interface) offset (inputExpressions_affine interface offset affine)
+    LiveRows live (Circuit.ops (circuit interface).main offset) :=
+  Formal.liveRows (hashInterface interface) offset (inputExpressions_affine interface offset affine)
     (inputExpressions_varsSatisfy interface offset _ inputs)
     (fun lane => (inputs.output lane).mono _ fun _ inside => inside.2) own
 
@@ -222,7 +222,7 @@ def program : Application.Program where
   assumptions_of_inputsBelow := assumptions_of_inputsBelow
   constraintsSupported := constraintsSupported
   marksPlaced := marksPlaced
-  marksClean := marksClean
+  marksLiveRows := marksLiveRows
 
 @[simp] theorem program_witnessWordCount : program.witnessWordCount = 4 := by
   rfl

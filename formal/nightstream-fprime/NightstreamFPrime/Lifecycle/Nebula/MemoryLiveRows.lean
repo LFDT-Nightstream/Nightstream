@@ -1,9 +1,9 @@
-import NightstreamFPrime.Gadgets.Poseidon2.CleanChildren
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRowsChildren
 import NightstreamFPrime.Lifecycle.Nebula.MemorySupport
 
 /-! Owns the exporter's blocks of the memory-application circuit (SPEC.md section 4.4): its nine
 sponge children are placed one after another (`marksPlaced`), and its rows are free rows that read
-only live columns and the children's marks' rows (`marksClean`). The children's chunk words and
+only live columns and the children's marks' rows (`marksLiveRows`). The children's chunk words and
 the squeeze states are affine and live before each child starts. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula.MemoryApp
@@ -180,20 +180,20 @@ theorem spongeOwn_cons (child : Sponge.Interface) (name : String) {start next : 
   exact OwnLive.child_cons (circuit := Sponge.circuit child) own
     (Sponge.localLength_eq child start) (Sponge.placed child start) tail
 
-theorem spongeClean_cons (child : Sponge.Interface) (name : String) (start : ℕ)
-    {rest : List Op} (clean : Clean live (Sponge.opsAt child start)) (tail : Clean live rest) :
-    Clean live (Sequence.childOp name (Sponge.circuit child) start :: rest) :=
-  Clean.child_cons (circuit := Sponge.circuit child) clean tail
+theorem spongeLiveRows_cons (child : Sponge.Interface) (name : String) (start : ℕ)
+    {rest : List Op} (liveRows : LiveRows live (Sponge.opsAt child start)) (tail : LiveRows live rest) :
+    LiveRows live (Sequence.childOp name (Sponge.circuit child) start :: rest) :=
+  LiveRows.child_cons (circuit := Sponge.circuit child) liveRows tail
 
-/-- An absorbing child is clean when its blocks are affine and live before it. -/
-theorem absorbing_clean {blocks : List (List Circuit.Expr)} {before start : ℕ}
+/-- An absorbing child has live rows when its blocks are affine and live before it. -/
+theorem absorbing_liveRows {blocks : List (List Circuit.Expr)} {before start : ℕ}
     (le : before ≤ start) (blocksAffine : ∀ b ∈ blocks, ∀ e ∈ b, e.Affine)
     (blocksRead : ∀ b ∈ blocks, ∀ e ∈ b,
       e.VarsSatisfy fun column => column < before ∧ live column)
     (own : OwnLive live start (localLength (Sponge.opsAt (absorbing blocks) start))
       (Sponge.opsAt (absorbing blocks) start)) :
-    Clean live (Sponge.opsAt (absorbing blocks) start) :=
-  Sponge.clean (absorbing blocks) start (fun lane => zeroE_affine lane) (fun _ => trivial)
+    LiveRows live (Sponge.opsAt (absorbing blocks) start) :=
+  Sponge.liveRows (absorbing blocks) start (fun lane => zeroE_affine lane) (fun _ => trivial)
     (transcriptChunks_affine blocksAffine)
     (fun chunk member e eMember =>
       (transcriptChunks_supported blocksRead chunk member e eMember).mono e
@@ -263,10 +263,10 @@ theorem marksPlaced :
 
 /-- The circuit's rows are its children's rows and parent rows that read the children's
 outputs, the interface words, and the wires. -/
-theorem marksClean (live : ℕ → Prop) (affine : Application.InputsAffine i offset)
+theorem marksLiveRows (live : ℕ → Prop) (affine : Application.InputsAffine i offset)
     (inputs : Application.InputsSupported i offset fun column => column < offset ∧ live column)
     (own : OwnLive live offset (localLength (opsAt p app i offset)) (opsAt p app i offset)) :
-    Clean live (opsAt p app i offset) := by
+    LiveRows live (opsAt p app i offset) := by
   obtain ⟨e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := child_ends p app i offset
   have wires : WiresSupported p app i offset fun column => column < offset ∧ live column :=
     inputs.witness
@@ -327,39 +327,39 @@ theorem marksClean (live : ℕ → Prop) (affine : Application.InputsAffine i of
   have freshAffine : ∀ start lane, (Permutation.freshState start lane).Affine :=
     fun _ _ => .var _
   -- The children.
-  have children : Clean live (childOps p app i offset) :=
-    spongeClean_cons _ _ _
-      (absorbing_clean le_rfl (stateBlocks_affine affine _ _) (stateBlocks_supported wires _ _)
+  have children : LiveRows live (childOps p app i offset) :=
+    spongeLiveRows_cons _ _ _
+      (absorbing_liveRows le_rfl (stateBlocks_affine affine _ _) (stateBlocks_supported wires _ _)
         own0) <|
-    spongeClean_cons _ _ _
-      (absorbing_clean (by omega) (stateBlocks_affine affine _ _)
+    spongeLiveRows_cons _ _ _
+      (absorbing_liveRows (by omega) (stateBlocks_affine affine _ _)
         (stateBlocks_supported wires _ _) own1) <|
-    spongeClean_cons _ _ _
-      (absorbing_clean (by omega) (chainBlocks_affine affine _ _ opsLanes_affine)
+    spongeLiveRows_cons _ _ _
+      (absorbing_liveRows (by omega) (chainBlocks_affine affine _ _ opsLanes_affine)
         (chainBlocks_supported wires _ _ _) own2) <|
-    spongeClean_cons _ _ _
-      (absorbing_clean (by omega) (chainBlocks_affine affine _ _ (scanLanes_affine _))
+    spongeLiveRows_cons _ _ _
+      (absorbing_liveRows (by omega) (chainBlocks_affine affine _ _ (scanLanes_affine _))
         (chainBlocks_supported wires _ _ _) own3) <|
-    spongeClean_cons _ _ _
-      (absorbing_clean (by omega) (chainBlocks_affine affine _ _ (scanLanes_affine _))
+    spongeLiveRows_cons _ _ _
+      (absorbing_liveRows (by omega) (chainBlocks_affine affine _ _ (scanLanes_affine _))
         (chainBlocks_supported wires _ _ _) own4) <|
-    spongeClean_cons _ _ _
-      (absorbing_clean (by omega) (etaBlocks_affine affine) (etaBlocks_supported wires) own5) <|
-    spongeClean_cons _ _ _
-      (Sponge.clean (squeeze1 p app i offset) (squeeze1Start p app i offset) (freshAffine _)
+    spongeLiveRows_cons _ _ _
+      (absorbing_liveRows (by omega) (etaBlocks_affine affine) (etaBlocks_supported wires) own5) <|
+    spongeLiveRows_cons _ _ _
+      (Sponge.liveRows (squeeze1 p app i offset) (squeeze1Start p app i offset) (freshAffine _)
         etaReads (noChunks _) (noChunks _) own6) <|
-    spongeClean_cons _ _ _
-      (Sponge.clean (squeeze2 p app i offset) (squeeze2Start p app i offset)
+    spongeLiveRows_cons _ _ _
+      (Sponge.liveRows (squeeze2 p app i offset) (squeeze2Start p app i offset)
         (Sponge.output_affine (squeeze1 p app i offset) (squeeze1Start p app i offset)
           (freshAffine _))
         squeeze1Reads (noChunks _) (noChunks _) own7) <|
-    spongeClean_cons _ _ _
-      (Sponge.clean (squeeze3 p app i offset) (squeeze3Start p app i offset)
+    spongeLiveRows_cons _ _ _
+      (Sponge.liveRows (squeeze3 p app i offset) (squeeze3Start p app i offset)
         (Sponge.output_affine (squeeze2 p app i offset) (squeeze2Start p app i offset)
           (Sponge.output_affine (squeeze1 p app i offset) (squeeze1Start p app i offset)
             (freshAffine _)))
         squeeze2Reads (noChunks _) (noChunks _) own8)
-      Clean.nil
+      LiveRows.nil
   -- The parent rows.
   have laneOf : ∀ {state : Sponge.EState}, (∀ lane, (state lane).VarsSatisfy live) →
       ∀ k, (lane state k).VarsSatisfy live := fun each k => each _
@@ -389,6 +389,6 @@ theorem marksClean (live : ℕ → Prop) (affine : Application.InputsAffine i of
     · exact .sub _ _ _ (laneOf (liveOf squeeze3Reads) 0) (wire_supported wiresLive _)
     · exact sub_supported wiresLive e'
   rw [opsAt]
-  exact children.append (Clean.assertions rows)
+  exact children.append (LiveRows.assertions rows)
 
 end NightstreamFPrime.Lifecycle.Nebula.MemoryApp

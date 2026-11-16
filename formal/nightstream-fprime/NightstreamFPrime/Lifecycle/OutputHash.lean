@@ -235,14 +235,14 @@ theorem placed (interface : Interface) (offset : Nat) :
 
 /-- The hash's rows are its permutations' rows and its digest rows, which read the digest words.
 The preimage words are affine and live before the hash. -/
-theorem clean (interface : Interface) (offset : Nat) {live : Nat → Prop}
+theorem liveRows (interface : Interface) (offset : Nat) {live : Nat → Prop}
     (preimageAffine : ∀ word ∈ interface.preimage offset, word.Affine)
     (preimageReads : ∀ word ∈ interface.preimage offset,
       word.VarsSatisfy fun column => column < offset ∧ live column)
     (digestReads : ∀ lane, (interface.digest offset lane).VarsSatisfy live)
     (own : OwnLive live offset (localLength (Circuit.ops (circuit interface).main offset))
       (Circuit.ops (circuit interface).main offset)) :
-    Clean live (Circuit.ops (circuit interface).main offset) :=
-  Formal.clean (hashInterface interface) offset preimageAffine preimageReads digestReads own
+    LiveRows live (Circuit.ops (circuit interface).main offset) :=
+  Formal.liveRows (hashInterface interface) offset preimageAffine preimageReads digestReads own
 
 end NightstreamFPrime.Lifecycle.OutputHash

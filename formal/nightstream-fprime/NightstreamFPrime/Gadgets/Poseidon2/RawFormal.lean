@@ -1,4 +1,4 @@
-import NightstreamFPrime.Gadgets.Poseidon2.Clean
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRows
 import NightstreamFPrime.Gadgets.Poseidon2.Hash
 import NightstreamFPrime.Circuit.StraightLine
 
@@ -152,17 +152,17 @@ theorem placed (interface : Interface) (offset : Nat) :
     localLength_batch _ _ _]
   exact hash_placed offset _
 
-theorem clean (interface : Interface) (offset : Nat) {live : Nat → Prop}
+theorem liveRows (interface : Interface) (offset : Nat) {live : Nat → Prop}
     (inputAffine : ∀ word ∈ interface.input offset, word.Affine)
     (inputReads : ∀ word ∈ interface.input offset,
       word.VarsSatisfy fun column => column < offset ∧ live column)
     (own : OwnLive live offset (localLength (operations interface offset))
       (operations interface offset)) :
-    Clean live (operations interface offset) := by
+    LiveRows live (operations interface offset) := by
   rw [show localLength (operations interface offset) =
       (Hash.compile offset (interface.input offset)).recipes.length from
     localLength_batch _ _ _] at own
-  exact hash_clean inputAffine inputReads own
+  exact hash_liveRows inputAffine inputReads own
 
 theorem digest_live (interface : Interface) (offset : Nat) {live : Nat → Prop}
     (own : OwnLive live offset (localLength (operations interface offset))

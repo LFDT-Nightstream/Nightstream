@@ -1,7 +1,7 @@
 import NightstreamFPrime.Lifecycle.BoundedDepth.LightFold
 import NightstreamFPrime.Lifecycle.BoundedDepth.LightPiCCSLayout
 import NightstreamFPrime.Lifecycle.BoundedDepth.LightCommitment
-import NightstreamFPrime.Gadgets.Poseidon2.CleanChildren
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRowsChildren
 
 /-! The light Π_RLC layout (CW-2.5d, d3). One sampler draws `ρ` from the transcript state after
 the light Π_CCS output binding, and the commitment, public-input and evaluation combinations
@@ -268,10 +268,10 @@ theorem placed :
 
 /-- The light Π_RLC's rows: the sampler's permutations and rows that read `ρ`, the external
 words and the layout's own locals. The folded words are live. -/
-theorem clean {live : Nat → Prop} (inputs : InputsLive piccs interface offset live)
+theorem liveRows {live : Nat → Prop} (inputs : InputsLive piccs interface offset live)
     (own : OwnLive live offset (localLength (Circuit.ops (main piccs interface) offset))
       (Circuit.ops (main piccs interface) offset)) :
-    Clean live (Circuit.ops (main piccs interface) offset) ∧
+    LiveRows live (Circuit.ops (main piccs interface) offset) ∧
       OutputsLive piccs interface offset live := by
   have evaluationTail := Placed.child_cons (name := "light.pirlc.evaluation") rfl
     (.of_marks_nil (CombinationStep.marks_nil
@@ -292,27 +292,27 @@ theorem clean {live : Nat → Prop} (inputs : InputsLive piccs interface offset 
     (.of_marks_nil (CombinationStep.marks_nil _ _)) evaluationTail
   obtain ⟨evaluationOwn, -⟩ := afterPublicInput.child_cons rfl
     (.of_marks_nil (CombinationStep.marks_nil _ _)) (Placed.nil _)
-  obtain ⟨samplerClean, challenges, -⟩ :=
-    Sampler.clean (samplerInterface piccs) 0 offset inputs.samplerState samplerOwn
+  obtain ⟨samplerLiveRows, challenges, -⟩ :=
+    Sampler.liveRows (samplerInterface piccs) 0 offset inputs.samplerState samplerOwn
   have commitmentLocals := OwnLive.of_marks_nil (CombinationStep.marks_nil _ _) commitmentOwn
   have publicInputLocals := OwnLive.of_marks_nil (CombinationStep.marks_nil _ _) publicInputOwn
   have evaluationLocals := OwnLive.of_marks_nil (CombinationStep.marks_nil _ _) evaluationOwn
   refine ⟨?_, ⟨LightCommitment.output_live _ _ commitmentLocals,
     LightPublicInput.output_live _ _ publicInputLocals,
     LightEvaluation.output_live _ _ evaluationLocals⟩⟩
-  refine Clean.child_cons samplerClean <|
-    Clean.child_cons (.of_free (CombinationStep.marks_nil _ _)
+  refine LiveRows.child_cons samplerLiveRows <|
+    LiveRows.child_cons (.of_free (CombinationStep.marks_nil _ _)
       (LightCommitment.free (commitmentInterface interface offset) (commitmentOffset piccs offset)
         challenges inputs.runningCommitment inputs.freshCommitment commitmentLocals)) <|
-    Clean.child_cons (.of_free (CombinationStep.marks_nil _ _)
+    LiveRows.child_cons (.of_free (CombinationStep.marks_nil _ _)
       (LightPublicInput.free (publicInputInterface interface offset)
         (publicInputOffset piccs interface offset) challenges inputs.runningPublicInput
         inputs.freshPublicInput publicInputLocals)) <|
-    Clean.child_cons (.of_free (CombinationStep.marks_nil _ _)
+    LiveRows.child_cons (.of_free (CombinationStep.marks_nil _ _)
       (LightEvaluation.free (evaluationInterface piccs offset)
         (evaluationOffset piccs interface offset) challenges
         (familyExpr_live _ inputs.outputPad inputs.outputMatrix _)
-        (familyExpr_live _ inputs.outputPad inputs.outputMatrix _) evaluationLocals)) Clean.nil
+        (familyExpr_live _ inputs.outputPad inputs.outputMatrix _) evaluationLocals)) LiveRows.nil
 
 /-- The light fold from rows: the light Π_CCS layout and the light Π_RLC layout after it, with
 their external words, make the bounded-depth light fold accept the slot's claim (the fold term of the

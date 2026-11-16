@@ -534,8 +534,8 @@ theorem walk_leads (keysShaped : ∀ key, (circuitKeys key).digest.length = 4) :
       have positive : 0 < statement.iteration := relaxed.1.positive
       have zero : statement.iteration ≤ 0 := small
       omega
-  | answer :: rest, ⟨statement, .recursive payload, bounds⟩, relaxed, small, clean => by
-      obtain ⟨safe, noFailure⟩ := clean 0 (by simp)
+  | answer :: rest, ⟨statement, .recursive payload, bounds⟩, relaxed, small, liveRows => by
+      obtain ⟨safe, noFailure⟩ := liveRows 0 (by simp)
       have extracts : ∀ attempt, attemptOf ajtai circuitKeys exports
           ⟨statement, .recursive payload, bounds⟩ = some attempt →
           WalkSucceeds ajtai attempt → WalkExtracted ajtai attempt answer :=
@@ -553,7 +553,7 @@ theorem walk_leads (keysShaped : ∀ key, (circuitKeys key).digest.length = 4) :
             show (exports.last payload).input.iteration ≤ rest.length
             have bound : statement.iteration ≤ rest.length + 1 := by simpa using small
             omega) fun j inside => by
-            have shifted := clean (j + 1) (by simp; omega)
+            have shifted := liveRows (j + 1) (by simp; omega)
             rw [visitAfter_cons, stageFails_cons] at shifted
             exact shifted
         rw [statementEq] at later

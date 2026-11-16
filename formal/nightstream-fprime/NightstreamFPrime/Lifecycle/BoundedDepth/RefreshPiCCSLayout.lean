@@ -1,6 +1,6 @@
 import NightstreamFPrime.Lifecycle.BoundedDepth.RefreshPiCCSPhase
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
-import NightstreamFPrime.Gadgets.Poseidon2.CleanChildren
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRowsChildren
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.CcsTerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.EvalATerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.EvalKTerminal
@@ -508,10 +508,10 @@ theorem placed :
 /-- The refresh Π_CCS's rows: its transcripts' permutations and rows that read the external words,
 the earlier gadgets' outputs and the layout's own locals. The SumCheck point is affine and live
 before the initial claim, and the transcript state after the output binding is live. -/
-theorem clean {live : Nat → Prop} (inputs : InputsLive interface offset live)
+theorem liveRows {live : Nat → Prop} (inputs : InputsLive interface offset live)
     (own : OwnLive live offset (localLength (Circuit.ops (main relation interface) offset))
       (Circuit.ops (main relation interface) offset)) :
-    Clean live (Circuit.ops (main relation interface) offset) ∧
+    LiveRows live (Circuit.ops (main relation interface) offset) ∧
       (∀ coordinate,
         Duplex.Formal.WordFacts live (initialOffset interface offset)
             (roundPoint interface offset coordinate).c0 ∧
@@ -575,7 +575,7 @@ theorem clean {live : Nat → Prop} (inputs : InputsLive interface offset live)
   have statementWords := RefreshPiCCS.statementActions_facts (statementInterface interface offset)
     offset inputs.freshCommitment inputs.freshPublicInput inputs.runningCommitment
     inputs.runningEvalK inputs.runningEvalA
-  obtain ⟨statementClean, statementState⟩ := Duplex.Formal.Owned.output_facts
+  obtain ⟨statementLiveRows, statementState⟩ := Duplex.Formal.Owned.output_facts
     (statementDuplex interface offset) offset (Duplex.Formal.zeroE_stateFacts live offset)
     (fun word member => (statementWords word member).1)
     (fun word member => (statementWords word member).2)
@@ -583,7 +583,7 @@ theorem clean {live : Nat → Prop} (inputs : InputsLive interface offset live)
       rw [statementDuplex, RefreshPiCCS.statementActions_expected_nil] at member
       cases member)
     statementOwn
-  obtain ⟨challengeClean, alphaLive, gammaLive, challengeState⟩ := ChallengeDerivation.clean
+  obtain ⟨challengeLiveRows, alphaLive, gammaLive, challengeState⟩ := ChallengeDerivation.liveRows
     (challengeInterface interface offset) (challengeOffset interface offset)
     (by dsimp only [challengeInterface]; exact statementState) challengeOwn
   have roundsAfter : offset ≤ roundsOffset interface offset := by
@@ -593,7 +593,7 @@ theorem clean {live : Nat → Prop} (inputs : InputsLive interface offset live)
       ((roundsInterface interface offset).initialState (roundsOffset interface offset)) := by
     dsimp only [roundsInterface]
     exact challengeState
-  obtain ⟨roundsClean, roundPointLive, roundsState⟩ := RoundTranscript.clean
+  obtain ⟨roundsLiveRows, roundPointLive, roundsState⟩ := RoundTranscript.liveRows
     (roundsInterface interface offset) (roundsOffset interface offset) roundsStart
     (fun roundIndex coefficient => ⟨(inputs.round roundIndex coefficient).1.mono roundsAfter,
       (inputs.round roundIndex coefficient).2.mono roundsAfter⟩) roundsOwn
@@ -731,7 +731,7 @@ theorem clean {live : Nat → Prop} (inputs : InputsLive interface offset live)
         (outputOffset relation interface offset)) := by
     dsimp only [outputInterface]
     exact roundsState.mono outputAfterRounds
-  obtain ⟨outputClean, outputState⟩ := OutputBinding.clean (outputInterface interface offset)
+  obtain ⟨outputLiveRows, outputState⟩ := OutputBinding.liveRows (outputInterface interface offset)
     (outputOffset relation interface offset) outputStart
     (fun source coefficient => ⟨(inputs.outputPad source coefficient).1.mono outputAfter,
       (inputs.outputPad source coefficient).2.mono outputAfter⟩)
@@ -739,15 +739,15 @@ theorem clean {live : Nat → Prop} (inputs : InputsLive interface offset live)
       ⟨(inputs.outputMatrix source matrix coefficient).1.mono outputAfter,
         (inputs.outputMatrix source matrix coefficient).2.mono outputAfter⟩) outputOwn
   refine ⟨?_, roundPointFacts, outputState⟩
-  exact Clean.child_cons statementClean <| Clean.child_cons challengeClean <|
-    Clean.child_cons roundsClean <|
-    Clean.child_cons (.of_free (InitialClaim.marks_nil _ _) initialFree) <|
-    Clean.child_cons (.of_free (SumcheckChain.marks_nil _ _) sumcheckFree) <|
-    Clean.child_cons (.of_free (EvalKTerminal.marks_nil _ _) evalKFree) <|
-    Clean.child_cons (.of_free (EvalATerminal.marks_nil _ _) evalAFree) <|
-    Clean.child_cons (.of_free (CcsTerminal.marks_nil _ _ _) ccsFree) <|
-    Clean.child_cons (.of_free (NormTerminal.marks_nil _ _) normFree) <|
-    Clean.child_cons (.of_free (FinalIdentity.marks_nil _ _) finalFree) <|
-    Clean.child_cons outputClean Clean.nil
+  exact LiveRows.child_cons statementLiveRows <| LiveRows.child_cons challengeLiveRows <|
+    LiveRows.child_cons roundsLiveRows <|
+    LiveRows.child_cons (.of_free (InitialClaim.marks_nil _ _) initialFree) <|
+    LiveRows.child_cons (.of_free (SumcheckChain.marks_nil _ _) sumcheckFree) <|
+    LiveRows.child_cons (.of_free (EvalKTerminal.marks_nil _ _) evalKFree) <|
+    LiveRows.child_cons (.of_free (EvalATerminal.marks_nil _ _) evalAFree) <|
+    LiveRows.child_cons (.of_free (CcsTerminal.marks_nil _ _ _) ccsFree) <|
+    LiveRows.child_cons (.of_free (NormTerminal.marks_nil _ _) normFree) <|
+    LiveRows.child_cons (.of_free (FinalIdentity.marks_nil _ _) finalFree) <|
+    LiveRows.child_cons outputLiveRows LiveRows.nil
 
 end NightstreamFPrime.Lifecycle.BoundedDepth.RefreshPiCCSLayout

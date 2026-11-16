@@ -110,5 +110,5 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxFamilyPlan
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedFamily
 import NightstreamFPrime.Layout.MatrixProgram.PlanBridge
 import NightstreamFPrime.Layout.Stage1.PackageOrderValues
-import NightstreamFPrime.Layout.BoundedDepth.LightAssemblerClean
-import NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerClean
+import NightstreamFPrime.Layout.BoundedDepth.LightAssemblerLiveRows
+import NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerLiveRows

@@ -1,5 +1,5 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
-import NightstreamFPrime.Gadgets.Poseidon2.Clean
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRows
 
 /-! The duplex's rows for the exporter's blocks (SPEC.md section 4.4). Each absorption places
 the permutations of `Hash.compileAbsorptions` from the current state; a read places none. When the
@@ -230,15 +230,15 @@ theorem batch_placed (offset : Nat) (state : EState) (actions : List Action) :
     exact counted.1 mark member
   · simpa [batchOps, Circuit.marks, Op.marks] using counted.2
 
-/-- A duplex batch's facts: clean rows, and live samples and output state. -/
-theorem batch_clean (offset : Nat) (state : EState) (actions : List Action)
+/-- A duplex batch's facts: live rows, and live samples and output state. -/
+theorem batch_liveRows (offset : Nat) (state : EState) (actions : List Action)
     (stateFacts : StateFacts live offset state)
     (wordsAffine : ∀ word ∈ absorbedWords actions, word.Affine)
     (wordsRead : ∀ word ∈ absorbedWords actions,
       word.VarsSatisfy fun column => column < offset ∧ live column)
     (own : OwnLive live offset (localLength (batchOps offset state actions))
       (batchOps offset state actions)) :
-    Clean live (batchOps offset state actions) ∧
+    LiveRows live (batchOps offset state actions) ∧
       (∀ sample ∈ (compile offset state actions).samples,
         sample.c0.VarsSatisfy live ∧ sample.c1.VarsSatisfy live) ∧
       StateFacts live (offset + recipeCount actions) (compile offset state actions).output := by
@@ -271,8 +271,8 @@ theorem placed (interface : Interface) (offset : Nat) :
   have := counted.1 mark member
   simpa [program, compile_recipes_length] using this
 
-/-- The owned duplex's facts: clean rows, and live samples and output state. -/
-theorem clean (interface : Interface) (offset : Nat)
+/-- The owned duplex's facts: live rows, and live samples and output state. -/
+theorem liveRows (interface : Interface) (offset : Nat)
     (stateFacts : StateFacts live offset (interface.initial offset))
     (wordsAffine : ∀ word ∈ absorbedWords (interface.actions offset), word.Affine)
     (wordsRead : ∀ word ∈ absorbedWords (interface.actions offset),
@@ -280,7 +280,7 @@ theorem clean (interface : Interface) (offset : Nat)
     (expected : ∀ word ∈ expectedWords (interface.actions offset), word.VarsSatisfy live)
     (own : OwnLive live offset (localLength (Circuit.ops (main interface) offset))
       (Circuit.ops (main interface) offset)) :
-    Clean live (Circuit.ops (main interface) offset) ∧
+    LiveRows live (Circuit.ops (main interface) offset) ∧
       (∀ sample ∈ (program interface offset).samples,
         sample.c0.VarsSatisfy live ∧ sample.c1.VarsSatisfy live) ∧
       StateFacts live (offset + (program interface offset).recipes.length)
@@ -300,7 +300,7 @@ theorem clean (interface : Interface) (offset : Nat)
       (samples sample member).2.2.mono _ fun _ inside => inside.2⟩,
     by simpa [program, compile_recipes_length] using output⟩
   rw [main_ops, opsAt_split]
-  exact (Clean.batch (compile_windows _ _ _) lanes).append
+  exact (LiveRows.batch (compile_windows _ _ _) lanes).append
     (.of_rows (RowsOnly.map _) fun row member =>
       rows expected row (by simpa [allAssertions, program] using member))
 
@@ -351,12 +351,12 @@ theorem Owned.output_facts (interface : Owned.Interface) (offset : Nat)
     (expected : ∀ word ∈ expectedWords (interface.actions offset), word.VarsSatisfy live)
     (own : OwnLive live offset (localLength (Circuit.ops (Owned.main interface) offset))
       (Circuit.ops (Owned.main interface) offset)) :
-    Clean live (Circuit.ops (Owned.main interface) offset) ∧
+    LiveRows live (Circuit.ops (Owned.main interface) offset) ∧
       StateFacts live (offset + localLength (Circuit.ops (Owned.main interface) offset))
         (Owned.output interface offset) := by
-  obtain ⟨clean, _, output⟩ := Owned.clean interface offset stateFacts wordsAffine wordsRead
+  obtain ⟨liveRows, _, output⟩ := Owned.liveRows interface offset stateFacts wordsAffine wordsRead
     expected own
-  refine ⟨clean, ?_⟩
+  refine ⟨liveRows, ?_⟩
   rw [Owned.main_ops, Owned.opsAt_localLength]
   exact output
 

@@ -1,4 +1,4 @@
-import NightstreamFPrime.Gadgets.Poseidon2.Clean
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRows
 import NightstreamFPrime.Gadgets.Poseidon2.Support
 
 /-! Owns one proof-carrying Poseidon2 sponge child: it absorbs an explicit list
@@ -178,7 +178,7 @@ theorem placed (i : Interface) (offset : Nat) :
   · simpa [opsAt, marks, Op.marks] using absorptionMarks_ascend offset (i.initial offset)
       (i.chunks offset)
 
-theorem clean (i : Interface) (offset : Nat) {live : Nat → Prop}
+theorem liveRows (i : Interface) (offset : Nat) {live : Nat → Prop}
     (initialAffine : ∀ lane, (i.initial offset lane).Affine)
     (initialReads : ∀ lane, (i.initial offset lane).VarsSatisfy
       fun column => column < offset ∧ live column)
@@ -186,7 +186,7 @@ theorem clean (i : Interface) (offset : Nat) {live : Nat → Prop}
     (chunksRead : ∀ chunk ∈ i.chunks offset, ∀ word ∈ chunk,
       word.VarsSatisfy fun column => column < offset ∧ live column)
     (own : OwnLive live offset (localLength (opsAt i offset)) (opsAt i offset)) :
-    Clean live (opsAt i offset) := by
+    LiveRows live (opsAt i offset) := by
   rw [localLength_opsAt] at own
   refine .batch (Hash.compileAbsorptions_windows _ _ _)
     (absorptionMarks_lanes offset _ _ initialAffine initialReads chunksAffine chunksRead

@@ -1,4 +1,4 @@
-import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Clean
+import NightstreamFPrime.Gadgets.Poseidon2.Duplex.LiveRows
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption
 import NightstreamFPrime.Spec.Folding.PiCCS.Accepted
 
@@ -587,7 +587,7 @@ theorem placed (interface : ShapeInterface shape) (offset : Nat) :
 
 /-- The binding's rows are its permutations' rows, and its output state is live, when the output
 words are affine and live before the binding. -/
-theorem clean (interface : ShapeInterface shape) (offset : Nat) {live : Nat → Prop}
+theorem liveRows (interface : ShapeInterface shape) (offset : Nat) {live : Nat → Prop}
     (stateFacts : Formal.StateFacts live offset (interface.initialState offset))
     (pad : ∀ source coefficient,
       Formal.WordFacts live offset ((interface.output offset).padCoordinate source coefficient).c0 ∧
@@ -600,7 +600,7 @@ theorem clean (interface : ShapeInterface shape) (offset : Nat) {live : Nat → 
           ((interface.output offset).matrixCoordinate source matrix coefficient).c1)
     (own : OwnLive live offset (localLength (Circuit.ops (circuit interface).main offset))
       (Circuit.ops (circuit interface).main offset)) :
-    Clean live (Circuit.ops (circuit interface).main offset) ∧
+    LiveRows live (Circuit.ops (circuit interface).main offset) ∧
       Formal.StateFacts live (offset + localLength (Circuit.ops (circuit interface).main offset))
         (finalState interface offset) := by
   have words : ∀ word ∈ Formal.absorbedWords ((duplexInterface interface).actions offset),

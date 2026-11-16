@@ -33,4 +33,4 @@ change any emitted package. The step relation packs when the rows are free rows
 that read no inner local and the marks' rows, in order, and the marks ascend
 after the public columns with affine lanes that read only earlier live columns
 (`Export.Generic.MarkedBlocks.packable_of_segmented`). Each gadget states these
-facts for its own rows (`Gadgets.Poseidon2.Clean`, SPEC.md section 4.4).
+facts for its own rows (`Gadgets.Poseidon2.LiveRows`, SPEC.md section 4.4).

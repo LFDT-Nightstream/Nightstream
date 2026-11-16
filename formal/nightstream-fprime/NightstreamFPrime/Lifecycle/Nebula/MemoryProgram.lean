@@ -1,4 +1,4 @@
-import NightstreamFPrime.Lifecycle.Nebula.MemoryClean
+import NightstreamFPrime.Lifecycle.Nebula.MemoryLiveRows
 import NightstreamFPrime.Lifecycle.Nebula.MemoryCompleteness
 
 /-! Owns a memory application as a closed Stage 1 `Application.Program`: the
@@ -144,8 +144,8 @@ def program : Application.Program where
   constraintsSupported := fun i offset _ allowed _ inputs localSupport =>
     supported p app i offset allowed inputs localSupport
   marksPlaced := fun i offset => marksPlaced p app i offset
-  marksClean := fun i offset live affine inputs own =>
-    marksClean p app i offset live affine inputs own
+  marksLiveRows := fun i offset live affine inputs own =>
+    marksLiveRows p app i offset live affine inputs own
 
 /-- One setup per geometry (SPEC.md section 7.1): the memory program takes a geometry and
 no image, so two plans with one geometry have the same memory program. -/

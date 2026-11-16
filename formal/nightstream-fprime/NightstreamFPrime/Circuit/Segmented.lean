@@ -7,7 +7,7 @@ window marks rows` states this shape: `rows` are, in order, free rows that read 
 columns and the rows `window mark` of each mark. A step circuit's rows have this shape with `live`
 the columns that are no inner local of a mark (`Export.Generic.MarkedBlocks`). Each gadget states
 it for its own rows, for every `live` that its inputs read and that holds on its locals outside
-its marks' inner locals (`Clean`). -/
+its marks' inner locals (`LiveRows`). -/
 
 set_option autoImplicit false
 

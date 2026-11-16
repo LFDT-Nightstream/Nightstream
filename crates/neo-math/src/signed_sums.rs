@@ -19,9 +19,9 @@ const _: () = assert!((D as u128) * LIMB_BOUND * (MAX_TERMS as u128) < (1u128 <<
 /// A `u64` mask has one bit for each coefficient.
 const _: () = assert!(D == u64::BITS as usize);
 
+/// Coefficient `j` is `limbs[2j] + 2^32 · limbs[2j + 1]`.
 pub struct SplitRing {
-    low: [i64; D],
-    high: [i64; D],
+    limbs: [u32; 2 * D],
 }
 
 impl SplitRing {
@@ -32,16 +32,19 @@ impl SplitRing {
     /// The ring element with these integer coefficients: each limb is 32 bits of one.
     pub fn from_u64(coefficients: &[u64; D]) -> Self {
         Self {
-            low: coefficients.map(|value| (value & 0xffff_ffff) as i64),
-            high: coefficients.map(|value| (value >> 32) as i64),
+            limbs: core::array::from_fn(|limb| (coefficients[limb / 2] >> (32 * (limb % 2))) as u32),
         }
     }
 }
 
+/// The alignment and the limb order put each 16-byte vector access of
+/// `add_signed_units` on a 16-byte boundary, at every shift. A vector access
+/// across that boundary is several times slower.
 #[derive(Clone)]
+#[repr(align(16))]
 pub struct SignedShiftSums {
-    low: [i64; 2 * D - 1],
-    high: [i64; 2 * D - 1],
+    /// The two limb sums of degree `k` at `2k` and `2k + 1`, as in `SplitRing`.
+    limbs: [i64; 2 * (2 * D - 1)],
     #[cfg(debug_assertions)]
     terms: u64,
 }
@@ -49,8 +52,7 @@ pub struct SignedShiftSums {
 impl SignedShiftSums {
     pub fn zero() -> Self {
         Self {
-            low: [0; 2 * D - 1],
-            high: [0; 2 * D - 1],
+            limbs: [0; 2 * (2 * D - 1)],
             #[cfg(debug_assertions)]
             terms: 0,
         }
@@ -71,21 +73,21 @@ impl SignedShiftSums {
         negative ^= cancelled;
         while positive != 0 {
             let shift = positive.trailing_zeros() as usize;
-            for (sum, value) in self.low[shift..shift + D].iter_mut().zip(&element.low) {
-                *sum += value;
-            }
-            for (sum, value) in self.high[shift..shift + D].iter_mut().zip(&element.high) {
-                *sum += value;
+            for (sum, &limb) in self.limbs[2 * shift..][..2 * D]
+                .iter_mut()
+                .zip(&element.limbs)
+            {
+                *sum += i64::from(limb);
             }
             positive &= positive - 1;
         }
         while negative != 0 {
             let shift = negative.trailing_zeros() as usize;
-            for (sum, value) in self.low[shift..shift + D].iter_mut().zip(&element.low) {
-                *sum -= value;
-            }
-            for (sum, value) in self.high[shift..shift + D].iter_mut().zip(&element.high) {
-                *sum -= value;
+            for (sum, &limb) in self.limbs[2 * shift..][..2 * D]
+                .iter_mut()
+                .zip(&element.limbs)
+            {
+                *sum -= i64::from(limb);
             }
             negative &= negative - 1;
         }
@@ -100,14 +102,15 @@ impl SignedShiftSums {
                 "signed shift sums exceed the exact i64 term bound"
             );
         }
-        for degree in 0..2 * D - 1 {
-            self.low[degree] += other.low[degree];
-            self.high[degree] += other.high[degree];
+        for (sum, part) in self.limbs.iter_mut().zip(&other.limbs) {
+            *sum += part;
         }
     }
 
     pub fn reduce(&self) -> [F; D] {
-        let raw = |degree: usize| F::from_i128((i128::from(self.high[degree]) << 32) + i128::from(self.low[degree]));
+        let raw = |degree: usize| {
+            F::from_i128((i128::from(self.limbs[2 * degree + 1]) << 32) + i128::from(self.limbs[2 * degree]))
+        };
         // X^D = −1.
         core::array::from_fn(|lane| {
             if lane + D < 2 * D - 1 {

@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.BoundedDepth.SlotCompleteness
 import NightstreamFPrime.Export.BoundedDepth.StepRelation
 import NightstreamFPrime.Layout.ProductionRelation.CcsOpening
 import NightstreamFPrime.Export.Generic.MarkedBlocks
+import NightstreamFPrime.Export.Generic.RelationFits
 import NightstreamFPrime.Layout.BoundedDepth.LightAssemblerLiveRows
 import NightstreamFPrime.Layout.BoundedDepth.RefreshAssemblerLiveRows
 
@@ -470,6 +471,46 @@ theorem refreshPieces_packable (relation : ProductionKey.LogicalRelation logical
       rw [RefreshAssembler.sharedEnd_eq]
       exact (Nat.le_add_right _ _).trans (Nat.le_add_right _ _))
     (refreshDigest_below program)
+
+/-- Every light piece reads only columns before `firstFresh`, for every program, when
+`firstFresh` is at or after the end of the light circuit's locals. -/
+theorem lightPieces_below (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    {firstFresh : Nat}
+    (afterLocals : LightAssembler.sharedEnd StepRelation.base program.witnessWordCount +
+      localLength (lightOps program relation) ≤ firstFresh) :
+    (lightPieces program relation ajtai).all (pieceBelow firstFresh) = true := by
+  have sharedBelow := (Nat.le_add_right _ _).trans afterLocals
+  refine lightPieces_readOwnColumns program relation ajtai
+    (RelationFits.ops_varsBelow
+      (LightStepLayout.placed program relation 0
+        (LightAssembler.interface StepRelation.base program.witnessWordCount)
+        (LightAssembler.sharedEnd StepRelation.base program.witnessWordCount))
+      (fun _ shared own => LightStepLayout.liveRows program relation 0 _ _
+        (LightAssembler.inputsLive program StepRelation.base shared) own)
+      afterLocals) sharedBelow (le_trans ?_ sharedBelow)
+  rw [LightAssembler.sharedEnd_eq]
+  exact (Nat.le_add_right _ _).trans (Nat.le_add_right _ _)
+
+/-- Every refresh piece reads only columns before `firstFresh`, for every program, when
+`firstFresh` is at or after the end of the refresh circuit's locals. -/
+theorem refreshPieces_below (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    {firstFresh : Nat}
+    (afterLocals : RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount +
+      localLength (refreshOps program relation) ≤ firstFresh) :
+    (refreshPieces program relation ajtai).all (pieceBelow firstFresh) = true := by
+  have sharedBelow := (Nat.le_add_right _ _).trans afterLocals
+  refine refreshPieces_readOwnColumns program relation ajtai
+    (RelationFits.ops_varsBelow
+      (RefreshStepLayout.placed program relation 1
+        (RefreshAssembler.interface StepRelation.base program.witnessWordCount)
+        (RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount))
+      (fun _ shared own => RefreshStepLayout.liveRows program relation 1 _ _
+        (RefreshAssembler.inputsLive program StepRelation.base shared) own)
+      afterLocals) sharedBelow (le_trans ?_ sharedBelow)
+  rw [RefreshAssembler.sharedEnd_eq]
+  exact (Nat.le_add_right _ _).trans (Nat.le_add_right _ _)
 
 /-- An honest light step's assignment (`LightAssemblerCompleteness.complete`) gives a fresh
 instance with public input `encHash` of the step's output hash that holds under the light key,

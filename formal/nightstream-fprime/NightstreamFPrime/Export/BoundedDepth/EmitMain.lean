@@ -127,7 +127,8 @@ def completenessChecks (pieces : List Pieces.Piece) (firstFresh : Nat) : Bool ×
 /-- Writes the circuit's package (`StepPackage.packageOf`); its blocks pack
 (`StepCompleteness.lightPieces_packable`) and must start at or after the shared words. Before it
 writes, it runs the package's completeness checks
-(`completenessChecks`) and checks that no row of the circuit reads a public column. -/
+(`completenessChecks`), checks that no row of the circuit reads a public column, and checks the
+package's capacity (`EmittedPackages.Facts`, SPEC.md section 4.4). -/
 def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
     (pieces : List Pieces.Piece)
     (program : Stage1.Application.Program := program) (stem : String := "")
@@ -146,6 +147,14 @@ def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
   unless complete && free do
     throw (IO.userError s!"{name}: the completeness checks fail: {scope} pieces read a fresh \
       column, rows read no public column: {free}")
+  let sboxColumns := (CircuitRelation.blocksOf pieces).length * 150
+  let columns := CircuitRelation.sboxStart pieces firstFresh + sboxColumns
+  unless columns ≤ width do
+    throw (IO.userError s!"{name}: the S-box columns end at {columns}, past the source width")
+  let rows := RelationFits.relationRowCount pieces + sboxColumns
+  unless rows ≤ 2 ^ cubeVariables do
+    throw (IO.userError s!"{name}: {rows} rows exceed 2^{cubeVariables}")
+  say s!"{name}: capacity: columns below {columns}, {rows} rows ({(← IO.monoMsNow) - start} ms)"
   unless write do
     return StepPackage.packageOf circuit CircuitRelation.publicColumns pieces firstFresh width
       (witnesses ops) (program.witnessWordCount, offset, 0, 0, 0)

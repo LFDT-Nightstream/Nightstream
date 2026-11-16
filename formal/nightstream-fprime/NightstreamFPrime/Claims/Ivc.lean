@@ -15,10 +15,11 @@ The terminal relation, the reverse extractor and the completeness of a run
 - Assumptions: `false_acceptance_bound`, `extraction_bound` and `verifier_sound` take HyperNova
   errata Assumption 1 for the two folds (`[HN-A1]`), with its closure premise and an admitted
   adversary. Their error term is the `error` of that assumption.
-- Open: Lean does not bound the collision term of these three claims. For the emitted
-  packages, `Export.BoundedDepth.EmittedPackages.Facts.exports` builds `exports` from the facts
-  `Export.BoundedDepth.EmittedPackages.Facts`, and Lean does not prove those facts. The bound on the
-  iteration of an accepted statement is an argument (`depthBound`). -/
+- Open: Lean does not bound the collision term of these three claims. The bound on the
+  iteration of an accepted statement is an argument (`depthBound`).
+- Capacity: for the emitted packages, `Export.BoundedDepth.EmittedPackages.Facts.exports` builds
+  `exports` from the capacity of the application (`Export.BoundedDepth.EmittedPackages.Facts`,
+  SPEC.md section 4.4), which the emitter checks. -/
 
 namespace NightstreamFPrime.Claims.Ivc
 

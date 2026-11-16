@@ -1,3 +1,4 @@
+import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Clean
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.WiringSupport
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.Statement
@@ -985,5 +986,70 @@ theorem domainTrace_eq {logicalWidth : Nat}
         NightstreamFPrime.Lifecycle.Transcript.initialState domain)
       (ProductionKey.publicInputBlocks (evalFresh (interface.fresh offset) env)).flatten := by
   rw [wordsTrace_eq domain _ env final trace, publicInputWords_eval]
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+section Exporter
+
+variable {logicalWidth : Nat}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
+  {live : Nat → Prop} {bound : Nat}
+
+theorem decodeHashWordExpr_facts
+    (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr)
+    (inputFacts : ∀ column, Duplex.Formal.WordFacts live bound (input column)) (word : Fin 4) :
+    Duplex.Formal.WordFacts live bound (decodeHashWordExpr input word) := by
+  unfold decodeHashWordExpr
+  exact Duplex.Formal.foldl_scaled_facts _ _ (fun _ => inputFacts _) _ _
+    ⟨affine_ofNat 0, trivial⟩
+
+/-- The fresh statement words are affine and live before `bound` when the fresh instance's words
+are. -/
+theorem publicInputBlocks_facts (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (commitment : ∀ index row lane,
+      Duplex.Formal.WordFacts live bound ((interface.fresh offset).commitment index row lane))
+    (publicInput : ∀ index column,
+      Duplex.Formal.WordFacts live bound ((interface.fresh offset).publicInput index column)) :
+    ∀ word ∈ (publicInputBlocks interface offset).flatten,
+      Duplex.Formal.WordFacts live bound word := by
+  intro word member
+  obtain ⟨block, blockMember, wordMember⟩ := List.mem_flatten.mp member
+  simp only [publicInputBlocks, List.mem_append, List.mem_flatMap,
+    List.mem_cons, List.not_mem_nil, or_false] at blockMember
+  rcases blockMember with rfl | ⟨index, -, rfl | rfl⟩
+  · rw [priorDigestExpr] at wordMember
+    obtain ⟨lane, rfl⟩ := List.mem_ofFn.mp wordMember
+    exact decodeHashWordExpr_facts _ (publicInput _) lane
+  · rw [serializeCommitmentExpr] at wordMember
+    obtain ⟨row, -, wordMember⟩ := List.mem_flatMap.mp wordMember
+    obtain ⟨lane, -, rfl⟩ := List.mem_map.mp wordMember
+    exact commitment index row lane
+  · rw [serializePublicInputExpr] at wordMember
+    obtain ⟨column, -, rfl⟩ := List.mem_map.mp wordMember
+    exact publicInput index column
+
+/-- The words that a statement absorption from `domain` absorbs are affine and live before
+`bound` when the fresh instance's words are. -/
+theorem domainActions_facts (domain : List F) (interface : Interface logicalWidth publicFits)
+    (offset : Nat)
+    (commitment : ∀ index row lane,
+      Duplex.Formal.WordFacts live bound ((interface.fresh offset).commitment index row lane))
+    (publicInput : ∀ index column,
+      Duplex.Formal.WordFacts live bound ((interface.fresh offset).publicInput index column)) :
+    ∀ word ∈ Duplex.Formal.absorbedWords (domainActions domain interface offset),
+      Duplex.Formal.WordFacts live bound word := by
+  intro word member
+  simp only [domainActions, Duplex.Formal.absorbedWords, List.append_nil, List.mem_append]
+    at member
+  rcases member with member | member
+  · obtain ⟨value, -, rfl⟩ := List.mem_map.mp member
+    exact ⟨.const _, trivial⟩
+  · exact publicInputBlocks_facts interface offset commitment publicInput word member
+
+theorem domainActions_expected_nil (domain : List F) (interface : Interface logicalWidth publicFits)
+    (offset : Nat) : Duplex.Formal.expectedWords (domainActions domain interface offset) = [] :=
+  rfl
+
+end Exporter
 
 end NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption

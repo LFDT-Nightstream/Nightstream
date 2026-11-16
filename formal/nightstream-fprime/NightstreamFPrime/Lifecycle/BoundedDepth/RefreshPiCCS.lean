@@ -170,4 +170,87 @@ theorem roundPoint_eq (interface : RoundTranscript.Interface (ProductionKey.degr
 
 end Transcript
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+section Exporter
+
+variable {live : Nat → Prop} {bound : Nat}
+
+/-- The children's words are affine and live before `bound` when their commitments and
+evaluations are. -/
+theorem childWordsExpr_facts (running : StatementAbsorption.RunningExpr logicalWidth publicFits)
+    (commitment : ∀ child row lane,
+      Duplex.Formal.WordFacts live bound (running.commitment child row lane))
+    (evalK : ∀ child coefficient,
+      Duplex.Formal.WordFacts live bound ((running.evaluation child).eval_K coefficient).c0 ∧
+        Duplex.Formal.WordFacts live bound ((running.evaluation child).eval_K coefficient).c1)
+    (evalA : ∀ child matrix coefficient,
+      Duplex.Formal.WordFacts live bound
+          ((running.evaluation child).eval_A matrix coefficient).c0 ∧
+        Duplex.Formal.WordFacts live bound
+          ((running.evaluation child).eval_A matrix coefficient).c1) :
+    ∀ word ∈ childWordsExpr running, Duplex.Formal.WordFacts live bound word := by
+  intro word member
+  obtain ⟨child, -, member⟩ := List.mem_flatMap.mp member
+  simp only [List.mem_append] at member
+  rcases member with member | member | member
+  · rw [StatementAbsorption.serializeCommitmentExpr] at member
+    obtain ⟨row, -, member⟩ := List.mem_flatMap.mp member
+    obtain ⟨lane, -, rfl⟩ := List.mem_map.mp member
+    exact commitment child row lane
+  · rw [StatementAbsorption.serializeEvalKExpr] at member
+    obtain ⟨coefficient, -, member⟩ := List.mem_flatMap.mp member
+    simp only [StatementAbsorption.serializeKExpr, List.mem_cons, List.not_mem_nil, or_false]
+      at member
+    rcases member with rfl | rfl
+    · exact (evalK child coefficient).1
+    · exact (evalK child coefficient).2
+  · rw [StatementAbsorption.serializeEvalAExpr] at member
+    obtain ⟨matrix, -, member⟩ := List.mem_flatMap.mp member
+    obtain ⟨coefficient, -, member⟩ := List.mem_flatMap.mp member
+    simp only [StatementAbsorption.serializeKExpr, List.mem_cons, List.not_mem_nil, or_false]
+      at member
+    rcases member with rfl | rfl
+    · exact (evalA child matrix coefficient).1
+    · exact (evalA child matrix coefficient).2
+
+/-- The words that the refresh statement absorbs are affine and live before `bound` when the
+fresh instance's and the children's words are. -/
+theorem statementActions_facts (statement : StatementAbsorption.Interface logicalWidth publicFits)
+    (offset : Nat)
+    (freshCommitment : ∀ index row lane,
+      Duplex.Formal.WordFacts live bound ((statement.fresh offset).commitment index row lane))
+    (freshPublicInput : ∀ index column,
+      Duplex.Formal.WordFacts live bound ((statement.fresh offset).publicInput index column))
+    (commitment : ∀ child row lane,
+      Duplex.Formal.WordFacts live bound ((statement.running offset).commitment child row lane))
+    (evalK : ∀ child coefficient,
+      Duplex.Formal.WordFacts live bound
+          (((statement.running offset).evaluation child).eval_K coefficient).c0 ∧
+        Duplex.Formal.WordFacts live bound
+          (((statement.running offset).evaluation child).eval_K coefficient).c1)
+    (evalA : ∀ child matrix coefficient,
+      Duplex.Formal.WordFacts live bound
+          (((statement.running offset).evaluation child).eval_A matrix coefficient).c0 ∧
+        Duplex.Formal.WordFacts live bound
+          (((statement.running offset).evaluation child).eval_A matrix coefficient).c1) :
+    ∀ word ∈ Duplex.Formal.absorbedWords (statementActions statement offset),
+      Duplex.Formal.WordFacts live bound word := by
+  intro word member
+  simp only [statementActions, Duplex.Formal.absorbedWords, List.append_nil, List.mem_append]
+    at member
+  rcases member with member | member | member
+  · obtain ⟨value, -, rfl⟩ := List.mem_map.mp member
+    exact ⟨.const _, trivial⟩
+  · exact StatementAbsorption.publicInputBlocks_facts statement offset freshCommitment
+      freshPublicInput word member
+  · exact childWordsExpr_facts _ commitment evalK evalA word member
+
+theorem statementActions_expected_nil
+    (statement : StatementAbsorption.Interface logicalWidth publicFits) (offset : Nat) :
+    Duplex.Formal.expectedWords (statementActions statement offset) = [] :=
+  rfl
+
+end Exporter
+
 end NightstreamFPrime.Lifecycle.BoundedDepth.RefreshPiCCS

@@ -1,5 +1,13 @@
 import NightstreamFPrime.Lifecycle.BoundedDepth.LightPiCCSPhase
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
+import NightstreamFPrime.Gadgets.Poseidon2.CleanChildren
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.CcsTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.EvalATerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.EvalKTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.FinalIdentity
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.InitialClaim
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.NormTerminal
+import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.SumcheckChain
 
 /-! The light Π_CCS layout (CW-2.5d, d2). The eleven leaf gadgets of `LightPiCCSPhase` run one
 after another from a parent offset, and each reads its inputs from the external words or from
@@ -470,5 +478,296 @@ theorem phaseHolds (interface : Interface logicalWidth 8 publicFits) (env : Env)
     (leaves relation interface offset) env
     (soundness relation offset interface env assumptions rows target)
     (wired relation offset target ajtai running fresh proof interface env represents)
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+open NightstreamFPrime.Gadgets.Polynomial
+
+/-- The external words of the light Π_CCS. The words that a transcript absorbs (the fresh
+instance, the round messages and the Π_CCS output) are affine and live before the layout; the
+running claim's point and evaluations are live. -/
+structure InputsLive (live : Nat → Prop) : Prop where
+  freshCommitment : ∀ index row lane,
+    Duplex.Formal.WordFacts live offset ((interface.fresh offset).commitment index row lane)
+  freshPublicInput : ∀ index column,
+    Duplex.Formal.WordFacts live offset ((interface.fresh offset).publicInput index column)
+  round : ∀ roundIndex coefficient,
+    Duplex.Formal.WordFacts live offset
+        ((interface.round offset roundIndex).coefficient coefficient).c0 ∧
+      Duplex.Formal.WordFacts live offset
+        ((interface.round offset roundIndex).coefficient coefficient).c1
+  runningPoint : ∀ coordinate,
+    (interface.runningPoint offset coordinate).c0.VarsSatisfy live ∧
+      (interface.runningPoint offset coordinate).c1.VarsSatisfy live
+  runningEvalK : ∀ coefficient,
+    ((interface.runningEvaluation offset).eval_K coefficient).c0.VarsSatisfy live ∧
+      ((interface.runningEvaluation offset).eval_K coefficient).c1.VarsSatisfy live
+  runningEvalA : ∀ matrix coefficient,
+    ((interface.runningEvaluation offset).eval_A matrix coefficient).c0.VarsSatisfy live ∧
+      ((interface.runningEvaluation offset).eval_A matrix coefficient).c1.VarsSatisfy live
+  outputPad : ∀ source coefficient,
+    Duplex.Formal.WordFacts live offset
+        ((interface.output offset).padCoordinate source coefficient).c0 ∧
+      Duplex.Formal.WordFacts live offset
+        ((interface.output offset).padCoordinate source coefficient).c1
+  outputMatrix : ∀ source matrix coefficient,
+    Duplex.Formal.WordFacts live offset
+        ((interface.output offset).matrixCoordinate source matrix coefficient).c0 ∧
+      Duplex.Formal.WordFacts live offset
+        ((interface.output offset).matrixCoordinate source matrix coefficient).c1
+
+theorem placed :
+    Placed offset (localLength (Circuit.ops (main relation interface) offset))
+      (Circuit.ops (main relation interface) offset) :=
+  Placed.child_cons rfl (Duplex.Formal.Owned.placed _ _) <|
+  Placed.child_cons rfl (ChallengeDerivation.placed _ _) <|
+  Placed.child_cons rfl (RoundTranscript.placed _ _) <|
+  Placed.child_cons rfl (.of_marks_nil (InitialClaim.marks_nil _ _)) <|
+  Placed.child_cons rfl (.of_marks_nil (SumcheckChain.marks_nil _ _)) <|
+  Placed.child_cons rfl (.of_marks_nil (EvalKTerminal.shapeMarks_nil _ _ _)) <|
+  Placed.child_cons rfl (.of_marks_nil (EvalATerminal.shapeMarks_nil _ _ _)) <|
+  Placed.child_cons rfl (.of_marks_nil (CcsTerminal.marks_nil _ _ _)) <|
+  Placed.child_cons rfl (.of_marks_nil (NormTerminal.marks_nil _ _)) <|
+  Placed.child_cons rfl (.of_marks_nil (FinalIdentity.shapeMarks_nil _ _ _)) <|
+  Placed.child_cons rfl (OutputBinding.placed _ _) <|
+  Placed.nil _
+
+/-- The light Π_CCS's rows: its transcripts' permutations and rows that read the external words,
+the earlier gadgets' outputs and the layout's own locals. The SumCheck point is affine and live
+before the initial claim, and the transcript state after the output binding is live. -/
+theorem clean {live : Nat → Prop} (inputs : InputsLive interface offset live)
+    (own : OwnLive live offset (localLength (Circuit.ops (main relation interface) offset))
+      (Circuit.ops (main relation interface) offset)) :
+    Clean live (Circuit.ops (main relation interface) offset) ∧
+      (∀ coordinate,
+        Duplex.Formal.WordFacts live (initialOffset interface offset)
+            (roundPoint interface offset coordinate).c0 ∧
+          Duplex.Formal.WordFacts live (initialOffset interface offset)
+            (roundPoint interface offset coordinate).c1) ∧
+      Duplex.Formal.StateFacts live (finalOffset relation interface offset)
+        (OutputBinding.finalState (outputInterface interface offset)
+          (outputOffset relation interface offset)) := by
+  have outputTail := Placed.child_cons (name := "light.piccs.output_binding") rfl
+    (OutputBinding.placed (outputInterface interface offset)
+      (outputOffset relation interface offset)) (Placed.nil _)
+  have finalTail := Placed.child_cons (name := "light.piccs.final_identity") rfl
+    (.of_marks_nil (FinalIdentity.shapeMarks_nil (finalIdentityInterface relation interface offset)
+      (by decide) (finalIdentityOffset relation interface offset))) outputTail
+  have normTail := Placed.child_cons (name := "light.piccs.norm_terminal") rfl
+    (.of_marks_nil (NormTerminal.marks_nil (normInterface relation interface offset)
+      (normOffset relation interface offset))) finalTail
+  have ccsTail := Placed.child_cons (name := "light.piccs.ccs_terminal") rfl
+    (.of_marks_nil (CcsTerminal.marks_nil relation (ccsInterface relation interface offset)
+      (ccsOffset interface offset))) normTail
+  have evalATail := Placed.child_cons (name := "light.piccs.eval_A_terminal") rfl
+    (.of_marks_nil (EvalATerminal.shapeMarks_nil (evalAInterface interface offset) (by decide)
+      (evalAOffset interface offset))) ccsTail
+  have evalKTail := Placed.child_cons (name := "light.piccs.eval_K_terminal") rfl
+    (.of_marks_nil (EvalKTerminal.shapeMarks_nil (evalKInterface interface offset) (by decide)
+      (evalKOffset interface offset))) evalATail
+  have sumcheckTail := Placed.child_cons (name := "light.piccs.sumcheck_chain") rfl
+    (.of_marks_nil (SumcheckChain.marks_nil (sumcheckInterface interface offset)
+      (sumcheckOffset interface offset))) evalKTail
+  have initialTail := Placed.child_cons (name := "light.piccs.initial_claim") rfl
+    (.of_marks_nil (InitialClaim.marks_nil (initialInterface interface offset)
+      (initialOffset interface offset))) sumcheckTail
+  have roundsTail := Placed.child_cons (name := "light.piccs.round_transcript") rfl
+    (RoundTranscript.placed (roundsInterface interface offset) (roundsOffset interface offset))
+    initialTail
+  have challengeTail := Placed.child_cons (name := "light.piccs.challenge_derivation") rfl
+    (ChallengeDerivation.placed (challengeInterface interface offset)
+      (challengeOffset interface offset)) roundsTail
+  obtain ⟨statementOwn, afterStatement⟩ :=
+    own.child_cons rfl (Duplex.Formal.Owned.placed _ _) challengeTail
+  obtain ⟨challengeOwn, afterChallenge⟩ :=
+    afterStatement.child_cons rfl (ChallengeDerivation.placed _ _) roundsTail
+  obtain ⟨roundsOwn, afterRounds⟩ :=
+    afterChallenge.child_cons rfl (RoundTranscript.placed _ _) initialTail
+  obtain ⟨initialOwn, afterInitial⟩ :=
+    afterRounds.child_cons rfl (.of_marks_nil (InitialClaim.marks_nil _ _)) sumcheckTail
+  obtain ⟨sumcheckOwn, afterSumcheck⟩ :=
+    afterInitial.child_cons rfl (.of_marks_nil (SumcheckChain.marks_nil _ _)) evalKTail
+  obtain ⟨evalKOwn, afterEvalK⟩ :=
+    afterSumcheck.child_cons rfl (.of_marks_nil (EvalKTerminal.shapeMarks_nil _ _ _)) evalATail
+  obtain ⟨evalAOwn, afterEvalA⟩ :=
+    afterEvalK.child_cons rfl (.of_marks_nil (EvalATerminal.shapeMarks_nil _ _ _)) ccsTail
+  obtain ⟨ccsOwn, afterCcs⟩ :=
+    afterEvalA.child_cons rfl (.of_marks_nil (CcsTerminal.marks_nil _ _ _)) normTail
+  obtain ⟨normOwn, afterNorm⟩ :=
+    afterCcs.child_cons rfl (.of_marks_nil (NormTerminal.marks_nil _ _)) finalTail
+  obtain ⟨finalOwn, afterFinal⟩ :=
+    afterNorm.child_cons rfl (.of_marks_nil (FinalIdentity.shapeMarks_nil _ _ _)) outputTail
+  obtain ⟨outputOwn, -⟩ := afterFinal.child_cons rfl (OutputBinding.placed _ _) (Placed.nil _)
+  -- The statement absorption and the challenges.
+  have statementWords := StatementAbsorption.domainActions_facts lightFoldDomainChunk
+    (statementInterface interface offset) offset inputs.freshCommitment inputs.freshPublicInput
+  obtain ⟨statementClean, statementState⟩ := Duplex.Formal.Owned.output_facts
+    (statementDuplex interface offset) offset (Duplex.Formal.zeroE_stateFacts live offset)
+    (fun word member => (statementWords word member).1)
+    (fun word member => (statementWords word member).2)
+    (fun word member => by
+      rw [statementDuplex, StatementAbsorption.domainActions_expected_nil] at member
+      cases member)
+    statementOwn
+  obtain ⟨challengeClean, alphaLive, gammaLive, challengeState⟩ := ChallengeDerivation.clean
+    (challengeInterface interface offset) (challengeOffset interface offset)
+    (by dsimp only [challengeInterface]; exact statementState) challengeOwn
+  have roundsAfter : offset ≤ roundsOffset interface offset := by
+    unfold roundsOffset challengeOffset Formal.nextOffset
+    omega
+  have roundsStart : Duplex.Formal.StateFacts live (roundsOffset interface offset)
+      ((roundsInterface interface offset).initialState (roundsOffset interface offset)) := by
+    dsimp only [roundsInterface]
+    exact challengeState
+  obtain ⟨roundsClean, roundPointLive, roundsState⟩ := RoundTranscript.clean
+    (roundsInterface interface offset) (roundsOffset interface offset) roundsStart
+    (fun roundIndex coefficient => ⟨(inputs.round roundIndex coefficient).1.mono roundsAfter,
+      (inputs.round roundIndex coefficient).2.mono roundsAfter⟩) roundsOwn
+  have roundPointFacts : ∀ coordinate,
+      Duplex.Formal.WordFacts live (initialOffset interface offset)
+          (roundPoint interface offset coordinate).c0 ∧
+        Duplex.Formal.WordFacts live (initialOffset interface offset)
+          (roundPoint interface offset coordinate).c1 :=
+    RoundTranscript.challenge_facts (roundsInterface interface offset)
+      (roundsOffset interface offset) roundsStart
+      (fun roundIndex coefficient => ⟨(inputs.round roundIndex coefficient).1.mono roundsAfter,
+        (inputs.round roundIndex coefficient).2.mono roundsAfter⟩) roundsOwn
+  -- The claims and the terminals.
+  have initialLocals := OwnLive.of_marks_nil (InitialClaim.marks_nil _ _) initialOwn
+  have initialGamma : Horner.KSupported
+      ((initialInterface interface offset).gamma (initialOffset interface offset)) live := by
+    dsimp only [initialInterface]
+    exact gammaLive
+  have initialFree := InitialClaim.free (initialInterface interface offset)
+    (initialOffset interface offset) initialGamma (fun _ => inputs.runningEvalK _)
+    (fun _ => inputs.runningEvalA _ _) initialLocals
+  have initialLive := InitialClaim.output_live (initialInterface interface offset)
+    (initialOffset interface offset) initialGamma (fun _ => inputs.runningEvalK _)
+    (fun _ => inputs.runningEvalA _ _) initialLocals
+  have sumcheckInitial : SumcheckChain.KSupported
+      ((sumcheckInterface interface offset).initial (sumcheckOffset interface offset)) live := by
+    dsimp only [sumcheckInterface]
+    exact initialLive
+  have sumcheckRounds : ∀ roundIndex, SumcheckChain.RoundSupported
+      ((sumcheckInterface interface offset).round (sumcheckOffset interface offset) roundIndex)
+      live := by
+    intro roundIndex
+    dsimp only [sumcheckInterface]
+    exact ⟨fun coefficient => ⟨(inputs.round roundIndex coefficient).1.varsSatisfy,
+      (inputs.round roundIndex coefficient).2.varsSatisfy⟩, roundPointLive roundIndex⟩
+  have sumcheckLocals := OwnLive.of_marks_nil (SumcheckChain.marks_nil _ _) sumcheckOwn
+  have sumcheckFree := SumcheckChain.free (sumcheckInterface interface offset)
+    (sumcheckOffset interface offset) sumcheckInitial sumcheckRounds sumcheckLocals
+  have terminalLive := SumcheckChain.output_live (sumcheckInterface interface offset)
+    (sumcheckOffset interface offset) sumcheckInitial sumcheckRounds sumcheckLocals
+  have padLive : ∀ source coefficient,
+      ((interface.output offset).padCoordinate source coefficient).c0.VarsSatisfy live ∧
+        ((interface.output offset).padCoordinate source coefficient).c1.VarsSatisfy live :=
+    fun source coefficient => ⟨(inputs.outputPad source coefficient).1.varsSatisfy,
+      (inputs.outputPad source coefficient).2.varsSatisfy⟩
+  have matrixLive : ∀ source matrix coefficient,
+      ((interface.output offset).matrixCoordinate source matrix coefficient).c0.VarsSatisfy live ∧
+        ((interface.output offset).matrixCoordinate source matrix coefficient).c1.VarsSatisfy
+          live :=
+    fun source matrix coefficient =>
+      ⟨(inputs.outputMatrix source matrix coefficient).1.varsSatisfy,
+        (inputs.outputMatrix source matrix coefficient).2.varsSatisfy⟩
+  have evalKPoint : ∀ coordinate, Horner.KSupported
+      ((evalKInterface interface offset).roundPoint (evalKOffset interface offset) coordinate)
+      live := by
+    dsimp only [evalKInterface]
+    exact roundPointLive
+  have evalKGamma : Horner.KSupported
+      ((evalKInterface interface offset).gamma (evalKOffset interface offset)) live := by
+    dsimp only [evalKInterface]
+    exact gammaLive
+  have evalKLocals := OwnLive.of_marks_nil (EvalKTerminal.shapeMarks_nil _ _ _) evalKOwn
+  have evalKFree := EvalKTerminal.shapeFree (evalKInterface interface offset) (by decide)
+    (evalKOffset interface offset) evalKPoint inputs.runningPoint evalKGamma
+    (fun _ => padLive _ _) evalKLocals
+  have evalKLive := EvalKTerminal.shapeOutput_live (evalKInterface interface offset) (by decide)
+    (evalKOffset interface offset) evalKPoint inputs.runningPoint evalKGamma
+    (fun _ => padLive _ _) evalKLocals
+  have evalAPoint : ∀ coordinate, Horner.KSupported
+      ((evalAInterface interface offset).roundPoint (evalAOffset interface offset) coordinate)
+      live := by
+    dsimp only [evalAInterface]
+    exact roundPointLive
+  have evalAGamma : Horner.KSupported
+      ((evalAInterface interface offset).gamma (evalAOffset interface offset)) live := by
+    dsimp only [evalAInterface]
+    exact gammaLive
+  have evalALocals := OwnLive.of_marks_nil (EvalATerminal.shapeMarks_nil _ _ _) evalAOwn
+  have evalAFree := EvalATerminal.shapeFree (evalAInterface interface offset) (by decide)
+    (evalAOffset interface offset) evalAPoint inputs.runningPoint evalAGamma
+    (fun _ => matrixLive _ _ _) evalALocals
+  have evalALive := EvalATerminal.shapeOutput_live (evalAInterface interface offset) (by decide)
+    (evalAOffset interface offset) evalAPoint inputs.runningPoint evalAGamma
+    (fun _ => matrixLive _ _ _) evalALocals
+  have ccsLocals := OwnLive.of_marks_nil (CcsTerminal.marks_nil _ _ _) ccsOwn
+  have ccsFree := CcsTerminal.free relation (ccsInterface relation interface offset)
+    (ccsOffset interface offset) (fun _ => matrixLive _ _ _) ccsLocals
+  have ccsLive := CcsTerminal.output_live relation (ccsInterface relation interface offset)
+    (ccsOffset interface offset) ccsLocals
+  have normGamma : Horner.KSupported
+      ((normInterface relation interface offset).gamma (normOffset relation interface offset))
+      live := by
+    dsimp only [normInterface]
+    exact gammaLive
+  have normSources : ∀ source, Horner.KSupported
+      ((normInterface relation interface offset).sourceAssignment
+        (normOffset relation interface offset) source) live := by
+    intro source
+    dsimp only [normInterface]
+    split
+    · exact padLive _ _
+    · exact ⟨trivial, trivial⟩
+  have normLocals := OwnLive.of_marks_nil (NormTerminal.marks_nil _ _) normOwn
+  have normFree := NormTerminal.free (normInterface relation interface offset)
+    (normOffset relation interface offset) normGamma normSources normLocals
+  have normLive := NormTerminal.output_live (normInterface relation interface offset)
+    (normOffset relation interface offset) normGamma normSources normLocals
+  have finalLocals := OwnLive.of_marks_nil (FinalIdentity.shapeMarks_nil _ _ _) finalOwn
+  have finalFree := FinalIdentity.shapeFree (finalIdentityInterface relation interface offset)
+    (by decide) (finalIdentityOffset relation interface offset)
+    (by dsimp only [finalIdentityInterface]; exact roundPointLive)
+    (by dsimp only [finalIdentityInterface]; exact alphaLive)
+    (by dsimp only [finalIdentityInterface]; exact gammaLive)
+    (by dsimp only [finalIdentityInterface]; exact evalKLive)
+    (by dsimp only [finalIdentityInterface]; exact evalALive)
+    (by dsimp only [finalIdentityInterface]; exact ccsLive)
+    (by dsimp only [finalIdentityInterface]; exact normLive)
+    (by dsimp only [finalIdentityInterface]; exact terminalLive) finalLocals
+  -- The output binding.
+  have outputAfterRounds :
+      initialOffset interface offset ≤ outputOffset relation interface offset := by
+    unfold outputOffset finalIdentityOffset normOffset ccsOffset evalAOffset evalKOffset
+      sumcheckOffset Formal.nextOffset
+    omega
+  have outputAfter : offset ≤ outputOffset relation interface offset :=
+    Nat.le_trans (Nat.le_trans roundsAfter (Nat.le_add_right _ _)) outputAfterRounds
+  have outputStart : Duplex.Formal.StateFacts live (outputOffset relation interface offset)
+      ((outputInterface interface offset).initialState
+        (outputOffset relation interface offset)) := by
+    dsimp only [outputInterface]
+    exact roundsState.mono outputAfterRounds
+  obtain ⟨outputClean, outputState⟩ := OutputBinding.clean (outputInterface interface offset)
+    (outputOffset relation interface offset) outputStart
+    (fun source coefficient => ⟨(inputs.outputPad source coefficient).1.mono outputAfter,
+      (inputs.outputPad source coefficient).2.mono outputAfter⟩)
+    (fun source matrix coefficient =>
+      ⟨(inputs.outputMatrix source matrix coefficient).1.mono outputAfter,
+        (inputs.outputMatrix source matrix coefficient).2.mono outputAfter⟩) outputOwn
+  refine ⟨?_, roundPointFacts, outputState⟩
+  exact Clean.child_cons statementClean <| Clean.child_cons challengeClean <|
+    Clean.child_cons roundsClean <|
+    Clean.child_cons (.of_free (InitialClaim.marks_nil _ _) initialFree) <|
+    Clean.child_cons (.of_free (SumcheckChain.marks_nil _ _) sumcheckFree) <|
+    Clean.child_cons (.of_free (EvalKTerminal.shapeMarks_nil _ _ _) evalKFree) <|
+    Clean.child_cons (.of_free (EvalATerminal.shapeMarks_nil _ _ _) evalAFree) <|
+    Clean.child_cons (.of_free (CcsTerminal.marks_nil _ _ _) ccsFree) <|
+    Clean.child_cons (.of_free (NormTerminal.marks_nil _ _) normFree) <|
+    Clean.child_cons (.of_free (FinalIdentity.shapeMarks_nil _ _ _) finalFree) <|
+    Clean.child_cons outputClean Clean.nil
 
 end NightstreamFPrime.Lifecycle.BoundedDepth.LightPiCCSLayout

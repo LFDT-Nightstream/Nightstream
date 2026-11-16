@@ -72,8 +72,12 @@ theorem StateFacts.mono {bound larger : Nat} {state : EState} (facts : StateFact
     (le : bound ≤ larger) : StateFacts live larger state :=
   fun lane => ⟨(facts lane).1, (facts lane).2.mono _ fun _ inside => ⟨by omega, inside.2⟩⟩
 
-/-- The duplex's marks have affine live lanes, and its assertion rows, samples and output state
-read only live columns. -/
+/-- A word that a duplex absorbs at `bound`: affine, and live before `bound`. -/
+def WordFacts (live : Nat → Prop) (bound : Nat) (word : Expr) : Prop :=
+  word.Affine ∧ word.VarsSatisfy fun column => column < bound ∧ live column
+
+/-- The duplex's marks have affine live lanes, its assertion rows and output state read only live
+columns, and its samples are affine and live before its end. -/
 theorem marks_facts :
     ∀ (actions : List Action) (start : Nat) (state : EState),
       StateFacts live start state →
@@ -86,7 +90,8 @@ theorem marks_facts :
         ((∀ word ∈ expectedWords actions, word.VarsSatisfy live) →
           ∀ row ∈ (compile start state actions).assertions, row.VarsSatisfy live) ∧
         (∀ sample ∈ (compile start state actions).samples,
-          sample.c0.VarsSatisfy live ∧ sample.c1.VarsSatisfy live) ∧
+          WordFacts live (start + recipeCount actions) sample.c0 ∧
+            WordFacts live (start + recipeCount actions) sample.c1) ∧
         StateFacts live (start + recipeCount actions) (compile start state actions).output
   | [], start, state, stateFacts, _, _, _ => by
       refine ⟨fun _ member => by simp only [marks, List.not_mem_nil] at member,
@@ -159,8 +164,15 @@ theorem marks_facts :
           Hash.compileAbsorptions_output]
         exact tailRows
       · simp only [compile, Hash.compileAbsorptions_recipes_length,
-          Hash.compileAbsorptions_output]
-        exact tailSamples
+          Hash.compileAbsorptions_output, recipeCount_absorb]
+        intro sample member
+        have later : ∀ column, column < start + (Hash.inputChunks input).length * 1096 +
+            recipeCount actions → column < start + ((Hash.inputChunks input).length * 1096 +
+              recipeCount actions) :=
+          fun _ inside => Nat.lt_of_lt_of_le inside (Nat.add_assoc _ _ _).le
+        obtain ⟨⟨lowAffine, lowReads⟩, highAffine, highReads⟩ := tailSamples sample member
+        exact ⟨⟨lowAffine, lowReads.mono _ fun _ inside => ⟨later _ inside.1, inside.2⟩⟩,
+          highAffine, highReads.mono _ fun _ inside => ⟨later _ inside.1, inside.2⟩⟩
       · simp only [compile, Hash.compileAbsorptions_recipes_length,
           Hash.compileAbsorptions_output, recipeCount_absorb]
         exact tailOutput.mono (Nat.add_assoc _ _ _).le
@@ -174,6 +186,12 @@ theorem marks_facts :
           (Read.sample state pair).c1.VarsSatisfy live :=
         ⟨((stateFacts _).2).mono _ fun _ inside => inside.2,
           ((stateFacts _).2).mono _ fun _ inside => inside.2⟩
+      have sampleFacts : WordFacts live (start + recipeCount actions) (Read.sample state pair).c0 ∧
+          WordFacts live (start + recipeCount actions) (Read.sample state pair).c1 :=
+        ⟨⟨(stateFacts _).1, ((stateFacts _).2).mono _ fun _ inside =>
+            ⟨Nat.lt_of_lt_of_le inside.1 (Nat.le_add_right _ _), inside.2⟩⟩,
+          ⟨(stateFacts _).1, ((stateFacts _).2).mono _ fun _ inside =>
+            ⟨Nat.lt_of_lt_of_le inside.1 (Nat.le_add_right _ _), inside.2⟩⟩⟩
       refine ⟨fun mark member => tailLanes mark member, fun expected row member => ?_,
         fun sample member => ?_, by simpa [compile, recipeCount_readK] using tailOutput⟩
       · simp only [compile, List.mem_append, KExpr.equalities, List.mem_cons,
@@ -185,9 +203,10 @@ theorem marks_facts :
             (expected _ (List.mem_cons_of_mem _ List.mem_cons_self))
         · exact tailRows (fun word member => expected word (List.mem_append_right _ member)) row
             member
-      · simp only [compile, List.mem_cons] at member
+      · rw [recipeCount_readK]
+        simp only [compile, List.mem_cons] at member
         rcases member with rfl | member
-        · exact sampleLive
+        · exact sampleFacts
         · exact tailSamples sample member
 
 /-! ### A duplex batch alone -/
@@ -227,7 +246,9 @@ theorem batch_clean (offset : Nat) (state : EState) (actions : List Action)
   obtain ⟨lanes, _, samples, output⟩ := marks_facts actions offset state stateFacts wordsAffine
     wordsRead fun column lower upper outside => own column lower upper (by
       simpa [batchOps, Circuit.marks, Op.marks] using outside)
-  exact ⟨.batch (compile_windows _ _ _) lanes, samples, output⟩
+  exact ⟨.batch (compile_windows _ _ _) lanes, fun sample member =>
+    ⟨(samples sample member).1.2.mono _ fun _ inside => inside.2,
+      (samples sample member).2.2.mono _ fun _ inside => inside.2⟩, output⟩
 
 /-! ### The owned duplex -/
 
@@ -274,7 +295,10 @@ theorem clean (interface : Interface) (offset : Nat)
     simpa [(RowsOnly.map (allAssertions interface offset)).marks_nil, Op.marks] using outside
   obtain ⟨lanes, rows, samples, output⟩ := marks_facts (interface.actions offset) offset
     (interface.initial offset) stateFacts wordsAffine wordsRead rowsOwn
-  refine ⟨?_, samples, by simpa [program, compile_recipes_length] using output⟩
+  refine ⟨?_, fun sample member =>
+    ⟨(samples sample member).1.2.mono _ fun _ inside => inside.2,
+      (samples sample member).2.2.mono _ fun _ inside => inside.2⟩,
+    by simpa [program, compile_recipes_length] using output⟩
   rw [main_ops, opsAt_split]
   exact (Clean.batch (compile_windows _ _ _) lanes).append
     (.of_rows (RowsOnly.map _) fun row member =>
@@ -311,10 +335,6 @@ theorem mem_absorbedWords {actions : List Action} {word : Expr}
           obtain ⟨other, otherMember, wordMember⟩ := ih member
           exact ⟨other, List.mem_cons_of_mem _ otherMember, wordMember⟩
 
-/-- A word that a duplex absorbs at `bound`: affine, and live before `bound`. -/
-def WordFacts (live : Nat → Prop) (bound : Nat) (word : Expr) : Prop :=
-  word.Affine ∧ word.VarsSatisfy fun column => column < bound ∧ live column
-
 /-- Constant words are affine and read no column. -/
 theorem constant_facts {word : Expr} (constant : ∃ value, word = Expr.const value)
     (allowed : Nat → Prop) : word.Affine ∧ word.VarsSatisfy allowed := by
@@ -339,5 +359,46 @@ theorem Owned.output_facts (interface : Owned.Interface) (offset : Nat)
   refine ⟨clean, ?_⟩
   rw [Owned.main_ops, Owned.opsAt_localLength]
   exact output
+
+/-! ### Word facts -/
+
+theorem WordFacts.mono {bound larger : Nat} {word : Expr} (facts : WordFacts live bound word)
+    (le : bound ≤ larger) : WordFacts live larger word :=
+  ⟨facts.1, facts.2.mono _ fun _ inside => ⟨Nat.lt_of_lt_of_le inside.1 le, inside.2⟩⟩
+
+theorem WordFacts.varsSatisfy {bound : Nat} {word : Expr} (facts : WordFacts live bound word) :
+    word.VarsSatisfy live :=
+  facts.2.mono _ fun _ inside => inside.2
+
+/-- The zero state: constant lanes. -/
+theorem zeroE_stateFacts (live : Nat → Prop) (bound : Nat) : StateFacts live bound Hash.zeroE :=
+  fun lane => ⟨zeroE_affine lane, trivial⟩
+
+/-- A sum of scaled words is affine and live before `bound` when each word is. -/
+theorem foldl_scaled_facts {bound : Nat} (coefficient : Nat → Spec.F) (term : Nat → Expr)
+    (terms : ∀ index, WordFacts live bound (term index)) :
+    ∀ (indices : List Nat) (value : Expr), WordFacts live bound value →
+      WordFacts live bound (indices.foldl (fun value index =>
+        value + Expr.const (coefficient index) * term index) value)
+  | [], _, facts => facts
+  | index :: rest, _, facts =>
+      foldl_scaled_facts coefficient term terms rest _
+        ⟨.add facts.1 (.scaleLeft _ (terms index).1), facts.2, trivial, (terms index).2⟩
+
+/-- A duplex batch's samples are affine and live before the end of the batch. -/
+theorem batch_samples_facts (offset : Nat) (state : EState) (actions : List Action)
+    (stateFacts : StateFacts live offset state)
+    (wordsAffine : ∀ word ∈ absorbedWords actions, word.Affine)
+    (wordsRead : ∀ word ∈ absorbedWords actions,
+      word.VarsSatisfy fun column => column < offset ∧ live column)
+    (own : OwnLive live offset (localLength (batchOps offset state actions))
+      (batchOps offset state actions)) :
+    ∀ sample ∈ (compile offset state actions).samples,
+      WordFacts live (offset + recipeCount actions) sample.c0 ∧
+        WordFacts live (offset + recipeCount actions) sample.c1 := by
+  rw [batchOps_localLength] at own
+  exact (marks_facts actions offset state stateFacts wordsAffine wordsRead
+    fun column lower upper outside => own column lower upper (by
+      simpa [batchOps, Circuit.marks, Op.marks] using outside)).2.2.1
 
 end NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal

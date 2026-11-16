@@ -1,4 +1,5 @@
 import NightstreamFPrime.Circuit.Sequence
+import NightstreamFPrime.Gadgets.Poseidon2.CleanChildren
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CommitmentCombination
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalACombination
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding
@@ -486,5 +487,159 @@ theorem flatConstraints_length
   rw [flatConstraints_length_eq_rowCount]
   change rowCount (opsAt relation interface offset) = logicalRowCount
   simp [opsAt, rowCount, logicalRowCount, SamplerChain.counts.2]
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+section Exporter
+
+open NightstreamFPrime.Gadgets.Poseidon2
+
+variable {logicalWidth : Nat}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
+
+/-- The source words that the combinations read. -/
+structure InputsLive (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (live : Nat → Prop) : Prop where
+  commitment : ∀ source row lane,
+    ((interface.input offset source).commitment row lane).VarsSatisfy live
+  publicInput : ∀ source column,
+    ((interface.input offset source).publicInput column).VarsSatisfy live
+  eval_K : ∀ source coefficient,
+    ((interface.input offset source).evaluation.eval_K coefficient).c0.VarsSatisfy live ∧
+      ((interface.input offset source).evaluation.eval_K coefficient).c1.VarsSatisfy live
+  eval_A : ∀ source matrix coefficient,
+    ((interface.input offset source).evaluation.eval_A matrix coefficient).c0.VarsSatisfy live ∧
+      ((interface.input offset source).evaluation.eval_A matrix coefficient).c1.VarsSatisfy live
+
+/-- The combined words that the output binding names: the folded commitment, public input and
+evaluations. -/
+structure OutputsLive (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (live : Nat → Prop) : Prop where
+  commitment : ∀ childOffset row lane,
+    ((outputBindingInterface (atOffset interface offset) offset).commitment childOffset row
+      lane).VarsSatisfy live
+  publicInput : ∀ childOffset column,
+    ((outputBindingInterface (atOffset interface offset) offset).publicInput childOffset
+      column).VarsSatisfy live
+  eval_K : ∀ childOffset coefficient,
+    ((outputBindingInterface (atOffset interface offset) offset).eval_K childOffset
+      coefficient).c0.VarsSatisfy live ∧
+    ((outputBindingInterface (atOffset interface offset) offset).eval_K childOffset
+      coefficient).c1.VarsSatisfy live
+  eval_A : ∀ childOffset matrix coefficient,
+    ((outputBindingInterface (atOffset interface offset) offset).eval_A childOffset matrix
+      coefficient).c0.VarsSatisfy live ∧
+    ((outputBindingInterface (atOffset interface offset) offset).eval_A childOffset matrix
+      coefficient).c1.VarsSatisfy live
+
+theorem placed (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    Placed offset (localLength (Circuit.ops (main relation interface) offset))
+      (Circuit.ops (main relation interface) offset) :=
+  Placed.child_cons (InputBinding.localLength_eq relation _ _)
+    (.of_marks_nil (InputBinding.marks_nil relation _ _)) <|
+  Placed.child_cons
+    (SamplerChain.circuit_localLength (samplerInterface (atOffset interface offset))
+      (samplerOffset offset))
+    (SamplerChain.placed _ _) <|
+  Placed.child_cons (CommitmentCombination.localLength_eq _ _)
+    (.of_marks_nil (CommitmentCombination.marks_nil _ _)) <|
+  Placed.child_cons (PublicInputCombination.localLength_eq _ _)
+    (.of_marks_nil (PublicInputCombination.marks_nil _ _)) <|
+  Placed.child_cons (EvalKCombination.localLength_eq _ _)
+    (.of_marks_nil (EvalKCombination.marks_nil _ _)) <|
+  Placed.child_cons (EvalACombination.localLength_eq _ _)
+    (.of_marks_nil (EvalACombination.marks_nil _ _)) <|
+  Placed.child_cons (OutputBinding.localLength_eq relation _ _)
+    (.of_marks_nil (OutputBinding.marks_nil relation _ _)) <|
+  Placed.nil _
+
+/-- The phase's rows: the sampler chain's permutations and rows that read the challenges, the
+source words and the phase's own locals. The combined words are live. -/
+theorem clean (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Interface logicalWidth publicFits) (offset : Nat) {live : Nat → Prop}
+    (stateFacts : Duplex.Formal.StateFacts live offset (interface.initialState offset))
+    (inputs : InputsLive interface offset live)
+    (own : OwnLive live offset (localLength (Circuit.ops (main relation interface) offset))
+      (Circuit.ops (main relation interface) offset)) :
+    Clean live (Circuit.ops (main relation interface) offset) ∧
+      OutputsLive interface offset live := by
+  have outputTail := Placed.child_cons (name := "pirlc.v1_2.output_binding")
+    (OutputBinding.localLength_eq relation
+      (outputBindingInterface (atOffset interface offset) offset) (outputBindingOffset offset))
+    (.of_marks_nil (OutputBinding.marks_nil relation _ _)) (Placed.nil _)
+  have evalATail := Placed.child_cons (name := "pirlc.v1_2.eval_A_combination")
+    (EvalACombination.localLength_eq (evalAInterface (atOffset interface offset))
+      (evalAOffset offset))
+    (.of_marks_nil (EvalACombination.marks_nil _ _)) outputTail
+  have evalKTail := Placed.child_cons (name := "pirlc.v1_2.eval_K_combination")
+    (EvalKCombination.localLength_eq (evalKInterface (atOffset interface offset))
+      (evalKOffset offset))
+    (.of_marks_nil (EvalKCombination.marks_nil _ _)) evalATail
+  have publicInputTail := Placed.child_cons (name := "pirlc.v1_2.public_input_combination")
+    (PublicInputCombination.localLength_eq (publicInputInterface (atOffset interface offset))
+      (publicInputOffset offset))
+    (.of_marks_nil (PublicInputCombination.marks_nil _ _)) evalKTail
+  have commitmentTail := Placed.child_cons (name := "pirlc.v1_2.commitment_combination")
+    (CommitmentCombination.localLength_eq (commitmentInterface (atOffset interface offset))
+      (commitmentOffset offset))
+    (.of_marks_nil (CommitmentCombination.marks_nil _ _)) publicInputTail
+  have samplerTail := Placed.child_cons (name := "pirlc.v1_2.sampler_chain")
+    (SamplerChain.circuit_localLength (samplerInterface (atOffset interface offset))
+      (samplerOffset offset))
+    (SamplerChain.placed _ _) commitmentTail
+  obtain ⟨inputOwn, afterInput⟩ := own.child_cons (InputBinding.localLength_eq relation _ _)
+    (.of_marks_nil (InputBinding.marks_nil relation _ _)) samplerTail
+  obtain ⟨samplerOwn, afterSampler⟩ := afterInput.child_cons
+    (SamplerChain.circuit_localLength (samplerInterface (atOffset interface offset))
+      (samplerOffset offset)) (SamplerChain.placed _ _) commitmentTail
+  obtain ⟨commitmentOwn, afterCommitment⟩ := afterSampler.child_cons
+    (CommitmentCombination.localLength_eq _ _)
+    (.of_marks_nil (CommitmentCombination.marks_nil _ _)) publicInputTail
+  obtain ⟨publicInputOwn, afterPublicInput⟩ := afterCommitment.child_cons
+    (PublicInputCombination.localLength_eq _ _)
+    (.of_marks_nil (PublicInputCombination.marks_nil _ _)) evalKTail
+  obtain ⟨evalKOwn, afterEvalK⟩ := afterPublicInput.child_cons
+    (EvalKCombination.localLength_eq _ _)
+    (.of_marks_nil (EvalKCombination.marks_nil _ _)) evalATail
+  obtain ⟨evalAOwn, afterEvalA⟩ := afterEvalK.child_cons
+    (EvalACombination.localLength_eq _ _)
+    (.of_marks_nil (EvalACombination.marks_nil _ _)) outputTail
+  obtain ⟨outputOwn, -⟩ := afterEvalA.child_cons
+    (OutputBinding.localLength_eq relation _ _)
+    (.of_marks_nil (OutputBinding.marks_nil relation _ _)) (Placed.nil _)
+  obtain ⟨samplerClean, challenges, -⟩ := SamplerChain.clean
+    (samplerInterface (atOffset interface offset)) (samplerOffset offset) stateFacts samplerOwn
+  have commitmentLocals := OwnLive.of_marks_nil
+    (CommitmentCombination.marks_nil (commitmentInterface (atOffset interface offset))
+      (commitmentOffset offset)) commitmentOwn
+  have publicInputLocals := OwnLive.of_marks_nil
+    (PublicInputCombination.marks_nil (publicInputInterface (atOffset interface offset))
+      (publicInputOffset offset)) publicInputOwn
+  have evalKLocals := OwnLive.of_marks_nil
+    (EvalKCombination.marks_nil (evalKInterface (atOffset interface offset))
+      (evalKOffset offset)) evalKOwn
+  have evalALocals := OwnLive.of_marks_nil
+    (EvalACombination.marks_nil (evalAInterface (atOffset interface offset))
+      (evalAOffset offset)) evalAOwn
+  refine ⟨?_, ⟨fun _ => CommitmentCombination.output_live _ _ commitmentLocals,
+    fun _ => PublicInputCombination.output_live _ _ publicInputLocals,
+    fun _ => EvalKCombination.output_live _ _ evalKLocals,
+    fun _ => EvalACombination.output_live _ _ evalALocals⟩⟩
+  refine Clean.child_cons (.of_free (InputBinding.marks_nil relation _ _)
+    (InputBinding.free relation _ _)) <|
+    Clean.child_cons samplerClean <|
+    Clean.child_cons (.of_free (CommitmentCombination.marks_nil _ _)
+      (CommitmentCombination.free _ _ challenges inputs.commitment commitmentLocals)) <|
+    Clean.child_cons (.of_free (PublicInputCombination.marks_nil _ _)
+      (PublicInputCombination.free _ _ challenges inputs.publicInput publicInputLocals)) <|
+    Clean.child_cons (.of_free (EvalKCombination.marks_nil _ _)
+      (EvalKCombination.free _ _ challenges inputs.eval_K evalKLocals)) <|
+    Clean.child_cons (.of_free (EvalACombination.marks_nil _ _)
+      (EvalACombination.free _ _ challenges inputs.eval_A evalALocals)) <|
+    Clean.child_cons (.of_free (OutputBinding.marks_nil relation _ _)
+      (OutputBinding.free relation _ _)) Clean.nil
+
+end Exporter
 
 end NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal

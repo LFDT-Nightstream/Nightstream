@@ -1,4 +1,5 @@
 import NightstreamFPrime.Circuit.Sequence
+import NightstreamFPrime.Gadgets.Poseidon2.CleanChildren
 import NightstreamFPrime.Gadgets.Poseidon2.RawFormal
 import NightstreamFPrime.Gadgets.Range.CanonicalPublicU64
 import NightstreamFPrime.Lifecycle.XOut
@@ -812,5 +813,107 @@ theorem circuit_localLength (interface : Interface) (offset : Nat) :
     localLength (Circuit.ops (circuit interface).main offset) =
       logicalPrivateCount interface offset :=
   localLength_eq interface offset
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem bindingAssertions_rowsOnly (interface : Interface) (offset : Nat) :
+    RowsOnly (bindingAssertions interface offset) := by
+  intro op member
+  simp only [bindingAssertions, List.mem_cons] at member
+  rcases member with rfl | member
+  · exact ⟨_, rfl⟩
+  · obtain ⟨lane, rfl⟩ := List.mem_ofFn.mp member
+    exact ⟨_, rfl⟩
+
+/-- The gadgets after the hash place no permutation. -/
+theorem postHash_marks_nil (interface : Interface) (offset : Nat) :
+    marks (wordOps interface offset ++ bindingAssertions interface offset) = [] := by
+  have words : marks (wordOps interface offset) = [] := by
+    unfold marks wordOps
+    rw [List.flatMap_eq_nil_iff]
+    intro op member
+    obtain ⟨word, rfl⟩ := List.mem_ofFn.mp member
+    rw [wordOp, Sequence.childOp, Op.marks, FormalCircuit.asSubcircuit_marks]
+    exact CanonicalPublicU64.marks_nil _ _
+  rw [marks_append, words, (bindingAssertions_rowsOnly interface offset).marks_nil]
+  rfl
+
+/-- The rows after the hash read the digest, the public input and the locals after the hash. -/
+theorem postHash_free (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (publicReads : ∀ column, (interface.publicInput offset column).VarsSatisfy live)
+    (digestReads : ∀ word,
+      (RawFormal.digest (hashInterface interface) offset word).VarsSatisfy live)
+    (locals : ∀ column, hashEnd interface offset ≤ column →
+      column < finalOffset interface offset → live column) :
+    ∀ row ∈ flatConstraints (wordOps interface offset ++ bindingAssertions interface offset),
+      row.VarsSatisfy live := by
+  intro row member
+  rw [flatConstraints_append, List.mem_append] at member
+  simp only [flatConstraints, List.mem_flatMap] at member
+  rcases member with ⟨op, opMember, rowMember⟩ | ⟨op, opMember, rowMember⟩
+  · obtain ⟨word, rfl⟩ := List.mem_ofFn.mp opMember
+    rw [wordOp, Sequence.childOp, Op.flatConstraints, FormalCircuit.asSubcircuit_constraints]
+      at rowMember
+    refine CanonicalPublicU64.free (wordInterface interface offset word)
+      (wordOffset interface offset word) (digestReads word) (fun _ _ => publicReads _)
+      (fun column lower upper => locals column ?_ ?_) row rowMember
+    · exact Nat.le_trans (Nat.le_add_right _ _) lower
+    · have bound : (word.val + 1) * CanonicalPublicU64.privateCount ≤
+          4 * CanonicalPublicU64.privateCount := Nat.mul_le_mul_right _ word.isLt
+      rw [Nat.add_mul, Nat.one_mul] at bound
+      have length : localLength (Circuit.ops
+          (CanonicalPublicU64.circuit (wordInterface interface offset word)).main
+          (wordOffset interface offset word)) = CanonicalPublicU64.privateCount :=
+        CanonicalPublicU64.localLength_eq _ _
+      rw [length] at upper
+      unfold wordOffset at upper
+      unfold finalOffset
+      omega
+  · simp only [bindingAssertions, List.mem_cons] at opMember
+    rcases opMember with rfl | opMember
+    · simp only [Op.flatConstraints, List.mem_singleton] at rowMember
+      subst rowMember
+      exact Expr.VarsSatisfy.sub _ _ _ (publicReads _) trivial
+    · obtain ⟨lane, rfl⟩ := List.mem_ofFn.mp opMember
+      simp only [Op.flatConstraints, List.mem_singleton] at rowMember
+      subst rowMember
+      exact publicReads _
+
+theorem placed (interface : Interface) (offset : Nat) :
+    Placed offset (localLength (Circuit.ops (circuit interface).main offset))
+      (Circuit.ops (circuit interface).main offset) :=
+  Placed.child_cons rfl (RawFormal.placed (hashInterface interface) offset)
+    (.of_marks_nil (postHash_marks_nil interface offset))
+
+/-- The prior state hash's rows: the hash's permutations and rows that read its digest, the
+public input and the gadget's own locals. The preimage words are affine and live before the
+gadget. -/
+theorem clean (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (preimageAffine : ∀ word ∈ interface.preimage offset, word.Affine)
+    (preimageReads : ∀ word ∈ interface.preimage offset,
+      word.VarsSatisfy fun column => column < offset ∧ live column)
+    (publicReads : ∀ column, (interface.publicInput offset column).VarsSatisfy live)
+    (own : OwnLive live offset (localLength (Circuit.ops (circuit interface).main offset))
+      (Circuit.ops (circuit interface).main offset)) :
+    Clean live (Circuit.ops (circuit interface).main offset) := by
+  obtain ⟨hashOwn, postOwn⟩ := own.child_cons rfl
+    (RawFormal.placed (hashInterface interface) offset)
+    (.of_marks_nil (postHash_marks_nil interface offset))
+  have postLocals := OwnLive.of_marks_nil (postHash_marks_nil interface offset) postOwn
+  have hashLength_eq : localLength (Circuit.ops (hashCircuit interface).main offset) =
+      hashLength interface offset := by
+    rw [hashCircuit_localLength_compiled, compiledHashLength_eq_hashLength]
+  refine Clean.child_cons
+    (RawFormal.clean (hashInterface interface) offset preimageAffine preimageReads hashOwn)
+    (.of_free (postHash_marks_nil interface offset) (postHash_free interface offset publicReads
+      (RawFormal.digest_live (hashInterface interface) offset hashOwn)
+      fun column lower upper => postLocals column ?_ ?_))
+  · rw [hashLength_eq]
+    exact lower
+  · rw [hashLength_eq, Sequence.localLength_append, wordOps_localLength,
+      bindingAssertions_localLength]
+    unfold finalOffset hashEnd at upper
+    simp only [CanonicalPublicU64.privateCount, CanonicalU64.auxiliaryCount] at upper
+    omega
 
 end NightstreamFPrime.Lifecycle.PriorStateHash

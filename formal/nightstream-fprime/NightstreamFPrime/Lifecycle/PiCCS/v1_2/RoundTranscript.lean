@@ -989,6 +989,33 @@ theorem placed {degreeBound : Nat} (interface : Interface degreeBound) (offset :
   rw [ops_eq_batch]
   exact Formal.batch_placed _ _ _
 
+/-- The round messages' words are the words that the transcript absorbs. -/
+private theorem absorbed_facts {degreeBound : Nat} (interface : Interface degreeBound)
+    (offset : Nat) {live : Nat → Prop}
+    (message : ∀ roundIndex coefficient,
+      Formal.WordFacts live offset
+          ((interface.round offset roundIndex).coefficient coefficient).c0 ∧
+        Formal.WordFacts live offset
+          ((interface.round offset roundIndex).coefficient coefficient).c1) :
+    ∀ word ∈ Formal.absorbedWords (actions interface offset),
+      Formal.WordFacts live offset word := by
+  intro word member
+  obtain ⟨roundIndex, coefficient, same | same⟩ := absorbed_words interface offset member
+  · rw [same]
+    exact (message roundIndex coefficient).1
+  · rw [same]
+    exact (message roundIndex coefficient).2
+
+private theorem challenge_mem {degreeBound : Nat} (interface : Interface degreeBound)
+    (offset : Nat) (roundIndex : Fin productionShape.cubeVariables) :
+    challenge interface offset roundIndex ∈
+      (Formal.compile offset (interface.initialState offset)
+        (actions interface offset)).samples := by
+  rw [show (Formal.compile offset (interface.initialState offset)
+      (actions interface offset)).samples = (program interface offset).samples from rfl,
+    (program_shape_eq_layout interface offset).2.1]
+  exact List.get_mem _ _
+
 /-- The transcript's rows are its permutations' rows, and its challenges and final state are
 live, when the round messages are affine and live before the transcript. -/
 theorem clean {degreeBound : Nat} (interface : Interface degreeBound) (offset : Nat)
@@ -1005,24 +1032,37 @@ theorem clean {degreeBound : Nat} (interface : Interface degreeBound) (offset : 
         (challenge interface offset roundIndex).c1.VarsSatisfy live) ∧
       Formal.StateFacts live (offset + localLength (Circuit.ops (circuit interface).main offset))
         (finalState interface offset) := by
-  have words : ∀ word ∈ Formal.absorbedWords (actions interface offset),
-      Formal.WordFacts live offset word := by
-    intro word member
-    obtain ⟨roundIndex, coefficient, same | same⟩ := absorbed_words interface offset member
-    · rw [same]
-      exact (message roundIndex coefficient).1
-    · rw [same]
-      exact (message roundIndex coefficient).2
+  have words := absorbed_facts interface offset message
   rw [ops_eq_batch] at own ⊢
   obtain ⟨clean, samples, output⟩ := Formal.batch_clean offset (interface.initialState offset)
     (actions interface offset) stateFacts (fun word member => (words word member).1)
     (fun word member => (words word member).2) own
-  refine ⟨clean, fun roundIndex => samples _ ?_, ?_⟩
-  · rw [show (Formal.compile offset (interface.initialState offset)
-        (actions interface offset)).samples = (program interface offset).samples from rfl,
-      (program_shape_eq_layout interface offset).2.1]
-    exact List.get_mem _ _
-  · rw [Formal.batchOps_localLength]
-    exact output
+  refine ⟨clean, fun roundIndex => samples _ (challenge_mem interface offset roundIndex), ?_⟩
+  rw [Formal.batchOps_localLength]
+  exact output
+
+/-- The challenges are affine and live before the end of the transcript, when the round messages
+are affine and live before the transcript. -/
+theorem challenge_facts {degreeBound : Nat} (interface : Interface degreeBound) (offset : Nat)
+    {live : Nat → Prop}
+    (stateFacts : Formal.StateFacts live offset (interface.initialState offset))
+    (message : ∀ roundIndex coefficient,
+      Formal.WordFacts live offset
+          ((interface.round offset roundIndex).coefficient coefficient).c0 ∧
+        Formal.WordFacts live offset
+          ((interface.round offset roundIndex).coefficient coefficient).c1)
+    (own : OwnLive live offset (localLength (Circuit.ops (circuit interface).main offset))
+      (Circuit.ops (circuit interface).main offset))
+    (roundIndex : Fin productionShape.cubeVariables) :
+    Formal.WordFacts live (offset + localLength (Circuit.ops (circuit interface).main offset))
+        (challenge interface offset roundIndex).c0 ∧
+      Formal.WordFacts live (offset + localLength (Circuit.ops (circuit interface).main offset))
+        (challenge interface offset roundIndex).c1 := by
+  have words := absorbed_facts interface offset message
+  rw [ops_eq_batch] at own ⊢
+  rw [Formal.batchOps_localLength]
+  exact Formal.batch_samples_facts offset (interface.initialState offset)
+    (actions interface offset) stateFacts (fun word member => (words word member).1)
+    (fun word member => (words word member).2) own _ (challenge_mem interface offset roundIndex)
 
 end NightstreamFPrime.Lifecycle.PiCCS.v1_2.RoundTranscript

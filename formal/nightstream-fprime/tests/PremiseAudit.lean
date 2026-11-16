@@ -82,6 +82,8 @@ elab "#premise_census " path:str space:str root:str : command => do
       | some head =>
         if claims.isPrefixOf head then
           throwError "the proof of {name} applies {head}, which is in {claims}"
+        unless env.find? head matches some (.thmInfo _) do
+          throwError "the proof of {name} applies {head}, which is not a theorem"
       | none => throwError "the proof of {name} is not one theorem applied to the binders of {name}"
       let bad := (← liftCoreM <| collectAxioms name).toList.filter (fun a => !allowed.contains a)
       unless bad.isEmpty do throwError "{name} depends on disallowed axioms: {bad}"

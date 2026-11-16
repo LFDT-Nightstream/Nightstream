@@ -300,44 +300,42 @@ impl ApplicationTables {
             .checked_sub(live_bytes)
             .ok_or_else(|| invalid("CPU application values exceed the supplied workspace"))?;
         let pairs = values.rows.div_ceil(2);
-        {
-            let workers = rayon::current_num_threads()
-                .min(pairs)
-                .min(available / bytes(scratch_words)?);
-            if workers > 1 {
-                let mut scratch = vec![K::ZERO; workers * scratch_words];
-                let peak = live_bytes
-                    .checked_add(bytes(scratch.capacity())?)
-                    .ok_or_else(|| invalid("CPU application worker scratch overflow"))?;
-                if peak > self.workspace_bytes {
-                    return Err(invalid("CPU application worker scratch exceeds the supplied workspace"));
-                }
-                scratch
-                    .par_chunks_mut(scratch_words)
-                    .enumerate()
-                    .for_each(|(worker, scratch)| {
-                        let start = worker * (pairs / workers) + worker.min(pairs % workers);
-                        let end = start + pairs / workers + usize::from(worker < pairs % workers);
-                        let (coordinates, result) = scratch.split_at_mut(self.shape.matrices);
-                        self.accumulate_pairs(
-                            values,
-                            row_start,
-                            start..end,
-                            polynomial,
-                            gamma,
-                            points,
-                            weights,
-                            coordinates,
-                            result,
-                        );
-                    });
-                for scratch in scratch.chunks(scratch_words) {
-                    for (total, &value) in result.iter_mut().zip(&scratch[self.shape.matrices..]) {
-                        *total += value;
-                    }
-                }
-                return Ok(peak);
+        let workers = rayon::current_num_threads()
+            .min(pairs)
+            .min(available / bytes(scratch_words)?);
+        if workers > 1 {
+            let mut scratch = vec![K::ZERO; workers * scratch_words];
+            let peak = live_bytes
+                .checked_add(bytes(scratch.capacity())?)
+                .ok_or_else(|| invalid("CPU application worker scratch overflow"))?;
+            if peak > self.workspace_bytes {
+                return Err(invalid("CPU application worker scratch exceeds the supplied workspace"));
             }
+            scratch
+                .par_chunks_mut(scratch_words)
+                .enumerate()
+                .for_each(|(worker, scratch)| {
+                    let start = worker * (pairs / workers) + worker.min(pairs % workers);
+                    let end = start + pairs / workers + usize::from(worker < pairs % workers);
+                    let (coordinates, result) = scratch.split_at_mut(self.shape.matrices);
+                    self.accumulate_pairs(
+                        values,
+                        row_start,
+                        start..end,
+                        polynomial,
+                        gamma,
+                        points,
+                        weights,
+                        coordinates,
+                        result,
+                    );
+                });
+            for scratch in scratch.chunks(scratch_words) {
+                for (total, &value) in result.iter_mut().zip(&scratch[self.shape.matrices..]) {
+                    *total += value;
+                }
+            }
+            return Ok(peak);
         }
         self.accumulate_pairs(
             values,

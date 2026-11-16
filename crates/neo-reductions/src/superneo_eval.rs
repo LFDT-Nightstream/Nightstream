@@ -461,69 +461,67 @@ pub fn eval_ring_linear_forms_real_z_blocks(
     forms: &[SuperneoRingLinearForm],
     z_blocks: &SuperneoZBlocks,
 ) -> Vec<[K; D]> {
-    {
-        if forms.len() > 1 && rayon::current_num_threads() > 1 {
-            const CHUNK_ENTRIES: usize = 2048;
-            let total_entries = forms.iter().map(|form| form.entries.len()).sum::<usize>();
-            if total_entries >= CHUNK_ENTRIES * 4 {
-                let mut chunks = Vec::with_capacity(total_entries.div_ceil(CHUNK_ENTRIES));
-                for (form_idx, form) in forms.iter().enumerate() {
-                    for start in (0..form.entries.len()).step_by(CHUNK_ENTRIES) {
-                        let end = core::cmp::min(start + CHUNK_ENTRIES, form.entries.len());
-                        chunks.push((form_idx, start, end));
-                    }
+    if forms.len() > 1 && rayon::current_num_threads() > 1 {
+        const CHUNK_ENTRIES: usize = 2048;
+        let total_entries = forms.iter().map(|form| form.entries.len()).sum::<usize>();
+        if total_entries >= CHUNK_ENTRIES * 4 {
+            let mut chunks = Vec::with_capacity(total_entries.div_ceil(CHUNK_ENTRIES));
+            for (form_idx, form) in forms.iter().enumerate() {
+                for start in (0..form.entries.len()).step_by(CHUNK_ENTRIES) {
+                    let end = core::cmp::min(start + CHUNK_ENTRIES, form.entries.len());
+                    chunks.push((form_idx, start, end));
                 }
-                let partials: Vec<(usize, [F; D], [F; D])> = chunks
-                    .par_iter()
-                    .map(|&(form_idx, start, end)| {
-                        let mut out_re = [F::ZERO; D];
-                        let mut out_im = [F::ZERO; D];
-                        for entry in &forms[form_idx].entries[start..end] {
-                            if !z_blocks.real_nonzero(entry.blk) {
-                                continue;
-                            }
-                            match (entry.re_nonzero, entry.im_nonzero) {
-                                (true, true) => z_blocks.accumulate_real_pair(
-                                    &mut out_re,
-                                    &mut out_im,
-                                    &entry.re_form,
-                                    &entry.im_form,
-                                    entry.blk,
-                                ),
-                                (true, false) => z_blocks.accumulate_real(&mut out_re, &entry.re_form, entry.blk),
-                                (false, true) => z_blocks.accumulate_real(&mut out_im, &entry.im_form, entry.blk),
-                                (false, false) => {}
-                            }
+            }
+            let partials: Vec<(usize, [F; D], [F; D])> = chunks
+                .par_iter()
+                .map(|&(form_idx, start, end)| {
+                    let mut out_re = [F::ZERO; D];
+                    let mut out_im = [F::ZERO; D];
+                    for entry in &forms[form_idx].entries[start..end] {
+                        if !z_blocks.real_nonzero(entry.blk) {
+                            continue;
                         }
-                        (form_idx, out_re, out_im)
-                    })
-                    .collect();
-                let mut acc_re = vec![[F::ZERO; D]; forms.len()];
-                let mut acc_im = vec![[F::ZERO; D]; forms.len()];
-                for (form_idx, out_re, out_im) in partials {
+                        match (entry.re_nonzero, entry.im_nonzero) {
+                            (true, true) => z_blocks.accumulate_real_pair(
+                                &mut out_re,
+                                &mut out_im,
+                                &entry.re_form,
+                                &entry.im_form,
+                                entry.blk,
+                            ),
+                            (true, false) => z_blocks.accumulate_real(&mut out_re, &entry.re_form, entry.blk),
+                            (false, true) => z_blocks.accumulate_real(&mut out_im, &entry.im_form, entry.blk),
+                            (false, false) => {}
+                        }
+                    }
+                    (form_idx, out_re, out_im)
+                })
+                .collect();
+            let mut acc_re = vec![[F::ZERO; D]; forms.len()];
+            let mut acc_im = vec![[F::ZERO; D]; forms.len()];
+            for (form_idx, out_re, out_im) in partials {
+                for i in 0..D {
+                    acc_re[form_idx][i] += out_re[i];
+                    acc_im[form_idx][i] += out_im[i];
+                }
+            }
+            return acc_re
+                .into_iter()
+                .zip(acc_im)
+                .map(|(re, im)| {
+                    let mut out = [K::ZERO; D];
                     for i in 0..D {
-                        acc_re[form_idx][i] += out_re[i];
-                        acc_im[form_idx][i] += out_im[i];
+                        out[i] = K::from_coeffs([re[i], im[i]]);
                     }
-                }
-                return acc_re
-                    .into_iter()
-                    .zip(acc_im)
-                    .map(|(re, im)| {
-                        let mut out = [K::ZERO; D];
-                        for i in 0..D {
-                            out[i] = K::from_coeffs([re[i], im[i]]);
-                        }
-                        out
-                    })
-                    .collect();
-            }
-            if rayon::current_thread_index().is_none() {
-                return forms
-                    .par_iter()
-                    .map(|form| form.eval_real_z_blocks(z_blocks))
-                    .collect();
-            }
+                    out
+                })
+                .collect();
+        }
+        if rayon::current_thread_index().is_none() {
+            return forms
+                .par_iter()
+                .map(|form| form.eval_real_z_blocks(z_blocks))
+                .collect();
         }
     }
     forms
@@ -1124,12 +1122,10 @@ impl SuperneoEvalCache {
     #[inline]
     pub fn build_weighted_matrix_caches(&self, weights: &[K; D]) -> Vec<SuperneoWeightedMatrixCache> {
         let (basis_re_forms, basis_im_forms) = weighted_projection_basis_forms_from_k(weights);
-        {
-            self.mats
-                .par_iter()
-                .map(|m| m.compile_weighted_rows_with_basis(&basis_re_forms, &basis_im_forms))
-                .collect()
-        }
+        self.mats
+            .par_iter()
+            .map(|m| m.compile_weighted_rows_with_basis(&basis_re_forms, &basis_im_forms))
+            .collect()
     }
 }
 
@@ -1236,21 +1232,19 @@ pub fn eval_all_mats_ring_cached_with_split_chi(
         return eval_all_mats_ring_cached_with_blocks(cache, z_blocks, &chi_r, n_eff);
     }
 
+    if cache.mats.len() > 1
+        && z_blocks.block_len() >= 1024
+        && rayon::current_thread_index().is_none()
+        && rayon::current_num_threads() > 1
     {
-        if cache.mats.len() > 1
-            && z_blocks.block_len() >= 1024
-            && rayon::current_thread_index().is_none()
-            && rayon::current_num_threads() > 1
-        {
-            return cache
-                .mats
-                .par_iter()
-                .map(|m| {
-                    let mut scratch = RingEvalScratch::new(z_blocks.block_len());
-                    m.eval_mle_ring_with_blocks_split_chi_scratch(z_blocks, chi_re, chi_im, n_eff, &mut scratch)
-                })
-                .collect();
-        }
+        return cache
+            .mats
+            .par_iter()
+            .map(|m| {
+                let mut scratch = RingEvalScratch::new(z_blocks.block_len());
+                m.eval_mle_ring_with_blocks_split_chi_scratch(z_blocks, chi_re, chi_im, n_eff, &mut scratch)
+            })
+            .collect();
     }
     let mut out = Vec::with_capacity(cache.mats.len());
     let mut scratch = RingEvalScratch::new(z_blocks.block_len());

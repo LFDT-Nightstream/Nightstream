@@ -54,26 +54,24 @@ impl RingEvalScratch {
     }
 
     pub(super) fn fill_parts(&mut self, fill: impl Fn(&mut ScratchPart<'_>) + Sync) {
-        {
-            let block_count = self.touched.len();
-            let per_part = block_count.div_ceil(rayon::current_num_threads()).max(1);
-            let mut parts = vec![Vec::new(); block_count.div_ceil(per_part)];
-            self.values
-                .par_chunks_mut(per_part * D)
-                .zip(self.touched.par_chunks_mut(per_part))
-                .zip(parts.par_iter_mut())
-                .enumerate()
-                .for_each(|(index, ((values, touched), active_blocks))| {
-                    fill(&mut ScratchPart {
-                        first_block: index * per_part,
-                        values,
-                        touched,
-                        active_blocks,
-                    })
-                });
-            for part in parts {
-                self.active_blocks.extend(part);
-            }
+        let block_count = self.touched.len();
+        let per_part = block_count.div_ceil(rayon::current_num_threads()).max(1);
+        let mut parts = vec![Vec::new(); block_count.div_ceil(per_part)];
+        self.values
+            .par_chunks_mut(per_part * D)
+            .zip(self.touched.par_chunks_mut(per_part))
+            .zip(parts.par_iter_mut())
+            .enumerate()
+            .for_each(|(index, ((values, touched), active_blocks))| {
+                fill(&mut ScratchPart {
+                    first_block: index * per_part,
+                    values,
+                    touched,
+                    active_blocks,
+                })
+            });
+        for part in parts {
+            self.active_blocks.extend(part);
         }
     }
 

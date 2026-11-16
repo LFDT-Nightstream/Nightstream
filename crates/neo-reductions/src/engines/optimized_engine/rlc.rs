@@ -107,27 +107,25 @@ where
         rho_coeffs[row] = rho_data[row * D];
     }
 
-    {
-        if rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() {
-            let products: Vec<[Ff; D]> = (0..cols)
-                .into_par_iter()
-                .map(|col| {
-                    let mut rhs = [Ff::ZERO; D];
-                    for row in 0..D {
-                        rhs[row] = a_data[row * cols + col];
-                    }
-                    mul_negacyclic(&rho_coeffs, &rhs)
-                })
-                .collect();
-
-            let acc_data = acc.as_mut_slice();
-            for (col, product) in products.iter().enumerate() {
+    if rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() {
+        let products: Vec<[Ff; D]> = (0..cols)
+            .into_par_iter()
+            .map(|col| {
+                let mut rhs = [Ff::ZERO; D];
                 for row in 0..D {
-                    acc_data[row * cols + col] += product[row];
+                    rhs[row] = a_data[row * cols + col];
                 }
+                mul_negacyclic(&rho_coeffs, &rhs)
+            })
+            .collect();
+
+        let acc_data = acc.as_mut_slice();
+        for (col, product) in products.iter().enumerate() {
+            for row in 0..D {
+                acc_data[row * cols + col] += product[row];
             }
-            return;
         }
+        return;
     }
 
     let acc_data = acc.as_mut_slice();

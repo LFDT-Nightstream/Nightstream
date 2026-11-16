@@ -383,28 +383,26 @@ pub fn commit_precomp_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
         debug_assert_eq!(row.len(), m);
 
         let acc = {
-            {
-                row.par_iter()
-                    .zip(Z.par_chunks_exact(d))
-                    .fold(Acc::new, |mut st, (&a_ij, z_col)| {
-                        precompute_rot_columns(a_ij, &mut st.cols);
-                        for t in 0..d {
-                            let mask = z_col[t];
-                            let col_t = &st.cols[t];
-                            for r in 0..d {
-                                st.acc[r] += col_t[r] * mask;
-                            }
-                        }
-                        st
-                    })
-                    .reduce_with(|mut a, b| {
+            row.par_iter()
+                .zip(Z.par_chunks_exact(d))
+                .fold(Acc::new, |mut st, (&a_ij, z_col)| {
+                    precompute_rot_columns(a_ij, &mut st.cols);
+                    for t in 0..d {
+                        let mask = z_col[t];
+                        let col_t = &st.cols[t];
                         for r in 0..d {
-                            a.acc[r] += b.acc[r];
+                            st.acc[r] += col_t[r] * mask;
                         }
-                        a
-                    })
-                    .unwrap_or_else(Acc::new)
-            }
+                    }
+                    st
+                })
+                .reduce_with(|mut a, b| {
+                    for r in 0..d {
+                        a.acc[r] += b.acc[r];
+                    }
+                    a
+                })
+                .unwrap_or_else(Acc::new)
         };
 
         C.col_mut(i).copy_from_slice(&acc.acc);
@@ -450,28 +448,26 @@ fn commit_precomp_ct_row_major(pp: &PP<RqEl>, Z: &Mat<Fq>) -> Commitment {
         debug_assert_eq!(row.len(), m);
 
         let acc = {
-            {
-                row.par_iter()
-                    .enumerate()
-                    .fold(Acc::new, |mut st, (j, &a_ij)| {
-                        precompute_rot_columns(a_ij, &mut st.cols);
-                        for t in 0..d {
-                            let mask = z_rows[t][j];
-                            let col_t = &st.cols[t];
-                            for r in 0..d {
-                                st.acc[r] += col_t[r] * mask;
-                            }
-                        }
-                        st
-                    })
-                    .reduce_with(|mut a, b| {
+            row.par_iter()
+                .enumerate()
+                .fold(Acc::new, |mut st, (j, &a_ij)| {
+                    precompute_rot_columns(a_ij, &mut st.cols);
+                    for t in 0..d {
+                        let mask = z_rows[t][j];
+                        let col_t = &st.cols[t];
                         for r in 0..d {
-                            a.acc[r] += b.acc[r];
+                            st.acc[r] += col_t[r] * mask;
                         }
-                        a
-                    })
-                    .unwrap_or_else(Acc::new)
-            }
+                    }
+                    st
+                })
+                .reduce_with(|mut a, b| {
+                    for r in 0..d {
+                        a.acc[r] += b.acc[r];
+                    }
+                    a
+                })
+                .unwrap_or_else(Acc::new)
         };
 
         C.col_mut(i).copy_from_slice(&acc.acc);

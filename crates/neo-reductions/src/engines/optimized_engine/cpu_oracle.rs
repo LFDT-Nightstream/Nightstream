@@ -37,12 +37,10 @@ fn pair_norm_coefficients(table: &Assignment<'_>, pairs: usize, weights: &Equali
         let (low, high) = table.pair(index);
         prefix::norm_pair(low, high).map(|value| value * weights.at(index))
     };
-    {
-        (0..pairs).into_par_iter().map(term).reduce(
-            || [K::ZERO; 4],
-            |left, right| std::array::from_fn(|index| left[index] + right[index]),
-        )
-    }
+    (0..pairs).into_par_iter().map(term).reduce(
+        || [K::ZERO; 4],
+        |left, right| std::array::from_fn(|index| left[index] + right[index]),
+    )
 }
 
 pub struct OptimizedPaperJointOracle<'a> {
@@ -165,12 +163,10 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             let weight = weights.at(index);
             [weight * low, weight * (high - low)]
         };
-        {
-            (0..self.evaluation_table.len().div_ceil(2))
-                .into_par_iter()
-                .map(term)
-                .reduce(|| [K::ZERO; 2], |left, right| [left[0] + right[0], left[1] + right[1]])
-        }
+        (0..self.evaluation_table.len().div_ceil(2))
+            .into_par_iter()
+            .map(term)
+            .reduce(|| [K::ZERO; 2], |left, right| [left[0] + right[0], left[1] + right[1]])
     }
 }
 

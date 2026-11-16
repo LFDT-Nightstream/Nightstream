@@ -103,12 +103,10 @@ impl<Ff: Field> CscMat<Ff> {
 impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
     pub fn from_triplets(mut triplets: Vec<(usize, usize, Ff)>, nrows: usize, ncols: usize) -> Self {
         triplets.retain(|&(_, _, v)| v != Ff::ZERO);
-        {
-            if rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() && triplets.len() >= 16_384 {
-                triplets.par_sort_unstable_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
-            } else {
-                triplets.sort_unstable_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
-            }
+        if rayon::current_num_threads() > 1 && rayon::current_thread_index().is_none() && triplets.len() >= 16_384 {
+            triplets.par_sort_unstable_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
+        } else {
+            triplets.sort_unstable_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
         }
 
         let mut entries: Vec<(usize, usize, Ff)> = Vec::with_capacity(triplets.len());
@@ -301,34 +299,32 @@ impl<Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync> CscMat<Ff> {
         let (nrows, ncols) = (a.rows(), a.cols());
 
         let (col_counts, triplets): (Vec<usize>, Vec<(usize, usize, Ff)>) = {
-            {
-                (0..nrows)
-                    .into_par_iter()
-                    .fold(
-                        || (vec![0usize; ncols], Vec::<(usize, usize, Ff)>::new()),
-                        |(mut col_counts, mut triplets), r| {
-                            let row = a.row(r);
-                            for (c, &v) in row.iter().enumerate() {
-                                if v != Ff::ZERO {
-                                    col_counts[c] += 1;
-                                    triplets.push((r, c, v));
-                                }
+            (0..nrows)
+                .into_par_iter()
+                .fold(
+                    || (vec![0usize; ncols], Vec::<(usize, usize, Ff)>::new()),
+                    |(mut col_counts, mut triplets), r| {
+                        let row = a.row(r);
+                        for (c, &v) in row.iter().enumerate() {
+                            if v != Ff::ZERO {
+                                col_counts[c] += 1;
+                                triplets.push((r, c, v));
                             }
-                            (col_counts, triplets)
-                        },
-                    )
-                    .reduce(
-                        || (vec![0usize; ncols], Vec::<(usize, usize, Ff)>::new()),
-                        |(mut a_counts, mut a_trips), (b_counts, mut b_trips)| {
-                            for c in 0..ncols {
-                                a_counts[c] += b_counts[c];
-                            }
-                            a_trips.reserve(b_trips.len());
-                            a_trips.append(&mut b_trips);
-                            (a_counts, a_trips)
-                        },
-                    )
-            }
+                        }
+                        (col_counts, triplets)
+                    },
+                )
+                .reduce(
+                    || (vec![0usize; ncols], Vec::<(usize, usize, Ff)>::new()),
+                    |(mut a_counts, mut a_trips), (b_counts, mut b_trips)| {
+                        for c in 0..ncols {
+                            a_counts[c] += b_counts[c];
+                        }
+                        a_trips.reserve(b_trips.len());
+                        a_trips.append(&mut b_trips);
+                        (a_counts, a_trips)
+                    },
+                )
         };
 
         let mut col_ptr = Vec::with_capacity(ncols + 1);

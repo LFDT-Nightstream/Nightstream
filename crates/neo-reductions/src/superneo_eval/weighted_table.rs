@@ -150,19 +150,17 @@ impl SuperneoEvalCache {
             !has_identity_contribution || n_eff <= identity_projection.len(),
             "eval_weighted_row_table: identity rows exceed witness projection"
         );
-        {
-            out.par_iter_mut()
-                .take(n_eff)
-                .enumerate()
-                .for_each(|(row, out_r)| {
-                    let identity = if has_identity_contribution {
-                        identity_coeff * identity_projection[row]
-                    } else {
-                        K::ZERO
-                    };
-                    *out_r = identity + self.eval_weighted_explicit_row(row, mat_coeffs, identity_projection);
-                });
-        }
+        out.par_iter_mut()
+            .take(n_eff)
+            .enumerate()
+            .for_each(|(row, out_r)| {
+                let identity = if has_identity_contribution {
+                    identity_coeff * identity_projection[row]
+                } else {
+                    K::ZERO
+                };
+                *out_r = identity + self.eval_weighted_explicit_row(row, mat_coeffs, identity_projection);
+            });
         #[cfg(feature = "perf-timers")]
         eprintln!(
             "SuperneoEvalCache::eval_weighted_rows_from_projection: {:.2?}",

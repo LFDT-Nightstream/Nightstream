@@ -44,19 +44,17 @@ where
         let block_len = 2 * stride;
         let one_minus = K::ONE - ri;
 
-        {
-            if n >= PAR_THRESHOLD && rayon::current_num_threads() > 1 {
-                out.par_chunks_mut(block_len).for_each(|block| {
-                    let (lo, hi) = block.split_at_mut(stride);
-                    for slot in lo.iter_mut() {
-                        *slot *= one_minus;
-                    }
-                    for slot in hi.iter_mut() {
-                        *slot *= ri;
-                    }
-                });
-                continue;
-            }
+        if n >= PAR_THRESHOLD && rayon::current_num_threads() > 1 {
+            out.par_chunks_mut(block_len).for_each(|block| {
+                let (lo, hi) = block.split_at_mut(stride);
+                for slot in lo.iter_mut() {
+                    *slot *= one_minus;
+                }
+                for slot in hi.iter_mut() {
+                    *slot *= ri;
+                }
+            });
+            continue;
         }
 
         let block_count = 1usize << (ell - i - 1);

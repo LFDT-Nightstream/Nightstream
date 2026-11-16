@@ -15,10 +15,12 @@ fresh CCS statement with public input `encHash digest` (`fresh_complete`). The a
 the package's logical width with zeros (`WideLayout.extend`), so it is zero past that width.
 `light_complete` and `refresh_complete` read the digest from the step's output.
 
-Three premises are computed checks on the package, as `CircuitRelation.packable` is: the blocks
-pack, every piece reads only columns below the first fresh column
-(`PieceRowsCompleteness.pieceBelow`), and no row of the circuit reads a public column
-(`publicFree`). -/
+Two premises are computed checks on the package, as `CircuitRelation.packable` is: the blocks
+pack, and no row of the circuit reads a public column (`publicFree`). The third, that every piece
+reads only columns below the first fresh column (`PieceRowsCompleteness.pieceBelow`), follows when
+every row of the circuit reads only columns before the end of its locals, as the assembler gives
+it for an honest step, and the first fresh column is at or after that end
+(`lightPieces_readOwnColumns`, `refreshPieces_readOwnColumns`). -/
 
 set_option autoImplicit false
 
@@ -259,6 +261,99 @@ theorem piecesOf_refreshOps (relation : ProductionKey.LogicalRelation logicalWid
     piecesOf (refreshOps program relation) (StepRelation.refreshDigestColumn program) =
       refreshPieces program relation ajtai :=
   rfl
+
+theorem recipeConstraints_last :
+    ∀ (start count : Nat) (recipes : List Expr), recipes.length = count + 1 →
+      ∃ rest, Expr.var (start + count) - rest ∈ recipeConstraints start recipes
+  | _, _, [], length => by simp at length
+  | start, 0, recipe :: _, _ => ⟨recipe, by simp [recipeConstraints]⟩
+  | start, count + 1, _ :: recipes, length => by
+      obtain ⟨rest, member⟩ := recipeConstraints_last (start + 1) count recipes
+        (by simpa using length)
+      refine ⟨rest, ?_⟩
+      simp only [recipeConstraints, List.mem_cons]
+      right
+      rw [show start + (count + 1) = start + 1 + count by omega]
+      exact member
+
+/-- The last constraint of the permutation template starts with its last local, column
+`16 + 1095`. -/
+theorem canonical_last :
+    ∃ rest, Expr.var (16 + 1095) - rest ∈ PilotData.canonicalConstraints () :=
+  recipeConstraints_last 16 1095 _
+    (Gadgets.Poseidon2.Permutation.compile_schedule_recipe_count 16 PilotData.canonicalState)
+
+theorem decodeFold_below (word : Fin 4) {bound : Nat} (bits : 257 ≤ bound) :
+    ∀ (indices : List Nat) (initial : Expr), initial.VarsBelow bound →
+      (indices.foldl (fun value bit => value + Expr.const (Poseidon2.ofNat (2 ^ bit)) *
+        Expr.var (LogicalPlan.bitColumn word bit)) initial).VarsBelow bound
+  | [], _, below => below
+  | bit :: rest, initial, below => by
+      simp only [List.foldl_cons]
+      apply decodeFold_below word bits rest
+      refine ⟨below, trivial, ?_⟩
+      show LogicalPlan.bitColumn word bit < bound
+      have := word.isLt
+      have := Nat.mod_lt bit (show 64 > 0 by decide)
+      simp only [LogicalPlan.bitColumn]
+      omega
+
+/-- The decode constraints read the digest columns and the bits of the public input. -/
+theorem decodeConstraints_below (digestColumn : Fin 4 → Nat) {bound : Nat}
+    (digest : ∀ word, digestColumn word < bound) (bits : 257 ≤ bound) :
+    ∀ constraint ∈ LogicalPlan.decodeConstraints digestColumn, constraint.VarsBelow bound := by
+  intro constraint member
+  obtain ⟨word, rfl⟩ := List.mem_ofFn.mp member
+  exact Expr.VarsBelow.sub _ _ _ (digest word) (decodeFold_below word bits _ _ trivial)
+
+/-- Every light piece reads only columns before `firstFresh` when every row of the light circuit
+does and `firstFresh` is after the shared words and the public columns. -/
+theorem lightPieces_readOwnColumns
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    {firstFresh : Nat}
+    (scope : ∀ constraint ∈ flatConstraints (lightOps program relation),
+      constraint.VarsBelow firstFresh)
+    (sharedBelow : LightAssembler.sharedEnd StepRelation.base program.witnessWordCount ≤ firstFresh)
+    (publicBelow : publicColumns ≤ firstFresh) :
+    (lightPieces program relation ajtai).all (pieceBelow firstFresh) = true := by
+  rw [← piecesOf_lightOps program relation ajtai]
+  refine split_below _ _ canonical_last fun constraint member => ?_
+  rcases List.mem_append.mp member with member | member
+  · exact scope constraint member
+  · refine decodeConstraints_below _ (fun word => ?_) (le_trans (by decide) publicBelow)
+      constraint member
+    have := word.isLt
+    refine lt_of_lt_of_le ?_ sharedBelow
+    simp only [StepRelation.lightDigestColumn, LightAssembler.sharedEnd,
+      LightAssembler.digestSelectStart, LightAssembler.outputStart, LightAssembler.roundsStart,
+      LightAssembler.freshStart]
+    omega
+
+/-- Every refresh piece reads only columns before `firstFresh` when every row of the refresh
+circuit does and `firstFresh` is after the shared words and the public columns. -/
+theorem refreshPieces_readOwnColumns
+    (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    {firstFresh : Nat}
+    (scope : ∀ constraint ∈ flatConstraints (refreshOps program relation),
+      constraint.VarsBelow firstFresh)
+    (sharedBelow :
+      RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount ≤ firstFresh)
+    (publicBelow : publicColumns ≤ firstFresh) :
+    (refreshPieces program relation ajtai).all (pieceBelow firstFresh) = true := by
+  rw [← piecesOf_refreshOps program relation ajtai]
+  refine split_below _ _ canonical_last fun constraint member => ?_
+  rcases List.mem_append.mp member with member | member
+  · exact scope constraint member
+  · refine decodeConstraints_below _ (fun word => ?_) (le_trans (by decide) publicBelow)
+      constraint member
+    have := word.isLt
+    refine lt_of_lt_of_le ?_ sharedBelow
+    rw [RefreshAssembler.sharedEnd_eq]
+    simp only [StepRelation.refreshDigestColumn, LightAssembler.digestsStart,
+      LightAssembler.slotsStart, LightAssembler.witnessStart, LightAssembler.slotWordCount]
+    omega
 
 /-- An honest light step's assignment (`LightAssemblerCompleteness.complete`) gives a fresh
 instance with public input `encHash` of the step's output hash that holds under the light key,

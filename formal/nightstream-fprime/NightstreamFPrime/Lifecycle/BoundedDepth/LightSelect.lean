@@ -254,4 +254,31 @@ theorem rows_congr (left right : Env)
         inverseEq recursiveEq pcEq selectorEq initialEq currentEq control, prior 0 priorZero⟩,
       prior 1 priorOne⟩, digest 0 digestZero⟩, digest 1 digestOne⟩
 
+section Scope
+
+variable {interface offset}
+
+/-- Every row of the light select reads only columns below `bound` when its words do. -/
+theorem rows_below {bound : Nat}
+    (below : DigestSelect.WordsBelow interface.toInterface offset bound)
+    (activeDigest : ∀ lane, (interface.activeDigest offset lane).VarsBelow bound) :
+    ∀ row ∈ rows interface offset, row.VarsBelow bound := by
+  intro row member
+  simp only [rows, List.mem_append] at member
+  rcases member with ((((control | control) | prior) | prior) | first) | second
+  · exact DigestSelect.controlRows_below below row (List.mem_append_left _ control)
+  · exact DigestSelect.controlRows_below below row (List.mem_append_right _ control)
+  · exact selectRows_below
+      (SlotSelect.isSelected_below _ offset below.selector 0)
+      (ofFn_below (below.priorDigest 0)) (ofFn_below activeDigest)
+      (ofFn_below (below.priorDigest 0)) row prior
+  · exact selectRows_below
+      (SlotSelect.isSelected_below _ offset below.selector 1)
+      (ofFn_below (below.priorDigest 1)) (ofFn_below activeDigest)
+      (ofFn_below (below.priorDigest 1)) row prior
+  · exact DigestSelect.digestRows_below below 0 row first
+  · exact DigestSelect.digestRows_below below 1 row second
+
+end Scope
+
 end NightstreamFPrime.Lifecycle.BoundedDepth.LightSelect

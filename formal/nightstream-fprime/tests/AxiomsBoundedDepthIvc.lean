@@ -320,6 +320,15 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.SlotWords.selectRows_congr
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect.rows_congr
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.LightSelect.rows_congr
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.SlotWords.selectRows_below
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.SlotWords.ofFn_below
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.SlotSelect.isSelected_below
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.SlotSelect.flagRows_below
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.SlotSelect.baseStateRows_below
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect.controlRows_below
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect.digestRows_below
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect.rows_below
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.LightSelect.rows_below
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect.controlRows_congr
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.DigestSelect.digestRows_congr
 #audit_axioms NightstreamFPrime.Layout.BoundedDepth.LightAssemblerCircuit.piccsRepresents
@@ -580,6 +589,14 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.exprBelow_iff
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.lanes_below
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.matchExpr_below
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.matchAll_below
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.matchTemplate_lanes_below
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.local_below
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.ringTemplate_last
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.recognize_below
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.splitAux_below
+#audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.split_below
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.output_of_constraints
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.fillQuotients_outside
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.fillQuotients_quotient
@@ -674,6 +691,12 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.digestColumn_above
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.piecesOf_lightOps
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.piecesOf_refreshOps
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.recipeConstraints_last
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.canonical_last
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.decodeFold_below
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.decodeConstraints_below
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.lightPieces_readOwnColumns
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.refreshPieces_readOwnColumns
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.light_complete
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepCompleteness.refresh_complete
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NativeCompleteness.blocks_eq
@@ -704,6 +727,8 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.normBounded_mono
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.Complete.packageWidth_zero
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.Complete.packageWidth_one
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.Complete.lightReadsOwnColumns
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.Complete.refreshReadsOwnColumns
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.light_extend
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.refresh_extend
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.BaseFold.check_zero

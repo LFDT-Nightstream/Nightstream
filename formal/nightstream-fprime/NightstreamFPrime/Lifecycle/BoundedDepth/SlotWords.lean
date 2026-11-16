@@ -171,4 +171,28 @@ theorem selectRows_congr (left right : Env) (condition : Expr)
   | _ :: _, [], _, _, _, _, _ => fun _ member => by simp [selectRows] at member
   | _ :: _, _ :: _, [], _, _, _, _ => fun _ member => by simp [selectRows] at member
 
+/-- The select rows read the condition and the words. -/
+theorem selectRows_below {bound : Nat} {condition : Expr}
+    (conditionBelow : condition.VarsBelow bound)
+    {left right out : List Expr} (leftBelow : ∀ word ∈ left, word.VarsBelow bound)
+    (rightBelow : ∀ word ∈ right, word.VarsBelow bound)
+    (outBelow : ∀ word ∈ out, word.VarsBelow bound) :
+    ∀ row ∈ selectRows condition left right out, row.VarsBelow bound := by
+  intro row member
+  simp only [selectRows, List.mem_map] at member
+  obtain ⟨⟨⟨leftWord, rightWord⟩, outWord⟩, inside, rfl⟩ := member
+  obtain ⟨pairs, outMember⟩ := List.of_mem_zip inside
+  obtain ⟨leftMember, rightMember⟩ := List.of_mem_zip pairs
+  exact Expr.VarsBelow.sub _ _ _
+    (Expr.VarsBelow.sub _ _ _ (outBelow _ outMember) (leftBelow _ leftMember))
+    (Expr.VarsBelow.mul _ _ _ conditionBelow
+      (Expr.VarsBelow.sub _ _ _ (rightBelow _ rightMember) (leftBelow _ leftMember)))
+
+theorem ofFn_below {bound : Nat} {words : Fin 4 → Expr}
+    (below : ∀ lane, (words lane).VarsBelow bound) :
+    ∀ word ∈ List.ofFn words, word.VarsBelow bound := by
+  intro word member
+  obtain ⟨lane, rfl⟩ := List.mem_ofFn.mp member
+  exact below lane
+
 end NightstreamFPrime.Lifecycle.BoundedDepth.SlotWords

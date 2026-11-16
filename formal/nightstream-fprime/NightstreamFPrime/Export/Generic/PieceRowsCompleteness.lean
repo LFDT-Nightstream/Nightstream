@@ -8,7 +8,8 @@ by `QuotientProduct.quotient` (`executePieces`). The result agrees with the envi
 the fresh columns, and every lowered row holds in it (`executePieces_spec`).
 
 The proof needs every piece to read only columns below the first fresh column (`pieceBelow`).
-That is a computed check, as `CircuitRelation.packable` is. -/
+The pieces of constraints that read only columns below a bound do (`split_below`): a block's
+lanes are subterms of its constraints, and its last local starts one of them. -/
 
 set_option autoImplicit false
 
@@ -57,6 +58,233 @@ theorem lanes_below {bound : Nat} {lanes : List Expr} (below : lanes.all (exprBe
     exact (exprBelow_iff bound _).mp (List.all_eq_true.mp below _ (List.getElem_mem inside))
   · rw [List.getD_eq_default _ _ (by omega)]
     trivial
+
+/-! ### The scope of split pieces -/
+
+/-- Each expression that `matchExpr` binds is a subterm of its target. -/
+theorem matchExpr_below {inputs start bound : Nat} :
+    ∀ (pattern target : Expr) (binding result : Array (Option Expr)),
+      matchExpr inputs start pattern target binding = some result → target.VarsBelow bound →
+        (∀ (index : Nat) (expression : Expr), binding[index]? = some (some expression) →
+          expression.VarsBelow bound) →
+        ∀ (index : Nat) (expression : Expr), result[index]? = some (some expression) →
+          expression.VarsBelow bound
+  | .var column, target, binding, result, found, targetBelow, bindingBelow => by
+      unfold matchExpr at found
+      by_cases small : column < inputs
+      · simp only [small, ↓reduceIte] at found
+        split at found
+        · split at found
+          · cases found
+            exact bindingBelow
+          · cases found
+        · cases found
+          intro index expression entry
+          rw [Array.getElem?_modify] at entry
+          split_ifs at entry with same
+          · subst same
+            cases inside : binding[column]? with
+            | none => simp [inside] at entry
+            | some old =>
+                simp only [inside, Option.map_some, Option.some.injEq] at entry
+                subst entry
+                exact targetBelow
+          · exact bindingBelow index expression entry
+      · simp only [small, ↓reduceIte] at found
+        split at found
+        · cases found
+          exact bindingBelow
+        · cases found
+  | .const value, target, binding, result, found, _, bindingBelow => by
+      cases target with
+      | const other =>
+          simp only [matchExpr] at found
+          split at found
+          · cases found
+            exact bindingBelow
+          · cases found
+      | _ => simp [matchExpr] at found
+  | .add left right, target, binding, result, found, targetBelow, bindingBelow => by
+      cases target with
+      | add otherLeft otherRight =>
+          simp only [matchExpr, Option.bind_eq_some_iff] at found
+          obtain ⟨middle, leftFound, rightFound⟩ := found
+          exact matchExpr_below right otherRight middle result rightFound targetBelow.2
+            (matchExpr_below left otherLeft binding middle leftFound targetBelow.1 bindingBelow)
+      | _ => simp [matchExpr] at found
+  | .mul left right, target, binding, result, found, targetBelow, bindingBelow => by
+      cases target with
+      | mul otherLeft otherRight =>
+          simp only [matchExpr, Option.bind_eq_some_iff] at found
+          obtain ⟨middle, leftFound, rightFound⟩ := found
+          exact matchExpr_below right otherRight middle result rightFound targetBelow.2
+            (matchExpr_below left otherLeft binding middle leftFound targetBelow.1 bindingBelow)
+      | _ => simp [matchExpr] at found
+
+/-- Each expression that `matchAll` binds is a subterm of one of its targets. -/
+theorem matchAll_below {inputs start bound : Nat} :
+    ∀ (patterns targets : List Expr) (binding result : Array (Option Expr)),
+      matchAll inputs start patterns targets binding = some result →
+      (∀ target ∈ targets, target.VarsBelow bound) →
+        (∀ (index : Nat) (expression : Expr), binding[index]? = some (some expression) →
+          expression.VarsBelow bound) →
+        ∀ (index : Nat) (expression : Expr), result[index]? = some (some expression) →
+          expression.VarsBelow bound
+  | [], _, binding, result, found, _, below => by
+      simp only [matchAll, Option.some.injEq] at found
+      exact found ▸ below
+  | pattern :: patterns, target :: targets, binding, result, found, targetsBelow, below => by
+      simp only [matchAll, Option.bind_eq_some_iff] at found
+      obtain ⟨middle, first, rest⟩ := found
+      exact matchAll_below patterns targets middle result rest
+        (fun other member => targetsBelow other (List.mem_cons_of_mem _ member))
+        (matchExpr_below pattern target binding middle first
+          (targetsBelow target List.mem_cons_self) below)
+  | _ :: _, [], _, _, found, _, _ => by simp [matchAll] at found
+
+/-- The lanes of a matched template are subterms of the constraints, so they read only columns
+below a bound of the constraints. -/
+theorem matchTemplate_lanes_below {inputs bound start : Nat}
+    {template constraints lanes : List Expr}
+    (found : matchTemplate inputs template constraints = some (start, lanes))
+    (scope : ∀ constraint ∈ constraints, constraint.VarsBelow bound) :
+    ∀ lane ∈ lanes, lane.VarsBelow bound := by
+  unfold matchTemplate at found
+  simp only [Option.bind_eq_some_iff] at found
+  obtain ⟨_, _, binding, matched, h⟩ := found
+  split at h
+  · simp only [Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨-, rfl⟩ := h
+    have below := matchAll_below _ _ _ _ matched scope (fun index expression entry => by
+      simp [Array.getElem?_replicate] at entry)
+    intro lane member
+    simp only [lanesOf, List.mem_map, List.mem_range] at member
+    obtain ⟨index, _, rfl⟩ := member
+    cases entry : binding[index]? with
+    | none =>
+        simp only [Array.getD_eq_getD_getElem?, entry, Option.getD_none]
+        trivial
+    | some value =>
+        cases value with
+        | none =>
+            simp only [Array.getD_eq_getD_getElem?, entry, Option.getD_some, Option.getD_none]
+            trivial
+        | some expression =>
+            simp only [Array.getD_eq_getD_getElem?, entry, Option.getD_some]
+            exact below index expression entry
+  · simp at h
+
+/-- A local column `start + index` of a block whose template has a constraint that starts with
+the local `inputs + index` is below a bound of the block's constraints. -/
+theorem local_below {inputs start index bound : Nat} {lanes template : List Expr} {rest : Expr}
+    (member : Expr.var (inputs + index) - rest ∈ template)
+    (scope : ∀ constraint ∈ template.map (subst (laneSubst inputs start lanes)),
+      constraint.VarsBelow bound) :
+    start + index < bound := by
+  have below := scope _ (List.mem_map_of_mem member)
+  change (laneSubst inputs start lanes (inputs + index)).VarsBelow bound ∧ _ at below
+  rw [laneSubst_local] at below
+  exact below.1
+
+theorem ringTemplate_last (cells : Nat) (positive : 0 < cells) :
+    ∃ rest, Expr.var (ringInputs cells + (ringDegree * cells - 1)) - rest ∈
+      ringTemplate cells := by
+  have inside : ringDegree * cells - 1 < ringDegree * cells := by
+    have : 0 < ringDegree * cells := Nat.mul_pos (by decide) positive
+    omega
+  exact ⟨_, List.mem_ofFn.mpr ⟨⟨ringDegree * cells - 1, inside⟩, rfl⟩⟩
+
+/-- A block piece that `recognize` finds at the head of constraints that read only columns below
+`bound` reads only columns below `bound`, when the last local of the permutation template starts
+one of its constraints. -/
+theorem recognize_below {canonical constraints : List Expr} {piece : Piece} {bound : Nat}
+    (last : ∃ rest, Expr.var (16 + 1095) - rest ∈ canonical)
+    (found : recognize canonical constraints = some piece)
+    (scope : ∀ constraint ∈ constraints, constraint.VarsBelow bound) :
+    pieceBelow bound piece = true := by
+  have inside : ∀ constraint ∈ piece.constraints canonical, constraint.VarsBelow bound :=
+    fun constraint member => scope constraint ((recognize_spec found).1.subset member)
+  have lanesBelow : ∀ {inputs start : Nat} {template lanes : List Expr},
+      matchTemplate inputs template constraints = some (start, lanes) →
+        lanes.all (exprBelow bound) = true := fun matched =>
+    List.all_eq_true.mpr fun lane member =>
+      (exprBelow_iff bound lane).mpr (matchTemplate_lanes_below matched scope lane member)
+  unfold recognize at found
+  split at found
+  · rename_i start lanes matched
+    cases found
+    obtain ⟨rest, member⟩ := last
+    have localBelow := local_below member inside
+    simp only [pieceBelow, Bool.and_eq_true, decide_eq_true_eq]
+    exact ⟨lanesBelow matched, by omega⟩
+  · split at found
+    · rename_i start lanes matched
+      cases found
+      obtain ⟨rest, member⟩ := ringTemplate_last 1 (by decide)
+      have localBelow := local_below member inside
+      simp only [pieceBelow, Bool.and_eq_true, decide_eq_true_eq]
+      refine ⟨lanesBelow matched, ?_⟩
+      have : 0 < ringDegree * 1 := by decide
+      omega
+    · split at found
+      · rename_i start lanes matched
+        cases found
+        obtain ⟨rest, member⟩ := ringTemplate_last 2 (by decide)
+        have localBelow := local_below member inside
+        simp only [pieceBelow, Bool.and_eq_true, decide_eq_true_eq]
+        refine ⟨lanesBelow matched, ?_⟩
+        have : 0 < ringDegree * 2 := by decide
+        omega
+      · cases found
+
+theorem splitAux_below (canonical : List Expr) {bound : Nat}
+    (last : ∃ rest, Expr.var (16 + 1095) - rest ∈ canonical) :
+    ∀ (fuel : Nat) (constraints : List Expr) (pieces : List Piece),
+      (∀ constraint ∈ constraints, constraint.VarsBelow bound) →
+      (∀ piece ∈ pieces, pieceBelow bound piece = true) →
+        ∀ piece ∈ splitAux canonical fuel constraints pieces,
+          pieceBelow bound piece = true := by
+  intro fuel
+  induction fuel with
+  | zero =>
+      intro constraints pieces scope below piece member
+      simp only [splitAux, List.mem_append, List.mem_reverse, List.mem_map] at member
+      rcases member with member | ⟨constraint, constraintMember, rfl⟩
+      · exact below piece member
+      · exact (exprBelow_iff bound constraint).mpr (scope constraint constraintMember)
+  | succ fuel ih =>
+      intro constraints pieces scope below
+      cases constraints with
+      | nil =>
+          intro piece member
+          simp only [splitAux, List.mem_reverse] at member
+          exact below piece member
+      | cons constraint rest =>
+          simp only [splitAux]
+          split
+          · rename_i found _ found'
+            apply ih
+            · exact fun other member => scope other (List.mem_of_mem_drop member)
+            · intro piece member
+              simp only [List.mem_cons] at member
+              rcases member with rfl | member
+              · exact recognize_below last found' scope
+              · exact below piece member
+          · apply ih
+            · exact fun other member => scope other (List.mem_cons_of_mem _ member)
+            · intro piece member
+              simp only [List.mem_cons] at member
+              rcases member with rfl | member
+              · exact (exprBelow_iff bound constraint).mpr (scope constraint List.mem_cons_self)
+              · exact below piece member
+
+/-- The pieces of constraints that read only columns below `bound` read only columns below
+`bound`. -/
+theorem split_below (canonical constraints : List Expr) {bound : Nat}
+    (last : ∃ rest, Expr.var (16 + 1095) - rest ∈ canonical)
+    (scope : ∀ constraint ∈ constraints, constraint.VarsBelow bound) :
+    (split canonical constraints).all (pieceBelow bound) = true :=
+  List.all_eq_true.mpr (splitAux_below canonical last _ constraints [] scope (by simp))
 
 /-! ### Ring products -/
 

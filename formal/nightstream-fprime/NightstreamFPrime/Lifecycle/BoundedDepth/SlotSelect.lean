@@ -105,4 +105,35 @@ theorem natWord_eq_zero {count : Nat} (bound : count < fieldModulus) :
   · rintro rfl
     rfl
 
+theorem isSelected_below {bound : Nat} (selector : (interface.selector offset).VarsBelow bound)
+    (slot : Fin 2) : (isSelected interface offset slot).VarsBelow bound := by
+  unfold isSelected
+  split
+  · exact Expr.VarsBelow.sub _ _ _ trivial selector
+  · exact selector
+
+theorem flagRows_below {bound : Nat} (iteration : (interface.iteration offset).VarsBelow bound)
+    (inverse : (interface.inverse offset).VarsBelow bound)
+    (recursive : (interface.recursive offset).VarsBelow bound)
+    (priorPc : (interface.priorPc offset).VarsBelow bound)
+    (selector : (interface.selector offset).VarsBelow bound) :
+    ∀ row ∈ flagRows interface offset, row.VarsBelow bound := by
+  intro row member
+  simp only [flagRows, List.mem_cons, List.not_mem_nil, or_false] at member
+  rcases member with rfl | rfl | rfl | rfl
+  · exact Expr.VarsBelow.sub _ _ _ recursive (Expr.VarsBelow.mul _ _ _ iteration inverse)
+  · exact Expr.VarsBelow.mul _ _ _ iteration (Expr.VarsBelow.sub _ _ _ trivial recursive)
+  · exact Expr.VarsBelow.mul _ _ _ selector (Expr.VarsBelow.sub _ _ _ selector trivial)
+  · exact Expr.VarsBelow.mul _ _ _ recursive
+      (Expr.VarsBelow.sub _ _ _ (Expr.VarsBelow.sub _ _ _ priorPc selector) trivial)
+
+theorem baseStateRows_below {bound : Nat} (recursive : (interface.recursive offset).VarsBelow bound)
+    (initialState : ∀ lane, (interface.initialState offset lane).VarsBelow bound)
+    (currentState : ∀ lane, (interface.currentState offset lane).VarsBelow bound) :
+    ∀ row ∈ baseStateRows interface offset, row.VarsBelow bound := by
+  intro row member
+  obtain ⟨lane, rfl⟩ := List.mem_ofFn.mp member
+  exact Expr.VarsBelow.mul _ _ _ (Expr.VarsBelow.sub _ _ _ trivial recursive)
+    (Expr.VarsBelow.sub _ _ _ (initialState lane) (currentState lane))
+
 end NightstreamFPrime.Lifecycle.BoundedDepth.SlotSelect

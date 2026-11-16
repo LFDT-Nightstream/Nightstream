@@ -8,10 +8,10 @@ the witness batches to the batches of its operations (`lightBatches`, `refreshBa
 slot layout of each package is `SlotLayout.layout` of its slot runs, widened to the key width.
 
 Lean proves the other fields of the bundles from these choices: the slot layouts, the public
-columns inside the source width, and the first fresh column after the public columns. `Facts`
-holds each fact that the bundles need and that Lean does not prove for the emitted packages:
-the row, column and block bounds (`CircuitRelation.Fits`), the key width of the slot layout, and
-the three checks that the emitter runs before it writes a package. -/
+columns inside the source width, and the first fresh column after the public columns and at the
+end of the circuit's locals. `Facts` holds each fact that the bundles need and that Lean does not
+prove for the emitted packages: the row, column and block bounds (`CircuitRelation.Fits`), the key
+width of the slot layout, and two checks that the emitter runs before it writes a package. -/
 
 set_option autoImplicit false
 
@@ -88,8 +88,8 @@ of the bundle unfolds the operations of a circuit. `Emitted` fixes them to the e
 variable (lightFresh refreshFresh : Nat) (lightBatches refreshBatches : List WitnessBatch)
 
 /-- The facts of the two packages of `program` that Lean does not prove. The emitter checks the
-three facts `BlocksPack`, `ReadsOwnColumns` and `ReadsNoPublicColumn` of each package before it
-writes the package. It prints the sizes of `FitsPackage` but does not check them. -/
+two facts `BlocksPack` and `ReadsNoPublicColumn` of each package before it writes the package. It
+prints the sizes of `FitsPackage` but does not check them. -/
 structure Facts where
   /-- The rows, the columns and the Poseidon2 blocks of the light package fit its size. -/
   lightFitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns
@@ -113,13 +113,6 @@ structure Facts where
   refreshBlocksPack :
     CircuitRelation.packable CircuitRelation.publicColumns (refreshPieces program relation ajtai) =
       true
-  /-- Each piece of the light package reads only columns before its first fresh column. -/
-  lightReadsOwnColumns : (lightPieces program relation ajtai).all
-    (PieceRowsCompleteness.pieceBelow lightFresh) = true
-  /-- Each piece of the refresh package reads only columns before its first fresh
-    column. -/
-  refreshReadsOwnColumns : (refreshPieces program relation ajtai).all
-    (PieceRowsCompleteness.pieceBelow refreshFresh) = true
   /-- No row of the light circuit reads a public column. -/
   lightReadsNoPublicColumn : publicFree (flatConstraints (Circuit.ops
     (LightAssemblerCircuit.stepCircuit program StepRelation.base relation 0 ajtai).main
@@ -172,7 +165,7 @@ def Facts.exports
   refreshKey := refreshKey
 
 /-- The completeness bundle of the two packages, when each first fresh column is after the
-public columns. -/
+public columns and at or after the end of its circuit's locals. -/
 def Facts.complete
     (facts : Facts program relation ajtai lightFresh refreshFresh lightBatches refreshBatches)
     (lightKey : (circuitKeys 0).relation =
@@ -182,20 +175,24 @@ def Facts.complete
       (CircuitRelation.plan _ _ refreshFresh sourceWidth facts.refreshFitsPackage
         facts.refreshLayout).logicalRelation (publicFits := publicFits) cubeFits)
     (lightPublicBelow : CircuitRelation.publicColumns ≤ lightFresh)
-    (refreshPublicBelow : CircuitRelation.publicColumns ≤ refreshFresh) :
+    (refreshPublicBelow : CircuitRelation.publicColumns ≤ refreshFresh)
+    (lightAfterLocals : LightAssembler.sharedEnd StepRelation.base program.witnessWordCount +
+      localLength (lightOps program relation) ≤ lightFresh)
+    (refreshAfterLocals : RefreshAssembler.sharedEnd StepRelation.base program.witnessWordCount +
+      localLength (refreshOps program relation) ≤ refreshFresh) :
     StepExtend.Complete (facts.exports lightKey refreshKey) where
   lightBatches := lightBatches
   lightFitsKeyWidth := facts.lightFitsKeyWidth
   lightLayout := by dsimp only [Facts.exports]; rfl
   lightBlocksPack := facts.lightBlocksPack
-  lightReadsOwnColumns := facts.lightReadsOwnColumns
+  lightFreshAfterLocals := lightAfterLocals
   lightPublicBelow := lightPublicBelow
   lightReadsNoPublicColumn := facts.lightReadsNoPublicColumn
   refreshBatches := refreshBatches
   refreshFitsKeyWidth := facts.refreshFitsKeyWidth
   refreshLayout := by dsimp only [Facts.exports]; rfl
   refreshBlocksPack := facts.refreshBlocksPack
-  refreshReadsOwnColumns := facts.refreshReadsOwnColumns
+  refreshFreshAfterLocals := refreshAfterLocals
   refreshPublicBelow := refreshPublicBelow
   refreshReadsNoPublicColumn := facts.refreshReadsNoPublicColumn
 
@@ -210,7 +207,8 @@ variable {program relation ajtai}
   {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
 
 /-- The completeness bundle of the two emitted packages. Their first fresh columns are after the
-public columns (`publicColumns_le_lightFresh`, `publicColumns_le_refreshFresh`). -/
+public columns (`publicColumns_le_lightFresh`, `publicColumns_le_refreshFresh`), and they are the
+ends of the circuits' locals (`lightFresh`, `refreshFresh`). -/
 def Emitted.complete (facts : Emitted program relation ajtai)
     (lightKey : (circuitKeys 0).relation =
       (CircuitRelation.plan _ _ (lightFresh program relation) sourceWidth facts.lightFitsPackage
@@ -220,6 +218,6 @@ def Emitted.complete (facts : Emitted program relation ajtai)
         facts.refreshLayout).logicalRelation (publicFits := publicFits) cubeFits) :
     StepExtend.Complete (facts.exports lightKey refreshKey) :=
   Facts.complete facts lightKey refreshKey (publicColumns_le_lightFresh program relation)
-    (publicColumns_le_refreshFresh program relation)
+    (publicColumns_le_refreshFresh program relation) (Nat.le_refl _) (Nat.le_refl _)
 
 end NightstreamFPrime.Export.BoundedDepth.EmittedPackages

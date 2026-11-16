@@ -18,8 +18,11 @@ logical width of their circuit's package (`Complete.packageWidth`, `BlockSupport
 fresh witness is zero past that width (`StepCompleteness.light_complete`), and the folds keep
 zero blocks (`FoldCompleteness`).
 
-The keys must carry the exported relations at the packages' widened slot layouts, and the
-packages must pass the emitter's completeness checks (`Complete`). -/
+The keys must carry the exported relations at the packages' widened slot layouts, the packages
+must pass the emitter's completeness checks, and the first fresh column of each package must be at
+or after the end of its circuit's locals (`Complete`). Then each piece of a package reads only
+columns before its first fresh column, because each row of an honest step's circuit reads only
+columns before the end of its locals (`Complete.lightReadsOwnColumns`). -/
 
 set_option autoImplicit false
 
@@ -54,7 +57,8 @@ variable {logicalWidth : Nat}
   {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
 
 /-- The setup's keys carry the exported relations at the step packages' slot layouts widened to
-the key width, and both packages pass the emitter's completeness checks. -/
+the key width, both packages pass the emitter's completeness checks, and the first fresh column of
+each package is at or after the end of its circuit's locals. -/
 structure Complete (exports : Exports relation ajtai circuitKeys step cubeFits) where
   lightBatches : List WitnessBatch
   lightFitsKeyWidth : ProductionAssignment.logicalWidth (SlotLayout.runSlots exports.lightWidth
@@ -62,8 +66,8 @@ structure Complete (exports : Exports relation ajtai circuitKeys step cubeFits) 
       exports.lightFresh lightBatches)) ≤ logicalWidth
   lightLayout : exports.lightLayout = WideLayout.widen (SlotLayout.layout _) lightFitsKeyWidth
   lightBlocksPack : packable publicColumns (lightPieces exports.program relation ajtai) = true
-  lightReadsOwnColumns : (lightPieces exports.program relation ajtai).all (pieceBelow exports.lightFresh) =
-    true
+  lightFreshAfterLocals : LightAssembler.sharedEnd base exports.program.witnessWordCount +
+    localLength (lightOps exports.program relation) ≤ exports.lightFresh
   lightPublicBelow : publicColumns ≤ exports.lightFresh
   lightReadsNoPublicColumn : publicFree (flatConstraints (Circuit.ops
     (LightAssemblerCircuit.stepCircuit exports.program base relation 0 ajtai).main
@@ -74,12 +78,40 @@ structure Complete (exports : Exports relation ajtai circuitKeys step cubeFits) 
       exports.refreshFresh refreshBatches)) ≤ logicalWidth
   refreshLayout : exports.refreshLayout = WideLayout.widen (SlotLayout.layout _) refreshFitsKeyWidth
   refreshBlocksPack : packable publicColumns (refreshPieces exports.program relation ajtai) = true
-  refreshReadsOwnColumns : (refreshPieces exports.program relation ajtai).all
-    (pieceBelow exports.refreshFresh) = true
+  refreshFreshAfterLocals : RefreshAssembler.sharedEnd base exports.program.witnessWordCount +
+    localLength (refreshOps exports.program relation) ≤ exports.refreshFresh
   refreshPublicBelow : publicColumns ≤ exports.refreshFresh
   refreshReadsNoPublicColumn : publicFree (flatConstraints (Circuit.ops
     (RefreshAssemblerCircuit.stepCircuit exports.program base relation 1 ajtai).main
     (RefreshAssembler.sharedEnd base exports.program.witnessWordCount))) = true
+
+/-- Every light piece reads only columns before the light package's first fresh column, when every
+row of the light circuit reads only columns before the end of its locals
+(`LightAssemblerCompleteness.complete`). -/
+theorem Complete.lightReadsOwnColumns {exports : Exports relation ajtai circuitKeys step cubeFits}
+    (complete : Complete exports)
+    (scope : ∀ constraint ∈ flatConstraints (lightOps exports.program relation),
+      constraint.VarsBelow (LightAssembler.sharedEnd base exports.program.witnessWordCount +
+        localLength (lightOps exports.program relation))) :
+    (lightPieces exports.program relation ajtai).all (pieceBelow exports.lightFresh) = true :=
+  lightPieces_readOwnColumns exports.program relation ajtai
+    (fun constraint member => Expr.VarsBelow.mono constraint (scope constraint member)
+      complete.lightFreshAfterLocals)
+    (le_trans (Nat.le_add_right _ _) complete.lightFreshAfterLocals) complete.lightPublicBelow
+
+/-- Every refresh piece reads only columns before the refresh package's first fresh column, when
+every row of the refresh circuit reads only columns before the end of its locals
+(`RefreshAssemblerCompleteness.complete`). -/
+theorem Complete.refreshReadsOwnColumns
+    {exports : Exports relation ajtai circuitKeys step cubeFits} (complete : Complete exports)
+    (scope : ∀ constraint ∈ flatConstraints (refreshOps exports.program relation),
+      constraint.VarsBelow (RefreshAssembler.sharedEnd base exports.program.witnessWordCount +
+        localLength (refreshOps exports.program relation))) :
+    (refreshPieces exports.program relation ajtai).all (pieceBelow exports.refreshFresh) = true :=
+  refreshPieces_readOwnColumns exports.program relation ajtai
+    (fun constraint member => Expr.VarsBelow.mono constraint (scope constraint member)
+      complete.refreshFreshAfterLocals)
+    (le_trans (Nat.le_add_right _ _) complete.refreshFreshAfterLocals) complete.refreshPublicBelow
 
 /-- The logical width of circuit `circuit`'s package: the columns of its slot layout before the
 key widens them, as the emitter prints it (`EmitMain.emitPackage`). Slot `circuit` accumulates
@@ -229,8 +261,8 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
       exact depthLt
     · rw [nextOther slot same]
       exact honest.depth slot
-  obtain ⟨env, rows, represents⟩ := LightAssemblerCompleteness.complete exports.program relation
-    base ajtai circuitKeys step control 0 rfl exports.programStep input output proof selected
+  obtain ⟨scope, env, rows, represents⟩ := LightAssemblerCompleteness.complete exports.program
+    relation base ajtai circuitKeys step control 0 rfl exports.programStep input output proof selected
     folded stepHolds valid
     (fun _ => by
       show payload.pc = (payload.pc - 1) + 1
@@ -241,8 +273,9 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
     statementValid.2.2 nextLength witnessLength
   obtain ⟨assignment, freshNext, freshZero⟩ := light_complete exports.program relation ajtai
     circuitKeys input output proof env rows represents complete.lightReadsNoPublicColumn exports.lightFresh
-    exports.lightWidth exports.lightFitsPackage complete.lightBlocksPack complete.lightReadsOwnColumns
-    complete.lightPublicBelow complete.lightBatches complete.lightFitsKeyWidth cubeFits
+    exports.lightWidth exports.lightFitsPackage complete.lightBlocksPack
+    (complete.lightReadsOwnColumns scope) complete.lightPublicBelow complete.lightBatches
+    complete.lightFitsKeyWidth cubeFits
   have keyEq : (circuitKeys 0).relation = (CircuitRelation.plan publicColumns _ exports.lightFresh
       exports.lightWidth exports.lightFitsPackage
       (WideLayout.widen (SlotLayout.layout _) complete.lightFitsKeyWidth)).logicalRelation
@@ -377,8 +410,8 @@ theorem refresh_extend (exports : Exports relation ajtai circuitKeys step cubeFi
       exact Nat.zero_le _
     · rw [nextOther slot same]
       exact honest.depth slot
-  obtain ⟨env, rows, represents⟩ := RefreshAssemblerCompleteness.complete exports.program relation
-    base ajtai circuitKeys step control 1 rfl exports.programStep input output proof selected
+  obtain ⟨scope, env, rows, represents⟩ := RefreshAssemblerCompleteness.complete exports.program
+    relation base ajtai circuitKeys step control 1 rfl exports.programStep input output proof selected
     folded stepHolds valid
     (fun _ => by
       show payload.pc = (payload.pc - 1) + 1
@@ -389,8 +422,8 @@ theorem refresh_extend (exports : Exports relation ajtai circuitKeys step cubeFi
     statementValid.2.2 nextLength witnessLength
   obtain ⟨assignment, freshNext, freshZero⟩ := refresh_complete exports.program relation ajtai
     circuitKeys input output proof env rows represents complete.refreshReadsNoPublicColumn exports.refreshFresh
-    exports.refreshWidth exports.refreshFitsPackage complete.refreshBlocksPack complete.refreshReadsOwnColumns
-    complete.refreshPublicBelow complete.refreshBatches complete.refreshFitsKeyWidth cubeFits
+    exports.refreshWidth exports.refreshFitsPackage complete.refreshBlocksPack
+    (complete.refreshReadsOwnColumns scope) complete.refreshPublicBelow complete.refreshBatches complete.refreshFitsKeyWidth cubeFits
   have keyEq : (circuitKeys 1).relation = (CircuitRelation.plan publicColumns _
       exports.refreshFresh exports.refreshWidth exports.refreshFitsPackage
       (WideLayout.widen (SlotLayout.layout _) complete.refreshFitsKeyWidth)).logicalRelation
@@ -491,8 +524,9 @@ theorem base_extend (exports : Exports relation ajtai circuitKeys step cubeFits)
         ((setup Schedule.productionLightFoldCap ajtai circuitKeys).forCircuit 0) input))) := by
     rw [priorSame]
     rfl
-  obtain ⟨env, rows, represents⟩ := LightAssemblerCompleteness.complete exports.program relation
-    base ajtai circuitKeys step control 0 rfl exports.programStep input output BaseFold.zeroProof 0
+  obtain ⟨scope, env, rows, represents⟩ := LightAssemblerCompleteness.complete exports.program
+    relation base ajtai circuitKeys step control 0 rfl exports.programStep input output
+    BaseFold.zeroProof 0
     folded stepHolds valid (fun nonzero => absurd iterationZero nonzero) freshPublic
     (fun nonzero => absurd iterationZero nonzero) accepted
     (show (0 : Nat) < Schedule.productionLightFoldCap by decide) statementValid.1
@@ -502,7 +536,8 @@ theorem base_extend (exports : Exports relation ajtai circuitKeys step cubeFits)
   obtain ⟨assignment, freshNext, freshZero⟩ := light_complete exports.program relation ajtai
     circuitKeys input output BaseFold.zeroProof env rows represents complete.lightReadsNoPublicColumn
     exports.lightFresh exports.lightWidth exports.lightFitsPackage complete.lightBlocksPack
-    complete.lightReadsOwnColumns complete.lightPublicBelow complete.lightBatches complete.lightFitsKeyWidth cubeFits
+    (complete.lightReadsOwnColumns scope) complete.lightPublicBelow complete.lightBatches
+    complete.lightFitsKeyWidth cubeFits
   have keyEq : (circuitKeys 0).relation = (CircuitRelation.plan publicColumns _ exports.lightFresh
       exports.lightWidth exports.lightFitsPackage
       (WideLayout.widen (SlotLayout.layout _) complete.lightFitsKeyWidth)).logicalRelation

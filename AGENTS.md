@@ -50,6 +50,15 @@ value.
 - Sign off every commit (`git commit -s`).
 - Keep each file under 1,500 lines unless the user approves more.
 
+## Pull requests
+
+- Open a PR only when the user requests it or approves it in the current
+  task. Do not guess that the user wants a PR.
+- A study or a prototype does not get a PR. Keep its work local, and do not
+  push it. The user can discard it.
+- When the user approves a PR, put all the work of the task in that PR. Do
+  not open a second PR unless the user requests it.
+
 ## Tests
 
 - Put tests in `tests/`, not in the implementation file.

@@ -48,6 +48,9 @@ value.
   backwards compatibility.
 - Do not add Rust features or environment variables without approval.
 - Sign off every commit (`git commit -s`).
+- Do not name an AI tool or model as an author. A commit gets no
+  `Co-Authored-By` line for an AI. A PR description gets no "Generated
+  with" line. A branch name gets no AI-tool prefix, for example `claude/`.
 - Keep each file under 1,500 lines unless the user approves more.
 
 ## Pull requests

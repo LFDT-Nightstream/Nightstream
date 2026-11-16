@@ -461,14 +461,6 @@ impl<Ff> CcsMatrix<Ff> {
         }
     }
 
-    pub fn sparse_component(&self) -> Option<&CscMat<Ff>> {
-        match self {
-            CcsMatrix::Identity { .. } => None,
-            CcsMatrix::Csc(csc) | CcsMatrix::CscWithGeometricRuns { csc, .. } => Some(csc),
-            CcsMatrix::VerifierArtifact { .. } => None,
-        }
-    }
-
     pub fn geometric_runs(&self) -> &[GeometricRowRun<Ff>] {
         match self {
             CcsMatrix::CscWithGeometricRuns { geometric_runs, .. } => geometric_runs,

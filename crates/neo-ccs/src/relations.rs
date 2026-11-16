@@ -432,16 +432,6 @@ pub struct CeClaim<C, F, K> {
     pub adv: Option<LaneCommitments<C>>,
 }
 
-impl<C, F, K> CeClaim<C, F, K> {
-    pub fn evaluation_families(&self) -> impl Iterator<Item = &[K]> {
-        std::iter::once(self.eval_k.as_slice()).chain(self.eval_a.iter().map(Vec::as_slice))
-    }
-
-    pub fn evaluation_family_count(&self) -> usize {
-        1 + self.eval_a.len()
-    }
-}
-
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(bound(
     serialize = "F: serde::Serialize",

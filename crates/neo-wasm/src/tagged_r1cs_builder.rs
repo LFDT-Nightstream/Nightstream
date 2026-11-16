@@ -21,16 +21,6 @@ pub enum WasmConstraintScope {
     Opcodes(Box<[WasmOpcode]>),
 }
 
-impl WasmConstraintScope {
-    pub fn applies_to(&self, opcode: WasmOpcode) -> bool {
-        match self {
-            Self::Always | Self::HostEvent => true,
-            Self::Opcode(single) => *single == opcode,
-            Self::Opcodes(opcodes) => opcodes.contains(&opcode),
-        }
-    }
-}
-
 impl std::fmt::Display for WasmConstraintScope {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -139,28 +129,11 @@ pub fn count_shared_rows_for_opcode(catalog: &WasmConstraintCatalog, opcode: Was
         .count()
 }
 
-pub fn rows_for_opcode(catalog: &WasmConstraintCatalog, opcode: WasmOpcode) -> Vec<usize> {
-    catalog
-        .rows()
-        .iter()
-        .enumerate()
-        .filter_map(|(index, row)| row.tag().owner().applies_to(opcode).then_some(index))
-        .collect()
-}
-
 pub fn count_owned_by_opcode(catalog: &WasmConstraintCatalog, opcode: WasmOpcode) -> usize {
     catalog
         .rows()
         .iter()
         .filter(|row| matches!(row.tag().owner(), WasmConstraintScope::Opcode(single) if *single == opcode))
-        .count()
-}
-
-pub fn count_for_opcode(catalog: &WasmConstraintCatalog, opcode: WasmOpcode) -> usize {
-    catalog
-        .rows()
-        .iter()
-        .filter(|row| row.tag().owner().applies_to(opcode))
         .count()
 }
 

@@ -201,10 +201,6 @@ impl StepPackage {
         self.application.witness_words
     }
 
-    pub fn witness_batch_count(&self) -> usize {
-        self.witness.len()
-    }
-
     pub fn block_count(&self) -> usize {
         self.blocks().count()
     }

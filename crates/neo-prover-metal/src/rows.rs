@@ -28,15 +28,6 @@ impl MetalRowProver {
         self.session.keep_production_key();
     }
 
-    /// Device bytes a kept commitment key holds over `columns` commitment
-    /// columns, at 8 bytes per key coefficient.
-    pub fn commitment_key_bytes(columns: usize) -> usize {
-        neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS as usize
-            * columns
-            * neo_math::D
-            * size_of::<u64>()
-    }
-
     pub fn activity(&self) -> MetalActivity {
         self.session.activity()
     }

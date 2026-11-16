@@ -32,8 +32,6 @@ pub enum WasmPcEdgeKind {
 }
 
 impl WasmPcEdgeKind {
-    pub const STATIC_U64: u64 = Self::Static as u64;
-
     pub const fn as_u32(self) -> u32 {
         self as u32
     }
@@ -364,10 +362,6 @@ impl WasmRowKind {
 
     pub fn is_local_zero(self) -> bool {
         matches!(self, Self::Aux(WasmAuxOpcode::LocalZero))
-    }
-
-    pub fn is_frame_move(self) -> bool {
-        matches!(self, Self::Aux(WasmAuxOpcode::FrameMove))
     }
 
     pub fn is_host_event_gather(self) -> bool {

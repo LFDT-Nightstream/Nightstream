@@ -321,12 +321,6 @@ impl<T: Clone> Mat<T> {
         &data[start..start + self.cols]
     }
 
-    pub fn row_mut(&mut self, i: usize) -> &mut [T] {
-        let start = i * self.cols;
-        let end = start + self.cols;
-        &mut self.dense_mut()[start..end]
-    }
-
     pub fn append_zero_rows(&mut self, k: usize, zero: T) {
         if k == 0 {
             return;

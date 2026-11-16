@@ -349,18 +349,6 @@ impl NeoParams {
         }
     }
 
-    pub fn pi_ccs_padded_row_field_factor_for_shape(
-        &self,
-        row_count: usize,
-        column_count: usize,
-        matrix_count: usize,
-        poly_degree: u32,
-    ) -> Result<u128, ParamsError> {
-        Ok(self
-            .padded_row_field_components_for_shape(row_count, column_count, matrix_count, poly_degree)?
-            .field_factor)
-    }
-
     /// Maximum fresh CCS inputs K allowed by Definition 22's RLC guard:
     /// `(K + k)·T·(b - 1) < B`.
     pub fn max_fresh_count_from_rlc_guard(&self) -> Result<u32, ParamsError> {

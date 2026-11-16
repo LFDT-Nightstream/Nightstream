@@ -11,9 +11,8 @@ The results for the full path of a compressed proof (`SPEC.md` Algorithm 10 and 
   `memory_sound_with_akita` is the theorem of the memory `verify_final`.
 - Assumptions: `[HN-A1]` for the history, and `[AKITA]` for each claim that ends in
   `_with_akita`.
-- Open: the premises `premises.layout`, `premises.represents`, `premises.support` and
-  `depthBound`, and each open premise of `Claims.Ivc` and `Claims.Nebula`. The error is not one
-  security level. -/
+- Open: the premises `premises.layout`, `premises.represents` and `premises.support`, and each
+  open premise of `Claims.Ivc` and `Claims.Nebula`. The error is not one security level. -/
 
 namespace NightstreamFPrime.Claims.Final
 

@@ -285,7 +285,7 @@ fn complete_first_round_window_serves_the_openings_without_another_visit() {
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 #[test]
 fn pair_workers_match_serial_with_exact_payload_budgets() {
-    let source = OriginalRows::new(17);
+    let source = OriginalRows::new(2 * prefix::MIN_JOB_PAIRS + 1);
     let witnesses = witnesses();
     let blocks = witnesses
         .iter()
@@ -294,7 +294,7 @@ fn pair_workers_match_serial_with_exact_payload_budgets() {
     let reference = original_values(source.rows, &witnesses);
     let points = [K::ZERO, K::ONE, K::from_coeffs([F::from_u64(5), F::from_u64(7)])];
     let gamma = K::from_coeffs([F::from_u64(11), F::from_u64(13)]);
-    let variables = (2 * D).next_power_of_two().ilog2() as usize;
+    let variables = source.rows.next_power_of_two().ilog2() as usize;
     let alpha = (1..variables)
         .map(|round| K::from_coeffs([F::from_usize(round + 9), F::from_usize(round + 10)]))
         .collect::<Vec<_>>();
@@ -320,7 +320,8 @@ fn pair_workers_match_serial_with_exact_payload_budgets() {
             }
         }
         let rows = source.rows - row_start;
-        let workers = rayon::current_num_threads().min(rows.div_ceil(2));
+        let workers =
+            rayon::current_num_threads().min((rows.div_ceil(2) * points.len()).div_ceil(prefix::MIN_JOB_PAIRS));
         for extra_workers in [0, workers.min(2), workers] {
             let values = Values {
                 words: reference
@@ -395,7 +396,7 @@ fn fresh_table_build_uses_existing_output_slices() {
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 #[test]
 fn table_folds_match_serial_without_another_value_allocation() {
-    let source = OriginalRows::new(17);
+    let source = OriginalRows::new(2 * prefix::MIN_JOB_PAIRS + 1);
     let witnesses = witnesses();
     let blocks = witnesses
         .iter()

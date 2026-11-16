@@ -118,8 +118,9 @@ impl SuperneoMatrixCache {
         scratch: &mut RingEvalScratch,
         weight: impl Fn(usize) -> K,
     ) {
+        debug_assert!(row_cap <= self.rows);
         scratch.ensure_block_count(self.cols.div_ceil(D));
-        self.accumulate_original_ring_form_part(row_cap, &mut scratch.part(), weight);
+        self.accumulate_original_ring_form_part(0..row_cap, &mut scratch.part(), weight);
     }
 
     pub(super) fn accumulate_barred_ring_form_parallel(
@@ -129,36 +130,26 @@ impl SuperneoMatrixCache {
         weight: impl Fn(usize) -> K + Sync,
     ) {
         scratch.ensure_block_count(self.cols.div_ceil(D));
-        scratch.fill_parts(|part| {
-            self.accumulate_original_ring_form_part(row_cap, part, &weight);
+        let plan = self.part_plan();
+        scratch.fill_parts(plan.bounds(), |index, part| {
+            let rows = plan.rows(index).iter().map(|&row| row as usize);
+            self.accumulate_original_ring_form_part(rows.take_while(|&row| row < row_cap), part, &weight);
             part.bar_active();
         });
     }
 
     fn accumulate_original_ring_form_part(
         &self,
-        row_cap: usize,
+        rows: impl Iterator<Item = usize> + Clone,
         part: &mut ScratchPart<'_>,
         weight: impl Fn(usize) -> K,
     ) {
-        debug_assert!(row_cap <= self.rows);
-        if self.row_blocks.is_empty() && self.geometric_runs.is_empty() {
-            if self.identity {
-                let blocks = part.blocks();
-                let start = blocks.start.saturating_mul(D).min(row_cap);
-                let end = blocks.end.saturating_mul(D).min(row_cap);
-                for row in start..end {
-                    let [real, imaginary] = weight(row).as_coeffs();
-                    if real != F::ZERO || imaginary != F::ZERO {
-                        part.add_coefficient(row / D, row % D, real, imaginary);
-                    }
-                }
-            }
+        if !self.identity && self.row_blocks.is_empty() && self.geometric_runs.is_empty() {
             return;
         }
         let event_ratio = self.event_ratio();
         if let Some(ratio) = event_ratio {
-            for row in 0..row_cap {
+            for row in rows.clone() {
                 let [w_re, w_im] = weight(row).as_coeffs();
                 if w_re != F::ZERO || w_im != F::ZERO {
                     self.add_geometric_events(row, w_re, w_im, ratio, part);
@@ -167,7 +158,7 @@ impl SuperneoMatrixCache {
             part.resolve_geometric(ratio);
         }
         let blocks = part.blocks();
-        for row in 0..row_cap {
+        for row in rows {
             let [w_re, w_im] = weight(row).as_coeffs();
             if w_re == F::ZERO && w_im == F::ZERO {
                 continue;

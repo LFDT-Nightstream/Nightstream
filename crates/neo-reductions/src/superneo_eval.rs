@@ -19,6 +19,7 @@ mod matrix_rows;
 mod matrix_window;
 mod openings;
 mod parallel;
+mod part_plan;
 mod row_block;
 mod row_forms;
 mod row_source;
@@ -45,9 +46,11 @@ pub(crate) use factored::fill;
 pub use factored::{FactoredEntries, FactoredRows, FactoredSlots};
 pub use matrix_rows::{CachedMatrixRows, MatrixRowSink, MatrixRows, MatrixShape};
 pub use matrix_window::{MatrixWindow, RetainedMatrixWindow};
+use part_plan::PartPlan;
 use row_block::{CompactRowBlock, DenseRowBlock, COMPACT_SINGLE_BLOCK_MASK};
 pub use row_source::SuperneoEvalCacheBuilder;
 use scratch::RingEvalScratch;
+use std::sync::OnceLock;
 use weighted::{weighted_projection_basis_forms_from_k, weighted_projection_form_from_orig};
 pub(crate) use weighted_table::fill_combined_projection;
 #[cfg(test)]
@@ -351,6 +354,9 @@ pub struct SuperneoMatrixCache {
     geometric_row_offsets: RowOffsetStore,
     geometric_runs: Vec<[u64; 3]>,
     identity: bool,
+    /// Built on first use. It stays valid because a cache does not change
+    /// after construction.
+    part_plan: OnceLock<PartPlan>,
 }
 
 #[derive(Clone, Copy, Debug)]

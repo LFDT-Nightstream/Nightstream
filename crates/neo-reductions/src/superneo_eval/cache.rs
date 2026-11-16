@@ -5,6 +5,7 @@ use super::{
 use neo_ccs::{CcsMatrix, CcsStructure, GeometricRowRun};
 use neo_math::{D, F, K};
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
+use std::sync::OnceLock;
 
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
@@ -27,6 +28,7 @@ where
             geometric_row_offsets: RowOffsetStore::Empty,
             geometric_runs: Vec::new(),
             identity: true,
+            part_plan: OnceLock::new(),
         },
         CcsMatrix::Csc(csc) => build_csc_cache(csc),
         CcsMatrix::CscWithGeometricRuns { csc, geometric_runs } => {
@@ -195,6 +197,7 @@ where
         geometric_row_offsets: RowOffsetStore::Empty,
         geometric_runs: Vec::new(),
         identity: false,
+        part_plan: OnceLock::new(),
     }
 }
 

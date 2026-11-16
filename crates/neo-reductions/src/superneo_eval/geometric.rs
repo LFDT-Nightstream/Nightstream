@@ -4,7 +4,7 @@ use super::scratch::ScratchPart;
 use super::*;
 
 #[inline]
-fn decode(run: [u64; 3]) -> (usize, usize, F, F) {
+pub(super) fn decode(run: [u64; 3]) -> (usize, usize, F, F) {
     (
         run[0] as u32 as usize,
         (run[0] >> 32) as u32 as usize,

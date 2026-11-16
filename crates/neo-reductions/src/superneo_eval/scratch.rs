@@ -54,31 +54,39 @@ impl RingEvalScratch {
         }
     }
 
-    pub(super) fn fill_parts(&mut self, fill: impl Fn(&mut ScratchPart<'_>) + Sync) {
-        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-        {
-            let block_count = self.touched.len();
-            let per_part = block_count.div_ceil(rayon::current_num_threads()).max(1);
-            let mut parts = vec![Vec::new(); block_count.div_ceil(per_part)];
-            self.values
-                .par_chunks_mut(per_part * D)
-                .zip(self.touched.par_chunks_mut(per_part))
-                .zip(parts.par_iter_mut())
-                .enumerate()
-                .for_each(|(index, ((values, touched), active_blocks))| {
-                    fill(&mut ScratchPart {
-                        first_block: index * per_part,
-                        values,
-                        touched,
-                        active_blocks,
-                    })
-                });
-            for part in parts {
-                self.active_blocks.extend(part);
-            }
+    /// Fills part `p`, the blocks `bounds[p]..bounds[p + 1]`, with `fill(p, part)`.
+    pub(super) fn fill_parts(&mut self, bounds: &[usize], fill: impl Fn(usize, &mut ScratchPart<'_>) + Sync) {
+        debug_assert_eq!(bounds.last(), Some(&self.touched.len()));
+        let mut active = vec![Vec::new(); bounds.len() - 1];
+        let mut values = self.values.as_mut_slice();
+        let mut touched = self.touched.as_mut_slice();
+        let mut parts = Vec::with_capacity(active.len());
+        for (range, active_blocks) in bounds.windows(2).zip(&mut active) {
+            let (part_values, rest) = core::mem::take(&mut values).split_at_mut((range[1] - range[0]) * D);
+            values = rest;
+            let (part_touched, rest) = core::mem::take(&mut touched).split_at_mut(range[1] - range[0]);
+            touched = rest;
+            parts.push(ScratchPart {
+                first_block: range[0],
+                values: part_values,
+                touched: part_touched,
+                active_blocks,
+            });
         }
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        parts
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(index, part)| fill(index, part));
         #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        fill(&mut self.part());
+        parts
+            .iter_mut()
+            .enumerate()
+            .for_each(|(index, part)| fill(index, part));
+        drop(parts);
+        for part in active {
+            self.active_blocks.extend(part);
+        }
     }
 
     #[inline]

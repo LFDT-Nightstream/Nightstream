@@ -6,7 +6,7 @@ use std::{
     mem::size_of,
     ops::ControlFlow,
     ops::Range,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
 };
 
 use neo_ccs::GeometricRowRun;
@@ -178,6 +178,7 @@ impl MatrixWindow {
                 geometric_row_offsets: row_offsets(rows.len(), counts.geometric)?,
                 geometric_runs: reserved(counts.geometric)?,
                 identity: false,
+                part_plan: OnceLock::new(),
             });
         }
         let mut cache = SuperneoEvalCache {

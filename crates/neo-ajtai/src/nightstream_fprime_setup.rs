@@ -131,9 +131,9 @@ fn signed_sums(row: u32, blocks: &[SignedBlock]) -> SignedShiftSums {
     sums
 }
 
-/// Each task takes one key row and one range of 65,536 columns, so the workers stay busy when
-/// there are fewer key rows than workers.
-const TASK_COLUMNS: u64 = 1 << 16;
+/// Each task takes one key row and one range of 4,096 columns. Small tasks spread the work of
+/// the 18 key rows evenly over the workers.
+const TASK_COLUMNS: u64 = 1 << 12;
 
 fn column_slice<'a>(blocks: &'a [SignedBlock], columns: &Range<u64>) -> &'a [SignedBlock] {
     let start = blocks.partition_point(|block| block.index < columns.start);

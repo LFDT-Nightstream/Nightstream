@@ -14,9 +14,12 @@
 //! `Size`, so one circuit serves every run whose memories fit those regions.
 
 use std::num::NonZeroUsize;
+use std::ops::Range;
 use std::sync::Arc;
 
-use neo_application::{ContinuityCatalog, MemoryCatalog, MemoryPortActivation, MemoryPortKind, R1csRelation};
+use neo_application::{
+    ContinuityCatalog, GadgetDescriptor, MemoryCatalog, MemoryPortActivation, MemoryPortKind, R1csRelation,
+};
 use neo_ccs::CcsMatrix;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -36,6 +39,35 @@ use shared::StepLayout;
 /// The terms `(column, coefficient)` of one side of a rank-one row.
 pub type Terms = Vec<(usize, F)>;
 
+/// A construction-time range-check occurrence (SPEC.md section 7.6).
+/// Batching validates these hints against the final rows and all bit uses.
+#[derive(Clone, Debug)]
+pub struct RangeCheck {
+    pub column: usize,
+    pub bits: Range<usize>,
+    pub rows: Range<usize>,
+}
+
+impl RangeCheck {
+    pub fn from_relation<Owner>(relation: &R1csRelation<Owner>) -> Vec<Self> {
+        relation
+            .catalog()
+            .gadget_occurrences()
+            .iter()
+            .filter_map(|gadget| {
+                let GadgetDescriptor::RangeCheck { column, bits } = gadget.descriptor() else {
+                    return None;
+                };
+                Some(Self {
+                    column: *column,
+                    bits: bits.clone(),
+                    rows: gadget.row_range().clone(),
+                })
+            })
+            .collect()
+    }
+}
+
 /// The R1CS relation of one row: `[A_i, B_i, C_i]` of each rank-one row
 /// `(A_i·z)(B_i·z) = C_i·z` over the row's `width` columns. Column `one`
 /// holds the constant 1.
@@ -44,6 +76,7 @@ pub struct RowRelation {
     pub rows: Vec<[Terms; 3]>,
     pub width: usize,
     pub one: usize,
+    pub range_checks: Vec<RangeCheck>,
 }
 
 impl RowRelation {
@@ -71,6 +104,7 @@ impl RowRelation {
             rows,
             width: relation.column_count(),
             one: relation.const_one_column(),
+            range_checks: RangeCheck::from_relation(relation),
         })
     }
 }

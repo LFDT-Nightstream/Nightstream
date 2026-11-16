@@ -123,6 +123,22 @@ fn range_check_constraints_accept_valid_values_and_reject_overflow() {
         "range check",
     );
     let relation = builder.build(layout.columns()).unwrap();
+    let rebuilt = R1csBuilder::from_relation(&relation)
+        .build(layout.columns())
+        .unwrap();
+    let occurrences = rebuilt.catalog().gadget_occurrences();
+    assert_eq!(occurrences.len(), 3);
+    let mut first_row = 1;
+    for (occurrence, column) in occurrences.iter().zip([BYTE, WORD, TWO_BITS]) {
+        let bits = layout.bit_columns_for(column).unwrap();
+        let end = first_row + bits.len() + 1;
+        assert_eq!(
+            occurrence.descriptor(),
+            &neo_application::GadgetDescriptor::RangeCheck { column, bits }
+        );
+        assert_eq!(occurrence.row_range(), &(first_row..end));
+        first_row = end;
+    }
 
     let mut witness = vec![
         F::ONE,

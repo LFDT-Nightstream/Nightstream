@@ -7,11 +7,6 @@ use p3_field::PrimeCharacteristicRing;
 
 use super::{RowRelation, StepLayout, F};
 
-struct Check {
-    bits: usize,
-    rows: Vec<usize>,
-}
-
 pub(super) fn internal_output_checks<Id>(
     relation: &RowRelation,
     links: &[(usize, usize)],
@@ -44,63 +39,68 @@ pub(super) fn internal_output_checks<Id>(
         }
     }
     let mut uses = vec![BTreeSet::new(); relation.width];
-    let mut booleans = BTreeMap::new();
-    for (index, [a, b, c]) in relation.rows.iter().enumerate() {
-        for &(column, _) in a.iter().chain(b).chain(c) {
+    for (index, row) in relation.rows.iter().enumerate() {
+        for &(column, _) in row.iter().flatten() {
             uses[column].insert(index);
-        }
-        if let [(bit, coefficient)] = a.as_slice() {
-            if *coefficient == F::ONE
-                && *bit != relation.one
-                && c.is_empty()
-                && b.len() == 2
-                && b.contains(&(*bit, F::ONE))
-                && b.contains(&(relation.one, -F::ONE))
-            {
-                booleans.insert(*bit, index);
-            }
         }
     }
     let mut checks = BTreeMap::new();
-    for (index, [a, b, c]) in relation.rows.iter().enumerate() {
-        let [(value, coefficient)] = c.as_slice() else { continue };
-        if *coefficient != F::ONE || b.as_slice() != [(relation.one, F::ONE)] || a.is_empty() || a.len() > 63 {
-            continue;
+    for check in &relation.range_checks {
+        // SPEC.md section 7.6: public RowRelation rows and metadata can change independently
+        // after construction. Assert that each recorded check still matches the final relation.
+        let bit_count = check.bits.len();
+        assert!((1..=63).contains(&bit_count), "invalid range-check width");
+        assert!(check.bits.end <= relation.width, "range-check bits outside relation");
+        assert!(check.column < relation.width, "range-check column outside relation");
+        assert!(
+            check.rows.end <= relation.rows.len(),
+            "range-check rows outside relation"
+        );
+        assert_eq!(check.rows.len(), bit_count + 1, "invalid range-check row count");
+        let recomposition = check.rows.end - 1;
+        let [a, b, c] = &relation.rows[recomposition];
+        assert!(
+            b.as_slice() == [(relation.one, F::ONE)]
+                && c.as_slice() == [(check.column, F::ONE)]
+                && a.iter().copied().eq(check
+                    .bits
+                    .clone()
+                    .enumerate()
+                    .map(|(i, bit)| (bit, F::from_u64(1 << i)))),
+            "range-check metadata does not match recomposition row"
+        );
+
+        let mut valid = true;
+
+        for (bit, boolean) in check.bits.clone().zip(check.rows.clone()) {
+            let [a, b, c] = &relation.rows[boolean];
+            assert!(
+                a.as_slice() == [(bit, F::ONE)]
+                    && b.len() == 2
+                    && b.contains(&(bit, F::ONE))
+                    && b.contains(&(relation.one, -F::ONE))
+                    && c.is_empty(),
+                "range-check metadata does not match Boolean row"
+            );
+            valid &= !protected[bit] && uses[bit] == BTreeSet::from([boolean, recomposition]);
         }
-        let mut rows = vec![index];
-        let mut weight = F::ONE;
-        let mut bits = BTreeSet::new();
-        let valid = a.iter().all(|&(bit, coefficient)| {
-            let Some(&boolean) = booleans.get(&bit) else {
-                return false;
-            };
-            let valid = !protected[bit]
-                && bits.insert(bit)
-                && coefficient == weight
-                && uses[bit] == BTreeSet::from([index, boolean]);
-            weight += weight;
-            rows.push(boolean);
-            valid
-        });
+
         if valid {
-            checks.insert(*value, Check { bits: a.len(), rows });
+            checks.insert(check.column, check);
         }
     }
-    let inputs = links
-        .iter()
-        .map(|&(_, before)| before)
-        .collect::<BTreeSet<_>>();
+
     let mut omitted = BTreeSet::new();
+
     for &(after, before) in links {
-        if inputs.contains(&after) {
-            continue;
-        }
         let (Some(output), Some(input)) = (checks.get(&after), checks.get(&before)) else {
             continue;
         };
-        if output.bits == input.bits {
-            omitted.extend(output.rows.iter().copied());
+
+        if output.bits.len() == input.bits.len() {
+            omitted.extend(output.rows.clone());
         }
     }
+
     omitted
 }

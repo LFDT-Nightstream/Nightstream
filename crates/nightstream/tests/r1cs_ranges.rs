@@ -44,6 +44,18 @@ fn relation() -> RowRelation {
         rows,
         width: WIDTH,
         one: 0,
+        range_checks: vec![
+            nightstream::nebula::RangeCheck {
+                column: BEFORE,
+                bits: 3..5,
+                rows: 0..3,
+            },
+            nightstream::nebula::RangeCheck {
+                column: AFTER,
+                bits: 5..7,
+                rows: 3..6,
+            },
+        ],
     }
 }
 
@@ -157,7 +169,7 @@ fn continuity_mismatch_is_rejected_even_when_both_values_are_bounded() {
 }
 
 #[test]
-fn extra_bit_uses_and_mismatched_checks_are_retained() {
+fn extra_bit_uses_keep_checks() {
     let mut extra_use = relation();
     extra_use
         .rows
@@ -167,17 +179,17 @@ fn extra_bit_uses_and_mismatched_checks_are_retained() {
     let mut rows = vec![witness(1, 1); 2];
     rows[0][OUTPUT_BITS[1]] = F::TWO;
     assert!(app.check(&batch(&SharedColumns::NONE, &rows)).is_err());
+}
 
+#[test]
+fn stale_range_check_equations_panic() {
     let mut mismatch = relation();
     mismatch.rows[2][0].pop();
-    assert_eq!(application(mismatch, 2, SharedColumns::NONE, false).relation_rows(), 13);
+    assert!(std::panic::catch_unwind(|| application(mismatch, 2, SharedColumns::NONE, false)).is_err());
 
     let mut wrong_weight = relation();
     wrong_weight.rows[5][0][1].1 = F::from_u32(3);
-    assert_eq!(
-        application(wrong_weight, 2, SharedColumns::NONE, false).relation_rows(),
-        13
-    );
+    assert!(std::panic::catch_unwind(|| application(wrong_weight, 2, SharedColumns::NONE, false)).is_err());
 }
 
 #[test]
@@ -244,5 +256,25 @@ fn memory_interface_bits_are_not_private() {
         };
         let app = R1csApplication::new(relation(), &continuity, &catalog, size).unwrap();
         assert_eq!(app.relation_rows(), 13);
+    }
+}
+
+#[test]
+fn missing_metadata_keeps_checks_and_stale_metadata_panics() {
+    let mut missing = relation();
+    missing.range_checks.clear();
+    assert_eq!(application(missing, 2, SharedColumns::NONE, false).relation_rows(), 13);
+    for case in 0..6 {
+        let mut stale = relation();
+        let check = &mut stale.range_checks[1];
+        match case {
+            0 => check.column = WIDTH,
+            1 => check.bits = 5..usize::MAX,
+            2 => check.rows = 3..usize::MAX,
+            3 => check.rows = 0..3,
+            4 => check.bits.start = check.bits.end + 1,
+            _ => check.column = BEFORE,
+        }
+        assert!(std::panic::catch_unwind(|| application(stale, 2, SharedColumns::NONE, false)).is_err());
     }
 }

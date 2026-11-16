@@ -814,14 +814,14 @@ When the plan names each checked port once, each slot shows at most one active p
 
 **Steps.**
 
-1. Recognize unconditional binary decompositions of 1 through 63 bits, with coefficients in increasing power-of-two order and one Boolean constraint per distinct bit. Each bit must occur only in its Boolean constraint and recomposition constraint. It must not be a constant, shared column, continuity endpoint, or memory address, value, prior value, or activation column.
-2. Select continuity pairs whose output and input have recognized decompositions of the same width. Do not select an output column that is also an input endpoint of any link.
+1. Read the range-check occurrences recorded at construction. Validate their rows against the final relation as unconditional binary decompositions of 1 through 63 bits, with coefficients in increasing power-of-two order and one Boolean constraint per distinct bit. Each bit must occur only in its Boolean constraint and recomposition constraint. It must not be a constant, shared column, continuity endpoint, or memory address, value, prior value, or activation column.
+2. Select continuity pairs whose output and input have validated decompositions of the same width. The continuity catalog requires disjoint endpoint pairs: each column occurs in at most one endpoint.
 3. Keep every input check and every continuity equality. Omit the selected output checks only on rows with a successor inside the batch. Keep all output checks on the last row. A one-row batch is unchanged.
 4. To restore a witness of the original relation, copy the next row's input bits into the omitted output bits. Continuity gives equal recomposed values. The private-bit condition leaves every other constraint, memory event, and state value unchanged. An original valid witness already satisfies the retained subset.
 
-**Rejects.** A violated retained constraint or continuity equality. A candidate that fails recognition keeps its original checks. No initial-state assumption or check outside this batch replaces a retained check.
+**Rejects.** A violated retained constraint or continuity equality. Inconsistent range-check metadata triggers a construction assertion. A candidate whose bits have other uses or belong to an interface keeps its original checks. No initial-state assumption or check outside this batch replaces a retained check.
 
-**Source.** The restoration theorem is `Lifecycle.Nebula.ContinuityRanges.sound` (`ab4093b12ffda4e1`); completeness is `Lifecycle.Nebula.ContinuityRanges.complete` (`6f10166b08e0faf0`). The model separates output auxiliaries from the unchanged payload and all other constraints. The Rust recognizer is `crates/nightstream/src/nebula/r1cs/ranges.rs`; boundary, restoration, and private-column rejection tests are in `crates/nightstream/tests/r1cs_ranges.rs`. The exact correspondence between the Rust recognizer and this separation model is not formally proved.
+**Source.** The restoration theorem is `Lifecycle.Nebula.ContinuityRanges.sound` (`ab4093b12ffda4e1`); completeness is `Lifecycle.Nebula.ContinuityRanges.complete` (`6f10166b08e0faf0`). The model separates output auxiliaries from the unchanged payload and all other constraints. The Rust metadata validator is `crates/nightstream/src/nebula/r1cs/ranges.rs`; boundary, restoration, and private-column rejection tests are in `crates/nightstream/tests/r1cs_ranges.rs`. The exact correspondence between the Rust metadata validator and this separation model is not formally proved.
 
 ### 7.7 Native pieces
 

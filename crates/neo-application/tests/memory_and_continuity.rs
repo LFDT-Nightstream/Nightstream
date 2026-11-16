@@ -301,7 +301,7 @@ fn continuity_catalog_preserves_flattened_link_order() {
                     },
                     ContinuityLink {
                         previous_step_column: ADDRESS,
-                        next_step_column: ADDRESS,
+                        next_step_column: ACTIVE,
                     },
                 ],
             },
@@ -326,7 +326,7 @@ fn continuity_catalog_preserves_flattened_link_order() {
             },
             ContinuityLink {
                 previous_step_column: ADDRESS,
-                next_step_column: ADDRESS,
+                next_step_column: ACTIVE,
             },
         ]
     );
@@ -506,5 +506,31 @@ fn memory_repairable_columns_require_value_bindings() {
         } else {
             assert_eq!(catalog, Err(MemoryCatalogError::MissingValueBinding { column }));
         }
+    }
+}
+
+#[test]
+fn continuity_catalog_rejects_overlapping_endpoint_roles() {
+    let columns = test_columns();
+    for pairs in [
+        vec![(ADDRESS, ADDRESS)],
+        vec![(ADDRESS, VALUE), (VALUE, STATE_BEFORE)],
+        vec![(VALUE, STATE_BEFORE), (ADDRESS, VALUE)],
+    ] {
+        let groups = pairs
+            .into_iter()
+            .enumerate()
+            .map(|(i, (previous_step_column, next_step_column))| ContinuityGroup {
+                name: if i == 0 { "first" } else { "second" },
+                role: "test",
+                links: vec![ContinuityLink {
+                    previous_step_column,
+                    next_step_column,
+                }],
+            });
+        assert!(matches!(
+            ContinuityCatalog::new(groups, &columns),
+            Err(ContinuityCatalogError::OverlappingEndpoints { .. })
+        ));
     }
 }

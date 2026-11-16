@@ -6,7 +6,10 @@ use std::ops::Range;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use crate::{ColumnFamilySpec, ColumnRegistry, ColumnRegistryError, ColumnWidth, ConstraintTag, TaggedR1csBuilder};
+use crate::{
+    ColumnFamilySpec, ColumnRegistry, ColumnRegistryError, ColumnWidth, ConstraintTag, GadgetDescriptor,
+    TaggedR1csBuilder,
+};
 
 /// Metadata for the Boolean column family appended by a range-check layout.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -149,15 +152,18 @@ impl RangeCheckLayout {
                             let bits = self
                                 .bit_columns_for(column)
                                 .expect("decomposed base column has an allocated bit range");
+                            let first_row = builder.next_row_index();
                             for bit in bits.clone() {
                                 builder.push_boolean(bit);
                             }
                             builder.push_row(
-                                bits.enumerate()
+                                bits.clone()
+                                    .enumerate()
                                     .map(|(index, bit)| (bit, F::from_u64(1u64 << index))),
                                 [(builder.const_one_column(), F::ONE)],
                                 [(column, F::ONE)],
                             );
+                            builder.record_gadget(GadgetDescriptor::RangeCheck { column, bits }, first_row);
                         }
                     });
                 }

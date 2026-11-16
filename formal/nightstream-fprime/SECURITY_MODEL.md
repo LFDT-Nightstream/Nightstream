@@ -1211,11 +1211,11 @@ not change terminal source checks.
   boundaries. Continuity-range restoration keeps the payload and all input
   auxiliaries fixed. It requires equal-width input and output checks, retained
   input checks and continuity equalities, and output bits absent from every
-  other constraint and observable. The Rust recognizer checks these conditions
+  other constraint and observable. The Rust metadata validator checks these conditions
   against row uses, shared columns, continuity endpoints, and the memory catalog.
   The last output check stays in the batch. The proof does not require a valid prior execution.
   Lean proves restoration for the separated representation; universal refinement
-  of the Rust recognizer into that representation remains outside the proof.
+  of the Rust metadata validator into that representation remains outside the proof.
 - Memory-backed WASM range omissions. The adversary chooses every tagged
   column, including inactive advice. Rocq requires U32 values on every active
   read, write and declared prior-value event. The Rust Nebula bit rows and

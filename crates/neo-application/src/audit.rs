@@ -44,6 +44,8 @@ impl<'a, Owner> R1csColumnOccurrence<'a, Owner> {
 /// Semantic role played by a column in one retained shared gadget.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GadgetColumnRole {
+    RangeCheckValue,
+    RangeCheckBit { index: usize },
     Pow7Expression { term_index: usize, coefficient: F },
     Pow7Power { exponent: u8 },
     ZeroTestExpression { term_index: usize, coefficient: F },
@@ -147,6 +149,12 @@ fn index_gadget_occurrence<'a, Owner>(
     };
 
     match occurrence.descriptor() {
+        GadgetDescriptor::RangeCheck { column, bits } => {
+            push(*column, GadgetColumnRole::RangeCheckValue);
+            for (index, bit) in bits.clone().enumerate() {
+                push(bit, GadgetColumnRole::RangeCheckBit { index });
+            }
+        }
         GadgetDescriptor::Pow7 { expression, powers } => {
             for (term_index, &(column, coefficient)) in expression.iter().enumerate() {
                 push(

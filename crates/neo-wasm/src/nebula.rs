@@ -224,8 +224,6 @@ impl Application for WasmApplication {
     }
 }
 
-/// The one-row WASM relation with its operation-table rows
-/// (`build_batched_wasm_ccs(1)` without the batch).
 fn relation() -> Result<RowRelation, WasmApplicationError> {
     let r1cs = single_wasm_relation()?.relation;
     let mut terms = vec![[Terms::new(), Terms::new(), Terms::new()]; r1cs.n];
@@ -311,7 +309,6 @@ fn bits(value: u64) -> usize {
     (u64::BITS - value.leading_zeros()) as usize
 }
 
-/// What one address part of a WASM memory counts.
 #[derive(Clone, Copy, Debug)]
 enum Dimension {
     Pc,
@@ -343,8 +340,6 @@ impl Dimension {
     ];
 }
 
-/// The first limit of `limits` that no size holds, for the message of
-/// `WasmApplicationError::TooLarge`.
 fn unheld_limit(limits: &WasmLimits) -> String {
     let mut limits = *limits;
     for dimension in Dimension::ALL {
@@ -361,9 +356,6 @@ fn unheld_limit(limits: &WasmLimits) -> String {
     "each limit fits a size, but no size holds all of them".into()
 }
 
-/// The dimension of each address part of memory `id`, least significant part
-/// first, as `preload_from_program_artifacts`, `preload_host_event_tables`
-/// and the catalog's address columns key it.
 fn dimensions(id: WasmMemoryId) -> &'static [Dimension] {
     use Dimension as D;
     use WasmMemoryId as M;
@@ -447,8 +439,6 @@ impl WasmLimits {
         Ok(limits)
     }
 
-    /// Widen the limits so that they hold the address parts of the active
-    /// ports of the one-row witness `z`.
     fn hold_row(&mut self, z: &[F]) -> Result<(), WasmApplicationError> {
         if z.len() < crate::RANGE_CHECKED_WITNESS_WIDTH {
             return Err(WasmApplicationError::RowLength {
@@ -500,7 +490,6 @@ impl WasmLimits {
         )
     }
 
-    /// Widen the limits so that they hold the address `parts` of memory `id`.
     fn hold(&mut self, id: WasmMemoryId, parts: impl IntoIterator<Item = u64>) {
         for (dimension, part) in dimensions(id).iter().zip(parts) {
             let width = self.width(*dimension);
@@ -554,8 +543,6 @@ pub enum WasmSize {
 impl WasmSize {
     pub const ALL: [Self; 3] = [Self::Small, Self::Medium, Self::Large];
 
-    /// The `log2` cells of the ROM, the rows of one step, the steps of one
-    /// segment, and the most segments.
     fn shape(self) -> (usize, usize, usize, usize) {
         match self {
             Self::Small => (13, 64, 8, 19),
@@ -564,9 +551,6 @@ impl WasmSize {
         }
     }
 
-    /// The `log2` cells of the RAM: an eighth of the ROM. A segment scans
-    /// each cell of both, and the program tables in the ROM need far more
-    /// cells than a run's stack and linear memory.
     fn ram_log2(self) -> usize {
         self.shape().0 - 3
     }

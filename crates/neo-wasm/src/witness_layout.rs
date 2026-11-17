@@ -1,9 +1,3 @@
-//! Owns the physical layout of the canonical WASM base witness.
-//!
-//! Named VM/interface columns form the fixed prefix, followed by host-event advice and
-//! reusable range-check bits. Backend-specific advice and batching extend
-//! this base layout separately.
-
 use std::sync::OnceLock;
 
 use crate::ccs::host_event_chain::{AUX_COLUMN_FAMILIES, AUX_WIDTH};
@@ -28,8 +22,6 @@ impl WitnessRegion {
 
 pub(crate) const NAMED_COLUMNS: WitnessRegion = WitnessRegion::new(0, NAMED_COLUMN_COUNT);
 
-// Kept standalone so the host-event gadget can use its assigned base without
-// depending on the region value that itself contains the gadget's width.
 pub(crate) const HOST_EVENT_AUX_START: usize = NAMED_COLUMNS.end();
 pub(crate) const HOST_EVENT_AUX: WitnessRegion = WitnessRegion::new(HOST_EVENT_AUX_START, AUX_WIDTH);
 
@@ -43,9 +35,6 @@ pub(crate) fn declared_witness_column_families() -> impl Iterator<Item = &'stati
         .flat_map(|families| families.iter())
 }
 
-// Keep the public witness width const without duplicating the allocation rule:
-// the shared `decomposition_bit_count` supplies each size, while these asserts
-// prove that the input families tile the same dense prefix validated at runtime.
 const fn range_bit_count() -> usize {
     let mut count = 0;
     let mut column = 0;

@@ -111,7 +111,6 @@ pub enum SlotBinding {
     },
 }
 
-/// ROM kind and source lane for an opaque control instruction.
 pub(crate) fn opaque_control_encoding(slot: &SlotBinding) -> Option<(WasmHostEventSlotKind, u8)> {
     match *slot {
         SlotBinding::EnterOpaque => Some((WasmHostEventSlotKind::EnterOpaque, 0)),
@@ -247,8 +246,6 @@ impl ExportTemplate {
         opaque::validate(&self.entry)?;
         opaque::validate(&self.exit)?;
         let err = |msg: String| Err(WasmBuildError::Trace(msg));
-        // Empty templates may be used for the initial invocation. The circuit's
-        // turn-boundary guard rejects them as targets of subsequent invocations.
         if (!self.entry.is_empty() || !self.exit.is_empty())
             && !self
                 .entry
@@ -294,8 +291,6 @@ impl ExportTemplate {
                             if !written.insert((local, matches!(limb, Limb::Hi))) {
                                 return err(ctx(&format!("local {local} lane written more than once")));
                             }
-                            // A Lo write zeroes the hi lane, so an i64
-                            // local's Hi slot must come after its Lo slot.
                             if matches!(limb, Limb::Hi) && !written.contains(&(local, false)) {
                                 return err(ctx(&format!(
                                     "local {local} hi lane written before (or without) its lo lane"
@@ -405,8 +400,6 @@ impl HostEventBindings {
 
     /// Validate every binding against verifier-owned program tables.
     pub fn validate_against_program(&self, program: &WasmProgramTables) -> Result<(), WasmBuildError> {
-        // Memory slots address default memory 0. Without one, the absent-memory
-        // page word is above every real page count, so it bounds no access.
         if program.initial_memory_pages.is_none() {
             let mut blocks = self
                 .imports
@@ -508,8 +501,6 @@ impl HostEventBindings {
                     }
                 }
             }
-            // Every argument must enter through a declared local write,
-            // including on a single-shot export with an otherwise empty schedule.
             for local in 0..param_count {
                 let covered = template.entry.iter().flat_map(|event| &event.block).any(|slot| {
                     matches!(slot, SlotBinding::InputLocal { local: index, limb: Limb::Lo, .. } if *index == local)
@@ -599,7 +590,6 @@ impl ImportTemplate {
         for (idx, event) in events.iter().enumerate() {
             let ctx = |what: &str| format!("host-event template block {idx}: {what}");
             for slot in &event.block {
-                // Unabsorbed slots must either affect the VM or be padding.
                 if !event.absorb && !matches!(*slot, SlotBinding::Const(_) | SlotBinding::ResultElem { .. }) {
                     return err(ctx("advice events may only contain ResultElem and Const slots"));
                 }
@@ -676,14 +666,6 @@ impl ImportTemplate {
                 }
             }
         }
-        // The template drives the push: without a Lo slot the result never
-        // reaches the operand stack and the trace cannot continue. Each
-        // lane is written by its own slot (the Lo write zeroes the hi
-        // lane), so the Hi slot is required for COMPLETENESS: an i64
-        // result without one would leave the hi lane 0 and the trace would
-        // diverge from the real execution. Requiring it uniformly (an i32
-        // result stages and writes 0, replacing a Const(0) padding slot for
-        // free) keeps this check width-agnostic.
         if result_count == 1 && !result_lo_seen {
             return err("a returning import's template must contain exactly one ResultElem Lo slot".to_string());
         }
@@ -720,8 +702,6 @@ pub fn expand_import_events(
     expand_import_phase(&events, args, result, inputs, memory_reads)
 }
 
-/// Expand one already-validated phase. Recovery has checked its input words;
-/// the phase must finish before execution can suspend or resume.
 pub(crate) fn expand_import_phase(
     events: &[EventBlock],
     args: &[(u32, u32)],
@@ -879,9 +859,6 @@ pub fn expand_export_exit(
     Ok(blocks)
 }
 
-/// Input arrays must match the template's declared count exactly and hold
-/// canonical field elements — a non-canonical word would alias under the
-/// field reduction, giving two u64 transcripts for one absorbed sequence.
 fn check_inputs(phase: &str, inputs: &[u64], declared: u8) -> Result<(), WasmBuildError> {
     if inputs.len() != usize::from(declared) {
         return Err(WasmBuildError::Trace(format!(

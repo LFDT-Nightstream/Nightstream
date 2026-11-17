@@ -4,8 +4,6 @@ use crate::isa::WasmOpcode;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-/// Allocate `left - right - borrow_in + 2^32` for each 32-bit half as 33
-/// bits. The top bit of a half is 1 iff that prefix does not borrow.
 pub(super) fn no_borrow_bits(
     builder: &mut CircuitBuilder,
     left: &[ColumnId],
@@ -35,9 +33,6 @@ pub(super) fn no_borrow_bits(
     Ok(tops)
 }
 
-/// All 16 comparisons share one subtraction `l - r - c`. `c = 1` turns
-/// `<` into `<=`; an inverted result gives `>` and `>=`. A signed result is
-/// the unsigned result XOR both sign bits.
 pub(super) fn enforce_comparisons(builder: &mut CircuitBuilder, inputs: &Inputs) -> Result<(), String> {
     let narrow = comparison_operations(false);
     let wide = comparison_operations(true);
@@ -73,8 +68,6 @@ pub(super) fn enforce_comparisons(builder: &mut CircuitBuilder, inputs: &Inputs)
     Ok(())
 }
 
-/// (operation, borrow in, signed, invert): `<` is `l - r` borrows, `<=` is
-/// `l - r - 1` borrows, `>` is not `<=`, and `>=` is not `<`.
 pub(super) fn comparison_operations(wide: bool) -> [(WasmOpcode, bool, bool, bool); 8] {
     use WasmOpcode::*;
     if wide {

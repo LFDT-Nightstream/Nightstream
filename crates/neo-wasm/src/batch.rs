@@ -82,15 +82,10 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
     batch_wasm_relation(&operation.relation, &operation.widths, batch_size)
 }
 
-/// The single-step WASM relation with its operation constraints, which
-/// `build_batched_wasm_ccs` replicates.
 pub(crate) fn single_wasm_relation() -> Result<r1cs::OperationShape, BatchError> {
     Ok(r1cs::single_relation()?)
 }
 
-/// Replicate one authoritative single-step WASM relation into an ordered
-/// batch. This is also used after operation construction, so every block owns
-/// the same arithmetic, operation, and range-check rows as the single-step path.
 pub(crate) fn batch_wasm_relation(
     single: &SparseR1cs,
     single_widths: &[usize],
@@ -117,7 +112,6 @@ pub(crate) fn batch_wasm_relation(
         .map(|link| (link.previous_step_column, link.next_step_column))
         .collect();
 
-    // Per boundary: one row per state-continuity pair.
     let n_link_per_boundary = link_pairs.len();
     let n_link = batch_size.saturating_sub(1) * n_link_per_boundary;
 
@@ -132,9 +126,6 @@ pub(crate) fn batch_wasm_relation(
     let mut b_triplets: Vec<(usize, usize, F)> = Vec::with_capacity(batch_size * single_b.len());
     let mut c_triplets: Vec<(usize, usize, F)> = Vec::with_capacity(batch_size * single_c.len());
 
-    // Block-diagonal replication. Sharing `COL_ONE` as global `z[0]` keeps
-    // constant-anchored rows in the shape expected by F' width inference.
-    // Block-local `COL_ONE` slots after block 0 remain unreferenced.
     for step in 0..batch_size {
         let row_offset = step * n_single;
         let col_offset = step * m_single;
@@ -150,15 +141,11 @@ pub(crate) fn batch_wasm_relation(
         }
     }
 
-    // Linking rows. Each row enforces `(A_row · z) * (B_row · z) = C_row · z`
-    // with `A_row = z[lhs] - z[rhs]`, `B_row = z[COL_ONE]`, `C_row = 0` —
-    // i.e. `z[lhs] - z[rhs] = 0`.
     let mut link_row = batch_size * n_single;
     for boundary in 0..batch_size.saturating_sub(1) {
         let curr_offset = boundary * m_single;
         let next_offset = (boundary + 1) * m_single;
 
-        // Spec-driven state continuity links.
         for &(prev_col, next_col) in &link_pairs {
             a_triplets.push((link_row, curr_offset + prev_col, F::ONE));
             a_triplets.push((link_row, next_offset + next_col, -F::ONE));
@@ -318,9 +305,6 @@ pub fn padding_step_after(prev: &WasmVmStep) -> Result<WasmVmStep, BatchError> {
         br_table_len: 0,
         pc_edge_kind: WasmPcEdgeKind::Static,
         wide_values_enabled: false,
-        // opcode_code = 0: no opcode selector fires on this row (the
-        // selector one-hot demands `sum(selectors) = is_program_row`,
-        // which is 0 for padding).
         opcode: WasmOpcode::Nop,
         info: opcode_info_from_code(0),
         stack_reads_override: Some(0),

@@ -18,8 +18,6 @@ pub fn range_checked_bit_columns(column: usize) -> Option<Range<usize>> {
     range_check_layout().bit_columns_for(column)
 }
 
-/// Emit the range-check rows. Each row is tagged with the column's
-/// `COL_*` name so constraint provenance dumps itemize the cost per column.
 pub(crate) fn push_range_check_rows(builder: &mut WasmTaggedR1csBuilder<'_>) {
     range_check_layout().push_constraints(builder, WasmConstraintScope::Always);
 }

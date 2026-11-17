@@ -5,7 +5,6 @@ version = { workspace = true }
 authors = { workspace = true }
 license = "Apache-2.0"
 
-# The workspace allows, plus the lints that main's neo-wasm code trips. Main's CI runs no clippy.
 [lints.clippy]
 uninlined_format_args = "allow"
 too_many_arguments = "allow"

@@ -17,10 +17,6 @@ pub type WasmMemoryPreload = MemoryPreload<WasmMemoryId>;
 pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmMemoryPreload {
     let tables = &artifacts.tables;
     let mut preload = WasmMemoryPreload::default();
-    // Program-table fields are typed as u64 in the parse output even
-    // though every wasm-VM column they feed is width-pinned to u32; the
-    // helper centralises the narrowing so an out-of-range static table
-    // entry fails loudly with the source field name.
     fn narrow(value: u64, field: &str) -> u32 {
         u32::try_from(value)
             .unwrap_or_else(|_| panic!("program table field `{field}` value {value} does not fit in u32"))
@@ -35,8 +31,6 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
             vec![pc],
             entry.opcode_code + ((kind as u32) << 16),
         );
-        // An immediate cell exists only at the pc of an instruction that reads
-        // it, so the memories of one table do not own the same cell.
         let opcode = opcode_info_from_code(entry.opcode_code as u16).opcode;
         use crate::isa::WasmOpcode as Op;
         for (reads, memory, value) in [
@@ -149,19 +143,13 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
             narrow(function_ref, "call_targets.function_ref"),
         );
     }
-    // Pack data-section bytes into the word-addressed linear_memory cells.
-    // Bytes outside any data segment stay absent from the preload, so
-    // ZeroReadDefault catches first reads at those addresses (the wasm spec
-    // guarantees them zero at instantiation, and a malicious prover claiming
-    // non-zero `value_before` for an uninitialized byte will fail the check).
     if !tables.linear_memory_init.is_empty() {
         let mut packed: BTreeMap<u32, u32> = BTreeMap::new();
         for &(byte_addr, byte_value) in &tables.linear_memory_init {
             let word_addr = narrow(byte_addr / 4, "linear_memory_init.word_addr");
             let byte_index = (byte_addr % 4) as u32;
             let word = packed.entry(word_addr).or_insert(0);
-            // Clear any prior occupant at this byte position (later segments
-            // override earlier ones in spec order) and OR the new byte in.
+            // Later WASM data segments overwrite earlier ones.
             *word &= !(0xffu32 << (byte_index * 8));
             *word |= u32::from(byte_value) << (byte_index * 8);
         }
@@ -361,7 +349,6 @@ pub fn preload_host_event_tables(
             for (slot_index, source) in event.block.iter().enumerate() {
                 let key = vec![bindings.event_base(fref) + event_index as u32, slot_index as u32];
                 let (kind, arg, variant, immediate0, immediate1) = encode(fref, source);
-                // Advice uses the next code range above the raw slot kinds.
                 let kind = kind + WasmHostEventSlotKind::COUNT as u32 * u32::from(!event.absorb);
                 assert!(kind < 32 && arg < 256 && variant < 16);
                 preload.insert(
@@ -374,13 +361,6 @@ pub fn preload_host_event_tables(
             }
         }
     };
-    // Import cells pack the biased call count in the low half and the biased
-    // return count (zero for atomic) in the high half. Export entry counts
-    // also use count + 1: an undeclared fref reads the zero-filled 0
-    // and the CCS load rows subtract 1, poisoning the schedule to
-    // events_remaining = p-1. See the relation-layout family comment for the full
-    // non-termination argument. Export exit counts stay raw: their read key
-    // is bound within an already-entered turn.
     for &fref in bindings.imports.keys().chain(bindings.exports.keys()) {
         preload.insert(WasmMemoryId::HostEventBase, vec![fref], bindings.event_base(fref));
     }

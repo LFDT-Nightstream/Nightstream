@@ -49,14 +49,17 @@ theorem assemble_cell (claims : List Claim) (schedule : Schedule) (row : ℕ × 
 
 section Production
 
-variable (key : ℕ → ℕ → ℕ → F) (matrices : Fin 3 → Matrices F) (depths : Fin 2 → ℕ)
+variable {n : ℕ} (key : ℕ → ℕ → ℕ → F) (matrices : Fin (n + 1) → Matrices F) (depths : Fin n → ℕ)
 
 /-- The claims of `params key matrices depths`, for Rust `Layout::new`. -/
 abbrev claimsOf : List Claim := paramsClaims (fun c => (matrices c).columns / ringDegree) depths
 
-theorem claimsOf_getD (c : Fin 3) : (claimsOf matrices depths).getD c default =
-    ⟨(matrices c).columns / ringDegree, if (c : ℕ) < 2 then some (bound depths c) else none⟩ := by
-  fin_cases c <;> rfl
+theorem claimsOf_length : (claimsOf matrices depths).length = n + 1 := List.length_ofFn
+
+theorem claimsOf_getD (c : Fin (n + 1)) : (claimsOf matrices depths).getD c default =
+    ⟨(matrices c).columns / ringDegree, if (c : ℕ) < n then some (bound depths c) else none⟩ := by
+  rw [List.getD_eq_getElem _ _ (by rw [claimsOf_length]; exact c.isLt)]
+  simp only [claimsOf, paramsClaims, List.getElem_ofFn, Fin.eta]
 
 /-- When `layoutNew` accepts the claims of `params`, and each claim has at least as many cells as
 the 320 public cells, the layout is well formed, the key holds each claim, and each witness slice
@@ -65,21 +68,24 @@ theorem layoutNew_production {keyBlocks : ℕ} {l : Placed}
     (ok : layoutNew (claimsOf matrices depths) keyBlocks = .ok l)
     (cells_fit : ∀ c, 320 ≤ ringDegree * ((matrices c).columns / ringDegree)) :
     WellFormed (params key matrices depths l.production) ∧
-      (∀ c : Fin 3, (l.production.witness c).vars - 6 ≤ l.production.keyBlockVars) ∧
-      ∀ c : Fin 3, (l.production.witness c).vars ≤ 25 := by
+      (∀ c : Fin (n + 1), (l.production.witness c).vars - 6 ≤
+        (l.production (claims := n + 1)).keyBlockVars) ∧
+      ∀ c : Fin (n + 1), (l.production.witness c).vars ≤ 25 := by
   obtain ⟨schedule, member, keyBlocks_eq, fit, row, -, fits, rfl⟩ := layoutNew_ok ok
   simp only [rowFits, Bool.and_eq_true, decide_eq_true_eq] at fits
   obtain ⟨cube, -⟩ := fits
   have keyVars : 11 ≤ schedule.keyVars ∧ schedule.keyVars ≤ 30 := by
     simp only [schedules, List.mem_cons, List.not_mem_nil, or_false] at member
     rcases member with rfl | rfl <;> decide
-  have below : ∀ c : Fin 3, (c : ℕ) < (claimsOf matrices depths).length := fun c => c.isLt
-  have cell := fun c : Fin 3 => assemble_cell (claimsOf matrices depths) schedule row (below c)
-  have vars : ∀ c : Fin 3, (cellOf (claimsOf matrices depths) c).witness.vars =
+  have below : ∀ c : Fin (n + 1), (c : ℕ) < (claimsOf matrices depths).length := fun c => by
+    rw [claimsOf_length]
+    exact c.isLt
+  have cell := fun c : Fin (n + 1) => assemble_cell (claimsOf matrices depths) schedule row (below c)
+  have vars : ∀ c : Fin (n + 1), (cellOf (claimsOf matrices depths) c).witness.vars =
       varsFor ((matrices c).columns / ringDegree) + 6 := fun c => by
     rw [(cellOf_witness (below c)).1, witnessVarsOf, claimsOf_getD]
     rfl
-  have fitAt : ∀ c : Fin 3, (matrices c).columns / ringDegree ≤ 2 ^ (schedule.keyVars - 11) :=
+  have fitAt : ∀ c : Fin (n + 1), (matrices c).columns / ringDegree ≤ 2 ^ (schedule.keyVars - 11) :=
     fun c => by
       have member : (claimsOf matrices depths).getD c default ∈ claimsOf matrices depths := by
         rw [List.getD_eq_getElem _ _ (below c)]
@@ -87,11 +93,12 @@ theorem layoutNew_production {keyBlocks : ℕ} {l : Placed}
       have := fit _ member
       rw [claimsOf_getD, ← keyBlocks_eq] at this
       exact this
-  have keyFit : ∀ c : Fin 3, varsFor ((matrices c).columns / ringDegree) ≤ schedule.keyVars - 11 :=
+  have keyFit : ∀ c : Fin (n + 1), varsFor ((matrices c).columns / ringDegree) ≤
+      schedule.keyVars - 11 :=
     fun c => Nat.clog_le_of_le_pow (fitAt c)
   have span_cube : varsFor (tableSlices (claimsOf matrices depths)).2 ≤ row.1 :=
     (Nat.clog_mono_right 2 ((tables_le_others _).trans (others_le_counts _))).trans cube
-  have table_of : ∀ c : Fin 3, decide ((c : ℕ) < 2) = true →
+  have table_of : ∀ c : Fin (n + 1), decide ((c : ℕ) < n) = true →
       ((claimsOf matrices depths).getD c default).table = some (bound depths c) := fun c lt => by
     rw [claimsOf_getD]
     simp [of_decide_eq_true lt]
@@ -137,7 +144,7 @@ theorem layoutNew_production {keyBlocks : ℕ} {l : Placed}
     have := keyFit c
     omega
 
-variable (rel : ℕ → Factored F) (which : Fin 3 → ℕ) (zeros : ℕ)
+variable (rel : ℕ → Factored F) (which : Fin (n + 1) → ℕ) (zeros : ℕ)
 
 /-- `params_soundness` for the layout of Rust `Layout::new`: `WellFormed`, the key bound and the
 slot bound follow from `layoutNew`. -/
@@ -168,5 +175,81 @@ theorem layout_run_soundness {keyBlocks : ℕ} {l : Placed}
     key_fits s
 
 end Production
+
+section Light
+
+open NightstreamFPrime.Spec.Folding.Schedule (productionLightFoldCap)
+
+theorem nextMultiple_self {cursor size : ℕ} (positive : 0 < size) (aligned : size ∣ cursor) :
+    nextMultiple cursor size = cursor := by
+  obtain ⟨k, rfl⟩ := aligned
+  unfold nextMultiple
+  rw [show size * k + size - 1 = size * k + (size - 1) by omega, Nat.mul_add_div positive,
+    Nat.div_eq_of_lt (by omega), add_zero, mul_comm]
+
+theorem nextMultiple_lt (cursor : ℕ) {size : ℕ} (positive : 0 < size) :
+    nextMultiple cursor size < cursor + size := by
+  unfold nextMultiple
+  have := Nat.div_mul_le_self (cursor + size - 1) size
+  omega
+
+theorem lightClaims_eq (blocks depth : ℕ) : lightClaims blocks depth =
+    [⟨blocks, some (productionGlobalParams.accumulatorBound depth)⟩, ⟨blocks, none⟩] := rfl
+
+/-- `layoutNew` accepts the claims of the light compression under the key of `2^19` blocks
+(Algorithm 9, step 3): slot 0 at a depth at most the light cap, then the fresh instance, of a
+relation of at most `2^19` blocks. -/
+theorem layoutNew_light {blocks depth : ℕ} (positive : 0 < blocks) (fits : blocks ≤ 2 ^ 19)
+    (depth_le : depth ≤ productionLightFoldCap) :
+    ∃ l, layoutNew (lightClaims blocks depth) (2 ^ 19) = .ok l := by
+  have table := slot_table_le depth_le
+  have blockVars : varsFor blocks ≤ 19 := Nat.clog_le_of_le_pow fits
+  have tableVars : varsFor (2 * productionGlobalParams.accumulatorBound depth + 1) ≤ 15 :=
+    Nat.clog_le_of_le_pow (by omega)
+  have claims := lightClaims_eq blocks depth
+  have tables : groupOrder (lightClaims blocks depth) true = [0] := by
+    simp [groupOrder, claims, List.range_succ]
+  have others : groupOrder (lightClaims blocks depth) false = [1] := by
+    simp [groupOrder, claims, List.range_succ]
+  have counts : countRequests (lightClaims blocks depth) =
+      [(0, varsFor (2 * productionGlobalParams.accumulatorBound depth + 1))] := by
+    simp [countRequests, claims, List.range_succ]
+  have witness : ∀ i < 2, witnessVarsOf (lightClaims blocks depth) i = varsFor blocks + 6 := by
+    intro i below
+    interval_cases i <;> simp [witnessVarsOf, claims, laneVars]
+  generalize hv : varsFor blocks + 6 = v at witness
+  generalize ht : varsFor (2 * productionGlobalParams.accumulatorBound depth + 1) = t at counts
+  have span : (tableSlices (lightClaims blocks depth)).2 = 2 ^ v := by
+    simp only [tableSlices, tables, List.map_cons, List.map_nil, witness 0 (by decide), placeAll,
+      place, nextMultiple_self (pow_pos two_pos v) (dvd_zero _), zero_add]
+  have other : (otherSlices (lightClaims blocks depth)).2 = 2 ^ v + 2 ^ v := by
+    simp only [otherSlices, span, others, List.map_cons, List.map_nil, witness 1 (by decide),
+      placeAll, place, nextMultiple_self (pow_pos two_pos v) (dvd_refl _)]
+  have cells : (countSlices (lightClaims blocks depth)).2 < 2 ^ v + 2 ^ v + 2 ^ t + 2 ^ t := by
+    simp only [countSlices, other, counts, placeAll, place]
+    have := nextMultiple_lt (2 ^ v + 2 ^ v) (pow_pos two_pos t)
+    omega
+  have small : 2 ^ v ≤ 2 ^ 25 := Nat.pow_le_pow_right two_pos (by omega)
+  have smallTable : 2 ^ t ≤ 2 ^ 15 := Nat.pow_le_pow_right two_pos (by omega)
+  have rowFit : rowFits (lightClaims blocks depth) (27, 28) = true := by
+    have countVars : varsFor (countSlices (lightClaims blocks depth)).2 ≤ 27 :=
+      Nat.clog_le_of_le_pow (by omega)
+    have spanVars : varsFor (tableSlices (lightClaims blocks depth)).2 + lookupVars ≤ 28 := by
+      rw [span, varsFor, Nat.clog_pow 2 v one_lt_two, lookupVars]
+      omega
+    simp only [rowFits, countVars, spanVars, decide_true, Bool.and_self]
+  obtain ⟨row, found⟩ := Option.isSome_iff_exists.mp
+    (List.find?_isSome.mpr ⟨(27, 28), by simp, rowFit⟩ :
+      (([(26, 28), (27, 28)] : List (ℕ × ℕ)).find? (rowFits (lightClaims blocks depth))).isSome)
+  refine ⟨assemble (lightClaims blocks depth) ⟨30, [(26, 28), (27, 28)]⟩ row, ?_⟩
+  have wide : ¬ 65535 ≤ 2 * productionGlobalParams.accumulatorBound depth := by omega
+  have above : ¬ 524288 < blocks := by omega
+  rw [claims] at found
+  unfold layoutNew
+  simp only [show schedules.find? (fun s => s.blocks == 2 ^ 19) =
+    some ⟨30, [(26, 28), (27, 28)]⟩ from rfl]
+  simp [claims, positive.ne', wide, above, found]
+
+end Light
 
 end NightstreamFPrime.Spec.Compression.Rust

@@ -23,6 +23,11 @@ Accepted by the owner on 2026-11-13:
 - The verification key belongs to the generation of the circuit on the
   verifier's side. The verifier never takes it from a proof.
 
+Accepted by the owner on 2026-11-16: a circuit whose proofs never reach a
+refresh fold, such as each WASM size, has a final proof of two claims, and
+its key holds the light relation only
+([`wasm-light-compression.md`](./wasm-light-compression.md)).
+
 Proposed: each other entry of this record. The owner did not select these
 entries, and they wait for the owner's review. They include the form of the
 key polynomial, the sum-check that reduces the key's part of the weights,
@@ -61,9 +66,11 @@ the argument targets are the Lean ones: `Spec.CE.Holds` for a slot,
 makes a final proof from a proof with witnesses, and
 `Verifier::verify_final` checks it. [SPEC.md](../SPEC.md) Algorithms 9, 10
 and 11 are the rule, with the parameters of section 3 and the transcript of
-section 5.4. The final proof has the statement, both slot claims with their
-depths, the CE claim of the fresh instance, one Π_CCS sum-check, and one
-argument over Akita. It has no witness and cannot be extended.
+section 5.4. The final proof has the statement, the slot claims of its mode
+with their depths, the CE claim of the fresh instance, one Π_CCS sum-check,
+and one argument over Akita. It has no witness and cannot be extended. The
+mode has both slots, or slot 0 alone for a circuit whose proofs never reach
+a refresh fold (`Export.BoundedDepth.FinalVerifier.Mode`).
 
 | Item | Value |
 |---|---|
@@ -74,7 +81,7 @@ argument over Akita. It has no witness and cannot be extended.
 | Lookup table of slot `s` | `[−accumulatorBound(depth_s), accumulatorBound(depth_s)]`, at most 20,737 values |
 | Lookup challenges `L` | 4 challenges of `F_q`, one for each column of `V` |
 | Transcript domains | `Nightstream/OptionB/compress/ccs/v1` for Π_CCS, `Nightstream/compress/akita/v2` for the argument |
-| Byte tags | `NS-OPTIONB-FIN-2` for a final proof, `NS-COMPRESS-VK-1` for a verification key |
+| Byte tags | `NS-OPTIONB-FIN-2` for a final proof of both slots, `NS-OPTIONB-FIN-L` for a final proof of slot 0 alone, `NS-COMPRESS-VK-1` for a verification key |
 | Rust toolchain | 1.99.1, which Akita requires |
 | `jolt-field` | git revision `25d87ba68bde9f4a85ac986f5487b2e7b7db2699`, Akita's own pin |
 
@@ -83,11 +90,14 @@ argument over Akita. It has no witness and cannot be extended.
 1. **No shrink layer.** The verifier checks the argument directly. The size
    of an Akita opening changes little with the number of variables, so no
    circuit of a verifier is necessary.
-2. **Three CE claims.** The terminal check of Algorithm 6 has two slot
-   accumulators and one fresh instance. Each slot accumulator is a CE claim
-   (`Lifecycle.BoundedDepth.SlotClaim`). One Π_CCS run with no running claim
-   turns the fresh instance into a CE claim at a random point. This run uses
-   the Π_CCS code of the folds.
+2. **Three or two CE claims.** The terminal check of Algorithm 6 has two
+   slot accumulators and one fresh instance. Each slot accumulator is a CE
+   claim (`Lifecycle.BoundedDepth.SlotClaim`). One Π_CCS run with no running
+   claim turns the fresh instance into a CE claim at a random point. This run
+   uses the Π_CCS code of the folds. In the light mode, slot 1 is the default
+   slot at depth 0, which the verifier builds, so the argument has slot 0
+   and the fresh instance of the light circuit, and the key holds the light
+   relation only.
 3. **Π_CCS binds `W` first.** The Π_CCS transcript absorbs the Akita
    commitment of `W` before its first challenge.
 4. **Ring equations at one point.** The Ajtai opening, `Eval_K` and each
@@ -122,7 +132,9 @@ argument over Akita. It has no witness and cannot be extended.
    probability `7/q²`. `compress` then returns an error.
 10. **One key for each circuit size.** The key polynomial is a function of
     the public seeds and of the block count as a power of two only. So each
-    circuit of one size has the same verification key.
+    circuit of one size has the same verification key. The block count is
+    that of the larger relation, or of the light relation in the light
+    mode.
 11. **One Akita proof.** One proof opens the key polynomial, `W` and `V`.
     The schedule rows offload Akita's setup (ePrint 2026/1983 section 9),
     and the verification key holds Akita's commitments of the setup

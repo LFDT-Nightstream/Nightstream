@@ -36,16 +36,18 @@ noncomputable def claimValues (claim : SlotClaim logicalWidth publicFits) : Clai
 
 section Slot
 
-variable {key : ℕ → ℕ → ℕ → F} {matrices : Fin 3 → Matrices F} {depths : Fin 2 → ℕ}
-  {layout : Layout} {st : Statement (params key matrices depths layout)} {W : ℕ → F}
+variable {n : ℕ} {key : ℕ → ℕ → ℕ → F} {matrices : Fin (n + 1) → Matrices F}
+  {depths : Fin n → ℕ} {layout : Layout (n + 1)} {st : Statement (params key matrices depths layout)}
+  {W : ℕ → F}
 
 /-- The witness of claim `c` with zeros past its blocks. -/
-def slotWitness (matrices : Fin 3 → Matrices F) (layout : Layout) (W : ℕ → F) (c : Fin 3) :
+def slotWitness (matrices : Fin (n + 1) → Matrices F) (layout : Layout (n + 1)) (W : ℕ → F)
+    (c : Fin (n + 1)) :
     PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   sliceAssignment W (layout.witness c).offset (ringDegree * ((matrices c).columns / ringDegree))
 
 /-- Ring equation `e` of claim `c` on its witness slice. -/
-theorem ring_equation (holds : Relation (params key matrices depths layout) st W) (c : Fin 3)
+theorem ring_equation (holds : Relation (params key matrices depths layout) st W) (c : Fin (n + 1))
     {e l : ℕ} (e_lt : e < 23) (l_lt : l < ringDegree) :
     ∑ j ∈ range ((matrices c).columns / ringDegree),
         mul ringDegree ((params key matrices depths layout).form c (st c).point e j)
@@ -55,7 +57,7 @@ theorem ring_equation (holds : Relation (params key matrices depths layout) st W
 
 /-- The slot witness has the norm `accumulatorBound(depth) + 1`, which is at most `B`. -/
 theorem slot_normBounded_slice (holds : Relation (params key matrices depths layout) st W)
-    (wf : WellFormed (params key matrices depths layout)) (s : Fin 2)
+    (wf : WellFormed (params key matrices depths layout)) (s : Fin n)
     (depth_le : depths s ≤ productionLightFoldCap) :
     RingRelation.assignmentNormBounded (productionGlobalParams.accumulatorBound (depths s) + 1)
       (slotWitness (logicalWidth := logicalWidth) (publicFits := publicFits) matrices layout W
@@ -77,7 +79,7 @@ variable (holds : Relation (params key matrices depths layout) st W)
 include holds
 
 /-- The commitment: the Ajtai rows of `Relation` are `Σ_j ringFMul(A_ij, z_j)` through `ι`. -/
-theorem slot_commitment (c : Fin 3) (keyEq : key = keyOf ajtai)
+theorem slot_commitment (c : Fin (n + 1)) (keyEq : key = keyOf ajtai)
     (cover : ringDegree * ((matrices c).columns / ringDegree) ≤
       RingCarrierLayout.carrierWidth logicalWidth)
     (values : st c = claimValues claim) :
@@ -93,7 +95,7 @@ theorem slot_commitment (c : Fin 3) (keyEq : key = keyOf ajtai)
   exact (ajtaiRow_slice ajtai W _ cover row lane).trans equation
 
 /-- The public input: the first `320` cells of the slice. -/
-theorem slot_publicInput (wf : WellFormed (params key matrices depths layout)) (c : Fin 3)
+theorem slot_publicInput (wf : WellFormed (params key matrices depths layout)) (c : Fin (n + 1))
     (values : st c = claimValues claim) :
     RingRelation.projectPublicInput (slotWitness (logicalWidth := logicalWidth)
       (publicFits := publicFits) matrices layout W c) = claim.publicInput := by
@@ -112,7 +114,7 @@ theorem slot_publicInput (wf : WellFormed (params key matrices depths layout)) (
 
 /-- `Eval_K`: lane `o` of the padded evaluation of a relation's ring source, with any counts of
 sources, at the claim's point. -/
-theorem relation_pad {fc rc : ℕ} (c : Fin 3)
+theorem relation_pad {fc rc : ℕ} (c : Fin (n + 1))
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (represents : Represents (matrices c) relation.matrices)
     (values : st c = claimValues claim) (o : Fin ringDegree) :
@@ -136,7 +138,7 @@ theorem relation_pad {fc rc : ℕ} (c : Fin 3)
 
 /-- `Eval_A`: lane `o` of the evaluation of matrix `m` of a relation's ring source, with any counts
 of sources, at the claim's point. -/
-theorem relation_matrix {fc rc : ℕ} (c : Fin 3)
+theorem relation_matrix {fc rc : ℕ} (c : Fin (n + 1))
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (represents : Represents (matrices c) relation.matrices)
     (values : st c = claimValues claim) (m : Fin productionProfile.ccsMatrices)
@@ -163,7 +165,7 @@ theorem relation_matrix {fc rc : ℕ} (c : Fin 3)
 
 /-- The evaluations: `Eval_K` and each `Eval_A` of `Relation` are the evaluations of the circuit's
 relation at the claim's point. -/
-theorem slot_evaluations (c : Fin 3)
+theorem slot_evaluations (c : Fin (n + 1))
     (represents : Represents (matrices c) circuit.relation.matrices)
     (values : st c = claimValues claim) :
     (semantics ajtai).evaluations (circuit.system ajtai) (slotWitness matrices layout W c)
@@ -183,7 +185,7 @@ theorem slot_evaluations (c : Fin 3)
     exact relation_matrix holds claim c circuit.relation represents values m o
 
 /-- A slot claim of the argument holds under its circuit's relation as a combined claim. -/
-theorem slot_holds (wf : WellFormed (params key matrices depths layout)) (s : Fin 2)
+theorem slot_holds (wf : WellFormed (params key matrices depths layout)) (s : Fin n)
     (depth_le : depths s ≤ productionLightFoldCap) (keyEq : key = keyOf ajtai)
     (represents : Represents (matrices s.castSucc) circuit.relation.matrices)
     (values : st s.castSucc = claimValues claim) :

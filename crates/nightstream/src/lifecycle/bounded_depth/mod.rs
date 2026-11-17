@@ -29,6 +29,39 @@ use std::sync::Arc;
 /// `Schedule.productionLightFoldCap`: the light circuit's depth guard admits
 /// depths below 64.
 const LIGHT_FOLD_CAP: u64 = 64;
+
+/// The slots in the argument of a final proof (SPEC.md Algorithm 9, Lean
+/// `FinalVerifier.Mode`): both slots, or slot 0 alone when no proof of the
+/// circuit reaches a refresh fold. The verifier takes it from its own
+/// circuit, never from a proof.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Compression {
+    Both,
+    /// Slot 1 is the default slot at depth 0, which the verifier builds, and
+    /// the light circuit ran last.
+    Light,
+}
+
+impl Compression {
+    /// `Light` when each proof of the circuit has at most `cap + 1` steps:
+    /// the base step, then light folds into slot 0 below the cap (Lean
+    /// `RunCompleteness.light_run_complete`, `WasmSize.steps_le_light`).
+    pub(crate) fn for_max_steps(max_steps: u128) -> Self {
+        if max_steps <= u128::from(LIGHT_FOLD_CAP) + 1 {
+            Self::Light
+        } else {
+            Self::Both
+        }
+    }
+
+    /// The slot claims of the argument (Lean `FinalVerifier.Mode.slots`).
+    fn slots(self) -> usize {
+        match self {
+            Self::Both => 2,
+            Self::Light => 1,
+        }
+    }
+}
 const KEY_DOMAIN: &[u8] = b"Nightstream/OptionB/circuit-key/v1";
 
 #[derive(Debug, thiserror::Error)]
@@ -141,6 +174,7 @@ pub(crate) struct BoundedDepth {
     keys: [[F; 4]; 2],
     cap: u64,
     minimum_security_bits: u32,
+    compression: Compression,
 }
 
 /// `BoundedDepth::fold`'s result.
@@ -177,7 +211,13 @@ impl BoundedDepth {
             keys,
             cap: LIGHT_FOLD_CAP,
             minimum_security_bits,
+            compression: Compression::Both,
         })
+    }
+
+    /// This scheme with the final proofs of `compression`.
+    pub(crate) fn with_compression(self, compression: Compression) -> Self {
+        Self { compression, ..self }
     }
 
     #[cfg(test)]
@@ -185,26 +225,31 @@ impl BoundedDepth {
         &self.relations
     }
 
+    /// The default slot of circuit `circuit` at depth 0 (HyperNova
+    /// Definition 12, Lean `defaultSlot`): the canonical zero running
+    /// instance of its relation.
+    fn default_slot(&self, circuit: usize) -> Result<Slot, BoundedDepthError> {
+        let relation = &self.relations[circuit];
+        let mut zero = RunningInstance::canonical_zero(relation.params(), relation.structure(), PUBLIC_WORDS)
+            .map_err(BoundedDepthError::Statement)?;
+        Ok(Slot {
+            accumulator: pi_rlc::Output {
+                claim: zero.claims.swap_remove(0),
+                witness: zero.witnesses.swap_remove(0),
+            },
+            depth: 0,
+        })
+    }
+
     /// The proof of zero steps from `z0`, with both slots at the default
     /// running instance.
     pub(crate) fn initial(&self, z0: [F; 4]) -> Result<Envelope, BoundedDepthError> {
-        let slot = |relation: &Relation| -> Result<Slot, BoundedDepthError> {
-            let mut zero = RunningInstance::canonical_zero(relation.params(), relation.structure(), PUBLIC_WORDS)
-                .map_err(BoundedDepthError::Statement)?;
-            Ok(Slot {
-                accumulator: pi_rlc::Output {
-                    claim: zero.claims.swap_remove(0),
-                    witness: zero.witnesses.swap_remove(0),
-                },
-                depth: 0,
-            })
-        };
         Ok(Envelope {
             iteration: 0,
             z0,
             current: z0,
             pc: 0,
-            slots: [slot(&self.relations[0])?, slot(&self.relations[1])?],
+            slots: [self.default_slot(0)?, self.default_slot(1)?],
             fresh: None,
         })
     }

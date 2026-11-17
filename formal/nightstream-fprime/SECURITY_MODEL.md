@@ -587,8 +587,11 @@ not change terminal source checks.
   (`Spec.Nebula.Geometry.segmentBits`, `Spec.Nebula.Geometry.segmentError_le`).
   Each fixed WASM size certifies exactly 109 bits, and one more segment
   certifies fewer (`Spec.Nebula.WasmSize.segmentBits_eq`,
-  `Spec.Nebula.WasmSize.segmentBits_succ_lt`). Lean emits these numbers, and
-  Rust tests compare them (trust item 5).
+  `Spec.Nebula.WasmSize.segmentBits_succ_lt`). Each size also has
+  `S_max · N ≤ cap + 1`, so no proof that the memory verifier accepts for a
+  size reaches a refresh fold, and its final proof has the light mode of
+  adversary 6 (`Spec.Nebula.WasmSize.steps_le_light`). Lean emits these
+  numbers, and Rust tests compare them (trust item 5).
 - **Random-oracle model of `η`:** when `η` comes from a uniform oracle on its
   input (the plan digest, `ts` and the three roots) in place of Poseidon2,
   then for every `η` sampler with `Q_η` queries, the event of the memory
@@ -621,9 +624,13 @@ not change terminal source checks.
 - **Controls:** the statement and each byte of a final proof (`SPEC.md`
   section 4.5), against the verifier's own circuits, security minimum and
   compression key. It can evaluate the Poseidon2 sponge and the Keccak
-  functions of Akita. It does not choose the compression key. The verifier
-  takes the pinned key, or loads bytes that must equal it (`SPEC.md`
-  Algorithm 11).
+  functions of Akita. It does not choose the compression key or the mode.
+  The verifier takes the pinned key, or loads bytes that must equal it
+  (`SPEC.md` Algorithm 11). The verifier's circuit fixes the mode
+  (`Export.BoundedDepth.FinalVerifier.Mode`): the argument has both slot
+  claims, or in the light mode only the claim of slot 0. In the light mode
+  the verifier builds slot 1 as the default slot at depth 0 and requires
+  `pc = 1` (`Export.BoundedDepth.FinalVerifier.ModeChecks`).
 - **Wins:** the final verifier accepts (`SPEC.md` Algorithm 10), but no
   proof with witnesses exists that the verifier of `SPEC.md` Algorithm 6
   accepts for the statement
@@ -653,7 +660,10 @@ not change terminal source checks.
   the fresh instance under `Spec.CCS.Holds`
   (`Lifecycle.BoundedDepth.CompressionFresh.game_avoids`). Lean joins the
   checks, Π_CCS and the argument in one game of the final verifier
-  (`Export.BoundedDepth.FinalVerifier.Setup.game`). With `Q` queries, it accepts
+  (`Export.BoundedDepth.FinalVerifier.Setup.game`), for each mode. In the
+  light mode, the zero witness opens the default slot under the relation of
+  slot 1 (`Export.BoundedDepth.StepExtend.defaultSlot_holds`). With `Q`
+  queries, it accepts
   a statement for which no proof with witnesses satisfies `Verifies` with
   probability at most `Q · (2^−119 + 38/q²)`
   (`Export.BoundedDepth.FinalVerifier.soundness`), and with Akita openings
@@ -668,12 +678,13 @@ not change terminal source checks.
   rules 2 and 3, trust item 5). `decisions/akita-compression.md` gives the
   reason for each step.
 - **Aim:** under the premises of trust item 7, an accepted final proof
-  gives three witnesses. The one Akita proof gives the polynomials `W` and
+  gives three witnesses: one for each claim of the argument, and in the
+  light mode the zero witness of slot 1. The one Akita proof gives the polynomials `W` and
   `V`, and the value of the key polynomial at one point. The key polynomial
   is the Ajtai key, so the key sum-check makes the proof's key part of the
   public weights equal to the part that the Ajtai key gives. The verifier
   reads no element of the Ajtai key. The first sum-check and the last check
-  of `SPEC.md` Algorithm 10 give, for each of the three claims, a witness in
+  of `SPEC.md` Algorithm 10 give, for each claim of the argument, a witness in
   `W` that opens the claim's commitment, has its public input and gives its
   evaluations (`Spec.CE.Holds` without the norm). The lookup gives each slot witness
   the bound of its depth. The Π_CCS run gives the fresh witness the rows of
@@ -1042,6 +1053,20 @@ not change terminal source checks.
      and a test replays a real proof in that order and checks each
      challenge of `verify`. Akita's own transcript is not modeled (row Akita
      transcript of section Hashed encodings).
+   - *The mode.* The verifier takes the mode from its own circuit, and a
+     proof of the other mode has another tag and another slot count, which
+     the verifier rejects (`SPEC.md` Algorithm 10, step 3). Rust selects the
+     light mode for a memory circuit whose geometry has `N · S_max ≤ 65`
+     (`SPEC.md` Algorithm 9). Each verifier sees one mode, so the compression
+     transcript has no mode word, and `calls_injective` covers the one
+     statement shape of each circuit. The soundness of the light mode needs
+     no bound on the iteration. Its completeness needs one: an honest run of
+     at most `cap + 1` steps has a proof in the light mode
+     (`Export.BoundedDepth.RunCompleteness.light_run_complete`,
+     `Export.BoundedDepth.FinalVerifier.checks_light`), and the memory
+     verifier accepts no longer run of a WASM size. `[HN-A1]` for the
+     refresh fold and its knowledge error stay premises of the circuits that
+     keep both slots (trust item 3).
    - *The compression key.* The verifier's key is the key of `SPEC.md`
      Algorithm 11. It holds the Akita commitment of the key polynomial of
      the production Ajtai key, and Akita's commitments of the prefixes of
@@ -1078,8 +1103,8 @@ not change terminal source checks.
      model (policy `Quantum169BitADPS16`). Akita states that this price is
      for one attack family on a scalar instance, that it does not price
      attacks on the ring or module structure, and that it does not include
-     the loss of the reduction. The Ajtai commitments of the three claims
-     keep the lower estimate of trust item 2.
+     the loss of the reduction. The Ajtai commitments of the claims keep
+     the lower estimate of trust item 2.
    - *The Poseidon2 sponge for the argument `[P2-PERM]` `[SPONGE]`.* The
      Poseidon2 sponge makes each challenge of the Π_CCS run and of the
      argument (`SPEC.md` section 5.4). Each term of the Rust sum of `SPEC.md`

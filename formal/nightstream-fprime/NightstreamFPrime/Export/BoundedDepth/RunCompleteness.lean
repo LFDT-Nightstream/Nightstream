@@ -14,7 +14,10 @@ Definition 11 (i)): the bottom proof by `StepExtend.base_extend`, and a recursiv
 `StepExtend.refresh_extend` otherwise, as Rust picks the circuit from the slot depth. The terminal
 does not read the circuit selector (`TerminalBridge.holdsFor_recursive_control`), so each step may
 pick its own. A statement is honestly accepted when the verifier accepts some proof of it
-(`Accepts`, `accepts_step`). Induction over the run gives `run_complete`. -/
+(`Accepts`, `accepts_step`). Induction over the run gives `run_complete`. A run of at most
+`cap + 1` steps takes the light fold at each step after the base step, so its proof keeps slot 1
+at the default slot of depth 0 and has the light circuit last (`light_run_complete`, the light
+mode of SPEC.md Algorithm 9). -/
 
 set_option autoImplicit false
 
@@ -119,7 +122,7 @@ theorem verifies_step (exports : Exports relation ajtai circuitKeys step cubeFit
       (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step control statement).mp bottom
     have bottom' := (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step (fun _ _ => 0)
       statement).mpr ⟨statementValid, iterationZero, ziEq⟩
-    obtain ⟨next, nextHolds, nextHonest⟩ := base_extend exports complete keysShaped cap
+    obtain ⟨next, nextHolds, nextHonest, -⟩ := base_extend exports complete keysShaped cap
       (fun _ _ => 0) statement bottom' witness valid rfl (nextLength _ statementValid.2.2)
       witnessLength
     exact ⟨next, (verifies_recursive_iff complete.packageWidth cap control _ next).mpr
@@ -135,7 +138,7 @@ theorem verifies_step (exports : Exports relation ajtai circuitKeys step cubeFit
     by_cases room : (payload.running (selectedIndex pcValid)).2 < Schedule.productionLightFoldCap
     · have holds' := (holdsFor_recursive_control cap ajtai circuitKeys step control (fun _ _ => 0)
         statement payload).mp holds
-      obtain ⟨next, nextHolds, nextHonest⟩ := light_extend exports complete keysShaped cap
+      obtain ⟨next, nextHolds, nextHonest, -⟩ := light_extend exports complete keysShaped cap
         (fun _ _ => 0) statement payload holds' honest witness valid rfl
         (fun other => by rw [selectedEq other]; exact room) iterationNext
         (nextLength _ statementValid.2.2) witnessLength
@@ -210,5 +213,85 @@ theorem run_complete (exports : Exports relation ajtai circuitKeys step cubeFits
         (lengths witness (List.mem_append_right _ (List.mem_singleton_self _)))
       simpa only [List.length_append, List.length_singleton, List.foldl_append, List.foldl_cons,
         List.foldl_nil] using stepped
+
+/-- Completeness of the light compression (SPEC.md, Algorithm 9): for every valid run of `n` steps
+of the application from `z0` with `1 ≤ n ≤ cap + 1`, whose witnesses have the application's
+witness length, the verifier accepts the honest prover's recursive proof of the run's last state,
+whose last circuit is the light circuit, whose slot 1 is the default slot at depth 0, and whose
+slot 0 has depth `n − 1`. The first step is the base step (`StepExtend.base_extend`), and each
+later step is a light fold into slot 0 below the cap (`StepExtend.light_extend`), so no step of
+the run is a refresh fold. -/
+theorem light_run_complete (exports : Exports relation ajtai circuitKeys step cubeFits)
+    (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
+    (cap : Nat) (control : AppState → AppWitness → Fin 2) (z0 : AppState)
+    (z0Length : z0.length = Stage1.Application.stateWordCount) :
+    ∀ witnesses : List AppWitness, IvcWalk.ValidFrom exports.program z0 witnesses →
+      (∀ witness ∈ witnesses, witness.length = exports.program.witnessWordCount) →
+      0 < witnesses.length → witnesses.length ≤ Schedule.productionLightFoldCap + 1 →
+        ∃ payload, Verifies ajtai circuitKeys step complete.packageWidth cap control
+            ⟨witnesses.length, z0, witnesses.foldl step z0⟩ (.recursive payload) ∧
+          payload.pc = 1 ∧ payload.running 1 = (defaultSlot, 0) ∧
+          (payload.running 0).2 = witnesses.length - 1 := by
+  have transport : ∀ (statement : TerminalStatement AppState)
+      (control' : AppState → AppWitness → Fin 2) payload,
+      Terminal.HoldsFor cap ajtai circuitKeys step control' statement (.recursive payload) →
+        Terminal.HoldsFor cap ajtai circuitKeys step control statement (.recursive payload) :=
+    fun statement control' payload holds =>
+      (holdsFor_recursive_control cap ajtai circuitKeys step control' control _ payload).mp holds
+  intro witnesses
+  induction witnesses using List.reverseRecOn with
+  | nil => exact fun _ _ positive => absurd positive (Nat.lt_irrefl 0)
+  | append_singleton earlier witness inductionHypothesis =>
+      intro validRun lengths _ lengthBound
+      rw [IvcWalk.validFrom_append] at validRun
+      have earlierLengths : ∀ other ∈ earlier, other.length = exports.program.witnessWordCount :=
+        fun other inside => lengths other (List.mem_append_left _ inside)
+      have witnessLength := lengths witness (List.mem_append_right _ (List.mem_singleton_self _))
+      have foldEq : earlier.foldl exports.program.step z0 = earlier.foldl step z0 :=
+        congrArg (fun next => earlier.foldl next z0) exports.programStep
+      have lastValid : exports.program.valid (earlier.foldl step z0) witness := by
+        rw [← foldEq]
+        exact validRun.2.1
+      have stepLength : ∀ current : AppState, current.length = Stage1.Application.stateWordCount →
+          (step current witness).length = Stage1.Application.stateWordCount := by
+        intro current currentLength
+        rw [← exports.programStep]
+        exact exports.program.step_length current witness currentLength
+      simp only [List.length_append, List.length_singleton, List.foldl_append, List.foldl_cons,
+        List.foldl_nil, Nat.add_sub_cancel] at lengthBound ⊢
+      rcases Nat.eq_zero_or_pos earlier.length with empty | positive
+      · rw [List.length_eq_zero_iff.mp empty]
+        have bottom := (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step (fun _ _ => 0)
+          ⟨0, z0, z0⟩).mpr ⟨⟨show (0 : Nat) < fieldModulus by decide, z0Length, z0Length⟩, rfl, rfl⟩
+        rw [List.length_eq_zero_iff.mp empty] at lastValid
+        obtain ⟨next, nextHolds, nextHonest, pcOne, defaults⟩ := base_extend exports complete
+          keysShaped cap (fun _ _ => 0) ⟨0, z0, z0⟩ bottom witness lastValid rfl
+          (stepLength z0 z0Length) witnessLength
+        exact ⟨next, (verifies_recursive_iff complete.packageWidth cap control _ next).mpr
+          ⟨transport _ _ next nextHolds, nextHonest⟩, pcOne, defaults 1, by rw [defaults 0]; rfl⟩
+      · obtain ⟨payload, verifies, pcOne, slotOne, depthZero⟩ := inductionHypothesis validRun.1
+          earlierLengths positive (by omega)
+        obtain ⟨holds, honest⟩ := (verifies_recursive_iff complete.packageWidth cap control _
+          payload).mp verifies
+        have holds' := (holdsFor_recursive_control cap ajtai circuitKeys step control
+          (fun _ _ => 0) _ payload).mp holds
+        have currentLength := ((Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control _
+          payload).mp holds).1.2.2
+        have selectedZero : ∀ pcValid : InRange 2 payload.pc, selectedIndex pcValid = 0 :=
+          fun _ => Fin.ext (by simp [selectedIndex, pcOne])
+        obtain ⟨next, nextHolds, nextHonest, nextPc, nextRunning⟩ := light_extend exports complete
+          keysShaped cap (fun _ _ => 0) ⟨earlier.length, z0, earlier.foldl step z0⟩ payload holds'
+          honest witness lastValid rfl
+          (fun pcValid => by rw [selectedZero pcValid, depthZero]; omega)
+          (lt_of_le_of_lt lengthBound (by decide))
+          (stepLength _ currentLength) witnessLength
+        have pcValid : InRange 2 payload.pc := ⟨by rw [pcOne], by rw [pcOne]; decide⟩
+        obtain ⟨nextDepth, nextOther⟩ := nextRunning pcValid
+        rw [selectedZero pcValid] at nextDepth nextOther
+        refine ⟨next, (verifies_recursive_iff complete.packageWidth cap control _ next).mpr
+          ⟨transport _ _ next nextHolds, nextHonest⟩, nextPc, ?_, ?_⟩
+        · rw [nextOther 1 (by decide), slotOne]
+        · rw [nextDepth, depthZero]
+          omega
 
 end NightstreamFPrime.Export.BoundedDepth.RunCompleteness

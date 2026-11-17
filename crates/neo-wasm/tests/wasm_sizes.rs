@@ -1,7 +1,9 @@
 //! The fixed WASM sizes (`neo_wasm::nebula::WasmSize`,
 //! `decisions/wasm-fixed-sizes.md`). Each size is a secure geometry whose
 //! regions fit its spaces. A prover takes the smallest size that holds a run,
-//! and the run steps natively through the segments of that size.
+//! and the run steps natively through the segments of that size. No proof of
+//! a size reaches a refresh fold, so its final proof has two claims: slot 0
+//! and the fresh instance (SPEC.md Algorithm 9).
 
 mod common;
 
@@ -13,8 +15,13 @@ use neo_wasm::{preload_from_program_artifacts, top_level_initial_state, WasmMemo
 use nightstream::nebula::{Application, Run};
 use p3_field::PrimeField64;
 
-/// Enzo's iterative Fibonacci program (`tests/wasm_fibonacci.rs`) with two
-/// loop rounds.
+/// Enzo's iterative Fibonacci program (`tests/wasm_fibonacci.rs`) with
+/// `rounds` loop rounds. Its program counters fit 8 bits for each count.
+fn fib(rounds: u32) -> String {
+    FIB.replacen("i32.const 2", &format!("i32.const {rounds}"), 1)
+}
+
+/// `fib(2)`.
 const FIB: &str = r#"(module
   (func (export "main") (result i32)
     (local i32 i32 i32)
@@ -89,11 +96,15 @@ fn each_size_is_a_secure_geometry_whose_regions_fit_its_spaces() {
         );
         assert_eq!(size.application().unwrap().port_count(), geometry.b_ops);
         let rows = match size {
-            WasmSize::Small => 9_728,
-            WasmSize::Medium => 9_216,
-            WasmSize::Large => 3_072,
+            WasmSize::Micro => 24_000,
+            WasmSize::Small => 16_128,
+            WasmSize::Medium | WasmSize::Large => 15_936,
         };
         assert_eq!(size.max_rows(), rows, "{size:?}");
+        assert!(
+            geometry.n * geometry.s_max <= 65,
+            "{size:?}: no proof reaches the refresh fold of step 66"
+        );
         if let Some(smaller) = smaller {
             assert!(size.limits().holds(&smaller), "{size:?} holds the smaller sizes");
         }
@@ -105,7 +116,7 @@ fn each_size_is_a_secure_geometry_whose_regions_fit_its_spaces() {
 /// (`starstream-proving-runtime/tests`, all coroutine instances of each), and
 /// the rows of their longest WASM run.
 #[test]
-fn the_starstream_test_transactions_fit_small_or_medium() {
+fn the_starstream_test_transactions_fit_micro_or_small() {
     let need = |pc, function, event, linear_memory, global| WasmLimits {
         pc,
         function,
@@ -117,12 +128,12 @@ fn the_starstream_test_transactions_fit_small_or_medium() {
         ..WasmLimits::default()
     };
     for (name, limits, rows, size) in [
-        ("minimal_method_call", need(7, 5, 3, 0, 0), 363, WasmSize::Small),
-        ("storage_counter", need(7, 5, 3, 4, 0), 387, WasmSize::Small),
-        ("multi_utxo", need(8, 5, 3, 4, 0), 482, WasmSize::Small),
-        ("effect_reentry", need(5, 4, 2, 0, 0), 328, WasmSize::Small),
-        ("score", need(8, 6, 3, 4, 0), 903, WasmSize::Medium),
-        ("distinct_utxo_types", need(8, 6, 3, 5, 4), 646, WasmSize::Medium),
+        ("minimal_method_call", need(7, 5, 3, 0, 0), 363, WasmSize::Micro),
+        ("storage_counter", need(7, 5, 3, 4, 0), 387, WasmSize::Micro),
+        ("multi_utxo", need(8, 5, 3, 4, 0), 482, WasmSize::Micro),
+        ("effect_reentry", need(5, 4, 2, 0, 0), 328, WasmSize::Micro),
+        ("score", need(8, 6, 3, 4, 0), 903, WasmSize::Small),
+        ("distinct_utxo_types", need(8, 6, 3, 5, 4), 646, WasmSize::Small),
     ] {
         assert_eq!(WasmSize::smallest(&limits, rows), Some(size), "{name}");
     }
@@ -174,11 +185,11 @@ fn a_size_refuses_more_security_than_its_memory_gives() {
 
 /// Programs of more instructions need larger sizes, and one of 1,100
 /// instructions fits none. A run of more rows than each size holds fits
-/// none either: Small holds the most rows.
+/// none either: Micro holds the most rows.
 #[test]
 fn a_prover_takes_the_smallest_size_that_holds_the_run() {
     for (count, size) in [
-        (10, Some(WasmSize::Small)),
+        (10, Some(WasmSize::Micro)),
         (300, Some(WasmSize::Medium)),
         (600, Some(WasmSize::Large)),
         (1_100, None),
@@ -195,18 +206,23 @@ fn a_prover_takes_the_smallest_size_that_holds_the_run() {
         .into_iter()
         .max()
         .unwrap();
-    assert_eq!(most, WasmSize::Small.max_rows());
-    assert_eq!(WasmSize::smallest(&WasmLimits::default(), most), Some(WasmSize::Small));
+    assert_eq!(most, WasmSize::Micro.max_rows());
+    assert_eq!(WasmSize::smallest(&WasmLimits::default(), most), Some(WasmSize::Micro));
     assert_eq!(WasmSize::smallest(&WasmLimits::default(), most + 1), None);
 }
 
-/// Fibonacci steps natively through Small in one segment. The 600 `nop`s
-/// step through Large in two segments of 512 rows. Each run ends in the
-/// state after its last trace row. The segments together are the step inputs
-/// of the whole padded run.
+/// Fibonacci steps natively through Micro in one segment, and with 80 loop
+/// rounds in two segments of one step of 800 rows. The 600 `nop`s step
+/// through Large in one segment of four steps. Each run ends in the state
+/// after its last trace row. The segments together are the step inputs of
+/// the whole padded run.
 #[test]
 fn a_run_steps_natively_through_the_segments_of_its_size() {
-    for (wat, size, segments) in [(FIB.to_string(), WasmSize::Small, 1), (nops(600), WasmSize::Large, 2)] {
+    for (wat, size, segments) in [
+        (FIB.to_string(), WasmSize::Micro, 1),
+        (fib(80), WasmSize::Micro, 2),
+        (nops(600), WasmSize::Large, 1),
+    ] {
         let (preload, initial, trace) = run_of(&wat);
         assert_eq!(WasmSize::for_run(&preload, &trace).unwrap(), size);
         let app = size.application().unwrap();
@@ -231,18 +247,18 @@ fn a_run_steps_natively_through_the_segments_of_its_size() {
     }
 }
 
-/// Fibonacci proved in Small, one segment of 8 steps of 64 rows, on the CPU
-/// path, where the bounded-depth scheme proves. The proof verifies after its bytes
-/// round-trip, and a last state with another `pc` does not verify.
+/// Fibonacci proved in Micro, one segment of one step of 800 rows, on the
+/// CPU path, where the bounded-depth scheme proves. The proof verifies after
+/// its bytes round-trip, and a last state with another `pc` does not verify.
 #[test]
 #[ignore = "Full proof at a fixed size; run it alone, only with approval for a run longer than 300 seconds."]
-fn a_small_proof_verifies() {
+fn a_micro_proof_verifies() {
     use nightstream::nebula::{Circuit, VerifyError};
     use std::time::Instant;
     let started = Instant::now();
     let (preload, initial, trace) = run_of(FIB);
     let size = WasmSize::for_run(&preload, &trace).unwrap();
-    assert_eq!(size, WasmSize::Small);
+    assert_eq!(size, WasmSize::Micro);
     let app = size.application().unwrap();
     let program = app.program(&preload).unwrap();
     let circuit = Circuit::compile(size.geometry(), app).unwrap();
@@ -259,14 +275,14 @@ fn a_small_proof_verifies() {
     }
     let last = *run.state();
     let proof = run.finish().unwrap();
-    eprintln!("prove 8 steps elapsed={:?}", proving.elapsed());
+    eprintln!("prove 1 step elapsed={:?}", proving.elapsed());
 
     let bytes = prover.encode_proof(&proof).unwrap();
     let verifying = Instant::now();
     let proof = verifier.decode_proof(&bytes).unwrap();
     let verified = verifier.verify(&program, &initial, &last, &proof).unwrap();
     eprintln!("verify elapsed={:?}, proof bytes={}", verifying.elapsed(), bytes.len());
-    assert_eq!(verified.steps, 8);
+    assert_eq!(verified.steps, 1);
     let mut other = last;
     other.pc += 1;
     assert!(matches!(
@@ -276,11 +292,11 @@ fn a_small_proof_verifies() {
     eprintln!("total elapsed={:?}", started.elapsed());
 }
 
-/// Fibonacci proved in Small on the CPU and on Metal. The two proofs have the
+/// Fibonacci proved in Micro on the CPU and on Metal. The two proofs have the
 /// same bytes, and each verifier accepts the Metal proof.
 #[test]
 #[ignore = "Two full proofs; needs --features nightstream/metal on Apple hardware. Run it alone."]
-fn a_small_metal_proof_equals_the_cpu_proof() {
+fn a_micro_metal_proof_equals_the_cpu_proof() {
     use nightstream::nebula::Circuit;
     use nightstream::Engine;
     use std::time::Instant;
@@ -319,4 +335,57 @@ fn a_small_metal_proof_equals_the_cpu_proof() {
         verifier.verify(&program, &initial, &last, &proof).unwrap();
         eprintln!("verify on {engine:?} elapsed={:?}", verifying.elapsed());
     }
+}
+
+/// Fibonacci with 32 loop rounds, a run of about 360 rows, proved in Micro in
+/// one step and compressed. The key holds the light relation alone and the
+/// final proof has two claims, slot 0 and the fresh instance: the refresh
+/// relation of a size does not fit the largest key, so a key or a proof of
+/// three claims does not exist. The final proof verifies for its statement
+/// and not for a last state with another `pc`.
+#[test]
+#[ignore = "Production-size compression; run it alone under the 300-second cap."]
+fn a_micro_proof_compresses_with_two_claims() {
+    use nightstream::nebula::Circuit;
+    use std::time::Instant;
+    let started = Instant::now();
+    let (preload, initial, trace) = run_of(&fib(32));
+    let size = WasmSize::for_run(&preload, &trace).unwrap();
+    assert_eq!(size, WasmSize::Micro);
+    assert!(trace.len() <= size.rows().get(), "one step of {} rows", trace.len());
+    let app = size.application().unwrap();
+    let program = app.program(&preload).unwrap();
+    let circuit = Circuit::compile(size.geometry(), app).unwrap();
+    let engine = nightstream::Engine::Optimized;
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
+    eprintln!("compile elapsed={:?}", started.elapsed());
+
+    let mut run = prover.start(&program, initial).unwrap();
+    for segment in size.segments(&trace).unwrap() {
+        run.segment(&segment.unwrap()).unwrap();
+    }
+    let last = *run.state();
+    let proof = run.finish().unwrap();
+    assert_eq!(verifier.verify(&program, &initial, &last, &proof).unwrap().steps, 1);
+    eprintln!("prove {} rows elapsed={:?}", trace.len(), started.elapsed());
+
+    let setup = prover.compression_setup().unwrap();
+    let key = verifier.compression_key().unwrap();
+    eprintln!("compression setup elapsed={:?}", started.elapsed());
+    let compressing = Instant::now();
+    let compressed = prover.compress(&proof, &setup).unwrap();
+    eprintln!("compress elapsed={:?}", compressing.elapsed());
+    let verifying = Instant::now();
+    let verified = verifier
+        .verify_final(&program, &initial, &last, &key, &compressed)
+        .unwrap();
+    eprintln!("verify_final elapsed={:?}", verifying.elapsed());
+    assert_eq!(verified.steps, 1);
+    let mut other = last;
+    other.pc += 1;
+    assert!(verifier
+        .verify_final(&program, &initial, &other, &key, &compressed)
+        .is_err());
+    eprintln!("total elapsed={:?}", started.elapsed());
 }

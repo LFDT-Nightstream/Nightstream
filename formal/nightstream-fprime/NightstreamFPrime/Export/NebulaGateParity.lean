@@ -2,7 +2,8 @@ import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Spec.Nebula.SegmentGate
 
 /-! The memory gate (`Spec.Nebula.SegmentGate`): the bound of rule 6, the bits of the WASM
-sizes, and for each WASM size its geometry, `m_mem` and the bits of its segments. Rust must match
+sizes, and for each WASM size its geometry, `m_mem`, the bits of its segments, the rows of one
+step and whether `S_max · N ≤ cap + 1` (`WasmSize.steps_le_light`). Rust must match
 them (`crates/nightstream/tests/nebula/memory_gate.rs`, `crates/neo-wasm/tests/wasm_sizes_lean.rs`). -/
 
 namespace NightstreamFPrime.Export.NebulaGateParity
@@ -15,7 +16,8 @@ def schema : Nat := 1
 private def size (size : WasmSize) : Value :=
   let p := size.geometry
   .array [.atom p.r, .atom p.μ, .atom p.wTs, .atom p.bOps, .atom p.bScan, .atom p.n,
-    .atom p.sMax, .atom p.maxTuples, .atom p.segmentBits, .atom size.shape.2.1]
+    .atom p.sMax, .atom p.maxTuples, .atom p.segmentBits, .atom size.shape.rows,
+    .atom (if p.sMax * p.n ≤ Spec.Folding.Schedule.productionLightFoldCap + 1 then 1 else 0)]
 
 /-- Geometries for the comparison of Rust `is_valid` and `is_secure` with `Geometry.Valid` and
 `Geometry.Secure`: the first test geometry, one geometry that breaks each of rules 1 to 5 or has a
@@ -36,7 +38,7 @@ def parityValue : Value :=
     .atom schema,
     .atom Geometry.secureTuples,
     .atom WasmSize.gateBits,
-    .array [size .small, size .medium, size .large],
+    .array [size .micro, size .small, size .medium, size .large],
     .array (cases.map decided)]
 
 end NightstreamFPrime.Export.NebulaGateParity

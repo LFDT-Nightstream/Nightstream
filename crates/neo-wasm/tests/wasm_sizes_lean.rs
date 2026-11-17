@@ -1,9 +1,10 @@
 //! The fixed WASM sizes against Lean (`Spec.Nebula.WasmSize`). Lean proves
 //! that each size is valid and secure, that the memory gate certifies 109
 //! bits for all its segments, and that one more segment certifies fewer
-//! (`WasmSize.segmentBits_eq`, `WasmSize.segmentBits_succ_lt`). Lean emits
-//! the geometry and the rows of a step of each size, and `WasmSize` must have
-//! the same values.
+//! (`WasmSize.segmentBits_eq`, `WasmSize.segmentBits_succ_lt`), and that no
+//! proof of a size reaches a refresh fold (`WasmSize.steps_le_light`). Lean
+//! emits the geometry and the rows of a step of each size, and `WasmSize`
+//! must have the same values.
 
 use neo_wasm::nebula::WasmSize;
 use nightstream::nebula::Geometry;
@@ -38,5 +39,6 @@ fn each_wasm_size_has_the_lean_geometry_and_rows() {
         };
         assert_eq!(size.geometry(), geometry, "{size:?}");
         assert_eq!(size.rows().get(), row[9], "{size:?}");
+        assert_eq!(row[10], 1, "{size:?}: Lean S_max · N ≤ cap + 1");
     }
 }

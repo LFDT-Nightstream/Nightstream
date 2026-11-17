@@ -105,9 +105,10 @@ theorem production_rust_error_lt :
   norm_num [fieldOrder]
 
 omit [Field F] [DecidableEq F] [Field K] [DecidableEq K] [Algebra F K] in
-/-- `error` at the production shapes is at most the expression of `production_error_lt`. -/
+/-- `error` at the production shapes, with at most three claims, is at most the expression of
+`production_error_lt`. -/
 theorem error_le_production (vf : VerifierData P) (card_F : Fintype.card F = fieldOrder)
-    (card_K : Fintype.card K = fieldOrder ^ 2) (claims : P.claims = 3)
+    (card_K : Fintype.card K = fieldOrder ^ 2) (claims : P.claims ≤ 3)
     (equations : P.equations = 23) (lanes : P.lanes = 64) (public_le : maxPublic P ≤ 320)
     (span_le : P.spanVars ≤ 27) (columns : vf.columnVars = 2) (lookups : P.lookups = 4)
     (tables : ∀ c, (P.shape c).lookup = true →
@@ -128,17 +129,17 @@ theorem error_le_production (vf : VerifierData P) (card_F : Fintype.card F = fie
         refine pow_le_pow_left₀ (by positivity) (div_le_div_of_nonneg_right ?_ q_pos.le) 4
         exact_mod_cast tables c table
       · positivity
-    refine (sum_le_sum fun c _ => each c).trans (le_of_eq ?_)
-    rw [sum_const, card_univ, Fintype.card_fin, claims, nsmul_eq_mul]
-    norm_num
+    refine (sum_le_sum fun c _ => each c).trans ?_
+    rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
+    exact mul_le_mul_of_nonneg_right (by exact_mod_cast claims) (by positivity)
   have challenge : challengeError P ≤
       (((3 - 1 + (23 + max (64 - 1) (320 - 1)) : ℕ) : ℝ) / (fieldOrder ^ 2 : ℕ) +
         ((2 + 27 : ℕ) : ℝ) / (fieldOrder ^ 2 : ℕ)) := by
     unfold challengeError
-    rw [card_K, claims, equations, lanes]
+    rw [card_K, equations, lanes]
     refine add_le_add (div_le_div_of_nonneg_right ?_ (by positivity))
       (div_le_div_of_nonneg_right ?_ (by positivity))
-    · exact_mod_cast (by omega : 3 - 1 + (23 + max (64 - 1) (maxPublic P - 1)) ≤
+    · exact_mod_cast (by omega : P.claims - 1 + (23 + max (64 - 1) (maxPublic P - 1)) ≤
         3 - 1 + (23 + max (64 - 1) (320 - 1)))
     · exact_mod_cast (by omega : 2 + P.spanVars ≤ 2 + 27)
   unfold error

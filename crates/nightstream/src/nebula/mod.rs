@@ -344,6 +344,15 @@ fn segments_security_bits(geometry: &Geometry) -> u32 {
         .unwrap_or(0)
 }
 
+/// The final proofs of a memory circuit of `geometry` (SPEC.md Algorithm 9).
+/// The memory verifier accepts at most `S_max` segments of `N` steps
+/// (Algorithm 8), so when `N · S_max ≤ cap + 1` no proof reaches a refresh
+/// fold, and the final proof carries slot 0 alone (Lean
+/// `WasmSize.steps_le_light`).
+fn compression(geometry: &Geometry) -> crate::lifecycle::bounded_depth::Compression {
+    crate::lifecycle::bounded_depth::Compression::for_max_steps(geometry.n as u128 * geometry.s_max as u128)
+}
+
 /// Require a valid and secure `geometry` (SPEC.md section 7.1) whose
 /// fingerprint term over all `S_max` segments meets `minimum_security_bits`.
 fn memory_security(geometry: &Geometry, minimum_security_bits: u32) -> Result<(), crate::Error> {

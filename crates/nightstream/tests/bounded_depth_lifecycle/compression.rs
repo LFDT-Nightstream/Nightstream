@@ -11,7 +11,7 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use super::super::compression::{FinalProof, Fresh, Steps};
-use super::super::{BoundedDepth, BoundedDepthError, CompiledSteps, Envelope};
+use super::super::{BoundedDepth, BoundedDepthError, CompiledSteps, Compression, Envelope};
 use super::support::{fold_gate_bits, hash_chain_step, packages, words};
 use super::{addition, prover};
 use crate::folding::transcript::Transcript;
@@ -123,7 +123,7 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
             .compression_layout(
                 key.blocks(),
                 envelope.pc,
-                envelope.slots.each_ref().map(|slot| slot.depth),
+                &envelope.slots.each_ref().map(|slot| slot.depth),
             )
             .expect("layout");
         let start = Instant::now();
@@ -355,7 +355,10 @@ fn unproven(envelope: &Envelope) -> FinalProof {
         current: envelope.current,
         steps: Some(Steps {
             pc: envelope.pc,
-            slots: slots.map(|slot| (slot.accumulator.claim.clone(), slot.depth)),
+            slots: slots
+                .iter()
+                .map(|slot| (slot.accumulator.claim.clone(), slot.depth))
+                .collect(),
             fresh: Fresh {
                 c: claim.c.clone(),
                 r: claim.r.clone(),
@@ -524,7 +527,7 @@ fn compress_committing(prover: &BoundedDepth, envelope: &Envelope, committed: &M
     let fresh = envelope.fresh.as_ref().expect("fresh instance");
     let (pc, slots) = (envelope.pc, envelope.slots.each_ref());
     let layout = prover
-        .compression_layout(key(prover).blocks(), pc, slots.map(|slot| slot.depth))
+        .compression_layout(key(prover).blocks(), pc, &slots.map(|slot| slot.depth))
         .expect("layout");
     let witnesses = [&slots[0].accumulator.witness, &slots[1].accumulator.witness, committed];
     let committed = ns_compress::commit(setup(prover), layout, &witnesses).expect("commitment of W");
@@ -546,7 +549,7 @@ fn compress_committing(prover: &BoundedDepth, envelope: &Envelope, committed: &M
     .expect("PiCCS proof");
     let output = ccs.outputs.swap_remove(0);
     let statements =
-        prover.compression_statements(pc, slots.map(|slot| (&slot.accumulator.claim, slot.depth)), &output);
+        prover.compression_statements(pc, &slots.map(|slot| (&slot.accumulator.claim, slot.depth)), &output);
     let (argument, _) = committed
         .prove(transcript.inner_mut(), &statements)
         .expect("the prover does not check its witness");
@@ -556,7 +559,10 @@ fn compress_committing(prover: &BoundedDepth, envelope: &Envelope, committed: &M
         current: envelope.current,
         steps: Some(Steps {
             pc,
-            slots: slots.map(|slot| (slot.accumulator.claim.clone(), slot.depth)),
+            slots: slots
+                .iter()
+                .map(|slot| (slot.accumulator.claim.clone(), slot.depth))
+                .collect(),
             fresh: Fresh {
                 c: output.c,
                 r: output.r,
@@ -729,6 +735,57 @@ fn a_proof_does_not_verify_under_another_compression_key() {
 /// chain.
 fn small_setup() -> ProverKey {
     ProverKey::new(512).expect("the key of 512 blocks")
+}
+
+/// A proof of the light compression carries slot 0 alone under its own tag
+/// and `pc = 1`, and it has one encoding. The verifier of each mode refuses
+/// a proof of the other mode before it reads the argument, and the light
+/// key holds the light relation alone. The proof of this test proves
+/// nothing, so the test needs no compression setup of the hash chain.
+#[test]
+fn a_light_final_proof_carries_slot_zero_alone_and_needs_its_mode() {
+    let both = prover(2);
+    let light = prover(2).with_compression(Compression::Light);
+    assert_eq!(light.key_blocks(), light.relations[0].blocks());
+    assert_eq!(
+        both.key_blocks(),
+        both.relations[0].blocks().max(both.relations[1].blocks())
+    );
+    let setup = small_setup();
+    let key = setup.verification_key();
+    let initial = light.initial(z0()).expect("initial proof");
+    let message = words([20, 21, 22, 23]);
+    let envelope = &light
+        .extend(&initial, &message, hash_chain_step(initial.current, message), None)
+        .expect("step");
+    let full = unproven(envelope);
+    let mut proof = full.clone();
+    proof.steps.as_mut().unwrap().slots.truncate(1);
+    let bytes = proof.to_bytes().expect("bytes");
+    assert_eq!(&bytes[..16], b"NS-OPTIONB-FIN-L");
+    let decoded = FinalProof::from_bytes(&bytes).expect("decoded proof");
+    assert_eq!(decoded.steps.as_ref().unwrap().slots.len(), 1);
+    assert_eq!(decoded.to_bytes().expect("bytes"), bytes);
+    let verify = |verifier: &BoundedDepth, proof: &FinalProof| {
+        verifier.verify_final(key, envelope.iteration, envelope.z0, envelope.current, proof)
+    };
+    // The light verifier passes the checks of its mode and reaches the key,
+    // and the key of 512 blocks is not the light key of the hash chain.
+    assert!(matches!(
+        verify(&light, &decoded),
+        Err(BoundedDepthError::Compression(ns_compress::Error::Key(_)))
+    ));
+    assert!(matches!(verify(&both, &decoded), Err(BoundedDepthError::Statement(_))));
+    assert!(matches!(verify(&light, &full), Err(BoundedDepthError::Statement(_))));
+    let mut refresh = decoded.clone();
+    refresh.steps.as_mut().unwrap().pc = 2;
+    assert!(matches!(verify(&light, &refresh), Err(BoundedDepthError::Statement(_))));
+    let mut tagged = bytes.clone();
+    tagged[16..24].copy_from_slice(&2u64.to_le_bytes());
+    assert!(FinalProof::from_bytes(&tagged).is_err(), "the light tag with pc = 2 decodes");
+    let mut retagged = bytes.clone();
+    retagged[..16].copy_from_slice(b"NS-OPTIONB-FIN-2");
+    assert!(FinalProof::from_bytes(&retagged).is_err(), "one slot under the tag of both decodes");
 }
 
 /// Zero steps: the proof has no argument and reads no key, and it verifies

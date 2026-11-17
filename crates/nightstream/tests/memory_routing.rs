@@ -70,7 +70,7 @@ fn generic_plan_preserves_all_allowed_activations_and_dependent_order() {
     covered.sort_unstable();
     assert_eq!(covered, (0..8).collect::<Vec<_>>());
     assert!(plan.slots.len() < 8);
-    let mut slot_of = vec![0; 8];
+    let mut slot_of = [0; 8];
     for (slot, ports) in plan.slots.iter().enumerate() {
         assert!(!ports.is_empty());
         for &port in ports {

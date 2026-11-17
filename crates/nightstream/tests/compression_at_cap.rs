@@ -1,8 +1,4 @@
-//! The compressed proof at the light fold cap (SPEC.md section 6). The light
-//! slot's lookup table grows with its depth, and the cap 64
-//! (`Schedule.productionLightFoldCap`) gives the largest table. The test holds
-//! the compression setup of 10 GB, so it is ignored, and
-//! `scripts/ci_rust_tests.sh` runs it alone.
+//! SPEC.md section 6; Lean `Schedule.productionLightFoldCap`.
 
 mod bounded_depth_support;
 
@@ -12,14 +8,9 @@ use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v
 use nightstream::{Circuit, Engine, FinalProof, PrimeCharacteristicRing, State};
 use std::time::Instant;
 
-/// Step 1 makes no fold. Step `k` makes the light fold that leaves the light
-/// slot at depth `k − 1` until that depth is the cap, so after step 65 the
-/// light slot is at depth 64, and step 66 makes a refresh fold
-/// (`Schedule.Admissible`).
+/// Lean `Schedule.Admissible`.
 const AT_CAP: u64 = 65;
 
-/// The proofs of a run of 66 steps verify when compressed after steps 3, 64,
-/// 65 and 66, and not for another state. Each one is under 200 KB.
 #[test]
 #[ignore = "Production-size compression, 30 GB; scripts/ci_rust_tests.sh runs it alone."]
 fn hash_chain_compresses_at_the_light_fold_cap() {

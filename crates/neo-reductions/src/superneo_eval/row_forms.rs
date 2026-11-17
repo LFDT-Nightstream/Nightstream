@@ -1,5 +1,3 @@
-//! Row dot products and weighted ring forms of one explicit matrix cache.
-
 use core::cmp::min;
 
 use neo_math::{KExtensions, D, F, K};

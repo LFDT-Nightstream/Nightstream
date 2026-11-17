@@ -1,7 +1,5 @@
-//! Step words of the Poseidon2 hash chain for the bounded-depth tests, built the
-//! way Lean's `LightAssemblerSource.honestValues` and
-//! `RefreshAssemblerSource.honestValues` build them, and the check that every
-//! row of a circuit's relation holds on them.
+//! Lean `LightAssemblerSource.honestValues` and
+//! `RefreshAssemblerSource.honestValues`.
 
 #![allow(dead_code)]
 
@@ -29,9 +27,7 @@ pub fn artifact(name: &str) -> Vec<u8> {
     .unwrap_or_else(|error| panic!("read {name}: {error}"))
 }
 
-/// Lean's fold-gate bits at the counts of each step relation
-/// (`FoldGate.production_bits`), the largest minimum that a bounded-depth
-/// circuit without memory accepts.
+/// Lean `FoldGate.production_bits`.
 pub fn fold_gate_bits() -> u32 {
     let lean: serde_json::Value =
         serde_json::from_slice(&artifact("nightstream-fprime-fold-gate-parity-v1.json")).expect("Lean fold gate file");
@@ -54,8 +50,7 @@ pub fn words(values: [u64; 4]) -> [F; 4] {
     values.map(F::from_u64)
 }
 
-/// `Poseidon2HashChainV1.step`: Poseidon2 over the domain tag, the state
-/// and the message.
+/// Lean `Poseidon2HashChainV1.step`.
 pub fn hash_chain_step(state: [F; 4], message: [F; 4]) -> [F; 4] {
     let mut input: Vec<F> = b"Nightstream/Stage1/Poseidon2HashChain/v1"
         .iter()
@@ -73,8 +68,6 @@ pub fn canonical(values: &[F]) -> Vec<u64> {
         .collect()
 }
 
-/// Step 0 of the hash chain for circuit `circuit` (0 light, 1 refresh): the
-/// words without the fold, and the fresh public input.
 pub struct StepZero {
     pub keys: [[F; 4]; 2],
     pub z0: [F; 4],
@@ -108,9 +101,6 @@ impl StepZero {
         }
     }
 
-    /// The fold of a zero proof: the commitments and evaluations stay 0, the
-    /// public input is the first challenge times the fresh public input, and
-    /// the point is the round point.
     pub fn folded(&self, transcript: &PiCcsV1_2Transcript, challenges: usize, depth: u64) -> Slot {
         let mut sampler = Poseidon2Transcript::from_state_and_absorbed(transcript.outgoing_state().map(F::from_u64), 0);
         let rho = sample_rot_rhos_n_typed(
@@ -174,7 +164,6 @@ impl StepZero {
     }
 }
 
-/// Checks every row on the step's witness and returns its logical assignment.
 pub fn assert_every_row_holds(package: &StepPackage, step: &StepWords) -> Vec<F> {
     let shared = step.columns().expect("step words");
     let expanded = package.clone().expand().expect("expanded package");

@@ -1,6 +1,3 @@
-//! Batching tests: verify the batched wasm R1CS satisfies for valid
-//! witnesses and rejects inconsistent cross-step states.
-
 mod common;
 
 use neo_math::F;
@@ -42,8 +39,6 @@ fn batched_at_one_includes_lookup_constraints() {
         single.sparse_r1cs.n > core.structure().n(),
         "lookup constraints must be included"
     );
-    // Each advice column has a range check: a bit, or a bounded product
-    // with its declared bit width. None is an unchecked field element.
     let advice = &single.widths[core.structure().m()..];
     let widths: std::collections::BTreeSet<usize> = advice.iter().copied().collect();
     assert!(
@@ -82,8 +77,6 @@ fn batched_lookup_constraints_reject_forged_xor_outputs() {
             } else {
                 output.value_lo ^= 1;
             }
-            // Rebuild both the VM columns and lookup advice from the forged
-            // result. Range checks and the core's output bindings still hold.
             let base = neo_wasm::build_witness_vector(&forged[index]).unwrap();
             let m_in = core.r1cs().public_input_count();
             neo_ccs::check_ccs_rowwise_zero(core.r1cs().structure(), &base[..m_in], &base[m_in..])
@@ -102,7 +95,6 @@ fn batched_shape_grows_with_batch_size() {
     let single = build_batched_wasm_ccs(1).expect("single");
     let n_links_per_boundary = {
         let layout = neo_wasm::build_wasm_relation_layout();
-        // One link row per state-continuity column pair.
         layout.auxiliary.continuity.link_count()
     };
     for n in [2usize, 4, 10] {
@@ -127,7 +119,6 @@ fn batched_witness_satisfies_batched_ccs_at_dividing_sizes() {
 
 #[test]
 fn batched_witness_satisfies_batched_ccs_with_padding() {
-    // Sizes that don't divide trace_len exercise the padding path.
     let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main");
     assert_ne!(checked.trace.len() % 3, 0, "padding test needs a non-dividing size");
     for batch_size in [3, 5, 7] {
@@ -144,7 +135,6 @@ fn cross_step_link_rejects_inconsistent_pc() {
     let batched = build_batched_wasm_ccs(batch_size).expect("batched");
     let mut witness = build_batched_witness(&checked.trace, batch_size, 0).unwrap();
 
-    // Tamper with step 1's pc_before to break the pc continuity link.
     let m_single = batched.sparse_r1cs.m / batch_size;
     witness[m_single + COL_PC_BEFORE] += F::ONE;
 
@@ -185,25 +175,15 @@ fn cross_step_link_rejects_inconsistent_sp() {
         .expect_err("batched CCS must reject sp_after[0] != sp_before[1]");
 }
 
-// TODO: the intra-batch 1-constant columns are currently ignored and
-// replaced with the global one at 0. The cost is minimal, but for the sake of
-// cleanliness we should probably remove them.
-//
-// Batching is currently done in a straight-forward naive way, so maybe batch
-// that with other improvements like inlining the duplicated variables (using
-// the output column of the previous step directly rather than the input column
-// that is equal to it).
 #[test]
 fn block_local_constant_is_an_unreferenced_dont_care() {
-    // Replicated rows must read the shared global `COL_ONE`, not block-local
-    // constant slots after block 0.
     let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main");
     let batch_size = 2;
     let batched = build_batched_wasm_ccs(batch_size).expect("batched");
     let mut witness = build_batched_witness(&checked.trace, batch_size, 0).unwrap();
 
     let m_single = batched.sparse_r1cs.m / batch_size;
-    witness[m_single /* + COL_ONE = 0 */] = F::from_u64(7);
+    witness[m_single] = F::from_u64(7);
 
     batched
         .sparse_r1cs

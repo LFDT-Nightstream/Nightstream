@@ -1,5 +1,3 @@
-//! Canonical PiCCS proof bytes exist only for rectangular round messages.
-
 use neo_math::{F, K};
 use neo_reductions::PiCcsProof;
 use p3_field::PrimeCharacteristicRing;

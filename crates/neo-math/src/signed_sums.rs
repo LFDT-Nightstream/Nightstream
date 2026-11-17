@@ -1,22 +1,11 @@
-//! Exact sums of signed monomial shifts of ring elements. Each coefficient
-//! enters as two bounded integer limbs, so every term is one i64 addition.
-//! Reduction modulo `X^D + 1` and `q` runs once, after all terms.
-//! A product with a small-digit ring element also splits each coefficient
-//! into two limbs. Each output coefficient is then an exact i64 dot product,
-//! with one reduction modulo `q`.
-
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::{field::Q, ring::D, F};
 
-/// Each limb of a `SplitRing` is in `[0, LIMB_BOUND)`.
 pub const LIMB_BOUND: u128 = 1 << 32;
-/// The most terms that one `SignedShiftSums` holds exactly.
-pub const MAX_TERMS: u64 = 1 << 24;
+pub const MAX_EXACT_TERMS: u64 = 1 << 24;
 
-/// A coefficient position receives at most `D` shifts of each term.
-const _: () = assert!((D as u128) * LIMB_BOUND * (MAX_TERMS as u128) < (1u128 << 63));
-/// A `u64` mask has one bit for each coefficient.
+const _: () = assert!((D as u128) * LIMB_BOUND * (MAX_EXACT_TERMS as u128) < (1u128 << 63));
 const _: () = assert!(D == u64::BITS as usize);
 
 /// Coefficient `j` is `limbs[2j] + 2^32 · limbs[2j + 1]`.
@@ -29,7 +18,6 @@ impl SplitRing {
         Self::from_u64(&coefficients.map(|value| value.as_canonical_u64()))
     }
 
-    /// The ring element with these integer coefficients: each limb is 32 bits of one.
     pub fn from_u64(coefficients: &[u64; D]) -> Self {
         Self {
             limbs: core::array::from_fn(|limb| (coefficients[limb / 2] >> (32 * (limb % 2))) as u32),
@@ -64,7 +52,7 @@ impl SignedShiftSums {
         {
             self.terms += 1;
             debug_assert!(
-                self.terms <= MAX_TERMS,
+                self.terms <= MAX_EXACT_TERMS,
                 "signed shift sums exceed the exact i64 term bound"
             );
         }
@@ -98,7 +86,7 @@ impl SignedShiftSums {
         {
             self.terms += other.terms;
             debug_assert!(
-                self.terms <= MAX_TERMS,
+                self.terms <= MAX_EXACT_TERMS,
                 "signed shift sums exceed the exact i64 term bound"
             );
         }
@@ -111,12 +99,13 @@ impl SignedShiftSums {
         let raw = |degree: usize| {
             F::from_i128((i128::from(self.limbs[2 * degree + 1]) << 32) + i128::from(self.limbs[2 * degree]))
         };
-        // X^D = −1.
         core::array::from_fn(|lane| {
+            let direct = raw(lane);
             if lane + D < 2 * D - 1 {
-                raw(lane) - raw(lane + D)
+                let wrapped_past_x_d = raw(lane + D);
+                direct - wrapped_past_x_d
             } else {
-                raw(lane)
+                direct
             }
         })
     }

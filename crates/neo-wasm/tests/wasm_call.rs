@@ -104,7 +104,6 @@ fn call_trace_has_correct_fbp_and_call_stack_fields() {
         "expected Call in normalized trace: {opcodes:?}"
     );
 
-    // Exactly one call step, with call_stack_push populated.
     let call_steps: Vec<_> = trace
         .iter()
         .filter(|r| r.opcode == WasmOpcode::Call)
@@ -120,7 +119,6 @@ fn call_trace_has_correct_fbp_and_call_stack_fields() {
         "call step must not have call_stack_pop"
     );
 
-    // The argument already sits where the callee frame starts.
     assert!(!call_step.state_after.frame_move.active);
     assert_eq!(call_step.state_after.locals_fbp, call_step.state_after.sp - 1);
     assert_eq!(call_step.state_after.stack_frame_base, call_step.state_after.sp);
@@ -133,7 +131,6 @@ fn call_trace_has_correct_fbp_and_call_stack_fields() {
         .expect("callee local.get");
     assert_eq!(local_get.local_read_value, Some(5), "callee param value must be 5");
 
-    // The return moves the result down over the callee's parameter.
     let moves: Vec<_> = trace
         .iter()
         .filter(|r| r.row_kind == WasmRowKind::Aux(WasmAuxOpcode::FrameMove))
@@ -149,8 +146,6 @@ fn call_trace_has_correct_fbp_and_call_stack_fields() {
         Some((0, 6))
     );
 
-    // There should be exactly one non-final return-like step (callee return), with
-    // call_stack_pop populated. The final function-end return may be represented by End.
     let return_like_steps: Vec<_> = trace
         .iter()
         .filter(|r| matches!(r.opcode, WasmOpcode::Return | WasmOpcode::End))
@@ -160,7 +155,6 @@ fn call_trace_has_correct_fbp_and_call_stack_fields() {
         "expected at least callee return-like step and caller function end"
     );
 
-    // The non-final return-like row is the callee's — it has call_stack_pop.
     let non_final_returns: Vec<_> = return_like_steps
         .iter()
         .filter(|r| r.call_stack_pop.is_some())
@@ -171,7 +165,6 @@ fn call_trace_has_correct_fbp_and_call_stack_fields() {
         "non-final return must have call_stack_pop"
     );
 
-    // Only the very last step is activation_finished.
     let last = trace.last().expect("non-empty trace");
     assert!(
         last.state_after.activation_finished,
@@ -207,7 +200,6 @@ fn nested_two_param_calls_start_frames_at_their_arguments() {
         "the inner frame starts at the args pushed above the outer frame's params"
     );
 
-    // Each return moves its one result down over the callee's two params.
     let moves: Vec<_> = trace
         .iter()
         .filter(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::FrameMove))
@@ -236,7 +228,6 @@ fn call_indirect_guest_target_initializes_params() {
         .expect("call_indirect row");
     assert!(call.target_function_is_guest);
     assert!(call.call_stack_push.is_some());
-    // The table index is popped; the argument below it becomes the param.
     assert_eq!(call.state_after.sp, 1);
     assert_eq!(call.state_after.locals_fbp, 0);
     let local_get = trace
@@ -285,7 +276,6 @@ fn reused_guest_frame_zeroes_both_lanes_before_a_local_read() {
         .filter(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::LocalZero))
         .collect();
     assert_eq!(zero_rows.len(), 2);
-    // Both callees open their frame at cell 0 and push their local there.
     assert!(zero_rows.iter().all(|row| {
         row.stack_write0
             .is_some_and(|write| write.addr_lo == 0 && write.value_lo == 0 && write.value_hi == Some(0))

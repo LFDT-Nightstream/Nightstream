@@ -1,7 +1,3 @@
-//! One task's opening sums of real witnesses against per-block ring forms.
-//! Signed-unit witnesses keep exact raw shift sums and reduce once per task;
-//! other witnesses add reduced ring products block by block.
-
 use neo_math::{
     signed_sums::{SignedShiftSums, SplitRing},
     KExtensions, Rq, D, F, K,

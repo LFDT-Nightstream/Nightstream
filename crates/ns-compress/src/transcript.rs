@@ -1,7 +1,3 @@
-//! What the argument writes to and reads from the caller's Poseidon2
-//! transcript. `absorb_v1_2` has no frame of its own, so each message here
-//! has a length that the statement fixes, or carries its length.
-
 use neo_math::{from_complex, KExtensions, F, K};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
@@ -20,9 +16,6 @@ pub(crate) fn absorb_extension(transcript: &mut Poseidon2Transcript, values: &[K
     transcript.absorb_v1_2(&words);
 }
 
-/// `bytes` as field words: the byte count, then each seven bytes as one
-/// little-endian word. A word is below `2^56`, so it is canonical, and the
-/// count fixes the bytes of the last word.
 pub fn byte_words(bytes: &[u8]) -> Vec<F> {
     let mut words = vec![F::from_u64(bytes.len() as u64)];
     words.extend(bytes.chunks(7).map(|chunk| {
@@ -37,8 +30,6 @@ pub(crate) fn absorb_bytes(transcript: &mut Poseidon2Transcript, bytes: &[u8]) {
     transcript.absorb_v1_2(&byte_words(bytes));
 }
 
-/// The transcript's state as the session bytes of an Akita opening, after
-/// `label`: the opening is bound to every message before it.
 pub(crate) fn session(transcript: &Poseidon2Transcript, label: &[u8]) -> Vec<u8> {
     [label, &transcript.state_prefix_v1_2()].concat()
 }

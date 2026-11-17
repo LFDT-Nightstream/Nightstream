@@ -1,8 +1,3 @@
-//! Fixed production-key commitments. Validate on the host, generate key rows
-//! and sum signed ring products on the device. A streaming session expands the
-//! rows it needs in every call; a prover session keeps the complete key rows
-//! after their first use.
-
 use std::{borrow::Borrow, sync::MutexGuard};
 
 use neo_ajtai::{
@@ -20,29 +15,22 @@ use p3_field::PrimeCharacteristicRing;
 use super::{Arg, Buffer, Grid, MetalSession};
 use crate::MetalError;
 
-/// Measured on an M5 Ultra with 16 dense witnesses at production width and a
-/// kept key: 128, 512 and 2,048 columns took 1.13 s, 1.15 s and 1.27 s.
 const COLUMNS_PER_GROUP: usize = 512;
+const _: () = assert!(COLUMNS_PER_GROUP * D <= 1 << 32);
+const _: () = assert!(SETUP_ID.len() + PRODUCTION_SEED.len() == 70);
 
-/// The production key rows over columns `0..columns`, kept on the device by a
-/// prover across its commitments. A wider witness regenerates them.
 #[derive(Default)]
 pub(super) struct ResidentKeyRows {
     columns: usize,
     rows: Vec<Buffer>,
 }
 
-/// Where one commitment call reads its key rows.
 enum KeyRows<'a> {
-    /// A prover's kept rows, read through the occupied column indices.
     Kept(MutexGuard<'a, ResidentKeyRows>),
-    /// One row at a time over the occupied columns, read in position order.
     Streamed { prefix: Buffer, slab: Buffer },
 }
 
 impl MetalSession {
-    /// The 70 SHAKE128 input bytes of the setup ID and the seed as nine
-    /// little-endian lanes; the kernel adds each row and column.
     fn production_key_prefix(&self) -> Result<Buffer, MetalError> {
         let fixed = SETUP_ID.len() + PRODUCTION_SEED.len();
         let input = element_input(&PRODUCTION_SEED, 0, 0);
@@ -59,8 +47,6 @@ impl MetalSession {
         self.buffer_from_slice(&prefix)
     }
 
-    /// Expand every key row over columns `0..columns` unless the kept rows
-    /// already cover them. The old rows are released first.
     fn cover_production_key(&self, key: &mut ResidentKeyRows, columns: usize) -> Result<(), MetalError> {
         if key.columns >= columns {
             return Ok(());
@@ -174,8 +160,6 @@ impl MetalSession {
             .ok_or(MetalError::Shape("production commitment partial dimensions overflow"))?;
         let rows = PRODUCTION_VERIFIER_ROWS as usize;
         let output_words = rows * active.len() * D;
-        // Kept rows are indexed by column. A streamed row holds the occupied
-        // columns in order, so its column table is the identity.
         let (keys, key_columns) = match &self.production_key {
             Some(kept) => {
                 let mut kept = kept
@@ -208,8 +192,6 @@ impl MetalSession {
             .collect();
         let shapes = self.buffer_from_slice(&shape_words)?;
 
-        // All rows in one command buffer: the slab and the partials are reused
-        // row after row, and buffer hazard tracking orders the encoders.
         let command = self.command_buffer("nightstream.production_commitment")?;
         for row in 0..rows {
             let shape_offset = row * 6 * size_of::<u64>();

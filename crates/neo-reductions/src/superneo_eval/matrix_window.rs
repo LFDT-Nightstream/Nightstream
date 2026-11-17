@@ -1,7 +1,3 @@
-//! Exact local caches for a bounded prefix of requested global rows.
-//! Counting and filling use the same borrowed source. A source owner can keep
-//! the complete window between operations; no loader keeps one by itself.
-
 use std::{
     mem::size_of,
     ops::ControlFlow,

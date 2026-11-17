@@ -1,7 +1,3 @@
-//! The Akita boundary on the three polynomials of a proof: the pinned
-//! schedule files, the order of the variables of a point, and the commitment
-//! profiles and the order of the polynomials that the verifier accepts.
-
 use akita_types::CommittedGroup;
 use neo_math::{from_complex, F, K};
 use p3_field::PrimeCharacteristicRing;
@@ -12,8 +8,6 @@ use super::verifier::{Opening, Verifier};
 use super::{base, commitment, commitment_bytes, profile, row, Polynomial, Schedules, Shape, SCHEDULES};
 use crate::Error;
 
-/// The SHA-256 of each file of `SCHEDULES`, as `scripts/akita_schedules.sh`
-/// prints it.
 const DIGESTS: [&str; 2] = [
     "8ee08715b2120cfb576227f195fde041e5e1dd828511ca5e75d5df73d4c097b5",
     "b71861d25a4cb23b8eb68b20365bc5b76336224dcacdcada86242c9d9c084f94",
@@ -32,8 +26,6 @@ fn vars(shape: Shape) -> [usize; 3] {
     [shape.key, shape.witness, shape.inverse]
 }
 
-/// Cells 0 to 4 of polynomial `index`. The other cells are zero, so no two
-/// variables have the same role.
 fn cells(index: usize) -> Vec<F> {
     (1..=5)
         .map(|cell| F::from_u64(10 * index as u64 + cell))
@@ -51,8 +43,6 @@ fn point(index: usize, vars: usize) -> Vec<K> {
         .collect()
 }
 
-/// The multilinear polynomial with the evaluation table `cells` at `point`,
-/// where coordinate `variable` binds bit `bit(variable)` of the cell index.
 fn value(cells: &[F], point: &[K], bit: impl Fn(usize) -> usize) -> K {
     cells
         .iter()
@@ -74,8 +64,6 @@ fn value(cells: &[F], point: &[K], bit: impl Fn(usize) -> usize) -> K {
         .sum()
 }
 
-/// The three polynomials of the first row of `schedules` with their points
-/// and the values with bit 0 first.
 struct Polynomials {
     schedules: &'static Schedules,
     shape: Shape,
@@ -96,8 +84,6 @@ impl Polynomials {
         }
     }
 
-    /// The commitments of the polynomials, the setup prefixes of the prover
-    /// and the proof that they have `values` at the points.
     fn opened(&self, values: [K; 3]) -> Result<([Vec<u8>; 3], Vec<u8>, Vec<u8>), Error> {
         let prover = Prover::new(self.schedules)?;
         let committed: [_; 3] = std::array::from_fn(|index| {
@@ -132,9 +118,6 @@ fn each(commitments: &[Vec<u8>; 3]) -> [&[u8]; 3] {
     std::array::from_fn(|index| &commitments[index][..])
 }
 
-/// Each file is the one that Akita's planner made, its rows are the rows of
-/// `SCHEDULES` in increasing order, and one commitment of the key polynomial
-/// serves each row of its file.
 #[test]
 fn each_schedule_file_has_its_pinned_digest_and_its_rows() {
     for (schedules, pinned) in SCHEDULES.iter().zip(DIGESTS) {
@@ -190,9 +173,6 @@ fn coordinate_b_of_a_point_binds_bit_b_of_the_cell_index() {
     }
 }
 
-/// The proof names its polynomials in order: the commitment of other cells
-/// in place of the key polynomial, and `W` and `V` in the other order with
-/// their points and values, do not verify.
 #[test]
 fn the_proof_is_bound_to_each_commitment_and_to_their_order() {
     let polynomials = Polynomials::new(SMALL);
@@ -232,9 +212,6 @@ fn the_proof_is_bound_to_each_commitment_and_to_their_order() {
     assert!(matches!(result, Err(Error::Rejected(_))), "{result:?}");
 }
 
-/// A commitment of the cells of `W` as a polynomial of 26 variables, and
-/// its rows under the profile of 16 variables, do not verify as `W`. Akita
-/// rejects a change of one profile field when it decodes.
 #[test]
 fn a_commitment_under_another_profile_does_not_verify() {
     let polynomials = Polynomials::new(SMALL);
@@ -266,10 +243,6 @@ fn a_commitment_under_another_profile_does_not_verify() {
     }
 }
 
-/// The rows of the large key offload a prefix of Akita's setup, and the
-/// verifier takes the commitment of that prefix from its key. A proof of the
-/// three polynomials with few cells verifies with the prefixes of the
-/// prover, and bytes with one changed byte are other prefixes or none.
 #[test]
 fn a_proof_does_not_verify_with_other_setup_prefixes() {
     let polynomials = Polynomials::new(LARGE);

@@ -1,10 +1,4 @@
-//! The compressed proof through the public API on the Rust Poseidon2 hash
-//! chain (SPEC.md section 6). This file has one test, so no other thread of
-//! its process expands a key element while the verifier runs. The test holds
-//! the compression setup of 10 GB and needs 25 GB, so it is ignored, and
-//! `scripts/ci_rust_tests.sh` runs it alone. `ns-compress` runs the same
-//! check on small claims. `expanded_key_bytes` counts the CPU expansion
-//! only, and the test runs no Metal path.
+//! SPEC.md section 6.
 
 mod bounded_depth_support;
 
@@ -15,8 +9,6 @@ use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v
 use nightstream::{Circuit, FinalProof};
 use nightstream::{Engine, PrimeCharacteristicRing, State};
 
-/// The 18 rows of 2^19 blocks of the Ajtai key, with the SHAKE128 output
-/// bytes of each key element.
 const KEY_BYTES: u64 = 18 * (1 << 19) * ELEMENT_OUTPUT_BYTES as u64;
 
 fn circuit() -> Circuit {
@@ -27,13 +19,6 @@ fn words(values: [u64; 4]) -> [F; 4] {
     values.map(F::from_u64)
 }
 
-/// A verifier and a prover each compile the circuit and make their own key
-/// from it: the verifier its compression key, the prover its compression
-/// setup. The prover expands the rows of the Ajtai key once, and the
-/// verifier takes the pinned key and expands none. The proofs of the prover
-/// verify from their bytes under the key of the verifier, and not for
-/// another state or after a changed byte. Only the bytes of the key decode.
-/// The verifier expands no key element.
 #[test]
 #[ignore = "Production-size compression, 25 GB; scripts/ci_rust_tests.sh runs it alone."]
 fn hash_chain_compresses_and_verifies_without_the_ajtai_key() {
@@ -66,7 +51,6 @@ fn hash_chain_compresses_and_verifies_without_the_ajtai_key() {
     let message = words([5, 6, 7, 8]);
     let mut proof = prover.prove(initial, &message).expect("first step");
     let mut current = poseidon2_hash_chain_step(initial, message);
-    // After the first step both slots hold the zero accumulator.
     let first = prover
         .compress(&proof, &setup)
         .expect("compressed first step");

@@ -1,5 +1,3 @@
-//! Exact row-materialization parity for every compact matrix representation.
-
 use neo_ccs::{CcsMatrix, CscMat, GeometricRowRun};
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;

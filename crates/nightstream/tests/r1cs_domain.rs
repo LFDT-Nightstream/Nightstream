@@ -43,6 +43,7 @@ fn app(
     let catalog = MemoryCatalog::<u8>::new([], &columns).unwrap();
     R1csApplication::new(
         RowRelation {
+            range_checks: vec![],
             rows: vec![],
             width,
             one,
@@ -77,14 +78,14 @@ fn rejects_constant_column_outside_relation() {
 #[test]
 fn accepts_and_reads_valid_continuity() {
     let app = app(
-        2,
+        3,
         0,
         Some(ContinuityLink {
-            previous_step_column: 1,
+            previous_step_column: 2,
             next_step_column: 1,
         }),
-        2,
+        3,
     )
     .unwrap();
-    assert_eq!(app.output_words(&[F::ONE, F::from_u64(7)]), vec![7]);
+    assert_eq!(app.output_words(&[F::ONE, F::ZERO, F::from_u64(7)]), vec![7]);
 }

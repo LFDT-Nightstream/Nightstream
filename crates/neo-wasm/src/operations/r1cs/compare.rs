@@ -1,11 +1,9 @@
 use super::builder::{bits_u64, CircuitBuilder, ColumnId, Lc};
-use super::{ops_lc, Inputs};
+use super::{ops_lc, Inputs, HALF_BITS};
 use crate::isa::WasmOpcode;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-/// Allocate `left - right - borrow_in + 2^32` for each 32-bit half as 33
-/// bits. The top bit of a half is 1 iff that prefix does not borrow.
 pub(super) fn no_borrow_bits(
     builder: &mut CircuitBuilder,
     left: &[ColumnId],
@@ -14,30 +12,27 @@ pub(super) fn no_borrow_bits(
 ) -> Result<Vec<ColumnId>, String> {
     let mut borrow = borrow_in.clone();
     let mut tops = Vec::new();
-    for (left, right) in left.chunks(32).zip(right.chunks(32)) {
+    for (left, right) in left.chunks(HALF_BITS).zip(right.chunks(HALF_BITS)) {
         let (l, r, previous) = (left.to_vec(), right.to_vec(), borrow.clone());
-        let bits = builder.alloc_bits("borrow_difference", 33, move |z| {
+        let bits = builder.alloc_bits("borrow_difference", HALF_BITS + 1, move |z| {
             Ok((i128::from(bits_u64(z, &l)?)
                 - i128::from(bits_u64(z, &r)?)
                 - i128::from(previous.evaluate(z).as_canonical_u64())
-                + (1i128 << 32)) as u64)
+                + (1i128 << HALF_BITS)) as u64)
         });
         builder.enforce_linear_zero(
             Lc::from_bits(&bits)
                 .minus(&Lc::from_bits(left))
                 .plus(&Lc::from_bits(right))
                 .plus(&borrow)
-                .minus(&builder.one().scaled(F::from_u64(1 << 32))),
+                .minus(&builder.one().scaled(F::from_u64(1 << HALF_BITS))),
         );
-        borrow = builder.one().minus(&Lc::var(bits[32]));
-        tops.push(bits[32]);
+        borrow = builder.one().minus(&Lc::var(bits[HALF_BITS]));
+        tops.push(bits[HALF_BITS]);
     }
     Ok(tops)
 }
 
-/// All 16 comparisons share one subtraction `l - r - c`. `c = 1` turns
-/// `<` into `<=`; an inverted result gives `>` and `>=`. A signed result is
-/// the unsigned result XOR both sign bits.
 pub(super) fn enforce_comparisons(builder: &mut CircuitBuilder, inputs: &Inputs) -> Result<(), String> {
     let narrow = comparison_operations(false);
     let wide = comparison_operations(true);
@@ -73,8 +68,6 @@ pub(super) fn enforce_comparisons(builder: &mut CircuitBuilder, inputs: &Inputs)
     Ok(())
 }
 
-/// (operation, borrow in, signed, invert): `<` is `l - r` borrows, `<=` is
-/// `l - r - 1` borrows, `>` is not `<=`, and `>=` is not `<`.
 pub(super) fn comparison_operations(wide: bool) -> [(WasmOpcode, bool, bool, bool); 8] {
     use WasmOpcode::*;
     if wide {

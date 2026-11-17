@@ -1,5 +1,3 @@
-//! Public DEC verification.
-
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, CeClaim};
 use neo_math::{D, F, K};
@@ -8,8 +6,6 @@ use p3_field::PrimeCharacteristicRing;
 
 use crate::error::PiCcsError;
 
-/// Computes `split_b(parent.X, params.k_rho, params.b)` itself and requires each child's public
-/// `X` to equal its digit matrix.
 pub fn verify_dec_public<MB>(
     s: &CcsStructure<F>,
     params: &NeoParams,

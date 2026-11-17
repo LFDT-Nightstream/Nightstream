@@ -1,5 +1,3 @@
-//! One honest zero running claim for direct PiCCS tests.
-
 use neo_ajtai::Commitment;
 use neo_ccs::{CcsStructure, CeClaim, Mat};
 use neo_math::{D, F, K};

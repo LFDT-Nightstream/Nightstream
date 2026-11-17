@@ -1,5 +1,3 @@
-//! Shared PiCCS transcript binding, dimensions, and public-output checks.
-
 use crate::error::PiCcsError;
 use neo_ccs::crypto::poseidon2::{permute_state, RATE, WIDTH};
 use neo_ccs::{CcsMatrix, CcsStructure, CeClaim};

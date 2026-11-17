@@ -36,7 +36,6 @@ fn return_call_replaces_the_top_level_frame() {
     assert!(tail.call_stack_push.is_none());
     assert_eq!(tail.state_before.call_stack_depth, 0);
     assert_eq!(tail.state_after.call_stack_depth, 0);
-    // The argument moves down to main's frame base over the unrelated operand.
     assert_eq!(
         tail.state_after.sp, 1,
         "the replaced frame is dropped below the moved argument"
@@ -159,7 +158,6 @@ fn return_call_indirect_trap_does_not_enter_a_frame() {
     );
 
     assert!(checked.run.results.is_empty());
-    // The null entry traps on the resolve step; the invocation never runs.
     let last = checked.trace.last().expect("non-empty trace");
     assert_eq!(last.opcode, WasmOpcode::CallIndirectResolve);
     assert!(last.state_after.trapped);

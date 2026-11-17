@@ -242,7 +242,7 @@ Qed.
    against null, and, when both pass, the entry's type id against the expected
    one. It traps unless all three pass, and otherwise writes the reference. *)
 Lemma full_resolve_checks : forall (w : Witness),
-  fieldPrime -> FullRelation.satFull w -> w COL_SEL_CALL_INDIRECT_RESOLVE = 1 ->
+  fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) -> w COL_SEL_CALL_INDIRECT_RESOLVE = 1 ->
   w COL_PROGRAM_TABLE_ID_ACTIVE = 1 /\
   w COL_TABLE_SIZE_READ_ENABLED = 1 /\
   w COL_TABLE_INDEX = w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) /\
@@ -255,7 +255,7 @@ Lemma full_resolve_checks : forall (w : Witness),
   w COL_CALL_INDIRECT_IS_TRAP = 1 - w COL_FUNCTION_CALL_TYPE_LOOKUP_GATE * w COL_CI_TYPE_EQ /\
   (w COL_CALL_INDIRECT_IS_TRAP = 0 -> w COL_STACK_WRITE0_VALUE_LO = w COL_FUNCTION_REF).
 Proof.
-  intros w Hprime Hfull Hchosen.
+  intros w Hprime Hfull HmemoryBounds Hchosen.
   assert (Hin : In COL_SEL_CALL_INDIRECT_RESOLVE selectorColumns) by (vm_compute; tauto).
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
   assert (Hothers : w COL_SEL_TABLE_SIZE = 0 /\ w COL_SEL_TABLE_GET = 0 /\ w COL_SEL_TABLE_SET = 0).
@@ -264,7 +264,7 @@ Proof.
   destruct Hothers as [Hsize [Hget Hset]].
   circuit_boolean COL_CMP_GE Hge. circuit_boolean COL_CI_ENTRY_IS_NULL Hnull.
   circuit_boolean COL_CI_TYPE_EQ Heq. circuit_boolean COL_CALL_INDIRECT_IS_TRAP Htrap.
-  circuit_range COL_TABLE_SIZE HsizeRange. circuit_range COL_CMP_LOW Hlow.
+  circuit_range COL_CMP_LOW Hlow.
   pose proof (full_read0_u32 w Hprime Hfull) as Hread.
   pose proof (value_bound w COL_TABLE_INDEX). pose proof (value_bound w COL_TABLE_VALUE).
   pose proof (value_bound w COL_FUNCTION_TYPE_ID). pose proof (value_bound w COL_EXPECTED_TYPE_ID).
@@ -290,6 +290,9 @@ Proof.
   circuit_row ([(COL_CALL_INDIRECT_IS_NOT_TRAP, 1)], [(COL_STACK_WRITE0_VALUE_LO, 1); (COL_FUNCTION_REF, -1)], ([] : SparseRow)) Hwrite. expand_row Hwrite.
   normalize_columns.
   rewrite Hone, Hchosen, Hsize, Hget, Hset in *.
+  assert (HsizeActive : w COL_TABLE_SIZE_READ_ENABLED = 1) by field_linear HsizeRead.
+  circuit_memory_range COL_TABLE_SIZE COL_TABLE_SIZE_READ_ENABLED HsizeRange.
+  normalize_columns.
   assert (HindexEq : w COL_TABLE_INDEX = w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)).
   { normalize_columns. field_linear Hindex. }
   assert (Hoobv : w COL_CI_OOB = (if w COL_TABLE_INDEX <? w COL_TABLE_SIZE then 0 else 1)).

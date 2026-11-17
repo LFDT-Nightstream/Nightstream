@@ -1,5 +1,3 @@
-//! Public API for Π_CCS folding and RLC/DEC operations.
-
 #![allow(non_snake_case)]
 
 use neo_ajtai::Commitment as Cmt;

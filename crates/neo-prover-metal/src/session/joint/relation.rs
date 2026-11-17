@@ -1,5 +1,3 @@
-//! Exact row satisfaction from verifier-owned matrices and a complete signed-unit witness.
-
 use neo_ccs::{CcsStructure, Mat};
 use neo_math::{D, F};
 use neo_reductions::superneo_eval::SuperneoZBlocks;
@@ -69,7 +67,6 @@ impl TerminalRowCheck<'_> {
 }
 
 impl MetalSession {
-    /// The first row of `structure` that the signed-unit `witness` fails.
     pub(crate) fn first_unsatisfied_row(
         &self,
         plan: &MetalJointMatrixPlan,

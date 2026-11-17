@@ -1,5 +1,3 @@
-//! Optimized PiRLC and PiDEC reductions behind the public `api` entry points.
-
 #![allow(non_snake_case)]
 
 use super::{DecOutcome, RlcMixer};

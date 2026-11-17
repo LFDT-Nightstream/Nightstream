@@ -1,6 +1,3 @@
-//! Fresh matrix values, retained only when their live payload fits the caller's
-//! workspace. Replay reads original row windows and applies every prior coin.
-
 use neo_ccs::SparsePoly;
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;

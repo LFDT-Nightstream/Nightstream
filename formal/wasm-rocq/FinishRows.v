@@ -59,7 +59,8 @@ Qed.
 
 Lemma finish_function_row : forall program s view f initial final row inner caller,
   store_FUNCS s = program -> wf_store s -> programValidated program s ->
-  fieldPrime -> programLoaded program initial -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
+  fieldPrime -> programLoaded program initial -> FullRelation.satFull row -> boundedMemoryEvents (eventsForRow memories row) ->
+  row COL_IS_PROGRAM_ROW = 1 ->
   row COL_ACTIVATION_FINISHED_AFTER = 1 -> Replay initial (eventsForRow memories row) final -> wf_frame caller ->
   ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
   functionAt program (positionFunction (viewPosition view)) = Some f -> exitsFunction f view ->
@@ -68,7 +69,7 @@ Lemma finish_function_row : forall program s view f initial final row inner call
     Steps (callContext caller (N.of_nat (guestResults f)) inner)
       (mk_config (mk_state s caller) (map admininstr_val values)).
 Proof.
-  intros program s view f initial final row inner caller Hstore Hwf Hvalid Hprime Hloaded Hfull Hprogram
+  intros program s view f initial final row inner caller Hstore Hwf Hvalid Hprime Hloaded Hfull HmemoryBounds Hprogram
     Hfinish Hreplay Hcaller Hstate Hf Hleaves.
   assert (Hselector : row COL_SEL_END = 1 \/ row COL_SEL_RETURN = 1).
   { destruct Hleaves as [[Hl He] | [i [Hi Hr]]].
@@ -82,7 +83,7 @@ Proof.
   assert (Hwrites : filter isStackWrite (eventsForRow memories row) = []).
   { destruct Hselector as [Hsel | Hsel]; eapply full_call_return_no_stack_writes;
       [exact Hprime | exact Hfull | | exact Hsel | exact Hprime | exact Hfull | | exact Hsel]; tauto. }
-  destruct (full_clean_finish row Hprime Hfull Hprogram Hfinish Htrap) as [Hexit [_ [Hcapture _]]].
+  destruct (full_clean_finish row Hprime Hfull HmemoryBounds Hprogram Hfinish Htrap) as [Hexit [_ [Hcapture _]]].
   destruct (function_result_values program s view f initial row inner Hstore Hwf Hvalid Hprime Hfull Hprogram Hstate Hf Hleaves)
     as [dropped [returned [Hsplit [Hlength [Hfits Hsteps]]]]].
   pose proof (exit_distance program s view f initial final row inner Hstore Hvalid Hprime Hloaded Hfull Hprogram

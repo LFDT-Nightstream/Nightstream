@@ -1,8 +1,3 @@
-//! Akita opening verification. It reads no prover crate: the setup is a
-//! prefix of Akita's public field stream and the commitments of longer
-//! prefixes that the verification key carries, and the row fixes each
-//! commitment profile.
-
 use std::sync::Arc;
 
 use akita_config::ResolvedScheduleRow;
@@ -19,23 +14,18 @@ use super::{
 };
 use crate::Error;
 
-/// The claim that the polynomial of `commitment` is `value` at `point`.
 pub(crate) struct Opening<'a> {
     pub(crate) commitment: &'a [u8],
     pub(crate) point: &'a [K],
     pub(crate) value: K,
 }
 
-/// The verifier of the proofs of one schedule row.
 pub(crate) struct Verifier {
     row: ResolvedScheduleRow,
     verifier: AkitaVerifier<Config>,
 }
 
 impl Verifier {
-    /// The verifier of proofs with `shape`. Its setup is the prefix of
-    /// Akita's public matrix that the row reads, and `prefixes` holds the
-    /// commitments of the longer prefixes that the row offloads.
     pub(crate) fn new(shape: Shape, prefixes: &[u8]) -> Result<Self, Error> {
         let catalog = SCHEDULES
             .iter()
@@ -67,9 +57,6 @@ impl Verifier {
         Ok(Self { row, verifier })
     }
 
-    /// Accept exactly a proof that each commitment, with the profile of the
-    /// row, opens to its value at its point. The openings are in the order
-    /// of `Polynomial`. The prover chooses no field of a profile.
     pub(crate) fn verify(&self, openings: [Opening<'_>; 3], proof: &[u8], session: &[u8]) -> Result<(), Error> {
         let order = [Polynomial::Key, Polynomial::Witness, Polynomial::Inverse];
         let mut commitments = Vec::with_capacity(openings.len());

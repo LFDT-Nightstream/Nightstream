@@ -8,9 +8,6 @@ pub fn fold_domain_chunk_v1_2() -> [F; p2::RATE] {
     domain_chunk_v1_2(FOLD_DOMAIN)
 }
 
-/// One rate chunk that names a protocol: `label`, eight little-endian bytes
-/// per word, then zero words. The label fits in one chunk, and each word is
-/// below `q`, so two labels with different words give different chunks.
 pub fn domain_chunk_v1_2(label: &[u8]) -> [F; p2::RATE] {
     assert!(label.len() <= 8 * p2::RATE, "domain label exceeds one rate chunk");
     std::array::from_fn(|word| {
@@ -55,8 +52,7 @@ impl Poseidon2Transcript {
         }
     }
 
-    /// Coin `n` of one state is rate lanes `2n` and `2n + 1`; after the sixth, one zero chunk is
-    /// absorbed. This is the Lean `squeezeAt` schedule.
+    /// Lean `Transcript.squeezeAt`.
     pub fn read_coin_v1_2(&mut self) -> FoldCoin {
         assert_eq!(self.absorbed, 0, "v1_2 transcript cannot inherit an absorb cursor");
         let pair = self.coins_read;

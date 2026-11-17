@@ -8,9 +8,7 @@ fn step() -> ([Fq; 4], [Fq; 4]) {
     ([10, 11, 12, 13].map(Fq::from_u64), [20, 21, 22, 23].map(Fq::from_u64))
 }
 
-/// The Rust-built hash chain has the rows of Lean's `Poseidon2HashChainV1`,
-/// row for row in the same variable order (`EmitMain.applicationDigest`,
-/// `tests/fixtures/README.md`).
+/// Lean `Poseidon2HashChainV1` and `EmitMain.applicationDigest`.
 #[test]
 fn poseidon2_application_rows_match_lean() {
     assert_rows(

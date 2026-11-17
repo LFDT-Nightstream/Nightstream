@@ -1,8 +1,4 @@
 //! Direct PiCCS evaluator from SuperNeo v1.2 Section 7.3.
-//!
-//! `Eval_K` is the paper's separate Pad family. `Eval_A` contains only the
-//! genuine CCS matrices. This file uses explicit loops and owns its formula
-//! copy. It does not import optimized evaluators, caches, or protocol flow.
 
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsMatrix, CcsStructure, CcsWitness, CeClaim, Mat};

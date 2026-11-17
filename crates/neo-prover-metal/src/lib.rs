@@ -1,9 +1,3 @@
-//! Native Metal prover backend for SuperNeo.
-//!
-//! The protocol crates remain authoritative for transcript order, proof
-//! assembly, and verification. This crate owns Metal device state and the
-//! row evaluator.
-
 #![warn(clippy::undocumented_unsafe_blocks)]
 
 #[cfg(all(feature = "metal", not(target_vendor = "apple")))]
@@ -20,9 +14,6 @@ pub use rows::MetalRowProver;
 #[cfg(feature = "metal")]
 pub use session::MetalSession;
 
-/// Owner's Metal memory ceiling, chosen so a prover can run on a current
-/// iPhone. Device buffer requests stay below it; CPU memory is measured
-/// separately.
 pub const BUFFER_LIMIT_BYTES: usize = 24_000_000_000;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

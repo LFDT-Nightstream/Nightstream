@@ -1,5 +1,3 @@
-//! Optimized verifier entrypoints for the selected one-joint PiCCS protocol. Only tests call them.
-
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
 use neo_math::{F, K};
@@ -33,7 +31,6 @@ pub fn optimized_verify_with_trace(
     )
 }
 
-/// `optimized_verify` under `profile`.
 pub fn optimized_verify_with_profile(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,

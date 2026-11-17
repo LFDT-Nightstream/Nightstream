@@ -96,7 +96,9 @@ fn zero_carried_tables_fit_their_advertised_length() {
             neo_params::nightstream_p64_k14::CHALLENGE_ALPHABET.len() as u32,
         )
         .unwrap();
-    params = params.with_lambda(security.security_bits).unwrap();
+    params = params
+        .with_certified_lambda(security.security_bits)
+        .unwrap();
     let dims = build_joint_dims(&params, &structure, 1, params.k_rho() as usize).unwrap();
     let point = vec![K::ZERO; dims.variables];
     let fresh = [neo_ccs::CcsWitness {
@@ -165,7 +167,9 @@ fn application_storage_does_not_reserve_future_rounds() {
                 neo_params::nightstream_p64_k14::CHALLENGE_ALPHABET.len() as u32,
             )
             .unwrap();
-        params = params.with_lambda(security.security_bits).unwrap();
+        params = params
+            .with_certified_lambda(security.security_bits)
+            .unwrap();
         let dims = build_joint_dims(&params, &structure, 1, params.k_rho() as usize).unwrap();
         let point = vec![K::ZERO; dims.variables];
         let fresh = [neo_ccs::CcsWitness {

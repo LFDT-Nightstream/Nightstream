@@ -1,19 +1,8 @@
-//! Per-step normalization of recorded Wasmtime steps.
-//!
-//! Owns two per-row phases: `capture_frame` runs inside the guest-debug
-//! breakpoint handler and snapshots one frame into a `WasmtimeTraceStep`;
-//! `normalize_step` decodes one step into a `NormalizedStep`, the
-//! private intermediate carrying the per-step facts. Neither phase looks at
-//! neighboring steps. The cross-row trace assembly (state machine, aux-row
-//! synthesis) lives in the `trace_build` child module. Reads raw values
-//! through `runtime_read` and opcode/control metadata through `decode`; it
-//! does not run the engine or parse binaries.
-
 mod host_event_emit;
 mod memory;
 mod trace_build;
 
-use super::decode::{DecodedControlOpcode, DecodedMemoryAccessKind, DecodedOpcode};
+use super::decode::{checked_funcref_id, DecodedControlOpcode, DecodedMemoryAccessKind, DecodedOpcode};
 use super::runtime_read::{
     function_arity_from_ref, function_type_id_from_ref, normalize_value_lanes, read_byte, read_global_lanes,
     read_halfword, read_memory_pages_if_present, read_table_funcref_u32, read_table_size, read_word, val_to_string,
@@ -79,18 +68,12 @@ struct NormalizedStep {
     operand_stack: Vec<u32>,
     operand_stack_hi: Vec<u32>,
     immediate_i32: Option<u32>,
-    /// For local.get / local.set / local.tee: the 0-based local index.
     local_index: Option<u32>,
-    /// For local.get: the value of local[local_index] before this step executes
-    /// (captured from the wasmtime frame's locals snapshot).
     local_value_lo: Option<u32>,
     local_value_hi: Option<u32>,
-    /// For global.get / global.set: the 0-based global index.
     global_index: Option<u32>,
-    /// For global.get / global.set: value of the global before this step.
     global_value_before: Option<u32>,
     global_value_before_hi: Option<u32>,
-    /// For global.set: value written into the global this step.
     global_value_after: Option<u32>,
     global_value_after_hi: Option<u32>,
     table_id: Option<u32>,
@@ -106,15 +89,10 @@ struct NormalizedStep {
     expected_type_id: Option<u32>,
     memory_pages_before: Option<u32>,
     memory_pages_after: Option<u32>,
-    /// Declared max page count (carried constant), capped at the wasm32 limit.
     max_memory_pages: Option<u32>,
-    /// Dense PC immediately after this instruction.
     pc_after_instruction: Option<u64>,
     frame_slide: Option<(u32, u32)>,
-    /// Total number of locals (params + declared) in this frame at this step.
     num_locals: u32,
-    /// Parsed local values at this step (before execution). Used to check and
-    /// plan export entry and exit events.
     locals_snapshot: Vec<(u32, u32)>,
     linear_memory: Option<LinearMemoryAccess>,
     linear_memory_offset: u64,
@@ -149,11 +127,6 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
     let operand_stack = row.operand_stack_words.clone();
     let operand_stack_hi = row.operand_stack_words_hi.clone();
     let code = opcode_code(opcode);
-    // Call rows pop only the indirect table index, if any (the split into a
-    // resolve step and an invocation then turns it into the checked function
-    // reference the invocation pops). Guest args stay in
-    // place as the callee's params; host args are read by gather rows and
-    // host results are pushed by a host-result aux row.
     let (stack_reads_override, stack_writes_override) = match opcode {
         WasmOpcode::Call | WasmOpcode::ReturnCall => (Some(0), Some(0)),
         WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect => (Some(1), Some(0)),
@@ -174,8 +147,6 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         )));
     }
 
-    // For local.get / local.set / local.tee the immediate holds the local index.
-    // The frame's locals snapshot (captured before execution) gives the pre-step value.
     let local_index = match opcode {
         WasmOpcode::LocalGet | WasmOpcode::LocalSet | WasmOpcode::LocalTee => immediate_i32,
         _ => None,
@@ -318,7 +289,6 @@ pub(crate) fn capture_frame<T>(
     {
         Some((func_index, pc)) => {
             let function_index = func_index.as_u32();
-            // The opcode map is keyed by raw module byte offset.
             (format!("{func_index:?}"), Some(function_index), Some(pc.raw()))
         }
         None => ("<host-or-unknown>".to_string(), None, None),
@@ -344,7 +314,7 @@ pub(crate) fn capture_frame<T>(
             .trace
             .imported_function_count
             .checked_add(index)
-            .and_then(|function_ref| function_ref.checked_add(1))
+            .and_then(checked_funcref_id)
     });
     let opcode = decoded_opcode.as_ref().map(|decoded| decoded.text.clone());
     let (opcode_decoded, immediate_i32) = decoded_opcode
@@ -396,8 +366,7 @@ pub(crate) fn capture_frame<T>(
         _ => None,
     };
     let memory_pages_now = read_memory_pages_if_present(0, frame, store)?;
-    // Module constant seeded from parse artifacts.
-    let memory_max_now = tables.artifacts.tables.max_memory_pages;
+    let max_memory_pages = tables.artifacts.tables.max_memory_pages;
     let (global_value_before, global_value_before_hi) = match global_index {
         Some(index) => {
             let (lo, hi) = read_global_lanes(index, frame, store, func_ref_ids)?;
@@ -435,8 +404,6 @@ pub(crate) fn capture_frame<T>(
             _ => None,
         },
         Some(WasmOpcode::TableSet) => operand_stack_words.last().copied(),
-        // Skip the funcref read on an OOB index: there is no entry, and the
-        // trap is derived from the index/size comparison instead.
         Some(WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect) => match (table_id, table_index, table_size) {
             (Some(table_id), Some(table_index), Some(table_size)) if table_index < table_size => Some(
                 read_table_funcref_u32(table_id, table_index, frame, store, func_ref_ids)?,
@@ -453,14 +420,12 @@ pub(crate) fn capture_frame<T>(
         ) => table_value
             .and_then(|function_ref| function_type_id_from_ref(function_ref, &tables.artifacts.trace.function_metas)),
         Some(WasmOpcode::Call | WasmOpcode::ReturnCall) => immediate_i32
-            .and_then(|function_index| function_index.checked_add(1))
+            .and_then(checked_funcref_id)
             .and_then(|function_ref| function_type_id_from_ref(function_ref, &tables.artifacts.trace.function_metas)),
         _ => None,
     };
     let function_ref = match opcode_decoded {
-        Some(WasmOpcode::Call | WasmOpcode::ReturnCall) => {
-            immediate_i32.and_then(|function_index| function_index.checked_add(1))
-        }
+        Some(WasmOpcode::Call | WasmOpcode::ReturnCall) => immediate_i32.and_then(checked_funcref_id),
         Some(WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect) => table_value,
         Some(WasmOpcode::RefFunc) => immediate_i32,
         Some(WasmOpcode::TableGet | WasmOpcode::TableSet) => table_value,
@@ -468,7 +433,7 @@ pub(crate) fn capture_frame<T>(
     };
     let (call_param_count, call_result_count) = match opcode_decoded {
         Some(WasmOpcode::Call | WasmOpcode::ReturnCall) => immediate_i32
-            .and_then(|function_index| function_index.checked_add(1))
+            .and_then(checked_funcref_id)
             .and_then(|function_ref| function_arity_from_ref(function_ref, &tables.artifacts.trace.function_metas))
             .map_or((None, None), |(params, results)| (Some(params), Some(results))),
         Some(WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect) => table_value
@@ -488,8 +453,7 @@ pub(crate) fn capture_frame<T>(
                 WasmBuildError::Trace("memory.grow observed without memory 0 in current frame".to_string())
             })?;
             let delta = operand_stack_words.last().copied().unwrap_or(0);
-            // memory.grow takes a delta; failure leaves the size unchanged.
-            let max = memory_max_now.unwrap_or(u32::MAX);
+            let max = max_memory_pages.unwrap_or(u32::MAX);
             let grown = pages_before
                 .checked_add(delta)
                 .filter(|after| *after <= max);
@@ -547,7 +511,7 @@ pub(crate) fn capture_frame<T>(
         call_result_count,
         memory_pages_before,
         memory_pages_after,
-        memory_max_pages: memory_max_now,
+        memory_max_pages: max_memory_pages,
         memory,
         locals,
         locals_words,
@@ -612,7 +576,6 @@ fn capture_memory_access<T>(
 
     let width_bytes = memory_opcode.kind.width_bytes();
 
-    // On OOB, record the faulting row but skip memory reads; CCS derives the trap.
     let memory_bytes = read_memory_pages_if_present(memory_opcode.memory_index, frame, store)?
         .map_or(0, |pages| u64::from(pages) * 65536);
     let is_oob = effective_address + u64::from(width_bytes) > memory_bytes;

@@ -1,6 +1,3 @@
-//! Original matrix coefficients for the direct paper evaluator.
-//! Export readers supply rows; ring products and multilinear evaluation stay here.
-
 use neo_ccs::CcsStructure;
 use neo_math::{Fq, D, K};
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};

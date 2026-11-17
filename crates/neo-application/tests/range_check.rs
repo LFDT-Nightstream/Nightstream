@@ -123,6 +123,22 @@ fn range_check_constraints_accept_valid_values_and_reject_overflow() {
         "range check",
     );
     let relation = builder.build(layout.columns()).unwrap();
+    let rebuilt = R1csBuilder::from_relation(&relation)
+        .build(layout.columns())
+        .unwrap();
+    let occurrences = rebuilt.catalog().gadget_occurrences();
+    assert_eq!(occurrences.len(), 3);
+    let mut first_row = 1;
+    for (occurrence, column) in occurrences.iter().zip([BYTE, WORD, TWO_BITS]) {
+        let bits = layout.bit_columns_for(column).unwrap();
+        let end = first_row + bits.len() + 1;
+        assert_eq!(
+            occurrence.descriptor(),
+            &neo_application::GadgetDescriptor::RangeCheck { column, bits }
+        );
+        assert_eq!(occurrence.row_range(), &(first_row..end));
+        first_row = end;
+    }
 
     let mut witness = vec![
         F::ONE,
@@ -153,5 +169,49 @@ fn range_check_constraints_accept_valid_values_and_reject_overflow() {
             range_checked: BASE_WIDTH + 42,
             actual: 2,
         }
+    );
+}
+
+#[test]
+fn proof_obligations_skip_explicit_checks_without_narrowing_the_representation() {
+    neo_application::define_column_region! {
+        region: "obligations",
+        start: 0,
+        width: WIDTH,
+        families: FAMILIES,
+        indices:,
+        columns: [
+            CONSTANT: Boolean => "constant one",
+            IMPLIED: (Implied(32)) => "bound proved elsewhere",
+            REPAIRABLE: [(Repairable(32)); 2] => "equivalent bounded advice",
+            IMPLIED_BIT: (Implied(1)) => "Boolean bound proved elsewhere",
+            MEMORY: MemoryRepairable => "bound requires checked memory events",
+        ]
+    }
+    let layout = RangeCheckLayout::new(
+        FAMILIES.iter().cloned(),
+        RangeCheckBitFamily {
+            region: "bits",
+            name: "BITS",
+            role: "explicit bits",
+        },
+    )
+    .unwrap();
+    assert!(layout.bit_columns().is_empty());
+    assert_eq!(
+        range_checked_variable_widths(layout.columns()),
+        vec![1, 64, 64, 64, 64, 64]
+    );
+    assert!(!FAMILIES[3].width.is_boolean());
+    let mut builder = R1csBuilder::new(1, CONSTANT).unwrap();
+    layout.push_constraints(
+        &mut builder.tagged(neo_application::ConstraintTag::new("ranges", "test")),
+        "test",
+    );
+    let relation = builder.build(layout.columns()).unwrap();
+    assert_eq!(
+        relation.catalog().len(),
+        1,
+        "only the Boolean row of CONSTANT; annotations carry obligations and emit no rows"
     );
 }

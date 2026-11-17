@@ -1,12 +1,4 @@
-//! The memory backend of catalog applications (SPEC.md section 7.6). A
-//! `CatalogBinding` maps the events of the checked memories of a
-//! `MemoryCatalog` to the operation slots of a geometry, as Lean
-//! `MemoryTrace.Binding` (`Spec/Nebula/EventBinding.lean`) needs: it gives the
-//! binding rows over the application's columns, the ports of one row, and
-//! the program images of a preload. Every rule that soundness needs is a row,
-//! so a slot plan changes only which honest rows prove and what the rows
-//! cost. It does not own the slot plan, the regions, or the application's
-//! other rows.
+//! SPEC.md section 7.6; Lean `MemoryTrace.Binding` (`Spec/Nebula/EventBinding.lean`).
 
 use std::collections::BTreeSet;
 
@@ -33,9 +25,7 @@ pub struct Region {
 }
 
 impl Region {
-    /// Lean `Region.addr` of an address that fits the region (Lean
-    /// `Region.Fits`): `base + x₀ + 2^w₀ · (x₁ + …)`. `None` for another
-    /// number of parts or a part at or above `2^w`.
+    /// Lean `Region.addr`, `Region.Fits`.
     fn addr(&self, parts: &[u64]) -> Option<u64> {
         if parts.len() != self.widths.len() {
             return None;
@@ -128,13 +118,10 @@ pub enum CatalogRowError {
     Width,
 }
 
-/// One port of a checked memory as its slot sees it.
 #[derive(Clone, Debug)]
 struct Port {
-    /// The position of the port among the checked ports in catalog order:
-    /// the order of its events (Lean `eventsForRow`).
+    /// Lean `eventsForRow`.
     rank: usize,
-    /// The position of the port's memory among the checked memories.
     memory: usize,
     activation: MemoryPortActivation,
     kind: MemoryPortKind,
@@ -144,7 +131,6 @@ struct Port {
     value: usize,
 }
 
-/// `Unless`, `When`, or `Always` as a 0/1 value of `row`.
 fn is_active(activation: MemoryPortActivation, row: &[F]) -> Result<bool, CatalogRowError> {
     let (column, active_value) = match activation {
         MemoryPortActivation::Always => return Ok(true),
@@ -173,7 +159,6 @@ fn word(row: &[F], column: usize) -> Result<u64, CatalogRowError> {
 }
 
 impl Port {
-    /// The catalog columns that the port reads.
     fn columns(&self) -> Vec<usize> {
         let activation = match self.activation {
             MemoryPortActivation::Always => None,
@@ -193,16 +178,12 @@ impl Port {
             .collect()
     }
 
-    /// Whether the events of the two ports may not swap (Lean
-    /// `Event.Dependent`): one memory, and one of them writes. Two memories
-    /// have disjoint cells, and two reads keep the memory, so every other
-    /// pair may show in either order.
+    /// Lean `Event.Dependent`.
     fn depends_on(&self, other: &Port) -> bool {
         let writes = |port: &Port| matches!(port.kind, MemoryPortKind::Write { .. });
         self.memory == other.memory && (writes(self) || writes(other))
     }
 
-    /// `1` when the port is active, as a 0/1 expression over the columns.
     fn active(&self, columns: &[Expr]) -> Expr {
         match self.activation {
             MemoryPortActivation::Always => Expr::constant(1),
@@ -211,7 +192,6 @@ impl Port {
         }
     }
 
-    /// `e = 0` when the port is active: one rank-one row.
     fn gate(&self, columns: &[Expr], e: Expr) -> Expr {
         match self.activation {
             MemoryPortActivation::Always => e,
@@ -219,7 +199,6 @@ impl Port {
         }
     }
 
-    /// The namespace address of the port's address parts in `row`.
     fn address(&self, row: &[F]) -> Result<u64, CatalogRowError> {
         let parts = self
             .address
@@ -234,9 +213,6 @@ fn sum(terms: impl Iterator<Item = Expr>) -> Expr {
     terms.fold(Expr::constant(0), |sum, term| sum + term)
 }
 
-/// The binding of a catalog's checked memories to the operation slots of a
-/// geometry. A memory with a region is checked; every other memory is
-/// host-checked and has no slot and no row.
 #[derive(Clone, Debug)]
 pub struct CatalogBinding<Id> {
     geometry: Geometry,
@@ -245,7 +221,6 @@ pub struct CatalogBinding<Id> {
     host_checked: Vec<Id>,
 }
 
-/// A memory with a region, in its namespace.
 #[derive(Clone, Debug)]
 struct Checked<Id> {
     id: Id,
@@ -254,12 +229,6 @@ struct Checked<Id> {
 }
 
 impl<Id: Clone + Eq> CatalogBinding<Id> {
-    /// Bind the memories that have a region. `slots` has one entry per
-    /// operation slot, in slot order: the checked ports that share the slot,
-    /// each named by its position among the checked ports in catalog order
-    /// (memories, then ports). It must name each checked port exactly once.
-    /// The regions are checked here: disjoint in each memory space, aligned,
-    /// and inside their space.
     pub fn new(
         catalog: &MemoryCatalog<Id>,
         geometry: &Geometry,
@@ -362,24 +331,15 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
         })
     }
 
-    /// The `b_ops` slots of the plan, for `Application::port_count`.
     pub fn port_count(&self) -> usize {
         self.slots.len()
     }
 
-    /// The memories without a region, in catalog order. The host checks them.
     pub fn host_checked(&self) -> &[Id] {
         &self.host_checked
     }
 
-    /// The program whose images hold the preloaded cells of the checked
-    /// memories (Lean `Binding.Initial`): the cell at address `a` of memory
-    /// `m` is the image word at `base + packParts(a)` of the region of `m`,
-    /// in the RAM image for a RAM memory and in the ROM image otherwise. Every
-    /// other word is zero. A memory without a region has no cell in the
-    /// images, and a cell of a memory that the catalog does not have is
-    /// refused, so two preloads never give one program. Packing is injective on the addresses that fit a region, and
-    /// the regions of one namespace are disjoint, so no two cells share a word.
+    /// Lean `Binding.Initial`.
     pub fn program(&self, preload: &MemoryPreload<Id>) -> Result<Program, CatalogBindingError>
     where
         Id: Copy + Ord,
@@ -404,24 +364,7 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
         Ok(Program::new(self.geometry, rom, ram).expect("the images have the sizes of a valid geometry"))
     }
 
-    /// The binding rows over `view` and the expression of each catalog
-    /// column (`columns[c]` for column `c`). Each row is zero on an honest
-    /// step and is one rank-one constraint, and the rows add no witness word.
-    /// When the step's rows hold (SPEC.md section 7.6, backend rules 1 to 4):
-    ///
-    /// - I1: the slot is active exactly when one of its ports is active, and
-    ///   then it shows that port: its namespace, mode, address, and values;
-    /// - I2: an active port has no dependent active port of a higher rank in
-    ///   an earlier slot, so the active slots list the events in an order that
-    ///   keeps each dependent pair (Lean `Reorders`);
-    /// - I3: each address part of an active port is the run of the slot's
-    ///   address bits at its offset, so it fits its width, and the bits above
-    ///   the region hold its base;
-    /// - I4: a read port's value is `v_r` (and `v_w`, row O3); a write port's
-    ///   value is `v_w`, and its prior column, if any, is `v_r`.
-    ///
-    /// Each activation column is a bit, so `When` and `Unless` agree with
-    /// Lean `active`.
+    /// SPEC.md section 7.6, backend rules 1 to 4; Lean `Reorders`, `active`.
     pub fn rows(&self, view: &View, columns: &[Expr]) -> Result<Vec<Expr>, crate::Error> {
         if *view.geometry() != self.geometry {
             return Err(crate::Error::Circuit("the catalog binding is for another geometry"));
@@ -496,10 +439,6 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
         Ok(rows)
     }
 
-    /// The `B_ops` ports of one row in slot order (`None` for an inactive
-    /// slot). `memory` holds the cells before the step. A write without a
-    /// prior column reads its cell after the earlier slots of the row, as the
-    /// runner applies them.
     pub fn ports(&self, row: &[F], memory: &Memory) -> Result<Vec<Option<PortAccess>>, CatalogRowError> {
         let mut ports: Vec<Option<PortAccess>> = Vec::with_capacity(self.slots.len());
         let mut shown_ports: Vec<&Port> = Vec::new();

@@ -1,4 +1,4 @@
-//! Rocq `TableDescriptor.full_table_descriptor`: one PC-ROM word binds a table and an expected type.
+//! Rocq `TableDescriptor.full_table_descriptor`.
 
 pub(crate) const TABLE_ID_BITS: u8 = 8;
 pub(crate) const EXPECTED_TYPE_ID_BITS: u8 = 24;

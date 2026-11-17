@@ -1,5 +1,3 @@
-//! Private files and independent bounded cursors for application records.
-
 #[cfg(unix)]
 use std::os::unix::fs::{DirBuilderExt, FileExt, OpenOptionsExt};
 #[cfg(not(unix))]
@@ -53,8 +51,6 @@ fn private_file() -> io::Result<(File, File, Cleanup)> {
             fs::remove_dir(&directory)?;
             cleanup.0 = None;
         }
-        // Other platforms retain private paths until the final handles close.
-        // Their fallback does not promise cleanup after process termination.
         return Ok((writer, reader, cleanup));
     }
 }
@@ -194,12 +190,8 @@ impl Reader {
     }
 }
 
-/// The bytes that one refill of a `Window` reads.
 pub(super) const WINDOW_BYTES: u64 = 1 << 20;
 
-/// A bounded copy of one part of a record file. A word inside the window
-/// costs no read; a word outside it refills the window from that word, so a
-/// walk at ascending offsets reads each part of the file one time.
 pub(super) struct Window<'a> {
     reader: &'a Reader,
     start: u64,

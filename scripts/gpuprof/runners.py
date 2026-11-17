@@ -103,10 +103,7 @@ def parse_ncu_csv(text):
             add_ncu_metric(result["metrics"], name, value)
         return result
 
-    # Nsight Compute 2025 raw CSV is one wide row per profiled launch:
-    # header, units, then values. Preserve every launch and select the
-    # longest profiled launch for the top-level metrics; first-launch metrics
-    # are often tiny warmup/control kernels and are misleading for tuning.
+    # Nsight Compute 2025 raw CSV: a header row, a units row, then one row per launch.
     for values in raw_rows[2:] if len(raw_rows) > 2 else raw_rows[1:]:
         launch = {"meta": ncu_launch_meta(header, values), "metrics": {}}
         for name, value in zip(header, values):
@@ -115,12 +112,12 @@ def parse_ncu_csv(text):
             result["launches"].append(launch)
 
     if result["launches"]:
-        selected = max(
+        longest_launch = max(
             result["launches"],
             key=lambda row: row["metrics"].get("kernel_duration_us", 0.0),
         )
-        result["selected_launch"] = selected
-        result["metrics"].update(selected["metrics"])
+        result["selected_launch"] = longest_launch
+        result["metrics"].update(longest_launch["metrics"])
         durations = [
             row["metrics"]["kernel_duration_us"]
             for row in result["launches"]

@@ -1,5 +1,4 @@
 #![forbid(unsafe_code)]
-//! CCS frontend for Neo: structures, relations (CCS/CE), and row-wise checks.
 
 pub mod crypto;
 pub mod error;

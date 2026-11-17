@@ -1,6 +1,3 @@
-//! Static object roots: native framing, shared-gadget execution, and rejection
-//! of forged roots, context transitions, and verifier-owned recipes.
-
 mod common;
 
 use neo_math::F;
@@ -58,15 +55,11 @@ fn native_roots_cover_empty_partial_and_multiple_blocks_at_every_position() {
 
 #[test]
 fn malformed_or_nested_schedules_are_rejected() {
-    // A four-word root cannot fit starting at slot five.
     assert!(outer(4).with_opaque(5, SCHEMA, vec![]).is_err());
-    // An opaque root must belong to an absorbing outer block, not advice.
     assert!(EventBlock::advice([ZERO; 8])
         .with_opaque(0, SCHEMA, vec![])
         .is_err());
-    // The root destination must contain only zero placeholders.
     assert!(outer(2).with_opaque(1, SCHEMA, vec![]).is_err());
-    // Object sources cannot contain a nested Enter.
     assert!(outer(2)
         .with_opaque(2, SCHEMA, vec![SlotBinding::EnterOpaque])
         .is_err());
@@ -86,62 +79,50 @@ fn malformed_or_nested_schedules_are_rejected() {
         );
     };
 
-    // The object schedule must include its copy-back block.
     let mut broken = events.clone();
     broken.pop();
     assert_rejected(broken, "missing copy-back block");
 
-    // Moving Enter changes the prefix length without updating copy-back.
     let mut broken = events.clone();
     broken[0].block.swap(2, 3);
     assert_rejected(broken, "mismatched prefix length");
 
-    // Unexecuted slots after Enter must remain zero placeholders.
     let mut broken = events.clone();
     broken[0].block[6] = SlotBinding::Const(1);
     assert_rejected(broken, "nonzero placeholder after Enter");
 
-    // The object header must carry the expected domain tag.
     let mut broken = events.clone();
     broken[1].block[0] = SlotBinding::Const(0);
     assert_rejected(broken, "wrong object domain tag");
 
-    // The declared payload length cannot require missing blocks.
     let mut broken = events.clone();
     broken[1].block[6] = SlotBinding::Const(100);
     assert_rejected(broken, "missing declared payload blocks");
 
-    // Payload padding beyond the declared length must be zero.
     let mut broken = events.clone();
     broken[2].block[7] = SlotBinding::Const(1);
     assert_rejected(broken, "nonzero payload padding");
 
-    // Root copy-back instructions cannot appear inside the payload.
     let mut broken = events.clone();
     broken[2].block[0] = SlotBinding::OpaqueRoot { lane: 0 };
     assert_rejected(broken, "root copy-back inside payload");
 
-    // Copy-back must contain root lanes 0, 1, 2, 3 in order.
     let mut broken = events.clone();
     broken[3].block[5] = SlotBinding::OpaqueRoot { lane: 2 };
     assert_rejected(broken, "repeated root lane");
 
-    // Object payload blocks must be hashed, not treated as advice.
     let mut broken = events.clone();
     broken[2].absorb = false;
     assert_rejected(broken, "advice payload block");
 
-    // A lowered Enter cannot leave fewer than four slots for the root.
     let mut broken = events.clone();
     broken[0].block.swap(2, 7);
     assert_rejected(broken, "Enter beyond the maximum prefix length");
 
-    // Skipped slots after Enter cannot contain argument reads.
     let mut broken = events.clone();
     broken[0].block[3] = SlotBinding::ArgElem { arg: 0, limb: Limb::Lo };
     assert_rejected(broken, "argument read after Enter");
 
-    // A prefix group cannot contain a second Enter.
     let mut broken = events.clone();
     broken[0].block[3] = SlotBinding::EnterOpaque;
     assert_rejected(broken, "second Enter in prefix group");
@@ -177,8 +158,6 @@ fn early_enter_skips_only_prefix_padding_at_every_root_position() {
     let mut permutations = 0;
     for prefix in 0..=4 {
         for len in [0usize, 9] {
-            // Leave a dirty shared buffer before Enter, including slots that
-            // the shortened prefix group will no longer overwrite with zeros.
             events.push(EventBlock::advice([SlotBinding::Const(77); 8]));
             let words: Vec<_> = (1..=len as u64).collect();
             events.extend(
@@ -190,7 +169,7 @@ fn early_enter_skips_only_prefix_padding_at_every_root_position() {
             block[prefix..prefix + 4].copy_from_slice(&opaque_value_root(SCHEMA, &words).unwrap());
             expected.push(block);
             saved_rows += 7 - prefix;
-            permutations += 2 + len.div_ceil(8); // header, payload, outer block
+            permutations += 2 + len.div_ceil(8);
         }
     }
     let old_gather_count = events.len() * 8;
@@ -336,7 +315,6 @@ fn setup() -> Setup {
         .unwrap()
         .result()
         .unwrap();
-    // A second object in the same import must reset the previous inner chain.
     let call = call
         .constant_i32(100)
         .unwrap()
@@ -577,7 +555,6 @@ fn internally_consistent_trace_fails_a_different_schema_rom() {
     bindings
         .validate_against_program(&original.artifacts.tables)
         .unwrap();
-    // Both chains are already checked; only the verifier's schema differs.
     let mut preload = neo_wasm::preload_from_program_artifacts(&original.artifacts);
     neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &original.artifacts);
     let rows: Vec<_> = original

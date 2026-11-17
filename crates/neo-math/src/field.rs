@@ -1,4 +1,4 @@
-//! Field layer: `F_q` with `q = 2^64 − 59`, and `K = F_q[u]/(u² − 2)`
+//! `F_q` with `q = 2^64 − 59`, and `K = F_q[u]/(u² − 2)`
 //! (`decisions/field-2p64-59-ring-x64.md`).
 
 use core::array;
@@ -17,8 +17,12 @@ use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
 pub const Q: u64 = neo_params::nightstream_p64_k14::Q;
 
-/// `2^64 mod q`.
-pub(crate) const FOLD: u64 = Q.wrapping_neg();
+pub(crate) const TWO_POW_64_MOD_Q: u64 = Q.wrapping_neg();
+
+const TWO_POW_128_MOD_Q: u64 = TWO_POW_64_MOD_Q * TWO_POW_64_MOD_Q;
+
+const INV_7_MOD_Q_MINUS_1: u64 = 10_540_996_613_548_315_175;
+const _: () = assert!((7u128 * INV_7_MOD_Q_MINUS_1 as u128) % (Q as u128 - 1) == 1);
 
 /// An element of `F_q`. The value is always the canonical one, in `[0, q)`.
 #[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -35,13 +39,9 @@ impl Fq {
 
     #[inline]
     const fn reduce128(x: u128) -> Self {
-        // 2^64 ≡ 59 (mod q), so hi·2^64 + lo ≡ hi·59 + lo, which is below 2^70.
-        let folded = (x >> 64) * FOLD as u128 + (x as u64) as u128;
-        // The high part of `folded` is below 60, so the addend is below 3540.
-        let (low, carry) = (folded as u64).overflowing_add((folded >> 64) as u64 * FOLD);
-        // A carry dropped 2^64 ≡ 59, and then `low` is below 3540. Without a
-        // carry, `low + 59` wraps exactly when `low ≥ q`, and it wraps to `low − q`.
-        let (wrapped, above) = low.overflowing_add(FOLD);
+        let folded = (x >> 64) * TWO_POW_64_MOD_Q as u128 + (x as u64) as u128;
+        let (low, carry) = (folded as u64).overflowing_add((folded >> 64) as u64 * TWO_POW_64_MOD_Q);
+        let (wrapped, above) = low.overflowing_add(TWO_POW_64_MOD_Q);
         Self(if carry | above { wrapped } else { low })
     }
 
@@ -50,33 +50,29 @@ impl Fq {
     pub fn sum_of_products(pairs: impl IntoIterator<Item = (Self, Self)>) -> Self {
         pairs
             .into_iter()
-            .fold(Products::default(), |sum, (a, b)| sum.add(a, b))
+            .fold(UnreducedProducts::default(), |sum, (a, b)| sum.add(a, b))
             .value()
     }
 }
 
-/// The sum of the products `a·b` of base elements `a` and extension
-/// elements `b`, with one reduction for each coordinate of `K`.
 #[inline]
 pub fn sum_of_scaled(pairs: impl IntoIterator<Item = (Fq, K)>) -> K {
     let [real, imaginary] = pairs
         .into_iter()
-        .fold([Products::default(); 2], |[real, imaginary], (a, b)| {
+        .fold([UnreducedProducts::default(); 2], |[real, imaginary], (a, b)| {
             let [x, y] = b.as_coeffs();
             [real.add(a, x), imaginary.add(a, y)]
         });
     K::from_coeffs([real.value(), imaginary.value()])
 }
 
-/// A sum of products before its reduction: the sum modulo 2^128 and the
-/// number of times it wrapped.
 #[derive(Clone, Copy, Default)]
-struct Products {
+struct UnreducedProducts {
     sum: u128,
     wraps: u64,
 }
 
-impl Products {
+impl UnreducedProducts {
     #[inline]
     fn add(self, a: Fq, b: Fq) -> Self {
         let (sum, wrapped) = self.sum.overflowing_add(u128::from(a.0) * u128::from(b.0));
@@ -88,8 +84,7 @@ impl Products {
 
     #[inline]
     fn value(self) -> Fq {
-        // Each wrap dropped 2^128 ≡ 59² (mod q).
-        Fq::reduce128(self.sum) + Fq::reduce128(u128::from(self.wraps) * u128::from(FOLD * FOLD))
+        Fq::reduce128(self.sum) + Fq::reduce128(u128::from(self.wraps) * u128::from(TWO_POW_128_MOD_Q))
     }
 }
 
@@ -222,8 +217,7 @@ impl InjectiveMonomial<7> for Fq {}
 
 impl PermutationMonomial<7> for Fq {
     fn injective_exp_root_n(&self) -> Self {
-        // 7 · 10540996613548315175 ≡ 1 (mod q − 1).
-        self.exp_u64(10_540_996_613_548_315_175)
+        self.exp_u64(INV_7_MOD_Q_MINUS_1)
     }
 }
 
@@ -236,7 +230,6 @@ impl Packable for Fq {}
 impl Field for Fq {
     type Packing = Self;
 
-    /// 2 generates `F_q*`; `q − 1 = 2² · 11 · 137 · 547 · 5594472617641`.
     const GENERATOR: Self = Self::TWO;
 
     fn try_inverse(&self) -> Option<Self> {
@@ -309,10 +302,8 @@ impl BinomiallyExtendable<2> for Fq {
     /// `Spec.FieldExtension.twoProjectiveNonresidue`).
     const W: Self = Self::TWO;
 
-    /// `W^((q − 1)/2)`.
     const DTH_ROOT: Self = Self::NEG_ONE;
 
-    /// `3 + u` generates `K*`; `q + 1 = 2 · 3 · 7 · 439208192231179799`.
     const EXT_GENERATOR: [Self; 2] = [Self(3), Self::ONE];
 }
 

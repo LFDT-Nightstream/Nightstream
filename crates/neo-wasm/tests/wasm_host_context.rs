@@ -83,7 +83,7 @@ fn context_words_have_unique_sixteen_bit_halves() {
             w[word] += F::ONE;
             common::assert_rejected(&w, "the packed context word binds its decoded fields");
         }
-        // Rocq `ProgramBinding.full_host_context_refs`: the RAM word alone cannot distinguish these aliases.
+        // Rocq `ProgramBinding.full_host_context_refs`.
         for (low, high, packed) in [(65536, 0, 65536), (0, 65536, 1_u64 << 32)] {
             let mut w = run.witnesses[i].clone();
             w[lo] = F::from_u64(low);

@@ -33,9 +33,8 @@ fn shared_columns(width: usize) -> SharedColumns {
     }
 }
 
-/// SPEC.md section 7.6. Keep the source relation intact and substitute only
-/// the recorded host commitment's input lanes in the Nebula application.
-pub(super) fn transform(relation: &mut RowRelation) -> Result<SharedColumns, WasmApplicationError> {
+/// SPEC.md section 7.6.
+pub(super) fn share_host_commitment_inputs(relation: &mut RowRelation) -> Result<SharedColumns, WasmApplicationError> {
     let source = crate::operations::r1cs::operation_circuit().map_err(crate::batch::BatchError::from)?;
     let commitment = absorb_commitment();
     let matches = source

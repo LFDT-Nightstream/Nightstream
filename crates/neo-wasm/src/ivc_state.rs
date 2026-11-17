@@ -1,8 +1,3 @@
-//! Owns the columns carried from one wasm IVC step to the next.
-//!
-//! These links are not lookup or memory bindings. They define which `_after`
-//! columns from row `i` must equal `_before` columns in row `i + 1`.
-
 use neo_application::{ContinuityGroup, ContinuityLink};
 
 use super::layout::{

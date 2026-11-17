@@ -1,7 +1,3 @@
-//! Optimized Π_RLC mixing owns the witness-side random linear combination path.
-//!
-//! It does not own paper-exact cross-check formulas or DEC.
-
 use crate::engines::RlcMixer;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, CeClaim, Mat};
@@ -147,7 +143,6 @@ where
     }
 }
 
-/// The product in `F[X]/(X^D + 1)`: `X^D = −1`.
 #[inline]
 fn mul_negacyclic<Ff>(lhs: &[Ff; D], rhs: &[Ff; D]) -> [Ff; D]
 where

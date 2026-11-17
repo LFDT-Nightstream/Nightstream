@@ -1,6 +1,3 @@
-//! The reduction of a ring equation to an inner product (`ns_compress::ring`)
-//! against schoolbook arithmetic in `K[X]/(X^64 + 1)`.
-
 mod support;
 
 use neo_math::{D, F, K};
@@ -14,8 +11,6 @@ fn random_element(rng: &mut ChaCha8Rng) -> [K; D] {
     std::array::from_fn(|_| random_extension(rng))
 }
 
-/// `Σ_j P_j · z_j = Y` gives `Σ_j Σ_h z_j[h] · lanes(P_j)[h] = Y(δ)` at each
-/// `δ`, and another `Y` does not.
 #[test]
 fn a_ring_equation_is_an_inner_product_at_each_point() {
     let mut rng = ChaCha8Rng::seed_from_u64(1);
@@ -52,7 +47,6 @@ fn a_ring_equation_is_an_inner_product_at_each_point() {
     }
 }
 
-/// `lanes(P)[h]` is the value at `δ` of `X^h · P`.
 #[test]
 fn a_lane_weight_is_the_value_of_the_shifted_element() {
     let mut rng = ChaCha8Rng::seed_from_u64(2);
@@ -68,7 +62,6 @@ fn a_lane_weight_is_the_value_of_the_shifted_element() {
     }
 }
 
-/// `conjugate(a) · z` has the constant term `Σ_h a[h] · z[h]`.
 #[test]
 fn the_conjugate_product_has_the_inner_product_as_its_constant_term() {
     let mut rng = ChaCha8Rng::seed_from_u64(3);

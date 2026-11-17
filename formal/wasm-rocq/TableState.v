@@ -57,7 +57,7 @@ Lemma run_table_set_unselected : forall program initial rows final w,
   fieldPrime -> programLoaded program initial -> validCircuitRun initial rows final -> In w rows ->
   w COL_SEL_TABLE_SET <> 1.
 Proof.
-  intros program initial rows final w Hprime Hloaded [Hfull [_ Hreplay]] Hin Hset.
+  intros program initial rows final w Hprime Hloaded [Hfull [_ [Hreplay _]]] Hin Hset.
   pose proof (proj1 (Forall_forall _ _) Hfull w Hin) as Hw. clear Hfull.
   assert (Hselector : In COL_SEL_TABLE_SET selectorColumns) by (vm_compute; tauto).
   pose proof (full_selected_is_program_row w _ Hprime Hw Hselector Hset) as Hprogram.
@@ -87,7 +87,7 @@ Lemma run_preserves_tables : forall program s initial rows final,
   tablesLoaded s initial -> tablesLoaded s final.
 Proof.
   intros program s initial rows final Hprime Hloaded Hrun Htables a t Ht.
-  pose proof Hrun as [_ [_ Hreplay]].
+  pose proof Hrun as [_ [_ [Hreplay _]]].
   destruct (Htables a t Ht) as [Hsize Helements]. split.
   - rewrite <- Hsize. eapply replay_preserves; [exact Hreplay | apply read_only_trace, table_size_read_only].
   - intros i r Hr. rewrite <- (Helements i r Hr). eapply replay_preserves; [exact Hreplay | ].

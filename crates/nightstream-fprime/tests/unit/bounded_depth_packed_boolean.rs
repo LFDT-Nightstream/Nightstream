@@ -173,9 +173,6 @@ fn product_maps_restore_raw_rows_and_reject_circular_input_proofs() {
     assert!(packed.validate(&forged, 5, 11).is_err());
 }
 
-/// A package has a fixed width. When the companion columns of every bit do
-/// not fit, the packing takes the bits, then the zero products, then the
-/// products that fit, and the other rows stay as they are.
 #[test]
 fn packing_stops_at_the_package_width() {
     let product = |a, b, c| Row {
@@ -191,9 +188,8 @@ fn packing_stops_at_the_package_width() {
     let mut original = (1..=10).map(bit).collect::<Vec<_>>();
     original.extend([product(1, 2, 11), zero(3, 4), zero(5, 6)]);
     let start = 12;
-    // Everything fits in 10 + 2 + 2 columns.
     for (room, sources, zeros, products) in [
-        (14, 10, 2, 1),
+        (10 + 2 + 2, 10, 2, 1),
         (13, 10, 2, 0),
         (11, 10, 1, 0),
         (10, 10, 0, 0),
@@ -213,7 +209,6 @@ fn packing_stops_at_the_package_width() {
             original.iter().collect::<Vec<_>>(),
             "room {room}"
         );
-        // An honest assignment satisfies the kept rows and the packed rows.
         let mut values = vec![F::ZERO; width.max(start)];
         values[0] = F::ONE;
         for column in [1, 2, 3, 5, 7, 9] {
@@ -232,7 +227,6 @@ fn packing_stops_at_the_package_width() {
             values[packed.zero_start() + index] = gate.left.value(&values) + gate.right.value(&values);
         }
         assert!(rows.iter().all(|row| residual(row, &values) == F::ZERO), "room {room}");
-        // A wrong bit, product or zero product fails in each case.
         for (column, wrong) in [(10, F::from_u64(2)), (11, F::ZERO), (4, F::ONE)] {
             let mut forged = values.clone();
             forged[column] = wrong;

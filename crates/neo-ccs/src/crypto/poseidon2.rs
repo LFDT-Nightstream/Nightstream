@@ -1,5 +1,4 @@
 //! Poseidon2 over `F_q`, `q = 2^64 − 59` (`decisions/poseidon2-p64-instance.md`).
-//! The layers are those of `p3-poseidon2`.
 
 use neo_math::Fq;
 use p3_field::{InjectiveMonomial, PrimeCharacteristicRing};
@@ -10,16 +9,12 @@ pub use neo_params::poseidon2::{CAPACITY, DIGEST_LEN, RATE, WIDTH};
 
 pub const HALF_FULL_ROUNDS: usize = 4;
 pub const PARTIAL_ROUNDS: usize = 22;
-/// The S-box `x ↦ x^7` (Lean `Spec.Poseidon2.sbox_eq_pow`). It is also the
-/// degree of the S-box term of the step-circuit gate.
+/// Lean `Spec.Poseidon2.sbox_eq_pow`.
 pub const SBOX_DEGREE: u64 = 7;
 
-/// The constants of one width. `scripts/poseidon2/emit_rust.py` writes the
-/// two instances from `scripts/poseidon2/params.json`.
 pub struct Instance<const T: usize> {
     pub initial: [[Fq; T]; HALF_FULL_ROUNDS],
     pub terminal: [[Fq; T]; HALF_FULL_ROUNDS],
-    /// One constant for each partial round, added to lane 0.
     pub internal: [Fq; PARTIAL_ROUNDS],
     /// The internal linear layer is `J + diag(diagonal)`.
     pub diagonal: [Fq; T],
@@ -53,14 +48,12 @@ impl<const T: usize> Instance<T> {
     }
 }
 
-/// The width-16 permutation of the transcript and of the sponge below.
 #[inline]
 pub fn permute_state(state: [Fq; WIDTH]) -> [Fq; WIDTH] {
     INSTANCE_16.permute(state)
 }
 
-/// `Spec.Poseidon2.hash`: the input with `10*` padding, in blocks of `RATE`
-/// words. The last block holds the words after the full blocks, then 1.
+/// Lean `Spec.Poseidon2.hash`.
 pub fn poseidon2_hash(input: &[Fq]) -> [Fq; DIGEST_LEN] {
     let mut hasher = Poseidon2Hasher::default();
     hasher.update(input);

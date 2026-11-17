@@ -126,7 +126,7 @@ Proof.
     Hprime Hfull ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hprogram) as Hturn.
   circuit_range COL_LOCAL_ZERO_REMAINING_AFTER Hz.
   circuit_range COL_CALL_PARAM_COUNT Hp.
-  circuit_range COL_ENTERED_FUNCTION_NUM_LOCALS Hl.
+  pose proof (value_bound w COL_ENTERED_FUNCTION_NUM_LOCALS) as Hl.
   circuit_row ([(COL_GUEST_ENTRY_ACTIVE, 1); (COL_TURN_BOUNDARY, 1)],
     [(COL_LOCAL_ZERO_REMAINING_AFTER, 1); (COL_CALL_PARAM_COUNT, 1);
      (COL_ENTERED_FUNCTION_NUM_LOCALS, -1)], ([] : SparseRow)) Hzero.

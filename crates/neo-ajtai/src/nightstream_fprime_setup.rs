@@ -1,12 +1,3 @@
-//! Nightstream F-prime's verifier-owned indexed Ajtai setup.
-//!
-//! This module owns the Rust implementation of
-//! `nightstream-ajtai-shake128-reject64-v1`. Key element `(row, block)` is
-//! SHAKE128 of `setup ID ‖ seed ‖ row_u32_le ‖ block_u64_le`, read as 84
-//! little-endian 64-bit words. Coefficient `L` is the `L`-th word below `q`,
-//! and 0 when fewer than `L + 1` words are below `q`. Lean owns its
-//! semantics and authority framing.
-
 use std::{borrow::Borrow, ops::Range};
 
 mod key;
@@ -19,7 +10,7 @@ use neo_ccs::Mat;
 use neo_math::{
     balanced::to_balanced_i128,
     ring::D,
-    signed_sums::{SignedShiftSums, LIMB_BOUND, MAX_TERMS},
+    signed_sums::{SignedShiftSums, LIMB_BOUND, MAX_EXACT_TERMS},
     Fq,
 };
 use p3_field::PrimeCharacteristicRing;
@@ -34,17 +25,14 @@ use crate::{AjtaiError, AjtaiResult, Commitment};
 
 pub const SETUP_ID: &[u8] = b"nightstream-ajtai-shake128-reject64-v1";
 pub const ELEMENT_INPUT_BYTES: usize = SETUP_ID.len() + 32 + 4 + 8;
-/// The SHAKE128 output bytes that one key element reads.
 pub const ELEMENT_OUTPUT_BYTES: usize = 8 * KEY_WORDS;
-/// The commitment rows κ of the selected parameter profile.
 pub const PRODUCTION_VERIFIER_ROWS: u64 = neo_params::nightstream_p64_k14::KAPPA as u64;
-/// Lean `Poseidon2HashChainV1Setup.messageColumns_eq`: `blockCount` of the logical width
-/// 41,106,674 of `Poseidon2HashChainV1Package.logicalWidth`, which is `ceil(41_106_674 / D)`.
+/// Lean `Poseidon2HashChainV1Setup.messageColumns_eq` and
+/// `Poseidon2HashChainV1Package.logicalWidth`.
 pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 41_106_674_u64.div_ceil(D as u64);
 pub const PRODUCTION_CARRIER_WIDTH: usize = PRODUCTION_MESSAGE_COLUMNS as usize * D;
 /// The whole ring columns in the 254,260,620 coefficients of the matrix of
-/// `decisions/fprime-ajtai-public-seed-msis-assumption.md`. The limit stays a count of
-/// coefficients, below the width `2^28` of the security calculation of
+/// `decisions/fprime-ajtai-public-seed-msis-assumption.md`, below the width `2^28` of
 /// `decisions/field-2p64-59-ring-x64.md`.
 pub const MAX_MESSAGE_COLUMNS: u64 = 254_260_620 / D as u64;
 pub const MAX_CARRIER_WIDTH: usize = MAX_MESSAGE_COLUMNS as usize * D;
@@ -55,8 +43,7 @@ pub const PRODUCTION_SEED: [u8; 32] = [
 
 const _: () = assert!(MAX_MESSAGE_COLUMNS == 3_972_822);
 const _: () = assert!(PRODUCTION_MESSAGE_COLUMNS <= MAX_MESSAGE_COLUMNS);
-/// One `SignedShiftSums` receives at most one term for each key column.
-const _: () = assert!(MAX_MESSAGE_COLUMNS <= MAX_TERMS);
+const _: () = assert!(MAX_MESSAGE_COLUMNS <= MAX_EXACT_TERMS);
 const _: () = assert!(MAX_MESSAGE_COLUMNS as u128 * D as u128 * LIMB_BOUND < (1_u128 << 63));
 
 pub fn element_input(seed: &[u8; 32], row: u32, block: u64) -> [u8; ELEMENT_INPUT_BYTES] {
@@ -82,8 +69,6 @@ pub fn coefficient(seed: &[u8; 32], row: u32, block: u64, lane: u32) -> u64 {
     coefficient_block(seed, row, block)[lane as usize]
 }
 
-/// Key elements `(row, columns[0])` and `(row, columns[1])` of the production key. Each is
-/// `coefficient_block` of its column; the pair shares the CPU's parallel permutation.
 pub fn production_key_pair(row: u32, columns: [u64; 2]) -> [[u64; D]; 2] {
     key::coefficient_pair(&PRODUCTION_SEED, row, columns)
 }
@@ -131,8 +116,6 @@ fn signed_sums(row: u32, blocks: &[SignedBlock]) -> SignedShiftSums {
     sums
 }
 
-/// Each task takes one key row and one range of 4,096 columns. Small tasks spread the work of
-/// the 18 key rows evenly over the workers.
 const TASK_COLUMNS: u64 = 1 << 12;
 
 fn column_slice<'a>(blocks: &'a [SignedBlock], columns: &Range<u64>) -> &'a [SignedBlock] {
@@ -216,8 +199,7 @@ pub fn commit_production_signed_unit_matrix(witness: &Mat<Fq>) -> AjtaiResult<Co
     commit_production_signed_unit_prefix_matrix(witness)
 }
 
-/// Lean contract: `AjtaiSetupV1.Prefix.commit_zeroExtend` identifies this
-/// commitment with the full-key commitment after suffix zero-extension.
+/// Lean `AjtaiSetupV1.Prefix.commit_zeroExtend`.
 pub fn commit_production_signed_unit_prefix_matrix(witness: &Mat<Fq>) -> AjtaiResult<Commitment> {
     let blocks = signed_unit_prefix_blocks(witness)?;
     Ok(commit_signed_blocks(&blocks))

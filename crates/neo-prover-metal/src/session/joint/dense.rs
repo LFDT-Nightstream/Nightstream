@@ -1,7 +1,4 @@
-//! Running sources without norm terms (option B's light fold, Lean
-//! `Spec/Folding/Light`): the accumulator is a Π_RLC output, so its entries
-//! are not signed digits and have no mask. The device stores its field
-//! values source by source, block by block and lane by lane.
+//! Running sources without norm terms (Lean `Spec/Folding/Light`).
 
 use neo_math::D;
 use neo_reductions::superneo_eval::SuperneoZBlocks;
@@ -25,14 +22,11 @@ impl MetalDenseWitnesses {
         self.count
     }
 
-    /// The nonzero sources.
     pub(super) fn active(&self) -> &[u32] {
         &self.active
     }
 }
 
-/// The sources of one opening or carried table: the masked sources first,
-/// then the dense sources.
 #[derive(Clone, Copy)]
 pub(crate) struct JointSources<'a> {
     pub(super) masks: &'a MetalWitnessMasks,
@@ -56,7 +50,6 @@ impl JointSources<'_> {
             && self.dense.is_none_or(|dense| dense.blocks == blocks)
     }
 
-    /// The nonzero sources' count: masked, then dense.
     pub(super) fn active_count(&self) -> usize {
         self.masks.active_witnesses().len() + self.dense.map_or(0, |dense| dense.active.len())
     }

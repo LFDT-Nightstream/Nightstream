@@ -1,9 +1,3 @@
-//! Independent direct references for corrected SuperNeo reductions.
-//!
-//! `paper_joint` owns the direct one-polynomial evaluator on the paper's
-//! zero-padded rectangular row domain. This module does not import optimized
-//! or cached evaluator code.
-
 pub mod paper_joint;
 mod paper_matrix;
 mod paper_ring;

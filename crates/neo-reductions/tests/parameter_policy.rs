@@ -21,7 +21,7 @@ fn engine_rejects_parameters_selected_for_fewer_matrices() {
         )
         .expect("one-matrix census");
     let params = base
-        .with_lambda(one_matrix.security_bits)
+        .with_certified_lambda(one_matrix.security_bits)
         .expect("one-matrix parameter profile");
     let mut exps = vec![0; ACTUAL_MATRIX_COUNT];
     exps[0] = DEGREE;
@@ -62,6 +62,6 @@ fn engine_refuses_parameters_that_no_gate_certified() {
         )
         .expect("census")
         .security_bits;
-    assert!(dims(&ungated.with_lambda(bits).unwrap()).is_ok());
-    assert!(dims(&ungated.with_lambda(bits + 1).unwrap()).is_err());
+    assert!(dims(&ungated.with_certified_lambda(bits).unwrap()).is_ok());
+    assert!(dims(&ungated.with_certified_lambda(bits + 1).unwrap()).is_err());
 }

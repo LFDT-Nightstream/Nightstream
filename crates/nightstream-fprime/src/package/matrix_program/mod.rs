@@ -1,8 +1,3 @@
-//! Generic execution of the Lean-authored compact 4-matrix program.
-//!
-//! This module owns wire decoding and row interpretation. It does not select
-//! phases, applications, row schedules, or matrix formulas.
-
 use neo_math::Fq;
 
 use super::PackageError;

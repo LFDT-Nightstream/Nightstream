@@ -1,5 +1,4 @@
-//! The step words that the bounded-depth circuits read (`LightAssemblerSource.Values`,
-//! `RefreshAssemblerSource.Values`), built from the two-slot state and a fold.
+//! `LightAssemblerSource.Values`, `RefreshAssemblerSource.Values`.
 use crate::folding::bounded_depth::{Kind, Proof};
 use crate::folding::CeClaim;
 use neo_math::{KExtensions, D, F, K};
@@ -18,7 +17,6 @@ fn k_words(value: K) -> KWords {
     value.as_coeffs()
 }
 
-/// A claim's `EVALUATIONS` values of `K`: `Eval_K`, then the four `Eval_A` families.
 fn evaluations(claim: &CeClaim) -> Vec<KWords> {
     claim.eval_k[..D]
         .iter()
@@ -34,7 +32,7 @@ fn public_input(claim: &CeClaim) -> Vec<F> {
         .collect()
 }
 
-/// The slot words of an accumulator claim at `depth` (`State.SlotData`).
+/// `State.SlotData`.
 pub(crate) fn slot(claim: &CeClaim, depth: u64) -> Slot {
     Slot {
         commitment: claim.c.data().to_vec(),
@@ -45,8 +43,6 @@ pub(crate) fn slot(claim: &CeClaim, depth: u64) -> Slot {
     }
 }
 
-/// The program counter of the circuit that runs a fold kind; the circuit's
-/// instances fold into slot `pc − 1`.
 pub(crate) fn pc(kind: Kind) -> u64 {
     match kind {
         Kind::Light => 1,
@@ -62,8 +58,6 @@ pub(crate) fn next_depth(kind: Kind, depth: u64) -> u64 {
     }
 }
 
-/// What a step reads of its fold: the folded slot, the fresh commitment, the
-/// PiCCS rounds and the fold's words.
 struct Fold {
     folded: Slot,
     commitment: Vec<F>,
@@ -71,8 +65,6 @@ struct Fold {
     words: FoldWords,
 }
 
-/// The words of a step from the prior state, the next current state, the
-/// application witness and the fold. Returns the words and the output state.
 fn words(
     prior: &BoundedDepthState,
     next: [F; 4],
@@ -129,9 +121,6 @@ fn words(
     (words, output)
 }
 
-/// The words of a fold step (iteration > 0): `proof` folded the previous
-/// step's instance, committed as `fresh_commitment`, into slot `prior.pc − 1`,
-/// giving `folded` at the next depth.
 pub(crate) fn fold_step(
     prior: &BoundedDepthState,
     next: [F; 4],
@@ -176,12 +165,7 @@ pub(crate) fn fold_step(
     words(prior, next, witness, kind, fold)
 }
 
-/// The words of the base step (iteration 0) of the light circuit: the zero
-/// proof of HyperNova's base case folds the default fresh instance, whose
-/// public input is the hash of `prior`, into the default slot. Its rounds and
-/// outputs are 0, so the folded slot keeps zero commitments and evaluations;
-/// its point is the round point and its public input is the light challenge
-/// times the fresh public input (`Light.fold`).
+/// HyperNova's base case; `Light.fold`.
 pub(crate) fn base_step(
     prior: &BoundedDepthState,
     next: [F; 4],

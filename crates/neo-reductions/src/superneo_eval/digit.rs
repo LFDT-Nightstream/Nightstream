@@ -131,7 +131,7 @@ fn apply_monomial_in_place<const SUB: bool>(out: &mut [F; D], form: &Rq, j: usiz
         return;
     }
 
-    // X^D = −1, so the coefficients that pass degree D return with the opposite sign.
+    // X^D = −1.
     let first_reduced = D - j;
     for i in 0..first_reduced {
         add_or_sub::<SUB>(&mut out[i + j], form.0[i]);

@@ -1,5 +1,3 @@
-//! Domain-neutral witness-column metadata and index ownership.
-
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 
@@ -78,7 +76,7 @@ macro_rules! define_column_region {
         /// Number of witness columns allocated by this region.
         $width_vis const $width_name: usize =
             0usize $(+ $crate::define_column_region!(@len $shape))+;
-        /// Macro-generated metadata for the region's declared column families.
+        /// Metadata for the region's column families.
         $families_vis const $families_name: &[$crate::ColumnFamilySpec] = &[
             $($crate::ColumnFamilySpec {
                 region: $region,
@@ -220,8 +218,6 @@ impl ColumnRegistry {
             return None;
         }
 
-        // `new` guarantees a nonempty, contiguous registry starting at zero,
-        // so every in-range column has exactly one preceding family start.
         let index = self
             .families
             .partition_point(|family| family.start <= column)

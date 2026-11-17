@@ -18,7 +18,6 @@ fn assert_satisfied(relation: &neo_application::R1csRelation<&'static str>, assi
         .expect("gadget assignment must satisfy the relation");
 }
 
-/// The values come from a dense-matrix permutation built from `scripts/poseidon2/params.json`.
 #[test]
 fn native_commitment_matches_the_reference_permutation() {
     let f = F::from_u64;
@@ -150,8 +149,6 @@ fn selectable_rounds_match_the_native_round_functions() {
     assert_eq!(full_after.map(|column| inactive[column]), full_output);
     assert_eq!(partial_after.map(|column| inactive[column]), partial_output);
 
-    // The selectable round equations alone admit the sum of two round
-    // constants. The default API's selector rows must reject that assignment.
     let mut ambiguous = vec![F::ZERO; WIDTH];
     ambiguous[ONE] = F::ONE;
     ambiguous[SELECT_FULL] = F::ONE;
@@ -190,8 +187,6 @@ fn unrolled_commitment_matches_native_and_retains_one_semantic_occurrence() {
     let relation = builder.build(&test_columns(WIDTH)).unwrap();
 
     assert_eq!(gadget.auxiliary_range(), AUXILIARY..WIDTH);
-    // 12 premix + 8 × (48 S-box + 12 output) + 11 × (8 S-box + 12 output)
-    // + 4 feed-forward rows.
     assert_eq!(relation.structure().n(), 716);
     let [occurrence] = relation.catalog().gadget_occurrences() else {
         panic!("the composite must retain one semantic occurrence, not its internal rounds")

@@ -1,5 +1,3 @@
-//! Balanced base-3 digits of a centered field word (`encode_field`).
-
 use neo_math::Fq;
 use p3_field::PrimeField64;
 

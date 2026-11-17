@@ -1,8 +1,3 @@
-//! A native application replaces Lean's only inside the region that Lean
-//! writes: a region that claims a later gadget's piece, or fewer locals than
-//! the application's pieces read, is refused. The identity binds the
-//! application's rows.
-
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -29,7 +24,6 @@ fn artifact(name: &str) -> Vec<u8> {
     .unwrap_or_else(|error| panic!("read {name}: {error}"))
 }
 
-/// `(current_k + scale · witness_k) · 1 = next_k`.
 fn addition(scale: u64) -> Arc<ApplicationRecords> {
     let mut writer = ApplicationRecordsWriter::new().expect("writer");
     let term = |form, variable, coefficient| {
@@ -92,9 +86,6 @@ fn substitution_binds_the_application_and_refuses_a_wrong_region() {
 pub(super) const FIRST_LOCAL: usize = 12;
 pub(super) const BLOCK: usize = 1096;
 
-/// Four witness words and `locals` locals, each its own recipe
-/// `local · 1 = previous` from witness word 0; then `output_k · 1 = read`,
-/// and `bit · bit = bit` for each of `bits`.
 fn chained(locals: usize, read: usize, bits: &[usize]) -> Arc<ApplicationRecords> {
     let mut writer = ApplicationRecordsWriter::new().expect("writer");
     let copy = |writer: &mut ApplicationRecordsWriter, from: usize, to: usize| {
@@ -238,9 +229,7 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
     }
 }
 
-/// Each package that Lean writes has the slots of Lean's rule
-/// (`StepPackage.runsOf`) on its own pieces, with its `bit` hints as the bit
-/// candidates: Rust's rule is Lean's.
+/// Lean `StepPackage.runsOf`.
 #[test]
 fn lean_packages_follow_the_slot_rule() {
     for name in [
@@ -257,8 +246,6 @@ fn lean_packages_follow_the_slot_rule() {
     }
 }
 
-/// Blocks that overlap or pass the locals, a lane that reads its own block
-/// or a dead local, and a kept row that reads a dead local are refused.
 #[test]
 fn native_shape_outside_its_rules_is_refused() {
     let packages = packages();

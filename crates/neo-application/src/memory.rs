@@ -1,5 +1,3 @@
-//! Logical memory declarations over application witness columns.
-
 use std::num::NonZeroUsize;
 
 use crate::{ColumnRegistry, ColumnWidth};

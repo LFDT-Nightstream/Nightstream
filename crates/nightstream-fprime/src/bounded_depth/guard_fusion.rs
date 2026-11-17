@@ -130,8 +130,6 @@ fn families(rows: &[(usize, Row)], known: &BTreeSet<usize>) -> Vec<Family> {
     found.into_values().collect()
 }
 
-/// The families in family order and, for each selector column, the families
-/// that hold it in that order.
 struct Families {
     families: Vec<Family>,
     by_selector: HashMap<usize, Vec<usize>>,
@@ -148,9 +146,6 @@ impl Families {
         Self { families, by_selector }
     }
 
-    /// The families whose selectors hold every column of `terms`, in family
-    /// order. Each of them holds the column of `terms` with the fewest
-    /// families, so only those families are tested.
     fn containing<'a>(&'a self, terms: &'a [(usize, F)]) -> impl Iterator<Item = usize> + 'a {
         let fewest = terms
             .iter()

@@ -1,5 +1,3 @@
-//! Domain-neutral algebraic gadgets and their retained semantic descriptions.
-
 use std::ops::Range;
 
 use neo_math::F;
@@ -36,8 +34,6 @@ pub(crate) fn assign_pow7_expression(expression: &[(usize, F)], powers: [usize; 
     assignment[x7] = assignment[x6] * x;
 }
 
-/// Constrains four auxiliary columns to `x²`, `x⁴`, `x⁶`, and `x⁷` for a
-/// linear field expression `x`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Pow7<const N: usize = 1> {
     pub expression: [(usize, F); N],
@@ -73,10 +69,6 @@ impl<const N: usize> Pow7<N> {
 /// predicate, the caller must establish that no nonzero integer multiple of
 /// the field modulus lies in the expression's possible range; otherwise
 /// modular aliasing can make a nonzero intended value test as zero.
-///
-/// The fixed-size expression keeps witness assignment allocation-free. Its
-/// retained [`GadgetDescriptor`] erases `N` so one catalog can hold expressions
-/// of different sizes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ZeroTest<const N: usize = 1> {
     pub expression: [(usize, F); N],
@@ -130,26 +122,6 @@ impl<const N: usize> ZeroTest<N> {
     }
 }
 
-/// Conditionally selects `lhs` or `rhs` into `output` on active rows.
-///
-/// `condition` is a linear expression that must evaluate to zero or one:
-/// one selects `lhs`, and zero selects `rhs`. If it is not Boolean, the rows
-/// remain satisfiable but enforce affine interpolation in the field rather
-/// than selection.
-///
-/// `activation` is the application gate. Zero leaves `output` unconstrained,
-/// while any nonzero field value enforces the output relation. Callers must
-/// prove that it has the intended gate semantics, normally by constraining it
-/// to be Boolean. This gadget emits neither Boolean constraint.
-///
-/// Without `delta`, directly gating the select relation would multiply
-/// `activation`, `condition`, and `lhs - rhs`, exceeding R1CS degree. The
-/// global delta row computes that intermediate product so the output relation
-/// can be gated in a second R1CS row.
-///
-/// The delta relation is global, including on inactive rows. This gives the
-/// auxiliary column a canonical value while leaving `output` unconstrained
-/// when `activation` is zero.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ConditionalSelect<const N: usize = 1> {
     pub activation: usize,
@@ -161,8 +133,6 @@ pub struct ConditionalSelect<const N: usize = 1> {
 }
 
 impl<const N: usize> ConditionalSelect<N> {
-    /// Emit the select rows and retain this descriptor in the relation's
-    /// gadget-occurrence catalog.
     pub fn push_constraints<Owner: Clone>(&self, builder: &mut TaggedR1csBuilder<'_, Owner>) {
         let first_row = builder.next_row_index();
         builder.push_row(
@@ -188,14 +158,12 @@ impl<const N: usize> ConditionalSelect<N> {
         );
     }
 
-    /// Assign the gadget-owned delta without overwriting the semantic output.
     pub fn assign_delta(&self, assignment: &mut [F]) {
         let condition = evaluate_linear_expression(&self.condition, assignment);
         assignment[self.delta] = condition * (assignment[self.lhs] - assignment[self.rhs]);
     }
 }
 
-/// Machine-readable semantics retained for one shared gadget invocation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum GadgetDescriptor {
     Pow7 {
@@ -242,7 +210,6 @@ pub enum GadgetDescriptor {
     },
 }
 
-/// One tagged gadget invocation and the exact relation rows it emitted.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GadgetOccurrence<Owner> {
     tag: ConstraintTag<Owner>,

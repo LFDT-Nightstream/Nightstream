@@ -1,6 +1,3 @@
-//! Linear matrix expressions keep retained fields as geometric coefficient runs.
-//! Expansion is reserved for the scalar-row reference interface.
-
 use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 

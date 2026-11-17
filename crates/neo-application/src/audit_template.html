@@ -99,8 +99,6 @@ function columnButton(column) {
 }
 
 function approximateDamerauLevenshtein(pattern, text) {
-  // Row zero is all zeroes so an unmatched text prefix is free. Taking the
-  // minimum of the final row likewise leaves the suffix free.
   let beforePrevious = null;
   let previous = Array(text.length + 1).fill(0);
   for (let i = 1; i <= pattern.length; i += 1) {

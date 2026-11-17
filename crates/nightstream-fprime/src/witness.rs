@@ -1,5 +1,3 @@
-//! Decoder and evaluator for the Lean-owned symbolic witness-expression IR.
-
 use neo_math::Fq;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 use serde::{Deserialize, Serialize};
@@ -38,7 +36,7 @@ impl WitnessBatch {
         self.start + self.recipes.len() + self.hints.len()
     }
 
-    /// The columns of the batch's `bit` hints (Lean `StepPackage.bitColumns`).
+    /// Lean `StepPackage.bitColumns`.
     pub(super) fn bit_columns(&self) -> impl Iterator<Item = usize> + '_ {
         let first = self.start + self.recipes.len();
         self.hints
@@ -48,8 +46,6 @@ impl WitnessBatch {
             .map(move |(index, _)| first + index)
     }
 
-    /// The batch with every column moved by `map`; `None` if `map` drops a
-    /// column the batch writes or reads.
     pub(super) fn map_columns(&self, map: &impl Fn(usize) -> Option<usize>) -> Option<Self> {
         let start = map(self.start)?;
         (map(self.end() - 1)? == start + self.recipes.len() + self.hints.len() - 1).then_some(())?;

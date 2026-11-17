@@ -1,4 +1,3 @@
-//! The parameters of the profile Nightstream P64, k_rho = 14.
 use neo_params::NeoParams;
 #[derive(Clone, Debug)]
 pub(crate) struct Params {
@@ -26,10 +25,8 @@ impl Params {
         let alphabet = neo_params::nightstream_p64_k14::CHALLENGE_ALPHABET.len() as u32;
         let summary =
             inner.padded_row_security_summary_for_shape(rows, columns, matrix_count, poly_degree, alphabet)?;
-        // Lean `FoldGate.bits`: the error that it charges bounds the
-        // statistical term of either fold's random-oracle result
-        // (`FoldGate.refresh_statisticalError_le_bits`,
-        // `FoldGate.light_statisticalError_le_bits`).
+        // Lean `FoldGate.bits`, `FoldGate.refresh_statisticalError_le_bits`,
+        // `FoldGate.light_statisticalError_le_bits`.
         let available = summary.security_bits.min(summary.fold_error.bits);
         if available < minimum_security_bits {
             return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {

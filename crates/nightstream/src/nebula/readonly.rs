@@ -1,5 +1,4 @@
-//! Shares the value bits of ports whose application rows force is_write to zero.
-//! `Export.Generic.ReadOnlyValues` states the reconstruction and completeness conditions.
+//! `Export.Generic.ReadOnlyValues`.
 
 use std::{
     collections::{BTreeMap, BTreeSet},

@@ -1,16 +1,4 @@
-//! A memory application from the R1CS relation of one row (SPEC.md section
-//! 7.6). The WASM relation of `neo-wasm` and the Starstream interleaving
-//! relation both use it. One Nebula step proves `rows` consecutive rows, so
-//! the rows share the fixed F′ cost of a fold. Its private words are the
-//! witnesses `z` of its rows. The default layout uses one block of the one-row
-//! width per row. `with_shared` stores local columns by row and selected shared
-//! columns by group. Both layouts use one constant-one column. Its relation is the
-//! rank-one rows of each row, then one equality row for each continuity link
-//! between neighbor rows. Its state is the continuity words, one per link:
-//! the `next_step_column`s of its first row in, the `previous_step_column`s
-//! of its last row out. `CatalogBinding` checks every memory of the batched
-//! catalog (Lean `Spec.Nebula.MemoryTrace.batchCatalog`) in the regions of a
-//! `Size`, so one circuit serves every run whose memories fit those regions.
+//! SPEC.md section 7.6; Lean `Spec.Nebula.MemoryTrace.batchCatalog`.
 
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -139,10 +127,7 @@ pub fn batched_slots<Id>(
 /// A relation of one row as a Nebula application, `rows` rows in each step.
 #[derive(Clone, Debug)]
 pub struct R1csApplication<Id> {
-    /// `[A_i, B_i, C_i]` of each rank-one row of one step.
     relation: Arc<Vec<[Terms; 3]>>,
-    /// The one-row `(previous_step_column, next_step_column)` of each
-    /// continuity link, in link order.
     links: Arc<Vec<(usize, usize)>>,
     layout: StepLayout,
     binding: CatalogBinding<Id>,
@@ -425,8 +410,7 @@ impl<Id: Clone + Eq> Application for R1csApplication<Id> {
     }
 }
 
-/// SPEC.md section 7.6. Place each source row, retaining a row over only
-/// shared columns and the constant once per group, then append the links.
+/// SPEC.md section 7.6.
 fn step_relation(relation: &RowRelation, links: &[(usize, usize)], layout: &StepLayout) -> Vec<[Terms; 3]> {
     let column = |row: usize, column: usize| layout.column(row, column);
     let block_only = |sides: &[Terms; 3]| {

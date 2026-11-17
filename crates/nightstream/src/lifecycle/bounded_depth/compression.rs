@@ -1,39 +1,4 @@
-//! The compressed proof (SPEC.md section 6): the statement, both slot claims,
-//! and an argument over the Akita commitment scheme that the verifier of
-//! `BoundedDepth::verify` accepts some witnesses for them. It carries no
-//! witness and cannot be extended.
-//!
-//! The terminal check has three CE claims. Each slot's accumulator is one,
-//! with the bound of its depth. The fresh instance becomes one by a Π_CCS
-//! run with no running claim: its sum-check proves each row of the relation
-//! and that each coefficient is in {-1, 0, 1}, given the evaluations of the
-//! claim. That run binds the Akita commitment of the witnesses before its
-//! challenges, so the committed fresh witness is the one that it judges.
-//! `ns-compress` proves the three claims.
-//!
-//! The verifier does not expand the Ajtai key. `compression_setup` commits
-//! the key rows once as one polynomial, for the blocks of the larger
-//! relation up to a power of two, and `verify_final` reads the commitment
-//! from its verification key. The key is a function of the public seeds and
-//! of that power of two only, so `ns-compress` pins the key of each size,
-//! and a test computes each pinned key again from the seeds. The verifier
-//! takes the pinned key of its circuit (`compression_key`), and no proof and
-//! no prover value carries it.
-//!
-//! The soundness error is the sum of three parts. The caller's
-//! `minimum_security_bits` gates the first two, each alone and never their
-//! sum. The public API has no default for it, and no fold reaches 116 bits.
-//!
-//! 1. The Π_CCS run has the test error of one fold with one source.
-//!    `Params::for_ccs_shape` gates the larger error of a fold with 15
-//!    sources, about `2^-115.72` for the Poseidon2 hash chain.
-//! 2. The argument has the error of its batches, its lookups, its two
-//!    sum-checks and the point of `V`, `2^-119.02` for the Poseidon2 hash
-//!    chain. `ns_compress::error_bits` bounds it by `2^-119` in integers,
-//!    and `compression_layout` gates that bound.
-//! 3. The Akita opening has the knowledge error of Akita's schedule row. No
-//!    gate here computes or bounds it. The argument also needs the
-//!    verification key to hold the commitment of the Ajtai key.
+//! SPEC.md section 6.
 
 use std::time::{Duration, Instant};
 
@@ -59,30 +24,23 @@ use crate::folding::{pi_ccs, CcsClaim, CeClaim, RunningInstance};
 const PI_CCS_DOMAIN: &[u8] = b"Nightstream/OptionB/compress/ccs/v1";
 const MATRICES: usize = nightstream_fprime::PI_CCS_V1_2_MATRIX_COUNT;
 
-/// A proof of `iteration` steps from `z0` to `current` without witnesses.
 #[derive(Clone)]
 pub(crate) struct FinalProof {
     pub(super) iteration: u64,
     pub(super) z0: [F; 4],
     pub(super) current: [F; 4],
-    /// `None` for the proof of zero steps.
     pub(super) steps: Option<Steps>,
 }
 
-/// What a compressed proof of one or more steps carries.
 #[derive(Clone)]
 pub(super) struct Steps {
     pub(super) pc: u64,
-    /// Each slot's accumulator claim and depth.
     pub(super) slots: [(CeClaim, u64); 2],
     pub(super) fresh: Fresh,
     pub(super) pi_ccs: pi_ccs::SumcheckProof,
     pub(super) argument: ns_compress::Proof,
 }
 
-/// The CE claim that Π_CCS makes of the fresh instance, without its public
-/// input, which is the hash of the state. Π_CCS checks the point and the
-/// digest against its transcript.
 #[derive(Clone)]
 pub(super) struct Fresh {
     pub(super) c: Commitment,
@@ -117,14 +75,12 @@ impl FinalProof {
     }
 }
 
-/// Where `compress` spends its time.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct CompressTimes {
     pi_ccs: Duration,
     argument: ns_compress::ProverTimes,
 }
 
-/// Where `verify_final` spends its time.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct VerifyTimes {
     pi_ccs: Duration,
@@ -169,8 +125,6 @@ impl std::fmt::Display for VerifyTimes {
 }
 
 impl BoundedDepth {
-    /// The claims of the terminal check: slot 0, slot 1, then the fresh
-    /// instance of circuit `pc − 1`.
     fn compression_claims(&self, pc: u64, depths: [u64; 2]) -> [(usize, Norm); 3] {
         let slot = |slot: usize| {
             let bound = self.accumulator_bound(depths[slot]);
@@ -183,27 +137,20 @@ impl BoundedDepth {
         ]
     }
 
-    /// The prover's key of the compression: the commitment of the Ajtai key
-    /// rows that the relations read, with the rows.
     pub(crate) fn compression_setup(&self) -> Result<ProverKey, BoundedDepthError> {
         Ok(ProverKey::new(self.key_blocks())?)
     }
 
-    /// The verification key of this circuit: the pinned key of the size of
-    /// `compression_setup`, which is the key of that setup without the rows.
     pub(crate) fn compression_key(&self) -> Result<VerificationKey, BoundedDepthError> {
         Ok(VerificationKey::new(self.key_blocks())?)
     }
 
-    /// Decode the bytes of the verification key of this circuit. Only the
-    /// bytes of `compression_key` decode.
     pub(crate) fn decode_compression_key(&self, bytes: &[u8]) -> Result<VerificationKey, BoundedDepthError> {
         let key = VerificationKey::from_bytes(bytes)?;
         self.check_key_size(&key)?;
         Ok(key)
     }
 
-    /// The key of `compression_key` has the size of this circuit.
     fn check_key_size(&self, key: &VerificationKey) -> Result<(), BoundedDepthError> {
         if key.blocks() != ns_compress::key_blocks(self.key_blocks())? {
             return Err(ns_compress::Error::Key("the key is for another circuit size").into());
@@ -211,17 +158,11 @@ impl BoundedDepth {
         Ok(())
     }
 
-    /// The blocks that the key of the compression must hold.
     pub(super) fn key_blocks(&self) -> usize {
         self.relations[0].blocks().max(self.relations[1].blocks())
     }
 
-    /// The layout of the claims under a key of `key_blocks` blocks, when
-    /// `ns_compress::error_bits` of it is at least the security minimum.
-    /// The error of the batches, the lookups, the sum-checks and the point
-    /// of `V` is at most `2^-error_bits`, and the comparison is of integers
-    /// (`Spec.Compression.Rust.params_run_soundness_bits`). It has no term
-    /// for the Π_CCS run or for the Akita opening.
+    /// `Spec.Compression.Rust.params_run_soundness_bits`.
     pub(crate) fn compression_layout(
         &self,
         key_blocks: usize,
@@ -237,8 +178,6 @@ impl BoundedDepth {
         Ok(layout)
     }
 
-    /// The Π_CCS profile of the fresh instance: it binds `commitment`, the
-    /// Akita commitment of the witnesses, after the statement.
     pub(super) fn compression_profile(commitment: &[F]) -> FoldProfile<'_> {
         FoldProfile {
             domain: domain_chunk_v1_2(PI_CCS_DOMAIN),
@@ -271,9 +210,6 @@ impl BoundedDepth {
         ]
     }
 
-    /// Compress `envelope`, which does not change. The proof is not checked
-    /// here: an envelope that `verify` rejects gives an error or a proof that
-    /// `verify_final` rejects.
     pub(crate) fn compress(
         &self,
         setup: &ProverKey,
@@ -360,11 +296,7 @@ impl BoundedDepth {
         Ok((proof, times))
     }
 
-    /// Accept `proof` for the expected statement exactly when `verify`
-    /// accepts some proof with witnesses for it (Lean
-    /// `RunCompleteness.Verifies`), up to the soundness error of the
-    /// argument under `key`, which must have the size of `compression_key`.
-    /// No proof carries the key.
+    /// Lean `RunCompleteness.Verifies`.
     pub(crate) fn verify_final(
         &self,
         key: &VerificationKey,
@@ -456,10 +388,8 @@ const SHAPE: Shape = Shape {
     witness_columns: 0,
     matrices: MATRICES,
 };
-/// No polynomial of a proof has more variables than this.
 const MAX_ROUNDS: u64 = 30;
 
-/// A byte string after its length.
 fn write_bytes(output: &mut Writer, bytes: &[u8]) {
     output.word(bytes.len() as u64);
     output.0.extend_from_slice(bytes);
@@ -480,7 +410,6 @@ fn read_extension(input: &mut Reader<'_>, count: usize) -> Result<Vec<K>, ProofC
     (0..count).map(|_| input.extension()).collect()
 }
 
-/// The rounds of one sum-check of the argument after their count.
 fn read_rounds<const COEFFICIENTS: usize>(input: &mut Reader<'_>) -> Result<Vec<[K; COEFFICIENTS]>, ProofCodecError> {
     let rounds = input.word()?;
     if rounds > MAX_ROUNDS {
@@ -496,11 +425,6 @@ fn read_rounds<const COEFFICIENTS: usize>(input: &mut Reader<'_>) -> Result<Vec<
 }
 
 impl FinalProof {
-    /// The strict bytes of the proof: the statement, then for one or more
-    /// steps each slot's depth and claim, the fresh claim without its public
-    /// input, the Π_CCS rounds and the argument. Field words are below the
-    /// modulus, and each byte string of Akita and the rounds of each
-    /// sum-check follow their count.
     pub(crate) fn to_bytes(&self) -> Result<Vec<u8>, ProofCodecError> {
         let mut output = Writer(MAGIC.to_vec());
         output.word(self.steps.as_ref().map_or(0, |steps| steps.pc));
@@ -551,7 +475,6 @@ impl FinalProof {
         Ok(output.0)
     }
 
-    /// Decode untrusted bytes. Acceptance still needs `verify_final`.
     pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self, ProofCodecError> {
         let mut input = Reader(bytes);
         if input.take(MAGIC.len())? != MAGIC {

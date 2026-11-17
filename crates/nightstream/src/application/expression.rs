@@ -1,5 +1,3 @@
-//! Retains application expression order for the existing package wire identity.
-
 use std::{
     collections::HashSet,
     hash::{BuildHasherDefault, Hasher},
@@ -13,10 +11,6 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::{ApplicationError, Variable};
 
-/// A set of nodes that a walk has met. The walks only ask whether they met a
-/// node before, so a node's address needs no keyed hash: one multiply mixes
-/// it, and the rotation brings the mixed high bits to the low bits that pick
-/// the bucket.
 type Nodes<T> = HashSet<T, BuildHasherDefault<NodeHasher>>;
 
 #[derive(Default)]

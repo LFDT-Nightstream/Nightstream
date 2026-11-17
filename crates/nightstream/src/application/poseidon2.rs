@@ -1,6 +1,4 @@
-//! Poseidon2 application hashes and the existing Poseidon2HashChainV1.
-//! The round schedule follows Gadgets/Poseidon2/{Hash,Permutation,Layer}.lean.
-//! It consumes no exported application constraints or witness recipes.
+//! Gadgets/Poseidon2/{Hash,Permutation,Layer}.lean.
 
 use std::collections::BTreeMap;
 
@@ -51,7 +49,7 @@ impl ApplicationBuilder {
             }
             state = permutation(self, state)?;
         }
-        // `Hash.padE`: the last words, then 1 in the next lane.
+        // `Hash.padE`.
         for (lane, word) in last.iter().enumerate() {
             state[lane] = state[lane].clone() + word.clone();
         }
@@ -93,8 +91,6 @@ fn mat4(state: &[Affine; WIDTH], base: usize, lane: usize) -> Affine {
         .expect("four matrix terms")
 }
 
-/// `M₄` on the lane's block plus the sum of all blocks at the same position.
-/// Sums start from zero like Lean's `foldl (· + ·) 0`; recipe shape is identity input.
 fn external(builder: &mut ApplicationBuilder, state: &[Affine; WIDTH]) -> Result<[Affine; WIDTH], ApplicationError> {
     let mut output = std::array::from_fn(|_| scalar(0));
     for (lane, value) in output.iter_mut().enumerate() {
@@ -120,9 +116,7 @@ fn full_round(
     Ok(())
 }
 
-/// One Poseidon2 permutation of `state`: 1096 generated variables in the
-/// order of `Gadgets/Poseidon2/Permutation.lean`. The step packages place it
-/// as one block (`NativeShape::blocks`).
+/// `Gadgets/Poseidon2/Permutation.lean`.
 pub(crate) fn permutation(
     builder: &mut ApplicationBuilder,
     state: [Affine; WIDTH],
@@ -151,11 +145,8 @@ pub(crate) fn permutation(
     Ok(state)
 }
 
-/// A row's three sides: the constant and the terms, equal variables merged and
-/// zero coefficients dropped.
 type Sides = [(Fq, BTreeMap<usize, Fq>); 3];
 
-/// The sides of the row that `recipe` generates.
 fn recipe_sides(walk: &mut ApplicationWalk<'_>, recipe: usize) -> Result<Sides, ApplicationError> {
     let row = walk.recipe_row(recipe)?;
     let mut terms = Vec::new();
@@ -175,11 +166,6 @@ fn recipe_sides(walk: &mut ApplicationWalk<'_>, recipe: usize) -> Result<Sides, 
     Ok(sides)
 }
 
-/// Rejects a block whose recipe rows are not `permutation`'s rows on its
-/// lanes. The reference is one permutation of 16 witness words in a scratch
-/// builder; each of its inputs becomes the block's lane and each of its locals
-/// the block's local. The step packages drop these rows for the block
-/// (`StepPackage::with_application`), so the rows and the block must agree.
 pub(crate) fn check_blocks(application: &ApplicationCircuit) -> Result<(), ApplicationError> {
     let blocks = &application.shape().blocks;
     if blocks.is_empty() {

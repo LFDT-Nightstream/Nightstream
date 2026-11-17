@@ -1,6 +1,7 @@
 //! The engine that proves and verifies. `Engine::Optimized` runs on the CPU;
-//! `Engine::Metal` (feature `metal`) runs the commitments, the PiCCS round
-//! oracle, the PiDEC openings and the compression loops on the device. Every
+//! `Engine::Metal` (feature `metal`) and `Engine::Cuda` (feature `cuda`) run
+//! the commitments, the PiCCS round oracle, the PiRLC mix, the PiDEC
+//! openings, the row check and the compression loops on the device. Every
 //! device result equals the CPU result; the transcript order, the proof
 //! assembly and every public check stay on the host.
 
@@ -13,6 +14,8 @@ use neo_reductions::optimized_engine::PaperJointOracleBackend;
 use neo_reductions::superneo_eval::{eval_real_v1_2_openings_from_rows, MatrixRows, SuperneoZBlocks};
 use neo_reductions::PiCcsError;
 
+#[cfg(feature = "cuda")]
+pub(crate) mod cuda;
 #[cfg(feature = "metal")]
 pub(crate) mod metal;
 
@@ -54,6 +57,8 @@ pub(crate) enum Backend {
     Optimized,
     #[cfg(feature = "metal")]
     Metal(metal::Device),
+    #[cfg(feature = "cuda")]
+    Cuda(cuda::Device),
 }
 
 impl Backend {
@@ -67,12 +72,12 @@ impl Backend {
                 engine,
                 reason: "build nightstream with the metal feature",
             }),
+            #[cfg(feature = "cuda")]
+            Engine::Cuda => cuda::Device::new().map(Self::Cuda),
+            #[cfg(not(feature = "cuda"))]
             Engine::Cuda => Err(EngineError::Unavailable {
                 engine,
-                #[cfg(feature = "cuda")]
-                reason: neo_prover_cuda::CANONICAL_KERNEL_UNAVAILABLE,
-                #[cfg(not(feature = "cuda"))]
-                reason: "build nightstream with the cuda feature; its canonical kernel is not implemented",
+                reason: "build nightstream with the cuda feature",
             }),
         }
     }
@@ -82,6 +87,8 @@ impl Backend {
             Self::Optimized => Engine::Optimized,
             #[cfg(feature = "metal")]
             Self::Metal(_) => Engine::Metal,
+            #[cfg(feature = "cuda")]
+            Self::Cuda(_) => Engine::Cuda,
         }
     }
 
@@ -97,6 +104,8 @@ impl Backend {
             },
             #[cfg(feature = "metal")]
             Self::Metal(device) => device.commit(witnesses),
+            #[cfg(feature = "cuda")]
+            Self::Cuda(device) => device.commit(witnesses),
         }
     }
 
@@ -106,6 +115,8 @@ impl Backend {
             Self::Optimized => Oracle::Cpu(std::marker::PhantomData),
             #[cfg(feature = "metal")]
             Self::Metal(device) => Oracle::Metal(device.lock()?),
+            #[cfg(feature = "cuda")]
+            Self::Cuda(device) => Oracle::Cuda(device.lock()?),
         })
     }
 
@@ -129,6 +140,11 @@ impl Backend {
             }
             #[cfg(feature = "metal")]
             Self::Metal(device) => device
+                .lock()?
+                .child_openings(rows, workspace_bytes, children, point, width)
+                .map_err(|error| self.classify(error)),
+            #[cfg(feature = "cuda")]
+            Self::Cuda(device) => device
                 .lock()?
                 .child_openings(rows, workspace_bytes, children, point, width)
                 .map_err(|error| self.classify(error)),
@@ -157,6 +173,13 @@ impl Backend {
                     .map_err(|error| self.classify(error)),
                 Err(error) => Err(error.into()),
             }),
+            #[cfg(feature = "cuda")]
+            Self::Cuda(device) => Some(match device.lock() {
+                Ok(prover) => prover
+                    .first_unsatisfied_row(rows, workspace_bytes, structure, witness)
+                    .map_err(|error| self.classify(error)),
+                Err(error) => Err(error.into()),
+            }),
         }
     }
 
@@ -166,6 +189,8 @@ impl Backend {
             Self::Optimized => Ok(()),
             #[cfg(feature = "metal")]
             Self::Metal(device) => device.release_commitment_key(),
+            #[cfg(feature = "cuda")]
+            Self::Cuda(device) => device.release_commitment_key(),
         }
     }
 
@@ -175,6 +200,8 @@ impl Backend {
             Self::Optimized => neo_spartan::Accelerator::cpu(),
             #[cfg(feature = "metal")]
             Self::Metal(device) => device.accelerator(),
+            #[cfg(feature = "cuda")]
+            Self::Cuda(device) => device.accelerator(),
         }
     }
 
@@ -196,6 +223,8 @@ pub(crate) enum Oracle<'a> {
     Cpu(std::marker::PhantomData<&'a ()>),
     #[cfg(feature = "metal")]
     Metal(std::sync::MutexGuard<'a, neo_prover_metal::MetalRowProver>),
+    #[cfg(feature = "cuda")]
+    Cuda(std::sync::MutexGuard<'a, neo_prover_cuda::CudaRowProver>),
 }
 
 impl Oracle<'_> {
@@ -205,6 +234,8 @@ impl Oracle<'_> {
             Self::Cpu(_) => None,
             #[cfg(feature = "metal")]
             Self::Metal(prover) => Some(&mut **prover),
+            #[cfg(feature = "cuda")]
+            Self::Cuda(prover) => Some(&mut **prover),
         }
     }
 }

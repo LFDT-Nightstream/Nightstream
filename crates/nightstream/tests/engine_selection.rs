@@ -1,5 +1,5 @@
-//! An unavailable engine fails before the saved circuit loads: CUDA has no
-//! kernel, and Metal needs the `metal` feature.
+//! An unavailable engine fails before the saved circuit loads: Metal needs
+//! the `metal` feature, and CUDA needs the `cuda` feature.
 
 use nightstream::{Engine, EngineError, Error, Prover};
 
@@ -8,6 +8,7 @@ fn unavailable_engines_fail_before_loading_the_circuit() {
     let engines = [
         #[cfg(not(feature = "metal"))]
         Engine::Metal,
+        #[cfg(not(feature = "cuda"))]
         Engine::Cuda,
     ];
     for engine in engines {
@@ -28,6 +29,8 @@ fn available_engines_reach_the_circuit_check() {
         Engine::Optimized,
         #[cfg(feature = "metal")]
         Engine::Metal,
+        #[cfg(feature = "cuda")]
+        Engine::Cuda,
     ];
     for engine in engines {
         assert!(matches!(

@@ -93,6 +93,21 @@ pub(crate) fn prove_pi_rlc_refs(
             )?;
             Ok((claim, witness?))
         }
+        #[cfg(feature = "cuda")]
+        Backend::Cuda(device) => {
+            let (claim, witness) = nr::rlc_with_commit_refs_and_resident_witness(
+                FoldingMode::Optimized,
+                s,
+                pp.inner(),
+                rhos,
+                me_inputs,
+                witnesses,
+                ell_d(),
+                mix_rhos_commits,
+                |rhos, witnesses| device.mix_rlc_witnesses(rhos, witnesses),
+            )?;
+            Ok((claim, witness?))
+        }
     }
 }
 

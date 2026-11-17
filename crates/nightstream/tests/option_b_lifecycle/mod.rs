@@ -7,9 +7,9 @@
 #[path = "../option_b_support/mod.rs"]
 mod support;
 
+#[cfg(any(feature = "metal", feature = "cuda"))]
+mod device_parity;
 mod final_ir;
-#[cfg(feature = "metal")]
-mod metal_parity;
 mod setup_runs;
 
 use super::{Envelope, OptionB, OptionBError};

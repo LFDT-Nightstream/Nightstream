@@ -18,9 +18,9 @@ bench = false
 [features]
 default = []
 metal = ["dep:neo-prover-metal", "neo-prover-metal/metal"]
-# The canonical kernel is absent. Compile its availability boundary without
-# pulling an unused CUDA driver/toolchain into this library.
-cuda = ["dep:neo-prover-cuda"]
+# The CUDA kernels build only through `cargo +nightly-2026-04-03 oxide`, the
+# cuda-oxide codegen backend (crates/neo-prover-cuda/README.md).
+cuda = ["dep:neo-prover-cuda", "neo-prover-cuda/cuda"]
 
 [dependencies]
 neo-prover-metal = { path = "../neo-prover-metal", default-features = false, optional = true }

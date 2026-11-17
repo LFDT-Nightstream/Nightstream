@@ -57,11 +57,7 @@ pub struct LinearMemoryColumns {
     pub use_lane1: Column,
     pub use_lane2: Column,
     /// Per-lane direction gates: `laneN_load_active = use_laneN · is_load`,
-    /// `laneN_store_active = use_laneN · is_store`. Bound by the CCS via a
-    /// quadratic row each. Used as the activation column for the lane's
-    /// memory spec entry — Read on load, Write+RMW on store — so loads emit
-    /// only a Read tuple into the memory log (no write-modify-memory channel
-    /// available to a malicious prover on a load row).
+    /// `laneN_store_active = use_laneN · is_store`.
     pub lane0_load_active: Column,
     pub lane1_load_active: Column,
     pub lane2_load_active: Column,
@@ -78,7 +74,6 @@ pub struct LinearMemoryColumns {
     pub lane1_value: Column,
     pub lane2_addr: Column,
     pub lane2_value: Column,
-    // one hot selector for possible byte offsets
     pub offset_is: [Column; 4],
     pub byte_width_offset_is: [Column; 4],
     pub half_width_offset_is: [Column; 4],
@@ -89,9 +84,7 @@ pub struct LinearMemoryColumns {
     pub lane0_bytes: [Column; 4],
     pub lane1_bytes: [Column; 4],
     pub lane2_bytes: [Column; 4],
-    /// Lane values **before** this row's access. Together with `_bytes_before`
-    /// they let row-local CCS constraints relate the prior state to the
-    /// post-state — required for sound byte preservation in subword stores.
+    /// Lane values **before** this row's access.
     pub lane0_value_before: Column,
     pub lane1_value_before: Column,
     pub lane2_value_before: Column,
@@ -99,16 +92,13 @@ pub struct LinearMemoryColumns {
     pub lane1_bytes_before: [Column; 4],
     pub lane2_bytes_before: [Column; 4],
     /// High byte view of the value being read or written by i64 load/store
-    /// rows. The low byte view lives in `SignExtensionColumns`, because it is
-    /// also useful for non-memory sign-extension opcodes.
+    /// rows. The low byte view lives in `SignExtensionColumns`.
     pub access_bytes_hi: [Column; 4],
 }
 
 /// Shared scratch columns for low 32-bit byte decomposition and sign extension.
 ///
-/// Linear-memory constraints use `bytes` as the low access-byte view. Non-memory
-/// sign-extension opcodes also reuse this group; those opcodes are not
-/// linear-memory rows, so only one constraint family is active on a row.
+/// Linear-memory constraints use `bytes` as the low access-byte view.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SignExtensionColumns {
     pub bytes: [Column; 4],
@@ -290,8 +280,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             id: WasmMemoryId::Stack,
             kind: MemoryKind::Ram,
             ports: vec![
-                // SPEC.md section 7.6 binds slots to this event order. Keep
-                // each limb's order, with low-limb ports before high-limb ports.
+                // SPEC.md section 7.6 binds slots to this event order.
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_STACK_READ_ADDR_LO[0])]),
                     value_column: COL_STACK_READ_VALUE_LO[0],
@@ -324,7 +313,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     },
                     activation: active_when(Column(crate::layout::COL_STACK_SEPARATE[1])),
                 },
-                // SPEC.md section 7.6: keep replacement before the local write.
                 MemoryPortSpec {
                     address_columns: vec![COL_STACK_WRITE0_ADDR_LO],
                     value_column: COL_STACK_WRITE0_VALUE_LO,
@@ -333,7 +321,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     },
                     activation: active_when(Column(crate::layout::COL_STACK_RMW)),
                 },
-                // Locals live in their frame at `2 * (fbp + index)`.
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_LOCAL_ADDR_LO)]),
                     value_column: COL_LOCAL_VALUE,
@@ -354,8 +341,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     },
                     activation: active_when(Column(COL_LOCAL_WRITE_ENABLED)),
                 },
-                // Input bootstrap: lo-lane entry gather rows write the
-                // entry-input word into the entry frame's locals.
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_LOCAL_ADDR_LO)]),
                     value_column: COL_LOCAL_VALUE,
@@ -388,9 +373,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     kind: MemoryPortKind::Read,
                     activation: active_when(Column(COL_STACK_READ_ACTIVE[2])),
                 },
-                // The hi-word port has its own gate: it fires with the lo
-                // port on ordinary writes, and ALONE on result-hi gather
-                // rows (which write only the pushed cell's hi lane).
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_STACK_WRITE0_ADDR_HI)]),
                     value_column: COL_STACK_WRITE0_VALUE_HI,
@@ -399,7 +381,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     },
                     activation: active_when(Column(crate::layout::COL_STACK_SEPARATE[2])),
                 },
-                // SPEC.md section 7.6: keep replacement before the local write.
                 MemoryPortSpec {
                     address_columns: vec![COL_STACK_WRITE0_ADDR_HI],
                     value_column: COL_STACK_WRITE0_VALUE_HI,
@@ -428,9 +409,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     },
                     activation: active_when(Column(COL_LOCAL_WRITE_ENABLED)),
                 },
-                // Input bootstrap: every input-local row writes the hi
-                // lane — zero on lo rows (total write), the input word on
-                // hi rows (the CCS pins the value column either way).
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_LOCAL_ADDR_HI)]),
                     value_column: COL_LOCAL_VALUE_HI,
@@ -505,17 +483,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             id: WasmMemoryId::LinearMemory,
             kind: MemoryKind::Ram,
             ports: vec![
-                // Linear-memory rows are split into pure-Read (loads) and
-                // RMW Write (stores) for the memory-consistency argument:
-                // a load emits one Read tuple `(addr, lane*_value, t_r)`
-                // — the memory argument enforces it matches the latest
-                // write at `addr`, with no write tuple from the load. A
-                // store emits a paired Read at `lane*_value_before` and
-                // Write at `lane*_value`, so the cells log records the
-                // new state only on real stores. This is what stops a
-                // malicious prover from corrupting memory via a load row.
-                // See `i32_store8_memory_check_rejects_tampered_consistent_prior_state`
-                // for the test guarding the store side.
                 MemoryPortSpec {
                     address_columns: memory_columns([linear_memory.lane0_addr]),
                     value_column: linear_memory.lane0_value.0,
@@ -594,7 +561,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 },
             ],
         },
-        // Parallel high-limb cells log for globals.
         MemorySpec {
             id: WasmMemoryId::GlobalHi,
             kind: MemoryKind::Ram,
@@ -638,9 +604,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         MemorySpec {
             id: WasmMemoryId::TableSize,
             kind: MemoryKind::Ram,
-            // Read by table.size and by call_indirect's resolve step: the latter
-            // binds the authoritative table size for the OOB comparison, so the
-            // gate stays on even on a trapping resolve row.
             ports: vec![MemoryPortSpec {
                 address_columns: memory_columns([Column(COL_TABLE_ID)]),
                 value_column: COL_TABLE_SIZE,
@@ -706,7 +669,7 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             WasmMemoryId::FunctionType,
             vec![Column(COL_FUNCTION_REF)],
             Column(COL_FUNCTION_TYPE_ID),
-            // NOTE: we don't read the type on direct `call` opcodes because
+            // we don't read the type on direct `call` opcodes because
             // validated wasm guarantees that.
             active_when(Column(COL_FUNCTION_CALL_TYPE_LOOKUP_GATE)),
         ),
@@ -783,17 +746,12 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             id: WasmMemoryId::FunctionEntry,
             kind: MemoryKind::Rom,
             ports: vec![
-                // Gated on guest-call rows only: host imports have no entry
-                // pc (host calls fall through to pc+1, pinned by a CCS row).
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_FUNCTION_REF)]),
                     value_column: COL_PC_AFTER,
                     kind: MemoryPortKind::Read,
                     activation: active_when(Column(COL_GUEST_ENTRY_ACTIVE)),
                 },
-                // Turn boundary: the next turn's pc jump is bound to the
-                // entered export's entry pc, keyed by the repointed
-                // attribution.
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_HOST_CALLEE_FREF_AFTER)]),
                     value_column: COL_PC_AFTER,
@@ -802,12 +760,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 },
             ],
         },
-        // Event-template ROMs (see `docs/host-event-grammar-tables.md` §3.4):
-        // per-slot source descriptors keyed by (event index, slot cursor)
-        // read on gather rows, where the event index counts from the first
-        // event row of the template (`HostEventBase`), and per-import event counts read on
-        // host-call/result rows. Content is generated from the embedder's
-        // `HostEventBindings` (see `host_event_bindings::preload_host_event_tables`).
         rom_read_spec(
             WasmMemoryId::HostEventSlotDescriptor,
             vec![
@@ -874,9 +826,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 },
             ],
         },
-        // The first event row of a template. Each row that loads a schedule
-        // reads it with the key of that schedule, so the event index of the
-        // gather rows starts in the template of the bound function.
         MemorySpec {
             id: WasmMemoryId::HostEventBase,
             kind: MemoryKind::Rom,
@@ -895,12 +844,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             })
             .collect(),
         },
-        // One word for each export: the entry count plus one in the low
-        // half and the exit count in the high half, decoded as the import
-        // word is. The exit latch re-reads it to continue the event
-        // numbering, and the turn boundary loads it as the next turn's owed
-        // schedule (the exit count lets the nonempty-template guard accept
-        // an empty entry schedule).
         MemorySpec {
             id: WasmMemoryId::HostEventExportScheduleCount,
             kind: MemoryKind::Rom,
@@ -927,9 +870,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                 activation: active_when(Column(COL_PC_ROM_ACTIVE)),
             }],
         },
-        // A slide's countdown and distance come from the taken edge; a clean
-        // activation return (the exit latch) reads its distance to bind its
-        // result count, without seeding a move.
         rom_read_spec(
             WasmMemoryId::FrameSlideRemaining,
             vec![Column(COL_EDGE_ADDR)],

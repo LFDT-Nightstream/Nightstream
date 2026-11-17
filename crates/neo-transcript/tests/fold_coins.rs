@@ -1,7 +1,3 @@
-//! The v1.2 fold-transcript coin schedule: the `n`-th coin of a state is the
-//! rate-lane pair `n`, a zero chunk follows the sixth coin, and every absorb
-//! starts a new state at pair 0.
-
 use neo_math::F;
 use neo_transcript::{fold_domain_chunk_v1_2, Poseidon2Transcript};
 use p3_field::PrimeCharacteristicRing;

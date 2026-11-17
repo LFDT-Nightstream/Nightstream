@@ -1,11 +1,4 @@
-//! The memory circuit of a geometry and an application, built with
-//! `ApplicationBuilder` in the order of `Lifecycle/Nebula/MemoryCircuit.lean`:
-//! nine sponge children (the two state digests, the three record chains, the
-//! `η` transcript and its three squeezes), then the hash rows, the memory
-//! rows, and the application's rows. The unshared constructor retains the
-//! row parity checks against the Lean packages. It does not
-//! own witness values. Its output rows are the `state_out` hash rows, which
-//! are not the last rows.
+//! `Lifecycle/Nebula/MemoryCircuit.lean`.
 
 use neo_ccs::crypto::poseidon2::{RATE, WIDTH};
 use neo_math::F;
@@ -26,8 +19,7 @@ fn zero_state() -> State {
     std::array::from_fn(|_| Affine::constant(F::ZERO))
 }
 
-/// `transcriptChunks`: each block is its length, then its words (`blockE`),
-/// in rate chunks (`Hash.inputChunks`).
+/// `transcriptChunks` (`blockE`, `Hash.inputChunks`).
 fn transcript_chunks(blocks: &[Vec<Expr>]) -> Vec<Vec<Affine>> {
     blocks
         .iter()
@@ -46,8 +38,7 @@ fn transcript_chunks(blocks: &[Vec<Expr>]) -> Vec<Vec<Affine>> {
         .collect()
 }
 
-/// One sponge child (`Sponge.circuit`): each chunk adds its words to the
-/// lanes (`absorbE`) and permutes.
+/// `Sponge.circuit` (`absorbE`).
 fn absorb(
     builder: &mut ApplicationBuilder,
     mut state: State,
@@ -66,7 +57,6 @@ fn absorb(
     Ok(state)
 }
 
-/// Lane `k` of a sponge output: a fresh variable of its last permutation.
 fn lane(state: &State, k: usize) -> Expr {
     Expr::Var(
         state[k]
@@ -79,21 +69,16 @@ fn text_words(tag: &str) -> Vec<Expr> {
     text(tag).into_iter().map(Expr::Const).collect()
 }
 
-/// The rows and local variables that one named phase of `memory_circuit`
-/// adds, in build order.
 pub(super) struct Phase {
     pub name: &'static str,
     pub rows: usize,
     pub local_words: usize,
 }
 
-/// The Rust-built circuit of a memory geometry and an application. It reads no
-/// program, so every program of the geometry has the same circuit.
 pub(super) fn memory_circuit<A: Application>(geometry: &Geometry, app: &A) -> Result<ApplicationCircuit, crate::Error> {
     memory_circuit_phases(geometry, app).map(|(circuit, _)| circuit)
 }
 
-/// `memory_circuit` with the rows and local variables of each phase.
 pub(super) fn memory_circuit_phases<A: Application>(
     geometry: &Geometry,
     app: &A,

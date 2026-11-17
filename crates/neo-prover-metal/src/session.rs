@@ -1,8 +1,3 @@
-//! Metal device, pipeline, queue, and shared-buffer ownership.
-//!
-//! Protocol phase ordering stays in the lifecycle. This layer owns command
-//! encoding and accounts for online-path CPU reads, writes, and waits.
-
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
@@ -34,23 +29,17 @@ static BUFFER_ALLOCATION: Mutex<()> = Mutex::new(());
 
 /// Entries in a Metal kernel's buffer table (Apple's Metal feature set tables).
 const ARGUMENT_SLOTS: usize = 31;
+const EMPTY_BINDING: [u64; 1] = [0];
 
-/// One kernel argument, at the index that the shader signature gives it.
 #[derive(Clone, Copy)]
 enum Arg<'a> {
-    /// `[[buffer(index)]]` from the buffer's first byte.
     Buffer(usize, &'a ProtocolObject<dyn MTLBuffer>),
-    /// `[[buffer(index)]]` from a byte offset.
     BufferAt(usize, &'a ProtocolObject<dyn MTLBuffer>, usize),
 }
 
-/// The threads of one dispatch.
 #[derive(Clone, Copy)]
 enum Grid {
-    /// Exactly this many threads, in threadgroups of the pipeline's width
-    /// (at most 256).
     Threads(usize),
-    /// Whole threadgroups.
     Groups { groups: usize, threads: usize },
 }
 
@@ -97,10 +86,7 @@ pub struct MetalSession {
     joint_carried_projection_dense: Pipeline,
     fe_weighted_row_table: Pipeline,
     dec_ring_reduce: Pipeline,
-    // A prover keeps the production key rows after their first commitment;
-    // `None` expands the needed rows in every call.
     production_key: Option<Mutex<production_commitment::ResidentKeyRows>>,
-    // Device data of each matrix cache that the host still holds.
     resident_matrices: joint::Resident<(), Vec<joint::MetalCompactMatrix>>,
     resident_openings: joint::Resident<(usize, usize, bool), joint::ResidentOpening>,
     activity: ActivityCounters,
@@ -194,9 +180,6 @@ impl MetalSession {
         })
     }
 
-    /// Keep the production key rows on the device after their first
-    /// commitment. A prover commits at every step; a verifier commits once,
-    /// so it streams the rows and holds no complete key.
     pub(crate) fn keep_production_key(&mut self) {
         self.production_key = Some(Mutex::default());
     }
@@ -261,8 +244,6 @@ impl MetalSession {
         Ok(command)
     }
 
-    /// Bind `args` and dispatch `pipeline` over `grid`. This is the only
-    /// place that binds kernel arguments.
     fn launch(
         &self,
         encoder: &ProtocolObject<dyn MTLComputeCommandEncoder>,
@@ -344,8 +325,6 @@ impl MetalSession {
         values.to_vec()
     }
 
-    /// The first `len` words of a buffer, in place, after its commands
-    /// finished.
     fn host_words<'a>(&self, buffer: &'a ProtocolObject<dyn MTLBuffer>, len: usize) -> &'a [u64] {
         self.activity
             .downloaded_bytes
@@ -377,8 +356,6 @@ mod buffer_limit_tests;
 #[path = "../tests/unit/ring_kernels.rs"]
 mod ring_kernel_tests;
 
-/// Copy `values` to the start of `buffer`, a buffer that Metal allocated
-/// and that no command is using.
 fn upload<T: Copy>(buffer: &ProtocolObject<dyn MTLBuffer>, values: &[T]) -> Result<(), MetalError> {
     let bytes = size_of_val(values);
     if bytes > buffer.length() {
@@ -448,10 +425,6 @@ unsafe impl Pod for u64 {}
 // `Pod` values has no padding, and every bit pattern is a value.
 unsafe impl<T: Pod, const N: usize> Pod for [T; N] {}
 
-/// The start of `buffer`'s shared memory as `len` values of `T`. It panics
-/// unless they fit in the buffer from an aligned start: the length comes
-/// from the same shape that sized the buffer, so a mismatch is a bug here,
-/// and the panic stops an out-of-bounds read.
 fn host_contents<T>(buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> *mut T {
     let contents = buffer.contents().as_ptr().cast::<T>();
     assert!(
@@ -463,8 +436,6 @@ fn host_contents<T>(buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> *mut 
     contents
 }
 
-/// The first `len` values of a buffer that Metal allocated, after its
-/// commands finished.
 fn host_view<T: Pod>(buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> &[T] {
     let contents = host_contents::<T>(buffer, len);
     // SAFETY: `host_contents` checked that `len` values of `T` fit in the
@@ -478,7 +449,6 @@ fn host_view<T: Pod>(buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> &[T]
     unsafe { std::slice::from_raw_parts(contents, len) }
 }
 
-/// The first `len` words of a buffer that the caller has just allocated.
 fn host_view_mut(buffer: &mut Buffer, len: usize) -> &mut [u64] {
     let contents = host_contents::<u64>(buffer, len);
     // SAFETY: `host_contents` checked that `len` words fit in the buffer's

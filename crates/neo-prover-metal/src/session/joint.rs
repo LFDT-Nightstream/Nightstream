@@ -1,5 +1,3 @@
-//! Metal tables for the canonical one-joint padded-row PiCCS oracle.
-
 use std::mem::size_of;
 #[cfg(test)]
 use std::sync::Arc;
@@ -318,8 +316,6 @@ impl MetalSession {
                 .saturating_sub(fresh_count)
                 .min(running_count),
         };
-        // The running sources' values: their masks after the fresh sources',
-        // or their dense values.
         let (projection, running_values) = match sources.dense {
             Some(dense) => (&self.joint_carried_projection_dense, Arg::Buffer(0, dense.words())),
             None => (
@@ -534,8 +530,6 @@ impl<'a> MetalPaperJointOracle<'a> {
                 "one-joint prior point and running witnesses disagree",
             )));
         }
-        // Option B's light fold checks the fresh sources' norms only; its
-        // running sources have no masks and stay dense.
         let dense_running = match input.norm_sources {
             sources if sources == fresh_count + running_count => false,
             sources if sources == fresh_count => true,
@@ -831,8 +825,6 @@ impl<'a> MetalPaperJointOracle<'a> {
         encoder.endEncoding();
 
         self.session.finish(&command)?;
-        // One GPU thread for each coefficient would add the partials in
-        // series; the host cores add them from the shared buffer.
         let count = self.coefficient_count;
         let width = 2 * count;
         let partials = self.session.host_words(&partials, groups * width);
@@ -876,7 +868,6 @@ impl<'a> MetalPaperJointOracle<'a> {
             .as_ref()
             .expect("assignment prefixes exist")
             .fold_allocation_bytes()?;
-        // One command for the three folds of the round.
         let command = self
             .session
             .command_buffer("nightstream.pi_ccs.joint.fold")?;

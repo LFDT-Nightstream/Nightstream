@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 mod assignment_transport;
-pub(crate) use assignment_transport::encode_field;
+pub(crate) use assignment_transport::balanced_ternary_digits;
 pub(crate) mod json;
 use json::canonical_field;
 mod matrix_program;

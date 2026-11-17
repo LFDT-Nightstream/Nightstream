@@ -134,9 +134,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         let records = Arc::new(records.finish()?);
         let compiled = packages.with_application(records.clone(), n * width, &NativeShape::default())?;
+        let light = compiled.clone().expand()?.light;
+        let (rows, layout) = (light.rows(), light.layout());
         let package = compiled.light();
-        let rows = package.plan_rows()?;
-        let layout = package.layout()?;
         let count = rows.row_count();
         let companions = layout.spans().widths.len() - (package.sbox_start() + 150 * package.block_count());
         let value = serde_json::json!({

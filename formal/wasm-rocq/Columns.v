@@ -2,7 +2,7 @@
 From Stdlib Require Import List.
 Import ListNotations.
 
-Inductive Width := Boolean | Byte | U32 | Bits (n : nat) | Field.
+Inductive Width := Boolean | Byte | U32 | Bits (n : nat) | Implied (n : nat) | Repairable (n : nat) | MemoryRepairable | Field.
 Definition Family := (nat * nat * Width)%type.
 
 Definition COL_ONE : nat := 0%nat.
@@ -433,10 +433,10 @@ Definition GMEM_HALF : nat := 1213%nat.
 Definition TURN_SCHEDULE_COUNT_INV : nat := 1214%nat.
 Definition OBJECT_ROOT_LANE : list nat := [1215%nat; 1216%nat; 1217%nat; 1218%nat].
 Definition OBJECT_SAVED_LANE : list nat := [1219%nat; 1220%nat; 1221%nat; 1222%nat].
-Definition RANGE_BITS : list nat := seq 1223%nat 3112%nat.
+Definition RANGE_BITS : list nat := seq 1223%nat 2184%nat.
 
 Definition namedColumnCount : nat := 465%nat.
-Definition columnCount : nat := 4335%nat.
+Definition columnCount : nat := 3407%nat.
 
 Definition families : list Family :=
   [(0%nat, 1%nat, Field);
@@ -446,11 +446,11 @@ Definition families : list Family :=
    (4%nat, 1%nat, Field);
    (5%nat, 1%nat, Field);
    (6%nat, 1%nat, Field);
-   (7%nat, 1%nat, U32);
+   (7%nat, 1%nat, (Implied 32%nat));
    (8%nat, 1%nat, Field);
    (9%nat, 1%nat, U32);
    (10%nat, 1%nat, U32);
-   (11%nat, 1%nat, U32);
+   (11%nat, 1%nat, (Implied 32%nat));
    (12%nat, 1%nat, U32);
    (13%nat, 1%nat, Boolean);
    (14%nat, 1%nat, Boolean);
@@ -463,7 +463,7 @@ Definition families : list Family :=
    (21%nat, 1%nat, Boolean);
    (22%nat, 1%nat, Boolean);
    (23%nat, 1%nat, Boolean);
-   (24%nat, 1%nat, U32);
+   (24%nat, 1%nat, MemoryRepairable);
    (25%nat, 1%nat, Boolean);
    (26%nat, 1%nat, Field);
    (27%nat, 1%nat, Boolean);
@@ -485,16 +485,16 @@ Definition families : list Family :=
    (43%nat, 1%nat, Boolean);
    (44%nat, 1%nat, Boolean);
    (45%nat, 1%nat, Boolean);
-   (46%nat, 1%nat, U32);
-   (47%nat, 1%nat, U32);
-   (48%nat, 1%nat, U32);
+   (46%nat, 1%nat, MemoryRepairable);
+   (47%nat, 1%nat, (Repairable 32%nat));
+   (48%nat, 1%nat, (Repairable 32%nat));
    (49%nat, 1%nat, U32);
    (50%nat, 1%nat, U32);
-   (51%nat, 1%nat, U32);
+   (51%nat, 1%nat, (Repairable 32%nat));
    (52%nat, 1%nat, U32);
-   (53%nat, 1%nat, U32);
-   (54%nat, 1%nat, U32);
-   (55%nat, 1%nat, U32);
+   (53%nat, 1%nat, MemoryRepairable);
+   (54%nat, 1%nat, (Implied 32%nat));
+   (55%nat, 1%nat, (Implied 32%nat));
    (56%nat, 3%nat, Boolean);
    (59%nat, 1%nat, Boolean);
    (60%nat, 1%nat, Boolean);
@@ -591,17 +591,17 @@ Definition families : list Family :=
    (151%nat, 1%nat, U32);
    (152%nat, 1%nat, U32);
    (153%nat, 1%nat, U32);
-   (154%nat, 1%nat, U32);
+   (154%nat, 1%nat, (Implied 32%nat));
    (155%nat, 1%nat, U32);
-   (156%nat, 1%nat, U32);
-   (157%nat, 1%nat, U32);
-   (158%nat, 1%nat, U32);
-   (159%nat, 1%nat, U32);
-   (160%nat, 1%nat, U32);
+   (156%nat, 1%nat, MemoryRepairable);
+   (157%nat, 1%nat, MemoryRepairable);
+   (158%nat, 1%nat, MemoryRepairable);
+   (159%nat, 1%nat, (Repairable 32%nat));
+   (160%nat, 1%nat, (Repairable 32%nat));
    (161%nat, 1%nat, (Bits 8%nat));
-   (162%nat, 1%nat, U32);
+   (162%nat, 1%nat, (Repairable 32%nat));
    (163%nat, 1%nat, U32);
-   (164%nat, 1%nat, U32);
+   (164%nat, 1%nat, MemoryRepairable);
    (165%nat, 1%nat, U32);
    (166%nat, 1%nat, Byte);
    (167%nat, 1%nat, Byte);
@@ -613,7 +613,7 @@ Definition families : list Family :=
    (173%nat, 1%nat, U32);
    (174%nat, 1%nat, U32);
    (175%nat, 1%nat, U32);
-   (176%nat, 1%nat, U32);
+   (176%nat, 1%nat, (Implied 32%nat));
    (177%nat, 3%nat, U32);
    (180%nat, 3%nat, U32);
    (183%nat, 3%nat, U32);
@@ -624,8 +624,8 @@ Definition families : list Family :=
    (192%nat, 1%nat, U32);
    (193%nat, 1%nat, Boolean);
    (194%nat, 1%nat, Boolean);
-   (195%nat, 1%nat, U32);
-   (196%nat, 1%nat, U32);
+   (195%nat, 1%nat, MemoryRepairable);
+   (196%nat, 1%nat, (Repairable 32%nat));
    (197%nat, 1%nat, Boolean);
    (198%nat, 1%nat, Boolean);
    (199%nat, 1%nat, Boolean);
@@ -771,7 +771,7 @@ Definition families : list Family :=
    (349%nat, 1%nat, Boolean);
    (350%nat, 1%nat, Boolean);
    (351%nat, 1%nat, Boolean);
-   (352%nat, 1%nat, U32);
+   (352%nat, 1%nat, MemoryRepairable);
    (353%nat, 1%nat, Boolean);
    (354%nat, 3%nat, Boolean);
    (357%nat, 1%nat, Boolean);
@@ -792,16 +792,16 @@ Definition families : list Family :=
    (372%nat, 1%nat, Boolean);
    (373%nat, 1%nat, Boolean);
    (374%nat, 1%nat, Boolean);
-   (375%nat, 1%nat, U32);
-   (376%nat, 3%nat, U32);
+   (375%nat, 1%nat, (Repairable 32%nat));
+   (376%nat, 3%nat, MemoryRepairable);
    (379%nat, 1%nat, Field);
    (380%nat, 1%nat, (Bits 16%nat));
    (381%nat, 1%nat, (Bits 16%nat));
    (382%nat, 1%nat, Field);
    (383%nat, 1%nat, (Bits 16%nat));
    (384%nat, 1%nat, (Bits 16%nat));
-   (385%nat, 1%nat, U32);
-   (386%nat, 1%nat, U32);
+   (385%nat, 1%nat, MemoryRepairable);
+   (386%nat, 1%nat, (Implied 32%nat));
    (387%nat, 1%nat, (Bits 16%nat));
    (388%nat, 1%nat, (Bits 16%nat));
    (389%nat, 1%nat, Boolean);
@@ -841,7 +841,7 @@ Definition families : list Family :=
    (455%nat, 1%nat, Field);
    (456%nat, 1%nat, Field);
    (457%nat, 1%nat, Field);
-   (458%nat, 1%nat, U32);
+   (458%nat, 1%nat, MemoryRepairable);
    (459%nat, 1%nat, Field);
    (460%nat, 1%nat, Boolean);
    (461%nat, 1%nat, Boolean);
@@ -867,4 +867,24 @@ Definition families : list Family :=
    (1214%nat, 1%nat, Field);
    (1215%nat, 4%nat, Boolean);
    (1219%nat, 4%nat, Boolean);
-   (1223%nat, 3112%nat, Boolean)].
+   (1223%nat, 2184%nat, Boolean)].
+
+Definition rangeObligations : list (nat * Width) :=
+  [(7%nat, (Implied 32%nat));
+   (11%nat, (Implied 32%nat));
+   (47%nat, (Repairable 32%nat));
+   (48%nat, (Repairable 32%nat));
+   (51%nat, (Repairable 32%nat));
+   (54%nat, (Implied 32%nat));
+   (55%nat, (Implied 32%nat));
+   (154%nat, (Implied 32%nat));
+   (159%nat, (Repairable 32%nat));
+   (160%nat, (Repairable 32%nat));
+   (162%nat, (Repairable 32%nat));
+   (176%nat, (Implied 32%nat));
+   (196%nat, (Repairable 32%nat));
+   (375%nat, (Repairable 32%nat));
+   (386%nat, (Implied 32%nat))].
+
+Definition memoryRangeObligations : list nat :=
+  [24%nat; 46%nat; 53%nat; 156%nat; 157%nat; 158%nat; 164%nat; 195%nat; 352%nat; 376%nat; 377%nat; 378%nat; 385%nat; 458%nat].

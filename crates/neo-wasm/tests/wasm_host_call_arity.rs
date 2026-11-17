@@ -1,10 +1,3 @@
-//! Host-call arity coverage: the call row pops all args (`sp' = args_base`,
-//! plus the table index on `call_indirect`), arg gather rows read the popped
-//! region above the live stack top, and the result-lo gather row pushes.
-//! Fixtures here use 3+ params so gather addressing past the 1-2 arg
-//! fixtures elsewhere is exercised, and `call_indirect` to a host import
-//! covers the `CI_HOST_CALL` path.
-
 mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
@@ -28,10 +21,6 @@ struct CheckedImportRun {
     import_fref: u32,
 }
 
-/// Run a single-import component under `template`, normalize with the
-/// bindings, and put the trace through the full native check stack: per-row
-/// CCS, operation circuit, comm chain, and memory rows with the bindings ROM
-/// preloaded.
 fn checked_import_run(
     component_wat: &str,
     template: ImportTemplate,
@@ -159,8 +148,6 @@ fn five_arg_run() -> CheckedImportRun {
     })
 }
 
-/// Direct host call with five scalar args: the call row pops them all, and
-/// each arg gather row reads its table-pinned slot above the live stack top.
 #[test]
 fn direct_host_call_with_five_scalar_args_is_provable() {
     let run = five_arg_run();
@@ -202,8 +189,6 @@ fn direct_host_call_with_five_scalar_args_is_provable() {
     assert_eq!(final_output.value_lo, 15);
 }
 
-/// `call_indirect` to a host import: the call row also pops the table index
-/// (the `CI_HOST_CALL` path) and falls through to the next instruction.
 #[test]
 fn indirect_host_call_with_three_args_is_provable() {
     let arg = |arg, limb| SlotBinding::ArgElem { arg, limb };
@@ -286,9 +271,6 @@ fn indirect_host_call_with_three_args_is_provable() {
     assert_eq!(final_output.value_lo, 60);
 }
 
-/// The host-call row must latch the ROM/table-bound callee fref; claiming a
-/// different import identity (which would redirect the event-schedule
-/// lookup) is rejected.
 #[test]
 fn host_call_row_rejects_forged_callee_attribution() {
     let run = five_arg_run();
@@ -299,8 +281,6 @@ fn host_call_row_rejects_forged_callee_attribution() {
     common::assert_rejected(&witness, "host-call row claiming a different callee");
 }
 
-/// Non-boundary rows preserve the latched callee fref; switching the
-/// attribution mid-event is rejected.
 #[test]
 fn gather_row_rejects_switched_callee_attribution() {
     let run = five_arg_run();
@@ -311,8 +291,6 @@ fn gather_row_rejects_switched_callee_attribution() {
     common::assert_rejected(&witness, "arg gather row switching the callee attribution");
 }
 
-/// A host call whose continuation is an indirect call resumes at the indirect
-/// call's first row, its resolve step, which pops the host result as the index.
 fn host_index_then(indirect_call: &str) -> CheckedImportRun {
     let template = ImportTemplate {
         return_events: None,

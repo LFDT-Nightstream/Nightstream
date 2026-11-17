@@ -1,5 +1,3 @@
-//! Self-contained HTML rendering for application column audits.
-
 use core::fmt::Display;
 
 use neo_math::{balanced::to_balanced_i128, F};
@@ -102,10 +100,6 @@ struct ContinuityRecord {
     next_step: usize,
 }
 
-/// Render a complete, self-contained column audit without writing it to disk.
-///
-/// `generated_regions` identifies application-owned regions that the browser
-/// should hide during initial browsing. Search still includes those columns.
 pub fn render_column_audit_html<Owner: Display, Id: Display>(
     title: &str,
     relation: &ApplicationRelation<Owner>,
@@ -115,8 +109,7 @@ pub fn render_column_audit_html<Owner: Display, Id: Display>(
 ) -> String {
     let report = build_report(title, relation, memory, continuity, generated_regions);
     let json = serde_json::to_string(&report).expect("the audit report contains only JSON-serializable values");
-    // Prevent report strings from terminating the data script. Dynamic text is
-    // also inserted through textContent rather than interpreted as HTML.
+    // HTML ends a script element at the first `</script`.
     let json = json
         .replace('&', "\\u0026")
         .replace('<', "\\u003c")

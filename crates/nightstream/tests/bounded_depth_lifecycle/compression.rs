@@ -1,17 +1,10 @@
-//! The compressed proof (SPEC.md section 6) on the Poseidon2 hash chain with
-//! cap 2: the proof of each circuit verifies from its bytes under the
-//! compression key, and a changed statement, a changed proof, a proof from a
-//! bad witness and another key do not.
-//!
-//! The relations have one size, so each test that compresses a step holds
-//! the compression setup of 10 GB and needs up to 30 GB. Those tests are
-//! ignored. `ns-compress` tests the argument on small claims.
+//! SPEC.md section 6.
 
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use super::super::compression::{FinalProof, Fresh, Steps};
-use super::super::{BoundedDepth, BoundedDepthError, Envelope};
+use super::super::{BoundedDepth, BoundedDepthError, CompiledSteps, Envelope};
 use super::support::{fold_gate_bits, hash_chain_step, packages, words};
 use super::{addition, prover};
 use crate::folding::transcript::Transcript;
@@ -34,8 +27,6 @@ fn z0() -> [F; 4] {
     words([10, 11, 12, 13])
 }
 
-/// `STEPS` hash-chain steps from `z0`, and the envelope after each. The
-/// circuits are light, light, light, refresh, light.
 fn envelopes(prover: &BoundedDepth) -> Vec<Envelope> {
     let mut envelope = prover.initial(z0()).expect("initial proof");
     (0..STEPS)
@@ -50,9 +41,6 @@ fn envelopes(prover: &BoundedDepth) -> Vec<Envelope> {
         .collect()
 }
 
-/// The compression setup of the hash chain and the time to make it, once
-/// for the tests of this binary: it holds about 10 GB. Each prover of these
-/// tests has the same relations, so each makes the same setup.
 fn setup_and_time(prover: &BoundedDepth) -> &'static (ProverKey, Duration) {
     static SETUP: OnceLock<(ProverKey, Duration)> = OnceLock::new();
     SETUP.get_or_init(|| {
@@ -70,7 +58,6 @@ fn key(prover: &BoundedDepth) -> &'static VerificationKey {
     setup(prover).verification_key()
 }
 
-/// `proof` after its bytes, when they decode.
 fn through_bytes(proof: &FinalProof) -> Option<FinalProof> {
     FinalProof::from_bytes(&proof.to_bytes().expect("bytes")).ok()
 }
@@ -91,14 +78,10 @@ fn increment(commitment: &mut Commitment, word: usize) {
     *commitment = Commitment::new(commitment.kappa(), data).expect("commitment");
 }
 
-/// The proofs of the refresh circuit and of the light circuit verify from
-/// their bytes under the key from its bytes. The printed lines give the
-/// times of one run and the sizes.
 #[test]
 #[ignore = "Production-size compression, 30 GB; run separately under the 300-second cap."]
 fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
     let prover = prover(2);
-    // `ns-compress` tests its key reduction on this number of blocks.
     assert_eq!(prover.relations[0].blocks(), 74_146);
     let envelopes = envelopes(&prover);
     let (setup, setup_time) = setup_and_time(&prover);
@@ -291,7 +274,7 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
         ),
         (
             "the key's part of the weights",
-            Box::new(|proof| proof.steps.as_mut().unwrap().argument.key_weight += K::ONE),
+            Box::new(|proof| proof.steps.as_mut().unwrap().argument.key_part += K::ONE),
         ),
         (
             "key sum-check round coefficient",
@@ -306,7 +289,7 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
         ),
         (
             "the value of the key polynomial",
-            Box::new(|proof| proof.steps.as_mut().unwrap().argument.key_value += K::ONE),
+            Box::new(|proof| proof.steps.as_mut().unwrap().argument.key_polynomial_value += K::ONE),
         ),
         (
             "opening byte",
@@ -342,10 +325,6 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
     }
 }
 
-/// A final proof with the slot claims of `envelope`, the claim of slot 1 as
-/// its fresh claim, and a PiCCS proof and an argument that prove nothing.
-/// The bytes of a proof, and the checks of `verify_final` before the
-/// argument, read no more.
 fn unproven(envelope: &Envelope) -> FinalProof {
     let slots = envelope.slots.each_ref();
     let claim = &slots[1].accumulator.claim;
@@ -373,18 +352,15 @@ fn unproven(envelope: &Envelope) -> FinalProof {
                 rounds: vec![[K::ONE; 4]; 26],
                 witness_value: K::ONE,
                 inverse_values: [K::ONE; 4],
-                key_weight: K::ONE,
+                key_part: K::ONE,
                 key_rounds: vec![[K::ONE; 3]; 25],
-                key_value: K::ONE,
+                key_polynomial_value: K::ONE,
                 opening: vec![3; 1000],
             },
         }),
     }
 }
 
-/// A final proof has one encoding, and `verify_final` checks the circuit
-/// and each slot depth before it reads the argument. The proof of this test
-/// proves nothing, so the test needs no compression setup of the hash chain.
 #[test]
 fn a_final_proof_has_one_encoding_and_a_circuit_and_depths_in_range() {
     let prover = prover(2);
@@ -399,7 +375,6 @@ fn a_final_proof_has_one_encoding_and_a_circuit_and_depths_in_range() {
     let bytes = proof.to_bytes().expect("bytes");
     let decoded = FinalProof::from_bytes(&bytes).expect("decoded proof");
     assert_eq!(decoded.to_bytes().expect("bytes"), bytes);
-    // The key of 512 blocks is not the key of the hash chain.
     assert!(matches!(
         prover.verify_final(key, envelope.iteration, envelope.z0, envelope.current, &decoded),
         Err(BoundedDepthError::Compression(ns_compress::Error::Key(_)))
@@ -409,7 +384,6 @@ fn a_final_proof_has_one_encoding_and_a_circuit_and_depths_in_range() {
         Err(BoundedDepthError::Compression(ns_compress::Error::Key(_)))
     ));
 
-    // A depth above the light fold cap of 64 has no accumulator bound.
     let mut deep = proof.clone();
     deep.steps.as_mut().unwrap().slots[0].1 = 65;
     let deep = through_bytes(&deep).expect("depth 65 decodes");
@@ -417,7 +391,6 @@ fn a_final_proof_has_one_encoding_and_a_circuit_and_depths_in_range() {
         prover.verify_final(key, envelope.iteration, envelope.z0, envelope.current, &deep),
         Err(BoundedDepthError::Slot { slot: 0, .. })
     ));
-    // The circuits are 1 and 2.
     let mut third = proof.clone();
     third.steps.as_mut().unwrap().pc = 3;
     assert!(matches!(
@@ -426,7 +399,6 @@ fn a_final_proof_has_one_encoding_and_a_circuit_and_depths_in_range() {
     ));
     assert!(through_bytes(&third).is_none(), "circuit 3 decodes");
 
-    // A length above the bytes that follow it decodes nothing.
     let argument = &proof.steps.as_ref().unwrap().argument;
     let commitment = &argument.witness_commitment[..];
     let length_at = bytes
@@ -452,7 +424,6 @@ fn a_final_proof_has_one_encoding_and_a_circuit_and_depths_in_range() {
         }
     }
 
-    // A proof has one encoding.
     assert!(FinalProof::from_bytes(&bytes[..bytes.len() - 1]).is_err(), "truncated");
     let mut longer = bytes.clone();
     longer.push(0);
@@ -465,9 +436,6 @@ fn a_final_proof_has_one_encoding_and_a_circuit_and_depths_in_range() {
     }
 }
 
-/// A prover whose envelope does not verify gets no proof that `verify_final`
-/// accepts. The argument is made for a bad slot witness, and the verifier
-/// rejects it. PiCCS makes no proof for a bad fresh witness.
 #[test]
 #[ignore = "Production-size compression, 30 GB; run separately under the 300-second cap."]
 fn a_bad_witness_gives_no_accepted_proof() {
@@ -482,15 +450,12 @@ fn a_bad_witness_gives_no_accepted_proof() {
         );
     };
 
-    // One coefficient of slot 0 goes one above the bound of its depth.
     let mut above = envelope.clone();
     let slot = &mut above.slots[0];
     let bound = prover.accumulator_bound(slot.depth);
     assert!(prover.slot_within_depth_bound(slot).is_ok());
     slot.accumulator.witness.as_mut_slice()[12_345] = F::from_u64(bound + 1);
     assert!(prover.slot_within_depth_bound(slot).is_err());
-    // One coefficient of slot 1 changes inside the bound: no key row opens
-    // the slot's commitment.
     let mut moved = envelope.clone();
     let cell = &mut moved.slots[1].accumulator.witness.as_mut_slice()[777];
     *cell = if *cell == F::ZERO { F::ONE } else { F::ZERO };
@@ -505,7 +470,6 @@ fn a_bad_witness_gives_no_accepted_proof() {
         assert!(!accepts(&prover, bad, &proof), "{name}");
     }
 
-    // One entry of the fresh witness is 2.
     let mut two = envelope.clone();
     let fresh = two.fresh.as_mut().expect("fresh instance");
     let blocks = fresh.witness.Z.cols();
@@ -516,10 +480,6 @@ fn a_bad_witness_gives_no_accepted_proof() {
     assert!(prover.compress(setup(&prover), &two).is_err(), "fresh entry 2");
 }
 
-/// The proof of a prover that commits `committed` as the fresh witness in
-/// `W`, and makes PiCCS for the fresh witness of `envelope` under the
-/// commitment `c`. With the witness and the commitment of `envelope` it is
-/// the proof of `compress`.
 fn compress_committing(prover: &BoundedDepth, envelope: &Envelope, committed: &Mat<F>, c: &Commitment) -> FinalProof {
     let fresh = envelope.fresh.as_ref().expect("fresh instance");
     let (pc, slots) = (envelope.pc, envelope.slots.each_ref());
@@ -528,7 +488,7 @@ fn compress_committing(prover: &BoundedDepth, envelope: &Envelope, committed: &M
         .expect("layout");
     let witnesses = [&slots[0].accumulator.witness, &slots[1].accumulator.witness, committed];
     let committed = ns_compress::commit(setup(prover), layout, &witnesses).expect("commitment of W");
-    let commitment = ns_compress::byte_words(committed.commitment());
+    let commitment = ns_compress::byte_words(committed.commitment_to_bind());
     let mut transcript = Transcript::session();
     let claim = CcsClaim {
         c: c.clone(),
@@ -570,8 +530,6 @@ fn compress_committing(prover: &BoundedDepth, envelope: &Envelope, committed: &M
     }
 }
 
-/// The commitment of the witness of `c` with `delta` added in block `block`,
-/// lane `lane`: each row gets `delta · X^lane` times its key element.
 fn moved_commitment(c: &Commitment, block: usize, lane: usize, delta: F) -> Commitment {
     let mut data = c.data().to_vec();
     for (row, coefficients) in data.chunks_exact_mut(D).enumerate() {
@@ -588,12 +546,6 @@ fn moved_commitment(c: &Commitment, block: usize, lane: usize, delta: F) -> Comm
     Commitment::new(c.kappa(), data).expect("commitment")
 }
 
-/// PiCCS proves the rows and the entries {-1, 0, 1} of a witness, and the
-/// argument proves that `W` holds that witness: the evaluations of the PiCCS
-/// claim are at a point that follows the commitment of `W`. So a prover that
-/// commits another fresh witness gets no accepted proof. It makes PiCCS for
-/// the honest witness, under the honest Ajtai commitment or under the Ajtai
-/// commitment of the witness in `W`, and the argument rejects each.
 #[test]
 #[ignore = "Production-size compression, 30 GB; run separately under the 300-second cap."]
 fn a_committed_fresh_witness_that_piccs_did_not_judge_is_rejected() {
@@ -648,9 +600,6 @@ fn a_committed_fresh_witness_that_piccs_did_not_judge_is_rejected() {
     }
 }
 
-/// The state hash holds the key of each circuit, so a verifier of other keys
-/// rejects the proof: with the same relations and one other key word, and
-/// with the addition application in place of the hash chain.
 #[test]
 #[ignore = "Production-size compression, 30 GB; run separately under the 300-second cap."]
 fn a_verifier_of_other_keys_rejects_the_proof() {
@@ -676,16 +625,16 @@ fn a_verifier_of_other_keys_rejects_the_proof() {
             application.shape(),
         )
         .expect("packages with the application");
-    let other_circuit = BoundedDepth::new(packages, fold_gate_bits(), crate::engine::Backend::Optimized)
-        .expect("bounded-depth verifier");
+    let other_circuit = BoundedDepth::new(
+        &CompiledSteps::new(packages).expect("compiled steps"),
+        fold_gate_bits(),
+        crate::engine::Backend::Optimized,
+    )
+    .expect("bounded-depth verifier");
     assert_ne!(other_circuit.keys, prover.keys);
     assert!(!accepts(&other_circuit, &envelope, &proof));
 }
 
-/// The verifier's compression key is the pinned key of the circuit's size,
-/// which is the key of the prover's setup, and the proof verifies under it.
-/// A proof does not verify under the key of another circuit size, and a key
-/// with one changed byte does not decode.
 #[test]
 #[ignore = "Production-size compression, 30 GB; run separately under the 300-second cap."]
 fn a_proof_does_not_verify_under_another_compression_key() {
@@ -721,14 +670,10 @@ fn a_proof_does_not_verify_under_another_compression_key() {
     }
 }
 
-/// The key polynomial of 512 blocks, which holds no relation of the hash
-/// chain.
 fn small_setup() -> ProverKey {
     ProverKey::new(512).expect("the key of 512 blocks")
 }
 
-/// Zero steps: the proof has no argument and reads no key, and it verifies
-/// exactly for iteration 0 with the current state `z0`.
 #[test]
 fn the_proof_of_zero_steps_compresses_to_its_statement() {
     let prover = prover(2);
@@ -748,15 +693,11 @@ fn the_proof_of_zero_steps_compresses_to_its_statement() {
     let other = words([10, 11, 12, 14]);
     assert!(prover.verify_final(key, 0, z0(), other, &decoded).is_err());
     assert!(prover.verify_final(key, 0, other, other, &decoded).is_err());
-    // An initial proof for another current state does not decode.
     let mut moved = bytes.clone();
     moved[bytes.len() - 8] ^= 1;
     assert!(FinalProof::from_bytes(&moved).is_err());
 }
 
-/// The compression setup holds the blocks of the larger relation up to a
-/// power of two. A setup of fewer blocks than a relation gives no proof of
-/// a step.
 #[test]
 fn a_setup_that_does_not_hold_the_relations_gives_no_proof() {
     let prover = prover(2);

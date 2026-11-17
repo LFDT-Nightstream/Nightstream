@@ -1,6 +1,3 @@
-//! Store-local module discovery and per-instance capture. Module selection is
-//! embedder policy; discovered artifacts are witness data, not verifier authority.
-
 use super::{
     capture_frame, entry_inputs, import_inputs::PendingImport, memory_inputs::capture_bytes, parse, runtime_read,
     LoweringTables, WasmProgramArtifacts, WasmtimeTraceStep,
@@ -118,7 +115,6 @@ impl WasmtimeTraceRegistry {
                 .pending_imports
                 .retain(|pending| pending.activation_depth < activation_depth);
         }
-        // Leave the failed calls' memory captures absent so replay rejects them.
     }
 
     pub(super) fn into_run(self, results: Vec<String>) -> Result<super::WasmtimeTraceRun, WasmBuildError> {
@@ -224,8 +220,6 @@ pub(super) fn capture_step<T: WasmTraceSink + 'static>(
     let tables = state.tables.clone();
     let step = state.next_step;
     let mut row = capture_frame(step, frame, store, &tables)?;
-    // Nested activations may execute arbitrary guest code before this host call
-    // returns. Only its original activation can supply the output buffer.
     let pending = {
         let state = store
             .data_mut()
@@ -235,16 +229,13 @@ pub(super) fn capture_step<T: WasmTraceSink + 'static>(
             .unwrap();
         if let Some(pending) = state.pending_imports.last() {
             match pending.activation_depth.cmp(&activation_depth) {
-                // Nested reentry: the original host call is still suspended.
                 Ordering::Less if pending.split => None,
                 Ordering::Less => {
                     return Err(WasmBuildError::Unsupported(
                         "same-instance reentry under an atomic import".into(),
                     ))
                 }
-                // Possible return: validate the caller and continuation below.
                 Ordering::Equal => state.pending_imports.pop(),
-                // A deeper pending call survived an unwind without cleanup.
                 Ordering::Greater => {
                     return Err(WasmBuildError::Trace(format!(
                         "host call at step {} did not resume at its expected continuation",

@@ -4,13 +4,9 @@
 use neo_math::{D, F};
 use p3_field::PrimeField64;
 
-/// The field lanes of one draw. `q^5 / 5^64 > 2^171`, so the law of a challenge is within
-/// `2^−173` of the uniform law on the challenge set (`PiRlcSampler.distance_lt`). Four lanes
-/// give only about `2^−109`.
+/// Within `2^−173` of the uniform law on the challenge set (`PiRlcSampler.distance_lt`).
 pub const PI_RLC_DRAW_LANES: usize = 5;
 
-/// `N = Σ_k draw[k] · q^k`, lane 0 least significant. Coefficient `h` of the challenge is
-/// digit `h` of `N mod 5^D` in base five, minus two.
 pub fn decode_pi_rlc_coefficients(draw: &[F; PI_RLC_DRAW_LANES]) -> [i8; D] {
     let modulus = u128::from(F::ORDER_U64);
     let mut integer = [0u64; PI_RLC_DRAW_LANES];
@@ -25,7 +21,6 @@ pub fn decode_pi_rlc_coefficients(draw: &[F; PI_RLC_DRAW_LANES]) -> [i8; D] {
         debug_assert_eq!(carry, 0);
     }
 
-    // The first `D` base-five digits of `N` are the digits of `N mod 5^D`.
     let mut coefficients = [0i8; D];
     for coefficient in &mut coefficients {
         let mut remainder = 0u128;

@@ -220,11 +220,6 @@ Lemma full_write0_u32 : forall (w : Witness),
   0 <= w COL_STACK_WRITE0_VALUE_LO < 4294967296.
 Proof. intros w Hprime Hfull. apply (full_u32 w _ Hprime Hfull). vm_compute. reflexivity. Qed.
 
-Lemma full_local_value_u32 : forall (w : Witness),
-  fieldPrime -> FullRelation.satFull w ->
-  0 <= w COL_LOCAL_VALUE < 4294967296.
-Proof. intros w Hprime Hfull. apply (full_u32 w _ Hprime Hfull). vm_compute. reflexivity. Qed.
-
 Lemma full_eq_selector_boolean : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w ->
   w COL_SEL_I32_EQ = 0 \/ w COL_SEL_I32_EQ = 1.

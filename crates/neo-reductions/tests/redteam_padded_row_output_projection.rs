@@ -1,5 +1,3 @@
-//! Rejects noncanonical public outputs for the selected padded-row PiCCS protocol.
-
 use neo_ajtai::{commit_row_major, setup as ajtai_setup, Commitment};
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly, Term};
 use neo_math::{D, F, K};
@@ -33,7 +31,7 @@ struct HonestProof {
 
 fn honest_proof() -> HonestProof {
     let params = NeoParams::nightstream_p64_k14()
-        .with_lambda(115)
+        .with_certified_lambda(115)
         .expect("params");
     let structure = CcsStructure::new(
         vec![identity_left(4, D)],

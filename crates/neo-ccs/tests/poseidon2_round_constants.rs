@@ -1,6 +1,3 @@
-//! Pins the Poseidon2 constants against `scripts/poseidon2/params.json`, against a permutation
-//! built from the matrices of that file, and against the selected F-prime Lean specification.
-
 use neo_ccs::crypto::poseidon2 as p2;
 use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -34,8 +31,6 @@ fn matvec(matrix: &[Vec<Fq>], x: &[Fq]) -> Vec<Fq> {
         .collect()
 }
 
-/// The permutation of `params.json` with dense matrices: `M_E = circ(2·M4, M4, …)` and
-/// `M_I = J + diag(D)`.
 fn dense_permute(instance: &serde_json::Value, m4: &[Vec<u64>], state: &[Fq]) -> Vec<Fq> {
     let t = state.len();
     let fq = |values: Vec<u64>| values.into_iter().map(Fq::new).collect::<Vec<_>>();

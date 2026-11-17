@@ -1,8 +1,3 @@
-//! Row-level CCS tests for the CCS-native comparators
-//! (i32.eqz / i64.eqz / i32.eq / i32.ne / i64.eq / i64.ne). See
-//! `push_comparator_constraints` in `crates/neo-wasm/src/ccs.rs` for the
-//! constraint shape.
-
 mod common;
 
 use common::{assert_rejected, assert_satisfied};
@@ -18,8 +13,6 @@ use neo_wasm::{
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-/// The 32-bit limbs of `q`: the u64 value that is the field zero and not the
-/// integer 0.
 fn modulus_limbs() -> [F; 2] {
     [F::ORDER_U64 & 0xFFFF_FFFF, F::ORDER_U64 >> 32].map(F::from_u64)
 }
@@ -130,7 +123,6 @@ fn i32_eqz_row_accepts_zero_and_nonzero_inputs() {
 
 #[test]
 fn i32_eqz_row_rejects_tampered_output() {
-    // Honest: eqz(5) = 0. Tampered: claim eqz(5) = 1.
     let mut row = build_witness_vector(&step(
         WasmOpcode::I32Eqz,
         1,
@@ -162,11 +154,6 @@ fn i64_eqz_row_accepts_zero_and_nonzero_inputs() {
     }
 }
 
-/// Regression: the field has q = 2^64 - 59, so the u64 value
-/// 0xffff_ffff_ffff_ffc5 = q is the field zero (not the i64's 0). An i64.eqz
-/// zero-test over a single field element `lo + hi*2^32` would wrongly accept
-/// `eqz(0xffff_ffff_ffff_ffc5) = 1`. The split limb-by-limb zero-test must
-/// reject this.
 #[test]
 fn i64_eqz_row_rejects_modulus_collision() {
     let mut row = build_witness_vector(&step(
@@ -234,7 +221,6 @@ fn i32_eq_row_rejects_tampered_output() {
 
 #[test]
 fn i64_eq_and_ne_rows_accept_equal_and_distinct_inputs() {
-    // (lhs_lo, lhs_hi, rhs_lo, rhs_hi, eq_out, ne_out)
     let cases = [
         (0u32, 0u32, 0u32, 0u32, 1u32, 0u32),
         (5, 0, 5, 0, 1, 0),
@@ -260,10 +246,6 @@ fn i64_eq_and_ne_rows_accept_equal_and_distinct_inputs() {
     }
 }
 
-/// Same modulus collision concern as `i64_eqz_row_rejects_*`,
-/// but applied to i64.eq: claim eq(lhs, rhs) = 1 when (lhs-rhs) =
-/// 0xffff_ffff_ffff_ffc5 ≡ 0 mod q. The split limb-by-limb gates must
-/// still see a nonzero hi-limb diff and reject.
 #[test]
 fn i64_eq_row_rejects_modulus_collision() {
     let mut row = build_witness_vector(&step(
@@ -289,7 +271,6 @@ fn i64_eq_row_rejects_modulus_collision() {
 
 #[test]
 fn i64_ne_row_rejects_tampered_output() {
-    // Honest: ne(5, 5) = 0. Tampered: claim ne(5, 5) = 1.
     let mut row = build_witness_vector(&step(
         WasmOpcode::I64Ne,
         2,

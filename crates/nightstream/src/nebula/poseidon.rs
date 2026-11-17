@@ -1,6 +1,3 @@
-//! Checked relocation of application-private Poseidon2 traces into native blocks.
-//! Source rows remain authority. The map changes only the described aux words.
-
 use std::{collections::BTreeMap, ops::ControlFlow, rc::Rc};
 
 use neo_ccs::crypto::poseidon2::WIDTH;

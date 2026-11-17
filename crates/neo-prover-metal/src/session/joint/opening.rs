@@ -1,5 +1,3 @@
-//! Local matrix transposes and device ring openings with global equality weights.
-
 use std::mem::size_of;
 
 use neo_ccs::V1_2Evaluations;
@@ -47,7 +45,6 @@ pub(super) struct MetalJointOpeningPlan {
     tiled_form_tiles: Buffer,
     tiled_form_partials: Buffer,
     geometric: Vec<DeviceGeometricOpeningPlan>,
-    /// Matrix `m` owns the lists `[m]..[m + 1]`; the lists are in matrix order.
     parallel_form_list_offsets: Vec<usize>,
     tiled_form_list_count: usize,
     tiled_form_tile_count: usize,
@@ -69,7 +66,6 @@ struct DeviceGeometricOpeningPlan {
     span_count: usize,
 }
 
-/// A window's opening layout and, after its first use, its device plan.
 pub(in crate::session) struct ResidentOpening {
     layout: OpeningLayout,
     plan: std::sync::OnceLock<MetalJointOpeningPlan>,

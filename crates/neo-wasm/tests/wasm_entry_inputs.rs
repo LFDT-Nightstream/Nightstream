@@ -1,5 +1,3 @@
-//! Automatic export-input recovery through real Wasmtime capture and replay.
-
 mod common;
 
 use neo_wasm::host_event_bindings::{EventBlock, ExportTemplate, HostEventBindings, Limb, MemoryBase, SlotBinding};
@@ -239,7 +237,6 @@ fn entry_memory_uses_pre_instruction_bytes_and_preserves_history_across_instance
     let bindings = memory_bindings(2);
     let (a, artifacts) = runtime.instantiate(MEMORY_WAT, &bindings);
     let (b, _) = runtime.instantiate(MEMORY_WAT, &bindings);
-    // Interleave two instances of the same module: identical frefs and addresses.
     for (instance, word, byte, half) in [
         (a, 0x8765_4321u32, 7u8, 0xfedcu16),
         (b, 19, 0, 21),
@@ -328,7 +325,6 @@ fn cross_instance_call_captures_the_callee_memory_with_a_live_caller_frame() {
 fn entry_memory_rejects_missing_capture_and_conflicts() {
     let mut runtime = Runtime::new();
     let mut bindings = memory_bindings(2);
-    // TODO: consider forbidding shared inputs statically in the template.
     let template = bindings.exports.get_mut(&2).unwrap();
     template.entry_input_count = 3;
     template.entry[0].block[4] = SlotBinding::MemoryWrite16 {
@@ -359,7 +355,6 @@ fn entry_memory_rejects_missing_capture_and_conflicts() {
             .to_string()
             .contains("missing entry memory"));
     }
-    // Input 1 agrees between a local and memory; input 2 agrees between two addresses.
     for (address, value) in [(16, 43), (22, 8)] {
         let mut bad = steps.to_vec();
         bad[0]
@@ -484,8 +479,6 @@ fn i64_entry_memory_pointer_high_limb_cannot_be_hidden() {
         "local-base memory pointer with a nonzero high limb",
     );
 
-    // A prover cannot hide that high limb by claiming zero on the memory
-    // event row. The new high-lane read authenticates the local stack cell.
     forged[memory_write].local_read_value_hi = Some(0);
     common::ccs_check_trace(&forged);
     let layout = neo_wasm::build_wasm_relation_layout();
@@ -514,7 +507,6 @@ fn entry_memory_requires_capture_configuration() {
     runtime.call(instance, &[Val::I32(16), Val::I32(42)]);
     let steps = runtime.steps(instance);
     assert!(steps.iter().all(|step| step.entry_memory.is_none()));
-    // Changing artifacts after capture cannot recover bytes that were never recorded.
     artifacts.host_event_bindings = bindings;
     assert!(normalize(steps, &artifacts)
         .unwrap_err()
@@ -549,8 +541,6 @@ fn recovery_requires_the_actual_entry_row_of_each_turn() {
         for start in [0, second_turn] {
             let mut missing = steps.to_vec();
             missing.drain(start..start + 2);
-            // The next captured local has already been changed to 99. Recovery
-            // must reject its PC instead of treating 99 as the entry argument.
             assert!(normalize(&missing, &artifacts)
                 .unwrap_err()
                 .to_string()
@@ -564,7 +554,6 @@ fn entry_memory_capture_rejects_overlapping_aliases() {
     let wat = r#"(module (memory 1) (func (export "run") (param i32 i32) nop))"#;
     let mut bindings = memory_bindings(1);
     let block = &mut bindings.exports.get_mut(&1).unwrap().entry[0].block;
-    // Different locals alias the same address: overlap detection must use addresses.
     block[3] = SlotBinding::MemoryWrite8 {
         input: 2,
         base: MemoryBase::Local(1),
@@ -645,7 +634,6 @@ fn capture_and_replay_share_host_event_address_rules() {
             let collected =
                 neo_wasm::collect_wasmtime_steps(&wasm, &write_bindings, "run", &[wasmtime::Val::I32(base as i32)]);
             if !has_memory {
-                // Binding validation refuses the memory slot before capture or replay.
                 let message = collected.unwrap_err().to_string();
                 assert!(message.contains(error.unwrap()), "{message}");
                 continue;
@@ -655,8 +643,6 @@ fn capture_and_replay_share_host_event_address_rules() {
             let steps = &run.steps;
             let captured = steps[0].entry_memory.as_ref().unwrap();
 
-            // Resolve the same address from the export's output, so an invalid
-            // access reaches replay without entry recovery rejecting it first.
             let mut read_bindings = HostEventBindings::default();
             let mut read_template = template(1, &[local(0, 0, Limb::Lo)]);
             read_template.exit = template(0, &[read]).entry;
@@ -748,7 +734,6 @@ fn component_entry_memory_is_captured_after_canonical_argument_lowering() {
     let mut bindings = memory_bindings(2);
     let run = bindings.exports.get_mut(&2).unwrap();
     run.entry_input_count = 5;
-    // Local 1 is the list length, not the word stored at the list pointer.
     for (slot, input) in run.entry[0].block[2..5].iter_mut().zip(2..5) {
         match slot {
             SlotBinding::MemoryWrite8 { input: index, .. }

@@ -1,0 +1,378 @@
+From Stdlib Require Import List ZArith Lia Bool.
+Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog MemoryEventRepair InactiveOffset.
+Import ListNotations.
+Open Scope Z_scope.
+
+(* SPEC.md section 7.6: private advice may be zeroed when its consumers are off. *)
+Definition zeroColumn (column : nat) (w : Witness) : Witness :=
+ {| entries := fun c => if Nat.eq_dec c column
+    then exist (fun z : Z => 0 <= z < modulus) 0 ltac:(unfold modulus; lia) else entries w c |}.
+Lemma zero_column_same : forall column w c, c <> column -> zeroColumn column w c = w c.
+Proof.
+ intros column w c Hc. unfold value, zeroColumn. cbn.
+ destruct (Nat.eq_dec c column); [contradiction|reflexivity].
+Qed.
+Lemma zero_column_value : forall column w, zeroColumn column w column = 0.
+Proof.
+ intros column w. unfold value, zeroColumn.
+ cbv beta iota zeta delta [entries]. destruct (Nat.eq_dec column column); [reflexivity|contradiction].
+Qed.
+
+Ltac repair_memory_events changedColumn :=
+ let inactiveGates := eval vm_compute in
+   (flat_map (fun memory => flat_map (fun port =>
+     if existsb (Nat.eqb changedColumn) (portColumns port) then
+       match activation port with When gate => [gate] | _ => [] end
+     else []) (ports memory)) memories) in
+ eapply events_repair_safe with (column := changedColumn) (off := inactiveGates);
+ [apply zero_column_same |
+  normalize_columns;
+  let rec prove_off := lazymatch goal with
+  | |- Forall _ [] => constructor
+  | |- Forall _ (_ :: _) => constructor; [assumption | prove_off]
+  end in prove_off |
+  vm_compute; reflexivity].
+
+Definition privateRowSafe (column : nat) (gates : list SparseRow) (row : Row) : bool :=
+ let '(a,b,c) := row in
+ (omitsColumn column a && omitsColumn column b && omitsColumn column c) ||
+ (omitsColumn column a && termsEqual c [] && existsb (termsEqual a) gates) ||
+ (termsEqual a [(column,1)] && termsEqual c []).
+
+Lemma private_row_repair : forall column gates (w : Witness) row,
+ Forall (fun gate => eval w gate = 0) gates ->
+ privateRowSafe column gates row = true -> sat w row -> sat (zeroColumn column w) row.
+Proof.
+ intros column gates w [[a b] c] Hgates Hsafe Hsat.
+ unfold privateRowSafe in Hsafe.
+ apply orb_true_iff in Hsafe as [Hsafe|Hsafe].
+ - apply orb_true_iff in Hsafe as [Hsafe|Hsafe].
+   + apply andb_true_iff in Hsafe as [Hab Hc].
+     apply andb_true_iff in Hab as [Ha Hb].
+     unfold sat in *.
+     rewrite (eval_omitted_column w (zeroColumn column w) column a (zero_column_same column w) Ha).
+     rewrite (eval_omitted_column w (zeroColumn column w) column b (zero_column_same column w) Hb).
+     rewrite (eval_omitted_column w (zeroColumn column w) column c (zero_column_same column w) Hc).
+     exact Hsat.
+   + apply andb_true_iff in Hsafe as [Hac Hmember].
+     apply andb_true_iff in Hac as [Ha Hempty].
+     apply terms_equal_sound in Hempty. subst c.
+     apply existsb_exists in Hmember as [gate [Hin Heq]].
+     apply terms_equal_sound in Heq. subst gate.
+     pose proof (proj1 (Forall_forall _ _) Hgates a Hin) as Hz.
+     unfold sat. rewrite (eval_omitted_column w (zeroColumn column w) column a (zero_column_same column w) Ha).
+     rewrite Hz. reflexivity.
+ - apply andb_true_iff in Hsafe as [Ha Hc].
+   apply terms_equal_sound in Ha. apply terms_equal_sound in Hc. subst a c.
+   unfold sat. cbn [eval fold_right]. rewrite zero_column_value. reflexivity.
+Qed.
+
+Lemma private_full_repair : forall column gates (w : Witness),
+ column <> COL_ONE ->
+ forallb (privateRowSafe column gates) FullRelation.rows = true ->
+ Forall (fun gate => eval w gate = 0) gates ->
+ FullRelation.satFull w -> FullRelation.satFull (zeroColumn column w).
+Proof.
+ intros column gates w Hcolumn Hsafe Hgates Hfull. split.
+ - change (zeroColumn column w COL_ONE = 1).
+   rewrite zero_column_same by congruence. exact (proj1 Hfull).
+ - apply Forall_forall. intros row Hin.
+   eapply private_row_repair; [exact Hgates| |].
+   + exact (proj1 (forallb_forall _ _) Hsafe row Hin).
+   + exact (proj1 (Forall_forall _ _) (proj2 Hfull) row Hin).
+Qed.
+
+Definition globalGates : list SparseRow := [[(COL_SEL_GLOBAL_GET,1)]; [(COL_SEL_GLOBAL_SET,1)]].
+Definition tableIndexGates : list SparseRow :=
+ [[(COL_SEL_TABLE_GET,1)]; [(COL_SEL_TABLE_SET,1)]; [(COL_SEL_CALL_INDIRECT_RESOLVE,1)];
+  [(COL_SEL_TABLE_GET,1); (COL_SEL_TABLE_SET,1); (COL_SEL_CALL_INDIRECT_RESOLVE,1)]].
+
+(* An out-of-range value cannot equal a bounded stack operand at an active gate. *)
+Lemma bound_or_gate_zero : forall (w : Witness) column stack gate,
+ fieldPrime ->
+ 4294967296 <= w column -> 0 <= w stack < 4294967296 ->
+ (w gate = 0 \/ w gate = 1) ->
+ sat w ([(gate,1)], [(column,1); (stack,-1)], []) -> w gate = 0.
+Proof.
+ intros w column stack gate Hprime Hlarge Hstack Hgate Hsat.
+ destruct Hgate as [Hgate|Hgate]; [exact Hgate|].
+ pose proof (value_bound w column).
+ pose proof (sat_nonzero_right w [(gate,1)] [(column,1);(stack,-1)] Hprime Hsat) as Hz.
+ cbn [eval fold_right] in Hz. rewrite Hgate in Hz. unfold modulus in *; lia.
+Qed.
+
+Ltac inactive_binding column stack gate :=
+ match goal with Hfull : FullRelation.satFull ?w |- _ =>
+ let Hrange := fresh "Hrange" in let Hbool := fresh "Hbool" in let Hrow := fresh "Hrow" in
+ circuit_range stack Hrange; circuit_boolean gate Hbool;
+ circuit_row ([(gate,1)], [(column,1);(stack,-1)], ([] : SparseRow)) Hrow;
+ let Hz := fresh "Hz" in
+ assert (Hz : w gate = 0) by (eapply bound_or_gate_zero; eauto; lia);
+ clear Hrange Hbool Hrow
+ end.
+
+Lemma global_lo_inactive : forall w,
+ fieldPrime -> FullRelation.satFull w -> 4294967296 <= w COL_GLOBAL_VALUE ->
+ w COL_SEL_GLOBAL_GET = 0 /\ w COL_SEL_GLOBAL_SET = 0.
+Proof.
+ intros w Hprime Hfull Hlarge.
+ inactive_binding COL_GLOBAL_VALUE COL_STACK_WRITE0_VALUE_LO COL_SEL_GLOBAL_GET.
+ inactive_binding COL_GLOBAL_VALUE (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) COL_SEL_GLOBAL_SET.
+ auto.
+Qed.
+Lemma global_hi_inactive : forall w,
+ fieldPrime -> FullRelation.satFull w -> 4294967296 <= w COL_GLOBAL_VALUE_HI ->
+ w COL_SEL_GLOBAL_GET = 0 /\ w COL_SEL_GLOBAL_SET = 0.
+Proof.
+ intros w Hprime Hfull Hlarge.
+ inactive_binding COL_GLOBAL_VALUE_HI COL_STACK_WRITE0_VALUE_HI COL_SEL_GLOBAL_GET.
+ inactive_binding COL_GLOBAL_VALUE_HI (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat) COL_SEL_GLOBAL_SET.
+ auto.
+Qed.
+Lemma table_index_inactive : forall w,
+ fieldPrime -> FullRelation.satFull w -> 4294967296 <= w COL_TABLE_INDEX ->
+ w COL_SEL_TABLE_GET = 0 /\ w COL_SEL_TABLE_SET = 0 /\
+ w COL_SEL_CALL_INDIRECT_RESOLVE = 0 /\ w COL_TABLE_READ_ENABLED = 0 /\ w COL_TABLE_SET_LIVE = 0.
+Proof.
+ intros w Hprime Hfull Hlarge.
+ inactive_binding COL_TABLE_INDEX (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) COL_SEL_TABLE_GET.
+ inactive_binding COL_TABLE_INDEX (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) COL_SEL_TABLE_SET.
+ inactive_binding COL_TABLE_INDEX (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) COL_SEL_CALL_INDIRECT_RESOLVE.
+ circuit_boolean COL_CI_OOB Bci. circuit_boolean COL_TABLE_READ_ENABLED Bread.
+ circuit_boolean COL_TABLE_SET_LIVE Bwrite.
+ circuit_row ([(COL_SEL_TABLE_GET,1)], [(COL_TABLE_OOB,1)],
+   [(COL_SEL_TABLE_GET,1); (COL_SEL_CALL_INDIRECT_RESOLVE,1); (COL_CI_OOB,-1); (COL_TABLE_READ_ENABLED,-1)]) Hr.
+ circuit_row ([(COL_SEL_TABLE_SET,1)], [(COL_ONE,1);(COL_CMP_GE,-1)], [(COL_TABLE_SET_LIVE,1)]) Hw.
+ expand_row Hr. expand_row Hw.
+ repeat match goal with H : w _ = 0 |- _ => rewrite H in Hr, Hw end.
+ apply Z.mod_divide in Hr; [|unfold modulus;lia].
+ apply Z.mod_divide in Hw; [|unfold modulus;lia].
+ destruct Hr as [kr Hr]. destruct Hw as [kw Hw]. unfold modulus in *; intuition nia.
+Qed.
+
+Lemma global_lo_rows_safe : forallb (privateRowSafe COL_GLOBAL_VALUE globalGates) FullRelation.rows = true.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem full_global_lo_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> exists w',
+ FullRelation.satFull w' /\
+ 0 <= w' COL_GLOBAL_VALUE < 4294967296 /\
+ eventsForRow memories w' = eventsForRow memories w /\
+ map (fun '(a,b) => (w' a,w' b)) continuityLinks =
+ map (fun '(a,b) => (w a,w b)) continuityLinks /\
+ (forall c, c <> COL_GLOBAL_VALUE -> w' c = w c).
+Proof.
+ intros w Hprime Hfull.
+ destruct (Z_lt_ge_dec (w COL_GLOBAL_VALUE) 4294967296) as [Hsmall|Hlarge].
+ - exists w. split; [exact Hfull|]. split; [pose proof (value_bound w COL_GLOBAL_VALUE);lia|].
+   repeat split; reflexivity.
+ - destruct (global_lo_inactive w Hprime Hfull ltac:(lia)) as [Hget Hset].
+   exists (zeroColumn COL_GLOBAL_VALUE w). split.
+   + eapply private_full_repair with (gates := globalGates).
+     * vm_compute; discriminate.
+     * exact global_lo_rows_safe.
+     * unfold globalGates. repeat constructor; cbn [eval fold_right]; rewrite ?Hget, ?Hset; reflexivity.
+     * exact Hfull.
+   + split; [rewrite zero_column_value; lia|]. split.
+     * repair_memory_events COL_GLOBAL_VALUE.
+     * split; [reflexivity|apply zero_column_same].
+Qed.
+
+Lemma global_hi_rows_safe : forallb (privateRowSafe COL_GLOBAL_VALUE_HI globalGates) FullRelation.rows = true.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem full_global_hi_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> exists w',
+ FullRelation.satFull w' /\
+ 0 <= w' COL_GLOBAL_VALUE_HI < 4294967296 /\
+ eventsForRow memories w' = eventsForRow memories w /\
+ map (fun '(a,b) => (w' a,w' b)) continuityLinks =
+ map (fun '(a,b) => (w a,w b)) continuityLinks /\
+ (forall c, c <> COL_GLOBAL_VALUE_HI -> w' c = w c).
+Proof.
+ intros w Hprime Hfull.
+ destruct (Z_lt_ge_dec (w COL_GLOBAL_VALUE_HI) 4294967296) as [Hsmall|Hlarge].
+ - exists w. split; [exact Hfull|]. split; [pose proof (value_bound w COL_GLOBAL_VALUE_HI);lia|].
+   repeat split; reflexivity.
+ - destruct (global_hi_inactive w Hprime Hfull ltac:(lia)) as [Hget Hset].
+   exists (zeroColumn COL_GLOBAL_VALUE_HI w). split.
+   + eapply private_full_repair with (gates := globalGates).
+     * vm_compute; discriminate.
+     * exact global_hi_rows_safe.
+     * unfold globalGates. repeat constructor; cbn [eval fold_right]; rewrite ?Hget, ?Hset; reflexivity.
+     * exact Hfull.
+   + split; [rewrite zero_column_value; lia|]. split.
+     * repair_memory_events COL_GLOBAL_VALUE_HI.
+     * split; [reflexivity|apply zero_column_same].
+Qed.
+
+Lemma table_index_rows_safe : forallb (privateRowSafe COL_TABLE_INDEX tableIndexGates) FullRelation.rows = true.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem full_table_index_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> exists w',
+ FullRelation.satFull w' /\
+ 0 <= w' COL_TABLE_INDEX < 4294967296 /\
+ eventsForRow memories w' = eventsForRow memories w /\
+ map (fun '(a,b) => (w' a,w' b)) continuityLinks =
+ map (fun '(a,b) => (w a,w b)) continuityLinks /\
+ (forall c, c <> COL_TABLE_INDEX -> w' c = w c).
+Proof.
+ intros w Hprime Hfull.
+ destruct (Z_lt_ge_dec (w COL_TABLE_INDEX) 4294967296) as [Hsmall|Hlarge].
+ - exists w. split; [exact Hfull|]. split; [pose proof (value_bound w COL_TABLE_INDEX);lia|].
+   repeat split; reflexivity.
+ - destruct (table_index_inactive w Hprime Hfull ltac:(lia)) as [Hget [Hset [Hresolve [Hread Hwrite]]]].
+   exists (zeroColumn COL_TABLE_INDEX w). split.
+   + eapply private_full_repair with (gates := tableIndexGates).
+     * vm_compute; discriminate.
+     * exact table_index_rows_safe.
+     * unfold tableIndexGates. repeat constructor; cbn [eval fold_right]; rewrite ?Hget, ?Hset, ?Hresolve; reflexivity.
+     * exact Hfull.
+   + split; [rewrite zero_column_value; lia|]. split.
+     * repair_memory_events COL_TABLE_INDEX.
+     * split; [reflexivity|apply zero_column_same].
+Qed.
+
+Definition callStackGates : list SparseRow :=
+ [[(COL_CALL_STACK_PUSH_PRESENT,1)]; [(COL_CALL_STACK_POP_PRESENT,1)]].
+
+Lemma bound_or_reverse_gate_zero : forall (w : Witness) column source gate,
+ fieldPrime ->
+ 4294967296 <= w column -> 0 <= w source < 4294967296 ->
+ (w gate = 0 \/ w gate = 1) ->
+ sat w ([(gate,1)], [(source,1); (column,-1)], []) -> w gate = 0.
+Proof.
+ intros w column source gate Hprime Hlarge Hsource Hgate Hsat.
+ destruct Hgate as [Hgate|Hgate]; [exact Hgate|].
+ pose proof (value_bound w column).
+ unfold sat in Hsat. cbn [eval fold_right] in Hsat. rewrite Hgate in Hsat.
+ apply Z.mod_divide in Hsat; [|unfold modulus;lia].
+ destruct Hsat as [k Hsat]. unfold modulus in *; nia.
+Qed.
+
+Ltac inactive_restored_binding column source :=
+ match goal with Hfull : FullRelation.satFull ?w |- _ =>
+ let Hrange := fresh "Hrange" in let Hbool := fresh "Hbool" in let Hrow := fresh "Hrow" in
+ circuit_range source Hrange; circuit_boolean COL_CALL_STACK_POP_PRESENT Hbool;
+ circuit_row ([(COL_CALL_STACK_POP_PRESENT,1)], [(source,1);(column,-1)], ([] : SparseRow)) Hrow;
+ let Hz := fresh "Hz" in
+ assert (Hz : w COL_CALL_STACK_POP_PRESENT = 0) by
+   (eapply bound_or_reverse_gate_zero; eauto; lia);
+ clear Hrange Hbool Hrow
+ end.
+
+Ltac repair_call_stack column :=
+ intros w Hprime Hfull;
+ destruct (Z_lt_ge_dec (w column) 4294967296) as [Hsmall|Hlarge];
+ [ exists w; split; [exact Hfull|]; split; [pose proof (value_bound w column);lia|];
+   repeat split; reflexivity
+ | idtac ].
+
+Ltac finish_call_stack_repair column :=
+ match goal with
+ | Hfull : FullRelation.satFull ?w |- _ =>
+ let Hpush := fresh "Hpush" in let Hpop := fresh "Hpop" in
+ assert (Hpush : w COL_CALL_STACK_PUSH_PRESENT = 0) by assumption;
+ assert (Hpop : w COL_CALL_STACK_POP_PRESENT = 0) by assumption;
+ exists (zeroColumn column w); split;
+ [ eapply private_full_repair with (gates := callStackGates);
+   [ vm_compute; discriminate
+   | vm_compute; reflexivity
+   | unfold callStackGates; repeat constructor; cbn [eval fold_right]; rewrite ?Hpush, ?Hpop; reflexivity
+   | exact Hfull ]
+ | split; [rewrite zero_column_value; lia|]; split;
+   [ repair_memory_events column
+   | split; [reflexivity|apply zero_column_same] ] ]
+ end.
+
+Theorem full_call_stack_fbp_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> exists w',
+ FullRelation.satFull w' /\
+ 0 <= w' COL_CALL_STACK_CALLER_FBP_VALUE < 4294967296 /\
+ eventsForRow memories w' = eventsForRow memories w /\
+ map (fun '(a,b) => (w' a,w' b)) continuityLinks =
+ map (fun '(a,b) => (w a,w b)) continuityLinks /\
+ (forall c, c <> COL_CALL_STACK_CALLER_FBP_VALUE -> w' c = w c).
+Proof.
+ repair_call_stack COL_CALL_STACK_CALLER_FBP_VALUE.
+ inactive_binding COL_CALL_STACK_CALLER_FBP_VALUE COL_LOCALS_FBP_BEFORE COL_CALL_STACK_PUSH_PRESENT.
+ inactive_restored_binding COL_CALL_STACK_CALLER_FBP_VALUE COL_LOCALS_FBP_AFTER.
+ finish_call_stack_repair COL_CALL_STACK_CALLER_FBP_VALUE.
+Qed.
+
+Theorem full_call_stack_sp_base_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> exists w',
+ FullRelation.satFull w' /\
+ 0 <= w' COL_CALL_STACK_CALLER_SP_BASE_VALUE < 4294967296 /\
+ eventsForRow memories w' = eventsForRow memories w /\
+ map (fun '(a,b) => (w' a,w' b)) continuityLinks =
+ map (fun '(a,b) => (w a,w b)) continuityLinks /\
+ (forall c, c <> COL_CALL_STACK_CALLER_SP_BASE_VALUE -> w' c = w c).
+Proof.
+ repair_call_stack COL_CALL_STACK_CALLER_SP_BASE_VALUE.
+ inactive_binding COL_CALL_STACK_CALLER_SP_BASE_VALUE COL_STACK_FRAME_BASE_BEFORE COL_CALL_STACK_PUSH_PRESENT.
+ inactive_restored_binding COL_CALL_STACK_CALLER_SP_BASE_VALUE COL_STACK_FRAME_BASE_AFTER.
+ finish_call_stack_repair COL_CALL_STACK_CALLER_SP_BASE_VALUE.
+Qed.
+
+Theorem full_call_stack_addr_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> exists w',
+ FullRelation.satFull w' /\
+ 0 <= w' COL_CALL_STACK_ADDR < 4294967296 /\
+ eventsForRow memories w' = eventsForRow memories w /\
+ map (fun '(a,b) => (w' a,w' b)) continuityLinks =
+ map (fun '(a,b) => (w a,w b)) continuityLinks /\
+ (forall c, c <> COL_CALL_STACK_ADDR -> w' c = w c).
+Proof.
+ repair_call_stack COL_CALL_STACK_ADDR.
+ inactive_binding COL_CALL_STACK_ADDR COL_CALL_STACK_DEPTH_BEFORE COL_CALL_STACK_PUSH_PRESENT.
+ inactive_binding COL_CALL_STACK_ADDR COL_CALL_STACK_DEPTH_AFTER COL_CALL_STACK_POP_PRESENT.
+ finish_call_stack_repair COL_CALL_STACK_ADDR.
+Qed.
+
+Theorem full_host_context_addr_repair : forall w,
+ fieldPrime -> FullRelation.satFull w -> exists w',
+ FullRelation.satFull w' /\
+ 0 <= w' COL_HOST_CONTEXT_ADDR < 4294967296 /\
+ eventsForRow memories w' = eventsForRow memories w /\
+ map (fun '(a,b) => (w' a,w' b)) continuityLinks =
+ map (fun '(a,b) => (w a,w b)) continuityLinks /\
+ (forall c, c <> COL_HOST_CONTEXT_ADDR -> w' c = w c).
+Proof.
+ repair_call_stack COL_HOST_CONTEXT_ADDR.
+ inactive_binding COL_HOST_CONTEXT_ADDR COL_CALL_STACK_DEPTH_BEFORE COL_HOST_SUSPEND.
+ circuit_boolean COL_HOST_CONTEXT_READ Bread.
+ circuit_range COL_HOST_FRAME_DEPTH_BEFORE Hdepth.
+ pose proof (value_bound w COL_HOST_CONTEXT_ADDR) as Haddr.
+ pose proof (proj1 Hfull) as Hone.
+ circuit_zero_test COL_HOST_FRAME_DEPTH_BEFORE COL_HOST_FRAME_DEPTH_INV COL_HOST_FRAME_DEPTH_IS_ZERO Hzero.
+ circuit_row ([(COL_HOST_CONTEXT_READ,1)], [(COL_HOST_FRAME_DEPTH_IS_ZERO,1)], ([] : SparseRow)) Hnonzero.
+ circuit_row ([(COL_HOST_CONTEXT_READ,1)],
+   [(COL_HOST_CONTEXT_ADDR,1); (COL_HOST_FRAME_DEPTH_BEFORE,-1); (COL_ONE,1)], ([] : SparseRow)) Hread.
+ expand_row Hnonzero. expand_row Hread. rewrite Hone in Hread.
+ assert (HreadOff : w COL_HOST_CONTEXT_READ = 0).
+ { destruct Bread as [HreadOff|HreadOn]; [exact HreadOff|].
+   rewrite HreadOn in Hnonzero, Hread.
+   assert (Hpositive : 0 < w COL_HOST_FRAME_DEPTH_BEFORE).
+   { destruct (Z.eq_dec (w COL_HOST_FRAME_DEPTH_BEFORE) 0) as [Hzdepth|Hzdepth]; normalize_columns; [|lia].
+     rewrite Hzdepth in Hzero. cbn in Hzero. rewrite Hzero in Hnonzero. field_linear Hnonzero. }
+   normalize_columns. field_linear Hread. }
+ circuit_boolean COL_HOST_NESTED_ENTRY Bentry.
+ circuit_boolean COL_HOST_RESUME Bresume.
+ circuit_row ([(COL_HOST_CONTEXT_READ,1); (COL_HOST_NESTED_ENTRY,-1); (COL_HOST_RESUME,-1)],
+   [(COL_ONE,1)], ([] : SparseRow)) Hgate.
+ expand_row Hgate. rewrite Hone, HreadOff in Hgate.
+ assert (Hoff : w COL_HOST_NESTED_ENTRY = 0 /\ w COL_HOST_RESUME = 0) by field_linear Hgate.
+ destruct Hoff as [HentryOff HresumeOff].
+ exists (zeroColumn COL_HOST_CONTEXT_ADDR w). split.
+ - eapply private_full_repair with (gates := [[(COL_HOST_SUSPEND,1)]; [(COL_HOST_CONTEXT_READ,1)]]).
+   + vm_compute; discriminate.
+   + vm_compute; reflexivity.
+   + repeat constructor; cbn [eval fold_right]; normalize_columns;
+       repeat match goal with H : _ = 0 |- _ => progress rewrite H end; reflexivity.
+   + exact Hfull.
+ - split; [rewrite zero_column_value; lia|]. split.
+   + repair_memory_events COL_HOST_CONTEXT_ADDR.
+   + split; [reflexivity|apply zero_column_same].
+Qed.

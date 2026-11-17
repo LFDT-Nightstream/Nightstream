@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Make the Akita schedule files of crates/ns-compress/artifacts with the
-# planner of Akita (crates/akita-planner), at the Akita revision of
-# crates/ns-compress/Cargo.toml.
-#
-#   scripts/akita_schedules.sh <Akita checkout at that revision>
-#
-# Each file holds the rows of the family fp64_dense_recursive that open the
-# key polynomial, W and V in one proof, for one size of the key polynomial.
-# The planner is deterministic. The script prints the SHA-256 of each file,
-# which crates/ns-compress/tests/unit/akita.rs pins. One run takes about
-# six minutes.
 set -euo pipefail
 
 akita="${1:?usage: $0 <Akita checkout>}"
@@ -22,14 +11,14 @@ if [ "$(git -C "$akita" rev-parse HEAD)" != "$revision" ]; then
 fi
 out="$(mktemp -d)"
 
-# plan <file> <variables of V> <variables of the key polynomial> <variables of W>
 plan() {
+  local file=$1 v_vars=$2 key_vars=$3 w_vars=$4
   (cd "$akita" && cargo run --release -p akita-planner --features catalog-gen \
-    --bin gen_schedule_artifacts -- "$out/$1" \
-    --final-group "fp64_dense_recursive:$2:1" \
-    --precommitted-group "fp64_dense_recursive:$3:1" \
-    --precommitted-group "fp64_dense_recursive:$4:1")
-  cp "$out/$1/fp64_dense_recursive.aks" "$artifacts/$1.aks"
+    --bin gen_schedule_artifacts -- "$out/$file" \
+    --final-group "fp64_dense_recursive:$v_vars:1" \
+    --precommitted-group "fp64_dense_recursive:$key_vars:1" \
+    --precommitted-group "fp64_dense_recursive:$w_vars:1")
+  cp "$out/$file/fp64_dense_recursive.aks" "$artifacts/$file.aks"
 }
 
 plan key20 16 20 16

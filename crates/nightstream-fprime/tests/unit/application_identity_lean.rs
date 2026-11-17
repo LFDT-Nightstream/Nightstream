@@ -1,9 +1,5 @@
-//! The word stream of the application identity against Lean
-//! (`Lifecycle.BoundedDepth.ApplicationIdentity.Application.words`, SPEC.md
-//! section 4.4). Lean emits sample records with their words and their
-//! identity (`Export.EncodingParity.applications`). The records go into the
-//! Rust types, and the functions of `with_application` must give Lean's
-//! words and Lean's hash.
+//! Lean `Lifecycle.BoundedDepth.ApplicationIdentity.Application.words`, `Export.EncodingParity.applications`,
+//! `SPEC.md` section 4.4.
 
 use std::sync::Arc;
 
@@ -66,8 +62,6 @@ fn empty_row() -> Row {
     row(&serde_json::json!([[0, []], [0, []], [0, []]]))
 }
 
-/// The rows and the recipe rows of a Lean application. The identity does not
-/// read the nodes of a recipe, so each recipe is one variable.
 fn records(application: &Value) -> Arc<ApplicationRecords> {
     let mut writer = ApplicationRecordsWriter::new().expect("writer");
     for row in list(&application[2]) {
@@ -105,8 +99,6 @@ fn shape(application: &Value) -> NativeShape {
     }
 }
 
-/// `base` with the layout of a Lean application. Each indexed row of the
-/// layout goes to its index in the rows piece.
 fn with_layout(base: &StepPackage, layout: &Value) -> StepPackage {
     let mut rows = Vec::new();
     let mut indexed = |entries: &Value| -> Vec<usize> {
@@ -220,8 +212,6 @@ fn the_identity_words_are_the_lean_words() {
     }
 }
 
-/// One block of locals from witness word 0, each `local · 1 = previous`, and
-/// the output rows. The row of the second local reads `previous + shift`.
 fn one_block(shift: u64) -> Arc<ApplicationRecords> {
     let mut writer = ApplicationRecordsWriter::new().expect("writer");
     let mut copy = |from: usize, to: usize| {
@@ -256,9 +246,7 @@ fn one_block(shift: u64) -> Arc<ApplicationRecords> {
     Arc::new(writer.finish().expect("records"))
 }
 
-/// A block drops the rows of its locals, so no other check reads their
-/// variables. A variable `v + q` there has the field element of `v`, and the
-/// identity refuses it (Lean `Application.Canonical`).
+/// Lean `Application.Canonical`.
 #[test]
 fn a_word_at_or_above_q_is_refused() {
     let packages = packages();

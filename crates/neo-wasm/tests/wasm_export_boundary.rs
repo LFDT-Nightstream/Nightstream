@@ -1,10 +1,3 @@
-//! Export-boundary templates: entry events absorb before the export's first
-//! instruction, with `InputLocal` slots bootstrapping the zero-initialized
-//! entry frame. Exit events absorb after the activation returns and may bind the
-//! captured result. The verifier folds the claimed transcript natively and
-//! compares it with the proof-carried final commitment chain. Tags below are
-//! arbitrary embedder data.
-
 mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
@@ -30,7 +23,6 @@ fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARG
     out
 }
 
-/// `run(x: s32, y: s32) -> s32 { x + y }`: a pure export, no host calls.
 fn add_component_wat() -> &'static str {
     r#"
     (component
@@ -47,8 +39,6 @@ fn add_component_wat() -> &'static str {
     "#
 }
 
-/// Two entry blocks carry constants and bootstrap the parameter locals; one
-/// exit block carries the output.
 fn export_template() -> ExportTemplate {
     let write = |input, local| SlotBinding::InputLocal {
         input,
@@ -90,8 +80,6 @@ fn boundary_trace() -> (Vec<WasmVmStep>, HostEventBindings) {
     common::ccs_check_trace(&trace);
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
-    // Input bootstrap: the RAM model's entry locals start all-zero; the
-    // entry gather rows write the runtime inputs into them.
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
     let witness_rows: Vec<Vec<neo_math::F>> = trace
@@ -109,7 +97,6 @@ fn boundary_trace() -> (Vec<WasmVmStep>, HostEventBindings) {
 fn export_boundary_folds_entry_and_exit_events() {
     let (trace, bindings) = boundary_trace();
 
-    // The trace opens with the entry gather rows (before any program row).
     assert!(trace[0].row_kind.is_host_event_gather());
     assert_eq!(trace[0].state_before.host_events.events_remaining, 2);
 
@@ -123,9 +110,6 @@ fn export_boundary_folds_entry_and_exit_events() {
         ],
     );
 
-    // Expand the transcript from the template and runtime values, then fold
-    // it natively. The proof-carried final chain must equal that fold; a
-    // different entry input must not.
     let template = bindings.exports.values().next().expect("template");
     let mut expected = neo_wasm::host_event_bindings::expand_export_entry(template, &[7, 35]).expect("entry");
     expected = absorbed_blocks(&template.entry, &expected).expect("absorbed entry");
@@ -154,8 +138,6 @@ fn export_boundary_folds_entry_and_exit_events() {
     );
 }
 
-/// Forging the exit event's output word is CCS-rejected: the word is bound
-/// to the carried output-capture value.
 #[test]
 fn ccs_rejects_forged_exit_output() {
     let (trace, _) = boundary_trace();
@@ -180,8 +162,6 @@ fn ccs_rejects_forged_exit_output() {
     common::assert_rejected(&witness, "output slot row with no captured output");
 }
 
-/// An input-local gather row must write the very word it stages: forging
-/// the staged word away from the locals write is CCS-rejected.
 #[test]
 fn ccs_rejects_forged_input_word() {
     let (trace, _) = boundary_trace();
@@ -201,8 +181,6 @@ fn ccs_rejects_forged_input_word() {
     common::assert_rejected(&witness, "entry gather row staging a word other than the locals write");
 }
 
-/// The exit latch is forced: suppressing the exit schedule on the capture
-/// row is CCS-rejected.
 #[test]
 fn ccs_rejects_suppressed_exit_schedule() {
     let (trace, _) = boundary_trace();
@@ -216,8 +194,6 @@ fn ccs_rejects_suppressed_exit_schedule() {
     common::assert_rejected(&witness, "capture row suppressing the exit schedule");
 }
 
-/// `run(x: s64) -> s64 { x }`: an i64 export param bootstrapped lane by
-/// lane (lo slot then hi slot), read back through the exit output limbs.
 fn identity64_component_wat() -> &'static str {
     r#"
     (component
@@ -235,7 +211,6 @@ fn identity64_component_wat() -> &'static str {
 #[test]
 fn i64_param_bootstraps_both_lanes() {
     let component_bytes = wat::parse_str(identity64_component_wat()).expect("component wat");
-    // x = 3·2^32 + 7.
     let args = [ComponentVal::S64((3i64 << 32) | 7)];
 
     let fref = 1;
@@ -289,16 +264,8 @@ fn i64_param_bootstraps_both_lanes() {
     common::ccs_check_trace(&trace);
 
     let staged: Vec<[u64; 8]> = common::absorbed_blocks(&trace);
-    assert_eq!(
-        staged,
-        vec![
-            [21, 7, 3, 0, 0, 0, 0, 0], // entry: both param lanes
-            [18, 7, 3, 0, 0, 0, 0, 0], // exit: both output lanes
-        ],
-    );
+    assert_eq!(staged, vec![[21, 7, 3, 0, 0, 0, 0, 0], [18, 7, 3, 0, 0, 0, 0, 0],],);
 
-    // The stack memory sees the zero-init + lane writes and the guest's i64
-    // read back out of them.
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
     neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &artifacts);
@@ -310,7 +277,6 @@ fn i64_param_bootstraps_both_lanes() {
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
         .expect("bindings ROM + lane writes match");
 
-    // The captured output is the full i64 round-tripped through the locals.
     let last = trace.last().expect("rows").state_after;
     assert_eq!((last.output.value_lo, last.output.value_hi), (7, 3));
 }

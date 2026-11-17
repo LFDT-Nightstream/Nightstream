@@ -29,7 +29,7 @@ Qed.
 Lemma row_valid : forall n, (n < 6)%nat ->
   FullRelation.satFull (row n) /\ Replay (before n) (eventsForRow memories (row n)) (after n).
 Proof.
-  intros n Hn. destruct (validRunb_sound _ _ (row_checks n Hn)) as [Hsat [_ Hreplay]].
+  intros n Hn. destruct (validRunb_sound _ _ (row_checks n Hn)) as [Hsat [_ [Hreplay _]]].
   split; [exact (Forall_inv Hsat) | ].
   cbn [eventsForTrace flat_map] in Hreplay. now rewrite app_nil_r in Hreplay.
 Qed.

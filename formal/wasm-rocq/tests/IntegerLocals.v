@@ -38,7 +38,7 @@ Proof. vm_compute. reflexivity. Qed.
 Example local_pair_copies_i64 : fieldPrime -> CellMatches final 1 maxI64.
 Proof.
   intros Hprime.
-  destruct (validRunb_sound initial localRows local_rows_check) as [Hfull [_ Hreplay]].
+  destruct (validRunb_sound initial localRows local_rows_check) as [Hfull [_ [Hreplay _]]].
   change (Forall FullRelation.satFull [setRow; getRow]) in Hfull.
   inversion Hfull as [ | ? ? Hset Htail]; subst.
   inversion Htail as [ | ? ? Hget Hnil]; subst.

@@ -22,19 +22,11 @@ fn ring(words: &[u64]) -> Rq {
     Rq(std::array::from_fn(|lane| F::new(words[lane])))
 }
 
-/// The second operand of each ring product.
 enum Operands<'a> {
-    /// One element for each column, lane by lane.
     Dense(&'a [u64]),
-    /// The positive and the negative unit mask of each column.
     Masks(&'a [u64]),
 }
 
-/// The real and the imaginary sum over all columns of `form · operand`, from
-/// the opening kernels: partial products, chunk sums and the ring fold. The
-/// partial products run two times on the same buffers. The seconds are from
-/// the commit of the second run to its completion, so they hold no page
-/// mapping of new buffers.
 fn device_products(session: &MetalSession, forms: &[u64], operands: Operands<'_>) -> (Vec<u64>, f64) {
     let columns = forms.len() / (2 * D);
     let chunks = columns.div_ceil(CHUNK_COLUMNS);
@@ -133,8 +125,6 @@ fn host_products(forms: &[u64], operands: &[Rq]) -> Vec<u64> {
         .collect()
 }
 
-/// More than one chunk of columns, so a lane of one chunk adds
-/// `CHUNK_COLUMNS · D / 2` products without a reduction between them.
 #[test]
 fn dense_ring_products_match_cpu_for_random_and_maximal_elements() {
     let session = MetalSession::new().unwrap();
@@ -154,8 +144,6 @@ fn dense_ring_products_match_cpu_for_random_and_maximal_elements() {
     }
 }
 
-/// Every lane of every signed-unit operand is set, so each product lane adds
-/// the most words that it can.
 #[test]
 fn signed_unit_ring_products_match_cpu_for_random_and_maximal_elements() {
     let session = MetalSession::new().unwrap();
@@ -213,9 +201,6 @@ fn bar_transform_matches_cpu() {
     assert_eq!(session.read_buffer::<u64>(&buffer, forms.len()), expected);
 }
 
-/// `left + challenge · (right − left)` in `K` over words at the edges of the
-/// field: 0, 1, the fold constant, the 32-bit limb edge, `q − 1`, and words
-/// that are not below `q`.
 #[test]
 fn field_arithmetic_matches_cpu_at_edge_words() {
     let session = MetalSession::new().unwrap();

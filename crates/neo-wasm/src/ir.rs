@@ -1,7 +1,5 @@
 use super::isa::{WasmOpcode, WasmOpcodeInfo};
 
-// Proof-visible `function_call_metadata` ROM encoding: parameter count in
-// bits 0..7, result count in bits 8..15, and the guest flag in bit 16.
 pub(crate) const FUNCTION_CALL_METADATA_RESULT_FACTOR: u64 = 1 << 8;
 pub(crate) const FUNCTION_CALL_METADATA_GUEST_FACTOR: u64 = 1 << 16;
 

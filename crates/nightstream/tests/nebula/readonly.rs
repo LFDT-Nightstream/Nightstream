@@ -193,12 +193,7 @@ fn shared_values_reconstruct_every_original_memory_and_hash_row() {
     eprintln!("readonly_adverse rejected={rejected} discarded_words_reconstructed={discarded}");
 }
 
-/// Each proved read port removes 33 source rows, 32 bit slots and their 32
-/// companions (`SPEC.md` sections 7.3 and 7.9). The plan rows fall only by the
-/// packed Boolean rows, 31 sources or products each (section 7.9). The port's
-/// other two rows read `vw - vr`: without sharing, section 7.13 packs them in
-/// one row (`Export.Generic.WordPacking.group_iff`); with sharing, the
-/// operation-slot row is gone and the application row is identically zero.
+/// SPEC.md sections 7.3, 7.9, and 7.13; Lean `Export.Generic.WordPacking.group_iff`.
 #[test]
 fn compiled_slot_cost_is_an_integer_per_proved_read_port() {
     let stamp = std::time::SystemTime::now()
@@ -212,7 +207,7 @@ fn compiled_slot_cost_is_an_integer_per_proved_read_port() {
         let geometry = geometry(3);
         let old = memory_circuit_unshared(&geometry, &app).unwrap();
         let new = memory_circuit(&geometry, &app).unwrap();
-        crate::application::check_blocks(&new).unwrap();
+        crate::application::check_blocks_match_permutation_rows(&new).unwrap();
         let old_packages = packages(&old);
         let new_packages = packages(&new);
         if reads == 0 {
@@ -224,25 +219,25 @@ fn compiled_slot_cost_is_an_integer_per_proved_read_port() {
             ("light", old_packages.light(), new_packages.light()),
             ("refresh", old_packages.refresh(), new_packages.refresh()),
         ] {
-            let before = old.plan_rows().unwrap();
-            let after = new.plan_rows().unwrap();
+            let (old_expanded, new_expanded) = (old.clone().expand().unwrap(), new.clone().expand().unwrap());
+            let (before, after) = (old_expanded.rows(), new_expanded.rows());
             let before_source = old.source_rows().unwrap();
             let after_source = new.source_rows().unwrap();
             assert_eq!(before_source.row_count() - after_source.row_count(), 33 * reads);
-            let pairs = |package: &nightstream_fprime::StepPackage| {
-                package.layout().unwrap().spans().widths.len() - (package.sbox_start() + 150 * package.block_count())
+            let pairs = |expanded: &nightstream_fprime::ExpandedPackage| {
+                expanded.layout().spans().widths.len() - (expanded.sbox_start() + 150 * expanded.block_count())
             };
-            let (before_pairs, after_pairs) = (pairs(old), pairs(new));
+            let (before_pairs, after_pairs) = (pairs(&old_expanded), pairs(&new_expanded));
             assert_eq!(before_pairs - after_pairs, 32 * reads);
             assert_eq!(
                 before.row_count() - after.row_count(),
                 old.packed_boolean_count().div_ceil(31) - new.packed_boolean_count().div_ceil(31)
             );
             assert_eq!(
-                old.layout().unwrap().width() - new.layout().unwrap().width(),
+                old_expanded.layout().width() - new_expanded.layout().width(),
                 64 * reads
             );
-            eprintln!("readonly_cost reads={reads} package={name} before_rows={} after_rows={} before_entries={} after_entries={} before_coordinates={} after_coordinates={}",before.row_count(),after.row_count(),before.entry_count(),after.entry_count(),old.layout().unwrap().width(),new.layout().unwrap().width());
+            eprintln!("readonly_cost reads={reads} package={name} before_rows={} after_rows={} before_entries={} after_entries={} before_coordinates={} after_coordinates={}",before.row_count(),after.row_count(),before.entry_count(),after.entry_count(),old_expanded.layout().width(),new_expanded.layout().width());
         }
         for (name, application) in [("before", old), ("after", new)] {
             crate::Circuit::compile(application)

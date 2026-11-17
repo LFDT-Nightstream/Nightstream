@@ -1,19 +1,3 @@
-//! Owns the per-step "operand stack ↔ memory family" bindings.
-//!
-//! Every constraint in this module enforces the same shape: when a
-//! wasm opcode reads from or writes to a host-state family (locals,
-//! globals, tables, table sizes, or linear-memory page counts), the
-//! relevant family-value column must equal the corresponding stack
-//! column on that row. The actual lookup that proves the family value
-//! comes from the right memory is the lookup-binding layer's job;
-//! these constraints are just the in-CCS link to the operand stack
-//! plus the gate columns the lookup layer reads.
-//!
-//! Linear-memory data lives elsewhere (see [`super::linear_memory`])
-//! because it needs byte-level shuffling for unaligned access; the
-//! constraints here are uniformly word-level identifications, so they
-//! cluster naturally together.
-
 use super::super::gadgets::push_gated_linear_zero;
 use super::super::isa::WasmOpcode;
 use super::super::layout::{
@@ -44,10 +28,6 @@ const TABLE_VALUE_OPS: &[WasmOpcode] = &[
     WasmOpcode::CallIndirectResolve,
 ];
 
-/// Emit every operand-stack ↔ memory-family binding the wasm VM
-/// needs. First the gate-column declarations the lookup layer reads
-/// (`locals.write_enabled`, `table.read_enabled`), then the per-family
-/// value bindings.
 pub(super) fn push_stack_io_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(shared("locals write gate", LOCAL_WRITE_OPS), |b| {
         b.push_linear_zero([
@@ -58,8 +38,7 @@ pub(super) fn push_stack_io_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     });
 
     b.with_tag(shared("table read gate", TABLE_READ_OPS), |b| {
-        // The table-entry read is off on an OOB row: there is no valid
-        // entry to read, and the OOB trap must not depend on it.
+        // SPEC.md section 7.8.
         let table_get = selector_col(WasmOpcode::TableGet).unwrap();
         b.push_row(
             [(table_get, F::ONE)],
@@ -118,7 +97,6 @@ fn push_local_value_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         selector_col(WasmOpcode::LocalTee).unwrap(),
         [(COL_LOCAL_VALUE, F::ONE), (COL_STACK_WRITE0_VALUE_LO, -F::ONE)],
     );
-    // Mirror the low-limb local bindings for i64 high limbs.
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::LocalGet).unwrap(),
@@ -185,9 +163,6 @@ fn push_table_value_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         selector_col(WasmOpcode::TableSet).unwrap(),
         [(COL_TABLE_INDEX, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
     );
-    // The resolve step reads the index from the stack top and, unless it traps,
-    // writes the checked function reference back in its place for the
-    // invocation; a trapping (terminal) row writes zero.
     let resolve = selector_col(WasmOpcode::CallIndirectResolve).unwrap();
     push_gated_linear_zero(
         b,

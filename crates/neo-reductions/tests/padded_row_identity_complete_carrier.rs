@@ -14,7 +14,7 @@ fn joint_row_domain_uses_the_complete_packed_carrier() {
     )
     .expect("valid rectangular structure");
     let params = NeoParams::nightstream_p64_k14()
-        .with_lambda(115)
+        .with_certified_lambda(115)
         .expect("parameters");
     let dimensions = build_joint_dims(&params, &structure, 1, 0).expect("dimensions");
 

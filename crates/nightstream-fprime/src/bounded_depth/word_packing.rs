@@ -260,13 +260,6 @@ impl WordPacking {
         edits
     }
 
-    pub(super) fn validate(&self, package: &StepPackage) -> Result<(), PackageError> {
-        if self != &Self::checked(package)? {
-            return Err(PackageError::Malformed("word packing source map"));
-        }
-        Ok(())
-    }
-
     pub(super) fn bind(&self, source: &[Row], update: &mut impl FnMut(u64)) {
         update(self.groups.len() as u64);
         for group in &self.groups {

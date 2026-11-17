@@ -1,5 +1,3 @@
-//! Sparse matrix utilities for CCS.
-
 use crate::geometric::GeometricRowRun;
 use crate::matrix::Mat;
 use p3_field::{Field, PrimeCharacteristicRing};
@@ -7,10 +5,6 @@ use p3_field::{Field, PrimeCharacteristicRing};
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 
-/// A canonical compressed-sparse-column matrix: column pointers start at 0
-/// and end at the entry count, rows are strictly increasing in each column,
-/// and no stored value is zero. The fields are private, so every matrix keeps
-/// that form.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CscMat<Ff> {
     nrows: usize,
@@ -53,7 +47,6 @@ impl<Ff> CscMat<Ff> {
 }
 
 impl<Ff: Field> CscMat<Ff> {
-    /// Build a matrix from its parts, and reject parts that are not canonical.
     pub fn new(
         nrows: usize,
         ncols: usize,

@@ -1,7 +1,4 @@
-//! Native Poseidon2 transcript of SPEC.md section 7.4 over the v1.1 framing: a block is
-//! its length, then its words; a block is absorbed in rate chunks, each added
-//! to the rate lanes and permuted; a digest is the first four lanes.
-//! Mirrors `Lifecycle/Transcript.lean` and `Lifecycle/Nebula/Framing.lean`.
+//! SPEC.md section 7.4; `Lifecycle/Transcript.lean`, `Lifecycle/Nebula/Framing.lean`.
 
 use neo_ccs::crypto::poseidon2::{permute_state, RATE, WIDTH};
 use neo_math::F;
@@ -13,14 +10,13 @@ use super::geometry::Geometry;
 pub type Digest = [F; 4];
 pub type State = [F; WIDTH];
 
-/// The two lanes of SPEC.md section 7.4.
+/// SPEC.md section 7.4.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Lane {
     Ops,
     Mem,
 }
 
-/// ASCII text as field words, one per byte.
 pub fn text(tag: &str) -> Vec<F> {
     tag.bytes().map(F::from_u8).collect()
 }
@@ -35,7 +31,6 @@ fn absorb(mut state: State, words: &[F]) -> State {
     state
 }
 
-/// `absorb_block_v1_1`: the block's length, then its words.
 pub fn absorb_block(state: State, words: &[F]) -> State {
     let mut block = Vec::with_capacity(words.len() + 1);
     block.push(F::from_usize(words.len()));
@@ -43,7 +38,6 @@ pub fn absorb_block(state: State, words: &[F]) -> State {
     absorb(state, &block)
 }
 
-/// The transcript state after `reset_v1_1` and one block absorb per block.
 pub fn absorbed(blocks: &[&[F]]) -> State {
     blocks
         .iter()
@@ -54,7 +48,6 @@ pub fn digest(state: &State) -> Digest {
     [state[0], state[1], state[2], state[3]]
 }
 
-/// One extension squeeze: lane 0, permute, lane 0, permute.
 pub fn squeeze_k(state: State) -> (K, State) {
     let first = permute_state(state);
     let value = K::from_basis_coefficients_slice(&[state[0], first[0]]).expect("two coefficients");
@@ -78,8 +71,7 @@ pub(super) fn chain_tag(lane: Lane) -> &'static str {
     }
 }
 
-/// SPEC.md section 7.1 `plan_digest`: the geometry only. The images enter through
-/// `D_init`.
+/// SPEC.md section 7.1.
 pub fn plan_digest(geometry: &Geometry) -> Digest {
     let fields: Vec<F> = [
         geometry.r,
@@ -96,12 +88,12 @@ pub fn plan_digest(geometry: &Geometry) -> Digest {
     digest(&absorbed(&[&text("Nightstream/Nebula/v3/plan"), &fields]))
 }
 
-/// `header_l` of SPEC.md section 7.4.
+/// SPEC.md section 7.4 `header_l`.
 pub fn header(lane: Lane, plan_digest: &Digest) -> Digest {
     digest(&absorbed(&[&text(header_tag(lane)), plan_digest]))
 }
 
-/// One chain link of SPEC.md section 7.4 over packed lane words.
+/// SPEC.md section 7.4.
 pub fn chain_link(lane: Lane, index: usize, previous: &Digest, packed: &[F]) -> Digest {
     let mut prefix = Vec::with_capacity(5);
     prefix.push(F::from_usize(index));
@@ -109,7 +101,6 @@ pub fn chain_link(lane: Lane, index: usize, previous: &Digest, packed: &[F]) -> 
     digest(&absorbed(&[&text(chain_tag(lane)), &prefix, packed]))
 }
 
-/// The root of a lane chain over its packed lanes.
 pub fn chain_root(lane: Lane, plan_digest: &Digest, packed: &[Vec<F>]) -> Digest {
     packed
         .iter()
@@ -119,7 +110,7 @@ pub fn chain_root(lane: Lane, plan_digest: &Digest, packed: &[Vec<F>]) -> Digest
         })
 }
 
-/// SPEC.md section 7.4: the two memory challenges of a segment.
+/// SPEC.md section 7.4.
 pub fn eta_challenges(
     plan_digest: &Digest,
     ts: F,
@@ -137,8 +128,7 @@ pub fn eta_challenges(
     (eta1, eta2)
 }
 
-/// The four Stage 1 application-state words: the SPEC.md section 7.5 state digest of
-/// the application words and the carry words.
+/// SPEC.md section 7.5.
 pub fn state_words(app: &[F], carry: &[F]) -> Digest {
     digest(&absorbed(&[&text(STATE_TAG), app, carry]))
 }

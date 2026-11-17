@@ -1,8 +1,4 @@
-//! The light step's shared columns (Lean `LightAssembler.interface`,
-//! `LightAssemblerSource.env`) and the two-slot hashes they carry (Lean
-//! `Lifecycle/BoundedDepth/State`). Columns 0 to 319 are the public input `x`, the
-//! encoding of the output digest (`encHash`); the step's words follow from
-//! column 320 in the assembler's groups.
+//! Lean `LightAssembler.interface`, `LightAssemblerSource.env`, `Lifecycle/BoundedDepth/State`.
 
 use neo_ccs::crypto::poseidon2::poseidon2_hash;
 
@@ -11,15 +7,13 @@ use neo_math::Fq;
 use neo_transcript::domain_chunk_v1_2;
 use p3_field::{Field, PrimeCharacteristicRing};
 
-/// A K value as its two base-field coefficients.
 pub type KWords = [Fq; 2];
 
 const POINT_COORDINATES: usize = crate::package::PI_CCS_V1_2_ROUND_COUNT;
 const ROUND_COEFFICIENTS: usize = crate::package::PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT;
 const CHILDREN: usize = crate::DECOMPOSITION_K_RHO as usize;
 
-/// A slot: its claim and its depth (`State.SlotData`). The evaluations are
-/// `Eval_K` (64) then `Eval_A` (four matrices of 64).
+/// Lean `State.SlotData`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Slot {
     pub commitment: Vec<Fq>,
@@ -30,8 +24,7 @@ pub struct Slot {
 }
 
 impl Slot {
-    /// HyperNova Definition 12's default running instance at depth 0
-    /// (`Step.defaultSlot`): every word is 0.
+    /// HyperNova Definition 12, Lean `Step.defaultSlot`.
     pub fn default_slot() -> Self {
         Self {
             commitment: vec![Fq::ZERO; COMMITMENT_WORDS],
@@ -60,7 +53,7 @@ impl Slot {
     }
 }
 
-/// What the state hash binds (`State.State`).
+/// Lean `State.State`.
 #[derive(Clone, Debug)]
 pub struct State {
     pub keys: [[Fq; 4]; 2],
@@ -86,7 +79,7 @@ impl State {
     }
 }
 
-/// `encHash`: the marker 1, the digest's 256 little-endian bits, then zeros.
+/// Lean `encHash`.
 pub fn encode_digest(digest: [Fq; 4]) -> Vec<Fq> {
     let mut words = vec![Fq::ZERO; PUBLIC_WORDS];
     words[0] = Fq::ONE;
@@ -99,8 +92,7 @@ pub fn encode_digest(digest: [Fq; 4]) -> Vec<Fq> {
     words
 }
 
-/// A PiDEC child of the refresh step: its commitment, its evaluation family
-/// and its digit words (`Refresh.Split`, `publicInputSplit`).
+/// Lean `Refresh.Split`, `publicInputSplit`.
 #[derive(Clone, Debug)]
 pub struct Child {
     pub commitment: Vec<Fq>,
@@ -108,9 +100,6 @@ pub struct Child {
     pub digits: Vec<Fq>,
 }
 
-/// The words of the step's fold after the fresh instance: the light fold's
-/// two-source PiCCS output, or the refresh fold's 14 children and 15-source
-/// output. The round messages lie between them in both.
 #[derive(Clone, Debug)]
 pub enum FoldWords {
     Light {
@@ -122,13 +111,7 @@ pub enum FoldWords {
     },
 }
 
-/// A step's shared words (`LightAssemblerSource.Values`,
-/// `RefreshAssemblerSource.Values`). The slots are the two prior slots, the
-/// active slot, the two inner slots and the two next slots; the digests are
-/// the two prior slot digests, the two next slot digests and the output
-/// digest. The digest select's words (`digestSelect`) follow the fold: the new
-/// slot's digest, the digest of each inner slot and, for a light step, the
-/// active slot's digest (Lean `LightAssembler.interface`).
+/// Lean `LightAssemblerSource.Values`, `RefreshAssemblerSource.Values`.
 #[derive(Clone, Debug)]
 pub struct StepWords {
     pub iteration: u64,
@@ -146,7 +129,7 @@ pub struct StepWords {
 }
 
 impl StepWords {
-    /// The shared columns below the step's `sharedEnd`.
+    /// Lean `sharedEnd`.
     pub fn columns(&self) -> Result<Vec<Fq>, PackageError> {
         let slots_fit = self.slots.iter().all(|slot| {
             slot.commitment.len() == COMMITMENT_WORDS

@@ -470,7 +470,7 @@ fn verify_dec_public_rejects_children_from_different_fold_transcript() {
 #[test]
 fn reduction_policy_rejects_parameter_modulus_different_from_field() {
     let actual_field_params = NeoParams::nightstream_p64_k14()
-        .with_lambda(100)
+        .with_certified_lambda(100)
         .expect("lambda");
     let p = actual_field_params;
     let claimed_larger_field_params = NeoParams::new(
@@ -485,7 +485,7 @@ fn reduction_policy_rejects_parameter_modulus_different_from_field() {
         p.s(),
     )
     .expect("new accepts any modulus that bounds 2B")
-    .with_lambda(100)
+    .with_certified_lambda(100)
     .expect("lambda");
     let structure =
         CcsStructure::new(vec![Mat::identity(1)], SparsePoly::new(1, Vec::new())).expect("minimal CCS structure");

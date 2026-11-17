@@ -1,5 +1,3 @@
-//! Direct behavior checks for the Poseidon2 hash helpers.
-
 use neo_ccs::crypto::poseidon2::{poseidon2_hash, poseidon2_hash_single, Poseidon2Hasher, RATE};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;

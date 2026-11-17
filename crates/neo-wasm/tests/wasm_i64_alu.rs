@@ -1,8 +1,3 @@
-//! Trace-level coverage for the i64 ALU operation opcodes (comparisons,
-//! shifts/rotates, div/rem, clz/ctz/popcnt) plus i32.popcnt. Each test runs
-//! a wat program through the full checked pipeline: wasmtime trace →
-//! normalize → lookup/memory sanity checkers → CCS row satisfaction.
-
 mod common;
 
 #[test]

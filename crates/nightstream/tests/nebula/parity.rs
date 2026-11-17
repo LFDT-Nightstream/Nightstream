@@ -1,9 +1,4 @@
-//! The Rust-built memory circuit of each package has the rows of Lean's memory
-//! application: the same rows, row for row, in the same variable order
-//! (`EmitMain.applicationDigest`, `tests/fixtures/nebula-memory-*-digest.json`).
-//! The witness programs differ in encoding (Lean: recipe batches and witness
-//! instructions; Rust: one recipe per variable). The Rust-built circuit also
-//! saves and loads.
+//! Lean `EmitMain.applicationDigest`.
 
 use std::{
     cell::RefCell,
@@ -27,9 +22,7 @@ fn assert_same_rows(package: Package, fixture: &[u8]) {
     assert_rows(&package.application().unwrap(), fixture);
 }
 
-/// A Stage 1 verifier checks no SPEC.md Algorithm 8 terminal condition, so it would
-/// accept a state inside an open segment, whose reads no product test has
-/// checked. A memory package makes only the memory verifier.
+/// SPEC.md Algorithm 8.
 #[test]
 fn memory_packages_make_no_stage1_verifier() {
     let packages = bounded_depth_packages("nebula-v1-");
@@ -53,8 +46,7 @@ fn second_package_rows_match_lean() {
     assert_same_rows(Package::N1, include_bytes!("../fixtures/nebula-memory-n1-digest.json"));
 }
 
-/// A RAM smaller than the ROM: the address field has `r` bits and row O6 has
-/// its RAM range rows (`ThirdPlan.lean`).
+/// Lean `ThirdPlan.lean`.
 #[test]
 fn rows_of_a_ram_smaller_than_the_rom_match_lean() {
     let application = super::memory_circuit_unshared(&crate::nebula::Geometry::third(), &Machine).unwrap();
@@ -62,7 +54,8 @@ fn rows_of_a_ram_smaller_than_the_rom_match_lean() {
 }
 
 fn coordinates(package: &nightstream_fprime::StepPackage) -> BTreeMap<String, usize> {
-    let layout = package.layout().unwrap();
+    let expanded = package.clone().expand().unwrap();
+    let layout = expanded.layout();
     let mut counts = BTreeMap::new();
     for column in nightstream_fprime::PUBLIC_WORDS..layout.spans().starts.len() {
         if let Some((_, kind)) = layout.slot(column) {
@@ -72,9 +65,7 @@ fn coordinates(package: &nightstream_fprime::StepPackage) -> BTreeMap<String, us
     counts
 }
 
-/// The witness words and locals of `application` that one of its rows forces
-/// to 0 or 1: the row reads only that variable and holds at 0 and at 1
-/// (Lean `SlotLayout.forcedColumn?`).
+/// Lean `SlotLayout.forcedColumn?`.
 fn forced_words(application: &ApplicationCircuit) -> BTreeSet<usize> {
     let records = application.records();
     let witness = 4..4 + application.private_input_count();
@@ -105,12 +96,9 @@ fn forced_words(application: &ApplicationCircuit) -> BTreeSet<usize> {
     forced
 }
 
-/// The machine's Rust-built memory circuit in place of the fixture's
-/// application preserves the Lean package's blocks and source rows. The
-/// coordinate ledger includes inferred bits, each packed-check coordinate
-/// (`SPEC.md` sections 7.9 and 7.10), and no field slot for a column that
-/// section 7.11 refills (`Export.Generic.NativePower.Chain.restore_source`,
-/// `Export.Generic.NativePower.affine_restore_source`).
+/// SPEC.md sections 7.9, 7.10, and 7.11; Lean
+/// `Export.Generic.NativePower.Chain.restore_source` and
+/// `Export.Generic.NativePower.affine_restore_source`.
 fn assert_native_packages_match_lean(package: Package, stem: &str) {
     let application = package.application().unwrap();
     let forced = forced_words(&application);
@@ -134,7 +122,8 @@ fn assert_native_packages_match_lean(package: Package, stem: &str) {
             lean.source_rows().unwrap().row_count()
         );
         assert_eq!(native.width(), lean.width());
-        let layout = native.layout().unwrap();
+        let expanded = native.clone().expand().unwrap();
+        let layout = expanded.layout();
         let block = native.blocks().next().unwrap();
         let first_local = application.shape().blocks[0].first_local;
         assert_eq!(first_local, application.generated_range().start);
@@ -175,8 +164,6 @@ fn second_package_native_packages_match_lean() {
     assert_native_packages_match_lean(Package::N1, "nebula-n1-");
 }
 
-/// The Rust circuit's witness program completes every honest invocation of a
-/// native run of `program`, and its output is the next Stage 1 state.
 fn assert_honest_invocations_execute(program: &Program, segments: &[&[Step]]) {
     let application = super::memory_circuit(&program.geometry, &Machine).unwrap();
     assert_application_executes(&application, program, segments);
@@ -200,9 +187,6 @@ fn first_package_executes_honest_invocations() {
     assert_honest_invocations_execute(&Package::V1.program(), &[&execute, &execute, &idle, &idle]);
 }
 
-/// One setup per geometry: the package circuit completes the honest
-/// invocations of a second program, `loadi 7; store 1; load 1; halt` with RAM
-/// `[0, 0, 0, 9]`.
 #[test]
 fn first_package_executes_a_second_program() {
     let program = Program::new(Package::V1.geometry(), vec![31, 6, 5, 0], vec![0, 0, 0, 9]).unwrap();
@@ -211,17 +195,12 @@ fn first_package_executes_a_second_program() {
     assert_honest_invocations_execute(&program, &[&execute, &execute, &idle, &idle]);
 }
 
-/// `N = 1`: every invocation opens and closes a segment, and the O6 rows exist.
 #[test]
 fn second_package_executes_honest_invocations() {
     let segments = vec![&[Step::Execute][..]; Package::N1.geometry().s_max];
     assert_honest_invocations_execute(&Package::N1.program(), &segments);
 }
 
-/// `Circuit::write` keeps each output row's position, so the machine's
-/// circuit, whose output rows are the `state_out` hash rows and not the last
-/// rows, saves and loads. The loaded circuit has the same identity and
-/// completes the honest invocations with the same output states.
 #[test]
 fn rust_built_circuit_writes_and_loads() {
     let circuit = Circuit::compile(Package::V1.geometry(), Machine).unwrap();
@@ -254,9 +233,6 @@ fn rust_built_circuit_writes_and_loads() {
     );
 }
 
-/// Lean indexes the view with natural numbers, so an index past the witness
-/// reads zero. An application that reads its words at `usize::MAX` must get
-/// zero too, not a witness word after the index sum wraps.
 #[test]
 fn view_reads_past_the_witness_are_zero() {
     struct Probe(RefCell<Vec<&'static str>>);

@@ -1,5 +1,3 @@
-//! Sumcheck protocol interface
-
 use neo_math::{KExtensions, K};
 use p3_field::PrimeCharacteristicRing;
 

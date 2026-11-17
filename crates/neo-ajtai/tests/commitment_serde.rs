@@ -1,6 +1,3 @@
-//! The commitment serde form keeps the field names that the Lean replay
-//! scripts read, and decoding rejects any shape the constructor rejects.
-
 use neo_ajtai::Commitment;
 use neo_math::D;
 

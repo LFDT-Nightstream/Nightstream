@@ -1,21 +1,14 @@
-//! The prover and verifier: a light and a refresh step circuit that Lean
-//! emits, with the Rust application in place of Lean's, and two slots.
-//!
-//! The crate embeds the two packages (`artifacts`); the caller selects the
-//! application, and the verifier derives everything else from them. Nothing
-//! a proof carries is authority.
-
 use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::Arc;
 
 use neo_math::F;
-use nightstream_fprime::{BoundedDepthPackages, Linear, NativeBlock, NativeShape};
+use nightstream_fprime::{Linear, NativeBlock, NativeShape};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::engine::{Backend, Engine, EngineError};
-use crate::lifecycle::bounded_depth as lifecycle;
+use crate::lifecycle::bounded_depth::{self as lifecycle, CompiledSteps};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -102,8 +95,6 @@ fn read_field(input: &mut impl Read) -> Result<F, Error> {
     Ok(F::from_u64(word))
 }
 
-/// The shape after the records: the blocks, each its first local and its
-/// lanes (constant, term count, terms).
 fn write_shape(output: &mut impl Write, shape: &NativeShape) -> Result<(), Error> {
     let mut word = |value: u64| output.write_all(&value.to_le_bytes());
     word(shape.blocks.len() as u64)?;
@@ -137,7 +128,6 @@ fn read_shape(input: &mut impl Read) -> Result<NativeShape, Error> {
     Ok(shape)
 }
 
-/// The saved form of an application, after the file's magic (`Circuit::load`).
 fn write_application(application: &ApplicationCircuit, output: &mut impl Write) -> Result<(), Error> {
     output.write_all(&(application.private_input_count() as u64).to_le_bytes())?;
     output.write_all(&application.prepared_output_forms()?)?;
@@ -157,9 +147,6 @@ fn encode_application(application: &ApplicationCircuit) -> Result<Vec<u8>, Error
     Ok(bytes)
 }
 
-/// The two Lean-emitted packages: the light and refresh step circuits
-/// (`formal/nightstream-fprime/artifacts`), for the tests that load Lean's
-/// own packages (`load_packages`).
 #[cfg(test)]
 #[derive(Clone, Copy)]
 pub(crate) struct References<'a> {
@@ -169,14 +156,14 @@ pub(crate) struct References<'a> {
 
 /// The packages and their application: a Rust application in place of
 /// Lean's (`compile`), or Lean's own (`load_packages`), whose witness program
-/// fills its locals from the witness words and the output state.
+/// fills its locals from the witness words and the output state. It holds
+/// the expanded step circuits once; each prover and verifier of the circuit
+/// shares them.
 pub struct Circuit {
-    packages: BoundedDepthPackages,
+    steps: CompiledSteps,
     application: Option<ApplicationCircuit>,
-    /// A memory relation: only `nebula::Circuit::verifier` verifies it,
-    /// because this verifier checks no SPEC.md Algorithm 8 terminal
-    /// condition.
-    memory: bool,
+    /// SPEC.md Algorithm 8.
+    needs_memory_terminal: bool,
 }
 
 impl Circuit {
@@ -186,44 +173,59 @@ impl Circuit {
     /// packages: it computes the step of Lean's application region, and the
     /// Lean checks of Rust's files read those packages.
     pub fn compile(application: ApplicationCircuit) -> Result<Self, Error> {
-        crate::application::check_blocks(&application)?;
         let embedded = crate::artifacts::embedded();
         let witness_words = application.private_input_count();
-        let packages = if encode_application(&application)?
-            == encode_application(&crate::application::poseidon2_hash_chain_v1()?)?
-        {
-            embedded.packages.clone()
-        } else {
-            embedded
-                .packages
-                .with_application(application.records().clone(), witness_words, application.shape())?
+        let steps = || -> Result<CompiledSteps, Error> {
+            let reference = crate::application::poseidon2_hash_chain_v1()?;
+            let counts = |application: &ApplicationCircuit| {
+                let records = application.records();
+                (
+                    application.private_input_count(),
+                    records.row_count(),
+                    records.recipe_count(),
+                    application.shape().blocks.len(),
+                )
+            };
+            let packages = if counts(&application) == counts(&reference)
+                && encode_application(&application)? == encode_application(&reference)?
+            {
+                embedded.packages.clone()
+            } else {
+                embedded
+                    .packages
+                    .with_application(application.records().clone(), witness_words, application.shape())?
+            };
+            Ok(CompiledSteps::new(packages)?)
         };
+        let (checked, steps) = rayon::join(
+            || crate::application::check_blocks_match_permutation_rows(&application),
+            steps,
+        );
+        checked?;
         Ok(Self {
-            packages,
+            steps: steps?,
             application: Some(application),
-            memory: false,
+            needs_memory_terminal: false,
         })
     }
 
-    /// Check the pinned identity of Lean-emitted light and refresh packages
-    /// whose application is Lean's (`expected`). Only the tests load Lean
-    /// packages.
     #[cfg(test)]
     pub(crate) fn load_packages(references: References<'_>, expected: [u64; 4]) -> Result<Self, Error> {
         let packages = nightstream_fprime::load_bounded_depth_packages(references.light, references.refresh, expected)?;
         Ok(Self {
-            packages,
+            steps: CompiledSteps::new(packages)?,
             application: None,
-            memory: false,
+            needs_memory_terminal: false,
         })
     }
 
-    /// This circuit as a memory relation (`nebula::Circuit`).
     pub(crate) fn into_memory(self) -> Self {
-        Self { memory: true, ..self }
+        Self {
+            needs_memory_terminal: true,
+            ..self
+        }
     }
 
-    /// The Rust application, for tests that execute a loaded circuit.
     #[cfg(test)]
     pub(crate) fn application(&self) -> Option<&ApplicationCircuit> {
         self.application.as_ref()
@@ -242,7 +244,7 @@ impl Circuit {
 
     /// The packages' identity with the application.
     pub fn identity(&self) -> [u64; 4] {
-        self.packages.identity()
+        self.steps.identity()
     }
 
     /// Save the application for a prover in another process
@@ -255,7 +257,11 @@ impl Circuit {
                 .create_new(true)
                 .open(path)?,
         );
-        output.write_all(if self.memory { MEMORY_MAGIC } else { MAGIC })?;
+        output.write_all(if self.needs_memory_terminal {
+            MEMORY_MAGIC
+        } else {
+            MAGIC
+        })?;
         let application = self
             .application
             .as_ref()
@@ -265,8 +271,6 @@ impl Circuit {
         Ok(())
     }
 
-    /// Read a saved application and compile it against the embedded packages
-    /// again; their pinned identities are checked again.
     pub(crate) fn load(path: impl AsRef<Path>) -> Result<Self, Error> {
         let mut input = std::io::BufReader::new(std::fs::File::open(path)?);
         let mut magic = [0; 8];
@@ -300,7 +304,7 @@ impl Circuit {
 
     fn prover_on(&self, backend: Backend, minimum_security_bits: u32) -> Result<Prover, Error> {
         Ok(Prover {
-            lifecycle: lifecycle::BoundedDepth::new(self.packages.clone(), minimum_security_bits, backend)?,
+            lifecycle: lifecycle::BoundedDepth::new(&self.steps, minimum_security_bits, backend)?,
             application: self.application.clone(),
         })
     }
@@ -311,20 +315,15 @@ impl Circuit {
     /// is `nebula::Circuit::verifier`. The caller separately budgets recursive
     /// depth, queries, retries, and concurrent attempts.
     pub fn verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
-        if self.memory {
+        if self.needs_memory_terminal {
             return Err(Error::Circuit("a memory relation needs nebula::Circuit::verifier"));
         }
         self.stage1_verifier(engine, minimum_security_bits)
     }
 
-    /// The step verifier inside `nebula::Verifier`.
     pub(crate) fn stage1_verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
         Ok(Verifier {
-            lifecycle: lifecycle::BoundedDepth::new(
-                self.packages.clone(),
-                minimum_security_bits,
-                Backend::new(engine)?,
-            )?,
+            lifecycle: lifecycle::BoundedDepth::new(&self.steps, minimum_security_bits, Backend::new(engine)?)?,
         })
     }
 }
@@ -419,8 +418,6 @@ impl Prover {
             .application
             .as_ref()
             .ok_or(ApplicationError::NoApplication)?;
-        // The application runs on the CPU while the engine folds the last
-        // step; neither needs the other's result.
         let (witness, folded) = std::thread::scope(|scope| {
             let run = scope.spawn(|| application.execute(proof.state().current(), private_inputs));
             let folded = self.lifecycle.fold(&proof.0);
@@ -440,12 +437,10 @@ impl Prover {
         )?))
     }
 
-    /// The proof of no step from `z0`, which a memory run extends.
     pub(crate) fn initial(&self, z0: [F; 4]) -> Result<Proof, Error> {
         Ok(Proof(self.lifecycle.initial(z0)?))
     }
 
-    /// The first proof with the output state that the caller supplies.
     #[cfg(test)]
     pub(crate) fn prove_with_output(
         &self,
@@ -456,8 +451,6 @@ impl Prover {
         self.extend_with_output(&Proof(self.lifecycle.initial(initial_state)?), private_inputs, output)
     }
 
-    /// The next proof with the output state that the caller supplies; the
-    /// application's rows check it.
     pub(crate) fn extend_with_output(
         &self,
         proof: &Proof,
@@ -470,9 +463,6 @@ impl Prover {
         ))
     }
 
-    /// The next proof of a memory invocation whose native output state is
-    /// `output`. A Rust application executes and must reach `output`; Lean's
-    /// application takes it (`extend_with_output`).
     pub(crate) fn extend_invocation(
         &self,
         proof: &Proof,
@@ -563,3 +553,7 @@ impl Verifier {
 #[cfg(test)]
 #[path = "../tests/bounded_depth_lifecycle/native_field_census.rs"]
 mod native_field_census;
+
+#[cfg(test)]
+#[path = "../tests/bounded_depth_lifecycle/compiled_circuit_sharing.rs"]
+mod sharing;

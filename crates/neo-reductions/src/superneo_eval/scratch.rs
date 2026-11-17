@@ -1,5 +1,3 @@
-//! Owns opening coefficients and can reuse a completed SumCheck allocation.
-
 use std::ops::Range;
 
 use neo_math::{superneo_bar_block, KExtensions, Rq, D, F, K};

@@ -25,13 +25,11 @@ Proof.
     pose proof (value_bound w COL_TRAPPED_BEFORE). field_linear Hrow.
 Qed.
 
-Lemma full_clean_finish : forall (w : Witness),
+Lemma full_clean_finish_boundary : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w -> w COL_IS_PROGRAM_ROW = 1 ->
   w COL_ACTIVATION_FINISHED_AFTER = 1 -> w COL_TRAPPED_AFTER = 0 ->
   w COL_HOST_EVENT_EXIT_LATCH = 1 /\
-  w COL_CALL_STACK_DEPTH_BEFORE = w COL_HOST_FRAME_DEPTH_BEFORE /\
-  w COL_OUTPUT_CAPTURED = w COL_SP_BEFORE - w COL_LOCALS_FBP_BEFORE - w COL_EXIT_SLIDE_DISTANCE /\
-  w COL_SP_AFTER = w COL_LOCALS_FBP_BEFORE.
+  w COL_CALL_STACK_DEPTH_BEFORE = w COL_HOST_FRAME_DEPTH_BEFORE.
 Proof.
   intros w Hprime Hfull Hprogram Hfinish Htrap.
   pose proof (proj1 Hfull) as Hone.
@@ -45,9 +43,24 @@ Proof.
   circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_TRAPPED_AFTER, -1)],
     [(COL_CALL_STACK_DEPTH_BEFORE, 1); (COL_HOST_FRAME_DEPTH_BEFORE, -1)], ([] : SparseRow)) Hdepth.
   expand_row Hdepth. normalize_columns. rewrite Hfinish, Htrap in Hdepth.
-  split.
   { pose proof (value_bound w COL_CALL_STACK_DEPTH_BEFORE). pose proof (value_bound w COL_HOST_FRAME_DEPTH_BEFORE).
     field_linear Hdepth. }
+Qed.
+
+Lemma full_clean_finish : forall (w : Witness),
+  fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
+  w COL_IS_PROGRAM_ROW = 1 ->
+  w COL_ACTIVATION_FINISHED_AFTER = 1 -> w COL_TRAPPED_AFTER = 0 ->
+  w COL_HOST_EVENT_EXIT_LATCH = 1 /\
+  w COL_CALL_STACK_DEPTH_BEFORE = w COL_HOST_FRAME_DEPTH_BEFORE /\
+  w COL_OUTPUT_CAPTURED = w COL_SP_BEFORE - w COL_LOCALS_FBP_BEFORE - w COL_EXIT_SLIDE_DISTANCE /\
+  w COL_SP_AFTER = w COL_LOCALS_FBP_BEFORE.
+Proof.
+  intros w Hprime Hfull HmemoryBounds Hprogram Hfinish Htrap.
+  pose proof (proj1 Hfull) as Hone.
+  destruct (program_starts_active w Hprime Hfull Hprogram) as [Hfb [Htb Hclear]].
+  destruct (full_clean_finish_boundary w Hprime Hfull Hprogram Hfinish Htrap) as [Hexit Hdepth].
+  split; [exact Hexit|]. split; [exact Hdepth|].
   circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_TRAPPED_AFTER, -1);
     (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1)],
     [(COL_SP_BEFORE, 1); (COL_LOCALS_FBP_BEFORE, -1); (COL_EXIT_SLIDE_DISTANCE, -1); (COL_OUTPUT_CAPTURED, -1)],
@@ -61,8 +74,8 @@ Proof.
     by (apply (full_u32 w COL_SP_BEFORE Hprime Hfull); vm_compute; reflexivity).
   assert (Hfbp : 0 <= w COL_LOCALS_FBP_BEFORE < 4294967296)
     by (apply (full_u32 w COL_LOCALS_FBP_BEFORE Hprime Hfull); vm_compute; reflexivity).
-  assert (Hdist : 0 <= w COL_EXIT_SLIDE_DISTANCE < 4294967296)
-    by (apply (full_u32 w COL_EXIT_SLIDE_DISTANCE Hprime Hfull); vm_compute; reflexivity).
+  circuit_memory_range COL_EXIT_SLIDE_DISTANCE COL_HOST_EVENT_EXIT_LATCH Hdist.
+  normalize_columns.
   circuit_boolean COL_OUTPUT_CAPTURED Hcap.
   split; [field_linear Hcapture | ]. pose proof (value_bound w COL_SP_AFTER). field_linear Hsp.
 Qed.

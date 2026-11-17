@@ -1,7 +1,3 @@
-//! Builds one complete matrix window from row chunks that are counted and
-//! filled concurrently. It is used only when the complete requested range
-//! fits the workspace; the serial loader owns longest-prefix selection.
-
 use std::{mem::size_of, ops::ControlFlow, ops::Range};
 
 use neo_ccs::GeometricRowRun;

@@ -1,5 +1,3 @@
-//! Substitutes matrix-program ports into the saved Lean formula library.
-
 use std::{
     ops::{ControlFlow, Range},
     sync::OnceLock,

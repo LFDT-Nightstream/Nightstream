@@ -102,18 +102,14 @@ impl ApplicationBuilder {
         std::array::from_fn(|lane| Variable(self.generated_start - 4 + lane))
     }
 
-    /// The rows so far.
     pub(crate) fn row_count(&self) -> usize {
         self.records.row_count()
     }
 
-    /// The local variables so far.
     pub(crate) fn local_count(&self) -> usize {
         self.variable_count - self.generated_start
     }
 
-    /// Record that the next 1,096 locals are one permutation of `lanes`
-    /// (`poseidon2::permutation`).
     pub(super) fn begin_block(&mut self, lanes: &[Affine; 16]) {
         self.shape.blocks.push(NativeBlock {
             first_local: self.variable_count,
@@ -153,8 +149,6 @@ impl ApplicationBuilder {
     }
 
     fn generate(&mut self, a: Affine, b: Affine, recipe: Arc<Expression>) -> Result<Variable, ApplicationError> {
-        self.validate(&a, true)?;
-        self.validate(&b, true)?;
         let next = self
             .variable_count
             .checked_add(1)
@@ -179,8 +173,6 @@ impl ApplicationBuilder {
         self.constrain(a, b, c).map(|_| ())
     }
 
-    /// The row `a · b = c` as given, with no generated variable. A circuit
-    /// that mirrors a Lean lowering row by row uses it; it returns the row.
     pub(crate) fn constrain(&mut self, a: Affine, b: Affine, c: Affine) -> Result<usize, ApplicationError> {
         for form in [&a, &b, &c] {
             self.validate(form, false)?;
@@ -197,7 +189,6 @@ impl ApplicationBuilder {
         self.validate(&right, false)?;
         let left = left.flatten_if_nested_shared();
         let right = right.flatten_if_nested_shared();
-        // This direction preserves the existing Lean direct-recipe lowering.
         let (row, form) = if left.as_variable().is_some() {
             (
                 R1csRow {
@@ -265,8 +256,6 @@ impl ApplicationBuilder {
         self.into_circuit(output_rows)
     }
 
-    /// Finish when `rows` already bind the output state: row `rows[k]` is
-    /// `output_k · 1 = value`, the `equality_row` shape with the value on C.
     pub(crate) fn finish_with_output_rows(self, rows: [usize; 4]) -> Result<ApplicationCircuit, ApplicationError> {
         self.into_circuit(rows.map(|row| OutputRow {
             row,
@@ -315,14 +304,10 @@ impl ApplicationCircuit {
         Ok(forms)
     }
 
-    /// The row that binds each output state word.
     pub(crate) fn prepared_output_rows(&self) -> [usize; 4] {
         self.outputs.map(|output| output.row)
     }
 
-    /// The application of `records` with `private_count` witness words, its
-    /// output forms and rows (`prepared_output_forms`,
-    /// `prepared_output_rows`) and its shape.
     pub(crate) fn from_records(
         records: Arc<ApplicationRecords>,
         private_count: usize,
@@ -374,11 +359,9 @@ impl ApplicationCircuit {
         })
     }
 
-    /// Immutable original terms and recipe syntax, read with fallible visitors.
     pub(crate) fn records(&self) -> &Arc<ApplicationRecords> {
         &self.records
     }
-    /// The permutations that the step packages place as blocks, and the bits.
     pub(crate) fn shape(&self) -> &NativeShape {
         &self.shape
     }
@@ -492,7 +475,6 @@ impl ApplicationWitness {
     pub fn output_state(&self) -> [Fq; 4] {
         self.output_state
     }
-    /// The value of each recipe, in recipe order.
     pub(crate) fn locals(&self) -> &[Fq] {
         &self.values[self.generated_start..]
     }

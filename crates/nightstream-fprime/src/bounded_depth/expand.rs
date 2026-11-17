@@ -1,11 +1,4 @@
-//! A step package's plan rows (`CircuitRelation.plan`): one row for each row
-//! of `Package.relationRows`, then 150 S-box rows for each block, block-major.
-//! Native applications use the experimental `NativePower` rewrite.
-//! The source view retains the original application rows.
-//! A row has four port forms over the logical columns: A, B, C and the S-box
-//! input. An R1CS row fills A, B and C, and its constant reads column 0. A
-//! port reads, in place of an output local of a block, the local's form over
-//! the block's last 16 S-box columns (`CircuitRelation.outputForms`).
+//! Lean `CircuitRelation.plan`, `Package.relationRows`, `CircuitRelation.outputForms`.
 
 use std::collections::HashMap;
 use std::ops::Range;
@@ -21,13 +14,8 @@ use crate::package::{
 
 const PORTS: usize = 4;
 const BLOCK_LANES: usize = neo_ccs::crypto::poseidon2::WIDTH;
-/// The S-box rows of the last full round, whose outputs the output forms read.
-const FINAL_SBOX: usize = SBOX_ROWS - BLOCK_LANES;
+const LAST_FULL_ROUND_SBOX_START: usize = SBOX_ROWS - BLOCK_LANES;
 
-/// Plan rows in compressed sparse form: the entries of port `port` of row
-/// `row` are `offsets[4 * row + port]..offsets[4 * row + port + 1]`, in
-/// column order with one entry for each column. Zero coefficients are not
-/// stored.
 pub struct PlanRows {
     ordinary: usize,
     piece_ranges: Vec<Range<usize>>,
@@ -38,6 +26,12 @@ pub struct PlanRows {
 }
 
 impl PlanRows {
+    fn shrink_to_fit(&mut self) {
+        self.offsets.shrink_to_fit();
+        self.columns.shrink_to_fit();
+        self.coefficients.shrink_to_fit();
+    }
+
     pub fn piece_ranges(&self) -> &[Range<usize>] {
         &self.piece_ranges
     }
@@ -46,7 +40,6 @@ impl PlanRows {
         (self.offsets.len() - 1) / PORTS
     }
 
-    /// The source-piece rows before the native block S-box rows.
     pub fn ordinary_row_count(&self) -> usize {
         self.ordinary
     }
@@ -67,7 +60,6 @@ impl PlanRows {
         &self.coefficients
     }
 
-    /// The rows of each ring piece.
     pub fn ring_rows(&self) -> &[Range<usize>] {
         &self.rings
     }
@@ -83,7 +75,6 @@ impl PlanRows {
             })
     }
 
-    /// The row's constraint `A * B - C + S^7` on `columns`.
     pub fn residual(&self, row: usize, columns: &[Fq]) -> Fq {
         self.evaluate(row, 0, columns) * self.evaluate(row, 1, columns) - self.evaluate(row, 2, columns)
             + self.evaluate(row, 3, columns).exp_u64(SBOX_DEGREE)
@@ -98,8 +89,7 @@ impl PlanRows {
             .map(|(&column, &coefficient)| (column as usize, coefficient))
     }
 
-    /// Lean `Parity.summary`'s checksum of the relation rows: the sum over
-    /// every entry of its coefficient times `mix(4 * row + port, column)`.
+    /// Lean `Parity.summary`.
     pub fn ordinary_checksum(&self) -> u64 {
         let mut total = Fq::ZERO;
         for slot in 0..PORTS * self.ordinary {
@@ -119,15 +109,14 @@ pub(super) fn mix(unit: u64, column: u64) -> Fq {
 
 struct Builder {
     width: usize,
-    /// `CircuitRelation.outputForms`: the form of each output local.
+    /// Lean `CircuitRelation.outputForms`.
     forms: HashMap<usize, Entries>,
-    /// The entries of the port that is open.
     port: Entries,
     rows: PlanRows,
 }
 
 impl Builder {
-    /// Adds a term to the open port (`Substitute.term`).
+    /// Lean `Substitute.term`.
     fn push(&mut self, column: usize, coefficient: Fq) -> Result<(), PackageError> {
         if column >= self.width {
             return Err(PackageError::Malformed("bounded-depth plan column beyond the width"));
@@ -142,7 +131,6 @@ impl Builder {
         Ok(())
     }
 
-    /// Closes the open port: one entry for each column, in column order.
     fn end_port(&mut self) {
         self.port.sort_by_key(|&(column, _)| column);
         let mut entries = self.port.drain(..).peekable();
@@ -183,8 +171,7 @@ impl Builder {
         self.push_linear(input)
     }
 
-    /// `PieceRows.ringRows`: for each cell and each node,
-    /// `challenge * value = output - prior + (X^64 + 1) * quotient` at the node.
+    /// Lean `PieceRows.ringRows`.
     fn push_ring(&mut self, cells: usize, start: usize, quotient: usize, lanes: &[Linear]) -> Result<(), PackageError> {
         if lanes.len() != RING_DEGREE + 2 * RING_DEGREE * cells {
             return Err(PackageError::Malformed("bounded-depth ring lane count"));
@@ -233,7 +220,7 @@ impl StepPackage {
         for (index, block) in self.blocks().enumerate() {
             let sbox = self.sbox_start + index * SBOX_ROWS;
             let finals = (0..BLOCK_LANES)
-                .map(|lane| sbox + FINAL_SBOX + lane)
+                .map(|lane| sbox + LAST_FULL_ROUND_SBOX_START + lane)
                 .collect::<Vec<_>>();
             for (lane, form) in external_outputs(&finals, self.width)?
                 .into_iter()
@@ -264,52 +251,16 @@ impl StepPackage {
         Ok(forms)
     }
 
-    /// Expands the package into its circuit's plan rows
-    /// (`Package.relationRows`): the pieces' rows in order (a block
-    /// contributes none), then the blocks' S-box rows from the shared formula
-    /// library. Native applications use the experimental `NativePower`
-    /// rewrite. Each port substitutes native output and affine forms.
-    pub fn plan_rows(&self) -> Result<PlanRows, PackageError> {
+    /// Lean `Package.relationRows`.
+    pub(super) fn plan_rows(&self) -> Result<PlanRows, PackageError> {
         self.rows(true)
     }
 
-    /// The original source rows before the native rewrites, where
-    /// a port reads an output local itself.
     pub fn source_rows(&self) -> Result<PlanRows, PackageError> {
         self.rows(false)
     }
 
     fn rows(&self, with_forms: bool) -> Result<PlanRows, PackageError> {
-        if self.native.is_some() {
-            let Some(Piece::Rows(rows)) = self.pieces.first() else {
-                return Err(PackageError::Malformed("bounded-depth native application rows"));
-            };
-            self.packed_booleans
-                .validate(rows, self.sbox_start + SBOX_ROWS * self.block_count(), self.width)?;
-            self.guard_fusion.validate(self)?;
-            self.word_packing.validate(self)?;
-            let layout = self.layout()?;
-            for column in self
-                .packed_booleans
-                .products
-                .iter()
-                .flat_map(|product| [product.left, product.right, product.output])
-                .chain(
-                    self.packed_booleans
-                        .zeros
-                        .iter()
-                        .flat_map(|zero| [zero.left.column, zero.right.column]),
-                )
-                .chain(self.packed_booleans.start..self.packed_booleans.end())
-            {
-                if layout
-                    .slot(column)
-                    .is_none_or(|(_, kind)| kind != super::layout::Kind::Bit)
-                {
-                    return Err(PackageError::Malformed("bounded-depth packed product slot"));
-                }
-            }
-        }
         let mut blocks = Vec::new();
         for piece in &self.pieces {
             if let Piece::Block { start, lanes } = piece {
@@ -395,8 +346,6 @@ impl StepPackage {
         }
         builder.rows.ordinary = builder.rows.row_count();
         for (index, &(_, lanes)) in blocks.iter().enumerate() {
-            // A lane's entries pass through a port, so they carry the output
-            // forms with one entry for each column.
             let mut lane_forms: Vec<Entries> = Vec::with_capacity(BLOCK_LANES);
             for lane in lanes {
                 builder.push_linear(lane)?;
@@ -421,6 +370,7 @@ impl StepPackage {
                 Ok(())
             })?;
         }
+        builder.rows.shrink_to_fit();
         Ok(builder.rows)
     }
 }

@@ -1,8 +1,4 @@
-//! Lean's `Circuit.Expr` and its constraint lowering (`Layout/R1CS.lean`),
-//! case for case, so a Rust circuit has the rows of the Lean-proved one. The
-//! tree shape matters: a generic constraint allocates one fresh variable per
-//! `mul` node, constant factors included. An application writes its rows as
-//! `Expr` trees over a `View`. It does not own any row list.
+//! Lean `Circuit.Expr` and `Layout/R1CS.lean`.
 
 use std::{
     collections::BTreeSet,
@@ -29,7 +25,6 @@ impl Expr {
         Self::Const(F::from_u64(value))
     }
 
-    /// The first variable of the tree that is not in `scope`.
     pub(super) fn variable_outside(&self, scope: &BTreeSet<Variable>) -> Option<Variable> {
         match self {
             Self::Var(variable) => (!scope.contains(variable)).then_some(*variable),
@@ -71,7 +66,7 @@ impl Sub for Expr {
     }
 }
 
-/// `Circuit.Quadratic.KExpr`: an element of `F[X]/(X² − 7)`.
+/// `Circuit.Quadratic.KExpr`.
 #[derive(Clone, Debug)]
 pub(super) struct KExpr {
     pub(super) c0: Expr,
@@ -87,7 +82,7 @@ impl KExpr {
         Self { c0, c1 }
     }
 
-    /// `embedE x = (x, 0)`.
+    /// `embedE`.
     pub(super) fn embed(x: Expr) -> Self {
         Self::of(x, Expr::constant(0))
     }
@@ -103,7 +98,7 @@ impl KExpr {
         )
     }
 
-    /// `KExpr.equalities`: one zero row per coefficient.
+    /// `KExpr.equalities`.
     pub(super) fn equalities(self, rhs: Self) -> [Expr; 2] {
         [self.c0 - rhs.c0, self.c1 - rhs.c1]
     }
@@ -117,7 +112,7 @@ fn zero() -> Affine {
     Affine::constant(F::ZERO)
 }
 
-/// `lowerAffine`: commits to the first `mul` pattern that matches.
+/// `lowerAffine`.
 pub(super) fn lower_affine(expression: &Expr) -> Option<Affine> {
     match expression {
         Expr::Var(variable) => Some((*variable).into()),
@@ -133,7 +128,7 @@ pub(super) fn lower_affine(expression: &Expr) -> Option<Affine> {
 
 type Row = (Affine, Affine, Affine);
 
-/// `directRecipeRow`: an affine recipe, a product, or a product plus an affine rest.
+/// `directRecipeRow`.
 fn recipe_row(output: Variable, recipe: &Expr) -> Option<Row> {
     if let Some(lowered) = lower_affine(recipe) {
         return Some((lowered, one(), output.into()));
@@ -156,7 +151,7 @@ fn affine_row(expression: &Expr) -> Option<Row> {
     Some((lower_affine(expression)?, one(), zero()))
 }
 
-/// `rankOneConstraint`: `c − l · r` or `l · r` with affine parts.
+/// `rankOneConstraint`.
 pub(super) fn rank_one_row(expression: &Expr) -> Option<Row> {
     match expression {
         Expr::Add(constant, scaled) => match &**scaled {
@@ -173,8 +168,7 @@ pub(super) fn rank_one_row(expression: &Expr) -> Option<Row> {
     }
 }
 
-/// `directConstraint`: `v − recipe` as a recipe row, else an affine or
-/// rank-one row.
+/// `directConstraint`.
 fn direct_row(expression: &Expr) -> Option<Row> {
     if let Expr::Add(output, scaled) = expression {
         if let (Expr::Var(output), Expr::Mul(coefficient, recipe)) = (&**output, &**scaled) {
@@ -189,7 +183,7 @@ fn direct_row(expression: &Expr) -> Option<Row> {
     affine_row(expression).or_else(|| rank_one_row(expression))
 }
 
-/// `lowerExpression`: one fresh variable per `mul` node, left before right.
+/// `lowerExpression`.
 fn lower_expression(builder: &mut ApplicationBuilder, expression: &Expr) -> Result<Affine, ApplicationError> {
     Ok(match expression {
         Expr::Var(variable) => (*variable).into(),
@@ -206,7 +200,7 @@ fn lower_expression(builder: &mut ApplicationBuilder, expression: &Expr) -> Resu
     })
 }
 
-/// `lowerConstraint` for the zero assertion `expression = 0`; returns its last row.
+/// `lowerConstraint`.
 pub(super) fn lower_constraint(builder: &mut ApplicationBuilder, expression: &Expr) -> Result<usize, ApplicationError> {
     match direct_row(expression) {
         Some((a, b, c)) => builder.constrain(a, b, c),

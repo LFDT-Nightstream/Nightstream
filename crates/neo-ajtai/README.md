@@ -8,4 +8,4 @@ Ajtai commitments over `Rq`.
 - `setup`, `commit` and `PP`: a key that an RNG samples. Nothing in production calls them. The tests use
   them as the reference for the production key.
 
-The `testing` feature exposes `rot_step` to the tests that need it.
+The `testing` feature exposes `mul_by_x` to the tests that need it.

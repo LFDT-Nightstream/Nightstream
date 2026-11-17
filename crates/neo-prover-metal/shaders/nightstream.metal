@@ -3,16 +3,12 @@
 
 using namespace metal;
 
-// `build.rs` writes `profile.metal` from `neo-math`: FQ_MODULUS, RING_DEGREE
-// and KX_NON_RESIDUE.
-
-// 2^64 mod q.
-constant ulong FQ_FOLD = 0ul - FQ_MODULUS;
+constant ulong TWO_POW_64_MOD_Q = 0ul - FQ_MODULUS;
 constant ulong LIMB_MASK = 0xfffffffful;
 constant ulong RING_PRODUCT_COEFFICIENTS = 2 * RING_DEGREE - 1;
 constant ulong DEC_CHUNK_COLUMNS = 512;
 
-static_assert(FQ_FOLD < (1ul << 16), "fq_reduce_wide folds the high word two times");
+static_assert(TWO_POW_64_MOD_Q < (1ul << 16), "fq_reduce_wide folds the high word two times");
 static_assert(RING_DEGREE == 64, "a mask word holds one bit for each coefficient");
 
 struct WideProduct {
@@ -56,32 +52,21 @@ inline WideProduct mul_wide_32(ulong lhs, ulong rhs) {
     return out;
 }
 
-// The field value of any 128-bit integer. 2^64 = FQ_FOLD in the field, so
-// hi * 2^64 + lo folds to hi * FQ_FOLD + lo, and the carry word of that sum
-// folds one more time.
 inline ulong fq_reduce_wide(WideProduct value) {
-    ulong low_part = (value.hi & LIMB_MASK) * FQ_FOLD;
-    ulong high_part = (value.hi >> 32) * FQ_FOLD + (low_part >> 32);
+    ulong low_part = (value.hi & LIMB_MASK) * TWO_POW_64_MOD_Q;
+    ulong high_part = (value.hi >> 32) * TWO_POW_64_MOD_Q + (low_part >> 32);
     ulong folded = value.lo + ((high_part << 32) | (low_part & LIMB_MASK));
-    // At most FQ_FOLD: the high word of hi * FQ_FOLD is below FQ_FOLD.
     ulong top = (high_part >> 32) + (folded < value.lo);
-    ulong reduced = folded + top * FQ_FOLD;
-    // After a carry, `reduced` is below FQ_FOLD^2, and the dropped 2^64 adds FQ_FOLD.
-    return reduced < folded || reduced >= FQ_MODULUS ? reduced + FQ_FOLD : reduced;
+    ulong reduced = folded + top * TWO_POW_64_MOD_Q;
+    return reduced < folded || reduced >= FQ_MODULUS ? reduced + TWO_POW_64_MOD_Q : reduced;
 }
 
 inline ulong fq_mul(ulong lhs, ulong rhs) {
     return fq_reduce_wide(mul_wide_32(lhs, rhs));
 }
 
-// The most terms that one `ProductSum` holds: a term adds less than
-// 3 * 2^32 to a column.
-constant ulong PRODUCT_SUM_TERMS = ~0ul / (3 * LIMB_MASK);
+constant ulong PRODUCT_SUM_MAX_TERMS = ~0ul / (3 * LIMB_MASK);
 
-// A sum of full products of 64-bit words. The four columns hold the 32-bit
-// limbs of the products at the weights 1, 2^32, 2^64 and 2^96, and no add
-// needs a carry. The sum is exact for PRODUCT_SUM_TERMS terms, and it
-// reduces one time.
 struct ProductSum {
     ulong c0;
     ulong c1;
@@ -104,18 +89,15 @@ inline void product_sum_add(thread ProductSum &sum, ulong lhs, ulong rhs) {
     sum.c3 += p11 >> 32;
 }
 
-// The columns join to a 192-bit integer; 2^128 = FQ_FOLD^2 in the field.
 inline ulong product_sum_reduce(ProductSum sum) {
     ulong lo = sum.c0 + (sum.c1 << 32);
     ulong carried = (sum.c1 >> 32) + (lo < sum.c0);
     ulong middle = carried + sum.c2;
     ulong hi = middle + (sum.c3 << 32);
     ulong top = (sum.c3 >> 32) + (middle < carried) + (hi < middle);
-    return fq_add(fq_reduce_wide(WideProduct{lo, hi}), fq_mul(top, FQ_FOLD * FQ_FOLD));
+    return fq_add(fq_reduce_wide(WideProduct{lo, hi}), fq_mul(top, TWO_POW_64_MOD_Q * TWO_POW_64_MOD_Q));
 }
 
-// A sum of 64-bit words as the sums of their 32-bit halves, so no add needs
-// a carry. Each half is below 2^32, so the sum is exact for 2^32 terms.
 struct HalfSums {
     ulong lo;
     ulong hi;
@@ -131,7 +113,6 @@ inline ulong half_sums_reduce(HalfSums sum) {
     return fq_reduce_wide(WideProduct{low, (sum.hi >> 32) + (low < sum.lo)});
 }
 
-// Quadratic extension layout is interleaved c0, c1 with u^2 = KX_NON_RESIDUE.
 struct Kx {
     ulong c0;
     ulong c1;
@@ -162,8 +143,6 @@ inline Kx kx_mul(Kx lhs, Kx rhs) {
     return Kx{c0, c1};
 }
 
-// A 128-bit sum of products of a 64-bit word and a 32-bit scale. Each term
-// is below 2^96, so the sum is exact for 2^32 terms.
 inline WideProduct wide_sum_add_small(WideProduct sum, ulong value, uint scale) {
     ulong low_product = (value & LIMB_MASK) * scale;
     ulong high_product = (value >> 32) * scale;
@@ -323,7 +302,6 @@ inline void accumulate_signed_mask_rhos(
     }
 }
 
-// Signed masks are planar: the positive columns, then the negative columns, of each input.
 kernel void rlc_witness_mix_signed_masks(
     device const char *rhos [[buffer(0)]],
     device const ulong *masks [[buffer(1)]],

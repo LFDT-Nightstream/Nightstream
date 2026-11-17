@@ -1,5 +1,3 @@
-//! Independent prover for the one-joint padded-row paper protocol.
-
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{F, K};

@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-# Deep memory profiling with multiple snapshots over time
-# Captures heap state at multiple points during test execution
-#
-# Usage: ./scripts/profile_memory_deep.sh <package> <test_file> <test_function> [--ignored]
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"

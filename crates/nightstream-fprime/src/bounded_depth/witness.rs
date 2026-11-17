@@ -1,6 +1,4 @@
-//! A step package's witness program (`StepPackage.Package`): from the shared
-//! columns, the circuit's locals in column order (the witness batches and the
-//! native ranges), then the fresh columns of the relation piece by piece.
+//! Lean `StepPackage.Package`.
 
 use neo_ccs::crypto::poseidon2::{permute_state, SBOX_DEGREE};
 use neo_math::Fq;
@@ -11,7 +9,6 @@ use super::{Linear, Piece, StepPackage};
 use crate::package::{PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, RING_DEGREE};
 use crate::witness::{execute_witness_batch, WitnessBatch};
 
-/// Something that fills columns from `start` in column order.
 enum Step<'a> {
     Batch(&'a WitnessBatch),
     Block {
@@ -43,7 +40,6 @@ fn evaluate(linear: &Linear, columns: &[Fq]) -> Fq {
         })
 }
 
-/// The schoolbook product of two ring elements, all `2 * RING_DEGREE - 1` coefficients.
 fn product(left: &[Fq], right: &[Fq]) -> Vec<Fq> {
     let mut full = vec![Fq::ZERO; 2 * RING_DEGREE - 1];
     for (i, &a) in left.iter().enumerate() {
@@ -54,9 +50,8 @@ fn product(left: &[Fq], right: &[Fq]) -> Vec<Fq> {
     full
 }
 
-/// Divides by `X^64 + 1`: the quotient and the remainder. The quotient is
-/// the high half of `full`, and its last lane is 0 (`QuotientProduct.quotient_last_zero`).
-fn divide(mut full: Vec<Fq>) -> (Vec<Fq>, Vec<Fq>) {
+/// Lean `QuotientProduct.quotient_last_zero`.
+fn divide_by_ring_modulus(mut full: Vec<Fq>) -> (Vec<Fq>, Vec<Fq>) {
     let mut quotient = full.split_off(RING_DEGREE);
     for (low, &high) in full.iter_mut().zip(&quotient) {
         *low -= high;
@@ -65,7 +60,6 @@ fn divide(mut full: Vec<Fq>) -> (Vec<Fq>, Vec<Fq>) {
     (quotient, full)
 }
 
-/// A ring piece's challenge, value and prior of `cell`, as lane values.
 fn ring_operands(cells: usize, cell: usize, lanes: &[Linear], columns: &[Fq]) -> [Vec<Fq>; 3] {
     let lane = |index: usize| evaluate(&lanes[index], columns);
     [
@@ -79,33 +73,30 @@ fn ring_operands(cells: usize, cell: usize, lanes: &[Linear], columns: &[Fq]) ->
     ]
 }
 
-impl StepPackage {
+impl super::ExpandedPackage {
     pub fn source_assignment(&self, logical: &[Fq]) -> Result<Vec<Fq>, PackageError> {
         if logical.first() != Some(&Fq::ONE) {
             return Err(PackageError::Input("bounded-depth constant column"));
         }
-        let mut columns = self.layout()?.source_assignment(logical)?;
-        columns.resize(self.source_end(), Fq::ZERO);
-        for (output, form) in self.output_forms()? {
+        let package = &self.package;
+        let mut columns = self.layout.source_assignment(logical)?;
+        columns.resize(package.source_end(), Fq::ZERO);
+        for (output, form) in package.output_forms()? {
             columns[output] = form.iter().fold(Fq::ZERO, |sum, &(column, coefficient)| {
                 sum + coefficient * columns[column]
             });
         }
-        self.field_lowering.reconstruct(&mut columns)?;
+        package.field_lowering.reconstruct(&mut columns)?;
         Ok(columns)
     }
+}
 
-    /// The circuit's columns below `first_fresh` from `shared`, the columns
-    /// below the first local: column 0 is the constant 1. A block's 1,080 dead
-    /// locals stay 0, because no row reads them (`Frame.Framed`).
+impl StepPackage {
+    /// Lean `Frame.Framed`.
     pub fn circuit_columns(&self, shared: &[Fq]) -> Result<Vec<Fq>, PackageError> {
         self.circuit_columns_with(shared, None)
     }
 
-    /// `circuit_columns` with the native application's locals from the
-    /// caller, in recipe order, when the caller has them from the
-    /// application's execution. The relation's rows check them like every
-    /// other column.
     pub fn circuit_columns_with(&self, shared: &[Fq], locals: Option<&[Fq]>) -> Result<Vec<Fq>, PackageError> {
         if shared.first() != Some(&Fq::ONE) || shared.len() > self.first_fresh {
             return Err(PackageError::Input("bounded-depth shared columns"));
@@ -126,7 +117,7 @@ impl StepPackage {
                 None => self.fill_application(records, &mut columns)?,
             }
             for block in self.blocks() {
-                columns[block.start()..block.outputs()].fill(Fq::ZERO);
+                columns[block.start()..block.first_output()].fill(Fq::ZERO);
             }
         }
         let mut steps: Vec<_> = self.witness.iter().map(Step::Batch).collect();
@@ -160,7 +151,7 @@ impl StepPackage {
                 Step::Ring { cells, start, lanes } => {
                     for cell in 0..*cells {
                         let [challenge, value, prior] = ring_operands(*cells, cell, lanes, &columns);
-                        let (_, remainder) = divide(product(&challenge, &value));
+                        let (_, remainder) = divide_by_ring_modulus(product(&challenge, &value));
                         for lane in 0..RING_DEGREE {
                             columns[start + lane * cells + cell] = prior[lane] + remainder[lane];
                         }
@@ -171,13 +162,7 @@ impl StepPackage {
         Ok(columns)
     }
 
-    /// Extends the circuit's columns with the relation's fresh columns: each
-    /// block's S-box outputs from `rows`, then each lowering column `f` from
-    /// its row `a * b = f` and each ring piece's quotients. The S-box columns
-    /// come first, because a row can read the form of a block output, which
-    /// is over S-box columns. A block's lanes read only circuit columns and
-    /// outputs of blocks before it. Finally, fill the companions, parity
-    /// pairs and zero-product sums (`SPEC.md` sections 7.9 and 7.10).
+    /// `SPEC.md` sections 7.9 and 7.10.
     pub fn relation_columns(&self, mut columns: Vec<Fq>, rows: &PlanRows) -> Result<Vec<Fq>, PackageError> {
         let width = self.source_end();
         columns.resize(width, Fq::ZERO);
@@ -211,7 +196,7 @@ impl StepPackage {
                     }
                     for cell in 0..*cells {
                         let [challenge, value, _] = ring_operands(*cells, cell, lanes, &columns);
-                        let (coefficients, _) = divide(product(&challenge, &value));
+                        let (coefficients, _) = divide_by_ring_modulus(product(&challenge, &value));
                         let target = quotient + cell * RING_DEGREE;
                         columns[target..target + RING_DEGREE].copy_from_slice(&coefficients);
                     }
@@ -241,12 +226,11 @@ impl StepPackage {
 }
 
 impl StepPackage {
-    /// Lean `Parity.witnessSum`: each live column below `first_fresh` times
-    /// `mix(0, column)`; a block's 1,080 dead locals are left out.
+    /// Lean `Parity.witnessSum`.
     pub fn witness_checksum(&self, columns: &[Fq]) -> u64 {
         let mut dead = vec![false; self.first_fresh];
         for block in self.blocks() {
-            dead[block.start()..block.outputs()].fill(true);
+            dead[block.start()..block.first_output()].fill(true);
         }
         columns[..self.first_fresh]
             .iter()

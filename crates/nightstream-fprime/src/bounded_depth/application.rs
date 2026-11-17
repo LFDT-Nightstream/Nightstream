@@ -1,14 +1,5 @@
-//! A native application in place of a step package's own
-//! (`StepPackage.Package.application`). The application is each step
-//! circuit's first child, so its region leads every column range: its witness
-//! words in the shared words, its locals from the first local, its pieces from
-//! the first piece, its fresh columns from `first_fresh` and its blocks' S-box
-//! outputs from `sbox_start`. Substitution drops the region, moves every later
-//! column, and puts the application's rows first. Its variables are the
-//! step's current state, its witness words, its next state and one local per
-//! recipe (`ApplicationCircuit`'s variable order).
+//! Lean `StepPackage.Package.application`.
 
-use std::ops::ControlFlow;
 use std::sync::Arc;
 
 use neo_ccs::crypto::poseidon2;
@@ -17,11 +8,10 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::packed_boolean::PackedBooleans;
 use super::{BoundedDepthPackages, Linear, Piece, Region, Row, StepPackage};
-use crate::application_records::ApplicationRecords;
+use crate::application_records::{ApplicationRecords, ApplicationWalk};
 use crate::package::{PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, PUBLIC_WORDS, RING_DEGREE, SBOX_ROWS as SBOX_COLUMNS};
 
-/// The shared words before the states: the encoded digest, the five counter
-/// words and the two key digests (`StepWords::columns`).
+const STATE_WORDS: usize = 4;
 const STATES_START: usize = PUBLIC_WORDS + 5 + 8;
 pub(super) const WITNESS_START: usize = STATES_START + 12;
 const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/application/combined-native-experiment/v1";
@@ -107,16 +97,12 @@ fn map_piece(piece: &Piece, map: &impl Fn(usize) -> Option<usize>) -> Option<Pie
     })
 }
 
-/// What a native application places natively: its Poseidon2 blocks, over
-/// the application's variables.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct NativeShape {
     pub blocks: Vec<NativeBlock>,
 }
 
-/// One permutation as a block (`PackagePiece.block`): its 1,096 locals from
-/// variable `first_local` in the order of `Gadgets/Poseidon2/Permutation.lean`,
-/// the last 16 its output, and its input lanes.
+/// Lean `PackagePiece.block`, with locals in the order of `Gadgets/Poseidon2/Permutation.lean`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NativeBlock {
     pub first_local: usize,
@@ -124,8 +110,6 @@ pub struct NativeBlock {
 }
 
 impl StepPackage {
-    /// The column of application variable `variable` under this package's
-    /// region.
     fn variable_column(&self, variable: usize) -> Result<usize, PackageError> {
         let Region {
             witness_words,
@@ -134,17 +118,17 @@ impl StepPackage {
             ..
         } = self.application;
         let column = match variable {
-            v if v < 4 => STATES_START + 4 + v,
-            v if v < 4 + witness_words => WITNESS_START + v - 4,
-            v if v < 8 + witness_words => STATES_START + 8 + v - 4 - witness_words,
-            v if v < 8 + witness_words + locals => local_start + v - 8 - witness_words,
+            v if v < STATE_WORDS => STATES_START + STATE_WORDS + v,
+            v if v < STATE_WORDS + witness_words => WITNESS_START + v - STATE_WORDS,
+            v if v < 2 * STATE_WORDS + witness_words => {
+                STATES_START + 2 * STATE_WORDS + v - STATE_WORDS - witness_words
+            }
+            v if v < 2 * STATE_WORDS + witness_words + locals => local_start + v - 2 * STATE_WORDS - witness_words,
             _ => return Err(PackageError::Input("application variable outside its region")),
         };
         Ok(column)
     }
 
-    /// Fills the native application's locals in recipe order: each is the
-    /// product of its recipe row's A and B sides (`ApplicationCircuit::execute`).
     pub(super) fn fill_application(
         &self,
         records: &ApplicationRecords,
@@ -161,13 +145,7 @@ impl StepPackage {
         Ok(())
     }
 
-    /// This package with `records` in place of its application and `shape`'s
-    /// blocks in place of their rows. The pieces and witness batches outside
-    /// the region keep their order; a dropped piece may read only the shared
-    /// words and the region, and a kept piece or batch may not read the
-    /// region. The application's blocks lead the S-box columns. The slots
-    /// keep the existing read coverage and the checked Boolean closure
-    /// (`Export.Generic.BooleanInference.derived_valid`).
+    /// Lean `Export.Generic.BooleanInference.derived_valid`.
     fn with_application(
         &self,
         records: &Arc<ApplicationRecords>,
@@ -215,6 +193,9 @@ impl StepPackage {
             ));
         }
         let mut package = Self {
+            circuit: self.circuit,
+            public_columns: self.public_columns,
+            width: self.width,
             first_fresh: moved(self.first_fresh, locals).ok_or(PackageError::Malformed("bounded-depth columns"))?,
             sbox_start: moved(self.sbox_start, fresh).ok_or(PackageError::Malformed("bounded-depth columns"))?,
             application: Region {
@@ -232,7 +213,6 @@ impl StepPackage {
             pieces: Vec::new(),
             witness: Vec::new(),
             slots: Vec::new(),
-            ..self.clone()
         };
         let mut pieces = package.native_pieces(records, shape)?;
         for piece in &self.pieces[old.pieces..] {
@@ -251,26 +231,60 @@ impl StepPackage {
                 ))
             })
             .collect::<Result<_, _>>()?;
-        package.slots = package.native_slots()?;
+        let (bits, forced) = package.slot_facts()?;
+        package.slots = package.rule_slots(&bits, &forced);
         package.pack_native_booleans()?;
+        let (packed_bits, packed_forced) = package.slot_facts()?;
+        package.slots = package.rule_slots(&packed_bits, &packed_forced);
         package.field_lowering = super::field_lowering::FieldLowering::checked(&package)?;
-        package.slots = package.native_slots()?;
+        package.slots = package.rule_slots(&packed_bits, &packed_forced);
         package.guard_fusion = super::guard_fusion::GuardFusion::checked(&package)?;
         package.word_packing = super::word_packing::WordPacking::checked(&package)?;
+        package.check_packed_slots()?;
         Ok(package)
+    }
+
+    /// `SPEC.md` section 7.10, step 5.
+    fn check_packed_slots(&self) -> Result<(), PackageError> {
+        let layout = self.layout()?;
+        let packed = &self.packed_booleans;
+        let reads = packed
+            .products
+            .iter()
+            .flat_map(|product| [product.left, product.right, product.output])
+            .chain(
+                packed
+                    .zeros
+                    .iter()
+                    .flat_map(|zero| [zero.left.column, zero.right.column]),
+            )
+            .chain(packed.start..packed.end());
+        for column in reads {
+            if layout
+                .slot(column)
+                .is_none_or(|(_, kind)| kind != super::layout::Kind::Bit)
+            {
+                return Err(PackageError::Malformed("bounded-depth packed product slot"));
+            }
+        }
+        Ok(())
     }
 
     fn pack_native_booleans(&mut self) -> Result<(), PackageError> {
         let layout = self.layout()?;
         let region = self.application;
-        let blocks = self
+        let end = self
             .blocks()
-            .map(|block| block.start()..block.start() + BLOCK_LOCALS)
-            .collect::<Vec<_>>();
+            .map(|block| block.start() + BLOCK_LOCALS)
+            .max();
+        let mut in_block = vec![false; end.unwrap_or(0)];
+        for block in self.blocks() {
+            in_block[block.start()..block.start() + BLOCK_LOCALS].fill(true);
+        }
         let eligible = |column| {
             ((WITNESS_START..WITNESS_START + region.witness_words).contains(&column)
                 || (region.local_start..region.local_start + region.locals).contains(&column))
-                && !blocks.iter().any(|block| block.contains(&column))
+                && in_block.get(column) != Some(&true)
                 && layout
                     .slot(column)
                     .is_some_and(|(_, kind)| kind == super::layout::Kind::Bit)
@@ -281,20 +295,16 @@ impl StepPackage {
         };
         self.packed_booleans = PackedBooleans::lower(rows, start, self.width, eligible);
         self.packed_booleans.validate(rows, start, self.width)?;
-        self.slots = self.native_slots()?;
         Ok(())
     }
 
-    /// The application's pieces: one piece of every row outside the blocks,
-    /// then one block per permutation of `shape`. The blocks take ascending,
-    /// disjoint locals; a block drops the recipe rows of its locals; no kept
-    /// row and no lane reads a dead local (`Frame.Framed`), and a lane reads
-    /// only variables before its block.
+    /// Lean `Frame.Framed`.
     fn native_pieces(&self, records: &ApplicationRecords, shape: &NativeShape) -> Result<Vec<Piece>, PackageError> {
         let first = 8 + self.application.witness_words;
         let end = first + records.recipe_count();
         let mut dead = vec![false; end];
         let mut dropped = vec![false; records.row_count()];
+        let mut walk = records.walk();
         let mut free = first;
         let mut blocks = Vec::with_capacity(shape.blocks.len());
         for block in &shape.blocks {
@@ -322,7 +332,7 @@ impl StepPackage {
                 .collect::<Result<Vec<_>, _>>()?;
             for recipe in start - first..start - first + BLOCK_LOCALS {
                 let row = dropped
-                    .get_mut(records.recipe_row(recipe)?)
+                    .get_mut(walk.recipe_row(recipe)?)
                     .ok_or(PackageError::Malformed("bounded-depth native block row"))?;
                 if std::mem::replace(row, true) {
                     return Err(PackageError::Malformed("bounded-depth native block row in two blocks"));
@@ -335,7 +345,7 @@ impl StepPackage {
             });
             free = start + BLOCK_LOCALS;
         }
-        let rows = self.application_rows(records, &dropped, &dead)?;
+        let rows = self.application_rows(&mut walk, &dropped, &dead)?;
         Ok(std::iter::once(Piece::Rows(rows)).chain(blocks).collect())
     }
 
@@ -350,59 +360,59 @@ impl StepPackage {
         })
     }
 
-    /// The application's rows outside the blocks over the step's columns.
     fn application_rows(
         &self,
-        records: &ApplicationRecords,
+        walk: &mut ApplicationWalk<'_>,
         dropped: &[bool],
         dead: &[bool],
     ) -> Result<Vec<Row>, PackageError> {
-        (0..records.row_count())
-            .filter(|&row| !dropped[row])
-            .map(|row| {
-                let header = records.row_header(row)?;
-                let mut sides = header.constants.map(|constant| Linear {
-                    constant: Fq::from_u64(constant),
-                    terms: Vec::new(),
-                });
-                let _: ControlFlow<()> = records.visit_terms(row, |term| {
-                    if dead.get(term.variable) == Some(&true) {
-                        return Err(PackageError::Malformed(
-                            "bounded-depth application row reads a dead local",
-                        ));
-                    }
-                    sides[term.form.index()]
-                        .terms
-                        .push((self.variable_column(term.variable)?, Fq::from_u64(term.coefficient)));
-                    Ok(ControlFlow::Continue(()))
-                })?;
-                let [a, b, c] = sides;
-                Ok(Row { a, b, c })
-            })
-            .collect()
+        let mut rows = Vec::with_capacity(dropped.iter().filter(|&&dropped| !dropped).count());
+        let mut terms = Vec::new();
+        for row in (0..dropped.len()).filter(|&row| !dropped[row]) {
+            let header = walk.row(row, &mut terms)?;
+            let mut sides = [0, 1, 2].map(|form| Linear {
+                constant: Fq::from_u64(header.constants[form]),
+                terms: Vec::with_capacity(header.term_counts[form]),
+            });
+            for term in &terms {
+                if dead.get(term.variable) == Some(&true) {
+                    return Err(PackageError::Malformed(
+                        "bounded-depth application row reads a dead local",
+                    ));
+                }
+                sides[term.form.index()]
+                    .terms
+                    .push((self.variable_column(term.variable)?, Fq::from_u64(term.coefficient)));
+            }
+            let [a, b, c] = sides;
+            rows.push(Row { a, b, c });
+        }
+        Ok(rows)
     }
 
-    fn native_slots(&self) -> Result<Vec<(usize, usize, u8)>, PackageError> {
+    /// `SPEC.md` section 7.9, step 5.
+    fn slot_facts(&self) -> Result<(Vec<usize>, Vec<usize>), PackageError> {
         let region = self.application;
-        let dead: Vec<_> = self
+        let end = self
             .blocks()
             .take(region.pieces - 1)
-            .map(|block| block.start()..block.outputs())
-            .collect();
+            .map(|block| block.first_output())
+            .max();
+        let mut dead = vec![false; end.unwrap_or(0)];
+        for block in self.blocks().take(region.pieces - 1) {
+            dead[block.start()..block.first_output()].fill(true);
+        }
+        let live = |column: &usize| dead.get(*column) != Some(&true);
         let mut bits = self.bit_columns();
         bits.extend(WITNESS_START..WITNESS_START + region.witness_words);
-        bits.extend(
-            (region.local_start..region.local_start + region.locals)
-                .filter(|column| !dead.iter().any(|locals| locals.contains(column))),
-        );
+        bits.extend((region.local_start..region.local_start + region.locals).filter(live));
         bits.extend(self.packed_booleans.start..self.packed_booleans.end());
         let mut eligible = vec![false; self.source_end()];
         for column in (WITNESS_START..WITNESS_START + region.witness_words)
             .chain(region.local_start..region.local_start + region.locals)
+            .filter(live)
         {
-            if !dead.iter().any(|locals| locals.contains(&column)) {
-                eligible[column] = true;
-            }
+            eligible[column] = true;
         }
         let seeds = self
             .packed_booleans
@@ -418,18 +428,11 @@ impl StepPackage {
             _ => Vec::new(),
         };
         inferred.extend(seeds);
-        Ok(if inferred.is_empty() {
-            self.rule_slots(&bits)
-        } else {
-            self.rule_slots_with_inferred(&bits, &inferred)
-        })
+        Ok((bits, inferred))
     }
 }
 
-/// The words of the application identity before the layouts: the tag, the
-/// packages' identity, the witness word count, the rows, the row of each
-/// recipe and the shape (Lean
-/// `Lifecycle.BoundedDepth.ApplicationIdentity.Application.words`).
+/// Lean `Lifecycle.BoundedDepth.ApplicationIdentity.Application.words`.
 fn record_words(
     identity: [u64; 4],
     records: &ApplicationRecords,
@@ -443,21 +446,22 @@ fn record_words(
     identity.into_iter().for_each(&mut *update);
     update(witness_words as u64);
     update(records.row_count() as u64);
+    let mut walk = records.walk();
+    let mut terms = Vec::new();
     for row in 0..records.row_count() {
-        let header = records.row_header(row)?;
+        let header = walk.row(row, &mut terms)?;
         for form in 0..3 {
             update(header.constants[form]);
             update(header.term_counts[form] as u64);
         }
-        let _: ControlFlow<()> = records.visit_terms(row, |term| {
+        for term in &terms {
             update(term.variable as u64);
             update(term.coefficient);
-            Ok(ControlFlow::Continue(()))
-        })?;
+        }
     }
     update(records.recipe_count() as u64);
     for recipe in 0..records.recipe_count() {
-        update(records.recipe_row(recipe)? as u64);
+        update(walk.recipe_row(recipe)? as u64);
     }
     update(shape.blocks.len() as u64);
     for block in &shape.blocks {
@@ -474,9 +478,7 @@ fn record_words(
     Ok(())
 }
 
-/// The words of the application identity for one package with the
-/// application (Lean `Lifecycle.BoundedDepth.ApplicationIdentity.Layout.words`).
-/// The first piece of such a package is its rows piece (`native_pieces`).
+/// Lean `Lifecycle.BoundedDepth.ApplicationIdentity.Layout.words`.
 fn layout_words(package: &StepPackage, update: &mut impl FnMut(u64)) -> Result<(), PackageError> {
     let Some(Piece::Rows(rows)) = package.pieces.first() else {
         return Err(PackageError::Malformed("bounded-depth native application rows"));
@@ -520,29 +522,30 @@ fn layout_words(package: &StepPackage, update: &mut impl FnMut(u64)) -> Result<(
 }
 
 impl BoundedDepthPackages {
-    /// Both step packages with the application, after `update` took each
-    /// word of the application identity.
     fn substitute(
         &self,
         records: &Arc<ApplicationRecords>,
         witness_words: usize,
         shape: &NativeShape,
-        update: &mut impl FnMut(u64),
+        update: &mut (impl FnMut(u64) + Send),
     ) -> Result<[StepPackage; 2], PackageError> {
-        record_words(self.identity, records, witness_words, shape, update)?;
-        let packages = [
-            self.light.with_application(records, witness_words, shape)?,
-            self.refresh
-                .with_application(records, witness_words, shape)?,
-        ];
+        let (words, (light, refresh)) = rayon::join(
+            || record_words(self.identity, records, witness_words, shape, update),
+            || {
+                rayon::join(
+                    || self.light.with_application(records, witness_words, shape),
+                    || self.refresh.with_application(records, witness_words, shape),
+                )
+            },
+        );
+        words?;
+        let packages = [light?, refresh?];
         for package in &packages {
             layout_words(package, update)?;
         }
         Ok(packages)
     }
 
-    /// The words of the identity of `with_application`, for the tests that
-    /// compare them with Lean.
     pub fn application_identity_words(
         &self,
         records: &Arc<ApplicationRecords>,
@@ -554,14 +557,7 @@ impl BoundedDepthPackages {
         Ok(words)
     }
 
-    /// Both packages with a native application in place of Lean's. The
-    /// identity binds the packages' identity, the witness word count, the
-    /// application's rows and recipe rows, the shape, and the realized light
-    /// and refresh companion, product, zero-product, guard, word equality, and slot maps.
-    /// Power and affine maps derive from these inputs (`Export.Generic.NativePower`).
-    /// It is the Poseidon2 hash of one field element for each word, and no
-    /// word is at or above `q` (Lean
-    /// `Lifecycle.BoundedDepth.ApplicationIdentity.Application.Canonical`).
+    /// Lean `Lifecycle.BoundedDepth.ApplicationIdentity.Application.Canonical`, `Export.Generic.NativePower`.
     pub fn with_application(
         &self,
         records: Arc<ApplicationRecords>,

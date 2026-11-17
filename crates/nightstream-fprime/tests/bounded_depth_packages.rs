@@ -1,8 +1,3 @@
-//! The bounded-depth step packages expand into the plan rows that Lean describes:
-//! the relation rows match Lean's parity file, the S-box rows and the output
-//! forms compute Rust's native Poseidon2 permutation, and the identity uses
-//! Lean's identity encoding.
-
 use std::fs;
 use std::path::PathBuf;
 
@@ -77,7 +72,8 @@ fn relation_rows_match_the_lean_checksum() {
         let [ordinary, sbox, checksum, _, _, _, _, _] = words(summary)[..] else {
             panic!("a summary has eight words");
         };
-        let rows = package.plan_rows().expect("plan rows");
+        let expanded = package.clone().expand().expect("expanded package");
+        let rows = expanded.rows();
         let circuit = package.circuit();
         assert_eq!(
             rows.ordinary_row_count() as u64,
@@ -111,8 +107,8 @@ fn mix(unit: u64, column: u64) -> Fq {
 /// (Lean `RowsParity.columnWeight`), and port `4 · row + matrix` has the
 /// weight `mix(4 · row + matrix, 1)`.
 fn dense_rows(package: &StepPackage) -> [u64; 4] {
-    let rows = package.plan_rows().expect("plan rows");
-    let layout = package.layout().expect("layout");
+    let expanded = package.clone().expand().expect("expanded package");
+    let (rows, layout) = (expanded.rows(), expanded.layout());
     let spans = layout.spans();
     let column_weight: Vec<Fq> = spans
         .starts
@@ -205,14 +201,9 @@ fn step_packages_fit_their_capacity() {
                 package.sbox_start() + 150 * package.block_count() <= package.width(),
                 "S-box columns of {name}"
             );
-            assert!(
-                package.plan_rows().expect("plan rows").row_count() <= 1 << 28,
-                "rows of {name}"
-            );
-            assert!(
-                package.layout().expect("layout").width() <= 1 << 26,
-                "logical width of {name}"
-            );
+            let expanded = package.clone().expand().expect("expanded package");
+            assert!(expanded.rows().row_count() <= 1 << 28, "rows of {name}");
+            assert!(expanded.layout().width() <= 1 << 26, "logical width of {name}");
         }
     }
 }
@@ -229,15 +220,12 @@ fn loader_rejects_another_identity() {
     assert!(matches!(loaded, Err(PackageError::IdentityMismatch { .. })));
 }
 
-/// Each block's output locals take the native permutation of its lanes, block
-/// by block; the S-box rows fill the S-box columns. Every S-box row then
-/// holds, and each port of each row has the value of its port on the source
-/// columns, so each output form has the value of its output local.
 #[test]
 fn block_rows_compute_the_native_permutation() {
     let packages = packages();
     let light = packages.light();
-    let rows = light.plan_rows().expect("plan rows");
+    let expanded = light.clone().expand().expect("expanded package");
+    let rows = expanded.rows();
     let width = light.sbox_start() + 150 * light.block_count();
     let mut state = 0x9e37_79b9_7f4a_7c15u64;
     let mut assignment: Vec<Fq> = (0..width)
@@ -251,7 +239,7 @@ fn block_rows_compute_the_native_permutation() {
     assignment[0] = Fq::ONE;
     for block in light.blocks() {
         let lanes: [Fq; 16] = block.lane_values(&assignment).try_into().expect("16 lanes");
-        assignment[block.outputs()..block.outputs() + 16].copy_from_slice(&permute_state(lanes));
+        assignment[block.first_output()..block.first_output() + 16].copy_from_slice(&permute_state(lanes));
     }
     for row in rows.ordinary_row_count()..rows.row_count() {
         let [(column, coefficient)] = rows.port(row, 2).collect::<Vec<_>>()[..] else {
@@ -279,8 +267,6 @@ fn block_rows_compute_the_native_permutation() {
     assert!(with_form > 0, "some port reads an output form");
 }
 
-/// Rust's witness program and native ranges give the columns that Lean's
-/// recipes give, on the same shared columns.
 #[test]
 fn circuit_columns_match_the_lean_witness() {
     let fields = parity();
@@ -298,19 +284,18 @@ fn circuit_columns_match_the_lean_witness() {
     }
 }
 
-/// The fresh columns make every ring and S-box row hold, whatever the shared
-/// columns are.
 #[test]
 fn fresh_columns_satisfy_the_rows_that_define_them() {
     let fields = parity();
     let packages = packages();
     for (package, summary) in [(packages.light(), &fields[1]), (packages.refresh(), &fields[2])] {
-        let rows = package.plan_rows().expect("plan rows");
+        let expanded = package.clone().expand().expect("expanded package");
+        let rows = expanded.rows();
         let columns = package
             .circuit_columns(&shared_columns(summary))
             .expect("circuit columns");
         let columns = package
-            .relation_columns(columns, &rows)
+            .relation_columns(columns, rows)
             .expect("relation columns");
         let defining = rows.ring_rows().iter().cloned().chain([rows.sbox_rows()]);
         for row in defining.flatten() {
@@ -324,21 +309,18 @@ fn fresh_columns_satisfy_the_rows_that_define_them() {
     }
 }
 
-/// Rust's logical layout and digits give the logical assignment that Lean's
-/// slot layout gives; every digit is in {-1, 0, 1} and every slot
-/// recomposes to its source value.
 #[test]
 fn logical_assignment_matches_the_lean_layout() {
     let fields = parity();
     let packages = packages();
     for (package, summary) in [(packages.light(), &fields[1]), (packages.refresh(), &fields[2])] {
-        let layout = package.layout().expect("layout");
-        let rows = package.plan_rows().expect("plan rows");
+        let expanded = package.clone().expand().expect("expanded package");
+        let (rows, layout) = (expanded.rows(), expanded.layout());
         let columns = package
             .circuit_columns(&shared_columns(summary))
             .expect("circuit columns");
         let columns = package
-            .relation_columns(columns, &rows)
+            .relation_columns(columns, rows)
             .expect("relation columns");
         let logical = layout.assignment(&columns).expect("logical assignment");
         assert_eq!(

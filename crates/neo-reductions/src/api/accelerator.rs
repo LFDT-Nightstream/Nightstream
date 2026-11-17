@@ -1,5 +1,3 @@
-//! Narrow accelerator hooks that preserve the canonical reduction boundary.
-
 use super::*;
 
 pub fn rlc_with_commit_refs_and_resident_witness<MixWitness, Resident>(

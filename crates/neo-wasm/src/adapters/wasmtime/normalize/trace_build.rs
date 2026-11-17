@@ -1,13 +1,3 @@
-//! Assembly of normalized `NormalizedStep`s into proof-facing `WasmVmStep`
-//! rows.
-//!
-//! Owns the cross-row work: the running trace state machine (sp, fbp, call
-//! stack and local-init trackers), consistency checks between
-//! adjacent rows, and the synthesis of aux rows that do not exist in
-//! wasmtime's step stream — guest `LocalZero`/`FrameMove` and host-event gather
-//! rows. Per-row decoding lives in the parent
-//! `normalize` module; this module reads it only through `NormalizedStep`.
-
 mod frame_move;
 mod local_zero;
 mod reentry;
@@ -17,7 +7,7 @@ mod values;
 use self::frame_move::{emit_frame_move_rows, frame_slide};
 use self::local_zero::emit_local_zero_rows;
 use self::turn::{plan_turn_exit, setup_turn};
-use self::values::{call_indirect_traps, guest_callee_locals, table_index_oob, write_lane, write_lane_hi};
+use self::values::{call_indirect_traps, guest_callee_local_count, table_index_oob, write_lane, write_lane_hi};
 use super::super::import_inputs::recover_import_inputs;
 use super::super::runtime_read::{read_lane, read_lane_hi};
 use super::super::WasmtimeTraceStep;
@@ -27,17 +17,13 @@ use super::host_event_emit::{
 use super::memory::LinearMemoryImage;
 use super::{normalize_step, NormalizedStep};
 use crate::comm_chain::CommChainState;
-use crate::host_event_bindings::HostEventBindings;
+use crate::host_event_bindings::{biased_count, HostEventBindings};
 use crate::ir::{
     StackValueAccess, WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmFrameMoveState, WasmOutputState,
     WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
 use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
 
-/// Lays out one Wasmtime step: an indirect call becomes its resolve step, at the
-/// step's pc, and, unless that step traps, the invocation one pc later. The
-/// resolve step checks the table entry and leaves the checked function reference
-/// where the index was, which is what the invocation pops and calls.
 fn split_indirect_call(step: NormalizedStep, out: &mut Vec<NormalizedStep>) {
     if !matches!(step.opcode, WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect) {
         out.push(step);
@@ -96,9 +82,6 @@ pub(super) fn build_trace(
             split_indirect_call(normalized, &mut supported);
         }
     }
-    // Import-free callers get the canonical single-shot bindings: an empty
-    // boundary template for the invoked export, so nothing is absorbed and
-    // host imports have no template to prove against.
     let import_free_bindings;
     let (bindings, program) = match host_events {
         Some((bindings, program)) => (bindings, Some(program)),
@@ -114,32 +97,18 @@ pub(super) fn build_trace(
     let tracks_linear_memory = linear_memory.is_some();
     let mut linear_memory = linear_memory.unwrap_or_default();
     let mut out: Vec<WasmVmStep> = Vec::with_capacity(supported.len());
-    // Shared return-context stack. Guest calls push/pop normally; split
-    // imports reserve one entry until resume, below any reentrant guest frames.
     let mut call_stack: Vec<(u64, u64, u64)> = Vec::new();
     let mut call_stack_depth: u64 = 0;
     let mut suspended: Vec<reentry::Suspended<'_>> = vec![];
-    // Wasmtime snapshots the operand stack per frame, but the VM's `stack`
-    // memory is one global address space. Each frame's slots live above the
-    // caller's residual operands: global sp = stack_base + frame-local len.
+    // Wasmtime snapshots the operand stack per frame.
     let mut stack_base: u64 = 0;
-    // Frame base pointer: absolute offset in the flat locals array where current function's
-    // locals start. FBP_callee = FBP_caller + num_locals_caller.
     let mut fbp: u64 = 0;
     let mut frame_move_state = WasmFrameMoveState::ZERO;
     let mut local_zero_state = WasmCountdownState::ZERO;
-    // Callee attribution carry: set on host-call rows, preserved everywhere
-    // else (no clearing — see `WasmStepState::host_callee_fref`).
     let mut host_callee_fref: u32 = 0;
-    // Host-event commitment chain; each absorbed block folds it forward.
     let mut comm_chain = initial_comm_chain.canonical_u64();
-    // Host-event absorb machinery (block buffer and object context);
-    // carried across rows, mutated only by host-call events.
     let mut event_absorb = WasmEventAbsorbState::ZERO;
-    // Host-event gather state (schedule, args base, cursor).
     let mut host_event_state = crate::ir::WasmHostEventState::ZERO;
-    // The verifier mirrors the first turn's entry schedule in
-    // `host_event_top_level_initial_state`.
     let mut export_boundary = if let Some(first) = supported.first() {
         let setup = setup_turn(bindings, first, program, false, &mut linear_memory)?;
         host_event_state = crate::ir::WasmHostEventState {
@@ -153,8 +122,6 @@ pub(super) fn build_trace(
             slot_cursor: 0,
         };
         host_callee_fref = setup.fref;
-        // The first export's locals are already zero in the initial stack RAM.
-        // Reserve the whole frame; subsequent entries still zero reused cells.
         stack_base = u64::from(first.num_locals);
         if first.num_locals < u32::from(setup.param_count) {
             return Err(WasmBuildError::Trace("export has more parameters than locals".into()));
@@ -164,8 +131,7 @@ pub(super) fn build_trace(
         None
     };
     let mut entry_emitted = false;
-    // Activation completion latch; export entry or import resume clears it.
-    let mut turn_done = false;
+    let mut activation_finished_latch = false;
     let mut output_enabled = false;
     let mut output_value_lo = 0;
     let mut output_value_hi = 0;
@@ -173,12 +139,9 @@ pub(super) fn build_trace(
     for (idx, current) in supported.iter().enumerate() {
         let next = supported.get(idx + 1);
         let pc_before = u64::from(current.pc);
-        // A return-like edge with no caller ends the current export invocation.
         let turn_terminal =
             current.pc_edge_kind == WasmPcEdgeKind::ReturnLike && call_stack_depth == host_event_state.host_frame_depth;
         let activation_finished = next.is_none() || turn_terminal;
-        // Rows finishing an activation keep their one-past pc (terminal traps have no next
-        // row; a turn boundary bridges to the next turn's entry pc).
         let pc_after = if matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
             && !current.target_function_is_guest
         {
@@ -202,16 +165,10 @@ pub(super) fn build_trace(
         let expected_sp_after = sp_before
             .saturating_sub(u64::from(stack_reads))
             .saturating_add(u64::from(stack_writes));
-        // Guest call args are popped by aux rows, so derive call-row sp_after
-        // from this row's own arity instead of the next Wasmtime frame.
         let is_call_row = matches!(
             current.opcode,
             WasmOpcode::Call | WasmOpcode::CallIndirect | WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect
         );
-        // A non-final return continues in the caller frame, whose base is on
-        // the call stack (popped in the opcode match below). Only a function-
-        // ending `end` is return-like; structured block/loop `end` rows stay
-        // in the current frame.
         let is_return_row = matches!(current.opcode, WasmOpcode::Return | WasmOpcode::End)
             && current.pc_edge_kind == WasmPcEdgeKind::ReturnLike
             && call_stack_depth > host_event_state.host_frame_depth;
@@ -227,7 +184,6 @@ pub(super) fn build_trace(
             stack_base
         };
         let sp_after = if is_call_row || activation_finished {
-            // A later turn has a fresh stack, so terminal rows use their own arity.
             expected_sp_after
         } else {
             next.map(|row| next_row_base + row.operand_stack.len() as u64)
@@ -246,8 +202,6 @@ pub(super) fn build_trace(
         let (stack_read0, stack_read1, stack_read2) = (lane_read(0), lane_read(1), lane_read(2));
         let div_zero_trap = current.opcode.traps_on_zero_divisor()
             && stack_read1.is_some_and(|lane| lane.value_lo == 0 && lane.value_hi.unwrap_or(0) == 0);
-        // Signed division overflow: MIN / -1 for the op's width. The wide
-        // flag doubles as the width discriminant for the two div_s opcodes.
         let (min_lo, min_hi) = if current.wide_values_enabled {
             (0, 0x8000_0000)
         } else {
@@ -258,11 +212,10 @@ pub(super) fn build_trace(
             && stack_read0.is_some_and(|lane| lane.value_lo == min_lo && lane.value_hi.unwrap_or(0) == min_hi)
             && stack_read1.is_some_and(|lane| lane.value_lo == u32::MAX && lane.value_hi.unwrap_or(0) == neg1_hi);
         let div_trap = div_zero_trap || div_overflow_trap;
-        // Mirrors the CCS `mem_oob` comparison.
         let mem_oob = current.linear_memory.as_ref().is_some_and(|access| {
             let last_lane =
                 access.lane0.word_addr + u64::from(access.lane1.is_some()) + u64::from(access.lane2.is_some());
-            last_lane >= u64::from(current.memory_pages_before.unwrap_or(0)) * 16384
+            last_lane >= u64::from(current.memory_pages_before.unwrap_or(0)) * crate::preprocess::WASM_PAGE_LANES
         });
         let ci_trap = current.opcode == WasmOpcode::CallIndirectResolve
             && (table_index_oob(current.table_index, current.table_size)
@@ -270,7 +223,6 @@ pub(super) fn build_trace(
         let table_oob = matches!(current.opcode, WasmOpcode::TableGet | WasmOpcode::TableSet)
             && table_index_oob(current.table_index, current.table_size);
         let stack_write0 = if div_trap || mem_oob || ci_trap || (table_oob && current.opcode == WasmOpcode::TableGet) {
-            // No post-state result exists; CCS pins this synthetic write to zero.
             let addr = sp_after.saturating_sub(1).saturating_mul(2);
             let hi = current.wide_values_enabled.then_some(0);
             Some(StackValueAccess::new(addr, 0).with_optional_hi(hi))
@@ -278,8 +230,6 @@ pub(super) fn build_trace(
             let write_value_hi = write_lane_hi(current, next, stack_writes)?;
             write_lane(current, next, sp_after, stack_writes)?.map(|write| write.with_optional_hi(write_value_hi))
         };
-        // A trap is terminal: wasmtime stops stepping at the faulting
-        // instruction, so a trapping opcode can only be the last row.
         let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap || ci_trap || mem_oob || table_oob;
         if matches!(current.opcode, WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect)
             && !current.target_function_is_guest
@@ -383,14 +333,10 @@ pub(super) fn build_trace(
                 current.info.name, current.cycle
             )));
         }
-        // Div/rem traps keep the parse-derived Static edge; `trapped` marks termination.
         let output_enabled_before = output_enabled;
         let output_value_lo_before = output_value_lo;
         let output_value_hi_before = output_value_hi;
         let mut output_captured = false;
-        // A trapped execution has no output: capture is for clean activation returns only
-        // (the CCS enforces the same exclusion).
-        // A return's results are its frame above fbp less its static slide distance.
         let has_result = match current.frame_slide {
             Some((_, distance)) if current.pc_edge_kind == WasmPcEdgeKind::ReturnLike => {
                 let result_count = sp_before
@@ -417,17 +363,11 @@ pub(super) fn build_trace(
         let output_enabled_after = output_enabled;
         let output_value_lo_after = output_value_lo;
         let output_value_hi_after = output_value_hi;
-        // Model the host consuming a captured result. (Mutable: a host-event
-        // host call overrides this below to pop its args on the call row.)
         let mut sp_after = sp_after - u64::from(output_captured);
-        // A clean return also drops the finished activation's frame.
         if activation_finished && !trapped {
             sp_after = fbp;
         }
 
-        // local_read_value: the local's value before this step (local.get: pushed onto stack).
-        // local_write_value: the value being stored into the local (local.set / local.tee:
-        //   the top of operand stack at this step, captured before execution).
         let local_read_value = if matches!(current.opcode, WasmOpcode::LocalGet) {
             current.local_value_lo
         } else {
@@ -449,16 +389,11 @@ pub(super) fn build_trace(
             None
         };
 
-        // Frame tracking and call/return handling. A frame is
-        // `[params][declared locals][operands]` at fbp; `stack_base` is its
-        // operand base.
         let current_fbp = fbp;
         let current_stack_base = stack_base;
         let call_stack_depth_before = call_stack_depth;
         let call_stack_push;
         let call_stack_pop;
-        // Cells a return or tail call keeps, bottom-up, and the frame move
-        // that copies them down.
         let mut kept_cells: Vec<(u32, u32)> = vec![];
         let mut frame_move_after = WasmFrameMoveState::ZERO;
         let mut locals_to_zero = 0;
@@ -473,9 +408,6 @@ pub(super) fn build_trace(
             WasmOpcode::Call | WasmOpcode::CallIndirect => {
                 let return_pc = current.pc_after_instruction.unwrap_or(pc_after);
                 if !current.target_function_is_guest {
-                    // Imported/host callees do not produce guest core rows. In that case the next
-                    // guest row is already the post-call continuation, so there is no guest
-                    // call-stack boundary to model in this trace.
                     call_stack_push = None;
                     call_stack_pop = None;
                 } else {
@@ -485,9 +417,6 @@ pub(super) fn build_trace(
                             current.cycle
                         ))
                     })?;
-                    // Guest call rows pop only the checked function reference
-                    // (indirect) or nothing (direct); the args become the
-                    // callee's params.
                     let expected_stack_reads = u8::from(matches!(current.opcode, WasmOpcode::CallIndirect));
                     if stack_reads != expected_stack_reads {
                         return Err(WasmBuildError::Trace(format!(
@@ -503,7 +432,7 @@ pub(super) fn build_trace(
                                 current.cycle
                             ))
                         })?;
-                    let locals = guest_callee_locals(current, next, param_count)?;
+                    let locals = guest_callee_local_count(current, next, param_count)?;
                     call_stack_push = Some((return_pc, current_fbp, current_stack_base));
                     call_stack_pop = None;
                     call_stack.push((return_pc, current_fbp, current_stack_base));
@@ -529,8 +458,7 @@ pub(super) fn build_trace(
                         stack_reads, expected_stack_reads, current.cycle
                     )));
                 }
-                let locals = guest_callee_locals(current, next, param_count)?;
-                // The arguments replace the current frame at its base.
+                let locals = guest_callee_local_count(current, next, param_count)?;
                 let args_end = current.operand_stack.len() - usize::from(stack_reads);
                 let args_start = args_end
                     .checked_sub(usize::from(param_count))
@@ -553,9 +481,6 @@ pub(super) fn build_trace(
                 locals_to_zero = locals - u32::from(param_count);
             }
             WasmOpcode::Return | WasmOpcode::End if is_return_row => {
-                // Non-final return: the results move down to the callee's
-                // frame base, and the caller's frame comes back from the
-                // call stack.
                 let (ret_pc, caller_fbp, caller_base) = call_stack.pop().unwrap();
                 call_stack_push = None;
                 call_stack_pop = Some((ret_pc, caller_fbp, caller_base));
@@ -588,10 +513,6 @@ pub(super) fn build_trace(
             remaining: locals_to_zero,
         };
 
-        // Host calls enter host-arg mode and may owe a result push; the aux
-        // rows emitted below walk both back to zero before the next program
-        // row.
-        // Emit entry events before the turn's first program row.
         if !entry_emitted {
             entry_emitted = true;
             if let Some(setup) = &export_boundary {
@@ -610,7 +531,7 @@ pub(super) fn build_trace(
                     locals_fbp: current_fbp,
                     host_callee_fref,
                     current_function_ref: current.current_function_ref.unwrap_or(0),
-                    activation_finished: turn_done,
+                    activation_finished: activation_finished_latch,
                 };
                 if local_zero_state.active {
                     let state = out
@@ -714,8 +635,6 @@ pub(super) fn build_trace(
                     ))
                 })?,
             );
-            // Atomic calls release arguments now; split calls retain them
-            // below the unchanged SP until resume releases their cells.
             return_count = Some(template.return_schedule_count());
             if template.is_split() {
                 sp_after = sp_before - index_pops as u64;
@@ -742,7 +661,6 @@ pub(super) fn build_trace(
                 sp_after = args_base;
             }
         }
-        // The call row latches the event schedule and argument-region base.
         if let Some(plan) = &host_event_plan {
             host_event_state = crate::ir::WasmHostEventState {
                 turn_export_fref: host_event_state.turn_export_fref,
@@ -755,9 +673,6 @@ pub(super) fn build_trace(
                 slot_cursor: 0,
             };
         }
-        // A clean export return loads the exit schedule and attribution. Result
-        // publication is optional: constant-only exit events also apply to
-        // resultless exports.
         let mut exit_plans: Option<Vec<EventBlockPlan>> = None;
         let mut exit_counts: Option<(u32, u32)> = None;
         if activation_finished && !trapped {
@@ -779,7 +694,10 @@ pub(super) fn build_trace(
                     args_base: host_event_state.args_base,
                     slot_cursor: 0,
                 };
-                exit_counts = Some((setup.template.entry.len() as u32, setup.template.exit.len() as u32));
+                exit_counts = Some((
+                    biased_count(setup.template.entry.len()),
+                    setup.template.exit.len() as u32,
+                ));
                 exit_plans = Some(plans);
             }
         }
@@ -787,9 +705,6 @@ pub(super) fn build_trace(
         let zero_before = local_zero_state;
         let program_cycle = out.len() as u64;
         out.push(WasmVmStep {
-            // Sequential index within the normalized trace. Structural-only opcodes
-            // (loop, block, inner End) are filtered before this loop, so this is
-            // always consecutive — matching Stage 3's cycle_delta == 1 invariant.
             cycle: program_cycle,
             row_kind: WasmRowKind::Program,
             state_before: WasmStepState {
@@ -805,7 +720,7 @@ pub(super) fn build_trace(
                 memory_pages: current.memory_pages_before,
                 max_memory_pages: current.max_memory_pages,
                 locals_fbp: current_fbp,
-                activation_finished: turn_done,
+                activation_finished: activation_finished_latch,
                 trapped: false,
                 frame_move: frame_move_before,
                 local_zero: zero_before,
@@ -827,12 +742,11 @@ pub(super) fn build_trace(
                 memory_pages: current.memory_pages_after,
                 max_memory_pages: current.max_memory_pages,
                 locals_fbp: fbp,
-                activation_finished: turn_done || activation_finished,
+                activation_finished: activation_finished_latch || activation_finished,
                 trapped,
                 frame_move: frame_move_after,
                 local_zero: zero_after,
                 host_callee_fref,
-                // The chain only moves on absorb rows.
                 comm_chain,
                 event_absorb,
                 host_events: host_event_state,
@@ -899,11 +813,10 @@ pub(super) fn build_trace(
             host_event_return_schedule_count: return_count,
             host_event_rom_slot: None,
             host_event_word: None,
-            // Count cells carry the presence bias (count + 1).
             host_event_initial_schedule_count: host_event_plan
                 .as_ref()
-                .map(|plan| plan.blocks.len() as u32 + 1)
-                .or(exit_counts.map(|(pre, _)| pre + 1)),
+                .map(|plan| biased_count(plan.blocks.len()))
+                .or(exit_counts.map(|(biased_entry, _)| biased_entry)),
             host_event_exit_schedule_count: exit_counts.map(|(_, exit)| exit),
         });
         if let Some(context) = host_context {
@@ -913,11 +826,10 @@ pub(super) fn build_trace(
             call_stack_depth_after = call_stack_depth;
             host_event_state = after.host_events;
         }
-        turn_done = turn_done || activation_finished;
+        activation_finished_latch = activation_finished_latch || activation_finished;
         frame_move_state = frame_move_after;
         local_zero_state = zero_after;
         if frame_move_state.active || local_zero_state.active {
-            // Moved cells and fresh locals belong to the frame this row enters.
             let entered = next.expect("frame transition has a successor");
             let state = out
                 .last()
@@ -957,7 +869,7 @@ pub(super) fn build_trace(
                 locals_fbp: fbp,
                 host_callee_fref,
                 current_function_ref: current.current_function_ref.unwrap_or(0),
-                activation_finished: turn_done,
+                activation_finished: activation_finished_latch,
             };
             for block_plan in &plan.blocks {
                 emit_block_plan(
@@ -977,8 +889,6 @@ pub(super) fn build_trace(
             debug_assert_eq!(ctx.sp, sp_after + gather_pushes);
         }
 
-        // Export boundary: the exit template's blocks absorb after the
-        // capture row (its own after-state carries the exit latch).
         if let Some(plans) = exit_plans {
             let mut ctx = HostEventRowContext {
                 pc: pc_after,
@@ -995,7 +905,7 @@ pub(super) fn build_trace(
                 locals_fbp: fbp,
                 host_callee_fref,
                 current_function_ref: current.current_function_ref.unwrap_or(0),
-                activation_finished: turn_done,
+                activation_finished: activation_finished_latch,
             };
             for plan in &plans {
                 emit_block_plan(
@@ -1009,8 +919,6 @@ pub(super) fn build_trace(
             }
         }
 
-        // A suspended import may receive another export activation, or resume.
-        // Export exits return to the host; they never supply the import result.
         if host_event_state.awaiting_host {
             let next_row = next.ok_or_else(|| WasmBuildError::Trace("trace ends with a suspended import".into()))?;
             let saved = suspended.last().expect("pending import has saved context");
@@ -1060,7 +968,7 @@ pub(super) fn build_trace(
             host_callee_fref = state.host_callee_fref;
             comm_chain = state.comm_chain;
             event_absorb = state.event_absorb;
-            turn_done = state.activation_finished;
+            activation_finished_latch = state.activation_finished;
             output_enabled = state.output.enabled;
             output_value_lo = state.output.value_lo;
             output_value_hi = state.output.value_hi;

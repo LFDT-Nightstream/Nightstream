@@ -1,12 +1,4 @@
-//! The boundary to the Akita commitment scheme (ePrint 2026/1983): its
-//! fields, its schedule rows and its commitment bytes. `prover` holds each
-//! call that needs Akita's prover crates. `verifier` and this module need none.
-//!
-//! A proof opens three polynomials in one Akita proof: the key polynomial,
-//! `W` and `V`. A schedule row of Akita fixes the commitment profile of each
-//! and the schedule of the proof. The rows are files of Akita's planner
-//! (`scripts/akita_schedules.sh`), one file for each size of the key
-//! polynomial.
+//! The boundary to the Akita commitment scheme (ePrint 2026/1983).
 
 pub(crate) mod prover;
 pub(crate) mod verifier;
@@ -25,24 +17,18 @@ use crate::key::ROW_VARS;
 use crate::layout::LANE_VARS;
 use crate::Error;
 
-/// Akita's dense configuration over `F_q` with the schedules that offload
-/// Akita's own setup (ePrint 2026/1983 section 9): the verifier reads a
-/// short prefix of that setup and the commitment of a longer one.
+/// The schedules that offload Akita's own setup (ePrint 2026/1983 section 9).
 pub(crate) type Config = RecursiveCommitmentConfig<fp64::Dense>;
 /// Akita's `F_q`, with the modulus of `neo_math::F`.
 pub(crate) type Base = fp64::Field;
 /// Akita's `F_q[u]/(u² − 2)`, which is `K` with the same basis.
 pub(crate) type Extension = fp64::ExtensionField;
 
-/// The schedule rows for one size of the key polynomial. Akita checks each
-/// row against the policy of `Config` when it decodes the file.
+/// Akita checks each row against the policy of `Config` when it decodes the file.
 pub(crate) struct Schedules {
     pub(crate) key_vars: usize,
-    /// The variables of `W` and of `V` of each row, in increasing order.
     pub(crate) rows: &'static [(usize, usize)],
     bytes: &'static [u8],
-    /// The bytes of the verification key of this size. The key is a
-    /// function of public seeds, so a test computes it again.
     pub(crate) key: &'static [u8],
 }
 
@@ -61,7 +47,6 @@ pub(crate) const SCHEDULES: [Schedules; 2] = [
     },
 ];
 
-/// The variables of the three polynomials of one proof: one schedule row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Shape {
     pub(crate) key: usize,
@@ -69,8 +54,6 @@ pub(crate) struct Shape {
     pub(crate) inverse: usize,
 }
 
-/// The polynomials of a proof, in the order of Akita's groups: the key
-/// polynomial and `W` are committed before `V`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Polynomial {
     Key,
@@ -79,14 +62,12 @@ pub(crate) enum Polynomial {
 }
 
 impl Schedules {
-    /// The rows of the key polynomial of `blocks` blocks of each key row.
     pub(crate) fn of_blocks(blocks: usize) -> Option<&'static Self> {
         SCHEDULES
             .iter()
             .find(|schedules| schedules.blocks() == blocks)
     }
 
-    /// The key polynomial holds this many blocks of each key row.
     pub(crate) fn blocks(&self) -> usize {
         1 << (self.key_vars - LANE_VARS - ROW_VARS)
     }
@@ -96,8 +77,6 @@ impl Schedules {
             .map_err(failed)
     }
 
-    /// The first row: each row of one file has the same profile for the key
-    /// polynomial, so the key is committed under this row.
     pub(crate) fn first(&self) -> Shape {
         let (witness, inverse) = self.rows[0];
         Shape {
@@ -108,7 +87,6 @@ impl Schedules {
     }
 }
 
-/// The row of `catalog` that opens one polynomial of each size of `shape`.
 pub(crate) fn row(catalog: &TrustedScheduleCatalog<Config>, shape: Shape) -> Result<&ResolvedScheduleRow, Error> {
     let single = |profile: &GroupCommitPhaseParams, vars: usize| {
         profile.group.num_vars() == vars && profile.group.num_polynomials() == 1
@@ -124,7 +102,6 @@ pub(crate) fn row(catalog: &TrustedScheduleCatalog<Config>, shape: Shape) -> Res
         .ok_or(Error::Layout("no Akita schedule row has these polynomials"))
 }
 
-/// The commitment profile that `row` fixes for `polynomial`.
 pub(crate) fn profile(row: &ResolvedScheduleRow, polynomial: Polynomial) -> &GroupCommitPhaseParams {
     let profiles = row.profiles();
     match polynomial {
@@ -147,11 +124,7 @@ pub(crate) fn failed(error: impl std::fmt::Display) -> Error {
     Error::Akita(error.to_string())
 }
 
-/// Run `work` on threads with 64 MB stacks. Under fat LTO, one level of
-/// the rayon split in Akita's NTT loops takes about 210 KB of stack, so the
-/// 2 MB default overflows after about ten levels. The pool has rayon's
-/// default thread count, not the count of the first caller's pool. Where no
-/// thread can start, rayon runs `work` on the calling thread.
+/// Under fat LTO, Akita's NTT loops need more than rayon's default 2 MB stack.
 pub(crate) fn on_large_stacks<R: Send>(work: impl FnOnce() -> R + Send) -> R {
     static POOL: OnceLock<Option<ThreadPool>> = OnceLock::new();
     let pool = POOL.get_or_init(|| ThreadPoolBuilder::new().stack_size(64 << 20).build().ok());
@@ -171,8 +144,6 @@ pub(crate) fn commitment_bytes(commitment: &CommittedGroup<Base>) -> Result<Vec<
     bytes_of(commitment)
 }
 
-/// The commitment that `bytes` encode. Bytes that are not the encoding of
-/// their commitment fail, so a commitment has one encoding.
 pub(crate) fn commitment(bytes: &[u8]) -> Result<CommittedGroup<Base>, Error> {
     let commitment = CommittedGroup::<Base>::deserialize_compressed(bytes, &())
         .map_err(|_| Error::Rejected("an Akita commitment does not decode"))?;
@@ -182,8 +153,6 @@ pub(crate) fn commitment(bytes: &[u8]) -> Result<CommittedGroup<Base>, Error> {
     Ok(commitment)
 }
 
-/// The commitments of prefixes of Akita's setup that `bytes` encode, with
-/// one encoding each. They belong to Akita's public seed.
 pub(crate) fn setup_prefixes(bytes: &[u8]) -> Result<SetupPrefixVerifierRegistry<Base>, Error> {
     let registry = SetupPrefixVerifierRegistry::<Base>::deserialize_compressed(bytes, &())
         .map_err(|_| Error::Rejected("the commitments of Akita's setup do not decode"))?;

@@ -1,5 +1,4 @@
-//! The profile constants against independent recomputation
-//! (`decisions/field-2p64-59-ring-x64.md`).
+//! The profile constants of `decisions/field-2p64-59-ring-x64.md`.
 
 use neo_params::{nightstream_p64_k14 as profile, NeoParams, ParamsError};
 use num_bigint::BigUint;
@@ -115,14 +114,16 @@ fn constructor_returns_the_profile_constants() {
             profile::EXTENSION_DEGREE
         )
     );
-    assert_eq!(p.lambda(), None);
+    assert_eq!(p.certified_lambda(), None);
 }
 
 #[test]
 fn maximum_geometry_padded_row_census_matches_formula() {
     let alphabet = profile::CHALLENGE_ALPHABET.len() as u32;
     let columns = (profile::M as usize / profile::D) * profile::D;
-    let p = NeoParams::nightstream_p64_k14().with_lambda(115).unwrap();
+    let p = NeoParams::nightstream_p64_k14()
+        .with_certified_lambda(115)
+        .unwrap();
     let summary = p
         .padded_row_security_check_for_shape(1 << 26, columns, 3, 2, alphabet)
         .expect("115-bit padded-row census");
@@ -138,7 +139,6 @@ fn maximum_geometry_padded_row_census_matches_formula() {
     assert_eq!(summary.fork_factor, fresh + running + 1);
     assert_eq!(summary.challenge_set_cardinality, BigUint::from(5u8).pow(64));
 
-    // 2^bits · (field/q^2 + fork/5^64) <= 1 < 2^(bits + 1) · (the same sum).
     let field = BigUint::from(profile::Q).pow(2);
     let numerator = BigUint::from(summary.field_factor) * &summary.challenge_set_cardinality
         + BigUint::from(summary.fork_factor) * &field;
@@ -151,14 +151,14 @@ fn maximum_geometry_padded_row_census_matches_formula() {
         Err(ParamsError::UncertifiedStatisticalSecurity)
     );
     assert_eq!(
-        p.with_lambda(bits)
+        p.with_certified_lambda(bits)
             .unwrap()
             .padded_row_security_check_for_shape(1 << 26, columns, 3, 2, alphabet),
         Ok(summary)
     );
 
     let err = p
-        .with_lambda(bits + 1)
+        .with_certified_lambda(bits + 1)
         .unwrap()
         .padded_row_security_check_for_shape(1 << 26, columns, 3, 2, alphabet)
         .unwrap_err();

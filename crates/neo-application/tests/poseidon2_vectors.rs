@@ -1,5 +1,4 @@
-//! The width-12 permutation and its grouped rounds against the known answers of
-//! `scripts/poseidon2/vectors.json` (`decisions/poseidon2-p64-instance.md`).
+//! Known answers of `decisions/poseidon2-p64-instance.md`.
 
 use neo_application::poseidon2::{
     apply_full_round, apply_initial_linear, apply_partial_pair, permute, POSEIDON2_HALF_FULL_ROUNDS,

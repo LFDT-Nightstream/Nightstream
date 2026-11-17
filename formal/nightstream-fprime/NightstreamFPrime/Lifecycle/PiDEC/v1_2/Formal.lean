@@ -5,6 +5,7 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_2.EvalKRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.InputBinding
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputBinding
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit
+import NightstreamFPrime.Lifecycle.PiDEC.v1_2.Support.VariableSupport
 
 namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal
 
@@ -545,5 +546,138 @@ theorem flatConstraints_length
   rw [flatConstraints_length_eq_rowCount]
   change rowCount (opsAt relation interface offset) = logicalRowCount
   simp [opsAt, rowCount, logicalRowCount, Nat.add_assoc]
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+section Exporter
+
+variable {logicalWidth : Nat}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
+
+/-- The words that the Π_DEC rows read, as columns that `allowed` holds on: the parent's and the
+children's commitments and evaluations, the parent's public input and the digit words. -/
+structure InputsSatisfy (interface : Interface logicalWidth publicFits) (offset : Nat)
+    (allowed : Nat → Prop) : Prop where
+  parentCommitment : ∀ row lane,
+    ((interface.parent offset).commitment row lane).VarsSatisfy allowed
+  parentPublicInput : ∀ coordinate,
+    ((interface.parent offset).publicInput coordinate).VarsSatisfy allowed
+  parentEval_K : ∀ coefficient,
+    ((interface.parent offset).evaluation.eval_K coefficient).c0.VarsSatisfy allowed ∧
+      ((interface.parent offset).evaluation.eval_K coefficient).c1.VarsSatisfy allowed
+  parentEval_A : ∀ matrix coefficient,
+    ((interface.parent offset).evaluation.eval_A matrix coefficient).c0.VarsSatisfy allowed ∧
+      ((interface.parent offset).evaluation.eval_A matrix coefficient).c1.VarsSatisfy allowed
+  messageCommitment : ∀ child row lane,
+    ((interface.message offset child).commitment row lane).VarsSatisfy allowed
+  messageEval_K : ∀ child coefficient,
+    ((interface.message offset child).evaluation.eval_K coefficient).c0.VarsSatisfy allowed ∧
+      ((interface.message offset child).evaluation.eval_K coefficient).c1.VarsSatisfy allowed
+  messageEval_A : ∀ child matrix coefficient,
+    ((interface.message offset child).evaluation.eval_A matrix coefficient).c0.VarsSatisfy
+        allowed ∧
+      ((interface.message offset child).evaluation.eval_A matrix coefficient).c1.VarsSatisfy
+        allowed
+  digit : ∀ child coordinate, (interface.digit offset child coordinate).VarsSatisfy allowed
+
+private theorem marks_assertions (rows : List Expr) : marks (rows.map Op.assertZero) = [] := by
+  unfold marks
+  rw [List.flatMap_eq_nil_iff]
+  intro op member
+  obtain ⟨_, _, rfl⟩ := List.mem_map.mp member
+  rfl
+
+private theorem publicInputSplit_marks_nil (split : PublicInputSplit.Interface logicalWidth publicFits)
+    (offset : Nat) :
+    marks (Circuit.ops (PublicInputSplit.circuit split).main offset) = [] := by
+  show marks (PublicInputSplit.opsPrefix split offset
+    (PublicInputSplit.coordinateCount logicalWidth publicFits)) = []
+  unfold marks PublicInputSplit.opsPrefix
+  rw [List.flatMap_eq_nil_iff]
+  intro op member
+  obtain ⟨source, _, rfl⟩ := List.mem_map.mp member
+  unfold PublicInputSplit.childOp
+  split
+  · rename_i sourceLt
+    rw [Sequence.childOp, Op.marks, FormalCircuit.asSubcircuit_marks]
+    show marks (SignedSplitScalar.operations
+      (PublicInputSplit.childInterface split offset source sourceLt)
+      (PublicInputSplit.sourceOffset offset source)) = []
+    rw [SignedSplitScalar.operations, marks_cons, marks_assertions]
+    rfl
+  · rfl
+
+theorem marks_nil (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    marks (Circuit.ops (main relation interface) offset) = [] := by
+  rw [main_ops]
+  unfold marks
+  rw [List.flatMap_eq_nil_iff]
+  intro op member
+  simp only [opsAt, List.mem_cons, List.not_mem_nil, or_false] at member
+  rcases member with rfl | rfl | rfl | rfl | rfl | rfl
+  · rfl
+  · rw [childOp, Sequence.childOp, Op.marks, FormalCircuit.asSubcircuit_marks]
+    exact publicInputSplit_marks_nil _ _
+  · rw [childOp, Sequence.childOp, Op.marks, FormalCircuit.asSubcircuit_marks, commitmentCircuit,
+      RadixRecomposition.circuit_ops, RadixRecomposition.operations, marks_assertions]
+  · rw [childOp, Sequence.childOp, Op.marks, FormalCircuit.asSubcircuit_marks, evalKCircuit,
+      RadixRecomposition.circuit_ops, RadixRecomposition.operations, marks_assertions]
+  · rw [childOp, Sequence.childOp, Op.marks, FormalCircuit.asSubcircuit_marks, evalACircuit,
+      RadixRecomposition.circuit_ops, RadixRecomposition.operations, marks_assertions]
+  · rfl
+
+/-- The rows read the parent, the children's messages, the digit words and the public-input
+split's locals. -/
+theorem free (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Interface logicalWidth publicFits) (offset : Nat) {live : Nat → Prop}
+    (inputs : InputsSatisfy interface offset live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (main relation interface) offset) →
+        live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (main relation interface) offset),
+      row.VarsSatisfy live := by
+  rw [localLength_eq] at locals
+  rw [main_ops]
+  intro row member
+  rcases List.mem_flatMap.mp member with ⟨op, opMember, rowMember⟩
+  simp only [opsAt, List.mem_cons, List.not_mem_nil, or_false] at opMember
+  rcases opMember with rfl | rfl | rfl | rfl | rfl | rfl <;>
+    rw [childOp, Sequence.childOp, Op.flatConstraints, FormalCircuit.asSubcircuit_constraints]
+      at rowMember
+  · cases rowMember
+  · refine PublicInputSplit.flatConstraints_varsSatisfy live
+      (publicInputInterface (atOffset interface offset)) offset
+      (fun coordinate => inputs.parentPublicInput coordinate)
+      (fun child coordinate => inputs.digit child coordinate)
+      (fun column lower upper => locals column lower ?_) row rowMember
+    rw [PublicInputSplit.logicalPrivateCount_eq] at upper
+    exact upper
+  · rw [commitmentCircuit, RadixRecomposition.circuit_ops] at rowMember
+    exact RadixRecomposition.flatConstraints_varsSatisfy live
+      (CommitmentRecomposition.scalarInterface (commitmentInterface (atOffset interface offset)))
+      (commitmentOffset offset)
+      (fun coordinate => inputs.parentCommitment
+        (CommitmentRecomposition.coordinates coordinate).1
+        (CommitmentRecomposition.coordinates coordinate).2)
+      (fun child coordinate => inputs.messageCommitment child
+        (CommitmentRecomposition.coordinates coordinate).1
+        (CommitmentRecomposition.coordinates coordinate).2) row rowMember
+  · exact RingKRecomposition.flatConstraints_varsSatisfy live
+      (EvalKRecomposition.ringInterface (evalKInterface (atOffset interface offset)))
+      (evalKOffset offset)
+      (fun _ lane => inputs.parentEval_K (EvalKRecomposition.coefficient lane))
+      (fun child _ lane => inputs.messageEval_K child (EvalKRecomposition.coefficient lane))
+      row rowMember
+  · exact RingKRecomposition.flatConstraints_varsSatisfy live
+      (EvalARecomposition.ringInterface (evalAInterface (atOffset interface offset)))
+      (evalAOffset offset)
+      (fun matrix lane => inputs.parentEval_A matrix (EvalKRecomposition.coefficient lane))
+      (fun child matrix lane =>
+        inputs.messageEval_A child matrix (EvalKRecomposition.coefficient lane))
+      row rowMember
+  · cases rowMember
+
+end Exporter
 
 end NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal

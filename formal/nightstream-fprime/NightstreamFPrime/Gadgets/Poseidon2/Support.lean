@@ -545,9 +545,10 @@ theorem formalFlatConstraints_supported
   simp only [Formal.main_ops, flatConstraints, List.mem_flatMap] at member
   rcases member with ⟨operation, operationMember, constraintMember⟩
   simp only [Formal.opsAt, List.mem_cons] at operationMember
-  rcases operationMember with rfl | operationMember
+  rcases operationMember with rfl | rfl | operationMember
   · exact recipeConstraints_varsSatisfy offset program.recipes allowed
       compiled.1 targetSupported expression constraintMember
+  · simp [Op.flatConstraints] at constraintMember
   · rw [Formal.assertions, List.mem_ofFn'] at operationMember
     rcases operationMember with ⟨lane, rfl⟩
     simp only [Op.flatConstraints, List.mem_singleton] at constraintMember

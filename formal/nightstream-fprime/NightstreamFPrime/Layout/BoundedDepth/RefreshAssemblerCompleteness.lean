@@ -467,7 +467,9 @@ theorem completePhasesFrom (program : Stage1.Application.Program)
   · rw [SlotExpr.words_eval, RefreshStepSoundness.newSlot_value]
     exact congrArg serializeSlot (Prod.ext nextEq foldedDepth.symm)
 
-/-- Completeness of the refresh step circuit at the source layout. -/
+/-- Completeness of the refresh step circuit at the source layout. Each row of the circuit reads
+only columns before the end of its locals, and the columns below `base` carry `encHash` of the
+step's output hash. -/
 theorem complete (program : Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) (base : Nat)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -497,10 +499,16 @@ theorem complete (program : Stage1.Application.Program)
     (z0Length : input.z0.length = 4) (ziLength : input.zi.length = 4)
     (zNextLength : output.zNext.length = 4)
     (witnessLength : input.witness.length = program.witnessWordCount) :
+    (∀ constraint ∈ flatConstraints (Circuit.ops (RefreshStepLayout.main program relation circuit
+        (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)) (sharedEnd base program.witnessWordCount)),
+      constraint.VarsBelow (sharedEnd base program.witnessWordCount + localLength (Circuit.ops
+        (RefreshStepLayout.main program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)) (sharedEnd base program.witnessWordCount)))) ∧
     ∃ env, holdsFlat env (Circuit.ops (RefreshStepLayout.main program relation circuit
         (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)) (sharedEnd base program.witnessWordCount)) ∧
       RefreshStepSoundness.StepRepresents program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) ajtai circuitKeys circuit input output
-        proof env := by
+        proof env ∧
+      ∀ column (inside : column < ringDegree * PaperAlgebra.publicRingColumns), column < base →
+        env column = encHash (publicFits := publicFits) output.x ⟨column, inside⟩ := by
   obtain ⟨_, pcNext, zNextEq, xEq, cases⟩ := (stepHolds_iff _ _ _ _ _ _ _ _).mp holds
   have xLength : output.x.length = 4 := by
     rw [xEq]
@@ -736,12 +744,73 @@ theorem complete (program : Stage1.Application.Program)
     have rows := p3.rows
     rw [ops3, ops2, ops1] at rows
     simpa only [Sequence.empty, List.nil_append] using rows
-  refine ⟨p3.current, ?_, rep3⟩
-  change holdsFlat p3.current (RefreshStepLayout.opsAt program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))
   have split : ∀ (front : List Op) (first second : Op),
       front ++ [first, second] = (front ++ [first]) ++ [second] := by
     intro front first second
     simp
+  have shared : ∀ column, column < base + 5 →
+      (Expr.var column).VarsBelow (sharedEnd base program.witnessWordCount) := by
+    intro column bound
+    show column < sharedEnd base program.witnessWordCount
+    rw [sharedEnd_eq]
+    omega
+  have selectWords : DigestSelect.WordsBelow (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
+      (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)) (sharedEnd base program.witnessWordCount) :=
+    { iteration := below.iteration
+      inverse := shared (base + 1) (by omega)
+      recursive := shared (base + 2) (by omega)
+      priorPc := below.priorPc
+      selector := shared (base + 4) (by omega)
+      initialState := below.initialState
+      currentState := below.currentState
+      priorDigest := below.priorDigest
+      newDigest := below.newDigest
+      innerDigest := below.innerDigest
+      nextDigest := below.nextDigest }
+  have activeFits : slotsStart base program.witnessWordCount + 2 * slotWordCount + slotWordCount ≤
+      sharedEnd base program.witnessWordCount := by
+    have slotsEq : slotsStart base program.witnessWordCount =
+        base + 25 + program.witnessWordCount := rfl
+    rw [sharedEnd_eq, slotsEq]
+    simp only [slotWordCount]
+    omega
+  have selectBelow : ∀ row ∈ flatConstraints
+      [Formal.childOp "refresh.digest_select" (selectCircuit program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
+        (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))],
+      row.VarsBelow (sharedEnd base program.witnessWordCount) := by
+    intro row member
+    simp only [flatConstraints, List.flatMap_cons, List.flatMap_nil, List.append_nil] at member
+    change row ∈ flatConstraints ((DigestSelect.rows (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
+      (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))).map Op.assertZero) at member
+    simp only [flatConstraints, List.flatMap_map, List.mem_flatMap, Op.flatConstraints,
+      List.mem_singleton] at member
+    obtain ⟨original, inside, rfl⟩ := member
+    exact DigestSelect.rows_below selectWords below.prior
+      (LightAssembler.slotAt_below (slotsStart base program.witnessWordCount + 2 * slotWordCount)
+        _ activeFits) _ inside
+  have publicWords : ∀ column (inside : column < ringDegree * PaperAlgebra.publicRingColumns),
+      column < base →
+        p3.current column = encHash (publicFits := publicFits) output.x ⟨column, inside⟩ :=
+    fun column inside below => (agreeOf p3 column (by rw [sharedEnd_eq]; omega)).trans
+      ((env_light base program.witnessWordCount _ column (by rw [childStart_eq]; omega)).trans
+        (LightAssemblerSource.env_public base program.witnessWordCount _ column below inside))
+  refine ⟨?_, p3.current, ?_, rep3, publicWords⟩
+  · have front := p3.scope
+    rw [ops3, ops2, ops1] at front
+    simp only [Sequence.empty, List.nil_append] at front
+    change ∀ constraint ∈ flatConstraints (RefreshStepLayout.opsAt program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)),
+      constraint.VarsBelow (sharedEnd base program.witnessWordCount + localLength (RefreshStepLayout.opsAt program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)))
+    unfold RefreshStepLayout.opsAt
+    rw [split]
+    intro constraint member
+    rw [flatConstraints_append] at member
+    rw [Sequence.localLength_append]
+    rcases List.mem_append.mp member with member | member
+    · exact Expr.VarsBelow.mono constraint (front constraint member)
+        (Nat.add_le_add_left (Nat.le_add_right _ _) _)
+    · exact Expr.VarsBelow.mono constraint (selectBelow constraint member)
+        (Nat.le_add_right _ _)
+  change holdsFlat p3.current (RefreshStepLayout.opsAt program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))
   unfold RefreshStepLayout.opsAt
   rw [split]
   unfold holdsFlat

@@ -150,8 +150,8 @@ theorem memory_round_in_random_oracle_model
 /-- The bound of adversary 5 for a memory application on the bounded-depth scheme: on the joint law of the
 memory statement that the adversary claims from its own tape and the walk's sample, the mass of
 samples that the memory verifier accepts but whose extracted history does not attest the claim
-is at most the walk's collision and stage terms, the state-link and chain collision masses of
-the extracted runs, and the memory-round error of the last stage. -/
+is at most the walk's finder and stage terms (`IvcSecurity.finderChance`), the state-link and
+chain collision masses of the extracted runs, and the memory-round error of the last stage. -/
 theorem memory_sound
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -214,55 +214,9 @@ theorem memory_sound
                 (NebulaSecurity.experiment app ajtai circuitKeys exports)
                 (NebulaSecurity.Accepted app ajtai circuitKeys (step := step) control cap) s}) ≤
         ∑ j : Fin depth,
-                (ENNReal.toReal
-                    (((↑(HyperNova.ReverseStages.reverseStages (Succeeds :=
-                                  IvcWalk.WalkSucceeds ajtai) (Extracted :=
-                                  IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                                  (StageAdmitted := StageAdmitted) (Efficient := Efficient)
-                                  assumption closed (IvcSecurity.walkAdversary adversary) admitted
-                                  (↑j : ℕ)) :
-                              HyperNova.ReverseStages.Stage
-                                (IvcWalk.Visit logicalWidth publicFits)
-                                (IvcWalk.Answer logicalWidth publicFits)).tape.toOuterMeasure :
-                        Set
-                            (↑(HyperNova.ReverseStages.reverseStages assumption closed
-                                    (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)) :
-                                HyperNova.ReverseStages.Stage
-                                  (IvcWalk.Visit logicalWidth publicFits)
-                                  (IvcWalk.Answer logicalWidth publicFits)).Tape →
-                          ENNReal)
-                      {tape :
-                        (↑(HyperNova.ReverseStages.reverseStages (Succeeds :=
-                                IvcWalk.WalkSucceeds ajtai) (Extracted :=
-                                IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                                (StageAdmitted := StageAdmitted) (Efficient := Efficient)
-                                assumption closed (IvcSecurity.walkAdversary adversary) admitted
-                                (↑j : ℕ)) :
-                            HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                              (IvcWalk.Answer logicalWidth publicFits)).Tape |
-                        IvcWalk.WalkCollision ajtai circuitKeys exports
-                          (HyperNova.ReverseStages.visitAfter
-                            (IvcWalk.back ajtai circuitKeys exports)
-                            ((↑(HyperNova.ReverseStages.reverseStages (Succeeds :=
-                                      IvcWalk.WalkSucceeds ajtai) (Extracted :=
-                                      IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                                      (StageAdmitted := StageAdmitted) (Efficient := Efficient)
-                                      assumption closed (IvcSecurity.walkAdversary adversary)
-                                      admitted (↑j : ℕ)) :
-                                  HyperNova.ReverseStages.Stage
-                                    (IvcWalk.Visit logicalWidth publicFits)
-                                    (IvcWalk.Answer logicalWidth publicFits)).input
-                              tape)
-                            ((↑(HyperNova.ReverseStages.reverseStages (Succeeds :=
-                                      IvcWalk.WalkSucceeds ajtai) (Extracted :=
-                                      IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                                      (StageAdmitted := StageAdmitted) (Efficient := Efficient)
-                                      assumption closed (IvcSecurity.walkAdversary adversary)
-                                      admitted (↑j : ℕ)) :
-                                  HyperNova.ReverseStages.Stage
-                                    (IvcWalk.Visit logicalWidth publicFits)
-                                    (IvcWalk.Answer logicalWidth publicFits)).results
-                              tape))}) +
+                (IvcSecurity.finderChance ajtai circuitKeys exports
+                    (HyperNova.ReverseStages.reverseStages assumption closed
+                      (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)).1 +
                   error
                     (HyperNova.ReverseStages.Stage.nifs
                       (IvcWalk.attemptOf ajtai circuitKeys exports)

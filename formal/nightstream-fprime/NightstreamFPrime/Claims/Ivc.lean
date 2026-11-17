@@ -3,7 +3,6 @@ import NightstreamFPrime.Export.BoundedDepth.RunCompleteness
 import NightstreamFPrime.Export.BoundedDepth.TerminalBridge
 import NightstreamFPrime.Export.BoundedDepth.VerifierSecurity
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
-import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
 
 /-! # Claims: bounded-depth IVC
@@ -15,9 +14,17 @@ The terminal relation, the reverse extractor and the completeness of a run
 - Assumptions: `false_acceptance_bound`, `extraction_bound` and `verifier_sound` take HyperNova
   errata Assumption 1 for the two folds (`[HN-A1]`), with its closure premise and an admitted
   adversary. Their error term is the `error` of that assumption.
-- Open: Lean does not bound the collision term of these three claims. No instance of
-  `Export.BoundedDepth.TerminalBridge.Exports` exists for the emitted packages. The bound on the
-  iteration of an accepted statement is an argument (`depthBound`). -/
+- Collision term: in these three claims it is the success chance of an explicit Poseidon2
+  collision finder (`Export.BoundedDepth.IvcSecurity.finderChance`). The finder runs the stage
+  on its tape, decodes the visit and outputs two different inputs of one length with one
+  `Poseidon2.hash` (`Export.BoundedDepth.IvcWalk.visitCollision`). Each collision at the visit
+  gives an output (`Export.BoundedDepth.IvcWalk.visitCollision_isSome`).
+- Open: Lean does not bound the finder's success chance. A bound needs `[P2-PERM]` and
+  `[SPONGE]` with the finder's count of permutation calls (`SECURITY_MODEL.md` trust item 2).
+  The bound on the iteration of an accepted statement is an argument (`depthBound`).
+- Capacity: for the emitted packages, `Export.BoundedDepth.EmittedPackages.Facts.exports` builds
+  `exports` from the capacity of the application (`Export.BoundedDepth.EmittedPackages.Facts`,
+  SPEC.md section 4.4), which the emitter checks. -/
 
 namespace NightstreamFPrime.Claims.Ivc
 
@@ -82,53 +89,6 @@ theorem accepted_bounds.{uKey, uClaim, uFresh, uProof}
   @Spec.HyperNova.Construction2.BoundedDepth.accepted_bounds Key Claim Fresh Proof p cap capFits
     folds history depth start accepted final finalAtMostB
 
-/-- HyperNova Lemma 17's reverse extraction for the bounded-depth scheme on one slot of an accepted execution:
-from a witness of the slot's final claim below `B`, every claim the slot held has a witness at a
-bound of at most `B + cap · T · (b − 1)` and every fresh instance it folded has a witness, or a
-fold of the slot failed. -/
-theorem execution_extracts.{uKey, uClaim, uFresh, uProof, uClaimWitness, uFreshWitness}
-    {Key : Type uKey}
-    {Claim : Type uClaim}
-    {Fresh : Type uFresh}
-    {Proof : Type uProof}
-    {ClaimWitness : Type uClaimWitness}
-    {FreshWitness : Type uFreshWitness}
-    {p : GlobalParams}
-    {cap : ℕ}
-    {folds : BoundedDepth.Folds Key Claim Fresh Proof}
-    {Holds : ℕ → Claim → ClaimWitness → Prop}
-    {FreshHolds : Fresh → FreshWitness → Prop}
-    {Failure : Folding.Schedule.Step → Key → Claim → Fresh → Proof → ClaimWitness → Prop}
-    {Digest : Type}
-    {State : Type}
-    {StepWitness : Type}
-    {Encoded : Type}
-    (knowledge : BoundedDepthKnowledge.StepKnowledge p folds Holds FreshHolds Failure)
-    (verifierKeys : Fin 2 → Key)
-    (defaultClaim : Claim)
-    (machine : Paper.Machine.{uKey, 0, 0, 0, uClaim, uFresh, 0} Key Digest State StepWitness
-        (BoundedDepth.Running Claim) Fresh Encoded 2)
-    (trace : List (BoundedDepthKnowledge.MachineStep Key Claim Fresh Proof Digest State StepWitness))
-    (start : Fin 2 → BoundedDepth.Running Claim)
-    (final : Fin 2 → BoundedDepth.Running Claim)
-    (execution : BoundedDepthKnowledge.Execution
-        (Construction2.BoundedDepth.setup cap folds verifierKeys defaultClaim) machine start trace
-        final)
-    (slot : Fin 2)
-    (bound : ℕ)
-    (finalWitness : ClaimWitness)
-    (holds : Holds bound (final slot).1 finalWitness)
-    (finalAtMostB : bound ≤ p.bigB) :
-    have history := BoundedDepthKnowledge.slotHistory verifierKeys slot trace;
-      (BoundedDepthKnowledge.ValidHistory p Holds FreshHolds (start slot).1 history bound ∧
-          ∀ recovered ∈ Folding.Schedule.recoveredBounds p bound (BoundedDepth.steps history),
-            recovered ≤ p.bigB + cap * (p.expansionT * (p.b - 1))) ∨
-        BoundedDepthKnowledge.Failed p Holds Failure bound history :=
-  @Spec.HyperNova.Construction2.BoundedDepthKnowledge.execution_extracts Key Claim Fresh Proof
-    ClaimWitness FreshWitness p cap folds Holds FreshHolds Failure Digest State StepWitness
-    Encoded knowledge verifierKeys defaultClaim machine trace start final execution slot bound
-    finalWitness holds finalAtMostB
-
 /-- HyperNova Lemma 17 for the bounded-depth scheme. A false acceptance is an extraction failure, because no
 list of witnesses reaches its statement. -/
 theorem false_acceptance_bound
@@ -165,44 +125,9 @@ theorem false_acceptance_bound
               IvcSecurity.FalseAcceptance ajtai circuitKeys exports control cap
                 (adversary.output tape)}) ≤
         ∑ j : Fin depth,
-          (ENNReal.toReal
-              (((↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
-                            (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                            (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
-                            closed (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)) :
-                        ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                          (IvcWalk.Answer logicalWidth publicFits)).tape.toOuterMeasure :
-                  Set
-                      (↑(ReverseStages.reverseStages assumption closed
-                              (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)) :
-                          ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                            (IvcWalk.Answer logicalWidth publicFits)).Tape →
-                    ENNReal)
-                {tape :
-                  (↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
-                          (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                          (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
-                          closed (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)) :
-                      ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                        (IvcWalk.Answer logicalWidth publicFits)).Tape |
-                  IvcWalk.WalkCollision ajtai circuitKeys exports
-                    (ReverseStages.visitAfter (IvcWalk.back ajtai circuitKeys exports)
-                      ((↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
-                                (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                                (StageAdmitted := StageAdmitted) (Efficient := Efficient)
-                                assumption closed (IvcSecurity.walkAdversary adversary) admitted
-                                (↑j : ℕ)) :
-                            ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                              (IvcWalk.Answer logicalWidth publicFits)).input
-                        tape)
-                      ((↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
-                                (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                                (StageAdmitted := StageAdmitted) (Efficient := Efficient)
-                                assumption closed (IvcSecurity.walkAdversary adversary) admitted
-                                (↑j : ℕ)) :
-                            ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                              (IvcWalk.Answer logicalWidth publicFits)).results
-                        tape))}) +
+          (IvcSecurity.finderChance ajtai circuitKeys exports
+              (ReverseStages.reverseStages assumption closed
+                (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)).1 +
             error
               (ReverseStages.Stage.nifs (IvcWalk.attemptOf ajtai circuitKeys exports)
                 (IvcWalk.back ajtai circuitKeys exports)
@@ -284,44 +209,9 @@ theorem extraction_bound
                         (IvcWalk.Answer logicalWidth publicFits)).results
                   tape)}) ≤
         ∑ j : Fin depth,
-          (ENNReal.toReal
-              (((↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
-                            (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                            (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
-                            closed (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)) :
-                        ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                          (IvcWalk.Answer logicalWidth publicFits)).tape.toOuterMeasure :
-                  Set
-                      (↑(ReverseStages.reverseStages assumption closed
-                              (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)) :
-                          ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                            (IvcWalk.Answer logicalWidth publicFits)).Tape →
-                    ENNReal)
-                {tape :
-                  (↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
-                          (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                          (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
-                          closed (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)) :
-                      ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                        (IvcWalk.Answer logicalWidth publicFits)).Tape |
-                  IvcWalk.WalkCollision ajtai circuitKeys exports
-                    (ReverseStages.visitAfter (IvcWalk.back ajtai circuitKeys exports)
-                      ((↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
-                                (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                                (StageAdmitted := StageAdmitted) (Efficient := Efficient)
-                                assumption closed (IvcSecurity.walkAdversary adversary) admitted
-                                (↑j : ℕ)) :
-                            ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                              (IvcWalk.Answer logicalWidth publicFits)).input
-                        tape)
-                      ((↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
-                                (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                                (StageAdmitted := StageAdmitted) (Efficient := Efficient)
-                                assumption closed (IvcSecurity.walkAdversary adversary) admitted
-                                (↑j : ℕ)) :
-                            ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                              (IvcWalk.Answer logicalWidth publicFits)).results
-                        tape))}) +
+          (IvcSecurity.finderChance ajtai circuitKeys exports
+              (ReverseStages.reverseStages assumption closed
+                (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)).1 +
             error
               (ReverseStages.Stage.nifs (IvcWalk.attemptOf ajtai circuitKeys exports)
                 (IvcWalk.back ajtai circuitKeys exports)
@@ -372,44 +262,9 @@ theorem verifier_sound
               VerifierSecurity.FalseVerification ajtai circuitKeys exports packageWidths control
                 cap (adversary.output tape)}) ≤
         ∑ j : Fin depth,
-          (ENNReal.toReal
-              (((↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
-                            (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                            (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
-                            closed (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)) :
-                        ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                          (IvcWalk.Answer logicalWidth publicFits)).tape.toOuterMeasure :
-                  Set
-                      (↑(ReverseStages.reverseStages assumption closed
-                              (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)) :
-                          ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                            (IvcWalk.Answer logicalWidth publicFits)).Tape →
-                    ENNReal)
-                {tape :
-                  (↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
-                          (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                          (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
-                          closed (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)) :
-                      ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                        (IvcWalk.Answer logicalWidth publicFits)).Tape |
-                  IvcWalk.WalkCollision ajtai circuitKeys exports
-                    (ReverseStages.visitAfter (IvcWalk.back ajtai circuitKeys exports)
-                      ((↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
-                                (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                                (StageAdmitted := StageAdmitted) (Efficient := Efficient)
-                                assumption closed (IvcSecurity.walkAdversary adversary) admitted
-                                (↑j : ℕ)) :
-                            ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                              (IvcWalk.Answer logicalWidth publicFits)).input
-                        tape)
-                      ((↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
-                                (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                                (StageAdmitted := StageAdmitted) (Efficient := Efficient)
-                                assumption closed (IvcSecurity.walkAdversary adversary) admitted
-                                (↑j : ℕ)) :
-                            ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                              (IvcWalk.Answer logicalWidth publicFits)).results
-                        tape))}) +
+          (IvcSecurity.finderChance ajtai circuitKeys exports
+              (ReverseStages.reverseStages assumption closed
+                (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)).1 +
             error
               (ReverseStages.Stage.nifs (IvcWalk.attemptOf ajtai circuitKeys exports)
                 (IvcWalk.back ajtai circuitKeys exports)

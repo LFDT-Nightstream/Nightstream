@@ -11,7 +11,10 @@ assignment of the circuit at the source layout: the honest source values
 light Π_CCS (`LightPiCCSCompleteness.completeFrom`), the light Π_RLC
 (`LightRlcCompleteness.completeFrom`), the new slot's hash, and the digest-select rows
 (`LightSelect.rows_of_select`).
-Every row holds, and the words carry the step (`complete`). -/
+Every row holds, and the words carry the step (`complete`). Each row reads only columns before
+the end of the circuit's locals: the prefix of the gadgets and phases carries its scope
+(`Sequence.Prefix.scope`), and the digest-select rows read only shared words
+(`LightSelect.rows_below`). -/
 
 namespace NightstreamFPrime.Layout.BoundedDepth.LightAssemblerCompleteness
 
@@ -186,7 +189,9 @@ private theorem flatConstraints_append (left right : List Op) :
 assignment where every row holds and the words carry the step. The honest step is `StepHolds`
 with the application's validity predicate, the fresh instance's binding to the prior state
 (which the circuit checks at every iteration), a light proof that the light fold accepts for the
-selected slot with result `folded`, and an active depth below the cap. -/
+selected slot with result `folded`, and an active depth below the cap. Each row of the circuit
+reads only columns before the end of its locals, and the columns below `base` carry `encHash` of
+the step's output hash. -/
 theorem complete (program : Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) (base : Nat)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -217,10 +222,17 @@ theorem complete (program : Stage1.Application.Program)
     (z0Length : input.z0.length = 4) (ziLength : input.zi.length = 4)
     (zNextLength : output.zNext.length = 4)
     (witnessLength : input.witness.length = program.witnessWordCount) :
+    (∀ constraint ∈ flatConstraints (Circuit.ops (LightStepLayout.main program relation circuit
+        (interface base program.witnessWordCount)) (sharedEnd base program.witnessWordCount)),
+      constraint.VarsBelow (sharedEnd base program.witnessWordCount + localLength (Circuit.ops
+        (LightStepLayout.main program relation circuit (interface base program.witnessWordCount))
+        (sharedEnd base program.witnessWordCount)))) ∧
     ∃ env, holdsFlat env (Circuit.ops (LightStepLayout.main program relation circuit
         (interface base program.witnessWordCount)) (sharedEnd base program.witnessWordCount)) ∧
       LightStepSoundness.StepRepresents program (interface base program.witnessWordCount) ajtai
-        circuitKeys circuit input output proof env := by
+        circuitKeys circuit input output proof env ∧
+      ∀ column (inside : column < ringDegree * PaperAlgebra.publicRingColumns), column < base →
+        env column = encHash (publicFits := publicFits) output.x ⟨column, inside⟩ := by
   obtain ⟨_, pcNext, zNextEq, xEq, cases⟩ := (stepHolds_iff _ _ _ _ _ _ _ _).mp holds
   have xLength : output.x.length = 4 := by
     rw [xEq]
@@ -703,12 +715,65 @@ theorem complete (program : Stage1.Application.Program)
     have rows := p4.rows
     rw [ops4, ops3, ops2, ops1] at rows
     simpa only [Sequence.empty, List.nil_append] using rows
-  refine ⟨p4.current, ?_, rep4⟩
-  change holdsFlat p4.current (LightStepLayout.opsAt program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))
   have split : ∀ (front : List Op) (first second : Op),
       front ++ [first, second] = (front ++ [first]) ++ [second] := by
     intro front first second
     simp
+  have shared : ∀ column, column < base + 5 →
+      (Expr.var column).VarsBelow (sharedEnd base program.witnessWordCount) := by
+    intro column bound
+    show column < sharedEnd base program.witnessWordCount
+    rw [sharedEnd_eq]
+    omega
+  have selectWords : DigestSelect.WordsBelow
+      (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount)).toInterface
+      (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))
+      (sharedEnd base program.witnessWordCount) :=
+    { iteration := below.iteration
+      inverse := shared (base + 1) (by omega)
+      recursive := shared (base + 2) (by omega)
+      priorPc := below.priorPc
+      selector := shared (base + 4) (by omega)
+      initialState := below.initialState
+      currentState := below.currentState
+      priorDigest := below.priorDigest
+      newDigest := below.newDigest
+      innerDigest := below.innerDigest
+      nextDigest := below.nextDigest }
+  have selectBelow : ∀ row ∈ flatConstraints
+      [Formal.childOp "light.digest_select" (selectCircuit program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
+        (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))],
+      row.VarsBelow (sharedEnd base program.witnessWordCount) := by
+    intro row member
+    simp only [flatConstraints, List.flatMap_cons, List.flatMap_nil, List.append_nil] at member
+    change row ∈ flatConstraints ((LightSelect.rows (selectInterface program (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount))
+      (selectOffset program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))).map Op.assertZero) at member
+    simp only [flatConstraints, List.flatMap_map, List.mem_flatMap, Op.flatConstraints,
+      List.mem_singleton] at member
+    obtain ⟨original, inside, rfl⟩ := member
+    exact LightSelect.rows_below selectWords below.activeDigest _ inside
+  have publicWords : ∀ column (inside : column < ringDegree * PaperAlgebra.publicRingColumns),
+      column < base →
+        p4.current column = encHash (publicFits := publicFits) output.x ⟨column, inside⟩ :=
+    fun column inside below => (agreeOf p4 column (by rw [sharedEnd_eq]; omega)).trans
+      (env_public base program.witnessWordCount _ column below inside)
+  refine ⟨?_, p4.current, ?_, rep4, publicWords⟩
+  · have front := p4.scope
+    rw [ops4, ops3, ops2, ops1] at front
+    simp only [Sequence.empty, List.nil_append] at front
+    change ∀ constraint ∈ flatConstraints (LightStepLayout.opsAt program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)),
+      constraint.VarsBelow (sharedEnd base program.witnessWordCount + localLength (LightStepLayout.opsAt program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount)))
+    unfold LightStepLayout.opsAt
+    rw [split]
+    intro constraint member
+    rw [flatConstraints_append] at member
+    rw [Sequence.localLength_append]
+    rcases List.mem_append.mp member with member | member
+    · exact Expr.VarsBelow.mono constraint (front constraint member)
+        (Nat.add_le_add_left (Nat.le_add_right _ _) _)
+    · exact Expr.VarsBelow.mono constraint (selectBelow constraint member)
+        (Nat.le_add_right _ _)
+  change holdsFlat p4.current (LightStepLayout.opsAt program relation circuit (interface (logicalWidth := logicalWidth) (publicFits := publicFits) base program.witnessWordCount) (sharedEnd base program.witnessWordCount))
   unfold LightStepLayout.opsAt
   rw [split]
   unfold holdsFlat

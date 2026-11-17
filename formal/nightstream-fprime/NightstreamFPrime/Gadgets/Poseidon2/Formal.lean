@@ -1,3 +1,4 @@
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRows
 import NightstreamFPrime.Gadgets.Poseidon2.RawFormal
 import NightstreamFPrime.Circuit.StraightLine
 
@@ -26,7 +27,7 @@ def assertions (interface : Interface) (offset : Nat) : List Op :=
 def opsAt (interface : Interface) (offset : Nat) : List Op :=
   let program := Hash.compile offset (interface.input offset)
   Op.witness (WitnessBatch.arithmetic offset program.recipes) ::
-    assertions interface offset
+    Op.mark (Hash.marks offset (interface.input offset)) :: assertions interface offset
 
 def main (interface : Interface) : Circuit Unit := fun offset =>
   let program := Hash.compile offset (interface.input offset)
@@ -46,7 +47,7 @@ theorem opsAt_localLength (interface : Interface) (offset : Nat) :
       (Hash.compile offset (interface.input offset)).recipes.length := by
   unfold opsAt
   change (Hash.compile offset (interface.input offset)).recipes.length +
-    localLength (assertions interface offset) = _
+    (0 + localLength (assertions interface offset)) = _
   rw [assertions_localLength]
   omega
 
@@ -60,7 +61,7 @@ theorem flatConstraints_length_eq (interface : Interface) (offset : Nat) :
       (Hash.compile offset (interface.input offset)).recipes.length + 4 := by
   rw [flatConstraints_length_eq_rowCount, main_ops]
   change (Hash.compile offset (interface.input offset)).recipes.length +
-      rowCount (assertions interface offset) = _
+      (0 + rowCount (assertions interface offset)) = _
   rw [assertions_rowCount]
 
 theorem assertion_mem (interface : Interface) (offset : Nat) (lane : Fin 4) :
@@ -81,11 +82,12 @@ theorem flatConstraints_varsBelow
   simp only [flatConstraints, List.mem_flatMap] at member
   rcases member with ⟨operation, operationMember, constraintMember⟩
   simp only [opsAt, List.mem_cons] at operationMember
-  rcases operationMember with rfl | operationMember
+  rcases operationMember with rfl | rfl | operationMember
   · exact RawFormal.recipeConstraints_varsBelow offset
       (Hash.compile offset (interface.input offset)).recipes
       (Hash.compile_causal offset (interface.input offset) assumptions.1)
       expression constraintMember
+  · simp [Op.flatConstraints] at constraintMember
   · rw [assertions, List.mem_ofFn'] at operationMember
     rcases operationMember with ⟨lane, rfl⟩
     simp only [Op.flatConstraints, List.mem_singleton] at constraintMember
@@ -194,8 +196,9 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     simp only [flatConstraints, List.mem_flatMap] at member
     rcases member with ⟨operation, operationMember, constraintMember⟩
     simp only [opsAt, List.mem_cons] at operationMember
-    rcases operationMember with rfl | operationMember
+    rcases operationMember with rfl | rfl | operationMember
     · exact recipeRows expression constraintMember
+    · simp [Op.flatConstraints] at constraintMember
     · rw [assertions, List.mem_ofFn'] at operationMember
       rcases operationMember with ⟨lane, rfl⟩
       simp only [Op.flatConstraints, List.mem_singleton] at constraintMember
@@ -219,5 +222,46 @@ def circuit (interface : Interface) : FormalCircuit where
   rowCount_eq := flatConstraints_length_eq interface
   soundness := soundness interface
   completeness := completeness interface
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem assertions_rowsOnly (interface : Interface) (offset : Nat) :
+    RowsOnly (assertions interface offset) :=
+  RowsOnly.ofFn _
+
+theorem opsAt_split (interface : Interface) (offset : Nat) :
+    opsAt interface offset =
+      [Op.witness (WitnessBatch.arithmetic offset (Hash.compile offset (interface.input offset)).recipes),
+        Op.mark (Hash.marks offset (interface.input offset))] ++ assertions interface offset :=
+  rfl
+
+theorem placed (interface : Interface) (offset : Nat) :
+    Placed offset (localLength (Circuit.ops (main interface) offset))
+      (Circuit.ops (main interface) offset) := by
+  rw [main_ops, opsAt_localLength, opsAt_split, ← Nat.add_zero (List.length _)]
+  exact (hash_placed offset _).append
+    (.of_marks_nil (assertions_rowsOnly interface offset).marks_nil)
+
+/-- The hash's rows are its permutations' rows and its digest rows, which read its digest and its
+expected words. -/
+theorem liveRows (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (inputAffine : ∀ word ∈ interface.input offset, word.Affine)
+    (inputReads : ∀ word ∈ interface.input offset,
+      word.VarsSatisfy fun column => column < offset ∧ live column)
+    (expectedReads : ∀ lane, (interface.expected offset lane).VarsSatisfy live)
+    (own : OwnLive live offset (localLength (Circuit.ops (main interface) offset))
+      (Circuit.ops (main interface) offset)) :
+    LiveRows live (Circuit.ops (main interface) offset) := by
+  have hashOwn : HashOwnLive live offset (interface.input offset) := by
+    rw [main_ops, opsAt_localLength, opsAt_split] at own
+    refine own.mono ?_
+    simp [(assertions_rowsOnly interface offset).marks_nil]
+  rw [main_ops, opsAt_split]
+  refine (hash_liveRows inputAffine inputReads hashOwn).append
+    (.of_rows (assertions_rowsOnly interface offset) fun row member => ?_)
+  rw [assertions, List.mem_ofFn'] at member
+  obtain ⟨lane, equal⟩ := member
+  cases equal
+  exact Expr.VarsSatisfy.sub _ _ _ (hash_digest_live hashOwn lane) (expectedReads lane)
 
 end NightstreamFPrime.Gadgets.Poseidon2.Formal

@@ -254,4 +254,69 @@ theorem rows_congr (left right : Env)
         inverseEq recursiveEq pcEq selectorEq initialEq currentEq control, prior 0 priorZero⟩,
       prior 1 priorOne⟩, digest 0 digestZero⟩, digest 1 digestOne⟩
 
+section Scope
+
+variable {interface offset}
+
+/-- Every row of the light select reads only columns below `bound` when its words do. -/
+theorem rows_below {bound : Nat}
+    (below : DigestSelect.WordsBelow interface.toInterface offset bound)
+    (activeDigest : ∀ lane, (interface.activeDigest offset lane).VarsBelow bound) :
+    ∀ row ∈ rows interface offset, row.VarsBelow bound := by
+  intro row member
+  simp only [rows, List.mem_append] at member
+  rcases member with ((((control | control) | prior) | prior) | first) | second
+  · exact DigestSelect.controlRows_below below row (List.mem_append_left _ control)
+  · exact DigestSelect.controlRows_below below row (List.mem_append_right _ control)
+  · exact selectRows_below
+      (SlotSelect.isSelected_below _ offset below.selector 0)
+      (ofFn_below (below.priorDigest 0)) (ofFn_below activeDigest)
+      (ofFn_below (below.priorDigest 0)) row prior
+  · exact selectRows_below
+      (SlotSelect.isSelected_below _ offset below.selector 1)
+      (ofFn_below (below.priorDigest 1)) (ofFn_below activeDigest)
+      (ofFn_below (below.priorDigest 1)) row prior
+  · exact DigestSelect.digestRows_below below 0 row first
+  · exact DigestSelect.digestRows_below below 1 row second
+
+/-- Every row of the light select reads only `allowed` columns when its words do. -/
+theorem rows_satisfy {allowed : Nat → Prop}
+    (reads : DigestSelect.WordsSatisfy interface.toInterface offset allowed)
+    (activeDigest : ∀ lane, (interface.activeDigest offset lane).VarsSatisfy allowed) :
+    ∀ row ∈ rows interface offset, row.VarsSatisfy allowed := by
+  intro row member
+  simp only [rows, List.mem_append] at member
+  rcases member with ((((control | control) | prior) | prior) | first) | second
+  · exact DigestSelect.controlRows_satisfy reads row (List.mem_append_left _ control)
+  · exact DigestSelect.controlRows_satisfy reads row (List.mem_append_right _ control)
+  · exact selectRows_satisfy
+      (SlotSelect.isSelected_satisfy _ offset reads.selector 0)
+      (ofFn_satisfy (reads.priorDigest 0)) (ofFn_satisfy activeDigest)
+      (ofFn_satisfy (reads.priorDigest 0)) row prior
+  · exact selectRows_satisfy
+      (SlotSelect.isSelected_satisfy _ offset reads.selector 1)
+      (ofFn_satisfy (reads.priorDigest 1)) (ofFn_satisfy activeDigest)
+      (ofFn_satisfy (reads.priorDigest 1)) row prior
+  · exact DigestSelect.digestRows_satisfy reads 0 row first
+  · exact DigestSelect.digestRows_satisfy reads 1 row second
+
+end Scope
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem marks_nil : marks (Circuit.ops (circuit interface).main offset) = [] := by
+  simp [circuit, Circuit.ops, marks, Op.marks]
+
+/-- The rows read only the gadget's words. -/
+theorem free {live : Nat → Prop}
+    (words : DigestSelect.WordsSatisfy interface.toInterface offset live)
+    (activeDigest : ∀ lane, (interface.activeDigest offset lane).VarsSatisfy live) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
+      row.VarsSatisfy live := by
+  intro row member
+  simp only [circuit, Circuit.ops, flatConstraints, List.flatMap_map, List.mem_flatMap,
+    Op.flatConstraints, List.mem_singleton] at member
+  obtain ⟨original, inside, rfl⟩ := member
+  exact rows_satisfy words activeDigest _ inside
+
 end NightstreamFPrime.Lifecycle.BoundedDepth.LightSelect

@@ -56,4 +56,39 @@ theorem output_varsSatisfy
       simpa [circuit] using upper)
   simpa [output, circuit] using supported
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+section Exporter
+
+variable {logicalWidth : Nat}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
+
+theorem marks_nil (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Interface) (offset : Nat) :
+    marks (Circuit.ops (circuit relation interface).main offset) = [] := by
+  show marks (Sparse.Owned.opsAt (polynomial relation) (sparseInterface interface) offset) = []
+  simp [Sparse.Owned.opsAt, marks, Op.marks]
+
+/-- The rows read the fresh matrix evaluations and the gadget's own locals. -/
+theorem free (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (freshMatrix : ∀ matrix, Horner.KSupported (interface.freshMatrix offset matrix) live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit relation interface).main offset) →
+        live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit relation interface).main offset),
+      row.VarsSatisfy live :=
+  flatConstraints_varsSatisfy relation interface offset live freshMatrix locals
+
+/-- The output reads only the gadget's own locals. -/
+theorem output_live (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit relation interface).main offset) →
+        live column) :
+    Horner.KSupported (output relation interface offset) live :=
+  output_varsSatisfy relation interface offset live locals
+
+end Exporter
+
 end NightstreamFPrime.Lifecycle.PiCCS.v1_2.CcsTerminal

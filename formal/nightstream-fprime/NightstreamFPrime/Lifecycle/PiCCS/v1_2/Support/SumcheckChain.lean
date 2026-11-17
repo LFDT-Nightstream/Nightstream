@@ -246,4 +246,31 @@ theorem output_varsSatisfy {degree : Nat}
     (coreRounds_supported interface offset allowed roundSupport)
     (coreStored_allowed interface offset allowed storedSupport)
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem marks_nil {degree : Nat} (interface : Interface degree) (offset : Nat) :
+    marks (Circuit.ops (circuit interface).main offset) = [] := by
+  rw [circuit_ops]
+  simp [FixedChain.Owned.opsAt, marks, Op.marks]
+
+/-- The rows read the initial claim, the rounds and the gadget's own locals. -/
+theorem free {degree : Nat} (interface : Interface degree) (offset : Nat) {live : Nat → Prop}
+    (initial : KSupported (interface.initial offset) live)
+    (round : ∀ roundIndex, RoundSupported (interface.round offset roundIndex) live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) → live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface).main offset), row.VarsSatisfy live :=
+  flatConstraints_varsSatisfy interface offset live initial round fun column lower upper =>
+    locals column lower (by rwa [localLength_eq])
+
+theorem output_live {degree : Nat} (interface : Interface degree) (offset : Nat)
+    {live : Nat → Prop}
+    (initial : KSupported (interface.initial offset) live)
+    (round : ∀ roundIndex, RoundSupported (interface.round offset roundIndex) live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) → live column) :
+    KSupported (output interface offset) live :=
+  output_varsSatisfy interface offset live initial round fun column lower upper =>
+    locals column lower (by rwa [localLength_eq])
+
 end NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain

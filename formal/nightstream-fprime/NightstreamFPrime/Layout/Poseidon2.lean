@@ -426,9 +426,10 @@ theorem hashConstraints_noFresh (interface : Formal.Interface) (offset : Nat)
   simp only [flatConstraints, List.mem_flatMap] at member
   rcases member with ⟨operation, operationMember, constraintMember⟩
   simp only [Formal.opsAt, List.mem_cons] at operationMember
-  rcases operationMember with rfl | operationMember
+  rcases operationMember with rfl | rfl | operationMember
   · exact R1CS.recipeConstraints_noFresh offset _ recipesDirect expression
       constraintMember
+  · simp [Op.flatConstraints] at constraintMember
   · rw [Formal.assertions, List.mem_ofFn'] at operationMember
     rcases operationMember with ⟨lane, rfl⟩
     simp only [Op.flatConstraints, List.mem_singleton] at constraintMember
@@ -448,9 +449,10 @@ theorem hashConstraints_rowsOne (interface : Formal.Interface) (offset : Nat)
   simp only [flatConstraints, List.mem_flatMap] at member
   rcases member with ⟨operation, operationMember, constraintMember⟩
   simp only [Formal.opsAt, List.mem_cons] at operationMember
-  rcases operationMember with rfl | operationMember
+  rcases operationMember with rfl | rfl | operationMember
   · exact R1CS.recipeConstraints_rowsOne offset _ recipesDirect expression
       constraintMember
+  · simp [Op.flatConstraints] at constraintMember
   · rw [Formal.assertions, List.mem_ofFn'] at operationMember
     rcases operationMember with ⟨lane, rfl⟩
     simp only [Op.flatConstraints, List.mem_singleton] at constraintMember

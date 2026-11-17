@@ -271,13 +271,14 @@ theorem lowerPiecesAux_sound (canonical : List Expr) (env : Env) :
       · exact restHold current member
 
 /-- The rows of the pieces of `constraints` give the constraints. -/
-theorem pieces_sound (canonical constraints : List Expr) (next : Nat) (env : Env)
-    (rows : R1CS.RowsHold env (lowerPieces canonical (split canonical constraints) next).1) :
+theorem pieces_sound (canonical : List Expr) (marks : List PermutationMark)
+    (constraints : List Expr) (next : Nat) (env : Env)
+    (rows : R1CS.RowsHold env (lowerPieces canonical (split canonical marks constraints) next).1) :
     ConstraintsHold env constraints := by
-  have holds := (lowerPiecesAux_sound canonical env _ next [] (valid_split canonical constraints)
-    rows).2
+  have holds := (lowerPiecesAux_sound canonical env _ next []
+    (valid_split canonical marks constraints) rows).2
   intro expression member
-  rw [← flatMap_split canonical constraints, List.mem_flatMap] at member
+  rw [← flatMap_split canonical marks constraints, List.mem_flatMap] at member
   obtain ⟨piece, pieceMember, inPiece⟩ := member
   exact holds piece pieceMember expression inPiece
 

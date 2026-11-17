@@ -343,8 +343,6 @@ import NightstreamFPrime.Spec.Nebula
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshSolver.work_eq
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshSolver.kernelChance_le_solver
 
-#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.HashSolver.slotInputs_collide
-#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.HashSolver.collisionInputs_isSome
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.HashSolver.stateChance_le_finder
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.HashSolver.collisionChance_le_finder
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.HashSolver.hashCollisions_le_finder
@@ -369,7 +367,7 @@ import NightstreamFPrime.Spec.Nebula
 /-! A collision that the finder outputs has inputs of one length, and every witness of a
 reached statement has the application's word count. -/
 
-example (collision : NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.HashSolver.PoseidonCollision) :
+example (collision : NightstreamFPrime.Lifecycle.BoundedDepth.PoseidonCollision) :
     collision.1.1.length = collision.1.2.length :=
   collision.2.2.1
 

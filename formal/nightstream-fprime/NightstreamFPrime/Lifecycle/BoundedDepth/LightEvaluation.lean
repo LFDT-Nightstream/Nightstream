@@ -132,4 +132,43 @@ theorem output_eq (relation : ProductionKey.LogicalRelation logicalWidth publicF
   unfold familyBlocks
   by_cases first : block.val = 0 <;> simp only [first, ↓reduceDIte] <;> rfl
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+/-- The rows read `ρ`, both components of both families and the step's own locals. -/
+theorem free (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (challenge : ∀ lane, (interface.challenge offset lane).VarsSatisfy live)
+    (running : ∀ block lane, (interface.running offset block lane).c0.VarsSatisfy live ∧
+      (interface.running offset block lane).c1.VarsSatisfy live)
+    (fresh : ∀ block lane, (interface.fresh offset block lane).c0.VarsSatisfy live ∧
+      (interface.fresh offset block lane).c1.VarsSatisfy live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength
+        (Circuit.ops (CombinationStep.circuit (stepInterface interface)).main offset) →
+        live column) :
+    ∀ row ∈ flatConstraints
+        (Circuit.ops (CombinationStep.circuit (stepInterface interface)).main offset),
+      row.VarsSatisfy live := by
+  have cellReads : ∀ (value : KExpr) (cell : Fin cellCount),
+      value.c0.VarsSatisfy live ∧ value.c1.VarsSatisfy live →
+        (RingKCombination.expressionCell cell value).VarsSatisfy live := by
+    intro value cell reads
+    unfold RingKCombination.expressionCell
+    split
+    · exact reads.1
+    · exact reads.2
+  exact CombinationStep.free (stepInterface interface) offset challenge
+    (fun block lane cell => cellReads _ cell (running block lane))
+    (fun block lane cell => cellReads _ cell (fresh block lane)) locals
+
+theorem output_live (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength
+        (Circuit.ops (CombinationStep.circuit (stepInterface interface)).main offset) →
+        live column)
+    (block : Fin blockCount) (lane : Fin ringDegree) :
+    (output offset block lane).c0.VarsSatisfy live ∧
+      (output offset block lane).c1.VarsSatisfy live :=
+  ⟨CombinationStep.output_live (stepInterface interface) offset locals _,
+    CombinationStep.output_live (stepInterface interface) offset locals _⟩
+
 end NightstreamFPrime.Lifecycle.BoundedDepth.LightEvaluation

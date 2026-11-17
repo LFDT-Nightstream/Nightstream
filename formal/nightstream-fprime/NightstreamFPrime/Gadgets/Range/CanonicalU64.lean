@@ -1217,4 +1217,30 @@ def circuit (interface : Interface) : FormalCircuit :=
       intro env offset assumptions specification
       exact completeness interface env offset assumptions specification }
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem marks_nil (interface : Interface) (offset : Nat) :
+    marks (Circuit.ops (circuit interface).main offset) = [] := by
+  simp [circuit, main, Circuit.ops, operations, booleanOps, marks, Op.marks]
+
+/-- The rows read the source and the gadget's own locals. -/
+theorem free (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (source : (interface.source offset).VarsSatisfy live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) → live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface).main offset), row.VarsSatisfy live :=
+  flatConstraints_varsSatisfy interface offset live source fun index below =>
+    locals (offset + index) (Nat.le_add_right _ _)
+      (Nat.add_lt_add_left (by rwa [← localLength_eq interface offset] at below) _)
+
+/-- The 64 bit columns are live. -/
+theorem bit_live (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) → live column)
+    (index : Nat) (below : index < bitCount) : live (offset + index) :=
+  locals (offset + index) (Nat.le_add_right _ _) (Nat.add_lt_add_left (by
+    show index < localLength (operations interface offset)
+    rw [localLength_eq]
+    exact Nat.lt_of_lt_of_le below (by decide)) _)
+
 end NightstreamFPrime.Gadgets.Range.CanonicalU64

@@ -123,6 +123,13 @@ where
   | nil => rfl
   | cons recipe rest ih => simp [recipeConstraints, ih]
 
+/-- A Poseidon2 permutation of a circuit: its first local and its 16 input lanes. Its rows are the
+circuit's rows from the one that gives `start` (SPEC.md section 4.4). -/
+structure PermutationMark where
+  start : Nat
+  lanes : List Expr
+deriving Repr
+
 structure WitnessBatch where
   start : Nat
   recipes : List Expr
@@ -188,16 +195,23 @@ structure Subcircuit where
   rowCount_eq : constraints.length = rowCount
   spec : Env → Prop
   soundness : ∀ env, ConstraintsHold env constraints → spec env
+  /-- The marked permutations of the child's operations, in the order of their rows. -/
+  marks : List PermutationMark := []
 
+/-- A circuit operation. `mark` has no rows, no locals and no witness: it names the Poseidon2
+permutations whose rows the operations before it gave, for the exporter's blocks
+(`Export.Generic.Pieces.split`). -/
 inductive Op where
   | witness (batch : WitnessBatch)
   | assertZero (e : Expr)
   | subcircuit (child : Subcircuit)
+  | mark (permutations : List PermutationMark)
 
 def Op.localLength : Op → Nat
   | .witness batch => batch.outputLength
   | .assertZero _ => 0
   | .subcircuit child => child.localLength
+  | .mark _ => 0
 
 def localLength (ops : List Op) : Nat := (ops.map Op.localLength).sum
 
@@ -205,6 +219,7 @@ def Op.holds (env : Env) : Op → Prop
   | .witness batch => ConstraintsHold env (recipeConstraints batch.start batch.recipes)
   | .assertZero e => e.eval env = 0
   | .subcircuit child => child.spec env
+  | .mark _ => True
 
 def holds (env : Env) (ops : List Op) : Prop := ∀ op ∈ ops, op.holds env
 
@@ -212,6 +227,7 @@ def Op.flatConstraints : Op → List Expr
   | .witness batch => recipeConstraints batch.start batch.recipes
   | .assertZero e => [e]
   | .subcircuit child => child.constraints
+  | .mark _ => []
 
 def flatConstraints (ops : List Op) : List Expr := ops.flatMap Op.flatConstraints
 
@@ -219,6 +235,7 @@ def Op.rowCount : Op → Nat
   | .witness batch => batch.recipes.length
   | .assertZero _ => 1
   | .subcircuit child => child.rowCount
+  | .mark _ => 0
 
 def rowCount (ops : List Op) : Nat := (ops.map Op.rowCount).sum
 
@@ -231,6 +248,8 @@ theorem Op.flatConstraints_length_eq_rowCount (operation : Op) :
       rfl
   | subcircuit child =>
       exact child.rowCount_eq
+  | mark _ =>
+      rfl
 
 theorem flatConstraints_length_eq_rowCount (ops : List Op) :
     (flatConstraints ops).length = rowCount ops := by
@@ -260,8 +279,27 @@ def Op.witnesses : Op → List WitnessBatch
   | .witness batch => [batch]
   | .assertZero _ => []
   | .subcircuit child => child.witnesses
+  | .mark _ => []
 
 def witnesses (ops : List Op) : List WitnessBatch := ops.flatMap Op.witnesses
+
+def Op.marks : Op → List PermutationMark
+  | .mark permutations => permutations
+  | .subcircuit child => child.marks
+  | _ => []
+
+/-- The marked Poseidon2 permutations of the operations, in the order of their rows. -/
+def marks (ops : List Op) : List PermutationMark := ops.flatMap Op.marks
+
+@[simp] theorem marks_nil : marks [] = [] := rfl
+
+@[simp] theorem marks_append (left right : List Op) :
+    marks (left ++ right) = marks left ++ marks right := by
+  simp [marks]
+
+@[simp] theorem marks_cons (operation : Op) (rest : List Op) :
+    marks (operation :: rest) = operation.marks ++ marks rest := by
+  simp [marks]
 
 def Op.holdsFlat (env : Env) (op : Op) : Prop :=
   ConstraintsHold env op.flatConstraints
@@ -339,6 +377,8 @@ end Circuit
     (Op.assertZero e).holds env ↔ e.eval env = 0 := Iff.rfl
 @[simp] theorem Op.holds_subcircuit (env : Env) (child : Subcircuit) :
     (Op.subcircuit child).holds env ↔ child.spec env := Iff.rfl
+@[simp] theorem Op.holds_mark (env : Env) (permutations : List PermutationMark) :
+    (Op.mark permutations).holds env ↔ True := Iff.rfl
 
 theorem Op.holds_of_holdsFlat (env : Env) (op : Op) :
     op.holdsFlat env → op.holds env := by
@@ -348,6 +388,8 @@ theorem Op.holds_of_holdsFlat (env : Env) (op : Op) :
   | assertZero e =>
       intro h
       exact h e (by simp [Op.flatConstraints])
+  | mark _ =>
+      exact fun _ => trivial
   | subcircuit child =>
       exact child.soundness env
 
@@ -487,6 +529,11 @@ def asSubcircuit (circuit : FormalCircuit) (name : String) (offset : Nat) : Subc
     intro env hflat hassumptions
     apply circuit.soundness env offset hassumptions
     exact holdsFlat_implies_holds env _ hflat
+  marks := marks (Circuit.ops circuit.main offset)
+
+@[simp] theorem asSubcircuit_marks (circuit : FormalCircuit) (name : String) (offset : Nat) :
+    (circuit.asSubcircuit name offset).marks = marks (Circuit.ops circuit.main offset) :=
+  rfl
 
 @[simp] theorem asSubcircuit_constraints (circuit : FormalCircuit)
     (name : String) (offset : Nat) :

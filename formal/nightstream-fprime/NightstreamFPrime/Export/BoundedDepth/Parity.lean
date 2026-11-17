@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.BoundedDepth.StepPackage
+import NightstreamFPrime.Export.BoundedDepth.RowsParity
 
 /-! Parity data for Rust's expansion of the step packages (CW-7.1). A circuit's plan
 (`CircuitRelation.plan`) is one plan row per row of `Package.relationRows`, followed by 150 S-box
@@ -8,8 +8,12 @@ mixes every entry with its row, port and column, so a Rust test that recomputes 
 its own expansion compares the two expansions entry by entry. Rust builds the S-box rows from the
 shared formula library (`SharedFormulas.poseidonComponent`), as today's production relation does;
 Lean does not expand them here, because `SparseLayer` does not merge terms and the partial rounds
-grow each form sixteenfold. The probe packages check Rust's identity code against
-`StepPackage.identityFast`. The witness parity (CW-7.2) is below. -/
+grow each form sixteenfold. The last two words of `summary` are the package's logical width and
+the checksum of Lean's model of Rust's factored rows (`RowsParity.fastSum`,
+`RowsParity.fastSum_eq`). A Rust test computes this checksum from its own factored rows and so
+checks the premise `rows` of `Export.BoundedDepth.FinalRows.premises_of_rows`. The probe packages
+check Rust's identity code against `StepPackage.identityFast`. The witness parity (CW-7.2) is
+below. -/
 
 namespace NightstreamFPrime.Export.BoundedDepth.Parity
 
@@ -19,11 +23,7 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Export.Codec
 open NightstreamFPrime.Export.Generic
-
-/-- A field element that depends on the plan row, the port and the column. -/
-def mix (unit column : Nat) : F :=
-  let point : F := Poseidon2.ofNat (unit * 16777259 + column + 1)
-  point * point * point + Poseidon2.ofNat unit
+open NightstreamFPrime.Export.BoundedDepth.RowsParity (mix)
 
 def formSum {width : Nat} (unit : Nat) (form : SparseForm width) (total : F) : F :=
   form.entries.foldl (fun sum entry => sum + entry.coefficient * mix unit entry.column.val) total
@@ -96,18 +96,41 @@ def logicalSum (values : Array F) (runs : List (Nat × Nat × Nat)) (limit : Nat
     (publicPart, CircuitRelation.publicColumns)).1
 
 /-- A circuit whose blocks pack: its relation rows, its S-box rows, the checksum of its relation
-rows, the end of its shared columns, the checksum of its witness, and the checksum of its logical
-assignment. -/
+rows, the end of its shared columns, the checksum of its witness, the checksum of its logical
+assignment, its logical width, and the checksum of its dense rows. The last word is
+`RowsParity.fastSum width pieces next batches`, with the relation rows and the slots computed
+once. -/
 def summary (width : Nat) (pieces : List Pieces.Piece) (next sharedEnd : Nat)
     (batches : List WitnessBatch) : Value :=
   let rows := CircuitRelation.relationRows CircuitRelation.publicColumns pieces next width
   let blocks := CircuitRelation.blocksOf pieces
   let values := runBatches sharedEnd next batches
   let witness := witnessSum values (deadMask next blocks)
-  let logical := logicalSum values
-    (StepPackage.slotRuns CircuitRelation.publicColumns pieces next batches) next
+  let runs := StepPackage.slotRuns CircuitRelation.publicColumns pieces next batches
+  let logical := logicalSum values runs next
+  let slots := SlotLayout.runSlots width runs
   .array [.atom rows.length, .atom (150 * blocks.length), .atom (ordinarySum width rows 0).val,
-    .atom sharedEnd, .atom witness.val, .atom logical.val]
+    .atom sharedEnd, .atom witness.val, .atom logical.val,
+    .atom (ProductionAssignment.logicalWidth slots),
+    .atom (RowsParity.denseFast width pieces next rows slots).val]
+
+/-- The dense rows of a circuit: its relation rows, its S-box rows, its logical width, and the
+checksum of its dense rows, `RowsParity.fastSum width pieces next batches`. -/
+def rowsSummary (width : Nat) (pieces : List Pieces.Piece) (next : Nat)
+    (batches : List WitnessBatch) : Value :=
+  let rows := CircuitRelation.relationRows CircuitRelation.publicColumns pieces next width
+  let slots := SlotLayout.runSlots width
+    (StepPackage.slotRuns CircuitRelation.publicColumns pieces next batches)
+  .array [.atom rows.length, .atom (150 * (CircuitRelation.blocksOf pieces).length),
+    .atom (ProductionAssignment.logicalWidth slots),
+    .atom (RowsParity.denseFast width pieces next rows slots).val]
+
+/-- The rows file of a program other than today's fixture: its version, then the rows summary of
+the light and the refresh circuit. -/
+def rowsParity (width : Nat) (light refresh : List Pieces.Piece × Nat × List WitnessBatch) :
+    Value :=
+  .array [.atom 1, rowsSummary width light.1 light.2.1 light.2.2,
+    rowsSummary width refresh.1 refresh.2.1 refresh.2.2]
 
 /-- Two small packages whose identity Lean computes (`StepPackage.identityFast`): a probe for
 Rust's identity code. -/
@@ -124,7 +147,7 @@ def probeRefresh : StepPackage.Package :=
 identity. -/
 def parity (width : Nat) (light refresh : List Pieces.Piece × Nat × Nat × List WitnessBatch) :
     Value :=
-  .array [.atom 3, summary width light.1 light.2.1 light.2.2.1 light.2.2.2,
+  .array [.atom 4, summary width light.1 light.2.1 light.2.2.1 light.2.2.2,
     summary width refresh.1 refresh.2.1 refresh.2.2.1 refresh.2.2.2,
     StepPackage.identityValue probeLight probeRefresh,
     .array ((StepPackage.identityFast probeLight probeRefresh).map fun word => .atom word.val)]

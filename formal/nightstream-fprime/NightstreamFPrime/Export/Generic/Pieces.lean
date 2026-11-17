@@ -3,11 +3,14 @@ import NightstreamFPrime.Lifecycle.Nebula.RowExprs
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep
 
 /-! The pieces of a circuit's flat constraints, for the generic exporter of the bounded-depth step
-circuits (CW-5). A block of constraints that is the canonical Poseidon2 permutation
-(`PilotData.canonicalConstraints`) under a substitution is one permutation piece. The package
-exports it as an invocation of today's permutation template, which Rust packs into 150 CCS rows.
-A block that is one `CombinationStep` block of the Π_RLC combinations (`ringTemplate`, one or two
-cells) is one ring-product piece, which `PieceRows` checks with 128 rows per cell. Every other
+circuits (CW-5). Each Poseidon2 permutation of the circuit is marked in its witness batch
+(`Circuit.PermutationMark`). At the first row of the next mark, when the mark's rows follow (the
+canonical permutation `PilotData.canonicalConstraints` with the mark's lanes and locals, `window`)
+and its lanes are linear, the rows are one permutation piece. The package exports it as an
+invocation of today's permutation template, which Rust packs into 150 CCS rows. So a block comes
+only from a mark, never from a match of the template. A block that is one `CombinationStep` block
+of the Π_RLC combinations (`ringTemplate`, one or two cells) and ends before the next mark's first
+row is one ring-product piece, which `PieceRows` checks with 128 rows per cell. Every other
 constraint is its own piece and is lowered to R1CS rows. `split` makes a block piece only after a
 prefix check, so the pieces give back the constraints (`flatMap_split`), and recognition changes
 only the row count. -/
@@ -263,23 +266,28 @@ theorem Piece.length_eq (canonical : List Expr) (piece : Piece) :
     (piece.constraints canonical).length = piece.length canonical := by
   cases piece <;> simp [Piece.constraints, Piece.length]
 
-/-- The block piece at the head of `constraints`: a permutation, or a ring-product block of one
-or two cells. -/
-def recognize (canonical constraints : List Expr) : Option Piece :=
-  match matchTemplate 16 canonical constraints with
-  | some (start, lanes) => some (.permutation start lanes)
-  | none =>
-      match matchTemplate (ringInputs 1) ringTemplateOne constraints with
-      | some (start, lanes) => some (.ringProduct 1 start lanes)
-      | none =>
-          match matchTemplate (ringInputs 2) ringTemplateTwo constraints with
-          | some (start, lanes) => some (.ringProduct 2 start lanes)
-          | none => none
+/-- The rows of a marked permutation: the canonical template with the mark's lanes, and its
+locals from the mark's first local. -/
+def window (canonical : List Expr) (mark : PermutationMark) : List Expr :=
+  canonical.map (subst (laneSubst 16 mark.start mark.lanes))
 
-theorem recognize_spec {canonical constraints : List Expr} {piece : Piece}
-    (h : recognize canonical constraints = some piece) :
+theorem permutation_constraints (canonical : List Expr) (mark : PermutationMark) :
+    (Piece.permutation mark.start mark.lanes).constraints canonical = window canonical mark :=
+  rfl
+
+/-- The ring-product block at the head of `constraints`, of one or two cells. -/
+def recognizeRing (constraints : List Expr) : Option Piece :=
+  match matchTemplate (ringInputs 1) ringTemplateOne constraints with
+  | some (start, lanes) => some (.ringProduct 1 start lanes)
+  | none =>
+      match matchTemplate (ringInputs 2) ringTemplateTwo constraints with
+      | some (start, lanes) => some (.ringProduct 2 start lanes)
+      | none => none
+
+theorem recognizeRing_spec {canonical constraints : List Expr} {piece : Piece}
+    (h : recognizeRing constraints = some piece) :
     piece.constraints canonical <+: constraints ∧ piece.Valid := by
-  unfold recognize at h
+  unfold recognizeRing at h
   split at h
   · rename_i start lanes found
     cases h
@@ -288,77 +296,133 @@ theorem recognize_spec {canonical constraints : List Expr} {piece : Piece}
     · rename_i start lanes found
       cases h
       exact matchTemplate_spec found
-    · split at h
-      · rename_i start lanes found
-        cases h
-        exact matchTemplate_spec found
-      · cases h
+    · cases h
 
-/-- Splits constraints into pieces, tail recursive with `pieces` reversed. Each step uses one
-unit of fuel and consumes at least one constraint while `canonical` is not empty. -/
-def splitAux (canonical : List Expr) : Nat → List Expr → List Piece → List Piece
-  | 0, constraints, pieces => pieces.reverse ++ constraints.map .constraint
-  | _ + 1, [], pieces => pieces.reverse
-  | fuel + 1, constraint :: rest, pieces =>
-      match recognize canonical (constraint :: rest) with
-      | some piece =>
-          splitAux canonical fuel ((constraint :: rest).drop (piece.length canonical))
-            (piece :: pieces)
-      | none => splitAux canonical fuel rest (.constraint constraint :: pieces)
+/-- No row of `rows` starts with the first local of the next mark. -/
+def beforeMark (marks : List PermutationMark) (rows : List Expr) : Bool :=
+  match marks with
+  | [] => true
+  | mark :: _ => rows.all fun row => blockStart row != some mark.start
 
-def split (canonical constraints : List Expr) : List Piece :=
-  splitAux canonical constraints.length constraints []
+/-- The piece at the head of `constraint :: rest` that is no marked block: a ring-product block
+that ends before the next mark's first row, or the head row alone. -/
+def otherPiece (canonical : List Expr) (marks : List PermutationMark) (constraint : Expr)
+    (rest : List Expr) : Piece :=
+  match recognizeRing (constraint :: rest) with
+  | some piece =>
+      if beforeMark marks ((constraint :: rest).take (piece.length canonical)) then piece
+      else .constraint constraint
+  | none => .constraint constraint
+
+/-- The piece at the head of `constraint :: rest`, and the marks after it. At the first row of the
+next mark, the piece is the mark's block when the mark's rows follow and it has 16 linear lanes,
+and the head row alone otherwise; either way the mark is used. -/
+def nextPiece (canonical : List Expr) (marks : List PermutationMark) (constraint : Expr)
+    (rest : List Expr) : Piece × List PermutationMark :=
+  match marks with
+  | mark :: later =>
+      if blockStart constraint = some mark.start then
+        if (window canonical mark).isPrefixOf (constraint :: rest) ∧ mark.lanes.length = 16 ∧
+            LinearLanes mark.lanes then
+          (.permutation mark.start mark.lanes, later)
+        else (.constraint constraint, later)
+      else (otherPiece canonical marks constraint rest, marks)
+  | [] => (otherPiece canonical [] constraint rest, [])
+
+theorem otherPiece_spec (canonical : List Expr) (marks : List PermutationMark) (constraint : Expr)
+    (rest : List Expr) :
+    (otherPiece canonical marks constraint rest).constraints canonical <+: constraint :: rest ∧
+      (otherPiece canonical marks constraint rest).Valid := by
+  unfold otherPiece
+  split
+  · rename_i piece found
+    split
+    · exact recognizeRing_spec found
+    · exact ⟨List.prefix_iff_eq_take.mpr rfl, trivial⟩
+  · exact ⟨List.prefix_iff_eq_take.mpr rfl, trivial⟩
+
+theorem nextPiece_spec (canonical : List Expr) (marks : List PermutationMark) (constraint : Expr)
+    (rest : List Expr) :
+    (nextPiece canonical marks constraint rest).1.constraints canonical <+: constraint :: rest ∧
+      (nextPiece canonical marks constraint rest).1.Valid := by
+  unfold nextPiece
+  split
+  · rename_i mark later
+    split
+    · split
+      · rename_i found
+        exact ⟨List.isPrefixOf_iff_prefix.mp found.1, found.2.2⟩
+      · exact ⟨List.prefix_iff_eq_take.mpr rfl, trivial⟩
+    · exact otherPiece_spec canonical _ constraint rest
+  · exact otherPiece_spec canonical [] constraint rest
+
+/-- Splits constraints into pieces with the marks of their permutations, tail recursive with
+`pieces` reversed. Each step uses one unit of fuel and consumes at least one constraint while
+`canonical` is not empty. -/
+def splitAux (canonical : List Expr) :
+    Nat → List PermutationMark → List Expr → List Piece → List Piece
+  | 0, _, constraints, pieces => pieces.reverse ++ constraints.map .constraint
+  | _ + 1, _, [], pieces => pieces.reverse
+  | fuel + 1, marks, constraint :: rest, pieces =>
+      let next := nextPiece canonical marks constraint rest
+      splitAux canonical fuel next.2 ((constraint :: rest).drop (next.1.length canonical))
+        (next.1 :: pieces)
+
+/-- The pieces of `constraints`: a block for each marked permutation whose rows follow at its
+first row, a ring-product block for each recognized `CombinationStep` block, and one piece for each
+other constraint. -/
+def split (canonical : List Expr) (marks : List PermutationMark) (constraints : List Expr) :
+    List Piece :=
+  splitAux canonical constraints.length marks constraints []
 
 theorem flatMap_splitAux (canonical : List Expr) :
-    ∀ (fuel : Nat) (constraints : List Expr) (pieces : List Piece),
-      (splitAux canonical fuel constraints pieces).flatMap (Piece.constraints canonical) =
+    ∀ (fuel : Nat) (marks : List PermutationMark) (constraints : List Expr) (pieces : List Piece),
+      (splitAux canonical fuel marks constraints pieces).flatMap (Piece.constraints canonical) =
         pieces.reverse.flatMap (Piece.constraints canonical) ++ constraints := by
   intro fuel
   induction fuel with
   | zero =>
-      intro constraints pieces
+      intro marks constraints pieces
       simp only [splitAux, List.flatMap_append, List.flatMap_map]
       congr 1
       induction constraints with
       | nil => rfl
       | cons constraint rest ih => simp [List.flatMap_cons, Piece.constraints]
   | succ fuel ih =>
-      intro constraints pieces
+      intro marks constraints pieces
       cases constraints with
       | nil => simp [splitAux]
       | cons constraint rest =>
           simp only [splitAux]
-          split
-          · rename_i piece found
-            rw [ih]
-            have whole : piece.constraints canonical =
-                (constraint :: rest).take (piece.length canonical) := by
-              rw [← Piece.length_eq]
-              exact List.prefix_iff_eq_take.mp (recognize_spec found).1
-            simp only [List.reverse_cons, List.flatMap_append, List.flatMap_cons,
-              List.flatMap_nil, List.append_nil, List.append_assoc]
-            rw [whole, List.take_append_drop]
-          · rw [ih]
-            simp [List.reverse_cons, List.flatMap_append, Piece.constraints]
+          rw [ih]
+          have whole : (nextPiece canonical marks constraint rest).1.constraints canonical =
+              (constraint :: rest).take
+                ((nextPiece canonical marks constraint rest).1.length canonical) := by
+            rw [← Piece.length_eq]
+            exact List.prefix_iff_eq_take.mp (nextPiece_spec canonical marks constraint rest).1
+          simp only [List.reverse_cons, List.flatMap_append, List.flatMap_cons,
+            List.flatMap_nil, List.append_nil, List.append_assoc]
+          rw [whole, List.take_append_drop]
 
-theorem flatMap_split (canonical constraints : List Expr) :
-    (split canonical constraints).flatMap (Piece.constraints canonical) = constraints := by
+theorem flatMap_split (canonical : List Expr) (marks : List PermutationMark)
+    (constraints : List Expr) :
+    (split canonical marks constraints).flatMap (Piece.constraints canonical) = constraints := by
   simp [split, flatMap_splitAux]
 
 theorem valid_splitAux (canonical : List Expr) :
-    ∀ (fuel : Nat) (constraints : List Expr) (pieces : List Piece),
+    ∀ (fuel : Nat) (marks : List PermutationMark) (constraints : List Expr) (pieces : List Piece),
       (∀ piece ∈ pieces, piece.Valid) →
-        ∀ piece ∈ splitAux canonical fuel constraints pieces, piece.Valid := by
+        ∀ piece ∈ splitAux canonical fuel marks constraints pieces, piece.Valid := by
   intro fuel
   induction fuel with
   | zero =>
-      intro constraints pieces valid piece member
+      intro marks constraints pieces valid piece member
       simp only [splitAux, List.mem_append, List.mem_reverse, List.mem_map] at member
       rcases member with member | ⟨_, _, rfl⟩
       · exact valid piece member
       · trivial
   | succ fuel ih =>
-      intro constraints pieces valid
+      intro marks constraints pieces valid
       cases constraints with
       | nil =>
           intro piece member
@@ -366,24 +430,17 @@ theorem valid_splitAux (canonical : List Expr) :
           exact valid piece member
       | cons constraint rest =>
           simp only [splitAux]
-          split
-          · rename_i found _ found'
-            apply ih
-            intro piece member
-            simp only [List.mem_cons] at member
-            rcases member with rfl | member
-            · exact (recognize_spec found').2
-            · exact valid piece member
-          · apply ih
-            intro piece member
-            simp only [List.mem_cons] at member
-            rcases member with rfl | member
-            · trivial
-            · exact valid piece member
+          apply ih
+          intro piece member
+          simp only [List.mem_cons] at member
+          rcases member with rfl | member
+          · exact (nextPiece_spec canonical marks constraint rest).2
+          · exact valid piece member
 
-theorem valid_split (canonical constraints : List Expr) :
-    ∀ piece ∈ split canonical constraints, piece.Valid :=
-  valid_splitAux canonical _ constraints [] (by simp)
+theorem valid_split (canonical : List Expr) (marks : List PermutationMark)
+    (constraints : List Expr) :
+    ∀ piece ∈ split canonical marks constraints, piece.Valid :=
+  valid_splitAux canonical _ marks constraints [] (by simp)
 
 /-! ### Soundness -/
 
@@ -461,17 +518,18 @@ theorem mem_genericConstraints {expression : Expr} :
 
 /-- The constraints hold when every block piece's constraints hold and the other constraints
 hold. -/
-theorem split_sound (canonical constraints : List Expr) (env : Env)
+theorem split_sound (canonical : List Expr) (marks : List PermutationMark)
+    (constraints : List Expr) (env : Env)
     (permutations : ∀ start lanes,
-      Piece.permutation start lanes ∈ split canonical constraints →
+      Piece.permutation start lanes ∈ split canonical marks constraints →
       ConstraintsHold env ((Piece.permutation start lanes).constraints canonical))
     (ringProducts : ∀ cells start lanes,
-      Piece.ringProduct cells start lanes ∈ split canonical constraints →
+      Piece.ringProduct cells start lanes ∈ split canonical marks constraints →
       ConstraintsHold env ((Piece.ringProduct cells start lanes).constraints canonical))
-    (generic : ConstraintsHold env (genericConstraints (split canonical constraints))) :
+    (generic : ConstraintsHold env (genericConstraints (split canonical marks constraints))) :
     ConstraintsHold env constraints := by
   intro expression member
-  rw [← flatMap_split canonical constraints, List.mem_flatMap] at member
+  rw [← flatMap_split canonical marks constraints, List.mem_flatMap] at member
   obtain ⟨piece, pieceMember, inPiece⟩ := member
   cases piece with
   | constraint other =>

@@ -220,13 +220,13 @@ def parity_rows():
     if not re.search(r"\.array \[\.atom rows\.length, \.atom \(150 \* blocks\.length\)", text):
         sys.exit(f"spec: {rel(PARITY_SOURCE)} no longer starts a summary with the relation rows and "
                  "the S-box rows")
-    if not re.search(r"\.array \[\.atom 3, summary width light\.1 .*?,\s*summary width refresh\.1",
+    if not re.search(r"\.array \[\.atom 4, summary width light\.1 .*?,\s*summary width refresh\.1",
                      text, re.S):
-        sys.exit(f"spec: {rel(PARITY_SOURCE)} no longer writes version 3, then the light and the "
+        sys.exit(f"spec: {rel(PARITY_SOURCE)} no longer writes version 4, then the light and the "
                  "refresh summary")
     parity = json.loads(PARITY.read_text(encoding="utf-8"))
-    if not (isinstance(parity, list) and parity[0] == 3):
-        sys.exit(f"spec: {rel(PARITY)} is not a version 3 parity file")
+    if not (isinstance(parity, list) and parity[0] == 4):
+        sys.exit(f"spec: {rel(PARITY)} is not a version 4 parity file")
     found = []
     for name, summary in (("light", parity[1]), ("refresh", parity[2])):
         found.append((f"`{rel(PARITY)}`", f"{name}.relationRows", summary[0]))

@@ -752,10 +752,16 @@ fn a_light_final_proof_carries_slot_zero_alone_and_needs_its_mode() {
     ));
     let mut tagged = bytes.clone();
     tagged[16..24].copy_from_slice(&2u64.to_le_bytes());
-    assert!(FinalProof::from_bytes(&tagged).is_err(), "the light tag with pc = 2 decodes");
+    assert!(
+        FinalProof::from_bytes(&tagged).is_err(),
+        "the light tag with pc = 2 decodes"
+    );
     let mut retagged = bytes.clone();
     retagged[..16].copy_from_slice(b"NS-OPTIONB-FIN-2");
-    assert!(FinalProof::from_bytes(&retagged).is_err(), "one slot under the tag of both decodes");
+    assert!(
+        FinalProof::from_bytes(&retagged).is_err(),
+        "one slot under the tag of both decodes"
+    );
 }
 
 #[test]

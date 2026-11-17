@@ -331,7 +331,13 @@ fn a_micro_proof_compresses_with_two_claims() {
     }
     let last = *run.state();
     let proof = run.finish().unwrap();
-    assert_eq!(verifier.verify(&program, &initial, &last, &proof).unwrap().steps, 1);
+    assert_eq!(
+        verifier
+            .verify(&program, &initial, &last, &proof)
+            .unwrap()
+            .steps,
+        1
+    );
     eprintln!("prove {} rows elapsed={:?}", trace.len(), started.elapsed());
 
     let setup = prover.compression_setup().unwrap();
@@ -365,7 +371,11 @@ fn the_light_relation_fits_the_key(size: WasmSize) {
         .unwrap();
     let key = verifier.compression_key().unwrap().to_bytes();
     assert_eq!(&key[..16], b"NS-COMPRESS-VK-1");
-    assert_eq!(key[16..24], (1u64 << 19).to_le_bytes(), "{size:?}: the key of 2^19 blocks");
+    assert_eq!(
+        key[16..24],
+        (1u64 << 19).to_le_bytes(),
+        "{size:?}: the key of 2^19 blocks"
+    );
     eprintln!("{size:?}: compile and key elapsed={:?}", started.elapsed());
 }
 

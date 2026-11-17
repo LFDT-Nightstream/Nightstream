@@ -391,7 +391,11 @@ impl BoundedDepth {
                 return Err(slot("depth is above the light fold cap"));
             }
         }
-        let slots: Vec<_> = steps.slots.iter().map(|(claim, depth)| (claim, *depth)).collect();
+        let slots: Vec<_> = steps
+            .slots
+            .iter()
+            .map(|(claim, depth)| (claim, *depth))
+            .collect();
         self.check_key_size(key)?;
         let depths: Vec<u64> = slots.iter().map(|slot| slot.1).collect();
         self.compression_layout(key.blocks(), steps.pc, &depths)?;

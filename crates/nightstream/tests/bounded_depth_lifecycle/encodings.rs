@@ -49,7 +49,14 @@ fn circuit_key_is_the_lean_digest() {
 #[test]
 fn the_default_slot_has_the_lean_digest() {
     let prover = super::prover(2);
-    let slot = super::super::words::slot(&prover.default_slot(1).expect("default slot").accumulator.claim, 0);
+    let slot = super::super::words::slot(
+        &prover
+            .default_slot(1)
+            .expect("default slot")
+            .accumulator
+            .claim,
+        0,
+    );
     assert_eq!(slot, nightstream_fprime::Slot::default_slot());
     assert_eq!(
         slot.digest().map(|word| word.as_canonical_u64()).to_vec(),

@@ -291,7 +291,6 @@ fn construction_rejects_invalid_geometry_before_loading_a_file() {
     assert!(matches!(valid, Err(nightstream::Error::Io(_))));
 }
 
-/// A returned plan is still checked at the binding.
 #[test]
 fn construction_rejects_changed_plan_coverage() {
     let catalog = catalog();

@@ -1,5 +1,3 @@
-//! Exercise the slot planner through the public API.
-
 use std::collections::{BTreeMap, BTreeSet};
 
 use nightstream::relation::{
@@ -136,8 +134,6 @@ fn unknown_activations_are_conservative_and_exclusions_work_without_supports() {
     assert_eq!(plan.slots, vec![vec![0, 1], vec![2], vec![3]]);
 }
 
-/// The conflicts are the path 0 - 2 - 3 - 1. First fit gives ports 0 and 1
-/// slot 0, port 2 slot 1 and port 3 slot 2. Two slots are sufficient.
 #[test]
 fn bounded_search_reduces_the_first_fit_plan() {
     let catalog = catalog(vec![(0..4).map(|gate| (When(gate), false)).collect()]);

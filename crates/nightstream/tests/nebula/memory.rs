@@ -362,7 +362,7 @@ fn memory_security_bits_match_the_lean_setup_boundary() {
 /// accepts 107 and rejects 108, also before a prover reads a saved circuit.
 #[test]
 fn the_memory_gate_charges_every_segment_exactly() {
-    use super::{memory_security, segments_security_bits, Geometry, Prover};
+    use super::{memory_security, Geometry, Prover};
     use crate::{Engine, Error};
     use neo_params::ParamsError;
 
@@ -377,7 +377,7 @@ fn the_memory_gate_charges_every_segment_exactly() {
     assert!(geometries.len() > 10);
     for geometry in &geometries {
         let charge = 2 * geometry.max_tuples() as u128 * geometry.s_max as u128;
-        let bits = segments_security_bits(geometry);
+        let bits = geometry.segments_security_bits();
         assert!(
             charge
                 .checked_mul(1 << bits)
@@ -392,7 +392,7 @@ fn the_memory_gate_charges_every_segment_exactly() {
         );
     }
 
-    assert_eq!(segments_security_bits(&edge), 107);
+    assert_eq!(edge.segments_security_bits(), 107);
     assert!(memory_security(&edge, 107).is_ok());
     let rejected = |result: Result<(), Error>| {
         matches!(

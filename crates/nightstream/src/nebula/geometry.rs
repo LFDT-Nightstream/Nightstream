@@ -144,6 +144,20 @@ impl Geometry {
         2.0 * (F::ORDER_U64 as f64).log2() - (2.0 * self.max_tuples() as f64).log2()
     }
 
+    /// The largest `k` with `S_max · 2 · m_mem / q² ≤ 2^−k`: each of the `S_max`
+    /// segments of a proof adds its own fingerprint term (`SECURITY_MODEL.md`,
+    /// adversary 5). The integers are exact, so no rounding accepts a larger `k`.
+    /// `Circuit::prover` and `Circuit::verifier` accept a minimum of at most
+    /// this value.
+    pub fn segments_security_bits(&self) -> u32 {
+        let q = u128::from(F::ORDER_U64);
+        (2 * self.max_tuples() as u128)
+            .checked_mul(self.s_max as u128)
+            .and_then(|error| (q * q).checked_div(error))
+            .and_then(u128::checked_ilog2)
+            .unwrap_or(0)
+    }
+
     /// Bits of an address field (Lean `Geometry.addrWidth`): enough for a
     /// ROM address and for a RAM address.
     pub(crate) fn addr_width(&self) -> usize {

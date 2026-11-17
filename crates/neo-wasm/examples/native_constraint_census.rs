@@ -87,7 +87,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         BOUNDED_DEPTH_PACKAGES_IDENTITY,
     )?;
     let layout = build_wasm_relation_layout();
-    let slots = plan_ordered_wasm_memory_slots(layout.auxiliary.memory.entries())
+    let slots = plan_ordered_wasm_memory_slots(&layout.auxiliary.memory)
         .slots
         .len();
     let saved_directory = std::env::args().nth(2).filter(|value| value != "-");

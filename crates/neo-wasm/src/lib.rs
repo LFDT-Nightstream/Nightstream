@@ -51,7 +51,7 @@ pub use isa::{
 };
 pub use layout::{column_families, named_column_family, Column, ColumnFamilySpec, ColumnWidth, NAMED_COLUMN_COUNT};
 pub use memory_id::WasmMemoryId;
-pub use memory_routing::{plan_ordered_wasm_memory_slots, WasmMemorySlotPlan};
+pub use memory_routing::plan_ordered_wasm_memory_slots;
 pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
 pub use operations::r1cs::{audit_operation_auxiliary_load_bearing, audit_operation_witness};
 pub use preprocess::{continuity_words, host_event_top_level_initial_state, top_level_initial_state};

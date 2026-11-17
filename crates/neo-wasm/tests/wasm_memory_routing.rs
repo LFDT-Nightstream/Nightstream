@@ -11,9 +11,8 @@ use neo_wasm::{
 #[test]
 fn slot_plan_is_deterministic_and_covers_every_logical_port_once() {
     let layout = build_wasm_relation_layout();
-    let memories = layout.auxiliary.memory.entries();
-    let plan = plan_ordered_wasm_memory_slots(memories);
-    assert_eq!(plan, plan_ordered_wasm_memory_slots(memories));
+    let plan = plan_ordered_wasm_memory_slots(&layout.auxiliary.memory);
+    assert_eq!(plan, plan_ordered_wasm_memory_slots(&layout.auxiliary.memory));
     let mut ports: Vec<_> = plan.slots.iter().flatten().copied().collect();
     ports.sort_unstable();
     assert_eq!(ports, (0..plan.logical_ports).collect::<Vec<_>>());
@@ -23,7 +22,7 @@ fn slot_plan_is_deterministic_and_covers_every_logical_port_once() {
     assert_eq!(plan.gate_exclusions.len(), 29);
     assert!(plan.slots.len() < plan.logical_ports);
     assert_eq!(
-        plan.conservative_singletons, 0,
+        plan.ports_without_support, 0,
         "every current port needs a support bound"
     );
 }
@@ -55,10 +54,30 @@ fn sharing_requires_disjoint_supports_and_unknown_gates_stay_dedicated() {
             })
             .collect(),
     }];
-    let plan = plan_ordered_wasm_memory_slots(&memories);
+    let columns = neo_application::ColumnRegistry::new([neo_application::ColumnFamilySpec {
+        region: "test",
+        start: 0,
+        len: [
+            get,
+            set,
+            COL_LOCAL_WRITE_ENABLED,
+            COL_ACTIVATION_FINISHED_AFTER,
+            COL_ONE,
+        ]
+        .into_iter()
+        .max()
+        .unwrap()
+            + 1,
+        name: "bits".into(),
+        role: "slot planning test",
+        width: neo_application::ColumnWidth::Boolean,
+    }])
+    .unwrap();
+    let catalog = neo_application::MemoryCatalog::new(memories, &columns).unwrap();
+    let plan = plan_ordered_wasm_memory_slots(&catalog);
     assert_eq!(plan.slots, vec![vec![0, 1], vec![2, 3], vec![4], vec![5], vec![6]]);
     assert_eq!(plan.logical_ports, 7);
-    assert_eq!(plan.conservative_singletons, 3);
+    assert_eq!(plan.ports_without_support, 3);
     assert_eq!(plan.support_loads[&get], 2);
     assert_eq!(plan.support_loads[&set], 2);
 }
@@ -104,7 +123,7 @@ fn ordered_slot_plan_keeps_dependent_pairs_in_catalog_order_using_exported_gate_
     use MemoryPortActivation::When;
     let layout = build_wasm_relation_layout();
     let memories = layout.auxiliary.memory.entries();
-    let plan = plan_ordered_wasm_memory_slots(memories);
+    let plan = plan_ordered_wasm_memory_slots(&layout.auxiliary.memory);
     let supports = enforced_supports();
     let ports: Vec<(WasmMemoryId, &MemoryPortSpec)> = memories
         .iter()

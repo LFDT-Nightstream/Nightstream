@@ -7,6 +7,7 @@ pub mod event_commitment;
 mod gadgets;
 mod memory;
 mod memory_check;
+mod memory_routing;
 pub mod poseidon2;
 mod r1cs;
 mod range_check;
@@ -50,3 +51,5 @@ mod auxiliary;
 mod expression;
 pub use auxiliary::{AuxiliaryAssignmentError, AuxiliaryBuilder, AuxiliaryLayout};
 pub use expression::LinearExpression;
+
+pub use memory_routing::{plan_ordered_memory_slots, MemoryActivationFacts, MemorySlotPlan};

@@ -48,7 +48,17 @@ value.
   backwards compatibility.
 - Do not add Rust features or environment variables without approval.
 - Sign off every commit (`git commit -s`).
+- Do not name an AI tool or model as an author. A commit gets no
+  `Co-Authored-By` line for an AI. A PR description gets no "Generated
+  with" line. A branch name gets no AI-tool prefix, for example `claude/`.
 - Keep each file under 1,500 lines unless the user approves more.
+
+## Pull requests
+
+- Push a branch or open a PR only when the user requests it or approves it
+  in the current task. Do not guess that the user wants one.
+- When the user approves a PR, put all the work of the task in that PR. Do
+  not open a second PR unless the user requests it.
 
 ## Tests
 
@@ -72,9 +82,10 @@ value.
   proof, transcript, and public-digest paths of the folding scheme and the
   step circuits. Poseidon2 makes each of their Fiat–Shamir challenges. The
   Ajtai commitment can be a digest where collision resistance is sufficient.
-- SHAKE128 expands the Ajtai setup. The Akita commitment scheme can use SHAKE
-  for its challenges. Do not add other hash families, for example BLAKE3,
-  without approval.
+- SHAKE128 expands the Ajtai setup. Inside the Akita commitment scheme only,
+  Akita uses Keccak-family hashes: the Keccak-f duplex sponge, SHA3-256,
+  SHAKE128, and SHAKE256 (`decisions/akita-compression.md`). Do not add other
+  hash families, for example BLAKE3, without approval.
 - Decomposition uses `b = 2` and `B = 2^k_rho` with `k_rho = 14`. The
   deepest accumulator `(1 + cap + k_rho)·T` stays below `B`, which needs
   `cap ≤ 112` at `T = 128`. Any other value needs approval in the current

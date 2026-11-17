@@ -43,7 +43,6 @@ pub(crate) fn sample_uniform_rq_coeffs<R: RngCore + CryptoRng>(rng: &mut R) -> [
     })
 }
 
-/// `next = X · cur` in `F_q[X]/(X^D + 1)`, where `X^D = −1`.
 #[inline(always)]
 pub fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
     next[0] = -cur[D - 1];

@@ -1,13 +1,3 @@
-//! The Nightstream parameter set and its checks.
-//!
-//! Enforces:
-//!  1) (k+1)·T·(b−1) < B where B=b^k  [Π_RLC bound]
-//!  2) the production padded-row Π_CCS statistical census, which combines
-//!     the joint SumCheck, the paper mixing polynomial, and the corrected
-//!     coordinate-fork loss; and
-//!  3) the statistical error of one fold that the fold gate charges, in
-//!     integers (Lean `FoldGate`).
-//!
 //! Symbols match the paper: q, η, d=φ(η), κ (kappa), m, b, k, B, T, s.
 //!
 //! References: SuperNeo v1.2 Section 4 (Ajtai, strong set), Section 7.4 and
@@ -19,8 +9,6 @@ use thiserror::Error;
 
 pub mod poseidon2;
 
-/// A validated parameter set. The fields are private, so no code can change
-/// `b`, `k_rho` or `B` after `new` checks them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(non_snake_case)]
 pub struct NeoParams {
@@ -34,14 +22,10 @@ pub struct NeoParams {
     B: u64,
     T: u32,
     s: u32,
-    /// The statistical bits that a gate certified (`NeoParams::with_lambda`).
-    /// `None` means that no gate certified these parameters, and the census
-    /// check of the engines refuses them.
     lambda: Option<u32>,
 }
 
-/// The only profile, "Nightstream P64, k_rho = 14": `q = 2^64 − 59` and the
-/// ring `F_q[X]/(X^64 + 1)` (`decisions/field-2p64-59-ring-x64.md`).
+/// `q = 2^64 − 59` and the ring `F_q[X]/(X^64 + 1)` (`decisions/field-2p64-59-ring-x64.md`).
 pub mod nightstream_p64_k14 {
     pub const NAME: &str = "Nightstream P64, k_rho = 14";
     pub const Q: u64 = 0u64.wrapping_sub(59);
@@ -58,12 +42,9 @@ pub mod nightstream_p64_k14 {
     /// The law of a Π_RLC challenge is within `2^-173` of the uniform law on
     /// the challenge set (Lean `PiRlcSampler.distance_lt`).
     pub const CHALLENGE_DISTANCE_LOG2: u32 = 173;
-    /// SuperNeo v1.2 Theorem 4: `floor(q^(1/2)/√2)`. A nonzero ring element
-    /// with infinity norm at most this value is invertible.
+    /// SuperNeo v1.2 Theorem 4: `floor(q^(1/2)/√2)`.
     pub const B_INV_FLOOR: u64 = 3_037_000_499;
-    /// `floor(log2(5^64))`. The challenge set has `5^64` elements, more than a `u128` holds.
     pub const CHALLENGE_SET_LOG2_FLOOR: u32 = 148;
-    /// The coefficients of `X^64 + 1` below degree `D`.
     pub static PHI_COEFFS: [i32; D] = {
         let mut coeffs = [0i32; D];
         coeffs[0] = 1;
@@ -87,12 +68,7 @@ pub struct PaddedRowSecuritySummary {
     pub fold_error: FoldError,
 }
 
-/// The statistical error of one fold that the fold gate charges (Lean
-/// `FoldGate.error`), `count / denominator`: the census Π_CCS test error
-/// `field_factor/q^s`, and `S²` times `1/|C| + 2^-173`, the bound on
-/// the probability that one Π_RLC challenge takes a given value, with
-/// `S = 1 + k_rho`. `bits` is the largest `k` with
-/// `2^k · count ≤ denominator` (Lean `FoldGate.bits`).
+/// Lean `FoldGate.error` as `count / denominator`, and Lean `FoldGate.bits`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FoldError {
     pub count: BigUint,
@@ -211,30 +187,24 @@ impl NeoParams {
         self.k_rho
     }
 
-    /// The norm bound `B = b^k_rho`.
     #[allow(non_snake_case)]
     pub fn B(&self) -> u64 {
         self.B
     }
 
-    /// The strong-set expansion factor.
     #[allow(non_snake_case)]
     pub fn T(&self) -> u32 {
         self.T
     }
 
-    /// The extension degree of `K` over the base field.
     pub fn s(&self) -> u32 {
         self.s
     }
 
-    /// The statistical bits that a gate certified, if one did.
     pub fn lambda(&self) -> Option<u32> {
         self.lambda
     }
 
-    /// The same parameters with the positive statistical bits that a gate
-    /// certified.
     pub fn with_lambda(self, lambda: u32) -> Result<Self, ParamsError> {
         if lambda == 0 {
             return Err(ParamsError::Invalid("lambda must be > 0"));
@@ -260,8 +230,6 @@ impl NeoParams {
         .expect("Nightstream P64 k_rho=14 parameters")
     }
 
-    /// The census of the shape. Refuses parameters that no gate certified,
-    /// and parameters whose certified bits are above the census bits.
     pub fn padded_row_security_check_for_shape(
         &self,
         row_count: usize,
@@ -335,7 +303,7 @@ impl NeoParams {
         })
     }
 
-    /// Lean `FoldGate.count` over `FoldGate.denominator`, with `field_size = q^s`.
+    /// Lean `FoldGate.count` over `FoldGate.denominator`.
     fn fold_error(&self, field_factor: u128, field_size: &BigUint, challenge_set_cardinality: &BigUint) -> FoldError {
         let sources = BigUint::from(1 + u64::from(self.k_rho));
         let distance = BigUint::from(1u8) << nightstream_p64_k14::CHALLENGE_DISTANCE_LOG2;

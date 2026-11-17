@@ -1,5 +1,4 @@
-//! The profile constants against independent recomputation
-//! (`decisions/field-2p64-59-ring-x64.md`).
+//! The profile constants of `decisions/field-2p64-59-ring-x64.md`.
 
 use neo_params::{nightstream_p64_k14 as profile, NeoParams, ParamsError};
 use num_bigint::BigUint;
@@ -138,7 +137,6 @@ fn maximum_geometry_padded_row_census_matches_formula() {
     assert_eq!(summary.fork_factor, fresh + running + 1);
     assert_eq!(summary.challenge_set_cardinality, BigUint::from(5u8).pow(64));
 
-    // 2^bits · (field/q^2 + fork/5^64) <= 1 < 2^(bits + 1) · (the same sum).
     let field = BigUint::from(profile::Q).pow(2);
     let numerator = BigUint::from(summary.field_factor) * &summary.challenge_set_cardinality
         + BigUint::from(summary.fork_factor) * &field;

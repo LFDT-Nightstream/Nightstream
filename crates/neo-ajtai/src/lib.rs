@@ -1,5 +1,3 @@
-//! Ajtai matrix commitment.
-
 #![forbid(unsafe_code)]
 
 mod commit;

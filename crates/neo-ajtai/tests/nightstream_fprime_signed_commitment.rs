@@ -1,5 +1,3 @@
-//! Exact indexed setup and signed-unit commitment conformance.
-
 use neo_ajtai::{
     nightstream_fprime_setup::{
         coefficient, coefficient_block, commit_production_signed_units, PRODUCTION_CARRIER_WIDTH,

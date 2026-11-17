@@ -1,5 +1,5 @@
-//! `F_q` with `q = 2^64 − 59` and `K = F_q[u]/(u² − 2)`, against integer
-//! references (`decisions/field-2p64-59-ring-x64.md`).
+//! `F_q` with `q = 2^64 − 59` and `K = F_q[u]/(u² − 2)`
+//! (`decisions/field-2p64-59-ring-x64.md`).
 
 use neo_math::{Fq, KExtensions, K};
 use p3_field::extension::BinomiallyExtendable;
@@ -27,7 +27,6 @@ fn pow_mod(mut base: u64, mut exponent: u64, m: u64) -> u64 {
     acc
 }
 
-/// Miller–Rabin with the first twelve primes as bases, which is exact below 2^64.
 fn is_prime(n: u64) -> bool {
     const BASES: [u64; 12] = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
     if n < 2 {
@@ -193,7 +192,6 @@ fn checked_conversions_accept_only_canonical_integers() {
 fn sums_of_products_match_the_reference_at_the_extremes() {
     let reference = |pairs: &[(Fq, Fq)]| pairs.iter().fold(Fq::ZERO, |acc, &(a, b)| acc + a * b);
 
-    // (q − 1)² is above 2^127, so the 128-bit accumulator wraps on every second term.
     let extreme = vec![(Fq::NEG_ONE, Fq::NEG_ONE); 1_000];
     assert_eq!(Fq::sum_of_products(extreme.iter().copied()), Fq::from_u64(1_000));
     assert_eq!(Fq::sum_of_products([]), Fq::ZERO);

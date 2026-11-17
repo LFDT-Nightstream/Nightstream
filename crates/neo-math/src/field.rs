@@ -1,4 +1,4 @@
-//! Field layer: `F_q` with `q = 2^64 − 59`, and `K = F_q[u]/(u² − 2)`
+//! `F_q` with `q = 2^64 − 59`, and `K = F_q[u]/(u² − 2)`
 //! (`decisions/field-2p64-59-ring-x64.md`).
 
 use core::array;
@@ -17,7 +17,6 @@ use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
 pub const Q: u64 = neo_params::nightstream_p64_k14::Q;
 
-/// `2^64 mod q`.
 pub(crate) const FOLD: u64 = Q.wrapping_neg();
 
 /// An element of `F_q`. The value is always the canonical one, in `[0, q)`.
@@ -35,12 +34,8 @@ impl Fq {
 
     #[inline]
     const fn reduce128(x: u128) -> Self {
-        // 2^64 ≡ 59 (mod q), so hi·2^64 + lo ≡ hi·59 + lo, which is below 2^70.
         let folded = (x >> 64) * FOLD as u128 + (x as u64) as u128;
-        // The high part of `folded` is below 60, so the addend is below 3540.
         let (low, carry) = (folded as u64).overflowing_add((folded >> 64) as u64 * FOLD);
-        // A carry dropped 2^64 ≡ 59, and then `low` is below 3540. Without a
-        // carry, `low + 59` wraps exactly when `low ≥ q`, and it wraps to `low − q`.
         let (wrapped, above) = low.overflowing_add(FOLD);
         Self(if carry | above { wrapped } else { low })
     }
@@ -55,8 +50,6 @@ impl Fq {
     }
 }
 
-/// The sum of the products `a·b` of base elements `a` and extension
-/// elements `b`, with one reduction for each coordinate of `K`.
 #[inline]
 pub fn sum_of_scaled(pairs: impl IntoIterator<Item = (Fq, K)>) -> K {
     let [real, imaginary] = pairs
@@ -68,8 +61,6 @@ pub fn sum_of_scaled(pairs: impl IntoIterator<Item = (Fq, K)>) -> K {
     K::from_coeffs([real.value(), imaginary.value()])
 }
 
-/// A sum of products before its reduction: the sum modulo 2^128 and the
-/// number of times it wrapped.
 #[derive(Clone, Copy, Default)]
 struct Products {
     sum: u128,
@@ -88,7 +79,6 @@ impl Products {
 
     #[inline]
     fn value(self) -> Fq {
-        // Each wrap dropped 2^128 ≡ 59² (mod q).
         Fq::reduce128(self.sum) + Fq::reduce128(u128::from(self.wraps) * u128::from(FOLD * FOLD))
     }
 }
@@ -222,7 +212,6 @@ impl InjectiveMonomial<7> for Fq {}
 
 impl PermutationMonomial<7> for Fq {
     fn injective_exp_root_n(&self) -> Self {
-        // 7 · 10540996613548315175 ≡ 1 (mod q − 1).
         self.exp_u64(10_540_996_613_548_315_175)
     }
 }
@@ -236,7 +225,6 @@ impl Packable for Fq {}
 impl Field for Fq {
     type Packing = Self;
 
-    /// 2 generates `F_q*`; `q − 1 = 2² · 11 · 137 · 547 · 5594472617641`.
     const GENERATOR: Self = Self::TWO;
 
     fn try_inverse(&self) -> Option<Self> {
@@ -309,10 +297,8 @@ impl BinomiallyExtendable<2> for Fq {
     /// `Spec.FieldExtension.twoProjectiveNonresidue`).
     const W: Self = Self::TWO;
 
-    /// `W^((q − 1)/2)`.
     const DTH_ROOT: Self = Self::NEG_ONE;
 
-    /// `3 + u` generates `K*`; `q + 1 = 2 · 3 · 7 · 439208192231179799`.
     const EXT_GENERATOR: [Self; 2] = [Self(3), Self::ONE];
 }
 

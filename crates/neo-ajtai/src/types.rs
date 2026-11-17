@@ -44,9 +44,6 @@ impl<RqEl> PP<RqEl> {
     }
 }
 
-/// An Ajtai commitment: `kappa` columns of `D` field elements. The fields are
-/// private, so `data` always holds exactly `D * kappa` elements. The serde form
-/// keeps the field names `d`, `kappa` and `data`, and decoding checks the shape.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(try_from = "CommitmentWire")]
 pub struct Commitment {
@@ -78,7 +75,6 @@ impl TryFrom<CommitmentWire> for Commitment {
 }
 
 impl Commitment {
-    /// `data` holds `kappa` columns of `D` elements, column after column.
     pub fn new(kappa: usize, data: Vec<Fq>) -> AjtaiResult<Self> {
         let expected = neo_math::D
             .checked_mul(kappa)
@@ -104,7 +100,6 @@ impl Commitment {
         }
     }
 
-    /// The column height, always `D`.
     pub fn d(&self) -> usize {
         self.d
     }
@@ -117,7 +112,6 @@ impl Commitment {
         &self.data
     }
 
-    /// The elements, for in-place updates that keep the shape.
     pub fn data_mut(&mut self) -> &mut [Fq] {
         &mut self.data
     }

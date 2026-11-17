@@ -1,19 +1,11 @@
-//! Exact sums of signed monomial shifts of ring elements. Each coefficient
-//! enters as two bounded integer limbs, so every term is one i64 addition.
-//! Reduction modulo `X^D + 1` and `q` runs once, after all terms.
-
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use crate::{ring::D, F};
 
-/// Each limb of a `SplitRing` is in `[0, LIMB_BOUND)`.
 pub const LIMB_BOUND: u128 = 1 << 32;
-/// The most terms that one `SignedShiftSums` holds exactly.
 pub const MAX_TERMS: u64 = 1 << 24;
 
-/// A coefficient position receives at most `D` shifts of each term.
 const _: () = assert!((D as u128) * LIMB_BOUND * (MAX_TERMS as u128) < (1u128 << 63));
-/// A `u64` mask has one bit for each coefficient.
 const _: () = assert!(D == u64::BITS as usize);
 
 pub struct SplitRing {
@@ -26,7 +18,6 @@ impl SplitRing {
         Self::from_u64(&coefficients.map(|value| value.as_canonical_u64()))
     }
 
-    /// The ring element with these integer coefficients: each limb is 32 bits of one.
     pub fn from_u64(coefficients: &[u64; D]) -> Self {
         Self {
             low: coefficients.map(|value| (value & 0xffff_ffff) as i64),
@@ -105,7 +96,6 @@ impl SignedShiftSums {
 
     pub fn reduce(&self) -> [F; D] {
         let raw = |degree: usize| F::from_i128((i128::from(self.high[degree]) << 32) + i128::from(self.low[degree]));
-        // X^D = −1.
         core::array::from_fn(|lane| {
             if lane + D < 2 * D - 1 {
                 raw(lane) - raw(lane + D)

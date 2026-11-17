@@ -126,7 +126,7 @@ noncomputable def sampleOf (depth : ℕ) (tape : (stages depth).1.Tape) :
 /-- The bound for Rust `nebula::Verifier::verify_final`. In the state-restoration experiment with
 `q` queries and the walk's `depth` stages, the probability that the final verifier accepts, the
 checks of SPEC.md Algorithm 8 hold, and the decoded history does not attest the memory statement
-is at most `q · (1/2^119 + 38/q²)` plus the terms of `NebulaSecurity.bad_le` for the prover's IVC
+is at most `q · (1/2^119 + 38/fieldModulus²)` plus the terms of `NebulaSecurity.bad_le` for the prover's IVC
 adversary. -/
 theorem soundness (complete : StepExtend.Complete exports)
     (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
@@ -231,7 +231,7 @@ theorem soundness (complete : StepExtend.Complete exports)
     _ ≤ _ := add_le_add rejected (by rw [sampled]; exact bad)
 
 /-- With Akita openings, the probability `memory` of a false memory statement is at most
-`q · (1/2^119 + 38/q²) + εAkita` plus the terms of `NebulaSecurity.bad_le`. `akita` is Akita's
+`q · (1/2^119 + 38/fieldModulus²) + εAkita` plus the terms of `NebulaSecurity.bad_le`. `akita` is Akita's
 knowledge soundness (`FinalVerifier.AkitaKnowledge`) for the event `FalseMemory`: `s` is the
 prover of the game with ideal openings that it gives for the prover with Akita openings. -/
 theorem real_soundness (complete : StepExtend.Complete exports)

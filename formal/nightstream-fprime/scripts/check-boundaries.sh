@@ -153,8 +153,8 @@ while IFS= read -r f; do
 done < <(find NightstreamFPrime -name '*.lean' -path 'NightstreamFPrime/*/*')
 
 # A claim shows each hypothesis in its signature, and each claims file is one namespace
-# (`NightstreamFPrime/Claims.lean`).
-if grep -nE '^(variable|section|@\[|set_option|macro|notation)|\b(private|_root_|local notation)\b' \
+# (`NightstreamFPrime/Claims.lean`). Lean also reads an indented command.
+if grep -nE '^[[:space:]]*(variable|section|@\[|set_option|macro|notation)|\b(private|_root_|local notation)\b' \
     NightstreamFPrime/Claims/*.lean; then
   fail "a Claims file hides a hypothesis or holds a declaration that is not a claim"
 fi

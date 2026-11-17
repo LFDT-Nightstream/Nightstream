@@ -78,7 +78,7 @@ local notation "stages" => reverseStages assumption closed (walkAdversary (adver
   admitted
 
 /-- In the state-restoration experiment with `q` queries, the probability of a false history is at
-most `q · (1/2^119 + 38/q²)` plus, for each of the first `depth` stages of the reverse extractor
+most `q · (1/2^119 + 38/fieldModulus²)` plus, for each of the first `depth` stages of the reverse extractor
 of the prover's IVC adversary, the success chance of the stage's Poseidon2 collision finder
 (`IvcSecurity.finderChance`) and the stage's error. -/
 theorem soundness (complete : StepExtend.Complete exports)
@@ -127,7 +127,7 @@ theorem soundness (complete : StepExtend.Complete exports)
     _ ≤ _ := add_le_add rejected (by rw [prob_eq_law]; exact accepted)
 
 /-- With Akita openings, the probability `history` of a false history is at most
-`q · (1/2^119 + 38/q²) + εAkita` plus the sum of `soundness`. `akita` is Akita's knowledge
+`q · (1/2^119 + 38/fieldModulus²) + εAkita` plus the sum of `soundness`. `akita` is Akita's knowledge
 soundness (`FinalVerifier.AkitaKnowledge`) for the event `FalseHistory`: `s` is the prover of the
 game with ideal openings that it gives for the prover with Akita openings. -/
 theorem real_soundness (complete : StepExtend.Complete exports)

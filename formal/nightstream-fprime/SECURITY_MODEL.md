@@ -1050,8 +1050,9 @@ not change terminal source checks.
      the function that the emitter runs). The Rust test
      `the_matrix_part_is_the_lean_matrix_pass` requires that `matrix_part`
      gives these outputs. No data compares the two on the rows of the step
-     circuits: Lean has no definition of the factored rows of a package, and
-     the model takes about 0.1 s for each row of a sample relation, which
+     circuits. Lean defines the factored rows of a package
+     (`Export.BoundedDepth.FinalRows.packageRows`), but the model of
+     `matrix_part` takes about 0.1 s for each row of a sample relation, which
      is hours for the more than 650,000 rows of the two circuits. Rust tests compare `matrix_part` with
      its Rust definition on those rows. `L ≤ 2^2` and
      `κ ≤ 2^5` are const asserts in Rust, and `params_soundness` proves them

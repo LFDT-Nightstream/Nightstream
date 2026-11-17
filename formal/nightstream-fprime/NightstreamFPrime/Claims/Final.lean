@@ -8,7 +8,7 @@ import NightstreamFPrime.Export.BoundedDepth.NebulaFinal
 The results for the full path of a compressed proof (`SPEC.md` Algorithm 10 and section 9,
 `SECURITY_MODEL.md` adversary 6).
 
-- `history_sound_with_akita` is the theorem of `nightstream::Circuit::verify_final`, and
+- `history_sound_with_akita` is the theorem of `nightstream::Verifier::verify_final`, and
   `memory_sound_with_akita` is the theorem of the memory `verify_final`.
 - Assumptions: `[HN-A1]` for the history, and `[AKITA]` for each claim that ends in
   `_with_akita`.
@@ -32,7 +32,7 @@ open scoped Spec.Compression.Production
 
 /-- In the state-restoration experiment with `q` queries, the final verifier accepts a statement
 for which no proof with witnesses satisfies `Verifies` with probability at most
-`q · (1/2^119 + 38/q²)`. -/
+`q · (1/2^119 + 38/fieldModulus²)`. -/
 theorem verifier_sound
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -55,7 +55,7 @@ theorem verifier_sound
   Export.BoundedDepth.FinalRows.soundness setup step cap control exports complete rows s q
 
 /-- With Akita openings, the final verifier accepts a statement for which no proof with
-witnesses satisfies `Verifies` with probability at most `q · (1/2^119 + 38/q²) + εAkita`. -/
+witnesses satisfies `Verifies` with probability at most `q · (1/2^119 + 38/fieldModulus²) + εAkita`. -/
 theorem verifier_sound_with_akita
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -81,7 +81,7 @@ theorem verifier_sound_with_akita
     εAkita akita real
 
 /-- In the state-restoration experiment with `q` queries, the probability of a false history is at
-most `q · (1/2^119 + 38/q²)` plus, for each of the first `depth` stages of the reverse extractor
+most `q · (1/2^119 + 38/fieldModulus²)` plus, for each of the first `depth` stages of the reverse extractor
 of the prover's IVC adversary, the success chance of the stage's Poseidon2 collision finder
 (`IvcSecurity.finderChance`) and the stage's error. -/
 theorem history_sound
@@ -144,7 +144,7 @@ theorem history_sound
     rows keysShaped depth depthBound
 
 /-- With Akita openings, the probability `history` of a false history is at most
-`q · (1/2^119 + 38/q²) + εAkita` plus the sum of `history_sound`. `akita` is Akita's knowledge
+`q · (1/2^119 + 38/fieldModulus²) + εAkita` plus the sum of `history_sound`. `akita` is Akita's knowledge
 soundness (`FinalVerifier.AkitaKnowledge`) for the event `FalseHistory`: `s` is the prover of the
 game with ideal openings that it gives for the prover with Akita openings. -/
 theorem history_sound_with_akita
@@ -214,7 +214,7 @@ theorem history_sound_with_akita
 /-- The bound for Rust `nebula::Verifier::verify_final`. In the state-restoration experiment with
 `q` queries and the walk's `depth` stages, the probability that the final verifier accepts, the
 checks of SPEC.md Algorithm 8 hold, and the decoded history does not attest the memory statement
-is at most `q · (1/2^119 + 38/q²)` plus the terms of `Claims.Nebula.memory_sound` for the prover's IVC
+is at most `q · (1/2^119 + 38/fieldModulus²)` plus the terms of `Claims.Nebula.memory_sound` for the prover's IVC
 adversary. -/
 theorem memory_sound
     {logicalWidth : ℕ}
@@ -343,7 +343,7 @@ theorem memory_sound
     complete rows valid keysShaped programEq depth depthBound memoryError round
 
 /-- With Akita openings, the probability `memory` of a false memory statement is at most
-`q · (1/2^119 + 38/q²) + εAkita` plus the terms of `Claims.Nebula.memory_sound`. `akita` is Akita's
+`q · (1/2^119 + 38/fieldModulus²) + εAkita` plus the terms of `Claims.Nebula.memory_sound`. `akita` is Akita's
 knowledge soundness (`FinalVerifier.AkitaKnowledge`) for the event `FalseMemory`: `s` is the
 prover of the game with ideal openings that it gives for the prover with Akita openings. -/
 theorem memory_sound_with_akita

@@ -17,7 +17,8 @@ namespace NightstreamFPrime.Claims.Step
 open Spec Spec.Folding.PiCCS.PaperJoint Lifecycle Lifecycle.BoundedDepth Layout.BoundedDepth Export.Generic Export.BoundedDepth
 
 /-- A satisfying assignment of the light circuit's logical relation whose public input encodes
-`digest` gives the light case of the bounded-depth step relation, with output hash `digest`, on the
+`digest` gives the light case of the bounded-depth step relation, with output hash the first four
+words of `digest` (with zeros for missing words, so `digest` itself when it has four words), on the
 step with the other slot of `running` when that slot's digest is its prior digest word. -/
 theorem light_sound
     {logicalWidth : ℕ}
@@ -69,8 +70,9 @@ theorem light_sound
     encoded rowsZero running others
 
 /-- A satisfying assignment of the refresh circuit's logical relation whose public input
-encodes `digest` gives the refresh case of the bounded-depth step relation, with output hash
-`digest`. -/
+encodes `digest` gives the refresh case of the bounded-depth step relation, with output hash the
+first four words of `digest` (with zeros for missing words, so `digest` itself when it has four
+words). -/
 theorem refresh_sound
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}

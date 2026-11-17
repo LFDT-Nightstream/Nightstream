@@ -18,9 +18,9 @@ prover names the tables.
 
 On each path that avoids the bad sets, `Verifies` accepts an accepted statement with the proof
 from `W` (`Setup.proofOf`, `game_avoids`), and each bad set has density at most
-`1/2^119 + 38/q²` (`game_densityLe`). So in the state-restoration experiment with `q` queries, the
+`1/2^119 + 38/fieldModulus²` (`game_densityLe`). So in the state-restoration experiment with `q` queries, the
 verifier accepts a statement without such a proof with probability at most
-`q · (1/2^119 + 38/q²)` (`soundness`). `AkitaKnowledge` names Akita's knowledge soundness with the
+`q · (1/2^119 + 38/fieldModulus²)` (`soundness`). `AkitaKnowledge` names Akita's knowledge soundness with the
 error `εAkita` as an assumption, and `real_soundness` adds `εAkita` for the verifier with Akita
 openings. -/
 
@@ -425,7 +425,7 @@ def Wins (setup : Setup logicalWidth publicFits) (packageWidths : Fin 2 → ℕ)
 
 /-- In the state-restoration experiment with `q` queries, the final verifier accepts a statement
 for which no proof with witnesses satisfies `Verifies` with probability at most
-`q · (1/2^119 + 38/q²)`. -/
+`q · (1/2^119 + 38/fieldModulus²)`. -/
 theorem soundness (premises : Premises setup packageWidths)
     (s : Strategy (Option (Option (Outcome logicalWidth publicFits)))) (q : ℕ) :
     prob s (restore setup.game q []) (Wins setup packageWidths step cap control) ≤
@@ -445,7 +445,7 @@ def AkitaKnowledge {Real : Type} (winsOf : Real → ℝ) (setup : Setup logicalW
     prob s (restore setup.game q []) (Wins setup packageWidths step cap control) + εAkita
 
 /-- With Akita openings, the final verifier accepts a statement for which no proof with
-witnesses satisfies `Verifies` with probability at most `q · (1/2^119 + 38/q²) + εAkita`. -/
+witnesses satisfies `Verifies` with probability at most `q · (1/2^119 + 38/fieldModulus²) + εAkita`. -/
 theorem real_soundness (premises : Premises setup packageWidths) {Real : Type}
     (winsOf : Real → ℝ) (q : ℕ) (εAkita : ℝ)
     (akita : AkitaKnowledge winsOf setup packageWidths step cap control q εAkita) (real : Real) :

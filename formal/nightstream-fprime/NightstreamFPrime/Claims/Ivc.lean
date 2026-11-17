@@ -21,7 +21,8 @@ The terminal relation, the reverse extractor and the completeness of a run
   gives an output (`Export.BoundedDepth.IvcWalk.visitCollision_isSome`).
 - Open: Lean does not bound the finder's success chance. A bound needs `[P2-PERM]` and
   `[SPONGE]` with the finder's count of permutation calls (`SECURITY_MODEL.md` trust item 2).
-  The bound on the iteration of an accepted statement is an argument (`depthBound`).
+  The bound `depth` on the iteration of every statement that the adversary can output, accepted
+  or not, is an argument (`depthBound`).
 - Capacity: for the emitted packages, `Export.BoundedDepth.EmittedPackages.Facts.exports` builds
   `exports` from the capacity of the application (`Export.BoundedDepth.EmittedPackages.Facts`,
   SPEC.md section 4.4), which the emitter checks. -/

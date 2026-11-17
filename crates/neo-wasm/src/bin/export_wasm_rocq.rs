@@ -394,7 +394,7 @@ fn emit_rocq_memory_catalog() -> String {
         out.push_str(&format!("Definition {name} : nat := {index}%nat.\n"));
     }
     out.push('\n');
-    let plan = neo_wasm::plan_ordered_wasm_memory_slots(layout.auxiliary.memory.entries());
+    let plan = neo_wasm::plan_ordered_wasm_memory_slots(&layout.auxiliary.memory);
     out.push_str("Definition gateExclusions : list (nat * nat) :=\n  [");
     out.push_str(
         &plan

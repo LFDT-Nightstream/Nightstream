@@ -415,12 +415,10 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
         common::shared_host::check(&trace);
         use neo_application::MemoryPortActivation;
         use p3_field::PrimeCharacteristicRing;
-        let memories = neo_wasm::build_wasm_relation_layout()
-            .auxiliary
-            .memory
-            .entries();
+        let layout = neo_wasm::build_wasm_relation_layout();
+        let memories = layout.auxiliary.memory.entries();
         let ports: Vec<_> = memories.iter().flat_map(|memory| &memory.ports).collect();
-        let slots = neo_wasm::plan_ordered_wasm_memory_slots(memories);
+        let slots = neo_wasm::plan_ordered_wasm_memory_slots(&layout.auxiliary.memory);
         let peak = witnesses
             .iter()
             .map(|w| {

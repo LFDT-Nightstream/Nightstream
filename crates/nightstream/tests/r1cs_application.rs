@@ -110,7 +110,16 @@ fn application(rows: usize) -> R1csApplication<u32> {
         geometry: geometry(rows.get()),
         rows,
         regions,
-        slots: batched_slots(&catalog, &[vec![0], vec![1]], rows).unwrap(),
+        slots: batched_slots(
+            &catalog,
+            &nightstream::relation::plan_ordered_memory_slots(
+                &catalog,
+                &nightstream::relation::MemoryActivationFacts::default(),
+            )
+            .slots,
+            rows,
+        )
+        .unwrap(),
     };
     R1csApplication::new(RowRelation::of(&relation()).unwrap(), &continuity(), &catalog, size).unwrap()
 }
@@ -302,6 +311,42 @@ fn construction_rejects_invalid_geometry_before_loading_a_file() {
     }
     let valid = nightstream::nebula::Prover::load("", geometry(1), application(1), nightstream::Engine::Optimized, 1);
     assert!(matches!(valid, Err(nightstream::Error::Io(_))));
+}
+
+/// A returned plan is still checked at the binding.
+#[test]
+fn construction_rejects_changed_plan_coverage() {
+    let catalog = catalog();
+    let plan = nightstream::relation::plan_ordered_memory_slots(
+        &catalog,
+        &nightstream::relation::MemoryActivationFacts::default(),
+    );
+    for replacement in [vec![], vec![0], vec![2]] {
+        let mut slots = plan.slots.clone();
+        slots[1] = replacement;
+        let (regions, _) = pack_regions(
+            catalog
+                .entries()
+                .iter()
+                .map(|memory| (memory.id, memory.kind, vec![2])),
+        )
+        .unwrap();
+        let result = R1csApplication::new(
+            RowRelation::of(&relation()).unwrap(),
+            &continuity(),
+            &catalog,
+            Size {
+                geometry: geometry(1),
+                rows: NonZeroUsize::MIN,
+                regions,
+                slots,
+            },
+        );
+        assert!(matches!(
+            result,
+            Err(R1csApplicationError::Binding(CatalogBindingError::Plan))
+        ));
+    }
 }
 
 #[test]

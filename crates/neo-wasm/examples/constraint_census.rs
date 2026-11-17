@@ -138,7 +138,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         println!("operation_group\t{}\t{}", group.name, group.rows.len());
     }
     let layout = build_wasm_relation_layout();
-    let slots = plan_ordered_wasm_memory_slots(layout.auxiliary.memory.entries())
+    let slots = plan_ordered_wasm_memory_slots(&layout.auxiliary.memory)
         .slots
         .len();
     println!("work\tphysical_slots_per_trace_row\t{slots}");

@@ -97,7 +97,7 @@ pub enum WasmApplicationError {
 /// slots.
 pub fn plan_ordered_slots(rows: NonZeroUsize) -> Result<Vec<Vec<usize>>, CatalogBindingError> {
     let catalog = &build_wasm_relation_layout().auxiliary.memory;
-    batched_slots(catalog, &plan_ordered_wasm_memory_slots(catalog.entries()).slots, rows)
+    batched_slots(catalog, &plan_ordered_wasm_memory_slots(catalog).slots, rows)
 }
 
 impl WasmApplication {

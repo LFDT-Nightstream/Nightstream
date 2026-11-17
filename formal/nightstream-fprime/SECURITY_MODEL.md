@@ -1233,7 +1233,7 @@ not change terminal source checks.
   the Lean group relation remains open. The original one-row relation remains
   the source of all constraints outside the selected commitment input rewrite.
 - A prover that picks the WASM size of its proof
-  (`neo_wasm::nebula::WasmSize`). The results hold for each of the three
+  (`neo_wasm::nebula::WasmSize`). The results hold for each of the four
   fixed sizes, not for a choice among them.
 - Values for the adversary time and the query counts `Q_η`. They stay
   symbolic (`decisions/nebula-memory-checking.md`).

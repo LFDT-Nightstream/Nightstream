@@ -66,9 +66,10 @@ compression of the final proof is a project design
    the runs of one statement shape
    (`Export.BoundedDepth.CompressionSponge.calls_injective`).
 5. **The prover does not refuse a refresh fold.** No proof of a light
-   circuit that the memory verifier accepts reaches one. A Stage 1 proof
-   with a refresh fold gives an error from `compress` or a final proof that
-   the light verifier rejects.
+   circuit that the memory verifier accepts reaches one. `compress` refuses
+   a Stage 1 proof whose slot 1 is not the default slot at depth 0 or whose
+   last circuit is the refresh circuit, so a proof that made a refresh fold
+   gives an error before the commitment.
 6. **The refresh premises stay.** The generic circuits keep the refresh
    fold, so `[HN-A1]` for the refresh fold and its knowledge error stay in
    the [security model](../formal/nightstream-fprime/SECURITY_MODEL.md).

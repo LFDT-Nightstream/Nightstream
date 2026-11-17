@@ -738,9 +738,12 @@ fn small_setup() -> ProverKey {
 }
 
 /// A proof of the light compression carries slot 0 alone under its own tag
-/// and `pc = 1`, and it has one encoding. The verifier of each mode refuses
-/// a proof of the other mode before it reads the argument, and the light
-/// key holds the light relation alone. The proof of this test proves
+/// and `pc = 1`, and it has one encoding: a proof of slot 0 alone with
+/// another `pc` does not encode. The verifier of each mode refuses a proof
+/// of the other mode before it reads the argument, and the light key holds
+/// the light relation alone. The light prover refuses an envelope whose
+/// slot 1 is not the default slot at depth 0, or whose last circuit is the
+/// refresh circuit, before it commits. The proof of this test proves
 /// nothing, so the test needs no compression setup of the hash chain.
 #[test]
 fn a_light_final_proof_carries_slot_zero_alone_and_needs_its_mode() {
@@ -780,6 +783,20 @@ fn a_light_final_proof_carries_slot_zero_alone_and_needs_its_mode() {
     let mut refresh = decoded.clone();
     refresh.steps.as_mut().unwrap().pc = 2;
     assert!(matches!(verify(&light, &refresh), Err(BoundedDepthError::Statement(_))));
+    assert!(refresh.to_bytes().is_err(), "slot 0 alone with pc = 2 encodes");
+
+    let mut moved = envelope.clone();
+    moved.slots[1].depth = 1;
+    assert!(matches!(
+        light.compress(&setup, &moved),
+        Err(BoundedDepthError::Slot { slot: 1, .. })
+    ));
+    let mut refreshed = envelope.clone();
+    refreshed.pc = 2;
+    assert!(matches!(
+        light.compress(&setup, &refreshed),
+        Err(BoundedDepthError::Statement(_))
+    ));
     let mut tagged = bytes.clone();
     tagged[16..24].copy_from_slice(&2u64.to_le_bytes());
     assert!(FinalProof::from_bytes(&tagged).is_err(), "the light tag with pc = 2 decodes");

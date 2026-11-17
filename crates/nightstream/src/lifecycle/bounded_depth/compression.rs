@@ -242,6 +242,25 @@ impl BoundedDepth {
         })
     }
 
+    /// The prover's checks of `Compression::Light` on `envelope`: the light
+    /// circuit ran last, and slot 1 is the default slot at depth 0, which
+    /// the verifier builds. A proof that made a refresh fold fails here.
+    fn check_light_envelope(&self, envelope: &Envelope) -> Result<(), BoundedDepthError> {
+        if envelope.pc != 1 {
+            return Err(BoundedDepthError::Statement(
+                "a light compression needs the light circuit last",
+            ));
+        }
+        let slot = &envelope.slots[1];
+        if words::slot(&slot.accumulator.claim, slot.depth) != nightstream_fprime::Slot::default_slot() {
+            return Err(BoundedDepthError::Slot {
+                slot: 1,
+                reason: "a light compression needs the default slot at depth 0".into(),
+            });
+        }
+        Ok(())
+    }
+
     /// The checks of the mode on a proof's slots and circuit: the proof
     /// carries the slots of the mode, and in `Compression::Light` the light
     /// circuit ran last (Lean `FinalVerifier.ModeChecks`).
@@ -348,7 +367,9 @@ impl BoundedDepth {
                 "a recursive proof needs a step and a circuit",
             ));
         }
-        self.check_mode(pc, self.compression.slots())?;
+        if self.compression == Compression::Light {
+            self.check_light_envelope(envelope)?;
+        }
         let slots = &envelope.slots[..self.compression.slots()];
         let depths: Vec<u64> = slots.iter().map(|slot| slot.depth).collect();
         let layout = self.compression_layout(setup.verification_key().blocks(), pc, &depths)?;
@@ -553,9 +574,10 @@ impl FinalProof {
     /// and the argument. Field words are below the modulus, and each byte
     /// string of Akita and the rounds of each sum-check follow their count.
     pub(crate) fn to_bytes(&self) -> Result<Vec<u8>, ProofCodecError> {
-        let light = match self.steps.as_ref().map(|steps| steps.slots.len()) {
-            None | Some(2) => false,
-            Some(1) => true,
+        let light = match self.steps.as_ref().map(|steps| (steps.slots.len(), steps.pc)) {
+            None | Some((2, _)) => false,
+            Some((1, 1)) => true,
+            Some((1, _)) => return Err(ProofCodecError("a proof of slot 0 alone has pc = 1")),
             Some(_) => return Err(ProofCodecError("slot count")),
         };
         let mut output = Writer(if light { LIGHT_MAGIC } else { MAGIC }.to_vec());

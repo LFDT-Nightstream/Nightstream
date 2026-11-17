@@ -389,3 +389,41 @@ fn a_micro_proof_compresses_with_two_claims() {
         .is_err());
     eprintln!("total elapsed={:?}", started.elapsed());
 }
+
+/// The light relation of `size` fits the Akita key of `2^19` blocks (SPEC.md
+/// Algorithm 11): the verifier of the size gives the pinned key of `2^19`
+/// blocks. No schedule file holds a larger relation, so `compression_key`
+/// fails for a light relation above `2^19` blocks, and the refresh relation
+/// of a size is above it, so the key is that of the light mode.
+fn the_light_relation_fits_the_key(size: WasmSize) {
+    use nightstream::nebula::Circuit;
+    use std::time::Instant;
+    let started = Instant::now();
+    let circuit = Circuit::compile(size.geometry(), size.application().unwrap()).unwrap();
+    let verifier = circuit
+        .verifier(nightstream::Engine::Optimized, 109)
+        .unwrap();
+    let key = verifier.compression_key().unwrap().to_bytes();
+    assert_eq!(&key[..16], b"NS-COMPRESS-VK-1");
+    assert_eq!(key[16..24], (1u64 << 19).to_le_bytes(), "{size:?}: the key of 2^19 blocks");
+    eprintln!("{size:?}: compile and key elapsed={:?}", started.elapsed());
+}
+
+/// Micro is checked by `a_micro_proof_compresses_with_two_claims`.
+#[test]
+#[ignore = "Compiles a production-size circuit; run it alone under the 300-second cap."]
+fn the_small_light_relation_fits_the_key() {
+    the_light_relation_fits_the_key(WasmSize::Small);
+}
+
+#[test]
+#[ignore = "Compiles a production-size circuit; run it alone under the 300-second cap."]
+fn the_medium_light_relation_fits_the_key() {
+    the_light_relation_fits_the_key(WasmSize::Medium);
+}
+
+#[test]
+#[ignore = "Compiles a production-size circuit; run it alone under the 300-second cap."]
+fn the_large_light_relation_fits_the_key() {
+    the_light_relation_fits_the_key(WasmSize::Large);
+}

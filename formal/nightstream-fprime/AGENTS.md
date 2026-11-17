@@ -87,7 +87,9 @@ tests      axiom gate (explicit imports, `#audit_axioms` per theorem)
   `Claims` names. A theorem is a claim when its hypotheses are about an
   emitted package, a verifier entry point, or a protocol relation of the
   paper. After a change to a claim, run `scripts/validate.sh premises` and
-  give each new hypothesis a class in `SECURITY_MODEL.md`.
+  give each new hypothesis a class in `SECURITY_MODEL.md`. For an outside
+  review, `scripts/validate.sh review` writes the claims, their premises and a
+  glossary of the names they use to `docs/claims-review/`.
 - Lean commands only through `scripts/validate.sh` (`static`, `build
   [target]`, `axioms`, `file <path>`, `all`, and the other phases in its
   header), each under the 1,500 s cap. The script needs GNU `timeout` on

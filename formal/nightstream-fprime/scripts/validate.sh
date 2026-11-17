@@ -6,6 +6,7 @@
 #   validate.sh stage1-axioms     focused Stage 1 and matrix axiom audits
 #   validate.sh file <path.lean>  lake env lean <path>, warnings fail
 #   validate.sh premises          rewrite the premise list of tests/PremiseCensus.lean
+#   validate.sh review            write the claims review files to docs/claims-review/ (not in git)
 #   validate.sh lean-executable <built-Lean-executable> [arguments...]
 #   validate.sh pi-rlc-sampler-parity <path>
 #   validate.sh compression-parity <path>
@@ -92,6 +93,12 @@ case "$phase" in
     capped lake build --wfail tests.PremiseAudit NightstreamFPrime
     capped lake env lean "-j${LEAN_NUM_THREADS}" -DautoImplicit=false -DrelaxedAutoImplicit=false \
       -DwarningAsError=true -DpremiseCensus.write=true tests/PremiseCensus.lean
+    ;;
+  review)
+    capped lake build --wfail tests.ClaimsReviewAudit NightstreamFPrime
+    capped lake env lean "-j${LEAN_NUM_THREADS}" -DautoImplicit=false -DrelaxedAutoImplicit=false \
+      -DwarningAsError=true -DclaimsReview.write=true tests/ClaimsReview.lean
+    python3 -B scripts/claims_review.py
     ;;
   pi-rlc-sampler-parity)
     if (( $# != 2 )); then echo "usage: validate.sh pi-rlc-sampler-parity <path>" >&2; exit 2; fi

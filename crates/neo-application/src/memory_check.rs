@@ -21,6 +21,18 @@ impl<Id> Default for MemoryPreload<Id> {
     }
 }
 
+impl<Id: Ord> MemoryPreload<Id> {
+    /// Borrow the explicit initial cells of one memory, in lexicographic
+    /// address order. A memory without cells yields nothing.
+    pub fn cells_for(&self, memory: &Id) -> impl Iterator<Item = (&[u32], u32)> + '_ {
+        self.cells
+            .get(memory)
+            .into_iter()
+            .flat_map(|cells| cells.iter())
+            .map(|(address, &value)| (address.as_slice(), value))
+    }
+}
+
 impl<Id: Copy + Ord> MemoryPreload<Id> {
     pub fn insert(&mut self, memory: Id, address: Vec<u32>, value: u32) {
         self.cells.entry(memory).or_default().insert(address, value);

@@ -1,13 +1,5 @@
 //! The public weights `G` of the witness polynomial `W` and the value that
 //! `Σ_x W(x) · G(x)` must have (SPEC.md section 6).
-//!
-//! For each claim, `G` holds on the witness's cells the weights of its ring
-//! equations at `δ`, batched with powers of `ω`: the κ rows of the Ajtai
-//! opening, then `Eval_K`, then each `Eval_A`, and on the public cells the
-//! powers of `γ`. On the cells of a table's counts it holds the negated
-//! lookup inverses. `table` is the prover's `G`. The verifier's `G(ρ)` has
-//! three parts: `key_part`, which the proof carries and `key` proves,
-//! `matrix_part` and `closed_part`.
 
 use neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS;
 use neo_math::{KExtensions, D, F, K};
@@ -22,24 +14,15 @@ use crate::{Error, Statement};
 
 pub(crate) const KAPPA: usize = PRODUCTION_VERIFIER_ROWS as usize;
 
-/// The verifier's challenges after both commitments.
 pub(crate) struct Challenges {
-    /// The lookup challenges, drawn before the inverses are committed.
     pub(crate) taus: [F; LOOKUPS],
-    /// Batches the ring equations and the public input of one claim.
     pub(crate) omega: K,
-    /// The point at which each ring equation is read.
     pub(crate) delta: K,
-    /// Batches the cells of the public input.
     pub(crate) gamma: K,
-    /// Batches the claims.
     pub(crate) mu: K,
-    /// Batches the lookups of the challenges.
     pub(crate) psi: [K; LOOKUPS],
-    /// For each table, the weight of its inverse check and of its sum.
     pub(crate) xi: Vec<K>,
     pub(crate) lambda: Vec<K>,
-    /// The point of the inverse check.
     pub(crate) beta: Vec<K>,
 }
 
@@ -49,8 +32,6 @@ pub(crate) fn powers(base: K, count: usize) -> Vec<K> {
         .collect()
 }
 
-/// `eq(point, i)` for each `i` below `count`: bit `b` of `i` goes with
-/// `point[b]`, and `i` has no bit from `point.len()`.
 pub(crate) fn equality(point: &[K], count: usize) -> Vec<K> {
     let vars = count.next_power_of_two().trailing_zeros() as usize;
     let (low, high) = point.split_at(vars);
@@ -68,10 +49,6 @@ pub(crate) fn equality(point: &[K], count: usize) -> Vec<K> {
     table
 }
 
-/// The multilinear extension of `j ↦ eq(point, j) · [j < count]` at `at`,
-/// where `eq(point, j)` is zero when `j` has a bit from `point.len()`. An
-/// index is below `count` exactly when, at the highest bit where they
-/// differ, the index has 0 and `count` has 1.
 pub(crate) fn prefix_equality(point: &[K], count: usize, at: &[K]) -> K {
     let (low, high) = at.split_at(point.len());
     let high: K = high.iter().map(|&coordinate| K::ONE - coordinate).product();
@@ -80,7 +57,6 @@ pub(crate) fn prefix_equality(point: &[K], count: usize, at: &[K]) -> K {
         .zip(low)
         .map(|(&point, &at)| [(K::ONE - point) * (K::ONE - at), point * at])
         .collect();
-    // below[k] = Σ over the bits below k of eq(point, ·) · eq(at, ·).
     let mut below = vec![K::ONE; terms.len() + 1];
     for (bit, [zero, one]) in terms.iter().enumerate() {
         below[bit + 1] = below[bit] * (*zero + *one);
@@ -100,23 +76,16 @@ pub(crate) fn prefix_equality(point: &[K], count: usize, at: &[K]) -> K {
     sum * high
 }
 
-/// The powers of `ω` that batch the equations of `statement`.
 fn omega_powers(statement: &Statement<'_>, omega: K) -> Vec<K> {
     powers(omega, KAPPA + 2 + statement.claim.eval_a.len())
 }
 
-/// The columns of one task of `Matrices::add_columns`, a multiple of `D`.
 const COLUMNS_PER_TASK: usize = 1 << 16;
 
-/// The matrices of one claim in the weights: `Mᵀ = Gᵀ · Lᵀ` of `eq(r, ·)`
-/// with the `Eval_A` powers of `ω` (Lean `SlotLayout.layout`,
-/// `LogicalPlan.plan`).
+/// `Mᵀ = Gᵀ · Lᵀ` (Lean `SlotLayout.layout`, `LogicalPlan.plan`).
 struct Matrices<'a> {
     slots: FactoredSlots<'a>,
-    /// `Lᵀ`: the weight of each slot.
     weights: Vec<K>,
-    /// The slots that each task of columns meets, for each part of the
-    /// slots. The slots are in no order and their columns overlap.
     met: Vec<Vec<Vec<u32>>>,
 }
 
@@ -154,8 +123,6 @@ impl<'a> Matrices<'a> {
         Self { slots, weights, met }
     }
 
-    /// `Gᵀ` on the columns of task `task`: column `k` of slot `s` gets
-    /// `weights[s] · ratio^k`, added to `output`.
     fn add_columns(&self, task: usize, output: &mut [K]) {
         let first = task * COLUMNS_PER_TASK;
         for &slot in self.met.iter().flat_map(|met| &met[task]) {
@@ -174,13 +141,9 @@ impl<'a> Matrices<'a> {
     }
 }
 
-/// `Eval_K` and the public input of one claim in the weights. Block `j` of
-/// the witness has the weight `eq(r_hi, j)` in `Eval_K`.
 struct Evaluation<'a> {
-    /// `ω^κ · conjugate(eq(r_lo, ·))`, the lane part of `Eval_K`.
     lanes: [K; D],
     r_high: &'a [K],
-    /// The weight of public cell 0.
     public: K,
 }
 
@@ -196,8 +159,6 @@ impl<'a> Evaluation<'a> {
     }
 }
 
-/// The value that the weights of claim `statement` give on its witness: its
-/// ring equations at `δ` and its public input at `γ`.
 fn target(statement: &Statement<'_>, omega: &[K], point: &Point, gamma: K) -> K {
     let claim = statement.claim;
     let commitment = claim
@@ -222,7 +183,6 @@ fn target(statement: &Statement<'_>, omega: &[K], point: &Point, gamma: K) -> K 
     )
 }
 
-/// `Σ_claims μ^claim · target`.
 pub(crate) fn targets(statements: &[Statement<'_>], challenges: &Challenges) -> K {
     let point = Point::new(challenges.delta);
     statements
@@ -239,7 +199,6 @@ pub(crate) fn targets(statements: &[Statement<'_>], challenges: &Challenges) -> 
         .sum()
 }
 
-/// The count cells of a table: cell `t` has `−λ · Σ_k ψ_k / (τ_k − (t − bound))`.
 fn count_weights(bound: u64, lambda: K, challenges: &Challenges) -> Result<Vec<K>, Error> {
     let inverses = Inverses::new(bound, &challenges.taus)?;
     Ok(inverses
@@ -249,9 +208,6 @@ fn count_weights(bound: u64, lambda: K, challenges: &Challenges) -> Result<Vec<K
         .collect())
 }
 
-/// The prover's `G`, on the prefix of `W` that holds cells. `folded` is
-/// `F = Σ_i ω^i · A_i` of the Ajtai key (`key::ProverKey::fold`): lane `h` of
-/// block `j` gets `(X^h · F_j)(δ)`, the same for each claim.
 pub(crate) fn table(
     statements: &[Statement<'_>],
     layout: &Layout,
@@ -272,8 +228,6 @@ pub(crate) fn table(
             })
             .collect::<Result<Vec<_>, Error>>()
     };
-    // One thread writes the zeros: the first write of a large table is the
-    // page faults of its memory, and threads that share them wait.
     let (prepared, mut table) = rayon::join(prepare, || vec![K::ZERO; layout.witness_len]);
     let mut tables = 0;
     for (((statement, cells), (evaluation, blocks, matrices)), mu) in statements
@@ -320,20 +274,13 @@ pub(crate) fn table(
     Ok(table)
 }
 
-/// How the witness of each claim enters `G(ρ)`. A linear form `P_j` on the
-/// lanes of each block `j` of a claim adds
-/// `c · Σ_{j < blocks} eq(β, j) · (E · P_j)(δ)` for `E = Σ_h eq(ρ_lo, h) X^h`.
 pub(crate) struct Uses<'a> {
-    /// `u` with `Σ_h u(h) · P[h] = (E · P)(δ)`.
     pub(crate) form: [K; D],
     pub(crate) claims: Vec<Use<'a>>,
 }
 
-/// The witness of one claim in `G(ρ)`.
 pub(crate) struct Use<'a> {
-    /// `c`: `μ^claim` times the selector of the claim's witness slice at `ρ`.
     pub(crate) coefficient: K,
-    /// `β`: the coordinates of `ρ` that select a block of the slice.
     pub(crate) point: &'a [K],
     pub(crate) blocks: usize,
 }
@@ -360,10 +307,6 @@ impl<'a> Uses<'a> {
     }
 }
 
-/// The part of `G(ρ)` that the Ajtai key gives, from `F = Σ_i ω^i · A_i`:
-/// `Σ_claims c · Σ_{j < blocks} eq(β, j) · Σ_h u(h) · F(h, j)`. Only the
-/// prover computes it. The verifier takes it from the proof, and the
-/// sum-check of `key` proves it against the committed key polynomial.
 pub(crate) fn key_part(uses: &Uses<'_>, folded: &[K]) -> K {
     uses.claims
         .iter()
@@ -378,12 +321,6 @@ pub(crate) fn key_part(uses: &Uses<'_>, folded: &[K]) -> K {
         .sum()
 }
 
-/// The part of `G(ρ)` that the matrices of the claims give:
-/// `Σ_claims c · Σ_row eq(r, row) · Σ_j ω^(κ+1+j) · Σ_entries coefficient · Γ(slot)`,
-/// in one pass over the rows of each relation. Claims of one relation have
-/// the same blocks, so the same `β` and `Γ`, and share the pass. A verifier
-/// that holds a commitment of the matrices replaces the pass over the rows
-/// only, as the proof replaces `key_part`.
 pub(crate) fn matrix_part(statements: &[Statement<'_>], challenges: &Challenges, uses: &Uses<'_>) -> Result<K, Error> {
     let form = conjugate(&uses.form);
     let mut relations: Vec<(&Statement<'_>, &Use<'_>, Vec<(K, &[K])>)> = Vec::new();
@@ -415,9 +352,6 @@ pub(crate) fn matrix_part(statements: &[Statement<'_>], challenges: &Challenges,
     Ok(total)
 }
 
-/// `Σ c · eq(r, row)` over the claims `(c, r)` of one relation. Each
-/// `eq(r, ·)` is a table of the low bits of `row` times a table of the high
-/// bits, and `c` scales the high table.
 struct RowWeights(Vec<(Vec<K>, Vec<K>, usize)>);
 
 impl RowWeights {
@@ -444,14 +378,8 @@ impl RowWeights {
     }
 }
 
-/// `Γ(s) = Σ_{k < width} ratio^k · Φ(start + k)` for each slot `s` of
-/// columns `start..start + width`, where `Φ(64b + h) = eq(β, b) · form[h]`
-/// and `blocks[b] = eq(β, b)`. With `(b, h) = divmod(start, 64)`,
-/// `Γ(s) = Σ_t eq(β, b + t) · windows[width][t][h]`, so a slot costs one
-/// product for each block it meets, not one for each column.
 pub(crate) fn slot_values(slots: FactoredSlots<'_>, blocks: &[K], form: &[K; D]) -> Vec<K> {
     let widest = slots.widths.iter().copied().max().map_or(0, usize::from);
-    // windows[w][t][h] = Σ over k < w with ⌊(h + k)/64⌋ = t of ratio^k · form[(h + k) mod 64].
     let mut windows: Vec<Vec<[K; D]>> = vec![Vec::new()];
     let mut power = F::ONE;
     for k in 0..widest {
@@ -481,8 +409,6 @@ pub(crate) fn slot_values(slots: FactoredSlots<'_>, blocks: &[K], form: &[K; D])
         .collect()
 }
 
-/// The parts of `G(ρ)` with a closed form: `Eval_K` and the public input of
-/// each claim, and the counts of each table.
 pub(crate) fn closed_part(
     statements: &[Statement<'_>],
     layout: &Layout,

@@ -1,7 +1,3 @@
-//! The argument end to end on small claims whose values come from the
-//! definitions (`support`): an honest proof verifies, and a changed proof, a
-//! false claim, a witness outside its claim and another key do not.
-
 mod support;
 
 use std::sync::OnceLock;
@@ -16,7 +12,6 @@ use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use support::{claim_of, instances, key, layout, statements, Instance};
 
-/// Prove `instances` with the witnesses `witnesses`.
 fn prove_with(instances: &[Instance], witnesses: &[&Mat<F>]) -> Result<Proof, Error> {
     let committed = commit(key(), layout(instances), witnesses)?;
     let mut transcript = Poseidon2Transcript::new_v1_2();
@@ -37,7 +32,6 @@ fn accepts(instances: &[Instance], proof: &Proof) -> Result<(), Error> {
     accepts_under(key().verification_key(), instances, proof)
 }
 
-/// The honest instances and their proof.
 fn honest() -> &'static (Vec<Instance>, Proof) {
     static HONEST: OnceLock<(Vec<Instance>, Proof)> = OnceLock::new();
     HONEST.get_or_init(|| {
@@ -131,7 +125,6 @@ fn a_changed_proof_does_not_verify() {
             ));
         }
     }
-    // Akita reads each of its byte strings to the end.
     changes.push((
         "witness commitment with one more byte".into(),
         Box::new(|proof| proof.witness_commitment.push(0)),
@@ -155,24 +148,16 @@ fn a_changed_proof_does_not_verify() {
     }
 }
 
-/// The key sum-check has one round for each lane variable and each block
-/// variable of the key polynomial of 512 blocks. A false value of the key's
-/// part of the weights with a first round that agrees with it does not
-/// verify: the second round does not agree with the first.
 #[test]
 fn a_false_key_weight_with_a_consistent_first_round_does_not_verify() {
     let (instances, proof) = honest();
     assert_eq!(proof.key_rounds.len(), 6 + 9);
     let mut changed = proof.clone();
     changed.key_weight += K::ONE;
-    // p(0) + p(1) = 2·c0 + c1 + c2 moves by one with c1.
     changed.key_rounds[0][1] += K::ONE;
     assert!(matches!(accepts(instances, &changed), Err(Error::Rejected(_))));
 }
 
-/// Only the pinned key of a size decodes: bytes with one changed byte, a
-/// prefix, a longer string and the body of one size under the block count
-/// of another do not.
 #[test]
 fn only_the_pinned_verification_key_decodes() {
     let honest_key = key().verification_key();
@@ -196,8 +181,6 @@ fn only_the_pinned_verification_key_decodes() {
     }
 }
 
-/// The key of a number of blocks is the pinned key of the smallest key
-/// polynomial that holds them, and the prover's key of that size.
 #[test]
 fn the_pinned_verification_key_is_the_key_of_the_prover() {
     assert_eq!(&VerificationKey::new(512).expect("key"), key().verification_key());
@@ -206,9 +189,6 @@ fn the_pinned_verification_key_is_the_key_of_the_prover() {
     assert!(matches!(VerificationKey::new((1 << 19) + 1), Err(Error::Layout(_))));
 }
 
-/// A claim of 513 blocks reads a key element that the key polynomial of 512
-/// blocks does not hold: it has no layout, so no proof and no acceptance.
-/// A key size without schedule rows has no layout.
 #[test]
 fn a_claim_with_more_blocks_than_the_key_has_no_layout() {
     let blocks = key().verification_key().blocks();
@@ -229,8 +209,6 @@ fn a_claim_with_more_blocks_than_the_key_has_no_layout() {
     assert!(accepts(&large, proof).is_err());
 }
 
-/// `V` holds the inverses of the claims with a table, so claims without a
-/// table have no layout, and no proof for them verifies.
 #[test]
 fn claims_without_a_table_have_no_layout() {
     assert!(matches!(Layout::new(&[], 512), Err(Error::Layout(_))));
@@ -243,9 +221,6 @@ fn claims_without_a_table_have_no_layout() {
     assert!(matches!(accepts(&instances[2..], proof), Err(Error::Layout(_))));
 }
 
-/// The commitment that the native path makes for a witness is the one that
-/// the argument opens: both read the columns `0..blocks` of the production
-/// key. `claim_of` computes the commitment of the claim from those columns.
 #[test]
 fn the_native_commitment_is_the_commitment_of_the_claim() {
     let (instances, _) = honest();
@@ -255,10 +230,6 @@ fn the_native_commitment_is_the_commitment_of_the_claim() {
     assert_eq!(native, instance.claim.c);
 }
 
-/// Each change makes one part of a claim false: a commitment row, `Eval_K`,
-/// one `Eval_A`, the public input, the point. The verifier rejects the honest
-/// proof for the changed claim, and the proof of a prover that proves the
-/// changed claim.
 #[test]
 fn a_false_claim_does_not_verify() {
     let changes: [(&str, fn(&mut Instance)); 6] = [
@@ -299,8 +270,6 @@ fn a_false_claim_does_not_verify() {
     }
 }
 
-/// A witness with one coefficient at `bound + 1` or `-(bound + 1)`, with the
-/// claim that it satisfies: only the table check is false.
 #[test]
 fn a_witness_outside_its_table_does_not_verify() {
     for (claim, sign) in [(0, F::ONE), (1, F::NEG_ONE)] {
@@ -316,7 +285,6 @@ fn a_witness_outside_its_table_does_not_verify() {
         let proof = prove(&instances).expect("the prover does not check its witness");
         assert!(accepts(&instances, &proof).is_err(), "claim {claim}");
 
-        // The same witness at the bound verifies.
         let instance = &mut instances[claim];
         let mut cells = instance.witness.to_dense_vec();
         cells[1234] = sign * F::from_u64(bound);
@@ -327,8 +295,6 @@ fn a_witness_outside_its_table_does_not_verify() {
     }
 }
 
-/// The prover commits a witness with one other coefficient: it opens no
-/// commitment row of the claim.
 #[test]
 fn another_witness_does_not_verify() {
     let (instances, _) = honest();

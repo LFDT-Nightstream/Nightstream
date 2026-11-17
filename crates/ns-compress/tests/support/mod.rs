@@ -1,5 +1,4 @@
-//! Small CE claims with their witnesses, computed from the definitions of
-//! SPEC.md section 6 with schoolbook ring arithmetic.
+//! Small CE claims computed from the definitions of SPEC.md section 6.
 
 #![allow(dead_code)]
 
@@ -24,7 +23,6 @@ pub const MATRICES: usize = 4;
 pub const POINT_VARS: usize = 14;
 pub const PUBLIC_BLOCKS: usize = 2;
 
-/// The key of these tests: the smallest key polynomial, of 512 blocks.
 pub fn key() -> &'static ProverKey {
     static KEY: OnceLock<ProverKey> = OnceLock::new();
     KEY.get_or_init(|| ProverKey::new(100).expect("key"))
@@ -34,7 +32,6 @@ pub fn random_extension(rng: &mut ChaCha8Rng) -> K {
     from_complex(F::new(rng.next_u64()), F::new(rng.next_u64()))
 }
 
-/// The product in `K[X]/(X^64 + 1)`.
 pub fn ring_product(left: &[K], right: &[K]) -> [K; D] {
     let mut product = [K::ZERO; D];
     for (i, &left) in left.iter().enumerate() {
@@ -67,7 +64,6 @@ pub fn equality(point: &[K], index: usize) -> K {
         .product()
 }
 
-/// Random matrix rows in factored form.
 pub struct Rows {
     shape: MatrixShape,
     offsets: Vec<usize>,
@@ -84,7 +80,6 @@ impl Rows {
         Self::random_with_widest(rng, rows, blocks, 9)
     }
 
-    /// Random rows whose slots have up to `widest` columns.
     pub fn random_with_widest(rng: &mut ChaCha8Rng, rows: usize, blocks: usize, widest: usize) -> Self {
         let columns = blocks * D;
         let (mut starts, mut widths) = (Vec::new(), Vec::new());
@@ -134,7 +129,6 @@ impl Rows {
         .expect("factored rows")
     }
 
-    /// `M_matrixᵀ · weights`, from the entries.
     fn transpose(&self, matrix: usize, weights: &[K]) -> Vec<K> {
         let mut columns = vec![K::ZERO; self.shape.columns];
         for (row, &weight) in weights.iter().enumerate() {
@@ -166,7 +160,6 @@ impl MatrixRows for Rows {
     }
 }
 
-/// A claim with its witness and rows.
 pub struct Instance {
     pub rows: Rows,
     pub witness: Mat<F>,
@@ -174,7 +167,6 @@ pub struct Instance {
     pub norm: Norm,
 }
 
-/// A random witness with coefficients in `[-range, range]`.
 pub fn random_witness(rng: &mut ChaCha8Rng, blocks: usize, range: u64) -> Mat<F> {
     let cells = (0..D * blocks)
         .map(|_| F::from_u64(rng.next_u64() % (2 * range + 1)) - F::from_u64(range))
@@ -182,12 +174,10 @@ pub fn random_witness(rng: &mut ChaCha8Rng, blocks: usize, range: u64) -> Mat<F>
     Mat::from_row_major(D, blocks, cells)
 }
 
-/// The claim that `witness` satisfies at `point` under `rows`.
 pub fn claim_of(rows: &Rows, witness: &Mat<F>, point: &[K]) -> CeClaim {
     claim_of_seed(&PRODUCTION_SEED, rows, witness, point)
 }
 
-/// The claim that `witness` satisfies under the Ajtai key of `seed`.
 pub fn claim_of_seed(seed: &[u8; 32], rows: &Rows, witness: &Mat<F>, point: &[K]) -> CeClaim {
     let blocks = witness.cols();
     let block = |block: usize| -> Vec<K> { (0..D).map(|lane| K::from(witness[(lane, block)])).collect() };
@@ -278,7 +268,6 @@ pub fn statements(instances: &[Instance]) -> Vec<Statement<'_>> {
     instances.iter().map(Instance::statement).collect()
 }
 
-/// The layout of `instances` under `key()`.
 pub fn layout(instances: &[Instance]) -> Layout {
     let claims: Vec<_> = instances
         .iter()
@@ -287,7 +276,6 @@ pub fn layout(instances: &[Instance]) -> Layout {
     Layout::new(&claims, key().verification_key().blocks()).expect("layout")
 }
 
-/// Two claims with a table and one without, of three sizes.
 pub fn instances() -> Vec<Instance> {
     let mut rng = ChaCha8Rng::seed_from_u64(0x6e65_6f63);
     vec![

@@ -1,6 +1,3 @@
-//! Provers that commit a false lookup or send a false value of the key, and
-//! then follow the protocol, and lookup challenges that are table values.
-
 use crate::support::{instances, key, layout, statements};
 use neo_math::{from_complex, F, K};
 use neo_transcript::Poseidon2Transcript;
@@ -12,8 +9,6 @@ use crate::layout::LOOKUPS;
 use crate::weights::{self, Challenges, Uses};
 use crate::{akita, verify, Error, Proof};
 
-/// The verifier's answer to the proof of a prover that applies `change`
-/// after it committed the honest `W`.
 fn verdict(change: impl FnOnce(&mut Committed)) -> Result<(), Error> {
     let instances = instances();
     let witnesses: Vec<_> = instances.iter().map(|instance| &instance.witness).collect();
@@ -31,7 +26,6 @@ fn verdict(change: impl FnOnce(&mut Committed)) -> Result<(), Error> {
     .map(|_| ())
 }
 
-/// Two cells of the first table's witness with different codes.
 fn cells_with_different_codes(committed: &Committed) -> (usize, usize) {
     let (_, slice, _, _) = committed.layout.tables().next().expect("a table");
     let first = slice.offset;
@@ -47,8 +41,6 @@ fn the_prover_of_these_tests_makes_an_accepted_proof() {
     verdict(|_| ()).expect("the honest proof verifies");
 }
 
-/// `W` holds counts that move one cell from its value to another value. The
-/// number of counted cells does not change.
 #[test]
 fn wrong_counts_do_not_verify() {
     let result = verdict(|committed| {
@@ -68,8 +60,6 @@ fn wrong_counts_do_not_verify() {
     assert!(matches!(result, Err(Error::Rejected(_))), "{result:?}");
 }
 
-/// Two cells with different values exchange their inverses. Each column of
-/// `V` keeps its sum, and no inverse of the two cells is correct.
 #[test]
 fn inverses_with_the_correct_sum_on_the_wrong_cells_do_not_verify() {
     let result = verdict(|committed| {
@@ -79,7 +69,6 @@ fn inverses_with_the_correct_sum_on_the_wrong_cells_do_not_verify() {
     assert!(matches!(result, Err(Error::Rejected(_))), "{result:?}");
 }
 
-/// The tables of the instances are `[-2176, 2176]` and `[-300, 300]`.
 #[test]
 fn a_lookup_challenge_in_a_table_gives_no_proof_and_no_acceptance() {
     let instances = instances();

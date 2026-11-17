@@ -1,5 +1,3 @@
-//! The verifier of the argument.
-
 use std::time::{Duration, Instant};
 
 use neo_math::K;
@@ -16,23 +14,14 @@ use crate::{
     Statement, SESSION,
 };
 
-/// Where the verifier's time goes.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct VerifierTimes {
-    /// The part of the public weights that the matrices give: one pass over
-    /// the rows of each relation.
     pub matrices: Duration,
-    /// Each other part of the public weights and both sum-checks.
     pub rest: Duration,
-    /// The prefix of Akita's setup, from Akita's seed: once for each key
-    /// and schedule row.
     pub akita_setup: Duration,
     pub akita: Duration,
 }
 
-/// Accept `proof` exactly when it proves each of `statements` under `key`.
-/// The transcript must hold the same messages as the prover's when
-/// `Committed::prove` began. The verifier reads no element of the Ajtai key.
 pub fn verify(
     transcript: &mut Poseidon2Transcript,
     key: &VerificationKey,
@@ -65,7 +54,6 @@ pub fn verify(
     }
     key_point.extend(row_point);
 
-    // Each lookup table of the sum-check is zero from cell 2^span_vars.
     let low: K = rho[layout.span_vars..]
         .iter()
         .map(|&coordinate| K::ONE - coordinate)

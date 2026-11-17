@@ -1,10 +1,4 @@
-//! `matrix_part` equals the output of its Lean model
-//! (`Spec.Compression.Verifier.matrixPass`) on the sample relations that Lean
-//! emits, and it equals its definition on random rows and on the rows of the
-//! light and refresh circuits:
-//! `Σ_claims c · Σ_runs ω^(κ+1+j) · eq(r, row) · Σ_k initial · ratio^k · Φ(start + k)`,
-//! where each entry of matrix `j` is a geometric run of columns
-//! (`MatrixRows::visit_rows`) and `Φ(64b + h) = eq(β, b) · conjugate(u)[h]`.
+//! `matrix_part` against its Lean model (`Spec.Compression.Verifier.matrixPass`).
 
 use std::ops::{ControlFlow, Range};
 
@@ -27,7 +21,6 @@ use super::{matrix_part, Challenges, Matrices, Uses, COLUMNS_PER_TASK, KAPPA};
 use crate::support::{self, claim_of, conjugate, equality, random_extension, random_witness, Rows, MATRICES};
 use crate::{key_blocks, layout, CeClaim, Norm, Statement};
 
-/// The runs of one claim's rows against `eq(r, ·)`, the powers of `ω` and `Φ`.
 struct Direct<'a> {
     rows: &'a [K],
     omega: &'a [K],
@@ -130,8 +123,6 @@ fn assert_matches_direct(rng: &mut ChaCha8Rng, statements: &[Statement<'_>]) {
     );
 }
 
-/// Random rows of slots up to 9 columns, a second claim on the rows of the
-/// first, and rows of slots up to 200 columns, which meet up to 5 blocks.
 #[test]
 fn the_matrix_part_is_its_definition_on_random_rows() {
     let instances = support::instances();
@@ -158,8 +149,6 @@ fn the_matrix_part_is_its_definition_on_random_rows() {
     assert_matches_direct(&mut rng, &statements);
 }
 
-/// Slots in no order, whose columns overlap and cross the tasks of
-/// `Matrices::add_columns`.
 #[test]
 fn the_column_weights_are_their_definition_across_tasks() {
     let mut rng = ChaCha8Rng::seed_from_u64(0x636f_6c73);
@@ -193,7 +182,6 @@ fn the_column_weights_are_their_definition_across_tasks() {
     assert!(actual == expected);
 }
 
-/// The rows of a step circuit as `nightstream` reads them.
 struct Circuit {
     expanded: ExpandedPackage,
     spans: SlotSpans,
@@ -247,7 +235,6 @@ impl MatrixRows for Circuit {
     }
 }
 
-/// A claim of the shape of a step circuit's claim, with random values.
 fn random_claim(rng: &mut ChaCha8Rng) -> CeClaim {
     let mut field = |count: usize| -> Vec<F> { (0..count).map(|_| F::new(rng.next_u64())).collect() };
     let commitment = Commitment::new(KAPPA, field(KAPPA * D)).expect("commitment");
@@ -265,8 +252,6 @@ fn random_claim(rng: &mut ChaCha8Rng) -> CeClaim {
     }
 }
 
-/// The three claims of a final proof: light, refresh, then a fresh claim of
-/// each circuit in turn.
 #[test]
 fn the_matrix_part_is_its_definition_on_the_step_circuits() {
     let artifact = |name: &str| {
@@ -310,7 +295,6 @@ fn the_matrix_part_is_its_definition_on_the_step_circuits() {
     }
 }
 
-/// Factored rows from the tables of a Lean relation.
 struct LeanRows {
     shape: MatrixShape,
     offsets: Vec<usize>,
@@ -322,8 +306,6 @@ struct LeanRows {
 }
 
 impl LeanRows {
-    /// `[rows, columns, ratio, starts, widths, entries]`, with the pairs
-    /// `[slot, coefficient]` of each row and matrix in `entries`.
     fn new(relation: &serde_json::Value) -> Self {
         let number = |value: &serde_json::Value| value.as_u64().expect("a natural number");
         let numbers = |value: &serde_json::Value| -> Vec<u64> {
@@ -397,9 +379,6 @@ impl MatrixRows for LeanRows {
     }
 }
 
-/// Lean emits the output of its model of `matrix_part` on sample relations:
-/// slots across one and two block borders, two claims on one relation, and
-/// claims on two relations of one size.
 #[test]
 fn the_matrix_part_is_the_lean_matrix_pass() {
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))

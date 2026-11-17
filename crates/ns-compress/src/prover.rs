@@ -1,5 +1,3 @@
-//! The prover of the argument: commit `W`, then prove.
-
 use std::time::{Duration, Instant};
 
 use neo_ccs::Mat;
@@ -23,32 +21,25 @@ use crate::{
 
 const CELLS_PER_TASK: usize = 1 << 16;
 
-/// Where the prover's time goes.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ProverTimes {
     pub commit_witness: Duration,
     pub commit_inverse: Duration,
-    /// The public weights and the other tables of the sum-check.
     pub weights: Duration,
     pub sumcheck: Duration,
-    /// The key's part of the weights and its sum-check.
     pub key: Duration,
     pub opening: Duration,
 }
 
-/// `W` and its commitment, before the claims are complete: a caller that
-/// proves a norm itself binds `commitment` first (`Norm::Caller`).
 pub struct Committed<'k> {
     key: &'k ProverKey,
     layout: Layout,
     witness: Vec<F>,
-    /// The table code of each cell of the witnesses that have a table.
     codes: Vec<u16>,
     committed: akita::prover::Committed,
     commit_witness: Duration,
 }
 
-/// Block `j`, lane `h` of `witness` to cell `64j + h`.
 fn write_cells(cells: &mut [F], witness: &Mat<F>) {
     let blocks = witness.cols();
     if let Some(&value) = witness.virtual_constant_value() {
@@ -75,9 +66,6 @@ fn write_cells(cells: &mut [F], witness: &Mat<F>) {
     }
 }
 
-/// Commit `W` for `layout`: each witness, the table code of each cell with a
-/// table, and each table's counts. A cell outside its table gets no count.
-/// `key` is the key that `layout` names.
 pub fn commit<'k>(key: &'k ProverKey, layout: Layout, witnesses: &[&Mat<F>]) -> Result<Committed<'k>, Error> {
     let start = Instant::now();
     if layout.key_block_vars() != key.verification_key().blocks().trailing_zeros() as usize {
@@ -142,7 +130,6 @@ pub fn commit<'k>(key: &'k ProverKey, layout: Layout, witnesses: &[&Mat<F>]) -> 
     })
 }
 
-/// The slices of the witnesses with a table, with the inverses of each.
 fn table_inverses(layout: &Layout, taus: &[F; LOOKUPS]) -> Result<Vec<(Slice, Inverses)>, Error> {
     layout
         .tables()
@@ -151,13 +138,10 @@ fn table_inverses(layout: &Layout, taus: &[F; LOOKUPS]) -> Result<Vec<(Slice, In
 }
 
 impl Committed<'_> {
-    /// The bytes of the commitment of `W`.
     pub fn commitment(&self) -> &[u8] {
         &self.committed.bytes
     }
 
-    /// Column `k` of `V`: on each cell with a table, the inverse of
-    /// challenge `k`.
     fn write_inverse_column(&self, tables: &[(Slice, Inverses)], k: usize, column: &mut [akita::Base]) {
         for (slice, inverses) in tables {
             column[slice.range()]
@@ -167,11 +151,7 @@ impl Committed<'_> {
         }
     }
 
-    /// The tables of the sum-check on the cells with a table: the weight of
-    /// the inverse check, the weight of the sum, and the two combinations of
-    /// the inverses.
     fn lookup_tables(&self, tables: &[(Slice, Inverses)], challenges: &Challenges) -> [Vec<K>; 4] {
-        // One thread for each table writes its zeros (`weights::table`).
         let zeros = || vec![K::ZERO; self.codes.len()];
         let pair = || rayon::join(zeros, zeros);
         let ((mut check, mut sum), (mut inverse, mut scaled)) = rayon::join(pair, pair);
@@ -199,8 +179,6 @@ impl Committed<'_> {
         [check, sum, inverse, scaled]
     }
 
-    /// Each column of `V` at `rho`, from the codes: the cells of one code
-    /// share one inverse, so the sum of their `eq` weights is sufficient.
     fn inverse_values(&self, tables: &[(Slice, Inverses)], rho: &[K]) -> [K; 1 << LOOKUP_VARS] {
         let mut values = [K::ZERO; 1 << crate::layout::LOOKUP_VARS];
         for (slice, inverses) in tables {
@@ -237,9 +215,6 @@ impl Committed<'_> {
         values
     }
 
-    /// Prove `statements`, whose witnesses are the committed ones in the
-    /// same order. A witness that does not satisfy its claim gives a proof
-    /// that the verifier rejects.
     pub fn prove(
         self,
         transcript: &mut Poseidon2Transcript,

@@ -87,25 +87,28 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
-    - name: Get Rust cache key
+    - name: Get the Rust toolchain hash
       id: rust
-      run: echo "cachekey=$(rustc -vV | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      run: echo "toolchain=$(rustc -vV | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
 
-    - name: Cache dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/registry
-          ~/.cargo/git
-          target
-        key: nico-fprime-${{ runner.os }}-${{ runner.arch }}-no-lto-cgu16-fat-alone-v2-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('.cargo/config.toml', 'rust-toolchain.toml', '**/Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
-        restore-keys: |
-          nico-fprime-${{ runner.os }}-${{ runner.arch }}-no-lto-cgu16-fat-alone-v2-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('.cargo/config.toml', 'rust-toolchain.toml', '**/Cargo.toml') }}-
+    - name: Show the runner's CPUs and memory
+      run: |
+        printf 'CPUs: %s on the machine, %s for this job\n' "$(nproc --all)" "$(nproc)"
+        free -g
+        cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/memory.max 2> /dev/null || true
+
+    # The runner keeps its container between jobs, so this folder stays warm.
+    # It is outside the checkout because actions/checkout removes ignored files.
+    - name: Use this runner's target folder
+      run: |
+        dir="$RUNNER_WORKSPACE/target-${{ steps.rust.outputs.toolchain }}"
+        find "$RUNNER_WORKSPACE" -mindepth 1 -maxdepth 1 -name 'target-*' ! -path "$dir" -exec rm -rf {} +
+        echo "CARGO_TARGET_DIR=$dir" >> "$GITHUB_ENV"
 
     - name: Build selected Rust tests
       run: bash scripts/ci_rust_tests.sh build
 
-    - name: Run selected Rust tests with four workers
+    - name: Run selected Rust tests with four workers and build the shipped tests
       run: bash scripts/ci_rust_tests.sh test
 
     - name: Run conformance coordinator tests

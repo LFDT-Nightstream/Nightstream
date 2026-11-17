@@ -207,7 +207,7 @@ fn compiled_slot_cost_is_an_integer_per_proved_read_port() {
         let geometry = geometry(3);
         let old = memory_circuit_unshared(&geometry, &app).unwrap();
         let new = memory_circuit(&geometry, &app).unwrap();
-        crate::application::check_blocks(&new).unwrap();
+        crate::application::check_blocks_match_permutation_rows(&new).unwrap();
         let old_packages = packages(&old);
         let new_packages = packages(&new);
         if reads == 0 {

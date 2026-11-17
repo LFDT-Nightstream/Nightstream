@@ -388,7 +388,7 @@ const SHAPE: Shape = Shape {
     witness_columns: 0,
     matrices: MATRICES,
 };
-const MAX_ROUNDS: u64 = 30;
+const MAX_POLYNOMIAL_VARIABLES: u64 = 30;
 
 fn write_bytes(output: &mut Writer, bytes: &[u8]) {
     output.word(bytes.len() as u64);
@@ -412,7 +412,7 @@ fn read_extension(input: &mut Reader<'_>, count: usize) -> Result<Vec<K>, ProofC
 
 fn read_rounds<const COEFFICIENTS: usize>(input: &mut Reader<'_>) -> Result<Vec<[K; COEFFICIENTS]>, ProofCodecError> {
     let rounds = input.word()?;
-    if rounds > MAX_ROUNDS {
+    if rounds > MAX_POLYNOMIAL_VARIABLES {
         return Err(ProofCodecError("argument round count"));
     }
     (0..rounds)

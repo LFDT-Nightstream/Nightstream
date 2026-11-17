@@ -51,7 +51,7 @@ fn product(left: &[Fq], right: &[Fq]) -> Vec<Fq> {
 }
 
 /// Lean `QuotientProduct.quotient_last_zero`.
-fn divide(mut full: Vec<Fq>) -> (Vec<Fq>, Vec<Fq>) {
+fn divide_by_ring_modulus(mut full: Vec<Fq>) -> (Vec<Fq>, Vec<Fq>) {
     let mut quotient = full.split_off(RING_DEGREE);
     for (low, &high) in full.iter_mut().zip(&quotient) {
         *low -= high;
@@ -117,7 +117,7 @@ impl StepPackage {
                 None => self.fill_application(records, &mut columns)?,
             }
             for block in self.blocks() {
-                columns[block.start()..block.outputs()].fill(Fq::ZERO);
+                columns[block.start()..block.first_output()].fill(Fq::ZERO);
             }
         }
         let mut steps: Vec<_> = self.witness.iter().map(Step::Batch).collect();
@@ -151,7 +151,7 @@ impl StepPackage {
                 Step::Ring { cells, start, lanes } => {
                     for cell in 0..*cells {
                         let [challenge, value, prior] = ring_operands(*cells, cell, lanes, &columns);
-                        let (_, remainder) = divide(product(&challenge, &value));
+                        let (_, remainder) = divide_by_ring_modulus(product(&challenge, &value));
                         for lane in 0..RING_DEGREE {
                             columns[start + lane * cells + cell] = prior[lane] + remainder[lane];
                         }
@@ -196,7 +196,7 @@ impl StepPackage {
                     }
                     for cell in 0..*cells {
                         let [challenge, value, _] = ring_operands(*cells, cell, lanes, &columns);
-                        let (coefficients, _) = divide(product(&challenge, &value));
+                        let (coefficients, _) = divide_by_ring_modulus(product(&challenge, &value));
                         let target = quotient + cell * RING_DEGREE;
                         columns[target..target + RING_DEGREE].copy_from_slice(&coefficients);
                     }
@@ -230,7 +230,7 @@ impl StepPackage {
     pub fn witness_checksum(&self, columns: &[Fq]) -> u64 {
         let mut dead = vec![false; self.first_fresh];
         for block in self.blocks() {
-            dead[block.start()..block.outputs()].fill(true);
+            dead[block.start()..block.first_output()].fill(true);
         }
         columns[..self.first_fresh]
             .iter()

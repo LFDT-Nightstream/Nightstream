@@ -169,7 +169,7 @@ fn checked_port_hash_reconstructs_source_witness() {
     let geometry = geometry();
     let original = memory_circuit(&geometry, &PortHash::honest(false)).unwrap();
     let optimized = memory_circuit(&geometry, &PortHash::honest(true)).unwrap();
-    crate::application::check_blocks(&optimized).unwrap();
+    crate::application::check_blocks_match_permutation_rows(&optimized).unwrap();
     assert_eq!(optimized.row_count(), original.row_count());
     assert_eq!(optimized.shape().blocks.len(), original.shape().blocks.len() + 2);
     let image = Program::new(geometry, vec![0; 4], vec![12345, 0, 0, 0]).unwrap();
@@ -236,7 +236,7 @@ fn checked_port_hash_rejects_malformed_hints() {
 fn checked_port_hash_compiles_to_two_native_blocks() {
     let compile = |optimized| {
         let application = memory_circuit(&geometry(), &PortHash::honest(optimized)).unwrap();
-        crate::application::check_blocks(&application).unwrap();
+        crate::application::check_blocks_match_permutation_rows(&application).unwrap();
         let bytes = crate::nebula::test_packages::bounded_depth_packages("");
         nightstream_fprime::load_bounded_depth_packages(
             &bytes[0],

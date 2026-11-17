@@ -3,7 +3,7 @@ use p3_field::PrimeField64;
 
 const CENTERED_HALF_MODULUS: u64 = (Fq::ORDER_U64 - 1) / 2;
 
-pub(crate) fn encode_field(value: u64, output: &mut [i8]) {
+pub(crate) fn balanced_ternary_digits(value: u64, output: &mut [i8]) {
     let negative = value > CENTERED_HALF_MODULUS;
     let mut magnitude = if negative { Fq::ORDER_U64 - value } else { value };
     for coordinate in output {

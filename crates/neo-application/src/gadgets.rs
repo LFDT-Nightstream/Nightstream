@@ -133,7 +133,7 @@ pub struct ConditionalSelect<const N: usize = 1> {
 }
 
 impl<const N: usize> ConditionalSelect<N> {
-    pub fn push_constraints<Owner: Clone>(&self, builder: &mut TaggedR1csBuilder<'_, Owner>) {
+    pub fn push_constraints_assuming_boolean_inputs<Owner: Clone>(&self, builder: &mut TaggedR1csBuilder<'_, Owner>) {
         let first_row = builder.next_row_index();
         builder.push_row(
             self.condition,

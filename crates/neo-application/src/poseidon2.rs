@@ -184,7 +184,7 @@ impl<const N: usize> Poseidon2FullRound12<N> {
         builder.record_gadget(self.descriptor(), first_row);
     }
 
-    pub fn assign_auxiliaries(&self, assignment: &mut [F]) {
+    pub fn assign_power_columns(&self, assignment: &mut [F]) {
         let constants = core::array::from_fn(|lane| {
             self.choices.iter().fold(F::ZERO, |constant, choice| {
                 constant + assignment[choice.selector] * full_round_constants(choice.round)[lane]
@@ -301,7 +301,7 @@ impl<const N: usize> Poseidon2PartialPair12<N> {
         builder.record_gadget(self.descriptor(), first_row);
     }
 
-    pub fn assign_auxiliaries(&self, assignment: &mut [F]) {
+    pub fn assign_power_columns(&self, assignment: &mut [F]) {
         let constants = self
             .choices
             .iter()

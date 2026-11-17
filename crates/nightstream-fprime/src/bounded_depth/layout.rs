@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use super::expand::mix;
 use super::{Linear, Piece, Row, StepPackage};
 use crate::package::{
-    encode_field, PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, PUBLIC_WORDS as PUBLIC, RING_DEGREE,
+    balanced_ternary_digits, PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, PUBLIC_WORDS as PUBLIC, RING_DEGREE,
     SBOX_ROWS as SBOX_COLUMNS,
 };
 
@@ -111,7 +111,7 @@ impl LogicalLayout {
                 match kind {
                     Kind::Bit | Kind::Centered => part[offset] = value,
                     Kind::Field => {
-                        encode_field(value.as_canonical_u64(), &mut digits);
+                        balanced_ternary_digits(value.as_canonical_u64(), &mut digits);
                         for (target, &digit) in part[offset..offset + FIELD_DIGITS].iter_mut().zip(&digits) {
                             *target = Fq::from_i64(i64::from(digit));
                         }

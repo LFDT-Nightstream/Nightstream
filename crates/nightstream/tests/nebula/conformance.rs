@@ -3,7 +3,7 @@
 use std::ops::Range;
 
 use super::*;
-use crate::lifecycle::bounded_depth::{BoundedDepthError, CHECK_ROWS, FAILED_ROW};
+use crate::lifecycle::bounded_depth::{BoundedDepthError, FAILED_ROW, KEEP_FAULTY_PROOF};
 use crate::nebula::{Circuit, Machine, MachineState, Package, Step};
 use crate::{Engine, Error};
 use crate::{Proof, Prover, Verifier};
@@ -85,10 +85,10 @@ impl Harness {
     }
 
     fn reject(&self, proof: Option<&Proof>, invocation: &Invocation, check: &str) {
-        CHECK_ROWS.set(true);
+        KEEP_FAULTY_PROOF.set(true);
         FAILED_ROW.set(None);
         let proved = self.step(proof, invocation);
-        CHECK_ROWS.set(false);
+        KEEP_FAULTY_PROOF.set(false);
         let bad = proved.unwrap();
         let row = FAILED_ROW.take().expect("the faulty witness fails a row");
         let named = self.kept.get(row).and_then(|row| {

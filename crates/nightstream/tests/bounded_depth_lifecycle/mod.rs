@@ -271,7 +271,7 @@ fn a_block_that_is_not_its_permutation_is_refused() {
         )
         .expect("application")
     };
-    assert!(crate::application::check_blocks(&honest).is_ok());
+    assert!(crate::application::check_blocks_match_permutation_rows(&honest).is_ok());
     for application in [
         forged(&|block| block.lanes[3].constant += F::ONE),
         forged(&|block| block.first_local += 1),

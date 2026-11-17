@@ -280,7 +280,7 @@ impl Block<'_> {
         self.start
     }
 
-    pub fn outputs(&self) -> usize {
+    pub fn first_output(&self) -> usize {
         self.start + BLOCK_OUTPUTS
     }
 

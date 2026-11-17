@@ -189,7 +189,7 @@ fn packing_stops_at_the_package_width() {
     original.extend([product(1, 2, 11), zero(3, 4), zero(5, 6)]);
     let start = 12;
     for (room, sources, zeros, products) in [
-        (14, 10, 2, 1),
+        (10 + 2 + 2, 10, 2, 1),
         (13, 10, 2, 0),
         (11, 10, 1, 0),
         (10, 10, 0, 0),

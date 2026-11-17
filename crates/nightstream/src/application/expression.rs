@@ -11,12 +11,12 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::{ApplicationError, Variable};
 
-type Nodes<T> = HashSet<T, BuildHasherDefault<NodeHasher>>;
+type PointerSet<T> = HashSet<T, BuildHasherDefault<UnkeyedPointerHasher>>;
 
 #[derive(Default)]
-struct NodeHasher(u64);
+struct UnkeyedPointerHasher(u64);
 
-impl Hasher for NodeHasher {
+impl Hasher for UnkeyedPointerHasher {
     fn finish(&self) -> u64 {
         self.0.rotate_left(26)
     }
@@ -46,7 +46,7 @@ pub(crate) enum Expression {
 
 impl Expression {
     pub(super) fn validate(&self, count: usize, outputs: Range<usize>, causal: bool) -> Result<(), ApplicationError> {
-        let mut seen = Nodes::default();
+        let mut seen = PointerSet::default();
         let mut pending = vec![self];
         while let Some(expression) = pending.pop() {
             if !seen.insert(expression as *const Self) {
@@ -72,8 +72,8 @@ impl Expression {
     }
 
     pub(super) fn has_nested_shared_operations(&self) -> bool {
-        let mut seen = Nodes::default();
-        let mut shared = Nodes::default();
+        let mut seen = PointerSet::default();
+        let mut shared = PointerSet::default();
         let mut pending = vec![self];
         while let Some(expression) = pending.pop() {
             if let Self::Add(left, right) | Self::Multiply(left, right) = expression {
@@ -86,7 +86,7 @@ impl Expression {
                 pending.push(left);
             }
         }
-        let mut visited = Nodes::default();
+        let mut visited = PointerSet::default();
         let mut pending = vec![(self, false)];
         while let Some((expression, shared_parent)) = pending.pop() {
             if let Self::Add(left, right) | Self::Multiply(left, right) = expression {

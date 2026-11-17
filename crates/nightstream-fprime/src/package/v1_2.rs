@@ -8,8 +8,9 @@ pub(crate) const DECOMPOSITION_NORM_BOUND: u64 = profile::B;
 pub(crate) const RING_DEGREE: usize = profile::D;
 /// Lean `QuotientProduct.node`.
 pub(crate) const RING_NODES: usize = 2 * RING_DEGREE;
+const PUBLIC_RING_COLUMNS: usize = 5;
 /// Lean `ProductionAssignment.publicWidth`.
-pub const PUBLIC_WORDS: usize = 5 * RING_DEGREE;
+pub const PUBLIC_WORDS: usize = PUBLIC_RING_COLUMNS * RING_DEGREE;
 pub const COMMITMENT_WORDS: usize = profile::KAPPA as usize * RING_DEGREE;
 
 pub const PI_CCS_V1_2_MATRIX_COUNT: usize = 4;

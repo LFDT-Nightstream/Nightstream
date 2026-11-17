@@ -163,7 +163,7 @@ pub struct Circuit {
     steps: CompiledSteps,
     application: Option<ApplicationCircuit>,
     /// SPEC.md Algorithm 8.
-    memory: bool,
+    needs_memory_terminal: bool,
 }
 
 impl Circuit {
@@ -197,12 +197,15 @@ impl Circuit {
             };
             Ok(CompiledSteps::new(packages)?)
         };
-        let (checked, steps) = rayon::join(|| crate::application::check_blocks(&application), steps);
+        let (checked, steps) = rayon::join(
+            || crate::application::check_blocks_match_permutation_rows(&application),
+            steps,
+        );
         checked?;
         Ok(Self {
             steps: steps?,
             application: Some(application),
-            memory: false,
+            needs_memory_terminal: false,
         })
     }
 
@@ -212,12 +215,15 @@ impl Circuit {
         Ok(Self {
             steps: CompiledSteps::new(packages)?,
             application: None,
-            memory: false,
+            needs_memory_terminal: false,
         })
     }
 
     pub(crate) fn into_memory(self) -> Self {
-        Self { memory: true, ..self }
+        Self {
+            needs_memory_terminal: true,
+            ..self
+        }
     }
 
     #[cfg(test)]
@@ -251,7 +257,11 @@ impl Circuit {
                 .create_new(true)
                 .open(path)?,
         );
-        output.write_all(if self.memory { MEMORY_MAGIC } else { MAGIC })?;
+        output.write_all(if self.needs_memory_terminal {
+            MEMORY_MAGIC
+        } else {
+            MAGIC
+        })?;
         let application = self
             .application
             .as_ref()
@@ -305,7 +315,7 @@ impl Circuit {
     /// is `nebula::Circuit::verifier`. The caller separately budgets recursive
     /// depth, queries, retries, and concurrent attempts.
     pub fn verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
-        if self.memory {
+        if self.needs_memory_terminal {
             return Err(Error::Circuit("a memory relation needs nebula::Circuit::verifier"));
         }
         self.stage1_verifier(engine, minimum_security_bits)

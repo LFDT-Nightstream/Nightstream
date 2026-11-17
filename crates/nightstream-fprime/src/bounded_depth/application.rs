@@ -11,6 +11,7 @@ use super::{BoundedDepthPackages, Linear, Piece, Region, Row, StepPackage};
 use crate::application_records::{ApplicationRecords, ApplicationWalk};
 use crate::package::{PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, PUBLIC_WORDS, RING_DEGREE, SBOX_ROWS as SBOX_COLUMNS};
 
+const STATE_WORDS: usize = 4;
 const STATES_START: usize = PUBLIC_WORDS + 5 + 8;
 pub(super) const WITNESS_START: usize = STATES_START + 12;
 const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/application/combined-native-experiment/v1";
@@ -117,10 +118,12 @@ impl StepPackage {
             ..
         } = self.application;
         let column = match variable {
-            v if v < 4 => STATES_START + 4 + v,
-            v if v < 4 + witness_words => WITNESS_START + v - 4,
-            v if v < 8 + witness_words => STATES_START + 8 + v - 4 - witness_words,
-            v if v < 8 + witness_words + locals => local_start + v - 8 - witness_words,
+            v if v < STATE_WORDS => STATES_START + STATE_WORDS + v,
+            v if v < STATE_WORDS + witness_words => WITNESS_START + v - STATE_WORDS,
+            v if v < 2 * STATE_WORDS + witness_words => {
+                STATES_START + 2 * STATE_WORDS + v - STATE_WORDS - witness_words
+            }
+            v if v < 2 * STATE_WORDS + witness_words + locals => local_start + v - 2 * STATE_WORDS - witness_words,
             _ => return Err(PackageError::Input("application variable outside its region")),
         };
         Ok(column)
@@ -231,10 +234,10 @@ impl StepPackage {
         let (bits, forced) = package.slot_facts()?;
         package.slots = package.rule_slots(&bits, &forced);
         package.pack_native_booleans()?;
-        let (bits, forced) = package.slot_facts()?;
-        package.slots = package.rule_slots(&bits, &forced);
+        let (packed_bits, packed_forced) = package.slot_facts()?;
+        package.slots = package.rule_slots(&packed_bits, &packed_forced);
         package.field_lowering = super::field_lowering::FieldLowering::checked(&package)?;
-        package.slots = package.rule_slots(&bits, &forced);
+        package.slots = package.rule_slots(&packed_bits, &packed_forced);
         package.guard_fusion = super::guard_fusion::GuardFusion::checked(&package)?;
         package.word_packing = super::word_packing::WordPacking::checked(&package)?;
         package.check_packed_slots()?;
@@ -393,11 +396,11 @@ impl StepPackage {
         let end = self
             .blocks()
             .take(region.pieces - 1)
-            .map(|block| block.outputs())
+            .map(|block| block.first_output())
             .max();
         let mut dead = vec![false; end.unwrap_or(0)];
         for block in self.blocks().take(region.pieces - 1) {
-            dead[block.start()..block.outputs()].fill(true);
+            dead[block.start()..block.first_output()].fill(true);
         }
         let live = |column: &usize| dead.get(*column) != Some(&true);
         let mut bits = self.bit_columns();

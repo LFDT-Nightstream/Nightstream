@@ -301,11 +301,11 @@ impl BoundedDepth {
         let relation = &self.relations[words::pc(kind) as usize - 1];
         let logical = relation.assignment(&step, locals)?;
         #[cfg(test)]
-        if CHECK_ROWS.get() {
+        if KEEP_FAULTY_PROOF.get() {
             FAILED_ROW.set(relation.first_failing_row(&step)?);
         }
         #[cfg(test)]
-        let keeps_faulty = CHECK_ROWS.get();
+        let keeps_faulty = KEEP_FAULTY_PROOF.get();
         #[cfg(not(test))]
         let keeps_faulty = false;
         let (instance, held) = std::thread::scope(|scope| {
@@ -396,7 +396,7 @@ impl BoundedDepth {
 
 #[cfg(test)]
 thread_local! {
-    pub(crate) static CHECK_ROWS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    pub(crate) static KEEP_FAULTY_PROOF: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     pub(crate) static FAILED_ROW: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
 }
 

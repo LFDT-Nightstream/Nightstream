@@ -124,7 +124,7 @@ fn block_rows_compute_the_native_permutation() {
     assignment[0] = Fq::ONE;
     for block in light.blocks() {
         let lanes: [Fq; 16] = block.lane_values(&assignment).try_into().expect("16 lanes");
-        assignment[block.outputs()..block.outputs() + 16].copy_from_slice(&permute_state(lanes));
+        assignment[block.first_output()..block.first_output() + 16].copy_from_slice(&permute_state(lanes));
     }
     for row in rows.ordinary_row_count()..rows.row_count() {
         let [(column, coefficient)] = rows.port(row, 2).collect::<Vec<_>>()[..] else {

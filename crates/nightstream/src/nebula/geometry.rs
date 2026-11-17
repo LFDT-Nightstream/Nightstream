@@ -3,6 +3,8 @@
 use neo_math::F;
 use p3_field::PrimeField64;
 
+const MAX_SECURE_TUPLES: usize = 139_509;
+
 /// SPEC.md section 7.1 without the images.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Geometry {
@@ -106,7 +108,7 @@ impl Geometry {
 
     /// Lean `Geometry.Secure`, `Geometry.secure_iff`; SPEC.md section 7.1, rule 6.
     pub(super) fn is_secure(&self) -> bool {
-        self.max_tuples() <= 139_509
+        self.max_tuples() <= MAX_SECURE_TUPLES
     }
 
     pub fn rom_size(&self) -> usize {

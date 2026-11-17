@@ -774,8 +774,8 @@ fn push_select_stack_addrs(b: &mut WasmTaggedR1csBuilder<'_>) {
 
 fn push_select_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     SELECT_COND_ZERO_TEST.push_constraints(b);
-    SELECT_LO_MUX.push_constraints(b);
-    SELECT_HI_MUX.push_constraints(b);
+    SELECT_LO_MUX.push_constraints_assuming_boolean_inputs(b);
+    SELECT_HI_MUX.push_constraints_assuming_boolean_inputs(b);
 }
 
 fn push_stack_read0_addr_sp_minus_2(b: &mut WasmTaggedR1csBuilder<'_>, ops: &[WasmOpcode]) {

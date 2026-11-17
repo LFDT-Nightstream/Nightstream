@@ -14,7 +14,7 @@ use crate::package::{
 
 const PORTS: usize = 4;
 const BLOCK_LANES: usize = neo_ccs::crypto::poseidon2::WIDTH;
-const FINAL_SBOX: usize = SBOX_ROWS - BLOCK_LANES;
+const LAST_FULL_ROUND_SBOX_START: usize = SBOX_ROWS - BLOCK_LANES;
 
 pub struct PlanRows {
     ordinary: usize,
@@ -220,7 +220,7 @@ impl StepPackage {
         for (index, block) in self.blocks().enumerate() {
             let sbox = self.sbox_start + index * SBOX_ROWS;
             let finals = (0..BLOCK_LANES)
-                .map(|lane| sbox + FINAL_SBOX + lane)
+                .map(|lane| sbox + LAST_FULL_ROUND_SBOX_START + lane)
                 .collect::<Vec<_>>();
             for (lane, form) in external_outputs(&finals, self.width)?
                 .into_iter()

@@ -166,7 +166,7 @@ fn recipe_sides(walk: &mut ApplicationWalk<'_>, recipe: usize) -> Result<Sides, 
     Ok(sides)
 }
 
-pub(crate) fn check_blocks(application: &ApplicationCircuit) -> Result<(), ApplicationError> {
+pub(crate) fn check_blocks_match_permutation_rows(application: &ApplicationCircuit) -> Result<(), ApplicationError> {
     let blocks = &application.shape().blocks;
     if blocks.is_empty() {
         return Ok(());

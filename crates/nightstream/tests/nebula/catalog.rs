@@ -910,7 +910,7 @@ fn catalog_proof_verifies_and_rejects_a_broken_row_on_cpu() {
 
     let mut words = invocations[3].words.clone();
     *aux_word(&mut words, COLUMNS, PUSH_VALUE) = F::from_u64(6);
-    use crate::lifecycle::bounded_depth::{BoundedDepthError, CHECK_ROWS};
+    use crate::lifecycle::bounded_depth::{BoundedDepthError, KEEP_FAULTY_PROOF};
     let broken = || prover.extend_with_output(&proofs[2], &words, invocations[3].output);
     assert!(matches!(
         broken(),
@@ -918,9 +918,9 @@ fn catalog_proof_verifies_and_rejects_a_broken_row_on_cpu() {
             "a relation row fails"
         )))
     ));
-    CHECK_ROWS.set(true);
+    KEEP_FAULTY_PROOF.set(true);
     let bad = broken();
-    CHECK_ROWS.set(false);
+    KEEP_FAULTY_PROOF.set(false);
     let bad = Proof::from_parts(bad.expect("the row check is off"), *run.carry());
     assert!(matches!(
         verifier.verify(&setup.program, &statement.initial, &statement.final_, &bad),

@@ -1,12 +1,4 @@
-//! SPEC.md section 9 rejection cases that need an invalid witness. Each case changes
-//! one record or word of an honest run and keeps every other value
-//! consistent, and the faulty invocation is proved last. Two results are
-//! required: the verifier rejects the proof at the fresh instance, and the
-//! first row of the step relation that the witness fails is in the named
-//! check. The names come from Lean (`tests/fixtures/nebula-memory-*-rows.json`)
-//! and count from the application's first row. The Rust-built memory relation
-//! has Lean's rows (`tests/nebula/parity.rs`), and the bounded-depth scheme puts them first in
-//! each step relation, without the rows of its Poseidon2 blocks.
+//! SPEC.md section 9.
 
 use std::ops::Range;
 
@@ -16,10 +8,8 @@ use crate::nebula::{Circuit, Machine, MachineState, Package, Step};
 use crate::{Engine, Error};
 use crate::{Proof, Prover, Verifier};
 
-/// `loadi 5; store 0`, then `load 0; halt`.
 const EXECUTE: [Step; 2] = [Step::Execute, Step::Execute];
 
-/// A memory geometry and its row names.
 struct Fixture {
     package: Package,
     rows: &'static [u8],
@@ -40,7 +30,6 @@ struct Harness {
     prover: Prover,
     verifier: Verifier,
     checks: Vec<(String, Range<usize>)>,
-    /// The application row of each of the step relation's first rows.
     kept: Vec<usize>,
 }
 
@@ -95,9 +84,6 @@ impl Harness {
         }
     }
 
-    /// Prove `invocation` after `proof`, or as the first step, without the
-    /// assertion check. Require the rejection at the fresh relation, and
-    /// require that the first failing row is in `check`.
     fn reject(&self, proof: Option<&Proof>, invocation: &Invocation, check: &str) {
         CHECK_ROWS.set(true);
         FAILED_ROW.set(None);
@@ -122,9 +108,6 @@ impl Harness {
         );
     }
 
-    /// The first segment's invocations after `fault` edits its execution
-    /// memory, its records, and the memories that the scans and the FS
-    /// proposal read. No host check runs.
     fn first_segment(&self, fault: impl Fn(&mut FirstSegment)) -> Vec<Invocation> {
         let (geometry, program) = (self.context.geometry(), self.context.program());
         let mut segment = FirstSegment {
@@ -160,8 +143,6 @@ impl Harness {
     }
 }
 
-/// The parts of the first segment that a fault edits. `fault` runs twice:
-/// before execution (`executed` is empty) and after it.
 struct FirstSegment {
     execution: Vec<Cell>,
     start: Vec<Cell>,
@@ -181,16 +162,13 @@ fn conformance() {
         .unwrap();
     let base = h.step(None, &honest.invocations[0]).unwrap();
 
-    // An input carry or application words that do not open the input state.
     for word in [words::CARRY_IN + 2, h.context.layout.app_in(1)] {
         let mut changed = honest.invocations[0].clone();
         changed.words[word] += F::ONE;
         h.reject(None, &changed, "state_in");
     }
 
-    // An auxiliary word that is not its honest value (SPEC.md section 7.3,
-    // Lean `AuxHonest`): a start product, a counter, and a factor word of an
-    // operation fingerprint and of a scan fingerprint.
+    // SPEC.md section 7.3; Lean `AuxHonest`.
     let layout = &h.context.layout;
     for (word, check) in [
         (layout.start(0, 0), "arm start products"),
@@ -203,13 +181,10 @@ fn conformance() {
         h.reject(None, &changed, check);
     }
 
-    // A base arm that reads the `D_seen` headers from the witness, not from
-    // the package constants.
     let mut changed = honest.invocations[0].clone();
     changed.words[words::SEEN_PREV] += F::ONE;
     h.reject(None, &changed, "chain_ops");
 
-    // `rt ≥ wt`: O4.
     let invocations = h.first_segment(|s| {
         if let Some(step) = s.executed.first_mut() {
             step.ops[0].rt = step.write_stamps[0];
@@ -217,7 +192,6 @@ fn conformance() {
     });
     h.reject(None, &invocations[0], "O4 slot 0");
 
-    // A nonzero word in a pad slot: O7.
     let invocations = h.first_segment(|s| {
         if let Some(step) = s.executed.first_mut() {
             step.ops[1].vr = 1;
@@ -226,7 +200,6 @@ fn conformance() {
     });
     h.reject(None, &invocations[0], "O7 slot 1");
 
-    // An auxiliary bit equal to −1, with the same diff word: O1.
     let mut changed = honest.invocations[1].clone();
     let (bit0, bit1) = (layout.op(0, layout.op_diff(0)), layout.op(0, layout.op_diff(1)));
     assert_eq!((changed.words[bit0], changed.words[bit1]), (F::ONE, F::ZERO));
@@ -234,14 +207,11 @@ fn conformance() {
     changed.words[bit1] = F::ONE;
     h.reject(Some(&base), &changed, "O1 diff bits");
 
-    // The second step's faults. Each faulty segment proves its own opening
-    // step, whose proposals differ from the honest ones.
     let second = |fault: &dyn Fn(&mut FirstSegment), check: &str| {
         let invocations = h.first_segment(fault);
         let opened = h.step(None, &invocations[0]).unwrap();
         h.reject(Some(&opened), &invocations[1], check);
     };
-    // A write to ROM: O5.
     second(
         &|s| {
             if let Some(step) = s.executed.get_mut(1) {
@@ -250,7 +220,6 @@ fn conformance() {
         },
         "O5 slot 1",
     );
-    // A record changed after its segment opened.
     second(
         &|s| {
             if s.executed.len() == 2 && s.proposal_records.is_none() {
@@ -260,7 +229,6 @@ fn conformance() {
         },
         "close D_seen.ops = D_pre.ops",
     );
-    // Segment-0 IS records that differ from the program images.
     second(
         &|s| {
             if s.executed.is_empty() {
@@ -270,7 +238,6 @@ fn conformance() {
         },
         "close D_seen.is = D_mem",
     );
-    // The IS and FS records of the second step swapped.
     second(
         &|s| {
             if s.executed.len() == 2 {
@@ -282,8 +249,6 @@ fn conformance() {
         },
         "close D_seen.is = D_mem",
     );
-    // A fetch that reads another value than the last write: the product
-    // equation.
     second(
         &|s| {
             if s.executed.is_empty() {
@@ -293,7 +258,6 @@ fn conformance() {
         "close product equation",
     );
 
-    // Fresh memory at a segment boundary.
     let opened = h.step(Some(&base), &honest.invocations[1]).unwrap();
     let fresh = initial_memory(&program.rom, &program.ram);
     let (executed, final_memory, _) = h
@@ -317,8 +281,7 @@ fn memory_rejections_on_cpu() {
     conformance();
 }
 
-/// SPEC.md section 7.4: the native packing that the chains read puts at most 63 bits
-/// into one element.
+/// SPEC.md section 7.4.
 #[test]
 fn packing_puts_at_most_63_bits_in_one_element() {
     use p3_field::PrimeField64;
@@ -329,11 +292,8 @@ fn packing_puts_at_most_63_bits_in_one_element() {
     }
 }
 
-/// The case that the first geometry cannot reach: its ROM fills its address
-/// space, so it has no O6 rows. The second geometry has `r < μ`.
 fn n1_conformance() {
     let h = Harness::new(&N1);
-    // A ROM address with a bit at or above `r`: O6.
     let invocations = h.first_segment(|s| {
         if let Some(step) = s.executed.first_mut() {
             step.ops[0].addr = 1 << h.context.geometry().r;

@@ -1,8 +1,3 @@
-//! A compiled circuit expands its step packages once. Its provers and
-//! verifiers read that one read-only copy, so making them expands nothing
-//! again. Each keeps its own matrix window, the one part a fold fills, so a
-//! verifier reads nothing a prover filled.
-
 use std::sync::Arc;
 
 use neo_reductions::superneo_eval::{MatrixRows, RetainedMatrixWindow};

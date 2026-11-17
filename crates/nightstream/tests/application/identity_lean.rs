@@ -1,9 +1,5 @@
-//! The identity of a circuit that the public builder makes, against Lean
-//! (`Lifecycle.BoundedDepth.ApplicationIdentity`, SPEC.md section 4.4). Lean
-//! emits the words of `built_application` with two empty layouts
-//! (`Export.EncodingParity.builtApplication`). Rust must give the same words
-//! before the layouts. The layouts that Rust realizes must have the form of
-//! Lean's `Layout.words`, and the identity must be the hash of the words.
+//! Lean `Lifecycle.BoundedDepth.ApplicationIdentity` and
+//! `Export.EncodingParity.builtApplication`; SPEC.md section 4.4.
 
 use neo_ccs::crypto::poseidon2::poseidon2_hash;
 use neo_math::Fq;
@@ -12,7 +8,6 @@ use serde_json::Value;
 
 use super::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder, ApplicationCircuit};
 
-/// The tag has 61 bytes, and the identity of the Lean packages has 4 words.
 const TAG: usize = 61;
 const FRONT: usize = TAG + 4;
 
@@ -44,8 +39,6 @@ fn identity_words(application: &ApplicationCircuit) -> Vec<u64> {
         .expect("identity words")
 }
 
-/// The words after a counted list of Lean's schema: the count, then each
-/// entry.
 fn counted(words: &[u64], entry: impl Fn(&[u64]) -> &[u64]) -> &[u64] {
     (0..words[0]).fold(&words[1..], |rest, _| entry(rest))
 }
@@ -54,22 +47,22 @@ fn skip<const WORDS: usize>(words: &[u64]) -> &[u64] {
     &words[WORDS..]
 }
 
-/// `Linear.words`: the constant, then the counted terms.
+/// Lean `Linear.words`.
 fn linear(words: &[u64]) -> &[u64] {
     counted(&words[1..], skip::<2>)
 }
 
-/// `Row.words`.
+/// Lean `Row.words`.
 fn row(words: &[u64]) -> &[u64] {
     linear(linear(linear(words)))
 }
 
-/// `indexedRow`.
+/// Lean `indexedRow`.
 fn indexed(words: &[u64]) -> &[u64] {
     row(&words[1..])
 }
 
-/// `Layout.words`.
+/// Lean `Layout.words`.
 fn layout(words: &[u64]) -> &[u64] {
     let fusion = counted(words, |group| {
         row(counted(counted(counted(group, skip::<2>), indexed), indexed))
@@ -81,17 +74,17 @@ fn layout(words: &[u64]) -> &[u64] {
     counted(counted(counted(removed, skip::<4>), skip::<5>), skip::<3>)
 }
 
-/// `RecordRow.words`: the header, then the terms of the three forms.
+/// Lean `RecordRow.words`.
 fn record_row(words: &[u64]) -> &[u64] {
     &words[6 + 2 * (words[1] + words[3] + words[5]) as usize..]
 }
 
-/// `Block.words`.
+/// Lean `Block.words`.
 fn block(words: &[u64]) -> &[u64] {
     (0..16).fold(&words[1..], |rest, _| linear(rest))
 }
 
-/// The words after `Application.words`. A stream of Lean's form leaves none.
+/// Lean `Application.words`.
 fn after_application(words: &[u64]) -> &[u64] {
     let rows = counted(&words[FRONT + 1..], record_row);
     layout(layout(counted(counted(rows, skip::<1>), block)))
@@ -117,7 +110,6 @@ fn a_built_application_has_the_lean_words_and_their_hash() {
     let lean = lean
         .map(|word| word.as_u64().expect("u64"))
         .collect::<Vec<_>>();
-    // Lean's two layouts are empty: 8 words each.
     let records = lean.len() - 16;
 
     let application = built_application();
@@ -133,8 +125,6 @@ fn a_built_application_has_the_lean_words_and_their_hash() {
     assert_eq!(circuit.identity(), hash(&words));
 }
 
-/// The hash chain has five permutations, so its stream has blocks and the
-/// layouts of blocks.
 #[test]
 fn the_words_of_an_application_with_blocks_have_the_lean_form() {
     let application = poseidon2_hash_chain_v1().expect("hash chain");

@@ -1,12 +1,5 @@
-//! The gate of `compression_layout` against the Lean bound of the
-//! compression argument, on every claim set of the Poseidon2 hash chain:
-//! both circuits of the fresh instance and each pair of slot depths up to
-//! the light fold cap. Lean emits, for each set, its layout (`layoutNew`),
-//! the count `runCount (productionCounts …)` over `q²` and `runBits`, the
-//! largest `k` with `2^k · runCount ≤ q²`. One interactive run is at most
-//! `2^−runBits` (`Spec.Compression.Rust.params_run_soundness_bits`).
-//! `error_bits` must be `runBits`, and the gate must pass a security minimum
-//! exactly when it is at most `runBits`.
+//! Lean `Spec.Compression.Rust.params_run_soundness_bits`, `layoutNew`,
+//! `runCount`, and `runBits`.
 
 use nightstream_fprime::{PI_CCS_V1_2_MATRIX_COUNT, PUBLIC_WORDS};
 use ns_compress::{Layout, Norm};
@@ -33,7 +26,6 @@ fn numbers(value: &Value) -> Vec<u64> {
         .collect()
 }
 
-/// The claims of a Lean layout: the blocks and the table of each cell.
 fn claims(layout: &Value) -> Vec<(usize, Norm)> {
     layout["cells"]
         .as_array()

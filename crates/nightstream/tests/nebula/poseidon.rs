@@ -197,7 +197,7 @@ fn checked_port_hash_reconstructs_source_witness() {
         original.execute(prior, &erased).unwrap();
         prior = invocation.output;
     }
-    // `Spec.Poseidon2.pad` of one full block: the second block is the word 1.
+    // Lean `Spec.Poseidon2.pad`.
     let mut block = [F::ZERO; neo_ccs::crypto::poseidon2::RATE];
     block[..2].copy_from_slice(&[F::from_u64(0x4e53504f52544831), F::from_u64(3 * 12345)]);
     let expected = neo_ccs::crypto::poseidon2::poseidon2_hash(&block).map(|value| value.as_canonical_u64());
@@ -231,10 +231,7 @@ fn checked_port_hash_rejects_malformed_hints() {
     }
 }
 
-/// The two hints make two native blocks (`SPEC.md` section 7.7), each in
-/// place of its 1,096 source rows. The plan rows do not change: section 7.11 lowers each unhinted trace to one seventh-power
-/// row for each of its 150 S-boxes (`Export.Generic.NativePower.Chain.sound`)
-/// and substitutes its affine rows, and a block has 150 S-box rows.
+/// SPEC.md sections 7.7 and 7.11; Lean `Export.Generic.NativePower.Chain.sound`.
 #[test]
 fn checked_port_hash_compiles_to_two_native_blocks() {
     let compile = |optimized| {

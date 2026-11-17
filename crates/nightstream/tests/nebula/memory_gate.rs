@@ -1,9 +1,5 @@
-//! The memory gate against Lean (`Spec.Nebula.SegmentGate`). Lean emits the
-//! bound of rule 6 of SPEC.md section 7.1, the geometry of each fixed WASM
-//! size with `m_mem` and the bits of its segments
-//! (`WasmSize.segmentBits_eq`), and its decisions `Geometry.Valid` and
-//! `Geometry.Secure` on geometries that break one rule each. Rust keeps its
-//! own code for each, and must give the same values.
+//! SPEC.md section 7.1, rule 6; Lean `Spec.Nebula.SegmentGate`,
+//! `WasmSize.segmentBits_eq`, `Geometry.Valid`, and `Geometry.Secure`.
 
 use serde_json::Value;
 

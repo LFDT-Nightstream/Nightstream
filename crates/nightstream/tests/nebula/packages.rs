@@ -1,8 +1,3 @@
-//! The bounded-depth packages that the Nebula tests compile and load: an
-//! application's light and refresh step packages (`""` for today's fixture,
-//! `"nebula-v1-"`, `"nebula-n1-"`). Also the comparison of an application's
-//! rows with the row digest that Lean writes.
-
 pub(crate) fn bounded_depth_packages(stem: &str) -> [Vec<u8>; 2] {
     let read = |name: String| {
         std::fs::read(
@@ -25,17 +20,13 @@ pub(crate) fn references(packages: &[Vec<u8>; 2]) -> crate::References<'_> {
     }
 }
 
-/// FNV-1a over the little-endian bytes of `word`.
 fn fnv(hash: u64, word: u64) -> u64 {
     word.to_le_bytes()
         .iter()
         .fold(hash, |hash, &byte| (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3))
 }
 
-/// Requires `application` to have the row count and the row digest of
-/// `fixture`, which Lean's emitter writes (`EmitMain.applicationDigest`):
-/// each side's constant, then its terms by variable, with equal variables
-/// merged and zero coefficients dropped.
+/// Lean `EmitMain.applicationDigest`.
 pub(crate) fn assert_rows(application: &crate::application::ApplicationCircuit, fixture: &[u8]) {
     use std::{collections::BTreeMap, ops::ControlFlow};
 

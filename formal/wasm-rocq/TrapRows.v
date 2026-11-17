@@ -85,6 +85,7 @@ Qed.
 Lemma resolve_trap_row : forall program s stack view f x y initial final row inner caller arity,
   store_FUNCS s = program -> wf_store s -> programValidated program s ->
   fieldPrime -> programLoaded program initial -> tablesLoaded s initial -> FullRelation.satFull row ->
+  boundedMemoryEvents (eventsForRow memories row) ->
   row COL_IS_PROGRAM_ROW = 1 -> row COL_ACTIVATION_FINISHED_AFTER = 1 ->
   Replay initial (eventsForRow memories row) final -> wf_frame caller ->
   ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
@@ -95,7 +96,7 @@ Lemma resolve_trap_row : forall program s stack view f x y initial final row inn
   Steps (callContext caller arity (plugCalls stack inner)) (mk_config (mk_state s caller) [admininstr_TRAP]).
 Proof.
   intros program s stack view f x y initial final row inner caller arity Hstore Hwf Hvalid Hprime Hloaded Htables
-    Hfull Hprogram Hfinish Hreplay Hcaller Hstate Hf Hi Hsusp.
+    Hfull HmemoryBounds Hprogram Hfinish Hreplay Hcaller Hstate Hf Hi Hsusp.
   destruct (FrameRows.program_row_active _ _ _ _ _ _ Hprime Hfull Hprogram Hstate)
     as [f' [Hframe [_ [Hsp [Hpc [_ ->]]]]]].
   pose proof Hframe as [Hf' [Hpath [_ [Hfbp0 [Hbase0 [Hbounds _]]]]]]. rewrite Hf in Hf'. injection Hf' as <-.
@@ -147,7 +148,7 @@ Proof.
     apply Hcells. unfold viewOperands. cbn [viewSegments viewValues].
     rewrite app_assoc, nth_error_app2, Nat.sub_diag by lia. reflexivity. }
   rewrite (replace_read_address _ Hshape), Htop in Hread. injection Hread as HindexValue.
-  destruct (full_resolve_checks row Hprime Hfull Hresolve) as [HidActive [HsizeActive [HindexCol
+  destruct (full_resolve_checks row Hprime Hfull HmemoryBounds Hresolve) as [HidActive [HsizeActive [HindexCol
     [Hoob [HreadActive [Hnull [Heq [Hgate [HrefIs [Htrap _]]]]]]]]]].
   destruct (resolve_rom_reads _ _ _ Hreplay HidActive HsizeActive) as [HdescriptorRead HsizeRead].
   rewrite HdescriptorRom in HdescriptorRead. injection HdescriptorRead as Hdescriptor.

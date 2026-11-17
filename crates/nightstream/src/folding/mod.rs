@@ -1,5 +1,4 @@
-//! The prover side of the bounded-depth folds (SPEC.md Algorithm 4).
-//! Witnesses remain prover data. Public claims acquire authority only through verification.
+//! SPEC.md Algorithm 4.
 
 pub(crate) mod bounded_depth;
 mod claims;
@@ -25,8 +24,6 @@ pub(crate) type Structure = neo_ccs::CcsStructure<F>;
 pub(crate) use neo_reductions::api::RlcMixer;
 pub(crate) type DecMixer = fn(&[Commitment], u32) -> Commitment;
 
-/// What every engine call reads about one circuit: the folding parameters,
-/// the structure, its matrix rows and the rows' working-storage allowance.
 #[derive(Clone, Copy)]
 pub(crate) struct FoldContext<'a> {
     pub(crate) params: &'a Params,

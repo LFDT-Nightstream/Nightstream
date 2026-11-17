@@ -1,15 +1,8 @@
-//! Direct arithmetic for the concrete SuperNeo quotient ring.
-//!
-//! This module owns a literal schoolbook multiplication and a local
-//! construction of the paper's one-sided bar transform. It does not use the
-//! production ring multiplier, the global bar cache, or rotation matrices.
-
 use neo_math::{Fq, D};
 use p3_field::{Field, PrimeCharacteristicRing};
 
 use neo_math::K;
 
-/// Concrete arithmetic data for `R_K = K[X]/(X^D + 1)`.
 pub(super) struct PaperRing {
     bar: [[Fq; D]; D],
 }

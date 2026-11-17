@@ -304,8 +304,6 @@ kernel void dec_add_geometric_span_forms(
     forms[output + RING_DEGREE] = fq_add(fq_from_word(forms[output + RING_DEGREE]), value.c1);
 }
 
-// The transform of `neo_math::superneo_bar_block`: bar(b) = b_0 - sum over
-// j >= 1 of b_{D - j} X^j. Slot `s` owns lanes `s + 1` and `D - (s + 1)`.
 kernel void dec_bar_ring_forms_in_place(
     device ulong *forms [[buffer(0)]],
     uint index [[thread_position_in_grid]]) {

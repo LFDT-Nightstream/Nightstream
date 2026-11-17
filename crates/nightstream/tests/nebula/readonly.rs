@@ -193,12 +193,7 @@ fn shared_values_reconstruct_every_original_memory_and_hash_row() {
     eprintln!("readonly_adverse rejected={rejected} discarded_words_reconstructed={discarded}");
 }
 
-/// Each proved read port removes 33 source rows, 32 bit slots and their 32
-/// companions (`SPEC.md` sections 7.3 and 7.9). The plan rows fall only by the
-/// packed Boolean rows, 31 sources or products each (section 7.9). The port's
-/// other two rows read `vw - vr`: without sharing, section 7.13 packs them in
-/// one row (`Export.Generic.WordPacking.group_iff`); with sharing, the
-/// operation-slot row is gone and the application row is identically zero.
+/// SPEC.md sections 7.3, 7.9, and 7.13; Lean `Export.Generic.WordPacking.group_iff`.
 #[test]
 fn compiled_slot_cost_is_an_integer_per_proved_read_port() {
     let stamp = std::time::SystemTime::now()
@@ -212,7 +207,7 @@ fn compiled_slot_cost_is_an_integer_per_proved_read_port() {
         let geometry = geometry(3);
         let old = memory_circuit_unshared(&geometry, &app).unwrap();
         let new = memory_circuit(&geometry, &app).unwrap();
-        crate::application::check_blocks(&new).unwrap();
+        crate::application::check_blocks_match_permutation_rows(&new).unwrap();
         let old_packages = packages(&old);
         let new_packages = packages(&new);
         if reads == 0 {

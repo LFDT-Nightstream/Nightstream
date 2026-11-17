@@ -1,10 +1,6 @@
-//! Hashed encodings of this module against Lean. Lean emits the circuit key
-//! digests of both circuits for three identities
-//! (`Lifecycle.BoundedDepth.CircuitKeyDigest.digest`, SPEC.md section 4.4),
-//! the domain of the Π_CCS run of the compression
-//! (`Export.BoundedDepth.CompressionSponge.ccsDomain`, SPEC.md section 5.4)
-//! and the digest of the default slot at depth 0
-//! (`Lifecycle.BoundedDepth.slotDigest`, SPEC.md Algorithm 10).
+//! Lean `Lifecycle.BoundedDepth.CircuitKeyDigest.digest` (SPEC.md section
+//! 4.4), `Export.BoundedDepth.CompressionSponge.ccsDomain` (SPEC.md
+//! section 5.4) and `Lifecycle.BoundedDepth.slotDigest` (SPEC.md Algorithm 10).
 
 use p3_field::PrimeField64;
 use serde_json::Value;
@@ -49,11 +45,7 @@ fn circuit_key_is_the_lean_digest() {
     }
 }
 
-/// The verifier of the light compression puts the default slot at depth 0
-/// in the state hash for slot 1 (SPEC.md Algorithm 10). It builds that slot
-/// from the canonical zero running instance of the refresh relation, whose
-/// words are those of `Step.defaultSlot` and whose digest is Lean's
-/// `slotDigest (defaultSlot, 0)`.
+/// SPEC.md Algorithm 10, step 6; Lean `Step.defaultSlot`, `slotDigest`.
 #[test]
 fn the_default_slot_has_the_lean_digest() {
     let prover = super::prover(2);

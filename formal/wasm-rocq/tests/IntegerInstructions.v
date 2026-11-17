@@ -27,7 +27,7 @@ Example add_with_wide_prefix_simulates : fieldPrime ->
   exists z' values', IntegerResult [] addMemoryFinal addRow emptyState [wide; i32Value 7; i32Value 9]
     (BINOP I32 (mk_binop__0 Inn_I32 ADD)) [valtype_I64; valtype_I32] z' values'.
 Proof.
-  intros Hprime. destruct (validRunb_sound _ _ add_memory_checks) as [Hfull [_ Hreplay]].
+  intros Hprime. destruct (validRunb_sound _ _ add_memory_checks) as [Hfull [_ [Hreplay _]]].
   inversion Hfull as [ | ? ? Hrow Htail]; subst.
   change (Replay addMemory (eventsForRow memories addRow ++ []) addMemoryFinal) in Hreplay.
   rewrite app_nil_r in Hreplay.
@@ -58,7 +58,7 @@ Example set_wide_local_simulates : fieldPrime ->
     valueStackMatches middle (afterBoundary setRow) [wide] /\
     valueLocalsMatch middle 0 (stateLocals (with_local localState (mk_uN 0) maxI64)).
 Proof.
-  intros Hprime. destruct (validRunb_sound _ _ local_rows_check) as [Hfull [_ Hreplay]].
+  intros Hprime. destruct (validRunb_sound _ _ local_rows_check) as [Hfull [_ [Hreplay _]]].
   inversion Hfull as [ | ? ? Hrow Htail]; subst.
   change (Replay localInitial (eventsForRow memories setRow ++ eventsForRow memories getRow ++ []) localFinal) in Hreplay.
   rewrite app_nil_r in Hreplay. destruct (replay_app_inv _ _ _ _ Hreplay) as [middle [Hset Hget]].

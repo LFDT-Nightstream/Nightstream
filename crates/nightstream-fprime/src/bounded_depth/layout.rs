@@ -1,10 +1,4 @@
-//! A step package's logical columns (Lean `Export/Generic/SlotLayout`,
-//! `ProductionAssignment.logicalAssignment`): the 320 public columns, then
-//! one low-norm slot for each source column in the package's runs. A field
-//! slot holds the 41 balanced-ternary digits of its value; a bit or centered
-//! slot holds the value itself. A source column without a slot is not a
-//! logical column. Base runs follow `StepPackage.runsOf`. Native application
-//! runs also use `BooleanInference` and the fresh norm with `PackedBoolean`.
+//! Lean `Export/Generic/SlotLayout`, `ProductionAssignment.logicalAssignment`.
 
 use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -13,7 +7,7 @@ use rayon::prelude::*;
 use super::expand::mix;
 use super::{Linear, Piece, Row, StepPackage};
 use crate::package::{
-    encode_field, PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, PUBLIC_WORDS as PUBLIC, RING_DEGREE,
+    balanced_ternary_digits, PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, PUBLIC_WORDS as PUBLIC, RING_DEGREE,
     SBOX_ROWS as SBOX_COLUMNS,
 };
 
@@ -21,7 +15,7 @@ const FIELD_DIGITS: usize = 41;
 const FIELD_RATIO: u64 = 3;
 const NO_SLOT: u32 = u32::MAX;
 
-/// A slot's kind (`LowNormSlot.Kind`).
+/// Lean `LowNormSlot.Kind`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
     Bit,
@@ -46,7 +40,6 @@ impl Kind {
     }
 }
 
-/// Where each source column lives among the logical columns.
 pub struct LogicalLayout {
     offsets: Vec<u32>,
     kinds: Vec<Kind>,
@@ -56,20 +49,15 @@ pub struct LogicalLayout {
 
 pub struct SlotSpans {
     pub starts: Vec<u32>,
-    /// 0 for a source column without a slot.
     pub widths: Vec<u8>,
-    /// The ratio of a field slot's digits.
     pub ratio: Fq,
 }
 
 impl LogicalLayout {
-    /// The number of logical columns.
     pub fn width(&self) -> usize {
         self.width
     }
 
-    /// The first logical column of `column` and its kind; the public columns
-    /// are themselves, and a column without a slot is `None`.
     pub fn slot(&self, column: usize) -> Option<(usize, Kind)> {
         if column < PUBLIC {
             return Some((column, Kind::Centered));
@@ -93,7 +81,6 @@ impl LogicalLayout {
         }
     }
 
-    /// The honest logical assignment of the source columns `columns`.
     pub fn assignment(&self, columns: &[Fq]) -> Result<Vec<Fq>, PackageError> {
         if columns.len() < PUBLIC {
             return Err(PackageError::Input("bounded-depth source columns"));
@@ -101,8 +88,6 @@ impl LogicalLayout {
         let mut logical = vec![Fq::ZERO; self.width];
         let (public, mut rest) = logical.split_at_mut(PUBLIC);
         public.copy_from_slice(&columns[..PUBLIC]);
-        // The slots are in logical order, so each range of slots owns one
-        // range of logical columns, and the ranges fill on all cores.
         let range = self
             .slots
             .len()
@@ -126,7 +111,7 @@ impl LogicalLayout {
                 match kind {
                     Kind::Bit | Kind::Centered => part[offset] = value,
                     Kind::Field => {
-                        encode_field(value.as_canonical_u64(), &mut digits);
+                        balanced_ternary_digits(value.as_canonical_u64(), &mut digits);
                         for (target, &digit) in part[offset..offset + FIELD_DIGITS].iter_mut().zip(&digits) {
                             *target = Fq::from_i64(i64::from(digit));
                         }
@@ -159,8 +144,7 @@ impl LogicalLayout {
         Ok(columns)
     }
 
-    /// Lean `Parity.logicalSum`: the public columns and the digits of each
-    /// slot below `limit`, each times `mix(1, logical column)`.
+    /// Lean `Parity.logicalSum`.
     pub fn checksum(&self, logical: &[Fq], limit: usize) -> u64 {
         let mut total = (0..PUBLIC).fold(Fq::ZERO, |sum, column| sum + logical[column] * mix(1, column as u64));
         for &column in self.slots.iter().filter(|&&column| column < limit) {
@@ -173,10 +157,7 @@ impl LogicalLayout {
     }
 }
 
-/// Lean `SlotLayout.forcedColumn?`: the column `c` that `row` forces to the
-/// values 0 or 1. The row's terms read only `c` and the constant column 0,
-/// and with `x` at `c` it is `(a₀ + a₁x)(b₀ + b₁x) = c₀ + c₁x` with
-/// `a₁b₁ ≠ 0`, holding at `x = 0` and at `x = 1`.
+/// Lean `SlotLayout.forcedColumn?`.
 pub(super) fn forced_column(row: &Row) -> Option<usize> {
     let sides = [&row.a, &row.b, &row.c];
     let terms = || sides.iter().flat_map(|side| side.terms.iter());
@@ -199,7 +180,7 @@ pub(super) fn forced_column(row: &Row) -> Option<usize> {
 }
 
 impl StepPackage {
-    /// The columns of the package's `bit` hints (Lean `StepPackage.bitColumns`).
+    /// Lean `StepPackage.bitColumns`.
     pub(crate) fn bit_columns(&self) -> Vec<usize> {
         self.witness
             .iter()
@@ -207,9 +188,7 @@ impl StepPackage {
             .collect()
     }
 
-    /// The slot runs (`StepPackage.runsOf`): a bit slot for each candidate in
-    /// `bits` that a row forces or `inferred` names, a field slot for each
-    /// other read column.
+    /// Lean `StepPackage.runsOf`.
     pub(super) fn rule_slots(&self, bits: &[usize], inferred: &[usize]) -> Vec<(usize, usize, u8)> {
         const BIT: u8 = 0;
         const FIELD: u8 = 2;
@@ -284,7 +263,7 @@ impl StepPackage {
         runs
     }
 
-    /// The logical layout of the package's slot runs (`SlotLayout.layout`).
+    /// Lean `SlotLayout.layout`.
     pub(super) fn layout(&self) -> Result<LogicalLayout, PackageError> {
         let size = self
             .slots
@@ -321,9 +300,6 @@ impl StepPackage {
     }
 }
 
-/// A geometric run of a logical row: `count` columns from `column`, with
-/// coefficients `coefficient · ratio^i`. A field slot's 41 digits recompose
-/// its value with ratio 3.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Run {
     pub column: usize,
@@ -333,9 +309,7 @@ pub struct Run {
 }
 
 impl LogicalLayout {
-    /// Calls `visit` with each run of port `port` of plan row `row` read
-    /// through the layout. A row that reads a column without a slot is
-    /// malformed (`Frame.Framed` keeps every row off the dead locals).
+    /// Lean `Frame.Framed`.
     pub fn visit_runs(
         &self,
         rows: &super::PlanRows,
@@ -361,7 +335,6 @@ impl LogicalLayout {
         Ok(())
     }
 
-    /// Port `port` of plan row `row` on the logical assignment `logical`.
     pub fn evaluate(
         &self,
         rows: &super::PlanRows,

@@ -173,7 +173,6 @@ fn add_row_rejects_tampered_static_stack_arity() {
 
 #[test]
 fn i32_add_wraps_on_overflow() {
-    // 0xFFFF_FFFF + 0x0000_0001 = 0x1_0000_0000 → wasm result is 0, carry = 1.
     let row = build_witness_vector(&step(
         0,
         2,
@@ -194,7 +193,6 @@ fn i32_add_wraps_on_overflow() {
 
 #[test]
 fn i32_sub_wraps_on_underflow() {
-    // 0x0000_0000 - 0x0000_0001 = 0xFFFF_FFFF (mod 2^32), borrow = 1.
     let row = build_witness_vector(&step(
         0,
         2,
@@ -254,10 +252,6 @@ fn i32_load_row_is_accepted() {
     assert_satisfied(&row, "i32.load row");
 }
 
-/// Only memory.grow may change the page count: every other row carries it
-/// (`(1 - grow)·(after - before) = 0`). This anchors the threaded page count
-/// so the linear-memory OOB bound check cannot be defeated by inflating the
-/// size on a non-grow row.
 #[test]
 fn non_grow_row_rejects_changed_memory_pages() {
     let trace = trace_from_wat(
@@ -273,13 +267,10 @@ fn non_grow_row_rejects_changed_memory_pages() {
         .expect("load row");
     let mut row = build_witness_vector(load).unwrap();
     assert_satisfied(&row, "in-bounds i32.load row");
-    // Inflate the page count on a non-grow row: the carry constraint rejects it.
     row[COL_MEMORY_PAGES_AFTER] += F::ONE;
     assert_rejected(&row, "memory_pages changed on a non-grow row");
 }
 
-/// memory.grow within the declared max succeeds: it returns the old page count
-/// and the new size is before + delta.
 #[test]
 fn memory_grow_success_row_is_accepted() {
     let trace = trace_from_wat(
@@ -299,8 +290,6 @@ fn memory_grow_success_row_is_accepted() {
     assert_satisfied(&build_witness_vector(grow).unwrap(), "memory.grow success row");
 }
 
-/// memory.grow past the declared max fails: it returns -1 (0xFFFFFFFF) and the
-/// page count is unchanged. The bound is the verifier-authoritative max.
 #[test]
 fn memory_grow_overflow_row_returns_neg1() {
     let trace = trace_from_wat(
@@ -322,8 +311,6 @@ fn memory_grow_overflow_row_returns_neg1() {
     assert_eq!(grow.stack_write0.map(|w| w.value_lo), Some(u32::MAX), "returns -1");
     let mut row = build_witness_vector(grow).unwrap();
     assert_satisfied(&row, "memory.grow overflow row");
-    // Forging a successful grow on the failing row (inflating the new size)
-    // breaks `success·delta = after - before` (success is 0 here).
     row[COL_MEMORY_PAGES_AFTER] = F::from_u64(6);
     assert_rejected(&row, "forged successful grow past max");
 }
@@ -371,8 +358,6 @@ fn i32_load8_u_and_store8_rows_are_accepted() {
     assert_satisfied(&build_witness_vector(load).unwrap(), "i32.load8_u row");
 }
 
-/// Row-local guard: subword stores must reject changed bytes outside the
-/// store's write window unless the claimed prior state changes too.
 #[test]
 fn i32_load16_u_and_store16_rows_are_accepted() {
     let trace = trace_from_wat(
@@ -560,8 +545,6 @@ fn call_indirect_row_is_accepted() {
     .expect("wat");
 
     let trace = traces_from_wasmtime_wasm_bytes(&wasm, "run").expect("normalize");
-    // The resolve step checks the table entry at the pc before the invocation,
-    // which then calls the checked reference.
     let resolve_index = trace
         .iter()
         .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
@@ -1332,7 +1315,6 @@ fn frame_move_row_copies_one_cell_down_unchanged() {
     let mut forged = witness;
     forged[COL_SP_AFTER] -= F::ONE;
     assert_rejected(&forged, "move row that drops the stack pointer");
-    // A return's move comes from the slide ROM (`wasm_frame_slide`).
 }
 
 #[test]

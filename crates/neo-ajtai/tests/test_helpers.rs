@@ -6,7 +6,7 @@ use p3_field::PrimeCharacteristicRing;
 
 #[inline]
 #[allow(dead_code)]
-pub(crate) fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
+pub(crate) fn mul_by_x(cur: &[Fq; D], next: &mut [Fq; D]) {
     next[0] = -cur[D - 1];
     next[1..D].copy_from_slice(&cur[..(D - 1)]);
 }
@@ -135,7 +135,7 @@ pub(crate) fn compute_single_ajtai_row(
 
         for t in 0..d {
             row[j * d + t] = col[commit_row];
-            rot_step(&col, &mut nxt);
+            mul_by_x(&col, &mut nxt);
             core::mem::swap(&mut col, &mut nxt);
         }
     }
@@ -150,7 +150,7 @@ fn precompute_rot_columns(a: RqEl, cols: &mut [[Fq; D]]) {
     let mut nxt = [Fq::ZERO; D];
     for t in 0..D {
         cols[t] = col;
-        rot_step(&col, &mut nxt);
+        mul_by_x(&col, &mut nxt);
         core::mem::swap(&mut col, &mut nxt);
     }
 }

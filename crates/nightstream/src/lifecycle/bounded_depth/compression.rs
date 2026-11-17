@@ -1,43 +1,4 @@
-//! The compressed proof (SPEC.md section 6): the statement, the slot claims
-//! of its mode, and an argument over the Akita commitment scheme that the
-//! verifier of `BoundedDepth::verify` accepts some witnesses for them. It
-//! carries no witness and cannot be extended.
-//!
-//! The terminal check has one CE claim for each slot of the mode
-//! (`Compression`) and one for the fresh instance. Each slot's accumulator
-//! is one, with the bound of its depth. In `Compression::Light` the proof
-//! carries slot 0 alone, and the verifier builds slot 1 as the default slot
-//! at depth 0 (Lean `FinalVerifier.Mode`). The fresh instance becomes a CE
-//! claim by a Π_CCS run with no running claim: its sum-check proves each row
-//! of the relation and that each coefficient is in {-1, 0, 1}, given the
-//! evaluations of the claim. That run binds the Akita commitment of the
-//! witnesses before its challenges, so the committed fresh witness is the
-//! one that it judges. `ns-compress` proves the claims.
-//!
-//! The verifier does not expand the Ajtai key. `compression_setup` commits
-//! the key rows once as one polynomial, for the blocks of the relations of
-//! the claims up to a power of two (the light relation alone in
-//! `Compression::Light`), and `verify_final` reads the commitment
-//! from its verification key. The key is a function of the public seeds and
-//! of that power of two only, so `ns-compress` pins the key of each size,
-//! and a test computes each pinned key again from the seeds. The verifier
-//! takes the pinned key of its circuit (`compression_key`), and no proof and
-//! no prover value carries it.
-//!
-//! The soundness error is the sum of three parts. The caller's
-//! `minimum_security_bits` gates the first two, each alone and never their
-//! sum. The public API has no default for it, and no fold reaches 116 bits.
-//!
-//! 1. The Π_CCS run has the test error of one fold with one source.
-//!    `Params::for_ccs_shape` gates the larger error of a fold with 15
-//!    sources, about `2^-115.72` for the Poseidon2 hash chain.
-//! 2. The argument has the error of its batches, its lookups, its two
-//!    sum-checks and the point of `V`, `2^-119.02` for the Poseidon2 hash
-//!    chain. `ns_compress::error_bits` bounds it by `2^-119` in integers,
-//!    and `compression_layout` gates that bound.
-//! 3. The Akita opening has the knowledge error of Akita's schedule row. No
-//!    gate here computes or bounds it. The argument also needs the
-//!    verification key to hold the commitment of the Ajtai key.
+//! SPEC.md section 6 and Algorithms 9 to 11; Lean `FinalVerifier.Mode`.
 
 use std::time::{Duration, Instant};
 
@@ -63,31 +24,23 @@ use crate::folding::{pi_ccs, CcsClaim, CeClaim, RunningInstance};
 const PI_CCS_DOMAIN: &[u8] = b"Nightstream/OptionB/compress/ccs/v1";
 const MATRICES: usize = nightstream_fprime::PI_CCS_V1_2_MATRIX_COUNT;
 
-/// A proof of `iteration` steps from `z0` to `current` without witnesses.
 #[derive(Clone)]
 pub(crate) struct FinalProof {
     pub(super) iteration: u64,
     pub(super) z0: [F; 4],
     pub(super) current: [F; 4],
-    /// `None` for the proof of zero steps.
     pub(super) steps: Option<Steps>,
 }
 
-/// What a compressed proof of one or more steps carries.
 #[derive(Clone)]
 pub(super) struct Steps {
     pub(super) pc: u64,
-    /// The accumulator claim and depth of each slot of the mode: both
-    /// slots, or slot 0 alone in `Compression::Light`.
     pub(super) slots: Vec<(CeClaim, u64)>,
     pub(super) fresh: Fresh,
     pub(super) pi_ccs: pi_ccs::SumcheckProof,
     pub(super) argument: ns_compress::Proof,
 }
 
-/// The CE claim that Π_CCS makes of the fresh instance, without its public
-/// input, which is the hash of the state. Π_CCS checks the point and the
-/// digest against its transcript.
 #[derive(Clone)]
 pub(super) struct Fresh {
     pub(super) c: Commitment,
@@ -122,14 +75,12 @@ impl FinalProof {
     }
 }
 
-/// Where `compress` spends its time.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct CompressTimes {
     pi_ccs: Duration,
     argument: ns_compress::ProverTimes,
 }
 
-/// Where `verify_final` spends its time.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct VerifyTimes {
     pi_ccs: Duration,
@@ -174,9 +125,7 @@ impl std::fmt::Display for VerifyTimes {
 }
 
 impl BoundedDepth {
-    /// The claims of the terminal check: the slots of the mode, with the
-    /// depths `depths`, then the fresh instance of circuit `pc − 1` (Lean
-    /// `Spec.Compression.Rust.productionClaims` and `lightClaims`).
+    /// Lean `Spec.Compression.Rust.productionClaims`, `lightClaims`.
     fn compression_claims(&self, pc: u64, depths: &[u64]) -> Vec<(usize, Norm)> {
         let mut claims: Vec<_> = depths
             .iter()
@@ -186,31 +135,24 @@ impl BoundedDepth {
                 (self.relations[slot].blocks(), Norm::Table { bound })
             })
             .collect();
-        claims.push((self.relations[(pc - 1) as usize].blocks(), Norm::Caller));
+        claims.push((self.relations[(pc - 1) as usize].blocks(), Norm::BoundByCaller));
         claims
     }
 
-    /// The prover's key of the compression: the commitment of the Ajtai key
-    /// rows that the relations read, with the rows.
     pub(crate) fn compression_setup(&self) -> Result<ProverKey, BoundedDepthError> {
         Ok(ProverKey::new(self.key_blocks())?)
     }
 
-    /// The verification key of this circuit: the pinned key of the size of
-    /// `compression_setup`, which is the key of that setup without the rows.
     pub(crate) fn compression_key(&self) -> Result<VerificationKey, BoundedDepthError> {
         Ok(VerificationKey::new(self.key_blocks())?)
     }
 
-    /// Decode the bytes of the verification key of this circuit. Only the
-    /// bytes of `compression_key` decode.
     pub(crate) fn decode_compression_key(&self, bytes: &[u8]) -> Result<VerificationKey, BoundedDepthError> {
         let key = VerificationKey::from_bytes(bytes)?;
         self.check_key_size(&key)?;
         Ok(key)
     }
 
-    /// The key of `compression_key` has the size of this circuit.
     fn check_key_size(&self, key: &VerificationKey) -> Result<(), BoundedDepthError> {
         if key.blocks() != ns_compress::key_blocks(self.key_blocks())? {
             return Err(ns_compress::Error::Key("the key is for another circuit size").into());
@@ -218,9 +160,6 @@ impl BoundedDepth {
         Ok(())
     }
 
-    /// The blocks that the key of the compression must hold: those of the
-    /// light relation alone in `Compression::Light`, whose claims are both
-    /// of that relation.
     pub(super) fn key_blocks(&self) -> usize {
         match self.compression {
             Compression::Both => self.relations[0].blocks().max(self.relations[1].blocks()),
@@ -228,10 +167,7 @@ impl BoundedDepth {
         }
     }
 
-    /// The slot words of the state of a proof whose argument has `slots`:
-    /// in `Compression::Light`, slot 1 is the default slot at depth 0, which
-    /// the verifier builds from its own relation and never reads from a
-    /// proof (Lean `FinalVerifier.ModeChecks`).
+    /// SPEC.md Algorithm 10, step 6; Lean `FinalVerifier.ModeChecks`.
     fn state_slots(&self, slots: &[(&CeClaim, u64)]) -> Result<[nightstream_fprime::Slot; 2], BoundedDepthError> {
         Ok(match self.compression {
             Compression::Both => [words::slot(slots[0].0, slots[0].1), words::slot(slots[1].0, slots[1].1)],
@@ -242,9 +178,7 @@ impl BoundedDepth {
         })
     }
 
-    /// The prover's checks of `Compression::Light` on `envelope`: the light
-    /// circuit ran last, and slot 1 is the default slot at depth 0, which
-    /// the verifier builds. A proof that made a refresh fold fails here.
+    /// SPEC.md Algorithm 9, Rejects.
     fn check_light_envelope(&self, envelope: &Envelope) -> Result<(), BoundedDepthError> {
         if envelope.pc != 1 {
             return Err(BoundedDepthError::Statement(
@@ -261,9 +195,7 @@ impl BoundedDepth {
         Ok(())
     }
 
-    /// The checks of the mode on a proof's slots and circuit: the proof
-    /// carries the slots of the mode, and in `Compression::Light` the light
-    /// circuit ran last (Lean `FinalVerifier.ModeChecks`).
+    /// SPEC.md Algorithm 10, step 3; Lean `FinalVerifier.ModeChecks`.
     fn check_mode(&self, pc: u64, slots: usize) -> Result<(), BoundedDepthError> {
         if slots != self.compression.slots() {
             return Err(BoundedDepthError::Statement(
@@ -278,12 +210,7 @@ impl BoundedDepth {
         Ok(())
     }
 
-    /// The layout of the claims under a key of `key_blocks` blocks, when
-    /// `ns_compress::error_bits` of it is at least the security minimum.
-    /// The error of the batches, the lookups, the sum-checks and the point
-    /// of `V` is at most `2^-error_bits`, and the comparison is of integers
-    /// (`Spec.Compression.Rust.params_run_soundness_bits`). It has no term
-    /// for the Π_CCS run or for the Akita opening.
+    /// `Spec.Compression.Rust.params_run_soundness_bits`.
     pub(crate) fn compression_layout(
         &self,
         key_blocks: usize,
@@ -299,8 +226,6 @@ impl BoundedDepth {
         Ok(layout)
     }
 
-    /// The Π_CCS profile of the fresh instance: it binds `commitment`, the
-    /// Akita commitment of the witnesses, after the statement.
     pub(super) fn compression_profile(commitment: &[F]) -> FoldProfile<'_> {
         FoldProfile {
             domain: domain_chunk_v1_2(PI_CCS_DOMAIN),
@@ -329,14 +254,11 @@ impl BoundedDepth {
         statements.push(Statement {
             claim: fresh,
             rows: &self.relations[(pc - 1) as usize],
-            norm: Norm::Caller,
+            norm: Norm::BoundByCaller,
         });
         statements
     }
 
-    /// Compress `envelope`, which does not change. The proof is not checked
-    /// here: an envelope that `verify` rejects gives an error or a proof that
-    /// `verify_final` rejects.
     pub(crate) fn compress(
         &self,
         setup: &ProverKey,
@@ -378,7 +300,7 @@ impl BoundedDepth {
         let committed = ns_compress::commit(setup, layout, &witnesses)?;
 
         let start = Instant::now();
-        let commitment = ns_compress::byte_words(committed.commitment());
+        let commitment = ns_compress::byte_words(committed.commitment_to_bind());
         let mut transcript = Transcript::session();
         let mut ccs = pi_ccs::prove_from_parts_with_rows(
             &mut transcript,
@@ -427,11 +349,7 @@ impl BoundedDepth {
         Ok((proof, times))
     }
 
-    /// Accept `proof` for the expected statement exactly when `verify`
-    /// accepts some proof with witnesses for it (Lean
-    /// `RunCompleteness.Verifies`), up to the soundness error of the
-    /// argument under `key`, which must have the size of `compression_key`.
-    /// No proof carries the key.
+    /// Lean `RunCompleteness.Verifies`.
     pub(crate) fn verify_final(
         &self,
         key: &VerificationKey,
@@ -520,18 +438,15 @@ impl BoundedDepth {
 }
 
 const MAGIC: &[u8; 16] = b"NS-OPTIONB-FIN-2";
-/// The tag of a final proof of `Compression::Light`, which carries slot 0
-/// alone and `pc = 1`.
+/// SPEC.md section 4.5.
 const LIGHT_MAGIC: &[u8; 16] = b"NS-OPTIONB-FIN-L";
 const SHAPE: Shape = Shape {
     public_width: PUBLIC_WORDS,
     witness_columns: 0,
     matrices: MATRICES,
 };
-/// No polynomial of a proof has more variables than this.
-const MAX_ROUNDS: u64 = 30;
+const MAX_POLYNOMIAL_VARIABLES: u64 = 30;
 
-/// A byte string after its length.
 fn write_bytes(output: &mut Writer, bytes: &[u8]) {
     output.word(bytes.len() as u64);
     output.0.extend_from_slice(bytes);
@@ -552,10 +467,9 @@ fn read_extension(input: &mut Reader<'_>, count: usize) -> Result<Vec<K>, ProofC
     (0..count).map(|_| input.extension()).collect()
 }
 
-/// The rounds of one sum-check of the argument after their count.
 fn read_rounds<const COEFFICIENTS: usize>(input: &mut Reader<'_>) -> Result<Vec<[K; COEFFICIENTS]>, ProofCodecError> {
     let rounds = input.word()?;
-    if rounds > MAX_ROUNDS {
+    if rounds > MAX_POLYNOMIAL_VARIABLES {
         return Err(ProofCodecError("argument round count"));
     }
     (0..rounds)
@@ -568,13 +482,6 @@ fn read_rounds<const COEFFICIENTS: usize>(input: &mut Reader<'_>) -> Result<Vec<
 }
 
 impl FinalProof {
-    /// The strict bytes of the proof: the tag of its slots, the statement,
-    /// then for one or more steps the depth and claim of each slot that it
-    /// carries, the fresh claim without its public input, the Π_CCS rounds
-    /// and the argument. Field words are below the modulus, and each byte
-    /// string of Akita and the rounds of each sum-check follow their count.
-    /// It refuses each proof that `from_bytes` would refuse, so each encoding
-    /// decodes.
     pub(crate) fn to_bytes(&self) -> Result<Vec<u8>, ProofCodecError> {
         if self.iteration >= F::ORDER_U64 {
             return Err(ProofCodecError("iteration word"));
@@ -633,17 +540,16 @@ impl FinalProof {
         }
         write_extension(&mut output, &[argument.witness_value]);
         write_extension(&mut output, &argument.inverse_values);
-        write_extension(&mut output, &[argument.key_weight]);
+        write_extension(&mut output, &[argument.key_part]);
         output.word(argument.key_rounds.len() as u64);
         for round in &argument.key_rounds {
             write_extension(&mut output, round);
         }
-        write_extension(&mut output, &[argument.key_value]);
+        write_extension(&mut output, &[argument.key_polynomial_value]);
         write_bytes(&mut output, &argument.opening);
         Ok(output.0)
     }
 
-    /// Decode untrusted bytes. Acceptance still needs `verify_final`.
     pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self, ProofCodecError> {
         let mut input = Reader(bytes);
         let light = match input.take(MAGIC.len())? {
@@ -685,9 +591,9 @@ impl FinalProof {
                 let inverse_values = read_extension(&mut input, 4)?
                     .try_into()
                     .expect("four values");
-                let key_weight = input.extension()?;
+                let key_part = input.extension()?;
                 let key_rounds = read_rounds(&mut input)?;
-                let key_value = input.extension()?;
+                let key_polynomial_value = input.extension()?;
                 Some(Steps {
                     pc,
                     slots,
@@ -705,9 +611,9 @@ impl FinalProof {
                         rounds,
                         witness_value,
                         inverse_values,
-                        key_weight,
+                        key_part,
                         key_rounds,
-                        key_value,
+                        key_polynomial_value,
                         opening: read_bytes(&mut input)?,
                     },
                 })

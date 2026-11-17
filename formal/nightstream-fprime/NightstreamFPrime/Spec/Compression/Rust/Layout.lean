@@ -15,7 +15,7 @@ namespace NightstreamFPrime.Spec.Compression.Rust
 open NightstreamFPrime.Spec.Compression.Verifier (Slice)
 
 /-- A claim of `Layout::new`: its ring blocks, and the bound of its table (`Norm::Table`) or
-`none` (`Norm::Caller`). -/
+`none` (`Norm::BoundByCaller`). -/
 structure Claim where
   blocks : ℕ
   table : Option ℕ

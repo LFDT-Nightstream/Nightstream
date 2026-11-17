@@ -1,8 +1,4 @@
-//! One bounded-depth step circuit's relation as a fold reads it (Lean
-//! `LogicalPlan.plan`): the plan rows read through the slot layout, in
-//! factored form (each entry reads one slot, `SlotLayout.layout`), the gate
-//! `A · B − C + S^7` (`GatePolynomial.terms`) over the 28-variable cube, and
-//! the parameters that its shape allows.
+//! Lean `LogicalPlan.plan`, `SlotLayout.layout`, `GatePolynomial.terms`.
 use rayon::prelude::*;
 use std::ops::Range;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -45,18 +41,12 @@ pub enum RelationError {
     Width { expected: usize, got: usize },
 }
 
-/// Why `Relation::holds` did not accept an instance: a check failed, or the
-/// engine failed and judged nothing.
 #[derive(Debug)]
 pub(crate) enum Holds {
     Fails(&'static str),
     Engine(EngineError),
 }
 
-/// One step circuit as a compiled circuit holds it: the expanded package,
-/// its slot spans and the fold workspace. A compiled circuit builds it once,
-/// and each of its provers and verifiers shares it. It is read-only: the
-/// retained matrix window, which a fold fills, belongs to each `Relation`.
 pub(crate) struct CompiledStep {
     expanded: ExpandedPackage,
     spans: SlotSpans,
@@ -86,7 +76,6 @@ impl CompiledStep {
         self.expanded.layout().width().div_ceil(D)
     }
 
-    /// The factored rows. `new` checks them once, and they do not change.
     fn factored_rows(&self) -> FactoredRows<'_> {
         let rows = self.expanded.rows();
         FactoredRows::new_unchecked(
@@ -123,15 +112,10 @@ impl MatrixRows for CompiledStep {
     }
 }
 
-/// A step circuit's relation at one security minimum: its compiled step,
-/// the CCS structure and the parameters that its shape allows.
 pub(crate) struct Relation {
     step: Arc<CompiledStep>,
     structure: Structure,
     params: Params,
-    /// The compact matrices of every row, kept after their first complete
-    /// load: each fold, opening and row check reads them again. Each prover
-    /// and verifier keeps its own, so a verifier reads nothing a prover filled.
     window: RetainedMatrixWindow,
 }
 
@@ -186,11 +170,7 @@ impl Relation {
         }
     }
 
-    /// The committed instance of a logical assignment: the public prefix and
-    /// the witness matrix, one D-lane column per block, under the production
-    /// key. The key commits entries in {-1, 0, 1} only, so the matrix holds
-    /// one mask of the 1 lanes and one of the -1 lanes for each block (Lean
-    /// `FreshInstance.Masks`, `FreshInstance.built`).
+    /// Lean `FreshInstance.Masks`, `FreshInstance.built`.
     pub(crate) fn instance(&self, backend: &Backend, logical: &[F]) -> Result<CcsInstance, RelationError> {
         let width = self.step.expanded.layout().width();
         if logical.len() != width {
@@ -236,9 +216,6 @@ impl Relation {
         })
     }
 
-    /// The logical assignment of a step: the package's witness program fills
-    /// the circuit's columns from the step words, the relation's fresh
-    /// columns follow, and the slot layout lowers them to digits.
     pub(crate) fn assignment(&self, words: &StepWords, locals: Option<&[F]>) -> Result<Vec<F>, RelationError> {
         let expanded = &self.step.expanded;
         let columns = expanded.circuit_columns_with(&words.columns()?, locals)?;
@@ -246,8 +223,6 @@ impl Relation {
         Ok(expanded.layout().assignment(&columns)?)
     }
 
-    /// The first row of the relation that a step's columns fail; the
-    /// application's rows come first.
     #[cfg(test)]
     pub(crate) fn first_failing_row(&self, words: &StepWords) -> Result<Option<usize>, RelationError> {
         let expanded = &self.step.expanded;
@@ -257,9 +232,6 @@ impl Relation {
         Ok((0..rows.row_count()).find(|&row| rows.residual(row, &columns) != F::ZERO))
     }
 
-    /// The shape that a slot's claim and the state words need: the selected
-    /// commitment, the public words, the 28-coordinate point and canonical
-    /// evaluations.
     pub(crate) fn shape(&self, claim: &CeClaim) -> Result<(), &'static str> {
         if claim.adv.is_some()
             || claim.c.d() != D
@@ -274,11 +246,7 @@ impl Relation {
         Ok(())
     }
 
-    /// Lean `CCS.Holds` for a fresh instance, and a zero tail that Lean does
-    /// not require (SPEC.md Algorithm 6): its witness is one logical
-    /// assignment with a zero tail, its public prefix is `x`, the production
-    /// key commits it to `c` (so every entry is in {-1, 0, 1}), and every row
-    /// of the relation holds on it.
+    /// Lean `CCS.Holds`; SPEC.md Algorithm 6.
     pub(crate) fn holds(&self, backend: &Backend, instance: &CcsInstance) -> Result<(), Holds> {
         let CcsInstance { claim, witness } = instance;
         let z = &witness.Z;
@@ -326,7 +294,6 @@ impl Relation {
         self.rows_hold(&logical[..width]).map_err(Holds::Fails)
     }
 
-    /// Every row of the relation holds on the logical assignment `logical`.
     pub(crate) fn rows_hold(&self, logical: &[F]) -> Result<(), &'static str> {
         let (rows, layout) = (self.step.expanded.rows(), self.step.expanded.layout());
         let holds = |row: usize| {
@@ -341,8 +308,6 @@ impl Relation {
         };
         let count = rows.row_count();
         let next = AtomicUsize::new(0);
-        // The cost of a row varies a lot along the rows, so each worker takes
-        // the next small range until none is left.
         let first_failure = || loop {
             let start = next.fetch_add(ROWS_PER_RANGE, Ordering::Relaxed);
             if start >= count {

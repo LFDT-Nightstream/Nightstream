@@ -11,7 +11,7 @@
 //! word-level stack↔family identifications, whereas grow is a multi-constraint
 //! state transition (a `>=` comparison plus a success/failure branch).
 
-use super::super::gadgets::{push_gated_linear_zero, push_unsigned_ge_gadget};
+use super::super::gadgets::{push_gated_linear_zero, push_unsigned_ge_of_u32_operands};
 use super::super::isa::WasmOpcode;
 use super::super::layout::{
     selector_col, COL_CMP_GE, COL_CMP_LOW, COL_GROW_SUCCESS, COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE,
@@ -28,7 +28,6 @@ pub(super) fn push_memory_pages_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         push_size_and_grow_constraints(b);
     });
     b.with_tag(always("memory pages carry"), |b| {
-        // Only memory.grow may change the threaded page count.
         b.push_row(
             [
                 (COL_ONE, F::ONE),
@@ -37,7 +36,6 @@ pub(super) fn push_memory_pages_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [(COL_MEMORY_PAGES_AFTER, F::ONE), (COL_MEMORY_PAGES_BEFORE, -F::ONE)],
             [],
         );
-        // Max pages are verifier-carried and constant.
         b.push_linear_zero([
             (COL_MAX_MEMORY_PAGES_AFTER, F::ONE),
             (COL_MAX_MEMORY_PAGES_BEFORE, -F::ONE),
@@ -55,8 +53,7 @@ fn push_size_and_grow_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     // from the validated memory type, and this transition preserves it.
     // Success iff `delta <= max - before`; result is old size or -1.
     let grow = selector_col(WasmOpcode::MemoryGrow).unwrap();
-    // success = grow · ( (max - before) >= delta )
-    push_unsigned_ge_gadget(
+    push_unsigned_ge_of_u32_operands(
         b,
         [grow],
         [
@@ -68,13 +65,11 @@ fn push_size_and_grow_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         COL_CMP_GE,
     );
     b.push_row([(grow, F::ONE)], [(COL_CMP_GE, F::ONE)], [(COL_GROW_SUCCESS, F::ONE)]);
-    // after = before + success * delta.
     b.push_row(
         [(COL_GROW_SUCCESS, F::ONE)],
         [(COL_STACK_READ_VALUE_LO[0], F::ONE)],
         [(COL_MEMORY_PAGES_AFTER, F::ONE), (COL_MEMORY_PAGES_BEFORE, -F::ONE)],
     );
-    // result = success ? before : 0xFFFFFFFF.
     push_gated_linear_zero(
         b,
         COL_GROW_SUCCESS,

@@ -296,10 +296,6 @@ fn a_family_certificate_cannot_certify_its_own_replacement() {
     }
 }
 
-/// `Families::containing` gives, in family order, exactly the families that
-/// a scan of every family accepts: the families whose selectors hold every
-/// column of the query. The families overlap and share selectors, and the
-/// queries include columns that no family holds.
 #[test]
 fn indexed_family_search_equals_the_full_scan() {
     let mut state = 0x9e37_79b9_7f4a_7c15u64;

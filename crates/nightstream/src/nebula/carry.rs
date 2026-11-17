@@ -1,5 +1,4 @@
-//! The memory carry of SPEC.md section 7.5 and its 39 words. Mirrors
-//! `Lifecycle/Nebula/Carry.lean` (`carryVector`).
+//! SPEC.md section 7.5; `Lifecycle/Nebula/Carry.lean` (`carryVector`).
 
 use neo_math::F;
 use neo_math::K;
@@ -7,7 +6,6 @@ use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 
 use super::transcript::Digest;
 
-/// The four running products: read, write, initial, final.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Products {
     pub read: K,
@@ -46,7 +44,7 @@ pub fn k_words(value: K) -> [F; 2] {
 }
 
 impl Carry {
-    /// The closed start carry of SPEC.md section 7.5: `idx = N`, every root `D_init`.
+    /// SPEC.md section 7.5.
     pub fn start(n: usize, d_init: Digest) -> Self {
         Self {
             seg_idx: 0,
@@ -60,7 +58,7 @@ impl Carry {
         }
     }
 
-    /// The 39 carry words in SPEC.md section 7.5 order.
+    /// SPEC.md section 7.5.
     pub fn words(&self) -> [F; 39] {
         let mut words = Vec::with_capacity(39);
         words.push(F::from_u64(self.seg_idx));
@@ -85,8 +83,7 @@ impl Carry {
         words.try_into().expect("39 carry words")
     }
 
-    /// The carry of 39 words in SPEC.md section 7.5 order, the inverse of
-    /// `words`.
+    /// SPEC.md section 7.5.
     pub fn from_words(words: &[F; 39]) -> Self {
         let k = |at: usize| K::from_basis_coefficients_slice(&words[at..at + 2]).expect("two coefficients");
         let digest = |at: usize| -> Digest { words[at..at + 4].try_into().expect("four words") };

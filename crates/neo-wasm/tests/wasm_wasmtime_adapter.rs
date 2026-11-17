@@ -133,8 +133,6 @@ fn wasmtime_trace_handler_records_into_embedder_store_data() {
     );
 }
 
-/// The `ref.func` row pushes the funcref; the following `drop` row captures it on
-/// its pre-state operand stack. Returns the normalized funcref id seen there.
 fn funcref_seen_at_drop(trace: &WasmtimeTraceState) -> Option<u32> {
     trace
         .steps()
@@ -150,11 +148,8 @@ fn split_after_first_end(steps: &[WasmtimeTraceStep]) -> Option<(&[WasmtimeTrace
     Some(steps.split_at(end + 1))
 }
 
-/// Cross-instance imports must route rows and normalize funcrefs in each
-/// instance's own module-local namespace.
 #[test]
 fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
-    // `shared` is defined function index 1 (after `unused`) -> A funcref id 2.
     let wasm_a = wat::parse_str(
         r#"(module
             (func $unused (result i32) i32.const 1)
@@ -171,7 +166,6 @@ fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
     )
     .expect("wat a");
 
-    // B imports A's `shared` as function index 0 -> B funcref id 1.
     let wasm_b = wat::parse_str(
         r#"(module
             (import "a" "shared" (func $s (result i32)))
@@ -213,12 +207,10 @@ fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
         .single_step(true)
         .expect("single-step mode");
 
-    // Instantiate A; its state is discovered when it first executes.
     let linker_a = Linker::new(&engine);
     let instance_a = futures::executor::block_on(linker_a.instantiate_async(&mut store, &module_a)).expect("inst a");
     let idx_a = instance_a.debug_index_in_store();
 
-    // Instantiate B with A's `shared` wired in as its import.
     let shared = instance_a
         .get_func(&mut store, "shared")
         .expect("shared export");
@@ -247,7 +239,6 @@ fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
         "B captured no wasm frames"
     );
 
-    // Distinctive ops stay in the instance that executed them.
     let a_ops: Vec<_> = trace_a
         .steps()
         .iter()
@@ -275,7 +266,6 @@ fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
         "B trace contaminated with A's i32.add: {b_ops:?}"
     );
 
-    // The same raw function normalizes to each instance's own id.
     assert_eq!(
         funcref_seen_at_drop(trace_a),
         Some(2),
@@ -292,8 +282,6 @@ fn wasmtime_trace_routes_per_instance_with_per_instance_funcref_ids() {
     let a_shared_trace = traces_from_wasmtime_steps(a_shared_steps).expect("normalize A shared");
     assert!(!a_run_trace.is_empty());
     assert!(!a_shared_trace.is_empty());
-    // B calls across the instance boundary: from B's perspective the shared
-    // function is a host import, so proving it needs an import template.
     let b_err = traces_from_wasmtime_steps(trace_b.steps()).expect_err("cross-instance import needs a template");
     assert!(b_err
         .to_string()
@@ -352,7 +340,6 @@ fn wasmtime_runtime_trace_normalizes_supported_rows() {
 
 #[test]
 fn wasmtime_trace_normalizes_local_get_and_set() {
-    // A no-argument function that stores constants into locals then reads them back.
     let wasm = wat::parse_str(
         r#"(module
             (func (export "run") (result i32)
@@ -379,22 +366,18 @@ fn wasmtime_trace_normalizes_local_get_and_set() {
         "expected local.set in trace: {opcodes:?}"
     );
 
-    // All local.get rows must have a local_index and local_read_value.
     for row in trace.iter().filter(|r| r.opcode == WasmOpcode::LocalGet) {
         assert!(row.local_index.is_some(), "local.get missing local_index");
         assert!(row.local_read_value.is_some(), "local.get missing local_read_value");
-        // The pushed value must match the local's pre-step value.
         assert_eq!(
             row.stack_write0.map(|w| w.value_lo),
             row.local_read_value,
             "local.get write != local_read_value"
         );
     }
-    // All local.set rows must have a local_index and local_write_value.
     for row in trace.iter().filter(|r| r.opcode == WasmOpcode::LocalSet) {
         assert!(row.local_index.is_some(), "local.set missing local_index");
         assert!(row.local_write_value.is_some(), "local.set missing local_write_value");
-        // The consumed stack value must match what is stored.
         assert_eq!(
             row.stack_read0.map(|r| r.value_lo),
             row.local_write_value,
@@ -696,8 +679,6 @@ fn wasmtime_trace_normalizes_call_indirect_row() {
     let artifacts = extract_wasm_program_artifacts(&wasm).expect("program artifacts");
     let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-    // The resolve step checks the table entry; the invocation, one pc later,
-    // pops the checked reference and calls it.
     let resolve_index = trace
         .iter()
         .position(|r| r.opcode == WasmOpcode::CallIndirectResolve)
@@ -1086,8 +1067,6 @@ fn wasmtime_trace_normalizes_compare_unary_and_rotate_rows() {
 
 #[test]
 fn wasmtime_trace_normalizes_br_table_rows() {
-    // One module per selector value: the selector is a baked-in constant
-    // (plain-mode locals start all-zero, so it cannot be an entry param).
     let wat_for = |selector: i32| {
         format!(
             r#"(module
@@ -1329,7 +1308,6 @@ fn pc_rom_keeps_both_if_edges_and_else_fallthrough() {
         let mut pc_before = 0;
         while !reader.eof() {
             let operator = reader.read().expect("operator");
-            // An `if` takes two pcs: one for each control choice.
             let pc_after = pc_before + 1 + u64::from(matches!(operator, wasmparser::Operator::If { .. }));
             match operator {
                 wasmparser::Operator::If { .. } => {

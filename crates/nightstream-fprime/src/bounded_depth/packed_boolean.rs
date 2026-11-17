@@ -20,10 +20,7 @@ pub(super) struct PackedBooleans {
 }
 
 impl PackedBooleans {
-    /// Packs the Boolean rows, zero products and products of `rows` whose
-    /// companion columns fit in `start..width`, in that order of priority
-    /// (`SPEC.md` section 7.9 step 2, Lean `PackedBudget.choose`). A row
-    /// that does not fit stays in `rows` as it is (Lean `PackedBudget.keep`).
+    /// `SPEC.md` section 7.9 step 2, Lean `PackedBudget.choose`, `PackedBudget.keep`.
     pub(super) fn lower(rows: &mut Vec<Row>, start: usize, width: usize, eligible: impl Fn(usize) -> bool) -> Self {
         let mut room = width.saturating_sub(start);
         let mut sources = rows

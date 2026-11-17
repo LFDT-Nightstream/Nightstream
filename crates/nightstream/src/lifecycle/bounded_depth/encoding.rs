@@ -1,13 +1,3 @@
-//! Strict bytes for bounded-depth proofs with their witnesses.
-//!
-//! Owns the byte layout; acceptance still needs `verify`. The relations fix
-//! every size, so the decoder checks the exact length before it allocates.
-//! A proof has one encoding: field words below the modulus, evaluations with
-//! exactly `D` coefficients, the fresh witness as a `+1` and a `-1` lane mask
-//! per column (its commitment rejects other values), and each slot's
-//! accumulator, whose witness lies outside {-1, 0, 1}, as field words.
-//! Frame digests are not encoded; no check reads them.
-
 use neo_ccs::Mat;
 use neo_math::D;
 
@@ -33,12 +23,10 @@ impl BoundedDepth {
         }
     }
 
-    /// Commitment, public projection, point, `Eval_K`, then `Eval_A`.
     fn claim_bytes() -> usize {
         WORD * (KAPPA_WORDS + PUBLIC_WORDS + 2 * PI_CCS_V1_2_ROUND_COUNT + 2 * EVALUATIONS)
     }
 
-    /// The length of a proof of `pc` (0 before the first step).
     fn proof_length(&self, pc: u64) -> Option<usize> {
         let header = MAGIC.len() + WORD * 10;
         if pc == 0 {
@@ -83,7 +71,6 @@ impl BoundedDepth {
         Ok(output.0)
     }
 
-    /// Decode untrusted proof bytes for these relations.
     pub(crate) fn decode_proof(&self, bytes: &[u8]) -> Result<Envelope, ProofCodecError> {
         let mut input = Reader(bytes);
         if input.take(MAGIC.len())? != MAGIC {

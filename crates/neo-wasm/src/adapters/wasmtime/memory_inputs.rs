@@ -1,6 +1,3 @@
-//! Targeted live-memory capture and input recovery shared by host boundaries.
-//! Captured bytes supply declared writes; they never initialize replay memory.
-
 use super::{memory_address::host_event_address, runtime_read::read_memory_bytes};
 use crate::host_event_bindings::{EventBlock, MemoryBase, SlotBinding};
 use crate::WasmBuildError;

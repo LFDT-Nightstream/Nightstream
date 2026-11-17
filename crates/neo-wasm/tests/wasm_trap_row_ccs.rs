@@ -1,8 +1,3 @@
-//! Row-level CCS tests for the trap transition: `unreachable`, div/rem by
-//! zero, and signed division overflow as terminal states, plus rejection of
-//! hidden, faked, or post-trap execution claims. End-to-end trap proving
-//! lives in `wasm_trap.rs`.
-
 mod common;
 
 use common::{assert_rejected, assert_satisfied, step};
@@ -114,8 +109,6 @@ fn program_row_rejects_execution_after_trap() {
         false,
     ))
     .unwrap();
-    // trapped_before = trapped_after = 1 satisfies the transition row, so
-    // the rejection must come from `is_program_row · trapped_before = 0`.
     witness[COL_TRAPPED_BEFORE] = F::ONE;
     witness[COL_TRAPPED_AFTER] = F::ONE;
     assert_rejected(&witness, "program row executing after a trap");
@@ -139,7 +132,6 @@ fn div_by_zero_row_rejects_clean_claim() {
     ))
     .unwrap();
     assert_satisfied(&witness, "i32.div_u row trapping on a zero divisor");
-    // Hiding the trap: div_trap = 0 contradicts (Σ div sel) · divisor_is_zero.
     witness[COL_DIV_TRAP] = F::ZERO;
     assert_rejected(&witness, "div-by-zero row claiming no trap");
 }
@@ -162,8 +154,6 @@ fn div_row_rejects_fake_trap_on_nonzero_divisor() {
     ))
     .unwrap();
     assert_satisfied(&witness, "i32.div_u row with a nonzero divisor");
-    // Faking the trap: divisor_is_zero is pinned to 0 by the zero test, so
-    // div_trap = (Σ div sel) · 0 must be 0.
     witness[COL_DIV_TRAP] = F::ONE;
     witness[COL_TRAPPED_AFTER] = F::ONE;
     assert_rejected(&witness, "div row faking a trap on a nonzero divisor");
@@ -187,15 +177,12 @@ fn signed_div_overflow_row_rejects_clean_claim() {
     ))
     .unwrap();
     assert_satisfied(&witness, "i32.div_s row trapping on MIN / -1");
-    // Hiding the trap: the zero tests pin both overflow flags to 1, so
-    // div_overflow = (Σ div_s sel) · 1 forces div_trap = 1.
     witness[COL_DIV_TRAP] = F::ZERO;
     assert_rejected(&witness, "signed-overflow row claiming no trap");
 }
 
 #[test]
 fn div_s_row_rejects_fake_overflow_trap() {
-    // MIN dividend with a non-(−1) divisor divides cleanly: MIN / 2.
     let mut witness = build_witness_vector(&step(
         0,
         5,
@@ -212,8 +199,6 @@ fn div_s_row_rejects_fake_overflow_trap() {
     ))
     .unwrap();
     assert_satisfied(&witness, "i32.div_s row with MIN dividend and divisor 2");
-    // Faking the trap: divisor_is_neg1 is pinned to 0 by its zero test, so
-    // overflow_cond = is_min · 0 must be 0 and div_overflow must follow.
     witness[COL_DIV_OVERFLOW] = F::ONE;
     witness[COL_DIV_TRAP] = F::ONE;
     witness[COL_TRAPPED_AFTER] = F::ONE;
@@ -246,9 +231,6 @@ const NULL_ENTRY_CALL_INDIRECT_WAT: &str = r#"(module
         i32.const 1
         call_indirect (type $t)))"#;
 
-/// Faking a trap on a healthy `call_indirect` must fail even when the
-/// trapped/activation_finished/live columns are adjusted consistently: the row has a live
-/// type lookup and matching type, so the trap equation forces a clean row.
 #[test]
 fn healthy_call_indirect_row_rejects_faked_trap() {
     let checked = common::checked_main(VALID_CALL_INDIRECT_WAT);
@@ -265,10 +247,6 @@ fn healthy_call_indirect_row_rejects_faked_trap() {
     assert_rejected(&witness, "faked trap on a valid call_indirect");
 }
 
-/// Hiding a null-entry trap must fail even when the trapped/activation_finished/live
-/// columns are adjusted consistently: the table entry is zero, so the
-/// zero-test forces the null flag, de-gating the type lookup and forcing the
-/// trap equation.
 #[test]
 fn null_entry_call_indirect_row_rejects_hidden_trap() {
     let checked = common::checked_main(NULL_ENTRY_CALL_INDIRECT_WAT);
@@ -285,8 +263,6 @@ fn null_entry_call_indirect_row_rejects_hidden_trap() {
     assert_rejected(&witness, "hidden null-entry call_indirect trap");
 }
 
-/// Hiding a null-entry trap by also forging the null flag itself must fail
-/// on the zero-test gadget (the table entry value is zero).
 #[test]
 fn null_entry_call_indirect_row_rejects_forged_null_flag() {
     let checked = common::checked_main(NULL_ENTRY_CALL_INDIRECT_WAT);
@@ -318,10 +294,6 @@ const OOB_CALL_INDIRECT_WAT: &str = r#"(module
         i32.const 5
         call_indirect (type $t)))"#;
 
-/// Hiding an OOB-index trap must fail: `ci_oob` is the selector-gated bound
-/// comparison (table index 5 >= size 1), which de-gates the type lookup and
-/// forces the trap equation, so a clean claim cannot satisfy the CCS even with
-/// the trapped/activation_finished/live columns adjusted.
 #[test]
 fn oob_call_indirect_row_rejects_hidden_trap() {
     let checked = common::checked_main(OOB_CALL_INDIRECT_WAT);
@@ -351,10 +323,6 @@ const TYPE_MISMATCH_CALL_INDIRECT_WAT: &str = r#"(module
         i32.const 0
         call_indirect (type $u)))"#;
 
-/// The type check must look up the table entry's own type. On a mismatch trap
-/// the looked-up function reference is still bound to the table entry: otherwise
-/// a prover could look up some other function's type and fake a mismatch trap
-/// on a well-typed call.
 #[test]
 fn type_mismatch_call_indirect_row_binds_looked_up_reference() {
     let checked = common::checked_main(TYPE_MISMATCH_CALL_INDIRECT_WAT);
@@ -376,10 +344,6 @@ const OOB_LOAD_WAT: &str = r#"(module
         i32.const 1000000
         i32.load))"#;
 
-/// Hiding an OOB linear-memory trap must fail: `mem_oob` is the selector-gated
-/// bound comparison (highest word lane >= memory size in words), and it both
-/// feeds the trapped-flag transition and gates the lane reads, so a clean claim
-/// cannot satisfy the CCS even with the trapped/activation_finished columns adjusted.
 #[test]
 fn oob_load_row_rejects_hidden_trap() {
     let checked = common::checked_main(OOB_LOAD_WAT);
@@ -403,9 +367,6 @@ const OOB_STORE_WAT: &str = r#"(module
         i32.store
         i32.const 0))"#;
 
-/// The store side of the OOB de-gating: hiding an OOB store trap must fail the
-/// same way as a load (the `mem_oob` bound comparison is direction-independent
-/// and gates `store_live`).
 #[test]
 fn oob_store_row_rejects_hidden_trap() {
     let checked = common::checked_main(OOB_STORE_WAT);

@@ -597,14 +597,13 @@ impl WasmOpcode {
         self.memory_access_info().is_some()
     }
 
-    /// SPEC.md section 7.6: fixed-arity replacements write over operand zero.
+    /// SPEC.md section 7.6.
     pub(crate) fn uses_stack_rmw(self) -> bool {
         let info = opcode_info_from_code(opcode_code(self));
         (1..=3).contains(&info.stack_reads) && info.stack_writes == 1
     }
 
-    /// Rocq `StackPorts.full_stack_read0_hi_bound`: stores use a wasm32 address; indirect invocations
-    /// use the resolved u32 function reference. Neither consumes the high limb.
+    /// Rocq `StackPorts.full_stack_read0_hi_bound`.
     pub(crate) fn omits_stack_read0_hi(self) -> bool {
         matches!(self, Self::CallIndirect | Self::ReturnCallIndirect)
             || self
@@ -1081,23 +1080,15 @@ pub fn opcode_info_from_code(code: u16) -> WasmOpcodeInfo {
         Op::Select => info(op, code, Class::ControlFlow, 3, 1, None),
         Op::BrIf => info(op, code, Class::ControlFlow, 1, 0, None),
         Op::BrTable => info(op, code, Class::ControlFlow, 1, 0, None),
-        // Call-like arity is dynamic: direct rows read 0, indirect rows read
-        // the checked function reference, and aux rows handle arguments and
-        // host results.
         Op::Call => info(op, code, Class::ControlFlow, 0, 0, None),
         Op::CallIndirect => info(op, code, Class::ControlFlow, 0, 0, None),
         Op::ReturnCall => info(op, code, Class::ControlFlow, 0, 0, None),
         Op::ReturnCallIndirect => info(op, code, Class::ControlFlow, 0, 0, None),
-        // Reads the table index, writes the checked function reference in its place.
         Op::CallIndirectResolve => info(op, code, Class::ControlFlow, 1, 1, None),
         Op::Return => info(op, code, Class::System, 0, 0, None),
-        // stack_reads/writes are the operand stack effects only; local memory accesses
-        // are tracked separately via local_read_value / local_write_value in the IR.
         Op::LocalGet => info(op, code, Class::System, 0, 1, None),
         Op::LocalSet => info(op, code, Class::System, 1, 0, None),
         Op::LocalTee => info(op, code, Class::System, 1, 1, None),
-        // stack_reads/writes are the operand stack effects only; global memory accesses
-        // are tracked separately via global_read_value / global_write_value in the IR.
         Op::GlobalGet => info(op, code, Class::System, 0, 1, None),
         Op::GlobalSet => info(op, code, Class::System, 1, 0, None),
         Op::Trap => info(op, code, Class::System, 0, 0, None),

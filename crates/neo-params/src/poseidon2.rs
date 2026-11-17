@@ -1,6 +1,3 @@
-//! Poseidon2 sponge shape. The crates that implement the permutation import
-//! these constants.
-
 pub const WIDTH: usize = 16;
 
 pub const CAPACITY: usize = 4;

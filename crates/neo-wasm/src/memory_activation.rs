@@ -1,6 +1,3 @@
-//! Owns activation bounds enforced by the WASM relation.
-//! These support definitions are independent of memory-port packing and its backend.
-
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::isa::{opcode_code, opcode_info_from_code, WasmMemoryAccessKind, WasmOpcode};
@@ -15,8 +12,6 @@ use crate::layout::{
     COL_TABLE_SET_LIVE, COL_TABLE_SIZE_READ_ENABLED, COL_TURN_BOUNDARY, SELECTOR_COLS,
 };
 
-/// Auxiliary row-kind columns that are pairwise disjoint with each other and
-/// with every opcode selector under the CCS row-kind and opcode one-hots.
 const AUXILIARY_ROW_SUPPORT_ATOMS: [usize; 6] = [
     crate::layout::COL_HOST_RESUME,
     crate::layout::COL_HOST_SUSPEND,
@@ -343,8 +338,6 @@ pub(crate) struct MemoryActivationSupport {
     pub(crate) atoms: BTreeSet<usize>,
 }
 
-/// Derived support claims only; opcode selectors and auxiliary row-kind
-/// atoms are already their own singleton supports.
 pub(crate) fn derived_activation_supports() -> Vec<MemoryActivationSupport> {
     activation_supports()
         .into_iter()
@@ -368,8 +361,6 @@ fn memory_access_selectors(kind: WasmMemoryAccessKind) -> Vec<usize> {
     }))
 }
 
-/// Record the verifier-owned implication `gate = 1 => one of support atoms = 1`.
-/// These support bounds come from the WASM CCS, not sampled traces.
 fn insert_derived_activation_support(
     supports: &mut BTreeMap<usize, BTreeSet<usize>>,
     name: &'static str,
@@ -401,9 +392,7 @@ fn insert_derived_activation_support(
     )
 }
 
-/// SPEC.md section 7.6: additional disjoint activations used by the slot plan.
-/// The Rocq export includes this entire list; GateExclusions proves every pair
-/// from FullRelation, without adding constraints to the circuit.
+/// SPEC.md section 7.6; Rocq `GateExclusions`.
 pub(crate) fn gate_exclusions() -> Vec<(usize, usize)> {
     use crate::ccs::host_event_chain::{
         gather_memory_local_base_col, gather_memory_read_kind_col, gather_memory_write_kind_col,

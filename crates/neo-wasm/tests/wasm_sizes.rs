@@ -1,9 +1,4 @@
-//! The fixed WASM sizes (`neo_wasm::nebula::WasmSize`,
-//! `decisions/wasm-fixed-sizes.md`). Each size is a secure geometry whose
-//! regions fit its spaces. A prover takes the smallest size that holds a run,
-//! and the run steps natively through the segments of that size. No proof of
-//! a size reaches a refresh fold, so its final proof has two claims: slot 0
-//! and the fresh instance (SPEC.md Algorithm 9).
+//! `decisions/wasm-fixed-sizes.md`, `decisions/wasm-light-compression.md`.
 
 mod common;
 
@@ -15,13 +10,10 @@ use neo_wasm::{preload_from_program_artifacts, top_level_initial_state, WasmMemo
 use nightstream::nebula::{Application, Run};
 use p3_field::PrimeField64;
 
-/// Enzo's iterative Fibonacci program (`tests/wasm_fibonacci.rs`) with
-/// `rounds` loop rounds. Its program counters fit 8 bits for each count.
 fn fib(rounds: u32) -> String {
     FIB.replacen("i32.const 2", &format!("i32.const {rounds}"), 1)
 }
 
-/// `fib(2)`.
 const FIB: &str = r#"(module
   (func (export "main") (result i32)
     (local i32 i32 i32)
@@ -46,8 +38,6 @@ const FIB: &str = r#"(module
     )
     local.get 2))"#;
 
-/// A program of `count` `nop`s, so that its program counters need the bits
-/// of `count`.
 fn nops(count: usize) -> String {
     format!(
         r#"(module (func (export "main") (result i32) {} i32.const 7))"#,
@@ -55,8 +45,6 @@ fn nops(count: usize) -> String {
     )
 }
 
-/// The preload, the entry state and the trace of `main`, with the host-event
-/// tables of an export that has no import.
 fn run_of(wat: &str) -> (WasmMemoryPreload, WasmStepState, Vec<WasmVmStep>) {
     let checked = common::checked_main(wat);
     let tables = &checked.artifacts.tables;
@@ -112,9 +100,6 @@ fn each_size_is_a_secure_geometry_whose_regions_fit_its_spaces() {
     }
 }
 
-/// The limits that the six test transactions of Starstream `159bedc` need
-/// (`starstream-proving-runtime/tests`, all coroutine instances of each), and
-/// the rows of their longest WASM run.
 #[test]
 fn the_starstream_test_transactions_fit_micro_or_small() {
     let need = |pc, function, event, linear_memory, global| WasmLimits {
@@ -139,10 +124,7 @@ fn the_starstream_test_transactions_fit_micro_or_small() {
     }
 }
 
-/// The memory fingerprint term of all segments of each size gives exactly 109
-/// bits (SPEC.md section 7.1), so a prover that asks for 110 gets the named
-/// security error before it reads its circuit file. One more segment would
-/// give less than 109 bits.
+/// SPEC.md section 7.1.
 #[test]
 fn a_size_refuses_more_security_than_its_memory_gives() {
     use nightstream::error::ParamsError;
@@ -183,9 +165,6 @@ fn a_size_refuses_more_security_than_its_memory_gives() {
     }
 }
 
-/// Programs of more instructions need larger sizes, and one of 1,100
-/// instructions fits none. A run of more rows than each size holds fits
-/// none either: Micro holds the most rows.
 #[test]
 fn a_prover_takes_the_smallest_size_that_holds_the_run() {
     for (count, size) in [
@@ -211,11 +190,6 @@ fn a_prover_takes_the_smallest_size_that_holds_the_run() {
     assert_eq!(WasmSize::smallest(&WasmLimits::default(), most + 1), None);
 }
 
-/// Fibonacci steps natively through Micro in one segment, and with 80 loop
-/// rounds in two segments of one step of 800 rows. The 600 `nop`s step
-/// through Large in one segment of four steps. Each run ends in the state
-/// after its last trace row. The segments together are the step inputs of
-/// the whole padded run.
 #[test]
 fn a_run_steps_natively_through_the_segments_of_its_size() {
     for (wat, size, segments) in [
@@ -247,9 +221,6 @@ fn a_run_steps_natively_through_the_segments_of_its_size() {
     }
 }
 
-/// Fibonacci proved in Micro, one segment of one step of 800 rows, on the
-/// CPU path, where the bounded-depth scheme proves. The proof verifies after
-/// its bytes round-trip, and a last state with another `pc` does not verify.
 #[test]
 #[ignore = "Full proof at a fixed size; run it alone, only with approval for a run longer than 300 seconds."]
 fn a_micro_proof_verifies() {
@@ -292,8 +263,6 @@ fn a_micro_proof_verifies() {
     eprintln!("total elapsed={:?}", started.elapsed());
 }
 
-/// Fibonacci proved in Micro on the CPU and on Metal. The two proofs have the
-/// same bytes, and each verifier accepts the Metal proof.
 #[test]
 #[ignore = "Two full proofs; needs --features nightstream/metal on Apple hardware. Run it alone."]
 fn a_micro_metal_proof_equals_the_cpu_proof() {
@@ -337,12 +306,7 @@ fn a_micro_metal_proof_equals_the_cpu_proof() {
     }
 }
 
-/// Fibonacci with 32 loop rounds, a run of about 360 rows, proved in Micro in
-/// one step and compressed. The key holds the light relation alone and the
-/// final proof has two claims, slot 0 and the fresh instance: the refresh
-/// relation of a size does not fit the largest key, so a key or a proof of
-/// three claims does not exist. The final proof verifies for its statement
-/// and not for a last state with another `pc`.
+/// SPEC.md Algorithm 9; `decisions/wasm-light-compression.md`.
 #[test]
 #[ignore = "Production-size compression; run it alone under the 300-second cap."]
 fn a_micro_proof_compresses_with_two_claims() {
@@ -390,11 +354,7 @@ fn a_micro_proof_compresses_with_two_claims() {
     eprintln!("total elapsed={:?}", started.elapsed());
 }
 
-/// The light relation of `size` fits the Akita key of `2^19` blocks (SPEC.md
-/// Algorithm 11): the verifier of the size gives the pinned key of `2^19`
-/// blocks. No schedule file holds a larger relation, so `compression_key`
-/// fails for a light relation above `2^19` blocks, and the refresh relation
-/// of a size is above it, so the key is that of the light mode.
+/// SPEC.md Algorithm 11, Rejects.
 fn the_light_relation_fits_the_key(size: WasmSize) {
     use nightstream::nebula::Circuit;
     use std::time::Instant;
@@ -409,7 +369,6 @@ fn the_light_relation_fits_the_key(size: WasmSize) {
     eprintln!("{size:?}: compile and key elapsed={:?}", started.elapsed());
 }
 
-/// Micro is checked by `a_micro_proof_compresses_with_two_claims`.
 #[test]
 #[ignore = "Compiles a production-size circuit; run it alone under the 300-second cap."]
 fn the_small_light_relation_fits_the_key() {

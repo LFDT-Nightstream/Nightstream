@@ -214,7 +214,7 @@ Proof.
   pose proof (proj1 Hfull) as Hone.
   circuit_range COL_EDGE_ADDR Hedge.
   circuit_range COL_PC_BEFORE Hpc.
-  circuit_range COL_CONTROL_CHOICE Hchoice.
+  pose proof (full_control_choice_bound w Hprime Hfull) as Hchoice.
   circuit_row ([(COL_EDGE_ADDR, 1); (COL_PC_BEFORE, -1); (COL_CONTROL_CHOICE, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
   expand_row Hrow. normalize_columns. rewrite Hone in Hrow. field_linear Hrow.
 Qed.

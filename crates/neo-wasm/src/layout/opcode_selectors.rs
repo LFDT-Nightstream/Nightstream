@@ -1,6 +1,3 @@
-//! Opcode selector column map: the per-opcode one-hot selector list and
-//! the opcode -> selector-column resolution.
-
 use super::*;
 
 pub const SELECTOR_COLS: [usize; 116] = [
@@ -240,8 +237,6 @@ pub fn selector_col(op: WasmOpcode) -> Option<usize> {
         WasmOpcode::LocalTee => Some(COL_SEL_LOCAL_TEE),
         WasmOpcode::GlobalGet => Some(COL_SEL_GLOBAL_GET),
         WasmOpcode::GlobalSet => Some(COL_SEL_GLOBAL_SET),
-        // Call correctness is enforced by Stage 2 (call stack) and Stage 3 (continuity),
-        // not by a CCS row constraint. No selector column needed.
         WasmOpcode::Trap | WasmOpcode::Unsupported => None,
     }
 }

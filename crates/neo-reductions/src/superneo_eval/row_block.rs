@@ -1,5 +1,3 @@
-//! Packed row-block references and the dense-block side table.
-
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
@@ -14,7 +12,6 @@ pub(super) const COMPACT_DENSE_INDEX_MASK: u32 = COMPACT_DENSE_TAG - 1;
 #[repr(transparent)]
 pub(super) struct CompactRowBlock(u32);
 
-// `compact_device_parts` exports these values as `u32`.
 const _: () = assert!(
     core::mem::size_of::<CompactRowBlock>() == core::mem::size_of::<u32>()
         && core::mem::align_of::<CompactRowBlock>() == core::mem::align_of::<u32>()
@@ -74,7 +71,6 @@ pub(super) struct DenseRowBlock {
     pattern: u32,
 }
 
-// `compact_device_parts` exports these values as `[block, pattern]`.
 const _: () = assert!(
     core::mem::size_of::<DenseRowBlock>() == core::mem::size_of::<[u32; 2]>()
         && core::mem::align_of::<DenseRowBlock>() == core::mem::align_of::<[u32; 2]>()

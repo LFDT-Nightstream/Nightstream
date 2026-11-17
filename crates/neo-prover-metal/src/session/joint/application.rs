@@ -1,5 +1,3 @@
-//! Application matrix values: resident prefixes or bounded replay of original rows.
-
 use super::*;
 
 pub(super) struct ApplicationWindow {
@@ -296,7 +294,6 @@ impl ApplicationTables {
         })
     }
 
-    /// Encodes the fold into `command`; the caller finishes it.
     pub(super) fn fold(
         &mut self,
         session: &MetalSession,

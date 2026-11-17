@@ -1,13 +1,6 @@
-//! The fold gate of `Params::for_ccs_shape` against Lean's bound
-//! (`Lifecycle.BoundedDepth.RandomOracle.FoldGate`), on the light and the
-//! refresh relation of each package that the tests load: today's fixture,
-//! `nebula-v1-` and `nebula-n1-`. Lean emits the production counts, the
-//! census numerator, `bits` and the exact error `count/denominator`. The
-//! statistical term of either fold with `Q` queries is at most
-//! `(Q + 1)/2^bits` (`FoldGate.refresh_statisticalError_le_bits`,
-//! `FoldGate.light_statisticalError_le_bits`). On each relation, the gate
-//! must read Lean's counts, charge Lean's error, pass `bits` and refuse
-//! `bits + 1`.
+//! Lean `Lifecycle.BoundedDepth.RandomOracle.FoldGate`,
+//! `FoldGate.refresh_statisticalError_le_bits`, and
+//! `FoldGate.light_statisticalError_le_bits`.
 
 use neo_params::{nightstream_p64_k14::CHALLENGE_ALPHABET, NeoParams, ParamsError};
 use nightstream_fprime::load_bounded_depth_packages;
@@ -86,7 +79,7 @@ fn the_gate_charges_the_lean_error_on_each_step_relation() {
                 "{context}: the gate charges Lean's error"
             );
             assert_eq!(
-                relation.params().inner().lambda(),
+                relation.params().inner().certified_lambda(),
                 Some(bits),
                 "{context}: the gate certifies Lean's bits"
             );

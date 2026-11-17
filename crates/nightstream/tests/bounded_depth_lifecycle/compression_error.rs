@@ -1,14 +1,5 @@
-//! The gate of `compression_layout` against the Lean bound of the
-//! compression argument, on every claim set of the Poseidon2 hash chain:
-//! both circuits of the fresh instance and each pair of slot depths up to
-//! the light fold cap, and for the light compression each depth of slot 0
-//! under the key of the light relation. Lean emits, for each set, its
-//! layout (`layoutNew`),
-//! the count `runCount (productionCounts …)` over `q²` and `runBits`, the
-//! largest `k` with `2^k · runCount ≤ q²`. One interactive run is at most
-//! `2^−runBits` (`Spec.Compression.Rust.params_run_soundness_bits`).
-//! `error_bits` must be `runBits`, and the gate must pass a security minimum
-//! exactly when it is at most `runBits`.
+//! Lean `Spec.Compression.Rust.params_run_soundness_bits`, `layoutNew`,
+//! `productionClaims`, `lightClaims`, `runCount`, and `runBits`.
 
 use nightstream_fprime::{PI_CCS_V1_2_MATRIX_COUNT, PUBLIC_WORDS};
 use ns_compress::{Layout, Norm};
@@ -36,7 +27,6 @@ fn numbers(value: &Value) -> Vec<u64> {
         .collect()
 }
 
-/// The claims of a Lean layout: the blocks and the table of each cell.
 fn claims(layout: &Value) -> Vec<(usize, Norm)> {
     layout["cells"]
         .as_array()
@@ -44,7 +34,7 @@ fn claims(layout: &Value) -> Vec<(usize, Norm)> {
         .iter()
         .map(|cells| {
             let norm = match &cells["table"] {
-                Value::Null => Norm::Caller,
+                Value::Null => Norm::BoundByCaller,
                 table => Norm::Table {
                     bound: number(&table[0]),
                 },
@@ -98,9 +88,7 @@ fn error_bits_and_the_gate_match_the_lean_bound_on_each_production_claim_set() {
     );
 }
 
-/// The light compression of the hash chain: the key of the light relation
-/// alone, and slot 0 at each depth with the fresh instance of the light
-/// circuit (Lean `lightClaims`, `layoutNew_light`).
+/// Lean `lightClaims`, `layoutNew_light`.
 #[test]
 fn error_bits_and_the_gate_match_the_lean_bound_on_each_light_claim_set() {
     let lean = lean();
@@ -119,10 +107,7 @@ fn error_bits_and_the_gate_match_the_lean_bound_on_each_light_claim_set() {
     }
 }
 
-/// `compression_layout` of the claims of `pc` and `depths` is Lean's layout
-/// of `entry`, `error_bits` of it is Lean `runBits`, and the gate passes a
-/// security minimum exactly when it is at most `runBits`. The count over
-/// `q²` of Lean's bound.
+/// Lean `runBits`, `runCount`.
 fn check_entry(
     prover: &mut BoundedDepth,
     key_blocks: usize,

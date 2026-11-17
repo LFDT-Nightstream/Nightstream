@@ -2,7 +2,6 @@
 members = [
   "crates/neo-params", 
   "crates/neo-math", 
-  # Implementation crates
   "crates/neo-transcript",
   "crates/neo-ajtai",
   "crates/neo-ccs",
@@ -18,7 +17,6 @@ members = [
 resolver = "2"
 
 [workspace.dependencies]
-# Core
 rand = "0.9"
 rand_chacha = "0.9"
 serde = { version = "1.0.219", features = ["derive"] }
@@ -27,13 +25,11 @@ thiserror = "2"
 rayon = "1.12"
 num-bigint = "0.4"
 
-# Plonky3 field traits, matrices and the generic Poseidon2 layers
 p3-field = "=0.5.3"
 p3-matrix = "=0.5.3"
 p3-poseidon2 = "=0.5.3"
 bincode = "1.3"
 
-# Tests
 proptest = "1.6.0"
 
 [profile.dev]
@@ -55,13 +51,12 @@ panic = "abort"
 incremental = false
 strip = "symbols"
 
-# Profiling-friendly profile: balances performance with good debug symbols
 [profile.profiling]
 inherits = "release"
 lto = "thin"
 codegen-units = 16
-debug = 2  # Full debug info including line numbers
-strip = false  # Keep symbols for profiler
+debug = "full"
+strip = false
 
 [workspace.package]
 edition = "2021"
@@ -72,13 +67,8 @@ license = "Apache-2.0"
 repository = "https://github.com/LFDT-Nightstream/Nightstream"
 
 [workspace.lints.clippy]
-# Allow older-style format strings (prefer explicit for complex error messages)
 uninlined_format_args = "allow"
-# Allow functions with many arguments (cryptographic functions often need many params)
 too_many_arguments = "allow"
-# Allow range loops with indices (simple for i in 0..D is more performant for fixed-size arrays)
 needless_range_loop = "allow"
-# Allow complex types in cryptographic code (proof systems have inherently complex types)
 type_complexity = "allow"
-# Rust 1.99 Clippy: `chunks_exact(D)` reads as clearly as `as_chunks::<D>()`
 chunks_exact_to_as_chunks = "allow"

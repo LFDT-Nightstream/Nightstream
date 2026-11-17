@@ -94,17 +94,22 @@ Definition replayed (initial : MemoryState) (rows : list Witness) : MemoryState 
 
 Definition validRunb (initial : MemoryState) (rows : list Witness) : bool :=
   forallb satFullb rows && chainb continuityLinks rows &&
-  match replayb initial (eventsForTrace memories rows) with Some _ => true | None => false end.
+  (match replayb initial (eventsForTrace memories rows) with Some _ => true | None => false end) &&
+  forallb (fun w => forallb eventValuesBoundedb (eventsForRow memories w)) rows.
 
 Lemma validRunb_sound : forall initial rows,
   validRunb initial rows = true -> validCircuitRun initial rows (replayed initial rows).
 Proof.
-  intros initial rows H. unfold validRunb in H. apply andb_prop in H as [H Hreplay].
+  intros initial rows H. unfold validRunb in H. apply andb_prop in H as [H Hbounds].
+  apply andb_prop in H as [H Hreplay].
   apply andb_prop in H as [Hsat Hchain].
   split; [ | split; [exact (chainb_sound _ _ Hchain) | ]].
   - apply Forall_forall. intros w Hin. apply satFullb_sound. exact (proj1 (forallb_forall _ _) Hsat w Hin).
-  - unfold replayed. destruct (replayb initial (eventsForTrace memories rows)) eqn:Hrun; [ | discriminate].
-    exact (replayb_sound _ _ _ Hrun).
+  - split.
+    + unfold replayed. destruct (replayb initial (eventsForTrace memories rows)) eqn:Hrun; [ | discriminate].
+      exact (replayb_sound _ _ _ Hrun).
+    + apply Forall_forall. intros w Hin. apply bounded_events_check_sound.
+      exact (proj1 (forallb_forall _ _) Hbounds w Hin).
 Qed.
 
 (* The run's row kinds, as runFragment requires of each row. *)

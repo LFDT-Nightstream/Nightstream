@@ -1,6 +1,3 @@
-//! Suspended import frames: authoritative context RAM, activation boundaries,
-//! and resumption. Capture depth is not an input to these constraints.
-
 use crate::gadgets::push_gated_linear_zero;
 use crate::host_event_bindings::IMPORT_SCHEDULE_COUNT_FACTOR;
 use crate::host_event_layout::HOST_CONTEXT_HALF_FACTOR;
@@ -24,17 +21,13 @@ const RETURN_COUNT_ZERO: ZeroTest = ZeroTest::column(
 
 pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(super::always("host activation lifecycle"), |b| {
-        // A split call owes exactly the next row; no gather, guest instruction,
-        // boundary, or padding may bypass the context save.
         b.push_linear_zero([(COL_HOST_SUSPEND, F::ONE), (COL_HOST_SUSPEND_PENDING_BEFORE, -F::ONE)]);
         b.push_linear_zero([(COL_HOST_SUSPEND_PENDING_AFTER, F::ONE), (COL_HOST_SPLIT_CALL, -F::ONE)]);
-        // Two bounded 16-bit halves uniquely decode a u32 ROM word in F.
         b.push_linear_zero([
             (COL_HOST_IMPORT_SCHEDULE_COUNTS, F::ONE),
             (COL_HOST_INITIAL_COUNT, -F::ONE),
             (COL_HOST_RETURN_COUNT, -F::from_u64(IMPORT_SCHEDULE_COUNT_FACTOR.into())),
         ]);
-        // At most one of these gates is 1 on a row, so each sum is a gate.
         b.push_row(
             [
                 (COL_HOST_CALL_ACTIVE, F::ONE),
@@ -95,7 +88,6 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 COL_GUEST_DEPTH_AFTER,
             ),
         ] {
-            // All three are u32; this also prevents popping below the host frame.
             b.push_linear_zero([(depth, F::ONE), (floor, -F::ONE), (guest, -F::ONE)]);
         }
         b.push_linear_zero([
@@ -144,7 +136,6 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             ],
             [],
         );
-        // Root entry is only possible with no suspended work.
         b.push_row(
             [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
             [(COL_HOST_FRAME_DEPTH_BEFORE, F::ONE)],
@@ -165,8 +156,7 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 (COL_ONE, F::ONE),
             ],
         );
-        // Rocq `ProgramBinding.full_host_context_refs` and `full_host_context_args_depth`:
-        // each RAM word binds two bounded fields.
+        // Rocq `ProgramBinding.full_host_context_refs` and `full_host_context_args_depth`.
         b.push_linear_zero([
             (COL_HOST_CONTEXT_REFS, F::ONE),
             (COL_HOST_CONTEXT_EXPORT, -F::ONE),
@@ -189,7 +179,6 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         ] {
             push_gated_linear_zero(b, COL_HOST_SUSPEND, [(field, F::ONE), (source, -F::ONE)]);
         }
-        // Entry starts its frame above every suspended cell, including args.
         for (target, source) in [
             (COL_LOCALS_FBP_AFTER, COL_HOST_CONTEXT_SP),
             (COL_SP_BEFORE, COL_HOST_CONTEXT_SP),
@@ -238,8 +227,6 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             ],
         );
         push_gated_linear_zero(b, COL_HOST_RESUME, [(COL_ACTIVATION_FINISHED_AFTER, F::ONE)]);
-        // COL_HOST_RESUME_POP is part (unconditionally) of the stack balance
-        // equation so it MUST be 0 for other opcodes
         b.push_row(
             [(COL_ONE, F::ONE), (COL_HOST_RESUME, -F::ONE)],
             [(COL_HOST_RESUME_POP, F::ONE)],
@@ -266,7 +253,6 @@ pub(crate) fn fill_witness(wit: &mut [F], trace: &WasmVmStep) {
     wit[COL_HOST_SUSPEND_PENDING_BEFORE] = flag(before.host_events.suspend_pending);
     wit[COL_HOST_SUSPEND_PENDING_AFTER] = flag(after.host_events.suspend_pending);
     wit[COL_HOST_SUSPEND] = flag(trace.row_kind.is_host_suspend());
-    // Subtraction in the field permits negative-test witnesses; range checks reject them.
     wit[COL_GUEST_DEPTH_BEFORE] = F::from_u64(before.call_stack_depth) - wit[COL_HOST_FRAME_DEPTH_BEFORE];
     wit[COL_GUEST_DEPTH_AFTER] = F::from_u64(after.call_stack_depth) - wit[COL_HOST_FRAME_DEPTH_AFTER];
     wit[COL_HOST_RETURN_COUNT] = F::from_u64(

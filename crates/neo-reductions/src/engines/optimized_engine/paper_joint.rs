@@ -1,6 +1,3 @@
-//! Canonical one-joint PiCCS transcript and proof assembly. Row sources and
-//! optional backends supply arithmetic; Pad opens separately from genuine matrices.
-
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{superneo_bar_block, Fq, KExtensions, Rq, D, F, K};
@@ -214,8 +211,6 @@ pub struct PaperJointOracleInput<'a> {
     pub dims: JointDims,
     pub rows: &'a dyn MatrixRows,
     pub workspace_bytes: usize,
-    /// The sources with norm terms: the first `norm_sources` of the fresh
-    /// sources, then the running sources (`FoldProfile::norm`).
     pub norm_sources: usize,
 }
 
@@ -637,7 +632,6 @@ pub fn prove_with_matrix_rows<'a>(
     )
 }
 
-/// `prove_with_matrix_rows` under `profile`.
 pub fn prove_with_profile<'a>(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,

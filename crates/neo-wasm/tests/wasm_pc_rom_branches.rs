@@ -91,7 +91,6 @@ fn reject_wrong_edge(source: &str, opcode: neo_wasm::WasmOpcode, choice: u32) {
     let witness = neo_wasm::witness_builder::build_witness_vector(&forged).unwrap();
     let mut prefix = run.witnesses[..=index].to_vec();
     prefix[index] = witness.clone();
-    // ROM membership and memory replay alone do not bind the choice to the condition.
     sanity_check_memory_rows(
         build_wasm_relation_layout(),
         &prefix,
@@ -168,7 +167,6 @@ fn br_table_length_is_bound_to_the_program() {
         .unwrap();
     let mut forged = run.trace[index].clone();
     assert_eq!(forged.br_table_len, 2);
-    // Lie about the arm count to make an in-range index take the default.
     forged.br_table_len = 0;
     forged.control_choice = 0;
     forged.state_after.pc = run
@@ -202,8 +200,6 @@ fn empty_br_table_always_uses_default() {
     }
 }
 
-/// Only br_if, if and br_table choose an edge. Elsewhere the control choice is pinned to
-/// zero by the row itself, so a dense ROM's padded keys are never read.
 #[test]
 fn rows_without_a_branch_cannot_choose_an_edge() {
     let run = common::checked_main(

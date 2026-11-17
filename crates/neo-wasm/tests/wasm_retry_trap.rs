@@ -1,6 +1,3 @@
-//! A caller-owned Wasmtime store retains failed rows. A later successful
-//! invocation must not make that failed prefix one valid proof trace.
-
 use futures::executor::block_on;
 use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::{traces_from_wasmtime_steps, WasmOpcode, WasmtimeTraceHandler, WasmtimeTraceRegistry};

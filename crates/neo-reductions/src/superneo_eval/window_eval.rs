@@ -1,6 +1,3 @@
-//! Complete openings and row checks from original matrix windows. Global row
-//! weights and columns stay fixed when local cache storage is released.
-
 use neo_ccs::{SparsePoly, V1_2Evaluations};
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;

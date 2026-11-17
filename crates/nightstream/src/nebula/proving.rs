@@ -1,8 +1,4 @@
-//! The memory prover and the memory verifier of a circuit (SPEC.md
-//! Algorithm 7 and Algorithm 8). The prover runs each segment natively,
-//! proves its invocations, and keeps only the last proof. The proof carries
-//! the final carry, which the final Stage 1 state binds, so the verifier
-//! reads every statement integer from it and the caller never moves a carry.
+//! SPEC.md Algorithm 7 and Algorithm 8.
 
 use std::path::Path;
 
@@ -17,7 +13,6 @@ use super::transcript::Digest;
 use super::{compression, memory_security, terminal_states, Program, Run, Statement, TerminalError};
 use crate::lifecycle::ProofCodecError;
 
-/// The bytes of the 39 carry words at the start of an encoded proof.
 const CARRY_BYTES: usize = 39 * 8;
 
 /// A memory proof: the step proof of every invocation and the final carry.
@@ -28,7 +23,6 @@ pub struct Proof {
 
 #[cfg(test)]
 impl Proof {
-    /// A proof from a step proof that a test made step by step.
     pub(crate) fn from_parts(stage1: crate::Proof, carry: Carry) -> Self {
         Self { stage1, carry }
     }
@@ -268,8 +262,6 @@ impl<A: Application> Verifier<A> {
         Ok(verified(&proof.carry, &program.geometry))
     }
 
-    /// `verify` of a Stage 1 proof that a test made step by step, with the
-    /// statement and the carry that the test gives.
     #[cfg(test)]
     pub(crate) fn verify_parts(
         &self,
@@ -287,7 +279,7 @@ impl<A: Application> Verifier<A> {
         Ok(())
     }
 
-    /// The SPEC.md Algorithm 8 statement of `carry` and its terminal checks.
+    /// SPEC.md Algorithm 8.
     fn terminal(
         &self,
         program: &Program,
@@ -326,8 +318,6 @@ fn carry_bytes(carry: &Carry) -> Vec<u8> {
         .collect()
 }
 
-/// The carry of the first `CARRY_BYTES` bytes and the bytes after them.
-/// Each word must be below `q`.
 fn decode_carry(bytes: &[u8]) -> Result<(Carry, &[u8]), crate::Error> {
     if bytes.len() < CARRY_BYTES {
         return Err(ProofCodecError("memory carry length").into());

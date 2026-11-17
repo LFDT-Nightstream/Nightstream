@@ -58,16 +58,6 @@ Proof.
   - exact (sat_row w localSetCopyRowIndex _ Hall local_set_row_in_full).
 Qed.
 
-Lemma full_local_value_wf : forall (w : Witness),
-  Range.fieldPrime -> FullRelation.satFull w ->
-  wf_val (i32Value (w COL_LOCAL_VALUE)).
-Proof.
-  intros w Hprime Hfull.
-  apply val_case_0.
-  apply WasmValues.spectec_i32_well_formed.
-  exact (Range.full_local_value_u32 w Hprime Hfull).
-Qed.
-
 Theorem full_relation_implies_local_get : forall (w : Witness) (z : state) (x : localidx),
   w COL_SEL_LOCAL_GET = 1 -> FullRelation.satFull w ->
   fun_local z x = i32Value (w COL_LOCAL_VALUE) ->
@@ -113,15 +103,6 @@ Proof.
   circuit_row ([(COL_SEL_LOCAL_SET, 1)],
     [(COL_LOCAL_VALUE_HI, 1); (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat, -1)], ([] : SparseRow)) Hrow.
   eapply active_copy_row; eassumption.
-Qed.
-
-Lemma full_local_i64_value_wf : forall (w : Witness),
-  Range.fieldPrime -> FullRelation.satFull w ->
-  wf_val (i64Value (joinLimbs (w COL_LOCAL_VALUE) (w COL_LOCAL_VALUE_HI))).
-Proof.
-  intros w Hprime Hfull. apply i64_value_wf. apply join_limbs_bound.
-  - exact (Range.full_local_value_u32 w Hprime Hfull).
-  - circuit_range COL_LOCAL_VALUE_HI Hhi. unfold i32Modulus; lia.
 Qed.
 
 Theorem full_relation_implies_i64_local_get : forall (w : Witness) (z : state) (x : localidx),

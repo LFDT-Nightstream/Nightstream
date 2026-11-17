@@ -1,7 +1,3 @@
-//! Akita setup, commitment and opening for one size of the key polynomial.
-//! The setup is a function of Akita's fixed public seed, so it carries no
-//! secret and no caller input.
-
 use std::sync::Arc;
 
 use akita_params::BasisMode;
@@ -24,8 +20,6 @@ pub(crate) struct Prover {
     backend: Arc<CpuBackend<Base, Extension>>,
 }
 
-/// One committed polynomial: its public commitment and the prover's handle,
-/// which holds the polynomial.
 #[derive(Clone)]
 pub(crate) struct Committed {
     commitment: CommittedGroup<Base>,
@@ -49,8 +43,6 @@ impl Prover {
         })
     }
 
-    /// Commit `polynomial` of a proof with `shape`: its evaluation table is
-    /// `prefix`, then zeros. The row of `shape` fixes the profile.
     pub(crate) fn commit(&self, shape: Shape, polynomial: Polynomial, prefix: Vec<Base>) -> Result<Committed, Error> {
         let vars = match polynomial {
             Polynomial::Key => shape.key,
@@ -79,8 +71,6 @@ impl Prover {
         })
     }
 
-    /// The bytes of the commitments of prefixes of Akita's setup that the
-    /// rows of this prover read.
     pub(crate) fn setup_prefixes(&self) -> Result<Vec<u8>, Error> {
         let mut registry = SetupPrefixVerifierRegistry::new(self.setup.expanded.descriptor().setup_seed.clone());
         for slot in self.setup.prefix_slots.verifier_slots() {
@@ -89,10 +79,7 @@ impl Prover {
         bytes_of(&registry)
     }
 
-    /// One proof that each committed polynomial has its value at its point,
-    /// where `point[i]` binds bit `i` of the cell index. The polynomials are
-    /// in the order of `Polynomial`. `session` binds the proof to the
-    /// caller's transcript.
+    /// `point[i]` binds bit `i` of the cell index.
     pub(crate) fn open(&self, openings: [(Committed, &[K], K); 3], session: &[u8]) -> Result<Vec<u8>, Error> {
         let mut handles = Vec::with_capacity(openings.len());
         let mut groups = Vec::with_capacity(openings.len());

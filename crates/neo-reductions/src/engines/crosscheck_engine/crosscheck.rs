@@ -1,9 +1,3 @@
-//! Complete optimized-versus-PaperExact PiCCS comparison.
-//!
-//! Every check is mandatory. The wrapper compares the independent event
-//! traces, challenges, rounds, terminal value, outputs, transcript state, and
-//! versioned proof bytes before it returns the optimized result.
-
 use crate::engines::optimized_engine::{OptimizedStructureCache, PiCcsProof};
 use crate::error::PiCcsError;
 use neo_ajtai::Commitment as Cmt;

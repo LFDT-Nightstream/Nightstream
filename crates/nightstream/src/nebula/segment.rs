@@ -1,8 +1,4 @@
-//! Native execution of one memory segment of an application and the witness
-//! words of its invocations (SPEC.md section 7, segment-level prover input of
-//! decision D3). The segment runs first, so the opening invocation knows the
-//! proposed ops and FS roots. Each step's words satisfy `RowsHold` of
-//! `Lifecycle/Nebula/StepRows.lean` and the application's rows.
+//! SPEC.md section 7; `RowsHold` (`Lifecycle/Nebula/StepRows.lean`).
 
 use neo_math::F;
 use neo_math::K;
@@ -36,15 +32,12 @@ pub enum SegmentError {
     Close,
 }
 
-/// One memory cell: its value and the stamp of its last access.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Cell {
     pub value: u64,
     pub stamp: u64,
 }
 
-/// The application and the constants of a program that every invocation
-/// reads.
 #[derive(Clone, Debug)]
 pub struct Context<A> {
     pub(super) app: A,
@@ -86,13 +79,12 @@ impl<A: Application> Context<A> {
         Carry::start(self.geometry().n, self.program.d_init)
     }
 
-    /// The Stage 1 state words of an application state and a carry.
     pub fn state(&self, state: &A::State, carry: &Carry) -> Digest {
         state_digest(&self.app.words(state), carry)
     }
 }
 
-/// The SPEC.md section 7.5 state digest of application state words and a carry.
+/// SPEC.md section 7.5.
 pub(super) fn state_digest(words: &[u64], carry: &Carry) -> Digest {
     state_words(&field_words(words), &carry.words())
 }
@@ -101,7 +93,7 @@ fn field_words(words: &[u64]) -> Vec<F> {
     words.iter().map(|word| F::from_u64(*word)).collect()
 }
 
-/// The images with every stamp zero (SPEC.md section 7.2): ROM cells, then RAM cells.
+/// SPEC.md section 7.2.
 pub(crate) fn initial_memory(rom: &[u32], ram: &[u32]) -> Vec<Cell> {
     rom.iter()
         .chain(ram)
@@ -112,7 +104,7 @@ pub(crate) fn initial_memory(rom: &[u32], ram: &[u32]) -> Vec<Cell> {
         .collect()
 }
 
-/// `D_init`: the IS root of the images (SPEC.md section 7.4).
+/// SPEC.md section 7.4.
 pub(super) fn initial_root(geometry: &Geometry, rom: &[u32], ram: &[u32]) -> Digest {
     let memory = initial_memory(rom, ram);
     chain_root(Lane::Mem, &plan_digest(geometry), &memory_lanes(geometry, &memory))
@@ -136,33 +128,28 @@ fn memory_lanes(geometry: &Geometry, memory: &[Cell]) -> Vec<Vec<F>> {
         .collect()
 }
 
-/// The value and the timestamp of a tuple as one field word, `v + 2^32·t`
-/// (SPEC.md section 7.1, rule 3 keeps it below `2^63`).
+/// SPEC.md section 7.1, rule 3.
 fn packed(t: u64, v: u64) -> F {
     F::from_u64(v) + F::from_u64(1 << 32) * F::from_u64(t)
 }
 
-/// The SPEC.md section 7.3 fingerprint `g + η1·(v + 2^32·t) − η2`.
+/// SPEC.md section 7.3.
 fn fingerprint(eta: (K, K), t: u64, g: u64, v: u64) -> K {
     K::from(F::from_u64(g)) + eta.0 * K::from(packed(t, v)) - eta.1
 }
 
-/// The factor words of the fingerprint `f(t, g, v)`: the two coordinates of
-/// `f` (Lean `fingerprintWords`).
+/// Lean `fingerprintWords`.
 fn fingerprint_words(eta: (K, K), t: u64, g: u64, v: u64) -> [F; 2] {
     let ([e0, e1], [d0, d1]) = (k_words(eta.0), k_words(eta.1));
     let (g, u) = (F::from_u64(g), packed(t, v));
     [e0 * u + (g - d0), e1 * u - d1]
 }
 
-/// The cross products `prod.c1 · x1` and `prod.c1 · x0` of `prod · x`.
 fn cross_words(prod: K, x0: F, x1: F) -> [F; 2] {
     let [_, p1] = k_words(prod);
     [p1 * x1, p1 * x0]
 }
 
-/// The native result of one step: its records, its state words, and its
-/// private words.
 #[derive(Clone)]
 struct Executed {
     words_in: Vec<F>,
@@ -181,7 +168,6 @@ pub struct Invocation {
     pub(crate) carry: Carry,
 }
 
-/// A proved-ready segment: its invocations and the values after it.
 #[derive(Clone, Debug)]
 pub(crate) struct Segment<S> {
     pub invocations: Vec<Invocation>,
@@ -191,8 +177,7 @@ pub(crate) struct Segment<S> {
 }
 
 impl<A: Application> Context<A> {
-    /// One step: the application's transition, then its active ports in slot
-    /// order, each applied to memory as Lean `access` applies it.
+    /// Lean `access`.
     fn execute(
         &self,
         state: &A::State,
@@ -257,8 +242,6 @@ impl<A: Application> Context<A> {
         Ok((executed, transition.next))
     }
 
-    /// Execute the steps of one segment from `memory`; return the step
-    /// records, the memory after the segment, and the state after it.
     fn execute_steps(
         &self,
         state: &A::State,
@@ -293,8 +276,6 @@ fn set_k(words: &mut [F], start: usize, value: K) {
 }
 
 impl<A: Application> Context<A> {
-    /// Run one segment from a closed carry: execute the `N` steps, compute the
-    /// proposed ops and FS roots, then the witness words of each invocation.
     pub(crate) fn run_segment(
         &self,
         carry: Carry,
@@ -327,8 +308,7 @@ impl<A: Application> Context<A> {
         })
     }
 
-    /// SPEC.md section 7.5 `open` proposals: the ops and FS roots of an executed
-    /// segment.
+    /// SPEC.md section 7.5.
     fn proposal(&self, executed: &[Executed], final_memory: &[Cell]) -> (Digest, Digest) {
         let ops: Vec<Vec<F>> = executed
             .iter()
@@ -344,9 +324,6 @@ impl<A: Application> Context<A> {
         )
     }
 
-    /// The invocations of an executed segment from `carry`, with `proposal` as
-    /// the `open` proposals. It runs no host check, so a conformance test can
-    /// build the invocations of a dishonest segment.
     fn invocations(
         &self,
         carry: Carry,
@@ -382,7 +359,6 @@ impl<A: Application> Context<A> {
             .collect()
     }
 
-    /// The witness words of one invocation and its output carry.
     fn invocation(
         &self,
         input: &Carry,
@@ -418,8 +394,6 @@ impl<A: Application> Context<A> {
         let eta = effective.eta;
         let idx = effective.idx;
         let mut w = vec![F::ZERO; layout.count()];
-        // The start products, the operation slots with their counters and
-        // factor words, and the running read and write products.
         let start = &effective.products;
         for (s, product) in [start.read, start.write, start.initial, start.final_]
             .into_iter()
@@ -461,8 +435,7 @@ impl<A: Application> Context<A> {
             set_bits(&mut w, |k| base(layout.op_rt(k)), slot.rt, geometry.w_ts);
             if !slot.pad {
                 let wt = step.write_stamps[j];
-                // A dishonest record with `rt ≥ wt` has no `W_ts`-bit word
-                // here; O4 rejects it.
+                // SPEC.md row O4.
                 set_bits(
                     &mut w,
                     |k| base(layout.op_diff(k)),
@@ -475,7 +448,6 @@ impl<A: Application> Context<A> {
             set_k(&mut w, layout.ops_products(j, 0), read);
             set_k(&mut w, layout.ops_products(j, 2), write);
         }
-        // Scan slots and the running IS and FS products.
         let mut is_product = effective.products.initial;
         let mut fs_product = effective.products.final_;
         for j in 0..geometry.b_scan {
@@ -496,7 +468,7 @@ impl<A: Application> Context<A> {
             set_k(&mut w, layout.scan_products(j, 0), is_product);
             set_k(&mut w, layout.scan_products(j, 2), fs_product);
         }
-        // SPEC.md section 7.5 step, then close exactly when idx reaches N.
+        // SPEC.md section 7.5.
         let advanced = Carry {
             seen: [
                 chain_link(Lane::Ops, idx as usize, &effective.seen[0], packed[0]),
@@ -528,7 +500,6 @@ impl<A: Application> Context<A> {
         } else {
             advanced
         };
-        // Words.
         w[words::CARRY_IN..words::CARRY_IN + 39].copy_from_slice(&input.words());
         w[words::CARRY_OUT..words::CARRY_OUT + 39].copy_from_slice(&output.words());
         w[words::PROPOSAL..words::PROPOSAL + 4].copy_from_slice(&proposal.0);

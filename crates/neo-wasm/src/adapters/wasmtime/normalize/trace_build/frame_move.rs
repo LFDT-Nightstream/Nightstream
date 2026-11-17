@@ -1,12 +1,7 @@
-//! Emit the rows that copy a slide's or tail call's kept cells (branch-carried
-//! operands, results, or tail-call arguments) down to their new position.
-
 use super::super::host_event_emit::HostEventRowContext;
 use super::super::NormalizedStep;
 use crate::ir::{StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmFrameMoveState, WasmStepState, WasmVmStep};
 
-/// A branch or popping return keeps its edge's static `remaining` operands below the
-/// row's reads and drops `distance` cells under them; it must land at the traced sp.
 pub(super) fn frame_slide(
     current: &NormalizedStep,
     sp_before: u64,
@@ -47,7 +42,6 @@ pub(super) fn frame_slide(
     Ok((cells, state))
 }
 
-/// `cells` are the kept `(lo, hi)` values, bottom-up.
 pub(super) fn emit_frame_move_rows(
     out: &mut Vec<WasmVmStep>,
     ctx: &HostEventRowContext,

@@ -1,5 +1,3 @@
-//! Branches and returns that drop operands slide the kept ones down with move rows.
-
 mod common;
 
 use neo_wasm::{
@@ -151,7 +149,6 @@ fn nested_returns_drop_operands_under_the_results() {
 
 #[test]
 fn activation_returns_capture_only_their_results() {
-    // A clean activation return binds its result count through its static slide.
     for (wat, output) in [
         (main_returning("i32", "i32.const 7 i32.const 9 return"), Some(9)),
         (
@@ -159,7 +156,6 @@ fn activation_returns_capture_only_their_results() {
             Some(9),
         ),
         ("(module (func (export \"main\") i32.const 7 return))".to_string(), None),
-        // A tail call makes the callee the activation's outermost frame.
         (
             "(module (func $f i32.const 7 return) (func (export \"main\") return_call $f))".to_string(),
             None,
@@ -207,7 +203,6 @@ fn a_clean_return_cannot_claim_a_dropped_operand() {
     forged.output_captured = true;
     forged.state_after.output.enabled = true;
     forged.state_after.output.value_lo = 7;
-    // The row is locally consistent; its claimed slide distance is not the return's.
     common::assert_satisfied(
         &neo_wasm::witness_builder::build_witness_vector(&forged).unwrap(),
         "clean return claiming a result",
@@ -243,7 +238,6 @@ fn a_branch_cannot_skip_its_slide() {
     let mut forged = run.trace[index].clone();
     forged.state_after.frame_move = WasmFrameMoveState::ZERO;
     forged.state_after.sp = forged.state_before.sp;
-    // The row is locally consistent; only the slide ROM rejects it.
     common::assert_satisfied(
         &neo_wasm::witness_builder::build_witness_vector(&forged).unwrap(),
         "branch row with no slide",

@@ -1,13 +1,7 @@
-//! Sparse R1CS value type for the batched WASM relation with its operation constraints.
-//! Copied from `neo-fold-clean` (`frontends::r1cs_f_prime::SparseR1cs` and the
-//! shape errors of `frontends::direct_ccs::FrontendError`) so this crate does not
-//! depend on that folding stack.
-
 use neo_ccs::CcsMatrix;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-/// Sparse R1CS shape for large app circuits.
 #[derive(Clone, Debug)]
 pub struct SparseR1cs {
     pub a: CcsMatrix<F>,

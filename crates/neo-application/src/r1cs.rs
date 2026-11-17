@@ -1,5 +1,3 @@
-//! Tagged R1CS construction with authoritative row and gadget catalogs.
-
 use std::borrow::Cow;
 
 use neo_ccs::{sparse_r1cs_to_ccs, CcsMatrix, CcsStructure, CscMat};
@@ -369,8 +367,6 @@ impl<Owner: Clone> TaggedR1csBuilder<'_, Owner> {
     }
 
     /// Reborrow the underlying builder with a replacement tag.
-    ///
-    /// The new tag does not contain or otherwise accumulate this view's tag.
     pub fn tagged(&mut self, tag: ConstraintTag<Owner>) -> TaggedR1csBuilder<'_, Owner> {
         TaggedR1csBuilder {
             inner: &mut *self.inner,
@@ -379,9 +375,6 @@ impl<Owner: Clone> TaggedR1csBuilder<'_, Owner> {
     }
 
     /// Emit a nested row family under a replacement tag.
-    ///
-    /// The nested tag does not accumulate this view's tag, and this view's tag
-    /// is unchanged when the closure returns.
     pub fn with_tag<R>(
         &mut self,
         tag: ConstraintTag<Owner>,

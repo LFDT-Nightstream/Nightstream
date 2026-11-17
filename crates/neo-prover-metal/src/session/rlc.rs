@@ -1,16 +1,3 @@
-//! Device Π_RLC witness mix `Σ ρ_i·Z_i`, with or without its base-2 digit
-//! split.
-//!
-//! Inputs are signed-unit column masks and rotation matrices with small
-//! entries. `split_rlc_witnesses` keeps the parent on the device and returns
-//! only its digit planes; the result equals the host
-//! `split_b_matrix_k_with_nonzero_flags(rlc_mix_witnesses(..), k, 2)`, except
-//! that an out-of-range parent is an error without the entry index.
-//! `mix_rlc_witnesses` returns the parent itself, equal to the host
-//! `rlc_mix_witnesses`; it also takes a source outside {-1, 0, 1} with weight
-//! 1 (option B's light accumulator, Lean `lightChallenge`), which the host
-//! adds.
-
 use std::{mem::size_of, sync::atomic::Ordering};
 
 use neo_ccs::Mat;
@@ -27,7 +14,6 @@ type Command = objc2::rc::Retained<objc2::runtime::ProtocolObject<dyn MTLCommand
 const CHILDREN_PER_THREAD: usize = 14;
 
 impl MetalSession {
-    /// `Σ ρ_i·Z_i` as a dense matrix.
     pub(crate) fn mix_rlc_witnesses(&self, rhos: &[Mat<F>], witnesses: &[&Mat<F>]) -> Result<Mat<F>, MetalError> {
         let columns = witnesses
             .first()
@@ -92,10 +78,6 @@ impl MetalSession {
         Ok(Mat::from_row_major(D, columns, parent))
     }
 
-    /// Encode the mix of `masks` (planar positive and negative column masks
-    /// of each source) under `rho_entries` into a new command buffer; the
-    /// caller finishes it. Returns the command, the parent buffer and the
-    /// inputs that must live until the command finishes.
     fn encode_rlc_mix(
         &self,
         rho_entries: &[i8],
@@ -224,8 +206,6 @@ impl MetalSession {
     }
 }
 
-/// The planar positive and negative lane masks of each column of a witness
-/// with entries in {-1, 0, 1}, or `None` for any other entry.
 fn signed_unit_masks(witness: &Mat<F>) -> Option<(Vec<u64>, Vec<u64>)> {
     let mut positive = vec![0u64; witness.cols()];
     let mut negative = vec![0u64; witness.cols()];

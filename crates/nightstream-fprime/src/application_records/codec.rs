@@ -1,6 +1,3 @@
-//! Streams exact records and rebuilds private indices on import. Artifact
-//! framing and trust in saved bindings belong to the enclosing package.
-
 use std::io::{Read, Write};
 
 use super::{

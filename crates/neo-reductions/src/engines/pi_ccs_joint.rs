@@ -1,8 +1,3 @@
-//! Neutral contract data for the SuperNeo v1.2 PiCCS protocol.
-//!
-//! This module owns dimensions, tags, and audit-trace types. It does not own
-//! transcript execution, polynomial evaluation, SumCheck, or proof assembly.
-
 use neo_ccs::crypto::poseidon2::WIDTH;
 use neo_ccs::CcsStructure;
 use neo_math::{F, K};

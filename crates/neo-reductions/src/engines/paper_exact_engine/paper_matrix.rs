@@ -1,9 +1,3 @@
-//! Literal expansion of verifier-owned CCS matrix descriptions.
-//!
-//! Compact descriptors are public storage formats. This module expands them
-//! from their scalar parameters. It does not call their production entry
-//! evaluators.
-
 use neo_ccs::CcsMatrix;
 use p3_field::{Field, PrimeCharacteristicRing};
 

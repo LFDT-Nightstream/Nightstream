@@ -1,5 +1,3 @@
-//! The normal CPU PiCCS evaluator over actual witnesses and compact matrices.
-
 use neo_ccs::{CcsStructure, CcsWitness, Mat};
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;

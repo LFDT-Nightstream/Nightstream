@@ -1,15 +1,8 @@
-//! Event-bound trace across batches: a trace containing export entry events,
-//! import events (multi-block, mid-args groups), and export exit events,
-//! checked against the verifier's initial state and the claimed transcript;
-//! per-row CCS and native-checker coverage lives in the other bindings test files.
-
 mod common;
 
 use common::host_event_fixture::{expected_transcript, host_event_lifecycle_setup, HostEventLifecycleSetup};
 use p3_field::PrimeCharacteristicRing;
 
-/// Every batch (including the padded tail) of the bindings trace satisfies
-/// the batched R1CS; on failure the diagnostics name the step and tag.
 #[test]
 fn host_event_trace_satisfies_batched_ccs() {
     let setup = host_event_lifecycle_setup();
@@ -87,9 +80,6 @@ fn host_event_folding_proof_covers_import_and_export_events() {
 
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let entry_pc = common::entry_pc_for_function_ref(&artifacts, u64::from(run_fref));
-    // The anchor is per-program (mode, entry pc, entry schedule) — claim
-    // inputs are NOT anchored; they are bound by the final-chain transcript
-    // check below.
     let anchor = neo_wasm::host_event_top_level_initial_state(
         &artifacts.tables,
         entry_pc,
@@ -98,8 +88,6 @@ fn host_event_folding_proof_covers_import_and_export_events() {
         Default::default(),
     )
     .expect("bindings anchor");
-    // The verifier's constructed initial state must be exactly the trace's
-    // opening boundary.
     assert_eq!(
         anchor, trace[0].state_before,
         "verifier initial state must match the trace's first before-state"
@@ -116,12 +104,6 @@ fn host_event_folding_proof_covers_import_and_export_events() {
     .expect("bindings anchor");
     assert_eq!(initial_state.comm_chain, initial_comm_chain.canonical_u64());
 
-    // batch_size 8 forces staged blocks, gather runs, and the entry/exit
-    // boundaries across batch edges, so the carried state must hold the
-    // whole event state (chain, absorb, and schedule) correctly.
-    // Check the claim rather than trusting the trace shape: some batch
-    // boundary must fall mid-permutation and some must carry live schedule
-    // state, otherwise this test lost its cross-batch coverage.
     let batch_size = 8;
     let boundary_states = (batch_size..trace.len())
         .step_by(batch_size)
@@ -142,8 +124,6 @@ fn host_event_folding_proof_covers_import_and_export_events() {
 
     let final_state = common::final_state(&trace);
 
-    // Transcript binding: the final chain equals the fold of the claimed
-    // transcript — export entry, the two import calls, and the export exit.
     let fold =
         |transcript: &[_]| neo_wasm::comm_chain::fold_event_blocks(Default::default(), transcript).canonical_u64();
     let expected = expected_transcript(&bindings, run_fref);

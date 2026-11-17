@@ -1,9 +1,4 @@
 //! Native and R1CS forms of the shared eight-word event commitment.
-//!
-//! This module owns the four-lane chaining state, block compression, and
-//! feed-forward relation. The underlying permutation belongs to
-//! [`crate::poseidon2`]; event encoding and trace scheduling belong to the
-//! consuming application.
 
 use std::ops::Range;
 

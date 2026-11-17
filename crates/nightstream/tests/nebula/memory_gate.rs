@@ -1,9 +1,5 @@
-//! The memory gate against Lean (`Spec.Nebula.SegmentGate`). Lean emits the
-//! bound of rule 6 of SPEC.md section 7.1, the geometry of each fixed WASM
-//! size with `m_mem` and the bits of its segments
-//! (`WasmSize.segmentBits_eq`), and its decisions `Geometry.Valid` and
-//! `Geometry.Secure` on geometries that break one rule each. Rust keeps its
-//! own code for each, and must give the same values.
+//! SPEC.md section 7.1, rule 6; Lean `Spec.Nebula.SegmentGate`,
+//! `WasmSize.segmentBits_eq`, `Geometry.Valid`, and `Geometry.Secure`.
 
 use serde_json::Value;
 
@@ -90,11 +86,7 @@ fn is_valid_and_is_secure_are_the_lean_decisions() {
     }
 }
 
-/// A memory proof has at most `N · S_max` steps (SPEC.md Algorithm 8). The
-/// final proof of a geometry with at most `cap + 1 = 65` of them carries slot
-/// 0 alone (Algorithm 9), and each Lean WASM size is such a geometry
-/// (`WasmSize.steps_le_light`). At 66 steps a proof reaches a refresh fold,
-/// and the final proof carries both slots.
+/// SPEC.md Algorithms 8 and 9; Lean `WasmSize.steps_le_light`.
 #[test]
 fn a_geometry_whose_proofs_stay_light_compresses_slot_zero_alone() {
     let lean = lean();

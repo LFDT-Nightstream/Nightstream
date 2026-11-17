@@ -1,6 +1,3 @@
-//! Immutable application rows and exact recipe syntax. Append ingestion owns the
-//! snapshot; file paths and mutable handles never cross the package boundary.
-
 use std::{fmt, ops::ControlFlow};
 
 use neo_math::Fq;
@@ -382,8 +379,6 @@ impl ApplicationRecords {
         Ok(ControlFlow::Continue(()))
     }
 
-    /// A walk over the rows and recipes for callers that visit them in
-    /// ascending order.
     pub fn walk(&self) -> ApplicationWalk<'_> {
         ApplicationWalk {
             records: self,
@@ -393,9 +388,6 @@ impl ApplicationRecords {
         }
     }
 
-    /// The first row whose sides under `value` have `A * B != C`, or the
-    /// first error, both in row order. Ranges of rows run on all cores, each
-    /// range with its own walk.
     pub fn first_unsatisfied_row<E: From<PackageError> + Send>(
         &self,
         value: impl Fn(usize) -> Result<u64, E> + Sync,
@@ -457,9 +449,6 @@ impl ApplicationRecords {
     }
 }
 
-/// Reads each record file through one bounded window, so a walk in
-/// ascending row or recipe order reads each window one time, not each row.
-/// Any order gives the same values.
 pub struct ApplicationWalk<'a> {
     records: &'a ApplicationRecords,
     data: Window<'a>,
@@ -476,9 +465,6 @@ impl ApplicationWalk<'_> {
         index(self.recipes.word(word(entry)?)?)
     }
 
-    /// The header of `row`, with its terms in form order in `terms`
-    /// (`ApplicationRecords::row_header` and `ApplicationRecords::visit_terms`
-    /// in one read).
     pub fn row(&mut self, row: usize, terms: &mut Vec<ApplicationTerm>) -> Result<ApplicationRowHeader, PackageError> {
         if row >= self.records.row_count {
             return Err(PackageError::Input("application row is out of range"));
@@ -513,8 +499,6 @@ impl ApplicationWalk<'_> {
         Ok(header)
     }
 
-    /// The row that `recipe` generates, with its nodes in `nodes`
-    /// (`ApplicationRecords::visit_recipe_nodes` in one read).
     pub fn recipe(&mut self, recipe: usize, nodes: &mut Vec<ApplicationRecipeNode>) -> Result<usize, PackageError> {
         if recipe >= self.records.recipe_count {
             return Err(PackageError::Input("application recipe is out of range"));
@@ -560,7 +544,6 @@ impl ApplicationWalk<'_> {
         Ok(row)
     }
 
-    /// The A, B and C sides of `row` under `value`.
     pub fn evaluate_row<E: From<PackageError>>(
         &mut self,
         row: usize,

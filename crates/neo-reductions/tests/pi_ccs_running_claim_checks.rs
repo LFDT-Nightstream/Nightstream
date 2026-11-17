@@ -1,7 +1,3 @@
-//! The PiCCS engine checks every running claim before its transcript: the
-//! commitment payload must match its declared shape, and auxiliary lane
-//! commitments are rejected until a reduction binds them.
-
 use neo_ajtai::{commit_row_major, setup, Commitment};
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, LaneCommitments, Mat, SparsePoly};
 use neo_math::{D, F, K};
@@ -30,7 +26,9 @@ fn transcript() -> Poseidon2Transcript {
 
 fn fixture() -> Fixture {
     let structure = CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).unwrap();
-    let params = NeoParams::nightstream_p64_k14().with_lambda(115).unwrap();
+    let params = NeoParams::nightstream_p64_k14()
+        .with_certified_lambda(115)
+        .unwrap();
     let mut rng = ChaCha8Rng::seed_from_u64(0x0072_756e_6e69_6e67);
     let committer = setup(&mut rng, D, params.kappa() as usize, 1).unwrap();
     let zero = Mat::zero(D, 1, F::ZERO);

@@ -43,13 +43,16 @@ value.
 
 - If our code needs a comment to be clear, change the code.
 - Keep only these comments, each as short as possible:
+  - a license header or a design credit;
   - a citation of a `SPEC.md` section or algorithm, a Lean name or file,
     `SECURITY_MODEL.md`, `decisions/`, or a paper;
   - a fact about a dependency, platform, or protocol that we cannot change;
-  - `// SAFETY:` on `unsafe`, and a comment that a lint or check script
-    needs, for example `-- fixed-size:`;
+  - `// SAFETY:` on `unsafe`, and a comment that a lint, a check script, or
+    a project document needs, for example `-- fixed-size:`, a Lean leaf
+    audit packet, or the phase list of `validate.sh`;
   - a doc comment on the public API of `nightstream` or `neo-wasm`;
-  - a suppression of a style-only lint.
+  - a lint suppression that a dependency forces, or whose lint is faulty,
+    pedantic, or style-only.
 - Do not edit a generated file. Change its generator.
 - Give this list to pstack `/no-comments` as its keep list.
 

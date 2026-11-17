@@ -105,7 +105,7 @@ jobs:
     - name: Build selected Rust tests
       run: bash scripts/ci_rust_tests.sh build
 
-    - name: Run selected Rust tests with four workers
+    - name: Run selected Rust tests with four workers and build the shipped tests
       run: bash scripts/ci_rust_tests.sh test
 
     - name: Run conformance coordinator tests

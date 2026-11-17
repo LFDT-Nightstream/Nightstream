@@ -420,14 +420,34 @@ fn a_final_proof_has_one_encoding_and_a_circuit_and_depths_in_range() {
         prover.verify_final(key, envelope.iteration, envelope.z0, envelope.current, &deep),
         Err(BoundedDepthError::Slot { slot: 0, .. })
     ));
-    // The circuits are 1 and 2.
+    // The circuits are 1 and 2. The encoder refuses each proof that the
+    // decoder refuses, so each encoding decodes.
     let mut third = proof.clone();
     third.steps.as_mut().unwrap().pc = 3;
     assert!(matches!(
         prover.verify_final(key, envelope.iteration, envelope.z0, envelope.current, &third),
         Err(BoundedDepthError::Statement(_))
     ));
-    assert!(through_bytes(&third).is_none(), "circuit 3 decodes");
+    assert!(third.to_bytes().is_err(), "circuit 3 encodes");
+    let mut tagged = bytes.clone();
+    tagged[16..24].copy_from_slice(&3u64.to_le_bytes());
+    assert!(FinalProof::from_bytes(&tagged).is_err(), "circuit 3 decodes");
+    let mut unknown = proof.clone();
+    unknown.steps.as_mut().unwrap().pc = 0;
+    assert!(unknown.to_bytes().is_err(), "circuit 0 with steps encodes");
+    let mut far = proof.clone();
+    far.steps.as_mut().unwrap().slots[1].1 = F::ORDER_U64;
+    assert!(far.to_bytes().is_err(), "a depth of q encodes");
+    let mut late = proof.clone();
+    late.iteration = F::ORDER_U64;
+    assert!(late.to_bytes().is_err(), "an iteration of q encodes");
+    let moved = FinalProof {
+        iteration: 1,
+        z0: envelope.z0,
+        current: envelope.z0,
+        steps: None,
+    };
+    assert!(moved.to_bytes().is_err(), "zero steps at iteration 1 encode");
 
     // A length above the bytes that follow it decodes nothing.
     let argument = &proof.steps.as_ref().unwrap().argument;

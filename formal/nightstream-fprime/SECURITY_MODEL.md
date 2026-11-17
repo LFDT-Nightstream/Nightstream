@@ -1064,7 +1064,8 @@ not change terminal source checks.
      at most `cap + 1` steps has a proof in the light mode
      (`Export.BoundedDepth.RunCompleteness.light_run_complete`,
      `Export.BoundedDepth.FinalVerifier.checks_light`), and the memory
-     verifier accepts no longer run of a WASM size. `[HN-A1]` for the
+     verifier accepts no longer run of a WASM size
+     (`Export.BoundedDepth.NebulaCompleteness.memory_light_complete`). `[HN-A1]` for the
      refresh fold and its knowledge error stay premises of the circuits that
      keep both slots (trust item 3).
    - *The compression key.* The verifier's key is the key of `SPEC.md`

@@ -573,12 +573,23 @@ impl FinalProof {
     /// carries, the fresh claim without its public input, the Π_CCS rounds
     /// and the argument. Field words are below the modulus, and each byte
     /// string of Akita and the rounds of each sum-check follow their count.
+    /// It refuses each proof that `from_bytes` would refuse, so each encoding
+    /// decodes.
     pub(crate) fn to_bytes(&self) -> Result<Vec<u8>, ProofCodecError> {
-        let light = match self.steps.as_ref().map(|steps| (steps.slots.len(), steps.pc)) {
-            None | Some((2, _)) => false,
-            Some((1, 1)) => true,
-            Some((1, _)) => return Err(ProofCodecError("a proof of slot 0 alone has pc = 1")),
-            Some(_) => return Err(ProofCodecError("slot count")),
+        if self.iteration >= F::ORDER_U64 {
+            return Err(ProofCodecError("iteration word"));
+        }
+        let light = match &self.steps {
+            None if self.iteration != 0 || self.z0 != self.current => {
+                return Err(ProofCodecError("an initial proof starts at its initial state"))
+            }
+            None => false,
+            Some(steps) => match (steps.slots.len(), steps.pc) {
+                (2, 1 | 2) => false,
+                (1, 1) => true,
+                (1 | 2, _) => return Err(ProofCodecError("program counter")),
+                _ => return Err(ProofCodecError("slot count")),
+            },
         };
         let mut output = Writer(if light { LIGHT_MAGIC } else { MAGIC }.to_vec());
         output.word(self.steps.as_ref().map_or(0, |steps| steps.pc));
@@ -589,6 +600,9 @@ impl FinalProof {
             return Ok(output.0);
         };
         for (claim, depth) in &steps.slots {
+            if *depth >= F::ORDER_U64 {
+                return Err(ProofCodecError("slot depth word"));
+            }
             output.word(*depth);
             output.claim(claim, &SHAPE)?;
         }

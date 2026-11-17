@@ -1,6 +1,3 @@
-//! Counts constructed WASM rows and the change caused by one more trace row.
-//! Fixed memory geometry widths stay unchanged between the two samples.
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::num::NonZeroUsize;

@@ -1,5 +1,3 @@
-//! Host census of one matrix's geometric runs for the opening forms.
-
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use neo_math::D;

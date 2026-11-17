@@ -1,5 +1,3 @@
-//! Linear expressions for application R1CS construction.
-
 use crate::ColumnId;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;

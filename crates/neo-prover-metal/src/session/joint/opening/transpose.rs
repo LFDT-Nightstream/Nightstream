@@ -1,5 +1,3 @@
-//! Transpose compact row-block references without expanding their coefficients.
-
 use neo_math::D;
 use neo_reductions::superneo_eval::{SuperneoCompactRowOffsets, SuperneoMatrixCache};
 

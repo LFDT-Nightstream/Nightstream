@@ -1,5 +1,3 @@
-//! Operations over one cached SuperNeo matrix.
-
 use super::*;
 
 impl SuperneoMatrixCache {

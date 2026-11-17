@@ -1,14 +1,7 @@
-//! Host-event state shared with the WASM relation.
-//!
-//! This region owns the carried transcript, event schedule, and row-level
-//! interface columns that the base VM constrains or consumes. Poseidon and
-//! gather scratch advice remains private to `ccs::host_event_chain`.
-
 use crate::host_event_bindings::IMPORT_SCHEDULE_COUNT_BITS;
 use neo_application::define_column_region;
 
-// Rocq `ProgramBinding.full_host_context_refs` and `full_host_context_args_depth`:
-// each packed context word holds two bounded halves.
+// Rocq `ProgramBinding.full_host_context_refs` and `full_host_context_args_depth`.
 pub(crate) const HOST_CONTEXT_HALF_BITS: u8 = 16;
 pub(crate) const HOST_CONTEXT_HALF_FACTOR: u32 = 1 << HOST_CONTEXT_HALF_BITS;
 
@@ -70,7 +63,6 @@ define_column_region! {
         COL_EVBUF_AFTER: [Field; 8] => "host-event block buffer after this row",
         COL_GATHER_ACTIVE: Boolean => "row staging one expanded event block into the absorb buffer",
         COL_HOST_CALL_ACTIVE: Boolean => "non-trapping host-import call row",
-        // Host-event schedule carry and the per-row verifier-owned ROM interface.
         COL_HOST_EVENTS_REMAINING_BEFORE: Field => "host events still owed in the current phase, before this row",
         COL_HOST_EVENTS_REMAINING_AFTER: Field => "host events still owed in the current phase, after this row",
         COL_HOST_EVENTS_REMAINING_BEFORE_IS_ZERO: Boolean => "zero-test flag for the owed host events before this row",

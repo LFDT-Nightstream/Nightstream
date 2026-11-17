@@ -1,9 +1,3 @@
-//! Both step circuits accept step 0 of the Poseidon2 hash chain with a zero
-//! fold of the default slot (the zero proof that today's base step uses):
-//! every row of the circuit's relation holds on the witness that the
-//! package's program fills, on the source columns and through the slot
-//! layout.
-
 mod bounded_depth_support;
 
 use bounded_depth_support::{assert_every_row_holds, canonical, packages, StepZero};

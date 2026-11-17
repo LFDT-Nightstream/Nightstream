@@ -1,6 +1,3 @@
-//! Owns call entry, return-context RAM, frame bases, local initialization,
-//! frame moves for returns and tail calls, and host-import attribution.
-
 use super::super::gadgets::push_gated_linear_zero;
 use super::super::ir::{FUNCTION_CALL_METADATA_GUEST_FACTOR, FUNCTION_CALL_METADATA_RESULT_FACTOR};
 use super::super::isa::WasmOpcode;
@@ -46,10 +43,6 @@ pub(crate) const FRAME_MOVE_REMAINING_AFTER_ZERO_TEST: ZeroTest = ZeroTest::colu
     COL_FRAME_MOVE_REMAINING_AFTER_IS_ZERO,
 );
 
-/// Emit every call/frame row the wasm VM needs in a single place. Ordering
-/// inside follows the natural lifecycle of a call: row-kind classification →
-/// aux-row shape → local zeroing and frame moves → return-pc restoration →
-/// frame transitions → dynamic call-arity lookups.
 pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(always("function call metadata"), |b| {
         b.push_linear_zero([
@@ -81,12 +74,6 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     });
 
     b.with_tag(always("padding row state preservation"), |b| {
-        // Padding rows are synthetic state-preserving placeholders used
-        // to round a trace up to a multiple of the F'-shell batch size.
-        // Force every state column the cross-step links care about to
-        // satisfy `_after == _before`, so a padding row is a true fixed
-        // point for the chain. pc/sp are already pinned via the shared
-        // "non-program row shape" tag below.
         let padding_gate = COL_PADDING_ACTIVE;
         push_gated_linear_zero(
             b,
@@ -135,8 +122,6 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     push_simple_output_constraints(b);
 
     b.with_tag(always("non-program row shape"), |b| {
-        // Aux rows keep pc fixed. Padding rows read and write nothing;
-        // frame-move rows copy one cell each.
         let aux_row_gate = [
             (COL_HOST_SUSPEND, F::ONE),
             (COL_FRAME_MOVE_ACTIVE_BEFORE, F::ONE),
@@ -165,12 +150,7 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     });
 
     b.with_tag(always("activation completion"), |b| {
-        // Entry and resume clear activation completion. Other rows preserve
-        // the latch; program rows cannot execute while it is set.
         push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_ACTIVATION_FINISHED_AFTER, F::ONE)]);
-        // Every transition that finishes an activation keeps the dense PC's
-        // one-past value. Return-like and terminal edges do not read the
-        // static PC ROM, so this row is their authoritative final-PC binding.
         b.push_row(
             [
                 (COL_ACTIVATION_FINISHED_AFTER, F::ONE),
@@ -180,7 +160,6 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [(COL_PC_AFTER, F::ONE), (COL_PC_BEFORE, -F::ONE), (COL_ONE, -F::ONE)],
             [],
         );
-        // Root entry requires a finished turn; nested entry requires suspension.
         b.push_row(
             [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
             [(COL_ONE, F::ONE), (COL_ACTIVATION_FINISHED_BEFORE, -F::ONE)],
@@ -189,9 +168,6 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     });
 
     b.with_tag(always("turn boundary row"), |b| {
-        // Root entry requires empty operand and call stacks and starts a
-        // fresh frame at the stack bottom. Other state-machine constraints
-        // require spent event schedules.
         b.push_row(
             [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
             [(COL_SP_BEFORE, F::ONE)],
@@ -245,9 +221,6 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
 fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(always("simple output carry"), |b| {
-        // A disabled output has no payload. Bind both sides so an invalid
-        // initial state cannot enter and a terminal row cannot export free
-        // payload words after the carry gates turn off.
         for (enabled, value) in [
             (COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE),
             (COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE),
@@ -261,7 +234,6 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE),
             (COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE),
         ] {
-            // Activation completion and boundary rows own output transitions.
             b.push_row(
                 [
                     (COL_ONE, F::ONE),
@@ -272,8 +244,6 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 [(after, F::ONE), (before, -F::ONE)],
                 [],
             );
-            // Carry captured output until a boundary. A resultless boundary
-            // preserves the already-zero state.
             b.push_row(
                 [
                     (COL_OUTPUT_ENABLED_BEFORE, F::ONE),
@@ -285,7 +255,6 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             );
         }
 
-        // Capture raises the flag; a boundary clears it only when set.
         b.push_row(
             [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_RESUME, F::ONE)],
             [(COL_OUTPUT_ENABLED_BEFORE, F::ONE)],
@@ -295,7 +264,6 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 (COL_OUTPUT_ENABLED_AFTER, -F::ONE),
             ],
         );
-        // The re-armed output is zeroed.
         push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_OUTPUT_VALUE_LO_AFTER, F::ONE)]);
         push_gated_linear_zero(b, COL_TURN_BOUNDARY, [(COL_OUTPUT_VALUE_HI_AFTER, F::ONE)]);
         b.push_row(
@@ -308,10 +276,6 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [(COL_OUTPUT_ENABLED_BEFORE, F::ONE)],
             [],
         );
-        // A clean activation return captures exactly its function's results:
-        // the frame above fbp less the return's static slide distance. It drops
-        // its whole frame. The boundary term cancels the activation-finished
-        // latch reset between turns.
         b.push_row(
             clean_activation_return_terms(),
             [
@@ -355,7 +319,6 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     });
 }
 
-/// One exactly on a row that cleanly finishes the current activation.
 fn clean_activation_return_terms() -> [(usize, F); 5] {
     [
         (COL_ACTIVATION_FINISHED_AFTER, F::ONE),
@@ -372,10 +335,6 @@ fn push_dynamic_call_stack_arity_constraints(b: &mut WasmTaggedR1csBuilder<'_>) 
     let return_call = selector_col(WasmOpcode::ReturnCall).unwrap();
     let return_call_indirect = selector_col(WasmOpcode::ReturnCallIndirect).unwrap();
 
-    // Call rows read nothing for direct calls, or only the checked function
-    // reference for indirect calls. Guest args stay in place as
-    // the callee's params; host args are read by gather rows and accounted
-    // for in the global sp identity.
     b.push_row(
         [
             (call_selector, F::ONE),
@@ -390,7 +349,6 @@ fn push_dynamic_call_stack_arity_constraints(b: &mut WasmTaggedR1csBuilder<'_>) 
         ],
         [],
     );
-    // Invoke the function reference its resolve step checked, from the stack top.
     b.push_row(
         [(call_indirect, F::ONE), (return_call_indirect, F::ONE)],
         [(COL_FUNCTION_REF, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
@@ -406,8 +364,6 @@ fn push_dynamic_call_stack_arity_constraints(b: &mut WasmTaggedR1csBuilder<'_>) 
         [],
     );
 
-    // Call rows never write: guest results land on the matching Return/End,
-    // and host results land on gather rows.
     b.push_row(
         [
             (call_selector, F::ONE),
@@ -420,8 +376,6 @@ fn push_dynamic_call_stack_arity_constraints(b: &mut WasmTaggedR1csBuilder<'_>) 
     );
 }
 
-/// Call-like rows minus guest entries. Supported tail calls are guest-only, so
-/// they cancel and only ordinary host calls remain.
 pub(super) fn host_call_gate_terms() -> [(usize, F); 5] {
     [
         (selector_col(WasmOpcode::Call).unwrap(), F::ONE),
@@ -433,8 +387,6 @@ pub(super) fn host_call_gate_terms() -> [(usize, F); 5] {
 }
 
 fn push_host_call_attribution_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    // All host calls fall through arithmetically;
-    // guest calls bind their next PC through the function-entry ROM.
     b.push_row(
         [
             (selector_col(WasmOpcode::CallIndirect).unwrap(), F::ONE),
@@ -449,10 +401,6 @@ fn push_host_call_attribution_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         [(COL_PC_AFTER, F::ONE), (COL_PC_BEFORE, -F::ONE), (COL_ONE, -F::ONE)],
     );
 
-    // Callee attribution carry: a host call latches the (ROM/table-bound)
-    // callee fref; every other row — program, aux, padding — preserves it.
-    // Consumers (the event absorb) read it only on rows of the event that
-    // set it, so the stale value between events is inert.
     b.push_row(
         host_call_gate_terms(),
         [(COL_HOST_CALLEE_FREF_AFTER, F::ONE), (COL_FUNCTION_REF, -F::ONE)],
@@ -466,8 +414,6 @@ fn push_host_call_attribution_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
             (selector_col(WasmOpcode::ReturnCallIndirect).unwrap(), -F::ONE),
             (COL_GUEST_ENTRY_ACTIVE, F::ONE),
-            // ...and host-event boundaries repoint attribution to the current
-            // or next turn's export.
             (COL_HOST_EVENT_EXIT_LATCH, -F::ONE),
             (COL_TURN_BOUNDARY, -F::ONE),
             (COL_HOST_RESUME, -F::ONE),
@@ -516,8 +462,6 @@ fn push_guest_call_flag_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 fn push_local_zero_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let zero = COL_LOCAL_ZERO_ACTIVE_BEFORE;
     LOCAL_ZERO_REMAINING_AFTER_ZERO_TEST.push_constraints(b);
-    // Zeroing waits for a pending frame move: tail-call arguments must land
-    // before the zero pushes can overwrite their source cells.
     b.push_row(
         [(COL_ONE, F::ONE), (COL_LOCAL_ZERO_REMAINING_AFTER_IS_ZERO, -F::ONE)],
         [(COL_ONE, F::ONE), (COL_FRAME_MOVE_ACTIVE_AFTER, -F::ONE)],
@@ -532,7 +476,6 @@ fn push_local_zero_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_ONE, -F::ONE),
         ],
     );
-    // Each row pushes the next declared local as a zero.
     push_gated_linear_zero(
         b,
         zero,
@@ -540,7 +483,6 @@ fn push_local_zero_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     );
     push_gated_linear_zero(b, zero, [(COL_STACK_WRITE0_VALUE_LO, F::ONE)]);
     push_gated_linear_zero(b, zero, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
-    // Only a guest call or turn boundary may seed the verifier-bound count.
     b.push_row(
         [
             (COL_ONE, F::ONE),
@@ -565,15 +507,9 @@ fn push_local_zero_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     );
 }
 
-/// A return moves the callee's results down to its frame base, and a tail
-/// call moves its arguments down to the replaced frame's base. The seeding
-/// row lowers sp to the moved region's end; each move row then copies cell
-/// `sp - remaining + distance` to `sp - remaining`. Copies run bottom-up, so
-/// overlapping regions are safe.
 fn push_frame_move_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let slide = COL_FRAME_SLIDE_ACTIVE;
     let moving = COL_FRAME_MOVE_ACTIVE_BEFORE;
-    // Guest entries that save no return context are tail calls.
     let tail = [(COL_GUEST_ENTRY_ACTIVE, F::ONE), (COL_CALL_STACK_PUSH_PRESENT, -F::ONE)];
     let not_seeding = [
         (COL_ONE, F::ONE),
@@ -589,8 +525,6 @@ fn push_frame_move_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         (COL_ONE, -F::ONE),
     ]);
 
-    // Branches and popping returns slide: the taken edge's static countdown and
-    // distance are ROM reads into the move registers, and sp drops by the distance.
     b.push_linear_zero([
         (slide, F::ONE),
         (selector_col(WasmOpcode::Br).unwrap(), -F::ONE),
@@ -603,7 +537,6 @@ fn push_frame_move_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         slide,
         [(COL_FRAME_SP_DROP, F::ONE), (COL_FRAME_MOVE_DISTANCE_AFTER, -F::ONE)],
     );
-    // A tail call keeps its arguments and drops the replaced frame.
     b.push_row(
         tail,
         [
@@ -631,8 +564,6 @@ fn push_frame_move_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         ],
         [],
     );
-    // Only frame transitions drop cells outside the stack balance; their
-    // rows pin sp_after directly.
     b.push_row(
         not_seeding
             .into_iter()
@@ -689,7 +620,6 @@ fn push_frame_move_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_STACK_READ_VALUE_HI[0], -F::ONE),
         ],
     );
-    // Move rows and state-preserving padding keep the distance.
     b.push_row(
         [(moving, F::ONE), (COL_PADDING_ACTIVE, F::ONE)],
         [
@@ -698,7 +628,6 @@ fn push_frame_move_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         ],
         [],
     );
-    // Every other row preserves the countdown and clears the distance.
     b.push_row(
         not_seeding.into_iter().chain([(moving, -F::ONE)]),
         [
@@ -720,9 +649,6 @@ fn push_call_stack_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let push = COL_CALL_STACK_PUSH_PRESENT;
     let pop = COL_CALL_STACK_POP_PRESENT;
 
-    // Push increments the return-context stack, pop decrements it, and every
-    // other row preserves it. Range-checking on the depth columns rules out
-    // underflow in the bounded witness model.
     b.push_linear_zero([
         (COL_CALL_STACK_DEPTH_AFTER, F::ONE),
         (COL_CALL_STACK_DEPTH_BEFORE, -F::ONE),
@@ -767,8 +693,6 @@ fn push_call_stack_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_STACK_FRAME_BASE_BEFORE, -F::ONE),
         ],
     );
-    // A clean return finishes the activation at its outermost frame, but a trap terminates
-    // immediately and may leave abandoned caller frames on the call stack.
     b.push_row(
         [(COL_ACTIVATION_FINISHED_AFTER, F::ONE), (COL_TRAPPED_AFTER, -F::ONE)],
         [
@@ -783,7 +707,6 @@ fn push_stack_frame_base_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_
     let entry = [(COL_GUEST_ENTRY_ACTIVE, F::ONE), (COL_TURN_BOUNDARY, F::ONE)];
     let pop = COL_CALL_STACK_POP_PRESENT;
 
-    // A new frame's operands start above its locals.
     b.push_row(
         entry,
         [
@@ -821,7 +744,6 @@ fn push_locals_fbp_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let push = COL_CALL_STACK_PUSH_PRESENT;
     let pop = COL_CALL_STACK_POP_PRESENT;
 
-    // A called frame starts at its arguments; a tail call reuses its frame.
     push_gated_linear_zero(
         b,
         push,
@@ -831,7 +753,6 @@ fn push_locals_fbp_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_CALL_PARAM_COUNT, F::ONE),
         ],
     );
-    // An entered frame reserves its parameters for the entry inputs.
     push_gated_linear_zero(
         b,
         COL_TURN_BOUNDARY,

@@ -1,12 +1,9 @@
-//! `R_q = F_q[X]/(X^64 + 1)` against a schoolbook reference.
-
 use neo_math::ring::{inf_norm, rot_apply_vec};
 use neo_math::{cf, cf_inv, ct, Fq, Rq, SAction, D, ETA};
 use p3_field::PrimeCharacteristicRing;
 use p3_matrix::Matrix;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 
-/// The product in `F_q[X]`, then `X^(D + i) = −X^i`.
 fn reference_mul(a: &Rq, b: &Rq) -> Rq {
     let mut wide = [Fq::ZERO; 2 * D - 1];
     for i in 0..D {

@@ -1,5 +1,3 @@
-//! Lean/Rust parity for the Nightstream F-prime indexed Ajtai setup.
-
 use neo_ajtai::nightstream_fprime_setup::{
     authority_words, coefficient, element_bytes, element_input, kept_coefficients, production_authority_words,
     KEY_WORDS, PRODUCTION_MESSAGE_COLUMNS, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS, SETUP_ID,
@@ -111,8 +109,6 @@ fn check_lean_setup_fixture(bytes: &[u8]) {
         element_bytes(&PRODUCTION_SEED, 1, 32_768).map(u64::from)
     );
 
-    // Lean's sampler on streams with rejected words, which no index of the
-    // production key gives in practice: 59 of the 2^64 words are rejected.
     let streams = array(&root[8]);
     let mut rejected = 0;
     let mut fallbacks = 0;

@@ -1,14 +1,3 @@
-//! The catalog backend on a test catalog: a ROM with a two-part address, a
-//! heap RAM whose write names its prior column, a stack RAM, and a
-//! host-checked RAM; `When` and `Unless` ports; and three slots, two of them
-//! shared. The native ports must bind the events of a Rust copy of Lean
-//! `eventsForRow` in order. Each broken row must hold the memory rows and fail
-//! the binding rows: a circuit without the binding rows accepts its witness,
-//! and the circuit with them rejects it. Each broken row escapes every
-//! binding row but one kind, so each kind of row has a witness that needs it.
-//! A second plan shows two ports of distinct memories out of catalog order,
-//! and the honest rows still hold.
-
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -44,16 +33,10 @@ const IO_ADDRESS: usize = 16;
 const IO_VALUE: usize = 17;
 const COLUMNS: usize = 18;
 
-/// Checked-port ranks: code fetch 0, heap read 1, heap write 2, push 3, pop 4.
-/// Fetch and the heap read are exclusive by construction. The pop sits
-/// before the push, so a row that pushes and pops is out of catalog order.
 const PLAN: [&[usize]; 3] = [&[0, 1], &[2, 4], &[3]];
 
-/// The push (rank 3) before the heap write (rank 2): two memories, so the
-/// pair may show in either order. The push still sits before the pop.
 const SWAPPED_PLAN: [&[usize]; 3] = [&[0, 1], &[3], &[2, 4]];
 
-/// ROM of 4 cells and RAM of 8, three slots, one segment of four steps.
 fn geometry() -> Geometry {
     Geometry {
         r: 2,
@@ -99,7 +82,6 @@ fn write(prior: Option<usize>) -> MemoryPortKind {
     }
 }
 
-/// Memories 0 (code ROM), 1 (heap), 2 (stack), and 3 (host-checked I/O).
 fn catalog() -> MemoryCatalog<u32> {
     let memory = |id, kind, ports| MemorySpec { id, kind, ports };
     MemoryCatalog::new(
@@ -166,7 +148,6 @@ fn plan() -> Vec<Vec<usize>> {
     PLAN.iter().map(|slot| slot.to_vec()).collect()
 }
 
-/// A catalog with its geometry, program, binding, and column count.
 struct Setup {
     geometry: Geometry,
     program: Program,
@@ -183,14 +164,12 @@ fn setup() -> Setup {
     }
 }
 
-/// Ports that a forged step gives in place of the binding's.
 type Forge = fn(&[F], &Memory) -> Vec<Option<PortAccess>>;
 
 #[derive(Clone, Debug)]
 struct CatalogApp {
     binding: CatalogBinding<u32>,
     columns: usize,
-    /// `false`: no row at all, so only the memory rows check a witness.
     bound: bool,
     forge: Option<Forge>,
 }
@@ -258,13 +237,10 @@ impl Setup {
         (run, invocations)
     }
 
-    /// The memory cells before any step.
     fn memory(&self) -> Vec<crate::nebula::Cell> {
         initial_memory(&self.program.rom, &self.program.ram)
     }
 
-    /// Invocation `step` of `rows`, with `change` made to its columns, holds
-    /// the memory rows and fails the binding rows.
     fn reject(&self, name: &str, forge: Option<Forge>, rows: &[Vec<F>], step: usize, change: &[(usize, u64)]) {
         let (run, invocations) = self.run(forge, rows);
         let mut words = invocations[step].words.clone();
@@ -282,8 +258,6 @@ impl Setup {
     }
 }
 
-/// Word of column `column` in an invocation's words: the private words are
-/// the last words, and the application has no state word.
 fn aux_word(words: &mut [F], columns: usize, column: usize) -> &mut F {
     let start = words.len() - columns;
     &mut words[start + column]
@@ -297,15 +271,12 @@ fn row(values: &[(usize, u64)]) -> Vec<F> {
     row
 }
 
-/// Fetch ROM (0, 0) = 11 and nothing else.
 fn fetch_row() -> Vec<F> {
     row(&[(FETCH, 1), (CODE_VALUE, 11)])
 }
 
-/// Four honest rows. Each writes the I/O memory, which no row checks.
 fn honest_rows() -> Vec<Vec<F>> {
     vec![
-        // Fetch ROM (1, 1) = 3; write heap 2 (3 → 7); push 9 to stack 1.
         row(&[
             (FETCH, 1),
             (CODE_LOW, 1),
@@ -321,7 +292,6 @@ fn honest_rows() -> Vec<Vec<F>> {
             (IO_ADDRESS, 5),
             (IO_VALUE, 99),
         ]),
-        // Read heap 2 = 7; pop stack 1 = 9.
         row(&[
             (HEAP_READ, 2),
             (HEAP_READ_VALUE, 7),
@@ -330,7 +300,6 @@ fn honest_rows() -> Vec<Vec<F>> {
             (POP_VALUE, 9),
             (IO_VALUE, 1 << 40),
         ]),
-        // Fetch ROM (0, 1) = 2; write heap 2 (7 → 8).
         row(&[
             (FETCH, 1),
             (CODE_HIGH, 1),
@@ -340,12 +309,11 @@ fn honest_rows() -> Vec<Vec<F>> {
             (HEAP_WRITE_VALUE, 8),
             (HEAP_PRIOR, 7),
         ]),
-        // Read heap 2 = 8; push 5 to stack 0.
         row(&[(HEAP_READ, 2), (HEAP_READ_VALUE, 8), (PUSH, 1), (PUSH_VALUE, 5)]),
     ]
 }
 
-/// A Lean `MemoryTrace.Event` with the integer value of each column.
+/// Lean `MemoryTrace.Event`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Event {
     Read {
@@ -393,7 +361,7 @@ fn port_event(memory: u32, w: &[F], port: &MemoryPortSpec) -> Option<Event> {
     })
 }
 
-/// Lean `eventsForRow`: catalog memories in order, then each memory's ports.
+/// Lean `eventsForRow`.
 fn events_for_row(catalog: &[MemorySpec<u32>], w: &[F]) -> Vec<Event> {
     catalog
         .iter()
@@ -406,7 +374,6 @@ fn events_for_row(catalog: &[MemorySpec<u32>], w: &[F]) -> Vec<Event> {
         .collect()
 }
 
-/// The memories with a region: the catalog of the Lean theorem.
 fn checked_catalog() -> Vec<MemorySpec<u32>> {
     let regions = regions();
     catalog()
@@ -433,7 +400,7 @@ fn region_of(memory: u32) -> Region {
         .1
 }
 
-/// Lean `Binding.Binds` with the regions of `regions()`.
+/// Lean `Binding.Binds`.
 fn binds(event: &Event, access: &PortAccess) -> bool {
     let (memory, address) = match event {
         Event::Read { memory, address, .. } | Event::Write { memory, address, .. } => (*memory, address),
@@ -449,8 +416,6 @@ fn binds(event: &Event, access: &PortAccess) -> bool {
     }
 }
 
-/// The access of the active port of rank `rank`, without the binding's
-/// checks. A write without a prior column reads its cell after `earlier`.
 fn access_of(rank: usize, w: &[F], memory: &Memory, earlier: &[Option<PortAccess>]) -> PortAccess {
     let (spec, port) = checked_catalog()
         .into_iter()
@@ -499,7 +464,6 @@ fn access_of(rank: usize, w: &[F], memory: &Memory, earlier: &[Option<PortAccess
     }
 }
 
-/// Each slot shows its first active port, in slot order.
 fn forged_ports(w: &[F], memory: &Memory) -> Vec<Option<PortAccess>> {
     let activations: Vec<MemoryPortActivation> = checked_catalog()
         .iter()
@@ -568,12 +532,6 @@ fn honest_rows_bind_the_lean_events_in_order_and_hold() {
     );
 }
 
-/// A plan that shows two ports of distinct memories out of catalog order
-/// accepts the honest rows. The accesses of each row bind its Lean events in
-/// slot order, and each pair of one memory with a write keeps catalog order
-/// (Lean `Reorders`).
-/// Binding rows for another geometry, or over fewer columns than the
-/// catalog reads, make no circuit.
 #[test]
 fn binding_rows_need_their_geometry_and_columns() {
     let setup = setup();
@@ -594,7 +552,6 @@ fn binding_rows_need_their_geometry_and_columns() {
     ));
 }
 
-/// A row without every catalog column gives an error, not a panic.
 #[test]
 fn short_rows_give_a_width_error() {
     let setup = setup();
@@ -612,6 +569,7 @@ fn short_rows_give_a_width_error() {
     }
 }
 
+/// Lean `Reorders`.
 #[test]
 fn independent_ports_may_leave_catalog_order() {
     let plan: Vec<Vec<usize>> = SWAPPED_PLAN.iter().map(|slot| slot.to_vec()).collect();
@@ -676,16 +634,12 @@ fn independent_ports_may_leave_catalog_order() {
     }
 }
 
-/// Rows that need a dishonest slot: the forged ports give it and keep every
-/// memory row true. The binding's ports refuse the row or give other slots.
 #[test]
 fn binding_rows_reject_each_forged_slot() {
     let setup = setup();
     let fetch = || vec![fetch_row(); 4];
     let lead = |first: Vec<F>| [vec![first], vec![fetch_row(); 3]].concat();
     let cases: [(&str, Vec<Vec<F>>, Forge); 4] = [
-        // Push 9 to stack 1 and pop stack 1. In catalog order the pop reads
-        // 9; in slot order it runs first and reads 0.
         (
             "a dependent pair out of catalog order",
             lead(row(&[
@@ -699,13 +653,11 @@ fn binding_rows_reject_each_forged_slot() {
             ])),
             forged_ports,
         ),
-        // Slot 2 reads ROM 0 with no active port: an access without an event.
         ("an active slot without an active port", fetch(), |w, memory| {
             let mut ports = forged_ports(w, memory);
             ports[2] = Some(rom_read(0, 11));
             ports
         }),
-        // The heap read of 3 shows as a write of 0 at the same cell.
         (
             "a read port whose slot writes",
             lead(row(&[(HEAP_READ, 2), (HEAP_READ_VALUE, 3)])),
@@ -719,8 +671,6 @@ fn binding_rows_reject_each_forged_slot() {
                 ports
             },
         ),
-        // The pop of stack 1 (RAM 5) shows as a read of heap 1 (RAM 1): the
-        // address bits of the part agree, the bits above the region do not.
         (
             "an address outside the port's region",
             lead(row(&[(FETCH, 1), (CODE_VALUE, 11), (POP, 1), (POP_ADDRESS, 1)])),
@@ -749,28 +699,21 @@ fn binding_rows_reject_each_forged_slot() {
     }
 }
 
-/// Rows that change only columns of an honest step: the slots and every
-/// memory word stay the same.
 #[test]
 fn binding_rows_reject_each_changed_column() {
     let setup = setup();
     let cases: [(&str, usize, &[(usize, u64)]); 7] = [
-        // Step 2 has no push, so slot 2 is inactive.
         ("an active port whose slot is inactive", 2, &[(PUSH, 1)]),
-        // Slot 0 shows the fetch of ROM 3 = 14; the heap read of heap 3 = 14
-        // claims it: same address and value, another memory space.
         (
             "an active port whose slot shows another port",
             0,
             &[(FETCH, 0), (HEAP_READ, 3), (HEAP_READ_VALUE, 14)],
         ),
-        // (3, 0) packs to ROM 3, as (1, 1) does, but 3 does not fit 1 bit.
         (
             "an address part at or above 2^width",
             0,
             &[(CODE_LOW, 3), (CODE_HIGH, 0)],
         ),
-        // Slot 1 shows the pop; the heap write of the same slot is active too.
         (
             "two co-active ports in one slot",
             1,
@@ -789,10 +732,6 @@ fn binding_rows_reject_each_changed_column() {
     }
 }
 
-/// One ROM with two reads in one slot, `When(0)` and `Unless(0)`. With column
-/// 0 at 2, Lean `active` holds for neither port, so the row has no event,
-/// but the two activations still sum to 1. Only the bit row of column 0
-/// rejects the slot's access.
 #[test]
 fn binding_rows_reject_a_non_bit_activation() {
     let geometry = Geometry {
@@ -864,7 +803,6 @@ fn bad_configurations_make_no_binding() {
             plan(),
             CatalogBindingError::Region,
         ),
-        // The region fits RAM (8 cells) but the code memory is ROM (4 cells).
         (
             "a ROM memory in RAM space",
             with(0, region(4, &[1, 1])),
@@ -917,10 +855,7 @@ fn bad_configurations_make_no_binding() {
     }
 }
 
-/// Lean `Binding.Initial`: the images hold each checked memory's preloaded
-/// cells at `base + packParts(address)` and zero elsewhere, and the
-/// host-checked I/O memory has no cell in them. A cell with a part at or
-/// above `2^width`, or with another number of parts, makes no program.
+/// Lean `Binding.Initial`.
 #[test]
 fn program_images_hold_the_preloaded_cells_of_checked_memories() {
     let binding = setup().binding;
@@ -931,7 +866,6 @@ fn program_images_hold_the_preloaded_cells_of_checked_memories() {
     preload.insert(1, vec![2], 3);
     preload.insert(2, vec![1], 5);
     preload.insert(3, vec![5], 99);
-    // Code (x₀, x₁) is ROM x₀ + 2·x₁; heap a is RAM a; stack a is RAM 4 + a.
     let expected = Program::new(geometry(), vec![11, 12, 13, 14], vec![0, 0, 3, 0, 0, 5, 0, 0]).unwrap();
     assert_eq!(binding.program(&preload), Ok(expected));
     for (memory, address) in [(0, vec![2, 0]), (0, vec![1]), (2, vec![2])] {
@@ -945,10 +879,6 @@ fn program_images_hold_the_preloaded_cells_of_checked_memories() {
     }
 }
 
-/// One segment of the test catalog through `Circuit::compile` and the memory
-/// verifier. The honest proof verifies. A proof whose last step pushes
-/// another value than its slot writes, with every memory word unchanged, is
-/// rejected.
 #[test]
 #[ignore = "Full production-profile memory proofs; run separately under the 300-second cap."]
 fn catalog_proof_verifies_and_rejects_a_broken_row_on_cpu() {
@@ -980,10 +910,7 @@ fn catalog_proof_verifies_and_rejects_a_broken_row_on_cpu() {
 
     let mut words = invocations[3].words.clone();
     *aux_word(&mut words, COLUMNS, PUSH_VALUE) = F::from_u64(6);
-    // The prover refuses the broken step at its row check. Without that
-    // check, the broken step proves, and the verifier rejects it at a row of
-    // the fresh instance's relation.
-    use crate::lifecycle::bounded_depth::{BoundedDepthError, CHECK_ROWS};
+    use crate::lifecycle::bounded_depth::{BoundedDepthError, KEEP_FAULTY_PROOF};
     let broken = || prover.extend_with_output(&proofs[2], &words, invocations[3].output);
     assert!(matches!(
         broken(),
@@ -991,9 +918,9 @@ fn catalog_proof_verifies_and_rejects_a_broken_row_on_cpu() {
             "a relation row fails"
         )))
     ));
-    CHECK_ROWS.set(true);
+    KEEP_FAULTY_PROOF.set(true);
     let bad = broken();
-    CHECK_ROWS.set(false);
+    KEEP_FAULTY_PROOF.set(false);
     let bad = Proof::from_parts(bad.expect("the row check is off"), *run.carry());
     assert!(matches!(
         verifier.verify(&setup.program, &statement.initial, &statement.final_, &bad),

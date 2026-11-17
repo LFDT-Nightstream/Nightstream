@@ -1,5 +1,3 @@
-//! Assembly and validation of a complete compiled application relation.
-
 use crate::{ColumnRegistry, R1csRelation};
 
 /// An application R1CS paired with metadata for every physical witness column.

@@ -1,6 +1,3 @@
-//! Explicit bit-decomposition layout, constraints, and witness assignment for
-//! declared application column widths.
-
 use std::ops::Range;
 
 use neo_math::F;
@@ -19,7 +16,6 @@ pub struct RangeCheckBitFamily {
     pub role: &'static str,
 }
 
-/// Number of explicit decomposition bits required by one declared column.
 pub const fn decomposition_bit_count(width: ColumnWidth) -> usize {
     match width {
         ColumnWidth::Boolean

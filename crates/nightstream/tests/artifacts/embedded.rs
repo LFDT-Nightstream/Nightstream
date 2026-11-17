@@ -1,8 +1,3 @@
-//! The embedded zstd copies are the Lean outputs, byte for byte, and each
-//! hashes to its pinned identity, which `embedded` takes without a hash.
-//! After a Lean regeneration, `artifacts/README.md` says how to make the
-//! copies again.
-
 use std::path::Path;
 
 use nightstream_fprime::{load_bounded_depth_packages, BOUNDED_DEPTH_PACKAGES_IDENTITY};

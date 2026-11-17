@@ -1,11 +1,3 @@
-//! Column-oriented views over compiled relation metadata.
-//!
-//! This module reports where columns occur. It does not infer whether those
-//! occurrences are sufficient to enforce an application's intended semantics.
-//! R1CS occurrences retain the builder's sparse terms before matrix
-//! coalescing, so repeated same-side terms may combine or cancel in the
-//! compiled matrix.
-
 use neo_math::F;
 
 use crate::{
@@ -13,7 +5,6 @@ use crate::{
     MemoryCatalog, MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec, R1csSide, TaggedR1csRow,
 };
 
-/// One occurrence of a column in a sparse R1CS term list.
 #[derive(Clone, Copy, Debug)]
 pub struct R1csColumnOccurrence<'a, Owner> {
     row_index: usize,
@@ -35,13 +26,11 @@ impl<'a, Owner> R1csColumnOccurrence<'a, Owner> {
         self.coefficient
     }
 
-    /// Complete tagged row containing this term.
     pub const fn tagged_row(&self) -> &'a TaggedR1csRow<Owner> {
         self.tagged_row
     }
 }
 
-/// Semantic role played by a column in one retained shared gadget.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GadgetColumnRole {
     RangeCheckValue,
@@ -70,7 +59,6 @@ pub enum GadgetColumnRole {
     EventCommitmentAuxiliary { offset: usize },
 }
 
-/// One semantic gadget role involving the queried column.
 #[derive(Clone, Copy, Debug)]
 pub struct GadgetColumnOccurrence<'a, Owner> {
     occurrence: &'a GadgetOccurrence<Owner>,
@@ -87,7 +75,6 @@ impl<'a, Owner> GadgetColumnOccurrence<'a, Owner> {
     }
 }
 
-/// Reverse index over the exact R1CS rows and retained gadgets in a relation.
 pub struct ColumnConstraintIndex<'a, Owner> {
     r1cs_by_column: Vec<Vec<R1csColumnOccurrence<'a, Owner>>>,
     gadgets_by_column: Vec<Vec<GadgetColumnOccurrence<'a, Owner>>>,
@@ -106,8 +93,6 @@ impl<'a, Owner> ColumnConstraintIndex<'a, Owner> {
                 (R1csSide::C, tagged_row.row().c_terms()),
             ] {
                 for &(column, coefficient) in terms {
-                    // The relation builder rejects out-of-range terms before
-                    // an ApplicationRelation can be constructed.
                     r1cs_by_column[column].push(R1csColumnOccurrence {
                         row_index,
                         side,
@@ -129,8 +114,6 @@ impl<'a, Owner> ColumnConstraintIndex<'a, Owner> {
         }
     }
 
-    /// Occurrences in ascending row order, then A, B, C order within each row,
-    /// preserving the builder's term order within each side.
     pub fn r1cs_occurrences(&self, column: usize) -> Option<&[R1csColumnOccurrence<'a, Owner>]> {
         self.r1cs_by_column.get(column).map(Vec::as_slice)
     }
@@ -292,7 +275,6 @@ fn index_gadget_occurrence<'a, Owner>(
     }
 }
 
-/// Role played by a column in one logical memory port.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MemoryColumnRole {
     Address { position: usize },
@@ -301,7 +283,6 @@ pub enum MemoryColumnRole {
     Activation,
 }
 
-/// One logical-memory declaration involving the queried column.
 #[derive(Clone, Copy, Debug)]
 pub struct MemoryColumnOccurrence<'a, Id> {
     memory_index: usize,
@@ -333,7 +314,6 @@ impl<'a, Id> MemoryColumnOccurrence<'a, Id> {
     }
 }
 
-/// Find every declared logical-memory role involving `column`.
 pub fn memory_column_occurrences<Id>(
     catalog: &MemoryCatalog<Id>,
     column: usize,
@@ -393,14 +373,12 @@ pub fn memory_column_occurrences<Id>(
     occurrences
 }
 
-/// Endpoint role played by a column in one cross-step equality.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContinuityColumnRole {
     PreviousStep,
     NextStep,
 }
 
-/// One cross-step continuity declaration involving the queried column.
 #[derive(Clone, Copy, Debug)]
 pub struct ContinuityColumnOccurrence<'a> {
     group_index: usize,
@@ -432,7 +410,6 @@ impl<'a> ContinuityColumnOccurrence<'a> {
     }
 }
 
-/// Find every declared cross-step endpoint involving `column`.
 pub fn continuity_column_occurrences(
     catalog: &ContinuityCatalog,
     column: usize,

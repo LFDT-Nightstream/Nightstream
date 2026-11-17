@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-# Profile a test and output text-based analysis for AI review
-# Usage: ./scripts/profile_for_ai.sh <package> <test_file> <test_function> [--ignored] [--features <csv>]
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -66,12 +63,11 @@ if ! command -v jq &> /dev/null; then
   exit 1
 fi
 
-# Ensure frame pointers for `sample(1)` while preserving any caller-provided RUSTFLAGS.
-RUSTFLAGS_COMBINED="${RUSTFLAGS:-}"
-if [ -n "$RUSTFLAGS_COMBINED" ]; then
-  RUSTFLAGS_COMBINED="$RUSTFLAGS_COMBINED "
+RUSTFLAGS_WITH_FRAME_POINTERS="${RUSTFLAGS:-}"
+if [ -n "$RUSTFLAGS_WITH_FRAME_POINTERS" ]; then
+  RUSTFLAGS_WITH_FRAME_POINTERS="$RUSTFLAGS_WITH_FRAME_POINTERS "
 fi
-RUSTFLAGS_COMBINED="${RUSTFLAGS_COMBINED}-C force-frame-pointers=yes"
+RUSTFLAGS_WITH_FRAME_POINTERS="${RUSTFLAGS_WITH_FRAME_POINTERS}-C force-frame-pointers=yes"
 
 echo "🔨 Building test with profiling profile..."
 CARGO_FEATURES_ARGS=()
@@ -79,11 +75,11 @@ if [ -n "$FEATURES" ]; then
   CARGO_FEATURES_ARGS=(--features "$FEATURES")
 fi
 
-RUSTFLAGS="$RUSTFLAGS_COMBINED" cargo test --profile profiling \
+RUSTFLAGS="$RUSTFLAGS_WITH_FRAME_POINTERS" cargo test --profile profiling \
   -p "$PACKAGE" --test "$TEST_FILE" "${CARGO_FEATURES_ARGS[@]}" --no-run 2>&1 | tail -5
 
 echo "🔎 Finding test binary..."
-TEST_BINARY=$(RUSTFLAGS="$RUSTFLAGS_COMBINED" cargo test --profile profiling -p "$PACKAGE" --test "$TEST_FILE" \
+TEST_BINARY=$(RUSTFLAGS="$RUSTFLAGS_WITH_FRAME_POINTERS" cargo test --profile profiling -p "$PACKAGE" --test "$TEST_FILE" \
   "${CARGO_FEATURES_ARGS[@]}" \
   --no-run --message-format=json 2>/dev/null | \
   jq -r --arg test_name "$TEST_FILE" '

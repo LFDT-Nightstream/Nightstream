@@ -1,8 +1,3 @@
-//! Loader for the Lean-emitted bounded-depth step packages (`bounded_depth`), with the
-//! application records and the PiCCS transcripts of the light and refresh
-//! folds. It does not own the F′ relation, its circuit structure, or a proof
-//! backend.
-
 #[cfg(test)]
 extern crate self as nightstream_fprime;
 

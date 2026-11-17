@@ -1,8 +1,3 @@
-//! The Metal device session (`neo_prover_metal::MetalRowProver`) behind one
-//! lock. The prover keeps the commitment key on
-//! the device after the first commitment; the key and every other device
-//! buffer stay below `neo_prover_metal::BUFFER_LIMIT_BYTES`.
-
 use std::borrow::Borrow;
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -27,8 +22,6 @@ impl Device {
         Ok(Self(Arc::new(Mutex::new(prover))))
     }
 
-    /// The device session. A panic during a device call poisons the lock and
-    /// leaves the session in an unknown state, so that is an engine failure.
     pub(crate) fn lock(&self) -> Result<MutexGuard<'_, MetalRowProver>, EngineError> {
         self.0.lock().map_err(|_| poisoned())
     }
@@ -46,7 +39,6 @@ impl Device {
             })
     }
 
-    /// Π_RLC's parent witness `Σ ρ_i·Z_i`.
     pub(crate) fn mix_rlc_witnesses(&self, rhos: &[Mat<F>], witnesses: &[&Mat<F>]) -> Result<Mat<F>, DeviceError> {
         self.lock()?
             .mix_rlc_witnesses(rhos, witnesses)

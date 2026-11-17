@@ -1,6 +1,3 @@
-//! Multi-turn export traces with persistent module state, per-turn input
-//! bootstrapping, boundary constraints, and transcript binding.
-
 mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
@@ -91,7 +88,6 @@ fn run_counter_turns(component_bytes: &[u8], bindings: &HostEventBindings) -> Co
     runtime.finish()
 }
 
-/// Stateful export used to test cross-turn global persistence.
 fn counter_component_wat() -> &'static str {
     r#"
     (component
@@ -130,7 +126,6 @@ fn zero_local_component_wat() -> &'static str {
     "#
 }
 
-/// Entry initializes local 0; exit absorbs the captured output.
 fn add_template() -> ExportTemplate {
     ExportTemplate {
         entry: vec![EventBlock::op(
@@ -283,7 +278,6 @@ fn exit_only_template_allows_reentry_and_commits_each_return() {
     set_export_counts(&mut forged, 1, 0);
     common::assert_rejected(&forged, "empty entry and exit cannot re-enter");
 
-    // Changing the count and its inverse together must still fail the ROM.
     let mut forged_rows = witnesses;
     set_export_counts(&mut forged_rows[boundary], 1, 2);
     common::assert_satisfied(&forged_rows[boundary], "row-local alternative nonempty count");
@@ -380,8 +374,6 @@ fn reentered_export_zeroes_an_unmapped_i64_local() {
         )
         .unwrap(),
     );
-    // Re-entry opens the export frame at the stack bottom, so the scratch
-    // local is cell 1.
     assert!(zero_rows.iter().all(|row| {
         row.stack_write0
             .is_some_and(|write| write.addr_lo == 2 && write.value_lo == 0 && write.value_hi == Some(0))
@@ -389,9 +381,6 @@ fn reentered_export_zeroes_an_unmapped_i64_local() {
     common::sanity_check_trace_with_bindings(&trace, &run.artifacts, &bindings);
     common::ccs_check_trace(&trace);
 
-    // Keep the claimed total local count at two while forging the boundary
-    // from one parameter plus one zero row to two parameters plus none.
-    // Only the verifier-owned call metadata distinguishes those claims.
     let mut forged = trace.clone();
     let boundary = forged
         .iter_mut()
@@ -465,8 +454,6 @@ fn export_advice_preserves_arguments_without_absorbing_them() {
         events.iter().map(|event| event.words).collect::<Vec<_>>(),
         vec![[17, 7, 0, 0, 0, 0, 0, 0], [17, 35, 0, 0, 0, 0, 0, 0]]
     );
-    // Advice policy is part of the verifier's ROM even on non-final slots,
-    // where changing it alone does not violate row-local constraints.
     let input = trace
         .iter()
         .find(|row| {
@@ -520,15 +507,12 @@ fn turn_boundary_row_bridges_the_turns() {
     assert_eq!(boundaries.len(), 1, "two turns, one boundary");
     let tb = boundaries[0];
 
-    // Completed turn.
     assert_eq!(tb.state_before.sp, 0);
     assert!(tb.state_before.output.enabled);
     assert_eq!(tb.state_before.output.value_lo, 7);
     assert_eq!(tb.state_before.host_events.events_remaining, 0);
     assert_eq!(tb.state_before.call_stack_depth, 0);
 
-    // Fresh turn: the export frame reopens at the stack bottom, with its
-    // parameters reserved for the entry inputs.
     assert_eq!(tb.state_after.locals_fbp, 0);
     assert_eq!(tb.state_after.sp, u64::from(tb.call_param_count.unwrap()));
     assert!(!tb.state_after.output.enabled);
@@ -540,11 +524,9 @@ fn turn_boundary_row_bridges_the_turns() {
         "the boundary bridges the pc jump"
     );
 
-    // Cross-turn state.
     assert_eq!(tb.state_before.comm_chain, tb.state_after.comm_chain);
     assert_eq!(tb.state_before.event_absorb, tb.state_after.event_absorb);
 
-    // Entry events drain before program execution resumes.
     let tb_idx = setup
         .trace
         .iter()
@@ -628,7 +610,6 @@ fn ccs_rejects_forged_turn_boundary() {
     let witness = build_witness_vector(tb).unwrap();
     common::assert_satisfied(&witness, "untampered turn boundary");
 
-    // The event index of the next turn starts at the base that the row reads.
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_HOST_EVENT_BASE] += neo_math::F::ONE;
     common::assert_rejected(&forged, "boundary starting its events in another template");
@@ -641,8 +622,6 @@ fn ccs_rejects_forged_turn_boundary() {
     forged[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_AFTER] = neo_math::F::ZERO;
     common::assert_rejected(&forged, "boundary skipping the next turn's entry schedule");
 
-    // Silent re-entry: both schedules empty would re-run the export without
-    // moving the transcript. The nonempty-template guard has no inverse.
     let mut forged = witness.clone();
     set_export_counts(&mut forged, 1, 0);
     forged[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_AFTER] = neo_math::F::ZERO;
@@ -657,15 +636,10 @@ fn ccs_rejects_forged_turn_boundary() {
     forged[neo_wasm::layout::COL_TURN_EXPORT_FREF_AFTER] += neo_math::F::ONE;
     common::assert_rejected(&forged, "boundary carrying a different export from its target");
 
-    // A boundary can't fire while the previous turn still owes events.
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_BEFORE] = neo_math::F::ONE;
     common::assert_rejected(&forged, "boundary before the previous schedule is spent");
 
-    // Presence binding: a boundary pointed at a fref with no export
-    // template reads the zero-filled count cell (the memory model pins the
-    // claim; see memory_model_rejects_boundary_into_undeclared_fref), and
-    // under the biased load no normal schedule satisfies the row.
     let undeclared_fref = neo_math::F::from_u64(u64::from(setup.add_fref) + 7);
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_HOST_CALLEE_FREF_AFTER] = undeclared_fref;
@@ -673,14 +647,10 @@ fn ccs_rejects_forged_turn_boundary() {
     set_export_counts(&mut forged, 0, 0);
     common::assert_rejected(&forged, "boundary entering an undeclared fref with a normal schedule");
 
-    // The only row-locally satisfiable assignment loads the poisoned
-    // schedule events_remaining = -1 = p-1 ...
     let mut poisoned = forged.clone();
     poisoned[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_AFTER] = -neo_math::F::ONE;
     common::assert_satisfied(&poisoned, "undeclared boundary target loads the poisoned schedule");
 
-    // ... which the composed circuit's host-event ROM address bound prevents
-    // from draining before another program row can run.
     let program_row = setup
         .trace
         .iter()
@@ -691,9 +661,6 @@ fn ccs_rejects_forged_turn_boundary() {
     common::assert_rejected(&wedged, "program row under the poisoned schedule");
 }
 
-/// The claim side of the presence binding: an undeclared boundary target
-/// cannot fake a declared export's biased count cell — the export
-/// entry-count family has no cell for it, so the ROM read mismatches.
 #[test]
 fn memory_model_rejects_boundary_into_undeclared_fref() {
     let setup = multi_turn_setup();
@@ -727,7 +694,6 @@ fn memory_model_rejects_boundary_into_undeclared_fref() {
 fn ccs_rejects_execution_after_activation_finished() {
     let setup = multi_turn_setup();
 
-    // A program row claiming the turn already finished is rejected.
     let program_row = setup
         .trace
         .iter()
@@ -739,7 +705,6 @@ fn ccs_rejects_execution_after_activation_finished() {
     witness[neo_wasm::layout::COL_ACTIVATION_FINISHED_AFTER] = neo_math::F::ONE;
     common::assert_rejected(&witness, "program row executing after activation completion");
 
-    // The activation-finishing row cannot suppress the latch (with or without capture).
     let finishing_row = setup
         .trace
         .iter()
@@ -883,7 +848,6 @@ fn resultless_turn_can_precede_another_turn() {
         neo_wasm::comm_chain::fold_event_blocks(Default::default(), &lifted).canonical_u64()
     );
 
-    // Resultless exits may not reference a captured output.
     let mut bad_bindings = bindings.clone();
     bad_bindings.exports.get_mut(&poke_fref).expect("poke").exit = vec![EventBlock::op(
         17,
@@ -896,9 +860,6 @@ fn resultless_turn_can_precede_another_turn() {
     );
 }
 
-/// Sets the packed schedule word of a turn-boundary or exit-latch row to the
-/// biased entry count `initial` and the exit count `exit`, with each column
-/// that the row derives from the word.
 fn set_export_counts(witness: &mut Vec<neo_math::F>, initial: u64, exit: u64) {
     use neo_math::F;
     use neo_wasm::layout::*;

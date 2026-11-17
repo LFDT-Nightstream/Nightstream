@@ -220,27 +220,10 @@ define_column_region! {
             "linear-memory word-lane store gates (lane is used AND opcode is a store)",
         COL_LINEAR_MEM_LANE_ADDR: [U32; 3] => "linear-memory word-lane addresses",
         COL_LINEAR_MEM_LANE_VALUE: [Field; 3] => "linear-memory word-lane accessed values",
-        // `COL_SELECT_COND_IS_ZERO` is forced to {0, 1} by the zero-test rows
-        // emitted by `push_select_constraints`. Declared `Boolean` so the
-        // family declaration reflects its actual range; whichever path eventually enforces
-        // `ColumnWidth::Boolean` will overlap with the gadget's constraint and
-        // one of the two becomes redundant; an optimization to revisit later.
-        // We deliberately do not introduce a dedicated `ImpliedBoolean` width
-        // for this case because that would be premature complexity.
         COL_SELECT_COND_IS_ZERO: Boolean => "scratch column for push_select_constraints for select opcode",
         COL_SELECT_SCRATCH_INV: Field => "scratch column for push_select_constraints for select opcode",
         COL_SELECT_OUT_DELTA_LO: Field => "scratch column for push_select_constraints low-limb mux",
         COL_SELECT_OUT_DELTA_HI: Field => "scratch column for push_select_constraints high-limb mux",
-        // Shared zero-test scratch for equality, eqz, and conditional control. The active
-        // opcode's selector pins COL_ZERO_TEST_LO_INPUT to the lo-limb input
-        // (read0, read0_lo, or read0[_lo] - read1[_lo]); the zero-test gadget
-        // forces COL_ZERO_TEST_LO_IS_ZERO = (zero_test_lo_input == 0).
-        //
-        // The i64 comparators (i64.eqz / i64.eq / i64.ne) need a hi-limb
-        // zero-test too: the full u64 value does not embed injectively into
-        // the field (q = 2^64 - 59 has a nontrivial preimage at
-        // lo=0xffffffc5, hi=0xffffffff). We pin COL_ZERO_TEST_HI_INPUT to the hi-limb input,
-        // zero-test it independently, and AND the two flags into COL_CMP_AND.
         COL_ZERO_TEST_LO_INPUT: Field => "shared zero-test input (lo limb / full i32 input)",
         COL_ZERO_TEST_LO_INV: Field => "shared zero-test inverse witness",
         COL_ZERO_TEST_LO_IS_ZERO: Boolean => "shared zero-test result",
@@ -364,7 +347,6 @@ define_column_region! {
         COL_SEL_CALL_INDIRECT_RESOLVE: Boolean => "selector for the synthetic call_indirect resolve step",
         COL_TRAPPED_BEFORE: Boolean => "carried trapped-execution flag before this row",
         COL_TRAPPED_AFTER: Boolean => "carried trapped-execution flag after this row",
-        // Div/rem trap scratch; see the `trap transition` constraints in ccs.rs.
         COL_DIV_DIVISOR_IS_ZERO: Boolean => "zero-test flag for the divisor (stack read1) on this row",
         COL_DIV_DIVISOR_INV: Field => "inverse witness for the divisor zero test",
         COL_DIV_TRAP: Boolean => "this row is a div/rem op trapping on a zero divisor or signed overflow",
@@ -376,8 +358,6 @@ define_column_region! {
         COL_DIV_DIVISOR_NEG1_INV: Field => "inverse witness for the divisor -1 test",
         COL_DIV_OVERFLOW_COND: Boolean => "product of the dividend-is-MIN and divisor-is--1 flags",
         COL_DIV_OVERFLOW: Boolean => "this row is a signed div op trapping on MIN / -1 overflow",
-        // Indirect-call trap scratch; see the trap constraints in
-        // ccs/call.rs.
         COL_CI_ENTRY_IS_NULL: Boolean =>
             "zero-test flag: the table entry (table value) read by this row is a null funcref",
         COL_CI_ENTRY_NULL_INV: Field => "inverse witness for the null-funcref zero test",
@@ -389,10 +369,6 @@ define_column_region! {
             "non-trapping resolve row: gates the handoff of the checked function reference",
         COL_FUNCTION_CALL_TYPE_LOOKUP_GATE: Boolean =>
             "resolve row with an in-bounds non-null entry: gates the function-types read",
-        // Shared unsigned-comparison scratch for the bounds traps (see
-        // `push_unsigned_ge_gadget`). `low` is the range-checked borrow-bit
-        // remainder; `ge` is `a >= b` for whichever mutually-exclusive comparison
-        // the row's opcode selects.
         COL_CMP_LOW: U32 => "borrow-bit remainder of the active unsigned comparison",
         COL_CMP_GE: Boolean => "result a >= b of the active unsigned comparison",
         COL_CI_OOB: Boolean => "whether an indirect call's resolve step traps because the table index is >= the table size",

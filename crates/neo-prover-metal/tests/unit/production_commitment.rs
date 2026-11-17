@@ -63,8 +63,6 @@ fn production_key_commitments_match_cpu_across_groups_blocks_and_representations
     assert!(session.activity().dispatches > PRODUCTION_VERIFIER_ROWS);
 }
 
-/// Witnesses whose nonzero columns are `columns`, so occupied positions and
-/// key columns differ.
 fn sparse_witnesses(width: usize, columns: &[usize]) -> Vec<Mat<F>> {
     (0..3u64)
         .map(|seed| {
@@ -98,8 +96,6 @@ fn kept_production_key_matches_cpu_and_grows_for_a_wider_witness() {
         assert_eq!(session.commit_production_prefixes(witnesses).unwrap(), expected);
         dispatches.push(session.activity().dispatches - before);
     }
-    // The first two calls expand all key rows; the last reuses them and only
-    // accumulates and sums each row.
     let rows = PRODUCTION_VERIFIER_ROWS;
     assert_eq!(dispatches, [3 * rows, 3 * rows, 2 * rows]);
 }
@@ -112,7 +108,6 @@ fn production_key_coefficients_use_exact_first_and_last_indexed_addresses() {
         positive[column] = 1;
         let witness =
             Mat::compact_signed_unit_from_column_masks(D, column + 1, &positive, &vec![0; column + 1]).unwrap();
-        // One witness, and witnesses that share a threadgroup.
         for count in [1, 3] {
             let actual = session
                 .commit_production_prefixes(&vec![witness.clone(); count])

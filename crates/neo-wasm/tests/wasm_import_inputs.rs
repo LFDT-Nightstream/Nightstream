@@ -1,5 +1,3 @@
-//! Import output buffers recovered from real host writes at the return boundary.
-
 mod common;
 
 use futures::executor::block_on;
@@ -175,8 +173,6 @@ const SIMPLE: &str = r#"(module
 
 #[test]
 fn import_recovery_checks_argument_pointer_and_requires_configured_capture() {
-    // The full address matrix is covered by capture_and_replay_share_host_event_address_rules.
-    // Here, check that capture and replay both resolve the pointer from the import argument.
     let wat = SIMPLE.replace("i32.const 16", "i32.const 17");
     let (steps, artifacts) = capture(&wat, bindings(&[word(0, 0)], 1, 2), 1, |_caller, _ptr| Ok(9));
     let error = steps
@@ -306,7 +302,6 @@ fn same_instance_reentry_is_rejected_for_atomic_imports() {
         .unwrap();
     let module = Module::new(store.engine(), &bytes).unwrap();
     let instance = block_on(linker.instantiate_async(&mut store, &module)).unwrap();
-    // Capture rejects at reentrant guest entry; do not expose a partial trace.
     let run = instance.get_func(&mut store, "run").unwrap();
     let _ = block_on(run.call_async(&mut store, &[], &mut [Val::I32(0)]));
     assert!(store
@@ -409,7 +404,6 @@ fn failed_import_does_not_poison_followup_invocations() {
             .unwrap();
         assert_eq!(returned.as_ref().unwrap()[&16], 99);
         check(&state.steps()[failed_rows..], state.artifacts());
-        // Retrieving the capture is allowed, but its failed prefix remains invalid.
         assert!(normalize(state.steps(), state.artifacts()).is_err());
     }
 }

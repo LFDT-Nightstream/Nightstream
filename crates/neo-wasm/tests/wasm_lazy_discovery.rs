@@ -173,8 +173,6 @@ fn discovery_and_frame_errors_prevent_partial_trace_retrieval() {
         .is_err());
     assert!(first.data().single_instance().is_err());
 
-    // i32 instructions are supported, but the frame's f32 local cannot be
-    // represented in our witness lanes. The failure must not disappear.
     let bytes = wat::parse_str(
         r#"(module
         (func $bad (result i32) (local f32) i32.const 9)

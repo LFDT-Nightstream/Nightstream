@@ -1,5 +1,3 @@
-//! A verifier-artifact header must not round its carrier width past `usize`.
-
 use neo_ccs::{poly::SparsePoly, CcsStructure};
 use neo_math::Fq as F;
 

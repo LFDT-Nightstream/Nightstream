@@ -1,7 +1,3 @@
-//! The bounded-depth public API end to end on the Rust Poseidon2 hash chain:
-//! compile against the two embedded Lean packages, prove and extend, and
-//! verify against the expected state.
-
 mod bounded_depth_support;
 
 use std::fs;
@@ -20,7 +16,6 @@ fn words(values: [u64; 4]) -> [F; 4] {
     values.map(F::from_u64)
 }
 
-/// Three steps, each verified; a proof does not verify for another state.
 #[test]
 fn hash_chain_proves_and_verifies() {
     let compiled = circuit();
@@ -84,8 +79,7 @@ fn hash_chain_proves_and_verifies() {
     assert!(verifier.decode_proof(&initial_proof).is_ok());
 }
 
-/// The iteration word and a slot depth have one encoding: `d + q` hashes like
-/// `d`, so the decoder refuses a word not below `q` (`SPEC.md` section 4.5).
+/// SPEC.md section 4.5.
 #[test]
 fn a_word_not_below_q_does_not_decode() {
     let compiled = circuit();
@@ -107,9 +101,6 @@ fn a_word_not_below_q_does_not_decode() {
     }
 }
 
-/// The reference hash chain compiles to Lean's own packages, so the circuit
-/// that ships is the one that Lean exports and that the Lean checks of Rust's
-/// files read.
 #[test]
 fn the_reference_hash_chain_keeps_lean_packages() {
     assert_eq!(

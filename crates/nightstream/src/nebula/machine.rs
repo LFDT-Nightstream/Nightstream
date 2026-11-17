@@ -1,11 +1,4 @@
-//! The first memory application: the two-word machine `(pc, acc)` with its
-//! program in ROM, over two ports. Its one private word is the idle flag.
-//! Mirrors `Lifecycle/Nebula/Machine.lean` (the step) and
-//! `Lifecycle/Nebula/MachineApp.lean` (`Machine.portApp`, the rows).
-//!
-//! Instruction word `v`: `op = v mod 4`, `arg = v / 4`. `0` halt, `1` load
-//! (`acc ← RAM[arg]`), `2` store (`RAM[arg] ← acc`), `3` loadi (`acc ← arg`).
-//! Port 0 fetches `ROM[pc]`; port 1 is the data port.
+//! `Lifecycle/Nebula/Machine.lean`, `Lifecycle/Nebula/MachineApp.lean` (`Machine.portApp`).
 
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
@@ -15,7 +8,6 @@ use super::expr::Expr;
 use super::records::PortAccess;
 use super::rows::{bit_row, chunk, View};
 
-/// The machine as an application.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Machine;
 
@@ -25,7 +17,6 @@ pub struct MachineState {
     pub acc: u64,
 }
 
-/// One step of the machine: no port, or the instruction at `pc`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Step {
     Idle,
@@ -40,7 +31,6 @@ pub enum MachineError {
     DataAddress,
 }
 
-/// The fetch access of a non-idle step.
 fn fetch(state: MachineState, word: u64) -> PortAccess {
     PortAccess {
         is_write: false,
@@ -51,7 +41,6 @@ fn fetch(state: MachineState, word: u64) -> PortAccess {
     }
 }
 
-/// The data access of instruction `word`; `data` is the value that port 1 reads.
 fn data_port(state: MachineState, word: u64, data: u64) -> Option<PortAccess> {
     match word % 4 {
         1 => Some(PortAccess {
@@ -72,7 +61,6 @@ fn data_port(state: MachineState, word: u64, data: u64) -> Option<PortAccess> {
     }
 }
 
-/// The state after instruction `word`, with `data` read by port 1.
 fn exec(state: MachineState, word: u64, data: u64) -> MachineState {
     match word % 4 {
         0 => state,
@@ -108,7 +96,7 @@ impl Application for Machine {
         1
     }
 
-    /// Lean `Machine.portApp` is for `bOps = 2`.
+    /// Lean `Machine.portApp`.
     fn port_count(&self) -> usize {
         2
     }
@@ -117,7 +105,7 @@ impl Application for Machine {
         vec![state.pc, state.acc]
     }
 
-    /// `Machine.rows`, node for node.
+    /// `Machine.rows`.
     fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
         let idle = view.aux(0);
         let instruction = view.vr_bits(0);

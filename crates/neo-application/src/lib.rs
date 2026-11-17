@@ -1,10 +1,3 @@
-//! Application-relation construction for Nightstream folding frontends.
-//!
-//! This crate owns the domain-neutral description and compilation of application
-//! constraints, shared algebraic gadgets, state continuity, memory ports, and
-//! diagnostic metadata. It does not own application state-machine semantics,
-//! top-level witness orchestration, or the folding backend.
-
 mod audit;
 #[cfg(feature = "audit-html")]
 mod audit_html;

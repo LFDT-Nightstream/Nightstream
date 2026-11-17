@@ -1,8 +1,5 @@
 use crate::ir::WasmBuildError;
 
-/// Resolve a naturally aligned host-event access of 1, 2, or 4 bytes.
-/// Capture and replay share these checks; memory contents and overlap policy
-/// belong to the caller. Guest instructions have separate alignment semantics.
 pub(super) fn host_event_address(
     base: u32,
     byte_offset: u32,

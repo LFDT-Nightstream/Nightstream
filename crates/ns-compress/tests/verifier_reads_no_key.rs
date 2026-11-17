@@ -1,9 +1,3 @@
-//! The verifier of the argument expands no element of the Ajtai key. This
-//! file has one test, so no other thread of its process expands a key element
-//! while the verifier runs. `expanded_key_bytes` counts the CPU expansion of
-//! `neo-ajtai` only: an expansion in a Metal shader does not count, and this
-//! test runs no Metal path.
-
 mod support;
 
 use neo_ajtai::nightstream_fprime_setup::{expanded_key_bytes, ELEMENT_OUTPUT_BYTES};
@@ -13,9 +7,6 @@ use ns_compress::{commit, verify, Layout, ProverKey, VerificationKey};
 use p3_field::PrimeCharacteristicRing;
 use support::{instances, statements};
 
-/// The setup expands each of the 18 rows of 512 blocks once, with the
-/// SHAKE128 output bytes of each key element. The verifier accepts the proof and rejects changed
-/// proofs with the count where it was.
 #[test]
 fn the_verifier_expands_no_key_element() {
     let before = expanded_key_bytes();
@@ -47,7 +38,7 @@ fn the_verifier_expands_no_key_element() {
     };
     accepts(&proof).expect("the proof verifies");
     let mut changed = proof.clone();
-    changed.key_weight += K::ONE;
+    changed.key_part += K::ONE;
     assert!(accepts(&changed).is_err());
     let mut changed = proof.clone();
     *changed.opening.last_mut().expect("opening") ^= 1;

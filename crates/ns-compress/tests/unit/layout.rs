@@ -1,9 +1,6 @@
 //! `Layout::new` and `error_bits` against Lean `layoutNew` and `runBits`
-//! (`Spec.Compression.Rust`), on each claim set of the Poseidon2 hash chain
-//! and on generated claim sets. Lean proves that a layout of `layoutNew`
-//! satisfies the premises of the soundness theorem
-//! (`Spec.Compression.Rust.layoutNew_production`), and that the exact error
-//! sum is at most `2^-runBits` (`Spec.Compression.Rust.runError_le_runBits`).
+//! (`Spec.Compression.Rust`, `Spec.Compression.Rust.layoutNew_production`,
+//! `Spec.Compression.Rust.runError_le_runBits`).
 
 use std::fs;
 use std::path::PathBuf;
@@ -15,7 +12,6 @@ use crate::akita::SCHEDULES;
 use crate::key::ROW_VARS;
 use crate::{error_bits, Error, Norm};
 
-/// The production public cells and matrices, which Lean's values use.
 const PUBLIC_CELLS: usize = 320;
 const MATRICES: usize = 4;
 
@@ -55,15 +51,15 @@ fn layout(value: &Value) -> Layout {
         key_vars: number(&value["key_vars"]),
         witness_vars: number(&value["witness_vars"]),
         witness_len: number(&value["witness_len"]),
-        span_vars: number(&value["span_vars"]),
-        span_len: number(&value["span_len"]),
+        table_witness_vars: number(&value["span_vars"]),
+        table_witness_len: number(&value["span_len"]),
         inverse_vars: number(&value["inverse_vars"]),
     }
 }
 
 fn claim(blocks: &Value, table: &Value) -> (usize, Norm) {
     let norm = match table {
-        Value::Null => Norm::Caller,
+        Value::Null => Norm::BoundByCaller,
         bound => Norm::Table {
             bound: bound.as_u64().expect("bound"),
         },
@@ -71,8 +67,6 @@ fn claim(blocks: &Value, table: &Value) -> (usize, Norm) {
     (number(blocks), norm)
 }
 
-/// Each claim set with its key: the production sets, whose claims are the
-/// cells of their Lean layout, and the generated sets.
 fn claim_sets(lean: &Value) -> Vec<(Vec<(usize, Norm)>, usize, &Value)> {
     let production = lean["production"]
         .as_array()
@@ -103,7 +97,6 @@ fn claim_sets(lean: &Value) -> Vec<(Vec<(usize, Norm)>, usize, &Value)> {
     production.chain(generated).collect()
 }
 
-/// The Lean name of a rejection of `Layout::new`.
 fn rejection(error: &Error) -> &'static str {
     match error {
         Error::Layout("no Akita schedule row has a key of this size") => "no_key",
@@ -180,28 +173,22 @@ fn error_bits_is_lean_run_bits_on_each_layout() {
     assert_eq!(layouts, 8450 + 508, "the claim sets with a layout");
 }
 
-/// Nine claims under the key of `2^19` blocks: the terms over `|K|` other
-/// than the lookup are `512/|K| > 2^-119`, because `|K| < 2^128`. So the
-/// error sum is above `2^-119`, and 118 is the largest minimum that it
-/// meets. In `f64`, `-log2` of this sum was exactly 119.
 #[test]
 fn error_bits_is_118_where_the_error_sum_is_just_above_2_to_the_minus_119() {
     let mut claims = vec![
         (1, Norm::Table { bound: 0 }),
-        (1 << 19, Norm::Caller),
-        (1 << 19, Norm::Caller),
+        (1 << 19, Norm::BoundByCaller),
+        (1 << 19, Norm::BoundByCaller),
     ];
-    claims.extend([(1, Norm::Caller); 6]);
+    claims.extend([(1, Norm::BoundByCaller); 6]);
     let layout = Layout::new(&claims, 1 << 19).expect("layout");
     assert_eq!(layout.witness_vars, 27);
     assert_eq!(error_bits(&layout, PUBLIC_CELLS, MATRICES), 118);
 }
 
-/// `((N + T)/q)^4 ≤ 1/|K|` needs `(N + T)² ≤ q`. The largest such
-/// `N + T` is `2^32 − 1`. A table above it gives 0 bits.
 #[test]
 fn error_bits_is_zero_when_a_lookup_term_can_exceed_one_over_k() {
-    let mut layout = Layout::new(&[(1, Norm::Table { bound: 0 }), (1, Norm::Caller)], 512).expect("layout");
+    let mut layout = Layout::new(&[(1, Norm::Table { bound: 0 }), (1, Norm::BoundByCaller)], 512).expect("layout");
     let witness = layout.cells[0].witness.len() as u64;
     let mut bits = |poles: u64| {
         let table = layout.cells[0].table.as_mut().expect("table");

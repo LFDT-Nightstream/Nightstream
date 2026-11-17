@@ -1,6 +1,3 @@
-//! Verifier-side initial VM state for a top-level export entry, and the
-//! continuity words that a row reads at its `_BEFORE` columns.
-
 use crate::adapters::wasmtime::WasmProgramTables;
 use crate::comm_chain::CommChainState;
 use crate::ir::{
@@ -21,14 +18,10 @@ use crate::relation_layout::build_wasm_relation_layout;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-/// One above the wasm32 page limit. Valid page counts cannot use this word,
-/// so it gives `None` a distinct carried representation without another
-/// continuity column.
-pub(crate) const NO_DEFAULT_MEMORY_PAGE_WORD: u64 = 65_537;
+pub(crate) const WASM32_MAX_PAGES: u32 = 65_536;
+pub(crate) const WASM_PAGE_LANES: u64 = 65_536 / 4;
+pub(crate) const NO_DEFAULT_MEMORY_PAGE_WORD: u64 = WASM32_MAX_PAGES as u64 + 1;
 
-/// The carried words for the current and maximum default-memory page counts.
-/// A valid state either has no default memory or has both counts with
-/// `current <= maximum <= 65_536`.
 pub(crate) fn memory_page_state_words(pages: Option<u32>, maximum: Option<u32>) -> Option<[u64; 2]> {
     match (pages, maximum) {
         (None, None) => Some([NO_DEFAULT_MEMORY_PAGE_WORD; 2]),
@@ -57,8 +50,6 @@ pub fn top_level_initial_state(tables: &WasmProgramTables, entry_pc: u64) -> Res
     )
 }
 
-/// The function ref whose body starts at `entry_pc`; the verifier-side
-/// counterpart of the normalizer reading the entered export off the trace.
 pub(crate) fn export_fref_for_entry_pc(tables: &WasmProgramTables, entry_pc: u64) -> Result<u32, WasmBuildError> {
     let fref = tables
         .function_entries
@@ -92,8 +83,6 @@ pub fn host_event_top_level_initial_state(
         ))
     })?;
     let (_, total_locals) = export_frame_shape(tables, export_fref)?;
-    // The first export's declared locals already occupy zero-initialized stack
-    // cells. Entry inputs fill its parameters; later entries must clear reused cells.
     let mut state = WasmStepState {
         pc: entry_pc,
         sp: u64::from(total_locals),
@@ -119,7 +108,6 @@ pub fn host_event_top_level_initial_state(
     Ok(state)
 }
 
-/// `(parameters, parameters plus declared locals)` of a guest function.
 fn export_frame_shape(tables: &WasmProgramTables, fref: u32) -> Result<(u8, u32), WasmBuildError> {
     let lookup = |rows: &[(u64, u64)], what: &str| {
         rows.iter()
@@ -141,16 +129,13 @@ fn export_frame_shape(tables: &WasmProgramTables, fref: u32) -> Result<(u8, u32)
 /// The carried words of `state` in continuity-link order: the values that a
 /// row starting from `state` holds at its `_BEFORE` columns.
 pub fn continuity_words(state: WasmStepState) -> Vec<F> {
-    continuity_values(state)
+    unreduced_continuity_values(state)
         .into_iter()
         .map(F::from_u64)
         .collect()
 }
 
-/// The carried integers of `state` in continuity-link order, before their
-/// reduction to field words. A value of `q` or more stays as it is, so it is
-/// not the word of the smaller value that it reduces to.
-pub(crate) fn continuity_values(state: WasmStepState) -> Vec<u64> {
+pub(crate) fn unreduced_continuity_values(state: WasmStepState) -> Vec<u64> {
     build_wasm_relation_layout()
         .auxiliary
         .continuity

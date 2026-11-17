@@ -1,7 +1,4 @@
-//! The fixed WASM sizes (`neo_wasm::nebula::WasmSize`,
-//! `decisions/wasm-fixed-sizes.md`). Each size is a secure geometry whose
-//! regions fit its spaces. A prover takes the smallest size that holds a run,
-//! and the run steps natively through the segments of that size.
+//! `decisions/wasm-fixed-sizes.md`.
 
 mod common;
 
@@ -13,8 +10,6 @@ use neo_wasm::{preload_from_program_artifacts, top_level_initial_state, WasmMemo
 use nightstream::nebula::{Application, Run};
 use p3_field::PrimeField64;
 
-/// Enzo's iterative Fibonacci program (`tests/wasm_fibonacci.rs`) with two
-/// loop rounds.
 const FIB: &str = r#"(module
   (func (export "main") (result i32)
     (local i32 i32 i32)
@@ -39,8 +34,6 @@ const FIB: &str = r#"(module
     )
     local.get 2))"#;
 
-/// A program of `count` `nop`s, so that its program counters need the bits
-/// of `count`.
 fn nops(count: usize) -> String {
     format!(
         r#"(module (func (export "main") (result i32) {} i32.const 7))"#,
@@ -48,8 +41,6 @@ fn nops(count: usize) -> String {
     )
 }
 
-/// The preload, the entry state and the trace of `main`, with the host-event
-/// tables of an export that has no import.
 fn run_of(wat: &str) -> (WasmMemoryPreload, WasmStepState, Vec<WasmVmStep>) {
     let checked = common::checked_main(wat);
     let tables = &checked.artifacts.tables;
@@ -101,9 +92,6 @@ fn each_size_is_a_secure_geometry_whose_regions_fit_its_spaces() {
     }
 }
 
-/// The limits that the six test transactions of Starstream `159bedc` need
-/// (`starstream-proving-runtime/tests`, all coroutine instances of each), and
-/// the rows of their longest WASM run.
 #[test]
 fn the_starstream_test_transactions_fit_small_or_medium() {
     let need = |pc, function, event, linear_memory, global| WasmLimits {
@@ -128,10 +116,7 @@ fn the_starstream_test_transactions_fit_small_or_medium() {
     }
 }
 
-/// The memory fingerprint term of all segments of each size gives exactly 109
-/// bits (SPEC.md section 7.1), so a prover that asks for 110 gets the named
-/// security error before it reads its circuit file. One more segment would
-/// give less than 109 bits.
+/// SPEC.md section 7.1.
 #[test]
 fn a_size_refuses_more_security_than_its_memory_gives() {
     use nightstream::error::ParamsError;
@@ -172,9 +157,6 @@ fn a_size_refuses_more_security_than_its_memory_gives() {
     }
 }
 
-/// Programs of more instructions need larger sizes, and one of 1,100
-/// instructions fits none. A run of more rows than each size holds fits
-/// none either: Small holds the most rows.
 #[test]
 fn a_prover_takes_the_smallest_size_that_holds_the_run() {
     for (count, size) in [
@@ -200,10 +182,6 @@ fn a_prover_takes_the_smallest_size_that_holds_the_run() {
     assert_eq!(WasmSize::smallest(&WasmLimits::default(), most + 1), None);
 }
 
-/// Fibonacci steps natively through Small in one segment. The 600 `nop`s
-/// step through Large in two segments of 512 rows. Each run ends in the
-/// state after its last trace row. The segments together are the step inputs
-/// of the whole padded run.
 #[test]
 fn a_run_steps_natively_through_the_segments_of_its_size() {
     for (wat, size, segments) in [(FIB.to_string(), WasmSize::Small, 1), (nops(600), WasmSize::Large, 2)] {
@@ -231,9 +209,6 @@ fn a_run_steps_natively_through_the_segments_of_its_size() {
     }
 }
 
-/// Fibonacci proved in Small, one segment of 8 steps of 64 rows, on the CPU
-/// path, where the bounded-depth scheme proves. The proof verifies after its bytes
-/// round-trip, and a last state with another `pc` does not verify.
 #[test]
 #[ignore = "Full proof at a fixed size; run it alone, only with approval for a run longer than 300 seconds."]
 fn a_small_proof_verifies() {
@@ -276,8 +251,6 @@ fn a_small_proof_verifies() {
     eprintln!("total elapsed={:?}", started.elapsed());
 }
 
-/// Fibonacci proved in Small on the CPU and on Metal. The two proofs have the
-/// same bytes, and each verifier accepts the Metal proof.
 #[test]
 #[ignore = "Two full proofs; needs --features nightstream/metal on Apple hardware. Run it alone."]
 fn a_small_metal_proof_equals_the_cpu_proof() {

@@ -11,7 +11,6 @@ concurrency:
 
 defaults:
   run:
-    # All build and test workers share the same set of at most eight CPUs.
     shell: >-
       python3 -c "import os, sys;
       os.sched_setaffinity(0, sorted(os.sched_getaffinity(0))[:8]);

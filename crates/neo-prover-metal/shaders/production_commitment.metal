@@ -6,15 +6,13 @@ constant ulong PRODUCTION_KECCAK_RC[24] = {
     0x8000000000008002ul, 0x8000000000000080ul, 0x000000000000800aul, 0x800000008000000aul,
     0x8000000080008081ul, 0x8000000000008080ul, 0x0000000080000001ul, 0x8000000080008008ul,
 };
-// SHAKE128 absorbs and squeezes 168 bytes, 21 lanes, per permutation.
 constant uint PRODUCTION_SHAKE128_RATE_LANES = 21;
 
 inline ulong production_rotl64(ulong value, uint amount) {
     return (value << amount) | (value >> (64 - amount));
 }
 
-// One Keccak-f[1600] round on lanes a[5y + x]: theta, rho and pi, chi and
-// iota (FIPS 202, Section 3.3). Every lane index is fixed, so the state can stay in registers.
+// One Keccak-f[1600] round on lanes a[5y + x] (FIPS 202, Section 3.3).
 inline void production_keccak_round(thread ulong *a, ulong round_constant) {
     ulong c0 = a[0] ^ a[5] ^ a[10] ^ a[15] ^ a[20];
     ulong c1 = a[1] ^ a[6] ^ a[11] ^ a[16] ^ a[21];
@@ -85,8 +83,6 @@ inline void production_keccak_f(thread ulong *st) {
 // One key element reads four blocks of the SHAKE128 rate: 84 words (Lean `AjtaiSetupV1.keyWords`).
 constant uint PRODUCTION_KEY_BLOCKS = 4;
 
-// Input: SHAKE128(setup ID ‖ seed ‖ row_u32_le ‖ column_u64_le), 82 bytes. `prefix` holds the 70
-// bytes of the setup ID and the seed.
 // Coefficient L is the L-th output word below q, and 0 when fewer than L + 1 words are below q
 // (Lean `AjtaiSetupV1.keptCoefficientNat`).
 inline void production_ajtai_element(
@@ -96,7 +92,6 @@ inline void production_ajtai_element(
     for (uint i = 0; i < 9; ++i) st[i] = prefix[i];
     st[8] |= ((ulong)row & 0xFFFFul) << 48;
     st[9] = ((ulong)row >> 16) | (column << 16);
-    // Byte 81 is the last column byte; byte 82 starts the SHAKE padding.
     st[10] = (column >> 48) | (0x1Ful << 16);
     st[PRODUCTION_SHAKE128_RATE_LANES - 1] ^= 0x80ul << 56;
     uint kept = 0;
@@ -124,8 +119,7 @@ kernel void production_key_row(
     production_ajtai_element(prefix, (uint)shape[4], columns[position], slab + position * RING_DEGREE, 1);
 }
 
-// X^RING_DEGREE = -1: a shift that passes the last lane adds to `wrapped`,
-// the sum of the opposite sign.
+// X^RING_DEGREE = -1.
 inline void production_add_bits(
     uint bits,
     uint offset,
@@ -156,10 +150,7 @@ inline void production_add_digits(
     production_add_bits((uint)(digits >> 32), 32, halves, lane, direct, wrapped);
 }
 
-// The integer work is 32-bit where it can be: the GPU emulates 64-bit
-// operations, and this loop is ALU-bound. A thread owns one lane of one
-// witness and one column group: at most `columns_per_group * RING_DEGREE`
-// terms for each sum.
+// The GPU emulates 64-bit integer operations.
 kernel void production_ajtai_accumulate(
     device const ulong *key [[buffer(0)]],
     device const ulong2 *masks [[buffer(1)]],

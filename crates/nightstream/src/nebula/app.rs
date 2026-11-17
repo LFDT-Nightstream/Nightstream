@@ -1,9 +1,4 @@
-//! The contract between Nebula memory checking and an application (SPEC.md section 7.6),
-//! the Rust mirror of Lean `PortApp` (`Lifecycle/Nebula/PortApp.lean`). The
-//! memory rows own the operation slots and the carry. An application owns its
-//! state words, its private words, its rows over a `View`, and its native
-//! step. The segment runner applies the step's ports to memory, as Lean
-//! `Executes` applies `accessAll`. This file owns no row and no application.
+//! SPEC.md section 7.6; Lean `PortApp` (`Lifecycle/Nebula/PortApp.lean`).
 
 use std::fmt::Debug;
 
@@ -16,8 +11,7 @@ use super::records::PortAccess;
 use super::rows::View;
 use super::segment::Cell;
 
-/// An application of the memory phase: the toy `Machine` now, and next the
-/// WASM relation and the Starstream interleaving circuit. Lean proves the
+/// An application of the memory phase. Lean proves the
 /// memory rows for any `PortApp`; an application's own rows need their own
 /// soundness and completeness (`PortApp.sound`, `PortApp.complete`).
 pub trait Application {

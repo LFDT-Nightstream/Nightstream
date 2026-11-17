@@ -1,10 +1,9 @@
-//! The memory geometry of SPEC.md section 7.1, its validity, and its derived widths.
-//! Mirrors `Geometry` in `Spec/Nebula/Plan.lean`; `FirstPlan.lean` and
-//! `SecondPlan.lean` own the package geometries. A geometry has no image, so
-//! the relation, the plan digest, and the witness layout read no program.
+//! SPEC.md section 7.1; `Geometry` in `Spec/Nebula/Plan.lean`.
 
 use neo_math::F;
 use p3_field::PrimeField64;
+
+const MAX_SECURE_TUPLES: usize = 139_509;
 
 /// SPEC.md section 7.1 without the images.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -19,9 +18,7 @@ pub struct Geometry {
 }
 
 impl Geometry {
-    /// The first memory-application package (`FirstPlan.lean`): ROM and RAM
-    /// of four words, two ports, segments of two steps, at most four
-    /// segments, and 5-bit timestamps.
+    /// `FirstPlan.lean`.
     #[cfg(test)]
     pub(super) fn first() -> Self {
         Self {
@@ -35,10 +32,7 @@ impl Geometry {
         }
     }
 
-    /// The second package (`SecondPlan.lean`), for the SPEC.md section 9 cases that
-    /// the first geometry cannot reach: ROM of four words and RAM of eight
-    /// (`r < μ`), segments of one step, at most four segments, and 4-bit
-    /// timestamps.
+    /// `SecondPlan.lean`, for SPEC.md section 9.
     #[cfg(test)]
     pub(super) fn second() -> Self {
         Self {
@@ -52,8 +46,7 @@ impl Geometry {
         }
     }
 
-    /// The third test geometry (`ThirdPlan.lean`): ROM of eight words and RAM
-    /// of four (`μ < r`), so the RAM range rows of row O6 exist.
+    /// `ThirdPlan.lean`.
     #[cfg(test)]
     pub(super) fn third() -> Self {
         Self {
@@ -113,11 +106,9 @@ impl Geometry {
                 .all(|count| *count > 0)
     }
 
-    /// Lean `Geometry.Secure`, SPEC.md section 7.1, rule 6, for a valid geometry:
-    /// `m_mem ≤ 139,509`, so the memory fingerprint error is at most
-    /// `2^−109.91` (Lean `Geometry.secure_iff`).
+    /// Lean `Geometry.Secure`, `Geometry.secure_iff`; SPEC.md section 7.1, rule 6.
     pub(super) fn is_secure(&self) -> bool {
-        self.max_tuples() <= 139_509
+        self.max_tuples() <= MAX_SECURE_TUPLES
     }
 
     pub fn rom_size(&self) -> usize {
@@ -144,23 +135,21 @@ impl Geometry {
         2.0 * (F::ORDER_U64 as f64).log2() - (2.0 * self.max_tuples() as f64).log2()
     }
 
-    /// Bits of an address field (Lean `Geometry.addrWidth`): enough for a
-    /// ROM address and for a RAM address.
+    /// Lean `Geometry.addrWidth`.
     pub(crate) fn addr_width(&self) -> usize {
         self.r.max(self.mu)
     }
 
-    /// Bits of one operation slot (SPEC.md section 7.2).
+    /// SPEC.md section 7.2.
     pub(crate) fn op_width(&self) -> usize {
         3 + self.addr_width() + 64 + self.w_ts
     }
 
-    /// Bits of one scan slot (SPEC.md section 7.2).
+    /// SPEC.md section 7.2.
     pub(crate) fn scan_width(&self) -> usize {
         32 + self.w_ts
     }
 
-    /// `W_seg`: enough bits for every value below `S_max` (Lean `Nat.log2 + 1`).
     pub(crate) fn seg_width(&self) -> usize {
         (usize::BITS - self.s_max.leading_zeros()) as usize
     }

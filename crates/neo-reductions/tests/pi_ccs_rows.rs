@@ -44,7 +44,7 @@ fn row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks() {
     let cache = build_superneo_eval_cache(&structure).unwrap();
     let mut params = NeoParams::nightstream_p64_k14();
     params = params
-        .with_lambda(
+        .with_certified_lambda(
             params
                 .padded_row_security_summary_for_shape(
                     rows,

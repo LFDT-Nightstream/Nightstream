@@ -1,5 +1,3 @@
-//! Multilinear prefixes with an implicit zero suffix over the full cube.
-
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;

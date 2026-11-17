@@ -1,6 +1,4 @@
-//! One Poseidon2 permutation's rows and its external layer from the Lean
-//! formula library, over caller forms. The bounded-depth packages use it for each
-//! packed block (`CircuitRelation.sboxInterface`, `CircuitRelation.bindingRows`).
+//! Lean `CircuitRelation.sboxInterface`.
 
 use std::ops::ControlFlow;
 
@@ -12,7 +10,6 @@ use super::template::RowScratch;
 use super::{external_layer, Entry, Form, MatrixRun, PackageError, MEANINGFUL_PORTS, POSEIDON_WIDTH};
 use crate::package::SBOX_ROWS;
 
-/// A sparse form as `(column, coefficient)` pairs.
 pub(crate) type Entries = Vec<(usize, Fq)>;
 
 fn form(pairs: &[(usize, Fq)]) -> Form {
@@ -31,8 +28,6 @@ fn pairs(runs: &[MatrixRun]) -> Entries {
         .collect()
 }
 
-/// The 150 rows of `poseidon2-permutation-v1` with constant column 0, input
-/// lane forms `lanes`, and S-box outputs in the 150 columns from `sbox`.
 pub(crate) fn permutation_rows(
     lanes: &[Entries],
     sbox: usize,
@@ -60,7 +55,6 @@ pub(crate) fn permutation_rows(
     Ok(())
 }
 
-/// `poseidon2-external-v1` on the 16 single columns `columns`.
 pub(crate) fn external_outputs(columns: &[usize], logical_width: usize) -> Result<Vec<Entries>, PackageError> {
     let state: Vec<Form> = columns
         .iter()

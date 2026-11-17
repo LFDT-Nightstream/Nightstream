@@ -1,8 +1,3 @@
-//! Canonical shape checks for the public PiCCS, PiRLC, and PiDEC boundary.
-//!
-//! This module owns structural validation only. It does not own transcript
-//! replay, algebraic acceptance, commitment binding, or protocol selection.
-
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, CeClaim, Mat};
 use neo_math::{D, F, K};

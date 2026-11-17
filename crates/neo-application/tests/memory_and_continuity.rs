@@ -95,7 +95,6 @@ fn write_port(activation: MemoryPortActivation) -> MemoryPortSpec {
     }
 }
 
-/// A ROM with one read, then a RAM with a read and a write.
 fn program_and_state() -> MemoryCatalog<TestMemory> {
     MemoryCatalog::new(
         [
@@ -135,9 +134,7 @@ fn memory_catalog_preserves_memory_and_port_order() {
     ));
 }
 
-/// Lean `Spec.Nebula.MemoryTrace.batchCatalog`: each memory keeps its id
-/// and kind and lists row 0's ports, then row 1's, each with every column
-/// moved to its row.
+/// Lean `Spec.Nebula.MemoryTrace.batchCatalog`.
 #[test]
 fn batched_catalog_lists_memories_then_rows_then_ports() {
     let column = |row: usize, c: usize| 100 + 10 * row + c;

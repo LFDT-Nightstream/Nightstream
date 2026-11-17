@@ -1,6 +1,3 @@
-//! Static opaque-value lowering and native replay. The verifier owns the schema
-//! and source order; roots compress those sources without interpreting their types.
-
 use super::{opaque_control_encoding, EventBlock, SlotBinding};
 use crate::WasmBuildError;
 use neo_application::event_commitment::commit_block;
@@ -123,8 +120,6 @@ fn is_control(slot: &SlotBinding) -> bool {
     opaque_control_encoding(slot).is_some()
 }
 
-/// Validate the exact lowering, including framing, padding, and four ordered
-/// copy-back lanes. The resulting ROM schedule is authoritative in the circuit.
 pub(super) fn validate(events: &[EventBlock]) -> Result<(), WasmBuildError> {
     let mut index = 0;
     while index < events.len() {
@@ -204,8 +199,6 @@ pub(super) fn validate(events: &[EventBlock]) -> Result<(), WasmBuildError> {
     Ok(())
 }
 
-/// Resolve internal instructions after ordinary source expansion. The returned
-/// mask selects outer transcript blocks, excluding prefix and object work.
 pub(super) fn replay(events: &[EventBlock], blocks: &mut [[u64; 8]]) -> Result<Vec<bool>, WasmBuildError> {
     validate(events)?;
     if events.len() != blocks.len() {

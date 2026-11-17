@@ -1,10 +1,7 @@
-//! Normalizer-owned suspended activations and boundary rows. Saved values are
-//! separately authenticated by the relation's context RAM.
-
 use super::super::host_event_emit::{emit_block_plan, plan_import_phase, HostEventRowContext};
 use super::super::{memory::LinearMemoryImage, NormalizedStep};
 use super::turn::{setup_turn, TurnSetup};
-use crate::host_event_bindings::HostEventBindings;
+use crate::host_event_bindings::{biased_count, HostEventBindings};
 use crate::ir::{WasmAuxOpcode, WasmBuildError, WasmCountdownState, WasmOutputState, WasmStepState, WasmVmStep};
 
 pub(super) struct Suspended<'a> {
@@ -76,8 +73,6 @@ pub(super) fn enter<'a>(
     after.host_events.events_remaining = setup.entry_plans.len() as u32;
     after.host_events.event_index = bindings.event_base(setup.fref);
     after.host_events.slot_cursor = 0;
-    // The entered frame starts above every suspended cell, or at the stack
-    // bottom for a root entry; its parameters are reserved for the inputs.
     if let Some(suspended) = suspended {
         if before.sp != suspended.context.retained_sp {
             return Err(WasmBuildError::Trace(
@@ -103,7 +98,7 @@ pub(super) fn enter<'a>(
         call_result_count: Some(setup.result_count),
         target_function_is_guest: true,
         host_context: suspended.map(|saved| saved.context),
-        host_event_initial_schedule_count: Some(setup.entry_plans.len() as u32 + 1),
+        host_event_initial_schedule_count: Some(biased_count(setup.entry_plans.len())),
         host_event_exit_schedule_count: Some(setup.template.exit.len() as u32),
         ..row_context(before, current).row(out.len() as u64, WasmAuxOpcode::TurnBoundary, before, after)
     });
@@ -186,7 +181,7 @@ pub(super) fn resume(
     after.host_events.slot_cursor = 0;
     out.push(WasmVmStep {
         host_context: Some(saved.context),
-        host_event_initial_schedule_count: Some(template.events.len() as u32 + 1),
+        host_event_initial_schedule_count: Some(biased_count(template.events.len())),
         host_event_return_schedule_count: Some(template.return_schedule_count()),
         ..row_context(before, call).row(out.len() as u64, WasmAuxOpcode::HostResume, before, after)
     });

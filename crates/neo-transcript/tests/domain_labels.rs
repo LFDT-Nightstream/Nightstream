@@ -1,6 +1,3 @@
-//! A domain label packs eight bytes into each word. `q = 2^64 − 59`, so the 59 words from `q` to
-//! `2^64 − 1` would alias the words 0 to 58. A label with such a word is rejected.
-
 use neo_math::F;
 use neo_transcript::{domain_chunk_v1_2, fold_domain_chunk_v1_2, prior_digest_v1_2};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};

@@ -1,5 +1,3 @@
-//! Fixed operation-circuit construction; assignment follows the allocated schedule.
-
 use crate::operations::r1cs::OperationRelation;
 use crate::operations::OPERATIONS_REGION;
 use crate::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag};

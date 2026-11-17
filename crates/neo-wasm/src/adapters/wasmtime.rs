@@ -28,8 +28,7 @@ use normalize::capture_frame;
 use parse::{parse_first_component_core_module_artifacts, parse_wasm_artifacts};
 pub use registry::{WasmTraceSink, WasmtimeTraceRegistry, WasmtimeTraceState};
 use runtime_read::val_to_string;
-// Public path `adapters::wasmtime::traces_from_wasmtime_steps` is preserved via this re-export
-// (also brings the name into scope for the component wrappers below).
+
 pub use normalize::{traces_from_wasmtime_steps, traces_from_wasmtime_steps_with_host_events};
 pub use parse::{WasmProgramArtifacts, WasmProgramDecodeEntry, WasmProgramTables};
 
@@ -41,12 +40,11 @@ pub struct WasmtimeTraceStep {
     pub step: u64,
     pub function: String,
     pub function_index: Option<u32>,
-    /// Zero-based operator index across the module's defined functions.
+    /// First dense PC of this instruction across the module's defined functions.
     pub pc: Option<u32>,
     /// Human-readable opcode label from wasmparser's Debug format, for display only.
     pub opcode: Option<String>,
-    /// Structurally decoded opcode, populated at trace-collection time from
-    /// `wasmparser::Operator`. Not serialized (runtime-only).
+    /// Structurally decoded opcode from `wasmparser::Operator`.
     pub opcode_decoded: Option<WasmOpcode>,
     /// Opcode-specific u32 immediate (constant, index, or br_table arm count).
     pub immediate_i32: Option<u32>,
@@ -74,7 +72,7 @@ pub struct WasmtimeTraceStep {
     pub memory_pages_before: Option<u32>,
     pub memory_pages_after: Option<u32>,
     /// Declared max page count (capped at the wasm32 limit), constant for the
-    /// execution. Threaded into the carried `max_memory_pages` boundary.
+    /// execution.
     pub memory_max_pages: Option<u32>,
     pub memory: Option<WasmtimeTraceMemoryAccess>,
     pub locals: Vec<String>,
@@ -129,16 +127,9 @@ pub struct WasmtimeTraceMemoryAccess {
 
 #[derive(Clone, Debug)]
 pub struct WasmtimeTraceRun {
-    /// The configured artifacts used for capture, retained for normalization.
     artifacts: Arc<WasmProgramArtifacts>,
-    /// Normalized string form of the export results, as produced by the
-    /// reference wasmtime interpreter (`func.call_async`).
-    ///
-    /// This is the *reference* output and is NOT bound to the proof — the
-    /// witness/CCS pipeline is built from `steps`, independently of this
-    /// field, so it is for fixture/intent checks only. The proof-bound
-    /// output is the `output` carried in the final semantic state, checked
-    /// by `verify` against the prover-disclosed final `WasmStepState`.
+    /// String form of the export results. Not bound to the proof: the
+    /// proof-bound output is the `output` of the final `WasmStepState`.
     pub results: Vec<String>,
     pub steps: Vec<WasmtimeTraceStep>,
 }
@@ -158,7 +149,6 @@ impl<T> WasmtimeTraceHandler<T> {
     }
 }
 
-// Avoid derive-imposed bounds on `T`; the handler stores only PhantomData.
 impl<T> Default for WasmtimeTraceHandler<T> {
     fn default() -> Self {
         Self::new()
@@ -167,7 +157,7 @@ impl<T> Default for WasmtimeTraceHandler<T> {
 
 impl<T> Clone for WasmtimeTraceHandler<T> {
     fn clone(&self) -> Self {
-        WasmtimeTraceHandler(PhantomData)
+        *self
     }
 }
 
@@ -179,18 +169,14 @@ impl<T> std::fmt::Debug for WasmtimeTraceHandler<T> {
     }
 }
 
-/// Module artifacts are shared; runtime function identities belong to one instance.
 #[derive(Debug)]
 pub(crate) struct LoweringTables {
     pub(crate) artifacts: Arc<WasmProgramArtifacts>,
     pub(crate) func_ref_ids: BTreeMap<usize, u32>,
 }
 
-/// Whether a wasmtime trap has a modeled terminal state, so the collected
-/// steps (faulting row included) can stand in for a clean run with no results.
-///
 /// Wasmtime also uses `TableOutOfBounds` for unmodeled table instructions.
-/// The last opcode identifies the modeled fault. See SPEC.md section 7.8 for get and set.
+/// See SPEC.md section 7.8 for get and set.
 fn is_modeled_terminal_trap(trap: Option<&Trap>, last_step: Option<&WasmtimeTraceStep>) -> bool {
     match trap {
         Some(
@@ -211,7 +197,6 @@ fn is_modeled_terminal_trap(trap: Option<&Trap>, last_step: Option<&WasmtimeTrac
                 )
             )
         }
-        // OOB linear-memory access is modeled only for load/store opcodes.
         Some(Trap::MemoryOutOfBounds) => last_step
             .and_then(|step| step.opcode_decoded)
             .is_some_and(|op| op.memory_access_info().is_some()),
@@ -264,9 +249,6 @@ pub fn collect_wasmtime_steps(
     store.data().check_errors()?;
     let results = match call_result {
         Ok(()) => results.iter().map(|&v| val_to_string(v)).collect(),
-        // Traps with a modeled terminal state: keep the collected steps
-        // (the faulting row included) and report no results. Other trap
-        // causes stay hard errors.
         Err(err)
             if is_modeled_terminal_trap(
                 err.downcast_ref::<Trap>(),
@@ -460,9 +442,7 @@ impl<T: WasmTraceSink + Send + 'static> DebugHandler for WasmtimeTraceHandler<T>
             }
 
             let frames = store.debug_exit_frames().collect::<Vec<FrameHandle>>();
-            // Only the innermost frame is executing this step. Outer frames can
-            // belong to a different core instance in cross-instance calls.
-            let Some(frame) = frames.first() else {
+            let Some(innermost_frame) = frames.first() else {
                 return;
             };
             if store.data().wasm_trace_registry().error.is_some() {
@@ -470,15 +450,14 @@ impl<T: WasmTraceSink + Send + 'static> DebugHandler for WasmtimeTraceHandler<T>
             }
             if matches!(event, DebugEvent::HostcallError(_) | DebugEvent::Trap(_)) {
                 // These notifications arrive before the current activation unwinds.
-                // Wasmtime does not report every native trap; unexplained
-                // continuation mismatches still fail instead of being discarded.
+                // Wasmtime does not report every native trap.
                 store
                     .data_mut()
                     .wasm_trace_registry_mut()
                     .discard_unwound_imports(frames.len());
                 return;
             }
-            if let Err(error) = registry::capture_step(frame, frames.len(), &mut store) {
+            if let Err(error) = registry::capture_step(innermost_frame, frames.len(), &mut store) {
                 store.data_mut().wasm_trace_registry_mut().error = Some(error);
             }
         }

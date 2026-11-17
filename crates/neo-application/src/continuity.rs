@@ -1,6 +1,3 @@
-//! Ordered declarations and diagnostic replay of application state carried
-//! between consecutive steps.
-
 use std::collections::BTreeMap;
 
 use neo_math::F;

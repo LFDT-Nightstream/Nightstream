@@ -1,7 +1,4 @@
-//! Export real traces' rows to Rocq, so the refinement theorem's premises can be
-//! checked against actual runs (`formal/wasm-rocq/tests/*Witness.v`).
-//! The traces are not in git. `make` in `formal/wasm-rocq` generates them with
-//! `cargo test -p neo-wasm --release --test wasm_rocq_witness_export -- --ignored`.
+//! Traces for Rocq `formal/wasm-rocq/tests/*Witness.v`.
 
 use neo_wasm::host_event_bindings::{EventSequenceBuilder, EventSources, HostEventBindings, HostEventBindingsBuilder};
 use neo_wasm::witness_builder::build_witness_vector;
@@ -12,14 +9,12 @@ use neo_wasm::{
 use p3_field::PrimeField64;
 use std::fmt::Write;
 
-/// `tests/BlockCalls.v`'s program: a call from inside two blocks.
+/// The program of Rocq `tests/BlockCalls.v`.
 const BLOCK_CALLS: &str = r#"(module
   (func $readZero (result i32) (local i32) local.get 0)
   (func (export "main") (result i32) (local i32)
     block block call $readZero local.set 0 end end local.get 0))"#;
 
-/// A taken br_if that leaves two blocks, dropping the operand under its condition
-/// and the outer block's operand below the inner block.
 const UNWINDING_BRANCH: &str = r#"(module
   (func (export "main") (param i32) (result i32) (local i32)
     block
@@ -29,8 +24,6 @@ const UNWINDING_BRANCH: &str = r#"(module
     end
     local.get 1))"#;
 
-/// The export (function 0, the only one with parameters here) takes each parameter
-/// from a turn input; its exit outputs the result.
 fn entry_bindings(wasm: &[u8], params: usize) -> HostEventBindings {
     if params == 0 {
         return HostEventBindings::default();
@@ -54,16 +47,12 @@ fn entry_bindings(wasm: &[u8], params: usize) -> HostEventBindings {
     builder.finish().expect("bindings")
 }
 
-/// A return from inside a block that drops the operand below its result.
 const EARLY_RETURN: &str = r#"(module
   (func (export "main") (param i32) (result i32) local.get 0 call 1)
   (func (param i32) (result i32) (local i32)
     block local.get 1 local.get 0 return end
     local.get 1))"#;
 
-/// A taken br_if out of a result block: it keeps the block's result and drops the
-/// operand below it, so the result moves down; the outer block's END carries its
-/// result out.
 const RESULT_BLOCKS: &str = r#"(module
   (func (export "main") (param i32 i32) (result i32)
     block (result i32)
@@ -72,8 +61,6 @@ const RESULT_BLOCKS: &str = r#"(module
       i32.sub
     end))"#;
 
-/// A br out of two blocks to a result block: it keeps the block's result and drops
-/// the outer block's operand below it, so the result moves down.
 const BR_OUT: &str = r#"(module
   (func (export "main") (param i32 i32) (result i32)
     block (result i32)
@@ -81,9 +68,6 @@ const BR_OUT: &str = r#"(module
       block local.get 1 br 1 end
     end))"#;
 
-/// Two br_tables: index 1 takes an arm out of a zero-result block; index 7 is past
-/// the arms and takes the default out of a result block, which keeps its result and
-/// drops the operand below it, so the result moves down.
 const BR_TABLES: &str = r#"(module
   (func (export "main") (param i32 i32) (result i32)
     block (result i32)
@@ -94,9 +78,6 @@ const BR_TABLES: &str = r#"(module
       br_table 0 0
     end))"#;
 
-/// Three ifs: a zero condition takes the else-body, a nonzero one the then-body,
-/// whose ELSE jumps past the else-body; a zero condition skips an if with no
-/// else-body.
 const IFS: &str = r#"(module
   (func (export "main") (param i32 i32) (result i32)
     local.get 0
@@ -109,9 +90,6 @@ const IFS: &str = r#"(module
     local.get 1
     if local.get 0 local.set 1 end))"#;
 
-/// A loop summing n, n - 1, ..., 1 for main(n, 1): each taken br_if drops the
-/// running sum it pushed and runs the loop again; the last iteration falls out of
-/// the loop with the sum as its result.
 const LOOPS: &str = r#"(module
   (func (export "main") (param i32 i32) (result i32) (local i32)
     loop (result i32)
@@ -128,7 +106,6 @@ const LOOPS: &str = r#"(module
       br_if 0
     end))"#;
 
-/// Nops at the top level and inside a block, around an operand.
 const NOPS: &str = r#"(module
   (func (export "main") (param i32) (result i32)
     nop
@@ -136,8 +113,6 @@ const NOPS: &str = r#"(module
     block nop end
     nop))"#;
 
-/// A br to the callee's own label from inside a block: a return of 9 to main,
-/// dropping the 7 below it.
 const FUNCTION_BR: &str = r#"(module
   (func (export "main") (param i32 i32) (result i32)
     local.get 0
@@ -150,8 +125,6 @@ const FUNCTION_BR: &str = r#"(module
       br 1
     end))"#;
 
-/// An indirect call through a table holding $double, $main (another type) and
-/// null. The index comes from a parameter: the proved fragment has no constants.
 const INDIRECT_CALL: &str = r#"(module
   (type $unary (func (param i32) (result i32)))
   (table 3 funcref)
@@ -165,7 +138,6 @@ const INDIRECT_CALL: &str = r#"(module
     local.get 0
     i32.add))"#;
 
-/// The final run of program, zero and move rows, optionally including its terminal row.
 fn export_witness(wat: &str, params: &[i32], name: &str, file: &str, include_terminal: bool) {
     export_witness_format(wat, params, name, file, include_terminal, false);
 }
@@ -289,7 +261,6 @@ fn export_witnesses() {
 #[test]
 #[ignore = "regenerates Rocq files"]
 fn export_integer_local_witnesses() {
-    // Both limbs are nonzero, and the unsigned value exceeds `q`.
     export_witness_format(
         r#"(module (func (export "main") (local i64)
             i64.const -1 local.set 0 local.get 0 drop))"#,
@@ -304,7 +275,6 @@ fn export_integer_local_witnesses() {
 #[test]
 #[ignore = "regenerates Rocq files"]
 fn export_integer_stack_witnesses() {
-    // The i64 prefix must survive arithmetic and local transfers, including its high limb.
     export_witness_format(
         r#"(module (func (export "main") (result i64) (local i64)
             i64.const 4294967305
@@ -374,7 +344,6 @@ fn export_terminal_witnesses() {
     );
 }
 
-/// Full mixed-type runs, starting at the first opcode after the host input rows.
 #[test]
 #[ignore = "regenerates Rocq files"]
 fn export_mixed_refinement_witnesses() {

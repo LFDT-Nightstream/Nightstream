@@ -1,4 +1,3 @@
-//! Selected PiCCS validation and shared native proving.
 use super::{
     has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CcsClaim,
     CcsWitness, CeClaim, FoldContext, Params, RunningInstance, Structure,
@@ -105,8 +104,7 @@ fn validate_input_shape(
     Ok(())
 }
 
-/// The light fold folds into one accumulator (Lean `Spec/Folding/Light`);
-/// every other fold into the 14 PiDEC children.
+/// Lean `Spec/Folding/Light`.
 fn running_count(pp: &Params, profile: &FoldProfile<'_>) -> usize {
     match profile.norm {
         NormSources::All => pp.k_rho() as usize,

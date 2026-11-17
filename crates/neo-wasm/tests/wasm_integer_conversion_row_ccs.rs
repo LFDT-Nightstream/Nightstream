@@ -1,5 +1,3 @@
-//! Row-level CCS tests for integer conversion opcodes.
-
 mod common;
 
 use common::{assert_rejected, assert_satisfied};

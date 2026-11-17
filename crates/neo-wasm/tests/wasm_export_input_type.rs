@@ -105,8 +105,6 @@ fn i32_export_input_cannot_forge_a_nonzero_high_limb() {
         row.state_after.output.value_hi = 1;
     }
 
-    // The forged trace is self-consistent under the row relation, lookups,
-    // and continuity. The verifier-owned, program-derived event ROM must reject it.
     common::ccs_check_trace(&trace);
     let layout = neo_wasm::build_wasm_relation_layout();
     let witnesses: Vec<_> = trace

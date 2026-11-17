@@ -1,15 +1,3 @@
-//! Exports the wasm base R1CS relation as Rocq source for `formal/wasm-rocq`.
-//!
-//! This binary owns the Rust→Rocq code-emission wiring. It does not own the
-//! circuit data — that lives in `neo-application`'s tagged R1CS builder and
-//! catalog, and in the shared `define_column_region!` macro.
-//!
-//! Outputs, all in `formal/wasm-rocq/`:
-//! - `Columns.v` — the complete base witness column registry and widths.
-//! - `FullRelation.v` — every base R1CS row; the operation circuit is separate.
-//! - `MemoryCatalog.v` — logical memory ports, gate exclusions and cross-step continuity links.
-//! - `OpcodeCatalog.v` — opcode bytes used by the program ROM.
-
 use neo_application::{ApplicationRelation, ColumnWidth, MemoryKind, MemoryPortActivation, MemoryPortKind};
 use neo_math::{balanced::to_balanced_i128, F};
 use neo_wasm::ccs::build_wasm_relation;
@@ -178,8 +166,6 @@ fn emit_rocq_full_relation(relation: &ApplicationRelation<WasmConstraintScope>) 
     out
 }
 
-// Select a tagged row by the first column of one factor, never by its position.
-// Rocq still checks the actual row shape before using the index in a proof.
 #[derive(Clone, Copy)]
 enum Factor {
     A,

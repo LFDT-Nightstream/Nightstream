@@ -5,10 +5,7 @@
 //! the memory circuit, the memory prover and verifier, the memory backend of
 //! catalog applications (`CatalogBinding`), and the application of an R1CS
 //! relation of one row (`R1csApplication`). A public memory circuit comes
-//! from the Rust-built relation (`Circuit::compile`). The tests also load the
-//! pinned Lean-emitted packages of the toy `Machine` (`Package::load`), and
-//! `tests/nebula/parity.rs` requires the machine's Rust relation to equal
-//! each Lean package's, row for row.
+//! from the Rust-built relation (`Circuit::compile`).
 
 mod app;
 mod carry;
@@ -57,21 +54,17 @@ pub(crate) use segment::Context;
 pub use segment::{Invocation, SegmentError};
 pub use transcript::Digest;
 
-/// A Lean-emitted memory package of the machine: the memory geometry that it
-/// proves and its pinned structural identifier. A program of the geometry is
-/// a `Program`.
 #[cfg(test)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Package {
-    /// `FirstPlan.lean`: `artifacts/nightstream-fprime-bounded-depth-nebula-v1-{light,refresh}-v1.json`.
+    /// `FirstPlan.lean`.
     V1,
-    /// `SecondPlan.lean`: `artifacts/nightstream-fprime-bounded-depth-nebula-n1-{light,refresh}-v1.json`.
+    /// `SecondPlan.lean`.
     N1,
 }
 
 #[cfg(test)]
 impl Package {
-    /// The memory geometry that the package proves.
     pub fn geometry(self) -> Geometry {
         match self {
             Package::V1 => Geometry::first(),
@@ -79,8 +72,7 @@ impl Package {
         }
     }
 
-    /// The default program of the Lean plan that the package was emitted
-    /// from (`FirstPlan.plan`, `SecondPlan.plan`).
+    /// Lean `FirstPlan.plan`, `SecondPlan.plan`.
     pub fn program(self) -> Program {
         let (rom, ram) = match self {
             Package::V1 => (vec![23, 2, 1, 0], vec![0; 4]),
@@ -89,10 +81,7 @@ impl Package {
         Program::new(self.geometry(), rom, ram).expect("a default program fits its geometry")
     }
 
-    /// Load the package's bounded-depth circuit: Lean's light and refresh
-    /// packages of the memory program (`EmitMain --program`).
-    /// `Circuit::load_packages` recomputes their identity
-    /// and requires the package's pin.
+    /// Lean `EmitMain --program`.
     pub fn load(self, references: crate::References<'_>) -> Result<Circuit<Machine>, crate::Error> {
         Ok(Circuit {
             geometry: self.geometry(),
@@ -101,7 +90,6 @@ impl Package {
         })
     }
 
-    /// The identity of the package's bounded-depth light and refresh packages.
     pub(crate) fn bounded_depth_identity(self) -> [u64; 4] {
         match self {
             Package::V1 => [
@@ -119,8 +107,6 @@ impl Package {
         }
     }
 
-    /// The package's relation built in Rust, row for row as Lean builds it
-    /// (`tests/nebula/parity.rs`).
     pub(crate) fn application(self) -> Result<crate::application::ApplicationCircuit, crate::Error> {
         circuit::memory_circuit_unshared(&self.geometry(), &Machine)
     }
@@ -173,7 +159,7 @@ impl Program {
     }
 }
 
-/// The SPEC.md Algorithm 8 public statement of a memory proof over application states `S`.
+/// SPEC.md Algorithm 8.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Statement<S> {
     pub steps: u64,
@@ -333,9 +319,7 @@ impl<A: Application> Circuit<A> {
     }
 }
 
-/// The largest `k` with `S_max · 2 · m_mem / q² ≤ 2^−k`: each of the `S_max`
-/// segments of a proof adds its own fingerprint term (`SECURITY_MODEL.md`,
-/// adversary 5). The integers are exact, so no rounding accepts a larger `k`.
+/// `SECURITY_MODEL.md`, adversary 5.
 fn segments_security_bits(geometry: &Geometry) -> u32 {
     let q = u128::from(F::ORDER_U64);
     (2 * geometry.max_tuples() as u128)
@@ -345,8 +329,7 @@ fn segments_security_bits(geometry: &Geometry) -> u32 {
         .unwrap_or(0)
 }
 
-/// Require a valid and secure `geometry` (SPEC.md section 7.1) whose
-/// fingerprint term over all `S_max` segments meets `minimum_security_bits`.
+/// SPEC.md section 7.1.
 fn memory_security(geometry: &Geometry, minimum_security_bits: u32) -> Result<(), crate::Error> {
     if !geometry.is_valid() || !geometry.is_secure() {
         return Err(crate::Error::Circuit("the memory geometry breaks SPEC.md section 7.1"));
@@ -364,8 +347,7 @@ fn memory_security(geometry: &Geometry, minimum_security_bits: u32) -> Result<()
 
 #[cfg(test)]
 impl<A: Application> Context<A> {
-    /// SPEC.md Algorithm 8: check the final carry against the statement and return the
-    /// initial and final Stage 1 states for the Stage 1 terminal check.
+    /// SPEC.md Algorithm 8.
     pub fn terminal_states(
         &self,
         statement: &Statement<A::State>,
@@ -381,11 +363,6 @@ fn terminal_states<A: Application>(
     statement: &Statement<A::State>,
     final_carry: &Carry,
 ) -> Result<(Digest, Digest), TerminalError> {
-    // Canonical decoding: an integer that becomes a field word must be below `q`, as Lean
-    // reads each word with `.val`. The pattern names every field, so a new
-    // field does not compile until it is classified here. `steps`,
-    // `segments`, and the carry counters must equal values below `q`
-    // (checked below), and `final_root` is field-typed.
     let Statement {
         steps: _,
         initial,
@@ -461,7 +438,6 @@ impl<A: Application> Run<A> {
         &self.context
     }
 
-    /// The Stage 1 state before the first invocation.
     pub(crate) fn initial_state(&self) -> Digest {
         self.context
             .state(&self.initial, &self.context.start_carry())
@@ -493,7 +469,7 @@ impl<A: Application> Run<A> {
         Ok(segment.invocations)
     }
 
-    /// The SPEC.md Algorithm 8 statement of the run so far.
+    /// SPEC.md Algorithm 8.
     #[cfg(test)]
     pub(crate) fn statement(&self) -> Statement<A::State> {
         Statement {

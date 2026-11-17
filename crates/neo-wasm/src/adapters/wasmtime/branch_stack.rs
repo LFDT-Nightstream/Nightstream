@@ -1,18 +1,12 @@
-//! Static frame slides: for each branch edge, `return`, and function `end`, the operands
-//! a taken edge keeps (`remaining`) and how far down it moves them (`distance`). Keys are
-//! the same `(pc, control choice)` edges as the pc ROM; the parser assigns pcs.
-
 use crate::ir::WasmProgramError;
 use std::collections::BTreeMap;
 use wasmparser::{
     FrameKind, FuncValidator, ModuleArity, Operator, Parser, ValidPayload, Validator, WasmModuleResources,
 };
 
-/// `(control choice, remaining, distance)` per edge.
 pub(super) type FrameSlideEdges = Vec<(u64, u32, u32)>;
 
-/// A slide that moves nothing needs no move rows.
-fn slide(kept: u32, distance: u32) -> (u32, u32) {
+fn canonical_slide(kept: u32, distance: u32) -> (u32, u32) {
     if distance == 0 {
         (0, 0)
     } else {
@@ -39,24 +33,21 @@ fn arity<T: WasmModuleResources>(
     Ok((kept, target.height))
 }
 
-/// A branch to the label at `depth` keeps the label's arity and drops the operands
-/// between it and the label's height. `condition` operands are consumed by the row.
 fn branch<T: WasmModuleResources>(
     validator: &FuncValidator<T>,
     depth: u32,
-    condition: usize,
+    condition_operands: usize,
     offset: usize,
 ) -> Result<(u32, u32), WasmProgramError> {
     let (kept, height) = arity(validator, depth as usize, offset)?;
     let dropped = (validator.operand_stack_height() as usize)
-        .checked_sub(condition)
+        .checked_sub(condition_operands)
         .and_then(|available| available.checked_sub(height))
         .and_then(|available| available.checked_sub(kept as usize))
         .ok_or_else(|| WasmProgramError::Invalid(format!("branch operand stack underflow at byte {offset}")))?;
-    Ok(slide(kept, narrow(dropped, offset)?))
+    Ok(canonical_slide(kept, narrow(dropped, offset)?))
 }
 
-/// A return keeps the results and drops the rest of the frame, locals included.
 fn function_return<T: WasmModuleResources>(
     validator: &FuncValidator<T>,
     height: usize,
@@ -68,15 +59,14 @@ fn function_return<T: WasmModuleResources>(
     let dropped = frame
         .checked_sub(results as usize)
         .ok_or_else(|| WasmProgramError::Invalid(format!("return operand stack underflow at byte {offset}")))?;
-    Ok(slide(results, narrow(dropped, offset)?))
+    Ok(canonical_slide(results, narrow(dropped, offset)?))
 }
 
 fn narrow(value: usize, offset: usize) -> Result<u32, WasmProgramError> {
     u32::try_from(value).map_err(|_| WasmProgramError::Unsupported(format!("frame slide too large at byte {offset}")))
 }
 
-/// Slides keyed by the operator's byte offset in `bytes`.
-pub(super) fn frame_slides(bytes: &[u8]) -> Result<BTreeMap<u32, FrameSlideEdges>, WasmProgramError> {
+pub(super) fn frame_slides_by_offset(bytes: &[u8]) -> Result<BTreeMap<u32, FrameSlideEdges>, WasmProgramError> {
     let invalid = |error| WasmProgramError::Invalid(format!("invalid wasm program: {error}"));
     let mut slides = BTreeMap::new();
     let mut validator = Validator::new();
@@ -92,7 +82,6 @@ pub(super) fn frame_slides(bytes: &[u8]) -> Result<BTreeMap<u32, FrameSlideEdges
             while !operators.eof() {
                 let offset = operators.original_position();
                 let operator = operators.read().map_err(invalid)?;
-                // Unreachable code executes no rows; a function's `end` always can.
                 let reachable = function
                     .get_control_frame(0)
                     .is_some_and(|frame| !frame.unreachable);
@@ -104,7 +93,7 @@ pub(super) fn frame_slides(bytes: &[u8]) -> Result<BTreeMap<u32, FrameSlideEdges
                         vec![(0, kept, distance)]
                     }
                     _ if !reachable => vec![],
-                    // A `br` to the body's own label is a `return` (see the parser).
+                    // A `br` to the body's own label is a `return`.
                     Operator::Br { relative_depth }
                         if *relative_depth as usize == function.control_stack_height() as usize - 1 =>
                     {

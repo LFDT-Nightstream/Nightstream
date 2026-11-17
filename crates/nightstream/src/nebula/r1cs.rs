@@ -175,10 +175,7 @@ pub fn batched_slots<Id>(
 /// A relation of one row as a Nebula application, `rows` rows in each step.
 #[derive(Clone, Debug)]
 pub struct R1csApplication<Id> {
-    /// `[A_i, B_i, C_i]` of each rank-one row of one step.
     relation: Arc<Vec<[Terms; 3]>>,
-    /// The one-row `(previous_step_column, next_step_column)` of each
-    /// continuity link, in link order.
     links: Arc<Vec<(usize, usize)>>,
     layout: StepLayout,
     binding: CatalogBinding<Id>,

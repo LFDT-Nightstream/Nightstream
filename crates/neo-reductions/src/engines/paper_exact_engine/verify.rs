@@ -1,5 +1,3 @@
-//! Independent verifier for the one-joint padded-row paper protocol.
-
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
 use neo_math::{D, F, K};

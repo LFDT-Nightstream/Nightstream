@@ -1,8 +1,5 @@
 //! The words and bytes of the compression transcript against Lean
-//! (`Export.BoundedDepth.CompressionSponge`, SPEC.md section 5.4). Lean
-//! emits the domain, the session label, the words of byte strings and of a
-//! claim, the session bytes of a sponge state, and the pieces of a sample
-//! run with its session.
+//! (`Export.BoundedDepth.CompressionSponge`, SPEC.md section 5.4).
 
 use std::fs;
 use std::path::PathBuf;
@@ -114,8 +111,7 @@ fn the_session_is_the_lean_session() {
     assert_eq!(session(&transcript, SESSION), bytes(&lean[3][1]));
 }
 
-/// Lean's piece list (`Sponge.calls`) has the zero blocks of
-/// `read_coin_v1_2` at the same places as the Rust transcript.
+/// Lean `Sponge.calls`.
 #[test]
 fn a_replay_of_the_lean_pieces_ends_in_the_lean_session() {
     let lean = lean();

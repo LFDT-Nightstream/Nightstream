@@ -1,6 +1,3 @@
-//! Separate package compilation from a loaded Poseidon2 proof lifecycle.
-//! JSON lines report phase timings; an external process measures peak memory.
-
 use std::{
     error::Error,
     io::Write,
@@ -167,7 +164,6 @@ fn benchmark(package: &Path, engine: Engine, steps: u64, minimum_security_bits: 
     let started = begin("load", None)?;
     let prover = Prover::load(package, engine, minimum_security_bits)?;
     end("load", None, started)?;
-    // A verifier never loads a saved circuit: it compiles its own.
     let started = begin("verifier_compile", None)?;
     let circuit = Circuit::compile(poseidon2_hash_chain_v1()?)?;
     let verifier = circuit.verifier(engine, minimum_security_bits)?;

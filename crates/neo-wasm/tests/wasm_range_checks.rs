@@ -89,9 +89,6 @@ fn range_bit_lookup_exactly_partitions_the_auxiliary_suffix() {
 
 #[test]
 fn packed_function_metadata_counts_are_byte_ranged() {
-    // The packed ROM word is unpacked linearly. These byte bounds make that
-    // decomposition unique: without them, `param += 256; result -= 1` would
-    // preserve the authoritative packed value while changing call semantics.
     assert_eq!(
         named_column_family(COL_CALL_PARAM_COUNT).unwrap().width,
         ColumnWidth::Byte

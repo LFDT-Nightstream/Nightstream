@@ -1,5 +1,4 @@
-//! The Rust PiCCS field numerator must equal the Lean-proved selected test
-//! error, `VerifierErrorBudget.test_error_eq_selected`, for the same counts.
+//! Lean `VerifierErrorBudget.test_error_eq_selected`.
 
 use std::{fs, path::PathBuf};
 

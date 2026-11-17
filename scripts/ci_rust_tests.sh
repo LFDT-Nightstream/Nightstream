@@ -35,8 +35,7 @@ common=(
 
 # The tests that run alone use the release profile of Cargo.toml, fat LTO,
 # which is the build that users run. Under fat LTO, Akita's NTT loops need
-# more stack than under `common`. They have their own target folder, because
-# Cargo locks a target folder for the whole of a build.
+# more stack than under `common`.
 shipped=(--release --locked --target-dir "${CARGO_TARGET_DIR:-target}/shipped")
 
 case "${1:-}" in
@@ -56,17 +55,10 @@ case "${1:-}" in
     printf 'Shipped tests built at %s\n' "$(date -u +%H:%M:%SZ)"
     ;;
   test)
-    shipped_log=$(mktemp)
-    bash "$0" build-shipped > "$shipped_log" 2>&1 &
-    shipped_build=$!
-    trap 'kill "$shipped_build" 2> /dev/null || true' EXIT
     printf '%s\0' "${groups_slowest_first[@]}" |
-      xargs -0 -P 4 -n 1 bash "$0" run
+      xargs -0 -P 1 -n 1 bash "$0" run
     printf 'Groups finished at %s\n' "$(date -u +%H:%M:%SZ)"
-    status=0
-    wait "$shipped_build" || status=$?
-    cat "$shipped_log"
-    [ "$status" -eq 0 ]
+    bash "$0" build-shipped
     for group in "${memory_heavy_alone[@]}"; do
       bash "$0" run-shipped "$group"
     done

@@ -236,13 +236,14 @@ inline void joint_poly_mul_affine(
     degree += 1;
 }
 
-// -1, 0 or 1 for a base-field digit, else 2.
+constant int JOINT_NOT_TRIT = 2;
+
 inline int joint_trit(Kx value) {
-    if (value.c1 != 0) return 2;
+    if (value.c1 != 0) return JOINT_NOT_TRIT;
     if (value.c0 == 0) return 0;
     if (value.c0 == 1) return 1;
     if (value.c0 == FQ_MODULUS - 1) return -1;
-    return 2;
+    return JOINT_NOT_TRIT;
 }
 
 kernel void joint_round_partials(
@@ -338,10 +339,6 @@ kernel void joint_round_partials(
             }
         }
 
-        // In the base round with b = 2, each unequal digit pair adds one of
-        // six fixed cubics times its weight. Three signed weight sums give
-        // the same coefficients as the per-source products below (Lean
-        // `PiCCSNormTritSums.finish_sums`).
         bool trit_round = base_round && range_base == 2;
         Kx acc_u = Kx{0, 0};
         Kx acc_v = Kx{0, 0};
@@ -374,7 +371,7 @@ kernel void joint_round_partials(
             if (trit_round) {
                 int l = joint_trit(low);
                 int h = joint_trit(high);
-                if (l != 2 && h != 2) {
+                if (l != JOINT_NOT_TRIT && h != JOINT_NOT_TRIT) {
                     Kx weight = load_k(weights, fresh_count + source);
                     if (h == 0) {
                         acc_u = l < 0 ? kx_add(acc_u, weight) : kx_sub(acc_u, weight);
@@ -402,8 +399,6 @@ kernel void joint_round_partials(
             }
         }
         if (trit_round) {
-            // (-1,0)=X^3-3X^2+2X, (-1,1)=8X^3-12X^2+4X, (0,-1)=X-X^3, and the
-            // negated mirrors: inner += (2u+4v+w)X + (-3u-12v)X^2 + (u+8v-w)X^3.
             Kx two_u = kx_add(acc_u, acc_u);
             Kx two_v = kx_add(acc_v, acc_v);
             Kx four_v = kx_add(two_v, two_v);

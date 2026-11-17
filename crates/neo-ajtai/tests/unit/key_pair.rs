@@ -31,9 +31,6 @@ fn paired_key_coefficients_match_independent_shake128() {
     }
 }
 
-/// Each path to a key element adds the output bytes of the element, from
-/// each thread. Other tests of this binary expand elements too, so the
-/// count has a lower bound only.
 #[test]
 fn each_expansion_adds_its_output_bytes_to_the_count() {
     const ELEMENT_BYTES: u64 = ELEMENT_OUTPUT_BYTES as u64;

@@ -113,13 +113,9 @@ fn census(capacity: usize) {
     let circuit = Circuit::load(&source).unwrap();
     let mut values = Vec::new();
     let mut lowering = false;
-    for (kind, package) in [
-        ("light", circuit.packages.light()),
-        ("refresh", circuit.packages.refresh()),
-    ] {
-        let relation = Relation::new(package, 109).unwrap();
-        let plan = package.plan_rows().unwrap();
-        let layout = package.layout().unwrap();
+    for (kind, step) in ["light", "refresh"].into_iter().zip(circuit.steps.steps()) {
+        let relation = Relation::new(step, 109).unwrap();
+        let (plan, layout) = (step.expanded().rows(), step.expanded().layout());
         let slots = layout.spans();
         let shape = MatrixRows::shape(&relation);
         assert_eq!(shape.matrices, 4);
@@ -130,7 +126,7 @@ fn census(capacity: usize) {
         assert_eq!(factored.shape(), shape);
         assert_eq!(factored.slot_count(), slots.widths.len());
         let mut sink = Census {
-            plan: &plan,
+            plan,
             slots: &slots,
             next: 0,
             entries: [0; 4],
@@ -152,8 +148,8 @@ fn census(capacity: usize) {
             "expanded_entries_per_matrix":sink.expanded, "native_power7_rows":powers,
             "minimum_security_bits":109, "fresh_norm_bound":relation.params().b(), "k_rho":relation.params().k_rho(),
             "all_actual_matrix_runs_match_plan_and_slots":true,
-            "application_ordinary":row_categories(&plan, &layout, application.clone()),
-            "other_ordinary":row_categories(&plan, &layout, application.end..plan.ordinary_row_count()),
+            "application_ordinary":row_categories(plan, layout, application.clone()),
+            "other_ordinary":row_categories(plan, layout, application.end..plan.ordinary_row_count()),
             "native_block_sbox_rows":plan.row_count()-plan.ordinary_row_count(),
             "owner_attribution":"not retained in ApplicationRecords",
             "affine_over_checked_bits_is_not_a_boolean_claim":true,

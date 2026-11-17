@@ -1,13 +1,4 @@
-//! The sum-checks of SPEC.md section 6. The first is over the cells `x` of
-//! `W`:
-//!
-//! `Σ_x W·(G − E·A) + E·B + S·A`,
-//!
-//! where `G` is the public weights, `A = Σ_k ψ_k I_k` and `B = Σ_k ψ_k τ_k I_k`
-//! combine the committed inverses `I_k`, `E` is the weight of the inverse
-//! check and `S` the weight of the lookup sum. The second is the product
-//! `Σ_y F·w` of the key rows with their weights (`key`). Each table is a
-//! prefix of its evaluations, then zeros.
+//! The sum-checks of SPEC.md section 6.
 
 use neo_math::K;
 use neo_reductions::sumcheck::poly_eval_k;
@@ -18,10 +9,7 @@ use rayon::prelude::*;
 use crate::transcript::{absorb_extension, challenge};
 use crate::Error;
 
-/// The coefficients of one round's polynomial, of degree 3.
 pub type Round = [K; 4];
-/// The coefficients of one round's polynomial of the key sum-check, of
-/// degree 2.
 pub type KeyRound = [K; 3];
 
 const PAIRS_PER_TASK: usize = 1 << 12;
@@ -35,8 +23,6 @@ pub(crate) struct Tables {
     pub(crate) scaled_inverse: Vec<K>,
 }
 
-/// The line of a table on one pair of cells: its value at 0, its value at 2
-/// and its slope.
 #[derive(Clone, Copy)]
 struct Line {
     zero: K,
@@ -55,11 +41,7 @@ fn line(table: &[K], pair: usize) -> Line {
     }
 }
 
-/// Give the lowest variable of `table` the value `challenge`, in place: cell
-/// `i` becomes the line through cells `2i` and `2i + 1` at `challenge`.
-/// The cells `2^k..2^(k + 1)` read only cells from `2^(k + 1)`, so they are
-/// written together, the lower ranges first.
-fn bind(table: &mut Vec<K>, challenge: K) {
+fn bind_in_place(table: &mut Vec<K>, challenge: K) {
     let line = |low: K, high: K| low + (high - low) * challenge;
     let length = table.len();
     if length == 0 {
@@ -81,7 +63,6 @@ fn bind(table: &mut Vec<K>, challenge: K) {
 }
 
 impl Tables {
-    /// The round polynomial at 0 and at 2, and its coefficient of degree 3.
     fn round(&self) -> [K; 3] {
         let pairs = self.witness.len().max(self.weights.len()).div_ceil(2);
         let lookup_pairs = self.check.len().div_ceil(2);
@@ -124,21 +105,16 @@ impl Tables {
             &mut self.scaled_inverse,
         ]
         .into_par_iter()
-        .for_each(|table| bind(table, challenge));
+        .for_each(|table| bind_in_place(table, challenge));
     }
 }
 
-/// The coefficients of the cubic with the values `zero` at 0, `one` at 1 and
-/// `two` at 2 and the coefficient `cubic` of degree 3.
 fn coefficients(zero: K, one: K, two: K, cubic: K) -> Round {
-    // c1 + c2 = one − zero − cubic, and 2·c1 + 4·c2 = two − zero − 8·cubic.
     let sum = one - zero - cubic;
     let quadratic = (two - zero - cubic.double().double().double() - sum.double()).halve();
     [zero, sum - quadratic, quadratic, cubic]
 }
 
-/// Prove that the sum is `claim`, in `rounds` rounds. Returns the rounds, the
-/// point and `W` at the point.
 pub(crate) fn prove(
     transcript: &mut Poseidon2Transcript,
     mut tables: Tables,
@@ -161,8 +137,6 @@ pub(crate) fn prove(
     (messages, point, witness)
 }
 
-/// Prove that `Σ_y values(y) · weights(y)` is `claim`, in `rounds` rounds.
-/// Returns the rounds, the point and `values` at the point.
 pub(crate) fn prove_product(
     transcript: &mut Poseidon2Transcript,
     mut values: Vec<K>,
@@ -182,22 +156,22 @@ pub(crate) fn prove_product(
                 [value.zero * weight.zero, value.two * weight.two]
             })
             .reduce(|| [K::ZERO; 2], |left, right| [left[0] + right[0], left[1] + right[1]]);
-        // c1 + c2 = one − zero, and 2·c1 + 4·c2 = two − zero.
         let sum = claim - zero.double();
         let quadratic = (two - zero - sum.double()).halve();
         let coefficients = [zero, sum - quadratic, quadratic];
         absorb_extension(transcript, &coefficients);
         let challenge = challenge(transcript);
         claim = poly_eval_k(&coefficients, challenge);
-        rayon::join(|| bind(&mut values, challenge), || bind(&mut weights, challenge));
+        rayon::join(
+            || bind_in_place(&mut values, challenge),
+            || bind_in_place(&mut weights, challenge),
+        );
         messages.push(coefficients);
         point.push(challenge);
     }
     (messages, point, values.first().copied().unwrap_or(K::ZERO))
 }
 
-/// Check the rounds against `claim`. Returns the point and the value that
-/// the summand must have at the point.
 pub(crate) fn verify<const COEFFICIENTS: usize>(
     transcript: &mut Poseidon2Transcript,
     rounds: &[[K; COEFFICIENTS]],

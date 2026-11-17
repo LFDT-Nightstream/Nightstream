@@ -1,8 +1,3 @@
-//! Small checked readers shared by the package decoders.
-//!
-//! Each reader returns `PackageError` with the caller's location text. They
-//! check only shape and range; the decoders own the meaning of each value.
-
 use neo_math::Fq;
 use p3_field::PrimeField64;
 use serde_json::Value;

@@ -1,5 +1,3 @@
-//! The prover of the argument: commit `W`, then prove.
-
 use std::time::{Duration, Instant};
 
 use neo_ccs::Mat;
@@ -23,32 +21,25 @@ use crate::{
 
 const CELLS_PER_TASK: usize = 1 << 16;
 
-/// Where the prover's time goes.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ProverTimes {
     pub commit_witness: Duration,
     pub commit_inverse: Duration,
-    /// The public weights and the other tables of the sum-check.
     pub weights: Duration,
     pub sumcheck: Duration,
-    /// The key's part of the weights and its sum-check.
     pub key: Duration,
     pub opening: Duration,
 }
 
-/// `W` and its commitment, before the claims are complete: a caller that
-/// proves a norm itself binds `commitment` first (`Norm::Caller`).
 pub struct Committed<'k> {
     key: &'k ProverKey,
     layout: Layout,
     witness: Vec<F>,
-    /// The table code of each cell of the witnesses that have a table.
     codes: Vec<u16>,
     committed: akita::prover::Committed,
     commit_witness: Duration,
 }
 
-/// Block `j`, lane `h` of `witness` to cell `64j + h`.
 fn write_cells(cells: &mut [F], witness: &Mat<F>) {
     let blocks = witness.cols();
     if let Some(&value) = witness.virtual_constant_value() {
@@ -75,9 +66,6 @@ fn write_cells(cells: &mut [F], witness: &Mat<F>) {
     }
 }
 
-/// Commit `W` for `layout`: each witness, the table code of each cell with a
-/// table, and each table's counts. A cell outside its table gets no count.
-/// `key` is the key that `layout` names.
 pub fn commit<'k>(key: &'k ProverKey, layout: Layout, witnesses: &[&Mat<F>]) -> Result<Committed<'k>, Error> {
     let start = Instant::now();
     if layout.key_block_vars() != key.verification_key().blocks().trailing_zeros() as usize {
@@ -95,7 +83,7 @@ pub fn commit<'k>(key: &'k ProverKey, layout: Layout, witnesses: &[&Mat<F>]) -> 
     for (cells, source) in layout.cells.iter().zip(witnesses) {
         write_cells(&mut witness[cells.witness.range()][..cells.blocks * D], source);
     }
-    let mut codes = vec![OUTSIDE; layout.span_len];
+    let mut codes = vec![OUTSIDE; layout.table_witness_len];
     for (_, slice, bound, counts) in layout.tables() {
         let codes = &mut codes[slice.range()];
         codes
@@ -142,7 +130,6 @@ pub fn commit<'k>(key: &'k ProverKey, layout: Layout, witnesses: &[&Mat<F>]) -> 
     })
 }
 
-/// The slices of the witnesses with a table, with the inverses of each.
 fn table_inverses(layout: &Layout, taus: &[F; LOOKUPS]) -> Result<Vec<(Slice, Inverses)>, Error> {
     layout
         .tables()
@@ -151,13 +138,10 @@ fn table_inverses(layout: &Layout, taus: &[F; LOOKUPS]) -> Result<Vec<(Slice, In
 }
 
 impl Committed<'_> {
-    /// The bytes of the commitment of `W`.
-    pub fn commitment(&self) -> &[u8] {
+    pub fn commitment_to_bind(&self) -> &[u8] {
         &self.committed.bytes
     }
 
-    /// Column `k` of `V`: on each cell with a table, the inverse of
-    /// challenge `k`.
     fn write_inverse_column(&self, tables: &[(Slice, Inverses)], k: usize, column: &mut [akita::Base]) {
         for (slice, inverses) in tables {
             column[slice.range()]
@@ -167,11 +151,7 @@ impl Committed<'_> {
         }
     }
 
-    /// The tables of the sum-check on the cells with a table: the weight of
-    /// the inverse check, the weight of the sum, and the two combinations of
-    /// the inverses.
     fn lookup_tables(&self, tables: &[(Slice, Inverses)], challenges: &Challenges) -> [Vec<K>; 4] {
-        // One thread for each table writes its zeros (`weights::table`).
         let zeros = || vec![K::ZERO; self.codes.len()];
         let pair = || rayon::join(zeros, zeros);
         let ((mut check, mut sum), (mut inverse, mut scaled)) = rayon::join(pair, pair);
@@ -199,14 +179,12 @@ impl Committed<'_> {
         [check, sum, inverse, scaled]
     }
 
-    /// Each column of `V` at `rho`, from the codes: the cells of one code
-    /// share one inverse, so the sum of their `eq` weights is sufficient.
     fn inverse_values(&self, tables: &[(Slice, Inverses)], rho: &[K]) -> [K; 1 << LOOKUP_VARS] {
         let mut values = [K::ZERO; 1 << crate::layout::LOOKUP_VARS];
         for (slice, inverses) in tables {
             let equality = EqualityWeights::new(&rho[..slice.vars]);
             let codes = &self.codes[slice.range()];
-            let bins = || vec![K::ZERO; inverses.values()];
+            let bins = || vec![K::ZERO; inverses.len()];
             let weights = codes
                 .par_chunks(CELLS_PER_TASK)
                 .enumerate()
@@ -224,7 +202,7 @@ impl Committed<'_> {
                         .for_each(|(left, right)| *left += right);
                     left
                 });
-            let selector = slice.selector(&rho[..self.layout.span_vars]);
+            let selector = slice.selector(&rho[..self.layout.table_witness_vars]);
             for (k, value) in values.iter_mut().enumerate().take(LOOKUPS) {
                 *value += selector
                     * weights
@@ -237,9 +215,6 @@ impl Committed<'_> {
         values
     }
 
-    /// Prove `statements`, whose witnesses are the committed ones in the
-    /// same order. A witness that does not satisfy its claim gives a proof
-    /// that the verifier rejects.
     pub fn prove(
         self,
         transcript: &mut Poseidon2Transcript,
@@ -254,14 +229,14 @@ impl Committed<'_> {
             ..ProverTimes::default()
         };
         absorb_statements(transcript, verification, statements);
-        absorb_bytes(transcript, self.commitment());
+        absorb_bytes(transcript, self.commitment_to_bind());
         let taus = lookup_challenges(transcript);
 
         let start = Instant::now();
         let tables = table_inverses(&self.layout, &taus)?;
         let mut inverse = vec![akita::base(F::ZERO); self.layout.inverse_len()];
         for k in 0..LOOKUPS {
-            let column = &mut inverse[k << self.layout.span_vars..][..self.layout.span_len];
+            let column = &mut inverse[k << self.layout.table_witness_vars..][..self.layout.table_witness_len];
             self.write_inverse_column(&tables, k, column);
         }
         let inverse = self
@@ -306,21 +281,21 @@ impl Committed<'_> {
 
         let start = Instant::now();
         let uses = Uses::new(&self.layout, &challenges, &rho);
-        let key_weight = weights::key_part(&uses, &folded);
+        let key_part = weights::key_part(&uses, &folded);
         absorb_extension(transcript, &[witness_value]);
         absorb_extension(transcript, &inverse_values);
-        absorb_extension(transcript, &[key_weight]);
+        absorb_extension(transcript, &[key_part]);
         let column = draw(transcript, LOOKUP_VARS);
         let (key_rounds, mut key_point, folded_value) = sumcheck::prove_product(
             transcript,
             folded,
             key::weight_table(&uses),
-            key_weight,
+            key_part,
             LANE_VARS + self.layout.key_block_vars(),
         );
         key_point.extend(row_point);
-        let key_value = folded_value * scale.inverse();
-        absorb_extension(transcript, &[key_value]);
+        let key_polynomial_value = folded_value * scale.inverse();
+        absorb_extension(transcript, &[key_polynomial_value]);
         times.key = start.elapsed();
 
         let start = Instant::now();
@@ -333,7 +308,7 @@ impl Committed<'_> {
         let inverse_commitment = inverse.bytes.clone();
         let opening = self.key.akita.open(
             [
-                (self.key.committed.clone(), &key_point, key_value),
+                (self.key.committed.clone(), &key_point, key_polynomial_value),
                 (self.committed, &rho, witness_value),
                 (inverse, &inverse_point(&self.layout, &rho, &column), inverse_value),
             ],
@@ -347,9 +322,9 @@ impl Committed<'_> {
                 rounds,
                 witness_value,
                 inverse_values,
-                key_weight,
+                key_part,
                 key_rounds,
-                key_value,
+                key_polynomial_value,
                 opening,
             },
             times,

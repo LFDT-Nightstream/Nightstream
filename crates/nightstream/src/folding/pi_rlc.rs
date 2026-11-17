@@ -1,4 +1,4 @@
-//! Selected PiRLC, prover side. The rows of the step circuit check the parent (SPEC.md Algorithm 3).
+//! SPEC.md Algorithm 3.
 use super::{
     has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CeClaim,
     Params, RlcMixer, Structure,
@@ -42,12 +42,11 @@ pub(crate) struct Output {
     pub claim: CeClaim,
     pub witness: Mat<F>,
 }
-/// How PiRLC weights its inputs: a sampled challenge for each input (SuperNeo
-/// v1.2 Π_RLC), or the bounded-depth scheme's light rule, a sampled challenge for the fresh
-/// output and 1 for the running output (Lean `lightChallenge`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Weights {
+    /// SuperNeo v1.2 Π_RLC.
     Sampled,
+    /// Lean `lightChallenge`.
     Light,
 }
 impl Weights {
@@ -56,7 +55,7 @@ impl Weights {
             Weights::Sampled => engine::sample_rho_n(tr.inner_mut(), pp, inputs)?,
             Weights::Light if inputs == 2 => {
                 let rho = engine::sample_rho_n(tr.inner_mut(), pp, 1)?.remove(0);
-                vec![rho, RotRho::identity()]
+                vec![rho, RotRho::light_running_weight()]
             }
             Weights::Light => return Err(Error::Shape),
         })

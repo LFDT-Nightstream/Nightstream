@@ -1,8 +1,5 @@
-//! The bounded-depth lifecycle end to end on the Poseidon2 hash chain: each step
-//! folds the previous step's instance (Lean `Spec/Folding/Light`,
-//! `Spec/Folding/Refresh`), the step circuit's rows hold on its words, and
-//! the terminal (`BoundedDepth.Terminal.HoldsFor`) accepts after every step. A
-//! small cap reaches every pair of fold kind and relation in a few steps.
+//! Lean `Spec/Folding/Light`, `Spec/Folding/Refresh`, and
+//! `BoundedDepth.Terminal.HoldsFor`.
 
 #[path = "../bounded_depth_support/mod.rs"]
 mod support;
@@ -18,7 +15,7 @@ mod metal_parity;
 mod packed_boolean;
 mod packed_product;
 
-use super::{BoundedDepth, BoundedDepthError, Envelope, LIGHT_FOLD_CAP};
+use super::{BoundedDepth, BoundedDepthError, CompiledSteps, Envelope, LIGHT_FOLD_CAP};
 use crate::application::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder, ApplicationCircuit};
 use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
 use neo_ajtai::Commitment;
@@ -28,15 +25,17 @@ use neo_params::nightstream_p64_k14 as profile;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use support::{fold_gate_bits, hash_chain_step, packages, words};
 
+fn compiled() -> CompiledSteps {
+    CompiledSteps::new(packages()).expect("compiled steps")
+}
+
 fn prover(cap: u64) -> BoundedDepth {
-    let mut prover = BoundedDepth::new(packages(), fold_gate_bits(), crate::engine::Backend::Optimized)
+    let mut prover = BoundedDepth::new(&compiled(), fold_gate_bits(), crate::engine::Backend::Optimized)
         .expect("bounded-depth prover");
     prover.cap = cap;
     prover
 }
 
-/// Runs `steps` hash-chain steps from `z0`, verifies after each, and returns
-/// the last proof and the fold kinds' program counters.
 fn run(prover: &BoundedDepth, steps: u64) -> (Envelope, Vec<u64>) {
     let z0 = words([10, 11, 12, 13]);
     let mut envelope = prover.initial(z0).expect("initial proof");
@@ -58,10 +57,6 @@ fn run(prover: &BoundedDepth, steps: u64) -> (Envelope, Vec<u64>) {
     (envelope, circuits)
 }
 
-/// Cap 2: two light folds into slot 0, the second over an accumulator whose
-/// witness lies outside {-1, 0, 1}; a refresh of slot 0 under the light
-/// relation; then a light fold of the refresh instance into slot 1 under the
-/// refresh relation. Each tampered proof fails exactly one check.
 #[test]
 fn light_folds_and_a_refresh_verify() {
     let prover = prover(2);
@@ -99,7 +94,6 @@ fn light_folds_and_a_refresh_verify() {
         fresh.claim.c = commit_production_signed_unit_prefix_matrix(&fresh.witness.Z).expect("commitment");
         tampered
     };
-    // Coordinate 30 of the first slot after the public words.
     rejects(
         &recommitted(nightstream_fprime::PUBLIC_WORDS + 30),
         "a relation row fails",
@@ -121,10 +115,7 @@ fn light_folds_and_a_refresh_verify() {
     rejects(&tampered, "fixed-key commitment differs from the witness");
 }
 
-/// The slot check holds a witness to `(1 + depth + k_rho) · T · (b − 1)`, the Lean
-/// `accumulatorBound` of the production parameters, on both signs, and
-/// refuses a depth above the cap. No accepted proof can isolate this check in
-/// `verify`: a slot above its bound needs a second opening of its commitment.
+/// Lean `accumulatorBound`.
 #[test]
 fn a_slot_is_held_to_the_bound_of_its_depth() {
     let prover = prover(LIGHT_FOLD_CAP);
@@ -164,16 +155,12 @@ fn a_slot_is_held_to_the_bound_of_its_depth() {
     );
 }
 
-/// Cap 0: every fold is a refresh, so step 2 refreshes slot 1 under the
-/// refresh relation.
 #[test]
 fn refresh_folds_under_both_relations_verify() {
     let (_, circuits) = run(&prover(0), 3);
     assert_eq!(circuits, [1, 2, 2]);
 }
 
-/// The addition application with two witness words, so the shared words after
-/// them move: the next state is the current state plus `[w0, w1, w0, w1]`.
 fn addition() -> ApplicationCircuit {
     let builder = ApplicationBuilder::new(2).expect("builder");
     let input = builder.input_state();
@@ -182,9 +169,6 @@ fn addition() -> ApplicationCircuit {
     builder.finish(outputs).expect("addition application")
 }
 
-/// Cap 1 with a native application in place of Lean's: the base step, a
-/// light step and a refresh step, each verified; `extend` refuses a step that
-/// claims a wrong next state, because the application's rows fail.
 fn native_application_verifies(application: ApplicationCircuit) {
     let packages = packages()
         .with_application(
@@ -193,8 +177,12 @@ fn native_application_verifies(application: ApplicationCircuit) {
             application.shape(),
         )
         .expect("packages with the application");
-    let mut prover =
-        BoundedDepth::new(packages, fold_gate_bits(), crate::engine::Backend::Optimized).expect("bounded-depth prover");
+    let mut prover = BoundedDepth::new(
+        &CompiledSteps::new(packages).unwrap(),
+        fold_gate_bits(),
+        crate::engine::Backend::Optimized,
+    )
+    .expect("bounded-depth prover");
     prover.cap = 1;
     let z0 = words([10, 11, 12, 13]);
     let mut envelope = prover.initial(z0).expect("initial proof");
@@ -232,8 +220,6 @@ fn native_addition_verifies() {
     native_application_verifies(addition());
 }
 
-/// Σ coefficient · (point³ + unit) over every entry of every plan row, with
-/// unit `4 · row + port` and point `16,777,259 · unit + column + 1`.
 fn plan_sum(rows: &nightstream_fprime::PlanRows) -> F {
     let mut sum = F::ZERO;
     for row in 0..rows.row_count() {
@@ -248,9 +234,6 @@ fn plan_sum(rows: &nightstream_fprime::PlanRows) -> F {
     sum
 }
 
-/// The Rust hash chain in place of Lean's gives Lean's step packages: the same
-/// blocks, the same plan rows entry for entry, and the same slot for every
-/// column. So each permutation is a block with no slot for its dead locals.
 #[test]
 fn native_hash_chain_packages_are_lean_packages() {
     let lean = packages();
@@ -259,20 +242,19 @@ fn native_hash_chain_packages_are_lean_packages() {
     let native = lean
         .with_application(application.records().clone(), 4, application.shape())
         .expect("packages with the application");
-    for (lean, native) in [(lean.light(), native.light()), (lean.refresh(), native.refresh())] {
+    let (lean, native) = (lean.expand().expect("expanded"), native.expand().expect("expanded"));
+    for (lean, native) in [(&lean.light, &native.light), (&lean.refresh, &native.refresh)] {
+        let (lean_rows, native_rows) = (lean.rows(), native.rows());
+        let (lean_layout, native_layout) = (lean.layout(), native.layout());
         assert_eq!(native.block_count(), lean.block_count());
-        let (lean_rows, native_rows) = (lean.plan_rows().expect("rows"), native.plan_rows().expect("rows"));
         assert_eq!(native_rows.row_count(), lean_rows.row_count());
-        assert_eq!(plan_sum(&native_rows), plan_sum(&lean_rows));
-        let (lean_layout, native_layout) = (lean.layout().expect("layout"), native.layout().expect("layout"));
+        assert_eq!(plan_sum(native_rows), plan_sum(lean_rows));
         assert_eq!(native_layout.width(), lean_layout.width());
         let end = lean.sbox_start() + 150 * lean.block_count();
         assert!((0..end).all(|column| native_layout.slot(column) == lean_layout.slot(column)));
     }
 }
 
-/// `Circuit::compile` refuses a block whose rows are not the permutation of
-/// its lanes: a lane with another constant, and a block one local late.
 #[test]
 fn a_block_that_is_not_its_permutation_is_refused() {
     use crate::application::ApplicationError;
@@ -289,7 +271,7 @@ fn a_block_that_is_not_its_permutation_is_refused() {
         )
         .expect("application")
     };
-    assert!(crate::application::check_blocks(&honest).is_ok());
+    assert!(crate::application::check_blocks_match_permutation_rows(&honest).is_ok());
     for application in [
         forged(&|block| block.lanes[3].constant += F::ONE),
         forged(&|block| block.first_local += 1),
@@ -301,8 +283,6 @@ fn a_block_that_is_not_its_permutation_is_refused() {
     }
 }
 
-/// The CPU time of each bounded-depth step. Steps 1 to 3 are light; a refresh step
-/// runs at the cap, so this test reaches one with cap 2.
 #[test]
 #[ignore = "Timing run; run this test separately under the 300-second cap."]
 fn bounded_depth_step_times() {

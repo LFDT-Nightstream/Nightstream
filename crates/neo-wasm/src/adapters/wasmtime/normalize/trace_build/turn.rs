@@ -102,9 +102,6 @@ pub(super) fn setup_turn<'g>(
             }
         }
     }
-    // Zero-init rows clear non-parameter locals at re-entry; the entry
-    // template writes every parameter. Any unwritten local must be zero in
-    // the captured frame, just as on the first turn.
     for (local, &(_, lo, hi)) in expected_locals.iter().enumerate() {
         let (ran_lo, ran_hi) = first.locals_snapshot[local];
         if (lo, hi) != (ran_lo, ran_hi) {

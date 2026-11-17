@@ -1,5 +1,3 @@
-//! Exact evaluation of compact geometric matrix-row runs.
-
 use super::scratch::ScratchPart;
 use super::*;
 

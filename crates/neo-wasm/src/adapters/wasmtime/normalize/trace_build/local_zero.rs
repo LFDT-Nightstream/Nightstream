@@ -1,5 +1,3 @@
-//! Emit the zero pushes that give a new frame's declared locals Wasm's fresh values.
-
 use super::super::host_event_emit::HostEventRowContext;
 use crate::ir::{StackValueAccess, WasmAuxOpcode, WasmStepState, WasmVmStep};
 

@@ -1,5 +1,3 @@
-# Clippy configuration for nightstream workspace
-
-# Disallow no identifier names (clears clippy's default foo/baz/quux list)
+# Clears the clippy default list: foo, baz and quux.
 disallowed-names = []
 

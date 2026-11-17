@@ -38,7 +38,7 @@ structure Params (F K : Type) where
   shape : Fin claims → Shape
   /-- The variables of `W` (Rust `Layout::witness_vars`). -/
   witnessVars : ℕ
-  /-- The witnesses with a table are below `2^spanVars` (Rust `Layout::span_vars`). -/
+  /-- The witnesses with a table are below `2^spanVars` (Rust `Layout::table_witness_vars`). -/
   spanVars : ℕ
   /-- `L`, the number of lookup challenges (Rust `LOOKUPS`). -/
   lookups : ℕ

@@ -32,7 +32,7 @@ fn build_fixture(
     Poseidon2Transcript,
 ) {
     let params = NeoParams::nightstream_p64_k14()
-        .with_lambda(115)
+        .with_certified_lambda(115)
         .expect("params");
     let s = CcsStructure::new(vec![identity_left(n, m)], zero_poly(1)).expect("ccs");
 

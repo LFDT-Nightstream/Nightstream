@@ -1,5 +1,3 @@
-//! Direct behavior checks for dense and sparse matrix operations.
-
 use neo_ccs::{CcsMatrix, CscMat, Mat};
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;

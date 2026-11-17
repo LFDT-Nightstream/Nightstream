@@ -80,10 +80,6 @@ pub(crate) const SELECT_HI_MUX: ConditionalSelect<2> = ConditionalSelect {
     delta: COL_SELECT_OUT_DELTA_HI,
 };
 
-/// Opcodes whose rows participate in the wide-value gating constraint.
-/// Spec-derived from [`WasmOpcode::uses_wide_values`] so this set cannot
-/// drift from the witness builder or the test-row helpers — see the doc
-/// on the method.
 pub(super) fn wide_value_ops() -> Vec<WasmOpcode> {
     WasmOpcode::supported()
         .into_iter()
@@ -91,9 +87,6 @@ pub(super) fn wide_value_ops() -> Vec<WasmOpcode> {
         .collect()
 }
 
-/// Opcodes whose CCS gates fire on linear-memory rows. Spec-derived from
-/// [`WasmOpcode::uses_linear_memory`] so the list cannot drift from the
-/// opcode declaration.
 pub(super) fn linear_memory_ops() -> Vec<WasmOpcode> {
     WasmOpcode::supported()
         .into_iter()
@@ -135,7 +128,6 @@ fn opcodes_with_stack_signature(reads: u8, writes: u8) -> Vec<WasmOpcode> {
 }
 
 fn fixed_stack_reads_terms() -> Vec<(usize, F)> {
-    // Every fixed-arity aux row reads zero slots except frame moves.
     let mut terms = vec![(COL_STACK_READS, F::ONE), (COL_FRAME_MOVE_ACTIVE_BEFORE, -F::ONE)];
     for op in WasmOpcode::supported().into_iter().filter(|op| {
         !matches!(
@@ -155,7 +147,6 @@ fn fixed_stack_reads_terms() -> Vec<(usize, F)> {
 }
 
 fn fixed_stack_writes_terms() -> Vec<(usize, F)> {
-    // Frame moves and local zeroing each write one slot.
     let mut terms = vec![
         (COL_STACK_WRITES, F::ONE),
         (COL_FRAME_MOVE_ACTIVE_BEFORE, -F::ONE),
@@ -180,8 +171,6 @@ fn fixed_stack_writes_terms() -> Vec<(usize, F)> {
 
 fn fixed_stack_arity_gate_terms() -> [(usize, F); 6] {
     [
-        // Calls have signature-dependent arity; gather rows have slot-dependent
-        // arity. All other program and aux rows have fixed arity.
         (COL_ONE, F::ONE),
         (selector_col(WasmOpcode::Call).unwrap(), -F::ONE),
         (selector_col(WasmOpcode::CallIndirect).unwrap(), -F::ONE),
@@ -198,10 +187,6 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
     let mut b = builder.tagged(always("unlabeled"));
 
     b.with_tag(shared("wide value gating", &wide_value_ops()), |b| {
-        // is_program_row · (wide_values_enabled − Σ wide-value-op selectors) = 0,
-        // so on a program row wide_values_enabled = 1 iff a wide-value op is
-        // active. Spec-derived from `WasmOpcode::uses_wide_values` so the gate
-        // cannot drift from the witness builder or the test-row helpers.
         b.push_row(
             [(COL_IS_PROGRAM_ROW, F::ONE)],
             std::iter::once((COL_WIDE_VALUES_ENABLED, F::ONE)).chain(
@@ -214,9 +199,6 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
     });
 
     b.with_tag(shared("linear memory lane0 gate", &linear_memory_ops()), |b| {
-        // Every linear-memory op touches lane0 (the lowest word); the other
-        // lanes depend on access width / alignment. Derived from
-        // `linear_memory_ops` so the gate can't drift from the opcode set.
         b.push_linear_zero(
             std::iter::once((idx(linear_memory.use_lane0), F::ONE)).chain(
                 linear_memory_ops()
@@ -258,15 +240,11 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
     reentry::push_constraints(&mut b);
 
     b.with_tag(always("activation_finished state transition"), |b| {
-        // No decoded instruction may execute after the current activation finishes.
         b.push_row(
             [(COL_IS_PROGRAM_ROW, F::ONE)],
             [(COL_ACTIVATION_FINISHED_BEFORE, F::ONE)],
             [],
         );
-        // Auxiliary rows, including fixed-shape padding, preserve
-        // activation completion — except a turn boundary, which clears the latch to
-        // enter an export, or resume restores its suspended caller.
         b.push_row(
             [
                 (COL_ONE, F::ONE),
@@ -322,11 +300,6 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
     });
 
     b.with_tag(always("memory activation support"), |b| {
-        // Keep these activation bounds in the frontend relation, independently
-        // of slot packing. In particular, the output-capture bound rejects
-        // forged captures on padding rows.
-        // TODO: prove individual support rows redundant in Lean before removing
-        // them; the frontend semantics alone do not currently imply all of them.
         for support in crate::memory_activation::derived_activation_supports() {
             b.push_row(
                 [(support.gate, F::ONE)],
@@ -337,10 +310,6 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
     });
 
     b.with_tag(always("opcode decode"), |b| {
-        // opcode_code = Σ_op selector(op) · opcode_code(op). Selectors are
-        // one-hot per program row, so this pins opcode_code to the active
-        // opcode's byte. Derived from `WasmOpcode::supported()` so it can't
-        // drift from the opcode set.
         b.push_linear_zero(
             std::iter::once((COL_OPCODE_CODE, F::ONE)).chain(WasmOpcode::supported().into_iter().map(|op| {
                 (
@@ -387,8 +356,6 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
         );
     });
 
-    // Stack balance excludes non-popping host-event reads and treats a captured
-    // result as consumed by the host.
     b.push_linear_zero([
         (COL_SP_AFTER, F::ONE),
         (COL_SP_BEFORE, -F::ONE),
@@ -401,7 +368,6 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
         (host_event_chain::gather_memory_local_base_col(), F::ONE),
         (host_event_chain::gather_memory_output_base_col(), F::ONE),
         (super::layout::COL_OUTPUT_CAPTURED, F::ONE),
-        // Atomic host calls pop args on the call row; split imports pop them at resume.
         (host_event_chain::host_call_params_col(), F::ONE),
         (super::layout::COL_HOST_RESUME_POP, F::ONE),
     ]);
@@ -428,17 +394,6 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
     );
 
     b.with_tag(always("pc edge kind constraints"), |b| {
-        // Edge kind encodes the next-PC source:
-        // 0 = fallthrough or static control edge, 1 = return-like, 2 = call_indirect target,
-        // 3 = terminal unreachable. Return-like rows are identified by
-        // the transition into `activation_finished` for the final frame and by
-        // `call_stack_pop_present` for
-        // non-final returns; the latter intentionally covers both explicit
-        // `return` and a callee's function-ending `end`. A div trap row
-        // and a trapping call_indirect resolve row halt but keep their Static
-        // edge kind (the program header binds it); the -trap terms absorb their `activation_finished`
-        // contributions. Entry/resume can clear the latch; the authenticated
-        // clear flag cancels that delta only when the latch was set.
         b.push_linear_zero(
             [
                 (COL_ACTIVATION_FINISHED_AFTER, F::ONE),
@@ -451,7 +406,6 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
                 (selector_col(WasmOpcode::Unreachable).unwrap(), F::from_u64(2)),
                 (COL_DIV_TRAP, -F::ONE),
                 (COL_CALL_INDIRECT_IS_TRAP, -F::ONE),
-                // An OOB load/store or table access halts but keeps its Static edge kind.
                 (COL_MEM_OOB, -F::ONE),
                 (COL_TABLE_OOB, -F::ONE),
             ]
@@ -501,7 +455,6 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
     let stack_write0_at_sp_minus2_ops = opcodes_with_stack_signature(2, 1);
 
     b.with_tag(always("local addresses"), |b| {
-        // Locals live in their frame's stack cells.
         b.push_linear_zero([
             (COL_LOCAL_ADDR_LO, F::ONE),
             (COL_LOCALS_FBP_BEFORE, -f_u64(2)),
@@ -646,7 +599,7 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
     b.with_tag(opcode_tag("br_table control choice", WasmOpcode::BrTable), |b| {
         use super::layout::{COL_BR_TABLE_IN_BOUNDS, COL_BR_TABLE_LEN, COL_CMP_GE, COL_CMP_LOW, COL_CONTROL_CHOICE};
         let selector = selector_col(WasmOpcode::BrTable).unwrap();
-        super::gadgets::push_unsigned_ge_gadget(
+        super::gadgets::push_unsigned_ge_of_u32_operands(
             b,
             [selector],
             [(COL_STACK_READ_VALUE_LO[0], F::ONE)],
@@ -659,7 +612,6 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
             [(COL_ONE, F::ONE), (COL_CMP_GE, -F::ONE)],
             [(COL_BR_TABLE_IN_BOUNDS, F::ONE)],
         );
-        // Explicit arm i uses key i + 1; all out-of-bounds indices use key 0.
         b.push_row(
             [(COL_BR_TABLE_IN_BOUNDS, F::ONE)],
             [
@@ -675,9 +627,6 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
             [],
         );
     });
-    // The pc-ROM and slide-ROM key is `pc_before + control_choice`. Only br_if, if
-    // and br_table choose an edge, and each of them owns the pcs of its choices;
-    // every other row reads the edge at its own pc.
     b.with_tag(always("control choice outside branches"), |b| {
         b.push_row(
             [
@@ -823,16 +772,10 @@ fn push_select_stack_addrs(b: &mut WasmTaggedR1csBuilder<'_>) {
     );
 }
 
-/// `selector · (out − (cond != 0 ? lhs : rhs)) = 0` for both value limbs,
-/// where cond is the i32 at stack read2 and lhs/rhs are reads 0/1.
-///
-/// The zero-test and delta rows are intentionally global: the witness builder
-/// populates `COL_SELECT_COND_IS_ZERO`, `COL_SELECT_SCRATCH_INV`, and both
-/// delta columns on every row.
 fn push_select_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     SELECT_COND_ZERO_TEST.push_constraints(b);
-    SELECT_LO_MUX.push_constraints(b);
-    SELECT_HI_MUX.push_constraints(b);
+    SELECT_LO_MUX.push_constraints_assuming_boolean_inputs(b);
+    SELECT_HI_MUX.push_constraints_assuming_boolean_inputs(b);
 }
 
 fn push_stack_read0_addr_sp_minus_2(b: &mut WasmTaggedR1csBuilder<'_>, ops: &[WasmOpcode]) {
@@ -875,11 +818,6 @@ fn push_stack_write0_addr_sp_minus_2(b: &mut WasmTaggedR1csBuilder<'_>, ops: &[W
 }
 
 fn push_add_relation(b: &mut WasmTaggedR1csBuilder<'_>) {
-    // write0 = (read0 + read1) mod 2^32. COL_WIDE_AUX0 holds the carry bit.
-    // Soundness relies on COL_WIDE_AUX0's `ColumnWidth::Boolean` tag: without
-    // that, a cheating prover could pick any field element for the carry and
-    // solve for a matching write0. Given the boolean range, the U32 tags on
-    // read0, read1, write0 ensure the equation has a unique solution.
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::I32Add).unwrap(),
@@ -893,10 +831,6 @@ fn push_add_relation(b: &mut WasmTaggedR1csBuilder<'_>) {
 }
 
 fn push_sub_relation(b: &mut WasmTaggedR1csBuilder<'_>) {
-    // write0 = (read0 - read1) mod 2^32. COL_WIDE_AUX0 holds the borrow bit
-    // (1 iff read0 < read1); same soundness argument as [`push_add_relation`]:
-    // the Boolean width tag on COL_WIDE_AUX0 is what pins the borrow to {0, 1},
-    // and the U32 tags on read0/read1/write0 make the solution unique.
     push_gated_linear_zero(
         b,
         selector_col(WasmOpcode::I32Sub).unwrap(),
@@ -1043,10 +977,6 @@ fn push_integer_sign_extend_relation(
     }
 }
 
-/// Force `write0_value_hi = 0` on every comparator row that produces a
-/// u32 result. i64.eqz / i64.eq / i64.ne have `wide_values_enabled = 1`
-/// for their inputs, which disables the "narrow high limbs zero" rule for
-/// `write0_value_hi`; this constraint pins the output hi limb back to 0.
 fn push_i64_comparator_high_zero(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.push_row(
         [
@@ -1068,28 +998,8 @@ const COMPARATOR_OPS: &[WasmOpcode] = &[
     WasmOpcode::I64Ne,
 ];
 
-/// CCS-native gates for i32.eqz / i64.eqz / i32.eq / i32.ne / i64.eq / i64.ne.
-///
-/// The opcode's selector pins `COL_ZERO_TEST_LO_INPUT` to the zero-test input for
-/// the lo limb (`read0`, `read0_lo`, `read0 - read1`, or `read0_lo -
-/// read1_lo`); the zero-test gadget forces
-/// `COL_ZERO_TEST_LO_IS_ZERO = (zero_test_lo_input == 0)`.
-///
-/// **The i64 comparators need a split limb-by-limb zero-test.** The
-/// modulus `q = 2^64 - 59` does not have an injective
-/// u64 → field-element embedding for the obvious `lo + hi*2^32` map: the
-/// value `(lo=0xffffffc5, hi=0xffffffff)` is exactly `q ≡ 0`, so a single field
-/// zero-test would wrongly accept it. For i64.eqz / i64.eq / i64.ne we
-/// pin `COL_ZERO_TEST_HI_INPUT` to the hi-limb diff, zero-test it independently,
-/// and AND the two flags into `COL_CMP_AND`. The i64 write-backs use
-/// `cmp_and`; the i32 write-backs use `zero_test_lo_is_zero` directly (their
-/// inputs fit safely below q, so the hi limb is unused).
-///
-/// Conditional control rows also use the low zero-test to bind their edge choice.
-/// On other non-comparator rows all six selectors are 0, the diff-pinning
-/// gates degenerate, and the witness sets `zero_test_lo_input = zero_test_hi_input = 0`
-/// → both flags = 1, `cmp_and = 1`. None of those values are observed
-/// elsewhere on those rows.
+/// The modulus `q = 2^64 - 59` does not have an injective u64 → field-element
+/// embedding for `lo + hi*2^32`: `(lo=0xffffffc5, hi=0xffffffff)` is `q ≡ 0`.
 fn push_comparator_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let sel_eqz_i32 = selector_col(WasmOpcode::I32Eqz).unwrap();
     let sel_eqz_i64 = selector_col(WasmOpcode::I64Eqz).unwrap();
@@ -1098,21 +1008,16 @@ fn push_comparator_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let sel_i64_eq = selector_col(WasmOpcode::I64Eq).unwrap();
     let sel_i64_ne = selector_col(WasmOpcode::I64Ne).unwrap();
 
-    // zero_test_lo_input = read0_value on i32.eqz rows.
     push_gated_linear_zero(
         b,
         sel_eqz_i32,
         [(COL_ZERO_TEST_LO_INPUT, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
     );
-    // zero_test_lo_input = read0_value (lo limb only) on i64.eqz rows.
     push_gated_linear_zero(
         b,
         sel_eqz_i64,
         [(COL_ZERO_TEST_LO_INPUT, F::ONE), (COL_STACK_READ_VALUE_LO[0], -F::ONE)],
     );
-    // zero_test_lo_input = read0_value - read1_value on i32.eq/ne and i64.eq/ne rows.
-    // (Same lo-limb diff expression for all four; hi-limb diff is pinned
-    // separately below for the i64 pair.)
     b.push_row(
         [
             (sel_eq, F::ONE),
@@ -1130,9 +1035,6 @@ fn push_comparator_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
     LO_ZERO_TEST.push_constraints(b);
 
-    // zero_test_hi_input bindings for the i64 comparators (i64.eqz: read0_hi;
-    // i64.eq/ne: read0_hi - read1_hi). Unconstrained on every other row
-    // — the witness sets it to 0 so the hi zero-test flag becomes 1.
     push_gated_linear_zero(
         b,
         sel_eqz_i64,
@@ -1150,26 +1052,22 @@ fn push_comparator_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
     HI_ZERO_TEST.push_constraints(b);
 
-    // cmp_and = zero_test_lo_is_zero * zero_test_hi_is_zero (unconditional).
     b.push_row(
         [(COL_ZERO_TEST_LO_IS_ZERO, F::ONE)],
         [(COL_ZERO_TEST_HI_IS_ZERO, F::ONE)],
         [(COL_CMP_AND, F::ONE)],
     );
 
-    // write0_value = zero_test_lo_is_zero on i32.eqz / i32.eq rows.
     b.push_row(
         [(sel_eqz_i32, F::ONE), (sel_eq, F::ONE)],
         [(COL_STACK_WRITE0_VALUE_LO, F::ONE), (COL_ZERO_TEST_LO_IS_ZERO, -F::ONE)],
         [],
     );
-    // write0_value = cmp_and on i64.eqz / i64.eq rows.
     b.push_row(
         [(sel_eqz_i64, F::ONE), (sel_i64_eq, F::ONE)],
         [(COL_STACK_WRITE0_VALUE_LO, F::ONE), (COL_CMP_AND, -F::ONE)],
         [],
     );
-    // write0_value = 1 - zero_test_lo_is_zero on i32.ne rows.
     push_gated_linear_zero(
         b,
         sel_ne,
@@ -1179,7 +1077,6 @@ fn push_comparator_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_ONE, -F::ONE),
         ],
     );
-    // write0_value = 1 - cmp_and on i64.ne rows.
     push_gated_linear_zero(
         b,
         sel_i64_ne,

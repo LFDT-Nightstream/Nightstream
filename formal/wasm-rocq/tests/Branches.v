@@ -1,6 +1,6 @@
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns Range Wasm2 WasmIntegers Locals StraightLineSpec SpecTecCalls SpecTecBranches
-  BranchBindings.
+  BranchBindings CircuitFacts.
 Import ListNotations.
 Open Scope Z_scope.
 

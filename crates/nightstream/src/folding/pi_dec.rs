@@ -1,4 +1,3 @@
-//! Selected radix-two decomposition under the existing production key.
 use super::{
     ajtai_dec_mixer, has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape,
     superneo_public_x_cols, CeClaim, DecMixer, FoldContext, Params, Structure,
@@ -80,8 +79,6 @@ pub(crate) fn prove_with_production_key(
         neo_reductions::common::split_b_matrix_k_with_nonzero_flags(&parent_witness, pp.k_rho() as usize, pp.b())
             .map_err(engine::Error::from)?;
     drop(parent_witness);
-    // Commit every child. A child derived from the parent would satisfy the
-    // PiDEC recomposition by construction.
     let commitments = backend
         .commit(split.planes())
         .map_err(engine::Error::from)?;

@@ -35,7 +35,12 @@ fn packed_products_restore_both_sources_and_reject_recommitted_signed_units() {
         assert_eq!(package.packed_boolean_count(), 4);
         assert_eq!(package.packed_zero_count(), 1);
     }
-    let mut prover = BoundedDepth::new(packages.clone(), fold_gate_bits(), crate::engine::Backend::Optimized).unwrap();
+    let mut prover = BoundedDepth::new(
+        &CompiledSteps::new(packages.clone()).unwrap(),
+        fold_gate_bits(),
+        crate::engine::Backend::Optimized,
+    )
+    .unwrap();
     prover.cap = 1;
     let initial = [F::ZERO; 4];
     let mut envelope = prover.initial(initial).unwrap();
@@ -54,7 +59,10 @@ fn packed_products_restore_both_sources_and_reject_recommitted_signed_units() {
         } else {
             packages.refresh()
         };
-        let layout = package.layout().unwrap();
+        let layout = prover.relations[envelope.pc as usize - 1]
+            .step()
+            .expanded()
+            .layout();
         let product = package.packed_products().next().unwrap();
         let zero = package.packed_zero_products().next().unwrap();
         for (column, value) in [

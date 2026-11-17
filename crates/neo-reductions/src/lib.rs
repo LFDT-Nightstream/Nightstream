@@ -1,9 +1,3 @@
-//! SuperNeo reductions with one canonical rectangular-paper PiCCS protocol.
-//!
-//! The optimized engine and independent PaperExact engine share only neutral
-//! protocol messages and transcript flow. Their polynomial evaluators are
-//! separate so tests can require exact proof-byte equality.
-
 pub mod api;
 pub mod common;
 pub mod engines;

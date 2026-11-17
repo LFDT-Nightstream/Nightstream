@@ -8,9 +8,6 @@ use crate::{
 };
 use neo_math::D;
 
-/// A validated CCS structure. The fields are private, so a structure keeps
-/// the shape that `new`, `new_sparse` or `new_verifier_artifact_header`
-/// checked.
 #[derive(Clone, Debug)]
 pub struct CcsStructure<F> {
     matrices: Vec<CcsMatrix<F>>,
@@ -29,12 +26,10 @@ impl<F: Field> CcsStructure<F> {
         &self.f
     }
 
-    /// The constraint rows.
     pub fn n(&self) -> usize {
         self.n
     }
 
-    /// The witness columns.
     pub fn m(&self) -> usize {
         self.m
     }

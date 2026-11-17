@@ -1,5 +1,3 @@
-// The carried table of the running sources: each block's weighted lane sum
-// `combined`, projected through the basis forms, plus the row sums.
 inline void joint_carried_project(
     threadgroup Kx *combined,
     device const ulong *shape,
@@ -13,8 +11,6 @@ inline void joint_carried_project(
     ulong blocks = shape[1];
     ulong column = (ulong)block * RING_DEGREE + lane;
     if (lane >= RING_DEGREE || column >= shape[7]) return;
-    // `kx_mul` term by term, with the three products of each term added
-    // unreduced: RING_DEGREE terms for each sum, far below PRODUCT_SUM_TERMS.
     ProductSum real = ProductSum{0, 0, 0, 0};
     ProductSum imaginary = ProductSum{0, 0, 0, 0};
     ProductSum mixed = ProductSum{0, 0, 0, 0};
@@ -67,8 +63,6 @@ kernel void joint_carried_projection(
     joint_carried_project(combined, shape, basis_re, basis_im, row_sums, output, block, lane);
 }
 
-// The same table over running sources without norm terms, whose field values
-// are stored source by source, block by block and lane by lane.
 kernel void joint_carried_projection_dense(
     device const ulong *values [[buffer(0)]],
     device const ulong *coefficients [[buffer(1)]],

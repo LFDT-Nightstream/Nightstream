@@ -1,12 +1,12 @@
 #![cfg(feature = "testing")]
 
-use neo_ajtai::rot_step;
+use neo_ajtai::mul_by_x;
 use neo_math::{cf, Fq, Rq, D};
 use p3_field::PrimeCharacteristicRing;
 use rand::{rngs::StdRng, SeedableRng};
 
 #[test]
-fn rot_step_matches_ring_mul_by_x() {
+fn mul_by_x_matches_ring_monomial_mul() {
     let mut rng = StdRng::seed_from_u64(1234);
 
     for _ in 0..50 {
@@ -17,24 +17,24 @@ fn rot_step_matches_ring_mul_by_x() {
         let a_times_x = a.mul_by_monomial(1);
         let expected = cf(a_times_x);
 
-        rot_step(&col, &mut nxt);
+        mul_by_x(&col, &mut nxt);
 
         assert_eq!(
             nxt, expected,
-            "rot_step should produce cf(a * X), but got different result"
+            "mul_by_x should produce cf(a * X), but got different result"
         );
 
         col = nxt;
         let a_times_x2 = a.mul_by_monomial(2);
         let expected2 = cf(a_times_x2);
 
-        rot_step(&col, &mut nxt);
-        assert_eq!(nxt, expected2, "Second rot_step should produce cf(a * X^2)");
+        mul_by_x(&col, &mut nxt);
+        assert_eq!(nxt, expected2, "Second mul_by_x should produce cf(a * X^2)");
     }
 }
 
 #[test]
-fn rot_step_cyclotomic_identity() {
+fn mul_by_x_cyclotomic_identity() {
     let x = {
         let mut coeffs = vec![Fq::ZERO; D];
         coeffs[1] = Fq::ONE;
@@ -45,7 +45,7 @@ fn rot_step_cyclotomic_identity() {
     let mut nxt = [Fq::ZERO; D];
 
     for _ in 1..D {
-        rot_step(&col, &mut nxt);
+        mul_by_x(&col, &mut nxt);
         core::mem::swap(&mut col, &mut nxt);
     }
 

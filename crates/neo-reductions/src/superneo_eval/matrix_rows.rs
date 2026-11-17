@@ -1,6 +1,3 @@
-//! Borrowed original matrix rows. Sources own coefficients; sinks own temporary storage.
-//! Every row/matrix slot is explicit, including empty slots. No digest grants authority.
-
 use std::{ops::ControlFlow, ops::Range};
 
 use neo_ccs::GeometricRowRun;
@@ -42,8 +39,6 @@ pub trait MatrixRows: Sync {
         None
     }
 
-    /// These rows in factored form, if the source has one. It describes the
-    /// same matrices as `visit_rows`.
     fn factored(&self) -> Result<Option<FactoredRows<'_>>, PiCcsError> {
         Ok(None)
     }

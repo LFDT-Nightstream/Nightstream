@@ -1,6 +1,3 @@
-//! Immutable application rows and exact recipe syntax. Append ingestion owns the
-//! snapshot; file paths and mutable handles never cross the package boundary.
-
 use std::{fmt, ops::ControlFlow};
 
 use neo_math::Fq;
@@ -382,8 +379,6 @@ impl ApplicationRecords {
         Ok(ControlFlow::Continue(()))
     }
 
-    /// A walk over the rows and recipes for callers that visit them in
-    /// ascending order.
     pub fn walk(&self) -> ApplicationWalk<'_> {
         ApplicationWalk {
             records: self,
@@ -393,9 +388,6 @@ impl ApplicationRecords {
         }
     }
 
-    /// The first row whose sides under `value` have `A * B != C`, or the
-    /// first error, both in row order. Ranges of rows run on all cores, each
-    /// range with its own walk.
     pub fn first_unsatisfied_row<E: From<PackageError> + Send>(
         &self,
         value: impl Fn(usize) -> Result<u64, E> + Sync,
@@ -457,9 +449,6 @@ impl ApplicationRecords {
     }
 }
 
-/// Reads each record file through one bounded window, so a walk in
-/// ascending row or recipe order reads each window one time, not each row.
-/// Any order gives the same values.
 pub struct ApplicationWalk<'a> {
     records: &'a ApplicationRecords,
     data: Window<'a>,
@@ -476,7 +465,85 @@ impl ApplicationWalk<'_> {
         index(self.recipes.word(word(entry)?)?)
     }
 
-    /// The A, B and C sides of `row` under `value`.
+    pub fn row(&mut self, row: usize, terms: &mut Vec<ApplicationTerm>) -> Result<ApplicationRowHeader, PackageError> {
+        if row >= self.records.row_count {
+            return Err(PackageError::Input("application row is out of range"));
+        }
+        let mut offset = self.rows.word(word(mul(row, size_of::<u64>())?)?)?;
+        let data = &mut self.data;
+        let mut next = || -> Result<u64, PackageError> {
+            let word = data.word(offset)?;
+            offset += size_of::<u64>() as u64;
+            Ok(word)
+        };
+        let mut header = ApplicationRowHeader {
+            constants: [0; 3],
+            term_counts: [0; 3],
+        };
+        for form in 0..3 {
+            header.constants[form] = canonical(next()?)?.as_canonical_u64();
+            header.term_counts[form] = index(next()?)?;
+        }
+        terms.clear();
+        for form in [ApplicationForm::A, ApplicationForm::B, ApplicationForm::C] {
+            for _ in 0..header.term_counts[form.index()] {
+                let variable = index(next()?)?;
+                let coefficient = canonical(next()?)?.as_canonical_u64();
+                terms.push(ApplicationTerm {
+                    form,
+                    variable,
+                    coefficient,
+                });
+            }
+        }
+        Ok(header)
+    }
+
+    pub fn recipe(&mut self, recipe: usize, nodes: &mut Vec<ApplicationRecipeNode>) -> Result<usize, PackageError> {
+        if recipe >= self.records.recipe_count {
+            return Err(PackageError::Input("application recipe is out of range"));
+        }
+        let entry = mul(recipe, 3 * size_of::<u64>())?;
+        let mut offset = self.recipes.word(word(entry)?)?;
+        let count = index(self.recipes.word(word(add(entry, size_of::<u64>())?)?)?)?;
+        let row = index(
+            self.recipes
+                .word(word(add(entry, 2 * size_of::<u64>())?)?)?,
+        )?;
+        let data = &mut self.data;
+        let mut next = || -> Result<u64, PackageError> {
+            let word = data.word(offset)?;
+            offset += size_of::<u64>() as u64;
+            Ok(word)
+        };
+        nodes.clear();
+        let mut pending = 1;
+        for _ in 0..count {
+            if pending == 0 {
+                return Err(malformed("application recipe has extra stored nodes"));
+            }
+            pending -= 1;
+            let node = match (next()?, next()?) {
+                (0, variable) => ApplicationRecipeNode::Variable(index(variable)?),
+                (1, value) => ApplicationRecipeNode::Constant(canonical(value)?.as_canonical_u64()),
+                (2, 0) => {
+                    pending = add(pending, 2)?;
+                    ApplicationRecipeNode::Add
+                }
+                (3, 0) => {
+                    pending = add(pending, 2)?;
+                    ApplicationRecipeNode::Multiply
+                }
+                _ => return Err(malformed("invalid stored application recipe node")),
+            };
+            nodes.push(node);
+        }
+        if pending != 0 {
+            return Err(malformed("application recipe has missing stored nodes"));
+        }
+        Ok(row)
+    }
+
     pub fn evaluate_row<E: From<PackageError>>(
         &mut self,
         row: usize,

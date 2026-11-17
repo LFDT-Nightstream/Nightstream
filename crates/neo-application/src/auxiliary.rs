@@ -1,5 +1,3 @@
-//! Named auxiliary allocation and fixed assignment schedules.
-
 use crate::{ColumnFamilySpec, ColumnRegistry, ColumnRegistryError, ColumnWidth};
 use neo_math::F;
 use std::ops::Range;

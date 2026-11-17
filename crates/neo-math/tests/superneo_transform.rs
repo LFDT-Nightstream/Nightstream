@@ -47,8 +47,6 @@ fn superneo_transform_matches_one_sided_inner_product_identity() {
     }
 }
 
-/// The identity fixes the transform: its matrix is the inverse of the Gram
-/// matrix `G[i][j] = ct(X^i · X^j)`.
 #[test]
 fn superneo_transform_matrix_inverts_the_constant_term_gram_matrix() {
     let monomial = |degree: usize| {

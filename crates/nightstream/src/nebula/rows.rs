@@ -1,9 +1,4 @@
-//! The polynomial rows of a memory invocation as Lean expression trees over
-//! witness wires: the memory rows of `Lifecycle/Nebula/RowList.lean`
-//! (`RowExprs.lean` for the symbols), and the `View` that an application's
-//! rows read (`AppView.env` of `PortApp.lean`). The trees match Lean node for
-//! node, because the lowering of a generic row depends on its shape. It does
-//! not own the hash rows or any application's rows.
+//! `Lifecycle/Nebula/RowList.lean`, `RowExprs.lean`, `AppView.env` (`PortApp.lean`).
 
 use std::collections::BTreeSet;
 
@@ -15,7 +10,7 @@ use super::geometry::Geometry;
 use super::words::{self, Layout};
 use crate::application::Variable;
 
-/// The symbols of `RowExprs.lean` over the witness wires of one geometry.
+/// `RowExprs.lean`.
 pub(super) struct Sym<'a> {
     geometry: &'a Geometry,
     layout: Layout,
@@ -31,12 +26,11 @@ fn power_of_two(exponent: usize) -> Expr {
     Expr::Const(F::TWO.exp_u64(exponent as u64))
 }
 
-/// `x · (x − 1)`.
 pub(super) fn bit_row(x: Expr) -> Expr {
     x.clone() * (x - c(1))
 }
 
-/// `Expr.chunk`: `b₀ + 2·b₁ + 4·b₂ + …`, nested to the left.
+/// `Expr.chunk`.
 pub(super) fn chunk(bits: Vec<Expr>) -> Expr {
     let mut bits = bits.into_iter();
     let Some(first) = bits.next() else {
@@ -46,7 +40,7 @@ pub(super) fn chunk(bits: Vec<Expr>) -> Expr {
         .fold(first, |acc, (k, bit)| acc + power_of_two(k + 1) * bit)
 }
 
-/// `Expr.pack`: chunks of 63 bits.
+/// `Expr.pack`.
 pub(super) fn pack(bits: Vec<Expr>) -> Vec<Expr> {
     bits.chunks(63).map(|bits| chunk(bits.to_vec())).collect()
 }
@@ -61,7 +55,7 @@ impl<'a> Sym<'a> {
         }
     }
 
-    /// Witness word `k`, or `0` past the witness (`MemoryApp.wire`).
+    /// `MemoryApp.wire`.
     pub(super) fn word(&self, k: usize) -> Expr {
         self.wires
             .get(k)
@@ -138,7 +132,7 @@ impl<'a> Sym<'a> {
         self.bits(j, Layout::op_diff, self.geometry.w_ts)
     }
 
-    /// The lane bits of operation slot `j` (SPEC.md section 7.2).
+    /// SPEC.md section 7.2.
     pub(super) fn op_lane(&self, j: usize) -> Vec<Expr> {
         let mut lane = vec![self.pad(j), self.is_write(j), self.is_ram(j)];
         lane.extend(self.addr_bits(j));
@@ -148,7 +142,6 @@ impl<'a> Sym<'a> {
         lane
     }
 
-    /// The lane bits of the scan slot at word `base`: value, then stamp.
     pub(super) fn scan_lane(&self, base: usize) -> Vec<Expr> {
         let mut lane = self.scan_value_bits(base);
         lane.extend(self.scan_stamp_bits(base));
@@ -189,12 +182,11 @@ impl<'a> Sym<'a> {
         )
     }
 
-    /// The counter `cnt_j` of slot `j` (row O2).
+    /// SPEC.md row O2.
     fn cnt(&self, j: usize) -> Expr {
         self.word(self.layout.cnt(j))
     }
 
-    /// `cnt` before slot `k`: `0`, then the counter of slot `k − 1`.
     fn cnt_before(&self, k: usize) -> Expr {
         if k == 0 {
             c(0)
@@ -215,7 +207,6 @@ impl<'a> Sym<'a> {
         self.idx_eff() * c(self.geometry.b_scan as u64) + c(j as u64)
     }
 
-    /// Coefficient `c` of start product `s` (0 RS, 1 WS, 2 IS, 3 FS).
     fn start_word(&self, s: usize, k: usize) -> Expr {
         self.word(self.layout.start(s, k))
     }
@@ -248,9 +239,7 @@ impl<'a> Sym<'a> {
         self.product_after(2, pair, k, self.geometry.b_scan, Layout::scan_products)
     }
 
-    /// `Rows.fingerprintRows`: `(a 0, a 1) = f`. The word `v + 2^32 · t` is
-    /// affine, so each row is `word − recipe` with one product and lowers to
-    /// one R1CS row.
+    /// `Rows.fingerprintRows`.
     fn fingerprint_rows(&self, a: &impl Fn(usize) -> Expr, t: Expr, g: Expr, v: Expr) -> Vec<Expr> {
         let packed = v + c(1 << 32) * t;
         vec![
@@ -259,8 +248,7 @@ impl<'a> Sym<'a> {
         ]
     }
 
-    /// `Rows.productRows`: `next = prod · x` with the cross products
-    /// `m = prod.c1 · x1` and `n = prod.c1 · x0`.
+    /// `Rows.productRows`.
     fn product_rows(prod: KExpr, next: KExpr, x0: Expr, x1: Expr, m: Expr, n: Expr) -> Vec<Expr> {
         vec![
             m.clone() - prod.c1.clone() * x1.clone(),
@@ -270,14 +258,14 @@ impl<'a> Sym<'a> {
         ]
     }
 
-    /// `Rows.factorRows`: an ungated fingerprint step over four factor words.
+    /// `Rows.factorRows`.
     fn factor_rows(&self, a: impl Fn(usize) -> Expr, prod: KExpr, next: KExpr, t: Expr, g: Expr, v: Expr) -> Vec<Expr> {
         let mut rows = self.fingerprint_rows(&a, t, g, v);
         rows.extend(Self::product_rows(prod, next, a(0), a(1), a(2), a(3)));
         rows
     }
 
-    /// `Rows.gatedRows`: a gated fingerprint step over six factor words.
+    /// `Rows.gatedRows`.
     fn gated_rows(
         &self,
         a: impl Fn(usize) -> Expr,
@@ -295,8 +283,7 @@ impl<'a> Sym<'a> {
         rows
     }
 
-    /// `memoryRows`: bits, arm, slots, scans, close, in that order, each
-    /// group with its name.
+    /// `memoryRows`.
     pub(super) fn memory_row_groups(&self) -> [(&'static str, Vec<Expr>); 5] {
         [
             ("Bit rows", self.bit_rows()),
@@ -317,7 +304,6 @@ impl<'a> Sym<'a> {
         ]
     }
 
-    /// The words that the bit rows force to 0 or 1, in row order.
     fn bit_words(&self) -> Vec<Expr> {
         let geometry = self.geometry;
         let mut words: Vec<Expr> = (0..geometry.b_ops).flat_map(|j| self.op_lane(j)).collect();
@@ -472,8 +458,6 @@ impl<'a> View<'a> {
         self.sym.word(self.sym.layout.app_var(k))
     }
 
-    /// The variables of the view's words. An application row reads no
-    /// other: not `η`, the carry, or any other memory word.
     pub(super) fn variables(&self) -> BTreeSet<Variable> {
         (0..self.sym.layout.slot_local(self.sym.geometry.b_ops, 0))
             .filter_map(|k| self.sym.wires.get(self.sym.layout.app_var(k)).copied())
@@ -522,7 +506,6 @@ impl<'a> View<'a> {
         self.sym.geometry
     }
 
-    /// The address bits of slot `j`, least significant first.
     pub(super) fn addr_bits(&self, j: usize) -> Vec<Expr> {
         self.slot_bits(j, Layout::op_addr, self.sym.geometry.addr_width())
     }

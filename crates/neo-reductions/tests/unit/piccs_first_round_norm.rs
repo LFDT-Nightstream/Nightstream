@@ -1,6 +1,3 @@
-//! Compare the actual CPU norm kernel with a Lean inner-cubic range result.
-//! Source masks and public coins are inputs; Lean coefficients are targets only.
-
 use std::{
     fs::File,
     io::{BufRead, BufReader, Cursor},

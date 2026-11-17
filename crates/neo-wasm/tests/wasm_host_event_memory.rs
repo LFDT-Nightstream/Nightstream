@@ -1,5 +1,3 @@
-//! Host-event linear-memory integration and negative constraint tests.
-
 mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;

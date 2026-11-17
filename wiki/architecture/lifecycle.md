@@ -54,9 +54,8 @@ and the counts of the lookup tables, and `V` holds the lookup inverses. One
 sum-check proves the Ajtai openings, the evaluations, the public inputs and
 the norm bound of each slot. A second sum-check reduces the part of the
 public weights that the Ajtai key gives to one value of the key polynomial.
-One Akita proof opens the key polynomial, `W` and `V`. See the module
-comment of `crates/ns-compress/src/lib.rs` for the transcript and the
-error. [SPEC.md](../../SPEC.md) Algorithms 9, 10 and 11 and the
+One Akita proof opens the key polynomial, `W` and `V`. SPEC.md section 5.4
+gives the transcript, and section 3 gives the error. [SPEC.md](../../SPEC.md) Algorithms 9, 10 and 11 and the
 [decision record](../../decisions/akita-compression.md) describe the proof
 and the key.
 

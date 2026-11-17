@@ -1,10 +1,4 @@
-//! The bounded-depth step packages: the light and the refresh step circuits that
-//! Lean writes (`Export/BoundedDepth/StepPackage`).
-//!
-//! Owns decoding a package, the one identity of both packages
-//! (`StepPackage.identity`) and the expansion of a package into the plan rows
-//! of its circuit's relation (`CircuitRelation.plan`, in `expand`). Does not
-//! own the relation's meaning, the witness program or the fold.
+//! Lean `Export/BoundedDepth/StepPackage`.
 
 mod application;
 mod boolean;
@@ -36,7 +30,6 @@ use crate::package::{IdentityKind, PackageError, BLOCK_OUTPUTS, SBOX_ROWS};
 use crate::witness::{validate_witness_batch, validate_witness_batch_order, RawWitnessBatch, WitnessBatch};
 
 const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/packages/v1";
-/// The identity of the packages in `formal/nightstream-fprime/artifacts`.
 pub const BOUNDED_DEPTH_PACKAGES_IDENTITY: [u64; 4] = [
     12_096_774_549_834_946_229,
     14_010_018_720_179_246_948,
@@ -44,7 +37,7 @@ pub const BOUNDED_DEPTH_PACKAGES_IDENTITY: [u64; 4] = [
     13_324_862_456_486_381_448,
 ];
 
-/// A lane or a row side as `Pieces.linear?` reads it: a constant and terms.
+/// Lean `Pieces.linear?`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Linear {
     pub constant: Fq,
@@ -74,7 +67,7 @@ pub(crate) struct Row {
     pub(crate) c: Linear,
 }
 
-/// A package piece (`StepPackage.PackagePiece`).
+/// Lean `StepPackage.PackagePiece`.
 #[derive(Clone, Debug)]
 pub(crate) enum Piece {
     Rows(Vec<Row>),
@@ -90,9 +83,7 @@ pub(crate) enum Piece {
     },
 }
 
-/// The application's region (`StepPackage.Package.application`): its witness
-/// words, its first local and local count, its pieces from the first piece and
-/// its fresh columns from `first_fresh`.
+/// Lean `StepPackage.Package.application`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Region {
     witness_words: usize,
@@ -102,8 +93,7 @@ pub(crate) struct Region {
     fresh: usize,
 }
 
-/// One step circuit's package (`StepPackage.Package`). A native application
-/// in place of Lean's fills its locals from its records.
+/// Lean `StepPackage.Package`.
 #[derive(Clone, Debug)]
 pub struct StepPackage {
     circuit: usize,
@@ -155,10 +145,7 @@ impl StepPackage {
         self.packed_booleans.zeros.len()
     }
 
-    /// The columns that `SPEC.md` section 7.11 refills and gives no slot:
-    /// the three intermediate powers of each chain
-    /// (`Export.Generic.NativePower.Chain.restore`) and each solved affine
-    /// column (`Export.Generic.Substitute.refill`).
+    /// `SPEC.md` section 7.11 (`Export.Generic.NativePower.Chain.restore`, `Export.Generic.Substitute.refill`).
     pub fn lowered_column_count(&self) -> usize {
         self.field_lowering.dead.len()
     }
@@ -195,8 +182,6 @@ impl StepPackage {
         (self.sbox_start + SBOX_ROWS * self.block_count()).max(self.packed_booleans.end())
     }
 
-    /// The application's witness word count, which places the shared words
-    /// after it.
     pub fn witness_words(&self) -> usize {
         self.application.witness_words
     }
@@ -209,7 +194,6 @@ impl StepPackage {
         self.blocks().count()
     }
 
-    /// The packed Poseidon2 blocks in package order.
     pub fn blocks(&self) -> impl Iterator<Item = Block<'_>> {
         self.pieces.iter().filter_map(|piece| match piece {
             Piece::Block { start, lanes } => Some(Block { start: *start, lanes }),
@@ -285,8 +269,6 @@ impl StepPackage {
     }
 }
 
-/// A packed Poseidon2 block: its 1,096 locals start at `start`, and its
-/// output locals are the last 16.
 #[derive(Clone, Copy, Debug)]
 pub struct Block<'a> {
     start: usize,
@@ -298,12 +280,10 @@ impl Block<'_> {
         self.start
     }
 
-    /// The first output local.
-    pub fn outputs(&self) -> usize {
+    pub fn first_output(&self) -> usize {
         self.start + BLOCK_OUTPUTS
     }
 
-    /// The input lanes evaluated on `assignment`.
     pub fn lane_values(&self, assignment: &[Fq]) -> Vec<Fq> {
         self.lanes
             .iter()
@@ -318,12 +298,75 @@ impl Block<'_> {
     }
 }
 
-/// The light and the refresh packages and their one identity.
+/// Lean `CircuitRelation.plan`, `SlotLayout.layout`.
+pub struct ExpandedPackage {
+    package: StepPackage,
+    rows: PlanRows,
+    layout: layout::LogicalLayout,
+}
+
+impl ExpandedPackage {
+    pub fn rows(&self) -> &PlanRows {
+        &self.rows
+    }
+
+    pub fn layout(&self) -> &layout::LogicalLayout {
+        &self.layout
+    }
+
+    pub fn circuit(&self) -> usize {
+        self.package.circuit
+    }
+
+    pub fn sbox_start(&self) -> usize {
+        self.package.sbox_start
+    }
+
+    pub fn block_count(&self) -> usize {
+        self.package.block_count()
+    }
+
+    pub fn circuit_columns_with(&self, shared: &[Fq], locals: Option<&[Fq]>) -> Result<Vec<Fq>, PackageError> {
+        self.package.circuit_columns_with(shared, locals)
+    }
+
+    pub fn relation_columns(&self, columns: Vec<Fq>) -> Result<Vec<Fq>, PackageError> {
+        self.package.relation_columns(columns, &self.rows)
+    }
+}
+
+impl StepPackage {
+    pub fn expand(mut self) -> Result<ExpandedPackage, PackageError> {
+        let (rows, layout) = rayon::join(|| self.plan_rows(), || self.layout());
+        let (rows, layout) = (rows?, layout?);
+        for piece in &mut self.pieces {
+            if let Piece::Rows(rows) = piece {
+                *rows = Vec::new();
+            }
+        }
+        self.packed_booleans.removed = Vec::new();
+        self.guard_fusion = guard_fusion::GuardFusion::default();
+        self.word_packing = word_packing::WordPacking::default();
+        self.slots = Vec::new();
+        Ok(ExpandedPackage {
+            rows,
+            layout,
+            package: self,
+        })
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct BoundedDepthPackages {
     light: StepPackage,
     refresh: StepPackage,
     identity: [u64; 4],
+}
+
+pub struct ExpandedPackages {
+    pub light: ExpandedPackage,
+    pub refresh: ExpandedPackage,
+    pub identity: [u64; 4],
 }
 
 impl BoundedDepthPackages {
@@ -338,9 +381,17 @@ impl BoundedDepthPackages {
     pub fn identity(&self) -> [u64; 4] {
         self.identity
     }
+
+    pub fn expand(self) -> Result<ExpandedPackages, PackageError> {
+        let (light, refresh) = rayon::join(|| self.light.expand(), || self.refresh.expand());
+        Ok(ExpandedPackages {
+            light: light?,
+            refresh: refresh?,
+            identity: self.identity,
+        })
+    }
 }
 
-/// Decodes both packages and checks their identity against `expected`.
 pub fn load_bounded_depth_packages(
     light: &[u8],
     refresh: &[u8],
@@ -362,9 +413,6 @@ pub fn load_bounded_depth_packages(
     })
 }
 
-/// Decodes both packages without hashing them: their identity is `pinned`.
-/// Only for bytes that the caller's binary embeds, whose identity a test
-/// checks with `load_bounded_depth_packages`.
 pub fn load_pinned_bounded_depth_packages(
     light: &[u8],
     refresh: &[u8],
@@ -391,8 +439,7 @@ fn decode_pair(light: &[u8], refresh: &[u8]) -> Result<(Value, StepPackage, Step
     Ok((pair, light, refresh))
 }
 
-/// `StepPackage.identity`: Poseidon2 over the domain words and the canonical
-/// preimage of the package pair.
+/// Lean `StepPackage.identity`.
 pub fn bounded_depth_identity(pair: &Value) -> Result<[u64; 4], PackageError> {
     let mut input = poseidon2::Poseidon2Hasher::default();
     for &byte in IDENTITY_DOMAIN {
@@ -402,9 +449,7 @@ pub fn bounded_depth_identity(pair: &Value) -> Result<[u64; 4], PackageError> {
     Ok(input.finalize().map(|word| word.as_canonical_u64()))
 }
 
-/// Reads Lean's rendering of a `Codec.Value`: arrays and natural numbers. It
-/// keeps an explicit stack, because expressions nest deeper than serde_json's
-/// default recursion limit.
+/// Lean `Codec.Value`. Packages nest deeper than the recursion limit of serde_json.
 pub fn parse_atoms(bytes: &[u8]) -> Result<Value, PackageError> {
     let mut stack: Vec<Vec<Value>> = Vec::new();
     let mut done = None;
@@ -460,7 +505,6 @@ fn field(value: &Value, location: &'static str) -> Result<Fq, PackageError> {
     Ok(Fq::from_u64(word))
 }
 
-/// `(column, coefficient)` pairs.
 fn decode_terms(value: &Value) -> Result<Vec<(usize, Fq)>, PackageError> {
     array(value, "bounded-depth terms")?
         .iter()
@@ -474,7 +518,7 @@ fn decode_terms(value: &Value) -> Result<Vec<(usize, Fq)>, PackageError> {
         .collect()
 }
 
-/// `StepPackage.combinationFormat`: the constant and the terms.
+/// Lean `StepPackage.combinationFormat`.
 fn decode_combination(value: &Value) -> Result<Linear, PackageError> {
     let fields = exact_array(value, 2, "bounded-depth combination")?;
     Ok(Linear {
@@ -492,9 +536,7 @@ fn decode_row(value: &Value) -> Result<Row, PackageError> {
     })
 }
 
-/// `Pieces.linear?` on an encoded expression. A product is linear only when
-/// one factor is a constant node; a lane that is not linear is rejected,
-/// because a package's blocks and ring pieces pack only with linear lanes.
+/// Lean `Pieces.linear?`.
 fn decode_linear(value: &Value) -> Result<Linear, PackageError> {
     let fields = array(value, "bounded-depth expression")?;
     let tag = fields

@@ -1,6 +1,3 @@
-//! Differential check of the operation circuit: honest rows pass,
-//! forged outputs fail, and every value fits its declared width.
-
 mod common;
 
 use neo_math::F;
@@ -127,8 +124,7 @@ fn differential_wide() {
     check(true, &program(true), 24);
 }
 
-/// Every shift count from 0 to 127 and some large counts. i32 operations
-/// use five count bits and i64 operations use six.
+/// WebAssembly shifts read five count bits for i32 and six for i64.
 fn shift_program(wide: bool) -> String {
     let ty = if wide { "i64" } else { "i32" };
     let operands: &[i128] = if wide {

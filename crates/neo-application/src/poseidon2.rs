@@ -1,6 +1,4 @@
-//! Native and R1CS forms of the width-12 Poseidon2 permutation of
-//! `decisions/poseidon2-p64-instance.md`. Event compression and
-//! application-specific round scheduling belong to their respective consumers.
+//! The width-12 Poseidon2 permutation of `decisions/poseidon2-p64-instance.md`.
 
 use std::{ops::Range, sync::OnceLock};
 
@@ -20,19 +18,16 @@ const _: () = assert!(POSEIDON2_PARTIAL_ROUNDS.is_multiple_of(2));
 pub const POSEIDON2_PARTIAL_PAIRS: usize = POSEIDON2_PARTIAL_ROUNDS / 2;
 pub const POSEIDON2_GROUPED_ROUNDS: usize = POSEIDON2_FULL_ROUNDS + POSEIDON2_PARTIAL_PAIRS;
 
-/// Apply the width-12 Poseidon2 permutation.
 pub fn permute(state: [F; POSEIDON2_WIDTH]) -> [F; POSEIDON2_WIDTH] {
     INSTANCE_12.permute(state)
 }
 
-/// The Poseidon2 S-box `x -> x^7`.
 pub fn sbox7(x: F) -> F {
     let x2 = x * x;
     let x4 = x2 * x2;
     x4 * x2 * x
 }
 
-/// Round constants for full round `0..8` in permutation order.
 pub fn full_round_constants(round: usize) -> &'static [F; POSEIDON2_WIDTH] {
     assert!(round < POSEIDON2_FULL_ROUNDS, "full-round index out of range");
     if round < POSEIDON2_HALF_FULL_ROUNDS {
@@ -42,7 +37,6 @@ pub fn full_round_constants(round: usize) -> &'static [F; POSEIDON2_WIDTH] {
     }
 }
 
-/// Constants for partial-round pair `0..11` in permutation order.
 pub fn partial_pair_constants(pair: usize) -> (F, F) {
     assert!(pair < POSEIDON2_PARTIAL_PAIRS, "partial-pair index out of range");
     (INSTANCE_12.internal[2 * pair], INSTANCE_12.internal[2 * pair + 1])
@@ -79,12 +73,10 @@ fn matrix_of(apply: fn(&mut [F; POSEIDON2_WIDTH])) -> [[F; POSEIDON2_WIDTH]; POS
     matrix
 }
 
-/// Apply the initial external layer prescribed before round constants.
 pub fn apply_initial_linear(state: &mut [F; POSEIDON2_WIDTH]) {
     external_linear(state);
 }
 
-/// Apply one full round to a state that has already received the initial layer.
 pub fn apply_full_round(round: usize, state: &mut [F; POSEIDON2_WIDTH]) {
     for (lane, &constant) in state.iter_mut().zip(full_round_constants(round)) {
         *lane = sbox7(*lane + constant);
@@ -92,7 +84,6 @@ pub fn apply_full_round(round: usize, state: &mut [F; POSEIDON2_WIDTH]) {
     external_linear(state);
 }
 
-/// Apply two consecutive partial rounds.
 pub fn apply_partial_pair(pair: usize, state: &mut [F; POSEIDON2_WIDTH]) {
     let (first, second) = partial_pair_constants(pair);
     for constant in [first, second] {
@@ -105,7 +96,6 @@ const FULL_ROUND_POWER_COLUMNS: usize = 4 * POSEIDON2_WIDTH;
 const PARTIAL_PAIR_POWER_COLUMNS: usize = 8;
 const INTERMEDIATE_STATES: usize = POSEIDON2_GROUPED_ROUNDS - 1;
 
-/// Auxiliary columns used by one fully unrolled width-12 permutation.
 pub const POSEIDON2_PERMUTATION_AUX_COLUMNS: usize = POSEIDON2_WIDTH
     + POSEIDON2_FULL_ROUNDS * FULL_ROUND_POWER_COLUMNS
     + POSEIDON2_PARTIAL_PAIRS * PARTIAL_PAIR_POWER_COLUMNS
@@ -156,7 +146,6 @@ fn assign_full_round_auxiliaries(
     }
 }
 
-/// One selector and round index in a selectable full round.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Poseidon2FullRoundChoice {
     pub selector: usize,
@@ -170,9 +159,6 @@ impl Poseidon2FullRoundChoice {
     }
 }
 
-/// A width-12 full round whose round constants are selected by application
-/// columns. When every selector is zero, the output is left unconstrained but
-/// the power columns retain a canonical assignment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Poseidon2FullRound12<const N: usize = 1> {
     pub choices: [Poseidon2FullRoundChoice; N],
@@ -182,8 +168,6 @@ pub struct Poseidon2FullRound12<const N: usize = 1> {
 }
 
 impl<const N: usize> Poseidon2FullRound12<N> {
-    /// Emit a self-contained selectable round, including Booleanity and
-    /// at-most-one enforcement for its selectors.
     pub fn push_constraints<Owner: Clone>(&self, builder: &mut TaggedR1csBuilder<'_, Owner>) {
         let first_row = builder.next_row_index();
         push_at_most_one_selectors(builder, self.choices.map(|choice| choice.selector));
@@ -191,9 +175,6 @@ impl<const N: usize> Poseidon2FullRound12<N> {
         builder.record_gadget(self.descriptor(), first_row);
     }
 
-    /// Emit only the round equations when the surrounding application already
-    /// constrains every selector to be Boolean and at most one to be active.
-    /// Without that guarantee, blended round constants can remain satisfiable.
     pub fn push_constraints_assuming_preconstrained_selectors<Owner: Clone>(
         &self,
         builder: &mut TaggedR1csBuilder<'_, Owner>,
@@ -203,9 +184,7 @@ impl<const N: usize> Poseidon2FullRound12<N> {
         builder.record_gadget(self.descriptor(), first_row);
     }
 
-    /// Fill only the S-box power columns. `state_after` remains application
-    /// owned and is checked by the emitted output constraints.
-    pub fn assign_auxiliaries(&self, assignment: &mut [F]) {
+    pub fn assign_power_columns(&self, assignment: &mut [F]) {
         let constants = core::array::from_fn(|lane| {
             self.choices.iter().fold(F::ZERO, |constant, choice| {
                 constant + assignment[choice.selector] * full_round_constants(choice.round)[lane]
@@ -284,7 +263,6 @@ fn assign_partial_pair_auxiliaries(
     state
 }
 
-/// One selector and pair index in a selectable pair of partial rounds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Poseidon2PartialPairChoice {
     pub selector: usize,
@@ -298,7 +276,6 @@ impl Poseidon2PartialPairChoice {
     }
 }
 
-/// Two width-12 partial rounds sharing eight `x^7` power columns.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Poseidon2PartialPair12<const N: usize = 1> {
     pub choices: [Poseidon2PartialPairChoice; N],
@@ -308,8 +285,6 @@ pub struct Poseidon2PartialPair12<const N: usize = 1> {
 }
 
 impl<const N: usize> Poseidon2PartialPair12<N> {
-    /// Emit a self-contained selectable pair, including Booleanity and
-    /// at-most-one enforcement for its selectors.
     pub fn push_constraints<Owner: Clone>(&self, builder: &mut TaggedR1csBuilder<'_, Owner>) {
         let first_row = builder.next_row_index();
         push_at_most_one_selectors(builder, self.choices.map(|choice| choice.selector));
@@ -317,9 +292,6 @@ impl<const N: usize> Poseidon2PartialPair12<N> {
         builder.record_gadget(self.descriptor(), first_row);
     }
 
-    /// Emit only the pair equations when the surrounding application already
-    /// constrains every selector to be Boolean and at most one to be active.
-    /// Without that guarantee, blended round constants can remain satisfiable.
     pub fn push_constraints_assuming_preconstrained_selectors<Owner: Clone>(
         &self,
         builder: &mut TaggedR1csBuilder<'_, Owner>,
@@ -329,9 +301,7 @@ impl<const N: usize> Poseidon2PartialPair12<N> {
         builder.record_gadget(self.descriptor(), first_row);
     }
 
-    /// Fill only the S-box power columns. `state_after` remains application
-    /// owned and is checked by the emitted output constraints.
-    pub fn assign_auxiliaries(&self, assignment: &mut [F]) {
+    pub fn assign_power_columns(&self, assignment: &mut [F]) {
         let constants = self
             .choices
             .iter()
@@ -492,7 +462,6 @@ fn permutation_layout(auxiliary_start: usize, output: [usize; POSEIDON2_WIDTH]) 
     PermutationLayout { premix, rounds }
 }
 
-/// Fully unrolled width-12 Poseidon2 permutation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Poseidon2Permutation12 {
     pub input: [usize; POSEIDON2_WIDTH],
@@ -519,8 +488,6 @@ impl Poseidon2Permutation12 {
         );
     }
 
-    /// Fill the premix, S-box powers, and intermediate states without
-    /// overwriting the application-owned permutation output.
     pub fn assign_auxiliaries(&self, assignment: &mut [F]) {
         self.assign_columns(assignment, false);
     }

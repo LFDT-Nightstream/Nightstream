@@ -1,7 +1,4 @@
-//! The witness word layout of one memory-application step. Mirrors
-//! `Lifecycle/Nebula/WitnessWords.lean` index by index: the memory words
-//! first, then the application's input state words, its output state words,
-//! and its private words. `app_var` mirrors `Words.appVar` of `PortApp.lean`.
+//! `Lifecycle/Nebula/WitnessWords.lean`; `Words.appVar` (`PortApp.lean`).
 
 use super::geometry::Geometry;
 
@@ -17,7 +14,6 @@ pub const SEEN_PREV: usize = 94;
 pub const IDX_EFF: usize = 106;
 const OPS_START: usize = 107;
 
-/// Offsets that depend on the geometry and on the application's word counts.
 #[derive(Clone, Copy, Debug)]
 pub struct Layout {
     b_ops: usize,
@@ -40,8 +36,6 @@ pub struct Layout {
 }
 
 impl Layout {
-    /// The layout of an application with `width` state words and `aux`
-    /// private words.
     pub fn new(geometry: &Geometry, width: usize, aux: usize) -> Self {
         let op_width = geometry.op_width();
         let op_words = op_width + geometry.w_ts;
@@ -81,12 +75,10 @@ impl Layout {
         self.memory_count + 2 * self.width + self.aux
     }
 
-    /// The number of application state words.
     pub fn width(&self) -> usize {
         self.width
     }
 
-    /// The memory's witness regions and their word counts, in layout order.
     pub fn memory_regions(&self) -> [(&'static str, usize); 8] {
         [
             ("Carry, proposal, and control words", OPS_START),
@@ -100,32 +92,26 @@ impl Layout {
         ]
     }
 
-    /// Input state word `k` of the application.
     pub fn app_in(&self, k: usize) -> usize {
         self.memory_count + k
     }
 
-    /// Output state word `k` of the application.
     pub fn app_out(&self, k: usize) -> usize {
         self.memory_count + self.width + k
     }
 
-    /// Private word `k` of the application.
     pub fn aux(&self, k: usize) -> usize {
         self.memory_count + 2 * self.width + k
     }
 
-    /// The application's local variable of word `k` of operation slot `j`
-    /// (Lean `AppView.slotStart + j · opWords + k`).
+    /// Lean `AppView.slotStart`.
     pub fn slot_local(&self, j: usize, k: usize) -> usize {
         (2 * self.width + self.aux)
             .saturating_add(j.saturating_mul(self.op_words))
             .saturating_add(k)
     }
 
-    /// The witness word of the application's local variable `k`
-    /// (`Words.appVar`): the application words in order, then the slot
-    /// words. Past them it is a word past the witness, which reads zero.
+    /// `Words.appVar`.
     pub fn app_var(&self, k: usize) -> usize {
         let slot_start = self.slot_local(0, 0);
         if k < slot_start {
@@ -139,7 +125,6 @@ impl Layout {
         }
     }
 
-    /// Word `k` of operation slot `j`: pad, is_write, is_ram, addr, v_r, v_w, rt, diff.
     pub fn op(&self, j: usize, k: usize) -> usize {
         OPS_START + j * self.op_words + k
     }
@@ -164,12 +149,10 @@ impl Layout {
         self.op_width + k
     }
 
-    /// Word `k` of IS slot `j`: value bits, then stamp bits.
     pub fn initial(&self, j: usize, k: usize) -> usize {
         self.initial_start + j * self.scan_width + k
     }
 
-    /// Word `k` of FS slot `j`.
     pub fn final_(&self, j: usize, k: usize) -> usize {
         self.final_start + j * self.scan_width + k
     }
@@ -190,22 +173,19 @@ impl Layout {
         self.scan_products + 4 * j + c
     }
 
-    /// The counter `cnt_j` of operation slot `j` (row O2).
+    /// SPEC.md row O2.
     pub fn cnt(&self, j: usize) -> usize {
         self.cnt + j
     }
 
-    /// Coefficient `c` of start product `s` (0 RS, 1 WS, 2 IS, 3 FS).
     pub fn start(&self, s: usize, c: usize) -> usize {
         self.cnt + self.b_ops + 2 * s + c
     }
 
-    /// Factor word `c` of fingerprint `pair` (0 read, 1 write) of operation slot `j`.
     pub fn ops_factor(&self, j: usize, pair: usize, c: usize) -> usize {
         self.ops_factor + 12 * j + 6 * pair + c
     }
 
-    /// Factor word `c` of fingerprint `pair` (0 IS, 1 FS) of scan slot `j`.
     pub fn scan_factor(&self, j: usize, pair: usize, c: usize) -> usize {
         self.scan_factor + 8 * j + 4 * pair + c
     }

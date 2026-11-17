@@ -1,9 +1,3 @@
-//! Direct paper reference for PiRLC and PiDEC.
-//!
-//! PiRLC reads the raw quotient-ring coefficient of each challenge and uses
-//! schoolbook ring multiplication. PiDEC independently checks the canonical
-//! signed `split_(b,k)` map before it constructs child evaluation claims.
-
 #![allow(non_snake_case)]
 
 use crate::engines::{DecOutcome, RlcMixer};

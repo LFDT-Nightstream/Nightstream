@@ -1,30 +1,20 @@
-//! `Engine::Metal` against `Engine::Optimized` on the bounded-depth scheme: after each step
-//! the proof bytes are equal. Every Metal session of a process shares one
-//! device budget (`neo_prover_metal::BUFFER_LIMIT_BYTES`), so run these tests
-//! one at a time (`--test-threads=1`). The printed times are of one run.
-
 use std::time::Instant;
 
 use super::super::{BoundedDepth, BoundedDepthError};
-use super::{fold_gate_bits, hash_chain_step, packages, words};
+use super::{compiled, fold_gate_bits, hash_chain_step, words};
 use crate::engine::{Backend, Engine};
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 
-/// A CPU and a Metal prover with light fold cap `cap`.
 fn provers(cap: u64) -> [BoundedDepth; 2] {
     [Engine::Optimized, Engine::Metal].map(|engine| {
         let backend = Backend::new(engine).expect("engine");
-        let mut prover = BoundedDepth::new(packages(), fold_gate_bits(), backend).expect("bounded-depth prover");
+        let mut prover = BoundedDepth::new(&compiled(), fold_gate_bits(), backend).expect("bounded-depth prover");
         prover.cap = cap;
         prover
     })
 }
 
-/// Cap 2 reaches each fold under each relation in five steps: light folds
-/// into slot 0 over the zero accumulator and over a dense one, a refresh of
-/// slot 0, and a light fold into slot 1. Both verifiers accept each Metal
-/// proof.
 #[test]
 fn metal_steps_equal_cpu_steps() {
     let [cpu, metal] = provers(2);
@@ -65,8 +55,6 @@ fn metal_steps_equal_cpu_steps() {
     }
     assert_eq!(circuits, [1, 1, 1, 2, 1]);
 
-    // A changed fresh witness with its own commitment fails a row on both
-    // engines.
     let mut tampered = on_metal.clone();
     let fresh = tampered.fresh.as_mut().expect("fresh instance");
     let column = nightstream_fprime::PUBLIC_WORDS + 30;

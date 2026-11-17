@@ -76,7 +76,7 @@ fn table_descriptor_bounds_are_checked_by_builder_and_circuit() {
         assert!(error.contains(message), "{error}");
         row.table_id = Some(0);
         row.expected_type_id = Some(0);
-        // Rocq `TableDescriptor.full_table_descriptor`: the packing equation alone permits oversized fields.
+        // Rocq `TableDescriptor.full_table_descriptor`.
         let mut forged = build_witness_vector(&row).unwrap();
         forged[COL_TABLE_ID] = F::from_u32(table);
         forged[COL_EXPECTED_TYPE_ID] = F::from_u32(expected);

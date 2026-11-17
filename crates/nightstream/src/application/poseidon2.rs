@@ -1,13 +1,10 @@
-//! Poseidon2 application hashes and the existing Poseidon2HashChainV1.
-//! The round schedule follows Gadgets/Poseidon2/{Hash,Permutation,Layer}.lean.
-//! It consumes no exported application constraints or witness recipes.
+//! Gadgets/Poseidon2/{Hash,Permutation,Layer}.lean.
 
 use std::collections::BTreeMap;
-use std::ops::ControlFlow;
 
 use neo_ccs::crypto::poseidon2::{poseidon2_hash, INSTANCE_16, RATE, WIDTH};
 use neo_math::Fq;
-use nightstream_fprime::{ApplicationRecords, Linear, BLOCK_LOCALS};
+use nightstream_fprime::{ApplicationWalk, Linear, BLOCK_LOCALS};
 use p3_field::PrimeCharacteristicRing;
 
 use super::{Affine, ApplicationBuilder, ApplicationCircuit, ApplicationError};
@@ -52,7 +49,7 @@ impl ApplicationBuilder {
             }
             state = permutation(self, state)?;
         }
-        // `Hash.padE`: the last words, then 1 in the next lane.
+        // `Hash.padE`.
         for (lane, word) in last.iter().enumerate() {
             state[lane] = state[lane].clone() + word.clone();
         }
@@ -94,8 +91,6 @@ fn mat4(state: &[Affine; WIDTH], base: usize, lane: usize) -> Affine {
         .expect("four matrix terms")
 }
 
-/// `M₄` on the lane's block plus the sum of all blocks at the same position.
-/// Sums start from zero like Lean's `foldl (· + ·) 0`; recipe shape is identity input.
 fn external(builder: &mut ApplicationBuilder, state: &[Affine; WIDTH]) -> Result<[Affine; WIDTH], ApplicationError> {
     let mut output = std::array::from_fn(|_| scalar(0));
     for (lane, value) in output.iter_mut().enumerate() {
@@ -121,9 +116,7 @@ fn full_round(
     Ok(())
 }
 
-/// One Poseidon2 permutation of `state`: 1096 generated variables in the
-/// order of `Gadgets/Poseidon2/Permutation.lean`. The step packages place it
-/// as one block (`NativeShape::blocks`).
+/// `Gadgets/Poseidon2/Permutation.lean`.
 pub(crate) fn permutation(
     builder: &mut ApplicationBuilder,
     state: [Affine; WIDTH],
@@ -152,34 +145,28 @@ pub(crate) fn permutation(
     Ok(state)
 }
 
-/// A row's three sides: the constant and the terms, equal variables merged and
-/// zero coefficients dropped.
 type Sides = [(Fq, BTreeMap<usize, Fq>); 3];
 
-fn sides(records: &ApplicationRecords, row: usize) -> Result<Sides, ApplicationError> {
-    let header = records.row_header(row)?;
+fn recipe_sides(walk: &mut ApplicationWalk<'_>, recipe: usize) -> Result<Sides, ApplicationError> {
+    let row = walk.recipe_row(recipe)?;
+    let mut terms = Vec::new();
+    let header = walk.row(row, &mut terms)?;
     let mut sides: Sides = header
         .constants
         .map(|constant| (Fq::from_u64(constant), BTreeMap::new()));
-    let _: ControlFlow<()> = records.visit_terms(row, |term| {
+    for term in terms {
         *sides[term.form.index()]
             .1
             .entry(term.variable)
             .or_insert(Fq::ZERO) += Fq::from_u64(term.coefficient);
-        Ok(ControlFlow::Continue(()))
-    })?;
+    }
     for (_, terms) in &mut sides {
         terms.retain(|_, coefficient| *coefficient != Fq::ZERO);
     }
     Ok(sides)
 }
 
-/// Rejects a block whose recipe rows are not `permutation`'s rows on its
-/// lanes. The reference is one permutation of 16 witness words in a scratch
-/// builder; each of its inputs becomes the block's lane and each of its locals
-/// the block's local. The step packages drop these rows for the block
-/// (`StepPackage::with_application`), so the rows and the block must agree.
-pub(crate) fn check_blocks(application: &ApplicationCircuit) -> Result<(), ApplicationError> {
+pub(crate) fn check_blocks_match_permutation_rows(application: &ApplicationCircuit) -> Result<(), ApplicationError> {
     let blocks = &application.shape().blocks;
     if blocks.is_empty() {
         return Ok(());
@@ -189,7 +176,11 @@ pub(crate) fn check_blocks(application: &ApplicationCircuit) -> Result<(), Appli
     let state = permutation(&mut scratch, inputs)?;
     let reference = scratch.finish(std::array::from_fn(|lane| state[lane].clone()))?;
     let (inputs, locals) = (4..4 + WIDTH, reference.generated_range().start);
-    let records = application.records();
+    let mut walk = reference.records().walk();
+    let reference = (0..BLOCK_LOCALS)
+        .map(|local| recipe_sides(&mut walk, local))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut walk = application.records().walk();
     let first = application.generated_range().start;
     for (index, block) in blocks.iter().enumerate() {
         let substitute = |variable: usize| -> Option<Linear> {
@@ -206,9 +197,9 @@ pub(crate) fn check_blocks(application: &ApplicationCircuit) -> Result<(), Appli
             .first_local
             .checked_sub(first)
             .ok_or(ApplicationError::Block(index))?;
-        for local in 0..BLOCK_LOCALS {
-            let actual = sides(records, records.recipe_row(recipe + local)?)?;
-            let mut expected = sides(reference.records(), reference.records().recipe_row(local)?)?;
+        for (local, expected) in reference.iter().enumerate() {
+            let actual = recipe_sides(&mut walk, recipe + local)?;
+            let mut expected = expected.clone();
             for (constant, terms) in &mut expected {
                 let mut mapped = BTreeMap::new();
                 for (&variable, &coefficient) in terms.iter() {

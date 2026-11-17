@@ -1,8 +1,3 @@
-//! Neutral wire types for the `Pi_CCS` protocol.
-//!
-//! This module owns protocol messages and their canonical serialization. It
-//! does not own either the reference or optimized computation.
-
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::CeClaim;
 use neo_math::D;

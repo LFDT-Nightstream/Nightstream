@@ -148,7 +148,7 @@ def round_numbers(p, t, d, m=SECURITY_BITS):
         for rf in range(4, 100, 2):
             if secure(rf, rp):
                 # The reference overwrites its loop variable R_P_t here, so later R_F values
-                # in this row are tested against the margined R_P. check.py searches without it.
+                # in this row are tested against the margined R_P.
                 rf_margin, rp = rf + 2, (43 * rp + 39) // 40
                 cost = t * rf_margin + rp
                 if best is None or cost < best[0] or (cost == best[0] and rf_margin < best[1]):

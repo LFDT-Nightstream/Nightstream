@@ -1,5 +1,3 @@
-//! Ring layer: `R_q = F_q[X]/(X^64 + 1)`, the 128th cyclotomic ring.
-
 use crate::balanced::to_balanced_i128;
 use crate::Fq;
 use neo_params::nightstream_p64_k14;
@@ -47,13 +45,13 @@ impl Rq {
     pub fn mul(&self, rhs: &Self) -> Self {
         let (a, b) = (&self.0, &rhs.0);
         let products = |a: &[Fq], b: &[Fq]| Fq::sum_of_products(a.iter().copied().zip(b.iter().rev().copied()));
-        // X^D = −1: the products with i + j = k + D enter coefficient k with a minus sign.
         Self(array::from_fn(|k| {
-            products(&a[..=k], &b[..=k]) - products(&a[k + 1..], &b[k + 1..])
+            let direct = products(&a[..=k], &b[..=k]);
+            let wrapped_past_x_d = products(&a[k + 1..], &b[k + 1..]);
+            direct - wrapped_past_x_d
         }))
     }
 
-    /// The product with `X^j`. `X^D = −1`, so `X^ETA = 1`.
     pub fn mul_by_monomial(&self, j: usize) -> Self {
         let mut out = [Fq::ZERO; D];
         for (i, &coefficient) in self.0.iter().enumerate() {
@@ -125,7 +123,6 @@ pub fn ct(a: &Rq) -> Fq {
     a.0[0]
 }
 
-/// The matrix of `superneo_bar_block`.
 pub fn superneo_bar_matrix() -> &'static [[Fq; D]; D] {
     static M: OnceLock<[[Fq; D]; D]> = OnceLock::new();
     M.get_or_init(|| {
@@ -142,8 +139,6 @@ pub fn superneo_bar_matrix() -> &'static [[Fq; D]; D] {
 }
 
 /// The transform of SuperNeo v1.2 Section 5 with `ct(a · bar(b)) = ⟨a, b⟩`.
-/// In `F_q[X]/(X^D + 1)`, `ct(X^i · X^j)` is 1 for `i + j = 0`, −1 for
-/// `i + j = D`, and 0 otherwise. So `bar(b) = b_0 − Σ_{j ≥ 1} b_{D−j} X^j`.
 #[inline]
 pub fn superneo_bar_block(v: [Fq; D]) -> [Fq; D] {
     array::from_fn(|j| if j == 0 { v[0] } else { -v[D - j] })

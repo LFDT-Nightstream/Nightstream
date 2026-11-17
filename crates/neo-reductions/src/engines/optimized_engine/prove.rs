@@ -1,5 +1,3 @@
-//! Optimized prover entrypoints for the selected one-joint PiCCS protocol.
-
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{F, K};

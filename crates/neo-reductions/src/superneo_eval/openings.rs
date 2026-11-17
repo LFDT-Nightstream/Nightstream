@@ -1,5 +1,3 @@
-//! Complete real-witness openings shared by the normal PiCCS and PiDEC paths.
-
 use neo_ccs::V1_2Evaluations;
 use neo_math::{superneo_bar_block, KExtensions, D, K};
 use p3_field::PrimeCharacteristicRing;
@@ -73,7 +71,6 @@ impl SuperneoEvalCache {
     }
 }
 
-/// `D` is a power of two, so ring element `block` covers the low cube at the high index `block`.
 const _: () = assert!(D.is_power_of_two());
 
 pub(super) fn pad_openings(witnesses: &[SuperneoZBlocks], point: &[K]) -> Vec<[K; D]> {

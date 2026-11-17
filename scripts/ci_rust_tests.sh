@@ -3,9 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-# xargs starts the groups in this order, so the four slowest come first. The
-# nightstream tests are split by name; the last of them runs the rest.
-groups=(
+groups_slowest_first=(
   '-p nightstream lifecycle::'
   '-p nightstream -- --skip lifecycle::'
   '-p nightstream-fprime'
@@ -23,8 +21,7 @@ groups=(
   '-p neo-wasm'
 )
 
-# Each of these needs up to 30 GB, so each runs alone after the groups.
-alone=(
+memory_heavy_alone=(
   '-p nightstream --test compression -- --ignored'
   '-p nightstream --test compression_at_cap -- --ignored'
   '-p ns-compress --lib -- --ignored key::tests::the_large_pinned_key_is_the_key_of_the_public_seeds'
@@ -38,26 +35,39 @@ common=(
 
 # The tests that run alone use the release profile of Cargo.toml, fat LTO,
 # which is the build that users run. Under fat LTO, Akita's NTT loops need
-# more stack than under `common`.
-shipped=(--release --locked)
+# more stack than under `common`. They have their own target folder, because
+# Cargo locks a target folder for the whole of a build.
+shipped=(--release --locked --target-dir "${CARGO_TARGET_DIR:-target}/shipped")
 
 case "${1:-}" in
   build)
-    for group in "${groups[@]}"; do
+    for group in "${groups_slowest_first[@]}"; do
       read -r -a selected <<< "$group"
       printf 'Building selected tests: %s\n' "$group"
       cargo test "${common[@]}" --no-run "${selected[@]}"
     done
-    for group in "${alone[@]}"; do
+    ;;
+  build-shipped)
+    for group in "${memory_heavy_alone[@]}"; do
       read -r -a selected <<< "$group"
       printf 'Building selected tests with the shipped profile: %s\n' "$group"
       cargo test "${shipped[@]}" --no-run "${selected[@]}"
     done
+    printf 'Shipped tests built at %s\n' "$(date -u +%H:%M:%SZ)"
     ;;
   test)
-    printf '%s\0' "${groups[@]}" |
+    shipped_log=$(mktemp)
+    bash "$0" build-shipped > "$shipped_log" 2>&1 &
+    shipped_build=$!
+    trap 'kill "$shipped_build" 2> /dev/null || true' EXIT
+    printf '%s\0' "${groups_slowest_first[@]}" |
       xargs -0 -P 4 -n 1 bash "$0" run
-    for group in "${alone[@]}"; do
+    printf 'Groups finished at %s\n' "$(date -u +%H:%M:%SZ)"
+    status=0
+    wait "$shipped_build" || status=$?
+    cat "$shipped_log"
+    [ "$status" -eq 0 ]
+    for group in "${memory_heavy_alone[@]}"; do
       bash "$0" run-shipped "$group"
     done
     ;;
@@ -65,12 +75,10 @@ case "${1:-}" in
     read -r -a selected <<< "${2:?missing test group}"
     printf 'Running selected tests: %s\n' "$2"
     if [ "$1" = run ]; then flags=("${common[@]}"); else flags=("${shipped[@]}"); fi
-    # One libtest process per binary keeps its shared fixtures alive. The
-    # thread count is set by environment so a group can pass its own `--`.
     RUST_TEST_THREADS=1 exec cargo test "${flags[@]}" --no-fail-fast "${selected[@]}"
     ;;
   *)
-    printf 'Usage: %s {build|test}\n' "$0" >&2
+    printf 'Usage: %s {build|build-shipped|test}\n' "$0" >&2
     exit 2
     ;;
 esac

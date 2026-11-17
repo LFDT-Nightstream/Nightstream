@@ -58,6 +58,13 @@ structure VerifierChecks {width : ℕ} (p : Plan) (statement : TerminalStatement
   terminal : TerminalChecks p.toGeometry statement.zi m.finalApp m.finalCarry statement.iteration m.segments
     m.finalTs m.finalRoot
 
+/-- The checks of SPEC.md Algorithm 8 step 4 bound the iteration: `T = S · N` with `S ≤ S_max`. -/
+theorem VerifierChecks.iteration_le {width : ℕ} {statement : TerminalStatement AppState}
+    {m : MemoryStatement width} (checks : VerifierChecks p statement m) :
+    statement.iteration ≤ p.sMax * p.n := by
+  rw [checks.terminal.stepCount]
+  exact Nat.mul_le_mul_right _ checks.terminal.segmentsRange.2
+
 /-- The typed statement that a memory statement claims after `T` steps. -/
 def MemoryStatement.typed (app : PortApp p.toGeometry) (m : MemoryStatement app.width) (T : ℕ) :
     Nebula.Statement app.State Digest :=

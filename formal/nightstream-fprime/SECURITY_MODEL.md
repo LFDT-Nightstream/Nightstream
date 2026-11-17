@@ -203,7 +203,7 @@ each head.
 | `statement.*`, `constantLaw.*` | `*` | game | adversary 6: the statement of the Π_CCS run and the law of its constant |
 | `params.rlc_bound`, `freshBound`, `degreeCovers` | `*` | lean | `Claims.Final.verifier_sound` uses the Π_CCS run at the production parameters and takes none of these |
 | `Final/rows` | `Eq` | link | `Relation::new` gives `FactoredRows` the package's plan rows and the spans of its layout (`crates/nightstream/src/lifecycle/bounded_depth/relation.rs`). Lean emits the row counts, the logical width and a checksum of the dense matrices of its model `Export.BoundedDepth.FinalRows.packageRows` for both packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`) and of each Nebula program (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-nebula-v1-rows-v1.json`, `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-nebula-n1-rows-v1.json`), and `Export.BoundedDepth.RowsParity.fastSum_eq` proves that the emitted value is that checksum. The test `factored_rows_match_the_lean_dense_checksum` computes the same words from Rust's plan rows and spans for each of these packages. A checksum is evidence, not a proof. The memory claims are about Lean's Nebula programs; a Rust-built memory application is row `app.*` |
-| `depthBound` | `LE.le` | game | adversary 4: the result bounds the error over the stages below a bound `depth` on the iteration of the adversary's statements, so `depth` is a parameter of the adversary class, and the error grows with it. The final-proof results of adversary 6 take the same parameter |
+| `depthBound` | `LE.le` | game | adversary 4: the result bounds the error over the stages below a bound `depth` on the iteration of the adversary's statements, so `depth` is a parameter of the adversary class, and the error grows with it. The history results of adversary 6 (`Claims.Final.history_sound`, `Claims.Final.history_sound_with_akita`) take the same parameter. The memory results of adversary 6 do not: the checks of `SPEC.md` Algorithm 8 step 4 accept at most `S_max · N` steps (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`), so their walk has `S_max · N` stages |
 | `Encodings/same`, `Encodings/equal`, `Encodings/different` | `*` | game | `SPEC.md` section 4: the event of each encoding claim is two inputs with one digest or one block list |
 | `Encodings/leftWell.*`, `Encodings/rightWell.*` | `*` | game | `SPEC.md` section 4.2: the two states are well formed |
 | `Encodings/leftCanonical`, `Encodings/rightCanonical` | `*` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-encoding-parity-v1.json`, `the_identity_words_are_the_lean_words`: Rust makes the words of Lean, and it refuses a stream with a word at or above `q` (`a_word_at_or_above_q_is_refused`) |
@@ -413,9 +413,13 @@ not change terminal source checks.
 
 - **Controls:** the accumulator, the fresh claim and the proof of one light
   fold or one refresh fold, for a fixed key.
-- **Wins:** the fold verifier accepts two outputs that differ only in the
-  Π_RLC challenges (a fork), and extraction from the fork does not give the
-  witnesses.
+- **Wins:** the fold verifier accepts a fork, and extraction from the fork
+  does not give the witnesses. A fork is one base output and one output for
+  each Π_RLC challenge coordinate, which differs from the base only in that
+  coordinate (`Spec.Folding.PiRLC.PaperForkExtraction`; SuperNeo v1.2
+  Definition 12). So a light fork has 2 outputs (1 coordinate) and a
+  refresh fork has 16 (15 coordinates). A verifier receives one proof; the
+  extractor needs the fork.
 - **Result:** for a light fold, the extracted fresh witness opens the fresh
   claim with norm below `b`, the extracted accumulator witness opens the
   input accumulator at the output bound plus `T(b − 1)`, and the claims are
@@ -778,10 +782,14 @@ not change terminal source checks.
   `Q · (2^−119 + 38/q²)` plus the terms of adversary 5
   (`Claims.Final.memory_sound`). With Akita openings, the
   bound adds `εAkita` (`Claims.Final.memory_sound_with_akita`).
-  The premises are those of the two joined results, so the memory round
-  (trust item 6) stays a premise. No Lean result joins the bound of
-  adversary 2 with the bound of this adversary. No result shows that an
-  extractor of the three witnesses is efficient.
+  The premises are those of the two joined results, but without the bound
+  `depth`: the checks of `SPEC.md` Algorithm 8 step 4 accept at most
+  `S_max · N` steps (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`),
+  so the walk has `S_max · N` stages, and its answers cover the iteration of
+  each statement in the event. The memory round (trust item 6) stays a
+  premise. No Lean result joins the bound of adversary 2 with the bound of
+  this adversary. No result shows that an extractor of the three witnesses
+  is efficient.
 - **Error:** Lean bounds the argument by `Q · error`, with `error` below
   `2^−119` at the production shapes (`SPEC.md` section 3). Rust bounds a
   sum of six terms for one interactive run of the argument, about

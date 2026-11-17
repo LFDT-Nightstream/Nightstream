@@ -189,7 +189,6 @@ Claims.Final.memory_sound	valid.romWords	LT.lt
 Claims.Final.memory_sound	valid.ramWords	LT.lt
 Claims.Final.memory_sound	keysShaped	Eq
 Claims.Final.memory_sound	programEq	Eq
-Claims.Final.memory_sound	depthBound	LE.le
 Claims.Final.memory_sound	round	Export.BoundedDepth.NebulaSecurity.MemoryRound
 Claims.Final.memory_sound_with_akita	publicFits	LE.le
 Claims.Final.memory_sound_with_akita	app.model.idle	_
@@ -243,7 +242,6 @@ Claims.Final.memory_sound_with_akita	valid.romWords	LT.lt
 Claims.Final.memory_sound_with_akita	valid.ramWords	LT.lt
 Claims.Final.memory_sound_with_akita	keysShaped	Eq
 Claims.Final.memory_sound_with_akita	programEq	Eq
-Claims.Final.memory_sound_with_akita	depthBound	LE.le
 Claims.Final.memory_sound_with_akita	round	Export.BoundedDepth.NebulaSecurity.MemoryRound
 Claims.Final.memory_sound_with_akita	akita	LE.le
 Claims.Final.verifier_sound	publicFits	LE.le

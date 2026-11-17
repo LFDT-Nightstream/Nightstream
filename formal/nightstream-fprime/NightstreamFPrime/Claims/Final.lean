@@ -185,11 +185,13 @@ theorem history_sound_with_akita
     complete rows keysShaped depth depthBound history εAkita akita
 
 /-- The bound for Rust `nebula::Verifier::verify_final`. In the state-restoration experiment with
-`q` queries and the walk's `depth` stages, the probability that the final verifier accepts, the
-checks of SPEC.md Algorithm 8 hold, and the decoded history does not attest the memory statement
-is at most `q · (1/2^119 + 38/fieldModulus²)` plus the terms of `Claims.Nebula.memory_sound` for the prover's IVC
-adversary: `IvcSecurity.walkBound`, the state-link and chain collision masses, and the
-memory-round error. -/
+`q` queries and the walk's `S_max · N` stages (`p.sMax * p.n`), the probability that the final
+verifier accepts, the checks of SPEC.md Algorithm 8 hold, and the decoded history does not attest
+the memory statement is at most `q · (1/2^119 + 38/fieldModulus²)` plus the terms of
+`Claims.Nebula.memory_sound` for the prover's IVC adversary: `IvcSecurity.walkBound`, the
+state-link and chain collision masses, and the memory-round error. The checks of Algorithm 8
+bound the iteration by `S_max · N` (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`), so
+no premise bounds it. -/
 theorem memory_sound
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -227,10 +229,6 @@ theorem memory_sound
     (valid : p.Valid)
     (keysShaped : ∀ (key : Fin 2), List.length (setup.circuitKeys key).digest = 4)
     (programEq : exports.program = Nebula.MemoryApp.program p.toGeometry app)
-    (depth : ℕ)
-    (depthBound : ∀ (o : FinalVerifier.Outcome logicalWidth publicFits),
-        some (some o) ∈ (Compression.Game.law s (setup.game.restore q [])).support →
-          o.1.iteration ≤ depth)
     {memoryError : NebulaSecurity.ClaimedStage (logicalWidth := logicalWidth) (publicFits := publicFits) app →
         ℝ}
     (round : NebulaSecurity.MemoryRound app setup.ajtai setup.circuitKeys exports StageAdmitted
@@ -242,13 +240,13 @@ theorem memory_sound
                         (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
                         closed
                         (IvcSecurity.walkAdversary (NebulaFinal.adversary setup app s q claim))
-                        admitted depth) :
+                        admitted (p.sMax * p.n)) :
                     HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
                       (IvcWalk.Answer logicalWidth publicFits)).tape.toOuterMeasure :
               Set
                   (↑(HyperNova.ReverseStages.reverseStages assumption closed
                           (IvcSecurity.walkAdversary (NebulaFinal.adversary setup app s q claim))
-                          admitted depth) :
+                          admitted (p.sMax * p.n)) :
                       HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
                         (IvcWalk.Answer logicalWidth publicFits)).Tape →
                 ENNReal)
@@ -258,24 +256,24 @@ theorem memory_sound
                       IvcWalk.WalkExtracted setup.ajtai) (Admitted := Admitted) (StageAdmitted :=
                       StageAdmitted) (Efficient := Efficient) assumption closed
                       (IvcSecurity.walkAdversary (NebulaFinal.adversary setup app s q claim))
-                      admitted depth) :
+                      admitted (p.sMax * p.n)) :
                   HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
                     (IvcWalk.Answer logicalWidth publicFits)).Tape |
               NebulaFinal.FalseMemory setup app exports
                 (NebulaFinal.tapeOf setup app exports (Admitted := Admitted) (StageAdmitted :=
                     StageAdmitted) (Efficient := Efficient) assumption closed s q claim admitted
-                    depth tape).1
+                    (p.sMax * p.n) tape).1
                 (NebulaFinal.sampleOf setup app exports (Admitted := Admitted) (StageAdmitted :=
                   StageAdmitted) (Efficient := Efficient) assumption closed s q claim admitted
-                  depth tape)}) ≤
+                  (p.sMax * p.n) tape)}) ≤
         (↑q : ℝ) * FinalVerifier.finalError +
           (IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed
-                  (NebulaFinal.adversary setup app s q claim) admitted depth +
+                  (NebulaFinal.adversary setup app s q claim) admitted (p.sMax * p.n) +
                 ENNReal.toReal
                   (((NebulaSecurity.ClaimedStage.law app
                           (NebulaFinal.claimed setup app exports (Admitted := Admitted)
                             (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
-                            closed s q claim admitted depth)).toOuterMeasure :
+                            closed s q claim admitted (p.sMax * p.n))).toOuterMeasure :
                       Set (NebulaSecurity.Sample app.width logicalWidth publicFits) → ENNReal)
                     {sample : NebulaSecurity.Sample app.width logicalWidth publicFits |
                       Nebula.EndToEnd.Experiment.StateLinkCollision app
@@ -285,7 +283,7 @@ theorem memory_sound
                 (((NebulaSecurity.ClaimedStage.law app
                         (NebulaFinal.claimed setup app exports (Admitted := Admitted)
                           (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
-                          closed s q claim admitted depth)).toOuterMeasure :
+                          closed s q claim admitted (p.sMax * p.n))).toOuterMeasure :
                     Set (NebulaSecurity.Sample app.width logicalWidth publicFits) → ENNReal)
                   {sample : NebulaSecurity.Sample app.width logicalWidth publicFits |
                     Nebula.EndToEnd.Experiment.ChainCollision app
@@ -294,15 +292,16 @@ theorem memory_sound
             memoryError
               (NebulaFinal.claimed setup app exports (Admitted := Admitted) (StageAdmitted :=
                 StageAdmitted) (Efficient := Efficient) assumption closed s q claim admitted
-                depth)) :=
+                (p.sMax * p.n))) :=
   @Export.BoundedDepth.NebulaFinal.soundness logicalWidth publicFits setup p app relation step
     cubeFits exports Admitted StageAdmitted Efficient error assumption closed s q claim admitted
-    complete rows valid keysShaped programEq depth depthBound memoryError round
+    complete rows valid keysShaped programEq memoryError round
 
 /-- With Akita openings, the probability `memory` of a false memory statement is at most
-`q · (1/2^119 + 38/fieldModulus²) + εAkita` plus the terms of `Claims.Nebula.memory_sound`. `akita` is Akita's
-knowledge soundness (`FinalVerifier.AkitaKnowledge`) for the event `FalseMemory`: `s` is the
-prover of the game with ideal openings that it gives for the prover with Akita openings. -/
+`q · (1/2^119 + 38/fieldModulus²) + εAkita` plus the terms of `Claims.Nebula.memory_sound`, over
+the walk's `S_max · N` stages, as in `memory_sound`. `akita` is Akita's knowledge soundness
+(`FinalVerifier.AkitaKnowledge`) for the event `FalseMemory`: `s` is the prover of the game with
+ideal openings that it gives for the prover with Akita openings. -/
 theorem memory_sound_with_akita
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -340,10 +339,6 @@ theorem memory_sound_with_akita
     (valid : p.Valid)
     (keysShaped : ∀ (key : Fin 2), List.length (setup.circuitKeys key).digest = 4)
     (programEq : exports.program = Nebula.MemoryApp.program p.toGeometry app)
-    (depth : ℕ)
-    (depthBound : ∀ (o : FinalVerifier.Outcome logicalWidth publicFits),
-        some (some o) ∈ (Compression.Game.law s (setup.game.restore q [])).support →
-          o.1.iteration ≤ depth)
     {memoryError : NebulaSecurity.ClaimedStage (logicalWidth := logicalWidth) (publicFits := publicFits) app →
         ℝ}
     (round : NebulaSecurity.MemoryRound app setup.ajtai setup.circuitKeys exports StageAdmitted
@@ -358,14 +353,14 @@ theorem memory_sound_with_akita
                           (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
                           closed
                           (IvcSecurity.walkAdversary (NebulaFinal.adversary setup app s q claim))
-                          admitted depth) :
+                          admitted (p.sMax * p.n)) :
                       HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
                         (IvcWalk.Answer logicalWidth publicFits)).tape.toOuterMeasure :
                 Set
                     (↑(HyperNova.ReverseStages.reverseStages assumption closed
                             (IvcSecurity.walkAdversary
                               (NebulaFinal.adversary setup app s q claim))
-                            admitted depth) :
+                            admitted (p.sMax * p.n)) :
                         HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
                           (IvcWalk.Answer logicalWidth publicFits)).Tape →
                   ENNReal)
@@ -376,26 +371,26 @@ theorem memory_sound_with_akita
                         (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
                         closed
                         (IvcSecurity.walkAdversary (NebulaFinal.adversary setup app s q claim))
-                        admitted depth) :
+                        admitted (p.sMax * p.n)) :
                     HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
                       (IvcWalk.Answer logicalWidth publicFits)).Tape |
                 NebulaFinal.FalseMemory setup app exports
                   (NebulaFinal.tapeOf setup app exports (Admitted := Admitted) (StageAdmitted :=
                       StageAdmitted) (Efficient := Efficient) assumption closed s q claim admitted
-                      depth tape).1
+                      (p.sMax * p.n) tape).1
                   (NebulaFinal.sampleOf setup app exports (Admitted := Admitted) (StageAdmitted :=
                     StageAdmitted) (Efficient := Efficient) assumption closed s q claim admitted
-                    depth tape)}) +
+                    (p.sMax * p.n) tape)}) +
           εAkita) :
     memory ≤
         (↑q : ℝ) * FinalVerifier.finalError + εAkita +
           (IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed
-                  (NebulaFinal.adversary setup app s q claim) admitted depth +
+                  (NebulaFinal.adversary setup app s q claim) admitted (p.sMax * p.n) +
                 ENNReal.toReal
                   (((NebulaSecurity.ClaimedStage.law app
                           (NebulaFinal.claimed setup app exports (Admitted := Admitted)
                             (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
-                            closed s q claim admitted depth)).toOuterMeasure :
+                            closed s q claim admitted (p.sMax * p.n))).toOuterMeasure :
                       Set (NebulaSecurity.Sample app.width logicalWidth publicFits) → ENNReal)
                     {sample : NebulaSecurity.Sample app.width logicalWidth publicFits |
                       Nebula.EndToEnd.Experiment.StateLinkCollision app
@@ -405,7 +400,7 @@ theorem memory_sound_with_akita
                 (((NebulaSecurity.ClaimedStage.law app
                         (NebulaFinal.claimed setup app exports (Admitted := Admitted)
                           (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
-                          closed s q claim admitted depth)).toOuterMeasure :
+                          closed s q claim admitted (p.sMax * p.n))).toOuterMeasure :
                     Set (NebulaSecurity.Sample app.width logicalWidth publicFits) → ENNReal)
                   {sample : NebulaSecurity.Sample app.width logicalWidth publicFits |
                     Nebula.EndToEnd.Experiment.ChainCollision app
@@ -414,10 +409,10 @@ theorem memory_sound_with_akita
             memoryError
               (NebulaFinal.claimed setup app exports (Admitted := Admitted) (StageAdmitted :=
                 StageAdmitted) (Efficient := Efficient) assumption closed s q claim admitted
-                depth)) :=
+                (p.sMax * p.n))) :=
   @Export.BoundedDepth.NebulaFinal.real_soundness logicalWidth publicFits setup p app relation
     step cubeFits exports Admitted StageAdmitted Efficient error assumption closed s q claim
-    admitted complete rows valid keysShaped programEq depth depthBound memoryError round
+    admitted complete rows valid keysShaped programEq memoryError round
     memory εAkita akita
 
 end NightstreamFPrime.Claims.Final

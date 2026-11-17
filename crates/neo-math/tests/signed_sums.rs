@@ -103,8 +103,6 @@ fn limb_edges(seed: u64) -> [Fq; D] {
 #[test]
 fn small_digit_products_match_ring_products() {
     let bound = SMALL_DIGIT_BOUND as i64;
-    // These forms and constant digits put every product of one output at the
-    // largest limb magnitude, so its i64 sum is close to the bound of 2^62.
     let largest_high_limb = [Fq::from_u64((1 << 63) - (1 << 31) - 1); D];
     let smallest_low_limb = [Fq::from_u64(Q - (1 << 31)); D];
     for seed in 0..64 {

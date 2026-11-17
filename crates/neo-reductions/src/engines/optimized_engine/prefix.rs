@@ -6,8 +6,6 @@ use rayon::prelude::*;
 
 use crate::superneo_eval::EqualityWeights;
 
-/// The fewest pairs that one rayon job of a sum-check round takes. A smaller
-/// job costs more to hand to the pool than to run.
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 pub(super) const MIN_JOB_PAIRS: usize = 1 << 12;
 

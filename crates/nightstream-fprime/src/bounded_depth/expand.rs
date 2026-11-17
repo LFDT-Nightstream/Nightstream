@@ -75,7 +75,6 @@ impl PlanRows {
         )
     }
 
-    /// The entry of port `port` of `row` when the port has exactly one.
     pub fn single(&self, row: usize, port: usize) -> Option<(usize, Fq)> {
         let slot = PORTS * row + port;
         (self.offsets[slot + 1] == self.offsets[slot] + 1).then(|| {

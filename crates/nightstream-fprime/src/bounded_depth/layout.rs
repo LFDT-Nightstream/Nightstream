@@ -350,8 +350,6 @@ impl LogicalLayout {
     }
 }
 
-/// `Σ ratio^i · digits[i]`. The digits of a field slot are trits, so with
-/// ratio 3 the sum is exact in `i128` (below `3^41`) before one reduction.
 fn run_value(digits: &[Fq], ratio: Fq) -> Fq {
     if ratio == Fq::from_u64(FIELD_RATIO) && digits.len() <= FIELD_DIGITS {
         let trits = digits.iter().rev().try_fold(0i128, |sum, &digit| {

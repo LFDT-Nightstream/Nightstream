@@ -8,7 +8,6 @@ pub const MAX_EXACT_TERMS: u64 = 1 << 24;
 const _: () = assert!((D as u128) * LIMB_BOUND * (MAX_EXACT_TERMS as u128) < (1u128 << 63));
 const _: () = assert!(D == u64::BITS as usize);
 
-/// Coefficient `j` is `limbs[2j] + 2^32 · limbs[2j + 1]`.
 pub struct SplitRing {
     limbs: [u32; 2 * D],
 }
@@ -25,13 +24,10 @@ impl SplitRing {
     }
 }
 
-/// The alignment and the limb order put each 16-byte vector access of
-/// `add_signed_units` on a 16-byte boundary, at every shift. A vector access
-/// across that boundary is several times slower.
+// A 16-byte vector access across a 16-byte boundary is several times slower.
 #[derive(Clone)]
 #[repr(align(16))]
 pub struct SignedShiftSums {
-    /// The two limb sums of degree `k` at `2k` and `2k + 1`, as in `SplitRing`.
     limbs: [i64; 2 * (2 * D - 1)],
     #[cfg(debug_assertions)]
     terms: u64,
@@ -111,13 +107,10 @@ impl SignedShiftSums {
     }
 }
 
-/// The largest digit magnitude that `SmallDigits` holds.
 pub const SMALL_DIGIT_BOUND: u64 = 1 << 25;
 
-/// A product coefficient sums `D` products of a signed 32-bit limb and a digit.
 const _: () = assert!((D as u128) * (1 << 31) * (SMALL_DIGIT_BOUND as u128) < (1u128 << 63));
 
-/// A ring element as `high · 2^32 + low`, with each limb in `[−2^31, 2^31)`.
 pub struct SignedLimbs {
     low: [i32; D],
     high: [i32; D],
@@ -125,8 +118,6 @@ pub struct SignedLimbs {
 
 impl SignedLimbs {
     pub fn new(coefficients: &[F; D]) -> Self {
-        // Two signed limbs hold [−2^63 − 2^31, 2^63 − 2^31). That range is wider
-        // than q, so each residue has a representative in it.
         let shifted = coefficients.map(|value| {
             let value = value.as_canonical_u64();
             let representative = if value < (1 << 63) - (1 << 31) {
@@ -143,16 +134,11 @@ impl SignedLimbs {
     }
 }
 
-/// A ring element with integer coefficients in `[−SMALL_DIGIT_BOUND, SMALL_DIGIT_BOUND]`.
 pub struct SmallDigits {
-    /// `d_j` at `D − 1 − j` and `−d_j` at `2D − 1 − j`, because `X^D = −1`.
-    /// Coefficient `k` of `c · d` is then the dot product of `c` with the
-    /// window that starts at `D − 1 − k`.
     windows: [i32; 2 * D - 1],
 }
 
 impl SmallDigits {
-    /// `None` when a coefficient is outside the bound.
     pub fn new(coefficients: &[F; D]) -> Option<Self> {
         let mut windows = [0; 2 * D - 1];
         for (j, value) in coefficients.iter().enumerate() {
@@ -172,7 +158,6 @@ impl SmallDigits {
         Some(Self { windows })
     }
 
-    /// The masks of the coefficients `1` and `−1`, when no other value occurs.
     pub fn signed_unit_masks(&self) -> Option<(u64, u64)> {
         let mut masks = (0, 0);
         for j in 0..D {
@@ -186,7 +171,6 @@ impl SmallDigits {
         Some(masks)
     }
 
-    /// The product `form · self` in `R_q`, exact in `i64` before one reduction.
     #[inline]
     pub fn mul(&self, form: &SignedLimbs) -> [F; D] {
         core::array::from_fn(|k| {

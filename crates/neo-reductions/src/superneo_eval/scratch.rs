@@ -52,7 +52,6 @@ impl RingEvalScratch {
         }
     }
 
-    /// Fills part `p`, the blocks `bounds[p]..bounds[p + 1]`, with `fill(p, part)`.
     pub(super) fn fill_parts(&mut self, bounds: &[usize], fill: impl Fn(usize, &mut ScratchPart<'_>) + Sync) {
         debug_assert_eq!(bounds.last(), Some(&self.touched.len()));
         let mut active = vec![Vec::new(); bounds.len() - 1];

@@ -307,7 +307,6 @@ impl DenseBlockStore {
         };
     }
 
-    /// Visits the nonzero coefficients of pattern `index` as `(local, coefficient)`.
     #[inline]
     fn for_each_coefficient(&self, index: usize, mut visit: impl FnMut(usize, F)) {
         match self {
@@ -377,8 +376,6 @@ pub struct SuperneoMatrixCache {
     geometric_row_offsets: RowOffsetStore,
     geometric_runs: Vec<[u64; 3]>,
     identity: bool,
-    /// Built on first use. It stays valid because a cache does not change
-    /// after construction.
     part_plan: OnceLock<PartPlan>,
 }
 

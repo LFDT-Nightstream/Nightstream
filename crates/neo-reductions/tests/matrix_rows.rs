@@ -797,8 +797,6 @@ fn retained_complete_window_is_shared_and_other_requests_load_as_before() {
     ));
 }
 
-/// Rows whose entries reach the blocks out of order, so the entries of one
-/// part are not adjacent in a row, and every row shares block 0.
 struct ScatteredRows;
 
 impl ScatteredRows {

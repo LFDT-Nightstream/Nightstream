@@ -1,4 +1,4 @@
-use std::{mem::size_of, ops::ControlFlow, ops::Range};
+use std::{mem::size_of, ops::ControlFlow, ops::Range, sync::OnceLock};
 
 use neo_ccs::GeometricRowRun;
 use neo_math::{D, F};
@@ -70,6 +70,7 @@ pub(super) fn load_complete(
             geometric_row_offsets: row_offsets(rows, total.geometric)?,
             geometric_runs: filled(total.geometric, [0; 3])?,
             identity: false,
+            part_plan: OnceLock::new(),
         });
     }
     let mut cache = SuperneoEvalCache {

@@ -136,6 +136,34 @@ fn native_power_and_affine_rows_reconstruct_exact_source_constraints() {
                     );
                 }
             }
+            let digit_sum = |values: &[F], row, port| {
+                let mut total = F::ZERO;
+                layout
+                    .visit_runs(plan, row, port, |run| {
+                        let mut coefficient = run.coefficient;
+                        for value in &values[run.column..run.column + run.count] {
+                            total += coefficient * *value;
+                            coefficient *= run.ratio;
+                        }
+                    })
+                    .unwrap();
+                total
+            };
+            let not_trits: Vec<_> = logical
+                .iter()
+                .enumerate()
+                .map(|(index, &value)| value + F::from_u64(index as u64 % 5))
+                .collect();
+            for values in [&logical, &not_trits] {
+                for row in 0..2 {
+                    for port in 0..4 {
+                        assert_eq!(
+                            layout.evaluate(plan, row, port, values).unwrap(),
+                            digit_sum(values, row, port)
+                        );
+                    }
+                }
+            }
             columns[INPUT + 4] += F::ONE;
             columns[INPUT + 6] = F::from_u64(3) * columns[INPUT + 4] * x;
             package.field_lowering.reconstruct(&mut columns).unwrap();

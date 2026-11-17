@@ -1,4 +1,5 @@
 use core::cmp::min;
+use core::ops::Range;
 
 use neo_math::{KExtensions, D, F, K};
 use p3_field::PrimeCharacteristicRing;
@@ -116,8 +117,15 @@ impl SuperneoMatrixCache {
         scratch: &mut RingEvalScratch,
         weight: impl Fn(usize) -> K,
     ) {
+        debug_assert!(row_cap <= self.rows);
         scratch.ensure_block_count(self.cols.div_ceil(D));
-        self.accumulate_original_ring_form_part(row_cap, &mut scratch.part(), weight);
+        self.accumulate_original_ring_form_part(
+            0..row_cap,
+            |row| self.entry_range(row),
+            |row| self.run_range(row),
+            &mut scratch.part(),
+            weight,
+        );
     }
 
     pub(super) fn accumulate_barred_ring_form_parallel(
@@ -127,45 +135,42 @@ impl SuperneoMatrixCache {
         weight: impl Fn(usize) -> K + Sync,
     ) {
         scratch.ensure_block_count(self.cols.div_ceil(D));
-        scratch.fill_parts(|part| {
-            self.accumulate_original_ring_form_part(row_cap, part, &weight);
+        let plan = self.part_plan();
+        scratch.fill_parts(plan.bounds(), |index, part| {
+            self.accumulate_original_ring_form_part(
+                plan.rows(index).take_while(|&row| row < row_cap),
+                |row| self.part_entries(plan, index, row),
+                |row| self.part_runs(plan, index, row),
+                part,
+                &weight,
+            );
             part.bar_active();
         });
     }
 
     fn accumulate_original_ring_form_part(
         &self,
-        row_cap: usize,
+        rows: impl Iterator<Item = usize> + Clone,
+        entries_of: impl Fn(usize) -> Range<usize>,
+        runs_of: impl Fn(usize) -> Range<usize>,
         part: &mut ScratchPart<'_>,
         weight: impl Fn(usize) -> K,
     ) {
-        debug_assert!(row_cap <= self.rows);
-        if self.row_blocks.is_empty() && self.geometric_runs.is_empty() {
-            if self.identity {
-                let blocks = part.blocks();
-                let start = blocks.start.saturating_mul(D).min(row_cap);
-                let end = blocks.end.saturating_mul(D).min(row_cap);
-                for row in start..end {
-                    let [real, imaginary] = weight(row).as_coeffs();
-                    if real != F::ZERO || imaginary != F::ZERO {
-                        part.add_coefficient(row / D, row % D, real, imaginary);
-                    }
-                }
-            }
+        if !self.identity && self.row_blocks.is_empty() && self.geometric_runs.is_empty() {
             return;
         }
         let event_ratio = self.event_ratio();
         if let Some(ratio) = event_ratio {
-            for row in 0..row_cap {
+            for row in rows.clone() {
                 let [w_re, w_im] = weight(row).as_coeffs();
                 if w_re != F::ZERO || w_im != F::ZERO {
-                    self.add_geometric_events(row, w_re, w_im, ratio, part);
+                    self.add_geometric_events(&self.geometric_runs[runs_of(row)], w_re, w_im, ratio, part);
                 }
             }
             part.resolve_geometric(ratio);
         }
         let blocks = part.blocks();
-        for row in 0..row_cap {
+        for row in rows {
             let [w_re, w_im] = weight(row).as_coeffs();
             if w_re == F::ZERO && w_im == F::ZERO {
                 continue;
@@ -177,7 +182,7 @@ impl SuperneoMatrixCache {
                 }
                 continue;
             }
-            for compact in self.row_blocks_for(row).iter().copied() {
+            for compact in self.row_blocks[entries_of(row)].iter().copied() {
                 let block = self.row_block_index(compact);
                 if !blocks.contains(&block) {
                     continue;
@@ -185,11 +190,13 @@ impl SuperneoMatrixCache {
                 if let Some((_, local, coefficient)) = compact.single_parts() {
                     part.add_coefficient(block, local, w_re * coefficient, w_im * coefficient);
                 } else {
-                    let orig = self.dense_block(self.dense_pattern_index(compact));
-                    part.add_scaled(block, &orig, w_re, w_im);
+                    self.dense_orig
+                        .for_each_coefficient(self.dense_pattern_index(compact), |local, coefficient| {
+                            part.add_coefficient(block, local, w_re * coefficient, w_im * coefficient)
+                        });
                 }
             }
-            self.accumulate_geometric_ring_form_row(row, w_re, w_im, event_ratio, part);
+            self.accumulate_geometric_ring_form_row(&self.geometric_runs[runs_of(row)], w_re, w_im, event_ratio, part);
         }
     }
 }

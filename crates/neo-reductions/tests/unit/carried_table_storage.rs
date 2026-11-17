@@ -163,6 +163,7 @@ fn carried_rows_beyond_the_witness_carrier_are_retained() {
     );
 }
 
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 #[test]
 fn dense_prefix_folding_reuses_its_storage() {
     let challenge = K::from_coeffs([F::from_u64(5), F::from_u64(7)]);
@@ -197,7 +198,9 @@ fn dense_prefix_folding_reuses_its_storage() {
         .build()
         .unwrap();
     pool.install(|| {
-        for len in [0, 1, 2, 3, D - 1, D, D + 1, 2 * D, 2 * D + 1] {
+        let parallel = 2 * prefix::MIN_JOB_PAIRS;
+        let lengths = [0, 1, 2, 3, D - 1, D, D + 1, 2 * D, 2 * D + 1];
+        for len in lengths.into_iter().chain([parallel + 1, 2 * parallel + 3]) {
             let mut actual = (0..len)
                 .map(|index| K::from_coeffs([F::from_usize(index + 1), F::from_usize(2 * index + 3)]))
                 .collect::<Vec<_>>();

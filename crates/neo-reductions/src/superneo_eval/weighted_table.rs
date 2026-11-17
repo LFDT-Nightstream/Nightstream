@@ -1,5 +1,8 @@
 use super::{Rq, SuperneoEvalCache, SuperneoMatrixCache, SuperneoZBlocks};
-use neo_math::{superneo_bar_block, KExtensions, D, F, K};
+use neo_math::{
+    signed_sums::{SignedLimbs, SmallDigits},
+    superneo_bar_block, KExtensions, D, F, K,
+};
 use p3_field::PrimeCharacteristicRing;
 
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -260,6 +263,7 @@ pub(crate) fn fill_combined_projection(
     let bar_re = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[0])));
     let bar_im = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[1])));
     let bar_sum = Rq(std::array::from_fn(|lane| bar_re.0[lane] + bar_im.0[lane]));
+    let (bar_re_limbs, bar_im_limbs) = (SignedLimbs::new(&bar_re.0), SignedLimbs::new(&bar_im.0));
     let generator = K::from_coeffs([F::ZERO, F::ONE]);
     let w = (generator * generator).as_coeffs()[0];
     let fill = |(block, output): (usize, &mut [K])| {
@@ -296,7 +300,10 @@ pub(crate) fn fill_combined_projection(
         let has_imaginary = imaginary.0.iter().any(|value| *value != F::ZERO);
         let (out_re, out_im) = match (has_real, has_imaginary) {
             (false, false) => (Rq::zero(), Rq::zero()),
-            (true, false) => (bar_re.mul(&real), bar_im.mul(&real)),
+            (true, false) => match SmallDigits::new(&real.0) {
+                Some(digits) => (Rq(digits.mul(&bar_re_limbs)), Rq(digits.mul(&bar_im_limbs))),
+                None => (bar_re.mul(&real), bar_im.mul(&real)),
+            },
             (false, true) => {
                 let imaginary_part = bar_im.mul(&imaginary);
                 (Rq(imaginary_part.0.map(|value| w * value)), bar_re.mul(&imaginary))

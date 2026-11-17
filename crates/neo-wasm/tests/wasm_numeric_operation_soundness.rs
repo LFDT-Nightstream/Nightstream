@@ -12,8 +12,6 @@ fn rows(wat: &str) -> Vec<neo_wasm::WasmVmStep> {
     traces_from_wasmtime_wasm_bytes(&wasm, "main").expect("Wasmtime trace")
 }
 
-/// A count `c` has the alias `q + c` in two 32-bit limbs only for
-/// `c < 2^64 − q = 59`, so each count here is below 59.
 #[test]
 fn i64_counts_reject_a_modulus_alias() {
     let trace = rows(

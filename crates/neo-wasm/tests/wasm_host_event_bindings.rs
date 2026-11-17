@@ -1,8 +1,3 @@
-//! Native expansion and validation of host-event templates.
-//!
-//! The tags and slot indices below are arbitrary embedder data; neo-wasm
-//! never interprets them.
-
 mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
@@ -107,12 +102,8 @@ fn public_builder_constructs_and_validates_split_imports() -> Result<(), Box<dyn
         "return inputs must be dense"
     );
 
-    // The complete split template must reach the existing validation, including
-    // phase restrictions and the imported function's actual signature.
     for (call, ret) in [
-        // Results belong to the return phase, not the call phase.
         (EventSequenceBuilder::op(10).result()?.finish()?, vec![]),
-        // This import has one argument, so only argument index 0 exists.
         (
             call,
             EventSequenceBuilder::op(11)
@@ -165,7 +156,6 @@ fn core_export_input_local_bootstraps_parameter() -> Result<(), Box<dyn std::err
     common::shared_host::check(&trace);
     common::shared_host::prove(&trace, run.artifacts());
 
-    // The suffix scalar straddles blocks; the third root forces zero padding.
     let first_root = opaque_value_root(schema, &[37])?;
     let second_root = opaque_value_root(schema, &[9])?;
     let third_root = opaque_value_root(schema, &[])?;
@@ -261,7 +251,6 @@ fn sequence_builder_chunks_across_scalar_boundaries() -> Result<(), Box<dyn std:
     assert_eq!(full.len(), 1, "an exact block must not gain a padding block");
     assert!(full[0].absorb);
 
-    // The argument's low limb ends block zero; its high limb starts block one.
     let template = ImportTemplate {
         return_events: None,
         events: prefix.clone().arg_i64(0)?.finish()?,
@@ -274,7 +263,6 @@ fn sequence_builder_chunks_across_scalar_boundaries() -> Result<(), Box<dyn std:
         vec![[1, 0, 2, 0, 3, 0, 4, 11], [22, 0, 0, 0, 0, 0, 0, 0]],
     );
 
-    // The result pair can cross the same boundary without being reordered.
     let template = ImportTemplate {
         return_events: None,
         events: prefix.clone().result()?.finish()?,
@@ -286,7 +274,6 @@ fn sequence_builder_chunks_across_scalar_boundaries() -> Result<(), Box<dyn std:
         vec![[1, 0, 2, 0, 3, 0, 4, 33], [44, 0, 0, 0, 0, 0, 0, 0]],
     );
 
-    // Chunking must not bypass the ban on reading argument zero after the result push.
     let invalid = ImportTemplate {
         return_events: None,
         events: prefix.clone().result()?.arg_i64(0)?.finish()?,
@@ -294,7 +281,6 @@ fn sequence_builder_chunks_across_scalar_boundaries() -> Result<(), Box<dyn std:
     };
     assert!(invalid.validate(1, 1).is_err());
 
-    // Export input pairs also preserve their input/local limb mapping across blocks.
     let template = ExportTemplate {
         entry: prefix.input_local_i64(0, 0)?.finish()?,
         entry_input_count: 2,
@@ -311,12 +297,10 @@ fn sequence_builder_chunks_across_scalar_boundaries() -> Result<(), Box<dyn std:
 #[test]
 fn sequence_builder_pads_roots_without_splitting_them() -> Result<(), Box<dyn std::error::Error>> {
     let schema = [1, 2, 3, 4];
-    // A root requested at word five starts the next block, not across the boundary.
     let events = EventSequenceBuilder::op(7)
         .arg_i64(0)?
         .arg_i64(1)?
         .opaque(schema, EventSources::new().arg_i64(2))?
-        // A second root cannot share an outer block, even when four words remain.
         .opaque(schema, EventSources::new())?
         .constant_i32(99)?
         .finish()?;
@@ -417,21 +401,17 @@ fn opaque_builder_preserves_wide_export_inputs_and_outputs() -> Result<(), Box<d
 #[test]
 fn sequence_builder_rejects_invalid_opaque_sources() -> Result<(), Box<dyn std::error::Error>> {
     let schema = [1, 2, 3, 4];
-    // Advice does not commit an outer root.
     assert!(EventSequenceBuilder::advice()
         .opaque(schema, EventSources::new())
         .is_err());
-    // Low-level slot access cannot smuggle nested opaque instructions into a value.
     assert!(EventSequenceBuilder::absorbing()
         .opaque(schema, EventSources::new().push(SlotBinding::EnterOpaque))?
         .finish()
         .is_err());
-    // Deferred lowering still validates the schema's field representation.
     assert!(EventSequenceBuilder::absorbing()
         .opaque([u64::MAX; 4], EventSources::new())?
         .finish()
         .is_err());
-    // Wide sources cannot wrap their second input index or memory offset.
     assert!(EventSources::new().input_local_i64(u8::MAX, 0).is_err());
     assert!(EventSources::new()
         .memory_write_i64(u8::MAX, MemoryBase::Arg(0), 0)
@@ -455,7 +435,6 @@ fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARG
 
 #[test]
 fn zero_arg_import_expands_to_single_const_event() {
-    // `burn()`: one event, all slots constant.
     let template = ImportTemplate {
         return_events: None,
         events: vec![EventBlock::op(7, [ZERO; COMM_CHAIN_EVENT_ARGS])],
@@ -520,7 +499,6 @@ fn validation_rejects_unresolvable_templates() {
     let result_lo = SlotBinding::ResultElem { limb: Limb::Lo };
     let result_hi = SlotBinding::ResultElem { limb: Limb::Hi };
 
-    // Arg index beyond the import's arity.
     let template = ImportTemplate {
         return_events: None,
         events: vec![event(SlotBinding::ArgElem { arg: 2, limb: Limb::Lo })],
@@ -528,7 +506,6 @@ fn validation_rejects_unresolvable_templates() {
     };
     assert!(template.validate(2, 0).is_err());
 
-    // Result reference on a resultless import.
     let template = ImportTemplate {
         return_events: None,
         events: vec![event(result_lo)],
@@ -536,7 +513,6 @@ fn validation_rejects_unresolvable_templates() {
     };
     assert!(template.validate(0, 0).is_err());
 
-    // A returning import MUST push: the ResultElem Lo slot is the push.
     let template = ImportTemplate {
         return_events: None,
         events: vec![event(SlotBinding::Const(1))],
@@ -544,7 +520,6 @@ fn validation_rejects_unresolvable_templates() {
     };
     assert!(template.validate(0, 1).is_err());
 
-    // ... and must push exactly once.
     let template = ImportTemplate {
         return_events: None,
         events: vec![event(result_lo), event(result_lo)],
@@ -552,8 +527,6 @@ fn validation_rejects_unresolvable_templates() {
     };
     assert!(template.validate(0, 1).is_err());
 
-    // The Hi slot writes the pushed cell's hi lane, so it must follow the
-    // Lo slot.
     let template = ImportTemplate {
         return_events: None,
         events: vec![event(result_hi), event(result_lo)],
@@ -567,8 +540,6 @@ fn validation_rejects_unresolvable_templates() {
     };
     assert!(template.validate(0, 1).is_ok());
 
-    // ... and is REQUIRED: a Lo-only template leaves the pushed hi lane as
-    // unbound advice (an i32 result absorbs 0).
     let template = ImportTemplate {
         return_events: None,
         events: vec![event(result_lo)],
@@ -576,7 +547,6 @@ fn validation_rejects_unresolvable_templates() {
     };
     assert!(template.validate(0, 1).is_err());
 
-    // Memory-write input index beyond the declared count.
     let template = ImportTemplate {
         return_events: None,
         events: vec![event(SlotBinding::MemoryWrite32 {
@@ -588,7 +558,6 @@ fn validation_rejects_unresolvable_templates() {
     };
     assert!(template.validate(1, 0).is_err());
 
-    // Non-canonical constant.
     let template = ImportTemplate {
         return_events: None,
         events: vec![event(SlotBinding::Const(u64::MAX))],
@@ -596,7 +565,6 @@ fn validation_rejects_unresolvable_templates() {
     };
     assert!(template.validate(0, 0).is_err());
 
-    // Advice events allow only VM effects and padding.
     let advice = |slot: SlotBinding| {
         let mut block = [ZERO; 8];
         block[0] = slot;
@@ -642,14 +610,12 @@ fn validation_rejects_unresolvable_templates() {
         "an advice-only export must be rejected"
     );
 
-    // Argument 0 after the result push (its stack slot holds the result).
     let template = ImportTemplate {
         return_events: None,
         events: vec![event(result_lo), event(SlotBinding::ArgElem { arg: 0, limb: Limb::Lo })],
         ..Default::default()
     };
     assert!(template.validate(1, 1).is_err());
-    // Later arguments stay addressable after the push.
     let template = ImportTemplate {
         return_events: None,
         events: vec![
@@ -662,9 +628,6 @@ fn validation_rejects_unresolvable_templates() {
     assert!(template.validate(2, 1).is_ok());
 }
 
-/// Export entry-phase rules: each local lane written at most once, lo
-/// before hi, indices inside the declared input counts, and every
-/// `InputLocal` word must fit the 32-bit locals lane.
 #[test]
 fn export_entry_validation_and_expansion_rules() {
     let event = |slot: SlotBinding| EventBlock::op(0, slots(&[(0, slot)]));
@@ -678,7 +641,6 @@ fn export_entry_validation_and_expansion_rules() {
         .validate(1, 1)
         .expect("single-result export may bind its output");
 
-    // Input-local index beyond the declared count.
     let template = ExportTemplate {
         entry: vec![event(SlotBinding::InputLocal {
             input: 1,
@@ -690,7 +652,6 @@ fn export_entry_validation_and_expansion_rules() {
     };
     assert!(template.validate(1, 0).is_err());
 
-    // Locals bootstrap is entry-phase only.
     let template = ExportTemplate {
         exit: vec![event(SlotBinding::InputLocal {
             input: 0,
@@ -701,7 +662,6 @@ fn export_entry_validation_and_expansion_rules() {
     };
     assert!(template.validate(1, 0).is_err());
 
-    // A local lane written twice is rejected.
     let lo = |local| SlotBinding::InputLocal {
         input: 0,
         local,
@@ -719,7 +679,6 @@ fn export_entry_validation_and_expansion_rules() {
     };
     assert!(template.validate(1, 0).is_err());
 
-    // Local index out of range.
     let template = ExportTemplate {
         entry: vec![event(lo(1))],
         entry_input_count: 2,
@@ -727,8 +686,6 @@ fn export_entry_validation_and_expansion_rules() {
     };
     assert!(template.validate(1, 0).is_err());
 
-    // A hi-lane write requires (and must follow) its local's lo-lane write,
-    // because the lo write zeroes the hi lane.
     let template = ExportTemplate {
         entry: vec![event(hi(0))],
         entry_input_count: 2,
@@ -748,8 +705,6 @@ fn export_entry_validation_and_expansion_rules() {
     };
     template.validate(1, 0).expect("lo-then-hi validates");
 
-    // Entry expansion rejects a wrong array length or a locals-bound word
-    // that does not fit the lane.
     let template = ExportTemplate {
         entry: vec![EventBlock::op(9, slots(&[(0, lo(0))]))],
         entry_input_count: 1,

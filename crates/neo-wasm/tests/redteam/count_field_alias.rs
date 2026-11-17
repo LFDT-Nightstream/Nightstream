@@ -27,8 +27,6 @@ fn public_verifier_accepts_count_alias(wat: &str, opcode: WasmOpcode, reference:
         .position(|row| row.opcode == opcode)
         .unwrap();
     let old = checked.trace[row_index].stack_write0.unwrap();
-    // `q + count` in two 32-bit limbs. It fits in 64 bits only for
-    // `count < 2^64 − q = 59`.
     let alias = <neo_math::F as p3_field::PrimeField64>::ORDER_U64
         .checked_add(u64::from(count))
         .expect("the count has an alias below 2^64");

@@ -1,12 +1,4 @@
-//! Enzo's WASM relation proved with Nebula memory checking (SPEC.md section
-//! 7.6). One Nebula step proves `per_step` consecutive trace rows: its
-//! private words are the witnesses `z` of its rows, its state is the
-//! continuity words (one per link, `_AFTER` of a row equal to `_BEFORE` of
-//! the next), and `nightstream::nebula::R1csApplication` checks every memory
-//! of the batched catalog. The regions come from what the test programs
-//! need (`WasmLimits::of`), so one circuit serves each program of a setup. The slot plan is
-//! `plan_ordered_slots`, which keeps each pair of one memory with a write in
-//! trace order on every row that the relation accepts.
+//! Enzo's WASM relation, `SPEC.md` section 7.6.
 
 mod common;
 
@@ -50,7 +42,6 @@ use nightstream::nebula::{
 use nightstream::relation::{MemoryPortActivation, MemoryPortKind};
 use p3_field::PrimeCharacteristicRing;
 
-/// Stack and linear-memory traffic: store 42 at address 0, then load it.
 const LINEAR_MEMORY: &str = r#"(module
      (memory 1)
      (func (export "main") (result i32)
@@ -60,8 +51,6 @@ const LINEAR_MEMORY: &str = r#"(module
        i32.const 0
        i32.load))"#;
 
-/// The store of `LINEAR_MEMORY` with the load right after it: the address is
-/// pushed twice, and `nop` moves the store to an even row.
 const STORE_LOAD: &str = r#"(module
      (memory 1)
      (func (export "main") (result i32)
@@ -72,13 +61,11 @@ const STORE_LOAD: &str = r#"(module
        i32.store
        i32.load))"#;
 
-/// Rows with no memory traffic but the stack.
 const NOPS: &str = r#"(module
      (func (export "main") (result i32)
        nop nop nop nop nop
        i32.const 7))"#;
 
-/// A guest call with one argument.
 const CALL: &str = r#"(module
     (func $add_one (param i32) (result i32)
         local.get 0
@@ -88,8 +75,6 @@ const CALL: &str = r#"(module
         i32.const 5
         call $add_one))"#;
 
-/// Enzo's iterative Fibonacci program (`tests/wasm_fibonacci.rs`): `n` loop
-/// rounds, then `fib(n)`.
 fn fib_wat(n: u32) -> String {
     format!(
         r#"
@@ -122,34 +107,25 @@ fn fib_wat(n: u32) -> String {
     )
 }
 
-/// Trace rows per segment: the call trace has 8 rows, the linear-memory
-/// trace 6 rows and 2 padding rows.
 const N: usize = 8;
 
 fn per_step(rows: usize) -> NonZeroUsize {
     NonZeroUsize::new(rows).expect("at least one row per step")
 }
 
-/// A test program as its verifier and prover see it.
 struct Traced {
-    /// The one-row witness of each trace row, then of each padding row, one
-    /// segment in all.
     rows: Vec<Vec<F>>,
     states: Vec<WasmStepState>,
-    /// The step inputs of the segment: `per_step` rows each.
     inputs: Vec<WasmStep>,
     real: usize,
     preload: WasmMemoryPreload,
-    /// The entry state (`top_level_initial_state`).
     initial: WasmStepState,
-    /// The state after the last trace row.
     last: WasmStepState,
 }
 
 fn traced(wat: &str, steps: usize, per_step: NonZeroUsize) -> Traced {
     let checked = common::checked_main(wat);
     let tables = &checked.artifacts.tables;
-    // `main` is the last function of each test module.
     let (export_fref, entry_pc) = tables
         .function_entries
         .iter()
@@ -178,14 +154,9 @@ fn bits(value: u64) -> usize {
     (u64::BITS - value.leading_zeros()) as usize
 }
 
-/// The smallest geometry with ROM and RAM of at least `2^log2` cells, `b_ops`
-/// slots, segments of `n` steps, and at most `s_max` segments, so that a test
-/// proof stays small. `n` must be a power of two. Each space has at least `n`
-/// cells, so that the scan covers both in `n` steps (`SPEC.md` section 7.1,
-/// rule 1).
+/// `SPEC.md` section 7.1, rule 1.
 fn smallest_geometry(log2: [usize; 2], b_ops: usize, n: usize, s_max: usize) -> Geometry {
     let low = n.trailing_zeros() as usize;
-    // Rule 4: the RAM is at least as large as the ROM.
     let r = log2[0].max(low);
     let mu = log2[1].max(r);
     Geometry::new(r, mu, b_ops, n, s_max).expect("a valid, secure test geometry")
@@ -196,13 +167,10 @@ struct Setup {
     activations: Vec<MemoryPortActivation>,
     regions: Vec<(WasmMemoryId, Region)>,
     log2: [usize; 2],
-    /// Steps per segment.
     n: usize,
     per_step: NonZeroUsize,
 }
 
-/// The linear-memory and call programs, `N` trace rows each, in steps of
-/// `per_step` rows.
 fn setup(per_step: NonZeroUsize) -> Setup {
     let n = N / per_step.get();
     Setup::of(
@@ -212,8 +180,6 @@ fn setup(per_step: NonZeroUsize) -> Setup {
     )
 }
 
-/// One program in the fewest steps of `per_step` rows: a power of two, with
-/// at least one padding row when `pad` is set.
 fn setup_of(wat: &str, per_step: NonZeroUsize, pad: bool) -> Setup {
     let rows = common::checked_main(wat).trace.len() + usize::from(pad);
     let n = rows.div_ceil(per_step.get()).next_power_of_two();
@@ -221,8 +187,6 @@ fn setup_of(wat: &str, per_step: NonZeroUsize, pad: bool) -> Setup {
 }
 
 impl Setup {
-    /// One circuit for `programs`, each traced to one segment of `n` steps of
-    /// `per_step` rows.
     fn of(programs: Vec<Traced>, n: usize, per_step: NonZeroUsize) -> Setup {
         let catalog = &build_wasm_relation_layout().auxiliary.memory;
         let (regions, used) = WasmLimits::of(
@@ -252,7 +216,6 @@ impl Setup {
         }
     }
 
-    /// The application and geometry of a slot plan.
     fn app(&self, slots: &[Vec<usize>]) -> (WasmApplication, Geometry) {
         let geometry = smallest_geometry(self.log2, slots.len(), self.n, 1);
         let app =
@@ -260,8 +223,6 @@ impl Setup {
         (app, geometry)
     }
 
-    /// The application of the static plan that keeps each dependent pair in
-    /// trace order.
     fn complete(&self) -> (WasmApplication, Geometry) {
         self.app(&plan_ordered_slots(self.per_step).unwrap())
     }
@@ -274,16 +235,12 @@ impl Setup {
         (program, run)
     }
 
-    /// The step input and the column in it of column `column` of trace row
-    /// `row`: each step input is `per_step` one-row witnesses in trace order.
     fn position(&self, app: &WasmApplication, row: usize, column: usize) -> (usize, usize) {
         let per_step = self.per_step.get();
         (row / per_step, app.witness_column(row % per_step, column).unwrap())
     }
 }
 
-/// `WasmApplication` with the rows of its last `rows` call kept, so that a
-/// test can evaluate them on an invocation's words.
 #[derive(Clone)]
 struct Kept {
     app: WasmApplication,
@@ -327,7 +284,6 @@ impl Application for Kept {
     }
 }
 
-/// The application rows of `app` over the view of `geometry`.
 fn application_rows(app: &WasmApplication, geometry: &Geometry) -> Vec<Expr> {
     let kept = Kept {
         app: app.clone(),
@@ -337,8 +293,7 @@ fn application_rows(app: &WasmApplication, geometry: &Geometry) -> Vec<Expr> {
     kept.rows.take()
 }
 
-/// Lean `Circuit.Expr.eval` on the private words of an invocation, which
-/// follow the four words of the input state digest.
+/// Lean `Circuit.Expr.eval`.
 fn eval(expr: &Expr, words: &[F]) -> F {
     match expr {
         Expr::Var(variable) => words[variable.index() - 4],
@@ -348,7 +303,6 @@ fn eval(expr: &Expr, words: &[F]) -> F {
     }
 }
 
-/// The positions of the application rows that do not hold on `words`.
 fn failing(rows: &[Expr], words: &[F]) -> Vec<usize> {
     rows.iter()
         .enumerate()
@@ -357,13 +311,6 @@ fn failing(rows: &[Expr], words: &[F]) -> Vec<usize> {
         .collect()
 }
 
-/// Both honest padded traces, in steps of 1, 2, and 4 rows, run through the
-/// native Nebula runner, which applies each step's ports and rejects a port
-/// that reads another value than its cell holds, and every application row
-/// holds on each invocation. Every port of every row is active exactly when
-/// its catalog port is: the final timestamp counts one access per active
-/// catalog port. Padding rows activate no port and keep the state, also when
-/// they share the last step with trace rows.
 #[test]
 fn honest_padded_traces_run_through_nebula() {
     for rows in [1, 2, 4] {
@@ -423,10 +370,6 @@ fn honest_padded_traces_run_through_nebula() {
     }
 }
 
-/// The `i32.load` of `STORE_LOAD` reads the `i32.store` of the row before it,
-/// in the same step of 2 or 4 rows. The honest run holds. The load with a
-/// value that its cell does not hold fails a row on the honest memory words,
-/// and the runner rejects its port.
 #[test]
 fn a_load_reads_a_store_of_an_earlier_row_of_its_step() {
     for rows in [2, 4] {
@@ -462,9 +405,6 @@ fn a_load_reads_a_store_of_an_earlier_row_of_its_step() {
     }
 }
 
-/// A step of trace rows 0 and 2, which skips row 1: the runner, which reads
-/// only the first row's `_BEFORE` and the last row's `_AFTER` columns,
-/// accepts it, and only the continuity rows between its two rows fail.
 #[test]
 fn a_step_of_rows_that_are_not_neighbors_fails_only_its_link_rows() {
     let setup = setup_of(NOPS, per_step(2), true);
@@ -496,8 +436,6 @@ fn a_step_of_rows_that_are_not_neighbors_fails_only_its_link_rows() {
     }
 }
 
-/// Reversing the slots violates catalog order for dependent ports
-/// (SPEC.md section 7.6 I2), so an honest call trace must be rejected.
 #[test]
 fn reversed_slot_plan_rejects_a_dependent_pair_on_an_honest_row() {
     let setup = setup(NonZeroUsize::MIN);
@@ -515,8 +453,6 @@ fn reversed_slot_plan_rejects_a_dependent_pair_on_an_honest_row() {
     ));
 }
 
-/// One segment of step inputs of another number of rows than the
-/// application's: the step rejects them, in both directions.
 #[test]
 fn a_step_input_of_another_row_count_is_rejected() {
     for (app_rows, input_rows) in [(2, 1), (1, 2)] {
@@ -537,8 +473,6 @@ fn a_step_input_of_another_row_count_is_rejected() {
     }
 }
 
-/// The `i32.load` row with a load value that its cell does not hold. Every
-/// row still binds, and the runner rejects the port.
 #[test]
 fn runner_rejects_a_load_of_another_value() {
     let setup = setup(NonZeroUsize::MIN);
@@ -551,8 +485,6 @@ fn runner_rejects_a_load_of_another_value() {
     assert!(matches!(run.segment(&inputs), Err(SegmentError::Access)));
 }
 
-/// A run has room for the trace only when its steps have at least one row
-/// per trace row.
 #[test]
 fn step_inputs_reject_a_trace_longer_than_the_run() {
     let checked = common::checked_main(LINEAR_MEMORY);
@@ -587,9 +519,6 @@ fn step_inputs_reject_a_trace_longer_than_the_run() {
     }
 }
 
-/// Every field of `WasmStepState` changes its words, so a verifier that reads
-/// a field of a proved last state reads a proved value. The pattern names
-/// every field, so a new field does not compile until it gets a change here.
 #[test]
 fn every_state_field_changes_the_state_words() {
     use neo_wasm::{WasmCountdownState, WasmEventAbsorbState, WasmFrameMoveState, WasmHostEventState, WasmOutputState};
@@ -750,10 +679,7 @@ fn absent_memory_and_zero_page_memory_have_different_state_words() {
     assert_ne!(state_words(absent), state_words(present));
 }
 
-/// A field raised by `q` keeps a word of `q` or more, which the terminal check
-/// of SPEC.md Algorithm 8 refuses, so a claim cannot name a field that differs
-/// from the proved word by `q`. A step input whose next state is raised by `q`
-/// has no step.
+/// `SPEC.md` Algorithm 8.
 #[test]
 fn a_state_field_of_q_or_more_has_no_canonical_word() {
     use p3_field::PrimeField64;
@@ -791,8 +717,6 @@ fn a_state_field_of_q_or_more_has_no_canonical_word() {
     ));
 }
 
-/// Both test programs, 8 one-row steps each, in two segments of four steps
-/// (`S_max = 2`).
 fn two_segments() -> (Setup, WasmApplication, Geometry) {
     let setup = setup(NonZeroUsize::MIN);
     let slots = plan_ordered_slots(NonZeroUsize::MIN).unwrap();
@@ -802,8 +726,6 @@ fn two_segments() -> (Setup, WasmApplication, Geometry) {
     (setup, app, geometry)
 }
 
-/// Each trace runs natively in two segments and ends in its last state. A
-/// third segment is past `S_max`.
 #[test]
 fn a_trace_runs_in_two_segments() {
     let (setup, app, geometry) = two_segments();
@@ -818,7 +740,6 @@ fn a_trace_runs_in_two_segments() {
     }
 }
 
-/// The call trace proved in two segments verifies with 8 steps.
 #[test]
 #[ignore = "Full production-profile memory proof; run separately under the 300-second cap."]
 fn a_proof_of_two_segments_verifies_on_cpu() {
@@ -877,8 +798,6 @@ fn a_proof_of_two_segments_verifies_on_cpu() {
     eprintln!("two segments elapsed={:?}", started.elapsed());
 }
 
-/// The trace row and one-row value column of the first active
-/// `linear_memory` write when `write` is set, else read.
 fn access(traced: &Traced, write: bool) -> (usize, usize) {
     let catalog = &build_wasm_relation_layout().auxiliary.memory;
     let memory = catalog
@@ -902,11 +821,6 @@ fn access(traced: &Traced, write: bool) -> (usize, usize) {
         .expect("the trace has the access")
 }
 
-/// The linear-memory program in steps of `per_step` rows through
-/// `Circuit::compile`, the prover, and the memory verifier. The honest proof
-/// verifies after its bytes round-trip. A run whose `i32.load` reads another
-/// value has no proof: its segment fails before the prover proves it. A
-/// final state with another `pc` does not verify.
 fn proof_verifies_and_rejects_a_changed_load_on_cpu(per_step: NonZeroUsize) {
     use nightstream::nebula::{Circuit, ProveError, TerminalError, VerifyError};
     use p3_field::PrimeField64;
@@ -968,8 +882,6 @@ fn proof_verifies_and_rejects_a_changed_load_on_cpu(per_step: NonZeroUsize) {
         );
     }
 
-    // A field raised by q has the word of the honest field after reduction,
-    // so only the terminal check can refuse it.
     let q = F::ORDER_U64;
     for (name, initial, changed) in [
         (
@@ -1023,12 +935,9 @@ fn wasm_proof_of_two_rows_per_step_verifies_and_rejects_a_changed_load_on_cpu() 
     proof_verifies_and_rejects_a_changed_load_on_cpu(per_step(2));
 }
 
-/// `fib(2)` is 32 rows, so it fills a 32-step segment with no padding step.
 const FIB_ROUNDS: u32 = 2;
 const FIB_STEPS: usize = 32;
 
-/// Prove and verify one segment of `inputs` from `initial` on the CPU, and
-/// print the time of each phase and of each step.
 fn time_proofs<A: Application + Clone>(
     app: A,
     geometry: Geometry,
@@ -1065,8 +974,6 @@ fn time_proofs<A: Application + Clone>(
     eprintln!("total elapsed={:?}", started.elapsed());
 }
 
-/// Enzo's Fibonacci program proved and verified on the CPU in one segment of
-/// `steps` steps of `per_step` rows: the largest `fib(n)` whose trace fits.
 fn fibonacci_proof_times(steps: usize, per_step: NonZeroUsize) {
     let capacity = steps * per_step.get();
     let rounds = (1..)
@@ -1086,15 +993,12 @@ fn fibonacci_proof_times(steps: usize, per_step: NonZeroUsize) {
     time_proofs(app, geometry, &program, traced.initial, &traced.inputs);
 }
 
-/// `fib(2)` at one row per step: 32 steps.
 #[test]
 #[ignore = "Timing run; run separately under the 300-second cap."]
 fn fibonacci_proof_times_at_one_row_per_step() {
     fibonacci_proof_times(FIB_STEPS, NonZeroUsize::MIN);
 }
 
-/// 16 steps of 2, 4 and 8 rows: one segment geometry, so only the rows per
-/// step change between the three runs.
 #[test]
 #[ignore = "Timing run; run separately under the 300-second cap."]
 fn fibonacci_proof_times_at_two_rows_per_step() {
@@ -1118,8 +1022,6 @@ fn fibonacci_proof_times_at_eight_rows_per_step() {
 fn fibonacci_proof_times_at_sixteen_rows_per_step() {
     fibonacci_proof_times(16, per_step(16));
 }
-/// The memory rows of a geometry with `width` state words and no private word
-/// or row. Every step is idle.
 #[derive(Clone)]
 struct Idle {
     width: usize,
@@ -1160,9 +1062,6 @@ impl Application for Idle {
     }
 }
 
-/// The control of `fibonacci_proof_times`: its geometry and state
-/// words with no WASM row and no private word, so a step costs only the
-/// recursion and the memory rows.
 #[test]
 #[ignore = "Timing run; run separately under the 300-second cap."]
 fn idle_proof_times() {
@@ -1180,11 +1079,6 @@ fn idle_proof_times() {
     time_proofs(app, geometry, &program, (), &vec![(); geometry.n]);
 }
 
-/// The parts of the `fib(2)` step for `scripts/fprime_breakdown.py`: the
-/// memory phases and witness regions of `nebula::size_parts`, with the
-/// application rows split into the WASM relation, the constant and
-/// continuity rows, and the catalog binding. They sum to the compiled
-/// circuit's application size. It prints the chart command.
 #[test]
 #[ignore = "Compiles one circuit; run separately under the 300-second cap."]
 fn fibonacci_step_size_for_the_breakdown_chart() {

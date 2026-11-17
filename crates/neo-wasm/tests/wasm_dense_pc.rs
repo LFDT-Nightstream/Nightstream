@@ -32,7 +32,6 @@ fn dense_pcs_cover_unexecuted_functions_and_structural_operators() {
 #[test]
 fn shifting_byte_offsets_preserves_program_tables_and_trace() {
     let wasm = wat::parse_str(PROGRAM).unwrap();
-    // Insert a valid custom section before the code to shift every byte PC.
     let mut shifted = wasm[..8].to_vec();
     shifted.extend_from_slice(&[0, 123, 2, b'p', b'c']);
     shifted.extend_from_slice(&[0; 120]);

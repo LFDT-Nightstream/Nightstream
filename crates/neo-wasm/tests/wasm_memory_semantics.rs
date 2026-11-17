@@ -22,8 +22,6 @@ fn witness_run(wat_src: &str) -> (Vec<neo_wasm::WasmVmStep>, Vec<Vec<F>>, WasmMe
         .map(|row| build_witness_vector(row).unwrap())
         .collect();
     let mut preload = preload_from_program_artifacts(&artifacts);
-    // Import-free traces run under the canonical single-shot bindings; the
-    // exit latch reads its (biased) export count cells.
     let export_fref = trace[0].state_before.host_events.turn_export_fref;
     neo_wasm::memory_semantics::preload_host_event_tables(
         &mut preload,
@@ -354,8 +352,6 @@ fn memory_semantics_rejects_missing_br_if_taken_edge() {
     assert!(err.contains("memory `pc_rom` ROM read before initialization"));
 }
 
-/// Table with a non-zero element-segment offset plus a `table.size` read;
-/// exercises both authoritative init sets (`tables_init` / `table_sizes_init`).
 const TABLE_INIT_WAT: &str = r#"(module
     (type $t (func (param i32) (result i32)))
     (func $add_one (type $t)
@@ -403,9 +399,6 @@ fn memory_semantics_rejects_nonnull_read_of_uninitialized_table_entry() {
         .iter()
         .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
         .expect("call_indirect resolve row");
-    // Redirect the read to index 0 — in bounds but outside the element
-    // segment, so it must be a null funcref (0) at instantiation. Claiming a
-    // live funcref there was exactly what `FirstReadDefines` allowed.
     witnesses[row_index][COL_TABLE_INDEX] = F::ZERO;
 
     let layout = build_wasm_relation_layout();
@@ -431,10 +424,6 @@ fn memory_semantics_rejects_tampered_table_size() {
     );
 }
 
-/// On a type-mismatch trap row the `function_types` ROM read stays active
-/// (the entry is non-null), so forging the callee type id to match the
-/// expected type — hiding the mismatch from the CCS zero-test — must fail
-/// against the ROM.
 #[test]
 fn memory_semantics_rejects_forged_callee_type_on_mismatch_trap() {
     let (trace, mut witnesses, preload) = witness_run(
@@ -466,10 +455,6 @@ fn memory_semantics_rejects_forged_callee_type_on_mismatch_trap() {
     );
 }
 
-/// The OOB-index trap compares the table index against the table size, so the
-/// size must be authoritative on a `call_indirect` row. Forging it (to claim
-/// an OOB index is in bounds) must fail against the `table_sizes` read, which
-/// is now gated on for call_indirect, not just `table.size`.
 #[test]
 fn memory_semantics_rejects_forged_table_size_on_oob_trap() {
     let (trace, mut witnesses, preload) = witness_run(
@@ -492,7 +477,6 @@ fn memory_semantics_rejects_forged_table_size_on_oob_trap() {
         .position(|row| row.opcode == WasmOpcode::CallIndirectResolve)
         .expect("call_indirect resolve row");
     assert!(trace[row_index].state_after.trapped);
-    // Claim the table is large enough to make index 5 in bounds.
     witnesses[row_index][COL_TABLE_SIZE] = F::from_u64(6);
 
     let layout = build_wasm_relation_layout();

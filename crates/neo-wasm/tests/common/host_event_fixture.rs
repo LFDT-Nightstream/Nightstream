@@ -1,7 +1,3 @@
-//! Shared event-bound fixture: a component with two template-bound host
-//! imports (mul and sink) and an export boundary template,
-//! traced with bindings tables for host-event and F′ audit tests.
-
 use neo_wasm::comm_chain::COMM_CHAIN_BLOCK_WORDS;
 use neo_wasm::host_event_bindings::{
     absorbed_blocks, EventSequenceBuilder, HostEventBindings, HostEventBindingsBuilder,
@@ -50,8 +46,6 @@ fn mul_sink_component_wat() -> &'static str {
     "#
 }
 
-/// Import templates for mul/sink plus two entry blocks and one output-bound
-/// exit block for `run`.
 fn test_bindings(
     program: &WasmProgramTables,
     mul_fref: u32,
@@ -62,8 +56,6 @@ fn test_bindings(
         .arg_i32(0)?
         .arg_i32(1)?
         .finish()?;
-    // The ResultElem Lo slot pushes the host result; the Hi slot binds the
-    // pushed hi lane (zero for this i32 result).
     let mul_result = EventSequenceBuilder::op(MUL_RESULT_TAG)
         .result()?
         .finish()?;
@@ -85,7 +77,6 @@ fn test_bindings(
     bindings.finish()
 }
 
-/// The mul import is the two-event template; sink has one event.
 pub fn mul_fref(bindings: &HostEventBindings) -> u32 {
     *bindings
         .imports
@@ -140,8 +131,6 @@ pub fn host_event_lifecycle_setup() -> HostEventLifecycleSetup {
     }
 }
 
-/// The transcript the verifier expects: export entry, the mul call and its
-/// result, the sink call, and the export exit carrying the output.
 pub fn expected_transcript(bindings: &HostEventBindings, run_fref: u32) -> Vec<[neo_math::F; COMM_CHAIN_BLOCK_WORDS]> {
     let template = bindings.exports.get(&run_fref).expect("export template");
     let mut blocks = neo_wasm::host_event_bindings::expand_export_entry(template, &[]).expect("entry");

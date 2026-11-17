@@ -1,9 +1,5 @@
 mod common;
 
-// Iterative fibonacci (do-while loop, valid for n >= 1) with the iteration
-// count baked in: local 0 = n (set from a constant; locals start zeroed,
-// so plain-mode inputs cannot arrive as entry params), locals 1
-// and 2 = a and b. fib(1)=1, fib(2)=1, fib(3)=2, fib(4)=3, fib(5)=5, ...
 fn fib_wat(n: u32) -> String {
     format!(
         r#"

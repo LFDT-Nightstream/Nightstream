@@ -1,15 +1,4 @@
-//! Cross-repo parity fixtures for the host-event commitment chain.
-//!
-//! The expected digests below are protocol constants shared bit-for-bit with
-//! `starstream-interleaving-proof` (its `LedgerEffectsCommitment` chain); the
-//! same vectors are pinned by a test there. If either side changes the
-//! permutation instantiation or the compression layout, both tests must be
-//! updated together.
-//!
-//! The digests are those of the width-12 Poseidon2 instance over
-//! `q = 2^64 − 59` (`decisions/poseidon2-p64-instance.md`). They come from the
-//! Python reference permutation of `scripts/poseidon2/check.py` on
-//! `scripts/poseidon2/params.json`, as `permute(prev ‖ discriminant ‖ args)[..4] + prev`.
+//! Poseidon2 instance: `decisions/poseidon2-p64-instance.md`.
 
 mod common;
 
@@ -28,7 +17,6 @@ fn f(x: u64) -> F {
 
 #[test]
 fn comm_chain_fixture_vectors() {
-    // Vector 1: genesis state, discriminant 1, args 1..=7.
     let prev = [F::ZERO; COMM_CHAIN_STATE_LEN];
     let args: [F; COMM_CHAIN_EVENT_ARGS] = core::array::from_fn(|i| f(i as u64 + 1));
     let state1 = commit_event(prev, f(1), args);
@@ -42,7 +30,6 @@ fn comm_chain_fixture_vectors() {
         ]
     );
 
-    // Vector 2: chained on vector 1, discriminant 16, distinctive args.
     let args2: [F; COMM_CHAIN_EVENT_ARGS] = [f(0xffff_ffff), f(0xffff_ffff_0000_0000), f(0), f(42), f(7), f(0), f(1)];
     let state2 = commit_event(state1, f(16), args2);
     assert_eq!(
@@ -69,7 +56,6 @@ fn event_blocks_fold_from_explicit_initial_state() {
     assert_eq!(CommChainState::default().canonical_u64(), [0; 4]);
 }
 
-/// The absorb that a gather row performs is the event compression.
 #[test]
 fn absorb_block_matches_commit_event() {
     let prev = [11, 22, 33, 44];
@@ -81,8 +67,6 @@ fn absorb_block_matches_commit_event() {
     );
 }
 
-/// A host-event trace with committed event blocks. Every row is CCS-checked, so
-/// the absorb rows themselves are exercised against the gadget.
 fn two_event_trace() -> Vec<WasmVmStep> {
     let trace = common::host_event_fixture::host_event_lifecycle_setup().trace;
     common::check_native_event_hashes(&trace).expect("native event hashes");
@@ -90,7 +74,6 @@ fn two_event_trace() -> Vec<WasmVmStep> {
     trace
 }
 
-/// Gather rows that fill a non-advice block and fold it into the chain.
 fn absorb_rows(trace: &[WasmVmStep]) -> Vec<&WasmVmStep> {
     trace
         .iter()
@@ -102,8 +85,6 @@ fn absorb_rows(trace: &[WasmVmStep]) -> Vec<&WasmVmStep> {
         .collect()
 }
 
-/// The chain moves on the absorb row to the commitment of the filled block:
-/// forging the landed chain limb is CCS-rejected.
 #[test]
 fn ccs_rejects_forged_chain_update() {
     let trace = two_event_trace();
@@ -117,8 +98,6 @@ fn ccs_rejects_forged_chain_update() {
     }
 }
 
-/// Gadget auxiliary assignment must not repair a bad semantic state supplied
-/// by the trace normalizer.
 #[test]
 fn ccs_rejects_trace_with_forged_absorb_output() {
     let trace = two_event_trace();
@@ -128,8 +107,6 @@ fn ccs_rejects_trace_with_forged_absorb_output() {
     common::assert_rejected(&witness, "trace row with a forged absorb output");
 }
 
-/// The absorb reads `[chain | evbuf_before[0..7] | staged word]`: forging a
-/// buffer word out from under the absorb is CCS-rejected.
 #[test]
 fn ccs_rejects_forged_absorb_buffer() {
     let trace = two_event_trace();
@@ -139,8 +116,6 @@ fn ccs_rejects_forged_absorb_buffer() {
     common::assert_rejected(&witness, "absorb row with a forged buffer word");
 }
 
-/// A row that fills a non-advice block must absorb it: carrying the chain and
-/// keeping the filled buffer instead is CCS-rejected.
 #[test]
 fn ccs_rejects_suppressed_absorb() {
     let trace = two_event_trace();
@@ -153,8 +128,6 @@ fn ccs_rejects_suppressed_absorb() {
     common::assert_rejected(&witness, "buffer-filling row skipping the absorb");
 }
 
-/// The absorb row clears the buffer, so the next block's unwritten slots are
-/// zero: keeping a word is CCS-rejected.
 #[test]
 fn ccs_rejects_absorb_row_keeping_a_buffer_word() {
     let trace = two_event_trace();
@@ -163,8 +136,6 @@ fn ccs_rejects_absorb_row_keeping_a_buffer_word() {
     common::assert_rejected(&witness, "absorb row keeping a buffer word");
 }
 
-/// Only absorb rows move the chain: a gather row before slot seven that
-/// changes it is CCS-rejected.
 #[test]
 fn ccs_rejects_chain_change_off_the_absorb_row() {
     let trace = two_event_trace();
@@ -178,8 +149,6 @@ fn ccs_rejects_chain_change_off_the_absorb_row() {
     common::assert_rejected(&witness, "mid-block gather row changing the chain");
 }
 
-/// `absorbed_event_blocks` must reproduce the verifier-expected transcript,
-/// re-fold to the carried chain, and retain separate trace attribution.
 #[test]
 fn absorbed_event_blocks_reconstruct_the_host_event_transcript() {
     use common::host_event_fixture::{expected_transcript, host_event_lifecycle_setup, mul_fref, sink_fref};
@@ -208,8 +177,6 @@ fn absorbed_event_blocks_reconstruct_the_host_event_transcript() {
         last.state_after.comm_chain
     );
 
-    // Entry pair → export, mul's two events → mul, sink's one → sink, exit
-    // → back to the export; the whole stream belongs to the export's turn.
     let mul = mul_fref(&setup.bindings);
     let sink = sink_fref(&setup.bindings);
     let attributed: Vec<u32> = events
@@ -246,9 +213,6 @@ fn shared_transcript_fixture_excludes_opaque_internal_blocks() {
     assert_eq!(expected_transcript(&setup.bindings, setup.run_fref), expected);
 }
 
-/// `absorbed_event_blocks` reads the staged word the way the witness does, so a
-/// trace without `host_event_word` on an absorb row that the circuit accepts
-/// still yields every block, folding to the circuit's chain.
 #[test]
 fn absorbed_event_blocks_follow_the_circuit_without_the_staged_word_field() {
     let mut trace = two_event_trace();
@@ -267,8 +231,6 @@ fn absorbed_event_blocks_follow_the_circuit_without_the_staged_word_field() {
     assert_eq!(chain, trace.last().unwrap().state_after.comm_chain);
 }
 
-/// The native test oracle compares each absorb row's output with the native
-/// compression, independently of the circuit.
 #[test]
 fn native_event_hash_check_rejects_forged_output() {
     let mut trace = two_event_trace();

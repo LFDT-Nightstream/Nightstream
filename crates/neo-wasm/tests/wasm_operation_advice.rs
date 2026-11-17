@@ -1,6 +1,3 @@
-//! Forged advice and non-canonical results against the shared operation
-//! circuit (`neo_wasm::operations::r1cs`).
-
 use neo_math::F;
 use neo_wasm::operations::r1cs::{operation_circuit, OperationCircuit};
 use neo_wasm::WasmOpcode;

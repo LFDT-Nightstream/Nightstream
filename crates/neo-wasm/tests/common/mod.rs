@@ -43,11 +43,6 @@ pub fn checked_wasm_run(wat_src: &str, export: &str) -> CheckedWasmRun {
     }
 }
 
-/// Cross-check the proof-bound output (the `output` carried into the final
-/// semantic state by the normalizer) against wasmtime's reference return
-/// value, which reaches us through `func.call_async` without touching the
-/// step stream or the normalizer. This is the only end-to-end check that
-/// the value the proof binds is the value the program actually produced.
 fn assert_output_matches_reference(trace: &[WasmVmStep], results: &[String]) {
     let output = final_state(trace).output;
     if !output.enabled {
@@ -60,8 +55,6 @@ fn assert_output_matches_reference(trace: &[WasmVmStep], results: &[String]) {
         .parse()
         .unwrap_or_else(|err| panic!("non-integer reference result '{reference}': {err}"));
     let got = (u64::from(output.value_hi) << 32) | u64::from(output.value_lo);
-    // The reference is a decimal string with the result type erased, so a
-    // negative value's bit pattern is ambiguous between i32 and i64.
     let as_i64_bits = (reference as i64) as u64;
     let as_i32_bits = u64::from((reference as i32) as u32);
     assert!(
@@ -75,13 +68,10 @@ pub fn sanity_check_trace(trace: &[WasmVmStep], artifacts: &WasmProgramArtifacts
         .first()
         .map(|row| row.state_before.host_events.turn_export_fref)
         .unwrap_or(0);
-    // Even import-free traces preload the selected export's empty template.
     let bindings = neo_wasm::host_event_bindings::HostEventBindings::import_free(export_fref);
     sanity_check_trace_with_bindings(trace, artifacts, &bindings)
 }
 
-/// Run lookup, continuity, memory, and native event-hash parity checks with the
-/// bindings that produced `trace`.
 pub fn sanity_check_trace_with_bindings(
     trace: &[WasmVmStep],
     artifacts: &WasmProgramArtifacts,
@@ -105,9 +95,6 @@ pub fn sanity_check_trace_with_bindings(
     witnesses
 }
 
-/// The block that each absorb row folds into the chain, in trace order,
-/// object-internal blocks included: the buffer before the row with the staged
-/// slot-seven word.
 pub fn absorbed_blocks(trace: &[WasmVmStep]) -> Vec<[u64; 8]> {
     trace
         .iter()
@@ -124,9 +111,6 @@ pub fn absorbed_blocks(trace: &[WasmVmStep]) -> Vec<[u64; 8]> {
         .collect()
 }
 
-/// Compare each absorb row's chain with native compression. This is a test
-/// oracle, not a trace verifier: CCS, ROM, and continuity checks own
-/// scheduling, source binding, and opaque save/restore transitions.
 pub fn check_native_event_hashes(trace: &[WasmVmStep]) -> Result<(), String> {
     use neo_wasm::comm_chain::absorb_block;
     use neo_wasm::WasmHostEventSlotKind;
@@ -162,11 +146,6 @@ pub fn check_native_event_hashes(trace: &[WasmVmStep]) -> Result<(), String> {
     Ok(())
 }
 
-/// Hand-build a single program row for direct row-CCS tests. Stack lanes are
-/// given as logical (slot, value) pairs; addresses are doubled into the
-/// physical layout and `value_hi` limbs are dropped, so wide rows built here
-/// carry zero high limbs. Trap synthesis (zero divisor, signed overflow)
-/// mirrors the trace normalizer.
 #[allow(clippy::too_many_arguments)]
 pub fn step(
     cycle: u64,
@@ -276,9 +255,6 @@ pub fn step(
         host_event_return_schedule_count: None,
         host_event_rom_slot: None,
         host_event_word: None,
-        // A clean activation return fires the exit latch, which re-reads the (biased)
-        // entry-count cell and the exit count; the empty boundary template
-        // of a single-shot row is (1, 0).
         host_event_initial_schedule_count: (activation_finished && !trapped).then_some(1),
         host_event_exit_schedule_count: (activation_finished && !trapped).then_some(0),
     }
@@ -290,7 +266,6 @@ pub fn assert_satisfied(z: &[F], label: &str) {
     let relation = build_wasm_relation().expect("valid WASM relation");
     let ccs = relation.r1cs().structure();
     let m_in = relation.r1cs().public_input_count();
-    // Keep aux bits consistent with any caller-mutated declared columns.
     let mut z = z.to_vec();
     neo_wasm::write_range_check_bits(&mut z);
     neo_wasm::write_turn_schedule_guard_witness(&mut z).unwrap();
@@ -302,7 +277,6 @@ pub fn assert_rejected(z: &[F], label: &str) {
     let relation = build_wasm_relation().expect("valid WASM relation");
     let ccs = relation.r1cs().structure();
     let m_in = relation.r1cs().public_input_count();
-    // Keep aux bits consistent so in-range forgeries exercise semantic rows.
     let mut z = z.to_vec();
     neo_wasm::write_range_check_bits(&mut z);
     neo_wasm::write_turn_schedule_guard_witness(&mut z).unwrap();
@@ -354,7 +328,6 @@ pub fn verifier_initial_state(artifacts: &WasmProgramArtifacts) -> WasmStepState
     top_level_initial_state(&artifacts.tables, entry_pc).unwrap()
 }
 
-/// Prover-disclosed final VM state for `neo_wasm::verify`.
 pub fn final_state(trace: &[WasmVmStep]) -> WasmStepState {
     trace.last().expect("non-empty trace").state_after
 }

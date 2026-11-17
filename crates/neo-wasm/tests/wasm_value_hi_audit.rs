@@ -1,5 +1,3 @@
-//! High-limb tamper audits for locals/globals cells logs.
-
 mod common;
 
 use common::assert_satisfied;
@@ -13,7 +11,6 @@ use neo_wasm::{
 };
 use p3_field::PrimeCharacteristicRing;
 
-/// Keep downstream stack reads consistent with a tampered high limb.
 fn zero_downstream_hi_reads(witnesses: &mut [Vec<F>], from: usize, honest_hi: F) {
     for downstream in (from + 1)..witnesses.len() {
         let w = &mut witnesses[downstream];
@@ -69,7 +66,6 @@ fn i64_local_get_after_set_rejects_tampered_hi() {
     let preload = preload_from_program_artifacts(&artifacts);
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
         .expect_err("the stack memory must reject a tampered i64 local.get hi limb");
-    // Local 0 of the export frame lives at cell 0; its high limb is address 1.
     assert!(
         err.contains("memory `stack` read mismatch at [1]"),
         "expected the local's high-limb cell to reject the tamper, got: {err}",
@@ -100,7 +96,6 @@ fn i64_local_get_uninitialized_rejects_nonzero_hi() {
         .map(|row| build_witness_vector(row).unwrap())
         .collect();
 
-    // Keep the row-local constraints consistent while changing the high limb.
     let w = &mut witnesses[get_idx];
     w[COL_LOCAL_VALUE_HI] = F::ONE;
     w[COL_STACK_WRITE0_VALUE_HI] = F::ONE;

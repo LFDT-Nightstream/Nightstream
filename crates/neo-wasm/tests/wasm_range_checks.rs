@@ -89,9 +89,6 @@ fn range_bit_lookup_exactly_partitions_the_auxiliary_suffix() {
 
 #[test]
 fn packed_function_metadata_counts_are_byte_ranged() {
-    // The packed ROM word is unpacked linearly. These byte bounds make that
-    // decomposition unique: without them, `param += 256; result -= 1` would
-    // preserve the authoritative packed value while changing call semantics.
     assert_eq!(
         named_column_family(COL_CALL_PARAM_COUNT).unwrap().width,
         ColumnWidth::Byte
@@ -102,13 +99,8 @@ fn packed_function_metadata_counts_are_byte_ranged() {
     );
 }
 
-/// An out-of-range value in a column no semantic row pins (the call-stack
-/// return-pc cell on a row that neither pushes nor pops) must be rejected,
-/// and the failing row must be one of that column's own range-check rows,
-/// proving nothing else constrains the value.
 #[test]
 fn out_of_range_u32_is_rejected_by_the_column_range_row() {
-    // The invariant under attack: the column is declared as a 32-bit value.
     assert_eq!(
         named_column_family(COL_CALL_STACK_RETURN_PC_VALUE)
             .unwrap()

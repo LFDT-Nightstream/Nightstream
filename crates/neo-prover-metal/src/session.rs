@@ -29,6 +29,7 @@ static BUFFER_ALLOCATION: Mutex<()> = Mutex::new(());
 
 /// Entries in a Metal kernel's buffer table (Apple's Metal feature set tables).
 const ARGUMENT_SLOTS: usize = 31;
+const EMPTY_BINDING: [u64; 1] = [0];
 
 #[derive(Clone, Copy)]
 enum Arg<'a> {

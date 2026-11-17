@@ -50,11 +50,11 @@ fn messages(statements: &[Statement<'_>], proof: &Proof) -> HashMap<&'static str
             vec![
                 words(&[proof.witness_value]),
                 words(&proof.inverse_values),
-                words(&[proof.key_weight]),
+                words(&[proof.key_part]),
             ],
         ),
         ("key_round", proof.key_rounds.iter().map(|round| words(round)).collect()),
-        ("key_value", vec![words(&[proof.key_value])]),
+        ("key_value", vec![words(&[proof.key_polynomial_value])]),
     ])
 }
 
@@ -119,7 +119,7 @@ impl Draws {
             psi: next(LOOKUPS).try_into().expect("one per lookup"),
             xi: next(tables),
             lambda: next(tables),
-            beta: next(layout.span_vars),
+            beta: next(layout.table_witness_vars),
         }
     }
 }
@@ -164,7 +164,7 @@ fn verifies_with(
         return false;
     }
     let zeta = draws.of("zeta");
-    let mut key_claim = proof.key_weight;
+    let mut key_claim = proof.key_part;
     for (round, &coordinate) in proof.key_rounds.iter().zip(zeta) {
         if at(round, K::ZERO) + at(round, K::ONE) != key_claim {
             return false;
@@ -175,10 +175,10 @@ fn verifies_with(
         return false;
     };
     let uses = Uses::new(layout, &challenges, rho);
-    if key_claim != scale * proof.key_value * weight_at(&uses, zeta) {
+    if key_claim != scale * proof.key_polynomial_value * weight_at(&uses, zeta) {
         return false;
     }
-    let low: K = rho[layout.span_vars..]
+    let low: K = rho[layout.table_witness_vars..]
         .iter()
         .map(|&coordinate| K::ONE - coordinate)
         .product();
@@ -204,7 +204,7 @@ fn verifies_with(
     }
     let closed = weights::closed_part(statements, layout, &challenges, &uses, rho).expect("closed part");
     let matrices = weights::matrix_part(statements, &challenges, &uses).expect("matrix part");
-    let weights = proof.key_weight + matrices + closed;
+    let weights = proof.key_part + matrices + closed;
     if claim != proof.witness_value * (weights - check * inverse) + check * scaled + sum * inverse {
         return false;
     }
@@ -225,7 +225,7 @@ fn verifies_with(
                     Opening {
                         commitment: verification.commitment(),
                         point: &key_point,
-                        value: proof.key_value,
+                        value: proof.key_polynomial_value,
                     },
                     Opening {
                         commitment: &proof.witness_commitment,
@@ -255,7 +255,7 @@ fn a_replay_in_the_lean_order_draws_the_challenges_of_verify() {
         .map(|statement| {
             let bound = match statement.norm {
                 Norm::Table { bound } => Some(bound),
-                Norm::Caller => None,
+                Norm::BoundByCaller => None,
             };
             let claim = statement.claim;
             (statement.blocks(), bound, claim.m_in, claim.r.len(), claim.eval_a.len())

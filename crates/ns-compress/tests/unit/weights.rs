@@ -89,7 +89,7 @@ fn direct(statements: &[Statement<'_>], challenges: &Challenges, uses: &Uses<'_>
         .sum()
 }
 
-fn random_challenges(rng: &mut ChaCha8Rng, tables: usize, span_vars: usize) -> Challenges {
+fn random_challenges(rng: &mut ChaCha8Rng, tables: usize, table_witness_vars: usize) -> Challenges {
     let mut extensions = |count: usize| -> Vec<K> { (0..count).map(|_| random_extension(rng)).collect() };
     let [omega, delta, gamma, mu] = extensions(4).try_into().expect("four challenges");
     Challenges {
@@ -101,7 +101,7 @@ fn random_challenges(rng: &mut ChaCha8Rng, tables: usize, span_vars: usize) -> C
         psi: extensions(4).try_into().expect("one per lookup"),
         xi: extensions(tables),
         lambda: extensions(tables),
-        beta: extensions(span_vars),
+        beta: extensions(table_witness_vars),
     }
 }
 
@@ -112,7 +112,7 @@ fn assert_matches_direct(rng: &mut ChaCha8Rng, statements: &[Statement<'_>]) {
         .max()
         .expect("a claim");
     let layout = layout(statements, key_blocks(blocks).expect("key blocks")).expect("layout");
-    let challenges = random_challenges(rng, layout.tables().count(), layout.span_vars);
+    let challenges = random_challenges(rng, layout.tables().count(), layout.table_witness_vars);
     let rho: Vec<K> = (0..layout.witness_vars)
         .map(|_| random_extension(rng))
         .collect();
@@ -138,12 +138,12 @@ fn the_matrix_part_is_its_definition_on_random_rows() {
         Statement {
             claim: &shared,
             rows: &instances[0].rows,
-            norm: Norm::Caller,
+            norm: Norm::BoundByCaller,
         },
         Statement {
             claim: &wide_claim,
             rows: &wide,
-            norm: Norm::Caller,
+            norm: Norm::BoundByCaller,
         },
     ]);
     assert_matches_direct(&mut rng, &statements);
@@ -288,7 +288,7 @@ fn the_matrix_part_is_its_definition_on_the_step_circuits() {
             Statement {
                 claim: &claims[2],
                 rows: fresh,
-                norm: Norm::Caller,
+                norm: Norm::BoundByCaller,
             },
         ];
         assert_matches_direct(&mut rng, &statements);
@@ -413,7 +413,7 @@ fn the_matrix_part_is_the_lean_matrix_pass() {
             .iter()
             .map(|claim| {
                 let norm = match claim[2].as_u64().expect("the norm word") {
-                    0 => Norm::Caller,
+                    0 => Norm::BoundByCaller,
                     word => Norm::Table { bound: word - 1 },
                 };
                 let relation = claim[0].as_u64().expect("relation") as usize;

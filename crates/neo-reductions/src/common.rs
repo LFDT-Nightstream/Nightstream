@@ -349,7 +349,7 @@ impl RotRho {
     }
 
     /// The rotation matrix of the ring's one, the running source's weight in Lean `Light.Rlc`.
-    pub fn identity() -> Self {
+    pub fn light_running_weight() -> Self {
         Self(Mat::identity(D))
     }
 

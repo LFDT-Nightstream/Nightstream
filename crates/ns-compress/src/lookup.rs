@@ -34,7 +34,7 @@ impl Inverses {
         })))
     }
 
-    pub(crate) fn values(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.0[0].len()
     }
 

@@ -83,7 +83,7 @@ pub fn commit<'k>(key: &'k ProverKey, layout: Layout, witnesses: &[&Mat<F>]) -> 
     for (cells, source) in layout.cells.iter().zip(witnesses) {
         write_cells(&mut witness[cells.witness.range()][..cells.blocks * D], source);
     }
-    let mut codes = vec![OUTSIDE; layout.span_len];
+    let mut codes = vec![OUTSIDE; layout.table_witness_len];
     for (_, slice, bound, counts) in layout.tables() {
         let codes = &mut codes[slice.range()];
         codes
@@ -138,7 +138,7 @@ fn table_inverses(layout: &Layout, taus: &[F; LOOKUPS]) -> Result<Vec<(Slice, In
 }
 
 impl Committed<'_> {
-    pub fn commitment(&self) -> &[u8] {
+    pub fn commitment_to_bind(&self) -> &[u8] {
         &self.committed.bytes
     }
 
@@ -184,7 +184,7 @@ impl Committed<'_> {
         for (slice, inverses) in tables {
             let equality = EqualityWeights::new(&rho[..slice.vars]);
             let codes = &self.codes[slice.range()];
-            let bins = || vec![K::ZERO; inverses.values()];
+            let bins = || vec![K::ZERO; inverses.len()];
             let weights = codes
                 .par_chunks(CELLS_PER_TASK)
                 .enumerate()
@@ -202,7 +202,7 @@ impl Committed<'_> {
                         .for_each(|(left, right)| *left += right);
                     left
                 });
-            let selector = slice.selector(&rho[..self.layout.span_vars]);
+            let selector = slice.selector(&rho[..self.layout.table_witness_vars]);
             for (k, value) in values.iter_mut().enumerate().take(LOOKUPS) {
                 *value += selector
                     * weights
@@ -229,14 +229,14 @@ impl Committed<'_> {
             ..ProverTimes::default()
         };
         absorb_statements(transcript, verification, statements);
-        absorb_bytes(transcript, self.commitment());
+        absorb_bytes(transcript, self.commitment_to_bind());
         let taus = lookup_challenges(transcript);
 
         let start = Instant::now();
         let tables = table_inverses(&self.layout, &taus)?;
         let mut inverse = vec![akita::base(F::ZERO); self.layout.inverse_len()];
         for k in 0..LOOKUPS {
-            let column = &mut inverse[k << self.layout.span_vars..][..self.layout.span_len];
+            let column = &mut inverse[k << self.layout.table_witness_vars..][..self.layout.table_witness_len];
             self.write_inverse_column(&tables, k, column);
         }
         let inverse = self
@@ -281,21 +281,21 @@ impl Committed<'_> {
 
         let start = Instant::now();
         let uses = Uses::new(&self.layout, &challenges, &rho);
-        let key_weight = weights::key_part(&uses, &folded);
+        let key_part = weights::key_part(&uses, &folded);
         absorb_extension(transcript, &[witness_value]);
         absorb_extension(transcript, &inverse_values);
-        absorb_extension(transcript, &[key_weight]);
+        absorb_extension(transcript, &[key_part]);
         let column = draw(transcript, LOOKUP_VARS);
         let (key_rounds, mut key_point, folded_value) = sumcheck::prove_product(
             transcript,
             folded,
             key::weight_table(&uses),
-            key_weight,
+            key_part,
             LANE_VARS + self.layout.key_block_vars(),
         );
         key_point.extend(row_point);
-        let key_value = folded_value * scale.inverse();
-        absorb_extension(transcript, &[key_value]);
+        let key_polynomial_value = folded_value * scale.inverse();
+        absorb_extension(transcript, &[key_polynomial_value]);
         times.key = start.elapsed();
 
         let start = Instant::now();
@@ -308,7 +308,7 @@ impl Committed<'_> {
         let inverse_commitment = inverse.bytes.clone();
         let opening = self.key.akita.open(
             [
-                (self.key.committed.clone(), &key_point, key_value),
+                (self.key.committed.clone(), &key_point, key_polynomial_value),
                 (self.committed, &rho, witness_value),
                 (inverse, &inverse_point(&self.layout, &rho, &column), inverse_value),
             ],
@@ -322,9 +322,9 @@ impl Committed<'_> {
                 rounds,
                 witness_value,
                 inverse_values,
-                key_weight,
+                key_part,
                 key_rounds,
-                key_value,
+                key_polynomial_value,
                 opening,
             },
             times,

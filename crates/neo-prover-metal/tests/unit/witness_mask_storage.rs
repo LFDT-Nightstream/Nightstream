@@ -65,7 +65,7 @@ fn zero_suffix_does_not_allocate_host_mask_words() {
     let count = neo_params::NeoParams::nightstream_p64_k14().k_rho() as usize + 1;
     let mut sources = vec![SuperneoZBlocks::with_block_len(2); count];
     sources[0] = active;
-    drop(measured_masks(&session, &sources[..1]));
+    let _driver_warm_up = measured_masks(&session, &sources[..1]);
     let (single, single_bytes) = measured_masks(&session, &sources[..1]);
     let (family, family_bytes) = measured_masks(&session, &sources);
     assert_eq!(family.active_witnesses(), &[0]);

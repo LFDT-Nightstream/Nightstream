@@ -242,7 +242,7 @@ impl Instance {
         let rows = Rows::random(rng, 150, blocks);
         let range = match norm {
             Norm::Table { bound } => bound,
-            Norm::Caller => 1,
+            Norm::BoundByCaller => 1,
         };
         let witness = random_witness(rng, blocks, range);
         let point: Vec<K> = (0..POINT_VARS).map(|_| random_extension(rng)).collect();
@@ -281,6 +281,6 @@ pub fn instances() -> Vec<Instance> {
     vec![
         Instance::random(&mut rng, 61, Norm::Table { bound: 2176 }),
         Instance::random(&mut rng, 100, Norm::Table { bound: 300 }),
-        Instance::random(&mut rng, 90, Norm::Caller),
+        Instance::random(&mut rng, 90, Norm::BoundByCaller),
     ]
 }

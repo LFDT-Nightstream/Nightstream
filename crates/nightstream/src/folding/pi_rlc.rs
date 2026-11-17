@@ -55,7 +55,7 @@ impl Weights {
             Weights::Sampled => engine::sample_rho_n(tr.inner_mut(), pp, inputs)?,
             Weights::Light if inputs == 2 => {
                 let rho = engine::sample_rho_n(tr.inner_mut(), pp, 1)?.remove(0);
-                vec![rho, RotRho::identity()]
+                vec![rho, RotRho::light_running_weight()]
             }
             Weights::Light => return Err(Error::Shape),
         })

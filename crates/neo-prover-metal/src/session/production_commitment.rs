@@ -16,6 +16,8 @@ use super::{Arg, Buffer, Grid, MetalSession};
 use crate::MetalError;
 
 const COLUMNS_PER_GROUP: usize = 512;
+const _: () = assert!(COLUMNS_PER_GROUP * D <= 1 << 32);
+const _: () = assert!(SETUP_ID.len() + PRODUCTION_SEED.len() == 70);
 
 #[derive(Default)]
 pub(super) struct ResidentKeyRows {

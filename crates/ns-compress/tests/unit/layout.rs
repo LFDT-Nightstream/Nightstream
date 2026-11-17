@@ -51,15 +51,15 @@ fn layout(value: &Value) -> Layout {
         key_vars: number(&value["key_vars"]),
         witness_vars: number(&value["witness_vars"]),
         witness_len: number(&value["witness_len"]),
-        span_vars: number(&value["span_vars"]),
-        span_len: number(&value["span_len"]),
+        table_witness_vars: number(&value["span_vars"]),
+        table_witness_len: number(&value["span_len"]),
         inverse_vars: number(&value["inverse_vars"]),
     }
 }
 
 fn claim(blocks: &Value, table: &Value) -> (usize, Norm) {
     let norm = match table {
-        Value::Null => Norm::Caller,
+        Value::Null => Norm::BoundByCaller,
         bound => Norm::Table {
             bound: bound.as_u64().expect("bound"),
         },
@@ -177,10 +177,10 @@ fn error_bits_is_lean_run_bits_on_each_layout() {
 fn error_bits_is_118_where_the_error_sum_is_just_above_2_to_the_minus_119() {
     let mut claims = vec![
         (1, Norm::Table { bound: 0 }),
-        (1 << 19, Norm::Caller),
-        (1 << 19, Norm::Caller),
+        (1 << 19, Norm::BoundByCaller),
+        (1 << 19, Norm::BoundByCaller),
     ];
-    claims.extend([(1, Norm::Caller); 6]);
+    claims.extend([(1, Norm::BoundByCaller); 6]);
     let layout = Layout::new(&claims, 1 << 19).expect("layout");
     assert_eq!(layout.witness_vars, 27);
     assert_eq!(error_bits(&layout, PUBLIC_CELLS, MATRICES), 118);
@@ -188,7 +188,7 @@ fn error_bits_is_118_where_the_error_sum_is_just_above_2_to_the_minus_119() {
 
 #[test]
 fn error_bits_is_zero_when_a_lookup_term_can_exceed_one_over_k() {
-    let mut layout = Layout::new(&[(1, Norm::Table { bound: 0 }), (1, Norm::Caller)], 512).expect("layout");
+    let mut layout = Layout::new(&[(1, Norm::Table { bound: 0 }), (1, Norm::BoundByCaller)], 512).expect("layout");
     let witness = layout.cells[0].witness.len() as u64;
     let mut bits = |poles: u64| {
         let table = layout.cells[0].table.as_mut().expect("table");

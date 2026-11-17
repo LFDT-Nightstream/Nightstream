@@ -57,7 +57,7 @@ pub enum Error {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Norm {
     Table { bound: u64 },
-    Caller,
+    BoundByCaller,
 }
 
 #[derive(Clone, Copy)]
@@ -80,9 +80,9 @@ pub struct Proof {
     pub rounds: Vec<Round>,
     pub witness_value: K,
     pub inverse_values: [K; 1 << layout::LOOKUP_VARS],
-    pub key_weight: K,
+    pub key_part: K,
     pub key_rounds: Vec<KeyRound>,
-    pub key_value: K,
+    pub key_polynomial_value: K,
     pub opening: Vec<u8>,
 }
 
@@ -123,7 +123,7 @@ fn claim_words(statement: &Statement<'_>) -> Vec<F> {
     let claim = statement.claim;
     let bound = match statement.norm {
         Norm::Table { bound } => bound + 1,
-        Norm::Caller => 0,
+        Norm::BoundByCaller => 0,
     };
     let sizes = [
         statement.blocks() as u64,
@@ -176,7 +176,7 @@ fn challenges(
         psi: next(layout::LOOKUPS).try_into().expect("one per lookup"),
         xi: next(tables),
         lambda: next(tables),
-        beta: next(layout.span_vars),
+        beta: next(layout.table_witness_vars),
     }
 }
 
@@ -186,7 +186,7 @@ fn claimed_sum(statements: &[Statement<'_>], challenges: &weights::Challenges) -
 }
 
 fn inverse_point(layout: &Layout, rho: &[K], column: &[K]) -> Vec<K> {
-    let mut point = rho[..layout.span_vars].to_vec();
+    let mut point = rho[..layout.table_witness_vars].to_vec();
     point.extend_from_slice(column);
     point.resize(layout.inverse_vars, K::ZERO);
     point

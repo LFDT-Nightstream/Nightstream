@@ -105,7 +105,7 @@ fn device_rlc_mix_matches_host_mix() {
     .iter()
     .map(|rho| rho.as_mat().clone())
     .collect();
-    let sampled = std::mem::replace(&mut rhos[3], RotRho::identity().as_mat().clone());
+    let sampled = std::mem::replace(&mut rhos[3], RotRho::light_running_weight().as_mat().clone());
     let expected = rlc_mix_witnesses(D * columns, &rhos, &witnesses);
     assert_eq!(session.mix_rlc_witnesses(&rhos, &witnesses).unwrap(), expected);
     rhos[3] = sampled;

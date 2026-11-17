@@ -236,12 +236,14 @@ inline void joint_poly_mul_affine(
     degree += 1;
 }
 
+constant int JOINT_NOT_TRIT = 2;
+
 inline int joint_trit(Kx value) {
-    if (value.c1 != 0) return 2;
+    if (value.c1 != 0) return JOINT_NOT_TRIT;
     if (value.c0 == 0) return 0;
     if (value.c0 == 1) return 1;
     if (value.c0 == FQ_MODULUS - 1) return -1;
-    return 2;
+    return JOINT_NOT_TRIT;
 }
 
 kernel void joint_round_partials(
@@ -369,7 +371,7 @@ kernel void joint_round_partials(
             if (trit_round) {
                 int l = joint_trit(low);
                 int h = joint_trit(high);
-                if (l != 2 && h != 2) {
+                if (l != JOINT_NOT_TRIT && h != JOINT_NOT_TRIT) {
                     Kx weight = load_k(weights, fresh_count + source);
                     if (h == 0) {
                         acc_u = l < 0 ? kx_add(acc_u, weight) : kx_sub(acc_u, weight);

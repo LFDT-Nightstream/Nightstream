@@ -67,11 +67,11 @@ fn a_changed_proof_does_not_verify() {
         ("fewer rounds".into(), Box::new(|proof| proof.rounds.truncate(1))),
         (
             "the key's part of the weights".into(),
-            Box::new(|proof| proof.key_weight += K::ONE),
+            Box::new(|proof| proof.key_part += K::ONE),
         ),
         (
             "the value of the key polynomial".into(),
-            Box::new(|proof| proof.key_value += K::ONE),
+            Box::new(|proof| proof.key_polynomial_value += K::ONE),
         ),
         (
             "fewer key rounds".into(),
@@ -153,7 +153,7 @@ fn a_false_key_weight_with_a_consistent_first_round_does_not_verify() {
     let (instances, proof) = honest();
     assert_eq!(proof.key_rounds.len(), 6 + 9);
     let mut changed = proof.clone();
-    changed.key_weight += K::ONE;
+    changed.key_part += K::ONE;
     changed.key_rounds[0][1] += K::ONE;
     assert!(matches!(accepts(instances, &changed), Err(Error::Rejected(_))));
 }
@@ -199,7 +199,7 @@ fn a_claim_with_more_blocks_than_the_key_has_no_layout() {
         Err(Error::Layout(_))
     ));
     assert!(matches!(
-        Layout::new(&[(61, table), (blocks + 1, Norm::Caller)], blocks),
+        Layout::new(&[(61, table), (blocks + 1, Norm::BoundByCaller)], blocks),
         Err(Error::Layout(_))
     ));
     assert!(matches!(Layout::new(&[(61, table)], 2 * blocks), Err(Error::Layout(_))));
@@ -213,10 +213,10 @@ fn a_claim_with_more_blocks_than_the_key_has_no_layout() {
 fn claims_without_a_table_have_no_layout() {
     assert!(matches!(Layout::new(&[], 512), Err(Error::Layout(_))));
     assert!(matches!(
-        Layout::new(&[(90, Norm::Caller), (61, Norm::Caller)], 512),
+        Layout::new(&[(90, Norm::BoundByCaller), (61, Norm::BoundByCaller)], 512),
         Err(Error::Layout(_))
     ));
-    assert!(Layout::new(&[(90, Norm::Caller), (61, Norm::Table { bound: 1 })], 512).is_ok());
+    assert!(Layout::new(&[(90, Norm::BoundByCaller), (61, Norm::Table { bound: 1 })], 512).is_ok());
     let (instances, proof) = honest();
     assert!(matches!(accepts(&instances[2..], proof), Err(Error::Layout(_))));
 }
@@ -225,7 +225,7 @@ fn claims_without_a_table_have_no_layout() {
 fn the_native_commitment_is_the_commitment_of_the_claim() {
     let (instances, _) = honest();
     let instance = &instances[2];
-    assert!(matches!(instance.norm, Norm::Caller));
+    assert!(matches!(instance.norm, Norm::BoundByCaller));
     let native = commit_production_signed_unit_prefix_matrix(&instance.witness).expect("native commitment");
     assert_eq!(native, instance.claim.c);
 }

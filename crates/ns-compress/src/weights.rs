@@ -81,12 +81,13 @@ fn omega_powers(statement: &Statement<'_>, omega: K) -> Vec<K> {
 }
 
 const COLUMNS_PER_TASK: usize = 1 << 16;
+const _: () = assert!(COLUMNS_PER_TASK.is_multiple_of(D));
 
 /// `Mᵀ = Gᵀ · Lᵀ` (Lean `SlotLayout.layout`, `LogicalPlan.plan`).
 struct Matrices<'a> {
     slots: FactoredSlots<'a>,
     weights: Vec<K>,
-    met: Vec<Vec<Vec<u32>>>,
+    slots_per_task: Vec<Vec<Vec<u32>>>,
 }
 
 impl<'a> Matrices<'a> {
@@ -103,7 +104,7 @@ impl<'a> Matrices<'a> {
 
     fn of_slots(slots: FactoredSlots<'a>, weights: Vec<K>, columns: usize) -> Self {
         let tasks = columns.div_ceil(COLUMNS_PER_TASK);
-        let met = slots
+        let slots_per_task = slots
             .starts
             .par_iter()
             .zip(slots.widths)
@@ -111,21 +112,25 @@ impl<'a> Matrices<'a> {
             .with_min_len(1 << 16)
             .fold(
                 || vec![Vec::new(); tasks],
-                |mut met, (slot, (&start, &width))| {
+                |mut part, (slot, (&start, &width))| {
                     let end = start as usize + usize::from(width);
                     for task in start as usize / COLUMNS_PER_TASK..end.div_ceil(COLUMNS_PER_TASK) {
-                        met[task].push(slot as u32);
+                        part[task].push(slot as u32);
                     }
-                    met
+                    part
                 },
             )
             .collect();
-        Self { slots, weights, met }
+        Self {
+            slots,
+            weights,
+            slots_per_task,
+        }
     }
 
     fn add_columns(&self, task: usize, output: &mut [K]) {
         let first = task * COLUMNS_PER_TASK;
-        for &slot in self.met.iter().flat_map(|met| &met[task]) {
+        for &slot in self.slots_per_task.iter().flat_map(|part| &part[task]) {
             let slot = slot as usize;
             let mut term = self.weights[slot];
             for column in (self.slots.starts[slot] as usize..).take(usize::from(self.slots.widths[slot])) {

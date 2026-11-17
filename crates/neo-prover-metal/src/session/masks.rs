@@ -4,7 +4,7 @@ use neo_math::D;
 use neo_reductions::superneo_eval::SuperneoZBlocks;
 use objc2_metal::MTLBuffer;
 
-use super::{Buffer, MetalSession};
+use super::{Buffer, MetalSession, EMPTY_BINDING};
 use crate::MetalError;
 
 #[derive(Clone)]
@@ -50,7 +50,7 @@ impl MetalWitnessMasks {
             .map(|(index, _)| u32::try_from(index).map_err(|_| MetalError::Shape("witness index exceeds u32")))
             .collect::<Result<Vec<_>, _>>()?;
         let bytes_per_witness = expected_bytes / witness_count;
-        let stored_witnesses = if active_witnesses.is_empty() && words.length() == size_of::<u64>() {
+        let stored_witnesses = if active_witnesses.is_empty() && words.length() == size_of_val(&EMPTY_BINDING) {
             0
         } else {
             if !words.length().is_multiple_of(bytes_per_witness) {
@@ -195,7 +195,11 @@ impl MetalSession {
             .chunks_exact(words_per_source)
             .rposition(|source| source.iter().any(|&word| word != 0))
             .map_or(0, |last| (last + 1) * words_per_source);
-        let stored_words = if stored == 0 { &[0u64][..] } else { &words[..stored] };
+        let stored_words = if stored == 0 {
+            &EMPTY_BINDING[..]
+        } else {
+            &words[..stored]
+        };
         MetalWitnessMasks::new(
             self.buffer_from_slice(stored_words)?,
             words,

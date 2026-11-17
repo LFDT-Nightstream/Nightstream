@@ -92,7 +92,7 @@ fn a_lookup_challenge_in_a_table_gives_no_proof_and_no_acceptance() {
             lambda: (0..tables as u64)
                 .map(|table| extension(30 + table))
                 .collect(),
-            beta: (0..layout.span_vars as u64)
+            beta: (0..layout.table_witness_vars as u64)
                 .map(|bit| extension(40 + bit))
                 .collect(),
         };

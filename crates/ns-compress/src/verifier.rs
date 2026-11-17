@@ -42,19 +42,19 @@ pub fn verify(
     let (rho, value) = sumcheck::verify(transcript, &proof.rounds, claimed_sum(statements, &challenges))?;
     absorb_extension(transcript, &[proof.witness_value]);
     absorb_extension(transcript, &proof.inverse_values);
-    absorb_extension(transcript, &[proof.key_weight]);
+    absorb_extension(transcript, &[proof.key_part]);
     let column = draw(transcript, LOOKUP_VARS);
-    let (mut key_point, key_claim) = sumcheck::verify(transcript, &proof.key_rounds, proof.key_weight)?;
-    absorb_extension(transcript, &[proof.key_value]);
+    let (mut key_point, key_claim) = sumcheck::verify(transcript, &proof.key_rounds, proof.key_part)?;
+    absorb_extension(transcript, &[proof.key_polynomial_value]);
     let session = session(transcript, SESSION);
 
     let uses = Uses::new(&layout, &challenges, &rho);
-    if key_claim != scale * proof.key_value * key::weight_at(&uses, &key_point) {
+    if key_claim != scale * proof.key_polynomial_value * key::weight_at(&uses, &key_point) {
         return Err(Error::Rejected("the key sum-check ends in another value"));
     }
     key_point.extend(row_point);
 
-    let low: K = rho[layout.span_vars..]
+    let low: K = rho[layout.table_witness_vars..]
         .iter()
         .map(|&coordinate| K::ONE - coordinate)
         .product();
@@ -83,7 +83,7 @@ pub fn verify(
 
     let start = Instant::now();
     let matrices = weights::matrix_part(statements, &challenges, &uses)?;
-    let weights = proof.key_weight + matrices + closed;
+    let weights = proof.key_part + matrices + closed;
     if value != proof.witness_value * (weights - check * inverse) + check * scaled + sum * inverse {
         return Err(Error::Rejected("the sum-check ends in another value"));
     }
@@ -103,7 +103,7 @@ pub fn verify(
             Opening {
                 commitment: key.commitment(),
                 point: &key_point,
-                value: proof.key_value,
+                value: proof.key_polynomial_value,
             },
             Opening {
                 commitment: &proof.witness_commitment,

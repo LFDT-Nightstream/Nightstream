@@ -41,7 +41,7 @@ fn line(table: &[K], pair: usize) -> Line {
     }
 }
 
-fn bind(table: &mut Vec<K>, challenge: K) {
+fn bind_in_place(table: &mut Vec<K>, challenge: K) {
     let line = |low: K, high: K| low + (high - low) * challenge;
     let length = table.len();
     if length == 0 {
@@ -105,7 +105,7 @@ impl Tables {
             &mut self.scaled_inverse,
         ]
         .into_par_iter()
-        .for_each(|table| bind(table, challenge));
+        .for_each(|table| bind_in_place(table, challenge));
     }
 }
 
@@ -162,7 +162,10 @@ pub(crate) fn prove_product(
         absorb_extension(transcript, &coefficients);
         let challenge = challenge(transcript);
         claim = poly_eval_k(&coefficients, challenge);
-        rayon::join(|| bind(&mut values, challenge), || bind(&mut weights, challenge));
+        rayon::join(
+            || bind_in_place(&mut values, challenge),
+            || bind_in_place(&mut weights, challenge),
+        );
         messages.push(coefficients);
         point.push(challenge);
     }

@@ -274,7 +274,7 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
         ),
         (
             "the key's part of the weights",
-            Box::new(|proof| proof.steps.as_mut().unwrap().argument.key_weight += K::ONE),
+            Box::new(|proof| proof.steps.as_mut().unwrap().argument.key_part += K::ONE),
         ),
         (
             "key sum-check round coefficient",
@@ -289,7 +289,7 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
         ),
         (
             "the value of the key polynomial",
-            Box::new(|proof| proof.steps.as_mut().unwrap().argument.key_value += K::ONE),
+            Box::new(|proof| proof.steps.as_mut().unwrap().argument.key_polynomial_value += K::ONE),
         ),
         (
             "opening byte",
@@ -352,9 +352,9 @@ fn unproven(envelope: &Envelope) -> FinalProof {
                 rounds: vec![[K::ONE; 4]; 26],
                 witness_value: K::ONE,
                 inverse_values: [K::ONE; 4],
-                key_weight: K::ONE,
+                key_part: K::ONE,
                 key_rounds: vec![[K::ONE; 3]; 25],
-                key_value: K::ONE,
+                key_polynomial_value: K::ONE,
                 opening: vec![3; 1000],
             },
         }),
@@ -488,7 +488,7 @@ fn compress_committing(prover: &BoundedDepth, envelope: &Envelope, committed: &M
         .expect("layout");
     let witnesses = [&slots[0].accumulator.witness, &slots[1].accumulator.witness, committed];
     let committed = ns_compress::commit(setup(prover), layout, &witnesses).expect("commitment of W");
-    let commitment = ns_compress::byte_words(committed.commitment());
+    let commitment = ns_compress::byte_words(committed.commitment_to_bind());
     let mut transcript = Transcript::session();
     let claim = CcsClaim {
         c: c.clone(),

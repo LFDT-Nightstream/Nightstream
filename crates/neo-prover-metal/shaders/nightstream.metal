@@ -3,12 +3,12 @@
 
 using namespace metal;
 
-constant ulong FQ_FOLD = 0ul - FQ_MODULUS;
+constant ulong TWO_POW_64_MOD_Q = 0ul - FQ_MODULUS;
 constant ulong LIMB_MASK = 0xfffffffful;
 constant ulong RING_PRODUCT_COEFFICIENTS = 2 * RING_DEGREE - 1;
 constant ulong DEC_CHUNK_COLUMNS = 512;
 
-static_assert(FQ_FOLD < (1ul << 16), "fq_reduce_wide folds the high word two times");
+static_assert(TWO_POW_64_MOD_Q < (1ul << 16), "fq_reduce_wide folds the high word two times");
 static_assert(RING_DEGREE == 64, "a mask word holds one bit for each coefficient");
 
 struct WideProduct {
@@ -53,19 +53,19 @@ inline WideProduct mul_wide_32(ulong lhs, ulong rhs) {
 }
 
 inline ulong fq_reduce_wide(WideProduct value) {
-    ulong low_part = (value.hi & LIMB_MASK) * FQ_FOLD;
-    ulong high_part = (value.hi >> 32) * FQ_FOLD + (low_part >> 32);
+    ulong low_part = (value.hi & LIMB_MASK) * TWO_POW_64_MOD_Q;
+    ulong high_part = (value.hi >> 32) * TWO_POW_64_MOD_Q + (low_part >> 32);
     ulong folded = value.lo + ((high_part << 32) | (low_part & LIMB_MASK));
     ulong top = (high_part >> 32) + (folded < value.lo);
-    ulong reduced = folded + top * FQ_FOLD;
-    return reduced < folded || reduced >= FQ_MODULUS ? reduced + FQ_FOLD : reduced;
+    ulong reduced = folded + top * TWO_POW_64_MOD_Q;
+    return reduced < folded || reduced >= FQ_MODULUS ? reduced + TWO_POW_64_MOD_Q : reduced;
 }
 
 inline ulong fq_mul(ulong lhs, ulong rhs) {
     return fq_reduce_wide(mul_wide_32(lhs, rhs));
 }
 
-constant ulong PRODUCT_SUM_TERMS = ~0ul / (3 * LIMB_MASK);
+constant ulong PRODUCT_SUM_MAX_TERMS = ~0ul / (3 * LIMB_MASK);
 
 struct ProductSum {
     ulong c0;
@@ -95,7 +95,7 @@ inline ulong product_sum_reduce(ProductSum sum) {
     ulong middle = carried + sum.c2;
     ulong hi = middle + (sum.c3 << 32);
     ulong top = (sum.c3 >> 32) + (middle < carried) + (hi < middle);
-    return fq_add(fq_reduce_wide(WideProduct{lo, hi}), fq_mul(top, FQ_FOLD * FQ_FOLD));
+    return fq_add(fq_reduce_wide(WideProduct{lo, hi}), fq_mul(top, TWO_POW_64_MOD_Q * TWO_POW_64_MOD_Q));
 }
 
 struct HalfSums {

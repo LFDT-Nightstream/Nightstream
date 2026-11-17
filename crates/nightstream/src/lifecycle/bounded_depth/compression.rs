@@ -133,7 +133,7 @@ impl BoundedDepth {
         [
             slot(0),
             slot(1),
-            (self.relations[(pc - 1) as usize].blocks(), Norm::Caller),
+            (self.relations[(pc - 1) as usize].blocks(), Norm::BoundByCaller),
         ]
     }
 
@@ -205,7 +205,7 @@ impl BoundedDepth {
             Statement {
                 claim: fresh,
                 rows: &self.relations[(pc - 1) as usize],
-                norm: Norm::Caller,
+                norm: Norm::BoundByCaller,
             },
         ]
     }
@@ -253,7 +253,7 @@ impl BoundedDepth {
         )?;
 
         let start = Instant::now();
-        let commitment = ns_compress::byte_words(committed.commitment());
+        let commitment = ns_compress::byte_words(committed.commitment_to_bind());
         let mut transcript = Transcript::session();
         let mut ccs = pi_ccs::prove_from_parts_with_rows(
             &mut transcript,
@@ -465,12 +465,12 @@ impl FinalProof {
         }
         write_extension(&mut output, &[argument.witness_value]);
         write_extension(&mut output, &argument.inverse_values);
-        write_extension(&mut output, &[argument.key_weight]);
+        write_extension(&mut output, &[argument.key_part]);
         output.word(argument.key_rounds.len() as u64);
         for round in &argument.key_rounds {
             write_extension(&mut output, round);
         }
-        write_extension(&mut output, &[argument.key_value]);
+        write_extension(&mut output, &[argument.key_polynomial_value]);
         write_bytes(&mut output, &argument.opening);
         Ok(output.0)
     }
@@ -512,9 +512,9 @@ impl FinalProof {
                 let inverse_values = read_extension(&mut input, 4)?
                     .try_into()
                     .expect("four values");
-                let key_weight = input.extension()?;
+                let key_part = input.extension()?;
                 let key_rounds = read_rounds(&mut input)?;
-                let key_value = input.extension()?;
+                let key_polynomial_value = input.extension()?;
                 Some(Steps {
                     pc,
                     slots,
@@ -532,9 +532,9 @@ impl FinalProof {
                         rounds,
                         witness_value,
                         inverse_values,
-                        key_weight,
+                        key_part,
                         key_rounds,
-                        key_value,
+                        key_polynomial_value,
                         opening: read_bytes(&mut input)?,
                     },
                 })

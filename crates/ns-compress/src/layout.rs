@@ -57,8 +57,8 @@ pub struct Layout {
     pub(crate) key_vars: usize,
     pub(crate) witness_vars: usize,
     pub(crate) witness_len: usize,
-    pub(crate) span_vars: usize,
-    pub(crate) span_len: usize,
+    pub(crate) table_witness_vars: usize,
+    pub(crate) table_witness_len: usize,
     pub(crate) inverse_vars: usize,
 }
 
@@ -85,7 +85,7 @@ impl Layout {
         let mut order: Vec<usize> = (0..claims.len()).collect();
         order.sort_by_key(|&claim| {
             let (blocks, norm) = claims[claim];
-            (matches!(norm, Norm::Caller), std::cmp::Reverse(vars_for(blocks)))
+            (matches!(norm, Norm::BoundByCaller), std::cmp::Reverse(vars_for(blocks)))
         });
         let mut cursor = 0usize;
         let mut place = |vars: usize| {
@@ -94,13 +94,13 @@ impl Layout {
             Slice { offset, vars }
         };
         let mut witnesses = vec![None; claims.len()];
-        let mut span_len = 0;
+        let mut table_witness_len = 0;
         for claim in order {
             let (blocks, norm) = claims[claim];
             let slice = place(vars_for(blocks) + LANE_VARS);
             witnesses[claim] = Some(slice);
             if matches!(norm, Norm::Table { .. }) {
-                span_len = slice.range().end;
+                table_witness_len = slice.range().end;
             }
         }
         let cells = claims
@@ -116,7 +116,7 @@ impl Layout {
                             .ok_or(Error::Layout("a table exceeds the code width"))?;
                         Some((bound, place(vars_for(values))))
                     }
-                    Norm::Caller => None,
+                    Norm::BoundByCaller => None,
                 };
                 Ok(Cells {
                     witness: witness.expect("each claim has a slice"),
@@ -125,19 +125,19 @@ impl Layout {
                 })
             })
             .collect::<Result<Vec<_>, Error>>()?;
-        let span_vars = vars_for(span_len);
+        let table_witness_vars = vars_for(table_witness_len);
         let &(witness_vars, inverse_vars) = schedules
             .rows
             .iter()
-            .find(|&&(witness, inverse)| witness >= vars_for(cursor) && inverse >= span_vars + LOOKUP_VARS)
+            .find(|&&(witness, inverse)| witness >= vars_for(cursor) && inverse >= table_witness_vars + LOOKUP_VARS)
             .ok_or(Error::Layout("no Akita schedule row holds the cells"))?;
         Ok(Self {
             cells,
             key_vars: schedules.key_vars,
             witness_vars,
             witness_len: cursor,
-            span_vars,
-            span_len,
+            table_witness_vars,
+            table_witness_len,
             inverse_vars,
         })
     }
@@ -155,7 +155,7 @@ impl Layout {
     }
 
     pub(crate) fn inverse_len(&self) -> usize {
-        ((LOOKUPS - 1) << self.span_vars) + self.span_len
+        ((LOOKUPS - 1) << self.table_witness_vars) + self.table_witness_len
     }
 
     pub(crate) fn tables(&self) -> impl Iterator<Item = (usize, Slice, u64, Slice)> + '_ {

@@ -33,7 +33,7 @@ fn claims(layout: &Value) -> Vec<(usize, Norm)> {
         .iter()
         .map(|cells| {
             let norm = match &cells["table"] {
-                Value::Null => Norm::Caller,
+                Value::Null => Norm::BoundByCaller,
                 table => Norm::Table {
                     bound: number(&table[0]),
                 },

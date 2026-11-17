@@ -52,7 +52,7 @@ kernel void dec_split_base2_masks(
     }
 }
 
-static_assert(DEC_CHUNK_COLUMNS * RING_DEGREE <= PRODUCT_SUM_TERMS, "a dense product lane is one exact sum");
+static_assert(DEC_CHUNK_COLUMNS * RING_DEGREE <= PRODUCT_SUM_MAX_TERMS, "a dense product lane is one exact sum");
 static_assert(DEC_CHUNK_COLUMNS * RING_DEGREE <= (1ul << 32), "a signed-unit product lane is one exact sum");
 
 [[max_total_threads_per_threadgroup(128)]]

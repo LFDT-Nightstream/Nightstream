@@ -4,6 +4,7 @@ use std::sync::{Arc, Weak};
 use neo_reductions::superneo_eval::{MatrixWindow, SuperneoCompactRowOffsets, SuperneoMatrixCache};
 
 use super::*;
+use crate::session::EMPTY_BINDING;
 
 pub(super) struct MetalMatrixWindow {
     pub(super) rows: Range<usize>,
@@ -66,7 +67,7 @@ fn offset_bytes(offsets: SuperneoCompactRowOffsets<'_>) -> Result<(usize, usize)
 }
 
 pub(super) fn upload_size(matrices: &[SuperneoMatrixCache]) -> Result<(usize, usize), MetalError> {
-    let mut bytes = size_of::<u64>();
+    let mut bytes = size_of_val(&EMPTY_BINDING);
     let mut staging = 0;
     for matrix in matrices {
         let parts = matrix
@@ -157,7 +158,7 @@ impl MetalSession {
                 Some(resident) => resident,
                 None if !upload => Arc::default(),
                 None => {
-                    let empty = self.buffer(size_of::<u64>())?;
+                    let empty = self.buffer(size_of_val(&EMPTY_BINDING))?;
                     let uploaded = Arc::new(
                         matrices
                             .iter()

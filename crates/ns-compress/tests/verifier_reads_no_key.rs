@@ -38,7 +38,7 @@ fn the_verifier_expands_no_key_element() {
     };
     accepts(&proof).expect("the proof verifies");
     let mut changed = proof.clone();
-    changed.key_weight += K::ONE;
+    changed.key_part += K::ONE;
     assert!(accepts(&changed).is_err());
     let mut changed = proof.clone();
     *changed.opening.last_mut().expect("opening") ^= 1;

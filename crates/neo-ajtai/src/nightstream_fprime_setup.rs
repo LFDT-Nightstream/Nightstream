@@ -10,7 +10,7 @@ use neo_ccs::Mat;
 use neo_math::{
     balanced::to_balanced_i128,
     ring::D,
-    signed_sums::{SignedShiftSums, LIMB_BOUND, MAX_TERMS},
+    signed_sums::{SignedShiftSums, LIMB_BOUND, MAX_EXACT_TERMS},
     Fq,
 };
 use p3_field::PrimeCharacteristicRing;
@@ -43,7 +43,7 @@ pub const PRODUCTION_SEED: [u8; 32] = [
 
 const _: () = assert!(MAX_MESSAGE_COLUMNS == 3_972_822);
 const _: () = assert!(PRODUCTION_MESSAGE_COLUMNS <= MAX_MESSAGE_COLUMNS);
-const _: () = assert!(MAX_MESSAGE_COLUMNS <= MAX_TERMS);
+const _: () = assert!(MAX_MESSAGE_COLUMNS <= MAX_EXACT_TERMS);
 const _: () = assert!(MAX_MESSAGE_COLUMNS as u128 * D as u128 * LIMB_BOUND < (1_u128 << 63));
 
 pub fn element_input(seed: &[u8; 32], row: u32, block: u64) -> [u8; ELEMENT_INPUT_BYTES] {

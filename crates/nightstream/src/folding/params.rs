@@ -37,7 +37,7 @@ impl Params {
                 available,
             });
         }
-        let inner = inner.with_lambda(available)?;
+        let inner = inner.with_certified_lambda(available)?;
         Ok(Self { inner })
     }
     pub(crate) fn b(&self) -> u32 {

@@ -17,7 +17,12 @@ use serde::{de::Error, Deserialize, Deserializer, Serialize, Serializer};
 
 pub const Q: u64 = neo_params::nightstream_p64_k14::Q;
 
-pub(crate) const FOLD: u64 = Q.wrapping_neg();
+pub(crate) const TWO_POW_64_MOD_Q: u64 = Q.wrapping_neg();
+
+const TWO_POW_128_MOD_Q: u64 = TWO_POW_64_MOD_Q * TWO_POW_64_MOD_Q;
+
+const INV_7_MOD_Q_MINUS_1: u64 = 10_540_996_613_548_315_175;
+const _: () = assert!((7u128 * INV_7_MOD_Q_MINUS_1 as u128) % (Q as u128 - 1) == 1);
 
 /// An element of `F_q`. The value is always the canonical one, in `[0, q)`.
 #[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -34,9 +39,9 @@ impl Fq {
 
     #[inline]
     const fn reduce128(x: u128) -> Self {
-        let folded = (x >> 64) * FOLD as u128 + (x as u64) as u128;
-        let (low, carry) = (folded as u64).overflowing_add((folded >> 64) as u64 * FOLD);
-        let (wrapped, above) = low.overflowing_add(FOLD);
+        let folded = (x >> 64) * TWO_POW_64_MOD_Q as u128 + (x as u64) as u128;
+        let (low, carry) = (folded as u64).overflowing_add((folded >> 64) as u64 * TWO_POW_64_MOD_Q);
+        let (wrapped, above) = low.overflowing_add(TWO_POW_64_MOD_Q);
         Self(if carry | above { wrapped } else { low })
     }
 
@@ -45,7 +50,7 @@ impl Fq {
     pub fn sum_of_products(pairs: impl IntoIterator<Item = (Self, Self)>) -> Self {
         pairs
             .into_iter()
-            .fold(Products::default(), |sum, (a, b)| sum.add(a, b))
+            .fold(UnreducedProducts::default(), |sum, (a, b)| sum.add(a, b))
             .value()
     }
 }
@@ -54,7 +59,7 @@ impl Fq {
 pub fn sum_of_scaled(pairs: impl IntoIterator<Item = (Fq, K)>) -> K {
     let [real, imaginary] = pairs
         .into_iter()
-        .fold([Products::default(); 2], |[real, imaginary], (a, b)| {
+        .fold([UnreducedProducts::default(); 2], |[real, imaginary], (a, b)| {
             let [x, y] = b.as_coeffs();
             [real.add(a, x), imaginary.add(a, y)]
         });
@@ -62,12 +67,12 @@ pub fn sum_of_scaled(pairs: impl IntoIterator<Item = (Fq, K)>) -> K {
 }
 
 #[derive(Clone, Copy, Default)]
-struct Products {
+struct UnreducedProducts {
     sum: u128,
     wraps: u64,
 }
 
-impl Products {
+impl UnreducedProducts {
     #[inline]
     fn add(self, a: Fq, b: Fq) -> Self {
         let (sum, wrapped) = self.sum.overflowing_add(u128::from(a.0) * u128::from(b.0));
@@ -79,7 +84,7 @@ impl Products {
 
     #[inline]
     fn value(self) -> Fq {
-        Fq::reduce128(self.sum) + Fq::reduce128(u128::from(self.wraps) * u128::from(FOLD * FOLD))
+        Fq::reduce128(self.sum) + Fq::reduce128(u128::from(self.wraps) * u128::from(TWO_POW_128_MOD_Q))
     }
 }
 
@@ -212,7 +217,7 @@ impl InjectiveMonomial<7> for Fq {}
 
 impl PermutationMonomial<7> for Fq {
     fn injective_exp_root_n(&self) -> Self {
-        self.exp_u64(10_540_996_613_548_315_175)
+        self.exp_u64(INV_7_MOD_Q_MINUS_1)
     }
 }
 

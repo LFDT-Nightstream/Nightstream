@@ -75,20 +75,20 @@ impl TryFrom<CommitmentWire> for Commitment {
 }
 
 impl Commitment {
-    pub fn new(kappa: usize, data: Vec<Fq>) -> AjtaiResult<Self> {
+    pub fn new(kappa: usize, column_major: Vec<Fq>) -> AjtaiResult<Self> {
         let expected = neo_math::D
             .checked_mul(kappa)
             .ok_or_else(|| AjtaiError::InvalidDimensions("commitment size overflows usize".into()))?;
-        if data.len() != expected {
+        if column_major.len() != expected {
             return Err(AjtaiError::SizeMismatch {
                 expected,
-                actual: data.len(),
+                actual: column_major.len(),
             });
         }
         Ok(Self {
             d: neo_math::D,
             kappa,
-            data,
+            data: column_major,
         })
     }
 

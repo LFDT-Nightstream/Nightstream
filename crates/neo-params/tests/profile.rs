@@ -114,14 +114,16 @@ fn constructor_returns_the_profile_constants() {
             profile::EXTENSION_DEGREE
         )
     );
-    assert_eq!(p.lambda(), None);
+    assert_eq!(p.certified_lambda(), None);
 }
 
 #[test]
 fn maximum_geometry_padded_row_census_matches_formula() {
     let alphabet = profile::CHALLENGE_ALPHABET.len() as u32;
     let columns = (profile::M as usize / profile::D) * profile::D;
-    let p = NeoParams::nightstream_p64_k14().with_lambda(115).unwrap();
+    let p = NeoParams::nightstream_p64_k14()
+        .with_certified_lambda(115)
+        .unwrap();
     let summary = p
         .padded_row_security_check_for_shape(1 << 26, columns, 3, 2, alphabet)
         .expect("115-bit padded-row census");
@@ -149,14 +151,14 @@ fn maximum_geometry_padded_row_census_matches_formula() {
         Err(ParamsError::UncertifiedStatisticalSecurity)
     );
     assert_eq!(
-        p.with_lambda(bits)
+        p.with_certified_lambda(bits)
             .unwrap()
             .padded_row_security_check_for_shape(1 << 26, columns, 3, 2, alphabet),
         Ok(summary)
     );
 
     let err = p
-        .with_lambda(bits + 1)
+        .with_certified_lambda(bits + 1)
         .unwrap()
         .padded_row_security_check_for_shape(1 << 26, columns, 3, 2, alphabet)
         .unwrap_err();

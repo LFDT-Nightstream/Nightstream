@@ -14,7 +14,7 @@ pub use error::{AjtaiError, AjtaiResult};
 pub use types::{Commitment, PP};
 
 #[cfg(feature = "testing")]
-pub use commit::rot_step;
+pub use commit::mul_by_x;
 
 #[doc(hidden)]
 pub use commit::sample_uniform_rq;

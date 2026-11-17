@@ -46,7 +46,9 @@ impl Rq {
         let (a, b) = (&self.0, &rhs.0);
         let products = |a: &[Fq], b: &[Fq]| Fq::sum_of_products(a.iter().copied().zip(b.iter().rev().copied()));
         Self(array::from_fn(|k| {
-            products(&a[..=k], &b[..=k]) - products(&a[k + 1..], &b[k + 1..])
+            let direct = products(&a[..=k], &b[..=k]);
+            let wrapped_past_x_d = products(&a[k + 1..], &b[k + 1..]);
+            direct - wrapped_past_x_d
         }))
     }
 

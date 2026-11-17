@@ -63,7 +63,7 @@ fn selected_parameters(structure: &CcsStructure<F>) -> NeoParams {
             neo_params::nightstream_p64_k14::CHALLENGE_ALPHABET.len() as u32,
         )
         .expect("shape census");
-    params = params.with_lambda(summary.security_bits).unwrap();
+    params = params.with_certified_lambda(summary.security_bits).unwrap();
     params
 }
 

@@ -90,7 +90,7 @@ impl Fold {
             )
             .unwrap()
             .security_bits;
-        let params = base.with_lambda(bits).unwrap();
+        let params = base.with_certified_lambda(bits).unwrap();
         let mut fresh_values = vec![F::ZERO; WIDTH];
         fresh_values[0] = F::ONE;
         fresh_values[LOGICAL - 1] = -F::ONE;

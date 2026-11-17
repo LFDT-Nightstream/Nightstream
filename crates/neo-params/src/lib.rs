@@ -22,7 +22,7 @@ pub struct NeoParams {
     B: u64,
     T: u32,
     s: u32,
-    lambda: Option<u32>,
+    certified_lambda: Option<u32>,
 }
 
 /// `q = 2^64 − 59` and the ring `F_q[X]/(X^64 + 1)` (`decisions/field-2p64-59-ring-x64.md`).
@@ -155,7 +155,7 @@ impl NeoParams {
             B,
             T,
             s,
-            lambda: None,
+            certified_lambda: None,
         })
     }
 
@@ -201,16 +201,16 @@ impl NeoParams {
         self.s
     }
 
-    pub fn lambda(&self) -> Option<u32> {
-        self.lambda
+    pub fn certified_lambda(&self) -> Option<u32> {
+        self.certified_lambda
     }
 
-    pub fn with_lambda(self, lambda: u32) -> Result<Self, ParamsError> {
-        if lambda == 0 {
+    pub fn with_certified_lambda(self, certified_lambda: u32) -> Result<Self, ParamsError> {
+        if certified_lambda == 0 {
             return Err(ParamsError::Invalid("lambda must be > 0"));
         }
         Ok(Self {
-            lambda: Some(lambda),
+            certified_lambda: Some(certified_lambda),
             ..self
         })
     }
@@ -246,7 +246,7 @@ impl NeoParams {
             challenge_alphabet_size,
         )?;
         let required = self
-            .lambda
+            .certified_lambda
             .ok_or(ParamsError::UncertifiedStatisticalSecurity)?;
         if summary.security_bits < required {
             return Err(ParamsError::InsufficientStatisticalSecurity {
@@ -517,7 +517,7 @@ impl fmt::Display for NeoParams {
             "NeoParams{{ q=0x{:016X}, η={}, d={}, κ={}, m={}, b={}, k_rho={}, B={}, T={}, s={}, λ=",
             self.q, self.eta, self.d, self.kappa, self.m, self.b, self.k_rho, self.B, self.T, self.s
         )?;
-        match self.lambda {
+        match self.certified_lambda {
             Some(bits) => write!(f, "{bits} }}"),
             None => write!(f, "uncertified }}"),
         }

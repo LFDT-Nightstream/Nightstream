@@ -59,7 +59,9 @@ impl Case {
             ),
         )
         .unwrap();
-        let params = NeoParams::nightstream_p64_k14().with_lambda(115).unwrap();
+        let params = NeoParams::nightstream_p64_k14()
+            .with_certified_lambda(115)
+            .unwrap();
         let mut rng = ChaCha8Rng::seed_from_u64(0x636f6d706c657465);
         let commitment = setup(&mut rng, D, params.kappa() as usize, columns.div_ceil(D)).unwrap();
         let mut assignment = Mat::zero(D, columns.div_ceil(D), F::ZERO);

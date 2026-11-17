@@ -37,9 +37,9 @@ pub(super) fn coefficient_pair(seed: &[u8; 32], row: u32, columns: [u64; 2]) -> 
 }
 
 #[repr(align(128))]
-struct Count(AtomicU64);
+struct CacheLinePaddedCount(AtomicU64);
 
-static COUNTS: [Count; 64] = [const { Count(AtomicU64::new(0)) }; 64];
+static COUNTS: [CacheLinePaddedCount; 64] = [const { CacheLinePaddedCount(AtomicU64::new(0)) }; 64];
 static THREADS: AtomicUsize = AtomicUsize::new(0);
 
 thread_local! {

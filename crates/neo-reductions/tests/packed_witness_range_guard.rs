@@ -29,7 +29,7 @@ fn prove_accepts_nc_alphabet_packed_witness_values() {
     let n = D;
     let ccs = identity_ccs(n);
     let params = NeoParams::nightstream_p64_k14()
-        .with_lambda(115)
+        .with_certified_lambda(115)
         .expect("params");
 
     let mut rng = ChaCha8Rng::seed_from_u64(99);

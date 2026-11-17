@@ -86,7 +86,7 @@ fn the_gate_charges_the_lean_error_on_each_step_relation() {
                 "{context}: the gate charges Lean's error"
             );
             assert_eq!(
-                relation.params().inner().lambda(),
+                relation.params().inner().certified_lambda(),
                 Some(bits),
                 "{context}: the gate certifies Lean's bits"
             );

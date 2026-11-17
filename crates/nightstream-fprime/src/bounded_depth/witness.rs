@@ -167,7 +167,7 @@ impl StepPackage {
         let width = self.source_end();
         columns.resize(width, Fq::ZERO);
         for row in rows.ordinary_row_count()..rows.row_count() {
-            let [(column, _)] = rows.port(row, 2).collect::<Vec<_>>()[..] else {
+            let Some((column, _)) = rows.single(row, 2) else {
                 return Err(PackageError::Malformed("bounded-depth S-box row output"));
             };
             columns[column] = rows.evaluate(row, 3, &columns).exp_u64(SBOX_DEGREE);
@@ -180,7 +180,7 @@ impl StepPackage {
             match piece {
                 Piece::Rows(_) => {
                     for row in range.clone() {
-                        if let [(column, coefficient)] = rows.port(row, 2).collect::<Vec<_>>()[..] {
+                        if let Some((column, coefficient)) = rows.single(row, 2) {
                             if column == next && coefficient == Fq::ONE {
                                 columns[column] = rows.evaluate(row, 0, &columns) * rows.evaluate(row, 1, &columns);
                                 next += 1;

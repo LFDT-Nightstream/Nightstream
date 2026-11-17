@@ -3,7 +3,7 @@
 
 use serde_json::Value;
 
-use super::{compression, segments_security_bits, Geometry};
+use super::{compression, Geometry};
 use crate::lifecycle::bounded_depth::Compression;
 
 fn lean() -> Vec<Value> {
@@ -58,7 +58,7 @@ fn the_gate_gives_the_lean_bits_on_each_wasm_geometry() {
         let size = geometry(&row);
         assert_eq!(Geometry::new(row[0], row[1], row[3], row[5], row[6]), Some(size));
         assert_eq!(size.max_tuples(), row[7]);
-        assert_eq!(u64::from(segments_security_bits(&size)), bits, "{size:?}");
+        assert_eq!(u64::from(size.segments_security_bits()), bits, "{size:?}");
         assert_eq!(row[8] as u64, bits);
     }
 }

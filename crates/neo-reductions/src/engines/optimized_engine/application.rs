@@ -314,7 +314,7 @@ impl ApplicationTables {
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         {
             let workers = rayon::current_num_threads()
-                .min(pairs)
+                .min((pairs * points.len()).div_ceil(prefix::MIN_JOB_PAIRS))
                 .min(available / bytes(scratch_words)?);
             if workers > 1 {
                 let mut scratch = vec![K::ZERO; workers * scratch_words];
@@ -500,7 +500,11 @@ impl ApplicationTables {
                 }
             };
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-            values.words.par_chunks_mut(rows).for_each(fold_table);
+            values
+                .words
+                .par_chunks_mut(rows)
+                .with_min_len(prefix::MIN_JOB_PAIRS.div_ceil(next))
+                .for_each(fold_table);
             #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
             values.words.chunks_mut(rows).for_each(fold_table);
             for table in 1..self.fresh_count * self.shape.matrices {

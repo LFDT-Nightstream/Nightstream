@@ -319,16 +319,6 @@ impl<A: Application> Circuit<A> {
     }
 }
 
-/// `SECURITY_MODEL.md`, adversary 5.
-fn segments_security_bits(geometry: &Geometry) -> u32 {
-    let q = u128::from(F::ORDER_U64);
-    (2 * geometry.max_tuples() as u128)
-        .checked_mul(geometry.s_max as u128)
-        .and_then(|error| (q * q).checked_div(error))
-        .and_then(u128::checked_ilog2)
-        .unwrap_or(0)
-}
-
 /// SPEC.md Algorithm 9; Lean `WasmSize.steps_le_light`.
 fn compression(geometry: &Geometry) -> crate::lifecycle::bounded_depth::Compression {
     crate::lifecycle::bounded_depth::Compression::for_max_steps(geometry.n as u128 * geometry.s_max as u128)
@@ -339,7 +329,7 @@ fn memory_security(geometry: &Geometry, minimum_security_bits: u32) -> Result<()
     if !geometry.is_valid() || !geometry.is_secure() {
         return Err(crate::Error::Circuit("the memory geometry breaks SPEC.md section 7.1"));
     }
-    let available = segments_security_bits(geometry);
+    let available = geometry.segments_security_bits();
     if available < minimum_security_bits {
         return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
             required: minimum_security_bits,

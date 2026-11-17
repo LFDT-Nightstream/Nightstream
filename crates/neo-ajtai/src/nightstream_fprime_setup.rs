@@ -116,7 +116,7 @@ fn signed_sums(row: u32, blocks: &[SignedBlock]) -> SignedShiftSums {
     sums
 }
 
-const TASK_COLUMNS: u64 = 1 << 16;
+const TASK_COLUMNS: u64 = 1 << 12;
 
 fn column_slice<'a>(blocks: &'a [SignedBlock], columns: &Range<u64>) -> &'a [SignedBlock] {
     let start = blocks.partition_point(|block| block.index < columns.start);

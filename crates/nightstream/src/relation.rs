@@ -17,3 +17,5 @@ pub use neo_application::{
 };
 
 pub use neo_application::{AuxiliaryAssignmentError, AuxiliaryBuilder, AuxiliaryLayout, LinearExpression};
+
+pub use neo_application::{plan_ordered_memory_slots, MemoryActivationFacts, MemorySlotPlan};

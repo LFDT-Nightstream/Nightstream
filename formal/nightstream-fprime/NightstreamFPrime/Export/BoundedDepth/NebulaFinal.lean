@@ -20,6 +20,7 @@ set_option autoImplicit false
 namespace NightstreamFPrime.Export.BoundedDepth.NebulaFinal
 
 open scoped BigOperators ENNReal
+open scoped NightstreamFPrime.Spec.Compression.Production
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Nebula
@@ -127,7 +128,9 @@ noncomputable def sampleOf (depth : ℕ) (tape : (stages depth).1.Tape) :
 checks of SPEC.md Algorithm 8 hold, and the decoded history does not attest the memory statement
 is at most `q · (1/2^119 + 38/q²)` plus the terms of `NebulaSecurity.bad_le` for the prover's IVC
 adversary. -/
-theorem soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup packageWidths)
+theorem soundness (complete : StepExtend.Complete exports)
+    (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
+      (FinalRows.packageRows exports complete circuit).matrices)
     (valid : p.Valid) (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
     (programEq : exports.program = MemoryApp.program p.toGeometry app) (depth : ℕ)
     (depthBound : ∀ o, some (some o) ∈ (law s (restore setup.game q [])).support →
@@ -162,7 +165,7 @@ theorem soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup pac
     sampleOf setup app exports assumption closed s q claim admitted depth
   let Rejected : Option (Option (Outcome logicalWidth publicFits)) → Prop := fun r =>
     ¬ ∀ a, r = some a → ∀ o, a = some o →
-      Verifies setup.ajtai setup.circuitKeys step packageWidths 0 (fun _ _ => 0) o.1
+      Verifies setup.ajtai setup.circuitKeys step complete.packageWidth 0 (fun _ _ => 0) o.1
         (setup.proofOf o)
   let Bad : Sample app.width logicalWidth publicFits → Prop :=
     (experiment app setup.ajtai setup.circuitKeys exports).Bad app
@@ -183,7 +186,7 @@ theorem soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup pac
       exact (PMF.mem_support_map_iff _ _ _).mpr ⟨tapeAt tape,
         (PMF.mem_support_map_iff _ _ _).mpr ⟨tape, supported, rfl⟩, rfl⟩
     have statement : (sampleAt tape).2.1.statement = o.1 := congrArg Visit.statement input
-    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step packageWidths 0 (fun _ _ => 0)
+    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth 0 (fun _ _ => 0)
       o.1 (setup.proofOf o)
     · refine Or.inr ⟨⟨?_, congrArg Visit.bounds input, ?_⟩, ?_, ?_⟩
       · change Terminal.HoldsFor 0 setup.ajtai setup.circuitKeys step (fun _ _ => 0)
@@ -207,7 +210,8 @@ theorem soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup pac
       rw [← results, ← origins, PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply]
       rfl
     rw [moved, ← prob_eq_law]
-    exact restore_sound _ s _ _ (game_avoids setup step 0 (fun _ _ => 0) premises)
+    exact restore_sound _ s _ _ (game_avoids setup step 0 (fun _ _ => 0)
+      (FinalRows.premises_of_rows setup exports complete rows))
       (game_densityLe setup) (by unfold finalError; positivity) q
   have bad := bad_le app setup.ajtai setup.circuitKeys exports assumption closed prover admitted
     valid keysShaped programEq (fun _ _ => 0) 0 depth Prod.snd round
@@ -233,7 +237,9 @@ theorem soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup pac
 `q · (1/2^119 + 38/q²) + εAkita` plus the terms of `NebulaSecurity.bad_le`. `akita` is Akita's
 knowledge soundness (`FinalVerifier.AkitaKnowledge`) for the event `FalseMemory`: `s` is the
 prover of the game with ideal openings that it gives for the prover with Akita openings. -/
-theorem real_soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup packageWidths)
+theorem real_soundness (complete : StepExtend.Complete exports)
+    (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
+      (FinalRows.packageRows exports complete circuit).matrices)
     (valid : p.Valid) (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
     (programEq : exports.program = MemoryApp.program p.toGeometry app) (depth : ℕ)
     (depthBound : ∀ o, some (some o) ∈ (law s (restore setup.game q [])).support →
@@ -261,7 +267,7 @@ theorem real_soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setu
             {sample | (experiment app setup.ajtai setup.circuitKeys exports).ChainCollision app
               sample}).toReal +
           memoryError (claimed setup app exports assumption closed s q claim admitted depth)) := by
-  linarith [soundness setup app exports assumption closed s q claim admitted premises valid
+  linarith [soundness setup app exports assumption closed s q claim admitted complete rows valid
     keysShaped programEq depth depthBound round]
 
 end NightstreamFPrime.Export.BoundedDepth.NebulaFinal

@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.BoundedDepth.FinalHistory
+import NightstreamFPrime.Export.BoundedDepth.FinalRows
 import NightstreamFPrime.Export.BoundedDepth.FinalVerifier
 import NightstreamFPrime.Export.BoundedDepth.NebulaFinal
 
@@ -13,12 +14,16 @@ The results for the full path of a compressed proof (`SPEC.md` Algorithm 10 and 
   `_with_akita`.
 - The game takes the layout of the Lean model of Rust `Layout::new`
   (`Export.BoundedDepth.FinalVerifier.Setup.Laid`).
-- Open: the premises `premises.represents` and `premises.support`, and each open premise of
-  `Claims.Ivc` and `Claims.Nebula`. The error is not one security level. -/
+- The dense rows of the setup are Lean's model of Rust `FactoredRows`
+  (`Export.BoundedDepth.FinalRows.packageRows`, the premise `rows`), so
+  `Export.BoundedDepth.FinalVerifier.Premises` holds (`Export.BoundedDepth.FinalRows.premises_of_rows`).
+- Open: the premise `rows`, and each open premise of `Claims.Ivc` and `Claims.Nebula`. The error
+  is not one security level. -/
 
 namespace NightstreamFPrime.Claims.Final
 
 open Spec Lifecycle Lifecycle.BoundedDepth Export.BoundedDepth
+open scoped Spec.Compression.Production
 
 /-- In the state-restoration experiment with `q` queries, the final verifier accepts a statement
 for which no proof with witnesses satisfies `Verifies` with probability at most
@@ -28,18 +33,21 @@ theorem verifier_sound
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
         Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
     (setup : FinalVerifier.Setup logicalWidth publicFits)
-    {packageWidths : Fin 2 → ℕ}
     (step : AppState → AppWitness → AppState)
     (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
-    (premises : FinalVerifier.Premises setup packageWidths)
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+    (exports : TerminalBridge.Exports relation setup.ajtai setup.circuitKeys step cubeFits)
+    (complete : StepExtend.Complete exports)
+    (rows : ∀ circuit : Fin 2,
+      (setup.rows circuit).matrices = (FinalRows.packageRows exports complete circuit).matrices)
     (s : Compression.Game.Strategy (Option (Option (FinalVerifier.Outcome logicalWidth publicFits))))
     (q : ℕ) :
     Compression.Game.prob s (setup.game.restore q [])
-          (FinalVerifier.Wins setup packageWidths step cap control) ≤
+          (FinalVerifier.Wins setup complete.packageWidth step cap control) ≤
         (↑q : ℝ) * FinalVerifier.finalError :=
-  @Export.BoundedDepth.FinalVerifier.soundness logicalWidth publicFits setup packageWidths step
-    cap control premises s q
+  Export.BoundedDepth.FinalRows.soundness setup step cap control exports complete rows s q
 
 /-- With Akita openings, the final verifier accepts a statement for which no proof with
 witnesses satisfies `Verifies` with probability at most `q · (1/2^119 + 38/q²) + εAkita`. -/
@@ -48,20 +56,24 @@ theorem verifier_sound_with_akita
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
         Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
     (setup : FinalVerifier.Setup logicalWidth publicFits)
-    {packageWidths : Fin 2 → ℕ}
     (step : AppState → AppWitness → AppState)
     (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
-    (premises : FinalVerifier.Premises setup packageWidths)
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+    (exports : TerminalBridge.Exports relation setup.ajtai setup.circuitKeys step cubeFits)
+    (complete : StepExtend.Complete exports)
+    (rows : ∀ circuit : Fin 2,
+      (setup.rows circuit).matrices = (FinalRows.packageRows exports complete circuit).matrices)
     {Real : Type}
     (winsOf : Real → ℝ)
     (q : ℕ)
     (εAkita : ℝ)
-    (akita : FinalVerifier.AkitaKnowledge winsOf setup packageWidths step cap control q εAkita)
+    (akita : FinalVerifier.AkitaKnowledge winsOf setup complete.packageWidth step cap control q εAkita)
     (real : Real) :
     winsOf real ≤ (↑q : ℝ) * FinalVerifier.finalError + εAkita :=
-  @Export.BoundedDepth.FinalVerifier.real_soundness logicalWidth publicFits setup packageWidths
-    step cap control premises Real winsOf q εAkita akita real
+  Export.BoundedDepth.FinalRows.real_soundness setup step cap control exports complete rows winsOf q
+    εAkita akita real
 
 /-- In the state-restoration experiment with `q` queries, the probability of a false history is at
 most `q · (1/2^119 + 38/q²)` plus, for each of the first `depth` stages of the reverse extractor
@@ -94,8 +106,9 @@ theorem history_sound
     (admitted : StageAdmitted
         (HyperNova.ReverseStages.Stage.start
           (IvcSecurity.walkAdversary (FinalHistory.adversary setup s q))))
-    {packageWidths : Fin 2 → ℕ}
-    (premises : FinalVerifier.Premises setup packageWidths)
+    (complete : StepExtend.Complete exports)
+    (rows : ∀ circuit : Fin 2,
+      (setup.rows circuit).matrices = (FinalRows.packageRows exports complete circuit).matrices)
     (keysShaped : ∀ (key : Fin 2), List.length (setup.circuitKeys key).digest = 4)
     (depth : ℕ)
     (depthBound : ∀ (o : FinalVerifier.Outcome logicalWidth publicFits),
@@ -169,8 +182,8 @@ theorem history_sound
                     HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
                       (IvcWalk.Answer logicalWidth publicFits)))) :=
   @Export.BoundedDepth.FinalHistory.soundness logicalWidth publicFits setup relation step cubeFits
-    exports Admitted StageAdmitted Efficient error assumption closed s q admitted packageWidths
-    premises keysShaped depth depthBound
+    exports Admitted StageAdmitted Efficient error assumption closed s q admitted complete
+    rows keysShaped depth depthBound
 
 /-- With Akita openings, the probability `history` of a false history is at most
 `q · (1/2^119 + 38/q²) + εAkita` plus the sum of `history_sound`. `akita` is Akita's knowledge
@@ -203,8 +216,9 @@ theorem history_sound_with_akita
     (admitted : StageAdmitted
         (HyperNova.ReverseStages.Stage.start
           (IvcSecurity.walkAdversary (FinalHistory.adversary setup s q))))
-    {packageWidths : Fin 2 → ℕ}
-    (premises : FinalVerifier.Premises setup packageWidths)
+    (complete : StepExtend.Complete exports)
+    (rows : ∀ circuit : Fin 2,
+      (setup.rows circuit).matrices = (FinalRows.packageRows exports complete circuit).matrices)
     (keysShaped : ∀ (key : Fin 2), List.length (setup.circuitKeys key).digest = 4)
     (depth : ℕ)
     (depthBound : ∀ (o : FinalVerifier.Outcome logicalWidth publicFits),
@@ -284,7 +298,7 @@ theorem history_sound_with_akita
                       (IvcWalk.Answer logicalWidth publicFits)))) :=
   @Export.BoundedDepth.FinalHistory.real_soundness logicalWidth publicFits setup relation step
     cubeFits exports Admitted StageAdmitted Efficient error assumption closed s q admitted
-    packageWidths premises keysShaped depth depthBound history εAkita akita
+    complete rows keysShaped depth depthBound history εAkita akita
 
 /-- The bound for Rust `nebula::Verifier::verify_final`. In the state-restoration experiment with
 `q` queries and the walk's `depth` stages, the probability that the final verifier accepts, the
@@ -322,8 +336,9 @@ theorem memory_sound
     (admitted : StageAdmitted
         (HyperNova.ReverseStages.Stage.start
           (IvcSecurity.walkAdversary (NebulaFinal.adversary setup app s q claim))))
-    {packageWidths : Fin 2 → ℕ}
-    (premises : FinalVerifier.Premises setup packageWidths)
+    (complete : StepExtend.Complete exports)
+    (rows : ∀ circuit : Fin 2,
+      (setup.rows circuit).matrices = (FinalRows.packageRows exports complete circuit).matrices)
     (valid : p.Valid)
     (keysShaped : ∀ (key : Fin 2), List.length (setup.circuitKeys key).digest = 4)
     (programEq : exports.program = Nebula.MemoryApp.program p.toGeometry app)
@@ -470,7 +485,7 @@ theorem memory_sound
                 depth)) :=
   @Export.BoundedDepth.NebulaFinal.soundness logicalWidth publicFits setup p app relation step
     cubeFits exports Admitted StageAdmitted Efficient error assumption closed s q claim admitted
-    packageWidths premises valid keysShaped programEq depth depthBound memoryError round
+    complete rows valid keysShaped programEq depth depthBound memoryError round
 
 /-- With Akita openings, the probability `memory` of a false memory statement is at most
 `q · (1/2^119 + 38/q²) + εAkita` plus the terms of `Claims.Nebula.memory_sound`. `akita` is Akita's
@@ -507,8 +522,9 @@ theorem memory_sound_with_akita
     (admitted : StageAdmitted
         (HyperNova.ReverseStages.Stage.start
           (IvcSecurity.walkAdversary (NebulaFinal.adversary setup app s q claim))))
-    {packageWidths : Fin 2 → ℕ}
-    (premises : FinalVerifier.Premises setup packageWidths)
+    (complete : StepExtend.Complete exports)
+    (rows : ∀ circuit : Fin 2,
+      (setup.rows circuit).matrices = (FinalRows.packageRows exports complete circuit).matrices)
     (valid : p.Valid)
     (keysShaped : ∀ (key : Fin 2), List.length (setup.circuitKeys key).digest = 4)
     (programEq : exports.program = Nebula.MemoryApp.program p.toGeometry app)
@@ -662,7 +678,7 @@ theorem memory_sound_with_akita
                 depth)) :=
   @Export.BoundedDepth.NebulaFinal.real_soundness logicalWidth publicFits setup p app relation
     step cubeFits exports Admitted StageAdmitted Efficient error assumption closed s q claim
-    admitted packageWidths premises valid keysShaped programEq depth depthBound memoryError round
+    admitted complete rows valid keysShaped programEq depth depthBound memoryError round
     memory εAkita akita
 
 end NightstreamFPrime.Claims.Final

@@ -1,3 +1,4 @@
+import NightstreamFPrime.Export.BoundedDepth.FinalRows
 import NightstreamFPrime.Export.BoundedDepth.FinalVerifier
 import NightstreamFPrime.Export.BoundedDepth.IvcSecurity
 import NightstreamFPrime.Spec.Compression.Game.Law
@@ -19,6 +20,7 @@ set_option autoImplicit false
 namespace NightstreamFPrime.Export.BoundedDepth.FinalHistory
 
 open scoped BigOperators
+open scoped NightstreamFPrime.Spec.Compression.Production
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
@@ -79,7 +81,9 @@ local notation "stages" => reverseStages assumption closed (walkAdversary (adver
 most `q · (1/2^119 + 38/q²)` plus, for each of the first `depth` stages of the reverse extractor
 of the prover's IVC adversary, the probability of a collision at the stage's visit and the stage's
 error. -/
-theorem soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup packageWidths)
+theorem soundness (complete : StepExtend.Complete exports)
+    (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
+      (FinalRows.packageRows exports complete circuit).matrices)
     (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4) (depth : ℕ)
     (depthBound : ∀ o, some (some o) ∈ (law s (restore setup.game q [])).support →
       o.1.iteration ≤ depth) :
@@ -94,19 +98,20 @@ theorem soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup pac
   classical
   let Rejected : Option (Option (Outcome logicalWidth publicFits)) → Prop := fun r =>
     ¬ ∀ a, r = some a → ∀ o, a = some o →
-      Verifies setup.ajtai setup.circuitKeys step packageWidths 0 (fun _ _ => 0) o.1
+      Verifies setup.ajtai setup.circuitKeys step complete.packageWidth 0 (fun _ _ => 0) o.1
         (setup.proofOf o)
   let Accepted : Option (Option (Outcome logicalWidth publicFits)) → Prop := fun r =>
     FalseAcceptance setup.ajtai setup.circuitKeys exports (fun _ _ => 0) 0 (outputOf setup r)
   have cover (r : Option (Option (Outcome logicalWidth publicFits)))
       (falseHistory : FalseHistory exports.program r) : Rejected r ∨ Accepted r := by
     obtain ⟨o, rfl, unreached⟩ := falseHistory
-    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step packageWidths 0 (fun _ _ => 0)
+    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth 0 (fun _ _ => 0)
       o.1 (setup.proofOf o)
     · exact Or.inr ⟨holds_of_verifies verifies, unreached⟩
     · exact Or.inl fun all => verifies (all _ rfl o rfl)
   have rejected : prob s (restore setup.game q []) Rejected ≤ q * finalError :=
-    restore_sound _ s _ _ (game_avoids setup step 0 (fun _ _ => 0) premises)
+    restore_sound _ s _ _ (game_avoids setup step 0 (fun _ _ => 0)
+      (FinalRows.premises_of_rows setup exports complete rows))
       (game_densityLe setup) (by unfold finalError; positivity) q
   have accepted := probability_bound setup.ajtai setup.circuitKeys exports assumption closed
     (adversary setup s q) admitted keysShaped (fun _ _ => 0) 0 depth (by
@@ -128,7 +133,9 @@ theorem soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup pac
 `q · (1/2^119 + 38/q²) + εAkita` plus the sum of `soundness`. `akita` is Akita's knowledge
 soundness (`FinalVerifier.AkitaKnowledge`) for the event `FalseHistory`: `s` is the prover of the
 game with ideal openings that it gives for the prover with Akita openings. -/
-theorem real_soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup packageWidths)
+theorem real_soundness (complete : StepExtend.Complete exports)
+    (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
+      (FinalRows.packageRows exports complete circuit).matrices)
     (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4) (depth : ℕ)
     (depthBound : ∀ o, some (some o) ∈ (law s (restore setup.game q [])).support →
       o.1.iteration ≤ depth) (history εAkita : ℝ)
@@ -140,7 +147,7 @@ theorem real_soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setu
                 ((stages j.val).1.input tape) ((stages j.val).1.results tape))}).toReal +
           error ((stages j.val).1.nifs (attemptOf setup.ajtai setup.circuitKeys exports)
             (back setup.ajtai setup.circuitKeys exports))) := by
-  linarith [soundness setup exports assumption closed s q admitted premises keysShaped depth
+  linarith [soundness setup exports assumption closed s q admitted complete rows keysShaped depth
     depthBound]
 
 end NightstreamFPrime.Export.BoundedDepth.FinalHistory

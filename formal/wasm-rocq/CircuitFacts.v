@@ -1,7 +1,7 @@
 (* Locate concrete rows by shape; the kernel checks each resulting lookup.
    Search is proof automation, not an additional assumption about the circuit. *)
 From Stdlib Require Import List ZArith Bool Lia.
-Require Import R1CS Columns FullRelation Range Selectors ZeroTest.
+Require Import R1CS Columns FullRelation Range Selectors ZeroTest OpcodeCatalog MemoryTrace MemoryCatalog.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -27,7 +27,7 @@ Ltac circuit_boolean column name :=
     clear Hrow
   end.
 
-Ltac circuit_range column name :=
+Ltac circuit_explicit_range column name :=
   let found := eval vm_compute in (findRow
     (fun row => let '(a, _, _) := row in
       rangeRowChecked FullRelation.rows column (length a) row) FullRelation.rows) in
@@ -67,6 +67,105 @@ Ltac circuit_zero_test input inverse flag name :=
   end.
 
 Ltac expand_row H := unfold sat in H; cbn [eval fold_right] in H; normalize_columns.
+
+(* SPEC.md section 7.6: these widths follow from retained circuit rows. *)
+Lemma full_opcode_code_bound : forall w,
+  fieldPrime -> FullRelation.satFull w -> 0 <= w COL_OPCODE_CODE <= 4294967295.
+Proof.
+  intros w Hprime Hfull.
+  destruct (full_opcode_selectors_one_hot w Hprime Hfull) as [Hbits _].
+  assert (Hterms : Forall (fun '(column, coeff) =>
+    0 <= coeff /\ (w column = 0 \/ w column = 1)) selectorCodes).
+  { apply Forall_forall. intros [column coeff] Hin. split.
+    - pose proof (proj1 (Forall_forall _ _) opcode_codes_bounded _ Hin). cbn in H. lia.
+    - apply (proj1 (Forall_forall _ _) Hbits).
+      apply opcode_selector_columns. change (In (fst (column, coeff)) (map fst selectorCodes)).
+      apply in_map. exact Hin. }
+  pose proof (bits_bound w selectorCodes Hterms) as Hsum.
+  assert (Hmax : eval (fun _ => 1) selectorCodes = 139508) by (vm_compute; reflexivity).
+  rewrite Hmax in Hsum.
+  pose proof (Range.in_full_sat w _ (proj2 Hfull) opcode_decode_in_full) as Hrow.
+  unfold sat, opcodeDecodeRow in Hrow.
+  change (((1 * w COL_OPCODE_CODE + eval w (map (fun '(c,k) => (c,-k)) selectorCodes)) *
+    (1 * w COL_ONE + 0) - 0) mod modulus = 0) in Hrow.
+  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  rewrite eval_negated_terms, Hone in Hrow.
+  pose proof (value_bound w COL_OPCODE_CODE). field_linear Hrow.
+Qed.
+
+Lemma full_stack_reads_bound : forall w,
+  fieldPrime -> FullRelation.satFull w -> 0 <= w COL_STACK_READS <= 4294967295.
+Proof.
+  intros w Hprime Hfull. assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_boolean (List.nth 0 COL_STACK_READ_ACTIVE 0%nat) H0.
+  circuit_boolean (List.nth 1 COL_STACK_READ_ACTIVE 0%nat) H1.
+  circuit_boolean (List.nth 2 COL_STACK_READ_ACTIVE 0%nat) H2.
+  circuit_row ([(List.nth 0 COL_STACK_READ_ACTIVE 0%nat,1);
+    (List.nth 1 COL_STACK_READ_ACTIVE 0%nat,1); (List.nth 2 COL_STACK_READ_ACTIVE 0%nat,1);
+    (COL_STACK_READS,-1)], [(COL_ONE,1)], ([] : SparseRow)) Hrow.
+  pose proof (value_bound w COL_STACK_READS).
+  expand_row Hrow. rewrite Hone in Hrow. field_linear Hrow.
+Qed.
+
+Lemma full_stack_writes_bound : forall w,
+  fieldPrime -> FullRelation.satFull w -> 0 <= w COL_STACK_WRITES <= 4294967295.
+Proof.
+  intros w Hprime Hfull. assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_boolean COL_STACK_WRITE0_ACTIVE Hbit.
+  circuit_row ([(COL_STACK_WRITE0_ACTIVE,1); (COL_STACK_WRITES,-1)], [(COL_ONE,1)], ([] : SparseRow)) Hrow.
+  pose proof (value_bound w COL_STACK_WRITES).
+  expand_row Hrow. rewrite Hone in Hrow. field_linear Hrow.
+Qed.
+
+Lemma full_import_schedule_counts_bound : forall w,
+  fieldPrime -> FullRelation.satFull w -> 0 <= w COL_HOST_IMPORT_SCHEDULE_COUNTS <= 4294967295.
+Proof.
+  intros w Hprime Hfull. assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_explicit_range COL_HOST_INITIAL_COUNT Hlo. circuit_explicit_range COL_HOST_RETURN_COUNT Hhi.
+  circuit_row ([(COL_HOST_IMPORT_SCHEDULE_COUNTS,1); (COL_HOST_INITIAL_COUNT,-1);
+    (COL_HOST_RETURN_COUNT,-65536)], [(COL_ONE,1)], ([] : SparseRow)) Hrow.
+  pose proof (value_bound w COL_HOST_IMPORT_SCHEDULE_COUNTS).
+  expand_row Hrow. rewrite Hone in Hrow. field_linear Hrow.
+Qed.
+
+Lemma full_max_memory_pages_after_bound : forall w,
+  fieldPrime -> FullRelation.satFull w -> 0 <= w COL_MAX_MEMORY_PAGES_AFTER <= 4294967295.
+Proof.
+  intros w Hprime Hfull. assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_explicit_range COL_MAX_MEMORY_PAGES_BEFORE Hbefore.
+  circuit_row ([(COL_MAX_MEMORY_PAGES_AFTER,1); (COL_MAX_MEMORY_PAGES_BEFORE,-1)],
+    [(COL_ONE,1)], ([] : SparseRow)) Hrow.
+  pose proof (value_bound w COL_MAX_MEMORY_PAGES_AFTER).
+  expand_row Hrow. rewrite Hone in Hrow. field_linear Hrow.
+Qed.
+
+Lemma full_local_addr_lo_bound : forall w,
+  fieldPrime -> FullRelation.satFull w -> 0 <= w COL_LOCAL_ADDR_LO <= 4294967295.
+Proof.
+  intros w Hprime Hfull. assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_explicit_range COL_LOCALS_FBP_BEFORE Hbase.
+  circuit_explicit_range COL_LOCAL_INDEX Hindex.
+  circuit_explicit_range COL_LOCAL_ADDR_HI Hhi.
+  circuit_row ([(COL_LOCAL_ADDR_LO,1); (COL_LOCALS_FBP_BEFORE,-2); (COL_LOCAL_INDEX,-2)],
+    [(COL_ONE,1)], ([] : SparseRow)) Hsum.
+  circuit_row ([(COL_LOCAL_ADDR_HI,1); (COL_LOCAL_ADDR_LO,-1); (COL_ONE,-1)],
+    [(COL_ONE,1)], ([] : SparseRow)) Hadjacent.
+  pose proof (value_bound w COL_LOCAL_ADDR_LO).
+  assert (Haddress : w COL_LOCAL_ADDR_LO = 2 * w COL_LOCALS_FBP_BEFORE + 2 * w COL_LOCAL_INDEX).
+  { expand_row Hsum. rewrite Hone in Hsum. field_linear Hsum. }
+  expand_row Hadjacent. rewrite Hone in Hadjacent. field_linear Hadjacent.
+Qed.
+
+Ltac circuit_range column name :=
+  match goal with Hprime : fieldPrime, Hfull : FullRelation.satFull ?w |- _ =>
+    first [constr_eq column COL_OPCODE_CODE; pose proof (full_opcode_code_bound w Hprime Hfull) as name
+    | constr_eq column COL_STACK_READS; pose proof (full_stack_reads_bound w Hprime Hfull) as name
+    | constr_eq column COL_STACK_WRITES; pose proof (full_stack_writes_bound w Hprime Hfull) as name
+    | constr_eq column COL_HOST_IMPORT_SCHEDULE_COUNTS; pose proof (full_import_schedule_counts_bound w Hprime Hfull) as name
+    | constr_eq column COL_MAX_MEMORY_PAGES_AFTER; pose proof (full_max_memory_pages_after_bound w Hprime Hfull) as name
+    | constr_eq column COL_LOCAL_ADDR_LO; pose proof (full_local_addr_lo_bound w Hprime Hfull) as name
+    | circuit_explicit_range column name]
+  end.
 
 Lemma full_aux_selectors_zero : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w -> w COL_IS_PROGRAM_ROW = 0 ->
@@ -348,4 +447,143 @@ Proof.
   apply full_choice_pinned; try assumption;
     (eapply full_opcode_selector_exclusive; [exact Hprime | exact Hfull | exact Hchosen | exact Hin |
       vm_compute; tauto | intro Heq; subst chosen; apply Hbranch; cbn; tauto]).
+Qed.
+
+
+Theorem full_br_if_choice : forall (w : Witness),
+  fieldPrime -> FullRelation.satFull w -> w COL_SEL_BR_IF_EQZ = 1 ->
+  w COL_CONTROL_CHOICE =
+    (if Z.eqb (w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0 then 0 else 1).
+Proof.
+  intros w Hprime Hfull Hchosen.
+  assert (Hin : In COL_SEL_BR_IF_EQZ selectorColumns) by (vm_compute; tauto).
+  pose proof (proj1 Hfull) as Hone.
+  selected_circuit_row COL_SEL_BR_IF_EQZ
+    ([(COL_SEL_BR_IF_EQZ, 1); (COL_SEL_IF, 1)],
+     [(COL_ZERO_TEST_LO_INPUT, 1); (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat, -1)], ([] : SparseRow)) Hpin.
+  pose proof (value_bound w COL_ZERO_TEST_LO_INPUT).
+  pose proof (value_bound w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)).
+  assert (Hinput : w COL_ZERO_TEST_LO_INPUT = w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) by (field_linear Hpin).
+  circuit_zero_test COL_ZERO_TEST_LO_INPUT COL_ZERO_TEST_LO_INV COL_ZERO_TEST_LO_IS_ZERO Hzero.
+  rewrite Hinput in Hzero.
+  selected_circuit_row COL_SEL_BR_IF_EQZ
+    ([(COL_SEL_BR_IF_EQZ, 1); (COL_SEL_IF, 1)],
+     [(COL_CONTROL_CHOICE, 1); (COL_ZERO_TEST_LO_IS_ZERO, 1); (COL_ONE, -1)], ([] : SparseRow)) Hchoice.
+  rewrite Hone, Hzero in Hchoice. pose proof (value_bound w COL_CONTROL_CHOICE).
+  normalize_columns.
+  let readColumn := eval compute in (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) in
+    destruct (Z.eqb (w readColumn) 0); field_linear Hchoice.
+Qed.
+
+Ltac circuit_memory_range column gate name :=
+ lazymatch goal with
+ | Hbounds : boundedMemoryEvents (eventsForRow memories ?w) |- _ =>
+ let selected := eval vm_compute in
+   (find (fun pair => Nat.eqb (valueColumn (snd pair)) column &&
+      match activation (snd pair) with When g => Nat.eqb g gate | _ => false end)
+     (flat_map (fun m => map (fun p => (m,p)) (ports m)) memories)) in
+ lazymatch selected with
+ | Some (?memory, ?chosenPort) =>
+   assert (name : u32Value (w column)) by
+     (eapply bounded_port_value with (specification := memory) (port := chosenPort);
+      [exact Hbounds | vm_compute; tauto | vm_compute; tauto |
+       change (Z.eqb (w gate) 1 = true); apply Z.eqb_eq; assumption]);
+   unfold u32Value in name
+ end
+ end.
+
+Theorem full_br_table_choice : forall (w : Witness),
+  fieldPrime -> FullRelation.satFull w -> boundedMemoryEvents (eventsForRow memories w) ->
+  w COL_SEL_BR_TABLE = 1 ->
+  w COL_CONTROL_CHOICE =
+    (if Z.ltb (w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) (w COL_BR_TABLE_LEN)
+     then w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) + 1 else 0).
+Proof.
+  intros w Hprime Hfull HmemoryBounds Hchosen.
+  pose proof (proj1 Hfull) as Hone.
+  pose proof (full_read0_u32 w Hprime Hfull) as Hindex.
+  circuit_memory_range COL_BR_TABLE_LEN COL_SEL_BR_TABLE Hlen. circuit_range COL_CMP_LOW Hlow. circuit_boolean COL_CMP_GE Hge.
+  circuit_boolean COL_BR_TABLE_IN_BOUNDS Hbounds.
+  pose proof (value_bound w COL_CONTROL_CHOICE).
+  (* index - len + 2^32 = low + ge * 2^32, so ge says index >= len. *)
+  circuit_row ([(COL_SEL_BR_TABLE, 1)], [(nth 0%nat COL_STACK_READ_VALUE_LO 0%nat, 1); (COL_BR_TABLE_LEN, -1);
+    (COL_ONE, 4294967296); (COL_CMP_LOW, -1); (COL_CMP_GE, -4294967296)], ([] : SparseRow)) Hcmp.
+  circuit_row ([(COL_SEL_BR_TABLE, 1)], [(COL_ONE, 1); (COL_CMP_GE, -1)], [(COL_BR_TABLE_IN_BOUNDS, 1)]) Hin.
+  circuit_row ([(COL_BR_TABLE_IN_BOUNDS, 1)],
+    [(COL_CONTROL_CHOICE, 1); (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat, -1); (COL_ONE, -1)], ([] : SparseRow)) Harm.
+  circuit_row ([(COL_SEL_BR_TABLE, 1); (COL_BR_TABLE_IN_BOUNDS, -1)], [(COL_CONTROL_CHOICE, 1)], ([] : SparseRow))
+    Hdefault.
+  expand_row Hcmp. expand_row Hin. expand_row Harm. expand_row Hdefault.
+  rewrite Hone, Hchosen in *.
+  destruct Hge as [Hge | Hge]; rewrite Hge in *.
+  - assert (Hinside : w COL_BR_TABLE_IN_BOUNDS = 1) by field_linear Hin.
+    normalize_columns. rewrite Hinside in Harm.
+    assert (Hlt : w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) < w COL_BR_TABLE_LEN) by field_linear Hcmp.
+    replace (Z.ltb _ _) with true by (symmetry; apply Z.ltb_lt; exact Hlt). field_linear Harm.
+  - assert (Houtside : w COL_BR_TABLE_IN_BOUNDS = 0) by field_linear Hin.
+    normalize_columns. rewrite Houtside in Hdefault.
+    assert (Hge' : w COL_BR_TABLE_LEN <= w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) by field_linear Hcmp.
+    replace (Z.ltb _ _) with false by (symmetry; apply Z.ltb_ge; exact Hge'). field_linear Hdefault.
+Qed.
+
+Theorem full_if_choice : forall (w : Witness),
+  fieldPrime -> FullRelation.satFull w -> w COL_SEL_IF = 1 ->
+  w COL_CONTROL_CHOICE =
+    (if Z.eqb (w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0 then 0 else 1).
+Proof.
+  intros w Hprime Hfull Hchosen.
+  assert (Hin : In COL_SEL_IF selectorColumns) by (vm_compute; tauto).
+  pose proof (proj1 Hfull) as Hone.
+  selected_circuit_row COL_SEL_IF
+    ([(COL_SEL_BR_IF_EQZ, 1); (COL_SEL_IF, 1)],
+     [(COL_ZERO_TEST_LO_INPUT, 1); (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat, -1)], ([] : SparseRow)) Hpin.
+  pose proof (value_bound w COL_ZERO_TEST_LO_INPUT).
+  pose proof (value_bound w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)).
+  assert (Hinput : w COL_ZERO_TEST_LO_INPUT = w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) by (field_linear Hpin).
+  circuit_zero_test COL_ZERO_TEST_LO_INPUT COL_ZERO_TEST_LO_INV COL_ZERO_TEST_LO_IS_ZERO Hzero.
+  rewrite Hinput in Hzero.
+  selected_circuit_row COL_SEL_IF
+    ([(COL_SEL_BR_IF_EQZ, 1); (COL_SEL_IF, 1)],
+     [(COL_CONTROL_CHOICE, 1); (COL_ZERO_TEST_LO_IS_ZERO, 1); (COL_ONE, -1)], ([] : SparseRow)) Hchoice.
+  rewrite Hone, Hzero in Hchoice. pose proof (value_bound w COL_CONTROL_CHOICE).
+  normalize_columns.
+  let readColumn := eval compute in (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) in
+    destruct (Z.eqb (w readColumn) 0); field_linear Hchoice.
+Qed.
+
+Lemma full_control_choice_bound : forall (w : Witness),
+  fieldPrime -> FullRelation.satFull w -> 0 <= w COL_CONTROL_CHOICE < 4294967296.
+Proof.
+  intros w Hprime Hfull.
+  circuit_boolean COL_SEL_BR_IF_EQZ Hbr.
+  circuit_boolean COL_SEL_IF Hif.
+  circuit_boolean COL_SEL_BR_TABLE Htable.
+  destruct Hbr as [Hbr|Hbr].
+  - destruct Hif as [Hif|Hif].
+    + destruct Htable as [Htable|Htable].
+      * rewrite (full_choice_pinned w Hprime Hfull Hbr Hif Htable). lia.
+      * circuit_boolean COL_BR_TABLE_IN_BOUNDS Hin.
+        pose proof (proj1 Hfull) as Hone.
+        pose proof (value_bound w COL_CONTROL_CHOICE) as Hchoice.
+        pose proof (full_read0_u32 w Hprime Hfull) as Hindex.
+        circuit_range COL_EDGE_ADDR Hedge.
+        circuit_range COL_PC_BEFORE Hpc.
+        circuit_row ([(COL_BR_TABLE_IN_BOUNDS,1)],
+          [(COL_CONTROL_CHOICE,1); (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat,-1); (COL_ONE,-1)],
+          ([] : SparseRow)) Harm.
+        circuit_row ([(COL_SEL_BR_TABLE,1); (COL_BR_TABLE_IN_BOUNDS,-1)],
+          [(COL_CONTROL_CHOICE,1)], ([] : SparseRow)) Hdefault.
+        circuit_row ([(COL_EDGE_ADDR,1); (COL_PC_BEFORE,-1); (COL_CONTROL_CHOICE,-1)],
+          [(COL_ONE,1)], ([] : SparseRow)) Haddr.
+        expand_row Harm. expand_row Hdefault. expand_row Haddr.
+        rewrite Hone, Htable in *.
+        destruct Hin as [Hin|Hin]; rewrite Hin in *; normalize_columns.
+        -- assert (w COL_CONTROL_CHOICE = 0) by field_linear Hdefault. normalize_columns. lia.
+        -- assert (w COL_CONTROL_CHOICE = w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) + 1)
+             by field_linear Harm.
+           normalize_columns. field_linear Haddr.
+    + rewrite (full_if_choice w Hprime Hfull Hif).
+      destruct (w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) =? 0); lia.
+  - rewrite (full_br_if_choice w Hprime Hfull Hbr).
+    destruct (w (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) =? 0); lia.
 Qed.

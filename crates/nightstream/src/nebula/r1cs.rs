@@ -5,7 +5,8 @@
 //! witnesses `z` of its rows. The default layout uses one block of the one-row
 //! width per row. `with_shared` stores local columns by row and selected shared
 //! columns by group. Both layouts use one constant-one column. Its relation is the
-//! rank-one rows of each row, then one equality row for each continuity link
+//! rank-one rows, with private output range checks omitted at internal boundaries,
+//! then one equality row for each continuity link
 //! between neighbor rows. Its state is the continuity words, one per link:
 //! the `next_step_column`s of its first row in, the `previous_step_column`s
 //! of its last row out. `CatalogBinding` checks every memory of the batched
@@ -13,9 +14,12 @@
 //! `Size`, so one circuit serves every run whose memories fit those regions.
 
 use std::num::NonZeroUsize;
+use std::ops::Range;
 use std::sync::Arc;
 
-use neo_application::{ContinuityCatalog, MemoryCatalog, MemoryPortActivation, MemoryPortKind, R1csRelation};
+use neo_application::{
+    ContinuityCatalog, GadgetDescriptor, MemoryCatalog, MemoryPortActivation, MemoryPortKind, R1csRelation,
+};
 use neo_ccs::CcsMatrix;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -27,12 +31,42 @@ use super::geometry::Geometry;
 use super::rows::View;
 use super::{MemoryPreload, Program};
 
+mod ranges;
 mod shared;
 pub use shared::SharedColumns;
 use shared::StepLayout;
 
 /// The terms `(column, coefficient)` of one side of a rank-one row.
 pub type Terms = Vec<(usize, F)>;
+
+/// A construction-time range-check occurrence (SPEC.md section 7.6).
+/// Batching validates these hints against the final rows and all bit uses.
+#[derive(Clone, Debug)]
+pub struct RangeCheck {
+    pub column: usize,
+    pub bits: Range<usize>,
+    pub rows: Range<usize>,
+}
+
+impl RangeCheck {
+    pub fn from_relation<Owner>(relation: &R1csRelation<Owner>) -> Vec<Self> {
+        relation
+            .catalog()
+            .gadget_occurrences()
+            .iter()
+            .filter_map(|gadget| {
+                let GadgetDescriptor::RangeCheck { column, bits } = gadget.descriptor() else {
+                    return None;
+                };
+                Some(Self {
+                    column: *column,
+                    bits: bits.clone(),
+                    rows: gadget.row_range().clone(),
+                })
+            })
+            .collect()
+    }
+}
 
 /// The R1CS relation of one row: `[A_i, B_i, C_i]` of each rank-one row
 /// `(A_i·z)(B_i·z) = C_i·z` over the row's `width` columns. Column `one`
@@ -42,6 +76,7 @@ pub struct RowRelation {
     pub rows: Vec<[Terms; 3]>,
     pub width: usize,
     pub one: usize,
+    pub range_checks: Vec<RangeCheck>,
 }
 
 impl RowRelation {
@@ -69,6 +104,7 @@ impl RowRelation {
             rows,
             width: relation.column_count(),
             one: relation.const_one_column(),
+            range_checks: RangeCheck::from_relation(relation),
         })
     }
 }
@@ -273,8 +309,9 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
         if !binding.host_checked().is_empty() {
             return Err(R1csApplicationError::Unchecked);
         }
+        let omitted = ranges::internal_output_checks(&relation, &links, &layout, catalog);
         Ok(Self {
-            relation: Arc::new(step_relation(&relation, &links, &layout)),
+            relation: Arc::new(step_relation(&relation, &links, &layout, &omitted)),
             links: Arc::new(links),
             layout,
             binding,
@@ -426,8 +463,14 @@ impl<Id: Clone + Eq> Application for R1csApplication<Id> {
 }
 
 /// SPEC.md section 7.6. Place each source row, retaining a row over only
-/// shared columns and the constant once per group, then append the links.
-fn step_relation(relation: &RowRelation, links: &[(usize, usize)], layout: &StepLayout) -> Vec<[Terms; 3]> {
+/// shared columns and the constant once per group, omitting selected internal
+/// output checks, then append the links.
+fn step_relation(
+    relation: &RowRelation,
+    links: &[(usize, usize)],
+    layout: &StepLayout,
+    omitted: &std::collections::BTreeSet<usize>,
+) -> Vec<[Terms; 3]> {
     let column = |row: usize, column: usize| layout.column(row, column);
     let block_only = |sides: &[Terms; 3]| {
         let mut columns = sides.iter().flatten().map(|(column, _)| *column);
@@ -437,7 +480,10 @@ fn step_relation(relation: &RowRelation, links: &[(usize, usize)], layout: &Step
     let rows = layout.rows.get();
     let mut step = Vec::new();
     for row in 0..rows {
-        for sides in &relation.rows {
+        for (index, sides) in relation.rows.iter().enumerate() {
+            if row + 1 < rows && omitted.contains(&index) {
+                continue;
+            }
             if row % layout.group_rows.get() != 0 && block_only(sides) {
                 continue;
             }

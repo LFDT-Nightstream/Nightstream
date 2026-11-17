@@ -35,16 +35,16 @@ define_column_region! {
         COL_HOST_NESTED_ENTRY: Boolean => "export entry above a suspended host frame",
         COL_HOST_NESTED_EXIT: Boolean => "export exit above a suspended host frame",
         COL_HOST_CONTEXT_READ: Boolean => "read suspended context at nested entry or resume",
-        COL_HOST_CONTEXT_ADDR: U32 => "suspended context call-stack address",
-        COL_HOST_CONTEXT_FRAME: [U32; 3] => "saved pc, locals frame base, operand-stack base",
+        COL_HOST_CONTEXT_ADDR: (Repairable(32)) => "suspended context call-stack address",
+        COL_HOST_CONTEXT_FRAME: [MemoryRepairable; 3] => "saved pc, locals frame base, operand-stack base",
         COL_HOST_CONTEXT_REFS: Field => "saved export + 65536 * saved import; bounded by the decoded references",
         COL_HOST_CONTEXT_EXPORT: (Bits(HOST_CONTEXT_HALF_BITS)) => "saved export function reference",
         COL_HOST_CONTEXT_IMPORT: (Bits(HOST_CONTEXT_HALF_BITS)) => "saved import function reference",
         COL_HOST_CONTEXT_ARGS_DEPTH: Field => "saved argument base + 65536 * saved parent host depth",
         COL_HOST_CONTEXT_ARGS_BASE: (Bits(HOST_CONTEXT_HALF_BITS)) => "saved argument base",
         COL_HOST_CONTEXT_PARENT_DEPTH: (Bits(HOST_CONTEXT_HALF_BITS)) => "saved parent host depth",
-        COL_HOST_CONTEXT_SP: U32 => "saved stack pointer",
-        COL_HOST_IMPORT_SCHEDULE_COUNTS: U32 => "packed schedule counts: import call/return, or export entry/exit",
+        COL_HOST_CONTEXT_SP: MemoryRepairable => "saved stack pointer",
+        COL_HOST_IMPORT_SCHEDULE_COUNTS: (Implied(32)) => "packed schedule counts: import call/return, or export entry/exit",
         COL_HOST_INITIAL_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "low half: import call-block or export entry-block count plus one",
         COL_HOST_RETURN_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "high half: zero for atomic, otherwise one plus the import return-schedule length; the exit count of an export",
         COL_HOST_RETURN_COUNT_IS_ZERO: Boolean => "selected import is atomic",
@@ -95,7 +95,7 @@ define_column_region! {
             "host-event ROM slot immediate 1; see WasmHostEventRomEntry",
         COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT: Field =>
             "host-event ROM initial-schedule count for the called import or entered export (biased +1; reread to offset export-exit indices)",
-        COL_HOST_EVENT_BASE: U32 =>
+        COL_HOST_EVENT_BASE: MemoryRepairable =>
             "host-event ROM first event row of the template that this row loads",
         COL_HOST_EVENT_EXIT_SCHEDULE_COUNT: Field =>
             "host-event ROM exit-schedule count for the returning export",

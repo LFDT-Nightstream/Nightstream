@@ -198,6 +198,10 @@ impl<const N: usize> ConditionalSelect<N> {
 /// Machine-readable semantics retained for one shared gadget invocation.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum GadgetDescriptor {
+    RangeCheck {
+        column: usize,
+        bits: Range<usize>,
+    },
     Pow7 {
         expression: Vec<(usize, F)>,
         powers: [usize; 4],

@@ -102,10 +102,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
             .ok_or_else(|| WasmBuildError::Trace("invalid default-memory page state after row".into()))?;
     let mut wit = vec![F::ZERO; crate::RANGE_CHECKED_WITNESS_WIDTH];
     wit[COL_ONE] = F::ONE;
-    // High-limb stack addresses are constrained unconditionally as
-    // `addr_hi = addr_lo + 1`. Inactive low addresses default to 0 and
-    // inactive memory specs are gated off, so 1 is the canonical inactive
-    // high address. Active lanes overwrite this below with `addr + 1`.
     wit[COL_STACK_READ_ADDR_HI[0]] = F::ONE;
     wit[COL_STACK_READ_ADDR_HI[1]] = F::ONE;
     wit[COL_STACK_READ_ADDR_HI[2]] = F::ONE;
@@ -135,7 +131,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
             ));
     wit[crate::layout::COL_FRAME_SLIDE_ACTIVE] = if slide { F::ONE } else { F::ZERO };
     if clean_return {
-        // The ROM checks that this is the return's static slide distance.
         wit[crate::layout::COL_EXIT_SLIDE_DISTANCE] =
             F::from_u64(trace.state_before.sp - trace.state_before.locals_fbp - u64::from(trace.output_captured));
     }
@@ -202,8 +197,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     wit[COL_CALL_STACK_DEPTH_BEFORE] = F::from_u64(trace.state_before.call_stack_depth);
     wit[COL_CALL_STACK_DEPTH_AFTER] = F::from_u64(trace.state_after.call_stack_depth);
     if trace.target_function_is_guest || trace.row_kind.is_turn_boundary() {
-        // This row still belongs to the outgoing frame. Reconstruct the
-        // entered frame's count; its ROM read binds the claim to the callee.
         wit[COL_ENTERED_FUNCTION_NUM_LOCALS] = F::from_u64(
             u64::from(trace.state_after.local_zero.remaining) + u64::from(trace.call_param_count.unwrap_or(0)),
         );
@@ -275,7 +268,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
         let before = u64::from(before);
         let max = u64::from(max);
         let delta = u64::from(trace.stack_read0.map(|access| access.value_lo).unwrap_or(0));
-        // Mirrors the CCS lhs `max_before - pages_before`.
         let available_pages = max
             .checked_sub(before)
             .ok_or_else(|| WasmBuildError::Trace("memory pages exceed their maximum".into()))?;
@@ -323,7 +315,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     } else {
         F::ZERO
     };
-    // Table sizes bind table.size results and every table-index bounds check.
     wit[COL_TABLE_SIZE_READ_ENABLED] = if matches!(
         trace.opcode,
         super::isa::WasmOpcode::TableSize
@@ -405,7 +396,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
         }
     }
 
-    // Mirror the CCS div/rem trap gates (zero divisor and MIN / -1 overflow).
     DIVISOR_ZERO_TEST.assign(&mut wit);
     let divisor_is_zero = wit[COL_DIV_DIVISOR_IS_ZERO];
     let sel_i32_div_s = wit[selector_col(super::isa::WasmOpcode::I32DivS).expect("i32.div_s selector")];
@@ -432,7 +422,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
             wit[COL_LINEAR_MEM_USE_LANE1] = if access.lane1.is_some() { F::ONE } else { F::ZERO };
             wit[COL_LINEAR_MEM_USE_LANE2] = if access.lane2.is_some() { F::ONE } else { F::ZERO };
         }
-        // Witness the CCS-bound load/store lane gates used by the memory spec.
         let is_load = trace
             .opcode
             .memory_access_info()
@@ -441,14 +430,13 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
             .opcode
             .memory_access_info()
             .is_some_and(|info| info.kind == super::isa::WasmMemoryAccessKind::Store);
-        // OOB rows de-gate memory tuples.
         let Some(pages_before) = trace.state_before.memory_pages else {
             return Err(WasmBuildError::Trace("linear-memory row has no default memory".into()));
         };
         let pages_before = u64::from(pages_before);
         let last_lane_addr =
             access.lane0.word_addr + u64::from(access.lane1.is_some()) + u64::from(access.lane2.is_some());
-        let (cmp_low, cmp_ge) = unsigned_ge_witness(last_lane_addr, pages_before * 16384);
+        let (cmp_low, cmp_ge) = unsigned_ge_witness(last_lane_addr, pages_before * crate::preprocess::WASM_PAGE_LANES);
         wit[COL_CMP_LOW] = cmp_low;
         wit[COL_CMP_GE] = cmp_ge;
         wit[COL_MEM_OOB] = cmp_ge;
@@ -551,7 +539,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
             ],
             lane0_value,
         );
-        // Prior word state for the store-side RMW read and byte preservation.
         wit[COL_LINEAR_MEM_LANE_VALUE_BEFORE[0]] = F::from_u64(u64::from(access.lane0.value_before));
         write_u32_le_bytes(
             &mut wit,
@@ -631,11 +618,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
                 lane2.value_before,
             );
         }
-        // `access_bytes` is the direction-agnostic byte view of the
-        // value being read or written: lo limb for both i32 and i64,
-        // hi limb for i64 only. The byte-decomp constraints bind it
-        // to `stack.write0_value{,_hi}` on loads and
-        // `stack.read1_value{,_hi}` on stores.
         let (access_lo, access_hi) = match trace.opcode {
             super::isa::WasmOpcode::I32Load
             | super::isa::WasmOpcode::I32Load8S
@@ -705,8 +687,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
             ],
             access_hi,
         );
-        // Sign-source byte index per signed load: byte 0 for *8_s, byte 1 for
-        // *16_s, byte 3 for i64.load32_s (the top byte of the loaded word).
         let sign_source = match trace.opcode {
             super::isa::WasmOpcode::I32Load8S | super::isa::WasmOpcode::I64Load8S => Some(0),
             super::isa::WasmOpcode::I32Load16S | super::isa::WasmOpcode::I64Load16S => Some(1),
@@ -833,17 +813,11 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
         .map_err(WasmBuildError::Trace)?,
     );
 
-    // Mirror the CCS resolve-step trap gates (OOB index / null table entry /
-    // callee type mismatch) and the derived read-activation gates. Placed
-    // after the table/type columns above, which the comparison and zero tests
-    // read.
     let sel_resolve =
         wit[selector_col(super::isa::WasmOpcode::CallIndirectResolve).expect("call_indirect resolve selector")];
     let sel_table_index = sel_resolve
         + wit[selector_col(super::isa::WasmOpcode::TableGet).expect("table.get selector")]
         + wit[selector_col(super::isa::WasmOpcode::TableSet).expect("table.set selector")];
-    // ge = (table_index >= table_size). Each table-indexing row turns ge into
-    // its modeled OOB trap.
     if sel_table_index == F::ONE {
         let (cmp_low, cmp_ge) = unsigned_ge_witness(
             trace
@@ -865,7 +839,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     let table_oob = (table_get + table_set) * wit[COL_CMP_GE];
     wit[COL_TABLE_OOB] = table_oob;
     wit[COL_TABLE_SET_LIVE] = table_set * (F::ONE - wit[COL_CMP_GE]);
-    // No table entry exists at an OOB index: the entry read is de-gated.
     wit[COL_TABLE_READ_ENABLED] -= ci_oob + table_get * table_oob;
 
     CALL_INDIRECT_ENTRY_ZERO_TEST.assign(&mut wit);
@@ -873,8 +846,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     CALL_INDIRECT_TYPE_ZERO_TEST.assign(&mut wit);
     let type_eq = wit[COL_CI_TYPE_EQ];
 
-    // A resolve step is clean exactly when it has a live non-null table entry
-    // and that entry's callee type matches the instruction's expected type.
     let ci_type_lookup = (sel_resolve - ci_oob) * (F::ONE - entry_is_null);
     let ci_trap = sel_resolve - (ci_type_lookup * type_eq);
     wit[COL_CALL_INDIRECT_IS_TRAP] = ci_trap;
@@ -944,10 +915,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     SELECT_LO_MUX.assign_delta(&mut wit);
     SELECT_HI_MUX.assign_delta(&mut wit);
 
-    // Comparator zero-test scratch (see `push_comparator_constraints` in ccs.rs).
-    // Conditional control uses the low zero-test too. For other opcodes both
-    // diffs are 0 and the gadget pins both
-    // is_zero flags to 1, so cmp_and = 1.
     let zero_test_lo_input = match trace.opcode {
         super::isa::WasmOpcode::I32Eqz
         | super::isa::WasmOpcode::I64Eqz
@@ -1017,8 +984,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
     Ok(wit)
 }
 
-/// Fill the named host-event absorb interface columns (carried state); the
-/// gadget-internal block is filled by `ccs::host_event_chain::fill_witness`.
 fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     use crate::layout::{
         COL_EVBUF_AFTER, COL_EVBUF_BEFORE, COL_GATHER_ACTIVE, COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO,
@@ -1051,7 +1016,6 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
         wit[COL_EVBUF_AFTER[j]] = F::from_u64(after.evbuf[j]);
     }
 
-    // Gather and host-call interface gates read by the gadget.
     wit[COL_GATHER_ACTIVE] = bool_f(trace.row_kind.is_host_event_gather());
     let host_call_gate = wit[selector_col(super::isa::WasmOpcode::Call).expect("call selector")]
         + wit[selector_col(super::isa::WasmOpcode::ReturnCall).expect("return_call selector")]
@@ -1077,8 +1041,6 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     } else {
         F::ZERO
     };
-    // Hi-word stack write port gate: ordinary write0 activity, plus
-    // result-hi gather rows (which write only the pushed cell's hi lane).
     let result_hi_gather = trace.row_kind.is_host_event_gather()
         && trace
             .host_event_rom_slot
@@ -1090,8 +1052,6 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     );
     wit[crate::layout::COL_TURN_BOUNDARY] = bool_f(trace.row_kind.is_turn_boundary());
 
-    // Host-event gather machinery: carried schedule/cursor state plus
-    // the per-row host-event ROM interface columns.
     let g_before = trace.state_before.host_events;
     let g_after = trace.state_after.host_events;
     wit[COL_HOST_EVENTS_REMAINING_BEFORE] = F::from_u64(u64::from(g_before.events_remaining));
@@ -1120,9 +1080,6 @@ fn fill_event_absorb(wit: &mut [F], trace: &WasmVmStep) {
     if let Some(count) = trace.host_event_exit_schedule_count {
         wit[COL_HOST_EVENT_EXIT_SCHEDULE_COUNT] = F::from_u64(u64::from(count));
     }
-    // The first event row of the loaded template: a call or a turn boundary
-    // starts at it, and an exit latch or a resume continues after the events
-    // of the first phase.
     let starts = host_call_gate + wit[crate::layout::COL_TURN_BOUNDARY];
     let continues = wit[COL_HOST_EVENT_EXIT_LATCH] + bool_f(trace.row_kind.is_host_resume());
     wit[crate::layout::COL_HOST_EVENT_BASE] = starts * wit[COL_HOST_EVENT_INDEX_AFTER]

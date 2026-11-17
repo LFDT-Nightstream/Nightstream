@@ -1,5 +1,3 @@
-//! Parallel balanced base-2 split into packed signed-unit digit planes.
-
 use neo_ccs::Mat;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};

@@ -1,7 +1,6 @@
 use super::*;
 use nightstream::nebula::Circuit;
 
-/// Wasmtime's own instantiation of `wasm`, with no imports.
 fn instantiate(wasm: &[u8]) -> Result<(wasmtime::Store<()>, wasmtime::Instance), wasmtime::Error> {
     let engine = wasmtime::Engine::default();
     let module = wasmtime::Module::new(&engine, wasm)?;
@@ -10,7 +9,6 @@ fn instantiate(wasm: &[u8]) -> Result<(wasmtime::Store<()>, wasmtime::Instance),
     Ok((store, instance))
 }
 
-/// The preload and entry state of the last function of `artifacts`.
 fn preload_and_initial(artifacts: &neo_wasm::WasmProgramArtifacts) -> (WasmMemoryPreload, WasmStepState) {
     let (export_fref, entry_pc) = artifacts
         .tables
@@ -109,8 +107,6 @@ fn zero_page_memory_presence_is_bound_by_the_public_verifier() {
     );
 }
 
-/// The adapter may refuse the module; if it builds a program, the public
-/// verifier must reject the claimed execution.
 #[test]
 fn a_module_that_cannot_instantiate_is_rejected_by_the_public_verifier() {
     let valid =
@@ -164,8 +160,6 @@ fn a_module_that_cannot_instantiate_is_rejected_by_the_public_verifier() {
     );
 }
 
-/// The adapter may refuse the module; if it builds a program, the public
-/// verifier must reject the output that omits the start function.
 #[test]
 fn a_start_section_that_changes_output_is_bound_by_the_public_verifier() {
     let valid = r#"(module (global $value (mut i32) (i32.const 0)) (func $start i32.const 42 global.set $value) (func (export "main") (result i32) global.get $value))"#;

@@ -1,8 +1,6 @@
-//! Hashed encodings of this module against Lean. Lean emits the circuit key
-//! digests of both circuits for three identities
-//! (`Lifecycle.BoundedDepth.CircuitKeyDigest.digest`, SPEC.md section 4.4)
-//! and the domain of the Π_CCS run of the compression
-//! (`Export.BoundedDepth.CompressionSponge.ccsDomain`, SPEC.md section 5.4).
+//! Lean `Lifecycle.BoundedDepth.CircuitKeyDigest.digest` (SPEC.md section
+//! 4.4) and `Export.BoundedDepth.CompressionSponge.ccsDomain` (SPEC.md
+//! section 5.4).
 
 use p3_field::PrimeField64;
 use serde_json::Value;

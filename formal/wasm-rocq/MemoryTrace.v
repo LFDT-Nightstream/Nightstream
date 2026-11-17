@@ -367,3 +367,68 @@ Qed.
 (* Single-cell addresses differ when their cells do; `injection` would unfold `2 * x`. *)
 Ltac cell_differs :=
   right; let Heq := fresh "Heq" in intro Heq; apply (f_equal (@hd Z 0)) in Heq; cbn [hd] in Heq; lia.
+
+Definition u32Value (value : Z) : Prop := 0 <= value < 4294967296.
+Definition eventValuesBounded (event : Event) : Prop :=
+ match event with
+ | ReadEvent _ _ value => u32Value value
+ | WriteEvent _ _ value prior => u32Value value /\
+     match prior with Some before => u32Value before | None => True end
+ end.
+Definition boundedMemoryEvents (events : list Event) : Prop := Forall eventValuesBounded events.
+
+Definition u32Valueb (value : Z) : bool := (0 <=? value) && (value <? 4294967296).
+Definition eventValuesBoundedb (event : Event) : bool :=
+ match event with
+ | ReadEvent _ _ value => u32Valueb value
+ | WriteEvent _ _ value prior => u32Valueb value &&
+     match prior with Some before => u32Valueb before | None => true end
+ end.
+
+Lemma u32_valueb_sound : forall value, u32Valueb value = true -> u32Value value.
+Proof.
+ intros value H. apply andb_prop in H as [Hlo Hhi].
+ apply Z.leb_le in Hlo. apply Z.ltb_lt in Hhi. split; assumption.
+Qed.
+Lemma bounded_events_check_sound : forall events,
+ forallb eventValuesBoundedb events = true -> boundedMemoryEvents events.
+Proof.
+ intros events H. apply Forall_forall. intros event Hin.
+ pose proof (proj1 (forallb_forall _ _) H event Hin) as Hb.
+ destruct event as [memory address value | memory address value prior]; cbn in *.
+ - apply u32_valueb_sound; exact Hb.
+ - apply andb_prop in Hb as [Hv Hp]. split; [apply u32_valueb_sound; exact Hv|].
+   destruct prior; [apply u32_valueb_sound; exact Hp|exact I].
+Qed.
+
+Lemma bounded_port_value : forall catalog w specification port,
+ boundedMemoryEvents (eventsForRow catalog w) ->
+ In specification catalog -> In port (ports specification) ->
+ active w (activation port) = true -> u32Value (w (valueColumn port)).
+Proof.
+ intros catalog w specification [address value kind activation] Hbounds Hmemory Hport Hactive.
+ destruct kind as [|prior]; cbn in *.
+ - assert (Hin : In (ReadEvent (memoryId specification) (map w address) (w value))
+       (eventsForRow catalog w)).
+   { eapply port_event_in_row; [exact Hmemory|exact Hport|].
+     unfold portEvent; cbn. rewrite Hactive. reflexivity. }
+   exact (proj1 (Forall_forall _ _) Hbounds _ Hin).
+ - assert (Hin : In (WriteEvent (memoryId specification) (map w address) (w value) (option_map w prior))
+       (eventsForRow catalog w)).
+   { eapply port_event_in_row; [exact Hmemory|exact Hport|].
+     unfold portEvent; cbn. rewrite Hactive. reflexivity. }
+   exact (proj1 (proj1 (Forall_forall _ _) Hbounds _ Hin)).
+Qed.
+
+Lemma bounded_port_prior : forall catalog w specification address value prior activation,
+ boundedMemoryEvents (eventsForRow catalog w) -> In specification catalog ->
+ In (mkPort address value (Write (Some prior)) activation) (ports specification) ->
+ active w activation = true -> u32Value (w prior).
+Proof.
+ intros catalog w specification address value prior activation Hbounds Hmemory Hport Hactive.
+ assert (Hin : In (WriteEvent (memoryId specification) (map w address) (w value) (Some (w prior)))
+     (eventsForRow catalog w)).
+ { eapply port_event_in_row; [exact Hmemory|exact Hport|].
+   unfold portEvent; cbn. rewrite Hactive. reflexivity. }
+ exact (proj2 (proj1 (Forall_forall _ _) Hbounds _ Hin)).
+Qed.

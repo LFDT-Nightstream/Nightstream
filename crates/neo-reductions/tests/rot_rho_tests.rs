@@ -220,7 +220,7 @@ fn sampled_rho_is_multiplication_in_the_negacyclic_ring() {
                 .sum();
             assert_eq!(by_matrix, product.0[row], "rho {index}, row {row}");
         }
-        // X^D = −1: the last column times X is minus the first column.
+        // X^D = −1.
         assert_eq!(rho[(0, 1)], -rho[(D - 1, 0)]);
     }
 }

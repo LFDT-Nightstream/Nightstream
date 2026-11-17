@@ -43,9 +43,8 @@ pub(crate) fn sample_uniform_rq_coeffs<R: RngCore + CryptoRng>(rng: &mut R) -> [
     })
 }
 
-/// `next = X · cur` in `F_q[X]/(X^D + 1)`, where `X^D = −1`.
 #[inline(always)]
-pub fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
+pub fn mul_by_x(cur: &[Fq; D], next: &mut [Fq; D]) {
     next[0] = -cur[D - 1];
     next[1..D].copy_from_slice(&cur[..(D - 1)]);
 }
@@ -194,7 +193,7 @@ pub fn s_mul_add_from_rot_col(acc: &mut Commitment, first_rot_col: &[Fq; D], c: 
         for (dst, src) in acc_cols.iter_mut().zip(c_cols.iter()) {
             acc_mul_add_public_scalar(dst, &rot_col, src[t]);
         }
-        rot_step(&rot_col, &mut nxt);
+        mul_by_x(&rot_col, &mut nxt);
         rot_col = nxt;
     }
 }
@@ -298,7 +297,7 @@ pub fn commit_masked_ct(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
                 for r in 0..d {
                     acc_i[r] += col[r] * mask;
                 }
-                rot_step(&col, &mut nxt);
+                mul_by_x(&col, &mut nxt);
                 core::mem::swap(&mut col, &mut nxt);
             }
         }
@@ -329,7 +328,7 @@ fn commit_masked_ct_row_major(pp: &PP<RqEl>, Z: &Mat<Fq>) -> Commitment {
                 for r in 0..d {
                     acc_i[r] += col[r] * mask;
                 }
-                rot_step(&col, &mut nxt);
+                mul_by_x(&col, &mut nxt);
                 core::mem::swap(&mut col, &mut nxt);
             }
         }
@@ -344,7 +343,7 @@ pub fn precompute_rot_columns(a: RqEl, cols: &mut [[Fq; D]]) {
     let mut nxt = [Fq::ZERO; D];
     for t in 0..D {
         cols[t] = col;
-        rot_step(&col, &mut nxt);
+        mul_by_x(&col, &mut nxt);
         core::mem::swap(&mut col, &mut nxt);
     }
 }

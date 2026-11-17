@@ -86,7 +86,6 @@ fn i32_host_result_high_limb_is_zero() {
     let forged = build_witness_vector(&trace[high]).unwrap();
     common::assert_rejected(&forged, "i32 host result cannot carry a high word");
 
-    // The program ROM holds 0 for an i32 result and 1 for an i64 result.
     trace[high].host_event_rom_slot.as_mut().unwrap().immediate1 = 1;
     let witnesses = trace
         .iter()

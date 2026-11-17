@@ -1,5 +1,4 @@
-//! Factored rows equal the plan rows read through the slot layout (Lean
-//! `SlotLayout.layout`).
+//! Lean `SlotLayout.layout`.
 
 use super::super::{CompiledSteps, Relation};
 use super::support::fold_gate_bits;

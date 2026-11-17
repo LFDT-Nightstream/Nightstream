@@ -1,6 +1,4 @@
-//! The bounded-depth scheme's light PiCCS (`NormSources::Fresh`, Lean `BoundedDepth.lightPiCcsOracle`)
-//! checks the fresh source's norm only: a running witness outside the digit
-//! range folds under the light profile and fails under the production one.
+//! The light PiCCS of Lean `BoundedDepth.lightPiCcsOracle`.
 
 use neo_ajtai::Commitment;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly};
@@ -67,8 +65,6 @@ struct Fold {
 }
 
 impl Fold {
-    /// One fresh instance with digits in range, and a running claim whose
-    /// witness has the entry `running_entry` (out of range when it is 5).
     fn new(running_entry: F) -> Self {
         let mut matrix = Mat::zero(ROWS, LOGICAL, F::ZERO);
         matrix[(0, 0)] = F::ONE;
@@ -90,7 +86,7 @@ impl Fold {
             )
             .unwrap()
             .security_bits;
-        let params = base.with_lambda(bits).unwrap();
+        let params = base.with_certified_lambda(bits).unwrap();
         let mut fresh_values = vec![F::ZERO; WIDTH];
         fresh_values[0] = F::ONE;
         fresh_values[LOGICAL - 1] = -F::ONE;
@@ -203,7 +199,6 @@ fn light_profile_still_checks_the_fresh_norm() {
     assert!(!accepted);
 }
 
-/// Two profiles that differ only in the domain do not accept each other's proofs.
 #[test]
 fn the_domain_separates_light_proofs() {
     let fold = Fold::new(F::ONE);

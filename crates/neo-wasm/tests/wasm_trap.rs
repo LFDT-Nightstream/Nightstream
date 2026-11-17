@@ -1,11 +1,4 @@
-//! Trapped executions as a provable terminal state.
-//!
-//! Modeled trap causes (`unreachable`, div/rem by zero, signed division
-//! overflow, indirect-call OOB index / null entry / callee type mismatch,
-//! table access OOB (SPEC.md section 7.8), and linear-memory load/store OOB)
-//! end the trace at the faulting row with
-//! `trapped: true` and no captured output. Unmodeled causes still stay loud
-//! trace-collection errors.
+//! Table access traps: SPEC.md section 7.8.
 
 mod common;
 
@@ -26,7 +19,6 @@ fn unreachable_trap_is_a_provable_terminal_state() {
                 unreachable))"#,
     );
 
-    // A trapped run has no reference results and no captured output.
     assert!(checked.run.results.is_empty());
     let last = checked.trace.last().expect("non-empty trace");
     assert_eq!(last.opcode, WasmOpcode::Unreachable);
@@ -56,8 +48,6 @@ fn div_by_zero_trap_is_a_provable_terminal_state() {
 
 #[test]
 fn i64_rem_by_zero_traps_on_the_wide_divisor() {
-    // The divisor zero-test sums both limbs, so an i64 divisor with a zero
-    // low limb but nonzero high limb must NOT trap, and a fully-zero one must.
     let checked = common::checked_main(
         r#"(module
             (func (export "main") (result i32)
@@ -101,8 +91,6 @@ fn i32_signed_division_overflow_trap_is_a_provable_terminal_state() {
 
 #[test]
 fn i64_signed_division_overflow_traps_only_on_exact_min_and_neg1() {
-    // The dividend-is-MIN test packs both limbs, so i64::MIN / -1 must trap
-    // while the near-miss (i64::MIN + 1) / -1 must divide cleanly.
     let checked = common::checked_main(
         r#"(module
             (func (export "main") (result i32)
@@ -123,15 +111,12 @@ fn i64_signed_division_overflow_traps_only_on_exact_min_and_neg1() {
                 i64.div_s
                 i32.wrap_i64))"#,
     );
-    // (MIN + 1) / -1 = i64::MAX, wrapped to i32 = -1.
     assert_eq!(not_trapping.run.results.as_slice(), &["-1".to_string()]);
     assert!(!common::final_state(&not_trapping.trace).trapped);
 }
 
 #[test]
 fn linear_memory_oob_load_trap_is_a_provable_terminal_state() {
-    // The memory is one page (65536 bytes); loading at byte 1_000_000 is far
-    // out of bounds and traps before any byte is read.
     let checked = common::checked_main(
         r#"(module
             (memory 1)
@@ -149,8 +134,6 @@ fn linear_memory_oob_load_trap_is_a_provable_terminal_state() {
 
 #[test]
 fn linear_memory_oob_store_trap_is_a_provable_terminal_state() {
-    // Storing at byte 1_000_000 is out of bounds and traps before any byte is
-    // written. Exercises the store lane de-gating (store_live = 0).
     let checked = common::checked_main(
         r#"(module
             (memory 1)
@@ -196,8 +179,6 @@ fn call_indirect_null_entry_trap_is_a_provable_terminal_state() {
 
 #[test]
 fn call_indirect_oob_index_trap_is_a_provable_terminal_state() {
-    // The table holds one slot; calling through index 5 is out of bounds and
-    // traps before any entry is read.
     let checked = common::checked_main(
         r#"(module
             (type $t (func (param i32) (result i32)))
@@ -285,8 +266,6 @@ fn assert_hidden_table_oob_is_rejected(wat: &str, export_fref: u32, opcode: Wasm
         "an out-of-bounds table operation that does not trap",
     );
 
-    // A prover also cannot hide the OOB index by increasing the claimed
-    // table size. The TableSize RAM read binds the real declared size.
     common::ccs_check_trace(&forged);
     let layout = build_wasm_relation_layout();
     let witnesses: Vec<_> = forged

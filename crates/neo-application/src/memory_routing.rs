@@ -1,7 +1,3 @@
-//! Packs logical memory ports using relation-enforced activation facts.
-//! The plan is backend-independent; consumers must bind every candidate's
-//! address, value, memory identity and activation to the selected physical slot.
-
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{MemoryCatalog, MemoryPortActivation, MemoryPortKind};
@@ -127,13 +123,7 @@ pub fn plan_ordered_memory_slots<Id>(catalog: &MemoryCatalog<Id>, facts: &Memory
     }
 }
 
-/// SPEC.md section 7.6: a smaller plan must preserve every conflict and ordered
-/// pair. Search exhaustion retains the best complete plan found so far.
-///
-/// TODO: maybe formalize the invariant validity of this with aeneas, or extract
-// from lean (or rocq), or at least write a non computational verification
-// function for the result that describes te contract more clearly (maybe not
-// for soundness but for completeness)
+/// SPEC.md section 7.6.
 fn compact_slots(slots: &mut Vec<usize>, conflicts: &[(usize, usize, bool)]) {
     let mut budget = 10_000;
     let mut degree = vec![0; slots.len()];
@@ -171,7 +161,6 @@ fn color_slots(
         for &(a, b, ordered) in conflicts {
             let (mut da, mut db) = (domains[a], domains[b]);
             if ordered {
-                // a < b: remove values without a possible later/earlier partner.
                 da &= (1_u64 << (63 - db.leading_zeros())) - 1;
                 db &= !((1_u64 << (domains[a].trailing_zeros() + 1)) - 1);
             } else {
@@ -189,9 +178,6 @@ fn color_slots(
             domains[a] = da;
             domains[b] = db;
         }
-        // the loop terminates because the logic above only removes bits/colors,
-        // never adds them, so either we hit the no solution early return, or we
-        // found our sets
         if !changed {
             break;
         }

@@ -1,5 +1,3 @@
-//! Property tests for CCS implementation correctness
-
 use neo_ccs::{
     matrix::Mat,
     poly::{SparsePoly, Term},

@@ -1,10 +1,4 @@
-//! The bounded-depth scheme's folds of the previous step's instance into one slot's
-//! accumulator (Lean `Spec/Folding/Light`, `Spec/Folding/Refresh`). The light
-//! fold runs PiCCS over the fresh instance and the accumulator, with norm
-//! terms on the fresh source only, then PiRLC with weights ρ and 1. The
-//! refresh fold splits the accumulator with PiDEC, binds the 14 children
-//! after the statement, then runs PiCCS over the fresh instance and the
-//! children and PiRLC with 15 sampled challenges. Neither fold ends in PiDEC.
+//! Lean `Spec/Folding/Light`, `Spec/Folding/Refresh`.
 use super::{
     ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsInstance, CeClaim, Error, FoldContext,
     RunningInstance,
@@ -15,7 +9,6 @@ use neo_reductions::{FoldProfile, NormSources};
 use neo_transcript::domain_chunk_v1_2;
 use nightstream_fprime::{LIGHT_DOMAIN, REFRESH_DOMAIN};
 
-/// The fold a step circuit runs on the previous step's instance.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Kind {
     Light,
@@ -23,8 +16,6 @@ pub(crate) enum Kind {
 }
 
 impl Kind {
-    /// The fold's PiCCS profile, which binds `children` after the statement,
-    /// and its PiRLC weights.
     fn profile(self, children: &[F]) -> (FoldProfile<'_>, pi_rlc::Weights) {
         match self {
             Kind::Light => (
@@ -47,8 +38,6 @@ impl Kind {
     }
 }
 
-/// What the next step circuit reads of a fold besides the accumulators: the
-/// PiCCS proof and, for a refresh fold, the PiDEC children.
 #[derive(Clone)]
 pub(crate) struct Proof {
     pub children: Vec<CeClaim>,
@@ -94,8 +83,7 @@ pub(crate) fn prove(
     Ok((next, Proof { children, pi_ccs }))
 }
 
-/// Each child's commitment, then its `Eval_K` and `Eval_A` families as
-/// coefficient pairs (Lean `BoundedDepth.childWords`).
+/// Lean `BoundedDepth.childWords`.
 fn child_words(children: &[CeClaim]) -> Vec<F> {
     children
         .iter()

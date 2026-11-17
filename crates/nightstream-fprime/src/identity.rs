@@ -1,5 +1,3 @@
-//! Poseidon2 identity binding for the canonical Lean-emitted package.
-
 use neo_ccs::crypto::poseidon2;
 use neo_math::Fq;
 use p3_field::PrimeCharacteristicRing;

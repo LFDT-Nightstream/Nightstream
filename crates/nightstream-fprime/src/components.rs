@@ -1,7 +1,3 @@
-//! Decodes exported matrix formulas and substitutes their named input ports.
-//! Formula data comes from Lean. This module supplies only sparse linear algebra;
-//! loading a library does not establish its authority or a complete verifier.
-
 use std::collections::BTreeSet;
 
 use neo_math::Fq;
@@ -9,7 +5,6 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde::Deserialize;
 use thiserror::Error;
 
-// The selected Nightstream profile, in the exported profile field order.
 const PROFILE: [u64; 8] = [
     Fq::ORDER_U64,
     crate::DECOMPOSITION_BASE,
@@ -30,7 +25,6 @@ pub(crate) enum ComponentError {
     Invalid(&'static str),
 }
 
-/// Canonical sparse linear form over field-valued columns.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct SparseForm {
     entries: Vec<(usize, Fq)>,
@@ -258,8 +252,6 @@ impl FormulaComponent {
     }
 }
 
-/// Parsed formula data. The circuit owner must supply or check the expected
-/// library; these structural checks are not a proof of provenance.
 #[derive(Debug)]
 pub(crate) struct FormulaLibrary {
     components: Vec<FormulaComponent>,

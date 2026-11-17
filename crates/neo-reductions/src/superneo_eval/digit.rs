@@ -1,5 +1,7 @@
-use neo_math::{Rq, D, F};
-use p3_field::PrimeCharacteristicRing;
+use neo_math::{
+    signed_sums::{SignedLimbs, SmallDigits},
+    Rq, D, F,
+};
 
 #[inline]
 pub(super) fn mul_by_digit_block(form: &Rq, digits: &Rq) -> Rq {
@@ -17,20 +19,12 @@ pub(super) fn mul_by_signed_unit_masks(form: &Rq, positive: u64, negative: u64) 
 
 #[inline]
 pub(super) fn accumulate_by_digit_block(out: &mut [F; D], form: &Rq, digits: &Rq) {
-    let neg_one = F::ZERO - F::ONE;
-    for (idx, &digit) in digits.0.iter().enumerate() {
-        if digit == F::ZERO {
-            continue;
-        }
-        if digit == F::ONE {
-            add_monomial_in_place(out, form, idx);
-        } else if digit == neg_one {
-            sub_monomial_in_place(out, form, idx);
-        } else {
-            rollback_digit_prefix(out, form, digits, idx, neg_one);
-            accumulate_product(out, &form.mul(digits));
-            return;
-        }
+    let Some(small) = SmallDigits::new(&digits.0) else {
+        return accumulate_product(out, &form.mul(digits).0);
+    };
+    match small.signed_unit_masks() {
+        Some((positive, negative)) => accumulate_by_signed_unit_masks(out, form, positive, negative),
+        None => accumulate_product(out, &small.mul(&SignedLimbs::new(&form.0))),
     }
 }
 
@@ -57,21 +51,16 @@ pub(super) fn accumulate_pair_by_digit_block(
     form_b: &Rq,
     digits: &Rq,
 ) {
-    let neg_one = F::ZERO - F::ONE;
-    for (idx, &digit) in digits.0.iter().enumerate() {
-        if digit == F::ZERO {
-            continue;
-        }
-        if digit == F::ONE {
-            apply_monomial_pair_in_place::<false>(out_a, out_b, form_a, form_b, idx);
-        } else if digit == neg_one {
-            apply_monomial_pair_in_place::<true>(out_a, out_b, form_a, form_b, idx);
-        } else {
-            rollback_digit_pair_prefix(out_a, out_b, form_a, form_b, digits, idx, neg_one);
-            accumulate_product(out_a, &form_a.mul(digits));
-            accumulate_product(out_b, &form_b.mul(digits));
-            return;
-        }
+    let Some(small) = SmallDigits::new(&digits.0) else {
+        accumulate_product(out_a, &form_a.mul(digits).0);
+        accumulate_product(out_b, &form_b.mul(digits).0);
+        return;
+    };
+    if let Some((positive, negative)) = small.signed_unit_masks() {
+        accumulate_pair_by_signed_unit_masks(out_a, out_b, form_a, form_b, positive, negative);
+    } else {
+        accumulate_product(out_a, &small.mul(&SignedLimbs::new(&form_a.0)));
+        accumulate_product(out_b, &small.mul(&SignedLimbs::new(&form_b.0)));
     }
 }
 
@@ -98,39 +87,9 @@ pub(super) fn accumulate_pair_by_signed_unit_masks(
 }
 
 #[inline]
-fn accumulate_product(out: &mut [F; D], product: &Rq) {
+fn accumulate_product(out: &mut [F; D], product: &[F; D]) {
     for i in 0..D {
-        out[i] += product.0[i];
-    }
-}
-
-#[inline]
-fn rollback_digit_prefix(out: &mut [F; D], form: &Rq, digits: &Rq, until: usize, neg_one: F) {
-    for (idx, &digit) in digits.0.iter().take(until).enumerate() {
-        if digit == F::ONE {
-            sub_monomial_in_place(out, form, idx);
-        } else if digit == neg_one {
-            add_monomial_in_place(out, form, idx);
-        }
-    }
-}
-
-#[inline]
-fn rollback_digit_pair_prefix(
-    out_a: &mut [F; D],
-    out_b: &mut [F; D],
-    form_a: &Rq,
-    form_b: &Rq,
-    digits: &Rq,
-    until: usize,
-    neg_one: F,
-) {
-    for (idx, &digit) in digits.0.iter().take(until).enumerate() {
-        if digit == F::ONE {
-            apply_monomial_pair_in_place::<true>(out_a, out_b, form_a, form_b, idx);
-        } else if digit == neg_one {
-            apply_monomial_pair_in_place::<false>(out_a, out_b, form_a, form_b, idx);
-        }
+        out[i] += product[i];
     }
 }
 
@@ -172,7 +131,7 @@ fn apply_monomial_in_place<const SUB: bool>(out: &mut [F; D], form: &Rq, j: usiz
         return;
     }
 
-    // X^D = −1, so the coefficients that pass degree D return with the opposite sign.
+    // X^D = −1.
     let first_reduced = D - j;
     for i in 0..first_reduced {
         add_or_sub::<SUB>(&mut out[i + j], form.0[i]);

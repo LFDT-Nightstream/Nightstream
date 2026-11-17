@@ -1,5 +1,3 @@
-//! Device evaluation of circuit-owned rows, without a lifecycle-crate dependency.
-
 use neo_ccs::{CcsStructure, Mat, V1_2Evaluations};
 use neo_math::{F, K};
 use neo_reductions::{
@@ -16,20 +14,16 @@ pub struct MetalRowProver {
 }
 
 impl MetalRowProver {
-    /// A session that expands the needed commitment key rows in every call.
     pub fn new() -> Result<Self, MetalError> {
         Ok(Self {
             session: MetalSession::new()?,
         })
     }
 
-    /// Keep the commitment key rows on the device after the first commitment.
     pub fn keep_commitment_key(&mut self) {
         self.session.keep_production_key();
     }
 
-    /// Device bytes a kept commitment key holds over `columns` commitment
-    /// columns, at 8 bytes per key coefficient.
     pub fn commitment_key_bytes(columns: usize) -> usize {
         neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS as usize
             * columns
@@ -50,8 +44,6 @@ impl MetalRowProver {
             .map_err(oracle_error)
     }
 
-    /// Π_RLC's parent witness `Σ ρ_i·Z_i`; see
-    /// `MetalSession::mix_rlc_witnesses`.
     pub fn mix_rlc_witnesses(&self, rhos: &[Mat<F>], witnesses: &[&Mat<F>]) -> Result<Mat<F>, PiCcsError> {
         self.session
             .mix_rlc_witnesses(rhos, witnesses)
@@ -92,8 +84,6 @@ impl MetalRowProver {
             })
     }
 
-    /// The first row of `structure` over `rows` that the signed-unit
-    /// `witness` fails, or `None` when every row holds.
     pub fn first_unsatisfied_row(
         &self,
         rows: &dyn MatrixRows,

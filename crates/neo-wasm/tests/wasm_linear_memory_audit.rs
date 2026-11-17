@@ -1,5 +1,3 @@
-//! Linear-memory tamper audits split out from `wasm_row_ccs.rs`.
-
 mod common;
 
 use common::{assert_rejected, assert_satisfied};
@@ -173,7 +171,6 @@ fn i32_store8_memory_check_rejects_tampered_consistent_prior_state() {
         .map(|row| build_witness_vector(row).unwrap())
         .collect();
 
-    // Preserve untouched bytes against the fake prior so row-local CCS passes.
     let claimed_prior: u32 = 0xDEAD_BEEF;
     let stored_byte: u8 = 0xFF;
     let prior_bytes = claimed_prior.to_le_bytes();

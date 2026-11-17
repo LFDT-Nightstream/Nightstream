@@ -40,6 +40,7 @@ Qed.
    index is the reference to a function of the expected type. *)
 Lemma resolve_row : forall view f x y initial final row inner,
   fieldPrime -> programLoaded program initial -> tablesLoaded s initial -> FullRelation.satFull row ->
+  boundedMemoryEvents (eventsForRow memories row) ->
   row COL_IS_PROGRAM_ROW = 1 -> row COL_ACTIVATION_FINISHED_AFTER = 0 ->
   Replay initial (eventsForRow memories row) final ->
   ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
@@ -50,7 +51,7 @@ Lemma resolve_row : forall view f x y initial final row inner,
     Steps inner inner' /\ ActiveState program s final (afterBoundary row) (resolved view' callee) inner' /\
     frameRegistersPreserved row /\ FrameEffect (row COL_LOCALS_FBP_BEFORE) initial final.
 Proof.
-  intros view f x y initial final row inner Hprime Hloaded Htables Hfull Hprogram Hlive Hreplay Hstate Hf Hi.
+  intros view f x y initial final row inner Hprime Hloaded Htables Hfull HmemoryBounds Hprogram Hlive Hreplay Hstate Hf Hi.
   destruct (FrameRows.program_row_active _ _ _ _ _ _ Hprime Hfull Hprogram Hstate)
     as [f' [Hframe [Hoffset [Hsp [Hpc [Hidle ->]]]]]].
   pose proof Hframe as [Hf' [Hpath [Hheights [Hfbp0 [Hbase0 [Hbounds [_ [Hllen0 [Hlb0 [Hlc0 Htyping]]]]]]]]]].
@@ -103,7 +104,7 @@ Proof.
     rewrite app_assoc, nth_error_app2, Nat.sub_diag by lia. reflexivity. }
   rewrite (replace_read_address _ Hshape), Htop in Hread. injection Hread as HindexValue.
   (* The row continues, so it does not trap: every check passed. *)
-  destruct (full_resolve_checks row Hprime Hfull Hresolve) as [HidActive [HsizeActive [HindexCol
+  destruct (full_resolve_checks row Hprime Hfull HmemoryBounds Hresolve) as [HidActive [HsizeActive [HindexCol
     [Hoob [HreadActive [Hnull [Heq [Hgate [HrefIs [Htrap HwriteRef]]]]]]]]]].
   assert (Hnotrap : row COL_CALL_INDIRECT_IS_TRAP = 0).
   { destruct (Z.eq_dec (row COL_CALL_INDIRECT_IS_TRAP) 1) as [Hone1 | Hone1];

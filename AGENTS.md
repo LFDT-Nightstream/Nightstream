@@ -12,8 +12,9 @@ frontend, `neo-wasm`.
   inside each step.
 - Nebula is the memory layer (`nightstream::nebula`, `SPEC.md` section 7).
 - Akita (ePrint 2026/1983) is the polynomial commitment scheme for the
-  compression of the final proof. The Spartan, WHIR, and shrink path was
-  removed. The compression layer over Akita is not written yet.
+  compression of the final proof (`ns-compress`, `SPEC.md` Algorithm 9,
+  `decisions/akita-compression.md`). The Spartan, WHIR, and shrink path was
+  removed.
 - The papers are in `docs/` (local only, not in git): `superneo-paper-v1_2`,
   `hypernova-paper`, and `nebula-paper`.
 
@@ -37,7 +38,23 @@ value.
   choice in `decisions/`, in the format of `decisions/README.md`.
 - Do not add a separate spec file, a `specs/` folder, prose proofs, or
   status lists. Put progress and review history in the PR description.
-- In a comment, cite a `SPEC.md` section or algorithm, or a Lean name.
+
+## Comments
+
+- If our code needs a comment to be clear, change the code.
+- Keep only these comments, each as short as possible:
+  - a license header or a design credit;
+  - a citation of a `SPEC.md` section or algorithm, a Lean name or file,
+    `SECURITY_MODEL.md`, `decisions/`, or a paper;
+  - a fact about a dependency, platform, or protocol that we cannot change;
+  - `// SAFETY:` on `unsafe`, and a comment that a lint, a check script, or
+    a project document needs, for example `-- fixed-size:`, a Lean leaf
+    audit packet, or the phase list of `validate.sh`;
+  - a doc comment on the public API of `nightstream` or `neo-wasm`;
+  - a lint suppression that a dependency forces, or whose lint is faulty,
+    pedantic, or style-only.
+- Do not edit a generated file. Change its generator.
+- Give this list to pstack `/no-comments` as its keep list.
 
 ## Rules
 
@@ -47,7 +64,17 @@ value.
   backwards compatibility.
 - Do not add Rust features or environment variables without approval.
 - Sign off every commit (`git commit -s`).
+- Do not name an AI tool or model as an author. A commit gets no
+  `Co-Authored-By` line for an AI. A PR description gets no "Generated
+  with" line. A branch name gets no AI-tool prefix, for example `claude/`.
 - Keep each file under 1,500 lines unless the user approves more.
+
+## Pull requests
+
+- Push a branch or open a PR only when the user requests it or approves it
+  in the current task. Do not guess that the user wants one.
+- When the user approves a PR, put all the work of the task in that PR. Do
+  not open a second PR unless the user requests it.
 
 ## Tests
 
@@ -71,9 +98,10 @@ value.
   proof, transcript, and public-digest paths of the folding scheme and the
   step circuits. Poseidon2 makes each of their Fiat–Shamir challenges. The
   Ajtai commitment can be a digest where collision resistance is sufficient.
-- SHAKE128 expands the Ajtai setup. The Akita commitment scheme can use SHAKE
-  for its challenges. Do not add other hash families, for example BLAKE3,
-  without approval.
+- SHAKE128 expands the Ajtai setup. Inside the Akita commitment scheme only,
+  Akita uses Keccak-family hashes: the Keccak-f duplex sponge, SHA3-256,
+  SHAKE128, and SHAKE256 (`decisions/akita-compression.md`). Do not add other
+  hash families, for example BLAKE3, without approval.
 - Decomposition uses `b = 2` and `B = 2^k_rho` with `k_rho = 14`. The
   deepest accumulator `(1 + cap + k_rho)·T` stays below `B`, which needs
   `cap ≤ 112` at `T = 128`. Any other value needs approval in the current

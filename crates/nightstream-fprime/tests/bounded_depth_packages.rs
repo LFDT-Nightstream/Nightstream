@@ -1,8 +1,3 @@
-//! The bounded-depth step packages expand into the plan rows that Lean describes:
-//! the relation rows match Lean's parity file, the S-box rows and the output
-//! forms compute Rust's native Poseidon2 permutation, and the identity uses
-//! Lean's identity encoding.
-
 use std::fs;
 use std::path::PathBuf;
 
@@ -110,10 +105,6 @@ fn loader_rejects_another_identity() {
     assert!(matches!(loaded, Err(PackageError::IdentityMismatch { .. })));
 }
 
-/// Each block's output locals take the native permutation of its lanes, block
-/// by block; the S-box rows fill the S-box columns. Every S-box row then
-/// holds, and each port of each row has the value of its port on the source
-/// columns, so each output form has the value of its output local.
 #[test]
 fn block_rows_compute_the_native_permutation() {
     let packages = packages();
@@ -133,7 +124,7 @@ fn block_rows_compute_the_native_permutation() {
     assignment[0] = Fq::ONE;
     for block in light.blocks() {
         let lanes: [Fq; 16] = block.lane_values(&assignment).try_into().expect("16 lanes");
-        assignment[block.outputs()..block.outputs() + 16].copy_from_slice(&permute_state(lanes));
+        assignment[block.first_output()..block.first_output() + 16].copy_from_slice(&permute_state(lanes));
     }
     for row in rows.ordinary_row_count()..rows.row_count() {
         let [(column, coefficient)] = rows.port(row, 2).collect::<Vec<_>>()[..] else {
@@ -161,8 +152,6 @@ fn block_rows_compute_the_native_permutation() {
     assert!(with_form > 0, "some port reads an output form");
 }
 
-/// Rust's witness program and native ranges give the columns that Lean's
-/// recipes give, on the same shared columns.
 #[test]
 fn circuit_columns_match_the_lean_witness() {
     let fields = parity();
@@ -180,8 +169,6 @@ fn circuit_columns_match_the_lean_witness() {
     }
 }
 
-/// The fresh columns make every ring and S-box row hold, whatever the shared
-/// columns are.
 #[test]
 fn fresh_columns_satisfy_the_rows_that_define_them() {
     let fields = parity();
@@ -207,9 +194,6 @@ fn fresh_columns_satisfy_the_rows_that_define_them() {
     }
 }
 
-/// Rust's logical layout and digits give the logical assignment that Lean's
-/// slot layout gives; every digit is in {-1, 0, 1} and every slot
-/// recomposes to its source value.
 #[test]
 fn logical_assignment_matches_the_lean_layout() {
     let fields = parity();

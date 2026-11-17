@@ -1,4 +1,3 @@
-// Child masks are planar: the positive columns, then the negative columns, of each child.
 constant ushort DEC_SPLIT_CHILDREN_PER_THREAD = 14;
 
 kernel void dec_split_base2_masks(
@@ -53,9 +52,7 @@ kernel void dec_split_base2_masks(
     }
 }
 
-// A product lane of one chunk adds at most one term for each column and
-// lane, in one exact sum.
-static_assert(DEC_CHUNK_COLUMNS * RING_DEGREE <= PRODUCT_SUM_TERMS, "a dense product lane is one exact sum");
+static_assert(DEC_CHUNK_COLUMNS * RING_DEGREE <= PRODUCT_SUM_MAX_TERMS, "a dense product lane is one exact sum");
 static_assert(DEC_CHUNK_COLUMNS * RING_DEGREE <= (1ul << 32), "a signed-unit product lane is one exact sum");
 
 [[max_total_threads_per_threadgroup(128)]]
@@ -130,11 +127,6 @@ kernel void dec_sparse_ring_partials(
     partials[index] = fq_sub(half_sums_reduce(positive_sum), half_sums_reduce(negative_sum));
 }
 
-// `dec_sparse_ring_partials` over running sources without norm terms, whose
-// field values are stored source by source, block by block and lane by lane.
-// Source `s` writes the partials of opening `shape[8] + s`. A thread adds
-// one coefficient of the product of one source, chunk and component, with
-// one reduction.
 kernel void dec_dense_ring_partials(
     device const ulong *forms [[buffer(0)]],
     device const ulong *values [[buffer(1)]],

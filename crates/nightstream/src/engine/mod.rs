@@ -1,9 +1,3 @@
-//! The engine that proves and verifies. `Engine::Optimized` runs on the CPU;
-//! `Engine::Metal` (feature `metal`) runs the commitments, the PiCCS round
-//! oracle and the PiDEC openings on the device. Every
-//! device result equals the CPU result; the transcript order, the proof
-//! assembly and every public check stay on the host.
-
 use std::borrow::Borrow;
 
 use neo_ajtai::{nightstream_fprime_setup, Commitment};
@@ -39,8 +33,6 @@ pub enum EngineError {
     },
 }
 
-/// A fixed-key commitment failed: a witness is not a signed-unit matrix of
-/// the key's shape, or the engine failed.
 #[derive(Debug, thiserror::Error)]
 pub enum CommitError {
     #[error("fixed-key commitment input: {0}")]
@@ -49,7 +41,6 @@ pub enum CommitError {
     Engine(#[from] EngineError),
 }
 
-/// The selected engine's device state.
 pub(crate) enum Backend {
     Optimized,
     #[cfg(feature = "metal")]
@@ -82,7 +73,6 @@ impl Backend {
         }
     }
 
-    /// The production-key commitment of each signed-unit witness.
     pub(crate) fn commit<W: Borrow<Mat<F>>>(&self, witnesses: &[W]) -> Result<Vec<Commitment>, CommitError> {
         match self {
             Self::Optimized => match witnesses {
@@ -97,7 +87,6 @@ impl Backend {
         }
     }
 
-    /// The engine's PiCCS round oracle, held for one PiCCS proof.
     pub(crate) fn oracle(&self) -> Result<Oracle<'_>, EngineError> {
         Ok(match self {
             Self::Optimized => Oracle::Cpu(std::marker::PhantomData),
@@ -106,7 +95,6 @@ impl Backend {
         })
     }
 
-    /// The `Eval_K` and `Eval_A` openings at `point` of each PiDEC child.
     pub(crate) fn child_openings(
         &self,
         rows: &dyn MatrixRows,
@@ -132,9 +120,6 @@ impl Backend {
         }
     }
 
-    /// The first row of `structure` over `rows` that the signed-unit
-    /// `witness` fails, checked on the device; `None` when the engine checks
-    /// rows on the CPU.
     pub(crate) fn first_failing_row(
         &self,
         rows: &dyn MatrixRows,
@@ -157,8 +142,6 @@ impl Backend {
         }
     }
 
-    /// A device failure judged nothing, so it is an engine failure; any other
-    /// error judged the input.
     pub(crate) fn classify(&self, error: PiCcsError) -> DeviceError {
         match error {
             PiCcsError::BackendFailure { reason, .. } => DeviceError::Engine(EngineError::Failure {
@@ -170,7 +153,6 @@ impl Backend {
     }
 }
 
-/// A held PiCCS round oracle: the CPU's, or the device session's.
 pub(crate) enum Oracle<'a> {
     Cpu(std::marker::PhantomData<&'a ()>),
     #[cfg(feature = "metal")]
@@ -178,7 +160,6 @@ pub(crate) enum Oracle<'a> {
 }
 
 impl Oracle<'_> {
-    /// The device backend, or `None` for the CPU oracle.
     pub(crate) fn backend(&mut self) -> Option<&mut dyn PaperJointOracleBackend> {
         match self {
             Self::Cpu(_) => None,
@@ -188,7 +169,6 @@ impl Oracle<'_> {
     }
 }
 
-/// An error of an engine call: the engine failed, or the input was rejected.
 #[derive(Debug)]
 pub(crate) enum DeviceError {
     Engine(EngineError),

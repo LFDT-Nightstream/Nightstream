@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Regenerates every Lean-emitted artifact and fixture, then the zstd copies of the embedded
-# packages and the SHA256SUMS manifests. Run it after a `lake build` of the executables
-# (`formal/nightstream-fprime/scripts/validate.sh executables`), never during one.
-#
-# The emitter runs are independent: each reads only the built Lean executable and writes
-# only its own output files, which no other run reads or writes. So they run in parallel,
-# as many at a time as the host has cores and memory for (about 4 GiB each). Each run keeps
-# its own 1,500 s cap through `validate.sh lean-executable`. The script then checks that
-# every output file was written by this run.
-#
-#   scripts/regenerate_artifacts.sh [log directory]
 set -uo pipefail
 export PATH="$HOME/.elan/bin:/opt/homebrew/bin:$PATH"
 
@@ -22,14 +11,14 @@ cores=$(getconf _NPROCESSORS_ONLN)
 if memory=$(sysctl -n hw.memsize 2>/dev/null); then :; else
   memory=$(( $(awk '/^MemTotal:/ { print $2 }' /proc/meminfo) * 1024 ))
 fi
-jobs=$(( memory / (4 << 30) ))
+bytes_per_run=$((4 << 30))
+jobs=$(( memory / bytes_per_run ))
 (( jobs > cores )) && jobs=$cores
 (( jobs < 1 )) && jobs=1
 
 B=.lake/build/bin
 A=artifacts
 F=../../crates/nightstream/tests/fixtures
-# One line per run: the emitter and its arguments, then `|` and the files that it writes.
 runs=(
   "$B/emitBoundedDepth|$A/nightstream-fprime-bounded-depth-light-v1.json $A/nightstream-fprime-bounded-depth-refresh-v1.json $A/nightstream-fprime-bounded-depth-parity-v1.json"
   "$B/emitBoundedDepth --program nebula-v1|$A/nightstream-fprime-bounded-depth-nebula-v1-light-v1.json $A/nightstream-fprime-bounded-depth-nebula-v1-refresh-v1.json"
@@ -62,16 +51,15 @@ for pair in \
 done
 
 start=$(mktemp)
-# `-nt` compares whole seconds in bash 3.2, so a run that ends in the second of `start`
-# would look as if it did not write its file.
+# Bash 3.2 `-nt` compares whole seconds.
 sleep 1
-emit() { # <index> <run>
-  local command=${2%%|*}
-  # shellcheck disable=SC2086
-  if bash scripts/validate.sh lean-executable $command > "$LOGS/run-$1.log" 2>&1; then
+emit() {
+  local index=$1 run=$2
+  local command=${run%%|*}
+  if bash scripts/validate.sh lean-executable $command > "$LOGS/run-$index.log" 2>&1; then
     echo "ok: $command"
   else
-    echo "FAILED: $command (log $LOGS/run-$1.log)"
+    echo "FAILED: $command (log $LOGS/run-$index.log)"
   fi
 }
 for index in "${!runs[@]}"; do

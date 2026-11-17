@@ -1,7 +1,4 @@
-//! Matrix rows in factored form `M_j = L_j · G` (Lean `SlotLayout.layout`,
-//! `LogicalPlan.plan`): `G` recomposes each slot from its digits, and each
-//! entry of `L_j` reads one slot. Many rows read the same slot, so `G` runs
-//! once and a row costs one multiply-add for each entry.
+//! Matrix rows in factored form `M_j = L_j · G` (Lean `SlotLayout.layout`, `LogicalPlan.plan`).
 
 use core::ops::Range;
 
@@ -14,8 +11,6 @@ use rayon::prelude::*;
 use super::{MatrixRowSink, MatrixShape, SuperneoZBlocks};
 use crate::PiCcsError;
 
-/// Row `row` of matrix `j` is the entries
-/// `offsets[matrices * row + j]..offsets[matrices * row + j + 1]`.
 #[derive(Clone, Copy)]
 pub struct FactoredEntries<'a> {
     pub offsets: &'a [usize],
@@ -23,8 +18,6 @@ pub struct FactoredEntries<'a> {
     pub coefficients: &'a [F],
 }
 
-/// Slot `s` is columns `starts[s]..starts[s] + widths[s]`. No entry reads a
-/// slot of width 0.
 #[derive(Clone, Copy)]
 pub struct FactoredSlots<'a> {
     pub starts: &'a [u32],
@@ -46,14 +39,10 @@ impl<'a> FactoredRows<'a> {
         Self::new_unchecked(shape, entries, slots).checked()
     }
 
-    /// `new` without its checks: for tables that passed `checked` once and
-    /// do not change, so that each use does not read every entry again.
     pub fn new_unchecked(shape: MatrixShape, entries: FactoredEntries<'a>, slots: FactoredSlots<'a>) -> Self {
         Self { shape, entries, slots }
     }
 
-    /// These rows, when their tables have the lengths, the offsets and the
-    /// slots that the rows need.
     pub fn checked(self) -> Result<Self, PiCcsError> {
         let Self { shape, entries, slots } = self;
         shape.validate(&(0..shape.rows))?;
@@ -169,10 +158,6 @@ impl<'a> FactoredRows<'a> {
         slot_values
     }
 
-    /// `Lᵀ` of the row weights: slot `s` gets the sum of
-    /// `row_weight(row) · matrix_coefficients[j] · coefficient` over the
-    /// entries of `L_j` that read `s`. With `Gᵀ` on the slots this is the
-    /// transpose of `weighted_row`.
     pub fn slot_weights(&self, row_weight: &(dyn Fn(usize) -> K + Sync), matrix_coefficients: &[K]) -> Vec<K> {
         let part = |rows: Range<usize>| {
             let mut weights = vec![K::ZERO; self.slot_count()];
@@ -188,7 +173,6 @@ impl<'a> FactoredRows<'a> {
             }
             weights
         };
-        // Each part owns one vector of slots, so the parts stay few.
         let parts = SLOT_WEIGHT_PARTS.min(self.shape.rows);
         let rows = |part: usize| part * self.shape.rows / parts..(part + 1) * self.shape.rows / parts;
         let add = |mut left: Vec<K>, right: Vec<K>| {

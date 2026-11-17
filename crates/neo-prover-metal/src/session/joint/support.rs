@@ -1,5 +1,3 @@
-//! Host-side encoders and field helpers for the one-joint oracle.
-
 use neo_math::{KExtensions, Rq, D, F, K};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 

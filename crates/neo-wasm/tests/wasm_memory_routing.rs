@@ -35,11 +35,11 @@ fn sharing_requires_disjoint_supports_and_unknown_gates_stay_dedicated() {
     let activations = [
         When(get),
         When(set),
-        When(COL_LOCAL_WRITE_ENABLED), // overlaps LocalSet, but not GlobalGet
-        When(get),                     // same selector cannot share
+        When(COL_LOCAL_WRITE_ENABLED),
+        When(get),
         Always,
         Unless(get),
-        When(COL_ACTIVATION_FINISHED_AFTER), // no positive support bound
+        When(COL_ACTIVATION_FINISHED_AFTER),
     ];
     let memories = [MemorySpec {
         id: WasmMemoryId::Stack,
@@ -82,10 +82,6 @@ fn sharing_requires_disjoint_supports_and_unknown_gates_stay_dedicated() {
     assert_eq!(plan.support_loads[&set], 2);
 }
 
-/// The activation supports that the WASM relation enforces: each row tagged
-/// "memory activation support" is `gate · (1 − Σ atoms) = 0`, and each atom
-/// is its own support. The row-kind and opcode one-hots let at most one atom
-/// be 1 on a row, so two gates are 1 together only when their supports meet.
 fn enforced_supports() -> BTreeMap<usize, BTreeSet<usize>> {
     let relation = build_wasm_relation().expect("the WASM relation");
     let mut supports: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
@@ -121,12 +117,7 @@ fn enforced_supports() -> BTreeMap<usize, BTreeSet<usize>> {
     supports
 }
 
-/// SPEC.md section 7.6 I1 and I2 accept a row whose active ports sit in distinct
-/// slots, with each pair of one memory and a write in catalog order. So two
-/// ports that the relation lets be active together must sit in distinct
-/// slots, and in increasing slots when they are such a pair. The exported
-/// exclusions refine the coarse supports; GateExclusions proves those pairs
-/// cannot activate together under the full relation.
+/// SPEC.md section 7.6; Rocq `GateExclusions.v`.
 #[test]
 fn ordered_slot_plan_keeps_dependent_pairs_in_catalog_order_using_exported_gate_exclusions() {
     use MemoryPortActivation::When;

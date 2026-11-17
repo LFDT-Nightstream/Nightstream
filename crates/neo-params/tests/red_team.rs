@@ -9,7 +9,7 @@ fn params_reject_lambda_above_strong_set_entropy() {
     let claimed_lambda = max_whole_bits + 1;
 
     let params = NeoParams::nightstream_p64_k14()
-        .with_lambda(claimed_lambda)
+        .with_certified_lambda(claimed_lambda)
         .expect("positive bits");
     let statistical_policy =
         params.padded_row_security_check_for_shape(1, 1, 1, 0, profile::CHALLENGE_ALPHABET.len() as u32);
@@ -108,7 +108,9 @@ fn parameter_boundary_conditions() {
         ParamsError::UnsupportedExtension { required: 3 }
     ));
     assert!(matches!(
-        NeoParams::nightstream_p64_k14().with_lambda(0).unwrap_err(),
+        NeoParams::nightstream_p64_k14()
+            .with_certified_lambda(0)
+            .unwrap_err(),
         ParamsError::Invalid("lambda must be > 0")
     ));
 
@@ -128,7 +130,7 @@ fn profile_security_invariants() {
 
     assert_eq!(p.q(), profile::Q);
     assert_eq!(p.s(), profile::EXTENSION_DEGREE);
-    assert_eq!(p.lambda(), None);
+    assert_eq!(p.certified_lambda(), None);
 
     println!("✅ RED TEAM: The profile satisfies all security invariants");
     println!(

@@ -1,6 +1,3 @@
-//! Counts constructed WASM rows and the change caused by one more trace row.
-//! Fixed memory geometry widths stay unchanged between the two samples.
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::num::NonZeroUsize;
@@ -103,7 +100,16 @@ fn run() -> Result<(), Box<dyn Error>> {
         .columns()
         .families()
         .iter()
-        .filter(|family| family.region != neo_wasm::RANGE_BITS_REGION && family.width != ColumnWidth::Field)
+        .filter(|family| {
+            family.region != neo_wasm::RANGE_BITS_REGION
+                && !matches!(
+                    family.width,
+                    ColumnWidth::Field
+                        | ColumnWidth::Implied(_)
+                        | ColumnWidth::Repairable(_)
+                        | ColumnWidth::MemoryRepairable
+                )
+        })
         .map(|family| family.name.as_ref())
         .collect();
     let circuit = operation_circuit()?;

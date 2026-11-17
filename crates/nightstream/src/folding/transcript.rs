@@ -1,5 +1,3 @@
-//! The selected native transcript position. A session starts at the Lean v1_2
-//! zero state; no label is absorbed.
 use neo_transcript::Poseidon2Transcript;
 
 #[derive(Clone)]

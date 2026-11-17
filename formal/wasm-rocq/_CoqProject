@@ -3,6 +3,7 @@ R1CS.v
 Columns.v
 FullRelation.v
 MemoryTrace.v
+MemoryEventRepair.v
 MemoryCatalog.v
 InstructionHeader.v
 OpcodeCatalog.v
@@ -15,6 +16,10 @@ Range.v
 Selectors.v
 ZeroTest.v
 CircuitFacts.v
+InactiveOffset.v
+InactiveStackBindings.v
+RangeObligations.v
+MemoryRanges.v
 TableDescriptor.v
 StackPorts.v
 Add.v

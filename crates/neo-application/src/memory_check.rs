@@ -1,8 +1,3 @@
-//! Witness-driven checking of declared logical memory behavior.
-//!
-//! This is diagnostic replay, not a substitute for relation or backend
-//! enforcement of the memory argument and its initial image.
-
 use crate::{ColumnRegistry, MemoryCatalog, MemoryKind, MemoryPortActivation, MemoryPortKind, MemorySpec};
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -242,8 +237,6 @@ where
                 },
             },
             MemoryPortKind::Write { value_before_column } => {
-                // A named prior value is part of the row-local relation, so it
-                // must agree with the replayed state before the write lands.
                 if let Some(column) = value_before_column {
                     let before = read_u32_column(columns, witness, column, row, "value_before", memory.id)?;
                     match cells.get(&address).copied() {

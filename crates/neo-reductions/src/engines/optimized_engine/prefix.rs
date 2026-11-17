@@ -1,5 +1,3 @@
-//! Multilinear prefixes with an implicit zero suffix over the full cube.
-
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
@@ -7,6 +5,9 @@ use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
 use crate::superneo_eval::EqualityWeights;
+
+#[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+pub(super) const MIN_JOB_PAIRS: usize = 1 << 12;
 
 pub(super) fn pair(values: &[K], index: usize) -> (K, K) {
     (
@@ -31,7 +32,7 @@ fn fold_pairs<T: Copy + Send + Sync>(values: &mut Vec<T>, zero: T, combine: impl
     }
     let next_len = previous_len.div_ceil(2);
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    let workers = rayon::current_num_threads();
+    let workers = rayon::current_num_threads().min(next_len.div_ceil(MIN_JOB_PAIRS));
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     let workers = 1;
     let chunk_len = 2 * next_len.div_ceil(workers);
@@ -177,6 +178,7 @@ impl<'a> Assignment<'a> {
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             let codes = (0..self.len().div_ceil(2))
                 .into_par_iter()
+                .with_min_len(MIN_JOB_PAIRS)
                 .map(pair_code)
                 .collect();
             #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
@@ -198,7 +200,11 @@ impl<'a> Assignment<'a> {
             interpolate(low, high, challenge)
         };
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-        let next = (0..pairs).into_par_iter().map(value).collect();
+        let next = (0..pairs)
+            .into_par_iter()
+            .with_min_len(MIN_JOB_PAIRS)
+            .map(value)
+            .collect();
         #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
         let next = (0..pairs).map(value).collect();
         *self = Self::Folded(next);

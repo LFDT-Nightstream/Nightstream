@@ -18,7 +18,6 @@ fn assert_satisfied(relation: &neo_application::R1csRelation<&'static str>, assi
         .expect("gadget assignment must satisfy the relation");
 }
 
-/// The values come from a dense-matrix permutation built from `scripts/poseidon2/params.json`.
 #[test]
 fn native_commitment_matches_the_reference_permutation() {
     let f = F::from_u64;
@@ -128,8 +127,8 @@ fn selectable_rounds_match_the_native_round_functions() {
         assignment[full_after[lane]] = expected_full[lane];
         assignment[partial_after[lane]] = expected_partial[lane];
     }
-    full.assign_auxiliaries(&mut assignment);
-    partial.assign_auxiliaries(&mut assignment);
+    full.assign_power_columns(&mut assignment);
+    partial.assign_power_columns(&mut assignment);
     assert_satisfied(&relation, &assignment);
 
     assert_eq!(full_after.map(|column| assignment[column]), expected_full);
@@ -144,14 +143,12 @@ fn selectable_rounds_match_the_native_round_functions() {
     }
     let full_output = full_after.map(|column| inactive[column]);
     let partial_output = partial_after.map(|column| inactive[column]);
-    full.assign_auxiliaries(&mut inactive);
-    partial.assign_auxiliaries(&mut inactive);
+    full.assign_power_columns(&mut inactive);
+    partial.assign_power_columns(&mut inactive);
     assert_satisfied(&relation, &inactive);
     assert_eq!(full_after.map(|column| inactive[column]), full_output);
     assert_eq!(partial_after.map(|column| inactive[column]), partial_output);
 
-    // The selectable round equations alone admit the sum of two round
-    // constants. The default API's selector rows must reject that assignment.
     let mut ambiguous = vec![F::ZERO; WIDTH];
     ambiguous[ONE] = F::ONE;
     ambiguous[SELECT_FULL] = F::ONE;
@@ -166,8 +163,8 @@ fn selectable_rounds_match_the_native_round_functions() {
     for lane in 0..12 {
         ambiguous[full_after[lane]] = blended[lane];
     }
-    full.assign_auxiliaries(&mut ambiguous);
-    partial.assign_auxiliaries(&mut ambiguous);
+    full.assign_power_columns(&mut ambiguous);
+    partial.assign_power_columns(&mut ambiguous);
     assert!(check_ccs_rowwise_zero(relation.structure(), &ambiguous[..1], &ambiguous[1..]).is_err());
 }
 
@@ -190,9 +187,7 @@ fn unrolled_commitment_matches_native_and_retains_one_semantic_occurrence() {
     let relation = builder.build(&test_columns(WIDTH)).unwrap();
 
     assert_eq!(gadget.auxiliary_range(), AUXILIARY..WIDTH);
-    // 12 premix + 8 × (48 S-box + 12 output) + 11 × (8 S-box + 12 output)
-    // + 4 feed-forward rows.
-    assert_eq!(relation.structure().n(), 716);
+    assert_eq!(relation.structure().n(), 12 + 8 * (48 + 12) + 11 * (8 + 12) + 4);
     let [occurrence] = relation.catalog().gadget_occurrences() else {
         panic!("the composite must retain one semantic occurrence, not its internal rounds")
     };

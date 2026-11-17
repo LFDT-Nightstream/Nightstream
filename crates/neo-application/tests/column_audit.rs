@@ -34,7 +34,7 @@ fn test_relation() -> ApplicationRelation<&'static str> {
         output: 6,
         delta: 7,
     }
-    .push_constraints(&mut tagged);
+    .push_constraints_assuming_boolean_inputs(&mut tagged);
 
     let r1cs = builder.build(&test_columns()).expect("valid relation");
     ApplicationRelation::new(r1cs, test_columns()).expect("matching relation and registry")

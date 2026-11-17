@@ -1,23 +1,13 @@
-//! Static parsing of a wasm (or first embedded core module of a component)
-//! binary into the artifacts the tracer needs before execution: the
-//! `(defined_function_index, byte_offset)` opcode/immediate map, the dense-PC control
-//! graph, and per-function type/arity/locals metadata.
-//!
-//! Owns the one-time binary walk and the normalized-type-id assignment. Holds
-//! no live Wasmtime `Store` and emits no trace rows — it only produces the
-//! immutable lookup tables the parent module and `normalize` consult at trace
-//! time.
-
 use super::branch_stack::FrameSlideEdges;
 use super::decode::{
-    decode_control_opcode, decode_memory_opcode, decode_opcode, ControlFrame, ControlFrameKind, DecodedOpcode,
+    checked_funcref_id, decode_control_opcode, decode_memory_opcode, decode_opcode, funcref_id, ControlFrame,
+    ControlFrameKind, DecodedOpcode, NULL_FUNCREF,
 };
 use crate::ir::{pack_function_call_metadata, WasmPcEdgeKind, WasmProgramError};
 use crate::isa::{opcode_code, WasmOpcode};
+use crate::preprocess::WASM32_MAX_PAGES;
 use std::collections::BTreeMap;
 use wasmparser::{Parser, Payload};
-
-pub(super) const WASM32_MAX_PAGES: u32 = 65_536;
 
 /// Parsed program tables and capture metadata, paired with application-authored
 /// host-event bindings. Lazy capture constructs this pair from the executing
@@ -30,13 +20,12 @@ pub struct WasmProgramArtifacts {
     /// Standalone parsing leaves these empty. Capture installs the bindings
     /// registered for the executing module.
     pub host_event_bindings: crate::host_event_bindings::HostEventBindings,
-    // Adapter-only helper state needed to turn Wasmtime debug frames into trace rows.
     pub(crate) trace: WasmTraceLoweringTables,
 }
 
-/// Static proof-bound program tables. PCs are zero-based operator indices
-/// across defined functions in module order, including structural and
-/// unexecuted operators. Byte offsets belong only to the trace adapter.
+/// Static proof-bound program tables. PCs are dense and zero-based across
+/// defined functions in module order, including structural and unexecuted
+/// operators. Byte offsets belong only to the trace adapter.
 #[derive(Clone, Debug)]
 pub struct WasmProgramTables {
     /// Initial page count for default linear memory 0, or `None` when the
@@ -94,12 +83,8 @@ pub struct WasmProgramTables {
     /// Static `(pc_before, function_ref)` rows for direct `call` targets.
     pub call_targets: Vec<(u64, u64)>,
     /// Bytes initialized by active `(data ...)` segments at module
-    /// instantiation, as `(byte_addr, byte_value)` pairs. Used by the memory
-    /// sanity checker to seed `linear_memory` so the RMW Read check at
-    /// data-initialized addresses sees the correct prior value (instead of
-    /// the zero-default that applies to bytes outside any data segment).
-    /// Only active segments targeting memory 0 with an `i32.const` offset are
-    /// recorded; passive segments and globalexpr offsets are skipped.
+    /// instantiation, as `(byte_addr, byte_value)` pairs. Passive segments are
+    /// skipped.
     pub linear_memory_init: Vec<(u64, u8)>,
     /// Initial declared-global values as `(global_index, lo_limb, hi_limb)`.
     /// Imported globals are not represented here.
@@ -124,9 +109,7 @@ pub struct WasmProgramDecodeEntry {
     pub global_index: u32,
     pub table_id: u32,
     pub memory_offset: u32,
-    /// Normalized type id of the call_indirect type immediate, keyed by
-    /// program PC so the static opcode/immediate row is bound directly to the
-    /// wasm bytes.
+    /// Normalized type id of the call_indirect type immediate.
     pub call_indirect_expected_type_id: u32,
     pub br_table_len: u32,
     pub i32_const_value: u32,
@@ -137,16 +120,8 @@ pub struct WasmProgramDecodeEntry {
 
 #[derive(Clone, Debug)]
 pub(crate) struct WasmTraceLoweringTables {
-    /// Static decode table keyed by Wasmtime's `(defined_function_index, byte_offset)`
-    /// pair so guest-debug frames can recover opcode/immediate metadata
-    /// without reparsing at trace time.
     pub(crate) opcode_map: BTreeMap<(u32, u32), DecodedOpcode>,
-    /// Count of imported functions used to normalize defined function refs
-    /// into the same 1-based funcref id space as runtime table values.
     pub(crate) imported_function_count: u32,
-    /// Per-function metadata used by the Wasmtime debug adapter while turning
-    /// raw frames into trace rows; verifier-facing function tables are derived
-    /// from this map.
     pub(crate) function_metas: BTreeMap<u32, ParsedFunctionMeta>,
 }
 
@@ -163,7 +138,7 @@ pub(crate) struct ParsedFunctionMeta {
 
 pub(super) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtifacts, WasmProgramError> {
     let mut builder = ParsedWasmArtifactsBuilder {
-        slides_by_offset: super::branch_stack::frame_slides(wasm_bytes)?,
+        slides_by_offset: super::branch_stack::frame_slides_by_offset(wasm_bytes)?,
         ..Default::default()
     };
     for payload in Parser::new(0).parse_all(wasm_bytes) {
@@ -178,8 +153,7 @@ pub(crate) fn parse_first_component_core_module_artifacts(
     component_bytes: &[u8],
 ) -> Result<WasmProgramArtifacts, WasmProgramError> {
     // Parse the embedded module slice so bytecode PCs are module-relative,
-    // matching Wasmtime component frame PCs. Multi-module components need a
-    // resolver for the actually executed core module.
+    // matching Wasmtime component frame PCs.
     for payload in Parser::new(0).parse_all(component_bytes) {
         let payload =
             payload.map_err(|err| WasmProgramError::Invalid(format!("failed to parse component payload: {err}")))?;
@@ -201,7 +175,6 @@ pub(crate) fn parse_first_component_core_module_artifacts(
     ))
 }
 
-/// The convenience collector deliberately refuses ambiguous component routing.
 pub(super) fn single_component_core_module(bytes: &[u8]) -> Result<&[u8], WasmProgramError> {
     let mut module = None;
     for payload in Parser::new(0).parse_all(bytes) {
@@ -227,7 +200,6 @@ struct ParsedWasmArtifactsBuilder {
     frame_slides: Vec<(u64, u64, u32, u32)>,
     program_decode: Vec<WasmProgramDecodeEntry>,
     pc_edge_kinds: Vec<(u64, u64)>,
-    /// Invocation pcs of indirect calls; only their own resolve step may reach them.
     indirect_invocations: Vec<u64>,
     function_entries: Vec<(u64, u64)>,
     call_targets: Vec<(u64, u64)>,
@@ -317,8 +289,6 @@ impl ParsedWasmArtifactsBuilder {
         }
         self.pc_rom.sort_unstable();
         self.pc_rom.dedup();
-        // An invocation trusts the function reference its resolve step checked,
-        // so no edge or entry may reach it other than that step's static edge.
         for &invocation in &self.indirect_invocations {
             let bypass = self
                 .pc_rom
@@ -476,8 +446,6 @@ impl ParsedWasmArtifactsBuilder {
                         ));
                     }
                     if matches!(import.ty, wasmparser::TypeRef::Table(_)) {
-                        // An imported table's size and contents are host-defined, so the
-                        // static `tables` / `table_sizes` preload cannot be authoritative.
                         return Err(WasmProgramError::Unsupported(
                             "imported tables are not supported by the wasm proof tables".to_string(),
                         ));
@@ -488,7 +456,7 @@ impl ParsedWasmArtifactsBuilder {
                         ));
                     }
                     if let wasmparser::TypeRef::Func(raw_type_index) = import.ty {
-                        let function_ref = self.imported_function_count.saturating_add(1);
+                        let function_ref = funcref_id(self.imported_function_count);
                         self.imported_function_count = self.imported_function_count.saturating_add(1);
                         let type_id = *self
                             .raw_type_id_by_index
@@ -540,7 +508,7 @@ impl ParsedWasmArtifactsBuilder {
                 let function_ref = self
                     .imported_function_count
                     .checked_add(self.defined_function_index)
-                    .and_then(|index| index.checked_add(1))
+                    .and_then(checked_funcref_id)
                     .ok_or_else(|| WasmProgramError::Invalid("function ref id overflow".to_string()))?;
                 let raw_type_index = *self
                     .defined_function_type_indices
@@ -638,7 +606,7 @@ impl ParsedWasmArtifactsBuilder {
                         .read()
                         .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm operator: {err}")))?;
                     // A branch to the body's own label leaves the function: a `br` is a
-                    // `return`; a conditional one would need a branch row that returns.
+                    // `return`.
                     let to_function = |depth: u32| depth as usize == curr_depth;
                     let operator = match operator {
                         wasmparser::Operator::Br { relative_depth } if to_function(relative_depth) => {
@@ -661,8 +629,6 @@ impl ParsedWasmArtifactsBuilder {
                         }
                         operator => operator,
                     };
-                    // An instruction with `k` control choices takes `k` pcs, so the
-                    // edge of choice `c` has the one-part key `pc + c`.
                     let extra_choices = match &operator {
                         wasmparser::Operator::If { .. } | wasmparser::Operator::BrIf { .. } => 1,
                         wasmparser::Operator::BrTable { targets } => targets.len(),
@@ -672,9 +638,6 @@ impl ParsedWasmArtifactsBuilder {
                         .next_pc
                         .checked_add(extra_choices)
                         .ok_or_else(|| WasmProgramError::Unsupported("wasm instruction PC exceeds u32".to_string()))?;
-                    // An indirect call takes two pcs: its resolve step, then the
-                    // invocation, which the rest of this iteration lays out. The
-                    // Wasmtime step keeps the first pc, where the instruction starts.
                     let resolve_pc = matches!(
                         operator,
                         wasmparser::Operator::CallIndirect { .. } | wasmparser::Operator::ReturnCallIndirect { .. }
@@ -852,8 +815,6 @@ impl ParsedWasmArtifactsBuilder {
                             control_stack.push(frame);
                         }
                         wasmparser::Operator::Else => {
-                            // SpecTec's `if` has no empty-else form, and the pc layout
-                            // follows SpecTec: strip an empty `else` before proving.
                             if matches!(reader.clone().read(), Ok(wasmparser::Operator::End)) {
                                 return Err(WasmProgramError::Unsupported(
                                     "empty else-body: remove the `else` before proving".to_string(),
@@ -946,7 +907,7 @@ impl ParsedWasmArtifactsBuilder {
                         }
                         wasmparser::Operator::Call { function_index }
                         | wasmparser::Operator::ReturnCall { function_index } => {
-                            let function_ref = function_index.saturating_add(1);
+                            let function_ref = funcref_id(*function_index);
                             self.call_targets.push((pc_before, u64::from(function_ref)));
                         }
                         _ => {}
@@ -1009,13 +970,10 @@ impl ParsedWasmArtifactsBuilder {
                             table_index,
                             offset_expr,
                         } => (table_index.unwrap_or(0), offset_expr),
-                        // Passive segments only reach a table through `table.init`,
-                        // which is an unsupported opcode; declared segments never
-                        // initialize a table.
+                        // Passive segments only reach a table through `table.init`;
+                        // declared segments never initialize a table.
                         wasmparser::ElementKind::Passive | wasmparser::ElementKind::Declared => continue,
                     };
-                    // Only `i32.const N` offset expressions are supported, same
-                    // policy as active data segments.
                     let mut ops = offset_expr.get_operators_reader();
                     let first = ops.read().map_err(|err| {
                         WasmProgramError::Invalid(format!("failed to read element segment offset expr: {err}"))
@@ -1029,8 +987,6 @@ impl ParsedWasmArtifactsBuilder {
                         }
                     };
                     Self::const_expr_end(&mut ops, "element segment offset")?;
-                    // Items land in the normalized 1-based funcref id space shared
-                    // with `call` / `ref.func`; 0 encodes a null entry.
                     let mut funcrefs = Vec::new();
                     match element.items {
                         wasmparser::ElementItems::Functions(items) => {
@@ -1038,7 +994,7 @@ impl ParsedWasmArtifactsBuilder {
                                 let function_index = item.map_err(|err| {
                                     WasmProgramError::Invalid(format!("failed to decode element function index: {err}"))
                                 })?;
-                                funcrefs.push(function_index.saturating_add(1));
+                                funcrefs.push(funcref_id(function_index));
                             }
                         }
                         wasmparser::ElementItems::Expressions(_, items) => {
@@ -1052,9 +1008,9 @@ impl ParsedWasmArtifactsBuilder {
                                 })?;
                                 match first {
                                     wasmparser::Operator::RefFunc { function_index } => {
-                                        funcrefs.push(function_index.saturating_add(1));
+                                        funcrefs.push(funcref_id(function_index));
                                     }
-                                    wasmparser::Operator::RefNull { .. } => funcrefs.push(0),
+                                    wasmparser::Operator::RefNull { .. } => funcrefs.push(NULL_FUNCREF),
                                     other => {
                                         return Err(WasmProgramError::Unsupported(format!(
                                             "element segment with non-funcref init expr: {other:?}"
@@ -1110,9 +1066,6 @@ impl ParsedWasmArtifactsBuilder {
                             memory_index,
                             offset_expr,
                         } => {
-                            // Only `i32.const N` offset expressions are supported; everything
-                            // else (e.g., `global.get`) needs runtime evaluation that's out of
-                            // scope for static preload.
                             let mut reader = offset_expr.get_operators_reader();
                             let first = reader.read().map_err(|err| {
                                 WasmProgramError::Invalid(format!("failed to read data segment offset expr: {err}"))

@@ -1,11 +1,5 @@
-//! Primitive conformance: the Rust Poseidon2 permutations must equal each known answer of
-//! `scripts/poseidon2/vectors.json`, and the permutation and the sponge hash must equal the Lean
-//! references `NightstreamFPrime.Spec.Poseidon2.permute` and `hash` on the inputs that
-//! `Export/Poseidon2VectorsMain.lean` emits to
-//! `formal/nightstream-fprime/artifacts/nightstream-fprime-poseidon2-vectors-v1.json`. ProtogaLattice
-//! can check its own code against the same file. From `formal/nightstream-fprime`, emit them again with
-//! `bash scripts/validate.sh lean-executable .lake/build/bin/emitPoseidon2Vectors
-//! artifacts/nightstream-fprime-poseidon2-vectors-v1.json`.
+//! Lean `NightstreamFPrime.Spec.Poseidon2.permute` and `hash`, on the inputs that
+//! `Export/Poseidon2VectorsMain.lean` emits.
 
 use neo_ccs::crypto::poseidon2 as p2;
 use neo_math::Fq;

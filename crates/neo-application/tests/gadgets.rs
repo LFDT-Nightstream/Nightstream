@@ -76,7 +76,7 @@ const SELECT: ConditionalSelect = ConditionalSelect {
 fn conditional_select_retains_semantics_and_assigns_only_its_delta() {
     let mut builder = R1csBuilder::new(1, ONE).expect("valid test layout");
     let tag = ConstraintTag::new("select input", Owner::Predicate);
-    SELECT.push_constraints(&mut builder.tagged(tag.clone()));
+    SELECT.push_constraints_assuming_boolean_inputs(&mut builder.tagged(tag.clone()));
     let relation = builder
         .build(&test_columns(7))
         .expect("valid conditional-select relation");

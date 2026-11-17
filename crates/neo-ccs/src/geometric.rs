@@ -1,5 +1,3 @@
-//! Compact storage for contiguous geometric coefficients in one matrix row.
-
 use p3_field::{Field, PrimeCharacteristicRing};
 use serde::{Deserialize, Serialize};
 

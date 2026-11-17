@@ -1,11 +1,4 @@
-//! The bounded-depth scheme's lifecycle (Lean `BoundedDepth.Terminal`, Cyclo's bounded-depth
-//! schedule): a light and a refresh step circuit, each with its own relation,
-//! and a state with two slots. Slot `s` accumulates the instances of circuit
-//! `s`. Each step folds the previous step's instance into the slot of the
-//! circuit that made it: a light fold while that slot's depth is below the
-//! cap, a refresh fold at the cap (`Schedule.Admissible`). The first period of
-//! steps is `(L^(cap+1) R)^(cap+1) R`, and each later period is
-//! `(L^(cap+1) R)^cap R`.
+//! Lean `BoundedDepth.Terminal`, `Schedule.Admissible`; Cyclo's bounded-depth schedule.
 mod compression;
 mod encoding;
 mod relation;
@@ -26,8 +19,7 @@ pub use relation::RelationError;
 pub(crate) use relation::{CompiledStep, Holds, Relation};
 use std::sync::Arc;
 
-/// `Schedule.productionLightFoldCap`: the light circuit's depth guard admits
-/// depths below 64.
+/// `Schedule.productionLightFoldCap`.
 const LIGHT_FOLD_CAP: u64 = 64;
 const KEY_DOMAIN: &[u8] = b"Nightstream/OptionB/circuit-key/v1";
 
@@ -52,8 +44,6 @@ pub enum BoundedDepthError {
 }
 
 impl BoundedDepthError {
-    /// The engine failure inside this error, if the engine failed: a device
-    /// failure judged nothing.
     pub(crate) fn engine_failure(&self) -> Option<&EngineError> {
         use crate::folding::{kernels, pi_ccs, pi_dec, pi_rlc, Error as Fold};
         match self {
@@ -76,16 +66,12 @@ impl From<Holds> for BoundedDepthError {
     }
 }
 
-/// One slot: the accumulator of its circuit's instances and its depth.
 #[derive(Clone)]
 struct Slot {
     accumulator: pi_rlc::Output,
     depth: u64,
 }
 
-/// A proof of `iteration` steps from `z0` to `current`: the circuit that ran
-/// last (`pc`, 0 before the first step), both slots, and the last step's
-/// instance.
 #[derive(Clone)]
 pub(crate) struct Envelope {
     iteration: u64,
@@ -102,9 +88,6 @@ impl Envelope {
     }
 }
 
-/// The light and the refresh step circuits, compiled, and the identity of
-/// their packages. A compiled circuit builds them once, and each of its
-/// provers and verifiers shares them.
 #[derive(Clone)]
 pub(crate) struct CompiledSteps {
     identity: [u64; 4],
@@ -143,15 +126,13 @@ pub(crate) struct BoundedDepth {
     minimum_security_bits: u32,
 }
 
-/// `BoundedDepth::fold`'s result.
 pub(crate) struct Folded {
     kind: Kind,
     accumulator: pi_rlc::Output,
     proof: crate::folding::bounded_depth::Proof,
 }
 
-/// The key digest of circuit `circuit` (SPEC.md section 4.4, step 2; Lean
-/// `Lifecycle.BoundedDepth.CircuitKeyDigest.digest`).
+/// SPEC.md section 4.4, step 2; Lean `Lifecycle.BoundedDepth.CircuitKeyDigest.digest`.
 fn circuit_key(identity: [u64; 4], circuit: u64) -> [F; 4] {
     let mut input = domain_chunk_v1_2(KEY_DOMAIN).to_vec();
     input.extend(identity.map(F::from_u64));
@@ -185,8 +166,6 @@ impl BoundedDepth {
         &self.relations
     }
 
-    /// The proof of zero steps from `z0`, with both slots at the default
-    /// running instance.
     pub(crate) fn initial(&self, z0: [F; 4]) -> Result<Envelope, BoundedDepthError> {
         let slot = |relation: &Relation| -> Result<Slot, BoundedDepthError> {
             let mut zero = RunningInstance::canonical_zero(relation.params(), relation.structure(), PUBLIC_WORDS)
@@ -223,17 +202,13 @@ impl BoundedDepth {
         }
     }
 
-    /// `Spec.GlobalParams.accumulatorBound`: the largest coefficient of an
-    /// honest slot witness `depth` light folds after its refresh.
+    /// `Spec.GlobalParams.accumulatorBound`.
     fn accumulator_bound(&self, depth: u64) -> u64 {
         let params = self.relations[0].params();
         (1 + depth + u64::from(params.k_rho())) * u64::from(params.inner().T()) * u64::from(params.b() - 1)
     }
 
-    /// The slot checks of `StepExtend.Honest` that the bytes do not fix: the
-    /// depth is at most the light cap, and each coefficient of the witness is
-    /// within the accumulator bound of that depth (Cyclo Theorem 3 item 1).
-    /// The next light fold needs this bound.
+    /// `StepExtend.Honest`; Cyclo Theorem 3 item 1.
     fn slot_within_depth_bound(&self, slot: &Slot) -> Result<(), &'static str> {
         if slot.depth > LIGHT_FOLD_CAP {
             return Err("depth is above the light fold cap");
@@ -244,8 +219,6 @@ impl BoundedDepth {
             value.min(F::ORDER_U64 - value) <= bound
         };
         let witness = &slot.accumulator.witness;
-        // A packed witness has coefficients in {-1, 0, 1}, and each bound is
-        // at least 1.
         let fits = match witness.virtual_constant_value() {
             Some(value) => within(value),
             None => witness.is_packed_signed_unit() || witness.as_slice().iter().all(within),
@@ -257,13 +230,7 @@ impl BoundedDepth {
         }
     }
 
-    /// The next proof: the step from `envelope.current` to `next` with the
-    /// application witness `witness`. The first step is the light circuit's
-    /// base step; every later step folds the previous step's instance. Every
-    /// row of the circuit's relation, whose rows verify the fold, must hold on
-    /// the new assignment before the proof returns. The instance that
-    /// `Relation::instance` builds then holds under the relation (Lean
-    /// `FreshInstance.built_holds_iff`).
+    /// Lean `FreshInstance.built_holds_iff`.
     pub(crate) fn extend(
         &self,
         envelope: &Envelope,
@@ -275,9 +242,6 @@ impl BoundedDepth {
         self.step(envelope, folded, witness, next, locals)
     }
 
-    /// The fold of `envelope`'s fresh instance into its selected slot, the
-    /// part of `extend` that needs neither the step's witness nor its output
-    /// state. `None` at iteration 0, which has no fresh instance.
     pub(crate) fn fold(&self, envelope: &Envelope) -> Result<Option<Folded>, BoundedDepthError> {
         let Some(fresh) = &envelope.fresh else {
             return Ok(None);
@@ -303,7 +267,6 @@ impl BoundedDepth {
         }))
     }
 
-    /// `extend` after `fold`: `folded` is `fold`'s result on `envelope`.
     pub(crate) fn step(
         &self,
         envelope: &Envelope,
@@ -338,14 +301,13 @@ impl BoundedDepth {
         let relation = &self.relations[words::pc(kind) as usize - 1];
         let logical = relation.assignment(&step, locals)?;
         #[cfg(test)]
-        if CHECK_ROWS.get() {
+        if KEEP_FAULTY_PROOF.get() {
             FAILED_ROW.set(relation.first_failing_row(&step)?);
         }
         #[cfg(test)]
-        let keeps_faulty = CHECK_ROWS.get();
+        let keeps_faulty = KEEP_FAULTY_PROOF.get();
         #[cfg(not(test))]
         let keeps_faulty = false;
-        // The row check runs while the engine commits the witness.
         let (instance, held) = std::thread::scope(|scope| {
             let check = (!keeps_faulty).then(|| scope.spawn(|| relation.rows_hold(&logical)));
             let instance = relation.instance(&self.backend, &logical);
@@ -364,12 +326,7 @@ impl BoundedDepth {
         })
     }
 
-    /// `RunCompleteness.Verifies`: at iteration 0 the current state is `z0`;
-    /// otherwise the fresh instance's public input is the hash of the state
-    /// with both slots, every slot's claim holds under its circuit's relation
-    /// within the bound of the slot's depth, and the fresh instance holds
-    /// under the relation of the circuit that ran last. So `extend` works on
-    /// each proof that this accepts (`RunCompleteness.verifies_step`).
+    /// `RunCompleteness.Verifies`, `RunCompleteness.verifies_step`.
     pub(crate) fn verify(
         &self,
         iteration: u64,
@@ -412,8 +369,6 @@ impl BoundedDepth {
                     slot: index,
                     reason: reason.into(),
                 })?;
-            // The verifier splits the witness itself: PiDEC's recomposition
-            // reproduces the claim's commitment, evaluations and public input.
             pi_dec::prove_with_production_key(
                 &self.backend,
                 relation.context(),
@@ -441,12 +396,7 @@ impl BoundedDepth {
 
 #[cfg(test)]
 thread_local! {
-    /// Set by a test that proves an invalid witness: record the first row of
-    /// the step relation that the step fails, and return the faulty proof in
-    /// place of the self-check's error, so the test can show that `verify`
-    /// refuses it.
-    pub(crate) static CHECK_ROWS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
-    /// That row, or `None` when every row holds.
+    pub(crate) static KEEP_FAULTY_PROOF: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     pub(crate) static FAILED_ROW: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
 }
 

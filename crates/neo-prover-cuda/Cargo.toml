@@ -13,9 +13,8 @@ workspace = true
 
 [features]
 default = []
-# CUDA backend. Build and run through `cargo +nightly-2026-04-03 oxide` only;
-# plain cargo builds must keep this feature off so the workspace stays green
-# without a GPU or the cuda-oxide codegen backend.
+# Build and run through `cargo +nightly-2026-04-03 oxide` only; plain cargo builds must
+# keep this feature off without a GPU or the cuda-oxide codegen backend.
 cuda = [
     "dep:cuda-core",
 ]

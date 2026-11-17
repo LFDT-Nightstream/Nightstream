@@ -1,5 +1,3 @@
-//! S-action implementation: "left multiplication by a in R_q" as rot(a).
-
 use crate::ring::{cf, cf_inv};
 use crate::{Fq, Rq, D};
 use p3_field::PrimeCharacteristicRing;

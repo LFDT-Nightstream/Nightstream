@@ -1,8 +1,3 @@
-//! Optimized-side protocol flow for SuperNeo v1.2 PiCCS.
-//!
-//! This file independently implements the Lean-owned transcript schedule. It
-//! does not call the PaperExact transcript, SumCheck driver, or proof assembly.
-
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
 use neo_math::{KExtensions, D, F, K};
@@ -18,10 +13,8 @@ use crate::error::PiCcsError;
 
 const RATE: usize = neo_ccs::crypto::poseidon2::RATE;
 
-/// What a fold's PiCCS binds besides its claims, and whose norm terms it
-/// checks. SuperNeo v1.2's fold (`production`) checks every source. The bounded-depth scheme's
-/// light fold checks the fresh source only, and its refresh fold binds the
-/// PiDEC children after the statement (Lean `BoundedDepth.Keys`).
+/// The bounded-depth scheme's light fold checks the fresh source only, and its refresh fold
+/// binds the PiDEC children after the statement (Lean `BoundedDepth.Keys`).
 #[derive(Clone, Copy, Debug)]
 pub struct FoldProfile<'a> {
     pub domain: [F; RATE],
@@ -280,9 +273,7 @@ fn verify_phase(
     Ok((challenges, claim))
 }
 
-/// Encode the complete Section 7.3 output message in
-/// source/`Eval_K`/`Eval_A` order. Each quadratic-extension value is low limb
-/// first.
+/// The SuperNeo v1.2 Section 7.3 output message.
 pub fn output_message_fields(outputs: &[CeClaim<Cmt, F, K>], dims: JointDims) -> Result<Vec<F>, PiCcsError> {
     let mut fields = Vec::with_capacity(outputs.len() * (dims.matrix_count + 1) * D * 2);
     for output in outputs {

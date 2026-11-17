@@ -1,4 +1,4 @@
-//! The Π_RLC draw decoder of SPEC.md section 5.3 against exact integer arithmetic.
+//! The Π_RLC draw decoder of SPEC.md section 5.3.
 
 use neo_math::{D, F};
 use neo_params::{nightstream_p64_k14 as profile, NeoParams};
@@ -14,8 +14,6 @@ fn challenge_set_size() -> BigUint {
     BigUint::from(profile::CHALLENGE_ALPHABET.len()).pow(D as u32)
 }
 
-/// `N = Σ_k draw[k] · q^k`, `R = N mod 5^D`, and coefficient `h` is `⌊R / 5^h⌋ mod 5` mapped
-/// through the alphabet `[−2, −1, 0, 1, 2]`.
 fn reference(draw: &[u64]) -> Vec<i8> {
     let q = BigUint::from(F::ORDER_U64);
     let integer = draw
@@ -36,9 +34,6 @@ fn decode(draw: [u64; PI_RLC_DRAW_LANES]) -> Vec<i8> {
     decode_pi_rlc_coefficients(&draw.map(F::from_u64)).to_vec()
 }
 
-/// The exact statistical distance between `N mod M` for a uniform `N < q^lanes` and the
-/// uniform law on `[0, M)` is `r·(M − r) / (M · q^lanes)` with `r = q^lanes mod M`.
-/// The result is whether that distance is below `2^−132`.
 fn distance_is_below_2_pow_minus_132(lanes: u32) -> bool {
     let draws = BigUint::from(F::ORDER_U64).pow(lanes);
     let set = challenge_set_size();

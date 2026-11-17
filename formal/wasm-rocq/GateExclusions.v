@@ -114,7 +114,7 @@ Proof.
   assert (Hclean : w COL_ACTIVATION_FINISHED_AFTER = 1 /\ w COL_TRAPPED_AFTER = 0)
     by (field_linear Hexitrow).
   destruct Hclean as [Hfinished Htrapped].
-  destruct (full_clean_finish w Hprime Hfull Hprogram Hfinished Htrapped) as [_ [Hboundary _]].
+  destruct (full_clean_finish_boundary w Hprime Hfull Hprogram Hfinished Htrapped) as [_ Hboundary].
   circuit_range COL_CALL_STACK_DEPTH_BEFORE Bdb. circuit_range COL_CALL_STACK_DEPTH_AFTER Bda.
   circuit_range COL_HOST_FRAME_DEPTH_BEFORE Bfb. circuit_range COL_HOST_FRAME_DEPTH_AFTER Bfa.
   circuit_range COL_GUEST_DEPTH_AFTER Bguest.

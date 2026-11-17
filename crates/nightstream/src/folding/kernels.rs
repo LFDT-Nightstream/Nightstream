@@ -1,4 +1,3 @@
-//! Arguments for the shared optimized arithmetic kernels.
 use super::{CeClaim, Params, RlcMixer, Structure};
 use crate::engine::Backend;
 use neo_ajtai::Commitment;
@@ -55,8 +54,6 @@ pub(crate) fn sample_rho_n(
     sample_rot_rhos_n_typed(tr, pp.inner(), &pp.ring(), count).map_err(Into::into)
 }
 
-/// PiRLC's parent claim and witness. A device engine mixes the witnesses;
-/// the host mixes the commitments and the claims.
 pub(crate) fn prove_pi_rlc_refs(
     backend: &Backend,
     pp: &Params,

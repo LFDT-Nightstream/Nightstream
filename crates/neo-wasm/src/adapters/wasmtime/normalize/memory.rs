@@ -1,8 +1,3 @@
-//! Temporal linear-memory state used while expanding host-event rows.
-//!
-//! Owns the sparse memory-zero image seen by normalization. Program rows and
-//! host-event writes advance it in trace order; host-event reads derive from it.
-
 use super::super::memory_address::host_event_address;
 use super::NormalizedStep;
 use crate::adapters::wasmtime::WasmProgramTables;
@@ -93,8 +88,6 @@ impl LinearMemoryImage {
         f: impl Fn([u8; 4], usize) -> T,
     ) -> Result<(T, LinearMemoryAccess), WasmBuildError> {
         let byte_width = std::mem::size_of::<T>();
-        // FIXME: maybe restrict this with a trait instead
-        // but probably should be in some helper module or smh
         debug_assert!((1..=2).contains(&byte_width));
 
         let address = host_event_address(base, byte_offset, byte_width as u8, memory_pages)?;

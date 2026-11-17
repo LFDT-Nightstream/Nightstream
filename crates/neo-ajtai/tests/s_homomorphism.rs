@@ -1,4 +1,4 @@
-#![allow(non_snake_case, unused_variables)]
+#![allow(non_snake_case)]
 use neo_ajtai::*;
 use neo_math::ring::{cf_inv, Rq as RqEl};
 use neo_math::s_action::SAction;
@@ -7,7 +7,7 @@ use p3_field::PrimeCharacteristicRing;
 use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
 
-fn sample_Z(d: usize, m: usize, b: u32) -> Vec<Fq> {
+fn sample_Z(d: usize, m: usize) -> Vec<Fq> {
     let mut rng = StdRng::seed_from_u64(7);
     (0..d * m)
         .map(|_| if rng.next_u64() & 1 == 1 { Fq::ONE } else { Fq::ZERO })
@@ -21,8 +21,8 @@ fn s_module_homomorphism() {
     let kappa = 8usize;
     let mut rng = StdRng::seed_from_u64(1);
     let pp = setup(&mut rng, d, kappa, m).expect("Setup should succeed");
-    let Z1 = sample_Z(d, m, 2);
-    let Z2 = sample_Z(d, m, 2);
+    let Z1 = sample_Z(d, m);
+    let Z2 = sample_Z(d, m);
     let c1 = commit(&pp, &Z1);
     let c2 = commit(&pp, &Z2);
 

@@ -1,8 +1,3 @@
-//! Host-event traces: the chain absorbs embedder events staged by
-//! `HostEventGather` slot rows (8 per block, one word each). Every row is
-//! CCS-checked, the bindings ROM content is checked by the native memory-rows
-//! pass, and rejection tests cover gather forgery and the event schedule.
-
 mod common;
 
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
@@ -24,9 +19,6 @@ fn slots(entries: &[(usize, SlotBinding)]) -> [SlotBinding; COMM_CHAIN_EVENT_ARG
     out
 }
 
-/// Example embedder bindings for the mul/sink component: `mul(x, y) -> r`
-/// expands to a two-event template (args event + result event), `sink(x)`
-/// to a single event.
 fn test_bindings(mul_fref: u32, sink_fref: u32) -> HostEventBindings {
     let arg = |arg, limb| SlotBinding::ArgElem { arg, limb };
     let mut bindings = HostEventBindings::default();
@@ -36,9 +28,6 @@ fn test_bindings(mul_fref: u32, sink_fref: u32) -> HostEventBindings {
             return_events: None,
             events: vec![
                 EventBlock::op(MUL_ARGS_TAG, slots(&[(0, arg(0, Limb::Lo)), (1, arg(1, Limb::Lo))])),
-                // The ResultElem Lo slot is the gather row that pushes the
-                // host result onto the operand stack; the Hi slot binds the
-                // pushed hi lane (0 for the i32 result).
                 EventBlock::op(
                     MUL_RESULT_TAG,
                     slots(&[
@@ -128,8 +117,6 @@ fn run_frefs(run: &neo_wasm::WasmtimeTraceRun) -> (Vec<u32>, u32) {
     (imports, export)
 }
 
-/// Bound host-event trace for the two-call component. The invoked export gets an empty boundary template
-/// (every entered export needs a template; no boundary events for this test).
 fn host_event_trace() -> Vec<WasmVmStep> {
     host_event_trace_from(Default::default())
 }
@@ -147,7 +134,6 @@ fn host_event_trace_from(initial_comm_chain: neo_wasm::CommChainState) -> Vec<Wa
     common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
 
-    // The claimed host-event ROM entries must match the embedder tables.
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);
@@ -162,8 +148,6 @@ fn host_event_trace_from(initial_comm_chain: neo_wasm::CommChainState) -> Vec<Wa
     trace
 }
 
-/// The bindings-less normalizer runs under the canonical import-free bindings,
-/// so an executed host import has no template and is rejected.
 #[test]
 fn host_import_requires_host_event_bindings() {
     let run = run_component();
@@ -174,11 +158,6 @@ fn host_import_requires_host_event_bindings() {
         .contains("no host-event template for host import"));
 }
 
-/// An i64-returning import: each result lane is written by the slot that
-/// absorbs it — the Lo gather row pushes (a narrow total write, hi lane
-/// pinned to zero), the Hi row writes only the pushed cell's hi word.
-/// Forging either write's address or value, suppressing either, or
-/// smuggling advice into the Lo row's hi lane is CCS-rejected.
 #[test]
 fn i64_result_lane_writes() {
     let component_bytes = wat::parse_str(
@@ -260,7 +239,6 @@ fn i64_result_lane_writes() {
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
         .expect("bindings ROM contents match");
 
-    // 2^32 + 2^33 = 3·2^32: the result lives entirely in the hi limb.
     let lo_row = trace
         .iter()
         .find(|row| {
@@ -271,7 +249,6 @@ fn i64_result_lane_writes() {
         })
         .expect("result lo slot row");
     let write = lo_row.stack_write0.expect("result push");
-    // The lo slot is a narrow TOTAL write: hi lane pinned to zero.
     assert_eq!((write.value_lo, write.value_hi), (0, Some(0)));
     assert_eq!(lo_row.state_after.sp, lo_row.state_before.sp + 1, "the lo slot pushes");
 
@@ -289,7 +266,6 @@ fn i64_result_lane_writes() {
     forged[neo_wasm::layout::COL_STACK_WRITE0_ACTIVE] = neo_math::F::ZERO;
     forged[neo_wasm::layout::COL_STACK_WRITE0_HI_ACTIVE] = neo_math::F::ZERO;
     common::assert_rejected(&forged, "result-lo row suppressing the push");
-    // The hi lane can never carry advice on the lo row (the old P1 shape).
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_WIDE_VALUES_ENABLED] = neo_math::F::ONE;
     forged[neo_wasm::layout::COL_STACK_WRITE0_VALUE_HI] = neo_math::F::from_u64(0xdead);
@@ -324,11 +300,9 @@ fn i64_result_lane_writes() {
     common::assert_rejected(&forged, "result-hi row suppressing its lane write");
 }
 
-/// Advice events keep their VM effects without changing the transcript.
 #[test]
 fn advice_import_pushes_without_absorbing() {
     let (frefs, export_fref) = ([1, 2], 3);
-    // `mul` is advice; `sink` remains transcript-bound.
     let arg = |arg, limb| SlotBinding::ArgElem { arg, limb };
     let mut bindings = HostEventBindings::default();
     let mut advice_block = [SlotBinding::Const(0); 8];
@@ -371,7 +345,6 @@ fn advice_import_pushes_without_absorbing() {
     neo_wasm::memory_semantics::sanity_check_memory_rows(&layout, &witness_rows, &preload)
         .expect("bindings ROM contents match");
 
-    // Only `sink` contributes to the chain.
     let f = neo_math::F::from_u64;
     let expected = neo_wasm::comm_chain::commit_event(
         [neo_math::F::ZERO; 4],
@@ -383,7 +356,6 @@ fn advice_import_pushes_without_absorbing() {
         expected.map(|limb| p3_field::PrimeField64::as_canonical_u64(&limb))
     );
 
-    // Extraction sees exactly the committed stream: sink's block, no advice.
     let events = neo_wasm::comm_chain::absorbed_event_blocks(&trace);
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].words, [SINK_TAG, 42, 0, 0, 0, 0, 0, 0]);
@@ -410,7 +382,6 @@ fn advice_import_pushes_without_absorbing() {
     assert_eq!(lo_row.stack_write0.expect("push").value_lo, 42);
     assert_eq!(lo_row.state_after.sp, lo_row.state_before.sp + 1);
 
-    // The final advice row cannot absorb its block or shed its ROM flag.
     let word7 = advice_rows.last().expect("word 7");
     let witness = build_witness_vector(word7).unwrap();
     common::assert_satisfied(&witness, "untampered advice word-7 row");
@@ -430,8 +401,6 @@ fn advice_import_pushes_without_absorbing() {
 #[test]
 fn host_event_trace_folds_expanded_blocks() {
     let trace = host_event_trace();
-    // Three bindings events → three completed blocks (each staged by 8 slot
-    // rows; the last one absorbs the full block).
     let staged: Vec<[u64; 8]> = common::absorbed_blocks(&trace);
     assert_eq!(
         staged,
@@ -442,7 +411,6 @@ fn host_event_trace_folds_expanded_blocks() {
         ],
     );
 
-    // The carried chain equals the fold of exactly those blocks.
     let f = neo_math::F::from_u64;
     let mut chain = [neo_math::F::ZERO; 4];
     for block in &staged {
@@ -480,8 +448,6 @@ fn missing_template_is_rejected() {
     );
 }
 
-/// A gather row staging a word that contradicts its (honest) ROM entry is
-/// CCS-rejected: here the constant discriminant word is forged.
 #[test]
 fn ccs_rejects_forged_gather_word() {
     let trace = host_event_trace();
@@ -501,7 +467,6 @@ fn ccs_rejects_forged_gather_word() {
     common::assert_rejected(&witness, "gather row staging a forged discriminant");
 }
 
-/// An arg-slot gather row must read the table-pinned stack address.
 #[test]
 fn ccs_rejects_redirected_gather_read() {
     let trace = host_event_trace();
@@ -520,8 +485,6 @@ fn ccs_rejects_redirected_gather_read() {
     common::assert_rejected(&witness, "arg slot row reading a different stack slot");
 }
 
-/// Forging the claimed ROM entry itself is caught by the host-event ROM
-/// content check (the native stand-in for the lookup argument).
 #[test]
 fn memory_rows_reject_forged_rom_claim() {
     let (frefs, export_fref) = ([1, 2], 3);
@@ -562,8 +525,6 @@ fn memory_rows_reject_forged_rom_claim() {
     );
 }
 
-/// The event schedule is forced: a program row cannot leave bindings events
-/// unabsorbed, and a gather row cannot run with none owed.
 #[test]
 fn ccs_rejects_broken_event_schedule() {
     let trace = host_event_trace();
@@ -591,8 +552,6 @@ fn ccs_rejects_broken_event_schedule() {
     common::assert_rejected(&witness, "gather row with no host events owed");
 }
 
-/// An import with no template reads the zero-filled biased count cell, so the
-/// only row-locally satisfiable assignment loads a poisoned event countdown of -1.
 #[test]
 fn ccs_forces_untemplated_import_into_poisoned_schedule() {
     let trace = host_event_trace();
@@ -607,24 +566,17 @@ fn ccs_forces_untemplated_import_into_poisoned_schedule() {
     let witness = build_witness_vector(call_row).unwrap();
     common::assert_satisfied(&witness, "untampered host-call row");
 
-    // An undeclared import's cell is 0; a normal schedule can't load from it.
     let mut forged = witness.clone();
     forged[neo_wasm::layout::COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT] = neo_math::F::ZERO;
     forged[neo_wasm::layout::COL_HOST_INITIAL_COUNT] = neo_math::F::ZERO;
     forged[neo_wasm::layout::COL_HOST_IMPORT_SCHEDULE_COUNTS] = neo_math::F::ZERO;
     common::assert_rejected(&forged, "untemplated import call claiming a normal schedule");
 
-    // The poisoned schedule satisfies the row itself. The composed circuit's
-    // host-event ROM address bound prevents enough blocks from draining it; see
-    // the count-family relation-layout comment for the full argument.
     let mut poisoned = forged.clone();
     poisoned[neo_wasm::layout::COL_HOST_EVENTS_REMAINING_AFTER] = -neo_math::F::ONE;
     common::assert_satisfied(&poisoned, "untemplated import call loads the poisoned schedule");
 }
 
-/// Import schedule counts and export entry-schedule counts are separate ROM families
-/// (with the +1 presence bias), so a turn boundary or exit latch can never
-/// read an import's cell and vice versa.
 #[test]
 fn count_families_are_split_and_biased() {
     let run = run_component();
@@ -689,7 +641,6 @@ fn packed_slot_descriptor_binds_each_decoded_field() {
         forged[column] += F::ONE;
         common::assert_rejected(&forged, "decoded slot field must match its ROM descriptor");
     }
-    // Keep the packed value unchanged across each field boundary.
     for (low, high, radix) in [
         (COL_HOST_EVENT_SLOT_KIND, COL_HOST_EVENT_SLOT_ARG, 32),
         (COL_HOST_EVENT_SLOT_ARG, COL_HOST_EVENT_SLOT_VARIANT, 256),

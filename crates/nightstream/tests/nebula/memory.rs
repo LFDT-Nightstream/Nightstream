@@ -1,7 +1,4 @@
-//! The first Nebula memory application: native segment runs and SPEC.md Algorithm 8
-//! terminal checks, the generic runner's checks on an application, and
-//! (ignored, production profile) SPEC.md section 9 conformance proofs over the
-//! Lean-emitted packages and the Rust-built circuit.
+//! SPEC.md Algorithm 8 and section 9.
 
 use neo_math::K;
 
@@ -14,9 +11,6 @@ use super::{
 use neo_math::F;
 use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 
-/// The Stage 1 input state that an invocation's own words open to. The carry
-/// words come first; the machine's five words come last (input state, output
-/// state, idle flag).
 fn input_state(words: &[F]) -> [F; 4] {
     let app_in = words.len() - 5;
     state_words(&words[app_in..app_in + 2], &words[0..39])
@@ -26,8 +20,6 @@ fn program_run() -> Run<Machine> {
     Run::new(Machine, &Package::V1.program(), MachineState::default())
 }
 
-/// `loadi 7; store 1; load 1; halt` with RAM `[0, 0, 0, 9]`: a second
-/// program of the first package's geometry.
 fn other_program() -> Program {
     Program::new(Package::V1.geometry(), vec![31, 6, 5, 0], vec![0, 0, 0, 9]).unwrap()
 }
@@ -79,10 +71,7 @@ fn native_run_closes_every_segment_and_passes_the_terminal() {
     );
 }
 
-/// Canonical decoding (SPEC.md Algorithm 8, step 2): an integer of the
-/// statement that becomes a field word must be below `q`. Otherwise `v` and
-/// `v + q` give one word, and the proof of the honest statement also verifies
-/// the second one.
+/// SPEC.md Algorithm 8, step 2.
 #[test]
 fn terminal_rejects_statement_integers_at_or_above_q() {
     let mut run = program_run();
@@ -125,9 +114,7 @@ fn terminal_rejects_statement_integers_at_or_above_q() {
     assert!(accepted.is_empty(), "accepted non-canonical integers: {accepted:?}");
 }
 
-/// A program's images must fit its package's geometry, as in Lean
-/// `Plan.Valid`: `2^r` ROM words and `2^μ` RAM words. A word is a `u32`, so
-/// every word is below `2^32`.
+/// Lean `Plan.Valid`.
 #[test]
 fn program_rejects_images_outside_the_geometry() {
     let (rom, ram) = (vec![0; 4], vec![0; 4]);
@@ -141,11 +128,6 @@ fn program_rejects_images_outside_the_geometry() {
     assert!(Program::new(v1, widest, ram).is_ok());
 }
 
-/// One package, two programs: each run passes the terminal checks of its own
-/// program. The programs have different `D_init`, so one statement opens a
-/// different initial state under each program, and the Stage 1 state link
-/// rejects a proof of one program for the other
-/// (`each_program_verifies_only_its_own_proof_on_cpu`).
 #[test]
 fn programs_of_one_package_have_their_own_initial_state() {
     let contexts = [
@@ -180,11 +162,7 @@ fn programs_of_one_package_have_their_own_initial_state() {
     assert_ne!(other, runs[0].initial_state());
 }
 
-/// The verifier's `D_init` (SPEC.md section 7.4), from which it computes the start
-/// carry and `z0`, equals the value that Lean computes for the same plan
-/// (`emitBoundedDepth --application-start`). It binds the plan digest and the images.
-/// `FirstPlan.otherPlan` has a distinct nonzero word in every cell, so a
-/// misplaced or truncated word changes `D_init`.
+/// SPEC.md section 7.4; Lean `FirstPlan.otherPlan`.
 #[test]
 fn d_init_matches_lean() {
     let other = Program::new(
@@ -242,7 +220,7 @@ struct FixtureStatement {
     final_root: [u64; 4],
 }
 
-/// The fields of Lean's `TerminalChecks` after `state`, as Lean decides them.
+/// Lean `TerminalChecks`.
 #[derive(serde::Deserialize)]
 struct TerminalChecks {
     closed: bool,
@@ -253,7 +231,7 @@ struct TerminalChecks {
     root: bool,
 }
 
-/// The carry of 39 words in SPEC.md section 7.5 order (Lean `decodeCarry`).
+/// SPEC.md section 7.5; Lean `decodeCarry`.
 fn decode_carry(words: &[u64]) -> Carry {
     let f = |i: usize| F::from_u64(words[i]);
     let k = |i: usize| K::from_basis_coefficients_slice(&[f(i), f(i + 1)]).unwrap();
@@ -279,11 +257,7 @@ fn canonical_words(words: &[F]) -> Vec<u64> {
     words.iter().map(|word| word.as_canonical_u64()).collect()
 }
 
-/// The SPEC.md Algorithm 8 terminal check agrees with Lean's `TerminalChecks` on every
-/// case of `emitBoundedDepth --application-terminal`. It accepts exactly when every
-/// statement integer is below `q` and every check holds, with Lean's final
-/// state words. Otherwise it fails at the first false check in its own order:
-/// Canonical decoding, closed carry, segment range, step count, then the carry fields.
+/// SPEC.md Algorithm 8.
 #[test]
 fn terminal_checks_match_lean() {
     for (package, fixture) in [
@@ -337,8 +311,7 @@ fn terminal_checks_match_lean() {
     }
 }
 
-/// SPEC.md section 7.1, rule 6: the memory fingerprint error `2·m_mem/q²` is at most
-/// `2^−109.91` exactly when `m_mem ≤ 139,509` (Lean `Geometry.secure_iff`).
+/// SPEC.md section 7.1, rule 6; Lean `Geometry.secure_iff`.
 #[test]
 fn memory_security_bits_match_the_lean_setup_boundary() {
     let bits = |max_tuples: usize| {
@@ -355,11 +328,7 @@ fn memory_security_bits_match_the_lean_setup_boundary() {
     }
 }
 
-/// SPEC.md section 7.1: the memory gate charges every segment of a proof,
-/// `S_max · 2·m_mem/q²`, and accepts a minimum `k` exactly when
-/// `2^k · S_max · 2·m_mem ≤ q²`. At the setup boundary `m_mem = 139,509`, one
-/// segment gives 109.91 bits and four segments give 107.91, so the gate
-/// accepts 107 and rejects 108, also before a prover reads a saved circuit.
+/// SPEC.md section 7.1.
 #[test]
 fn the_memory_gate_charges_every_segment_exactly() {
     use super::{memory_security, Geometry, Prover};
@@ -408,8 +377,6 @@ fn the_memory_gate_charges_every_segment_exactly() {
     assert!(rejected(load), "the gate must reject before it reads a saved circuit");
 }
 
-/// Lean's bounded-depth packages (`formal/nightstream-fprime/artifacts`): the
-/// light and refresh step packages of an application.
 struct Packages {
     light: Vec<u8>,
     refresh: Vec<u8>,
@@ -425,8 +392,6 @@ impl Packages {
         .expect("Lean bounded-depth package")
     }
 
-    /// The packages of `stem` (`""` for today's fixture, `"nebula-v1-"`,
-    /// `"nebula-n1-"`).
     fn of(stem: &str) -> Self {
         Self {
             light: Self::read(&format!("nightstream-fprime-bounded-depth-{stem}light-v1.json")),
@@ -442,8 +407,6 @@ impl Packages {
     }
 }
 
-/// A package loads only from its own packages: the second package's fail as
-/// the first package at the pinned identity.
 #[test]
 fn package_loads_only_its_own_bytes() {
     assert!(matches!(
@@ -458,9 +421,6 @@ fn n1_run() -> Run<Machine> {
     Run::new(Machine, &Package::N1.program(), MachineState::default())
 }
 
-/// The second plan (`N = 1`): every invocation opens and closes a segment,
-/// every step uses both ports, and `S_max` segments end at the largest
-/// reachable timestamp `S_max · N · B_ops`.
 #[test]
 fn n1_native_run_reaches_every_counter_maximum() {
     let mut run = n1_run();
@@ -483,8 +443,7 @@ fn n1_native_run_reaches_every_counter_maximum() {
     assert_eq!(initial, run.initial_state());
 }
 
-/// The SPEC.md section 9 accept cases of the second plan through the memory verifier:
-/// `N = 1`, and `S = S_max` with every counter at its largest value.
+/// SPEC.md section 9.
 fn n1_accept(engine: crate::Engine) {
     let circuit = Package::N1
         .load(Packages::of("nebula-n1-").references())
@@ -513,7 +472,6 @@ fn n1_accept(engine: crate::Engine) {
             proof.as_ref().unwrap(),
         )
         .unwrap();
-    // The memory prover's compressed proof verifies as the proof does.
     let memory = circuit.prover(engine, 109).unwrap();
     let proof = super::proving::Proof::from_parts(proof.unwrap(), *run.carry());
     let key = verifier.compression_key().unwrap();
@@ -537,10 +495,7 @@ fn n1_accept_on_cpu() {
     n1_accept(crate::Engine::Optimized);
 }
 
-/// The SPEC.md section 9 accept cases that the first plan reaches, and the rejections
-/// that need no invalid witness, through the memory verifier. One run of four
-/// segments (`S = S_max`) has continue arms (`N = 2`), writes RAM in the first
-/// segment and reads it in the second, and ends with an idle segment.
+/// SPEC.md section 9.
 fn memory_conformance(engine: crate::Engine) {
     use crate::nebula::VerifyError;
     let started = std::time::Instant::now();
@@ -597,8 +552,6 @@ fn memory_conformance(engine: crate::Engine) {
         .unwrap();
     eprintln!("memory verification elapsed={:?}", verifying.elapsed());
 
-    // Canonical decoding: an application integer at or above `q` has the word of a smaller
-    // integer, so the honest proof would verify it. Reject it at the terminal.
     let mut alias = statement.clone();
     alias.final_.acc += F::ORDER_U64;
     assert!(matches!(
@@ -606,7 +559,6 @@ fn memory_conformance(engine: crate::Engine) {
         Err(VerifyError::Terminal(TerminalError::NonCanonical))
     ));
 
-    // One closed segment is a complete proof of its own.
     let mut one = statement.clone();
     one.steps = 2;
     one.segments = 1;
@@ -617,7 +569,6 @@ fn memory_conformance(engine: crate::Engine) {
         .verify_parts(&program, &one, &invocations[1].carry, &segment_proof)
         .unwrap();
 
-    // End inside a segment: reject at the terminal `idx = N` check.
     let mut open = one.clone();
     open.steps = 1;
     open.final_ = MachineState { pc: 1, acc: 5 };
@@ -627,7 +578,7 @@ fn memory_conformance(engine: crate::Engine) {
         Err(VerifyError::Terminal(TerminalError::OpenCarry))
     ));
 
-    // The Stage 1 initial envelope (`T = 0`): reject (SPEC.md Algorithm 8).
+    // SPEC.md Algorithm 8.
     let mut empty = statement.clone();
     empty.steps = 0;
     empty.segments = 0;
@@ -636,8 +587,6 @@ fn memory_conformance(engine: crate::Engine) {
         Err(VerifyError::Terminal(TerminalError::SegmentRange))
     ));
 
-    // A fold with more than one fresh claim: the proof format has one fresh
-    // slot, so the decoder rejects any further payload.
     let bytes = circuit
         .prover(engine, 109)
         .unwrap()
@@ -648,8 +597,6 @@ fn memory_conformance(engine: crate::Engine) {
     two.extend_from_slice(&bytes[bytes.len() / 2..]);
     assert!(verifier.decode_proof(&two).is_err());
 
-    // An envelope carry that does not open the final state: reject at the
-    // Stage 1 state link.
     let mut carry = *run.carry();
     carry.seen.swap(0, 1);
     assert_ne!(carry, *run.carry());
@@ -665,11 +612,7 @@ fn memory_conformance_on_cpu() {
     memory_conformance(crate::Engine::Optimized);
 }
 
-/// One package serves two programs (SPEC.md section 9): the loaded V1 package proves a
-/// segment of the default program and of a second program, and each proof
-/// verifies with its own program. A verifier given the other program rejects
-/// it: the other `D_init` opens another initial state, so the Stage 1 state
-/// link fails. A program of another package fails before any check.
+/// SPEC.md section 9.
 #[test]
 #[ignore = "Full production-profile memory proofs; run separately under the 300-second cap."]
 fn each_program_verifies_only_its_own_proof_on_cpu() {
@@ -732,15 +675,10 @@ fn print_memory_package_identifier() {
     }
 }
 
-/// The machine with one change, through the public application contract.
 #[derive(Clone, Copy, Debug)]
 enum Changed {
-    /// The fetch slot's `is_write = 0` row is scaled by two: the honest
-    /// steps still hold, and the circuit differs in one application row.
     Row,
-    /// The fetch port reads one more than the cell holds.
     Read,
-    /// The step gives one port, not `B_ops`.
     Ports,
 }
 
@@ -795,9 +733,7 @@ impl Application for Changed {
     }
 }
 
-/// The runner applies an application's ports as Lean `Executes` does: a
-/// port that reads another value than its cell holds and a step without
-/// `B_ops` ports have no segment.
+/// Lean `Executes`.
 #[test]
 fn runner_rejects_a_misread_port_and_a_short_port_list() {
     for (app, expected) in [(Changed::Read, "Access"), (Changed::Ports, "Shape")] {
@@ -812,10 +748,7 @@ fn runner_rejects_a_misread_port_and_a_short_port_list() {
     }
 }
 
-/// The Lean `Geometry.Valid` rules gate both a program and a Rust-built
-/// circuit, so no proof exists for a geometry that the memory theorems do
-/// not cover. A ROM of `2^64` cells, too few timestamp bits, scans that
-/// do not cover memory, a zero count, and `μ = 64` each fail.
+/// Lean `Geometry.Valid`.
 #[test]
 fn invalid_geometries_make_no_program_and_no_circuit() {
     let valid = Package::V1.geometry();
@@ -846,9 +779,7 @@ fn invalid_geometries_make_no_program_and_no_circuit() {
     }
 }
 
-/// SPEC.md section 7.1, rule 6 (Lean `Geometry.Secure`): setup rejects a valid geometry
-/// with `m_mem > 139,509`. This one has one port and one scan slot, so its
-/// relation is small, but `m_mem = R + M + N · B_ops = 2^18`.
+/// SPEC.md section 7.1, rule 6; Lean `Geometry.Secure`.
 #[test]
 fn insecure_geometry_makes_no_circuit() {
     let insecure = crate::nebula::Geometry {
@@ -868,9 +799,7 @@ fn insecure_geometry_makes_no_circuit() {
     ));
 }
 
-/// Lean `Machine.portApp` is for `bOps = 2`, and Lean `PortApp.portsLength`
-/// gives every step `B_ops` ports. No machine row fixes a third port, so a
-/// step could write any RAM cell through it: the geometry makes no circuit.
+/// Lean `Machine.portApp` and `PortApp.portsLength`.
 #[test]
 fn machine_makes_no_circuit_with_a_third_port() {
     let mut geometry = Package::V1.geometry();
@@ -890,8 +819,6 @@ fn machine_makes_no_circuit_with_a_third_port() {
     ));
 }
 
-/// An application whose row reads witness word `self.0` through a public
-/// `Variable`, outside its view.
 struct ReadsWord(usize);
 
 impl Application for ReadsWord {
@@ -931,9 +858,7 @@ impl Application for ReadsWord {
     }
 }
 
-/// Lean `PortApp` rows read only the view (`AppView.env`), and the security
-/// note needs rows that do not see `η`. A row that reads witness word 90 (the
-/// fresh `η1`) or word 0 (the carry) makes no circuit.
+/// Lean `AppView.env`.
 #[test]
 fn application_rows_outside_the_view_make_no_circuit() {
     for word in [90, 0] {
@@ -949,7 +874,6 @@ fn application_rows_outside_the_view_make_no_circuit() {
     }
 }
 
-/// An application whose state is a word list of any length, with width 2.
 #[derive(Clone)]
 struct Listed;
 
@@ -987,8 +911,6 @@ impl Application for Listed {
     }
 }
 
-/// A statement state is `width` words (Lean `Fin width → F`); one with
-/// another count would need a state-digest collision to verify.
 #[test]
 fn terminal_checks_reject_a_state_of_another_width() {
     let mut run = Run::new(Listed, &Package::V1.program(), vec![0, 0]);
@@ -1005,8 +927,6 @@ fn terminal_checks_reject_a_state_of_another_width() {
     );
 }
 
-/// One segment of the first package's default program proved by `prover`,
-/// with the native outputs as the Rust application's outputs.
 fn prove_segment<A: Application<Input = Step, State = MachineState>>(
     prover: &crate::Prover,
     app: A,
@@ -1021,11 +941,6 @@ fn prove_segment<A: Application<Input = Step, State = MachineState>>(
     (run.statement(), *run.carry(), proof)
 }
 
-/// The Rust-built path: the setup compiles the machine's relation of the
-/// first geometry and saves it, and the prover loads the file. The verifier
-/// compiles the relation itself. It accepts the loaded prover's proof of one
-/// segment and rejects a proof from the circuit with one changed application
-/// row.
 fn rust_built(engine: crate::Engine) {
     use crate::nebula::{Circuit, VerifyError};
     let started = std::time::Instant::now();

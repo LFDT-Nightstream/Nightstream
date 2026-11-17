@@ -1,5 +1,3 @@
-//! Centered field representatives and strict norm-bound behavior.
-
 use neo_math::balanced::{to_balanced_i128, within_nc_bound};
 use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};

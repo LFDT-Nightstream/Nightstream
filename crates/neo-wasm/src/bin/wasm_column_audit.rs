@@ -1,5 +1,3 @@
-//! Writes a self-contained HTML audit of the WASM application relation.
-
 use std::{fs, path::Path};
 
 use neo_application::render_column_audit_html;

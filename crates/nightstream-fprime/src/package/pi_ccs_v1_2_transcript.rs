@@ -1,8 +1,3 @@
-//! Exact additive Poseidon2 transcript replay for SuperNeo v1.2 PiCCS.
-//!
-//! This module does not select a circuit or accept a proof; it derives
-//! verifier-owned challenges and the post-output state from fixed-profile public messages.
-
 use neo_math::Fq;
 use neo_transcript::{domain_chunk_v1_2, Poseidon2Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -16,7 +11,7 @@ const WIDTH: usize = neo_ccs::crypto::poseidon2::WIDTH;
 const CUBE_VARIABLES: usize = PI_CCS_V1_2_ROUND_COUNT;
 const SOURCE_COUNT: usize = 1 + super::DECOMPOSITION_K_RHO as usize;
 const LIGHT_SOURCE_COUNT: usize = 2;
-/// The fold domains of the bounded-depth scheme's light and refresh PiCCS (Lean `BoundedDepth.Keys`).
+/// Lean `BoundedDepth.Keys`.
 pub const LIGHT_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/light/v1";
 pub const REFRESH_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/refresh/v1";
 const EVALUATION_WORDS: usize = 2 * EVALUATIONS;
@@ -40,8 +35,7 @@ impl PiCcsV1_2Transcript {
     }
 }
 
-/// The light fold's transcript (`BoundedDepth.lightPiCcsOracle`): the production
-/// transcript under the light fold's domain, with the two sources' outputs.
+/// Lean `BoundedDepth.lightPiCcsOracle`.
 pub fn derive_light_transcript(
     fresh_commitment: &[u64],
     fresh_public_input: &[u64],
@@ -59,8 +53,7 @@ pub fn derive_light_transcript(
     )
 }
 
-/// The refresh fold's transcript (`BoundedDepth.refreshWords`): the 14 Π_DEC
-/// children's commitments and evaluation families follow the statement.
+/// Lean `BoundedDepth.refreshWords`.
 pub fn derive_refresh_transcript(
     fresh_commitment: &[u64],
     fresh_public_input: &[u64],

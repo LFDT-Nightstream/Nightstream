@@ -1,14 +1,4 @@
-//! The per-step cost of the Rust-built memory relation for the free
-//! application (no state word, no private word, no row) with `B_ops = 21`, a
-//! ROM of `2^12` cells, and a RAM of `2^16` cells, at each feasible `N` with
-//! `S_max = 1` and the smallest `W_ts` that SPEC.md section 7.1, rule 2 allows; and for
-//! the geometry, state words, and private words of the WASM test of
-//! `neo-wasm` (`tests/wasm_nebula.rs`), without its rows. A step's
-//! Stage 1 words are its witness words (the memory words of
-//! `WitnessWords.lean`) and its local words (the variables of the Poseidon2
-//! sponges and of the product rows). The refresh relation with the application
-//! in place, whose logical width is the widest step's, must fit the approved
-//! key capacity (`MAX_CARRIER_WIDTH`).
+//! SPEC.md section 7.1, rule 2; Lean `WitnessWords.lean`.
 
 use std::sync::OnceLock;
 
@@ -19,7 +9,6 @@ use super::memory_circuit;
 use crate::application::ApplicationCircuit;
 use crate::nebula::{Application, Expr, Geometry, Memory, Transition, View};
 
-/// The logical width of the refresh relation with `circuit` in place of Lean's application.
 fn logical_width(circuit: &ApplicationCircuit) -> Result<usize, crate::Error> {
     static PACKAGES: OnceLock<BoundedDepthPackages> = OnceLock::new();
     let packages = PACKAGES.get_or_init(|| {
@@ -34,8 +23,6 @@ fn logical_width(circuit: &ApplicationCircuit) -> Result<usize, crate::Error> {
     Ok(packages.refresh().clone().expand()?.layout().width())
 }
 
-/// An application with `width` state words, `aux` private words, `ports`
-/// ports, and no row.
 #[derive(Clone, Copy, Debug)]
 struct Free {
     width: usize,
@@ -73,9 +60,6 @@ impl Application for Free {
     }
 }
 
-/// Build the free relation of `N = n` and `S_max = s_max` with the smallest
-/// `W_ts`, print its counts, and return whether it fits; `None` for a
-/// geometry that breaks SPEC.md section 7.1.
 fn measure(n: usize, s_max: usize) -> Option<bool> {
     let (r, mu, b_ops) = (12, 16, 21);
     let cells = (1usize << r) + (1 << mu);
@@ -98,8 +82,6 @@ fn measure(n: usize, s_max: usize) -> Option<bool> {
     )
 }
 
-/// Print the counts of the relation of `geometry` and `app`, and return
-/// whether it fits; `None` for a geometry that breaks SPEC.md section 7.1.
 fn count(geometry: &Geometry, app: Free) -> Option<bool> {
     if !geometry.is_valid() || !geometry.is_secure() {
         return None;
@@ -138,11 +120,9 @@ fn free_application_words_per_step() {
     }
     let smallest = smallest.expect("some feasible N fits");
     eprintln!("budget MAX_CARRIER_WIDTH={MAX_CARRIER_WIDTH} smallest fitting N={smallest}");
-    // One more timestamp bit at the smallest N: S_max = 2.
     measure(smallest, 2);
 }
 
-/// The WASM test geometry with its 61 state words and 8,549 private words.
 #[test]
 #[ignore = "Prints the per-step words of the WASM test geometry."]
 fn wasm_geometry_words_per_step() {
@@ -170,8 +150,6 @@ fn wasm_geometry_words_per_step() {
     eprintln!("budget MAX_CARRIER_WIDTH={MAX_CARRIER_WIDTH}");
 }
 
-/// The parts of `size_parts` sum to the counts of the memory circuit, and
-/// each phase and region has its own name.
 #[test]
 fn size_parts_sum_to_the_circuit_counts() {
     let geometry = Geometry {
@@ -213,9 +191,6 @@ fn size_parts_sum_to_the_circuit_counts() {
     assert_eq!(names.len(), parts.len());
 }
 
-/// The committed size of the step packages with `circuit` in place of the
-/// fixture's application: per package, the logical width, the slot
-/// coordinates of each kind, the plan rows and the blocks.
 fn print_package_size(name: &str, packages: &BoundedDepthPackages) {
     for (kind, package) in [("light", packages.light()), ("refresh", packages.refresh())] {
         let expanded = package.clone().expand().unwrap();
@@ -229,9 +204,6 @@ fn print_package_size(name: &str, packages: &BoundedDepthPackages) {
     }
 }
 
-/// The step cost of the first memory package's geometry and machine through
-/// `Circuit::compile`: the committed size of both step packages, next to
-/// Lean's own `nebula-v1` packages, and the CPU time of three honest steps.
 #[test]
 #[ignore = "Timing run; run separately under the 300-second cap."]
 fn native_memory_step_cost() {
@@ -291,9 +263,6 @@ fn native_memory_step_cost() {
     }
 }
 
-/// The refresh package's logical width for an `R1csApplication` of two rows
-/// a step whose one-row relation is a counter that reads a ROM, with `bits`
-/// more columns, each made 0 or 1 by a row `x · (x − one)`.
 fn r1cs_width(bits: usize) -> usize {
     use crate::nebula::{batched_slots, pack_regions, R1csApplication, RowRelation, Size};
     use crate::relation::{

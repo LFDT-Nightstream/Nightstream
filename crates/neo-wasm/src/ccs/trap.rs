@@ -1,4 +1,4 @@
-use super::super::gadgets::{push_gated_linear_zero, push_unsigned_ge_gadget};
+use super::super::gadgets::{push_gated_linear_zero, push_unsigned_ge_of_u32_operands};
 use super::super::isa::{WasmMemoryAccessKind, WasmOpcode};
 use super::super::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CI_ENTRY_IS_NULL,
@@ -20,9 +20,6 @@ use p3_field::PrimeCharacteristicRing;
 pub(crate) const CALL_INDIRECT_ENTRY_ZERO_TEST: ZeroTest =
     ZeroTest::column(COL_TABLE_VALUE, COL_CI_ENTRY_NULL_INV, COL_CI_ENTRY_IS_NULL);
 
-/// Div/rem by zero is terminal. Since both divisor limbs are U32,
-/// read1_lo + read1_hi is below the field modulus, so the sum is zero
-/// exactly when both limbs are zero.
 pub(crate) const DIVISOR_ZERO_TEST: ZeroTest<2> = ZeroTest {
     expression: [
         (COL_STACK_READ_VALUE_LO[1], F::ONE),
@@ -79,15 +76,6 @@ pub(crate) fn dividend_min_zero_test() -> ZeroTest<6> {
     }
 }
 
-/// NOTE: this is not a limb composition, just a limb sum.
-///
-/// Composition is not needed because we just need both limbs to equal
-/// specific values.
-///
-/// Since the limbs are 32-bit constrained, there is only one way to
-/// add to u32::MAX * 2 in the 64-bit case, and in the other case the
-/// high limb is pinned to zero (same `narrow high limbs zero`
-/// constraint as above), so it degrades to a simple equality check.
 pub(crate) fn divisor_neg1_zero_test() -> ZeroTest<6> {
     let i32_div_s = selector_col(WasmOpcode::I32DivS).expect("i32.div_s selector");
     let i32_rem_s = selector_col(WasmOpcode::I32RemS).expect("i32.rem_s selector");
@@ -97,10 +85,8 @@ pub(crate) fn divisor_neg1_zero_test() -> ZeroTest<6> {
         expression: [
             (COL_STACK_READ_VALUE_LO[1], F::ONE),
             (COL_STACK_READ_VALUE_HI[1], F::ONE),
-            // limb sum of -1i32: u32::MAX (the high limb is 0)
             (i32_div_s, -F::from_u64(u32::MAX as u64)),
             (i32_rem_s, -F::from_u64(u32::MAX as u64)),
-            // limb sum of -1i64: both limbs are u32::MAX
             (i64_div_s, -F::from_u64(u32::MAX as u64 + u32::MAX as u64)),
             (i64_rem_s, -F::from_u64(u32::MAX as u64 + u32::MAX as u64)),
         ],
@@ -109,7 +95,6 @@ pub(crate) fn divisor_neg1_zero_test() -> ZeroTest<6> {
     }
 }
 
-/// Emit trap-cause flags and the state transition that carries `trapped`.
 pub(super) fn push_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, layout: &WasmRelationLayout) {
     b.with_tag(always("div trap"), |b| {
         push_div_trap_constraints(b);
@@ -152,13 +137,6 @@ fn memory_ops_of_kind(kind: WasmMemoryAccessKind) -> Vec<WasmOpcode> {
         .collect()
 }
 
-/// Derives the linear-memory OOB trap bit.
-///
-/// The bound is word-lane based:
-/// `lane0_addr + use_lane1 + use_lane2 >= 16384 * memory_pages_before`.
-/// This is exact because wasm pages are aligned to 4-byte lanes.
-///
-/// OOB rows de-gate memory tuples; the trap transition consumes `COL_MEM_OOB`.
 fn push_linear_memory_oob_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, linear_memory: &LinearMemoryColumns) {
     let mut mem_selectors: Vec<usize> = linear_memory_ops()
         .into_iter()
@@ -168,8 +146,7 @@ fn push_linear_memory_oob_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, li
         super::host_event_chain::gather_memory_read_kind_col(),
         super::host_event_chain::gather_memory_write_kind_col(),
     ]);
-    // ge = highest touched lane >= memory size in lanes.
-    push_unsigned_ge_gadget(
+    push_unsigned_ge_of_u32_operands(
         b,
         mem_selectors.iter().copied(),
         [
@@ -177,17 +154,15 @@ fn push_linear_memory_oob_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, li
             (idx(linear_memory.use_lane1), F::ONE),
             (idx(linear_memory.use_lane2), F::ONE),
         ],
-        [(COL_MEMORY_PAGES_BEFORE, F::from_u64(16384))],
+        [(COL_MEMORY_PAGES_BEFORE, F::from_u64(crate::preprocess::WASM_PAGE_LANES))],
         COL_CMP_LOW,
         COL_CMP_GE,
     );
-    // mem_oob = (Σ load/store selectors) · ge.
     b.push_row(
         mem_selectors.iter().map(|&s| (s, F::ONE)),
         [(COL_CMP_GE, F::ONE)],
         [(COL_MEM_OOB, F::ONE)],
     );
-    // OOB rows assert no real memory access.
     b.push_row(
         memory_ops_of_kind(WasmMemoryAccessKind::Load)
             .into_iter()
@@ -204,8 +179,6 @@ fn push_linear_memory_oob_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, li
     );
 }
 
-/// Div/rem opcodes that trap on a zero divisor. Spec-derived from
-/// [`WasmOpcode::traps_on_zero_divisor`].
 fn div_rem_ops() -> Vec<WasmOpcode> {
     WasmOpcode::supported()
         .into_iter()
@@ -213,8 +186,6 @@ fn div_rem_ops() -> Vec<WasmOpcode> {
         .collect()
 }
 
-/// Signed div opcodes that trap on overflow (MIN / -1). Spec-derived from
-/// [`WasmOpcode::traps_on_signed_overflow`].
 fn signed_div_ops() -> Vec<WasmOpcode> {
     WasmOpcode::supported()
         .into_iter()
@@ -225,8 +196,6 @@ fn signed_div_ops() -> Vec<WasmOpcode> {
 fn push_div_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     DIVISOR_ZERO_TEST.push_constraints(b);
 
-    // Signed division overflow (MIN / -1) is a trap because the result
-    // is not representable in 2's complement.
     dividend_min_zero_test().push_constraints(b);
     divisor_neg1_zero_test().push_constraints(b);
     b.push_row(
@@ -234,9 +203,6 @@ fn push_div_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         [(COL_DIV_DIVISOR_IS_NEG1, F::ONE)],
         [(COL_DIV_OVERFLOW_COND, F::ONE)],
     );
-    // The scratch predicate is meaningful on signed div/rem rows, while only
-    // div_s turns it into a trap. rem_s(MIN, -1) is the valid zero-remainder
-    // special case that the operation circuit accepts.
     b.push_row(
         signed_div_ops()
             .into_iter()
@@ -244,9 +210,6 @@ fn push_div_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         [(COL_DIV_OVERFLOW_COND, F::ONE)],
         [(COL_DIV_OVERFLOW, F::ONE)],
     );
-    // Zero and -1 divisors are mutually exclusive, so combining the
-    // zero-divisor and signed-overflow trap causes still leaves div_trap
-    // boolean.
     b.push_row(
         div_rem_ops()
             .into_iter()
@@ -254,26 +217,18 @@ fn push_div_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         [(COL_DIV_DIVISOR_IS_ZERO, F::ONE)],
         [(COL_DIV_TRAP, F::ONE), (COL_DIV_OVERFLOW, -F::ONE)],
     );
-    // The faulting row has normal stack arity, but no real result: pin
-    // the synthetic write to zero and turn off the operation circuit below.
     push_gated_linear_zero(b, COL_DIV_TRAP, [(COL_STACK_WRITE0_VALUE_LO, F::ONE)]);
     push_gated_linear_zero(b, COL_DIV_TRAP, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 }
 
-/// The bounds check of `table.get` / `table.set`, and the resolve step of
-/// `call_indirect` / `return_call_indirect`. An out-of-bounds table access
-/// traps (SPEC.md section 7.8). The resolve step traps on an out-of-bounds
-/// index, a null entry or a type mismatch; otherwise the following invocation
-/// calls the entry it checked.
+/// SPEC.md section 7.8.
 fn push_table_bounds_and_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let table_get = selector_col(WasmOpcode::TableGet).unwrap();
     let table_set = selector_col(WasmOpcode::TableSet).unwrap();
     let resolve = selector_col(WasmOpcode::CallIndirectResolve).unwrap();
     let indirect_selectors = [(resolve, F::ONE)];
 
-    // Every table-indexing opcode authenticates the declared table size and
-    // consumes the comparison as its modeled out-of-bounds trap.
-    push_unsigned_ge_gadget(
+    push_unsigned_ge_of_u32_operands(
         b,
         [table_get, table_set, resolve],
         [(COL_TABLE_INDEX, F::ONE)],
@@ -282,10 +237,7 @@ fn push_table_bounds_and_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBu
         COL_CMP_GE,
     );
 
-    // COL_CI_OOB = selector * ge.
     b.push_row(indirect_selectors, [(COL_CMP_GE, F::ONE)], [(COL_CI_OOB, F::ONE)]);
-    // An out-of-bounds table.get/table.set row touches no table element, and
-    // table.get pushes a zero placeholder instead of an entry.
     b.push_row(
         [(table_get, F::ONE), (table_set, F::ONE)],
         [(COL_CMP_GE, F::ONE)],
@@ -299,38 +251,10 @@ fn push_table_bounds_and_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBu
     push_gated_linear_zero(b, COL_TABLE_OOB, [(COL_STACK_WRITE0_VALUE_LO, F::ONE)]);
     push_gated_linear_zero(b, COL_TABLE_OOB, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
 
-    // 0 encodes the null funcref
     CALL_INDIRECT_ENTRY_ZERO_TEST.push_constraints(b);
 
-    // typecheck
     CALL_INDIRECT_TYPE_ZERO_TEST.push_constraints(b);
-    //
-    // we have 3 possible trap cases, characterized by the following two equations:
-    //
-    // 1. type_lookup = resolve * !oob * !null
-    // -> (r1cs trick, works because oob is already gated by resolve)
-    // 1. type_lookup = (resolve - oob) * (1 - null)
-    //
-    // 2. type_lookup * type_eq = resolve - is_trap
-    //
-    // if type_lookup = 1,
-    //
-    // type_lookup => resolve (because of 1)
-    //
-    // so
-    //
-    // type_eq = 1 - is_trap
-    // ->
-    // type_eq = !is_trap
-    //
-    // if type_lookup = 0, then
-    //
-    // either resolve = 0, so 0 = 0 - 0 and is_trap = 0
-    //
-    // or resolve = 1, and is_trap = 1
-    //
-    // which forces either oob or null
-    //
+    // Rocq `IndirectBindings.full_resolve_checks`.
     b.push_row(
         indirect_selectors
             .into_iter()
@@ -352,9 +276,6 @@ fn push_table_bounds_and_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBu
         [(COL_ONE, F::ONE), (COL_CALL_INDIRECT_IS_TRAP, -F::ONE)],
         [(COL_CALL_INDIRECT_IS_NOT_TRAP, F::ONE)],
     );
-    // The type check looks up the table entry's own type: bound whenever the
-    // lookup runs, mismatch traps included, so a trap cannot be faked through
-    // another function's type.
     push_gated_linear_zero(
         b,
         COL_FUNCTION_CALL_TYPE_LOOKUP_GATE,

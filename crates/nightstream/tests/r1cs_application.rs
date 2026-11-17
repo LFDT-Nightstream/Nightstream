@@ -1,8 +1,4 @@
-//! A relation that the public builders of `nightstream::relation` make,
-//! proved through `nebula::R1csApplication` as the Starstream interleaving
-//! relation is (SPEC.md section 7.6). It is a counter: each row reads
-//! `table[count]` from a ROM, writes it to a RAM at `count`, and adds one to
-//! `count`. A step holds one row or two.
+//! SPEC.md section 7.6.
 
 use std::num::NonZeroUsize;
 
@@ -36,7 +32,6 @@ fn registry() -> ColumnRegistry {
     .unwrap()
 }
 
-/// `count_after = count_before + 1`.
 fn relation() -> R1csRelation<&'static str> {
     let mut builder = R1csBuilder::new(1, ONE).unwrap();
     builder.with_tag(ConstraintTag::new("count", "counter"), |rows| {
@@ -45,7 +40,6 @@ fn relation() -> R1csRelation<&'static str> {
     builder.build(&registry()).unwrap()
 }
 
-/// Memory 0 is the table ROM, memory 1 the RAM. Both ports are always active.
 fn catalog() -> MemoryCatalog<u32> {
     let port = |kind| MemoryPortSpec {
         address_columns: vec![BEFORE],
@@ -73,13 +67,10 @@ fn catalog() -> MemoryCatalog<u32> {
     .unwrap()
 }
 
-/// ROM and RAM of four cells, two slots for each row, one segment of
-/// `4 / rows` steps.
 fn geometry(rows: usize) -> Geometry {
     Geometry::new(2, 2, 2 * rows, 4 / rows, 1).unwrap()
 }
 
-/// The count of a row is the count before the next row.
 fn continuity() -> ContinuityCatalog {
     ContinuityCatalog::new(
         [ContinuityGroup {
@@ -132,7 +123,6 @@ fn preload(table: [u32; 4]) -> MemoryPreload<u32> {
     preload
 }
 
-/// The honest rows: count `c` reads and writes `TABLE[c]`.
 fn rows() -> Vec<Vec<F>> {
     (0..4u64)
         .map(|count| {
@@ -146,7 +136,6 @@ fn rows() -> Vec<Vec<F>> {
         .collect()
 }
 
-/// The step inputs of `rows` rows each.
 fn inputs(rows: usize) -> Vec<Vec<F>> {
     self::rows().chunks(rows).map(<[Vec<F>]>::concat).collect()
 }
@@ -169,8 +158,7 @@ fn check_rows_names_the_row_that_fails() {
     );
 }
 
-/// `Geometry::new` derives the timestamp width and the scan slots, and refuses
-/// a geometry that breaks SPEC.md section 7.1.
+/// SPEC.md section 7.1.
 #[test]
 fn a_geometry_derives_its_widths_and_keeps_the_rules() {
     assert_eq!(
@@ -209,9 +197,6 @@ fn a_geometry_derives_its_widths_and_keeps_the_rules() {
     assert_eq!(Geometry::new(64, 64, 2, 4, 1), None, "the spaces fit in a word");
 }
 
-/// A relation with a verifier-supplied column other than the constant-one
-/// column is refused, because no memory verifier supplies that column, so
-/// the column would be a free word of each row.
 #[test]
 fn a_relation_with_another_public_input_is_refused() {
     let mut builder = R1csBuilder::new(2, ONE).unwrap();
@@ -229,8 +214,6 @@ fn a_relation_with_another_public_input_is_refused() {
     );
 }
 
-/// A preload cell of a memory that the catalog does not have is refused, so
-/// two preloads never give one program.
 #[test]
 fn a_preload_of_an_unknown_memory_is_refused() {
     let mut unknown = preload(TABLE);
@@ -240,8 +223,6 @@ fn a_preload_of_an_unknown_memory_is_refused() {
     assert!(app.program(&preload(TABLE)).is_ok());
 }
 
-/// A size that gives the RAM no region is refused, because the circuit would
-/// not check the RAM.
 #[test]
 fn a_size_must_give_each_memory_a_region() {
     let rows = NonZeroUsize::MIN;
@@ -266,9 +247,6 @@ fn a_size_must_give_each_memory_a_region() {
     ));
 }
 
-/// The honest rows run natively in steps of one row and of two rows: the
-/// count reaches 4 after one access to each memory for each row. A row that
-/// reads another value than the ROM holds has no step.
 #[test]
 fn a_relation_of_the_builders_runs_through_nebula() {
     for rows in [1, 2] {
@@ -452,8 +430,6 @@ fn construction_rejects_columns_outside_the_row() {
     assert!(R1csApplication::new(original, &continuity(), &catalog, size).is_ok());
 }
 
-/// The circuit of two rows in each step proves the honest run. The verifier
-/// accepts it and rejects another last count and another table.
 #[test]
 #[ignore = "Full production-profile memory proof; run separately under the 300-second cap."]
 fn a_relation_of_the_builders_proves_and_verifies_on_cpu() {

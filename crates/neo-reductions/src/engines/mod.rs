@@ -1,7 +1,3 @@
-//! Π_CCS, Π_RLC, and Π_DEC engines. Owns the optimized and paper-exact
-//! backends, the cross-checking wrapper, and the shared protocol and receipt
-//! modules.
-
 pub mod utils;
 
 #[derive(Clone, Debug, PartialEq)]

@@ -1,15 +1,4 @@
-//! Strict bytes of the claims and witnesses in a bounded-depth proof (SPEC.md section 4.5).
-//!
-//! Owns the proof byte layout. Does not own acceptance: a decoded proof still
-//! needs `verify`. The prepared circuit fixes every size, so the decoder
-//! checks the exact byte length before it allocates. The bytes carry exactly
-//! the values that `verify` reads, with no frame digest, which no check
-//! reads. Each proof has one encoding: field words are below the modulus,
-//! evaluations carry exactly
-//! `D` coefficients, and each witness column is a pair of disjoint `+1` and
-//! `-1` lane masks. The fixed-key commitment already rejects witness values
-//! outside `{-1, 0, 1}`, so the mask form keeps every proof that `verify`
-//! can accept.
+//! SPEC.md section 4.5.
 
 use neo_ajtai::nightstream_fprime_setup::{signed_unit_prefix_blocks, PRODUCTION_VERIFIER_ROWS};
 use neo_ajtai::Commitment;
@@ -27,7 +16,6 @@ const WORD: usize = 8;
 #[error("selected proof bytes: {0}")]
 pub struct ProofCodecError(pub(crate) &'static str);
 
-/// Sizes that the prepared circuit fixes.
 pub(super) struct Shape {
     pub(super) public_width: usize,
     pub(super) witness_columns: usize,
@@ -47,7 +35,6 @@ impl Writer {
             .for_each(|value| self.word(value.as_canonical_u64()));
     }
 
-    /// The `D` coefficients of a canonical evaluation vector.
     pub(super) fn evaluations(&mut self, values: &[K]) {
         for value in &values[..D] {
             self.fields(&value.as_coeffs());
@@ -86,7 +73,6 @@ impl Writer {
         Ok(())
     }
 
-    /// One `+1` mask and one `-1` mask per column, from the commitment's own check.
     pub(super) fn witness(&mut self, witness: &Mat<F>, shape: &Shape) -> Result<(), ProofCodecError> {
         if witness.rows() != D || witness.cols() != shape.witness_columns {
             return Err(ProofCodecError("witness shape"));
@@ -146,7 +132,6 @@ impl<'a> Reader<'a> {
         Ok(K::from_coeffs([self.field()?, self.field()?]))
     }
 
-    /// `D` coefficients, padded with zeros to the selected length.
     pub(super) fn evaluations(&mut self) -> Result<Vec<K>, ProofCodecError> {
         let mut values = (0..D)
             .map(|_| self.extension())

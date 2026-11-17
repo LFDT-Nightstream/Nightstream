@@ -1,7 +1,3 @@
-//! Shared event-bound fixture: a component with two template-bound host
-//! imports (mul and sink) and an export boundary template,
-//! traced with bindings tables for host-event and F′ audit tests.
-
 use neo_wasm::comm_chain::COMM_CHAIN_BLOCK_WORDS;
 use neo_wasm::host_event_bindings::{
     absorbed_blocks, EventSequenceBuilder, HostEventBindings, HostEventBindingsBuilder,
@@ -16,6 +12,10 @@ const ENTRY_HEADER_TAG: u64 = 4;
 const ENTRY_PAYLOAD_TAG: u64 = 5;
 const EXIT_OUTPUT_TAG: u64 = 6;
 const ENTRY_HEADER_WORD: u32 = 9;
+
+pub const MUL_FREF: u32 = 1;
+pub const SINK_FREF: u32 = 2;
+pub const RUN_FREF: u32 = 3;
 
 fn mul_sink_component_wat() -> &'static str {
     r#"
@@ -50,8 +50,6 @@ fn mul_sink_component_wat() -> &'static str {
     "#
 }
 
-/// Import templates for mul/sink plus two entry blocks and one output-bound
-/// exit block for `run`.
 fn test_bindings(
     program: &WasmProgramTables,
     mul_fref: u32,
@@ -62,8 +60,6 @@ fn test_bindings(
         .arg_i32(0)?
         .arg_i32(1)?
         .finish()?;
-    // The ResultElem Lo slot pushes the host result; the Hi slot binds the
-    // pushed hi lane (zero for this i32 result).
     let mul_result = EventSequenceBuilder::op(MUL_RESULT_TAG)
         .result()?
         .finish()?;
@@ -85,25 +81,6 @@ fn test_bindings(
     bindings.finish()
 }
 
-/// The mul import is the two-event template; sink has one event.
-pub fn mul_fref(bindings: &HostEventBindings) -> u32 {
-    *bindings
-        .imports
-        .iter()
-        .find(|(_, t)| t.events.len() == 2)
-        .expect("mul template")
-        .0
-}
-
-pub fn sink_fref(bindings: &HostEventBindings) -> u32 {
-    *bindings
-        .imports
-        .iter()
-        .find(|(_, t)| t.events.len() == 1)
-        .expect("sink template")
-        .0
-}
-
 pub struct HostEventLifecycleSetup {
     pub trace: Vec<WasmVmStep>,
     pub bindings: HostEventBindings,
@@ -115,8 +92,7 @@ pub fn host_event_lifecycle_setup() -> HostEventLifecycleSetup {
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
 
-    let (frefs, run_fref) = ([1, 2], 3);
-    let bindings = test_bindings(&artifacts.tables, frefs[0], frefs[1], run_fref).expect("build bindings");
+    let bindings = test_bindings(&artifacts.tables, MUL_FREF, SINK_FREF, RUN_FREF).expect("build bindings");
 
     let run = neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, &bindings, "run", |linker| {
         linker
@@ -135,22 +111,20 @@ pub fn host_event_lifecycle_setup() -> HostEventLifecycleSetup {
     HostEventLifecycleSetup {
         trace,
         bindings,
-        run_fref,
+        run_fref: RUN_FREF,
         component_bytes,
     }
 }
 
-/// The transcript the verifier expects: export entry, the mul call and its
-/// result, the sink call, and the export exit carrying the output.
 pub fn expected_transcript(bindings: &HostEventBindings, run_fref: u32) -> Vec<[neo_math::F; COMM_CHAIN_BLOCK_WORDS]> {
     let template = bindings.exports.get(&run_fref).expect("export template");
     let mut blocks = neo_wasm::host_event_bindings::expand_export_entry(template, &[]).expect("entry");
     blocks = absorbed_blocks(&template.entry, &blocks).expect("absorbed entry");
     blocks.extend(
         absorbed_blocks(
-            &bindings.imports[&mul_fref(bindings)].events,
+            &bindings.imports[&MUL_FREF].events,
             &neo_wasm::host_event_bindings::expand_import_events(
-                &bindings.imports[&mul_fref(bindings)],
+                &bindings.imports[&MUL_FREF],
                 &[(7, 0), (6, 0)],
                 Some((42, 0)),
                 &[],
@@ -162,9 +136,9 @@ pub fn expected_transcript(bindings: &HostEventBindings, run_fref: u32) -> Vec<[
     );
     blocks.extend(
         absorbed_blocks(
-            &bindings.imports[&sink_fref(bindings)].events,
+            &bindings.imports[&SINK_FREF].events,
             &neo_wasm::host_event_bindings::expand_import_events(
-                &bindings.imports[&sink_fref(bindings)],
+                &bindings.imports[&SINK_FREF],
                 &[(42, 0)],
                 None,
                 &[],

@@ -1,5 +1,3 @@
-//! The normal CPU PiCCS evaluator over actual witnesses and compact matrices.
-
 use neo_ccs::{CcsStructure, CcsWitness, Mat};
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
@@ -40,10 +38,14 @@ fn pair_norm_coefficients(table: &Assignment<'_>, pairs: usize, weights: &Equali
     };
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     {
-        (0..pairs).into_par_iter().map(term).reduce(
-            || [K::ZERO; 4],
-            |left, right| std::array::from_fn(|index| left[index] + right[index]),
-        )
+        (0..pairs)
+            .into_par_iter()
+            .with_min_len(prefix::MIN_JOB_PAIRS)
+            .map(term)
+            .reduce(
+                || [K::ZERO; 4],
+                |left, right| std::array::from_fn(|index| left[index] + right[index]),
+            )
     }
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     {
@@ -69,7 +71,6 @@ pub struct OptimizedPaperJointOracle<'a> {
     witness_blocks: Vec<SuperneoZBlocks>,
     evaluation_table: Vec<K>,
     constraint_shift: K,
-    norm_sources: usize,
 }
 
 impl<'a> OptimizedPaperJointOracle<'a> {
@@ -89,6 +90,7 @@ impl<'a> OptimizedPaperJointOracle<'a> {
         if !challenges.has_expected_dimension(dims.variables)
             || running.is_empty() != prior_point.is_none()
             || prior_point.is_some_and(|point| point.len() != dims.variables)
+            || norm_sources > fresh.len() + running.len()
             || (shape.rows, shape.columns, shape.matrices) != (structure.n(), dims.assignment_width, structure.t())
             || structure.f().eval(&vec![F::ZERO; structure.t()]) != F::ZERO
         {
@@ -103,7 +105,7 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             .iter()
             .map(|source| SuperneoZBlocks::from_witness_mat(*source, structure.m()))
             .collect::<Result<Vec<_>, _>>()?;
-        let assignments = witnesses
+        let assignments = witnesses[..norm_sources]
             .iter()
             .map(|source| Assignment::new(source, dims.assignment_width))
             .collect::<Vec<_>>();
@@ -132,7 +134,6 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             witness_blocks,
             evaluation_table,
             constraint_shift: gamma_power(challenges.gamma, running.len() * D * (structure.t() + 1)),
-            norm_sources,
         })
     }
 
@@ -148,11 +149,11 @@ impl<'a> OptimizedPaperJointOracle<'a> {
     }
 
     fn norm_coefficients(&self, weights: &EqualityWeights) -> [K; 4] {
-        norm_coefficients(&self.assignments[..self.norm_sources], self.challenges.gamma, weights)
+        norm_coefficients(&self.assignments, self.challenges.gamma, weights)
     }
 
     fn general_norm(&self, weights: &EqualityWeights, point: K) -> K {
-        self.assignments[..self.norm_sources]
+        self.assignments
             .iter()
             .enumerate()
             .map(|(source, table)| {
@@ -177,6 +178,7 @@ impl<'a> OptimizedPaperJointOracle<'a> {
         {
             (0..self.evaluation_table.len().div_ceil(2))
                 .into_par_iter()
+                .with_min_len(prefix::MIN_JOB_PAIRS)
                 .map(term)
                 .reduce(|| [K::ZERO; 2], |left, right| [left[0] + right[0], left[1] + right[1]])
         }

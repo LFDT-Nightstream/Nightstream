@@ -3,8 +3,6 @@ mod common;
 use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::{collect_wasmtime_steps, traces_from_wasmtime_steps};
 
-// Loop that counts down: local[0] starts at 3, decrements to 0.
-// br_if $L branches back while local[0] > 0, then falls through.
 const COUNTDOWN_WAT: &str = r#"
 (module
   (func (export "main") (result i32)

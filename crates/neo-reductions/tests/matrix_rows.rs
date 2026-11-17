@@ -796,3 +796,95 @@ fn retained_complete_window_is_shared_and_other_requests_load_as_before() {
         Err(PiCcsError::InvalidInput(_))
     ));
 }
+
+struct ScatteredRows;
+
+impl ScatteredRows {
+    const BLOCKS: usize = 64;
+}
+
+impl MatrixRows for ScatteredRows {
+    fn shape(&self) -> MatrixShape {
+        MatrixShape {
+            rows: 40,
+            columns: Self::BLOCKS * D,
+            matrices: 2,
+        }
+    }
+
+    fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
+        let columns = Self::BLOCKS * D;
+        for row in rows {
+            let scalar = |column: usize, coefficient: F| GeometricRowRun::new(row, column, 1, coefficient, F::ONE);
+            sink.push_run(row, 0, scalar(row % D, F::from_usize(row + 2)))?;
+            for entry in 0..12 {
+                let block = (row * 7 + entry * 23) % Self::BLOCKS;
+                let local = (row + 5 * entry) % D;
+                let coefficient = match entry % 3 {
+                    0 => F::ONE,
+                    1 => -F::ONE,
+                    _ => F::from_usize(entry + row + 3),
+                };
+                sink.push_run(row, 0, scalar(block * D + local, coefficient))?;
+                sink.push_run(row, 0, scalar(block * D + (local + 1) % D, F::from_usize(entry + 1)))?;
+            }
+            for run in 0..4 {
+                let start = (columns - 3 * D) - ((row * 131 + run * 977) % (columns - 3 * D));
+                sink.push_run(
+                    row,
+                    0,
+                    GeometricRowRun::new(row, start, 2 * D + 5, F::from_usize(run + 1), F::from_u64(3)),
+                )?;
+            }
+            if sink.finish_matrix_row(row, 0)?.is_break() {
+                return Ok(());
+            }
+            if row % 5 != 4 {
+                for entry in 0..6 {
+                    let block = Self::BLOCKS - 1 - (row + 9 * entry) % Self::BLOCKS;
+                    sink.push_run(row, 1, scalar(block * D + entry, F::from_usize(2 * entry + 5)))?;
+                }
+                sink.push_run(
+                    row,
+                    1,
+                    GeometricRowRun::new(row, 3 * D - 7, D + 9, F::from_usize(row + 1), F::from_u64(5)),
+                )?;
+                sink.push_run(row, 1, GeometricRowRun::new(row, 2, D, F::from_u64(4), F::from_u64(7)))?;
+            }
+            if sink.finish_matrix_row(row, 1)?.is_break() {
+                return Ok(());
+            }
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn scattered_row_openings_match_resident_rows_in_every_part() {
+    let source = ScatteredRows;
+    let cache = expanded_cache(&source);
+    let columns = source.shape().columns;
+    let variables = columns.next_power_of_two().ilog2() as usize;
+    let point = (0..variables)
+        .map(|index| K::from_coeffs([F::from_usize(3 * index + 2), F::from_usize(index + 7)]))
+        .collect::<Vec<_>>();
+    let witnesses = [
+        SuperneoZBlocks::from_z(
+            &(0..columns)
+                .map(|column| K::from(F::from_usize(column % 5) - F::from_u64(2)))
+                .collect::<Vec<_>>(),
+        ),
+        SuperneoZBlocks::from_z(
+            &(0..columns)
+                .map(|column| K::from(F::from_usize(column * 7 + 3)))
+                .collect::<Vec<_>>(),
+        ),
+    ];
+    let expected = cache.eval_real_v1_2_openings(&point, &witnesses).unwrap();
+    assert!(expected.iter().all(|opening| opening
+        .eval_a
+        .iter()
+        .all(|matrix| matrix.iter().any(|value| *value != K::ZERO))));
+    let actual = eval_real_v1_2_openings_from_rows(&source, &point, &witnesses, usize::MAX).unwrap();
+    assert_eq!(actual, expected);
+}

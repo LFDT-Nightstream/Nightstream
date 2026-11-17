@@ -1,11 +1,4 @@
-//! The light and the refresh fold transcript against Lean
-//! (`Lifecycle.RandomOracle.Schedule.pieces`). `absorb_v1_2` writes no
-//! length, so each message of a transcript must have the length that Lean
-//! proves fixed (`Schedule.pieces_alike`). Lean emits the pieces of each
-//! transcript on sample data, the first and the last round challenge and the
-//! sponge state after the output. Rust must absorb the same words at the
-//! same lengths and reach the same state, and it must reject each other
-//! length.
+//! Lean `Lifecycle.RandomOracle.Schedule.pieces`, `Schedule.pieces_alike`.
 
 use std::fs;
 use std::path::PathBuf;
@@ -15,7 +8,6 @@ use nightstream_fprime::{derive_light_transcript, derive_refresh_transcript, COM
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde_json::Value;
 
-/// The messages of one Lean transcript, split as the Rust transcript takes them.
 struct Transcript {
     commitment: Vec<u64>,
     public_input: Vec<u64>,
@@ -84,13 +76,10 @@ fn lean(index: usize, domain: &[u8]) -> Transcript {
     }
 }
 
-/// Each list with one word less and with one word more.
 fn other_lengths(words: &[u64]) -> [Vec<u64>; 2] {
     [words[..words.len() - 1].to_vec(), [words, &[0]].concat()]
 }
 
-/// `derive` reaches the Lean state on the Lean messages, and it rejects each
-/// message with another length.
 fn check(
     transcript: &Transcript,
     derive: impl Fn(&[u64], &[u64], &[u64], &[Vec<[u64; 2]>], &[u64]) -> Option<Derived>,

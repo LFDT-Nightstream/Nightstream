@@ -1,6 +1,3 @@
-//! An unavailable engine fails before the saved circuit loads: CUDA has no
-//! kernel, and Metal needs the `metal` feature.
-
 use nightstream::{Engine, EngineError, Error, Prover};
 
 #[test]

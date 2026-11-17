@@ -1,8 +1,3 @@
-//! Independent PaperExact Fiat--Shamir and SumCheck schedule.
-//!
-//! This is a direct Rust transcription of the Lean-owned v1_2 schedule. It
-//! does not call the optimized transcript or proof-assembly implementation.
-
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CeClaim};
 use neo_math::{KExtensions, D, F, K};
@@ -257,9 +252,7 @@ pub(super) fn absorb_outputs(
         ));
     }
     let mut fields = Vec::new();
-    // SuperNeo Section 7.3 sends y' after the SumCheck. Validate the complete
-    // message shape here. PiRLC binds its canonical digest before sampling
-    // rho; PiCCS adds no extra non-paper output equation.
+    // SuperNeo v1.2 Section 7.3 sends y' after the SumCheck.
     for output in outputs {
         if output.eval_k.len() < neo_math::D || output.eval_a.len() != dims.matrix_count {
             return Err(PiCcsError::InvalidInput(

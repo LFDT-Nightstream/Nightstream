@@ -1207,6 +1207,25 @@ not change terminal source checks.
   A universal proof that the Rust transformation and shared-column map realize
   the Lean group relation remains open. The original one-row relation remains
   the source of all constraints outside the selected commitment input rewrite.
+- A prover that chooses arbitrary private decomposition bits at internal batch
+  boundaries. Continuity-range restoration keeps the payload and all input
+  auxiliaries fixed. It requires equal-width input and output checks, retained
+  input checks and continuity equalities, and output bits absent from every
+  other constraint and observable. The Rust metadata validator checks these conditions
+  against row uses, shared columns, continuity endpoints, and the memory catalog.
+  The last output check stays in the batch. The proof does not require a valid prior execution.
+  Lean proves restoration for the separated representation; universal refinement
+  of the Rust metadata validator into that representation remains outside the proof.
+- Memory-backed WASM range omissions. The adversary chooses every tagged
+  column, including inactive advice. Rocq requires U32 values on every active
+  read, write and declared prior-value event. The Rust Nebula bit rows and
+  checked catalog bindings supply that premise; a host-only memory check does
+  not supply circuit authority. Catalog membership checks only the existence
+  of a value or prior-value binding. Each tag still requires a proof that its
+  inactive uses admit an accepted bounded replacement preserving events and
+  continuity. The row-only range theorem does not receive this premise.
+  Exact Rust binding and cross-language event correspondence remain outside
+  the formal bridge, as for the other catalog application conditions above.
 - A prover that picks the WASM size of its proof
   (`neo_wasm::nebula::WasmSize`). The results hold for each of the three
   fixed sizes, not for a choice among them.

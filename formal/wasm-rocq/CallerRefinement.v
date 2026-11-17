@@ -18,7 +18,7 @@ Definition sameRoms (before after : MemoryState) : Prop :=
 Lemma run_preserves_roms : forall initial rows final,
   validCircuitRun initial rows final -> sameRoms initial final.
 Proof.
-  intros initial rows final [_ [_ Hreplay]] memory Hreadonly address.
+  intros initial rows final [_ [_ [Hreplay _]]] memory Hreadonly address.
   eapply replay_preserves; [exact Hreplay | apply read_only_trace; exact Hreadonly].
 Qed.
 

@@ -54,7 +54,6 @@ fn component_import_wat() -> &'static str {
 fn invalid_capture_bindings_are_reported_after_lazy_discovery() {
     let bytes = wat::parse_str(component_wat()).unwrap();
     let mut bindings = HostEventBindings::default();
-    // The module has only function reference 1.
     bindings.exports.insert(2, Default::default());
     let expected = "binding fref 2 has no function-call metadata";
     let mut configured_linker = false;
@@ -112,7 +111,6 @@ fn wasmtime_component_traces_extract_core_wasm_steps() {
 
 #[test]
 fn wasmtime_component_import_can_lower_into_core_import() {
-    // Fixture smoke test: keep the component WAT executable independently of the tracing path.
     let component_bytes = wat::parse_str(component_import_wat()).expect("component wat");
 
     let mut config = Config::new();

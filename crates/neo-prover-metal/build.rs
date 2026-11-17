@@ -37,8 +37,6 @@ fn main() {
     let air = out.join("nightstream.air");
     let library = out.join("nightstream-metal.metallib");
     let developer_dir = developer_dir();
-    // The shaders take the field and the ring from `neo-math`, so no shader
-    // repeats a profile value.
     let profile = format!(
         "constant ulong FQ_MODULUS = {:#x}ul;\nconstant ulong RING_DEGREE = {D};\nconstant ulong KX_NON_RESIDUE = {};\n",
         Fq::ORDER_U64,

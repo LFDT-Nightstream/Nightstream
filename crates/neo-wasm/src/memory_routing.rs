@@ -1,5 +1,3 @@
-//! WASM activation facts for the common slot planner.
-
 use neo_application::{plan_ordered_memory_slots, MemoryActivationFacts, MemoryCatalog, MemorySlotPlan};
 
 use crate::{

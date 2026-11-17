@@ -1,5 +1,3 @@
-//! Build the existing compact cache from complete, ordered sparse matrix rows.
-
 use super::row_block::{COMPACT_DENSE_INDEX_MASK, COMPACT_SINGLE_BLOCK_MASK};
 use super::{CompactRowBlock, DenseBlockStore, DenseRowBlock, RowOffsetStore, SuperneoEvalCache, SuperneoMatrixCache};
 use crate::PiCcsError;
@@ -10,6 +8,7 @@ use p3_field::PrimeField64;
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},
     hash::{Hash, Hasher},
+    sync::OnceLock,
 };
 
 pub struct SuperneoEvalCacheBuilder {
@@ -48,6 +47,7 @@ impl SuperneoEvalCacheBuilder {
                 geometric_row_offsets: RowOffsetStore::Empty,
                 geometric_runs: Vec::new(),
                 identity: false,
+                part_plan: OnceLock::new(),
             })
             .collect();
         let explicit_matrix_masks = if matrices <= u16::BITS as usize {

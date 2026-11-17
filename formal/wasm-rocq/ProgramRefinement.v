@@ -33,12 +33,13 @@ Hypothesis Hvalid : programValidated program s.
 (* One row of a run that stays inside the base frame. *)
 Lemma control_row : forall baseDepth cursor initial final row c0,
   fieldPrime -> programLoaded program initial -> tablesLoaded s initial -> FullRelation.satFull row ->
+  boundedMemoryEvents (eventsForRow memories row) ->
   Replay initial (eventsForRow memories row) final -> callerRow baseDepth row ->
   ControlState program s baseDepth cursor initial (beforeBoundary row) c0 ->
   exists cursor' c1, cursorRoot cursor' = cursorRoot cursor /\
     Steps c0 c1 /\ ControlState program s baseDepth cursor' final (afterBoundary row) c1.
 Proof.
-  intros baseDepth [stack active] initial final row c0 Hprime Hloaded Htables Hfull Hreplay [Hkind [Hhalt Hbase]] Hstate.
+  intros baseDepth [stack active] initial final row c0 Hprime Hloaded Htables Hfull HmemoryBounds Hreplay [Hkind [Hhalt Hbase]] Hstate.
   pose proof Hstate as Hwhole.
   destruct Hstate as [f [inner [Hactive [Hactivestate [Hsusp [Hbase0 [Hdepth ->]]]]]]].
   cbn [activePosition suspendedCalls] in Hactive, Hactivestate, Hsusp, Hdepth.
@@ -125,7 +126,7 @@ Proof.
           [vm_compute; reflexivity | symmetry; exact Hcode]. }
       pose proof (full_unreachable_traps row Hprime Hfull Hsel) as [_ Hfinish]. lia.
     + (* An indirect call's resolve row: the frame stops at its CALL_ADDR. *)
-      destruct (resolve_row program s Hstore Hwf Hvalid _ _ _ _ _ _ _ _ Hprime Hloaded Htables Hfull Hprogram
+      destruct (resolve_row program s Hstore Hwf Hvalid _ _ _ _ _ _ _ _ Hprime Hloaded Htables Hfull HmemoryBounds Hprogram
         Hhalt Hreplay Hactivestate Hactive Hi) as [view' [callee [inner' [Hposition [Hsteps [Hstate' [[Hd [Hb Hfbp]]
           Heffect]]]]]]].
       exists (controlCursor stack (resolved view' callee)), (plugCalls stack inner').
@@ -170,16 +171,21 @@ Proof.
   intros baseDepth cursor rows. revert cursor.
   induction rows as [ | row rows IH]; intros cursor initial final boundary c0 Hprime Hloaded Htables Hrun
     [Hstart Hkinds] Hstate.
-  - destruct Hrun as [_ [_ Hreplay]]. inversion Hreplay; subst final.
+  - destruct Hrun as [_ [_ [Hreplay _]]]. inversion Hreplay; subst final.
     exists cursor, c0. split; [reflexivity | ]. split; [apply steps_refl_wf; eapply control_state_wf; eassumption | ].
     split; [exact Hloaded | exact Hstate].
   - cbn [runStartsAt] in Hstart. subst boundary.
     destruct (valid_run_head _ _ _ _ Hrun) as [middle [Hfull [Hreplay Htail]]].
-    destruct (control_row baseDepth cursor initial middle row c0 Hprime Hloaded Htables Hfull Hreplay
+    assert (HmemoryBounds : boundedMemoryEvents (eventsForRow memories row))
+      by (eapply valid_run_memory_bounds; [exact Hrun | left; reflexivity]).
+    destruct (control_row baseDepth cursor initial middle row c0 Hprime Hloaded Htables Hfull HmemoryBounds Hreplay
       (Forall_inv Hkinds) Hstate) as [cursor1 [c1 [Hroot1 [Hsteps1 Hstate1]]]].
     assert (Hsingle : validCircuitRun initial [row] middle).
     { split; [constructor; [exact Hfull | constructor] | ]. split; [constructor | ].
-      cbn [eventsForTrace flat_map]. rewrite app_nil_r. exact Hreplay. }
+      split; [cbn [eventsForTrace flat_map]; rewrite app_nil_r; exact Hreplay | ].
+      constructor.
+      - eapply valid_run_memory_bounds; [exact Hrun | left; reflexivity].
+      - constructor. }
     assert (Hloaded1 : programLoaded program middle)
       by (eapply program_loaded_preserved; [eapply run_preserves_roms; exact Hsingle | exact Hloaded]).
     assert (Hfragment : runFragment (afterBoundary row) baseDepth rows).

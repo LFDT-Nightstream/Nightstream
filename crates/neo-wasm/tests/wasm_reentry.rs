@@ -332,7 +332,6 @@ fn resultless_import_resumes_without_gather_rows() {
 #[test]
 fn split_import_preserves_caller_arguments_across_callbacks() {
     for (callbacks, indirect, recursive) in [(0, false, false), (2, false, false), (1, true, false), (1, false, true)] {
-        // With reentry, the outer buffer becomes valid only after guest growth.
         let pointer = if callbacks == 0 { 16 } else { 65536 };
         let call = if indirect {
             "i32.const 0 call_indirect (type $host)"
@@ -490,8 +489,6 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
             assert!(nested_exit.activation_finished);
             assert_eq!(nested_exit.host_events.events_remaining, 0);
             assert!(!nested_exit.is_terminal(), "nested exit leaves its caller suspended");
-            // Each field independently rules out completion, even for a claimed
-            // state whose other suspended-activation field was cleared.
             let mut claimed = nested_exit;
             claimed.host_events.host_frame_depth = 0;
             assert!(!claimed.is_terminal());
@@ -525,8 +522,6 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
             neo_wasm::write_range_check_bits(&mut unused[entry]);
             common::assert_satisfied(&unused[entry], "nested entry does not use the other saved fields");
             neo_wasm::sanity_check_memory_rows(layout, &unused, &preload).unwrap();
-            // The entered frame starts at the saved sp; shifting it together
-            // with every frame register keeps the row satisfied.
             let mut forged = witnesses.clone();
             for column in [
                 neo_wasm::layout::COL_HOST_CONTEXT_SP,
@@ -540,7 +535,6 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
             common::assert_satisfied(&forged[entry], "allocation needs context RAM authority");
             assert!(neo_wasm::sanity_check_memory_rows(layout, &forged, &preload).is_err());
 
-            // Hand-built captures must not bypass the registry's atomic guard.
             let mut atomic_artifacts = captured.artifacts().clone();
             let import = atomic_artifacts
                 .host_event_bindings
@@ -589,8 +583,7 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
                     && row.state_after.call_stack_depth > row.state_after.host_events.host_frame_depth
             })
             .unwrap();
-        // Rocq `ProgramBinding.full_host_context_args_depth`: consistent decoded fields still need RAM authority.
-        // Alter each saved half together with every value derived from it.
+        // Rocq `ProgramBinding.full_host_context_args_depth`.
         for changes in [
             vec![
                 (neo_wasm::layout::COL_HOST_CONTEXT_ARGS_BASE, 1),
@@ -621,7 +614,6 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
             .iter()
             .position(|row| row.host_event_return_schedule_count.is_some_and(|n| n > 0) && row.row_kind.is_program())
             .unwrap();
-        // Context saving is a mandatory separate row, even with no reentry.
         use neo_wasm::layout::{COL_HOST_SUSPEND_PENDING_AFTER, COL_HOST_SUSPEND_PENDING_BEFORE};
         let suspend = call + 1;
         assert!(trace[suspend].row_kind.is_host_suspend());
@@ -646,8 +638,6 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
         let mut skipped = witnesses.clone();
         skipped.remove(suspend);
         assert!(neo_application::check_continuity_rows(&layout.auxiliary.continuity, &skipped).is_err());
-        // A u32 ROM word does not by itself bound each half: borrowing from
-        // the return half can leave the packed value unchanged.
         use neo_wasm::layout::{COL_HOST_IMPORT_SCHEDULE_COUNTS, COL_HOST_INITIAL_COUNT};
         let mut forged = witnesses[suspend].clone();
         forged[COL_HOST_INITIAL_COUNT] = neo_math::F::from_u64(1 << 16);

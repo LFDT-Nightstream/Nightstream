@@ -79,10 +79,6 @@ fn device_rlc_split_matches_host_mix_and_split() {
     );
 }
 
-/// A signed-unit source in compact and in dense storage, and a dense source
-/// with weight 1 (option B's light accumulator), mix as on the host under
-/// sampled rotation matrices; the host's dense path reads a rotation as its
-/// ring element. A dense source with another weight is refused.
 #[test]
 fn device_rlc_mix_matches_host_mix() {
     use neo_reductions::common::{sample_rot_rhos_n_typed, RotRho, RotRing};

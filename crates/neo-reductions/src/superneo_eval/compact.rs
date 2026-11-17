@@ -1,5 +1,3 @@
-//! Compact explicit-matrix export for accelerators.
-
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 

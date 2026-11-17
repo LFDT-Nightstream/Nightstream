@@ -1,5 +1,3 @@
-//! Exact CCS relation checks over the verifier-owned compact matrix cache.
-
 use neo_ccs::SparsePoly;
 use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;

@@ -1,5 +1,3 @@
-//! Build the existing compact cache from complete, ordered sparse matrix rows.
-
 use super::row_block::{COMPACT_DENSE_INDEX_MASK, COMPACT_SINGLE_BLOCK_MASK};
 use super::{CompactRowBlock, DenseBlockStore, DenseRowBlock, RowOffsetStore, SuperneoEvalCache, SuperneoMatrixCache};
 use crate::PiCcsError;

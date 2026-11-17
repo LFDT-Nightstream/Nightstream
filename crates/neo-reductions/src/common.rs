@@ -1,5 +1,3 @@
-//! Common utilities and helper functions shared across engines.
-
 #![allow(non_snake_case)]
 
 use neo_ccs::{CcsStructure, Mat};
@@ -223,13 +221,12 @@ pub fn split_b_matrix_k(Z: &Mat<F>, k: usize, b: u32) -> Result<Vec<Mat<F>>, PiC
 pub struct RotRing {
     pub alphabet: &'static [i8],
 
-    /// Optional: lower bound on b_inv from SuperNeo v1.2 Theorem 4 (invertibility threshold).
-    /// If provided, enforces Δ_A < b_inv where Δ_A = max(A) - min(A).
+    /// Lower bound on b_inv from SuperNeo v1.2 Theorem 4.
     pub binv_floor: Option<u64>,
 }
 
 impl RotRing {
-    /// The challenge set of SPEC.md section 2.2 over `F_q[X]/(X^D + 1)`.
+    /// The challenge set of SPEC.md section 2.2.
     pub const fn profile() -> Self {
         Self {
             alphabet: &profile::CHALLENGE_ALPHABET,
@@ -263,7 +260,6 @@ fn f_from_i64(x: i64) -> F {
     ff_from_i64::<F>(x)
 }
 
-/// Column `j` is the coefficients of `a · X^j` in `F_q[X]/(X^D + 1)`.
 fn rot_from_coeffs(a_coeffs: &[F]) -> Mat<F> {
     debug_assert_eq!(a_coeffs.len(), D);
 
@@ -352,9 +348,7 @@ impl RotRho {
         Self(rho)
     }
 
-    /// The rotation matrix of the ring's one: the bounded-depth scheme's light fold puts it on
-    /// the running source (Lean `Light.Rlc`, Cyclo contribution 2). It is not a
-    /// sampled challenge, so the strong-set check does not apply.
+    /// The rotation matrix of the ring's one, the running source's weight in Lean `Light.Rlc`.
     pub fn identity() -> Self {
         Self(Mat::identity(D))
     }
@@ -439,8 +433,7 @@ fn validate_rho_is_in_selected_strong_set(params: &NeoParams, rho: &Mat<F>, labe
     Ok(())
 }
 
-/// SPEC.md section 5.3: the draw is the first lanes of the state `E_s`, and the next state is
-/// `permute(E_s)` (`Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.drawAt`).
+/// SPEC.md section 5.3 (`Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.drawAt`).
 pub fn read_pi_rlc_draw(tr: &mut Poseidon2Transcript) -> [F; PI_RLC_DRAW_LANES] {
     let state = tr.state();
     tr.squeeze_digest_v1_2();
@@ -677,7 +670,6 @@ where
     Ok(z)
 }
 
-/// A value has `k_rho` balanced digits in base 2 exactly when its centered magnitude is below
 /// `B = 2^k_rho`, the norm bound of an accumulator (SPEC.md section 2.5).
 #[inline]
 fn is_dec_representable<Ff>(params: &NeoParams, val: Ff) -> bool

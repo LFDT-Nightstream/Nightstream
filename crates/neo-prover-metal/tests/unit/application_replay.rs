@@ -134,9 +134,7 @@ impl Fixture {
         }
     }
 
-    /// Option B's light fold (Lean `Spec/Folding/Light`): one running source
-    /// with entries outside {-1, 0, 1}, and norm terms on the fresh source
-    /// only.
+    /// The light fold of Lean `Spec/Folding/Light`.
     fn light(rows: usize) -> Self {
         let mut fixture = Self::new(rows);
         fixture.dims = build_joint_dims(&fixture.params, &fixture.structure, 1, 1).unwrap();

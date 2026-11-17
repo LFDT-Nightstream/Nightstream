@@ -1,5 +1,3 @@
-//! One original-row cache and its local device metadata. Columns stay global.
-
 use std::ops::Range;
 use std::sync::{Arc, Weak};
 
@@ -17,9 +15,6 @@ pub(super) struct MetalMatrixWindow {
 
 const RESIDENT_LOCK: MetalError = MetalError::Shape("resident device data lock was poisoned");
 
-/// Device data that depends only on a host matrix cache and a key. An entry
-/// lives while the host holds the cache, which a relation's retained window
-/// does between folds.
 pub(in crate::session) struct Resident<K, V>(std::sync::Mutex<Vec<(Weak<SuperneoEvalCache>, K, Arc<V>)>>);
 
 impl<K, V> Default for Resident<K, V> {
@@ -38,8 +33,6 @@ impl<K: PartialEq, V> Resident<K, V> {
             .map(|(.., value)| Arc::clone(value)))
     }
 
-    /// Keeps `value` if another owner also holds `cache`; a cache that only
-    /// its window holds dies with the window.
     pub(super) fn keep(&self, cache: &Arc<SuperneoEvalCache>, key: K, value: &Arc<V>) -> Result<(), MetalError> {
         if Arc::strong_count(cache) > 1 {
             self.0
@@ -73,7 +66,6 @@ fn offset_bytes(offsets: SuperneoCompactRowOffsets<'_>) -> Result<(usize, usize)
 }
 
 pub(super) fn upload_size(matrices: &[SuperneoMatrixCache]) -> Result<(usize, usize), MetalError> {
-    // All absent arrays share one bindable word.
     let mut bytes = size_of::<u64>();
     let mut staging = 0;
     for matrix in matrices {
@@ -149,7 +141,6 @@ impl MetalSession {
             } else {
                 None
             };
-            // Resident metadata is already in the allocated size.
             let budget = if resident.is_some() {
                 application::available_workspace(self, reserved_bytes)
                     .saturating_add(upload_bytes)

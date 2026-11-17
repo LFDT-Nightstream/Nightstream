@@ -1,8 +1,3 @@
-//! Optimized PiDEC claim construction for the SuperNeo v1.2 relation.
-//!
-//! This file owns child evaluation and radix recomposition. It does not own
-//! commitments, transcript messages, or PaperExact computations.
-
 #![allow(non_snake_case)]
 
 use crate::engines::pi_ccs_joint_protocol::V1_2OutputOpening;

@@ -1,8 +1,3 @@
-//! Optimized engine implementation for PiCCS.
-//!
-//! `paper_joint` is the canonical prover. Device selection can change only
-//! evaluator implementation; it cannot change protocol messages.
-
 #![allow(non_snake_case)]
 
 use crate::engines::utils::digest_ccs_matrices;

@@ -1,7 +1,3 @@
-//! The PiCCS engine checks every running claim before its transcript: the
-//! commitment payload must match its declared shape, and auxiliary lane
-//! commitments are rejected until a reduction binds them.
-
 use neo_ajtai::{commit_row_major, setup, Commitment};
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, LaneCommitments, Mat, SparsePoly};
 use neo_math::{D, F, K};

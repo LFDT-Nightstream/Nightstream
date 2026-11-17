@@ -1,5 +1,3 @@
-//! Device storage for compact signed-digit witness masks.
-
 use std::mem::size_of;
 
 use neo_math::D;
@@ -197,7 +195,6 @@ impl MetalSession {
             .chunks_exact(words_per_source)
             .rposition(|source| source.iter().any(|&word| word != 0))
             .map_or(0, |last| (last + 1) * words_per_source);
-        // An empty source has one bindable word, which no kernel reads.
         let stored_words = if stored == 0 { &[0u64][..] } else { &words[..stored] };
         MetalWitnessMasks::new(
             self.buffer_from_slice(stored_words)?,

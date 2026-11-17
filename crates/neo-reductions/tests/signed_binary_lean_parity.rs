@@ -1,5 +1,3 @@
-//! Exhaustive strict-B scalar parity, with matrix order and norm rejection.
-
 use std::io::{BufRead, BufReader};
 
 use neo_ccs::Mat;

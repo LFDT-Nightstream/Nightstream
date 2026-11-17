@@ -615,11 +615,8 @@ fn verifier_matches_the_paper_mutation_boundary() {
     changed_output[0].eval_k[0] += K::ONE;
     assert!(rejects(&claims, &changed_output, &proof));
 
-    // Section 7.3 does not use a fresh source's nonconstant output
-    // coefficients in the PiCCS terminal equation. The production transcript
-    // still absorbs the complete output message before PiRLC samples rho.
-    // This mutation keeps the old transcript digest, so verification must
-    // reject the stale binding without adding a terminal equation.
+    // SuperNeo v1.2 Section 7.3 does not use a fresh source's nonconstant output
+    // coefficients in the PiCCS terminal equation.
     let mut changed_fresh_ring_coefficient = outputs.clone();
     changed_fresh_ring_coefficient[0].eval_k[1] += K::ONE;
     assert!(rejects(&claims, &changed_fresh_ring_coefficient, &proof));

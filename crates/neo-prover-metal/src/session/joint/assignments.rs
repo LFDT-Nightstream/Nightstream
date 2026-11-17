@@ -1,6 +1,3 @@
-//! Device witness prefixes. Early folds store indices into shared field values;
-//! later folds own only the current dense prefix. Missing coordinates are zero.
-
 use neo_math::{F, K};
 use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder};
 use p3_field::PrimeCharacteristicRing;

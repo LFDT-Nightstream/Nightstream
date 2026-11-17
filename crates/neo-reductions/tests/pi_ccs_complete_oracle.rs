@@ -1,5 +1,3 @@
-//! Check the complete-oracle driver boundary against the cached optimized prover.
-
 #![cfg(feature = "paper-exact")]
 
 use neo_ajtai::{commit_row_major, setup, Commitment};

@@ -1,5 +1,3 @@
-//! Rejects noncanonical public outputs for the selected padded-row PiCCS protocol.
-
 use neo_ajtai::{commit_row_major, setup as ajtai_setup, Commitment};
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly, Term};
 use neo_math::{D, F, K};

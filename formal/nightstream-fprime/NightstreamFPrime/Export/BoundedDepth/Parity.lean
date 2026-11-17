@@ -114,6 +114,24 @@ def summary (width : Nat) (pieces : List Pieces.Piece) (next sharedEnd : Nat)
     .atom (ProductionAssignment.logicalWidth slots),
     .atom (RowsParity.denseFast width pieces next rows slots).val]
 
+/-- The dense rows of a circuit: its relation rows, its S-box rows, its logical width, and the
+checksum of its dense rows, `RowsParity.fastSum width pieces next batches`. -/
+def rowsSummary (width : Nat) (pieces : List Pieces.Piece) (next : Nat)
+    (batches : List WitnessBatch) : Value :=
+  let rows := CircuitRelation.relationRows CircuitRelation.publicColumns pieces next width
+  let slots := SlotLayout.runSlots width
+    (StepPackage.slotRuns CircuitRelation.publicColumns pieces next batches)
+  .array [.atom rows.length, .atom (150 * (CircuitRelation.blocksOf pieces).length),
+    .atom (ProductionAssignment.logicalWidth slots),
+    .atom (RowsParity.denseFast width pieces next rows slots).val]
+
+/-- The rows file of a program other than today's fixture: its version, then the rows summary of
+the light and the refresh circuit. -/
+def rowsParity (width : Nat) (light refresh : List Pieces.Piece × Nat × List WitnessBatch) :
+    Value :=
+  .array [.atom 1, rowsSummary width light.1 light.2.1 light.2.2,
+    rowsSummary width refresh.1 refresh.2.1 refresh.2.2]
+
 /-- Two small packages whose identity Lean computes (`StepPackage.identityFast`): a probe for
 Rust's identity code. -/
 def probeLight : StepPackage.Package :=

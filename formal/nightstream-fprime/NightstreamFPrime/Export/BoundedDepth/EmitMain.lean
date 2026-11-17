@@ -271,7 +271,8 @@ def nebulaFixture : List String → Option String
   | _ => none
 
 /-- Writes both step packages of the `--program` application (`selected`), and for today's
-fixture the parity file; with `--checks`, only runs the completeness checks of
+fixture the parity file or for another program its rows file (`Parity.rowsParity`); with
+`--checks`, only runs the completeness checks of
 both step packages and writes nothing; with
 `--census`, prints the row census first; with `--identity`, also computes their one identity
 (`StepPackage.identityFast`), which the spec field arithmetic makes slow: Rust computes it
@@ -319,6 +320,11 @@ def main (arguments : List String) : IO Unit := do
     return
   say s!"packages written ({(← IO.monoMsNow) - start} ms)"
   unless stem.isEmpty do
+    let rows := Parity.rowsParity width (lightPieces, light.firstFresh, witnesses lightOps)
+      (refreshPieces, refresh.firstFresh, witnesses refreshOps)
+    let rowsPath := s!"artifacts/nightstream-fprime-bounded-depth-{stem}rows-v1.json"
+    IO.FS.writeFile rowsPath (rows.render ++ "\n")
+    say s!"wrote {rowsPath}: {rows.render}"
     say s!"emitter total {(← IO.monoMsNow) - start} ms"
     return
   let parity := Parity.parity width (lightPieces, light.firstFresh, lightOffset, witnesses lightOps)

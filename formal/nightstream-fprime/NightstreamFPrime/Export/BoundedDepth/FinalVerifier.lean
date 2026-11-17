@@ -55,8 +55,9 @@ structure Claims (logicalWidth : Nat)
   commitment : PaperAlgebra.Commitment
 
 /-- What the verifier holds: the Ajtai key that the compression key commits, the circuit keys,
-the dense rows of each circuit's relation (Rust `FactoredRows`, by circuit), the layout of Rust
-`Layout::new`, which Lean does not model, and the zeros of the opening point of `V`. -/
+the dense rows of each circuit's relation (Rust `FactoredRows`, by circuit), the block count of
+the compression key, under which the Lean model of Rust `Layout::new` lays out the claims
+(`Setup.placed`), and the zeros of the opening point of `V`. -/
 structure Setup (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) where

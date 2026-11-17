@@ -33,7 +33,7 @@ open NightstreamFPrime.Lifecycle.Nebula
 open NightstreamFPrime.Lifecycle.Nebula.EndToEnd (MemoryStatement VerifierChecks History)
 open NightstreamFPrime.Export.BoundedDepth.TerminalBridge
 open NightstreamFPrime.Export.BoundedDepth.IvcWalk
-open NightstreamFPrime.Export.BoundedDepth.IvcSecurity (Output walkAdversary)
+open NightstreamFPrime.Export.BoundedDepth.IvcSecurity (Output walkAdversary finderChance)
 open NightstreamFPrime.Export.BoundedDepth.RunCompleteness
 open NightstreamFPrime.Export.BoundedDepth.FinalVerifier
 open NightstreamFPrime.Export.BoundedDepth.FinalHistory (outputOf)
@@ -143,10 +143,7 @@ theorem soundness (complete : StepExtend.Complete exports)
           (sampleOf setup app exports assumption closed s q claim admitted depth tape)}).toReal ≤
       q * finalError +
         (∑ j : Fin depth,
-          (((stages j.val).1.tape.toOuterMeasure
-              {tape | WalkCollision setup.ajtai setup.circuitKeys exports
-                (visitAfter (back setup.ajtai setup.circuitKeys exports)
-                  ((stages j.val).1.input tape) ((stages j.val).1.results tape))}).toReal +
+          (finderChance setup.ajtai setup.circuitKeys exports (stages j.val).1 +
             error ((stages j.val).1.nifs (attemptOf setup.ajtai setup.circuitKeys exports)
               (back setup.ajtai setup.circuitKeys exports))) +
           ((claimed setup app exports assumption closed s q claim admitted depth).law.toOuterMeasure
@@ -254,10 +251,7 @@ theorem real_soundness (complete : StepExtend.Complete exports)
       εAkita) :
     memory ≤ q * finalError + εAkita +
         (∑ j : Fin depth,
-          (((stages j.val).1.tape.toOuterMeasure
-              {tape | WalkCollision setup.ajtai setup.circuitKeys exports
-                (visitAfter (back setup.ajtai setup.circuitKeys exports)
-                  ((stages j.val).1.input tape) ((stages j.val).1.results tape))}).toReal +
+          (finderChance setup.ajtai setup.circuitKeys exports (stages j.val).1 +
             error ((stages j.val).1.nifs (attemptOf setup.ajtai setup.circuitKeys exports)
               (back setup.ajtai setup.circuitKeys exports))) +
           ((claimed setup app exports assumption closed s q claim admitted depth).law.toOuterMeasure

@@ -519,7 +519,7 @@ not change terminal source checks.
   application, each with a witness of the application's word count, lead
   from `z0` to `zi` (a false acceptance).
 - **Result:** under Assumption 1 and the closure premise,
-  `Pr[false acceptance] ≤ Σ_j (Pr[collision at visit j] + error(stage j))`
+  `Pr[false acceptance] ≤ Σ_j (finderChance(stage j) + error(stage j))`
   for `j` below a bound on the adversary's iteration
   (`Claims.Ivc.false_acceptance_bound`). The reverse extractor
   walks back from the terminal one step per stage
@@ -536,12 +536,23 @@ not change terminal source checks.
   last step is the base step (`Export.BoundedDepth.IvcWalk.walk_step`). So a false
   acceptance has a collision or a failed extraction at one of its first
   `iteration` visits (`Export.BoundedDepth.IvcWalk.covered`).
-- **Collision term:** the collision at a visit is a Poseidon2 collision on
-  the next state of the decoded step and the visit's terminal state, or on
-  a light step's next state words and the terminal's 38-word state preimage
-  (`Export.BoundedDepth.TerminalBridge.Collision`). The stage computes both inputs
-  from its tape, so a reduction that runs the stage outputs the colliding
-  pair. Lean does not bound this probability (trust item 2).
+- **Collision term:** the term of stage `j` is the success chance of an
+  explicit Poseidon2 collision finder
+  (`Export.BoundedDepth.IvcSecurity.finderChance`). The finder runs stage
+  `j` on its tape, decodes the visit, and outputs two different inputs of
+  one length with one `Poseidon2.hash`
+  (`Export.BoundedDepth.IvcSecurity.finder`,
+  `Lifecycle.BoundedDepth.PoseidonCollision`). At a visit it outputs the
+  input pair of the visit's collision
+  (`Export.BoundedDepth.IvcWalk.visitCollision`): the next state of the
+  decoded step and the visit's terminal state, or a light step's next state
+  words and the terminal's 38-word state preimage
+  (`Export.BoundedDepth.TerminalBridge.Collision`). Each collision at the
+  visit gives an output
+  (`Export.BoundedDepth.IvcWalk.visitCollision_isSome`). Lean does not bound
+  the finder's success chance. A bound needs `[P2-PERM]` and `[SPONGE]`
+  with the number of permutation calls of the finder, which Lean does not
+  count (trust item 2). So the term stays a stated term.
 - **Per slot:** the earlier one-slot result,
   `Claims.Ivc.slot_history_failure`,
   takes the history as an adversary output and has no collision term. Its
@@ -736,7 +747,7 @@ not change terminal source checks.
   (`Export.BoundedDepth.FinalHistory.FalseHistory`). A false history is a
   result in which `Verifies` rejects that proof, or a false acceptance of
   this IVC adversary. So
-  `Pr[false history] ≤ Q · (2^−119 + 38/q²) + Σ_j (Pr[collision at visit j] + error(stage j))`
+  `Pr[false history] ≤ Q · (2^−119 + 38/q²) + Σ_j (finderChance(stage j) + error(stage j))`
   for the stages of this IVC adversary
   (`Claims.Final.history_sound`). With Akita openings, the
   bound adds `εAkita` (`Claims.Final.history_sound_with_akita`).
@@ -850,6 +861,14 @@ not change terminal source checks.
      inputs only by that row's injectivity theorem. The deployed permutation
      is fixed, so `[P2-PERM]` is a heuristic for it; algorithms that use its
      structure are outside the model.
+   - *The IVC collision term.* In the bounds of adversaries 4, 5 and 6, the
+     collision term of each reverse stage is the success chance of an
+     explicit finder that outputs such a pair of inputs
+     (`Export.BoundedDepth.IvcSecurity.finderChance`). To bound it with the
+     bound above, `N` must count the permutation calls of the finder. These
+     include the calls of the stage, and so the calls of the earlier stages
+     that it runs again. Lean does not count `N` and does not state this
+     bound, so the term stays a stated term.
    - Lean bounds neither term numerically.
 3. **The history: HyperNova errata Assumption 1 for the two fold kinds [HN-A1].**
    `Spec.HyperNova.ReverseStages.Assumption1` states Assumption 1 in the form

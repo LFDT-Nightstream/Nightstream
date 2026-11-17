@@ -59,10 +59,7 @@ theorem soundness (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
         {tape | FalseVerification ajtai circuitKeys exports packageWidths control cap
           (adversary.output tape)}).toReal ≤
       ∑ j : Fin depth,
-        (((stages j.val).1.tape.toOuterMeasure
-            {tape | WalkCollision ajtai circuitKeys exports
-              (visitAfter (back ajtai circuitKeys exports) ((stages j.val).1.input tape)
-                ((stages j.val).1.results tape))}).toReal +
+        (finderChance ajtai circuitKeys exports (stages j.val).1 +
           error ((stages j.val).1.nifs (attemptOf ajtai circuitKeys exports)
             (back ajtai circuitKeys exports))) :=
   le_trans

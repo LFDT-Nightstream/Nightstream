@@ -18,8 +18,8 @@ extractor's sample.
   sampler by `(queries + 1) · 2^−109.91` plus a Poseidon2 collision term
   (`Lifecycle.Nebula.EtaRound`). It does not discharge `MemoryRound`, whose `η` is Poseidon2.
 * `bad_le`: on the claim that the adversary's tape gives, the bad mass is at most the walk's
-  collision and stage terms, the state-link and chain collision masses, and the memory-round
-  error. -/
+  finder and stage terms (`IvcSecurity.finderChance`, `IvcSecurity.extraction_bound`), the
+  state-link and chain collision masses, and the memory-round error. -/
 
 set_option autoImplicit false
 
@@ -37,7 +37,7 @@ open NightstreamFPrime.Lifecycle.Nebula
 open NightstreamFPrime.Lifecycle.Nebula.EndToEnd (MemoryStatement Experiment Stage1Extraction History)
 open NightstreamFPrime.Export.BoundedDepth.TerminalBridge
 open NightstreamFPrime.Export.BoundedDepth.IvcWalk
-open NightstreamFPrime.Export.BoundedDepth.IvcSecurity (walkAdversary)
+open NightstreamFPrime.Export.BoundedDepth.IvcSecurity (walkAdversary finderChance)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -226,8 +226,8 @@ local notation "stages" => reverseStages assumption closed (walkAdversary advers
 /-- The bound of adversary 5 for a memory application on the bounded-depth scheme: on the joint law of the
 memory statement that the adversary claims from its own tape and the walk's sample, the mass of
 samples that the memory verifier accepts but whose extracted history does not attest the claim
-is at most the walk's collision and stage terms, the state-link and chain collision masses of
-the extracted runs, and the memory-round error of the last stage. -/
+is at most the walk's finder and stage terms (`IvcSecurity.finderChance`), the state-link and
+chain collision masses of the extracted runs, and the memory-round error of the last stage. -/
 theorem bad_le (valid : p.Valid) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     (programEq : exports.program = MemoryApp.program p.toGeometry app)
     (control : AppState → AppWitness → Fin 2) (cap depth : ℕ)
@@ -239,10 +239,7 @@ theorem bad_le (valid : p.Valid) (keysShaped : ∀ key, (circuitKeys key).digest
     (c.law.toOuterMeasure {s | (experiment app ajtai circuitKeys exports).Bad app
         (Accepted app ajtai circuitKeys (step := step) control cap) s}).toReal ≤
       ∑ j : Fin depth,
-          (((stages j.val).1.tape.toOuterMeasure
-              {tape | WalkCollision ajtai circuitKeys exports
-                (visitAfter (back ajtai circuitKeys exports) ((stages j.val).1.input tape)
-                  ((stages j.val).1.results tape))}).toReal +
+          (finderChance ajtai circuitKeys exports (stages j.val).1 +
             error ((stages j.val).1.nifs (attemptOf ajtai circuitKeys exports)
               (back ajtai circuitKeys exports))) +
         (c.law.toOuterMeasure
@@ -261,9 +258,10 @@ theorem bad_le (valid : p.Valid) (keysShaped : ∀ key, (circuitKeys key).digest
     rfl
   have walk := NightstreamFPrime.Spec.HyperNova.ReverseStages.bad_le assumption closed (walkAdversary adversary) admitted depth
     (fun input results => Failure ajtai circuitKeys exports input results)
-    (WalkCollision ajtai circuitKeys exports) fun _ _ results length found => by
+    (fun visit => (visitCollision ajtai circuitKeys exports visit).isSome)
+    fun _ _ results length found => by
       obtain ⟨j, inside, event⟩ := found
-      exact ⟨⟨j, length ▸ inside⟩, event⟩
+      exact ⟨⟨j, length ▸ inside⟩, event.imp_left (visitCollision_isSome ajtai circuitKeys exports)⟩
   rw [← failure] at walk
   have finite (event : Set (Sample app.width logicalWidth publicFits)) :
       c.law.toOuterMeasure event ≠ ∞ := event_ne_top c.law event
@@ -276,6 +274,7 @@ theorem bad_le (valid : p.Valid) (keysShaped : ∀ key, (circuitKeys key).digest
     ENNReal.toReal_add (finite _) (finite _)] at real
   refine real.trans ?_
   gcongr
-  exact round c (stages depth).2
+  · exact walk
+  · exact round c (stages depth).2
 
 end NightstreamFPrime.Export.BoundedDepth.NebulaSecurity

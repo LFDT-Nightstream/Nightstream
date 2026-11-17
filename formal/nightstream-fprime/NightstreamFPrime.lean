@@ -34,6 +34,7 @@ import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthFolds
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKeys
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 import NightstreamFPrime.Lifecycle.BoundedDepth.State
+import NightstreamFPrime.Lifecycle.BoundedDepth.Collision
 import NightstreamFPrime.Lifecycle.BoundedDepth.Keys
 import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot
 import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh

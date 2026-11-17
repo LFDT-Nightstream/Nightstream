@@ -7,6 +7,7 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.PriorLink
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthFolds
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKeys
 import NightstreamFPrime.Lifecycle.BoundedDepth.State
+import NightstreamFPrime.Lifecycle.BoundedDepth.Collision
 import NightstreamFPrime.Lifecycle.BoundedDepth.Keys
 import NightstreamFPrime.Lifecycle.BoundedDepth.Step
 import NightstreamFPrime.Lifecycle.BoundedDepth.StateHashGadget
@@ -130,6 +131,8 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.serializeSlot_injective
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.statePreimage_injective
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.stateHash_collision
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.slotInputs_collide
+#audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.collisionInputs_isSome
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKeys.map_toLight_eq_iff
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKeys.fromLight_claimToLight
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKeys.semanticsToLight
@@ -575,6 +578,7 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcWalk.walk_step
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcWalk.walk_leads
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcWalk.covered
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcWalk.visitCollision_isSome
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcSecurity.extraction_bound
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcSecurity.probability_bound
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaSecurity.leads_length

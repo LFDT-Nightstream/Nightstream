@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.BoundedDepth.TerminalBridge
+import NightstreamFPrime.Lifecycle.BoundedDepth.Collision
 import NightstreamFPrime.Lifecycle.BoundedDepth.PriorLink
 import NightstreamFPrime.Spec.HyperNova.ReverseStages
 
@@ -16,7 +17,8 @@ and each bound is within `B` plus `T(b − 1)` per light fold that the slot can 
 bounds are per slot. `walk_step`: at a relaxed visit without a collision, an answer that
 extracts gives a relaxed prior visit one iteration back, or the visit's step is the base step.
 `covered`: so a false acceptance has a collision or a failed extraction at one of its first
-`iteration` visits. -/
+`iteration` visits. `visitCollision` reads the Poseidon2 input pair of a collision at a visit
+from the visit, and each collision gives a pair (`visitCollision_isSome`). -/
 
 set_option autoImplicit false
 
@@ -315,6 +317,39 @@ def WalkCollision (visit : Visit logicalWidth publicFits) : Prop :=
   match visit.proof with
   | .bottom => False
   | .recursive payload => Collision exports visit.statement payload
+
+open Classical in
+/-- The output of the Poseidon2 collision finder at a visit: none at a bottom visit. At a
+recursive visit, the pair that `collisionInputs` gives for the two states of
+`TerminalBridge.Collision`, else, for a light step, its next state's words and the terminal's
+state preimage when they collide (`WordCollision`). -/
+noncomputable def visitCollision (visit : Visit logicalWidth publicFits) :
+    Option PoseidonCollision :=
+  match visit.proof with
+  | .bottom => none
+  | .recursive payload =>
+      let terminal := terminalState circuitKeys visit.statement payload.running payload.pc
+      (collisionInputs (toState (nextHashPreimage
+          ((Lifecycle.BoundedDepth.setup productionLightFoldCap ajtai
+            (exports.last payload).keys).forCircuit (circuitOf payload.pc))
+          (exports.last payload).input (exports.last payload).output)) terminal).or
+        (if words : circuitOf payload.pc = 0 ∧
+            WordCollision (exports.lightNextWords payload) (statePreimage terminal) then
+          some ⟨(exports.lightNextWords payload, statePreimage terminal), words.2⟩
+        else none)
+
+/-- A collision at a visit gives an output of the finder. -/
+theorem visitCollision_isSome {visit : Visit logicalWidth publicFits}
+    (collision : WalkCollision ajtai circuitKeys exports visit) :
+    (visitCollision ajtai circuitKeys exports visit).isSome := by
+  obtain ⟨statement, proof, bounds⟩ := visit
+  cases proof with
+  | bottom => exact (collision : False).elim
+  | recursive payload =>
+      rcases (collision : Collision exports statement payload) with states | words
+      · simp only [visitCollision, Option.isSome_or, collisionInputs_isSome states, Bool.true_or]
+      · simp only [visitCollision, Option.isSome_or, dite_eq_left words]
+        exact Bool.or_true _
 
 /-- The walk's invariant. -/
 def Relaxed (visit : Visit logicalWidth publicFits) : Prop :=

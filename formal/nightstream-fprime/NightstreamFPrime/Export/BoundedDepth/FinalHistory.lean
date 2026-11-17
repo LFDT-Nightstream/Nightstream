@@ -79,8 +79,8 @@ local notation "stages" => reverseStages assumption closed (walkAdversary (adver
 
 /-- In the state-restoration experiment with `q` queries, the probability of a false history is at
 most `q · (1/2^119 + 38/q²)` plus, for each of the first `depth` stages of the reverse extractor
-of the prover's IVC adversary, the probability of a collision at the stage's visit and the stage's
-error. -/
+of the prover's IVC adversary, the success chance of the stage's Poseidon2 collision finder
+(`IvcSecurity.finderChance`) and the stage's error. -/
 theorem soundness (complete : StepExtend.Complete exports)
     (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
       (FinalRows.packageRows exports complete circuit).matrices)
@@ -89,10 +89,7 @@ theorem soundness (complete : StepExtend.Complete exports)
       o.1.iteration ≤ depth) :
     prob s (restore setup.game q []) (FalseHistory exports.program) ≤
       q * finalError + ∑ j : Fin depth,
-        (((stages j.val).1.tape.toOuterMeasure
-            {tape | WalkCollision setup.ajtai setup.circuitKeys exports
-              (visitAfter (back setup.ajtai setup.circuitKeys exports)
-                ((stages j.val).1.input tape) ((stages j.val).1.results tape))}).toReal +
+        (finderChance setup.ajtai setup.circuitKeys exports (stages j.val).1 +
           error ((stages j.val).1.nifs (attemptOf setup.ajtai setup.circuitKeys exports)
             (back setup.ajtai setup.circuitKeys exports))) := by
   classical
@@ -141,10 +138,7 @@ theorem real_soundness (complete : StepExtend.Complete exports)
       o.1.iteration ≤ depth) (history εAkita : ℝ)
     (akita : history ≤ prob s (restore setup.game q []) (FalseHistory exports.program) + εAkita) :
     history ≤ q * finalError + εAkita + ∑ j : Fin depth,
-        (((stages j.val).1.tape.toOuterMeasure
-            {tape | WalkCollision setup.ajtai setup.circuitKeys exports
-              (visitAfter (back setup.ajtai setup.circuitKeys exports)
-                ((stages j.val).1.input tape) ((stages j.val).1.results tape))}).toReal +
+        (finderChance setup.ajtai setup.circuitKeys exports (stages j.val).1 +
           error ((stages j.val).1.nifs (attemptOf setup.ajtai setup.circuitKeys exports)
             (back setup.ajtai setup.circuitKeys exports))) := by
   linarith [soundness setup exports assumption closed s q admitted complete rows keysShaped depth

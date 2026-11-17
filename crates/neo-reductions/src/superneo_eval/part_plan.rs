@@ -1,91 +1,35 @@
-//! Scratch parts of one matrix with near-equal work, and for each part the
-//! entries of each row that reach it. The work of a block is the number of
-//! scratch coefficients that its entries update.
-
 use core::cmp::{max, min};
 use core::ops::Range;
+use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
 use neo_math::D;
 
-use super::{geometric::decode, SuperneoMatrixCache};
+use super::{geometric::decode, row_block::CompactRowBlock, SuperneoMatrixCache};
 
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-// More parts than threads let work stealing absorb the error of the estimate.
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 const PARTS_PER_THREAD: usize = 4;
 
 #[derive(Clone, Debug)]
 pub(super) struct PartPlan {
     bounds: Vec<usize>,
-    row_offsets: Vec<usize>,
-    rows: Vec<RowSpan>,
-}
-
-/// The entries of one row that a part visits: the compact entries and the
-/// geometric runs in two index ranges of the matrix cache. Each range runs
-/// from the first to the last entry of the row that reaches the part. The
-/// part skips the other entries in the range.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct RowSpan {
-    pub(super) row: u32,
-    compact: [u32; 2],
-    runs: [u32; 2],
-}
-
-impl RowSpan {
-    fn new(row: usize) -> Self {
-        Self {
-            row: u32::try_from(row).expect("SuperNeo row index exceeds u32"),
-            compact: [u32::MAX, 0],
-            runs: [u32::MAX, 0],
-        }
-    }
-
-    pub(super) fn compact(self) -> Range<usize> {
-        self.compact[0] as usize..self.compact[1] as usize
-    }
-
-    pub(super) fn runs(self) -> Range<usize> {
-        self.runs[0] as usize..self.runs[1] as usize
-    }
-}
-
-/// The span of `row` for `part` among the spans `out[first..]`, added if new.
-/// Sorted entries reach the parts in order, so the search ends at once.
-fn span(out: &mut Vec<(usize, RowSpan)>, first: usize, row: usize, part: usize) -> &mut RowSpan {
-    let index = match out[first..].iter().rposition(|&(other, _)| other == part) {
-        Some(index) => first + index,
-        None => {
-            out.push((part, RowSpan::new(row)));
-            out.len() - 1
-        }
-    };
-    &mut out[index].1
-}
-
-fn include(range: &mut [u32; 2], index: usize) {
-    let index = u32::try_from(index).expect("SuperNeo entry index exceeds u32");
-    range[0] = min(range[0], index);
-    range[1] = max(range[1], index + 1);
-}
-
-fn close(range: &mut [u32; 2]) {
-    if range[0] > range[1] {
-        *range = [0, 0];
-    }
+    run_offsets: Vec<usize>,
+    row_runs: Vec<[u32; 2]>,
+    entries_in_block_order: bool,
+    runs_in_column_order: bool,
 }
 
 impl PartPlan {
-    /// Part `p` owns the blocks `bounds[p]..bounds[p + 1]`.
     pub(super) fn bounds(&self) -> &[usize] {
         &self.bounds
     }
 
-    /// The rows with an entry in part `part`, in increasing row order.
-    pub(super) fn rows(&self, part: usize) -> &[RowSpan] {
-        &self.rows[self.row_offsets[part]..self.row_offsets[part + 1]]
+    pub(super) fn rows(&self, part: usize) -> impl Iterator<Item = usize> + Clone + '_ {
+        self.row_runs[self.run_offsets[part]..self.run_offsets[part + 1]]
+            .iter()
+            .flat_map(|&[start, end]| start as usize..end as usize)
     }
 }
 
@@ -94,10 +38,8 @@ impl SuperneoMatrixCache {
         if let Some(plan) = self.part_plan.get() {
             return plan;
         }
-        // The build waits for rayon tasks, so it does not run inside
-        // `get_or_init`. A thread that waits there can run a task that asks
-        // for this plan, and that task blocks on the cell. Two first callers
-        // can each build the plan; the plans are equal.
+        // A rayon thread that waits inside `get_or_init` can run a task that
+        // reads this cell, so the build runs outside it.
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         let threads = rayon::current_num_threads();
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -108,19 +50,51 @@ impl SuperneoMatrixCache {
         self.part_plan.get_or_init(|| plan)
     }
 
-    /// All entries of `row`.
-    pub(super) fn whole_row(&self, row: usize) -> RowSpan {
-        let mut span = RowSpan::new(row);
-        for (range, entries) in [
-            (&mut span.compact, self.row_offsets.range(row)),
-            (&mut span.runs, self.geometric_row_offsets.range(row)),
-        ] {
-            *range = [entries.start, entries.end].map(|index| index as u32);
+    pub(super) fn entry_range(&self, row: usize) -> Range<usize> {
+        if self.identity {
+            return 0..0;
         }
-        span
+        self.row_offsets.range(row)
     }
 
-    /// Both passes read the rows in `threads` chunks, one task for each.
+    pub(super) fn run_range(&self, row: usize) -> Range<usize> {
+        if self.identity {
+            return 0..0;
+        }
+        self.geometric_row_offsets.range(row)
+    }
+
+    pub(super) fn part_entries(&self, plan: &PartPlan, part: usize, row: usize) -> Range<usize> {
+        let entries = self.entry_range(row);
+        if !plan.entries_in_block_order {
+            return entries;
+        }
+        let (start, end) = (plan.bounds[part], plan.bounds[part + 1]);
+        let below = |entry: &CompactRowBlock, bound: usize| self.row_block_index(*entry) < bound;
+        let base = entries.start;
+        narrow(
+            base,
+            &self.row_blocks[entries],
+            |entry| below(entry, start),
+            |entry| below(entry, end),
+        )
+    }
+
+    pub(super) fn part_runs(&self, plan: &PartPlan, part: usize, row: usize) -> Range<usize> {
+        let runs = self.run_range(row);
+        if !plan.runs_in_column_order {
+            return runs;
+        }
+        let (start, end) = (plan.bounds[part] * D, plan.bounds[part + 1] * D);
+        let base = runs.start;
+        narrow(
+            base,
+            &self.geometric_runs[runs],
+            |run| run_columns(run).end <= start,
+            |run| run_columns(run).start < end,
+        )
+    }
+
     fn build_part_plan(&self, parts: usize, threads: usize) -> PartPlan {
         let blocks = self.cols / D;
         let chunk_rows = self.rows.div_ceil(threads).max(1);
@@ -128,90 +102,96 @@ impl SuperneoMatrixCache {
             .step_by(chunk_rows)
             .map(|start| start..min(self.rows, start + chunk_rows))
             .collect::<Vec<_>>();
-        let mut work = vec![0u64; blocks];
-        for chunk in map_chunks(&chunks, |rows| {
-            let mut work = vec![0u64; blocks];
+        let work = (0..blocks).map(|_| AtomicU64::new(0)).collect::<Vec<_>>();
+        let [entries_in_block_order, runs_in_column_order] = map_chunks(&chunks, |rows| {
+            let mut in_order = [true; 2];
             for row in rows {
-                self.for_each_row_block(row, |block, coefficients| work[block] += coefficients as u64);
+                self.for_each_row_block(row, |block, coefficients| {
+                    work[block].fetch_add(coefficients as u64, Relaxed);
+                });
+                in_order[0] &= self
+                    .row_blocks_for(row)
+                    .is_sorted_by_key(|&entry| self.row_block_index(entry));
+                in_order[1] &= self
+                    .geometric_runs_for(row)
+                    .windows(2)
+                    .all(|pair| run_columns(&pair[0]).end <= run_columns(&pair[1]).start);
             }
-            work
-        }) {
-            for (total, chunk) in work.iter_mut().zip(chunk) {
-                *total += chunk;
-            }
-        }
-        let total = work.iter().sum::<u64>();
+            in_order
+        })
+        .into_iter()
+        .fold([true; 2], |all, chunk| [all[0] && chunk[0], all[1] && chunk[1]]);
+        let total = work.iter().map(|cost| cost.load(Relaxed)).sum::<u64>();
         let mut bounds = vec![0];
         let mut done = 0u64;
-        for (block, cost) in work.into_iter().enumerate() {
-            done += cost;
+        for (block, cost) in work.iter().enumerate() {
+            done += cost.load(Relaxed);
             if bounds.len() < parts && done * parts as u64 >= total * bounds.len() as u64 {
                 bounds.push(block + 1);
             }
         }
+        drop(work);
         bounds.push(blocks);
         bounds.dedup();
 
-        let mut part_of = vec![0; blocks];
-        for (part, range) in bounds.windows(2).enumerate() {
-            part_of[range[0]..range[1]].fill(part);
-        }
-        let pairs = map_chunks(&chunks, |rows| {
-            let mut pairs = Vec::new();
+        let part_count = bounds.len() - 1;
+        let chunk_runs = map_chunks(&chunks, |rows| {
+            let mut runs = vec![Vec::<[u32; 2]>::new(); part_count];
+            let mut reached = Vec::new();
             for row in rows {
-                self.push_row_spans(row, |block| part_of[block], &mut pairs);
+                self.row_parts(row, &bounds, &mut reached);
+                let row = u32::try_from(row).expect("SuperNeo row index exceeds u32");
+                for &part in &reached {
+                    match runs[part].last_mut() {
+                        Some(run) if run[1] == row => run[1] = row + 1,
+                        _ => runs[part].push([row, row + 1]),
+                    }
+                }
             }
-            pairs
+            runs
         });
-        let mut row_offsets = vec![0; bounds.len()];
-        for &(part, _) in pairs.iter().flatten() {
-            row_offsets[part + 1] += 1;
-        }
-        for part in 1..row_offsets.len() {
-            row_offsets[part] += row_offsets[part - 1];
-        }
-        let mut next = row_offsets.clone();
-        let mut rows = vec![RowSpan::new(0); row_offsets[bounds.len() - 1]];
-        for (part, span) in pairs.into_iter().flatten() {
-            rows[next[part]] = span;
-            next[part] += 1;
+        let mut run_offsets = Vec::with_capacity(part_count + 1);
+        run_offsets.push(0);
+        let mut row_runs = Vec::<[u32; 2]>::with_capacity(chunk_runs.iter().flatten().map(Vec::len).sum());
+        for part in 0..part_count {
+            let first = row_runs.len();
+            for &run in chunk_runs.iter().flat_map(|runs| &runs[part]) {
+                match row_runs[first..].last_mut() {
+                    Some(last) if last[1] == run[0] => last[1] = run[1],
+                    _ => row_runs.push(run),
+                }
+            }
+            run_offsets.push(row_runs.len());
         }
         PartPlan {
             bounds,
-            row_offsets,
-            rows,
+            run_offsets,
+            row_runs,
+            entries_in_block_order,
+            runs_in_column_order,
         }
     }
 
-    /// Pushes `(part, span)` for each part that `row` reaches, in increasing
-    /// part order.
-    fn push_row_spans(&self, row: usize, part_of: impl Fn(usize) -> usize, out: &mut Vec<(usize, RowSpan)>) {
-        let first = out.len();
+    fn row_parts(&self, row: usize, bounds: &[usize], parts: &mut Vec<usize>) {
+        let part_of = |block: usize| bounds.partition_point(|&start| start <= block) - 1;
+        parts.clear();
         if self.identity {
-            span(out, first, row, part_of(row / D));
+            parts.push(part_of(row / D));
         }
-        let entries = self.row_offsets.range(row);
-        for (index, &compact) in self.row_blocks_for(row).iter().enumerate() {
-            let part = part_of(self.row_block_index(compact));
-            include(&mut span(out, first, row, part).compact, entries.start + index);
+        for &entry in self.row_blocks_for(row) {
+            push_part(parts, part_of(self.row_block_index(entry)));
         }
-        let runs = self.geometric_row_offsets.range(row);
-        for (index, &run) in self.geometric_runs_for(row).iter().enumerate() {
+        for &run in self.geometric_runs_for(row) {
             let (start, len, _, _) = decode(run);
-            if len == 0 {
-                continue;
-            }
-            for part in part_of(start / D)..=part_of((start + len - 1) / D) {
-                include(&mut span(out, first, row, part).runs, runs.start + index);
+            if len != 0 {
+                for part in part_of(start / D)..=part_of((start + len - 1) / D) {
+                    push_part(parts, part);
+                }
             }
         }
-        let spans = &mut out[first..];
-        for (_, span) in spans.iter_mut() {
-            close(&mut span.compact);
-            close(&mut span.runs);
-        }
-        if !spans.is_sorted_by_key(|&(part, _)| part) {
-            spans.sort_unstable_by_key(|&(part, _)| part);
+        if !parts.is_sorted() {
+            parts.sort_unstable();
+            parts.dedup();
         }
     }
 
@@ -236,7 +216,29 @@ impl SuperneoMatrixCache {
     }
 }
 
-/// `f` of each chunk of rows, in chunk order.
+fn narrow<T>(base: usize, items: &[T], before: impl Fn(&T) -> bool, inside: impl Fn(&T) -> bool) -> Range<usize> {
+    let first = match items.first() {
+        Some(item) if before(item) => items.partition_point(&before),
+        _ => 0,
+    };
+    let end = match items.last() {
+        Some(item) if !inside(item) => first + items[first..].partition_point(&inside),
+        _ => items.len(),
+    };
+    base + first..base + end
+}
+
+fn run_columns(run: &[u64; 3]) -> Range<usize> {
+    let start = run[0] as u32 as usize;
+    start..start + (run[0] >> 32) as usize
+}
+
+fn push_part(parts: &mut Vec<usize>, part: usize) {
+    if parts.last() != Some(&part) {
+        parts.push(part);
+    }
+}
+
 fn map_chunks<T: Send>(chunks: &[Range<usize>], f: impl Fn(Range<usize>) -> T + Sync + Send) -> Vec<T> {
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let chunks = chunks.par_iter();

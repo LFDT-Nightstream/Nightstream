@@ -14,9 +14,6 @@ Accepted by the owner on 2026-11-16 (Version B):
 - An empty refresh step is necessary only for proofs of more than about
   45,000 instructions.
 
-Proposed: the rule that selects the mode from the geometry of each memory
-circuit, and the byte tag `NS-OPTIONB-FIN-L`.
-
 ## Problem
 
 The refresh step circuit runs the same WASM program as the light step

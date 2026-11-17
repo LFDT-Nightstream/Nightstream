@@ -2,7 +2,6 @@ import tests.AxiomAudit
 import NightstreamFPrime.Export.BoundedDepth.EmittedPackages
 import NightstreamFPrime.Export.BoundedDepth.VerifierSecurity
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
-import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
 import NightstreamFPrime.Lifecycle.BoundedDepth.PriorLink
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthFolds
@@ -98,12 +97,6 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.refreshPeriod_count
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.runDepths_light_count
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.light_count_le
-#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge.Runs.acceptedFrom
-#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge.ValidHistory.head
-#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge.reverse_extracts
-#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge.reverse_extracts_within
-#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge.slot_runs
-#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge.execution_extracts
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthReverse.attempts_take
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthReverse.fails_take
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthReverse.returned_of_no_failure

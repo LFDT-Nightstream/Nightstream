@@ -3,7 +3,6 @@ import NightstreamFPrime.Export.BoundedDepth.RunCompleteness
 import NightstreamFPrime.Export.BoundedDepth.TerminalBridge
 import NightstreamFPrime.Export.BoundedDepth.VerifierSecurity
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
-import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
 
 /-! # Claims: bounded-depth IVC
@@ -83,53 +82,6 @@ theorem accepted_bounds.{uKey, uClaim, uFresh, uProof}
           bound ≤ p.bigB + cap * (p.expansionT * (p.b - 1)) :=
   @Spec.HyperNova.Construction2.BoundedDepth.accepted_bounds Key Claim Fresh Proof p cap capFits
     folds history depth start accepted final finalAtMostB
-
-/-- HyperNova Lemma 17's reverse extraction for the bounded-depth scheme on one slot of an accepted execution:
-from a witness of the slot's final claim below `B`, every claim the slot held has a witness at a
-bound of at most `B + cap · T · (b − 1)` and every fresh instance it folded has a witness, or a
-fold of the slot failed. -/
-theorem execution_extracts.{uKey, uClaim, uFresh, uProof, uClaimWitness, uFreshWitness}
-    {Key : Type uKey}
-    {Claim : Type uClaim}
-    {Fresh : Type uFresh}
-    {Proof : Type uProof}
-    {ClaimWitness : Type uClaimWitness}
-    {FreshWitness : Type uFreshWitness}
-    {p : GlobalParams}
-    {cap : ℕ}
-    {folds : BoundedDepth.Folds Key Claim Fresh Proof}
-    {Holds : ℕ → Claim → ClaimWitness → Prop}
-    {FreshHolds : Fresh → FreshWitness → Prop}
-    {Failure : Folding.Schedule.Step → Key → Claim → Fresh → Proof → ClaimWitness → Prop}
-    {Digest : Type}
-    {State : Type}
-    {StepWitness : Type}
-    {Encoded : Type}
-    (knowledge : BoundedDepthKnowledge.StepKnowledge p folds Holds FreshHolds Failure)
-    (verifierKeys : Fin 2 → Key)
-    (defaultClaim : Claim)
-    (machine : Paper.Machine.{uKey, 0, 0, 0, uClaim, uFresh, 0} Key Digest State StepWitness
-        (BoundedDepth.Running Claim) Fresh Encoded 2)
-    (trace : List (BoundedDepthKnowledge.MachineStep Key Claim Fresh Proof Digest State StepWitness))
-    (start : Fin 2 → BoundedDepth.Running Claim)
-    (final : Fin 2 → BoundedDepth.Running Claim)
-    (execution : BoundedDepthKnowledge.Execution
-        (Construction2.BoundedDepth.setup cap folds verifierKeys defaultClaim) machine start trace
-        final)
-    (slot : Fin 2)
-    (bound : ℕ)
-    (finalWitness : ClaimWitness)
-    (holds : Holds bound (final slot).1 finalWitness)
-    (finalAtMostB : bound ≤ p.bigB) :
-    have history := BoundedDepthKnowledge.slotHistory verifierKeys slot trace;
-      (BoundedDepthKnowledge.ValidHistory p Holds FreshHolds (start slot).1 history bound ∧
-          ∀ recovered ∈ Folding.Schedule.recoveredBounds p bound (BoundedDepth.steps history),
-            recovered ≤ p.bigB + cap * (p.expansionT * (p.b - 1))) ∨
-        BoundedDepthKnowledge.Failed p Holds Failure bound history :=
-  @Spec.HyperNova.Construction2.BoundedDepthKnowledge.execution_extracts Key Claim Fresh Proof
-    ClaimWitness FreshWitness p cap folds Holds FreshHolds Failure Digest State StepWitness
-    Encoded knowledge verifierKeys defaultClaim machine trace start final execution slot bound
-    finalWitness holds finalAtMostB
 
 /-- HyperNova Lemma 17 for the bounded-depth scheme. A false acceptance is an extraction failure, because no
 list of witnesses reaches its statement. -/

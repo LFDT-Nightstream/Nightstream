@@ -732,11 +732,6 @@ Claims.Ivc.accepted_bounds	capFits	LE.le
 Claims.Ivc.accepted_bounds	start	LE.le
 Claims.Ivc.accepted_bounds	accepted	Spec.HyperNova.Construction2.BoundedDepth.AcceptedFrom
 Claims.Ivc.accepted_bounds	finalAtMostB	LE.le
-Claims.Ivc.execution_extracts	p.rlc_bound	LT.lt
-Claims.Ivc.execution_extracts	knowledge	Spec.HyperNova.Construction2.BoundedDepthKnowledge.StepKnowledge
-Claims.Ivc.execution_extracts	execution	Spec.HyperNova.Construction2.BoundedDepthKnowledge.Execution
-Claims.Ivc.execution_extracts	holds	_
-Claims.Ivc.execution_extracts	finalAtMostB	LE.le
 Claims.Ivc.extraction_bound	publicFits	LE.le
 Claims.Ivc.extraction_bound	relation.cubeFits	LE.le
 Claims.Ivc.extraction_bound	cubeFits	LE.le

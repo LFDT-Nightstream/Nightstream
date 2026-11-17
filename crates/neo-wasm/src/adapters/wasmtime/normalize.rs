@@ -2,7 +2,7 @@ mod host_event_emit;
 mod memory;
 mod trace_build;
 
-use super::decode::{DecodedControlOpcode, DecodedMemoryAccessKind, DecodedOpcode};
+use super::decode::{checked_funcref_id, DecodedControlOpcode, DecodedMemoryAccessKind, DecodedOpcode};
 use super::runtime_read::{
     function_arity_from_ref, function_type_id_from_ref, normalize_value_lanes, read_byte, read_global_lanes,
     read_halfword, read_memory_pages_if_present, read_table_funcref_u32, read_table_size, read_word, val_to_string,
@@ -314,7 +314,7 @@ pub(crate) fn capture_frame<T>(
             .trace
             .imported_function_count
             .checked_add(index)
-            .and_then(|function_ref| function_ref.checked_add(1))
+            .and_then(checked_funcref_id)
     });
     let opcode = decoded_opcode.as_ref().map(|decoded| decoded.text.clone());
     let (opcode_decoded, immediate_i32) = decoded_opcode
@@ -366,7 +366,7 @@ pub(crate) fn capture_frame<T>(
         _ => None,
     };
     let memory_pages_now = read_memory_pages_if_present(0, frame, store)?;
-    let memory_max_now = tables.artifacts.tables.max_memory_pages;
+    let max_memory_pages = tables.artifacts.tables.max_memory_pages;
     let (global_value_before, global_value_before_hi) = match global_index {
         Some(index) => {
             let (lo, hi) = read_global_lanes(index, frame, store, func_ref_ids)?;
@@ -420,14 +420,12 @@ pub(crate) fn capture_frame<T>(
         ) => table_value
             .and_then(|function_ref| function_type_id_from_ref(function_ref, &tables.artifacts.trace.function_metas)),
         Some(WasmOpcode::Call | WasmOpcode::ReturnCall) => immediate_i32
-            .and_then(|function_index| function_index.checked_add(1))
+            .and_then(checked_funcref_id)
             .and_then(|function_ref| function_type_id_from_ref(function_ref, &tables.artifacts.trace.function_metas)),
         _ => None,
     };
     let function_ref = match opcode_decoded {
-        Some(WasmOpcode::Call | WasmOpcode::ReturnCall) => {
-            immediate_i32.and_then(|function_index| function_index.checked_add(1))
-        }
+        Some(WasmOpcode::Call | WasmOpcode::ReturnCall) => immediate_i32.and_then(checked_funcref_id),
         Some(WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect) => table_value,
         Some(WasmOpcode::RefFunc) => immediate_i32,
         Some(WasmOpcode::TableGet | WasmOpcode::TableSet) => table_value,
@@ -435,7 +433,7 @@ pub(crate) fn capture_frame<T>(
     };
     let (call_param_count, call_result_count) = match opcode_decoded {
         Some(WasmOpcode::Call | WasmOpcode::ReturnCall) => immediate_i32
-            .and_then(|function_index| function_index.checked_add(1))
+            .and_then(checked_funcref_id)
             .and_then(|function_ref| function_arity_from_ref(function_ref, &tables.artifacts.trace.function_metas))
             .map_or((None, None), |(params, results)| (Some(params), Some(results))),
         Some(WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect) => table_value
@@ -455,7 +453,7 @@ pub(crate) fn capture_frame<T>(
                 WasmBuildError::Trace("memory.grow observed without memory 0 in current frame".to_string())
             })?;
             let delta = operand_stack_words.last().copied().unwrap_or(0);
-            let max = memory_max_now.unwrap_or(u32::MAX);
+            let max = max_memory_pages.unwrap_or(u32::MAX);
             let grown = pages_before
                 .checked_add(delta)
                 .filter(|after| *after <= max);
@@ -513,7 +511,7 @@ pub(crate) fn capture_frame<T>(
         call_result_count,
         memory_pages_before,
         memory_pages_after,
-        memory_max_pages: memory_max_now,
+        memory_max_pages: max_memory_pages,
         memory,
         locals,
         locals_words,

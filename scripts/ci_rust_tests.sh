@@ -3,7 +3,7 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-groups=(
+groups_slowest_first=(
   '-p nightstream lifecycle::'
   '-p nightstream -- --skip lifecycle::'
   '-p nightstream-fprime'
@@ -21,7 +21,7 @@ groups=(
   '-p neo-wasm'
 )
 
-alone=(
+memory_heavy_alone=(
   '-p nightstream --test compression -- --ignored'
   '-p nightstream --test compression_at_cap -- --ignored'
   '-p ns-compress --lib -- --ignored key::tests::the_large_pinned_key_is_the_key_of_the_public_seeds'
@@ -37,21 +37,21 @@ shipped=(--release --locked)
 
 case "${1:-}" in
   build)
-    for group in "${groups[@]}"; do
+    for group in "${groups_slowest_first[@]}"; do
       read -r -a selected <<< "$group"
       printf 'Building selected tests: %s\n' "$group"
       cargo test "${common[@]}" --no-run "${selected[@]}"
     done
-    for group in "${alone[@]}"; do
+    for group in "${memory_heavy_alone[@]}"; do
       read -r -a selected <<< "$group"
       printf 'Building selected tests with the shipped profile: %s\n' "$group"
       cargo test "${shipped[@]}" --no-run "${selected[@]}"
     done
     ;;
   test)
-    printf '%s\0' "${groups[@]}" |
+    printf '%s\0' "${groups_slowest_first[@]}" |
       xargs -0 -P 4 -n 1 bash "$0" run
-    for group in "${alone[@]}"; do
+    for group in "${memory_heavy_alone[@]}"; do
       bash "$0" run-shipped "$group"
     done
     ;;

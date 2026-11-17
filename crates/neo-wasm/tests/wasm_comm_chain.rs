@@ -151,7 +151,7 @@ fn ccs_rejects_chain_change_off_the_absorb_row() {
 
 #[test]
 fn absorbed_event_blocks_reconstruct_the_host_event_transcript() {
-    use common::host_event_fixture::{expected_transcript, host_event_lifecycle_setup, mul_fref, sink_fref};
+    use common::host_event_fixture::{expected_transcript, host_event_lifecycle_setup, MUL_FREF, SINK_FREF};
 
     let setup = host_event_lifecycle_setup();
     let events = comm_chain::absorbed_event_blocks(&setup.trace);
@@ -177,15 +177,20 @@ fn absorbed_event_blocks_reconstruct_the_host_event_transcript() {
         last.state_after.comm_chain
     );
 
-    let mul = mul_fref(&setup.bindings);
-    let sink = sink_fref(&setup.bindings);
     let attributed: Vec<u32> = events
         .iter()
         .map(|event| event.metadata.attributed_fref)
         .collect();
     assert_eq!(
         attributed,
-        [setup.run_fref, setup.run_fref, mul, mul, sink, setup.run_fref]
+        [
+            setup.run_fref,
+            setup.run_fref,
+            MUL_FREF,
+            MUL_FREF,
+            SINK_FREF,
+            setup.run_fref
+        ]
     );
     assert!(events
         .iter()

@@ -18,7 +18,9 @@ use crate::relation_layout::build_wasm_relation_layout;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-pub(crate) const NO_DEFAULT_MEMORY_PAGE_WORD: u64 = 65_537;
+pub(crate) const WASM32_MAX_PAGES: u32 = 65_536;
+pub(crate) const WASM_PAGE_LANES: u64 = 65_536 / 4;
+pub(crate) const NO_DEFAULT_MEMORY_PAGE_WORD: u64 = WASM32_MAX_PAGES as u64 + 1;
 
 pub(crate) fn memory_page_state_words(pages: Option<u32>, maximum: Option<u32>) -> Option<[u64; 2]> {
     match (pages, maximum) {
@@ -127,13 +129,13 @@ fn export_frame_shape(tables: &WasmProgramTables, fref: u32) -> Result<(u8, u32)
 /// The carried words of `state` in continuity-link order: the values that a
 /// row starting from `state` holds at its `_BEFORE` columns.
 pub fn continuity_words(state: WasmStepState) -> Vec<F> {
-    continuity_values(state)
+    unreduced_continuity_values(state)
         .into_iter()
         .map(F::from_u64)
         .collect()
 }
 
-pub(crate) fn continuity_values(state: WasmStepState) -> Vec<u64> {
+pub(crate) fn unreduced_continuity_values(state: WasmStepState) -> Vec<u64> {
     build_wasm_relation_layout()
         .auxiliary
         .continuity

@@ -30,7 +30,7 @@ pub(crate) fn push_u32_le_bytes_decomp<const N: usize>(
     );
 }
 
-pub(crate) fn push_unsigned_ge_gadget(
+pub(crate) fn push_unsigned_ge_of_u32_operands(
     b: &mut WasmTaggedR1csBuilder<'_>,
     gate_cols: impl IntoIterator<Item = usize>,
     lhs: impl IntoIterator<Item = (usize, F)>,

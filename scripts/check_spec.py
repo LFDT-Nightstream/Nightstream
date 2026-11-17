@@ -98,9 +98,9 @@ LABELS = {
     "NormStage.bound productionGlobalParams .ambient": ("—", "The ambient bound, `q/2 + 1`."),
     "productionGlobalParams.msisNormBound": ("—", "The MSIS norm `8TB` of SuperNeo v1.2 Section 8, the chain norm at cap 0."),
     "numerator": ("—", "The numerator of the refresh fold's Π_CCS test error, `1 + k_rho` sources."),
-    "ε_test": ("ε_test", "The refresh fold's Π_CCS test error, `numerator / q²`.", "over_q2"),
+    "ε_test": ("ε_test", "The refresh fold's Π_CCS test error, `numerator / q²`."),
     "testNumerator (shape 28) 8": ("—", "The numerator of the light fold's Π_CCS test error, 2 sources."),
-    "ε_test light": ("—", "The light fold's Π_CCS test error, `testNumerator / q²`.", "over_q2"),
+    "ε_test light": ("—", "The light fold's Π_CCS test error, `testNumerator / q²`."),
     "forkCoordinates": ("—", "The `ρ` coordinates of a light fork. A refresh fork has `1 + k_rho`."),
     "msisChainBound productionGlobalParams productionLightFoldCap": ("—", "The chain MSIS norm `8T(B + cap·T·(b − 1))`."),
     "productionLightFoldCap": ("cap", "The depth at which the light circuit rejects a fold."),
@@ -108,6 +108,7 @@ LABELS = {
     "secureTuples": ("—", "The bound of section 7.1, rule 6 on `m_mem = R + M + N · B_ops`."),
     "gateBits": ("—", "The bits that the memory gate certifies for all segments of each fixed WASM size (section 7.1)."),
 }
+PROBABILITY_OVER_Q2 = {"ε_test", "ε_test light"}
 HEADER_LABELS = {
     "circuit": "The circuit index: 0 light, 1 refresh.",
     "publicColumns": "The public input columns, five ring elements.",
@@ -272,8 +273,8 @@ def table():
                  f"labelled but absent {sorted(set(LABELS) - set(keys))}")
     lines = ["| Source | Lean | Symbol | Value | Meaning |", "|---|---|---|---|---|"]
     for source, key, value in found:
-        symbol, meaning, *kind = LABELS[key]
-        if kind == ["over_q2"]:
+        symbol, meaning = LABELS[key]
+        if key in PROBABILITY_OVER_Q2:
             numerator, denominator = value
             shown = f"{numerator}/q² ≈ 2^−{neg_log2_floor(numerator, denominator)}"
         else:

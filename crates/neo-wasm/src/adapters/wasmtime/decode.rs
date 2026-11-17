@@ -1,6 +1,16 @@
 use crate::ir::WasmPcEdgeKind;
 use crate::isa::WasmOpcode;
 
+pub(super) const NULL_FUNCREF: u32 = 0;
+
+pub(super) fn funcref_id(function_index: u32) -> u32 {
+    function_index.saturating_add(1)
+}
+
+pub(super) fn checked_funcref_id(function_index: u32) -> Option<u32> {
+    function_index.checked_add(1)
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct DecodedOpcode {
     pub(crate) pc: u32,
@@ -115,7 +125,7 @@ pub(crate) fn decode_opcode(operator: &wasmparser::Operator<'_>) -> Option<(Wasm
         wasmparser::Operator::I32Const { value } => Some((WasmOpcode::I32Const, Some(*value as u32))),
         wasmparser::Operator::I64Const { .. } => Some((WasmOpcode::I64Const, None)),
         wasmparser::Operator::RefFunc { function_index } => {
-            Some((WasmOpcode::RefFunc, Some(function_index.saturating_add(1))))
+            Some((WasmOpcode::RefFunc, Some(funcref_id(*function_index))))
         }
         wasmparser::Operator::I32Add => Some((WasmOpcode::I32Add, None)),
         wasmparser::Operator::I64Add => Some((WasmOpcode::I64Add, None)),

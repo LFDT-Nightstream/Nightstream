@@ -12,12 +12,13 @@ fi
 out="$(mktemp -d)"
 
 plan() {
+  local file=$1 v_vars=$2 key_vars=$3 w_vars=$4
   (cd "$akita" && cargo run --release -p akita-planner --features catalog-gen \
-    --bin gen_schedule_artifacts -- "$out/$1" \
-    --final-group "fp64_dense_recursive:$2:1" \
-    --precommitted-group "fp64_dense_recursive:$3:1" \
-    --precommitted-group "fp64_dense_recursive:$4:1")
-  cp "$out/$1/fp64_dense_recursive.aks" "$artifacts/$1.aks"
+    --bin gen_schedule_artifacts -- "$out/$file" \
+    --final-group "fp64_dense_recursive:$v_vars:1" \
+    --precommitted-group "fp64_dense_recursive:$key_vars:1" \
+    --precommitted-group "fp64_dense_recursive:$w_vars:1")
+  cp "$out/$file/fp64_dense_recursive.aks" "$artifacts/$file.aks"
 }
 
 plan key20 16 20 16

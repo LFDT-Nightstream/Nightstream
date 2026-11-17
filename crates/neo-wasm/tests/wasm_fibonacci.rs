@@ -1,6 +1,7 @@
 mod common;
 
 fn fib_wat(n: u32) -> String {
+    assert!(n >= 1);
     format!(
         r#"
 (module

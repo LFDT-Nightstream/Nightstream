@@ -1,13 +1,13 @@
 use super::branch_stack::FrameSlideEdges;
 use super::decode::{
-    decode_control_opcode, decode_memory_opcode, decode_opcode, ControlFrame, ControlFrameKind, DecodedOpcode,
+    checked_funcref_id, decode_control_opcode, decode_memory_opcode, decode_opcode, funcref_id, ControlFrame,
+    ControlFrameKind, DecodedOpcode, NULL_FUNCREF,
 };
 use crate::ir::{pack_function_call_metadata, WasmPcEdgeKind, WasmProgramError};
 use crate::isa::{opcode_code, WasmOpcode};
+use crate::preprocess::WASM32_MAX_PAGES;
 use std::collections::BTreeMap;
 use wasmparser::{Parser, Payload};
-
-pub(super) const WASM32_MAX_PAGES: u32 = 65_536;
 
 /// Parsed program tables and capture metadata, paired with application-authored
 /// host-event bindings. Lazy capture constructs this pair from the executing
@@ -138,7 +138,7 @@ pub(crate) struct ParsedFunctionMeta {
 
 pub(super) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtifacts, WasmProgramError> {
     let mut builder = ParsedWasmArtifactsBuilder {
-        slides_by_offset: super::branch_stack::frame_slides(wasm_bytes)?,
+        slides_by_offset: super::branch_stack::frame_slides_by_offset(wasm_bytes)?,
         ..Default::default()
     };
     for payload in Parser::new(0).parse_all(wasm_bytes) {
@@ -456,7 +456,7 @@ impl ParsedWasmArtifactsBuilder {
                         ));
                     }
                     if let wasmparser::TypeRef::Func(raw_type_index) = import.ty {
-                        let function_ref = self.imported_function_count.saturating_add(1);
+                        let function_ref = funcref_id(self.imported_function_count);
                         self.imported_function_count = self.imported_function_count.saturating_add(1);
                         let type_id = *self
                             .raw_type_id_by_index
@@ -508,7 +508,7 @@ impl ParsedWasmArtifactsBuilder {
                 let function_ref = self
                     .imported_function_count
                     .checked_add(self.defined_function_index)
-                    .and_then(|index| index.checked_add(1))
+                    .and_then(checked_funcref_id)
                     .ok_or_else(|| WasmProgramError::Invalid("function ref id overflow".to_string()))?;
                 let raw_type_index = *self
                     .defined_function_type_indices
@@ -907,7 +907,7 @@ impl ParsedWasmArtifactsBuilder {
                         }
                         wasmparser::Operator::Call { function_index }
                         | wasmparser::Operator::ReturnCall { function_index } => {
-                            let function_ref = function_index.saturating_add(1);
+                            let function_ref = funcref_id(*function_index);
                             self.call_targets.push((pc_before, u64::from(function_ref)));
                         }
                         _ => {}
@@ -994,7 +994,7 @@ impl ParsedWasmArtifactsBuilder {
                                 let function_index = item.map_err(|err| {
                                     WasmProgramError::Invalid(format!("failed to decode element function index: {err}"))
                                 })?;
-                                funcrefs.push(function_index.saturating_add(1));
+                                funcrefs.push(funcref_id(function_index));
                             }
                         }
                         wasmparser::ElementItems::Expressions(_, items) => {
@@ -1008,9 +1008,9 @@ impl ParsedWasmArtifactsBuilder {
                                 })?;
                                 match first {
                                     wasmparser::Operator::RefFunc { function_index } => {
-                                        funcrefs.push(function_index.saturating_add(1));
+                                        funcrefs.push(funcref_id(function_index));
                                     }
-                                    wasmparser::Operator::RefNull { .. } => funcrefs.push(0),
+                                    wasmparser::Operator::RefNull { .. } => funcrefs.push(NULL_FUNCREF),
                                     other => {
                                         return Err(WasmProgramError::Unsupported(format!(
                                             "element segment with non-funcref init expr: {other:?}"

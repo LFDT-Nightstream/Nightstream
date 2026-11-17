@@ -12,8 +12,9 @@ if (( BASH_VERSINFO[0] < 4 )); then
   exit 2
 fi
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-package="$(cd "${1:-$ROOT}" && pwd -P)"
+physical_dir() { (cd "$1" && pwd -P); }
+FPRIME_ROOT="$(physical_dir "$(dirname "${BASH_SOURCE[0]}")/..")"
+package="$(physical_dir "${1:-$FPRIME_ROOT}")"
 cd "$package"
 status=0
 fail() { echo "[boundary] $1" >&2; status=1; }
@@ -29,7 +30,9 @@ fi
 if lean_files | xargs grep -nE 'native_decide|ofReduceBool|\+native\b|\bnative\s*:=\s*true\b' 2>/dev/null; then
   fail "native_decide / decide +native / ofReduceBool is prohibited"
 fi
-if lean_files | xargs grep -nE '^\s*(-/\s*)?((set_option\s+\S+\s+\S+|open(\s+\S+)+)\s+in\s+)*(/--.*-/\s*)?(@\[.*\]\s*)?((private|protected|public|noncomputable|unsafe)\s+)*(axiom|unsafe)\b|\bsorry\b|\badmit\b' 2>/dev/null; then
+decl_prefix='^\s*(-/\s*)?((set_option\s+\S+\s+\S+|open(\s+\S+)+)\s+in\s+)*(/--.*-/\s*)?(@\[.*\]\s*)?((private|protected|public|noncomputable|unsafe)\s+)*'
+trusted_decl="${decl_prefix}(axiom|unsafe)\b|\bsorry\b|\badmit\b"
+if lean_files | xargs grep -nE "$trusted_decl" 2>/dev/null; then
   fail "sorry / admit / axiom / unsafe is prohibited"
 fi
 
@@ -107,8 +110,8 @@ done < <(awk '
       line = substr(line, RSTART + RLENGTH)
     }
   }
-  /^(root|roots)[[:space:]]*=/ { names($0); open = ($0 ~ /\[/ && $0 !~ /\]/); next }
-  open { names($0); if ($0 ~ /\]/) open = 0 }
+  /^(root|roots)[[:space:]]*=/ { names($0); in_roots_array = ($0 ~ /\[/ && $0 !~ /\]/); next }
+  in_roots_array { names($0); if ($0 ~ /\]/) in_roots_array = 0 }
 ' lakefile.toml)
 
 queue_index=0
@@ -131,7 +134,7 @@ for module in "${!module_path[@]}"; do
   fi
 done
 
-if [[ "$package" != "$ROOT" ]]; then
+if [[ "$package" != "$FPRIME_ROOT" ]]; then
   if (( status == 0 )); then echo "[boundary] $package: all package-wide checks passed"; fi
   exit $status
 fi
@@ -188,11 +191,11 @@ if ! timeout --signal=KILL 300s python3 -B scripts/check_premises.py; then
 fi
 
 for retired in crates/neo-fold-legacy crates/wip-spartan tools/recursive-constraint-minimizer/bridge; do
-  if [[ -f "$ROOT/../../$retired/Cargo.toml" ]]; then
+  if [[ -f "$FPRIME_ROOT/../../$retired/Cargo.toml" ]]; then
     fail "retired Rust consumer remains supported: $retired"
   fi
 done
-if grep -nE 'neo-fold-legacy|wip-spartan|legacy-adapter' "$ROOT/../../Cargo.toml" "$ROOT/../../crates/"*/Cargo.toml; then
+if grep -nE 'neo-fold-legacy|wip-spartan|legacy-adapter' "$FPRIME_ROOT/../../Cargo.toml" "$FPRIME_ROOT/../../crates/"*/Cargo.toml; then
   fail "retired lifecycle dependency or feature remains supported"
 fi
 

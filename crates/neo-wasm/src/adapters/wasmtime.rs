@@ -157,7 +157,7 @@ impl<T> Default for WasmtimeTraceHandler<T> {
 
 impl<T> Clone for WasmtimeTraceHandler<T> {
     fn clone(&self) -> Self {
-        WasmtimeTraceHandler(PhantomData)
+        *self
     }
 }
 
@@ -442,7 +442,7 @@ impl<T: WasmTraceSink + Send + 'static> DebugHandler for WasmtimeTraceHandler<T>
             }
 
             let frames = store.debug_exit_frames().collect::<Vec<FrameHandle>>();
-            let Some(frame) = frames.first() else {
+            let Some(innermost_frame) = frames.first() else {
                 return;
             };
             if store.data().wasm_trace_registry().error.is_some() {
@@ -457,7 +457,7 @@ impl<T: WasmTraceSink + Send + 'static> DebugHandler for WasmtimeTraceHandler<T>
                     .discard_unwound_imports(frames.len());
                 return;
             }
-            if let Err(error) = registry::capture_step(frame, frames.len(), &mut store) {
+            if let Err(error) = registry::capture_step(innermost_frame, frames.len(), &mut store) {
                 store.data_mut().wasm_trace_registry_mut().error = Some(error);
             }
         }

@@ -55,7 +55,7 @@ strip = "symbols"
 inherits = "release"
 lto = "thin"
 codegen-units = 16
-debug = 2
+debug = "full"
 strip = false
 
 [workspace.package]

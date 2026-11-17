@@ -7,7 +7,7 @@ pub(crate) const IMPORT_SCHEDULE_COUNT_FACTOR: u32 = 1 << IMPORT_SCHEDULE_COUNT_
 /// schedule ROM reserves zero and stores each present phase's count plus one.
 pub const MAX_IMPORT_PHASE_BLOCKS: usize = IMPORT_SCHEDULE_COUNT_FACTOR as usize - 2;
 
-fn biased_count(blocks: usize) -> u32 {
+pub(crate) fn biased_count(blocks: usize) -> u32 {
     assert!(
         blocks <= MAX_IMPORT_PHASE_BLOCKS,
         "import schedule must be validated before encoding"

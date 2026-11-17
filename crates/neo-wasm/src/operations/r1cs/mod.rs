@@ -20,6 +20,9 @@ use crate::range_check::range_checked_bit_columns;
 use builder::{selector_lc, CircuitBuilder, ColumnId, Lc};
 use compare::enforce_comparisons;
 use counts::enforce_popcount;
+
+const HALF_BITS: usize = 32;
+
 struct Inputs {
     left32: Vec<ColumnId>,
     right32: Vec<ColumnId>,

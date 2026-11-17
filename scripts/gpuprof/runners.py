@@ -112,12 +112,12 @@ def parse_ncu_csv(text):
             result["launches"].append(launch)
 
     if result["launches"]:
-        selected = max(
+        longest_launch = max(
             result["launches"],
             key=lambda row: row["metrics"].get("kernel_duration_us", 0.0),
         )
-        result["selected_launch"] = selected
-        result["metrics"].update(selected["metrics"])
+        result["selected_launch"] = longest_launch
+        result["metrics"].update(longest_launch["metrics"])
         durations = [
             row["metrics"]["kernel_duration_us"]
             for row in result["launches"]

@@ -11,7 +11,8 @@ cores=$(getconf _NPROCESSORS_ONLN)
 if memory=$(sysctl -n hw.memsize 2>/dev/null); then :; else
   memory=$(( $(awk '/^MemTotal:/ { print $2 }' /proc/meminfo) * 1024 ))
 fi
-jobs=$(( memory / (4 << 30) ))
+bytes_per_run=$((4 << 30))
+jobs=$(( memory / bytes_per_run ))
 (( jobs > cores )) && jobs=$cores
 (( jobs < 1 )) && jobs=1
 
@@ -53,11 +54,12 @@ start=$(mktemp)
 # Bash 3.2 `-nt` compares whole seconds.
 sleep 1
 emit() {
-  local command=${2%%|*}
-  if bash scripts/validate.sh lean-executable $command > "$LOGS/run-$1.log" 2>&1; then
+  local index=$1 run=$2
+  local command=${run%%|*}
+  if bash scripts/validate.sh lean-executable $command > "$LOGS/run-$index.log" 2>&1; then
     echo "ok: $command"
   else
-    echo "FAILED: $command (log $LOGS/run-$1.log)"
+    echo "FAILED: $command (log $LOGS/run-$index.log)"
   fi
 }
 for index in "${!runs[@]}"; do

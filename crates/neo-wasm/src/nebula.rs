@@ -132,7 +132,7 @@ impl WasmApplication {
         let shared = if rows.get() == 1 {
             nightstream::nebula::SharedColumns::NONE
         } else {
-            shared_host::transform(&mut relation)?
+            shared_host::share_host_commitment_inputs(&mut relation)?
         };
         Ok(Self(R1csApplication::with_shared(
             relation,
@@ -250,7 +250,7 @@ fn relation() -> Result<RowRelation, WasmApplicationError> {
 /// claim cannot name a field that differs from the proved word by a multiple
 /// of `q` (test `a_state_field_of_q_or_more_has_no_canonical_word`).
 pub fn state_words(state: WasmStepState) -> Vec<u64> {
-    crate::preprocess::continuity_values(state)
+    crate::preprocess::unreduced_continuity_values(state)
 }
 
 /// The step inputs of a run of `steps` steps of `rows` trace rows each: the

@@ -13,6 +13,10 @@ const ENTRY_PAYLOAD_TAG: u64 = 5;
 const EXIT_OUTPUT_TAG: u64 = 6;
 const ENTRY_HEADER_WORD: u32 = 9;
 
+pub const MUL_FREF: u32 = 1;
+pub const SINK_FREF: u32 = 2;
+pub const RUN_FREF: u32 = 3;
+
 fn mul_sink_component_wat() -> &'static str {
     r#"
     (component
@@ -77,24 +81,6 @@ fn test_bindings(
     bindings.finish()
 }
 
-pub fn mul_fref(bindings: &HostEventBindings) -> u32 {
-    *bindings
-        .imports
-        .iter()
-        .find(|(_, t)| t.events.len() == 2)
-        .expect("mul template")
-        .0
-}
-
-pub fn sink_fref(bindings: &HostEventBindings) -> u32 {
-    *bindings
-        .imports
-        .iter()
-        .find(|(_, t)| t.events.len() == 1)
-        .expect("sink template")
-        .0
-}
-
 pub struct HostEventLifecycleSetup {
     pub trace: Vec<WasmVmStep>,
     pub bindings: HostEventBindings,
@@ -106,8 +92,7 @@ pub fn host_event_lifecycle_setup() -> HostEventLifecycleSetup {
     let component_bytes = wat::parse_str(mul_sink_component_wat()).expect("component wat");
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
 
-    let (frefs, run_fref) = ([1, 2], 3);
-    let bindings = test_bindings(&artifacts.tables, frefs[0], frefs[1], run_fref).expect("build bindings");
+    let bindings = test_bindings(&artifacts.tables, MUL_FREF, SINK_FREF, RUN_FREF).expect("build bindings");
 
     let run = neo_wasm::collect_wasmtime_component_run_with_linker(&component_bytes, &bindings, "run", |linker| {
         linker
@@ -126,7 +111,7 @@ pub fn host_event_lifecycle_setup() -> HostEventLifecycleSetup {
     HostEventLifecycleSetup {
         trace,
         bindings,
-        run_fref,
+        run_fref: RUN_FREF,
         component_bytes,
     }
 }
@@ -137,9 +122,9 @@ pub fn expected_transcript(bindings: &HostEventBindings, run_fref: u32) -> Vec<[
     blocks = absorbed_blocks(&template.entry, &blocks).expect("absorbed entry");
     blocks.extend(
         absorbed_blocks(
-            &bindings.imports[&mul_fref(bindings)].events,
+            &bindings.imports[&MUL_FREF].events,
             &neo_wasm::host_event_bindings::expand_import_events(
-                &bindings.imports[&mul_fref(bindings)],
+                &bindings.imports[&MUL_FREF],
                 &[(7, 0), (6, 0)],
                 Some((42, 0)),
                 &[],
@@ -151,9 +136,9 @@ pub fn expected_transcript(bindings: &HostEventBindings, run_fref: u32) -> Vec<[
     );
     blocks.extend(
         absorbed_blocks(
-            &bindings.imports[&sink_fref(bindings)].events,
+            &bindings.imports[&SINK_FREF].events,
             &neo_wasm::host_event_bindings::expand_import_events(
-                &bindings.imports[&sink_fref(bindings)],
+                &bindings.imports[&SINK_FREF],
                 &[(42, 0)],
                 None,
                 &[],

@@ -26,7 +26,7 @@ mod phases;
 pub use builder::{EventSequenceBuilder, EventSources, HostEventBindingsBuilder};
 pub use opaque::opaque_value_root;
 pub use phases::MAX_IMPORT_PHASE_BLOCKS;
-pub(crate) use phases::{IMPORT_SCHEDULE_COUNT_BITS, IMPORT_SCHEDULE_COUNT_FACTOR};
+pub(crate) use phases::{biased_count, IMPORT_SCHEDULE_COUNT_BITS, IMPORT_SCHEDULE_COUNT_FACTOR};
 
 /// Which 32-bit limb of a two-limb value feeds a slot.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -11,7 +11,7 @@
 //! word-level stack↔family identifications, whereas grow is a multi-constraint
 //! state transition (a `>=` comparison plus a success/failure branch).
 
-use super::super::gadgets::{push_gated_linear_zero, push_unsigned_ge_gadget};
+use super::super::gadgets::{push_gated_linear_zero, push_unsigned_ge_of_u32_operands};
 use super::super::isa::WasmOpcode;
 use super::super::layout::{
     selector_col, COL_CMP_GE, COL_CMP_LOW, COL_GROW_SUCCESS, COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE,
@@ -53,7 +53,7 @@ fn push_size_and_grow_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     // from the validated memory type, and this transition preserves it.
     // Success iff `delta <= max - before`; result is old size or -1.
     let grow = selector_col(WasmOpcode::MemoryGrow).unwrap();
-    push_unsigned_ge_gadget(
+    push_unsigned_ge_of_u32_operands(
         b,
         [grow],
         [

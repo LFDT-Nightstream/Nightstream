@@ -146,7 +146,6 @@ pub fn check_native_event_hashes(trace: &[WasmVmStep]) -> Result<(), String> {
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn step(
     cycle: u64,
     pc_before: u64,

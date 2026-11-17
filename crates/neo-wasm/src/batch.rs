@@ -237,6 +237,8 @@ pub fn batch_count(trace_len: usize, batch_size: usize) -> Result<usize, BatchEr
     Ok(trace_len.div_ceil(batch_size))
 }
 
+const NO_OPCODE_CODE: u16 = 0;
+
 /// Build a synthetic state-preserving `WasmVmStep` whose `_before`
 /// matches `prev`'s `_after`. Used to pad a trace up to a multiple of
 /// `batch_size` without breaking cross-step continuity.
@@ -306,7 +308,7 @@ pub fn padding_step_after(prev: &WasmVmStep) -> Result<WasmVmStep, BatchError> {
         pc_edge_kind: WasmPcEdgeKind::Static,
         wide_values_enabled: false,
         opcode: WasmOpcode::Nop,
-        info: opcode_info_from_code(0),
+        info: opcode_info_from_code(NO_OPCODE_CODE),
         stack_reads_override: Some(0),
         stack_writes_override: Some(0),
         output_captured: false,

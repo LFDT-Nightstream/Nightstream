@@ -1,3 +1,4 @@
+use super::decode::funcref_id;
 use super::parse::ParsedFunctionMeta;
 use crate::ir::{StackValueAccess, WasmBuildError};
 use std::collections::BTreeMap;
@@ -11,7 +12,7 @@ pub(super) fn build_debug_function_id_map<T: 'static>(
     let mut function_index = 0_u32;
     while let Some(func) = instance.debug_function(store.as_context_mut(), function_index) {
         let raw = func.to_raw(store.as_context_mut()) as usize;
-        out.insert(raw, function_index.saturating_add(1));
+        out.insert(raw, funcref_id(function_index));
         function_index = function_index.saturating_add(1);
     }
     Ok(out)

@@ -62,7 +62,7 @@ impl PendingImport {
                 .collect();
             let pages = if template.is_split() {
                 row.memory_pages_before
-                    .map(|_| super::parse::WASM32_MAX_PAGES)
+                    .map(|_| crate::preprocess::WASM32_MAX_PAGES)
             } else {
                 row.memory_pages_before
             };

@@ -436,7 +436,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Result<Vec<F>, super::ir::Was
         let pages_before = u64::from(pages_before);
         let last_lane_addr =
             access.lane0.word_addr + u64::from(access.lane1.is_some()) + u64::from(access.lane2.is_some());
-        let (cmp_low, cmp_ge) = unsigned_ge_witness(last_lane_addr, pages_before * 16384);
+        let (cmp_low, cmp_ge) = unsigned_ge_witness(last_lane_addr, pages_before * crate::preprocess::WASM_PAGE_LANES);
         wit[COL_CMP_LOW] = cmp_low;
         wit[COL_CMP_GE] = cmp_ge;
         wit[COL_MEM_OOB] = cmp_ge;

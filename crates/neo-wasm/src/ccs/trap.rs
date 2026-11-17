@@ -1,4 +1,4 @@
-use super::super::gadgets::{push_gated_linear_zero, push_unsigned_ge_gadget};
+use super::super::gadgets::{push_gated_linear_zero, push_unsigned_ge_of_u32_operands};
 use super::super::isa::{WasmMemoryAccessKind, WasmOpcode};
 use super::super::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_IS_TRAP, COL_CI_ENTRY_IS_NULL,
@@ -146,7 +146,7 @@ fn push_linear_memory_oob_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, li
         super::host_event_chain::gather_memory_read_kind_col(),
         super::host_event_chain::gather_memory_write_kind_col(),
     ]);
-    push_unsigned_ge_gadget(
+    push_unsigned_ge_of_u32_operands(
         b,
         mem_selectors.iter().copied(),
         [
@@ -154,7 +154,7 @@ fn push_linear_memory_oob_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>, li
             (idx(linear_memory.use_lane1), F::ONE),
             (idx(linear_memory.use_lane2), F::ONE),
         ],
-        [(COL_MEMORY_PAGES_BEFORE, F::from_u64(16384))],
+        [(COL_MEMORY_PAGES_BEFORE, F::from_u64(crate::preprocess::WASM_PAGE_LANES))],
         COL_CMP_LOW,
         COL_CMP_GE,
     );
@@ -228,7 +228,7 @@ fn push_table_bounds_and_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBu
     let resolve = selector_col(WasmOpcode::CallIndirectResolve).unwrap();
     let indirect_selectors = [(resolve, F::ONE)];
 
-    push_unsigned_ge_gadget(
+    push_unsigned_ge_of_u32_operands(
         b,
         [table_get, table_set, resolve],
         [(COL_TABLE_INDEX, F::ONE)],

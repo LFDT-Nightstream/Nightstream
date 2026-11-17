@@ -6,7 +6,7 @@ use wasmparser::{
 
 pub(super) type FrameSlideEdges = Vec<(u64, u32, u32)>;
 
-fn slide(kept: u32, distance: u32) -> (u32, u32) {
+fn canonical_slide(kept: u32, distance: u32) -> (u32, u32) {
     if distance == 0 {
         (0, 0)
     } else {
@@ -36,16 +36,16 @@ fn arity<T: WasmModuleResources>(
 fn branch<T: WasmModuleResources>(
     validator: &FuncValidator<T>,
     depth: u32,
-    condition: usize,
+    condition_operands: usize,
     offset: usize,
 ) -> Result<(u32, u32), WasmProgramError> {
     let (kept, height) = arity(validator, depth as usize, offset)?;
     let dropped = (validator.operand_stack_height() as usize)
-        .checked_sub(condition)
+        .checked_sub(condition_operands)
         .and_then(|available| available.checked_sub(height))
         .and_then(|available| available.checked_sub(kept as usize))
         .ok_or_else(|| WasmProgramError::Invalid(format!("branch operand stack underflow at byte {offset}")))?;
-    Ok(slide(kept, narrow(dropped, offset)?))
+    Ok(canonical_slide(kept, narrow(dropped, offset)?))
 }
 
 fn function_return<T: WasmModuleResources>(
@@ -59,14 +59,14 @@ fn function_return<T: WasmModuleResources>(
     let dropped = frame
         .checked_sub(results as usize)
         .ok_or_else(|| WasmProgramError::Invalid(format!("return operand stack underflow at byte {offset}")))?;
-    Ok(slide(results, narrow(dropped, offset)?))
+    Ok(canonical_slide(results, narrow(dropped, offset)?))
 }
 
 fn narrow(value: usize, offset: usize) -> Result<u32, WasmProgramError> {
     u32::try_from(value).map_err(|_| WasmProgramError::Unsupported(format!("frame slide too large at byte {offset}")))
 }
 
-pub(super) fn frame_slides(bytes: &[u8]) -> Result<BTreeMap<u32, FrameSlideEdges>, WasmProgramError> {
+pub(super) fn frame_slides_by_offset(bytes: &[u8]) -> Result<BTreeMap<u32, FrameSlideEdges>, WasmProgramError> {
     let invalid = |error| WasmProgramError::Invalid(format!("invalid wasm program: {error}"));
     let mut slides = BTreeMap::new();
     let mut validator = Validator::new();

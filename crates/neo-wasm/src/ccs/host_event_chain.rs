@@ -57,6 +57,7 @@ define_column_region! {
     ]
 }
 
+const GK_CONST: usize = GATHER_KIND[WasmHostEventSlotKind::Const.index()];
 const GK_ARG: usize = GATHER_KIND[WasmHostEventSlotKind::Arg.index()];
 const GK_RESULT: usize = GATHER_KIND[WasmHostEventSlotKind::Result.index()];
 const GK_INPUT_LOCAL: usize = GATHER_KIND[WasmHostEventSlotKind::InputLocal.index()];
@@ -374,7 +375,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         }
 
         b.push_row(
-            [(GATHER_KIND[0], F::ONE)],
+            [(GK_CONST, F::ONE)],
             [
                 (GSLOT_VALUE, F::ONE),
                 (SLOT_IMMEDIATE0, -F::ONE),

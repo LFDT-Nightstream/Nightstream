@@ -599,7 +599,7 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
     b.with_tag(opcode_tag("br_table control choice", WasmOpcode::BrTable), |b| {
         use super::layout::{COL_BR_TABLE_IN_BOUNDS, COL_BR_TABLE_LEN, COL_CMP_GE, COL_CMP_LOW, COL_CONTROL_CHOICE};
         let selector = selector_col(WasmOpcode::BrTable).unwrap();
-        super::gadgets::push_unsigned_ge_gadget(
+        super::gadgets::push_unsigned_ge_of_u32_operands(
             b,
             [selector],
             [(COL_STACK_READ_VALUE_LO[0], F::ONE)],

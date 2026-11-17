@@ -7,7 +7,7 @@ mod values;
 use self::frame_move::{emit_frame_move_rows, frame_slide};
 use self::local_zero::emit_local_zero_rows;
 use self::turn::{plan_turn_exit, setup_turn};
-use self::values::{call_indirect_traps, guest_callee_locals, table_index_oob, write_lane, write_lane_hi};
+use self::values::{call_indirect_traps, guest_callee_local_count, table_index_oob, write_lane, write_lane_hi};
 use super::super::import_inputs::recover_import_inputs;
 use super::super::runtime_read::{read_lane, read_lane_hi};
 use super::super::WasmtimeTraceStep;
@@ -17,7 +17,7 @@ use super::host_event_emit::{
 use super::memory::LinearMemoryImage;
 use super::{normalize_step, NormalizedStep};
 use crate::comm_chain::CommChainState;
-use crate::host_event_bindings::HostEventBindings;
+use crate::host_event_bindings::{biased_count, HostEventBindings};
 use crate::ir::{
     StackValueAccess, WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmFrameMoveState, WasmOutputState,
     WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
@@ -131,7 +131,7 @@ pub(super) fn build_trace(
         None
     };
     let mut entry_emitted = false;
-    let mut turn_done = false;
+    let mut activation_finished_latch = false;
     let mut output_enabled = false;
     let mut output_value_lo = 0;
     let mut output_value_hi = 0;
@@ -215,7 +215,7 @@ pub(super) fn build_trace(
         let mem_oob = current.linear_memory.as_ref().is_some_and(|access| {
             let last_lane =
                 access.lane0.word_addr + u64::from(access.lane1.is_some()) + u64::from(access.lane2.is_some());
-            last_lane >= u64::from(current.memory_pages_before.unwrap_or(0)) * 16384
+            last_lane >= u64::from(current.memory_pages_before.unwrap_or(0)) * crate::preprocess::WASM_PAGE_LANES
         });
         let ci_trap = current.opcode == WasmOpcode::CallIndirectResolve
             && (table_index_oob(current.table_index, current.table_size)
@@ -432,7 +432,7 @@ pub(super) fn build_trace(
                                 current.cycle
                             ))
                         })?;
-                    let locals = guest_callee_locals(current, next, param_count)?;
+                    let locals = guest_callee_local_count(current, next, param_count)?;
                     call_stack_push = Some((return_pc, current_fbp, current_stack_base));
                     call_stack_pop = None;
                     call_stack.push((return_pc, current_fbp, current_stack_base));
@@ -458,7 +458,7 @@ pub(super) fn build_trace(
                         stack_reads, expected_stack_reads, current.cycle
                     )));
                 }
-                let locals = guest_callee_locals(current, next, param_count)?;
+                let locals = guest_callee_local_count(current, next, param_count)?;
                 let args_end = current.operand_stack.len() - usize::from(stack_reads);
                 let args_start = args_end
                     .checked_sub(usize::from(param_count))
@@ -531,7 +531,7 @@ pub(super) fn build_trace(
                     locals_fbp: current_fbp,
                     host_callee_fref,
                     current_function_ref: current.current_function_ref.unwrap_or(0),
-                    activation_finished: turn_done,
+                    activation_finished: activation_finished_latch,
                 };
                 if local_zero_state.active {
                     let state = out
@@ -694,7 +694,10 @@ pub(super) fn build_trace(
                     args_base: host_event_state.args_base,
                     slot_cursor: 0,
                 };
-                exit_counts = Some((setup.template.entry.len() as u32, setup.template.exit.len() as u32));
+                exit_counts = Some((
+                    biased_count(setup.template.entry.len()),
+                    setup.template.exit.len() as u32,
+                ));
                 exit_plans = Some(plans);
             }
         }
@@ -717,7 +720,7 @@ pub(super) fn build_trace(
                 memory_pages: current.memory_pages_before,
                 max_memory_pages: current.max_memory_pages,
                 locals_fbp: current_fbp,
-                activation_finished: turn_done,
+                activation_finished: activation_finished_latch,
                 trapped: false,
                 frame_move: frame_move_before,
                 local_zero: zero_before,
@@ -739,7 +742,7 @@ pub(super) fn build_trace(
                 memory_pages: current.memory_pages_after,
                 max_memory_pages: current.max_memory_pages,
                 locals_fbp: fbp,
-                activation_finished: turn_done || activation_finished,
+                activation_finished: activation_finished_latch || activation_finished,
                 trapped,
                 frame_move: frame_move_after,
                 local_zero: zero_after,
@@ -812,8 +815,8 @@ pub(super) fn build_trace(
             host_event_word: None,
             host_event_initial_schedule_count: host_event_plan
                 .as_ref()
-                .map(|plan| plan.blocks.len() as u32 + 1)
-                .or(exit_counts.map(|(pre, _)| pre + 1)),
+                .map(|plan| biased_count(plan.blocks.len()))
+                .or(exit_counts.map(|(biased_entry, _)| biased_entry)),
             host_event_exit_schedule_count: exit_counts.map(|(_, exit)| exit),
         });
         if let Some(context) = host_context {
@@ -823,7 +826,7 @@ pub(super) fn build_trace(
             call_stack_depth_after = call_stack_depth;
             host_event_state = after.host_events;
         }
-        turn_done = turn_done || activation_finished;
+        activation_finished_latch = activation_finished_latch || activation_finished;
         frame_move_state = frame_move_after;
         local_zero_state = zero_after;
         if frame_move_state.active || local_zero_state.active {
@@ -866,7 +869,7 @@ pub(super) fn build_trace(
                 locals_fbp: fbp,
                 host_callee_fref,
                 current_function_ref: current.current_function_ref.unwrap_or(0),
-                activation_finished: turn_done,
+                activation_finished: activation_finished_latch,
             };
             for block_plan in &plan.blocks {
                 emit_block_plan(
@@ -902,7 +905,7 @@ pub(super) fn build_trace(
                 locals_fbp: fbp,
                 host_callee_fref,
                 current_function_ref: current.current_function_ref.unwrap_or(0),
-                activation_finished: turn_done,
+                activation_finished: activation_finished_latch,
             };
             for plan in &plans {
                 emit_block_plan(
@@ -965,7 +968,7 @@ pub(super) fn build_trace(
             host_callee_fref = state.host_callee_fref;
             comm_chain = state.comm_chain;
             event_absorb = state.event_absorb;
-            turn_done = state.activation_finished;
+            activation_finished_latch = state.activation_finished;
             output_enabled = state.output.enabled;
             output_value_lo = state.output.value_lo;
             output_value_hi = state.output.value_hi;

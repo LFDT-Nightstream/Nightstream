@@ -100,7 +100,16 @@ fn run() -> Result<(), Box<dyn Error>> {
         .columns()
         .families()
         .iter()
-        .filter(|family| family.region != neo_wasm::RANGE_BITS_REGION && family.width != ColumnWidth::Field)
+        .filter(|family| {
+            family.region != neo_wasm::RANGE_BITS_REGION
+                && !matches!(
+                    family.width,
+                    ColumnWidth::Field
+                        | ColumnWidth::Implied(_)
+                        | ColumnWidth::Repairable(_)
+                        | ColumnWidth::MemoryRepairable
+                )
+        })
         .map(|family| family.name.as_ref())
         .collect();
     let circuit = operation_circuit()?;

@@ -241,6 +241,12 @@ fn relation() -> Result<RowRelation, WasmApplicationError> {
         rows: terms,
         width: r1cs.m,
         one: COL_ONE,
+        range_checks: nightstream::nebula::RangeCheck::from_relation(
+            crate::operations::r1cs::operation_circuit()
+                .map_err(BatchError::from)?
+                .relation()
+                .r1cs(),
+        ),
     })
 }
 

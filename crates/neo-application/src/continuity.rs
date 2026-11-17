@@ -23,7 +23,7 @@ pub struct ContinuityGroup {
 ///
 /// Group and link order is preserved because consumers may use the flattened
 /// sequence to define public digests and proof shapes. The links form a
-/// partial bijection: a carried column has at most one source and destination.
+/// set of disjoint pairs: each column occurs in at most one link endpoint.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ContinuityCatalog {
     groups: Vec<ContinuityGroup>,
@@ -90,6 +90,18 @@ impl ContinuityCatalog {
                 previous_step_columns.insert(link.previous_step_column, (group_index, link_index));
                 next_step_columns.insert(link.next_step_column, (group_index, link_index));
                 link_count += 1;
+            }
+        }
+
+        for (&column, &(previous_group, previous_link)) in &previous_step_columns {
+            if let Some(&(next_group, next_link)) = next_step_columns.get(&column) {
+                return Err(ContinuityCatalogError::OverlappingEndpoints {
+                    column,
+                    previous_group,
+                    previous_link,
+                    next_group,
+                    next_link,
+                });
             }
         }
 
@@ -224,6 +236,14 @@ fn validate_column(
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum ContinuityCatalogError {
+    #[error("continuity column {column} is both a previous-step endpoint at group/link {previous_group}/{previous_link} and a next-step endpoint at {next_group}/{next_link}")]
+    OverlappingEndpoints {
+        column: usize,
+        previous_group: usize,
+        previous_link: usize,
+        next_group: usize,
+        next_link: usize,
+    },
     #[error("continuity group {group} has an empty name")]
     EmptyName { group: usize },
     #[error("continuity group {group} ({name:?}) has no links")]

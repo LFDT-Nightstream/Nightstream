@@ -453,6 +453,14 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (GK2_HI, -F::ONE),
         ]);
 
+        // Input-local slots: the staged input word is written
+        // into one 32-bit lane of the entry frame's locals at the
+        // table-pinned index (ROM limb select: 0 lo, 1 hi). Routing the word
+        // through the locals memory writes supplies its U32 bound (SPEC.md section 7.6). Lo
+        // rows also write the hi lane to zero, so a lone Lo write is total;
+        // a Hi row (validated to follow its local's Lo row) overwrites the
+        // hi lane with the input word. Advice words remain existential;
+        // absorbing slots bind them through the final transcript.
         b.push_linear_zero([(COL_GATHER_LOCAL_WRITE, F::ONE), (GK_INPUT_LOCAL, -F::ONE)]);
         b.push_row(
             [(GK_INPUT_LOCAL, F::ONE)],

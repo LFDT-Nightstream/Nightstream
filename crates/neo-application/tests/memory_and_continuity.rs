@@ -298,7 +298,7 @@ fn continuity_catalog_preserves_flattened_link_order() {
                     },
                     ContinuityLink {
                         previous_step_column: ADDRESS,
-                        next_step_column: ADDRESS,
+                        next_step_column: ACTIVE,
                     },
                 ],
             },
@@ -323,7 +323,7 @@ fn continuity_catalog_preserves_flattened_link_order() {
             },
             ContinuityLink {
                 previous_step_column: ADDRESS,
-                next_step_column: ADDRESS,
+                next_step_column: ACTIVE,
             },
         ]
     );
@@ -471,4 +471,63 @@ fn continuity_catalog_rejects_reused_and_unknown_columns() {
             column_count: columns.column_count(),
         }
     );
+}
+
+#[test]
+fn memory_repairable_columns_require_value_bindings() {
+    for column in [ADDRESS, VALUE, VALUE_BEFORE, STATE_AFTER] {
+        let mut families = test_columns().families().to_vec();
+        families
+            .iter_mut()
+            .find(|family| family.start == column)
+            .unwrap()
+            .width = ColumnWidth::MemoryRepairable;
+        let columns = ColumnRegistry::new(families).unwrap();
+        let catalog = MemoryCatalog::new(
+            [MemorySpec {
+                id: TestMemory::State,
+                kind: MemoryKind::Ram,
+                ports: vec![MemoryPortSpec {
+                    address_columns: vec![ADDRESS],
+                    value_column: VALUE,
+                    kind: MemoryPortKind::Write {
+                        value_before_column: Some(VALUE_BEFORE),
+                    },
+                    activation: MemoryPortActivation::When(ACTIVE),
+                }],
+            }],
+            &columns,
+        );
+        if [VALUE, VALUE_BEFORE].contains(&column) {
+            assert!(catalog.is_ok());
+        } else {
+            assert_eq!(catalog, Err(MemoryCatalogError::MissingValueBinding { column }));
+        }
+    }
+}
+
+#[test]
+fn continuity_catalog_rejects_overlapping_endpoint_roles() {
+    let columns = test_columns();
+    for pairs in [
+        vec![(ADDRESS, ADDRESS)],
+        vec![(ADDRESS, VALUE), (VALUE, STATE_BEFORE)],
+        vec![(VALUE, STATE_BEFORE), (ADDRESS, VALUE)],
+    ] {
+        let groups = pairs
+            .into_iter()
+            .enumerate()
+            .map(|(i, (previous_step_column, next_step_column))| ContinuityGroup {
+                name: if i == 0 { "first" } else { "second" },
+                role: "test",
+                links: vec![ContinuityLink {
+                    previous_step_column,
+                    next_step_column,
+                }],
+            });
+        assert!(matches!(
+            ContinuityCatalog::new(groups, &columns),
+            Err(ContinuityCatalogError::OverlappingEndpoints { .. })
+        ));
+    }
 }

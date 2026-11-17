@@ -128,6 +128,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                     rows: terms,
                     width: source.m,
                     one: neo_wasm::layout::COL_ONE,
+                    range_checks: nightstream::nebula::RangeCheck::from_relation(
+                        neo_wasm::operations::r1cs::operation_circuit()?
+                            .relation()
+                            .r1cs(),
+                    ),
                 };
                 let size = Size {
                     geometry,

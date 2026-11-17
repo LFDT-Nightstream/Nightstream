@@ -128,6 +128,19 @@ impl<Id: Eq> MemoryCatalog<Id> {
             }
         }
 
+        for family in columns.families() {
+            if family.width != ColumnWidth::MemoryRepairable {
+                continue;
+            }
+            for column in family.start..family.end() {
+                if !memories.iter().flat_map(|memory| &memory.ports).any(|port| {
+                    port.value_column == column
+                        || matches!(port.kind, MemoryPortKind::Write { value_before_column: Some(prior) } if prior == column)
+                }) {
+                    return Err(MemoryCatalogError::MissingValueBinding { column });
+                }
+            }
+        }
         Ok(Self { memories })
     }
 }
@@ -204,6 +217,8 @@ fn validate_column(
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum MemoryCatalogError {
+    #[error("memory-repairable column {column} has no value or prior-value binding in the memory catalog")]
+    MissingValueBinding { column: usize },
     #[error("logical memory identity is repeated at indices {first_memory} and {second_memory}")]
     DuplicateMemoryId {
         first_memory: usize,

@@ -166,6 +166,10 @@ impl<const N: usize> ConditionalSelect<N> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum GadgetDescriptor {
+    RangeCheck {
+        column: usize,
+        bits: Range<usize>,
+    },
     Pow7 {
         expression: Vec<(usize, F)>,
         powers: [usize; 4],

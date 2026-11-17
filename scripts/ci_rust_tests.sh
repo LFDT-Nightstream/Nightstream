@@ -33,7 +33,11 @@ common=(
   --config profile.release.codegen-units=16
 )
 
-shipped=(--release --locked)
+# The tests that run alone use the release profile of Cargo.toml, fat LTO,
+# which is the build that users run. Under fat LTO, Akita's NTT loops need
+# more stack than under `common`. They have their own target folder, because
+# Cargo locks a target folder for the whole of a build.
+shipped=(--release --locked --target-dir "${CARGO_TARGET_DIR:-target}/shipped")
 
 case "${1:-}" in
   build)
@@ -42,15 +46,27 @@ case "${1:-}" in
       printf 'Building selected tests: %s\n' "$group"
       cargo test "${common[@]}" --no-run "${selected[@]}"
     done
+    ;;
+  build-shipped)
     for group in "${memory_heavy_alone[@]}"; do
       read -r -a selected <<< "$group"
       printf 'Building selected tests with the shipped profile: %s\n' "$group"
       cargo test "${shipped[@]}" --no-run "${selected[@]}"
     done
+    printf 'Shipped tests built at %s\n' "$(date -u +%H:%M:%SZ)"
     ;;
   test)
+    shipped_log=$(mktemp)
+    bash "$0" build-shipped > "$shipped_log" 2>&1 &
+    shipped_build=$!
+    trap 'kill "$shipped_build" 2> /dev/null || true' EXIT
     printf '%s\0' "${groups_slowest_first[@]}" |
       xargs -0 -P 4 -n 1 bash "$0" run
+    printf 'Groups finished at %s\n' "$(date -u +%H:%M:%SZ)"
+    status=0
+    wait "$shipped_build" || status=$?
+    cat "$shipped_log"
+    [ "$status" -eq 0 ]
     for group in "${memory_heavy_alone[@]}"; do
       bash "$0" run-shipped "$group"
     done
@@ -62,7 +78,7 @@ case "${1:-}" in
     RUST_TEST_THREADS=1 exec cargo test "${flags[@]}" --no-fail-fast "${selected[@]}"
     ;;
   *)
-    printf 'Usage: %s {build|test}\n' "$0" >&2
+    printf 'Usage: %s {build|build-shipped|test}\n' "$0" >&2
     exit 2
     ;;
 esac

@@ -3,7 +3,10 @@ use std::ops::Range;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use crate::{ColumnFamilySpec, ColumnRegistry, ColumnRegistryError, ColumnWidth, ConstraintTag, TaggedR1csBuilder};
+use crate::{
+    ColumnFamilySpec, ColumnRegistry, ColumnRegistryError, ColumnWidth, ConstraintTag, GadgetDescriptor,
+    TaggedR1csBuilder,
+};
 
 /// Metadata for the Boolean column family appended by a range-check layout.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -15,7 +18,11 @@ pub struct RangeCheckBitFamily {
 
 pub const fn decomposition_bit_count(width: ColumnWidth) -> usize {
     match width {
-        ColumnWidth::Boolean | ColumnWidth::Field => 0,
+        ColumnWidth::Boolean
+        | ColumnWidth::Field
+        | ColumnWidth::Implied(_)
+        | ColumnWidth::Repairable(_)
+        | ColumnWidth::MemoryRepairable => 0,
         ColumnWidth::Byte => 8,
         ColumnWidth::U32 => 32,
         ColumnWidth::Bits(bits) => {
@@ -114,13 +121,20 @@ impl RangeCheckLayout {
 
     /// Emit the standard Booleanity and recomposition rows. Each base family
     /// supplies the row label, while `owner` supplies the application domain.
+    ///
+    /// Implied, Repairable and MemoryRepairable declarations emit no rows. Soundness requires the
+    /// application to discharge their obligations as specified by [`ColumnWidth`];
+    /// this pass neither checks those proofs nor repairs witnesses.
     pub fn push_constraints<Owner: Clone>(&self, builder: &mut TaggedR1csBuilder<'_, Owner>, owner: Owner) {
         for family in self.columns.families() {
             if family.start >= self.base_column_count {
                 break;
             }
             match family.width {
-                ColumnWidth::Field => {}
+                ColumnWidth::Field
+                | ColumnWidth::Implied(_)
+                | ColumnWidth::Repairable(_)
+                | ColumnWidth::MemoryRepairable => {}
                 ColumnWidth::Boolean => {
                     builder.with_tag(ConstraintTag::new(family.name.clone(), owner.clone()), |builder| {
                         for column in family.start..family.end() {
@@ -134,15 +148,18 @@ impl RangeCheckLayout {
                             let bits = self
                                 .bit_columns_for(column)
                                 .expect("decomposed base column has an allocated bit range");
+                            let first_row = builder.next_row_index();
                             for bit in bits.clone() {
                                 builder.push_boolean(bit);
                             }
                             builder.push_row(
-                                bits.enumerate()
+                                bits.clone()
+                                    .enumerate()
                                     .map(|(index, bit)| (bit, F::from_u64(1u64 << index))),
                                 [(builder.const_one_column(), F::ONE)],
                                 [(column, F::ONE)],
                             );
+                            builder.record_gadget(GadgetDescriptor::RangeCheck { column, bits }, first_row);
                         }
                     });
                 }
@@ -192,7 +209,9 @@ const fn variable_width(width: ColumnWidth) -> usize {
         ColumnWidth::Byte => 8,
         ColumnWidth::U32 => 32,
         ColumnWidth::Bits(bits) => bits as usize,
-        ColumnWidth::Field => 64,
+        // Canonical field elements need 64 bits. Proof obligations alone do
+        // not authorize a narrower representation of the supplied witness.
+        ColumnWidth::Field | ColumnWidth::Implied(_) | ColumnWidth::Repairable(_) | ColumnWidth::MemoryRepairable => 64,
     }
 }
 

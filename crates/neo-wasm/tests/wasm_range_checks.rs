@@ -5,8 +5,8 @@ use neo_ccs::check_ccs_rowwise_zero;
 use neo_math::F;
 use neo_wasm::ccs::host_event_chain::{AUX_COLUMN_FAMILIES, AUX_WIDTH};
 use neo_wasm::layout::{
-    column_families, named_column_family, ColumnWidth, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT,
-    COL_CALL_STACK_RETURN_PC_VALUE, NAMED_COLUMN_COUNT,
+    column_families, named_column_family, ColumnWidth, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CMP_LOW,
+    NAMED_COLUMN_COUNT,
 };
 use neo_wasm::range_check::range_checked_bit_columns;
 use neo_wasm::{
@@ -99,14 +99,14 @@ fn packed_function_metadata_counts_are_byte_ranged() {
     );
 }
 
+/// An out-of-range value in a column no semantic row pins (the comparison remainder
+/// on an addition row) must be rejected,
+/// and the failing row must be one of that column's own range-check rows,
+/// proving nothing else constrains the value.
 #[test]
 fn out_of_range_u32_is_rejected_by_the_column_range_row() {
-    assert_eq!(
-        named_column_family(COL_CALL_STACK_RETURN_PC_VALUE)
-            .unwrap()
-            .width,
-        ColumnWidth::U32
-    );
+    // The invariant under attack: the column is declared as a 32-bit value.
+    assert_eq!(named_column_family(COL_CMP_LOW).unwrap().width, ColumnWidth::U32);
 
     let checked =
         common::checked_main(r#"(module (func (export "main") (result i32) i32.const 20 i32.const 22 i32.add))"#);
@@ -117,13 +117,13 @@ fn out_of_range_u32_is_rejected_by_the_column_range_row() {
         .expect("i32.add row");
     let mut wit = checked.witnesses[add_idx].clone();
 
-    wit[COL_CALL_STACK_RETURN_PC_VALUE] = F::from_u64(1u64 << 32);
+    wit[COL_CMP_LOW] = F::from_u64(1u64 << 32);
     write_range_check_bits(&mut wit);
 
     let relation = build_wasm_relation().expect("valid WASM relation");
     let m_in = relation.r1cs().public_input_count();
     let err = check_ccs_rowwise_zero(relation.r1cs().structure(), &wit[..m_in], &wit[m_in..])
-        .expect_err("the range-checked CCS must reject an out-of-range call-stack return pc value");
+        .expect_err("the range-checked CCS must reject an out-of-range comparison remainder");
 
     let detail = err.to_string();
     let row_idx = detail
@@ -134,7 +134,166 @@ fn out_of_range_u32_is_rejected_by_the_column_range_row() {
     let tag = relation.r1cs().catalog().rows()[row_idx].tag();
     assert_eq!(
         tag.label(),
-        "COL_CALL_STACK_RETURN_PC_VALUE",
+        "COL_CMP_LOW",
         "rejection must come from the column's own range-check row, failed row {row_idx} is tagged {tag:?}"
     );
+}
+
+#[test]
+fn out_of_range_implied_columns_are_rejected_by_other_rows() {
+    use neo_wasm::layout::{
+        COL_HOST_IMPORT_SCHEDULE_COUNTS, COL_LOCAL_ADDR_LO, COL_MAX_MEMORY_PAGES_AFTER, COL_OPCODE_CODE,
+        COL_STACK_READS, COL_STACK_WRITES,
+    };
+    let checked =
+        common::checked_main(r#"(module (func (export "main") (result i32) i32.const 20 i32.const 22 i32.add))"#);
+    for column in [
+        COL_OPCODE_CODE,
+        COL_STACK_READS,
+        COL_STACK_WRITES,
+        COL_LOCAL_ADDR_LO,
+        COL_MAX_MEMORY_PAGES_AFTER,
+        COL_HOST_IMPORT_SCHEDULE_COUNTS,
+    ] {
+        let family = named_column_family(column).unwrap();
+        assert_eq!(family.width, ColumnWidth::Implied(32), "{}", family.name);
+        let mut witness = checked.witnesses[0].clone();
+        witness[column] = F::from_u64(1u64 << 32);
+        common::assert_rejected(&witness, &family.name);
+    }
+}
+
+#[test]
+fn byte_offset_is_bound_when_used() {
+    use neo_wasm::layout::COL_LINEAR_MEM_BYTE_OFFSET;
+    let checked =
+        common::checked_main(r#"(module (memory 1) (func (export "main") (result i32) i32.const 1 i32.load))"#);
+    let index = checked
+        .trace
+        .iter()
+        .position(|row| row.opcode == WasmOpcode::I32Load)
+        .unwrap();
+    let mut witness = checked.witnesses[index].clone();
+    witness[COL_LINEAR_MEM_BYTE_OFFSET] = -F::ONE;
+    common::assert_rejected(&witness, "an active offset is bound by its byte selectors");
+}
+
+#[test]
+fn global_values_and_table_index_are_bound_when_used() {
+    use neo_wasm::layout::{COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_TABLE_INDEX};
+    let checked = common::checked_main(
+        r#"(module
+          (global $g (mut i64) (i64.const 0))
+          (table 1 funcref)
+          (func (export "main") (result i64)
+            i64.const 7 global.set $g
+            i32.const 0 i32.const 0 table.get 0 table.set 0
+            i32.const 0 table.get 0 drop
+            global.get $g))"#,
+    );
+    for (column, opcodes) in [
+        (COL_GLOBAL_VALUE, [WasmOpcode::GlobalGet, WasmOpcode::GlobalSet]),
+        (COL_GLOBAL_VALUE_HI, [WasmOpcode::GlobalGet, WasmOpcode::GlobalSet]),
+        (COL_TABLE_INDEX, [WasmOpcode::TableGet, WasmOpcode::TableSet]),
+    ] {
+        for opcode in opcodes {
+            let index = checked
+                .trace
+                .iter()
+                .position(|row| row.opcode == opcode)
+                .unwrap();
+            let mut witness = checked.witnesses[index].clone();
+            witness[column] = -F::ONE;
+            common::assert_rejected(&witness, "active advice equals the stack operand");
+        }
+    }
+}
+
+#[test]
+fn call_stack_advice_is_bound_when_active_and_repairable_when_inactive() {
+    use neo_wasm::layout::{
+        COL_CALL_STACK_ADDR, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE,
+        COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
+    };
+    let checked = common::checked_main(
+        r#"(module
+          (func $callee (param i32) (result i32) local.get 0)
+          (func (export "main") (result i32) i32.const 7 call $callee))"#,
+    );
+    let push = checked
+        .witnesses
+        .iter()
+        .position(|w| w[COL_CALL_STACK_PUSH_PRESENT] == F::ONE)
+        .unwrap();
+    let pop = checked
+        .witnesses
+        .iter()
+        .position(|w| w[COL_CALL_STACK_POP_PRESENT] == F::ONE)
+        .unwrap();
+    let inactive = checked
+        .witnesses
+        .iter()
+        .position(|w| w[COL_CALL_STACK_PUSH_PRESENT] == F::ZERO && w[COL_CALL_STACK_POP_PRESENT] == F::ZERO)
+        .unwrap();
+    for column in [
+        COL_CALL_STACK_ADDR,
+        COL_CALL_STACK_CALLER_FBP_VALUE,
+        COL_CALL_STACK_CALLER_SP_BASE_VALUE,
+    ] {
+        for index in [push, pop] {
+            let mut witness = checked.witnesses[index].clone();
+            witness[column] = -F::ONE;
+            common::assert_rejected(&witness, "active call-stack advice equals a bounded state word");
+        }
+        let mut forged = checked.witnesses.clone();
+        forged[inactive][column] = -F::ONE;
+        common::assert_satisfied(&forged[inactive], "inactive call-stack advice has no local effect");
+        let layout = neo_wasm::build_wasm_relation_layout();
+        let mut preload = neo_wasm::preload_from_program_artifacts(&checked.artifacts);
+        let bindings = neo_wasm::host_event_bindings::HostEventBindings::import_free(
+            checked.trace[0].state_before.host_events.turn_export_fref,
+        );
+        neo_wasm::memory_semantics::preload_host_event_tables(&mut preload, &bindings, &checked.artifacts);
+        neo_wasm::sanity_check_memory_rows(layout, &forged, &preload).unwrap();
+        forged[inactive][column] = F::ZERO;
+        common::assert_satisfied(&forged[inactive], "zero repairs the inactive word");
+        neo_wasm::sanity_check_memory_rows(layout, &forged, &preload).unwrap();
+    }
+}
+
+#[test]
+fn memory_bounds_reject_a_return_pc_that_the_row_alone_accepts() {
+    use neo_wasm::layout::{COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_EDGE_ADDR, COL_PC_BEFORE};
+    let checked = common::checked_main(r#"(module (func $callee) (func (export "main") call $callee))"#);
+    let index = checked
+        .witnesses
+        .iter()
+        .position(|w| w[COL_CALL_STACK_PUSH_PRESENT] == F::ONE)
+        .unwrap();
+    let mut witness = checked.witnesses[index].clone();
+    witness[COL_PC_BEFORE] = F::from_u32(u32::MAX);
+    witness[COL_EDGE_ADDR] = F::from_u32(u32::MAX);
+    witness[COL_CALL_STACK_RETURN_PC_VALUE] = F::from_u64(1 << 32);
+    write_range_check_bits(&mut witness);
+    common::assert_satisfied(&witness, "pc + 1 needs the active memory-value bound");
+    let layout = neo_wasm::build_wasm_relation_layout();
+    let preload = neo_wasm::preload_from_program_artifacts(&checked.artifacts);
+    let error = neo_wasm::sanity_check_memory_rows(layout, &[witness], &preload).unwrap_err();
+    assert!(
+        error.contains("call_stack_return_pc") && error.contains("does not fit u32"),
+        "{error}"
+    );
+
+    let inactive = checked
+        .witnesses
+        .iter()
+        .find(|w| {
+            w[COL_CALL_STACK_PUSH_PRESENT] == F::ZERO && w[neo_wasm::layout::COL_CALL_STACK_POP_PRESENT] == F::ZERO
+        })
+        .unwrap();
+    let mut witness = inactive.clone();
+    witness[COL_CALL_STACK_RETURN_PC_VALUE] = -F::ONE;
+    common::assert_satisfied(&witness, "inactive memory value is not unconditionally bounded");
+    witness[COL_CALL_STACK_RETURN_PC_VALUE] = F::ZERO;
+    common::assert_satisfied(&witness, "inactive return pc admits a bounded repair");
 }

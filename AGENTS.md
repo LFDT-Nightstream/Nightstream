@@ -38,7 +38,20 @@ value.
   choice in `decisions/`, in the format of `decisions/README.md`.
 - Do not add a separate spec file, a `specs/` folder, prose proofs, or
   status lists. Put progress and review history in the PR description.
-- In a comment, cite a `SPEC.md` section or algorithm, or a Lean name.
+
+## Comments
+
+- If our code needs a comment to be clear, change the code.
+- Keep only these comments, each as short as possible:
+  - a citation of a `SPEC.md` section or algorithm, a Lean name or file,
+    `SECURITY_MODEL.md`, `decisions/`, or a paper;
+  - a fact about a dependency, platform, or protocol that we cannot change;
+  - `// SAFETY:` on `unsafe`, and a comment that a lint or check script
+    needs, for example `-- fixed-size:`;
+  - a doc comment on the public API of `nightstream` or `neo-wasm`;
+  - a suppression of a style-only lint.
+- Do not edit a generated file. Change its generator.
+- Give this list to pstack `/no-comments` as its keep list.
 
 ## Rules
 

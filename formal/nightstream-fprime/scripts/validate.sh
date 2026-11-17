@@ -125,6 +125,7 @@ case "$phase" in
     capped lake build --wfail NightstreamFPrime NightstreamFPrimeTests
     capped lake build --wfail $(executables)
     lean_file tests/EndpointCensus.lean
+    lean_file tests/PremiseCensus.lean
     ;;
   *) echo "unknown phase: $phase" >&2; exit 2 ;;
 esac

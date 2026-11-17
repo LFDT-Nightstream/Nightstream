@@ -14,6 +14,8 @@ The terminal relation, the reverse extractor and the completeness of a run
 - Assumptions: `false_acceptance_bound`, `extraction_bound` and `verifier_sound` take HyperNova
   errata Assumption 1 for the two folds (`[HN-A1]`), with its closure premise and an admitted
   adversary. Their error term is the `error` of that assumption.
+- Bound: these three claims conclude `Export.BoundedDepth.IvcSecurity.walkBound`, the sum over
+  the first `depth` stages of the reverse extractor of the stage's collision term and its error.
 - Collision term: in these three claims it is the success chance of an explicit Poseidon2
   collision finder (`Export.BoundedDepth.IvcSecurity.finderChance`). The finder runs the stage
   on its tape, decodes the visit and outputs two different inputs of one length with one
@@ -90,8 +92,9 @@ theorem accepted_bounds.{uKey, uClaim, uFresh, uProof}
   @Spec.HyperNova.Construction2.BoundedDepth.accepted_bounds Key Claim Fresh Proof p cap capFits
     folds history depth start accepted final finalAtMostB
 
-/-- HyperNova Lemma 17 for the bounded-depth scheme. A false acceptance is an extraction failure, because no
-list of witnesses reaches its statement. -/
+/-- HyperNova Lemma 17 for the bounded-depth scheme: the probability of a false acceptance is at
+most `IvcSecurity.walkBound`. A false acceptance is an extraction failure, because no list of
+witnesses reaches its statement. -/
 theorem false_acceptance_bound
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -125,27 +128,15 @@ theorem false_acceptance_bound
             {tape : adversary.Tape |
               IvcSecurity.FalseAcceptance ajtai circuitKeys exports control cap
                 (adversary.output tape)}) ≤
-        ∑ j : Fin depth,
-          (IvcSecurity.finderChance ajtai circuitKeys exports
-              (ReverseStages.reverseStages assumption closed
-                (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)).1 +
-            error
-              (ReverseStages.Stage.nifs (IvcWalk.attemptOf ajtai circuitKeys exports)
-                (IvcWalk.back ajtai circuitKeys exports)
-                (↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
-                      (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                      (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption closed
-                      (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)) :
-                  ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                    (IvcWalk.Answer logicalWidth publicFits)))) :=
+        IvcSecurity.walkBound ajtai circuitKeys exports assumption closed adversary admitted depth :=
   @Export.BoundedDepth.IvcSecurity.probability_bound logicalWidth publicFits relation ajtai
     circuitKeys step cubeFits exports Admitted StageAdmitted Efficient error assumption closed
     adversary admitted keysShaped control cap depth depthBound
 
 /-- HyperNova Lemma 17 for the bounded-depth scheme, on the extractor's output: the probability that the terminal
 accepts the adversary's output and the witnesses that the reverse extractor returns do not lead
-from `z0` to `zi`. The law is the one of the last stage: the adversary's tape and the coins of
-each stage's extractor. -/
+from `z0` to `zi` is at most `IvcSecurity.walkBound`. The law is the one of the last stage: the
+adversary's tape and the coins of each stage's extractor. -/
 theorem extraction_bound
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -209,25 +200,14 @@ theorem extraction_bound
                       ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
                         (IvcWalk.Answer logicalWidth publicFits)).results
                   tape)}) ≤
-        ∑ j : Fin depth,
-          (IvcSecurity.finderChance ajtai circuitKeys exports
-              (ReverseStages.reverseStages assumption closed
-                (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)).1 +
-            error
-              (ReverseStages.Stage.nifs (IvcWalk.attemptOf ajtai circuitKeys exports)
-                (IvcWalk.back ajtai circuitKeys exports)
-                (↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
-                      (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                      (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption closed
-                      (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)) :
-                  ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                    (IvcWalk.Answer logicalWidth publicFits)))) :=
+        IvcSecurity.walkBound ajtai circuitKeys exports assumption closed adversary admitted depth :=
   @Export.BoundedDepth.IvcSecurity.extraction_bound logicalWidth publicFits relation ajtai
     circuitKeys step cubeFits exports Admitted StageAdmitted Efficient error assumption closed
     adversary admitted keysShaped control cap depth depthBound
 
 /-- The probability that the verifier of SPEC.md Algorithm 6 accepts the adversary's output and no
-`iteration` valid steps lead from `z0` to `zi` is at most the sum of `probability_bound`. -/
+`iteration` valid steps lead from `z0` to `zi` is at most `IvcSecurity.walkBound`, the bound of
+`false_acceptance_bound`. -/
 theorem verifier_sound
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -262,19 +242,7 @@ theorem verifier_sound
             {tape : adversary.Tape |
               VerifierSecurity.FalseVerification ajtai circuitKeys exports packageWidths control
                 cap (adversary.output tape)}) ≤
-        ∑ j : Fin depth,
-          (IvcSecurity.finderChance ajtai circuitKeys exports
-              (ReverseStages.reverseStages assumption closed
-                (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)).1 +
-            error
-              (ReverseStages.Stage.nifs (IvcWalk.attemptOf ajtai circuitKeys exports)
-                (IvcWalk.back ajtai circuitKeys exports)
-                (↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
-                      (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
-                      (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption closed
-                      (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)) :
-                  ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                    (IvcWalk.Answer logicalWidth publicFits)))) :=
+        IvcSecurity.walkBound ajtai circuitKeys exports assumption closed adversary admitted depth :=
   @Export.BoundedDepth.VerifierSecurity.soundness logicalWidth publicFits relation ajtai
     circuitKeys step cubeFits exports Admitted StageAdmitted Efficient error assumption closed
     adversary admitted keysShaped packageWidths control cap depth depthBound

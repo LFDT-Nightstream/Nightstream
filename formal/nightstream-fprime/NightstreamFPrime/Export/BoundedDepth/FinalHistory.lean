@@ -13,13 +13,12 @@ experiment's result under the law of the experiment's draws (`Spec.Compression.G
 output is the accepted statement with the proof from `W` (`FinalVerifier.Setup.proofOf`). A false
 history is a result in which `Verifies` rejects that proof, or a false acceptance of this
 adversary. So its probability is at most `q · finalError` plus the bound of HyperNova Lemma 17 for
-this adversary (`soundness`). -/
+this adversary, `IvcSecurity.walkBound` (`soundness`). -/
 
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.BoundedDepth.FinalHistory
 
-open scoped BigOperators
 open scoped NightstreamFPrime.Spec.Compression.Production
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -74,13 +73,10 @@ variable {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
   (s : Strategy (Option (Option (Outcome logicalWidth publicFits)))) (q : ℕ)
   (admitted : StageAdmitted (Stage.start (walkAdversary (adversary setup s q))))
 
-local notation "stages" => reverseStages assumption closed (walkAdversary (adversary setup s q))
-  admitted
-
 /-- In the state-restoration experiment with `q` queries, the probability of a false history is at
-most `q · (1/2^119 + 38/fieldModulus²)` plus, for each of the first `depth` stages of the reverse extractor
-of the prover's IVC adversary, the success chance of the stage's Poseidon2 collision finder
-(`IvcSecurity.finderChance`) and the stage's error. -/
+most `q · (1/2^119 + 38/fieldModulus²)` plus `IvcSecurity.walkBound` of the prover's IVC adversary:
+for each of the first `depth` stages of the reverse extractor, the success chance of the stage's
+Poseidon2 collision finder (`IvcSecurity.finderChance`) and the stage's error. -/
 theorem soundness (complete : StepExtend.Complete exports)
     (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
       (FinalRows.packageRows exports complete circuit).matrices)
@@ -88,10 +84,9 @@ theorem soundness (complete : StepExtend.Complete exports)
     (depthBound : ∀ o, some (some o) ∈ (law s (restore setup.game q [])).support →
       o.1.iteration ≤ depth) :
     prob s (restore setup.game q []) (FalseHistory exports.program) ≤
-      q * finalError + ∑ j : Fin depth,
-        (finderChance setup.ajtai setup.circuitKeys exports (stages j.val).1 +
-          error ((stages j.val).1.nifs (attemptOf setup.ajtai setup.circuitKeys exports)
-            (back setup.ajtai setup.circuitKeys exports))) := by
+      q * finalError +
+        walkBound setup.ajtai setup.circuitKeys exports assumption closed (adversary setup s q)
+          admitted depth := by
   classical
   let Rejected : Option (Option (Outcome logicalWidth publicFits)) → Prop := fun r =>
     ¬ ∀ a, r = some a → ∀ o, a = some o →
@@ -127,9 +122,10 @@ theorem soundness (complete : StepExtend.Complete exports)
     _ ≤ _ := add_le_add rejected (by rw [prob_eq_law]; exact accepted)
 
 /-- With Akita openings, the probability `history` of a false history is at most
-`q · (1/2^119 + 38/fieldModulus²) + εAkita` plus the sum of `soundness`. `akita` is Akita's knowledge
-soundness (`FinalVerifier.AkitaKnowledge`) for the event `FalseHistory`: `s` is the prover of the
-game with ideal openings that it gives for the prover with Akita openings. -/
+`q · (1/2^119 + 38/fieldModulus²) + εAkita` plus `IvcSecurity.walkBound`, as in `soundness`.
+`akita` is Akita's knowledge soundness (`FinalVerifier.AkitaKnowledge`) for the event
+`FalseHistory`: `s` is the prover of the game with ideal openings that it gives for the prover
+with Akita openings. -/
 theorem real_soundness (complete : StepExtend.Complete exports)
     (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
       (FinalRows.packageRows exports complete circuit).matrices)
@@ -137,10 +133,9 @@ theorem real_soundness (complete : StepExtend.Complete exports)
     (depthBound : ∀ o, some (some o) ∈ (law s (restore setup.game q [])).support →
       o.1.iteration ≤ depth) (history εAkita : ℝ)
     (akita : history ≤ prob s (restore setup.game q []) (FalseHistory exports.program) + εAkita) :
-    history ≤ q * finalError + εAkita + ∑ j : Fin depth,
-        (finderChance setup.ajtai setup.circuitKeys exports (stages j.val).1 +
-          error ((stages j.val).1.nifs (attemptOf setup.ajtai setup.circuitKeys exports)
-            (back setup.ajtai setup.circuitKeys exports))) := by
+    history ≤ q * finalError + εAkita +
+      walkBound setup.ajtai setup.circuitKeys exports assumption closed (adversary setup s q)
+        admitted depth := by
   linarith [soundness setup exports assumption closed s q admitted complete rows keysShaped depth
     depthBound]
 

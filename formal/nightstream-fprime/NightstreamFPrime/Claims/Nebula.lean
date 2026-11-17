@@ -150,7 +150,7 @@ theorem memory_round_in_random_oracle_model
 /-- The bound of adversary 5 for a memory application on the bounded-depth scheme: on the joint law of the
 memory statement that the adversary claims from its own tape and the walk's sample, the mass of
 samples that the memory verifier accepts but whose extracted history does not attest the claim
-is at most the walk's finder and stage terms (`IvcSecurity.finderChance`), the state-link and
+is at most the walk's finder and stage terms (`IvcSecurity.walkBound`), the state-link and
 chain collision masses of the extracted runs, and the memory-round error of the last stage. -/
 theorem memory_sound
     {logicalWidth : ℕ}
@@ -213,21 +213,8 @@ theorem memory_sound
               Nebula.EndToEnd.Experiment.Bad app
                 (NebulaSecurity.experiment app ajtai circuitKeys exports)
                 (NebulaSecurity.Accepted app ajtai circuitKeys (step := step) control cap) s}) ≤
-        ∑ j : Fin depth,
-                (IvcSecurity.finderChance ajtai circuitKeys exports
-                    (HyperNova.ReverseStages.reverseStages assumption closed
-                      (IvcSecurity.walkAdversary adversary) admitted (↑j : ℕ)).1 +
-                  error
-                    (HyperNova.ReverseStages.Stage.nifs
-                      (IvcWalk.attemptOf ajtai circuitKeys exports)
-                      (IvcWalk.back ajtai circuitKeys exports)
-                      (↑(HyperNova.ReverseStages.reverseStages (Succeeds :=
-                            IvcWalk.WalkSucceeds ajtai) (Extracted := IvcWalk.WalkExtracted ajtai)
-                            (Admitted := Admitted) (StageAdmitted := StageAdmitted) (Efficient :=
-                            Efficient) assumption closed (IvcSecurity.walkAdversary adversary)
-                            admitted (↑j : ℕ)) :
-                        HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                          (IvcWalk.Answer logicalWidth publicFits)))) +
+        IvcSecurity.walkBound ajtai circuitKeys exports assumption closed adversary admitted
+                depth +
               ENNReal.toReal
                 (((NebulaSecurity.ClaimedStage.law app c).toOuterMeasure :
                     Set (NebulaSecurity.Sample app.width logicalWidth publicFits) → ENNReal)

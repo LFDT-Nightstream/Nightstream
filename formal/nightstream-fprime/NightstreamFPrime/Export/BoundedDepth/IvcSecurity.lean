@@ -6,7 +6,7 @@ steps of the application lead from `z0` to `zi` (`FalseAcceptance`). The reverse
 back from the terminal one step per stage (`IvcWalk`), with the extractor that HyperNova errata
 Assumption 1 gives for each stage's fold attempt. Then
 
-  Pr[false acceptance] ≤ Σ j < depth, (finderChance(stage j) + error(stage j)),
+  Pr[false acceptance] ≤ walkBound depth = Σ j < depth, (finderChance(stage j) + error(stage j)),
 
 where `depth` bounds the adversary's iteration. `finderChance` is the success chance of an
 explicit Poseidon2 collision finder (`finder`): it runs stage `j` on its tape, decodes the
@@ -106,20 +106,26 @@ variable {Admitted : NifsAdversary (WalkAttempt logicalWidth publicFits) → Pro
 
 local notation "stages" => reverseStages assumption closed (walkAdversary adversary) admitted
 
+/-- The bound of the walk for the IVC adversary `adversary`: the sum, over the first `depth` stages
+of the reverse extractor that starts at `walkAdversary adversary`, of the success chance of the
+stage's Poseidon2 collision finder (`finderChance`) and the stage's Assumption 1 `error`. -/
+noncomputable def walkBound (depth : Nat) : ℝ :=
+  ∑ j : Fin depth,
+    (finderChance ajtai circuitKeys exports (stages j.val).1 +
+      error ((stages j.val).1.nifs (attemptOf ajtai circuitKeys exports)
+        (back ajtai circuitKeys exports)))
+
 /-- HyperNova Lemma 17 for the bounded-depth scheme, on the extractor's output: the probability that the terminal
 accepts the adversary's output and the witnesses that the reverse extractor returns do not lead
-from `z0` to `zi`. The law is the one of the last stage: the adversary's tape and the coins of
-each stage's extractor. -/
+from `z0` to `zi` is at most `walkBound`. The law is the one of the last stage: the adversary's
+tape and the coins of each stage's extractor. -/
 theorem extraction_bound (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     (control : AppState → AppWitness → Fin 2) (cap depth : Nat)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
     ((stages depth).1.tape.toOuterMeasure
         {tape | ExtractionFailure ajtai circuitKeys exports control cap
           ((stages depth).1.input tape) ((stages depth).1.results tape)}).toReal ≤
-      ∑ j : Fin depth,
-        (finderChance ajtai circuitKeys exports (stages j.val).1 +
-          error ((stages j.val).1.nifs (attemptOf ajtai circuitKeys exports)
-            (back ajtai circuitKeys exports))) := by
+      walkBound ajtai circuitKeys exports assumption closed adversary admitted depth := by
   refine bad_le assumption closed (walkAdversary adversary) admitted depth
     (ExtractionFailure ajtai circuitKeys exports control cap)
     (fun visit => (visitCollision ajtai circuitKeys exports visit).isSome) ?_
@@ -131,18 +137,16 @@ theorem extraction_bound (keysShaped : ∀ key, (circuitKeys key).digest.length 
       (trail_lengths ajtai circuitKeys exports _ _))
   exact ⟨⟨j, length ▸ inside⟩, found.imp_left (visitCollision_isSome ajtai circuitKeys exports)⟩
 
-/-- HyperNova Lemma 17 for the bounded-depth scheme. A false acceptance is an extraction failure, because no
-list of witnesses reaches its statement. -/
+/-- HyperNova Lemma 17 for the bounded-depth scheme: the probability of a false acceptance is at
+most `walkBound`. A false acceptance is an extraction failure, because no list of witnesses
+reaches its statement. -/
 theorem probability_bound (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     (control : AppState → AppWitness → Fin 2) (cap depth : Nat)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
     (adversary.tape.toOuterMeasure
         {tape | FalseAcceptance ajtai circuitKeys exports control cap
           (adversary.output tape)}).toReal ≤
-      ∑ j : Fin depth,
-        (finderChance ajtai circuitKeys exports (stages j.val).1 +
-          error ((stages j.val).1.nifs (attemptOf ajtai circuitKeys exports)
-            (back ajtai circuitKeys exports))) := by
+      walkBound ajtai circuitKeys exports assumption closed adversary admitted depth := by
   let event : Set (Visit logicalWidth publicFits) :=
     {visit | FalseAcceptance ajtai circuitKeys exports control cap
       (visit.statement, visit.proof)}

@@ -8,7 +8,7 @@ bound for the whole accept condition of the verifier. -/
 
 namespace NightstreamFPrime.Export.BoundedDepth.VerifierSecurity
 
-open scoped BigOperators ENNReal
+open scoped ENNReal
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
@@ -48,20 +48,16 @@ variable {Admitted : NifsAdversary (WalkAttempt logicalWidth publicFits) → Pro
   (adversary : IvcAdversary (Output logicalWidth publicFits))
   (admitted : StageAdmitted (Stage.start (walkAdversary adversary)))
 
-local notation "stages" => reverseStages assumption closed (walkAdversary adversary) admitted
-
 /-- The probability that the verifier of SPEC.md Algorithm 6 accepts the adversary's output and no
-`iteration` valid steps lead from `z0` to `zi` is at most the sum of `probability_bound`. -/
+`iteration` valid steps lead from `z0` to `zi` is at most `walkBound`, the bound of
+`probability_bound`. -/
 theorem soundness (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     (packageWidths : Fin 2 → Nat) (control : AppState → AppWitness → Fin 2) (cap depth : Nat)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
     (adversary.tape.toOuterMeasure
         {tape | FalseVerification ajtai circuitKeys exports packageWidths control cap
           (adversary.output tape)}).toReal ≤
-      ∑ j : Fin depth,
-        (finderChance ajtai circuitKeys exports (stages j.val).1 +
-          error ((stages j.val).1.nifs (attemptOf ajtai circuitKeys exports)
-            (back ajtai circuitKeys exports))) :=
+      walkBound ajtai circuitKeys exports assumption closed adversary admitted depth :=
   le_trans
     (ENNReal.toReal_mono (event_ne_top _ _)
       (MeasureTheory.OuterMeasure.mono _ fun tape

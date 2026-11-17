@@ -519,9 +519,10 @@ not change terminal source checks.
   application, each with a witness of the application's word count, lead
   from `z0` to `zi` (a false acceptance).
 - **Result:** under Assumption 1 and the closure premise,
-  `Pr[false acceptance] ≤ Σ_j (finderChance(stage j) + error(stage j))`
+  `Pr[false acceptance] ≤ walkBound = Σ_j (finderChance(stage j) + error(stage j))`
   for `j` below a bound on the adversary's iteration
-  (`Claims.Ivc.false_acceptance_bound`). The reverse extractor
+  (`Claims.Ivc.false_acceptance_bound`,
+  `Export.BoundedDepth.IvcSecurity.walkBound`). The reverse extractor
   walks back from the terminal one step per stage
   (`Export.BoundedDepth.IvcWalk`). At each visit, the fresh witness decodes to the
   last step (`Export.BoundedDepth.TerminalBridge.Exports.decode`). When that step
@@ -600,7 +601,8 @@ not change terminal source checks.
 - **Result:** under Assumption 1, the closure premise and the memory round
   (trust item 6), on the joint law of the claim that the adversary's tape
   gives and the reverse extractor's sample, the mass of wins is at most the
-  collision and stage terms of adversary 4, the state-link and chain
+  collision and stage terms of adversary 4
+  (`Export.BoundedDepth.IvcSecurity.walkBound`), the state-link and chain
   collision masses of the extracted runs, and the memory-round error of the
   last stage (`Claims.Nebula.memory_sound`). The extracted history
   is the steps that adversary 4's walk decodes (`Export.BoundedDepth.IvcWalk.trail`),
@@ -747,9 +749,11 @@ not change terminal source checks.
   (`Export.BoundedDepth.FinalHistory.FalseHistory`). A false history is a
   result in which `Verifies` rejects that proof, or a false acceptance of
   this IVC adversary. So
-  `Pr[false history] ≤ Q · (2^−119 + 38/q²) + Σ_j (finderChance(stage j) + error(stage j))`
-  for the stages of this IVC adversary
-  (`Claims.Final.history_sound`). With Akita openings, the
+  `Pr[false history] ≤ Q · (2^−119 + 38/q²) + walkBound`, where
+  `walkBound = Σ_j (finderChance(stage j) + error(stage j))` is the bound of
+  adversary 4 for the stages of this IVC adversary
+  (`Claims.Final.history_sound`,
+  `Export.BoundedDepth.IvcSecurity.walkBound`). With Akita openings, the
   bound adds `εAkita` (`Claims.Final.history_sound_with_akita`).
   The premises are those of trust item 7, `[HN-A1]` and the closure
   premise of trust item 3, an admitted IVC adversary of the prover, the

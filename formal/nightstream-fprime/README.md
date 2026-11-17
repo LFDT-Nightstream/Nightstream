@@ -23,14 +23,14 @@ part, with soundness and completeness together.
 
 | File | Claims |
 |---|---|
-| `Claims/Foundations.lean` | The strong sampling set, the chain norm, the Ajtai setup, sum-check |
-| `Claims/Encodings.lean` | Each hashed encoding fixes its input, or gives a collision |
-| `Claims/Fold.lean` | The light fold and the refresh fold |
-| `Claims/Step.lean` | The two step circuits, on the rows of the exported relation |
-| `Claims/Ivc.lean` | The terminal relation, the reverse extractor, a complete run |
-| `Claims/Nebula.lean` | Nebula memory |
-| `Claims/Compression.lean` | The argument of the compressed proof |
-| `Claims/Final.lean` | The final verifier and the full history |
+| [`Claims/Foundations.lean`](NightstreamFPrime/Claims/Foundations.lean) | The strong sampling set, the chain norm, the Ajtai setup, sum-check |
+| [`Claims/Encodings.lean`](NightstreamFPrime/Claims/Encodings.lean) | Each hashed encoding fixes its input, or gives a collision |
+| [`Claims/Fold.lean`](NightstreamFPrime/Claims/Fold.lean) | The light fold and the refresh fold |
+| [`Claims/Step.lean`](NightstreamFPrime/Claims/Step.lean) | The two step circuits, on the rows of the exported relation |
+| [`Claims/Ivc.lean`](NightstreamFPrime/Claims/Ivc.lean) | The terminal relation, the reverse extractor, a complete run |
+| [`Claims/Nebula.lean`](NightstreamFPrime/Claims/Nebula.lean) | Nebula memory |
+| [`Claims/Compression.lean`](NightstreamFPrime/Claims/Compression.lean) | The argument of the compressed proof |
+| [`Claims/Final.lean`](NightstreamFPrime/Claims/Final.lean) | The final verifier and the full history |
 
 A claim states one result with every hypothesis in its signature. Its proof
 is one application of the theorem that proves it, so the Lean kernel checks

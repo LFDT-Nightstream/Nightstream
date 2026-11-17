@@ -13,13 +13,14 @@ memory statement is a tape of the walk's last stage on which the final verifier 
 `(i, z0, zi)`, the checks of Algorithm 8 hold, and the history that the walk decodes does not
 attest the memory statement (`FalseMemory`). On such a tape `Verifies` rejects the proof from `W`,
 or the sample is bad for `NebulaSecurity.bad_le`. So its probability is at most `q · finalError`
-plus the bound of `NebulaSecurity.bad_le` for this adversary (`soundness`). -/
+plus the bound of `NebulaSecurity.bad_le` for this adversary, which starts with
+`IvcSecurity.walkBound` (`soundness`). -/
 
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.BoundedDepth.NebulaFinal
 
-open scoped BigOperators ENNReal
+open scoped ENNReal
 open scoped NightstreamFPrime.Spec.Compression.Production
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -33,7 +34,7 @@ open NightstreamFPrime.Lifecycle.Nebula
 open NightstreamFPrime.Lifecycle.Nebula.EndToEnd (MemoryStatement VerifierChecks History)
 open NightstreamFPrime.Export.BoundedDepth.TerminalBridge
 open NightstreamFPrime.Export.BoundedDepth.IvcWalk
-open NightstreamFPrime.Export.BoundedDepth.IvcSecurity (Output walkAdversary finderChance)
+open NightstreamFPrime.Export.BoundedDepth.IvcSecurity (Output walkAdversary walkBound)
 open NightstreamFPrime.Export.BoundedDepth.RunCompleteness
 open NightstreamFPrime.Export.BoundedDepth.FinalVerifier
 open NightstreamFPrime.Export.BoundedDepth.FinalHistory (outputOf)
@@ -127,7 +128,8 @@ noncomputable def sampleOf (depth : ℕ) (tape : (stages depth).1.Tape) :
 `q` queries and the walk's `depth` stages, the probability that the final verifier accepts, the
 checks of SPEC.md Algorithm 8 hold, and the decoded history does not attest the memory statement
 is at most `q · (1/2^119 + 38/fieldModulus²)` plus the terms of `NebulaSecurity.bad_le` for the prover's IVC
-adversary. -/
+adversary: `IvcSecurity.walkBound`, the state-link and chain collision masses, and the
+memory-round error. -/
 theorem soundness (complete : StepExtend.Complete exports)
     (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
       (FinalRows.packageRows exports complete circuit).matrices)
@@ -142,10 +144,8 @@ theorem soundness (complete : StepExtend.Complete exports)
           (tapeOf setup app exports assumption closed s q claim admitted depth tape).1
           (sampleOf setup app exports assumption closed s q claim admitted depth tape)}).toReal ≤
       q * finalError +
-        (∑ j : Fin depth,
-          (finderChance setup.ajtai setup.circuitKeys exports (stages j.val).1 +
-            error ((stages j.val).1.nifs (attemptOf setup.ajtai setup.circuitKeys exports)
-              (back setup.ajtai setup.circuitKeys exports))) +
+        (walkBound setup.ajtai setup.circuitKeys exports assumption closed
+            (adversary setup app s q claim) admitted depth +
           ((claimed setup app exports assumption closed s q claim admitted depth).law.toOuterMeasure
             {sample | (experiment app setup.ajtai setup.circuitKeys exports).StateLinkCollision app
               sample}).toReal +
@@ -250,10 +250,8 @@ theorem real_soundness (complete : StepExtend.Complete exports)
           (sampleOf setup app exports assumption closed s q claim admitted depth tape)}).toReal +
       εAkita) :
     memory ≤ q * finalError + εAkita +
-        (∑ j : Fin depth,
-          (finderChance setup.ajtai setup.circuitKeys exports (stages j.val).1 +
-            error ((stages j.val).1.nifs (attemptOf setup.ajtai setup.circuitKeys exports)
-              (back setup.ajtai setup.circuitKeys exports))) +
+        (walkBound setup.ajtai setup.circuitKeys exports assumption closed
+            (adversary setup app s q claim) admitted depth +
           ((claimed setup app exports assumption closed s q claim admitted depth).law.toOuterMeasure
             {sample | (experiment app setup.ajtai setup.circuitKeys exports).StateLinkCollision app
               sample}).toReal +

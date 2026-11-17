@@ -18,14 +18,14 @@ extractor's sample.
   sampler by `(queries + 1) · 2^−109.91` plus a Poseidon2 collision term
   (`Lifecycle.Nebula.EtaRound`). It does not discharge `MemoryRound`, whose `η` is Poseidon2.
 * `bad_le`: on the claim that the adversary's tape gives, the bad mass is at most the walk's
-  finder and stage terms (`IvcSecurity.finderChance`, `IvcSecurity.extraction_bound`), the
+  finder and stage terms (`IvcSecurity.walkBound`, as in `IvcSecurity.extraction_bound`), the
   state-link and chain collision masses, and the memory-round error. -/
 
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.BoundedDepth.NebulaSecurity
 
-open scoped BigOperators ENNReal
+open scoped ENNReal
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Nebula
@@ -37,7 +37,7 @@ open NightstreamFPrime.Lifecycle.Nebula
 open NightstreamFPrime.Lifecycle.Nebula.EndToEnd (MemoryStatement Experiment Stage1Extraction History)
 open NightstreamFPrime.Export.BoundedDepth.TerminalBridge
 open NightstreamFPrime.Export.BoundedDepth.IvcWalk
-open NightstreamFPrime.Export.BoundedDepth.IvcSecurity (walkAdversary finderChance)
+open NightstreamFPrime.Export.BoundedDepth.IvcSecurity (walkAdversary walkBound)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -226,7 +226,7 @@ local notation "stages" => reverseStages assumption closed (walkAdversary advers
 /-- The bound of adversary 5 for a memory application on the bounded-depth scheme: on the joint law of the
 memory statement that the adversary claims from its own tape and the walk's sample, the mass of
 samples that the memory verifier accepts but whose extracted history does not attest the claim
-is at most the walk's finder and stage terms (`IvcSecurity.finderChance`), the state-link and
+is at most the walk's finder and stage terms (`IvcSecurity.walkBound`), the state-link and
 chain collision masses of the extracted runs, and the memory-round error of the last stage. -/
 theorem bad_le (valid : p.Valid) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     (programEq : exports.program = MemoryApp.program p.toGeometry app)
@@ -238,10 +238,7 @@ theorem bad_le (valid : p.Valid) (keysShaped : ∀ key, (circuitKeys key).digest
       ⟨(stages depth).1, claim ∘ origin assumption closed (walkAdversary adversary) admitted depth⟩
     (c.law.toOuterMeasure {s | (experiment app ajtai circuitKeys exports).Bad app
         (Accepted app ajtai circuitKeys (step := step) control cap) s}).toReal ≤
-      ∑ j : Fin depth,
-          (finderChance ajtai circuitKeys exports (stages j.val).1 +
-            error ((stages j.val).1.nifs (attemptOf ajtai circuitKeys exports)
-              (back ajtai circuitKeys exports))) +
+      walkBound ajtai circuitKeys exports assumption closed adversary admitted depth +
         (c.law.toOuterMeasure
           {s | (experiment app ajtai circuitKeys exports).StateLinkCollision app s}).toReal +
         (c.law.toOuterMeasure

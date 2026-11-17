@@ -19,9 +19,12 @@ The results for the full path of a compressed proof (`SPEC.md` Algorithm 10 and 
   `Export.BoundedDepth.FinalVerifier.Premises` holds
   (`Export.BoundedDepth.FinalRows.premises_of_rows`). A Rust test compares a checksum of these
   rows with Lean's (`Export.BoundedDepth.RowsParity.fastSum_eq`).
-- Collision term: in `history_sound`, `memory_sound` and their Akita forms it is the success
-  chance of the Poseidon2 collision finder of each reverse stage
-  (`Export.BoundedDepth.IvcSecurity.finderChance`), as in `Claims.Ivc`. Lean does not bound it.
+- Bound: `history_sound`, `memory_sound` and their Akita forms contain
+  `Export.BoundedDepth.IvcSecurity.walkBound` for the prover's IVC adversary, the sum over the
+  reverse extractor's stages of `Claims.Ivc`.
+- Collision term: in these four claims it is the success chance of the Poseidon2 collision finder
+  of each reverse stage (`Export.BoundedDepth.IvcSecurity.finderChance`), as in `Claims.Ivc`. Lean
+  does not bound it.
 - Open: each open premise of `Claims.Ivc` and `Claims.Nebula`. The error is not one security
   level. -/
 
@@ -81,9 +84,9 @@ theorem verifier_sound_with_akita
     εAkita akita real
 
 /-- In the state-restoration experiment with `q` queries, the probability of a false history is at
-most `q · (1/2^119 + 38/fieldModulus²)` plus, for each of the first `depth` stages of the reverse extractor
-of the prover's IVC adversary, the success chance of the stage's Poseidon2 collision finder
-(`IvcSecurity.finderChance`) and the stage's error. -/
+most `q · (1/2^119 + 38/fieldModulus²)` plus `IvcSecurity.walkBound` of the prover's IVC adversary:
+for each of the first `depth` stages of the reverse extractor, the success chance of the stage's
+Poseidon2 collision finder (`IvcSecurity.finderChance`) and the stage's error. -/
 theorem history_sound
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -122,31 +125,17 @@ theorem history_sound
     Compression.Game.prob s (setup.game.restore q [])
           (FinalHistory.FalseHistory exports.program) ≤
         (↑q : ℝ) * FinalVerifier.finalError +
-          ∑ j : Fin depth,
-            (IvcSecurity.finderChance setup.ajtai setup.circuitKeys exports
-                (HyperNova.ReverseStages.reverseStages assumption closed
-                  (IvcSecurity.walkAdversary (FinalHistory.adversary setup s q))
-                  admitted (↑j : ℕ)).1 +
-              error
-                (HyperNova.ReverseStages.Stage.nifs
-                  (IvcWalk.attemptOf setup.ajtai setup.circuitKeys exports)
-                  (IvcWalk.back setup.ajtai setup.circuitKeys exports)
-                  (↑(HyperNova.ReverseStages.reverseStages (Succeeds :=
-                        IvcWalk.WalkSucceeds setup.ajtai) (Extracted :=
-                        IvcWalk.WalkExtracted setup.ajtai) (Admitted := Admitted)
-                        (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
-                        closed (IvcSecurity.walkAdversary (FinalHistory.adversary setup s q))
-                        admitted (↑j : ℕ)) :
-                    HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                      (IvcWalk.Answer logicalWidth publicFits)))) :=
+          IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed
+            (FinalHistory.adversary setup s q) admitted depth :=
   @Export.BoundedDepth.FinalHistory.soundness logicalWidth publicFits setup relation step cubeFits
     exports Admitted StageAdmitted Efficient error assumption closed s q admitted complete
     rows keysShaped depth depthBound
 
 /-- With Akita openings, the probability `history` of a false history is at most
-`q · (1/2^119 + 38/fieldModulus²) + εAkita` plus the sum of `history_sound`. `akita` is Akita's knowledge
-soundness (`FinalVerifier.AkitaKnowledge`) for the event `FalseHistory`: `s` is the prover of the
-game with ideal openings that it gives for the prover with Akita openings. -/
+`q · (1/2^119 + 38/fieldModulus²) + εAkita` plus `IvcSecurity.walkBound`, as in `history_sound`.
+`akita` is Akita's knowledge soundness (`FinalVerifier.AkitaKnowledge`) for the event
+`FalseHistory`: `s` is the prover of the game with ideal openings that it gives for the prover
+with Akita openings. -/
 theorem history_sound_with_akita
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -188,25 +177,9 @@ theorem history_sound_with_akita
         Compression.Game.prob s (setup.game.restore q [])
             (FinalHistory.FalseHistory exports.program) +
           εAkita) :
-    history ≤
-        (↑q : ℝ) * FinalVerifier.finalError + εAkita +
-          ∑ j : Fin depth,
-            (IvcSecurity.finderChance setup.ajtai setup.circuitKeys exports
-                (HyperNova.ReverseStages.reverseStages assumption closed
-                  (IvcSecurity.walkAdversary (FinalHistory.adversary setup s q))
-                  admitted (↑j : ℕ)).1 +
-              error
-                (HyperNova.ReverseStages.Stage.nifs
-                  (IvcWalk.attemptOf setup.ajtai setup.circuitKeys exports)
-                  (IvcWalk.back setup.ajtai setup.circuitKeys exports)
-                  (↑(HyperNova.ReverseStages.reverseStages (Succeeds :=
-                        IvcWalk.WalkSucceeds setup.ajtai) (Extracted :=
-                        IvcWalk.WalkExtracted setup.ajtai) (Admitted := Admitted)
-                        (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
-                        closed (IvcSecurity.walkAdversary (FinalHistory.adversary setup s q))
-                        admitted (↑j : ℕ)) :
-                    HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                      (IvcWalk.Answer logicalWidth publicFits)))) :=
+    history ≤ (↑q : ℝ) * FinalVerifier.finalError + εAkita +
+        IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed
+          (FinalHistory.adversary setup s q) admitted depth :=
   @Export.BoundedDepth.FinalHistory.real_soundness logicalWidth publicFits setup relation step
     cubeFits exports Admitted StageAdmitted Efficient error assumption closed s q admitted
     complete rows keysShaped depth depthBound history εAkita akita
@@ -215,7 +188,8 @@ theorem history_sound_with_akita
 `q` queries and the walk's `depth` stages, the probability that the final verifier accepts, the
 checks of SPEC.md Algorithm 8 hold, and the decoded history does not attest the memory statement
 is at most `q · (1/2^119 + 38/fieldModulus²)` plus the terms of `Claims.Nebula.memory_sound` for the prover's IVC
-adversary. -/
+adversary: `IvcSecurity.walkBound`, the state-link and chain collision masses, and the
+memory-round error. -/
 theorem memory_sound
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -295,25 +269,8 @@ theorem memory_sound
                   StageAdmitted) (Efficient := Efficient) assumption closed s q claim admitted
                   depth tape)}) ≤
         (↑q : ℝ) * FinalVerifier.finalError +
-          (∑ j : Fin depth,
-                  (IvcSecurity.finderChance setup.ajtai setup.circuitKeys exports
-                      (HyperNova.ReverseStages.reverseStages assumption closed
-                        (IvcSecurity.walkAdversary (NebulaFinal.adversary setup app s q claim))
-                        admitted (↑j : ℕ)).1 +
-                    error
-                      (HyperNova.ReverseStages.Stage.nifs
-                        (IvcWalk.attemptOf setup.ajtai setup.circuitKeys exports)
-                        (IvcWalk.back setup.ajtai setup.circuitKeys exports)
-                        (↑(HyperNova.ReverseStages.reverseStages (Succeeds :=
-                              IvcWalk.WalkSucceeds setup.ajtai) (Extracted :=
-                              IvcWalk.WalkExtracted setup.ajtai) (Admitted := Admitted)
-                              (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
-                              closed
-                              (IvcSecurity.walkAdversary
-                                (NebulaFinal.adversary setup app s q claim))
-                              admitted (↑j : ℕ)) :
-                          HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                            (IvcWalk.Answer logicalWidth publicFits)))) +
+          (IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed
+                  (NebulaFinal.adversary setup app s q claim) admitted depth +
                 ENNReal.toReal
                   (((NebulaSecurity.ClaimedStage.law app
                           (NebulaFinal.claimed setup app exports (Admitted := Admitted)
@@ -432,25 +389,8 @@ theorem memory_sound_with_akita
           εAkita) :
     memory ≤
         (↑q : ℝ) * FinalVerifier.finalError + εAkita +
-          (∑ j : Fin depth,
-                  (IvcSecurity.finderChance setup.ajtai setup.circuitKeys exports
-                      (HyperNova.ReverseStages.reverseStages assumption closed
-                        (IvcSecurity.walkAdversary (NebulaFinal.adversary setup app s q claim))
-                        admitted (↑j : ℕ)).1 +
-                    error
-                      (HyperNova.ReverseStages.Stage.nifs
-                        (IvcWalk.attemptOf setup.ajtai setup.circuitKeys exports)
-                        (IvcWalk.back setup.ajtai setup.circuitKeys exports)
-                        (↑(HyperNova.ReverseStages.reverseStages (Succeeds :=
-                              IvcWalk.WalkSucceeds setup.ajtai) (Extracted :=
-                              IvcWalk.WalkExtracted setup.ajtai) (Admitted := Admitted)
-                              (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
-                              closed
-                              (IvcSecurity.walkAdversary
-                                (NebulaFinal.adversary setup app s q claim))
-                              admitted (↑j : ℕ)) :
-                          HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
-                            (IvcWalk.Answer logicalWidth publicFits)))) +
+          (IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed
+                  (NebulaFinal.adversary setup app s q claim) admitted depth +
                 ENNReal.toReal
                   (((NebulaSecurity.ClaimedStage.law app
                           (NebulaFinal.claimed setup app exports (Admitted := Admitted)

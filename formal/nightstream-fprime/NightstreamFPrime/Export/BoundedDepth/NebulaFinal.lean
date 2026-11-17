@@ -208,7 +208,7 @@ theorem soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup pac
       rfl
     rw [moved, ← prob_eq_law]
     exact restore_sound _ s _ _ (game_avoids setup step 0 (fun _ _ => 0) premises)
-      (game_densityLe setup premises) (by unfold finalError; positivity) q
+      (game_densityLe setup) (by unfold finalError; positivity) q
   have bad := bad_le app setup.ajtai setup.circuitKeys exports assumption closed prover admitted
     valid keysShaped programEq (fun _ _ => 0) 0 depth Prod.snd round
   have sampled : stage.tape.toOuterMeasure {tape | Bad (sampleAt tape)} =

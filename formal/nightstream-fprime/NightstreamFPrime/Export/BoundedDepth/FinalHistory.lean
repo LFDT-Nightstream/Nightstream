@@ -107,7 +107,7 @@ theorem soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup pac
     · exact Or.inl fun all => verifies (all _ rfl o rfl)
   have rejected : prob s (restore setup.game q []) Rejected ≤ q * finalError :=
     restore_sound _ s _ _ (game_avoids setup step 0 (fun _ _ => 0) premises)
-      (game_densityLe setup premises) (by unfold finalError; positivity) q
+      (game_densityLe setup) (by unfold finalError; positivity) q
   have accepted := probability_bound setup.ajtai setup.circuitKeys exports assumption closed
     (adversary setup s q) admitted keysShaped (fun _ _ => 0) 0 depth (by
       rintro (_ | _ | o) inside

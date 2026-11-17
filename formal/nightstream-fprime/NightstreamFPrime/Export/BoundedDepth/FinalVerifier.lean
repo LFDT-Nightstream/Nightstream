@@ -1,14 +1,18 @@
 import NightstreamFPrime.Export.BoundedDepth.RunCompleteness
 import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh
+import NightstreamFPrime.Spec.Compression.Rust.Soundness
 
 /-! The final verifier as one public-coin game (SPEC.md, Algorithm 10), and its soundness against
 the verifier of Algorithm 6 (`Export.BoundedDepth.RunCompleteness.Verifies`).
 
 The prover names the statement `(i, z0, zi)` and the values of the final proof that come before
 `W`: no steps, or `pc`, each slot's claim and depth and the fresh commitment (`Claims`). The
-verifier runs the checks of steps 1 to 4 (`Checks`) and computes the fresh public input
-`x = encHash(stateHash(…))` from these values. The prover names `W`. Π_CCS on the fresh instance
-runs (`Spec.Compression.Fresh.game`), and then the argument on the slot claims and the output
+verifier runs the checks of steps 1 to 4 (`Checks`) and the layout of step 5 (`Setup.Laid`): the
+Lean model of Rust `Layout::new` accepts the claims (`Spec.Compression.Rust.layoutNew`), and each
+claim has its 320 public cells. The layout of the argument is that layout (`Setup.layout`). The
+verifier computes the fresh public input `x = encHash(stateHash(…))` from these values. The
+prover names `W`. Π_CCS on the fresh instance runs (`Spec.Compression.Fresh.game`), and then
+the argument on the slot claims and the output
 claim of the run (`Spec.Compression.Verifier.afterTables`). The Akita openings are ideal: the
 prover names the tables.
 
@@ -59,7 +63,7 @@ structure Setup (logicalWidth : Nat)
   ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)
   circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits
   rows : ℕ → Factored F
-  layout : Claims logicalWidth publicFits → Layout
+  keyBlocks : ℕ
   zeros : ℕ
 
 /-- The relation of each claim: slot 0, slot 1, then circuit `pc − 1`. -/
@@ -91,6 +95,27 @@ namespace Setup
 
 variable (setup : Setup logicalWidth publicFits)
 
+/-- Rust `Layout::new` on the claims of Algorithm 9, step 2, under the key polynomial of
+`keyBlocks` blocks (Algorithm 10, step 5). -/
+def placed (claims : Claims logicalWidth publicFits) :
+    Except Compression.Rust.LayoutError Compression.Rust.Placed :=
+  Compression.Rust.layoutNew (Compression.Rust.claimsOf
+    (fun c => (setup.rows (which claims c)).matrices) (fun s => (claims.running s).2))
+    setup.keyBlocks
+
+/-- The layout of the argument: the layout of `placed`. The game rejects claims without one
+(`Laid`). -/
+def layout (claims : Claims logicalWidth publicFits) : Layout :=
+  match setup.placed claims with
+  | .ok l => l.production
+  | .error _ => (⟨[], 0, 0, 0, 0, 0, 0⟩ : Compression.Rust.Placed).production
+
+/-- Algorithm 10, step 5: Rust `Layout::new` accepts the claims, and each claim has its 320
+public cells (the shape check of Rust `layout`). -/
+def Laid (claims : Claims logicalWidth publicFits) : Prop :=
+  (∃ l, setup.placed claims = .ok l) ∧
+    ∀ c, 320 ≤ ringDegree * ((setup.rows (which claims c)).matrices.columns / ringDegree)
+
 /-- The parameters of the argument for `claims`. -/
 noncomputable abbrev params (claims : Claims logicalWidth publicFits) :=
   Compression.Production.params (keyOf setup.ajtai) (fun c => (setup.rows (which claims c)).matrices)
@@ -101,6 +126,22 @@ noncomputable def verifier (claims : Claims logicalWidth publicFits) :
     VerifierData (setup.params claims) :=
   verifierData (keyOf setup.ajtai) setup.rows (which claims) (fun s => (claims.running s).2)
     (setup.layout claims) setup.zeros
+
+/-- The layout of laid claims is well formed, the key polynomial holds each claim, each witness
+slice has at most `2^25` cells, and the span has at most 26 variables
+(`Spec.Compression.Rust.layoutNew_production`, `Spec.Compression.Rust.layoutNew_span`). -/
+theorem layout_facts {claims : Claims logicalWidth publicFits} (laid : setup.Laid claims) :
+    WellFormed (setup.params claims) ∧
+      (∀ c : Fin 3, ((setup.layout claims).witness c).vars ≤ 25) ∧
+      (∀ c : Fin 3, ((setup.layout claims).witness c).vars - 6 ≤
+        (setup.layout claims).keyBlockVars) ∧
+      (setup.layout claims).spanVars ≤ 26 := by
+  obtain ⟨⟨l, ok⟩, cells⟩ := laid
+  have same : setup.layout claims = l.production := by simp only [Setup.layout, ok]
+  obtain ⟨wf, keyFits, small⟩ := Compression.Rust.layoutNew_production (keyOf setup.ajtai)
+    (fun c => (setup.rows (which claims c)).matrices) (fun s => (claims.running s).2) ok cells
+  simp only [Setup.params, same]
+  exact ⟨wf, small, keyFits, Compression.Rust.layoutNew_span ok⟩
 
 /-- `x`, the fresh public input that the verifier computes (Algorithm 10, step 6). -/
 def publicInput (statement : TerminalStatement AppState) (claims : Claims logicalWidth publicFits) :
@@ -170,7 +211,8 @@ noncomputable def game : Compression.Game (Option (Outcome logicalWidth publicFi
     | none => .pure (if Terminal.StatementValid input.1 ∧ input.1.iteration = 0 ∧
         input.1.zi = input.1.z0 then some (input.1, none) else none)
     | some claims =>
-        if Checks input.1 claims then .recv (ℕ → F) fun W => setup.afterW input.1 claims W
+        if Checks input.1 claims ∧ setup.Laid claims then
+          .recv (ℕ → F) fun W => setup.afterW input.1 claims W
         else .pure none
 
 /-- The proof with witnesses of an outcome: the bottom proof, or the slots' claims and witness
@@ -186,19 +228,12 @@ end Setup
 
 /-- The premises of the theorem on the verifier's setup. `represents`: the dense rows of each
 circuit are its relation on the cells of its blocks (`Spec.Compression.Claim.Represents`).
-`support`: a claim has at most the blocks of its circuit's package. `layout`: Rust `Layout::new`
-gives a well-formed layout with the production bounds for each statement that passes the checks. -/
+`support`: a claim has at most the blocks of its circuit's package. -/
 structure Premises (setup : Setup logicalWidth publicFits) (packageWidths : Fin 2 → ℕ) : Prop where
   represents : ∀ j : Fin 2,
     Represents (setup.rows j).matrices (setup.circuitKeys j).relation.matrices
   support : ∀ j : Fin 2, (setup.rows j).matrices.columns / ringDegree ≤
     ConcreteRingColumnLayout.blockCount (packageWidths j)
-  layout : ∀ statement claims, Checks statement claims →
-    WellFormed (setup.params claims) ∧
-      (∀ c : Fin 3, (c : ℕ) < 2 → ((setup.layout claims).witness c).vars ≤ 25) ∧
-      (∀ c : Fin 3, ((setup.layout claims).witness c).vars - 6 ≤
-        (setup.layout claims).keyBlockVars) ∧
-      (setup.layout claims).spanVars ≤ 27
 
 theorem which_slot (claims : Claims logicalWidth publicFits) (s : Fin 2) :
     which claims s.castSucc = s := by
@@ -233,7 +268,8 @@ variable (setup : Setup logicalWidth publicFits) {packageWidths : Fin 2 → ℕ}
 witnesses that the verifier of Algorithm 6 accepts. -/
 theorem verifies_of_run (premises : Premises setup packageWidths)
     {statement : TerminalStatement AppState} {claims : Claims logicalWidth publicFits}
-    (checks : Checks statement claims) {W : ℕ → F} {probe : Probe K CompressionFresh.oneShape}
+    (checks : Checks statement claims) (laid : setup.Laid claims) {W : ℕ → F}
+    {probe : Probe K CompressionFresh.oneShape}
     (holds : Relation (setup.params claims) (setup.claimsOf statement claims probe) W)
     (ccs : AmbientOutputHolds extensionOps K.embed (openingMaps setup.ajtai)
         productionGlobalParams (setup.piCCS statement claims) probe
@@ -245,7 +281,7 @@ theorem verifies_of_run (premises : Premises setup packageWidths)
       (.recursive ⟨claims.running, fun s => setup.witness claims W s.castSucc,
         setup.fresh statement claims, setup.witness claims W 2, claims.pc⟩) := by
   obtain ⟨valid, positive, pcValid, depth_le⟩ := checks
-  obtain ⟨wf, -, -, -⟩ := premises.layout statement claims ⟨valid, positive, pcValid, depth_le⟩
+  obtain ⟨wf, -, -, -⟩ := setup.layout_facts laid
   have slotRows (s : Fin 2) : Represents (setup.rows (which claims s.castSucc)).matrices
       (setup.circuitKeys s).relation.matrices := by
     rw [which_slot]
@@ -298,9 +334,10 @@ theorem game_avoids (premises : Premises setup packageWidths) :
       exact verifies_of_bottom setup step cap control bottom
   | some claims =>
       dsimp only
-      split_ifs with checks
-      · intro W
-        obtain ⟨wf, slots_le, key_fits, -⟩ := premises.layout statement claims checks
+      split_ifs with accepted
+      · obtain ⟨checks, laid⟩ := accepted
+        intro W
+        obtain ⟨wf, small, key_fits, -⟩ := setup.layout_facts laid
         dsimp only
         unfold Setup.afterW
         have freshAvoids : (setup.freshRun statement claims W).Avoids fun out =>
@@ -323,7 +360,7 @@ theorem game_avoids (premises : Premises setup packageWidths) :
             dsimp only
             rw [avoids_bind]
             refine (Compression.Verifier.game_avoids (setup.verifier claims) wf
-              (params_countsNonzero _ _ _ _ slots_le) (verifierData_matrixSpec _ _ _ _ _ _)
+              (params_countsNonzero _ _ _ _ fun c _ => small c) (verifierData_matrixSpec _ _ _ _ _ _)
               (le_of_eq rfl) (Nat.le_of_ble_eq_true rfl) key_fits
               (setup.claimsOf statement claims probe) W).mono fun r relationGood => ?_
             intro o equal
@@ -335,15 +372,14 @@ theorem game_avoids (premises : Premises setup packageWidths) :
                 cases equal
                 have holds := relationGood found rfl
                 rw [same] at holds
-                exact verifies_of_run setup step cap control premises checks holds
+                exact verifies_of_run setup step cap control premises checks laid holds
                   (freshGood probe rfl)
       · exact fun _ equal => nomatch equal
 
 /-- The bound on the density of each bad set: the argument's and Π_CCS's. -/
 noncomputable def finalError : ℝ := 1 / 2 ^ 119 + 38 / (fieldModulus : ℝ) ^ 2
 
-theorem game_densityLe (premises : Premises setup packageWidths) :
-    setup.game.DensityLe finalError := by
+theorem game_densityLe : setup.game.DensityLe finalError := by
   have ccsLe : (38 / (fieldModulus : ℝ) ^ 2) ≤ finalError := by
     unfold finalError
     linarith [show (0 : ℝ) ≤ 1 / 2 ^ 119 by positivity]
@@ -353,11 +389,13 @@ theorem game_densityLe (premises : Premises setup packageWidths) :
   | none => exact trivial
   | some claims =>
       dsimp only
-      split_ifs with checks
-      · intro W
-        obtain ⟨wf, slots_le, -, span_le⟩ := premises.layout statement claims checks
+      split_ifs with accepted
+      · obtain ⟨checks, laid⟩ := accepted
+        intro W
+        obtain ⟨wf, small, -, span⟩ := setup.layout_facts laid
         have errorLe : error (setup.verifier claims) ≤ finalError := by
-          have := params_error_lt _ _ _ _ (setup.verifier claims) rfl checks.2.2.2 slots_le span_le
+          have := params_error_lt _ _ _ _ (setup.verifier claims) rfl checks.2.2.2
+            (fun c _ => small c) (span.trans (by decide))
           unfold finalError
           linarith [show (0 : ℝ) ≤ 38 / (fieldModulus : ℝ) ^ 2 by positivity]
         unfold Setup.afterW
@@ -393,7 +431,7 @@ theorem soundness (premises : Premises setup packageWidths)
       q * finalError :=
   restore_sound _ s _ _ ((game_avoids setup step cap control premises).mono fun _ verifies o
       equal => ⟨_, verifies o equal⟩)
-    (game_densityLe setup premises) (by unfold finalError; positivity) q
+    (game_densityLe setup) (by unfold finalError; positivity) q
 
 /-- Akita's knowledge soundness with the error `εAkita`, as an assumption (SPEC.md, Algorithm 10;
 `SECURITY_MODEL.md`, trust item 7). For each prover `real` of the final verifier with Akita

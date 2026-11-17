@@ -202,7 +202,6 @@ each head.
 | `columns`, `rows` | `LE.le` | lean | `Claims.Compression.production_sound` |
 | `statement.*`, `constantLaw.*` | `*` | game | adversary 6: the statement of the Π_CCS run and the law of its constant |
 | `params.rlc_bound`, `freshBound`, `degreeCovers` | `*` | lean | `Claims.Final.verifier_sound` uses the Π_CCS run at the production parameters and takes none of these |
-| `premises.layout` | `And` | open | Open: `layout_new_is_lean_layout_new_on_each_claim_set` compares Rust `Layout::new` with the Lean model on recorded claim sets, and `Spec.Compression.Rust.layoutNew_production` gives the bounds of the model. No theorem gives `spanVars ≤ 27`, and no theorem joins the layout of the setup to the model |
 | `premises.represents` | `Spec.Compression.Claim.Represents` | open | Open: no Lean result states `Represents` for the dense rows of a package (trust item 7) |
 | `premises.support` | `LE.le` | open | Open: no Lean result bounds the blocks of a claim by the blocks of its package (trust item 7) |
 | `depthBound` | `LE.le` | game | adversary 4: the result bounds the error over the stages below a bound `depth` on the iteration of the adversary's statements, so `depth` is a parameter of the adversary class, and the error grows with it. The final-proof results of adversary 6 take the same parameter |
@@ -233,7 +232,8 @@ each head.
 | `Nebula/count`, `Nebula/exec`, `Nebula/range`, `Nebula/width` | `*` | game | `SPEC.md` Algorithm 7: the honest prover runs an execution of the machine |
 | `Fold/bounded` | `Spec.RandomOracle.OracleComp.QueryBound` | game | adversary 3: the adversary makes at most `Q` oracle queries |
 | `Ivc.slot_history_failure/assumption` | `Spec.HyperNova.Construction2.BoundedDepthSecurity.Assumption1` | assumption | `[HN-A1]`, in the form for one slot |
-| `Compression.production_error/columns`, `Compression.production_error/depths_le`, `Compression.production_error/span_le` | `*` | open | Open: no Lean theorem states these conditions for the verifier data and the layout of the setup (row `premises.layout`) |
+| `Compression.production_error/columns`, `Compression.production_error/span_le` | `*` | lean | `Export.BoundedDepth.FinalVerifier.game_densityLe` meets both for the verifier of the final verifier. `columnVars = 2` holds by the definition of `Spec.Compression.Production.verifierData`, and `Export.BoundedDepth.FinalVerifier.Setup.layout_facts` gives `spanVars ≤ 26` for the layout of the Lean model of `Layout::new` (`Spec.Compression.Rust.layoutNew_span`) |
+| `Compression.production_error/depths_le` | `LE.le` | game | `SPEC.md` Algorithm 10: step 4 requires that the depth of each slot is at most `cap` |
 <!-- premises:end -->
 
 ## Applications and setups
@@ -1055,12 +1055,15 @@ not change terminal source checks.
      same premise for the event of a false history, at one prover of the
      game, and that prover's IVC adversary must be admitted (trust item 3).
      `Export.BoundedDepth.FinalVerifier.Premises` collects the premises on
-     the setup: `Represents` for the dense rows of each circuit,
-     at most the blocks of its package for each claim, and a layout of Rust
-     `Layout::new` that is well formed with the production bounds.
-     `Spec.Compression.Rust.layoutNew_production` gives these bounds for
-     the layout of the model, except `spanVars ≤ 27`, but Lean does not
-     join the model to the layout of the setup. The game
+     the setup: `Represents` for the dense rows of each circuit, and at
+     most the blocks of its package for each claim. The game takes its
+     layout from the Lean model of Rust `Layout::new`, and it rejects
+     claims that the model does not lay out or that have fewer than 320
+     cells, as step 5 of `SPEC.md` Algorithm 10 rejects them
+     (`Export.BoundedDepth.FinalVerifier.Setup.Laid`). That layout has the
+     production bounds (`Export.BoundedDepth.FinalVerifier.Setup.layout_facts`),
+     so the premise on the layout is that Rust `Layout::new` is the model,
+     as above. The game
      takes the slot claims before `W` and the run of Π_CCS, and Rust absorbs
      only `x`, their Poseidon2 hash, before that run, so the slot claims are
      bound through `x` up to a collision of trust item 2. Second, the key

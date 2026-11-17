@@ -88,7 +88,6 @@ Claims.Final.history_sound	closed.next	_
 Claims.Final.history_sound	admitted	_
 Claims.Final.history_sound	premises.represents	Spec.Compression.Claim.Represents
 Claims.Final.history_sound	premises.support	LE.le
-Claims.Final.history_sound	premises.layout	And
 Claims.Final.history_sound	keysShaped	Eq
 Claims.Final.history_sound	depthBound	LE.le
 Claims.Final.history_sound_with_akita	publicFits	LE.le
@@ -121,7 +120,6 @@ Claims.Final.history_sound_with_akita	closed.next	_
 Claims.Final.history_sound_with_akita	admitted	_
 Claims.Final.history_sound_with_akita	premises.represents	Spec.Compression.Claim.Represents
 Claims.Final.history_sound_with_akita	premises.support	LE.le
-Claims.Final.history_sound_with_akita	premises.layout	And
 Claims.Final.history_sound_with_akita	keysShaped	Eq
 Claims.Final.history_sound_with_akita	depthBound	LE.le
 Claims.Final.history_sound_with_akita	akita	LE.le
@@ -160,7 +158,6 @@ Claims.Final.memory_sound	closed.next	_
 Claims.Final.memory_sound	admitted	_
 Claims.Final.memory_sound	premises.represents	Spec.Compression.Claim.Represents
 Claims.Final.memory_sound	premises.support	LE.le
-Claims.Final.memory_sound	premises.layout	And
 Claims.Final.memory_sound	valid.toValid.exactCover	Eq
 Claims.Final.memory_sound	valid.toValid.timestampRange	LT.lt
 Claims.Final.memory_sound	valid.toValid.fieldEncoding	LE.le
@@ -208,7 +205,6 @@ Claims.Final.memory_sound_with_akita	closed.next	_
 Claims.Final.memory_sound_with_akita	admitted	_
 Claims.Final.memory_sound_with_akita	premises.represents	Spec.Compression.Claim.Represents
 Claims.Final.memory_sound_with_akita	premises.support	LE.le
-Claims.Final.memory_sound_with_akita	premises.layout	And
 Claims.Final.memory_sound_with_akita	valid.toValid.exactCover	Eq
 Claims.Final.memory_sound_with_akita	valid.toValid.timestampRange	LT.lt
 Claims.Final.memory_sound_with_akita	valid.toValid.fieldEncoding	LE.le
@@ -225,11 +221,9 @@ Claims.Final.memory_sound_with_akita	akita	LE.le
 Claims.Final.verifier_sound	publicFits	LE.le
 Claims.Final.verifier_sound	premises.represents	Spec.Compression.Claim.Represents
 Claims.Final.verifier_sound	premises.support	LE.le
-Claims.Final.verifier_sound	premises.layout	And
 Claims.Final.verifier_sound_with_akita	publicFits	LE.le
 Claims.Final.verifier_sound_with_akita	premises.represents	Spec.Compression.Claim.Represents
 Claims.Final.verifier_sound_with_akita	premises.support	LE.le
-Claims.Final.verifier_sound_with_akita	premises.layout	And
 Claims.Final.verifier_sound_with_akita	akita	Export.BoundedDepth.FinalVerifier.AkitaKnowledge
 Claims.Fold.assumption1_in_random_oracle_model	publicFits	LE.le
 Claims.Fold.assumption1_in_random_oracle_model	positive	LT.lt

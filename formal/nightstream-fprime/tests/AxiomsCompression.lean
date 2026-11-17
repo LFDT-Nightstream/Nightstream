@@ -292,6 +292,7 @@ import NightstreamFPrime.Export.BoundedDepth.NebulaFinal
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.freshIndex_eq
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.which_fresh
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.supported_slice
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.Setup.layout_facts
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.verifies_of_run
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.verifies_of_bottom
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.game_avoids

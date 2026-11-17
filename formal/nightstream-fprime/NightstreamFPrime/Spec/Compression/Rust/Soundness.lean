@@ -33,6 +33,19 @@ theorem layoutNew_ok {claims : List Claim} {keyBlocks : ℕ} {l : Placed}
   simp only [List.any_eq_true, decide_eq_true_eq, not_exists, not_and, not_lt] at above
   exact above c member
 
+/-- When `layoutNew` accepts, the span has at most 26 variables: the schedule row holds the
+inverses of the span (`rowFits`), and no row of `schedules` gives `V` more than 28 variables. -/
+theorem layoutNew_span {claims : List Claim} {keyBlocks : ℕ} {l : Placed}
+    (ok : layoutNew claims keyBlocks = .ok l) : l.spanVars ≤ 26 := by
+  obtain ⟨schedule, member, -, -, row, inRow, fits, rfl⟩ := layoutNew_ok ok
+  simp only [rowFits, Bool.and_eq_true, decide_eq_true_eq] at fits
+  have inverse : ∀ s ∈ schedules, ∀ r ∈ s.rows, r.2 ≤ 28 := by decide
+  have span := fits.2
+  have most := inverse schedule member row inRow
+  change varsFor (tableSlices claims).2 ≤ 26
+  simp only [lookupVars] at span
+  omega
+
 theorem fits_of {s : Slice} {cells n : ℕ} (aligned : 2 ^ s.vars ∣ s.offset)
     (inside : s.offset + 2 ^ s.vars ≤ cells) (cube : varsFor cells ≤ n) : s.Fits n := by
   have within : cells ≤ 2 ^ n :=

@@ -1,29 +1,16 @@
-//! Structural decoding of `wasmparser::Operator`s into the adapter's
-//! intermediate opcode / memory / control descriptors.
-//!
-//! Pure classification: given a parsed operator, produce the metadata the
-//! parent module records in its static opcode map. Owns no Wasmtime `Store`
-//! access and builds no trace rows — that lives in the parent module and
-//! `normalize`.
-
 use crate::ir::WasmPcEdgeKind;
 use crate::isa::WasmOpcode;
 
 #[derive(Clone, Debug)]
 pub(crate) struct DecodedOpcode {
-    /// The first pc of the instruction's rows: an indirect call's resolve step.
     pub(crate) pc: u32,
     pub(crate) text: String,
     pub(crate) memory: Option<DecodedMemoryOpcode>,
-    /// Structurally decoded from `wasmparser::Operator` at map-build time.
     pub(crate) decoded: Option<(WasmOpcode, Option<u32>)>,
     pub(crate) control: Option<DecodedControlOpcode>,
     pub(crate) pc_edge_kind: WasmPcEdgeKind,
     pub(crate) expected_type_id: Option<u32>,
-    /// Dense PC immediately after this instruction. For `call`
-    /// this is the return PC; for branches it is the linear successor.
     pub(crate) pc_after_instruction: u64,
-    /// `(control choice, remaining, distance)` of each slide this operator's edges take.
     pub(crate) frame_slides: super::branch_stack::FrameSlideEdges,
 }
 
@@ -73,7 +60,6 @@ pub(crate) enum ControlFrameKind {
 pub(crate) struct ControlFrame {
     pub(crate) kind: ControlFrameKind,
     pub(crate) branch_target: Option<u64>,
-    /// Deferred (source PC, branch choice) edges to the end of this frame.
     pub(crate) pending_to_end: Vec<(u64, u64)>,
     pub(crate) pending_if_false: Option<u64>,
 }
@@ -233,7 +219,6 @@ pub(crate) fn decode_opcode(operator: &wasmparser::Operator<'_>) -> Option<(Wasm
         wasmparser::Operator::BrIf { .. } => Some((WasmOpcode::BrIf, None)),
         wasmparser::Operator::BrTable { targets } => Some((WasmOpcode::BrTable, Some(targets.len()))),
         wasmparser::Operator::Return => Some((WasmOpcode::Return, None)),
-        // Local index stored as immediate; locals value captured at runtime from frame snapshot.
         wasmparser::Operator::LocalGet { local_index } => Some((WasmOpcode::LocalGet, Some(*local_index))),
         wasmparser::Operator::LocalSet { local_index } => Some((WasmOpcode::LocalSet, Some(*local_index))),
         wasmparser::Operator::LocalTee { local_index } => Some((WasmOpcode::LocalTee, Some(*local_index))),

@@ -1,6 +1,3 @@
-//! Captures host-written buffers when the calling Wasm activation resumes.
-//! Addresses come from pre-call arguments; bytes come from the return boundary.
-
 use super::memory_address::memory_pointer;
 use super::memory_inputs::{finish_inputs, memory_input_writes, recover_memory_inputs, MemoryInputWrite};
 use super::{LoweringTables, WasmtimeTraceStep};
@@ -12,7 +9,6 @@ use std::collections::BTreeMap;
 pub(super) struct PendingImport {
     pub(super) row: usize,
     pub(super) split: bool,
-    // Host-to-guest activations, not guest call depth. Reentry adds an activation.
     pub(super) activation_depth: usize,
     pub(super) function_index: u32,
     pub(super) return_pc: u64,
@@ -64,8 +60,6 @@ impl PendingImport {
                     )
                 })
                 .collect();
-            // Reentrant guest invocations may grow memory before the host writes. Resolve
-            // wasm32 addresses now; live capture and replay check return bounds.
             let pages = if template.is_split() {
                 row.memory_pages_before
                     .map(|_| super::parse::WASM32_MAX_PAGES)

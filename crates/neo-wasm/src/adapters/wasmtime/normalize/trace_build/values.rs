@@ -2,7 +2,6 @@ use super::super::NormalizedStep;
 use crate::ir::{StackValueAccess, WasmBuildError};
 use crate::isa::WasmOpcode;
 
-/// Parameters plus declared locals of the guest function a call enters.
 pub(super) fn guest_callee_locals(
     call: &NormalizedStep,
     next: Option<&NormalizedStep>,

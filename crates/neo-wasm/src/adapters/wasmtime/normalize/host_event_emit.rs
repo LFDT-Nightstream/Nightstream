@@ -1,12 +1,3 @@
-//! Host-event emission: how expanded blocks become trace rows.
-//!
-//! Owns the gather aux-row plans and their emission — the per-slot
-//! gather plans (`EventSlotRow`/`EventBlockPlan`/`HostCallEventPlan`) and
-//! the shared row context (`HostEventRowContext`) every emitted aux row
-//! repeats. Does not
-//! own the trace state machine or per-opcode normalization — that is
-//! `trace_build`, which drives these emitters.
-
 use crate::comm_chain::absorb_block;
 use crate::host_event_bindings::{
     expand_import_phase, memory_rom_arg_variant, opaque_control_encoding, EventBlock, Limb, MemoryBase, SlotBinding,
@@ -21,11 +12,6 @@ use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
 use super::super::memory_address::memory_pointer;
 use super::memory::LinearMemoryImage;
 
-/// One gather row's plan: the staged word, its expected host-event ROM entry,
-/// and its stack/locals effect — an addressed read `(stack slot, (lo, hi))`
-/// for arg slots, a stack WRITE for result slots (the Lo slot is the push,
-/// the Hi slot writes only the cell's hi word; the inactive lane is zero),
-/// an entry-frame locals access, or one static linear-memory access.
 #[derive(Clone)]
 pub(super) struct EventSlotRow {
     pub(super) value: u64,
@@ -38,11 +24,9 @@ pub(super) struct EventSlotRow {
     pub(super) wide: bool,
 }
 
-/// One ROM group's slot plans and absorb policy. Enter ends a prefix group early.
 #[derive(Clone)]
 pub(super) struct EventBlockPlan {
     pub(super) rows: Vec<EventSlotRow>,
-    /// Whether the staged block enters the transcript.
     pub(super) absorb: bool,
 }
 
@@ -357,12 +341,6 @@ fn plan_event_blocks(
                             read: Some((args_base + u64::from(arg), args[usize::from(arg)])),
                             ..base_slot_row(entry(WasmHostEventSlotKind::Arg, arg, limb_variant(limb), 0, 0))
                         },
-                        // Each result lane is written by the slot absorbing
-                        // it: the Lo slot is the push (a narrow total write,
-                        // hi lane zeroed), the Hi slot writes only the
-                        // pushed cell's hi word. The other lane is zero in
-                        // both plans — its port is inactive on that row, so
-                        // the value column is mechanically inert.
                         SlotBinding::ResultElem { limb: Limb::Lo } => EventSlotRow {
                             write: Some((args_base, (result.expect("validated result").0, 0))),
                             ..base_slot_row(entry(
@@ -503,7 +481,6 @@ pub(super) fn plan_export_blocks(
                             advice: !event.absorb,
                         }),
                         SlotBinding::InputLocal { local, limb, .. } => {
-                            // expand_export_entry rejects words over 32 bits.
                             let bit = u8::from(matches!(limb, Limb::Hi));
                             EventSlotRow {
                                 local_write: Some((u32::from(local), bit, value as u32)),
@@ -593,8 +570,6 @@ pub(super) fn plan_export_blocks(
         .collect()
 }
 
-/// Shared shape of the gather rows emitted outside the per-opcode
-/// flow: the carried context every such row repeats.
 pub(super) struct HostEventRowContext {
     pub(super) pc: u64,
     pub(super) sp: u64,
@@ -606,8 +581,6 @@ pub(super) struct HostEventRowContext {
     pub(super) locals_fbp: u64,
     pub(super) host_callee_fref: u32,
     pub(super) current_function_ref: u32,
-    /// The carried activation_finished latch on both sides of these aux rows (true for
-    /// post-return exit gathers, false mid-turn).
     pub(super) activation_finished: bool,
 }
 
@@ -698,12 +671,6 @@ impl HostEventRowContext {
     }
 }
 
-/// Emit one host-event group: up to eight gather rows (one word each, with the
-/// arg/result stack read, the result-lo stack WRITE that pushes the host
-/// result, or the input-local lane write the slot inputs). The slot that fills
-/// an absorbing block folds it into the chain on its own row and clears the
-/// buffer; Enter ends a prefix group without hashing.
-/// A result push bumps `ctx.sp` for every subsequent row.
 pub(super) fn emit_block_plan(
     out: &mut Vec<WasmVmStep>,
     ctx: &mut HostEventRowContext,
@@ -721,8 +688,6 @@ pub(super) fn emit_block_plan(
         if enter_opaque {
             absorb.outer_prefix.copy_from_slice(&absorb.evbuf[..4]);
             absorb.outer_chain = *comm_chain;
-            // TODO: Consider a verifier-authored, ROM-bound initial chain for EnterOpaque,
-            // with matching circuit and native-root semantics. Const slots only initialize evbuf.
             *comm_chain = [0; 4];
             absorb.object_active = true;
         }
@@ -739,7 +704,6 @@ pub(super) fn emit_block_plan(
         }
         host_event_state.slot_cursor = if enter_opaque { 0 } else { ((word + 1) % 8) as u8 };
         if word == 7 || enter_opaque {
-            // Advice blocks advance the schedule without hashing.
             if plan.absorb && !enter_opaque {
                 *comm_chain = absorb_block(*comm_chain, absorb.evbuf);
                 absorb.evbuf = [0; 8];
@@ -753,12 +717,7 @@ pub(super) fn emit_block_plan(
         let write0 = slot.write.map(|(stack_slot, (lo, hi))| {
             StackValueAccess::new(stack_slot.saturating_mul(2), lo).with_optional_hi(Some(hi))
         });
-        // Only the result LO slot pushes (the counted write port pair); the
-        // HI slot fires the hi-word port alone and leaves sp untouched.
         let pushes = slot.write.is_some() && slot.rom.variant.is_low_limb();
-        // Wide rows: a stack read/write carrying a hi limb, or an input-local
-        // row whose verifier-owned static type is i64. The narrow-row rule
-        // pins high columns to zero otherwise.
         let wide = slot.wide
             || slot.read.is_some_and(|(_, (_, hi))| hi != 0)
             || slot.write.is_some_and(|(_, (_, hi))| hi != 0);
@@ -780,7 +739,6 @@ pub(super) fn emit_block_plan(
                 .or_else(|| slot.local_read.map(|(index, _)| index)),
             local_read_value: slot.local_read.map(|(_, (lo, _))| lo),
             local_read_value_hi: slot.local_read.map(|(_, (_, hi))| hi),
-            // Lo rows write (word, 0); hi rows write only the hi lane.
             local_write_value: slot
                 .local_write
                 .map(|(_, limb, value)| if limb == 0 { value } else { 0 }),

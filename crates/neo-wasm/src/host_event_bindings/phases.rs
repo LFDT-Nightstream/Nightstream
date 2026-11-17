@@ -1,5 +1,3 @@
-//! Static import phase boundaries. No gather or opaque operation spans suspension.
-
 use super::{opaque, ExportTemplate, ImportTemplate, SlotBinding};
 use crate::WasmBuildError;
 
@@ -18,8 +16,6 @@ fn biased_count(blocks: usize) -> u32 {
 }
 
 impl ExportTemplate {
-    /// Low half: entry blocks + 1. High half: exit blocks. One read gives
-    /// both counts, as the import word does.
     pub(crate) fn packed_schedule_counts(&self) -> u32 {
         assert!(
             self.exit.len() < IMPORT_SCHEDULE_COUNT_FACTOR as usize,
@@ -45,15 +41,12 @@ impl ImportTemplate {
         self.return_events.is_some()
     }
 
-    /// ROM encoding: zero for atomic, one plus the return-block count for split.
     pub(crate) fn return_schedule_count(&self) -> u32 {
         self.return_events
             .as_ref()
             .map_or(0, |events| biased_count(events.len()))
     }
 
-    /// Low half: call blocks + 1. High half: zero for atomic, return blocks + 1
-    /// for split (including an empty return phase).
     pub(crate) fn packed_schedule_counts(&self) -> u32 {
         biased_count(self.events.len()) + IMPORT_SCHEDULE_COUNT_FACTOR * self.return_schedule_count()
     }

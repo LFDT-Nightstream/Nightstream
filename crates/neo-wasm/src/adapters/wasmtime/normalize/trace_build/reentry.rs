@@ -1,6 +1,3 @@
-//! Normalizer-owned suspended activations and boundary rows. Saved values are
-//! separately authenticated by the relation's context RAM.
-
 use super::super::host_event_emit::{emit_block_plan, plan_import_phase, HostEventRowContext};
 use super::super::{memory::LinearMemoryImage, NormalizedStep};
 use super::turn::{setup_turn, TurnSetup};
@@ -76,8 +73,6 @@ pub(super) fn enter<'a>(
     after.host_events.events_remaining = setup.entry_plans.len() as u32;
     after.host_events.event_index = bindings.event_base(setup.fref);
     after.host_events.slot_cursor = 0;
-    // The entered frame starts above every suspended cell, or at the stack
-    // bottom for a root entry; its parameters are reserved for the inputs.
     if let Some(suspended) = suspended {
         if before.sp != suspended.context.retained_sp {
             return Err(WasmBuildError::Trace(

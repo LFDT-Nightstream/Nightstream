@@ -1,12 +1,3 @@
-//! Captures candidate entry bytes from live memory and recovers declared inputs.
-//! Normalization owns turn selection and replay; snapshots never seed replay RAM.
-//!
-//! The reason we need this is that inputs don't have corresponding wasm
-//! instructions that we could trace, the memory is just written by the host and
-//! observed by the engine.
-//!
-//! Because of that, we need to use the binding/script/template information to look at the memory before execution and capture those values.
-
 use std::collections::BTreeMap;
 
 use wasmtime::{FrameHandle, StoreContextMut};
@@ -40,8 +31,6 @@ pub(super) fn capture_entry_memory<T>(
     if entry_pc.is_none() || entry_pc != row.pc.map(u64::from) {
         return;
     }
-    // A function with an export binding may also be called by another guest
-    // function. Keep capture errors on this candidate, not on the whole trace.
     row.entry_memory = Some(
         entry_memory_writes(template, &row.locals_words, row.memory_pages_before)
             .and_then(|writes| capture_bytes(&writes, frame, store))

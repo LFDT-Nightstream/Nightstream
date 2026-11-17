@@ -1,18 +1,8 @@
-//! Leaf readers that pull raw values and identities out of the live Wasmtime
-//! `Store` / `Instance` / `FrameHandle` and normalize them into the lanes the
-//! parent module records per step.
-//!
-//! Owns no trace-row assembly and no opcode classification — it only answers
-//! "what does memory / a global / a table / the operand stack hold right now,
-//! and what normalized funcref id does this value map to". Callers in the
-//! parent module and `normalize` decide what to do with the answers.
-
 use super::parse::ParsedFunctionMeta;
 use crate::ir::{StackValueAccess, WasmBuildError};
 use std::collections::BTreeMap;
 use wasmtime::{FrameHandle, StoreContextMut, Val};
 
-/// Build the raw-funcref to module-local function-id map for one instance.
 pub(super) fn build_debug_function_id_map<T: 'static>(
     instance: &wasmtime::Instance,
     mut store: impl wasmtime::AsContextMut<Data = T>,

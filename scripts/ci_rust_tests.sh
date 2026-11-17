@@ -3,8 +3,6 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-# xargs starts the groups in this order, so the four slowest come first. The
-# nightstream tests are split by name; the last of them runs the rest.
 groups=(
   '-p nightstream lifecycle::'
   '-p nightstream -- --skip lifecycle::'
@@ -23,7 +21,6 @@ groups=(
   '-p neo-wasm'
 )
 
-# Each of these needs up to 30 GB, so each runs alone after the groups.
 alone=(
   '-p nightstream --test compression -- --ignored'
   '-p nightstream --test compression_at_cap -- --ignored'
@@ -36,9 +33,6 @@ common=(
   --config profile.release.codegen-units=16
 )
 
-# The tests that run alone use the release profile of Cargo.toml, fat LTO,
-# which is the build that users run. Under fat LTO, Akita's NTT loops need
-# more stack than under `common`.
 shipped=(--release --locked)
 
 case "${1:-}" in
@@ -65,8 +59,6 @@ case "${1:-}" in
     read -r -a selected <<< "${2:?missing test group}"
     printf 'Running selected tests: %s\n' "$2"
     if [ "$1" = run ]; then flags=("${common[@]}"); else flags=("${shipped[@]}"); fi
-    # One libtest process per binary keeps its shared fixtures alive. The
-    # thread count is set by environment so a group can pass its own `--`.
     RUST_TEST_THREADS=1 exec cargo test "${flags[@]}" --no-fail-fast "${selected[@]}"
     ;;
   *)

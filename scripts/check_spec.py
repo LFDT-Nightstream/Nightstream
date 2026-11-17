@@ -42,8 +42,7 @@ SPEC = ROOT / "SPEC.md"
 FPRIME = ROOT / "formal/nightstream-fprime/NightstreamFPrime"
 BASES = [ROOT, FPRIME]
 ARTIFACTS = ROOT / "formal/nightstream-fprime/artifacts"
-# The bounded-depth packages of the reference application: the light and refresh step circuits
-# (`Export/BoundedDepth/EmitMain.lean`).
+# `Export/BoundedDepth/EmitMain.lean`
 PACKAGES = [(name, ARTIFACTS / f"nightstream-fprime-bounded-depth-{name}-v1.json")
             for name in ("light", "refresh")]
 PARITY = ARTIFACTS / "nightstream-fprime-bounded-depth-parity-v1.json"
@@ -53,8 +52,6 @@ BEGIN, END = "<!-- params -->", "<!-- /params -->"
 ENTRY_BEGIN, ENTRY_END = "<!-- entry-points -->", "<!-- /entry-points -->"
 PREMISES = ARTIFACTS / "nightstream-fprime-premises-v1.tsv"
 ENTRY_FUNCTION = re.compile(r"^\s*pub fn (verify\w*)\(", re.M)
-# The Markdown files whose names say "spec": the protocol specification and the scope of a
-# profiling tool.
 SPEC_FILES = {"SPEC.md", "scripts/gpuscope/SPEC.md"}
 OLD_CITATION = re.compile(r"[Ss]pec §")
 
@@ -74,7 +71,6 @@ THEOREMS = [
     (FPRIME / "Spec/Folding/Schedule.lean", "production_msisChainBound"),
 ]
 
-# Lean definitions whose value is a number or a power `base ^ exponent`.
 DEFINITIONS = [
     (FPRIME / "Spec/Folding/Schedule.lean", "productionLightFoldCap"),
     (FPRIME / "Export/BoundedDepth/StepRelation.lean", "keyWidth"),
@@ -82,8 +78,6 @@ DEFINITIONS = [
     (FPRIME / "Spec/Nebula/SegmentGate.lean", "gateBits"),
 ]
 
-# Each value's symbol and meaning. A key is the left side of a theorem's equation or a field
-# path of the package header. `over_q2` shows the value as a probability `value / q^2`.
 LABELS = {
     "productionProfile.global.q": ("q", "The field modulus, `2^64 − 59`."),
     "productionProfile.global.b": ("b", "The decomposition base and the fresh norm bound."),
@@ -114,8 +108,6 @@ LABELS = {
     "secureTuples": ("—", "The bound of section 7.1, rule 6 on `m_mem = R + M + N · B_ops`."),
     "gateBits": ("—", "The bits that the memory gate certifies for all segments of each fixed WASM size (section 7.1)."),
 }
-# The header fields of a step package (`StepPackage.Package.format`) and the row counts of the
-# parity file, for each circuit.
 HEADER_LABELS = {
     "circuit": "The circuit index: 0 light, 1 refresh.",
     "publicColumns": "The public input columns, five ring elements.",

@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Make the Akita schedule files of crates/ns-compress/artifacts with the
-# planner of Akita (crates/akita-planner), at the Akita revision of
-# crates/ns-compress/Cargo.toml.
-#
-#   scripts/akita_schedules.sh <Akita checkout at that revision>
-#
-# Each file holds the rows of the family fp64_dense_recursive that open the
-# key polynomial, W and V in one proof, for one size of the key polynomial.
-# The planner is deterministic. The script prints the SHA-256 of each file,
-# which crates/ns-compress/tests/unit/akita.rs pins. One run takes about
-# six minutes.
 set -euo pipefail
 
 akita="${1:?usage: $0 <Akita checkout>}"
@@ -22,7 +11,6 @@ if [ "$(git -C "$akita" rev-parse HEAD)" != "$revision" ]; then
 fi
 out="$(mktemp -d)"
 
-# plan <file> <variables of V> <variables of the key polynomial> <variables of W>
 plan() {
   (cd "$akita" && cargo run --release -p akita-planner --features catalog-gen \
     --bin gen_schedule_artifacts -- "$out/$1" \

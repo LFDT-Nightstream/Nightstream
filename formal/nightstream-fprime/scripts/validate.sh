@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Validation enforces the project cap and reports every requested target.
 #   validate.sh static            boundary checks (no Lean)
 #   validate.sh build [target...] lake build (default: the production library)
 #   validate.sh axioms            lake build NightstreamFPrimeTests
@@ -66,7 +65,7 @@ case "$phase" in
     capped lake build --wfail "$@"
     ;;
   axioms)
-    # Lake does not track the documents that the census reads; rerun it.
+    # Lake does not track the documents that the census reads.
     capped lake build --wfail NightstreamFPrimeTests && lean_file tests/EndpointCensus.lean
     ;;
   executables)

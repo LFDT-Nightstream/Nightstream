@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-# Profile a test and output text-based analysis for AI review
-# Usage: ./scripts/profile_for_ai.sh <package> <test_file> <test_function> [--ignored] [--features <csv>]
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -66,7 +63,6 @@ if ! command -v jq &> /dev/null; then
   exit 1
 fi
 
-# Ensure frame pointers for `sample(1)` while preserving any caller-provided RUSTFLAGS.
 RUSTFLAGS_COMBINED="${RUSTFLAGS:-}"
 if [ -n "$RUSTFLAGS_COMBINED" ]; then
   RUSTFLAGS_COMBINED="$RUSTFLAGS_COMBINED "

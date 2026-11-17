@@ -1,29 +1,11 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-# Profile a Rust test using Apple Instruments (xctrace) and export symbolicated results
-#
-# Usage: ./scripts/profile_xctrace.sh <package> <test_file> <test_function> [--ignored] [--template <name>] [--instrument <name>] [--features <csv>] [--time-limit <N|Nms|Ns|Nm|Nh>]
-#
-# Templates (run `xcrun xctrace list templates` for full list):
-#   Time Profiler (default), Metal System Trace, Allocations, Leaks, etc.
-#
-# Output:
-#   - profile-xctrace.trace     : Open with `open profile-xctrace.trace` for Instruments GUI
-#   - profile-xctrace.txt       : Symbolicated CPU report, or capture summary for non-CPU templates
-#
-# Requirements:
-#   - Full Xcode with its license accepted (xcrun xctrace)
-#   - Metal Toolchain component when the target builds Metal shaders
-#   - jq (brew install jq)
-#   - Python 3
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_ROOT"
 
-# Instruments and Metal are full-Xcode tools. Respect an explicit selection,
-# otherwise avoid inheriting a system-wide CommandLineTools selection.
+# Instruments and the Metal toolchain need full Xcode, not the CommandLineTools.
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}"
 if [ ! -d "$DEVELOPER_DIR" ]; then
   echo "❌ Full Xcode was not found at '$DEVELOPER_DIR'."
@@ -178,8 +160,6 @@ for instrument in "${INSTRUMENTS[@]}"; do
   INSTRUMENT_ARGS+=(--instrument "$instrument")
 done
 
-# xctrace may return non-zero even after producing a valid trace
-# (e.g. target killed at time limit). Continue if output trace exists.
 set +e
 xcrun xctrace record --template "$TEMPLATE" \
   "${INSTRUMENT_ARGS[@]}" \

@@ -323,8 +323,7 @@ def add_kernel_attribution(row, phases, owner_label, kernel):
 
 
 def add_copy_attribution(row, copy):
-    # Nsight's ENUM_CUDA_MEMCPY_OPER uses 8 for ordinary device-to-device
-    # copies. Older traces used 3, so accept both spellings here.
+    # Nsight ENUM_CUDA_MEMCPY_OPER: device-to-device is 8, and 3 in older traces.
     prefix = {
         1: "h2d",
         2: "d2h",

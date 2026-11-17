@@ -1,13 +1,7 @@
 #!/usr/bin/env bash
-# Mechanical enforcement of the architecture boundaries in AGENTS.md. Every
-# check is a hard failure.
-#   check-boundaries.sh [package-dir]
-# With no argument, it checks F′. Another package gets only the
-# package-wide checks. The layer,
-# matrix and consumer rules belong to F′.
 set -euo pipefail
 
-# Associative arrays require Bash 4. macOS ships Bash 3.2; use Homebrew when present.
+# Associative arrays need Bash 4, and macOS ships Bash 3.2.
 if (( BASH_VERSINFO[0] < 4 )); then
   for boundary_shell in /opt/homebrew/bin/bash /usr/local/bin/bash; do
     if [[ -x "$boundary_shell" ]] && "$boundary_shell" -c '(( BASH_VERSINFO[0] >= 4 ))'; then
@@ -19,8 +13,6 @@ if (( BASH_VERSINFO[0] < 4 )); then
 fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-# Resolve the argument from the caller's directory and compare physical
-# paths, so that every spelling of the F′ path selects the F′ checks.
 package="$(cd "${1:-$ROOT}" && pwd -P)"
 cd "$package"
 status=0
@@ -37,15 +29,11 @@ fi
 if lean_files | xargs grep -nE 'native_decide|ofReduceBool|\+native\b|\bnative\s*:=\s*true\b' 2>/dev/null; then
   fail "native_decide / decide +native / ofReduceBool is prohibited"
 fi
-# The end of a doc comment, `set_option … in`, `open … in`, a doc comment,
-# attributes and modifiers can come before `axiom` or `unsafe` on its line.
-# A comment that only names the word passes.
 if lean_files | xargs grep -nE '^\s*(-/\s*)?((set_option\s+\S+\s+\S+|open(\s+\S+)+)\s+in\s+)*(/--.*-/\s*)?(@\[.*\]\s*)?((private|protected|public|noncomputable|unsafe)\s+)*(axiom|unsafe)\b|\bsorry\b|\badmit\b' 2>/dev/null; then
   fail "sorry / admit / axiom / unsafe is prohibited"
 fi
 
-# Read all of find's output. A `grep -q` reader can exit first; under
-# pipefail, the writer's SIGPIPE then turns a match into a pass.
+# Not `| grep -q`: under pipefail, the SIGPIPE of find turns a match into a pass.
 if [[ -n "$(find . -path ./.lake -prune -o -type d -iname generated -print)" ]]; then
   fail "Generated/ directories are prohibited inside the proof library"
 fi
@@ -73,9 +61,7 @@ if lean_files | xargs grep -niE 'radix.?four|radix4|k_?rho.*14|kRho.*14|\bb := 4
   fail "alternate-profile surface found"
 fi
 
-# 9. Every source module must be reachable from one declared library or
-# executable root. An unimported file is not checked by `lake build` and
-# cannot provide assurance evidence.
+# `lake build` checks only the modules that a root imports.
 declare -A module_path=()
 declare -A reachable=()
 queue=()
@@ -85,9 +71,7 @@ while IFS= read -r file; do
   module_path["$module"]="$file"
 done < <(lean_files)
 
-# The modules that a file imports: the `import` tokens of its header, up to the
-# first other token. Comments are removed first, and block comments nest, so a
-# comment that holds an `import` line imports nothing.
+# Lean block comments nest.
 imports_of() {
   awk '
     {
@@ -123,7 +107,6 @@ done < <(awk '
       line = substr(line, RSTART + RLENGTH)
     }
   }
-  # A `roots` array may continue on later lines until its closing bracket.
   /^(root|roots)[[:space:]]*=/ { names($0); open = ($0 ~ /\[/ && $0 !~ /\]/); next }
   open { names($0); if ($0 ~ /\]/) open = 0 }
 ' lakefile.toml)

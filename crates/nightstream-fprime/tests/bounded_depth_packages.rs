@@ -74,8 +74,8 @@ fn relation_rows_match_the_lean_checksum() {
     let fields = parity();
     let packages = packages();
     for (package, summary) in [(packages.light(), &fields[1]), (packages.refresh(), &fields[2])] {
-        let [ordinary, sbox, checksum, _, _, _] = words(summary)[..] else {
-            panic!("a summary has six words");
+        let [ordinary, sbox, checksum, _, _, _, _, _] = words(summary)[..] else {
+            panic!("a summary has eight words");
         };
         let rows = package.plan_rows().expect("plan rows");
         let circuit = package.circuit();
@@ -94,6 +94,57 @@ fn relation_rows_match_the_lean_checksum() {
             checksum,
             "relation-row checksum of circuit {circuit}"
         );
+    }
+}
+
+/// Lean `RowsParity.mix`.
+fn mix(unit: u64, column: u64) -> Fq {
+    let point = Fq::from_u64(unit * 16_777_259 + column + 1);
+    point * point * point + Fq::from_u64(unit)
+}
+
+/// `Relation::new` gives `FactoredRows` the package's plan rows and the spans
+/// of its layout. These rows have the dense matrices of Lean's model
+/// `FinalRows.packageRows`: both have the package's logical width, and both
+/// give the checksum `RowsParity.denseSum`. A source column's weight is the
+/// weights `mix(2, x)` of its span's cells, recomposed with the ratio
+/// (Lean `RowsParity.columnWeight`), and port `4 · row + matrix` has the
+/// weight `mix(4 · row + matrix, 1)`.
+#[test]
+fn factored_rows_match_the_lean_dense_checksum() {
+    let fields = parity();
+    let packages = packages();
+    for (package, summary) in [(packages.light(), &fields[1]), (packages.refresh(), &fields[2])] {
+        let [.., width, dense] = words(summary)[..] else {
+            panic!("a summary has eight words");
+        };
+        let circuit = package.circuit();
+        let rows = package.plan_rows().expect("plan rows");
+        let layout = package.layout().expect("layout");
+        assert_eq!(layout.width() as u64, width, "logical width of circuit {circuit}");
+        let spans = layout.spans();
+        let column_weight: Vec<Fq> = spans
+            .starts
+            .iter()
+            .zip(&spans.widths)
+            .map(|(&start, &count)| {
+                (0..u64::from(count)).rev().fold(Fq::ZERO, |sum, digit| {
+                    sum * spans.ratio + mix(2, u64::from(start) + digit)
+                })
+            })
+            .collect();
+        let (offsets, columns, coefficients) = (rows.offsets(), rows.columns(), rows.coefficients());
+        let mut total = Fq::ZERO;
+        for unit in 0..offsets.len() - 1 {
+            let port = (offsets[unit]..offsets[unit + 1]).fold(Fq::ZERO, |sum, index| {
+                let weight = column_weight
+                    .get(columns[index] as usize)
+                    .expect("each entry reads a source column with a span");
+                sum + coefficients[index] * *weight
+            });
+            total += mix(unit as u64, 1) * port;
+        }
+        assert_eq!(total.as_canonical_u64(), dense, "dense checksum of circuit {circuit}");
     }
 }
 

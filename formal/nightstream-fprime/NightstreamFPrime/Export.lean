@@ -25,6 +25,7 @@ import NightstreamFPrime.Export.Generic.RelationFits
 import NightstreamFPrime.Export.Generic.PlanPush
 import NightstreamFPrime.Export.Generic.PackageRows
 import NightstreamFPrime.Export.BoundedDepth.FinalRows
+import NightstreamFPrime.Export.BoundedDepth.RowsParity
 import NightstreamFPrime.Export.Stage1.Rows
 import NightstreamFPrime.Export.Stage1.Invocations
 import NightstreamFPrime.Export.Stage1.PiCCSInvocations

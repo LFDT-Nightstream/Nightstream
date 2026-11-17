@@ -58,7 +58,7 @@ private theorem width_pos {sourceWidth : Nat} (slot : LowNormAssignment.Slot sou
   cases slot.kind <;> decide
 
 /-- A span ends at or before the package's logical width. -/
-private theorem span_le (slots : List (LowNormAssignment.Slot width)) (column : Nat) :
+theorem span_le (slots : List (LowNormAssignment.Slot width)) (column : Nat) :
     spanStart slots column + spanWidth slots column ≤
       ProductionAssignment.logicalWidth slots := by
   have publicEq : publicCount = 320 := rfl

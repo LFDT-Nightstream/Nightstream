@@ -160,7 +160,9 @@ private def PlanAgrees (layout : Layout width logicalWidth) (plan : Plan logical
     ∀ (row : Fin plan.rowCount) (row' : Fin source.rowCount), row.val = row'.val →
       ∀ port, Agrees layout (plan.forms row port) (source.forms row' port)
 
-private theorem ordinary_forms (layout : Layout width logicalWidth) (rows : List R1CS.Row)
+/-- Row `row` of the ordinary plan through `layout` has the forms of the R1CS row through
+`layout`. -/
+theorem ordinary_forms (layout : Layout width logicalWidth) (rows : List R1CS.Row)
     (fits : LogicalPlan.Fits rows width) (row : Nat) (below : row < rows.length)
     (port : Fin Spec.ProductionRelation.meaningfulPortCount) :
     (LogicalPlan.plan rows width fits layout).forms ⟨row, below⟩ port =

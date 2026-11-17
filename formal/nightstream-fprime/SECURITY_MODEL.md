@@ -202,7 +202,7 @@ each head.
 | `columns`, `rows` | `LE.le` | lean | `Claims.Compression.production_sound` |
 | `statement.*`, `constantLaw.*` | `*` | game | adversary 6: the statement of the Π_CCS run and the law of its constant |
 | `params.rlc_bound`, `freshBound`, `degreeCovers` | `*` | lean | `Claims.Final.verifier_sound` uses the Π_CCS run at the production parameters and takes none of these |
-| `Final/rows` | `Eq` | open | Open: Rust builds the factored rows of each circuit from its package (`Relation::new`). Lean's model of them is `Export.BoundedDepth.FinalRows.packageRows`, which represents each circuit's relation (`Export.Generic.PackageRows.rows_represents`). The test `relation_rows_match_the_lean_checksum` compares the relation rows by a checksum. No test compares the S-box rows or the spans (trust item 7) |
+| `Final/rows` | `Eq` | link | `Relation::new` gives `FactoredRows` the package's plan rows and the spans of its layout (`crates/nightstream/src/lifecycle/bounded_depth/relation.rs`). Lean emits the logical width and a checksum of the dense matrices of its model `Export.BoundedDepth.FinalRows.packageRows` for both packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`), and `Export.BoundedDepth.RowsParity.fastSum_eq` proves that the emitted value is that checksum. The test `factored_rows_match_the_lean_dense_checksum` computes the same checksum from Rust's plan rows and spans. A checksum is evidence, not a proof, and the test covers only the reference application |
 | `depthBound` | `LE.le` | game | adversary 4: the result bounds the error over the stages below a bound `depth` on the iteration of the adversary's statements, so `depth` is a parameter of the adversary class, and the error grows with it. The final-proof results of adversary 6 take the same parameter |
 | `Encodings/same`, `Encodings/equal`, `Encodings/different` | `*` | game | `SPEC.md` section 4: the event of each encoding claim is two inputs with one digest or one block list |
 | `Encodings/leftWell.*`, `Encodings/rightWell.*` | `*` | game | `SPEC.md` section 4.2: the two states are well formed |
@@ -1044,8 +1044,10 @@ not change terminal source checks.
      rows represent the circuit's relation
      (`Export.Generic.PackageRows.rows_represents`). The premise `rows` of
      the final claims is that Rust builds rows with the same dense matrices.
-     The test `relation_rows_match_the_lean_checksum` compares the relation
-     rows by a checksum, and no test compares the S-box rows or the spans.
+     Lean emits a checksum of the model's dense matrices
+     (`Export.BoundedDepth.RowsParity.fastSum_eq`), and the test
+     `factored_rows_match_the_lean_dense_checksum` computes it from Rust's
+     plan rows and spans for both packages of the reference application.
      It also
      needs that Rust gives each slot claim to the argument with the values
      of `Lifecycle.BoundedDepth.CompressionSlot.claimValues`, which no check

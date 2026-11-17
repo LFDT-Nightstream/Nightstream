@@ -14,11 +14,13 @@ The results for the full path of a compressed proof (`SPEC.md` Algorithm 10 and 
   `_with_akita`.
 - The game takes the layout of the Lean model of Rust `Layout::new`
   (`Export.BoundedDepth.FinalVerifier.Setup.Laid`).
-- The dense rows of the setup are Lean's model of Rust `FactoredRows`
-  (`Export.BoundedDepth.FinalRows.packageRows`, the premise `rows`), so
-  `Export.BoundedDepth.FinalVerifier.Premises` holds (`Export.BoundedDepth.FinalRows.premises_of_rows`).
-- Open: the premise `rows`, and each open premise of `Claims.Ivc` and `Claims.Nebula`. The error
-  is not one security level. -/
+- Link: the premise `rows` says that the dense rows of the setup are Lean's model of Rust
+  `FactoredRows` (`Export.BoundedDepth.FinalRows.packageRows`). Then
+  `Export.BoundedDepth.FinalVerifier.Premises` holds
+  (`Export.BoundedDepth.FinalRows.premises_of_rows`). A Rust test compares a checksum of these
+  rows with Lean's (`Export.BoundedDepth.RowsParity.fastSum_eq`).
+- Open: each open premise of `Claims.Ivc` and `Claims.Nebula`. The error is not one security
+  level. -/
 
 namespace NightstreamFPrime.Claims.Final
 

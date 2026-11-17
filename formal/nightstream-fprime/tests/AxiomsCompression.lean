@@ -7,6 +7,7 @@ import NightstreamFPrime.Export.BoundedDepth.FinalHistory
 import NightstreamFPrime.Export.BoundedDepth.NebulaFinal
 import NightstreamFPrime.Export.Generic.PackageRows
 import NightstreamFPrime.Export.BoundedDepth.FinalRows
+import NightstreamFPrime.Export.BoundedDepth.RowsParity
 
 /-! Axiom audits for the compression argument over Akita (`Spec/Compression`). -/
 
@@ -309,9 +310,23 @@ import NightstreamFPrime.Export.BoundedDepth.FinalRows
 #audit_axioms NightstreamFPrime.Export.Generic.PlanPush.push_coefficient
 #audit_axioms NightstreamFPrime.Export.Generic.PlanPush.plan_rowCount
 #audit_axioms NightstreamFPrime.Export.Generic.PlanPush.plan_coefficient
+#audit_axioms NightstreamFPrime.Export.Generic.PlanPush.ordinary_forms
+#audit_axioms NightstreamFPrime.Export.Generic.PackageRows.span_le
 #audit_axioms NightstreamFPrime.Export.Generic.PackageRows.form_coefficient
 #audit_axioms NightstreamFPrime.Export.Generic.PackageRows.rows_support
 #audit_axioms NightstreamFPrime.Export.Generic.PackageRows.rows_represents
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalRows.premises_of_rows
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalRows.soundness
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalRows.real_soundness
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.eval_entries
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.denseSum_rows
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.planSum_append
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.sum_zipIdx
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.planSum_ordinary
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.valueCompile_eval
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.valueCompile_eval.agrees
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.planSum_family
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.recompose_eq
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.weightAt_eq
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.denseFast_eq
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.fastSum_eq

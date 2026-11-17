@@ -10,6 +10,8 @@ Accepted by the owner on 2026-11-16 (Version B):
   instance. The Akita key holds the light relation only.
 - The generic circuits, such as the Poseidon2 hash chain, keep the refresh
   fold and the three claims.
+- Each memory circuit whose proofs have at most 65 steps, `N · S_max ≤ 65`,
+  gets the two-claim proof, not only the WASM sizes.
 - A second memory fingerprint, for longer proofs, is a separate change.
 - An empty refresh step is necessary only for proofs of more than about
   45,000 instructions.

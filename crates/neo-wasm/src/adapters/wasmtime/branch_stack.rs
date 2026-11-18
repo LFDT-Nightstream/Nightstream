@@ -6,6 +6,11 @@ use wasmparser::{
 
 pub(super) type FrameSlideEdges = Vec<(u64, u32, u32)>;
 
+pub(super) struct OperatorStack {
+    pub(super) height: u32,
+    pub(super) slides: FrameSlideEdges,
+}
+
 fn canonical_slide(kept: u32, distance: u32) -> (u32, u32) {
     if distance == 0 {
         (0, 0)
@@ -66,9 +71,9 @@ fn narrow(value: usize, offset: usize) -> Result<u32, WasmProgramError> {
     u32::try_from(value).map_err(|_| WasmProgramError::Unsupported(format!("frame slide too large at byte {offset}")))
 }
 
-pub(super) fn frame_slides_by_offset(bytes: &[u8]) -> Result<BTreeMap<u32, FrameSlideEdges>, WasmProgramError> {
+pub(super) fn operator_stacks_by_offset(bytes: &[u8]) -> Result<BTreeMap<u32, OperatorStack>, WasmProgramError> {
     let invalid = |error| WasmProgramError::Invalid(format!("invalid wasm program: {error}"));
-    let mut slides = BTreeMap::new();
+    let mut stacks = BTreeMap::new();
     let mut validator = Validator::new();
     let mut allocations = Default::default();
     for payload in Parser::new(0).parse_all(bytes) {
@@ -124,9 +129,13 @@ pub(super) fn frame_slides_by_offset(bytes: &[u8]) -> Result<BTreeMap<u32, Frame
                     }
                     _ => vec![],
                 };
-                if !edges.is_empty() {
-                    slides.insert(narrow(offset, offset)?, edges);
-                }
+                stacks.insert(
+                    narrow(offset, offset)?,
+                    OperatorStack {
+                        height: narrow(height, offset)?,
+                        slides: edges,
+                    },
+                );
                 function.op(offset, &operator).map_err(invalid)?;
             }
             let end_offset = operators.original_position();
@@ -137,5 +146,5 @@ pub(super) fn frame_slides_by_offset(bytes: &[u8]) -> Result<BTreeMap<u32, Frame
             allocations = function.into_allocations();
         }
     }
-    Ok(slides)
+    Ok(stacks)
 }

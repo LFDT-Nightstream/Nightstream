@@ -1,4 +1,4 @@
-use super::branch_stack::FrameSlideEdges;
+use super::branch_stack::OperatorStack;
 use super::decode::{
     checked_funcref_id, decode_control_opcode, decode_memory_opcode, decode_opcode, funcref_id, ControlFrame,
     ControlFrameKind, DecodedOpcode, NULL_FUNCREF,
@@ -138,7 +138,7 @@ pub(crate) struct ParsedFunctionMeta {
 
 pub(super) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtifacts, WasmProgramError> {
     let mut builder = ParsedWasmArtifactsBuilder {
-        slides_by_offset: super::branch_stack::frame_slides_by_offset(wasm_bytes)?,
+        stacks_by_offset: super::branch_stack::operator_stacks_by_offset(wasm_bytes)?,
         ..Default::default()
     };
     for payload in Parser::new(0).parse_all(wasm_bytes) {
@@ -196,7 +196,7 @@ pub(super) fn single_component_core_module(bytes: &[u8]) -> Result<&[u8], WasmPr
 struct ParsedWasmArtifactsBuilder {
     opcode_map: BTreeMap<(u32, u32), DecodedOpcode>,
     pc_rom: Vec<(u64, u64, u64)>,
-    slides_by_offset: BTreeMap<u32, FrameSlideEdges>,
+    stacks_by_offset: BTreeMap<u32, OperatorStack>,
     frame_slides: Vec<(u64, u64, u32, u32)>,
     program_decode: Vec<WasmProgramDecodeEntry>,
     pc_edge_kinds: Vec<(u64, u64)>,
@@ -228,7 +228,7 @@ impl Default for ParsedWasmArtifactsBuilder {
         Self {
             opcode_map: BTreeMap::new(),
             pc_rom: Vec::new(),
-            slides_by_offset: BTreeMap::new(),
+            stacks_by_offset: BTreeMap::new(),
             frame_slides: Vec::new(),
             program_decode: Vec::new(),
             pc_edge_kinds: Vec::new(),
@@ -782,9 +782,12 @@ impl ParsedWasmArtifactsBuilder {
                             .push((resolve_pc, u64::from(WasmPcEdgeKind::Static.as_u32())));
                         self.push_pc_rom_edge(resolve_pc, 0, pc_before);
                     }
-                    let frame_slides = self.slides_by_offset.remove(&offset).unwrap_or_default();
+                    let stack = self.stacks_by_offset.remove(&offset).ok_or_else(|| {
+                        WasmProgramError::Invalid(format!("missing operand stack height at byte {offset}"))
+                    })?;
                     self.frame_slides.extend(
-                        frame_slides
+                        stack
+                            .slides
                             .iter()
                             .map(|&(choice, remaining, distance)| (pc_before, choice, remaining, distance)),
                     );
@@ -799,7 +802,8 @@ impl ParsedWasmArtifactsBuilder {
                             pc_edge_kind,
                             expected_type_id,
                             pc_after_instruction: pc_after,
-                            frame_slides,
+                            operand_height: stack.height,
+                            frame_slides: stack.slides,
                         },
                     );
 

@@ -339,10 +339,23 @@ pub(crate) fn capture_frame<T>(
     let num_stacks = frame
         .num_stacks(&mut *store)
         .map_err(|err| WasmBuildError::Trace(format!("failed to inspect Wasmtime operand stack length: {err}")))?;
+    // Wasmtime's view of a then branch can keep the else copy of the `if`
+    // parameters below the values of the branch.
+    let stack_start = match decoded_opcode.as_ref() {
+        Some(decoded) => num_stacks
+            .checked_sub(decoded.operand_height)
+            .ok_or_else(|| {
+                WasmBuildError::Trace(format!(
+                    "Wasmtime shows {num_stacks} operand values at step {step}, fewer than the validated height {}",
+                    decoded.operand_height
+                ))
+            })?,
+        None => 0,
+    };
     let mut operand_stack = Vec::with_capacity(num_stacks as usize);
     let mut operand_stack_words = Vec::with_capacity(num_stacks as usize);
     let mut operand_stack_words_hi = Vec::with_capacity(num_stacks as usize);
-    for index in 0..num_stacks {
+    for index in stack_start..num_stacks {
         let value = frame.stack(&mut *store, index).map_err(|err| {
             WasmBuildError::Trace(format!("failed to inspect Wasmtime operand stack value {index}: {err}"))
         })?;

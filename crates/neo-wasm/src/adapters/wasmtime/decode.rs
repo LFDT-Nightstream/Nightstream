@@ -21,6 +21,7 @@ pub(crate) struct DecodedOpcode {
     pub(crate) pc_edge_kind: WasmPcEdgeKind,
     pub(crate) expected_type_id: Option<u32>,
     pub(crate) pc_after_instruction: u64,
+    pub(crate) operand_height: u32,
     pub(crate) frame_slides: super::branch_stack::FrameSlideEdges,
 }
 

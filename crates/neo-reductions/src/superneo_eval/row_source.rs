@@ -8,6 +8,7 @@ use p3_field::PrimeField64;
 use std::{
     collections::{hash_map::DefaultHasher, HashMap},
     hash::{Hash, Hasher},
+    sync::OnceLock,
 };
 
 pub struct SuperneoEvalCacheBuilder {
@@ -46,6 +47,7 @@ impl SuperneoEvalCacheBuilder {
                 geometric_row_offsets: RowOffsetStore::Empty,
                 geometric_runs: Vec::new(),
                 identity: false,
+                part_plan: OnceLock::new(),
             })
             .collect();
         let explicit_matrix_masks = if matrices <= u16::BITS as usize {

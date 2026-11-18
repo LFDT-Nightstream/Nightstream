@@ -37,7 +37,7 @@ open NightstreamFPrime.Export.BoundedDepth.FinalVerifier
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
-  (setup : Setup logicalWidth publicFits)
+  {mode : Mode} (setup : Setup mode logicalWidth publicFits)
 
 /-- The IVC adversary's output for a result: an accepted statement with the proof from `W`, and
 otherwise the bottom proof of `(0, [], [])`. -/

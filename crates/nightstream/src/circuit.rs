@@ -437,6 +437,13 @@ impl Prover {
         )?))
     }
 
+    pub(crate) fn with_compression(self, compression: lifecycle::Compression) -> Self {
+        Self {
+            lifecycle: self.lifecycle.with_compression(compression),
+            ..self
+        }
+    }
+
     pub(crate) fn initial(&self, z0: [F; 4]) -> Result<Proof, Error> {
         Ok(Proof(self.lifecycle.initial(z0)?))
     }
@@ -504,6 +511,12 @@ pub struct Verifier {
 }
 
 impl Verifier {
+    pub(crate) fn with_compression(self, compression: lifecycle::Compression) -> Self {
+        Self {
+            lifecycle: self.lifecycle.with_compression(compression),
+        }
+    }
+
     /// Decode untrusted proof bytes; the relations fix the exact length,
     /// which is checked before allocation. Acceptance still needs `verify`.
     pub fn decode_proof(&self, bytes: &[u8]) -> Result<Proof, Error> {

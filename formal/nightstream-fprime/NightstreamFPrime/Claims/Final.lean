@@ -12,6 +12,9 @@ The results for the full path of a compressed proof (`SPEC.md` Algorithm 10 and 
   `memory_sound_with_akita` is the theorem of the memory `verify_final`.
 - Assumptions: `[HN-A1]` for the history, and `[AKITA]` for each claim that ends in
   `_with_akita`.
+- Mode: each claim holds for each mode of the verifier's circuit
+  (`Export.BoundedDepth.FinalVerifier.Mode`): the argument has both slot claims, or only the claim
+  of slot 0 (the light mode of `SPEC.md` Algorithm 9).
 - The game takes the layout of the Lean model of Rust `Layout::new`
   (`Export.BoundedDepth.FinalVerifier.Setup.Laid`).
 - Link: the premise `rows` says that the dense rows of the setup are Lean's model of Rust
@@ -40,7 +43,8 @@ theorem verifier_sound
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
         Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
-    (setup : FinalVerifier.Setup logicalWidth publicFits)
+    {mode : FinalVerifier.Mode}
+    (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     (step : AppState → AppWitness → AppState)
     (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
@@ -63,7 +67,8 @@ theorem verifier_sound_with_akita
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
         Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
-    (setup : FinalVerifier.Setup logicalWidth publicFits)
+    {mode : FinalVerifier.Mode}
+    (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     (step : AppState → AppWitness → AppState)
     (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
@@ -91,7 +96,8 @@ theorem history_sound
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
         Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
-    (setup : FinalVerifier.Setup logicalWidth publicFits)
+    {mode : FinalVerifier.Mode}
+    (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {step : AppState → AppWitness → AppState}
     {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
@@ -127,7 +133,7 @@ theorem history_sound
         (↑q : ℝ) * FinalVerifier.finalError +
           IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed
             (FinalHistory.adversary setup s q) admitted depth :=
-  @Export.BoundedDepth.FinalHistory.soundness logicalWidth publicFits setup relation step cubeFits
+  @Export.BoundedDepth.FinalHistory.soundness logicalWidth publicFits mode setup relation step cubeFits
     exports Admitted StageAdmitted Efficient error assumption closed s q admitted complete
     rows keysShaped depth depthBound
 
@@ -140,7 +146,8 @@ theorem history_sound_with_akita
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
         Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
-    (setup : FinalVerifier.Setup logicalWidth publicFits)
+    {mode : FinalVerifier.Mode}
+    (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {step : AppState → AppWitness → AppState}
     {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
@@ -180,7 +187,7 @@ theorem history_sound_with_akita
     history ≤ (↑q : ℝ) * FinalVerifier.finalError + εAkita +
         IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed
           (FinalHistory.adversary setup s q) admitted depth :=
-  @Export.BoundedDepth.FinalHistory.real_soundness logicalWidth publicFits setup relation step
+  @Export.BoundedDepth.FinalHistory.real_soundness logicalWidth publicFits mode setup relation step
     cubeFits exports Admitted StageAdmitted Efficient error assumption closed s q admitted
     complete rows keysShaped depth depthBound history εAkita akita
 
@@ -196,7 +203,8 @@ theorem memory_sound
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
         Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
-    (setup : FinalVerifier.Setup logicalWidth publicFits)
+    {mode : FinalVerifier.Mode}
+    (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     {p : Nebula.Plan}
     (app : Nebula.PortApp p.toGeometry)
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
@@ -293,7 +301,7 @@ theorem memory_sound
               (NebulaFinal.claimed setup app exports (Admitted := Admitted) (StageAdmitted :=
                 StageAdmitted) (Efficient := Efficient) assumption closed s q claim admitted
                 (p.sMax * p.n))) :=
-  @Export.BoundedDepth.NebulaFinal.soundness logicalWidth publicFits setup p app relation step
+  @Export.BoundedDepth.NebulaFinal.soundness logicalWidth publicFits mode setup p app relation step
     cubeFits exports Admitted StageAdmitted Efficient error assumption closed s q claim admitted
     complete rows valid keysShaped programEq memoryError round
 
@@ -306,7 +314,8 @@ theorem memory_sound_with_akita
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
         Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
-    (setup : FinalVerifier.Setup logicalWidth publicFits)
+    {mode : FinalVerifier.Mode}
+    (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     {p : Nebula.Plan}
     (app : Nebula.PortApp p.toGeometry)
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
@@ -410,7 +419,7 @@ theorem memory_sound_with_akita
               (NebulaFinal.claimed setup app exports (Admitted := Admitted) (StageAdmitted :=
                 StageAdmitted) (Efficient := Efficient) assumption closed s q claim admitted
                 (p.sMax * p.n))) :=
-  @Export.BoundedDepth.NebulaFinal.real_soundness logicalWidth publicFits setup p app relation
+  @Export.BoundedDepth.NebulaFinal.real_soundness logicalWidth publicFits mode setup p app relation
     step cubeFits exports Admitted StageAdmitted Efficient error assumption closed s q claim
     admitted complete rows valid keysShaped programEq memoryError round
     memory εAkita akita

@@ -28,7 +28,9 @@ The terminal relation, the reverse extractor and the completeness of a run
 - Capacity: for the emitted packages, `Export.BoundedDepth.EmittedPackages.Facts.exports` builds
   `exports` from the capacity of the application (`Export.BoundedDepth.EmittedPackages.Facts`,
   SPEC.md section 4.4), which the emitter checks.
-- Completeness: `run_complete` and `step_extends` conclude
+- Light mode: `light_run_complete` gives the honest proof of a run of at most `cap + 1` steps the
+  light circuit last and slot 1 at the default slot, the light mode of `SPEC.md` Algorithm 9.
+- Completeness: `run_complete`, `light_run_complete` and `step_extends` conclude
   `Export.BoundedDepth.RunCompleteness.Verifies` and
   `Export.BoundedDepth.RunCompleteness.FreshZeroTail` for the honest proof. `Verifies` requires
   zeros only on the ring blocks of the fresh witness from its package width
@@ -286,6 +288,49 @@ theorem run_complete
   @Export.BoundedDepth.RunCompleteness.run_complete logicalWidth publicFits relation ajtai
     circuitKeys step cubeFits exports complete keysShaped cap control z0 z0Length witnesses validRun
     witnessLengths runBelow
+
+/-- Completeness of the light mode of the compressed proof (SPEC.md Algorithm 9): for every valid
+run of `n` steps of the application from `z0` with `1 ≤ n ≤ cap + 1`, whose witnesses have the
+application's witness length, the verifier of SPEC.md Algorithm 6 accepts the honest prover's
+recursive proof of the run's last state. That proof has the light circuit last, slot 1 at the
+default slot of depth 0 and slot 0 at depth `n − 1`. Its fresh witness is zero on every cell from
+the width of its circuit's package (`RunCompleteness.FreshZeroTail`). -/
+theorem light_run_complete
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+        Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits}
+    {step : AppState → AppWitness → AppState}
+    {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+    (exports : TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
+    (complete : StepExtend.Complete exports)
+    (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
+    (cap : ℕ)
+    (control : AppState → AppWitness → Fin 2)
+    (z0 : AppState)
+    (z0Length : List.length z0 = Stage1.Application.stateWordCount)
+    (witnesses : List AppWitness)
+    (validRun : IvcWalk.ValidFrom exports.program z0 witnesses)
+    (witnessLengths : ∀ witness ∈ witnesses, List.length witness = exports.program.witnessWordCount)
+    (positive : 0 < witnesses.length)
+    (short : witnesses.length ≤ Folding.Schedule.productionLightFoldCap + 1) :
+    ∃ (payload :
+        Paper.TerminalProof (SlotData logicalWidth publicFits)
+          (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
+          (StepFresh logicalWidth publicFits)
+          (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2),
+      RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth cap control
+          { iteration := witnesses.length, z0 := z0, zi := List.foldl step z0 witnesses }
+          (Paper.OuterTerminalProof.recursive payload) ∧
+        payload.pc = 1 ∧ payload.running 1 = (defaultSlot, 0) ∧
+        (payload.running 0).2 = witnesses.length - 1 ∧
+        RunCompleteness.FreshZeroTail complete.packageWidth
+          (Paper.OuterTerminalProof.recursive payload) :=
+  @Export.BoundedDepth.RunCompleteness.light_run_complete logicalWidth publicFits relation ajtai
+    circuitKeys step cubeFits exports complete keysShaped cap control z0 z0Length witnesses validRun
+    witnessLengths positive short
 
 /-- HyperNova Definition 11 (i) for the bounded-depth scheme: one valid step extends each proof
 that the verifier accepts to a recursive proof that the verifier accepts at the next iteration.

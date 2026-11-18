@@ -7,9 +7,8 @@
 The WASM relation commits each host-event block to the event chain with one
 width-12 Poseidon2 permutation (`neo_application::event_commitment`). A
 trace row of the relation is the same for every opcode, so a design that
-runs one permutation round on each row needs 19 full trace rows for each
-block. In the Starstream test transactions, these rows are more than half of
-all trace rows. Every row also pays for a gadget that it does not use.
+runs one permutation round on each row needs a full trace row for each
+round of each block. Every row also pays for a gadget that it does not use.
 
 ## SuperNeo
 
@@ -25,10 +24,11 @@ The host-event chain uses this design.
    block that is not advice folds the block into the chain on that row:
    `chain_after = commit_block(previous, [evbuf_before[0..7] | staged word])`.
    The row clears the buffer. There are no permutation rows.
-2. **Same digest.** The hash, the block layout, and the order of blocks do
-   not change, so the chain digest of a run is the digest of the earlier
-   design. `previous` is the chain before the row, or the restored outer chain
-   when the row also copies the last root lane of an opaque object.
+2. **The digest of the shared commitment.** The hash, the block layout, and
+   the order of blocks are those of `neo_application::event_commitment`, so
+   the chain digest of a run is the fold of its blocks with `commit_block`.
+   `previous` is the chain before the row, or the restored outer chain when
+   the row also copies the last root lane of an opaque object.
 3. **One shared gadget per group.** A multirow Nebula step uses one block
    for each group of at most eight consecutive rows, with a final short group
    when needed. Each absorbing row binds all 12 input lanes and four output

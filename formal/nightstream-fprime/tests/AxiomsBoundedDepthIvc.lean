@@ -590,6 +590,8 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaCompleteness.accepts_of_history
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaCompleteness.steps_lt
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaCompleteness.memory_complete
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaCompleteness.light_of_history
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaCompleteness.memory_light_complete
 
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.exprBelow_iff
 #audit_axioms NightstreamFPrime.Export.Generic.PieceRowsCompleteness.lanes_below
@@ -795,6 +797,8 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.Complete.lightReadsOwnColumns
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.Complete.refreshReadsOwnColumns
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.light_extend
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.defaultSlot_holds
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.defaultSlot_honest
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.StepExtend.refresh_extend
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.BaseFold.check_zero
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.BaseFold.zero_folds
@@ -804,4 +808,5 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RunCompleteness.verifies_recursive_iff
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RunCompleteness.verifies_step
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RunCompleteness.run_complete
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RunCompleteness.light_run_complete
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.VerifierSecurity.soundness

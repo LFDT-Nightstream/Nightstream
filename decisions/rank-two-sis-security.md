@@ -3,37 +3,41 @@
 ## Status
 
 Accepted.
-
-Superseded in part on 2026-11-13: [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) replaces `κ = 22` and the ring degree 54 of this record with `κ = 18` and degree 64, and it states the limit of the auxiliary maps for the new ring.
+[`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) gives the rank of
+the main commitment and states the limit of this record for the ring
+`X^64 + 1`.
 
 ## Problem
 
-The symbol `κ` is a module rank, not a security level. Long auxiliary SIS
-maps need an explicit width limit and a union bound over all collision targets.
-They must not be confused with the main SuperNeo witness commitment.
+The symbol `κ` is a module rank, not a security level. A long auxiliary SIS
+map needs an explicit width limit and a union bound over all collision
+targets. Such a map must not be confused with the main witness commitment,
+which has the rank `κ = 18`.
 
 ## SuperNeo
 
-The selected main commitment originally used `κ = 18`. The SuperNeo paper does not
-define a rank-two profile for Nightstream's auxiliary protocol-binding maps.
-See [Section 8.2](../docs/superneo-paper-v1_2/08_concrete_parameters.md) of SuperNeo v1.2.
+SuperNeo v1.2 does not define a rank-two profile for an auxiliary
+protocol-binding map.
 
 ## Decision
 
-The main witness commitment now uses `κ = 22` under the superseding
-[`fprime-stage1-main-ajtai-setup.md`](./fprime-stage1-main-ajtai-setup.md)
-decision. An auxiliary
-protocol-binding SIS map may use `κ = 2` only if:
+An auxiliary protocol-binding SIS map can use `κ = 2` only if:
 
-- its source fields use the [canonical 41-trit opening](41-trit-encoding.md);
-- its ring-column width is at most `50,371`;
-- the active system has at most seven rank-two collision targets, all included
-  in the union bound; and
+- its source fields use the [41-trit field slot](41-trit-encoding.md);
+- its width is at most 2,720,034 coefficients, which is 42,500 ring columns
+  of degree 64;
+- the active system has at most seven rank-two collision targets, all
+  included in the union bound; and
 - its claim states the external Module-SIS and estimator assumptions.
 
-For `W` source fields, `r = ceil(41W/54)`, so the certified limit is also
-`W <= 66,342`. The selected model targets 128 post-union quantum Core-SVP bits
-and rounds seven targets to eight. Lean proved the arithmetic boundary in
-`formal/ajtai-lean/Ajtai/EstimatorModel.lean` and stated the external hardness
-boundary in `formal/ajtai-lean/Ajtai/SecurityBoundary.lean`. Both files are at
-commit `f7e093d8f`. That project was later deleted.
+The limit comes from an estimate for the prior profile, the Goldilocks prime
+and the ring degree 54, at 50,371 ring columns
+(`scripts/estimate_nebula_sis.sage`). The model targets 128 bits of quantum
+Core-SVP cost after the union bound and counts seven targets as eight. No
+estimate was run for the profile Nightstream P64, k_rho = 14. The field
+record keeps the limit as a count of coefficients: the rank in coefficients
+grows from 108 to 128 at the same width and norm, so the instance is not
+easier.
+
+No map of the current Lean, `SPEC.md` or Rust uses the rank two. No Lean
+result in the current tree states this limit.

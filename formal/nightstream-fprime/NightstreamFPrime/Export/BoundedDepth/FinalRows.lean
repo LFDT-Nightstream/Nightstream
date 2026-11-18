@@ -34,6 +34,7 @@ variable {logicalWidth : Nat}
   {circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits}
   {step : AppState → AppWitness → AppState}
   {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+  {mode : FinalVerifier.Mode}
 
 /-- The slots of the light package (`StepPackage.slotRuns`). -/
 abbrev lightSlots (exports : Exports relation ajtai circuitKeys step cubeFits)
@@ -69,7 +70,7 @@ def packageRows (exports : Exports relation ajtai circuitKeys step cubeFits)
 
 /-- When the setup's rows have the dense matrices of `packageRows`, the premises of the final
 verifier hold at the logical widths of the packages. -/
-theorem premises_of_rows (setup : FinalVerifier.Setup logicalWidth publicFits)
+theorem premises_of_rows (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     (exports : Exports relation setup.ajtai setup.circuitKeys step cubeFits)
     (complete : Complete exports)
     (rows : ∀ circuit : Fin 2,
@@ -99,7 +100,7 @@ theorem premises_of_rows (setup : FinalVerifier.Setup logicalWidth publicFits)
       exact PackageRows.rows_support _ _
 
 /-- `FinalVerifier.soundness` when the setup's rows have the dense matrices of `packageRows`. -/
-theorem soundness (setup : FinalVerifier.Setup logicalWidth publicFits)
+theorem soundness (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     (step : AppState → AppWitness → AppState) (cap : ℕ) (control : AppState → AppWitness → Fin 2)
     (exports : Exports relation setup.ajtai setup.circuitKeys step cubeFits)
     (complete : Complete exports)
@@ -114,7 +115,7 @@ theorem soundness (setup : FinalVerifier.Setup logicalWidth publicFits)
 
 /-- `FinalVerifier.real_soundness` when the setup's rows have the dense matrices of
 `packageRows`. -/
-theorem real_soundness (setup : FinalVerifier.Setup logicalWidth publicFits)
+theorem real_soundness (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     (step : AppState → AppWitness → AppState) (cap : ℕ) (control : AppState → AppWitness → Fin 2)
     (exports : Exports relation setup.ajtai setup.circuitKeys step cubeFits)
     (complete : Complete exports)

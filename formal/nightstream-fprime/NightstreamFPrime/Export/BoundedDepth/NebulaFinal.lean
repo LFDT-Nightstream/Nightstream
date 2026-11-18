@@ -55,7 +55,7 @@ theorem map_fst_bind {α β : Type} (base : PMF α) (kernel : α → PMF β) :
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     RingCarrierLayout.carrierWidth logicalWidth}
-  (setup : Setup logicalWidth publicFits)
+  {mode : Mode} (setup : Setup mode logicalWidth publicFits)
   {p : Plan} (app : PortApp p.toGeometry)
 
 /-- A tape of the prover with a memory statement: the result of the experiment and the memory

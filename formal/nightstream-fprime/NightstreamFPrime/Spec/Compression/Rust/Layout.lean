@@ -160,8 +160,8 @@ def layoutNew (claims : List Claim) (keyBlocks : ℕ) : Except LayoutError Place
       | none => .error .noRow
       | some row => .ok (assemble claims schedule row)
 
-/-- `Production.Layout` of a layout of the three production claims. -/
-def Placed.production (l : Placed) : Production.Layout where
+/-- `Production.Layout` of a layout of `claims` production claims. -/
+def Placed.production {claims : ℕ} (l : Placed) : Production.Layout claims where
   witness c := (l.cells.getD c ⟨⟨0, 0⟩, 0, none⟩).witness
   counts c := ((l.cells.getD c ⟨⟨0, 0⟩, 0, none⟩).table.map Prod.snd).getD ⟨0, 0⟩
   witnessVars := l.witnessVars
@@ -178,17 +178,23 @@ def Placed.counts (l : Placed) (publicCells matrices : ℕ) : RunCounts where
   witnessVars := l.witnessVars
   keyBlockVars := l.keyVars - laneVars - rowVars
 
-/-- The claims of `Production.params`: claim `c` has `blocks c` ring blocks, and slot `s` has the
-table of its depth. -/
-def paramsClaims (blocks : Fin 3 → ℕ) (depths : Fin 2 → ℕ) : List Claim :=
-  [⟨blocks 0, some (Production.bound depths 0)⟩, ⟨blocks 1, some (Production.bound depths 1)⟩,
-    ⟨blocks 2, none⟩]
+/-- The claims of `Production.params` with `n` slots: claim `c` has `blocks c` ring blocks, and
+slot `s` has the table of its depth. -/
+def paramsClaims {n : ℕ} (blocks : Fin (n + 1) → ℕ) (depths : Fin n → ℕ) : List Claim :=
+  List.ofFn fun c : Fin (n + 1) =>
+    ⟨blocks c, if (c : ℕ) < n then some (Production.bound depths c) else none⟩
 
 /-- The production claims: slot 0 and slot 1 with the tables of their depths, then the fresh
 instance of circuit `pc − 1`, for relations of `blocks 0` and `blocks 1` ring blocks (Rust
 `BoundedDepth::compression_claims`). -/
 def productionClaims (blocks : Fin 2 → ℕ) (pc : Fin 2) (depths : Fin 2 → ℕ) : List Claim :=
   paramsClaims ![blocks 0, blocks 1, blocks pc] depths
+
+/-- The claims of a proof of the light compression: slot 0 with the table of its depth, then the
+fresh instance of the light circuit, both of a relation of `blocks` ring blocks (Rust
+`BoundedDepth::compression_claims` in `Compression::Light`). -/
+def lightClaims (blocks depth : ℕ) : List Claim :=
+  paramsClaims ![blocks, blocks] ![depth]
 
 /-- Rust `key_blocks`: the blocks of the smallest key polynomial that holds `blocks` blocks. -/
 def keyBlocksFor (blocks : ℕ) : Option ℕ :=

@@ -1,62 +1,45 @@
-# Approved Nightstream public-seed MSIS assumption
+# Public-Seed MSIS Assumption for the ChaCha20 Key
 
-The owner approved this assumption on 2026-09-08 with the six conditions below. It is a Nightstream-specific cryptographic premise. It is not a consequence of SuperNeo's MSIS assumption for uniformly sampled matrices and is not a proved Lean fact.
+## Status
 
-Superseded in part on 2026-11-13: [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) replaces the ring, the matrix shape and `T = 216` of the baseline below with the ring `X^64 + 1`, 18 rows and `T = 128`. The numbers below are those of the prior profile.
+Superseded by
+[`fprime-ajtai-shake128-setup.md`](./fprime-ajtai-shake128-setup.md) on
+2026-09-29. The owner approved this assumption on 2026-09-08 for the matrix
+of `nightstream-ajtai-chacha20-wide256-v1` only. That expander is removed,
+and the approval does not cover another expansion.
 
-## Status after the SHAKE128 expander change (2026-09-29)
+## Problem
 
-The approval below covers the matrix of `nightstream-ajtai-chacha20-wide256-v1`. The package now uses `nightstream-ajtai-shake128-reject64-v1` ([decision](fprime-ajtai-shake128-setup.md), [sampling rule](fprime-ajtai-rejection-sampling.md)). As the section on seed independence states, this approval does not cover a changed expansion. The decision records the replacement premises: SHAKE128 as a random oracle and MSIS for a uniform matrix. [The security argument](fprime-ajtai-shake128-security-argument.md) gives the reduction; Lean proves its ideal-model steps (`production_binding_lt_solver`, error below `2^-190`). Both premises stay explicit, and no external review has checked the argument.
+The key comes from one fixed public seed. So the commitment matrix is one
+fixed matrix, not a sample of a uniform matrix, and anyone can compute it.
 
-## Exact selected setup
+## SuperNeo
 
-The current compiled package uses a **fixed constant seed**. Its runtime `SetupSeed` distribution is the point mass at `Poseidon2HashChainV1Setup.productionSeed`; it does not draw a new seed for each proof or verification. The earlier comment recording an owner-approved operating-system CSPRNG output describes provenance. It does not provide an average-case security guarantee for this frozen matrix.
+SuperNeo `Setup` samples the commitment matrix uniformly at random
+(Definition 8), and binding follows from MSIS for a uniform matrix
+(Theorem 6). The paper does not discuss seeds.
 
-Seed bytes, in the exact stored order:
+## Decision
 
-`fc404984d44c1b878d68a6a80092d7d7ab44d81ac17b45a8e7bd4c1f1e371702`
+The superseded premise: MSIS is hard for the one matrix that ChaCha20
+expands from the fixed seed, with the seed and the full procedure public.
+This premise is specific to Nightstream. It is stronger than a claim about
+the average over random seeds, and no proof supports it.
 
-The matrix is `A := Expand(seed, params)` with the following fixed inputs.
+The current premises are SHAKE128 as a random oracle and MSIS for a uniform
+matrix (`[KECCAK]` and `[MSIS]` in
+[the security model](../formal/nightstream-fprime/SECURITY_MODEL.md)).
+[The security argument](fprime-ajtai-shake128-security-argument.md) gives the
+reduction.
 
-| Input | Selected value |
-|---|---|
-| Expansion algorithm/version | `nightstream-ajtai-chacha20-wide256-v1` |
-| Block function | RFC 8439 ChaCha20: ten double rounds and feed-forward |
-| Indexed encoding | Counter = 32-bit coefficient lane; nonce = 32-bit row followed by 64-bit block index; little-endian words |
-| Coefficient conversion | First 256 block-output bits, interpreted little-endian, reduced modulo `q` |
-| Modulus `q` | 18446744069414584321 |
-| Ring | `F[X]/(X^54 + X^27 + 1)`, degree 54 |
-| Matrix shape | 22 rows × 4708530 ring columns |
-| Integer witness length | 254260620 scalar coefficients |
-| Profile | `b=2`, `k_rho=16`, `B=65536`, `T=216` |
-| Required MSIS norm | Strict coefficient bound `8TB=113246208` |
+These points of the record still apply:
 
-The implementation sources are `Spec/AjtaiSetupV1.lean`, `Spec/AjtaiSetupV1/ChaCha20.lean` (removed in commit `e81c9756e`, which changed the expander to SHAKE128), `Spec/Profile.lean`, and the selected `Export/Stage1/Poseidon2HashChainV1Setup*.lean` modules. Their deterministic execution, framing, coefficient ranges and selected dimensions have checked Lean evidence.
-
-## Hardness premise and seed independence
-
-For this compiled package, assume that finding a nonzero integer vector of the stated length, with every absolute coefficient below 113246208 and `A*z=0 mod q`, is computationally hard for the **specific fixed matrix above**, even with the seed and complete matrix-generation procedure public. This is materially stronger than a setup-average claim for random seeds or the paper's uniform matrices. Any concrete attack budget must account for preprocessing against this fixed setup. No numerical success bound is introduced here.
-
-A future package that samples its seed must state its concrete `SetupSeed` rule and analyze the exact distribution `seed ← SetupSeed; A := Expand(seed, params)`. That sampling must be independent of the prover, witness, and prover-controlled transcript data. An assumption about that sampled distribution must not be presented as a per-seed guarantee. Changing to that mode or changing the expansion/version/profile requires a separately identified package and corresponding assumption; this approval does not silently cover it.
-
-## Verifier authority and substitution
-
-The seed, expansion identifier, dimensions and byte framing are part of the 73-word setup authority. The verifier-context encoding also contains the fixed modulus limbs and the Nightstream profile, including `b`, `k_rho`, `B`, and ring degree; the norm bound follows from the proved selected profile. The NIFS key authority and final package identity bind that context and the canonical package.
-
-The verifier must pin or allowlist the expected package identity from its own configuration. It must recompute authority from the selected setup; a prover-supplied identity or a self-consistent digest chain is not authority.
-
-`PerApplicationSecurity.packageIdentity_identifies_package_authority_or_collision` identifies all raw authority words and the canonical package unless a named Poseidon2 collision occurs. `SetupSecurity.packageIdentity_identifies_selected_setup_or_collision` then identifies the exact selected setup, using the proved injectivity of its full authority encoding. Thus a different prover-selected seed or matrix cannot satisfy the expected identity without an explicit hash-collision event. This is a conditional binding reduction, not a proof of Poseidon2 collision resistance or of the separate production-loader gate.
-
-## Security estimates and final claim
-
-Do not inherit SuperNeo's concrete MSIS estimate for uniform matrices. `FOUNDATION_SECURITY_PARAMETERS.json` (in `docs/reviews/nightstream-fprime-requirements` at commit `f7e093d8f`) records only named generic lattice-cost model calculations. These are not a reduction from this fixed matrix to a uniform matrix, an indistinguishability proof, or a production security certificate.
-
-The final Stage 1 security claim must say:
-
-> Secure assuming public-seed MSIS hardness for the selected setup.
-
-For the current package, that phrase includes hardness for the specific frozen matrix. The claim must also retain its other explicit hash, Fiat–Shamir, extraction, sampling and scope premises. It must not be shortened to “assuming MSIS” or presented as a completed Stage 1 security theorem while the corresponding integration obligations remain open.
-
-The checked ordinary binding reduction yields a same-key integer kernel vector below `2B`; the relaxed binding reduction yields one below `8TB`. The selected-key wrappers use the exact seed, dimensions and norm above. These reductions connect the approved search-problem assumption to both binding properties without assuming injectivity or asserting that kernel vectors do not exist.
-
-A future proved reduction or indistinguishability argument for the exact generated-matrix distribution may replace or discharge this local assumption. Until then it stays visible as an assumption, separate from proved mathematics.
+- The seed is fixed and public ([SPEC.md](../SPEC.md) Algorithm 1). It gives
+  no average over seeds, and an adversary that is precomputed for this seed
+  is outside the current premises (security model, trust item 1).
+- A setup that samples a new seed, or that changes the expansion, needs its
+  own record and its own premise.
+- The matrix of this record had 22 rows and 4,708,530 ring columns of degree
+  54, which is 254,260,620 coefficients. Rust keeps this count of
+  coefficients as the limit of the key columns (`MAX_MESSAGE_COLUMNS` in
+  `crates/neo-ajtai/src/nightstream_fprime_setup.rs`).

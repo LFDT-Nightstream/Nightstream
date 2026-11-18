@@ -21,6 +21,32 @@ use std::sync::Arc;
 
 /// `Schedule.productionLightFoldCap`.
 const LIGHT_FOLD_CAP: u64 = 64;
+
+/// SPEC.md Algorithm 9; Lean `FinalVerifier.Mode`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Compression {
+    Both,
+    Light,
+}
+
+impl Compression {
+    /// Lean `RunCompleteness.light_run_complete`.
+    pub(crate) fn for_max_steps(max_steps: u128) -> Self {
+        if max_steps <= u128::from(LIGHT_FOLD_CAP) + 1 {
+            Self::Light
+        } else {
+            Self::Both
+        }
+    }
+
+    /// Lean `FinalVerifier.Mode.slots`.
+    fn slots(self) -> usize {
+        match self {
+            Self::Both => 2,
+            Self::Light => 1,
+        }
+    }
+}
 const KEY_DOMAIN: &[u8] = b"Nightstream/OptionB/circuit-key/v1";
 
 #[derive(Debug, thiserror::Error)]
@@ -124,6 +150,7 @@ pub(crate) struct BoundedDepth {
     keys: [[F; 4]; 2],
     cap: u64,
     minimum_security_bits: u32,
+    compression: Compression,
 }
 
 pub(crate) struct Folded {
@@ -158,7 +185,12 @@ impl BoundedDepth {
             keys,
             cap: LIGHT_FOLD_CAP,
             minimum_security_bits,
+            compression: Compression::Both,
         })
+    }
+
+    pub(crate) fn with_compression(self, compression: Compression) -> Self {
+        Self { compression, ..self }
     }
 
     #[cfg(test)]
@@ -166,24 +198,27 @@ impl BoundedDepth {
         &self.relations
     }
 
+    /// HyperNova Definition 12; Lean `defaultSlot`.
+    fn default_slot(&self, circuit: usize) -> Result<Slot, BoundedDepthError> {
+        let relation = &self.relations[circuit];
+        let mut zero = RunningInstance::canonical_zero(relation.params(), relation.structure(), PUBLIC_WORDS)
+            .map_err(BoundedDepthError::Statement)?;
+        Ok(Slot {
+            accumulator: pi_rlc::Output {
+                claim: zero.claims.swap_remove(0),
+                witness: zero.witnesses.swap_remove(0),
+            },
+            depth: 0,
+        })
+    }
+
     pub(crate) fn initial(&self, z0: [F; 4]) -> Result<Envelope, BoundedDepthError> {
-        let slot = |relation: &Relation| -> Result<Slot, BoundedDepthError> {
-            let mut zero = RunningInstance::canonical_zero(relation.params(), relation.structure(), PUBLIC_WORDS)
-                .map_err(BoundedDepthError::Statement)?;
-            Ok(Slot {
-                accumulator: pi_rlc::Output {
-                    claim: zero.claims.swap_remove(0),
-                    witness: zero.witnesses.swap_remove(0),
-                },
-                depth: 0,
-            })
-        };
         Ok(Envelope {
             iteration: 0,
             z0,
             current: z0,
             pc: 0,
-            slots: [slot(&self.relations[0])?, slot(&self.relations[1])?],
+            slots: [self.default_slot(0)?, self.default_slot(1)?],
             fresh: None,
         })
     }

@@ -128,11 +128,11 @@ theorem runError_le_runBits (c : RunCounts) (pos : 0 < runBits c) :
   rw [div_le_div_iff₀ (by norm_num [fieldOrder]) (by positivity), one_mul]
   exact_mod_cast spec
 
-/-- The counts of a production layout: the tables of the two slots, three claims, `m = 320` and
-`t = 4`. -/
-def productionCounts (layout : Layout) (depths : Fin 2 → ℕ) : RunCounts where
-  tables := [((layout.witness 0).vars, bound depths 0), ((layout.witness 1).vars, bound depths 1)]
-  claims := 3
+/-- The counts of a production layout with `n` slots: the table of each slot, `n + 1` claims,
+`m = 320` and `t = 4`. -/
+def productionCounts {n : ℕ} (layout : Layout (n + 1)) (depths : Fin n → ℕ) : RunCounts where
+  tables := List.ofFn fun s : Fin n => ((layout.witness s.castSucc).vars, bound depths s.castSucc)
+  claims := n + 1
   publicCells := 320
   matrices := 4
   witnessVars := layout.witnessVars
@@ -140,8 +140,8 @@ def productionCounts (layout : Layout) (depths : Fin 2 → ℕ) : RunCounts wher
 
 section Production
 
-variable (key : ℕ → ℕ → ℕ → F) (rel : ℕ → Factored F) (which : Fin 3 → ℕ) (depths : Fin 2 → ℕ)
-  (layout : Layout) (zeros : ℕ)
+variable {n : ℕ} (key : ℕ → ℕ → ℕ → F) (rel : ℕ → Factored F) (which : Fin (n + 1) → ℕ)
+  (depths : Fin n → ℕ) (layout : Layout (n + 1)) (zeros : ℕ)
 
 private theorem production_widths :
     productionProfile.commitmentWidth = 18 ∧ productionProfile.ccsMatrices = 4 := ⟨rfl, rfl⟩
@@ -150,30 +150,34 @@ private theorem fieldOrder_cast : ((fieldOrder : ℕ) : ℝ) = ((fieldModulus : 
 
 private theorem maxPublic_params :
     maxPublic (params key (fun c => (rel (which c)).matrices) depths layout) = 320 :=
-  Finset.sup_const ⟨⟨0, Nat.succ_pos 2⟩, Finset.mem_univ _⟩ 320
+  Finset.sup_const ⟨⟨0, Nat.succ_pos n⟩, Finset.mem_univ _⟩ 320
+
+/-- The lookup terms of the slot tables. -/
+private noncomputable def tables : ℝ :=
+  ∑ s : Fin n, (((2 ^ (layout.witness s.castSucc).vars + (2 * bound depths s.castSucc + 1) : ℕ) :
+    ℝ) / fieldOrder) ^ 4
 
 private theorem tauError_params :
     tauError (params key (fun c => (rel (which c)).matrices) depths layout) =
-      ((((2 ^ (layout.witness 0).vars + (2 * bound depths 0 + 1) : ℕ) : ℝ) / fieldOrder) ^ 4 +
-        (((2 ^ (layout.witness 1).vars + (2 * bound depths 1 + 1) : ℕ) : ℝ) / fieldOrder) ^ 4) := by
-  unfold tauError
+      tables depths layout := by
+  unfold tauError tables
   rw [card_F]
-  change (∑ c : Fin 3, if decide ((c : ℕ) < 2) = true then
+  change (∑ c : Fin (n + 1), if decide ((c : ℕ) < n) = true then
     (((2 ^ (layout.witness c).vars + (2 * bound depths c + 1) : ℕ) : ℝ) / fieldOrder) ^ 4
     else 0) = _
-  simp [Fin.sum_univ_three]
+  rw [Fin.sum_univ_castSucc]
+  simp
 
 private theorem runError_production :
-    ((runError (productionCounts layout depths) : ℚ) : ℝ) =
-      ((((2 ^ (layout.witness 0).vars + (2 * bound depths 0 + 1) : ℕ) : ℝ) / fieldOrder) ^ 4 +
-        (((2 ^ (layout.witness 1).vars + (2 * bound depths 1 + 1) : ℕ) : ℝ) / fieldOrder) ^ 4) +
-      ((360 + 4 * layout.witnessVars + 2 * layout.keyBlockVars : ℕ) : ℝ) / (fieldOrder ^ 2 : ℕ) := by
+    ((runError (productionCounts layout depths) : ℚ) : ℝ) = tables depths layout +
+      ((358 + n + 4 * layout.witnessVars + 2 * layout.keyBlockVars : ℕ) : ℝ) /
+        (fieldOrder ^ 2 : ℕ) := by
   have terms : (productionCounts layout depths).extensionTerms =
-      360 + 4 * layout.witnessVars + 2 * layout.keyBlockVars := by
+      358 + n + 4 * layout.witnessVars + 2 * layout.keyBlockVars := by
     simp only [RunCounts.extensionTerms, productionCounts]
     omega
-  simp only [runError, terms]
-  simp only [productionCounts, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, add_zero]
+  rw [runError, terms]
+  simp only [tables, productionCounts, List.map_ofFn, List.sum_ofFn, Function.comp_def]
   push_cast
   ring
 
@@ -186,7 +190,8 @@ theorem runCost_le_runError
   rw [runError_production]
   unfold runCost challengeError
   rw [tauError_params, card_K, maxPublic_params]
-  simp only [params, Params.equations, Params.lanes, verifierData, production_widths.1, production_widths.2]
+  simp only [params, Params.equations, Params.lanes, verifierData, production_widths.1, production_widths.2,
+    Nat.add_sub_cancel]
   push_cast
   rw [fieldOrder_cast, show max (63 : ℝ) 319 = 319 by norm_num]
   have inv : 0 ≤ ((fieldModulus : ℝ) ^ 2)⁻¹ := by positivity
@@ -203,7 +208,8 @@ theorem error_le_runError
   rw [runError_production]
   unfold error challengeError
   rw [tauError_params, card_K, maxPublic_params]
-  simp only [params, Params.equations, Params.lanes, verifierData, production_widths.1, production_widths.2]
+  simp only [params, Params.equations, Params.lanes, verifierData, production_widths.1, production_widths.2,
+    Nat.add_sub_cancel]
   push_cast
   rw [fieldOrder_cast, show max (63 : ℝ) 319 = 319 by norm_num]
   have inv : 0 ≤ ((fieldModulus : ℝ) ^ 2)⁻¹ := by positivity
@@ -217,8 +223,8 @@ theorem error_le_runError
 the security minimum. -/
 theorem params_run_soundness
     (wf : WellFormed (params key (fun c => (rel (which c)).matrices) depths layout))
-    (slots_le : ∀ c : Fin 3, (c : ℕ) < 2 → (layout.witness c).vars ≤ 25)
-    (key_fits : ∀ c : Fin 3, (layout.witness c).vars - 6 ≤ layout.keyBlockVars)
+    (slots_le : ∀ c : Fin (n + 1), (c : ℕ) < n → (layout.witness c).vars ≤ 25)
+    (key_fits : ∀ c : Fin (n + 1), (layout.witness c).vars - 6 ≤ layout.keyBlockVars)
     (s : Strategy (Option (Statement (params key (fun c => (rel (which c)).matrices) depths
       layout) × (ℕ → F)))) :
     prob s (game (verifierData key rel which depths layout zeros))
@@ -233,8 +239,8 @@ theorem params_run_soundness
 `compression_layout` passes a minimum `m` only when `m ≤ runBits`. -/
 theorem params_run_soundness_bits
     (wf : WellFormed (params key (fun c => (rel (which c)).matrices) depths layout))
-    (slots_le : ∀ c : Fin 3, (c : ℕ) < 2 → (layout.witness c).vars ≤ 25)
-    (key_fits : ∀ c : Fin 3, (layout.witness c).vars - 6 ≤ layout.keyBlockVars)
+    (slots_le : ∀ c : Fin (n + 1), (c : ℕ) < n → (layout.witness c).vars ≤ 25)
+    (key_fits : ∀ c : Fin (n + 1), (layout.witness c).vars - 6 ≤ layout.keyBlockVars)
     (s : Strategy (Option (Statement (params key (fun c => (rel (which c)).matrices) depths
       layout) × (ℕ → F)))) :
     prob s (game (verifierData key rel which depths layout zeros))

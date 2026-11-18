@@ -1,10 +1,12 @@
 import Mathlib.Data.Nat.Log
 import Mathlib.Data.Nat.Size
+import NightstreamFPrime.Spec.Folding.Schedule
 import NightstreamFPrime.Spec.Nebula.SetupCheck
 
 /-! Owns the memory gate of the Rust verifier (SPEC.md section 7.1): the bound of rule 6, the
 geometry that Rust `Geometry::new` builds from its counts, the bits that the gate certifies for
-all `S_max` segments of a proof, and the three fixed WASM sizes with their segment counts. Rust
+all `S_max` segments of a proof, and the four fixed WASM sizes with their segment counts, whose
+runs never reach a refresh fold (`WasmSize.steps_le_light`). Rust
 states none of these numbers on its own authority: `Export.NebulaGateParity` emits them, and
 Rust tests compare them. -/
 
@@ -67,12 +69,22 @@ theorem segmentError_le (p : Geometry) (positive : 0 < p.segmentError)
 
 end Geometry
 
-/-- The three fixed WASM sizes (`decisions/wasm-fixed-sizes.md`). -/
+/-- The four fixed WASM sizes (`decisions/wasm-fixed-sizes.md`). -/
 inductive WasmSize where
+  | micro
   | small
   | medium
   | large
   deriving DecidableEq, Repr
+
+/-- The counts of a WASM size: `log2` of the ROM cells and of the RAM cells, the trace rows of
+one step, the steps of one segment and the most segments. -/
+structure WasmShape where
+  r : ℕ
+  μ : ℕ
+  rows : ℕ
+  n : ℕ
+  sMax : ℕ
 
 namespace WasmSize
 
@@ -83,20 +95,19 @@ def gateBits : Nat := 109
 /-- The slots of one trace row. -/
 def rowSlots : ℕ := 8
 
-/-- `log2` of the ROM cells, the trace rows of one step, the steps of one segment and the most
-segments. The RAM is an eighth of the ROM. -/
-def shape : WasmSize → ℕ × ℕ × ℕ × ℕ
-  | small => (13, 64, 8, 19)
-  | medium => (14, 64, 16, 9)
-  | large => (15, 32, 16, 6)
+/-- The counts of each size. Micro has a RAM of an eighth of the ROM, and the others a quarter. -/
+def shape : WasmSize → WasmShape
+  | micro => ⟨11, 8, 800, 1, 30⟩
+  | small => ⟨12, 10, 672, 1, 24⟩
+  | medium => ⟨13, 11, 664, 2, 12⟩
+  | large => ⟨14, 12, 664, 4, 6⟩
 
 /-- The geometry with `sMax` segments. -/
 def geometryWith (size : WasmSize) (sMax : ℕ) : Geometry :=
-  Geometry.ofCounts size.shape.1 (size.shape.1 - 3) (size.shape.2.1 * rowSlots) size.shape.2.2.1
-    sMax
+  Geometry.ofCounts size.shape.r size.shape.μ (size.shape.rows * rowSlots) size.shape.n sMax
 
 /-- The geometry of a size. -/
-def geometry (size : WasmSize) : Geometry := size.geometryWith size.shape.2.2.2
+def geometry (size : WasmSize) : Geometry := size.geometryWith size.shape.sMax
 
 theorem valid (size : WasmSize) : size.geometry.Valid := by
   cases size <;> exact
@@ -118,11 +129,18 @@ theorem segmentBits_eq (size : WasmSize) : size.geometry.segmentBits = gateBits 
 
 /-- Each size has the most segments at `gateBits`: one more segment certifies fewer bits. -/
 theorem segmentBits_succ_lt (size : WasmSize) :
-    (size.geometryWith (size.shape.2.2.2 + 1)).segmentBits < gateBits := by
+    (size.geometryWith (size.shape.sMax + 1)).segmentBits < gateBits := by
   cases size <;>
     exact Nat.lt_of_le_of_lt
       (Nat.le_of_eq ((Geometry.segmentBits_eq_iff _ 108 (by decide +kernel)
         (by decide +kernel)).mpr ⟨by decide +kernel, by decide +kernel⟩)) (by decide)
+
+/-- A proof of a size has at most `S_max · N` steps (Algorithm 8, step 3), and that is at most
+`cap + 1`, so no run of a size reaches a refresh fold: its first step is the base step and every
+later step is a light fold into slot 0 below the cap (SPEC.md, Algorithm 9). -/
+theorem steps_le_light (size : WasmSize) :
+    size.geometry.sMax * size.geometry.n ≤ Folding.Schedule.productionLightFoldCap + 1 := by
+  cases size <;> decide
 
 end WasmSize
 

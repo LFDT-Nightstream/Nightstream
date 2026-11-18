@@ -20,7 +20,7 @@ hash.
 
 ## Decision
 
-The owner authorized Stage 2 on 2026-10-07. `SPEC.md` section 7 states the
+The owner authorized the memory layer on 2026-10-07. `SPEC.md` section 7 states the
 protocol, and section 8 lists the differences from Nebula.
 
 1. **One F′ chain.** A memory application is a Stage 1 application. Each step
@@ -31,8 +31,8 @@ protocol, and section 8 lists the differences from Nebula.
 2. **The carry is in the application-state digest** (owner, 2026-10-07). The
    four Stage 1 state words are a digest of the application words and the
    memory carry, so the F′ state hash, layout and theorems do not change.
-3. **Challenges in `K`.** Over `F_q`, one pair gives only about 46 bits at
-   the largest geometry. Over `K`, the fingerprint error is
+3. **Challenges in `K`.** Over `F_q`, one pair gives an error of about
+   `2^−45.9` at the rule 6 limit (`SPEC.md` section 8). Over `K`, the fingerprint error is
    `2(R + M + N · B_ops)/q²`.
 4. **Floor `2^−109.91`** (owner, 2026-10-05). Setup rejects a geometry with
    `R + M + N · B_ops > 139,509` (`SPEC.md` section 7.1, rule 6). A larger
@@ -48,18 +48,15 @@ protocol, and section 8 lists the differences from Nebula.
    premise (owner, 2026-11-04). Lean proves this bound in that model
    (`Export.BoundedDepth.NebulaSecurity.romMemoryRound`). The adversary time and
    the query counts stay symbolic (2026-10-12).
-6. **Packages.** Lean emits two test packages for the machine application.
-   A package for a production geometry waits for the production application
-   (2026-10-12).
+6. **Packages.** Lean emits memory packages only for two test geometries of
+   the machine application (`SPEC.md` section 7.1). No Lean package fixes
+   the relation of another application or geometry
+   (`SECURITY_MODEL.md`, Out of scope).
 7. **Several trace rows in one step** (owner, 2026-10-31). A catalog
    application can prove a fixed number of trace rows in each step, so that
    the rows share the fixed F′ cost of a fold. The step uses the batched
    catalog of `SPEC.md` section 7.6, and Lean proves that batched steps are
-   memory consistent exactly when their rows are. The protocol, the F′
-   relation and the memory rows do not change. On Metal, with the memory
-   scan of a segment of 32 steps, a fold of 2 rows took 4.31 s and a fold
-   of 1 row 4.28 s. In segments of 16 steps, a row took 2.72 s at 2 rows in
-   each step, 0.80 s at 8 rows and 0.57 s at 16 rows (medians of 3 runs of
-   `fib`). A fold of 8 rows has 63.8M coordinates, which is above the 60.5M
-   at which the Metal prover keeps the commitment key, and a fold of 16
-   rows has 87.9M. The caller selects the rows for each step.
+   memory consistent exactly when their rows are
+   (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff`). The
+   protocol, the F′ relation and the memory rows do not change. The caller
+   selects the rows for each step.

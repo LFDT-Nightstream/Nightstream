@@ -174,6 +174,29 @@ theorem normBounded_mono {witness : PaperAlgebra.Assignment (logicalWidth := log
     (PaperAlgebra.semantics ajtai).normBounded large witness :=
   fun column => lt_of_lt_of_le (bounded column) le
 
+/-- The default slot with the zero witness holds under the relation of each circuit key
+(HyperNova Definition 12, `PilotZeroRunning.defaultRunning_holds`). -/
+theorem defaultSlot_holds (circuit : CircuitKey logicalWidth publicFits) :
+    CE.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
+      (toClaim (circuit.system ajtai) defaultSlot)
+      RingRelation.EvaluationHomomorphism.BaseLinear.assignmentZero := by
+  have zero := PilotZeroRunning.defaultRunning_holds circuit.relation ajtai ⟨0, by decide⟩
+  exact ⟨⟨zero.1.1, zero.1.2.1, normBounded_mono zero.1.2.2
+    (show productionGlobalParams.b ≤ productionGlobalParams.bigB by decide)⟩, zero.2.1,
+    zero.2.2⟩
+
+/-- The zero witness of the default slot at depth 0 passes the slot checks of `Honest`: it is
+within the accumulator bound of depth 0 and zero on every ring block. -/
+theorem defaultSlot_honest (width : Nat) :
+    (PaperAlgebra.semantics ajtai).normBounded (productionGlobalParams.accumulatorBound 0 + 1)
+        RingRelation.EvaluationHomomorphism.BaseLinear.assignmentZero ∧
+      Supported (logicalWidth := logicalWidth) width
+        (RingRelation.EvaluationHomomorphism.BaseLinear.assignmentZero :
+          PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits)) := by
+  refine ⟨fun column => ?_, supported_zero _⟩
+  change centeredMagnitude (0 : F) < productionGlobalParams.accumulatorBound 0 + 1
+  simp [centeredMagnitude]
+
 /-- One honest light step: from a recursive proof that the terminal accepts and whose slots are
 honest, a valid application step whose circuit is the light circuit gives a recursive proof that
 the terminal accepts at the next iteration, with honest slots. Its fresh witness is zero on every
@@ -196,7 +219,10 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
     (witnessLength : witness.length = exports.program.witnessWordCount) :
     ∃ next, Terminal.HoldsFor cap ajtai circuitKeys step control
         ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ (.recursive next) ∧
-      Honest (ajtai := ajtai) complete.packageWidth next ∧
+      Honest (ajtai := ajtai) complete.packageWidth next ∧ next.pc = 1 ∧
+      (∀ pcValid : InRange 2 payload.pc,
+        (next.running (selectedIndex pcValid)).2 = (payload.running (selectedIndex pcValid)).2 + 1 ∧
+          ∀ slot, slot ≠ selectedIndex pcValid → next.running slot = payload.running slot) ∧
       ∀ pcValid : InRange 2 next.pc,
         ZeroTail (complete.packageWidth (selectedIndex pcValid)) next.freshWitness := by
   obtain ⟨statementValid, pcValid, positive, freshPublic, slots, freshHolds⟩ :=
@@ -302,9 +328,15 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
     intro pcNext
     rw [show selectedIndex pcNext = (0 : Fin 2) from Fin.ext rfl, Complete.packageWidth_zero]
     exact freshZero
+  have selectedEq : ∀ other : InRange 2 payload.pc, selectedIndex other = selected :=
+    fun _ => Fin.ext rfl
   refine ⟨next, (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control _ next).mpr
     ⟨⟨iterationNext, statementValid.2.1, nextLength⟩, pcOne, Nat.succ_pos _, rfl, ?_, ?_⟩, ?_,
-    freshTail⟩
+    rfl, fun other => ?_, freshTail⟩
+  rotate_left 3
+  · rw [selectedEq other]
+    exact ⟨by rw [show next.running selected = runningNext selected from rfl, nextSelected],
+      fun slot differ => nextOther slot differ⟩
   · intro slot
     by_cases same : slot = selected
     · rw [same]
@@ -507,7 +539,8 @@ theorem base_extend (exports : Exports relation ajtai circuitKeys step cubeFits)
     (witnessLength : witness.length = exports.program.witnessWordCount) :
     ∃ next, Terminal.HoldsFor cap ajtai circuitKeys step control
         ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ (.recursive next) ∧
-      Honest (ajtai := ajtai) complete.packageWidth next ∧
+      Honest (ajtai := ajtai) complete.packageWidth next ∧ next.pc = 1 ∧
+      (∀ slot, next.running slot = (defaultSlot, 0)) ∧
       ∀ pcValid : InRange 2 next.pc,
         ZeroTail (complete.packageWidth (selectedIndex pcValid)) next.freshWitness := by
   obtain ⟨statementValid, iterationZero, ziEq⟩ :=
@@ -584,20 +617,15 @@ theorem base_extend (exports : Exports relation ajtai circuitKeys step cubeFits)
     exact freshZero
   refine ⟨next, (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control _ next).mpr
     ⟨⟨iterationOne, statementValid.2.1, nextLength⟩, pcOne, Nat.succ_pos _, rfl, ?_, ?_⟩, ?_,
-    freshTail⟩
+    rfl, fun _ => rfl, freshTail⟩
   · intro slot
-    have zero := PilotZeroRunning.defaultRunning_holds (circuitKeys slot).relation ajtai
-      ⟨0, by decide⟩
-    exact ⟨⟨zero.1.1, zero.1.2.1, normBounded_mono zero.1.2.2
-      (show productionGlobalParams.b ≤ productionGlobalParams.bigB by decide)⟩, zero.2.1,
-      zero.2.2⟩
+    exact defaultSlot_holds (circuitKeys slot)
   · show CCS.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams
       (freshStatement (circuitKeys 0).relation next.fresh) next.freshWitness
     rw [keyEq]
     exact freshNext
-  · refine ⟨fun _ => Nat.zero_le _, fun slot column => ?_, fun slot => supported_zero _,
+  · exact ⟨fun _ => Nat.zero_le _, fun _ => (defaultSlot_honest (ajtai := ajtai) 0).1,
+      fun slot => (defaultSlot_honest (ajtai := ajtai) _).2,
       fun pcNext => supported_of_tail (freshTail pcNext)⟩
-    change centeredMagnitude (0 : F) < productionGlobalParams.accumulatorBound 0 + 1
-    simp [centeredMagnitude]
 
 end NightstreamFPrime.Export.BoundedDepth.StepExtend

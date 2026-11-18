@@ -12,6 +12,8 @@ Soundness and completeness of the memory checks (`SPEC.md` section 7 and Algorit
 
 - Paper: Nebula offline memory checking.
 - `model_sound`, `model_complete` and `accepts_or_collision` are deterministic.
+- `memory_light_complete` is `memory_complete` in the light mode of `SPEC.md` Algorithm 9, at a
+  geometry with `S_max · N ≤ cap + 1`.
 - Assumptions: `eta_balanced` takes `[SPONGE]` under `[P2-PERM]`. `memory_sound` takes `[HN-A1]`.
 - Open: `memory_sound` takes the memory round as a premise (`SECURITY_MODEL.md` trust item 6).
   A memory application that Rust builds, the WASM relation included, has no Lean instance. -/
@@ -291,5 +293,68 @@ theorem memory_complete
   @Export.BoundedDepth.NebulaCompleteness.memory_complete logicalWidth publicFits relation ajtai
     circuitKeys step cubeFits p app valid exports programEq complete keysShaped cap control s₀ s
     final steps segments count range exec
+
+/-- Completeness of the light mode of a memory application (SPEC.md Algorithms 8 and 9): at a
+geometry with `S_max · N ≤ cap + 1`, as for each WASM size, for every execution of `S · N` steps
+with `1 ≤ S ≤ S_max`, the statement that the verifier computes passes its checks, and the verifier
+of SPEC.md Algorithm 6 accepts the honest prover's recursive proof of it. That proof has the light
+circuit last and slot 1 at the default slot of depth 0, and its fresh witness is zero on every cell
+from the width of its circuit's package (`RunCompleteness.FreshZeroTail`). -/
+theorem memory_light_complete
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+        Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits}
+    {step : AppState → AppWitness → AppState}
+    {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+    {p : Nebula.Plan}
+    {app : Nebula.PortApp p.toGeometry}
+    (valid : p.Valid)
+    (light : p.sMax * p.n ≤ Folding.Schedule.productionLightFoldCap + 1)
+    (exports : TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
+    (programEq : exports.program = Nebula.MemoryApp.program p.toGeometry app)
+    (complete : StepExtend.Complete exports)
+    (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
+    (cap : ℕ)
+    (control : AppState → AppWitness → Fin 2)
+    {s₀ : app.State}
+    {s : app.State}
+    {final : Nebula.Machine}
+    {steps : List (List (Option Nebula.PortAccess))}
+    {segments : ℕ}
+    (count : steps.length = segments * p.n)
+    (range : 1 ≤ segments ∧ segments ≤ p.sMax)
+    (exec : Nebula.Executes p.toGeometry app.model s₀ (Nebula.initialMachine p) steps s final) :
+    ∃ (carry : Fin 39 → F),
+        have m :=
+          { initialApp := s₀, finalApp := s, finalCarry := carry, segments := segments,
+            finalTs := final.ts,
+            finalRoot :=
+              Nebula.memoryRoot Nebula.hash p.toGeometry (Nebula.planDigest p.toGeometry)
+                final.memory :
+            Nebula.EndToEnd.MemoryStatement app.width };
+        have statement :=
+          { iteration := segments * p.n,
+            z0 :=
+              Nebula.stateWords (List.ofFn m.initialApp)
+                (Nebula.carryWords (Nebula.startCarry (Nebula.context p))),
+            zi := Nebula.stateWords (List.ofFn m.finalApp) (List.ofFn m.finalCarry) :
+            HyperNova.Construction2.Paper.TerminalStatement AppState };
+        Nebula.EndToEnd.VerifierChecks p statement m ∧
+          ∃ (payload :
+            HyperNova.Construction2.Paper.TerminalProof (SlotData logicalWidth publicFits)
+              (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
+              (StepFresh logicalWidth publicFits)
+              (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2),
+            RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth cap control
+                statement (HyperNova.Construction2.Paper.OuterTerminalProof.recursive payload) ∧
+              payload.pc = 1 ∧ payload.running 1 = (defaultSlot, 0) ∧
+              RunCompleteness.FreshZeroTail complete.packageWidth
+                (HyperNova.Construction2.Paper.OuterTerminalProof.recursive payload) :=
+  @Export.BoundedDepth.NebulaCompleteness.memory_light_complete logicalWidth publicFits relation
+    ajtai circuitKeys step cubeFits p app valid light exports programEq complete keysShaped cap
+    control s₀ s final steps segments count range exec
 
 end NightstreamFPrime.Claims.Nebula

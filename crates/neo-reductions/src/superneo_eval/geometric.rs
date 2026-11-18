@@ -2,7 +2,7 @@ use super::scratch::ScratchPart;
 use super::*;
 
 #[inline]
-fn decode(run: [u64; 3]) -> (usize, usize, F, F) {
+pub(super) fn decode(run: [u64; 3]) -> (usize, usize, F, F) {
     (
         run[0] as u32 as usize,
         (run[0] >> 32) as u32 as usize,
@@ -84,7 +84,7 @@ impl SuperneoMatrixCache {
 
     pub(super) fn add_geometric_events(
         &self,
-        row: usize,
+        runs: &[[u64; 3]],
         weight_re: F,
         weight_im: F,
         event_ratio: F,
@@ -93,7 +93,7 @@ impl SuperneoMatrixCache {
         let blocks = part.blocks();
         let (part_start, part_end) = (blocks.start * D, blocks.end * D);
         let mut end_power = (0, F::ONE);
-        for &run in self.geometric_runs_for(row) {
+        for &run in runs {
             let (column_start, len, coefficient, ratio) = decode(run);
             let column_end = column_start + len;
             let first = core::cmp::max(column_start, part_start);
@@ -117,7 +117,7 @@ impl SuperneoMatrixCache {
 
     pub(super) fn accumulate_geometric_ring_form_row(
         &self,
-        row: usize,
+        runs: &[[u64; 3]],
         weight_re: F,
         weight_im: F,
         event_ratio: Option<F>,
@@ -125,7 +125,7 @@ impl SuperneoMatrixCache {
     ) {
         let blocks = part.blocks();
         let (part_start, part_end) = (blocks.start * D, blocks.end * D);
-        for &run in self.geometric_runs_for(row) {
+        for &run in runs {
             let (column_start, len, coefficient, ratio) = decode(run);
             if Some(ratio) == event_ratio {
                 continue;

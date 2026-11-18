@@ -2,30 +2,37 @@
 
 **Status:** Accepted
 
-Changed on 2026-11-13: [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) replaces the Goldilocks field of this record with the field of `q = 2^64 − 59`. Each field word below is a word of that field.
+## Problem
+
+The step circuits need one application for the reference packages, the tests
+and the executables. The verifier must own it, and the prover must not
+select it.
+
+## SuperNeo
+
+SuperNeo v1.2 and HyperNova do not fix an application step `F`.
 
 ## Decision
 
-`Poseidon2HashChainV1` is the first verifier-owned Stage 1 application.
+`Poseidon2HashChainV1` is the reference application
+(`Lifecycle.Stage1.Poseidon2HashChainV1.program`).
 
-- The input state is exactly four Goldilocks field words.
-- The witness message is exactly four Goldilocks field words.
-- The output state is exactly four Goldilocks field words.
+- The input state is exactly four words of `F_q`.
+- The witness message is exactly four words of `F_q`.
+- The output state is exactly four words of `F_q`.
 - The domain tag is the 40 ASCII bytes of
   `Nightstream/Stage1/Poseidon2HashChain/v1`, with each byte mapped by
-  `Poseidon2.ofNat` to one field word.
+  `Spec.Poseidon2.ofNat` to one field word
+  (`Lifecycle.Stage1.Poseidon2HashChainV1.domainTag`).
 - The transition is
 
   ```text
   Poseidon2.hash(domain_tag ++ prior_state ++ message)
   ```
 
-Lean owns the exact framing, semantics, circuit, layout, package, identity,
-fixed-point proof, and conformance evidence. The verifier selects and binds
-the resulting package. The prover cannot select the application or package.
+  (`Lifecycle.Stage1.Poseidon2HashChainV1.step`), with the hash of
+  [SPEC.md](../SPEC.md) section 5.1.
 
-## Exclusions
-
-This decision does not authorize Stage 2, a memory relation, WASM state, or a
-proof backend. Backend acceptance is not evidence for Lean semantics, matrix
-equality, or assignment conformance.
+Lean owns the framing, the semantics, the circuit and the packages. The
+verifier pins the identity of the packages ([SPEC.md](../SPEC.md)
+Algorithm 2). The prover cannot select the application or the packages.

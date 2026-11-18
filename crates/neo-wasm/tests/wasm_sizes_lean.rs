@@ -1,4 +1,5 @@
-//! Lean `Spec.Nebula.WasmSize`, `WasmSize.segmentBits_eq`, `WasmSize.segmentBits_succ_lt`.
+//! Lean `Spec.Nebula.WasmSize`, `WasmSize.segmentBits_eq`, `WasmSize.segmentBits_succ_lt`,
+//! `WasmSize.steps_le_light`.
 
 use neo_wasm::nebula::WasmSize;
 use nightstream::nebula::Geometry;
@@ -33,5 +34,6 @@ fn each_wasm_size_has_the_lean_geometry_and_rows() {
         };
         assert_eq!(size.geometry(), geometry, "{size:?}");
         assert_eq!(size.rows().get(), row[9], "{size:?}");
+        assert_eq!(row[10], 1, "{size:?}: Lean S_max · N ≤ cap + 1");
     }
 }

@@ -18,7 +18,9 @@ Combine exact complementary guards and disjoint subsets of a certified
 one-hot family. Use source equations and checked packed seeds as certificates.
 Keep the certificate rows and every original application record. Bind the
 original record indices, exact source forms, and replacement rows into the
-experimental application identity. Keep the four matrices and the profile in
+experimental application identity ([SPEC.md](../SPEC.md) section 4.4). The
+rule is in [SPEC.md section 7.12](../SPEC.md#712-guarded-row-fusion). Keep
+the four matrices and the profile of
 [SPEC.md section 7.7](../SPEC.md#77-native-pieces).
 
 The algebraic equivalence and certificate premises are in

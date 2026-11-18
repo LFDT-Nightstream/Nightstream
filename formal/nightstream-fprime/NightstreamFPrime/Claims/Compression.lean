@@ -49,21 +49,22 @@ theorem argument_sound
 
 /-- `argument_sound` at the production parameters with the one pass of Rust `matrix_part`. -/
 theorem production_sound
+    {n : ℕ}
     (key : ℕ → ℕ → ℕ → F)
     (rel : ℕ → Verifier.Factored F)
-    (which : Fin 3 → ℕ)
-    (depths : Fin 2 → ℕ)
-    (layout : Production.Layout)
+    (which : Fin (n + 1) → ℕ)
+    (depths : Fin n → ℕ)
+    (layout : Production.Layout (n + 1))
     (zeros : ℕ)
     (wf : Verifier.WellFormed
-        (Production.params key (fun (c : Fin 3) => (rel (which c)).matrices) depths layout))
-    (slots_le : ∀ (c : Fin 3), (↑c : ℕ) < 2 → (layout.witness c).vars ≤ 25)
-    (key_fits : ∀ (c : Fin 3), (layout.witness c).vars - 6 ≤ layout.keyBlockVars)
+        (Production.params key (fun (c : Fin (n + 1)) => (rel (which c)).matrices) depths layout))
+    (slots_le : ∀ (c : Fin (n + 1)), (↑c : ℕ) < n → (layout.witness c).vars ≤ 25)
+    (key_fits : ∀ (c : Fin (n + 1)), (layout.witness c).vars - 6 ≤ layout.keyBlockVars)
     (s : Game.Strategy
         (Option
           (Option
             (Verifier.Statement
-                (Production.params key (fun (c : Fin 3) => (rel (which c)).matrices) depths
+                (Production.params key (fun (c : Fin (n + 1)) => (rel (which c)).matrices) depths
                   layout) ×
               (ℕ → F)))))
     (q : ℕ) :
@@ -75,45 +76,49 @@ theorem production_sound
               Option
                 (Option
                   (Verifier.Statement
-                      (Production.params key (fun (c : Fin 3) => (rel (which c)).matrices) depths
+                      (Production.params key (fun (c : Fin (n + 1)) => (rel (which c)).matrices) depths
                         layout) ×
                     (ℕ → F)))) =>
           ¬∀
               (a :
                 Option
                   (Verifier.Statement
-                      (Production.params key (fun (c : Fin 3) => (rel (which c)).matrices) depths
+                      (Production.params key (fun (c : Fin (n + 1)) => (rel (which c)).matrices) depths
                         layout) ×
                     (ℕ → F))),
               r = some a →
                 ∀
                   (o :
                     Verifier.Statement
-                        (Production.params key (fun (c : Fin 3) => (rel (which c)).matrices)
+                        (Production.params key (fun (c : Fin (n + 1)) => (rel (which c)).matrices)
                           depths layout) ×
                       (ℕ → F)),
                   a = some o →
                     Verifier.Relation
-                      (Production.params key (fun (c : Fin 3) => (rel (which c)).matrices) depths
+                      (Production.params key (fun (c : Fin (n + 1)) => (rel (which c)).matrices) depths
                         layout)
                       o.1 o.2) ≤
         (↑q : ℝ) * Verifier.error (Production.verifierData key rel which depths layout zeros) :=
-  @Spec.Compression.Production.params_soundness key rel which depths layout zeros wf slots_le
+  @Spec.Compression.Production.params_soundness n key rel which depths layout zeros wf slots_le
     key_fits s q
 
-/-- At the production bounds of the layout, the error of `soundness` is below `2^−119`. -/
+/-- At the production bounds of the layout, with at most two slot claims, the error of `soundness`
+is below `2^−119`. -/
 theorem production_error
+    {n : ℕ}
     (key : ℕ → ℕ → ℕ → F)
-    (matrices : Fin 3 → Verifier.Matrices F)
-    (depths : Fin 2 → ℕ)
-    (layout : Production.Layout)
+    (matrices : Fin (n + 1) → Verifier.Matrices F)
+    (depths : Fin n → ℕ)
+    (layout : Production.Layout (n + 1))
     (vf : Verifier.VerifierData (Production.params key matrices depths layout))
+    (slots : n ≤ 2)
     (columns : vf.columnVars = 2)
-    (depths_le : ∀ (s : Fin 2), depths s ≤ Folding.Schedule.productionLightFoldCap)
-    (slots_le : ∀ (c : Fin 3), (↑c : ℕ) < 2 → (layout.witness c).vars ≤ 25)
+    (depths_le : ∀ (s : Fin n), depths s ≤ Folding.Schedule.productionLightFoldCap)
+    (slots_le : ∀ (c : Fin (n + 1)), (↑c : ℕ) < n → (layout.witness c).vars ≤ 25)
     (span_le : layout.spanVars ≤ 27) :
     Verifier.error vf < 1 / 2 ^ 119 :=
-  @Spec.Compression.Production.params_error_lt key matrices depths layout vf columns depths_le
+  @Spec.Compression.Production.params_error_lt n key matrices depths layout vf slots columns
+    depths_le
     slots_le span_le
 
 /-- In the state-restoration experiment with `q` queries, a prover makes an accepted run whose

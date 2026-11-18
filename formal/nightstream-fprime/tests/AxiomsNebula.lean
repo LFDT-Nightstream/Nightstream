@@ -745,3 +745,4 @@ plans (`SlotPlan`), batched catalogs (`Batch`) and the free application
 #audit_axioms NightstreamFPrime.Spec.Nebula.WasmSize.secure
 #audit_axioms NightstreamFPrime.Spec.Nebula.WasmSize.segmentBits_eq
 #audit_axioms NightstreamFPrime.Spec.Nebula.WasmSize.segmentBits_succ_lt
+#audit_axioms NightstreamFPrime.Spec.Nebula.WasmSize.steps_le_light

@@ -4,7 +4,7 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use super::super::compression::{FinalProof, Fresh, Steps};
-use super::super::{BoundedDepth, BoundedDepthError, CompiledSteps, Envelope};
+use super::super::{BoundedDepth, BoundedDepthError, CompiledSteps, Compression, Envelope};
 use super::support::{fold_gate_bits, hash_chain_step, packages, words};
 use super::{addition, prover};
 use crate::folding::transcript::Transcript;
@@ -106,7 +106,7 @@ fn a_compressed_proof_verifies_and_a_changed_one_does_not() {
             .compression_layout(
                 key.blocks(),
                 envelope.pc,
-                envelope.slots.each_ref().map(|slot| slot.depth),
+                &envelope.slots.each_ref().map(|slot| slot.depth),
             )
             .expect("layout");
         let start = Instant::now();
@@ -334,7 +334,10 @@ fn unproven(envelope: &Envelope) -> FinalProof {
         current: envelope.current,
         steps: Some(Steps {
             pc: envelope.pc,
-            slots: slots.map(|slot| (slot.accumulator.claim.clone(), slot.depth)),
+            slots: slots
+                .iter()
+                .map(|slot| (slot.accumulator.claim.clone(), slot.depth))
+                .collect(),
             fresh: Fresh {
                 c: claim.c.clone(),
                 r: claim.r.clone(),
@@ -397,7 +400,26 @@ fn a_final_proof_has_one_encoding_and_a_circuit_and_depths_in_range() {
         prover.verify_final(key, envelope.iteration, envelope.z0, envelope.current, &third),
         Err(BoundedDepthError::Statement(_))
     ));
-    assert!(through_bytes(&third).is_none(), "circuit 3 decodes");
+    assert!(third.to_bytes().is_err(), "circuit 3 encodes");
+    let mut tagged = bytes.clone();
+    tagged[16..24].copy_from_slice(&3u64.to_le_bytes());
+    assert!(FinalProof::from_bytes(&tagged).is_err(), "circuit 3 decodes");
+    let mut unknown = proof.clone();
+    unknown.steps.as_mut().unwrap().pc = 0;
+    assert!(unknown.to_bytes().is_err(), "circuit 0 with steps encodes");
+    let mut far = proof.clone();
+    far.steps.as_mut().unwrap().slots[1].1 = F::ORDER_U64;
+    assert!(far.to_bytes().is_err(), "a depth of q encodes");
+    let mut late = proof.clone();
+    late.iteration = F::ORDER_U64;
+    assert!(late.to_bytes().is_err(), "an iteration of q encodes");
+    let moved = FinalProof {
+        iteration: 1,
+        z0: envelope.z0,
+        current: envelope.z0,
+        steps: None,
+    };
+    assert!(moved.to_bytes().is_err(), "zero steps at iteration 1 encode");
 
     let argument = &proof.steps.as_ref().unwrap().argument;
     let commitment = &argument.witness_commitment[..];
@@ -484,7 +506,7 @@ fn compress_committing(prover: &BoundedDepth, envelope: &Envelope, committed: &M
     let fresh = envelope.fresh.as_ref().expect("fresh instance");
     let (pc, slots) = (envelope.pc, envelope.slots.each_ref());
     let layout = prover
-        .compression_layout(key(prover).blocks(), pc, slots.map(|slot| slot.depth))
+        .compression_layout(key(prover).blocks(), pc, &slots.map(|slot| slot.depth))
         .expect("layout");
     let witnesses = [&slots[0].accumulator.witness, &slots[1].accumulator.witness, committed];
     let committed = ns_compress::commit(setup(prover), layout, &witnesses).expect("commitment of W");
@@ -506,7 +528,7 @@ fn compress_committing(prover: &BoundedDepth, envelope: &Envelope, committed: &M
     .expect("PiCCS proof");
     let output = ccs.outputs.swap_remove(0);
     let statements =
-        prover.compression_statements(pc, slots.map(|slot| (&slot.accumulator.claim, slot.depth)), &output);
+        prover.compression_statements(pc, &slots.map(|slot| (&slot.accumulator.claim, slot.depth)), &output);
     let (argument, _) = committed
         .prove(transcript.inner_mut(), &statements)
         .expect("the prover does not check its witness");
@@ -516,7 +538,10 @@ fn compress_committing(prover: &BoundedDepth, envelope: &Envelope, committed: &M
         current: envelope.current,
         steps: Some(Steps {
             pc,
-            slots: slots.map(|slot| (slot.accumulator.claim.clone(), slot.depth)),
+            slots: slots
+                .iter()
+                .map(|slot| (slot.accumulator.claim.clone(), slot.depth))
+                .collect(),
             fresh: Fresh {
                 c: output.c,
                 r: output.r,
@@ -672,6 +697,71 @@ fn a_proof_does_not_verify_under_another_compression_key() {
 
 fn small_setup() -> ProverKey {
     ProverKey::new(512).expect("the key of 512 blocks")
+}
+
+/// SPEC.md section 4.5, Algorithms 9 and 10; Lean `FinalVerifier.ModeChecks`.
+#[test]
+fn a_light_final_proof_carries_slot_zero_alone_and_needs_its_mode() {
+    let both = prover(2);
+    let light = prover(2).with_compression(Compression::Light);
+    assert_eq!(light.key_blocks(), light.relations[0].blocks());
+    assert_eq!(
+        both.key_blocks(),
+        both.relations[0].blocks().max(both.relations[1].blocks())
+    );
+    let setup = small_setup();
+    let key = setup.verification_key();
+    let initial = light.initial(z0()).expect("initial proof");
+    let message = words([20, 21, 22, 23]);
+    let envelope = &light
+        .extend(&initial, &message, hash_chain_step(initial.current, message), None)
+        .expect("step");
+    let full = unproven(envelope);
+    let mut proof = full.clone();
+    proof.steps.as_mut().unwrap().slots.truncate(1);
+    let bytes = proof.to_bytes().expect("bytes");
+    assert_eq!(&bytes[..16], b"NS-OPTIONB-FIN-L");
+    let decoded = FinalProof::from_bytes(&bytes).expect("decoded proof");
+    assert_eq!(decoded.steps.as_ref().unwrap().slots.len(), 1);
+    assert_eq!(decoded.to_bytes().expect("bytes"), bytes);
+    let verify = |verifier: &BoundedDepth, proof: &FinalProof| {
+        verifier.verify_final(key, envelope.iteration, envelope.z0, envelope.current, proof)
+    };
+    assert!(matches!(
+        verify(&light, &decoded),
+        Err(BoundedDepthError::Compression(ns_compress::Error::Key(_)))
+    ));
+    assert!(matches!(verify(&both, &decoded), Err(BoundedDepthError::Statement(_))));
+    assert!(matches!(verify(&light, &full), Err(BoundedDepthError::Statement(_))));
+    let mut refresh = decoded.clone();
+    refresh.steps.as_mut().unwrap().pc = 2;
+    assert!(matches!(verify(&light, &refresh), Err(BoundedDepthError::Statement(_))));
+    assert!(refresh.to_bytes().is_err(), "slot 0 alone with pc = 2 encodes");
+
+    let mut moved = envelope.clone();
+    moved.slots[1].depth = 1;
+    assert!(matches!(
+        light.compress(&setup, &moved),
+        Err(BoundedDepthError::Slot { slot: 1, .. })
+    ));
+    let mut refreshed = envelope.clone();
+    refreshed.pc = 2;
+    assert!(matches!(
+        light.compress(&setup, &refreshed),
+        Err(BoundedDepthError::Statement(_))
+    ));
+    let mut tagged = bytes.clone();
+    tagged[16..24].copy_from_slice(&2u64.to_le_bytes());
+    assert!(
+        FinalProof::from_bytes(&tagged).is_err(),
+        "the light tag with pc = 2 decodes"
+    );
+    let mut retagged = bytes.clone();
+    retagged[..16].copy_from_slice(b"NS-OPTIONB-FIN-2");
+    assert!(
+        FinalProof::from_bytes(&retagged).is_err(),
+        "one slot under the tag of both decodes"
+    );
 }
 
 #[test]

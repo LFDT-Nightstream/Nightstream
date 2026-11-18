@@ -2,30 +2,29 @@
 
 ## Status
 
-Accepted by the owner on 2026-08-28. This decision supersedes
-the earlier `2^26` decision.
+Accepted by the owner on 2026-08-28.
+
+## Problem
+
+Π_CCS runs one sum-check over a row cube that covers the rows of the relation
+and the committed assignment
+([`padded-row-identity-piccs.md`](./padded-row-identity-piccs.md)). The
+number of variables of this cube fixes the sum-check rounds, the largest key
+width and the error numerators. Each of these values must use one number.
+
+## SuperNeo
+
+SuperNeo v1.2 Section 7.3 runs one sum-check on the `log m` row cube. It does
+not fix `m` for an implementation.
 
 ## Decision
 
-The Nightstream F′ Stage 1 production relation uses a 28-variable row cube.
-Its maximum joint row and carrier domain is `2^28`, and PiCCS therefore uses
-exactly 28 SumCheck rounds.
+The row cube has 28 variables (`Lifecycle.cubeVariables`). So Π_CCS has
+exactly 28 sum-check rounds in the light fold and in the refresh fold
+([SPEC.md](../SPEC.md) section 3). The rows of each relation and the logical
+width of each key are at most `2^28`. The two circuit keys have the logical
+width `2^26` (`Export.BoundedDepth.StepRelation.keyWidth`). The Module-SIS
+estimate of [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) uses
+the width `2^28`.
 
-Every dependent layout theorem, package field, fixture, Rust loader check,
-relation identity, and final fixed-point proof must use this one value. Old
-`2^25` and `2^26` artifacts and identities are not evidence for this profile.
-
-This decision does not change `b = 2`, `k_rho`, `B = 2^k_rho`, the 14
-separate CCS matrices, the Poseidon2-only binding rule, or the Stage 2 and
-proof-backend boundaries.
-
-## Footprint note
-
-Lean proves that the current direct low-norm Poseidon2 plan retains
-108,160,050 S-box coordinates. This fits below
-`2^28 = 268,435,456`, with 160,275,406 coordinates left before final outputs,
-non-Poseidon source values, and the remaining Stage 1 phases are added.
-
-This decision does not prove that the complete relation fits. The final
-compiler must still construct the complete low-norm assignment and 14-matrix
-plan and prove their joint domain at or below `2^28`.
+This decision does not change `b = 2`, `k_rho` or `B = 2^k_rho`.

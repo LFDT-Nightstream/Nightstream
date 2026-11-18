@@ -8,6 +8,7 @@ import NightstreamFPrime.Spec.Nebula.EventBinding
 import NightstreamFPrime.Spec.Nebula.Batch
 import NightstreamFPrime.Spec.Nebula.RunMemory
 import NightstreamFPrime.Spec.Nebula.ReplayCheck
+import NightstreamFPrime.Spec.Nebula.TableOverlay
 import NightstreamFPrime.Spec.Nebula.EtaLine
 
 /-! The Nebula memory phase of SPEC.md section 7 and its security

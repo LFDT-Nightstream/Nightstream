@@ -1,6 +1,7 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Nebula.RunMemory
 import NightstreamFPrime.Spec.Nebula.ReplayCheck
+import NightstreamFPrime.Spec.Nebula.TableOverlay
 
 open NightstreamFPrime.Spec.Nebula.MemoryTrace
 
@@ -11,3 +12,7 @@ open NightstreamFPrime.Spec.Nebula.MemoryTrace
 #audit_axioms runMemory_of_slotOrder_executes
 #audit_axioms replay?_eq_some_iff
 #audit_axioms memoryConsistent_iff
+#audit_axioms Event.rename_memory
+#audit_axioms eventValuesBounded_rename
+#audit_axioms replay_untable
+#audit_axioms runMemory_untable

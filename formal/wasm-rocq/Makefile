@@ -11,6 +11,8 @@ Makefile.coq: _CoqProject
 
 check-exports:
 	cargo run --release --manifest-path ../../Cargo.toml -p neo-wasm --bin export_wasm_rocq -- --check
+	cargo run --release --manifest-path ../../Cargo.toml -p neo-wasm --bin export_wasm_rocq -- --binding ../../target/wasm-binding-export
+	cd ../../target/wasm-binding-export && sha256sum -c "$(CURDIR)/scripts/binding-exports.sha256"
 
 # The witness traces are build outputs. The exporter rewrites only changed files.
 traces:

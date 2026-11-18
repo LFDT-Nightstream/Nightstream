@@ -25,7 +25,7 @@ use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::app::{Application, Memory, Transition};
-use super::catalog::{CatalogBinding, CatalogBindingError, CatalogRowError, Region};
+use super::catalog::{BoundPort, CatalogBinding, CatalogBindingError, CatalogRowError, Region};
 use super::expr::Expr;
 use super::geometry::Geometry;
 use super::rows::View;
@@ -327,6 +327,17 @@ impl<Id: Clone + Eq> R1csApplication<Id> {
     /// the continuity rows between neighbor rows.
     pub fn relation_rows(&self) -> usize {
         self.relation.len()
+    }
+
+    /// The slots of the built binding, each with its ports in built order.
+    pub fn slots(&self) -> &[Vec<BoundPort>] {
+        self.binding.slots()
+    }
+
+    /// The region of each memory of the catalog, in catalog order, as the
+    /// built binding holds it.
+    pub fn regions(&self) -> impl Iterator<Item = (&Id, &Region)> + '_ {
+        self.binding.regions()
     }
 
     /// Map a source column to its step witness position, or reject an index

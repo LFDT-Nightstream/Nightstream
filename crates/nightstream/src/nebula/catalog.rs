@@ -118,17 +118,20 @@ pub enum CatalogRowError {
     Width,
 }
 
+/// A port of a built catalog binding: its rank in the batched catalog, the
+/// position of its memory among the checked memories, and its step-witness
+/// columns.
 #[derive(Clone, Debug)]
-struct Port {
+pub struct BoundPort {
     /// Lean `eventsForRow`.
-    rank: usize,
-    memory: usize,
-    activation: MemoryPortActivation,
-    kind: MemoryPortKind,
-    is_ram: bool,
-    address: Vec<usize>,
+    pub rank: usize,
+    pub memory: usize,
+    pub activation: MemoryPortActivation,
+    pub kind: MemoryPortKind,
+    pub is_ram: bool,
+    pub address: Vec<usize>,
     region: Region,
-    value: usize,
+    pub value: usize,
 }
 
 fn is_active(activation: MemoryPortActivation, row: &[F]) -> Result<bool, CatalogRowError> {
@@ -158,7 +161,7 @@ fn word(row: &[F], column: usize) -> Result<u64, CatalogRowError> {
     }
 }
 
-impl Port {
+impl BoundPort {
     fn columns(&self) -> Vec<usize> {
         let activation = match self.activation {
             MemoryPortActivation::Always => None,
@@ -179,8 +182,8 @@ impl Port {
     }
 
     /// Lean `Event.Dependent`.
-    fn depends_on(&self, other: &Port) -> bool {
-        let writes = |port: &Port| matches!(port.kind, MemoryPortKind::Write { .. });
+    fn depends_on(&self, other: &BoundPort) -> bool {
+        let writes = |port: &BoundPort| matches!(port.kind, MemoryPortKind::Write { .. });
         self.memory == other.memory && (writes(self) || writes(other))
     }
 
@@ -216,7 +219,7 @@ fn sum(terms: impl Iterator<Item = Expr>) -> Expr {
 #[derive(Clone, Debug)]
 pub struct CatalogBinding<Id> {
     geometry: Geometry,
-    slots: Vec<Vec<Port>>,
+    slots: Vec<Vec<BoundPort>>,
     checked: Vec<Checked<Id>>,
     host_checked: Vec<Id>,
 }
@@ -279,7 +282,7 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
                 if port.address_columns.len() != region.widths.len() {
                     return Err(CatalogBindingError::AddressParts);
                 }
-                ports.push(Some(Port {
+                ports.push(Some(BoundPort {
                     rank: ports.len(),
                     memory: checked.len(),
                     activation: port.activation,
@@ -319,7 +322,7 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
                     })
                     .collect()
             })
-            .collect::<Result<Vec<Vec<Port>>, _>>()?;
+            .collect::<Result<Vec<Vec<BoundPort>>, _>>()?;
         if ports.iter().any(Option::is_some) {
             return Err(CatalogBindingError::Plan);
         }
@@ -333,6 +336,16 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
 
     pub fn port_count(&self) -> usize {
         self.slots.len()
+    }
+
+    pub fn slots(&self) -> &[Vec<BoundPort>] {
+        &self.slots
+    }
+
+    pub fn regions(&self) -> impl Iterator<Item = (&Id, &Region)> + '_ {
+        self.checked
+            .iter()
+            .map(|checked| (&checked.id, &checked.region))
     }
 
     pub fn host_checked(&self) -> &[Id] {
@@ -373,7 +386,7 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
             .slots
             .iter()
             .flatten()
-            .flat_map(Port::columns)
+            .flat_map(BoundPort::columns)
             .max()
             .map_or(0, |column| column + 1);
         if columns.len() < needed {
@@ -395,7 +408,7 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
             .map(|column| bit_row(columns[column].clone()))
             .collect();
         for (j, slot) in self.slots.iter().enumerate() {
-            let active_sum = |keep: fn(&Port) -> bool| {
+            let active_sum = |keep: fn(&BoundPort) -> bool| {
                 sum(slot
                     .iter()
                     .filter(|port| keep(port))
@@ -441,7 +454,7 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
 
     pub fn ports(&self, row: &[F], memory: &Memory) -> Result<Vec<Option<PortAccess>>, CatalogRowError> {
         let mut ports: Vec<Option<PortAccess>> = Vec::with_capacity(self.slots.len());
-        let mut shown_ports: Vec<&Port> = Vec::new();
+        let mut shown_ports: Vec<&BoundPort> = Vec::new();
         for slot in &self.slots {
             let mut shown = None;
             for port in slot {

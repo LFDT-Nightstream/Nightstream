@@ -660,7 +660,8 @@ fn capture_memory_access<T>(
     } else {
         read_word(memory_opcode.memory_index, base_word_addr * 4, frame, store)?
     };
-    let lane1_before = if is_oob {
+    let uses_lane1 = byte_offset + width_bytes > 4;
+    let lane1_before = if is_oob || !uses_lane1 {
         0
     } else {
         read_word(memory_opcode.memory_index, (base_word_addr + 1) * 4, frame, store)?
@@ -738,7 +739,7 @@ fn capture_memory_access<T>(
             lane0_bytes[byte_offset..byte_offset + split].copy_from_slice(&write_bytes[..split]);
             lane0.value_after = u32::from_le_bytes(lane0_bytes);
 
-            if byte_offset + width_bytes > 4 {
+            if uses_lane1 {
                 let mut lane1_bytes = lane1.value_before.to_le_bytes();
                 let lane1_count = byte_offset + width_bytes - 4;
                 lane1_bytes[..lane1_count].copy_from_slice(&write_bytes[split..split + lane1_count]);
@@ -776,7 +777,7 @@ fn capture_memory_access<T>(
         effective_address,
         byte_offset,
         lane0,
-        lane1: (byte_offset + width_bytes > 4).then_some(lane1),
+        lane1: uses_lane1.then_some(lane1),
         lane2,
         value_before_i32: matches!(
             memory_opcode.kind,

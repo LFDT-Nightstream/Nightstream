@@ -1,5 +1,6 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Export.WasmBinding
+import NightstreamFPrime.Export.WasmRun
 
 open NightstreamFPrime.Export.WasmBinding
 
@@ -14,3 +15,9 @@ open NightstreamFPrime.Export.WasmBinding
 #audit_axioms binds_of_rankEvent
 #audit_axioms port_of_accepted
 #audit_axioms binds_of_accepted
+#audit_axioms NightstreamFPrime.Export.WasmBinding.slotOrder_of_stepBinds
+#audit_axioms NightstreamFPrime.Export.WasmBinding.runMemory_of_stepBinds
+#audit_axioms NightstreamFPrime.Export.WasmBinding.filter_eventsForRow_logical
+#audit_axioms NightstreamFPrime.Export.WasmBinding.written_alone
+#audit_axioms NightstreamFPrime.Export.WasmBinding.runMemory_logical_of_stepBinds
+#audit_axioms NightstreamFPrime.Export.WasmBinding.circuitRun_of_wasmModel

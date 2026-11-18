@@ -168,6 +168,14 @@ def tablesOk : Bool :=
 /-- The physical catalog is the overlay of the logical catalog. -/
 def overlayOk : Bool := decide (x.catalog = overlay x.logical x.table)
 
+/-- The logical memories have the ids `0, 1, …`. -/
+def logicalIdsOk : Bool := decide (x.logical.map MemorySpec.memoryId = List.range x.logical.length)
+
+/-- No other logical memory has the table of a logical memory with a write port. -/
+def writesAloneOk : Bool :=
+  (x.logical.zip x.table).all fun a => !(a.1.ports.any fun port => port.portKind != .read) ||
+    (x.logical.zip x.table).all fun b => b.2 != a.2 || b.1.memoryId == a.1.memoryId
+
 /-- One region per physical memory. -/
 def regionCountOk : Bool := x.regions.length == x.catalog.length
 
@@ -216,6 +224,8 @@ def wiredOk : Bool :=
 def checks : List (String × (WasmBinding → Bool)) :=
   [("a logical memory has no table of its kind", tablesOk),
    ("the physical catalog is not the overlay of the logical catalog", overlayOk),
+   ("the logical memories do not have the ids 0, 1, ...", logicalIdsOk),
+   ("a written logical memory shares its table", writesAloneOk),
    ("the regions are not one per physical memory", regionCountOk),
    ("a region is not aligned to its size", alignedOk),
    ("a region is not inside its space", inSpaceOk),
@@ -235,6 +245,9 @@ def reason : Option String := (checks.find? fun entry => !entry.2 x).map Prod.fs
 /-- The facts of an accepted export. -/
 structure Accepted : Prop where
   isOverlay : x.catalog = overlay x.logical x.table
+  logicalIds : x.logical.map MemorySpec.memoryId = List.range x.logical.length
+  writesAlone : ∀ a ∈ x.logical.zip x.table, (∃ port ∈ a.1.ports, port.portKind ≠ .read) →
+    ∀ b ∈ x.logical.zip x.table, b.2 = a.2 → b.1.memoryId = a.1.memoryId
   distinct : (x.catalog.map MemorySpec.memoryId).Nodup
   tableKinds : List.Forall₂ (fun m t => (x.catalog[t]?).map MemorySpec.memoryKind =
     some m.memoryKind) x.logical x.table
@@ -322,14 +335,24 @@ private theorem wired_of_check {x : WasmBinding} (wired : x.wiredOk = true) {j :
 theorem check_sound {x : WasmBinding} (accepted : x.check = true) : x.Accepted := by
   simp only [check, checks, List.all_cons, List.all_nil, Bool.and_true, Bool.and_eq_true]
     at accepted
-  obtain ⟨tables, overlaid, regionCount, aligned, inSpace, disjoint, widths, columns, slotCount,
-    names, wired⟩ := accepted
+  obtain ⟨tables, overlaid, logicalIds, writesAlone, regionCount, aligned, inSpace, disjoint,
+    widths, columns, slotCount, names, wired⟩ := accepted
   have overlaid : x.catalog = overlay x.logical x.table := of_decide_eq_true overlaid
   obtain ⟨tableCount, tables⟩ := Bool.and_eq_true _ _ ▸ tables
   obtain ⟨rowsPos, rowsDvd, slotCount⟩ := of_decide_eq_true slotCount
   refine
     { isOverlay := overlaid
       distinct := overlaid ▸ distinct_overlay _ _
+      logicalIds := of_decide_eq_true logicalIds
+      writesAlone := fun a inA written b inB same => by
+        have := List.all_eq_true.mp writesAlone a inA
+        simp only [Bool.or_eq_true, Bool.not_eq_true', List.any_eq_false, bne_iff_ne, ne_eq,
+          Decidable.not_not] at this
+        rcases this with none | alone
+        · obtain ⟨port, inPorts, write⟩ := written
+          exact absurd (none port inPorts) write
+        · have := List.all_eq_true.mp alone b inB
+          simpa [same] using this
       tableKinds := List.forall₂_iff_zip.mpr ⟨beq_iff_eq.mp tableCount, fun member =>
         of_decide_eq_true (List.all_eq_true.mp tables _ member)⟩
       regionCount := beq_iff_eq.mp regionCount

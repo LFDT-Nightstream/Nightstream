@@ -141,3 +141,4 @@ import NightstreamFPrime.Export.DomainSeparation
 import NightstreamFPrime.Export.BoundedDepth.EtaSponge
 import NightstreamFPrime.Export.BoundedDepth.FoldSponge
 import NightstreamFPrime.Export.WasmBinding
+import NightstreamFPrime.Export.WasmRun

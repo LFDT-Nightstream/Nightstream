@@ -64,7 +64,8 @@ theorem Reorders.mem_order {events order : List Event} (reorders : Reorders even
     exact ⟨i, List.mem_zipIdx_iff_getElem?.mpr (by simp [small])⟩
   exact List.mem_map.mpr ⟨_, perm.symm.subset tagged_member, rfl⟩
 
-private theorem exists_of_forall₂_mem {α β : Type} {R : α → β → Prop} {xs : List α} {ys : List β}
+/-- A member of a list related to another list is related to a member of it. -/
+theorem exists_of_forall₂_mem {α β : Type} {R : α → β → Prop} {xs : List α} {ys : List β}
     (related : List.Forall₂ R xs ys) {x : α} (member : x ∈ xs) : ∃ y ∈ ys, R x y := by
   induction related with
   | nil => cases member

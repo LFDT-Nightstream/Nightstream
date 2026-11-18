@@ -22,10 +22,12 @@ The results for the full path of a compressed proof (`SPEC.md` Algorithm 10 and 
   `Export.BoundedDepth.FinalVerifier.Premises` holds
   (`Export.BoundedDepth.FinalRows.premises_of_rows`). A Rust test compares a checksum of these
   rows with Lean's (`Export.BoundedDepth.RowsParity.fastSum_eq`).
-- Bound: `history_sound`, `memory_sound` and their Akita forms contain
+- Knowledge: `history_knowledge` bounds the event that the witnesses of the reverse extractor are
+  not a valid history of the accepted statement, with the bound of `history_sound`.
+- Bound: `history_sound`, `history_knowledge`, `memory_sound` and their Akita forms contain
   `Export.BoundedDepth.IvcSecurity.walkBound` for the prover's IVC adversary, the sum over the
   reverse extractor's stages of `Claims.Ivc`.
-- Collision term: in these four claims it is the success chance of the Poseidon2 collision finder
+- Collision term: in these claims it is the success chance of the Poseidon2 collision finder
   of each reverse stage (`Export.BoundedDepth.IvcSecurity.finderChance`), as in `Claims.Ivc`. Lean
   does not bound it.
 - Open: each open premise of `Claims.Ivc` and `Claims.Nebula`. The error is not one security
@@ -134,6 +136,57 @@ theorem history_sound
           IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed
             (FinalHistory.adversary setup s q) admitted depth :=
   @Export.BoundedDepth.FinalHistory.soundness logicalWidth publicFits mode setup relation step cubeFits
+    exports Admitted StageAdmitted Efficient error assumption closed s q admitted complete
+    rows keysShaped depth depthBound
+
+/-- The knowledge form of `history_sound` (HyperNova Definition 11 (ii)): in the state-restoration
+experiment with `q` queries, the probability that the final verifier accepts a statement and the
+witnesses that the reverse extractor returns from the first `depth` stages are not a valid history
+of that statement is at most `q · (1/2^119 + 38/fieldModulus²)` plus `IvcSecurity.walkBound`. -/
+theorem history_knowledge
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+        Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    {mode : FinalVerifier.Mode}
+    (setup : FinalVerifier.Setup mode logicalWidth publicFits)
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    {step : AppState → AppWitness → AppState}
+    {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+    (exports : TerminalBridge.Exports relation setup.ajtai setup.circuitKeys step cubeFits)
+    {Admitted : HyperNova.ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits) → Prop}
+    {StageAdmitted : HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+          (IvcWalk.Answer logicalWidth publicFits) →
+        Prop}
+    {Efficient : (adversary :
+          HyperNova.ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits)) →
+        HyperNova.ReverseStages.NifsExtractor (IvcWalk.Answer logicalWidth publicFits) adversary →
+          Prop}
+    {error : HyperNova.ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits) → ℝ}
+    (assumption : HyperNova.ReverseStages.Assumption1 (IvcWalk.WalkSucceeds setup.ajtai)
+        (IvcWalk.WalkExtracted setup.ajtai) Admitted Efficient error)
+    (closed : HyperNova.ReverseStages.Closed (IvcWalk.attemptOf setup.ajtai setup.circuitKeys exports)
+        (IvcWalk.back setup.ajtai setup.circuitKeys exports) Admitted StageAdmitted Efficient)
+    (s : Compression.Game.Strategy (Option (Option (FinalVerifier.Outcome logicalWidth publicFits))))
+    (q : ℕ)
+    (admitted : StageAdmitted
+        (HyperNova.ReverseStages.Stage.start
+          (IvcSecurity.walkAdversary (FinalHistory.adversary setup s q))))
+    (complete : StepExtend.Complete exports)
+    (rows : ∀ circuit : Fin 2,
+      (setup.rows circuit).matrices = (FinalRows.packageRows exports complete circuit).matrices)
+    (keysShaped : ∀ (key : Fin 2), List.length (setup.circuitKeys key).digest = 4)
+    (depth : ℕ)
+    (depthBound : ∀ (o : FinalVerifier.Outcome logicalWidth publicFits),
+        some (some o) ∈ (Compression.Game.law s (setup.game.restore q [])).support →
+          o.1.iteration ≤ depth) :
+    ENNReal.toReal
+        ((HyperNova.ReverseStages.reverseStages assumption closed
+            (IvcSecurity.walkAdversary (FinalHistory.adversary setup s q)) admitted depth).1.tape.toOuterMeasure
+          {tape | FinalHistory.AdviceFailure setup exports assumption closed s q admitted depth tape}) ≤
+        (↑q : ℝ) * FinalVerifier.finalError +
+          IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed
+            (FinalHistory.adversary setup s q) admitted depth :=
+  @Export.BoundedDepth.FinalHistory.knowledge logicalWidth publicFits mode setup relation step cubeFits
     exports Admitted StageAdmitted Efficient error assumption closed s q admitted complete
     rows keysShaped depth depthBound
 

@@ -45,10 +45,11 @@ to 3 and 5 on 2026-11-16 (`wasm-light-compression.md`).
    12 and Large 6 (item 5), so Micro holds runs of up to 24,000 trace rows
    and each other size of up to about 16,000. The fixed cost of a step
    changes little with its rows, so fewer and larger steps cost less for
-   each row. A size has the largest steps whose light relation fits the
-   Akita key of `2^19` blocks (`akita-compression.md`). The four short test
-   transactions of Starstream `159bedc` fit Micro, and `score` and
-   `distinct_utxo_types` fit Small.
+   each row. The rows of each size are a selected count, and the light
+   relation of each size fits the Akita key of `2^19` blocks
+   (`akita-compression.md`). Small fills the key most closely. The four
+   short test transactions of Starstream `159bedc` fit Micro, and `score`
+   and `distinct_utxo_types` fit Small.
 4. **The prover selects, the verifier takes.** The prover takes the
    smallest size that holds the program and its run. The size is part of the
    statement, and the verifier compiles the circuit of that size. It never

@@ -1,11 +1,12 @@
 mod common;
 
 use neo_math::F;
+use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::layout::{
     COL_FUNCTION_REF, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX,
     COL_TABLE_VALUE,
 };
-use neo_wasm::WasmOpcode;
+use neo_wasm::{collect_wasmtime_steps, extract_wasm_program_artifacts, WasmBuildError, WasmOpcode, WasmProgramError};
 use p3_field::PrimeCharacteristicRing;
 
 #[test]
@@ -173,5 +174,36 @@ fn operand_held_across_call_survives() {
                 i32.add))
         "#,
         "run",
+    );
+}
+
+#[test]
+fn an_internal_call_with_two_results_is_provable() {
+    let checked = common::checked_wasm_run(
+        r#"(module
+            (func $pair (result i32 i32)
+                i32.const 9
+                i32.const 2)
+            (func (export "run") (result i32)
+                call $pair
+                i32.sub))
+        "#,
+        "run",
+    );
+    assert_eq!(common::final_state(&checked.trace).output.value_lo, 7);
+}
+
+#[test]
+fn an_export_with_two_results_is_refused() {
+    let wasm = wat::parse_str(r#"(module (func (export "main") (result i32 i32) i32.const 1 i32.const 7))"#).unwrap();
+    let prover = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "main", &[]).map(|run| run.results);
+    assert!(
+        matches!(prover, Err(WasmBuildError::Program(WasmProgramError::Unsupported(_)))),
+        "the prover path accepts a two-result export: {prover:?}"
+    );
+    let verifier = extract_wasm_program_artifacts(&wasm).map(|artifacts| artifacts.tables.function_entries);
+    assert!(
+        matches!(verifier, Err(WasmProgramError::Unsupported(_))),
+        "the verifier path accepts a two-result export: {verifier:?}"
     );
 }

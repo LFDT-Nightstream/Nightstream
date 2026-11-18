@@ -15,7 +15,7 @@
 | Ring | `F_q[X]/(X^64 + 1)`, the commitment ring | `neo-math` |
 | Pad / Eval_K | Evaluation of the padded witness | The slot check of `BoundedDepth::verify`, by PiDEC recomposition |
 | Matrix / Eval_A | Evaluation of a matrix applied to the witness, in four families | The slot check of `BoundedDepth::verify`, by PiDEC recomposition |
-| Final proof | A proof without witnesses: both slot claims, the CE claim of the fresh instance, a PiCCS run and an argument over Akita | `nightstream/src/lifecycle/bounded_depth/compression.rs`, `ns-compress` |
+| Final proof | A proof without witnesses: the slot claims of its mode (both slots, or slot 0 alone in the light mode), the CE claim of the fresh instance, a PiCCS run and an argument over Akita | `nightstream/src/lifecycle/bounded_depth/compression.rs`, `ns-compress` |
 | Akita | The lattice polynomial commitment scheme of ePrint 2026/1983, at a pinned revision | `ns-compress/src/akita.rs` |
 | Terminal verification | Check the fresh instance and the claims of both slots against the expected final state | `nightstream/src/lifecycle/bounded_depth/mod.rs` |
 

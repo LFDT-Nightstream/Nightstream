@@ -24,8 +24,10 @@ digests do not replace these checks.
 
 `Prover::compression_setup` makes a `CompressionSetup` once from the
 prover's circuit. It expands the rows of the Ajtai key that the circuit
-reads, for the blocks of the larger relation up to a power of two, and
-commits them as one polynomial with the Akita commitment scheme.
+reads, for the blocks of the relations of the claims up to a power of two,
+and commits them as one polynomial with the Akita commitment scheme. The
+claims are of both relations, or of the light relation alone in the light
+mode (below).
 `Prover::compress` makes a `FinalProof` from a proof and the setup. The
 final proof has no witness, and `extend` cannot use it.
 `FinalProof::to_bytes` and `FinalProof::from_bytes` are its byte form.
@@ -47,10 +49,16 @@ accepts only the bytes of the pinned key of the circuit size.
 `nebula::Prover` and `nebula::Verifier` have the same functions for a
 memory proof.
 
-The final proof has both slot claims, the CE claim that one PiCCS run makes
-of the fresh instance, and one argument from `crates/ns-compress`. The
-argument commits two polynomials with Akita: `W` holds the three witnesses
-and the counts of the lookup tables, and `V` holds the lookup inverses. One
+The final proof has the slot claims of its mode, the CE claim that one
+PiCCS run makes of the fresh instance, and one argument from
+`crates/ns-compress`. The verifier's circuit fixes the mode. A circuit whose
+proofs never reach a refresh fold has the light mode. These are the memory
+circuits with `N · S_max ≤ 65`, so each WASM size. Its final proof carries
+slot 0 alone, and the verifier builds slot 1 as the default slot at depth
+0. Every other circuit, such as the Poseidon2 hash chain, carries both
+slots. The argument commits two polynomials with Akita: `W` holds the
+witness of each claim, two in the light mode and three otherwise, and the
+counts of the lookup tables, and `V` holds the lookup inverses. One
 sum-check proves the Ajtai openings, the evaluations, the public inputs and
 the norm bound of each slot. A second sum-check reduces the part of the
 public weights that the Ajtai key gives to one value of the key polynomial.

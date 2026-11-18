@@ -11,3 +11,9 @@ cargo run --release -p neo-wasm --bin export_wasm_rocq -- --binding "$binding_di
 (cd "$binding_dir" && sha256sum -c "$binding_root/formal/nightstream-fprime/scripts/wasm-binding.sha256")
 timeout -s KILL "$lean_cap_seconds" formal/nightstream-fprime/scripts/validate.sh wasm-binding \
   "$binding_dir"/wasm-binding-{micro,small,medium,large}-v1.json
+for mutated in $(python3 -B scripts/wasm_binding_mutations.py "$binding_dir"); do
+  if formal/nightstream-fprime/scripts/validate.sh wasm-binding "$mutated"; then
+    echo "accepted a mutated export: $mutated" >&2
+    exit 1
+  fi
+done

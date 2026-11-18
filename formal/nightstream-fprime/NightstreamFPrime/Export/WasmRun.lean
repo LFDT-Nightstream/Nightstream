@@ -1,6 +1,8 @@
 import NightstreamFPrime.Export.WasmBinding
 import NightstreamFPrime.Spec.Nebula.TableOverlay
 import NightstreamFPrime.Lifecycle.Nebula.PortApp
+import NightstreamFPrime.Lifecycle.Nebula.Framing
+import NightstreamFPrime.Spec.Nebula.Soundness
 
 /-! Owns the memory half of Rocq `validCircuitRun` for a run of the WASM application of an
 accepted binding export (`Export.WasmBinding`), over the physical and the logical catalog, and
@@ -316,5 +318,19 @@ theorem circuitRun_of_wasmModel {x : WasmBinding} (accepted : x.Accepted) {p : P
   obtain ⟨witnesses, holds, binds⟩ := model exec
   obtain ⟨last, run⟩ := runMemory_logical_of_stepBinds accepted exec binds start
   exact ⟨witnesses, last, holds, run⟩
+
+/-- The join with the memory claims: outside the event that `Claims.Nebula.memory_sound` bounds,
+the extracted run attests the claim (`Lifecycle.Nebula.EndToEnd.Experiment.Attested`). Under the
+proposed premise, a run that attests a statement gives the premise `validCircuitRun` of Rocq
+`run_refinement` with `circuit` for its first two parts. -/
+theorem circuitRun_of_attests {x : WasmBinding} (accepted : x.Accepted) {p : Plan}
+    {circuit : List Witness → Prop} {app : Lifecycle.Nebula.PortApp p.toGeometry}
+    (model : x.WasmModel p circuit app) {initial : MemoryState}
+    (start : x.binding.Initial x.catalog p initial) {stmt run}
+    (attests : Attests (Lifecycle.Nebula.context p) app.model stmt run) :
+    ∃ witnesses last, circuit (x.traceRows witnesses) ∧
+      RunMemory x.logical (untable x.tableOf initial) (x.traceRows witnesses) last := by
+  obtain ⟨_, exec, -, -⟩ := attests.executes
+  exact circuitRun_of_wasmModel accepted model start exec
 
 end NightstreamFPrime.Export.WasmBinding

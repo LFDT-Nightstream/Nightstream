@@ -21,3 +21,4 @@ open NightstreamFPrime.Export.WasmBinding
 #audit_axioms NightstreamFPrime.Export.WasmBinding.written_alone
 #audit_axioms NightstreamFPrime.Export.WasmBinding.runMemory_logical_of_stepBinds
 #audit_axioms NightstreamFPrime.Export.WasmBinding.circuitRun_of_wasmModel
+#audit_axioms NightstreamFPrime.Export.WasmBinding.circuitRun_of_attests

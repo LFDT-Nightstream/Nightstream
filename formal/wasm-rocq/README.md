@@ -102,6 +102,18 @@ values and active catalog bindings supply it in the implementation. Rocq does
 not prove that Rust-to-Nebula correspondence or assume a bound on inactive
 columns. The original row-only obligation theorem receives no new premise.
 
+Lean in `formal/nightstream-fprime` proves the memory half of `validCircuitRun`
+(replay and bounded events over the catalog of `MemoryCatalog.v`) from a Nebula
+execution of a WASM size whose steps obey the slot rules at the bound ports of a
+checked binding export (`Export.WasmBinding.runMemory_logical_of_stepBinds`).
+That proof passes from the shared ROM tables to this catalog by a renaming of
+events, not by `RomSharing.v`. It does not prove the first two parts of
+`validCircuitRun`, `programLoaded`, or that the Rust rows obey the slot rules.
+`make check-exports` also checks the digests of the binding exports against
+`scripts/binding-exports.sha256`. `tests/LeanParity.v` checks the Lean copy of
+`MemoryTrace.v` on the golden traces of the Lean parity file; `make traces`
+writes `tests/LeanParityTrace.v` from that file.
+
 Requires the repository Rust toolchain (see `rust-toolchain.toml`), opam, and the
 checked versions of Coq/Rocq 9.0.1, MathComp ssreflect 2.4.0, and RecordUpdate 0.3.6:
 

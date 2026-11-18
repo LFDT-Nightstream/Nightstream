@@ -1327,7 +1327,12 @@ not change terminal source checks.
   are memory consistent exactly when their rows are
   (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff`), but not
   that the Rust rows enforce those conditions. Tests check the rows on fixed
-  inputs (trust item 5). Rust tests also check that each field of the
+  inputs (trust item 5). For the four WASM sizes, Lean checks the binding
+  that Rust builds by data (`Export.WasmBinding.check_sound`, `SPEC.md`
+  section 7.6, WASM binding export). An execution whose steps obey the rules
+  at the bound ports then gives the memory half of the Rocq run premise
+  (`Export.WasmBinding.runMemory_logical_of_stepBinds`). The Rust rows that
+  give those rules stay out of scope (`decisions/wasm-rocq-premise.md`). Rust tests also check that each field of the
   typed WASM state changes its words (`every_state_field_changes_the_state_words`
   in `crates/neo-wasm/tests/wasm_nebula.rs`), and that a field of `q` or more
   keeps a word that the terminal check of `SPEC.md` Algorithm 8 refuses
@@ -1367,8 +1372,11 @@ not change terminal source checks.
   of a value or prior-value binding. Each tag still requires a proof that its
   inactive uses admit an accepted bounded replacement preserving events and
   continuity. The row-only range theorem does not receive this premise.
-  Exact Rust binding and cross-language event correspondence remain outside
-  the formal bridge, as for the other catalog application conditions above.
+  Lean derives the bounded-event premise from a Nebula execution whose steps
+  obey the rules at the bound ports of a checked WASM binding
+  (`Export.WasmBinding.runMemory_logical_of_stepBinds`). The Rust rows that
+  give those rules remain outside the formal bridge, as for the other catalog
+  application conditions above.
 - A prover that picks the WASM size of its proof
   (`neo_wasm::nebula::WasmSize`). The results hold for each of the four
   fixed sizes, not for a choice among them.

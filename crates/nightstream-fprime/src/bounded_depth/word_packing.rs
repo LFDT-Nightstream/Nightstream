@@ -4,7 +4,7 @@ use neo_math::Fq as F;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 
 use super::{
-    field_lowering::normalized, guard_fusion::resolved, layout::forced_column, Linear, Piece, Row, StepPackage,
+    field_lowering::normalized, guard_fusion::resolved_row, layout::forced_column, Linear, Piece, Row, StepPackage,
 };
 use crate::PackageError;
 
@@ -145,31 +145,27 @@ impl WordPacking {
             .into_iter()
             .filter_map(forced_column)
             .collect::<BTreeSet<_>>();
-        let rows = source
-            .iter()
-            .enumerate()
-            .filter(|(index, _)| {
-                !package.field_lowering.removed.contains(index) && !package.guard_fusion.removed.contains(index)
-            })
-            .map(|(index, row)| {
-                let row = package.guard_fusion.replacements.get(&index).unwrap_or(row);
-                (
-                    index,
-                    Row {
-                        a: resolved(&row.a, &forms),
-                        b: resolved(&row.b, &forms),
-                        c: resolved(&row.c, &forms),
-                    },
-                )
-            })
-            .collect::<Vec<_>>();
+        // `SPEC.md` section 7.13: each pass resolves the rows again, so no
+        // resolved copy of the rows is held.
+        let rows = || {
+            source
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| {
+                    !package.field_lowering.removed.contains(index) && !package.guard_fusion.removed.contains(index)
+                })
+                .map(|(index, row)| {
+                    let row = package.guard_fusion.replacements.get(&index).unwrap_or(row);
+                    (index, resolved_row(row, &forms))
+                })
+        };
         let mut known = BTreeMap::new();
         let mut protected = BTreeSet::new();
-        for (index, row) in &rows {
-            if let Some(column) = forced_column(row) {
-                protected.insert(*index);
-                if source_bits.contains(&column) && retained(*index) {
-                    known.insert(column, *index);
+        for (index, row) in rows() {
+            if let Some(column) = forced_column(&row) {
+                protected.insert(index);
+                if source_bits.contains(&column) && retained(index) {
+                    known.insert(column, index);
                 }
             }
         }
@@ -204,7 +200,7 @@ impl WordPacking {
             }
         }
         let mut candidates = BTreeMap::<Key, Vec<(usize, Vec<Pair>)>>::new();
-        for (index, row) in rows {
+        for (index, row) in rows() {
             if protected.contains(&index) || row.c != Linear::default() {
                 continue;
             }

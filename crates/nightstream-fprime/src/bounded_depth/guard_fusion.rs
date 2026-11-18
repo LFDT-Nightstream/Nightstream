@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use neo_math::Fq as F;
@@ -83,6 +84,28 @@ pub(super) fn resolved(form: &Linear, forms: &HashMap<usize, Entries>) -> Linear
     normalized(result)
 }
 
+/// `SPEC.md` sections 7.11 to 7.13: `resolved` on each side of `row`. It
+/// borrows `row` when no side has a term in `forms` and each side is already
+/// `normalized`, because `resolved` then changes no side.
+pub(super) fn resolved_row<'a>(row: &'a Row, forms: &HashMap<usize, Entries>) -> Cow<'a, Row> {
+    let unchanged = |form: &Linear| {
+        form.terms.windows(2).all(|pair| pair[0].0 < pair[1].0)
+            && form
+                .terms
+                .iter()
+                .all(|(column, coefficient)| *column != 0 && *coefficient != F::ZERO && !forms.contains_key(column))
+    };
+    if [&row.a, &row.b, &row.c].into_iter().all(unchanged) {
+        Cow::Borrowed(row)
+    } else {
+        Cow::Owned(Row {
+            a: resolved(&row.a, forms),
+            b: resolved(&row.b, forms),
+            c: resolved(&row.c, forms),
+        })
+    }
+}
+
 fn linear_equation(row: &Row) -> Option<Linear> {
     let equation = if row.a.terms.is_empty() {
         row.b.clone().scale(row.a.constant)
@@ -94,10 +117,12 @@ fn linear_equation(row: &Row) -> Option<Linear> {
     Some(canonical(equation.plus(row.c.clone().scale(-F::ONE))))
 }
 
-fn families(rows: &[(usize, Row)], known: &BTreeSet<usize>) -> Vec<Family> {
+fn families<'a>(rows: impl Iterator<Item = (usize, Cow<'a, Row>)>, known: &BTreeSet<usize>) -> Vec<Family> {
     let mut found = BTreeMap::new();
     for (source, row) in rows {
-        let Some(equation) = linear_equation(row) else { continue };
+        let Some(equation) = linear_equation(&row) else {
+            continue;
+        };
         for equation in [equation.clone(), equation.scale(-F::ONE)] {
             if equation
                 .terms
@@ -120,7 +145,7 @@ fn families(rows: &[(usize, Row)], known: &BTreeSet<usize>) -> Vec<Family> {
             let total_bit = equation.constant == F::ZERO && rest.len() == 1 && rest[0].1 == -F::ONE;
             if selectors.len() >= 2 && (selectors.len() as u128) < F::ORDER_U64 as u128 && (total_one || total_bit) {
                 found.entry(selectors.clone()).or_insert(Family {
-                    source: *source,
+                    source,
                     selectors,
                     total_one,
                 });
@@ -236,36 +261,30 @@ impl GuardFusion {
                 }))
                 .filter(|column| !forms.contains_key(column))
                 .collect::<BTreeSet<_>>();
-        let rows = source
-            .iter()
-            .enumerate()
-            .filter(|(index, _)| !package.field_lowering.removed.contains(index))
-            .map(|(index, row)| {
-                (
-                    index,
-                    Row {
-                        a: resolved(&row.a, &forms),
-                        b: resolved(&row.b, &forms),
-                        c: resolved(&row.c, &forms),
-                    },
-                )
-            })
-            .collect::<Vec<_>>();
-        let families = Families::new(families(&rows, &known));
+        // `SPEC.md` section 7.12: each pass resolves the rows again, so no
+        // resolved copy of the rows is held.
+        let rows = || {
+            source
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| !package.field_lowering.removed.contains(index))
+                .map(|(index, row)| (index, resolved_row(row, &forms)))
+        };
+        let families = Families::new(families(rows(), &known));
         let certificates = families
             .families
             .iter()
             .map(|family| family.source)
             .collect::<BTreeSet<_>>();
         let mut candidates = Vec::new();
-        for (index, row) in &rows {
-            if row.c != Linear::default() || forcing.contains_key(index) || certificates.contains(index) {
+        for (index, row) in rows() {
+            if row.c != Linear::default() || forcing.contains_key(&index) || certificates.contains(&index) {
                 continue;
             }
             for (input, residual) in [(&row.a, &row.b), (&row.b, &row.a)] {
                 if let Some((gate, certificate)) = gate(input, &known, &families) {
                     candidates.push(Guarded {
-                        source: *index,
+                        source: index,
                         gate,
                         residual: canonical(residual.clone()),
                         certificate,

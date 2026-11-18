@@ -414,3 +414,45 @@ fn sorted_groups_equal_the_keyed_groups() {
         assert_eq!(groups(&candidates, &families), keyed, "round {round}");
     }
 }
+
+#[test]
+fn a_borrowed_row_equals_its_resolved_row() {
+    let mut next = random(0x2545_f491_4f6c_dd1d);
+    let forms = HashMap::from([
+        (5, vec![(0, F::from_u64(3)), (2, F::ONE), (7, -F::ONE)]),
+        (9, vec![(4, F::TWO), (5, F::ONE)]),
+    ]);
+    let coefficients = [F::ZERO, F::ONE, -F::ONE, F::TWO, F::from_u64(1 << 40)];
+    let mut borrowed = 0;
+    for _ in 0..20_000 {
+        let mut side = || {
+            let mut terms = (0..next(5))
+                .map(|_| (next(11), coefficients[next(5)]))
+                .collect::<Vec<_>>();
+            if next(2) == 0 {
+                terms.sort_by_key(|&(column, _)| column);
+                terms.dedup_by_key(|&mut (column, _)| column);
+            }
+            Linear {
+                constant: coefficients[next(5)],
+                terms,
+            }
+        };
+        let row = Row {
+            a: side(),
+            b: side(),
+            c: side(),
+        };
+        for forms in [&forms, &HashMap::new()] {
+            let expected = Row {
+                a: resolved(&row.a, forms),
+                b: resolved(&row.b, forms),
+                c: resolved(&row.c, forms),
+            };
+            let row = resolved_row(&row, forms);
+            borrowed += usize::from(matches!(row, Cow::Borrowed(_)));
+            assert_eq!(*row, expected);
+        }
+    }
+    assert!(borrowed > 500, "{borrowed}");
+}

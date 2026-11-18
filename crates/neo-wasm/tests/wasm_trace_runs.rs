@@ -813,6 +813,47 @@ fn wasm_trace_run_with_structured_control_rows() {
 }
 
 #[test]
+fn wasm_trace_run_with_if_block_parameters() {
+    let if_add = "(if (param i32) (result i32) (then i32.const 1 i32.add) (else i32.const 2 i32.add))";
+    for (body, expected) in [
+        (format!("i32.const 5 i32.const 1 {if_add}"), 6),
+        (format!("i32.const 5 i32.const 0 {if_add}"), 7),
+        (
+            "i32.const 5 i32.const 1 (if (param i32) (result i32) (then drop i32.const 8))".into(),
+            8,
+        ),
+        (
+            "i32.const 9 i32.const 5 i32.const 6 i32.const 1 \
+             (if (param i32 i32) (result i32 i32) (then i32.add i32.const 0)) drop i32.add"
+                .into(),
+            20,
+        ),
+        (
+            "(block (result i32) i32.const 5 i32.const 1 \
+             (if (param i32) (result i32) (then i32.const 1 i32.add br 1) (else i32.const 2 i32.add)))"
+                .into(),
+            6,
+        ),
+        (
+            "i32.const 5 i32.const 1 \
+             (if (param i32) (result i32) (then i32.const 1 i32.add return) (else i32.const 2 i32.add))"
+                .into(),
+            6,
+        ),
+        (
+            format!(
+                "i32.const 3 i32.const 5 i32.const 1 (if (param i32) (result i32) \
+                 (then i32.const 7 i32.const 1 {if_add} i32.add) (else i32.const 2 i32.add)) i32.add"
+            ),
+            16,
+        ),
+    ] {
+        let checked = common::checked_main(&format!(r#"(module (func (export "main") (result i32) {body}))"#));
+        assert_eq!(common::final_state(&checked.trace).output.value_lo, expected, "{body}");
+    }
+}
+
+#[test]
 fn wasm_trace_run_with_nop_and_br() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module

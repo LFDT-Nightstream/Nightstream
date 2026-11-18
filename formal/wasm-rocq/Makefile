@@ -18,4 +18,5 @@ check-exports:
 # The witness traces are build outputs. The exporter rewrites only changed files.
 traces:
 	cargo test --release --manifest-path ../../Cargo.toml -p neo-wasm --test wasm_rocq_witness_export -- --ignored
+	cargo test --release --manifest-path ../../Cargo.toml -p neo-wasm --test wasm_rocq_program_rom_export -- --ignored
 	python3 -B scripts/lean_parity_trace.py ../nightstream-fprime/artifacts/nightstream-fprime-memory-trace-parity-v1.json tests/LeanParityTrace.v

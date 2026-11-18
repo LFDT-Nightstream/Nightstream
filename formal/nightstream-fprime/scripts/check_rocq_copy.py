@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
-"""Check that the Rocq sources of the Lean copy `Spec/Nebula/MemoryTrace.lean` are the sources
-that it copied. Its module docstring pins the SHA-256 of each source. A changed source fails the
-check until a person compares the copy with it and updates the pin. The parity file
-`artifacts/nightstream-fprime-memory-trace-parity-v1.json` checks the semantics; this script
-checks only the identity of the sources."""
+"""Check the Rocq sources of `Spec/Nebula/MemoryTrace.lean` against the SHA-256 pins of its
+module docstring."""
 
 import hashlib
 from pathlib import Path

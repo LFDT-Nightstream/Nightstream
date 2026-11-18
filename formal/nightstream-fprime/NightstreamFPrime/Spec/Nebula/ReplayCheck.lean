@@ -1,9 +1,7 @@
 import NightstreamFPrime.Spec.Nebula.MemoryTrace
 
 /-! Owns the decision procedures of the memory-event copy: replay as a function, equal to
-`Replay`, and the decidability of `boundedMemoryEvents`. The parity file of
-`Export.MemoryTraceParity` computes its verdicts with them, so its verdicts are the verdicts
-of the copied definitions. It does not own the golden traces. -/
+`Replay`, and the decidability of `boundedMemoryEvents`. It does not own the golden traces. -/
 
 namespace NightstreamFPrime.Spec.Nebula.MemoryTrace
 

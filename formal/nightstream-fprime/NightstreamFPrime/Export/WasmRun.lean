@@ -3,12 +3,10 @@ import NightstreamFPrime.Spec.Nebula.TableOverlay
 import NightstreamFPrime.Lifecycle.Nebula.PortApp
 
 /-! Owns the memory half of Rocq `validCircuitRun` for a run of the WASM application of an
-accepted binding export (`Export.WasmBinding`). When each step of a Nebula execution obeys
-SPEC.md section 7.6 rules 1 to 4 at the bound ports of the export (`StepBinds`), the trace rows
-replay over the physical catalog and over the logical catalog of the Rocq proof, and their events
-have 32-bit values. It also states the proposed WASM premise of the memory claims (`WasmModel`,
-`decisions/wasm-rocq-premise.md`). It does not own the Rust rows that give the rules, the rows of
-the WASM relation, or the program images. -/
+accepted binding export (`Export.WasmBinding`), over the physical and the logical catalog, and
+the proposed WASM premise of the memory claims (`WasmModel`, `decisions/wasm-rocq-premise.md`).
+It does not own the Rust rows that give the rules, the rows of the WASM relation, or the program
+images. -/
 
 namespace NightstreamFPrime.Export.WasmBinding
 
@@ -42,8 +40,6 @@ def traceRows (witnesses : List Witness) : List Witness :=
 /-- The table of a logical memory; a memory past the logical catalog gets a table past the
 physical catalog. -/
 def tableOf (m : ℕ) : ℕ := x.table.getD m x.catalog.length
-
-/-! ### Slots -/
 
 private theorem filterMap_eq_filter {α β : Type} (f : α → Option β) (l : List α) :
     l.filterMap f = (l.filter fun a => (f a).isSome).filterMap f := by
@@ -110,8 +106,6 @@ theorem slotOrder_of_stepBinds {x : WasmBinding} (accepted : x.Accepted) {step :
   · rw [slotEvents_eq]
     exact bound_of_slots accepted (fun _ member => member) binds.slots
 
-/-! ### Runs -/
-
 private theorem traceRows_eq (witnesses : List Witness) :
     x.traceRows witnesses = (witnesses.map fun step => (List.range x.rows).map (x.rowOf step)).flatten := by
   simp [traceRows, List.flatMap_def]
@@ -147,8 +141,6 @@ theorem runMemory_of_stepBinds {x : WasmBinding} (accepted : x.Accepted) {p : Pl
     holds accepted.disjoint inRange start
     (binds.imp fun _ _ stepBinds => have both := slotOrder_of_stepBinds accepted stepBinds
       ⟨both.1, both.2.imp fun _ _ bound => bound.1⟩)
-
-/-! ### The logical catalog -/
 
 private theorem portEvent_rename (table : ℕ → ℕ) (m : ℕ) (w : Witness) (port : PortSpec) :
     (portEvent m w port).map (Event.rename table) = portEvent (table m) w port := by
@@ -298,13 +290,11 @@ theorem runMemory_logical_of_stepBinds {x : WasmBinding} (accepted : x.Accepted)
   obtain ⟨last, run⟩ := runMemory_of_stepBinds accepted exec binds start
   exact ⟨_, runMemory_untable (filter_eventsForRow_logical accepted) (written_alone accepted) run⟩
 
-/-! ### The proposed premise -/
-
 /-- The proposed premise of the WASM case of `app.*` (`decisions/wasm-rocq-premise.md`): each
 execution of the model of the WASM application `app` from the plan images has one step witness
 for each step, whose trace rows satisfy `circuit` (the first two parts of Rocq `validCircuitRun`:
 each row satisfies the WASM relation, and the rows chain) and whose slots obey SPEC.md section
-7.6 rules 1 to 4 at the bound ports of the export `x` of the size of `app`. -/
+7.6 rules 1 to 4 at the bound ports of the export `x`. -/
 def WasmModel (p : Plan) (circuit : List Witness → Prop)
     (app : Lifecycle.Nebula.PortApp p.toGeometry) : Prop :=
   ∀ {s₀ s : app.State} {steps : List (List (Option PortAccess))} {final : Machine},

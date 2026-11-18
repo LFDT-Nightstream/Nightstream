@@ -2,11 +2,8 @@ import NightstreamFPrime.Spec.Nebula.RunMemory
 
 /-! Owns the passage from a table catalog to its logical catalog for the memory half of Rocq
 `validCircuitRun`. A table catalog puts the ports of several logical memories into one table
-(`table m` is the table of logical memory `m`), as the WASM catalog does for its ROMs. When each
-row lists the events of each table in the order of the logical events, renamed by `table`, and
-no other logical memory shares the table of a memory that the row writes, the table run gives the
-logical run: the logical state reads each memory from its table. It does not own the table map or
-the program images. -/
+(`table m` is the table of logical memory `m`). It does not own the table map or the program
+images. -/
 
 namespace NightstreamFPrime.Spec.Nebula.MemoryTrace
 

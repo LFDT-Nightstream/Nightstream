@@ -40,7 +40,9 @@ This record is a proposal. It does not change the premise table.
    its size (`Export.WasmBinding.StepBinds`).
    `Export.WasmBinding.circuitRun_of_wasmModel` proves that this statement and
    an accepted export give `validCircuitRun`, with the first two parts as a
-   parameter. The Rocq proof then applies to the trace rows.
+   parameter. The Rocq proof then applies to the trace rows. Lean does not
+   tie the export to `app`: the pinned digests name the export of each
+   size, and the premise names that export.
 2. **Class.** Give the WASM case of `app.*` the class `assumption`, with one
    new assumption in section Assumptions of `SECURITY_MODEL.md`. The
    assumption has three parts:

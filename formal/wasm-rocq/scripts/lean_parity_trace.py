@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
-"""Write `tests/LeanParityTrace.v` from the Lean parity file of the memory-event copy
-(`formal/nightstream-fprime/artifacts/nightstream-fprime-memory-trace-parity-v1.json`). Each
-case is its input (catalog, rows, initial cells, queries) and the verdicts that Lean computed.
-`tests/LeanParity.v` checks the verdicts with the Rocq definitions. The output is rewritten only
-when it changes.
-
-  python3 scripts/lean_parity_trace.py <parity.json> <out.v>"""
+"""Write `tests/LeanParityTrace.v` from the Lean parity file
+`nightstream-fprime-memory-trace-parity-v1.json` (`Export.MemoryTraceParity`)."""
 
 import json
 from pathlib import Path
@@ -18,6 +13,15 @@ def nats(values):
 
 def zs(values):
     return '[' + '; '.join(f'{v}' for v in values) + ']'
+
+
+def z(value):
+    sign, magnitude = value
+    return f'{magnitude}' if sign == 0 else f'(-{magnitude + 1})'
+
+
+def signed(values):
+    return '[' + '; '.join(map(z, values)) + ']'
 
 
 def port(value):
@@ -33,13 +37,13 @@ def memory(value):
 
 
 def option(value):
-    return 'None' if value == [0] else f'(Some {value[1]})'
+    return 'None' if value == [0] else f'(Some {z(value[1])})'
 
 
 def event(value):
     if value[0] == 0:
-        return f'ReadEvent {value[1]}%nat {zs(value[2])} {value[3]}'
-    return f'WriteEvent {value[1]}%nat {zs(value[2])} {value[3]} {option(value[4])}'
+        return f'ReadEvent {value[1]}%nat {signed(value[2])} {z(value[3])}'
+    return f'WriteEvent {value[1]}%nat {signed(value[2])} {z(value[3])} {option(value[4])}'
 
 
 def case(value):

@@ -1,9 +1,5 @@
-(* The Lean copy of the memory-event model (`Spec/Nebula/MemoryTrace.lean` in
-   formal/nightstream-fprime) against MemoryTrace.v on the golden traces of the Lean
-   parity file: the same events, the same replay verdict and final values, and the
-   same bounded-event verdict for each row. `replayb` and the bound check decide the
-   Rocq predicates, so a verdict of the checks is a verdict of `Replay` and
-   `boundedMemoryEvents`. *)
+(* MemoryTrace.v against its Lean copy `Spec/Nebula/MemoryTrace.lean` on the golden
+   traces of the Lean parity file. *)
 From Stdlib Require Import List ZArith Bool.
 Require Import R1CS MemoryTrace tests.WitnessCheck tests.LeanParityTrace.
 Import ListNotations.

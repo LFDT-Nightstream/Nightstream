@@ -6,7 +6,8 @@ import NightstreamFPrime.Spec.Nebula.SegmentGate
 (`export_wasm_rocq --binding`): the decoder, the checker, its soundness (`check_sound`), and the
 binding of each active event of a row to a slot of that row under SPEC.md section 7.6 rules 1, 3
 and 4 (`binds_of_accepted`). It does not own the text parser (`Export.WasmBindingMain`), the Rust
-rows of the slot equations, or the relation between the logical and the physical catalog. -/
+rows of the slot equations, or the passage from the physical to the logical run
+(`Export.WasmRun`). -/
 
 namespace NightstreamFPrime.Export
 
@@ -64,8 +65,6 @@ def rankedRows (catalog : List MemorySpec) (k : ℕ) (shift : ℕ → Column →
 
 /-- The WASM sizes in the order of their export numbers. -/
 def sizes : List WasmSize := [.micro, .small, .medium, .large]
-
-/-! ### Decoder -/
 
 private def atom : Value → Except String ℕ
   | .atom n => .ok n
@@ -157,8 +156,6 @@ def plan : List (List ℕ) := x.slots.map (·.map BoundPort.rank)
 
 /-- Row `i` of a step witness. -/
 def rowOf (step : Witness) (i : ℕ) : Witness := ⟨fun c => step.entries (x.shiftFn i c)⟩
-
-/-! ### Checks -/
 
 /-- Each logical memory has a table of its kind. -/
 def tablesOk : Bool :=
@@ -280,8 +277,6 @@ def SlotEquations (q : BoundPort) (step : Witness) (a : PortAccess) : Prop :=
     | .read => a.isWrite = false ∧ (a.vr : ℤ) = step q.spec.valueColumn
     | .write prior => a.isWrite = true ∧ (a.vw : ℤ) = step q.spec.valueColumn ∧
         ∀ c ∈ prior, (a.vr : ℤ) = step c
-
-/-! ### Soundness -/
 
 variable {catalog : List MemorySpec} {k : ℕ} {shift : ℕ → Column → Column}
 

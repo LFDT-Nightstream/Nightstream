@@ -2,10 +2,8 @@ import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Spec.Nebula.ReplayCheck
 
 /-! Golden traces of the memory-event copy (`Spec.Nebula.MemoryTrace`) with the verdicts of the
-copied definitions: the events of each trace, whether they replay (`replay?`, which is
-`Replay` by `replay?_eq_some_iff`), the final values at some addresses, and whether the events
-of each row are bounded (`boundedMemoryEvents`). The Rocq test
-`formal/wasm-rocq/tests/LeanParity.v` computes the same verdicts with the Rocq definitions. -/
+copied definitions: the events of each trace, whether they replay (`replay?`), the final values
+at some addresses, and whether the events of each row are bounded (`boundedMemoryEvents`). -/
 
 namespace NightstreamFPrime.Export.MemoryTraceParity
 
@@ -39,9 +37,7 @@ private def row (entries : List (ℕ × ℕ)) : List ℕ :=
 
 private def word : ℕ := 2 ^ 32
 
-/-- A RAM memory with a write that names its prior column, a read, and a two-part write
-without a prior column that is active unless its column is 0; a ROM memory with id 7 and a
-read that is always active and one with no address part. -/
+/-- A RAM memory and a ROM memory with id 7. -/
 private def catalogA : List MemorySpec :=
   [⟨0, .ram, [⟨[1], 2, .write (some 3), .when 10⟩, ⟨[1], 4, .read, .when 11⟩,
     ⟨[5, 6], 7, .write none, .unless 12⟩]⟩,
@@ -111,9 +107,10 @@ private def portValue (port : PortSpec) : Value :=
 private def memoryValue (m : MemorySpec) : Value :=
   .array [.atom m.memoryId, .atom (kindCode m.memoryKind), .array (m.ports.map portValue)]
 
-/-- Every integer of a golden trace is a column value or an initial cell, so it is not
-negative. -/
-private def int (z : ℤ) : Value := .atom z.toNat
+/-- An integer as `[0, n]` for `n` and `[1, n]` for `-(n + 1)`. -/
+private def int : ℤ → Value
+  | .ofNat n => .array [.atom 0, .atom n]
+  | .negSucc n => .array [.atom 1, .atom n]
 
 private def addressValue (address : Address) : Value := .array (address.map int)
 

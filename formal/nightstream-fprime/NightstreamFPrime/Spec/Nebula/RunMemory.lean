@@ -2,10 +2,8 @@ import NightstreamFPrime.Spec.Nebula.Batch
 
 /-! Owns the memory half of the run premise `validCircuitRun` of the Rocq proof of the WASM
 relation (`formal/wasm-rocq/TraceRefinement.v`): the events of the trace replay
-(`Replay`), and the events of each row have 32-bit values (`boundedMemoryEvents`). A Nebula
-execution whose active ports bind the events gives both, because each access that applies is
-valid (`PortAccess.Valid`), so its values are below `2^32`. It does not own the other half of
-`validCircuitRun`: the rows of the relation and their continuity. -/
+(`Replay`), and the events of each row have 32-bit values (`boundedMemoryEvents`). It does not
+own the other half of `validCircuitRun`: the rows of the relation and their continuity. -/
 
 namespace NightstreamFPrime.Spec.Nebula.MemoryTrace
 

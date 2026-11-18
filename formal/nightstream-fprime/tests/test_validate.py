@@ -74,6 +74,11 @@ class ValidateTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 2)
                 self.assertNotIn("requested:", result.stdout)
 
+    def test_wasm_binding_needs_a_file(self):
+        result = self.run_validation("wasm-binding")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("usage: validate.sh wasm-binding <file>...", result.stderr)
+
     def test_timeout_fails_validation(self):
         result = self.run_validation("build", "SlowAudit", cap="1")
         self.assertEqual(result.returncode, 137, result.stdout + result.stderr)

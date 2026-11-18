@@ -13,6 +13,7 @@
 #   validate.sh fold-gate-parity <path>
 #   validate.sh ajtai-setup-v1-parity <path>
 #   validate.sh foundation-parity <directory>
+#   validate.sh wasm-binding <file>...
 #   validate.sh all               static, both libraries, executables and census
 set -euo pipefail
 
@@ -122,6 +123,13 @@ case "$phase" in
   ajtai-setup-v1-parity)
     if (( $# != 2 )); then echo "usage: validate.sh ajtai-setup-v1-parity <path>" >&2; exit 2; fi
     capped lake exe emitAjtaiSetupV1Parity -- "$2"
+    ;;
+  wasm-binding)
+    if (( $# < 2 )); then echo "usage: validate.sh wasm-binding <file>..." >&2; exit 2; fi
+    shift
+    checker=.lake/build/bin/checkWasmBinding
+    if [[ ! -x "$checker" ]]; then echo "build $checker first: validate.sh executables" >&2; exit 2; fi
+    capped "$checker" "$@"
     ;;
   all)
     boundaries

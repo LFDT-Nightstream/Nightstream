@@ -41,7 +41,7 @@ def source(module, start, stop):
 
 
 def row_of(theorem, label, head):
-    for index, (names, row_head, kind, _) in enumerate(rows):
+    for index, (names, row_head, kind, *_) in enumerate(rows):
         if any(covers(n, theorem, label) for n in names) and row_head in ('*', head):
             return index + 1, kind
     return None, 'none'
@@ -126,7 +126,7 @@ if rendered != emitted:
     sys.exit(f'claims_review: {len(emitted - rendered)} claims of the Lean list are not in the file')
 w('## Premise table rows\n')
 w('Each hypothesis above points to one row. The evidence is from `formal/nightstream-fprime/SECURITY_MODEL.md`.\n')
-for index, (names, head, kind, evidence) in enumerate(rows):
+for index, (names, head, kind, evidence, _) in enumerate(rows):
     w(f'**R{index + 1}** ({kind}, head `{head}`): ' + ', '.join(f'`{n}`' for n in names)
       + '\n\n' + evidence + '\n')
 

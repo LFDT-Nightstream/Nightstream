@@ -1,11 +1,13 @@
 import tests.AxiomAudit
 
-/-! `#premise_census "file" "Package" "Root"` reads each theorem of the namespace `Package.Root`.
-It fails when the namespace holds a declaration that is not a theorem, when the axioms of a
-theorem are not among the allowed three, or when a proof is not one application of a constant
-outside the namespace. It lists every hypothesis of each theorem and compares the list with `file`.
-`scripts/check_premises.py` holds the classification of each line (`SECURITY_MODEL.md`, section
-Premises), so a new hypothesis fails the `static` phase until it has a class. -/
+/-! `#premise_census "file" "Package" "Root"` reads each declaration of the namespace
+`Package.Root` and of the modules under `Package.Root`. It fails when one of them is not a theorem
+`Package.Root.File.name` of the module `Package.Root.File`, when the axioms of a theorem are not
+among the allowed three, when a proof is not one application of a theorem outside the namespace,
+or when the kernel does not give a proof the type of its theorem. It lists every hypothesis of
+each theorem and compares the list with `file`. `scripts/check_premises.py` holds the
+classification of each line (`SECURITY_MODEL.md`, section Premises), so a new hypothesis fails the
+`static` phase until it has a class. -/
 
 register_option premiseCensus.write : Bool := {
   defValue := false
@@ -74,8 +76,15 @@ elab "#premise_census " path:str space:str root:str : command => do
   let env ← getEnv
   let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
   let mut theorems : Array Name := #[]
+  let modules := env.header.moduleNames
   for (name, info) in env.constants.toList do
-    unless claims.isPrefixOf name && !name.isInternalDetail do continue
+    let home := match env.getModuleIdxFor? name with
+      | some index => modules[index.toNat]!
+      | none => .anonymous
+    unless claims.isPrefixOf name || claims.isPrefixOf home do continue
+    unless name.getPrefix == home && home.getPrefix == claims do
+      throwError "{name} of the module {home} is not a claim `{claims}.File.name` of the module \
+        `{claims}.File`"
     match info with
     | .thmInfo value =>
       match proofHead value.value with
@@ -85,6 +94,10 @@ elab "#premise_census " path:str space:str root:str : command => do
         unless env.find? head matches some (.thmInfo _) do
           throwError "the proof of {name} applies {head}, which is not a theorem"
       | none => throwError "the proof of {name} is not one theorem applied to the binders of {name}"
+      let proved := (Kernel.check env {} value.value).toOption.bind fun type =>
+        (Kernel.isDefEq env {} type value.type).toOption
+      unless proved == some true do
+        throwError "the kernel does not give the proof of {name} the type of {name}"
       let bad := (← liftCoreM <| collectAxioms name).toList.filter (fun a => !allowed.contains a)
       unless bad.isEmpty do throwError "{name} depends on disallowed axioms: {bad}"
       theorems := theorems.push name

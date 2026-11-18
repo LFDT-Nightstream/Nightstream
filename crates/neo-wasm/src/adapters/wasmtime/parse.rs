@@ -392,7 +392,11 @@ impl ParsedWasmArtifactsBuilder {
                 for (raw_type_index, func_type_result) in reader.into_iter_err_on_gc_types().enumerate() {
                     let func_type = func_type_result
                         .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm func type: {err}")))?;
-                    let signature = canonical_wasmparser_func_signature(&func_type);
+                    let signature = canonical_wasmparser_func_signature(
+                        &func_type,
+                        raw_type_index as u32,
+                        &self.raw_type_id_by_index,
+                    )?;
                     let type_id = *self.signature_ids.entry(signature).or_insert_with(|| {
                         let assigned = self.next_type_id;
                         self.next_type_id = self.next_type_id.saturating_add(1);
@@ -1175,22 +1179,50 @@ impl ParsedWasmArtifactsBuilder {
     }
 }
 
-fn canonical_wasmparser_func_signature(ty: &wasmparser::FuncType) -> String {
-    let params = ty
-        .params()
-        .iter()
-        .map(|ty| canonical_wasmparser_val_type(*ty))
-        .collect::<Vec<_>>()
-        .join(",");
-    let results = ty
-        .results()
-        .iter()
-        .map(|ty| canonical_wasmparser_val_type(*ty))
-        .collect::<Vec<_>>()
-        .join(",");
-    format!("{params}->{results}")
+/// WebAssembly type equivalence for a function type that is its own recursion
+/// group: a concrete reference names the type itself or the id of an earlier
+/// type.
+fn canonical_wasmparser_func_signature(
+    ty: &wasmparser::FuncType,
+    index: u32,
+    earlier_ids: &BTreeMap<u32, u32>,
+) -> Result<String, WasmProgramError> {
+    let list = |types: &[wasmparser::ValType]| {
+        types
+            .iter()
+            .map(|ty| canonical_wasmparser_val_type(*ty, index, earlier_ids))
+            .collect::<Result<Vec<_>, _>>()
+            .map(|types| types.join(","))
+    };
+    Ok(format!("{}->{}", list(ty.params())?, list(ty.results())?))
 }
 
-fn canonical_wasmparser_val_type(ty: wasmparser::ValType) -> String {
-    format!("{ty:?}")
+fn canonical_wasmparser_val_type(
+    ty: wasmparser::ValType,
+    index: u32,
+    earlier_ids: &BTreeMap<u32, u32>,
+) -> Result<String, WasmProgramError> {
+    let wasmparser::ValType::Ref(reference) = ty else {
+        return Ok(format!("{ty:?}"));
+    };
+    let wasmparser::HeapType::Concrete(target) = reference.heap_type() else {
+        return Ok(format!("{ty:?}"));
+    };
+    let target = match target.as_module_index() {
+        Some(target) if target == index => "self".to_string(),
+        Some(target) => format!(
+            "type {}",
+            earlier_ids
+                .get(&target)
+                .ok_or_else(|| WasmProgramError::Invalid(format!(
+                    "function type {index} refers to type {target}, which is not an earlier type"
+                )))?
+        ),
+        None => {
+            return Err(WasmProgramError::Unsupported(format!(
+                "function type {index} has a reference outside the module type space"
+            )))
+        }
+    };
+    Ok(format!("ref(nullable={}, {target})", reference.is_nullable()))
 }

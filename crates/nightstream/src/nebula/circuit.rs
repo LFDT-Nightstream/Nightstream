@@ -107,25 +107,24 @@ fn build<A: Application>(
     let headers = std::array::from_fn(|i| if i < 4 { ops_header[i] } else { mem_header[i % 4] });
     let source_sym = Sym::new(geometry, layout, &source_wires, headers);
     let source_view = View::new(&source_sym);
-    let source_rows = app.rows(&source_view)?;
+    let mut rows = app.rows(&source_view)?;
     let readable = source_view.variables();
-    for row in &source_rows {
+    for row in &rows {
         if let Some(variable) = row.variable_outside(&readable) {
             return Err(ApplicationError::VariableOutOfScope(variable.index()).into());
         }
     }
     let shared = if share_reads {
-        super::readonly::ReadOnlyValues::checked(&source_rows, geometry, &layout, &source_wires)
+        super::readonly::ReadOnlyValues::checked(&rows, geometry, &layout, &source_wires)
     } else {
         super::readonly::ReadOnlyValues::default()
     };
-    let rows = source_rows
-        .iter()
-        .map(|row| shared.rename(row))
-        .collect::<Vec<_>>();
+    for row in &mut rows {
+        shared.rename(row);
+    }
     let mut hints = app.poseidon2_hints(&source_view)?;
-    for hint in &mut hints {
-        hint.lanes = std::array::from_fn(|lane| shared.rename(&hint.lanes[lane]));
+    for lane in hints.iter_mut().flat_map(|hint| &mut hint.lanes) {
+        shared.rename_expr(lane);
     }
     let wires = shared.wires(&source_wires);
     let sym = Sym::new(geometry, layout, &wires, headers);
@@ -232,7 +231,7 @@ fn build<A: Application>(
     }
     let view = View::new(&sym);
     let first_app_row = builder.row_count();
-    let aliases = super::poseidon::lower(&mut builder, &rows, hints, &view, app.aux())?;
+    let aliases = super::poseidon::lower(&mut builder, rows, hints, &view, app.aux())?;
     mark(&builder, "Application rows");
     let circuit = builder.finish_with_output_rows(output_rows)?;
     super::poseidon::check_prefix(&circuit, first_app_row, &aliases)?;

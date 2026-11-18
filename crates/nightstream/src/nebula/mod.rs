@@ -36,7 +36,7 @@ pub(crate) use carry::Carry;
 #[cfg(test)]
 pub(crate) use catalog::CatalogBinding;
 pub use catalog::{pack_regions, CatalogBindingError, CatalogRowError, Region};
-pub use expr::Expr;
+pub use expr::{Expr, Row};
 pub use geometry::Geometry;
 #[cfg(test)]
 pub(crate) use machine::{Machine, MachineError, MachineState, Step};

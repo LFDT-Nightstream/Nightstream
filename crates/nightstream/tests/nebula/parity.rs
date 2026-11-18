@@ -13,9 +13,7 @@ use p3_field::PrimeCharacteristicRing;
 use crate::nebula::test_packages::{assert_rows, bounded_depth_packages, references};
 use crate::{
     application::ApplicationCircuit,
-    nebula::{
-        Application, Circuit, Expr, Machine, MachineState, Memory, Package, Program, Run, Step, Transition, View,
-    },
+    nebula::{Application, Circuit, Machine, MachineState, Memory, Package, Program, Row, Run, Step, Transition, View},
 };
 
 fn assert_same_rows(package: Package, fixture: &[u8]) {
@@ -254,7 +252,7 @@ fn view_reads_past_the_witness_are_zero() {
         fn words(&self, _: &()) -> Vec<u64> {
             vec![0]
         }
-        fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
+        fn rows(&self, view: &View) -> Result<Vec<Row>, crate::Error> {
             let far = usize::MAX;
             let reads = [
                 ("input", view.input(far)),

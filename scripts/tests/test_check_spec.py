@@ -40,6 +40,37 @@ class CheckSpecTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("parameters table is stale", result.stdout)
 
+    def test_stale_computed_value_fails(self):
+        text = SPEC.read_text(encoding="utf-8")
+        for old, new in [("B + cap·T·(b − 1) = 24,576`", "B + cap·T·(b − 1) = 73,728`"),
+                         ("`W_ts ≤ 31` bits", "`W_ts ≤ 62` bits"),
+                         ("already holds that minimum to 115 bits", "already holds that minimum to 109 bits"),
+                         ("about `2^24.58`", "about `2^24.60`"),
+                         ("`q = 2^64 − 59 = 18446744073709551557`", "`q = 2^64 − 59 = 18446744069414584321`")]:
+            with self.subTest(new=new):
+                self.assertEqual(text.count(old), 1, old)
+                result = check(text.replace(old, new))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("where the sources give", result.stdout)
+
+    def test_changed_claim_text_fails(self):
+        text = SPEC.read_text(encoding="utf-8")
+        old = "So each recovered accumulator is at most"
+        self.assertIn(old, text)
+        result = check(text.replace(old, "So every recovered accumulator is at most"))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("no text matches the computed claim", result.stdout)
+
+    def test_new_computed_value_needs_a_claim(self):
+        result = check(SPEC.read_text(encoding="utf-8") + "\nThe light fold has 7 rounds (computed).\n")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("is not recomputed", result.stdout)
+
+    def test_unchecked_values_are_listed(self):
+        result = check(SPEC.read_text(encoding="utf-8"))
+        for template, _ in CHECK_SPEC.UNCHECKED:
+            self.assertIn(f"not recomputed: {template}", result.stdout)
+
     def test_malformed_pin_fails(self):
         result = check(SPEC.read_text(encoding="utf-8") + "\n`Spec.production_parameter_values` (`12ab`)\n")
         self.assertNotEqual(result.returncode, 0)

@@ -80,7 +80,7 @@ jobs:
     - name: Check that each premise of the claims has one class
       run: timeout --signal=KILL 300 python3 -B formal/nightstream-fprime/scripts/check_premises.py
 
-    - name: Check SPEC.md paths, pin form and parameters table
+    - name: Check SPEC.md paths, pin form, parameters table and computed values
       run: timeout --signal=KILL 300 python3 -B scripts/check_spec.py
 
     - name: Install Rust

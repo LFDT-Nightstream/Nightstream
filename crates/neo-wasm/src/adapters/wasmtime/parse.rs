@@ -501,6 +501,25 @@ impl ParsedWasmArtifactsBuilder {
                     self.defined_function_type_indices.push(raw_type_index);
                 }
             }
+            Payload::ExportSection(reader) => {
+                for export in reader {
+                    let export = export
+                        .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm export: {err}")))?;
+                    let results = export
+                        .index
+                        .checked_sub(self.imported_function_count)
+                        .filter(|_| export.kind == wasmparser::ExternalKind::Func)
+                        .and_then(|index| self.defined_function_type_indices.get(index as usize))
+                        .and_then(|raw_type_index| self.raw_type_shape_by_index.get(raw_type_index))
+                        .map_or(0, |&(_, results, _, _)| results);
+                    if results > 1 {
+                        return Err(WasmProgramError::Unsupported(format!(
+                            "export `{}` returns {results} values; the proof output holds one",
+                            export.name
+                        )));
+                    }
+                }
+            }
             Payload::MemorySection(reader) => {
                 for memory_result in reader {
                     let memory = memory_result

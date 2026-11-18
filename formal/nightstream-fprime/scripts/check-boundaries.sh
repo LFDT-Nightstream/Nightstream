@@ -204,6 +204,14 @@ if ! timeout --signal=KILL 300s python3 -B scripts/check_premises.py; then
   fail "a hypothesis of a top-level security theorem has no class in SECURITY_MODEL.md"
 fi
 
+if ! timeout --signal=KILL 300s python3 -B scripts/check_rocq_copy.py; then
+  fail "a Rocq source of the memory-event copy changed"
+fi
+
+if ! timeout --signal=KILL 300s python3 -B scripts/check_binding_pins.py; then
+  fail "the pins of the WASM binding exports differ"
+fi
+
 for retired in crates/neo-fold-legacy crates/wip-spartan tools/recursive-constraint-minimizer/bridge; do
   if [[ -f "$FPRIME_ROOT/../../$retired/Cargo.toml" ]]; then
     fail "retired Rust consumer remains supported: $retired"

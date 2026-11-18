@@ -1330,6 +1330,7 @@ dependencies = [
  "nightstream-fprime",
  "p3-field",
  "serde_json",
+ "sha2",
  "thiserror",
  "wasmparser 0.240.0",
  "wasmtime",

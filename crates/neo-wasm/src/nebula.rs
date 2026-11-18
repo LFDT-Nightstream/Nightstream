@@ -19,8 +19,8 @@ use std::num::NonZeroUsize;
 use neo_ccs::CcsMatrix;
 use neo_math::F;
 use nightstream::nebula::{
-    batched_slots, pack_regions, Application, CatalogBindingError, Expr, Geometry, Memory, Program, R1csApplication,
-    R1csApplicationError, R1csStepError, Region, RowRelation, Size, Terms, Transition, View,
+    batched_slots, pack_regions, Application, BoundPort, CatalogBindingError, Expr, Geometry, Memory, Program,
+    R1csApplication, R1csApplicationError, R1csStepError, Region, RowRelation, Size, Terms, Transition, View,
 };
 use nightstream::relation::MemoryPortActivation;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -155,6 +155,17 @@ impl WasmApplication {
     /// then the continuity rows between neighbor rows.
     pub fn relation_rows(&self) -> usize {
         self.0.relation_rows()
+    }
+
+    /// The slots of the built binding, each with its ports in built order.
+    pub fn slots(&self) -> &[Vec<BoundPort>] {
+        self.0.slots()
+    }
+
+    /// The region of each memory of the table catalog
+    /// (`auxiliary.memory`), in catalog order, as the built binding holds it.
+    pub fn regions(&self) -> impl Iterator<Item = (&WasmMemoryId, &Region)> + '_ {
+        self.0.regions()
     }
 
     /// Source-column location in the grouped witness (SPEC.md section 7.6).

@@ -1,4 +1,6 @@
-use neo_application::{ApplicationRelation, ColumnWidth, MemoryKind, MemoryPortActivation, MemoryPortKind};
+use neo_application::{
+    ApplicationRelation, ColumnWidth, MemoryKind, MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec,
+};
 use neo_math::{balanced::to_balanced_i128, F};
 use neo_wasm::ccs::build_wasm_relation;
 use neo_wasm::isa::{opcode_code, WasmOpcode};
@@ -8,11 +10,13 @@ use neo_wasm::layout::{
     COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_HI_ACTIVE, COL_STACK_WRITES,
     NAMED_COLUMN_COUNT,
 };
+use neo_wasm::nebula::WasmSize;
 use neo_wasm::relation_layout::build_wasm_relation_layout;
 use neo_wasm::tagged_r1cs_builder::WasmConstraintScope;
 use neo_wasm::WasmMemoryId;
+use std::collections::BTreeSet;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn rocq_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../formal/wasm-rocq")
@@ -463,15 +467,169 @@ fn emit_rocq_opcodes() -> String {
     out
 }
 
+fn list(items: impl IntoIterator<Item = String>) -> String {
+    format!("[{}]", items.into_iter().collect::<Vec<_>>().join(","))
+}
+
+fn numbers(items: impl IntoIterator<Item = usize>) -> String {
+    list(items.into_iter().map(|item| item.to_string()))
+}
+
+fn binding_port_kind(kind: MemoryPortKind) -> String {
+    match kind {
+        MemoryPortKind::Read => "[0]".to_string(),
+        MemoryPortKind::Write {
+            value_before_column: None,
+        } => "[1]".to_string(),
+        MemoryPortKind::Write {
+            value_before_column: Some(column),
+        } => format!("[2,{column}]"),
+    }
+}
+
+fn binding_activation(activation: MemoryPortActivation) -> String {
+    match activation {
+        MemoryPortActivation::Always => "[0]".to_string(),
+        MemoryPortActivation::When(column) => format!("[1,{column}]"),
+        MemoryPortActivation::Unless(column) => format!("[2,{column}]"),
+    }
+}
+
+fn binding_memory(memory: &MemorySpec<WasmMemoryId>) -> String {
+    list([
+        usize::from(memory.kind == MemoryKind::Ram).to_string(),
+        list(memory.ports.iter().map(|port| {
+            list([
+                numbers(port.address_columns.iter().copied()),
+                port.value_column.to_string(),
+                binding_port_kind(port.kind),
+                binding_activation(port.activation),
+            ])
+        })),
+    ])
+}
+
+fn port_columns(port: &MemoryPortSpec) -> impl Iterator<Item = usize> + '_ {
+    let prior = match port.kind {
+        MemoryPortKind::Write {
+            value_before_column: Some(column),
+        } => Some(column),
+        _ => None,
+    };
+    let activation = match port.activation {
+        MemoryPortActivation::Always => None,
+        MemoryPortActivation::When(column) | MemoryPortActivation::Unless(column) => Some(column),
+    };
+    port.address_columns
+        .iter()
+        .copied()
+        .chain([port.value_column])
+        .chain(prior)
+        .chain(activation)
+}
+
+fn emit_binding(size: WasmSize) -> String {
+    let layout = build_wasm_relation_layout();
+    let physical = layout.auxiliary.memory.entries();
+    let application = size.application().expect("WASM size application");
+    let geometry = size.geometry();
+    let rows = size.rows().get();
+    let regions: Vec<_> = application.regions().collect();
+    assert!(
+        regions
+            .iter()
+            .map(|(id, _)| **id)
+            .eq(physical.iter().map(|memory| memory.id)),
+        "the binding has one region per memory, in catalog order"
+    );
+    let columns: BTreeSet<usize> = physical
+        .iter()
+        .flat_map(|memory| &memory.ports)
+        .flat_map(port_columns)
+        .collect();
+    let column = |row, column| {
+        application
+            .witness_column(row, column)
+            .expect("a catalog column is in the step witness")
+    };
+    list([
+        "1".to_string(),
+        WasmSize::ALL
+            .iter()
+            .position(|other| *other == size)
+            .expect("a shipped size")
+            .to_string(),
+        numbers([
+            geometry.r,
+            geometry.mu,
+            geometry.w_ts,
+            geometry.b_ops,
+            geometry.b_scan,
+            geometry.n,
+            geometry.s_max,
+        ]),
+        rows.to_string(),
+        list(layout.auxiliary.logical_memory.iter().map(binding_memory)),
+        numbers(layout.auxiliary.logical_memory.iter().map(|memory| {
+            physical
+                .iter()
+                .position(|table| table.id == memory.id.table())
+                .expect("each memory has a table")
+        })),
+        list(physical.iter().map(binding_memory)),
+        list(
+            regions
+                .iter()
+                .map(|(_, region)| list([region.base.to_string(), numbers(region.widths.iter().copied())])),
+        ),
+        list(columns.into_iter().map(|c| {
+            let base = column(0, c);
+            let stride = if rows > 1 {
+                column(1, c)
+                    .checked_sub(base)
+                    .expect("a later row has later columns")
+            } else {
+                0
+            };
+            numbers([c, base, stride])
+        })),
+        list(application.slots().iter().map(|slot| {
+            list(slot.iter().map(|port| {
+                list([
+                    port.rank.to_string(),
+                    port.memory.to_string(),
+                    usize::from(port.is_ram).to_string(),
+                    numbers(port.address.iter().copied()),
+                    port.value.to_string(),
+                    binding_port_kind(port.kind),
+                    binding_activation(port.activation),
+                ])
+            }))
+        })),
+    ]) + "\n"
+}
+
+fn emit_bindings(dir: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(dir)?;
+    for size in WasmSize::ALL {
+        let name = format!("{size:?}").to_ascii_lowercase();
+        let path = dir.join(format!("wasm-binding-{name}-v1.json"));
+        fs::write(&path, emit_binding(size))?;
+        println!("wrote {}", path.display());
+    }
+    Ok(())
+}
+
 fn main() -> std::io::Result<()> {
     let args: Vec<_> = std::env::args_os().skip(1).collect();
     let (check, dir) = match args.as_slice() {
         [] => (false, rocq_dir()),
         [flag] if flag == "--check" => (true, rocq_dir()),
+        [flag, dir] if flag == "--binding" => return emit_bindings(Path::new(dir)),
         _ => {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
-                "usage: export_wasm_rocq [--check]",
+                "usage: export_wasm_rocq [--check | --binding <dir>]",
             ))
         }
     };

@@ -1,0 +1,24 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Export.WasmBinding
+import NightstreamFPrime.Export.WasmRun
+
+open NightstreamFPrime.Export.WasmBinding
+
+#audit_axioms map_snd_rankedRows
+#audit_axioms map_fst_rankedRows
+#audit_axioms exists_rankedRows
+#audit_axioms rankedPorts_of_rankRows
+#audit_axioms distinct_overlay
+#audit_axioms check_sound
+#audit_axioms binds_of_slotEquations
+#audit_axioms holdsRows_rowOf
+#audit_axioms binds_of_rankEvent
+#audit_axioms port_of_accepted
+#audit_axioms binds_of_accepted
+#audit_axioms NightstreamFPrime.Export.WasmBinding.slotOrder_of_stepBinds
+#audit_axioms NightstreamFPrime.Export.WasmBinding.runMemory_of_stepBinds
+#audit_axioms NightstreamFPrime.Export.WasmBinding.filter_eventsForRow_logical
+#audit_axioms NightstreamFPrime.Export.WasmBinding.written_alone
+#audit_axioms NightstreamFPrime.Export.WasmBinding.runMemory_logical_of_stepBinds
+#audit_axioms NightstreamFPrime.Export.WasmBinding.circuitRun_of_wasmModel
+#audit_axioms NightstreamFPrime.Export.WasmBinding.circuitRun_of_attests

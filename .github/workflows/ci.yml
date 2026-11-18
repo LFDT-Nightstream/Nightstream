@@ -52,6 +52,49 @@ jobs:
     - name: Check lints
       run: cargo clippy --workspace --all-targets
 
+  formal-bridge:
+    name: Rocq and Lean checks of the WASM binding
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check the pins of the Rocq copy and of the binding exports
+      run: |
+        timeout --signal=KILL 300 python3 -B formal/nightstream-fprime/scripts/check_rocq_copy.py
+        timeout --signal=KILL 300 python3 -B formal/nightstream-fprime/scripts/check_binding_pins.py
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Install Lean and get the Mathlib cache
+      uses: leanprover/lean-action@v1
+      with:
+        lake-package-directory: formal/nightstream-fprime
+        auto-config: false
+        use-mathlib-cache: true
+
+    - name: Build the Lean checker of the binding exports
+      run: bash formal/nightstream-fprime/scripts/validate.sh build checkWasmBinding
+
+    - name: Check the binding export of each WASM size
+      run: bash scripts/check_wasm_binding.sh
+
+    - name: Install OCaml
+      uses: ocaml/setup-ocaml@v3
+      with:
+        ocaml-compiler: "5.3.0"
+        opam-repositories: |
+          default: https://opam.ocaml.org
+          rocq-released: https://rocq-prover.org/opam/released
+
+    - name: Install Rocq
+      run: opam install -y coq.9.0.1 coq-mathcomp-ssreflect.2.4.0 coq-record-update.0.3.6
+
+    - name: Build the Rocq proofs and tests and check their assumptions
+      run: opam exec -- make -C formal/wasm-rocq -j"$(nproc)" audit
+
   test:
     name: Nightstream and shared regression tests
     runs-on: self-hosted

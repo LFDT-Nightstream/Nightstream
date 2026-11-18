@@ -33,6 +33,9 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.freshHolds_implies_rowsAndPublic
 #audit_axioms NightstreamFPrime.Spec.RandomOracle.escape_le
 #audit_axioms NightstreamFPrime.Spec.RandomOracle.pinned_le
+#audit_axioms NightstreamFPrime.Spec.RandomOracle.expect_lens
+#audit_axioms NightstreamFPrime.Spec.RandomOracle.collision_le
+#audit_axioms NightstreamFPrime.Spec.RandomOracle.pair_collision_le
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RoundByRound.falseAcceptance_splits
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RoundByRound.alphaBad_probability_le
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RoundByRound.gammaBad_probability_le

@@ -69,12 +69,13 @@ scope note.
   conditions: the hash pads injectively, each use absorbs an injective framing of its data, and
   two uses never absorb the same block list (domain separation). Lean proves the first for the
   `10*` padding of `Spec.Poseidon2.hash` (`Spec.Sponge.padding`, `Spec.Sponge.hash_eq_digest`).
-  The other two are Lean hypotheses of each use. Then two
-  distinct inputs give one 4-lane digest with probability at most `N²/q⁴` plus
-  `spongeError N`, because they absorb distinct block lists
-  (`Spec.Sponge.collision_blocks`). Two uses whose words start with tags that
-  differ at a position of both never absorb one block list
-  (`Spec.Sponge.blocks_ne_of_differ`).
+  The other two are Lean hypotheses of each use. Then a finder with `N` calls
+  gives two distinct inputs with one 4-lane digest with probability at most
+  `C(N + 2, 2)/q⁴ + spongeError N` (`Spec.Sponge.collision_le`), because they
+  absorb distinct block lists (`Spec.Sponge.collision_blocks`) and a uniform
+  function has this birthday bound (`Spec.RandomOracle.pair_collision_le`).
+  Two uses whose words start with tags that differ at a position of both
+  never absorb one block list (`Spec.Sponge.blocks_ne_of_differ`).
 - `KECCAK`: SHAKE128, SHAKE256, SHA3-256 and the Keccak-f duplex of Akita in
   the classical random-oracle model: the Ajtai setup reads SHAKE128 output
   as uniform 64-bit words (trust item 1), and Akita reads its challenges as
@@ -113,7 +114,7 @@ the Rust code is held to the Lean definition (trust item 5).
 | Fresh public input | `Lifecycle.encHash` | `Lifecycle.encHash_injective_fixed` | Indirect, as above |
 | Package identity | `Export.BoundedDepth.StepPackage.identity` | `Export.BoundedDepth.IdentityBinding.valuePreimage_injective`, `Claims.Encodings.package_identity_binds` (atoms and lengths below `2^64`) | Direct: `identity_code_matches_lean_on_the_probe_packages` |
 | Circuit key digest | `Lifecycle.BoundedDepth.CircuitKeyDigest.input` | `Lifecycle.BoundedDepth.CircuitKeyDigest.input_injective`, `Claims.Encodings.circuit_key_binds` (an identity of any length) | Direct: `circuit_key_is_the_lean_digest` on three identities (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/nightstream/tests/bounded_depth_lifecycle/encodings.rs`) |
-| Fold transcripts | `Lifecycle.RandomOracle.Schedule.challengeCalls`, `Lifecycle.RandomOracle.Schedule.pieces` | `Lifecycle.RandomOracle.Schedule.challengeAddress_injective`, `Lifecycle.RandomOracle.Schedule.statementCalls_identify`, `Lifecycle.RandomOracle.Schedule.proverCalls_identify`; fixed lengths: `Lifecycle.RandomOracle.Schedule.pieces_alike`, `Lifecycle.RandomOracle.Schedule.calls_pieces`; disjoint lanes: `Export.BoundedDepth.FoldSponge.rho_ne` | Direct: `the_light_transcript_absorbs_the_lean_pieces`, `the_refresh_transcript_absorbs_the_lean_pieces` (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/nightstream-fprime/tests/fold_transcript_lean.rs`). The Π_RLC sampler is direct (`crates/neo-reductions/tests/pi_rlc_lean_parity.rs`). Indirect for the fold prover: package rows |
+| Fold transcripts | `Lifecycle.RandomOracle.Schedule.challengeCalls`, `Lifecycle.RandomOracle.Schedule.pieces` | `Lifecycle.RandomOracle.Schedule.challengeAddress_injective`, `Lifecycle.RandomOracle.Schedule.statementCalls_identify`, `Lifecycle.RandomOracle.Schedule.proverCalls_identify`; fixed lengths: `Lifecycle.RandomOracle.Schedule.pieces_alike`, `Lifecycle.RandomOracle.Schedule.calls_pieces`; reads: the state of a `ρ` read is the state of no other challenge (`Lifecycle.RandomOracle.Schedule.rhoCalls_ne`) | Direct: `the_light_transcript_absorbs_the_lean_pieces`, `the_refresh_transcript_absorbs_the_lean_pieces` (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/nightstream-fprime/tests/fold_transcript_lean.rs`). The Π_RLC sampler is direct (`crates/neo-reductions/tests/pi_rlc_lean_parity.rs`). Indirect for the fold prover: package rows |
 | Compression transcript | `Export.BoundedDepth.CompressionSponge.pieces`, with `Lifecycle.RandomOracle.Sponge.byteWords` for a byte string and `Export.BoundedDepth.CompressionSponge.Claim.words` for a claim | `Export.BoundedDepth.CompressionSponge.calls_injective` (two runs of one statement shape, each byte string below `q` bytes), from `Export.BoundedDepth.CompressionSponge.pieces_alike`, `Lifecycle.RandomOracle.Sponge.byteWords_injective` and `Export.BoundedDepth.CompressionSponge.Claim.words_injective`. Rows 4 to 17 have the operations and counts of `Spec.Compression.Rust.schedule`: `Export.BoundedDepth.CompressionSponge.argumentPieces_fit` | Direct for the words: `byte_words_are_the_lean_words`, `claim_words_are_the_lean_words`, `the_domain_and_the_session_label_are_the_lean_ones`, `the_compression_domain_is_the_lean_domain`, and for the zero blocks of the reads: `a_replay_of_the_lean_pieces_ends_in_the_lean_session` (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/ns-compress/tests/unit/transcript.rs`). Direct for the order and the counts of rows 4 to 17 on a real proof: `a_replay_in_the_lean_order_draws_the_challenges_of_verify`. Open: no test compares rows 1 to 3 of a real proof with the Lean pieces. Rust makes them with the functions of a fold transcript (section Absorbs without a frame) |
 | Akita session bytes | `Export.BoundedDepth.CompressionSponge.session` | `Lifecycle.RandomOracle.Sponge.sessionBytes_injective`; `Export.BoundedDepth.CompressionSponge.session_binds`: two runs with one session are equal, or their transcripts are two distinct lists of sponge calls with the same lanes 0 to 3 | Direct: `the_session_is_the_lean_session`, `a_replay_of_the_lean_pieces_ends_in_the_lean_session` |
 | Akita transcript | None | Open: the Akita crates fix these bytes. `akita.verify` (`crates/ns-compress/src/akita/verifier.rs`) gives Akita the session bytes, the three commitments, the three points and the three values, and Akita absorbs them into its own Keccak sponge and makes its challenges there. Lean has no model of that sponge or of Akita's encodings. The results trust that Akita binds these inputs, as part of `[AKITA]` under `[KECCAK]` | None |
@@ -197,7 +198,9 @@ each head.
 | `keysShaped` | `Eq` | lean | `Lifecycle.BoundedDepth.CircuitKeyDigest.keys_shaped`, for the keys `Lifecycle.BoundedDepth.CircuitKeyDigest.keys` of a package identity. Rust `circuit_key` computes these digests (section Hashed encodings, row Circuit key digest) |
 | `assumption` | `Spec.HyperNova.ReverseStages.Assumption1` | assumption | `[HN-A1]` |
 | `closed.*`, `admitted` | `*` | assumption | `[HN-A1]`, in the form of trust item 3: the closure premise and the admitted adversary |
-| `premise` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]` |
+| `Nebula/premise` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]` |
+| `Fold/premise` | `Spec.Sponge.Transfer` | open | Open: the event includes the extractor's retries, which query the oracle again after the base run. Indifferentiability moves one run, not a game with retries (adversary 3), so `[SPONGE]` does not give this transfer |
+| `finders` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]`, for the finder of stage `j` with at most `calls j` permutation calls and inputs of at most `blocks` padded blocks. Lean has no count of the calls of a stage, which is a Lean function, so `calls` is a parameter of the adversary class, as `depth` is (adversary 4) |
 | `akita.theorem1046`, `binding` | `*` | assumption | `[AKITA]`: Akita Theorem 10.46 for the schedule of the opening, and the binding of the key commitment |
 | `akita.admissible` | `Spec.Compression.Akita.Schedule.Admissible` | open | Open: Lean does not model Akita's schedules, and Akita declares no query budget `Q_max` for the schedule files of `SPEC.md` section 3, so no check gives S2 and S3 of Akita Definition 9.2 |
 | `akita.admitted`, `akita.budget` | `*` | game | adversary 6: the prover with Akita openings is a classical random-oracle prover with at most `Q_max` queries to Akita's `H_FS` |
@@ -464,19 +467,21 @@ not change terminal source checks.
   `Spec.Folding.Light.ErrorBudget.production_forkCoordinates`,
   `Lifecycle.Nifs.VerifierErrorBudget.test_error_eq`). Each numerator is a
   per-call count over `q²`.
-- **Random-oracle model:** in a model where each fold challenge is a uniform
-  value at the address of its sponge calls, for an adversary that makes at
-  most `Q` queries, the probability that a fold succeeds and the extractor does not return its
+- **Random-oracle model:** the model is the uniform function of `[SPONGE]`:
+  a point is the list of sponge calls before a read, and its answer is the
+  rate lanes of the state after them (`Lifecycle.RandomOracle.Test.Answer`).
+  A `K` coin of slot `s` reads lanes `2s` and `2s + 1`
+  (`Lifecycle.RandomOracle.Test.decodeK`) and a `Π_RLC` draw reads lanes 0
+  to 4 (`Lifecycle.RandomOracle.Fork.draw`), so reads of one state read one
+  answer, as in the sponge. For an adversary that makes at most `Q` queries,
+  the probability that a fold succeeds and the extractor does not return its
   witnesses is at most a statistical term, a state-collision term and a
   kernel term (`Claims.Fold.light_knowledge_in_random_oracle_model`,
-  `Claims.Fold.refresh_knowledge_in_random_oracle_model`). The model answers
-  each point, a call list and a lane pair, with five independent words
-  (`Lifecycle.RandomOracle.Test.Answer`). In the sponge, two adjacent lane
-  pairs of one state share three words
-  (`Lifecycle.BoundedDepth.RandomOracle.Fidelity.spongeOracle`), so
-  `[SPONGE]` does not move this model to the sponge as it is. The
-  test step charges each challenge's bad set at the challenge's own point, so
-  it costs at most `(Q + 1)` times the Π_CCS test error
+  `Claims.Fold.refresh_knowledge_in_random_oracle_model`). The bad set of a
+  coin reads the other coins of its state from the answer, and the coin's
+  lanes are uniform for each value of the other lanes
+  (`Lifecycle.RandomOracle.Test.bad_mass_le`), so the test step costs at most
+  `(Q + 1)` times the Π_CCS test error
   (`Lifecycle.RandomOracle.Test.family_error_le`). The statistical term is at
   most `(Q + 1) · 575/2^128` for light and `(Q + 1) · 4748/2^128` for refresh
   (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.statisticalError_le`,
@@ -499,10 +504,11 @@ not change terminal source checks.
   named prior states, and a collision finder outputs the colliding input
   pair, whose two inputs have one length
   (`Lifecycle.BoundedDepth.RandomOracle.HashSolver.hashCollisions_le_finder`).
-  Under `[P2-PERM]` and `[SPONGE]`, two distinct inputs give one digest with
-  probability at most `N²/q⁴ + spongeError N`, because the `10*` padding of
-  the sponge is injective (`Claims.Encodings.hash_padding_injective`,
-  `Spec.Sponge.collision_blocks`).
+  Under `[P2-PERM]` and `[SPONGE]`, a finder with `N` calls gives two distinct
+  inputs with one digest with probability at most
+  `C(N + 2, 2)/q⁴ + spongeError N` (`Spec.Sponge.collision_le`), because the
+  `10*` padding of the sponge is injective
+  (`Claims.Encodings.hash_padding_injective`, `Spec.Sponge.collision_blocks`).
   Averaged over the SHAKE128 key setup at key width `2^26`, the kernel term is
   an MSIS advantage for a uniform matrix at the chain norm plus a programming
   error below `2^−1129`, so each fold's bound uses only the two algorithms
@@ -523,16 +529,27 @@ not change terminal source checks.
   `spongeError N`, when every condition holds. The fold calls start with
   their domain (`Export.DomainSeparation.fold_owns`), and the fold domains
   are separated from the other uses (`Claims.Encodings.domains_separated`).
-  The model's answers at distinct points are independent, but a `Π_RLC`
-  draw reads lanes 0 to 4 and a coin of slot `s` reads lanes `2s` and
-  `2s + 1`. So a draw must never share its calls with a coin of slot 1 or 2:
-  it does not, because its calls are longer
-  (`Export.BoundedDepth.FoldSponge.rho_ne`). With these conditions proved
-  for every fold schedule (`Export.BoundedDepth.FoldSponge.conditions`), the
-  knowledge bound moves to the ideal-permutation model as the statistical
-  error plus `spongeError N`, with the collision and kernel terms as before
-  (`Claims.Fold.light_knowledge`,
-  `Claims.Fold.refresh_knowledge`).
+  The model reads each address as the sponge does at the rate lanes
+  (`Lifecycle.BoundedDepth.RandomOracle.Fidelity.spongeOracle_deployed`).
+  The state of a `ρ` read is the state of no other challenge, because its
+  calls are longer than those of a `K` coin and two `ρ` reads have
+  different numbers of calls (`Lifecycle.RandomOracle.Schedule.rhoCalls_ne`).
+  So a new answer at a `ρ` point keeps the Π_CCS coins
+  (`Lifecycle.RandomOracle.Fork.update_rho_ne`). With these conditions
+  proved for every fold schedule (`Export.BoundedDepth.FoldSponge.conditions`),
+  the premise `Spec.Sponge.Transfer` moves the failure event: the fold
+  succeeds and the extractor, with the retries of the retry law, does not
+  extract (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.failureChance`).
+  In the ideal-permutation model its chance is at most the knowledge error
+  of the transfer's model adversary plus `spongeError N`
+  (`Claims.Fold.light_knowledge`, `Claims.Fold.refresh_knowledge`). The event
+  includes the retries, which give new answers at the `ρ` points. So the
+  premise moves the base run and its retries as one experiment, which is
+  more than the indifferentiability of one run: indifferentiability does not
+  cover a game with retries (Ristenpart, Shacham and Shrimpton,
+  EUROCRYPT 2011). So the premise is open, not `[SPONGE]`. The model adversary has the
+  query bound `Q` of the premise, which must be at least the number of
+  queries of the simulator of `[SPONGE]`.
 - **Not covered:** the step circuits recompute the challenges with the
   Poseidon2 permutation, and no ideal-permutation model covers a circuit
   that evaluates the permutation. So this result bounds no deployed check of
@@ -578,10 +595,14 @@ not change terminal source checks.
   words and the terminal's 38-word state preimage
   (`Export.BoundedDepth.TerminalBridge.Collision`). Each collision at the
   visit gives an output
-  (`Export.BoundedDepth.IvcWalk.visitCollision_isSome`). Lean does not bound
-  the finder's success chance. A bound needs `[P2-PERM]` and `[SPONGE]`
-  with the number of permutation calls of the finder, which Lean does not
-  count (trust item 2). So the term stays a stated term.
+  (`Export.BoundedDepth.IvcWalk.visitCollision_isSome`). Under `[P2-PERM]`
+  and `[SPONGE]`, the term of stage `j` is at most
+  `C(N_j + 2, 2)/q⁴ + spongeError N_j` for a finder with `N_j` permutation
+  calls, so `walkBound ≤ Σ_j (C(N_j + 2, 2)/q⁴ + spongeError N_j + error(stage j))`
+  (`Claims.Ivc.walk_bound_numeric`). A stage is a Lean function, and Lean
+  has no count of its calls. So `N_j` is the parameter `calls j` of the
+  premise `finders`, and the premise holds only for an adversary class
+  whose finder of stage `j` makes at most `N_j` calls (trust item 2).
 - **Per slot:** the earlier one-slot result,
   `Claims.Ivc.slot_history_failure`,
   takes the history as an adversary output and has no collision term. Its
@@ -920,7 +941,8 @@ not change terminal source checks.
      results name each collision as an event on two inputs that a reduction
      computes. Under `[P2-PERM]` and `[SPONGE]`, an algorithm with `N`
      permutation calls finds two distinct padded inputs with one digest with
-     probability at most `N²/q⁴ + spongeError N`. Two distinct inputs of the
+     probability at most `C(N + 2, 2)/q⁴ + spongeError N`
+     (`Spec.Sponge.collision_le`). Two distinct inputs of the
      hash have distinct padded inputs (`Spec.Sponge.collision_blocks`), and
      two distinct values of a row of section Hashed encodings have distinct
      inputs only by that row's injectivity theorem. The deployed permutation
@@ -929,12 +951,12 @@ not change terminal source checks.
    - *The IVC collision term.* In the bounds of adversaries 4, 5 and 6, the
      collision term of each reverse stage is the success chance of an
      explicit finder that outputs such a pair of inputs
-     (`Export.BoundedDepth.IvcSecurity.finderChance`). To bound it with the
-     bound above, `N` must count the permutation calls of the finder. These
-     include the calls of the stage, and so the calls of the earlier stages
-     that it runs again. Lean does not count `N` and does not state this
-     bound, so the term stays a stated term.
-   - Lean bounds neither term numerically.
+     (`Export.BoundedDepth.IvcSecurity.finderChance`). Lean bounds it with the
+     bound above (`Claims.Ivc.walk_bound_numeric`). `N` counts the permutation
+     calls of the finder: the calls of the stage, and so the calls of the
+     earlier stages that it runs again. Lean cannot count them for a Lean
+     function, so `N` is a parameter of the adversary class.
+   - Lean does not bound the MSIS term numerically.
 3. **The history: HyperNova errata Assumption 1 for the two fold kinds [HN-A1].**
    `Spec.HyperNova.ReverseStages.Assumption1` states Assumption 1 in the form
    of HyperNova Definition 7 knowledge soundness. Adversary 4 uses it with the

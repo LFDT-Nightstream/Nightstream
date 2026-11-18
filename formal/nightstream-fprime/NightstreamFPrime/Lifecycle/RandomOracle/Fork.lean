@@ -4,9 +4,11 @@ import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Law
 import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.Challenge
 
 /-! The fork step of the random-oracle chain for any fold transcript `Schedule`: the step that
-`RandomOracleExtraction` states for the one-circuit fold. An oracle answer at a `ρ` point is one
-draw of the production Π_RLC sampler, and the challenge is its scalar (`readRho`). One scalar
-has probability at most `sampleError` (`fiber_mass_le`).
+`RandomOracleExtraction` states for the one-circuit fold. A `ρ` challenge is the production
+Π_RLC sampler's scalar of lanes 0 to 4 of the answer at its point (`draw`, `scalar`,
+`readRho`). One scalar has probability at most `sampleError` (`fiber_mass_le`). The state of a
+`ρ` read is the state of no other challenge (`Schedule.rhoCalls_ne`), so a new answer there
+leaves the other challenges (`update_rho_ne`).
 
 The fold supplies a `Game`: the statement and the messages that an adversary output absorbs,
 the start claim that the transcript does not absorb, and the success event of an oracle run.
@@ -33,30 +35,44 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.RandomOracle
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.RandomOracle.Test
-  (Answer Point point point_injective coins read_challengeAddress)
+  (Answer Point point coins read_challengeAddress)
 
 attribute [local instance low] Classical.propDecidable
 
 section Reads
 
-open Spec.Folding.Nifs.NonInteractive.PiRlcSampler (sample)
+open Spec.Folding.Nifs.NonInteractive.PiRlcSampler (Draw drawWidth sample)
 
-/-- The `ρ` challenge of one oracle answer: the production sampler's scalar of the draw. -/
+private theorem draw_lane {lane : Nat} (inside : lane < drawWidth) : lane < Poseidon2.rate := by
+  unfold drawWidth at inside
+  show lane < 12
+  omega
+
+/-- The sampler's draw of an answer: lanes 0 to 4 (`PiRlcSampler.Transcript.block`). -/
+def draw (answer : Answer) : Draw := fun lane => answer ⟨lane.val, draw_lane lane.isLt⟩
+
+/-- `answer` with lanes 0 to 4 set to `words`. -/
+def setDraw (answer : Answer) (words : Draw) : Answer := fun lane =>
+  if inside : lane.val < drawWidth then words ⟨lane.val, inside⟩ else answer lane
+
+/-- The scalar of an answer: the production sampler's scalar of its draw. -/
+def scalar (answer : Answer) : RingStrongSet.Scalar := sample (draw answer)
+
+/-- The `ρ` challenge of one oracle answer: the embedded scalar of its draw. -/
 def readRho (answer : Answer) : RingF :=
-  RingStrongSet.embedScalar (sample answer)
+  RingStrongSet.embedScalar (scalar answer)
 
 theorem readRho_valid (answer : Answer) :
     RingRelation.PiRLCAlgebra.Challenge.challengeValid (readRho answer) :=
   ⟨_, rfl⟩
 
 theorem readRho_eq_iff (left right : Answer) :
-    readRho left = readRho right ↔ sample left = sample right :=
+    readRho left = readRho right ↔ scalar left = scalar right :=
   RingStrongSet.embedScalar_injective.eq_iff
 
-/-- The sponge's `ρ` read is `readRho` of the state's sampler block. -/
+/-- The sponge's `ρ` read is `readRho` of the state's rate lanes. -/
 theorem sponge_readRho (state : Transcript.State) :
-    Sponge.readRho state =
-      readRho (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.block state) :=
+    Sponge.readRho state = readRho (Sponge.rateLanes state) :=
   rfl
 
 /-- The chance that a uniform answer samples one given scalar. -/
@@ -69,19 +85,30 @@ theorem sampleError_nonnegative : 0 ≤ sampleError := by
   have := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_nonnegative
   positivity
 
-theorem fiber_mass_le (scalar : RingStrongSet.Scalar) :
-    mass {answer : Answer | sample answer = scalar} ≤ sampleError := by
+/-- A uniform answer is a uniform answer with its draw drawn again. -/
+theorem expect_setDraw (value : Answer → ℝ) :
+    𝔼 answer, value answer = 𝔼 answer, 𝔼 words : Draw, value (setDraw answer words) :=
+  expect_lens draw setDraw
+    (fun answer words => by funext lane; simp [draw, setDraw, lane.isLt])
+    (fun answer => by
+      funext lane
+      by_cases inside : lane.val < drawWidth <;> simp [setDraw, draw, inside])
+    (fun answer words words' => by
+      funext lane
+      by_cases inside : lane.val < drawWidth <;> simp [setDraw, inside])
+    value
+
+private theorem draw_fiber_le (scalar : RingStrongSet.Scalar) :
+    (𝔼 words : Draw, if sample words = scalar then (1 : ℝ) else 0) ≤ sampleError := by
   open Spec.Folding.Nifs.NonInteractive.PiRlcSampler in
-  have card : Fintype.card Answer = drawCount := by
+  have card : Fintype.card Draw = drawCount := by
     simp only [Fintype.card_fun, Fintype.card_fin]
     rfl
   let test : RingStrongSet.Scalar → ℝ := fun value => if value = scalar then 1 else 0
-  have sampled : mass {answer : Answer | sample answer = scalar} = sampledExpect test := by
-    unfold mass sampledExpect
+  have sampled : (𝔼 words : Draw, if sample words = scalar then (1 : ℝ) else 0) =
+      sampledExpect test := by
+    unfold sampledExpect
     rw [Finset.expect_eq_sum_div_card, Finset.card_univ, card]
-    exact congrArg (· / (drawCount : ℝ))
-      (Finset.sum_congr rfl fun answer _ => by
-        by_cases same : sample answer = scalar <;> simp [test, same])
   have uniform : uniformExpect test = 1 / scalarCount := by
     unfold uniformExpect
     simp [test]
@@ -93,6 +120,18 @@ theorem fiber_mass_le (scalar : RingStrongSet.Scalar) :
   rw [sampled]
   unfold sampleError
   linarith
+
+theorem fiber_mass_le (target : RingStrongSet.Scalar) :
+    mass {answer : Answer | scalar answer = target} ≤ sampleError := by
+  unfold mass
+  rw [expect_setDraw]
+  refine (Finset.expect_le_expect fun answer _ => ?_).trans
+    (Finset.expect_const Finset.univ_nonempty _).le
+  have drawn (words : Draw) : draw (setDraw answer words) = words := by
+    funext lane
+    simp [draw, setDraw, lane.isLt]
+  simp only [Set.mem_ofPred_eq, scalar, drawn]
+  exact draw_fiber_le target
 
 end Reads
 
@@ -117,15 +156,18 @@ theorem rhoPoint_identifies {statement statement' : schedule.Statement}
     (same : point statement messages (.rho index) = point statement' messages' (.rho index)) :
     statement = statement' ∧ messages = messages' :=
   schedule.proverCalls_identify (.rho index)
-    (List.append_cancel_right (congrArg (fun target => target.1.val) same))
+    (List.append_cancel_right (congrArg Subtype.val same))
 
-theorem update_ne (oracle : Point schedule width → Answer) (statement : schedule.Statement)
-    (messages : schedule.Messages width) {changed other : schedule.Challenge}
-    (different : other ≠ changed) (answer : Answer) :
-    Function.update oracle (point statement messages changed) answer
+/-- A new answer at a `ρ` point leaves the answer at the point of each other challenge: the state
+of a `ρ` read is the state of no other challenge (`Schedule.rhoCalls_ne`). -/
+theorem update_rho_ne (oracle : Point schedule width → Answer) (statement : schedule.Statement)
+    (messages : schedule.Messages width) (index : Fin schedule.rhoCount)
+    {other : schedule.Challenge} (different : other ≠ .rho index) (answer : Answer) :
+    Function.update oracle (point statement messages (.rho index)) answer
         (point statement messages other) =
       oracle (point statement messages other) :=
-  Function.update_of_ne (fun same => different (point_injective statement messages same)) _ _
+  Function.update_of_ne (fun same => schedule.rhoCalls_ne statement statement messages messages
+    index different (congrArg Subtype.val same).symm) _ _
 
 /-- A new answer at a `ρ` point leaves the Π_CCS coins unchanged. -/
 theorem coins_update_rho (oracle : Point schedule width → Answer)
@@ -138,15 +180,15 @@ theorem coins_update_rho (oracle : Point schedule width → Answer)
       Function.update oracle (point statement messages (.rho index)) answer
           (point statement messages (.alpha coordinate)) =
         oracle (point statement messages (.alpha coordinate)) :=
-    update_ne oracle statement messages (by simp) answer
+    update_rho_ne oracle statement messages index (by simp) answer
   have gamma : Function.update oracle (point statement messages (.rho index)) answer
       (point statement messages .gamma) = oracle (point statement messages .gamma) :=
-    update_ne oracle statement messages (by simp) answer
+    update_rho_ne oracle statement messages index (by simp) answer
   have round (round : Fin schedule.shape.cubeVariables) :
       Function.update oracle (point statement messages (.rho index)) answer
           (point statement messages (.round round)) =
         oracle (point statement messages (.round round)) :=
-    update_ne oracle statement messages (by simp) answer
+    update_rho_ne oracle statement messages index (by simp) answer
   simp only [coins, Schedule.coinsFrom, read_challengeAddress, alpha, gamma, round]
 
 /-- A new answer at the `ρ` point of `index` changes only the challenge of `index`. -/
@@ -160,7 +202,7 @@ theorem rho_update (oracle : Point schedule width → Answer) (statement : sched
   · subst same
     simp [rho]
   · rw [ite_eq_right same]
-    exact congrArg readRho (update_ne oracle statement messages
+    exact congrArg readRho (update_rho_ne oracle statement messages index
       (fun equal => same (Schedule.Challenge.rho.inj equal)) answer)
 
 end Points
@@ -229,9 +271,7 @@ def ForkValid (oracle : Oracle) (retries : Retries) (index : Fin schedule.rhoCou
   (Succeeds game adversary (forked game adversary oracle retries index) ∧
       rhoPoint game adversary index (forked game adversary oracle retries index) =
         rhoPoint game adversary index oracle) ∧
-    Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample (retries index) ≠
-      Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample
-        (oracle (rhoPoint game adversary index oracle)) ∧
+    scalar (retries index) ≠ scalar (oracle (rhoPoint game adversary index oracle)) ∧
     game.start (adversary.run (forked game adversary oracle retries index)) =
       game.start (adversary.run oracle)
 
@@ -322,8 +362,7 @@ theorem fork_failure_le {queries : Nat} (bounded : adversary.QueryBound queries)
           (if ∀ index, ForkValid game adversary oracle retries index then 0 else 1)
         else 0) ≤
       (∑ index, if Succeeds game adversary oracle then
-          repeatChance (Hits game adversary index)
-            Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample
+          repeatChance (Hits game adversary index) scalar
             (rhoPoint game adversary index oracle) oracle else 0) +
         (if Succeeds game adversary oracle then
           ∑ index, mismatchChance game adversary index oracle else 0) := by
@@ -368,16 +407,14 @@ theorem fork_failure_le {queries : Nat} (bounded : adversary.QueryBound queries)
     · simp [succeeds]
   calc
     _ ≤ 𝔼 oracle, ((∑ index, if Succeeds game adversary oracle then
-            repeatChance (Hits game adversary index)
-              Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample
+            repeatChance (Hits game adversary index) scalar
               (rhoPoint game adversary index oracle) oracle else 0) +
           (if Succeeds game adversary oracle then
             ∑ index, mismatchChance game adversary index oracle else 0)) :=
       Finset.expect_le_expect fun oracle _ => pointwise oracle
     _ = (∑ index, 𝔼 oracle, ∑ target,
             if Hits game adversary index target oracle then
-              repeatChance (Hits game adversary index)
-                Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample target oracle else 0) +
+              repeatChance (Hits game adversary index) scalar target oracle else 0) +
           𝔼 oracle, (if Succeeds game adversary oracle then
             ∑ index, mismatchChance game adversary index oracle else 0) := by
       rw [Finset.expect_add_distrib, Finset.expect_sum_comm]
@@ -387,8 +424,7 @@ theorem fork_failure_le {queries : Nat} (bounded : adversary.QueryBound queries)
           𝔼 oracle, (if Succeeds game adversary oracle then
             ∑ index, mismatchChance game adversary index oracle else 0) := by
       refine add_le_add (Finset.sum_le_sum fun index _ => ?_) le_rfl
-      exact repeat_le (Hits game adversary index)
-        Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample sampleError fiber_mass_le
+      exact repeat_le (Hits game adversary index) scalar sampleError fiber_mass_le
         sampleError_nonnegative (normalized_bound game adversary bounded)
         (hits_queried game adversary index)
     _ = _ := by

@@ -22,10 +22,11 @@ The terminal relation, the reverse extractor and the completeness of a run
   on its tape, decodes the visit and outputs two different inputs of one length with one
   `Poseidon2.hash` (`Export.BoundedDepth.IvcWalk.visitCollision`). Each collision at the visit
   gives an output (`Export.BoundedDepth.IvcWalk.visitCollision_isSome`).
-- Open: Lean does not bound the finder's success chance. A bound needs `[P2-PERM]` and
-  `[SPONGE]` with the finder's count of permutation calls (`SECURITY_MODEL.md` trust item 2).
-  The bound `depth` on the iteration of every statement that the adversary can output, accepted
-  or not, is an argument (`depthBound`).
+- Numeric collision term: under `[P2-PERM]` and `[SPONGE]`, `walk_bound_numeric` bounds the
+  finder's success chance at stage `j` by `C(calls j + 2, 2)/q⁴ + spongeError (calls j)`. Lean
+  has no count of the permutation calls of a stage, so `calls` is a parameter of the adversary
+  class (`SECURITY_MODEL.md` trust item 2). The bound `depth` on the iteration of every
+  statement that the adversary can output, accepted or not, is an argument (`depthBound`).
 - Capacity: for the emitted packages, `Export.BoundedDepth.EmittedPackages.Facts.exports` builds
   `exports` from the capacity of the application (`Export.BoundedDepth.EmittedPackages.Facts`,
   SPEC.md section 4.4), which the emitter checks.
@@ -214,6 +215,52 @@ theorem extraction_bound
   @Export.BoundedDepth.IvcSecurity.extraction_bound logicalWidth publicFits relation ajtai
     circuitKeys step cubeFits exports Admitted StageAdmitted Efficient error assumption closed
     adversary admitted keysShaped control cap depth depthBound
+
+/-- The numeric form of `IvcSecurity.walkBound` under `[P2-PERM]` and `[SPONGE]`: when the finder
+of each stage `j` moves under `Spec.Sponge.Transfer` of its collision event with `calls j`
+permutation calls, `walkBound` is at most the sum over the first `depth` stages of
+`C(calls j + 2, 2)/q⁴ + spongeError (calls j) + error(stage j)`. -/
+theorem walk_bound_numeric
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+        Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
+    {step : AppState → AppWitness → AppState}
+    {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+    (exports : TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
+    {Admitted : ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits) → Prop}
+    {StageAdmitted : ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+          (IvcWalk.Answer logicalWidth publicFits) →
+        Prop}
+    {Efficient : (adversary : ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits)) →
+        ReverseStages.NifsExtractor (IvcWalk.Answer logicalWidth publicFits) adversary → Prop}
+    {error : ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits) → ℝ}
+    (assumption : ReverseStages.Assumption1 (IvcWalk.WalkSucceeds ajtai) (IvcWalk.WalkExtracted ajtai)
+        Admitted Efficient error)
+    (closed : ReverseStages.Closed (IvcWalk.attemptOf ajtai circuitKeys exports)
+        (IvcWalk.back ajtai circuitKeys exports) Admitted StageAdmitted Efficient)
+    (adversary : ReverseStages.IvcAdversary (IvcSecurity.Output logicalWidth publicFits))
+    (admitted : StageAdmitted (ReverseStages.Stage.start (IvcSecurity.walkAdversary adversary)))
+    (depth : ℕ)
+    (calls : Fin depth → ℕ)
+    (blocks : ℕ)
+    (finders : ∀ j : Fin depth, Sponge.Transfer Sponge.CollisionConditions
+        (fun _ : Unit => IvcSecurity.finderChance ajtai circuitKeys exports
+          (ReverseStages.reverseStages assumption closed (IvcSecurity.walkAdversary adversary)
+            admitted j.val).1)
+        (fun model : Sponge.CollisionAdversary blocks (calls j) => Sponge.collisionChance model)
+        (calls j)) :
+    IvcSecurity.walkBound ajtai circuitKeys exports assumption closed adversary admitted depth ≤
+      ∑ j : Fin depth,
+        (Sponge.birthdayBound (calls j) + Sponge.spongeError (calls j) +
+          error ((ReverseStages.reverseStages assumption closed
+              (IvcSecurity.walkAdversary adversary) admitted j.val).1.nifs
+            (IvcWalk.attemptOf ajtai circuitKeys exports) (IvcWalk.back ajtai circuitKeys exports))) :=
+  @Export.BoundedDepth.IvcSecurity.walkBound_le logicalWidth publicFits relation ajtai circuitKeys
+    step cubeFits exports Admitted StageAdmitted Efficient error assumption closed adversary
+    admitted depth calls blocks finders
 
 /-- The probability that the verifier of SPEC.md Algorithm 6 accepts the adversary's output and no
 `iteration` valid steps lead from `z0` to `zi` is at most `IvcSecurity.walkBound`, the bound of

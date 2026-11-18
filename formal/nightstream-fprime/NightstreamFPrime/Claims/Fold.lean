@@ -19,8 +19,10 @@ Completeness and knowledge of the two folds of the bounded-depth scheme.
 - Paper: SuperNeo v1.2 Theorems 12 and 13, Lemmas 1, 4, 10 and 11, and Cyclo Theorem 3.
 - `light_extracts` and `refresh_extracts` are deterministic: the fork of the challenges is an
   argument, and each gives the witnesses or a Π_CCS bad event.
-- `light_knowledge`, `refresh_knowledge` and `assumption1_in_random_oracle_model` hold in the
-  ideal-permutation or random-oracle model (`[P2-PERM]`, `[SPONGE]`).
+- `assumption1_in_random_oracle_model` holds in the random-oracle model of the folds.
+  `light_knowledge` and `refresh_knowledge` hold in the ideal-permutation model (`[P2-PERM]`)
+  under an open transfer premise: the event includes the extractor's retries, and `[SPONGE]`
+  moves one run only.
 - `light_extracts` and `refresh_extracts` also take `strongSet`, the units of the strong
   sampling set. It returns data, so the premise list does not show it.
   `Claims.Foundations.low_norm_invertible` is the result behind it.
@@ -388,9 +390,10 @@ theorem refresh_error_bits
         ((↑queries : ℝ) + 1) / 2 ^ FoldGate.bits FoldGate.production :=
   @Lifecycle.BoundedDepth.RandomOracle.FoldGate.refresh_statisticalError_le_bits queries
 
-/-- Adversary 3 for the light fold in the ideal-permutation model: under `Spec.Sponge.Transfer`
-with the light conditions, the wins of each `world` are at most the statistical error plus
-`spongeError calls`. -/
+/-- Adversary 3 for the light fold in the ideal-permutation model: under `Spec.Sponge.Transfer` of
+the failure event (the fold succeeds and the extractor does not extract) with the light
+conditions, the chance of the event for each `world` is at most the knowledge error of the
+transfer's model adversary plus `spongeError calls`. -/
 theorem light_knowledge
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -401,12 +404,17 @@ theorem light_knowledge
     {World : Type}
     (winsOf : World → ℝ)
     (calls : ℕ)
-    (premise : Sponge.Transfer (Model := FoldSponge.LightAdversary logicalWidth publicFits queries)
+    (premise : Sponge.Transfer
         (FoldSponge.Conditions (LightSchedule.schedule logicalWidth publicFits) (width := 8)
           FoldSponge.lightUse)
-        winsOf (FoldSponge.lightWins ajtai key) calls)
+        winsOf
+        (fun (adversary : FoldSponge.LightAdversary logicalWidth publicFits queries) =>
+          LightKnowledge.failureChance ajtai key adversary.1)
+        calls)
     (world : World) :
-    winsOf world ≤ LightKnowledge.statisticalError queries + Sponge.spongeError calls :=
+    ∃ adversary : FoldSponge.LightAdversary logicalWidth publicFits queries,
+      winsOf world ≤ LightKnowledge.knowledgeError ajtai key adversary.1 queries +
+        Sponge.spongeError calls :=
   @Export.BoundedDepth.FoldSponge.light_knowledge_le logicalWidth publicFits ajtai key queries
     World winsOf calls premise world
 
@@ -421,12 +429,17 @@ theorem refresh_knowledge
     {World : Type}
     (winsOf : World → ℝ)
     (calls : ℕ)
-    (premise : Sponge.Transfer (Model := FoldSponge.RefreshAdversary logicalWidth publicFits queries)
+    (premise : Sponge.Transfer
         (FoldSponge.Conditions (RefreshSchedule.schedule logicalWidth publicFits) (width := 8)
           FoldSponge.refreshUse)
-        winsOf (FoldSponge.refreshWins ajtai key) calls)
+        winsOf
+        (fun (adversary : FoldSponge.RefreshAdversary logicalWidth publicFits queries) =>
+          RefreshKnowledge.failureChance ajtai key adversary.1)
+        calls)
     (world : World) :
-    winsOf world ≤ RefreshKnowledge.statisticalError queries + Sponge.spongeError calls :=
+    ∃ adversary : FoldSponge.RefreshAdversary logicalWidth publicFits queries,
+      winsOf world ≤ RefreshKnowledge.knowledgeError ajtai key adversary.1 queries +
+        Sponge.spongeError calls :=
   @Export.BoundedDepth.FoldSponge.refresh_knowledge_le logicalWidth publicFits ajtai key queries
     World winsOf calls premise world
 

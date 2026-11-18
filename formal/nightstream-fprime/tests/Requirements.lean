@@ -144,6 +144,45 @@ example {ajtai : Shipped.Ajtai} (facts : Shipped.Facts Shipped.program ajtai)
     StageAdmitted Efficient error assumption closed adversary admitted packageWidths control cap
     depth depthBound
 
+-- SPEC.md section 1: under `[P2-PERM]` and `[SPONGE]`, when the finder of stage `j` makes at
+-- most `N_j` permutation calls, `walkBound` is at most
+-- `Σ_j (C(N_j + 2, 2)/q⁴ + spongeError N_j + error(stage j))`, with `spongeError N = N²/q⁴` and
+-- `q = 2^64 − 59`.
+example {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
+    {step : AppState → AppWitness → AppState}
+    {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+    (exports : TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
+    {Admitted : NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits) → Prop}
+    {StageAdmitted : Stage (IvcWalk.Visit logicalWidth publicFits)
+      (IvcWalk.Answer logicalWidth publicFits) → Prop}
+    {Efficient : (adversary : NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits)) →
+      NifsExtractor (IvcWalk.Answer logicalWidth publicFits) adversary → Prop}
+    {error : NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits) → ℝ}
+    (assumption : Assumption1 (IvcWalk.WalkSucceeds ajtai) (IvcWalk.WalkExtracted ajtai) Admitted
+      Efficient error)
+    (closed : Closed (IvcWalk.attemptOf ajtai circuitKeys exports)
+      (IvcWalk.back ajtai circuitKeys exports) Admitted StageAdmitted Efficient)
+    (adversary : IvcAdversary (IvcSecurity.Output logicalWidth publicFits))
+    (admitted : StageAdmitted (Stage.start (IvcSecurity.walkAdversary adversary)))
+    (depth : ℕ) (calls : Fin depth → ℕ) (blocks : ℕ)
+    (finders : ∀ j : Fin depth, Sponge.Transfer Sponge.CollisionConditions
+      (fun _ : Unit => IvcSecurity.finderChance ajtai circuitKeys exports
+        (reverseStages assumption closed (IvcSecurity.walkAdversary adversary) admitted j).1)
+      (fun model : Sponge.CollisionAdversary blocks (calls j) => Sponge.collisionChance model)
+      (calls j)) :
+    IvcSecurity.walkBound ajtai circuitKeys exports assumption closed adversary admitted depth ≤
+      ∑ j : Fin depth,
+        (((calls j + 2).choose 2 : ℝ) / (((2 ^ 64 - 59 : ℕ) : ℝ)) ^ 4 +
+          (calls j : ℝ) ^ 2 / (((2 ^ 64 - 59 : ℕ) : ℝ)) ^ 4 +
+          error ((reverseStages assumption closed (IvcSecurity.walkAdversary adversary) admitted
+            j).1.nifs (IvcWalk.attemptOf ajtai circuitKeys exports)
+            (IvcWalk.back ajtai circuitKeys exports))) :=
+  @Claims.Ivc.walk_bound_numeric logicalWidth publicFits relation ajtai circuitKeys step cubeFits
+    exports Admitted StageAdmitted Efficient error assumption closed adversary admitted depth calls
+    blocks finders
+
 -- SPEC.md Algorithm 10, Source: the final verifier accepts a statement and the witnesses that
 -- the reverse extractor returns from its first `depth` stages are not a valid history of it with
 -- probability at most `q · (2^−119 + 38/q²) + Σ_{j < depth} (finderChance(stage j) +

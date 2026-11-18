@@ -11,7 +11,8 @@ the statistical error (`statisticalError`: `(Q + 1) · sampleError` for the fork
 `(Q + 1) · 574/q²` for the test step), the prior-state collision chances of the fork step
 (`LightFork.collisionChance`) and the uniqueness step (`stateChance`), and the kernel chance
 (`LightUniqueness.kernelChance`). `statisticalError_le`: the statistical error is at most
-`(Q + 1) · 575/2^128`. -/
+`(Q + 1) · 575/2^128`. The failure event, a successful run whose
+extractor does not extract, has chance at most `knowledgeError` (`failureChance_le`). -/
 
 set_option autoImplicit false
 
@@ -148,6 +149,21 @@ theorem knowledge_error_le {queries : Nat} (bounded : adversary.QueryBound queri
   have kernel := LightUniqueness.collisionChance_le_kernelChance ajtai key adversary
   rw [statisticalError_eq] at bound
   unfold knowledgeError
+  linarith
+
+/-- The chance that a run succeeds and the extractor, with retries drawn from the retry law, does
+not extract. -/
+noncomputable def failureChance : ℝ :=
+  𝔼 oracle, ∑ retries, Uniqueness.weight (LightFork.game ajtai key) adversary oracle retries *
+    (if Fork.Succeeds (LightFork.game ajtai key) adversary oracle ∧
+        ¬ Extracts ajtai key adversary oracle retries then 1 else 0)
+
+/-- The failure event has chance at most the knowledge error. -/
+theorem failureChance_le {queries : Nat} (bounded : adversary.QueryBound queries) :
+    failureChance ajtai key adversary ≤ knowledgeError ajtai key adversary queries := by
+  have bound := knowledge_error_le ajtai key adversary bounded
+  rw [failureChance, Uniqueness.failure_eq (LightFork.game ajtai key) adversary
+    fun ⟨valid, _⟩ => valid.1]
   linarith
 
 end NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightKnowledge

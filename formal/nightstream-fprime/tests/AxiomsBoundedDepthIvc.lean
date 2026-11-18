@@ -579,6 +579,7 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcWalk.walk_leads
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcWalk.covered
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcWalk.visitCollision_isSome
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcSecurity.walkBound_le
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcSecurity.extraction_bound
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.IvcSecurity.probability_bound
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaSecurity.leads_length

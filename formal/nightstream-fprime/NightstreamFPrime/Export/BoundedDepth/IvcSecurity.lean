@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.BoundedDepth.IvcWalk
+import NightstreamFPrime.Spec.Sponge
 
 /-! HyperNova Lemma 18 for the bounded-depth scheme: the IVC false-acceptance bound. An IVC adversary outputs a
 terminal statement and a proof. It wins when the terminal relation accepts and no `iteration`
@@ -17,7 +18,16 @@ decodes to, and the visit's terminal state) is a success (`IvcWalk.visitCollisio
 Each fold attempt is linked to the prior state of its step
 (`Lifecycle.BoundedDepth.PriorLink`), so its running claim is fixed by the fresh instance that the
 fold transcript absorbs, up to a collision on a pair of prior states (`priorLink_binds`).
-Assumption 1 is a premise; it is needed only at bounds up to `B + cap · T · (b − 1)`. -/
+Assumption 1 is a premise; it is needed only at bounds up to `B + cap · T · (b − 1)`.
+
+Under `[P2-PERM]` and `[SPONGE]`, the finder's success chance has a number (`walkBound_le`). A
+collision of `Poseidon2.hash` is a collision of a uniform 4-lane function on block lists
+(`Spec.Sponge.CollisionConditions`). So when the premise `Spec.Sponge.Transfer` of the collision
+event holds for the finder of stage `j` with `calls j` permutation calls, its chance is at most
+`C(calls j + 2, 2)/q⁴ + spongeError (calls j)` (`Spec.Sponge.collision_le`). Lean has no count of
+the permutation calls of a stage, which is a Lean function: `calls` is a parameter of the
+adversary class, and the premise holds only for a class whose finders make at most `calls j`
+permutation calls. -/
 
 set_option autoImplicit false
 
@@ -114,6 +124,23 @@ noncomputable def walkBound (depth : Nat) : ℝ :=
     (finderChance ajtai circuitKeys exports (stages j.val).1 +
       error ((stages j.val).1.nifs (attemptOf ajtai circuitKeys exports)
         (back ajtai circuitKeys exports)))
+
+/-- The numeric form of `walkBound` under `[SPONGE]`: when the premise `Spec.Sponge.Transfer` of
+the collision event holds for the finder of each stage `j` with `calls j` permutation calls and
+block lists of at most `blocks` blocks, `walkBound` is at most the sum over the first `depth`
+stages of `C(calls j + 2, 2)/q⁴ + spongeError (calls j) + error(stage j)`. -/
+theorem walkBound_le (depth : Nat) (calls : Fin depth → Nat) (blocks : Nat)
+    (finders : ∀ j : Fin depth, Sponge.Transfer Sponge.CollisionConditions
+      (fun _ : Unit => finderChance ajtai circuitKeys exports (stages j.val).1)
+      (fun model : Sponge.CollisionAdversary blocks (calls j) => Sponge.collisionChance model)
+      (calls j)) :
+    walkBound ajtai circuitKeys exports assumption closed adversary admitted depth ≤
+      ∑ j : Fin depth, (Sponge.birthdayBound (calls j) + Sponge.spongeError (calls j) +
+        error ((stages j.val).1.nifs (attemptOf ajtai circuitKeys exports)
+          (back ajtai circuitKeys exports))) :=
+  Finset.sum_le_sum fun j _ => by
+    have finder := Sponge.collision_le (finders j) ()
+    linarith
 
 /-- HyperNova Lemma 18 for the bounded-depth scheme, on the extractor's output: the probability that the terminal
 accepts the adversary's output and the witnesses that the reverse extractor returns do not lead

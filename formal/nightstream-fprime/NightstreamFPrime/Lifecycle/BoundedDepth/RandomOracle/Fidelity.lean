@@ -6,8 +6,9 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 An oracle of a schedule is deployed (`DeployedOn`) when, at each address of the schedule, its
 value is the Poseidon2 sponge read: `decodeK` of the answer is the `K` coin of the state after
 the address's calls, and `readRho` of the answer is the `ρ` read of that state. The sponge as an
-oracle (`spongeOracle`) is deployed (`spongeOracle_deployed`). A bounded-depth oracle is deployed
-(`Deployed`) when its light and refresh parts are.
+oracle (`spongeOracle`) answers each point with the rate lanes of the state after its calls,
+the function that `[SPONGE]` makes uniform, and it is deployed (`spongeOracle_deployed`). A
+bounded-depth oracle is deployed (`Deployed`) when its light and refresh parts are.
 
 On a deployed oracle, the oracle coins are the sponge coins (`coins_eq`, through
 `LightSchedule.probe_coins` and `RefreshSchedule.piCcsProbe_coins`), and the oracle `ρ`
@@ -48,9 +49,12 @@ variable {schedule : Schedule} {width : Nat}
 noncomputable def oracleValue (oracle : Test.Point schedule width → Test.Answer)
     (statement : schedule.Statement) (messages : schedule.Messages width) :
     (challenge : schedule.Challenge) → challenge.Value
-  | .alpha coordinate => Test.decodeK (oracle (Test.point statement messages (.alpha coordinate)))
-  | .gamma => Test.decodeK (oracle (Test.point statement messages .gamma))
-  | .round index => Test.decodeK (oracle (Test.point statement messages (.round index)))
+  | .alpha coordinate => Test.decodeK (Sponge.slotOf coordinate.val)
+      (oracle (Test.point statement messages (.alpha coordinate)))
+  | .gamma => Test.decodeK (Sponge.slotOf schedule.shape.cubeVariables)
+      (oracle (Test.point statement messages .gamma))
+  | .round index => Test.decodeK (Sponge.slotOf 0)
+      (oracle (Test.point statement messages (.round index)))
   | .rho index => Fork.readRho (oracle (Test.point statement messages (.rho index)))
 
 /-- The oracle reads each address of the schedule as the Poseidon2 sponge does. -/
@@ -59,31 +63,13 @@ def DeployedOn (oracle : Test.Point schedule width → Test.Answer) : Prop :=
     challenge.read (Sponge.run Transcript.initialState
       (schedule.challengeCalls statement messages challenge))
 
-private def stateAnswer (slot : Sponge.Slot) (state : Transcript.State) : Test.Answer :=
-  fun word => state.getD (2 * slot.val + word.val) 0
-
-/-- The sponge as an oracle: the state after a point's calls, read at the point's lane pair. -/
+/-- The sponge as an oracle: the rate lanes of the state after a point's calls. -/
 noncomputable def spongeOracle : Test.Point schedule width → Test.Answer := fun target =>
-  stateAnswer target.2 (Sponge.run Transcript.initialState target.1.val)
+  Sponge.rateLanes (Sponge.run Transcript.initialState target.val)
 
 theorem spongeOracle_deployed : DeployedOn (spongeOracle (schedule := schedule) (width := width)) := by
   intro statement messages challenge
-  cases challenge with
-  | rho index =>
-      show Fork.readRho (stateAnswer (Sponge.slotOf 0) (Sponge.run Transcript.initialState
-          (schedule.challengeCalls statement messages (.rho index)))) =
-        Sponge.readRho _
-      have block : stateAnswer (Sponge.slotOf 0) (Sponge.run Transcript.initialState
-          (schedule.challengeCalls statement messages (.rho index))) =
-          Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.block
-            (Sponge.run Transcript.initialState
-              (schedule.challengeCalls statement messages (.rho index))) := by
-        funext word
-        simp [stateAnswer, Sponge.slotOf,
-          Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.block]
-      rw [block]
-      rfl
-  | _ => rfl
+  cases challenge <;> rfl
 
 variable {oracle : Test.Point schedule width → Test.Answer}
 

@@ -457,6 +457,7 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.checkNames_flatMap_count
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Rows.names_count
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.assertionNames_count
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EndToEnd.bad_subset
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.EndToEnd.bad_le_sum
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryPackage.rows_le

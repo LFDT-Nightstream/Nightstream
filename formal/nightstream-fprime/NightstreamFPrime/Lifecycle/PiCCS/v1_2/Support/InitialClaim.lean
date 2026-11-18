@@ -77,4 +77,50 @@ theorem output_varsSatisfy (interface : Interface) (offset : Nat)
         exact localSupport index lower (by
           simpa [program, ownedInterface, Horner.Owned.program] using upper))
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+section Exporter
+
+variable {shape : Shape}
+
+theorem coefficientExprs_live (interface : ShapeInterface shape) (offset : Nat)
+    {live : Nat → Prop}
+    (evalK : ∀ coordinate, Horner.KSupported (interface.eval_K offset coordinate) live)
+    (evalA : ∀ coordinate, Horner.KSupported (interface.eval_A offset coordinate) live) :
+    ∀ coefficient ∈ coefficientExprs interface offset, Horner.KSupported coefficient live := by
+  intro coefficient member
+  rw [coefficientExprs, List.mem_append] at member
+  rcases member with member | member
+  · obtain ⟨coordinate, _, rfl⟩ := List.mem_map.mp member
+    exact evalK coordinate
+  · obtain ⟨coordinate, _, rfl⟩ := List.mem_map.mp member
+    exact evalA coordinate
+
+theorem marks_nil (interface : ShapeInterface shape) (offset : Nat) :
+    marks (Circuit.ops (circuit interface).main offset) = [] :=
+  Horner.Owned.marks_nil (ownedInterface interface) offset
+
+/-- The rows read γ, the evaluations and the gadget's own locals. -/
+theorem free (interface : ShapeInterface shape) (offset : Nat) {live : Nat → Prop}
+    (gamma : Horner.KSupported (interface.gamma offset) live)
+    (evalK : ∀ coordinate, Horner.KSupported (interface.eval_K offset coordinate) live)
+    (evalA : ∀ coordinate, Horner.KSupported (interface.eval_A offset coordinate) live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) → live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface).main offset), row.VarsSatisfy live :=
+  Horner.Owned.free (ownedInterface interface) offset gamma
+    (coefficientExprs_live interface offset evalK evalA) locals
+
+theorem output_live (interface : ShapeInterface shape) (offset : Nat) {live : Nat → Prop}
+    (gamma : Horner.KSupported (interface.gamma offset) live)
+    (evalK : ∀ coordinate, Horner.KSupported (interface.eval_K offset coordinate) live)
+    (evalA : ∀ coordinate, Horner.KSupported (interface.eval_A offset coordinate) live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) → live column) :
+    Horner.KSupported (output interface offset) live :=
+  Horner.Owned.output_live (ownedInterface interface) offset gamma
+    (coefficientExprs_live interface offset evalK evalA) locals
+
+end Exporter
+
 end NightstreamFPrime.Lifecycle.PiCCS.v1_2.InitialClaim

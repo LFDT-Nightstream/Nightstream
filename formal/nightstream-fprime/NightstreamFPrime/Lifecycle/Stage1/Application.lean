@@ -1,4 +1,5 @@
 import NightstreamFPrime.Circuit.VariableSupport
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRows
 import NightstreamFPrime.Lifecycle.Types
 
 namespace NightstreamFPrime.Lifecycle.Stage1.Application
@@ -20,6 +21,14 @@ structure InputsBelow {witnessWordCount : Nat}
   input : ∀ index, (interface.input offset index).VarsBelow offset
   witness : ∀ index, (interface.witness offset index).VarsBelow offset
   output : ∀ index, (interface.output offset index).VarsBelow offset
+
+/-- The interface's words are affine, the shape of a lane of a packed block (SPEC.md section
+4.4). -/
+structure InputsAffine {witnessWordCount : Nat}
+    (interface : Interface witnessWordCount) (offset : Nat) : Prop where
+  input : ∀ index, (interface.input offset index).Affine
+  witness : ∀ index, (interface.witness offset index).Affine
+  output : ∀ index, (interface.output offset index).Affine
 
 structure InputsSupported {witnessWordCount : Nat}
     (interface : Interface witnessWordCount) (offset : Nat)
@@ -91,6 +100,20 @@ structure Program where
         allowed index) →
       ∀ expression ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
         expression.VarsSatisfy allowed
+  /-- The circuit's marked permutations lie in its locals and ascend (SPEC.md section 4.4). -/
+  marksPlaced : ∀ interface offset,
+    Gadgets.Poseidon2.Placed offset (localLength (Circuit.ops (circuit interface).main offset))
+      (Circuit.ops (circuit interface).main offset)
+  /-- The circuit's rows are free rows that read only `live` columns and its marks' rows, when
+  its words are affine and live before it and its locals outside its marks' inner locals are
+  live (SPEC.md section 4.4). -/
+  marksLiveRows : ∀ interface offset (live : Nat → Prop),
+    InputsAffine interface offset →
+    InputsSupported interface offset (fun column => column < offset ∧ live column) →
+    Gadgets.Poseidon2.OwnLive live offset
+      (localLength (Circuit.ops (circuit interface).main offset))
+      (Circuit.ops (circuit interface).main offset) →
+    Gadgets.Poseidon2.LiveRows live (Circuit.ops (circuit interface).main offset)
 
 namespace Program
 

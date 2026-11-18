@@ -44,11 +44,12 @@ Imports flow downward only. `scripts/check-boundaries.sh` enforces it.
 Spec       paper semantics (field, ring, Poseidon2, sumcheck, PiCCS/PiRLC/PiDEC
            verifiers, HyperNova F′ relation)
 Circuit    the DSL: expressions, offset variables, operations, circuit monad,
-           one FormalCircuit record, the circuit_norm simp set
+           one FormalCircuit record, permutation marks (`Op.mark`)
 Gadgets    one directory per gadget; exports only its FormalCircuit
 Lifecycle  concrete F′ phase order, carried state, public layout, XOut
 Layout     physical lowering and layout-preservation theorems
 Export     serializer, witness IR, relation identifier, lake exe emitter
+Claims     what Nightstream claims: one restated theorem for each result
 tests      axiom gate (explicit imports, `#audit_axioms` per theorem)
 ```
 
@@ -78,6 +79,17 @@ tests      axiom gate (explicit imports, `#audit_axioms` per theorem)
 - Every exported theorem is listed in a `tests/Axioms*.lean` file with
   `#audit_axioms`. Allowed axioms: `propext`, `Classical.choice`,
   `Quot.sound`.
+- Nightstream claims exactly the theorems of `NightstreamFPrime/Claims/`. A
+  claims file holds only theorems. Each has every hypothesis in its signature
+  (no `variable`), a docstring, and a proof that is one application of a
+  theorem of a lower layer. No module imports `Claims`. `SPEC.md` section 9,
+  the premise table of `SECURITY_MODEL.md` and `tests/PremiseCensus.lean` use
+  `Claims` names. A theorem is a claim when its hypotheses are about an
+  emitted package, a verifier entry point, or a protocol relation of the
+  paper. After a change to a claim, run `scripts/validate.sh premises` and
+  give each new hypothesis a class in `SECURITY_MODEL.md`. For an outside
+  review, `scripts/validate.sh review` writes the claims, their premises and a
+  glossary of the names they use to `docs/claims-review/`.
 - Lean commands only through `scripts/validate.sh` (`static`, `build
   [target]`, `axioms`, `file <path>`, `all`, and the other phases in its
   header), each under the 1,500 s cap. The script needs GNU `timeout` on

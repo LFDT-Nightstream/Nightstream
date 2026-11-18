@@ -18,14 +18,14 @@ extractor's sample.
   sampler by `(queries + 1) · 2^−109.91` plus a Poseidon2 collision term
   (`Lifecycle.Nebula.EtaRound`). It does not discharge `MemoryRound`, whose `η` is Poseidon2.
 * `bad_le`: on the claim that the adversary's tape gives, the bad mass is at most the walk's
-  collision and stage terms, the state-link and chain collision masses, and the memory-round
-  error. -/
+  finder and stage terms (`IvcSecurity.walkBound`, as in `IvcSecurity.extraction_bound`), the
+  state-link and chain collision masses, and the memory-round error. -/
 
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.BoundedDepth.NebulaSecurity
 
-open scoped BigOperators ENNReal
+open scoped ENNReal
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Nebula
@@ -37,7 +37,7 @@ open NightstreamFPrime.Lifecycle.Nebula
 open NightstreamFPrime.Lifecycle.Nebula.EndToEnd (MemoryStatement Experiment Stage1Extraction History)
 open NightstreamFPrime.Export.BoundedDepth.TerminalBridge
 open NightstreamFPrime.Export.BoundedDepth.IvcWalk
-open NightstreamFPrime.Export.BoundedDepth.IvcSecurity (walkAdversary)
+open NightstreamFPrime.Export.BoundedDepth.IvcSecurity (walkAdversary walkBound)
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -146,6 +146,14 @@ def Accepted (control : AppState → AppWitness → Fin 2) (cap : Nat)
     s.2.1.bounds = (fun _ => productionGlobalParams.bigB) ∧
     s.2.1.statement.iteration ≤ s.2.2.length
 
+/-- The terminal accepts the sample's statement and proof, and the walk starts at bound `B`:
+`Accepted` without its condition on the answers. At the walk's `S_max · N` stages, the checks of
+the memory verifier give that condition (`checked_le`). -/
+def Checked (control : AppState → AppWitness → Fin 2) (cap : Nat)
+    (s : Sample app.width logicalWidth publicFits) : Prop :=
+  Terminal.HoldsFor cap ajtai circuitKeys step control s.2.1.statement s.2.1.proof ∧
+    s.2.1.bounds = (fun _ => productionGlobalParams.bigB)
+
 /-- A collision or a failed stage at one of the walk's first visits. -/
 def Failure (start : Visit logicalWidth publicFits) (answers : List (Answer logicalWidth publicFits)) :
     Prop :=
@@ -226,8 +234,8 @@ local notation "stages" => reverseStages assumption closed (walkAdversary advers
 /-- The bound of adversary 5 for a memory application on the bounded-depth scheme: on the joint law of the
 memory statement that the adversary claims from its own tape and the walk's sample, the mass of
 samples that the memory verifier accepts but whose extracted history does not attest the claim
-is at most the walk's collision and stage terms, the state-link and chain collision masses of
-the extracted runs, and the memory-round error of the last stage. -/
+is at most the walk's finder and stage terms (`IvcSecurity.walkBound`), the state-link and
+chain collision masses of the extracted runs, and the memory-round error of the last stage. -/
 theorem bad_le (valid : p.Valid) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     (programEq : exports.program = MemoryApp.program p.toGeometry app)
     (control : AppState → AppWitness → Fin 2) (cap depth : ℕ)
@@ -238,13 +246,7 @@ theorem bad_le (valid : p.Valid) (keysShaped : ∀ key, (circuitKeys key).digest
       ⟨(stages depth).1, claim ∘ origin assumption closed (walkAdversary adversary) admitted depth⟩
     (c.law.toOuterMeasure {s | (experiment app ajtai circuitKeys exports).Bad app
         (Accepted app ajtai circuitKeys (step := step) control cap) s}).toReal ≤
-      ∑ j : Fin depth,
-          (((stages j.val).1.tape.toOuterMeasure
-              {tape | WalkCollision ajtai circuitKeys exports
-                (visitAfter (back ajtai circuitKeys exports) ((stages j.val).1.input tape)
-                  ((stages j.val).1.results tape))}).toReal +
-            error ((stages j.val).1.nifs (attemptOf ajtai circuitKeys exports)
-              (back ajtai circuitKeys exports))) +
+      walkBound ajtai circuitKeys exports assumption closed adversary admitted depth +
         (c.law.toOuterMeasure
           {s | (experiment app ajtai circuitKeys exports).StateLinkCollision app s}).toReal +
         (c.law.toOuterMeasure
@@ -261,9 +263,10 @@ theorem bad_le (valid : p.Valid) (keysShaped : ∀ key, (circuitKeys key).digest
     rfl
   have walk := NightstreamFPrime.Spec.HyperNova.ReverseStages.bad_le assumption closed (walkAdversary adversary) admitted depth
     (fun input results => Failure ajtai circuitKeys exports input results)
-    (WalkCollision ajtai circuitKeys exports) fun _ _ results length found => by
+    (fun visit => (visitCollision ajtai circuitKeys exports visit).isSome)
+    fun _ _ results length found => by
       obtain ⟨j, inside, event⟩ := found
-      exact ⟨⟨j, length ▸ inside⟩, event⟩
+      exact ⟨⟨j, length ▸ inside⟩, event.imp_left (visitCollision_isSome ajtai circuitKeys exports)⟩
   rw [← failure] at walk
   have finite (event : Set (Sample app.width logicalWidth publicFits)) :
       c.law.toOuterMeasure event ≠ ∞ := event_ne_top c.law event
@@ -276,6 +279,41 @@ theorem bad_le (valid : p.Valid) (keysShaped : ∀ key, (circuitKeys key).digest
     ENNReal.toReal_add (finite _) (finite _)] at real
   refine real.trans ?_
   gcongr
-  exact round c (stages depth).2
+  · exact walk
+  · exact round c (stages depth).2
+
+/-- `bad_le` at the walk's `S_max · N` stages, for every sample that the memory verifier accepts.
+The checks of SPEC.md Algorithm 8 bound the iteration by `S_max · N`
+(`EndToEnd.VerifierChecks.iteration_le`), and that stage has `S_max · N` answers
+(`results_length`), so a bad sample of `Checked` is a bad sample of `Accepted`. No depth is left
+to choose. -/
+theorem checked_le (valid : p.Valid) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
+    (programEq : exports.program = MemoryApp.program p.toGeometry app)
+    (control : AppState → AppWitness → Fin 2) (cap : ℕ)
+    (claim : adversary.Tape → MemoryStatement app.width)
+    {memoryError : ClaimedStage app (logicalWidth := logicalWidth) (publicFits := publicFits) → ℝ}
+    (round : MemoryRound app ajtai circuitKeys exports StageAdmitted memoryError) :
+    let c : ClaimedStage app :=
+      ⟨(stages (p.sMax * p.n)).1,
+        claim ∘ origin assumption closed (walkAdversary adversary) admitted (p.sMax * p.n)⟩
+    (c.law.toOuterMeasure {s | (experiment app ajtai circuitKeys exports).Bad app
+        (Checked app ajtai circuitKeys (step := step) control cap) s}).toReal ≤
+      walkBound ajtai circuitKeys exports assumption closed adversary admitted (p.sMax * p.n) +
+        (c.law.toOuterMeasure
+          {s | (experiment app ajtai circuitKeys exports).StateLinkCollision app s}).toReal +
+        (c.law.toOuterMeasure
+          {s | (experiment app ajtai circuitKeys exports).ChainCollision app s}).toReal +
+        memoryError c := by
+  intro c
+  refine le_trans ?_ (bad_le app ajtai circuitKeys exports assumption closed adversary admitted
+    valid keysShaped programEq control cap (p.sMax * p.n) claim round)
+  refine ENNReal.toReal_mono (event_ne_top _ _) ?_
+  rw [ClaimedStage.law, PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply]
+  refine MeasureTheory.measure_mono fun tape bad => ?_
+  obtain ⟨⟨holds, bounds⟩, checks, notGood⟩ := bad
+  refine ⟨⟨holds, bounds, ?_⟩, checks, notGood⟩
+  change _ ≤ ((stages (p.sMax * p.n)).1.results tape).length
+  rw [results_length assumption closed (walkAdversary adversary) admitted (p.sMax * p.n) tape]
+  exact checks.iteration_le
 
 end NightstreamFPrime.Export.BoundedDepth.NebulaSecurity

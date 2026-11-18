@@ -148,4 +148,26 @@ theorem flatConstraints_varsBelow
   intro _ member
   cases member
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+section Exporter
+
+variable {logicalWidth : Nat}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
+
+theorem marks_nil (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    marks (Circuit.ops (circuit relation interface).main offset) = [] :=
+  rfl
+
+/-- The gadget has no rows. -/
+theorem free (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
+    (interface : Interface logicalWidth publicFits) (offset : Nat) {live : Nat → Prop} :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit relation interface).main offset),
+      row.VarsSatisfy live := by
+  intro _ member
+  cases member
+
+end Exporter
+
 end NightstreamFPrime.Lifecycle.PiRLC.v1_2.OutputBinding

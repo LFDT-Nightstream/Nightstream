@@ -130,4 +130,34 @@ theorem completeness (interface : Interface) (offset : Nat) (env : Env)
   RingKCombination.completeness (ringInterface interface) offset env assumptions
     specification
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem marks_nil (interface : Interface) (offset : Nat) :
+    marks (Circuit.ops (circuit interface).main offset) = [] :=
+  RingKCombination.marks_nil (ringInterface interface) offset
+
+/-- The rows read the challenges, both components of the inputs and the gadget's own locals. -/
+theorem free (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (challenge : ∀ source lane, (interface.challenge offset source lane).VarsSatisfy live)
+    (input : ∀ source matrix coefficient,
+      (interface.input offset source matrix coefficient).c0.VarsSatisfy live ∧
+        (interface.input offset source matrix coefficient).c1.VarsSatisfy live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) →
+        live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
+      row.VarsSatisfy live :=
+  RingKCombination.free (ringInterface interface) offset challenge
+    (fun source matrix lane => input source matrix (EvalKCombination.coefficient lane)) locals
+
+theorem output_live (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) →
+        live column)
+    (matrix : Fin productionShape.matrixCount)
+    (coefficient : Fin productionShape.coefficientCount) :
+    (output interface offset matrix coefficient).c0.VarsSatisfy live ∧
+      (output interface offset matrix coefficient).c1.VarsSatisfy live :=
+  RingKCombination.output_live (ringInterface interface) offset locals matrix _
+
 end NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalACombination

@@ -71,4 +71,43 @@ theorem output_varsSatisfy (interface : Interface) (offset : Nat)
     (coefficientExprs_supported interface offset allowed sourceSupport)
     localSupport
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+section Exporter
+
+variable {shape : Spec.Folding.PiCCS.PaperJoint.Shape}
+
+theorem coefficientExprs_live (interface : ShapeInterface shape) (offset : Nat)
+    {live : Nat → Prop}
+    (source : ∀ source, Horner.KSupported (interface.sourceAssignment offset source) live) :
+    ∀ coefficient ∈ coefficientExprs interface offset, Horner.KSupported coefficient live := by
+  intro coefficient member
+  obtain ⟨index, _, rfl⟩ := List.mem_map.mp member
+  exact residualExpr_supported _ live (source index)
+
+theorem marks_nil (interface : ShapeInterface shape) (offset : Nat) :
+    marks (Circuit.ops (circuit interface).main offset) = [] :=
+  Horner.Owned.marks_nil (ownedInterface interface) offset
+
+/-- The rows read γ, the source assignments and the gadget's own locals. -/
+theorem free (interface : ShapeInterface shape) (offset : Nat) {live : Nat → Prop}
+    (gamma : Horner.KSupported (interface.gamma offset) live)
+    (source : ∀ source, Horner.KSupported (interface.sourceAssignment offset source) live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) → live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface).main offset), row.VarsSatisfy live :=
+  Horner.Owned.free (ownedInterface interface) offset gamma
+    (coefficientExprs_live interface offset source) locals
+
+theorem output_live (interface : ShapeInterface shape) (offset : Nat) {live : Nat → Prop}
+    (gamma : Horner.KSupported (interface.gamma offset) live)
+    (source : ∀ source, Horner.KSupported (interface.sourceAssignment offset source) live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) → live column) :
+    Horner.KSupported (output interface offset) live :=
+  Horner.Owned.output_live (ownedInterface interface) offset gamma
+    (coefficientExprs_live interface offset source) locals
+
+end Exporter
+
 end NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal

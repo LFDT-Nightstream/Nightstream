@@ -154,4 +154,30 @@ theorem completeness (interface : Interface) (offset : Nat) (env : Env)
   CombinationFamily.completeness (familyInterface interface) offset env assumptions
     specification
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem marks_nil (interface : Interface) (offset : Nat) :
+    marks (Circuit.ops (circuit interface).main offset) = [] :=
+  CombinationFamily.marks_nil (familyInterface interface) offset
+
+/-- The rows read the challenges, the commitments and the gadget's own locals. -/
+theorem free (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (challenge : ∀ source lane, (interface.challenge offset source lane).VarsSatisfy live)
+    (input : ∀ source row lane, (interface.input offset source row lane).VarsSatisfy live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) →
+        live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
+      row.VarsSatisfy live :=
+  CombinationFamily.free (familyInterface interface) offset challenge
+    (fun source row lane _ => input source row lane) locals
+
+theorem output_live (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) →
+        live column)
+    (row : Fin blockCount) (lane : Fin ringDegree) :
+    (output interface offset row lane).VarsSatisfy live :=
+  CombinationFamily.output_live (familyInterface interface) offset locals row lane cell
+
 end NightstreamFPrime.Lifecycle.PiRLC.v1_2.CommitmentCombination

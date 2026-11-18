@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Fail when a hypothesis of a top-level security theorem has no class in SECURITY_MODEL.md.
+"""Fail when a hypothesis of a claim has no class in SECURITY_MODEL.md.
 
-Lean writes the hypotheses of each theorem of `tests/PremiseCensus.lean` to PREMISES, one line
+Lean writes the hypotheses of each theorem of `NightstreamFPrime.Claims` to PREMISES, one line
 for each: the theorem, the hypothesis and the constant at the head of its type. A hypothesis is a
 binder whose type is a proposition, or a proof field of a binder whose type is a structure of the
 package. The Lean build fails when the file is not current (`#premise_census`).
 
 SECURITY_MODEL.md holds one table between the premise markers. A row gives hypothesis names (a
 name that ends in `.*` covers each field under it), the head (`*` for each head), a class and
-the evidence of the class:
+the evidence of the class. A name `Scope/name` covers only the claims under `Claims.Scope`:
 
   assumption  an assumption of the allowed list: the evidence cites its `[ID]`.
   lean        Lean proves it: the evidence names the Lean theorem or instance that discharges it.
@@ -33,7 +33,7 @@ PREMISES = PACKAGE / 'artifacts/nightstream-fprime-premises-v1.tsv'
 BEGIN, END = '<!-- premises:begin -->', '<!-- premises:end -->'
 CLASSES = ('assumption', 'lean', 'link', 'game', 'open')
 TICKED = re.compile(r'`([^`]+)`')
-LEAN_NAME = re.compile(r'(?:Export|Layout|Lifecycle|Spec)\.[\w.]+')
+LEAN_NAME = re.compile(r'(?:Claims|Export|Layout|Lifecycle|Spec)\.[\w.]+')
 SPEC_PLACE = re.compile(r'`SPEC\.md` (Algorithm \d+|section \d+(?:\.\d+)?)')
 ADVERSARY = re.compile(r'adversary (\d+)')
 
@@ -61,7 +61,10 @@ def table_rows(model):
     return rows, errors
 
 
-def covers(name, label):
+def covers(name, theorem, label):
+    scope, _, name = name.rpartition('/')
+    if scope and theorem != f'Claims.{scope}' and not theorem.startswith(f'Claims.{scope}.'):
+        return False
     return label.startswith(name[:-1]) if name.endswith('.*') else label == name
 
 
@@ -85,7 +88,7 @@ def evidence_errors(row, lines, context):
         if not cited:
             yield f'{where}: a lean row names the Lean theorem or instance that discharges it'
         for theorem, label, line_head in lines:
-            if theorem in cited and any(covers(name, label) for name in names) \
+            if theorem in cited and any(covers(name, theorem, label) for name in names) \
                     and head in ('*', line_head):
                 yield f'{where}: `{theorem}` takes `{label}` itself, so it does not discharge it'
     elif kind == 'link':
@@ -117,7 +120,7 @@ def check(model, premises, context):
         if label == '-':
             continue
         matches = [(index, name) for index, (names, row_head, _, _) in enumerate(rows)
-                   for name in names if covers(name, label) and row_head in ('*', head)]
+                   for name in names if covers(name, theorem, label) and row_head in ('*', head)]
         if len({index for index, _ in matches}) != 1:
             errors.append(f'`{theorem}` takes `{label}` (`{head}`), which has '
                           f'{len(matches)} rows in the premise table; it needs exactly one')

@@ -139,7 +139,7 @@ if [[ "$package" != "$FPRIME_ROOT" ]]; then
   exit $status
 fi
 
-declare -A rank=([Spec]=0 [Circuit]=1 [Gadgets]=2 [Lifecycle]=3 [Layout]=4 [Export]=5)
+declare -A rank=([Spec]=0 [Circuit]=1 [Gadgets]=2 [Lifecycle]=3 [Layout]=4 [Export]=5 [Claims]=6)
 while IFS= read -r f; do
   layer="$(echo "$f" | sed -E 's#^NightstreamFPrime/([A-Za-z]+).*#\1#')"
   [[ -n "${rank[$layer]:-}" ]] || continue
@@ -151,6 +151,20 @@ while IFS= read -r f; do
     fi
   done < <(grep -E '^import NightstreamFPrime\.' "$f" || true)
 done < <(find NightstreamFPrime -name '*.lean' -path 'NightstreamFPrime/*/*')
+
+# A claim shows each hypothesis in its signature, and each claims file is one namespace
+# (`NightstreamFPrime/Claims.lean`). Lean also reads an indented command.
+if grep -nE '^[[:space:]]*(variable|section|@\[|set_option|macro|notation)|\b(private|_root_|local notation)\b' \
+    NightstreamFPrime/Claims/*.lean; then
+  fail "a Claims file hides a hypothesis or holds a declaration that is not a claim"
+fi
+for f in NightstreamFPrime/Claims/*.lean; do
+  space="NightstreamFPrime.Claims.$(basename "$f" .lean)"
+  if [[ "$(grep -cE '^(namespace|end) ' "$f")" != 2 || "$(grep -E '^namespace ' "$f")" != "namespace $space" \
+      || "$(tail -n 1 "$f")" != "end $space" ]]; then
+    fail "$f is not the one namespace $space"
+  fi
+done
 
 if ! timeout --signal=KILL 300s python3 -B scripts/check_matrix_codecs.py; then
   fail "physical declaration returned to the MatrixProgram codec owner"

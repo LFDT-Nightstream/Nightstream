@@ -5,8 +5,8 @@ import NightstreamFPrime.Spec.RingRelation.PiDECAlgebra.Radix
 /-! Block support of a witness (CW-10.6). A witness packs into ring elements of `ringDegree`
 coordinates, block `j` holding coordinates `64j` to `64j + 63` (SPEC.md section 2.3). A witness is
 supported below `width` when it is zero on every block that starts at or past `width`
-(`Supported`). A circuit's witness is zero past its package's logical width (SPEC.md section
-2.4), so it is supported below that width (`supported_of_tail`).
+(`Supported`). A circuit's witness is zero on every cell past its package's logical width
+(`ZeroTail`, SPEC.md section 2.4), so it is supported below that width (`supported_of_tail`).
 
 The production folds keep support. Π_RLC multiplies each block by a ring element and adds the
 products block by block (`CarrierAction.act`, `PiRLCFinite.combineAssignments`), so a zero block
@@ -36,10 +36,18 @@ def Supported (width : Nat)
     Prop :=
   ∀ column, width ≤ ringDegree * (column.val / ringDegree) → witness column = 0
 
+/-- `witness` is zero on every cell at or past `width`. This rule is on cells, so it also covers
+the cells from `width` to the end of the ring block that holds `width`. `Supported` does not
+cover these cells. -/
+def ZeroTail (width : Nat)
+    (witness : PaperLinearAlgebra.Assignment F (RingCarrierLayout.carrierWidth logicalWidth)) :
+    Prop :=
+  ∀ column, width ≤ column.val → witness column = 0
+
 /-- A witness that is zero past `width` is supported below `width`. -/
 theorem supported_of_tail {width : Nat}
     {witness : PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits)}
-    (tail : ∀ column, width ≤ column.val → witness column = 0) : Supported width witness :=
+    (tail : ZeroTail width witness) : Supported width witness :=
   fun column above => tail column (le_trans above (Nat.mul_div_le column.val ringDegree))
 
 theorem supported_zero (width : Nat) :

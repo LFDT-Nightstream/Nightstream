@@ -505,12 +505,13 @@ theorem piece_varsBelow {bound : Nat} :
         omega
 
 /-- The constraints that `split` cut read only columns below `bound` when every piece does. -/
-theorem split_varsBelow {constraints : List Expr} {bound : Nat}
-    (below : (split (PilotData.canonicalConstraints ()) constraints).all (pieceBelow bound) =
+theorem split_varsBelow {marks : List PermutationMark} {constraints : List Expr} {bound : Nat}
+    (below : (split (PilotData.canonicalConstraints ()) marks constraints).all (pieceBelow bound) =
       true) :
     ∀ expression ∈ constraints, expression.VarsBelow bound := by
   intro expression member
-  rw [← flatMap_split (PilotData.canonicalConstraints ()) constraints, List.mem_flatMap] at member
+  rw [← flatMap_split (PilotData.canonicalConstraints ()) marks constraints,
+    List.mem_flatMap] at member
   obtain ⟨piece, pieceMember, inPiece⟩ := member
   exact piece_varsBelow piece (List.all_eq_true.mp below piece pieceMember) expression inPiece
 

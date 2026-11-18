@@ -154,6 +154,19 @@ def program (_ : Unit) : Application.Program where
     rcases List.mem_ofFn.mp member with ⟨index, rfl⟩
     exact Expr.VarsSatisfy.sub _ _ _ (inputs.output index)
       (inputs.input index)
+  marksPlaced := fun interface offset =>
+    .of_marks_nil (Gadgets.Poseidon2.RowsOnly.map (assertions interface offset)).marks_nil
+  marksLiveRows := by
+    intro interface offset live _affine inputs _own
+    refine .of_rows (Gadgets.Poseidon2.RowsOnly.map (assertions interface offset))
+      fun row member => ?_
+    have rowMember : row ∈ assertions interface offset := by
+      obtain ⟨other, otherMember, same⟩ := List.mem_map.mp member
+      cases same
+      exact otherMember
+    rcases List.mem_ofFn.mp rowMember with ⟨index, rfl⟩
+    exact Expr.VarsSatisfy.sub _ _ _ ((inputs.output index).mono _ fun _ inside => inside.2)
+      ((inputs.input index).mono _ fun _ inside => inside.2)
 
 @[simp] theorem applicationPlan_rowCount :
     (PerApplicationPackage.applicationPlan (program ())).rowCount = 4 := by

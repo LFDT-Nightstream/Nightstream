@@ -126,4 +126,39 @@ def circuit (rangeOffset : Nat) : FormalCircuit where
 theorem circuit_ops (rangeOffset offset : Nat) :
     Circuit.ops (circuit rangeOffset).main offset = operations rangeOffset offset := rfl
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem marks_nil (rangeOffset offset : Nat) :
+    marks (Circuit.ops (circuit rangeOffset).main offset) = [] := by
+  rw [circuit_ops]
+  rfl
+
+/-- The rows read the wide reduction's output words at `rangeOffset` and the gadget's own
+locals. -/
+theorem free (rangeOffset offset : Nat) {live : Nat → Prop}
+    (words : ∀ position, (WideReduction.Program.outputWord rangeOffset position).VarsSatisfy live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit rangeOffset).main offset) →
+        live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit rangeOffset).main offset),
+      row.VarsSatisfy live := by
+  rw [circuit_ops, constraints_eq]
+  apply recipeConstraints_varsSatisfy
+  · intro expression member
+    obtain ⟨position, rfl⟩ := List.mem_ofFn.mp member
+    exact words position
+  · intro index below
+    rw [recipes_length] at below
+    exact locals (offset + index) (Nat.le_add_right _ _)
+      (by rw [circuit_ops, localLength_eq]; omega)
+
+theorem outputWord_live (rangeOffset offset : Nat) {live : Nat → Prop}
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit rangeOffset).main offset) →
+        live column)
+    (position : Fin ringDegree) : (outputWord offset position).VarsSatisfy live :=
+  locals (offset + position.val) (Nat.le_add_right _ _) (by
+    rw [circuit_ops, localLength_eq]
+    exact Nat.add_lt_add_left position.isLt _)
+
 end NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerWords

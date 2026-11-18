@@ -13,13 +13,17 @@ memory statement is a tape of the walk's last stage on which the final verifier 
 `(i, z0, zi)`, the checks of Algorithm 8 hold, and the history that the walk decodes does not
 attest the memory statement (`FalseMemory`). On such a tape `Verifies` rejects the proof from `W`,
 or the sample is bad for `NebulaSecurity.bad_le`. So its probability is at most `q · finalError`
-plus the bound of `NebulaSecurity.bad_le` for this adversary (`soundness`). -/
+plus the bound of `NebulaSecurity.bad_le` for this adversary, which starts with
+`IvcSecurity.walkBound` (`soundness`). The walk has `S_max · N` stages: the checks of Algorithm 8
+accept at most `S_max · N` steps (`EndToEnd.VerifierChecks.iteration_le`), so no premise bounds
+the iteration of the prover's statements. -/
 
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.BoundedDepth.NebulaFinal
 
-open scoped BigOperators ENNReal
+open scoped ENNReal
+open scoped NightstreamFPrime.Spec.Compression.Production
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Nebula
@@ -32,7 +36,7 @@ open NightstreamFPrime.Lifecycle.Nebula
 open NightstreamFPrime.Lifecycle.Nebula.EndToEnd (MemoryStatement VerifierChecks History)
 open NightstreamFPrime.Export.BoundedDepth.TerminalBridge
 open NightstreamFPrime.Export.BoundedDepth.IvcWalk
-open NightstreamFPrime.Export.BoundedDepth.IvcSecurity (Output walkAdversary)
+open NightstreamFPrime.Export.BoundedDepth.IvcSecurity (Output walkAdversary walkBound)
 open NightstreamFPrime.Export.BoundedDepth.RunCompleteness
 open NightstreamFPrime.Export.BoundedDepth.FinalVerifier
 open NightstreamFPrime.Export.BoundedDepth.FinalHistory (outputOf)
@@ -123,67 +127,65 @@ noncomputable def sampleOf (depth : ℕ) (tape : (stages depth).1.Tape) :
     (stages depth).1.input tape, (stages depth).1.results tape)
 
 /-- The bound for Rust `nebula::Verifier::verify_final`. In the state-restoration experiment with
-`q` queries and the walk's `depth` stages, the probability that the final verifier accepts, the
-checks of SPEC.md Algorithm 8 hold, and the decoded history does not attest the memory statement
-is at most `q · (1/2^119 + 38/q²)` plus the terms of `NebulaSecurity.bad_le` for the prover's IVC
-adversary. -/
-theorem soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup packageWidths)
+`q` queries and the walk's `S_max · N` stages (`p.sMax * p.n`), the probability that the final
+verifier accepts, the checks of SPEC.md Algorithm 8 hold, and the decoded history does not attest
+the memory statement is at most `q · (1/2^119 + 38/fieldModulus²)` plus the terms of
+`NebulaSecurity.bad_le` for the prover's IVC adversary: `IvcSecurity.walkBound`, the state-link
+and chain collision masses, and the memory-round error. The checks of Algorithm 8 bound the
+iteration by `S_max · N` (`EndToEnd.VerifierChecks.iteration_le`), so the answers of the last
+stage cover the iteration of each statement in the event. -/
+theorem soundness (complete : StepExtend.Complete exports)
+    (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
+      (FinalRows.packageRows exports complete circuit).matrices)
     (valid : p.Valid) (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
-    (programEq : exports.program = MemoryApp.program p.toGeometry app) (depth : ℕ)
-    (depthBound : ∀ o, some (some o) ∈ (law s (restore setup.game q [])).support →
-      o.1.iteration ≤ depth)
+    (programEq : exports.program = MemoryApp.program p.toGeometry app)
     {memoryError : ClaimedStage app (logicalWidth := logicalWidth) (publicFits := publicFits) → ℝ}
     (round : MemoryRound app setup.ajtai setup.circuitKeys exports StageAdmitted memoryError) :
-    ((stages depth).1.tape.toOuterMeasure
+    ((stages (p.sMax * p.n)).1.tape.toOuterMeasure
         {tape | FalseMemory setup app exports
-          (tapeOf setup app exports assumption closed s q claim admitted depth tape).1
-          (sampleOf setup app exports assumption closed s q claim admitted depth tape)}).toReal ≤
+          (tapeOf setup app exports assumption closed s q claim admitted (p.sMax * p.n) tape).1
+          (sampleOf setup app exports assumption closed s q claim admitted (p.sMax * p.n)
+            tape)}).toReal ≤
       q * finalError +
-        (∑ j : Fin depth,
-          (((stages j.val).1.tape.toOuterMeasure
-              {tape | WalkCollision setup.ajtai setup.circuitKeys exports
-                (visitAfter (back setup.ajtai setup.circuitKeys exports)
-                  ((stages j.val).1.input tape) ((stages j.val).1.results tape))}).toReal +
-            error ((stages j.val).1.nifs (attemptOf setup.ajtai setup.circuitKeys exports)
-              (back setup.ajtai setup.circuitKeys exports))) +
-          ((claimed setup app exports assumption closed s q claim admitted depth).law.toOuterMeasure
+        (walkBound setup.ajtai setup.circuitKeys exports assumption closed
+            (adversary setup app s q claim) admitted (p.sMax * p.n) +
+          ((claimed setup app exports assumption closed s q claim admitted
+              (p.sMax * p.n)).law.toOuterMeasure
             {sample | (experiment app setup.ajtai setup.circuitKeys exports).StateLinkCollision app
               sample}).toReal +
-          ((claimed setup app exports assumption closed s q claim admitted depth).law.toOuterMeasure
+          ((claimed setup app exports assumption closed s q claim admitted
+              (p.sMax * p.n)).law.toOuterMeasure
             {sample | (experiment app setup.ajtai setup.circuitKeys exports).ChainCollision app
               sample}).toReal +
-          memoryError (claimed setup app exports assumption closed s q claim admitted depth)) := by
+          memoryError
+            (claimed setup app exports assumption closed s q claim admitted (p.sMax * p.n))) := by
   classical
   let prover := adversary setup app s q claim
-  let stage := (stages depth).1
+  let stage := (stages (p.sMax * p.n)).1
   let tapeAt : stage.Tape → Tape app.width logicalWidth publicFits :=
-    tapeOf setup app exports assumption closed s q claim admitted depth
+    tapeOf setup app exports assumption closed s q claim admitted (p.sMax * p.n)
   let sampleAt : stage.Tape → Sample app.width logicalWidth publicFits :=
-    sampleOf setup app exports assumption closed s q claim admitted depth
+    sampleOf setup app exports assumption closed s q claim admitted (p.sMax * p.n)
   let Rejected : Option (Option (Outcome logicalWidth publicFits)) → Prop := fun r =>
     ¬ ∀ a, r = some a → ∀ o, a = some o →
-      Verifies setup.ajtai setup.circuitKeys step packageWidths 0 (fun _ _ => 0) o.1
+      Verifies setup.ajtai setup.circuitKeys step complete.packageWidth 0 (fun _ _ => 0) o.1
         (setup.proofOf o)
   let Bad : Sample app.width logicalWidth publicFits → Prop :=
     (experiment app setup.ajtai setup.circuitKeys exports).Bad app
       (Accepted app setup.ajtai setup.circuitKeys (step := step) (fun _ _ => 0) 0)
   have origins : stage.tape.map tapeAt = prover.tape :=
-    tape_map_origin assumption closed (walkAdversary prover) admitted depth
+    tape_map_origin assumption closed (walkAdversary prover) admitted (p.sMax * p.n)
   have results : prover.tape.map Prod.fst = law s (restore setup.game q []) := map_fst_bind _ _
   have cover : {tape | FalseMemory setup app exports (tapeAt tape).1 (sampleAt tape)} ∩
       stage.tape.support ⊆ {tape | Rejected (tapeAt tape).1} ∪ {tape | Bad (sampleAt tape)} := by
-    rintro tape ⟨⟨o, accepted, checks, notGood⟩, supported⟩
+    rintro tape ⟨⟨o, accepted, checks, notGood⟩, -⟩
     have input : stage.input tape = initial (o.1, setup.proofOf o) := by
-      rw [input_origin assumption closed (walkAdversary prover) admitted depth tape]
+      rw [input_origin assumption closed (walkAdversary prover) admitted (p.sMax * p.n) tape]
       change initial (outputOf setup (tapeAt tape).1) = _
       rw [accepted]
       rfl
-    have inside : some (some o) ∈ (law s (restore setup.game q [])).support := by
-      rw [← accepted, ← results, ← origins]
-      exact (PMF.mem_support_map_iff _ _ _).mpr ⟨tapeAt tape,
-        (PMF.mem_support_map_iff _ _ _).mpr ⟨tape, supported, rfl⟩, rfl⟩
     have statement : (sampleAt tape).2.1.statement = o.1 := congrArg Visit.statement input
-    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step packageWidths 0 (fun _ _ => 0)
+    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth 0 (fun _ _ => 0)
       o.1 (setup.proofOf o)
     · refine Or.inr ⟨⟨?_, congrArg Visit.bounds input, ?_⟩, ?_, ?_⟩
       · change Terminal.HoldsFor 0 setup.ajtai setup.circuitKeys step (fun _ _ => 0)
@@ -191,8 +193,9 @@ theorem soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup pac
         rw [input]
         exact holds_of_verifies verifies
       · change (stage.input tape).statement.iteration ≤ (stage.results tape).length
-        rw [input, results_length assumption closed (walkAdversary prover) admitted depth tape]
-        exact depthBound o inside
+        rw [input,
+          results_length assumption closed (walkAdversary prover) admitted (p.sMax * p.n) tape]
+        exact checks.iteration_le
       · change VerifierChecks p (sampleAt tape).2.1.statement (sampleAt tape).1
         rw [statement]
         exact checks
@@ -207,13 +210,14 @@ theorem soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup pac
       rw [← results, ← origins, PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply]
       rfl
     rw [moved, ← prob_eq_law]
-    exact restore_sound _ s _ _ (game_avoids setup step 0 (fun _ _ => 0) premises)
-      (game_densityLe setup premises) (by unfold finalError; positivity) q
+    exact restore_sound _ s _ _ (game_avoids setup step 0 (fun _ _ => 0)
+      (FinalRows.premises_of_rows setup exports complete rows))
+      (game_densityLe setup) (by unfold finalError; positivity) q
   have bad := bad_le app setup.ajtai setup.circuitKeys exports assumption closed prover admitted
-    valid keysShaped programEq (fun _ _ => 0) 0 depth Prod.snd round
+    valid keysShaped programEq (fun _ _ => 0) 0 (p.sMax * p.n) Prod.snd round
   have sampled : stage.tape.toOuterMeasure {tape | Bad (sampleAt tape)} =
-      (claimed setup app exports assumption closed s q claim admitted depth).law.toOuterMeasure
-        {sample | Bad sample} := by
+      (claimed setup app exports assumption closed s q claim admitted
+        (p.sMax * p.n)).law.toOuterMeasure {sample | Bad sample} := by
     rw [ClaimedStage.law, PMF.toOuterMeasure_map_apply]
     rfl
   calc (stage.tape.toOuterMeasure
@@ -230,38 +234,38 @@ theorem soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup pac
     _ ≤ _ := add_le_add rejected (by rw [sampled]; exact bad)
 
 /-- With Akita openings, the probability `memory` of a false memory statement is at most
-`q · (1/2^119 + 38/q²) + εAkita` plus the terms of `NebulaSecurity.bad_le`. `akita` is Akita's
-knowledge soundness (`FinalVerifier.AkitaKnowledge`) for the event `FalseMemory`: `s` is the
-prover of the game with ideal openings that it gives for the prover with Akita openings. -/
-theorem real_soundness {packageWidths : Fin 2 → ℕ} (premises : Premises setup packageWidths)
+`q · (1/2^119 + 38/fieldModulus²) + εAkita` plus the terms of `NebulaSecurity.bad_le`, over the
+walk's `S_max · N` stages, as in `soundness`. `akita` is Akita's knowledge soundness
+(`FinalVerifier.AkitaKnowledge`) for the event `FalseMemory`: `s` is the prover of the game with
+ideal openings that it gives for the prover with Akita openings. -/
+theorem real_soundness (complete : StepExtend.Complete exports)
+    (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
+      (FinalRows.packageRows exports complete circuit).matrices)
     (valid : p.Valid) (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
-    (programEq : exports.program = MemoryApp.program p.toGeometry app) (depth : ℕ)
-    (depthBound : ∀ o, some (some o) ∈ (law s (restore setup.game q [])).support →
-      o.1.iteration ≤ depth)
+    (programEq : exports.program = MemoryApp.program p.toGeometry app)
     {memoryError : ClaimedStage app (logicalWidth := logicalWidth) (publicFits := publicFits) → ℝ}
     (round : MemoryRound app setup.ajtai setup.circuitKeys exports StageAdmitted memoryError)
     (memory εAkita : ℝ)
-    (akita : memory ≤ ((stages depth).1.tape.toOuterMeasure
+    (akita : memory ≤ ((stages (p.sMax * p.n)).1.tape.toOuterMeasure
         {tape | FalseMemory setup app exports
-          (tapeOf setup app exports assumption closed s q claim admitted depth tape).1
-          (sampleOf setup app exports assumption closed s q claim admitted depth tape)}).toReal +
+          (tapeOf setup app exports assumption closed s q claim admitted (p.sMax * p.n) tape).1
+          (sampleOf setup app exports assumption closed s q claim admitted (p.sMax * p.n)
+            tape)}).toReal +
       εAkita) :
     memory ≤ q * finalError + εAkita +
-        (∑ j : Fin depth,
-          (((stages j.val).1.tape.toOuterMeasure
-              {tape | WalkCollision setup.ajtai setup.circuitKeys exports
-                (visitAfter (back setup.ajtai setup.circuitKeys exports)
-                  ((stages j.val).1.input tape) ((stages j.val).1.results tape))}).toReal +
-            error ((stages j.val).1.nifs (attemptOf setup.ajtai setup.circuitKeys exports)
-              (back setup.ajtai setup.circuitKeys exports))) +
-          ((claimed setup app exports assumption closed s q claim admitted depth).law.toOuterMeasure
+        (walkBound setup.ajtai setup.circuitKeys exports assumption closed
+            (adversary setup app s q claim) admitted (p.sMax * p.n) +
+          ((claimed setup app exports assumption closed s q claim admitted
+              (p.sMax * p.n)).law.toOuterMeasure
             {sample | (experiment app setup.ajtai setup.circuitKeys exports).StateLinkCollision app
               sample}).toReal +
-          ((claimed setup app exports assumption closed s q claim admitted depth).law.toOuterMeasure
+          ((claimed setup app exports assumption closed s q claim admitted
+              (p.sMax * p.n)).law.toOuterMeasure
             {sample | (experiment app setup.ajtai setup.circuitKeys exports).ChainCollision app
               sample}).toReal +
-          memoryError (claimed setup app exports assumption closed s q claim admitted depth)) := by
-  linarith [soundness setup app exports assumption closed s q claim admitted premises valid
-    keysShaped programEq depth depthBound round]
+          memoryError
+            (claimed setup app exports assumption closed s q claim admitted (p.sMax * p.n))) := by
+  linarith [soundness setup app exports assumption closed s q claim admitted complete rows valid
+    keysShaped programEq round]
 
 end NightstreamFPrime.Export.BoundedDepth.NebulaFinal

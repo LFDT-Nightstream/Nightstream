@@ -5,6 +5,9 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh
 import NightstreamFPrime.Export.BoundedDepth.FinalVerifier
 import NightstreamFPrime.Export.BoundedDepth.FinalHistory
 import NightstreamFPrime.Export.BoundedDepth.NebulaFinal
+import NightstreamFPrime.Export.Generic.PackageRows
+import NightstreamFPrime.Export.BoundedDepth.FinalRows
+import NightstreamFPrime.Export.BoundedDepth.RowsParity
 
 /-! Axiom audits for the compression argument over Akita (`Spec/Compression`). -/
 
@@ -296,9 +299,12 @@ import NightstreamFPrime.Export.BoundedDepth.NebulaFinal
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.runningWitness_default
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.slot_or_outside
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.checks_light
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.laid_light
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.accepts_light
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.freshIndex_eq
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.which_fresh
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.supported_slice
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.Setup.layout_facts
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.verifies_of_run
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.verifies_of_bottom
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.game_avoids
@@ -310,3 +316,26 @@ import NightstreamFPrime.Export.BoundedDepth.NebulaFinal
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaFinal.map_fst_bind
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaFinal.soundness
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaFinal.real_soundness
+#audit_axioms NightstreamFPrime.Export.Generic.PlanPush.push_coefficient
+#audit_axioms NightstreamFPrime.Export.Generic.PlanPush.plan_rowCount
+#audit_axioms NightstreamFPrime.Export.Generic.PlanPush.plan_coefficient
+#audit_axioms NightstreamFPrime.Export.Generic.PlanPush.ordinary_forms
+#audit_axioms NightstreamFPrime.Export.Generic.PackageRows.span_le
+#audit_axioms NightstreamFPrime.Export.Generic.PackageRows.form_coefficient
+#audit_axioms NightstreamFPrime.Export.Generic.PackageRows.rows_support
+#audit_axioms NightstreamFPrime.Export.Generic.PackageRows.rows_represents
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalRows.premises_of_rows
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalRows.soundness
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalRows.real_soundness
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.eval_entries
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.denseSum_rows
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.planSum_append
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.sum_zipIdx
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.planSum_ordinary
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.valueCompile_eval
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.valueCompile_eval.agrees
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.planSum_family
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.recompose_eq
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.weightAt_eq
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.denseFast_eq
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.RowsParity.fastSum_eq

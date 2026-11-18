@@ -218,12 +218,13 @@ theorem checks_implies_pieces {publicColumns : Nat} {pieces : List Piece}
     fun _ live => complete_live (packable_framed packed) outputs live⟩
 
 /-- The pieces that `split` cut give the constraints. -/
-theorem split_holds {constraints : List Expr} {env : Env}
-    (holds : ∀ piece ∈ split (PilotData.canonicalConstraints ()) constraints,
+theorem split_holds {marks : List PermutationMark} {constraints : List Expr} {env : Env}
+    (holds : ∀ piece ∈ split (PilotData.canonicalConstraints ()) marks constraints,
       ConstraintsHold env (piece.constraints (PilotData.canonicalConstraints ()))) :
     ConstraintsHold env constraints := by
   intro expression member
-  rw [← flatMap_split (PilotData.canonicalConstraints ()) constraints, List.mem_flatMap] at member
+  rw [← flatMap_split (PilotData.canonicalConstraints ()) marks constraints,
+    List.mem_flatMap] at member
   obtain ⟨piece, pieceMember, inPiece⟩ := member
   exact holds piece pieceMember expression inPiece
 
@@ -657,19 +658,21 @@ theorem rowsZero_implies_pieces (publicColumns : Nat) (pieces : List Piece)
     exact ⟨(PieceRows.lowerPiecesAux_sound _ _ pieces next [] valid rowsHold).2, by simp⟩
 
 /-- The same for the constraints that `split` cut into the pieces. -/
-theorem rowsZero_implies_constraints (publicColumns : Nat) (constraints : List Expr)
-    (next width : Nat)
-    (fits : Fits publicColumns (split (PilotData.canonicalConstraints ()) constraints) next width)
+theorem rowsZero_implies_constraints (publicColumns : Nat) (marks : List PermutationMark)
+    (constraints : List Expr) (next width : Nat)
+    (fits : Fits publicColumns (split (PilotData.canonicalConstraints ()) marks constraints) next
+      width)
     {logicalWidth : Nat} (layout : LogicalPlan.Layout width logicalWidth)
     (assignment : Assignment F logicalWidth) (one : assignment layout.one = 1)
     (rowsZero : (plan publicColumns _ next width fits layout).RowsZero assignment) :
-    ConstraintsHold (decodeEnv publicColumns (split (PilotData.canonicalConstraints ()) constraints)
-        next layout assignment) constraints ∧
+    ConstraintsHold (decodeEnv publicColumns
+        (split (PilotData.canonicalConstraints ()) marks constraints) next layout assignment)
+        constraints ∧
       ∀ column, column < publicColumns →
-        decodeEnv publicColumns (split (PilotData.canonicalConstraints ()) constraints) next layout
-          assignment column = LogicalPlan.sourceEnv layout assignment column := by
+        decodeEnv publicColumns (split (PilotData.canonicalConstraints ()) marks constraints) next
+          layout assignment column = LogicalPlan.sourceEnv layout assignment column := by
   obtain ⟨holds, agree⟩ := rowsZero_implies_pieces publicColumns _
-    (valid_split _ constraints) next width fits layout assignment one rowsZero
+    (valid_split _ marks constraints) next width fits layout assignment one rowsZero
   exact ⟨split_holds holds, agree⟩
 
 /-! ### The step circuit's relation -/
@@ -679,8 +682,10 @@ def constraints (circuit : FormalCircuit) (offset : Nat) (digestColumn : Fin 4 �
     List Expr :=
   flatConstraints (Circuit.ops circuit.main offset) ++ LogicalPlan.decodeConstraints digestColumn
 
+/-- The pieces of a circuit's constraints, with the marks of its permutations as the blocks. -/
 def pieces (circuit : FormalCircuit) (offset : Nat) (digestColumn : Fin 4 → Nat) : List Piece :=
-  split (PilotData.canonicalConstraints ()) (constraints circuit offset digestColumn)
+  split (PilotData.canonicalConstraints ()) (marks (Circuit.ops circuit.main offset))
+    (constraints circuit offset digestColumn)
 
 /-- The public columns `x`. -/
 abbrev publicColumns : Nat := ringDegree * PaperAlgebra.publicRingColumns
@@ -705,7 +710,8 @@ theorem rowsZero_implies_spec (circuit : FormalCircuit) (offset firstFresh : Nat
       ∀ word, decodeEnv publicColumns (pieces circuit offset digestColumn) firstFresh layout
         assignment (digestColumn word) = digest.getD word.val 0 := by
   obtain ⟨holds, agree⟩ := rowsZero_implies_constraints publicColumns
-    (constraints circuit offset digestColumn) firstFresh width fits layout assignment
+    (marks (Circuit.ops circuit.main offset)) (constraints circuit offset digestColumn) firstFresh
+    width fits layout assignment
     (LogicalPlan.encoded_one layout assignment digest fits.rows.positive encoded) rowsZero
   let env := decodeEnv publicColumns (pieces circuit offset digestColumn) firstFresh layout
     assignment

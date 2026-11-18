@@ -244,6 +244,11 @@ theorem lightExtractionNormLaw
 variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
+/-- The unit of the production light key is the unit of the ring of its extraction algebra. -/
+theorem lightExtraction_one :
+    (keys relation ajtai).light.one = (lightExtraction ajtai).ring.one :=
+  rfl
+
 /-- The two folds share one relation (`BoundedDepthKeys.keys_coherent`). -/
 theorem keys_coherent :
     HyperNova.Construction2.BoundedDepthFolds.sourceFromLight

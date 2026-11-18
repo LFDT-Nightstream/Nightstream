@@ -1,4 +1,4 @@
-import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
+import NightstreamFPrime.Gadgets.Poseidon2.Duplex.LiveRows
 import NightstreamFPrime.Lifecycle.Transcript
 
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption
@@ -167,9 +167,9 @@ theorem localLength_eq (interface : Interface) (coordinate offset : Nat) :
   exact recipeCount_eq coordinate
 
 theorem operations_length (interface : Interface) (coordinate offset : Nat) :
-    (Circuit.ops (circuit interface coordinate).main offset).length = 1 := by
+    (Circuit.ops (circuit interface coordinate).main offset).length = 2 := by
   rw [circuit_ops, Formal.Owned.operations_length]
-  change 1 + Formal.assertionCount (actions coordinate) = 1
+  change 2 + Formal.assertionCount (actions coordinate) = 2
   rw [assertionCount_eq]
 
 theorem flatConstraints_length (interface : Interface)
@@ -190,5 +190,35 @@ theorem output_varsBelow (interface : Interface) (coordinate offset : Nat)
   exact Formal.Owned.output_varsBelow
     (ownedInterface interface coordinate) offset env
     (ownedAssumptions interface coordinate offset assumptions)
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem placed (interface : Interface) (coordinate offset : Nat) :
+    Placed offset (localLength (Circuit.ops (circuit interface coordinate).main offset))
+      (Circuit.ops (circuit interface coordinate).main offset) :=
+  Formal.Owned.placed (ownedInterface interface coordinate) offset
+
+/-- The absorption's rows are its permutation's rows, and its output state is live. -/
+theorem liveRows (interface : Interface) (coordinate offset : Nat) {live : Nat → Prop}
+    (stateFacts : Formal.StateFacts live offset (interface.initialState offset))
+    (own : OwnLive live offset (localLength (Circuit.ops (circuit interface coordinate).main offset))
+      (Circuit.ops (circuit interface coordinate).main offset)) :
+    LiveRows live (Circuit.ops (circuit interface coordinate).main offset) ∧
+      Formal.StateFacts live
+        (offset + localLength (Circuit.ops (circuit interface coordinate).main offset))
+        (output interface coordinate offset) := by
+  have constant : ∀ word ∈ Formal.absorbedWords ((ownedInterface interface coordinate).actions offset),
+      ∃ value, word = Expr.const value := by
+    intro word member
+    simp only [ownedInterface, actions, Formal.absorbedWords, List.append_nil] at member
+    obtain ⟨value, _, rfl⟩ := List.mem_map.mp member
+    exact ⟨value, rfl⟩
+  exact Formal.Owned.output_facts (ownedInterface interface coordinate) offset stateFacts
+    (fun word member => (Formal.constant_facts (constant word member) live).1)
+    (fun word member => (Formal.constant_facts (constant word member)
+      fun column => column < offset ∧ live column).2)
+    (fun word member => by
+      simp [ownedInterface, actions, Formal.expectedWords] at member)
+    own
 
 end NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption

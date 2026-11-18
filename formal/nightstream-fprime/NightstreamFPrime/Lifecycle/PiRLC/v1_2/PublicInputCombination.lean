@@ -297,4 +297,39 @@ theorem completeness
   CombinationFamily.completeness (familyInterface interface) offset env
     assumptions specification
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+section Exporter
+
+variable {logicalWidth : Nat}
+  {publicFits : ringDegree * publicRingColumns ≤ RingCarrierLayout.carrierWidth logicalWidth}
+
+theorem marks_nil (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    marks (Circuit.ops (circuit interface).main offset) = [] :=
+  CombinationFamily.marks_nil (familyInterface interface) offset
+
+/-- The rows read the challenges, the public inputs and the gadget's own locals. -/
+theorem free (interface : Interface logicalWidth publicFits) (offset : Nat)
+    {live : Nat → Prop}
+    (challenge : ∀ source lane, (interface.challenge offset source lane).VarsSatisfy live)
+    (input : ∀ source column, (interface.input offset source column).VarsSatisfy live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) →
+        live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
+      row.VarsSatisfy live :=
+  CombinationFamily.free (familyInterface interface) offset challenge
+    (fun source block lane _ => input source (publicColumn block lane)) locals
+
+theorem output_live (interface : Interface logicalWidth publicFits) (offset : Nat)
+    {live : Nat → Prop}
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) →
+        live column)
+    (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
+    (output interface offset column).VarsSatisfy live :=
+  CombinationFamily.output_live (familyInterface interface) offset locals _ _ cell
+
+end Exporter
+
 end NightstreamFPrime.Lifecycle.PiRLC.v1_2.PublicInputCombination

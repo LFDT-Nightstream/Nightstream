@@ -233,7 +233,7 @@ theorem light_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth p
     (stepEq : program.step = step)
     (validControl : ∀ state witness, program.valid state witness → control state witness = 0)
     (firstFresh width : Nat)
-    (fits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
+    (fitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (LightAssemblerCircuit.stepCircuit program base relation 0 ajtai)
       (LightAssembler.sharedEnd base program.witnessWordCount)
       (lightDigestColumn program)) firstFresh width)
@@ -241,7 +241,7 @@ theorem light_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth p
     (assignment : Assignment F logicalWidth) (digest : Digest)
     (encoded : LogicalPlan.publicInput (publicFits := publicFits)
       (LogicalPlan.sourceEnv layout assignment) = encHash digest)
-    (rowsZero : (CircuitRelation.plan _ _ firstFresh width fits layout).RowsZero assignment)
+    (rowsZero : (CircuitRelation.plan _ _ firstFresh width fitsPackage layout).RowsZero assignment)
     (running : Fin 2 → SlotData logicalWidth publicFits)
     (others : OtherDigest program running (lightEnv program relation ajtai firstFresh layout assignment)) :
     let env := lightEnv program relation ajtai firstFresh layout assignment
@@ -256,7 +256,7 @@ theorem light_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth p
   obtain ⟨rows, words⟩ := CircuitRelation.rowsZero_implies_spec
     (LightAssemblerCircuit.stepCircuit program base relation 0 ajtai)
     (LightAssembler.sharedEnd base program.witnessWordCount) firstFresh
-    (lightDigestColumn program) fits layout assignment digest encoded rowsZero (fun _ => rfl)
+    (lightDigestColumn program) fitsPackage layout assignment digest encoded rowsZero (fun _ => rfl)
   exact ⟨LightAssembler.rows_implies_stepHolds program relation base ajtai _ step control 0 rfl
     stepEq validControl _ rows _ _ _
     (lightRepresents program relation ajtai circuitKeys 0 running _ others)
@@ -460,7 +460,7 @@ theorem refresh_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth
     (stepEq : program.step = step)
     (validControl : ∀ state witness, program.valid state witness → control state witness = 1)
     (firstFresh width : Nat)
-    (fits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
+    (fitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
       (RefreshAssemblerCircuit.stepCircuit program base relation 1 ajtai)
       (RefreshAssembler.sharedEnd base program.witnessWordCount)
       (refreshDigestColumn program)) firstFresh width)
@@ -468,7 +468,7 @@ theorem refresh_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth
     (assignment : Assignment F logicalWidth) (digest : Digest)
     (encoded : LogicalPlan.publicInput (publicFits := publicFits)
       (LogicalPlan.sourceEnv layout assignment) = encHash digest)
-    (rowsZero : (CircuitRelation.plan _ _ firstFresh width fits layout).RowsZero assignment) :
+    (rowsZero : (CircuitRelation.plan _ _ firstFresh width fitsPackage layout).RowsZero assignment) :
     let env := refreshEnv program relation ajtai firstFresh layout assignment
     StepHolds Folding.Schedule.productionLightFoldCap ajtai
         (decodedKeys circuitKeys (refreshInterface (logicalWidth := logicalWidth)
@@ -480,7 +480,7 @@ theorem refresh_stepHolds (relation : ProductionKey.LogicalRelation logicalWidth
   obtain ⟨rows, words⟩ := CircuitRelation.rowsZero_implies_spec
     (RefreshAssemblerCircuit.stepCircuit program base relation 1 ajtai)
     (RefreshAssembler.sharedEnd base program.witnessWordCount) firstFresh
-    (refreshDigestColumn program) fits layout assignment digest encoded rowsZero (fun _ => rfl)
+    (refreshDigestColumn program) fitsPackage layout assignment digest encoded rowsZero (fun _ => rfl)
   exact ⟨RefreshAssembler.rows_implies_stepHolds program relation base ajtai _ step control 1 rfl
     stepEq validControl _ rows _ _ _ (refreshRepresents program relation ajtai circuitKeys 1 _)
     (refreshOutput_runningNext program relation 1 _),

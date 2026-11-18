@@ -161,4 +161,116 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
       terminalExprSupport expression (by
         simpa [terminalAssertions] using terminalMember)
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+section Exporter
+
+variable {shape : Shape}
+
+theorem shapeMarks_nil (interface : ShapeInterface shape) (positive : 0 < shape.cubeVariables)
+    (offset : Nat) :
+    marks (Circuit.ops (shapeCircuit interface positive).main offset) = [] := by
+  show marks (opsAt interface offset) = []
+  have assertions : marks ((terminalAssertions interface offset).map Op.assertZero) = [] := by
+    simp [marks, Op.marks]
+  rw [opsAt, marks_append, assertions, List.append_nil, marks_cons, marks_cons, marks_cons,
+    NightstreamFPrime.Circuit.marks_nil, pointOp, matrixPowerOp, constraintPowerOp,
+    pointSubcircuit, matrixPowerSubcircuit, constraintPowerSubcircuit, Op.marks, Op.marks,
+    Op.marks, FormalCircuit.asSubcircuit_marks, FormalCircuit.asSubcircuit_marks,
+    FormalCircuit.asSubcircuit_marks, pointCircuitAt, matrixPowerCircuitAt,
+    constraintPowerCircuitAt, PointEquality.Owned.marks_nil, Power.marks_nil, Power.marks_nil]
+  rfl
+
+/-- The rows read the round point, α, γ, the four claims, the terminal and the gadget's own
+locals. -/
+theorem shapeFree (interface : ShapeInterface shape) (positive : 0 < shape.cubeVariables)
+    (offset : Nat) {live : Nat → Prop}
+    (roundPoint : ∀ coordinate, Horner.KSupported (interface.roundPoint offset coordinate) live)
+    (alpha : ∀ coordinate, Horner.KSupported (interface.alpha offset coordinate) live)
+    (gamma : Horner.KSupported (interface.gamma offset) live)
+    (evalK : Horner.KSupported (interface.eval_K offset) live)
+    (evalA : Horner.KSupported (interface.eval_A offset) live)
+    (ccs : Horner.KSupported (interface.ccs offset) live)
+    (norm : Horner.KSupported (interface.norm offset) live)
+    (terminal : Horner.KSupported (interface.terminal offset) live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (shapeCircuit interface positive).main offset) →
+        live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (shapeCircuit interface positive).main offset),
+      row.VarsSatisfy live := by
+  have length : localLength (Circuit.ops (shapeCircuit interface positive).main offset) =
+      pointLength interface offset + matrixLength interface offset +
+        constraintLength interface offset :=
+    (shapeCircuitFast interface positive).privateCount_eq offset
+  have pointLocals : ∀ column, offset ≤ column →
+      column < offset + pointLength interface offset → live column :=
+    fun column lower upper => locals column lower (by rw [length]; omega)
+  have matrixLocals : ∀ column, matrixOffset interface offset ≤ column →
+      column < matrixOffset interface offset + matrixLength interface offset → live column := by
+    intro column lower upper
+    unfold matrixOffset at lower upper
+    exact locals column (by omega) (by rw [length]; omega)
+  have constraintLocals : ∀ column, constraintOffset interface offset ≤ column →
+      column < constraintOffset interface offset + constraintLength interface offset →
+        live column := by
+    intro column lower upper
+    unfold constraintOffset matrixOffset at lower upper
+    exact locals column (by omega) (by rw [length]; omega)
+  have pointRows := PointEquality.Owned.free (pointInterfaceAt interface offset) offset
+    roundPoint alpha pointLocals
+  have pointOutput : Horner.KSupported (pointEqualityOutput interface offset) live :=
+    PointEquality.Owned.output_live (pointInterfaceAt interface offset) offset roundPoint alpha
+      pointLocals
+  have matrixRows := Power.free (matrixExponentOf shape) (matrixPowerInterfaceAt interface offset)
+    (matrixOffset interface offset) gamma matrixLocals
+  have matrixOutput : Horner.KSupported (gammaMatrixOutput interface offset) live :=
+    Power.output_live (matrixExponentOf shape) (matrixPowerInterfaceAt interface offset)
+      (matrixOffset interface offset) gamma matrixLocals
+  have constraintRows := Power.free (constraintFactorOf shape)
+    (constraintPowerInterfaceAt interface offset) (constraintOffset interface offset)
+    matrixOutput constraintLocals
+  have constraintOutput : Horner.KSupported (gammaConstraintOutput interface offset) live :=
+    Power.output_live (constraintFactorOf shape) (constraintPowerInterfaceAt interface offset)
+      (constraintOffset interface offset) matrixOutput constraintLocals
+  have terminalExprLive : Horner.KSupported (terminalExpr interface offset) live :=
+    Horner.KSupported.add evalK
+      (Horner.KSupported.add (Horner.KSupported.mul matrixOutput evalA)
+        (Horner.KSupported.mul constraintOutput
+          (Horner.KSupported.mul pointOutput
+            (Horner.KSupported.add ccs (Horner.KSupported.mul gamma norm)))))
+  change ∀ row ∈ flatConstraints (opsAt interface offset), row.VarsSatisfy live
+  rw [flatConstraints_opsAt]
+  intro row member
+  simp only [List.mem_append] at member
+  rcases member with ((pointMember | matrixMember) | constraintMember) | terminalMember
+  · exact pointRows row pointMember
+  · exact matrixRows row matrixMember
+  · exact constraintRows row constraintMember
+  · exact equalities_supported (interface.terminal offset) (terminalExpr interface offset) live
+      terminal terminalExprLive row terminalMember
+
+theorem marks_nil (interface : Interface) (offset : Nat) :
+    marks (Circuit.ops (circuit interface).main offset) = [] :=
+  shapeMarks_nil interface productionCubeVariables_positive offset
+
+/-- The rows read the round point, α, γ, the four claims, the terminal and the gadget's own
+locals. -/
+theorem free (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (roundPoint : ∀ coordinate, Horner.KSupported (interface.roundPoint offset coordinate) live)
+    (alpha : ∀ coordinate, Horner.KSupported (interface.alpha offset coordinate) live)
+    (gamma : Horner.KSupported (interface.gamma offset) live)
+    (evalK : Horner.KSupported (interface.eval_K offset) live)
+    (evalA : Horner.KSupported (interface.eval_A offset) live)
+    (ccs : Horner.KSupported (interface.ccs offset) live)
+    (norm : Horner.KSupported (interface.norm offset) live)
+    (terminal : Horner.KSupported (interface.terminal offset) live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) →
+        live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface).main offset), row.VarsSatisfy live :=
+  shapeFree interface productionCubeVariables_positive offset roundPoint alpha gamma evalK evalA
+    ccs norm terminal locals
+
+end Exporter
+
 end NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity

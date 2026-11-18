@@ -1,9 +1,11 @@
 import tests.AxiomAudit
 
-/-! `#premise_census "file" theorem*` lists every hypothesis of each named theorem and compares
-the list with `file`. `scripts/check_premises.py` holds the classification of each line
-(`SECURITY_MODEL.md`, section Premises), so a new hypothesis fails the `static` phase until it has
-a class. -/
+/-! `#premise_census "file" "Package" "Root"` reads each theorem of the namespace `Package.Root`.
+It fails when the namespace holds a declaration that is not a theorem, when the axioms of a
+theorem are not among the allowed three, or when a proof is not one application of a constant
+outside the namespace. It lists every hypothesis of each theorem and compares the list with `file`.
+`scripts/check_premises.py` holds the classification of each line (`SECURITY_MODEL.md`, section
+Premises), so a new hypothesis fails the `static` phase until it has a class. -/
 
 register_option premiseCensus.write : Bool := {
   defValue := false
@@ -58,13 +60,39 @@ def premiseLines (space : Name) (decl : Name) : MetaM (Array String) := do
       lines := lines.push s!"{shown}\t-\t-"
     return lines
 
-elab "#premise_census " path:str space:str theorems:ident* : command => do
+/-- The constant that the proof of a claim applies to its own binders, under those binders. -/
+def proofHead : Expr → Option Name
+  | .lam _ _ body _ => proofHead body
+  | .mdata _ body => proofHead body
+  | body => match body.getAppFn with
+    | .const name _ => if body.getAppArgs.all (·.isBVar) then some name else none
+    | _ => none
+
+elab "#premise_census " path:str space:str root:str : command => do
+  let package := space.getString.toName
+  let claims := package ++ root.getString.toName
+  let env ← getEnv
+  let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
+  let mut theorems : Array Name := #[]
+  for (name, info) in env.constants.toList do
+    unless claims.isPrefixOf name && !name.isInternalDetail do continue
+    match info with
+    | .thmInfo value =>
+      match proofHead value.value with
+      | some head =>
+        if claims.isPrefixOf head then
+          throwError "the proof of {name} applies {head}, which is in {claims}"
+        unless env.find? head matches some (.thmInfo _) do
+          throwError "the proof of {name} applies {head}, which is not a theorem"
+      | none => throwError "the proof of {name} is not one theorem applied to the binders of {name}"
+      let bad := (← liftCoreM <| collectAxioms name).toList.filter (fun a => !allowed.contains a)
+      unless bad.isEmpty do throwError "{name} depends on disallowed axioms: {bad}"
+      theorems := theorems.push name
+    | _ => throwError "{name} is in {claims}, but it is not a theorem"
+  theorems := theorems.qsort fun left right => Name.cmp left right == .lt
   let mut lines := #[]
-  for decl in theorems do
-    let name ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo decl
-    unless (← getEnv).find? name matches some (.thmInfo _) do
-      throwError "{name} is not a theorem"
-    lines := lines ++ (← liftTermElabM <| premiseLines space.getString.toName name)
+  for name in theorems do
+    lines := lines ++ (← liftTermElabM <| premiseLines package name)
   let text := String.intercalate "\n" lines.toList ++ "\n"
   let file : System.FilePath := path.getString
   if premiseCensus.write.get (← getOptions) then

@@ -28,13 +28,13 @@ import NightstreamFPrime.Spec.Folding.Refresh.Completeness
 import NightstreamFPrime.Spec.Folding.Refresh.Bound
 import NightstreamFPrime.Spec.Folding.Schedule
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
-import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
 import NightstreamFPrime.Spec.HyperNova.ReverseStages
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthFolds
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKeys
 import NightstreamFPrime.Spec.Folding.Light.RlcModule
 import NightstreamFPrime.Lifecycle.BoundedDepth.State
+import NightstreamFPrime.Lifecycle.BoundedDepth.Collision
 import NightstreamFPrime.Lifecycle.BoundedDepth.Keys
 import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionSlot
 import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh
@@ -156,6 +156,7 @@ import NightstreamFPrime.Export.BoundedDepth.PackedBudget
 import NightstreamFPrime.Lifecycle.BoundedDepth.BlockSupport
 import NightstreamFPrime.Lifecycle.BoundedDepth.FoldCompleteness
 import NightstreamFPrime.Export.BoundedDepth.StepExtend
+import NightstreamFPrime.Export.BoundedDepth.EmittedPackages
 import NightstreamFPrime.Export.BoundedDepth.RunCompleteness
 import NightstreamFPrime.Lifecycle.Nebula.EtaOracle
 import NightstreamFPrime.Lifecycle.Nebula.EtaRound
@@ -166,3 +167,4 @@ import NightstreamFPrime.Export.BoundedDepth.Parity
 import NightstreamFPrime.Export.MatrixPassParity
 import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.ChainBinding
 import NightstreamFPrime.Spec.Nebula.SegmentGate
+import NightstreamFPrime.Claims

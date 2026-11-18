@@ -1,5 +1,6 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Absorb
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Read
+import NightstreamFPrime.Gadgets.Poseidon2.HashMarks
 
 namespace NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
 
@@ -119,6 +120,32 @@ def compile : Nat → EState → List Action → Program
       ⟨tail.recipes,
         KExpr.equalities (Read.sample state pair) expected ++ tail.assertions,
         Read.sample state pair :: tail.samples, tail.output⟩
+
+/-- The marks of the permutations of `compile` (SPEC.md section 4.4): each absorption places the
+permutations of `Hash.compileAbsorptions` over its chunks, and a read places none. -/
+def marks : Nat → EState → List Action → List PermutationMark
+  | _, _, [] => []
+  | start, state, .absorb input :: actions =>
+      Hash.absorptionMarks start state (Hash.inputChunks input) ++
+        marks (start + (Hash.inputChunks input).length * 1096)
+          (Hash.absorbedState start state (Hash.inputChunks input)) actions
+  | start, state, .readK _ _ :: actions => marks start state actions
+
+/-- The rows of the duplex are the windows of its marks. -/
+theorem compile_windows (start : Nat) (state : EState) (actions : List Action) :
+    recipeConstraints start (compile start state actions).recipes =
+      (marks start state actions).flatMap Permutation.markWindow := by
+  induction actions generalizing start state with
+  | nil => rfl
+  | cons action actions ih =>
+      cases action with
+      | absorb input =>
+          simp only [compile, marks, List.flatMap_append]
+          rw [Permutation.recipeConstraints_append, Hash.compileAbsorptions_windows,
+            Hash.compileAbsorptions_recipes_length, Hash.compileAbsorptions_output, ih]
+      | readK pair expected =>
+          simp only [compile, marks]
+          exact ih start state
 
 structure AbsorbWiring where
   next : Nat
@@ -1035,6 +1062,7 @@ def allAssertions (interface : Interface) (offset : Nat) : List Expr :=
 def opsAt (interface : Interface) (offset : Nat) : List Op :=
   Op.witness (WitnessBatch.arithmetic offset
     (program interface offset).recipes) ::
+    Op.mark (marks offset (interface.initial offset) (interface.actions offset)) ::
     (allAssertions interface offset).map Op.assertZero
 
 def main (interface : Interface) : Circuit Unit := fun offset =>
@@ -1073,15 +1101,15 @@ theorem opsAt_localLength (interface : Interface) (offset : Nat) :
       (program interface offset).recipes.length := by
   unfold opsAt
   change (program interface offset).recipes.length +
-    localLength ((allAssertions interface offset).map Op.assertZero) = _
+    (0 + localLength ((allAssertions interface offset).map Op.assertZero)) = _
   rw [assertions_localLength]
   omega
 
 theorem operations_length (interface : Interface) (offset : Nat) :
     (opsAt interface offset).length =
-      1 + assertionCount (interface.actions offset) := by
+      2 + assertionCount (interface.actions offset) := by
   unfold opsAt allAssertions program
-  rw [List.length_cons, List.length_map, compile_assertions_length]
+  rw [List.length_cons, List.length_cons, List.length_map, compile_assertions_length]
   omega
 
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :

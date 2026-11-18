@@ -108,7 +108,8 @@ def applicationRegion (name : String) (words : Nat) (ops : List Op) (offset firs
       unless child.name == s!"{name}.application" do
         throw (IO.userError s!"{name}: the first child is {child.name}")
   | _ => throw (IO.userError s!"{name}: the first operation is not the application")
-  let own := Pieces.split (PilotData.canonicalConstraints ()) application.flatConstraints
+  let own := Pieces.split (PilotData.canonicalConstraints ()) application.marks
+    application.flatConstraints
   let render := fun (piece : StepPackage.PackagePiece) =>
     (StepPackage.PackagePiece.format.encode piece).render
   unless (StepPackage.packagePieces own firstFresh).map render ==
@@ -123,17 +124,17 @@ def completenessChecks (pieces : List Pieces.Piece) (firstFresh : Nat) : Bool ×
   let scope := (pieces.filter fun piece => !PieceRowsCompleteness.pieceBelow firstFresh piece).length
   (scope == 0, scope)
 
-/-- Writes the circuit's package (`StepPackage.packageOf`); the blocks must pack and start at or
-after the shared words. Before it writes, it runs the package's completeness checks
-(`completenessChecks`) and checks that no row of the circuit reads a public column. -/
+/-- Writes the circuit's package (`StepPackage.packageOf`); its blocks pack
+(`StepCompleteness.lightPieces_packable`) and must start at or after the shared words. Before it
+writes, it runs the package's completeness checks
+(`completenessChecks`), checks that no row of the circuit reads a public column, and checks the
+package's capacity (`EmittedPackages.Facts`, SPEC.md section 4.4). -/
 def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
     (pieces : List Pieces.Piece)
     (program : Stage1.Application.Program := program) (stem : String := "")
     (write : Bool := true) :
     IO StepPackage.Package := do
   let start ← IO.monoMsNow
-  unless CircuitRelation.packable CircuitRelation.publicColumns pieces do
-    throw (IO.userError s!"{name}: the Poseidon2 blocks do not pack")
   unless CircuitRelation.startsFrom offset pieces do
     throw (IO.userError s!"{name}: a Poseidon2 block starts below the shared end")
   let firstFresh := offset + localLength ops
@@ -146,6 +147,14 @@ def emitPackage (name : String) (circuit : Nat) (ops : List Op) (offset : Nat)
   unless complete && free do
     throw (IO.userError s!"{name}: the completeness checks fail: {scope} pieces read a fresh \
       column, rows read no public column: {free}")
+  let sboxColumns := (CircuitRelation.blocksOf pieces).length * 150
+  let columns := CircuitRelation.sboxStart pieces firstFresh + sboxColumns
+  unless columns ≤ width do
+    throw (IO.userError s!"{name}: the S-box columns end at {columns}, past the source width")
+  let rows := RelationFits.relationRowCount pieces + sboxColumns
+  unless rows ≤ 2 ^ cubeVariables do
+    throw (IO.userError s!"{name}: {rows} rows exceed 2^{cubeVariables}")
+  say s!"{name}: capacity: columns below {columns}, {rows} rows ({(← IO.monoMsNow) - start} ms)"
   unless write do
     return StepPackage.packageOf circuit CircuitRelation.publicColumns pieces firstFresh width
       (witnesses ops) (program.witnessWordCount, offset, 0, 0, 0)
@@ -176,7 +185,8 @@ def childCensus (name : String) (ops : List Op) : IO Unit := do
       | .subcircuit child => child.name
       | .witness _ => "witness"
       | .assertZero _ => "assertion"
-    let pieces := Pieces.split canonical op.flatConstraints
+      | .mark _ => "marks"
+    let pieces := Pieces.split canonical op.marks op.flatConstraints
     let permutations := (pieces.filter fun | .permutation .. => true | _ => false).length
     let generic := Pieces.genericConstraints pieces
     (label, permutations, ringProducts pieces, generic.length,
@@ -261,7 +271,8 @@ def nebulaFixture : List String → Option String
   | _ => none
 
 /-- Writes both step packages of the `--program` application (`selected`), and for today's
-fixture the parity file; with `--checks`, only runs the completeness checks of
+fixture the parity file or for another program its rows file (`Parity.rowsParity`); with
+`--checks`, only runs the completeness checks of
 both step packages and writes nothing; with
 `--census`, prints the row census first; with `--identity`, also computes their one identity
 (`StepPackage.identityFast`), which the spec field arithmetic makes slow: Rust computes it
@@ -309,6 +320,11 @@ def main (arguments : List String) : IO Unit := do
     return
   say s!"packages written ({(← IO.monoMsNow) - start} ms)"
   unless stem.isEmpty do
+    let rows := Parity.rowsParity width (lightPieces, light.firstFresh, witnesses lightOps)
+      (refreshPieces, refresh.firstFresh, witnesses refreshOps)
+    let rowsPath := s!"artifacts/nightstream-fprime-bounded-depth-{stem}rows-v1.json"
+    IO.FS.writeFile rowsPath (rows.render ++ "\n")
+    say s!"wrote {rowsPath}: {rows.render}"
     say s!"emitter total {(← IO.monoMsNow) - start} ms"
     return
   let parity := Parity.parity width (lightPieces, light.firstFresh, lightOffset, witnesses lightOps)

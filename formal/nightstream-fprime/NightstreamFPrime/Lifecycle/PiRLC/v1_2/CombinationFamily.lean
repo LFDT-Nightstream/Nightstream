@@ -587,4 +587,117 @@ def circuit {blockCount cellCount : Nat} [NeZero cellCount]
     intro env offset assumptions specification
     exact completeness interface offset env assumptions specification
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+private theorem step_end_le {source : Nat} (size : Nat) (below : source < sourceCount) :
+    source * size + size ≤ sourceCount * size := by
+  have scaled := Nat.mul_le_mul_right size (Nat.succ_le_of_lt below)
+  rwa [Nat.succ_mul] at scaled
+
+theorem marks_nil {blockCount cellCount : Nat} [NeZero cellCount]
+    (interface : Interface blockCount cellCount) (offset : Nat) :
+    marks (Circuit.ops (circuit interface).main offset) = [] := by
+  rw [show Circuit.ops (circuit interface).main offset = opsAt interface offset from rfl,
+    opsAt_eq]
+  unfold marks
+  rw [List.flatMap_eq_nil_iff]
+  intro op member
+  obtain ⟨source, _, rfl⟩ := List.mem_map.mp member
+  exact CombinationStep.marks_nil (stepInterface interface offset source)
+    (stepOffset offset source blockCount cellCount)
+
+private theorem step_free {blockCount cellCount : Nat} [NeZero cellCount]
+    (interface : Interface blockCount cellCount) (offset source : Nat) {live : Nat → Prop}
+    (sourceLt : source < sourceCount)
+    (challenge : ∀ source lane, (interface.challenge offset source lane).VarsSatisfy live)
+    (input : ∀ source block lane cell,
+      (interface.input offset source block lane cell).VarsSatisfy live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + sourceCount * stepSize blockCount cellCount → live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (stepCircuit interface offset source).main
+        (stepOffset offset source blockCount cellCount)), row.VarsSatisfy live := by
+  have stepEnd := step_end_le (stepSize blockCount cellCount) sourceLt
+  apply CombinationStep.free
+  · intro lane
+    show (challengeAt interface offset source lane).VarsSatisfy live
+    unfold challengeAt
+    split
+    · exact challenge _ lane
+    · trivial
+  · intro block lane cell
+    show (priorAt offset source block lane cell).VarsSatisfy live
+    unfold priorAt
+    split
+    · trivial
+    · rename_i nonzero
+      have indexLt : (CombinationStep.indexOf block lane cell).val <
+          stepSize blockCount cellCount :=
+        (CombinationStep.indexOf block lane cell).isLt
+      have previous := step_end_le (stepSize blockCount cellCount)
+        (show source - 1 < sourceCount by omega)
+      show live (offset + (source - 1) * stepSize blockCount cellCount +
+        (CombinationStep.indexOf block lane cell).val)
+      exact locals _ (by omega) (by omega)
+  · intro block lane cell
+    show (inputAt interface offset source block lane cell).VarsSatisfy live
+    unfold inputAt
+    split
+    · exact input _ block lane cell
+    · trivial
+  · intro column lower upper
+    have stepLength : localLength (CombinationStep.operations (stepInterface interface offset source)
+        (stepOffset offset source blockCount cellCount)) = stepSize blockCount cellCount :=
+      CombinationStep.localLength_eq _ _
+    change column < stepOffset offset source blockCount cellCount +
+      localLength (CombinationStep.operations (stepInterface interface offset source)
+        (stepOffset offset source blockCount cellCount)) at upper
+    rw [stepLength] at upper
+    change offset + source * stepSize blockCount cellCount ≤ column at lower
+    change column < offset + source * stepSize blockCount cellCount +
+      stepSize blockCount cellCount at upper
+    exact locals column (by omega) (by omega)
+
+/-- The rows read the challenges, the inputs and the gadget's own locals. -/
+theorem free {blockCount cellCount : Nat} [NeZero cellCount]
+    (interface : Interface blockCount cellCount) (offset : Nat) {live : Nat → Prop}
+    (challenge : ∀ source lane, (interface.challenge offset source lane).VarsSatisfy live)
+    (input : ∀ source block lane cell,
+      (interface.input offset source block lane cell).VarsSatisfy live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) →
+        live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
+      row.VarsSatisfy live := by
+  have length := localLength_eq interface offset
+  change localLength (Circuit.ops (circuit interface).main offset) =
+    sourceCount * stepSize blockCount cellCount at length
+  rw [length] at locals
+  rw [show Circuit.ops (circuit interface).main offset = opsAt interface offset from rfl,
+    opsAt_eq]
+  intro row member
+  rcases List.mem_flatMap.mp member with ⟨operation, operationMember, rowMember⟩
+  rcases List.mem_map.mp operationMember with ⟨source, sourceMember, rfl⟩
+  rw [stepOp, Sequence.childOp, Op.flatConstraints, FormalCircuit.asSubcircuit_constraints]
+    at rowMember
+  exact step_free interface offset source (List.mem_range.mp sourceMember) challenge input locals
+    row rowMember
+
+theorem output_live {blockCount cellCount : Nat} [NeZero cellCount]
+    (interface : Interface blockCount cellCount) (offset : Nat) {live : Nat → Prop}
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) →
+        live column)
+    (block : Fin blockCount) (lane : Fin ringDegree) (cell : Fin cellCount) :
+    (output interface offset block lane cell).VarsSatisfy live := by
+  have length : localLength (Circuit.ops (circuit interface).main offset) =
+      sourceCount * stepSize blockCount cellCount :=
+    localLength_eq interface offset
+  have indexLt : (CombinationStep.indexOf block lane cell).val < stepSize blockCount cellCount :=
+    (CombinationStep.indexOf block lane cell).isLt
+  have last := step_end_le (stepSize blockCount cellCount) finalSource.isLt
+  show live (stepOffset offset finalSource.val blockCount cellCount +
+    (CombinationStep.indexOf block lane cell).val)
+  unfold stepOffset
+  exact locals _ (by omega) (by rw [length]; omega)
+
 end NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily

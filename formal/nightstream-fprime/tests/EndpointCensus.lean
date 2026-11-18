@@ -10,5 +10,5 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 #endpoint_census "SECURITY_MODEL.md"
-#folder_census "../../decisions" "NightstreamFPrime" "Export." "Layout." "Lifecycle." "Spec."
-#spec_census "../../SPEC.md" "NightstreamFPrime" "Export." "Layout." "Lifecycle." "Spec."
+#folder_census "../../decisions" "NightstreamFPrime" "Claims." "Export." "Layout." "Lifecycle." "Spec."
+#spec_census "../../SPEC.md" "NightstreamFPrime" "Claims." "Export." "Layout." "Lifecycle." "Spec."

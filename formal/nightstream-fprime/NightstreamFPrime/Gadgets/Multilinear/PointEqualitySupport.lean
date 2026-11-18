@@ -282,6 +282,31 @@ theorem output_varsSatisfy {variableCount : Nat}
   · exact localSupport index lower (by
       simpa [program, output] using upper)
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem marks_nil {variableCount : Nat} (interface : Interface variableCount) (offset : Nat) :
+    marks (Circuit.ops (circuit interface).main offset) = [] := by
+  simp [circuit, opsAt, marks, Op.marks]
+
+/-- The rows read both points and the gadget's own locals. -/
+theorem free {variableCount : Nat} (interface : Interface variableCount) (offset : Nat)
+    {live : Nat → Prop}
+    (left : ∀ coordinate, Horner.KSupported (interface.left offset coordinate) live)
+    (right : ∀ coordinate, Horner.KSupported (interface.right offset coordinate) live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) → live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface).main offset), row.VarsSatisfy live :=
+  flatConstraints_varsSatisfy interface offset live left right locals
+
+theorem output_live {variableCount : Nat} (interface : Interface variableCount) (offset : Nat)
+    {live : Nat → Prop}
+    (left : ∀ coordinate, Horner.KSupported (interface.left offset coordinate) live)
+    (right : ∀ coordinate, Horner.KSupported (interface.right offset coordinate) live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) → live column) :
+    Horner.KSupported (output interface offset) live :=
+  output_varsSatisfy interface offset live left right locals
+
 end Owned
 
 end NightstreamFPrime.Gadgets.Multilinear.PointEquality

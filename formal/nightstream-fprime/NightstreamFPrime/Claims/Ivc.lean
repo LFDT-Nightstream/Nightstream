@@ -1,0 +1,460 @@
+import NightstreamFPrime.Export.BoundedDepth.IvcSecurity
+import NightstreamFPrime.Export.BoundedDepth.RunCompleteness
+import NightstreamFPrime.Export.BoundedDepth.TerminalBridge
+import NightstreamFPrime.Export.BoundedDepth.VerifierSecurity
+import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
+import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
+
+/-! # Claims: bounded-depth IVC
+
+The terminal relation, the reverse extractor and the completeness of a run
+(`SPEC.md` Algorithm 6, `SECURITY_MODEL.md` adversaries 2 and 4).
+
+- Paper: HyperNova Construction 2, Definition 11, Lemma 17 (completeness) and Lemma 18
+  (knowledge soundness).
+- Assumptions: `false_acceptance_bound`, `extraction_bound` and `verifier_sound` take HyperNova
+  errata Assumption 1 for the two folds (`[HN-A1]`), with its closure premise and an admitted
+  adversary. Their error term is the `error` of that assumption.
+- Bound: these three claims conclude `Export.BoundedDepth.IvcSecurity.walkBound`, the sum over
+  the first `depth` stages of the reverse extractor of the stage's collision term and its error.
+- Collision term: in these three claims it is the success chance of an explicit Poseidon2
+  collision finder (`Export.BoundedDepth.IvcSecurity.finderChance`). The finder runs the stage
+  on its tape, decodes the visit and outputs two different inputs of one length with one
+  `Poseidon2.hash` (`Export.BoundedDepth.IvcWalk.visitCollision`). Each collision at the visit
+  gives an output (`Export.BoundedDepth.IvcWalk.visitCollision_isSome`).
+- Open: Lean does not bound the finder's success chance. A bound needs `[P2-PERM]` and
+  `[SPONGE]` with the finder's count of permutation calls (`SECURITY_MODEL.md` trust item 2).
+  The bound `depth` on the iteration of every statement that the adversary can output, accepted
+  or not, is an argument (`depthBound`).
+- Capacity: for the emitted packages, `Export.BoundedDepth.EmittedPackages.Facts.exports` builds
+  `exports` from the capacity of the application (`Export.BoundedDepth.EmittedPackages.Facts`,
+  SPEC.md section 4.4), which the emitter checks.
+- Light mode: `light_run_complete` gives the honest proof of a run of at most `cap + 1` steps the
+  light circuit last and slot 1 at the default slot, the light mode of `SPEC.md` Algorithm 9.
+- Completeness: `run_complete`, `light_run_complete` and `step_extends` conclude
+  `Export.BoundedDepth.RunCompleteness.Verifies` and
+  `Export.BoundedDepth.RunCompleteness.FreshZeroTail` for the honest proof. `Verifies` requires
+  zeros only on the ring blocks of the fresh witness from its package width
+  (`Lifecycle.BoundedDepth.BlockSupport.Supported`). Rust's direct verifier requires a zero on
+  each cell from that width (`SPEC.md` Algorithm 6, Rejects). `FreshZeroTail` gives these zeros,
+  so the claims rule out a rejection of the honest proof by this check. -/
+
+namespace NightstreamFPrime.Claims.Ivc
+
+open Spec Spec.HyperNova Spec.HyperNova.Construction2 Lifecycle Lifecycle.BoundedDepth Export.BoundedDepth
+
+/-- If the terminal relation accepts a recursive proof and the key of each circuit carries the
+relation that Lean exports, the circuit that ran last holds its step relation on the step that
+the fresh witness decodes to, and that step ends in the terminal's statement, or a Poseidon2
+collision occurred. -/
+theorem terminal_bridge
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+        Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits}
+    {step : AppState → AppWitness → AppState}
+    {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+    (exports : TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
+    (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
+    (control : AppState → AppWitness → Fin 2)
+    (cap : ℕ)
+    (statement : Paper.TerminalStatement AppState)
+    (payload : Paper.TerminalProof (SlotData logicalWidth publicFits)
+        (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
+        (StepFresh logicalWidth publicFits)
+        (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
+    (accepted : Terminal.HoldsFor cap ajtai circuitKeys step control statement
+        (Paper.OuterTerminalProof.recursive payload)) :
+    BoundedDepth.StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step
+            (TerminalBridge.chosen exports.program (TerminalBridge.circuitOf payload.pc))
+            (TerminalBridge.circuitOf payload.pc) (exports.last payload).input
+            (exports.last payload).output ∧
+          TerminalBridge.EndsIn statement payload.running payload.pc
+            (TerminalBridge.circuitOf payload.pc) (exports.last payload).input
+            (exports.last payload).output ∨
+        TerminalBridge.Collision exports statement payload :=
+  @Export.BoundedDepth.TerminalBridge.bridge logicalWidth publicFits relation ajtai circuitKeys
+    step cubeFits exports keysShaped control cap statement payload accepted
+
+/-- Every accumulator of an accepted history stays below `B` when honest, and extraction
+recovers each below `B + cap · T · (b − 1)`. -/
+theorem accepted_bounds.{uKey, uClaim, uFresh, uProof}
+    {Key : Type uKey}
+    {Claim : Type uClaim}
+    {Fresh : Type uFresh}
+    {Proof : Type uProof}
+    (p : GlobalParams)
+    {cap : ℕ}
+    (capFits : 1 + cap ≤ p.maxFresh)
+    (folds : BoundedDepth.Folds Key Claim Fresh Proof)
+    (history : List (BoundedDepth.Fold Key Claim Fresh Proof))
+    (depth : ℕ)
+    (start : depth ≤ cap)
+    (accepted : BoundedDepth.AcceptedFrom cap folds depth history)
+    {final : ℕ}
+    (finalAtMostB : final ≤ p.bigB) :
+    (∀ reached ∈ Folding.Schedule.depths depth (BoundedDepth.steps history),
+          p.accumulatorBound reached < p.bigB) ∧
+        ∀ bound ∈ Folding.Schedule.recoveredBounds p final (BoundedDepth.steps history),
+          bound ≤ p.bigB + cap * (p.expansionT * (p.b - 1)) :=
+  @Spec.HyperNova.Construction2.BoundedDepth.accepted_bounds Key Claim Fresh Proof p cap capFits
+    folds history depth start accepted final finalAtMostB
+
+/-- HyperNova Lemma 18 for the bounded-depth scheme: the probability of a false acceptance is at
+most `IvcSecurity.walkBound`. A false acceptance is an extraction failure, because no list of
+witnesses reaches its statement. -/
+theorem false_acceptance_bound
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+        Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
+    {step : AppState → AppWitness → AppState}
+    {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+    (exports : TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
+    {Admitted : ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits) → Prop}
+    {StageAdmitted : ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+          (IvcWalk.Answer logicalWidth publicFits) →
+        Prop}
+    {Efficient : (adversary : ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits)) →
+        ReverseStages.NifsExtractor (IvcWalk.Answer logicalWidth publicFits) adversary → Prop}
+    {error : ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits) → ℝ}
+    (assumption : ReverseStages.Assumption1 (IvcWalk.WalkSucceeds ajtai) (IvcWalk.WalkExtracted ajtai)
+        Admitted Efficient error)
+    (closed : ReverseStages.Closed (IvcWalk.attemptOf ajtai circuitKeys exports)
+        (IvcWalk.back ajtai circuitKeys exports) Admitted StageAdmitted Efficient)
+    (adversary : ReverseStages.IvcAdversary (IvcSecurity.Output logicalWidth publicFits))
+    (admitted : StageAdmitted (ReverseStages.Stage.start (IvcSecurity.walkAdversary adversary)))
+    (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
+    (control : AppState → AppWitness → Fin 2)
+    (cap : ℕ)
+    (depth : ℕ)
+    (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
+    ENNReal.toReal
+          ((adversary.tape.toOuterMeasure : Set adversary.Tape → ENNReal)
+            {tape : adversary.Tape |
+              IvcSecurity.FalseAcceptance ajtai circuitKeys exports control cap
+                (adversary.output tape)}) ≤
+        IvcSecurity.walkBound ajtai circuitKeys exports assumption closed adversary admitted depth :=
+  @Export.BoundedDepth.IvcSecurity.probability_bound logicalWidth publicFits relation ajtai
+    circuitKeys step cubeFits exports Admitted StageAdmitted Efficient error assumption closed
+    adversary admitted keysShaped control cap depth depthBound
+
+/-- HyperNova Lemma 18 for the bounded-depth scheme, on the extractor's output: the probability that the terminal
+accepts the adversary's output and the witnesses that the reverse extractor returns do not lead
+from `z0` to `zi` is at most `IvcSecurity.walkBound`. The law is the one of the last stage: the
+adversary's tape and the coins of each stage's extractor. -/
+theorem extraction_bound
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+        Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
+    {step : AppState → AppWitness → AppState}
+    {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+    (exports : TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
+    {Admitted : ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits) → Prop}
+    {StageAdmitted : ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+          (IvcWalk.Answer logicalWidth publicFits) →
+        Prop}
+    {Efficient : (adversary : ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits)) →
+        ReverseStages.NifsExtractor (IvcWalk.Answer logicalWidth publicFits) adversary → Prop}
+    {error : ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits) → ℝ}
+    (assumption : ReverseStages.Assumption1 (IvcWalk.WalkSucceeds ajtai) (IvcWalk.WalkExtracted ajtai)
+        Admitted Efficient error)
+    (closed : ReverseStages.Closed (IvcWalk.attemptOf ajtai circuitKeys exports)
+        (IvcWalk.back ajtai circuitKeys exports) Admitted StageAdmitted Efficient)
+    (adversary : ReverseStages.IvcAdversary (IvcSecurity.Output logicalWidth publicFits))
+    (admitted : StageAdmitted (ReverseStages.Stage.start (IvcSecurity.walkAdversary adversary)))
+    (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
+    (control : AppState → AppWitness → Fin 2)
+    (cap : ℕ)
+    (depth : ℕ)
+    (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
+    ENNReal.toReal
+          (((↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai) (Extracted :=
+                        IvcWalk.WalkExtracted ajtai) (Admitted := Admitted) (StageAdmitted :=
+                        StageAdmitted) (Efficient := Efficient) assumption closed
+                        (IvcSecurity.walkAdversary adversary) admitted depth) :
+                    ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+                      (IvcWalk.Answer logicalWidth publicFits)).tape.toOuterMeasure :
+              Set
+                  (↑(ReverseStages.reverseStages assumption closed
+                          (IvcSecurity.walkAdversary adversary) admitted depth) :
+                      ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+                        (IvcWalk.Answer logicalWidth publicFits)).Tape →
+                ENNReal)
+            {tape :
+              (↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
+                      (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
+                      (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption closed
+                      (IvcSecurity.walkAdversary adversary) admitted depth) :
+                  ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+                    (IvcWalk.Answer logicalWidth publicFits)).Tape |
+              IvcSecurity.ExtractionFailure ajtai circuitKeys exports control cap
+                ((↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
+                          (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
+                          (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
+                          closed (IvcSecurity.walkAdversary adversary) admitted depth) :
+                      ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+                        (IvcWalk.Answer logicalWidth publicFits)).input
+                  tape)
+                ((↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
+                          (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
+                          (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
+                          closed (IvcSecurity.walkAdversary adversary) admitted depth) :
+                      ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+                        (IvcWalk.Answer logicalWidth publicFits)).results
+                  tape)}) ≤
+        IvcSecurity.walkBound ajtai circuitKeys exports assumption closed adversary admitted depth :=
+  @Export.BoundedDepth.IvcSecurity.extraction_bound logicalWidth publicFits relation ajtai
+    circuitKeys step cubeFits exports Admitted StageAdmitted Efficient error assumption closed
+    adversary admitted keysShaped control cap depth depthBound
+
+/-- The probability that the verifier of SPEC.md Algorithm 6 accepts the adversary's output and no
+`iteration` valid steps lead from `z0` to `zi` is at most `IvcSecurity.walkBound`, the bound of
+`false_acceptance_bound`. -/
+theorem verifier_sound
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+        Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
+    {step : AppState → AppWitness → AppState}
+    {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+    (exports : TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
+    {Admitted : ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits) → Prop}
+    {StageAdmitted : ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+          (IvcWalk.Answer logicalWidth publicFits) →
+        Prop}
+    {Efficient : (adversary : ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits)) →
+        ReverseStages.NifsExtractor (IvcWalk.Answer logicalWidth publicFits) adversary → Prop}
+    {error : ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits) → ℝ}
+    (assumption : ReverseStages.Assumption1 (IvcWalk.WalkSucceeds ajtai) (IvcWalk.WalkExtracted ajtai)
+        Admitted Efficient error)
+    (closed : ReverseStages.Closed (IvcWalk.attemptOf ajtai circuitKeys exports)
+        (IvcWalk.back ajtai circuitKeys exports) Admitted StageAdmitted Efficient)
+    (adversary : ReverseStages.IvcAdversary (IvcSecurity.Output logicalWidth publicFits))
+    (admitted : StageAdmitted (ReverseStages.Stage.start (IvcSecurity.walkAdversary adversary)))
+    (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
+    (packageWidths : Fin 2 → ℕ)
+    (control : AppState → AppWitness → Fin 2)
+    (cap : ℕ)
+    (depth : ℕ)
+    (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
+    ENNReal.toReal
+          ((adversary.tape.toOuterMeasure : Set adversary.Tape → ENNReal)
+            {tape : adversary.Tape |
+              VerifierSecurity.FalseVerification ajtai circuitKeys exports packageWidths control
+                cap (adversary.output tape)}) ≤
+        IvcSecurity.walkBound ajtai circuitKeys exports assumption closed adversary admitted depth :=
+  @Export.BoundedDepth.VerifierSecurity.soundness logicalWidth publicFits relation ajtai
+    circuitKeys step cubeFits exports Admitted StageAdmitted Efficient error assumption closed
+    adversary admitted keysShaped packageWidths control cap depth depthBound
+
+/-- Completeness of bounded-depth IVC: for every valid run of the application from `z0` whose
+witnesses have the application's witness length, the verifier of SPEC.md Algorithm 6 accepts the
+honest prover's proof of the run's last state. The fresh witness of that proof is zero on every
+cell from the width of its circuit's package, as Rust's direct verifier requires
+(`RunCompleteness.FreshZeroTail`). -/
+theorem run_complete
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+        Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits}
+    {step : AppState → AppWitness → AppState}
+    {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+    (exports : TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
+    (complete : StepExtend.Complete exports)
+    (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
+    (cap : ℕ)
+    (control : AppState → AppWitness → Fin 2)
+    (z0 : AppState)
+    (z0Length : List.length z0 = Stage1.Application.stateWordCount)
+    (witnesses : List AppWitness)
+    (validRun : IvcWalk.ValidFrom exports.program z0 witnesses)
+    (witnessLengths : ∀ witness ∈ witnesses, List.length witness = exports.program.witnessWordCount)
+    (runBelow : witnesses.length < fieldModulus) :
+    ∃ (proof : Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits)),
+      RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth cap control
+          { iteration := witnesses.length, z0 := z0, zi := List.foldl step z0 witnesses } proof ∧
+        RunCompleteness.FreshZeroTail complete.packageWidth proof :=
+  @Export.BoundedDepth.RunCompleteness.run_complete logicalWidth publicFits relation ajtai
+    circuitKeys step cubeFits exports complete keysShaped cap control z0 z0Length witnesses validRun
+    witnessLengths runBelow
+
+/-- Completeness of the light mode of the compressed proof (SPEC.md Algorithm 9): for every valid
+run of `n` steps of the application from `z0` with `1 ≤ n ≤ cap + 1`, whose witnesses have the
+application's witness length, the verifier of SPEC.md Algorithm 6 accepts the honest prover's
+recursive proof of the run's last state. That proof has the light circuit last, slot 1 at the
+default slot of depth 0 and slot 0 at depth `n − 1`. Its fresh witness is zero on every cell from
+the width of its circuit's package (`RunCompleteness.FreshZeroTail`). -/
+theorem light_run_complete
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+        Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits}
+    {step : AppState → AppWitness → AppState}
+    {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+    (exports : TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
+    (complete : StepExtend.Complete exports)
+    (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
+    (cap : ℕ)
+    (control : AppState → AppWitness → Fin 2)
+    (z0 : AppState)
+    (z0Length : List.length z0 = Stage1.Application.stateWordCount)
+    (witnesses : List AppWitness)
+    (validRun : IvcWalk.ValidFrom exports.program z0 witnesses)
+    (witnessLengths : ∀ witness ∈ witnesses, List.length witness = exports.program.witnessWordCount)
+    (positive : 0 < witnesses.length)
+    (short : witnesses.length ≤ Folding.Schedule.productionLightFoldCap + 1) :
+    ∃ (payload :
+        Paper.TerminalProof (SlotData logicalWidth publicFits)
+          (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
+          (StepFresh logicalWidth publicFits)
+          (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2),
+      RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth cap control
+          { iteration := witnesses.length, z0 := z0, zi := List.foldl step z0 witnesses }
+          (Paper.OuterTerminalProof.recursive payload) ∧
+        payload.pc = 1 ∧ payload.running 1 = (defaultSlot, 0) ∧
+        (payload.running 0).2 = witnesses.length - 1 ∧
+        RunCompleteness.FreshZeroTail complete.packageWidth
+          (Paper.OuterTerminalProof.recursive payload) :=
+  @Export.BoundedDepth.RunCompleteness.light_run_complete logicalWidth publicFits relation ajtai
+    circuitKeys step cubeFits exports complete keysShaped cap control z0 z0Length witnesses validRun
+    witnessLengths positive short
+
+/-- HyperNova Definition 11 (i) for the bounded-depth scheme: one valid step extends each proof
+that the verifier accepts to a recursive proof that the verifier accepts at the next iteration.
+The fresh witness of the new proof is zero on every cell from the width of its circuit's package,
+as Rust's direct verifier requires (`RunCompleteness.FreshZeroTail`). -/
+theorem step_extends
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+        Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)}
+    {circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits}
+    {step : AppState → AppWitness → AppState}
+    {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+    (exports : TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
+    (complete : StepExtend.Complete exports)
+    (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
+    (cap : ℕ)
+    (control : AppState → AppWitness → Fin 2)
+    (statement : Paper.TerminalStatement AppState)
+    (proof : Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (verifies : RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth cap control statement
+        proof)
+    (witness : AppWitness)
+    (valid : exports.program.valid statement.zi witness)
+    (iterationNext : statement.iteration + 1 < fieldModulus)
+    (witnessLength : List.length witness = exports.program.witnessWordCount) :
+    ∃ (next :
+        Paper.TerminalProof (SlotData logicalWidth publicFits)
+          (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
+          (StepFresh logicalWidth publicFits)
+          (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2),
+        RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth cap control
+            { iteration := statement.iteration + 1, z0 := statement.z0,
+              zi := step statement.zi witness }
+            (Paper.OuterTerminalProof.recursive next) ∧
+          RunCompleteness.FreshZeroTail complete.packageWidth
+            (Paper.OuterTerminalProof.recursive next) :=
+  @Export.BoundedDepth.RunCompleteness.verifies_step logicalWidth publicFits relation ajtai
+    circuitKeys step cubeFits exports complete keysShaped cap control statement proof verifies
+    witness valid iterationNext witnessLength
+
+/-- HyperNova Lemma 18 for one slot of the bounded-depth scheme: the chance that the slot's history is accepted
+but the reverse extractor does not return it is at most the stages' Assumption 1 errors. -/
+theorem slot_history_failure
+    {Prior : Type}
+    {Key : Type}
+    {Claim : Type}
+    {Fresh : Type}
+    {Proof : Type}
+    {ClaimWitness : Type}
+    {FreshWitness : Type}
+    {p : GlobalParams}
+    {cap : ℕ}
+    {folds : BoundedDepth.Folds Key Claim Fresh Proof}
+    {PriorLink : Prior → BoundedDepth.Running Claim → BoundedDepth.Fold Key Claim Fresh Proof → Prop}
+    {Holds : Key → ℕ → Claim → ClaimWitness → Prop}
+    {FreshHolds : Key → Fresh → FreshWitness → Prop}
+    {Admitted : BoundedDepthSecurity.NifsAdversary Prior Key Claim Fresh Proof ClaimWitness → Prop}
+    {StageAdmitted : BoundedDepthSecurity.Stage Prior Key Claim Fresh Proof ClaimWitness FreshWitness → Prop}
+    {Efficient : (adversary : BoundedDepthSecurity.NifsAdversary Prior Key Claim Fresh Proof ClaimWitness) →
+        BoundedDepthSecurity.NifsExtractor FreshWitness adversary → Prop}
+    {error : BoundedDepthSecurity.NifsAdversary Prior Key Claim Fresh Proof ClaimWitness → ℝ}
+    (assumption : BoundedDepthSecurity.Assumption1 p cap folds PriorLink Holds FreshHolds Admitted Efficient
+        error)
+    (closed : BoundedDepthSecurity.Closed p Admitted StageAdmitted Efficient)
+    (adversary : BoundedDepthSecurity.IvcAdversary Prior Key Claim Fresh Proof ClaimWitness)
+    (admitted : StageAdmitted (BoundedDepthSecurity.Stage.start adversary))
+    (depth : ℕ)
+    (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).back.length ≤ depth) :
+    ENNReal.toReal
+          (((↑(BoundedDepthSecurity.reverseStages (PriorLink := PriorLink) (Holds := Holds)
+                        (FreshHolds := FreshHolds) (Admitted := Admitted) (StageAdmitted :=
+                        StageAdmitted) (Efficient := Efficient) assumption closed adversary
+                        admitted depth) :
+                    BoundedDepthSecurity.Stage Prior Key Claim Fresh Proof ClaimWitness
+                      FreshWitness).tape.toOuterMeasure :
+              Set
+                  (↑(BoundedDepthSecurity.reverseStages assumption closed adversary admitted
+                          depth) :
+                      BoundedDepthSecurity.Stage Prior Key Claim Fresh Proof ClaimWitness
+                        FreshWitness).Tape →
+                ENNReal)
+            {tape :
+              (↑(BoundedDepthSecurity.reverseStages (PriorLink := PriorLink) (Holds := Holds)
+                      (FreshHolds := FreshHolds) (Admitted := Admitted) (StageAdmitted :=
+                      StageAdmitted) (Efficient := Efficient) assumption closed adversary admitted
+                      depth) :
+                  BoundedDepthSecurity.Stage Prior Key Claim Fresh Proof ClaimWitness
+                    FreshWitness).Tape |
+              BoundedDepthSecurity.Accepted p cap folds PriorLink Holds
+                  ((↑(BoundedDepthSecurity.reverseStages (PriorLink := PriorLink) (Holds := Holds)
+                            (FreshHolds := FreshHolds) (Admitted := Admitted) (StageAdmitted :=
+                            StageAdmitted) (Efficient := Efficient) assumption closed adversary
+                            admitted depth) :
+                        BoundedDepthSecurity.Stage Prior Key Claim Fresh Proof ClaimWitness
+                          FreshWitness).input
+                    tape) ∧
+                ¬BoundedDepthSecurity.HistoryReturned p Holds FreshHolds
+                    ((↑(BoundedDepthSecurity.reverseStages (PriorLink := PriorLink) (Holds :=
+                              Holds) (FreshHolds := FreshHolds) (Admitted := Admitted)
+                              (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
+                              closed adversary admitted depth) :
+                          BoundedDepthSecurity.Stage Prior Key Claim Fresh Proof ClaimWitness
+                            FreshWitness).input
+                      tape)
+                    ((↑(BoundedDepthSecurity.reverseStages (PriorLink := PriorLink) (Holds :=
+                              Holds) (FreshHolds := FreshHolds) (Admitted := Admitted)
+                              (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
+                              closed adversary admitted depth) :
+                          BoundedDepthSecurity.Stage Prior Key Claim Fresh Proof ClaimWitness
+                            FreshWitness).results
+                      tape)}) ≤
+        ∑ j : Fin depth,
+          error
+            (BoundedDepthSecurity.Stage.nifs p
+              (↑(BoundedDepthSecurity.reverseStages (PriorLink := PriorLink) (Holds := Holds)
+                    (FreshHolds := FreshHolds) (Admitted := Admitted) (StageAdmitted :=
+                    StageAdmitted) (Efficient := Efficient) assumption closed adversary admitted
+                    (↑j : ℕ)) :
+                BoundedDepthSecurity.Stage Prior Key Claim Fresh Proof ClaimWitness FreshWitness)) :=
+  @Spec.HyperNova.Construction2.BoundedDepthSecurity.history_failure_le Prior Key Claim Fresh
+    Proof ClaimWitness FreshWitness p cap folds PriorLink Holds FreshHolds Admitted StageAdmitted
+    Efficient error assumption closed adversary admitted depth depthBound
+
+end NightstreamFPrime.Claims.Ivc

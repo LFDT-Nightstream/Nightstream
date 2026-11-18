@@ -26,6 +26,8 @@ value.
 
 - `formal/nightstream-fprime` models SuperNeo v1.2, defines and proves the F′
   circuit, and emits the F′ artifacts. Read its `AGENTS.md` before work there.
+- Nightstream claims exactly the theorems of `NightstreamFPrime/Claims/`. A
+  new result is a claim only when it has a theorem there.
 
 ## Specs
 

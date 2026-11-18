@@ -1,6 +1,6 @@
 import Mathlib.Probability.ProbabilityMassFunction.Constructions
 
-/-! The reverse extractor of HyperNova Lemma 17 (Appendix H.3) as a walk. The IVC adversary
+/-! The reverse extractor of HyperNova Lemma 18 (Appendix H.3) as a walk. The IVC adversary
 outputs a visit, for example a terminal statement and proof. Stage `0` is the IVC adversary;
 stage `j + 1` runs stage `j` and then the extractor that Assumption 1 gives for stage `j`'s NIFS
 adversary. That adversary outputs the fold attempt of stage `j`'s visit (`attemptOf`), and the
@@ -136,7 +136,7 @@ theorem next_marginal (stage : Stage Visit Answer)
 
 end Stage
 
-/-- HyperNova Lemma 17 composition premise. -/
+/-- HyperNova Lemma 18 composition premise. -/
 structure Closed (Admitted : NifsAdversary Attempt → Prop)
     (StageAdmitted : Stage Visit Answer → Prop)
     (Efficient : (adversary : NifsAdversary Attempt) → NifsExtractor Answer adversary → Prop) :
@@ -157,7 +157,7 @@ variable {attemptOf : Visit → Option Attempt} {back : Visit → Answer → Vis
   (closed : Closed attemptOf back Admitted StageAdmitted Efficient)
   (adversary : IvcAdversary Visit) (admitted : StageAdmitted (Stage.start adversary))
 
-/-- HyperNova Lemma 17's reverse extractor. -/
+/-- HyperNova Lemma 18's reverse extractor. -/
 noncomputable def reverseStages : Nat → {stage : Stage Visit Answer // StageAdmitted stage}
   | 0 => ⟨Stage.start adversary, admitted⟩
   | steps + 1 =>
@@ -322,7 +322,7 @@ theorem visit_term (Collision : Visit → Prop) (j extra : Nat) :
   stage_event assumption closed adversary admitted j extra
     {pair | Collision (visitAfter back pair.1 pair.2)}
 
-/-- HyperNova Lemma 17: an event that every supported run covers with a collision at a visit or
+/-- HyperNova Lemma 18: an event that every supported run covers with a collision at a visit or
 a failed stage has probability at most the collision probabilities plus the stages' Assumption 1
 errors. -/
 theorem bad_le (depth : Nat) (Bad : Visit → List Answer → Prop) (Collision : Visit → Prop)

@@ -226,4 +226,23 @@ theorem builder_implies_output_slot
 
 end Relation
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem placed (interface : Interface) (offset : Nat) :
+    Placed offset (localLength (Circuit.ops (circuit interface).main offset))
+      (Circuit.ops (circuit interface).main offset) :=
+  Formal.placed (hashInterface interface) offset
+
+/-- The hash's rows are its permutations' rows and its digest rows, which read the digest words.
+The preimage words are affine and live before the hash. -/
+theorem liveRows (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (preimageAffine : ∀ word ∈ interface.preimage offset, word.Affine)
+    (preimageReads : ∀ word ∈ interface.preimage offset,
+      word.VarsSatisfy fun column => column < offset ∧ live column)
+    (digestReads : ∀ lane, (interface.digest offset lane).VarsSatisfy live)
+    (own : OwnLive live offset (localLength (Circuit.ops (circuit interface).main offset))
+      (Circuit.ops (circuit interface).main offset)) :
+    LiveRows live (Circuit.ops (circuit interface).main offset) :=
+  Formal.liveRows (hashInterface interface) offset preimageAffine preimageReads digestReads own
+
 end NightstreamFPrime.Lifecycle.OutputHash

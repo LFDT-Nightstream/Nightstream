@@ -289,11 +289,11 @@ structure Exports where
   refreshFresh : Nat
   lightWidth : Nat
   refreshWidth : Nat
-  lightFits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
+  lightFitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
     (LightAssemblerCircuit.stepCircuit program base relation 0 ajtai)
     (LightAssembler.sharedEnd base program.witnessWordCount)
     (lightDigestColumn program)) lightFresh lightWidth
-  refreshFits : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
+  refreshFitsPackage : CircuitRelation.Fits CircuitRelation.publicColumns (CircuitRelation.pieces
     (RefreshAssemblerCircuit.stepCircuit program base relation 1 ajtai)
     (RefreshAssembler.sharedEnd base program.witnessWordCount)
     (refreshDigestColumn program)) refreshFresh refreshWidth
@@ -302,10 +302,10 @@ structure Exports where
   lightInside : ringDegree * PaperAlgebra.publicRingColumns ≤ lightWidth
   refreshInside : ringDegree * PaperAlgebra.publicRingColumns ≤ refreshWidth
   lightKey : (circuitKeys 0).relation =
-    (CircuitRelation.plan _ _ lightFresh lightWidth lightFits lightLayout).logicalRelation
+    (CircuitRelation.plan _ _ lightFresh lightWidth lightFitsPackage lightLayout).logicalRelation
       (publicFits := publicFits) cubeFits
   refreshKey : (circuitKeys 1).relation =
-    (CircuitRelation.plan _ _ refreshFresh refreshWidth refreshFits refreshLayout).logicalRelation
+    (CircuitRelation.plan _ _ refreshFresh refreshWidth refreshFitsPackage refreshLayout).logicalRelation
       (publicFits := publicFits) cubeFits
 
 variable {relation ajtai circuitKeys step cubeFits}
@@ -449,7 +449,7 @@ theorem bridge_linked (exports : Exports relation ajtai circuitKeys step cubeFit
     rw [circuitEq, exports.lightKey] at freshHolds
     obtain ⟨hashEq, nextOther⟩ := light_freshWords exports.program relation ajtai step
       (chosen exports.program 0) exports.programStep (fun _ _ valid => ite_eq_left valid)
-      exports.lightFresh exports.lightWidth exports.lightFits exports.lightLayout cubeFits
+      exports.lightFresh exports.lightWidth exports.lightFitsPackage exports.lightLayout cubeFits
       exports.lightInside payload.fresh payload.freshWitness _ freshHash freshHolds
     simp only [Collision, Exports.last, Exports.lightNextWords, circuitEq, Exports.decode,
       ↓reduceIte]
@@ -466,7 +466,7 @@ theorem bridge_linked (exports : Exports relation ajtai circuitKeys step cubeFit
       obtain ⟨holds, words⟩ := light_freshHolds exports.program relation ajtai circuitKeys
         step (chosen exports.program 0) exports.programStep (fun _ _ valid => ite_eq_left valid)
         exports.lightFresh exports.lightWidth
-        exports.lightFits exports.lightLayout cubeFits exports.lightInside payload.fresh
+        exports.lightFitsPackage exports.lightLayout cubeFits exports.lightInside payload.fresh
         payload.freshWitness _ freshHash freshHolds payload.running others
       exact (bind_step _ ajtai circuitKeys keysShaped step (chosen exports.program 0) 0 _ _ _ _
         holds (Fin.isLt _)
@@ -482,7 +482,7 @@ theorem bridge_linked (exports : Exports relation ajtai circuitKeys step cubeFit
     obtain ⟨holds, words⟩ := refresh_freshHolds exports.program relation ajtai circuitKeys
       step (chosen exports.program 1) exports.programStep (fun _ _ valid => ite_eq_left valid)
       exports.refreshFresh
-      exports.refreshWidth exports.refreshFits exports.refreshLayout cubeFits
+      exports.refreshWidth exports.refreshFitsPackage exports.refreshLayout cubeFits
       exports.refreshInside payload.fresh payload.freshWitness _ freshHash freshHolds
     simp only [Collision, Exports.last, circuitEq, Exports.decode, Fin.one_eq_zero_iff,
       OfNat.ofNat_ne_one, ↓reduceIte]

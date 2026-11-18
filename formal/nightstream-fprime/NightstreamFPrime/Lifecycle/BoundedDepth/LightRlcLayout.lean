@@ -1,6 +1,7 @@
 import NightstreamFPrime.Lifecycle.BoundedDepth.LightFold
 import NightstreamFPrime.Lifecycle.BoundedDepth.LightPiCCSLayout
 import NightstreamFPrime.Lifecycle.BoundedDepth.LightCommitment
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRowsChildren
 
 /-! The light Π_RLC layout (CW-2.5d, d3). One sampler draws `ρ` from the transcript state after
 the light Π_CCS output binding, and the commitment, public-input and evaluation combinations
@@ -200,6 +201,118 @@ theorem wired (slot : SlotClaim logicalWidth publicFits)
   evaluationChallenge := rfl
   evaluationRunning := family_eq piccs interface offset slot fresh output env represents _
   evaluationFresh := family_eq piccs interface offset slot fresh output env represents _
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+/-- The words that the light Π_RLC reads: the transcript state after the Π_CCS output binding,
+the slot claim's commitment and public input, the fresh instance's commitment and public input,
+and the Π_CCS output's evaluations. -/
+structure InputsLive (live : Nat → Prop) : Prop where
+  samplerState : Duplex.Formal.StateFacts live offset
+    (OutputBinding.finalState piccs.output piccs.outputOffset)
+  runningCommitment : ∀ block lane,
+    (interface.runningCommitment offset block lane).VarsSatisfy live
+  runningPublicInput : ∀ column, (interface.runningPublicInput offset column).VarsSatisfy live
+  freshCommitment : ∀ block lane,
+    ((interface.fresh offset).commitment Formal.freshIndex block lane).VarsSatisfy live
+  freshPublicInput : ∀ column,
+    ((interface.fresh offset).publicInput Formal.freshIndex column).VarsSatisfy live
+  outputPad : ∀ source coefficient,
+    ((piccs.output.output piccs.outputOffset).padCoordinate source coefficient).c0.VarsSatisfy
+        live ∧
+      ((piccs.output.output piccs.outputOffset).padCoordinate source coefficient).c1.VarsSatisfy
+        live
+  outputMatrix : ∀ source matrix coefficient,
+    ((piccs.output.output piccs.outputOffset).matrixCoordinate source matrix
+        coefficient).c0.VarsSatisfy live ∧
+      ((piccs.output.output piccs.outputOffset).matrixCoordinate source matrix
+        coefficient).c1.VarsSatisfy live
+
+/-- The folded words that the new slot reads: the commitment, the public input and the
+evaluation family. -/
+structure OutputsLive (live : Nat → Prop) : Prop where
+  commitment : ∀ row lane,
+    (LightCommitment.output (commitmentOffset piccs offset) row lane).VarsSatisfy live
+  publicInput : ∀ column,
+    (LightPublicInput.output (publicFits := publicFits) (publicInputOffset piccs interface offset)
+      column).VarsSatisfy live
+  evaluation : ∀ block lane,
+    (LightEvaluation.output (evaluationOffset piccs interface offset) block lane).c0.VarsSatisfy
+        live ∧
+      (LightEvaluation.output (evaluationOffset piccs interface offset) block lane).c1.VarsSatisfy
+        live
+
+theorem familyExpr_live {live : Nat → Prop} (output : OutputBinding.ShapeOutputExpr LightShape)
+    (pad : ∀ source coefficient, (output.padCoordinate source coefficient).c0.VarsSatisfy live ∧
+      (output.padCoordinate source coefficient).c1.VarsSatisfy live)
+    (matrix : ∀ source matrix coefficient,
+      (output.matrixCoordinate source matrix coefficient).c0.VarsSatisfy live ∧
+        (output.matrixCoordinate source matrix coefficient).c1.VarsSatisfy live)
+    (source : Fin LightShape.sourceCount) (block : Fin LightEvaluation.blockCount)
+    (lane : Fin ringDegree) :
+    (familyExpr output source block lane).c0.VarsSatisfy live ∧
+      (familyExpr output source block lane).c1.VarsSatisfy live := by
+  unfold familyExpr
+  split
+  · exact pad _ _
+  · exact matrix _ _ _
+
+theorem placed :
+    Placed offset (localLength (Circuit.ops (main piccs interface) offset))
+      (Circuit.ops (main piccs interface) offset) :=
+  Placed.child_cons rfl (Sampler.placed _ _ _) <|
+  Placed.child_cons rfl (.of_marks_nil (CombinationStep.marks_nil _ _)) <|
+  Placed.child_cons rfl (.of_marks_nil (CombinationStep.marks_nil _ _)) <|
+  Placed.child_cons rfl (.of_marks_nil (CombinationStep.marks_nil _ _)) <|
+  Placed.nil _
+
+/-- The light Π_RLC's rows: the sampler's permutations and rows that read `ρ`, the external
+words and the layout's own locals. The folded words are live. -/
+theorem liveRows {live : Nat → Prop} (inputs : InputsLive piccs interface offset live)
+    (own : OwnLive live offset (localLength (Circuit.ops (main piccs interface) offset))
+      (Circuit.ops (main piccs interface) offset)) :
+    LiveRows live (Circuit.ops (main piccs interface) offset) ∧
+      OutputsLive piccs interface offset live := by
+  have evaluationTail := Placed.child_cons (name := "light.pirlc.evaluation") rfl
+    (.of_marks_nil (CombinationStep.marks_nil
+      (LightEvaluation.stepInterface (evaluationInterface piccs offset))
+      (evaluationOffset piccs interface offset))) (Placed.nil _)
+  have publicInputTail := Placed.child_cons (name := "light.pirlc.public_input") rfl
+    (.of_marks_nil (CombinationStep.marks_nil
+      (LightPublicInput.stepInterface (publicInputInterface interface offset))
+      (publicInputOffset piccs interface offset))) evaluationTail
+  have commitmentTail := Placed.child_cons (name := "light.pirlc.commitment") rfl
+    (.of_marks_nil (CombinationStep.marks_nil
+      (LightCommitment.stepInterface (commitmentInterface interface offset))
+      (commitmentOffset piccs offset))) publicInputTail
+  obtain ⟨samplerOwn, afterSampler⟩ := own.child_cons rfl (Sampler.placed _ _ _) commitmentTail
+  obtain ⟨commitmentOwn, afterCommitment⟩ := afterSampler.child_cons rfl
+    (.of_marks_nil (CombinationStep.marks_nil _ _)) publicInputTail
+  obtain ⟨publicInputOwn, afterPublicInput⟩ := afterCommitment.child_cons rfl
+    (.of_marks_nil (CombinationStep.marks_nil _ _)) evaluationTail
+  obtain ⟨evaluationOwn, -⟩ := afterPublicInput.child_cons rfl
+    (.of_marks_nil (CombinationStep.marks_nil _ _)) (Placed.nil _)
+  obtain ⟨samplerLiveRows, challenges, -⟩ :=
+    Sampler.liveRows (samplerInterface piccs) 0 offset inputs.samplerState samplerOwn
+  have commitmentLocals := OwnLive.of_marks_nil (CombinationStep.marks_nil _ _) commitmentOwn
+  have publicInputLocals := OwnLive.of_marks_nil (CombinationStep.marks_nil _ _) publicInputOwn
+  have evaluationLocals := OwnLive.of_marks_nil (CombinationStep.marks_nil _ _) evaluationOwn
+  refine ⟨?_, ⟨LightCommitment.output_live _ _ commitmentLocals,
+    LightPublicInput.output_live _ _ publicInputLocals,
+    LightEvaluation.output_live _ _ evaluationLocals⟩⟩
+  refine LiveRows.child_cons samplerLiveRows <|
+    LiveRows.child_cons (.of_free (CombinationStep.marks_nil _ _)
+      (LightCommitment.free (commitmentInterface interface offset) (commitmentOffset piccs offset)
+        challenges inputs.runningCommitment inputs.freshCommitment commitmentLocals)) <|
+    LiveRows.child_cons (.of_free (CombinationStep.marks_nil _ _)
+      (LightPublicInput.free (publicInputInterface interface offset)
+        (publicInputOffset piccs interface offset) challenges inputs.runningPublicInput
+        inputs.freshPublicInput publicInputLocals)) <|
+    LiveRows.child_cons (.of_free (CombinationStep.marks_nil _ _)
+      (LightEvaluation.free (evaluationInterface piccs offset)
+        (evaluationOffset piccs interface offset) challenges
+        (familyExpr_live _ inputs.outputPad inputs.outputMatrix _)
+        (familyExpr_live _ inputs.outputPad inputs.outputMatrix _) evaluationLocals)) LiveRows.nil
 
 /-- The light fold from rows: the light Π_CCS layout and the light Π_RLC layout after it, with
 their external words, make the bounded-depth light fold accept the slot's claim (the fold term of the

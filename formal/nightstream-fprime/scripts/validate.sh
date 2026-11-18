@@ -6,6 +6,7 @@
 #   validate.sh stage1-axioms     focused Stage 1 and matrix axiom audits
 #   validate.sh file <path.lean>  lake env lean <path>, warnings fail
 #   validate.sh premises          rewrite the premise list of tests/PremiseCensus.lean
+#   validate.sh review            write the claims review files to docs/claims-review/ (not in git)
 #   validate.sh lean-executable <built-Lean-executable> [arguments...]
 #   validate.sh pi-rlc-sampler-parity <path>
 #   validate.sh compression-parity <path>
@@ -65,8 +66,9 @@ case "$phase" in
     capped lake build --wfail "$@"
     ;;
   axioms)
-    # Lake does not track the documents that the census reads.
-    capped lake build --wfail NightstreamFPrimeTests && lean_file tests/EndpointCensus.lean
+    # Lake does not track the documents that the censuses read, so both run again.
+    capped lake build --wfail NightstreamFPrimeTests && lean_file tests/EndpointCensus.lean &&
+      lean_file tests/PremiseCensus.lean
     ;;
   executables)
     capped lake build --wfail $(executables)
@@ -91,6 +93,15 @@ case "$phase" in
     capped lake build --wfail tests.PremiseAudit NightstreamFPrime
     capped lake env lean "-j${LEAN_NUM_THREADS}" -DautoImplicit=false -DrelaxedAutoImplicit=false \
       -DwarningAsError=true -DpremiseCensus.write=true tests/PremiseCensus.lean
+    ;;
+  review)
+    # The review files read the premise list, so it must be current and classified first.
+    capped lake build --wfail tests.ClaimsReviewAudit tests.PremiseAudit NightstreamFPrime
+    lean_file tests/PremiseCensus.lean
+    python3 -B scripts/check_premises.py
+    capped lake env lean "-j${LEAN_NUM_THREADS}" -DautoImplicit=false -DrelaxedAutoImplicit=false \
+      -DwarningAsError=true -DclaimsReview.write=true tests/ClaimsReview.lean
+    python3 -B scripts/claims_review.py
     ;;
   pi-rlc-sampler-parity)
     if (( $# != 2 )); then echo "usage: validate.sh pi-rlc-sampler-parity <path>" >&2; exit 2; fi
@@ -117,6 +128,7 @@ case "$phase" in
     capped lake build --wfail NightstreamFPrime NightstreamFPrimeTests
     capped lake build --wfail $(executables)
     lean_file tests/EndpointCensus.lean
+    lean_file tests/PremiseCensus.lean
     ;;
   *) echo "unknown phase: $phase" >&2; exit 2 ;;
 esac

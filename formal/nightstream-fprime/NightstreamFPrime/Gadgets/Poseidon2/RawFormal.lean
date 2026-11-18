@@ -1,3 +1,4 @@
+import NightstreamFPrime.Gadgets.Poseidon2.LiveRows
 import NightstreamFPrime.Gadgets.Poseidon2.Hash
 import NightstreamFPrime.Circuit.StraightLine
 
@@ -16,8 +17,8 @@ def digest (interface : Interface) (offset : Nat) (lane : Fin 4) : Expr :=
   Hash.digestE (program interface offset).output lane
 
 def operations (interface : Interface) (offset : Nat) : List Op :=
-  [.witness (WitnessBatch.arithmetic offset
-    (program interface offset).recipes)]
+  [.witness (WitnessBatch.arithmetic offset (program interface offset).recipes),
+    .mark (Hash.marks offset (interface.input offset))]
 
 def main (interface : Interface) : Circuit Unit := fun offset =>
   ((), offset + (program interface offset).recipes.length,
@@ -141,5 +142,35 @@ def circuit (interface : Interface) : FormalCircuit where
   rowCount_eq := flatConstraints_length_eq interface
   soundness := soundness interface
   completeness := completeness interface
+
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem placed (interface : Interface) (offset : Nat) :
+    Placed offset (localLength (operations interface offset)) (operations interface offset) := by
+  rw [show localLength (operations interface offset) =
+      (Hash.compile offset (interface.input offset)).recipes.length from
+    localLength_batch _ _ _]
+  exact hash_placed offset _
+
+theorem liveRows (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (inputAffine : ∀ word ∈ interface.input offset, word.Affine)
+    (inputReads : ∀ word ∈ interface.input offset,
+      word.VarsSatisfy fun column => column < offset ∧ live column)
+    (own : OwnLive live offset (localLength (operations interface offset))
+      (operations interface offset)) :
+    LiveRows live (operations interface offset) := by
+  rw [show localLength (operations interface offset) =
+      (Hash.compile offset (interface.input offset)).recipes.length from
+    localLength_batch _ _ _] at own
+  exact hash_liveRows inputAffine inputReads own
+
+theorem digest_live (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (own : OwnLive live offset (localLength (operations interface offset))
+      (operations interface offset)) (lane : Fin 4) :
+    (digest interface offset lane).VarsSatisfy live := by
+  rw [show localLength (operations interface offset) =
+      (Hash.compile offset (interface.input offset)).recipes.length from
+    localLength_batch _ _ _] at own
+  exact hash_digest_live own lane
 
 end NightstreamFPrime.Gadgets.Poseidon2.RawFormal

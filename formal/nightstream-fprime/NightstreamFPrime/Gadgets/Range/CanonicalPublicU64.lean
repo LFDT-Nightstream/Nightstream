@@ -295,4 +295,24 @@ def circuit (interface : Interface) : FormalCircuit where
   soundness := soundness interface
   completeness := completeness interface
 
+/-! ### The exporter's blocks (SPEC.md section 4.4) -/
+
+theorem marks_nil (interface : Interface) (offset : Nat) :
+    marks (Circuit.ops (circuit interface).main offset) = [] := by
+  show marks (childOp interface offset :: bindingOps interface offset) = []
+  rw [marks_cons, childOp, Sequence.childOp, Op.marks, FormalCircuit.asSubcircuit_marks,
+    childCircuit, CanonicalU64.marks_nil]
+  simp [bindingOps, marks, Op.marks]
+
+/-- The rows read the source, the bit words and the gadget's own locals. -/
+theorem free (interface : Interface) (offset : Nat) {live : Nat → Prop}
+    (source : (interface.source offset).VarsSatisfy live)
+    (bits : ∀ index, index < bitCount → (interface.bit offset index).VarsSatisfy live)
+    (locals : ∀ column, offset ≤ column →
+      column < offset + localLength (Circuit.ops (circuit interface).main offset) → live column) :
+    ∀ row ∈ flatConstraints (Circuit.ops (circuit interface).main offset), row.VarsSatisfy live :=
+  flatConstraints_varsSatisfy interface offset live source bits fun index below =>
+    locals (offset + index) (Nat.le_add_right _ _)
+      (Nat.add_lt_add_left (by rwa [← localLength_eq interface offset] at below) _)
+
 end NightstreamFPrime.Gadgets.Range.CanonicalPublicU64

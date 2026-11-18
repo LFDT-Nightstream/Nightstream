@@ -39,8 +39,12 @@ argument is not proved. ROMs are dense: keys the encoder does not list read 0, s
 proofs never rely on a key being absent. An instruction with k control choices (`if`,
 `br_if`, `br_table`) takes k addresses: the pc ROM and the slide ROMs have one address column,
 and hold the edge of choice c at the instruction's address plus c (`opEdge` slots in
-`CodeLayout.v`). A call's return address is not in a ROM: the circuit pins it to the next address. The program ROM encoder covers this guest-only fragment;
-its correspondence with Rust preprocessing is not yet proved. The `tests/*Witness.v`
+`CodeLayout.v`). A call's return address is not in a ROM: the circuit pins it to the next address. The program ROM encoder covers this guest-only fragment.
+`tests/ProgramRom.v` checks it against Rust preprocessing: for each module of the corpus of
+`crates/neo-wasm/tests/wasm_rocq_program_rom_export.rs`, which `wasmparser` reads without the
+neo-wasm parser, the Rust preload satisfies `programLoaded` (`corpus_loaded`). Modules outside
+the fragment, for example with typed references, block parameters or more than one result, have
+no cross-check, and the prover accepts them. The `tests/*Witness.v`
 files check exported Rust traces against the refinement proofs. The traces
 (`tests/*Trace.v`) are not in git; `make` generates them with
 `cargo test -p neo-wasm --release --test wasm_rocq_witness_export -- --ignored`.

@@ -57,8 +57,8 @@ This record is a proposal. It does not change the premise table.
      parts of `validCircuitRun`, and the rows of the catalog binding give
      `Export.WasmBinding.StepBinds` over the field.
    - The program images of a preload give the Rocq `programLoaded` of the
-     program. The Rocq README lists this correspondence of the program ROM
-     encoder to the Rust preprocessing as not proved.
+     program. No proof covers each program. Rocq `tests/ProgramRom.v` checks
+     it on a corpus of modules inside the fragment.
 3. **Why not `link`.** A `link` row needs data that Lean emits and a Rust
    test that compares it. Here the binding data goes from Rust to Lean, and
    `Export.WasmBinding.check_sound` checks it. No Lean or Rocq result

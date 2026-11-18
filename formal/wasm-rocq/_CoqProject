@@ -108,6 +108,8 @@ tests/LeanParityTrace.v
 tests/LeanParity.v
 tests/BindingCatalogTrace.v
 tests/BindingCatalog.v
+tests/ProgramRomTrace.v
+tests/ProgramRom.v
 tests/BlockCallTrace.v
 tests/BlockCallRun.v
 tests/BlockCallWitness.v

@@ -1,5 +1,6 @@
 import importlib.util
 from pathlib import Path
+import re
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
@@ -43,6 +44,23 @@ class CheckSpecTests(unittest.TestCase):
         result = check(SPEC.read_text(encoding="utf-8") + "\n`Spec.production_parameter_values` (`12ab`)\n")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("not 16 hex digits", result.stdout)
+
+    def test_unpinned_claim_fails(self):
+        text = re.sub(r"(`Claims\.Foundations\.chain_norm`) \(`[0-9a-f]{16}`\)", r"\1", SPEC.read_text(encoding="utf-8"))
+        result = check(text)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("claim `Claims.Foundations.chain_norm` has no pin", result.stdout)
+
+    def test_unlisted_paper_number_fails(self):
+        result = check(SPEC.read_text(encoding="utf-8") + "\nHyperNova Lemma 99 has no row.\n")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("cites HyperNova Lemma 99, which is not a row of the papers table", result.stdout)
+
+    def test_citation_takes_the_last_paper_of_its_sentence(self):
+        text = "SuperNeo v1.2 Theorems 12 and 13, Lemmas 1, 4 and 10, and Cyclo, ePrint 2026/359, Theorem 3. Theorem 5 names no paper."
+        self.assertEqual(list(CHECK_SPEC.citations(text)), [
+            ("SuperNeo", "Theorem 12"), ("SuperNeo", "Theorem 13"), ("SuperNeo", "Lemma 1"), ("SuperNeo", "Lemma 4"),
+            ("SuperNeo", "Lemma 10"), ("ePrint 2026/359", "Theorem 3")])
 
     def test_specs_folder_fails(self):
         errors = list(CHECK_SPEC.layout_errors(["specs/nebula-superneo.md", "specs/vectors.json"]))

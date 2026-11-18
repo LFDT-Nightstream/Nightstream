@@ -136,7 +136,7 @@ a refresh fold (`Export.BoundedDepth.FinalVerifier.Mode`).
     that of the larger relation, or of the light relation in the light
     mode.
 11. **One Akita proof.** One proof opens the key polynomial, `W` and `V`.
-    The schedule rows offload Akita's setup (ePrint 2026/1983 section 9),
+    The schedule rows offload Akita's setup (ePrint 2026/1983, Section 9),
     and the verification key holds Akita's commitments of the setup
     prefixes.
 12. **Transcript.** The Poseidon2 transcript of the Π_CCS run makes each

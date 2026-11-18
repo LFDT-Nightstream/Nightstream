@@ -23,7 +23,11 @@ name, or when a Lean or Rust file cites `spec §`, the citation form of the dele
 SPEC.md also holds the table of verifier entry points between `<!-- entry-points -->` and
 `<!-- /entry-points -->`. Each public `verify…` function of `crates/nightstream/src/` needs a row,
 and each row cites exactly one pinned theorem of the Lean-emitted premise list PREMISES, or it
-starts with `Open:`.
+starts with `Open:`. Each claim of PREMISES needs a pin in SPEC.md.
+
+Between `<!-- papers -->` and `<!-- /papers -->` SPEC.md lists each cited paper number. A citation
+in PAPER_DOCUMENTS names a paper of PAPER_NAMES or an ePrint number, then in the same sentence a
+kind of ITEM and its number. Each citation needs a row, and each row a citation.
 
   python3 scripts/check_spec.py            check pins, paths, the table and the spec files
   python3 scripts/check_spec.py --write    rewrite the table (pins are never edited)
@@ -54,6 +58,15 @@ PREMISES = ARTIFACTS / "nightstream-fprime-premises-v1.tsv"
 ENTRY_FUNCTION = re.compile(r"^\s*pub fn (verify\w*)\(", re.M)
 SPEC_FILES = {"SPEC.md", "scripts/gpuscope/SPEC.md"}
 OLD_CITATION = re.compile(r"[Ss]pec §")
+PAPERS_BEGIN, PAPERS_END = "<!-- papers -->", "<!-- /papers -->"
+PAPER_DOCUMENTS = [ROOT / "formal/nightstream-fprime/SECURITY_MODEL.md",
+                   *sorted((ROOT / "decisions").glob("*.md")), *sorted((FPRIME / "Claims").glob("*.lean"))]
+PAPER_NAMES = ("SuperNeo", "HyperNova", "Nebula", "Cyclo", "Akita")
+NUMBER = r"(?:[0-9]+|[A-Z])(?:\.[0-9]+)*"
+ITEM = (r"\b(Theorem|Lemma|Definition|Construction|Section|Assumption|Corollary|Proposition|Remark|Figure"
+        rf"|Appendix)s? ({NUMBER}(?:(?:,? and | to |, |/){NUMBER})*)\b")
+CITATION = re.compile(rf"\b({'|'.join(PAPER_NAMES)})\b|\bePrint (\d{{4}}/\d+)|{ITEM}")
+DOCSTRING = re.compile(r"/-[-!](.*?)-/", re.S)
 
 PIN = re.compile(r"`((?:Claims|Export|Layout|Lifecycle|Spec)\.[^`\s]*)` \(`([^`\s.]*)`\)")
 FINGERPRINT = re.compile(r"[0-9a-f]{16}")
@@ -305,6 +318,63 @@ def pin_errors(text):
             yield f"`{name}` at {section(text, match.start())} has `{fingerprint}`, not 16 hex digits"
 
 
+def claims():
+    return {line.split("\t")[0] for line in PREMISES.read_text(encoding="utf-8").splitlines()}
+
+
+def claim_pin_errors(text):
+    """Each claim has a pin, so the census sees each change of its statement."""
+    pinned = {name for name, _ in PIN.findall(text)}
+    for claim in sorted(claims() - pinned):
+        yield (f"claim `{claim}` has no pin: cite it as `{claim}` (`0000000000000000`) where SPEC.md "
+               "restates it, then run formal/nightstream-fprime/scripts/validate.sh repin")
+
+
+def citations(text):
+    """(paper, item) for each paper number of `text`. A sentence cites the last paper that it names
+    before the item."""
+    text = TICKED.sub("`…`", text)
+    for block in re.split(r"\n\s*\n|\n\s*(?=[-*] |\d+\. )|\|", text):
+        for sentence in re.split(r"(?<=[.;!?])\s+(?=[A-Z(*`])", " ".join(block.split())):
+            paper = None
+            for match in CITATION.finditer(sentence):
+                name, eprint, kind, numbers = match.groups()
+                if kind is None:
+                    paper = name or f"ePrint {eprint}"
+                elif paper:
+                    yield from ((paper, f"{kind} {number}") for number in re.findall(NUMBER, numbers))
+
+
+def paper_errors(text):
+    """Each cited paper number is a row of the papers table, and each row is cited."""
+    if text.count(PAPERS_BEGIN) != 1 or text.count(PAPERS_END) != 1:
+        yield f"SPEC.md needs one {PAPERS_BEGIN} … {PAPERS_END} table"
+        return
+    head, rest = text.split(PAPERS_BEGIN)
+    table, tail = rest.split(PAPERS_END)
+    rows = {}
+    for line in table.splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) == 5 and re.fullmatch(r"\d{4}/\d+", cells[1]):
+            rows[(cells[1], cells[3])] = cells[0]
+    eprints = {paper.split()[0]: eprint for (eprint, _), paper in rows.items()}
+    documents = [("SPEC.md", head + tail)]
+    for path in PAPER_DOCUMENTS:
+        document = path.read_text(encoding="utf-8")
+        if path.suffix == ".lean":
+            document = "\n\n".join(DOCSTRING.findall(document))
+        documents.append((rel(path), document))
+    cited = set()
+    for name, document in documents:
+        for paper, item in citations(document):
+            key = (eprints.get(paper, paper.removeprefix("ePrint ")), item)
+            if key not in rows and key not in cited:
+                yield f"{name} cites {paper} {item}, which is not a row of the papers table"
+            cited.add(key)
+    for eprint, item in sorted(rows.keys() - cited):
+        yield f"the papers table lists {rows[(eprint, item)]} {item}, which no document cites"
+
+
 def path_errors(text):
     for match in TICKED.finditer(text):
         token = match.group(1)
@@ -328,7 +398,7 @@ def entry_point_errors(text):
         found = re.match(r"`(crates/[^`]+)`, (?:`(\w+)`)?", cells[0])
         if len(cells) == 3 and found:
             rows[(found.group(1), found.group(2))] = cells[2]
-    listed = {line.split("\t")[0] for line in PREMISES.read_text(encoding="utf-8").splitlines()}
+    listed = claims()
     for (path, name), theorem in rows.items():
         pins = PIN.findall(theorem)
         if theorem.startswith("Open:"):
@@ -387,7 +457,8 @@ def main():
         args.spec.write_text(new, encoding="utf-8")
         print(f"spec: wrote the parameters table of {args.spec.name}")
         return
-    errors = [*pin_errors(text), *path_errors(text), *entry_point_errors(text)]
+    errors = [*pin_errors(text), *claim_pin_errors(text), *path_errors(text), *entry_point_errors(text),
+              *paper_errors(text)]
     if new != text:
         errors.append("the parameters table is stale; run python3 scripts/check_spec.py --write")
     for error in errors:
@@ -397,8 +468,9 @@ def main():
         print(f"repository: {error}")
     if errors or repository:
         sys.exit(f"spec: {len(errors) + len(repository)} errors")
-    print(f"spec: {args.spec.name} has well-formed pins, existing paths and a current parameters table, "
-          "and no other spec file or `spec §` citation exists")
+    print(f"spec: {args.spec.name} has well-formed pins, a pin for each of the {len(claims())} claims, "
+          "existing paths, a current parameters table and a row for each cited paper number, and no "
+          "other spec file or `spec §` citation exists")
 
 
 if __name__ == "__main__":

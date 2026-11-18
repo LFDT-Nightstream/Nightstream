@@ -28,7 +28,8 @@ are not checked.
   `executables` and `all` phases use `lake build --wfail`, and single files
   run with `warningAsError`, so any warning fails a gate. `all` runs the
   boundary checks, both libraries, every `lean_exe` target and the census.
-  CI runs no Lean (owner decision of 2026-09-26).
+  The CI job `lean` runs `validate.sh all` on the self-hosted runner (owner
+  decision of 2026-11-18). It is not a required check.
 - Every audited theorem uses the three axioms above. The audit fails closed:
   `sorryAx` or a new axiom stops the build.
 - One linter is off: `Circuit/Basic.lean` turns off `linter.dupNamespace`,
@@ -1229,10 +1230,10 @@ not change terminal source checks.
      polynomials with the claimed values, in the classical random-oracle
      model, and that the extractor gives the `W` that the prover fixed
      before `τ` and the `V` that it fixed after `τ`. The composition
-     theorem of the paper (revision of 2026-10-15, Theorem 10.45) has every
+     theorem of Akita (revision of 2026-10-15, Theorem 10.45) has every
      root commitment in the first message, before the first challenge of
      the application, so it does not cover the commitment of `V` after
-     `τ`. Its checkpoint structures (Definition 10.16) allow more than one
+     `τ`. Akita's checkpoint structures (Definition 10.16) allow more than one
      checkpoint, but no result of the paper states the composition with a
      second commitment, and Lean does not prove it. It includes binding
      for the key polynomial, so the opened value

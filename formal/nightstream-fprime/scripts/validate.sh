@@ -6,6 +6,7 @@
 #   validate.sh stage1-axioms     focused Stage 1 and matrix axiom audits
 #   validate.sh file <path.lean>  lake env lean <path>, warnings fail
 #   validate.sh premises          rewrite the premise list of tests/PremiseCensus.lean
+#   validate.sh repin             write the census fingerprint of each stale pin of SPEC.md
 #   validate.sh review            write the claims review files to docs/claims-review/ (not in git)
 #   validate.sh lean-executable <built-Lean-executable> [arguments...]
 #   validate.sh pi-rlc-sampler-parity <path>
@@ -93,6 +94,13 @@ case "$phase" in
     capped lake build --wfail tests.PremiseAudit NightstreamFPrime
     capped lake env lean "-j${LEAN_NUM_THREADS}" -DautoImplicit=false -DrelaxedAutoImplicit=false \
       -DwarningAsError=true -DpremiseCensus.write=true tests/PremiseCensus.lean
+    ;;
+  repin)
+    capped lake build --wfail $(awk '$1 == "import" { print $2 }' tests/EndpointCensus.lean)
+    until census="$(lean_file tests/EndpointCensus.lean 2>&1)"; do
+      printf '%s\n' "$census" | python3 -B scripts/repin.py || { printf '%s\n' "$census" >&2; exit 1; }
+    done
+    printf '%s\n' "$census"
     ;;
   review)
     # The review files read the premise list, so it must be current and classified first.

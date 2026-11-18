@@ -218,14 +218,14 @@ fn build<A: Application>(
     mark(&builder, "Sponge output bindings");
     let mut checked_bits = BTreeSet::new();
     for (name, rows) in sym.memory_row_groups() {
-        for row in &rows {
+        for row in rows {
             if !shared.is_empty()
-                && ((name == "Bit rows" && super::readonly::repeated_bit(row, &mut checked_bits))
-                    || (name == "Operation slot rows" && super::readonly::zero_row(row)))
+                && ((name == "Bit rows" && super::readonly::repeated_bit(&row, &mut checked_bits))
+                    || (name == "Operation slot rows" && super::readonly::zero_row(&row)))
             {
                 continue;
             }
-            lower_constraint(&mut builder, row)?;
+            lower_constraint(&mut builder, &row)?;
         }
         mark(&builder, name);
     }

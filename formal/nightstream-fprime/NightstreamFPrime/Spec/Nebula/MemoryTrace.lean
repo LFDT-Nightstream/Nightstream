@@ -28,12 +28,14 @@ instance : CoeFun Witness fun _ => Column → ℤ := ⟨fun w column => (w.entri
 inductive PortKind
   | read
   | write (priorColumn : Option Column)
+deriving DecidableEq
 
 /-- When a port is active: always, when a column is 1, or unless a column is 0. -/
 inductive Activation
   | always
   | when (column : Column)
   | «unless» (column : Column)
+deriving DecidableEq
 
 inductive MemoryKind
   | ram
@@ -45,11 +47,13 @@ structure PortSpec where
   valueColumn : Column
   portKind : PortKind
   activation : Activation
+deriving DecidableEq
 
 structure MemorySpec where
   memoryId : ℕ
   memoryKind : MemoryKind
   ports : List PortSpec
+deriving DecidableEq
 
 /-- An address: one integer per address column. -/
 abbrev Address := List ℤ
@@ -57,6 +61,7 @@ abbrev Address := List ℤ
 inductive Event
   | read (memory : ℕ) (address : Address) (value : ℤ)
   | write (memory : ℕ) (address : Address) (value : ℤ) (prior : Option ℤ)
+deriving DecidableEq
 
 def active (w : Witness) : Activation → Bool
   | .always => true
@@ -116,5 +121,19 @@ initial state. -/
 def MemoryConsistent (catalog : List MemorySpec) (initial : MemoryState)
     (rows : List Witness) : Prop :=
   ∃ final, Replay initial (eventsForTrace catalog rows) final
+
+def u32Value (value : ℤ) : Prop := 0 ≤ value ∧ value < 4294967296
+
+/-- The value of an event is 32-bit, and so is the prior value of a write. -/
+def eventValuesBounded : Event → Prop
+  | .read _ _ value => u32Value value
+  | .write _ _ value prior => u32Value value ∧
+      match prior with
+      | some before => u32Value before
+      | none => True
+
+/-- The other assumption of the Rocq proof on events: each event has 32-bit
+values. -/
+def boundedMemoryEvents (events : List Event) : Prop := ∀ e ∈ events, eventValuesBounded e
 
 end NightstreamFPrime.Spec.Nebula.MemoryTrace

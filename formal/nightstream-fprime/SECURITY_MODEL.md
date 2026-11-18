@@ -454,7 +454,12 @@ not change terminal source checks.
   most `Q` queries, the probability that a fold succeeds and the extractor does not return its
   witnesses is at most a statistical term, a state-collision term and a
   kernel term (`Claims.Fold.light_knowledge_in_random_oracle_model`,
-  `Claims.Fold.refresh_knowledge_in_random_oracle_model`). The
+  `Claims.Fold.refresh_knowledge_in_random_oracle_model`). The model answers
+  each point, a call list and a lane pair, with five independent words
+  (`Lifecycle.RandomOracle.Test.Answer`). In the sponge, two adjacent lane
+  pairs of one state share three words
+  (`Lifecycle.BoundedDepth.RandomOracle.Fidelity.spongeOracle`), so
+  `[SPONGE]` does not move this model to the sponge as it is. The
   test step charges each challenge's bad set at the challenge's own point, so
   it costs at most `(Q + 1)` times the Π_CCS test error
   (`Lifecycle.RandomOracle.Test.family_error_le`). The statistical term is at
@@ -672,8 +677,10 @@ not change terminal source checks.
   `[SPONGE]`, and the `η` domain is separated from the other uses
   (`Claims.Encodings.domains_separated`). With these conditions proved
   (`Export.BoundedDepth.EtaSponge.conditions`), `[P2-PERM]` and `[SPONGE]`
-  move the bound, without the retry term, to the ideal-permutation model
-  plus `spongeError N` (`Claims.Nebula.eta_balanced`). That
+  move the probability of the event to the ideal-permutation model plus
+  `spongeError N`. So the bound there is the first term, plus the retry term
+  of the sampler that the transfer gives, plus `spongeError N`
+  (`Claims.Nebula.eta_balanced`). That
   bound is for a verifier that computes `η` outside a circuit. The step
   circuit computes `η` with the permutation (trust item 6).
 
@@ -1038,7 +1045,11 @@ not change terminal source checks.
    Rust's expansion of the packages, its identity code, its witness program
    and its logical assignment with Lean exports, and they check the
    lifecycle on fixed inputs (`SPEC.md` section 9). No theorem covers
-   arbitrary Rust execution.
+   arbitrary Rust execution. No Lean theorem states that the package's
+   witness program (`Export.BoundedDepth.StepPackage.Package`, field
+   `witness`) computes an assignment that the rows accept. This gap is of
+   completeness only, because the verifier checks the rows and not the
+   program.
 6. **Gap: the memory round.** `Export.BoundedDepth.NebulaSecurity.MemoryRound`
    states the memory round for the two step circuits as a hypothesis: for
    each admitted stage and the memory statement of its tape, the extracted run
@@ -1350,8 +1361,9 @@ not change terminal source checks.
   in `crates/neo-wasm/tests/wasm_nebula.rs`), and that a field of `q` or more
   keeps a word that the terminal check of `SPEC.md` Algorithm 8 refuses
   (`a_state_field_of_q_or_more_has_no_canonical_word`). So a verifier that
-  reads a field of a proved state reads a proved word, except that `None` and
-  `Some(0)` of `memory_pages` and `max_memory_pages` share the word 0.
+  reads a field of a proved state reads a proved word. `None` of
+  `memory_pages` and `max_memory_pages` has the word 65,537, which no page
+  count has (`memory_page_state_words` in `crates/neo-wasm/src/preprocess.rs`).
 - The shared host-event transformation in a multirow WASM step. The adversary
   chooses every row flag, shared input, permutation auxiliary, and shared output.
   The group argument uses soundness and completeness of the exact width-12

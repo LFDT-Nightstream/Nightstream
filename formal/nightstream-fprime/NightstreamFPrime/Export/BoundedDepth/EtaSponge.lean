@@ -8,9 +8,10 @@ and three more permutations (`reads`). The conditions of `[SPONGE]` for this use
 (`conditions`): the call list of a read fixes a canonical `η` input and the read
 (`reads_injective`), the calls start with the `η` tag (`reads_owned`), and that tag is separated
 from every other use of the table (`separated_eta`). So, under the premise
-`Spec.Sponge.Transfer` with these conditions, the bound of the random-oracle model of the memory
-round (`Lifecycle.Nebula.EtaRound.EtaSampler.unbalancedChance_le`) holds in the
-ideal-permutation model plus `spongeError` (`unbalanced_le`). The step circuit computes `η`
+`Spec.Sponge.Transfer` of the unbalanced event with these conditions, the bound of the
+random-oracle model of the memory round (`Lifecycle.Nebula.EtaRound.EtaSampler.unbalancedChance_le`),
+with the retry term of the transfer's sampler, holds in the ideal-permutation model plus
+`spongeError` (`unbalanced_le`). The step circuit computes `η`
 with the permutation, so this bound is for a verifier that computes `η` outside a circuit. -/
 
 set_option autoImplicit false
@@ -74,19 +75,20 @@ structure Conditions : Prop where
 
 theorem conditions : Conditions := ⟨reads_injective, reads_owned, separated_eta⟩
 
-/-- Adversary 5's memory round in the ideal-permutation model: under `Spec.Sponge.Transfer` with
-the `η` conditions, and with the sampler's retry term removed, the wins of each `world` are at
-most `(queries + 1) · 2 · m_mem/q²` plus `spongeError calls`. -/
+/-- Adversary 5's memory round in the ideal-permutation model: under `Spec.Sponge.Transfer` of the
+unbalanced event with the `η` conditions, the wins of each `world` are at most
+`(queries + 1) · 2 · m_mem/q²`, plus the retry term of the transfer's sampler, plus
+`spongeError calls`. -/
 theorem unbalanced_le {p : Plan} (valid : p.Valid) (app : PortApp p.toGeometry) {Sample : Type}
     (x : Experiment app.width Sample) {queries : ℕ} {World : Type} (winsOf : World → ℝ)
     (calls : ℕ)
     (premise : Sponge.Transfer Conditions winsOf
-      (fun sampler : EtaRound.EtaSampler Sample queries =>
-        sampler.unbalancedChance app x - sampler.retryCollision app x) calls)
+      (fun sampler : EtaRound.EtaSampler Sample queries => sampler.unbalancedChance app x) calls)
     (world : World) :
-    winsOf world ≤ ((queries + 1 : ℕ) : ℝ) * (2 * (p.maxTuples : ℝ) / (fieldModulus ^ 2 : ℕ)) +
-      Sponge.spongeError calls :=
-  Sponge.transfer_le premise conditions
-    (fun sampler => by linarith [sampler.unbalancedChance_le (app := app) (x := x) valid]) world
+    ∃ sampler : EtaRound.EtaSampler Sample queries,
+      winsOf world ≤ ((queries + 1 : ℕ) : ℝ) * (2 * (p.maxTuples : ℝ) / (fieldModulus ^ 2 : ℕ)) +
+        sampler.retryCollision app x + Sponge.spongeError calls := by
+  obtain ⟨sampler, wins⟩ := premise conditions world
+  exact ⟨sampler, by linarith [sampler.unbalancedChance_le (app := app) (x := x) valid]⟩
 
 end NightstreamFPrime.Export.BoundedDepth.EtaSponge

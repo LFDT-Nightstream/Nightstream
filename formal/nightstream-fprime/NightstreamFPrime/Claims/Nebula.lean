@@ -94,9 +94,10 @@ theorem accepts_or_collision
   @Lifecycle.Nebula.accepts_or_collision p app valid T z w initialApp finalApp finalCarry segments
     finalTs finalRoot start steps terminal
 
-/-- Adversary 5's memory round in the ideal-permutation model: under `Spec.Sponge.Transfer` with
-the `η` conditions, and with the sampler's retry term removed, the wins of each `world` are at
-most `(queries + 1) · 2 · m_mem/q²` plus `spongeError calls`. -/
+/-- Adversary 5's memory round in the ideal-permutation model: under `Spec.Sponge.Transfer` of the
+unbalanced event with the `η` conditions, the wins of each `world` are at most
+`(queries + 1) · 2 · m_mem/q²`, plus the retry term of the transfer's sampler, plus
+`spongeError calls`. Each pair that the retry term counts is a Poseidon2 transcript collision. -/
 theorem eta_balanced
     {p : Nebula.Plan}
     (valid : p.Valid)
@@ -109,13 +110,13 @@ theorem eta_balanced
     (calls : ℕ)
     (premise : Sponge.Transfer EtaSponge.Conditions winsOf
         (fun (sampler : Nebula.EtaRound.EtaSampler Sample queries) =>
-          Nebula.EtaRound.EtaSampler.unbalancedChance app x sampler -
-            Nebula.EtaRound.EtaSampler.retryCollision app x sampler)
+          Nebula.EtaRound.EtaSampler.unbalancedChance app x sampler)
         calls)
     (world : World) :
-    winsOf world ≤
+    ∃ sampler : Nebula.EtaRound.EtaSampler Sample queries,
+      winsOf world ≤
         (↑(queries + 1) : ℝ) * (2 * (↑p.maxTuples : ℝ) / (↑(fieldModulus ^ 2) : ℝ)) +
-          Sponge.spongeError calls :=
+          Nebula.EtaRound.EtaSampler.retryCollision app x sampler + Sponge.spongeError calls :=
   @Export.BoundedDepth.EtaSponge.unbalanced_le p valid app Sample x queries World winsOf calls
     premise world
 

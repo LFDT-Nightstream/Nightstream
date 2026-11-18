@@ -32,6 +32,11 @@ import NightstreamFPrime.Export.MatrixPassParity
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.assemble_cell
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.claimsOf_getD
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.layoutNew_production
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.claimsOf_length
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.nextMultiple_self
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.nextMultiple_lt
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.lightClaims_eq
+#audit_axioms NightstreamFPrime.Spec.Compression.Rust.layoutNew_light
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.layout_soundness
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.layout_run_soundness
 #audit_axioms NightstreamFPrime.Spec.Compression.Rust.followsK_bind

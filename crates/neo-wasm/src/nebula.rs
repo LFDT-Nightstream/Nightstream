@@ -522,77 +522,85 @@ impl WasmLimits {
 
 /// A fixed size of WASM proofs (`decisions/wasm-fixed-sizes.md`): limits, a
 /// geometry, and the rows of one step. Each size is one circuit, so a
-/// verifier compiles at most three. It takes the size of a proof from the
+/// verifier compiles at most four. It takes the size of a proof from the
 /// proof's statement, never from the prover's run. A prover takes the
 /// smallest size that holds the run (`WasmSize::for_run`). Each size has the
 /// most segments for which the memory fingerprint term of all its segments,
 /// `S_max · 2·m_mem/q²`, is at most `2^−109` (SPEC.md section 7.1), so the
 /// runtime gate accepts at most 109 bits. This is not an end-to-end security
 /// level: the deployment query count, retries, and recursive depth remain
-/// separate.
+/// separate. A proof of a size has at most `N · S_max ≤ 30` steps, so no run
+/// reaches a refresh fold and the final proof carries slot 0 alone (SPEC.md
+/// Algorithm 9, Lean `WasmSize.steps_le_light`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum WasmSize {
-    /// ROM of `2^13` cells and RAM of `2^10`: 256 instructions, 32 function
-    /// references, steps of 64 rows, and at most 19 segments of 8 steps:
-    /// runs of up to 9,728 rows.
+    /// ROM of `2^11` cells and RAM of `2^8`: 256 instructions, 32 function
+    /// references, steps of 800 rows, and at most 30 segments of 1 step:
+    /// runs of up to 24,000 rows.
+    Micro,
+    /// ROM of `2^12` cells and RAM of `2^10`: 256 instructions, 64 function
+    /// references, steps of 672 rows, and at most 24 segments of 1 step:
+    /// runs of up to 16,128 rows.
     Small,
-    /// ROM of `2^14` cells and RAM of `2^11`: 512 instructions, 64 function
-    /// references, steps of 64 rows, and at most 9 segments of 16 steps: runs
-    /// of up to 9,216 rows.
+    /// ROM of `2^13` cells and RAM of `2^11`: 512 instructions, 64 function
+    /// references, steps of 664 rows, and at most 12 segments of 2 steps:
+    /// runs of up to 15,936 rows.
     Medium,
-    /// ROM of `2^15` cells and RAM of `2^12`: 1,024
-    /// instructions, 128 function references, steps of 32 rows, and at most 6
-    /// segments of 16 steps: runs of up to 3,072 rows.
+    /// ROM of `2^14` cells and RAM of `2^12`: 1,024 instructions, 128
+    /// function references, steps of 664 rows, and at most 6 segments of 4
+    /// steps: runs of up to 15,936 rows.
     Large,
 }
 
 impl WasmSize {
-    pub const ALL: [Self; 3] = [Self::Small, Self::Medium, Self::Large];
+    pub const ALL: [Self; 4] = [Self::Micro, Self::Small, Self::Medium, Self::Large];
 
-    fn shape(self) -> (usize, usize, usize, usize) {
+    /// Lean `WasmSize.shape`.
+    fn shape(self) -> (usize, usize, usize, usize, usize) {
         match self {
-            Self::Small => (13, 64, 8, 19),
-            Self::Medium => (14, 64, 16, 9),
-            Self::Large => (15, 32, 16, 6),
+            Self::Micro => (11, 8, 800, 1, 30),
+            Self::Small => (12, 10, 672, 1, 24),
+            Self::Medium => (13, 11, 664, 2, 12),
+            Self::Large => (14, 12, 664, 4, 6),
         }
     }
 
     fn ram_log2(self) -> usize {
-        self.shape().0 - 3
+        self.shape().1
     }
 
     /// The limits of the programs and runs that the size holds. Each memory
     /// family gets a fixed part of its space: in the RAM, half for linear
     /// memory and a quarter for the stack.
     pub fn limits(self) -> WasmLimits {
-        let log2 = self.ram_log2();
-        let (pc, function, event) = match self {
-            Self::Small => (8, 5, 6),
-            Self::Medium => (9, 6, 7),
-            Self::Large => (10, 7, 8),
+        let (pc, function, event, stack, linear_memory, global, call_depth, host_depth, table_index) = match self {
+            Self::Micro => (8, 5, 3, 6, 7, 2, 2, 2, 2),
+            Self::Small => (8, 6, 6, 8, 9, 5, 4, 4, 4),
+            Self::Medium => (9, 6, 7, 9, 10, 6, 5, 4, 5),
+            Self::Large => (10, 7, 8, 10, 11, 7, 6, 4, 6),
         };
         WasmLimits {
             pc,
             function,
             event,
             slot: 3,
-            stack: log2 - 2,
-            linear_memory: log2 - 1,
-            global: log2 - 5,
-            call_depth: log2 - 6,
-            host_depth: 4,
+            stack,
+            linear_memory,
+            global,
+            call_depth,
+            host_depth,
             table: 1,
-            table_index: log2 - 6,
+            table_index,
         }
     }
 
     /// The trace rows of one step.
     pub fn rows(self) -> NonZeroUsize {
-        NonZeroUsize::new(self.shape().1).expect("a step has rows")
+        NonZeroUsize::new(self.shape().2).expect("a step has rows")
     }
 
     pub fn geometry(self) -> Geometry {
-        let (log2, _, n, s_max) = self.shape();
+        let (log2, _, _, n, s_max) = self.shape();
         Geometry::new(
             log2,
             self.ram_log2(),
@@ -613,13 +621,13 @@ impl WasmSize {
 
     /// The trace rows of one segment.
     pub fn segment_rows(self) -> usize {
-        let (_, rows, n, _) = self.shape();
+        let (_, _, rows, n, _) = self.shape();
         rows * n
     }
 
     /// The most trace rows of one run.
     pub fn max_rows(self) -> usize {
-        self.segment_rows() * self.shape().3
+        self.segment_rows() * self.shape().4
     }
 
     /// The smallest size whose limits hold `limits` and whose runs hold
@@ -662,7 +670,7 @@ impl WasmSize {
         self,
         trace: &[WasmVmStep],
     ) -> Result<impl Iterator<Item = Result<Vec<WasmStep>, WasmApplicationError>> + '_, WasmApplicationError> {
-        let (_, _, n, _) = self.shape();
+        let (_, _, _, n, _) = self.shape();
         if trace.is_empty() {
             return Err(WasmApplicationError::EmptyTrace);
         }

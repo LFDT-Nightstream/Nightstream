@@ -112,23 +112,24 @@ theorem centeredMagnitude_lt_ambient (value : F) :
 
 /-- When `Relation` holds for the fresh claim with the values of the run's output, the output
 claims of the run hold for the fresh witness slice. -/
-theorem fresh_ambient {key : ℕ → ℕ → ℕ → F} {matrices : Fin 3 → Matrices F}
-    {depths : Fin 2 → ℕ} {layout : Layout} {st : Compression.Verifier.Statement (params key matrices depths layout)}
+theorem fresh_ambient {n : ℕ} {key : ℕ → ℕ → ℕ → F} {matrices : Fin (n + 1) → Matrices F}
+    {depths : Fin n → ℕ} {layout : Layout (n + 1)}
+    {st : Compression.Verifier.Statement (params key matrices depths layout)}
     {W : ℕ → F} (holds : Relation (params key matrices depths layout) st W)
     (wf : WellFormed (params key matrices depths layout))
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
-    (keyEq : key = keyOf ajtai) (represents : Represents (matrices 2) relation.matrices)
+    (keyEq : key = keyOf ajtai) (represents : Represents (matrices (Fin.last n)) relation.matrices)
     (c : PaperAlgebra.Commitment)
     (x : PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
     (probe : Probe K oneShape)
-    (values : st (2 : Fin 3) = claimValues (logicalWidth := logicalWidth) (publicFits := publicFits)
+    (values : st (Fin.last n) = claimValues (logicalWidth := logicalWidth) (publicFits := publicFits)
       ⟨c, x, probe.coins.roundPoint, ⟨probe.response.fullOutput.padCoordinate ⟨0, by decide⟩,
         probe.response.fullOutput.matrixCoordinate ⟨0, by decide⟩⟩⟩) :
     AmbientOutputHolds extensionOps K.embed (openingMaps ajtai) productionGlobalParams
       (statement relation c x) probe
       (witnessOf (slotWitness (logicalWidth := logicalWidth) (publicFits := publicFits) matrices
-        layout W 2)) := by
+        layout W (Fin.last n))) := by
   intro source
   have zero : source = ⟨0, by decide⟩ := Fin.ext (by
     have := source.isLt
@@ -136,8 +137,8 @@ theorem fresh_ambient {key : ℕ → ℕ → ℕ → F} {matrices : Fin 3 → Ma
     change (source : ℕ) = 0
     omega)
   subst zero
-  refine ⟨⟨slot_commitment holds ajtai _ 2 keyEq represents.cover values,
-    slot_publicInput holds _ wf 2 values,
+  refine ⟨⟨slot_commitment holds ajtai _ (Fin.last n) keyEq represents.cover values,
+    slot_publicInput holds _ wf (Fin.last n) values,
     fun column => centeredMagnitude_lt_ambient _⟩, trivial, ?_⟩
   apply congrArg (fun family => #[family])
   show (EvaluationFamily.mk _ _ : EvaluationFamily K oneShape) =
@@ -145,8 +146,8 @@ theorem fresh_ambient {key : ℕ → ℕ → ℕ → F} {matrices : Fin 3 → Ma
       probe.response.fullOutput.matrixCoordinate ⟨0, by decide⟩⟩
   congr 1
   · funext o
-    exact relation_pad holds _ 2 relation represents values o
+    exact relation_pad holds _ (Fin.last n) relation represents values o
   · funext m o
-    exact relation_matrix holds _ 2 relation represents values m o
+    exact relation_matrix holds _ (Fin.last n) relation represents values m o
 
 end NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh

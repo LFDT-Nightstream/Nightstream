@@ -26,39 +26,38 @@ defined by the [security model](../formal/nightstream-fprime/SECURITY_MODEL.md).
 ## Decision
 
 Lean is the semantic authority for the fixed Nightstream SuperNeo v1.2
-relation. Lean must connect the concrete verifier predicate to logical circuit
-rows, prove that physical lowering preserves those rows, and emit the only
-package that production can use. Rust owns efficient execution of that
-package. Rust does not own a second high-level F′ relation.
+relation. Lean connects the verifier predicate to the rows of each step
+circuit and emits the only packages that production can use. Rust owns
+efficient execution of those packages. Rust does not own a second high-level
+F′ relation. A Rust application replaces only the application region of a
+package ([SPEC.md](../SPEC.md) Algorithm 2, step 3).
 
-Conformance requires all of the following on one unchanged package cut:
+The conformance evidence is the list of [SPEC.md](../SPEC.md) section 9. On
+the Lean exports it has these parts:
 
-- the final Rust-expanded `A`, `B`, and `C` matrices equal the Lean-lowered
-  rows entry for entry;
-- an independent evaluator checks the raw Rust assignment against those Lean
-  rows without using Rust's witness generator or row evaluator as its oracle;
-- executable Lean, Rust PaperExact, and optimized Rust consume the same valid
-  nonzero input and proof and produce the same complete verifier result;
-- mutations cover every authoritative statement, transcript, proof, output,
-  row, column, and public-input family; and
-- the verifier pins the final package identity and production has no reachable
-  alternate relation.
+- Rust's expansion of each package gives the row count and the row checksum
+  of Lean;
+- Rust's identity code, witness program and logical assignment give the
+  values of Lean;
+- the Rust gates, encodings and transcripts give the values of the Lean
+  parity files;
+- edited statements, proofs and keys fail ([SPEC.md](../SPEC.md), lifecycle
+  rule 3); and
+- the verifier pins the package identity, so production has no other
+  relation that a prover can reach.
 
-This gives stronger implementation assurance for three reasons. Lean makes the
-intended computation explicit and proof-checked. Exact matrix equality checks
-the relation for every possible assignment, rather than only the selected test
-vectors. The independent assignment evaluator prevents the Rust compiler and
-Rust evaluator from approving the same lowering error. PaperExact and optimized
-Rust then provide separate executable checks of the verifier computation.
+Each check compares Rust with a value that Lean emits. The comparison of the
+rows covers the relation for each possible assignment, not only for the
+selected test vectors.
 
 The supported claim is:
 
 > Subject to the named trust boundaries, the Rust implementation conforms to
-> the Lean-defined relation for the validated package.
+> the Lean-defined relation for the validated package on the recorded inputs.
 
-This is not a complete security claim. The Lean definitions can still
-misstate the paper, and cryptographic security still depends on Poseidon2,
-commitment binding, Fiat–Shamir and sampling security, the SuperNeo knowledge
-reduction, the proof backend, and production deployment. Deterministic circuit
-soundness and cryptographic security composition therefore remain separate
-results.
+No theorem covers arbitrary Rust execution
+([security model](../formal/nightstream-fprime/SECURITY_MODEL.md), trust
+item 5). This is not a complete security claim. The Lean definitions can
+still misstate the paper, and cryptographic security still depends on the
+assumptions and the premises of the security model. Deterministic circuit
+soundness and cryptographic security composition stay separate results.

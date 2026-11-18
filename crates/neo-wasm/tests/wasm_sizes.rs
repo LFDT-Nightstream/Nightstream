@@ -1,4 +1,4 @@
-//! `decisions/wasm-fixed-sizes.md`.
+//! `decisions/wasm-fixed-sizes.md`, `decisions/wasm-light-compression.md`.
 
 mod common;
 
@@ -9,6 +9,10 @@ use neo_wasm::nebula::{step_inputs, WasmApplicationError, WasmLimits, WasmSize};
 use neo_wasm::{preload_from_program_artifacts, top_level_initial_state, WasmMemoryPreload, WasmStepState, WasmVmStep};
 use nightstream::nebula::{Application, Run};
 use p3_field::PrimeField64;
+
+fn fib(rounds: u32) -> String {
+    FIB.replacen("i32.const 2", &format!("i32.const {rounds}"), 1)
+}
 
 const FIB: &str = r#"(module
   (func (export "main") (result i32)
@@ -80,11 +84,15 @@ fn each_size_is_a_secure_geometry_whose_regions_fit_its_spaces() {
         );
         assert_eq!(size.application().unwrap().port_count(), geometry.b_ops);
         let rows = match size {
-            WasmSize::Small => 9_728,
-            WasmSize::Medium => 9_216,
-            WasmSize::Large => 3_072,
+            WasmSize::Micro => 24_000,
+            WasmSize::Small => 16_128,
+            WasmSize::Medium | WasmSize::Large => 15_936,
         };
         assert_eq!(size.max_rows(), rows, "{size:?}");
+        assert!(
+            geometry.n * geometry.s_max <= 65,
+            "{size:?}: no proof reaches the refresh fold of step 66"
+        );
         if let Some(smaller) = smaller {
             assert!(size.limits().holds(&smaller), "{size:?} holds the smaller sizes");
         }
@@ -93,7 +101,7 @@ fn each_size_is_a_secure_geometry_whose_regions_fit_its_spaces() {
 }
 
 #[test]
-fn the_starstream_test_transactions_fit_small_or_medium() {
+fn the_starstream_test_transactions_fit_micro_or_small() {
     let need = |pc, function, event, linear_memory, global| WasmLimits {
         pc,
         function,
@@ -105,12 +113,12 @@ fn the_starstream_test_transactions_fit_small_or_medium() {
         ..WasmLimits::default()
     };
     for (name, limits, rows, size) in [
-        ("minimal_method_call", need(7, 5, 3, 0, 0), 363, WasmSize::Small),
-        ("storage_counter", need(7, 5, 3, 4, 0), 387, WasmSize::Small),
-        ("multi_utxo", need(8, 5, 3, 4, 0), 482, WasmSize::Small),
-        ("effect_reentry", need(5, 4, 2, 0, 0), 328, WasmSize::Small),
-        ("score", need(8, 6, 3, 4, 0), 903, WasmSize::Medium),
-        ("distinct_utxo_types", need(8, 6, 3, 5, 4), 646, WasmSize::Medium),
+        ("minimal_method_call", need(7, 5, 3, 0, 0), 363, WasmSize::Micro),
+        ("storage_counter", need(7, 5, 3, 4, 0), 387, WasmSize::Micro),
+        ("multi_utxo", need(8, 5, 3, 4, 0), 482, WasmSize::Micro),
+        ("effect_reentry", need(5, 4, 2, 0, 0), 328, WasmSize::Micro),
+        ("score", need(8, 6, 3, 4, 0), 903, WasmSize::Small),
+        ("distinct_utxo_types", need(8, 6, 3, 5, 4), 646, WasmSize::Small),
     ] {
         assert_eq!(WasmSize::smallest(&limits, rows), Some(size), "{name}");
     }
@@ -160,7 +168,7 @@ fn a_size_refuses_more_security_than_its_memory_gives() {
 #[test]
 fn a_prover_takes_the_smallest_size_that_holds_the_run() {
     for (count, size) in [
-        (10, Some(WasmSize::Small)),
+        (10, Some(WasmSize::Micro)),
         (300, Some(WasmSize::Medium)),
         (600, Some(WasmSize::Large)),
         (1_100, None),
@@ -177,14 +185,18 @@ fn a_prover_takes_the_smallest_size_that_holds_the_run() {
         .into_iter()
         .max()
         .unwrap();
-    assert_eq!(most, WasmSize::Small.max_rows());
-    assert_eq!(WasmSize::smallest(&WasmLimits::default(), most), Some(WasmSize::Small));
+    assert_eq!(most, WasmSize::Micro.max_rows());
+    assert_eq!(WasmSize::smallest(&WasmLimits::default(), most), Some(WasmSize::Micro));
     assert_eq!(WasmSize::smallest(&WasmLimits::default(), most + 1), None);
 }
 
 #[test]
 fn a_run_steps_natively_through_the_segments_of_its_size() {
-    for (wat, size, segments) in [(FIB.to_string(), WasmSize::Small, 1), (nops(600), WasmSize::Large, 2)] {
+    for (wat, size, segments) in [
+        (FIB.to_string(), WasmSize::Micro, 1),
+        (fib(80), WasmSize::Micro, 2),
+        (nops(600), WasmSize::Large, 1),
+    ] {
         let (preload, initial, trace) = run_of(&wat);
         assert_eq!(WasmSize::for_run(&preload, &trace).unwrap(), size);
         let app = size.application().unwrap();
@@ -211,13 +223,13 @@ fn a_run_steps_natively_through_the_segments_of_its_size() {
 
 #[test]
 #[ignore = "Full proof at a fixed size; run it alone, only with approval for a run longer than 300 seconds."]
-fn a_small_proof_verifies() {
+fn a_micro_proof_verifies() {
     use nightstream::nebula::{Circuit, VerifyError};
     use std::time::Instant;
     let started = Instant::now();
     let (preload, initial, trace) = run_of(FIB);
     let size = WasmSize::for_run(&preload, &trace).unwrap();
-    assert_eq!(size, WasmSize::Small);
+    assert_eq!(size, WasmSize::Micro);
     let app = size.application().unwrap();
     let program = app.program(&preload).unwrap();
     let circuit = Circuit::compile(size.geometry(), app).unwrap();
@@ -234,14 +246,14 @@ fn a_small_proof_verifies() {
     }
     let last = *run.state();
     let proof = run.finish().unwrap();
-    eprintln!("prove 8 steps elapsed={:?}", proving.elapsed());
+    eprintln!("prove 1 step elapsed={:?}", proving.elapsed());
 
     let bytes = prover.encode_proof(&proof).unwrap();
     let verifying = Instant::now();
     let proof = verifier.decode_proof(&bytes).unwrap();
     let verified = verifier.verify(&program, &initial, &last, &proof).unwrap();
     eprintln!("verify elapsed={:?}, proof bytes={}", verifying.elapsed(), bytes.len());
-    assert_eq!(verified.steps, 8);
+    assert_eq!(verified.steps, 1);
     let mut other = last;
     other.pc += 1;
     assert!(matches!(
@@ -253,7 +265,7 @@ fn a_small_proof_verifies() {
 
 #[test]
 #[ignore = "Two full proofs; needs --features nightstream/metal on Apple hardware. Run it alone."]
-fn a_small_metal_proof_equals_the_cpu_proof() {
+fn a_micro_metal_proof_equals_the_cpu_proof() {
     use nightstream::nebula::Circuit;
     use nightstream::Engine;
     use std::time::Instant;
@@ -292,4 +304,95 @@ fn a_small_metal_proof_equals_the_cpu_proof() {
         verifier.verify(&program, &initial, &last, &proof).unwrap();
         eprintln!("verify on {engine:?} elapsed={:?}", verifying.elapsed());
     }
+}
+
+/// SPEC.md Algorithm 9; `decisions/wasm-light-compression.md`.
+#[test]
+#[ignore = "Production-size compression; run it alone under the 300-second cap."]
+fn a_micro_proof_compresses_with_two_claims() {
+    use nightstream::nebula::Circuit;
+    use std::time::Instant;
+    let started = Instant::now();
+    let (preload, initial, trace) = run_of(&fib(32));
+    let size = WasmSize::for_run(&preload, &trace).unwrap();
+    assert_eq!(size, WasmSize::Micro);
+    assert!(trace.len() <= size.rows().get(), "one step of {} rows", trace.len());
+    let app = size.application().unwrap();
+    let program = app.program(&preload).unwrap();
+    let circuit = Circuit::compile(size.geometry(), app).unwrap();
+    let engine = nightstream::Engine::Optimized;
+    let prover = circuit.prover(engine, 109).unwrap();
+    let verifier = circuit.verifier(engine, 109).unwrap();
+    eprintln!("compile elapsed={:?}", started.elapsed());
+
+    let mut run = prover.start(&program, initial).unwrap();
+    for segment in size.segments(&trace).unwrap() {
+        run.segment(&segment.unwrap()).unwrap();
+    }
+    let last = *run.state();
+    let proof = run.finish().unwrap();
+    assert_eq!(
+        verifier
+            .verify(&program, &initial, &last, &proof)
+            .unwrap()
+            .steps,
+        1
+    );
+    eprintln!("prove {} rows elapsed={:?}", trace.len(), started.elapsed());
+
+    let setup = prover.compression_setup().unwrap();
+    let key = verifier.compression_key().unwrap();
+    eprintln!("compression setup elapsed={:?}", started.elapsed());
+    let compressing = Instant::now();
+    let compressed = prover.compress(&proof, &setup).unwrap();
+    eprintln!("compress elapsed={:?}", compressing.elapsed());
+    let verifying = Instant::now();
+    let verified = verifier
+        .verify_final(&program, &initial, &last, &key, &compressed)
+        .unwrap();
+    eprintln!("verify_final elapsed={:?}", verifying.elapsed());
+    assert_eq!(verified.steps, 1);
+    let mut other = last;
+    other.pc += 1;
+    assert!(verifier
+        .verify_final(&program, &initial, &other, &key, &compressed)
+        .is_err());
+    eprintln!("total elapsed={:?}", started.elapsed());
+}
+
+/// SPEC.md Algorithm 11, Rejects.
+fn the_light_relation_fits_the_key(size: WasmSize) {
+    use nightstream::nebula::Circuit;
+    use std::time::Instant;
+    let started = Instant::now();
+    let circuit = Circuit::compile(size.geometry(), size.application().unwrap()).unwrap();
+    let verifier = circuit
+        .verifier(nightstream::Engine::Optimized, 109)
+        .unwrap();
+    let key = verifier.compression_key().unwrap().to_bytes();
+    assert_eq!(&key[..16], b"NS-COMPRESS-VK-1");
+    assert_eq!(
+        key[16..24],
+        (1u64 << 19).to_le_bytes(),
+        "{size:?}: the key of 2^19 blocks"
+    );
+    eprintln!("{size:?}: compile and key elapsed={:?}", started.elapsed());
+}
+
+#[test]
+#[ignore = "Compiles a production-size circuit; run it alone under the 300-second cap."]
+fn the_small_light_relation_fits_the_key() {
+    the_light_relation_fits_the_key(WasmSize::Small);
+}
+
+#[test]
+#[ignore = "Compiles a production-size circuit; run it alone under the 300-second cap."]
+fn the_medium_light_relation_fits_the_key() {
+    the_light_relation_fits_the_key(WasmSize::Medium);
+}
+
+#[test]
+#[ignore = "Compiles a production-size circuit; run it alone under the 300-second cap."]
+fn the_large_light_relation_fits_the_key() {
+    the_light_relation_fits_the_key(WasmSize::Large);
 }

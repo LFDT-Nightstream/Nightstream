@@ -64,9 +64,9 @@ There is no second profile and no compatibility path.
   the sister project ProtogaLattice use the same `K`, so no map between two
   forms of the field is necessary.
 - `gcd(7, q − 1) = 1`, so the Poseidon2 S-box `x^7` is a permutation.
-- Why 14: at `T = 128` the deepest accumulator is
-  `(1 + cap + k_rho)·T = 79·128 = 10,112 ≤ 2^14 − 1`. The old ring had
-  `T = 216` and needed at least 15. The owner approved 14 on 2026-11-14.
+- Why 14: at `T = 128` and `cap = 64` the deepest accumulator is
+  `(1 + cap + k_rho)·T = 79·128 = 10,112`, which is below `B = 2^14`
+  (`Spec.GlobalParams.production_accumulatorBound_lt_bigB`).
 
 ### Security calculation
 
@@ -81,27 +81,30 @@ matrix, so there is one target. The width is `2^28` coefficients.
 
 The sister project ProtogaLattice computed these values with
 lattice-estimator commit `3e48ef4` and Sage 10.9. Nightstream did not run
-them again, because Sage stops at start-up on this machine. They replace the
-run at estimator commit `38618db` of 2026-11-13, which used the norm `8TB` and
-the allowance of 3 bits.
+them again, and the files of the run are not in the repository
+([security model](../formal/nightstream-fprime/SECURITY_MODEL.md), trust
+item 2).
 
 The estimate is for generic lattice attacks on a uniform matrix. It is not a
 proof for structured Module-SIS or for a fixed public seed.
 
 ### Consequences
 
-- The Spartan, WHIR, and shrink compression path is removed. A compression
-  layer over Akita replaces it and has its own decision record.
+- The Spartan, WHIR, and shrink compression path is removed. The compression
+  over Akita of [`akita-compression.md`](./akita-compression.md) replaces
+  it.
 - `q − 1` has 2-adicity 2. A scheme that needs a large power-of-two
   multiplicative subgroup of `F_q` cannot be used.
-- Poseidon2 has a new instance over `F_q`, with its own derivation and checks.
-- The sampler of a ring challenge reads 5 field lanes, because `5^64` is
-  larger than `5^54`.
+- Poseidon2 has an instance over `F_q`
+  ([`poseidon2-p64-instance.md`](./poseidon2-p64-instance.md)).
+- The sampler of a ring challenge reads 5 field lanes and reduces them
+  modulo `5^64` ([SPEC.md](../SPEC.md) section 5.3).
 - The auxiliary rank-two maps of
   [`rank-two-sis-security.md`](./rank-two-sis-security.md) keep their limit
   as a count of coefficients, `50,371 · 54 = 2,720,034`. The rank in
   coefficients grows from 108 to 128 at the same width and norm, so the
-  instance is not easier. The limit is then 42,500 ring columns.
+  instance is not easier. The limit is then 42,500 ring columns. No map of
+  the current tree uses the rank two.
 
 ### Hash rule
 
@@ -110,23 +113,27 @@ step circuits, because the step circuits compute these challenges again.
 SHAKE128 expands the Ajtai setup. The owner also accepts SHAKE for the
 challenges of the Akita commitment scheme, which no step circuit computes.
 
-## Scope and supersession
+### Scope
 
 This decision supersedes the rank `κ = 22` and the field of
 [`fprime-stage1-main-ajtai-setup.md`](./fprime-stage1-main-ajtai-setup.md).
-The SHAKE128 setup rules of
-[`fprime-ajtai-shake128-setup.md`](./fprime-ajtai-shake128-setup.md) stay in
-force with the new modulus. On 2026-11-14,
-[`fprime-ajtai-rejection-sampling.md`](./fprime-ajtai-rejection-sampling.md)
-replaced the wide reduction of those rules.
+The SHAKE128 expander of
+[`fprime-ajtai-shake128-setup.md`](./fprime-ajtai-shake128-setup.md) stays in
+force with this modulus, with the sampling rule of
+[`fprime-ajtai-rejection-sampling.md`](./fprime-ajtai-rejection-sampling.md).
 
 It does not change `b = 2`, the `2^28` domain, the selected application, or
 the recursion.
 
-The final security theorem must name these external assumptions:
+This decision selects the objects of these external assumptions
+([security model](../formal/nightstream-fprime/SECURITY_MODEL.md),
+Assumptions):
 
 - Module-SIS hardness at rank 18 and the chain norm, in the model of section
-  Security calculation;
-- the low-norm invertibility bound of Theorem 4 for `X^64 + 1`;
-- Poseidon2 over `F_q` as a random oracle, with the derived instance; and
-- the security of Akita, when the compression layer uses it.
+  Security calculation (`[MSIS]`);
+- Poseidon2 over `F_q`, with the derived instance (`[P2-PERM]`,
+  `[SPONGE]`); and
+- the security of Akita for the compression (`[AKITA]`).
+
+The low-norm invertibility bound of Theorem 4 for `X^64 + 1` is not an
+assumption, because Lean proves it (`Spec.RingStrongSet.lowNormInvertibility`).

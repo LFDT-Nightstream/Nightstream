@@ -3,9 +3,10 @@
 ## Status
 
 Accepted. The owner approved this instance on 2026-11-14. Nightstream and
-ProtogaLattice use one shared rule and one shared generator, with the S-box
-degree α chosen per project. Nightstream uses `x^7`. ProtogaLattice uses
-`x^3`. Each project keeps its own code.
+the sister project ProtogaLattice use one shared rule and one shared
+generator. With the same S-box degree, the rule gives the same permutation in
+the two projects. The permutation is shared. The sponge is not: each project
+has its own sponge and its own code.
 
 ## Problem
 
@@ -35,21 +36,15 @@ check between the two projects, Lean emits
 hashes of `Spec.Poseidon2.hash`, for the lengths 0 to 25.
 
 Each instance has a label in `params.json`, for example
-`Nightstream/Poseidon2/q=2^64-59/t=16/d=7/rf=8/rp=22/v2`. The owner approved
-the version `v2` on 2026-11-14: the round constants changed from a SHAKE128
-stream to the Grain generator, and two constant sets must not share one
-label. The label is an input of the three `shake` test states of each width
-in `vectors.json` only. It is not an input of a constant.
-
-| Parameter | Nightstream | ProtogaLattice |
-|---|---|---|
-| S-box | `x^7`; `gcd(7, q − 1) = 1` (`Spec.Poseidon2.coprime_seven`), so the S-box is a permutation (`Spec.Poseidon2.sbox_bijective`) | `x^3`; `gcd(3, q − 1) = 1` (`Spec.Poseidon2.coprime_three`) |
-| Rounds, for both widths | 8 full, 22 partial | 8 full, 43 partial |
-
-The two projects have the same values for the other parameters:
+`Nightstream/Poseidon2/q=2^64-59/t=16/d=7/rf=8/rp=22/v2`. The version is
+`v2`, and two constant sets must not share one label. The label is an input
+of the three `shake` test states of each width in `vectors.json` only. It is
+not an input of a constant.
 
 | Parameter | Value |
 |---|---|
+| S-box | `x^7`; `gcd(7, q − 1) = 1` (`Spec.Poseidon2.coprime_seven`), so the S-box is a permutation (`Spec.Poseidon2.sbox_bijective`) |
+| Rounds, for both widths | 8 full, 22 partial |
 | External matrix | `M_E = circ(2·M4, M4, …)` with `M4 = circ(2, 3, 1, 1)`, the Plonky3 `MDSMat4` |
 | Internal matrix | `J + diag(D)` |
 | `D`, width 16 | `[1, 2, −2, 3, −3, 4, −4, −5, 6, −6, 7, −7, 8, −8, 9, −9]` |
@@ -63,21 +58,26 @@ to `r − 1` and 1 in lane `r`, so the padding is injective
 
 The layer conventions are those of Plonky3 `p3-poseidon2` 0.5.3.
 
+For a check between the two projects, compare the permutation and its
+constants, not sponge outputs. The width-16 instance has 166 words: the 150
+round constants in round order (4 full rounds of 16 words, 22 partial rounds
+of 1 word, 4 full rounds of 16 words), then the 16 entries of `D` modulo `q`.
+The SHA-256 of these words, each as 8 little-endian bytes, is
+`92cf8267fbf1cefd9abec22f0868024a6c3b4c6b9d33d3e3931961d2e4c6b8fc`.
+
 The shared rule:
 
-- The S-box degree α has `gcd(α, q − 1) = 1`. Each project selects it. The
-  power map is a permutation for each such α
-  (`Spec.Poseidon2.pow_bijective_of_coprime`).
+- The S-box degree α has `gcd(α, q − 1) = 1`. The power map is a
+  permutation for each such α (`Spec.Poseidon2.pow_bijective_of_coprime`).
+  Nightstream uses `α = 7`.
 - The Poseidon2 reference rule with its margin gives `R_F` and a least
   `R_P`. `R_P` is then the least value at or above it for which the
   resultant bound `α^(2.5(R_F − 1) + 1.5 R_P)` of ePrint 2026/1905,
   Section 6, is at least `2^128`. That bound does not depend on the width.
-  For `x^7` the reference rule gives 8 + 22 and the bound is `2^141.8`. For
-  `x^3` the reference rule gives 8 + 42, where the bound is `2^127.6`, so
-  `R_P` is 43, where the bound is `2^130.0`.
+  For `x^7` the reference rule gives 8 + 22, and the bound is `2^141.8`.
 - The constants come from the public reference generator, so each project
-  can make them again. The round counts are an input of the generator, so
-  the two projects have different constants.
+  can make them again. Two projects with the same degree and the same round
+  counts get the same constants.
 - `D` is the first candidate, in a fixed order of small integers, for which
   `M_I` has nonzero entries, is invertible, and has an irreducible
   characteristic polynomial for each power `M_I^i`, `1 ≤ i ≤ 2t`
@@ -85,10 +85,11 @@ The shared rule:
   layer cheap.
 - `M4` is MDS over `F_q`: each square minor is nonzero.
 
-Why Nightstream uses `x^7`: the F′ gate `A·B − C + S^7` has degree 7, so
-one row computes one S-box. With `x^3` a permutation has 171 S-box rows, 21
-more than the 150 rows with `x^7`, and each hash has 43 partial rounds. A
-measurement gave a step prove time that was 5.7% longer with `x^3` at
+Why `x^7`: the F′ gate `A·B − C + S^7` has degree 7, so one row computes
+one S-box. The rule also admits `x^3`, because `gcd(3, q − 1) = 1`
+(`Spec.Poseidon2.coprime_three`). For `x^3` the rule gives 8 + 43 rounds.
+A permutation then has 171 S-box rows, 21 more than the 150 rows with `x^7`.
+A measurement gave a step prove time that was 5.7% longer with `x^3` at
 8 + 43, and prover speed comes first.
 
 ### Open points

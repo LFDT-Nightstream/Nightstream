@@ -3,7 +3,8 @@
 
 use serde_json::Value;
 
-use super::Geometry;
+use super::{compression, Geometry};
+use crate::lifecycle::bounded_depth::Compression;
 
 fn lean() -> Vec<Value> {
     let path = concat!(
@@ -52,7 +53,7 @@ fn the_gate_gives_the_lean_bits_on_each_wasm_geometry() {
     let lean = lean();
     let bits = lean[2].as_u64().expect("bits");
     let sizes = rows(&lean[3]);
-    assert_eq!(sizes.len(), 3);
+    assert_eq!(sizes.len(), 4);
     for row in sizes {
         let size = geometry(&row);
         assert_eq!(Geometry::new(row[0], row[1], row[3], row[5], row[6]), Some(size));
@@ -82,5 +83,27 @@ fn is_valid_and_is_secure_are_the_lean_decisions() {
             assert_eq!(case.is_secure(), row[8] == 1, "{case:?}");
             assert_eq!(case.max_tuples() <= bound, row[8] == 1, "{case:?}");
         }
+    }
+}
+
+/// SPEC.md Algorithms 8 and 9; Lean `WasmSize.steps_le_light`.
+#[test]
+fn a_geometry_whose_proofs_stay_light_compresses_slot_zero_alone() {
+    let lean = lean();
+    for row in rows(&lean[3]) {
+        let size = geometry(&row);
+        assert_eq!(row[10], 1, "{size:?}: Lean S_max · N ≤ cap + 1");
+        assert_eq!(compression(&size), Compression::Light, "{size:?}");
+    }
+    let base = geometry(&rows(&lean[3])[0]);
+    for (n, s_max, expected) in [
+        (1, 65, Compression::Light),
+        (5, 13, Compression::Light),
+        (1, 66, Compression::Both),
+        (8, 19, Compression::Both),
+        (16, 9, Compression::Both),
+    ] {
+        let case = Geometry { n, s_max, ..base };
+        assert_eq!(compression(&case), expected, "N = {n}, S_max = {s_max}");
     }
 }

@@ -319,6 +319,11 @@ impl<A: Application> Circuit<A> {
     }
 }
 
+/// SPEC.md Algorithm 9; Lean `WasmSize.steps_le_light`.
+fn compression(geometry: &Geometry) -> crate::lifecycle::bounded_depth::Compression {
+    crate::lifecycle::bounded_depth::Compression::for_max_steps(geometry.n as u128 * geometry.s_max as u128)
+}
+
 /// SPEC.md section 7.1.
 fn memory_security(geometry: &Geometry, minimum_security_bits: u32) -> Result<(), crate::Error> {
     if !geometry.is_valid() || !geometry.is_secure() {

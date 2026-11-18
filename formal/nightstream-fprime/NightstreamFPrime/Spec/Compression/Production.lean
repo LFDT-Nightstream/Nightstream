@@ -7,11 +7,12 @@ import NightstreamFPrime.Spec.RingRelation.Semantics
 /-! The production instance of the argument (SPEC.md section 3, Algorithms 9 and 11). `F` is `F_q`
 with `q = 2^64 − 59` and `K` is `F_q[u]/(u² − 2)`, a ring block has `D = 64` lanes, the key has
 `κ = 18` rows below `2^5`, a relation has `t = 4` matrices, there are `L = 4` lookup challenges,
-and the claims are slot 0, slot 1 and the fresh instance, in this order. `params` builds `Params`
-from the Ajtai key, the CCS matrices of each claim's relation, the depths of the slots and the
-layout of Rust `Layout::new`, which Lean does not model. A claim has the blocks of its relation's
-cells, and slot `s` has the table `[−accumulatorBound(depth_s), accumulatorBound(depth_s)]`.
-`params_error_lt`: at the production bounds of the layout, `error < 2^−119`.
+and the claims are the `n` slot claims, then the fresh instance, in this order: `n = 2` for slot 0
+and slot 1, and `n = 1` for slot 0 alone (Algorithm 9). `params` builds `Params` from the Ajtai
+key, the CCS matrices of each claim's relation, the depths of the slots and the layout of Rust
+`Layout::new`, which Lean does not model. A claim has the blocks of its relation's cells, and slot
+`s` has the table `[−accumulatorBound(depth_s), accumulatorBound(depth_s)]`. `params_error_lt`: at
+the production bounds of the layout and at most two slots, `error < 2^−119`.
 
 `verifierData` is the verifier of Rust `verify` with the one pass of Rust `matrix_part` over the
 factored rows of each claim's relation. With its matrices, `MatrixSpec` holds
@@ -57,30 +58,30 @@ def keyOf {rows blocks : ℕ} (A : Fin rows → Fin blocks → RingF) (i j h : �
     if hj : j < blocks then if hh : h < ringDegree then A ⟨i, hi⟩ ⟨j, hj⟩ ⟨h, hh⟩ else 0 else 0
   else 0
 
-/-- What Rust `Layout::new` gives for the three claims (Algorithm 9, step 3). Lean does not model
+/-- What Rust `Layout::new` gives for `claims` claims (Algorithm 9, step 3). Lean does not model
 that function. -/
-structure Layout where
-  witness : Fin 3 → Slice
-  counts : Fin 3 → Slice
+structure Layout (claims : ℕ) where
+  witness : Fin claims → Slice
+  counts : Fin claims → Slice
   witnessVars : ℕ
   spanVars : ℕ
   keyBlockVars : ℕ
 
 /-- The table bound of claim `c`: `accumulatorBound(depth_s)` for slot `s`, and 0 for the fresh
 instance, which has no table. -/
-def bound (depths : Fin 2 → ℕ) (c : Fin 3) : ℕ :=
-  if slot : (c : ℕ) < 2 then productionGlobalParams.accumulatorBound (depths ⟨c, slot⟩) else 0
+def bound {n : ℕ} (depths : Fin n → ℕ) (c : Fin (n + 1)) : ℕ :=
+  if slot : (c : ℕ) < n then productionGlobalParams.accumulatorBound (depths ⟨c, slot⟩) else 0
 
 /-- The production `Params`: the key `key`, the CCS matrices `matrices c` of the relation of claim
-`c`, the depths of the slots and the layout. -/
-noncomputable def params (key : ℕ → ℕ → ℕ → F) (matrices : Fin 3 → Matrices F)
-    (depths : Fin 2 → ℕ) (layout : Layout) : Params F K where
-  claims := 3
+`c`, the depths of the `n` slots and the layout. -/
+noncomputable def params {n : ℕ} (key : ℕ → ℕ → ℕ → F) (matrices : Fin (n + 1) → Matrices F)
+    (depths : Fin n → ℕ) (layout : Layout (n + 1)) : Params F K where
+  claims := n + 1
   shape c :=
     { blocks := (matrices c).columns / ringDegree
       witness := layout.witness c
       publicCells := ringDegree * 5
-      lookup := decide ((c : ℕ) < 2)
+      lookup := decide ((c : ℕ) < n)
       bound := bound depths c
       counts := layout.counts c }
   witnessVars := layout.witnessVars
@@ -96,8 +97,8 @@ noncomputable def params (key : ℕ → ℕ → ℕ → F) (matrices : Fin 3 →
 
 section Params
 
-variable (key : ℕ → ℕ → ℕ → F) (matrices : Fin 3 → Matrices F) (depths : Fin 2 → ℕ)
-  (layout : Layout)
+variable {n : ℕ} (key : ℕ → ℕ → ℕ → F) (matrices : Fin (n + 1) → Matrices F) (depths : Fin n → ℕ)
+  (layout : Layout (n + 1))
 
 theorem params_lanes : (params key matrices depths layout).lanes = ringDegree := rfl
 
@@ -109,15 +110,16 @@ theorem slot_table_le {depth : ℕ} (le : depth ≤ productionLightFoldCap) :
   simp only [GlobalParams.accumulatorBound, productionGlobalParams, productionLightFoldCap] at le ⊢
   omega
 
-/-- At the production bounds of the layout, the error of `soundness` is below `2^−119`. -/
-theorem params_error_lt (vf : VerifierData (params key matrices depths layout))
+/-- At the production bounds of the layout and at most two slots, the error of `soundness` is
+below `2^−119`. -/
+theorem params_error_lt (vf : VerifierData (params key matrices depths layout)) (slots : n ≤ 2)
     (columns : vf.columnVars = 2) (depths_le : ∀ s, depths s ≤ productionLightFoldCap)
-    (slots_le : ∀ c : Fin 3, (c : ℕ) < 2 → (layout.witness c).vars ≤ 25)
+    (slots_le : ∀ c : Fin (n + 1), (c : ℕ) < n → (layout.witness c).vars ≤ 25)
     (span_le : layout.spanVars ≤ 27) : error vf < 1 / 2 ^ 119 := by
-  refine lt_of_le_of_lt (error_le_production vf card_F card_K rfl rfl rfl
-    (Finset.sup_le fun _ _ => le_refl _) span_le columns rfl fun c table => ?_)
+  refine lt_of_le_of_lt (error_le_production vf card_F card_K (by change n + 1 ≤ 3; omega) rfl
+    rfl (Finset.sup_le fun _ _ => le_refl _) span_le columns rfl fun c table => ?_)
     production_error_lt
-  have slot : (c : ℕ) < 2 := of_decide_eq_true table
+  have slot : (c : ℕ) < n := of_decide_eq_true table
   have cells : 2 ^ (layout.witness c).vars ≤ 2 ^ 25 :=
     Nat.pow_le_pow_right two_pos (slots_le c slot)
   have values := slot_table_le (depths_le ⟨c, slot⟩)
@@ -127,26 +129,27 @@ theorem params_error_lt (vf : VerifierData (params key matrices depths layout))
   omega
 
 /-- A slot of at most `2^25` cells has nonzero counts in `F_q`. -/
-theorem params_countsNonzero (slots_le : ∀ c : Fin 3, (c : ℕ) < 2 → (layout.witness c).vars ≤ 25) :
+theorem params_countsNonzero
+    (slots_le : ∀ c : Fin (n + 1), (c : ℕ) < n → (layout.witness c).vars ≤ 25) :
     CountsNonzero (params key matrices depths layout) := by
-  intro c table n positive le
-  have slot : (c : ℕ) < 2 := of_decide_eq_true table
+  intro c table count positive le
+  have slot : (c : ℕ) < n := of_decide_eq_true table
   have cells : 2 ^ (layout.witness c).vars ≤ 2 ^ 25 :=
     Nat.pow_le_pow_right two_pos (slots_le c slot)
   have below : (2 : ℕ) ^ 25 < fieldModulus := by decide
-  change ((n : ZMod fieldModulus)) ≠ 0
+  change ((count : ZMod fieldModulus)) ≠ 0
   rw [Ne, CharP.cast_eq_zero_iff (ZMod fieldModulus) fieldModulus]
   intro divides
   have := Nat.le_of_dvd positive divides
-  change n ≤ 2 ^ (layout.witness c).vars at le
+  change count ≤ 2 ^ (layout.witness c).vars at le
   omega
 
 end Params
 
 section Pass
 
-variable (key : ℕ → ℕ → ℕ → F) (rel : ℕ → Factored F) (which : Fin 3 → ℕ) (depths : Fin 2 → ℕ)
-  (layout : Layout) (zeros : ℕ)
+variable {n : ℕ} (key : ℕ → ℕ → ℕ → F) (rel : ℕ → Factored F) (which : Fin (n + 1) → ℕ)
+  (depths : Fin n → ℕ) (layout : Layout (n + 1)) (zeros : ℕ)
 
 /-- The verifier of Rust `verify`: the one pass of Rust `matrix_part` over the factored rows
 `rel (which c)` of the relation of claim `c`, `LOOKUP_VARS = 2` and `zeros` zeros in the opening
@@ -174,8 +177,8 @@ theorem verifierData_matrixSpec : MatrixSpec (verifierData key rel which depths 
 /-- `soundness` at the production parameters with the one pass of Rust `matrix_part`. -/
 theorem params_soundness
     (wf : WellFormed (params key (fun c => (rel (which c)).matrices) depths layout))
-    (slots_le : ∀ c : Fin 3, (c : ℕ) < 2 → (layout.witness c).vars ≤ 25)
-    (key_fits : ∀ c : Fin 3, (layout.witness c).vars - 6 ≤ layout.keyBlockVars)
+    (slots_le : ∀ c : Fin (n + 1), (c : ℕ) < n → (layout.witness c).vars ≤ 25)
+    (key_fits : ∀ c : Fin (n + 1), (layout.witness c).vars - 6 ≤ layout.keyBlockVars)
     (s : Strategy (Option (Option (Statement (params key (fun c => (rel (which c)).matrices)
       depths layout) × (ℕ → F))))) (q : ℕ) :
     prob s (restore (game (verifierData key rel which depths layout zeros)) q [])
@@ -207,13 +210,13 @@ theorem centeredMagnitude_tableValue {bound v : ℕ} (small : 2 * bound < fieldM
       Nat.mod_eq_of_lt (show fieldModulus - (bound - v) < fieldModulus by omega)]
     omega
 
-variable (key : ℕ → ℕ → ℕ → F) (matrices : Fin 3 → Matrices F) (depths : Fin 2 → ℕ)
-  (layout : Layout)
+variable {n : ℕ} (key : ℕ → ℕ → ℕ → F) (matrices : Fin (n + 1) → Matrices F) (depths : Fin n → ℕ)
+  (layout : Layout (n + 1))
 
 /-- `Relation` gives each cell of the witness slice of slot `s` a centered magnitude below
 `accumulatorBound(depth_s) + 1`, and that bound is at most `B`. -/
 theorem slot_norm {st : Statement (params key matrices depths layout)} {W : ℕ → F}
-    (holds : Relation (params key matrices depths layout) st W) (s : Fin 2)
+    (holds : Relation (params key matrices depths layout) st W) (s : Fin n)
     (depth_le : depths s ≤ productionLightFoldCap) :
     (∀ y < 2 ^ (layout.witness s.castSucc).vars,
       centeredMagnitude (W ((layout.witness s.castSucc).offset + y)) <
@@ -229,7 +232,7 @@ theorem slot_norm {st : Statement (params key matrices depths layout)} {W : ℕ 
     omega
   refine ⟨fun y cell => ?_, ?_⟩
   · obtain ⟨v, v_lt, equal⟩ := (holds s.castSucc).2.2
-      (show decide ((s.castSucc : ℕ) < 2) = true from
+      (show decide ((s.castSucc : ℕ) < n) = true from
         decide_eq_true (by rw [Fin.val_castSucc]; exact s.isLt)) y cell
     rw [shape_bound] at v_lt equal
     change W ((layout.witness s.castSucc).offset + y) = _ at equal
@@ -242,7 +245,7 @@ theorem slot_norm {st : Statement (params key matrices depths layout)} {W : ℕ 
 /-- The witness of slot `s` as an assignment of `Spec.CE.Holds` (the cells of its slice from
 `offset`) has the norm `accumulatorBound(depth_s) + 1`. -/
 theorem slot_normBounded {st : Statement (params key matrices depths layout)} {W : ℕ → F}
-    (holds : Relation (params key matrices depths layout) st W) (s : Fin 2)
+    (holds : Relation (params key matrices depths layout) st W) (s : Fin n)
     (depth_le : depths s ≤ productionLightFoldCap) {shape : RingRelation.Shape}
     (fits : shape.carrierWidth ≤ 2 ^ (layout.witness s.castSucc).vars) :
     RingRelation.assignmentNormBounded (productionGlobalParams.accumulatorBound (depths s) + 1)

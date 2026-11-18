@@ -2,114 +2,47 @@
 
 ## Status
 
-Accepted by the owner on 2026-08-31.
+Superseded. The owner accepted this record on 2026-08-31. Three records
+replace its rules:
 
-Superseded in part on 2026-11-13: [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) replaces the Goldilocks field and the rank `κ = 22` of this record with `q = 2^64 − 59`, the ring `X^64 + 1` and `κ = 18`. The numbers below are those of the prior profile.
+- [`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) replaces the
+  Goldilocks field, the rank `κ = 22` and the security calculation with
+  `q = 2^64 − 59`, the ring `X^64 + 1` and `κ = 18`;
+- [`fprime-ajtai-shake128-setup.md`](./fprime-ajtai-shake128-setup.md)
+  replaces the ChaCha20 expander with SHAKE128; and
+- [`fprime-ajtai-rejection-sampling.md`](./fprime-ajtai-rejection-sampling.md)
+  replaces the 256-bit wide reduction with 8-byte rejection sampling and a
+  fallback.
 
-The owner first approved `κ = 25`, then corrected the selected rank to
-`κ = 22` on 2026-08-31. The final approval is
-`nightstream-ajtai-chacha20-wide256-v1`,
-256-bit wide reduction, and generation of one 32-byte operating-system CSPRNG
-seed. The generated public verifier-owned seed is:
+Only the seed rule below stays in force.
+
+## Problem
+
+The main witness commitment needs a public key that each verifier can
+compute again. An earlier setup used 64-bit rejection sampling with no
+fallback. It needed a proof that sampling succeeded at each key index, and
+that proof was not practical.
+
+## SuperNeo
+
+SuperNeo `Setup` samples the commitment matrix uniformly at random
+(Definition 8). The paper does not specify how to derive the matrix from a
+seed.
+
+## Decision
+
+The key comes from one verifier-owned 32-byte seed. An operating-system
+CSPRNG gave the seed once. The seed is public:
 
 ```text
 fc404984d44c1b878d68a6a80092d7d7ab44d81ac17b45a8e7bd4c1f1e371702
 ```
 
-On 2026-09-29, [`fprime-ajtai-shake128-setup.md`](./fprime-ajtai-shake128-setup.md)
-superseded the ChaCha20 expander rules below. The rank, seed and wide
-reduction stay in force.
+Lean and Rust hold this value
+(`Export.Stage1.Poseidon2HashChainV1SetupAuthority.productionSeed`,
+[SPEC.md](../SPEC.md) Algorithm 1). The prover cannot select the seed.
 
-On 2026-11-14, [`fprime-ajtai-rejection-sampling.md`](./fprime-ajtai-rejection-sampling.md)
-superseded the wide reduction with 8-byte rejection sampling and a fallback.
-
-## Problem
-
-The prior main commitment rank was `κ = 18`. At the concrete
-`Poseidon2HashChainV1` footprint, the selected ADPS16 quantum Core-SVP model
-gives BKZ block size 320, or 84.8 raw bits. This is below the project target.
-
-The prior `AjtaiSetupV1.Setup` also required a proof that 64-bit rejection
-sampling succeeded at every key index. A `κ = 22` key can contain as many as
-5,905,580,076 Goldilocks coefficients under the `2^28` domain bound. Checking
-all rejection paths is not a practical Lean proof or development task.
-
-## Decision
-
-Use this exact main witness-commitment setup:
-
-- module rank `κ = 22`;
-- one verifier-owned 32-byte seed from an operating-system CSPRNG;
-- ChaCha20 as specified by [RFC 8439](https://www.rfc-editor.org/rfc/rfc8439.html);
-- setup ID `nightstream-ajtai-chacha20-wide256-v1`;
-- one direct random-access ChaCha20 block per `(row, block, lane)`;
-- nonce `row_u32_le || block_u64_le`;
-- block counter `lane_u32`;
-- the first 32 output bytes interpreted as one little-endian 256-bit integer;
-- coefficient equal to that integer modulo the Goldilocks prime; and
-- no rejection, fallback, retry, or materialized full key.
-
-Lean must define this function, prove every coefficient canonical, and emit
-the setup authority. Rust must implement the same indexed function and pass
-complete selected-index parity and mutation checks. The seed, rank, setup ID,
-and message-column count must be raw verifier authority in the final package.
-
-## Security calculation
-
-The largest possible ring-column count under the approved domain is
-
-```text
-ceil(2^28 / 54) = 4,971,027.
-```
-
-At `κ = 22` and this worst-case width, the pinned estimator model gives:
-
-```text
-BKZ block size:                 429
-ADPS16 quantum cost:            113.685 bits
-eight-target allowance:           3.000 bits
-post-allowance cost:             110.685 bits
-```
-
-The owner explicitly selected this approximately 110-bit post-allowance
-level. It does not meet the former 128-bit post-allowance target.
-
-The wide reduction follows the method in [RFC 9380, Section
-5](https://www.rfc-editor.org/rfc/rfc9380.html#section-5). For a 64-bit prime,
-32 input bytes give at most `2^-192` reduction bias per coefficient. The
-complete worst-case key has fewer than `2^33` coefficients, so the union
-bound is below `2^-159`.
-
-The raw expanded key would contain 47,244,640,608 bytes. Production must keep
-the key indexed and lazy. This number is a size calculation, not an artifact
-to generate.
-
-The final security theorem must name these external assumptions:
-
-- Module-SIS hardness under the pinned estimator model;
-- ChaCha20 pseudorandomness for the indexed expansion;
-- the wide-reduction statistical bound; and
-- the existing low-norm invertibility boundary.
-
-## Scope and supersession
-
-This decision supersedes only the statement in
-[`rank-two-sis-security.md`](./rank-two-sis-security.md) that the main witness
-commitment remains `κ = 18`. It does not change the accepted auxiliary
-rank-two limits in that decision.
-
-It does not change `b = 2`, `k_rho`, `B = 2^k_rho`, the `2^28` domain,
-Poseidon2 protocol binding, the selected application, or any Stage 2 rule.
-
-## Required closure after approval
-
-After the rank and seed are selected:
-
-1. recompute and prove the complete concrete footprint and `2^28` bound;
-2. emit the final package and all binding values;
-3. pin the final package identity in Rust;
-4. rerun exact A/B/C equality and independent assignment evaluation;
-5. rerun all Lean, `paper_exact`, optimized, handoff, and mutation gates; and
-6. obtain exact-cut external review before any Conformance-closed claim.
-
-Proof-backend work remains separately owner-controlled.
+The replaced rules were the rank `κ = 22`, the setup ID
+`nightstream-ajtai-chacha20-wide256-v1`, one ChaCha20 block for each
+coefficient, and the reduction of 256 output bits modulo the Goldilocks
+prime. The Ajtai key of the current tree does not use them.

@@ -289,6 +289,13 @@ import NightstreamFPrime.Export.BoundedDepth.NebulaFinal
 #audit_axioms NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh.fresh_ambient
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.avoids_bind_of
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.which_slot
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.Mode.slots_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.running_default
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.slot_val
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.runningWitness_slot
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.runningWitness_default
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.slot_or_outside
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.checks_light
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.freshIndex_eq
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.which_fresh
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.supported_slice

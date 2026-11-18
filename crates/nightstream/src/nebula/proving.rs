@@ -10,7 +10,7 @@ use super::carry::Carry;
 use super::geometry::Geometry;
 use super::segment::SegmentError;
 use super::transcript::Digest;
-use super::{memory_security, terminal_states, Program, Run, Statement, TerminalError};
+use super::{compression, memory_security, terminal_states, Program, Run, Statement, TerminalError};
 use crate::lifecycle::ProofCodecError;
 
 const CARRY_BYTES: usize = 39 * 8;
@@ -79,7 +79,11 @@ pub struct Prover<A> {
 
 impl<A: Application + Clone> Prover<A> {
     pub(super) fn new(geometry: Geometry, app: A, stage1: crate::Prover) -> Self {
-        Self { geometry, app, stage1 }
+        Self {
+            stage1: stage1.with_compression(compression(&geometry)),
+            geometry,
+            app,
+        }
     }
 
     /// Load the prover of a circuit that `Circuit::write` saved for
@@ -198,7 +202,11 @@ pub struct Verifier<A> {
 
 impl<A: Application> Verifier<A> {
     pub(super) fn new(geometry: Geometry, app: A, stage1: crate::Verifier) -> Self {
-        Self { geometry, app, stage1 }
+        Self {
+            stage1: stage1.with_compression(compression(&geometry)),
+            geometry,
+            app,
+        }
     }
 
     /// Decode untrusted proof bytes: the canonical carry words, then

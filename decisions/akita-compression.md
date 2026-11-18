@@ -5,7 +5,7 @@
 Accepted by the owner on 2026-11-13:
 
 - Akita (ePrint 2026/1983) is the polynomial commitment scheme of the
-  compression. The owner kept it after a review of the architecture.
+  compression.
 - Poseidon2 makes each value that a circuit computes again. Keccak-family
   hashes are used only inside Akita: the Keccak-f duplex sponge, SHA3-256
   digests, the SHAKE128 session identifier and the SHAKE256 setup.
@@ -18,28 +18,29 @@ Accepted by the owner on 2026-11-13:
   pass over the compiled circuit, because a commitment adds prover time to
   each `compress`.
 - No Rust code of the compression is translated to Lean with Aeneas.
-- The committed key. Preprocessing commits the Ajtai key with Akita, and the
-  verifier holds the commitment in a verification key.
+- Preprocessing commits the Ajtai key with Akita, and the verifier holds the
+  commitment in a verification key.
 - The verification key belongs to the generation of the circuit on the
   verifier's side. The verifier never takes it from a proof.
 
-Proposed. Each other entry of this record was selected without the owner and
-waits for the owner's review. This includes the form of the key polynomial,
-the sum-check that reduces the key's part of the weights, the row point, the
-schedule rows, the bytes of the key and their pin, and the four lookup
-challenges. Lean bounds the soundness of the argument of this record in a
-model with ideal Akita openings (`Spec.Compression.Verifier.soundness`,
-SPEC.md Algorithm 10). Lean models the layout
-(`Spec.Compression.Rust.layoutNew`) and the Π_CCS run with one source
-(`Spec.Compression.Fresh.game`). No Lean statement covers the key.
+Accepted by the owner on 2026-11-16: a circuit whose proofs never reach a
+refresh fold, such as each WASM size, has a final proof of two claims, and
+its key holds the light relation only
+([`wasm-light-compression.md`](./wasm-light-compression.md)).
+
+Proposed: each other entry of this record. The owner did not select these
+entries, and they wait for the owner's review. They include the form of the
+key polynomial, the sum-check that reduces the key's part of the weights,
+the row point, the schedule rows, the bytes of the key and their pin, and
+the four lookup challenges.
 
 ## Problem
 
-The Spartan, WHIR and shrink path was removed
-([`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md)). A proof that
-`Verifier::verify` accepts carries the witnesses of both slots and of the
-fresh instance. A caller needs a proof without witnesses that a verifier
-checks against the same statement `(i, z0, zi)`.
+A proof that `Verifier::verify` accepts carries the witnesses of both slots
+and of the fresh instance. A caller needs a proof without witnesses that a
+verifier checks against the same statement `(i, z0, zi)`. The earlier
+Spartan, WHIR and shrink path is removed
+([`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md)).
 
 Akita commits and opens a multilinear polynomial. It does not say which
 statement to prove, how to prove a norm bound, or how to join its transcript
@@ -47,276 +48,174 @@ to a Poseidon2 transcript. This record fixes these choices.
 
 Each CE claim has an Ajtai commitment, so a verifier of the claims needs the
 Ajtai key at the point of its check. For the reference application, the key
-rows that the circuits read are `18 · 2^19 · 2,048 = 19,327,352,832` bytes of
-SHAKE128 output (computed). The owner's requirement is that the verifier
-reads none of them.
+that the circuits read has `18 · 2^19` ring elements of 64 coefficients. The
+owner's requirement is that the verifier reads none of them.
 
 ## SuperNeo
 
 SuperNeo v1.2 gives the folding scheme and the CE relation (Definition 21).
-Its abstract names no compression of a final proof, and this record uses no
-SuperNeo result about compression. The body of the paper was not searched for
-this record. The relations that the argument targets are the Lean ones:
-`Spec.CE.Holds` for a slot, `Spec.CCS.Holds` for the fresh instance, and the
-verifier `Export.BoundedDepth.RunCompleteness.Verifies`.
+This record uses no SuperNeo result about compression. The relations that
+the argument targets are the Lean ones: `Spec.CE.Holds` for a slot,
+`Spec.CCS.Holds` for the fresh instance, and the verifier
+`Export.BoundedDepth.RunCompleteness.Verifies`.
 
 ## Decision
 
 `Prover::compression_setup` makes the prover's key once,
 `Verifier::compression_key` gives the verification key, `Prover::compress`
 makes a final proof from a proof with witnesses, and
-`Verifier::verify_final` checks it ([SPEC.md](../SPEC.md) Algorithms 9, 10
-and 11). The final proof has the statement, both slot claims with their
-depths, the CE claim of the fresh instance, one Π_CCS sum-check, and one
-argument over Akita. It has no witness and cannot be extended.
+`Verifier::verify_final` checks it. [SPEC.md](../SPEC.md) Algorithms 9, 10
+and 11 are the rule, with the parameters of section 3 and the transcript of
+section 5.4. The final proof has the statement, the slot claims of its mode
+with their depths, the CE claim of the fresh instance, one Π_CCS sum-check,
+and one argument over Akita. It has no witness and cannot be extended. The
+mode has both slots, or slot 0 alone for a circuit whose proofs never reach
+a refresh fold (`Export.BoundedDepth.FinalVerifier.Mode`).
 
 | Item | Value |
 |---|---|
 | Commitment scheme | Akita, git revision `d50f700fb1a292395a717cef0e6f437c7ce2cdb1`, crate version 0.1.0 |
 | Akita configuration | `RecursiveCommitmentConfig<proof_optimized::fp64::Dense>`: base field `F_q`, extension `F_q[u]/(u² − 2)`, which is `K`, schedules that offload Akita's own setup |
-| Schedule files | `crates/ns-compress/artifacts/key20.aks`, SHA-256 `8ee08715b2120cfb576227f195fde041e5e1dd828511ca5e75d5df73d4c097b5`, and `crates/ns-compress/artifacts/key30.aks`, SHA-256 `b71861d25a4cb23b8eb68b20365bc5b76336224dcacdcada86242c9d9c084f94` |
-| Source of the schedule files | Akita's planner at the pinned revision, family `fp64_dense_recursive`, run by `scripts/akita_schedules.sh` |
-| Schedule rows | Each row opens three polynomials in one proof. `key20.aks`: a key polynomial of 20 variables, `W` of 16 and `V` of 16, for tests. `key30.aks`: a key polynomial of 30 variables, `W` of 26 or 27 and `V` of 28 |
+| Schedule files | `crates/ns-compress/artifacts/key20.aks`, SHA-256 `8ee08715b2120cfb576227f195fde041e5e1dd828511ca5e75d5df73d4c097b5`, and `crates/ns-compress/artifacts/key30.aks`, SHA-256 `b71861d25a4cb23b8eb68b20365bc5b76336224dcacdcada86242c9d9c084f94`, from Akita's planner at the pinned revision (`scripts/akita_schedules.sh`) |
 | Committed polynomials | The key polynomial: the Ajtai key, once, in preprocessing. `W`: each witness, then the counts of each table. `V`: the lookup inverses |
-| Key polynomial | Cell `h + 64·j + 64·n·i` holds coefficient `h` of key element `(i, j)`, for `n` blocks, a power of two. Each cell of a row from `κ` is 0 |
 | Lookup table of slot `s` | `[−accumulatorBound(depth_s), accumulatorBound(depth_s)]`, at most 20,737 values |
-| Lookup repetitions `L` | 4 challenges of `F_q`, one for each column of `V` |
+| Lookup challenges `L` | 4 challenges of `F_q`, one for each column of `V` |
 | Transcript domains | `Nightstream/OptionB/compress/ccs/v1` for Π_CCS, `Nightstream/compress/akita/v2` for the argument |
-| Byte tags | `NS-OPTIONB-FIN-2` for a final proof, `NS-COMPRESS-VK-1` for a verification key |
+| Byte tags | `NS-OPTIONB-FIN-2` for a final proof of both slots, `NS-OPTIONB-FIN-L` for a final proof of slot 0 alone, `NS-COMPRESS-VK-1` for a verification key |
 | Rust toolchain | 1.99.1, which Akita requires |
 | `jolt-field` | git revision `25d87ba68bde9f4a85ac986f5487b2e7b7db2699`, Akita's own pin |
 
-### What the proof states
+### The choices
 
-1. **No shrink layer.** The verifier checks the argument directly. The removed
-   shrink layer made a circuit of a verifier, because the WHIR proofs of the
-   layer below it were large. The size of an Akita opening changes little
-   with the number of variables, so no such circuit is necessary.
-2. **Three CE claims.** The terminal check of SPEC.md Algorithm 6 has two
+1. **No shrink layer.** The verifier checks the argument directly. The size
+   of an Akita opening changes little with the number of variables, so no
+   circuit of a verifier is necessary.
+2. **Three or two CE claims.** The terminal check of Algorithm 6 has two
    slot accumulators and one fresh instance. Each slot accumulator is a CE
    claim (`Lifecycle.BoundedDepth.SlotClaim`). One Π_CCS run with no running
-   claim turns the fresh instance into a CE claim at a random point. Its
-   sum-check proves each row of the relation and that each coefficient is in
-   `{−1, 0, 1}`. This run uses the Π_CCS code of the folds.
+   claim turns the fresh instance into a CE claim at a random point. This run
+   uses the Π_CCS code of the folds. In the light mode, slot 1 is the default
+   slot at depth 0, which the verifier builds, so the argument has slot 0
+   and the fresh instance of the light circuit, and the key holds the light
+   relation only.
 3. **Π_CCS binds `W` first.** The Π_CCS transcript absorbs the Akita
-   commitment of `W` before its first challenge. So the fresh witness in `W`
-   is fixed before the challenges that judge it.
+   commitment of `W` before its first challenge.
 4. **Ring equations at one point.** The Ajtai opening, `Eval_K` and each
-   `Eval_A` of a claim are equations `Σ_j P_j · z_j = Y` in
-   `K[X]/(X^64 + 1)`. Each side is a reduced polynomial of degree below 64.
-   Two different sides agree at a random `δ ∈ K` with probability at most
-   `63/|K|`. The left side at `δ` is linear in the coefficients of `z`, with
-   the public weights `(X^h · P_j)(δ)`. So each equation is one inner product
-   of `W` with public weights, and the proof has no quotient polynomial.
+   `Eval_A` of a claim are equations in `K[X]/(X^64 + 1)`. Two different
+   sides agree at a random `δ ∈ K` with a probability of at most `63/|K|`.
+   So each equation is one inner product of `W` with public weights, and the
+   proof has no quotient polynomial.
 5. **Exact lookup table.** The slot check of Lean is `Spec.normBounded` at
    the bound `accumulatorBound j + 1` for depth `j`
    (`Export.BoundedDepth.StepExtend.Honest`,
    `Spec.GlobalParams.accumulatorBound`). A range of a power of two would
-   accept a larger norm than Algorithm 6 accepts. The lookup proves, for a
-   challenge `τ`, that `Σ_cells 1/(τ − z) = Σ_values count/(τ − value)`.
-6. **Challenges of the base field, with repetitions.** Akita commits a
-   polynomial over `F_q`, so the inverses must be in `F_q` and `τ` must be
-   in `F_q`. One challenge gives the error `(N + T)/q` for `N` cells and `T`
-   table values. `L` independent challenges give `((N + T)/q)^L`. `V` has
-   four columns, and `L = 4` puts the lookup error below each other term.
-7. **Counts are cells of `W`.** The counts must be fixed before `τ`. `W` is
-   committed before `τ`, so the counts need no third commitment.
-8. **Two commitments in a proof.** `V` depends on `τ`, and `τ` depends on
-   the commitment of `W`. So the proof carries two commitments. The
-   commitment of the key polynomial is in the verification key.
-9. **The committed key.** The key's part of the public weights at the point
-   of the sum-check is a sum over the key elements that the claims read. The
-   proof carries this sum as a claim of the prover. A second sum-check, of
-   degree 2 over the lanes and the blocks, reduces the claim to one value of
-   the key polynomial, and Akita opens that value against the commitment of
-   the verification key. So the verifier reads no key element.
-10. **A claim reads a prefix of the blocks.** The number of ring columns of
-    a relation is not a power of two. So the weight of the second sum-check
-    is the multilinear extension of an equality table on a prefix, which the
-    verifier computes in a number of steps linear in the variables. One
-    weight batches the three uses of the key, by slot 0, by slot 1 and by
-    the fresh instance, with the coefficients that the first sum-check
-    gives. So the three uses need no new challenge.
-11. **The rows need no round.** The powers of `ω` that batch the `κ` rows
-    are a scaled equality table: `ω^i = scale · eq(s, i)` with
-    `s_k = ω^(2^k)/(1 + ω^(2^k))` and `scale = Π_k (1 + ω^(2^k))` for
-    `k < 5`. So the batch of the rows is `scale` times the key polynomial at
-    the row point `s`. The identity is exact. No proof exists when a factor
-    of `scale` is 0, that is when `ω^(2^k) = −1`. The 2-power roots of unity
-    of `K` form a group of order 8, because `q² − 1` is divisible by 8 and
-    not by 16. So 7 values of `ω` have no row point, and the probability is
-    `7/q²`.
-12. **One key for each circuit size.** The key polynomial holds the blocks
-    of the larger relation up to a power of two. It is a function of the
-    public seeds and of that power of two only. So each circuit of one size
-    has the same verification key, and a prover and a verifier of one
-    circuit agree on the key.
-13. **One Akita proof.** One proof opens the key polynomial, `W` and `V`.
-    Each schedule row fixes the commitment profile of the three polynomials.
-    Each row of one file has the same profile for the key polynomial, so one
-    commitment of the key serves each row.
-14. **Akita's own setup is committed too.** The schedule rows offload
-    Akita's setup (ePrint 2026/1983 section 9). The verifier derives a short
-    prefix of that setup from Akita's public seed. The verification key
-    holds Akita's commitments of the longer prefixes.
-15. **Transcript.** The Poseidon2 transcript of the Π_CCS run makes each
-    challenge of the argument. After the domain of the argument, it absorbs
-    the bytes of the verification key, then the claims and the bytes of each
-    Akita commitment of the proof. The session bytes of the Akita opening
-    are a label and lanes 0 to 3 of the sponge state after the last message.
-    Akita makes its own challenges from its Keccak sponge, which no circuit
-    computes.
-16. **The verification key is pinned, so it is checked, not trusted.**
-    Item 12 gives one key for each block count that has schedule rows. So
-    the code pins the bytes of each such key, and a test computes each
+   accept a larger norm than Algorithm 6 accepts.
+6. **Lookup challenges of the base field, with repetitions.** Akita commits
+   a polynomial over `F_q`, so the inverses and the challenge `τ` are in
+   `F_q`. One challenge gives the error `(N + T)/q` for `N` cells and `T`
+   table values, and `L = 4` independent challenges give `((N + T)/q)^4`,
+   which is below each other term.
+7. **Counts are cells of `W`.** `W` is committed before `τ`, so the counts
+   need no third commitment. `V` depends on `τ`, so a proof carries two
+   commitments. The commitment of the key polynomial is in the verification
+   key.
+8. **The committed key.** The key's part of the public weights is a sum over
+   the key elements that the claims read. The proof carries this sum as a
+   claim of the prover. A second sum-check, of degree 2 over the lanes and
+   the blocks, reduces the claim to one value of the key polynomial, and
+   Akita opens that value against the commitment of the verification key.
+   So the verifier reads no key element. One weight batches the three uses
+   of the key with the coefficients of the first sum-check.
+9. **The rows need no round.** The powers of `ω` that batch the `κ` rows are
+   a scaled equality table, so the batch of the rows is a scale times the
+   key polynomial at a row point. No proof exists for 7 values of `ω`, with
+   probability `7/q²`. `compress` then returns an error.
+10. **One key for each circuit size.** The key polynomial is a function of
+    the public seeds and of the block count as a power of two only. So each
+    circuit of one size has the same verification key. The block count is
+    that of the larger relation, or of the light relation in the light
+    mode.
+11. **One Akita proof.** One proof opens the key polynomial, `W` and `V`.
+    The schedule rows offload Akita's setup (ePrint 2026/1983 section 9),
+    and the verification key holds Akita's commitments of the setup
+    prefixes.
+12. **Transcript.** The Poseidon2 transcript of the Π_CCS run makes each
+    challenge of the argument. It absorbs the bytes of the verification key,
+    the claims and the bytes of each Akita commitment. Akita makes its own
+    challenges from its Keccak sponge, which no circuit computes.
+13. **The verification key is pinned.** The code pins the bytes of the key
+    of each block count that has schedule rows, and a test computes each
     pinned key again from the public seeds. `Verifier::compression_key`
-    gives the pinned key of the verifier's circuit size, and
-    `Verifier::decode_compression_key` accepts loaded bytes only when they
-    equal that key. No proof and no value of the prover carries the key.
-    Under another key, the commitment of the key polynomial or Akita's setup
-    prefixes are not the public ones, and Akita gives no binding. So the
-    decoder does not accept a key whose form alone is correct.
-17. **The Akita schedule comes from the verifier.** The verifier must take
-    the number of variables of each polynomial from its key and its own
-    layout of the claims, and the schedule row from the embedded files. A
-    value that the proof carries is not authority.
-18. **The extension field.** `K` and Akita's extension are both
-    `F_q[u]/(u² − 2)` with the basis `(1, u)`. A point or a value of `K` goes
-    to Akita with the same two coefficients.
-19. **The fresh zero tail.** The argument commits only the ring blocks of
-    each circuit's package, so no other block exists. It does not prove that
-    the fresh witness is zero from the width to the end of its last block.
+    gives the pinned key, and `Verifier::decode_compression_key` accepts
+    loaded bytes only when they equal that key. Under another key Akita
+    gives no binding, so the decoder does not accept a key whose form alone
+    is correct.
+14. **The Akita schedule comes from the verifier.** The verifier takes the
+    number of variables of each polynomial from its key and its own layout
+    of the claims, and the schedule row from the embedded files. A value
+    that the proof carries is not authority.
+15. **The fresh zero tail.** The argument commits only the ring blocks of
+    each circuit's package. It does not prove that the fresh witness is zero
+    from the width to the end of its last block.
     `Lifecycle.BoundedDepth.BlockSupport.Supported` requires zero only on a
     block that starts at or after the width.
-20. **No zero knowledge.** Akita is not zero-knowledge, and the proof
-    carries the claims. The final proof hides no witness data in a formal
-    sense.
+16. **No zero knowledge.** Akita is not zero-knowledge, and the proof
+    carries the claims.
 
-In the Nova family, an inner-product argument over Pedersen commitments has
-a verifier whose time is linear in the commitment key, and Dory keeps a
-commitment to the generators in the verifier's key. Items 9 to 16 are the
-lattice form of the second design, with a sum-check and an Akita opening in
-place of Dory's pairing check.
+Two alternatives were not selected. The estimate for a final proof over WHIR
+with the same method was 300 to 450 KB, which is above the owner's limit. A
+commitment to the matrices of the circuits removes the verifier's pass over
+the rows, but each `compress` must then also prove the matrices' part of the
+public weights.
 
-WHIR with the same method was not selected. The estimate for its final
-proof was 300 to 450 KB, which is above the owner's limit. No such proof was
-built or measured.
+### Error and premises
 
-A commitment to the matrices of the circuits was not selected. With it, the
-verifier makes no pass over the rows, but each `compress` must also prove
-the matrices' part of the public weights. Prototypes outside the repository
-added 0.4 to 1.4 s of prover time and about 45 KB to each final proof. The
-cheaper prototype still gave the verifier 3.2 MB of ring rows of the
-circuits. A permutation argument in the style of PLONK was estimated at 2
-to 3 s.
+[SPEC.md](../SPEC.md) section 3 gives the error terms of the argument and
+the gate that Rust computes from them (`ns_compress::error_bits`). Lean
+bounds the argument in a model with ideal Akita openings: a prover with `Q`
+queries has an error of at most `Q · error`, with `error < 2^−119` at the
+production shapes (`Spec.Compression.Verifier.soundness`,
+`Spec.Compression.Verifier.production_error_lt`). This is not a security
+level of the final proof. It does not include:
 
-### Error accounting
-
-With `|K| = q²`, `n` variables of `W`, `n_A` block variables of the key
-polynomial, `m = 320` public cells, `t = 4` matrices and `s = 3` claims, the
-terms that `ns_compress::error_bits` adds are these.
-
-| Term | Bound |
-|---|---|
-| Batch of the equations at `(ω, δ, γ, μ)` | `(κ + 1 + t + max(63, m − 1) + s − 1)/q² = 344/q²` |
-| Lookup of each slot | `((N + T)/q)^L` |
-| Batch of the inverse checks and the sums | `(2 + n)/q²` |
-| First sum-check, degree 3 | `3n/q²` |
-| The point for the columns of `V` | `2/q²` |
-| Key sum-check, degree 2 over 6 lane variables and `n_A` block variables | `2 · (6 + n_A)/q²` |
-
-For the reference application, `N` is `2^23` and `2^25`, `T ≤ 20,737`,
-`n ≤ 27` and `n_A = 19`. At `L = 4` the lookups give about `2^−155.99`, the
-other terms give `(398 + 4n)/q² = 506/q²` at `n = 27`, about `2^−119.02`,
-and the sum is about `2^−119.02` (computed). `verify_final` and `compress`
-count each lookup term as `1/q²` and refuse a layout when the largest `k`
-with `2^k · count ≤ q²` is below the caller's security minimum, in integers
-(`SPEC.md` section 3). For the reference application, `k` is 119.
-
-This sum is not a security level of the final proof. It does not include:
-
-- the knowledge error of the Akita opening. Akita states a target of a
-  128-bit Fiat–Shamir rate for each query in the classical random-oracle
-  model, and it states no complete bound;
-- the error of the Π_CCS run of the fresh instance, which has one source.
-  Rust holds the Π_CCS test error for 15 sources to the security minimum
-  (SPEC.md section 3);
-- the loss of Fiat–Shamir with Poseidon2. Each term above is the error of
-  one interactive run. Lean bounds the non-interactive argument by
-  `Q · error` for `Q` queries, with `error < 2^−119` at the production
-  shapes (`Spec.Compression.Verifier.production_error_lt`, SPEC.md
-  section 3). Rust does not compute this bound;
+- the knowledge error of the Akita opening (`[AKITA]`). Akita states a target
+  of a 128-bit Fiat–Shamir rate for each query in the classical
+  random-oracle model, and it states no complete bound;
+- the error of the Π_CCS run of the fresh instance; and
 - Module-SIS for the Akita commitments, which Akita prices at 169 bits of
   quantum Core-SVP cost in the ADPS16 model, and Module-SIS for the Ajtai
-  commitments of the claims.
+  commitments of the claims (`[MSIS]`).
 
 The argument has these premises about the verification key. The key is the
-key of SPEC.md Algorithm 11. The pin of item 16 and the test that computes
-each pinned key again make this true. Akita is binding and knowledge sound for the key
-polynomial and for its own setup prefixes, so the value that Akita opens is
-the value of the key polynomial. The verifier never reads the polynomial
-([security model](../formal/nightstream-fprime/SECURITY_MODEL.md), trust
-item 7).
-
-`compress` returns an error when a lookup challenge is a table value or
-when `ω` has no row point. The probability of the first event is at most
-`L · ΣT/q`, about `2^−46.7`, and of the second `7/q²`, about `2^−125.19`
-(computed). The proof is deterministic, so a new call at the same state
-fails again. The prover can extend one step and then compress.
+key of Algorithm 11, which the pin of choice 13 gives. Akita is binding and
+knowledge sound for the key polynomial and for its own setup prefixes, so
+the value that Akita opens is the value of the key polynomial. The verifier
+never reads the polynomial, and no Lean statement covers the key
+([security model](../formal/nightstream-fprime/SECURITY_MODEL.md), adversary
+6 and trust item 7).
 
 ### Consequences
 
-- The verifier reads no element of the Ajtai key. Its time is not linear in
-  the key.
-- The verifier is not succinct. Its time is linear in the matrices of the
-  circuits, because it makes one pass over the rows of each claim's
-  relation.
-- A verifier expands no key row to get its verification key, because the
-  key is pinned. The test of the pin expands the key rows once for each
-  pinned key.
+- The verifier reads no element of the Ajtai key. It is not succinct: its
+  time is linear in the matrices of the circuits.
 - A change of the Akita revision, of the schedule files or of the seeds
   changes the verification key, so the pinned bytes must change with it.
-- The prover holds the key rows and their commitment for each `compress`.
 - The schedule files have rows only for a key polynomial of `2^9` blocks,
-  for tests, and of `2^19` blocks with `W` of 26 or 27 variables and `V` of
-  28. A circuit of another size needs new rows from
-  `scripts/akita_schedules.sh`.
-- The tests that compress a step of the reference application hold the
-  prover's key and are ignored. CI runs the public test
-  `hash_chain_compresses_and_verifies_without_the_ajtai_key` and the test
-  of the large pin alone (`scripts/ci_rust_tests.sh`). It also runs
-  `hash_chain_compresses_at_the_light_fold_cap` alone, which compresses at
-  the light slot's depth 64, the largest lookup table.
-- Each Akita call runs on a rayon pool with 64 MB thread stacks
-  (`ns_compress::akita::on_large_stacks`). Under fat LTO, Akita's NTT loops
-  need more than rayon's default 2 MB stack. The other tests at
-  the production size run by hand. CI runs the edits of the argument on
-  small claims only.
-- The project depends on Akita at one git revision. Akita is version 0.1.0,
-  has no audit, has no proof in the quantum random-oracle model, and gives
-  no compatibility between versions. A change of the revision can change the
-  proof bytes, the schedule files and the verification key.
+  for tests, and of `2^19` blocks. A circuit of another size needs new rows
+  from `scripts/akita_schedules.sh`.
+- Akita is version 0.1.0, has no audit, has no proof in the quantum
+  random-oracle model, and gives no compatibility between versions.
 - The workspace has a second hash family in a proof path, Keccak, inside
   Akita only. The rule of `AGENTS.md` stays in force for the folding scheme
   and the step circuits.
-- The Rust toolchain is 1.99.1.
-- The prover holds `W`, `V`, the key rows and the tables of both sum-checks
-  in memory. No memory limit is stated or tested.
-- The final proof is not zero-knowledge.
 
 ### Open points
 
 - A review of the soundness of the committed key by a party outside the
   project.
-- A Lean link from the soundness of the argument to the Rust data. Only
-  tests join the Lean layout and error sum to Rust.
+- A proof that the Rust layout and the Rust verifier are the Lean models.
+  Only tests join them
+  ([security model](../formal/nightstream-fprime/SECURITY_MODEL.md), trust
+  item 7).
 - Security against a quantum adversary of the transcript hashes.
 - A WASM build of the verifier.
-
-## Scope and supersession
-
-This record is the decision record that
-[`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md) names for the
-compression layer over Akita. It replaces the removed Spartan, WHIR and
-shrink path. It does not change the folds, the step circuits, the packages,
-the state hash, or the bytes of a proof with witnesses.

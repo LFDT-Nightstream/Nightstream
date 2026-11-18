@@ -19,37 +19,37 @@ geometry.
 
 ## Decision
 
-The owner asked on 2026-11-02 for this choice to be made without Enzo, and
-approved it on 2026-11-03.
+The owner approved this on 2026-11-03, the shapes of item 3 on 2026-11-09,
+the segment counts of item 5 on 2026-11-14, and the four sizes of items 1
+to 3 and 5 on 2026-11-16 (`wasm-light-compression.md`).
 
-1. **Three sizes.** `neo_wasm::nebula::WasmSize` has Small, Medium and
-   Large, with ROMs of `2^13`, `2^14` and `2^15` cells. The RAM of a size has
-   an eighth of the cells of its ROM. A segment scans each cell of both
-   memories, and the program tables in the ROM need far more cells than a
-   run's stack and linear memory: the test transactions of Starstream
-   `159bedc` use at most 106 RAM cells. A size is a set of limits, a
-   geometry, and the rows of one step.
+1. **Four sizes.** `neo_wasm::nebula::WasmSize` has Micro, Small, Medium
+   and Large, with ROMs of `2^11`, `2^12`, `2^13` and `2^14` cells. The RAM
+   of Micro has an eighth of the cells of its ROM, and the RAM of each other
+   size a quarter. A segment scans each cell of both memories, and the
+   program tables in the ROM need far more cells than a run's stack and
+   linear memory: the test transactions of Starstream `159bedc` use at most
+   106 RAM cells. A size is a set of limits, a geometry, and the rows of one
+   step.
 2. **Limits by dimension.** Each address part of a WASM memory counts one
    thing: a program counter, a function reference, an event, a slot, a stack
    cell, a word of linear memory, and so on (`WasmLimits`). A size gives a
-   width to each of these. Program counters have 8, 9 and 10 bits, and
-   function references 5, 6 and 7 bits. The host events of all the templates
-   of a program have 6, 7 and 8 bits. Each size has 3 bits for the slots of
-   an event. In the RAM, linear memory takes half of the space, the stack a
-   quarter, and each of the two global tables a thirty-second. The four smaller test transactions of Starstream `159bedc` fit
-   Small, and the two larger fit Medium.
-3. **Steps and segments.** Small and Medium prove 64 rows in each step, in
-   segments of 8 and 16 steps. Large proves 32 rows in each step, in
-   segments of 16 steps. Small has at most 19 segments, Medium 9 and Large
-   6 (item 5), so Small holds runs of up to 9,728 trace rows, Medium of up
-   to 9,216 and Large of up to 3,072.
-   The fixed cost of a step changes little with its rows, so fewer and
-   larger steps cost less for each row. The owner approved these shapes on
-   2026-11-09 after CPU measurements on memories with the same step shape: a
-   512-row Small segment took 89 s in place of 251 s, and a Large row took
-   0.28 s in place of 1.35 s. Small and Medium keep 512 and 1,024 rows in
-   each segment. Large has 512 rows in each segment, so a short Large run
-   pads to 512 rows. Its rule 6 count is 40,960, below 139,509.
+   width to each of these. In the order program counter, function, event,
+   slot, stack, linear memory, global, call depth, host depth, table and
+   table index, the widths are 8 5 3 3 6 7 2 2 2 1 2 for Micro, 8 6 6 3 8
+   9 5 4 4 1 4 for Small, 9 6 7 3 9 10 6 5 4 1 5 for Medium, and 10 7 8 3
+   10 11 7 6 4 1 6 for Large.
+3. **Steps and segments.** Micro proves 800 rows in each step, Small 672,
+   and Medium and Large 664. A segment of Micro and of Small has 1 step, of
+   Medium 2 and of Large 4. Micro has at most 30 segments, Small 24, Medium
+   12 and Large 6 (item 5), so Micro holds runs of up to 24,000 trace rows
+   and each other size of up to about 16,000. The fixed cost of a step
+   changes little with its rows, so fewer and larger steps cost less for
+   each row. The rows of each size are a selected count, and the light
+   relation of each size fits the Akita key of `2^19` blocks
+   (`akita-compression.md`). Small fills the key most closely. The four
+   short test transactions of Starstream `159bedc` fit Micro, and `score`
+   and `distinct_utxo_types` fit Small.
 4. **The prover selects, the verifier takes.** The prover takes the
    smallest size that holds the program and its run. The size is part of the
    statement, and the verifier compiles the circuit of that size. It never
@@ -59,9 +59,11 @@ approved it on 2026-11-03.
    and the runtime gate charges each one (`SPEC.md` section 7.1). Each size
    has the most segments for which `S_max · 2·m_mem/q²` is at most `2^−109`,
    so a caller asks for at most 109 bits of security. With 8 memory slots
-   in each row, `m_mem` is 13,312, 26,624 and 40,960, so the counts are 19,
-   9 and 6. On 2026-11-13 the owner kept 109 bits with fewer segments, in
-   place of 107, 107 and 105 bits with the earlier 32, 16 and 32 segments.
-   On 2026-11-14 the owner confirmed the segment counts 19, 9 and 6 (largest
-   runs 9,728, 9,216 and 3,072 trace rows), which the rule "most segments at
-   `2^−109`" gives after PR #261 halved the ROMs.
+   in each row, `m_mem` is 8,704, 10,496, 20,864 and 41,728, so the counts
+   are 30, 24, 12 and 6 (`Spec.Nebula.WasmSize.shape`,
+   `Spec.Nebula.WasmSize.segmentBits_eq`,
+   `Spec.Nebula.WasmSize.segmentBits_succ_lt`).
+6. **No refresh fold.** A proof of a size has at most `N · S_max` steps,
+   which is 30, 24, 24 and 24. Each is at most `cap + 1 = 65`, so no proof
+   reaches the refresh fold of step 66, and the final proof has two claims
+   (`Spec.Nebula.WasmSize.steps_le_light`, `wasm-light-compression.md`).

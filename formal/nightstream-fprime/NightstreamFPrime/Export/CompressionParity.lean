@@ -5,7 +5,9 @@ import NightstreamFPrime.Spec.Compression.Rust.Transcript
 /-! The compression parity file. For each production claim set, Lean's layout (`layoutNew`), the
 exact error sum that bounds the soundness error of the argument (`runError (productionCounts …)`,
 `runCost_le_runError`, `error_le_runError`), its count over `q²` (`runCount`) and the bits of the
-Rust gate (`runBits`). For generated claim sets, Lean's layout or the error of `layoutNew`, and the
+Rust gate (`runBits`). The light claim sets (`lightClaims`) are those of the light compression of
+the same relations: slot 0 at each depth and the fresh instance, under the key of the light
+relation (`layoutNew_light`). For generated claim sets, Lean's layout or the error of `layoutNew`, and the
 same values with the production `m` and `t`. Rust tests compare them with `Layout::new` and
 `error_bits` (`crates/nightstream/tests/bounded_depth_lifecycle/compression_error.rs`,
 `crates/ns-compress/tests/unit/layout.rs`). -/
@@ -50,6 +52,17 @@ private def production (pc : Fin 2) (d0 d1 : ℕ) : Lean.Json :=
   let keyBlocks := (keyBlocksFor (max (productionBlocks 0) (productionBlocks 1))).getD 0
   let entry := [("pc", Lean.toJson ((pc : ℕ) + 1)), ("depths", Lean.toJson [d0, d1])]
   match layoutNew (productionClaims productionBlocks pc depths) keyBlocks with
+  | .ok l => Lean.Json.mkObj (entry ++ [("layout", layout l),
+      ("error", error (productionCounts l.production depths))])
+  | .error e => Lean.Json.mkObj (entry ++ [("rejected", Lean.toJson e.name)])
+
+/-- The key of the light compression: the key of the light relation alone. -/
+def lightKeyBlocks : ℕ := (keyBlocksFor (productionBlocks 0)).getD 0
+
+private def light (d0 : ℕ) : Lean.Json :=
+  let depths : Fin 1 → ℕ := ![d0]
+  let entry := [("depth", Lean.toJson d0)]
+  match layoutNew (lightClaims (productionBlocks 0) d0) lightKeyBlocks with
   | .ok l => Lean.Json.mkObj (entry ++ [("layout", layout l),
       ("error", error (productionCounts l.production depths))])
   | .error e => Lean.Json.mkObj (entry ++ [("rejected", Lean.toJson e.name)])
@@ -151,6 +164,8 @@ def fixture : Lean.Json :=
     ("bounds", Lean.toJson (depths.map productionGlobalParams.accumulatorBound)),
     ("production", Lean.Json.arr (([0, 1] : List (Fin 2)).flatMap (fun pc =>
       depths.flatMap fun d0 => depths.map fun d1 => production pc d0 d1)).toArray),
+    ("light_key_blocks", Lean.toJson lightKeyBlocks),
+    ("light", Lean.Json.arr (depths.map light).toArray),
     ("transcript", transcript),
     ("generated", Lean.Json.arr ((powerOfTwo :: (List.range 3000).map generated).map
       generatedEntry).toArray)]

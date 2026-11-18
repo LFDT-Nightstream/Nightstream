@@ -8,7 +8,7 @@ import NightstreamFPrime.Lifecycle.RandomOracle.Pieces
 
 /-! Vectors of the hashed encodings that Rust computes outside the step packages
 (`SECURITY_MODEL.md`, section Hashed encodings). The value is
-`[schema, circuitKeys, foldTranscripts, compression, applications]`.
+`[schema, circuitKeys, foldTranscripts, compression, applications, defaultSlot]`.
 
 `circuitKeys` holds `[identity, digest 0, digest 1]` of
 `Lifecycle.BoundedDepth.CircuitKeyDigest.digest` for each identity of `identities`. Rust must
@@ -31,7 +31,12 @@ records as nested lists (`applicationValue`), `Application.words` and `Applicati
 Rust must give the same words and the same hash for the same records
 (`crates/nightstream-fprime/tests/unit/application_identity_lean.rs`). The last application is
 one that the public builder makes, and Rust must give its words before the layouts
-(`crates/nightstream/tests/application/identity_lean.rs`). -/
+(`crates/nightstream/tests/application/identity_lean.rs`).
+
+`defaultSlot` holds `Lifecycle.BoundedDepth.slotDigest` of the default slot at depth 0, the slot
+digest that the verifier of the light compression puts in the state hash for slot 1 (SPEC.md,
+Algorithm 10). Rust must give the same words
+(`crates/nightstream/tests/bounded_depth_lifecycle/encodings.rs`). -/
 
 namespace NightstreamFPrime.Export.EncodingParity
 
@@ -319,7 +324,11 @@ def applications : Value :=
 
 end Application
 
+/-- The digest of the default slot at depth 0 (HyperNova Definition 12). -/
+def defaultSlotDigest : Value :=
+  words (slotDigest (logicalWidth := keyWidth) (publicFits := keyPublicFits) (defaultSlot, 0))
+
 def parityValue : Value :=
-  .array [.atom schema, circuitKeys, foldTranscripts, compression, applications]
+  .array [.atom schema, circuitKeys, foldTranscripts, compression, applications, defaultSlotDigest]
 
 end NightstreamFPrime.Export.EncodingParity

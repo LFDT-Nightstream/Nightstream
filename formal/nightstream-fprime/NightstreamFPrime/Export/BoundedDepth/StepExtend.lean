@@ -203,12 +203,12 @@ the terminal accepts at the next iteration, with honest slots. Its fresh witness
 cell from the light package width (`BlockSupport.ZeroTail`). -/
 theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits)
     (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (cap : Nat) (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
+    (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
     (payload : TerminalProof (SlotData logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
-    (holds : Terminal.HoldsFor cap ajtai circuitKeys step control statement (.recursive payload))
+    (holds : Terminal.HoldsFor ajtai circuitKeys step control statement (.recursive payload))
     (honest : Honest (ajtai := ajtai) complete.packageWidth payload)
     (witness : AppWitness) (valid : exports.program.valid statement.zi witness)
     (lightNext : control statement.zi witness = 0)
@@ -217,7 +217,7 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
     (iterationNext : statement.iteration + 1 < fieldModulus)
     (nextLength : (step statement.zi witness).length = Stage1.Application.stateWordCount)
     (witnessLength : witness.length = exports.program.witnessWordCount) :
-    ∃ next, Terminal.HoldsFor cap ajtai circuitKeys step control
+    ∃ next, Terminal.HoldsFor ajtai circuitKeys step control
         ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ (.recursive next) ∧
       Honest (ajtai := ajtai) complete.packageWidth next ∧ next.pc = 1 ∧
       (∀ pcValid : InRange 2 payload.pc,
@@ -226,7 +226,7 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
       ∀ pcValid : InRange 2 next.pc,
         ZeroTail (complete.packageWidth (selectedIndex pcValid)) next.freshWitness := by
   obtain ⟨statementValid, pcValid, positive, freshPublic, slots, freshHolds⟩ :=
-    (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).mp holds
+    (Terminal.holdsFor_recursive_iff ajtai circuitKeys step control statement payload).mp holds
   let selected := selectedIndex pcValid
   have normWithin := honest.norm selected
   have depthLt := room pcValid
@@ -330,7 +330,7 @@ theorem light_extend (exports : Exports relation ajtai circuitKeys step cubeFits
     exact freshZero
   have selectedEq : ∀ other : InRange 2 payload.pc, selectedIndex other = selected :=
     fun _ => Fin.ext rfl
-  refine ⟨next, (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control _ next).mpr
+  refine ⟨next, (Terminal.holdsFor_recursive_iff ajtai circuitKeys step control _ next).mpr
     ⟨⟨iterationNext, statementValid.2.1, nextLength⟩, pcOne, Nat.succ_pos _, rfl, ?_, ?_⟩, ?_,
     rfl, fun other => ?_, freshTail⟩
   rotate_left 3
@@ -381,25 +381,25 @@ to depth 0. Its fresh witness is zero on every cell from the refresh package wid
 (`BlockSupport.ZeroTail`). -/
 theorem refresh_extend (exports : Exports relation ajtai circuitKeys step cubeFits)
     (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (cap : Nat) (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
+    (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
     (payload : TerminalProof (SlotData logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
-    (holds : Terminal.HoldsFor cap ajtai circuitKeys step control statement (.recursive payload))
+    (holds : Terminal.HoldsFor ajtai circuitKeys step control statement (.recursive payload))
     (honest : Honest (ajtai := ajtai) complete.packageWidth payload)
     (witness : AppWitness) (valid : exports.program.valid statement.zi witness)
     (refreshNext : control statement.zi witness = 1)
     (iterationNext : statement.iteration + 1 < fieldModulus)
     (nextLength : (step statement.zi witness).length = Stage1.Application.stateWordCount)
     (witnessLength : witness.length = exports.program.witnessWordCount) :
-    ∃ next, Terminal.HoldsFor cap ajtai circuitKeys step control
+    ∃ next, Terminal.HoldsFor ajtai circuitKeys step control
         ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ (.recursive next) ∧
       Honest (ajtai := ajtai) complete.packageWidth next ∧
       ∀ pcValid : InRange 2 next.pc,
         ZeroTail (complete.packageWidth (selectedIndex pcValid)) next.freshWitness := by
   obtain ⟨statementValid, pcValid, positive, freshPublic, slots, freshHolds⟩ :=
-    (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).mp holds
+    (Terminal.holdsFor_recursive_iff ajtai circuitKeys step control statement payload).mp holds
   let selected := selectedIndex pcValid
   obtain ⟨proof, folded, foldedWitness, accepted, foldedHolds, foldedNorm, foldedSupported⟩ :=
     FoldCompleteness.refresh_folds_bounded ajtai (circuitKeys selected)
@@ -487,7 +487,7 @@ theorem refresh_extend (exports : Exports relation ajtai circuitKeys step cubeFi
     intro pcNext
     rw [show selectedIndex pcNext = (1 : Fin 2) from Fin.ext rfl, Complete.packageWidth_one]
     exact freshZero
-  refine ⟨next, (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control _ next).mpr
+  refine ⟨next, (Terminal.holdsFor_recursive_iff ajtai circuitKeys step control _ next).mpr
     ⟨⟨iterationNext, statementValid.2.1, nextLength⟩, pcTwo, Nat.succ_pos _, rfl, ?_, ?_⟩, ?_,
     freshTail⟩
   · intro slot
@@ -531,20 +531,20 @@ claim and the zero witness. The fold is HyperNova's zero proof (`BaseFold.zero_f
 witness is zero on every cell from the light package width (`BlockSupport.ZeroTail`). -/
 theorem base_extend (exports : Exports relation ajtai circuitKeys step cubeFits)
     (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (cap : Nat) (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
-    (holds : Terminal.HoldsFor cap ajtai circuitKeys step control statement .bottom)
+    (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
+    (holds : Terminal.HoldsFor ajtai circuitKeys step control statement .bottom)
     (witness : AppWitness) (valid : exports.program.valid statement.zi witness)
     (lightNext : control statement.zi witness = 0)
     (nextLength : (step statement.zi witness).length = Stage1.Application.stateWordCount)
     (witnessLength : witness.length = exports.program.witnessWordCount) :
-    ∃ next, Terminal.HoldsFor cap ajtai circuitKeys step control
+    ∃ next, Terminal.HoldsFor ajtai circuitKeys step control
         ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ (.recursive next) ∧
       Honest (ajtai := ajtai) complete.packageWidth next ∧ next.pc = 1 ∧
       (∀ slot, next.running slot = (defaultSlot, 0)) ∧
       ∀ pcValid : InRange 2 next.pc,
         ZeroTail (complete.packageWidth (selectedIndex pcValid)) next.freshWitness := by
   obtain ⟨statementValid, iterationZero, ziEq⟩ :=
-    (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step control statement).mp holds
+    (Terminal.holdsFor_bottom_iff ajtai circuitKeys step control statement).mp holds
   let defaults : Fin 2 → SlotData logicalWidth publicFits := fun _ => (defaultSlot, 0)
   let prior : Paper.HashPreimage (CircuitKey logicalWidth publicFits) AppState
       (SlotData logicalWidth publicFits) 2 :=
@@ -615,7 +615,7 @@ theorem base_extend (exports : Exports relation ajtai circuitKeys step cubeFits)
     intro pcNext
     rw [show selectedIndex pcNext = (0 : Fin 2) from Fin.ext rfl, Complete.packageWidth_zero]
     exact freshZero
-  refine ⟨next, (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control _ next).mpr
+  refine ⟨next, (Terminal.holdsFor_recursive_iff ajtai circuitKeys step control _ next).mpr
     ⟨⟨iterationOne, statementValid.2.1, nextLength⟩, pcOne, Nat.succ_pos _, rfl, ?_, ?_⟩, ?_,
     rfl, fun _ => rfl, freshTail⟩
   · intro slot

@@ -78,6 +78,31 @@ fn wasm_trace_run_with_memory_size_and_grow() {
 }
 
 #[test]
+fn wasm_trace_run_with_accesses_at_the_end_of_memory() {
+    for (value, store, load, width) in [
+        ("i32.const 0x04030201", "i32.store8", "i32.load8_u", 1),
+        ("i32.const 0x04030201", "i32.store16", "i32.load16_u", 2),
+        ("i32.const 0x04030201", "i32.store", "i32.load", 4),
+        ("i64.const 0x0807060504030201", "i64.store8", "i64.load8_u", 1),
+        ("i64.const 0x0807060504030201", "i64.store16", "i64.load16_u", 2),
+        ("i64.const 0x0807060504030201", "i64.store32", "i64.load32_u", 4),
+        ("i64.const 0x0807060504030201", "i64.store", "i64.load", 8),
+    ] {
+        let result = &value[..3];
+        for (memory, grow) in [("(memory 1)", ""), ("(memory 0 1)", "i32.const 1 memory.grow drop")] {
+            for address in 65528..=65537 - width {
+                let checked = common::checked_main(&format!(
+                    r#"(module {memory} (func (export "main") (result {result})
+                         {grow} i32.const {address} {value} {store} i32.const {address} {load}))"#
+                ));
+                let trapped = common::final_state(&checked.trace).trapped;
+                assert_eq!(trapped, address + width > 65536, "{memory} {store} at {address}");
+            }
+        }
+    }
+}
+
+#[test]
 fn wasm_trace_run_with_linear_memory_offset() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module

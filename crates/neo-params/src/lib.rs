@@ -36,7 +36,7 @@ pub mod nightstream_p64_k14 {
     pub const B_BASE: u32 = 2;
     pub const K_RHO: u32 = 14;
     pub const B: u64 = 1u64 << K_RHO;
-    /// SuperNeo v1.2 Theorem 5 for a power-of-two cyclotomic ring: `T = 2·φ(η)`.
+    /// SuperNeo v1.2 Theorem 5 for a power-of-two cyclotomic ring: `T = φ(η)·max|coeff|`.
     pub const T: u32 = 128;
     pub const EXTENSION_DEGREE: u32 = 2;
     /// The law of a Π_RLC challenge is within `2^-173` of the uniform law on

@@ -312,8 +312,9 @@ impl Circuit {
     /// A verifier of this circuit; the caller selects it independently of any
     /// proof. Reject a profile whose one-fold security level is below the
     /// caller's positive local minimum, and a memory relation, whose verifier
-    /// is `nebula::Circuit::verifier`. The caller separately budgets recursive
-    /// depth, queries, retries, and concurrent attempts.
+    /// is `nebula::Circuit::verifier`. The caller separately budgets queries,
+    /// retries, and concurrent attempts. No result gives concrete security
+    /// for a long recursive history (`SECURITY_MODEL.md`, trust item 3).
     pub fn verifier(&self, engine: Engine, minimum_security_bits: u32) -> Result<Verifier, Error> {
         if self.needs_memory_terminal {
             return Err(Error::Circuit("a memory relation needs nebula::Circuit::verifier"));

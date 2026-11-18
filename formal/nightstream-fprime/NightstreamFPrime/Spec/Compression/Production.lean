@@ -104,9 +104,9 @@ theorem params_lanes : (params key matrices depths layout).lanes = ringDegree :=
 
 theorem params_equations : (params key matrices depths layout).equations = 23 := rfl
 
-/-- Each table of a slot below the cap has at most `20,737` values. -/
+/-- Each table of a slot below the cap has at most `20,225` values. -/
 theorem slot_table_le {depth : ℕ} (le : depth ≤ productionLightFoldCap) :
-    2 * productionGlobalParams.accumulatorBound depth + 1 ≤ 20737 := by
+    2 * productionGlobalParams.accumulatorBound depth + 1 ≤ 20225 := by
   simp only [GlobalParams.accumulatorBound, productionGlobalParams, productionLightFoldCap] at le ⊢
   omega
 
@@ -125,7 +125,7 @@ theorem params_error_lt (vf : VerifierData (params key matrices depths layout)) 
   have values := slot_table_le (depths_le ⟨c, slot⟩)
   have slot_bound : bound depths c = productionGlobalParams.accumulatorBound (depths ⟨c, slot⟩) :=
     by simp only [bound, slot, dite_true]
-  change 2 ^ (layout.witness c).vars + (2 * bound depths c + 1) ≤ 2 ^ 25 + 20737
+  change 2 ^ (layout.witness c).vars + (2 * bound depths c + 1) ≤ 2 ^ 25 + 20225
   omega
 
 /-- A slot of at most `2^25` cells has nonzero counts in `F_q`. -/
@@ -228,7 +228,7 @@ theorem slot_norm {st : Statement (params key matrices depths layout)} {W : ℕ 
     simp only [bound, Fin.val_castSucc, s.isLt, dite_true, Fin.eta]
   have values := slot_table_le depth_le
   have small : 2 * productionGlobalParams.accumulatorBound (depths s) < fieldModulus := by
-    have : (20737 : ℕ) < fieldModulus := by decide
+    have : (20225 : ℕ) < fieldModulus := by decide
     omega
   refine ⟨fun y cell => ?_, ?_⟩
   · obtain ⟨v, v_lt, equal⟩ := (holds s.castSucc).2.2

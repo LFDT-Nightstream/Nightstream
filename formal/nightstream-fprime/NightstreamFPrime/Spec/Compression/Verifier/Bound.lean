@@ -88,9 +88,9 @@ theorem soundness (vf : VerifierData P) (wf : WellFormed P) (counts : CountsNonz
 def fieldOrder : ℕ := 18446744073709551557
 
 /-- `error` at the production shapes, with each table bounded by the larger one: three claims,
-`E = 18 + 1 + 4`, `D = 64`, `m ≤ 320`, `span ≤ 27`, `cv = 2`, `L = 4`, `N + T ≤ 2^25 + 20737`. -/
+`E = 18 + 1 + 4`, `D = 64`, `m ≤ 320`, `span ≤ 27`, `cv = 2`, `L = 4`, `N + T ≤ 2^25 + 20225`. -/
 theorem production_error_lt :
-    3 * (((2 ^ 25 + 20737 : ℕ) : ℝ) / fieldOrder) ^ 4 +
+    3 * (((2 ^ 25 + 20225 : ℕ) : ℝ) / fieldOrder) ^ 4 +
       (((3 - 1 + (23 + max (64 - 1) (320 - 1)) : ℕ) : ℝ) / (fieldOrder ^ 2 : ℕ) +
         ((2 + 27 : ℕ) : ℝ) / (fieldOrder ^ 2 : ℕ)) +
       3 / (fieldOrder ^ 2 : ℕ) + 2 / (fieldOrder ^ 2 : ℕ) + 2 / (fieldOrder ^ 2 : ℕ) <
@@ -98,9 +98,9 @@ theorem production_error_lt :
   norm_num [fieldOrder]
 
 /-- The sum of Rust `error_bits` at the production shapes: the lookups of the two tables
-(`N = 2^25` and `2^23`, `T = 20737`) and `(344 + 29 + 81 + 2 + 50) / q²`. -/
+(`N = 2^25` and `2^23`, `T = 20225`) and `(344 + 29 + 81 + 2 + 50) / q²`. -/
 theorem production_rust_error_lt :
-    (((2 ^ 25 + 20737 : ℕ) : ℝ) / fieldOrder) ^ 4 + (((2 ^ 23 + 20737 : ℕ) : ℝ) / fieldOrder) ^ 4 +
+    (((2 ^ 25 + 20225 : ℕ) : ℝ) / fieldOrder) ^ 4 + (((2 ^ 23 + 20225 : ℕ) : ℝ) / fieldOrder) ^ 4 +
       (344 + 29 + 81 + 2 + 50 : ℝ) / (fieldOrder ^ 2 : ℕ) < 1 / 2 ^ 119 := by
   norm_num [fieldOrder]
 
@@ -112,18 +112,18 @@ theorem error_le_production (vf : VerifierData P) (card_F : Fintype.card F = fie
     (equations : P.equations = 23) (lanes : P.lanes = 64) (public_le : maxPublic P ≤ 320)
     (span_le : P.spanVars ≤ 27) (columns : vf.columnVars = 2) (lookups : P.lookups = 4)
     (tables : ∀ c, (P.shape c).lookup = true →
-      2 ^ (P.shape c).witness.vars + (2 * (P.shape c).bound + 1) ≤ 2 ^ 25 + 20737) :
-    error vf ≤ 3 * (((2 ^ 25 + 20737 : ℕ) : ℝ) / fieldOrder) ^ 4 +
+      2 ^ (P.shape c).witness.vars + (2 * (P.shape c).bound + 1) ≤ 2 ^ 25 + 20225) :
+    error vf ≤ 3 * (((2 ^ 25 + 20225 : ℕ) : ℝ) / fieldOrder) ^ 4 +
       (((3 - 1 + (23 + max (64 - 1) (320 - 1)) : ℕ) : ℝ) / (fieldOrder ^ 2 : ℕ) +
         ((2 + 27 : ℕ) : ℝ) / (fieldOrder ^ 2 : ℕ)) +
       3 / (fieldOrder ^ 2 : ℕ) + 2 / (fieldOrder ^ 2 : ℕ) + 2 / (fieldOrder ^ 2 : ℕ) := by
   have q_pos : (0 : ℝ) < fieldOrder := by norm_num [fieldOrder]
-  have tau : tauError P ≤ 3 * (((2 ^ 25 + 20737 : ℕ) : ℝ) / fieldOrder) ^ 4 := by
+  have tau : tauError P ≤ 3 * (((2 ^ 25 + 20225 : ℕ) : ℝ) / fieldOrder) ^ 4 := by
     unfold tauError
     rw [card_F, lookups]
     have each : ∀ c : Fin P.claims, (if (P.shape c).lookup then
         (((2 ^ (P.shape c).witness.vars + (2 * (P.shape c).bound + 1) : ℕ) : ℝ) /
-          fieldOrder) ^ 4 else 0) ≤ (((2 ^ 25 + 20737 : ℕ) : ℝ) / fieldOrder) ^ 4 := fun c => by
+          fieldOrder) ^ 4 else 0) ≤ (((2 ^ 25 + 20225 : ℕ) : ℝ) / fieldOrder) ^ 4 := fun c => by
       split
       · rename_i table
         refine pow_le_pow_left₀ (by positivity) (div_le_div_of_nonneg_right ?_ q_pos.le) 4

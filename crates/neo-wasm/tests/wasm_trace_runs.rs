@@ -879,6 +879,35 @@ fn wasm_trace_run_with_if_block_parameters() {
 }
 
 #[test]
+fn wasm_trace_run_with_nested_if_reference_parameters() {
+    for (param, local) in [("(ref $t)", "(ref null $t)"), ("funcref", "funcref"), ("i64", "i64")] {
+        let value = if param == "i64" { "i64.const 7" } else { "ref.func $f" };
+        let checked = common::checked_main(&format!(
+            r#"(module
+                (type $t (func (param (ref $t))))
+                (elem declare func $f)
+                (func $f (type $t))
+                (func (export "main") (result i32) (local {local} i32)
+                    i32.const 128
+                    {value} {value}
+                    i32.const 1
+                    (if (param {param} {param}) (then
+                        i32.const 1
+                        (if (param {param} {param}) (then
+                            local.set 0
+                            i32.const 1
+                            (if (param {local}) (result i32)
+                                (then local.set 0 i32.const 63)
+                                (else drop i32.const 5))
+                            local.set 1)
+                        (else drop drop)))
+                    (else drop drop))))"#
+        ));
+        assert_eq!(common::final_state(&checked.trace).output.value_lo, 128, "{param}");
+    }
+}
+
+#[test]
 fn wasm_trace_run_with_nop_and_br() {
     let (_, trace, ..) = compile_and_trace(
         r#"(module

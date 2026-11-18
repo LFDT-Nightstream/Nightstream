@@ -423,6 +423,61 @@ theorem checks_light {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidt
     (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).mp holds
   exact ⟨statementValid, positive, pcValid, honest.depth, pcOne, slotOne⟩
 
+/-- In the light mode, the claims of a statement that passes the checks of steps 1 to 4 pass the
+layout of step 5 (Algorithm 10) under the key of `2^19` blocks, when the relation of the light
+circuit has at most `2^19` blocks and its 320 public cells. With `pc = 1`, both claims are on the
+rows of the light circuit (`Spec.Compression.Rust.layoutNew_light`). -/
+theorem laid_light (light : Setup .light logicalWidth publicFits)
+    (keyBlocks : light.keyBlocks = 2 ^ 19)
+    (positive : 0 < (light.rows 0).matrices.columns / ringDegree)
+    (fits : (light.rows 0).matrices.columns / ringDegree ≤ 2 ^ 19)
+    (cells : 320 ≤ ringDegree * ((light.rows 0).matrices.columns / ringDegree))
+    {statement : TerminalStatement AppState} {claims : Claims logicalWidth publicFits}
+    (checks : Checks .light statement claims) : light.Laid claims := by
+  obtain ⟨-, -, -, depth_le, pcOne, -⟩ := checks
+  have rowsZero : ∀ c : Fin (Mode.light.slots + 1), which .light claims c = 0 := by
+    intro c
+    unfold which
+    split_ifs with slot
+    · change (c : ℕ) < 1 at slot
+      omega
+    · omega
+  refine ⟨?_, fun c => by rw [rowsZero c]; exact cells⟩
+  have same : Compression.Rust.claimsOf (fun c => (light.rows (which .light claims c)).matrices)
+      (slotDepths .light claims) =
+      Compression.Rust.lightClaims ((light.rows 0).matrices.columns / ringDegree)
+        (claims.running 0).2 := by
+    rw [Compression.Rust.lightClaims_eq]
+    simp only [Compression.Rust.claimsOf, Compression.Rust.paramsClaims, List.ofFn_succ,
+      List.ofFn_zero, slotDepths, Mode.slot, bound, Mode.slots]
+    simp
+    exact ⟨congrArg (fun j => (light.rows j).matrices.columns / ringDegree) (rowsZero _),
+      congrArg (fun j => (light.rows j).matrices.columns / ringDegree) (rowsZero _)⟩
+  unfold Setup.placed
+  rw [same, keyBlocks]
+  exact Compression.Rust.layoutNew_light positive fits (depth_le 0)
+
+/-- The honest proof of `RunCompleteness.light_run_complete` passes steps 1 to 5 of Algorithm 10 in
+the light mode, under the hypotheses of `laid_light` (`checks_light`, `laid_light`). -/
+theorem accepts_light (light : Setup .light logicalWidth publicFits)
+    (keyBlocks : light.keyBlocks = 2 ^ 19)
+    (positive : 0 < (light.rows 0).matrices.columns / ringDegree)
+    (fits : (light.rows 0).matrices.columns / ringDegree ≤ 2 ^ 19)
+    (cells : 320 ≤ ringDegree * ((light.rows 0).matrices.columns / ringDegree))
+    {statement : TerminalStatement AppState}
+    {payload : TerminalProof (SlotData logicalWidth publicFits)
+      (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
+      (StepFresh logicalWidth publicFits)
+      (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2}
+    (holds : Terminal.HoldsFor cap light.ajtai light.circuitKeys step control statement
+      (.recursive payload))
+    (honest : Honest (ajtai := light.ajtai) packageWidths payload) (pcOne : payload.pc = 1)
+    (slotOne : payload.running 1 = (defaultSlot, 0)) (commitment : PaperAlgebra.Commitment) :
+    Checks .light statement ⟨payload.pc, payload.running, commitment⟩ ∧
+      light.Laid ⟨payload.pc, payload.running, commitment⟩ :=
+  have checks := checks_light step cap control holds honest pcOne slotOne commitment
+  ⟨checks, laid_light light keyBlocks positive fits cells checks⟩
+
 /-- On each path that avoids the bad sets, the verifier of Algorithm 6 accepts each accepted
 statement with the proof that its outcome gives (`Setup.proofOf`). -/
 theorem game_avoids (premises : Premises setup packageWidths) :

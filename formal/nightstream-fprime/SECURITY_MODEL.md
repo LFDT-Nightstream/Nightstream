@@ -84,7 +84,9 @@ scope note.
   of `decisions/field-2p64-59-ring-x64.md` (trust item 2), and for the
   Akita commitments at Akita's price (trust item 7).
 - `AKITA`: the knowledge soundness of Akita (ePrint 2026/1983) with the error
-  `εAkita` (`Export.BoundedDepth.FinalVerifier.AkitaKnowledge`).
+  `εAkita` (`Export.BoundedDepth.FinalVerifier.AkitaKnowledge`), for a proof
+  that commits `W` before the Π_CCS run and the lookup challenges and `V`
+  after the lookup challenges (trust item 7).
 - `HN-A1`: HyperNova errata Assumption 1 for the two fold kinds, in the form of
   trust item 3.
 <!-- assumptions:end -->
@@ -1103,8 +1105,12 @@ not change terminal source checks.
      of `Lifecycle.BoundedDepth.CompressionSlot.claimValues`, which no check
      compares. The model has three more
      premises. First, the Akita openings are ideal: an opening is accepted
-     only when the committed table, which the prover fixed before the later
-     challenges, has the opened value.
+     only when the committed table has the opened value. The prover
+     commits the tables at two times (`SPEC.md` section 5.4): `W` before
+     the Π_CCS run and the lookup challenges `τ` (row 2), and `V`, whose
+     cells are `1/(τ_k − W(x))`, after `τ` (row 9). The game has the same
+     order: `W` before `τ`, and `V` after `τ` and before the other
+     challenges (`Spec.Compression.Verifier.afterTables`).
      `Export.BoundedDepth.FinalVerifier.AkitaKnowledge` states this premise
      with the error `εAkita`: for each prover with Akita openings, a prover
      of the game wins at most `εAkita` less often. Lean does not bound
@@ -1158,11 +1164,12 @@ not change terminal source checks.
      (`Claims.Ivc.light_run_complete`,
      `Export.BoundedDepth.FinalVerifier.checks_light`), and the memory
      verifier accepts no longer run of a WASM size
-     (`Claims.Nebula.memory_light_complete`). `layoutNew` accepts the light
-     claims of a relation of at most `2^19` blocks
-     (`Spec.Compression.Rust.layoutNew_light`), but no theorem joins this to
-     `Export.BoundedDepth.FinalVerifier.Setup.Laid`, so Lean does not state
-     that the honest claims of the light mode pass step 5. `[HN-A1]` for the
+     (`Claims.Nebula.memory_light_complete`). Under the key of `2^19`
+     blocks, that proof also passes the layout of step 5, when the light
+     relation has at most `2^19` blocks and its 320 public cells
+     (`Export.BoundedDepth.FinalVerifier.accepts_light`, from
+     `Spec.Compression.Rust.layoutNew_light`). No theorem derives these
+     three hypotheses on the setup from a package. `[HN-A1]` for the
      refresh fold and its knowledge error stay premises of the circuits that
      keep both slots (trust item 3).
    - *The compression key.* The verifier's key is the key of `SPEC.md`
@@ -1183,7 +1190,15 @@ not change terminal source checks.
      `RecursiveCommitmentConfig<fp64::Dense>` and the schedule files of
      `SPEC.md` section 3. The premise is that an accepted proof gives
      polynomials with the claimed values, in the classical random-oracle
-     model. It includes binding for the key polynomial, so the opened value
+     model, and that the extractor gives the `W` that the prover fixed
+     before `τ` and the `V` that it fixed after `τ`. The composition
+     theorem of the paper (revision of 2026-10-15, Theorem 10.45) has every
+     root commitment in the first message, before the first challenge of
+     the application, so it does not cover the commitment of `V` after
+     `τ`. Its checkpoint structures (Definition 10.16) allow more than one
+     checkpoint, but no result of the paper states the composition with a
+     second commitment, and Lean does not prove it. It includes binding
+     for the key polynomial, so the opened value
      is the value of the Ajtai key's polynomial, and binding for Akita's
      setup prefixes, so the setup that the rows offload is Akita's public
      setup. Akita states a target of a 128-bit Fiat–Shamir rate for each

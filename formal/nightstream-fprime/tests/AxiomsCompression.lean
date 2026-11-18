@@ -299,6 +299,8 @@ import NightstreamFPrime.Export.BoundedDepth.RowsParity
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.runningWitness_default
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.slot_or_outside
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.checks_light
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.laid_light
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.accepts_light
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.freshIndex_eq
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.which_fresh
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.supported_slice

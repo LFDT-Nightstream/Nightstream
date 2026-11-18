@@ -86,6 +86,7 @@ theorem verify_final_sound
     (setupRows : ℕ → Compression.Verifier.Factored F)
     (keyBlocks : ℕ)
     (zeros : ℕ)
+    (minimum : ℕ)
     {Admitted : HyperNova.ReverseStages.NifsAdversary
         (IvcWalk.WalkAttempt StepRelation.keyWidth StepRelation.keyPublicFits) → Prop}
     {StageAdmitted : HyperNova.ReverseStages.Stage
@@ -113,7 +114,7 @@ theorem verify_final_sound
         (HyperNova.ReverseStages.Stage.start
           (IvcSecurity.walkAdversary
             (FinalHistory.adversary
-              (Shipped.setup mode ajtai identity relations setupRows keyBlocks zeros) s q))))
+              (Shipped.setup mode ajtai identity relations setupRows keyBlocks zeros minimum) s q))))
     (rows : ∀ circuit : Fin 2,
       (setupRows circuit).matrices =
         (FinalRows.packageRows (Shipped.exports facts identity relations lightKey refreshKey)
@@ -121,25 +122,25 @@ theorem verify_final_sound
     (depth : ℕ)
     (depthBound : ∀ (o : FinalVerifier.Outcome StepRelation.keyWidth StepRelation.keyPublicFits),
         some (some o) ∈ (Compression.Game.law s
-          ((Shipped.setup mode ajtai identity relations setupRows keyBlocks zeros).game.restore
-            q [])).support →
+          ((Shipped.setup mode ajtai identity relations setupRows keyBlocks zeros
+            minimum).game.restore q [])).support →
           o.1.iteration ≤ depth)
     (history : ℝ)
     (εAkita : ℝ)
     (akita : history ≤
         Compression.Game.prob s
-            ((Shipped.setup mode ajtai identity relations setupRows keyBlocks zeros).game.restore
-              q [])
+            ((Shipped.setup mode ajtai identity relations setupRows keyBlocks zeros
+              minimum).game.restore q [])
             (FinalHistory.FalseHistory Shipped.program) +
           εAkita) :
     history ≤ (↑q : ℝ) * FinalVerifier.finalError + εAkita +
         IvcSecurity.walkBound ajtai (Shipped.keys identity relations)
           (Shipped.exports facts identity relations lightKey refreshKey) assumption closed
           (FinalHistory.adversary (Shipped.setup mode ajtai identity relations setupRows keyBlocks
-            zeros) s q)
+            zeros minimum) s q)
           admitted depth :=
   @Export.BoundedDepth.Shipped.verify_final_sound ajtai mode facts identity relations lightKey
-    refreshKey setupRows keyBlocks zeros Admitted StageAdmitted Efficient error assumption closed s
-    q admitted rows depth depthBound history εAkita akita
+    refreshKey setupRows keyBlocks zeros minimum Admitted StageAdmitted Efficient error assumption
+    closed s q admitted rows depth depthBound history εAkita akita
 
 end NightstreamFPrime.Claims.Shipped

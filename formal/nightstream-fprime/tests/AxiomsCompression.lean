@@ -300,12 +300,15 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.runningWitness_default
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.slot_or_outside
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.checks_light
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.which_light
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.placed_light
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.laid_light
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.accepts_light
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.freshIndex_eq
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.which_fresh
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.supported_slice
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.Setup.layout_facts
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.Setup.Gate.laid
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.verifies_of_run
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.verifies_of_bottom
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.game_avoids

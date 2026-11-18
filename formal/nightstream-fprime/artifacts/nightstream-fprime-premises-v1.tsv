@@ -21,6 +21,8 @@ Claims.Compression.fresh_sound	params.rlc_bound	LT.lt
 Claims.Compression.fresh_sound	freshBound	Eq
 Claims.Compression.fresh_sound	constantLaw.weight	Eq
 Claims.Compression.fresh_sound	degreeCovers	LE.le
+Claims.Compression.light_error_bits	ok	Eq
+Claims.Compression.light_error_bits	depth_le	LE.le
 Claims.Compression.production_error	slots	LE.le
 Claims.Compression.production_error	columns	Eq
 Claims.Compression.production_error	depths_le	LE.le
@@ -177,6 +179,13 @@ Claims.Final.history_sound_with_akita	rows	Eq
 Claims.Final.history_sound_with_akita	keysShaped	Eq
 Claims.Final.history_sound_with_akita	depthBound	LE.le
 Claims.Final.history_sound_with_akita	akita	LE.le
+Claims.Final.light_gate_complete	publicFits	LE.le
+Claims.Final.light_gate_complete	key	Eq
+Claims.Final.light_gate_complete	shipped	Eq
+Claims.Final.light_gate_complete	minimum_le	LE.le
+Claims.Final.light_gate_complete	verifies	Export.BoundedDepth.RunCompleteness.Verifies
+Claims.Final.light_gate_complete	pcOne	Eq
+Claims.Final.light_gate_complete	slotOne	Eq
 Claims.Final.memory_sound	publicFits	LE.le
 Claims.Final.memory_sound	app.model.idle	_
 Claims.Final.memory_sound	app.width_lt	LT.lt

@@ -12,11 +12,12 @@ The results for the full path of a compressed proof (`SPEC.md` Algorithm 10 and 
   `memory_sound_with_akita` is the theorem of the memory `verify_final`.
 - Assumptions: `[HN-A1]` for the history, and `[AKITA]` for each claim that ends in
   `_with_akita`.
-- Mode: each claim holds for each mode of the verifier's circuit
+- Mode: each claim other than `light_gate_complete` holds for each mode of the verifier's circuit
   (`Export.BoundedDepth.FinalVerifier.Mode`): the argument has both slot claims, or only the claim
   of slot 0 (the light mode of `SPEC.md` Algorithm 9).
-- The game takes the layout of the Lean model of Rust `Layout::new`
-  (`Export.BoundedDepth.FinalVerifier.Setup.Laid`).
+- The game runs the gate of `SPEC.md` Algorithm 10, step 5
+  (`Export.BoundedDepth.FinalVerifier.Setup.Gate`), with the layout of the Lean model of Rust
+  `Layout::new`. In the light mode, the honest proof passes it (`light_gate_complete`).
 - Link: the premise `rows` says that the dense rows of the setup are Lean's model of Rust
   `FactoredRows` (`Export.BoundedDepth.FinalRows.packageRows`). Then
   `Export.BoundedDepth.FinalVerifier.Premises` holds
@@ -37,6 +38,40 @@ namespace NightstreamFPrime.Claims.Final
 
 open Spec Lifecycle Lifecycle.BoundedDepth Export.BoundedDepth
 open scoped Spec.Compression.Production
+
+/-- Steps 1 to 5 of the final verifier in the light mode: under the key of `2^19` blocks, which
+Algorithm 11 gives for the light relation, and a security minimum of at most 119 bits, a recursive
+proof that the verifier of Algorithm 6 accepts, with the light circuit last and slot 1 at the
+default slot of depth 0, passes the checks of steps 1 to 4 and the gate of step 5 with each fresh
+commitment. `Claims.Ivc.light_run_complete` gives such a proof for each valid run of 1 to
+`cap + 1` steps. -/
+theorem light_gate_complete
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+        Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    (light : FinalVerifier.Setup FinalVerifier.Mode.light logicalWidth publicFits)
+    {packageWidths : Fin 2 → ℕ}
+    (step : AppState → AppWitness → AppState)
+    (cap : ℕ)
+    (control : AppState → AppWitness → Fin 2)
+    (key : Compression.Rust.keyBlocksFor (light.blocks 0) = some light.keyBlocks)
+    (shipped : light.keyBlocks = 2 ^ 19)
+    (minimum_le : light.minimum ≤ 119)
+    (statement : HyperNova.Construction2.Paper.TerminalStatement AppState)
+    (payload : HyperNova.Construction2.Paper.TerminalProof (SlotData logicalWidth publicFits)
+        (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
+        (StepFresh logicalWidth publicFits)
+        (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
+    (verifies : RunCompleteness.Verifies light.ajtai light.circuitKeys step packageWidths cap control
+        statement (HyperNova.Construction2.Paper.OuterTerminalProof.recursive payload))
+    (pcOne : payload.pc = 1)
+    (slotOne : payload.running 1 = (defaultSlot, 0))
+    (commitment : PaperAlgebra.Commitment) :
+    FinalVerifier.Checks FinalVerifier.Mode.light statement
+        ⟨payload.pc, payload.running, commitment⟩ ∧
+      light.Gate ⟨payload.pc, payload.running, commitment⟩ :=
+  @Export.BoundedDepth.FinalVerifier.accepts_light logicalWidth publicFits packageWidths step cap
+    control light key shipped minimum_le statement payload verifies pcOne slotOne commitment
 
 /-- In the state-restoration experiment with `q` queries, the final verifier accepts a statement
 for which no proof with witnesses satisfies `Verifies` with probability at most

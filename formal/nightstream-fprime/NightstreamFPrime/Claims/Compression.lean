@@ -1,5 +1,6 @@
 import NightstreamFPrime.Spec.Compression.Fresh
 import NightstreamFPrime.Spec.Compression.Production
+import NightstreamFPrime.Spec.Compression.Rust.Soundness
 import NightstreamFPrime.Spec.Compression.Verifier.Bound
 
 /-! # Claims: the compression argument
@@ -120,6 +121,19 @@ theorem production_error
   @Spec.Compression.Production.params_error_lt n key matrices depths layout vf slots columns
     depths_le
     slots_le span_le
+
+/-- In the light mode, each layout that the Lean model of Rust `Layout::new` accepts at a depth at
+most the cap has `error_bits` 119 with 320 public cells and 4 matrices. So the gate of `SPEC.md`
+Algorithm 10, step 5, passes each security minimum of at most 119 bits. -/
+theorem light_error_bits
+    {blocks : ℕ}
+    {depth : ℕ}
+    {keyBlocks : ℕ}
+    {l : Rust.Placed}
+    (ok : Rust.layoutNew (Rust.lightClaims blocks depth) keyBlocks = Except.ok l)
+    (depth_le : depth ≤ Folding.Schedule.productionLightFoldCap) :
+    Rust.runBits (l.counts 320 4) = 119 :=
+  @Spec.Compression.Rust.layoutNew_light_runBits blocks depth keyBlocks l ok depth_le
 
 /-- In the state-restoration experiment with `q` queries, a prover makes an accepted run whose
 output claims hold, without the input claims, with probability at most `q · ccsError`. -/

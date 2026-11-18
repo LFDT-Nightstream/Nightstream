@@ -237,7 +237,12 @@ each head.
 | `Fold/bounded` | `Spec.RandomOracle.OracleComp.QueryBound` | game | adversary 3: the adversary makes at most `Q` oracle queries |
 | `Ivc.slot_history_failure/assumption` | `Spec.HyperNova.Construction2.BoundedDepthSecurity.Assumption1` | assumption | `[HN-A1]`, in the form for one slot |
 | `Compression.production_error/columns`, `Compression.production_error/span_le`, `Compression.production_error/slots` | `*` | lean | `Export.BoundedDepth.FinalVerifier.game_densityLe` meets the three for the verifier of the final verifier. The mode has at most two slot claims (`Export.BoundedDepth.FinalVerifier.Mode.slots_le`). `columnVars = 2` holds by the definition of `Spec.Compression.Production.verifierData`, and `Export.BoundedDepth.FinalVerifier.Setup.layout_facts` gives `spanVars ≤ 26` for the layout of the Lean model of `Layout::new` (`Spec.Compression.Rust.layoutNew_span`) |
-| `Compression.production_error/depths_le` | `LE.le` | game | `SPEC.md` Algorithm 10: step 4 requires that the depth of each slot is at most `cap` |
+| `Compression.production_error/depths_le`, `Compression.light_error_bits/depth_le` | `LE.le` | game | `SPEC.md` Algorithm 10: step 4 requires that the depth of each slot is at most `cap` |
+| `Compression.light_error_bits/ok` | `Eq` | game | `SPEC.md` Algorithm 10: step 5 lays out the claims of the light mode with Rust `Layout::new`, whose model is `Spec.Compression.Rust.layoutNew`, and the claim is about each layout that the model accepts |
+| `Final.light_gate_complete/key` | `Eq` | game | `SPEC.md` Algorithm 10: the verifier takes the pinned key of the block count of Algorithm 11 for its relations and mode |
+| `Final.light_gate_complete/shipped` | `Eq` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-compression-parity-v1.json`, `error_bits_and_the_gate_match_the_lean_bound_on_each_light_claim_set`: the key of the light relation of the reference application has the `light_key_blocks` of Lean, `2^19`. For each WASM size, `the_small_light_relation_fits_the_key`, `the_medium_light_relation_fits_the_key` and `the_large_light_relation_fits_the_key` check the key of `2^19` blocks (ignored, by hand) |
+| `Final.light_gate_complete/minimum_le` | `LE.le` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-fold-gate-parity-v1.json`, `the_gate_charges_the_lean_error_on_each_step_relation`: `Relation::new` runs the fold gate with the minimum of the verifier, and the gate refuses each minimum above 115 bits, so each verifier that Rust builds has a minimum of at most 115 (`SPEC.md` section 3) |
+| `Final.light_gate_complete/verifies`, `Final.light_gate_complete/pcOne`, `Final.light_gate_complete/slotOne` | `*` | lean | `Claims.Ivc.light_run_complete` gives the three for the honest proof of each valid run of 1 to `cap + 1` steps |
 <!-- premises:end -->
 
 ## Applications and setups
@@ -1147,11 +1152,13 @@ not change terminal source checks.
      the setup: `Represents` for the dense rows of each circuit, and at
      most the blocks of its package for each claim. The final claims meet
      them from the premise `rows`
-     (`Export.BoundedDepth.FinalRows.premises_of_rows`). The game takes its
-     layout from the Lean model of Rust `Layout::new`, and it rejects
-     claims that the model does not lay out or that have fewer than 320
-     cells, as step 5 of `SPEC.md` Algorithm 10 rejects them
-     (`Export.BoundedDepth.FinalVerifier.Setup.Laid`). That layout has the
+     (`Export.BoundedDepth.FinalRows.premises_of_rows`). The game runs the
+     gate of step 5 of `SPEC.md` Algorithm 10
+     (`Export.BoundedDepth.FinalVerifier.Setup.Gate`). It rejects a key
+     whose block count is not the count of Algorithm 11, claims that the
+     Lean model of Rust `Layout::new` does not lay out or that have fewer
+     than 320 cells, and a layout whose `error_bits` is below the security
+     minimum. It takes its layout from that model. That layout has the
      production bounds (`Export.BoundedDepth.FinalVerifier.Setup.layout_facts`),
      so the premise on the layout is that Rust `Layout::new` is the model,
      as above. The game
@@ -1190,18 +1197,16 @@ not change terminal source checks.
      (`Claims.Ivc.light_run_complete`,
      `Export.BoundedDepth.FinalVerifier.checks_light`), and the memory
      verifier accepts no longer run of a WASM size
-     (`Claims.Nebula.memory_light_complete`). Under the key of `2^19`
-     blocks, that proof also passes the layout of step 5, when the light
-     relation has at most `2^19` blocks and its 320 public cells
-     (`Export.BoundedDepth.FinalVerifier.accepts_light`, from
-     `Spec.Compression.Rust.layoutNew_light`). No theorem derives these
-     three hypotheses on the setup from a package. Step 5 also requires the
-     block count of Algorithm 11 and `error_bits` at least the security
-     minimum. The game models neither: the theorem takes the key of `2^19`
-     blocks as a hypothesis, and the test
+     (`Claims.Nebula.memory_light_complete`). When the verifier's key is
+     the key of Algorithm 11 and has `2^19` blocks, and its security
+     minimum is at most 119 bits, that proof also passes the whole gate of
+     step 5 (`Claims.Final.light_gate_complete`). Each light layout that the
+     model accepts at a depth at most the cap has `error_bits` 119
+     (`Claims.Compression.light_error_bits`). No theorem derives the key of
+     `2^19` blocks from a package. The test
      `error_bits_and_the_gate_match_the_lean_bound_on_each_light_claim_set`
-     checks the gate on the 65 light claim sets of the reference
-     application. In the light mode, `compress` checks the claim and the
+     checks it for the reference application, and the fold gate holds the
+     minimum to 115 bits. In the light mode, `compress` checks the claim and the
      depth of slot 1 but not its witness, and it commits only the witness
      of slot 0 (`crates/nightstream/src/lifecycle/bounded_depth/compression.rs`,
      `check_light_envelope`). So it turns a proof whose slot 1 witness is

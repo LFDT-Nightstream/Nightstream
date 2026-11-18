@@ -128,6 +128,20 @@ theorem runError_le_runBits (c : RunCounts) (pos : 0 < runBits c) :
   rw [div_le_div_iff₀ (by norm_num [fieldOrder]) (by positivity), one_mul]
   exact_mod_cast spec
 
+/-- `runBits` is 119 when each table fits and `256 ≤ runCount ≤ 511`, since
+`2^119 · 511 ≤ q² < 2^120 · 256`. -/
+theorem runBits_of_count (c : RunCounts) (fit : c.tablesFit = true) (low : 256 ≤ runCount c)
+    (high : runCount c ≤ 511) : runBits c = 119 := by
+  have pos := runCount_pos c
+  rw [runBits, ite_eq_left fit]
+  refine Nat.log_eq_of_pow_le_of_lt_pow ?_ ?_
+  · rw [Nat.le_div_iff_mul_le pos]
+    calc 2 ^ 119 * runCount c ≤ 2 ^ 119 * 511 := Nat.mul_le_mul_left _ high
+      _ ≤ fieldOrder ^ 2 := by norm_num [fieldOrder]
+  · rw [Nat.div_lt_iff_lt_mul pos]
+    calc fieldOrder ^ 2 < 2 ^ (119 + 1) * 256 := by norm_num [fieldOrder]
+      _ ≤ 2 ^ (119 + 1) * runCount c := Nat.mul_le_mul_left _ low
+
 /-- The counts of a production layout with `n` slots: the table of each slot, `n + 1` claims,
 `m = 320` and `t = 4`. -/
 def productionCounts {n : ℕ} (layout : Layout (n + 1)) (depths : Fin n → ℕ) : RunCounts where

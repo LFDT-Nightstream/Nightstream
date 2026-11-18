@@ -104,11 +104,11 @@ def complete (facts : Facts application ajtai) (identity : List F) (relations : 
     facts lightKey refreshKey
 
 /-- The setup of the final verifier with the Ajtai key, the keys of a package identity, the rows
-`rows` and the block counts. -/
+`rows`, the block counts and the security minimum. -/
 def setup (mode : Mode) (ajtai : Ajtai) (identity : List F) (relations : Fin 2 → Relation)
-    (rows : ℕ → Compression.Verifier.Factored F) (keyBlocks zeros : ℕ) :
+    (rows : ℕ → Compression.Verifier.Factored F) (keyBlocks zeros minimum : ℕ) :
     Setup mode StepRelation.keyWidth StepRelation.keyPublicFits :=
-  ⟨ajtai, keys identity relations, rows, keyBlocks, zeros⟩
+  ⟨ajtai, keys identity relations, rows, keyBlocks, zeros, minimum⟩
 
 /-- `Verifier::verify` (SPEC.md Algorithm 6) at the shipped packages of the reference
 application: the probability that the verifier accepts a statement that no valid run of the
@@ -148,7 +148,7 @@ application, with Akita openings: the probability `history` of a false history i
 theorem verify_final_sound {mode : Mode} (facts : Facts program ajtai) (identity : List F)
     (relations : Fin 2 → Relation) (lightKey : relations 0 = lightRelation facts)
     (refreshKey : relations 1 = refreshRelation facts)
-    (setupRows : ℕ → Compression.Verifier.Factored F) (keyBlocks zeros : ℕ)
+    (setupRows : ℕ → Compression.Verifier.Factored F) (keyBlocks zeros minimum : ℕ)
     {Admitted : NifsAdversary (WalkAttempt StepRelation.keyWidth StepRelation.keyPublicFits) → Prop}
     {StageAdmitted : Stage (Visit StepRelation.keyWidth StepRelation.keyPublicFits)
       (Answer StepRelation.keyWidth StepRelation.keyPublicFits) → Prop}
@@ -164,26 +164,29 @@ theorem verify_final_sound {mode : Mode} (facts : Facts program ajtai) (identity
     (s : Compression.Game.Strategy
       (Option (Option (Outcome StepRelation.keyWidth StepRelation.keyPublicFits))))
     (q : ℕ)
-    (admitted : StageAdmitted (Stage.start (walkAdversary
-      (FinalHistory.adversary (setup mode ajtai identity relations setupRows keyBlocks zeros) s q))))
+    (admitted : StageAdmitted (Stage.start (walkAdversary (FinalHistory.adversary
+      (setup mode ajtai identity relations setupRows keyBlocks zeros minimum) s q))))
     (rows : ∀ circuit : Fin 2, (setupRows circuit).matrices =
       (FinalRows.packageRows (exports facts identity relations lightKey refreshKey)
         (complete facts identity relations lightKey refreshKey) circuit).matrices)
     (depth : ℕ)
     (depthBound : ∀ o : Outcome StepRelation.keyWidth StepRelation.keyPublicFits,
       some (some o) ∈ (Compression.Game.law s
-        ((setup mode ajtai identity relations setupRows keyBlocks zeros).game.restore q [])).support →
+        ((setup mode ajtai identity relations setupRows keyBlocks zeros minimum).game.restore q
+          [])).support →
         o.1.iteration ≤ depth)
     (history εAkita : ℝ)
     (akita : history ≤ Compression.Game.prob s
-        ((setup mode ajtai identity relations setupRows keyBlocks zeros).game.restore q [])
+        ((setup mode ajtai identity relations setupRows keyBlocks zeros minimum).game.restore q [])
         (FinalHistory.FalseHistory program) + εAkita) :
     history ≤ (q : ℝ) * FinalVerifier.finalError + εAkita +
       walkBound ajtai (keys identity relations) (exports facts identity relations lightKey refreshKey)
         assumption closed
-        (FinalHistory.adversary (setup mode ajtai identity relations setupRows keyBlocks zeros) s q)
+        (FinalHistory.adversary
+          (setup mode ajtai identity relations setupRows keyBlocks zeros minimum) s q)
         admitted depth :=
-  FinalHistory.real_soundness (setup mode ajtai identity relations setupRows keyBlocks zeros)
+  FinalHistory.real_soundness
+    (setup mode ajtai identity relations setupRows keyBlocks zeros minimum)
     (exports facts identity relations lightKey refreshKey) assumption closed s q admitted
     (complete facts identity relations lightKey refreshKey) rows
     (CircuitKeyDigest.keys_shaped identity relations) depth depthBound history εAkita akita

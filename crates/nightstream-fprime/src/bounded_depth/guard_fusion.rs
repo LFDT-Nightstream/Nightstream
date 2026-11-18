@@ -182,6 +182,38 @@ fn gate(form: &Linear, known: &BTreeSet<usize>, families: &Families) -> Option<(
     None
 }
 
+/// `SPEC.md` section 7.12, step 3: the candidates of one family whose
+/// residuals share one nonconstant form, larger groups first, then in the
+/// order of `key`. A group of one candidate fuses no row, so it is left out.
+fn groups(candidates: &[Guarded], families: &Families) -> Vec<(usize, Vec<usize>)> {
+    let common = |&(family, index): &(usize, usize)| (family, candidates[index].residual.terms.as_slice());
+    let mut members = Vec::new();
+    for (index, candidate) in candidates.iter().enumerate() {
+        if candidate.gate.constant == F::ZERO {
+            members.extend(
+                families
+                    .containing(&candidate.gate.terms)
+                    .map(|family| (family, index)),
+            );
+        }
+    }
+    members.sort_unstable_by(|left, right| common(left).cmp(&common(right)).then(left.1.cmp(&right.1)));
+    let mut groups = members
+        .chunk_by(|left, right| common(left) == common(right))
+        .filter(|group| group.len() > 1)
+        .collect::<Vec<_>>();
+    groups.sort_by(|left, right| {
+        right
+            .len()
+            .cmp(&left.len())
+            .then_with(|| common(&left[0]).cmp(&common(&right[0])))
+    });
+    groups
+        .into_iter()
+        .map(|group| (group[0].0, group.iter().map(|&(_, index)| index).collect()))
+        .collect()
+}
+
 impl GuardFusion {
     pub(super) fn checked(package: &StepPackage) -> Result<Self, PackageError> {
         let Some(Piece::Rows(source)) = package.pieces.first() else {
@@ -241,31 +273,9 @@ impl GuardFusion {
                 }
             }
         }
-        let mut groups: BTreeMap<(usize, Key), Vec<usize>> = BTreeMap::new();
-        for (index, candidate) in candidates.iter().enumerate() {
-            if candidate.gate.constant != F::ZERO {
-                continue;
-            }
-            for family_index in families.containing(&candidate.gate.terms) {
-                let mut common = candidate.residual.clone();
-                common.constant = F::ZERO;
-                groups
-                    .entry((family_index, key(&common)))
-                    .or_default()
-                    .push(index);
-            }
-        }
-        let mut groups = groups.into_iter().collect::<Vec<_>>();
-        groups.sort_by(|left, right| {
-            right
-                .1
-                .len()
-                .cmp(&left.1.len())
-                .then_with(|| left.0.cmp(&right.0))
-        });
         let mut result = Self::default();
         let mut used = BTreeSet::new();
-        for ((family_index, _), members) in groups {
+        for (family_index, members) in groups(&candidates, &families) {
             let mut selected = Vec::new();
             let mut selectors = BTreeSet::new();
             for index in members {

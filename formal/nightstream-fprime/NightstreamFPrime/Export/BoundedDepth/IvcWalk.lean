@@ -3,7 +3,7 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.Collision
 import NightstreamFPrime.Lifecycle.BoundedDepth.PriorLink
 import NightstreamFPrime.Spec.HyperNova.ReverseStages
 
-/-! The reverse walk of HyperNova Lemma 17 (Appendix H.3) for the bounded-depth scheme. A visit is a terminal
+/-! The reverse walk of HyperNova Lemma 18 (Appendix H.3) for the bounded-depth scheme. A visit is a terminal
 statement, a proof and one witness bound per slot. At a recursive visit, the fresh witness decodes
 to the last step (`TerminalBridge.Exports.last`). When that step is recursive, it folds the slot
 that its prior program counter selects, and the visit's attempt is that fold, linked to the

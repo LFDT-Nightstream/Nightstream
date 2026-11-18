@@ -110,7 +110,9 @@ That proof passes from the shared ROM tables to this catalog by a renaming of
 events, not by `RomSharing.v`. It does not prove the first two parts of
 `validCircuitRun`, `programLoaded`, or that the Rust rows obey the slot rules.
 `make check-exports` also checks the digests of the binding exports against
-`scripts/binding-exports.sha256`. `tests/LeanParity.v` checks the Lean copy of
+`scripts/binding-exports.sha256` and writes `tests/BindingCatalogTrace.v`, so that
+`tests/BindingCatalog.v` checks that the logical catalog of each export is
+`MemoryCatalog.memories`. `tests/LeanParity.v` checks the Lean copy of
 `MemoryTrace.v` on the golden traces of the Lean parity file; `make traces`
 writes `tests/LeanParityTrace.v` from that file.
 

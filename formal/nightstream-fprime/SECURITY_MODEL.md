@@ -84,10 +84,15 @@ scope note.
   `F_q[X]/(X^64 + 1)` at the chain norm, in the lattice-estimator model
   of `decisions/field-2p64-59-ring-x64.md` (trust item 2), and for the
   Akita commitments at Akita's price (trust item 7).
-- `AKITA`: the knowledge soundness of Akita (ePrint 2026/1983) with the error
-  `εAkita` (`Export.BoundedDepth.FinalVerifier.AkitaKnowledge`), for a proof
-  that commits `W` before the Π_CCS run and the lookup challenges and `V`
-  after the lookup challenges (trust item 7).
+- `AKITA`: for the one Akita opening of a final proof
+  (`Spec.Compression.Akita.Use`), Akita (ePrint 2026/1983) Theorem 10.46
+  with its error `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)` and the term
+  `ε_hash` of Akita Lemma 10.47 for its digests
+  (`Spec.Compression.Akita.Theorem1046`), and the binding of the commitment
+  of the compression key to the key polynomial, which that theorem does not
+  give (`Spec.Compression.Akita.Use.Binding`). It does not include the
+  composition of the opening with the game, which the commitment of `V`
+  after the lookup challenges needs: that premise is open (trust item 7).
 - `HN-A1`: HyperNova errata Assumption 1 for the two fold kinds, in the form of
   trust item 3.
 <!-- assumptions:end -->
@@ -193,7 +198,11 @@ each head.
 | `assumption` | `Spec.HyperNova.ReverseStages.Assumption1` | assumption | `[HN-A1]` |
 | `closed.*`, `admitted` | `*` | assumption | `[HN-A1]`, in the form of trust item 3: the closure premise and the admitted adversary |
 | `premise` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]` |
-| `akita` | `*` | assumption | `[AKITA]` |
+| `akita.theorem1046`, `binding` | `*` | assumption | `[AKITA]`: Akita Theorem 10.46 for the schedule of the opening, and the binding of the key commitment |
+| `akita.admissible` | `Spec.Compression.Akita.Schedule.Admissible` | open | Open: Lean does not model Akita's schedules, and Akita declares no query budget `Q_max` for the schedule files of `SPEC.md` section 3, so no check gives S2 and S3 of Akita Definition 9.2 |
+| `akita.admitted`, `akita.budget` | `*` | game | adversary 6: the prover with Akita openings is a classical random-oracle prover with at most `Q_max` queries to Akita's `H_FS` |
+| `accepts` | `Spec.Compression.Akita.Use.Opens` | game | `SPEC.md` Algorithm 10: step 11 accepts only when Akita accepts the three openings, the first against the commitment of the compression key |
+| `composition` | `Spec.Compression.Akita.Use.Composition` | open | Open: the gap of `V` of trust item 7. No result of Akita composes its opening with a commitment that follows a challenge of the application |
 | `valid.toValid.*`, `secure` | `*` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-nebula-gate-parity-v1.json`, `is_valid_and_is_secure_are_the_lean_decisions`: Rust checks rules 1 to 6 of `SPEC.md` section 7.1 on each geometry at run time, and the test compares that check with Lean's decisions. For the fixed WASM sizes Lean proves both (`Spec.Nebula.WasmSize.valid`, `Spec.Nebula.WasmSize.secure`), and `each_wasm_size_has_the_lean_geometry_and_rows` compares the geometries |
 | `valid.romWords`, `valid.ramWords` | `LT.lt` | game | `SPEC.md` section 7.1: a program is two images of words below `2^32`, so these bounds define the statements of the game. Rust holds each image as `Vec<u32>` (`nebula::Program`), so each program that the verifier receives meets them |
 | `app.*` | `*` | open | Open: `Lifecycle.Nebula.FirstPlan.app` is the test machine. A Rust-built memory application, the WASM relation included, has no instance (Out of scope) |
@@ -738,8 +747,9 @@ not change terminal source checks.
   a statement for which no proof with witnesses satisfies `Verifies` with
   probability at most `Q · (2^−119 + 38/q²)`
   (`Claims.Final.verifier_sound`), and with Akita openings
-  at most `Q · (2^−119 + 38/q²) + εAkita`
-  (`Claims.Final.verifier_sound_with_akita`), under the
+  at most `Q · (2^−119 + 38/q²)` plus the error of `[AKITA]`
+  (`Spec.Compression.Akita.Use.error`,
+  `Claims.Final.verifier_sound_with_akita`), under the
   premises of trust item 7. Lean bounds one interactive run of the
   argument by the exact Rust error sum
   (`Spec.Compression.Rust.params_run_soundness`). Only tests join the model
@@ -792,11 +802,11 @@ not change terminal source checks.
   adversary 4 for the stages of this IVC adversary
   (`Claims.Final.history_sound`,
   `Export.BoundedDepth.IvcSecurity.walkBound`). With Akita openings, the
-  bound adds `εAkita` (`Claims.Final.history_sound_with_akita`). The same
-  bound holds for the witnesses that the reverse extractor returns: the
-  final verifier accepts, and those witnesses are not a valid history of the
-  accepted statement (`Claims.Final.history_knowledge`). The Akita form of
-  this event needs `[AKITA]` for it, and Lean does not state it. At the
+  bound adds the error of `[AKITA]` (`Claims.Final.history_sound_with_akita`).
+  The same bound holds for the witnesses that the reverse extractor returns:
+  the final verifier accepts, and those witnesses are not a valid history of
+  the accepted statement (`Claims.Final.history_knowledge`,
+  `Claims.Final.history_knowledge_with_akita`). At the
   packages that the emitter writes for the reference application, Lean proves
   each premise of class `lean` of the direct and final verifier results
   (`Claims.Shipped.verify_sound`, `Claims.Shipped.verify_final_sound`).
@@ -824,7 +834,7 @@ not change terminal source checks.
   for this IVC adversary. So its probability is at most
   `Q · (2^−119 + 38/q²)` plus the terms of adversary 5
   (`Claims.Final.memory_sound`). With Akita openings, the
-  bound adds `εAkita` (`Claims.Final.memory_sound_with_akita`).
+  bound adds the error of `[AKITA]` (`Claims.Final.memory_sound_with_akita`).
   The premises are those of the two joined results, but without the bound
   `depth`: the checks of `SPEC.md` Algorithm 8 step 4 accept at most
   `S_max · N` steps (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`),
@@ -1141,13 +1151,14 @@ not change terminal source checks.
      the Π_CCS run and the lookup challenges `τ` (row 2), and `V`, whose
      cells are `1/(τ_k − W(x))`, after `τ` (row 9). The game has the same
      order: `W` before `τ`, and `V` after `τ` and before the other
-     challenges (`Spec.Compression.Verifier.afterTables`).
-     `Export.BoundedDepth.FinalVerifier.AkitaKnowledge` states this premise
-     with the error `εAkita`: for each prover with Akita openings, a prover
-     of the game wins at most `εAkita` less often. Lean does not bound
-     `εAkita`. `Claims.Final.history_sound_with_akita` takes the
-     same premise for the event of a false history, at one prover of the
-     game, and that prover's IVC adversary must be admitted (trust item 3).
+     challenges (`Spec.Compression.Verifier.afterTables`). For Akita
+     openings, a win is a failure of the extractor of Akita Theorem 10.46, a
+     break of the binding of the key, or a win in which the extractor
+     returns the tables with the key polynomial
+     (`Spec.Compression.Akita.Use.wins_le`). The premise `composition`
+     bounds the last event by the event of one prover of the game, whose IVC
+     adversary must be admitted (trust item 3). The item `[AKITA]` below
+     gives each part.
      `Export.BoundedDepth.FinalVerifier.Premises` collects the premises on
      the setup: `Represents` for the dense rows of each circuit, and at
      most the blocks of its package for each claim. The final claims meet
@@ -1227,24 +1238,41 @@ not change terminal source checks.
      verifier can accept a false statement. The pin is a value in the code,
      and the test is the check of the pin. No Lean result covers either.
      The Lean result takes the honest key as a premise.
-   - *Akita binding and knowledge soundness `[AKITA]`.* The one Akita proof opens
+   - *Akita `[AKITA]` and the gap of `V`.* The one Akita proof opens
      the key polynomial, `W` and `V`. It uses Akita (ePrint 2026/1983) at
      git revision `d50f700f`, crate version 0.1.0, with the configuration
      `RecursiveCommitmentConfig<fp64::Dense>` and the schedule files of
-     `SPEC.md` section 3. The premise is that an accepted proof gives
-     polynomials with the claimed values, in the classical random-oracle
-     model, and that the extractor gives the `W` that the prover fixed
-     before `τ` and the `V` that it fixed after `τ`. The composition
-     theorem of Akita (revision of 2026-10-15, Theorem 10.45) has every
-     root commitment in the first message, before the first challenge of
-     the application, so it does not cover the commitment of `V` after
-     `τ`. Akita's checkpoint structures (Definition 10.16) allow more than one
+     `SPEC.md` section 3 (`Spec.Compression.Akita.Use`). The final claims
+     have three premises about it. First, `[AKITA]`: Akita (revision of
+     2026-10-15) Theorem 10.46, in the classical random-oracle model
+     (`Spec.Compression.Akita.Theorem1046`, premise `akita`). Under an
+     admissible schedule (Akita Definition 9.2), a prover with `Q ≤ Q_max`
+     queries to `H_FS` has an extractor of Akita Definition 3.7 with the
+     error `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)`, and
+     `Δ_setup ≤ N_setup · q / 2^w`. Akita's transcript takes its last
+     terminal block and its root commitments as SHA3-256 digests, so Akita
+     Lemma 10.47 adds `ε_hash`
+     (`Spec.Compression.Akita.Schedule.knowledgeError`). The setup of the
+     theorem holds the commitments of the offloaded prefixes, so the error
+     covers them. Its conditions are open: Lean does not model the
+     schedules, and Akita declares no `Q_max` (premise `akita.admissible`).
+     Second, `[AKITA]`: the commitment of the compression key binds the key
+     polynomial, so the opened value is the value of the Ajtai key's
+     polynomial (`Spec.Compression.Akita.Use.Binding`, premise `binding`).
+     Theorem 10.46 does not give binding. Third, the gap of `V`, an open premise
+     (`Spec.Compression.Akita.Use.Composition`, premise `composition`): a
+     win in which the extractor returns the tables is a win of the game.
+     The composition theorem of Akita (Theorem 10.45) has every root
+     commitment in the first message, before the first challenge of the
+     application, so it does not cover the commitment of `V` after `τ`.
+     Akita's checkpoint structures (Definition 10.16) allow more than one
      checkpoint, but no result of the paper states the composition with a
-     second commitment, and Lean does not prove it. It includes binding
-     for the key polynomial, so the opened value
-     is the value of the Ajtai key's polynomial, and binding for Akita's
-     setup prefixes, so the setup that the rows offload is Akita's public
-     setup. Akita states a target of a 128-bit Fiat–Shamir rate for each
+     second commitment, and Lean does not prove it. The premise also covers
+     `W`: Lean does not prove the conditions of Theorem 10.45 for the
+     argument, and the premise joins the Poseidon2 transcript of the game to
+     Akita's Keccak transcript.
+     Lean proves the rest of the step (`Spec.Compression.Akita.Use.wins_le`).
+     Akita states a target of a 128-bit Fiat–Shamir rate for each
      random-oracle query. Its documentation says that this target is not an
      end-to-end bound and that it declares no query budget, no bound on the
      size of the extraction tree and no reduction loss. Akita has no audit

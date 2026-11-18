@@ -11,8 +11,8 @@ the emitter writes for the reference application, and the keys of a package iden
   the packages (`facts`, which the emitter checks), the relations of the two keys and the rows of
   the final verifier (links), the bound on the iteration (`depthBound`), and the assumptions.
 - Assumptions: HyperNova errata Assumption 1 for the two folds (`[HN-A1]`), with its closure
-  premise and an admitted adversary, and for `verify_final_sound` Akita's knowledge soundness
-  (`[AKITA]`).
+  premise and an admitted adversary, and for `verify_final_sound` the premises of `[AKITA]` and
+  the open composition premise of `Claims.Final.history_sound_with_akita`.
 - Scope: the reference application only. A Rust-built application has no Lean package. -/
 
 namespace NightstreamFPrime.Claims.Shipped
@@ -73,8 +73,9 @@ theorem verify_sound
     control cap depth depthBound
 
 /-- `Verifier::verify_final` (SPEC.md Algorithm 10) at the shipped packages of the reference
-application, with Akita openings: the probability `history` of a false history is at most
-`q · (1/2^119 + 38/fieldModulus²) + εAkita` plus `IvcSecurity.walkBound`. -/
+application, with Akita openings: the probability of a false history is at most
+`q · (1/2^119 + 38/fieldModulus²)` plus `Spec.Compression.Akita.Use.error` and
+`IvcSecurity.walkBound`, under the premises of `Claims.Final.history_sound_with_akita`. -/
 theorem verify_final_sound
     {ajtai : Shipped.Ajtai}
     {mode : FinalVerifier.Mode}
@@ -125,15 +126,19 @@ theorem verify_final_sound
           ((Shipped.setup mode ajtai identity relations setupRows keyBlocks zeros
             minimum).game.restore q [])).support →
           o.1.iteration ≤ depth)
-    (history : ℝ)
-    (εAkita : ℝ)
-    (akita : history ≤
-        Compression.Game.prob s
-            ((Shipped.setup mode ajtai identity relations setupRows keyBlocks zeros
-              minimum).game.restore q [])
-            (FinalHistory.FalseHistory Shipped.program) +
-          εAkita) :
-    history ≤ (↑q : ℝ) * FinalVerifier.finalError + εAkita +
+    (opening : Compression.Akita.Use)
+    (real : Compression.Akita.Prover opening.scheme opening.claims)
+    (event : real.Tape → Prop)
+    (akita : opening.Knowledge real)
+    (binding : opening.Binding)
+    (accepts : ∀ (tape : real.Tape), event tape → opening.Opens real tape)
+    (composition : opening.Composition real event
+        (Compression.Game.prob s
+          ((Shipped.setup mode ajtai identity relations setupRows keyBlocks zeros
+            minimum).game.restore q [])
+          (FinalHistory.FalseHistory Shipped.program))) :
+    ENNReal.toReal (real.tape.toOuterMeasure {tape | event tape}) ≤
+      (↑q : ℝ) * FinalVerifier.finalError + opening.error real +
         IvcSecurity.walkBound ajtai (Shipped.keys identity relations)
           (Shipped.exports facts identity relations lightKey refreshKey) assumption closed
           (FinalHistory.adversary (Shipped.setup mode ajtai identity relations setupRows keyBlocks
@@ -141,6 +146,6 @@ theorem verify_final_sound
           admitted depth :=
   @Export.BoundedDepth.Shipped.verify_final_sound ajtai mode facts identity relations lightKey
     refreshKey setupRows keyBlocks zeros minimum Admitted StageAdmitted Efficient error assumption
-    closed s q admitted rows depth depthBound history εAkita akita
+    closed s q admitted rows depth depthBound opening real event akita binding accepts composition
 
 end NightstreamFPrime.Claims.Shipped

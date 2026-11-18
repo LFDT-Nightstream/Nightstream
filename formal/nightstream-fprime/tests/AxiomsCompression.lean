@@ -62,6 +62,8 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.draw_step
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.event_ne_top
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.prob_eq_law
+#audit_axioms NightstreamFPrime.Spec.Compression.Game.map_fst_bind
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Use.wins_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.walk_sound
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.DensityLe.mono
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.CostLe.densityLe
@@ -318,9 +320,9 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalHistory.soundness
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalHistory.real_soundness
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalHistory.knowledge
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalHistory.real_knowledge
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.Shipped.verify_sound
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.Shipped.verify_final_sound
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaFinal.map_fst_bind
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaFinal.soundness
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaFinal.real_soundness
 #audit_axioms NightstreamFPrime.Export.Generic.PlanPush.push_coefficient

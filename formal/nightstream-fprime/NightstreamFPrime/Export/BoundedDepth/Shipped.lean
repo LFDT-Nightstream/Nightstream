@@ -143,8 +143,8 @@ theorem verify_sound (facts : Facts program ajtai) (identity : List F)
     (CircuitKeyDigest.keys_shaped identity relations) packageWidths control cap depth depthBound
 
 /-- `Verifier::verify_final` (SPEC.md Algorithm 10) at the shipped packages of the reference
-application, with Akita openings: the probability `history` of a false history is at most
-`q · finalError + εAkita + walkBound` (`FinalHistory.real_soundness`). -/
+application, with Akita openings: the probability of a false history is at most
+`q · finalError` plus the error of `[AKITA]` and `walkBound` (`FinalHistory.real_soundness`). -/
 theorem verify_final_sound {mode : Mode} (facts : Facts program ajtai) (identity : List F)
     (relations : Fin 2 → Relation) (lightKey : relations 0 = lightRelation facts)
     (refreshKey : relations 1 = refreshRelation facts)
@@ -175,20 +175,24 @@ theorem verify_final_sound {mode : Mode} (facts : Facts program ajtai) (identity
         ((setup mode ajtai identity relations setupRows keyBlocks zeros minimum).game.restore q
           [])).support →
         o.1.iteration ≤ depth)
-    (history εAkita : ℝ)
-    (akita : history ≤ Compression.Game.prob s
+    (opening : Compression.Akita.Use) (real : Compression.Akita.Prover opening.scheme opening.claims)
+    (event : real.Tape → Prop) (akita : opening.Knowledge real) (binding : opening.Binding)
+    (accepts : ∀ tape, event tape → opening.Opens real tape)
+    (composition : opening.Composition real event (Compression.Game.prob s
         ((setup mode ajtai identity relations setupRows keyBlocks zeros minimum).game.restore q [])
-        (FinalHistory.FalseHistory program) + εAkita) :
-    history ≤ (q : ℝ) * FinalVerifier.finalError + εAkita +
-      walkBound ajtai (keys identity relations) (exports facts identity relations lightKey refreshKey)
-        assumption closed
-        (FinalHistory.adversary
-          (setup mode ajtai identity relations setupRows keyBlocks zeros minimum) s q)
-        admitted depth :=
+        (FinalHistory.FalseHistory program))) :
+    (real.tape.toOuterMeasure {tape | event tape}).toReal ≤
+      (q : ℝ) * FinalVerifier.finalError + opening.error real +
+        walkBound ajtai (keys identity relations)
+          (exports facts identity relations lightKey refreshKey) assumption closed
+          (FinalHistory.adversary
+            (setup mode ajtai identity relations setupRows keyBlocks zeros minimum) s q)
+          admitted depth :=
   FinalHistory.real_soundness
     (setup mode ajtai identity relations setupRows keyBlocks zeros minimum)
     (exports facts identity relations lightKey refreshKey) assumption closed s q admitted
     (complete facts identity relations lightKey refreshKey) rows
-    (CircuitKeyDigest.keys_shaped identity relations) depth depthBound history εAkita akita
+    (CircuitKeyDigest.keys_shaped identity relations) depth depthBound opening real event akita
+    binding accepts composition
 
 end NightstreamFPrime.Export.BoundedDepth.Shipped

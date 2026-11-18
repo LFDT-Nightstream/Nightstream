@@ -121,11 +121,17 @@ theorem real_soundness (setup : FinalVerifier.Setup mode logicalWidth publicFits
     (complete : Complete exports)
     (rows : ∀ circuit : Fin 2,
       (setup.rows circuit).matrices = (packageRows exports complete circuit).matrices)
-    {Real : Type} (winsOf : Real → ℝ) (q : ℕ) (εAkita : ℝ)
-    (akita : FinalVerifier.AkitaKnowledge winsOf setup complete.packageWidth step cap control q
-      εAkita) (real : Real) :
-    winsOf real ≤ (q : ℝ) * FinalVerifier.finalError + εAkita :=
+    (opening : Compression.Akita.Use) (real : Compression.Akita.Prover opening.scheme opening.claims)
+    (event : real.Tape → Prop)
+    (s : Compression.Game.Strategy (Option (Option (FinalVerifier.Outcome logicalWidth publicFits))))
+    (q : ℕ) (akita : opening.Knowledge real) (binding : opening.Binding)
+    (accepts : ∀ tape, event tape → opening.Opens real tape)
+    (composition : opening.Composition real event
+      (Compression.Game.prob s (setup.game.restore q [])
+        (FinalVerifier.Wins setup complete.packageWidth step cap control))) :
+    (real.tape.toOuterMeasure {tape | event tape}).toReal ≤
+      (q : ℝ) * FinalVerifier.finalError + opening.error real :=
   FinalVerifier.real_soundness setup step cap control (premises_of_rows setup exports complete rows)
-    winsOf q εAkita akita real
+    opening real event s q akita binding accepts composition
 
 end NightstreamFPrime.Export.BoundedDepth.FinalRows

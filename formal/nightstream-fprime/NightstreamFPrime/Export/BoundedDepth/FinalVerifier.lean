@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.BoundedDepth.RunCompleteness
 import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh
 import NightstreamFPrime.Spec.Compression.Rust.Soundness
+import NightstreamFPrime.Spec.Compression.Akita
 
 /-! The final verifier as one public-coin game (SPEC.md, Algorithm 10), and its soundness against
 the verifier of Algorithm 6 (`Export.BoundedDepth.RunCompleteness.Verifies`).
@@ -26,9 +27,8 @@ On each path that avoids the bad sets, `Verifies` accepts an accepted statement 
 from `W` (`Setup.proofOf`, `game_avoids`), and each bad set has density at most
 `1/2^119 + 38/fieldModulus²` (`game_densityLe`). So in the state-restoration experiment with `q` queries, the
 verifier accepts a statement without such a proof with probability at most
-`q · (1/2^119 + 38/fieldModulus²)` (`soundness`). `AkitaKnowledge` names Akita's knowledge soundness with the
-error `εAkita` as an assumption, and `real_soundness` adds `εAkita` for the verifier with Akita
-openings. -/
+`q · (1/2^119 + 38/fieldModulus²)` (`soundness`). With Akita openings, `real_soundness` adds the
+error of `[AKITA]` under the premises of `Spec.Compression.Akita.Use.wins_le`. -/
 
 set_option autoImplicit false
 
@@ -638,24 +638,19 @@ theorem soundness (premises : Premises setup packageWidths)
       equal => ⟨_, verifies o equal⟩)
     (game_densityLe setup) (by unfold finalError; positivity) q
 
-/-- Akita's knowledge soundness with the error `εAkita`, as an assumption (SPEC.md, Algorithm 10;
-`SECURITY_MODEL.md`, trust item 7). For each prover `real` of the final verifier with Akita
-openings, whose wins have the probability `winsOf real`, there is a prover of the game with ideal
-openings and `q` queries that wins at most `εAkita` less often. -/
-def AkitaKnowledge {Real : Type} (winsOf : Real → ℝ) (setup : Setup mode logicalWidth publicFits)
-    (packageWidths : Fin 2 → ℕ) (step : AppState → AppWitness → AppState) (cap : ℕ)
-    (control : AppState → AppWitness → Fin 2) (q : ℕ) (εAkita : ℝ) : Prop :=
-  ∀ real, ∃ s, winsOf real ≤
-    prob s (restore setup.game q []) (Wins setup packageWidths step cap control) + εAkita
-
 /-- With Akita openings, the final verifier accepts a statement for which no proof with
-witnesses satisfies `Verifies` with probability at most
-`q · (1/2^119 + 38/fieldModulus²) + εAkita`. -/
-theorem real_soundness (premises : Premises setup packageWidths) {Real : Type}
-    (winsOf : Real → ℝ) (q : ℕ) (εAkita : ℝ)
-    (akita : AkitaKnowledge winsOf setup packageWidths step cap control q εAkita) (real : Real) :
-    winsOf real ≤ q * finalError + εAkita := by
-  obtain ⟨s, bound⟩ := akita real
-  linarith [soundness setup step cap control premises s q]
+witnesses satisfies `Verifies` with probability at most `q · (1/2^119 + 38/fieldModulus²)` plus
+the error of `[AKITA]`. `event` is this event for the prover `real` with Akita openings, and
+`composition` relates it to the game prover `s` (`Spec.Compression.Akita.Use.wins_le`). -/
+theorem real_soundness (premises : Premises setup packageWidths) (opening : Compression.Akita.Use)
+    (real : Compression.Akita.Prover opening.scheme opening.claims) (event : real.Tape → Prop)
+    (s : Strategy (Option (Option (Outcome logicalWidth publicFits)))) (q : ℕ)
+    (akita : opening.Knowledge real) (binding : opening.Binding)
+    (accepts : ∀ tape, event tape → opening.Opens real tape)
+    (composition : opening.Composition real event
+      (prob s (restore setup.game q []) (Wins setup packageWidths step cap control))) :
+    (real.tape.toOuterMeasure {tape | event tape}).toReal ≤ q * finalError + opening.error real := by
+  linarith [soundness setup step cap control premises s q,
+    opening.wins_le real event _ akita binding accepts composition]
 
 end NightstreamFPrime.Export.BoundedDepth.FinalVerifier

@@ -29,7 +29,8 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Nebula
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 open NightstreamFPrime.Spec.HyperNova.ReverseStages
-open NightstreamFPrime.Spec.Compression.Game (Strategy prob restore law prob_eq_law restore_sound)
+open NightstreamFPrime.Spec.Compression.Game (Strategy prob restore law prob_eq_law restore_sound
+  map_fst_bind)
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.BoundedDepth
 open NightstreamFPrime.Lifecycle.Nebula
@@ -41,16 +42,6 @@ open NightstreamFPrime.Export.BoundedDepth.RunCompleteness
 open NightstreamFPrime.Export.BoundedDepth.FinalVerifier
 open NightstreamFPrime.Export.BoundedDepth.FinalHistory (outputOf)
 open NightstreamFPrime.Export.BoundedDepth.NebulaSecurity
-
-/-- The first part of a draw from `base` and then from `kernel` has the law `base`. -/
-theorem map_fst_bind {α β : Type} (base : PMF α) (kernel : α → PMF β) :
-    (base.bind fun a => (kernel a).map (a, ·)).map Prod.fst = base := by
-  rw [PMF.map_bind]
-  conv_rhs => rw [← PMF.bind_pure base]
-  congr 1
-  funext a
-  rw [PMF.map_comp]
-  exact PMF.map_const (kernel a) a
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -233,11 +224,11 @@ theorem soundness (complete : StepExtend.Complete exports)
         ENNReal.toReal_add (event_ne_top _ _) (event_ne_top _ _)
     _ ≤ _ := add_le_add rejected (by rw [sampled]; exact bad)
 
-/-- With Akita openings, the probability `memory` of a false memory statement is at most
-`q · (1/2^119 + 38/fieldModulus²) + εAkita` plus the terms of `NebulaSecurity.bad_le`, over the
-walk's `S_max · N` stages, as in `soundness`. `akita` is Akita's knowledge soundness
-(`FinalVerifier.AkitaKnowledge`) for the event `FalseMemory`: `s` is the prover of the game with
-ideal openings that it gives for the prover with Akita openings. -/
+/-- With Akita openings, the probability of a false memory statement is at most
+`q · (1/2^119 + 38/fieldModulus²)` plus the error of `[AKITA]` and the terms of
+`NebulaSecurity.bad_le`, over the walk's `S_max · N` stages, as in `soundness`. `event` is a false
+memory statement of the prover `real` with Akita openings, and `composition` relates it to
+`FalseMemory` of the game prover `s` (`Spec.Compression.Akita.Use.wins_le`). -/
 theorem real_soundness (complete : StepExtend.Complete exports)
     (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
       (FinalRows.packageRows exports complete circuit).matrices)
@@ -245,14 +236,16 @@ theorem real_soundness (complete : StepExtend.Complete exports)
     (programEq : exports.program = MemoryApp.program p.toGeometry app)
     {memoryError : ClaimedStage app (logicalWidth := logicalWidth) (publicFits := publicFits) → ℝ}
     (round : MemoryRound app setup.ajtai setup.circuitKeys exports StageAdmitted memoryError)
-    (memory εAkita : ℝ)
-    (akita : memory ≤ ((stages (p.sMax * p.n)).1.tape.toOuterMeasure
+    (opening : Compression.Akita.Use) (real : Compression.Akita.Prover opening.scheme opening.claims)
+    (event : real.Tape → Prop) (akita : opening.Knowledge real) (binding : opening.Binding)
+    (accepts : ∀ tape, event tape → opening.Opens real tape)
+    (composition : opening.Composition real event
+      ((stages (p.sMax * p.n)).1.tape.toOuterMeasure
         {tape | FalseMemory setup app exports
           (tapeOf setup app exports assumption closed s q claim admitted (p.sMax * p.n) tape).1
           (sampleOf setup app exports assumption closed s q claim admitted (p.sMax * p.n)
-            tape)}).toReal +
-      εAkita) :
-    memory ≤ q * finalError + εAkita +
+            tape)}).toReal) :
+    (real.tape.toOuterMeasure {tape | event tape}).toReal ≤ q * finalError + opening.error real +
         (walkBound setup.ajtai setup.circuitKeys exports assumption closed
             (adversary setup app s q claim) admitted (p.sMax * p.n) +
           ((claimed setup app exports assumption closed s q claim admitted
@@ -266,6 +259,6 @@ theorem real_soundness (complete : StepExtend.Complete exports)
           memoryError
             (claimed setup app exports assumption closed s q claim admitted (p.sMax * p.n))) := by
   linarith [soundness setup app exports assumption closed s q claim admitted complete rows valid
-    keysShaped programEq round]
+    keysShaped programEq round, opening.wins_le real event _ akita binding accepts composition]
 
 end NightstreamFPrime.Export.BoundedDepth.NebulaFinal

@@ -17,9 +17,8 @@ indifferentiability theorem with the error `spongeError`. This file states the c
 - Domain separation: two block lists whose words start with inputs that differ at a position of
   both are distinct (`blocks_ne_of_differ`), so two uses with such tags never absorb one block
   list (`padded_ne_of_differ`).
-- `Transfer` applies `[SPONGE]` to one use, in the form of
-  `Export.BoundedDepth.FinalVerifier.AkitaKnowledge`: under the use's conditions, each adversary of
-  the ideal-permutation model has a counterpart in the use's random-oracle model that wins at most
+- `Transfer` applies `[SPONGE]` to one use: under the use's conditions, each adversary of the
+  ideal-permutation model has a counterpart in the use's random-oracle model that wins at most
   `spongeError calls` less often. -/
 
 set_option autoImplicit false

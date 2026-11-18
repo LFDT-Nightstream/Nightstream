@@ -3,12 +3,15 @@ import Mathlib.Data.Nat.Notation
 import NightstreamFPrime.Spec.Algebra
 
 /-! A Lean copy of the memory-event model that the Rocq proof of the WASM
-relation assumes consistent: `formal/wasm-rocq/MemoryTrace.v`, with `Column`
-and `Witness` from `R1CS.v`, at `main` commit
-`5e7f5caa846bc2bf51d57d0fd3a1168cf19d98e2`. The names are the Rocq names in
-Lean style, the events of a trace come in the same order (rows, then catalog
-memories, then ports), and the semantics are the same. It does not own the
-binding to Nebula (`EventBinding`). -/
+relation assumes: `formal/wasm-rocq/MemoryTrace.v`, with `Column` and `Witness`
+from `R1CS.v`, and the bounded-event premise of `validCircuitRun`. The names
+are the Rocq names in Lean style, the events of a trace come in the same order
+(rows, then catalog memories, then ports), and the semantics are the same. It
+does not own the binding to Nebula (`EventBinding`).
+
+`scripts/check_rocq_copy.py` fails when a Rocq source differs from the copied one:
+- `MemoryTrace.v` SHA-256 `e855869aaef01a754c1d6d1d359f489234dc4c00cd796f46c8368ea88173c094`
+- `R1CS.v` SHA-256 `54b1936c92777b63b441a9dc106a2b9e55d05e1427c804d6fc81df4de320b1e4` -/
 
 namespace NightstreamFPrime.Spec.Nebula.MemoryTrace
 

@@ -44,6 +44,7 @@ for pair in \
   "emitPoseidon2Vectors:$A/nightstream-fprime-poseidon2-vectors-v1.json" \
   "emitFoldGateParity:$A/nightstream-fprime-fold-gate-parity-v1.json" \
   "emitNebulaGateParity:$A/nightstream-fprime-nebula-gate-parity-v1.json" \
+  "emitMemoryTraceParity:$A/nightstream-fprime-memory-trace-parity-v1.json" \
   "emitEncodingParity:$A/nightstream-fprime-encoding-parity-v1.json" \
   "emitMatrixPassParity:$A/nightstream-fprime-matrix-pass-parity-v1.json" \
   "emitCompressionParity:$A/nightstream-fprime-compression-parity-v1.json"; do

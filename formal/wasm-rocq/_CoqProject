@@ -104,6 +104,8 @@ tests/Fragment.v
 tests/NestedCalls.v
 tests/BlockCalls.v
 tests/WitnessCheck.v
+tests/LeanParityTrace.v
+tests/LeanParity.v
 tests/BlockCallTrace.v
 tests/BlockCallRun.v
 tests/BlockCallWitness.v

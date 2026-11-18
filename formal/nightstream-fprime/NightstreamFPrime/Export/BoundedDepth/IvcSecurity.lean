@@ -1,6 +1,6 @@
 import NightstreamFPrime.Export.BoundedDepth.IvcWalk
 
-/-! HyperNova Lemma 17 for the bounded-depth scheme: the IVC false-acceptance bound. An IVC adversary outputs a
+/-! HyperNova Lemma 18 for the bounded-depth scheme: the IVC false-acceptance bound. An IVC adversary outputs a
 terminal statement and a proof. It wins when the terminal relation accepts and no `iteration`
 steps of the application lead from `z0` to `zi` (`FalseAcceptance`). The reverse extractor walks
 back from the terminal one step per stage (`IvcWalk`), with the extractor that HyperNova errata
@@ -115,7 +115,7 @@ noncomputable def walkBound (depth : Nat) : ℝ :=
       error ((stages j.val).1.nifs (attemptOf ajtai circuitKeys exports)
         (back ajtai circuitKeys exports)))
 
-/-- HyperNova Lemma 17 for the bounded-depth scheme, on the extractor's output: the probability that the terminal
+/-- HyperNova Lemma 18 for the bounded-depth scheme, on the extractor's output: the probability that the terminal
 accepts the adversary's output and the witnesses that the reverse extractor returns do not lead
 from `z0` to `zi` is at most `walkBound`. The law is the one of the last stage: the adversary's
 tape and the coins of each stage's extractor. -/
@@ -137,7 +137,7 @@ theorem extraction_bound (keysShaped : ∀ key, (circuitKeys key).digest.length 
       (trail_lengths ajtai circuitKeys exports _ _))
   exact ⟨⟨j, length ▸ inside⟩, found.imp_left (visitCollision_isSome ajtai circuitKeys exports)⟩
 
-/-- HyperNova Lemma 17 for the bounded-depth scheme: the probability of a false acceptance is at
+/-- HyperNova Lemma 18 for the bounded-depth scheme: the probability of a false acceptance is at
 most `walkBound`. A false acceptance is an extraction failure, because no list of witnesses
 reaches its statement. -/
 theorem probability_bound (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)

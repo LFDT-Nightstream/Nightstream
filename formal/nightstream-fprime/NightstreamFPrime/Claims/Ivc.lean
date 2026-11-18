@@ -10,7 +10,8 @@ import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity
 The terminal relation, the reverse extractor and the completeness of a run
 (`SPEC.md` Algorithm 6, `SECURITY_MODEL.md` adversaries 2 and 4).
 
-- Paper: HyperNova Construction 2, Lemma 17 and Definition 11.
+- Paper: HyperNova Construction 2, Definition 11, Lemma 17 (completeness) and Lemma 18
+  (knowledge soundness).
 - Assumptions: `false_acceptance_bound`, `extraction_bound` and `verifier_sound` take HyperNova
   errata Assumption 1 for the two folds (`[HN-A1]`), with its closure premise and an admitted
   adversary. Their error term is the `error` of that assumption.
@@ -101,7 +102,7 @@ theorem accepted_bounds.{uKey, uClaim, uFresh, uProof}
   @Spec.HyperNova.Construction2.BoundedDepth.accepted_bounds Key Claim Fresh Proof p cap capFits
     folds history depth start accepted final finalAtMostB
 
-/-- HyperNova Lemma 17 for the bounded-depth scheme: the probability of a false acceptance is at
+/-- HyperNova Lemma 18 for the bounded-depth scheme: the probability of a false acceptance is at
 most `IvcSecurity.walkBound`. A false acceptance is an extraction failure, because no list of
 witnesses reaches its statement. -/
 theorem false_acceptance_bound
@@ -142,7 +143,7 @@ theorem false_acceptance_bound
     circuitKeys step cubeFits exports Admitted StageAdmitted Efficient error assumption closed
     adversary admitted keysShaped control cap depth depthBound
 
-/-- HyperNova Lemma 17 for the bounded-depth scheme, on the extractor's output: the probability that the terminal
+/-- HyperNova Lemma 18 for the bounded-depth scheme, on the extractor's output: the probability that the terminal
 accepts the adversary's output and the witnesses that the reverse extractor returns do not lead
 from `z0` to `zi` is at most `IvcSecurity.walkBound`. The law is the one of the last stage: the
 adversary's tape and the coins of each stage's extractor. -/
@@ -373,7 +374,7 @@ theorem step_extends
     circuitKeys step cubeFits exports complete keysShaped cap control statement proof verifies
     witness valid iterationNext witnessLength
 
-/-- HyperNova Lemma 17 for one slot of the bounded-depth scheme: the chance that the slot's history is accepted
+/-- HyperNova Lemma 18 for one slot of the bounded-depth scheme: the chance that the slot's history is accepted
 but the reverse extractor does not return it is at most the stages' Assumption 1 errors. -/
 theorem slot_history_failure
     {Prior : Type}

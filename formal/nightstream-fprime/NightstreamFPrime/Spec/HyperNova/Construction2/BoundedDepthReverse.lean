@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 
-/-! The deterministic part of HyperNova Lemma 17 (Appendix H.3) for one slot of the bounded-depth scheme, in
+/-! The deterministic part of HyperNova Lemma 18 (Appendix H.3) for one slot of the bounded-depth scheme, in
 the form the probabilistic layer uses. The reverse extractor's stage `j` hands its NIFS
 extractor an `Attempt`: the `j`-th fold from the end with a witness of the fold's output claim,
 which is stage `j − 1`'s answer. `returned_of_no_failure`: on an accepted history, when no stage
@@ -138,7 +138,7 @@ theorem fails_take (bound : Nat) (witness : ClaimWitness)
     simp
   simp only [Fails, sameAttempt, sameAnswer]
 
-/-- HyperNova Lemma 17, one slot, without probabilities: on an accepted history whose stages do
+/-- HyperNova Lemma 18, one slot, without probabilities: on an accepted history whose stages do
 not fail, the answers extract every fold. The bound invariant is the one of
 `Folding.Schedule.recoveredBound_le`, read from the last fold back. -/
 theorem returned_of_no_failure (key : Key) :

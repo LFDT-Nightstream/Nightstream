@@ -457,8 +457,11 @@ theorem laid_light (light : Setup .light logicalWidth publicFits)
   rw [same, keyBlocks]
   exact Compression.Rust.layoutNew_light positive fits (depth_le 0)
 
-/-- The honest proof of `RunCompleteness.light_run_complete` passes steps 1 to 5 of Algorithm 10 in
-the light mode, under the hypotheses of `laid_light` (`checks_light`, `laid_light`). -/
+/-- The honest proof of `RunCompleteness.light_run_complete` passes the checks of steps 1 to 4 of
+Algorithm 10 in the light mode and the layout of step 5, under the hypotheses of `laid_light`
+(`checks_light`, `laid_light`). Step 5 also requires the block count of Algorithm 11, which is the
+hypothesis `keyBlocks` here, and `error_bits` at least the security minimum, which the game does
+not model. -/
 theorem accepts_light (light : Setup .light logicalWidth publicFits)
     (keyBlocks : light.keyBlocks = 2 ^ 19)
     (positive : 0 < (light.rows 0).matrices.columns / ringDegree)

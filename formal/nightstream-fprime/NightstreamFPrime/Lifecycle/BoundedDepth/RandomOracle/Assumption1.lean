@@ -15,12 +15,13 @@ attempt on it. A NIFS adversary is admitted (`RomAdmitted`) when it is the NIFS 
 such an adversary.
 
 The extractor (`extractor`) is an algorithm with its own coins: `budget` fresh oracles, drawn
-independently of the tape (`RomEfficient`). It reads the attempt's circuit and key. On a light
+independently of the tape. It reads the attempt's circuit and key. On a light
 attempt it runs the budgeted search of `Budgeted` on the light game of that key, with the
 adversary restricted to the light part (`RomModel.restrictLight`), and likewise on a refresh
 attempt. The search is a `Rewinding` run of `budget` steps with one rerun per step, so it reruns
-the adversary at most `budget` times (`Budgeted.runs_le`). `RomEfficient` states only the coin
-law; Lean has no running-time model.
+the adversary at most `budget` times (`Budgeted.runs_le`). `RomEfficient` states that an
+extractor is this extractor of a random-oracle form of the adversary, so Assumption 1 in this
+model is about this algorithm and no other. Lean has no running-time model.
 
 Per game, `Budgeted.failure_le` turns the ideal knowledge bounds
 (`LightKnowledge.knowledge_error_le`, `RefreshKnowledge.knowledge_error_le`) into bounds on the
@@ -160,13 +161,6 @@ queries and circuit keys `circuitKeys`. -/
 def RomAdmitted (adversary : NifsAdversary (RomAttempt logicalWidth publicFits)) : Prop :=
   ∃ rom : RomAdversary circuitKeys queries, rom.nifs = adversary
 
-/-- The extractor's coins are `budget` uniform oracles, drawn independently of the tape
-(`NifsExtractor.law`). -/
-def RomEfficient (budget : Nat) (adversary : NifsAdversary (RomAttempt logicalWidth publicFits))
-    (extractor : NifsExtractor (Answer logicalWidth publicFits) adversary) : Prop :=
-  ∃ coins : extractor.Coins ≃ (Fin budget → Oracle logicalWidth publicFits),
-    extractor.coins.map coins = uniform (Fin budget → Oracle logicalWidth publicFits)
-
 end Adversary
 
 section Extractor
@@ -241,6 +235,16 @@ noncomputable def extractor (rom : RomAdversary circuitKeys queries) (budget : N
   Coins := Fin budget → Oracle logicalWidth publicFits
   coins := uniform (Fin budget → Oracle logicalWidth publicFits)
   run tape coins := respond ajtai budget (rom.run tape.1) tape.2 coins
+
+variable (circuitKeys queries) in
+/-- The extractor is the budgeted extractor of a random-oracle form of the adversary
+(`extractor`): its coins are `budget` uniform oracles, drawn independently of the tape, and its
+answer is `respond`, which reruns the adversary at most `budget` times (`Budgeted.runs_le`). -/
+def RomEfficient (budget : Nat) (adversary : NifsAdversary (RomAttempt logicalWidth publicFits))
+    (candidate : NifsExtractor (Answer logicalWidth publicFits) adversary) : Prop :=
+  ∃ (rom : RomAdversary circuitKeys queries) (same : rom.nifs = adversary),
+    (same ▸ extractor ajtai rom budget : NifsExtractor (Answer logicalWidth publicFits) adversary) =
+      candidate
 
 end Extractor
 
@@ -566,20 +570,19 @@ theorem assumption_of_rom (rom : RomAdversary circuitKeys queries) (budget : Nat
     (positive : 0 < budget) (adversary : NifsAdversary (RomAttempt logicalWidth publicFits))
     (same : rom.nifs = adversary) :
     ∃ extractor : NifsExtractor (Answer logicalWidth publicFits) adversary,
-      RomEfficient budget adversary extractor ∧
+      RomEfficient ajtai circuitKeys queries budget adversary extractor ∧
         (extractor.law.toOuterMeasure
           {draw | ExtractionFails (Succeeds ajtai) (Extracted ajtai) adversary extractor draw}).toReal ≤
           errorOf ajtai rom budget := by
   subst same
-  exact ⟨extractor ajtai rom budget, ⟨Equiv.refl _, PMF.map_id _⟩,
-    extraction_failure_le ajtai rom budget positive⟩
+  exact ⟨extractor ajtai rom budget, ⟨rom, rfl, rfl⟩, extraction_failure_le ajtai rom budget positive⟩
 
 variable (circuitKeys queries) in
 /-- HyperNova errata Assumption 1 for both bounded-depth folds in the random-oracle model, with the
 budgeted extractor and the error `romError`. -/
 theorem romAssumption1 (budget : Nat) (positive : 0 < budget) :
     Spec.HyperNova.ReverseStages.Assumption1 (Succeeds ajtai) (Extracted ajtai)
-      (RomAdmitted circuitKeys queries) (RomEfficient budget)
+      (RomAdmitted circuitKeys queries) (RomEfficient ajtai circuitKeys queries budget)
       (romError ajtai circuitKeys queries budget) := by
   intro adversary admitted
   rw [romError, dite_eq_left admitted]

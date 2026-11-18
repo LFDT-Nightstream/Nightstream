@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthReverse
 import Mathlib.Probability.ProbabilityMassFunction.Constructions
 
-/-! HyperNova Lemma 17 (Appendix H.3) for one slot of the bounded-depth scheme, with probabilities. Stage `0`
+/-! HyperNova Lemma 18 (Appendix H.3) for one slot of the bounded-depth scheme, with probabilities. Stage `0`
 is the IVC adversary; stage `j + 1` runs stage `j` and then the extractor that Assumption 1 gives
 for stage `j`'s NIFS adversary, which attacks the `j`-th fold from the end. Then
 
@@ -152,7 +152,7 @@ theorem next_marginal (stage : Stage Prior Key Claim Fresh Proof ClaimWitness Fr
 
 end Stage
 
-/-- HyperNova Lemma 17 composition premise. -/
+/-- HyperNova Lemma 18 composition premise. -/
 structure Closed (Admitted : NifsAdversary Prior Key Claim Fresh Proof ClaimWitness → Prop)
     (StageAdmitted : Stage Prior Key Claim Fresh Proof ClaimWitness FreshWitness → Prop)
     (Efficient : (adversary : NifsAdversary Prior Key Claim Fresh Proof ClaimWitness) →
@@ -178,7 +178,7 @@ variable {p : GlobalParams} {cap : Nat} {folds : Folds Key Claim Fresh Proof}
   (adversary : IvcAdversary Prior Key Claim Fresh Proof ClaimWitness)
   (admitted : StageAdmitted (Stage.start adversary))
 
-/-- HyperNova Lemma 17. -/
+/-- HyperNova Lemma 18. -/
 noncomputable def reverseStages :
     Nat → {stage : Stage Prior Key Claim Fresh Proof ClaimWitness FreshWitness // StageAdmitted stage}
   | 0 => ⟨Stage.start adversary, admitted⟩
@@ -326,7 +326,7 @@ theorem per_tape (depth : Nat)
   refine returned_of_no_failure _ _ _ _ _ _ runs holds (by omega) (by omega) fun j small failed => ?_
   exact none ⟨⟨j, by omega⟩, failed⟩
 
-/-- HyperNova Lemma 17 for one slot of the bounded-depth scheme: the chance that the slot's history is accepted
+/-- HyperNova Lemma 18 for one slot of the bounded-depth scheme: the chance that the slot's history is accepted
 but the reverse extractor does not return it is at most the stages' Assumption 1 errors. -/
 theorem history_failure_le (depth : Nat)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).back.length ≤ depth) :

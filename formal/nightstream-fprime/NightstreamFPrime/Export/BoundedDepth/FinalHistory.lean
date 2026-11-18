@@ -12,7 +12,7 @@ A prover of the final verifier with `q` queries is an IVC adversary (`adversary`
 experiment's result under the law of the experiment's draws (`Spec.Compression.Game.law`). Its
 output is the accepted statement with the proof from `W` (`FinalVerifier.Setup.proofOf`). A false
 history is a result in which `Verifies` rejects that proof, or a false acceptance of this
-adversary. So its probability is at most `q · finalError` plus the bound of HyperNova Lemma 17 for
+adversary. So its probability is at most `q · finalError` plus the bound of HyperNova Lemma 18 for
 this adversary, `IvcSecurity.walkBound` (`soundness`). -/
 
 set_option autoImplicit false

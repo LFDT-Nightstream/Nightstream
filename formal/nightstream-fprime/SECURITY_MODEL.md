@@ -454,7 +454,12 @@ not change terminal source checks.
   most `Q` queries, the probability that a fold succeeds and the extractor does not return its
   witnesses is at most a statistical term, a state-collision term and a
   kernel term (`Claims.Fold.light_knowledge_in_random_oracle_model`,
-  `Claims.Fold.refresh_knowledge_in_random_oracle_model`). The
+  `Claims.Fold.refresh_knowledge_in_random_oracle_model`). The model answers
+  each point, a call list and a lane pair, with five independent words
+  (`Lifecycle.RandomOracle.Test.Answer`). In the sponge, two adjacent lane
+  pairs of one state share three words
+  (`Lifecycle.BoundedDepth.RandomOracle.Fidelity.spongeOracle`), so
+  `[SPONGE]` does not move this model to the sponge as it is. The
   test step charges each challenge's bad set at the challenge's own point, so
   it costs at most `(Q + 1)` times the Π_CCS test error
   (`Lifecycle.RandomOracle.Test.family_error_le`). The statistical term is at
@@ -612,17 +617,19 @@ not change terminal source checks.
   collision and stage terms of adversary 4
   (`Export.BoundedDepth.IvcSecurity.walkBound`), the state-link and chain
   collision masses of the extracted runs, and the memory-round error of the
-  last stage (`Claims.Nebula.memory_sound`). The extracted history
+  last stage, over the walk's `S_max · N` stages (`Claims.Nebula.memory_sound`). The extracted history
   is the steps that adversary 4's walk decodes (`Export.BoundedDepth.IvcWalk.trail`),
   so every event reads data of the sample. The walk meets the extraction
   premise of `Lifecycle.Nebula.EndToEnd.Stage1Extraction`
   (`Export.BoundedDepth.NebulaSecurity.stage1Extraction`), and
   `Lifecycle.Nebula.EndToEnd.bad_subset` reduces a win to a failure of that
   extraction, a state-link collision, a chain collision, or an accepted run
-  with an unbalanced segment that passes the product test. A win counts only
-  on a sample whose answers cover the statement's iteration; on the law of
-  the theorem this holds when the adversary's iteration is at most the
-  number of stages. For a compressed memory proof, adversary 6 joins this
+  with an unbalanced segment that passes the product test. The reverse
+  extractor runs `S_max · N` stages, and the checks of the memory verifier
+  bound the iteration by `S_max · N`
+  (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`), so every
+  sample that the memory verifier accepts counts
+  (`Export.BoundedDepth.NebulaSecurity.checked_le`). For a compressed memory proof, adversary 6 joins this
   bound with the bound of the final proof
   (`Claims.Final.memory_sound_with_akita`).
 - **Deterministic part:** an accepted run gives an execution, a Poseidon2
@@ -670,8 +677,10 @@ not change terminal source checks.
   `[SPONGE]`, and the `η` domain is separated from the other uses
   (`Claims.Encodings.domains_separated`). With these conditions proved
   (`Export.BoundedDepth.EtaSponge.conditions`), `[P2-PERM]` and `[SPONGE]`
-  move the bound, without the retry term, to the ideal-permutation model
-  plus `spongeError N` (`Claims.Nebula.eta_balanced`). That
+  move the probability of the event to the ideal-permutation model plus
+  `spongeError N`. So the bound there is the first term, plus the retry term
+  of the sampler that the transfer gives, plus `spongeError N`
+  (`Claims.Nebula.eta_balanced`). That
   bound is for a verifier that computes `η` outside a circuit. The step
   circuit computes `η` with the permutation (trust item 6).
 
@@ -949,7 +958,8 @@ not change terminal source checks.
      collision on a pair of states that the adversary outputs.
    - The relations have a key. A claim holds under the key of its slot, and
      every fold of an accepted history uses the slot's key.
-   - The transcript is not the one of HyperNova Construction 3. The published
+   - The transcript is not the one of HyperNova Construction 5, the
+     Fiat–Shamir transform of the revision of 2026-02-20. The published
      construction hashes the public parameters and the structure into the
      first challenge and derives each later challenge from the prover's
      message. The errata's construction absorbs `sid` (the structure and the
@@ -959,7 +969,7 @@ not change terminal source checks.
      messages (`SPEC.md` section 5.2). The structure, the keys and the
      accumulator enter only through the prior digest. So `Assumption1` is a
      premise about the Nightstream transcripts, not the paper's premise about
-     Construction 3.
+     Construction 5.
    - This joint form implies Definition 7's difference form
      `Pr[success] − Pr[extraction] ≤ error`. The converse needs an adversary
      that stops when its own success check fails.
@@ -989,7 +999,9 @@ not change terminal source checks.
    Assumption 1 holds with an explicit error: adversary 3's knowledge errors
    for each circuit key plus a truncation loss `2 · ((Q + 1) + 15 · (Q + 15))
    / budget` for an extractor with its own oracle coins and `budget` reruns
-   (`Claims.Fold.assumption1_in_random_oracle_model`). At an
+   (`Claims.Fold.assumption1_in_random_oracle_model`). The claim names that
+   extractor (`Lifecycle.BoundedDepth.RandomOracle.Assumption1.RomEfficient`),
+   so no other function of the same type meets it. At an
    oracle that answers like the Poseidon2 sponge, the model's success and
    extraction events are the walk's
    (`Export.BoundedDepth.RomWalk.succeeds_iff_walkSucceeds`,
@@ -1010,7 +1022,7 @@ not change terminal source checks.
    one visit, and stage `j + 1` runs
    the extractor of stage `j`, which may rerun stage `j`. So the cost of a
    stage grows with its depth. This is the constant-depth limit of HyperNova
-   Lemma 17: the Lean statement holds for every depth, but it gives no
+   Lemma 18: the Lean statement holds for every depth, but it gives no
    concrete security for a long history. The errata's Definition 11 states
    knowledge soundness only for a constant number of steps that does not
    depend on the security parameter, and its proof composes the stage
@@ -1033,7 +1045,11 @@ not change terminal source checks.
    Rust's expansion of the packages, its identity code, its witness program
    and its logical assignment with Lean exports, and they check the
    lifecycle on fixed inputs (`SPEC.md` section 9). No theorem covers
-   arbitrary Rust execution.
+   arbitrary Rust execution. No Lean theorem states that the package's
+   witness program (`Export.BoundedDepth.StepPackage.Package`, field
+   `witness`) computes an assignment that the rows accept. This gap is of
+   completeness only, because the verifier checks the rows and not the
+   program.
 6. **Gap: the memory round.** `Export.BoundedDepth.NebulaSecurity.MemoryRound`
    states the memory round for the two step circuits as a hypothesis: for
    each admitted stage and the memory statement of its tape, the extracted run
@@ -1169,7 +1185,19 @@ not change terminal source checks.
      relation has at most `2^19` blocks and its 320 public cells
      (`Export.BoundedDepth.FinalVerifier.accepts_light`, from
      `Spec.Compression.Rust.layoutNew_light`). No theorem derives these
-     three hypotheses on the setup from a package. `[HN-A1]` for the
+     three hypotheses on the setup from a package. Step 5 also requires the
+     block count of Algorithm 11 and `error_bits` at least the security
+     minimum. The game models neither: the theorem takes the key of `2^19`
+     blocks as a hypothesis, and the test
+     `error_bits_and_the_gate_match_the_lean_bound_on_each_light_claim_set`
+     checks the gate on the 65 light claim sets of the reference
+     application. In the light mode, `compress` checks the claim and the
+     depth of slot 1 but not its witness, and it commits only the witness
+     of slot 0 (`crates/nightstream/src/lifecycle/bounded_depth/compression.rs`,
+     `check_light_envelope`). So it turns a proof whose slot 1 witness is
+     changed into a final proof that Algorithm 10 accepts. The statement is
+     still true, because the zero witness opens the default slot
+     (`Export.BoundedDepth.StepExtend.defaultSlot_holds`). `[HN-A1]` for the
      refresh fold and its knowledge error stay premises of the circuits that
      keep both slots (trust item 3).
    - *The compression key.* The verifier's key is the key of `SPEC.md`
@@ -1295,9 +1323,10 @@ not change terminal source checks.
   witnesses of the application's witness length. Each application promises that its step keeps the state width
   (`Lifecycle.Stage1.Application.Program.step_length`); the counter must stay
   below `q`.
-- The error is not one security level. Lean bounds no fold error in a
-  Fiat–Shamir game (adversary 3), and the other terms depend on MSIS at the
-  solver's work and on Poseidon2 collisions.
+- The error is not one security level. Lean bounds the fold error of
+  adversary 3 in the random-oracle and ideal-permutation models
+  (`Claims.Fold`), not for Poseidon2 itself, and the other terms depend on
+  MSIS at the solver's work and on Poseidon2 collisions.
 - The compressed proof has a Lean result for its argument only
   (adversary 6). Its error is not a security level, and the final proof is
   not zero-knowledge.
@@ -1337,8 +1366,9 @@ not change terminal source checks.
   in `crates/neo-wasm/tests/wasm_nebula.rs`), and that a field of `q` or more
   keeps a word that the terminal check of `SPEC.md` Algorithm 8 refuses
   (`a_state_field_of_q_or_more_has_no_canonical_word`). So a verifier that
-  reads a field of a proved state reads a proved word, except that `None` and
-  `Some(0)` of `memory_pages` and `max_memory_pages` share the word 0.
+  reads a field of a proved state reads a proved word. `None` of
+  `memory_pages` and `max_memory_pages` has the word 65,537, which no page
+  count has (`memory_page_state_words` in `crates/neo-wasm/src/preprocess.rs`).
 - The shared host-event transformation in a multirow WASM step. The adversary
   chooses every row flag, shared input, permutation auxiliary, and shared output.
   The group argument uses soundness and completeness of the exact width-12

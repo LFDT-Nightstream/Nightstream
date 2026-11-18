@@ -585,6 +585,7 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaSecurity.history_of_leads
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaSecurity.stage1Extraction
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaSecurity.bad_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaSecurity.checked_le
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaSecurity.romMemoryRound
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaCompleteness.validFrom_of_history
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaCompleteness.accepts_of_history

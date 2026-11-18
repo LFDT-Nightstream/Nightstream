@@ -94,9 +94,10 @@ theorem accepts_or_collision
   @Lifecycle.Nebula.accepts_or_collision p app valid T z w initialApp finalApp finalCarry segments
     finalTs finalRoot start steps terminal
 
-/-- Adversary 5's memory round in the ideal-permutation model: under `Spec.Sponge.Transfer` with
-the `η` conditions, and with the sampler's retry term removed, the wins of each `world` are at
-most `(queries + 1) · 2 · m_mem/q²` plus `spongeError calls`. -/
+/-- Adversary 5's memory round in the ideal-permutation model: under `Spec.Sponge.Transfer` of the
+unbalanced event with the `η` conditions, the wins of each `world` are at most
+`(queries + 1) · 2 · m_mem/q²`, plus the retry term of the transfer's sampler, plus
+`spongeError calls`. Each pair that the retry term counts is a Poseidon2 transcript collision. -/
 theorem eta_balanced
     {p : Nebula.Plan}
     (valid : p.Valid)
@@ -109,13 +110,13 @@ theorem eta_balanced
     (calls : ℕ)
     (premise : Sponge.Transfer EtaSponge.Conditions winsOf
         (fun (sampler : Nebula.EtaRound.EtaSampler Sample queries) =>
-          Nebula.EtaRound.EtaSampler.unbalancedChance app x sampler -
-            Nebula.EtaRound.EtaSampler.retryCollision app x sampler)
+          Nebula.EtaRound.EtaSampler.unbalancedChance app x sampler)
         calls)
     (world : World) :
-    winsOf world ≤
+    ∃ sampler : Nebula.EtaRound.EtaSampler Sample queries,
+      winsOf world ≤
         (↑(queries + 1) : ℝ) * (2 * (↑p.maxTuples : ℝ) / (↑(fieldModulus ^ 2) : ℝ)) +
-          Sponge.spongeError calls :=
+          Nebula.EtaRound.EtaSampler.retryCollision app x sampler + Sponge.spongeError calls :=
   @Export.BoundedDepth.EtaSponge.unbalanced_le p valid app Sample x queries World winsOf calls
     premise world
 
@@ -150,9 +151,9 @@ theorem memory_round_in_random_oracle_model
     circuitKeys step cubeFits exports valid secure queries sampler
 
 /-- The bound of adversary 5 for a memory application on the bounded-depth scheme: on the joint law of the
-memory statement that the adversary claims from its own tape and the walk's sample, the mass of
-samples that the memory verifier accepts but whose extracted history does not attest the claim
-is at most the walk's finder and stage terms (`IvcSecurity.walkBound`), the state-link and
+memory statement that the adversary claims from its own tape and the sample of the walk's
+`S_max · N` stages, the mass of samples that the memory verifier accepts but whose extracted
+history does not attest the claim is at most the walk's finder and stage terms (`IvcSecurity.walkBound`), the state-link and
 chain collision masses of the extracted runs, and the memory-round error of the last stage. -/
 theorem memory_sound
     {logicalWidth : ℕ}
@@ -186,7 +187,6 @@ theorem memory_sound
     (programEq : exports.program = Nebula.MemoryApp.program p.toGeometry app)
     (control : AppState → AppWitness → Fin 2)
     (cap : ℕ)
-    (depth : ℕ)
     (claim : adversary.Tape → Nebula.EndToEnd.MemoryStatement app.width)
     {memoryError : NebulaSecurity.ClaimedStage (logicalWidth := logicalWidth) (publicFits := publicFits) app →
         ℝ}
@@ -197,7 +197,7 @@ theorem memory_sound
             (↑(HyperNova.ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
                   (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
                   (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption closed
-                  (IvcSecurity.walkAdversary adversary) admitted depth) :
+                  (IvcSecurity.walkAdversary adversary) admitted (p.sMax * p.n)) :
               HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
                 (IvcWalk.Answer logicalWidth publicFits)),
           claim :=
@@ -205,7 +205,7 @@ theorem memory_sound
               HyperNova.ReverseStages.origin (Succeeds := IvcWalk.WalkSucceeds ajtai)
                 (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
                 (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption closed
-                (IvcSecurity.walkAdversary adversary) admitted depth :
+                (IvcSecurity.walkAdversary adversary) admitted (p.sMax * p.n) :
           NebulaSecurity.ClaimedStage (logicalWidth := logicalWidth) (publicFits := publicFits)
             app };
       ENNReal.toReal
@@ -214,9 +214,9 @@ theorem memory_sound
             {s : NebulaSecurity.Sample app.width logicalWidth publicFits |
               Nebula.EndToEnd.Experiment.Bad app
                 (NebulaSecurity.experiment app ajtai circuitKeys exports)
-                (NebulaSecurity.Accepted app ajtai circuitKeys (step := step) control cap) s}) ≤
+                (NebulaSecurity.Checked app ajtai circuitKeys (step := step) control cap) s}) ≤
         IvcSecurity.walkBound ajtai circuitKeys exports assumption closed adversary admitted
-                depth +
+                (p.sMax * p.n) +
               ENNReal.toReal
                 (((NebulaSecurity.ClaimedStage.law app c).toOuterMeasure :
                     Set (NebulaSecurity.Sample app.width logicalWidth publicFits) → ENNReal)
@@ -230,9 +230,9 @@ theorem memory_sound
                   Nebula.EndToEnd.Experiment.ChainCollision app
                     (NebulaSecurity.experiment app ajtai circuitKeys exports) s}) +
           memoryError c :=
-  @Export.BoundedDepth.NebulaSecurity.bad_le logicalWidth publicFits p app relation ajtai
+  @Export.BoundedDepth.NebulaSecurity.checked_le logicalWidth publicFits p app relation ajtai
     circuitKeys step cubeFits exports Admitted StageAdmitted Efficient error assumption closed
-    adversary admitted valid keysShaped programEq control cap depth claim memoryError round
+    adversary admitted valid keysShaped programEq control cap claim memoryError round
 
 /-- Completeness of a memory application (SPEC.md Algorithm 8): for every execution of `S · N`
 steps with `1 ≤ S ≤ S_max`, the statement that the verifier computes passes its checks, and the

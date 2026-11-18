@@ -16,8 +16,9 @@ const OFFSETS: &[u32] = &[0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 8, 65532, 65535, 65536];
 const GROW_DELTAS: &[i32] = &[0, 1, 1, 2, 3, -1, 0x10001];
 const SMALL_ADDRESSES: &[i32] = &[0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 64, 1024];
 
-pub const FEATURES: [&str; 8] = [
+pub const FEATURES: [&str; 9] = [
     "if_params",
+    "if_reference_params",
     "block_params",
     "loop_params",
     "multi_value",
@@ -903,10 +904,7 @@ impl Body<'_, '_, '_> {
         .blocktype();
         self.mark("multi_value", results.len() > 1 || params.len() > 1);
         let steps = 1 + self.c.below(4);
-        let mut kind = [LabelKind::Block, LabelKind::If, LabelKind::Loop][self.c.weighted(&[40, 35, 25])];
-        if kind == LabelKind::If && params.iter().any(|param| param.int().is_none()) {
-            kind = LabelKind::Block;
-        }
+        let kind = [LabelKind::Block, LabelKind::If, LabelKind::Loop][self.c.weighted(&[40, 35, 25])];
         if kind == LabelKind::If {
             self.expr(Val::I32)?;
         }
@@ -924,6 +922,7 @@ impl Body<'_, '_, '_> {
             }
             LabelKind::If => {
                 self.mark("if_params", !params.is_empty());
+                self.mark("if_reference_params", params.iter().any(|param| param.int().is_none()));
                 self.emit(format!("if{blocktype}"));
                 self.labels.push(label);
                 let _ = self.walk(params.clone(), &results, steps);

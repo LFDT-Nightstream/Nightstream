@@ -1,5 +1,6 @@
 use crate::ir::WasmPcEdgeKind;
 use crate::isa::WasmOpcode;
+use wasmparser::{AbstractHeapType, HeapType, ValType};
 
 pub(super) const NULL_FUNCREF: u32 = 0;
 
@@ -22,7 +23,43 @@ pub(crate) struct DecodedOpcode {
     pub(crate) expected_type_id: Option<u32>,
     pub(crate) pc_after_instruction: u64,
     pub(crate) operand_height: u32,
+    pub(crate) frame_operands: Vec<Option<OperandLane>>,
     pub(crate) frame_slides: super::branch_stack::FrameSlideEdges,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum OperandLane {
+    I32,
+    I64,
+    FuncRef,
+    Other,
+}
+
+impl OperandLane {
+    pub(crate) fn of_type(ty: ValType) -> Self {
+        match ty {
+            ValType::I32 => Self::I32,
+            ValType::I64 => Self::I64,
+            ValType::Ref(reference) => match reference.heap_type() {
+                HeapType::Concrete(_)
+                | HeapType::Abstract {
+                    ty: AbstractHeapType::Func | AbstractHeapType::NoFunc,
+                    ..
+                } => Self::FuncRef,
+                HeapType::Abstract { .. } => Self::Other,
+            },
+            _ => Self::Other,
+        }
+    }
+
+    pub(crate) fn of_value(value: &wasmtime::Val) -> Self {
+        match value {
+            wasmtime::Val::I32(_) => Self::I32,
+            wasmtime::Val::I64(_) => Self::I64,
+            wasmtime::Val::FuncRef(_) => Self::FuncRef,
+            _ => Self::Other,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]

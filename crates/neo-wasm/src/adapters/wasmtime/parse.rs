@@ -822,6 +822,7 @@ impl ParsedWasmArtifactsBuilder {
                             expected_type_id,
                             pc_after_instruction: pc_after,
                             operand_height: stack.height,
+                            frame_operands: stack.frame_operands,
                             frame_slides: stack.slides,
                         },
                     );

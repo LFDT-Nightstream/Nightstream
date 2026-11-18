@@ -1,3 +1,4 @@
+use super::decode::OperandLane;
 use crate::ir::WasmProgramError;
 use std::collections::BTreeMap;
 use wasmparser::{
@@ -8,6 +9,7 @@ pub(super) type FrameSlideEdges = Vec<(u64, u32, u32)>;
 
 pub(super) struct OperatorStack {
     pub(super) height: u32,
+    pub(super) frame_operands: Vec<Option<OperandLane>>,
     pub(super) slides: FrameSlideEdges,
 }
 
@@ -87,10 +89,22 @@ pub(super) fn operator_stacks_by_offset(bytes: &[u8]) -> Result<BTreeMap<u32, Op
             while !operators.eof() {
                 let offset = operators.original_position();
                 let operator = operators.read().map_err(invalid)?;
-                let reachable = function
-                    .get_control_frame(0)
-                    .is_some_and(|frame| !frame.unreachable);
+                let frame = function.get_control_frame(0).ok_or_else(|| {
+                    WasmProgramError::Invalid(format!("operator outside a function at byte {offset}"))
+                })?;
+                let reachable = !frame.unreachable;
                 let height = function.operand_stack_height() as usize;
+                let frame_operands = (0..height.checked_sub(frame.height).ok_or_else(|| {
+                    WasmProgramError::Invalid(format!("operand stack below its control frame at byte {offset}"))
+                })?)
+                    .rev()
+                    .map(|depth| {
+                        function
+                            .get_operand_type(depth)
+                            .map(|ty| ty.map(OperandLane::of_type))
+                            .ok_or_else(|| WasmProgramError::Invalid(format!("missing operand type at byte {offset}")))
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
                 let edges = match &operator {
                     Operator::End if function.control_stack_height() == 1 => {
                         let (results, _) = arity(&function, 0, offset)?;
@@ -133,6 +147,7 @@ pub(super) fn operator_stacks_by_offset(bytes: &[u8]) -> Result<BTreeMap<u32, Op
                     narrow(offset, offset)?,
                     OperatorStack {
                         height: narrow(height, offset)?,
+                        frame_operands,
                         slides: edges,
                     },
                 );

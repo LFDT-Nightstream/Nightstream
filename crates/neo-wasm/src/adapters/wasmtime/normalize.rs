@@ -2,7 +2,7 @@ mod host_event_emit;
 mod memory;
 mod trace_build;
 
-use super::decode::{checked_funcref_id, DecodedControlOpcode, DecodedMemoryAccessKind, DecodedOpcode};
+use super::decode::{checked_funcref_id, DecodedControlOpcode, DecodedMemoryAccessKind, DecodedOpcode, OperandLane};
 use super::runtime_read::{
     function_arity_from_ref, function_type_id_from_ref, normalize_value_lanes, read_byte, read_global_lanes,
     read_halfword, read_memory_pages_if_present, read_table_funcref_u32, read_table_size, read_word, val_to_string,
@@ -339,26 +339,32 @@ pub(crate) fn capture_frame<T>(
     let num_stacks = frame
         .num_stacks(&mut *store)
         .map_err(|err| WasmBuildError::Trace(format!("failed to inspect Wasmtime operand stack length: {err}")))?;
-    // Wasmtime's view of a then branch can keep the else copy of the `if`
-    // parameters below the values of the branch.
-    let stack_start = match decoded_opcode.as_ref() {
-        Some(decoded) => num_stacks
-            .checked_sub(decoded.operand_height)
-            .ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "Wasmtime shows {num_stacks} operand values at step {step}, fewer than the validated height {}",
-                    decoded.operand_height
-                ))
-            })?,
-        None => 0,
+    // Wasmtime's view of a then branch can keep stale copies of the `if`
+    // parameters, with their types, below the values of the innermost frame.
+    let (height, lanes) = match decoded_opcode.as_ref() {
+        Some(decoded) => (decoded.operand_height as usize, decoded.frame_operands.clone()),
+        None => (num_stacks as usize, vec![None; num_stacks as usize]),
     };
-    let mut operand_stack = Vec::with_capacity(num_stacks as usize);
-    let mut operand_stack_words = Vec::with_capacity(num_stacks as usize);
-    let mut operand_stack_words_hi = Vec::with_capacity(num_stacks as usize);
-    for index in stack_start..num_stacks {
+    let frame_start = (num_stacks as usize).checked_sub(lanes.len()).ok_or_else(|| {
+        WasmBuildError::Trace(format!(
+            "Wasmtime shows {num_stacks} operand values at step {step}, fewer than the {} of the validated innermost frame",
+            lanes.len()
+        ))
+    })?;
+    let below_frame = height - lanes.len();
+    let mut operand_stack = vec!["0".to_string(); below_frame];
+    let mut operand_stack_words = vec![0; below_frame];
+    let mut operand_stack_words_hi = vec![0; below_frame];
+    for (index, lane) in (frame_start as u32..num_stacks).zip(lanes) {
         let value = frame.stack(&mut *store, index).map_err(|err| {
             WasmBuildError::Trace(format!("failed to inspect Wasmtime operand stack value {index}: {err}"))
         })?;
+        let shown = OperandLane::of_value(&value);
+        if let Some(validated) = lane.filter(|&validated| validated != shown) {
+            return Err(WasmBuildError::Trace(format!(
+                "Wasmtime shows a {shown:?} operand at stack slot {index} of step {step}, where validation has {validated:?}"
+            )));
+        }
         operand_stack.push(val_to_string(value));
         let (lo, hi) = normalize_value_lanes(value, func_ref_ids, &mut *store)?;
         operand_stack_words.push(lo);

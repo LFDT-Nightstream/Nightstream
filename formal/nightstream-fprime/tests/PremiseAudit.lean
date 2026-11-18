@@ -27,10 +27,13 @@ partial def headOf (type : Expr) : String :=
     | _ => "_"
 
 /-- The hypotheses that a binder of type `type` carries: the binder when its type is a
-proposition, and each proof field when its type is a record of this package. -/
+proposition, and each proof field when its type is a record of this package or a function to
+one. -/
 partial def premisesOf (label : String) (type : Expr) (depth : Nat) :
     MetaM (Array (String × String)) := do
   let type ← whnfR type
+  if type.isForall && !(← isProp type) then
+    return ← forallTelescopeReducing type fun _ value => premisesOf label value depth
   let env ← getEnv
   match type.getAppFn with
   | .const record levels =>

@@ -154,7 +154,8 @@ a theorem outside the namespace, or when the kernel does not give that proof
 the type of the claim. Lean writes the hypotheses of the claims to
 `artifacts/nightstream-fprime-premises-v1.tsv`, and the Lean build fails when
 that file is not current. A hypothesis is a binder whose type is a proposition,
-or a proof field of a binder whose type is a structure of the package.
+or a proof field of a binder whose type is a structure of the package or a
+function to one.
 `scripts/check_premises.py`, in the `static` phase of `scripts/validate.sh`,
 fails when a hypothesis has no row or two rows, when a row covers no
 hypothesis, when a row does not cover the number of lines that it gives, when
@@ -185,8 +186,8 @@ covers.
 | Premise | Head | Lines | Class | Evidence |
 | --- | --- | --- | --- | --- |
 | `publicFits` | `LE.le` | 29 | lean | `Export.BoundedDepth.StepRelation.keyPublicFits`, at the key width `2^26` |
-| `cubeFits`, `relation.cubeFits`, `key.relation.cubeFits` | `LE.le` | 46 | lean | `Export.BoundedDepth.StepRelation.keyCubeFits`, at the key width `2^26` |
-| `program.*`, `exports.program.*` | `*` | 126 | lean | `Lifecycle.Stage1.Poseidon2HashChainV1.program` and `Export.Stage1.NebulaMemoryV1Package.application` are programs, so they carry these proofs. A Rust application has no such instance (Out of scope) |
+| `cubeFits`, `relation.cubeFits`, `key.relation.cubeFits`, `circuitKeys.relation.cubeFits`, `setup.circuitKeys.relation.cubeFits` | `LE.le` | 70 | lean | `Export.BoundedDepth.StepRelation.keyCubeFits`, at the key width `2^26` |
+| `program.*`, `exports.program.*` | `*` | 210 | lean | `Lifecycle.Stage1.Poseidon2HashChainV1.program` and `Export.Stage1.NebulaMemoryV1Package.application` are programs, so they carry these proofs. A Rust application has no such instance (Out of scope) |
 | `stepEq`, `validControl`, `encoded`, `rowsZero`, `others` | `*` | 9 | lean | `Claims.Ivc.terminal_bridge` joins the two step results and takes none of these |
 | `layout.*` | `*` | 4 | lean | `Claims.Ivc.terminal_bridge` and `Claims.Ivc.run_complete` take them as fields of their `exports` (rows below) |
 | `programEq` | `Eq` | 5 | game | adversary 5: the memory application is the exported program |
@@ -224,6 +225,8 @@ covers.
 | `Fold.light_complete/key.*`, `Fold.light_extracts/key.*`, `Fold.refresh_complete/key.*`, `Fold.refresh_extracts/key.*` | `*` | 262 | lean | `Spec.HyperNova.Construction2.BoundedDepthKeys.lightKey` and `Lifecycle.BoundedDepth.refreshKey` are the keys of the two folds, so they carry these proofs |
 | `Fold.light_extracts/laws.*` | `*` | 66 | lean | `Lifecycle.BoundedDepth.lightExtraction` is the extraction algebra of the production light key, so it carries these proofs |
 | `Fold.refresh_extracts/laws.*` | `*` | 66 | lean | `Lifecycle.PaperExtractionAlgebra.extractionAlgebra` is the extraction algebra of the production refresh key, so it carries these proofs |
+| `Fold/strongSet.*` | `Eq` | 4 | lean | `Spec.RingRelation.PiRLCAlgebra.ForkStrongSet.strongSetUnits` builds these units from `Claims.Foundations.low_norm_invertible` (SuperNeo v1.2 Theorem 4) |
+| `Fold/proof.piCcsRounds.coefficients_length`, `Fold/proof.nifs.piCcsRounds.coefficients_length`, `Step/proof.piCcsRounds.coefficients_length`, `Step/proof.nifs.piCcsRounds.coefficients_length` | `Eq` | 4 | game | `SPEC.md` Algorithm 4: each round polynomial of a fold proof has the stated degree |
 | `Fold/normLaw.sub_bound` | `*` | 1 | lean | `Lifecycle.BoundedDepth.lightExtractionNormLaw` is this law for `Lifecycle.BoundedDepth.lightExtraction` |
 | `Fold/oneEq` | `Eq` | 1 | lean | `Lifecycle.BoundedDepth.lightExtraction_one` is this equation for the production light key and `Lifecycle.BoundedDepth.lightExtraction` |
 | `Fold.light_extracts/freshBound` | `Eq` | 1 | lean | `Lifecycle.BoundedDepth.keys_coherent` gives the production light key the parameters of `Lifecycle.BoundedDepth.refreshKey`, which carries this proof |

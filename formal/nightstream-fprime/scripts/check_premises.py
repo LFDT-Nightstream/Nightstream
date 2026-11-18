@@ -4,7 +4,8 @@
 Lean writes the hypotheses of each theorem of `NightstreamFPrime.Claims` to PREMISES, one line
 for each: the theorem, the hypothesis and the constant at the head of its type. A hypothesis is a
 binder whose type is a proposition, or a proof field of a binder whose type is a structure of the
-package. The Lean build fails when the file is not current (`#premise_census`).
+package or a function to one. The Lean build fails when the file is not current
+(`#premise_census`).
 
 SECURITY_MODEL.md holds one table between the premise markers. A row gives hypothesis names (a
 name that ends in `.*` covers each field under it), the head (`*` for each head), the number of

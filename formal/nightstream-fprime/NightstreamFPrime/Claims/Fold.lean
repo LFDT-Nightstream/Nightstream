@@ -442,7 +442,8 @@ theorem assumption1_in_random_oracle_model
     (budget : ℕ)
     (positive : 0 < budget) :
     HyperNova.ReverseStages.Assumption1 (RomModel.Succeeds ajtai) (RomModel.Extracted ajtai)
-        (Assumption1.RomAdmitted circuitKeys queries) (Assumption1.RomEfficient budget)
+        (Assumption1.RomAdmitted circuitKeys queries)
+        (Assumption1.RomEfficient ajtai circuitKeys queries budget)
         (Assumption1.romError ajtai circuitKeys queries budget) :=
   @Lifecycle.BoundedDepth.RandomOracle.Assumption1.romAssumption1 logicalWidth publicFits ajtai
     circuitKeys queries budget positive

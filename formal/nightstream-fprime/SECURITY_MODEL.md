@@ -612,17 +612,19 @@ not change terminal source checks.
   collision and stage terms of adversary 4
   (`Export.BoundedDepth.IvcSecurity.walkBound`), the state-link and chain
   collision masses of the extracted runs, and the memory-round error of the
-  last stage (`Claims.Nebula.memory_sound`). The extracted history
+  last stage, over the walk's `S_max · N` stages (`Claims.Nebula.memory_sound`). The extracted history
   is the steps that adversary 4's walk decodes (`Export.BoundedDepth.IvcWalk.trail`),
   so every event reads data of the sample. The walk meets the extraction
   premise of `Lifecycle.Nebula.EndToEnd.Stage1Extraction`
   (`Export.BoundedDepth.NebulaSecurity.stage1Extraction`), and
   `Lifecycle.Nebula.EndToEnd.bad_subset` reduces a win to a failure of that
   extraction, a state-link collision, a chain collision, or an accepted run
-  with an unbalanced segment that passes the product test. A win counts only
-  on a sample whose answers cover the statement's iteration; on the law of
-  the theorem this holds when the adversary's iteration is at most the
-  number of stages. For a compressed memory proof, adversary 6 joins this
+  with an unbalanced segment that passes the product test. The reverse
+  extractor runs `S_max · N` stages, and the checks of the memory verifier
+  bound the iteration by `S_max · N`
+  (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`), so every
+  sample that the memory verifier accepts counts
+  (`Export.BoundedDepth.NebulaSecurity.checked_le`). For a compressed memory proof, adversary 6 joins this
   bound with the bound of the final proof
   (`Claims.Final.memory_sound_with_akita`).
 - **Deterministic part:** an accepted run gives an execution, a Poseidon2
@@ -990,7 +992,9 @@ not change terminal source checks.
    Assumption 1 holds with an explicit error: adversary 3's knowledge errors
    for each circuit key plus a truncation loss `2 · ((Q + 1) + 15 · (Q + 15))
    / budget` for an extractor with its own oracle coins and `budget` reruns
-   (`Claims.Fold.assumption1_in_random_oracle_model`). At an
+   (`Claims.Fold.assumption1_in_random_oracle_model`). The claim names that
+   extractor (`Lifecycle.BoundedDepth.RandomOracle.Assumption1.RomEfficient`),
+   so no other function of the same type meets it. At an
    oracle that answers like the Poseidon2 sponge, the model's success and
    extraction events are the walk's
    (`Export.BoundedDepth.RomWalk.succeeds_iff_walkSucceeds`,

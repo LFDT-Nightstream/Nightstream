@@ -5,12 +5,12 @@ import NightstreamFPrime.Spec.Compression.Verifier.Bound
 
 /-! # Claims: the compression argument
 
-Soundness of the argument of the compressed proof (`SPEC.md` Algorithms 9 and 10,
-`SECURITY_MODEL.md` adversary 6).
+Soundness and completeness of the argument of the compressed proof (`SPEC.md` Algorithms 9 and
+10, `SECURITY_MODEL.md` adversary 6).
 
 - Model: a public-coin game in the state-restoration experiment, with ideal Akita openings.
 - Assumptions: none in this file. `Claims.Final` adds `[AKITA]`.
-- Open: no completeness claim. Lean has no definition of the compression key. -/
+- Open: Lean has no definition of the compression key. -/
 
 namespace NightstreamFPrime.Claims.Compression
 
@@ -47,6 +47,40 @@ theorem argument_sound
         (↑q : ℝ) * Verifier.error vf :=
   @Spec.Compression.Verifier.soundness F K fieldF fintypeF decidableF fieldK fintypeK decidableK algebra P vf wf counts
     matrix columns rows key_fits s q
+
+/-- `SPEC.md` Algorithm 9: with ideal openings, the honest prover's run is the verifier game
+with its messages, and the verifier rejects claims that satisfy `Relation` with honest counts with
+probability at most `Σ_tables L · (2 · bound + 1) / |F|` plus the density of the `ω` without a
+row point. -/
+theorem argument_complete
+    {F : Type}
+    {K : Type}
+    [fieldF : Field F]
+    [fintypeF : Fintype F]
+    [decidableF : DecidableEq F]
+    [fieldK : Field K]
+    [fintypeK : Fintype K]
+    [decidableK : DecidableEq K]
+    [algebra : Algebra F K]
+    {P : Verifier.Params F K}
+    (vf : Verifier.VerifierData P)
+    (st : Verifier.Statement P)
+    (W : ℕ → F)
+    (wf : Verifier.WellFormed P)
+    (shaped : Verifier.Shaped P st)
+    (relation : Verifier.Relation P st W)
+    (honest : Verifier.HonestCounts P W)
+    (distinct : Verifier.TablesDistinct P)
+    (matrix : Verifier.MatrixSpec vf)
+    (rows : P.rows ≤ 2 ^ P.rowVars)
+    (key_fits : ∀ (c : Fin P.claims), (P.shape c).witness.vars - P.laneVars ≤ P.keyBlockVars)
+    (s : Game.Strategy (Option (Verifier.Statement P × (ℕ → F)))) :
+    Game.Plays (Verifier.game vf) (Verifier.honestGame vf st W) ∧
+      Game.prob s (Verifier.honestGame vf st W)
+          (fun (r : Option (Verifier.Statement P × (ℕ → F))) => r ≠ some (st, W)) ≤
+        Verifier.tableError P + Verifier.omegaError P :=
+  @Spec.Compression.Verifier.honest_complete F K fieldF fintypeF decidableF fieldK fintypeK
+    decidableK algebra P vf st W wf shaped relation honest distinct matrix rows key_fits s
 
 /-- `argument_sound` at the production parameters with the one pass of Rust `matrix_part`. -/
 theorem production_sound

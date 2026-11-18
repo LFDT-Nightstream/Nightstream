@@ -72,6 +72,27 @@ example (blocks depth keyBlocks : ℕ) (l : Rust.Placed)
     Rust.runBits (l.counts 320 4) = 119 :=
   @Claims.Compression.light_error_bits blocks depth keyBlocks l ok legal
 
+-- SPEC.md Algorithm 9, Rejects and Source: with ideal openings, the verifier rejects the honest
+-- argument of claims that satisfy `Relation`, with honest counts, with probability at most
+-- `L · Σ_s T_s/q` plus the probability that `ω` has no row point. The honest run is the verifier
+-- game with the honest messages.
+example {F K : Type} [Field F] [Fintype F] [DecidableEq F] [Field K] [Fintype K] [DecidableEq K]
+    [Algebra F K] {P : Verifier.Params F K} (vf : Verifier.VerifierData P)
+    (st : Verifier.Statement P) (W : ℕ → F) (wf : Verifier.WellFormed P)
+    (shaped : Verifier.Shaped P st) (relation : Verifier.Relation P st W)
+    (honest : Verifier.HonestCounts P W) (distinct : Verifier.TablesDistinct P)
+    (matrix : Verifier.MatrixSpec vf) (rows : P.rows ≤ 2 ^ P.rowVars)
+    (key_fits : ∀ c, (P.shape c).witness.vars - P.laneVars ≤ P.keyBlockVars)
+    (s : Game.Strategy (Option (Verifier.Statement P × (ℕ → F)))) :
+    Game.Plays (Verifier.game vf) (Verifier.honestGame vf st W) ∧
+      Game.prob s (Verifier.honestGame vf st W) (fun r => r ≠ some (st, W)) ≤
+        (∑ c : Fin P.claims, if (P.shape c).lookup then
+            ((P.lookups * (2 * (P.shape c).bound + 1) : ℕ) : ℝ) / Fintype.card F else 0) +
+          ((Finset.univ.filter fun ω : K => ∃ k < P.rowVars, 1 + ω ^ 2 ^ k = 0).card : ℝ) /
+            Fintype.card K :=
+  Claims.Compression.argument_complete vf st W wf shaped relation honest distinct matrix rows
+    key_fits s
+
 -- SPEC.md Algorithm 10, steps 1 to 5, in the light mode: the verifier takes the key of
 -- Algorithm 11, which has `2^19` blocks, and its security minimum is at most 119 bits.
 example (light : FinalVerifier.Setup .light logicalWidth publicFits) (packageWidths : Fin 2 → ℕ)

@@ -251,6 +251,8 @@ each head.
 | `Compression.production_error/columns`, `Compression.production_error/span_le`, `Compression.production_error/slots` | `*` | lean | `Export.BoundedDepth.FinalVerifier.game_densityLe` meets the three for the verifier of the final verifier. The mode has at most two slot claims (`Export.BoundedDepth.FinalVerifier.Mode.slots_le`). `columnVars = 2` holds by the definition of `Spec.Compression.Production.verifierData`, and `Export.BoundedDepth.FinalVerifier.Setup.layout_facts` gives `spanVars ≤ 26` for the layout of the Lean model of `Layout::new` (`Spec.Compression.Rust.layoutNew_span`) |
 | `Compression.production_error/depths_le`, `Compression.light_error_bits/depth_le` | `LE.le` | game | `SPEC.md` Algorithm 10: step 4 requires that the depth of each slot is at most `cap` |
 | `Compression.light_error_bits/ok` | `Eq` | game | `SPEC.md` Algorithm 10: step 5 lays out the claims of the light mode with Rust `Layout::new`, whose model is `Spec.Compression.Rust.layoutNew`, and the claim is about each layout that the model accepts |
+| `Compression.argument_complete/shaped.*`, `Compression.argument_complete/relation`, `Compression.argument_complete/honest` | `*` | game | `SPEC.md` Algorithm 9: the honest prover names claims of the shape of its layout (step 3), holds their witnesses, and fills the count slices with the honest counts (step 4) |
+| `Compression.argument_complete/distinct` | `Spec.Compression.Verifier.TablesDistinct` | lean | `Spec.Compression.Production.params_tablesDistinct`, at the depths up to the cap |
 | `Final.light_gate_complete/key` | `Eq` | game | `SPEC.md` Algorithm 10: the verifier takes the pinned key of the block count of Algorithm 11 for its relations and mode |
 | `Final.light_gate_complete/shipped` | `Eq` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-compression-parity-v1.json`, `error_bits_and_the_gate_match_the_lean_bound_on_each_light_claim_set`: the key of the light relation of the reference application has the `light_key_blocks` of Lean, `2^19`. For each WASM size, `the_small_light_relation_fits_the_key`, `the_medium_light_relation_fits_the_key` and `the_large_light_relation_fits_the_key` check the key of `2^19` blocks (ignored, by hand) |
 | `Final.light_gate_complete/minimum_le` | `LE.le` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-fold-gate-parity-v1.json`, `the_gate_charges_the_lean_error_on_each_step_relation`: `Relation::new` runs the fold gate with the minimum of the verifier, and the gate refuses each minimum above 115 bits, so each verifier that Rust builds has a minimum of at most 115 (`SPEC.md` section 3) |
@@ -1094,9 +1096,12 @@ not change terminal source checks.
    lifecycle on fixed inputs (`SPEC.md` section 9). No theorem covers
    arbitrary Rust execution. No Lean theorem states that the package's
    witness program (`Export.BoundedDepth.StepPackage.Package`, field
-   `witness`) computes an assignment that the rows accept. This gap is of
-   completeness only, because the verifier checks the rows and not the
-   program.
+   `witness`) computes an assignment that the rows accept. The completeness
+   of each gadget states only that such an assignment exists
+   (`Circuit.FormalCircuit`), and the rows do not fix each hint, for example
+   the inverse of `Gadgets.Range.CanonicalU64` when the value that it inverts
+   is 0. This gap is of completeness only, because the verifier checks the
+   rows and not the program.
 6. **Gap: the memory round.** `Export.BoundedDepth.NebulaSecurity.MemoryRound`
    states the memory round for the two step circuits as a hypothesis: for
    each admitted stage and the memory statement of its tape, the extracted run
@@ -1392,9 +1397,11 @@ not change terminal source checks.
   adversary 3 in the random-oracle and ideal-permutation models
   (`Claims.Fold`), not for Poseidon2 itself, and the other terms depend on
   MSIS at the solver's work and on Poseidon2 collisions.
-- The compressed proof has a Lean result for its argument only
-  (adversary 6). Its error is not a security level, and the final proof is
-  not zero-knowledge.
+- The compressed proof has Lean results for its argument only: soundness
+  (adversary 6) and, with ideal openings, completeness, in which the verifier
+  rejects the honest argument only when a lookup challenge is a table value or
+  `ω` has no row point (`Claims.Compression.argument_complete`). Its error is
+  not a security level, and the final proof is not zero-knowledge.
 - Attacks on the fixed Poseidon2 permutation that a uniform permutation does
   not have (`[P2-PERM]`) are outside the model. Attacks that use the hash inside the circuit (KRS)
   are outside every random-oracle model; the verifier's packages fix the

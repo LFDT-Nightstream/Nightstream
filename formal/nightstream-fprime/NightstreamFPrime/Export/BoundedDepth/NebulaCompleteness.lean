@@ -4,11 +4,12 @@ import NightstreamFPrime.Lifecycle.Nebula.MemoryProgram
 
 /-! Completeness of a memory application on the bounded-depth scheme (CW-10.7, SPEC.md Algorithm 8). Every
 execution of `S · N` steps with `1 ≤ S ≤ S_max` has a statement that passes the memory verifier's
-checks (steps 3 and 4, `MemoryApp.history_of_execution`), and the bounded-depth terminal accepts the
-honest prover's recursive proof of it (step 5, `memory_complete`). The proof is recursive because
-`T = S · N ≥ 1`. The join is generic: a step history is a valid run (`validFrom_of_history`), so
-`RunCompleteness.run_complete` accepts it (`accepts_of_history`), and `S · N < q` follows from the
-geometry rules (`steps_lt`). -/
+checks (steps 3 and 4, `MemoryApp.history_of_execution`), and the bounded-depth verifier accepts the
+honest prover's recursive proof of it (step 5, `memory_complete`). The fresh witness of that proof
+is zero on every cell from its package width (`RunCompleteness.FreshZeroTail`). The proof is
+recursive because `T = S · N ≥ 1`. The join is generic: a step history is a valid run
+(`validFrom_of_history`), so `RunCompleteness.run_complete` accepts it (`accepts_of_history`), and
+`S · N < q` follows from the geometry rules (`steps_lt`). -/
 
 set_option autoImplicit false
 
@@ -55,7 +56,8 @@ variable {logicalWidth : Nat}
   {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
 
 /-- A step history of a statement for the exported program, with witnesses of its witness length,
-a canonical iteration and a state of four words, is honestly accepted by the terminal. -/
+a canonical iteration and a state of four words, has an honest proof: the verifier accepts it,
+and its fresh witness is zero on every cell from its package width. -/
 theorem accepts_of_history (exports : Exports relation ajtai circuitKeys step cubeFits)
     (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
     (cap : Nat) (control : AppState → AppWitness → Fin 2) {program : Stage1.Application.Program}
@@ -64,7 +66,8 @@ theorem accepts_of_history (exports : Exports relation ajtai circuitKeys step cu
     (lengths : ∀ i < statement.iteration, (witness i).length = program.witnessWordCount)
     (z0Length : statement.z0.length = Stage1.Application.stateWordCount)
     (below : statement.iteration < fieldModulus) :
-    Accepts ajtai circuitKeys step complete.packageWidth cap control statement := by
+    ∃ proof, Verifies ajtai circuitKeys step complete.packageWidth cap control statement proof ∧
+      FreshZeroTail complete.packageWidth proof := by
   subst programEq
   obtain ⟨valid, reaches⟩ :=
     validFrom_of_history exports.program statement history statement.iteration le_rfl
@@ -100,7 +103,8 @@ theorem steps_lt {p : Plan} (valid : p.Valid) {segments : ℕ} (most : segments 
 
 /-- Completeness of a memory application (SPEC.md Algorithm 8): for every execution of `S · N`
 steps with `1 ≤ S ≤ S_max`, the statement that the verifier computes passes its checks, and the
-bounded-depth terminal accepts the honest prover's recursive proof of it. -/
+bounded-depth verifier accepts the honest prover's recursive proof of it. The fresh witness of that
+proof is zero on every cell from its package width. -/
 theorem memory_complete {p : Plan} {app : PortApp p.toGeometry} (valid : p.Valid)
     (exports : Exports relation ajtai circuitKeys step cubeFits)
     (programEq : exports.program = MemoryApp.program p.toGeometry app)
@@ -118,17 +122,20 @@ theorem memory_complete {p : Plan} {app : PortApp p.toGeometry} (valid : p.Valid
         ⟨segments * p.n, stateWords (List.ofFn m.initialApp) (carryWords (startCarry (context p))),
           stateWords (List.ofFn m.finalApp) (List.ofFn m.finalCarry)⟩
       EndToEnd.VerifierChecks p statement m ∧
-        ∃ payload, Terminal.HoldsFor cap ajtai circuitKeys step control statement
-            (.recursive payload) ∧ Honest (ajtai := ajtai) complete.packageWidth payload := by
+        ∃ payload, Verifies ajtai circuitKeys step complete.packageWidth cap control statement
+            (.recursive payload) ∧ FreshZeroTail complete.packageWidth (.recursive payload) := by
   obtain ⟨carry, z, witness, history, lengths, checks⟩ :=
     MemoryApp.history_of_execution valid count range exec
   refine ⟨carry, checks, ?_⟩
-  rcases accepts_of_history exports complete keysShaped cap control programEq history lengths
-      (stateWords_length _ _) (steps_lt valid range.2) with bottom | recursive
-  · obtain ⟨-, iterationZero, -⟩ :=
-      (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step control _).mp bottom
+  obtain ⟨proof, verifies, tail⟩ := accepts_of_history exports complete keysShaped cap control
+    programEq history lengths (stateWords_length _ _) (steps_lt valid range.2)
+  cases proof with
+  | bottom =>
+    obtain ⟨-, iterationZero, -⟩ :=
+      (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step control _).mp
+        (holds_of_verifies verifies)
     have zero : segments * p.n = 0 := iterationZero
     exact absurd zero (Nat.mul_pos range.1 valid.positive.2.2.1).ne'
-  · exact recursive
+  | recursive payload => exact ⟨payload, verifies, tail⟩
 
 end NightstreamFPrime.Export.BoundedDepth.NebulaCompleteness

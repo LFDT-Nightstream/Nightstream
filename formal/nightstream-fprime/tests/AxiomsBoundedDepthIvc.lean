@@ -803,6 +803,5 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RunCompleteness.verifies_bottom_iff
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RunCompleteness.verifies_recursive_iff
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RunCompleteness.verifies_step
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.RunCompleteness.accepts_step
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.RunCompleteness.run_complete
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.VerifierSecurity.soundness

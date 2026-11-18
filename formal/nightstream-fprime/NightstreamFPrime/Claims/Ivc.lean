@@ -27,7 +27,14 @@ The terminal relation, the reverse extractor and the completeness of a run
   or not, is an argument (`depthBound`).
 - Capacity: for the emitted packages, `Export.BoundedDepth.EmittedPackages.Facts.exports` builds
   `exports` from the capacity of the application (`Export.BoundedDepth.EmittedPackages.Facts`,
-  SPEC.md section 4.4), which the emitter checks. -/
+  SPEC.md section 4.4), which the emitter checks.
+- Completeness: `run_complete` and `step_extends` conclude
+  `Export.BoundedDepth.RunCompleteness.Verifies` and
+  `Export.BoundedDepth.RunCompleteness.FreshZeroTail` for the honest proof. `Verifies` requires
+  zeros only on the ring blocks of the fresh witness from its package width
+  (`Lifecycle.BoundedDepth.BlockSupport.Supported`). Rust's direct verifier requires a zero on
+  each cell from that width (`SPEC.md` Algorithm 6, Rejects). `FreshZeroTail` gives these zeros,
+  so the claims rule out a rejection of the honest proof by this check. -/
 
 namespace NightstreamFPrime.Claims.Ivc
 
@@ -248,8 +255,10 @@ theorem verifier_sound
     adversary admitted keysShaped packageWidths control cap depth depthBound
 
 /-- Completeness of bounded-depth IVC: for every valid run of the application from `z0` whose
-witnesses have the application's witness length, the terminal accepts the honest prover's proof
-of the run's last state. -/
+witnesses have the application's witness length, the verifier of SPEC.md Algorithm 6 accepts the
+honest prover's proof of the run's last state. The fresh witness of that proof is zero on every
+cell from the width of its circuit's package, as Rust's direct verifier requires
+(`RunCompleteness.FreshZeroTail`). -/
 theorem run_complete
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -270,14 +279,18 @@ theorem run_complete
     (validRun : IvcWalk.ValidFrom exports.program z0 witnesses)
     (witnessLengths : ∀ witness ∈ witnesses, List.length witness = exports.program.witnessWordCount)
     (runBelow : witnesses.length < fieldModulus) :
-    RunCompleteness.Accepts ajtai circuitKeys step complete.packageWidth cap control
-        { iteration := witnesses.length, z0 := z0, zi := List.foldl step z0 witnesses } :=
+    ∃ (proof : Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits)),
+      RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth cap control
+          { iteration := witnesses.length, z0 := z0, zi := List.foldl step z0 witnesses } proof ∧
+        RunCompleteness.FreshZeroTail complete.packageWidth proof :=
   @Export.BoundedDepth.RunCompleteness.run_complete logicalWidth publicFits relation ajtai
     circuitKeys step cubeFits exports complete keysShaped cap control z0 z0Length witnesses validRun
     witnessLengths runBelow
 
-/-- HyperNova Definition 11 (i) for the bounded-depth scheme: one valid step extends each proof that the verifier
-accepts to a recursive proof that the verifier accepts at the next iteration. -/
+/-- HyperNova Definition 11 (i) for the bounded-depth scheme: one valid step extends each proof
+that the verifier accepts to a recursive proof that the verifier accepts at the next iteration.
+The fresh witness of the new proof is zero on every cell from the width of its circuit's package,
+as Rust's direct verifier requires (`RunCompleteness.FreshZeroTail`). -/
 theorem step_extends
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -306,9 +319,11 @@ theorem step_extends
           (StepFresh logicalWidth publicFits)
           (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2),
         RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth cap control
-          { iteration := statement.iteration + 1, z0 := statement.z0,
-            zi := step statement.zi witness }
-          (Paper.OuterTerminalProof.recursive next) :=
+            { iteration := statement.iteration + 1, z0 := statement.z0,
+              zi := step statement.zi witness }
+            (Paper.OuterTerminalProof.recursive next) ∧
+          RunCompleteness.FreshZeroTail complete.packageWidth
+            (Paper.OuterTerminalProof.recursive next) :=
   @Export.BoundedDepth.RunCompleteness.verifies_step logicalWidth publicFits relation ajtai
     circuitKeys step cubeFits exports complete keysShaped cap control statement proof verifies
     witness valid iterationNext witnessLength

@@ -88,20 +88,23 @@ w(model[begin + len('<!-- assumptions:begin -->'):end].strip() + '\n')
 
 claims = defaultdict(list)
 for claim in data['claims']:
-    loc = claim['location']
-    claims[loc['module'].split('.')[-1]].append(claim)
-for file in ORDER:
-    group = sorted(claims[file], key=lambda c: c['location']['start'])
-    path = PKG / f'NightstreamFPrime/Claims/{file}.lean'
+    claims[claim['location']['module']].append(claim)
+modules = sorted(claims, key=lambda m: (ORDER.index(m.split('.')[-1]) if m.split('.')[-1] in ORDER
+                                        else len(ORDER), m))
+rendered = set()
+for module in modules:
+    group = sorted(claims[module], key=lambda c: c['location']['start'])
+    path = PKG / (module.replace('.', '/') + '.lean')
     text = path.read_text()
     doc = text[text.index('/-!'):text.index('-/', text.index('/-!')) + 2]
-    w(f'## Claims.{file} ({len(group)} claims)\n')
+    w(f'## {module.removeprefix("NightstreamFPrime.")} ({len(group)} claims)\n')
     w(f'Source: `{path.relative_to(ROOT)}`\n')
     w('```lean\n' + doc + '\n```\n')
     for claim in group:
         loc = claim['location']
         rel, first, lines = source(loc['module'], loc['start'], loc['stop'])
         name = claim['name'].removeprefix('NightstreamFPrime.')
+        rendered.add(claim['name'])
         w(f'### `{name}`\n')
         w(f'`{rel}:{first}`\n')
         w('```lean\n' + '\n'.join(lines) + '\n```\n')
@@ -118,6 +121,9 @@ for file in ORDER:
             w(f'| `{label}` | `{head}` | {kind} | R{row} |')
         w('')
 
+emitted = {claim['name'] for claim in data['claims']}
+if rendered != emitted:
+    sys.exit(f'claims_review: {len(emitted - rendered)} claims of the Lean list are not in the file')
 w('## Premise table rows\n')
 w('Each hypothesis above points to one row. The evidence is from `formal/nightstream-fprime/SECURITY_MODEL.md`.\n')
 for index, (names, head, kind, evidence) in enumerate(rows):

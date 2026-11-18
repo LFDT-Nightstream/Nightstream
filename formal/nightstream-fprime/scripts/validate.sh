@@ -95,7 +95,10 @@ case "$phase" in
       -DwarningAsError=true -DpremiseCensus.write=true tests/PremiseCensus.lean
     ;;
   review)
-    capped lake build --wfail tests.ClaimsReviewAudit NightstreamFPrime
+    # The review files read the premise list, so it must be current and classified first.
+    capped lake build --wfail tests.ClaimsReviewAudit tests.PremiseAudit NightstreamFPrime
+    lean_file tests/PremiseCensus.lean
+    python3 -B scripts/check_premises.py
     capped lake env lean "-j${LEAN_NUM_THREADS}" -DautoImplicit=false -DrelaxedAutoImplicit=false \
       -DwarningAsError=true -DclaimsReview.write=true tests/ClaimsReview.lean
     python3 -B scripts/claims_review.py

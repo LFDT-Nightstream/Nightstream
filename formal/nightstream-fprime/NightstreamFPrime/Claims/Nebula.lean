@@ -234,7 +234,9 @@ theorem memory_sound
 
 /-- Completeness of a memory application (SPEC.md Algorithm 8): for every execution of `S · N`
 steps with `1 ≤ S ≤ S_max`, the statement that the verifier computes passes its checks, and the
-bounded-depth terminal accepts the honest prover's recursive proof of it. -/
+verifier of SPEC.md Algorithm 6 accepts the honest prover's recursive proof of it. The fresh
+witness of that proof is zero on every cell from the width of its circuit's package, as Rust's
+direct verifier requires (`RunCompleteness.FreshZeroTail`). -/
 theorem memory_complete
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -282,9 +284,10 @@ theorem memory_complete
               (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
               (StepFresh logicalWidth publicFits)
               (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2),
-            Terminal.HoldsFor cap ajtai circuitKeys step control statement
-                (HyperNova.Construction2.Paper.OuterTerminalProof.recursive payload) ∧
-              StepExtend.Honest (ajtai := ajtai) complete.packageWidth payload :=
+            RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth cap control
+                statement (HyperNova.Construction2.Paper.OuterTerminalProof.recursive payload) ∧
+              RunCompleteness.FreshZeroTail complete.packageWidth
+                (HyperNova.Construction2.Paper.OuterTerminalProof.recursive payload) :=
   @Export.BoundedDepth.NebulaCompleteness.memory_complete logicalWidth publicFits relation ajtai
     circuitKeys step cubeFits p app valid exports programEq complete keysShaped cap control s₀ s
     final steps segments count range exec

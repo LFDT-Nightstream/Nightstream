@@ -736,7 +736,11 @@ not change terminal source checks.
   argument does not prove that the fresh witness is zero from the
   relation's width to the end of its last ring column.
   `Lifecycle.BoundedDepth.BlockSupport.Supported` does not require these
-  zeros.
+  zeros. The honest prover's fresh witness has them: it is zero on every
+  cell from the width of its circuit's package
+  (`Lifecycle.BoundedDepth.BlockSupport.ZeroTail`,
+  `Export.BoundedDepth.RunCompleteness.FreshZeroTail`,
+  `Claims.Ivc.step_extends`, `Claims.Ivc.run_complete`).
 - **With the other adversaries:** the verifier of Algorithm 6 accepts only
   what the terminal relation accepts
   (`Export.BoundedDepth.RunCompleteness.holds_of_verifies`). So the results
@@ -1225,7 +1229,7 @@ not change terminal source checks.
   of its depth (`Export.BoundedDepth.StepExtend.Honest`). An honest step's witness
   satisfies the exported relation at the key's widened slot layout
   (`Claims.Step.light_complete`,
-  `Claims.Step.refresh_complete`). The terminal accepts
+  `Claims.Step.refresh_complete`). The terminal verifier accepts
   the honest proof of every valid run
   (`Claims.Ivc.run_complete`) and of every memory
   execution (`Claims.Nebula.memory_complete`). HyperNova
@@ -1233,7 +1237,12 @@ not change terminal source checks.
   terminal verifier holds each slot to the bound of its depth
   (`Export.BoundedDepth.RunCompleteness.Verifies`, `SPEC.md` Algorithm 6), and one
   valid step extends each proof that it accepts
-  (`Claims.Ivc.step_extends`). These
+  (`Claims.Ivc.step_extends`). In the honest proof of each of these three
+  claims, the fresh witness is zero on every cell from the width of its
+  circuit's package (`Export.BoundedDepth.RunCompleteness.FreshZeroTail`).
+  `Verifies` requires zeros only on ring blocks, but Rust requires a zero on
+  each cell (`SPEC.md` Algorithm 6, Rejects). So the claims rule out a
+  rejection of an honest proof by this check of Rust. These
   results take as premises a package check that the emitter evaluates
   (`Export.BoundedDepth.StepExtend.Complete`), key digests of four words, and
   witnesses of the application's witness length. Each application promises that its step keeps the state width

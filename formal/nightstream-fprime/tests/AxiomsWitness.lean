@@ -1,0 +1,26 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Circuit.Execution
+import NightstreamFPrime.Gadgets.Sampling.WideReduction.Program
+import NightstreamFPrime.Gadgets.SumCheck.FixedChain
+
+#audit_axioms NightstreamFPrime.Circuit.HintsEach.append
+#audit_axioms NightstreamFPrime.Circuit.HintsEach.imp
+#audit_axioms NightstreamFPrime.Circuit.HintsEach.range_map
+#audit_axioms NightstreamFPrime.Circuit.HintsEach.range_flatMap
+#audit_axioms NightstreamFPrime.Circuit.HintsEach.finRange_flatMap
+#audit_axioms NightstreamFPrime.Circuit.hintsComputed_unique
+#audit_axioms NightstreamFPrime.Circuit.Witness.Ordered.finRange_flatMap
+#audit_axioms NightstreamFPrime.Circuit.Witness.computed_flatMap
+#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.HelperExecution.present
+#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.OutputExecution.causal
+#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.OutputExecution.reference
+#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.CanonicalChildren.witnesses_childOps
+#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.CanonicalChildren.ordered
+#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.witnesses_operations
+#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.ordered
+#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.computed_holdsFlat
+#audit_axioms NightstreamFPrime.Gadgets.Sampling.WideReduction.Program.complete
+#audit_axioms NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.witnesses_opsAt
+#audit_axioms NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.ordered
+#audit_axioms NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.computed_rows
+#audit_axioms NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.computed_holdsFlat

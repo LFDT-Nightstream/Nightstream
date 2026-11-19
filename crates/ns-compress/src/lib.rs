@@ -9,6 +9,7 @@ mod support;
 
 mod akita;
 mod key;
+mod lane_prefix;
 mod layout;
 mod lookup;
 mod prover;

@@ -3,8 +3,9 @@
 use std::fmt;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 
-use neo_ajtai::nightstream_fprime_setup::production_key_pair;
-use neo_math::{KExtensions, D, F, K};
+use neo_ajtai::nightstream_fprime_setup::ExpandedKey;
+use neo_math::{sum_of_scaled, D, F, K};
+use neo_reductions::superneo_eval::EqualityWeights;
 use p3_field::{Field, PrimeCharacteristicRing};
 use rayon::prelude::*;
 
@@ -19,7 +20,7 @@ use crate::Error;
 pub(crate) const ROW_VARS: usize = 5;
 const _: () = assert!(KAPPA <= 1 << ROW_VARS);
 
-const CELLS_PER_TASK: usize = 1 << 12;
+const CELLS_PER_TASK: usize = 1 << 10;
 const MAGIC: &[u8; 16] = b"NS-COMPRESS-VK-1";
 
 #[derive(Clone)]
@@ -117,14 +118,14 @@ impl fmt::Debug for VerificationKey {
 pub struct ProverKey {
     pub(crate) akita: Prover,
     pub(crate) committed: Committed,
-    table: Vec<F>,
+    key: Arc<ExpandedKey>,
     verification: VerificationKey,
 }
 
 impl ProverKey {
     pub fn new(blocks: usize) -> Result<Self, Error> {
         let schedules = schedules_for(blocks)?;
-        Self::of_elements(schedules, production_element)
+        Self::of_key(schedules, ExpandedKey::production(schedules.blocks() as u64))
     }
 
     pub fn shared(blocks: usize) -> Result<Arc<Self>, Error> {
@@ -147,18 +148,12 @@ impl ProverKey {
         Ok(key)
     }
 
-    pub(crate) fn of_elements(
-        schedules: &'static Schedules,
-        element: impl Fn(u32, u64) -> [[u64; D]; 2] + Sync,
-    ) -> Result<Self, Error> {
-        let table = table(schedules.blocks(), element, F::new);
-        let cells = table.par_iter().copied().map(akita::base).collect();
-        let table = by_cell(&table);
-        let (akita, committed, verification) = committed(schedules, cells)?;
+    fn of_key(schedules: &'static Schedules, key: Arc<ExpandedKey>) -> Result<Self, Error> {
+        let (akita, committed, verification) = committed(schedules, cells(&key))?;
         Ok(Self {
             akita,
             committed,
-            table,
+            key,
             verification,
         })
     }
@@ -168,37 +163,38 @@ impl ProverKey {
     }
 
     pub(crate) fn fold(&self, omega: K) -> Vec<K> {
-        fold(&self.table, omega)
+        fold(&self.key, omega)
     }
 }
 
-fn by_cell(rows: &[F]) -> Vec<F> {
-    let slab = rows.len() / KAPPA;
-    (0..rows.len())
-        .into_par_iter()
-        .map(|index| rows[index % KAPPA * slab + index / KAPPA])
+fn cells(key: &ExpandedKey) -> Vec<Base> {
+    key.words()
+        .par_iter()
+        .map(|&word| akita::base(F::new(word)))
         .collect()
 }
 
-fn fold(table: &[F], omega: K) -> Vec<K> {
-    let (real, imaginary): (Vec<F>, Vec<F>) = powers(omega, KAPPA)
-        .iter()
-        .map(|power| {
-            let [real, imaginary] = power.as_coeffs();
-            (real, imaginary)
-        })
-        .unzip();
-    table
-        .par_chunks(KAPPA)
-        .with_min_len(CELLS_PER_TASK)
-        .map(|rows| {
-            let rows = rows.iter().copied();
-            K::from_coeffs([
-                F::sum_of_products(real.iter().copied().zip(rows.clone())),
-                F::sum_of_products(imaginary.iter().copied().zip(rows)),
-            ])
-        })
-        .collect()
+// SPEC.md section 6.
+fn fold(key: &ExpandedKey, omega: K) -> Vec<K> {
+    let powers = powers(omega, KAPPA);
+    let cells = key.blocks() as usize * D;
+    let mut folded = vec![K::ZERO; cells];
+    folded
+        .par_chunks_mut(CELLS_PER_TASK)
+        .enumerate()
+        .for_each_init(Vec::new, |words: &mut Vec<[F; KAPPA]>, (task, folded)| {
+            let start = task * CELLS_PER_TASK;
+            words.resize(folded.len(), [F::ZERO; KAPPA]);
+            for (row, key_row) in key.words().chunks_exact(cells).enumerate() {
+                for (cell, &word) in words.iter_mut().zip(&key_row[start..]) {
+                    cell[row] = F::new(word);
+                }
+            }
+            for (cell, words) in folded.iter_mut().zip(words.iter()) {
+                *cell = sum_of_scaled(words.iter().copied().zip(powers.iter().copied()));
+            }
+        });
+    folded
 }
 
 pub fn key_blocks(blocks: usize) -> Result<usize, Error> {
@@ -214,24 +210,6 @@ fn schedule_index(blocks: usize) -> Result<usize, Error> {
         .iter()
         .position(|schedules| schedules.blocks() >= blocks)
         .ok_or(Error::Layout("no Akita schedule row has a key for this many blocks"))
-}
-
-fn production_element(row: u32, pair: u64) -> [[u64; D]; 2] {
-    production_key_pair(row, [2 * pair, 2 * pair + 1])
-}
-
-fn table<T: Send>(
-    blocks: usize,
-    element: impl Fn(u32, u64) -> [[u64; D]; 2] + Sync,
-    cell: impl Fn(u64) -> T + Sync,
-) -> Vec<T> {
-    let pairs = blocks / 2;
-    (0..KAPPA * pairs)
-        .into_par_iter()
-        .map(|index| element((index / pairs) as u32, (index % pairs) as u64).map(|block| block.map(&cell)))
-        .collect::<Vec<_>>()
-        .into_flattened()
-        .into_flattened()
 }
 
 fn committed(schedules: &'static Schedules, cells: Vec<Base>) -> Result<(Prover, Committed, VerificationKey), Error> {
@@ -253,23 +231,29 @@ pub(crate) fn row_point(omega: K) -> Result<([K; ROW_VARS], K), Error> {
     Ok((point, scale))
 }
 
-pub(crate) fn weight_table(uses: &Uses) -> Vec<K> {
+/// SPEC.md Algorithm 9, step 10.
+pub(crate) fn block_weights(uses: &Uses) -> Vec<K> {
     let blocks = uses
         .claims
         .iter()
         .map(|claim| claim.blocks)
         .max()
         .unwrap_or(0);
-    let mut by_block = vec![K::ZERO; blocks];
-    for claim in &uses.claims {
-        by_block
-            .par_iter_mut()
-            .zip(equality(claim.point, claim.blocks))
-            .for_each(|(sum, weight)| *sum += claim.coefficient * weight);
-    }
-    (0..blocks * D)
+    let points: Vec<EqualityWeights> = uses
+        .claims
+        .iter()
+        .map(|claim| EqualityWeights::new(claim.point))
+        .collect();
+    (0..blocks)
         .into_par_iter()
-        .map(|cell| uses.form[cell % D] * by_block[cell / D])
+        .map(|block| {
+            uses.claims
+                .iter()
+                .zip(&points)
+                .filter(|(claim, _)| block < claim.blocks)
+                .map(|(claim, point)| claim.coefficient * point.at(block))
+                .sum()
+        })
         .collect()
 }
 

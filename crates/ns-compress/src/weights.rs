@@ -5,12 +5,13 @@ use std::ops::ControlFlow;
 
 use neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS;
 use neo_ccs::GeometricRowRun;
-use neo_math::{KExtensions, D, F, K};
+use neo_math::{KExtensions, ProductSum, D, F, K};
 use neo_reductions::superneo_eval::{EqualityWeights, FactoredSlots, MatrixRowSink};
 use neo_reductions::PiCcsError;
 use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
+use crate::key::ProverKey;
 use crate::layout::{Layout, LANE_VARS, LOOKUPS};
 use crate::lookup::Inverses;
 use crate::ring::{conjugate, dot, Point};
@@ -84,7 +85,7 @@ fn omega_powers(statement: &Statement<'_>, omega: K) -> Vec<K> {
     powers(omega, KAPPA + 2 + statement.claim.eval_a.len())
 }
 
-const COLUMNS_PER_TASK: usize = 1 << 16;
+pub(crate) const COLUMNS_PER_TASK: usize = 1 << 16;
 const _: () = assert!(COLUMNS_PER_TASK.is_multiple_of(D));
 
 /// `Mᵀ = Gᵀ · Lᵀ` (Lean `SlotLayout.layout`, `LogicalPlan.plan`).
@@ -217,13 +218,66 @@ fn count_weights(bound: u64, lambda: K, challenges: &Challenges) -> Result<Vec<K
         .collect())
 }
 
+pub(crate) struct LaneSource<'a> {
+    matrices: Matrices<'a>,
+    pub(crate) lanes: [K; D],
+    pub(crate) blocks: Vec<K>,
+    public: Vec<K>,
+    pub(crate) scale: K,
+}
+
+impl<'a> LaneSource<'a> {
+    pub(crate) fn new(statement: &'a Statement<'a>, challenges: &Challenges, blocks: usize) -> Result<Self, Error> {
+        let omega = omega_powers(statement, challenges.omega);
+        let matrices = Matrices::new(statement, &omega)?;
+        let evaluation = Evaluation::new(statement, &omega);
+        Ok(Self {
+            matrices,
+            lanes: evaluation.lanes,
+            blocks: equality(evaluation.r_high, blocks),
+            public: powers(challenges.gamma, statement.claim.m_in)
+                .into_iter()
+                .map(|power| power * evaluation.public)
+                .collect(),
+            scale: challenges.mu,
+        })
+    }
+
+    pub(crate) fn columns(&self, task: usize, values: &mut [K]) {
+        values.fill(K::ZERO);
+        self.matrices.add_columns(task, values);
+    }
+
+    pub(crate) fn element(&self, columns: &[K], key: &[K]) -> [K; D] {
+        let columns = conjugate(columns.try_into().expect("D columns"));
+        std::array::from_fn(|lane| key[lane] + columns[lane])
+    }
+
+    pub(crate) fn projection(&self, block: usize, columns: &[K], key: &[K], form: &[K; D], evaluation: K) -> K {
+        dot(&self.element(columns, key), form) + self.blocks[block] * evaluation
+    }
+
+    pub(crate) fn public(&self) -> &[K] {
+        &self.public
+    }
+}
+
+pub(crate) fn count_tail(layout: &Layout, challenges: &Challenges, start: usize) -> Result<Vec<K>, Error> {
+    let mut weights = vec![K::ZERO; layout.witness_len - start];
+    for (table, (_, _, bound, counts)) in layout.tables().enumerate() {
+        let cells = count_weights(bound, challenges.lambda[table], challenges)?;
+        weights[counts.offset - start..][..cells.len()].copy_from_slice(&cells);
+    }
+    Ok(weights)
+}
+
 pub(crate) fn table(
     statements: &[Statement<'_>],
     layout: &Layout,
     challenges: &Challenges,
-    folded: &[K],
+    key: &ProverKey,
     omit_zero_prefix: bool,
-) -> Result<Vec<K>, Error> {
+) -> Result<(Vec<K>, Vec<K>), Error> {
     let point = Point::new(challenges.delta);
     let prefix = if omit_zero_prefix {
         layout.cells[0].witness.len()
@@ -244,7 +298,10 @@ pub(crate) fn table(
             })
             .collect::<Result<Vec<_>, Error>>()
     };
-    let (prepared, mut table) = rayon::join(prepare, || vec![K::ZERO; layout.witness_len - prefix]);
+    let ((prepared, mut table), folded) = rayon::join(
+        || rayon::join(prepare, || vec![K::ZERO; layout.witness_len - prefix]),
+        || key.fold(challenges.omega),
+    );
     let mut prepared = prepared?.into_iter();
     let mut tables = 0;
     for ((statement, cells), mu) in statements
@@ -291,7 +348,7 @@ pub(crate) fn table(
             tables += 1;
         }
     }
-    Ok(table)
+    Ok((table, folded))
 }
 
 struct MatrixAt<'a> {
@@ -335,7 +392,7 @@ pub(crate) fn first_slice_at(
     };
     let omega = omega_powers(statement, challenges.omega);
     let evaluation = Evaluation::new(statement, &omega);
-    let key = key_part(&uses, folded);
+    let key = key_part(&form, &equality(block_point, block_count), folded);
     let pad = dot(&form, &evaluation.lanes) * prefix_equality(block_point, block_count, evaluation.r_high);
     let public = evaluation.public
         * equality(rho, statement.claim.m_in)
@@ -399,16 +456,16 @@ impl<'a> Uses<'a> {
     }
 }
 
-pub(crate) fn key_part(uses: &Uses<'_>, folded: &[K]) -> K {
-    uses.claims
-        .iter()
-        .map(|claim| {
-            let blocks: K = folded
-                .par_chunks(D)
-                .zip(equality(claim.point, claim.blocks))
-                .map(|(key, weight)| weight * dot(&uses.form, key))
-                .sum();
-            claim.coefficient * blocks
+pub(crate) fn key_part(form: &[K; D], blocks: &[K], folded: &[K]) -> K {
+    folded
+        .par_chunks(D)
+        .zip(blocks)
+        .map(|(key, &block)| {
+            let lane_sum = key
+                .iter()
+                .zip(form)
+                .fold(ProductSum::default(), |sum, (&key, &form)| sum.add(form, key));
+            block * lane_sum.value()
         })
         .sum()
 }

@@ -33,6 +33,39 @@ pub struct SignedShiftSums {
     terms: u64,
 }
 
+const MAX_EVENT_DIGIT: u64 = 2048;
+
+pub struct SmallEventDigits([i32; D]);
+
+impl SmallEventDigits {
+    pub fn new(digits: &[F; D]) -> Option<Self> {
+        let mut small = [0i32; D];
+        for (out, input) in small.iter_mut().zip(digits) {
+            let value = input.as_canonical_u64();
+            if value <= MAX_EVENT_DIGIT {
+                *out = value as i32;
+            } else if Q - value <= MAX_EVENT_DIGIT {
+                *out = -((Q - value) as i32);
+            } else {
+                return None;
+            }
+        }
+        Some(Self(small))
+    }
+
+    pub fn from_centered(digits: &[F; D]) -> Option<Self> {
+        let mut small = [0i32; D];
+        let mut valid = true;
+        for (out, input) in small.iter_mut().zip(digits) {
+            let signed = input.as_canonical_u64() as i64;
+            let centered = signed + ((signed >> 63) & Q.wrapping_neg() as i64);
+            valid &= centered.unsigned_abs() <= MAX_EVENT_DIGIT;
+            *out = centered as i32;
+        }
+        valid.then_some(Self(small))
+    }
+}
+
 impl SignedShiftSums {
     pub fn zero() -> Self {
         Self {
@@ -126,23 +159,24 @@ impl SignedShiftSums {
         }
     }
 
-    pub fn add_small_event_pair(output: [&mut Self; 2], forms: [&[F; D]; 2], mut events: u64, digits: &[F; D]) -> bool {
-        const MAX_MAGNITUDE: u64 = 2048;
-        let mut small = [0i32; D];
-        for (out, input) in small.iter_mut().zip(digits) {
-            let n = input.as_canonical_u64();
-            if n <= MAX_MAGNITUDE {
-                *out = n as i32;
-            } else if Q - n <= MAX_MAGNITUDE {
-                *out = -((Q - n) as i32);
-            } else {
-                return false;
-            }
-        }
+    pub fn add_small_event_pair(output: [&mut Self; 2], forms: [&[F; D]; 2], events: u64, digits: &[F; D]) -> bool {
+        let Some(small) = SmallEventDigits::new(digits) else {
+            return false;
+        };
+        Self::add_prepared_event_pair(output, forms, events, &small);
+        true
+    }
+
+    pub fn add_prepared_event_pair(
+        output: [&mut Self; 2],
+        forms: [&[F; D]; 2],
+        mut events: u64,
+        digits: &SmallEventDigits,
+    ) {
         let [real, imaginary] = output;
         #[cfg(debug_assertions)]
         for accum in [&mut *real, &mut *imaginary] {
-            accum.terms += MAX_MAGNITUDE;
+            accum.terms += MAX_EVENT_DIGIT;
             debug_assert!(accum.terms <= MAX_EXACT_TERMS);
         }
         while events != 0 {
@@ -155,7 +189,7 @@ impl SignedShiftSums {
             let parts = [x as u32, (x >> 32) as u32, y as u32, (y >> 32) as u32].map(i64::from);
             let re = &mut real.limbs.as_chunks_mut::<2>().0[degree..][..D];
             let im = &mut imaginary.limbs.as_chunks_mut::<2>().0[degree..][..D];
-            for ((a, b), s) in re.iter_mut().zip(im).zip(small) {
+            for ((a, b), s) in re.iter_mut().zip(im).zip(digits.0) {
                 let d = i64::from(s);
                 a[0] += parts[0] * d;
                 a[1] += parts[1] * d;
@@ -163,7 +197,6 @@ impl SignedShiftSums {
                 b[1] += parts[3] * d;
             }
         }
-        true
     }
 
     pub fn add(&mut self, other: &Self) {

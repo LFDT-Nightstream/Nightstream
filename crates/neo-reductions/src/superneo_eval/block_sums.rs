@@ -1,5 +1,5 @@
 use neo_math::{
-    signed_sums::{SignedShiftSums, SplitRing},
+    signed_sums::{SignedShiftSums, SmallEventDigits, SplitRing},
     KExtensions, Rq, D, F, K,
 };
 use p3_field::PrimeCharacteristicRing;
@@ -13,6 +13,12 @@ pub(super) type PairSums = Vec<([F; D], [F; D])>;
 pub(super) struct TaskSums {
     reduced: PairSums,
     raw: Vec<(SignedShiftSums, SignedShiftSums)>,
+}
+
+pub(super) struct OpeningEvents {
+    pub(super) real: Rq,
+    pub(super) imaginary: Rq,
+    pub(super) mask: u64,
 }
 
 impl TaskSums {
@@ -81,12 +87,78 @@ impl TaskSums {
                 add_sparse_digit_pair([a, b], [real, imaginary], events, &blocks[block]);
                 continue;
             }
-            let (out_real, out_imaginary) = &mut self.reduced[index];
-            match (!is_all_zero(&real.0), !is_all_zero(&imaginary.0)) {
-                (true, true) => witness.accumulate_real_pair(out_real, out_imaginary, real, imaginary, block),
-                (true, false) => witness.accumulate_real(out_real, real, block),
-                (false, true) => witness.accumulate_real(out_imaginary, imaginary, block),
-                (false, false) => {}
+            self.add_full(index, witness, block, real, imaginary);
+        }
+    }
+
+    fn add_full(&mut self, index: usize, witness: &SuperneoZBlocks, block: usize, real: &Rq, imaginary: &Rq) {
+        let (out_real, out_imaginary) = &mut self.reduced[index];
+        match (!is_all_zero(&real.0), !is_all_zero(&imaginary.0)) {
+            (true, true) => witness.accumulate_real_pair(out_real, out_imaginary, real, imaginary, block),
+            (true, false) => witness.accumulate_real(out_real, real, block),
+            (false, true) => witness.accumulate_real(out_imaginary, imaginary, block),
+            (false, false) => {}
+        }
+    }
+
+    pub(super) fn add_opening_blocks<const M: usize>(
+        matrices: &mut [Self; M],
+        witnesses: &[&SuperneoZBlocks],
+        block: usize,
+        forms: &[OpeningEvents; M],
+    ) {
+        const _: () = assert!(TASK_BLOCKS <= (1 << 12));
+        let sparse = forms
+            .each_ref()
+            .map(|form| form.mask != 0 && form.mask.count_ones() <= 12);
+        let uses_sparse = sparse.into_iter().any(|active| active);
+        let mut split: [Option<(SplitRing, SplitRing)>; M] = std::array::from_fn(|_| None);
+        for (index, witness) in witnesses.iter().enumerate() {
+            if !witness.real_nonzero(block) {
+                continue;
+            }
+            let signs = witness.signed_unit_masks();
+            let dense = match &witness.re {
+                super::RealBlockStorage::Dense { blocks, .. } if uses_sparse => Some(&blocks[block]),
+                _ => None,
+            };
+            let small = dense.and_then(|digits| SmallEventDigits::from_centered(&digits.0));
+            for (((sums, form), &sparse), split) in matrices.iter_mut().zip(forms).zip(&sparse).zip(&mut split) {
+                if form.mask == 0 {
+                    continue;
+                }
+                let (real, imaginary) = (&form.real, &form.imaginary);
+                let (out_real, out_imaginary) = &mut sums.raw[index];
+                if let Some((positive, negative)) = signs {
+                    if sparse {
+                        SignedShiftSums::add_signed_event_pair(
+                            [out_real, out_imaginary],
+                            [&real.0, &imaginary.0],
+                            form.mask,
+                            positive[block],
+                            negative[block],
+                        );
+                    } else {
+                        let (real, imaginary) =
+                            split.get_or_insert_with(|| (SplitRing::new(&real.0), SplitRing::new(&imaginary.0)));
+                        out_real.add_signed_units(real, positive[block], negative[block]);
+                        out_imaginary.add_signed_units(imaginary, positive[block], negative[block]);
+                    }
+                } else if sparse && dense.is_some() {
+                    if let Some(digits) = &small {
+                        SignedShiftSums::add_prepared_event_pair(
+                            [out_real, out_imaginary],
+                            [&real.0, &imaginary.0],
+                            form.mask,
+                            digits,
+                        );
+                    } else if let Some(digits) = dense {
+                        let (a, b) = &mut sums.reduced[index];
+                        add_sparse_digit_pair([a, b], [real, imaginary], form.mask, digits);
+                    }
+                } else {
+                    sums.add_full(index, witness, block, real, imaginary);
+                }
             }
         }
     }

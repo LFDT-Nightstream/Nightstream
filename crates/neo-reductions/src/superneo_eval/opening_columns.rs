@@ -134,21 +134,32 @@ impl Columns {
 
     pub(super) fn weights(&self, row_weights: &[K], out: &mut Vec<K>) {
         out.resize(self.slots.len(), K::ZERO);
-        fill(out, |slot| {
-            let range = self.offsets[slot] as usize..self.offsets[slot + 1] as usize;
-            self.rows[range.clone()]
-                .iter()
-                .zip(&self.tags[range])
-                .map(|(&row, &tag)| {
-                    let w = row_weights[row as usize];
-                    match tag {
-                        0 => w,
-                        1 => -w,
-                        _ => w.scale_base(self.factors[tag as usize]),
-                    }
-                })
-                .sum()
-        });
+        fill(out, |slot| self.weight(row_weights, slot));
+    }
+
+    pub(super) fn weight(&self, row_weights: &[K], slot: usize) -> K {
+        let range = self.offsets[slot] as usize..self.offsets[slot + 1] as usize;
+        self.rows[range.clone()]
+            .iter()
+            .zip(&self.tags[range])
+            .map(|(&row, &tag)| {
+                let w = row_weights[row as usize];
+                match tag {
+                    0 => w,
+                    1 => -w,
+                    _ => w.scale_base(self.factors[tag as usize]),
+                }
+            })
+            .sum()
+    }
+
+    pub(super) fn weight_with_products(&self, row_weights: &[K], slot: usize) -> K {
+        let range = self.offsets[slot] as usize..self.offsets[slot + 1] as usize;
+        if range.len() < 4 {
+            return self.weight(row_weights, slot);
+        }
+        let terms = self.rows[range.clone()].iter().zip(&self.tags[range]);
+        neo_math::sum_of_scaled(terms.map(|(&row, &tag)| (self.factors[tag as usize], row_weights[row as usize])))
     }
 }
 

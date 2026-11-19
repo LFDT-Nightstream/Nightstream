@@ -7,7 +7,11 @@ fn contracted_slot_intervals_match_expanded_projection() {
     let mut seed = 42_163u64;
     for slot in &mut digit[..D * 6 + 37] {
         seed = seed.wrapping_mul(479_851_321_590_327).wrapping_add(123);
-        *slot = if seed % 8 == 0 { F::ZERO } else { F::from_u64(seed) };
+        *slot = if seed.is_multiple_of(8) {
+            F::ZERO
+        } else {
+            F::from_u64(seed)
+        };
     }
     digit[D..2 * D].fill(F::ZERO);
     let witness = SuperneoZBlocks::from_base_row_f(&digit);

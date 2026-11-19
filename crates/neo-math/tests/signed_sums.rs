@@ -1,6 +1,6 @@
 use neo_math::{
     field::Q,
-    signed_sums::{SignedLimbs, SignedShiftSums, SmallDigits, SplitRing, SMALL_DIGIT_BOUND},
+    signed_sums::{SignedLimbs, SignedShiftSums, SmallDigits, SmallEventDigits, SplitRing, SMALL_DIGIT_BOUND},
     Fq, Rq, D,
 };
 use p3_field::PrimeCharacteristicRing;
@@ -64,6 +64,27 @@ fn repeated_negative_terms_stay_exact() {
     let product = Rq(coefficients).mul(&signed_unit(0, u64::MAX));
     let expected: [Fq; D] = core::array::from_fn(|lane| product.0[lane] * Fq::from_u64(10_000));
     assert_eq!(sums.reduce(), expected);
+}
+
+#[test]
+fn centered_event_digits_match_the_canonical_range_check() {
+    let real = element(5);
+    let imaginary = element(13);
+    for word in [0, 1, 2048, 2049, Q / 2, Q / 2 + 1, 1 << 63, Q - 2049, Q - 2048, Q - 1] {
+        let mut digits = [Fq::ZERO; D];
+        digits[1] = Fq::from_u64(Q - 2048);
+        digits[D - 1] = Fq::from_u64(word);
+        let mut reference = [SignedShiftSums::zero(), SignedShiftSums::zero()];
+        let expected =
+            SignedShiftSums::add_small_event_pair(reference.each_mut(), [&real, &imaginary], u64::MAX, &digits);
+        let centered = SmallEventDigits::from_centered(&digits);
+        assert_eq!(centered.is_some(), expected);
+        if let Some(centered) = centered {
+            let mut actual = [SignedShiftSums::zero(), SignedShiftSums::zero()];
+            SignedShiftSums::add_prepared_event_pair(actual.each_mut(), [&real, &imaginary], u64::MAX, &centered);
+            assert_eq!(actual.map(|sums| sums.reduce()), reference.map(|sums| sums.reduce()));
+        }
+    }
 }
 
 #[test]

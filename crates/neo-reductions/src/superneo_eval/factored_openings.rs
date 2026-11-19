@@ -8,7 +8,8 @@ use p3_field::{Field, PrimeCharacteristicRing};
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-use super::block_sums::{add_pair_sums, to_extension, zero_pair_sums, TaskSums, TASK_BLOCKS};
+use super::block_sums::{add_pair_sums, to_extension, zero_pair_sums, OpeningEvents, PairSums, TaskSums, TASK_BLOCKS};
+use super::opening_columns::Columns;
 use super::{EqualityWeights, FactoredRows, SuperneoZBlocks};
 
 const BAND_COLUMNS: usize = TASK_BLOCKS * D;
@@ -18,6 +19,8 @@ pub(super) struct OpeningBands<'a> {
     slots: Vec<Range<usize>>,
     index_budget: Option<usize>,
     parallel_transpose: bool,
+    #[cfg(test)]
+    separate_matrices: bool,
 }
 
 struct OpeningDifference {
@@ -108,6 +111,8 @@ impl<'a> OpeningBands<'a> {
             slots,
             index_budget,
             parallel_transpose,
+            #[cfg(test)]
+            separate_matrices: false,
         })
     }
 
@@ -130,16 +135,36 @@ impl<'a> OpeningBands<'a> {
                 .max()
                 .unwrap_or(0)
         });
-        if storage.capacity() < slot_count {
-            drop(storage);
-            storage = Vec::with_capacity(slot_count);
-        }
         let row_weights = columns.map(|_| {
             let mut rows = vec![K::ZERO; self.rows.shape().rows];
             super::factored::fill(&mut rows, |row| weights.at(row));
             rows
         });
         let difference = OpeningDifference::new(layout.ratio);
+        #[cfg(test)]
+        let fuse = !self.separate_matrices;
+        #[cfg(not(test))]
+        let fuse = true;
+        if let (true, Some(columns), Some(row_weights), Some(difference)) = (fuse, columns, &row_weights, &difference) {
+            if let Ok(columns) = <&[Columns; 4]>::try_from(columns) {
+                let replaced = storage.capacity().max(slot_count) * size_of::<K>();
+                if witnesses
+                    .iter()
+                    .any(|witness| matches!(&witness.re, super::RealBlockStorage::Dense { .. }))
+                    && TaskSums::working_bytes(self.slots.len(), witnesses.len())
+                        .and_then(|bytes| bytes.checked_mul(3))
+                        .is_some_and(|extra| extra <= replaced)
+                {
+                    drop(storage);
+                    self.evaluate_four(columns, row_weights, witnesses, active, result, difference);
+                    return;
+                }
+            }
+        }
+        if storage.capacity() < slot_count {
+            drop(storage);
+            storage = Vec::with_capacity(slot_count);
+        }
         for matrix in 0..self.rows.shape().matrices {
             let ids = match (columns, &row_weights) {
                 (Some(columns), Some(row_weights)) => {
@@ -254,6 +279,114 @@ impl<'a> OpeningBands<'a> {
             }
         }
     }
+
+    fn evaluate_four(
+        &self,
+        columns: &[Columns; 4],
+        row_weights: &[K],
+        witnesses: &[&SuperneoZBlocks],
+        active: &[usize],
+        result: &mut [V1_2Evaluations<K>],
+        difference: &OpeningDifference,
+    ) {
+        let layout = self.rows.slots();
+        let zero = || std::array::from_fn::<_, 4, _>(|_| zero_pair_sums(witnesses.len()));
+        let add = |left: [PairSums; 4], right: [PairSums; 4]| {
+            let mut pairs = left.into_iter().zip(right);
+            std::array::from_fn(|_| {
+                let (left, right) = pairs.next().unwrap();
+                add_pair_sums(left, right)
+            })
+        };
+        let task = |(band, slots): (usize, &Range<usize>)| {
+            let first = band * BAND_COLUMNS;
+            let limit = (first + BAND_COLUMNS).min(self.rows.shape().columns);
+            let mut cursors = columns.each_ref().map(|matrix| {
+                let ids = &matrix.slots;
+                let range = ids.partition_point(|&slot| (slot as usize) < slots.start)
+                    ..ids.partition_point(|&slot| (slot as usize) < slots.end);
+                let mut spans = range.filter_map(move |index| {
+                    let slot = ids[index] as usize;
+                    let start = layout.starts[slot] as usize;
+                    let end = start + usize::from(layout.widths[slot]);
+                    if start == end {
+                        return None;
+                    }
+                    let mut value = matrix.weight_with_products(row_weights, index);
+                    if value == K::ZERO {
+                        return None;
+                    }
+                    let column = start.max(first);
+                    if column != start {
+                        value = value.scale_base(layout.ratio.exp_u64((column - start) as u64));
+                    }
+                    Some((column, end, value))
+                });
+                (spans.next(), spans)
+            });
+            let mut sums = std::array::from_fn::<_, 4, _>(|_| TaskSums::new(witnesses.len()));
+            for base in (first..limit).step_by(D) {
+                if cursors.iter().all(|(span, _)| span.is_none()) {
+                    break;
+                }
+                let forms = cursors
+                    .each_mut()
+                    .map(|(span, spans)| events_for_block(base, span, spans, difference));
+                TaskSums::add_opening_blocks(&mut sums, witnesses, base / D, &forms);
+            }
+            sums.map(TaskSums::finish)
+        };
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        let sums = self
+            .slots
+            .par_iter()
+            .enumerate()
+            .map(task)
+            .reduce(zero, add);
+        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+        let sums = self.slots.iter().enumerate().map(task).fold(zero(), add);
+        for (matrix, sums) in sums.into_iter().enumerate() {
+            for (&index, mut value) in active.iter().zip(to_extension(sums)) {
+                difference.resolve(&mut value);
+                result[index].eval_a[matrix].copy_from_slice(&value);
+            }
+        }
+    }
+}
+
+fn events_for_block(
+    base: usize,
+    span: &mut Option<(usize, usize, K)>,
+    spans: &mut impl Iterator<Item = (usize, usize, K)>,
+    difference: &OpeningDifference,
+) -> OpeningEvents {
+    let mut result = OpeningEvents {
+        real: Rq::zero(),
+        imaginary: Rq::zero(),
+        mask: 0,
+    };
+    let end = base + D;
+    while let Some((column, span_end, value)) = span.as_mut().filter(|(column, _, _)| *column < end) {
+        let start = *column - base;
+        let stop = (*span_end).min(end) - base;
+        let first_lane = (D - start) % D;
+        let last_lane = (D - stop) % D;
+        add_event(
+            &mut result.real,
+            &mut result.imaginary,
+            first_lane,
+            if start == 0 { *value } else { -*value },
+        );
+        *value = value.scale_base(difference.powers[stop - start]);
+        add_event(&mut result.real, &mut result.imaginary, last_lane, *value);
+        result.mask |= (1u64 << first_lane) | (1u64 << last_lane);
+        if *span_end > end {
+            *column = end;
+            break;
+        }
+        *span = spans.next();
+    }
+    result
 }
 
 #[cfg(test)]

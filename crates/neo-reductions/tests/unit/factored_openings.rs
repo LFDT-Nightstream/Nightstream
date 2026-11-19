@@ -191,6 +191,54 @@ fn budget_fallback_does_not_materialize_or_disable_the_index() {
 }
 
 #[test]
+fn four_matrix_bands_match_separate_openings_for_mixed_witnesses() {
+    let cache = OpeningColumns::default();
+    let coefficients = std::array::from_fn::<_, 36, _>(|i| F::from_usize(i + 2));
+    let columns = 3 * D;
+    let indexes = std::array::from_fn::<_, 36, _>(|i| (i % 9) as u32);
+    let rows = FactoredRows::new(
+        MatrixShape {
+            rows: 1,
+            columns,
+            matrices: 4,
+        },
+        FactoredEntries {
+            offsets: &[0, 9, 18, 27, 36],
+            slots: &indexes,
+            coefficients: &coefficients,
+        },
+        FactoredSlots {
+            starts: &[0, 2, 4, 6, 8, 10, 12, 61, 130],
+            widths: &[1, 1, 1, 1, 1, 1, 1, 41, 2],
+            ratio: F::from_u8(3),
+        },
+    )
+    .unwrap()
+    .with_opening_columns(&cache);
+    let packed = Mat::compact_signed_unit_from_column_masks(D, 3, &[1 << 63, 0xa, 0x1001], &[1, 0x100, 4]).unwrap();
+    let mut dense = Mat::zero(D, 3, F::ZERO);
+    dense[(63, 0)] = F::from_u64(2048);
+    dense[(17, 1)] = -F::from_u64(2049);
+    dense[(2, 2)] = -F::from_u64(3);
+    let blocks = [&packed, &dense].map(|m| SuperneoZBlocks::from_witness_mat(m, columns).unwrap());
+    let sources = blocks.each_ref();
+    let weights = EqualityWeights::new(&[K::from_coeffs([F::from_u64(19), F::from_u64(17)]); 8]);
+    let evaluate = |separate| {
+        let mut out = (0..2)
+            .map(|_| V1_2Evaluations {
+                eval_k: vec![K::ZERO; D],
+                eval_a: vec![vec![K::ZERO; D]; 4],
+            })
+            .collect::<Vec<_>>();
+        let mut bands = OpeningBands::new(rows, usize::MAX, 2, 4096).unwrap();
+        bands.separate_matrices = separate;
+        bands.evaluate(&weights, &sources, &[0, 1], &mut out, Vec::with_capacity(4096));
+        out
+    };
+    assert_eq!(evaluate(false), evaluate(true));
+}
+
+#[test]
 fn factored_openings_match_expanded_windows_and_skip_their_construction() {
     const COLUMNS: usize = BAND_COLUMNS + 2 * D;
     const STARTS: &[u32] = &[

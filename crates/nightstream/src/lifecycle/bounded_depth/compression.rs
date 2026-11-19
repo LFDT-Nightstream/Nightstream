@@ -1,5 +1,6 @@
 //! SPEC.md section 6 and Algorithms 9 to 11; Lean `FinalVerifier.Mode`.
 
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use neo_ajtai::Commitment;
@@ -139,8 +140,8 @@ impl BoundedDepth {
         claims
     }
 
-    pub(crate) fn compression_setup(&self) -> Result<ProverKey, BoundedDepthError> {
-        Ok(ProverKey::new(self.key_blocks())?)
+    pub(crate) fn compression_setup(&self) -> Result<Arc<ProverKey>, BoundedDepthError> {
+        Ok(ProverKey::shared(self.key_blocks())?)
     }
 
     pub(crate) fn compression_key(&self) -> Result<VerificationKey, BoundedDepthError> {

@@ -1,7 +1,7 @@
 //! The Ajtai key as a committed polynomial (ePrint 2026/1983 section 9; SPEC.md section 6).
 
 use std::fmt;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 
 use neo_ajtai::nightstream_fprime_setup::production_key_pair;
 use neo_math::{KExtensions, D, F, K};
@@ -127,6 +127,26 @@ impl ProverKey {
         Self::of_elements(schedules, production_element)
     }
 
+    pub fn shared(blocks: usize) -> Result<Arc<Self>, Error> {
+        static KEYS: [Mutex<Weak<ProverKey>>; SCHEDULES.len()] = [const { Mutex::new(Weak::new()) }; SCHEDULES.len()];
+        let index = schedule_index(blocks)?;
+        let current = || {
+            KEYS[index]
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+        };
+        if let Some(key) = current().upgrade() {
+            return Ok(key);
+        }
+        let key = Arc::new(Self::new(blocks)?);
+        let mut slot = current();
+        if let Some(existing) = slot.upgrade() {
+            return Ok(existing);
+        }
+        *slot = Arc::downgrade(&key);
+        Ok(key)
+    }
+
     pub(crate) fn of_elements(
         schedules: &'static Schedules,
         element: impl Fn(u32, u64) -> [[u64; D]; 2] + Sync,
@@ -186,9 +206,13 @@ pub fn key_blocks(blocks: usize) -> Result<usize, Error> {
 }
 
 fn schedules_for(blocks: usize) -> Result<&'static Schedules, Error> {
+    Ok(&SCHEDULES[schedule_index(blocks)?])
+}
+
+fn schedule_index(blocks: usize) -> Result<usize, Error> {
     SCHEDULES
         .iter()
-        .find(|schedules| schedules.blocks() >= blocks)
+        .position(|schedules| schedules.blocks() >= blocks)
         .ok_or(Error::Layout("no Akita schedule row has a key for this many blocks"))
 }
 

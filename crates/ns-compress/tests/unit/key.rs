@@ -348,3 +348,11 @@ fn only_a_pinned_key_decodes() {
         }
     }
 }
+
+#[test]
+fn circuits_that_fit_one_schedule_share_its_live_prover_key() {
+    let a = ProverKey::shared(1).expect("small key");
+    let b = ProverKey::shared(a.verification_key().blocks()).expect("same schedule");
+    assert!(std::sync::Arc::ptr_eq(&a, &b));
+    assert_eq!(a.verification_key(), &VerificationKey::new(1).unwrap());
+}

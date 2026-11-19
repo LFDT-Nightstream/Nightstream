@@ -127,6 +127,11 @@ impl<A: Application + Clone> Prover<A> {
         ))
     }
 
+    /// Borrow the application that passed circuit validation.
+    pub fn application(&self) -> &A {
+        &self.app
+    }
+
     /// Start a run of `program` from `initial`.
     pub fn start(&self, program: &Program, initial: A::State) -> Result<Proving<'_, A>, ProveError> {
         if program.geometry != self.geometry {

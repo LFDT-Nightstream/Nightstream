@@ -67,9 +67,9 @@ case "$phase" in
     capped lake build --wfail "$@"
     ;;
   axioms)
-    # Lake does not track the documents that the censuses read, so both run again.
+    # Lake does not track the files that these tests read, so they run again.
     capped lake build --wfail NightstreamFPrimeTests && lean_file tests/EndpointCensus.lean &&
-      lean_file tests/PremiseCensus.lean
+      lean_file tests/PremiseCensus.lean && lean_file tests/AkitaSchedules.lean
     ;;
   executables)
     capped lake build --wfail $(executables)
@@ -137,6 +137,7 @@ case "$phase" in
     capped lake build --wfail $(executables)
     lean_file tests/EndpointCensus.lean
     lean_file tests/PremiseCensus.lean
+    lean_file tests/AkitaSchedules.lean
     ;;
   *) echo "unknown phase: $phase" >&2; exit 2 ;;
 esac

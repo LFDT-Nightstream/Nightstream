@@ -1,4 +1,5 @@
 import NightstreamFPrime.Spec.Algebra
+import NightstreamFPrime.Spec.Compression.Akita.Rows
 import NightstreamFPrime.Spec.Compression.Game.Law
 
 /-! Akita (ePrint 2026/1983, revision of 2026-10-15) as a polynomial commitment scheme, and the
@@ -6,10 +7,14 @@ premises of `[AKITA]` (`SECURITY_MODEL.md`, trust item 7).
 
 - `Pcs` has the parts of Akita Definition 3.5 that the security notions read. `KnowledgeSound` is
   Akita Definition 3.7 for a batch of claims (Akita (173)).
-- `Schedule.Admissible` is Akita Definition 9.2. `Theorem1046` is Akita Theorem 10.46: under an
-  admissible schedule, each prover with `Q ≤ Q_max` queries to `H_FS` has an extractor with the
-  error `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)`. Akita's terminal and its root commitments
-  enter the transcript as digests, so Akita Lemma 10.47 adds `ε_hash` (`Schedule.knowledgeError`).
+- `Schedule.Admissible` is Akita Definition 9.2. The conditions that a schedule file decides are
+  those of `Row.Conditions` (`Akita/Rows.lean`). A schedule with the row of `key20.aks` is
+  admissible when it has the other conditions (`Schedule.admissible_key20_iff`), and no schedule
+  with a row of `key30.aks` is admissible (`Schedule.not_admissible_key30`).
+- `Theorem1046` is Akita Theorem 10.46: under an admissible schedule, each prover with
+  `Q ≤ Q_max` queries to `H_FS` has an extractor with the error
+  `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)`. Akita's terminal and its root commitments enter
+  the transcript as digests, so Akita Lemma 10.47 adds `ε_hash` (`Schedule.knowledgeError`).
 - `Use` is the one Akita opening of a final proof (SPEC.md Algorithm 10, step 11). Its premises
   are `Use.Knowledge` (Theorem 10.46 with its conditions), `Use.Binding` (the commitment of the
   compression key opens only to the key polynomial, which Theorem 10.46 does not give) and
@@ -101,13 +106,16 @@ def KnowledgeSound (S : Pcs) (n : ℕ) (pp : S.Params) (Admitted : Prover S n �
   ∀ prover, Admitted prover → ∃ extractor, Efficient prover extractor ∧
     extractor.chance (extractor.Fails pp) ≤ κ prover
 
-/-- The values of an Akita schedule that Akita Definition 9.2 and Theorem 10.46 read: the profile
-`(λ_FS, Q_max)`, the worst-case count of honest `H_FS` queries, `ε_int` (Akita (194)), `N_setup`
-(Akita (34)), the draw width `w` of the setup expansion (Akita (36)), and the count of Module-SIS
-instances `I(sch)`. `recursive`, `compatible`, `extraction` and `msisFloor` are the conditions
-I1 to I3, C1 to C6, E1 to E3 and S1 (Akita Section 9.3). Lean does not model the levels, groups and
-challenge families that they read. -/
+/-- The values of an Akita schedule that Akita Definition 9.2 and Theorem 10.46 read: the row of
+its schedule file, the profile `(λ_FS, Q_max)`, the worst-case count of honest `H_FS` queries,
+`ε_int` (Akita (194)), `N_setup` (Akita (34)), the draw width `w` of the setup expansion
+(Akita (36)), and the count of Module-SIS instances `I(sch)`. A schedule file holds none of these
+numbers. `rootBatching`, `compatible`, `extraction` and `msisFloor` are the conditions of Akita
+Section 9.3 that the file does not decide: the root batching conditions of I1; C1, C2 and C4 to
+C6; E1 to E3; and S1. They read the challenge families, the samplers, the setup registry and the
+Module-SIS instances, which Lean does not model. -/
 structure Schedule where
+  row : Row
   lambdaFS : ℕ
   queryMax : ℕ
   honestQueries : ℕ
@@ -115,7 +123,7 @@ structure Schedule where
   setupLength : ℕ
   drawBits : ℕ
   instances : ℕ
-  recursive : Prop
+  rootBatching : Prop
   compatible : Prop
   extraction : Prop
   msisFloor : Prop
@@ -124,12 +132,30 @@ namespace Schedule
 
 variable (sch : Schedule)
 
-/-- Akita Definition 9.2: items (i) to (iii), and item (iv), which is S1, S2 (at most `Q_max`
-honest queries) and S3 (the budget of Akita (195)). -/
-def Admissible : Prop :=
-  (sch.recursive ∧ sch.compatible ∧ sch.extraction) ∧ sch.msisFloor ∧
+/-- The conditions of Akita Definition 9.2 that the schedule file does not decide: those of
+`rootBatching`, `compatible`, `extraction` and `msisFloor`, S2 (at most `Q_max` honest queries)
+and S3 (the budget of Akita (195)). -/
+def Rest : Prop :=
+  sch.rootBatching ∧ sch.compatible ∧ sch.extraction ∧ sch.msisFloor ∧
     sch.honestQueries ≤ sch.queryMax ∧
     (sch.queryMax + 1 : ℝ) * sch.interactiveError ≤ 1 / 2 ^ sch.lambdaFS
+
+/-- Akita Definition 9.2: a schedule in the family F1 to F3 with items (i) to (iv). -/
+def Admissible : Prop := sch.row.Conditions ∧ sch.Rest
+
+/-- A schedule with the row of `key20.aks` is admissible exactly when it has the conditions that
+the file does not decide. -/
+theorem admissible_key20_iff (file : sch.row = key20) : sch.Admissible ↔ sch.Rest := by
+  unfold Admissible
+  rw [file]
+  exact and_iff_right key20_conditions
+
+/-- No schedule with a row of `key30.aks` is admissible: the row is not in the family F1. -/
+theorem not_admissible_key30 (file : sch.row = key30W27 ∨ sch.row = key30W26) :
+    ¬ sch.Admissible := by
+  rintro ⟨⟨⟨methods, -⟩, -⟩, -⟩
+  rcases file with file | file <;> rw [file] at methods
+  exacts [key30W27_conditions.1 methods, key30W26_conditions.1 methods]
 
 /-- `N_setup · q / 2^w`, the bound on `Δ_setup` of Akita Theorem 10.46. -/
 noncomputable def setupGap : ℝ := sch.setupLength * fieldModulus / 2 ^ sch.drawBits

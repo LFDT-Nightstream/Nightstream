@@ -64,6 +64,11 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.prob_eq_law
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.map_fst_bind
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Use.wins_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.key20_conditions
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.key30W27_conditions
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.key30W26_conditions
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Schedule.admissible_key20_iff
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Schedule.not_admissible_key30
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.walk_sound
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.DensityLe.mono
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.CostLe.densityLe

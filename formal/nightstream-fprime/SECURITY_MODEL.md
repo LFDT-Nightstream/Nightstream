@@ -220,7 +220,7 @@ each head.
 | `finder` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]`, for the collision finder of a fold with at most `calls` permutation calls and inputs of at most `blocks` padded blocks. The event is one output of one run. The finder reruns the adversary on the oracles of its own tape, so no retry is outside the run (adversary 3). `calls` is a parameter of the adversary class, as in the row below |
 | `finders` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]`, for the finder of stage `j` with at most `calls j` permutation calls and inputs of at most `blocks` padded blocks. Lean has no count of the calls of a stage, which is a Lean function, so `calls` is a parameter of the adversary class, as `depth` is (adversary 4) |
 | `akita.theorem1046`, `binding` | `*` | assumption | `[AKITA]`: Akita Theorem 10.46 for the schedule of the opening, and the binding of the key commitment |
-| `akita.admissible` | `Spec.Compression.Akita.Schedule.Admissible` | open | Open: Lean does not model Akita's schedules, and Akita declares no query budget `Q_max` for the schedule files of `SPEC.md` section 3, so no check gives S2 and S3 of Akita Definition 9.2 |
+| `akita.admissible` | `Spec.Compression.Akita.Schedule.Admissible` | open | Open: no schedule with a row of `crates/ns-compress/artifacts/key30.aks`, the file of a key of `2^19` blocks, is admissible (`Spec.Compression.Akita.Schedule.not_admissible_key30`). Each row uses coefficient packing at levels 2 and 3, and the family F1 of Akita Definition 9.2 gives these levels evaluation trace. Akita Theorem 10.46 is for an admissible schedule, so it does not cover an opening under this file. The row of `crates/ns-compress/artifacts/key20.aks` has F1 to F3, I2, I3, the second part of I1 and C3 (`Spec.Compression.Akita.key20_conditions`), and `tests/AkitaSchedules.lean` compares the Lean rows with both files. The other conditions are open for each file (`Spec.Compression.Akita.Schedule.Rest`): a file holds no challenge certificate, sampler limit, setup registry or Module-SIS estimate for the root batching conditions of I1, C1, C2, C4 to C6, E1 to E3 and S1, and it holds no `λ_FS` and no `Q_max` for S2 and S3 |
 | `akita.admitted`, `akita.budget` | `*` | game | adversary 6: the prover with Akita openings is a classical random-oracle prover with at most `Q_max` queries to Akita's `H_FS` |
 | `accepts` | `Spec.Compression.Akita.Use.Opens` | game | `SPEC.md` Algorithm 10: step 11 accepts only when Akita accepts the three openings, the first against the commitment of the compression key |
 | `composition` | `Spec.Compression.Akita.Use.Composition` | open | Open: the gap of `V` of trust item 7. No result of Akita composes its opening with a commitment that follows a challenge of the application |
@@ -1301,8 +1301,8 @@ not change terminal source checks.
      Lemma 10.47 adds `ε_hash`
      (`Spec.Compression.Akita.Schedule.knowledgeError`). The setup of the
      theorem holds the commitments of the offloaded prefixes, so the error
-     covers them. Its conditions are open: Lean does not model the
-     schedules, and Akita declares no `Q_max` (premise `akita.admissible`).
+     covers them. Its conditions fail for `key30.aks`, which is not in the
+     family F1, and are open for `key20.aks` (premise `akita.admissible`).
      Second, `[AKITA]`: the commitment of the compression key binds the key
      polynomial, so the opened value is the value of the Ajtai key's
      polynomial (`Spec.Compression.Akita.Use.Binding`, premise `binding`).

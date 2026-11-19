@@ -5,8 +5,8 @@ use p3_field::PrimeCharacteristicRing;
 #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
 use super::eval_ring_scratch_real_z_blocks;
 use super::{
-    check_ccs_relation_zero_cached_with_blocks, fill, openings::pad_openings, EqualityWeights, MatrixRows,
-    MatrixWindow, RingEvalScratch, SuperneoCachedRelationError, SuperneoZBlocks,
+    check_ccs_relation_zero_cached_with_blocks, factored_openings::OpeningBands, fill, openings::pad_openings,
+    EqualityWeights, MatrixRows, MatrixWindow, RingEvalScratch, SuperneoCachedRelationError, SuperneoZBlocks,
 };
 use crate::PiCcsError;
 
@@ -31,6 +31,7 @@ pub fn evaluate_terminal_rows(
         Vec::new(),
         None,
         Some((polynomial, fresh)),
+        false,
     )
 }
 
@@ -40,7 +41,7 @@ pub fn eval_real_v1_2_openings_from_rows(
     witnesses: &[SuperneoZBlocks],
     workspace_bytes: usize,
 ) -> Result<Vec<V1_2Evaluations<K>>, PiCcsError> {
-    eval_real_v1_2_openings_from_rows_reusing(source, point, witnesses, workspace_bytes, Vec::new(), None)
+    Ok(evaluate_rows(source, point, witnesses, workspace_bytes, Vec::new(), None, None, false)?.openings)
 }
 
 pub(crate) fn eval_real_v1_2_openings_from_rows_reusing(
@@ -51,7 +52,7 @@ pub(crate) fn eval_real_v1_2_openings_from_rows_reusing(
     storage: Vec<K>,
     complete: Option<MatrixWindow>,
 ) -> Result<Vec<V1_2Evaluations<K>>, PiCcsError> {
-    Ok(evaluate_rows(source, point, witnesses, workspace_bytes, storage, complete, None)?.openings)
+    Ok(evaluate_rows(source, point, witnesses, workspace_bytes, storage, complete, None, true)?.openings)
 }
 
 fn evaluate_rows(
@@ -62,6 +63,7 @@ fn evaluate_rows(
     storage: Vec<K>,
     complete: Option<MatrixWindow>,
     terminal: Option<(&SparsePoly<F>, &SuperneoZBlocks)>,
+    factored_openings: bool,
 ) -> Result<TerminalEvaluations, PiCcsError> {
     let shape = source.shape();
     shape.validate(&(0..shape.rows))?;
@@ -106,6 +108,20 @@ fn evaluate_rows(
             openings: result,
             first_unsatisfied_row: None,
         });
+    }
+    if factored_openings {
+        if let Some(bands) = source
+            .factored()?
+            .and_then(|rows| OpeningBands::new(rows, workspace_bytes))
+        {
+            drop(complete);
+            let active_witnesses: Vec<_> = active.iter().map(|&index| &witnesses[index]).collect();
+            bands.evaluate(&weights, &active_witnesses, &active, &mut result, storage);
+            return Ok(TerminalEvaluations {
+                openings: result,
+                first_unsatisfied_row: None,
+            });
+        }
     }
     let row_bytes = if terminal.is_some() {
         shape

@@ -1,6 +1,7 @@
 //! Matrix rows in factored form `M_j = L_j · G` (Lean `SlotLayout.layout`, `LogicalPlan.plan`).
 
 use core::ops::Range;
+use std::sync::{Mutex, PoisonError};
 
 use neo_ccs::GeometricRowRun;
 use neo_math::{sum_of_scaled, KExtensions, D, F, K};
@@ -25,7 +26,9 @@ pub struct FactoredSlots<'a> {
     pub ratio: F,
 }
 
-const SLOT_WEIGHT_PARTS: usize = 8;
+const SLOTS_PER_BAND: usize = 1 << 14;
+const QUEUED_PER_BAND: usize = 512;
+const ROWS_PER_TASK: usize = 1 << 12;
 
 #[derive(Clone, Copy)]
 pub struct FactoredRows<'a> {
@@ -159,37 +162,69 @@ impl<'a> FactoredRows<'a> {
     }
 
     pub fn slot_weights(&self, row_weight: &(dyn Fn(usize) -> K + Sync), matrix_coefficients: &[K]) -> Vec<K> {
-        let part = |rows: Range<usize>| {
-            let mut weights = vec![K::ZERO; self.slot_count()];
-            for row in rows {
-                let row_weight = row_weight(row);
-                for (matrix, &coefficient) in matrix_coefficients.iter().enumerate() {
-                    let weight = row_weight * coefficient;
-                    for entry in self.range(row, matrix) {
-                        weights[self.entries.slots[entry] as usize] +=
-                            weight.scale_base(self.entries.coefficients[entry]);
+        let mut weights = vec![K::ZERO; self.slot_count()];
+        self.transpose_weights(
+            row_weight,
+            matrix_coefficients.iter().copied().enumerate(),
+            &mut weights,
+        );
+        weights
+    }
+
+    pub(super) fn transpose_weights(
+        &self,
+        row_weight_for: &(dyn Fn(usize) -> K + Sync),
+        matrices: impl Iterator<Item = (usize, K)> + Clone + Sync,
+        weights: &mut [K],
+    ) {
+        let bands: Vec<Mutex<&mut [K]>> = weights.chunks_mut(SLOTS_PER_BAND).map(Mutex::new).collect();
+        let add = |band: usize, queue: &mut Vec<(u32, K)>| {
+            if queue.is_empty() {
+                return;
+            }
+            let mut weights = bands[band].lock().unwrap_or_else(PoisonError::into_inner);
+            for (slot, term) in queue.drain(..) {
+                weights[slot as usize % SLOTS_PER_BAND] += term;
+            }
+        };
+        let queue_row = |mut queues: Vec<Vec<(u32, K)>>, row: usize| {
+            let row_weight = std::cell::OnceCell::new();
+            for (matrix, coefficient) in matrices.clone() {
+                let entries = self.range(row, matrix);
+                if entries.is_empty() || coefficient == K::ZERO {
+                    continue;
+                }
+                let weight = *row_weight.get_or_init(|| row_weight_for(row));
+                let weight = if coefficient == K::ONE {
+                    weight
+                } else {
+                    weight * coefficient
+                };
+                for entry in entries {
+                    let slot = self.entries.slots[entry];
+                    let band = slot as usize / SLOTS_PER_BAND;
+                    queues[band].push((slot, weight.scale_base(self.entries.coefficients[entry])));
+                    if queues[band].len() == QUEUED_PER_BAND {
+                        add(band, &mut queues[band]);
                     }
                 }
             }
-            weights
+            queues
         };
-        let parts = SLOT_WEIGHT_PARTS.min(self.shape.rows);
-        let rows = |part: usize| part * self.shape.rows / parts..(part + 1) * self.shape.rows / parts;
-        let add = |mut left: Vec<K>, right: Vec<K>| {
-            for (left, right) in left.iter_mut().zip(right) {
-                *left += right;
+        let empty = || vec![Vec::new(); bands.len()];
+        let add_all = |mut queues: Vec<Vec<(u32, K)>>| {
+            for (band, queue) in queues.iter_mut().enumerate() {
+                add(band, queue);
             }
-            left
         };
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-        return (0..parts)
+        (0..self.shape.rows)
             .into_par_iter()
-            .map(|index| part(rows(index)))
-            .reduce(|| vec![K::ZERO; self.slot_count()], add);
+            .with_min_len(ROWS_PER_TASK)
+            .fold(empty, queue_row)
+            .for_each(add_all);
         #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-        return (0..parts)
-            .map(|index| part(rows(index)))
-            .fold(vec![K::ZERO; self.slot_count()], add);
+        add_all((0..self.shape.rows).fold(empty(), queue_row));
     }
 
     pub fn weighted_row(&self, row: usize, matrix_coefficients: &[K], slot_values: &[K]) -> K {

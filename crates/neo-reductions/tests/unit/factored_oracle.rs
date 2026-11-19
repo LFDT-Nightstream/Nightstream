@@ -268,3 +268,117 @@ fn factored_rows_reject_an_entry_without_a_slot_or_a_slot_past_the_columns() {
     relation.starts[10] = (COLUMNS - 40) as u32;
     assert!(FactoredRows::new(Relation::shape(), relation.entries(), relation.spans()).is_err());
 }
+
+struct SlotRows {
+    shape: MatrixShape,
+    offsets: Vec<usize>,
+    slots: Vec<u32>,
+    coefficients: Vec<F>,
+    starts: Vec<u32>,
+    widths: Vec<u8>,
+}
+
+impl SlotRows {
+    fn new(
+        rng: &mut ChaCha8Rng,
+        rows: usize,
+        slots: usize,
+        matrices: usize,
+        read: impl Fn(&mut ChaCha8Rng) -> u32,
+    ) -> Self {
+        let mut offsets = vec![0];
+        let (mut read_slots, mut coefficients) = (Vec::new(), Vec::new());
+        for _ in 0..rows * matrices {
+            for _ in 0..1 + rng.next_u32() % 8 {
+                read_slots.push(read(rng));
+                coefficients.push(match rng.next_u32() % 4 {
+                    0 => F::ZERO,
+                    1 => -F::ONE,
+                    _ => F::from_u64(rng.next_u64()),
+                });
+            }
+            offsets.push(read_slots.len());
+        }
+        Self {
+            shape: MatrixShape {
+                rows,
+                columns: slots.next_multiple_of(D),
+                matrices,
+            },
+            offsets,
+            slots: read_slots,
+            coefficients,
+            starts: (0..slots as u32).collect(),
+            widths: vec![1; slots],
+        }
+    }
+
+    fn rows(&self) -> FactoredRows<'_> {
+        FactoredRows::new(
+            self.shape,
+            FactoredEntries {
+                offsets: &self.offsets,
+                slots: &self.slots,
+                coefficients: &self.coefficients,
+            },
+            FactoredSlots {
+                starts: &self.starts,
+                widths: &self.widths,
+                ratio: F::from_u64(3),
+            },
+        )
+        .unwrap()
+    }
+
+    fn defined_weights(&self, row_weight: impl Fn(usize) -> K, matrix_coefficients: &[K]) -> Vec<K> {
+        let mut weights = vec![K::ZERO; self.starts.len()];
+        for row in 0..self.shape.rows {
+            for (matrix, &coefficient) in matrix_coefficients.iter().enumerate() {
+                let index = row * self.shape.matrices + matrix;
+                for entry in self.offsets[index]..self.offsets[index + 1] {
+                    weights[self.slots[entry] as usize] +=
+                        row_weight(row) * coefficient * K::from(self.coefficients[entry]);
+                }
+            }
+        }
+        weights
+    }
+}
+
+fn assert_slot_weights(rows: &SlotRows, rng: &mut ChaCha8Rng) {
+    let row_weights: Vec<K> = (0..rows.shape.rows)
+        .map(|row| if row % 3 == 1 { K::ZERO } else { coin(rng) })
+        .collect();
+    let mut matrix_coefficients: Vec<K> = (0..rows.shape.matrices).map(|_| coin(rng)).collect();
+    if rows.shape.matrices > 1 {
+        matrix_coefficients[1] = K::ZERO;
+    }
+    let expected = rows.defined_weights(|row| row_weights[row], &matrix_coefficients);
+    assert!(expected.iter().any(|&weight| weight != K::ZERO));
+    assert!(
+        rows.rows()
+            .slot_weights(&|row| row_weights[row], &matrix_coefficients)
+            == expected
+    );
+    assert!(rows.rows().slot_weights(&|_| K::ZERO, &matrix_coefficients) == vec![K::ZERO; rows.starts.len()]);
+}
+
+#[test]
+fn slot_weights_are_their_definition() {
+    let mut rng = ChaCha8Rng::seed_from_u64(0x736c_6f74);
+    let spread = |slots: usize| move |rng: &mut ChaCha8Rng| rng.next_u32() % slots as u32;
+    for matrices in 1..=MATRICES {
+        for (rows, slots) in [(1, 5), (1, 3 * (1 << 14) + 5), (3 * (1 << 12) + 37, 3 * (1 << 14) + 5)] {
+            let relation = SlotRows::new(&mut rng, rows, slots, matrices, spread(slots));
+            assert_slot_weights(&relation, &mut rng);
+        }
+    }
+    let one_band = SlotRows::new(
+        &mut rng,
+        2 * (1 << 12) + 1,
+        1 << 15,
+        MATRICES,
+        |rng: &mut ChaCha8Rng| rng.next_u32() % 64,
+    );
+    assert_slot_weights(&one_band, &mut rng);
+}

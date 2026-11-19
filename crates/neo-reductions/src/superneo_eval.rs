@@ -13,6 +13,7 @@ mod compact;
 mod digit;
 mod equality;
 mod factored;
+mod factored_openings;
 mod geometric;
 mod matrix_cache_impl;
 mod matrix_rows;

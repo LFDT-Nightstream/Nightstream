@@ -6,7 +6,7 @@ use crate::nebula::circuit::memory_circuit;
 use crate::nebula::segment::initial_memory;
 use crate::nebula::{
     Application, CatalogBinding, CatalogBindingError, CatalogRowError, Expr, Geometry, Invocation, Memory, PortAccess,
-    Program, Region, Run, Transition, View,
+    Program, Region, Row, Run, Transition, View,
 };
 use crate::relation::{
     ColumnFamilySpec, ColumnRegistry, ColumnWidth, MemoryCatalog, MemoryKind, MemoryPortActivation, MemoryPortKind,
@@ -195,10 +195,15 @@ impl Application for CatalogApp {
         Vec::new()
     }
 
-    fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
+    fn rows(&self, view: &View) -> Result<Vec<Row>, crate::Error> {
         let columns: Vec<Expr> = (0..self.columns).map(|column| view.aux(column)).collect();
         if self.bound {
-            self.binding.rows(view, &columns)
+            Ok(self
+                .binding
+                .rows(view, &columns)?
+                .into_iter()
+                .map(Row::Expr)
+                .collect())
         } else {
             Ok(Vec::new())
         }

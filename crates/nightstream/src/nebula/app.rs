@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use neo_math::F;
 
-use super::expr::Expr;
+use super::expr::Row;
 use super::geometry::Geometry;
 use super::poseidon::Poseidon2Hint;
 use super::records::PortAccess;
@@ -42,7 +42,7 @@ pub trait Application {
     /// on an honest step and reads only the view's words (Lean `AppView`);
     /// a memory circuit rejects a row with any other variable. An error
     /// means the application has no rows for the view's geometry.
-    fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error>;
+    fn rows(&self, view: &View) -> Result<Vec<Row>, crate::Error>;
 
     /// Optional permutation traces in `rows`. The compiler checks their exact
     /// rows, private-word spans, and inputs before native block lowering.

@@ -36,7 +36,7 @@ use neo_wasm::{
     WasmMemoryPreload, WasmStepState,
 };
 use nightstream::nebula::{
-    size_parts, Application, CatalogRowError, Expr, Geometry, Memory, Program, R1csStepError, Region, Run,
+    size_parts, Application, CatalogRowError, Expr, Geometry, Memory, Program, R1csStepError, Region, Row, Run,
     SegmentError, Transition, View,
 };
 use nightstream::relation::{MemoryPortActivation, MemoryPortKind};
@@ -244,7 +244,7 @@ impl Setup {
 #[derive(Clone)]
 struct Kept {
     app: WasmApplication,
-    rows: Rc<RefCell<Vec<Expr>>>,
+    rows: Rc<RefCell<Vec<Row>>>,
 }
 
 impl Application for Kept {
@@ -268,7 +268,7 @@ impl Application for Kept {
         Application::words(&self.app, state)
     }
 
-    fn rows(&self, view: &View) -> Result<Vec<Expr>, nightstream::Error> {
+    fn rows(&self, view: &View) -> Result<Vec<Row>, nightstream::Error> {
         let rows = self.app.rows(view)?;
         self.rows.replace(rows.clone());
         Ok(rows)
@@ -284,7 +284,7 @@ impl Application for Kept {
     }
 }
 
-fn application_rows(app: &WasmApplication, geometry: &Geometry) -> Vec<Expr> {
+fn application_rows(app: &WasmApplication, geometry: &Geometry) -> Vec<Row> {
     let kept = Kept {
         app: app.clone(),
         rows: Rc::default(),
@@ -303,10 +303,10 @@ fn eval(expr: &Expr, words: &[F]) -> F {
     }
 }
 
-fn failing(rows: &[Expr], words: &[F]) -> Vec<usize> {
+fn failing(rows: &[Row], words: &[F]) -> Vec<usize> {
     rows.iter()
         .enumerate()
-        .filter(|(_, row)| eval(row, words) != F::ZERO)
+        .filter(|(_, row)| eval(&row.expr(), words) != F::ZERO)
         .map(|(position, _)| position)
         .collect()
 }
@@ -1049,7 +1049,7 @@ impl Application for Idle {
         vec![0; self.width]
     }
 
-    fn rows(&self, _: &View) -> Result<Vec<Expr>, nightstream::Error> {
+    fn rows(&self, _: &View) -> Result<Vec<Row>, nightstream::Error> {
         Ok(Vec::new())
     }
 

@@ -26,7 +26,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::app::{Application, Memory, Transition};
 use super::catalog::{CatalogBinding, CatalogBindingError, CatalogRowError, Region};
-use super::expr::Expr;
+use super::expr::{Expr, Row};
 use super::geometry::Geometry;
 use super::rows::View;
 use super::{MemoryPreload, Program};
@@ -415,29 +415,28 @@ impl<Id: Clone + Eq> Application for R1csApplication<Id> {
     /// binding rows. Every row but `z[one] = 1` reads the constant 1 in place
     /// of `z[one]` (Lean `PortApp.fixColumn`), so a row `x · (x − one)` reads
     /// only `x` and gives `x` a bit slot (SPEC.md section 7.6).
-    fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
+    fn rows(&self, view: &View) -> Result<Vec<Row>, crate::Error> {
         let one = view.aux(self.layout.one);
         let mut z: Vec<Expr> = (0..self.aux()).map(|column| view.aux(column)).collect();
         z[self.layout.one] = Expr::constant(1);
-        let affine = |terms: &Terms| {
+        let form = |terms: &Terms| {
             terms
                 .iter()
-                .fold(Expr::constant(0), |sum, (column, coefficient)| {
-                    sum + Expr::Const(*coefficient) * z[*column].clone()
-                })
+                .map(|(column, coefficient)| (z[*column].clone(), *coefficient))
+                .collect()
         };
-        let mut rows: Vec<Expr> = self
+        let mut rows: Vec<Row> = self
             .relation
             .iter()
-            .map(|[a, b, c]| affine(c) - affine(a) * affine(b))
+            .map(|sides| Row::RankOne(sides.each_ref().map(form)))
             .collect();
-        rows.push(one - Expr::constant(1));
+        rows.push((one - Expr::constant(1)).into());
         let last = self.layout.rows.get() - 1;
         for (k, link) in self.links.iter().enumerate() {
-            rows.push(z[self.column(0, next(link))].clone() - view.input(k));
-            rows.push(z[self.column(last, previous(link))].clone() - view.output(k));
+            rows.push((z[self.column(0, next(link))].clone() - view.input(k)).into());
+            rows.push((z[self.column(last, previous(link))].clone() - view.output(k)).into());
         }
-        rows.extend(self.binding.rows(view, &z)?);
+        rows.extend(self.binding.rows(view, &z)?.into_iter().map(Row::Expr));
         Ok(rows)
     }
 

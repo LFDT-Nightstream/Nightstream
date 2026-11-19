@@ -5,7 +5,7 @@ use neo_math::K;
 use super::carry::{Carry, Products};
 use super::transcript::state_words;
 use super::{
-    Application, Context, Expr, Machine, MachineError, MachineState, Memory, Package, Program, ProgramError, Run,
+    Application, Context, Expr, Machine, MachineError, MachineState, Memory, Package, Program, ProgramError, Row, Run,
     SegmentError, Statement, Step, TerminalError, Transition, View,
 };
 use neo_math::F;
@@ -724,10 +724,10 @@ impl Application for Changed {
         Machine.words(state)
     }
 
-    fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
+    fn rows(&self, view: &View) -> Result<Vec<Row>, crate::Error> {
         let mut rows = Machine.rows(view)?;
         if let Changed::Row = self {
-            rows[2] = rows[2].clone() * Expr::constant(2);
+            rows[2] = (rows[2].expr() * Expr::constant(2)).into();
         }
         Ok(rows)
     }
@@ -863,11 +863,11 @@ impl Application for ReadsWord {
         Vec::new()
     }
 
-    fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
+    fn rows(&self, view: &View) -> Result<Vec<Row>, crate::Error> {
         let word = crate::application::ApplicationBuilder::new(self.0 + 1)
             .unwrap()
             .private_inputs()[self.0];
-        Ok(vec![view.pad(0) * (view.vr(0) - Expr::Var(word))])
+        Ok(vec![(view.pad(0) * (view.vr(0) - Expr::Var(word))).into()])
     }
 
     fn step(&self, _: &(), _: &(), _: &Memory) -> Result<Transition<()>, Self::Error> {
@@ -919,7 +919,7 @@ impl Application for Listed {
         state.clone()
     }
 
-    fn rows(&self, _: &View) -> Result<Vec<Expr>, crate::Error> {
+    fn rows(&self, _: &View) -> Result<Vec<Row>, crate::Error> {
         Ok(Vec::new())
     }
 

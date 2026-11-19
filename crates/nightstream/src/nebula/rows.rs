@@ -283,24 +283,20 @@ impl<'a> Sym<'a> {
         rows
     }
 
-    /// `memoryRows`.
-    pub(super) fn memory_row_groups(&self) -> [(&'static str, Vec<Expr>); 5] {
+    /// `memoryRows`, one slot at a time.
+    pub(super) fn memory_row_groups(&self) -> [(&'static str, Box<dyn Iterator<Item = Expr> + '_>); 5] {
         [
-            ("Bit rows", self.bit_rows()),
-            ("Arm rows", self.arm_rows()),
+            ("Bit rows", Box::new(self.bit_rows())),
+            ("Arm rows", Box::new(self.arm_rows().into_iter())),
             (
                 "Operation slot rows",
-                (0..self.geometry.b_ops)
-                    .flat_map(|j| self.slot_rows(j))
-                    .collect(),
+                Box::new((0..self.geometry.b_ops).flat_map(|j| self.slot_rows(j))),
             ),
             (
                 "Scan slot rows",
-                (0..self.geometry.b_scan)
-                    .flat_map(|j| self.scan_rows(j))
-                    .collect(),
+                Box::new((0..self.geometry.b_scan).flat_map(|j| self.scan_rows(j))),
             ),
-            ("Close rows", self.close_rows()),
+            ("Close rows", Box::new(self.close_rows().into_iter())),
         ]
     }
 
@@ -316,8 +312,8 @@ impl<'a> Sym<'a> {
         words
     }
 
-    fn bit_rows(&self) -> Vec<Expr> {
-        self.bit_words().into_iter().map(bit_row).collect()
+    fn bit_rows(&self) -> impl Iterator<Item = Expr> {
+        self.bit_words().into_iter().map(bit_row)
     }
 
     fn arm_rows(&self) -> Vec<Expr> {

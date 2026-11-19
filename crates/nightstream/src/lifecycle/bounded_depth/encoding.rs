@@ -111,6 +111,7 @@ impl BoundedDepth {
             current,
             pc,
             slots: [first, second],
+            checked_rows: None,
             fresh: Some(CcsInstance {
                 claim: CcsClaim {
                     c,

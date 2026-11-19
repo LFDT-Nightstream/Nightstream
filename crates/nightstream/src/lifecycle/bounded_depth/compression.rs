@@ -18,9 +18,9 @@ use p3_field::PrimeField64;
 
 use super::super::encoding::{Reader, Shape, Writer};
 use super::super::ProofCodecError;
-use super::{words, BoundedDepth, BoundedDepthError, Compression, Envelope, LIGHT_FOLD_CAP};
+use super::{words, BoundedDepth, BoundedDepthError, Compression, Envelope, FreshMatrixRows, LIGHT_FOLD_CAP};
 use crate::folding::transcript::Transcript;
-use crate::folding::{pi_ccs, CcsClaim, CeClaim, RunningInstance};
+use crate::folding::{pi_ccs, CcsClaim, CeClaim, FoldContext, RunningInstance};
 
 const PI_CCS_DOMAIN: &[u8] = b"Nightstream/OptionB/compress/ccs/v1";
 const MATRICES: usize = nightstream_fprime::PI_CCS_V1_2_MATRIX_COUNT;
@@ -303,10 +303,18 @@ impl BoundedDepth {
         let start = Instant::now();
         let commitment = ns_compress::byte_words(committed.commitment_to_bind());
         let mut transcript = Transcript::session();
+        let rows = FreshMatrixRows {
+            relation: &self.relations[(pc - 1) as usize],
+            prepared: envelope.checked_rows.as_deref(),
+            witness: &fresh.witness.Z,
+        };
         let mut ccs = pi_ccs::prove_from_parts_with_rows(
             &mut transcript,
             &self.backend,
-            self.relations[(pc - 1) as usize].context(),
+            FoldContext {
+                rows: &rows,
+                ..rows.relation.context()
+            },
             &Self::compression_profile(&commitment),
             &fresh.claim,
             &fresh.witness,

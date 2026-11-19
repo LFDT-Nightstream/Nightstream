@@ -6,6 +6,7 @@ mod words;
 
 use crate::engine::{Backend, CommitError, EngineError};
 use crate::folding::bounded_depth::{prove, Kind};
+use crate::folding::FoldContext;
 use crate::folding::{pi_dec, pi_rlc, CcsInstance, RunningInstance};
 pub(crate) use compression::FinalProof;
 use neo_ccs::crypto::poseidon2::poseidon2_hash;
@@ -16,6 +17,7 @@ use nightstream_fprime::{
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 pub use relation::RelationError;
+use relation::{CheckedFreshRows, FreshMatrixRows};
 pub(crate) use relation::{CompiledStep, Holds, Relation};
 use std::sync::Arc;
 
@@ -106,6 +108,7 @@ pub(crate) struct Envelope {
     pc: u64,
     slots: [Slot; 2],
     fresh: Option<CcsInstance>,
+    checked_rows: Option<Arc<CheckedFreshRows>>,
 }
 
 impl Envelope {
@@ -220,6 +223,7 @@ impl BoundedDepth {
             pc: 0,
             slots: [self.default_slot(0)?, self.default_slot(1)?],
             fresh: None,
+            checked_rows: None,
         })
     }
 
@@ -288,10 +292,18 @@ impl BoundedDepth {
         } else {
             Kind::Refresh
         };
+        let rows = FreshMatrixRows {
+            relation: &self.relations[selected],
+            prepared: envelope.checked_rows.as_deref(),
+            witness: &fresh.witness.Z,
+        };
         let (accumulator, proof) = prove(
             kind,
             &self.backend,
-            self.relations[selected].context(),
+            FoldContext {
+                rows: &rows,
+                ..rows.relation.context()
+            },
             fresh.clone(),
             slot.accumulator.clone(),
         )?;
@@ -334,23 +346,42 @@ impl BoundedDepth {
             _ => (Kind::Light, words::base_step(&prior, next, witness)?.0),
         };
         let relation = &self.relations[words::pc(kind) as usize - 1];
-        let columns = relation.assignment_columns(&step, locals)?;
-        #[cfg(test)]
-        if KEEP_FAULTY_PROOF.get() {
-            FAILED_ROW.set(relation.first_failing_row(&step)?);
-        }
         #[cfg(test)]
         let keeps_faulty = KEEP_FAULTY_PROOF.get();
         #[cfg(not(test))]
         let keeps_faulty = false;
+        let reserved = (!keeps_faulty && matches!(self.backend, Backend::Optimized))
+            .then(|| relation.reserve_checked_rows())
+            .flatten();
+        let keep_checked = reserved.is_some();
+        let columns = relation.assignment_columns(&step, locals)?;
+        #[cfg(test)]
+        if keeps_faulty {
+            FAILED_ROW.set(relation.first_failing_row(&step)?);
+        }
         let (instance, held) = std::thread::scope(|scope| {
-            let check = (!keeps_faulty).then(|| scope.spawn(|| relation.source_rows_hold(&columns)));
+            let check = (!keeps_faulty).then(|| {
+                scope.spawn(|| {
+                    if keep_checked {
+                        relation.checked_source_rows(&columns).map(Some)
+                    } else {
+                        relation.source_rows_hold(&columns).map(|()| None)
+                    }
+                })
+            });
             let instance = relation.instance(&self.backend, &columns);
-            let held = check.map_or(Ok(()), |check| check.join().unwrap_or(Err("row check panicked")));
+            let held = check.map_or(Ok(None), |check| check.join().unwrap_or(Err("row check panicked")));
             (instance, held)
         });
         let instance = instance?;
-        held.map_err(BoundedDepthError::Fresh)?;
+        let checked_rows = held
+            .map_err(BoundedDepthError::Fresh)?
+            .zip(reserved)
+            .map(|(rows, mut slot)| {
+                let checked = Arc::new(CheckedFreshRows::new(&instance.witness.Z, rows));
+                *slot = Some(Arc::downgrade(&checked));
+                checked
+            });
         Ok(Envelope {
             iteration: envelope.iteration + 1,
             z0: envelope.z0,
@@ -358,6 +389,7 @@ impl BoundedDepth {
             pc: words::pc(kind),
             slots,
             fresh: Some(instance),
+            checked_rows,
         })
     }
 

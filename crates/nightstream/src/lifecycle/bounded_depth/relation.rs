@@ -1,7 +1,7 @@
 //! Lean `LogicalPlan.plan`, `SlotLayout.layout`, `GatePolynomial.terms`.
 use std::ops::Range;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard, TryLockError, Weak};
 
 use crate::engine::{Backend, CommitError, DeviceError, EngineError};
 use crate::folding::{
@@ -11,6 +11,7 @@ use crate::folding::{
 use neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS;
 use neo_ccs::crypto::poseidon2::SBOX_DEGREE;
 use neo_ccs::poly::{SparsePoly, Term};
+use neo_ccs::Mat;
 use neo_math::{D, F, K};
 use neo_reductions::superneo_eval::{
     FactoredEntries, FactoredRows, FactoredSlots, MatrixRowSink, MatrixRows, MatrixShape, MatrixWindow,
@@ -44,6 +45,7 @@ pub(crate) enum Holds {
 }
 
 pub(crate) struct CompiledStep {
+    opening_columns: neo_reductions::superneo_eval::OpeningColumns,
     expanded: ExpandedPackage,
     spans: SlotSpans,
     workspace_bytes: usize,
@@ -52,6 +54,7 @@ pub(crate) struct CompiledStep {
 impl CompiledStep {
     pub(crate) fn new(expanded: ExpandedPackage) -> Result<Self, RelationError> {
         let mut step = Self {
+            opening_columns: Default::default(),
             spans: expanded.layout().spans(),
             expanded,
             workspace_bytes: 0,
@@ -87,6 +90,7 @@ impl CompiledStep {
                 ratio: self.spans.ratio,
             },
         )
+        .with_opening_columns(&self.opening_columns)
     }
 }
 
@@ -108,11 +112,80 @@ impl MatrixRows for CompiledStep {
     }
 }
 
+pub(super) struct CheckedFreshRows {
+    witness: Mat<F>,
+    values: Mutex<Option<Vec<[F; MATRICES]>>>,
+}
+
+impl CheckedFreshRows {
+    pub(super) fn new(witness: &Mat<F>, values: Vec<[F; MATRICES]>) -> Self {
+        Self {
+            witness: witness.clone(),
+            values: Mutex::new(Some(values)),
+        }
+    }
+
+    fn matches(&self, witness: &Mat<F>) -> bool {
+        self.witness
+            .packed_signed_unit_column_masks()
+            .zip(witness.packed_signed_unit_column_masks())
+            .is_some_and(|((stored_p, stored_n), (p, n))| std::ptr::eq(stored_p, p) && std::ptr::eq(stored_n, n))
+    }
+
+    fn take(&self) -> Option<Vec<[F; MATRICES]>> {
+        self.values
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+    }
+
+    #[cfg(test)]
+    pub(super) fn retained(&self) -> bool {
+        self.values.lock().unwrap().is_some()
+    }
+}
+
+pub(super) struct FreshMatrixRows<'a> {
+    pub(super) relation: &'a Relation,
+    pub(super) prepared: Option<&'a CheckedFreshRows>,
+    pub(super) witness: &'a Mat<F>,
+}
+
+impl MatrixRows for FreshMatrixRows<'_> {
+    fn shape(&self) -> MatrixShape {
+        MatrixRows::shape(self.relation)
+    }
+
+    fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
+        self.relation.visit_rows(rows, sink)
+    }
+
+    fn retained_window(&self) -> Option<&RetainedMatrixWindow> {
+        self.relation.retained_window()
+    }
+
+    fn factored(&self) -> Result<Option<FactoredRows<'_>>, PiCcsError> {
+        self.relation.factored()
+    }
+
+    fn take_checked_fresh_rows(&self) -> Option<Vec<[F; MATRICES]>> {
+        let prepared = self.prepared?;
+        let mut slot = self.relation.checked_slot()?;
+        let ready = slot.as_ref()?.upgrade()?;
+        if !std::ptr::eq(prepared, &*ready) || !ready.matches(self.witness) {
+            return None;
+        }
+        *slot = None;
+        ready.take()
+    }
+}
+
 pub(crate) struct Relation {
     step: Arc<CompiledStep>,
     structure: Structure,
     params: Params,
     window: RetainedMatrixWindow,
+    checked: Mutex<Option<Weak<CheckedFreshRows>>>,
 }
 
 impl Relation {
@@ -149,6 +222,7 @@ impl Relation {
             structure,
             params,
             window: RetainedMatrixWindow::default(),
+            checked: Mutex::new(None),
         })
     }
 
@@ -164,6 +238,22 @@ impl Relation {
             rows: self,
             workspace_bytes: self.step.workspace_bytes,
         }
+    }
+
+    fn checked_slot(&self) -> Option<MutexGuard<'_, Option<Weak<CheckedFreshRows>>>> {
+        match self.checked.try_lock() {
+            Ok(slot) => Some(slot),
+            Err(TryLockError::Poisoned(error)) => Some(error.into_inner()),
+            Err(TryLockError::WouldBlock) => None,
+        }
+    }
+
+    pub(super) fn reserve_checked_rows(&self) -> Option<MutexGuard<'_, Option<Weak<CheckedFreshRows>>>> {
+        let mut slot = self.checked_slot()?;
+        if let Some(previous) = slot.take().and_then(|entry| entry.upgrade()) {
+            drop(previous.take());
+        }
+        Some(slot)
     }
 
     /// Lean `FreshInstance.Masks`, `FreshInstance.built`.
@@ -256,6 +346,43 @@ impl Relation {
             };
         }
         self.rows_hold(&logical[..width]).map_err(Holds::Fails)
+    }
+
+    pub(super) fn checked_source_rows(&self, columns: &[F]) -> Result<Vec<[F; MATRICES]>, &'static str> {
+        let rows = self.step.expanded.rows();
+        let mut values = vec![[F::ZERO; MATRICES]; rows.row_count()];
+        let pending = Mutex::new(values.chunks_mut(ROWS_PER_RANGE).enumerate());
+        let produce = || loop {
+            let Some((index, group)) = pending
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .next()
+            else {
+                return None;
+            };
+            for (local, output) in group.iter_mut().enumerate() {
+                let row = index * ROWS_PER_RANGE + local;
+                let [a, b, c, s] = std::array::from_fn(|matrix| rows.evaluate(row, matrix, columns));
+                if a * b - c + s.exp_u64(SBOX_DEGREE) != F::ZERO {
+                    return Some(row);
+                }
+                *output = [a, b, c, s];
+            }
+        };
+        let threads = std::thread::available_parallelism().map_or(1, usize::from);
+        std::thread::scope(|scope| {
+            let workers: Vec<_> = (0..threads).map(|_| scope.spawn(produce)).collect();
+            let failures = workers
+                .into_iter()
+                .map(|worker| worker.join().map_err(|_| "row worker panicked"))
+                .collect::<Result<Vec<_>, _>>()?;
+            failures
+                .into_iter()
+                .flatten()
+                .min()
+                .map_or(Ok(()), |_| Err("a relation row fails"))
+        })?;
+        Ok(values)
     }
 
     pub(crate) fn source_rows_hold(&self, columns: &[F]) -> Result<(), &'static str> {

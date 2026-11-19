@@ -11,6 +11,7 @@ struct OriginalRows {
     rows: usize,
     visits: AtomicUsize,
     fail: bool,
+    sbox: bool,
 }
 
 impl OriginalRows {
@@ -19,6 +20,7 @@ impl OriginalRows {
             rows,
             visits: AtomicUsize::new(0),
             fail: false,
+            sbox: false,
         }
     }
 }
@@ -62,6 +64,14 @@ impl MatrixRows for OriginalRows {
                         matrix,
                         GeometricRowRun::new(row, D + 1, 1, F::from_usize(row + 5), F::ONE),
                     )?,
+                    3 if self.sbox && row % 8 >= 3 => {
+                        let coefficient = match row % 8 {
+                            3..=5 => F::from_u64(5),
+                            6 => -F::ONE,
+                            _ => F::from_usize(row),
+                        };
+                        sink.push_run(row, matrix, GeometricRowRun::new(row, D, 1, coefficient, F::ONE))?;
+                    }
                     _ => {}
                 }
                 if sink.finish_matrix_row(row, matrix)? == ControlFlow::Break(()) {
@@ -231,6 +241,83 @@ fn fresh_application_replay_matches_retained_and_independent_rows() {
 }
 
 #[test]
+fn poseidon2_gate_rounds_match_sparse_evaluation_in_resident_and_replay_tables() {
+    let source = OriginalRows {
+        sbox: true,
+        ..OriginalRows::new(37)
+    };
+    let blocks = witnesses()
+        .iter()
+        .map(|witness| SuperneoZBlocks::from_witness_mat(witness, 2 * D).unwrap())
+        .collect::<Vec<_>>();
+    let mut terms = polynomial().terms().to_vec();
+    terms[2].exps[3] = neo_ccs::crypto::poseidon2::SBOX_DEGREE as u32;
+    let gate = SparsePoly::new(4, terms.clone());
+    terms.rotate_left(1);
+    let sparse = SparsePoly::new(4, terms);
+    assert!(is_poseidon2_gate(&gate));
+    assert!(!is_poseidon2_gate(&sparse));
+    assert!(!is_poseidon2_gate(&SparsePoly::new(5, gate.terms().to_vec())));
+
+    let variables = source.rows.next_power_of_two().ilog2() as usize;
+    let alpha = (0..variables)
+        .map(|round| K::from_coeffs([F::from_usize(round + 11), F::from_usize(round + 17)]))
+        .collect::<Vec<_>>();
+    let mut points: [K; 9] = std::array::from_fn(|i| K::from(F::from_usize(i)));
+    points[7] = K::from_coeffs([F::from_u64(43), F::from_u64(41)]);
+    points[8] = K::from_coeffs([-F::ONE, F::from_u64(59)]);
+    let gamma = K::from_coeffs([F::from_u64(67), F::from_u64(71)]);
+    let (replay_budget, resident_budget) = budgets(&source, blocks.len(), points.len());
+    let mut replay = ApplicationTables::new(&source, &blocks, replay_budget).unwrap();
+    let mut resident = ApplicationTables::new(&source, &blocks, resident_budget).unwrap();
+    let mut reference = ApplicationTables::new(&source, &blocks, resident_budget).unwrap();
+    let single = &blocks[..1];
+    let mut fused = ApplicationTables::new(&source, single, resident_budget).unwrap();
+    let mut single_reference = ApplicationTables::new(&source, single, resident_budget).unwrap();
+    for round in 0..variables {
+        let weights = EqualityWeights::new(&alpha[round + 1..]);
+        let expected = reference
+            .evals_at(&source, &blocks, &sparse, gamma, &points, &weights)
+            .unwrap();
+        let challenge = K::from_coeffs([F::from_usize(round + 2), F::from_usize(round + 3)]);
+        for tables in [&mut replay, &mut resident] {
+            assert_eq!(
+                tables
+                    .evals_at(&source, &blocks, &gate, gamma, &points, &weights)
+                    .unwrap(),
+                expected,
+                "round {round}"
+            );
+            tables.fold(challenge);
+        }
+        reference.fold(challenge);
+        assert_eq!(
+            fused
+                .evals_at(&source, single, &gate, gamma, &points, &weights)
+                .unwrap(),
+            single_reference
+                .evals_at(&source, single, &sparse, gamma, &points, &weights)
+                .unwrap(),
+        );
+        let current = fused.resident.as_ref().unwrap();
+        let (address, capacity) = (current.words.as_ptr(), current.words.capacity());
+        if round + 1 < variables {
+            let next = EqualityWeights::new(&alpha[round + 2..]);
+            fused.fold_next_gate(challenge, &gate, &next);
+        } else {
+            fused.fold(challenge);
+        }
+        single_reference.fold(challenge);
+        let actual = fused.resident.as_ref().unwrap();
+        assert_eq!(actual.words, single_reference.resident.as_ref().unwrap().words);
+        assert_eq!(actual.words.as_ptr(), address);
+        assert_eq!(actual.words.capacity(), capacity);
+    }
+    assert!(replay.peak_bytes <= replay_budget);
+    assert!(resident.peak_bytes <= resident_budget);
+}
+
+#[test]
 fn complete_first_round_window_serves_the_openings_without_another_visit() {
     let source = OriginalRows::new(17);
     let witnesses = witnesses();
@@ -350,6 +437,7 @@ fn pair_workers_match_serial_with_exact_payload_budgets() {
                         gamma,
                         &points,
                         &weights,
+                        false,
                         &mut coordinates,
                         &mut result,
                     )
@@ -516,4 +604,62 @@ fn application_values_reject_a_budget_that_cannot_hold_a_pair() {
         )
         .is_err());
     assert!(owner.peak_bytes <= scratch);
+}
+
+#[test]
+fn checked_fresh_rows_match_and_are_consumed_once() {
+    struct Prepared {
+        source: OriginalRows,
+        values: std::sync::Mutex<Option<Vec<[F; 4]>>>,
+    }
+    impl MatrixRows for Prepared {
+        fn shape(&self) -> MatrixShape {
+            self.source.shape()
+        }
+        fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
+            self.source.visit_rows(rows, sink)
+        }
+        fn take_checked_fresh_rows(&self) -> Option<Vec<[F; 4]>> {
+            self.values.lock().unwrap().take()
+        }
+    }
+    let rows = 73;
+    let inputs = witnesses();
+    let blocks = [SuperneoZBlocks::from_witness_mat(&inputs[0], 2 * D).unwrap()];
+    let point: Vec<K> = (0..7)
+        .map(|i| K::from_coeffs([F::from_usize(i + 2), F::from_usize(i + 5)]))
+        .collect();
+    let values = original_values(rows, &inputs[..1]);
+    let prepared = Prepared {
+        source: OriginalRows::new(rows),
+        values: std::sync::Mutex::new(Some(
+            (0..rows)
+                .map(|row| std::array::from_fn(|matrix| values[0][matrix][row].real()))
+                .collect(),
+        )),
+    };
+    let (_, budget) = budgets(&prepared.source, blocks.len(), 4);
+    let budget = budget + rows * size_of::<[F; 4]>();
+    let points = [K::ZERO, K::ONE, K::from(F::from_u8(2)), K::from(F::from_u8(3))];
+    let poly = polynomial();
+    let mut actual = ApplicationTables::new(&prepared, &blocks, budget).unwrap();
+    let mut reference = ApplicationTables::new(&prepared.source, &blocks, budget).unwrap();
+    for round in 0..point.len() {
+        let weights = EqualityWeights::new(&point[round + 1..]);
+        let expected = reference
+            .evals_at(&prepared.source, &blocks, &poly, K::ONE, &points, &weights)
+            .unwrap();
+        let visits = prepared.source.visits.load(Ordering::Relaxed);
+        assert_eq!(
+            actual
+                .evals_at(&prepared, &blocks, &poly, K::ONE, &points, &weights)
+                .unwrap(),
+            expected
+        );
+        assert_eq!(prepared.source.visits.load(Ordering::Relaxed), visits);
+        reference.fold(point[round]);
+        actual.fold(point[round]);
+    }
+    assert!(prepared.take_checked_fresh_rows().is_none());
+    assert!(actual.peak_bytes <= budget);
 }

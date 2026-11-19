@@ -44,11 +44,11 @@ are not checked.
 The results use only the assumptions of this list, and each is on a
 primitive. A random oracle on a derived object (the Poseidon2 hash, a
 transcript, `η`, or a challenge) is not an assumption. Such a model is
-`[P2-PERM]` and `[SPONGE]`, with the conditions of `[SPONGE]` as Lean
+`[P2-PERM]` with `[SPONGE]` or `[DSFS]`, with their conditions as Lean
 hypotheses, or it is a Lean theorem. Section Hashed encodings gives the status
 of each condition. `scripts/check_assumptions.py`, in the `static` phase of
 `scripts/validate.sh`, fails when an entry of this list is not on the owner's
-list of 2026-11-13, when another part of this page or `SPEC.md` states an
+list of 2026-11-13 and 2026-11-18, when another part of this page or `SPEC.md` states an
 assumption, or when a trust item cites no assumption and is not a gap or a
 scope note.
 
@@ -76,6 +76,22 @@ scope note.
   function has this birthday bound (`Spec.RandomOracle.pair_collision_le`).
   Two uses whose words start with tags that differ at a position of both
   never absorb one block list (`Spec.Sponge.blocks_ne_of_differ`).
+- `DSFS`: the duplex-sponge Fiat–Shamir lemma (Chiesa and Orrù, ePrint 2025/536, Lemma 5.1, as the proof of
+  Theorem 6.2 uses it) for the fold transcripts on Nightstream's sponge. Under `[P2-PERM]` and the
+  conditions `Export.BoundedDepth.FoldSponge.Conditions`, each fold prover with at most `N` permutation
+  calls has a model prover with at most `N` queries to the uniform function of adversary 3. The probability
+  that the fold succeeds and the extractor, which reruns the model prover, does not extract is at most
+  `duplexError N = 25·N²/q⁴` larger for the fold prover (`Spec.Sponge.duplexError`,
+  `Spec.Sponge.DuplexTransfer`). The number is the error of that theorem for the alphabet `F_q`, a capacity
+  of 4 lanes and a codec bias of 0 (each challenge reads lanes of the state), when `N` is larger than the
+  number of permutation calls of one verifier run. The paper does not prove two parts, so they are parts of
+  this entry (`decisions/duplex-sponge-fiat-shamir.md`). (A) The lemma is for the sponge of ePrint 2025/536,
+  Construction 3.3, which writes each block over the rate lanes. Nightstream adds each block to the rate
+  lanes (`Spec.Poseidon2.absorbBlock`). The paper says, without a proof, that its analysis adapts to the add
+  mode. A start from a fixed state that absorbs the instance is a case that ePrint 2025/536, Section 2.2,
+  says the analysis covers. (B) The model prover of the lemma samples values, and the rewinding
+  knowledge soundness of ePrint 2025/536, Definition 3.8, is for deterministic provers. So the model prover
+  has one fixed random tape for the base run and each retry.
 - `KECCAK`: SHAKE128, SHAKE256, SHA3-256 and the Keccak-f duplex of Akita in
   the classical random-oracle model: the Ajtai setup reads SHAKE128 output
   as uniform 64-bit words (trust item 1), and Akita reads its challenges as
@@ -199,7 +215,7 @@ each head.
 | `assumption` | `Spec.HyperNova.ReverseStages.Assumption1` | assumption | `[HN-A1]` |
 | `closed.*`, `admitted` | `*` | assumption | `[HN-A1]`, in the form of trust item 3: the closure premise and the admitted adversary |
 | `Nebula/premise` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]` |
-| `Fold/premise` | `Spec.Sponge.Transfer` | open | Open: the event includes the extractor's retries, which query the oracle again after the base run. Indifferentiability moves one run, not a game with retries (adversary 3), so `[SPONGE]` does not give this transfer |
+| `Fold/premise` | `Spec.Sponge.DuplexTransfer` | assumption | `[DSFS]` under `[P2-PERM]`, for a fold prover with at most `calls` permutation calls and a model adversary with at most `calls` queries. The event includes the extractor's retries (adversary 3). `calls` is a parameter of the adversary class, as in the row `finder`, and it is larger than the number of permutation calls of one verifier run |
 | `Nebula/disjoint`, `Nebula/inRange`, `Nebula/images`, `Nebula/reorders`, `Nebula/bound` | `*` | open | Open: the conditions of a catalog application (`Spec.Nebula.MemoryTrace.Binding`). No Lean result shows that the binding rows of the Rust catalog backend enforce them (Out of scope) |
 | `finder` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]`, for the collision finder of a fold with at most `calls` permutation calls and inputs of at most `blocks` padded blocks. The event is one output of one run. The finder reruns the adversary on the oracles of its own tape, so no retry is outside the run (adversary 3). `calls` is a parameter of the adversary class, as in the row below |
 | `finders` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]`, for the finder of stage `j` with at most `calls j` permutation calls and inputs of at most `blocks` padded blocks. Lean has no count of the calls of a stage, which is a Lean function, so `calls` is a parameter of the adversary class, as `depth` is (adversary 4) |
@@ -531,33 +547,26 @@ not change terminal source checks.
   (`Lifecycle.RandomOracle.Schedule.challengeAddress_injective`), equal calls
   fix the absorbed data (`Lifecycle.RandomOracle.Schedule.proverCalls_identify`),
   and the light and refresh transcripts share no call prefix
-  (`Lifecycle.RandomOracle.Schedule.challengeCalls_separated`). These are
-  conditions of `[SPONGE]`. Under `[P2-PERM]` and `[SPONGE]`, the bound of
-  the model holds for a verifier that reads the sponge outside a circuit, plus
-  `spongeError N`, when every condition holds. The fold calls start with
-  their domain (`Export.DomainSeparation.fold_owns`), and the fold domains
-  are separated from the other uses (`Claims.Encodings.domains_separated`).
-  The model reads each address as the sponge does at the rate lanes
-  (`Lifecycle.BoundedDepth.RandomOracle.Fidelity.spongeOracle_deployed`).
-  The state of a `ρ` read is the state of no other challenge, because its
-  calls are longer than those of a `K` coin and two `ρ` reads have
-  different numbers of calls (`Lifecycle.RandomOracle.Schedule.rhoCalls_ne`).
-  So a new answer at a `ρ` point keeps the Π_CCS coins
-  (`Lifecycle.RandomOracle.Fork.update_rho_ne`). With these conditions
-  proved for every fold schedule (`Export.BoundedDepth.FoldSponge.conditions`),
-  the premise `Spec.Sponge.Transfer` moves the failure event: the fold
-  succeeds and the extractor, with the retries of the retry law, does not
-  extract (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.failureChance`).
-  In the ideal-permutation model its chance is at most the knowledge error
-  of the transfer's model adversary plus `spongeError N`
-  (`Claims.Fold.light_knowledge`, `Claims.Fold.refresh_knowledge`). The event
-  includes the retries, which give new answers at the `ρ` points. So the
-  premise moves the base run and its retries as one experiment, which is
-  more than the indifferentiability of one run: indifferentiability does not
-  cover a game with retries (Ristenpart, Shacham and Shrimpton,
-  EUROCRYPT 2011). So the premise is open, not `[SPONGE]`. The model adversary has the
-  query bound `Q` of the premise, which must be at least the number of
-  queries of the simulator of `[SPONGE]`.
+  (`Lifecycle.RandomOracle.Schedule.challengeCalls_separated`). The fold calls
+  start with their domain (`Export.DomainSeparation.fold_owns`), and the fold
+  domains are separated from the other uses
+  (`Claims.Encodings.domains_separated`). The model reads each address as the
+  sponge does at the rate lanes
+  (`Lifecycle.BoundedDepth.RandomOracle.Fidelity.spongeOracle_deployed`). The
+  state of a `ρ` read is the state of no other challenge, because its calls are
+  longer than those of a `K` coin and two `ρ` reads have different numbers of
+  calls (`Lifecycle.RandomOracle.Schedule.rhoCalls_ne`). So a new answer at a
+  `ρ` point keeps the Π_CCS coins
+  (`Lifecycle.RandomOracle.Fork.update_rho_ne`). These are the conditions of
+  `[DSFS]` (`Export.BoundedDepth.FoldSponge.conditions`). The event is the
+  failure event: the fold succeeds and the extractor, with the retries of the
+  retry law, does not extract
+  (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.failureChance`). The
+  event has retries, so `[DSFS]` moves it, not `[SPONGE]`, which moves one run
+  only. For a prover with `N` permutation calls and a verifier outside a
+  circuit, its chance is at most the knowledge error of a model adversary with
+  `N` queries plus `duplexError N` (`Claims.Fold.light_knowledge`,
+  `Claims.Fold.refresh_knowledge`).
 - **Not covered:** the step circuits recompute the challenges with the
   Poseidon2 permutation, and no ideal-permutation model covers a circuit
   that evaluates the permutation. So this result bounds no deployed check of

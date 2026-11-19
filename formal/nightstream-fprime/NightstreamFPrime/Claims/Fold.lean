@@ -21,8 +21,9 @@ Completeness and knowledge of the two folds of the bounded-depth scheme.
   argument, and each gives the witnesses or a Π_CCS bad event.
 - `assumption1_in_random_oracle_model` holds in the random-oracle model of the folds.
   `light_knowledge` and `refresh_knowledge` hold in the ideal-permutation model (`[P2-PERM]`)
-  under an open transfer premise: the event includes the extractor's retries, and `[SPONGE]`
-  moves one run only.
+  under `[DSFS]`: ePrint 2025/536 (Chiesa and Orrù), Lemma 5.1 and Theorem 6.2, give a prover
+  with `calls` permutation calls a model prover with `calls` queries, with the event's chance
+  at most `duplexError calls` higher. The event includes the extractor's retries.
 - `light_extracts` and `refresh_extracts` also take `strongSet`, the units of the strong
   sampling set. It returns data, so the premise list does not show it.
   `Claims.Foundations.low_norm_invertible` is the result behind it.
@@ -394,33 +395,33 @@ theorem refresh_error_bits
         ((↑queries : ℝ) + 1) / 2 ^ FoldGate.bits FoldGate.production :=
   @Lifecycle.BoundedDepth.RandomOracle.FoldGate.refresh_statisticalError_le_bits queries
 
-/-- Adversary 3 for the light fold in the ideal-permutation model: under `Spec.Sponge.Transfer` of
-the failure event (the fold succeeds and the extractor does not extract) with the light
-conditions, the chance of the event for each `world` is at most the knowledge error of the
-transfer's model adversary plus `spongeError calls`. -/
+/-- Adversary 3 for the light fold in the ideal-permutation model: under
+`Spec.Sponge.DuplexTransfer` of the failure event (the fold succeeds and the extractor does not
+extract) with the light conditions (`[DSFS]`), the chance of the event for each `world` with
+`calls` permutation calls is at most the knowledge error of a model adversary with `calls`
+queries plus `duplexError calls`. -/
 theorem light_knowledge
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
         PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (key : CircuitKey logicalWidth publicFits)
-    {queries : ℕ}
     {World : Type}
     (winsOf : World → ℝ)
     (calls : ℕ)
-    (premise : Sponge.Transfer
+    (premise : Sponge.DuplexTransfer
         (FoldSponge.Conditions (LightSchedule.schedule logicalWidth publicFits) (width := 8)
           FoldSponge.lightUse)
         winsOf
-        (fun (adversary : FoldSponge.LightAdversary logicalWidth publicFits queries) =>
+        (fun queries (adversary : FoldSponge.LightAdversary logicalWidth publicFits queries) =>
           LightKnowledge.failureChance ajtai key adversary.1)
         calls)
     (world : World) :
-    ∃ adversary : FoldSponge.LightAdversary logicalWidth publicFits queries,
-      winsOf world ≤ LightKnowledge.knowledgeError ajtai key adversary.1 queries +
-        Sponge.spongeError calls :=
-  @Export.BoundedDepth.FoldSponge.light_knowledge_le logicalWidth publicFits ajtai key queries
-    World winsOf calls premise world
+    ∃ adversary : FoldSponge.LightAdversary logicalWidth publicFits calls,
+      winsOf world ≤ LightKnowledge.knowledgeError ajtai key adversary.1 calls +
+        Sponge.duplexError calls :=
+  @Export.BoundedDepth.FoldSponge.light_knowledge_le logicalWidth publicFits ajtai key World
+    winsOf calls premise world
 
 /-- Adversary 3 for the refresh fold in the ideal-permutation model, as `light_knowledge`. -/
 theorem refresh_knowledge
@@ -429,23 +430,22 @@ theorem refresh_knowledge
         PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (key : CircuitKey logicalWidth publicFits)
-    {queries : ℕ}
     {World : Type}
     (winsOf : World → ℝ)
     (calls : ℕ)
-    (premise : Sponge.Transfer
+    (premise : Sponge.DuplexTransfer
         (FoldSponge.Conditions (RefreshSchedule.schedule logicalWidth publicFits) (width := 8)
           FoldSponge.refreshUse)
         winsOf
-        (fun (adversary : FoldSponge.RefreshAdversary logicalWidth publicFits queries) =>
+        (fun queries (adversary : FoldSponge.RefreshAdversary logicalWidth publicFits queries) =>
           RefreshKnowledge.failureChance ajtai key adversary.1)
         calls)
     (world : World) :
-    ∃ adversary : FoldSponge.RefreshAdversary logicalWidth publicFits queries,
-      winsOf world ≤ RefreshKnowledge.knowledgeError ajtai key adversary.1 queries +
-        Sponge.spongeError calls :=
-  @Export.BoundedDepth.FoldSponge.refresh_knowledge_le logicalWidth publicFits ajtai key queries
-    World winsOf calls premise world
+    ∃ adversary : FoldSponge.RefreshAdversary logicalWidth publicFits calls,
+      winsOf world ≤ RefreshKnowledge.knowledgeError ajtai key adversary.1 calls +
+        Sponge.duplexError calls :=
+  @Export.BoundedDepth.FoldSponge.refresh_knowledge_le logicalWidth publicFits ajtai key World
+    winsOf calls premise world
 
 /-- HyperNova errata Assumption 1 for both bounded-depth folds in the random-oracle model, with the
 budgeted extractor and the error `romError`. -/

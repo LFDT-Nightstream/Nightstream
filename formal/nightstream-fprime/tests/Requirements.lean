@@ -262,6 +262,38 @@ example
   @Claims.Fold.refresh_knowledge_error_numeric key adversary queries bounded budget positive blocks
     calls finder
 
+-- SPEC.md section 1: under `[P2-PERM]` and `[DSFS]`, for a prover with `N` permutation calls, the
+-- chance that the light fold succeeds and the extractor does not extract is at most the knowledge
+-- error of a model adversary with `N` queries plus `25 · N²/q⁴`, with `q = 2^64 − 59`.
+example (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (key : CircuitKey logicalWidth publicFits) {World : Type} (winsOf : World → ℝ) (calls : ℕ)
+    (premise : Sponge.DuplexTransfer
+      (FoldSponge.Conditions (RandomOracle.LightSchedule.schedule logicalWidth publicFits)
+        (width := 8) FoldSponge.lightUse) winsOf
+      (fun queries (adversary : FoldSponge.LightAdversary logicalWidth publicFits queries) =>
+        RandomOracle.LightKnowledge.failureChance ajtai key adversary.1) calls)
+    (world : World) :
+    ∃ adversary : FoldSponge.LightAdversary logicalWidth publicFits calls,
+      winsOf world ≤ RandomOracle.LightKnowledge.knowledgeError ajtai key adversary.1 calls +
+        25 * (calls : ℝ) ^ 2 / (((2 ^ 64 - 59 : ℕ) : ℝ)) ^ 4 :=
+  Claims.Fold.light_knowledge ajtai key winsOf calls premise world
+
+-- SPEC.md section 1: under `[P2-PERM]` and `[DSFS]`, for a prover with `N` permutation calls, the
+-- chance that the refresh fold succeeds and the extractor does not extract is at most the knowledge
+-- error of a model adversary with `N` queries plus `25 · N²/q⁴`, with `q = 2^64 − 59`.
+example (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (key : CircuitKey logicalWidth publicFits) {World : Type} (winsOf : World → ℝ) (calls : ℕ)
+    (premise : Sponge.DuplexTransfer
+      (FoldSponge.Conditions (RandomOracle.RefreshSchedule.schedule logicalWidth publicFits)
+        (width := 8) FoldSponge.refreshUse) winsOf
+      (fun queries (adversary : FoldSponge.RefreshAdversary logicalWidth publicFits queries) =>
+        RandomOracle.RefreshKnowledge.failureChance ajtai key adversary.1) calls)
+    (world : World) :
+    ∃ adversary : FoldSponge.RefreshAdversary logicalWidth publicFits calls,
+      winsOf world ≤ RandomOracle.RefreshKnowledge.knowledgeError ajtai key adversary.1 calls +
+        25 * (calls : ℝ) ^ 2 / (((2 ^ 64 - 59 : ℕ) : ℝ)) ^ 4 :=
+  Claims.Fold.refresh_knowledge ajtai key winsOf calls premise world
+
 -- SPEC.md section 7.6: when the regions are disjoint, every event is in range and the initial
 -- state holds the program images, for an execution whose active ports bind a reorder of the
 -- events, the events replay to a catalog state in which each address of a region that is inside

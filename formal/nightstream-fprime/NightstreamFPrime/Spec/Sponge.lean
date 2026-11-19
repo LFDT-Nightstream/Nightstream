@@ -7,9 +7,10 @@ import NightstreamFPrime.Spec.RandomOracle
 
 /-! The sponge layer of `SECURITY_MODEL.md`, section Assumptions.
 
-`[P2-PERM]` takes `Poseidon2.permute` as a uniform permutation, and `[SPONGE]` is the sponge
-indifferentiability theorem with the error `spongeError`. This file states the conditions of
-`[SPONGE]` as Lean predicates.
+`[P2-PERM]` takes `Poseidon2.permute` as a uniform permutation, `[SPONGE]` is the sponge
+indifferentiability theorem with the error `spongeError`, and `[DSFS]` is the duplex-sponge
+Fiat–Shamir lemma with the error `duplexError`. This file states the conditions of `[SPONGE]`
+as Lean predicates.
 
 - `Padding`: a padding that is injective, keeps its input as a prefix of the padded words and
   gives full rate blocks. The `10*` padding of `Poseidon2.hash` is one (`padding`), and `hash` is
@@ -22,6 +23,10 @@ indifferentiability theorem with the error `spongeError`. This file states the c
 - `Transfer` applies `[SPONGE]` to one use: under the use's conditions, each adversary of the
   ideal-permutation model has a counterpart in the use's random-oracle model that wins at most
   `spongeError calls` less often.
+- `DuplexTransfer` applies `[DSFS]` to one Fiat–Shamir use: under the use's conditions, each
+  prover of the ideal-permutation model with `calls` permutation calls has a counterpart with at
+  most `calls` queries in the use's random-oracle model that wins at most `duplexError calls`
+  less often. The event can include an extractor that reruns the counterpart.
 - The collision use (`CollisionConditions`, proved by `collisionConditions`): a collision of
   `hash` is a collision of a uniform 4-lane function on block lists. A model adversary with `Q`
   queries finds one with chance at most `C(Q + 2, 2)/q⁴` (`collisionChance_le`, the birthday
@@ -116,6 +121,23 @@ theorem transfer_le {World : Type uWorld} {Model : Type uModel} {conditions : Pr
     winsOf world ≤ bound + spongeError calls := by
   obtain ⟨model, wins⟩ := premise proved world
   linarith [modelBound model]
+
+/-- The error of `[DSFS]` for `calls` permutation calls: `25 · calls² / q^c`, with the capacity
+`c = width − rate = 4` lanes. It is `η⋆` of ePrint 2025/536 (Chiesa and Orrù), Theorem 6.2, at
+the codec bias 0. -/
+noncomputable def duplexError (calls : ℕ) : ℝ :=
+  25 * (calls : ℝ) ^ 2 / (fieldModulus : ℝ) ^ (width - rate)
+
+/-- `[DSFS]` for one use, in the shape of ePrint 2025/536 (Chiesa and Orrù), Lemma 5.1. Under
+`conditions`, each prover `world` of the ideal-permutation model (`[P2-PERM]`) with `calls`
+permutation calls has a counterpart `model` with the query bound `calls` in the use's
+random-oracle model, and the wins `winsOf world` are at most `modelWins calls model` plus
+`duplexError calls`. `Model queries` is the type of the model provers with at most `queries`
+queries. -/
+def DuplexTransfer {World : Type uWorld} {Model : ℕ → Type uModel} (conditions : Prop)
+    (winsOf : World → ℝ) (modelWins : ∀ queries, Model queries → ℝ) (calls : ℕ) : Prop :=
+  conditions → ∀ world, ∃ model : Model calls,
+    winsOf world ≤ modelWins calls model + duplexError calls
 
 /-- A point of the collision model: a list of at most `blocks` rate blocks. -/
 abbrev BlockList (blocks : ℕ) := {list : List (Fin rate → F) // list.length ≤ blocks}

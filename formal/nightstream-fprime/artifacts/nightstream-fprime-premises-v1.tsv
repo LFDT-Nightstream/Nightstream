@@ -651,7 +651,7 @@ Claims.Fold.light_extracts	fork.baseHolds	Spec.Folding.Light.Rlc.Holds
 Claims.Fold.light_extracts	fork.forkHolds	Spec.Folding.Light.Rlc.Holds
 Claims.Fold.light_knowledge	publicFits	LE.le
 Claims.Fold.light_knowledge	key.relation.cubeFits	LE.le
-Claims.Fold.light_knowledge	premise	Spec.Sponge.Transfer
+Claims.Fold.light_knowledge	premise	Spec.Sponge.DuplexTransfer
 Claims.Fold.light_knowledge_error_numeric	bounded	Spec.RandomOracle.OracleComp.QueryBound
 Claims.Fold.light_knowledge_error_numeric	positive	LT.lt
 Claims.Fold.light_knowledge_error_numeric	finder	Spec.Sponge.Transfer
@@ -916,7 +916,7 @@ Claims.Fold.refresh_extracts	fork.agreeExcept	Spec.Folding.PiRLC.PaperForkAlgebr
 Claims.Fold.refresh_extracts	fork.changed	Ne
 Claims.Fold.refresh_knowledge	publicFits	LE.le
 Claims.Fold.refresh_knowledge	key.relation.cubeFits	LE.le
-Claims.Fold.refresh_knowledge	premise	Spec.Sponge.Transfer
+Claims.Fold.refresh_knowledge	premise	Spec.Sponge.DuplexTransfer
 Claims.Fold.refresh_knowledge_error_numeric	bounded	Spec.RandomOracle.OracleComp.QueryBound
 Claims.Fold.refresh_knowledge_error_numeric	positive	LT.lt
 Claims.Fold.refresh_knowledge_error_numeric	finder	Spec.Sponge.Transfer

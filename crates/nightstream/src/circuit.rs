@@ -426,15 +426,21 @@ impl Prover {
             .as_ref()
             .ok_or(ApplicationError::NoApplication)?;
         let current = proof.state().current();
-        let (witness, folded) = std::thread::scope(|scope| {
-            let run = scope.spawn(|| application.execute_compiled(current, private_inputs));
-            let folded = self.lifecycle.fold_owned(proof.0);
-            (
-                run.join()
-                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
-                folded,
-            )
-        });
+        let witness = || application.execute_compiled(current, private_inputs);
+        let fold = || self.lifecycle.fold_owned(proof.0);
+        let (folded, witness) = if rayon::current_thread_index().is_some() && !ns_compress::in_cpu_prover_pool() {
+            rayon::join(fold, witness)
+        } else {
+            std::thread::scope(|scope| {
+                let run = scope.spawn(witness);
+                let folded = fold();
+                (
+                    folded,
+                    run.join()
+                        .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
+                )
+            })
+        };
         let witness = witness?;
         Ok(Proof(self.lifecycle.step(
             folded?,

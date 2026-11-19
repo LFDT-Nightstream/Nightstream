@@ -128,6 +128,10 @@ thread_local! {
     static PROVER_WORKER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
+pub fn in_cpu_prover_pool() -> bool {
+    PROVER_WORKER.get()
+}
+
 pub struct CpuProverPool(ThreadPool);
 
 impl CpuProverPool {
@@ -149,7 +153,7 @@ impl CpuProverPool {
 
 /// Under fat LTO, Akita's NTT loops need more than rayon's default 2 MB stack.
 pub(crate) fn on_large_stacks<R: Send>(work: impl FnOnce() -> R + Send) -> R {
-    if PROVER_WORKER.get() {
+    if in_cpu_prover_pool() {
         return work();
     }
     static POOL: OnceLock<Option<ThreadPool>> = OnceLock::new();

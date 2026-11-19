@@ -205,6 +205,12 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.use
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.solve
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.binding
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.commit_binding
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.binaryDigits_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Shape.key20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Shape.key30
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Shape.key20_honest
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Shape.key30_honest
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.walk_sound
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.DensityLe.mono
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.CostLe.densityLe

@@ -17,7 +17,8 @@ premises of `[AKITA]` (`SECURITY_MODEL.md`, trust item 7).
   the transcript as digests, so Akita Lemma 10.47 adds `ε_hash` (`Schedule.knowledgeError`).
 - `Use` is the one Akita opening of a final proof (SPEC.md Algorithm 10, step 11). Its premises
   are `Use.Knowledge` (Theorem 10.46 with its conditions), `Use.Binding` (the commitment of the
-  compression key opens only to the key polynomial, which Theorem 10.46 does not give) and
+  compression key opens only to the key polynomial, which Theorem 10.46 does not give and
+  `Akita/Binding.lean` reduces to Module-SIS) and
   `Use.Composition` (an extracted win is a win of the game with ideal openings, which no result of
   Akita gives, because the prover commits `V` after the challenge `τ`).
 - `Use.wins_le`: under these premises, the prover with Akita openings wins at most `Use.error`
@@ -247,8 +248,8 @@ def Composition (prover : Prover u.scheme u.claims) (event : prover.Tape → Pro
     Prop :=
   ∀ extractor, u.Efficient prover extractor → extractor.chance (u.Extracted event extractor) ≤ ideal
 
-/-- The error of `[AKITA]` for the prover: the error of Akita Theorem 10.46 with Lemma 10.47, and
-the binding error. -/
+/-- The error of the Akita opening for the prover: the error of Akita Theorem 10.46 with
+Lemma 10.47, and the binding error. -/
 noncomputable def error (prover : Prover u.scheme u.claims) : ℝ :=
   u.schedule.knowledgeError prover (u.advantage prover) + u.bindingError prover
 

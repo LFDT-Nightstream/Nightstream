@@ -1,5 +1,5 @@
 import NightstreamFPrime.Spec.Compression.Akita
-import NightstreamFPrime.Spec.Compression.Akita.Commitment
+import NightstreamFPrime.Spec.Compression.Akita.Commit
 
 /-! Binding of the Akita commitment of the compression key (ePrint 2026/1983, revision of
 2026-10-15), by a reduction to solutions of Module-SIS.
@@ -11,7 +11,8 @@ import NightstreamFPrime.Spec.Compression.Akita.Commitment
   payload with different tables give a solution for `A`, `B`, `F_1` or `F_2`.
 - `pcs` is the scheme whose decommitment relation is `Certified.Opens`, and `use` is an opening of
   a final proof on it. `binding` gives `Use.Binding` when the reduction `solve` returns a solution
-  on the output of an extractor with probability at most `bindingError`. -/
+  on the output of an extractor with probability at most `bindingError`. `commit_binding` is
+  `binding` for the output of the commitment algorithm. -/
 
 namespace NightstreamFPrime.Spec.Compression.Akita
 
@@ -228,6 +229,21 @@ theorem binding (reference : Decommitment S) (referenceBound : ℕ)
   change (solve S claims _ reference index (extractor.run draw.1 draw.2)).isSome = true
   rw [ran]
   exact collision_isSome certified opens short different
+
+/-- `binding` for the commitment algorithm of Akita Section 4.5: the payload `(commit key table).1`
+binds the padded table. The reference decommitment is the commitment state, with `ρ = b/2` for
+its balanced digits. -/
+theorem commit_binding (table : Table) (honest : S.Honest)
+    (msis : ∀ (prover : Prover (pcs S factorBound sourceBound eval verify) claims)
+      (extractor : Extractor prover), Admitted prover → Efficient prover extractor →
+      extractor.chance (fun draw => (solve S claims (key := key)
+        (sourceBound + factorBound * (S.sourceBase / 2)) (commit key table).2 index
+        (extractor.run draw.1 draw.2)).isSome) ≤ bindingError prover) :
+    (use S factorBound sourceBound eval verify claims schedule key index (commit key table).1
+      (S.pad table) Admitted Efficient advantage bindingError).Binding :=
+  binding S factorBound sourceBound eval verify claims schedule key index _ _ Admitted Efficient
+    advantage bindingError (commit key table).2 (S.sourceBase / 2) (commit_opens honest key table)
+    (fun _ => (decompose_balanced honest.source _).vecNormInf_le) msis
 
 end Scheme
 

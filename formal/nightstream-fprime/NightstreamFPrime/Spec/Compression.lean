@@ -1,6 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita
 import NightstreamFPrime.Spec.Compression.Akita.Binding
 import NightstreamFPrime.Spec.Compression.Akita.Commit
+import NightstreamFPrime.Spec.Compression.Akita.Shapes
 import NightstreamFPrime.Spec.Compression.Game.Law
 import NightstreamFPrime.Spec.Compression.Game.SumCheck
 import NightstreamFPrime.Spec.Compression.Lib.Combination
@@ -22,5 +23,6 @@ soundness bound and its completeness for the honest prover (`Verifier`), and the
 instance of the argument (`Production`), with the ring equations of a claim as the opening
 and the evaluations of `Spec.CE.Holds` (`Claim`), and Π_CCS on one source as a game (`Fresh`),
 and Akita as a polynomial commitment scheme with the premises of `[AKITA]` (`Akita`), with the
-Akita commitment (`Akita/Commitment`, `Akita/Commit`) and the binding of the commitment of the
-compression key from Module-SIS (`Akita/Binding`). -/
+Akita commitment (`Akita/Commitment`, `Akita/Commit`), the shapes of the key group of the schedule
+files (`Akita/Shapes`) and the binding of the commitment of the compression key from Module-SIS
+(`Akita/Binding`). -/

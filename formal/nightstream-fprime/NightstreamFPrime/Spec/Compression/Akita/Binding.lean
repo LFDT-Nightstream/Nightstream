@@ -12,7 +12,8 @@ import NightstreamFPrime.Spec.Compression.Akita.Commit
 - `pcs` is the scheme whose decommitment relation is `Certified.Opens`, and `use` is an opening of
   a final proof on it. `binding` gives `Use.Binding` when the reduction `solve` returns a solution
   on the output of an extractor with probability at most `bindingError`. `commit_binding` is
-  `binding` for the output of the commitment algorithm. -/
+  `binding` for the output of the commitment algorithm, at the bounds of Akita (50) for an opening
+  descriptor. -/
 
 namespace NightstreamFPrime.Spec.Compression.Akita
 
@@ -122,15 +123,16 @@ noncomputable def collision (key : Key S) (innerBound : ℕ) (st : Certified S)
 /-- Akita Corollary 10.25 with a reference occurrence on one side: a certified decommitment with
 the bounds `κ̄_1` and `β̄_∞` and a reference decommitment with `‖s⁰_i‖_∞ ≤ ρ` (certificate
 `c̄ = 1`, Akita (162) and (163)) of one payload to different tables give a solution of Module-SIS:
-for `A` with the bound `β̄_∞ + κ̄_1·ρ` of Akita (164), for `B` with the bound `b⋆ − 1`, or for a
-compression map with the bound 1. -/
-theorem collision_isSome {key : Key S} {factorBound sourceBound referenceBound : ℕ}
+for `A` with each bound `η_A ≥ β̄_∞ + κ̄_1·ρ` (Akita (164)), for `B` with the bound `b⋆ − 1`, or for
+a compression map with the bound 1. -/
+theorem collision_isSome {key : Key S} {factorBound sourceBound referenceBound innerBound : ℕ}
     {st : Certified S} {reference : Decommitment S} {payload : S.Payload} {table table' : Table}
     (opens : st.Opens factorBound sourceBound key payload table)
     (referenceOpens : reference.Opens key payload table')
     (short : ∀ i, vecNormInf (reference.source i) ≤ referenceBound)
+    (covers : sourceBound + factorBound * referenceBound ≤ innerBound)
     (different : table ≠ table') :
-    (collision key (sourceBound + factorBound * referenceBound) st reference).isSome := by
+    (collision key innerBound st reference).isSome := by
   refine isSome_or_map.mpr ?_
   by_cases digits :
       S.sliceInput st.inner ≠ S.sliceInput reference.inner ∨ st.chain ≠ reference.chain
@@ -148,8 +150,9 @@ theorem collision_isSome {key : Key S} {factorBound sourceBound referenceBound :
     · exact fun same => differs ((opens.unit i).smul_left_cancel.mp same)
     · rw [Matrix.mulVec_smul, Matrix.mulVec_smul, opens.source.innerRows,
         referenceOpens.innerRows, inner]
-    · exact (vecNormInf_sub_le _ _).trans (Nat.add_le_add (opens.sourceNorm i)
-        ((vecNormInf_smul_le _ _).trans (Nat.mul_le_mul (opens.factorNorm i) (short i))))
+    · exact ((vecNormInf_sub_le _ _).trans (Nat.add_le_add (opens.sourceNorm i)
+        ((vecNormInf_smul_le _ _).trans (Nat.mul_le_mul (opens.factorNorm i) (short i))))).trans
+        covers
 
 end Reference
 
@@ -210,15 +213,15 @@ noncomputable def solve {key : Key S} (innerBound : ℕ) (reference : Decommitme
 /-- Binding of the commitment of the compression key (`Use.Binding`) from Module-SIS. The
 reference decommitment opens `keyCommitment` to `keyTable` with `‖s⁰_i‖_∞ ≤ ρ`. For each admitted
 prover and each efficient extractor, `solve` returns a solution of Module-SIS for `A` with the
-bound `β̄_∞ + κ̄_1·ρ`, for `B` with the bound `b⋆ − 1`, or for `F_1` or `F_2` with the bound 1,
-with probability at most `bindingError` (`msis`). -/
-theorem binding (reference : Decommitment S) (referenceBound : ℕ)
+bound `η_A ≥ β̄_∞ + κ̄_1·ρ` (`covers`), for `B` with the bound `b⋆ − 1`, or for `F_1` or `F_2` with
+the bound 1, with probability at most `bindingError` (`msis`). -/
+theorem binding (reference : Decommitment S) (referenceBound innerBound : ℕ)
     (opens : reference.Opens key keyCommitment keyTable)
     (short : ∀ i, vecNormInf (reference.source i) ≤ referenceBound)
+    (covers : sourceBound + factorBound * referenceBound ≤ innerBound)
     (msis : ∀ (prover : Prover (pcs S factorBound sourceBound eval verify) claims)
       (extractor : Extractor prover), Admitted prover → Efficient prover extractor →
-      extractor.chance (fun draw => (solve S claims (key := key)
-        (sourceBound + factorBound * referenceBound) reference index
+      extractor.chance (fun draw => (solve S claims (key := key) innerBound reference index
         (extractor.run draw.1 draw.2)).isSome) ≤ bindingError prover) :
     (use S factorBound sourceBound eval verify claims schedule key index keyCommitment keyTable
       Admitted Efficient advantage bindingError).Binding := by
@@ -228,23 +231,39 @@ theorem binding (reference : Decommitment S) (referenceBound : ℕ)
   rintro draw ⟨witness, ran, certified, different⟩
   change (solve S claims _ reference index (extractor.run draw.1 draw.2)).isSome = true
   rw [ran]
-  exact collision_isSome certified opens short different
-
-/-- `binding` for the commitment algorithm of Akita Section 4.5: the payload `(commit key table).1`
-binds the padded table. The reference decommitment is the commitment state, with `ρ = b/2` for
-its balanced digits. -/
-theorem commit_binding (table : Table) (honest : S.Honest)
-    (msis : ∀ (prover : Prover (pcs S factorBound sourceBound eval verify) claims)
-      (extractor : Extractor prover), Admitted prover → Efficient prover extractor →
-      extractor.chance (fun draw => (solve S claims (key := key)
-        (sourceBound + factorBound * (S.sourceBase / 2)) (commit key table).2 index
-        (extractor.run draw.1 draw.2)).isSome) ≤ bindingError prover) :
-    (use S factorBound sourceBound eval verify claims schedule key index (commit key table).1
-      (S.pad table) Admitted Efficient advantage bindingError).Binding :=
-  binding S factorBound sourceBound eval verify claims schedule key index _ _ Admitted Efficient
-    advantage bindingError (commit key table).2 (S.sourceBase / 2) (commit_opens honest key table)
-    (fun _ => (decompose_balanced honest.source _).vecNormInf_le) msis
+  exact collision_isSome certified opens short covers different
 
 end Scheme
+
+section Key
+
+variable (S : Shape) (O : Descriptor) {Point Value Proof : Type} (eval : Table → Point → Value)
+  (verify : Key S → (n : ℕ) → (Fin n → S.Payload × Point × Value) → Proof → Prop)
+  (claims : ℕ) (schedule : Schedule) (key : Key S) (index : Fin claims)
+  (Admitted : Prover (pcs S O.factorBound (O.sourceBound S) eval verify) claims → Prop)
+  (Efficient : (prover : Prover (pcs S O.factorBound (O.sourceBound S) eval verify) claims) →
+    Extractor prover → Prop)
+  (advantage : Prover (pcs S O.factorBound (O.sourceBound S) eval verify) claims →
+    Fin schedule.instances → ℝ)
+  (bindingError : Prover (pcs S O.factorBound (O.sourceBound S) eval verify) claims → ℝ)
+
+/-- `binding` for the commitment algorithm of Akita Section 4.5, at the bounds `κ̄_1` and
+`β̄_∞ = Δ^cert_f` of the opening descriptor `O`: the payload `(commit key table).1` binds the padded
+table. The reference decommitment is the commitment state, with `ρ = b/2` for its balanced digits.
+The Module-SIS instance of `A` has the bound `η_A` of Akita (50). -/
+theorem commit_binding (table : Table) (honest : S.Honest)
+    (covers : O.sourceBound S + O.factorBound * (S.sourceBase / 2) ≤ O.innerBound S)
+    (msis : ∀ (prover : Prover (pcs S O.factorBound (O.sourceBound S) eval verify) claims)
+      (extractor : Extractor prover), Admitted prover → Efficient prover extractor →
+      extractor.chance (fun draw => (solve S claims (key := key) (O.innerBound S)
+        (commit key table).2 index (extractor.run draw.1 draw.2)).isSome) ≤ bindingError prover) :
+    (use S O.factorBound (O.sourceBound S) eval verify claims schedule key index
+      (commit key table).1 (S.pad table) Admitted Efficient advantage bindingError).Binding :=
+  binding S O.factorBound (O.sourceBound S) eval verify claims schedule key index _ _ Admitted
+    Efficient advantage bindingError (commit key table).2 (S.sourceBase / 2) (O.innerBound S)
+    (commit_opens honest key table) (fun _ => (decompose_balanced honest.source _).vecNormInf_le)
+    covers msis
+
+end Key
 
 end NightstreamFPrime.Spec.Compression.Akita

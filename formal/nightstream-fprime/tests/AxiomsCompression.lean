@@ -158,6 +158,11 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Decommitment.Opens
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Certified
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Certified.Opens
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Descriptor
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Descriptor.factorBound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Descriptor.sourceBound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Descriptor.innerBound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Descriptor.mixed_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.balancedDigit
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Base
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.balancedDigit_range
@@ -211,6 +216,12 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Shape.key30
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Shape.key20_honest
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Shape.key30_honest
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Descriptor.key20
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Descriptor.key30
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Descriptor.key20_innerBound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Descriptor.key30_innerBound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Descriptor.key20_covers
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Descriptor.key30_covers
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.walk_sound
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.DensityLe.mono
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.CostLe.densityLe

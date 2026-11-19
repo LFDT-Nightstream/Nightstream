@@ -52,6 +52,7 @@ Claims.Compression.key_binding	honest.opening.full	LE.le
 Claims.Compression.key_binding	honest.certified	LE.le
 Claims.Compression.key_binding	honest.block	LT.lt
 Claims.Compression.key_binding	honest.path	Spec.Compression.Akita.PathFits
+Claims.Compression.key_binding	covers	LE.le
 Claims.Compression.key_binding	msis	LE.le
 Claims.Compression.light_error_bits	ok	Eq
 Claims.Compression.light_error_bits	depth_le	LE.le

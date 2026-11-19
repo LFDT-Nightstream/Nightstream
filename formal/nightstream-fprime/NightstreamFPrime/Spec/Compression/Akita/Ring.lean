@@ -13,7 +13,8 @@ Module-SIS (Akita Definition 3.2).
   `vecNormInf` is `‖·‖_∞` of a vector.
 - `normInf_mul_le` is Akita Lemma 3.1, inequality (18): `‖c·s‖_∞ ≤ ‖c‖_1 · ‖s‖_∞`.
 - `ShortKernel M β` is a solution of `MSIS_{q,d}(n, m, β)` for the matrix `M` (Definition 3.2 with
-  `p = ∞`), and `ShortKernel.ofCollision?` is the difference of two inputs of `M` when it is one. -/
+  `p = ∞`), and `ShortKernel.ofCollision?` is the difference of two inputs of `M` when it is
+  one. -/
 
 namespace NightstreamFPrime.Spec.Compression.Akita
 

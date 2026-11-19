@@ -13,7 +13,13 @@ of `crates/ns-compress/artifacts/` (Akita, ePrint 2026/1983, revision of 2026-10
   and 32 and their rank 1 are fixed in the Akita code (revision `d50f700f`,
   `crates/akita-params/src/compression.rs`), and each width has one position for each of the 64
   binary digits of each coefficient of the image.
-- `Shape.key20_honest` and `Shape.key30_honest` give `Shape.Honest`. -/
+- `Shape.key20_honest` and `Shape.key30_honest` give `Shape.Honest`.
+- `Descriptor.key20` and `Descriptor.key30` have the numbers of the opening descriptor of the key
+  group. A fold challenge has 31 coefficients `±1` and no other nonzero coefficient, so `κ_1` is
+  31. A file has one base for the opening, and it is `b_z`. `Descriptor.key20_innerBound` and
+  `Descriptor.key30_innerBound` give `η_A` of Akita (50), which is the bound of the file for the
+  Module-SIS instance of `A`. `Descriptor.key20_covers` and `Descriptor.key30_covers` give that
+  the bound `β̄_∞ + κ̄_1·b/2` of the reduction `collision` is at most `η_A`. -/
 
 namespace NightstreamFPrime.Spec.Compression.Akita
 
@@ -82,5 +88,35 @@ theorem key30_honest : key30.Honest where
       ⟨by omega, by omega⟩
 
 end Shape
+
+namespace Descriptor
+
+/-- The opening descriptor of the key group of the root of `key20.aks`. -/
+def key20 : Descriptor where
+  challengeMass := 31
+  responseBase := 8
+  responseDigits := 6
+
+/-- The opening descriptor of the key group of the root of each row of `key30.aks`. -/
+def key30 : Descriptor where
+  challengeMass := 31
+  responseBase := 8
+  responseDigits := 9
+
+theorem key20_innerBound : key20.innerBound Shape.key20 = 32505732 := by decide
+
+theorem key30_innerBound : key30.innerBound Shape.key30 = 16642998148 := by decide
+
+theorem key20_covers :
+    key20.sourceBound Shape.key20 + key20.factorBound * (Shape.key20.sourceBase / 2) ≤
+      key20.innerBound Shape.key20 :=
+  key20.mixed_le Shape.key20 (by decide) (by decide)
+
+theorem key30_covers :
+    key30.sourceBound Shape.key30 + key30.factorBound * (Shape.key30.sourceBase / 2) ≤
+      key30.innerBound Shape.key30 :=
+  key30.mixed_le Shape.key30 (by decide) (by decide)
+
+end Descriptor
 
 end NightstreamFPrime.Spec.Compression.Akita

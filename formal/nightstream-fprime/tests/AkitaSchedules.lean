@@ -3,8 +3,9 @@ import NightstreamFPrime.Spec.Compression.Akita.Shapes
 
 /-! Each Akita schedule file of `crates/ns-compress/artifacts/` holds exactly its Lean rows
 (`Spec/Compression/Akita/Rows.lean`), in the fields that `Row` names, and the key group of each
-of its rows has the numbers of its Lean shape (`Spec/Compression/Akita/Shapes.lean`). Lake does
-not track the files, so `scripts/validate.sh` runs this file again. -/
+of its rows has the numbers of its Lean shape and of its Lean opening descriptor
+(`Spec/Compression/Akita/Shapes.lean`). Lake does not track the files, so `scripts/validate.sh`
+runs this file again. -/
 
 namespace AkitaSchedules
 
@@ -46,20 +47,25 @@ def row (value : Json) : Except String Row := do
     levels := ← ((← field value ["schedule", "root"]) :: folds.toList).mapM level
     terminal := ← (← field value ["schedule", "terminal", "input_witness_len"]).getNat? }
 
-/-- The numbers of a shape in the fields of a key group, with the widths of `A` and `B` and the
-count of cells of the table. -/
-def numbers (S : Shape) : Bool × List ℕ :=
+/-- The numbers of a shape and of an opening descriptor in the fields of a key group, with the
+widths of `A` and `B`, the count of cells of the table and the bound of `A`. -/
+def numbers (S : Shape) (O : Descriptor) : Bool × List ℕ :=
   (S.chain.isSome, [S.innerDegree, S.outerDegree, S.blocks, S.blockLength, S.sourceBase,
     S.sourceDigits, S.innerRank, S.openingBase, S.openingDigits, S.certifiedBase, S.outerRank,
     S.slices, S.blockLength * S.sourceDigits,
     S.sliceLength * S.innerRank * S.ratio * S.openingDigits,
-    S.blocks * S.blockLength * S.innerDegree])
+    S.blocks * S.blockLength * S.innerDegree,
+    O.challengeMass, O.responseBase, O.responseDigits, O.innerBound S])
 
 def keyGroup (value : Json) : Except String (Bool × List ℕ) := do
   let params ← field value ["schedule", "root", "params"]
   let groups ← (← field params ["groups", "entries"]).getArr?
-  let key ← (groups[0]?.map (·.getObjVal? "profile")).getD (throw "no key group")
+  let group ← (groups[0]?.map pure).getD (throw "no key group")
+  let key ← group.getObjVal? "profile"
   let read (path : List String) : Except String ℕ := do (← field key path).getNat?
+  let opening (path : List String) : Except String ℕ := do
+    (← field group ("opening" :: path)).getNat?
+  let challenge := ["fold_challenge_config"]
   let outer := ["outer", "matrix", "sis_table_key"]
   return (← named (← params.getObjVal? "payload_mode") [("Compressed", true), ("Raw", false)],
     [← read ["inner", "matrix", "security_route", "Linf", "ring_dimension"],
@@ -76,17 +82,23 @@ def keyGroup (value : Json) : Except String (Bool × List ℕ) := do
       ← read ["outer_slice_count"],
       ← read ["inner", "matrix", "input_width"],
       ← read ["outer", "matrix", "input_width"],
-      2 ^ (← read ["group", "num_vars"])])
+      2 ^ (← read ["group", "num_vars"]),
+      (← opening (challenge ++ ["count_pm1"])) + 2 * (← opening (challenge ++ ["count_pm2"])),
+      2 ^ (← opening ["log_basis_open"]),
+      ← opening ["num_digits_fold"],
+      ← read ["inner", "matrix", "security_route", "Linf", "coeff_linf_bound"]])
 
-def holds (path : System.FilePath) (rows : List Row) (shape : Shape) : IO Unit := do
+def holds (path : System.FilePath) (rows : List Row) (shape : Shape) (descriptor : Descriptor) :
+    IO Unit := do
   let text ← IO.FS.readFile path
   let entries ← IO.ofExcept do (← (← Json.parse text).getObjVal? "rows").getArr?
   unless (← IO.ofExcept (entries.toList.mapM row)) == rows do
     throw <| IO.userError s!"{path} does not hold the Lean rows"
-  unless (← IO.ofExcept (entries.toList.mapM keyGroup)).all (· == numbers shape) do
-    throw <| IO.userError s!"{path} does not hold the Lean shape of the key group"
+  unless (← IO.ofExcept (entries.toList.mapM keyGroup)).all (· == numbers shape descriptor) do
+    throw <| IO.userError s!"{path} does not hold the Lean numbers of the key group"
 
-#eval holds "../../crates/ns-compress/artifacts/key20.aks" [key20] Shape.key20
+#eval holds "../../crates/ns-compress/artifacts/key20.aks" [key20] Shape.key20 Descriptor.key20
 #eval holds "../../crates/ns-compress/artifacts/key30.aks" [key30W27, key30W26] Shape.key30
+  Descriptor.key30
 
 end AkitaSchedules

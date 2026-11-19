@@ -213,43 +213,44 @@ theorem fresh_sound
 /-- Binding of the Akita commitment of the compression key. The commitment is the output of the
 commitment algorithm on the matrices `key`, and its table is the padded table. The decommitment
 relation of the scheme is the certified relation: Akita Definition 10.21 with the weak certificate
-of Akita Definition 10.22 (i), at the bounds `κ̄_1 = factorBound` and `β̄_∞ = sourceBound`. For each
-admitted prover and each efficient extractor, the extractor returns a decommitment of the
-commitment to a different table with probability at most `bindingError`, when the reduction
-returns a solution of Module-SIS with at most that probability (`msis`): for `A` at the norm
-`β̄_∞ + κ̄_1 · b/2`, for `B` at `b⋆ − 1`, or for `F_1` or `F_2` at 1. The claim gives no bound on
-`bindingError`. -/
+of Akita Definition 10.22 (i), at the bounds `κ̄_1 = 2·κ_1` and `β̄_∞ = Δ^cert_f` of Akita (50) for
+the opening descriptor `O`. For each admitted prover and each efficient extractor, the extractor
+returns a decommitment of the commitment to a different table with probability at most
+`bindingError`, when the reduction returns a solution of Module-SIS with at most that probability
+(`msis`): for `A` at the norm `η_A = 2·κ̄_1·Δ^cert_f` of Akita (50), for `B` at `b⋆ − 1`, or for
+`F_1` or `F_2` at 1. The norm `β̄_∞ + κ̄_1 · b/2` of the solution for `A` is at most `η_A`
+(`covers`). The claim gives no bound on `bindingError`. -/
 theorem key_binding
     {Point : Type}
     {Value : Type}
     {Proof : Type}
     (S : Akita.Shape)
-    (factorBound : ℕ)
-    (sourceBound : ℕ)
+    (O : Akita.Descriptor)
     (eval : Akita.Table → Point → Value)
     (verify : Akita.Key S → (n : ℕ) → (Fin n → S.Payload × Point × Value) → Proof → Prop)
     (claims : ℕ)
     (schedule : Akita.Schedule)
     (key : Akita.Key S)
     (index : Fin claims)
-    (Admitted : Akita.Prover (Akita.pcs S factorBound sourceBound eval verify) claims → Prop)
-    (Efficient : (prover : Akita.Prover (Akita.pcs S factorBound sourceBound eval verify) claims) → Akita.Extractor prover → Prop)
-    (advantage : Akita.Prover (Akita.pcs S factorBound sourceBound eval verify) claims → Fin schedule.instances → ℝ)
-    (bindingError : Akita.Prover (Akita.pcs S factorBound sourceBound eval verify) claims → ℝ)
+    (Admitted : Akita.Prover (Akita.pcs S O.factorBound (O.sourceBound S) eval verify) claims → Prop)
+    (Efficient : (prover : Akita.Prover (Akita.pcs S O.factorBound (O.sourceBound S) eval verify) claims) → Akita.Extractor prover → Prop)
+    (advantage : Akita.Prover (Akita.pcs S O.factorBound (O.sourceBound S) eval verify) claims → Fin schedule.instances → ℝ)
+    (bindingError : Akita.Prover (Akita.pcs S O.factorBound (O.sourceBound S) eval verify) claims → ℝ)
     (table : Akita.Table)
     (honest : S.Honest)
-    (msis : ∀ (prover : Akita.Prover (Akita.pcs S factorBound sourceBound eval verify) claims)
+    (covers : O.sourceBound S + O.factorBound * (S.sourceBase / 2) ≤ O.innerBound S)
+    (msis : ∀ (prover : Akita.Prover (Akita.pcs S O.factorBound (O.sourceBound S) eval verify) claims)
         (extractor : Akita.Extractor prover),
         Admitted prover →
           Efficient prover extractor →
             extractor.chance
                 (fun (draw : prover.Tape × extractor.Coins) =>
-                  (Akita.solve S claims (key := key) (sourceBound + factorBound * (S.sourceBase / 2))
-                      (Akita.commit key table).2 index (extractor.run draw.1 draw.2)).isSome) ≤
+                  (Akita.solve S claims (key := key) (O.innerBound S) (Akita.commit key table).2 index
+                      (extractor.run draw.1 draw.2)).isSome) ≤
               bindingError prover) :
-    (Akita.use S factorBound sourceBound eval verify claims schedule key index
+    (Akita.use S O.factorBound (O.sourceBound S) eval verify claims schedule key index
         (Akita.commit key table).1 (S.pad table) Admitted Efficient advantage bindingError).Binding :=
-  @Spec.Compression.Akita.commit_binding S factorBound sourceBound Point Value Proof eval verify
-    claims schedule key index Admitted Efficient advantage bindingError table honest msis
+  @Spec.Compression.Akita.commit_binding S O Point Value Proof eval verify claims schedule key index
+    Admitted Efficient advantage bindingError table honest covers msis
 
 end NightstreamFPrime.Claims.Compression

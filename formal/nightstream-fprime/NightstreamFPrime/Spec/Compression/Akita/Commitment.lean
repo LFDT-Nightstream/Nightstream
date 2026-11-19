@@ -14,7 +14,10 @@ and its decommitment relation (Akita Definitions 10.21 and 10.22).
   decoder `Dec` under coefficient packing.
 - `Certified.Opens` adds the weak certificate of Akita Definition 10.22 (i) for the coefficient
   norm on each source block. Definition 10.21 has no norm bound on the source blocks, so it does
-  not bind a commitment to one table. -/
+  not bind a commitment to one table.
+- `Descriptor` has the numbers of an opening descriptor that fix the bounds of that certificate.
+  `Descriptor.factorBound`, `Descriptor.sourceBound` and `Descriptor.innerBound` are `κ̄_1`,
+  `Δ^cert_f` and `η_A` of Akita (50). -/
 
 namespace NightstreamFPrime.Spec.Compression.Akita
 
@@ -374,5 +377,40 @@ structure Certified.Opens {S : Shape} (factorBound sourceBound : ℕ) (st : Cert
   unit : ∀ i, IsUnit (st.factor i)
   factorNorm : ∀ i, normOne (st.factor i) ≤ factorBound
   sourceNorm : ∀ i, vecNormInf (st.factor i • st.source i) ≤ sourceBound
+
+/-- The numbers of the opening descriptor of a group that fix the bounds of the certificate of its
+source blocks (Akita Section 4.6): the norm `κ_1 = ‖c‖_1` of a fold challenge, the response base
+`b_z` and the response depth `δ_f`. -/
+structure Descriptor where
+  challengeMass : ℕ
+  responseBase : ℕ
+  responseDigits : ℕ
+
+namespace Descriptor
+
+variable (O : Descriptor) (S : Shape)
+
+/-- `κ̄_1 = 2·κ_1`, the bound on `‖c − c'‖_1` for two fold challenges. -/
+def factorBound : ℕ := 2 * O.challengeMass
+
+/-- `Δ^cert_f = (b⋆ − 1)·(b_z^{δ_f} − 1)/(b_z − 1)` (Akita (50)), the bound `β̄_∞`. -/
+def sourceBound : ℕ :=
+  (S.certifiedBase - 1) * ((O.responseBase ^ O.responseDigits - 1) / (O.responseBase - 1))
+
+/-- `η_A = 2·κ̄_1·Δ^cert_f` (Akita (50)), the bound of the Module-SIS instance of `A`. -/
+def innerBound : ℕ := 2 * O.factorBound * O.sourceBound S
+
+/-- The bound `β̄_∞ + κ̄_1·ρ` of Akita (164) for a reference occurrence with `ρ ≤ Δ^cert_f` is at
+most `η_A`. -/
+theorem mixed_le {referenceBound : ℕ} (mass : 0 < O.challengeMass)
+    (reference : referenceBound ≤ O.sourceBound S) :
+    O.sourceBound S + O.factorBound * referenceBound ≤ O.innerBound S := by
+  have factor : 0 < O.factorBound := Nat.mul_pos Nat.two_pos mass
+  calc O.sourceBound S + O.factorBound * referenceBound
+      ≤ O.factorBound * O.sourceBound S + O.factorBound * O.sourceBound S :=
+        Nat.add_le_add (Nat.le_mul_of_pos_left _ factor) (Nat.mul_le_mul_left _ reference)
+    _ = O.innerBound S := by rw [innerBound, Nat.mul_assoc, Nat.two_mul]
+
+end Descriptor
 
 end NightstreamFPrime.Spec.Compression.Akita

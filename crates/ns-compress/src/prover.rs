@@ -57,19 +57,42 @@ fn zero_prefix(layout: &Layout, witnesses: &[&Mat<F>]) -> Option<(Slice, u16)> {
     .then(|| (slice, code(F::ZERO, bound)))
 }
 
+fn signed_cell(positive: u64, negative: u64, lane: usize) -> F {
+    F::from_u64(positive >> lane & 1) - F::from_u64(negative >> lane & 1)
+}
+
+fn write_signed_cells<T: Send>(cells: &mut [T], (positive, negative): (&[u64], &[u64]), map: impl Fn(F) -> T + Sync) {
+    cells
+        .par_chunks_mut(D)
+        .zip(positive.par_iter().zip(negative))
+        .with_min_len(CELLS_PER_TASK / D)
+        .for_each(|(block, (&positive, &negative))| {
+            for (lane, cell) in block.iter_mut().enumerate() {
+                *cell = map(signed_cell(positive, negative, lane));
+            }
+        });
+}
+
+fn packed_coefficients(layout: &Layout, masks: (&[u64], &[u64]), tail: &[F]) -> Vec<akita::Base> {
+    let fresh = layout.cells[1].witness;
+    let mut coefficients = vec![akita::base(F::ZERO); layout.witness_len];
+    write_signed_cells(
+        &mut coefficients[fresh.offset..][..masks.0.len() * D],
+        masks,
+        akita::base,
+    );
+    for (coefficient, &value) in coefficients[fresh.range().end..].iter_mut().zip(tail) {
+        *coefficient = akita::base(value);
+    }
+    coefficients
+}
+
 fn write_cells(cells: &mut [F], witness: &Mat<F>) {
     let blocks = witness.cols();
     if let Some(&value) = witness.virtual_constant_value() {
         cells.fill(value);
-    } else if let Some((positive, negative)) = witness.packed_signed_unit_column_masks() {
-        cells
-            .par_chunks_mut(D)
-            .zip(positive.par_iter().zip(negative))
-            .for_each(|(block, (&positive, &negative))| {
-                for (lane, cell) in block.iter_mut().enumerate() {
-                    *cell = F::from_u64(positive >> lane & 1) - F::from_u64(negative >> lane & 1);
-                }
-            });
+    } else if let Some(masks) = witness.packed_signed_unit_column_masks() {
+        write_signed_cells(cells, masks, |value| value);
     } else {
         let lanes = witness.as_slice();
         cells
@@ -97,12 +120,32 @@ pub fn commit<'k>(key: &'k ProverKey, layout: Layout, witnesses: &[&Mat<F>]) -> 
         return Err(Error::Statement("witness shape"));
     }
     let zero_prefix = zero_prefix(&layout, witnesses);
-    let packed_fresh = zero_prefix.and_then(|_| {
+    if let Some((slice, code)) = zero_prefix {
         let fresh = witnesses[1];
-        fresh
+        if let Some(columns) = fresh
             .packed_signed_unit_column_masks()
-            .map(|_| (*fresh).clone())
-    });
+            .filter(|&masks| Masks::suitable(masks).is_some())
+        {
+            let end = layout.cells[1].witness.range().end;
+            let (_, counts) = layout.cells[0].table.expect("the zero prefix has a table");
+            let mut witness = vec![F::ZERO; layout.witness_len - end];
+            witness[counts.offset - end + usize::from(code)] = F::from_u64(slice.len() as u64);
+            let coefficients = packed_coefficients(&layout, columns, &witness);
+            let committed = key
+                .akita
+                .commit(layout.shape(), Polynomial::Witness, coefficients)?;
+            return Ok(Committed {
+                key,
+                layout,
+                witness,
+                codes: Vec::new(),
+                zero_prefix,
+                packed_fresh: Some(fresh.clone()),
+                committed,
+                commit_witness: start.elapsed(),
+            });
+        }
+    }
     let prefix = zero_prefix.map_or(0, |(slice, _)| slice.len());
     let mut witness = vec![F::ZERO; layout.witness_len - prefix];
     for (cells, source) in layout.cells.iter().zip(witnesses) {
@@ -168,7 +211,7 @@ pub fn commit<'k>(key: &'k ProverKey, layout: Layout, witnesses: &[&Mat<F>]) -> 
         witness,
         codes,
         zero_prefix,
-        packed_fresh,
+        packed_fresh: None,
         committed,
         commit_witness: start.elapsed(),
     })
@@ -297,11 +340,13 @@ impl Committed<'_> {
         let (row_point, scale) = key::row_point(challenges.omega)?;
 
         let start = Instant::now();
-        let masks = self
-            .packed_fresh
-            .as_ref()
-            .and_then(Mat::packed_signed_unit_column_masks)
-            .and_then(Masks::suitable);
+        let masks = self.packed_fresh.as_ref().map(|fresh| {
+            Masks::new(
+                fresh
+                    .packed_signed_unit_column_masks()
+                    .expect("the lane witness was packed"),
+            )
+        });
         let witness = std::mem::take(&mut self.witness);
         let (witness, weights, folded, lane_inputs) = if let (Some((slice, _)), Some(masks)) = (self.zero_prefix, masks)
         {
@@ -310,11 +355,8 @@ impl Committed<'_> {
                 || weights::LaneSource::new(&statements[1], &challenges, cells.blocks),
                 || self.key.fold(challenges.omega),
             );
-            let mut witness = witness;
-            let tail = witness.split_off(slice.len());
-            drop(witness);
             let weights = weights::count_tail(&self.layout, &challenges, cells.witness.range().end)?;
-            (tail, weights, folded, Some((masks, source?, slice.len() / D)))
+            (witness, weights, folded, Some((masks, source?, slice.len() / D)))
         } else {
             let (weights, folded) = weights::table(
                 statements,

@@ -21,6 +21,10 @@ pub(crate) struct Masks<'a> {
 }
 
 impl<'a> Masks<'a> {
+    pub(crate) fn new((positive, negative): (&'a [u64], &'a [u64])) -> Self {
+        Self { positive, negative }
+    }
+
     pub(crate) fn suitable((positive, negative): (&'a [u64], &'a [u64])) -> Option<Self> {
         if positive.len() < 1 << 14 {
             return None;
@@ -33,7 +37,7 @@ impl<'a> Masks<'a> {
             .zip(negative)
             .map(|(&positive, &negative)| nonzero_groups(positive) + nonzero_groups(negative))
             .sum();
-        (groups <= 20 * positive.len()).then_some(Self { positive, negative })
+        (groups <= 20 * positive.len()).then_some(Self::new((positive, negative)))
     }
 
     fn at(self, block: usize) -> (u64, u64) {

@@ -124,8 +124,34 @@ pub(crate) fn failed(error: impl std::fmt::Display) -> Error {
     Error::Akita(error.to_string())
 }
 
+thread_local! {
+    static PROVER_WORKER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+pub struct CpuProverPool(ThreadPool);
+
+impl CpuProverPool {
+    /// Create CPU prover workers with stacks that can run Akita under fat LTO.
+    pub fn new(threads: std::num::NonZeroUsize) -> Result<Self, rayon::ThreadPoolBuildError> {
+        ThreadPoolBuilder::new()
+            .num_threads(threads.get())
+            .stack_size(64 << 20)
+            .start_handler(|_| PROVER_WORKER.set(true))
+            .build()
+            .map(Self)
+    }
+
+    /// Run the closure and its nested Rayon work on these workers.
+    pub fn install<R: Send>(&self, work: impl FnOnce() -> R + Send) -> R {
+        self.0.install(work)
+    }
+}
+
 /// Under fat LTO, Akita's NTT loops need more than rayon's default 2 MB stack.
 pub(crate) fn on_large_stacks<R: Send>(work: impl FnOnce() -> R + Send) -> R {
+    if PROVER_WORKER.get() {
+        return work();
+    }
     static POOL: OnceLock<Option<ThreadPool>> = OnceLock::new();
     let pool = POOL.get_or_init(|| ThreadPoolBuilder::new().stack_size(64 << 20).build().ok());
     match pool {

@@ -2,7 +2,7 @@
 
 use std::ops::Range;
 
-use neo_math::{ProductSum, F, K};
+use neo_math::{ProductSum, D, F, K};
 use neo_reductions::sumcheck::poly_eval_k;
 use neo_reductions::superneo_eval::EqualityWeights;
 use neo_transcript::Poseidon2Transcript;
@@ -612,7 +612,76 @@ fn lane_sums(values: &[K], lanes: &[K], blocks: &[K]) -> [K; 3] {
 }
 
 /// SPEC.md Algorithm 9, step 10.
+fn lane_marginal(values: &[K], blocks: &[K]) -> [K; D] {
+    const BLOCKS_PER_TASK: usize = 128;
+    values
+        .par_chunks(D * BLOCKS_PER_TASK)
+        .zip(blocks.par_chunks(BLOCKS_PER_TASK))
+        .map(|(values, blocks)| {
+            let mut lanes = [ProductSum::default(); D];
+            for (row, &weight) in values.chunks(D).zip(blocks) {
+                for (sum, &cell) in lanes.iter_mut().zip(row) {
+                    *sum = sum.add(cell, weight);
+                }
+            }
+            lanes.map(ProductSum::value)
+        })
+        .reduce(
+            || [K::ZERO; D],
+            |left, right| std::array::from_fn(|lane| left[lane] + right[lane]),
+        )
+}
+
+fn key_dot(values: &[K], weights: &[K]) -> K {
+    values
+        .iter()
+        .zip(weights)
+        .fold(ProductSum::default(), |sum, (&value, &weight)| sum.add(value, weight))
+        .value()
+}
+
 pub(crate) fn prove_product(
+    transcript: &mut Poseidon2Transcript,
+    values: Vec<K>,
+    lanes: &[K],
+    blocks: &[K],
+    claim: K,
+    rounds: usize,
+) -> (Vec<KeyRound>, Vec<K>, K) {
+    if lanes.len() != D || rounds < LANE_VARS || values.len() < 2 * D {
+        return prove_product_direct(transcript, values, lanes, blocks, claim, rounds);
+    }
+    let marginal = lane_marginal(&values, blocks);
+    let prefix_rounds = LANE_VARS;
+    let (mut messages, mut point, _) =
+        prove_product_direct(transcript, marginal.to_vec(), lanes, &[K::ONE], claim, prefix_rounds);
+    let claim = poly_eval_k(&messages[prefix_rounds - 1], point[prefix_rounds - 1]);
+    let prefix_width = 1 << prefix_rounds;
+    let weights = crate::weights::equality(&point, prefix_width);
+    let folded = values
+        .par_chunks(prefix_width)
+        .with_min_len(128)
+        .map(|row| key_dot(row, &weights))
+        .collect();
+    let remaining_lanes: Vec<K> = lanes
+        .chunks(prefix_width)
+        .map(|row| key_dot(row, &weights))
+        .collect();
+    drop(values);
+    let (tail, remaining, value) = prove_product_direct(
+        transcript,
+        folded,
+        &remaining_lanes,
+        blocks,
+        claim,
+        rounds - prefix_rounds,
+    );
+    messages.extend(tail);
+    point.extend(remaining);
+    (messages, point, value)
+}
+
+fn prove_product_direct(
     transcript: &mut Poseidon2Transcript,
     mut values: Vec<K>,
     lanes: &[K],

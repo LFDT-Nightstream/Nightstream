@@ -40,6 +40,32 @@ fn cells_with_different_codes(committed: &Committed) -> (usize, usize) {
 }
 
 #[test]
+fn packed_witness_coefficients_keep_both_padded_slices_and_counts() {
+    let layout = crate::Layout::new(
+        &[(3, crate::Norm::Table { bound: 1 }), (3, crate::Norm::BoundByCaller)],
+        crate::key_blocks(3).unwrap(),
+    )
+    .unwrap();
+    let (_, counts) = layout.cells[0].table.unwrap();
+    let fresh = layout.cells[1].witness;
+    let mut tail = vec![F::ZERO; layout.witness_len - fresh.range().end];
+    tail[counts.offset + 1 - fresh.range().end] = F::from_u64(layout.cells[0].witness.len() as u64);
+
+    let signs = ([0b101, 0, 1 << 63], [0b10, 1 << 63, 0]);
+    let mut expected = vec![F::ZERO; layout.witness_len];
+    expected[fresh.offset] = F::ONE;
+    expected[fresh.offset + 1] = -F::ONE;
+    expected[fresh.offset + 2] = F::ONE;
+    expected[fresh.offset + 127] = -F::ONE;
+    expected[fresh.offset + 191] = F::ONE;
+    expected[fresh.range().end..].copy_from_slice(&tail);
+    assert_eq!(
+        super::packed_coefficients(&layout, (&signs.0, &signs.1), &tail),
+        expected.into_iter().map(akita::base).collect::<Vec<_>>(),
+    );
+}
+
+#[test]
 fn the_prover_of_these_tests_makes_an_accepted_proof() {
     verdict(|_| ()).expect("the honest proof verifies");
 }

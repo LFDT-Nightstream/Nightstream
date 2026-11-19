@@ -12,7 +12,8 @@ The results for the full path of a compressed proof (`SPEC.md` Algorithm 10 and 
   `memory_sound_with_akita` is the theorem of the memory `verify_final`.
 - Assumptions: `[HN-A1]` for the history, and `[AKITA]` for each claim that ends in
   `_with_akita`: Akita Theorem 10.46 with its conditions (`akita`, a
-  `Spec.Compression.Akita.Use.Knowledge`) and the binding of the key commitment (`binding`).
+  `Spec.Compression.Akita.Use.Knowledge`). The binding of the key commitment (`binding`) is
+  `Claims.Compression.key_binding` under `[MSIS]`.
 - Open: the premise `composition` of each claim that ends in `_with_akita`
   (`Spec.Compression.Akita.Use.Composition`). No result of Akita gives it, because the prover
   commits `V` after the lookup challenges (`SECURITY_MODEL.md`, trust item 7). Lean proves the rest

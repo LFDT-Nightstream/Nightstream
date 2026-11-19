@@ -680,8 +680,10 @@ plans (`SlotPlan`), batched catalogs (`Batch`) and the free application
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.packParts_lt
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.packParts_injective
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.replay_of_reorders
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.agrees_of_accessAll
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.memoryConsistent_of_accessAll
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.executes_accessAll
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.agrees_of_executes
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.memoryConsistent_of_executes
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.Reorders.nil
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.Reorders.append

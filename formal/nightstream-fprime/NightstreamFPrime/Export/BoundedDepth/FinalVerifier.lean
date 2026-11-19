@@ -28,7 +28,7 @@ from `W` (`Setup.proofOf`, `game_avoids`), and each bad set has density at most
 `1/2^119 + 38/fieldModulus²` (`game_densityLe`). So in the state-restoration experiment with `q` queries, the
 verifier accepts a statement without such a proof with probability at most
 `q · (1/2^119 + 38/fieldModulus²)` (`soundness`). With Akita openings, `real_soundness` adds the
-error of `[AKITA]` under the premises of `Spec.Compression.Akita.Use.wins_le`. -/
+error of the Akita opening under the premises of `Spec.Compression.Akita.Use.wins_le`. -/
 
 set_option autoImplicit false
 
@@ -640,7 +640,7 @@ theorem soundness (premises : Premises setup packageWidths)
 
 /-- With Akita openings, the final verifier accepts a statement for which no proof with
 witnesses satisfies `Verifies` with probability at most `q · (1/2^119 + 38/fieldModulus²)` plus
-the error of `[AKITA]`. `event` is this event for the prover `real` with Akita openings, and
+the error of the Akita opening. `event` is this event for the prover `real` with Akita openings, and
 `composition` relates it to the game prover `s` (`Spec.Compression.Akita.Use.wins_le`). -/
 theorem real_soundness (premises : Premises setup packageWidths) (opening : Compression.Akita.Use)
     (real : Compression.Akita.Prover opening.scheme opening.claims) (event : real.Tape → Prop)

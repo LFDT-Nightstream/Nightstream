@@ -204,6 +204,123 @@ example {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     exports Admitted StageAdmitted Efficient error assumption closed adversary admitted depth calls
     blocks finders
 
+-- SPEC.md section 1: averaged over the SHAKE128 key setup, under `[P2-PERM]` and `[SPONGE]`,
+-- when the collision finder makes at most `N` permutation calls, the light success is below the
+-- extraction chance plus `(Q + 1) · 575/2^128`, the MSIS solver's advantage,
+-- `2 · (C(N + 2, 2)/q⁴ + N²/q⁴)`, `(7Q + 124)/budget` and `2^−1129`, with `q = 2^64 − 59`.
+example
+    (key : (RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+      AjtaiSetupV1.Rejection.Stream) → CircuitKey StepRelation.keyWidth StepRelation.keyPublicFits)
+    (adversary : (RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+      AjtaiSetupV1.Rejection.Stream) →
+        RandomOracle.OracleComp
+          (RandomOracle.Test.Point
+            (RandomOracle.LightSchedule.schedule StepRelation.keyWidth StepRelation.keyPublicFits) 8)
+          RandomOracle.Test.Answer
+          (RandomOracle.ForkLink.Attempt StepRelation.keyWidth StepRelation.keyPublicFits))
+    {queries : ℕ} (bounded : ∀ chunks, (adversary chunks).QueryBound queries) {budget : ℕ}
+    (positive : 0 < budget) (blocks calls : ℕ)
+    (finder : Sponge.Transfer Sponge.CollisionConditions
+      (fun _ : Unit => RandomOracleSetup.lightHashAdvantage key adversary budget)
+      (fun model : Sponge.CollisionAdversary blocks calls => Sponge.collisionChance model) calls) :
+    (Finset.univ.expect fun chunks => RandomOracleSetup.lightSuccess key adversary chunks) <
+      (Finset.univ.expect fun chunks => RandomOracleSetup.lightExtraction key adversary chunks) +
+        ((queries : ℝ) + 1) * (575 / 2 ^ 128) +
+        RandomOracleSetup.lightSolverAdvantage key adversary budget +
+        2 * (((calls + 2).choose 2 : ℝ) / (((2 ^ 64 - 59 : ℕ) : ℝ)) ^ 4 +
+          (calls : ℝ) ^ 2 / (((2 ^ 64 - 59 : ℕ) : ℝ)) ^ 4) +
+        (7 * (queries : ℝ) + 124) / (budget : ℝ) + 1 / 2 ^ 1129 :=
+  @Claims.Fold.light_knowledge_error_numeric key adversary queries bounded budget positive blocks
+    calls finder
+
+-- SPEC.md section 1: averaged over the SHAKE128 key setup, under `[P2-PERM]` and `[SPONGE]`,
+-- when the collision finder makes at most `N` permutation calls, the refresh success is below the
+-- extraction chance plus `(Q + 1) · 4748/2^128`, the MSIS solver's advantage,
+-- `16 · (C(N + 2, 2)/q⁴ + N²/q⁴)`, `(77Q + 1286)/budget` and `2^−1129`, with `q = 2^64 − 59`.
+example
+    (key : (RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+      AjtaiSetupV1.Rejection.Stream) → CircuitKey StepRelation.keyWidth StepRelation.keyPublicFits)
+    (adversary : (RandomOracleSetup.SetupIndex StepRelation.keyWidth StepRelation.keyPublicFits →
+      AjtaiSetupV1.Rejection.Stream) →
+        RandomOracle.OracleComp
+          (RandomOracle.Test.Point
+            (RandomOracle.RefreshSchedule.schedule StepRelation.keyWidth StepRelation.keyPublicFits) 8)
+          RandomOracle.Test.Answer
+          (RandomOracle.ForkLink.Attempt StepRelation.keyWidth StepRelation.keyPublicFits))
+    {queries : ℕ} (bounded : ∀ chunks, (adversary chunks).QueryBound queries) {budget : ℕ}
+    (positive : 0 < budget) (blocks calls : ℕ)
+    (finder : Sponge.Transfer Sponge.CollisionConditions
+      (fun _ : Unit => RandomOracleSetup.refreshHashAdvantage key adversary budget)
+      (fun model : Sponge.CollisionAdversary blocks calls => Sponge.collisionChance model) calls) :
+    (Finset.univ.expect fun chunks => RandomOracleSetup.refreshSuccess key adversary chunks) <
+      (Finset.univ.expect fun chunks => RandomOracleSetup.refreshExtraction key adversary chunks) +
+        ((queries : ℝ) + 1) * (4748 / 2 ^ 128) +
+        RandomOracleSetup.refreshSolverAdvantage key adversary budget +
+        16 * (((calls + 2).choose 2 : ℝ) / (((2 ^ 64 - 59 : ℕ) : ℝ)) ^ 4 +
+          (calls : ℝ) ^ 2 / (((2 ^ 64 - 59 : ℕ) : ℝ)) ^ 4) +
+        (77 * (queries : ℝ) + 1286) / (budget : ℝ) + 1 / 2 ^ 1129 :=
+  @Claims.Fold.refresh_knowledge_error_numeric key adversary queries bounded budget positive blocks
+    calls finder
+
+-- SPEC.md section 1: under `[P2-PERM]` and `[DSFS]`, for a prover with `N` permutation calls, the
+-- chance that the light fold succeeds and the extractor does not extract is at most the knowledge
+-- error of a model adversary with `N` queries plus `25 · N²/q⁴`, with `q = 2^64 − 59`.
+example (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (key : CircuitKey logicalWidth publicFits) {World : Type} (winsOf : World → ℝ) (calls : ℕ)
+    (premise : Sponge.DuplexTransfer
+      (FoldSponge.Conditions (RandomOracle.LightSchedule.schedule logicalWidth publicFits)
+        (width := 8) FoldSponge.lightUse) winsOf
+      (fun queries (adversary : FoldSponge.LightAdversary logicalWidth publicFits queries) =>
+        RandomOracle.LightKnowledge.failureChance ajtai key adversary.1) calls)
+    (world : World) :
+    ∃ adversary : FoldSponge.LightAdversary logicalWidth publicFits calls,
+      winsOf world ≤ RandomOracle.LightKnowledge.knowledgeError ajtai key adversary.1 calls +
+        25 * (calls : ℝ) ^ 2 / (((2 ^ 64 - 59 : ℕ) : ℝ)) ^ 4 :=
+  Claims.Fold.light_knowledge ajtai key winsOf calls premise world
+
+-- SPEC.md section 1: under `[P2-PERM]` and `[DSFS]`, for a prover with `N` permutation calls, the
+-- chance that the refresh fold succeeds and the extractor does not extract is at most the knowledge
+-- error of a model adversary with `N` queries plus `25 · N²/q⁴`, with `q = 2^64 − 59`.
+example (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (key : CircuitKey logicalWidth publicFits) {World : Type} (winsOf : World → ℝ) (calls : ℕ)
+    (premise : Sponge.DuplexTransfer
+      (FoldSponge.Conditions (RandomOracle.RefreshSchedule.schedule logicalWidth publicFits)
+        (width := 8) FoldSponge.refreshUse) winsOf
+      (fun queries (adversary : FoldSponge.RefreshAdversary logicalWidth publicFits queries) =>
+        RandomOracle.RefreshKnowledge.failureChance ajtai key adversary.1) calls)
+    (world : World) :
+    ∃ adversary : FoldSponge.RefreshAdversary logicalWidth publicFits calls,
+      winsOf world ≤ RandomOracle.RefreshKnowledge.knowledgeError ajtai key adversary.1 calls +
+        25 * (calls : ℝ) ^ 2 / (((2 ^ 64 - 59 : ℕ) : ℝ)) ^ 4 :=
+  Claims.Fold.refresh_knowledge ajtai key winsOf calls premise world
+
+-- SPEC.md section 7.6: when the regions are disjoint, every event is in range and the initial
+-- state holds the program images, for an execution whose active ports bind a reorder of the
+-- events, the events replay to a catalog state in which each address of a region that is inside
+-- its space holds the value of its cell in the final memory: cell `romSize + address` for a RAM
+-- memory, and cell `address` for each other memory.
+example {catalog : List Nebula.MemoryTrace.MemorySpec} {b : Nebula.MemoryTrace.Binding}
+    {p : Nebula.Plan} {σ : Type} {app : Nebula.Application p.toGeometry σ} {s s' : σ}
+    {final : Nebula.Machine} {steps : List (List (Option Nebula.PortAccess))}
+    {initial : Nebula.MemoryTrace.MemoryState} {rows : List Nebula.MemoryTrace.Witness}
+    {order : List Nebula.MemoryTrace.Event}
+    (exec : Nebula.Executes p.toGeometry app s (Nebula.initialMachine p) steps s' final)
+    (disjoint : b.Disjoint catalog)
+    (inRange : ∀ e ∈ Nebula.MemoryTrace.eventsForTrace catalog rows, b.InRange e.memory e.address)
+    (images : b.Initial catalog p initial)
+    (reorders : Nebula.MemoryTrace.Reorders (Nebula.MemoryTrace.eventsForTrace catalog rows) order)
+    (bound : List.Forall₂ (b.Binds catalog) order (steps.flatMap fun ports => ports.filterMap id)) :
+    ∃ state,
+      Nebula.MemoryTrace.Replay initial (Nebula.MemoryTrace.eventsForTrace catalog rows) state ∧
+        ∀ memory r address, b.region memory = some r → r.Fits address →
+          (if Nebula.MemoryTrace.isRam catalog memory then r.addr address < p.ramSize
+            else r.addr address < p.romSize) →
+          state memory address = some ((final.memory
+            (if Nebula.MemoryTrace.isRam catalog memory then p.romSize + r.addr address
+              else r.addr address)).value : ℤ) :=
+  @Claims.Nebula.catalog_agrees catalog b p σ app s s' final steps initial rows order exec disjoint
+    inRange images reorders bound
+
 -- SPEC.md Algorithm 10, Source: the final verifier accepts a statement and the witnesses that
 -- the reverse extractor returns from its first `depth` stages are not a valid history of it with
 -- probability at most `q · (2^−119 + 38/q²) + Σ_{j < depth} (finderChance(stage j) +

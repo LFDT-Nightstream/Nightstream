@@ -11,7 +11,7 @@ the emitter writes for the reference application, and the keys of a package iden
   the packages (`facts`, which the emitter checks), the relations of the two keys and the rows of
   the final verifier (links), the bound on the iteration (`depthBound`), and the assumptions.
 - Assumptions: HyperNova errata Assumption 1 for the two folds (`[HN-A1]`), with its closure
-  premise and an admitted adversary, and for `verify_final_sound` the premises of `[AKITA]` and
+  premise and an admitted adversary, and for `verify_final_sound` the premises of `[AKITA]`, the binding of the key commitment and
   the open composition premise of `Claims.Final.history_sound_with_akita`.
 - Scope: the reference application only. A Rust-built application has no Lean package. -/
 

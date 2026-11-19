@@ -1,5 +1,5 @@
 import Mathlib.Data.Nat.Digits.Lemmas
-import NightstreamFPrime.Circuit.VariableSupport
+import NightstreamFPrime.Circuit.Execution
 import NightstreamFPrime.Spec.FieldPrime
 
 /-!
@@ -889,107 +889,80 @@ private theorem hintBit_value
   exact lt_trans (Nat.mod_lt _ (by decide)) (by
     norm_num [fieldModulus])
 
-def completeBits (interface : Interface) (env : Env) (offset : Nat) : Env :=
-  executeHints env offset (bitHints interface offset)
+private theorem witnesses_booleanOps (offset : Nat) :
+    witnesses (booleanOps offset) = [] := by
+  simp [witnesses, booleanOps, Op.witnesses]
 
-def completeInverse (interface : Interface) (env : Env) (offset : Nat) : Env :=
-  executeHints (completeBits interface env offset) (offset + bitCount)
-    [inverseHint offset]
+theorem witnesses_operations (interface : Interface) (offset : Nat) :
+    witnesses (operations interface offset) =
+      [WitnessBatch.hinted offset (bitHints interface offset),
+        WitnessBatch.hinted (offset + bitCount) [inverseHint offset],
+        WitnessBatch.arithmetic (offset + bitCount + 1) (recipes offset)] := by
+  unfold operations
+  rw [Witness.witnesses_append, Witness.witnesses_append, witnesses_booleanOps]
+  rfl
 
-def completeEnv (interface : Interface) (env : Env) (offset : Nat) : Env :=
-  executeRecipes (completeInverse interface env offset)
-    (offset + bitCount + 1) (recipes offset)
+theorem ordered (interface : Interface) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) :
+    Witness.Ordered offset (witnesses (operations interface offset))
+      (offset + auxiliaryCount) := by
+  rw [witnesses_operations]
+  exact ⟨le_rfl,
+    ⟨trivial, hintsCausal_of_readBelow _ _
+      (bitHints_readBelow interface offset env assumptions)⟩,
+    by simp [WitnessBatch.finish, bitHints_length],
+    ⟨trivial, highDifference_varsBelow offset, trivial⟩,
+    by simp [WitnessBatch.finish],
+    ⟨recipes_causal offset, trivial⟩,
+    by simp [Witness.Ordered, WitnessBatch.finish, recipes, auxiliaryCount, bitCount]⟩
 
-private theorem completeBits_value
-    (interface : Interface) (env : Env) (offset index : Nat)
-    (assumptions : Assumptions interface offset env)
+private theorem computed_parts (interface : Interface) (env : Env) (offset : Nat)
+    (computed : Witness.Computed env (witnesses (operations interface offset))) :
+    HintsComputed env offset (bitHints interface offset) ∧
+      env (offset + bitCount) = (inverseHint offset).eval env ∧
+      ConstraintsHold env (recipeConstraints (offset + bitCount + 1) (recipes offset)) := by
+  rw [witnesses_operations] at computed
+  exact ⟨(computed (WitnessBatch.hinted offset (bitHints interface offset)) (by simp)).2,
+    (computed (WitnessBatch.hinted (offset + bitCount) [inverseHint offset]) (by simp)).2.1,
+    (computed (WitnessBatch.arithmetic (offset + bitCount + 1) (recipes offset)) (by simp)).1⟩
+
+private theorem computed_bitValue (interface : Interface) (env : Env) (offset index : Nat)
+    (bits : HintsComputed env offset (bitHints interface offset))
     (bounded : index < bitCount) :
-    completeBits interface env offset (offset + index) =
-      Hint.eval env (.bit (interface.source offset) index) := by
-  unfold completeBits
-  have position : index < (bitHints interface offset).length := by
-    simpa [bitHints_length] using bounded
-  have value := executeHints_value_of_readBelow env offset
-    (bitHints interface offset) (bitHints_readBelow interface offset env assumptions)
-    index position
-  simpa [bitHints] using value
-
-private theorem completeBits_bitValue
-    (interface : Interface) (env : Env) (offset index : Nat)
-    (assumptions : Assumptions interface offset env)
-    (bounded : index < bitCount) :
-    bitValue (completeBits interface env offset) offset index =
+    bitValue env offset index =
       bitNat ((interface.source offset).eval env).val index := by
-  have bit := completeBits_value interface env offset index assumptions bounded
+  have value := hintsComputed_value bits index (by simpa [bitHints_length] using bounded)
+  have bit : env (offset + index) =
+      Hint.eval env (.bit (interface.source offset) index) := by
+    simpa [bitHints] using value
   unfold bitValue
   rw [bit]
   exact hintBit_value interface env offset index
 
-private theorem completeEnv_bitValue
-    (interface : Interface) (env : Env) (offset index : Nat)
-    (assumptions : Assumptions interface offset env)
-    (bounded : index < bitCount) :
-    bitValue (completeEnv interface env offset) offset index =
-      bitNat ((interface.source offset).eval env).val index := by
-  have bitIndexBelowInverse : offset + index < offset + bitCount := by omega
-  have bitIndexBelowRecipe : offset + index < offset + bitCount + 1 := by omega
-  have afterRecipe := executeRecipes_agrees_below
-    (completeInverse interface env offset) (offset + bitCount + 1)
-    (recipes offset) (offset + index) bitIndexBelowRecipe
-  have afterInverse := executeHints_agrees_below
-    (completeBits interface env offset) (offset + bitCount)
-    [inverseHint offset] (offset + index) bitIndexBelowInverse
-  have bit := completeBits_bitValue interface env offset index assumptions bounded
-  change (completeEnv interface env offset (offset + index)).val = _
-  rw [show completeEnv interface env offset (offset + index) =
-      completeInverse interface env offset (offset + index) by
-        exact afterRecipe,
-    show completeInverse interface env offset (offset + index) =
-      completeBits interface env offset (offset + index) by
-        exact afterInverse]
-  exact bit
-
-private theorem completeBits_weightedValue
-    (interface : Interface) (env : Env) (offset start count : Nat)
-    (assumptions : Assumptions interface offset env)
+private theorem computed_weightedValue (interface : Interface) (env : Env)
+    (offset start count : Nat)
+    (bits : HintsComputed env offset (bitHints interface offset))
     (within : start + count ≤ bitCount) :
-    weightedValue (completeBits interface env offset) offset start count =
+    weightedValue env offset start count =
       bitWindowValue ((interface.source offset).eval env).val start count := by
   unfold weightedValue bitWindowValue
   apply foldl_congr_mem
   intro total index member
   have indexLt : index < count := List.mem_range.mp member
-  rw [completeBits_bitValue interface env offset (start + index)
-    assumptions (by omega)]
+  rw [computed_bitValue interface env offset (start + index) bits (by omega)]
 
-private theorem completeEnv_weightedValue
-    (interface : Interface) (env : Env) (offset start count : Nat)
-    (assumptions : Assumptions interface offset env)
-    (within : start + count ≤ bitCount) :
-    weightedValue (completeEnv interface env offset) offset start count =
-      bitWindowValue ((interface.source offset).eval env).val start count := by
-  unfold weightedValue bitWindowValue
-  apply foldl_congr_mem
-  intro total index member
-  have indexLt : index < count := List.mem_range.mp member
-  rw [completeEnv_bitValue interface env offset (start + index)
-    assumptions (by omega)]
-
-private theorem completeEnv_wordValue
-    (interface : Interface) (env : Env) (offset : Nat)
-    (assumptions : Assumptions interface offset env) :
-    wordValue (completeEnv interface env offset) offset =
-      ((interface.source offset).eval env).val := by
+private theorem computed_wordValue (interface : Interface) (env : Env) (offset : Nat)
+    (bits : HintsComputed env offset (bitHints interface offset)) :
+    wordValue env offset = ((interface.source offset).eval env).val := by
   let sourceValue := ((interface.source offset).eval env).val
-  have low := completeEnv_weightedValue interface env offset 0 lowBitCount
-    assumptions (by simp [lowBitCount, bitCount])
-  have high := completeEnv_weightedValue interface env offset lowBitCount
-    highBitCount assumptions (by simp [lowBitCount, highBitCount, bitCount])
+  have low := computed_weightedValue interface env offset 0 lowBitCount
+    bits (by simp [lowBitCount, bitCount])
+  have high := computed_weightedValue interface env offset lowBitCount
+    highBitCount bits (by simp [lowBitCount, highBitCount, bitCount])
   rw [bitWindowValue_eq] at low high
   simp only [pow_zero, Nat.div_one] at low
-  change lowValue (completeEnv interface env offset) offset =
-    sourceValue % 2 ^ lowBitCount at low
-  change highValue (completeEnv interface env offset) offset =
+  change lowValue env offset = sourceValue % 2 ^ lowBitCount at low
+  change highValue env offset =
     (sourceValue / 2 ^ lowBitCount) % 2 ^ highBitCount at high
   have sourceCapacity : sourceValue < 2 ^ bitCount := by
     exact lt_trans ((interface.source offset).eval env).isLt (by
@@ -1001,152 +974,81 @@ private theorem completeEnv_wordValue
       (sourceValue / 2 ^ lowBitCount) % 2 ^ highBitCount =
         sourceValue / 2 ^ lowBitCount := Nat.mod_eq_of_lt highLt
   have split := Nat.mod_add_div sourceValue (2 ^ lowBitCount)
-  change lowValue (completeEnv interface env offset) offset +
-    2 ^ lowBitCount * highValue (completeEnv interface env offset) offset =
-      sourceValue
+  change lowValue env offset + 2 ^ lowBitCount * highValue env offset = sourceValue
   rw [low, high, highMod]
   exact split
 
-private theorem completeEnv_source
-    (interface : Interface) (env : Env) (offset : Nat)
-    (assumptions : Assumptions interface offset env) :
-    (interface.source offset).eval (completeEnv interface env offset) =
-      (interface.source offset).eval env := by
-  apply Expr.eval_eq_of_agree_below _ offset _ _ assumptions
-  intro index below
-  unfold completeEnv completeInverse completeBits
-  rw [executeRecipes_agrees_below _ (offset + bitCount + 1)
-      (recipes offset) index (by omega),
-    executeHints_agrees_below _ (offset + bitCount)
-      [inverseHint offset] index (by omega),
-    executeHints_agrees_below env offset (bitHints interface offset) index below]
-
-private theorem completeEnv_inverse
-    (interface : Interface) (env : Env) (offset : Nat) :
-    (inverseExpr offset).eval (completeEnv interface env offset) =
-      Hint.inverse
-        ((highDifferenceExpr offset).eval (completeEnv interface env offset)) := by
-  have value := executeHints_value_of_readBelow
-    (completeBits interface env offset) (offset + bitCount)
-    [inverseHint offset] (by
-      intro hint member
-      simp only [List.mem_singleton] at member
-      subst hint
-      exact highDifference_varsBelow offset)
-    0 (by simp)
-  have preserved :
-      (highDifferenceExpr offset).eval (completeEnv interface env offset) =
-        (highDifferenceExpr offset).eval (completeBits interface env offset) := by
-    apply Expr.eval_eq_of_agree_below _ (offset + bitCount) _ _
-      (highDifference_varsBelow offset)
-    intro index below
-    unfold completeEnv completeInverse
-    rw [executeRecipes_agrees_below _ _ _ index (by omega),
-      executeHints_agrees_below _ _ _ index below]
-  rw [preserved]
-  change completeEnv interface env offset (offset + bitCount) = _
-  unfold completeEnv
-  rw [executeRecipes_agrees_below _ _ _ (offset + bitCount) (by omega)]
-  simpa [completeInverse, inverseHint] using! value
-
-private theorem completeEnv_spec
-    (interface : Interface) (env : Env) (offset : Nat)
-    (assumptions : Assumptions interface offset env) :
-    SpecHolds interface offset (completeEnv interface env offset) := by
-  have word := completeEnv_wordValue interface env offset assumptions
-  have source := completeEnv_source interface env offset assumptions
-  refine ⟨?_, ?_, ?_⟩
-  · rw [source]
-    exact word.symm
+private theorem computed_spec (interface : Interface) (env : Env) (offset : Nat)
+    (bits : HintsComputed env offset (bitHints interface offset)) :
+    SpecHolds interface offset env := by
+  have word := computed_wordValue interface env offset bits
+  refine ⟨word.symm, ?_, ?_⟩
   · rw [word]
     exact ((interface.source offset).eval env).isLt
   · intro index bounded
-    rw [completeEnv_bitValue interface env offset index assumptions bounded]
+    rw [computed_bitValue interface env offset index bits bounded]
     unfold bitNat
     exact Nat.mod_lt _ (by decide)
 
-private theorem completeEnv_agreesOutside
-    (interface : Interface) (env : Env) (offset : Nat) :
-    AgreesOutside env (completeEnv interface env offset) offset auxiliaryCount := by
-  have bits := executeHints_agreesOutside env offset (bitHints interface offset)
-  have inverse := executeHints_agreesOutside (completeBits interface env offset)
-    (offset + bitCount) [inverseHint offset]
-  have derived := executeRecipes_agreesOutside (completeInverse interface env offset)
-    (offset + bitCount + 1) (recipes offset)
-  have first := bits.append inverse
-  have all := first.append derived
-  simpa [completeEnv, completeInverse, completeBits, bitHints_length, recipes,
-    auxiliaryCount, bitCount] using all
-
-private theorem completeEnv_holdsFlat
-    (interface : Interface) (env : Env) (offset : Nat)
-    (assumptions : Assumptions interface offset env) :
-    holdsFlat (completeEnv interface env offset) (operations interface offset) := by
-  have specification := completeEnv_spec interface env offset assumptions
+theorem computed_holdsFlat (interface : Interface) (env : Env) (offset : Nat)
+    (computed : Witness.Computed env (witnesses (operations interface offset))) :
+    holdsFlat env (operations interface offset) := by
+  obtain ⟨bits, inverse, derived⟩ := computed_parts interface env offset computed
+  have inverseValue : (inverseExpr offset).eval env =
+      Hint.inverse ((highDifferenceExpr offset).eval env) := inverse
+  have specification := computed_spec interface env offset bits
   have binary : ∀ index, index < bitCount →
-      (booleanConstraint offset index).eval
-        (completeEnv interface env offset) = 0 := by
+      (booleanConstraint offset index).eval env = 0 := by
     intro index bounded
     have bitLt := specification.bit_lt_two index bounded
-    have bitZeroOrOne : bitValue (completeEnv interface env offset) offset index = 0 ∨
-        bitValue (completeEnv interface env offset) offset index = 1 := by omega
+    have bitZeroOrOne : bitValue env offset index = 0 ∨
+        bitValue env offset index = 1 := by omega
     rcases bitZeroOrOne with bitZero | bitOne
-    · have bitFieldZero :
-          completeEnv interface env offset (offset + index) = 0 := by
+    · have bitFieldZero : env (offset + index) = 0 := by
         apply Fin.eq_of_val_eq
         simpa [bitValue] using bitZero
       rw [booleanConstraint_eval, bitFieldZero]
       exact zero_mul _
-    · have bitFieldOne :
-          completeEnv interface env offset (offset + index) = 1 := by
+    · have bitFieldOne : env (offset + index) = 1 := by
         apply Fin.eq_of_val_eq
         simpa [bitValue] using! bitOne
       rw [booleanConstraint_eval, bitFieldOne, sub_self]
       exact mul_zero _
   have recomposition :
-      (recompositionConstraint interface offset).eval
-        (completeEnv interface env offset) = 0 := by
+      (recompositionConstraint interface offset).eval env = 0 := by
     have sourceEq := specification.source_eq
     have wordBound := specification.canonical
     unfold recompositionConstraint
     simp only [Expr.eval_sub]
-    rw [wordExpr_eval (completeEnv interface env offset) offset]
+    rw [wordExpr_eval env offset]
     have fieldEq :
-        (interface.source offset).eval (completeEnv interface env offset) =
-          fieldOfNat (wordValue (completeEnv interface env offset) offset) := by
+        (interface.source offset).eval env =
+          fieldOfNat (wordValue env offset) := by
       apply Fin.eq_of_val_eq
       simpa [fieldOfNat, Nat.mod_eq_of_lt wordBound] using sourceEq
     rw [fieldEq]
     exact sub_self _
-  have derived : ConstraintsHold (completeEnv interface env offset)
-      (recipeConstraints (offset + bitCount + 1) (recipes offset)) :=
-    executeRecipes_holds_recipeConstraints
-      (completeInverse interface env offset) (offset + bitCount + 1)
-      (recipes offset) (recipes_causal offset)
-  have canonicality :
-      (canonicalityConstraint offset).eval
-        (completeEnv interface env offset) = 0 := by
-    let completed := completeEnv interface env offset
-    have equations := recipe_equations completed offset derived
+  have canonicality : (canonicalityConstraint offset).eval env = 0 := by
+    have equations := recipe_equations env offset derived
     have binaryCompleted : ∀ index, index < bitCount →
-        bitValue completed offset index ≤ 1 := fun index bounded =>
+        bitValue env offset index ≤ 1 := fun index bounded =>
       Nat.le_of_lt_succ (specification.bit_lt_two index bounded)
     rw [canonicalityConstraint_eval]
-    by_cases highEqual : highValue completed offset = highMax
-    · have lowSmall : lowValue completed offset < lowLimit := by
+    by_cases highEqual : highValue env offset = highMax
+    · have lowSmall : lowValue env offset < lowLimit := by
         have bound := specification.canonical
         rw [fieldModulus_eq] at bound
-        change lowValue completed offset + 2 ^ lowBitCount * highValue completed offset <
+        change lowValue env offset + 2 ^ lowBitCount * highValue env offset <
           2 ^ lowBitCount * highMax + lowLimit at bound
         rw [highEqual] at bound
         omega
-      rw [equations.2, (lowProduct_eq_zero_iff completed offset binaryCompleted).mpr lowSmall]
+      rw [equations.2, (lowProduct_eq_zero_iff env offset binaryCompleted).mpr lowSmall]
       exact mul_zero _
-    · have differenceNonzero : (highDifferenceExpr offset).eval completed ≠ 0 :=
+    · have differenceNonzero : (highDifferenceExpr offset).eval env ≠ 0 :=
         fun zero => highEqual
-          ((highDifference_eq_zero_iff completed offset binaryCompleted).mp zero)
-      have flagZero : (highFlagExpr offset).eval completed = 0 := by
-        rw [equations.1, flagRecipe_eval, completeEnv_inverse interface env offset,
+          ((highDifference_eq_zero_iff env offset binaryCompleted).mp zero)
+      have flagZero : (highFlagExpr offset).eval env = 0 := by
+        rw [equations.1, flagRecipe_eval, inverseValue,
           mul_hintInverse_eq_one _ differenceNonzero]
         exact sub_self _
       rw [flagZero]
@@ -1166,14 +1068,19 @@ private theorem completeEnv_holdsFlat
       · exact recomposition
       · exact canonicality
 
+def completeEnv (interface : Interface) (env : Env) (offset : Nat) : Env :=
+  Witness.execute env (witnesses (operations interface offset))
+
 theorem completeEnv_correct (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
     AgreesOutside env (completeEnv interface env offset) offset auxiliaryCount ∧
       holdsFlat (completeEnv interface env offset) (operations interface offset) ∧
-      SpecHolds interface offset (completeEnv interface env offset) :=
-  ⟨completeEnv_agreesOutside interface env offset,
-    completeEnv_holdsFlat interface env offset assumptions,
-    completeEnv_spec interface env offset assumptions⟩
+      SpecHolds interface offset (completeEnv interface env offset) := by
+  have program := ordered interface offset env assumptions
+  have computed := Witness.execute_computed program env
+  exact ⟨Witness.execute_agreesOutside program env,
+    computed_holdsFlat interface _ offset computed,
+    computed_spec interface _ offset (computed_parts interface _ offset computed).1⟩
 
 theorem complete
     (interface : Interface) (env : Env) (offset : Nat)
@@ -1182,11 +1089,10 @@ theorem complete
       AgreesOutside env completed offset
         (localLength (operations interface offset)) ∧
       holdsFlat completed (operations interface offset) := by
-  refine ⟨completeEnv interface env offset, ?_,
-    completeEnv_holdsFlat interface env offset assumptions⟩
-  have agrees := completeEnv_agreesOutside interface env offset
+  have correct := completeEnv_correct interface env offset assumptions
+  refine ⟨completeEnv interface env offset, ?_, correct.2.1⟩
   rw [localLength_eq]
-  exact agrees
+  exact correct.1
 
 theorem completeness
     (interface : Interface) (env : Env) (offset : Nat)

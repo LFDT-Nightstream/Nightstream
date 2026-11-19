@@ -44,11 +44,11 @@ are not checked.
 The results use only the assumptions of this list, and each is on a
 primitive. A random oracle on a derived object (the Poseidon2 hash, a
 transcript, `η`, or a challenge) is not an assumption. Such a model is
-`[P2-PERM]` and `[SPONGE]`, with the conditions of `[SPONGE]` as Lean
+`[P2-PERM]` with `[SPONGE]` or `[DSFS]`, with their conditions as Lean
 hypotheses, or it is a Lean theorem. Section Hashed encodings gives the status
 of each condition. `scripts/check_assumptions.py`, in the `static` phase of
 `scripts/validate.sh`, fails when an entry of this list is not on the owner's
-list of 2026-11-13, when another part of this page or `SPEC.md` states an
+list of 2026-11-13 and 2026-11-18, when another part of this page or `SPEC.md` states an
 assumption, or when a trust item cites no assumption and is not a gap or a
 scope note.
 
@@ -76,6 +76,22 @@ scope note.
   function has this birthday bound (`Spec.RandomOracle.pair_collision_le`).
   Two uses whose words start with tags that differ at a position of both
   never absorb one block list (`Spec.Sponge.blocks_ne_of_differ`).
+- `DSFS`: the duplex-sponge Fiat–Shamir lemma (Chiesa and Orrù, ePrint 2025/536, Lemma 5.1, as the proof of
+  Theorem 6.2 uses it) for the fold transcripts on Nightstream's sponge. Under `[P2-PERM]` and the
+  conditions `Export.BoundedDepth.FoldSponge.Conditions`, each fold prover with at most `N` permutation
+  calls has a model prover with at most `N` queries to the uniform function of adversary 3. The probability
+  that the fold succeeds and the extractor, which reruns the model prover, does not extract is at most
+  `duplexError N = 25·N²/q⁴` larger for the fold prover (`Spec.Sponge.duplexError`,
+  `Spec.Sponge.DuplexTransfer`). The number is the error of that theorem for the alphabet `F_q`, a capacity
+  of 4 lanes and a codec bias of 0 (each challenge reads lanes of the state), when `N` is larger than the
+  number of permutation calls of one verifier run. The paper does not prove two parts, so they are parts of
+  this entry (`decisions/duplex-sponge-fiat-shamir.md`). (A) The lemma is for the sponge of ePrint 2025/536,
+  Construction 3.3, which writes each block over the rate lanes. Nightstream adds each block to the rate
+  lanes (`Spec.Poseidon2.absorbBlock`). The paper says, without a proof, that its analysis adapts to the add
+  mode. A start from a fixed state that absorbs the instance is a case that ePrint 2025/536, Section 2.2,
+  says the analysis covers. (B) The model prover of the lemma samples values, and the rewinding
+  knowledge soundness of ePrint 2025/536, Definition 3.8, is for deterministic provers. So the model prover
+  has one fixed random tape for the base run and each retry.
 - `KECCAK`: SHAKE128, SHAKE256, SHA3-256 and the Keccak-f duplex of Akita in
   the classical random-oracle model: the Ajtai setup reads SHAKE128 output
   as uniform 64-bit words (trust item 1), and Akita reads its challenges as
@@ -83,17 +99,15 @@ scope note.
   2026-11-13 (`decisions/akita-compression.md`).
 - `MSIS`: Module-SIS for a uniform matrix of `κ = 18` rows over
   `F_q[X]/(X^64 + 1)` at the chain norm, in the lattice-estimator model
-  of `decisions/field-2p64-59-ring-x64.md` (trust item 2), and for the
-  Akita commitments at Akita's price (trust item 7).
-- `AKITA`: for the one Akita opening of a final proof
-  (`Spec.Compression.Akita.Use`), Akita (ePrint 2026/1983) Theorem 10.46
-  with its error `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)` and the term
-  `ε_hash` of Akita Lemma 10.47 for its digests
-  (`Spec.Compression.Akita.Theorem1046`), and the binding of the commitment
-  of the compression key to the key polynomial, which that theorem does not
-  give (`Spec.Compression.Akita.Use.Binding`). It does not include the
-  composition of the opening with the game, which the commitment of `V`
-  after the lookup challenges needs: that premise is open (trust item 7).
+  of `decisions/field-2p64-59-ring-x64.md` (trust item 2), and for the Akita commitments at Akita's price. For
+  the matrices of the commitment of the compression key, the instances are those of the premise `msis` (trust item 7).
+- `AKITA`: for the one Akita opening of a final proof (`Spec.Compression.Akita.Use`), Akita (ePrint 2026/1983)
+  Theorem 10.46 with its error `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)` and the term `ε_hash` of Akita
+  Lemma 10.47 for its digests (`Spec.Compression.Akita.Theorem1046`), for an extractor that returns the root weak
+  opening of Akita Definition 10.22. The proof of Akita Proposition 10.44 builds this opening, but the statement
+  of Theorem 10.46 does not give it. This entry does not include the binding of the commitment of the compression
+  key, which is a Lean result under `[MSIS]`, or the composition of the opening with the game, which the
+  commitment of `V` after the lookup challenges needs: that premise is open (trust item 7).
 - `HN-A1`: HyperNova errata Assumption 1 for the two fold kinds, in the form of
   trust item 3.
 <!-- assumptions:end -->
@@ -199,10 +213,15 @@ each head.
 | `assumption` | `Spec.HyperNova.ReverseStages.Assumption1` | assumption | `[HN-A1]` |
 | `closed.*`, `admitted` | `*` | assumption | `[HN-A1]`, in the form of trust item 3: the closure premise and the admitted adversary |
 | `Nebula/premise` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]` |
-| `Fold/premise` | `Spec.Sponge.Transfer` | open | Open: the event includes the extractor's retries, which query the oracle again after the base run. Indifferentiability moves one run, not a game with retries (adversary 3), so `[SPONGE]` does not give this transfer |
+| `Fold/premise` | `Spec.Sponge.DuplexTransfer` | assumption | `[DSFS]` under `[P2-PERM]`, for a fold prover with at most `calls` permutation calls and a model adversary with at most `calls` queries. The event includes the extractor's retries (adversary 3). `calls` is a parameter of the adversary class, as in the row `finder`, and it is larger than the number of permutation calls of one verifier run |
+| `Nebula/disjoint`, `Nebula/inRange`, `Nebula/images`, `Nebula/reorders`, `Nebula/bound` | `*` | open | Open: the conditions of a catalog application (`Spec.Nebula.MemoryTrace.Binding`). No Lean result shows that the binding rows of the Rust catalog backend enforce them (Out of scope) |
+| `finder` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]`, for the collision finder of a fold with at most `calls` permutation calls and inputs of at most `blocks` padded blocks. The event is one output of one run. The finder reruns the adversary on the oracles of its own tape, so no retry is outside the run (adversary 3). `calls` is a parameter of the adversary class, as in the row below |
 | `finders` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]`, for the finder of stage `j` with at most `calls j` permutation calls and inputs of at most `blocks` padded blocks. Lean has no count of the calls of a stage, which is a Lean function, so `calls` is a parameter of the adversary class, as `depth` is (adversary 4) |
-| `akita.theorem1046`, `binding` | `*` | assumption | `[AKITA]`: Akita Theorem 10.46 for the schedule of the opening, and the binding of the key commitment |
-| `akita.admissible` | `Spec.Compression.Akita.Schedule.Admissible` | open | Open: Lean does not model Akita's schedules, and Akita declares no query budget `Q_max` for the schedule files of `SPEC.md` section 3, so no check gives S2 and S3 of Akita Definition 9.2 |
+| `akita.theorem1046` | `Spec.Compression.Akita.Theorem1046` | assumption | `[AKITA]`: Akita Theorem 10.46 for the schedule of the opening. For the scheme of the row `binding`, the extractor returns the root weak opening of Akita Definition 10.22, which the statement of the theorem does not give (trust item 7) |
+| `binding` | `Spec.Compression.Akita.Use.Binding` | lean | `Claims.Compression.key_binding`, for the scheme `Spec.Compression.Akita.pcs`, whose decommitment relation is the certified relation `Spec.Compression.Akita.Certified.Opens`, and for a key commitment that is the output of `Spec.Compression.Akita.commit` on the key polynomial. No Lean result shows that the pinned key holds this output for the Akita matrices of the fixed seed (trust item 7) |
+| `msis` | `LE.le` | assumption | `[MSIS]`: for each admitted prover and each efficient extractor, the reduction `Spec.Compression.Akita.solve` returns a solution of Module-SIS with probability at most `bindingError`. The solution is for one of four instances: `A` at the norm `η_A = 2 · κ̄_1 · Δ^cert_f` of Akita (50), `B` at `b⋆ − 1`, or `F_1` or `F_2` at 1. For the shipped key shapes, `η_A` is the bound that the schedule file prices for `A`: 32505732 for `key20.aks` (`Spec.Compression.Akita.Descriptor.key20_innerBound`) and 16642998148 for `key30.aks` (`Spec.Compression.Akita.Descriptor.key30_innerBound`). The four matrices are views of one SHAKE256 stream (`[KECCAK]`), so Akita Lemma 10.20 joins the instances: it bounds the probability by the sum of the four advantages against a uniform matrix. Lean does not prove that lemma |
+| `honest.*`, `S.*`, `covers` | `*` | lean | `Spec.Compression.Akita.Shape.key20_honest` and `Spec.Compression.Akita.Shape.key30_honest`, for the shapes `Spec.Compression.Akita.Shape.key20` and `Spec.Compression.Akita.Shape.key30` of the key group of each schedule file, which carry the proofs of `S.*`. `tests/AkitaSchedules.lean` compares the numbers of the shapes with both files. A file has no field for `b⋆` and no shape of `F_1` and `F_2`: `b⋆ = 8` is from the bound 7 of the file for `B`, and the shapes of the two maps are from the Akita code (not checked against Lean). For `covers`: `Spec.Compression.Akita.Descriptor.key20_covers` and `Spec.Compression.Akita.Descriptor.key30_covers` give that the norm `β̄_∞ + κ̄_1 · b/2` of the solution of the reduction for `A`, 293887 and 136249343, is at most `η_A`. They are for the descriptors `Spec.Compression.Akita.Descriptor.key20` and `Spec.Compression.Akita.Descriptor.key30` of the root opening of the key group of each file, where `κ̄_1` and `β̄_∞` are the numbers of Akita (50): `κ̄_1 = 2 · 31 = 62`, and `β̄_∞ = Δ^cert_f` is `8^6 − 1` and `8^9 − 1`. The test also compares the challenge counts, the opening base, the fold digits and the bound of `A` with both files. No Lean result shows that the verifier of the root fold certifies these two bounds: that is the root weak opening of the row `akita.theorem1046` |
+| `akita.admissible` | `Spec.Compression.Akita.Schedule.Admissible` | open | Open: no schedule with a row of `crates/ns-compress/artifacts/key30.aks`, the file of a key of `2^19` blocks, is admissible (`Spec.Compression.Akita.Schedule.not_admissible_key30`). Each row uses coefficient packing at levels 2 and 3, and the family F1 of Akita Definition 9.2 gives these levels evaluation trace. Akita Theorem 10.46 is for an admissible schedule, so it does not cover an opening under this file. The row of `crates/ns-compress/artifacts/key20.aks` has F1 to F3, I2, I3, the second part of I1 and C3 (`Spec.Compression.Akita.key20_conditions`), and `tests/AkitaSchedules.lean` compares the Lean rows with both files. The other conditions are open for each file (`Spec.Compression.Akita.Schedule.Rest`): a file holds no challenge certificate, sampler limit, setup registry or Module-SIS estimate for the root batching conditions of I1, C1, C2, C4 to C6, E1 to E3 and S1, and it holds no `λ_FS` and no `Q_max` for S2 and S3 |
 | `akita.admitted`, `akita.budget` | `*` | game | adversary 6: the prover with Akita openings is a classical random-oracle prover with at most `Q_max` queries to Akita's `H_FS` |
 | `accepts` | `Spec.Compression.Akita.Use.Opens` | game | `SPEC.md` Algorithm 10: step 11 accepts only when Akita accepts the three openings, the first against the commitment of the compression key |
 | `composition` | `Spec.Compression.Akita.Use.Composition` | open | Open: the gap of `V` of trust item 7. No result of Akita composes its opening with a commitment that follows a challenge of the application |
@@ -510,48 +529,45 @@ not change terminal source checks.
   inputs with one digest with probability at most
   `C(N + 2, 2)/q⁴ + spongeError N` (`Spec.Sponge.collision_le`), because the
   `10*` padding of the sponge is injective
-  (`Claims.Encodings.hash_padding_injective`, `Spec.Sponge.collision_blocks`).
+  (`Claims.Encodings.hash_padding_injective`).
   Averaged over the SHAKE128 key setup at key width `2^26`, the kernel term is
   an MSIS advantage for a uniform matrix at the chain norm plus a programming
   error below `2^−1129`, so each fold's bound uses only the two algorithms
   (`Claims.Fold.light_production_knowledge_error`,
   `Claims.Fold.refresh_production_knowledge_error`).
-  Lean bounds neither the MSIS advantage nor the collision advantage
-  numerically (trust item 2), and it states the machines' work in adversary
-  runs, not in time.
+  The finder is one run with one output, and it reruns the adversary on
+  oracles of its own tape. So `[SPONGE]` gives its advantage the number above
+  for `N` calls, a parameter of the adversary class
+  (`Claims.Fold.light_knowledge_error_numeric`,
+  `Claims.Fold.refresh_knowledge_error_numeric`). Lean does not bound the
+  MSIS advantage numerically (trust item 2), and it states the machines' work
+  in adversary runs, not in time.
 - **The sponge:** the model's address of a challenge is the list of sponge
   calls before its read (`Lifecycle.RandomOracle.Schedule.challengeCalls`).
   Distinct challenges have distinct addresses
   (`Lifecycle.RandomOracle.Schedule.challengeAddress_injective`), equal calls
   fix the absorbed data (`Lifecycle.RandomOracle.Schedule.proverCalls_identify`),
   and the light and refresh transcripts share no call prefix
-  (`Lifecycle.RandomOracle.Schedule.challengeCalls_separated`). These are
-  conditions of `[SPONGE]`. Under `[P2-PERM]` and `[SPONGE]`, the bound of
-  the model holds for a verifier that reads the sponge outside a circuit, plus
-  `spongeError N`, when every condition holds. The fold calls start with
-  their domain (`Export.DomainSeparation.fold_owns`), and the fold domains
-  are separated from the other uses (`Claims.Encodings.domains_separated`).
-  The model reads each address as the sponge does at the rate lanes
-  (`Lifecycle.BoundedDepth.RandomOracle.Fidelity.spongeOracle_deployed`).
-  The state of a `ρ` read is the state of no other challenge, because its
-  calls are longer than those of a `K` coin and two `ρ` reads have
-  different numbers of calls (`Lifecycle.RandomOracle.Schedule.rhoCalls_ne`).
-  So a new answer at a `ρ` point keeps the Π_CCS coins
-  (`Lifecycle.RandomOracle.Fork.update_rho_ne`). With these conditions
-  proved for every fold schedule (`Export.BoundedDepth.FoldSponge.conditions`),
-  the premise `Spec.Sponge.Transfer` moves the failure event: the fold
-  succeeds and the extractor, with the retries of the retry law, does not
-  extract (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.failureChance`).
-  In the ideal-permutation model its chance is at most the knowledge error
-  of the transfer's model adversary plus `spongeError N`
-  (`Claims.Fold.light_knowledge`, `Claims.Fold.refresh_knowledge`). The event
-  includes the retries, which give new answers at the `ρ` points. So the
-  premise moves the base run and its retries as one experiment, which is
-  more than the indifferentiability of one run: indifferentiability does not
-  cover a game with retries (Ristenpart, Shacham and Shrimpton,
-  EUROCRYPT 2011). So the premise is open, not `[SPONGE]`. The model adversary has the
-  query bound `Q` of the premise, which must be at least the number of
-  queries of the simulator of `[SPONGE]`.
+  (`Lifecycle.RandomOracle.Schedule.challengeCalls_separated`). The fold calls
+  start with their domain (`Export.DomainSeparation.fold_owns`), and the fold
+  domains are separated from the other uses
+  (`Claims.Encodings.domains_separated`). The model reads each address as the
+  sponge does at the rate lanes
+  (`Lifecycle.BoundedDepth.RandomOracle.Fidelity.spongeOracle_deployed`). The
+  state of a `ρ` read is the state of no other challenge, because its calls are
+  longer than those of a `K` coin and two `ρ` reads have different numbers of
+  calls (`Lifecycle.RandomOracle.Schedule.rhoCalls_ne`). So a new answer at a
+  `ρ` point keeps the Π_CCS coins
+  (`Lifecycle.RandomOracle.Fork.update_rho_ne`). These are the conditions of
+  `[DSFS]` (`Export.BoundedDepth.FoldSponge.conditions`). The event is the
+  failure event: the fold succeeds and the extractor, with the retries of the
+  retry law, does not extract
+  (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.failureChance`). The
+  event has retries, so `[DSFS]` moves it, not `[SPONGE]`, which moves one run
+  only. For a prover with `N` permutation calls and a verifier outside a
+  circuit, its chance is at most the knowledge error of a model adversary with
+  `N` queries plus `duplexError N` (`Claims.Fold.light_knowledge`,
+  `Claims.Fold.refresh_knowledge`).
 - **Not covered:** the step circuits recompute the challenges with the
   Poseidon2 permutation, and no ideal-permutation model covers a circuit
   that evaluates the permutation. So this result bounds no deployed check of
@@ -770,7 +786,7 @@ not change terminal source checks.
   a statement for which no proof with witnesses satisfies `Verifies` with
   probability at most `Q · (2^−119 + 38/q²)`
   (`Claims.Final.verifier_sound`), and with Akita openings
-  at most `Q · (2^−119 + 38/q²)` plus the error of `[AKITA]`
+  at most `Q · (2^−119 + 38/q²)` plus the error of the Akita opening
   (`Spec.Compression.Akita.Use.error`,
   `Claims.Final.verifier_sound_with_akita`), under the
   premises of trust item 7. Lean bounds one interactive run of the
@@ -825,7 +841,7 @@ not change terminal source checks.
   adversary 4 for the stages of this IVC adversary
   (`Claims.Final.history_sound`,
   `Export.BoundedDepth.IvcSecurity.walkBound`). With Akita openings, the
-  bound adds the error of `[AKITA]` (`Claims.Final.history_sound_with_akita`).
+  bound adds the error of the Akita opening (`Claims.Final.history_sound_with_akita`).
   The same bound holds for the witnesses that the reverse extractor returns:
   the final verifier accepts, and those witnesses are not a valid history of
   the accepted statement (`Claims.Final.history_knowledge`,
@@ -857,7 +873,7 @@ not change terminal source checks.
   for this IVC adversary. So its probability is at most
   `Q · (2^−119 + 38/q²)` plus the terms of adversary 5
   (`Claims.Final.memory_sound`). With Akita openings, the
-  bound adds the error of `[AKITA]` (`Claims.Final.memory_sound_with_akita`).
+  bound adds the error of the Akita opening (`Claims.Final.memory_sound_with_akita`).
   The premises are those of the two joined results, but without the bound
   `depth`: the checks of `SPEC.md` Algorithm 8 step 4 accept at most
   `S_max · N` steps (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`),
@@ -958,6 +974,11 @@ not change terminal source checks.
      calls of the finder: the calls of the stage, and so the calls of the
      earlier stages that it runs again. Lean cannot count them for a Lean
      function, so `N` is a parameter of the adversary class.
+   - *The fold collision term.* The collision finder of each fold is such
+     an algorithm too, and Lean bounds its advantage with the same bound
+     (`Claims.Fold.light_knowledge_error_numeric`,
+     `Claims.Fold.refresh_knowledge_error_numeric`). `N` counts the calls of
+     the adversary in each of the finder's reruns.
    - Lean does not bound the MSIS term numerically.
 3. **The history: HyperNova errata Assumption 1 for the two fold kinds [HN-A1].**
    `Spec.HyperNova.ReverseStages.Assumption1` states Assumption 1 in the form
@@ -1265,57 +1286,54 @@ not change terminal source checks.
      verifier can accept a false statement. The pin is a value in the code,
      and the test is the check of the pin. No Lean result covers either.
      The Lean result takes the honest key as a premise.
-   - *Akita `[AKITA]` and the gap of `V`.* The one Akita proof opens
-     the key polynomial, `W` and `V`. It uses Akita (ePrint 2026/1983) at
-     git revision `d50f700f`, crate version 0.1.0, with the configuration
-     `RecursiveCommitmentConfig<fp64::Dense>` and the schedule files of
-     `SPEC.md` section 3 (`Spec.Compression.Akita.Use`). The final claims
-     have three premises about it. First, `[AKITA]`: Akita (revision of
-     2026-10-15) Theorem 10.46, in the classical random-oracle model
-     (`Spec.Compression.Akita.Theorem1046`, premise `akita`). Under an
-     admissible schedule (Akita Definition 9.2), a prover with `Q ≤ Q_max`
-     queries to `H_FS` has an extractor of Akita Definition 3.7 with the
-     error `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)`, and
-     `Δ_setup ≤ N_setup · q / 2^w`. Akita's transcript takes its last
-     terminal block and its root commitments as SHA3-256 digests, so Akita
-     Lemma 10.47 adds `ε_hash`
-     (`Spec.Compression.Akita.Schedule.knowledgeError`). The setup of the
-     theorem holds the commitments of the offloaded prefixes, so the error
-     covers them. Its conditions are open: Lean does not model the
-     schedules, and Akita declares no `Q_max` (premise `akita.admissible`).
-     Second, `[AKITA]`: the commitment of the compression key binds the key
-     polynomial, so the opened value is the value of the Ajtai key's
-     polynomial (`Spec.Compression.Akita.Use.Binding`, premise `binding`).
-     Theorem 10.46 does not give binding. Third, the gap of `V`, an open premise
-     (`Spec.Compression.Akita.Use.Composition`, premise `composition`): a
-     win in which the extractor returns the tables is a win of the game.
-     The composition theorem of Akita (Theorem 10.45) has every root
-     commitment in the first message, before the first challenge of the
-     application, so it does not cover the commitment of `V` after `τ`.
-     Akita's checkpoint structures (Definition 10.16) allow more than one
-     checkpoint, but no result of the paper states the composition with a
-     second commitment, and Lean does not prove it. The premise also covers
-     `W`: Lean does not prove the conditions of Theorem 10.45 for the
-     argument, and the premise joins the Poseidon2 transcript of the game to
-     Akita's Keccak transcript.
-     Lean proves the rest of the step (`Spec.Compression.Akita.Use.wins_le`).
-     Akita states a target of a 128-bit Fiat–Shamir rate for each
-     random-oracle query. Its documentation says that this target is not an
-     end-to-end bound and that it declares no query budget, no bound on the
-     size of the extraction tree and no reduction loss. Akita has no audit
-     and no analysis in the quantum random-oracle model.
-   - *The Keccak family `[KECCAK]`.* Akita makes its challenges with a
-     Keccak-f duplex sponge, its digests with SHA3-256, its session
-     identifier with SHAKE128 and its setup with SHAKE256. No step circuit
-     computes these functions. The owner accepted this hash family for
-     Akita on 2026-11-13 (`decisions/akita-compression.md`).
-   - *Module-SIS for the Akita commitments `[MSIS]`.* Akita prices each of its
-     Module-SIS instances at 169 bits or more in the ADPS16 quantum cost
-     model (policy `Quantum169BitADPS16`). Akita states that this price is
-     for one attack family on a scalar instance, that it does not price
-     attacks on the ring or module structure, and that it does not include
-     the loss of the reduction. The Ajtai commitments of the claims keep
-     the lower estimate of trust item 2.
+   - *Akita `[AKITA]` and the gap of `V`.* The one Akita proof opens the key polynomial, `W` and `V`. It uses
+     Akita (ePrint 2026/1983) at git revision `d50f700f`, crate version 0.1.0, with the configuration
+     `RecursiveCommitmentConfig<fp64::Dense>` and the schedule files of `SPEC.md` section 3
+     (`Spec.Compression.Akita.Use`). The final claims have three parts about it. First, `[AKITA]`: Akita (revision
+     of 2026-10-15) Theorem 10.46, in the classical random-oracle model (`Spec.Compression.Akita.Theorem1046`,
+     premise `akita`). Under an admissible schedule (Akita Definition 9.2), a prover with `Q ≤ Q_max` queries to
+     `H_FS` has an extractor of Akita Definition 3.7 with the error `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)`,
+     and `Δ_setup ≤ N_setup · q / 2^w`. Akita's transcript takes its last terminal block and its root commitments
+     as SHA3-256 digests, so Akita Lemma 10.47 adds `ε_hash` (`Spec.Compression.Akita.Schedule.knowledgeError`).
+     The setup of the theorem holds the commitments of the offloaded prefixes, so the error covers them. Its
+     conditions fail for `key30.aks`, which is not in the family F1, and are open for `key20.aks` (premise
+     `akita.admissible`). Second, binding: the commitment of the compression key binds the key polynomial, so the
+     opened value is the value of the Ajtai key's polynomial (`Spec.Compression.Akita.Use.Binding`, premise
+     `binding`). Theorem 10.46 does not give binding. It is a Lean result under `[MSIS]`
+     (`Claims.Compression.key_binding`, item below) for the scheme whose decommitment relation is the certified
+     relation: Akita Definition 10.21 with the weak certificate of Akita Definition 10.22
+     (`Spec.Compression.Akita.Certified.Opens`). Akita's `Rel_com` (Definition 10.21) has no norm bound on the
+     source blocks, so it is not binding alone. Thus, for this scheme, the first premise is for an extractor that
+     returns the root weak opening (Akita Definition 10.22). The proof of Akita Proposition 10.44 builds that
+     opening, but the statement of Theorem 10.46 does not give it. This part stays in `[AKITA]`. Third, the gap of
+     `V`, an open premise (`Spec.Compression.Akita.Use.Composition`, premise `composition`): a win in which the
+     extractor returns the tables is a win of the game. The composition theorem of Akita (Theorem 10.45) has every
+     root commitment in the first message, before the first challenge of the application, so it does not cover the
+     commitment of `V` after `τ`. Akita's checkpoint structures (Definition 10.16) allow more than one checkpoint,
+     but no result of the paper states the composition with a second commitment, and Lean does not prove it. The
+     premise also covers `W`: Lean does not prove the conditions of Theorem 10.45 for the argument, and the
+     premise joins the Poseidon2 transcript of the game to Akita's Keccak transcript. Lean proves the rest of the
+     step (`Spec.Compression.Akita.Use.wins_le`). Akita states a target of a 128-bit Fiat–Shamir rate for each
+     random-oracle query. Its documentation says that this target is not an end-to-end bound and that it declares
+     no query budget, no bound on the size of the extraction tree and no reduction loss. Akita has no audit and no
+     analysis in the quantum random-oracle model.
+   - *The Keccak family `[KECCAK]`.* Akita makes its challenges with a Keccak-f duplex sponge, its digests with
+     SHA3-256, its session identifier with SHAKE128 and its setup with SHAKE256. No step circuit computes these
+     functions. The owner accepted this hash family for Akita on 2026-11-13 (`decisions/akita-compression.md`).
+   - *Module-SIS for the Akita commitments `[MSIS]`.* Lean reduces the binding of the commitment of the compression key
+     to Module-SIS (`Claims.Compression.key_binding`): a certified decommitment to a different table gives, with the
+     state of the commitment algorithm, a solution for `A` at `η_A = 2 · κ̄_1 · Δ^cert_f`, for `B` at `b⋆ − 1`, or for
+     `F_1` or `F_2` at 1. For the shipped key shapes, `η_A` is the bound that the schedule file prices for `A`
+     (32505732 for `key20.aks`, 16642998148 for `key30.aks`), and Lean proves that the norm `β̄_∞ + κ̄_1 · b/2` of the
+     reduction is at most `η_A` (premise `covers`). Here `κ̄_1` and `β̄_∞ = Δ^cert_f` are the numbers of Akita (50) for
+     the root opening descriptor of the file. No Lean result shows that the verifier of the root fold certifies them:
+     that is the root weak opening (item above). The claim gives no bound on `bindingError` (premise `msis`). It is for
+     the output of `Spec.Compression.Akita.commit` on the key polynomial. No Lean result shows that the pinned key
+     holds this output for the Akita matrices of the fixed seed: the pin and its test (item above) are the only check.
+     Akita prices each of its Module-SIS instances at 169 bits or more in the ADPS16 quantum cost model (policy
+     `Quantum169BitADPS16`). Akita states that this price is for one attack family on a scalar instance, that it does
+     not price attacks on the ring or module structure, and that it does not include the loss of the reduction. The
+     Ajtai commitments of the claims keep the lower estimate of trust item 2.
    - *The Poseidon2 sponge for the argument `[P2-PERM]` `[SPONGE]`.* The
      Poseidon2 sponge makes each challenge of the Π_CCS run and of the
      argument (`SPEC.md` section 5.4). Each term of the Rust sum of `SPEC.md`
@@ -1424,8 +1442,9 @@ not change terminal source checks.
   package fixes, the binding rows of the Rust catalog backend, the rows of
   `nebula::R1csApplication` that link the rows of a batched step, and the
   WASM relation itself (`SPEC.md` sections 7.6 to 7.8). Lean proves what the slot plan conditions give
-  (`Spec.Nebula.MemoryTrace.reorders_of_slotOrder`) and that batched steps
-  are memory consistent exactly when their rows are
+  (`Spec.Nebula.MemoryTrace.reorders_of_slotOrder`), that the final catalog
+  state then agrees with the final memory (`Claims.Nebula.catalog_agrees`),
+  and that batched steps are memory consistent exactly when their rows are
   (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff`), but not
   that the Rust rows enforce those conditions. Tests check the rows on fixed
   inputs (trust item 5). Rust tests also check that each field of the

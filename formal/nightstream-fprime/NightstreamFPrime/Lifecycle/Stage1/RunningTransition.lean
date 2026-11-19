@@ -1,4 +1,5 @@
-import NightstreamFPrime.Circuit.StraightLine
+import NightstreamFPrime.Circuit.Execution
+import NightstreamFPrime.Gadgets.Range.CanonicalU64
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.RunningWords
 import NightstreamFPrime.Spec.FieldPrime
 
@@ -777,179 +778,76 @@ theorem soundness {logicalWidth : Nat}
     have difference := sub_eq_zero.mp row
     exact sub_left_injective difference
 
-def completeEnv {logicalWidth : Nat}
+theorem witnesses_operations {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (env : Env)
-    (offset : Nat) : Env :=
-  Env.set
-    (Env.set env offset (Hint.inverse (iterationValue interface offset env)))
-    (offset + 1)
-    (iterationValue interface offset env *
-      Hint.inverse (iterationValue interface offset env))
+    (interface : Interface logicalWidth publicFits) (offset : Nat) :
+    witnesses (operations interface offset) =
+      [WitnessBatch.hinted offset [inverseHint interface offset],
+        WitnessBatch.arithmetic (offset + 1) [flagRecipe interface offset]] := by
+  rw [operations, Witness.witnesses_cons, Witness.witnesses_cons,
+    Witness.witnesses_assertions]
+  rfl
 
-private theorem completed_agrees_below {logicalWidth : Nat}
+theorem ordered {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (env : Env)
-    (offset index : Nat) (below : index < offset) :
-    completeEnv interface env offset index = env index := by
-  unfold completeEnv
-  rw [Env.set_of_ne _ _ _ _ (by omega), Env.set_of_ne _ _ _ _ (by omega)]
+    (interface : Interface logicalWidth publicFits) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) :
+    Witness.Ordered offset (witnesses (operations interface offset))
+      (offset + localLength (operations interface offset)) := by
+  rw [witnesses_operations, localLength_eq]
+  exact ⟨le_rfl, ⟨trivial, assumptions.iteration, trivial⟩, by simp [WitnessBatch.finish],
+    ⟨⟨Expr.VarsBelow.mul _ _ _
+      (Expr.VarsBelow.mono _ assumptions.iteration (Nat.le_succ offset))
+      (Nat.lt_succ_self offset), trivial⟩, trivial⟩,
+    by simp [Witness.Ordered, WitnessBatch.finish, exactPrivateCount]⟩
 
-private theorem completed_iteration {logicalWidth : Nat}
+theorem computed_holdsFlat {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (env : Env)
-    (offset : Nat) (assumptions : Assumptions interface offset env) :
-    iterationValue interface offset (completeEnv interface env offset) =
-      iterationValue interface offset env := by
-  exact Expr.eval_eq_of_agree_below _ offset _ _ assumptions.iteration
-    (completed_agrees_below interface env offset)
-
-private theorem completed_runningWord {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      RingCarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (env : Env)
-    (offset : Nat) (assumptions : Assumptions interface offset env)
-    (index : WordIndex) :
-    (runningWord (interface.recursive offset) index).eval
-        (completeEnv interface env offset) =
-      (runningWord (interface.recursive offset) index).eval env := by
-  exact Expr.eval_eq_of_agree_below _ offset _ _
-    (assumptions.recursive index)
-    (completed_agrees_below interface env offset)
-
-private theorem completed_initialState {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      RingCarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (env : Env)
-    (offset : Nat) (assumptions : Assumptions interface offset env)
-    (index : StateIndex) :
-    (interface.initialState offset index).eval
-        (completeEnv interface env offset) =
-      (interface.initialState offset index).eval env := by
-  exact Expr.eval_eq_of_agree_below _ offset _ _
-    (assumptions.initialState index)
-    (completed_agrees_below interface env offset)
-
-private theorem completed_currentState {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      RingCarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (env : Env)
-    (offset : Nat) (assumptions : Assumptions interface offset env)
-    (index : StateIndex) :
-    (interface.currentState offset index).eval
-        (completeEnv interface env offset) =
-      (interface.currentState offset index).eval env := by
-  exact Expr.eval_eq_of_agree_below _ offset _ _
-    (assumptions.currentState index)
-    (completed_agrees_below interface env offset)
-
-private theorem completed_outputWord {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      RingCarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (env : Env)
-    (offset : Nat) (assumptions : Assumptions interface offset env)
-    (index : WordIndex) :
-    (interface.output offset index).eval
-        (completeEnv interface env offset) =
-      (interface.output offset index).eval env := by
-  exact Expr.eval_eq_of_agree_below _ offset _ _
-    (assumptions.output index)
-    (completed_agrees_below interface env offset)
-
-private theorem mul_hintInverse_eq_one (value : F) (nonzero : value ≠ 0) :
-    value * Hint.inverse value = 1 := by
-  have valuePositive : 0 < value.val := Nat.pos_of_ne_zero (by
-    intro valueValZero
-    apply nonzero
-    apply Fin.eq_of_val_eq
-    simpa using valueValZero)
-  have notDvd : ¬fieldModulus ∣ value.val := by
-    intro divides
-    have lower := Nat.le_of_dvd valuePositive divides
-    exact (not_le_of_gt value.isLt) lower
-  have coprime : Nat.Coprime value.val fieldModulus :=
-    (fieldModulus_natPrime.coprime_iff_not_dvd.mpr notDvd).symm
-  unfold Hint.inverse
-  have gcdOne : Nat.gcd value.val fieldModulus = 1 :=
-    Nat.coprime_iff_gcd_eq_one.mp coprime
-  unfold F fieldModulus at value gcdOne ⊢
-  have law := ZMod.mul_inv_eq_gcd
-    (n := 18446744073709551557) value
-  dsimp [ZMod, ZMod.val] at law
-  rw [gcdOne] at law
-  exact law
-
-private theorem completed_recursiveFlag {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      RingCarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (env : Env)
-    (offset : Nat) :
-    (recursiveFlag interface offset).eval (completeEnv interface env offset) =
+    (interface : Interface logicalWidth publicFits) (env : Env) (offset : Nat)
+    (specification : SpecHolds interface offset env)
+    (computed : Witness.Computed env (witnesses (operations interface offset))) :
+    holdsFlat env (operations interface offset) := by
+  rw [witnesses_operations] at computed
+  have inverseValue : env offset = Hint.inverse (iterationValue interface offset env) :=
+    (computed (WitnessBatch.hinted offset [inverseHint interface offset]) (by simp)).2.1
+  have flagRow : (flagConstraint interface offset).eval env = 0 :=
+    (computed (WitnessBatch.arithmetic (offset + 1) [flagRecipe interface offset])
+      (by simp)).1 _ (by simp [recipeConstraints, flagConstraint])
+  have flag : (recursiveFlag interface offset).eval env =
       iterationValue interface offset env *
         Hint.inverse (iterationValue interface offset env) := by
-  rw [recursiveFlag_eval]
-  simp [completeEnv]
-
-private theorem completeEnv_holdsFlat {logicalWidth : Nat}
-    {publicFits : ringDegree * publicRingColumns ≤
-      RingCarrierLayout.carrierWidth logicalWidth}
-    (interface : Interface logicalWidth publicFits) (env : Env)
-    (offset : Nat) (assumptions : Assumptions interface offset env)
-    (specification : SpecHolds interface offset env) :
-    holdsFlat (completeEnv interface env offset)
-      (operations interface offset) := by
+    rw [flag_eq_of_row interface offset env flagRow, inverseValue]
   unfold holdsFlat
   rw [flatConstraints_operations]
   intro expression member
-  rcases List.mem_cons.mp member with flagMember | member
-  · subst expression
-    have inverseValue : (completeEnv interface env offset) offset =
-        Hint.inverse (iterationValue interface offset env) := by
-      unfold completeEnv
-      rw [Env.set_of_ne _ _ _ _ (by omega), Env.set_self]
-    have flagEval :
-        (flagConstraint interface offset).eval (completeEnv interface env offset) =
-          (recursiveFlag interface offset).eval
-              (completeEnv interface env offset) -
-            iterationValue interface offset (completeEnv interface env offset) *
-              (completeEnv interface env offset) offset := by
-      simp [flagConstraint, flagRecipe, inverseExpr, recursiveFlag,
-        iterationValue]
-    rw [flagEval, completed_recursiveFlag interface env offset,
-      completed_iteration interface env offset assumptions, inverseValue,
-      sub_self]
-  rcases List.mem_cons.mp member with bindingMember | muxMember
-  · subst expression
-    rw [bindingConstraint_eval,
-      completed_iteration interface env offset assumptions]
+  rcases List.mem_cons.mp member with rfl | member
+  · exact flagRow
+  rcases List.mem_cons.mp member with rfl | muxMember
+  · rw [bindingConstraint_eval]
     by_cases iterationZero : iterationValue interface offset env = 0
     · rw [iterationZero, zero_mul, sub_zero]
-    · rw [baseFlag_eval, completed_recursiveFlag interface env offset,
-        mul_hintInverse_eq_one _ iterationZero, sub_self, mul_zero, sub_zero]
+    · rw [baseFlag_eval, flag, Gadgets.Range.CanonicalU64.mul_hintInverse_eq_one _ iterationZero,
+        sub_self, mul_zero, sub_zero]
   · rcases List.mem_append.mp muxMember with muxMember | stateMember
     · rcases List.mem_ofFn.mp muxMember with ⟨index, rfl⟩
-      rw [muxConstraint_eval,
-        completed_outputWord interface env offset assumptions index,
-        completed_runningWord interface env offset assumptions index,
-        completed_recursiveFlag interface env offset]
+      rw [muxConstraint_eval, flag]
       by_cases iterationZero : iterationValue interface offset env = 0
       · have selected := specification.base iterationZero index
         rw [iterationZero, zero_mul, zero_mul, selected, sub_self, sub_zero]
       · have selected := specification.recursive iterationZero index
-        rw [mul_hintInverse_eq_one _ iterationZero, one_mul, selected,
-          sub_self]
+        rw [Gadgets.Range.CanonicalU64.mul_hintInverse_eq_one _ iterationZero, one_mul,
+          selected, sub_self]
     · rcases List.mem_ofFn.mp stateMember with ⟨index, rfl⟩
-      rw [baseStateConstraint_eval,
-        completed_initialState interface env offset assumptions index,
-        completed_currentState interface env offset assumptions index]
+      rw [baseStateConstraint_eval]
       by_cases iterationZero : iterationValue interface offset env = 0
       · have selected := specification.initialState iterationZero index
         rw [selected, sub_self, mul_zero, sub_zero]
-      · rw [baseFlag_eval, completed_recursiveFlag interface env offset,
-          mul_hintInverse_eq_one _ iterationZero, sub_self, zero_mul, sub_zero]
+      · rw [baseFlag_eval, flag,
+          Gadgets.Range.CanonicalU64.mul_hintInverse_eq_one _ iterationZero, sub_self,
+          zero_mul, sub_zero]
 
 theorem completeness {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -960,14 +858,11 @@ theorem completeness {logicalWidth : Nat}
     ∃ completed,
       AgreesOutside env completed offset
         (localLength (operations interface offset)) ∧
-      holdsFlat completed (operations interface offset) := by
-  refine ⟨completeEnv interface env offset, ?_,
-    completeEnv_holdsFlat interface env offset assumptions specification⟩
-  rw [localLength_eq]
-  intro index outside
-  unfold completeEnv
-  simp [exactPrivateCount] at outside
-  rw [Env.set_of_ne _ _ _ _ (by omega), Env.set_of_ne _ _ _ _ (by omega)]
+      holdsFlat completed (operations interface offset) :=
+  Witness.complete (ordered interface offset env assumptions) fun completed below computed =>
+    computed_holdsFlat interface completed offset
+      (specHolds_of_agree_below interface offset env completed assumptions below specification)
+      computed
 
 theorem runningWord_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

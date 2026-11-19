@@ -2,6 +2,10 @@ import tests.AxiomAudit
 import NightstreamFPrime.Circuit.Execution
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.Program
 import NightstreamFPrime.Gadgets.SumCheck.FixedChain
+import NightstreamFPrime.Lifecycle.Stage1.NextPreimage
+import NightstreamFPrime.Lifecycle.PriorStateHashCore
+import NightstreamFPrime.Lifecycle.Nebula.Sponge
+import NightstreamFPrime.Lifecycle.Nebula.MemoryProgram
 
 #audit_axioms NightstreamFPrime.Circuit.HintsEach.append
 #audit_axioms NightstreamFPrime.Circuit.HintsEach.imp
@@ -24,3 +28,21 @@ import NightstreamFPrime.Gadgets.SumCheck.FixedChain
 #audit_axioms NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.ordered
 #audit_axioms NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.computed_rows
 #audit_axioms NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.computed_holdsFlat
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.NextPreimage.witnesses_opsAt
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.NextPreimage.spec_holdsFlat
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.RunningTransition.witnesses_operations
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.RunningTransition.ordered
+#audit_axioms NightstreamFPrime.Lifecycle.Stage1.RunningTransition.computed_holdsFlat
+#audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_2.SignedSplitScalar.witnesses_operations
+#audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_2.SignedSplitScalar.ordered
+#audit_axioms NightstreamFPrime.Lifecycle.PiDEC.v1_2.SignedSplitScalar.computed_holdsFlat
+#audit_axioms NightstreamFPrime.Lifecycle.PriorStateHash.witnesses_opsAt
+#audit_axioms NightstreamFPrime.Lifecycle.PriorStateHash.ordered
+#audit_axioms NightstreamFPrime.Lifecycle.PriorStateHash.computed_holdsFlat
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sponge.ordered
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sponge.computed_holdsFlat
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.rows_of_children
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.witnesses_opsAt
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.ordered
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.children_holdsFlat
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.computed_holdsFlat

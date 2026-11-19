@@ -193,7 +193,7 @@ impl<A: Application + Clone> Proving<'_, A> {
             self.last = Some(
                 self.prover
                     .stage1
-                    .extend_invocation(&previous, &invocation.words, invocation.output)?,
+                    .extend_invocation(previous, &invocation.words, invocation.output)?,
             );
         }
         self.failed = false;

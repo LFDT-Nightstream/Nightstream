@@ -7,7 +7,7 @@ mod words;
 use crate::engine::{Backend, CommitError, EngineError};
 use crate::folding::bounded_depth::{prove, Kind};
 use crate::folding::FoldContext;
-use crate::folding::{pi_dec, pi_rlc, CcsInstance, RunningInstance};
+use crate::folding::{pi_dec, pi_rlc, CcsInstance, CeClaim, RunningInstance};
 pub(crate) use compression::FinalProof;
 use neo_ccs::crypto::poseidon2::poseidon2_hash;
 use neo_math::F;
@@ -157,8 +157,14 @@ pub(crate) struct BoundedDepth {
 }
 
 pub(crate) struct Folded {
+    prior: BoundedDepthState,
+    slots: [Slot; 2],
+    update: Option<FoldUpdate>,
+}
+
+struct FoldUpdate {
     kind: Kind,
-    accumulator: pi_rlc::Output,
+    commitment: neo_ajtai::Commitment,
     proof: crate::folding::bounded_depth::Proof,
 }
 
@@ -228,16 +234,24 @@ impl BoundedDepth {
     }
 
     fn state(&self, envelope: &Envelope) -> BoundedDepthState {
-        BoundedDepthState {
-            keys: self.keys,
-            iteration: envelope.iteration,
-            z0: envelope.z0,
-            current: envelope.current,
-            pc: envelope.pc,
-            slots: envelope
+        self.state_from_claims(
+            envelope.state(),
+            envelope.pc,
+            envelope
                 .slots
                 .each_ref()
-                .map(|slot| words::slot(&slot.accumulator.claim, slot.depth)),
+                .map(|slot| (&slot.accumulator.claim, slot.depth)),
+        )
+    }
+
+    fn state_from_claims(&self, state: crate::State, pc: u64, slots: [(&CeClaim, u64); 2]) -> BoundedDepthState {
+        BoundedDepthState {
+            keys: self.keys,
+            iteration: state.iteration(),
+            z0: state.z0(),
+            current: state.current(),
+            pc,
+            slots: slots.map(|(claim, depth)| words::slot(claim, depth)),
         }
     }
 
@@ -270,6 +284,7 @@ impl BoundedDepth {
     }
 
     /// Lean `FreshInstance.built_holds_iff`.
+    #[cfg(test)]
     pub(crate) fn extend(
         &self,
         envelope: &Envelope,
@@ -277,26 +292,39 @@ impl BoundedDepth {
         next: [F; 4],
         locals: Option<&[F]>,
     ) -> Result<Envelope, BoundedDepthError> {
-        let folded = self.fold(envelope)?;
-        self.step(envelope, folded, witness, next, locals)
+        let folded = self.fold_owned(envelope.clone())?;
+        self.step(folded, witness, next, locals)
     }
 
-    pub(crate) fn fold(&self, envelope: &Envelope) -> Result<Option<Folded>, BoundedDepthError> {
+    pub(crate) fn fold_owned(&self, envelope: Envelope) -> Result<Folded, BoundedDepthError> {
         let Some(fresh) = &envelope.fresh else {
-            return Ok(None);
+            return Ok(Folded {
+                prior: self.state(&envelope),
+                slots: envelope.slots,
+                update: None,
+            });
         };
-        let selected = (envelope.pc - 1) as usize;
-        let slot = &envelope.slots[selected];
-        let kind = if slot.depth < self.cap {
-            Kind::Light
-        } else {
-            Kind::Refresh
-        };
+        let state = envelope.state();
+        let pc = envelope.pc;
+        let selected = (pc - 1) as usize;
         let rows = FreshMatrixRows {
             relation: &self.relations[selected],
             prepared: envelope.checked_rows.as_deref(),
             witness: &fresh.witness.Z,
         };
+        let [first, second] = envelope.slots;
+        let (slot, other) = if selected == 0 {
+            (first, second)
+        } else {
+            (second, first)
+        };
+        let kind = if slot.depth < self.cap {
+            Kind::Light
+        } else {
+            Kind::Refresh
+        };
+        let previous_claim = slot.accumulator.claim.clone();
+        let previous_depth = slot.depth;
         let (accumulator, proof) = prove(
             kind,
             &self.backend,
@@ -304,46 +332,64 @@ impl BoundedDepth {
                 rows: &rows,
                 ..rows.relation.context()
             },
-            fresh.clone(),
-            slot.accumulator.clone(),
+            fresh,
+            slot.accumulator,
         )?;
-        Ok(Some(Folded {
-            kind,
+        let prior_claims = if selected == 0 {
+            [
+                (&previous_claim, previous_depth),
+                (&other.accumulator.claim, other.depth),
+            ]
+        } else {
+            [
+                (&other.accumulator.claim, other.depth),
+                (&previous_claim, previous_depth),
+            ]
+        };
+        let prior = self.state_from_claims(state, pc, prior_claims);
+        let slot = Slot {
             accumulator,
-            proof,
-        }))
+            depth: words::next_depth(kind, previous_depth),
+        };
+        let slots = if selected == 0 { [slot, other] } else { [other, slot] };
+        Ok(Folded {
+            prior,
+            slots,
+            update: Some(FoldUpdate {
+                kind,
+                commitment: fresh.claim.c.clone(),
+                proof,
+            }),
+        })
     }
 
     pub(crate) fn step(
         &self,
-        envelope: &Envelope,
-        folded: Option<Folded>,
+        folded: Folded,
         witness: &[F],
         next: [F; 4],
         locals: Option<&[F]>,
     ) -> Result<Envelope, BoundedDepthError> {
-        let prior = self.state(envelope);
-        let mut slots = envelope.slots.clone();
-        let (kind, step) = match (&envelope.fresh, folded) {
-            (Some(fresh), Some(folded)) => {
-                let selected = (envelope.pc - 1) as usize;
-                let kind = folded.kind;
+        let Folded { prior, slots, update } = folded;
+        let (kind, step) = match update {
+            Some(FoldUpdate {
+                kind,
+                commitment,
+                proof,
+            }) => {
+                let selected = (prior.pc - 1) as usize;
                 let (step, _) = words::fold_step(
                     &prior,
                     next,
                     witness,
                     kind,
-                    &folded.accumulator.claim,
-                    fresh.claim.c.data(),
-                    &folded.proof,
+                    &slots[selected].accumulator.claim,
+                    commitment.data(),
+                    &proof,
                 );
-                slots[selected] = Slot {
-                    accumulator: folded.accumulator,
-                    depth: words::next_depth(kind, envelope.slots[selected].depth),
-                };
                 (kind, step)
             }
-            _ => (Kind::Light, words::base_step(&prior, next, witness)?.0),
+            None => (Kind::Light, words::base_step(&prior, next, witness)?.0),
         };
         let relation = &self.relations[words::pc(kind) as usize - 1];
         #[cfg(test)]
@@ -383,8 +429,8 @@ impl BoundedDepth {
                 checked
             });
         Ok(Envelope {
-            iteration: envelope.iteration + 1,
-            z0: envelope.z0,
+            iteration: prior.iteration + 1,
+            z0: prior.z0,
             current: next,
             pc: words::pc(kind),
             slots,

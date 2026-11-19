@@ -710,19 +710,38 @@ where
             to_balanced_i128(value),
         )));
     }
-    let entry = |col: usize| Z[(col % D, col / D)];
-    let fails = |&col: &usize| !is_dec_representable(params, entry(col));
-    let width = superneo_carrier_width(expected_m);
+    let bound = params.B();
+    if bound > Ff::ORDER_U64 / 2 {
+        return Ok(());
+    }
+    let span = Ff::ORDER_U64 - 2 * bound;
+    let first_invalid = |(row, values): (usize, &[Ff])| {
+        values
+            .iter()
+            .position(|value| value.as_canonical_u64().wrapping_sub(bound) <= span)
+            .map(|column| column * D + row)
+    };
+    let cols = Z.cols();
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
-    let first = (0..width).into_par_iter().find_first(fails);
+    let first = Z
+        .as_slice()
+        .par_chunks_exact(cols)
+        .enumerate()
+        .filter_map(first_invalid)
+        .min();
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
-    let first = (0..width).find(fails);
+    let first = Z
+        .as_slice()
+        .chunks_exact(cols)
+        .enumerate()
+        .filter_map(first_invalid)
+        .min();
     if let Some(col) = first {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: witness carrier_col={col} is not representable in k_rho={} balanced base-{} digits (centered value {})",
             params.k_rho(),
             params.b(),
-            to_balanced_i128(entry(col)),
+            to_balanced_i128(Z[(col % D, col / D)]),
         )));
     }
     Ok(())

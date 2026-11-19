@@ -6,7 +6,7 @@ use neo_math::{D, F};
 use neo_params::NeoParams;
 use neo_reductions::{pi_ccs_prove, pi_ccs_verify};
 use neo_transcript::Poseidon2Transcript;
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 
@@ -67,4 +67,44 @@ fn prove_accepts_nc_alphabet_packed_witness_values() {
     let mut tr_v = Poseidon2Transcript::new_v1_2();
     let ok = pi_ccs_verify(&mut tr_v, &params, &ccs, &mcs_list, &running, &out, &proof).expect("verify should run");
     assert!(ok, "verify should pass for NC-range packed witness values");
+}
+
+#[test]
+fn decomposition_bound_reports_first_invalid_carrier_coordinate() {
+    use neo_reductions::common::validate_packed_witness_dec_representable;
+
+    let params = NeoParams::nightstream_p64_k14();
+    let bound = params.B();
+    let width = 2 * D + 1;
+    let mut witness = Mat::from_row_major(
+        D,
+        3,
+        (0..3 * D)
+            .map(|index| match index % 3 {
+                0 => F::ZERO,
+                1 => F::new(bound - 1),
+                _ => F::new(F::ORDER_U64 - bound + 1),
+            })
+            .collect(),
+    );
+    let check = |witness: &Mat<F>| validate_packed_witness_dec_representable(&params, witness, width, "range");
+    assert!(check(&witness).is_ok());
+
+    witness[(1, 2)] = F::new(bound);
+    witness[(3, 0)] = F::new(F::ORDER_U64 - bound);
+    witness[(2, 1)] = F::new(F::ORDER_U64 / 2);
+    let err = check(&witness).unwrap_err().to_string();
+    assert!(
+        err.contains("carrier_col=3") && err.contains(&format!("centered value -{bound}")),
+        "{err}"
+    );
+    witness[(3, 0)] = F::ZERO;
+    let err = check(&witness).unwrap_err().to_string();
+    assert!(err.contains("carrier_col=66"), "{err}");
+    witness[(2, 1)] = F::ZERO;
+    let err = check(&witness).unwrap_err().to_string();
+    assert!(
+        err.contains("carrier_col=129") && err.contains(&format!("centered value {bound}")),
+        "{err}"
+    );
 }

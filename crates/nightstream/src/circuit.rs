@@ -408,19 +408,27 @@ impl Prover {
     }
 
     pub fn prove(&self, initial_state: [F; 4], private_inputs: &[F]) -> Result<Proof, Error> {
-        self.extend(&Proof(self.lifecycle.initial(initial_state)?), private_inputs)
+        self.extend_owned(Proof(self.lifecycle.initial(initial_state)?), private_inputs)
     }
 
     /// The next proof; `proof` does not change. The Rust application
     /// computes the output state.
     pub fn extend(&self, proof: &Proof, private_inputs: &[F]) -> Result<Proof, Error> {
+        if self.application.is_none() {
+            return Err(ApplicationError::NoApplication.into());
+        }
+        self.extend_owned(proof.clone(), private_inputs)
+    }
+
+    fn extend_owned(&self, proof: Proof, private_inputs: &[F]) -> Result<Proof, Error> {
         let application = self
             .application
             .as_ref()
             .ok_or(ApplicationError::NoApplication)?;
+        let current = proof.state().current();
         let (witness, folded) = std::thread::scope(|scope| {
-            let run = scope.spawn(|| application.execute_compiled(proof.state().current(), private_inputs));
-            let folded = self.lifecycle.fold(&proof.0);
+            let run = scope.spawn(|| application.execute_compiled(current, private_inputs));
+            let folded = self.lifecycle.fold_owned(proof.0);
             (
                 run.join()
                     .unwrap_or_else(|panic| std::panic::resume_unwind(panic)),
@@ -429,7 +437,6 @@ impl Prover {
         });
         let witness = witness?;
         Ok(Proof(self.lifecycle.step(
-            &proof.0,
             folded?,
             private_inputs,
             witness.output_state(),
@@ -458,6 +465,7 @@ impl Prover {
         self.extend_with_output(&Proof(self.lifecycle.initial(initial_state)?), private_inputs, output)
     }
 
+    #[cfg(test)]
     pub(crate) fn extend_with_output(
         &self,
         proof: &Proof,
@@ -470,16 +478,12 @@ impl Prover {
         ))
     }
 
-    pub(crate) fn extend_invocation(
-        &self,
-        proof: &Proof,
-        private_inputs: &[F],
-        output: [F; 4],
-    ) -> Result<Proof, Error> {
+    pub(crate) fn extend_invocation(&self, proof: Proof, private_inputs: &[F], output: [F; 4]) -> Result<Proof, Error> {
         if self.application.is_none() {
-            return self.extend_with_output(proof, private_inputs, output);
+            let folded = self.lifecycle.fold_owned(proof.0)?;
+            return Ok(Proof(self.lifecycle.step(folded, private_inputs, output, None)?));
         }
-        let next = self.extend(proof, private_inputs)?;
+        let next = self.extend_owned(proof, private_inputs)?;
         if next.state().current() != output {
             return Err(Error::Circuit("the application's output differs from the native step"));
         }

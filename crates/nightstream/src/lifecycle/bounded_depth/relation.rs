@@ -353,13 +353,10 @@ impl Relation {
         let mut values = vec![[F::ZERO; MATRICES]; rows.row_count()];
         let pending = Mutex::new(values.chunks_mut(ROWS_PER_RANGE).enumerate());
         let produce = || loop {
-            let Some((index, group)) = pending
+            let (index, group) = pending
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .next()
-            else {
-                return None;
-            };
+                .next()?;
             for (local, output) in group.iter_mut().enumerate() {
                 let row = index * ROWS_PER_RANGE + local;
                 let [a, b, c, s] = std::array::from_fn(|matrix| rows.evaluate(row, matrix, columns));

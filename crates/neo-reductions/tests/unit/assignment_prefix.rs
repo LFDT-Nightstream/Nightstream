@@ -63,3 +63,33 @@ fn early_norm_coefficients_match_the_per_pair_sum() {
     }
     assert_eq!(early_rounds, 3);
 }
+
+#[test]
+fn factorized_norm_handles_mask_boundaries_and_folded_codes() {
+    let positive = [u64::MAX, 0, 0b1_0000_0101, 0, 1 << 5];
+    let negative = [0, u64::MAX, 0b0_1100_0010, 0, 1 << 6];
+    let packed = Mat::compact_signed_unit_from_column_masks(D, positive.len(), &positive, &negative).unwrap();
+    let mut assignment = Assignment::new(&packed, D * positive.len());
+    let point: Vec<K> = (0..12)
+        .map(|i| match i {
+            5 => K::ZERO,
+            6 => K::ONE,
+            _ => K::from_coeffs([F::from_usize(11 * i + 29), F::from_usize(19 * i + 13)]),
+        })
+        .collect();
+    for round in 0..3 {
+        let weights = EqualityWeights::new(&point[round..]);
+        let pairs = assignment.len().div_ceil(2);
+        let expected = (0..pairs).fold([K::ZERO; 4], |total, index| {
+            let (low, high) = assignment.pair(index);
+            let norm = norm_pair(low, high);
+            std::array::from_fn(|coefficient| total[coefficient] + norm[coefficient] * weights.at(index))
+        });
+        assert_eq!(
+            early_norm_coefficients(&assignment.early_pairs().unwrap(), pairs, &weights),
+            expected,
+            "round {round}"
+        );
+        assignment.fold(K::from_coeffs([F::from_usize(round + 41), F::from_usize(round + 37)]));
+    }
+}

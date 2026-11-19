@@ -1,7 +1,11 @@
 use std::{borrow::Borrow, ops::Range};
 
+#[cfg(not(target_arch = "wasm32"))]
+mod crt;
+mod expanded;
 mod key;
 
+pub use expanded::ExpandedKey;
 #[doc(hidden)]
 pub use key::expanded_key_bytes;
 pub use key::{kept_coefficients, KEY_WORDS};
@@ -10,7 +14,7 @@ use neo_ccs::Mat;
 use neo_math::{
     balanced::to_balanced_i128,
     ring::D,
-    signed_sums::{SignedShiftSums, LIMB_BOUND, MAX_EXACT_TERMS},
+    signed_sums::{SignedShiftSums, SplitRing, LIMB_BOUND, MAX_EXACT_TERMS},
     Fq,
 };
 use p3_field::PrimeCharacteristicRing;
@@ -104,15 +108,40 @@ impl SignedBlock {
     }
 }
 
-fn signed_sums(row: u32, blocks: &[SignedBlock]) -> SignedShiftSums {
-    let mut sums = SignedShiftSums::zero();
-    for pair in blocks.chunks(2) {
-        let columns = [pair[0].index, pair.last().expect("nonempty pair").index];
-        let keys = key::split_pair(&PRODUCTION_SEED, row, columns);
-        for (block, key) in pair.iter().zip(keys) {
-            sums.add_signed_units(&key, block.positive, block.negative);
+/// SPEC.md Algorithm 1.
+fn with_elements<T>(
+    row: u32,
+    items: &[T],
+    column: impl Fn(&T) -> u64,
+    key: Option<&ExpandedKey>,
+    mut add: impl FnMut(&T, &SplitRing),
+) {
+    let expanded = match key {
+        Some(key) => {
+            let (kept, expanded) = items.split_at(items.partition_point(|item| column(item) < key.blocks()));
+            for item in kept {
+                add(item, &key.element(row, column(item)));
+            }
+            expanded
+        }
+        None => items,
+    };
+    for pair in expanded.chunks(2) {
+        let columns = [column(&pair[0]), column(pair.last().expect("nonempty pair"))];
+        for (item, element) in pair
+            .iter()
+            .zip(key::split_pair(&PRODUCTION_SEED, row, columns))
+        {
+            add(item, &element);
         }
     }
+}
+
+fn signed_sums(row: u32, blocks: &[SignedBlock], key: Option<&ExpandedKey>) -> SignedShiftSums {
+    let mut sums = SignedShiftSums::zero();
+    with_elements(row, blocks, SignedBlock::index, key, |block, element| {
+        sums.add_signed_units(element, block.positive, block.negative);
+    });
     sums
 }
 
@@ -303,6 +332,7 @@ pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Fq>>>(
         .enumerate()
         .filter_map(|(index, present)| present.then_some(index as u64))
         .collect();
+    let key = ExpandedKey::shared();
     let totals = row_totals(column_count, |row, range| {
         let blocks: Vec<_> = blocks
             .iter()
@@ -310,7 +340,7 @@ pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Fq>>>(
             .collect();
         let start = columns.partition_point(|&column| column < range.start);
         let end = columns.partition_point(|&column| column < range.end);
-        batch_sums(row, &columns[start..end], &blocks)
+        batch_sums(row, &columns[start..end], &blocks, key.as_deref())
     });
     for (row, totals) in totals.into_iter().enumerate() {
         for (commitment, total) in commitments.iter_mut().zip(totals) {
@@ -320,36 +350,99 @@ pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Fq>>>(
     Ok(commitments)
 }
 
-fn batch_sums(row: u32, columns: &[u64], blocks: &[&[SignedBlock]]) -> Vec<SignedShiftSums> {
+fn batch_sums(row: u32, columns: &[u64], blocks: &[&[SignedBlock]], key: Option<&ExpandedKey>) -> Vec<SignedShiftSums> {
     let mut sums = vec![SignedShiftSums::zero(); blocks.len()];
     let mut positions = vec![0usize; blocks.len()];
-    for pair in columns.chunks(2) {
-        let keys = key::split_pair(&PRODUCTION_SEED, row, [pair[0], *pair.last().expect("nonempty pair")]);
-        for (&column, key) in pair.iter().zip(keys) {
+    with_elements(
+        row,
+        columns,
+        |&column| column,
+        key,
+        |&column, element| {
             for ((witness, position), sum) in blocks.iter().zip(&mut positions).zip(&mut sums) {
                 if let Some(block) = witness.get(*position).filter(|block| block.index == column) {
-                    sum.add_signed_units(&key, block.positive, block.negative);
+                    sum.add_signed_units(element, block.positive, block.negative);
                     *position += 1;
                 }
             }
-        }
-    }
+        },
+    );
     sums
 }
 
 fn commit_signed_blocks(blocks: &[SignedBlock]) -> Commitment {
+    let key = (!blocks.is_empty()).then(ExpandedKey::shared).flatten();
+    commit_signed_blocks_with_key(blocks, key.as_deref())
+}
+
+fn commit_signed_blocks_with_key(blocks: &[SignedBlock], key: Option<&ExpandedKey>) -> Commitment {
     let mut commitment = Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize);
     let Some(last) = blocks.last() else {
         return commitment;
     };
-    let totals = row_totals(last.index + 1, |row, columns| {
-        vec![signed_sums(row, column_slice(blocks, &columns))]
+    let columns = last.index + 1;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(key) = key {
+        let count = key.crt_tiles().min(columns.div_ceil(TASK_COLUMNS) as usize);
+        let tiles: Vec<_> = (0..count)
+            .into_par_iter()
+            .map(|tile| {
+                let start = tile as u64 * TASK_COLUMNS;
+                let slice = column_slice(blocks, &(start..start + TASK_COLUMNS));
+                if crt::use_tile(slice) {
+                    key.crt_tile(tile).map(|key| (key, start, slice))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let selected = tiles.iter().flatten().copied().collect::<Vec<_>>();
+        if !selected.is_empty() {
+            let (scalar, transformed) = rayon::join(
+                || {
+                    row_totals(columns, |row, columns| {
+                        let tile = (columns.start / TASK_COLUMNS) as usize;
+                        let sums = if tiles.get(tile).is_some_and(Option::is_some) {
+                            SignedShiftSums::zero()
+                        } else {
+                            signed_sums(row, column_slice(blocks, &columns), Some(key))
+                        };
+                        vec![sums]
+                    })
+                },
+                || crt::sum_tiles(&selected),
+            );
+            for (row, (output, scalar)) in commitment
+                .data_mut()
+                .chunks_exact_mut(D)
+                .zip(scalar)
+                .enumerate()
+            {
+                for ((output, scalar), transformed) in output
+                    .iter_mut()
+                    .zip(scalar[0].reduce())
+                    .zip(&transformed[row])
+                {
+                    *output = scalar + *transformed;
+                }
+            }
+            return commitment;
+        }
+    }
+
+    let totals = row_totals(columns, |row, columns| {
+        vec![signed_sums(row, column_slice(blocks, &columns), key)]
     });
     for (output, totals) in commitment.data_mut().chunks_mut(D).zip(totals) {
         output.copy_from_slice(&totals[0].reduce());
     }
     commitment
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+#[path = "../tests/unit/nightstream_crt.rs"]
+mod crt_tests;
 
 pub fn authority_words(verifier_rows: u64, message_columns: u64, seed: &[u8; 32]) -> Vec<u64> {
     let mut words = Vec::with_capacity(1 + SETUP_ID.len() + 3 + seed.len());

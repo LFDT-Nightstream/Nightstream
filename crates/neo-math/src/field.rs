@@ -67,6 +67,33 @@ pub fn sum_of_scaled(pairs: impl IntoIterator<Item = (Fq, K)>) -> K {
 }
 
 #[derive(Clone, Copy, Default)]
+pub struct ProductSum([UnreducedProducts; 2]);
+
+const _: () = assert!(<Fq as BinomiallyExtendable<2>>::W.0 == 2);
+
+impl ProductSum {
+    #[inline]
+    pub fn add(self, a: K, b: K) -> Self {
+        let ([a0, a1], [b0, b1]) = (a.as_coeffs(), b.as_coeffs());
+        let [real, imaginary] = self.0;
+        Self([real.add(a0, b0).add(a1, b1.double()), imaginary.add(a0, b1).add(a1, b0)])
+    }
+
+    #[inline]
+    pub fn add_scaled(self, a: Fq, b: K) -> Self {
+        let [b0, b1] = b.as_coeffs();
+        let [real, imaginary] = self.0;
+        Self([real.add(a, b0), imaginary.add(a, b1)])
+    }
+
+    #[inline]
+    pub fn value(self) -> K {
+        let [real, imaginary] = self.0;
+        K::from_coeffs([real.value(), imaginary.value()])
+    }
+}
+
+#[derive(Clone, Copy, Default)]
 struct UnreducedProducts {
     sum: u128,
     wraps: u64,

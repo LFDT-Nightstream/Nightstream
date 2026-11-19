@@ -9,6 +9,7 @@ pub use neo_params::poseidon2::{CAPACITY, DIGEST_LEN, RATE, WIDTH};
 
 pub const HALF_FULL_ROUNDS: usize = 4;
 pub const PARTIAL_ROUNDS: usize = 22;
+pub const PERMUTATION_LOCALS: usize = WIDTH + 2 * HALF_FULL_ROUNDS * 5 * WIDTH + PARTIAL_ROUNDS * (4 + WIDTH);
 /// Lean `Spec.Poseidon2.sbox_eq_pow`.
 pub const SBOX_DEGREE: u64 = 7;
 
@@ -51,6 +52,48 @@ impl<const T: usize> Instance<T> {
 #[inline]
 pub fn permute_state(state: [Fq; WIDTH]) -> [Fq; WIDTH] {
     INSTANCE_16.permute(state)
+}
+
+/// Lean `Gadgets/Poseidon2/Permutation.lean`.
+pub fn permutation_locals(mut state: [Fq; WIDTH], locals: &mut [Fq; PERMUTATION_LOCALS]) {
+    let mut locals = locals.as_mut_slice();
+    mds_light_permutation(&mut state, &MDSMat4);
+    write_locals(&state, &mut locals);
+    for constants in &INSTANCE_16.initial {
+        full_round_locals(&mut state, constants, &mut locals);
+    }
+    for &constant in &INSTANCE_16.internal {
+        state[0] = sbox_locals(state[0] + constant, &mut locals);
+        matmul_internal(&mut state, INSTANCE_16.diagonal);
+        write_locals(&state, &mut locals);
+    }
+    for constants in &INSTANCE_16.terminal {
+        full_round_locals(&mut state, constants, &mut locals);
+    }
+    debug_assert!(locals.is_empty());
+}
+
+fn full_round_locals(state: &mut [Fq; WIDTH], constants: &[Fq; WIDTH], locals: &mut &mut [Fq]) {
+    for (lane, &constant) in state.iter_mut().zip(constants) {
+        *lane = sbox_locals(*lane + constant, locals);
+    }
+    mds_light_permutation(state, &MDSMat4);
+    write_locals(state, locals);
+}
+
+fn sbox_locals(value: Fq, locals: &mut &mut [Fq]) -> Fq {
+    let square = value * value;
+    let fourth = square * square;
+    let sixth = fourth * square;
+    let seventh = sixth * value;
+    write_locals(&[square, fourth, sixth, seventh], locals);
+    seventh
+}
+
+fn write_locals(values: &[Fq], locals: &mut &mut [Fq]) {
+    let (words, rest) = std::mem::take(locals).split_at_mut(values.len());
+    words.copy_from_slice(values);
+    *locals = rest;
 }
 
 /// Lean `Spec.Poseidon2.hash`.

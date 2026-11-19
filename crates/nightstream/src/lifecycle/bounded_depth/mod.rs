@@ -334,7 +334,7 @@ impl BoundedDepth {
             _ => (Kind::Light, words::base_step(&prior, next, witness)?.0),
         };
         let relation = &self.relations[words::pc(kind) as usize - 1];
-        let logical = relation.assignment(&step, locals)?;
+        let columns = relation.assignment_columns(&step, locals)?;
         #[cfg(test)]
         if KEEP_FAULTY_PROOF.get() {
             FAILED_ROW.set(relation.first_failing_row(&step)?);
@@ -344,8 +344,8 @@ impl BoundedDepth {
         #[cfg(not(test))]
         let keeps_faulty = false;
         let (instance, held) = std::thread::scope(|scope| {
-            let check = (!keeps_faulty).then(|| scope.spawn(|| relation.rows_hold(&logical)));
-            let instance = relation.instance(&self.backend, &logical);
+            let check = (!keeps_faulty).then(|| scope.spawn(|| relation.source_rows_hold(&columns)));
+            let instance = relation.instance(&self.backend, &columns);
             let held = check.map_or(Ok(()), |check| check.join().unwrap_or(Err("row check panicked")));
             (instance, held)
         });

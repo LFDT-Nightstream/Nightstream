@@ -1,6 +1,6 @@
 //! SPEC.md section 6.
 
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use super::super::compression::{FinalProof, Fresh, Steps};
@@ -41,8 +41,8 @@ fn envelopes(prover: &BoundedDepth) -> Vec<Envelope> {
         .collect()
 }
 
-fn setup_and_time(prover: &BoundedDepth) -> &'static (ProverKey, Duration) {
-    static SETUP: OnceLock<(ProverKey, Duration)> = OnceLock::new();
+fn setup_and_time(prover: &BoundedDepth) -> &'static (Arc<ProverKey>, Duration) {
+    static SETUP: OnceLock<(Arc<ProverKey>, Duration)> = OnceLock::new();
     SETUP.get_or_init(|| {
         let start = Instant::now();
         let setup = prover.compression_setup().expect("compression setup");

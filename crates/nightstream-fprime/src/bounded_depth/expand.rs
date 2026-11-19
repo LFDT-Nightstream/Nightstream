@@ -84,8 +84,41 @@ impl PlanRows {
     }
 
     pub fn residual(&self, row: usize, columns: &[Fq]) -> Fq {
-        self.evaluate(row, 0, columns) * self.evaluate(row, 1, columns) - self.evaluate(row, 2, columns)
-            + self.evaluate(row, 3, columns).exp_u64(SBOX_DEGREE)
+        let slot = PORTS * row;
+        let [a, b, c, s, end] = self.offsets[slot..slot + PORTS + 1]
+            .try_into()
+            .expect("one bounded-depth row");
+        let evaluate = |from, to| self.evaluate_range(from, to, columns);
+        let output = evaluate(c, s);
+        if s != end {
+            return evaluate(a, b) * evaluate(b, c) - output + evaluate(s, end).exp_u64(SBOX_DEGREE);
+        }
+        let (first, second) = if b - a <= c - b { (a..b, b..c) } else { (b..c, a..b) };
+        let factor = evaluate(first.start, first.end);
+        if factor == Fq::ZERO {
+            return -output;
+        }
+        factor * evaluate(second.start, second.end) - output
+    }
+
+    fn evaluate_range(&self, start: usize, end: usize, columns: &[Fq]) -> Fq {
+        match end - start {
+            0 => Fq::ZERO,
+            1 => {
+                let value = columns[self.columns[start] as usize];
+                match self.coefficients[start] {
+                    Fq::ONE => value,
+                    Fq::NEG_ONE => -value,
+                    coefficient => coefficient * value,
+                }
+            }
+            _ => Fq::sum_of_products(
+                self.columns[start..end]
+                    .iter()
+                    .zip(&self.coefficients[start..end])
+                    .map(|(&column, &coefficient)| (coefficient, columns[column as usize])),
+            ),
+        }
     }
 
     pub fn port(&self, row: usize, port: usize) -> impl Iterator<Item = (usize, Fq)> + '_ {
@@ -382,3 +415,7 @@ impl StepPackage {
         Ok(builder.rows)
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/bounded_depth_source_rows.rs"]
+mod source_rows_tests;

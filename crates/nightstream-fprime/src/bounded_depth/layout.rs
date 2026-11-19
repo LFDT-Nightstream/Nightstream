@@ -1,5 +1,6 @@
 //! Lean `Export/Generic/SlotLayout`, `ProductionAssignment.logicalAssignment`.
 
+use neo_ccs::Mat;
 use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
@@ -124,6 +125,69 @@ impl LogicalLayout {
         Ok(logical)
     }
 
+    pub fn signed_assignment(&self, columns: &[Fq]) -> Result<Mat<Fq>, PackageError> {
+        if columns.len() < PUBLIC {
+            return Err(PackageError::Input("bounded-depth source columns"));
+        }
+        let blocks = self.width.div_ceil(RING_DEGREE);
+        let task_blocks = blocks.div_ceil(4 * rayon::current_num_threads()).max(1);
+        let (mut positive, mut negative) = (vec![0u64; blocks], vec![0u64; blocks]);
+        positive
+            .par_chunks_mut(task_blocks)
+            .zip(negative.par_chunks_mut(task_blocks))
+            .enumerate()
+            .try_for_each(|(task, (positive, negative))| {
+                let start = task * task_blocks * RING_DEGREE;
+                let end = start + positive.len() * RING_DEGREE;
+                let mut put = |offset: usize, (plus, minus): (u64, u64)| {
+                    let dropped = start.saturating_sub(offset);
+                    let offset = offset.saturating_sub(start);
+                    let block = offset / RING_DEGREE;
+                    let shift = offset % RING_DEGREE;
+                    positive[block] |= (plus >> dropped) << shift;
+                    negative[block] |= (minus >> dropped) << shift;
+                    if shift != 0 && block + 1 < positive.len() {
+                        positive[block + 1] |= (plus >> dropped) >> (RING_DEGREE - shift);
+                        negative[block + 1] |= (minus >> dropped) >> (RING_DEGREE - shift);
+                    }
+                };
+                for offset in start..end.min(PUBLIC) {
+                    put(offset, unit_masks(columns[offset])?);
+                }
+                let first = self
+                    .slots
+                    .partition_point(|&slot| self.offsets[slot] as usize + self.kinds[slot].width() <= start);
+                let last = self
+                    .slots
+                    .partition_point(|&slot| (self.offsets[slot] as usize) < end);
+                let mut digits = [0i8; FIELD_DIGITS];
+                for &slot in &self.slots[first..last] {
+                    let value = *columns
+                        .get(slot)
+                        .ok_or(PackageError::Input("bounded-depth source columns"))?;
+                    let masks = match self.kinds[slot] {
+                        Kind::Bit | Kind::Centered => unit_masks(value)?,
+                        Kind::Field => {
+                            balanced_ternary_digits(value.as_canonical_u64(), &mut digits);
+                            digits
+                                .iter()
+                                .enumerate()
+                                .fold((0, 0), |(plus, minus), (lane, &digit)| {
+                                    (
+                                        plus | (u64::from(digit == 1) << lane),
+                                        minus | (u64::from(digit == -1) << lane),
+                                    )
+                                })
+                        }
+                    };
+                    put(self.offsets[slot] as usize, masks);
+                }
+                Ok::<_, PackageError>(())
+            })?;
+        Mat::compact_signed_unit_from_column_masks(RING_DEGREE, blocks, &positive, &negative)
+            .map_err(PackageError::Malformed)
+    }
+
     pub fn source_assignment(&self, logical: &[Fq]) -> Result<Vec<Fq>, PackageError> {
         if logical.len() != self.width {
             return Err(PackageError::Input("bounded-depth logical assignment width"));
@@ -154,6 +218,15 @@ impl LogicalLayout {
             }
         }
         total.as_canonical_u64()
+    }
+}
+
+fn unit_masks(value: Fq) -> Result<(u64, u64), PackageError> {
+    match value {
+        Fq::ZERO => Ok((0, 0)),
+        Fq::ONE => Ok((1, 0)),
+        Fq::NEG_ONE => Ok((0, 1)),
+        _ => Err(PackageError::Input("a signed-unit column is outside {-1, 0, 1}")),
     }
 }
 
@@ -370,3 +443,7 @@ fn run_value(digits: &[Fq], ratio: Fq) -> Fq {
         .rev()
         .fold(Fq::ZERO, |sum, &digit| sum * ratio + digit)
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/bounded_depth_signed_assignment.rs"]
+mod signed_assignment_tests;

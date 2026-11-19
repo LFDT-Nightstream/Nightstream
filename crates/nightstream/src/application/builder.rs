@@ -1,13 +1,16 @@
 use std::{fmt, ops::Range, sync::Arc};
 
+use neo_ccs::crypto::poseidon2::{permutation_locals, PERMUTATION_LOCALS};
 use neo_math::Fq;
 use nightstream_fprime::{
     ApplicationForm, ApplicationRecords, ApplicationRecordsWriter, ApplicationRowHeader, ApplicationTerm, Linear,
-    NativeBlock, NativeShape, PackageError,
+    NativeBlock, NativeShape, PackageError, BLOCK_LOCALS,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::{Affine, Expression, R1csRow, Variable};
+
+const _: () = assert!(BLOCK_LOCALS == PERMUTATION_LOCALS);
 
 #[derive(Debug)]
 pub enum ApplicationError {
@@ -388,6 +391,23 @@ impl ApplicationCircuit {
     }
 
     pub fn execute(&self, input: [Fq; 4], private_inputs: &[Fq]) -> Result<ApplicationWitness, ApplicationError> {
+        self.execute_with_blocks(input, private_inputs, &[])
+    }
+
+    pub(crate) fn execute_compiled(
+        &self,
+        input: [Fq; 4],
+        private_inputs: &[Fq],
+    ) -> Result<ApplicationWitness, ApplicationError> {
+        self.execute_with_blocks(input, private_inputs, &self.shape.blocks)
+    }
+
+    fn execute_with_blocks(
+        &self,
+        input: [Fq; 4],
+        private_inputs: &[Fq],
+        blocks: &[NativeBlock],
+    ) -> Result<ApplicationWitness, ApplicationError> {
         if private_inputs.len() != self.private_inputs.len() {
             return Err(ApplicationError::PrivateInputCount {
                 expected: self.private_inputs.len(),
@@ -402,11 +422,34 @@ impl ApplicationCircuit {
         values[..4].copy_from_slice(&input);
         values[4..self.generated_start - 4].copy_from_slice(private_inputs);
         let mut walk = self.records.walk();
-        for offset in 0..self.records.recipe_count() {
-            let row = walk.recipe_row(offset)?;
-            let [a, b, _] = walk.evaluate_row(row, lookup(&values))?.map(Fq::from_u64);
-            values[self.generated_start + offset] = a * b;
+        let mut evaluate_recipes = |range: Range<usize>, values: &mut [Fq]| -> Result<(), ApplicationError> {
+            for column in range {
+                let row = walk.recipe_row(column - self.generated_start)?;
+                let [a, b, _] = walk.evaluate_row(row, lookup(values))?.map(Fq::from_u64);
+                values[column] = a * b;
+            }
+            Ok(())
+        };
+        let mut next = self.generated_start;
+        for block in blocks {
+            evaluate_recipes(next..block.first_local, &mut values)?;
+            let state = block.lanes.each_ref().map(|lane| {
+                lane.constant
+                    + Fq::sum_of_products(
+                        lane.terms
+                            .iter()
+                            .map(|&(column, factor)| (values[column], factor)),
+                    )
+            });
+            next = block.first_local + BLOCK_LOCALS;
+            permutation_locals(
+                state,
+                (&mut values[block.first_local..next])
+                    .try_into()
+                    .expect("one native block"),
+            );
         }
+        evaluate_recipes(next..self.variable_count, &mut values)?;
         let mut output_state = [Fq::ZERO; 4];
         for ((value, output), variable) in output_state
             .iter_mut()

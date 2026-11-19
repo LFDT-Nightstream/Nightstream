@@ -1,5 +1,4 @@
 //! Lean `LogicalPlan.plan`, `SlotLayout.layout`, `GatePolynomial.terms`.
-use rayon::prelude::*;
 use std::ops::Range;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -12,7 +11,6 @@ use crate::folding::{
 use neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS;
 use neo_ccs::crypto::poseidon2::SBOX_DEGREE;
 use neo_ccs::poly::{SparsePoly, Term};
-use neo_ccs::Mat;
 use neo_math::{D, F, K};
 use neo_reductions::superneo_eval::{
     FactoredEntries, FactoredRows, FactoredSlots, MatrixRowSink, MatrixRows, MatrixShape, MatrixWindow,
@@ -37,8 +35,6 @@ pub enum RelationError {
     Commitment(#[from] CommitError),
     #[error("bounded-depth relation header: {0}")]
     Header(#[from] neo_ccs::RelationError),
-    #[error("bounded-depth logical assignment has {got} columns, expected {expected}")]
-    Width { expected: usize, got: usize },
 }
 
 #[derive(Debug)]
@@ -171,44 +167,13 @@ impl Relation {
     }
 
     /// Lean `FreshInstance.Masks`, `FreshInstance.built`.
-    pub(crate) fn instance(&self, backend: &Backend, logical: &[F]) -> Result<CcsInstance, RelationError> {
-        let width = self.step.expanded.layout().width();
-        if logical.len() != width {
-            return Err(RelationError::Width {
-                expected: width,
-                got: logical.len(),
-            });
-        }
-        let masks = |block: &[F]| {
-            let (mut positive, mut negative) = (0u64, 0u64);
-            for (lane, &value) in block.iter().enumerate() {
-                if value == F::ONE {
-                    positive |= 1 << lane;
-                } else if value == -F::ONE {
-                    negative |= 1 << lane;
-                } else if value != F::ZERO {
-                    let error = neo_ajtai::AjtaiError::RangeViolation {
-                        value: neo_math::balanced::to_balanced_i128(value),
-                        bound: 2,
-                    };
-                    return Err(CommitError::Input(error.to_string()));
-                }
-            }
-            Ok((positive, negative))
-        };
-        let (positive, negative): (Vec<u64>, Vec<u64>) = logical
-            .par_chunks(D)
-            .map(masks)
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .unzip();
-        let witness = Mat::compact_signed_unit_from_column_masks(D, self.blocks(), &positive, &negative)
-            .expect("one disjoint mask pair of D lanes for each block");
+    pub(crate) fn instance(&self, backend: &Backend, columns: &[F]) -> Result<CcsInstance, RelationError> {
+        let witness = self.step.expanded.layout().signed_assignment(columns)?;
         let commitment = backend.commit(&[&witness])?.remove(0);
         Ok(CcsInstance {
             claim: CcsClaim {
                 c: commitment,
-                x: logical[..PUBLIC_WORDS].to_vec(),
+                x: columns[..PUBLIC_WORDS].to_vec(),
                 m_in: PUBLIC_WORDS,
                 adv: None,
             },
@@ -216,11 +181,10 @@ impl Relation {
         })
     }
 
-    pub(crate) fn assignment(&self, words: &StepWords, locals: Option<&[F]>) -> Result<Vec<F>, RelationError> {
+    pub(crate) fn assignment_columns(&self, words: &StepWords, locals: Option<&[F]>) -> Result<Vec<F>, RelationError> {
         let expanded = &self.step.expanded;
         let columns = expanded.circuit_columns_with(&words.columns()?, locals)?;
-        let columns = expanded.relation_columns(columns)?;
-        Ok(expanded.layout().assignment(&columns)?)
+        Ok(expanded.relation_columns(columns)?)
     }
 
     #[cfg(test)]
@@ -294,9 +258,20 @@ impl Relation {
         self.rows_hold(&logical[..width]).map_err(Holds::Fails)
     }
 
-    pub(crate) fn rows_hold(&self, logical: &[F]) -> Result<(), &'static str> {
+    pub(crate) fn source_rows_hold(&self, columns: &[F]) -> Result<(), &'static str> {
+        let rows = self.step.expanded.rows();
+        self.check_rows(|row| {
+            if rows.residual(row, columns) == F::ZERO {
+                Ok(())
+            } else {
+                Err("a relation row fails")
+            }
+        })
+    }
+
+    fn rows_hold(&self, logical: &[F]) -> Result<(), &'static str> {
         let (rows, layout) = (self.step.expanded.rows(), self.step.expanded.layout());
-        let holds = |row: usize| {
+        self.check_rows(|row| {
             let [a, b, c, s] = [0, 1, 2, 3].map(|port| layout.evaluate(rows, row, port, logical));
             let (Ok(a), Ok(b), Ok(c), Ok(s)) = (a, b, c, s) else {
                 return Err("row evaluation");
@@ -305,8 +280,11 @@ impl Relation {
                 return Err("a relation row fails");
             }
             Ok(())
-        };
-        let count = rows.row_count();
+        })
+    }
+
+    fn check_rows(&self, holds: impl Fn(usize) -> Result<(), &'static str> + Sync) -> Result<(), &'static str> {
+        let count = self.step.expanded.rows().row_count();
         let next = AtomicUsize::new(0);
         let first_failure = || loop {
             let start = next.fetch_add(ROWS_PER_RANGE, Ordering::Relaxed);

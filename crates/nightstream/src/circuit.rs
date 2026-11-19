@@ -419,7 +419,7 @@ impl Prover {
             .as_ref()
             .ok_or(ApplicationError::NoApplication)?;
         let (witness, folded) = std::thread::scope(|scope| {
-            let run = scope.spawn(|| application.execute(proof.state().current(), private_inputs));
+            let run = scope.spawn(|| application.execute_compiled(proof.state().current(), private_inputs));
             let folded = self.lifecycle.fold(&proof.0);
             (
                 run.join()
@@ -491,9 +491,9 @@ impl Prover {
         Ok(self.lifecycle.encode_proof(&proof.0)?)
     }
 
-    /// Expand the rows of the Ajtai key that the prover's circuit reads and
-    /// commit them, once for each prover. A verifier of the same circuit
-    /// takes the key of these proofs itself (`Verifier::compression_key`).
+    /// Prepare the commitment to the Ajtai key for this circuit size. CPU
+    /// folds can read its expanded rows while the setup lives. A verifier
+    /// obtains its own key (`Verifier::compression_key`).
     pub fn compression_setup(&self) -> Result<CompressionSetup, Error> {
         Ok(CompressionSetup(self.lifecycle.compression_setup()?))
     }

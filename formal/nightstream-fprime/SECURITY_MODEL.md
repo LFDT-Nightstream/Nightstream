@@ -200,6 +200,8 @@ each head.
 | `closed.*`, `admitted` | `*` | assumption | `[HN-A1]`, in the form of trust item 3: the closure premise and the admitted adversary |
 | `Nebula/premise` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]` |
 | `Fold/premise` | `Spec.Sponge.Transfer` | open | Open: the event includes the extractor's retries, which query the oracle again after the base run. Indifferentiability moves one run, not a game with retries (adversary 3), so `[SPONGE]` does not give this transfer |
+| `Nebula/disjoint`, `Nebula/inRange`, `Nebula/images`, `Nebula/reorders`, `Nebula/bound` | `*` | open | Open: the conditions of a catalog application (`Spec.Nebula.MemoryTrace.Binding`). No Lean result shows that the binding rows of the Rust catalog backend enforce them (Out of scope) |
+| `finder` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]`, for the collision finder of a fold with at most `calls` permutation calls and inputs of at most `blocks` padded blocks. The event is one output of one run. The finder reruns the adversary on the oracles of its own tape, so no retry is outside the run (adversary 3). `calls` is a parameter of the adversary class, as in the row below |
 | `finders` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]`, for the finder of stage `j` with at most `calls j` permutation calls and inputs of at most `blocks` padded blocks. Lean has no count of the calls of a stage, which is a Lean function, so `calls` is a parameter of the adversary class, as `depth` is (adversary 4) |
 | `akita.theorem1046`, `binding` | `*` | assumption | `[AKITA]`: Akita Theorem 10.46 for the schedule of the opening, and the binding of the key commitment |
 | `akita.admissible` | `Spec.Compression.Akita.Schedule.Admissible` | open | Open: Lean does not model Akita's schedules, and Akita declares no query budget `Q_max` for the schedule files of `SPEC.md` section 3, so no check gives S2 and S3 of Akita Definition 9.2 |
@@ -510,15 +512,19 @@ not change terminal source checks.
   inputs with one digest with probability at most
   `C(N + 2, 2)/q⁴ + spongeError N` (`Spec.Sponge.collision_le`), because the
   `10*` padding of the sponge is injective
-  (`Claims.Encodings.hash_padding_injective`, `Spec.Sponge.collision_blocks`).
+  (`Claims.Encodings.hash_padding_injective`).
   Averaged over the SHAKE128 key setup at key width `2^26`, the kernel term is
   an MSIS advantage for a uniform matrix at the chain norm plus a programming
   error below `2^−1129`, so each fold's bound uses only the two algorithms
   (`Claims.Fold.light_production_knowledge_error`,
   `Claims.Fold.refresh_production_knowledge_error`).
-  Lean bounds neither the MSIS advantage nor the collision advantage
-  numerically (trust item 2), and it states the machines' work in adversary
-  runs, not in time.
+  The finder is one run with one output, and it reruns the adversary on
+  oracles of its own tape. So `[SPONGE]` gives its advantage the number above
+  for `N` calls, a parameter of the adversary class
+  (`Claims.Fold.light_knowledge_error_numeric`,
+  `Claims.Fold.refresh_knowledge_error_numeric`). Lean does not bound the
+  MSIS advantage numerically (trust item 2), and it states the machines' work
+  in adversary runs, not in time.
 - **The sponge:** the model's address of a challenge is the list of sponge
   calls before its read (`Lifecycle.RandomOracle.Schedule.challengeCalls`).
   Distinct challenges have distinct addresses
@@ -958,6 +964,11 @@ not change terminal source checks.
      calls of the finder: the calls of the stage, and so the calls of the
      earlier stages that it runs again. Lean cannot count them for a Lean
      function, so `N` is a parameter of the adversary class.
+   - *The fold collision term.* The collision finder of each fold is such
+     an algorithm too, and Lean bounds its advantage with the same bound
+     (`Claims.Fold.light_knowledge_error_numeric`,
+     `Claims.Fold.refresh_knowledge_error_numeric`). `N` counts the calls of
+     the adversary in each of the finder's reruns.
    - Lean does not bound the MSIS term numerically.
 3. **The history: HyperNova errata Assumption 1 for the two fold kinds [HN-A1].**
    `Spec.HyperNova.ReverseStages.Assumption1` states Assumption 1 in the form
@@ -1424,8 +1435,9 @@ not change terminal source checks.
   package fixes, the binding rows of the Rust catalog backend, the rows of
   `nebula::R1csApplication` that link the rows of a batched step, and the
   WASM relation itself (`SPEC.md` sections 7.6 to 7.8). Lean proves what the slot plan conditions give
-  (`Spec.Nebula.MemoryTrace.reorders_of_slotOrder`) and that batched steps
-  are memory consistent exactly when their rows are
+  (`Spec.Nebula.MemoryTrace.reorders_of_slotOrder`), that the final catalog
+  state then agrees with the final memory (`Claims.Nebula.catalog_agrees`),
+  and that batched steps are memory consistent exactly when their rows are
   (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff`), but not
   that the Rust rows enforce those conditions. Tests check the rows on fixed
   inputs (trust item 5). Rust tests also check that each field of the

@@ -5,6 +5,7 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.LightSolver
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.RefreshSolver
 import NightstreamFPrime.Lifecycle.BoundedDepth.RandomOracle.HashSolver
 import NightstreamFPrime.Spec.AjtaiSetupV1.Programming
+import NightstreamFPrime.Spec.Sponge
 
 /-! The bounded-depth knowledge bounds of the light and refresh folds, averaged over the Ajtai key
 setup (premise P1: SHAKE128 is a random oracle, `AjtaiSetupV1.Programming`): the bounded-depth form
@@ -35,13 +36,23 @@ chance.
   below `2^-54` (light) and `2^-51` (refresh) (`light_production_knowledge_error_two_pow_64`,
   `refresh_production_knowledge_error_two_pow_64`).
 * `light_hashCollisions_le_finder`, `refresh_hashCollisions_le_finder`: the average collision
-  chances are at most `2` (light) or `18` (refresh) times the Poseidon2 collision finder's
+  chances are at most `2` (light) or `16` (refresh) times the Poseidon2 collision finder's
   average chance (`HashSolver.lightFinderChance`, `HashSolver.refreshFinderChance`) plus
-  `(4Q + 63)/budget` or `(52Q + 959)/budget`.
+  `(4Q + 63)/budget` or `(46Q + 763)/budget`.
 * `light_production_knowledge_error_lt_solvers`, `refresh_production_knowledge_error_lt_solvers`:
   at the key width, the average success is below the average extraction chance, the statistical
-  error, the MSIS solver's advantage, the collision finder's advantage times `2` or `18`, the
-  work over `budget` (`(7Q + 124)/budget` light, `(87Q + 1612)/budget` refresh) and `2^-1129`. -/
+  error, the MSIS solver's advantage, the collision finder's advantage times `2` or `16`, the
+  work over `budget` (`(7Q + 124)/budget` light, `(77Q + 1286)/budget` refresh) and `2^-1129`.
+* `light_hashAdvantage_le`, `refresh_hashAdvantage_le`: under `[P2-PERM]` and `[SPONGE]`, the
+  finder's advantage is at most `C(calls + 2, 2)/q⁴ + spongeError calls`
+  (`Spec.Sponge.collision_le`). The finder is one algorithm with one output. Its tape holds the
+  setup streams, the target and the `budget` oracles on which it runs the adversary, so its
+  reruns of the adversary are inside the one run that `[SPONGE]` moves. `calls` counts the
+  permutation calls of that run, the adversary's in each rerun included. The adversary is a Lean
+  function, and Lean has no count of its calls: `calls` is a parameter of the adversary class.
+* `light_production_knowledge_error_lt_numeric`, `refresh_production_knowledge_error_lt_numeric`:
+  the bounds above with this number and the statistical error at most `(Q + 1) · 575/2^128`
+  (light) or `(Q + 1) · 4748/2^128` (refresh). -/
 
 set_option autoImplicit false
 
@@ -241,6 +252,16 @@ theorem light_hashCollisions_le_finder {queries : Nat}
         ← Finset.mul_expect]
       rfl
 
+/-- `[SPONGE]` for the light finder: under `Spec.Sponge.Transfer` of its collision event with
+`calls` permutation calls, its advantage is at most `C(calls + 2, 2)/q⁴ + spongeError calls`. -/
+theorem light_hashAdvantage_le (budget blocks calls : ℕ)
+    (finder : Sponge.Transfer Sponge.CollisionConditions
+      (fun _ : Unit => lightHashAdvantage key adversary budget)
+      (fun model : Sponge.CollisionAdversary blocks calls => Sponge.collisionChance model) calls) :
+    lightHashAdvantage key adversary budget ≤
+      Sponge.birthdayBound calls + Sponge.spongeError calls :=
+  Sponge.collision_le finder ()
+
 end Light
 
 section Refresh
@@ -335,8 +356,8 @@ theorem refresh_msisAdvantage_le_solver {queries : Nat}
 noncomputable def refreshHashAdvantage (budget : ℕ) : ℝ :=
   𝔼 chunks, HashSolver.refreshFinderChance (setupKey chunks) (key chunks) (adversary chunks) budget
 
-/-- The refresh collision chances averaged over the setup are at most 18 times the finder's
-advantage plus `(52Q + 959)/budget`. -/
+/-- The refresh collision chances averaged over the setup are at most 16 times the finder's
+advantage plus `(46Q + 763)/budget`. -/
 theorem refresh_hashCollisions_le_finder {queries : Nat}
     (bounded : ∀ chunks, (adversary chunks).QueryBound queries) {budget : ℕ}
     (positive : 0 < budget) :
@@ -353,6 +374,16 @@ theorem refresh_hashCollisions_le_finder {queries : Nat}
       rw [Finset.expect_add_distrib, Finset.expect_const Finset.univ_nonempty,
         ← Finset.mul_expect]
       rfl
+
+/-- `[SPONGE]` for the refresh finder: under `Spec.Sponge.Transfer` of its collision event with
+`calls` permutation calls, its advantage is at most `C(calls + 2, 2)/q⁴ + spongeError calls`. -/
+theorem refresh_hashAdvantage_le (budget blocks calls : ℕ)
+    (finder : Sponge.Transfer Sponge.CollisionConditions
+      (fun _ : Unit => refreshHashAdvantage key adversary budget)
+      (fun model : Sponge.CollisionAdversary blocks calls => Sponge.collisionChance model) calls) :
+    refreshHashAdvantage key adversary budget ≤
+      Sponge.birthdayBound calls + Sponge.spongeError calls :=
+  Sponge.collision_le finder ()
 
 end Refresh
 
@@ -484,6 +515,48 @@ theorem refresh_production_knowledge_error_lt_solvers
   have work : ((31 * queries + 523 : ℝ)) / budget + (46 * queries + 763) / budget =
       (77 * queries + 1286) / budget := by ring
   rw [Finset.expect_add_distrib] at bound
+  generalize (1 : ℝ) / 2 ^ 1129 = setupError at bound ⊢
+  linarith
+
+/-- The light knowledge bound at the bounded-depth scheme's key width with numbers for the
+statistical term and, under `[P2-PERM]` and `[SPONGE]`, for the collision finder. -/
+theorem light_production_knowledge_error_lt_numeric
+    (adversary : (SetupIndex Width Fits → Stream) →
+      OracleComp (Point (LightSchedule.schedule Width Fits) 8) Answer (Attempt Width Fits))
+    {queries : Nat} (bounded : ∀ chunks, (adversary chunks).QueryBound queries) {budget : ℕ}
+    (positive : 0 < budget) (blocks calls : ℕ)
+    (finder : Sponge.Transfer Sponge.CollisionConditions
+      (fun _ : Unit => lightHashAdvantage key adversary budget)
+      (fun model : Sponge.CollisionAdversary blocks calls => Sponge.collisionChance model) calls) :
+    𝔼 chunks, lightSuccess key adversary chunks <
+      𝔼 chunks, lightExtraction key adversary chunks + ((queries : ℝ) + 1) * (575 / 2 ^ 128) +
+        lightSolverAdvantage key adversary budget +
+        2 * (Sponge.birthdayBound calls + Sponge.spongeError calls) +
+        (7 * queries + 124) / budget + 1 / 2 ^ 1129 := by
+  have bound := light_production_knowledge_error_lt_solvers key adversary bounded positive
+  have statistical := LightKnowledge.statisticalError_le queries
+  have hash := light_hashAdvantage_le key adversary budget blocks calls finder
+  generalize (1 : ℝ) / 2 ^ 1129 = setupError at bound ⊢
+  linarith
+
+/-- The refresh knowledge bound at the bounded-depth scheme's key width with numbers for the
+statistical term and, under `[P2-PERM]` and `[SPONGE]`, for the collision finder. -/
+theorem refresh_production_knowledge_error_lt_numeric
+    (adversary : (SetupIndex Width Fits → Stream) →
+      OracleComp (Point (RefreshSchedule.schedule Width Fits) 8) Answer (Attempt Width Fits))
+    {queries : Nat} (bounded : ∀ chunks, (adversary chunks).QueryBound queries) {budget : ℕ}
+    (positive : 0 < budget) (blocks calls : ℕ)
+    (finder : Sponge.Transfer Sponge.CollisionConditions
+      (fun _ : Unit => refreshHashAdvantage key adversary budget)
+      (fun model : Sponge.CollisionAdversary blocks calls => Sponge.collisionChance model) calls) :
+    𝔼 chunks, refreshSuccess key adversary chunks <
+      𝔼 chunks, refreshExtraction key adversary chunks + ((queries : ℝ) + 1) * (4748 / 2 ^ 128) +
+        refreshSolverAdvantage key adversary budget +
+        16 * (Sponge.birthdayBound calls + Sponge.spongeError calls) +
+        (77 * queries + 1286) / budget + 1 / 2 ^ 1129 := by
+  have bound := refresh_production_knowledge_error_lt_solvers key adversary bounded positive
+  have statistical := RefreshKnowledge.statisticalError_le queries
+  have hash := refresh_hashAdvantage_le key adversary budget blocks calls finder
   generalize (1 : ℝ) / 2 ^ 1129 = setupError at bound ⊢
   linarith
 

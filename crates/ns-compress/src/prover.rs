@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use neo_ccs::Mat;
@@ -36,7 +37,7 @@ pub struct Committed<'k> {
     key: &'k ProverKey,
     layout: Layout,
     witness: Vec<F>,
-    codes: Vec<u16>,
+    codes: Arc<Vec<u16>>,
     zero_prefix: Option<(Slice, u16)>,
     packed_fresh: Option<Mat<F>>,
     committed: akita::prover::Committed,
@@ -71,20 +72,6 @@ fn write_signed_cells<T: Send>(cells: &mut [T], (positive, negative): (&[u64], &
                 *cell = map(signed_cell(positive, negative, lane));
             }
         });
-}
-
-fn packed_coefficients(layout: &Layout, masks: (&[u64], &[u64]), tail: &[F]) -> Vec<akita::Base> {
-    let fresh = layout.cells[1].witness;
-    let mut coefficients = vec![akita::base(F::ZERO); layout.witness_len];
-    write_signed_cells(
-        &mut coefficients[fresh.offset..][..masks.0.len() * D],
-        masks,
-        akita::base,
-    );
-    for (coefficient, &value) in coefficients[fresh.range().end..].iter_mut().zip(tail) {
-        *coefficient = akita::base(value);
-    }
-    coefficients
 }
 
 fn write_cells(cells: &mut [F], witness: &Mat<F>) {
@@ -128,17 +115,21 @@ pub fn commit<'k>(key: &'k ProverKey, layout: Layout, witnesses: &[&Mat<F>]) -> 
         {
             let end = layout.cells[1].witness.range().end;
             let (_, counts) = layout.cells[0].table.expect("the zero prefix has a table");
+            let count_cell = counts.offset + usize::from(code);
+            let count = F::from_u64(slice.len() as u64);
             let mut witness = vec![F::ZERO; layout.witness_len - end];
-            witness[counts.offset - end + usize::from(code)] = F::from_u64(slice.len() as u64);
-            let coefficients = packed_coefficients(&layout, columns, &witness);
-            let committed = key
-                .akita
-                .commit(layout.shape(), Polynomial::Witness, coefficients)?;
+            witness[count_cell - end] = count;
+            let committed = key.akita.commit_signed_witness(
+                layout.shape(),
+                layout.cells[1].witness.offset,
+                columns,
+                (count_cell, akita::base(count)),
+            )?;
             return Ok(Committed {
                 key,
                 layout,
                 witness,
-                codes: Vec::new(),
+                codes: Arc::default(),
                 zero_prefix,
                 packed_fresh: Some(fresh.clone()),
                 committed,
@@ -209,7 +200,7 @@ pub fn commit<'k>(key: &'k ProverKey, layout: Layout, witnesses: &[&Mat<F>]) -> 
         key,
         layout,
         witness,
-        codes,
+        codes: Arc::new(codes),
         zero_prefix,
         packed_fresh: None,
         committed,
@@ -316,24 +307,39 @@ impl Committed<'_> {
         let start = Instant::now();
         let tables = table_inverses(&self.layout, &taus)?;
         let inverse = if let Some((slice, code)) = self.zero_prefix {
-            let columns: [akita::Base; LOOKUPS] = std::array::from_fn(|k| akita::base(tables[0].1.at(k, code)));
-            (0..self.layout.inverse_len())
-                .into_par_iter()
-                .with_min_len(CELLS_PER_TASK)
-                .map(|cell| columns[cell >> slice.vars])
-                .collect()
+            let runs = (0..LOOKUPS)
+                .map(|k| (slice.len(), akita::base(tables[0].1.at(k, code))))
+                .collect();
+            self.key
+                .akita
+                .commit_inverse_runs(self.layout.shape(), runs)?
+        } else if let Some(inverses) = match tables.as_slice() {
+            [(slice, values)] if slice.offset == 0 && slice.len() == self.codes.len() => Some(values),
+            _ => None,
+        } {
+            let columns = (0..LOOKUPS)
+                .map(|k| {
+                    (0..inverses.len())
+                        .map(|i| akita::base(inverses.at(k, i as u16)))
+                        .collect()
+                })
+                .collect();
+            self.key.akita.commit_lookup_columns(
+                self.layout.shape(),
+                1 << self.layout.table_witness_vars,
+                Arc::clone(&self.codes),
+                columns,
+            )?
         } else {
             let mut inverse = vec![akita::base(F::ZERO); self.layout.inverse_len()];
             for k in 0..LOOKUPS {
                 let column = &mut inverse[k << self.layout.table_witness_vars..][..self.layout.table_witness_len];
                 self.write_inverse_column(&tables, k, column);
             }
-            inverse
+            self.key
+                .akita
+                .commit(self.layout.shape(), Polynomial::Inverse, inverse)?
         };
-        let inverse = self
-            .key
-            .akita
-            .commit(self.layout.shape(), Polynomial::Inverse, inverse)?;
         times.commit_inverse = start.elapsed();
         absorb_bytes(transcript, &inverse.bytes);
         let challenges = challenges(transcript, &self.layout, taus);

@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use akita_params::BasisMode;
+use akita_params::{BasisMode, GroupCommitPhaseParams};
 use akita_pcs::{
-    AkitaCommitmentScheme, AkitaProverSetup, CommitOutput, CommitmentHandle, CpuBackend, DensePoly, GroupContext,
-    OpeningClaims, PolynomialGroupClaims, SelectedProverOpeningData,
+    AkitaCommitmentScheme, AkitaError, AkitaProverSetup, CommitOutput, CommitmentHandle, CpuBackend, DensePoly,
+    FieldRunPoly, GroupContext, OpeningClaims, PolynomialGroupClaims, SelectedProverOpeningData, SourceHandle,
 };
 use akita_types::{CommittedGroup, SetupPrefixVerifierRegistry};
 use neo_math::K;
@@ -49,13 +49,73 @@ impl Prover {
             Polynomial::Witness => shape.witness,
             Polynomial::Inverse => shape.inverse,
         };
+        self.commit_source(shape, polynomial, |backend, profile| {
+            let mut poly = DensePoly::from_field_prefix(vars, prefix)?;
+            if polynomial == Polynomial::Key
+                && profile.inner.matrix.ring_dimension() == 2048
+                && profile.inner_digits() == akita_params::GadgetDigits::new(16, 4)
+            {
+                poly = poly.with_fixed_fold_ntt_2048(profile.blocks.positions_per_block)?;
+            }
+            backend.import_source(vec![poly])
+        })
+    }
+
+    pub(crate) fn commit_signed_witness(
+        &self,
+        shape: Shape,
+        start: usize,
+        (positive, negative): (&[u64], &[u64]),
+        count: (usize, Base),
+    ) -> Result<Committed, Error> {
+        self.commit_source(shape, Polynomial::Witness, |backend, _| {
+            backend.import_source(vec![FieldRunPoly::from_signed_span(
+                shape.witness,
+                start,
+                positive.to_vec(),
+                negative.to_vec(),
+                count,
+            )?])
+        })
+    }
+
+    pub(crate) fn commit_inverse_runs(&self, shape: Shape, runs: Vec<(usize, Base)>) -> Result<Committed, Error> {
+        self.commit_source(shape, Polynomial::Inverse, |backend, _| {
+            backend.import_source(vec![FieldRunPoly::new(shape.inverse, runs)?])
+        })
+    }
+
+    pub(crate) fn commit_lookup_columns(
+        &self,
+        shape: Shape,
+        width: usize,
+        codes: Arc<Vec<u16>>,
+        tables: Vec<Vec<Base>>,
+    ) -> Result<Committed, Error> {
+        self.commit_source(shape, Polynomial::Inverse, |backend, _| {
+            backend.import_source(vec![FieldRunPoly::from_lookup_columns(
+                shape.inverse,
+                width,
+                codes,
+                tables,
+            )?])
+        })
+    }
+
+    fn commit_source(
+        &self,
+        shape: Shape,
+        polynomial: Polynomial,
+        import: impl FnOnce(
+                &CpuBackend<Base, Extension>,
+                &GroupCommitPhaseParams,
+            ) -> Result<SourceHandle<Base, Extension>, AkitaError>
+            + Send,
+    ) -> Result<Committed, Error> {
         let schedules = self.scheme.schedules();
         let profile = profile(row(schedules, shape)?, polynomial);
         on_large_stacks(|| {
-            let source = self
-                .backend
-                .import_source(vec![DensePoly::from_field_prefix(vars, prefix).map_err(failed)?])
-                .map_err(failed)?;
+            let source = import(&self.backend, profile).map_err(failed)?;
             let CommitOutput {
                 committed_group,
                 private_handle,

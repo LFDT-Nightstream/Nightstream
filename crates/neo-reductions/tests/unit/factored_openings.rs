@@ -6,16 +6,16 @@ use neo_math::F;
 use super::*;
 use crate::superneo_eval::{
     eval_real_v1_2_openings_from_rows, eval_real_v1_2_openings_from_rows_reusing, FactoredEntries, FactoredSlots,
-    MatrixRowSink, MatrixRows, MatrixShape,
+    MatrixRowSink, MatrixRows, MatrixShape, OpeningColumns,
 };
 use crate::PiCcsError;
 
-struct Rows {
-    factored: FactoredRows<'static>,
+struct Rows<'a> {
+    factored: FactoredRows<'a>,
     visits: AtomicUsize,
 }
 
-impl MatrixRows for Rows {
+impl MatrixRows for Rows<'_> {
     fn shape(&self) -> MatrixShape {
         self.factored.shape()
     }
@@ -31,6 +31,166 @@ impl MatrixRows for Rows {
 }
 
 #[test]
+fn cached_opening_columns_match_fallback_for_distinct_points_and_many_sources() {
+    let columns = 3 * D;
+    let cache = OpeningColumns::default();
+    let coefficients = [
+        F::ONE,
+        F::NEG_ONE,
+        F::from_u8(91),
+        F::from_u8(22),
+        F::ONE,
+        F::from_u8(12),
+        F::NEG_ONE,
+        F::from_u8(11),
+        F::ONE,
+        F::ZERO,
+        F::NEG_ONE,
+        F::from_u8(22),
+        F::ONE,
+    ];
+    let rows = Rows {
+        factored: FactoredRows::new(
+            MatrixShape {
+                rows: 3,
+                columns,
+                matrices: 2,
+            },
+            FactoredEntries {
+                offsets: &[0, 3, 5, 7, 8, 11, 13],
+                slots: &[0, 1, 1, 0, 2, 0, 2, 1, 0, 1, 2, 0, 1],
+                coefficients: &coefficients,
+            },
+            FactoredSlots {
+                starts: &[0, 59, 130],
+                widths: &[1, 46, 40],
+                ratio: F::from_u8(3),
+            },
+        )
+        .unwrap()
+        .with_opening_columns(&cache),
+        visits: AtomicUsize::new(0),
+    };
+    let witnesses = (0..17)
+        .map(|i| {
+            let witness = if i % 3 == 0 {
+                Mat::compact_signed_unit_from_column_masks(D, 3, &[1 << 63, 0x1010, 1], &[1, 2, 4]).unwrap()
+            } else if i % 3 == 1 {
+                Mat::virtual_constant(D, 3, F::ZERO)
+            } else {
+                let mut matrix = Mat::zero(D, 3, F::ZERO);
+                for block in 0..3 {
+                    matrix[((3 * i + block) % D, block)] = if block == 0 {
+                        -F::from_u64(2049)
+                    } else {
+                        F::from_usize(20 + i)
+                    };
+                }
+                matrix
+            };
+            SuperneoZBlocks::from_witness_mat(&witness, columns).unwrap()
+        })
+        .collect::<Vec<_>>();
+    for repetition in 0..3 {
+        let point = (0..8)
+            .map(|i| K::from_coeffs([F::from_usize(i + repetition), F::from_usize((i + 2) * repetition)]))
+            .collect::<Vec<_>>();
+        let baseline = eval_real_v1_2_openings_from_rows(&rows, &point, &witnesses, usize::MAX).unwrap();
+        rows.visits.store(0, Ordering::Relaxed);
+        let actual =
+            eval_real_v1_2_openings_from_rows_reusing(&rows, &point, &witnesses, usize::MAX, Vec::new(), None).unwrap();
+        assert_eq!(actual, baseline);
+        assert!(rows.factored.opening_columns(usize::MAX).is_some());
+        assert_eq!(rows.visits.load(Ordering::Relaxed), 0);
+    }
+}
+
+#[test]
+fn too_many_column_factors_falls_back_to_the_row_transpose() {
+    let cache = OpeningColumns::default();
+    let factors: Vec<_> = (2..=65_536).map(F::from_usize).collect();
+    let quotient = vec![0; factors.len()];
+    let starts = [0];
+    let widths = [1];
+    let offsets = [0, factors.len()];
+    let rows = Rows {
+        factored: FactoredRows::new(
+            MatrixShape {
+                rows: 1,
+                columns: D,
+                matrices: 1,
+            },
+            FactoredEntries {
+                offsets: &offsets,
+                slots: &quotient,
+                coefficients: &factors,
+            },
+            FactoredSlots {
+                starts: &starts,
+                widths: &widths,
+                ratio: F::NEG_ONE,
+            },
+        )
+        .unwrap()
+        .with_opening_columns(&cache),
+        visits: AtomicUsize::new(0),
+    };
+    let matrix = Mat::virtual_constant(D, 1, F::NEG_ONE);
+    let witness = [SuperneoZBlocks::from_witness_mat(&matrix, D).unwrap()];
+    let point = [K::ZERO; 6];
+    let baseline = eval_real_v1_2_openings_from_rows(&rows, &point, &witness, usize::MAX).unwrap();
+    let actual =
+        eval_real_v1_2_openings_from_rows_reusing(&rows, &point, &witness, usize::MAX, Vec::new(), None).unwrap();
+    assert!(rows.factored.opening_columns(usize::MAX).is_none());
+    assert_eq!(actual, baseline);
+}
+
+#[test]
+fn budget_fallback_does_not_materialize_or_disable_the_index() {
+    let cache = OpeningColumns::default();
+    let rows = Rows {
+        factored: FactoredRows::new(
+            MatrixShape {
+                rows: 1,
+                columns: D,
+                matrices: 1,
+            },
+            FactoredEntries {
+                offsets: &[0, 1],
+                slots: &[0],
+                coefficients: &[F::NEG_ONE],
+            },
+            FactoredSlots {
+                starts: &[0],
+                widths: &[41],
+                ratio: F::from_u8(3),
+            },
+        )
+        .unwrap()
+        .with_opening_columns(&cache),
+        visits: AtomicUsize::new(0),
+    };
+    let matrix = Mat::virtual_constant(D, 1, F::ONE);
+    let witness = [SuperneoZBlocks::from_witness_mat(&matrix, D).unwrap()];
+    let point = [K::ZERO; 6];
+    let baseline = eval_real_v1_2_openings_from_rows(&rows, &point, &witness, usize::MAX).unwrap();
+    let work = size_of::<K>()
+        + size_of::<Range<usize>>()
+        + size_of::<&SuperneoZBlocks>()
+        + TaskSums::working_bytes(1, 1).unwrap();
+    assert!(OpeningBands::new(rows.factored, work - 1, 1, 0).is_none());
+    let bands = OpeningBands::new(rows.factored, work, 1, 0).unwrap();
+    assert!(bands.index_budget.is_none() && !bands.parallel_transpose);
+    rows.visits.store(0, Ordering::Relaxed);
+    let actual = eval_real_v1_2_openings_from_rows_reusing(&rows, &point, &witness, work, Vec::new(), None).unwrap();
+    assert_eq!(actual, baseline);
+    assert_eq!(rows.visits.load(Ordering::Relaxed), 0);
+    assert!(rows.factored.opening_columns(0).is_none());
+    assert!(rows.factored.opening_columns(usize::MAX).is_some());
+    assert!(rows.factored.opening_columns(0).is_none());
+}
+
+#[test]
 fn factored_openings_match_expanded_windows_and_skip_their_construction() {
     const COLUMNS: usize = BAND_COLUMNS + 2 * D;
     const STARTS: &[u32] = &[
@@ -41,7 +201,7 @@ fn factored_openings_match_expanded_windows_and_skip_their_construction() {
         (BAND_COLUMNS + 9) as u32,
     ];
     const OVERLAP: &[u32] = &[0, 0, (D - 2) as u32, (D - 1) as u32, (BAND_COLUMNS + 9) as u32];
-    const WIDTHS: &[u8] = &[1, 0, 6, 7, 2];
+    const WIDTHS: &[u8] = &[1, 0, 126, 7, 2];
     let entries = FactoredEntries {
         offsets: &[0, 2, 2, 3, 5, 6, 7, 10, 11],
         slots: &[0, 2, 3, 2, 4, 2, 3, 4, 4, 3, 3],
@@ -61,7 +221,7 @@ fn factored_openings_match_expanded_windows_and_skip_their_construction() {
     };
     let mut positive = vec![0; COLUMNS / D];
     let mut negative = vec![0; COLUMNS / D];
-    for block in [0, 1, BAND_COLUMNS / D - 1, BAND_COLUMNS / D] {
+    for block in [0, 1, 2, BAND_COLUMNS / D - 1, BAND_COLUMNS / D] {
         positive[block] = 0xf00000000000001f;
         negative[block] = 1 << 9;
     }
@@ -83,30 +243,40 @@ fn factored_openings_match_expanded_windows_and_skip_their_construction() {
     let point: Vec<_> = (0..COLUMNS.next_power_of_two().ilog2())
         .map(|bit| K::from_coeffs([F::from_u32(bit + 4), F::from_u32(bit + 7)]))
         .collect();
-    for (starts, expects_fast_path) in [(STARTS, true), (OVERLAP, false)] {
-        let rows = Rows {
-            factored: FactoredRows::new(
-                MatrixShape {
-                    rows: 4,
-                    columns: COLUMNS,
-                    matrices: 2,
-                },
-                entries,
-                FactoredSlots {
-                    starts,
-                    widths: WIDTHS,
-                    ratio: F::from_u64(3),
-                },
-            )
-            .unwrap(),
-            visits: AtomicUsize::new(0),
-        };
-        let expected = eval_real_v1_2_openings_from_rows(&rows, &point, &blocks, usize::MAX).unwrap();
-        rows.visits.store(0, Ordering::Relaxed);
-        let actual =
-            eval_real_v1_2_openings_from_rows_reusing(&rows, &point, &blocks, usize::MAX, vec![K::ONE; COLUMNS], None)
+    for ratio in [F::ZERO, F::ONE, F::NEG_ONE, F::from_u64(3)] {
+        for (starts, expects_fast_path) in [(STARTS, true), (OVERLAP, false)] {
+            let rows = Rows {
+                factored: FactoredRows::new(
+                    MatrixShape {
+                        rows: 4,
+                        columns: COLUMNS,
+                        matrices: 2,
+                    },
+                    entries,
+                    FactoredSlots {
+                        starts,
+                        widths: WIDTHS,
+                        ratio,
+                    },
+                )
+                .unwrap(),
+                visits: AtomicUsize::new(0),
+            };
+            for witnesses in [&blocks[..2], &blocks[..]] {
+                let expected = eval_real_v1_2_openings_from_rows(&rows, &point, witnesses, usize::MAX).unwrap();
+                rows.visits.store(0, Ordering::Relaxed);
+                let actual = eval_real_v1_2_openings_from_rows_reusing(
+                    &rows,
+                    &point,
+                    witnesses,
+                    usize::MAX,
+                    vec![K::ONE; COLUMNS],
+                    None,
+                )
                 .unwrap();
-        assert_eq!(actual, expected);
-        assert_eq!(rows.visits.load(Ordering::Relaxed) == 0, expects_fast_path);
+                assert_eq!(actual, expected);
+                assert_eq!(rows.visits.load(Ordering::Relaxed) == 0, expects_fast_path);
+            }
+        }
     }
 }

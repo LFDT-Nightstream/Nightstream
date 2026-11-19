@@ -15,9 +15,12 @@ mod equality;
 mod factored;
 mod factored_openings;
 mod geometric;
+mod geometric_slots;
+mod low_lane_pad;
 mod matrix_cache_impl;
 mod matrix_rows;
 mod matrix_window;
+mod opening_columns;
 mod openings;
 mod parallel;
 mod part_plan;
@@ -45,21 +48,27 @@ use digit::{
 pub use equality::EqualityWeights;
 pub(crate) use factored::fill;
 pub use factored::{FactoredEntries, FactoredRows, FactoredSlots};
+pub(crate) use low_lane_pad::{PadProjection, LANE_BITS};
 pub use matrix_rows::{CachedMatrixRows, MatrixRowSink, MatrixRows, MatrixShape};
 pub use matrix_window::{MatrixWindow, RetainedMatrixWindow};
+pub use opening_columns::OpeningColumns;
 use part_plan::PartPlan;
 use row_block::{CompactRowBlock, DenseRowBlock, COMPACT_SINGLE_BLOCK_MASK};
 pub use row_source::SuperneoEvalCacheBuilder;
 use scratch::RingEvalScratch;
 use std::sync::OnceLock;
 use weighted::{weighted_projection_basis_forms_from_k, weighted_projection_form_from_orig};
+#[cfg(test)]
 pub(crate) use weighted_table::fill_combined_projection;
+pub(crate) use weighted_table::fill_geometric_projection;
 #[cfg(test)]
 pub(crate) use weighted_table::weighted_identity_projection;
 pub use window_eval::{
     eval_real_v1_2_openings_from_rows, evaluate_terminal_rows, first_unsatisfied_row_from_rows, TerminalEvaluations,
 };
-pub(crate) use window_eval::{eval_real_v1_2_openings_from_rows_reusing, fill_weighted_rows_from_source};
+pub(crate) use window_eval::{
+    eval_real_v1_2_openings_from_rows_reusing, fill_weighted_rows_from_source, geometric_weighted_rows_from_source,
+};
 
 pub fn weighted_projection_basis_forms(weights: &[K; D]) -> ([Rq; D], [Rq; D]) {
     weighted_projection_basis_forms_from_k(weights)

@@ -44,14 +44,7 @@ impl SignedShiftSums {
 
     #[inline]
     pub fn add_signed_units(&mut self, element: &SplitRing, mut positive: u64, mut negative: u64) {
-        #[cfg(debug_assertions)]
-        {
-            self.terms += 1;
-            debug_assert!(
-                self.terms <= MAX_EXACT_TERMS,
-                "signed shift sums exceed the exact i64 term bound"
-            );
-        }
+        self.count_term();
         let cancelled = positive & negative;
         positive ^= cancelled;
         negative ^= cancelled;
@@ -75,6 +68,102 @@ impl SignedShiftSums {
             }
             negative &= negative - 1;
         }
+    }
+
+    #[inline]
+    pub fn add_signed_event_pair(
+        output: [&mut Self; 2],
+        coefficients: [&[F; D]; 2],
+        mut events: u64,
+        positive: u64,
+        negative: u64,
+    ) {
+        let [real, imaginary] = output;
+        real.count_term();
+        imaginary.count_term();
+        let (positive, negative) = (positive & !negative, negative & !positive);
+        while events != 0 {
+            let degree = events.trailing_zeros() as usize;
+            events &= events - 1;
+            let [a, b] = coefficients.map(|form| form[degree].as_canonical_u64());
+            if a | b == 0 {
+                continue;
+            }
+            let [a_low, a_high, b_low, b_high] =
+                [a as u32, (a >> 32) as u32, b as u32, (b >> 32) as u32].map(i64::from);
+            let re = &mut real.limbs.as_chunks_mut::<2>().0[degree..][..D];
+            let im = &mut imaginary.limbs.as_chunks_mut::<2>().0[degree..][..D];
+            let mut mask = positive;
+            while mask != 0 {
+                let lane = mask.trailing_zeros() as usize;
+                re[lane][0] += a_low;
+                re[lane][1] += a_high;
+                im[lane][0] += b_low;
+                im[lane][1] += b_high;
+                mask &= mask - 1;
+            }
+            let mut mask = negative;
+            while mask != 0 {
+                let lane = mask.trailing_zeros() as usize;
+                re[lane][0] -= a_low;
+                re[lane][1] -= a_high;
+                im[lane][0] -= b_low;
+                im[lane][1] -= b_high;
+                mask &= mask - 1;
+            }
+        }
+    }
+
+    #[inline]
+    fn count_term(&mut self) {
+        #[cfg(debug_assertions)]
+        {
+            self.terms += 1;
+            debug_assert!(
+                self.terms <= MAX_EXACT_TERMS,
+                "signed shift sums exceed the exact i64 term bound"
+            );
+        }
+    }
+
+    pub fn add_small_event_pair(output: [&mut Self; 2], forms: [&[F; D]; 2], mut events: u64, digits: &[F; D]) -> bool {
+        const MAX_MAGNITUDE: u64 = 2048;
+        let mut small = [0i32; D];
+        for (out, input) in small.iter_mut().zip(digits) {
+            let n = input.as_canonical_u64();
+            if n <= MAX_MAGNITUDE {
+                *out = n as i32;
+            } else if Q - n <= MAX_MAGNITUDE {
+                *out = -((Q - n) as i32);
+            } else {
+                return false;
+            }
+        }
+        let [real, imaginary] = output;
+        #[cfg(debug_assertions)]
+        for accum in [&mut *real, &mut *imaginary] {
+            accum.terms += MAX_MAGNITUDE;
+            debug_assert!(accum.terms <= MAX_EXACT_TERMS);
+        }
+        while events != 0 {
+            let degree = events.trailing_zeros() as usize;
+            events &= events - 1;
+            let [x, y] = forms.map(|f| f[degree].as_canonical_u64());
+            if x | y == 0 {
+                continue;
+            }
+            let parts = [x as u32, (x >> 32) as u32, y as u32, (y >> 32) as u32].map(i64::from);
+            let re = &mut real.limbs.as_chunks_mut::<2>().0[degree..][..D];
+            let im = &mut imaginary.limbs.as_chunks_mut::<2>().0[degree..][..D];
+            for ((a, b), s) in re.iter_mut().zip(im).zip(small) {
+                let d = i64::from(s);
+                a[0] += parts[0] * d;
+                a[1] += parts[1] * d;
+                b[0] += parts[2] * d;
+                b[1] += parts[3] * d;
+            }
+        }
+        true
     }
 
     pub fn add(&mut self, other: &Self) {

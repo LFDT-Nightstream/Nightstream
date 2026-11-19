@@ -16,6 +16,15 @@ pub(super) struct TaskSums {
 }
 
 impl TaskSums {
+    pub(super) fn working_bytes(bands: usize, witnesses: usize) -> Option<usize> {
+        let pair = size_of::<([F; D], [F; D])>();
+        let raw = size_of::<(SignedShiftSums, SignedShiftSums)>();
+        bands
+            .checked_mul(raw + 3 * pair)?
+            .checked_add(pair + size_of::<[K; D]>())?
+            .checked_mul(witnesses)
+    }
+
     pub(super) fn new(witnesses: usize) -> Self {
         Self {
             reduced: zero_pair_sums(witnesses),
@@ -25,6 +34,18 @@ impl TaskSums {
 
     #[inline]
     pub(super) fn add_block(&mut self, witnesses: &[&SuperneoZBlocks], block: usize, forms: impl Fn() -> (Rq, Rq)) {
+        self.add_opening_block(witnesses, block, None, forms);
+    }
+
+    #[inline]
+    pub(super) fn add_opening_block(
+        &mut self,
+        witnesses: &[&SuperneoZBlocks],
+        block: usize,
+        events: Option<u64>,
+        forms: impl Fn() -> (Rq, Rq),
+    ) {
+        let sparse = events.filter(|events| events.count_ones() <= 12);
         let mut reduced_forms = None;
         let mut split_forms = None;
         for (index, witness) in witnesses.iter().enumerate() {
@@ -33,11 +54,31 @@ impl TaskSums {
             }
             let (real, imaginary) = reduced_forms.get_or_insert_with(&forms);
             if let Some((positive, negative)) = witness.signed_unit_masks() {
-                let (real, imaginary) =
-                    split_forms.get_or_insert_with(|| (SplitRing::new(&real.0), SplitRing::new(&imaginary.0)));
                 let (raw_real, raw_imaginary) = &mut self.raw[index];
-                raw_real.add_signed_units(real, positive[block], negative[block]);
-                raw_imaginary.add_signed_units(imaginary, positive[block], negative[block]);
+                if let Some(events) = sparse {
+                    SignedShiftSums::add_signed_event_pair(
+                        [raw_real, raw_imaginary],
+                        [&real.0, &imaginary.0],
+                        events,
+                        positive[block],
+                        negative[block],
+                    );
+                } else {
+                    let (real, imaginary) =
+                        split_forms.get_or_insert_with(|| (SplitRing::new(&real.0), SplitRing::new(&imaginary.0)));
+                    raw_real.add_signed_units(real, positive[block], negative[block]);
+                    raw_imaginary.add_signed_units(imaginary, positive[block], negative[block]);
+                }
+                continue;
+            }
+            if let (Some(events), super::RealBlockStorage::Dense { blocks, .. }) = (sparse, &witness.re) {
+                const _: () = assert!(TASK_BLOCKS <= (1 << 12));
+                let (a, b) = &mut self.raw[index];
+                if SignedShiftSums::add_small_event_pair([a, b], [&real.0, &imaginary.0], events, &blocks[block].0) {
+                    continue;
+                }
+                let (a, b) = &mut self.reduced[index];
+                add_sparse_digit_pair([a, b], [real, imaginary], events, &blocks[block]);
                 continue;
             }
             let (out_real, out_imaginary) = &mut self.reduced[index];
@@ -80,4 +121,33 @@ pub(super) fn to_extension(sums: PairSums) -> Vec<[K; D]> {
     sums.into_iter()
         .map(|(real, imaginary)| core::array::from_fn(|lane| K::from_coeffs([real[lane], imaginary[lane]])))
         .collect()
+}
+
+fn add_sparse_digit_pair(output: [&mut [F; D]; 2], forms: [&Rq; 2], mut events: u64, digits: &Rq) {
+    let [real, imaginary] = output;
+    while events != 0 {
+        let degree = events.trailing_zeros() as usize;
+        events &= events - 1;
+        let [a, b] = forms.map(|f| f.0[degree]);
+        if a == F::ZERO && b == F::ZERO {
+            continue;
+        }
+        let (head, tail) = digits.0.split_at(D - degree);
+        for ((x, y), &d) in real[degree..]
+            .iter_mut()
+            .zip(&mut imaginary[degree..])
+            .zip(head)
+        {
+            *x += a * d;
+            *y += b * d;
+        }
+        for ((x, y), &d) in real[..degree]
+            .iter_mut()
+            .zip(&mut imaginary[..degree])
+            .zip(tail)
+        {
+            *x -= a * d;
+            *y -= b * d;
+        }
+    }
 }

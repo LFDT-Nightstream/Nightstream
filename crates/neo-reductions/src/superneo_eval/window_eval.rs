@@ -112,7 +112,7 @@ fn evaluate_rows(
     if factored_openings {
         if let Some(bands) = source
             .factored()?
-            .and_then(|rows| OpeningBands::new(rows, workspace_bytes))
+            .and_then(|rows| OpeningBands::new(rows, workspace_bytes, active.len(), storage.capacity()))
         {
             drop(complete);
             let active_witnesses: Vec<_> = active.iter().map(|&index| &witnesses[index]).collect();
@@ -194,6 +194,41 @@ fn evaluate_rows(
         openings: result,
         first_unsatisfied_row: None,
     })
+}
+
+pub(crate) fn geometric_weighted_rows_from_source(
+    source: &dyn MatrixRows,
+    witness: &SuperneoZBlocks,
+    ratio: K,
+    matrix_coefficients: &[K],
+    workspace_bytes: usize,
+) -> Result<Option<Vec<K>>, PiCcsError> {
+    let shape = source.shape();
+    shape.validate(&(0..shape.rows))?;
+    if witness.block_len().checked_mul(D) != Some(shape.columns)
+        || matrix_coefficients.len() != shape.matrices
+        || !witness.imag_all_zero()
+    {
+        return Err(PiCcsError::InvalidInput("streamed carried projection shape".into()));
+    }
+    let Some(factored) = source.factored()? else {
+        return Ok(None);
+    };
+    let required = factored.slot_count() * size_of::<K>();
+    if required > workspace_bytes {
+        return Err(PiCcsError::MatrixWorkspace {
+            required,
+            available: workspace_bytes,
+        });
+    }
+    let Some(values) = super::geometric_slots::project(witness, factored.slots(), ratio) else {
+        return Ok(None);
+    };
+    let mut output = vec![K::ZERO; shape.rows];
+    fill(&mut output, |row| {
+        factored.weighted_row(row, matrix_coefficients, &values)
+    });
+    Ok(Some(output))
 }
 
 pub(crate) fn fill_weighted_rows_from_source(

@@ -35,6 +35,7 @@ pub struct FactoredRows<'a> {
     shape: MatrixShape,
     entries: FactoredEntries<'a>,
     slots: FactoredSlots<'a>,
+    prepared: Option<&'a super::OpeningColumns>,
 }
 
 impl<'a> FactoredRows<'a> {
@@ -43,11 +44,28 @@ impl<'a> FactoredRows<'a> {
     }
 
     pub fn new_unchecked(shape: MatrixShape, entries: FactoredEntries<'a>, slots: FactoredSlots<'a>) -> Self {
-        Self { shape, entries, slots }
+        Self {
+            shape,
+            entries,
+            slots,
+            prepared: None,
+        }
+    }
+
+    pub fn with_opening_columns(mut self, columns: &'a super::OpeningColumns) -> Self {
+        self.prepared = Some(columns);
+        self
+    }
+
+    pub(super) fn opening_columns(&self, available: usize) -> Option<&[super::opening_columns::Columns]> {
+        self.prepared?
+            .get(self.shape, self.slot_count(), self.entries, available)
     }
 
     pub fn checked(self) -> Result<Self, PiCcsError> {
-        let Self { shape, entries, slots } = self;
+        let Self {
+            shape, entries, slots, ..
+        } = self;
         shape.validate(&(0..shape.rows))?;
         let invalid = |reason: &str| Err(PiCcsError::InvalidInput(format!("factored matrix rows: {reason}")));
         let FactoredEntries {
@@ -225,6 +243,32 @@ impl<'a> FactoredRows<'a> {
             .for_each(add_all);
         #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
         add_all((0..self.shape.rows).fold(empty(), queue_row));
+    }
+
+    pub(super) fn transpose_working_bytes(&self) -> Option<usize> {
+        let bands = self.slot_count().div_ceil(SLOTS_PER_BAND);
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        let tasks = self.shape.rows.div_ceil(ROWS_PER_TASK);
+        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+        let tasks = 1;
+        let queue = size_of::<Vec<(u32, K)>>() + 2 * QUEUED_PER_BAND * size_of::<(u32, K)>();
+        bands.checked_mul(
+            tasks
+                .checked_mul(queue)?
+                .checked_add(size_of::<Mutex<&mut [K]>>())?,
+        )
+    }
+
+    pub(super) fn transpose_one_serial(&self, matrix: usize, weights: &super::EqualityWeights, out: &mut [K]) {
+        for row in 0..self.shape.rows {
+            let entries = self.range(row, matrix);
+            if !entries.is_empty() {
+                let weight = weights.at(row);
+                for entry in entries {
+                    out[self.entries.slots[entry] as usize] += weight.scale_base(self.entries.coefficients[entry]);
+                }
+            }
+        }
     }
 
     pub fn weighted_row(&self, row: usize, matrix_coefficients: &[K], slot_values: &[K]) -> K {

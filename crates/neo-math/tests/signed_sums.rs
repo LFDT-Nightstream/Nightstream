@@ -66,6 +66,36 @@ fn repeated_negative_terms_stay_exact() {
     assert_eq!(sums.reduce(), expected);
 }
 
+#[test]
+fn signed_events_match_mixed_negacyclic_sums_at_the_term_bound() {
+    let mut coefficients = [Fq::ZERO; D];
+    coefficients[0] = -Fq::ONE;
+    coefficients[D - 1] = -Fq::ONE;
+    let positive = u64::MAX ^ (1 << (D - 1));
+    let negative = (1 << 1) | (1 << (D - 1));
+    let mut sums = SignedShiftSums::zero();
+    let mut imaginary = SignedShiftSums::zero();
+    let imaginary_coefficients = coefficients.map(|v| -v);
+    SignedShiftSums::add_signed_event_pair(
+        [&mut sums, &mut imaginary],
+        [&coefficients, &imaginary_coefficients],
+        1 | (1 << (D - 1)),
+        positive,
+        negative,
+    );
+    sums.add_signed_units(&SplitRing::new(&coefficients), 1, 0);
+    let product = Rq(coefficients).mul(&signed_unit(positive & !negative, negative & !positive));
+    assert_eq!(imaginary.reduce(), product.0.map(|v| -v));
+    let terms = neo_math::signed_sums::MAX_EXACT_TERMS;
+    for _ in 0..(terms.ilog2() - 1) {
+        sums.add(&sums.clone());
+    }
+    assert_eq!(
+        sums.reduce(),
+        core::array::from_fn(|lane| (product.0[lane] + coefficients[lane]) * Fq::from_u64(terms / 2)),
+    );
+}
+
 fn digits(seed: u64, bound: i64) -> [Fq; D] {
     let mut x = seed;
     core::array::from_fn(|lane| {

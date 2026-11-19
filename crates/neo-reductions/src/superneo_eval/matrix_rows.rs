@@ -39,6 +39,10 @@ pub trait MatrixRows: Sync {
         None
     }
 
+    fn take_checked_fresh_rows(&self) -> Option<Vec<[F; 4]>> {
+        None
+    }
+
     fn factored(&self) -> Result<Option<FactoredRows<'_>>, PiCcsError> {
         Ok(None)
     }

@@ -23,6 +23,14 @@ pub(crate) struct Tables {
     pub(crate) scaled_inverse: Vec<K>,
 }
 
+pub(crate) struct ZeroPrefix<'a> {
+    pub(crate) beta: &'a [K],
+    pub(crate) xi: K,
+    pub(crate) lambda: K,
+    pub(crate) inverse: K,
+    pub(crate) scaled: K,
+}
+
 #[derive(Clone, Copy)]
 struct Line {
     zero: K,
@@ -115,6 +123,14 @@ fn coefficients(zero: K, one: K, two: K, cubic: K) -> Round {
     [zero, sum - quadratic, quadratic, cubic]
 }
 
+fn prove_round(transcript: &mut Poseidon2Transcript, [zero, two, cubic]: [K; 3], claim: &mut K) -> (Round, K) {
+    let coefficients = coefficients(zero, *claim - zero, two, cubic);
+    absorb_extension(transcript, &coefficients);
+    let challenge = challenge(transcript);
+    *claim = poly_eval_k(&coefficients, challenge);
+    (coefficients, challenge)
+}
+
 pub(crate) fn prove(
     transcript: &mut Poseidon2Transcript,
     mut tables: Tables,
@@ -124,17 +140,49 @@ pub(crate) fn prove(
     let mut messages = Vec::with_capacity(rounds);
     let mut point = Vec::with_capacity(rounds);
     for _ in 0..rounds {
-        let [zero, two, cubic] = tables.round();
-        let coefficients = coefficients(zero, claim - zero, two, cubic);
-        absorb_extension(transcript, &coefficients);
-        let challenge = challenge(transcript);
-        claim = poly_eval_k(&coefficients, challenge);
+        let (coefficients, challenge) = prove_round(transcript, tables.round(), &mut claim);
         tables.bind(challenge);
         messages.push(coefficients);
         point.push(challenge);
     }
     let witness = tables.witness.first().copied().unwrap_or(K::ZERO);
     (messages, point, witness)
+}
+
+pub(crate) fn prove_with_zero_prefix(
+    transcript: &mut Poseidon2Transcript,
+    mut tables: Tables,
+    mut claim: K,
+    rounds: usize,
+    lookup: ZeroPrefix<'_>,
+    weight_at: impl FnOnce(&[K]) -> Result<K, Error>,
+) -> Result<(Vec<Round>, Vec<K>, K), Error> {
+    let vars = lookup.beta.len();
+    let mut messages = Vec::with_capacity(rounds);
+    let mut point = Vec::with_capacity(rounds);
+    let mut check = lookup.xi;
+    for (bit, &beta) in lookup.beta.iter().enumerate() {
+        let mut sums = tables.round();
+        let sum = lookup.lambda * lookup.inverse * K::from_u64(1 << (vars - bit - 1));
+        let scaled = check * lookup.scaled;
+        sums[0] += scaled * (K::ONE - beta) + sum;
+        sums[1] += scaled * (beta.double() - (K::ONE - beta)) + sum;
+        let (coefficients, challenge) = prove_round(transcript, sums, &mut claim);
+        check *= (K::ONE - beta) * (K::ONE - challenge) + beta * challenge;
+        tables.bind(challenge);
+        messages.push(coefficients);
+        point.push(challenge);
+    }
+    tables.witness.insert(0, K::ZERO);
+    tables.weights.insert(0, weight_at(&point)?);
+    tables.check.push(check);
+    tables.sum.push(lookup.lambda);
+    tables.inverse.push(lookup.inverse);
+    tables.scaled_inverse.push(lookup.scaled);
+    let (later, remaining, witness) = prove(transcript, tables, claim, rounds - vars);
+    messages.extend(later);
+    point.extend(remaining);
+    Ok((messages, point, witness))
 }
 
 pub(crate) fn prove_product(

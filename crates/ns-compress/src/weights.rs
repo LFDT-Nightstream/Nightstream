@@ -1,9 +1,13 @@
 //! The public weights `G` of the witness polynomial `W` and the value that
 //! `Σ_x W(x) · G(x)` must have (SPEC.md section 6).
 
+use std::ops::ControlFlow;
+
 use neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS;
+use neo_ccs::GeometricRowRun;
 use neo_math::{KExtensions, D, F, K};
-use neo_reductions::superneo_eval::{EqualityWeights, FactoredSlots};
+use neo_reductions::superneo_eval::{EqualityWeights, FactoredSlots, MatrixRowSink};
+use neo_reductions::PiCcsError;
 use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
@@ -218,12 +222,19 @@ pub(crate) fn table(
     layout: &Layout,
     challenges: &Challenges,
     folded: &[K],
+    omit_zero_prefix: bool,
 ) -> Result<Vec<K>, Error> {
     let point = Point::new(challenges.delta);
+    let prefix = if omit_zero_prefix {
+        layout.cells[0].witness.len()
+    } else {
+        0
+    };
     let prepare = || {
         statements
             .par_iter()
             .zip(&layout.cells)
+            .skip(usize::from(omit_zero_prefix))
             .map(|(statement, cells)| {
                 let omega = omega_powers(statement, challenges.omega);
                 let matrices = Matrices::new(statement, &omega)?;
@@ -233,50 +244,126 @@ pub(crate) fn table(
             })
             .collect::<Result<Vec<_>, Error>>()
     };
-    let (prepared, mut table) = rayon::join(prepare, || vec![K::ZERO; layout.witness_len]);
+    let (prepared, mut table) = rayon::join(prepare, || vec![K::ZERO; layout.witness_len - prefix]);
+    let mut prepared = prepared?.into_iter();
     let mut tables = 0;
-    for (((statement, cells), (evaluation, blocks, matrices)), mu) in statements
+    for ((statement, cells), mu) in statements
         .iter()
         .zip(&layout.cells)
-        .zip(prepared?)
         .zip(powers(challenges.mu, statements.len()))
     {
-        let witness = &mut table[cells.witness.range()][..cells.blocks * D];
-        witness
-            .par_chunks_mut(COLUMNS_PER_TASK)
-            .enumerate()
-            .for_each_init(Vec::new, |columns, (task, output)| {
-                columns.clear();
-                columns.resize(output.len(), K::ZERO);
-                matrices.add_columns(task, columns);
-                let first = task * COLUMNS_PER_TASK;
-                let (key, blocks) = (&folded[first..], &blocks[first / D..]);
-                for (((output, columns), key), &block) in output
-                    .chunks_mut(D)
-                    .zip(columns.chunks(D))
-                    .zip(key.chunks(D))
-                    .zip(blocks)
-                {
-                    let columns = conjugate(columns.try_into().expect("D columns"));
-                    let element: [K; D] =
-                        std::array::from_fn(|lane| evaluation.lanes[lane] * block + columns[lane] + key[lane]);
-                    for (output, lane) in output.iter_mut().zip(point.lanes(&element)) {
-                        *output = mu * lane;
+        if cells.witness.offset >= prefix {
+            let (evaluation, blocks, matrices) = prepared.next().expect("prepared weights for the claim");
+            let start = cells.witness.offset - prefix;
+            let witness = &mut table[start..][..cells.blocks * D];
+            witness
+                .par_chunks_mut(COLUMNS_PER_TASK)
+                .enumerate()
+                .for_each_init(Vec::new, |columns, (task, output)| {
+                    columns.clear();
+                    columns.resize(output.len(), K::ZERO);
+                    matrices.add_columns(task, columns);
+                    let first = task * COLUMNS_PER_TASK;
+                    let (key, blocks) = (&folded[first..], &blocks[first / D..]);
+                    for (((output, columns), key), &block) in output
+                        .chunks_mut(D)
+                        .zip(columns.chunks(D))
+                        .zip(key.chunks(D))
+                        .zip(blocks)
+                    {
+                        let columns = conjugate(columns.try_into().expect("D columns"));
+                        let element: [K; D] =
+                            std::array::from_fn(|lane| evaluation.lanes[lane] * block + columns[lane] + key[lane]);
+                        for (output, lane) in output.iter_mut().zip(point.lanes(&element)) {
+                            *output = mu * lane;
+                        }
                     }
-                }
-            });
-        let mut public = mu * evaluation.public;
-        for output in &mut witness[..statement.claim.m_in] {
-            *output += public;
-            public *= challenges.gamma;
+                });
+            let mut public = mu * evaluation.public;
+            for output in &mut witness[..statement.claim.m_in] {
+                *output += public;
+                public *= challenges.gamma;
+            }
         }
         if let Some((bound, counts)) = cells.table {
             let weights = count_weights(bound, challenges.lambda[tables], challenges)?;
-            table[counts.range()][..weights.len()].copy_from_slice(&weights);
+            table[counts.offset - prefix..][..weights.len()].copy_from_slice(&weights);
             tables += 1;
         }
     }
     Ok(table)
+}
+
+struct MatrixAt<'a> {
+    coefficients: &'a [K],
+    lanes: [K; D],
+    blocks: EqualityWeights,
+    value: K,
+}
+
+impl MatrixRowSink for MatrixAt<'_> {
+    fn push_run(&mut self, _: usize, matrix: usize, run: GeometricRowRun<F>) -> Result<(), PiCcsError> {
+        run.for_each_term(|_, column, coefficient| {
+            self.value += (self.lanes[column % D] * self.blocks.at(column / D) * self.coefficients[matrix])
+                .scale_base(coefficient);
+        });
+        Ok(())
+    }
+
+    fn finish_matrix_row(&mut self, _: usize, _: usize) -> Result<ControlFlow<()>, PiCcsError> {
+        Ok(ControlFlow::Continue(()))
+    }
+}
+
+pub(crate) fn first_slice_at(
+    statement: &Statement<'_>,
+    challenges: &Challenges,
+    folded: &[K],
+    rho: &[K],
+) -> Result<(K, K), Error> {
+    let (lanes, block_point) = rho.split_at(LANE_VARS);
+    let lanes: [K; D] = equality(lanes, D).try_into().expect("D lane weights");
+    let form = Point::new(challenges.delta).lanes(&lanes);
+    let block_count = statement.blocks();
+    let uses = Uses {
+        form,
+        claims: vec![Use {
+            coefficient: K::ONE,
+            point: block_point,
+            blocks: block_count,
+        }],
+    };
+    let omega = omega_powers(statement, challenges.omega);
+    let evaluation = Evaluation::new(statement, &omega);
+    let key = key_part(&uses, folded);
+    let pad = dot(&form, &evaluation.lanes) * prefix_equality(block_point, block_count, evaluation.r_high);
+    let public = evaluation.public
+        * equality(rho, statement.claim.m_in)
+            .iter()
+            .rev()
+            .fold(K::ZERO, |value, &weight| value * challenges.gamma + weight);
+    let matrix = if statement
+        .claim
+        .r
+        .iter()
+        .all(|&coordinate| coordinate == K::ZERO)
+    {
+        let mut sink = MatrixAt {
+            coefficients: &omega[KAPPA + 1..][..statement.claim.eval_a.len()],
+            lanes: conjugate(&form),
+            blocks: EqualityWeights::new(block_point),
+            value: K::ZERO,
+        };
+        let rows = statement
+            .rows
+            .factored()?
+            .ok_or(Error::Statement("the matrix rows have no factored form"))?;
+        rows.visit_rows(0..1, &mut sink)?;
+        sink.value
+    } else {
+        matrix_part(std::slice::from_ref(statement), challenges, &uses)?
+    };
+    Ok((key + pad + public + matrix, key))
 }
 
 pub(crate) struct Uses<'a> {

@@ -1,13 +1,16 @@
-use crate::support::{instances, key, layout, statements};
-use neo_math::{from_complex, F, K};
+use crate::support::{claim_of, instances, key, layout, statements, Instance, POINT_VARS};
+use neo_ccs::Mat;
+use neo_math::{from_complex, D, F, K};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
+use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 
 use super::{commit, table_inverses, Committed};
 use crate::akita::Polynomial;
 use crate::layout::LOOKUPS;
 use crate::weights::{self, Challenges, Uses};
-use crate::{akita, verify, Error, Proof};
+use crate::{akita, verify, Error, Norm, Proof};
 
 fn verdict(change: impl FnOnce(&mut Committed)) -> Result<(), Error> {
     let instances = instances();
@@ -103,7 +106,7 @@ fn a_lookup_challenge_in_a_table_gives_no_proof_and_no_acceptance() {
         let uses = Uses::new(&layout, &challenges, &rho);
         (
             table_inverses(&layout, &taus).map(|_| ()),
-            weights::table(&statements, &layout, &challenges, &folded).map(|_| ()),
+            weights::table(&statements, &layout, &challenges, &folded, false).map(|_| ()),
             weights::closed_part(&statements, &layout, &challenges, &uses, &rho).map(|_| ()),
         )
     };
@@ -122,5 +125,36 @@ fn a_lookup_challenge_in_a_table_gives_no_proof_and_no_acceptance() {
     for tau in [outside, -outside] {
         let (inverses, prover, verifier) = run(tau);
         assert!(inverses.is_ok() && prover.is_ok() && verifier.is_ok(), "{tau}");
+    }
+}
+
+#[test]
+fn a_virtual_zero_table_has_the_dense_proof() {
+    let mut rng = ChaCha8Rng::seed_from_u64(0x7a65_726f);
+    for (blocks, point) in [(61, K::ZERO), (64, from_complex(F::from_u64(3), F::from_u64(7)))] {
+        let mut zero = Instance::random(&mut rng, blocks, Norm::Table { bound: 52 });
+        zero.witness = Mat::virtual_constant(D, blocks, F::ZERO);
+        zero.claim = claim_of(&zero.rows, &zero.witness, &[point; POINT_VARS]);
+        let dense_zero = Mat::from_row_major(D, blocks, zero.witness.to_dense_vec());
+        let fresh = Instance::random(&mut rng, blocks, Norm::BoundByCaller);
+        let instances = [zero, fresh];
+        let statements = statements(&instances);
+        let layout = layout(&instances);
+        let prove = |zero: &Mat<F>| {
+            let witnesses = [zero, &instances[1].witness];
+            let committed = commit(key(), layout.clone(), &witnesses).unwrap();
+            assert_eq!(committed.zero_prefix.is_some(), zero.virtual_constant_value().is_some());
+            let mut transcript = Poseidon2Transcript::new_v1_2();
+            committed.prove(&mut transcript, &statements).unwrap().0
+        };
+        let proof = prove(&instances[0].witness);
+        assert_eq!(proof, prove(&dense_zero));
+        verify(
+            &mut Poseidon2Transcript::new_v1_2(),
+            key().verification_key(),
+            &statements,
+            &proof,
+        )
+        .unwrap();
     }
 }

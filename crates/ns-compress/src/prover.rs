@@ -11,7 +11,7 @@ use crate::akita::{self, Polynomial};
 use crate::key::{self, ProverKey};
 use crate::layout::{Layout, Slice, LANE_VARS, LOOKUPS, LOOKUP_VARS};
 use crate::lookup::{code, Inverses, OUTSIDE};
-use crate::sumcheck::{self, Tables};
+use crate::sumcheck::{self, Tables, ZeroPrefix};
 use crate::transcript::{absorb_bytes, absorb_extension, challenges as draw, session};
 use crate::weights::{self, Challenges, Uses};
 use crate::{
@@ -36,8 +36,23 @@ pub struct Committed<'k> {
     layout: Layout,
     witness: Vec<F>,
     codes: Vec<u16>,
+    zero_prefix: Option<(Slice, u16)>,
     committed: akita::prover::Committed,
     commit_witness: Duration,
+}
+
+fn zero_prefix(layout: &Layout, witnesses: &[&Mat<F>]) -> Option<(Slice, u16)> {
+    let [zero, fresh] = layout.cells.as_slice() else {
+        return None;
+    };
+    let (bound, _) = zero.table?;
+    let slice = zero.witness;
+    (slice.offset == 0
+        && fresh.table.is_none()
+        && fresh.blocks == zero.blocks
+        && fresh.witness.offset == slice.len()
+        && witnesses[0].virtual_constant_value() == Some(&F::ZERO))
+    .then(|| (slice, code(F::ZERO, bound)))
 }
 
 fn write_cells(cells: &mut [F], witness: &Mat<F>) {
@@ -79,12 +94,23 @@ pub fn commit<'k>(key: &'k ProverKey, layout: Layout, witnesses: &[&Mat<F>]) -> 
     {
         return Err(Error::Statement("witness shape"));
     }
-    let mut witness = vec![F::ZERO; layout.witness_len];
+    let zero_prefix = zero_prefix(&layout, witnesses);
+    let prefix = zero_prefix.map_or(0, |(slice, _)| slice.len());
+    let mut witness = vec![F::ZERO; layout.witness_len - prefix];
     for (cells, source) in layout.cells.iter().zip(witnesses) {
-        write_cells(&mut witness[cells.witness.range()][..cells.blocks * D], source);
+        if cells.witness.offset >= prefix {
+            write_cells(
+                &mut witness[cells.witness.offset - prefix..][..cells.blocks * D],
+                source,
+            );
+        }
     }
-    let mut codes = vec![OUTSIDE; layout.table_witness_len];
+    let mut codes = vec![OUTSIDE; layout.table_witness_len - prefix];
     for (_, slice, bound, counts) in layout.tables() {
+        if let Some((_, code)) = zero_prefix {
+            witness[counts.offset - prefix + usize::from(code)] = F::from_u64(slice.len() as u64);
+            continue;
+        }
         let codes = &mut codes[slice.range()];
         codes
             .par_iter_mut()
@@ -115,16 +141,25 @@ pub fn commit<'k>(key: &'k ProverKey, layout: Layout, witnesses: &[&Mat<F>]) -> 
             *cell = F::from_u64(count);
         }
     }
-    let committed = key.akita.commit(
-        layout.shape(),
-        Polynomial::Witness,
-        witness.par_iter().copied().map(akita::base).collect(),
-    )?;
+    let cells = witness.par_iter().copied().map(akita::base);
+    let coefficients = if prefix == 0 {
+        cells.collect()
+    } else {
+        (0..prefix)
+            .into_par_iter()
+            .map(|_| akita::base(F::ZERO))
+            .chain(cells)
+            .collect()
+    };
+    let committed = key
+        .akita
+        .commit(layout.shape(), Polynomial::Witness, coefficients)?;
     Ok(Committed {
         key,
         layout,
         witness,
         codes,
+        zero_prefix,
         committed,
         commit_witness: start.elapsed(),
     })
@@ -180,6 +215,13 @@ impl Committed<'_> {
     }
 
     fn inverse_values(&self, tables: &[(Slice, Inverses)], rho: &[K]) -> [K; 1 << LOOKUP_VARS] {
+        if let Some((_, code)) = self.zero_prefix {
+            let mut values = [K::ZERO; 1 << LOOKUP_VARS];
+            for (k, value) in values.iter_mut().enumerate().take(LOOKUPS) {
+                *value = K::from(tables[0].1.at(k, code));
+            }
+            return values;
+        }
         let mut values = [K::ZERO; 1 << crate::layout::LOOKUP_VARS];
         for (slice, inverses) in tables {
             let equality = EqualityWeights::new(&rho[..slice.vars]);
@@ -234,11 +276,21 @@ impl Committed<'_> {
 
         let start = Instant::now();
         let tables = table_inverses(&self.layout, &taus)?;
-        let mut inverse = vec![akita::base(F::ZERO); self.layout.inverse_len()];
-        for k in 0..LOOKUPS {
-            let column = &mut inverse[k << self.layout.table_witness_vars..][..self.layout.table_witness_len];
-            self.write_inverse_column(&tables, k, column);
-        }
+        let inverse = if let Some((slice, code)) = self.zero_prefix {
+            let columns: [akita::Base; LOOKUPS] = std::array::from_fn(|k| akita::base(tables[0].1.at(k, code)));
+            (0..self.layout.inverse_len())
+                .into_par_iter()
+                .with_min_len(CELLS_PER_TASK)
+                .map(|cell| columns[cell >> slice.vars])
+                .collect()
+        } else {
+            let mut inverse = vec![akita::base(F::ZERO); self.layout.inverse_len()];
+            for k in 0..LOOKUPS {
+                let column = &mut inverse[k << self.layout.table_witness_vars..][..self.layout.table_witness_len];
+                self.write_inverse_column(&tables, k, column);
+            }
+            inverse
+        };
         let inverse = self
             .key
             .akita
@@ -250,12 +302,19 @@ impl Committed<'_> {
 
         let start = Instant::now();
         let folded = self.key.fold(challenges.omega);
+        let omit_zero_prefix = self.zero_prefix.is_some();
         let (weights, (witness, [check, sum, combined, scaled])) = rayon::join(
-            || weights::table(statements, &self.layout, &challenges, &folded),
+            || weights::table(statements, &self.layout, &challenges, &folded, omit_zero_prefix),
             || {
                 rayon::join(
                     || self.witness.par_iter().map(|&cell| K::from(cell)).collect(),
-                    || self.lookup_tables(&tables, &challenges),
+                    || {
+                        if omit_zero_prefix {
+                            std::array::from_fn(|_| Vec::new())
+                        } else {
+                            self.lookup_tables(&tables, &challenges)
+                        }
+                    },
                 )
             },
         );
@@ -270,18 +329,39 @@ impl Committed<'_> {
         times.weights = start.elapsed();
 
         let start = Instant::now();
-        let (rounds, rho, witness_value) = sumcheck::prove(
-            transcript,
-            sum_tables,
-            claimed_sum(statements, &challenges),
-            self.layout.witness_vars,
-        );
+        let mut prefix_key = None;
+        let claim = claimed_sum(statements, &challenges);
+        let rounds = self.layout.witness_vars;
+        let (rounds, rho, witness_value) = if let Some((slice, code)) = self.zero_prefix {
+            let inverse = |weights: &[K; LOOKUPS]| {
+                (0..LOOKUPS)
+                    .map(|k| weights[k] * tables[0].1.at(k, code))
+                    .sum()
+            };
+            let lookup = ZeroPrefix {
+                beta: &challenges.beta[..slice.vars],
+                xi: challenges.xi[0],
+                lambda: challenges.lambda[0],
+                inverse: inverse(&challenges.psi),
+                scaled: inverse(&std::array::from_fn(|k| challenges.psi[k] * challenges.taus[k])),
+            };
+            sumcheck::prove_with_zero_prefix(transcript, sum_tables, claim, rounds, lookup, |rho| {
+                let (weight, key) = weights::first_slice_at(&statements[0], &challenges, &folded, rho)?;
+                prefix_key = Some(key);
+                Ok(weight)
+            })?
+        } else {
+            sumcheck::prove(transcript, sum_tables, claim, rounds)
+        };
         let inverse_values = self.inverse_values(&tables, &rho);
         times.sumcheck = start.elapsed();
 
         let start = Instant::now();
         let uses = Uses::new(&self.layout, &challenges, &rho);
-        let key_part = weights::key_part(&uses, &folded);
+        let key_part = match prefix_key {
+            Some(key) => key * uses.claims.iter().map(|claim| claim.coefficient).sum::<K>(),
+            None => weights::key_part(&uses, &folded),
+        };
         absorb_extension(transcript, &[witness_value]);
         absorb_extension(transcript, &inverse_values);
         absorb_extension(transcript, &[key_part]);

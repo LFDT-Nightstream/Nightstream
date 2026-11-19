@@ -1214,7 +1214,7 @@ not change terminal source checks.
      The Lean result takes the honest key as a premise.
    - *Akita binding and knowledge soundness `[AKITA]`.* The one Akita proof opens
      the key polynomial, `W` and `V`. It uses Akita (ePrint 2026/1983) at
-     git revision `d50f700f`, crate version 0.1.0, with the configuration
+     git revision `a8bc0a33`, crate version 0.1.0, with the configuration
      `RecursiveCommitmentConfig<fp64::Dense>` and the schedule files of
      `SPEC.md` section 3. The premise is that an accepted proof gives
      polynomials with the claimed values, in the classical random-oracle

@@ -642,6 +642,12 @@ example : (runDepths 2 (fun _ => 0) 1 (List.replicate 3 [0, 0, 1]).flatten).isNo
 #audit_axioms NightstreamFPrime.Export.Generic.NativeFill.lanes_agree
 #audit_axioms NightstreamFPrime.Export.Generic.NativeFill.agreeOff_block
 #audit_axioms NightstreamFPrime.Export.Generic.NativeFill.agreeOff_ring
+#audit_axioms NightstreamFPrime.Export.Generic.NativeFill.markBatch_finish
+#audit_axioms NightstreamFPrime.Export.Generic.NativeFill.markBatch_ordered
+#audit_axioms NightstreamFPrime.Export.Generic.NativeFill.agreeOff_mark
+#audit_axioms NightstreamFPrime.Export.Generic.NativeFill.agreeOff_marks
+#audit_axioms NightstreamFPrime.Export.Generic.NativeFill.execute_marks
+#audit_axioms NightstreamFPrime.Export.Generic.NativeFill.agreeOff_batch
 #audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.eval_live
 #audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.completeEnv_low
 #audit_axioms NightstreamFPrime.Export.Generic.RelationCompleteness.completeEnv_sbox

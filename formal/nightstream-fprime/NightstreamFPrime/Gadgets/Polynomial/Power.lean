@@ -55,6 +55,18 @@ theorem soundness (exponent : Nat) (interface : Interface)
   Horner.Owned.soundness (hornerInterface exponent interface) env offset
     assumptions rows
 
+theorem ordered (exponent : Nat) (interface : Interface) (offset : Nat) (env : Env)
+    (assumptions : Assumptions exponent interface offset env) :
+    Witness.Ordered offset (witnesses (Circuit.ops (circuit exponent interface).main offset))
+      (offset + localLength (Circuit.ops (circuit exponent interface).main offset)) :=
+  Horner.Owned.ordered (hornerInterface exponent interface) offset env assumptions
+
+theorem computed_holdsFlat (exponent : Nat) (interface : Interface) (env : Env) (offset : Nat)
+    (computed : Witness.Computed env
+      (witnesses (Circuit.ops (circuit exponent interface).main offset))) :
+    holdsFlat env (Circuit.ops (circuit exponent interface).main offset) :=
+  Horner.Owned.computed_holdsFlat (hornerInterface exponent interface) env offset computed
+
 theorem build (exponent : Nat) (interface : Interface)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions exponent interface offset env) :

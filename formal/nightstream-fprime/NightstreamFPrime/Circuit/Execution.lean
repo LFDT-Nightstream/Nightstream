@@ -5,7 +5,8 @@ batches in order. `Witness.Computed` states its result without the order: each r
 and each hint column has the value of its hint. An ordered program computes its own result
 (`Witness.execute_computed`), so a gadget proves its rows from `Witness.Computed` in one
 environment, and a parent has the rows of each child in that environment
-(`Witness.computed_append`). A native fill that gives the values of its batches off the dead
+(`Witness.computed_append`), and its completeness follows from its order and its rows
+(`Witness.complete`). A native fill that gives the values of its batches off the dead
 columns keeps two executions equal off those columns (`Witness.agreeOff_fill`). -/
 
 namespace NightstreamFPrime.Circuit
@@ -175,6 +176,35 @@ theorem WitnessBatch.execute_agreeOff {dead : Nat → Prop} {batch : WitnessBatc
     AgreeOff dead (batch.execute left) (batch.execute right) :=
   executeHints_agreeOff _ _ avoids.2 (executeRecipes_agreeOff _ _ avoids.1 agree)
 
+def Op.RecipesOnly : Op → Prop
+  | .witness _ | .mark _ => True
+  | .assertZero _ | .subcircuit _ => False
+
+theorem executeRecipes_append (env : Env) (start : Nat) (first second : List Expr) :
+    executeRecipes env start (first ++ second) =
+      executeRecipes (executeRecipes env start first) (start + first.length) second := by
+  induction first generalizing env start with
+  | nil => rfl
+  | cons recipe rest ih =>
+      rw [List.cons_append, executeRecipes, ih, List.length_cons, executeRecipes,
+        Nat.add_right_comm, Nat.add_assoc]
+
+theorem recipeConstraints_split : ∀ {head : List Expr} {start other : Nat}
+    {recipes tail : List Expr},
+    recipeConstraints start recipes = recipeConstraints other head ++ tail →
+      (head ≠ [] → start = other) ∧
+        ∃ rest, recipes = head ++ rest ∧ tail = recipeConstraints (start + head.length) rest
+  | [], _, _, recipes, _, rows => ⟨fun absent => absurd rfl absent, recipes, rfl, rows.symm⟩
+  | _ :: _, _, _, [], _, rows => nomatch rows
+  | wanted :: head, start, other, recipe :: recipes, tail, rows => by
+      injection rows with row rows
+      injection row with column negated
+      injection column with column
+      injection negated with _ same
+      obtain ⟨_, rest, split, later⟩ := recipeConstraints_split rows
+      refine ⟨fun _ => column, rest, by rw [same, split]; rfl, ?_⟩
+      rw [later, List.length_cons, Nat.add_right_comm, Nat.add_assoc]
+
 namespace Witness
 
 def execute (env : Env) (batches : List WitnessBatch) : Env :=
@@ -280,6 +310,25 @@ theorem agreeOff_fill {dead : Nat → Prop} {start finish : Nat} {inner : List W
     exact out.elim (execute_agrees_below ordered left column)
       (execute_agrees_above ordered left column)
 
+theorem execute_of_rows : ∀ (batches : List WitnessBatch) (env : Env) (start : Nat)
+    (recipes : List Expr),
+    (∀ batch ∈ batches, batch.hints = [] ∧ batch.recipes ≠ []) →
+    recipeConstraints start recipes =
+        batches.flatMap (fun batch => recipeConstraints batch.start batch.recipes) →
+      executeRecipes env start recipes = execute env batches
+  | [], _, _, [], _, _ => rfl
+  | [], _, _, _ :: _, _, rows => nomatch rows
+  | batch :: rest, env, start, recipes, plain, rows => by
+      obtain ⟨same, tail, split, later⟩ := recipeConstraints_split (rows.trans List.flatMap_cons)
+      have first := plain batch (by simp)
+      have run : batch.execute env = executeRecipes env start batch.recipes := by
+        unfold WitnessBatch.execute
+        rw [first.1, same first.2]
+        rfl
+      rw [split, executeRecipes_append, ← run]
+      exact execute_of_rows rest _ _ tail (fun later member => plain later (by simp [member]))
+        later.symm
+
 theorem witnesses_append (left right : List Op) :
     witnesses (left ++ right) = witnesses left ++ witnesses right :=
   List.flatMap_append
@@ -287,6 +336,44 @@ theorem witnesses_append (left right : List Op) :
 theorem witnesses_cons (operation : Op) (rest : List Op) :
     witnesses (operation :: rest) = operation.witnesses ++ witnesses rest :=
   List.flatMap_cons
+
+theorem witnesses_assertions (rows : List Expr) : witnesses (rows.map Op.assertZero) = [] := by
+  induction rows with
+  | nil => rfl
+  | cons row rest ih => rw [List.map_cons, witnesses_cons, ih]; rfl
+
+theorem computed_holdsFlat {env : Env} {ops : List Op} (only : ∀ op ∈ ops, op.RecipesOnly)
+    (computed : Computed env (witnesses ops)) : holdsFlat env ops := by
+  intro row member
+  obtain ⟨op, opMember, rowMember⟩ := List.mem_flatMap.mp member
+  cases op with
+  | witness batch =>
+      exact (computed batch (List.mem_flatMap.mpr ⟨_, opMember, List.mem_singleton.mpr rfl⟩)).1
+        row rowMember
+  | mark _ => exact absurd rowMember List.not_mem_nil
+  | assertZero _ => exact False.elim (only _ opMember)
+  | subcircuit _ => exact False.elim (only _ opMember)
+
+theorem ordered_batch {offset : Nat} {recipes : List Expr} {ops : List Op}
+    (batches : witnesses ops = [WitnessBatch.arithmetic offset recipes])
+    (count : localLength ops = recipes.length) (causal : RecipesCausal offset recipes) :
+    Ordered offset (witnesses ops) (offset + localLength ops) := by
+  rw [batches, count]
+  exact ⟨le_rfl, ⟨causal, trivial⟩, by simp [Ordered, WitnessBatch.finish]⟩
+
+theorem computed_batch {env : Env} {offset : Nat} {recipes : List Expr} {ops : List Op}
+    (batches : witnesses ops = [WitnessBatch.arithmetic offset recipes])
+    (computed : Computed env (witnesses ops)) :
+    ConstraintsHold env (recipeConstraints offset recipes) :=
+  (computed (WitnessBatch.arithmetic offset recipes) (by simp [batches])).1
+
+theorem complete {env : Env} {offset : Nat} {ops : List Op}
+    (ordered : Ordered offset (witnesses ops) (offset + localLength ops))
+    (rows : ∀ completed, (∀ index, index < offset → completed index = env index) →
+      Computed completed (witnesses ops) → holdsFlat completed ops) :
+    ∃ completed, AgreesOutside env completed offset (localLength ops) ∧ holdsFlat completed ops :=
+  ⟨execute env (witnesses ops), execute_agreesOutside ordered env,
+    rows _ (execute_agrees_below ordered env) (execute_computed ordered env)⟩
 
 end Witness
 

@@ -478,15 +478,36 @@ fn n1_accept(engine: crate::Engine) {
     let setup = memory.compression_setup().unwrap();
     let compressed = memory.compress(&proof, &setup).unwrap();
     let statement = run.statement();
+    let bytes = compressed.to_bytes().unwrap();
+    let decoded = crate::nebula::FinalProof::from_bytes(&bytes).unwrap();
     verifier
         .verify_final(
             &Package::N1.program(),
             &statement.initial,
             &statement.final_,
             &key,
-            &compressed,
+            &decoded,
         )
         .unwrap();
+    assert!(crate::nebula::FinalProof::from_bytes(&bytes[..bytes.len() - 1]).is_err());
+    let mut longer = bytes.clone();
+    longer.push(0);
+    assert!(crate::nebula::FinalProof::from_bytes(&longer).is_err());
+    let mut aliased = bytes.clone();
+    aliased[..8].copy_from_slice(&u64::MAX.to_le_bytes());
+    assert!(crate::nebula::FinalProof::from_bytes(&aliased).is_err());
+    let mut changed = bytes;
+    changed[0] ^= 1;
+    let changed = crate::nebula::FinalProof::from_bytes(&changed).unwrap();
+    assert!(verifier
+        .verify_final(
+            &Package::N1.program(),
+            &statement.initial,
+            &statement.final_,
+            &key,
+            &changed,
+        )
+        .is_err());
 }
 
 #[test]

@@ -9,7 +9,7 @@ use super::{production_key_pair, D, PRODUCTION_VERIFIER_ROWS};
 /// SPEC.md Algorithm 1, SPEC.md Algorithm 11, step 3.
 pub struct ExpandedKey {
     blocks: u64,
-    words: Vec<u64>,
+    words: Arc<Vec<u64>>,
     #[cfg(not(target_arch = "wasm32"))]
     crt: super::crt::Cache,
 }
@@ -41,7 +41,7 @@ impl ExpandedKey {
             .into_flattened();
         Self {
             blocks: 2 * pairs,
-            words,
+            words: Arc::new(words),
             #[cfg(not(target_arch = "wasm32"))]
             crt: super::crt::Cache::new(2 * pairs),
         }
@@ -53,6 +53,10 @@ impl ExpandedKey {
 
     pub fn words(&self) -> &[u64] {
         &self.words
+    }
+
+    pub fn shared_words(&self) -> Arc<Vec<u64>> {
+        self.words.clone()
     }
 
     pub(super) fn shared() -> Option<Arc<Self>> {

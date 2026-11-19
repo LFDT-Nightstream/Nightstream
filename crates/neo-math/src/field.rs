@@ -115,6 +115,33 @@ impl UnreducedProducts {
     }
 }
 
+#[derive(Clone, Copy, Default)]
+pub struct CompactProductSum([[u64; 3]; 2]);
+
+impl CompactProductSum {
+    #[inline]
+    pub fn add_scaled_word(self, a: u64, b: K) -> Self {
+        let terms = b.as_coeffs();
+        Self(std::array::from_fn(|i| {
+            let [lo, hi, wraps] = self.0[i];
+            let sum = (u128::from(hi) << 64) | u128::from(lo);
+            let (sum, wrapped) = sum.overflowing_add(u128::from(a) * u128::from(terms[i].0));
+            [sum as u64, (sum >> 64) as u64, wraps + u64::from(wrapped)]
+        }))
+    }
+
+    #[inline]
+    pub fn value(self) -> K {
+        K::from_coeffs(self.0.map(|[lo, hi, wraps]| {
+            UnreducedProducts {
+                sum: (u128::from(hi) << 64) | u128::from(lo),
+                wraps,
+            }
+            .value()
+        }))
+    }
+}
+
 impl Display for Fq {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         Display::fmt(&self.0, f)

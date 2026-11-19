@@ -19,6 +19,16 @@ const KEY_BLOCKS: u64 = 512;
 const LAST: usize = KEY_BLOCKS as usize - 1;
 const COLUMNS: usize = 2 * KEY_BLOCKS as usize + 3;
 
+#[test]
+fn shared_words_keep_the_original_key_allocation() {
+    let expanded = ExpandedKey::of_pairs(2, |row, _| [[u64::from(row); D], [u64::from(row) + 1; D]]);
+    let shared = expanded.shared_words();
+    assert_eq!(shared.as_ptr(), expanded.words().as_ptr());
+    let expected_tail = *expanded.words().last().unwrap();
+    drop(expanded);
+    assert_eq!(shared.last(), Some(&expected_tail));
+}
+
 fn masks(columns: usize, block: impl FnMut(usize) -> (u64, u64)) -> Mat<F> {
     let (positive, negative): (Vec<u64>, Vec<u64>) = (0..columns).map(block).unzip();
     Mat::compact_signed_unit_from_column_masks(D, columns, &positive, &negative).unwrap()

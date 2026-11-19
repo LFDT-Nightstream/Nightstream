@@ -6,7 +6,9 @@ use akita_pcs::{
     FieldRunPoly, GroupContext, OpeningClaims, PolynomialGroupClaims, SelectedProverOpeningData, SourceHandle,
 };
 use akita_types::{CommittedGroup, SetupPrefixVerifierRegistry};
+use jolt_field::Ring;
 use neo_math::K;
+use rayon::prelude::*;
 
 use super::{
     bytes_of, commitment_bytes, extension, failed, on_large_stacks, profile, row, Base, Config, Extension, Polynomial,
@@ -44,13 +46,30 @@ impl Prover {
     }
 
     pub(crate) fn commit(&self, shape: Shape, polynomial: Polynomial, prefix: Vec<Base>) -> Result<Committed, Error> {
+        self.commit_dense(shape, polynomial, |vars| DensePoly::from_field_prefix(vars, prefix))
+    }
+
+    pub(crate) fn commit_key_words(&self, shape: Shape, words: Arc<Vec<u64>>) -> Result<Committed, Error> {
+        self.commit_dense(shape, Polynomial::Key, |vars| {
+            DensePoly::from_shared_canonical_u64_prefix(vars, words.clone()).or_else(|_| {
+                DensePoly::from_field_prefix(vars, words.par_iter().copied().map(Base::from_u64).collect())
+            })
+        })
+    }
+
+    fn commit_dense(
+        &self,
+        shape: Shape,
+        polynomial: Polynomial,
+        build: impl FnOnce(usize) -> Result<DensePoly<Base>, AkitaError> + Send,
+    ) -> Result<Committed, Error> {
         let vars = match polynomial {
             Polynomial::Key => shape.key,
             Polynomial::Witness => shape.witness,
             Polynomial::Inverse => shape.inverse,
         };
         self.commit_source(shape, polynomial, |backend, profile| {
-            let mut poly = DensePoly::from_field_prefix(vars, prefix)?;
+            let mut poly = build(vars)?;
             if polynomial == Polynomial::Key
                 && profile.inner.matrix.ring_dimension() == 2048
                 && profile.inner_digits() == akita_params::GadgetDigits::new(16, 4)

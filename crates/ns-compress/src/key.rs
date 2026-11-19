@@ -4,14 +4,15 @@ use std::fmt;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 
 use neo_ajtai::nightstream_fprime_setup::ExpandedKey;
-use neo_math::{sum_of_scaled, D, F, K};
+use neo_math::field::CompactProductSum;
+use neo_math::{KExtensions, D, F, K};
 use neo_reductions::superneo_eval::EqualityWeights;
 use p3_field::{Field, PrimeCharacteristicRing};
 use rayon::prelude::*;
 
 use crate::akita::prover::{Committed, Prover};
 use crate::akita::verifier::Verifier;
-use crate::akita::{self, Base, Polynomial, Schedules, Shape, SCHEDULES};
+use crate::akita::{Schedules, Shape, SCHEDULES};
 use crate::layout::LANE_VARS;
 use crate::ring::dot;
 use crate::weights::{equality, powers, prefix_equality, Uses, KAPPA};
@@ -20,7 +21,6 @@ use crate::Error;
 pub(crate) const ROW_VARS: usize = 5;
 const _: () = assert!(KAPPA <= 1 << ROW_VARS);
 
-const CELLS_PER_TASK: usize = 1 << 10;
 const MAGIC: &[u8; 16] = b"NS-COMPRESS-VK-1";
 
 #[derive(Clone)]
@@ -149,7 +149,7 @@ impl ProverKey {
     }
 
     fn of_key(schedules: &'static Schedules, key: Arc<ExpandedKey>) -> Result<Self, Error> {
-        let (akita, committed, verification) = committed(schedules, cells(&key))?;
+        let (akita, committed, verification) = committed(schedules, &key)?;
         Ok(Self {
             akita,
             committed,
@@ -167,33 +167,34 @@ impl ProverKey {
     }
 }
 
-fn cells(key: &ExpandedKey) -> Vec<Base> {
-    key.words()
-        .par_iter()
-        .map(|&word| akita::base(F::new(word)))
-        .collect()
-}
-
 // SPEC.md section 6.
 fn fold(key: &ExpandedKey, omega: K) -> Vec<K> {
+    const TASK_CELLS: usize = 4096;
+    const STRIPE_CELLS: usize = 1024;
     let powers = powers(omega, KAPPA);
     let cells = key.blocks() as usize * D;
     let mut folded = vec![K::ZERO; cells];
-    folded
-        .par_chunks_mut(CELLS_PER_TASK)
-        .enumerate()
-        .for_each_init(Vec::new, |words: &mut Vec<[F; KAPPA]>, (task, folded)| {
-            let start = task * CELLS_PER_TASK;
-            words.resize(folded.len(), [F::ZERO; KAPPA]);
-            for (row, key_row) in key.words().chunks_exact(cells).enumerate() {
-                for (cell, &word) in words.iter_mut().zip(&key_row[start..]) {
-                    cell[row] = F::new(word);
+    folded.par_chunks_mut(TASK_CELLS).enumerate().for_each_init(
+        || vec![CompactProductSum::default(); STRIPE_CELLS],
+        |scratch, (task, chunk)| {
+            for (stripe, output) in chunk.chunks_mut(STRIPE_CELLS).enumerate() {
+                let start = task * TASK_CELLS + stripe * STRIPE_CELLS;
+                let sums = &mut scratch[..output.len()];
+                sums.fill(CompactProductSum::default());
+                let mut rows = key.words().chunks_exact(cells);
+                let first_row = rows.next().expect("a key row");
+                for (&power, row) in powers.iter().skip(1).zip(rows) {
+                    for (sum, &word) in sums.iter_mut().zip(&row[start..]) {
+                        *sum = sum.add_scaled_word(word, power);
+                    }
+                }
+                for ((output, sum), &first) in output.iter_mut().zip(sums).zip(&first_row[start..]) {
+                    let [real, imaginary] = sum.value().as_coeffs();
+                    *output = K::from_coeffs([F::new(first) + real, imaginary]);
                 }
             }
-            for (cell, words) in folded.iter_mut().zip(words.iter()) {
-                *cell = sum_of_scaled(words.iter().copied().zip(powers.iter().copied()));
-            }
-        });
+        },
+    );
     folded
 }
 
@@ -212,9 +213,9 @@ fn schedule_index(blocks: usize) -> Result<usize, Error> {
         .ok_or(Error::Layout("no Akita schedule row has a key for this many blocks"))
 }
 
-fn committed(schedules: &'static Schedules, cells: Vec<Base>) -> Result<(Prover, Committed, VerificationKey), Error> {
+fn committed(schedules: &'static Schedules, key: &ExpandedKey) -> Result<(Prover, Committed, VerificationKey), Error> {
     let akita = Prover::new(schedules)?;
-    let committed = akita.commit(schedules.first(), Polynomial::Key, cells)?;
+    let committed = akita.commit_key_words(schedules.first(), key.shared_words())?;
     let verification = VerificationKey::of_parts(schedules, committed.bytes.clone(), akita.setup_prefixes()?);
     Ok((akita, committed, verification))
 }

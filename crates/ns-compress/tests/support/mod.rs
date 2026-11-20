@@ -116,6 +116,7 @@ impl Rows {
         FactoredRows::new(
             self.shape,
             FactoredEntries {
+                coefficient_starts: &[],
                 offsets: &self.offsets,
                 slots: &self.slots,
                 coefficients: &self.coefficients,

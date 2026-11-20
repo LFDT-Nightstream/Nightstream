@@ -79,6 +79,7 @@ impl Relation {
 
     fn entries(&self) -> FactoredEntries<'_> {
         FactoredEntries {
+            coefficient_starts: &[],
             offsets: &self.offsets,
             slots: &self.slots,
             coefficients: &self.coefficients,
@@ -317,6 +318,7 @@ impl SlotRows {
         FactoredRows::new(
             self.shape,
             FactoredEntries {
+                coefficient_starts: &[],
                 offsets: &self.offsets,
                 slots: &self.slots,
                 coefficients: &self.coefficients,
@@ -381,4 +383,40 @@ fn slot_weights_are_their_definition() {
         |rng: &mut ChaCha8Rng| rng.next_u32() % 64,
     );
     assert_slot_weights(&one_band, &mut rng);
+}
+
+#[test]
+fn shared_coefficients_must_cover_each_port() {
+    let slots = FactoredSlots {
+        starts: &[0],
+        widths: &[1],
+        ratio: F::ONE,
+    };
+    let shape = MatrixShape {
+        rows: 3,
+        columns: D,
+        matrices: 1,
+    };
+    let entries = FactoredEntries {
+        offsets: &[0, 1, 2, 3],
+        slots: &[0; 3],
+        coefficients: &[F::ONE, F::NEG_ONE],
+        coefficient_starts: &[1, 0, 1],
+    };
+    let rows = FactoredRows::new(shape, entries, slots).unwrap();
+    assert_eq!(
+        [0, 1, 2].map(|row| rows.row_value(0, row, &[F::ONE])),
+        [F::NEG_ONE, F::ONE, F::NEG_ONE]
+    );
+    for starts in [&[0, 1][..], &[1, 0, 2]] {
+        assert!(FactoredRows::new(
+            shape,
+            FactoredEntries {
+                coefficient_starts: starts,
+                ..entries
+            },
+            slots
+        )
+        .is_err());
+    }
 }

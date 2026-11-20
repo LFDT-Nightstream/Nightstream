@@ -26,11 +26,12 @@ struct Census<'a> {
 impl MatrixRowSink for Census<'_> {
     fn push_run(&mut self, row: usize, matrix: usize, run: GeometricRowRun<F>) -> Result<(), PiCcsError> {
         assert_eq!(row * 4 + matrix, self.finished);
-        let source = self.plan.columns()[self.next] as usize;
+        let entry = self.next - self.plan.entries().offsets[self.finished];
+        let (source, coefficient) = self.plan.port(row, matrix).nth(entry).unwrap();
         assert_eq!(run.row(), row);
         assert_eq!(run.column_start(), self.slots.starts[source] as usize);
         assert_eq!(run.len(), self.slots.widths[source] as usize);
-        assert_eq!(*run.initial(), self.plan.coefficients()[self.next]);
+        assert_eq!(*run.initial(), coefficient);
         assert_eq!(*run.ratio(), self.slots.ratio);
         self.next += 1;
         self.entries[matrix] += 1;
@@ -40,7 +41,7 @@ impl MatrixRowSink for Census<'_> {
 
     fn finish_matrix_row(&mut self, row: usize, matrix: usize) -> Result<ControlFlow<()>, PiCcsError> {
         assert_eq!(row * 4 + matrix, self.finished);
-        assert_eq!(self.next, self.plan.offsets()[4 * row + matrix + 1]);
+        assert_eq!(self.next, self.plan.entries().offsets[4 * row + matrix + 1]);
         self.finished += 1;
         Ok(ControlFlow::Continue(()))
     }

@@ -107,11 +107,12 @@ impl Columns {
         let mut rows = vec![0; total as usize];
         let mut tags = vec![0; total as usize];
         let mut ids = FactorIds::new(total as usize);
-        for (row, range) in ranges().enumerate() {
-            for entry in range {
-                let next = &mut counts[entries.slots[entry] as usize];
+        for row in 0..shape.rows {
+            let (slots, coefficients) = entries.port(row * shape.matrices + matrix);
+            for (&slot, &coefficient) in slots.iter().zip(coefficients) {
+                let next = &mut counts[slot as usize];
                 rows[*next as usize] = row as u32;
-                tags[*next as usize] = ids.tag(entries.coefficients[entry])?;
+                tags[*next as usize] = ids.tag(coefficient)?;
                 *next += 1;
             }
         }

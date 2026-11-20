@@ -57,6 +57,7 @@ fn cached_opening_columns_match_fallback_for_distinct_points_and_many_sources() 
                 matrices: 2,
             },
             FactoredEntries {
+                coefficient_starts: &[],
                 offsets: &[0, 3, 5, 7, 8, 11, 13],
                 slots: &[0, 1, 1, 0, 2, 0, 2, 1, 0, 1, 2, 0, 1],
                 coefficients: &coefficients,
@@ -121,6 +122,7 @@ fn too_many_column_factors_falls_back_to_the_row_transpose() {
                 matrices: 1,
             },
             FactoredEntries {
+                coefficient_starts: &[],
                 offsets: &offsets,
                 slots: &quotient,
                 coefficients: &factors,
@@ -156,6 +158,7 @@ fn budget_fallback_does_not_materialize_or_disable_the_index() {
                 matrices: 1,
             },
             FactoredEntries {
+                coefficient_starts: &[],
                 offsets: &[0, 1],
                 slots: &[0],
                 coefficients: &[F::NEG_ONE],
@@ -203,6 +206,7 @@ fn four_matrix_bands_match_separate_openings_for_mixed_witnesses() {
             matrices: 4,
         },
         FactoredEntries {
+            coefficient_starts: &[],
             offsets: &[0, 9, 18, 27, 36],
             slots: &indexes,
             coefficients: &coefficients,
@@ -251,6 +255,7 @@ fn factored_openings_match_expanded_windows_and_skip_their_construction() {
     const OVERLAP: &[u32] = &[0, 0, (D - 2) as u32, (D - 1) as u32, (BAND_COLUMNS + 9) as u32];
     const WIDTHS: &[u8] = &[1, 0, 126, 7, 2];
     let entries = FactoredEntries {
+        coefficient_starts: &[],
         offsets: &[0, 2, 2, 3, 5, 6, 7, 10, 11],
         slots: &[0, 2, 3, 2, 4, 2, 3, 4, 4, 3, 3],
         coefficients: &[

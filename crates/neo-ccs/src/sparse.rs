@@ -5,6 +5,27 @@ use p3_field::{Field, PrimeCharacteristicRing};
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 
+#[derive(Clone, Copy)]
+pub struct FactoredEntries<'a> {
+    pub offsets: &'a [usize],
+    pub slots: &'a [u32],
+    pub coefficients: &'a [neo_math::F],
+    pub coefficient_starts: &'a [u32],
+}
+
+impl<'a> FactoredEntries<'a> {
+    #[inline]
+    pub fn port(&self, port: usize) -> (&'a [u32], &'a [neo_math::F]) {
+        let first = self.offsets[port];
+        let slots = &self.slots[first..self.offsets[port + 1]];
+        let start = self
+            .coefficient_starts
+            .get(port)
+            .map_or(first, |&offset| offset as usize);
+        (slots, &self.coefficients[start..start + slots.len()])
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CscMat<Ff> {
     nrows: usize,

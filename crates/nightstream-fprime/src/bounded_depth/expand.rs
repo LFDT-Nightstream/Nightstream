@@ -1,9 +1,9 @@
 //! Lean `CircuitRelation.plan`, `Package.relationRows`, `CircuitRelation.outputForms`.
 
-use std::collections::HashMap;
+use std::collections::{hash_map::Entry, HashMap};
 use std::ops::Range;
 
-use neo_ccs::crypto::poseidon2::SBOX_DEGREE;
+use neo_ccs::{crypto::poseidon2::SBOX_DEGREE, sparse::FactoredEntries};
 use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -23,10 +23,12 @@ pub struct PlanRows {
     offsets: Vec<usize>,
     columns: Vec<u32>,
     coefficients: Vec<Fq>,
+    coefficient_starts: Vec<u32>,
 }
 
 impl PlanRows {
     fn shrink_to_fit(&mut self) {
+        self.share_coefficients();
         self.offsets.shrink_to_fit();
         self.columns.shrink_to_fit();
         self.coefficients.shrink_to_fit();
@@ -48,16 +50,41 @@ impl PlanRows {
         self.columns.len()
     }
 
-    pub fn offsets(&self) -> &[usize] {
-        &self.offsets
+    pub fn entries(&self) -> FactoredEntries<'_> {
+        FactoredEntries {
+            offsets: &self.offsets,
+            slots: &self.columns,
+            coefficients: &self.coefficients,
+            coefficient_starts: &self.coefficient_starts,
+        }
     }
 
-    pub fn columns(&self) -> &[u32] {
-        &self.columns
-    }
-
-    pub fn coefficients(&self) -> &[Fq] {
-        &self.coefficients
+    fn share_coefficients(&mut self) {
+        let ports = self.offsets.len() - 1;
+        let budget = self.coefficients.len().saturating_sub(ports.div_ceil(2));
+        if budget == 0 || self.coefficients.len() > u32::MAX as usize {
+            return;
+        }
+        let mut dictionary = HashMap::new();
+        let mut starts = Vec::with_capacity(ports);
+        let mut values = Vec::new();
+        for bounds in self.offsets.windows(2) {
+            let slice = &self.coefficients[bounds[0]..bounds[1]];
+            let start = match dictionary.entry(slice) {
+                Entry::Occupied(entry) => *entry.get(),
+                Entry::Vacant(entry) => {
+                    if slice.len() >= budget - values.len() {
+                        return;
+                    }
+                    let start = values.len() as u32;
+                    values.extend_from_slice(slice);
+                    *entry.insert(start)
+                }
+            };
+            starts.push(start);
+        }
+        self.coefficient_starts = starts;
+        self.coefficients = values;
     }
 
     pub fn ring_rows(&self) -> &[Range<usize>] {
@@ -68,65 +95,60 @@ impl PlanRows {
         self.ordinary..self.row_count()
     }
 
+    #[inline]
     pub fn evaluate(&self, row: usize, port: usize, columns: &[Fq]) -> Fq {
-        Fq::sum_of_products(
-            self.port(row, port)
-                .map(|(column, coefficient)| (coefficient, columns[column])),
-        )
-    }
-
-    pub fn single(&self, row: usize, port: usize) -> Option<(usize, Fq)> {
-        let slot = PORTS * row + port;
-        (self.offsets[slot + 1] == self.offsets[slot] + 1).then(|| {
-            let index = self.offsets[slot];
-            (self.columns[index] as usize, self.coefficients[index])
-        })
-    }
-
-    pub fn residual(&self, row: usize, columns: &[Fq]) -> Fq {
-        let slot = PORTS * row;
-        let [a, b, c, s, end] = self.offsets[slot..slot + PORTS + 1]
-            .try_into()
-            .expect("one bounded-depth row");
-        let evaluate = |from, to| self.evaluate_range(from, to, columns);
-        let output = evaluate(c, s);
-        if s != end {
-            return evaluate(a, b) * evaluate(b, c) - output + evaluate(s, end).exp_u64(SBOX_DEGREE);
-        }
-        let (first, second) = if b - a <= c - b { (a..b, b..c) } else { (b..c, a..b) };
-        let factor = evaluate(first.start, first.end);
-        if factor == Fq::ZERO {
-            return -output;
-        }
-        factor * evaluate(second.start, second.end) - output
-    }
-
-    fn evaluate_range(&self, start: usize, end: usize, columns: &[Fq]) -> Fq {
-        match end - start {
-            0 => Fq::ZERO,
-            1 => {
-                let value = columns[self.columns[start] as usize];
-                match self.coefficients[start] {
+        let (slots, coefficients) = self.entries().port(PORTS * row + port);
+        match (slots, coefficients) {
+            ([], []) => Fq::ZERO,
+            ([slot], [coefficient]) => {
+                let value = columns[*slot as usize];
+                match *coefficient {
                     Fq::ONE => value,
                     Fq::NEG_ONE => -value,
                     coefficient => coefficient * value,
                 }
             }
             _ => Fq::sum_of_products(
-                self.columns[start..end]
+                slots
                     .iter()
-                    .zip(&self.coefficients[start..end])
-                    .map(|(&column, &coefficient)| (coefficient, columns[column as usize])),
+                    .zip(coefficients)
+                    .map(|(&slot, &coefficient)| (coefficient, columns[slot as usize])),
             ),
         }
     }
 
+    pub fn single(&self, row: usize, port: usize) -> Option<(usize, Fq)> {
+        let index = PORTS * row + port;
+        if self.offsets[index + 1] - self.offsets[index] != 1 {
+            return None;
+        }
+        let (slots, coefficients) = self.entries().port(index);
+        Some((slots[0] as usize, coefficients[0]))
+    }
+
+    pub fn residual(&self, row: usize, columns: &[Fq]) -> Fq {
+        let index = PORTS * row;
+        let [a, b, c, s, end] = self.offsets[index..index + PORTS + 1]
+            .try_into()
+            .expect("one bounded-depth row");
+        let evaluate = |port: usize| self.evaluate(row, port, columns);
+        let output = evaluate(2);
+        if s != end {
+            return evaluate(0) * evaluate(1) - output + evaluate(3).exp_u64(SBOX_DEGREE);
+        }
+        let (first, second) = if b - a <= c - b { (0, 1) } else { (1, 0) };
+        let factor = evaluate(first);
+        if factor == Fq::ZERO {
+            return -output;
+        }
+        factor * evaluate(second) - output
+    }
+
     pub fn port(&self, row: usize, port: usize) -> impl Iterator<Item = (usize, Fq)> + '_ {
-        let slot = PORTS * row + port;
-        let range = self.offsets[slot]..self.offsets[slot + 1];
-        self.columns[range.clone()]
+        let (columns, coefficients) = self.entries().port(PORTS * row + port);
+        columns
             .iter()
-            .zip(&self.coefficients[range])
+            .zip(coefficients)
             .map(|(&column, &coefficient)| (column as usize, coefficient))
     }
 
@@ -135,8 +157,9 @@ impl PlanRows {
         let mut total = Fq::ZERO;
         for slot in 0..PORTS * self.ordinary {
             let unit = slot as u64;
-            for index in self.offsets[slot]..self.offsets[slot + 1] {
-                total += self.coefficients[index] * mix(unit, u64::from(self.columns[index]));
+            let (columns, coefficients) = self.entries().port(slot);
+            for (&column, &coefficient) in columns.iter().zip(coefficients) {
+                total += coefficient * mix(unit, u64::from(column));
             }
         }
         total.as_canonical_u64()
@@ -327,6 +350,7 @@ impl StepPackage {
                 offsets: vec![0],
                 columns: Vec::new(),
                 coefficients: Vec::new(),
+                coefficient_starts: Vec::new(),
             },
         };
         let word_edits = self.word_packing.edits();

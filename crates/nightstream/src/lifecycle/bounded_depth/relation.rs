@@ -14,8 +14,7 @@ use neo_ccs::poly::{SparsePoly, Term};
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
 use neo_reductions::superneo_eval::{
-    FactoredEntries, FactoredRows, FactoredSlots, MatrixRowSink, MatrixRows, MatrixShape, MatrixWindow,
-    RetainedMatrixWindow,
+    FactoredRows, FactoredSlots, MatrixRowSink, MatrixRows, MatrixShape, MatrixWindow, RetainedMatrixWindow,
 };
 use neo_reductions::PiCcsError;
 use nightstream_fprime::{ExpandedPackage, PackageError, SlotSpans, StepWords, PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS};
@@ -79,11 +78,7 @@ impl CompiledStep {
         let rows = self.expanded.rows();
         FactoredRows::new_unchecked(
             MatrixRows::shape(self),
-            FactoredEntries {
-                offsets: rows.offsets(),
-                slots: rows.columns(),
-                coefficients: rows.coefficients(),
-            },
+            rows.entries(),
             FactoredSlots {
                 starts: &self.spans.starts,
                 widths: &self.spans.widths,

@@ -28,24 +28,35 @@ fn sbox(x: Fq) -> Fq {
 
 impl<const T: usize> Instance<T> {
     pub fn permute(&self, mut state: [Fq; T]) -> [Fq; T] {
-        let full_round = |state: &mut [Fq; T], constants: &[Fq; T]| {
-            for (lane, &constant) in state.iter_mut().zip(constants) {
-                *lane = sbox(*lane + constant);
-            }
-            mds_light_permutation(state, &MDSMat4);
-        };
         mds_light_permutation(&mut state, &MDSMat4);
-        for constants in &self.initial {
-            full_round(&mut state, constants);
+        full_round_sboxes(&mut state, &self.initial[0]);
+        self.permute_after_first_sboxes(state, |_| {})
+    }
+
+    pub fn permute_after_first_sboxes(&self, mut state: [Fq; T], mut write: impl FnMut(&[Fq])) -> [Fq; T] {
+        mds_light_permutation(&mut state, &MDSMat4);
+        for constants in &self.initial[1..] {
+            full_round_sboxes(&mut state, constants);
+            write(&state);
+            mds_light_permutation(&mut state, &MDSMat4);
         }
         for &constant in &self.internal {
             state[0] = sbox(state[0] + constant);
+            write(&state[..1]);
             matmul_internal(&mut state, self.diagonal);
         }
         for constants in &self.terminal {
-            full_round(&mut state, constants);
+            full_round_sboxes(&mut state, constants);
+            write(&state);
+            mds_light_permutation(&mut state, &MDSMat4);
         }
         state
+    }
+}
+
+fn full_round_sboxes<const T: usize>(state: &mut [Fq; T], constants: &[Fq; T]) {
+    for (lane, &constant) in state.iter_mut().zip(constants) {
+        *lane = sbox(*lane + constant);
     }
 }
 

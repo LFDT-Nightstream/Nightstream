@@ -202,11 +202,7 @@ impl Circuit {
         let rows = self.expanded.rows();
         FactoredRows::new(
             self.shape(),
-            FactoredEntries {
-                offsets: rows.offsets(),
-                slots: rows.columns(),
-                coefficients: rows.coefficients(),
-            },
+            rows.entries(),
             FactoredSlots {
                 starts: &self.spans.starts,
                 widths: &self.spans.widths,
@@ -351,6 +347,7 @@ impl LeanRows {
         FactoredRows::new(
             self.shape,
             FactoredEntries {
+                coefficient_starts: &[],
                 offsets: &self.offsets,
                 slots: &self.slots,
                 coefficients: &self.coefficients,

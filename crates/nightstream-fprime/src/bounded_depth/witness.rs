@@ -1,12 +1,12 @@
 //! Lean `StepPackage.Package`.
 
-use neo_ccs::crypto::poseidon2::{permute_state, SBOX_DEGREE};
+use neo_ccs::crypto::poseidon2::{permute_state, INSTANCE_16, SBOX_DEGREE, WIDTH};
 use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::expand::{mix, PlanRows};
 use super::{Linear, Piece, StepPackage};
-use crate::package::{PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, RING_DEGREE};
+use crate::package::{PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, RING_DEGREE, SBOX_ROWS};
 use crate::witness::{execute_witness_batch, WitnessBatch};
 
 enum Step<'a> {
@@ -163,29 +163,74 @@ impl StepPackage {
     }
 
     /// `SPEC.md` sections 7.9 and 7.10.
-    pub fn relation_columns(&self, mut columns: Vec<Fq>, rows: &PlanRows) -> Result<Vec<Fq>, PackageError> {
-        let width = self.source_end();
-        columns.resize(width, Fq::ZERO);
-        for row in rows.ordinary_row_count()..rows.row_count() {
-            let Some((column, _)) = rows.single(row, 2) else {
-                return Err(PackageError::Malformed("bounded-depth S-box row output"));
-            };
-            columns[column] = rows.evaluate(row, 3, &columns).exp_u64(SBOX_DEGREE);
-        }
-        if rows.piece_ranges().len() != self.pieces.len() {
-            return Err(PackageError::Malformed("bounded-depth witness row pieces"));
-        }
+    pub fn relation_columns(&self, columns: Vec<Fq>, rows: &PlanRows) -> Result<Vec<Fq>, PackageError> {
+        self.assign_relation_columns(columns, rows, &self.fresh_product_rows(rows), None)
+    }
+
+    pub(super) fn fresh_product_rows(&self, rows: &PlanRows) -> Box<[usize]> {
+        let mut products = Vec::new();
         let mut next = self.first_fresh;
         for (piece, range) in self.pieces.iter().zip(rows.piece_ranges()) {
             match piece {
                 Piece::Rows(_) => {
                     for row in range.clone() {
-                        if let Some((column, coefficient)) = rows.single(row, 2) {
-                            if column == next && coefficient == Fq::ONE {
-                                columns[column] = rows.evaluate(row, 0, &columns) * rows.evaluate(row, 1, &columns);
-                                next += 1;
-                            }
+                        if rows.single(row, 2) == Some((next, Fq::ONE)) {
+                            products.push(row);
+                            next += 1;
                         }
+                    }
+                }
+                Piece::Ring { cells, .. } => next += RING_DEGREE * cells,
+                Piece::Block { .. } => {}
+            }
+        }
+        products.into_boxed_slice()
+    }
+
+    pub(super) fn assign_relation_columns(
+        &self,
+        mut columns: Vec<Fq>,
+        rows: &PlanRows,
+        product_rows: &[usize],
+        sbox_start: Option<usize>,
+    ) -> Result<Vec<Fq>, PackageError> {
+        columns.resize(self.source_end(), Fq::ZERO);
+        if let Some(start) = sbox_start.filter(|_| columns.first() == Some(&Fq::ONE)) {
+            for (block, first) in rows.sbox_rows().step_by(SBOX_ROWS).enumerate() {
+                let output = start + block * SBOX_ROWS;
+                let state: [Fq; WIDTH] = std::array::from_fn(|lane| {
+                    let value = rows
+                        .evaluate(first + lane, 3, &columns)
+                        .exp_u64(SBOX_DEGREE);
+                    columns[output + lane] = value;
+                    value
+                });
+                let mut remaining = &mut columns[output + WIDTH..output + SBOX_ROWS];
+                INSTANCE_16.permute_after_first_sboxes(state, |values| {
+                    let (out, rest) = std::mem::take(&mut remaining).split_at_mut(values.len());
+                    out.copy_from_slice(values);
+                    remaining = rest;
+                });
+            }
+        } else {
+            for row in rows.sbox_rows() {
+                let Some((column, _)) = rows.single(row, 2) else {
+                    return Err(PackageError::Malformed("bounded-depth S-box row output"));
+                };
+                columns[column] = rows.evaluate(row, 3, &columns).exp_u64(SBOX_DEGREE);
+            }
+        }
+        if rows.piece_ranges().len() != self.pieces.len() {
+            return Err(PackageError::Malformed("bounded-depth witness row pieces"));
+        }
+        let mut next = self.first_fresh;
+        let mut products = product_rows.iter().copied().peekable();
+        for (piece, range) in self.pieces.iter().zip(rows.piece_ranges()) {
+            match piece {
+                Piece::Rows(_) => {
+                    while let Some(row) = products.next_if(|&row| row < range.end) {
+                        columns[next] = rows.evaluate(row, 0, &columns) * rows.evaluate(row, 1, &columns);
+                        next += 1;
                     }
                 }
                 Piece::Ring {

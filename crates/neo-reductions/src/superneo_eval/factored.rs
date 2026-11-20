@@ -12,12 +12,7 @@ use rayon::prelude::*;
 use super::{MatrixRowSink, MatrixShape, SuperneoZBlocks};
 use crate::PiCcsError;
 
-#[derive(Clone, Copy)]
-pub struct FactoredEntries<'a> {
-    pub offsets: &'a [usize],
-    pub slots: &'a [u32],
-    pub coefficients: &'a [F],
-}
+pub use neo_ccs::sparse::FactoredEntries;
 
 #[derive(Clone, Copy)]
 pub struct FactoredSlots<'a> {
@@ -72,6 +67,7 @@ impl<'a> FactoredRows<'a> {
             offsets,
             slots: read,
             coefficients,
+            coefficient_starts,
         } = entries;
         if shape
             .matrices
@@ -80,13 +76,25 @@ impl<'a> FactoredRows<'a> {
             != Some(offsets.len())
             || offsets.first() != Some(&0)
             || offsets.last() != Some(&read.len())
-            || coefficients.len() != read.len()
+            || (coefficient_starts.is_empty() && coefficients.len() != read.len())
+            || (!coefficient_starts.is_empty() && coefficient_starts.len() != offsets.len() - 1)
             || slots.starts.len() != slots.widths.len()
         {
             return invalid("table lengths");
         }
         if !offsets.windows(2).all(|pair| pair[0] <= pair[1]) {
             return invalid("entry offsets");
+        }
+        if !coefficient_starts
+            .iter()
+            .zip(offsets.windows(2))
+            .all(|(&start, pair)| {
+                (start as usize)
+                    .checked_add(pair[1] - pair[0])
+                    .is_some_and(|end| end <= coefficients.len())
+            })
+        {
+            return invalid("coefficient offsets");
         }
         if !slots
             .starts
@@ -119,9 +127,8 @@ impl<'a> FactoredRows<'a> {
         self.slots
     }
 
-    fn range(&self, row: usize, matrix: usize) -> Range<usize> {
-        let index = self.shape.matrices * row + matrix;
-        self.entries.offsets[index]..self.entries.offsets[index + 1]
+    fn port(&self, row: usize, matrix: usize) -> (&[u32], &[F]) {
+        self.entries.port(self.shape.matrices * row + matrix)
     }
 
     fn columns(&self, slot: usize) -> Range<usize> {
@@ -133,15 +140,10 @@ impl<'a> FactoredRows<'a> {
         self.shape.validate(&rows)?;
         for row in rows {
             for matrix in 0..self.shape.matrices {
-                for entry in self.range(row, matrix) {
-                    let columns = self.columns(self.entries.slots[entry] as usize);
-                    let run = GeometricRowRun::new(
-                        row,
-                        columns.start,
-                        columns.len(),
-                        self.entries.coefficients[entry],
-                        self.slots.ratio,
-                    );
+                let (slots, coefficients) = self.port(row, matrix);
+                for (&slot, &coefficient) in slots.iter().zip(coefficients) {
+                    let columns = self.columns(slot as usize);
+                    let run = GeometricRowRun::new(row, columns.start, columns.len(), coefficient, self.slots.ratio);
                     sink.push_run(row, matrix, run)?;
                 }
                 if sink.finish_matrix_row(row, matrix)?.is_break() {
@@ -163,8 +165,11 @@ impl<'a> FactoredRows<'a> {
     }
 
     pub fn row_value(&self, matrix: usize, row: usize, slot_values: &[F]) -> F {
-        self.range(row, matrix)
-            .map(|entry| self.entries.coefficients[entry] * slot_values[self.entries.slots[entry] as usize])
+        let (slots, coefficients) = self.port(row, matrix);
+        slots
+            .iter()
+            .zip(coefficients)
+            .map(|(&slot, &coefficient)| coefficient * slot_values[slot as usize])
             .sum()
     }
 
@@ -208,8 +213,8 @@ impl<'a> FactoredRows<'a> {
         let queue_row = |mut queues: Vec<Vec<(u32, K)>>, row: usize| {
             let row_weight = std::cell::OnceCell::new();
             for (matrix, coefficient) in matrices.clone() {
-                let entries = self.range(row, matrix);
-                if entries.is_empty() || coefficient == K::ZERO {
+                let (slots, coefficients) = self.port(row, matrix);
+                if slots.is_empty() || coefficient == K::ZERO {
                     continue;
                 }
                 let weight = *row_weight.get_or_init(|| row_weight_for(row));
@@ -218,10 +223,9 @@ impl<'a> FactoredRows<'a> {
                 } else {
                     weight * coefficient
                 };
-                for entry in entries {
-                    let slot = self.entries.slots[entry];
+                for (&slot, &coefficient) in slots.iter().zip(coefficients) {
                     let band = slot as usize / SLOTS_PER_BAND;
-                    queues[band].push((slot, weight.scale_base(self.entries.coefficients[entry])));
+                    queues[band].push((slot, weight.scale_base(coefficient)));
                     if queues[band].len() == QUEUED_PER_BAND {
                         add(band, &mut queues[band]);
                     }
@@ -261,11 +265,11 @@ impl<'a> FactoredRows<'a> {
 
     pub(super) fn transpose_one_serial(&self, matrix: usize, weights: &super::EqualityWeights, out: &mut [K]) {
         for row in 0..self.shape.rows {
-            let entries = self.range(row, matrix);
-            if !entries.is_empty() {
+            let (slots, coefficients) = self.port(row, matrix);
+            if !slots.is_empty() {
                 let weight = weights.at(row);
-                for entry in entries {
-                    out[self.entries.slots[entry] as usize] += weight.scale_base(self.entries.coefficients[entry]);
+                for (&slot, &coefficient) in slots.iter().zip(coefficients) {
+                    out[slot as usize] += weight.scale_base(coefficient);
                 }
             }
         }
@@ -276,13 +280,12 @@ impl<'a> FactoredRows<'a> {
             .iter()
             .enumerate()
             .filter_map(|(matrix, &weight)| {
-                let entries = self.range(row, matrix);
-                if entries.is_empty() {
+                let (slots, coefficients) = self.port(row, matrix);
+                if slots.is_empty() {
                     return None;
                 }
-                let slots = self.entries.slots[entries.clone()].iter();
-                let coefficients = &self.entries.coefficients[entries];
                 let pairs = slots
+                    .iter()
                     .zip(coefficients)
                     .map(|(&slot, &coefficient)| (coefficient, slot_values[slot as usize]));
                 Some(weight * sum_of_scaled(pairs))

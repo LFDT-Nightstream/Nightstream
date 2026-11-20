@@ -72,6 +72,8 @@ fn construction_bytes(shape: MatrixShape, slots: usize, entries: usize) -> Optio
 }
 
 pub(super) struct Columns {
+    row_count: usize,
+    tiles: std::sync::OnceLock<Option<Box<super::OpeningTiles>>>,
     pub(super) slots: Vec<u32>,
     offsets: Vec<u32>,
     rows: PackedRows,
@@ -121,6 +123,8 @@ impl Columns {
         let mut factors = ids.factors;
         factors.shrink_to_fit();
         Some(Self {
+            tiles: Default::default(),
+            row_count: shape.rows,
             slots,
             offsets,
             rows,
@@ -129,8 +133,56 @@ impl Columns {
         })
     }
 
-    fn storage_bytes(&self) -> usize {
-        (self.slots.capacity() + self.offsets.capacity()) * size_of::<u32>()
+    pub(super) fn device_matrix<'a>(
+        &'a self,
+        layout: super::FactoredSlots<'a>,
+        blocks: usize,
+        row_count: usize,
+        available: usize,
+    ) -> Option<super::OpeningMatrix<'a>> {
+        if row_count != self.row_count
+            || layout.starts.len() != layout.widths.len()
+            || self
+                .slots
+                .last()
+                .is_some_and(|&s| s as usize >= layout.widths.len())
+        {
+            return None;
+        }
+        let tiles = if let Some(kept) = self.tiles.get() {
+            kept
+        } else {
+            let sizes = super::OpeningTiles::sizes(blocks, &self.offsets)?;
+            if sizes.0 > available {
+                return None;
+            }
+            self.tiles.get_or_init(|| {
+                super::OpeningTiles::prepare(layout, blocks, &self.slots, &self.offsets, sizes.1, sizes.2)
+            })
+        }
+        .as_deref()?;
+        if tiles.first.len() != blocks + 1 || tiles.powers[1] != layout.ratio {
+            return None;
+        }
+        Some(super::OpeningMatrix {
+            layout,
+            slots: &self.slots,
+            offsets: &self.offsets,
+            rows: &self.rows.bytes,
+            row_bytes: self.rows.stride,
+            row_count,
+            tags: &self.tags,
+            factors: &self.factors,
+            tiles,
+        })
+    }
+
+    pub(super) fn storage_bytes(&self) -> usize {
+        self.tiles
+            .get()
+            .and_then(Option::as_ref)
+            .map_or(0, |tiles| tiles.bytes())
+            + (self.slots.capacity() + self.offsets.capacity()) * size_of::<u32>()
             + self.rows.bytes.capacity()
             + self.tags.capacity() * size_of::<u16>()
             + self.factors.capacity() * size_of::<F>()

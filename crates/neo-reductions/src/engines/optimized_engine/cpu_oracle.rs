@@ -96,15 +96,21 @@ impl super::PaperJointOracleInput<'_> {
     pub fn optimized_with_packed_terms<'a>(
         self,
         device: Option<Box<dyn PackedGateNorm + 'a>>,
+        openings: &'a dyn crate::superneo_eval::TerminalOpeningDevice,
     ) -> Result<Box<dyn PaperJointRoundOracle + 'a>, PiCcsError>
     where
         Self: 'a,
     {
-        Ok(Box::new(OptimizedPaperJointOracle::with_device(self, device)?))
+        Ok(Box::new(OptimizedPaperJointOracle::with_device(
+            self,
+            device,
+            Some(openings),
+        )?))
     }
 }
 
 pub struct OptimizedPaperJointOracle<'a> {
+    openings: Option<&'a dyn crate::superneo_eval::TerminalOpeningDevice>,
     device: Option<Box<dyn PackedGateNorm + 'a>>,
     structure: &'a CcsStructure<F>,
     source: &'a dyn MatrixRows,
@@ -155,12 +161,14 @@ impl<'a> OptimizedPaperJointOracle<'a> {
                 norm_sources,
             },
             None,
+            None,
         )
     }
 
     fn with_device(
         input: super::PaperJointOracleInput<'a>,
         mut device: Option<Box<dyn PackedGateNorm + 'a>>,
+        openings: Option<&'a dyn crate::superneo_eval::TerminalOpeningDevice>,
     ) -> Result<Self, PiCcsError> {
         let super::PaperJointOracleInput {
             structure,
@@ -238,6 +246,7 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             _ => None,
         };
         Ok(Self {
+            openings,
             device,
             structure,
             source,
@@ -542,6 +551,7 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
             self.workspace_bytes,
             storage,
             complete,
+            self.openings,
         )
         .map(Some)
     }

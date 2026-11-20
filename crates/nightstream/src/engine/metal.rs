@@ -1,3 +1,4 @@
+use neo_reductions::superneo_eval::{OpeningMatrix, OpeningWitness, TerminalOpeningDevice};
 use std::borrow::Borrow;
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -74,6 +75,24 @@ impl neo_reductions::optimized_engine::PaperJointOracleBackend for Device {
                 reason: "poisoned prover lock".into(),
             })?
             .packed_rounds(&input)?;
-        input.optimized_with_packed_terms(device)
+        input.optimized_with_packed_terms(device, self)
+    }
+}
+
+impl TerminalOpeningDevice for Device {
+    fn supports(&self, blocks: usize, witnesses: usize) -> bool {
+        self.0.lock().is_ok_and(|p| p.supports(blocks, witnesses))
+    }
+    fn evaluate(
+        &self,
+        matrix: &OpeningMatrix<'_>,
+        weights: &[neo_math::K],
+        witnesses: &[OpeningWitness<'_>],
+        budget: usize,
+        result: &mut [[neo_math::K; neo_math::D]],
+    ) -> bool {
+        self.0
+            .lock()
+            .is_ok_and(|prover| prover.evaluate(matrix, weights, witnesses, budget, result))
     }
 }

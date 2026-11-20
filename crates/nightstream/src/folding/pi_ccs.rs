@@ -43,7 +43,7 @@ pub(crate) fn prove_from_parts_with_rows(
     reject_auxiliary(fresh_claim, &running.claims)?;
     validate_input_shape(pp, s, profile, fresh_claim, fresh_witness, running)?;
     let mut oracle = backend
-        .oracle(fresh_witness.Z.is_packed_signed_unit(), running.claims.len())
+        .oracle(fresh_witness.Z.is_packed_signed_unit())
         .map_err(engine::Error::from)?;
     let (outputs, sumcheck, _) = optimized_prove_with_profile(
         tr.inner_mut(),

@@ -7,6 +7,7 @@ use p3_field::{extension::BinomiallyExtendable, PrimeField64};
 
 fn main() {
     println!("cargo:rerun-if-changed=shaders/nightstream.metal");
+    println!("cargo:rerun-if-changed=shaders/terminal_opening.metal");
     println!("cargo:rerun-if-changed=shaders/packed.metal");
     println!("cargo:rerun-if-changed=shaders/joint.metal");
     println!("cargo:rerun-if-changed=shaders/assignments.metal");
@@ -34,8 +35,7 @@ fn main() {
     };
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo sets CARGO_MANIFEST_DIR"));
     let out = PathBuf::from(env::var_os("OUT_DIR").expect("Cargo sets OUT_DIR"));
-    let source = manifest.join("shaders/nightstream.metal");
-    let air = out.join("nightstream.air");
+    let sources = ["nightstream", "terminal_opening"];
     let library = out.join("nightstream-metal.metallib");
     let developer_dir = developer_dir();
     let profile = format!(
@@ -45,25 +45,30 @@ fn main() {
     );
     std::fs::write(out.join("profile.metal"), profile).expect("write the shader profile header");
 
-    let compile = run_xcrun(
-        developer_dir.as_deref(),
-        sdk,
-        &["metal", "-std=metal3.0", "-c"],
-        &[Path::new("-I"), &out, &source, Path::new("-o"), &air],
-    )
-    .unwrap_or_else(|error| panic!("run Metal compiler: {error}"));
-    if !compile.status.success() {
-        panic!(
-            "compile Metal shader: {}",
-            String::from_utf8_lossy(&compile.stderr).trim()
-        );
+    for name in sources {
+        let source = manifest.join("shaders").join(format!("{name}.metal"));
+        let air = out.join(format!("{name}.air"));
+        let compile = run_xcrun(
+            developer_dir.as_deref(),
+            sdk,
+            &["metal", "-std=metal3.0", "-c"],
+            &[Path::new("-I"), &out, &source, Path::new("-o"), &air],
+        )
+        .unwrap_or_else(|error| panic!("run Metal compiler: {error}"));
+        if !compile.status.success() {
+            panic!(
+                "compile Metal shader: {}",
+                String::from_utf8_lossy(&compile.stderr).trim()
+            );
+        }
     }
-
+    let air = out.join("nightstream.air");
+    let terminal = out.join("terminal_opening.air");
     let link = run_xcrun(
         developer_dir.as_deref(),
         sdk,
         &["metal"],
-        &[&air, Path::new("-o"), &library],
+        &[&air, &terminal, Path::new("-o"), &library],
     )
     .unwrap_or_else(|error| panic!("run Metal linker: {error}"));
     if !link.status.success() {

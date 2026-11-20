@@ -87,15 +87,12 @@ impl Backend {
         }
     }
 
-    pub(crate) fn oracle(&self, packed: bool, running: usize) -> Result<Oracle<'_>, EngineError> {
+    pub(crate) fn oracle(&self, packed: bool) -> Result<Oracle<'_>, EngineError> {
         if packed {
             #[cfg(feature = "metal")]
             if let Self::Metal(device) = self {
-                if running == 1 {
-                    return Ok(Oracle::Packed(device.clone()));
-                }
+                return Ok(Oracle::Packed(device.clone()));
             }
-            let _ = running;
             return Ok(Oracle::Cpu(std::marker::PhantomData));
         }
         Ok(match self {
@@ -194,3 +191,7 @@ impl From<EngineError> for DeviceError {
         Self::Engine(error)
     }
 }
+
+#[cfg(all(test, feature = "metal"))]
+#[path = "../../tests/unit/packed_engine.rs"]
+mod packed_engine_tests;

@@ -134,6 +134,66 @@ impl<'a> OpeningBands<'a> {
         })
     }
 
+    fn evaluate_device(
+        &self,
+        device: &dyn super::TerminalOpeningDevice,
+        budget: usize,
+        columns: &[Columns],
+        weights: &[K],
+        witnesses: &[&SuperneoZBlocks],
+        active: &[usize],
+        result: &mut [V1_2Evaluations<K>],
+        storage: &mut Vec<K>,
+    ) -> Option<()> {
+        let blocks = self.rows.shape().columns / D;
+        if !device.supports(blocks, witnesses.len()) {
+            return None;
+        }
+        let inputs = witnesses
+            .iter()
+            .map(|w| super::OpeningWitness::from_blocks(w, blocks))
+            .collect::<Option<Vec<_>>>()?;
+        drop(std::mem::take(storage));
+        let fixed = self
+            .rows
+            .existing_slot_runs()
+            .map_or(0, |runs| runs.storage_bytes())
+            .checked_add(size_of_val(weights))?
+            .checked_add(
+                self.slots
+                    .capacity()
+                    .checked_mul(size_of::<Range<usize>>())?,
+            )?
+            .checked_add(
+                columns
+                    .len()
+                    .checked_mul(inputs.len())?
+                    .checked_mul(size_of::<[K; D]>())?,
+            )?;
+        let remaining = || {
+            columns
+                .iter()
+                .try_fold(budget.checked_sub(fixed)?, |bytes, c| {
+                    bytes.checked_sub(c.storage_bytes() + size_of::<Columns>())
+                })
+        };
+        let mut completed = Vec::with_capacity(columns.len());
+        for c in columns {
+            let matrix = c.device_matrix(self.rows.slots(), blocks, weights.len(), remaining()?)?;
+            let mut out = vec![[K::ZERO; D]; inputs.len()];
+            if !device.evaluate(&matrix, weights, &inputs, remaining()?, &mut out) {
+                return None;
+            }
+            completed.push(out);
+        }
+        for (matrix, rings) in completed.into_iter().enumerate() {
+            for (&index, ring) in active.iter().zip(rings) {
+                result[index].eval_a[matrix].copy_from_slice(&ring);
+            }
+        }
+        Some(())
+    }
+
     pub(super) fn evaluate(
         self,
         weights: &EqualityWeights,
@@ -141,6 +201,7 @@ impl<'a> OpeningBands<'a> {
         active: &[usize],
         result: &mut [V1_2Evaluations<K>],
         mut storage: Vec<K>,
+        device: Option<(&dyn super::TerminalOpeningDevice, usize)>,
     ) {
         let layout = self.rows.slots();
         let columns = self
@@ -158,6 +219,23 @@ impl<'a> OpeningBands<'a> {
             super::factored::fill(&mut rows, |row| weights.at(row));
             rows
         });
+        if let (Some((device, budget)), Some(columns), Some(weights)) = (device, columns, row_weights.as_deref()) {
+            if self
+                .evaluate_device(
+                    device,
+                    budget,
+                    columns,
+                    weights,
+                    witnesses,
+                    active,
+                    result,
+                    &mut storage,
+                )
+                .is_some()
+            {
+                return;
+            }
+        }
         let difference = OpeningDifference::new(layout.ratio);
         #[cfg(test)]
         let fuse = !self.separate_matrices;

@@ -363,6 +363,7 @@ fn complete_first_round_window_serves_the_openings_without_another_visit() {
         resident_budget,
         Vec::new(),
         Some(window),
+        None,
     )
     .unwrap();
     assert_eq!(actual, expected);

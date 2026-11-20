@@ -18,6 +18,7 @@ mod packed;
 mod production_commitment;
 mod rlc;
 mod shared_key;
+mod terminal_opening;
 pub(crate) use joint::MetalPaperJointOracle;
 pub(crate) use masks::MetalWitnessMasks;
 
@@ -37,6 +38,7 @@ const EMPTY_BINDING: [u64; 1] = [0];
 enum Arg<'a> {
     Buffer(usize, &'a ProtocolObject<dyn MTLBuffer>),
     BufferAt(usize, &'a ProtocolObject<dyn MTLBuffer>, usize),
+    Words(usize, &'a [u32]),
 }
 
 #[derive(Clone, Copy)]
@@ -59,6 +61,7 @@ pub struct MetalSession {
     device: Device,
     queue: Queue,
     packed: [Pipeline; 4],
+    terminal: Option<terminal_opening::Kernels>,
     production_key_row: Pipeline,
     production_ajtai_accumulate: Pipeline,
     production_ajtai_matrix: Option<Pipeline>,
@@ -113,6 +116,7 @@ impl MetalSession {
         let library = device
             .newLibraryWithData_error(&data)
             .map_err(|error| MetalError::Library(format!("{error:?}")))?;
+        let terminal = terminal_opening::Kernels::new(&device, &library);
         let production_key_row = pipeline(&device, &library, "production_key_row")?;
         let production_ajtai_matrix = pipeline(&device, &library, "production_ajtai_matrix")
             .ok()
@@ -159,6 +163,7 @@ impl MetalSession {
             packed,
             device,
             queue,
+            terminal,
             production_key_row,
             production_ajtai_accumulate,
             production_ajtai_matrix,
@@ -285,6 +290,11 @@ impl MetalSession {
             // stored there, at an offset aligned to that type.
             unsafe {
                 match arg {
+                    Arg::Words(index, words) => encoder.setBytes_length_atIndex(
+                        std::ptr::NonNull::from(words).cast(),
+                        size_of_val(words),
+                        slot(index),
+                    ),
                     Arg::Buffer(index, buffer) => encoder.setBuffer_offset_atIndex(Some(buffer), 0, slot(index)),
                     Arg::BufferAt(index, buffer, offset) => {
                         assert!(

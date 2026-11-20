@@ -29,6 +29,8 @@ mod row_forms;
 mod row_source;
 mod scratch;
 mod slot_runs;
+mod terminal_device;
+pub use terminal_device::{OpeningMatrix, OpeningTiles, OpeningWitness, TerminalOpeningDevice};
 mod weighted;
 mod weighted_table;
 mod window_eval;
@@ -66,11 +68,10 @@ pub(crate) use weighted_table::fill_geometric_projection;
 #[cfg(test)]
 pub(crate) use weighted_table::weighted_identity_projection;
 pub use window_eval::{
-    eval_real_v1_2_openings_from_rows, evaluate_terminal_rows, first_unsatisfied_row_from_rows, TerminalEvaluations,
+    eval_real_v1_2_openings_from_rows, eval_real_v1_2_openings_from_rows_reusing, evaluate_terminal_rows,
+    first_unsatisfied_row_from_rows, TerminalEvaluations,
 };
-pub(crate) use window_eval::{
-    eval_real_v1_2_openings_from_rows_reusing, fill_weighted_rows_from_source, geometric_weighted_rows_from_source,
-};
+pub(crate) use window_eval::{fill_weighted_rows_from_source, geometric_weighted_rows_from_source};
 
 pub fn weighted_projection_basis_forms(weights: &[K; D]) -> ([Rq; D], [Rq; D]) {
     weighted_projection_basis_forms_from_k(weights)

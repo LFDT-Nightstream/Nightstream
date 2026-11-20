@@ -10,6 +10,7 @@ pub const ETA: usize = nightstream_p64_k14::ETA;
 pub const D: usize = nightstream_p64_k14::D;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(transparent)]
 pub struct Rq(pub [Fq; D]);
 
 impl Rq {

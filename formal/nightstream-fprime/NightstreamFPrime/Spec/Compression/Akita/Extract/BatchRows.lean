@@ -68,6 +68,14 @@ theorem forall_gather (P : RingRow → Prop) (rows : (g : Fin n) → Fin (count 
     rwa [Equiv.symm_apply_apply] at entry
   · exact fun all r => all _ _
 
+/-- A sum over the rows of one family for the groups is the sum over the groups of the sums over
+the rows of each group. -/
+theorem sum_gather {M : Type} [AddCommMonoid M] (f : RingRow → M)
+    (rows : (g : Fin n) → Fin (count g) → RingRow) :
+    ∑ r, f (gather rows r) = ∑ g, ∑ i, f (rows g i) :=
+  (finSigmaFinEquiv.symm.sum_comp fun x : (g : Fin n) × Fin (count g) => f (rows x.1 x.2)).trans
+    (Fintype.sum_sigma _)
+
 /-- A sum over the cells of a table, with weights that are moved by `move`, is the sum over the
 positions before the move. A position with a nonzero weight moves to a cell of the table. -/
 theorem sum_mul_relocate {E : Type} [Semiring E] (cells : ℕ) (move : ℕ → ℕ) (weight f : ℕ → E)
@@ -233,6 +241,29 @@ theorem flatRows_degree_le (r : Fin B.rowCount) :
   · exact le_trans ((secondRow_degree_le (B.shape g).chain _ _ _ r).trans
       (le_max_of_le_right (le_max_of_le_right (le_max_left _ _)))) (B.group_le g)
   · exact (secondRow_degree_le B.chain _ _ _ r).trans (le_max_of_le_right (le_max_right _ _))
+
+/-- The sum of the ring degrees of the rows of one fold with opening groups, in the order of
+`Batch.flatRows`. -/
+def degreeSum : ℕ :=
+  ∑ g, B.planes g * B.carrierDegree g + (∑ g, (B.shape g).innerRank * (B.shape g).innerDegree +
+    (∑ g, (B.shape g).slices * (B.shape g).outerRank * (B.shape g).outerDegree +
+      (1 * B.openRank * B.openDegree +
+        (∑ g, firstRank (B.shape g).chain * firstDegree (B.shape g).chain +
+          (firstRank B.chain * firstDegree B.chain +
+            (∑ g, secondRank (B.shape g).chain * secondDegree (B.shape g).chain +
+              secondRank B.chain * secondDegree B.chain))))))
+
+theorem flatRows_degree_sum : ∑ r, (B.flatRows β st challenge r).degree = B.degreeSum := by
+  have moved : ∀ (row : RingRow) (move : ℕ → ℕ), (row.relocate move).degree = row.degree :=
+    fun _ _ => rfl
+  have planes : ∀ g t, (evaluationRow (B.opening g) (B.fold g) (β g) (st.point g) (challenge g)
+      t).degree = B.carrierDegree g := fun _ _ => rfl
+  have inner : ∀ g a, (innerRow (B.opening g) (B.fold g) (st.key g) (challenge g) a).degree =
+      (B.shape g).innerDegree := fun _ _ => rfl
+  unfold flatRows degreeSum rowCount
+  simp only [sum_append RingRow.degree, sum_gather RingRow.degree, moved, planes, inner,
+    imageRow_degree, firstRow_degree, secondRow_degree, Finset.sum_const, Finset.card_univ,
+    Fintype.card_fin, smul_eq_mul]
 
 /-- The relation of one fold with opening groups and coefficient packing on the flat witness
 `Batch.Witness.flat`, for the fold challenges `c_{g,i}` (Akita Figure 5 for one claim in each

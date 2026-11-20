@@ -247,6 +247,7 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.terminal
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.root_sized
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.root_room
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.root_degrees
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.root_honest
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.root_points
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.level₁_sized
@@ -255,6 +256,7 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.quarters
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.points
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.blocks_live
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.live_cells
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.paths
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.covers
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.nativeView
@@ -380,7 +382,9 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.honest_satisfies
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.coeff_contract
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Shape.decode_cell
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Shape.decode_of_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.scalar_contract
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.mle_eq_sum_live
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.eqAt_append
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.sum_fin_mul
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.sum_range_cells

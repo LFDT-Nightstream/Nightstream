@@ -81,25 +81,24 @@ theorem honestClaim_satisfies (table : Table) (point : Point O E)
     challenge shape radix certified path (commit_opens shape key table) encodable rfl rfl
 
 /-- The value of the claim `honestClaim` at a point with four segments is the multilinear
-evaluation of the table (Akita Section 5.3), for a table of `B·M·d_A` cells. -/
+evaluation of the table (Akita Section 5.3), for a table that is 0 after the `B·M·d_A` cells of
+the `B ≤ 2^{r_blk}` live blocks (Akita Section 4.5, (40) to (42)). -/
 theorem honestClaim_value (shape : S.Honest) (table : Table) (block position pack tail : List E)
-    (blocks : S.blocks = 2 ^ block.length) (length : S.blockLength = 2 ^ position.length)
-    (stride : O.stride = 2 ^ pack.length) (degree : O.carrierDegree = 2 ^ tail.length) :
+    (blocks : S.blocks ≤ 2 ^ block.length) (length : S.blockLength = 2 ^ position.length)
+    (stride : O.stride = 2 ^ pack.length) (degree : O.carrierDegree = 2 ^ tail.length)
+    (live : ∀ cell, S.blockLength * S.innerDegree * S.blocks ≤ cell → table cell = 0) :
     (honestClaim β key openKey table (Point.ofSegments O block position pack tail)).value =
       mle (pack ++ (tail ++ (position ++ block))) (lifted E table) := by
-  have total : 2 ^ (pack ++ (tail ++ (position ++ block))).length =
-      S.blockLength * S.innerDegree * S.blocks := by
-    rw [blocks, length, ← O.stride_tower, stride, degree]
-    simp only [List.length_append, pow_add]
-    ring
   show scalar β _ (fun i t => contract β _ t (gadget S.sourceBase
     (decompose S.sourceBase (S.pack table i)))) = _
   rw [scalar_contract_eq_mle β block position pack tail blocks length stride degree,
     decode_decompose_pack shape table]
-  refine mle_congr _ fun cell small => ?_
-  rw [total] at small
+  refine mle_congr _ fun cell _ => ?_
   show algebraMap Zq E (S.pad table cell) = algebraMap Zq E (table cell)
-  rw [Shape.pad, ite_eq_left (Nat.div_lt_of_lt_mul small)]
+  by_cases inside : cell / (S.blockLength * S.innerDegree) < S.blocks
+  · rw [Shape.pad, ite_eq_left inside]
+  · rw [Shape.pad, ite_eq_right inside, live cell ((Nat.mul_comm _ _).trans_le
+      (Nat.mul_le_of_le_div _ _ _ (Nat.le_of_not_lt inside)))]
 
 end Claim
 
@@ -152,8 +151,10 @@ that its first message has the claim `honestClaim` and the verifier accepts its 
 The hypotheses are: `full`, `scalar`, `cubic`, `range`, `range'`: a wire message can have the
 data of the prover. `shape`, `radix`, `certified`, `path`, `two`, `small` and the same for the
 second level: the conditions of `commit_opens` and `honest_satisfies`, with `2 ≤ b⋆ < q`.
-`stride`, `degree`, `length`, `blocks`, `vars`: the table of the second level has the `2^μ` cells
-of the cube of the first level, in segments of powers of two. `encodable`, `encodable'`: the
+`stride`, `degree`, `length`, `blocks`, `vars`, `covered`: the point of the second level has the
+`μ` coordinates of the cube of the first level, in segments for `k·h_car`, `d_car`, `M` and
+`B ≤ 2^k`, and the live blocks of the second level have each cell of the flat witness of the
+first level (Akita Section 4.5, (40) to (42)). `encodable`, `encodable'`: the
 response of each level is admissible (Akita Definition 10.5) for each fold challenge of the
 family. -/
 theorem packingPair_complete (fits : Type → Prop)
@@ -167,7 +168,8 @@ theorem packingPair_complete (fits : Type → Prop)
     (path' : PathFits O'.openDegree (1 * O'.openRank) O'.chain) (two' : 2 ≤ S'.certifiedBase)
     (small' : S'.certifiedBase < fieldModulus) {p t s k : ℕ} (stride : O'.stride = 2 ^ p)
     (degree : O'.carrierDegree = 2 ^ t) (length : S'.blockLength = 2 ^ s)
-    (blocks : S'.blocks = 2 ^ k) (vars : μ = p + (t + (s + k))) (source : Table)
+    (blocks : S'.blocks ≤ 2 ^ k) (vars : μ = p + (t + (s + k)))
+    (covered : O.cells fold ≤ S'.blockLength * S'.innerDegree * S'.blocks) (source : Table)
     (point : Point O E)
     (encodable : ∀ challenge, (∀ i, ∃ slot, decode slot = some (challenge i)) →
       Encodable fold.responseBase fold.responseDigits
@@ -344,8 +346,8 @@ theorem packingPair_complete (fits : Type → Prop)
     refine stage.wire_of middle ?_
     rw [finished, earlier]
     simp
-  have blocked : S'.blocks = 2 ^ (((r2.drop p).drop t).drop s).length := by
-    rw [blocks]; congr 1; simp; omega
+  have blocked : S'.blocks ≤ 2 ^ (((r2.drop p).drop t).drop s).length :=
+    blocks.trans (le_of_eq (by congr 1; simp; omega))
   have lengthed : S'.blockLength = 2 ^ (((r2.drop p).drop t).take s).length := by
     rw [length]; congr 1; simp; omega
   have strided : O'.stride = 2 ^ (r2.take p).length := by
@@ -354,7 +356,9 @@ theorem packingPair_complete (fits : Type → Prop)
     rw [degree]; congr 1; simp; omega
   have value := honestClaim_value (β := β') (key := key') (openKey := openKey') shape' flat
     (((r2.drop p).drop t).drop s) (((r2.drop p).drop t).take s) (r2.take p) ((r2.drop p).take t)
-    blocked lengthed strided degreed
+    blocked lengthed strided degreed fun cell large => by
+      rw [flattened]
+      exact Witness.flat_of_le _ (covered.trans large)
   have joined : r2.take p ++ ((r2.drop p).take t ++ (((r2.drop p).drop t).take s ++
       ((r2.drop p).drop t).drop s)) = r2 := by simp
   rw [accepts]

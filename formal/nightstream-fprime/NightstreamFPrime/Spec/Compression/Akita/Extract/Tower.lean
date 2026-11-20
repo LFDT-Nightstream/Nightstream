@@ -26,8 +26,9 @@ Euclidean route with `(κ̄_mul,2, β̄_2²) = (2Γ, 4·S_max)` and `S_max,term`
   route at the levels 1 and 2 and the Euclidean route at the levels 3 to 5 and at the terminal.
 - `towerCompose_suffix` puts the two checkpoints of the compression argument before `towerRoot`
   (`Compose.suffix`).
-- `towerAccepts` is the verifier of the compression argument over this opening: the conditions
-  `Compose.Ran`, the link of the root, the link of each level and the checks of the terminal.
+- `towerLinks` is the verifier of this opening: the link of the root, the link of each level and
+  the checks of the terminal. `towerAccepts` is the verifier of the compression argument over
+  this opening: the conditions `Compose.Ran` and `towerLinks`.
 
 The extension field is a field `E` with `Degree2 E`. -/
 
@@ -151,6 +152,28 @@ noncomputable def towerRoot :=
     (OpensAt start commit value place key mass)
 
 variable {accept T₀ T₁ T₂ T₃ T₄ T₅ L m₂ m₃ m₄ m₅ m₆ start read commit value place}
+
+variable (route₂ route₃ route₄ route₅ T₀ T₁ T₂ T₃ T₄ T₅ L start read commit value place) in
+/-- The verifier of the opening with a batching root at the stage `start`, a fold with opening
+groups, a packing level, four trace levels on the routes `route₂` to `route₅` and the terminal
+(Akita Figure 4 and Section 8.2). It accepts with the stage and the link `RootLinked` of the
+batching root, the link from each level to the next level or to the terminal, and the checks
+`Terminal.Passed` of the terminal. -/
+def towerLinks (quarter₂ : 4 * m₂ = S₂.innerDegree) (quarter₃ : 4 * m₃ = S₃.innerDegree)
+    (quarter₄ : 4 * m₄ = S₄.innerDegree) (quarter₅ : 4 * m₅ = S₅.innerDegree)
+    (quarter₆ : 4 * m₆ = S₆.innerDegree) (commit₁ : Wire → S₁.Payload)
+    (commit₂ : Wire → S₂.Payload) (commit₃ : Wire → S₃.Payload) (commit₄ : Wire → S₄.Payload)
+    (commit₅ : Wire → S₅.Payload)
+    (stateOf : Wire → Fin S₆.blocks → Fin S₆.innerRank → Rq S₆.innerDegree)
+    (point : Prefix Wire (Coord → E) total) : Prop :=
+  start < point.rest.length ∧
+    RootLinked T₀ start commit value place
+      ((claimsRoot (Coord := Coord) (Slot := E) (total := total) start read value
+        place).weights point) point ∧
+    T₀.Linked T₁ commit₁ point ∧ T₁.TraceLinked T₂ quarter₂ commit₂ point ∧
+    T₂.TraceLinked T₃ quarter₃ commit₃ point ∧ T₃.TraceLinked T₄ quarter₄ commit₄ point ∧
+    T₄.TraceLinked T₅ quarter₅ commit₅ point ∧ Terminal.Linked T₅ L quarter₆ stateOf point ∧
+    L.Passed point
 
 /-- The batching root over a fold with opening groups, a packing level, four trace levels and
 the terminal is a suffix from the stage `start` (Akita Proposition 10.44 and Theorem 10.46,
@@ -618,9 +641,8 @@ variable (C vf route₂ route₃ route₄ route₅ T₀ T₁ T₂ T₃ T₄ T₅
 /-- The verifier of the compression argument over the opening with a batching root, a fold with
 three opening groups, a packing level, four trace levels on the routes `route₂` to `route₅` and the
 terminal (SPEC.md Algorithm 10).
-It accepts with the conditions `Compose.Ran` of the stages before the opening, the stage and the
-link `RootLinked` of the batching root at the stage `Compose.root`, the link from each level to
-the next level or to the terminal, and the checks `Terminal.Passed` of the terminal. -/
+It accepts with the conditions `Compose.Ran` of the stages before the opening and the conditions
+`towerLinks` of the opening with the batching root at the stage `Compose.root`. -/
 def towerAccepts (quarter₂ : 4 * m₂ = S₂.innerDegree) (quarter₃ : 4 * m₃ = S₃.innerDegree)
     (quarter₄ : 4 * m₄ = S₄.innerDegree) (quarter₅ : 4 * m₅ = S₅.innerDegree)
     (quarter₆ : 4 * m₆ = S₆.innerDegree) (commit₁ : Wire → S₁.Payload)
@@ -628,14 +650,10 @@ def towerAccepts (quarter₂ : 4 * m₂ = S₂.innerDegree) (quarter₃ : 4 * m�
     (commit₅ : Wire → S₅.Payload)
     (stateOf : Wire → Fin S₆.blocks → Fin S₆.innerRank → Rq S₆.innerDegree)
     (point : Prefix Wire (Coord → E) total) : Prop :=
-  C.Ran vf commit value place point ∧ C.root vf < point.rest.length ∧
-    RootLinked T₀ (C.root vf) commit value place
-      ((claimsRoot (Coord := Coord) (Slot := E) (total := total) (C.root vf) C.read value
-        place).weights point) point ∧
-    T₀.Linked T₁ commit₁ point ∧ T₁.TraceLinked T₂ quarter₂ commit₂ point ∧
-    T₂.TraceLinked T₃ quarter₃ commit₃ point ∧ T₃.TraceLinked T₄ quarter₄ commit₄ point ∧
-    T₄.TraceLinked T₅ quarter₅ commit₅ point ∧ Terminal.Linked T₅ L quarter₆ stateOf point ∧
-    L.Passed point
+  C.Ran vf commit value place point ∧
+    towerLinks route₂ route₃ route₄ route₅ T₀ T₁ T₂ T₃ T₄ T₅ L (C.root vf) C.read commit value
+      place quarter₂ quarter₃ quarter₄ quarter₅ quarter₆ commit₁ commit₂ commit₃ commit₄ commit₅
+      stateOf point
 
 local notation "opening" =>
   towerRoot route₂ route₃ route₄ route₅ accept T₀ T₁ T₂ T₃ T₄ T₅ L m₂ m₃ m₄ m₅ m₆

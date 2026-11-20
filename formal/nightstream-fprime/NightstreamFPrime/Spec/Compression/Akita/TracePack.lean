@@ -110,10 +110,11 @@ theorem sum_range_slots {M : Type} [AddCommMonoid M] (B L W : ℕ) (g : ℕ → 
 /-- The layout of the trace row (Akita (98), with (65), (66), (95), (96) and (97)): for the
 partials `e_i = ⟨a, G_{b,M}·s_i⟩` with `a_x = ẽq(ρ_pos, x)`, the sum
 `Σ_i ẽq(ρ_blk, i)·T_{ρ_pack}(e_i)` is the multilinear evaluation at `(ρ_pack, ρ_pos, ρ_blk)` of
-the packed polynomial of the table that the source blocks decode to. `B`, `M` and `d_A/k` are
-the powers of two of the lengths of the segments. -/
+the packed polynomial of the table that the source blocks decode to. `M` and `d_A/k` are the
+powers of two of the lengths of their segments. The number `B` of blocks is at most `2^{r_blk}`,
+and the decoded table is 0 at each absent block (Akita Section 4.5, (40) to (42)). -/
 theorem traceScalar_eq_mle (quarter : 4 * m = S.innerDegree) (block position pack : List E)
-    (blocks : S.blocks = 2 ^ block.length) (length : S.blockLength = 2 ^ position.length)
+    (blocks : S.blocks ≤ 2 ^ block.length) (length : S.blockLength = 2 ^ position.length)
     (width : 2 * m = 2 ^ pack.length) (source : Fin S.blocks → S.Source) :
     ∑ i : Fin S.blocks, eqAt block i * packFunctional quarter (eqAt pack)
         (traceContract (subfield quarter).toRingHom (fun x : Fin S.blockLength => eqAt position x)
@@ -123,10 +124,26 @@ theorem traceScalar_eq_mle (quarter : 4 * m = S.innerDegree) (block position pac
     have := NeZero.pos S.innerDegree
     omega
   have total : 2 ^ (pack ++ (position ++ block)).length =
-      S.blocks * (S.blockLength * (2 * m)) := by
-    rw [blocks, length, width]
+      2 ^ block.length * (S.blockLength * (2 * m)) := by
+    rw [length, width]
     simp only [List.length_append, pow_add]
     ring
+  have live : S.blocks * (S.blockLength * (2 * m)) ≤ 2 ^ (pack ++ (position ++ block)).length := by
+    rw [total]
+    exact Nat.mul_le_mul_right _ blocks
+  have zero : ∀ cell, S.blocks * (S.blockLength * (2 * m)) ≤ cell →
+      (unpackTable S.innerDegree m (S.decode source) cell : E) = 0 := fun cell absent => by
+    have ring : S.blocks * S.blockLength ≤ cell / (2 * m) :=
+      (Nat.le_div_iff_mul_le positive).mpr (by rw [Nat.mul_assoc]; exact absent)
+    have empty : (ofCoeffs fun k => S.decode source (cell / (2 * m) * S.innerDegree + k) :
+        Rq S.innerDegree) = 0 := ext_coeff fun k small => by
+      rw [coeff_ofCoeffs _ small, coeff_zero, S.decode_of_le source
+        (by rw [length]; exact Nat.pow_pos Nat.two_pos)]
+      calc S.blocks * (S.blockLength * S.innerDegree)
+          = S.blocks * S.blockLength * S.innerDegree := (Nat.mul_assoc _ _ _).symm
+        _ ≤ cell / (2 * m) * S.innerDegree := Nat.mul_le_mul_right _ ring
+        _ ≤ cell / (2 * m) * S.innerDegree + k := Nat.le_add_right _ _
+    rw [unpackTable, empty, map_zero]
   have left (i : Fin S.blocks) : packFunctional quarter (eqAt pack)
       (traceContract (subfield quarter).toRingHom (fun x : Fin S.blockLength => eqAt position x)
         (gadget S.sourceBase (source i))) =
@@ -136,7 +153,7 @@ theorem traceScalar_eq_mle (quarter : 4 * m = S.innerDegree) (block position pac
     refine Finset.sum_congr rfl fun x _ => ?_
     rw [AlgHom.toRingHom_eq_coe, RingHom.coe_coe, packFunctional_subfield_mul,
       packFunctional_apply, Finset.sum_range, Finset.mul_sum]
-  rw [mle_eq_cubeSum, cubeSum_eq_sum_range, total, sum_range_slots]
+  rw [mle_eq_sum_live _ _ live zero, sum_range_slots]
   refine Finset.sum_congr rfl fun i _ => ?_
   rw [left i, Finset.mul_sum]
   refine Finset.sum_congr rfl fun x _ => ?_

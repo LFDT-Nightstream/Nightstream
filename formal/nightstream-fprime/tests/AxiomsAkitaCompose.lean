@@ -1,12 +1,15 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Compression
 import NightstreamFPrime.Export.BoundedDepth.FinalAkita
+import NightstreamFPrime.Export.BoundedDepth.FinalKey20
 
 /-! Axiom audits for the compression argument over the Akita opening: the verifier game in two
 parts (`Spec/Compression/Verifier/Split`), their stages, the two checkpoints of the argument and
 the result over a batching root (`Spec/Compression/Akita/Extract`: `SplitGame`, `FreshGame`,
 `Compose`, `ComposeRoot`, `Decoders`), and the final verifier over the Akita opening, with the
-tower of levels (`Export/BoundedDepth`: `FinalSplit`, `FinalAkita`). -/
+tower of levels (`Export/BoundedDepth`: `FinalSplit`, `FinalAkita`), and the tower and the final
+verifier for the schedule `key20.aks` (`Spec/Compression/Akita/Key20Tower`,
+`Export/BoundedDepth/FinalKey20`). -/
 
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.bind_assoc
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.Finals
@@ -127,3 +130,15 @@ tower of levels (`Export/BoundedDepth`: `FinalSplit`, `FinalAkita`). -/
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.mixed_extraction_le
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.mixed_runs_le
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.mixed_sound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.levelSized
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.card_field
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.foldCosts_total
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.sum_le_mul
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.sized₂
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.sized₃
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.sized₄
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.sized₅
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.tower_suffix
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.towerError_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.towerError_le_pow
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.sound

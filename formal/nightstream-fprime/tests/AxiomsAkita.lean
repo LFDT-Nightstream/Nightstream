@@ -194,6 +194,7 @@ shared setup (`Setup`) and the bad events of the hashed transcript entries (`Dig
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Witness.flat_openSecondCell
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.OpeningShape.flatLayout
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.forall_append
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.sum_append
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.sum_mul_indicator
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.plane_natCast_pow_mul
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.RingRow.Below
@@ -216,12 +217,16 @@ shared setup (`Setup`) and the bad events of the hashed transcript entries (`Dig
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.firstRank
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.secondRank
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.chainDegree
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.firstDegree
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.secondDegree
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.secondRow
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.secondRow_below
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.secondRow_degree_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.secondRow_degree
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.firstRow
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.firstRow_below
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.firstRow_degree_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.firstRow_degree
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.imageRow
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.imageRow_below
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.imageRow_degree
@@ -240,6 +245,8 @@ shared setup (`Setup`) and the bad events of the hashed transcript entries (`Dig
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.flatRows
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.flatRows_below
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.flatRows_degree_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.OpeningShape.degreeSum
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.flatRows_degree_sum
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.flatRelation
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.partialForm_value
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.contractForm_value
@@ -461,6 +468,7 @@ shared setup (`Setup`) and the bad events of the hashed transcript entries (`Dig
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.lockedRows
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.lockedRows_below
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.lockedRows_degree_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.lockedRows_degree_sum
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.lockedRelation
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.lockedRelation_holds
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.flatRelation_holds_congr
@@ -890,6 +898,7 @@ shared setup (`Setup`) and the bad events of the hashed transcript entries (`Dig
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.RingRow.Below.relocate
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.gather
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.forall_gather
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.sum_gather
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.sum_mul_relocate
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.openForm
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.scalarWeight
@@ -900,6 +909,8 @@ shared setup (`Setup`) and the bad events of the hashed transcript entries (`Dig
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.openForm_below
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.flatRows_below
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.flatRows_degree_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.degreeSum
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.flatRows_degree_sum
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.flatRelation
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.scalarWeight_of_lt
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.openForm_value
@@ -919,6 +930,7 @@ shared setup (`Setup`) and the bad events of the hashed transcript entries (`Dig
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.lockedRows
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.lockedRows_below
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.lockedRows_degree_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.lockedRows_degree_sum
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.lockedRelation
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.lockedRelation_holds
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.lockedRelation_of_flat
@@ -954,7 +966,7 @@ shared setup (`Setup`) and the bad events of the hashed transcript entries (`Dig
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.FlatRelation.quotientEnd
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.FlatRelation.quotientCell
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.FlatRelation.quotientCell_lt
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.FlatRelation.quotientEnd_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.FlatRelation.quotientEnd_eq
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.FlatRelation.withQuotients
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.FlatRelation.quotientTable
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.FlatRelation.extend
@@ -970,10 +982,12 @@ shared setup (`Setup`) and the bad events of the hashed transcript entries (`Dig
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.FlatRelation.completion_range
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.FlatRelation.withQuotients_holds
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.OpeningShape.quotientRoom
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.lockedRelation_quotientEnd
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.liftedReduction
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.liftedFold_satisfies
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.liftedFold_winsTo
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.quotientRoom
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.lockedRelation_quotientEnd
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.liftedReduction
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.liftedFold_satisfies
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.liftedFold_winsTo
@@ -1015,6 +1029,7 @@ shared setup (`Setup`) and the bad events of the hashed transcript entries (`Dig
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.LevelSized.trace
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.liftTower_suffix
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.towerAccepts
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.towerLinks
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.towerCompose_suffix
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.tableCollisionSq
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.tableCollisionSq_isSome

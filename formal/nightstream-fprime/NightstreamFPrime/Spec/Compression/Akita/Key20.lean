@@ -23,13 +23,14 @@ holds with the file.
   in `R_{q,d_A}`. The fields of `terminal` for `B` are those of `level₅`, and the terminal does
   not read them.
 - The conditions on these numbers that the levels of `mixedTower_suffix` read are theorems:
-  `root_sized`, `root_honest`, `root_points`, `level₁_sized`, `traces_sized`, `norms_sized`,
-  `quarters`, `points`, `paths` and `covers`.
-- Two conditions do not hold. `root_room`: `Batch.quotientRoom` keeps `d_max` cells for each
-  digit of each quotient, and with 22 digits the root needs more than the `2^22` cells of the
-  table of level 1. It has room for 19 digits. `blocks_live`: the links `Tier.Linked`,
-  `Tier.TraceLinked` and `Terminal.Linked` need a number of blocks that is a power of two, and
-  the live blocks of the levels 1 to 5 and of the terminal are 28, 21, 11, 7, 7 and 5. -/
+  `root_sized`, `root_room`, `root_honest`, `root_points`, `level₁_sized`, `traces_sized`,
+  `norms_sized`, `quarters`, `points`, `blocks_live`, `paths` and `covers`.
+- `root_degrees` gives the sum of the degrees of the ring rows of the root. The file has the end
+  `cells + δ_quot·Σ_r d_r` of the quotient digits in `output_witness_len`
+  (`tests/AkitaSchedules.lean`). The end `Batch.quotientRoom` of the model is larger by
+  `1 + δ_quot·d_D`, for the zero cell and the row `w_cells = 0`.
+- `live_cells`: the live blocks of each level after the root and of the terminal have each cell
+  that the flat witness of the level before it can use (Akita Section 4.5, (40) to (42)). -/
 
 set_option autoImplicit false
 
@@ -227,10 +228,13 @@ theorem root_sized : root.cells < 2 ^ rootVars ∧ root.rowCount + 1 + 1 ≤ 2 ^
     (∀ g, 2 ≤ (root.fold g).responseBase) ∧ (∀ g, (root.shape g).certifiedBase = 8) ∧
     8 < fieldModulus := by decide
 
-/-- The condition `room` of `liftBatch` does not hold for the root with the 22 quotient digits of
-Akita. It holds for 19 digits. -/
-theorem root_room : 2 ^ rootVars < root.quotientRoom quotientDigits ∧
-    root.quotientRoom 19 ≤ 2 ^ rootVars := by decide
+/-- The ring rows of the root have the sum 5760 of their degrees, and the flat witness has
+3532800 cells: the quotient digits of Akita (76) end at the cell `3532800 + 22·5760 = 3659520`. -/
+theorem root_degrees : root.degreeSum = 5760 ∧ root.cells = 3532800 := by decide
+
+/-- The condition `room` of `liftBatch` for the root with the 22 quotient digits of Akita: the
+quotient segments end at the cell 3662337, before the `2^22` cells of the cube. -/
+theorem root_room : root.quotientRoom quotientDigits ≤ 2 ^ rootVars := by decide
 
 /-- Each commitment shape of the root has the conditions `Shape.Honest`. -/
 theorem root_honest : ∀ g, (root.shape g).Honest := by
@@ -285,19 +289,35 @@ theorem points : level₁.opening.stride = 2 ^ 4 ∧ level₁.opening.carrierDeg
     level₃.shape.blockLength = 2 ^ 8 ∧ 2 * 16 = 2 ^ 5 ∧ level₄.shape.blockLength = 2 ^ 9 ∧
     level₅.shape.blockLength = 2 ^ 8 ∧ terminal.blockLength = 2 ^ 8 := by decide
 
-/-- The links `Tier.Linked`, `Tier.TraceLinked` and `Terminal.Linked` have the condition
-`B = 2^n` on the receiver. The number of live blocks of each level after the root and of the
-terminal is not a power of two. -/
-theorem blocks_live : ∀ S ∈ [level₁.shape, level₂.shape, level₃.shape, level₄.shape,
-    level₅.shape, terminal], ∀ n, S.blocks ≠ 2 ^ n := by
-  have none : ∀ S ∈ [level₁.shape, level₂.shape, level₃.shape, level₄.shape, level₅.shape,
-      terminal], S.blocks < 2 ^ 5 ∧ ∀ n < 5, S.blocks ≠ 2 ^ n := by decide
-  intro S member n power
-  obtain ⟨small, other⟩ := none S member
-  rcases Nat.lt_or_ge n 5 with below | above
-  · exact other n below power
-  · have large := Nat.pow_le_pow_right Nat.two_pos above
-    omega
+/-- The block segment of each link (`Tier.Linked`, `Tier.TraceLinked`, `Terminal.Linked`): the
+live blocks `B` = 28, 21, 11, 7, 7 of the levels 1 to 5 and 5 of the terminal are at most
+`2^{r_blk}` for `r_blk` = 5, 5, 4, 3, 3, 3 (Akita Section 4.5, (40) to (42)). With the segments
+of `points`, the point of each link has the coordinates of the final claim of its sender: `μ` of
+the root, and `ν = μ − 1` of the levels 1 to 5. -/
+theorem blocks_live : (level₁.shape.blocks ≤ 2 ^ 5 ∧ 4 + (6 + (7 + 5)) = rootVars) ∧
+    (level₂.shape.blocks ≤ 2 ^ 5 ∧ 6 + (9 + 5) = level₁.tail) ∧
+    (level₃.shape.blocks ≤ 2 ^ 4 ∧ 6 + (8 + 4) = level₂.tail) ∧
+    (level₄.shape.blocks ≤ 2 ^ 3 ∧ 5 + (9 + 3) = level₃.tail) ∧
+    (level₅.shape.blocks ≤ 2 ^ 3 ∧ 5 + (8 + 3) = level₄.tail) ∧
+    (terminal.blocks ≤ 2 ^ 3 ∧ 5 + (8 + 3) = level₅.tail) := by decide
+
+/-- The live blocks of each receiver have each cell that the flat witness of its sender can use:
+the end of the quotient digits of the root and of level 1, and the zero cell of the levels 2 to
+5. An honest table is 0 after these cells, so it is the table that the live blocks decode to
+(Akita Section 4.5, (40) to (42)). -/
+theorem live_cells :
+    root.quotientRoom quotientDigits ≤
+        level₁.shape.blocks * (level₁.shape.blockLength * level₁.shape.innerDegree) ∧
+      level₁.opening.quotientRoom level₁.fold quotientDigits ≤
+        level₂.shape.blocks * (level₂.shape.blockLength * level₂.shape.innerDegree) ∧
+      level₂.opening.cells level₂.fold + 1 ≤
+        level₃.shape.blocks * (level₃.shape.blockLength * level₃.shape.innerDegree) ∧
+      level₃.opening.cells level₃.fold + 1 ≤
+        level₄.shape.blocks * (level₄.shape.blockLength * level₄.shape.innerDegree) ∧
+      level₄.opening.cells level₄.fold + 1 ≤
+        level₅.shape.blocks * (level₅.shape.blockLength * level₅.shape.innerDegree) ∧
+      level₅.opening.cells level₅.fold + 1 ≤
+        terminal.blocks * (terminal.blockLength * terminal.innerDegree) := by decide
 
 /-- The compression maps of `B` and of `D` at the levels 1 to 3 and the compression maps of `D`
 at the root have a position for each binary digit of their image (`PathFits`). -/

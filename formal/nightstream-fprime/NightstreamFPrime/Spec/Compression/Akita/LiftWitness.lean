@@ -51,13 +51,11 @@ theorem quotientCell_lt (r : Fin rel.ring) {j : ℕ} (small : j < (rel.row r).de
   unfold quotientCell quotientEnd
   omega
 
-/-- The quotient segments have at most `δ_quot·d_max` cells for each ring row. -/
-theorem quotientEnd_le {largest : ℕ} (degrees : ∀ r, (rel.row r).degree ≤ largest) :
-    rel.quotientEnd digits start ≤ start + rel.ring * (digits * largest) := by
-  have each : ∑ r, rel.quotientCells digits r ≤ ∑ _r : Fin rel.ring, digits * largest :=
-    Finset.sum_le_sum fun r _ => Nat.mul_le_mul_left _ (degrees r)
-  rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul] at each
-  exact Nat.add_le_add_left each _
+/-- The quotient segments have `δ_quot·Σ_r d_r` cells. -/
+theorem quotientEnd_eq : rel.quotientEnd digits start =
+    start + digits * ∑ r, (rel.row r).degree := by
+  unfold quotientEnd quotientCells
+  rw [Finset.mul_sum]
 
 /-- The relation with the quotient digits in the witness (Akita Section 7.3): the quotient of
 each ring row has `digits` digits of the base `base` for each coefficient, at the positions

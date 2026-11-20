@@ -47,6 +47,7 @@ import NightstreamFPrime.Spec.Compression.Akita.FoldCheck
 import NightstreamFPrime.Spec.Compression.Akita.FoldComplete
 import NightstreamFPrime.Spec.Compression.Akita.FoldSumCheck
 import NightstreamFPrime.Spec.Compression.Akita.Key20
+import NightstreamFPrime.Spec.Compression.Akita.Key20Tower
 import NightstreamFPrime.Spec.Compression.Akita.Layout
 import NightstreamFPrime.Spec.Compression.Akita.LiftReduction
 import NightstreamFPrime.Spec.Compression.Akita.LiftWitness
@@ -124,7 +125,8 @@ parts that end in the opening claims (`Verifier/Split`), the stages of these par
 the two checkpoints of the argument before the opening (`Compose`), the fair decoders of its
 challenges (`Decoders`), the opening with a batching root, a fold with three opening groups and a
 last packing fold (`ComposeRoot`), and the opening with a batching root, a fold with opening
-groups, a packing level, four trace levels and the terminal (`Tower`), and the shared
+groups, a packing level, four trace levels and the terminal (`Tower`), with its instance for the
+schedule `key20.aks` (`Akita/Key20Tower`), and the shared
 setup with its
 reduction to ordinary Module-SIS (`Akita/Setup`) and the bad events of the hashed transcript
 entries (`Akita/Digest`). -/

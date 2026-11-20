@@ -225,7 +225,7 @@ theorem traceOpens_evaluation {quarter : 4 * m = S.innerDegree} {payload : S.Pay
     (opens : ω.TraceOpens factorBound sourceBound
       ((TraceClaim.ofPoint quarter payload openPayload block position pack θ v).statement key
         openKey) table)
-    (blocks : S.blocks = 2 ^ block.length) (length : S.blockLength = 2 ^ position.length)
+    (blocks : S.blocks ≤ 2 ^ block.length) (length : S.blockLength = 2 ^ position.length)
     (width : 2 * m = 2 ^ pack.length) :
     θ * mle (pack ++ (position ++ block)) (unpackTable S.innerDegree m (S.decode ω.source)) =
       v := by
@@ -254,7 +254,8 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' :
 decodes, and the checks of `T` with the tensor reduction end in a claim `(ρ, θ, ṽ)`. The claim of
 `N` is `TraceClaim.ofPoint` for the commitment `commit` of the message after the fold challenge
 of `T`, the point `ρ` with the segments `(ρ_pack, ρ_pos, ρ_blk)` of the lengths of the shape of
-`N`, the factor `θ` and the value `ṽ`. -/
+`N`, the factor `θ` and the value `ṽ`. The segment `ρ_blk` has `⌈log_2 B⌉` coordinates or more
+for the number `B` of live blocks of `N` (Akita Section 4.5, (40) to (42)). -/
 def Tier.TraceLinked {Brk' : Type}
     (N : Tier (Fin S'.blocks) (fun _ => Rq S'.innerDegree) (TraceClaim O' E) Brk'
       (Witness O' fold') (Weak O') Wire Coord Slot Result' Source')
@@ -263,7 +264,7 @@ def Tier.TraceLinked {Brk' : Type}
   T.finish ≤ point.rest.length ∧ T.Decodes point ∧
     ∃ block position pack θ v openPayload,
       T.game (fun _ => 0) point = .pure (some (pack ++ (position ++ block), θ, v)) ∧
-      S'.blocks = 2 ^ block.length ∧ S'.blockLength = 2 ^ position.length ∧
+      S'.blocks ≤ 2 ^ block.length ∧ S'.blockLength = 2 ^ position.length ∧
       2 * m = 2 ^ pack.length ∧
       N.claim (point.wire N.start) = TraceClaim.ofPoint quarter
         (commit (point.wire (T.start + 1))) openPayload block position pack θ v
@@ -347,14 +348,15 @@ transcript has the stages of `T`, each fold challenge decodes, and the checks of
 tensor reduction end in a claim `(ρ, θ, ṽ)`. The statement of the terminal is
 `TerminalStatement.ofPoint` for the state `(t_i)_i = stateOf` of the message after the fold
 challenge of `T`, the point `ρ` with the segments `(ρ_pack, ρ_pos, ρ_blk)` of the lengths of the
-shape of the terminal, and the pair `(θ_term, v_tensor) = (θ, ṽ)`. -/
+shape of the terminal, and the pair `(θ_term, v_tensor) = (θ, ṽ)`. The segment `ρ_blk` has
+`⌈log_2 B_term⌉` coordinates or more. -/
 def Linked (quarter : 4 * m = S'.innerDegree)
     (stateOf : Wire → Fin S'.blocks → Fin S'.innerRank → Rq S'.innerDegree)
     (point : Prefix Wire (Coord → Slot) total) : Prop :=
   T.finish ≤ point.rest.length ∧ T.Decodes point ∧
     ∃ block position pack θ v,
       T.game (fun _ => 0) point = .pure (some (pack ++ (position ++ block), θ, v)) ∧
-      S'.blocks = 2 ^ block.length ∧ S'.blockLength = 2 ^ position.length ∧
+      S'.blocks ≤ 2 ^ block.length ∧ S'.blockLength = 2 ^ position.length ∧
       2 * m = 2 ^ pack.length ∧
       L.statement point = TerminalStatement.ofPoint quarter L.matrix
         (stateOf (point.wire (T.start + 1))) block position pack θ v

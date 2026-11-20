@@ -143,6 +143,12 @@ theorem lockedRows_degree_le (r : Fin (B.rowCount + 1)) :
     ⟨B.flatRows_degree_le β st challenge,
       fun _ => le_max_of_le_right (le_max_left B.openDegree (chainDegree B.chain))⟩
 
+theorem lockedRows_degree_sum :
+    ∑ r, (B.lockedRows β st challenge r).degree = B.degreeSum + B.openDegree := by
+  unfold lockedRows
+  rw [sum_append RingRow.degree, B.flatRows_degree_sum]
+  rfl
+
 /-- The relation of one fold with opening groups for a table that the next level commits to: the
 rows and the scalar row of `Batch.flatRelation`, and the row `w_cells = 0`. -/
 noncomputable def lockedRelation : FlatRelation E where

@@ -138,40 +138,30 @@ def entry (S : Shape) (O : OpeningShape S) (fold : Descriptor) (norm : Option Ke
     Nat.clog 2 (S.blocks * S.blockLength * S.innerDegree)] ++
     (norm.map squared).getD [fold.innerBound S]
 
-def chainDegrees : Option ChainShape → ℕ
-  | none => 0
-  | some c => c.firstRank * c.firstDegree + c.secondRank * c.secondDegree
-
-/-- The count of the columns of `D` for a group, and the sum of the degrees of its ring rows. -/
-def sizes (S : Shape) (O : OpeningShape S) : ℕ × ℕ :=
-  (S.blocks * O.subcolumns * S.openingDigits,
-    O.planes * O.carrierDegree + S.innerRank * S.innerDegree +
-      S.slices * S.outerRank * S.outerDegree + chainDegrees S.chain)
+/-- The count of the columns of `D` for a group. -/
+def columns (S : Shape) (O : OpeningShape S) : ℕ := S.blocks * O.subcolumns * S.openingDigits
 
 /-- The count of cells of the next witness of a level with quotients: the cells of the flat
 witness and `δ_quot` cells for each coefficient of each ring row, in ring elements of the degree
-`next` of the next level. `degrees` is the sum of the degrees of the ring rows of the groups. -/
-def lifted {S : Shape} (O : OpeningShape S) (cells degrees next : ℕ) : ℕ :=
-  (cells + Key20.quotientDigits * (degrees + O.openRank * O.openDegree + chainDegrees O.chain) +
-    next - 1) / next * next
+`next` of the next level. `degrees` is the sum of the degrees of the ring rows of the level. -/
+def lifted (cells degrees next : ℕ) : ℕ :=
+  (cells + Key20.quotientDigits * degrees + next - 1) / next * next
 
 /-- The numbers of the levels of `Key20.lean`: for each level the numbers of its groups, the
 width of `D`, the count of cells of its next witness and its count `μ` of variables. -/
 def tower : List (List (List ℕ) × List ℕ) :=
   open Key20 in
   let groups := List.finRange 3
-  let size (g : Fin 3) := sizes (root.shape g) (root.opening g)
   let trace (L : Key20.Level) (norm : Option Squared) :=
     ([entry L.shape L.opening L.fold norm],
-      [(sizes L.shape L.opening).1, L.opening.cells L.fold, L.vars])
+      [columns L.shape L.opening, L.opening.cells L.fold, L.vars])
   [(groups.map fun g => entry (root.shape g) (root.opening g) (root.fold g) none,
-      [(groups.map fun g => (size g).1).sum,
-        lifted (root.opening 0) root.cells (groups.map fun g => (size g).2).sum
-          level₁.shape.innerDegree, rootVars]),
+      [(groups.map fun g => columns (root.shape g) (root.opening g)).sum,
+        lifted root.cells root.degreeSum level₁.shape.innerDegree, rootVars]),
     ([entry level₁.shape level₁.opening level₁.fold none],
-      [(sizes level₁.shape level₁.opening).1,
-        lifted level₁.opening (level₁.opening.cells level₁.fold)
-          (sizes level₁.shape level₁.opening).2 level₂.shape.innerDegree, level₁.vars]),
+      [columns level₁.shape level₁.opening,
+        lifted (level₁.opening.cells level₁.fold) level₁.opening.degreeSum
+          level₂.shape.innerDegree, level₁.vars]),
     trace level₂ none, trace level₃ norm₃, trace level₄ norm₄, trace level₅ norm₅]
 
 /-- The numbers of the terminal of `Key20.lean`. -/

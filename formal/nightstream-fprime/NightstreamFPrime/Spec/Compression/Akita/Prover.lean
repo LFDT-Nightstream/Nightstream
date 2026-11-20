@@ -18,7 +18,10 @@ Akita Lemma 10.7, and the layout of the scalar opening.
   of the decoded table with the products of the four weights of the point.
 - `Point.ofSegments` has the equality weights of four segments, and `scalar_contract_eq_mle`
   states that this scalar is the multilinear evaluation of the decoded table at the point
-  `(r_pack, r_tail, r_pos, r_blk)`, with the first variable on the lowest bit of the cell. -/
+  `(r_pack, r_tail, r_pos, r_blk)`, with the first variable on the lowest bit of the cell. The
+  count `B` of the blocks is at most `2^{r_blk}`: the decoded table is 0 at each absent block
+  (`Shape.decode_of_le`), and the evaluation is the sum over the live blocks
+  (`mle_eq_sum_live`; Akita Section 4.5, (40) to (42)). -/
 
 namespace NightstreamFPrime.Spec.Compression.Akita
 
@@ -252,6 +255,15 @@ theorem Shape.decode_cell (S : Shape) (source : Fin S.blocks → S.Source) (i : 
   simp only [Shape.decode, quotient, rest, i.isLt, ↓reduceDIte, Fin.eta]
   exact sequence_apply _ x small
 
+/-- Each cell after the last block of the decoded table is 0: `Dec_shape` sets the absent blocks
+to zero (Akita Section 4.5, after (42)). -/
+theorem Shape.decode_of_le (S : Shape) (source : Fin S.blocks → S.Source) {cell : ℕ}
+    (positive : 0 < S.blockLength)
+    (absent : S.blocks * (S.blockLength * S.innerDegree) ≤ cell) : S.decode source cell = 0 := by
+  have large : ¬cell / (S.blockLength * S.innerDegree) < S.blocks := Nat.not_lt.mpr
+    ((Nat.le_div_iff_mul_le (Nat.mul_pos positive (NeZero.pos S.innerDegree))).mpr absent)
+  simp only [Shape.decode, large, ↓reduceDIte]
+
 /-- The layout of the scalar opening (Akita Section 5.3, after (59)): the scalar (59) of the
 contracted source blocks `L(G_{b,M}·s_i)` is the sum over the block `i`, the position `x`, the
 coefficient `a` of a group and the group `j` of the cell `(i·M + x)·d_A + a + k·h_car·j` of the
@@ -310,6 +322,18 @@ theorem sum_fin_mul {M : Type} [AddCommMonoid M] (m n : ℕ) (f : ℕ → M) :
     ∑ c : Fin (m * n), f c = ∑ i : Fin m, ∑ j : Fin n, f (j + n * i) :=
   ((finProdFinEquiv.sum_comp fun c : Fin (m * n) => f c).symm.trans (Fintype.sum_prod_type _))
 
+omit [Algebra Zq E] in
+/-- The multilinear evaluation of a table that is 0 from the cell `live` is the sum over the
+cells before `live` (Akita Section 4.5, after (42): "`2^{r_blk}` appears only when evaluating
+their multilinear extension"). -/
+theorem mle_eq_sum_live (point : List E) (f : ℕ → E) {live : ℕ}
+    (inside : live ≤ 2 ^ point.length) (zero : ∀ cell, live ≤ cell → f cell = 0) :
+    mle point f = ∑ cell ∈ Finset.range live, eqAt point cell * f cell := by
+  rw [mle_eq_cubeSum, cubeSum_eq_sum_range]
+  exact (Finset.sum_subset (Finset.range_mono inside) fun cell _ absent => by
+    rw [zero cell (Nat.le_of_not_lt fun small => absent (Finset.mem_range.mpr small)),
+      mul_zero]).symm
+
 /-- A sum over the cells of a table as a sum over the block `i`, the position `x`, the
 coefficient `a` of a group and the group `j`. -/
 theorem sum_range_cells {M : Type} [AddCommMonoid M] (B L c s : ℕ) (g : ℕ → M) :
@@ -330,10 +354,11 @@ def Point.ofSegments (O : OpeningShape S) (block position pack tail : List E) : 
 /-- The scalar (59) of the contracted source blocks is the multilinear evaluation of the decoded
 table (Akita Section 5.3: "Contracting the block and carrier axes of these partials recovers the
 original extension-field claim"). The point is `(r_pack, r_tail, r_pos, r_blk)` with the first
-variable on the lowest bit of the cell `(i·M + x)·d_A + a + k·h_car·j`, and `B`, `M`, `k·h_car`
-and `d_car` are the powers of two of the lengths of the segments. -/
+variable on the lowest bit of the cell `(i·M + x)·d_A + a + k·h_car·j`. `M`, `k·h_car` and `d_car`
+are the powers of two of the lengths of their segments. The number `B` of blocks is at most
+`2^{r_blk}`, and the decoded table is 0 at each absent block (Akita Section 4.5, (40) to (42)). -/
 theorem scalar_contract_eq_mle (β : Module.Basis (Fin O.planes) Zq E)
-    (block position pack tail : List E) (blocks : S.blocks = 2 ^ block.length)
+    (block position pack tail : List E) (blocks : S.blocks ≤ 2 ^ block.length)
     (length : S.blockLength = 2 ^ position.length) (stride : O.stride = 2 ^ pack.length)
     (degree : O.carrierDegree = 2 ^ tail.length) (source : Fin S.blocks → S.Source) :
     scalar β (Point.ofSegments O block position pack tail)
@@ -342,11 +367,19 @@ theorem scalar_contract_eq_mle (β : Module.Basis (Fin O.planes) Zq E)
       mle (pack ++ (tail ++ (position ++ block)))
         (fun cell => algebraMap Zq E (S.decode source cell)) := by
   have total : 2 ^ (pack ++ (tail ++ (position ++ block))).length =
-      S.blocks * (S.blockLength * (O.carrierDegree * O.stride)) := by
-    rw [blocks, length, stride, degree]
+      2 ^ block.length * (S.blockLength * (O.carrierDegree * O.stride)) := by
+    rw [length, stride, degree]
     simp only [List.length_append, pow_add]
     ring
-  rw [scalar_contract, mle_eq_cubeSum, cubeSum_eq_sum_range, total, sum_range_cells]
+  have live : S.blocks * (S.blockLength * (O.carrierDegree * O.stride)) ≤
+      2 ^ (pack ++ (tail ++ (position ++ block))).length := by
+    rw [total]
+    exact Nat.mul_le_mul_right _ blocks
+  have zero : ∀ cell, S.blocks * (S.blockLength * (O.carrierDegree * O.stride)) ≤ cell →
+      algebraMap Zq E (S.decode source cell) = 0 := fun cell absent => by
+    rw [Nat.mul_comm O.carrierDegree, O.stride_tower] at absent
+    rw [S.decode_of_le source (by rw [length]; exact Nat.pow_pos Nat.two_pos) absent, map_zero]
+  rw [scalar_contract, mle_eq_sum_live _ _ live zero, sum_range_cells]
   refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun x _ =>
     Finset.sum_congr rfl fun a _ => Finset.sum_congr rfl fun j _ => ?_
   have cell : (a : ℕ) + O.stride * j + O.carrierDegree * O.stride * x +

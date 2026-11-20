@@ -48,6 +48,12 @@ theorem forall_append {α : Type} {m n : ℕ} (P : α → Prop) (a : Fin m → �
     · rw [Fin.append_right]
       exact right j
 
+/-- A sum over the entries of two joined families is the sum of the sums over each family. -/
+theorem sum_append {α M : Type} [AddCommMonoid M] {m n : ℕ} (f : α → M) (a : Fin m → α)
+    (b : Fin n → α) : ∑ r, f (Fin.append a b r) = ∑ i, f (a i) + ∑ j, f (b j) := by
+  rw [Fin.sum_univ_add]
+  simp only [Fin.append_left, Fin.append_right]
+
 /-- A sum over the cells of a table, with weights that are sums of the coefficients of the
 occurrences at each cell, is the sum over the occurrences. -/
 theorem sum_mul_indicator {E κ : Type} [Semiring E] [Fintype κ] (n : ℕ) (address : κ → ℕ)
@@ -200,6 +206,16 @@ def chainDegree : Option ChainShape → ℕ
   | none => 0
   | some c => max c.firstDegree c.secondDegree
 
+/-- The ring degree of the first compression map, and 0 without compression maps. -/
+def firstDegree : Option ChainShape → ℕ
+  | none => 0
+  | some c => c.firstDegree
+
+/-- The ring degree of the second compression map, and 0 without compression maps. -/
+def secondDegree : Option ChainShape → ℕ
+  | none => 0
+  | some c => c.secondDegree
+
 variable {d n : ℕ}
 
 /-- Row `r` of `K_2·ξ̂_2 = p` of Akita (47). `second` gives the position of an entry of the digit
@@ -223,6 +239,12 @@ theorem secondRow_degree_le : (chain : Option ChainShape) → (key : PathKey cha
   | none, _, _, _, r => r.elim0
   | some c, _, _, _, _ => le_max_right c.firstDegree c.secondDegree
 
+theorem secondRow_degree : (chain : Option ChainShape) → (key : PathKey chain) →
+    (second : ℕ → ℕ) → (payload : Payload d n chain) →
+    ∀ r, (secondRow chain key second payload r).degree = secondDegree chain
+  | none, _, _, _, r => r.elim0
+  | some _, _, _, _, _ => rfl
+
 /-- Row `r` of `K_1·ξ̂_1 = G·ξ̂_2` of Akita (47). -/
 noncomputable def firstRow : (chain : Option ChainShape) → PathKey chain →
     (first second : ℕ → ℕ) → Fin (firstRank chain) → RingRow
@@ -242,6 +264,11 @@ theorem firstRow_degree_le : (chain : Option ChainShape) → (key : PathKey chai
     (first second : ℕ → ℕ) → ∀ r, (firstRow chain key first second r).degree ≤ chainDegree chain
   | none, _, _, _, r => r.elim0
   | some c, _, _, _, _ => le_max_left c.firstDegree c.secondDegree
+
+theorem firstRow_degree : (chain : Option ChainShape) → (key : PathKey chain) →
+    (first second : ℕ → ℕ) → ∀ r, (firstRow chain key first second r).degree = firstDegree chain
+  | none, _, _, _, r => r.elim0
+  | some _, _, _, _, _ => rfl
 
 variable [NeZero d]
 
@@ -467,6 +494,24 @@ theorem flatRows_degree_le (β : Module.Basis (Fin O.planes) Zq E) (st : Stateme
       (le_max_of_le_right (le_max_of_le_right (le_max_left _ _)))
   · exact (secondRow_degree_le O.chain _ _ _ r).trans
       (le_max_of_le_right (le_max_of_le_right (le_max_right _ _)))
+
+/-- The sum of the ring degrees of the rows of one fold, in the order of `flatRows`. -/
+def OpeningShape.degreeSum : ℕ :=
+  O.planes * O.carrierDegree + (S.innerRank * S.innerDegree +
+    (S.slices * S.outerRank * S.outerDegree + (1 * O.openRank * O.openDegree +
+      (firstRank S.chain * firstDegree S.chain + (firstRank O.chain * firstDegree O.chain +
+        (secondRank S.chain * secondDegree S.chain +
+          secondRank O.chain * secondDegree O.chain))))))
+
+theorem flatRows_degree_sum (β : Module.Basis (Fin O.planes) Zq E) (st : Statement O E)
+    (challenge : Fin S.blocks → Rq O.carrierDegree) :
+    ∑ r, (flatRows O fold β st challenge r).degree = O.degreeSum := by
+  have planes : ∀ t, (evaluationRow O fold β st.point challenge t).degree = O.carrierDegree :=
+    fun _ => rfl
+  have inner : ∀ a, (innerRow O fold st.key challenge a).degree = S.innerDegree := fun _ => rfl
+  unfold flatRows OpeningShape.degreeSum OpeningShape.rowCount
+  simp only [sum_append RingRow.degree, planes, inner, imageRow_degree, firstRow_degree,
+    secondRow_degree, Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
 
 /-- The relation of one fold with coefficient packing on the flat witness `Witness.flat`, for
 the fold challenges `c_i` (Akita Figure 5 for one group and one claim, on the quotient-free

@@ -9,6 +9,10 @@ Appendix L.2 with (348)).
 - `liftedReduction` is the quotient-lift reduction of `lockedRelation` with the quotient digits
   of `FlatRelation.withQuotients` in the cells after `OpeningShape.cells`. Its bad set has at most
   `2·d_max − 1` points. `Batch.liftedReduction` is the reduction for opening groups.
+- `OpeningShape.quotientRoom` and `Batch.quotientRoom` are the first cell after the quotient
+  digits: `cells + 1 + δ_quot·Σ_r d_r` for the degrees `d_r` of the ring rows
+  (`lockedRelation_quotientEnd`). The condition `room` of a level is that this cell is in the
+  cube.
 - `liftedFold_satisfies` and `Batch.liftedFold_satisfies` are `lockedFold_satisfies` for this
   reduction: on a path of `foldCheck` that avoids the bad sets, a true final claim for the table
   gives the exact branch relation of the digit vectors of the table.
@@ -35,13 +39,22 @@ section Level
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [Field E] [Fintype E]
   [Algebra Zq E]
 
-/-- A number of cells that has the flat witness, the zero cell and the quotient digits of one
-fold: `δ_quot·d_max` cells for each ring row. -/
+/-- The first cell after the quotient digits of one fold: the flat witness, the zero cell, and
+`δ_quot·d_r` cells for each ring row `r` and for the row `w_cells = 0` (Akita (76), (348)). -/
 def OpeningShape.quotientRoom (O : OpeningShape S) (fold : Descriptor) (digits : ℕ) : ℕ :=
-  O.cells fold + 1 + (O.rowCount + 1) * (digits * O.largestDegree)
+  O.cells fold + 1 + digits * (O.degreeSum + O.carrierDegree)
 
 variable (β : Module.Basis (Fin O.planes) Zq E) (st : Statement O E)
   (challenge : Fin S.blocks → Rq O.carrierDegree) (μ : ℕ) (fits : O.cells fold < 2 ^ μ)
+
+omit [Fintype E] in
+/-- The quotient segments of `lockedRelation` from the cell `cells + 1` end at `quotientRoom`. -/
+theorem lockedRelation_quotientEnd (digits : ℕ) :
+    (lockedRelation O fold β st challenge μ fits).quotientEnd digits (O.cells fold + 1) =
+      O.quotientRoom fold digits := by
+  rw [FlatRelation.quotientEnd_eq]
+  exact congrArg (fun total => O.cells fold + 1 + digits * total)
+    (lockedRows_degree_sum O fold β st challenge)
 
 /-- The quotient-lift reduction of `lockedRelation` (Akita Section 7.3 and Lemma 7.1), with the
 quotient digits of each ring row in the cells from `cells + 1` (Akita (348)), in the base `b⋆`
@@ -51,8 +64,7 @@ noncomputable def liftedReduction (digits : ℕ) (room : O.quotientRoom fold dig
     (batch : ℕ) (rowsFit : O.rowCount + 1 + 1 ≤ 2 ^ batch) : Reduction E :=
   ((lockedRelation O fold β st challenge μ fits).withQuotients S.certifiedBase digits
     (O.cells fold + 1)
-    (((lockedRelation O fold β st challenge μ fits).quotientEnd_le digits (O.cells fold + 1)
-      (lockedRows_degree_le O fold β st challenge)).trans room)).lift
+    ((lockedRelation_quotientEnd β st challenge μ fits digits).trans_le room)).lift
     (algebraMap Zq E).injective O.largestDegree batch (lockedRows_degree_le O fold β st challenge)
     rowsFit
 
@@ -115,13 +127,24 @@ namespace Batch
 
 variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Fintype E] [Algebra Zq E]
 
-/-- A number of cells that has the flat witness, the zero cell and the quotient digits of one
-fold with opening groups: `δ_quot·d_max` cells for each ring row. -/
+/-- The first cell after the quotient digits of one fold with opening groups: the flat witness,
+the zero cell, and `δ_quot·d_r` cells for each ring row `r` and for the row `w_cells = 0`
+(Akita (76), (348)). -/
 def quotientRoom (B : Batch (Fin n)) (digits : ℕ) : ℕ :=
-  B.cells + 1 + (B.rowCount + 1) * (digits * B.largestDegree)
+  B.cells + 1 + digits * (B.degreeSum + B.openDegree)
 
 variable (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E) (st : B.Statement E)
   (challenge : B.Challenge) (μ : ℕ) (fits : B.cells < 2 ^ μ)
+
+omit [Fintype E] in
+/-- The quotient segments of `Batch.lockedRelation` from the cell `cells + 1` end at
+`Batch.quotientRoom`. -/
+theorem lockedRelation_quotientEnd (digits : ℕ) :
+    (B.lockedRelation β st challenge μ fits).quotientEnd digits (B.cells + 1) =
+      B.quotientRoom digits := by
+  rw [FlatRelation.quotientEnd_eq]
+  exact congrArg (fun total => B.cells + 1 + digits * total)
+    (B.lockedRows_degree_sum β st challenge)
 
 /-- The quotient-lift reduction of `Batch.lockedRelation` (Akita Section 7.3 and Lemma 7.1),
 with the quotient digits of each ring row in the cells from `cells + 1` (Akita (348)), in the
@@ -129,8 +152,7 @@ base `base` with `digits` digits. Its bad set has at most `2·d_max − 1` point
 noncomputable def liftedReduction (base digits : ℕ) (room : B.quotientRoom digits ≤ 2 ^ μ)
     (batch : ℕ) (rowsFit : B.rowCount + 1 + 1 ≤ 2 ^ batch) : Reduction E :=
   ((B.lockedRelation β st challenge μ fits).withQuotients base digits (B.cells + 1)
-    (((B.lockedRelation β st challenge μ fits).quotientEnd_le digits (B.cells + 1)
-      (B.lockedRows_degree_le β st challenge)).trans room)).lift
+    ((lockedRelation_quotientEnd β st challenge μ fits digits).trans_le room)).lift
     (algebraMap Zq E).injective B.largestDegree batch (B.lockedRows_degree_le β st challenge)
     rowsFit
 

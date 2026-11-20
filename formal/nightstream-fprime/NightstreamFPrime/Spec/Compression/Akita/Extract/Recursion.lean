@@ -306,12 +306,12 @@ variable {S' : Shape} {O' : OpeningShape S'} {fold' : Descriptor} {Block : Type}
 omit [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord] in
 /-- The scalar of a weak opening with coefficient packing is the multilinear evaluation of the
 table of its source blocks at the point of the statement (Akita (202), with
-`scalar_contract_eq_mle`). The point has the segments `(r_pack, r_tail, r_pos, r_blk)`, and `B`,
-`M`, `k·h_car` and `d_car` are the powers of two of their lengths. -/
+`scalar_contract_eq_mle`). The point has the segments `(r_pack, r_tail, r_pos, r_blk)`. `M`,
+`k·h_car` and `d_car` are the powers of two of their lengths, and `B ≤ 2^{r_blk}`. -/
 theorem opens_evaluation {st : Statement O' E} {factorBound sourceBound : ℕ} {table : Table}
     {ω : Weak O'} (opens : ω.Opens β' factorBound sourceBound st table)
     {block position pack tail : List E}
-    (blocks : S'.blocks = 2 ^ block.length) (length : S'.blockLength = 2 ^ position.length)
+    (blocks : S'.blocks ≤ 2 ^ block.length) (length : S'.blockLength = 2 ^ position.length)
     (stride : O'.stride = 2 ^ pack.length) (degree : O'.carrierDegree = 2 ^ tail.length)
     (place : st.point = Point.ofSegments O' block position pack tail) :
     mle (pack ++ (tail ++ (position ++ block))) (lifted E (S'.decode ω.source)) = st.value := by
@@ -325,12 +325,13 @@ theorem opens_evaluation {st : Statement O' E} {factorBound sourceBound : ℕ} {
 decodes, and the checks of `T` end in a final claim `(r_2, v_W)`. The payload of the claim of `N`
 is the commitment `commit` of the message after the fold challenge of `T`. The point of the claim
 of `N` is `r_2`, with the segments `(r_pack, r_tail, r_pos, r_blk)` of the lengths of the shape
-of `N`, and its value is `v_W`. -/
+of `N`, and its value is `v_W`. The segment `r_blk` has `⌈log_2 B⌉` coordinates or more for the
+number `B` of live blocks of `N` (Akita Section 4.5, (40) to (42)). -/
 def Linked (commit : Wire → S'.Payload) (point : Prefix Wire (Coord → Slot) total) : Prop :=
   T.finish ≤ point.rest.length ∧ T.Decodes point ∧
     ∃ block position pack tail v,
       T.game (fun _ => 0) point = .pure (some (pack ++ (tail ++ (position ++ block)), v)) ∧
-      S'.blocks = 2 ^ block.length ∧ S'.blockLength = 2 ^ position.length ∧
+      S'.blocks ≤ 2 ^ block.length ∧ S'.blockLength = 2 ^ position.length ∧
       O'.stride = 2 ^ pack.length ∧ O'.carrierDegree = 2 ^ tail.length ∧
       (N.claim (point.wire N.start)).payload = commit (point.wire (T.start + 1)) ∧
       (N.claim (point.wire N.start)).point = Point.ofSegments O' block position pack tail ∧

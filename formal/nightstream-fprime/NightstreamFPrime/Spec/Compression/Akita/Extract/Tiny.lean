@@ -8,8 +8,10 @@ Theorem 10.9 and Theorem 10.17) with each parameter a numeral. It shows that the
   have `‖c‖_1 = ‖c‖_∞ = 1`, and the difference of its two members is a unit (Akita
   Definition 9.2, E1).
 - `Tiny.shape`, `Tiny.opening` and `Tiny.fold` have the ring degree 1, the extension degree 1
-  and no compression map. The first level has one block of one element and a cube of `2^8`
-  cells, and the second level has two blocks of 128 elements and a cube of `2^14` cells.
+  and no compression map. The first level has one block of one element and a cube of `2^9`
+  cells, and the second level has three blocks of 128 elements and a cube of `2^14` cells. The
+  count of the blocks of the second level is not a power of two: its point has two coordinates
+  for the blocks (Akita Section 4.5, (40) to (42)).
 - `Tiny.encodable` states that each response is admissible for `b_z = 4` and `δ_f = 33`.
 - `Tiny.complete` is `packingPair_complete` and `Tiny.extraction_le` is
   `packingPair_extraction_le` for this instance, with no hypothesis on the parameters. -/
@@ -154,33 +156,33 @@ theorem decode_sparse (c : Rq 1) (member : ∃ slot, decode slot = some c) : Spa
 abbrev Coord : Type := Fin 14
 
 /-- The wire messages: `Letter` with 4 elements of `Z_q` for one message of the checks. -/
-abbrev Wire : Type := Letter (opening 1 1) (opening 2 128) fold Zq 4
+abbrev Wire : Type := Letter (opening 1 1) (opening 3 128) fold Zq 4
 
 /-- The basis `(1)` of `Z_q` over `Z_q`. -/
 noncomputable def basis (blocks blockLength : ℕ) :
     Module.Basis (Fin (opening blocks blockLength).planes) Zq Zq :=
   Module.Basis.singleton (Fin 1) Zq
 
-theorem cells_first : (opening 1 1).cells fold < 2 ^ 8 := by decide
+theorem cells_first : (opening 1 1).cells fold < 2 ^ 9 := by decide
 
-theorem cells_second : (opening 2 128).cells fold < 2 ^ 14 := by decide
+theorem cells_second : (opening 3 128).cells fold < 2 ^ 14 := by decide
 
 theorem rows_first : (opening 1 1).rowCount + 1 + 1 ≤ 2 ^ 3 := by decide
 
-theorem rows_second : (opening 2 128).rowCount + 1 ≤ 2 ^ 3 := by decide
+theorem rows_second : (opening 3 128).rowCount + 1 ≤ 2 ^ 3 := by decide
 
 /-- The block of the second level with the index `i` has the slot `i`. -/
-def place : Fin (shape 2 128).blocks → Coord := Fin.castLE (by decide)
+def place : Fin (shape 3 128).blocks → Coord := Fin.castLE (by decide)
 
-variable {key : Key (shape 1 1)} {openKey : OpeningKey (opening 1 1)} {key' : Key (shape 2 128)}
-  {openKey' : OpeningKey (opening 2 128)}
+variable {key : Key (shape 1 1)} {openKey : OpeningKey (opening 1 1)} {key' : Key (shape 3 128)}
+  {openKey' : OpeningKey (opening 3 128)}
 
 local notation "first" =>
-  committedFold (basis 1 1) key openKey Letter.root 8 cells_first 3 rows_first
+  committedFold (basis 1 1) key openKey Letter.root 9 cells_first 3 rows_first
     (fun _ => (0 : Coord)) decode (Letter.read : Reader Wire) 1 0
 
 local notation "second" =>
-  clearFold (basis 2 128) key' openKey' Letter.next 14 cells_second 3 rows_second place decode
+  clearFold (basis 3 128) key' openKey' Letter.next 14 cells_second 3 rows_second place decode
     (Letter.read : Reader Wire) 1 (Tier.finish first)
 
 local notation "chain" => pair first second Letter.payload Letter.digits
@@ -199,7 +201,8 @@ theorem complete (source : Table) (point : Point (opening 1 1) Zq)
     ⟨id, Function.surjective_id⟩ ⟨id, Function.surjective_id⟩ (shape_honest (by decide)) radix
     le_rfl (show PathFits 1 (1 * 1) none from trivial) (by decide) (by decide)
     (shape_honest (by decide)) radix le_rfl (show PathFits 1 (1 * 1) none from trivial)
-    (by decide) (by decide) (p := 0) (t := 0) (s := 7) (k := 1) rfl rfl rfl rfl rfl source point
+    (by decide) (by decide) (p := 0) (t := 0) (s := 7) (k := 2) rfl rfl rfl (by decide) rfl
+    (by decide) source point
     (fun _ _ => encodable _) (fun _ _ _ _ => encodable _) table (fun _ _ => rfl) fun _ _ => rfl
 
 /-- `packingPair_extraction_le` for the small instance, with no hypothesis on the parameters
@@ -207,8 +210,8 @@ theorem complete (source : Table) (point : Point (opening 1 1) Zq)
 event has the transcripts of the honest prover. -/
 theorem extraction_le (statement : Statement (opening 1 1) Zq)
     (challenge : Fin (shape 1 1).blocks → Rq (opening 1 1).carrierDegree)
-    (statement' : Statement (opening 2 128) Zq)
-    (challenge' : Fin (shape 2 128).blocks → Rq (opening 2 128).carrierDegree)
+    (statement' : Statement (opening 3 128) Zq)
+    (challenge' : Fin (shape 3 128).blocks → Rq (opening 3 128).carrierDegree)
     (prover : OracleComp (Prefix Wire (Coord → Zq) (Tier.finish second)) (Coord → Zq) (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
     𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → Zq) (Tier.finish second)) Coord Zq budget
@@ -217,17 +220,17 @@ theorem extraction_le (statement : Statement (opening 1 1) Zq)
             ((Structure.protocol chain).final prover table) ∧
           Checkpoint.extract chain prover budget table tape = none then (1 : ℝ) else 0) ≤
       (queries + 1) * (∑ b, Tier.chance first b +
-          foldError (lockedReduction (basis 1 1) statement challenge 8 cells_first 3 rows_first)
+          foldError (lockedReduction (basis 1 1) statement challenge 9 cells_first 3 rows_first)
             (shape 1 1).certifiedBase +
           (∑ b, Tier.chance second b +
-            foldError (flatReduction (basis 2 128) statement' challenge' 14 cells_second 3
-              rows_second) (shape 2 128).certifiedBase)) +
-        (queries + 1) * ((shape 1 1).blocks + 1 + ((shape 2 128).blocks + 1) : ℕ) / budget :=
+            foldError (flatReduction (basis 3 128) statement' challenge' 14 cells_second 3
+              rows_second) (shape 3 128).certifiedBase)) +
+        (queries + 1) * ((shape 1 1).blocks + 1 + ((shape 3 128).blocks + 1) : ℕ) / budget :=
   packingPair_extraction_le (S := shape 1 1) (O := opening 1 1) (fold := fold)
-    (S' := shape 2 128) (O' := opening 2 128) (fold' := fold) (E := Zq) (Wire := Wire)
+    (S' := shape 3 128) (O' := opening 3 128) (fold' := fold) (E := Zq) (Wire := Wire)
     (Coord := Coord) (β := basis 1 1) (key := key) (openKey := openKey) (claim := Letter.root)
-    (μ := 8) (fits := cells_first) (batch := 3) (rowsFit := rows_first) (block := fun _ => 0)
-    (decode := decode) (read := Letter.read) (weight := 1) (β' := basis 2 128) (key' := key')
+    (μ := 9) (fits := cells_first) (batch := 3) (rowsFit := rows_first) (block := fun _ => 0)
+    (decode := decode) (read := Letter.read) (weight := 1) (β' := basis 3 128) (key' := key')
     (openKey' := openKey') (claim' := Letter.next) (μ' := 14) (fits' := cells_second)
     (batch' := 3) (rowsFit' := rows_second) (block' := place) (decode' := decode) (weight' := 1)
     (commit := Letter.payload) (witnessOf := Letter.digits) (peak := 1) (peak' := 1)

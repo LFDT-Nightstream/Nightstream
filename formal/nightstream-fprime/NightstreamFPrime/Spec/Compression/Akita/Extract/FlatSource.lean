@@ -227,6 +227,12 @@ theorem lockedRows_degree_le (r : Fin (O.rowCount + 1)) :
     ⟨flatRows_degree_le O fold β st challenge,
       fun _ => le_max_of_le_left (le_max_left O.carrierDegree S.innerDegree)⟩
 
+theorem lockedRows_degree_sum :
+    ∑ r, (lockedRows O fold β st challenge r).degree = O.degreeSum + O.carrierDegree := by
+  unfold lockedRows
+  rw [sum_append RingRow.degree, flatRows_degree_sum]
+  rfl
+
 /-- The relation of one fold for a table that the next level commits to: the rows and the scalar
 row of `flatRelation`, and the row `w_cells = 0`. -/
 noncomputable def lockedRelation : FlatRelation E where

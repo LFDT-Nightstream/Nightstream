@@ -169,7 +169,7 @@ a transcript (Akita Section 5.4, "Combining the scalar claims"). The payload of 
 for a group is the commitment `commit` of the message before the stage `start`. The weights of the
 claim of `T` are `weights`, and its target is `Σ_g ϑ_g·v_g` (Akita (72) with `φ = 1`). The opening
 point of the group `g` has the segments `(r_pack, r_tail, r_pos, r_blk)` of the lengths of the
-shape of the group. -/
+shape of the group, with `B_g ≤ 2^{r_blk}`. -/
 def RootLinked (start : ℕ) (commit : Wire → (g : Fin count) → (B.shape g).Payload)
     (value : Wire → Fin count → E) (place : Wire → Fin count → List E) (weights : Fin count → E)
     (point : Prefix Wire (Coord → Slot) total) : Prop :=
@@ -177,7 +177,7 @@ def RootLinked (start : ℕ) (commit : Wire → (g : Fin count) → (B.shape g).
     (T.claim (point.wire T.start)).weight = weights ∧
     (T.claim (point.wire T.start)).value = ∑ g, weights g * value (point.wire start) g ∧
     ∀ g, ∃ block position pack tail,
-      (B.shape g).blocks = 2 ^ block.length ∧ (B.shape g).blockLength = 2 ^ position.length ∧
+      (B.shape g).blocks ≤ 2 ^ block.length ∧ (B.shape g).blockLength = 2 ^ position.length ∧
       (B.opening g).stride = 2 ^ pack.length ∧ B.carrierDegree g = 2 ^ tail.length ∧
       (T.claim (point.wire T.start)).point g =
         Point.ofSegments (B.opening g) block position pack tail ∧

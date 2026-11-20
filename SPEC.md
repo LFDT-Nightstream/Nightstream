@@ -1130,11 +1130,13 @@ This table lists each paper number that this document, `formal/nightstream-fprim
 | Akita | 2026/1983 | 2026-10-15 | Lemma 10.23 | Weak binding for one fold. |
 | Akita | 2026/1983 | 2026-10-15 | Lemma 10.47 | Hashed transcript entries: a bound for the protocol holds with digests, plus `ε_hash`. |
 | Akita | 2026/1983 | 2026-10-15 | Proposition 10.44 | Checkpoint structure of the opening suffix. |
+| Akita | 2026/1983 | 2026-10-15 | Section 4.5 | Commitment. |
 | Akita | 2026/1983 | 2026-10-15 | Section 9 | Verifier offloading. |
 | Akita | 2026/1983 | 2026-10-15 | Section 9.3 | Full schedules and admissibility. |
 | Akita | 2026/1983 | 2026-10-15 | Theorem 10.17 | Checkpoint extraction. |
 | Akita | 2026/1983 | 2026-10-15 | Theorem 10.45 | Composition with an application segment. |
 | Akita | 2026/1983 | 2026-10-15 | Theorem 10.46 | Fiat–Shamir knowledge soundness of Akita. |
+| Akita | 2026/1983 | 2026-10-15 | Theorem 10.9 | Completeness of scheduled Akita. |
 | Chiesa and Orrù | 2025/536 | 2026-03-27 | Section 2.2 | DSFS: a Fiat–Shamir transformation based on the ideal duplex sponge; the analysis covers a start that absorbs the instance from a fixed state. |
 | Chiesa and Orrù | 2025/536 | 2026-03-27 | Construction 3.3 | The duplex sponge in overwrite mode. |
 | Chiesa and Orrù | 2025/536 | 2026-03-27 | Definition 3.8 | Rewinding knowledge soundness error of a non-interactive argument, for deterministic provers. |

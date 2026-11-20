@@ -807,68 +807,42 @@ not change terminal source checks.
   require these zeros. The honest prover's fresh witness has them: it is zero on every cell from the width of its
   circuit's package (`Lifecycle.BoundedDepth.BlockSupport.ZeroTail`,
   `Export.BoundedDepth.RunCompleteness.FreshZeroTail`, `Claims.Ivc.step_extends`, `Claims.Ivc.run_complete`).
-- **With the other adversaries:** the verifier of Algorithm 6 accepts only
-  what the terminal relation accepts
-  (`Export.BoundedDepth.RunCompleteness.holds_of_verifies`). So the results
-  of adversaries 2, 4 and 5 apply to a statement that the final verifier
-  accepts. Lean joins the bound above with the bound of adversary 4. A
-  prover of the experiment with `Q` queries is an IVC adversary: its tape
-  is the result of the experiment under the law of its draws, and its
-  output is the accepted statement with the proof from `W`
-  (`Export.BoundedDepth.FinalHistory.adversary`,
-  `Export.BoundedDepth.FinalVerifier.Setup.proofOf`). The event is a false
-  history: the final verifier accepts `(i, z0, zi)`, and no `i` steps of
-  the application, each valid at its state and with a witness of the
-  application's word count, lead from `z0` to `zi`
-  (`Export.BoundedDepth.FinalHistory.FalseHistory`). A false history is a
-  result in which `Verifies` rejects that proof, or a false acceptance of
-  this IVC adversary. So
-  `Pr[false history] ≤ Q · (2^−119 + 38/q²) + walkBound`, where
-  `walkBound = Σ_j (finderChance(stage j) + error(stage j))` is the bound of
-  adversary 4 for the stages of this IVC adversary
-  (`Claims.Final.history_sound`,
-  `Export.BoundedDepth.IvcSecurity.walkBound`). With Akita openings, the
-  bound adds the error of the Akita opening (`Claims.Final.history_sound_with_akita`).
-  The same bound holds for the witnesses that the reverse extractor returns:
-  the final verifier accepts, and those witnesses are not a valid history of
-  the accepted statement (`Claims.Final.history_knowledge`,
-  `Claims.Final.history_knowledge_with_akita`). At the
-  packages that the emitter writes for the reference application, Lean proves
-  each premise of class `lean` of the direct and final verifier results
-  (`Claims.Shipped.verify_sound`, `Claims.Shipped.verify_final_sound`).
-  The Lean Nebula packages are test packages that no public verifier loads,
-  so no such result exists for the memory verifiers (row `app.*`).
-  The premises are those of trust item 7, `[HN-A1]` and the closure
-  premise of trust item 3, an admitted IVC adversary of the prover, the
-  digest length 4 of each circuit key, and a bound `depth` on the
-  iteration of each statement that the experiment accepts. The sum has the
-  limits of adversary 4, so it gives no concrete security for a long
-  history. Lean also joins the bound above with the bound of adversary 5,
-  for the memory verifier of a final proof (Rust
-  `nebula::Verifier::verify_final`, `SPEC.md` Algorithms 8 and 10). The
-  prover names a memory statement with each result of the experiment, with
-  any law for each result. With that statement on its tape it is an IVC
-  adversary with the output above
-  (`Export.BoundedDepth.NebulaFinal.adversary`). The event is a false
-  memory statement: the final verifier accepts `(i, z0, zi)`, the checks of
-  `SPEC.md` Algorithm 8 hold for `(i, z0, zi)` and the memory statement, and
-  the history that the walk of adversary 4 decodes does not attest the
-  memory statement (`Export.BoundedDepth.NebulaFinal.FalseMemory`). The law
-  is that of the walk's last stage: the result, the memory statement and
-  the coins of each stage's extractor. A false memory statement is a tape
-  on which `Verifies` rejects the proof from `W`, or a win of adversary 5
-  for this IVC adversary. So its probability is at most
-  `Q · (2^−119 + 38/q²)` plus the terms of adversary 5
-  (`Claims.Final.memory_sound`). With Akita openings, the
-  bound adds the error of the Akita opening (`Claims.Final.memory_sound_with_akita`).
-  The premises are those of the two joined results, but without the bound
-  `depth`: the checks of `SPEC.md` Algorithm 8 step 4 accept at most
-  `S_max · N` steps (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`),
-  so the walk has `S_max · N` stages, and its answers cover the iteration of
-  each statement in the event. The memory round (trust item 6) stays a
-  premise. No Lean result joins the bound of adversary 2 with the bound of
-  this adversary. No result shows that an extractor of the three witnesses
-  is efficient.
+- **With the other adversaries:** the verifier of Algorithm 6 accepts only what the terminal relation accepts
+  (`Export.BoundedDepth.RunCompleteness.holds_of_verifies`). So the results of adversaries 2, 4 and 5 apply to a
+  statement that the final verifier accepts. Lean joins the bound above with the bound of adversary 4. A prover of the
+  experiment with `Q` queries is an IVC adversary: its tape is the result of the experiment under the law of its draws,
+  and its output is the accepted statement with the proof from `W` (`Export.BoundedDepth.FinalHistory.adversary`,
+  `Export.BoundedDepth.FinalVerifier.Setup.proofOf`). The event is a false history: the final verifier accepts `(i, z0,
+  zi)`, and no `i` steps of the application, each valid at its state and with a witness of the application's word count,
+  lead from `z0` to `zi` (`Export.BoundedDepth.FinalHistory.FalseHistory`). A false history is a result in which
+  `Verifies` rejects that proof, or a false acceptance of this IVC adversary. So `Pr[false history] ≤ Q · (2^−119 +
+  38/q²) + walkBound`, where `walkBound = Σ_j (finderChance(stage j) + error(stage j))` is the bound of adversary 4 for
+  the stages of this IVC adversary (`Claims.Final.history_sound`, `Export.BoundedDepth.IvcSecurity.walkBound`). With
+  Akita openings, the bound adds the error of the Akita opening (`Claims.Final.history_sound_with_akita`). The same
+  bound holds for the witnesses that the reverse extractor returns: the final verifier accepts, and those witnesses are
+  not a valid history of the accepted statement (`Claims.Final.history_knowledge`,
+  `Claims.Final.history_knowledge_with_akita`). At the packages that the emitter writes for the reference application,
+  Lean proves each premise of class `lean` of the direct and final verifier results (`Claims.Shipped.verify_sound`,
+  `Claims.Shipped.verify_final_sound`). The Lean Nebula packages are test packages that no public verifier loads, so no
+  such result exists for the memory verifiers (row `app.*`). The premises are those of trust item 7, `[HN-A1]` and the
+  closure premise of trust item 3, an admitted IVC adversary of the prover, the digest length 4 of each circuit key, and
+  a bound `depth` on the iteration of each statement that the experiment accepts. The sum has the limits of adversary 4,
+  so it gives no concrete security for a long history. Lean also joins the bound above with the bound of adversary 5,
+  for the memory verifier of a final proof (Rust `nebula::Verifier::verify_final`, `SPEC.md` Algorithms 8 and 10). The
+  prover names a memory statement with each result of the experiment, with any law for each result. With that statement
+  on its tape it is an IVC adversary with the output above (`Export.BoundedDepth.NebulaFinal.adversary`). The event is a
+  false memory statement: the final verifier accepts `(i, z0, zi)`, the checks of `SPEC.md` Algorithm 8 hold for `(i,
+  z0, zi)` and the memory statement, and the history that the walk of adversary 4 decodes does not attest the memory
+  statement (`Export.BoundedDepth.NebulaFinal.FalseMemory`). The law is that of the walk's last stage: the result, the
+  memory statement and the coins of each stage's extractor. A false memory statement is a tape on which `Verifies`
+  rejects the proof from `W`, or a win of adversary 5 for this IVC adversary. So its probability is at most `Q · (2^−119
+  + 38/q²)` plus the terms of adversary 5 (`Claims.Final.memory_sound`). With Akita openings, the bound adds the error
+  of the Akita opening (`Claims.Final.memory_sound_with_akita`). The premises are those of the two joined results, but
+  without the bound `depth`: the checks of `SPEC.md` Algorithm 8 step 4 accept at most `S_max · N` steps
+  (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`), so the walk has `S_max · N` stages, and its answers cover
+  the iteration of each statement in the event. The memory round (trust item 6) stays a premise. No Lean result joins
+  the bound of adversary 2 with the bound of this adversary. No result shows that an extractor of the three witnesses is
+  efficient.
 - **Error:** Lean bounds the argument by `Q · error`, with `error` below
   `2^−119` at the production shapes (`SPEC.md` section 3). Rust bounds a
   sum of six terms for one interactive run of the argument, about
@@ -1274,16 +1248,40 @@ not change terminal source checks.
      Akita cites Lyubashevsky and Seiler. Each challenge is sparse, and at the squared-norm levels it has the operator
      bound `Γ` (`Spec.Compression.Akita.UnitDifferences`, `Spec.Compression.Akita.Sparse`,
      `Spec.Compression.Akita.MulBound`). `p` is at least the largest probability of one challenge under the slot decoder
-     of each family (`Spec.Compression.Akita.Extract.slotChance`). An answer has 22 slots, and the fold coordinates of a
-     level have different slots. `registered`: the key commitment of the verifier has a certified decommitment to the
-     key polynomial. The premises of the final verifier are those of `Claims.Final.verifier_sound`. The result changes
-     no claim and no premise row, for these reasons. `key20.aks` is the file of the test key of `2^9` blocks. Level 1 of
-     `key30.aks` has two groups, one of them for an offloaded setup prefix, and the tower of the result has neither. The
-     result is for the final proofs of one claim shape: one `pc` and one depth for each slot. The proof of zero steps is
-     not in its protocol. The history and memory results are not stated in its game. No theorem states that an honest
-     proof passes `towerAccepts` at these numbers: completeness is a theorem for two packing levels
-     (`Spec.Compression.Akita.Extract.packingPair_complete`) and for the games of the checks only. So the premises
-     `akita.*`, `binding`, `accepts` and `composition` stay as they are.
+     of each family (`Spec.Compression.Akita.Extract.slotChance`). An answer has 28 slots or more (`coords`), and the
+     fold coordinates of a level have different slots. `registered`: the key commitment of the verifier has a certified
+     decommitment to the key polynomial. `use` (`Export.BoundedDepth.FinalKey20.Use`): the claims pass the layout of
+     step 5 of `SPEC.md` Algorithm 10, the key polynomial has 512 blocks, and the opening point of `V` has the zero
+     count of the layout (`Export.BoundedDepth.FinalKey20.laidZeros`). Then the three opening points have 20, 16 and 16
+     coordinates (`Export.BoundedDepth.FinalKey20.key20_points`, `Export.BoundedDepth.FinalKey20.Use.points`). No Lean
+     result compares `laidZeros` with the Rust code. The premises of the final verifier are those of
+     `Claims.Final.verifier_sound`. `sound` is for one claim shape: one `pc` and one depth for each slot. For a finite
+     family of shapes, the verifier `Export.BoundedDepth.FinalKey20.finalAccepts` accepts a statement of zero steps,
+     with no draw and no error term, or it is the verifier of the shape that the first message names. Its bound
+     `Export.BoundedDepth.FinalKey20.shapesBound` is the sum of the bound above over the shapes, so it has the number of
+     the shapes as a factor (`Export.BoundedDepth.FinalKey20.sound_all`, `Export.BoundedDepth.FinalKey20.knowledge_all`,
+     and `Export.BoundedDepth.FinalKey20.verifier_sound` in the form of `Claims.Final.verifier_sound`). In this game, a
+     false history (`Export.BoundedDepth.FinalKey20.FalseHistory`) has a probability of at most `shapesBound +
+     walkBound`, with `Export.BoundedDepth.IvcSecurity.walkBound` for a bound `depth` on the accepted iterations, and
+     the same bound holds for the witnesses of the reverse extractor (`Export.BoundedDepth.FinalKey20.history_sound`,
+     `Export.BoundedDepth.FinalKey20.history_knowledge`). The memory results are not stated in this game. The opening
+     verifier of the tower accepts the honest prover at these numbers if the fit conditions hold for its responses
+     (`Spec.Compression.Akita.Key20.tower_complete`). For the zero tables it accepts with no fit condition, so the
+     event of `tower_suffix` is not empty (`Spec.Compression.Akita.Key20.zero_accepts`). Levels 1 to 5 have the bounded
+     source of Akita Section 4.5, and the full-field condition is false for them
+     (`Spec.Compression.Akita.Key20.not_honest`). The whole verifier accepts an honest proof for each table whose
+     answers decode to fold challenges and to no challenge of the reject set of the argument
+     (`Export.BoundedDepth.FinalKey20.complete`, `Export.BoundedDepth.FinalKey20.accepts`). One answer decodes to a
+     challenge of this set (`Spec.Compression.Verifier.Rejects`) with a probability of at most `tableError +
+     omegaError` (`Spec.Compression.Verifier.rejects_mass_le`). This acceptance has two hypotheses that no Lean result
+     gives: `leads`, the honest run of Π_CCS on the fresh instance, and `fit`, the fit of the honest responses. The
+     completeness of Akita Theorem 10.9 is not perfect: it has the probability that a response does not fit, and Lean
+     has no bound for this probability. The results change no claim and no premise row, for these reasons. They are
+     not claims. `key20.aks` is the file of the test key of `2^9` blocks. Level 1 of `key30.aks` has two groups, one of
+     them for an offloaded setup prefix, and the tower has neither. The Lean verifier differs from the pinned code
+     (item below). The memory results are not moved. The acceptance has the hypotheses `leads` and `fit`, and no closed
+     accepting instance exists for the whole verifier. So the premises `akita.*`, `binding`, `accepts` and
+     `composition` stay as they are.
    - *Differences between the paper, the code and the Lean model.* (a) The extraction of the paper uses one oracle
      output for each fold coordinate. The pinned code squeezes one stream for a whole fold level, with no absorb between
      the coordinates. The model of `Spec.Checkpoint` is one uniform table: the answer at a stage input is one output of

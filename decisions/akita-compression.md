@@ -187,7 +187,7 @@ level of the final proof. It does not include:
   quantum Core-SVP cost in the ADPS16 model, and Module-SIS for the Ajtai
   commitments of the claims (`[MSIS]`).
 
-Lean has one result in which the Akita openings are not ideal:
+Lean has results in which the Akita openings are not ideal. The first is
 `Export.BoundedDepth.FinalKey20.sound`, for the schedule of `key20.aks`. A
 prover with at most `Q` queries to one uniform table of stage answers makes
 the final verifier accept a statement that has no valid proof with probability
@@ -198,10 +198,34 @@ of the argument. `p` is the largest probability of one fold challenge.
 probability that the extractor returns a solution of Module-SIS. The result
 has the composition of the argument with the opening inside it, by two
 checkpoints in sequence: `W` before the lookup challenges, then `W` and `V`.
-It is a result of `Export`, not a claim. It does not cover `key30.aks`. Its
-verifier is a Lean model that differs from the pinned Akita code. The facts of
-the challenge families are its hypotheses. So the claims keep the premises of
-this section
+Its hypothesis `Export.BoundedDepth.FinalKey20.Use` is the use with the key of
+`key20.aks`: the claims pass the layout, the key polynomial has 512 blocks,
+and the opening point of `V` has the zero count of the layout.
+
+This result is for one claim shape: one `pc` and one depth for each slot.
+`Export.BoundedDepth.FinalKey20.verifier_sound` is for a finite family of
+shapes and for the proof of zero steps. Its bound `shapesBound` is the sum of
+the bound above over the shapes, so it has the number of the shapes as a
+factor. The proof of zero steps adds no error term.
+`Export.BoundedDepth.FinalKey20.history_sound` and
+`Export.BoundedDepth.FinalKey20.history_knowledge` bound a false history in
+this game by `shapesBound` plus the bound `walkBound` of the reverse extractor
+for the depth. The memory results are not stated in this game.
+
+The verifier of these results accepts an honest proof
+(`Export.BoundedDepth.FinalKey20.accepts`), for each table of stage answers
+that decode to fold challenges and to no challenge of the reject set of the
+argument. This acceptance has two hypotheses that no Lean result gives: the
+honest run of Π_CCS on the fresh instance (`leads`) and the fit of the
+responses of the honest prover (`fit`). The completeness of Akita is not
+perfect, and Lean has no bound for the probability that a response does not
+fit. For the zero tables, the opening verifier accepts with no fit condition
+(`Spec.Compression.Akita.Key20.zero_accepts`).
+
+These are results of `Export`, not claims. They do not cover `key30.aks`.
+Their verifier is a Lean model that differs from the pinned Akita code. The
+facts of the challenge families are their hypotheses. So the claims keep the
+premises of this section
 ([security model](../formal/nightstream-fprime/SECURITY_MODEL.md), trust
 item 7).
 
@@ -247,16 +271,29 @@ polynomial. The verifier never reads the polynomial
 - Security against a quantum adversary of the transcript hashes.
 - A WASM build of the verifier.
 
-These points are about the Lean result `Export.BoundedDepth.FinalKey20.sound`.
-Each needs a decision of the owner
+These points are about the Lean result `Export.BoundedDepth.FinalKey20.sound`
+and the results that use it. Each needs a decision of the owner
 ([security model](../formal/nightstream-fprime/SECURITY_MODEL.md), trust
 item 7, gives the facts).
 
-- The claim. The result is not a claim. The decision is whether to state it as
-  a claim and to replace the claims that end in `_with_akita`. For
-  `key20.aks`, it has their premises `akita.theorem1046` and `composition` as
-  theorems under `[MSIS]`, `[KECCAK]` and its hypotheses. The history and
-  memory claims have no statement in its game.
+- The claim. The results are not claims. The decision is whether to state
+  them as claims and to replace the claims that end in `_with_akita`. A claim
+  would apply `Export.BoundedDepth.FinalKey20.verifier_sound`,
+  `Export.BoundedDepth.FinalKey20.history_sound` or
+  `Export.BoundedDepth.FinalKey20.history_knowledge`. For `key20.aks`, these
+  have the premises `akita.theorem1046` and `composition` as theorems under
+  their hypotheses, and each hypothesis would need a premise class. The facts
+  of the challenge sets and the slot probability `p` are open until a decoder
+  is fixed. `registered` and the 512 blocks of the key polynomial are of the
+  class link. The term `breakChance` is `[MSIS]`. The uniform table of stage
+  answers is `[KECCAK]`. The memory claims have no statement in this game.
+- The zero count. The hypothesis `Export.BoundedDepth.FinalKey20.Use` gives
+  the opening point of `V` the zero count
+  `Export.BoundedDepth.FinalKey20.laidZeros` of the Lean layout. No Lean
+  result compares this number with the Rust code.
+- The acceptance. `Export.BoundedDepth.FinalKey20.accepts` has the hypotheses
+  `leads` and `fit`, which no Lean result gives, so no closed accepting
+  instance exists for the whole verifier.
 - The model of the verifier. The Lean verifier differs from the pinned Akita
   code in these parts. At the levels with the squared-norm route, its norm
   check is a stage of its own after the checks of the fold, and the code

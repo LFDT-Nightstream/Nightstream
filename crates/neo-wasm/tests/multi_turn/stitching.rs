@@ -1,5 +1,7 @@
 #[path = "callbacks.rs"]
 mod callbacks;
+#[path = "nested.rs"]
+mod nested;
 
 use std::any::Any;
 use std::panic::{catch_unwind, resume_unwind};

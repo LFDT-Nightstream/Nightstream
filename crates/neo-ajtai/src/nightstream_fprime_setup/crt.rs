@@ -18,11 +18,36 @@ const CACHE_COLUMNS: usize = 524_288;
 const GROUP: usize = 256;
 const _: () = assert!(2 * D as u128 * TILE_COLUMNS as u128 * (u64::MAX as u128) < M);
 const _: () = assert!(GROUP as u128 * (P2 - 1) as u128 * (P2 - 1) as u128 <= u64::MAX as u128);
-const _: () = assert!(P0 < P2 && P1 < P2 && P2 < (1 << 31));
+const _: () = assert!(P0 < P2 && P1 < P2 && P2 < (1 << 28));
 const _: () = assert!(CACHE_COLUMNS.is_multiple_of(TILE_COLUMNS));
 const _: () = assert!(D == 64);
 
 type Residues = [u32; D];
+struct PackedResidues([[u32; 8]; 7]);
+
+impl PackedResidues {
+    fn new(values: Residues) -> Self {
+        Self(std::array::from_fn(|group| {
+            std::array::from_fn(|lane| {
+                let high = values[56 + lane] >> (4 * group);
+                values[8 * group + lane] | (high << 28)
+            })
+        }))
+    }
+
+    #[inline]
+    fn unpack(&self) -> Residues {
+        let mut values = [0; D];
+        for (group, words) in self.0.iter().enumerate() {
+            for (lane, &word) in words.iter().enumerate() {
+                values[8 * group + lane] = word & 0x0fff_ffff;
+                values[56 + lane] |= (word >> 28) << (4 * group);
+            }
+        }
+        values
+    }
+}
+
 type Output = Vec<[Fq; D]>;
 type MaskSpectrum = (usize, Residues);
 
@@ -175,12 +200,12 @@ impl<const P: u64> Plan<P> {
             .collect()
     }
 
-    fn row(&self, key: &[Residues], rhs: &[MaskSpectrum]) -> Residues {
+    fn row(&self, key: &[PackedResidues], rhs: &[MaskSpectrum]) -> Residues {
         let mut residues = [0; D];
         for part in rhs.chunks(GROUP) {
             let mut sums = [0u64; D];
             for (column, witness) in part {
-                for ((sum, &left), &right) in sums.iter_mut().zip(&key[*column]).zip(witness) {
+                for ((sum, left), &right) in sums.iter_mut().zip(key[*column].unpack()).zip(witness) {
                     *sum += u64::from(left) * u64::from(right);
                 }
             }
@@ -216,7 +241,7 @@ fn combine(r0: u32, r1: u32, r2: u32) -> Fq {
 }
 
 pub(super) struct Tile {
-    values: [Vec<Residues>; 3],
+    values: [Vec<PackedResidues>; 3],
 }
 
 impl Tile {
@@ -226,9 +251,9 @@ impl Tile {
         let [a, b, c] = &mut values;
         for row in words.chunks_exact(block_count * D) {
             for words in row[start * D..][..TILE_COLUMNS * D].chunks_exact(D) {
-                a.push(plans.0.key(words));
-                b.push(plans.1.key(words));
-                c.push(plans.2.key(words));
+                a.push(PackedResidues::new(plans.0.key(words)));
+                b.push(PackedResidues::new(plans.1.key(words)));
+                c.push(PackedResidues::new(plans.2.key(words)));
             }
         }
         Self { values }

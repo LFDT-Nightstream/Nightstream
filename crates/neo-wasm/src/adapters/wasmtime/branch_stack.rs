@@ -163,3 +163,7 @@ pub(super) fn operator_stacks_by_offset(bytes: &[u8]) -> Result<BTreeMap<u32, Op
     }
     Ok(stacks)
 }
+
+#[cfg(test)]
+#[path = "../../../tests/unit/operand_types.rs"]
+mod tests;

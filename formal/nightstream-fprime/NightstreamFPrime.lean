@@ -41,6 +41,8 @@ import NightstreamFPrime.Lifecycle.BoundedDepth.CompressionFresh
 import NightstreamFPrime.Export.BoundedDepth.FinalAkita
 import NightstreamFPrime.Export.BoundedDepth.FinalKey20
 import NightstreamFPrime.Export.BoundedDepth.FinalKey20Accept
+import NightstreamFPrime.Export.BoundedDepth.FinalKey20All
+import NightstreamFPrime.Export.BoundedDepth.FinalKey20History
 import NightstreamFPrime.Export.BoundedDepth.FinalSplit
 import NightstreamFPrime.Export.BoundedDepth.FinalVerifier
 import NightstreamFPrime.Export.BoundedDepth.FinalHistory

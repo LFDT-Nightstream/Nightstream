@@ -3,6 +3,8 @@ import NightstreamFPrime.Spec.Compression
 import NightstreamFPrime.Export.BoundedDepth.FinalAkita
 import NightstreamFPrime.Export.BoundedDepth.FinalKey20
 import NightstreamFPrime.Export.BoundedDepth.FinalKey20Accept
+import NightstreamFPrime.Export.BoundedDepth.FinalKey20All
+import NightstreamFPrime.Export.BoundedDepth.FinalKey20History
 
 /-! Axiom audits for the compression argument over the Akita opening: the verifier game in two
 parts (`Spec/Compression/Verifier/Split`), their stages, the two checkpoints of the argument and
@@ -10,8 +12,9 @@ the result over a batching root (`Spec/Compression/Akita/Extract`: `SplitGame`, 
 `Compose`, `ComposeRoot`, `Decoders`), and the final verifier over the Akita opening, with the
 tower of levels (`Export/BoundedDepth`: `FinalSplit`, `FinalAkita`), and the tower and the final
 verifier for the schedule `key20.aks` (`Spec/Compression/Akita/Key20Tower`,
-`Export/BoundedDepth/FinalKey20`), with its honest prover (`Export/BoundedDepth/FinalKey20Accept`).
--/
+`Export/BoundedDepth/FinalKey20`), with its honest prover (`Export/BoundedDepth/FinalKey20Accept`),
+for each claim shape and the proof of zero steps (`Export/BoundedDepth/FinalKey20All`), and
+against a false history (`Export/BoundedDepth/FinalKey20History`). -/
 
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.bind_assoc
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.Finals
@@ -153,3 +156,33 @@ verifier for the schedule `key20.aks` (`Spec/Compression/Akita/Key20Tower`,
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.sheetBound
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.sheetTerminal
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.accepts
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.path_first
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.path_accept
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.played
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.played_eq
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.played_first
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.laidSetup
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.laidSetup_use
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.accepts
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.tower
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.Sized
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.ready
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.proof
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.breakChance
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.knowledge
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.finalAccepts
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.finalProof
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.shapesBound
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.knowledge_all
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.sound_all
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.verifier_sound
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.uniform_event
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.adversary
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.FalseHistory
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Rejected
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.rejected_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.adversary_depth
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.history_sound
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.AdviceFailure
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.history_knowledge

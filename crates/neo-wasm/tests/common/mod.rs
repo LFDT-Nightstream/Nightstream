@@ -286,10 +286,11 @@ pub fn assert_rejected(z: &[F], label: &str) {
     );
 }
 
-pub fn observe_turns(trace: &[WasmVmStep]) {
+pub fn observe_turns(trace: &[WasmVmStep]) -> usize {
+    let mut count = 0;
     for row in trace
         .iter()
-        .filter(|row| row.row_kind.is_turn_boundary() && row.state_before.activation_finished)
+        .filter(|row| row.row_kind.is_turn_boundary() && row.state_before.is_terminal())
     {
         let previous = if row.state_before.output.enabled {
             "value"
@@ -308,7 +309,9 @@ pub fn observe_turns(trace: &[WasmVmStep]) {
         };
         let params = row.call_param_count.expect("turn parameter count");
         eprintln!("turn-transition {previous} {params} {next} {export}");
+        count += 1;
     }
+    count
 }
 
 pub fn ccs_check_trace(trace: &[WasmVmStep]) {

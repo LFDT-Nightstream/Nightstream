@@ -1,3 +1,6 @@
+#[path = "callbacks.rs"]
+mod callbacks;
+
 use std::any::Any;
 use std::panic::{catch_unwind, resume_unwind};
 

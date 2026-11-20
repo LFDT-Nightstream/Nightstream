@@ -23,17 +23,24 @@ def inPackage (env : Environment) (name : Name) : Bool :=
   | some index => packageRoots.contains (env.header.moduleNames[index.toNat]!).getRoot
   | none => true
 
+-- `Expr.hash` does not read the name of a binder.
+def namedHash (type : Expr) : UInt64 :=
+  type.getForallBinderNames.foldl (fun hash name => mixHash hash name.eraseMacroScopes.hash)
+    type.hash
+
 -- A proof is not part of a theorem's meaning, so only a definition contributes its value.
 def meaningOf (info : ConstantInfo) : UInt64 × Array Name :=
   let type := info.type
   match info with
   | .defnInfo value =>
-    (mixHash type.hash value.value.hash, type.getUsedConstants ++ value.value.getUsedConstants)
+    (mixHash (namedHash type) value.value.hash,
+      type.getUsedConstants ++ value.value.getUsedConstants)
   | .opaqueInfo value =>
-    (mixHash type.hash value.value.hash, type.getUsedConstants ++ value.value.getUsedConstants)
-  | .inductInfo value => (type.hash, type.getUsedConstants ++ value.ctors.toArray)
-  | .ctorInfo value => (type.hash, type.getUsedConstants.push value.induct)
-  | _ => (type.hash, type.getUsedConstants)
+    (mixHash (namedHash type) value.value.hash,
+      type.getUsedConstants ++ value.value.getUsedConstants)
+  | .inductInfo value => (namedHash type, type.getUsedConstants ++ value.ctors.toArray)
+  | .ctorInfo value => (namedHash type, type.getUsedConstants.push value.induct)
+  | _ => (namedHash type, type.getUsedConstants)
 
 def fingerprint (env : Environment) (root : Name) : UInt64 := Id.run do
   let mut seen : NameSet := {}

@@ -30,6 +30,9 @@ fi
 if lean_files | xargs grep -nE 'native_decide|ofReduceBool|\+native\b|\bnative\s*:=\s*true\b' 2>/dev/null; then
   fail "native_decide / decide +native / ofReduceBool is prohibited"
 fi
+if lean_files | xargs grep -nE 'skipKernelTC|addDeclWithoutChecking' 2>/dev/null; then
+  fail "a declaration that the kernel does not check is prohibited"
+fi
 decl_prefix='^\s*(-/\s*)?((set_option\s+\S+\s+\S+|open(\s+\S+)+)\s+in\s+)*(/--.*-/\s*)?(@\[.*\]\s*)?((private|protected|public|noncomputable|unsafe)\s+)*'
 trusted_decl="${decl_prefix}(axiom|unsafe)\b|\bsorry\b|\badmit\b"
 if lean_files | xargs grep -nE "$trusted_decl" 2>/dev/null; then
@@ -75,24 +78,31 @@ while IFS= read -r file; do
 done < <(lean_files)
 
 # Lean block comments nest.
-imports_of() {
-  awk '
-    {
-      rest = $0; code = ""
-      while (rest != "") {
-        o = index(rest, "/-"); c = index(rest, "-/")
-        if (depth > 0) {
-          if (c && (!o || c < o)) { depth--; rest = substr(rest, c + 2) }
-          else if (o) { depth++; rest = substr(rest, o + 2) }
-          else rest = ""
-        } else {
-          d = index(rest, "--")
-          if (d && (!o || d < o)) { code = code substr(rest, 1, d - 1); rest = "" }
-          else if (o) { code = code substr(rest, 1, o - 1) " "; depth++; rest = substr(rest, o + 2) }
-          else { code = code rest; rest = "" }
-        }
+strip_comments='
+  function code_of(rest,    code, o, c, d) {
+    code = ""
+    while (rest != "") {
+      o = index(rest, "/-"); c = index(rest, "-/")
+      if (depth > 0) {
+        if (c && (!o || c < o)) { depth--; rest = substr(rest, c + 2) }
+        else if (o) { depth++; rest = substr(rest, o + 2) }
+        else rest = ""
+      } else {
+        d = index(rest, "--")
+        if (d && (!o || d < o)) { code = code substr(rest, 1, d - 1); rest = "" }
+        else if (o) { code = code substr(rest, 1, o - 1) " "; depth++; rest = substr(rest, o + 2) }
+        else { code = code rest; rest = "" }
       }
-      n = split(code, word)
+    }
+    return code
+  }'
+
+code_of() { awk "$strip_comments"'{ print code_of($0) }' "$1"; }
+
+imports_of() {
+  awk "$strip_comments"'
+    {
+      n = split(code_of($0), word)
       for (i = 1; i <= n; i++) {
         if (name) { print word[i]; name = 0 }
         else if (word[i] == "import") name = 1
@@ -152,15 +162,22 @@ while IFS= read -r f; do
   done < <(grep -E '^import NightstreamFPrime\.' "$f" || true)
 done < <(find NightstreamFPrime -name '*.lean' -path 'NightstreamFPrime/*/*')
 
-# A claim shows each hypothesis in its signature, and each claims file is one namespace
-# (`NightstreamFPrime/Claims.lean`). Lean also reads an indented command.
-if grep -nE '^[[:space:]]*(variable|section|@\[|set_option|macro|notation)|\b(private|_root_|local notation)\b' \
-    NightstreamFPrime/Claims/*.lean; then
-  fail "a Claims file hides a hypothesis or holds a declaration that is not a claim"
+# A claims file is one namespace of theorems, and a claim shows each hypothesis in its signature
+# (`NightstreamFPrime/Claims.lean`). The checks read the code without its comments, so the place
+# of a command on its line does not matter. `tests/PremiseCensus.lean` checks the declarations.
+hidden='\b(variable|include|omit|universe|section|set_option|macro|macro_rules|notation[0-9]*|infix[lr]?|prefix|postfix|syntax|elab|elab_rules|binder_predicate|private|axiom|_root_)\b|@\['
+command='^($|[[:space:]]|(import|open|theorem|namespace|end|attribute \[local instance( low)?\] Classical\.propDecidable)\b)'
+if code_of NightstreamFPrime/Claims.lean | grep -nvE '^([[:space:]]*$|import )'; then
+  fail "NightstreamFPrime/Claims.lean holds a command that is not an import"
 fi
 for f in NightstreamFPrime/Claims/*.lean; do
   space="NightstreamFPrime.Claims.$(basename "$f" .lean)"
-  if [[ "$(grep -cE '^(namespace|end) ' "$f")" != 2 || "$(grep -E '^namespace ' "$f")" != "namespace $space" \
+  code="$(code_of "$f")"
+  if grep -nE "$hidden" <<<"$code" || grep -nvE "$command" <<<"$code"; then
+    fail "$f hides a hypothesis or holds a command that is not a claim"
+  fi
+  if [[ "$(grep -cE '\b(namespace|end)\b' <<<"$code")" != 2 \
+      || "$(grep -E '\bnamespace\b' <<<"$code")" != "namespace $space" \
       || "$(tail -n 1 "$f")" != "end $space" ]]; then
     fail "$f is not the one namespace $space"
   fi

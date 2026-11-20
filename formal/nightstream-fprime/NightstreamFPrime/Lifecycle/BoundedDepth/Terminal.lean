@@ -46,15 +46,16 @@ def StatementValid (statement : TerminalStatement AppState) : Prop :=
     statement.zi.length = Stage1.Application.stateWordCount
 
 /-- The bounded-depth terminal relation. -/
-noncomputable def HoldsFor (cap : Nat)
+noncomputable def HoldsFor
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
     (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
     (statement : TerminalStatement AppState)
     (proof : ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits)) : Prop :=
   StatementValid statement ∧
-    OuterTerminalTransition ((setup cap ajtai circuitKeys).forCircuit 0) (machine step control)
-      (relations ajtai) statement proof
+    OuterTerminalTransition
+      ((setup Folding.Schedule.productionLightFoldCap ajtai circuitKeys).forCircuit 0)
+      (machine step control) (relations ajtai) statement proof
 
 /-- The terminal reads only the verifier keys, which both circuits share. -/
 theorem transition_forCircuit (cap : Nat)
@@ -69,18 +70,18 @@ theorem transition_forCircuit (cap : Nat)
         (machine step control) (relations ajtai) statement proof := by
   cases proof <;> rfl
 
-theorem holdsFor_bottom_iff (cap : Nat)
+theorem holdsFor_bottom_iff
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
     (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
     (statement : TerminalStatement AppState) :
-    HoldsFor cap ajtai circuitKeys step control statement .bottom ↔
+    HoldsFor ajtai circuitKeys step control statement .bottom ↔
       StatementValid statement ∧ statement.iteration = 0 ∧ statement.zi = statement.z0 :=
   Iff.rfl
 
 /-- A recursive terminal: the state hash binds both slots and the fresh instance, both slot claims
 hold, and the fresh instance holds under the relation of the circuit that ran last. -/
-theorem holdsFor_recursive_iff (cap : Nat)
+theorem holdsFor_recursive_iff
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
     (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
@@ -89,7 +90,7 @@ theorem holdsFor_recursive_iff (cap : Nat)
       (Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
       (StepFresh logicalWidth publicFits)
       (Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2) :
-    HoldsFor cap ajtai circuitKeys step control statement (.recursive payload) ↔
+    HoldsFor ajtai circuitKeys step control statement (.recursive payload) ↔
       StatementValid statement ∧ ∃ pcValid : InRange 2 payload.pc,
         0 < statement.iteration ∧
         payload.fresh.publicInputs ⟨0, by decide⟩ =
@@ -108,13 +109,13 @@ theorem holdsFor_recursive_iff (cap : Nat)
           payload.freshWitness :=
   Iff.rfl
 
-theorem rejects_counter_shift (cap : Nat)
+theorem rejects_counter_shift
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
     (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
     (statement : TerminalStatement AppState)
     (proof : ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits)) :
-    ¬ HoldsFor cap ajtai circuitKeys step control
+    ¬ HoldsFor ajtai circuitKeys step control
       { statement with iteration := statement.iteration + fieldModulus } proof := by
   intro accepted
   have bound := accepted.1.1

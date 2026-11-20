@@ -167,14 +167,16 @@ noncomputable def honest (β : Module.Basis (Fin O.planes) Zq E) (key : OpeningK
 /-- The deterministic part of Akita Lemma 10.7 for one claim with coefficient packing: when the
 response is admissible, "all remaining honest equations of the stage hold". The state is an
 algebraic decommitment of `u_pub` (`opens`), the statement has the payload `v_pub` and the value
-`v` of the honest prover (`payload`, `value`), the bases satisfy `b_1 ≤ b⋆` (`shape`) and
-`b_z ≤ b⋆` (`certified`), and the response `z` satisfies `Enc` of Akita Definition 10.5
-(`encodable`). Then the honest witness satisfies the branch relation for the challenges. The
-hypothesis `encodable` is not a consequence of the others: Akita completeness is not perfect
-(Theorem 10.9, (155)). -/
+`v` of the honest prover (`payload`, `value`), the base `b_1` decomposes each residue (`opening`),
+the bases satisfy `b_1 ≤ b⋆` (`bounded`) and `b_z ≤ b⋆` (`certified`), and the response `z`
+satisfies `Enc` of Akita Definition 10.5 (`encodable`). Then the honest witness satisfies the
+branch relation for the challenges. The source has no condition: it is a full-field source or a
+bounded source of Akita Section 4.5. The hypothesis `encodable` is not a consequence of the
+others: Akita completeness is not perfect (Theorem 10.9, (155)). -/
 theorem honest_satisfies {β : Module.Basis (Fin O.planes) Zq E} {st : Statement O E}
     {state : Decommitment S} {table : Table} (challenge : Fin S.blocks → Rq O.carrierDegree)
-    (shape : S.Honest) (radix : Radix fold.responseBase)
+    (opening : Base S.openingBase S.openingDigits) (bounded : S.openingBase ≤ S.certifiedBase)
+    (radix : Radix fold.responseBase)
     (certified : fold.responseBase ≤ S.certifiedBase)
     (fits : PathFits O.openDegree (1 * O.openRank) O.chain)
     (opens : state.Opens st.key st.payload table)
@@ -187,7 +189,7 @@ theorem honest_satisfies {β : Module.Basis (Fin O.planes) Zq E} {st : Statement
     (honest β st.openKey st.point fold challenge state).Satisfies β st challenge := by
   have planes : O.partialPlane (honestPartials β st.point state.source) =
       fun i t => contract β st.point t (gadget S.sourceBase (state.source i)) :=
-    funext fun i => funext fun t => O.partialPlane_encode shape.opening _ i t
+    funext fun i => funext fun t => O.partialPlane_encode opening _ i t
   have recomposed := gadget_decompose_of_encodable radix encodable
   refine {
     carried := {
@@ -197,7 +199,7 @@ theorem honest_satisfies {β : Module.Basis (Fin O.planes) Zq E} {st : Statement
       innerDigits := opens.innerDigits
       chainDigits := opens.chainDigits
       partialDigits := fun column =>
-        ((decompose_balanced shape.opening _).mono shape.certified) column.2
+        ((decompose_balanced opening _).mono bounded) column.2
       openDigits := (pathCommit_rows fits st.openKey.chain _).2 }
     evaluation := fun t => ?_
     innerRows := ?_

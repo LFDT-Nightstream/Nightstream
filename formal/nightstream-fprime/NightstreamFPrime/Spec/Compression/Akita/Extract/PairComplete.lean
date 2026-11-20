@@ -78,7 +78,8 @@ theorem honestClaim_satisfies (table : Table) (point : Point O E)
     (honest β openKey point fold challenge (commit key table).2).Satisfies β
       ((honestClaim β key openKey table point).statement key openKey) challenge :=
   honest_satisfies (st := (honestClaim β key openKey table point).statement key openKey)
-    challenge shape radix certified path (commit_opens shape key table) encodable rfl rfl
+    challenge shape.opening shape.certified radix certified path (commit_opens shape key table)
+    encodable rfl rfl
 
 /-- The value of the claim `honestClaim` at a point with four segments is the multilinear
 evaluation of the table (Akita Section 5.3), for a table that is 0 after the `B·M·d_A` cells of

@@ -178,6 +178,14 @@ theorem completion_left (w : Table) {x : ℕ} (small : x < start) :
     rel.completion base digits start w x = w x :=
   rel.extend_left base digits start w _ small
 
+/-- Each cell from the end of the quotient segments is 0. -/
+theorem completion_of_le (w : Table) {x : ℕ} (large : rel.quotientEnd digits start ≤ x) :
+    rel.completion base digits start w x = 0 := by
+  obtain ⟨y, rfl⟩ := Nat.exists_eq_add_of_le large
+  show join start w _ (start + ∑ r, rel.quotientCells digits r + y) = 0
+  rw [Nat.add_assoc, join_right]
+  exact concat_of_le _ _ (Nat.le_add_right _ _)
+
 /-- The digit range statement of Akita Section 6.1 for the completion of a table with the digit
 range statement. -/
 theorem completion_range (radix : Radix base) {μ : ℕ} {w : Table}

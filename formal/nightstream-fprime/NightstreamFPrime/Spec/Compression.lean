@@ -79,10 +79,16 @@ import NightstreamFPrime.Spec.Compression.Fresh
 import NightstreamFPrime.Spec.Compression.Rust.Soundness
 import NightstreamFPrime.Spec.Compression.Rust.Transcript
 import NightstreamFPrime.Spec.Compression.Akita.Extract.CheckComplete
+import NightstreamFPrime.Spec.Compression.Akita.Extract.LiftComplete
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Page
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Play
+import NightstreamFPrime.Spec.Compression.Akita.Extract.RootComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TowerComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceComplete
+import NightstreamFPrime.Spec.Compression.Akita.Extract.ZeroFit
+import NightstreamFPrime.Spec.Compression.Akita.Key20Accept
 import NightstreamFPrime.Spec.Compression.Akita.Key20Complete
+import NightstreamFPrime.Spec.Compression.Akita.Key20Root
 import NightstreamFPrime.Spec.Compression.Akita.TraceProver
 
 /-! The soundness of the compression argument over Akita (Rust `ns-compress`, SPEC.md section 6):
@@ -132,7 +138,13 @@ the two checkpoints of the argument before the opening (`Compose`), the fair dec
 challenges (`Decoders`), the opening with a batching root, a fold with three opening groups and a
 last packing fold (`ComposeRoot`), and the opening with a batching root, a fold with opening
 groups, a packing level, four trace levels and the terminal (`Tower`), with its instance for the
-schedule `key20.aks` (`Akita/Key20Tower`), and the shared
+schedule `key20.aks` (`Akita/Key20Tower`), and the honest prover of this opening: the bounded
+source of a trace level (`Akita/TraceProver`), its messages on a transcript (`Play`), the
+completeness of the checks (`CheckComplete`), the trace levels (`TraceComplete`,
+`TowerComplete`), the packing level (`LiftComplete`), the root fold and the verifier `towerLinks`
+(`RootComplete`), a type of wire messages (`Page`) and the zero tables (`ZeroFit`), with its
+instance for the schedule `key20.aks` (`Akita/Key20Complete`, `Akita/Key20Root`,
+`Akita/Key20Accept`), and the shared
 setup with its
 reduction to ordinary Module-SIS (`Akita/Setup`) and the bad events of the hashed transcript
 entries (`Akita/Digest`). -/

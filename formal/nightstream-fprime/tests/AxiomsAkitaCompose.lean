@@ -141,4 +141,5 @@ verifier for the schedule `key20.aks` (`Spec/Compression/Akita/Key20Tower`,
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.tower_suffix
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.towerError_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.towerError_le_pow
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.key20_points
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.sound

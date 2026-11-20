@@ -6,7 +6,13 @@ import NightstreamFPrime.Spec.Compression.Akita.Key20Tower
 of 2026-10-15, Theorem 10.17, Proposition 10.44 and Theorem 10.46).
 
 `sound` is `FinalAkita.mixed_sound` for the numbers of `Spec/Compression/Akita/Key20.lean`, with
-the bound `Key20.towerError_le` of the stage errors of the opening and its 142 retry loops. -/
+the bound `Key20.towerError_le` of the stage errors of the opening and its 142 retry loops.
+
+`sound` holds for each `setup`. `key20_points` gives the numbers of the three opening claims for
+a setup with the key polynomial of 512 blocks, which is the key of `key20.aks`: the point of the
+key polynomial has 20 coordinates, the point of `W` has 16 coordinates, and the point of `V` has
+`spanVars + 2 + setup.zeros` coordinates with `spanVars + 2 ≤ 16`. The link `RootLinked` of the
+root needs 20, 16 and 16 coordinates or more (`Key20.root_points`). -/
 
 set_option autoImplicit false
 
@@ -127,6 +133,36 @@ local notation "opening" =>
     32 32 16 16 16 (Compose.root C vf) (Compose.read C) commit value place
 
 local notation "whole" => Compose.chain C vf accepts opening key openKey mass Sum.inl
+
+/-- The numbers of the opening claims of the argument for the key polynomial of `key20.aks`
+(Rust `Layout::new` with `akita::SCHEDULES`, and SPEC.md Algorithm 10, the Akita claims). For laid
+claims and a key polynomial of 512 blocks, the point `(kp, rowPoint)` of the key polynomial has
+`6 + 9 + 5 = 20` coordinates, the point `ρ` of `W` has 16 coordinates, and the point of `V` has
+`spanVars + 2` coordinates before its `setup.zeros` zeros, with `spanVars + 2 ≤ 16`. These are
+the sizes `2^20`, `2^16` and `2^16` of the tables of the groups of `Key20.root`. The point of `V`
+has 16 coordinates when `setup.zeros = 16 − 2 − spanVars`, which is the value of Rust
+`inverse_point`. -/
+theorem key20_points (laid : setup.Laid shape) (blocks : setup.keyBlocks = 512) :
+    (setup.params shape).laneVars + (setup.params shape).keyBlockVars +
+        (setup.params shape).rowVars = 20 ∧
+      (setup.params shape).witnessVars = 16 ∧
+      (setup.params shape).spanVars + (setup.verifier shape).columnVars ≤ 16 := by
+  obtain ⟨⟨l, ok⟩, -⟩ := laid
+  have same : setup.layout shape = l.production := by simp only [FinalVerifier.Setup.layout, ok]
+  unfold FinalVerifier.Setup.placed at ok
+  rw [blocks] at ok
+  obtain ⟨schedule, member, held, -, row, inRow, fits, rfl⟩ := Compression.Rust.layoutNew_ok ok
+  have all : ∀ s ∈ Compression.Rust.schedules, s.blocks = 512 →
+      s.keyVars = 20 ∧ ∀ r ∈ s.rows, r = (16, 16) := by decide
+  obtain ⟨keyVars, rows⟩ := all schedule member held
+  obtain rfl := rows row inRow
+  simp only [Compression.Rust.rowFits, Bool.and_eq_true, decide_eq_true_eq] at fits
+  show 6 + (setup.layout shape).keyBlockVars + 5 = 20 ∧ (setup.layout shape).witnessVars = 16 ∧
+    (setup.layout shape).spanVars + 2 ≤ 16
+  rw [same]
+  show 6 + (schedule.keyVars - 6 - 5) + 5 = 20 ∧ (16 : ℕ) = 16 ∧ _ + 2 ≤ 16
+  rw [keyVars]
+  exact ⟨rfl, rfl, fits.2⟩
 
 /-- Soundness of the final verifier over the Akita opening of the schedule `key20.aks`
 (`FinalAkita.mixed_sound` for the numbers of `Key20.lean`). For each prover with at most `Q`

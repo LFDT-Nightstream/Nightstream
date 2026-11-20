@@ -1,6 +1,8 @@
 import NightstreamFPrime.Spec.Compression.Akita
 import NightstreamFPrime.Spec.Compression.Akita.Binding
+import NightstreamFPrime.Spec.Compression.Akita.Challenge
 import NightstreamFPrime.Spec.Compression.Akita.Commit
+import NightstreamFPrime.Spec.Compression.Akita.Opening
 import NightstreamFPrime.Spec.Compression.Akita.Shapes
 import NightstreamFPrime.Spec.Compression.Game.Law
 import NightstreamFPrime.Spec.Compression.Game.SumCheck
@@ -25,4 +27,5 @@ and the evaluations of `Spec.CE.Holds` (`Claim`), and Π_CCS on one source as a 
 and Akita as a polynomial commitment scheme with the premises of `[AKITA]` (`Akita`), with the
 Akita commitment (`Akita/Commitment`, `Akita/Commit`), the shapes of the key group of the schedule
 files (`Akita/Shapes`) and the binding of the commitment of the compression key from Module-SIS
-(`Akita/Binding`). -/
+(`Akita/Binding`), and the embedding of the challenge subring (`Akita/Embed`), the norms of the fold
+challenges (`Akita/Challenge`) and the opening path of a packing fold (`Akita/Opening`). -/

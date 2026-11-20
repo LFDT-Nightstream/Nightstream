@@ -7,7 +7,7 @@ use crate::ir::{pack_function_call_metadata, WasmPcEdgeKind, WasmProgramError};
 use crate::isa::{opcode_code, WasmOpcode};
 use crate::preprocess::WASM32_MAX_PAGES;
 use std::collections::BTreeMap;
-use wasmparser::{Parser, Payload};
+use wasmparser::{Parser, Payload, ValidPayload, Validator};
 
 /// Parsed program tables and capture metadata, paired with application-authored
 /// host-event bindings. Lazy capture constructs this pair from the executing
@@ -138,15 +138,21 @@ pub(crate) struct ParsedFunctionMeta {
 }
 
 pub(super) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtifacts, WasmProgramError> {
-    let (stacks_by_offset, operand_types) = super::branch_stack::operator_stacks_by_offset(wasm_bytes)?;
-    let mut builder = ParsedWasmArtifactsBuilder {
-        stacks_by_offset,
-        operand_types,
-        ..Default::default()
-    };
+    let mut builder = ParsedWasmArtifactsBuilder::default();
+    let mut validator = Validator::new();
+    let mut allocations = Default::default();
     for payload in Parser::new(0).parse_all(wasm_bytes) {
         let payload =
             payload.map_err(|err| WasmProgramError::Invalid(format!("failed to parse wasm payload: {err}")))?;
+        if let ValidPayload::Func(function, body) = validator
+            .payload(&payload)
+            .map_err(|err| WasmProgramError::Invalid(format!("invalid wasm program: {err}")))?
+        {
+            let mut function = function.into_validator(allocations);
+            builder.stacks_by_offset =
+                super::branch_stack::operator_stacks_by_offset(&mut function, &body, &mut builder.operand_types)?;
+            allocations = function.into_allocations();
+        }
         builder.consume_payload(payload)?;
     }
     builder.finish()

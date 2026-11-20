@@ -1,9 +1,7 @@
 use super::decode::OperandLane;
 use crate::ir::WasmProgramError;
 use std::collections::BTreeMap;
-use wasmparser::{
-    FrameKind, FuncValidator, ModuleArity, Operator, Parser, ValidPayload, Validator, WasmModuleResources,
-};
+use wasmparser::{FrameKind, FuncValidator, FunctionBody, ModuleArity, Operator, WasmModuleResources};
 
 pub(super) type FrameSlideEdges = Vec<(u64, u32, u32)>;
 
@@ -42,12 +40,12 @@ impl OperandTypes {
         &mut self,
         mut top: usize,
         height: usize,
-        outputs: Option<u32>,
+        outputs: u32,
         validator: &FuncValidator<T>,
         offset: usize,
     ) -> Result<usize, WasmProgramError> {
         let next_height = validator.operand_stack_height() as usize;
-        let prefix = outputs.map_or(0, |count| next_height.saturating_sub(count as usize));
+        let prefix = next_height.saturating_sub(outputs as usize);
         for _ in prefix..height {
             self.pop(&mut top);
         }
@@ -122,96 +120,90 @@ fn narrow(value: usize, offset: usize) -> Result<u32, WasmProgramError> {
     u32::try_from(value).map_err(|_| WasmProgramError::Unsupported(format!("frame slide too large at byte {offset}")))
 }
 
-pub(super) fn operator_stacks_by_offset(
-    bytes: &[u8],
-) -> Result<(BTreeMap<u32, OperatorStack>, OperandTypes), WasmProgramError> {
+pub(super) fn operator_stacks_by_offset<T: WasmModuleResources>(
+    function: &mut FuncValidator<T>,
+    body: &FunctionBody<'_>,
+    operand_types: &mut OperandTypes,
+) -> Result<BTreeMap<u32, OperatorStack>, WasmProgramError> {
     let invalid = |error| WasmProgramError::Invalid(format!("invalid wasm program: {error}"));
     let mut stacks = BTreeMap::new();
-    let mut operand_types = OperandTypes::default();
-    let mut validator = Validator::new();
-    let mut allocations = Default::default();
-    for payload in Parser::new(0).parse_all(bytes) {
-        let payload = payload.map_err(invalid)?;
-        if let ValidPayload::Func(function, body) = validator.payload(&payload).map_err(invalid)? {
-            let mut function = function.into_validator(allocations);
-            function
-                .read_locals(&mut body.get_binary_reader())
-                .map_err(invalid)?;
-            let mut operators = body.get_operators_reader().map_err(invalid)?;
-            let mut top = 0;
-            while !operators.eof() {
-                let offset = operators.original_position();
-                let operator = operators.read().map_err(invalid)?;
-                let frame = function.get_control_frame(0).ok_or_else(|| {
-                    WasmProgramError::Invalid(format!("operator outside a function at byte {offset}"))
-                })?;
-                let reachable = !frame.unreachable;
-                let height = function.operand_stack_height() as usize;
-                let frame_operands = FrameOperands {
-                    top,
-                    len: height.checked_sub(frame.height).ok_or_else(|| {
-                        WasmProgramError::Invalid(format!("operand stack below its control frame at byte {offset}"))
-                    })?,
-                };
-                let edges = match &operator {
-                    Operator::End if function.control_stack_height() == 1 => {
-                        let (results, _) = arity(&function, 0, offset)?;
-                        let (kept, distance) = function_return(&function, results as usize, offset)?;
-                        vec![(0, kept, distance)]
-                    }
-                    _ if !reachable => vec![],
-                    // A `br` to the body's own label is a `return`.
-                    Operator::Br { relative_depth }
-                        if *relative_depth as usize == function.control_stack_height() as usize - 1 =>
-                    {
-                        let (kept, distance) = function_return(&function, height, offset)?;
-                        vec![(0, kept, distance)]
-                    }
-                    Operator::Br { relative_depth } => {
-                        let (kept, distance) = branch(&function, *relative_depth, 0, offset)?;
-                        vec![(0, kept, distance)]
-                    }
-                    Operator::BrIf { relative_depth } => {
-                        let (kept, distance) = branch(&function, *relative_depth, 1, offset)?;
-                        vec![(0, 0, 0), (1, kept, distance)]
-                    }
-                    Operator::BrTable { targets } => {
-                        let mut edges = Vec::new();
-                        for (arm, target) in targets.targets().enumerate() {
-                            let (kept, distance) = branch(&function, target.map_err(invalid)?, 1, offset)?;
-                            edges.push((arm as u64 + 1, kept, distance));
-                        }
-                        let (kept, distance) = branch(&function, targets.default(), 1, offset)?;
-                        edges.push((0, kept, distance));
-                        edges
-                    }
-                    Operator::Return => {
-                        let (kept, distance) = function_return(&function, height, offset)?;
-                        vec![(0, kept, distance)]
-                    }
-                    _ => vec![],
-                };
-                stacks.insert(
-                    narrow(offset, offset)?,
-                    OperatorStack {
-                        height: narrow(height, offset)?,
-                        frame_operands,
-                        slides: edges,
-                    },
-                );
-                let outputs = operator.operator_arity(&function).map(|(_, count)| count);
-                function.op(offset, &operator).map_err(invalid)?;
-                top = operand_types.update(top, height, outputs, &function, offset)?;
+    function
+        .read_locals(&mut body.get_binary_reader())
+        .map_err(invalid)?;
+    let mut operators = body.get_operators_reader().map_err(invalid)?;
+    let mut top = 0;
+    while !operators.eof() {
+        let offset = operators.original_position();
+        let operator = operators.read().map_err(invalid)?;
+        let frame = function
+            .get_control_frame(0)
+            .ok_or_else(|| WasmProgramError::Invalid(format!("operator outside a function at byte {offset}")))?;
+        let reachable = !frame.unreachable;
+        let height = function.operand_stack_height() as usize;
+        let frame_operands = FrameOperands {
+            top,
+            len: height.checked_sub(frame.height).ok_or_else(|| {
+                WasmProgramError::Invalid(format!("operand stack below its control frame at byte {offset}"))
+            })?,
+        };
+        let edges = match &operator {
+            Operator::End if function.control_stack_height() == 1 => {
+                let (results, _) = arity(function, 0, offset)?;
+                let (kept, distance) = function_return(function, results as usize, offset)?;
+                vec![(0, kept, distance)]
             }
-            let end_offset = operators.original_position();
-            operators
-                .get_binary_reader()
-                .finish_expression(&function.visitor(end_offset))
-                .map_err(invalid)?;
-            allocations = function.into_allocations();
-        }
+            _ if !reachable => vec![],
+            // A `br` to the body's own label is a `return`.
+            Operator::Br { relative_depth }
+                if *relative_depth as usize == function.control_stack_height() as usize - 1 =>
+            {
+                let (kept, distance) = function_return(function, height, offset)?;
+                vec![(0, kept, distance)]
+            }
+            Operator::Br { relative_depth } => {
+                let (kept, distance) = branch(function, *relative_depth, 0, offset)?;
+                vec![(0, kept, distance)]
+            }
+            Operator::BrIf { relative_depth } => {
+                let (kept, distance) = branch(function, *relative_depth, 1, offset)?;
+                vec![(0, 0, 0), (1, kept, distance)]
+            }
+            Operator::BrTable { targets } => {
+                let mut edges = Vec::new();
+                for (arm, target) in targets.targets().enumerate() {
+                    let (kept, distance) = branch(function, target.map_err(invalid)?, 1, offset)?;
+                    edges.push((arm as u64 + 1, kept, distance));
+                }
+                let (kept, distance) = branch(function, targets.default(), 1, offset)?;
+                edges.push((0, kept, distance));
+                edges
+            }
+            Operator::Return => {
+                let (kept, distance) = function_return(function, height, offset)?;
+                vec![(0, kept, distance)]
+            }
+            _ => vec![],
+        };
+        stacks.insert(
+            narrow(offset, offset)?,
+            OperatorStack {
+                height: narrow(height, offset)?,
+                frame_operands,
+                slides: edges,
+            },
+        );
+        let arity = operator.operator_arity(function);
+        function.op(offset, &operator).map_err(invalid)?;
+        let (_, outputs) =
+            arity.ok_or_else(|| WasmProgramError::Unsupported(format!("unknown operator arity at byte {offset}")))?;
+        top = operand_types.update(top, height, outputs, function, offset)?;
     }
-    Ok((stacks, operand_types))
+    let end_offset = operators.original_position();
+    operators
+        .get_binary_reader()
+        .finish_expression(&function.visitor(end_offset))
+        .map_err(invalid)?;
+    Ok(stacks)
 }
 
 #[cfg(test)]

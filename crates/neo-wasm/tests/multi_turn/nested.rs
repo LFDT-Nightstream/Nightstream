@@ -3,8 +3,8 @@ use neo_wasm::host_event_bindings::{
     EventBlock, ExportTemplate, HostEventBindings, ImportTemplate, Limb, MemoryBase, SlotBinding,
 };
 use neo_wasm::{
-    traces_from_wasmtime_steps_with_host_events as normalize, WasmOpcode, WasmOutputState, WasmProgramArtifacts,
-    WasmVmStep, WasmtimeTraceHandler, WasmtimeTraceRegistry, WasmtimeTraceStep,
+    traces_from_wasmtime_steps_with_host_events as normalize, WasmBuildError, WasmOpcode, WasmOutputState,
+    WasmProgramArtifacts, WasmVmStep, WasmtimeTraceHandler, WasmtimeTraceRegistry, WasmtimeTraceStep,
 };
 use wasmtime::{Caller, Config, Engine, Instance, Linker, Module, Store, Trap, Val};
 
@@ -17,6 +17,13 @@ const LEAF: u32 = 4;
 const FAIL: u32 = 5;
 const TERMINAL_TRAP: u32 = 6;
 const DIVIDE: u32 = 7;
+const WRITE_THEN_FAIL: u32 = 8;
+const READ_UNBOUND: u32 = 9;
+const READ_BOUND: u32 = 10;
+const CALL_FAIL: u32 = 11;
+const SCRATCH_ADDR: u32 = 32;
+const SCRATCH_WORD: u32 = 0x1234_5678;
+const SECOND_WORD: u32 = 0x89ab_cdef;
 
 const MODULE: &str = r#"
     (module
@@ -33,13 +40,19 @@ const MODULE: &str = r#"
         i32.const 20 i32.const 0 i32.store)
       (func (export "leaf") (result i32)
         i32.const 24 i32.load)
-      (func (export "fail") (result i32) unreachable)
+      (func $fail (export "fail") (result i32) unreachable)
       (func (export "terminal_trap") (result i32)
         i32.const 16 i32.const 0 call $invoke
         i32.const 16 i32.load i32.add drop
         i32.const 16 i32.const 0 i32.store
         unreachable)
-      (func (export "divide") (result i32) i32.const 7 i32.const 0 i32.div_u))
+      (func (export "divide") (result i32) i32.const 7 i32.const 0 i32.div_u)
+      (func (export "write_then_fail") (param i32) (result i32)
+        i32.const 32 local.get 0 i32.store
+        unreachable)
+      (func (export "read_unbound") (param i32) (result i32) local.get 0 i32.load)
+      (func (export "read_bound") (param i32) (result i32) local.get 0 i32.load)
+      (func (export "call_fail") (result i32) i32.const 7 call $fail i32.add))
 "#;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -48,6 +61,7 @@ enum Mode {
     CatchInner,
     CatchOuter,
     Propagate,
+    WriteThenPropagate,
 }
 
 fn event(slots: &[SlotBinding]) -> EventBlock {
@@ -59,26 +73,46 @@ fn event(slots: &[SlotBinding]) -> EventBlock {
 fn bindings() -> HostEventBindings {
     use SlotBinding::*;
     let mut bindings = HostEventBindings::default();
-    for fref in [RUN, MIDDLE, LEAF, FAIL, TERMINAL_TRAP, DIVIDE] {
+    for fref in [
+        RUN,
+        MIDDLE,
+        LEAF,
+        FAIL,
+        TERMINAL_TRAP,
+        DIVIDE,
+        WRITE_THEN_FAIL,
+        READ_UNBOUND,
+        READ_BOUND,
+        CALL_FAIL,
+    ] {
         let tag = u64::from(fref) * 10;
-        let has_mode = matches!(fref, RUN | MIDDLE);
+        let has_param = matches!(fref, RUN | MIDDLE | WRITE_THEN_FAIL | READ_UNBOUND | READ_BOUND);
+        let binds_memory = fref == READ_BOUND;
         bindings.exports.insert(
             fref,
             ExportTemplate {
-                entry: if has_mode {
-                    vec![event(&[
+                entry: if has_param {
+                    let mut slots = vec![
                         Const(tag),
                         InputLocal {
                             input: 0,
                             local: 0,
                             limb: Limb::Lo,
                         },
-                    ])]
+                    ];
+                    if binds_memory {
+                        slots.push(MemoryWrite32 {
+                            input: 1,
+                            base: MemoryBase::Local(0),
+                            byte_offset: 0,
+                        });
+                    }
+                    vec![event(&slots)]
                 } else {
                     vec![]
                 },
                 exit: vec![event(&[Const(tag + 1), OutputElem { limb: Limb::Lo }])],
-                entry_input_count: u8::from(has_mode),
+                entry_input_count: u8::from(has_param) + u8::from(binds_memory),
             },
         );
     }
@@ -109,7 +143,7 @@ async fn callback(caller: &mut Caller<'_, WasmtimeTraceRegistry>, name: &str, ar
     Ok(result[0].i32().unwrap())
 }
 
-fn runtime(trap: Trap) -> (Store<WasmtimeTraceRegistry>, Instance) {
+fn runtime(trap: Trap, scratch_word: u32) -> (Store<WasmtimeTraceRegistry>, Instance) {
     let bytes = wat::parse_str(MODULE).unwrap();
     let mut config = Config::new();
     config.guest_debug(true);
@@ -139,12 +173,19 @@ fn runtime(trap: Trap) -> (Store<WasmtimeTraceRegistry>, Instance) {
                         }
                         20 => {
                             if mode != Mode::Success as i32 {
-                                let export = match trap {
-                                    Trap::IntegerDivisionByZero => "divide",
-                                    Trap::UnreachableCodeReached => "fail",
+                                let export = match (mode == Mode::WriteThenPropagate as i32, trap) {
+                                    (true, Trap::UnreachableCodeReached) => "write_then_fail",
+                                    (false, Trap::IntegerDivisionByZero) => "divide",
+                                    (false, Trap::UnreachableCodeReached) => "fail",
                                     _ => unreachable!(),
                                 };
-                                let error = callback(&mut caller, export, &[]).await.unwrap_err();
+                                let args = [Val::I32(scratch_word as i32)];
+                                let args = if mode == Mode::WriteThenPropagate as i32 {
+                                    &args[..]
+                                } else {
+                                    &[]
+                                };
+                                let error = callback(&mut caller, export, args).await.unwrap_err();
                                 assert_eq!(error.downcast_ref::<Trap>(), Some(&trap));
                                 if mode != Mode::CatchInner as i32 {
                                     return Err(error);
@@ -192,7 +233,9 @@ fn check_capture(rows: &[WasmtimeTraceStep], export: u32, mode: Mode, trap: Trap
     let mut expected = vec![(export, 1), (MIDDLE, 2)];
     if mode != Mode::Success {
         expected.push((
-            if trap == Trap::IntegerDivisionByZero {
+            if mode == Mode::WriteThenPropagate {
+                WRITE_THEN_FAIL
+            } else if trap == Trap::IntegerDivisionByZero {
                 DIVIDE
             } else {
                 FAIL
@@ -203,7 +246,7 @@ fn check_capture(rows: &[WasmtimeTraceStep], export: u32, mode: Mode, trap: Trap
     if mode == Mode::CatchOuter {
         expected.push((MIDDLE, 2));
     }
-    if mode != Mode::Propagate {
+    if !matches!(mode, Mode::Propagate | Mode::WriteThenPropagate) {
         expected.extend([(LEAF, 3), (MIDDLE, 2), (export, 1)]);
     }
     assert_eq!(callbacks, expected, "Wasmtime callback order for {mode:?}");
@@ -215,7 +258,7 @@ fn check_capture(rows: &[WasmtimeTraceStep], export: u32, mode: Mode, trap: Trap
     let returned: &[Option<u32>] = match mode {
         Mode::Success | Mode::CatchInner => &[Some(16), Some(20)],
         Mode::CatchOuter => &[Some(16), None, Some(20)],
-        Mode::Propagate => &[None, None],
+        Mode::Propagate | Mode::WriteThenPropagate => &[None, None],
     };
     assert_eq!(calls.len(), returned.len());
     for (call, &address) in calls.into_iter().zip(returned) {
@@ -292,7 +335,22 @@ fn check_turn(trace: &[WasmVmStep], export: u32) {
     }
     assert_eq!(events, expected);
 
-    let memory: Vec<_> = trace
+    assert_eq!(
+        memory_effects(trace),
+        [
+            (24, 7, 7),
+            (20, 0, 23),
+            (20, 23, 23),
+            (20, 23, 0),
+            (16, 0, 19),
+            (16, 19, 19),
+            (16, 19, 0)
+        ]
+    );
+}
+
+fn memory_effects(trace: &[WasmVmStep]) -> Vec<(u64, u32, u32)> {
+    trace
         .iter()
         .filter_map(|row| {
             row.linear_memory.map(|access| {
@@ -304,19 +362,7 @@ fn check_turn(trace: &[WasmVmStep], export: u32) {
                 (lane.word_addr * 4, lane.value_before, lane.value_after)
             })
         })
-        .collect();
-    assert_eq!(
-        memory,
-        [
-            (24, 7, 7),
-            (20, 0, 23),
-            (20, 23, 23),
-            (20, 23, 0),
-            (16, 0, 19),
-            (16, 19, 19),
-            (16, 19, 0)
-        ]
-    );
+        .collect()
 }
 
 fn check_rows(trace: &[WasmVmStep], artifacts: &WasmProgramArtifacts, export: u32) {
@@ -348,29 +394,35 @@ fn successful_followup(
 }
 
 fn check_recovery(mode: Mode, trap: Trap) -> (Vec<WasmVmStep>, WasmProgramArtifacts) {
-    let (mut store, instance) = runtime(trap);
+    let (mut store, instance) = runtime(trap, SCRATCH_WORD);
     let result = invoke(&mut store, instance, "run", &[Val::I32(mode as i32)]);
     match mode {
         Mode::CatchInner | Mode::CatchOuter => assert_eq!(result.unwrap(), 79),
         Mode::Propagate => assert_eq!(result.unwrap_err().downcast_ref::<Trap>(), Some(&trap)),
-        Mode::Success => unreachable!(),
+        Mode::Success | Mode::WriteThenPropagate => unreachable!(),
     }
     let captured = store.data().single_instance().unwrap();
     let prefix_len = captured.steps().len();
     check_capture(captured.steps(), RUN, mode, trap);
     let error = normalize(captured.steps(), captured.artifacts(), Default::default())
-        .expect_err("nested trap unwinding is outside the trace relation");
+        .expect_err("caught trap or incomplete nested unwind is unsupported");
     let reason = match mode {
         Mode::CatchInner | Mode::CatchOuter => "is not the final step",
         Mode::Propagate => "suspended host activation",
-        Mode::Success => unreachable!(),
+        Mode::Success | Mode::WriteThenPropagate => unreachable!(),
     };
     assert!(error.to_string().contains(reason), "{mode:?} {trap:?}: {error}");
     let recovered = successful_followup(&mut store, instance, prefix_len, trap);
     let captured = store.data().single_instance().unwrap();
     check_capture(&captured.steps()[..prefix_len], RUN, mode, trap);
-    let combined = normalize(captured.steps(), captured.artifacts(), Default::default())
-        .expect_err("a later invocation cannot continue the trapped row");
+    let combined = normalize(captured.steps(), captured.artifacts(), Default::default());
+    if mode == Mode::Propagate {
+        let trace = combined.expect("normalize propagated trap and recovery together");
+        assert_eq!(common::observe_turns(&trace), 1);
+        check_rows(&trace, captured.artifacts(), RUN);
+        return (trace, captured.artifacts().clone());
+    }
+    let combined = combined.expect_err("caught callback trap is unsupported");
     assert!(
         combined.to_string().contains("is not the final step"),
         "{mode:?} {trap:?}: {combined}"
@@ -378,9 +430,169 @@ fn check_recovery(mode: Mode, trap: Trap) -> (Vec<WasmVmStep>, WasmProgramArtifa
     recovered
 }
 
+fn check_raw_scratch_access(row: &WasmtimeTraceStep, opcode: WasmOpcode, before: u32, after: u32) {
+    assert_eq!(row.opcode_decoded, Some(opcode));
+    let access = row.memory.as_ref().unwrap();
+    assert_eq!(
+        (access.effective_address, access.width_bytes),
+        (u64::from(SCRATCH_ADDR), 4)
+    );
+    assert_eq!((access.lane0.value_before, access.lane0.value_after), (before, after));
+}
+
+fn check_persisted_word_recovery(word: u32) -> (Vec<WasmVmStep>, Vec<WasmVmStep>, WasmProgramArtifacts) {
+    let trap = Trap::UnreachableCodeReached;
+    let (mut store, instance) = runtime(trap, word);
+    let memory = instance.get_memory(&mut store, "memory").unwrap();
+    let word_bytes = word.to_le_bytes();
+    let address = SCRATCH_ADDR as usize;
+    let scratch = address..address + word_bytes.len();
+    assert_eq!(&memory.data(&store)[scratch.clone()], &[0; 4]);
+    let mode = Mode::WriteThenPropagate;
+    let error = invoke(&mut store, instance, "run", &[Val::I32(mode as i32)]).unwrap_err();
+    assert_eq!(error.downcast_ref::<Trap>(), Some(&trap));
+    assert_eq!(&memory.data(&store)[scratch.clone()], &word_bytes);
+
+    let captured = store.data().single_instance().unwrap();
+    let trapped_steps = captured.steps().to_vec();
+    check_capture(&trapped_steps, RUN, mode, trap);
+    let (fail, before_trap) = trapped_steps.split_last().unwrap();
+    let write = before_trap.last().unwrap();
+    check_raw_scratch_access(write, WasmOpcode::I32Store, 0, word);
+    assert_eq!(fail.opcode_decoded, Some(WasmOpcode::Unreachable));
+    for step in [write, fail] {
+        assert_eq!(
+            (step.current_function_ref, step.activation_depth),
+            (Some(WRITE_THEN_FAIL), 3)
+        );
+    }
+    let error = normalize(&trapped_steps, captured.artifacts(), Default::default()).unwrap_err();
+    assert!(error.to_string().contains("suspended host activation"), "{error}");
+
+    let args = [Val::I32(SCRATCH_ADDR as i32)];
+    assert_eq!(
+        invoke(&mut store, instance, "read_unbound", &args).unwrap(),
+        word as i32
+    );
+    assert_eq!(&memory.data(&store)[scratch.clone()], &word_bytes);
+    let captured = store.data().single_instance().unwrap();
+    assert_eq!(&captured.steps()[..trapped_steps.len()], trapped_steps.as_slice());
+    let unbound = &captured.steps()[trapped_steps.len()..];
+    let load = unbound.iter().find(|row| row.memory.is_some()).unwrap();
+    assert_eq!(
+        (load.current_function_ref, load.activation_depth),
+        (Some(READ_UNBOUND), 1)
+    );
+    check_raw_scratch_access(load, WasmOpcode::I32Load, word, word);
+    let error = normalize(unbound, captured.artifacts(), Default::default()).unwrap_err();
+    let reason = format!("word {}: trace observed {word}, replay has 0", SCRATCH_ADDR / 4);
+    assert!(
+        matches!(&error, WasmBuildError::Trace(message) if message.contains("linear-memory replay mismatch") && message.ends_with(&reason)),
+        "{error}"
+    );
+    let artifacts = captured.artifacts();
+    let combined = normalize(captured.steps(), artifacts, Default::default()).expect("normalize both top-level calls");
+    check_rows(&combined, artifacts, RUN);
+    assert_eq!(common::observe_turns(&combined), 1);
+    let unwinds: Vec<_> = combined
+        .iter()
+        .filter(|row| row.row_kind.is_turn_boundary() && row.state_before.trapped)
+        .collect();
+    let [unwind] = unwinds.as_slice() else {
+        panic!("expected one trap unwind")
+    };
+    let before = unwind.state_before;
+    let after = unwind.state_after;
+    assert_eq!((before.call_stack_depth, before.host_events.host_frame_depth), (2, 2));
+    assert!(before.activation_finished);
+    assert_eq!(before.output, WasmOutputState::ZERO);
+    assert_eq!((after.call_stack_depth, after.host_events.host_frame_depth), (0, 0));
+    assert_eq!(after.host_events.turn_export_fref, READ_UNBOUND);
+    assert!(!after.trapped && !after.activation_finished && !after.host_events.awaiting_host);
+    assert_eq!(after.output, WasmOutputState::ZERO);
+    assert!(combined.iter().all(|row| !row.row_kind.is_host_resume()));
+    assert_eq!(
+        memory_effects(&combined),
+        [
+            (u64::from(SCRATCH_ADDR), 0, word),
+            (u64::from(SCRATCH_ADDR), word, word),
+        ]
+    );
+    let events = [
+        (20, mode as u64),
+        (10, 16),
+        (30, mode as u64),
+        (10, 20),
+        (80, u64::from(word)),
+        (90, u64::from(SCRATCH_ADDR)),
+        (91, u64::from(word)),
+    ]
+    .map(|(tag, argument)| [tag, argument, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(common::absorbed_blocks(&combined), events);
+    let end = common::final_state(&combined);
+    assert!(end.is_terminal() && !end.trapped);
+    assert_eq!(
+        end.output,
+        WasmOutputState {
+            enabled: true,
+            value_lo: word,
+            value_hi: 0
+        }
+    );
+    assert_eq!(
+        end.comm_chain,
+        events
+            .into_iter()
+            .fold([0; 4], neo_wasm::comm_chain::absorb_block)
+    );
+    let before_bound = captured.steps().to_vec();
+
+    assert_eq!(invoke(&mut store, instance, "read_bound", &args).unwrap(), word as i32);
+    assert_eq!(&memory.data(&store)[scratch], &word_bytes);
+    let captured = store.data().single_instance().unwrap();
+    assert_eq!(&captured.steps()[..before_bound.len()], before_bound.as_slice());
+    let bound = &captured.steps()[before_bound.len()..];
+    let entry_bytes = bound[0].entry_memory.as_ref().unwrap().as_ref().unwrap();
+    assert_eq!(entry_bytes.len(), 4);
+    for (offset, byte) in word_bytes.into_iter().enumerate() {
+        assert_eq!(entry_bytes[&(SCRATCH_ADDR + offset as u32)], byte);
+    }
+    let load = bound.iter().find(|row| row.memory.is_some()).unwrap();
+    assert_eq!(
+        (load.current_function_ref, load.activation_depth),
+        (Some(READ_BOUND), 1)
+    );
+    check_raw_scratch_access(load, WasmOpcode::I32Load, word, word);
+    let artifacts = captured.artifacts();
+    let trace = normalize(bound, artifacts, Default::default()).expect("normalize the bound recovery invocation");
+    let end = common::final_state(&trace);
+    assert!(end.is_terminal());
+    assert!(!end.trapped);
+    assert_eq!(
+        end.output,
+        WasmOutputState {
+            enabled: true,
+            value_lo: word,
+            value_hi: 0,
+        }
+    );
+    let tag = u64::from(READ_BOUND) * 10;
+    assert_eq!(
+        common::absorbed_blocks(&trace),
+        [
+            [tag, u64::from(SCRATCH_ADDR), u64::from(word), 0, 0, 0, 0, 0],
+            [tag + 1, u64::from(word), 0, 0, 0, 0, 0, 0],
+        ]
+    );
+    let address = u64::from(SCRATCH_ADDR);
+    assert_eq!(memory_effects(&trace), [(address, 0, word), (address, word, word)]);
+    check_rows(&trace, artifacts, READ_BOUND);
+    (combined, trace, artifacts.clone())
+}
+
 #[test]
 fn nested_callbacks_across_top_level_turns() {
-    let (mut store, instance) = runtime(Trap::UnreachableCodeReached);
+    let (mut store, instance) = runtime(Trap::UnreachableCodeReached, SCRATCH_WORD);
     let mut start = 0;
     for _ in 0..2 {
         assert_eq!(invoke(&mut store, instance, "run", &[Val::I32(0)]).unwrap(), 79);
@@ -417,8 +629,42 @@ fn trapped_nested_callbacks_allow_recovery() {
 }
 
 #[test]
+fn nested_trap_preserves_a_guest_write_across_top_level_unwind() {
+    for word in [SCRATCH_WORD, SECOND_WORD] {
+        check_persisted_word_recovery(word);
+    }
+}
+
+#[test]
+fn unwind_discards_guest_frames_and_retained_operands() {
+    let trap = Trap::UnreachableCodeReached;
+    let (mut store, instance) = runtime(trap, SCRATCH_WORD);
+    let error = invoke(&mut store, instance, "call_fail", &[]).unwrap_err();
+    assert_eq!(error.downcast_ref::<Trap>(), Some(&trap));
+    assert_eq!(
+        invoke(&mut store, instance, "read_unbound", &[Val::I32(24)]).unwrap(),
+        7
+    );
+    let captured = store.data().single_instance().unwrap();
+    let trace = normalize(captured.steps(), captured.artifacts(), Default::default()).unwrap();
+    check_rows(&trace, captured.artifacts(), CALL_FAIL);
+    let boundary = trace
+        .iter()
+        .find(|row| row.row_kind.is_turn_boundary())
+        .unwrap();
+    assert!(boundary.state_before.trapped);
+    assert_eq!(boundary.state_before.call_stack_depth, 1);
+    assert_eq!(boundary.state_before.host_events.host_frame_depth, 0);
+    assert!(boundary.state_before.sp > 0);
+    assert_eq!(boundary.state_after.call_stack_depth, 0);
+    assert_eq!(boundary.state_after.locals_fbp, 0);
+    assert_eq!(common::final_state(&trace).output.value_lo, 7);
+    assert_eq!(common::observe_turns(&trace), 1);
+}
+
+#[test]
 fn top_level_trap_after_nested_callbacks() {
-    let (mut store, instance) = runtime(Trap::UnreachableCodeReached);
+    let (mut store, instance) = runtime(Trap::UnreachableCodeReached, SCRATCH_WORD);
     let error = invoke(&mut store, instance, "terminal_trap", &[]).unwrap_err();
     assert_eq!(error.downcast_ref::<Trap>(), Some(&Trap::UnreachableCodeReached));
     let captured = store.data().single_instance().unwrap();
@@ -434,6 +680,11 @@ fn top_level_trap_after_nested_callbacks() {
     check_rows(&trace, artifacts, TERMINAL_TRAP);
     let start = captured.steps().len();
     successful_followup(&mut store, instance, start, Trap::UnreachableCodeReached);
+    let captured = store.data().single_instance().unwrap();
+    let combined =
+        normalize(captured.steps(), captured.artifacts(), Default::default()).expect("recover after top-level trap");
+    check_rows(&combined, captured.artifacts(), TERMINAL_TRAP);
+    assert_eq!(common::observe_turns(&combined), 1);
 }
 
 #[test]
@@ -441,4 +692,29 @@ fn top_level_trap_after_nested_callbacks() {
 fn public_nested_callback_recovery_replay() {
     let (trace, artifacts) = check_recovery(Mode::Propagate, Trap::IntegerDivisionByZero);
     common::shared_host::prove(&trace, &artifacts);
+}
+
+#[test]
+#[ignore = "runs the public memory prover and verifier"]
+fn public_nested_trap_bound_read_replay() {
+    let (_, trace, artifacts) = check_persisted_word_recovery(SCRATCH_WORD);
+    common::shared_host::prove(&trace, &artifacts);
+}
+
+#[test]
+#[ignore = "runs the public memory prover and verifier"]
+fn public_nested_unwind_reads_callback_write() {
+    prove_callback_write(SCRATCH_WORD);
+}
+
+#[test]
+#[ignore = "runs the public memory prover and verifier"]
+fn public_nested_unwind_reads_second_callback_word() {
+    prove_callback_write(SECOND_WORD);
+}
+
+fn prove_callback_write(word: u32) {
+    let (trace, _, artifacts) = check_persisted_word_recovery(word);
+    let preload = common::shared_host::program_preload(&artifacts);
+    common::shared_host::prove_with_limits(&trace, &preload, neo_wasm::nebula::WasmSize::Small.limits(), 16);
 }

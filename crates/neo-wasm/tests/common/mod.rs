@@ -290,9 +290,11 @@ pub fn observe_turns(trace: &[WasmVmStep]) -> usize {
     let mut count = 0;
     for row in trace
         .iter()
-        .filter(|row| row.row_kind.is_turn_boundary() && row.state_before.is_terminal())
+        .filter(|row| row.row_kind.is_turn_boundary() && (row.state_before.trapped || row.state_before.is_terminal()))
     {
-        let previous = if row.state_before.output.enabled {
+        let previous = if row.state_before.trapped {
+            "trap"
+        } else if row.state_before.output.enabled {
             "value"
         } else {
             "void"

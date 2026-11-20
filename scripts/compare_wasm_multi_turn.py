@@ -45,7 +45,7 @@ def measure(commands, seconds):
         if not passed or not int(passed[1]):
             raise SystemExit(f"Missing completed tests:\n{result.stdout}")
         total_passed += int(passed[1])
-        transitions.update(re.findall(r"\bturn-transition (value|void) (\d+) (value|void) (same|different)\b",
+        transitions.update(re.findall(r"\bturn-transition (value|void|trap) (\d+) (value|void) (same|different)\b",
                                       result.stdout))
     elapsed = time.monotonic() - start
     if elapsed > seconds:

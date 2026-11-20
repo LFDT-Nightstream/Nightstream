@@ -7,6 +7,8 @@ import NightstreamFPrime.Spec.Compression.Akita.Euclid
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Budget
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Chain
 import NightstreamFPrime.Spec.Compression.Akita.Extract.FlatSource
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Honest
+import NightstreamFPrime.Spec.Compression.Akita.Extract.PairComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.PackingFold
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Recursion
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Staged
@@ -14,16 +16,19 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Suffix
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TerminalSuffix
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tier
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TierBound
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceChain
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceLevel
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceLink
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceSource
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Transcript
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Uniform
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Wire
 import NightstreamFPrime.Spec.Compression.Akita.FlatFold
 import NightstreamFPrime.Spec.Compression.Akita.FlatWitness
 import NightstreamFPrime.Spec.Compression.Akita.Fold
 import NightstreamFPrime.Spec.Compression.Akita.FoldCheck
+import NightstreamFPrime.Spec.Compression.Akita.FoldComplete
 import NightstreamFPrime.Spec.Compression.Akita.FoldSumCheck
 import NightstreamFPrime.Spec.Compression.Akita.Layout
 import NightstreamFPrime.Spec.Compression.Akita.LiftReduction
@@ -39,6 +44,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Terminal
 import NightstreamFPrime.Spec.Compression.Akita.Trace
 import NightstreamFPrime.Spec.Compression.Akita.TraceFold
 import NightstreamFPrime.Spec.Compression.Akita.TracePack
+import NightstreamFPrime.Spec.Compression.Game.Complete
 import NightstreamFPrime.Spec.Compression.Game.Law
 import NightstreamFPrime.Spec.Compression.Game.SumCheck
 import NightstreamFPrime.Spec.Compression.Lib.Combination
@@ -54,7 +60,8 @@ import NightstreamFPrime.Spec.Compression.Rust.Soundness
 import NightstreamFPrime.Spec.Compression.Rust.Transcript
 
 /-! The soundness of the compression argument over Akita (Rust `ns-compress`, SPEC.md section 6):
-a public-coin game with bad sets and its state-restoration bound (`Game`), and the lemmas of its
+a public-coin game with bad sets and its state-restoration bound, and the honest prover of a
+game (`Game`), and the lemmas of its
 steps (`Lib`), the exact algebraic identities of the argument (`Algebra`), and the verifier as a game with its
 soundness bound and its completeness for the honest prover (`Verifier`), and the production
 instance of the argument (`Production`), with the ring equations of a claim as the opening
@@ -73,7 +80,8 @@ map and the trace identity for `k = 2` (`Akita/Trace`), one fold with the evalua
 `k = 2` (`Akita/Tensor`) and the evaluation-trace terminal (`Akita/Terminal`), and the row
 batching and the quotient-free reduction (`Akita/RowBatch`), the quotient-lift reduction
 (`Akita/LiftReduction`), the sum-checks of one fold (`Akita/FoldSumCheck`), the checks of one fold
-as a game with its error (`Akita/FoldCheck`), the link from these checks to the branch relation
+as a game with its error (`Akita/FoldCheck`) and their completeness (`Akita/FoldComplete`), the
+link from these checks to the branch relation
 (`Akita/Layout`), the flat witness of one packing fold (`Akita/FlatWitness`) and the relation of
 this fold on the flat witness (`Akita/FlatFold`), and the rewinding extraction of the packing folds
 (`Akita/Extract`): a finite transcript protocol (`Transcript`), a game as the stages of a
@@ -83,7 +91,9 @@ without the witness
 (`Uniform`), one level over the later stages (`Tier`, `TierBound`), the checks for a committed
 flat witness (`FlatSource`), the composition of the levels (`Recursion`), the levels with the
 checks `foldCheck` (`Chain`), the link to a receiver with evaluation trace (`TraceLink`), a
-packing level over a trace level over the terminal (`TraceChain`) and the Fiat–Shamir budget
-(`Budget`), and the shared setup with its
+packing level over a trace level over the terminal (`TraceChain`), the Fiat–Shamir budget
+(`Budget`), and the honest prover of two packing levels: its messages on a transcript
+(`Honest`), the acceptance of its proofs (`PairComplete`), a finite type of wire messages
+(`Wire`) and a small instance with numerals (`Tiny`), and the shared setup with its
 reduction to ordinary Module-SIS (`Akita/Setup`) and the bad events of the hashed transcript
 entries (`Akita/Digest`). -/

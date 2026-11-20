@@ -1,5 +1,6 @@
 import NightstreamFPrime.Spec.FieldExtension
 import NightstreamFPrime.Spec.Compression.Akita.FoldCheck
+import NightstreamFPrime.Spec.Compression.Game.Complete
 import NightstreamFPrime.Spec.Compression.Akita.Trace
 
 /-! The tensor reduction of Akita for one claim and the extension degree `k = 2`, as a game
@@ -19,7 +20,9 @@ The reduction has `κ = 1` head variable, which is the first variable of the poi
   factor `θ = A_η(ρ)` and the final product `ṽ` of the sum-check. The bad sets are the root of the
   row discrepancy in `η` and the roots of each round.
 - `tensorCheck_avoids` is the soundness part of Akita Theorem 5.1 for one claim: on a path that
-  avoids the bad sets, a true forwarded claim `ṽ = θ·f̄(ρ)` gives the input claim. -/
+  avoids the bad sets, a true forwarded claim `ṽ = θ·f̄(ρ)` gives the input claim.
+- `tensorCheck_winsTo` and `tensorCheck_complete` are the completeness part: for a true input
+  claim, the honest prover reaches a true forwarded claim for each draw sequence. -/
 
 namespace NightstreamFPrime.Spec.Compression.Akita
 
@@ -202,5 +205,86 @@ theorem tensorCheck_avoids (ν : ℕ) (w : Table) (r : List Quadratic) (v : Quad
     (sub_eq_zero.mp (by rw [first, sub_zero] at second; exact second))
   rw [checked, left, right, mle_cons, ← mle_mul_left, ← mle_mul_left, ← mle_add]
   rfl
+
+/-- The row partials of the column partials `S_y = w̃(y, r_tail)` of an honest prover are
+`Σ_x A_u(x)·f̄(x)` (Akita Section 3.7, (⋆)): the converse of `column_of_rows`. -/
+theorem rows_of_columns {ν : ℕ} (w : Table) {tail : List Quadratic} (length : tail.length = ν)
+    (u : Bool) :
+    tensorRow (mle tail (fun x => lifted Quadratic w (2 * x)),
+      mle tail (fun x => lifted Quadratic w (2 * x + 1))) u = tensorSum ν w tail u := by
+  rw [mle_eq_cubeSum, mle_eq_cubeSum, length]
+  cases u
+  · refine QuadraticAlgebra.ext ?_ ?_
+    · show reHom (cubeSum ν _) = reHom (cubeSum ν _)
+      rw [map_cubeSum, map_cubeSum]
+      congr 1
+      funext x
+      simp [reHom, packed, lifted]
+      ring
+    · show reHom (cubeSum ν _) = imHom (cubeSum ν _)
+      rw [map_cubeSum, map_cubeSum]
+      congr 1
+      funext x
+      simp [reHom, imHom, packed, lifted]
+      ring
+  · refine QuadraticAlgebra.ext ?_ ?_
+    · show imHom (cubeSum ν _) = reHom (cubeSum ν _)
+      rw [map_cubeSum, map_cubeSum]
+      congr 1
+      funext x
+      simp [reHom, imHom, packed, lifted]
+      ring
+    · show imHom (cubeSum ν _) = imHom (cubeSum ν _)
+      rw [map_cubeSum, map_cubeSum]
+      congr 1
+      funext x
+      simp [imHom, packed, lifted]
+      ring
+
+/-- The completeness part of Akita Theorem 5.1 for one claim and `κ = 1`: for a true input claim
+`v = w̃(r_head, r_tail)`, the prover sends the column partials `S_y = w̃(y, r_tail)` and the true
+round polynomials, and the tensor reduction ends in a point `ρ` of `ν` coordinates, a factor `θ`
+and the forwarded claim `θ·f̄(ρ)`, after `ν + 1` draws. -/
+theorem tensorCheck_winsTo (fits : Type → Prop) (columns : fits (Quadratic × Quadratic))
+    (quadratic : fits (Fin (2 + 1) → Quadratic)) {ν : ℕ} (w : Table) (head : Quadratic)
+    {tail : List Quadratic} (length : tail.length = ν) :
+    WinsTo fits (tensorCheck ν w (head :: tail) (mle (head :: tail) (lifted Quadratic w)))
+      (0 + ν + 1) true fun result _ _ =>
+        ∃ (ρ : List Quadratic) (θ : Quadratic),
+          ρ.length = ν ∧ result = some (ρ, θ, θ * mle ρ (packed w)) := by
+  change WinsTo fits (ite (tail.length = ν) _ _) _ _ _
+  rw [ite_eq_left length]
+  have split : mle (head :: tail) (lifted Quadratic w) =
+      (1 - head) * mle tail (fun x => lifted Quadratic w (2 * x)) +
+        head * mle tail (fun x => lifted Quadratic w (2 * x + 1)) := by
+    rw [← mle_mul_left, ← mle_mul_left, ← mle_add]
+    rfl
+  refine ⟨rfl, columns, (mle tail (fun x => lifted Quadratic w (2 * x)),
+    mle tail (fun x => lifted Quadratic w (2 * x + 1))), ?_⟩
+  dsimp only
+  rw [ite_eq_left split]
+  intro η
+  refine (winsTo_bind fits _ _ _ _ _).mpr (sumcheck_winsTo fits
+    (combRound_truth ν 2 (tensorTables w tail η) productComb productComb_degree) quadratic 0 _ ν
+    [] _ (by simp) ?_ fun final count => ?_)
+  · rw [tensorTruth_nil, rows_of_columns w length, rows_of_columns w length]
+  · simp only [List.length_nil, zero_add] at count
+    have last := product_truth_final final (tensorTables w tail η)
+    rw [count] at last
+    refine ⟨final, mle final (tensorWeight tail η), count, ?_⟩
+    rw [last, mul_comm]
+    rfl
+
+/-- Perfect completeness of the tensor reduction for one claim: for a true input claim, a
+strategy of the prover reaches a forwarded claim `ṽ = θ·f̄(ρ)` that is true for the packed
+polynomial with probability 1. -/
+theorem tensorCheck_complete {ν : ℕ} (w : Table) (head : Quadratic) {tail : List Quadratic}
+    (length : tail.length = ν) :
+    ∃ strategy : Strategy (Option (List Quadratic × Quadratic × Quadratic)),
+      prob strategy (tensorCheck ν w (head :: tail) (mle (head :: tail) (lifted Quadratic w)))
+        (fun result => ∃ (ρ : List Quadratic) (θ : Quadratic),
+          ρ.length = ν ∧ result = some (ρ, θ, θ * mle ρ (packed w))) = 1 :=
+  ⟨_, prob_honest (fun _ => True)
+    (tensorCheck_winsTo (fun _ => True) trivial trivial w head length) fun _ _ _ ended => ended⟩
 
 end NightstreamFPrime.Spec.Compression.Akita

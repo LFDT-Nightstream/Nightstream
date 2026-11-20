@@ -4,9 +4,10 @@ import NightstreamFPrime.Spec.Compression
 /-! Axiom audits for the checks of one fold of Akita (`Spec/Compression/Akita`): row batching,
 the ring reductions, the sum-checks, the game of the checks, the link to the branch
 relation, the flat witness and the relation of one fold on it, the recursive opening suffix with
-its packing levels, its trace levels and the terminal, its rewinding extraction and its
-Fiat–Shamir budget (`Spec/Compression/Akita/Extract`), the shared
-setup (`Setup`) and the bad events of the hashed transcript entries (`Digest`). -/
+its packing levels, its trace levels and the terminal, its rewinding extraction, its
+Fiat–Shamir budget and the honest prover of two packing levels
+(`Spec/Compression/Akita/Extract`), the honest prover of a game (`Spec/Compression/Game`), the
+shared setup (`Setup`) and the bad events of the hashed transcript entries (`Digest`). -/
 
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.FieldRows.weightAt
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.FieldRows.targetAt
@@ -626,3 +627,83 @@ setup (`Setup`) and the bad events of the hashed transcript entries (`Digest`). 
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.traceTriple_extract_sound
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.traceTriple_extraction_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.traceTriple_runs_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Game.WinsTo
+#audit_axioms NightstreamFPrime.Spec.Compression.Game.winsTo_bind
+#audit_axioms NightstreamFPrime.Spec.Compression.Game.honest
+#audit_axioms NightstreamFPrime.Spec.Compression.Game.prob_honest
+#audit_axioms NightstreamFPrime.Spec.Compression.Game.sumcheck_winsTo
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.sumcheckWith_winsTo
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.fusedCheck_winsTo
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.foldCheck_winsTo
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.foldCheck_complete
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.rows_of_columns
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.tensorCheck_winsTo
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.tensorCheck_complete
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digits.sequence
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.PathDigits.Binary.firstTable
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.PathDigits.Binary.secondTable
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Witness.Alphabets.flat_cell
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Witness.Alphabets.rangeHolds
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Witness.Alphabets.binaryOn
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.lockedRelation_of_flat
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.flatFold_winsTo
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.lockedFold_winsTo
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.foldCosts_length
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.settle_winsTo
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.advance_winsTo
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.ended_of_winsTo
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.play
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.answer
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.answer_eq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.OnPath
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.onPath_nil
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.OnPath.snoc
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.OnPath.final
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Prefix.reply_of
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Prefix.wire_of
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.decoded
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.honestClaim
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.honestClaim_satisfies
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.honestClaim_value
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Full
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.packingPair_complete
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Payload.finite
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Payload.nonempty
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.PathDigits.finite
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.PathDigits.nonempty
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Point.finite
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Witness.finite
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Witness.nonempty
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Claim.finite
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Claim.nonempty
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Letter
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Letter.finite
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Letter.nonempty
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.unpack
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.unpack_surjective
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Letter.read
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Letter.full
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.normInf_one
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Sparse.one
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Sparse.neg
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.isUnit_two
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.shape
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.opening
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.fold
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.shape_honest
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.radix
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.encodable
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.decode
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.decode_member
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.decode_units
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.decode_sparse
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.Coord
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.Wire
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.basis
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.cells_first
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.cells_second
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.rows_first
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.rows_second
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.place
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.complete
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.extraction_le

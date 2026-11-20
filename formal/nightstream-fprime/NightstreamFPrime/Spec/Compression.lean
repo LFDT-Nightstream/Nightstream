@@ -78,10 +78,13 @@ import NightstreamFPrime.Spec.Compression.Claim.Slot
 import NightstreamFPrime.Spec.Compression.Fresh
 import NightstreamFPrime.Spec.Compression.Rust.Soundness
 import NightstreamFPrime.Spec.Compression.Rust.Transcript
+import NightstreamFPrime.Spec.Compression.Akita.Extract.BackComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.CheckComplete
+import NightstreamFPrime.Spec.Compression.Akita.Extract.ComposeComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.LiftComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Page
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Play
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Reject
 import NightstreamFPrime.Spec.Compression.Akita.Extract.RootComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TowerComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceComplete

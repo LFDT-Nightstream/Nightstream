@@ -2,6 +2,7 @@ import tests.AxiomAudit
 import NightstreamFPrime.Spec.Compression
 import NightstreamFPrime.Export.BoundedDepth.FinalAkita
 import NightstreamFPrime.Export.BoundedDepth.FinalKey20
+import NightstreamFPrime.Export.BoundedDepth.FinalKey20Accept
 
 /-! Axiom audits for the compression argument over the Akita opening: the verifier game in two
 parts (`Spec/Compression/Verifier/Split`), their stages, the two checkpoints of the argument and
@@ -9,7 +10,8 @@ the result over a batching root (`Spec/Compression/Akita/Extract`: `SplitGame`, 
 `Compose`, `ComposeRoot`, `Decoders`), and the final verifier over the Akita opening, with the
 tower of levels (`Export/BoundedDepth`: `FinalSplit`, `FinalAkita`), and the tower and the final
 verifier for the schedule `key20.aks` (`Spec/Compression/Akita/Key20Tower`,
-`Export/BoundedDepth/FinalKey20`). -/
+`Export/BoundedDepth/FinalKey20`), with its honest prover (`Export/BoundedDepth/FinalKey20Accept`).
+-/
 
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.bind_assoc
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.Finals
@@ -141,5 +143,13 @@ verifier for the schedule `key20.aks` (`Spec/Compression/Akita/Key20Tower`,
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.tower_suffix
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.towerError_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.towerError_le_pow
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.laidZeros
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Use
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.key20_points
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Use.points
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.sound
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.complete
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Sheet
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.sheetBound
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.sheetTerminal
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.accepts

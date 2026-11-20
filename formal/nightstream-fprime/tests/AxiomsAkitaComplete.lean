@@ -10,7 +10,9 @@ numbers of the schedule `key20.aks` (`Spec/Compression/Akita/Key20Complete`), an
 prover of the whole opening: the packing level with a bounded source (`LiftComplete`), the root
 fold with opening groups and the verifier `towerLinks` (`RootComplete`), the wire messages
 (`Page`), the zero tables (`ZeroFit`), and the schedule `key20.aks` (`Key20Root`,
-`Key20Accept`). -/
+`Key20Accept`), and for the honest prover of the compression argument before the opening: a game
+with reject sets and a checkpoint segment (`Reject`), the two parts of the verifier game
+(`BackComplete`) and the two checkpoints of the argument (`ComposeComplete`). -/
 
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Shape.Bounded
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Shape.embed
@@ -181,3 +183,38 @@ fold with opening groups and the verifier `towerLinks` (`RootComplete`), the wir
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Wire
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.terminalOf
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.zero_accepts
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Cell.entry
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Cell.values
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.ne_values
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.values_ne_nat
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Cell.sendable_values
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.settle_of_settled
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.ends_settle
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.ends_advance
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.ends_position
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Hit
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.hit_self
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.WinsOff
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.winsOff_bind
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.WinsOff.mono
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.WinsAt.off
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.WinsOff.more
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.settle_winsOff
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.advance_winsOff
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.ended_of_winsOff
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.play_off
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Segment.run
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.Rejects
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.rejects_sample
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.rejects_mass_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.led_settled
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.back_ends
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.honestInverses_zero
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.led_wins
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.shortValues
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.back_wins
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.keyBase_zero
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.back_lengths
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.Ran.lengths
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.run
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.accepts

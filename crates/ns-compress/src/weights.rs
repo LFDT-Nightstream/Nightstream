@@ -343,6 +343,7 @@ pub(crate) fn table(
     omit_zero_prefix: bool,
 ) -> Result<(Vec<K>, Vec<K>), Error> {
     let point = Point::new(challenges.delta);
+    let transform = crate::ring::LaneTransform::new(&point);
     let prefix = if omit_zero_prefix {
         layout.cells[0].witness.len()
     } else {
@@ -395,7 +396,7 @@ pub(crate) fn table(
                         let columns = conjugate(columns.try_into().expect("D columns"));
                         let element: [K; D] =
                             std::array::from_fn(|lane| evaluation.lanes[lane] * block + columns[lane] + key[lane]);
-                        for (output, lane) in output.iter_mut().zip(point.lanes(&element)) {
+                        for (output, lane) in output.iter_mut().zip(transform.lanes(&element)) {
                             *output = mu * lane;
                         }
                     }

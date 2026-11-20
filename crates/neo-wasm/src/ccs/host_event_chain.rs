@@ -15,7 +15,7 @@ use super::call::host_call_gate_terms;
 use super::host_event;
 use crate::gadgets::push_gated_linear_zero;
 use crate::ir::{WasmHostEventSlotKind, WasmVmStep};
-use crate::layout::{COL_HOST_CLEAR_ACTIVATION_FINISHED, COL_HOST_RESUME, COL_HOST_SPLIT_CALL};
+use crate::layout::{COL_HOST_CLEAR_ACTIVATION_FINISHED, COL_HOST_RESUME, COL_HOST_SPLIT_CALL, COL_TRAP_UNWIND};
 use neo_application::event_commitment::{commit_block, EventCommitment, EVENT_COMMITMENT_AUX_COLUMNS};
 use neo_application::{define_column_region, ZeroTest};
 use neo_math::F;
@@ -320,6 +320,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
                 (COL_ONE, F::ONE),
                 (HOST_CALL_ACTIVE, -F::ONE),
                 (COL_HOST_RESUME, -F::ONE),
+                (COL_TRAP_UNWIND, -F::ONE),
             ],
             [(ARGS_BASE_AFTER, F::ONE), (ARGS_BASE_BEFORE, -F::ONE)],
             [],
@@ -666,6 +667,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_TRAPPED_BEFORE, F::ONE),
             (COL_HOST_CLEAR_ACTIVATION_FINISHED, F::ONE),
             (COL_HOST_EVENT_EXIT_LATCH, -F::ONE),
+            (COL_TRAP_UNWIND, -F::ONE),
         ]);
         b.push_row(
             [(COL_HOST_EVENT_EXIT_LATCH, F::ONE)],

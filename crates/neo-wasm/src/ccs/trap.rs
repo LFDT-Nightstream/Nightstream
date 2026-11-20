@@ -9,7 +9,7 @@ use super::super::layout::{
     COL_IS_PROGRAM_ROW, COL_MEMORY_PAGES_BEFORE, COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE,
     COL_OUTPUT_CAPTURED, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_VALUE_HI,
     COL_STACK_WRITE0_VALUE_LO, COL_TABLE_INDEX, COL_TABLE_OOB, COL_TABLE_SET_LIVE, COL_TABLE_SIZE, COL_TABLE_VALUE,
-    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE, COL_TRAP_UNWIND, COL_TURN_BOUNDARY,
 };
 use super::super::relation_layout::{LinearMemoryColumns, WasmRelationLayout};
 use super::{always, idx, shared, WasmTaggedR1csBuilder};
@@ -284,6 +284,11 @@ fn push_table_bounds_and_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBu
 }
 
 fn push_trapped_state_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
+    b.push_row(
+        [(COL_TURN_BOUNDARY, F::ONE)],
+        [(COL_TRAPPED_BEFORE, F::ONE)],
+        [(COL_TRAP_UNWIND, F::ONE)],
+    );
     b.push_linear_zero([
         (COL_TRAPPED_AFTER, F::ONE),
         (COL_TRAPPED_BEFORE, -F::ONE),
@@ -292,6 +297,7 @@ fn push_trapped_state_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) 
         (COL_CALL_INDIRECT_IS_TRAP, -F::ONE),
         (COL_MEM_OOB, -F::ONE),
         (COL_TABLE_OOB, -F::ONE),
+        (COL_TRAP_UNWIND, F::ONE),
     ]);
     b.push_row([(COL_IS_PROGRAM_ROW, F::ONE)], [(COL_TRAPPED_BEFORE, F::ONE)], []);
     b.push_row([(COL_OUTPUT_CAPTURED, F::ONE)], [(COL_TRAPPED_AFTER, F::ONE)], []);

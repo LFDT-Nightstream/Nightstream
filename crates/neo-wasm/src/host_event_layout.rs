@@ -100,5 +100,6 @@ define_column_region! {
         COL_TURN_BOUNDARY: Boolean =>
             "multi-turn re-entry row: re-arms the output, loads the next export's entry schedule, jumps to its entry pc",
         COL_CI_HOST_CALL: Boolean => "call_indirect invocation row targeting a host import",
+        COL_TRAP_UNWIND: Boolean => "top-level export entry after a propagated trap",
     ]
 }

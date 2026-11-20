@@ -33,9 +33,9 @@ The prose marks a derived number "(computed)". `computed_claims` recomputes thes
 derived numbers, from the Lean values of the table, Lean definitions, the Lean-emitted artifacts
 and the field constant `Q` of `crates/neo-params`.
 Each claim is a template of SPEC.md text with `{}` for each number. The text must hold each
-template, and each number must be its value: an integer exactly, and a decimal within one unit of
-its last digit. Each "(computed)" marker must be in the text of a claim or of an UNCHECKED entry,
-whose reason the script prints.
+template. Integers must match exactly. Probability bounds must match their outward rounding at
+the stated precision. An approximation must be within one unit of its last digit. Each "(computed)"
+marker must be in the text of a claim or of an UNCHECKED entry, whose reason the script prints.
 
   python3 scripts/check_spec.py            check pins, paths, the table, the computed values and
                                            the spec files
@@ -271,15 +271,17 @@ def parity_rows():
     return found
 
 
-def neg_log2_floor(numerator, denominator):
-    """`−log₂(numerator/denominator)` rounded down to two decimals, exactly."""
-    j = max(0, math.floor(100 * (math.log2(denominator) - math.log2(numerator))))
-    power_n, power_d = numerator ** 100, denominator ** 100
-    while (power_n << j) > power_d:
-        j -= 1
-    while (power_n << (j + 1)) <= power_d:
-        j += 1
-    return f"{j // 100}.{j % 100:02d}"
+def neg_log2_bound(probability, places, *, lower=False):
+    scale = 10 ** places
+    numerator = probability.numerator ** scale
+    denominator = probability.denominator ** scale
+    exponent = denominator.bit_length() - numerator.bit_length()
+    shifted = numerator << exponent
+    if lower:
+        exponent += shifted < denominator
+    else:
+        exponent -= shifted > denominator
+    return f"{exponent // scale}.{exponent % scale:0{places}d}"
 
 
 def rows():
@@ -312,7 +314,7 @@ def table(found):
         symbol, meaning = LABELS[key]
         if key in PROBABILITY_OVER_Q2:
             numerator, denominator = value
-            shown = f"{numerator}/q² ≈ 2^−{neg_log2_floor(numerator, denominator)}"
+            shown = f"{numerator}/q² ≤ 2^−{neg_log2_bound(Fraction(numerator, denominator), 2)}"
         else:
             shown = str(value)
         symbol = symbol if symbol == "—" else f"`{symbol}`"
@@ -323,8 +325,8 @@ def table(found):
         "",
         *lines,
         "",
-        "A probability is shown as `2^−x`, where `x` is `−log₂` of the exact fraction rounded down "
-        "to two decimals, so the shown bound is never below the true value.",
+        "Each probability bound in this table is `2^−x`, where `x` is `−log₂` of the exact "
+        "fraction rounded down to two decimal places.",
     ])
 
 
@@ -421,11 +423,15 @@ def computed_claims(lean):
     wasm_bits = only([size[8] for size in sizes] + [lean["gateBits"]], "the bits of the WASM sizes")
     micro, *larger = (size[5] * size[6] for size in sizes)
     q2 = q * q
+    tuples = only((tuples, lean["secureTuples"]), "the Nebula tuple cutoff")
+    memory_bits = neg_log2_bound(Fraction(2 * tuples, q2), 2)
+    if neg_log2_bound(Fraction(2 * (tuples + 1), q2), 2) == memory_bits:
+        sys.exit(f"spec: the bound 2^−{memory_bits} also accepts {tuples + 1} tuples at cutoff {tuples}")
     return [
         ("`q = 2^64 − {} = {}`, a prime", [2 ** 64 - q, q]),
         ("`(Q + 1) · {}/2^128` for light and `(Q + 1) · {}/2^128` for refresh", [light + 1, refresh + 1]),
         ("with norm below the chain norm {} (", [chain]),
-        ("has probability at most `(Q_η + 1) · 2^−{}`", [neg_log2(Fraction(2 * tuples, q2))]),
+        ("has probability at most `(Q_η + 1) · 2^−{}`", [memory_bits]),
         ("It has `ℓ = {}` rounds", [ell]),
         ("The light relation has `{} + {} = {}` rows and the refresh relation has `{} + {} = {}` rows "
          "(computed", [lean["light.relationRows"], lean["light.sboxRows"],
@@ -466,7 +472,8 @@ def computed_claims(lean):
         ("The gate of the folds already holds that minimum to {} bits.", [bits]),
         ("for each of the {} claim sets of the reference application", [len(production)]),
         ("On these sets the exact sum is between `2^−{}` and `2^−{}` and `error_bits` is {}, so the gate "
-         "loses no integer bit there (computed", [neg_log2(min(sums)), neg_log2(max(sums)), error_bits]),
+         "loses no integer bit there (computed",
+         [neg_log2_bound(min(sums), 4, lower=True), neg_log2_bound(max(sums), 4), error_bits]),
         ("Lean emits the same values for the {} claim sets of the light mode", [len(compression["light"])]),
         ("At the production shapes, `span ≤ {}`, and the terms other than the lookups are at most "
          "`{}/q²`, about `2^−{}` (computed", [n_refresh, lean_other, neg_log2(Fraction(lean_other, q2))]),
@@ -483,7 +490,7 @@ def computed_claims(lean):
         ("A value has 32 bits and a timestamp has at most {} bits, so `v + 2^32 · t` is below `2^{}`",
          [wts, 32 + wts]),
         ("**Security:** `R + M + N · B_ops ≤ {}`. This holds exactly when the fingerprint error "
-         "`2(R + M + N · B_ops)/q²` is at most `2^−{}`", [tuples, neg_log2(Fraction(2 * tuples, q2))]),
+         "`2(R + M + N · B_ops)/q²` is at most `2^−{}`", [tuples, memory_bits]),
         ("certifies exactly {} bits (", [wasm_bits]),
         ("which is {} for Micro and {} for Small, Medium and Large", [micro, only(larger, "the steps of a size")]),
         ("Extraction recovers accumulators up to `B + {}·T·(b − 1)`", [cap]),
@@ -492,12 +499,16 @@ def computed_claims(lean):
 
 
 def agrees(shown, value):
+    if isinstance(value, str):
+        return shown == value
     if isinstance(value, int):
         return "." not in shown and int(shown.replace(",", "")) == value
     return abs(float(shown) - value) < 10 ** -len(shown.partition(".")[2])
 
 
 def formatted(value, shown):
+    if isinstance(value, str):
+        return value
     return f"{value:,}" if isinstance(value, int) else f"{value:.{len(shown.partition('.')[2])}f}"
 
 

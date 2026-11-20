@@ -286,6 +286,31 @@ pub fn assert_rejected(z: &[F], label: &str) {
     );
 }
 
+pub fn observe_turns(trace: &[WasmVmStep]) {
+    for row in trace
+        .iter()
+        .filter(|row| row.row_kind.is_turn_boundary() && row.state_before.activation_finished)
+    {
+        let previous = if row.state_before.output.enabled {
+            "value"
+        } else {
+            "void"
+        };
+        let next = match row.call_result_count {
+            Some(0) => "void",
+            Some(1) => "value",
+            arity => panic!("unexpected turn result count {arity:?}"),
+        };
+        let export = if row.state_before.host_events.turn_export_fref == row.state_after.host_events.turn_export_fref {
+            "same"
+        } else {
+            "different"
+        };
+        let params = row.call_param_count.expect("turn parameter count");
+        eprintln!("turn-transition {previous} {params} {next} {export}");
+    }
+}
+
 pub fn ccs_check_trace(trace: &[WasmVmStep]) {
     let relation = build_wasm_relation().expect("valid WASM relation");
     let ccs = relation.r1cs().structure();

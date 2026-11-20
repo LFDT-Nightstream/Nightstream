@@ -121,6 +121,7 @@ fn check_entry_values(
     assert_eq!(turn + 1, inputs.len());
     common::sanity_check_trace_with_bindings(&trace, artifacts, bindings);
     common::ccs_check_trace(&trace);
+    common::observe_turns(&trace);
     trace
 }
 

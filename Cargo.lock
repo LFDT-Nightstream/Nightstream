@@ -23,10 +23,10 @@ dependencies = [
 [[package]]
 name = "akita-algebra"
 version = "0.1.0"
-source = "git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0#3136a7312bc8c1005e2674ef324b874b22a056c0"
+source = "git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf#e97da2d630dbebacf1fad95fbaca0331ea12c3bf"
 dependencies = [
- "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "jolt-field",
  "jolt-poly",
  "rand_core 0.6.4",
@@ -51,10 +51,10 @@ dependencies = [
 [[package]]
 name = "akita-challenges"
 version = "0.1.0"
-source = "git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0#3136a7312bc8c1005e2674ef324b874b22a056c0"
+source = "git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf#e97da2d630dbebacf1fad95fbaca0331ea12c3bf"
 dependencies = [
- "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "jolt-field",
  "serde",
  "smallvec",
@@ -75,15 +75,15 @@ dependencies = [
 [[package]]
 name = "akita-config"
 version = "0.1.0"
-source = "git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0#3136a7312bc8c1005e2674ef324b874b22a056c0"
+source = "git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf#e97da2d630dbebacf1fad95fbaca0331ea12c3bf"
 dependencies = [
- "akita-challenges 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-schedules 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-types 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-challenges 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-schedules 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-types 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "jolt-field",
 ]
 
@@ -105,18 +105,18 @@ dependencies = [
 [[package]]
 name = "akita-cpu-backend"
 version = "0.1.0"
-source = "git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0#3136a7312bc8c1005e2674ef324b874b22a056c0"
+source = "git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf#e97da2d630dbebacf1fad95fbaca0331ea12c3bf"
 dependencies = [
- "akita-algebra 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-challenges 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-config 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-algebra 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-challenges 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-config 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "akita-prover",
- "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-sumcheck 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-types 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-sumcheck 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-types 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "jolt-field",
  "jolt-poly",
  "rayon",
@@ -126,7 +126,7 @@ dependencies = [
 [[package]]
 name = "akita-error"
 version = "0.1.0"
-source = "git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0#3136a7312bc8c1005e2674ef324b874b22a056c0"
+source = "git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf#e97da2d630dbebacf1fad95fbaca0331ea12c3bf"
 dependencies = [
  "thiserror",
 ]
@@ -142,14 +142,14 @@ dependencies = [
 [[package]]
 name = "akita-params"
 version = "0.1.0"
-source = "git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0#3136a7312bc8c1005e2674ef324b874b22a056c0"
+source = "git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf#e97da2d630dbebacf1fad95fbaca0331ea12c3bf"
 dependencies = [
- "akita-algebra 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-challenges 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-sumcheck 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-algebra 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-challenges 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-sumcheck 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "jolt-field",
  "jolt-transcript",
  "serde",
@@ -176,20 +176,20 @@ dependencies = [
 [[package]]
 name = "akita-pcs"
 version = "0.1.0"
-source = "git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0#3136a7312bc8c1005e2674ef324b874b22a056c0"
+source = "git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf#e97da2d630dbebacf1fad95fbaca0331ea12c3bf"
 dependencies = [
- "akita-algebra 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-challenges 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-config 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-algebra 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-challenges 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-config 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "akita-cpu-backend",
- "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "akita-prover",
- "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "akita-setup",
- "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-types 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-verifier 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-types 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-verifier 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "jolt-field",
  "rayon",
  "tracing",
@@ -198,17 +198,17 @@ dependencies = [
 [[package]]
 name = "akita-prover"
 version = "0.1.0"
-source = "git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0#3136a7312bc8c1005e2674ef324b874b22a056c0"
+source = "git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf#e97da2d630dbebacf1fad95fbaca0331ea12c3bf"
 dependencies = [
- "akita-algebra 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-challenges 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-config 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-sumcheck 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-types 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-algebra 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-challenges 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-config 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-sumcheck 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-types 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "jolt-field",
  "jolt-poly",
  "tracing",
@@ -217,11 +217,11 @@ dependencies = [
 [[package]]
 name = "akita-schedules"
 version = "0.1.0"
-source = "git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0#3136a7312bc8c1005e2674ef324b874b22a056c0"
+source = "git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf#e97da2d630dbebacf1fad95fbaca0331ea12c3bf"
 dependencies = [
- "akita-challenges 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-challenges 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "postcard",
  "serde",
  "serde_bytes",
@@ -245,7 +245,7 @@ dependencies = [
 [[package]]
 name = "akita-serialization"
 version = "0.1.0"
-source = "git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0#3136a7312bc8c1005e2674ef324b874b22a056c0"
+source = "git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf#e97da2d630dbebacf1fad95fbaca0331ea12c3bf"
 dependencies = [
  "jolt-field",
  "jolt-poly",
@@ -265,14 +265,14 @@ dependencies = [
 [[package]]
 name = "akita-setup"
 version = "0.1.0"
-source = "git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0#3136a7312bc8c1005e2674ef324b874b22a056c0"
+source = "git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf#e97da2d630dbebacf1fad95fbaca0331ea12c3bf"
 dependencies = [
- "akita-config 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-config 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "akita-cpu-backend",
- "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-types 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-types 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "jolt-field",
  "tracing",
 ]
@@ -280,12 +280,12 @@ dependencies = [
 [[package]]
 name = "akita-sumcheck"
 version = "0.1.0"
-source = "git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0#3136a7312bc8c1005e2674ef324b874b22a056c0"
+source = "git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf#e97da2d630dbebacf1fad95fbaca0331ea12c3bf"
 dependencies = [
- "akita-algebra 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-algebra 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "jolt-field",
  "jolt-poly",
 ]
@@ -306,9 +306,9 @@ dependencies = [
 [[package]]
 name = "akita-transcript"
 version = "0.1.0"
-source = "git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0#3136a7312bc8c1005e2674ef324b874b22a056c0"
+source = "git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf#e97da2d630dbebacf1fad95fbaca0331ea12c3bf"
 dependencies = [
- "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "jolt-field",
  "jolt-transcript",
  "sha3 0.12.0",
@@ -330,15 +330,15 @@ dependencies = [
 [[package]]
 name = "akita-types"
 version = "0.1.0"
-source = "git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0#3136a7312bc8c1005e2674ef324b874b22a056c0"
+source = "git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf#e97da2d630dbebacf1fad95fbaca0331ea12c3bf"
 dependencies = [
- "akita-algebra 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-challenges 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-sumcheck 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-algebra 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-challenges 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-sumcheck 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "jolt-field",
  "jolt-poly",
  "rand_core 0.6.4",
@@ -368,17 +368,17 @@ dependencies = [
 [[package]]
 name = "akita-verifier"
 version = "0.1.0"
-source = "git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0#3136a7312bc8c1005e2674ef324b874b22a056c0"
+source = "git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf#e97da2d630dbebacf1fad95fbaca0331ea12c3bf"
 dependencies = [
- "akita-algebra 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-challenges 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-config 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-sumcheck 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
- "akita-types 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-algebra 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-challenges 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-config 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-error 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-serialization 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-sumcheck 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-transcript 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
+ "akita-types 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "jolt-field",
  "jolt-poly",
  "rayon",
@@ -1544,13 +1544,13 @@ dependencies = [
 name = "ns-compress"
 version = "0.1.0"
 dependencies = [
- "akita-config 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-config 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "akita-config 0.1.0 (git+https://github.com/LayerZero-Labs/akita.git?rev=d50f700fb1a292395a717cef0e6f437c7ce2cdb1)",
- "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-params 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "akita-params 0.1.0 (git+https://github.com/LayerZero-Labs/akita.git?rev=d50f700fb1a292395a717cef0e6f437c7ce2cdb1)",
  "akita-pcs",
  "akita-serialization 0.1.0 (git+https://github.com/LayerZero-Labs/akita.git?rev=d50f700fb1a292395a717cef0e6f437c7ce2cdb1)",
- "akita-types 0.1.0 (git+https://github.com/nicarq/akita.git?rev=3136a7312bc8c1005e2674ef324b874b22a056c0)",
+ "akita-types 0.1.0 (git+https://github.com/nicarq/akita.git?rev=e97da2d630dbebacf1fad95fbaca0331ea12c3bf)",
  "akita-types 0.1.0 (git+https://github.com/LayerZero-Labs/akita.git?rev=d50f700fb1a292395a717cef0e6f437c7ce2cdb1)",
  "akita-verifier 0.1.0 (git+https://github.com/LayerZero-Labs/akita.git?rev=d50f700fb1a292395a717cef0e6f437c7ce2cdb1)",
  "jolt-field",

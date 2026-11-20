@@ -207,3 +207,33 @@ fn an_export_with_two_results_is_refused() {
         "the verifier path accepts a two-result export: {verifier:?}"
     );
 }
+
+#[test]
+fn a_reexport_with_two_results_is_refused() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (import "host" "pair" (func $pair (result i32 i32)))
+            (export "pair" (func $pair))
+            (func (export "main") (result i32) i32.const 7))"#,
+    )
+    .unwrap();
+    let verifier = extract_wasm_program_artifacts(&wasm).map(|artifacts| artifacts.tables.function_entries);
+    assert!(
+        matches!(verifier, Err(WasmProgramError::Unsupported(_))),
+        "the verifier path accepts a two-result re-export: {verifier:?}"
+    );
+}
+
+#[test]
+fn an_import_with_at_most_one_result_can_be_reexported() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (import "host" "notify" (func $notify))
+            (import "host" "get" (func $get (result i32)))
+            (export "notify" (func $notify))
+            (export "get" (func $get))
+            (func (export "main") (result i32) i32.const 7))"#,
+    )
+    .unwrap();
+    extract_wasm_program_artifacts(&wasm).expect("re-exports with at most one result must be supported");
+}

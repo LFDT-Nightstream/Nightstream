@@ -1,12 +1,14 @@
 import tests.AxiomAudit
-import NightstreamFPrime.Export.BoundedDepth.FinalKey30
+import NightstreamFPrime.Export.BoundedDepth.FinalKey30All
 
 /-! Axiom audits for the Akita opening of the schedule `key30.aks`: the numbers of the two rows
 (`Spec/Compression/Akita/Key30`), the level with the row `w_cells = 0` in `R_{q,1}`
 (`Extract/LiftSlim`), the checks of an offloaded fold (`Extract/Offload`), the group of the setup
 prefix and the offloaded step of the suffix (`Extract/Groups`), the suffix of the opening with an
-offloaded root (`Extract/OffTower`, `Key30Tower`), and the final verifier over it
-(`Export/BoundedDepth/FinalKey30`). -/
+offloaded root (`Extract/OffTower`, `Key30Tower`), the opening with the decoders `draw`
+(`Key30Opening`), the instances of Module-SIS (`Key30Instances`), the final verifier over the
+opening (`Export/BoundedDepth/FinalKey30`), and the final verifier for each claim shape and
+against a false history (`Export/BoundedDepth/FinalShapes`, `FinalKey30All`). -/
 
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.root_sized
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.root_degrees
@@ -52,3 +54,22 @@ offloaded root (`Extract/OffTower`, `Key30Tower`), and the final verifier over i
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.key30_points
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.Use.points
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.sound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.Drawn.fits
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.suffix
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.extract_sound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.extraction_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.views_covered
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.instances_exact
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.reduced
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.reduced_key
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalShapes.knowledge_all
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalShapes.sound_all
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalShapes.rejected_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalShapes.adversary_depth
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalShapes.history_sound
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalShapes.history_knowledge
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.Opening.knowledge
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.Opening.reduced
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.verifier_sound_drawn
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.history_sound_drawn
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.history_knowledge_drawn

@@ -1,5 +1,5 @@
 import NightstreamFPrime.Spec.Compression.Akita.Key20Instances
-import NightstreamFPrime.Spec.Compression.Akita.Key30
+import NightstreamFPrime.Spec.Compression.Akita.Key30Instances
 import NightstreamFPrime.Spec.Compression.Akita.Rows
 import NightstreamFPrime.Spec.Compression.Akita.Shapes
 
@@ -8,11 +8,13 @@ import NightstreamFPrime.Spec.Compression.Akita.Shapes
 of its rows has the numbers of its Lean shape and of its Lean opening descriptor
 (`Spec/Compression/Akita/Shapes.lean`). Each group of each level of `key20.aks` and its terminal
 have the numbers of `Spec/Compression/Akita/Key20.lean`, and each group of each level of each row
-of `key30.aks` and its terminal have the numbers of `Spec/Compression/Akita/Key30.lean`. Each matrix `A`, `B` and `D` of
-`key20.aks` and `A` of its terminal is below an instance of the list `Key20.instances`
-(`Spec/Compression/Akita/Key20Instances.lean`), and each instance of the list after the two
-compression maps has the degree, the rank, the width, the norm and the priced bound of a matrix
-of the file. The file does not hold the compression maps. Lake does not track the files, so
+of `key30.aks` and its terminal have the numbers of `Spec/Compression/Akita/Key30.lean`. Each
+matrix `A`, `B` and `D` of `key20.aks` and `A` of its terminal is below an instance of the list
+`Key20.instances` (`Spec/Compression/Akita/Key20Instances.lean`), and each instance of the list
+after the two compression maps has the degree, the rank, the width, the norm and the priced bound
+of a matrix of the file. The two rows of `key30.aks` have the same comparison with the list
+`Key30.instances` (`Spec/Compression/Akita/Key30Instances.lean`). A file does not hold the
+compression maps. Lake does not track the files, so
 `scripts/validate.sh` runs this file again. -/
 
 namespace AkitaSchedules
@@ -299,10 +301,12 @@ def below : ℕ × ℕ × ℕ × Bool × ℕ → ℕ × ℕ × ℕ × Bool × �
   | (d, n, m, p, η), (d', n', m', p', η') =>
       d == d' && n == n' && p == p' && decide (m ≤ m') && decide (η ≤ η')
 
-def instancesHold (path : System.FilePath) : IO Unit := do
-  let [entry] ← rows path | throw <| IO.userError s!"{path} does not have one row"
-  let views ← IO.ofExcept do fileInstances (← entry.getObjVal? "schedule")
-  let listed := Key20.instances.map (·.key)
+/-- Each matrix of each row of the file is below an instance of the Lean list `listed`, and the
+file holds each instance of the list after the two compression maps. -/
+def instancesHold (path : System.FilePath) (listed : List (ℕ × ℕ × ℕ × Bool × ℕ)) : IO Unit := do
+  let each ← (← rows path).mapM fun entry =>
+    IO.ofExcept do fileInstances (← entry.getObjVal? "schedule")
+  let views := each.flatten
   unless views.all fun view => listed.any (below view) do
     throw <| IO.userError s!"{path} has a matrix that is not below a Lean instance: the file has
       {views}, and Lean has {listed}"
@@ -318,6 +322,7 @@ def instancesHold (path : System.FilePath) : IO Unit := do
 #eval towerHolds "../../crates/ns-compress/artifacts/key30.aks" <| Key30.rows.map fun r =>
   (tower30 r, terminalNumbers Key30.terminal Key30.normTerminal)
 #eval setupHolds "../../crates/ns-compress/artifacts/key30.aks"
-#eval instancesHold "../../crates/ns-compress/artifacts/key20.aks"
+#eval instancesHold "../../crates/ns-compress/artifacts/key20.aks" (Key20.instances.map (·.key))
+#eval instancesHold "../../crates/ns-compress/artifacts/key30.aks" (Key30.instances.map (·.key))
 
 end AkitaSchedules

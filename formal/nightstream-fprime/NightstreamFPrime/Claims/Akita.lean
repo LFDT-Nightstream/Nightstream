@@ -17,8 +17,9 @@ item 7).
   opening. It is not the verifier of the pinned Akita code (`SECURITY_MODEL.md`, trust item 7).
 - Scope: each claim that starts with `key20_` is for the schedule file
   `crates/ns-compress/artifacts/key20.aks` of the test key of `2^9` blocks. No claim of this file
-  is for `crates/ns-compress/artifacts/key30.aks`, the file of the key of `2^19` blocks. For that
-  key, the claims that end in `_with_akita` of `Claims.Final` keep the premises of `[AKITA]`.
+  is for `crates/ns-compress/artifacts/key30.aks`, the file of the key of `2^19` blocks: the
+  claims for that file are in `Claims.AkitaKey30`. The claims that end in `_with_akita` of
+  `Claims.Final` do not use them and keep the premises of `[AKITA]`.
 - Assumptions: `[MSIS]` and `[KECCAK]`. Each bound has the term `breakChance`, or it bounds only
   the event that the extractor returns no output. Lean gives no bound on the probability that an
   output is a solution of Module-SIS. `key20_instances` and `key20_instance_list` give the

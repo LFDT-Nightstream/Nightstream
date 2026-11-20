@@ -78,6 +78,12 @@ import NightstreamFPrime.Spec.Compression.Claim.Slot
 import NightstreamFPrime.Spec.Compression.Fresh
 import NightstreamFPrime.Spec.Compression.Rust.Soundness
 import NightstreamFPrime.Spec.Compression.Rust.Transcript
+import NightstreamFPrime.Spec.Compression.Akita.Extract.CheckComplete
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Play
+import NightstreamFPrime.Spec.Compression.Akita.Extract.TowerComplete
+import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceComplete
+import NightstreamFPrime.Spec.Compression.Akita.Key20Complete
+import NightstreamFPrime.Spec.Compression.Akita.TraceProver
 
 /-! The soundness of the compression argument over Akita (Rust `ns-compress`, SPEC.md section 6):
 a public-coin game with bad sets and its state-restoration bound, and the honest prover of a

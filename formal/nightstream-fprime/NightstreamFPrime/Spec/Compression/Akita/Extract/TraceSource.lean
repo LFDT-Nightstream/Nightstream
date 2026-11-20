@@ -386,14 +386,16 @@ theorem traceScalarWeight_of_lt {x : ℕ} (large : O.cells fold < x) :
 
 /-- The ring rows of `traceRows`, and the row `w_cells = 0`. -/
 noncomputable def lockedTraceRows : Fin (O.traceRowCount + 1) → RingRow :=
-  Fin.append (traceRows O fold st challenge) fun _ : Fin 1 => (zeroForm O fold).row 0
+  Fin.append (traceRows O fold st challenge) fun _ : Fin 1 =>
+    (zeroForm O.carrierDegree (O.cells fold)).row 0
 
 theorem lockedTraceRows_below (r : Fin (O.traceRowCount + 1)) :
     (lockedTraceRows O fold st challenge r).Below (O.cells fold) := by
   revert r
   exact (forall_append (RingRow.Below · (O.cells fold)) _ _).mpr
     ⟨traceRows_below O fold st challenge,
-      fun _ => Form.Below.row (f := zeroForm O fold) (fun _ _ => le_rfl) 0⟩
+      fun _ => Form.Below.row (f := zeroForm O.carrierDegree (O.cells fold))
+        (fun _ _ => le_rfl) 0⟩
 
 theorem lockedTraceRows_degree_le (r : Fin (O.traceRowCount + 1)) :
     (lockedTraceRows O fold st challenge r).degree ≤ O.largestDegree := by
@@ -418,10 +420,12 @@ theorem lockedTraceRelation_holds {table : Table}
     (holds : (lockedTraceRelation O fold st challenge μ fits).Holds table) :
     table (O.cells fold) = 0 ∧ (traceRelation O fold st challenge μ fits).Holds table := by
   have rows : ∀ r, (Fin.append (traceRows O fold st challenge)
-      (fun _ : Fin 1 => (zeroForm O fold).row 0) r).Holds table := holds.1
+      (fun _ : Fin 1 => (zeroForm O.carrierDegree (O.cells fold)).row 0) r).Holds table :=
+    holds.1
   obtain ⟨flat, zero⟩ := (forall_append (RingRow.Holds · table)
-    (traceRows O fold st challenge) (fun _ : Fin 1 => (zeroForm O fold).row 0)).mp rows
-  exact ⟨zero_of_zeroForm O fold (zero 0), flat, holds.2⟩
+    (traceRows O fold st challenge)
+    (fun _ : Fin 1 => (zeroForm O.carrierDegree (O.cells fold)).row 0)).mp rows
+  exact ⟨zero_of_zeroForm (zero 0), flat, holds.2⟩
 
 /-- Two tables with the same cells up to `cells` satisfy `traceRelation` together. -/
 theorem traceRelation_holds_congr {table other : Table}

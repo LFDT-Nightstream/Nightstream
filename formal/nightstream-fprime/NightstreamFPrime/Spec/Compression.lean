@@ -1,15 +1,20 @@
 import NightstreamFPrime.Spec.Compression.Akita
 import NightstreamFPrime.Spec.Compression.Akita.Batch
+import NightstreamFPrime.Spec.Compression.Akita.BatchFlat
 import NightstreamFPrime.Spec.Compression.Akita.Binding
 import NightstreamFPrime.Spec.Compression.Akita.Challenge
 import NightstreamFPrime.Spec.Compression.Akita.Commit
 import NightstreamFPrime.Spec.Compression.Akita.Digest
 import NightstreamFPrime.Spec.Compression.Akita.Euclid
+import NightstreamFPrime.Spec.Compression.Akita.Extract.BatchChain
 import NightstreamFPrime.Spec.Compression.Akita.Extract.BatchLevel
+import NightstreamFPrime.Spec.Compression.Akita.Extract.BatchRows
+import NightstreamFPrime.Spec.Compression.Akita.Extract.BatchSource
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Budget
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Chain
 import NightstreamFPrime.Spec.Compression.Akita.Extract.FlatSource
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Honest
+import NightstreamFPrime.Spec.Compression.Akita.Extract.LiftSource
 import NightstreamFPrime.Spec.Compression.Akita.Extract.PairComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.PackingFold
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Recursion
@@ -21,6 +26,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.TerminalSuffix
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tier
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TierBound
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny
+import NightstreamFPrime.Spec.Compression.Akita.Extract.TinyRoot
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceChain
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceLevel
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceLink
@@ -36,6 +42,7 @@ import NightstreamFPrime.Spec.Compression.Akita.FoldComplete
 import NightstreamFPrime.Spec.Compression.Akita.FoldSumCheck
 import NightstreamFPrime.Spec.Compression.Akita.Layout
 import NightstreamFPrime.Spec.Compression.Akita.LiftReduction
+import NightstreamFPrime.Spec.Compression.Akita.LiftWitness
 import NightstreamFPrime.Spec.Compression.Akita.Opening
 import NightstreamFPrime.Spec.Compression.Akita.Prover
 import NightstreamFPrime.Spec.Compression.Akita.Range
@@ -98,6 +105,11 @@ checks `foldCheck` (`Chain`), the link to a receiver with evaluation trace (`Tra
 packing level over a trace level over the terminal (`TraceChain`), the Fiat–Shamir budget
 (`Budget`), and the honest prover of two packing levels: its messages on a transcript
 (`Honest`), the acceptance of its proofs (`PairComplete`), a finite type of wire messages
-(`Wire`) and a small instance with numerals (`Tiny`), and the shared setup with its
+(`Wire`) and a small instance with numerals (`Tiny`), and a fold with opening groups: its flat
+witness (`Akita/BatchFlat`), its relation on the flat witness (`BatchRows`), its checks for a
+committed flat witness (`BatchSource`), its levels and the batching root over them (`BatchChain`)
+and a small instance of this root with three groups (`TinyRoot`), and the quotient digits of the
+ring rows in the flat witness (`Akita/LiftWitness`) with the levels of the quotient-lift route
+(`LiftSource`), and the shared setup with its
 reduction to ordinary Module-SIS (`Akita/Setup`) and the bad events of the hashed transcript
 entries (`Akita/Digest`). -/

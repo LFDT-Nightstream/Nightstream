@@ -145,8 +145,9 @@ theorem lockedRelation_of_flat {table : Table} (zero : table (O.cells fold) = 0)
     (holds : (flatRelation O fold β st challenge μ cells).Holds table) :
     (lockedRelation O fold β st challenge μ cells).Holds table := by
   refine ⟨(forall_append (RingRow.Holds · table) (flatRows O fold β st challenge)
-    (fun _ : Fin 1 => (zeroForm O fold).row 0)).mpr ⟨holds.1, fun _ =>
-      ((zeroForm O fold).row_holds 0 table).mpr ?_⟩, holds.2⟩
+    (fun _ : Fin 1 => (zeroForm O.carrierDegree (O.cells fold)).row 0)).mpr
+    ⟨holds.1, fun _ => ((zeroForm O.carrierDegree (O.cells fold)).row_holds 0 table).mpr ?_⟩,
+    holds.2⟩
   show (∑ _c : Unit, (1 : Rq O.carrierDegree) * ofCoeffs fun _ => table (O.cells fold)) = 0
   rw [zero, ofCoeffs_eq (x := 0) fun j _ => (coeff_zero j).symm]
   simp

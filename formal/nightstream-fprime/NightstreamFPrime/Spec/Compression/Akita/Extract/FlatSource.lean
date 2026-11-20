@@ -12,6 +12,8 @@ branch relation can be evaluated", and Lemma 10.42 (i)).
   `flatRelation` read the cell `OpeningShape.cells` for each zero of a padded vector, so
   `lockedRelation` adds the ring row `w_cells = 0`. Akita has no such row, because its rows do
   not read a zero from the witness.
+- `satisfies_of_locked` gives the exact branch relation of the digit vectors `ofFlat` of a table
+  with `lockedRelation`, the digit range statement and the binary statement.
 - `lockedReduction` is the quotient-free reduction of `lockedRelation`, and
   `lockedFold_satisfies` is `flatFold_satisfies` for a table: on a path of `foldCheck` that avoids
   the bad sets, a true final claim for the table gives the exact branch relation of the digit
@@ -175,24 +177,24 @@ theorem RingRow.holds_congr {row : RingRow} {bound : ℕ} (below : row.Below bou
   unfold RingRow.Holds RingRow.residual RingRow.read at holds ⊢
   simpa only [each] using holds
 
-variable (O) (fold)
-
-/-- The left side of the ring row `w_cells = 0`: one occurrence with the multiplier 1 that reads
-the cell `cells` at each coefficient. -/
-noncomputable def zeroForm : Form O.carrierDegree where
+/-- The left side of the ring row `w_cell = 0` in `R_{q,d}`: one occurrence with the multiplier 1
+that reads the cell `cell` at each coefficient. -/
+noncomputable def zeroForm (d cell : ℕ) : Form d where
   Occurrence := Unit
   multiplier _ := 1
-  address _ _ := O.cells fold
+  address _ _ := cell
 
-theorem zero_of_zeroForm {table : Table} (holds : ((zeroForm O fold).row 0).Holds table) :
-    table (O.cells fold) = 0 := by
-  have value := ((zeroForm O fold).row_holds 0 table).mp holds
-  have read : (zeroForm O fold).value table = ofCoeffs fun _ => table (O.cells fold) := by
-    show (∑ _c : Unit, (1 : Rq O.carrierDegree) * ofCoeffs fun _ => table (O.cells fold)) = _
+theorem zero_of_zeroForm {d cell : ℕ} [NeZero d] {table : Table}
+    (holds : ((zeroForm d cell).row 0).Holds table) : table cell = 0 := by
+  have value := ((zeroForm d cell).row_holds 0 table).mp holds
+  have read : (zeroForm d cell).value table = ofCoeffs fun _ => table cell := by
+    show (∑ _c : Unit, (1 : Rq d) * ofCoeffs fun _ => table cell) = _
     simp
   rw [read] at value
   have zero := congrArg (fun x => coeff x 0) value
-  simpa [coeff_ofCoeffs _ (NeZero.pos O.carrierDegree)] using zero
+  simpa [coeff_ofCoeffs _ (NeZero.pos d)] using zero
+
+variable (O) (fold)
 
 /-- The weight of the scalar row is 0 at each cell after `cells`. -/
 theorem scalarWeight_of_lt (β : Module.Basis (Fin O.planes) Zq E) (point : Point O E) {x : ℕ}
@@ -207,14 +209,16 @@ variable (β : Module.Basis (Fin O.planes) Zq E) (st : Statement O E)
 
 /-- The ring rows of `flatRows`, and the row `w_cells = 0`. -/
 noncomputable def lockedRows : Fin (O.rowCount + 1) → RingRow :=
-  Fin.append (flatRows O fold β st challenge) fun _ : Fin 1 => (zeroForm O fold).row 0
+  Fin.append (flatRows O fold β st challenge) fun _ : Fin 1 =>
+    (zeroForm O.carrierDegree (O.cells fold)).row 0
 
 theorem lockedRows_below (r : Fin (O.rowCount + 1)) :
     (lockedRows O fold β st challenge r).Below (O.cells fold) := by
   revert r
   exact (forall_append (RingRow.Below · (O.cells fold)) _ _).mpr
     ⟨flatRows_below O fold β st challenge,
-      fun _ => Form.Below.row (f := zeroForm O fold) (fun _ _ => le_rfl) 0⟩
+      fun _ => Form.Below.row (f := zeroForm O.carrierDegree (O.cells fold))
+        (fun _ _ => le_rfl) 0⟩
 
 theorem lockedRows_degree_le (r : Fin (O.rowCount + 1)) :
     (lockedRows O fold β st challenge r).degree ≤ O.largestDegree := by
@@ -239,10 +243,12 @@ theorem lockedRelation_holds {table : Table}
     (holds : (lockedRelation O fold β st challenge μ fits).Holds table) :
     table (O.cells fold) = 0 ∧ (flatRelation O fold β st challenge μ fits).Holds table := by
   have rows : ∀ r, (Fin.append (flatRows O fold β st challenge)
-      (fun _ : Fin 1 => (zeroForm O fold).row 0) r).Holds table := holds.1
+      (fun _ : Fin 1 => (zeroForm O.carrierDegree (O.cells fold)).row 0) r).Holds table :=
+    holds.1
   obtain ⟨flat, zero⟩ := (forall_append (RingRow.Holds · table)
-    (flatRows O fold β st challenge) (fun _ : Fin 1 => (zeroForm O fold).row 0)).mp rows
-  exact ⟨zero_of_zeroForm O fold (zero 0), flat, holds.2⟩
+    (flatRows O fold β st challenge)
+    (fun _ : Fin 1 => (zeroForm O.carrierDegree (O.cells fold)).row 0)).mp rows
+  exact ⟨zero_of_zeroForm (zero 0), flat, holds.2⟩
 
 /-- Two tables with the same cells up to `cells` satisfy `flatRelation` together. -/
 theorem flatRelation_holds_congr {table other : Table}
@@ -268,23 +274,15 @@ noncomputable def lockedReduction (batch : ℕ) (rowsFit : O.rowCount + 1 + 1 �
   (lockedRelation O fold β st challenge μ fits).free (algebraMap Zq E).injective O.largestDegree
     batch (lockedRows_degree_le O fold β st challenge) rowsFit
 
-variable [DecidableEq E]
-
-/-- Akita Lemma 10.42 (i) for the table of a successor source, with `foldCheck_avoids`: on a path
-of `foldCheck` that avoids the bad sets, a final claim that is true for the table gives the exact
-branch relation `Witness.Satisfies` of the digit vectors `ofFlat` of the table (the hypothesis of
-Akita Corollary 10.32 for one child). -/
-theorem lockedFold_satisfies (small : S.certifiedBase < fieldModulus) (batch : ℕ)
-    (rowsFit : O.rowCount + 1 + 1 ≤ 2 ^ batch) (table : Table) :
-    (foldCheck (lockedReduction β st challenge μ fits batch rowsFit) S.certifiedBase
-      (O.binarySupport fold) table).Avoids fun result =>
-      ∀ r2 v, result = some (r2, v) → v = mle r2 (lifted E table) →
-        (O.ofFlat fold table).Satisfies β st challenge := by
-  refine (foldCheck_avoids (lockedReduction β st challenge μ fits batch rowsFit) S.certifiedBase
-    (O.binarySupport fold) table).mono fun result checked r2 v equal opening => ?_
-  obtain ⟨relation, range, binary⟩ := checked r2 v equal opening
-  have range : RangeHolds S.certifiedBase μ table := range
-  have binary : BinaryOn (O.binarySupport fold) μ table := binary
+omit [Fintype E] in
+/-- A table with `lockedRelation`, the digit range statement and the binary statement has digit
+vectors `ofFlat` with the exact branch relation `Witness.Satisfies`. The table can have each
+value in the cells after `cells`. -/
+theorem satisfies_of_locked (small : S.certifiedBase < fieldModulus) {table : Table}
+    (relation : (lockedRelation O fold β st challenge μ fits).Holds table)
+    (range : RangeHolds S.certifiedBase μ table)
+    (binary : BinaryOn (O.binarySupport fold) μ table) :
+    (O.ofFlat fold table).Satisfies β st challenge := by
   obtain ⟨zero, flat⟩ := lockedRelation_holds relation
   have same : ∀ x ≤ O.cells fold, table x = (O.ofFlat fold table).flat x := fun x below => by
     rcases Nat.lt_or_eq_of_le below with inside | rfl
@@ -305,6 +303,23 @@ theorem lockedFold_satisfies (small : S.certifiedBase < fieldModulus) (batch : �
   exact Witness.satisfies_of_flat μ fits
     ((O.flatLayout fold μ fits).alphabets small _ ranged binaried)
     (flatRelation_holds_congr same flat)
+
+variable [DecidableEq E]
+
+/-- Akita Lemma 10.42 (i) for the table of a successor source, with `foldCheck_avoids`: on a path
+of `foldCheck` that avoids the bad sets, a final claim that is true for the table gives the exact
+branch relation `Witness.Satisfies` of the digit vectors `ofFlat` of the table (the hypothesis of
+Akita Corollary 10.32 for one child). -/
+theorem lockedFold_satisfies (small : S.certifiedBase < fieldModulus) (batch : ℕ)
+    (rowsFit : O.rowCount + 1 + 1 ≤ 2 ^ batch) (table : Table) :
+    (foldCheck (lockedReduction β st challenge μ fits batch rowsFit) S.certifiedBase
+      (O.binarySupport fold) table).Avoids fun result =>
+      ∀ r2 v, result = some (r2, v) → v = mle r2 (lifted E table) →
+        (O.ofFlat fold table).Satisfies β st challenge :=
+  (foldCheck_avoids (lockedReduction β st challenge μ fits batch rowsFit) S.certifiedBase
+    (O.binarySupport fold) table).mono fun _ checked r2 v equal opening =>
+      satisfies_of_locked β st challenge μ fits small (checked r2 v equal opening).1
+        (checked r2 v equal opening).2.1 (checked r2 v equal opening).2.2
 
 end Rows
 

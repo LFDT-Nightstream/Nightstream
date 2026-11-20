@@ -10,8 +10,6 @@ use super::{production_key_pair, D, PRODUCTION_VERIFIER_ROWS};
 pub struct ExpandedKey {
     blocks: u64,
     words: Arc<Vec<u64>>,
-    #[cfg(not(target_arch = "wasm32"))]
-    crt: super::crt::Cache,
 }
 
 // SPEC.md Algorithm 11, step 6.
@@ -42,8 +40,6 @@ impl ExpandedKey {
         Self {
             blocks: 2 * pairs,
             words: Arc::new(words),
-            #[cfg(not(target_arch = "wasm32"))]
-            crt: super::crt::Cache::new(2 * pairs),
         }
     }
 
@@ -64,16 +60,6 @@ impl ExpandedKey {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .upgrade()
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub(super) fn crt_tiles(&self) -> usize {
-        self.crt.tiles()
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub(super) fn crt_tile(&self, index: usize) -> Option<&super::crt::Tile> {
-        self.crt.tile(index, &self.words, self.blocks)
     }
 
     pub(super) fn element(&self, row: u32, block: u64) -> SplitRing {

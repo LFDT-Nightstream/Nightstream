@@ -1,7 +1,5 @@
 use std::{borrow::Borrow, ops::Range};
 
-#[cfg(not(target_arch = "wasm32"))]
-mod crt;
 mod expanded;
 mod key;
 
@@ -381,56 +379,6 @@ fn commit_signed_blocks_with_key(blocks: &[SignedBlock], key: Option<&ExpandedKe
         return commitment;
     };
     let columns = last.index + 1;
-
-    #[cfg(not(target_arch = "wasm32"))]
-    if let Some(key) = key {
-        let count = key.crt_tiles().min(columns.div_ceil(TASK_COLUMNS) as usize);
-        let tiles: Vec<_> = (0..count)
-            .into_par_iter()
-            .map(|tile| {
-                let start = tile as u64 * TASK_COLUMNS;
-                let slice = column_slice(blocks, &(start..start + TASK_COLUMNS));
-                if crt::use_tile(slice) {
-                    key.crt_tile(tile).map(|key| (key, start, slice))
-                } else {
-                    None
-                }
-            })
-            .collect();
-        let selected = tiles.iter().flatten().copied().collect::<Vec<_>>();
-        if !selected.is_empty() {
-            let (scalar, transformed) = rayon::join(
-                || {
-                    row_totals(columns, |row, columns| {
-                        let tile = (columns.start / TASK_COLUMNS) as usize;
-                        let sums = if tiles.get(tile).is_some_and(Option::is_some) {
-                            SignedShiftSums::zero()
-                        } else {
-                            signed_sums(row, column_slice(blocks, &columns), Some(key))
-                        };
-                        vec![sums]
-                    })
-                },
-                || crt::sum_tiles(&selected),
-            );
-            for (row, (output, scalar)) in commitment
-                .data_mut()
-                .chunks_exact_mut(D)
-                .zip(scalar)
-                .enumerate()
-            {
-                for ((output, scalar), transformed) in output
-                    .iter_mut()
-                    .zip(scalar[0].reduce())
-                    .zip(&transformed[row])
-                {
-                    *output = scalar + *transformed;
-                }
-            }
-            return commitment;
-        }
-    }
-
     let totals = row_totals(columns, |row, columns| {
         vec![signed_sums(row, column_slice(blocks, &columns), key)]
     });
@@ -439,10 +387,6 @@ fn commit_signed_blocks_with_key(blocks: &[SignedBlock], key: Option<&ExpandedKe
     }
     commitment
 }
-
-#[cfg(all(test, not(target_arch = "wasm32")))]
-#[path = "../tests/unit/nightstream_crt.rs"]
-mod crt_tests;
 
 pub fn authority_words(verifier_rows: u64, message_columns: u64, seed: &[u8; 32]) -> Vec<u64> {
     let mut words = Vec::with_capacity(1 + SETUP_ID.len() + 3 + seed.len());

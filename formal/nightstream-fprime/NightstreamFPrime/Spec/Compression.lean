@@ -12,6 +12,8 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.BatchRows
 import NightstreamFPrime.Spec.Compression.Akita.Extract.BatchSource
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Budget
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Chain
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Compose
+import NightstreamFPrime.Spec.Compression.Akita.Extract.ComposeRoot
 import NightstreamFPrime.Spec.Compression.Akita.Extract.FlatSource
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Honest
 import NightstreamFPrime.Spec.Compression.Akita.Extract.LiftSource
@@ -20,6 +22,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.PackingFold
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Recursion
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Root
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Segment
+import NightstreamFPrime.Spec.Compression.Akita.Extract.SplitGame
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Staged
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Suffix
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TerminalSuffix
@@ -65,6 +68,7 @@ import NightstreamFPrime.Spec.Compression.Algebra.Key
 import NightstreamFPrime.Spec.Compression.Verifier.Complete
 import NightstreamFPrime.Spec.Compression.Production
 import NightstreamFPrime.Spec.Compression.Verifier.Pass
+import NightstreamFPrime.Spec.Compression.Verifier.Split
 import NightstreamFPrime.Spec.Compression.Claim.Slot
 import NightstreamFPrime.Spec.Compression.Fresh
 import NightstreamFPrime.Spec.Compression.Rust.Soundness
@@ -110,6 +114,10 @@ witness (`Akita/BatchFlat`), its relation on the flat witness (`BatchRows`), its
 committed flat witness (`BatchSource`), its levels and the batching root over them (`BatchChain`)
 and a small instance of this root with three groups (`TinyRoot`), and the quotient digits of the
 ring rows in the flat witness (`Akita/LiftWitness`) with the levels of the quotient-lift route
-(`LiftSource`), and the shared setup with its
+(`LiftSource`), and the compression argument over the Akita opening: the verifier game in two
+parts that end in the opening claims (`Verifier/Split`), the stages of these parts (`SplitGame`),
+the two checkpoints of the argument before the opening (`Compose`) and the result over a batching
+root, a fold with three opening groups and a last packing fold (`ComposeRoot`), and the shared
+setup with its
 reduction to ordinary Module-SIS (`Akita/Setup`) and the bad events of the hashed transcript
 entries (`Akita/Digest`). -/

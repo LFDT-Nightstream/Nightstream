@@ -141,20 +141,6 @@ pub(super) fn build_trace(
         let pc_before = u64::from(current.pc);
         let turn_terminal =
             current.pc_edge_kind == WasmPcEdgeKind::ReturnLike && call_stack_depth == host_event_state.host_frame_depth;
-        let activation_finished = next.is_none() || turn_terminal;
-        let pc_after = if matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
-            && !current.target_function_is_guest
-        {
-            current
-                .pc_after_instruction
-                .ok_or_else(|| WasmBuildError::Trace("import lacks continuation PC".into()))?
-        } else if activation_finished {
-            current
-                .pc_after_instruction
-                .unwrap_or_else(|| pc_before.saturating_add(1))
-        } else {
-            u64::from(next.expect("unfinished activation has a successor").pc)
-        };
         let stack_reads = current
             .stack_reads_override
             .unwrap_or(current.info.stack_reads);
@@ -182,12 +168,6 @@ pub(super) fn build_trace(
             call_stack.last().map(|&(_, _, base)| base).unwrap_or(0)
         } else {
             stack_base
-        };
-        let sp_after = if is_call_row || activation_finished {
-            expected_sp_after
-        } else {
-            next.map(|row| next_row_base + row.operand_stack.len() as u64)
-                .unwrap_or(expected_sp_after)
         };
         let stack_read_hi = |lane| {
             current
@@ -222,6 +202,30 @@ pub(super) fn build_trace(
                 || call_indirect_traps(current.table_value, current.expected_type_id, current.function_type_id));
         let table_oob = matches!(current.opcode, WasmOpcode::TableGet | WasmOpcode::TableSet)
             && table_index_oob(current.table_index, current.table_size);
+        let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap || ci_trap || mem_oob || table_oob;
+        let top_level_unwind = trapped
+            && (current.top_level_unwound || current.activation_depth == 1)
+            && next.is_some_and(|row| row.activation_depth == 1);
+        let activation_finished = next.is_none() || turn_terminal || top_level_unwind;
+        let pc_after = if matches!(current.opcode, WasmOpcode::Call | WasmOpcode::CallIndirect)
+            && !current.target_function_is_guest
+        {
+            current
+                .pc_after_instruction
+                .ok_or_else(|| WasmBuildError::Trace("import lacks continuation PC".into()))?
+        } else if activation_finished {
+            current
+                .pc_after_instruction
+                .unwrap_or_else(|| pc_before.saturating_add(1))
+        } else {
+            u64::from(next.expect("unfinished activation has a successor").pc)
+        };
+        let sp_after = if is_call_row || activation_finished {
+            expected_sp_after
+        } else {
+            next.map(|row| next_row_base + row.operand_stack.len() as u64)
+                .unwrap_or(expected_sp_after)
+        };
         let stack_write0 = if div_trap || mem_oob || ci_trap || (table_oob && current.opcode == WasmOpcode::TableGet) {
             let addr = sp_after.saturating_sub(1).saturating_mul(2);
             let hi = current.wide_values_enabled.then_some(0);
@@ -230,7 +234,6 @@ pub(super) fn build_trace(
             let write_value_hi = write_lane_hi(current, next, stack_writes)?;
             write_lane(current, next, sp_after, stack_writes)?.map(|write| write.with_optional_hi(write_value_hi))
         };
-        let trapped = matches!(current.opcode, WasmOpcode::Unreachable) || div_trap || ci_trap || mem_oob || table_oob;
         if matches!(current.opcode, WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect)
             && !current.target_function_is_guest
         {
@@ -948,6 +951,10 @@ pub(super) fn build_trace(
                 entry_emitted = true;
             }
         } else if activation_finished && next.is_some() {
+            if top_level_unwind {
+                suspended.clear();
+                call_stack.clear();
+            }
             export_boundary = Some(reentry::enter(
                 &mut out,
                 current,

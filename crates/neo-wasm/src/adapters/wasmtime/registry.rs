@@ -109,7 +109,16 @@ impl WasmtimeTraceRegistry {
 
     /// An error unwinds the current host-to-guest activation. Outer suspended
     /// calls may still return normally if their host catches this error.
-    pub(super) fn discard_unwound_imports(&mut self, activation_depth: usize) {
+    pub(super) fn record_unwind(&mut self, instance: u32, activation_depth: usize) {
+        if activation_depth == 1 {
+            if let Some(last) = self
+                .instances
+                .get_mut(&instance)
+                .and_then(|state| state.steps.last_mut())
+            {
+                last.top_level_unwound = true;
+            }
+        }
         for state in self.instances.values_mut() {
             state
                 .pending_imports

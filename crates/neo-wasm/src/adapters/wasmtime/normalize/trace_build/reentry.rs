@@ -58,12 +58,23 @@ pub(super) fn enter<'a>(
     memory: &mut LinearMemoryImage,
     suspended: Option<&Suspended<'a>>,
 ) -> Result<TurnSetup<'a>, WasmBuildError> {
-    let setup = setup_turn(bindings, next, program, true, memory)?;
     let before = out
         .last()
         .expect("entry follows a call or exit")
         .state_after;
+    if before.memory_pages != next.memory_pages_before {
+        return Err(WasmBuildError::Unsupported(
+            "host memory growth across an export boundary is unsupported".into(),
+        ));
+    }
+    let setup = setup_turn(bindings, next, program, true, memory)?;
     let mut after = before;
+    if before.trapped {
+        after.trapped = false;
+        after.call_stack_depth = 0;
+        after.host_events.host_frame_depth = 0;
+        after.host_events.args_base = 0;
+    }
     after.pc = u64::from(next.pc);
     after.output = WasmOutputState::ZERO;
     after.activation_finished = false;

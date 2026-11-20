@@ -33,7 +33,9 @@ pub fn traces_from_wasmtime_steps(rows: &[WasmtimeTraceStep]) -> Result<Vec<crat
 /// Only memory 0 with verifier-known initialization is supported; addresses use
 /// entry locals for exports and pre-call arguments for imports. Host memory
 /// growth is unsupported. Split imports permit nested same-instance exports;
-/// atomic imports reject reentry. Host writes are applied at import return:
+/// a guest trap that escapes the top-level call can be followed by another
+/// top-level export on the same instance. Caught callback traps are unsupported.
+/// Atomic imports reject reentry. Host writes are applied at import return:
 /// intermediate host writes observed by reentrant guest invocations cannot be recovered.
 /// A completed proof must bind a final state with `activation_finished = true`, zero call-stack and
 /// host-frame depths and no pending import; a nested exit is not final completion.
@@ -56,6 +58,7 @@ pub fn traces_from_wasmtime_steps_with_host_events(
 #[derive(Clone, Debug)]
 struct NormalizedStep {
     activation_depth: usize,
+    top_level_unwound: bool,
     cycle: u64,
     pc: u32,
     control_choice: u32,
@@ -232,6 +235,7 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
     };
     Ok(Some(NormalizedStep {
         activation_depth: row.activation_depth,
+        top_level_unwound: row.top_level_unwound,
         cycle: row.step,
         pc,
         control_choice,
@@ -483,6 +487,7 @@ pub(crate) fn capture_frame<T>(
 
     Ok(WasmtimeTraceStep {
         activation_depth: 0,
+        top_level_unwound: false,
         step,
         function,
         function_index,

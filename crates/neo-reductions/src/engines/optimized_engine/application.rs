@@ -15,7 +15,7 @@ const ROW_DOT_CHUNK: usize = 1 << 14;
 
 const SEVENTH_POWER_BINOMIAL: [u8; 8] = [1, 7, 21, 35, 35, 21, 7, 1];
 
-fn is_poseidon2_gate(polynomial: &SparsePoly<F>) -> bool {
+pub(super) fn is_poseidon2_gate(polynomial: &SparsePoly<F>) -> bool {
     let [ab, c, s] = polynomial.terms() else {
         return false;
     };
@@ -102,6 +102,13 @@ impl ApplicationTables {
             workspace_bytes,
             peak_bytes: 0,
         })
+    }
+
+    pub(super) fn resume(&mut self, point: &[K], rows: usize, words: Vec<K>) {
+        debug_assert_eq!(words.len(), rows * 4);
+        self.resident = Some(Values { rows, words });
+        self.rows = rows;
+        self.challenges = point.to_vec();
     }
 
     pub(super) fn fresh_count(&self) -> usize {

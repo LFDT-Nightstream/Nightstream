@@ -26,6 +26,7 @@ const _: () = assert!((7u128 * INV_7_MOD_Q_MINUS_1 as u128) % (Q as u128 - 1) ==
 
 /// An element of `F_q`. The value is always the canonical one, in `[0, q)`.
 #[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
 pub struct Fq(u64);
 
 pub type K = BinomialExtensionField<Fq, 2>;

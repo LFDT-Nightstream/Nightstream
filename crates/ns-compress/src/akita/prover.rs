@@ -1,20 +1,26 @@
 use std::sync::Arc;
 
-use akita_params::{BasisMode, GroupCommitPhaseParams};
 use akita_pcs::{
-    AkitaCommitmentScheme, AkitaError, AkitaProverSetup, CommitOutput, CommitmentHandle, CpuBackend, DensePoly,
-    FieldRunPoly, GroupContext, OpeningClaims, PolynomialGroupClaims, SelectedProverOpeningData, SourceHandle,
+    AkitaCommitmentScheme, AkitaError, AkitaProverSetup, AkitaSerialize, CommitOutput, CommitmentHandle, CpuBackend,
+    DensePoly, FieldRunPoly, GroupContext, OpeningClaims, PolynomialGroupClaims, SelectedProverOpeningData,
+    SourceHandle,
 };
-use akita_types::{CommittedGroup, SetupPrefixVerifierRegistry};
 use jolt_field::Ring;
 use neo_math::K;
+use prover_akita_config as config;
+use prover_akita_params::{self as params, BasisMode, GroupCommitPhaseParams};
+use prover_akita_types::{CommittedGroup, SetupPrefixVerifierRegistry};
 use rayon::prelude::*;
 
-use super::{
-    bytes_of, commitment_bytes, extension, failed, on_large_stacks, profile, row, Base, Config, Extension, Polynomial,
-};
-use super::{Schedules, Shape};
+use super::{extension, failed, on_large_stacks, Base, Extension, Polynomial, Schedules, Shape};
+#[allow(
+    clippy::duplicate_mod,
+    reason = "The prover and verifier use schedule types from different Akita revisions."
+)]
+#[path = "schedule.rs"]
+mod schedule;
 use crate::Error;
+use schedule::{catalog, profile, row, Config};
 
 pub(crate) struct Prover {
     scheme: AkitaCommitmentScheme<Config>,
@@ -32,7 +38,7 @@ pub(crate) struct Committed {
 impl Prover {
     pub(crate) fn new(schedules: &Schedules) -> Result<Self, Error> {
         on_large_stacks(|| {
-            let scheme = AkitaCommitmentScheme::new(schedules.catalog()?);
+            let scheme = AkitaCommitmentScheme::new(catalog(schedules)?);
             let max_vars = schedules
                 .rows
                 .iter()
@@ -46,38 +52,38 @@ impl Prover {
     }
 
     pub(crate) fn commit(&self, shape: Shape, polynomial: Polynomial, prefix: Vec<Base>) -> Result<Committed, Error> {
-        self.commit_dense(shape, polynomial, |vars| DensePoly::from_field_prefix(vars, prefix))
-    }
-
-    pub(crate) fn commit_key_words(&self, shape: Shape, words: Arc<Vec<u64>>) -> Result<Committed, Error> {
-        self.commit_dense(shape, Polynomial::Key, |vars| {
-            DensePoly::from_shared_canonical_u64_prefix(vars, words.clone()).or_else(|_| {
-                DensePoly::from_field_prefix(vars, words.par_iter().copied().map(Base::from_u64).collect())
-            })
-        })
-    }
-
-    fn commit_dense(
-        &self,
-        shape: Shape,
-        polynomial: Polynomial,
-        build: impl FnOnce(usize) -> Result<DensePoly<Base>, AkitaError> + Send,
-    ) -> Result<Committed, Error> {
         let vars = match polynomial {
             Polynomial::Key => shape.key,
             Polynomial::Witness => shape.witness,
             Polynomial::Inverse => shape.inverse,
         };
-        self.commit_source(shape, polynomial, |backend, profile| {
-            let mut poly = build(vars)?;
-            if polynomial == Polynomial::Key
-                && profile.inner.matrix.ring_dimension() == 2048
-                && profile.inner_digits() == akita_params::GadgetDigits::new(16, 4)
-            {
-                poly = poly.with_fixed_fold_ntt_2048(profile.blocks.positions_per_block)?;
-            }
-            backend.import_source(vec![poly])
+        self.commit_source(&self.backend, shape, polynomial, |backend, profile| {
+            let source = DensePoly::from_field_prefix(vars, prefix)?;
+            let source = if polynomial == Polynomial::Key {
+                prepare_key(source, profile)?
+            } else {
+                source
+            };
+            backend.import_source(vec![source])
         })
+    }
+
+    pub(crate) fn commit_key_words(
+        &self,
+        shape: Shape,
+        words: Arc<Vec<u64>>,
+    ) -> Result<(Committed, Option<DensePoly<Base>>), Error> {
+        let Ok(source) = DensePoly::from_shared_canonical_u64_prefix(shape.key, Arc::clone(&words)) else {
+            let prefix = words.par_iter().copied().map(Base::from_u64).collect();
+            return Ok((self.commit(shape, Polynomial::Key, prefix)?, None));
+        };
+        let mut retained = None;
+        let committed = self.commit_source(&self.backend, shape, Polynomial::Key, |backend, profile| {
+            let source = prepare_key(source, profile)?;
+            retained = Some(source.clone());
+            backend.import_source(vec![source])
+        })?;
+        Ok((committed, retained))
     }
 
     pub(crate) fn commit_signed_witness(
@@ -87,7 +93,7 @@ impl Prover {
         (positive, negative): (&[u64], &[u64]),
         count: (usize, Base),
     ) -> Result<Committed, Error> {
-        self.commit_source(shape, Polynomial::Witness, |backend, _| {
+        self.commit_source(&self.backend, shape, Polynomial::Witness, |backend, _| {
             backend.import_source(vec![FieldRunPoly::from_signed_span(
                 shape.witness,
                 start,
@@ -99,7 +105,7 @@ impl Prover {
     }
 
     pub(crate) fn commit_inverse_runs(&self, shape: Shape, runs: Vec<(usize, Base)>) -> Result<Committed, Error> {
-        self.commit_source(shape, Polynomial::Inverse, |backend, _| {
+        self.commit_source(&self.backend, shape, Polynomial::Inverse, |backend, _| {
             backend.import_source(vec![FieldRunPoly::new(shape.inverse, runs)?])
         })
     }
@@ -110,8 +116,11 @@ impl Prover {
         width: usize,
         codes: Arc<Vec<u16>>,
         tables: Vec<Vec<Base>>,
+        metal: bool,
     ) -> Result<Committed, Error> {
-        self.commit_source(shape, Polynomial::Inverse, |backend, _| {
+        let device = metal.then(|| self.backend.with_metal_kernels());
+        let backend = device.as_ref().unwrap_or(&self.backend);
+        self.commit_source(backend, shape, Polynomial::Inverse, |backend, _| {
             backend.import_source(vec![FieldRunPoly::from_lookup_columns(
                 shape.inverse,
                 width,
@@ -123,6 +132,7 @@ impl Prover {
 
     fn commit_source(
         &self,
+        backend: &CpuBackend<Base, Extension>,
         shape: Shape,
         polynomial: Polynomial,
         import: impl FnOnce(
@@ -134,16 +144,15 @@ impl Prover {
         let schedules = self.scheme.schedules();
         let profile = profile(row(schedules, shape)?, polynomial);
         on_large_stacks(|| {
-            let source = import(&self.backend, profile).map_err(failed)?;
+            let source = import(backend, profile).map_err(failed)?;
             let CommitOutput {
                 committed_group,
                 private_handle,
-            } = self
-                .backend
+            } = backend
                 .commit(schedules, &source, GroupContext::explicit(profile))
                 .map_err(failed)?;
             Ok(Committed {
-                bytes: commitment_bytes(&committed_group)?,
+                bytes: bytes_of(&committed_group)?,
                 commitment: committed_group,
                 handle: private_handle,
             })
@@ -159,7 +168,12 @@ impl Prover {
     }
 
     /// `point[i]` binds bit `i` of the cell index.
-    pub(crate) fn open(&self, openings: [(Committed, &[K], K); 3], session: &[u8]) -> Result<Vec<u8>, Error> {
+    pub(crate) fn open(
+        &self,
+        openings: [(Committed, &[K], K); 3],
+        session: &[u8],
+        metal: bool,
+    ) -> Result<Vec<u8>, Error> {
         let mut handles = Vec::with_capacity(openings.len());
         let mut groups = Vec::with_capacity(openings.len());
         for (committed, point, value) in openings {
@@ -172,10 +186,26 @@ impl Prover {
         let opening =
             SelectedProverOpeningData::from_committed_claims::<Config>(claims, handles, self.scheme.schedules())
                 .map_err(failed)?;
+        let device = metal.then(|| self.backend.with_metal_kernels());
+        let backend = device.as_ref().unwrap_or(&self.backend);
         on_large_stacks(|| {
             self.scheme
-                .batched_prove(&self.setup, opening, &self.backend, session, BasisMode::Lagrange)
+                .batched_prove(&self.setup, opening, backend, session, BasisMode::Lagrange)
                 .map_err(failed)
         })
     }
+}
+
+fn prepare_key(source: DensePoly<Base>, profile: &GroupCommitPhaseParams) -> Result<DensePoly<Base>, AkitaError> {
+    if profile.inner.matrix.ring_dimension() == 2048 && profile.inner_digits() == params::GadgetDigits::new(16, 4) {
+        source.with_fixed_fold_ntt_2048(profile.blocks.positions_per_block)
+    } else {
+        Ok(source)
+    }
+}
+
+fn bytes_of(value: &impl AkitaSerialize) -> Result<Vec<u8>, Error> {
+    let mut bytes = Vec::new();
+    value.serialize_compressed(&mut bytes).map_err(failed)?;
+    Ok(bytes)
 }

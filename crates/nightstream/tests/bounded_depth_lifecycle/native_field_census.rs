@@ -127,7 +127,7 @@ fn census(capacity: usize) {
         assert_eq!(factored.slot_count(), slots.widths.len());
         let mut sink = Census {
             plan,
-            slots: &slots,
+            slots,
             next: 0,
             entries: [0; 4],
             expanded: [0; 4],

@@ -101,6 +101,17 @@ fn kept_production_key_matches_cpu_and_grows_for_a_wider_witness() {
 }
 
 #[test]
+fn concurrent_commitment_rows_match_cpu_across_partial_groups() {
+    let mut session = MetalSession::new().unwrap();
+    session.keep_production_key();
+    let columns = 3 * COLUMNS_PER_GROUP + 1;
+    let witnesses = sparse_witnesses(columns, &(0..columns).filter(|i| i % 13 != 0).collect::<Vec<_>>());
+    let fresh = &witnesses[..1];
+    let expected = commit_production_signed_unit_prefix_matrices(fresh).unwrap();
+    assert_eq!(session.commit_production_prefixes(fresh).unwrap(), expected);
+}
+
+#[test]
 fn production_key_coefficients_use_exact_first_and_last_indexed_addresses() {
     let session = MetalSession::new().unwrap();
     for column in [0, PRODUCTION_MESSAGE_COLUMNS as usize - 1] {
@@ -198,4 +209,85 @@ fn production_commitment_cost_per_witness() {
             );
         }
     }
+}
+
+#[test]
+fn matrix_commitment_accumulates_full_positive_and_negative_byte_limbs() {
+    let session = MetalSession::new().unwrap();
+    let Some(matrix) = &session.production_ajtai_matrix else {
+        return;
+    };
+    let columns = COLUMNS_PER_GROUP;
+    let value = F::ORDER_U64 - 1;
+    let key = session.buffer_from_slice(&[value; D]).unwrap();
+    let indices = session.buffer_from_slice(&vec![0_u32; columns]).unwrap();
+    let shape = session
+        .buffer_from_slice(&[columns as u64, 1, 1, columns as u64])
+        .unwrap();
+    let result = session.buffer(D * size_of::<u64>()).unwrap();
+    for (mask, sign) in [([u64::MAX, 0], F::ONE), ([0, u64::MAX], -F::ONE)] {
+        let masks = session.buffer_from_slice(&vec![mask; columns]).unwrap();
+        let command = session
+            .command_buffer("nightstream.test.matrix_commitment")
+            .unwrap();
+        let encoder = command.computeCommandEncoder().unwrap();
+        session.launch(
+            &encoder,
+            matrix,
+            &[
+                Arg::Buffer(0, &key),
+                Arg::Buffer(1, &masks),
+                Arg::Buffer(2, &shape),
+                Arg::Buffer(3, &result),
+                Arg::Buffer(4, &indices),
+            ],
+            Grid::Groups {
+                groups: 1,
+                threads: 256,
+            },
+        );
+        encoder.endEncoding();
+        session.finish(&command).unwrap();
+        for (lane, &word) in session.host_words(&result, D).iter().enumerate() {
+            let shifts = F::from_usize(2 * (lane + 1)) - F::from_usize(D);
+            assert_eq!(
+                F::from_u64(word),
+                sign * shifts * F::from_usize(columns) * F::from_u64(value)
+            );
+        }
+    }
+}
+
+#[test]
+fn metal_reuses_the_expanded_key_pages_and_retains_their_owner() {
+    let session = MetalSession::new().unwrap();
+    let columns = 8192;
+    let key = ExpandedKey::of_pairs(columns as u64, |row, pair| {
+        [2 * pair, 2 * pair + 1]
+            .map(|column| std::array::from_fn(|lane| (row as u64) << 48 | column << 6 | lane as u64))
+    });
+    let words = key.shared_words();
+    let rows = session.shared_key_rows(&key, columns / 2).unwrap();
+    if !words
+        .as_ptr()
+        .addr()
+        .is_multiple_of(objc2_foundation::NSPageSize())
+    {
+        assert!(rows.is_none());
+        return;
+    }
+    let rows = rows.unwrap();
+    for (row, buffer) in rows.iter().enumerate() {
+        let expected = &words[row * columns * D..][..columns / 2 * D];
+        let view = session.host_words(buffer, expected.len());
+        assert_eq!(view.as_ptr(), expected.as_ptr());
+        assert_eq!(view.last(), expected.last());
+    }
+    drop((key, words));
+    let last_row = PRODUCTION_VERIFIER_ROWS - 1;
+    let last = session.host_words(rows.last().unwrap(), columns / 2 * D);
+    assert_eq!(
+        last.last(),
+        Some(&((last_row << 48) | ((columns as u64 / 2 - 1) << 6) | 63))
+    );
 }

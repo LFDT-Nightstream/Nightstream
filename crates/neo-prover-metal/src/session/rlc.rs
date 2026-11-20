@@ -1,3 +1,5 @@
+mod light;
+
 use std::{mem::size_of, sync::atomic::Ordering};
 
 use neo_ccs::Mat;
@@ -21,6 +23,9 @@ impl MetalSession {
             .cols();
         if rhos.len() != witnesses.len() || columns == 0 {
             return Err(MetalError::Shape("device PiRLC mix shape"));
+        }
+        if let Some(output) = self.mix_light(rhos, witnesses)? {
+            return Ok(output);
         }
         let mut rho_entries = Vec::new();
         let mut sources = Vec::new();

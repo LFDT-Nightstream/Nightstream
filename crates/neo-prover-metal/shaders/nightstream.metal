@@ -336,3 +336,20 @@ constant uint SUMCHECK_REDUCTION_THREADS = 64;
 #include "joint.metal"
 #include "relation.metal"
 #include "production_commitment.metal"
+
+kernel void rlc_light_deltas(device const ulong *weights [[buffer(0)]],
+                             device const ulong *positive [[buffer(1)]],
+                             device const ulong *negative [[buffer(2)]],
+                             device short *output [[buffer(3)]],
+                             constant ulong &columns [[buffer(4)]],
+                             uint i [[thread_position_in_grid]]) {
+    ulong row = i / columns, col = i % columns;
+    ulong occupied = positive[col] | negative[col];
+    ulong flipped = weights[row * 3] ^ negative[col];
+    ulong a = weights[row * 3 + 1] & occupied, b = weights[row * 3 + 2] & occupied;
+    int one = int(popcount(a)) - 2 * int(popcount(a & flipped));
+    int two = int(popcount(b)) - 2 * int(popcount(b & flipped));
+    output[i] = short(one + 2 * two);
+}
+
+#include "packed.metal"

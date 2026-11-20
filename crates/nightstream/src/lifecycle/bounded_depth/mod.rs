@@ -396,7 +396,7 @@ impl BoundedDepth {
         let keeps_faulty = KEEP_FAULTY_PROOF.get();
         #[cfg(not(test))]
         let keeps_faulty = false;
-        let reserved = (!keeps_faulty && matches!(self.backend, Backend::Optimized))
+        let reserved = (!keeps_faulty)
             .then(|| relation.reserve_checked_rows())
             .flatten();
         let keep_checked = reserved.is_some();

@@ -3,6 +3,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Batch
 import NightstreamFPrime.Spec.Compression.Akita.BatchFlat
 import NightstreamFPrime.Spec.Compression.Akita.Binding
 import NightstreamFPrime.Spec.Compression.Akita.Challenge
+import NightstreamFPrime.Spec.Compression.Akita.ChallengeFamily
 import NightstreamFPrime.Spec.Compression.Akita.Commit
 import NightstreamFPrime.Spec.Compression.Akita.Digest
 import NightstreamFPrime.Spec.Compression.Akita.Euclid
@@ -15,6 +16,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Chain
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Compose
 import NightstreamFPrime.Spec.Compression.Akita.Extract.ComposeRoot
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Decoders
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Draw
 import NightstreamFPrime.Spec.Compression.Akita.Extract.FlatSource
 import NightstreamFPrime.Spec.Compression.Akita.Extract.FreshGame
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Honest
@@ -47,6 +49,7 @@ import NightstreamFPrime.Spec.Compression.Akita.FoldCheck
 import NightstreamFPrime.Spec.Compression.Akita.FoldComplete
 import NightstreamFPrime.Spec.Compression.Akita.FoldSumCheck
 import NightstreamFPrime.Spec.Compression.Akita.Key20
+import NightstreamFPrime.Spec.Compression.Akita.Key20Challenge
 import NightstreamFPrime.Spec.Compression.Akita.Key20Tower
 import NightstreamFPrime.Spec.Compression.Akita.Layout
 import NightstreamFPrime.Spec.Compression.Akita.LiftReduction
@@ -58,6 +61,7 @@ import NightstreamFPrime.Spec.Compression.Akita.RingCheck
 import NightstreamFPrime.Spec.Compression.Akita.RowBatch
 import NightstreamFPrime.Spec.Compression.Akita.Setup
 import NightstreamFPrime.Spec.Compression.Akita.Shapes
+import NightstreamFPrime.Spec.Compression.Akita.ShortUnit
 import NightstreamFPrime.Spec.Compression.Akita.Tensor
 import NightstreamFPrime.Spec.Compression.Akita.Terminal
 import NightstreamFPrime.Spec.Compression.Akita.Trace
@@ -147,7 +151,8 @@ completeness of the checks (`CheckComplete`), the trace levels (`TraceComplete`,
 `TowerComplete`), the packing level (`LiftComplete`), the root fold and the verifier `towerLinks`
 (`RootComplete`), a type of wire messages (`Page`) and the zero tables (`ZeroFit`), with its
 instance for the schedule `key20.aks` (`Akita/Key20Complete`, `Akita/Key20Root`,
-`Akita/Key20Accept`), and the shared
-setup with its
+`Akita/Key20Accept`), the sparse challenge families with their units and their decoders from
+one slot (`Akita/ShortUnit`, `Akita/ChallengeFamily`, `Draw`, `Akita/Key20Challenge`), and the
+shared setup with its
 reduction to ordinary Module-SIS (`Akita/Setup`) and the bad events of the hashed transcript
 entries (`Akita/Digest`). -/

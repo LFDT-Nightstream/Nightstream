@@ -1227,8 +1227,7 @@ not change terminal source checks.
      `Verifies` with probability at most `(Q + 1) · (runCost + 7424/|K| + 135 · p) + (Q + 1) · 144/budget +
      breakChance`. `runCost` is the sum of the bounds of the draws of the Π_CCS run and of the argument
      (`Export.BoundedDepth.FinalVerifier.Setup.runCost`). `7424/|K| + 135 · p` bounds the stage errors of the opening,
-     which has 135 fold coordinates (`Spec.Compression.Akita.Key20.towerError_le`). It is at most `14983/2^128` if `p`
-     is at most `2^−128` (`Spec.Compression.Akita.Key20.towerError_le_pow`). The extractor has 144 retry loops, each
+     which has 135 fold coordinates (`Spec.Compression.Akita.Key20.towerError_le`). No decoder from one slot of `K` has `p ≤ 2^−128`, because `|K| = q²` is below `2^128` (`Spec.Compression.Akita.Key20.pow_lt_slotChance`). For a decoder that is an injection of `K` into the challenge family, `p = 1/q²`, and the bound is `7559/q²` (`Spec.Compression.Akita.Key20.slotChance_draw`, `Export.BoundedDepth.FinalKey20.verifier_sound_drawn`). For these decoders Lean proves the unit differences (`Spec.Compression.Akita.isUnit_of_short`) and the sparse challenges, and the operator bound `Γ` of the filtered families stays a hypothesis. The extractor has 144 retry loops, each
      with at most `budget` attempts. The result closes the gap of `V` inside itself, with two checkpoints of Akita
      Definition 10.16 in sequence. The first has the candidate `W`, and its stages are the Π_CCS run and the draw of
      `τ`. The second has the candidate `W` and `V` (`Spec.Compression.Akita.Extract.Compose.suffix`, for the two parts
@@ -1243,8 +1242,7 @@ not change terminal source checks.
      a compression map, at 1; and the matrix of the terminal, at its squared radius
      (`Spec.Compression.Akita.Extract.Route.Break`). The solver runs the prover at most `K̂ + (Q + 1)(K̂ − 1)` times in
      expectation, with `K̂ = 4 · 21,449,539,584`: the tree size of the opening and a factor 2 for each checkpoint of the
-     argument (`Export.BoundedDepth.FinalAkita.mixed_runs_le`). These are hypotheses of the result, and Lean proves none
-     of them for the challenge families of the code. Each difference of two challenges of a family is a unit, for which
+     argument (`Export.BoundedDepth.FinalAkita.mixed_runs_le`). These are hypotheses of `sound`. Lean proves them for the decoders above, not for the decoder of the code, and it does not prove the operator bound. Each difference of two challenges of a family is a unit, for which
      Akita cites Lyubashevsky and Seiler. Each challenge is sparse, and at the squared-norm levels it has the operator
      bound `Γ` (`Spec.Compression.Akita.UnitDifferences`, `Spec.Compression.Akita.Sparse`,
      `Spec.Compression.Akita.MulBound`). `p` is at least the largest probability of one challenge under the slot decoder

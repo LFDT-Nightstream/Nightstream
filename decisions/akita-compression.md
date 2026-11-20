@@ -337,7 +337,9 @@ trust item 7, gives the facts).
 - The proof of work and the probability `p`.
   `Export.BoundedDepth.FinalKey20.sound` takes the largest probability `p` of
   one fold challenge as a hypothesis. Its bound on the stage errors of the
-  opening is at most `14983/2^128` if `p` is at most `2^−128`. The Akita code
+  opening is `7559/q²` for a decoder that is an injection of one slot of `K`
+  into the challenge family, where `p = 1/q²`. No decoder from one slot has
+  `p` at most `2^−128`, because `q²` is below `2^128`. The Akita code
   has a target of 128 bits for each query and a proof of work at each
   challenge site, and the Lean model has no proof of work. The alternatives
   are challenge families with `p` at most `2^−128` without the work, or a Lean

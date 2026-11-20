@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use dispatch2::DispatchData;
 use objc2::rc::Retained;
@@ -94,7 +94,7 @@ pub struct MetalSession {
     production_key: Option<Mutex<production_commitment::ResidentKeyRows>>,
     resident_matrices: joint::Resident<(), Vec<joint::MetalCompactMatrix>>,
     resident_openings: joint::Resident<(usize, usize, bool), joint::ResidentOpening>,
-    activity: ActivityCounters,
+    activity: Arc<ActivityCounters>,
 }
 
 // SAFETY: the session owns a device, command queues, pipelines and buffers,
@@ -194,7 +194,7 @@ impl MetalSession {
             production_key: None,
             resident_matrices: Default::default(),
             resident_openings: Default::default(),
-            activity: ActivityCounters::default(),
+            activity: Arc::default(),
         })
     }
 

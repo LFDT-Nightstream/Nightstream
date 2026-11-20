@@ -15,6 +15,7 @@ fn value(coefficients: &[K], x: K) -> K {
 #[test]
 fn packed_rounds_and_handoff_match_direct_evaluation_with_partial_tiles() {
     let session = MetalSession::new().unwrap();
+    let before = session.activity();
     let checked: Vec<[F; 4]> = (0..1027)
         .map(|i| std::array::from_fn(|j| F::from_usize((i * (j + 1) + j + 3) % 97)))
         .collect();
@@ -43,6 +44,9 @@ fn packed_rounds_and_handoff_match_direct_evaluation_with_partial_tiles() {
             .collect::<Vec<_>>();
         let weight = |i: usize| low[i % low.len()] * high[i / low.len()];
         let (gate, norm) = packed.evaluate(&point, (&low, &high)).unwrap();
+        let after_round = session.activity();
+        assert_eq!(packed.evaluate(&point, (&low, &high)).unwrap(), (gate, norm));
+        assert_eq!(session.activity(), after_round);
         for sample in 0..8 {
             let x = scalar(sample + 101);
             let expected: K = gates
@@ -87,4 +91,11 @@ fn packed_rounds_and_handoff_match_direct_evaluation_with_partial_tiles() {
             .collect();
         point.push(coin);
     }
+    let after = session.activity();
+    assert_eq!(after.command_buffers - before.command_buffers, 8);
+    assert_eq!(after.dispatches - before.dispatches, 32);
+    assert_eq!(after.host_waits - before.host_waits, 8);
+    assert_eq!(after.allocated_bytes - before.allocated_bytes, 216_080);
+    assert_eq!(after.uploaded_bytes - before.uploaded_bytes, 168_720);
+    assert_eq!(after.downloaded_bytes - before.downloaded_bytes, 3_424);
 }

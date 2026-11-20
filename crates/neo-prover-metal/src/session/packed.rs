@@ -23,6 +23,7 @@ const TERNARY: [u16; 256] = {
 struct Packed {
     device: Device,
     queue: Queue,
+    activity: Arc<ActivityCounters>,
     pipelines: [Pipeline; 4],
     checked: Option<Buffer>,
     positive: Buffer,
@@ -86,6 +87,7 @@ impl Packed {
         Ok(Self {
             device: session.device.clone(),
             queue: session.queue.clone(),
+            activity: Arc::clone(&session.activity),
             pipelines: session.packed.clone(),
             checked: Some(base),
             positive: session.buffer_from_slice(positive)?,
@@ -109,22 +111,34 @@ fn words_at(buffer: &Buffer, index: usize) -> K {
 impl Packed {
     fn buffer(&self, bytes: usize) -> Result<Buffer, MetalError> {
         let _guard = reserve_on(&self.device, bytes)?;
-        self.device
+        let buffer = self
+            .device
             .newBufferWithLength_options(bytes, MTLResourceOptions::StorageModeShared)
-            .ok_or(MetalError::Buffer { bytes })
+            .ok_or(MetalError::Buffer { bytes })?;
+        self.activity
+            .allocated_bytes
+            .fetch_add(bytes as u64, Ordering::Relaxed);
+        Ok(buffer)
     }
     fn upload(&self, data: &[K]) -> Result<Buffer, MetalError> {
         let bytes = size_of_val(data);
         let _guard = reserve_on(&self.device, bytes)?;
         // SAFETY: the immutable slice covers bytes, and Metal copies it synchronously.
-        unsafe {
+        let buffer = unsafe {
             self.device.newBufferWithBytes_length_options(
                 NonNull::new(data.as_ptr().cast_mut().cast::<c_void>()).unwrap(),
                 bytes,
                 MTLResourceOptions::StorageModeShared,
             )
         }
-        .ok_or(MetalError::Buffer { bytes })
+        .ok_or(MetalError::Buffer { bytes })?;
+        self.activity
+            .allocated_bytes
+            .fetch_add(bytes as u64, Ordering::Relaxed);
+        self.activity
+            .uploaded_bytes
+            .fetch_add(bytes as u64, Ordering::Relaxed);
+        Ok(buffer)
     }
     fn evaluate_round(&mut self, point: &[K], weights: (&[K], &[K])) -> Result<([K; 8], [K; 4]), MetalError> {
         let r = point.len();
@@ -153,6 +167,9 @@ impl Packed {
             .queue
             .commandBuffer()
             .ok_or(MetalError::CommandBuffer)?;
+        self.activity
+            .command_buffers
+            .fetch_add(1, Ordering::Relaxed);
         command.setLabel(Some(&NSString::from_str("nightstream.packed_piccs")));
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
         let mut reductions = Vec::with_capacity(2);
@@ -197,12 +214,13 @@ impl Packed {
                 for (slot, b) in buffers.iter().enumerate() {
                     encoder.setBuffer_offset_atIndex(Some(b), 0, slot);
                 }
-                bytes(&encoder, 5, &shape);
+                self.bytes(&encoder, 5, &shape);
                 if kernel == 1 {
                     encoder.setBuffer_offset_atIndex(self.code_buffer.as_deref(), 0, 6);
-                    bytes(&encoder, 7, &TERNARY);
+                    self.bytes(&encoder, 7, &TERNARY);
                     encoder.setBuffer_offset_atIndex(Some(&self.negative), 0, 8);
                 }
+                self.activity.dispatches.fetch_add(1, Ordering::Relaxed);
                 encoder.dispatchThreadgroups_threadsPerThreadgroup(line(groups), line(WIDTH));
             }
             reductions.push((partial, sums, groups, last_groups, terms));
@@ -215,12 +233,18 @@ impl Packed {
             unsafe {
                 encoder.setBuffer_offset_atIndex(Some(partial), 0, 0);
                 encoder.setBuffer_offset_atIndex(Some(sums), 0, 1);
-                bytes(&encoder, 2, &(*groups as u32));
+                self.bytes(&encoder, 2, &(*groups as u32));
+                self.activity.dispatches.fetch_add(1, Ordering::Relaxed);
                 encoder.dispatchThreadgroups_threadsPerThreadgroup(line(*last_groups), line(WIDTH));
             }
         }
         encoder.endEncoding();
+        self.activity.host_waits.fetch_add(1, Ordering::Relaxed);
         finish(&command)?;
+        let read_bytes: usize = reductions.iter().map(|(_, sums, ..)| sums.length()).sum();
+        self.activity
+            .downloaded_bytes
+            .fetch_add(read_bytes as u64, Ordering::Relaxed);
         let sum = |i: usize, j: usize| {
             let (_, b, _, groups, terms) = &reductions[i];
             (0..*groups).map(|g| words_at(b, g * terms + j)).sum()
@@ -235,10 +259,15 @@ fn line(width: usize) -> MTLSize {
         depth: 1,
     }
 }
-unsafe fn bytes<T>(encoder: &ProtocolObject<dyn MTLComputeCommandEncoder>, slot: usize, value: &T) {
-    // SAFETY: callers pass initialized scalar arrays and the Metal encoder copies the bytes.
-    unsafe {
-        encoder.setBytes_length_atIndex(NonNull::from(value).cast(), size_of::<T>(), slot);
+impl Packed {
+    unsafe fn bytes<T>(&self, encoder: &ProtocolObject<dyn MTLComputeCommandEncoder>, slot: usize, value: &T) {
+        // SAFETY: callers pass initialized scalar arrays and the Metal encoder copies the bytes.
+        unsafe {
+            encoder.setBytes_length_atIndex(NonNull::from(value).cast(), size_of::<T>(), slot);
+        }
+        self.activity
+            .uploaded_bytes
+            .fetch_add(size_of::<T>() as u64, Ordering::Relaxed);
     }
 }
 impl PackedGateNorm for Packed {
@@ -265,6 +294,10 @@ impl PackedGateNorm for Packed {
         let values = (0..self.width.div_ceil(1 << round))
             .map(|i| words_at(norm, i << (round - 4)))
             .collect();
+        let bytes = (4 * count + self.width.div_ceil(1 << round)) * size_of::<K>();
+        self.activity
+            .downloaded_bytes
+            .fetch_add(bytes as u64, Ordering::Relaxed);
         Some((gates, values))
     }
 }

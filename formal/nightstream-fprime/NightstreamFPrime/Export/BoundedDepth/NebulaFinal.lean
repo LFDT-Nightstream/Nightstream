@@ -225,7 +225,7 @@ theorem soundness (complete : StepExtend.Complete exports)
     _ ≤ _ := add_le_add rejected (by rw [sampled]; exact bad)
 
 /-- With Akita openings, the probability of a false memory statement is at most
-`q · (1/2^119 + 38/fieldModulus²)` plus the error of `[AKITA]` and the terms of
+`q · (1/2^119 + 38/fieldModulus²)` plus `Spec.Compression.Akita.Use.error` and the terms of
 `NebulaSecurity.bad_le`, over the walk's `S_max · N` stages, as in `soundness`. `event` is a false
 memory statement of the prover `real` with Akita openings, and `composition` relates it to
 `FalseMemory` of the game prover `s` (`Spec.Compression.Akita.Use.wins_le`). -/

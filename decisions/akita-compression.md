@@ -178,19 +178,19 @@ production shapes (`Spec.Compression.Verifier.soundness`,
 `Spec.Compression.Verifier.production_error_lt`). This is not a security
 level of the final proof. It does not include:
 
-- the knowledge error of the Akita opening (`[AKITA]`). Akita states a target
-  of a 128-bit Fiat–Shamir rate for each query in the classical
-  random-oracle model, and it states no complete bound;
+- the knowledge error of the Akita opening for the pinned setup. This bound
+  is an open premise of the final claim. Akita states a target of a 128-bit
+  Fiat–Shamir rate for each query in the classical random-oracle model;
 - the error of the Π_CCS run of the fresh instance; and
 - Module-SIS for the Akita commitments, which Akita prices at 169 bits of
   quantum Core-SVP cost in the ADPS16 model, and Module-SIS for the Ajtai
   commitments of the claims (`[MSIS]`).
 
 The argument has these premises about the verification key. The key is the
-key of Algorithm 11, which the pin of choice 13 gives. Akita is binding and
-knowledge sound for the key polynomial and for its own setup prefixes, so
-the value that Akita opens is the value of the key polynomial. The verifier
-never reads the polynomial, and no Lean statement covers the key
+key of Algorithm 11, which the pin of choice 13 gives. Under `[AKITA]`, the
+commitment binds the key polynomial. The extraction bound for this setup,
+including its offloaded prefixes, is open. The verifier never reads the
+polynomial, and no Lean statement covers the key
 ([security model](../formal/nightstream-fprime/SECURITY_MODEL.md), adversary
 6 and trust item 7).
 

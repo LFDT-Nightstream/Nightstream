@@ -3,21 +3,21 @@ import NightstreamFPrime.Spec.Compression.Akita.Rows
 import NightstreamFPrime.Spec.Compression.Game.Law
 
 /-! Akita (ePrint 2026/1983, revision of 2026-10-15) as a polynomial commitment scheme, and the
-premises of `[AKITA]` (`SECURITY_MODEL.md`, trust item 7).
+premises of the final verifier (`SECURITY_MODEL.md`, trust item 7).
 
-- `Pcs` has the parts of Akita Definition 3.5 that the security notions read. `KnowledgeSound` is
-  Akita Definition 3.7 for a batch of claims (Akita (173)).
+- `Pcs` has the parts of Akita Definition 3.5 that the security notions read. `Extractor.Fails`
+  is the failure event of Akita Definition 3.7 for a batch of claims (Akita (173)), at fixed parameters.
 - `Schedule.Admissible` is Akita Definition 9.2. The conditions that a schedule file decides are
   those of `Row.Conditions` (`Akita/Rows.lean`). A schedule with the row of `key20.aks` is
   admissible when it has the other conditions (`Schedule.admissible_key20_iff`), and no schedule
   with a row of `key30.aks` is admissible (`Schedule.not_admissible_key30`).
-- `Theorem1046` is Akita Theorem 10.46: under an admissible schedule, each prover with
-  `Q ≤ Q_max` queries to `H_FS` has an extractor with the error
-  `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)`. Akita's terminal and its root commitments enter
-  the transcript as digests, so Akita Lemma 10.47 adds `ε_hash` (`Schedule.knowledgeError`).
+- Akita Theorem 10.46 bounds extraction failure over sampled setup by
+  `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)` for `Q ≤ Q_max` queries to `H_FS`.
+  Akita Lemma 10.47 adds `ε_hash` for the digests of the terminal and the root commitments
+  (`Schedule.knowledgeError`). Applying this bound at the fixed setup requires an open premise.
 - `Use` is the one Akita opening of a final proof (SPEC.md Algorithm 10, step 11). Its premises
-  are `Use.Knowledge` (Theorem 10.46 with its conditions), `Use.Binding` (the commitment of the
-  compression key opens only to the key polynomial, which Theorem 10.46 does not give) and
+  are `Use.Knowledge` (the conditions and `Use.FixedSetupKnowledge` for the fixed setup),
+  `Use.Binding` (the commitment of the compression key opens only to the key polynomial) and
   `Use.Composition` (an extracted win is a win of the game with ideal openings, which no result of
   Akita gives, because the prover commits `V` after the challenge `τ`).
 - `Use.wins_le`: under these premises, the prover with Akita openings wins at most `Use.error`
@@ -99,21 +99,14 @@ def Fails (pp : S.Params) (draw : prover.Tape × extractor.Coins) : Prop :=
 
 end Extractor
 
-/-- Akita Definition 3.7 for a batch: each admitted prover `p` has an efficient extractor that
-fails with probability at most `κ p`. `Efficient` is expected polynomial time. -/
-def KnowledgeSound (S : Pcs) (n : ℕ) (pp : S.Params) (Admitted : Prover S n → Prop)
-    (Efficient : (prover : Prover S n) → Extractor prover → Prop) (κ : Prover S n → ℝ) : Prop :=
-  ∀ prover, Admitted prover → ∃ extractor, Efficient prover extractor ∧
-    extractor.chance (extractor.Fails pp) ≤ κ prover
-
 /-- The values of an Akita schedule that Akita Definition 9.2 and Theorem 10.46 read: the row of
 its schedule file, the profile `(λ_FS, Q_max)`, the worst-case count of honest `H_FS` queries,
 `ε_int` (Akita (194)), `N_setup` (Akita (34)), the draw width `w` of the setup expansion
 (Akita (36)), and the count of Module-SIS instances `I(sch)`. A schedule file holds none of these
-numbers. `rootBatching`, `compatible`, `extraction` and `msisFloor` are the conditions of Akita
-Section 9.3 that the file does not decide: the root batching conditions of I1; C1, C2 and C4 to
-C6; E1 to E3; and S1. They read the challenge families, the samplers, the setup registry and the
-Module-SIS instances, which Lean does not model. -/
+numbers. `rootBatching`, `compatible`, `chainCompatibility`, `extraction` and `msisFloor` are
+conditions of Akita Section 9.3 that the file does not decide: the root batching conditions of I1;
+C1, C2 and C4 to C6; the rest of C3; E1 to E3; and S1. For the rest of C3, Akita Section 5.1
+requires the successor commitment and the ordered witness segments to match at each edge. -/
 structure Schedule where
   row : Row
   lambdaFS : ℕ
@@ -125,6 +118,7 @@ structure Schedule where
   instances : ℕ
   rootBatching : Prop
   compatible : Prop
+  chainCompatibility : Prop
   extraction : Prop
   msisFloor : Prop
 
@@ -133,10 +127,10 @@ namespace Schedule
 variable (sch : Schedule)
 
 /-- The conditions of Akita Definition 9.2 that the schedule file does not decide: those of
-`rootBatching`, `compatible`, `extraction` and `msisFloor`, S2 (at most `Q_max` honest queries)
-and S3 (the budget of Akita (195)). -/
+`rootBatching`, `compatible`, `chainCompatibility`, `extraction` and `msisFloor`, S2 (at most
+`Q_max` honest queries) and S3 (the budget of Akita (195)). -/
 def Rest : Prop :=
-  sch.rootBatching ∧ sch.compatible ∧ sch.extraction ∧ sch.msisFloor ∧
+  sch.rootBatching ∧ sch.compatible ∧ sch.chainCompatibility ∧ sch.extraction ∧ sch.msisFloor ∧
     sch.honestQueries ≤ sch.queryMax ∧
     (sch.queryMax + 1 : ℝ) * sch.interactiveError ≤ 1 / 2 ^ sch.lambdaFS
 
@@ -160,9 +154,10 @@ theorem not_admissible_key30 (file : sch.row = key30W27 ∨ sch.row = key30W26) 
 /-- `N_setup · q / 2^w`, the bound on `Δ_setup` of Akita Theorem 10.46. -/
 noncomputable def setupGap : ℝ := sch.setupLength * fieldModulus / 2 ^ sch.drawBits
 
-/-- The error of Akita (210) for the prover, `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)`, plus
-`(Q_H² + Q_H · V_H) / 2^256` for `Q_H` digest queries and `V_H` digest positions. The last term
-bounds `ε_hash` of Akita (212), because each digest has 256 bits. `advantage I` is `Adv_I(B_I)`. -/
+/-- The sampled-setup bound of Akita (210), `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)`, using
+`setupGap` for `Δ_setup`, plus `(Q_H² + Q_H · V_H) / 2^256` for `Q_H` digest queries and `V_H`
+digest positions. The last term bounds `ε_hash` of Akita (212) for 256-bit digests.
+`advantage I` is `Adv_I(B_I)`. -/
 noncomputable def knowledgeError {S : Pcs} {n : ℕ} (prover : Prover S n)
     (advantage : Fin sch.instances → ℝ) : ℝ :=
   (prover.queries + 1) * sch.interactiveError + sch.setupGap + ∑ I, advantage I +
@@ -170,23 +165,11 @@ noncomputable def knowledgeError {S : Pcs} {n : ℕ} (prover : Prover S n)
 
 end Schedule
 
-/-- Akita Theorem 10.46 for the parameters `pp` of the schedule `sch`, with Akita Lemma 10.47 for
-the digests of transcript entries: under an admissible schedule, each admitted prover with
-`Q ≤ Q_max` queries to `H_FS` has an efficient extractor with the error `Schedule.knowledgeError`.
-`advantage p I` is `Adv_I(B_I)` of the Module-SIS algorithm `B_I` that the theorem gives for `p`.
-The theorem gives neither completeness nor binding. -/
-def Theorem1046 (S : Pcs) (n : ℕ) (sch : Schedule) (pp : S.Params) (Admitted : Prover S n → Prop)
-    (Efficient : (prover : Prover S n) → Extractor prover → Prop)
-    (advantage : Prover S n → Fin sch.instances → ℝ) : Prop :=
-  sch.Admissible → KnowledgeSound S n pp
-    (fun prover => Admitted prover ∧ prover.queries ≤ sch.queryMax) Efficient fun prover =>
-      sch.knowledgeError prover (advantage prover)
-
 /-- The one Akita opening of a final proof: a batch of `claims` claims under `schedule` and
 `params`, whose claim `key` is on the commitment `keyCommitment` of the compression key, with the
-key polynomial `keyTable`; the admitted provers and the efficient extractors; and two error terms
-for each prover, `Adv_I(B_I)` of Theorem 10.46 (`advantage`) and the binding error
-(`bindingError`). -/
+key polynomial `keyTable`; the admitted provers and extractors of expected polynomial time; and
+two error terms for each prover, the Module-SIS advantages `Adv_I(B_I)` in the assumed extraction
+bound (`advantage`) and the binding error (`bindingError`). -/
 structure Use where
   scheme : Pcs
   claims : ℕ
@@ -204,10 +187,18 @@ namespace Use
 
 variable (u : Use)
 
-/-- Akita Theorem 10.46 for the prover `prover`, with the conditions of the theorem. -/
+/-- Open premise at the fixed parameters `u.params`: under the schedule, prover and query
+conditions, an efficient extractor for `prover` meets `Schedule.knowledgeError` for the
+failure event of Akita Definition 3.7. Akita Theorem 10.46 bounds the experiment over sampled
+setup. -/
+def FixedSetupKnowledge (prover : Prover u.scheme u.claims) : Prop :=
+  u.schedule.Admissible → u.Admitted prover → prover.queries ≤ u.schedule.queryMax →
+    ∃ extractor : Extractor prover, u.Efficient prover extractor ∧
+      extractor.chance (extractor.Fails u.params) ≤ u.schedule.knowledgeError prover (u.advantage prover)
+
+/-- The fixed-setup extraction premise and its conditions. -/
 structure Knowledge (prover : Prover u.scheme u.claims) : Prop where
-  theorem1046 :
-    Theorem1046 u.scheme u.claims u.schedule u.params u.Admitted u.Efficient u.advantage
+  fixedSetup : u.FixedSetupKnowledge prover
   admissible : u.schedule.Admissible
   admitted : u.Admitted prover
   budget : prover.queries ≤ u.schedule.queryMax
@@ -247,21 +238,19 @@ def Composition (prover : Prover u.scheme u.claims) (event : prover.Tape → Pro
     Prop :=
   ∀ extractor, u.Efficient prover extractor → extractor.chance (u.Extracted event extractor) ≤ ideal
 
-/-- The error of `[AKITA]` for the prover: the error of Akita Theorem 10.46 with Lemma 10.47, and
-the binding error. -/
+/-- The extraction bound at the fixed setup and the binding error (`SECURITY_MODEL.md`, trust item 7). -/
 noncomputable def error (prover : Prover u.scheme u.claims) : ℝ :=
   u.schedule.knowledgeError prover (u.advantage prover) + u.bindingError prover
 
-/-- A win of the prover with Akita openings is a failure of the extractor of Theorem 10.46, a
-break of the binding of the key, or an extracted win, which `composition` bounds by `ideal`. -/
+/-- A win of the prover with Akita openings is a failure of the fixed-setup extractor, a break
+of the binding of the key, or an extracted win, which `composition` bounds by `ideal`. -/
 theorem wins_le (prover : Prover u.scheme u.claims) (event : prover.Tape → Prop) (ideal : ℝ)
     (knowledge : u.Knowledge prover) (binding : u.Binding)
     (accepts : ∀ tape, event tape → u.Opens prover tape)
     (composition : u.Composition prover event ideal) :
     (prover.tape.toOuterMeasure {tape | event tape}).toReal ≤ ideal + u.error prover := by
-  obtain ⟨extractor, efficient, fails⟩ := knowledge.theorem1046 knowledge.admissible prover
-    ⟨knowledge.admitted, knowledge.budget⟩
-  beta_reduce at fails
+  obtain ⟨extractor, efficient, fails⟩ :=
+    knowledge.fixedSetup knowledge.admissible knowledge.admitted knowledge.budget
   have broken := binding prover extractor knowledge.admitted efficient
   have extracted := composition extractor efficient
   have marginal : prover.tape.toOuterMeasure {tape | event tape} =

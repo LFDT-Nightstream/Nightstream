@@ -144,7 +144,7 @@ theorem verify_sound (facts : Facts program ajtai) (identity : List F)
 
 /-- `Verifier::verify_final` (SPEC.md Algorithm 10) at the shipped packages of the reference
 application, with Akita openings: the probability of a false history is at most
-`q · finalError` plus the error of `[AKITA]` and `walkBound` (`FinalHistory.real_soundness`). -/
+`q · finalError` plus `Spec.Compression.Akita.Use.error` and `walkBound` (`FinalHistory.real_soundness`). -/
 theorem verify_final_sound {mode : Mode} (facts : Facts program ajtai) (identity : List F)
     (relations : Fin 2 → Relation) (lightKey : relations 0 = lightRelation facts)
     (refreshKey : relations 1 = refreshRelation facts)

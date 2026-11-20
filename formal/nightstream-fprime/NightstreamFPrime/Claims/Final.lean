@@ -11,8 +11,10 @@ The results for the full path of a compressed proof (`SPEC.md` Algorithm 10 and 
 - `history_sound_with_akita` is the theorem of `nightstream::Verifier::verify_final`, and
   `memory_sound_with_akita` is the theorem of the memory `verify_final`.
 - Assumptions: `[HN-A1]` for the history, and `[AKITA]` for each claim that ends in
-  `_with_akita`: Akita Theorem 10.46 with its conditions (`akita`, a
-  `Spec.Compression.Akita.Use.Knowledge`) and the binding of the key commitment (`binding`).
+  `_with_akita` (`SECURITY_MODEL.md`, trust item 7). The key commitment needs binding (`binding`).
+- Open: `akita` (`Spec.Compression.Akita.Use.Knowledge`) includes extraction at the fixed setup
+  (`akita.fixedSetup`) and schedule admissibility (`akita.admissible`). The schedule file checks
+  the witness lengths of Akita C3. The other part is in `Schedule.Rest`.
 - Open: the premise `composition` of each claim that ends in `_with_akita`
   (`Spec.Compression.Akita.Use.Composition`). No result of Akita gives it, because the prover
   commits `V` after the lookup challenges (`SECURITY_MODEL.md`, trust item 7). Lean proves the rest
@@ -107,10 +109,10 @@ theorem verifier_sound
 
 /-- With Akita openings, the final verifier accepts a statement for which no proof with
 witnesses satisfies `Verifies` with probability at most `q · (1/2^119 + 38/fieldModulus²)` plus
-`Spec.Compression.Akita.Use.error`: for the prover `real` with Akita openings and its `Q` queries
-to `H_FS`, the error `(Q + 1) · ε_int + N_setup · q / 2^w + Σ_I Adv_I(B_I)` of Akita Theorem 10.46,
-the digest term of Akita Lemma 10.47, and the binding error of the key. `event` is this event for `real`, and `composition` relates it
-to the event of the game prover `s`. -/
+`Spec.Compression.Akita.Use.error`. This adds the binding error of the key to
+`Schedule.knowledgeError`, the bound assumed by `akita.fixedSetup` for the prover `real` at the
+fixed parameters. The bound uses Akita (210) and the digest term of Akita (212).
+`event` is this event for `real`, and `composition` relates it to the event of the game prover `s`. -/
 theorem verifier_sound_with_akita
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤

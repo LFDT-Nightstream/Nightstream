@@ -26,8 +26,8 @@ and each row cites exactly one pinned theorem of the Lean-emitted premise list P
 starts with `Open:`. Each claim of PREMISES needs a pin in SPEC.md.
 
 Between `<!-- papers -->` and `<!-- /papers -->` SPEC.md lists each cited paper number. A citation
-in PAPER_DOCUMENTS names a paper of PAPER_NAMES or an ePrint number, then in the same sentence a
-kind of ITEM and its number. Each citation needs a row, and each row a citation.
+in PAPER_DOCUMENTS names a protocol paper, a paper from the table or an ePrint number, then in the same sentence a kind
+of ITEM and its number. Each citation needs a row, and each row a citation.
 
   python3 scripts/check_spec.py            check pins, paths, the table and the spec files
   python3 scripts/check_spec.py --write    rewrite the table (pins are never edited)
@@ -61,11 +61,10 @@ OLD_CITATION = re.compile(r"[Ss]pec §")
 PAPERS_BEGIN, PAPERS_END = "<!-- papers -->", "<!-- /papers -->"
 PAPER_DOCUMENTS = [ROOT / "formal/nightstream-fprime/SECURITY_MODEL.md",
                    *sorted((ROOT / "decisions").glob("*.md")), *sorted((FPRIME / "Claims").glob("*.lean"))]
-PAPER_NAMES = ("SuperNeo", "HyperNova", "Nebula", "Cyclo", "Akita")
+PROTOCOL_PAPERS = {"SuperNeo", "HyperNova", "Nebula", "Cyclo", "Akita"}
 NUMBER = r"(?:[0-9]+|[A-Z])(?:\.[0-9]+)*"
 ITEM = (r"\b(Theorem|Lemma|Definition|Construction|Section|Assumption|Corollary|Proposition|Remark|Figure"
         rf"|Appendix)s? ({NUMBER}(?:(?:,? and | to |, |/){NUMBER})*)\b")
-CITATION = re.compile(rf"\b({'|'.join(PAPER_NAMES)})\b|\bePrint (\d{{4}}/\d+)|{ITEM}")
 DOCSTRING = re.compile(r"/-[-!](.*?)-/", re.S)
 
 PIN = re.compile(r"`((?:Claims|Export|Layout|Lifecycle|Spec)\.[^`\s]*)` \(`([^`\s.]*)`\)")
@@ -330,17 +329,17 @@ def claim_pin_errors(text):
                "restates it, then run formal/nightstream-fprime/scripts/validate.sh repin")
 
 
-def citations(text):
+def citations(text, citation_pattern):
     """(paper, item) for each paper number of `text`. A sentence cites the last paper that it names
     before the item."""
     text = TICKED.sub("`…`", text)
     for block in re.split(r"\n\s*\n|\n\s*(?=[-*] |\d+\. )|\|", text):
         for sentence in re.split(r"(?<=[.;!?])\s+(?=[A-Z(*`])", " ".join(block.split())):
             paper = None
-            for match in CITATION.finditer(sentence):
-                name, eprint, kind, numbers = match.groups()
-                if kind is None:
-                    paper = name or f"ePrint {eprint}"
+            for match in citation_pattern.finditer(sentence):
+                name, kind, numbers = match.groups()
+                if name is not None:
+                    paper = name
                 elif paper:
                     yield from ((paper, f"{kind} {number}") for number in re.findall(NUMBER, numbers))
 
@@ -357,7 +356,13 @@ def paper_errors(text):
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
         if len(cells) == 5 and re.fullmatch(r"\d{4}/\d+", cells[1]):
             rows[(cells[1], cells[3])] = cells[0]
-    eprints = {paper.split()[0]: eprint for (eprint, _), paper in rows.items()}
+    eprints = {paper: eprint for (eprint, _), paper in rows.items()}
+    for paper, eprint in list(eprints.items()):
+        shorthand = re.sub(r" v\d+(?:\.\d+)+$", "", paper)
+        eprints.setdefault(shorthand, eprint)
+    papers = [r"\bePrint \d{4}/\d+\b", *(rf"(?<!\w){re.escape(name)}(?!\w)"
+              for name in sorted(PROTOCOL_PAPERS | eprints.keys(), key=len, reverse=True))]
+    citation_pattern = re.compile(rf"({'|'.join(papers)})|{ITEM}")
     documents = [("SPEC.md", head + tail)]
     for path in PAPER_DOCUMENTS:
         document = path.read_text(encoding="utf-8")
@@ -366,7 +371,7 @@ def paper_errors(text):
         documents.append((rel(path), document))
     cited = set()
     for name, document in documents:
-        for paper, item in citations(document):
+        for paper, item in citations(document, citation_pattern):
             key = (eprints.get(paper, paper.removeprefix("ePrint ")), item)
             if key not in rows and key not in cited:
                 yield f"{name} cites {paper} {item}, which is not a row of the papers table"

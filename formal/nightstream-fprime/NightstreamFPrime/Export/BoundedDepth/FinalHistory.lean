@@ -15,7 +15,7 @@ history is a result in which `Verifies` rejects that proof, or a false acceptanc
 adversary. So its probability is at most `q · finalError` plus the bound of HyperNova Lemma 18 for
 this adversary, `IvcSecurity.walkBound` (`soundness`). The same bound holds for the witnesses that
 the reverse extractor returns from the walk's start (`knowledge`). With Akita openings, both bounds
-add the error of `[AKITA]` (`real_soundness`, `real_knowledge`). -/
+add `Spec.Compression.Akita.Use.error` (`real_soundness`, `real_knowledge`). -/
 
 set_option autoImplicit false
 
@@ -124,7 +124,7 @@ theorem soundness (complete : StepExtend.Complete exports)
     _ ≤ _ := add_le_add rejected (by rw [prob_eq_law]; exact accepted)
 
 /-- With Akita openings, the probability of a false history is at most
-`q · (1/2^119 + 38/fieldModulus²)` plus the error of `[AKITA]` and `IvcSecurity.walkBound`, as in
+`q · (1/2^119 + 38/fieldModulus²)` plus `Spec.Compression.Akita.Use.error` and `IvcSecurity.walkBound`, as in
 `soundness`. `event` is a false history of the prover `real` with Akita openings, and
 `composition` relates it to `FalseHistory` of the game prover `s`
 (`Spec.Compression.Akita.Use.wins_le`). -/
@@ -228,7 +228,7 @@ theorem knowledge (complete : StepExtend.Complete exports)
     _ ≤ _ := add_le_add (by rw [pulled, ← prob_eq_law]; exact rejected) failed
 
 /-- The Akita form of `knowledge`: with Akita openings, the probability of `event` is at most
-`q · (1/2^119 + 38/fieldModulus²)` plus the error of `[AKITA]` and `IvcSecurity.walkBound`.
+`q · (1/2^119 + 38/fieldModulus²)` plus `Spec.Compression.Akita.Use.error` and `IvcSecurity.walkBound`.
 `event` is the counterpart of `AdviceFailure` for the prover `real` with Akita openings, and
 `composition` relates it to `AdviceFailure` of the game prover `s`
 (`Spec.Compression.Akita.Use.wins_le`). -/

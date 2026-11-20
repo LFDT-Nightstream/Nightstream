@@ -7,7 +7,7 @@ import Mathlib.Data.List.Basic
 - `Row` holds the fields of a file row that these conditions read. `tests/AkitaSchedules.lean`
   reads both files and fails when a row of a file is not its Lean row.
 - `Row.Methods`, `Row.Compressed` and `Row.RingChecks` are the family F1 to F3. `Row.Interface` is
-  I2, I3 and the second part of I1. `Row.Chained` is C3.
+  I2, I3 and the second part of I1. `Row.Chained` checks the witness lengths in C3.
 - The file of the key of 20 variables has these conditions (`key20_conditions`). Each row of the
   file of the key of 30 variables has them without F1 (`key30W27_conditions`,
   `key30W26_conditions`): it uses coefficient packing at levels 2 and 3, and Akita (127) gives
@@ -113,7 +113,8 @@ def Interface : Prop :=
       level.groups.map (·.setup) = [false] ∨ level.groups.map (·.setup) = [true, false]
 
 /-- C3 for the witness lengths: the target length of each fold is the source length of the next
-fold or of the terminal. A file has no other record of a target shape. -/
+fold or of the terminal. Akita Section 5.1 also requires the successor commitment and ordered
+witness segments to match. -/
 def Chained : Prop :=
   (∀ edge ∈ row.levels.zip row.levels.tail, edge.1.target = edge.2.source) ∧
     row.levels.getLast?.map (·.target) = some row.terminal
@@ -171,7 +172,7 @@ def key30W26 : Row where
   terminal := 77120
 
 /-- The row of `key20.aks` is in the family F1 to F3 and has I2, I3, the second part of I1 and
-C3. -/
+the witness lengths of C3. -/
 theorem key20_conditions : key20.Conditions := by decide
 
 /-- The first row of `key30.aks` is not in F1: its folds at levels 2 and 3 use coefficient

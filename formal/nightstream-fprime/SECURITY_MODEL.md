@@ -101,15 +101,10 @@ scope note.
   `F_q[X]/(X^64 + 1)` at the chain norm, in the lattice-estimator model
   of `decisions/field-2p64-59-ring-x64.md` (trust item 2), and for the
   Akita commitments at Akita's price (trust item 7).
-- `AKITA`: for the one Akita opening of a final proof
-  (`Spec.Compression.Akita.Use`), Akita (ePrint 2026/1983) Theorem 10.46
-  with its error `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)` and the term
-  `ε_hash` of Akita Lemma 10.47 for its digests
-  (`Spec.Compression.Akita.Theorem1046`), and the binding of the commitment
-  of the compression key to the key polynomial, which that theorem does not
-  give (`Spec.Compression.Akita.Use.Binding`). It does not include the
-  composition of the opening with the game, which the commitment of `V`
-  after the lookup challenges needs: that premise is open (trust item 7).
+- `AKITA`: the Akita commitment of the compression key binds the key polynomial
+  (`Spec.Compression.Akita.Use.Binding`). Akita Theorem 10.46 bounds extraction failure
+  over a draw of the public setup. The bound for the verifier's pinned setup and the
+  composition with the commitment of `V` after the lookup challenges are open (trust item 7).
 - `HN-A1`: HyperNova errata Assumption 1 for the two fold kinds, in the form of
   trust item 3.
 <!-- assumptions:end -->
@@ -133,7 +128,7 @@ the Rust code is held to the Lean definition (trust item 5).
 | Fold transcripts | `Lifecycle.RandomOracle.Schedule.challengeCalls`, `Lifecycle.RandomOracle.Schedule.pieces` | `Lifecycle.RandomOracle.Schedule.challengeAddress_injective`, `Lifecycle.RandomOracle.Schedule.statementCalls_identify`, `Lifecycle.RandomOracle.Schedule.proverCalls_identify`; fixed lengths: `Lifecycle.RandomOracle.Schedule.pieces_alike`, `Lifecycle.RandomOracle.Schedule.calls_pieces`; reads: the state of a `ρ` read is the state of no other challenge (`Lifecycle.RandomOracle.Schedule.rhoCalls_ne`) | Direct: `the_light_transcript_absorbs_the_lean_pieces`, `the_refresh_transcript_absorbs_the_lean_pieces` (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/nightstream-fprime/tests/fold_transcript_lean.rs`). The Π_RLC sampler is direct (`crates/neo-reductions/tests/pi_rlc_lean_parity.rs`). Indirect for the fold prover: package rows |
 | Compression transcript | `Export.BoundedDepth.CompressionSponge.pieces`, with `Lifecycle.RandomOracle.Sponge.byteWords` for a byte string and `Export.BoundedDepth.CompressionSponge.Claim.words` for a claim | `Export.BoundedDepth.CompressionSponge.calls_injective` (two runs of one statement shape, each byte string below `q` bytes), from `Export.BoundedDepth.CompressionSponge.pieces_alike`, `Lifecycle.RandomOracle.Sponge.byteWords_injective` and `Export.BoundedDepth.CompressionSponge.Claim.words_injective`. Rows 4 to 17 have the operations and counts of `Spec.Compression.Rust.schedule`: `Export.BoundedDepth.CompressionSponge.argumentPieces_fit` | Direct for the words: `byte_words_are_the_lean_words`, `claim_words_are_the_lean_words`, `the_domain_and_the_session_label_are_the_lean_ones`, `the_compression_domain_is_the_lean_domain`, and for the zero blocks of the reads: `a_replay_of_the_lean_pieces_ends_in_the_lean_session` (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/ns-compress/tests/unit/transcript.rs`). Direct for the order and the counts of rows 4 to 17 on a real proof: `a_replay_in_the_lean_order_draws_the_challenges_of_verify`. Open: no test compares rows 1 to 3 of a real proof with the Lean pieces. Rust makes them with the functions of a fold transcript (section Absorbs without a frame) |
 | Akita session bytes | `Export.BoundedDepth.CompressionSponge.session` | `Lifecycle.RandomOracle.Sponge.sessionBytes_injective`; `Export.BoundedDepth.CompressionSponge.session_binds`: two runs with one session are equal, or their transcripts are two distinct lists of sponge calls with the same lanes 0 to 3 | Direct: `the_session_is_the_lean_session`, `a_replay_of_the_lean_pieces_ends_in_the_lean_session` |
-| Akita transcript | None | Open: the Akita crates fix these bytes. `akita.verify` (`crates/ns-compress/src/akita/verifier.rs`) gives Akita the session bytes, the three commitments, the three points and the three values, and Akita absorbs them into its own Keccak sponge and makes its challenges there. Lean has no model of that sponge or of Akita's encodings. The results trust that Akita binds these inputs, as part of `[AKITA]` under `[KECCAK]` | None |
+| Akita transcript | None | Open: the Akita crates fix these bytes. `akita.verify` (`crates/ns-compress/src/akita/verifier.rs`) gives Akita the session bytes, the three commitments, the three points and the three values, and Akita absorbs them into its own Keccak sponge and makes its challenges there. Lean has no model of that sponge or of Akita's encodings. The fixed-setup and composition premises apply to this transcript under `[KECCAK]` (trust item 7) | None |
 | Nebula record chains | `Lifecycle.Nebula.blocks` | `Lifecycle.Nebula.blocks_injective`, `Lifecycle.Nebula.blockChunks_injective` | Direct: fixtures (`crates/nightstream/tests/nebula/memory.rs`) |
 | Nebula `η` | `Lifecycle.Nebula.etaInputBlocks` | `Lifecycle.Nebula.etaInputBlocks_injective`, `Lifecycle.Nebula.EtaOracle.pointOf_injective`; the four reads: `Export.BoundedDepth.EtaSponge.reads_injective` | Indirect: package rows |
 | Nebula state words | `Lifecycle.Nebula.carryVector` | `Lifecycle.Nebula.carryVector_injective`, `Lifecycle.Nebula.stateWords_eq_or_collision` | Direct: terminal fixtures |
@@ -219,8 +214,9 @@ each head.
 | `Nebula/disjoint`, `Nebula/inRange`, `Nebula/images`, `Nebula/reorders`, `Nebula/bound` | `*` | open | Open: the conditions of a catalog application (`Spec.Nebula.MemoryTrace.Binding`). No Lean result shows that the binding rows of the Rust catalog backend enforce them (Out of scope) |
 | `finder` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]`, for the collision finder of a fold with at most `calls` permutation calls and inputs of at most `blocks` padded blocks. The event is one output of one run. The finder reruns the adversary on the oracles of its own tape, so no retry is outside the run (adversary 3). `calls` is a parameter of the adversary class, as in the row below |
 | `finders` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]`, for the finder of stage `j` with at most `calls j` permutation calls and inputs of at most `blocks` padded blocks. Lean has no count of the calls of a stage, which is a Lean function, so `calls` is a parameter of the adversary class, as `depth` is (adversary 4) |
-| `akita.theorem1046`, `binding` | `*` | assumption | `[AKITA]`: Akita Theorem 10.46 for the schedule of the opening, and the binding of the key commitment |
-| `akita.admissible` | `Spec.Compression.Akita.Schedule.Admissible` | open | Open: no schedule with a row of `crates/ns-compress/artifacts/key30.aks`, the file of a key of `2^19` blocks, is admissible (`Spec.Compression.Akita.Schedule.not_admissible_key30`). Each row uses coefficient packing at levels 2 and 3, and the family F1 of Akita Definition 9.2 gives these levels evaluation trace. Akita Theorem 10.46 is for an admissible schedule, so it does not cover an opening under this file. The row of `crates/ns-compress/artifacts/key20.aks` has F1 to F3, I2, I3, the second part of I1 and C3 (`Spec.Compression.Akita.key20_conditions`), and `tests/AkitaSchedules.lean` compares the Lean rows with both files. The other conditions are open for each file (`Spec.Compression.Akita.Schedule.Rest`): a file holds no challenge certificate, sampler limit, setup registry or Module-SIS estimate for the root batching conditions of I1, C1, C2, C4 to C6, E1 to E3 and S1, and it holds no `λ_FS` and no `Q_max` for S2 and S3 |
+| `binding` | `*` | assumption | `[AKITA]`: the commitment of the compression key binds the key polynomial |
+| `akita.fixedSetup` | `Spec.Compression.Akita.Use.FixedSetupKnowledge` | open | Open: Akita Definition 3.7 samples the public parameters in the experiment of Akita Theorem 10.46. The verifier pins one setup. The paper gives no extraction error bound for that fixed setup |
+| `akita.admissible` | `Spec.Compression.Akita.Schedule.Admissible` | open | Open: no schedule with a row of `crates/ns-compress/artifacts/key30.aks`, the file of a key of `2^19` blocks, is admissible (`Spec.Compression.Akita.Schedule.not_admissible_key30`). Each row uses coefficient packing at levels 2 and 3, and the family F1 of Akita Definition 9.2 gives these levels evaluation trace. Akita Theorem 10.46 is for an admissible schedule, so it does not cover an opening under this file. The row of `crates/ns-compress/artifacts/key20.aks` has F1 to F3, I2, I3, the second part of I1 and the witness-length part of C3 (`Spec.Compression.Akita.key20_conditions`), and `tests/AkitaSchedules.lean` compares the Lean rows with both files. C3 also requires equality of the successor commitment shape and ordered witness segments at each edge. That part is open for both files. The remaining conditions are in `Spec.Compression.Akita.Schedule.Rest`. A file holds no challenge certificate, sampler limit, setup registry or Module-SIS estimate for the root batching conditions of I1, C1, C2, C4 to C6, E1 to E3 and S1, and it holds no `λ_FS` and no `Q_max` for S2 and S3 |
 | `akita.admitted`, `akita.budget` | `*` | game | adversary 6: the prover with Akita openings is a classical random-oracle prover with at most `Q_max` queries to Akita's `H_FS` |
 | `accepts` | `Spec.Compression.Akita.Use.Opens` | game | `SPEC.md` Algorithm 10: step 11 accepts only when Akita accepts the three openings, the first against the commitment of the compression key |
 | `composition` | `Spec.Compression.Akita.Use.Composition` | open | Open: the gap of `V` of trust item 7. No result of Akita composes its opening with a commitment that follows a challenge of the application |
@@ -785,7 +781,7 @@ not change terminal source checks.
   a statement for which no proof with witnesses satisfies `Verifies` with
   probability at most `Q · (2^−119 + 38/q²)`
   (`Claims.Final.verifier_sound`), and with Akita openings
-  at most `Q · (2^−119 + 38/q²)` plus the error of `[AKITA]`
+  at most `Q · (2^−119 + 38/q²)` plus the fixed-setup extraction and key-binding errors
   (`Spec.Compression.Akita.Use.error`,
   `Claims.Final.verifier_sound_with_akita`), under the
   premises of trust item 7. Lean bounds one interactive run of the
@@ -840,7 +836,7 @@ not change terminal source checks.
   adversary 4 for the stages of this IVC adversary
   (`Claims.Final.history_sound`,
   `Export.BoundedDepth.IvcSecurity.walkBound`). With Akita openings, the
-  bound adds the error of `[AKITA]` (`Claims.Final.history_sound_with_akita`).
+  bound adds the fixed-setup extraction and key-binding errors (`Claims.Final.history_sound_with_akita`).
   The same bound holds for the witnesses that the reverse extractor returns:
   the final verifier accepts, and those witnesses are not a valid history of
   the accepted statement (`Claims.Final.history_knowledge`,
@@ -872,7 +868,7 @@ not change terminal source checks.
   for this IVC adversary. So its probability is at most
   `Q · (2^−119 + 38/q²)` plus the terms of adversary 5
   (`Claims.Final.memory_sound`). With Akita openings, the
-  bound adds the error of `[AKITA]` (`Claims.Final.memory_sound_with_akita`).
+  bound adds the fixed-setup extraction and key-binding errors (`Claims.Final.memory_sound_with_akita`).
   The premises are those of the two joined results, but without the bound
   `depth`: the checks of `SPEC.md` Algorithm 8 step 4 accept at most
   `S_max · N` steps (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`),
@@ -1199,13 +1195,12 @@ not change terminal source checks.
      cells are `1/(τ_k − W(x))`, after `τ` (row 9). The game has the same
      order: `W` before `τ`, and `V` after `τ` and before the other
      challenges (`Spec.Compression.Verifier.afterTables`). For Akita
-     openings, a win is a failure of the extractor of Akita Theorem 10.46, a
+     openings, a win is a failure of the fixed-setup extractor, a
      break of the binding of the key, or a win in which the extractor
      returns the tables with the key polynomial
      (`Spec.Compression.Akita.Use.wins_le`). The premise `composition`
      bounds the last event by the event of one prover of the game, whose IVC
-     adversary must be admitted (trust item 3). The item `[AKITA]` below
-     gives each part.
+     adversary must be admitted (trust item 3).
      `Export.BoundedDepth.FinalVerifier.Premises` collects the premises on
      the setup: `Represents` for the dense rows of each circuit, and at
      most the blocks of its package for each claim. The final claims meet
@@ -1289,26 +1284,22 @@ not change terminal source checks.
      the key polynomial, `W` and `V`. It uses Akita (ePrint 2026/1983) at
      git revision `d50f700f`, crate version 0.1.0, with the configuration
      `RecursiveCommitmentConfig<fp64::Dense>` and the schedule files of
-     `SPEC.md` section 3 (`Spec.Compression.Akita.Use`). The final claims
-     have three premises about it. First, `[AKITA]`: Akita (revision of
-     2026-10-15) Theorem 10.46, in the classical random-oracle model
-     (`Spec.Compression.Akita.Theorem1046`, premise `akita`). Under an
-     admissible schedule (Akita Definition 9.2), a prover with `Q ≤ Q_max`
-     queries to `H_FS` has an extractor of Akita Definition 3.7 with the
-     error `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)`, and
-     `Δ_setup ≤ N_setup · q / 2^w`. Akita's transcript takes its last
-     terminal block and its root commitments as SHA3-256 digests, so Akita
-     Lemma 10.47 adds `ε_hash`
-     (`Spec.Compression.Akita.Schedule.knowledgeError`). The setup of the
-     theorem holds the commitments of the offloaded prefixes, so the error
-     covers them. Its conditions fail for `key30.aks`, which is not in the
-     family F1, and are open for `key20.aks` (premise `akita.admissible`).
-     Second, `[AKITA]`: the commitment of the compression key binds the key
-     polynomial, so the opened value is the value of the Ajtai key's
-     polynomial (`Spec.Compression.Akita.Use.Binding`, premise `binding`).
-     Theorem 10.46 does not give binding. Third, the gap of `V`, an open premise
-     (`Spec.Compression.Akita.Use.Composition`, premise `composition`): a
-     win in which the extractor returns the tables is a win of the game.
+     `SPEC.md` section 3 (`Spec.Compression.Akita.Use`). Akita Theorem 10.46 (revision of
+     2026-10-15) bounds extraction failure for an admissible schedule (Akita Definition 9.2)
+     and a prover with `Q ≤ Q_max` queries to `H_FS`. Akita Definition 3.7 draws the
+     public setup inside this experiment. The error is `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)`,
+     with `Δ_setup ≤ N_setup · q / 2^w`. Akita Lemma 10.47 adds `ε_hash` for the SHA3-256
+     digests of the last terminal block and the root commitments.
+     The verifier uses one pinned setup, including its offloaded prefix commitments.
+     The premise `akita.fixedSetup` requires this same bound for the pinned parameters
+     (`Spec.Compression.Akita.Schedule.knowledgeError`). It is open. Pinning the key
+     checks its identity. It supplies no bound on extraction failure for this key.
+     Schedule admissibility is a separate premise (`akita.admissible`). It fails for
+     `key30.aks` and remains open for `key20.aks`.
+     Under `[AKITA]`, the commitment of the compression key binds the key polynomial
+     (`Spec.Compression.Akita.Use.Binding`, premise `binding`).
+     The open premise `composition` bounds a win in which the extractor returns the
+     tables by a win of the game (`Spec.Compression.Akita.Use.Composition`).
      The composition theorem of Akita (Theorem 10.45) has every root
      commitment in the first message, before the first challenge of the
      application, so it does not cover the commitment of `V` after `τ`.

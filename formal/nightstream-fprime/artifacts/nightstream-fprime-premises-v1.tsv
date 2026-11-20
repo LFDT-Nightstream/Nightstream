@@ -155,7 +155,7 @@ Claims.Final.history_knowledge_with_akita	complete.refreshPublicBelow	LE.le
 Claims.Final.history_knowledge_with_akita	rows	Eq
 Claims.Final.history_knowledge_with_akita	keysShaped	Eq
 Claims.Final.history_knowledge_with_akita	depthBound	LE.le
-Claims.Final.history_knowledge_with_akita	akita.theorem1046	Spec.Compression.Akita.Theorem1046
+Claims.Final.history_knowledge_with_akita	akita.fixedSetup	Spec.Compression.Akita.Use.FixedSetupKnowledge
 Claims.Final.history_knowledge_with_akita	akita.admissible	Spec.Compression.Akita.Schedule.Admissible
 Claims.Final.history_knowledge_with_akita	akita.admitted	_
 Claims.Final.history_knowledge_with_akita	akita.budget	LE.le
@@ -240,7 +240,7 @@ Claims.Final.history_sound_with_akita	complete.refreshPublicBelow	LE.le
 Claims.Final.history_sound_with_akita	rows	Eq
 Claims.Final.history_sound_with_akita	keysShaped	Eq
 Claims.Final.history_sound_with_akita	depthBound	LE.le
-Claims.Final.history_sound_with_akita	akita.theorem1046	Spec.Compression.Akita.Theorem1046
+Claims.Final.history_sound_with_akita	akita.fixedSetup	Spec.Compression.Akita.Use.FixedSetupKnowledge
 Claims.Final.history_sound_with_akita	akita.admissible	Spec.Compression.Akita.Schedule.Admissible
 Claims.Final.history_sound_with_akita	akita.admitted	_
 Claims.Final.history_sound_with_akita	akita.budget	LE.le
@@ -360,7 +360,7 @@ Claims.Final.memory_sound_with_akita	valid.ramWords	LT.lt
 Claims.Final.memory_sound_with_akita	keysShaped	Eq
 Claims.Final.memory_sound_with_akita	programEq	Eq
 Claims.Final.memory_sound_with_akita	round	Export.BoundedDepth.NebulaSecurity.MemoryRound
-Claims.Final.memory_sound_with_akita	akita.theorem1046	Spec.Compression.Akita.Theorem1046
+Claims.Final.memory_sound_with_akita	akita.fixedSetup	Spec.Compression.Akita.Use.FixedSetupKnowledge
 Claims.Final.memory_sound_with_akita	akita.admissible	Spec.Compression.Akita.Schedule.Admissible
 Claims.Final.memory_sound_with_akita	akita.admitted	_
 Claims.Final.memory_sound_with_akita	akita.budget	LE.le
@@ -433,7 +433,7 @@ Claims.Final.verifier_sound_with_akita	complete.refreshLayout	Eq
 Claims.Final.verifier_sound_with_akita	complete.refreshFreshAfterLocals	LE.le
 Claims.Final.verifier_sound_with_akita	complete.refreshPublicBelow	LE.le
 Claims.Final.verifier_sound_with_akita	rows	Eq
-Claims.Final.verifier_sound_with_akita	akita.theorem1046	Spec.Compression.Akita.Theorem1046
+Claims.Final.verifier_sound_with_akita	akita.fixedSetup	Spec.Compression.Akita.Use.FixedSetupKnowledge
 Claims.Final.verifier_sound_with_akita	akita.admissible	Spec.Compression.Akita.Schedule.Admissible
 Claims.Final.verifier_sound_with_akita	akita.admitted	_
 Claims.Final.verifier_sound_with_akita	akita.budget	LE.le
@@ -1479,7 +1479,7 @@ Claims.Shipped.verify_final_sound	closed.next	_
 Claims.Shipped.verify_final_sound	admitted	_
 Claims.Shipped.verify_final_sound	rows	Eq
 Claims.Shipped.verify_final_sound	depthBound	LE.le
-Claims.Shipped.verify_final_sound	akita.theorem1046	Spec.Compression.Akita.Theorem1046
+Claims.Shipped.verify_final_sound	akita.fixedSetup	Spec.Compression.Akita.Use.FixedSetupKnowledge
 Claims.Shipped.verify_final_sound	akita.admissible	Spec.Compression.Akita.Schedule.Admissible
 Claims.Shipped.verify_final_sound	akita.admitted	_
 Claims.Shipped.verify_final_sound	akita.budget	LE.le

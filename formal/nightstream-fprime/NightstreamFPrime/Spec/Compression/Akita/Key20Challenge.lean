@@ -19,7 +19,7 @@ route have a filter on the base family `(31, 11)` for the degree 64 and `(31, 0)
   challenge when no filter is present (`draw_isSome`).
 - `slotChance_draw`: the slot probability of each decoder `draw` is at most `1/q²`.
   `pow_lt_slotChance`: no decoder from one slot of `E` that gives a challenge has the slot
-  probability `2^-128` of `towerError_le_pow`, because `1/q² > 2^-128`.
+  probability `2^-128`, because `1/q² > 2^-128`.
 - `rootDecode` is the decoder of the three groups of the root, with the norms `rootMass` and
   `rootPeak`. -/
 
@@ -72,8 +72,8 @@ theorem slotChance_draw {Ring : Type} (family : Set Ring) (keep : Ring → Prop)
   have bound := slotChance_draw_le (Slot := E) family keep
   rwa [card_field, Nat.cast_pow] at bound
 
-/-- A decoder from one slot of `E` that gives a challenge has a slot probability above `2^-128`:
-the hypotheses of `towerError_le_pow` hold for no such decoder. -/
+/-- A decoder from one slot of `E` that gives a challenge has a slot probability above
+`2^-128`. -/
 theorem pow_lt_slotChance {Ring : Type} (decode : E → Option Ring) {slot : E}
     (decoded : (decode slot).isSome) : 1 / (2 : ℝ) ^ 128 < slotChance decode := by
   refine lt_of_lt_of_le ?_ (le_slotChance decode decoded)

@@ -145,7 +145,6 @@ against a false history (`Export/BoundedDepth/FinalKey20History`). -/
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.sized₅
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.tower_suffix
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.towerError_le
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.towerError_le_pow
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.laidZeros
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Use
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.key20_points

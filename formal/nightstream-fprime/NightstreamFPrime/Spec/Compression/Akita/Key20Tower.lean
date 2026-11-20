@@ -9,8 +9,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Key20
   answer of the oracle has 22 slots, the fold coordinates of each level have different slots, each
   challenge family has units as differences and its norm bound, and the stage of the terminal.
 - `towerError_le` bounds the sum of the stage errors by `7424/|E| + 135·p` when each challenge
-  family has the slot probability at most `p`. `towerError_le_pow` is the bound `14983/2^128` for
-  `p = 2^-128`, with `|E| = q²` (`card_field`). -/
+  family has the slot probability at most `p`, with `|E| = q²` (`card_field`). -/
 
 set_option autoImplicit false
 
@@ -312,31 +311,6 @@ theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
     ring
   rw [costs₀, costs₁, costs₂, costs₃, costs₄, costs₅, whole]
   push_cast at sum₀ sum₁ sum₂ sum₃ sum₄ sum₅ last ⊢
-  linarith
-
-omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
-/-- The sum of the stage errors of `tower_suffix` is at most `14983/2^128`, when each challenge
-family has the slot probability at most `2^-128`: `7424/|E| ≤ 7424/2^127` for `|E| = q²`. -/
-theorem towerError_le_pow (chance : ∀ g, slotChance (decode g) ≤ 1 / 2 ^ 128)
-    (chance₁ : slotChance decode₁ ≤ 1 / 2 ^ 128) (chance₂ : slotChance decode₂ ≤ 1 / 2 ^ 128)
-    (chance₃ : slotChance decode₃ ≤ 1 / 2 ^ 128) (chance₄ : slotChance decode₄ ≤ 1 / 2 ^ 128)
-    (chance₅ : slotChance decode₅ ≤ 1 / 2 ^ 128) (chanceL : slotChance L.decode ≤ 1 / 2 ^ 128) :
-    towerError ≤ 14983 / 2 ^ 128 := by
-  have large : (2 : ℝ) ^ 127 ≤ Fintype.card E := by
-    rw [card_field]
-    exact_mod_cast (by decide : 2 ^ 127 ≤ fieldModulus ^ 2)
-  have field : 7424 / (Fintype.card E : ℝ) ≤ 7424 / 2 ^ 127 :=
-    div_le_div_of_nonneg_left (by norm_num) (by positivity) large
-  have bound := towerError_le (β := β) (key := key) (openKey := openKey) (claim := claim)
-    (block := block) (mass := mass) (β₁ := β₁) (key₁ := key₁) (openKey₁ := openKey₁)
-    (claim₁ := claim₁) (block₁ := block₁) (weight₁ := weight₁) (key₂ := key₂)
-    (openKey₂ := openKey₂) (claim₂ := claim₂) (block₂ := block₂) (weight₂ := weight₂)
-    (key₃ := key₃) (openKey₃ := openKey₃) (claim₃ := claim₃) (block₃ := block₃)
-    (weight₃ := weight₃) (key₄ := key₄) (openKey₄ := openKey₄) (claim₄ := claim₄)
-    (block₄ := block₄) (weight₄ := weight₄) (key₅ := key₅) (openKey₅ := openKey₅)
-    (claim₅ := claim₅) (block₅ := block₅) (weight₅ := weight₅) (read := read) (start := start)
-    chance chance₁ chance₂ chance₃ chance₄ chance₅ chanceL
-  have total : (7424 : ℝ) / 2 ^ 127 + 135 * (1 / 2 ^ 128) = 14983 / 2 ^ 128 := by norm_num
   linarith
 
 end NightstreamFPrime.Spec.Compression.Akita.Key20

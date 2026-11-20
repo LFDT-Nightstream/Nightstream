@@ -36,10 +36,12 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' :
   {fold' : Descriptor} {S'' : Shape} {Ring Stmt Brk Wire Coord Slot : Type} [Zero Ring]
   [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
   {key' : Key S'} {openKey' : OpeningKey O'} {weight' total m' m'' : ℕ}
-  (A : Tier O fold Ring Stmt Brk Wire Coord Slot (Option (List Quadratic × Quadratic × Quadratic))
+  (A : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord Slot
+    (Option (List Quadratic × Quadratic × Quadratic))
     Table)
-  (B : Tier O' fold' (Rq S'.innerDegree) (TraceClaim O' Quadratic)
-    (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) Wire Coord Slot
+  (B : Tier (Fin S'.blocks) (fun _ => Rq S'.innerDegree) (TraceClaim O' Quadratic)
+    (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
+    (Weak O') Wire Coord Slot
     (Option (List Quadratic × Quadratic × Quadratic)) Table)
   (L : Terminal S'' Quadratic Wire Coord Slot total)
   (quarter' : 4 * m' = S'.innerDegree) (quarter'' : 4 * m'' = S''.innerDegree)
@@ -57,10 +59,11 @@ def tripleAccepts (point : Prefix Wire (Coord → Slot) total) : Prop :=
 /-- The checkpoint structure of the trace level `B` over the terminal. -/
 noncomputable def tripleLast :
     Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire)
-      (Opened O' (Prefix Wire (Coord → Slot) total × Option (TerminalFork S'')))
+      (Opened (Weak O') (Prefix Wire (Coord → Slot) total × Option (TerminalFork S'')))
       (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕
         Option (ShortKernel L.matrix (8 * L.weight * L.bound)))
-      (Table ⊕ Unit) (Rq S'.innerDegree ⊕ Rq S''.innerDegree) (Option (Weak O')) :=
+      (Table ⊕ Unit) ((Σ _ : Fin S'.blocks, Rq S'.innerDegree) ⊕ Rq S''.innerDegree)
+      (Option (Weak O')) :=
   B.over (tripleAccepts A B L quarter' quarter'' commit stateOf)
     (L.body (tripleAccepts A B L quarter' quarter'' commit stateOf))
     (fun inner => flatten (unpackTable S''.innerDegree m'' (S''.decode (Terminal.blocksOf
@@ -74,10 +77,13 @@ of `R_bind` is a solution of Module-SIS for `B`, `D` or a compression map of `A`
 `A`, `B`, `D` or a compression map of `B`, or for `A_term`. -/
 noncomputable def triple :
     Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire)
-      (Opened O (Opened O' (Prefix Wire (Coord → Slot) total × Option (TerminalFork S''))))
+      (Opened (Weak O)
+        (Opened (Weak O') (Prefix Wire (Coord → Slot) total × Option (TerminalFork S''))))
       (Brk ⊕ (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕
         Option (ShortKernel L.matrix (8 * L.weight * L.bound))))
-      (Table ⊕ (Table ⊕ Unit)) (Ring ⊕ (Rq S'.innerDegree ⊕ Rq S''.innerDegree))
+      (Table ⊕ (Table ⊕ Unit))
+      ((Σ _ : Fin S.blocks, Ring) ⊕
+        ((Σ _ : Fin S'.blocks, Rq S'.innerDegree) ⊕ Rq S''.innerDegree))
       (Option (Weak O)) :=
   A.over (tripleAccepts A B L quarter' quarter'' commit stateOf)
     (tripleLast A B L quarter' quarter'' commit stateOf)
@@ -110,8 +116,8 @@ theorem triple_suffix (valid : A.Valid) (valid' : B.Valid)
       B.passes table (some (ρ, θ, v))) :
     Tier.Suffix (tripleAccepts A B L quarter' quarter'' commit stateOf) A.start A.Opens
       (triple A B L quarter' quarter'' commit stateOf)
-      (S.blocks * A.chance + A.costs.sum +
-        (S'.blocks * B.chance + B.costs.sum + S''.blocks * slotChance L.decode))
+      (∑ b, A.chance b + A.costs.sum +
+        (∑ b, B.chance b + B.costs.sum + S''.blocks * slotChance L.decode))
       (S.blocks + 1 + (S'.blocks + 1 + S''.blocks))
       (2 * (S.blocks + 1) * (2 * (S'.blocks + 1) * (S''.blocks + 1))) :=
   Tier.suffix_push_trace valid traced next quarter' commit
@@ -179,8 +185,8 @@ theorem traceTriple_suffix {peak peak' peak'' : ℕ} (injective : Function.Injec
     (sparse'' : ∀ challenge ∈ L.family, Sparse L.weight peak'' challenge) :
     Tier.Suffix (tripleAccepts first second L quarter' quarter'' commit stateOf) 0
       (Tier.Opens first) chain
-      (S.blocks * Tier.chance first + (Tier.costs first).sum +
-        (S'.blocks * Tier.chance second + (Tier.costs second).sum +
+      (∑ b, Tier.chance first b + (Tier.costs first).sum +
+        (∑ b, Tier.chance second b + (Tier.costs second).sum +
           S''.blocks * slotChance L.decode))
       (S.blocks + 1 + (S'.blocks + 1 + S''.blocks))
       (2 * (S.blocks + 1) * (2 * (S'.blocks + 1) * (S''.blocks + 1))) :=
@@ -226,7 +232,7 @@ theorem traceTriple_extract_sound {peak peak' peak'' : ℕ} (injective : Functio
     (table : Prefix Wire (Coord → Quadratic) total → Coord → Quadratic)
     (tape : Tape (Prefix Wire (Coord → Quadratic) total) Coord Quadratic
       budget (Structure.protocol chain).stages)
-    (out : Opened O (Opened O' (Prefix Wire (Coord → Quadratic) total ×
+    (out : Opened (Weak O) (Opened (Weak O') (Prefix Wire (Coord → Quadratic) total ×
         Option (TerminalFork S''))) ⊕
       (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S) ⊕
         (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕
@@ -288,10 +294,10 @@ theorem traceTriple_extraction_le {peak peak' peak'' : ℕ} (injective : Functio
         (if tripleAccepts first second L quarter' quarter'' commit stateOf
             ((Structure.protocol chain).final prover table) ∧
           Checkpoint.extract chain prover budget table tape = none then (1 : ℝ) else 0) ≤
-      (queries + 1) * (S.blocks * Tier.chance first +
+      (queries + 1) * (∑ b, Tier.chance first b +
           (foldError (lockedReduction β statement challenge μ fits batch rowsFit)
             S.certifiedBase + ((1 + 2 * ν : ℕ) : ℝ) / Fintype.card Quadratic) +
-          (S'.blocks * Tier.chance second +
+          (∑ b, Tier.chance second b +
             (foldError (lockedTraceReduction statement' challenge' μ' fits' batch' rowsFit')
               S'.certifiedBase + ((1 + 2 * ν' : ℕ) : ℝ) / Fintype.card Quadratic) +
             S''.blocks * slotChance L.decode)) +

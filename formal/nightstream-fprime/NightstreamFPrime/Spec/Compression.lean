@@ -1,9 +1,11 @@
 import NightstreamFPrime.Spec.Compression.Akita
+import NightstreamFPrime.Spec.Compression.Akita.Batch
 import NightstreamFPrime.Spec.Compression.Akita.Binding
 import NightstreamFPrime.Spec.Compression.Akita.Challenge
 import NightstreamFPrime.Spec.Compression.Akita.Commit
 import NightstreamFPrime.Spec.Compression.Akita.Digest
 import NightstreamFPrime.Spec.Compression.Akita.Euclid
+import NightstreamFPrime.Spec.Compression.Akita.Extract.BatchLevel
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Budget
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Chain
 import NightstreamFPrime.Spec.Compression.Akita.Extract.FlatSource
@@ -11,6 +13,8 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Honest
 import NightstreamFPrime.Spec.Compression.Akita.Extract.PairComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.PackingFold
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Recursion
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Root
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Segment
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Staged
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Suffix
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TerminalSuffix

@@ -276,10 +276,69 @@ structure Weak.Opens (β : Module.Basis (Fin O.planes) Zq E) (factorBound source
   partialDigits : Balanced S.certifiedBase ω.partials
   openDigits : PathDigits.Binary O.chain ω.openChain
 
+/-- The part of a folding statement that is local to one opening group (Akita Section 5.1 and
+Figure 5): the matrices `A`, `B` and the compression maps `F_a` of the commitment, the payload
+`u_pub`, and the weights of the opening point of the group. It has no data of the `D/H` path and
+no claimed value. -/
+structure GroupStatement (O : OpeningShape S) (E : Type) where
+  key : Key S
+  payload : S.Payload
+  point : Point O E
+
+/-- The group-local part of the folding statement of one claim. -/
+@[reducible] def Statement.group (st : Statement O E) : GroupStatement O E :=
+  ⟨st.key, st.payload, st.point⟩
+
+/-- The group-local rows of Akita Figure 5 that have no fold challenge, with their alphabets: the
+rows (105) of `B` with the rows (47) or (48) to `u_pub`, the alphabet `A_{b⋆}` of `t̂` and of the
+digits `ê` of the group, and the alphabet `{−1, 0}` of the digits of `F_1`, `F_2`. -/
+structure Carried.Local (digits : Carried O) (group : GroupStatement O E) : Prop where
+  rows : Rows S.chain group.key.chain (stack group.key.outer (S.sliceInput digits.inner))
+    digits.chain group.payload
+  innerDigits : ∀ i, Balanced S.certifiedBase (digits.inner i)
+  chainDigits : PathDigits.Binary S.chain digits.chain
+  partialDigits : Balanced S.certifiedBase digits.partials
+
+/-- The group-local part of the exact branch relation of one fold (Akita Figure 5): the rows
+(102), (104) and (105) of one group with the alphabets. The rows read the fold challenges and the
+digits `ê` of this group only. -/
+structure Witness.Local (β : Module.Basis (Fin O.planes) Zq E) (w : Witness O fold)
+    (group : GroupStatement O E) (challenge : Fin S.blocks → Rq O.carrierDegree) : Prop where
+  carried : w.toCarried.Local group
+  evaluation : ∀ t, ∑ i, challenge i * O.partialPlane w.partials i t =
+    contract β group.point t (gadget S.sourceBase (gadget fold.responseBase w.response))
+  innerRows : group.key.inner.mulVec (gadget fold.responseBase w.response) =
+    ∑ i, embed O.stride O.stride_tower (challenge i) • gadget S.openingBase (w.inner i)
+  responseDigits : Balanced S.certifiedBase w.response
+
+/-- The group-local part of a weak opening (Akita Definition 10.22 for one group): the conditions
+(i) and (ii), the partials `e_{i,t} = L_t(G_{b,M}·s_i)` of (iv), and the alphabet of the digits
+`ê` of the group. -/
+structure Weak.Local (β : Module.Basis (Fin O.planes) Zq E) (factorBound sourceBound : ℕ)
+    (ω : Weak O) (group : GroupStatement O E) (table : Table) : Prop where
+  certified : ω.toCertified.Opens factorBound sourceBound group.key group.payload table
+  subring : ∀ i, ∃ c : Rq O.carrierDegree, IsUnit c ∧ ω.factor i = embed O.stride O.stride_tower c
+  planes : ∀ i t, O.partialPlane ω.partials i t =
+    contract β group.point t (gadget S.sourceBase (ω.source i))
+  partialDigits : Balanced S.certifiedBase ω.partials
+
+theorem Carried.Opens.toLocal {β : Module.Basis (Fin O.planes) Zq E} {digits : Carried O}
+    {st : Statement O E} (opens : digits.Opens β st) : digits.Local st.group :=
+  ⟨opens.rows, opens.innerDigits, opens.chainDigits, opens.partialDigits⟩
+
+theorem Witness.Satisfies.toLocal {β : Module.Basis (Fin O.planes) Zq E} {w : Witness O fold}
+    {st : Statement O E} {challenge : Fin S.blocks → Rq O.carrierDegree}
+    (satisfies : w.Satisfies β st challenge) : w.Local β st.group challenge :=
+  ⟨satisfies.carried.toLocal, satisfies.evaluation, satisfies.innerRows, satisfies.responseDigits⟩
+
 section Binding
 
 variable {β : Module.Basis (Fin O.planes) Zq E} {st : Statement O E} {ω ω' : Weak O}
   {factorBound sourceBound factorBound' sourceBound' : ℕ} {table table' : Table}
+
+theorem Weak.Opens.toLocal (opens : ω.Opens β factorBound sourceBound st table) :
+    ω.Local β factorBound sourceBound st.group table :=
+  ⟨opens.certified, opens.subring, opens.planes, opens.partialDigits⟩
 
 theorem Weak.Opens.carried (opens : ω.Opens β factorBound sourceBound st table) :
     ω.carried.Opens β st :=
@@ -434,9 +493,31 @@ noncomputable def forkCollision (st : Statement O E) (fork : Fork O fold) (digit
     (carriedCollision st (fork.first i).witness.toCarried digits).or
       (carriedCollision st (fork.second i).witness.toCarried digits)
 
-theorem Fork.Accepts.isUnit_difference (accepts : fork.Accepts β family st)
+/-- The group-local part of `Fork.Accepts`: the conditions on the challenges, and the group-local
+branch relations of the children. -/
+structure Fork.Local (β : Module.Basis (Fin O.planes) Zq E) (family : Set (Rq O.carrierDegree))
+    (fork : Fork O fold) (group : GroupStatement O E) : Prop where
+  firstMember : ∀ i, (fork.first i).challenge i ∈ family
+  secondMember : ∀ i, (fork.second i).challenge i ∈ family
+  different : ∀ i, (fork.first i).challenge i ≠ (fork.second i).challenge i
+  agree : ∀ i j, j ≠ i → (fork.first i).challenge j = (fork.second i).challenge j
+  firstLocal : ∀ i, (fork.first i).witness.Local β group (fork.first i).challenge
+  secondLocal : ∀ i, (fork.second i).witness.Local β group (fork.second i).challenge
+
+theorem Fork.Accepts.toLocal (accepts : fork.Accepts β family st) :
+    fork.Local β family st.group :=
+  ⟨accepts.firstMember, accepts.secondMember, accepts.different, accepts.agree,
+    fun i => (accepts.firstSatisfies i).toLocal, fun i => (accepts.secondSatisfies i).toLocal⟩
+
+variable {group : GroupStatement O E}
+
+theorem Fork.Local.isUnit_difference (accepts : fork.Local β family group)
     (units : UnitDifferences family) (i : Fin S.blocks) : IsUnit (fork.difference i) :=
   units _ (accepts.secondMember i) _ (accepts.firstMember i) (accepts.different i).symm
+
+theorem Fork.Accepts.isUnit_difference (accepts : fork.Accepts β family st)
+    (units : UnitDifferences family) (i : Fin S.blocks) : IsUnit (fork.difference i) :=
+  accepts.toLocal.isUnit_difference units i
 
 /-- `ι(c̄_i)·s_i = z^{(i,1)} − z^{(i,0)}` for the extracted source block. -/
 theorem extract_factor_smul_source (fork : Fork O fold) (digits : Carried O) (i : Fin S.blocks)
@@ -450,14 +531,14 @@ theorem extract_factor_smul_source (fork : Fork O fold) (digits : Carried O) (i 
 
 /-- The difference of the rows (104) of the two children of block `i`:
 `A·(z^{(i,1)} − z^{(i,0)}) = ι(c̄_i)·G_{b_1,n_A}·t̂_i`. -/
-theorem Fork.Accepts.inner_difference (accepts : fork.Accepts β family st)
+theorem Fork.Local.inner_difference (accepts : fork.Local β family group)
     (firstDigits : ∀ i, (fork.first i).witness.toCarried = digits)
     (secondDigits : ∀ i, (fork.second i).witness.toCarried = digits) (i : Fin S.blocks) :
-    st.key.inner.mulVec (fork.responseDifference i) =
+    group.key.inner.mulVec (fork.responseDifference i) =
       embed O.stride O.stride_tower (fork.difference i) •
         gadget S.openingBase (digits.inner i) := by
-  have first := (accepts.firstSatisfies i).innerRows
-  have second := (accepts.secondSatisfies i).innerRows
+  have first := (accepts.firstLocal i).innerRows
+  have second := (accepts.secondLocal i).innerRows
   rw [firstDigits i] at first
   rw [secondDigits i] at second
   rw [Fork.responseDifference, Matrix.mulVec_sub, first, second, Fork.difference, map_sub]
@@ -469,14 +550,14 @@ theorem Fork.Accepts.inner_difference (accepts : fork.Accepts β family st)
 
 /-- The difference of the rows (102) of the two children of block `i` on the plane `t`:
 `c̄_i·e_{i,t} = L_t(G_{b,M}·(z^{(i,1)} − z^{(i,0)}))`. -/
-theorem Fork.Accepts.plane_difference (accepts : fork.Accepts β family st)
+theorem Fork.Local.plane_difference (accepts : fork.Local β family group)
     (firstDigits : ∀ i, (fork.first i).witness.toCarried = digits)
     (secondDigits : ∀ i, (fork.second i).witness.toCarried = digits) (i : Fin S.blocks)
     (t : Fin O.planes) :
     fork.difference i * O.partialPlane digits.partials i t =
-      contract β st.point t (gadget S.sourceBase (fork.responseDifference i)) := by
-  have first := (accepts.firstSatisfies i).evaluation t
-  have second := (accepts.secondSatisfies i).evaluation t
+      contract β group.point t (gadget S.sourceBase (fork.responseDifference i)) := by
+  have first := (accepts.firstLocal i).evaluation t
+  have second := (accepts.secondLocal i).evaluation t
   rw [firstDigits i] at first
   rw [secondDigits i] at second
   rw [Fork.responseDifference, gadget_sub, map_sub, ← first, ← second]
@@ -484,17 +565,18 @@ theorem Fork.Accepts.plane_difference (accepts : fork.Accepts β family st)
     (fun j => (fork.first i).challenge j) (fun j => O.partialPlane digits.partials j t) i
     (fun j other => (accepts.agree i j other).symm)).symm
 
-/-- Akita Theorem 10.31, "Coordinate siblings" and "Assembly", for one claim: when each child has
-the carried digits `digits`, the extracted `extract fork digits` is a weak opening of the
-statement to the table that its source blocks decode to, with `κ̄_1 = 2ω` and
-`β̄_∞ = Δ^cert_f`. The family has units as differences (`units`) and members of the norm
-`‖c‖_1 = ω` (`sparse`), and `b_z ≥ 2`. -/
-theorem extract_opens {mass peak : ℕ} (units : UnitDifferences family)
+/-- Akita Theorem 10.31, "Coordinate siblings" and "Assembly", for one opening group: when each
+child has the carried digits `digits`, the extracted `extract fork digits` satisfies the
+group-local conditions of a weak opening to the table that its source blocks decode to, with
+`κ̄_1 = 2ω` and `β̄_∞ = Δ^cert_f`. The proof reads the rows (102), (104) and (105) of this group
+only. The family has units as differences (`units`) and members of the norm `‖c‖_1 = ω`
+(`sparse`), and `b_z ≥ 2`. -/
+theorem extract_local {mass peak : ℕ} (units : UnitDifferences family)
     (sparse : ∀ c ∈ family, Sparse mass peak c) (base : 2 ≤ fold.responseBase)
-    (accepts : fork.Accepts β family st) (opens : digits.Opens β st)
+    (accepts : fork.Local β family group) (opens : digits.Local group)
     (firstDigits : ∀ i, (fork.first i).witness.toCarried = digits)
     (secondDigits : ∀ i, (fork.second i).witness.toCarried = digits) :
-    (extract fork digits).Opens β (2 * mass) (fold.sourceBound S) st
+    (extract fork digits).Local β (2 * mass) (fold.sourceBound S) group
       (S.decode (extract fork digits).source) := by
   have unit := fun i => accepts.isUnit_difference units i
   have cancel := fun i => extract_factor_smul_source fork digits i (unit i)
@@ -510,12 +592,9 @@ theorem extract_opens {mass peak : ℕ} (units : UnitDifferences family)
       factorNorm := fun i => ?_
       sourceNorm := fun i => ?_ }
     subring := fun i => ⟨fork.difference i, unit i, rfl⟩
-    openRows := opens.openRows
     planes := fun i t => ?_
-    value := opens.value
-    partialDigits := opens.partialDigits
-    openDigits := opens.openDigits }
-  · show st.key.inner.mulVec (Ring.inverse (embed O.stride O.stride_tower (fork.difference i)) •
+    partialDigits := opens.partialDigits }
+  · show group.key.inner.mulVec (Ring.inverse (embed O.stride O.stride_tower (fork.difference i)) •
       fork.responseDifference i) = gadget S.openingBase (digits.inner i)
     rw [Matrix.mulVec_smul, accepts.inner_difference firstDigits secondDigits i, smul_smul,
       Ring.inverse_mul_cancel _ (isUnit_embed O.stride_tower (unit i)), one_smul]
@@ -523,14 +602,31 @@ theorem extract_opens {mass peak : ℕ} (units : UnitDifferences family)
     rw [normOne_embed]
     exact (sparse _ (accepts.secondMember i)).normOne_sub_le (sparse _ (accepts.firstMember i))
   · rw [cancel i, Descriptor.sourceBound_eq fold S base]
-    exact vecNormInf_gadget_sub_le _ (accepts.secondSatisfies i).responseDigits
-      (accepts.firstSatisfies i).responseDigits
+    exact vecNormInf_gadget_sub_le _ (accepts.secondLocal i).responseDigits
+      (accepts.firstLocal i).responseDigits
   · refine (unit i).mul_left_cancel ?_
     show fork.difference i * O.partialPlane digits.partials i t =
       fork.difference i *
-        contract β st.point t (gadget S.sourceBase ((extract fork digits).source i))
+        contract β group.point t (gadget S.sourceBase ((extract fork digits).source i))
     rw [accepts.plane_difference firstDigits secondDigits i t, ← cancel i, gadget_smul]
-    exact contract_embed_smul β st.point t _ _
+    exact contract_embed_smul β group.point t _ _
+
+/-- Akita Theorem 10.31, "Coordinate siblings" and "Assembly", for one claim: when each child has
+the carried digits `digits`, the extracted `extract fork digits` is a weak opening of the
+statement to the table that its source blocks decode to, with `κ̄_1 = 2ω` and
+`β̄_∞ = Δ^cert_f`. The family has units as differences (`units`) and members of the norm
+`‖c‖_1 = ω` (`sparse`), and `b_z ≥ 2`. -/
+theorem extract_opens {mass peak : ℕ} (units : UnitDifferences family)
+    (sparse : ∀ c ∈ family, Sparse mass peak c) (base : 2 ≤ fold.responseBase)
+    (accepts : fork.Accepts β family st) (opens : digits.Opens β st)
+    (firstDigits : ∀ i, (fork.first i).witness.toCarried = digits)
+    (secondDigits : ∀ i, (fork.second i).witness.toCarried = digits) :
+    (extract fork digits).Opens β (2 * mass) (fold.sourceBound S) st
+      (S.decode (extract fork digits).source) :=
+  have group := extract_local units sparse base accepts.toLocal opens.toLocal firstDigits
+    secondDigits
+  ⟨group.certified, group.subring, opens.openRows, group.planes, opens.value, group.partialDigits,
+    opens.openDigits⟩
 
 /-- Akita Corollary 10.32 for one claim with coefficient packing, on the coefficient-norm route.
 `fork` has two children for each block that satisfy their exact branch relations for one

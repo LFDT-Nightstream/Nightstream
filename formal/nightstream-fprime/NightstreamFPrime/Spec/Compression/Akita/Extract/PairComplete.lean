@@ -185,6 +185,7 @@ theorem packingPair_complete (fits : Type → Prop)
         ((Structure.protocol chain).final (.done proof) table) := by
   have stages : Tier.finish second =
       0 + μ + 1 + 1 + μ + 1 + 1 + 1 + 1 + (0 + μ' + 1 + 1 + μ' + 1 + 1 + 1 + 1) := by
+    rw [Tier.finish_eq, Tier.finish_eq]
     show 0 + ((foldCosts E _ μ batch _).length + 1) + ((foldCosts E _ μ' batch' _).length + 1) = _
     rw [foldCosts_length, foldCosts_length]
     omega
@@ -320,6 +321,7 @@ theorem packingPair_complete (fits : Type → Prop)
     rw [rest, earlier]
     simp
   have finished : Tier.finish first = early.length := by
+    rw [Tier.finish_eq]
     show 0 + ((foldCosts E _ μ batch _).length + 1) = _
     rw [foldCosts_length, long]
     omega

@@ -8,14 +8,12 @@ revision of 2026-10-15, Proposition 10.44 with its proof, and Corollary 10.49 wi
 - `tableCollision` is the reduction of Akita Lemma 10.23 and Corollary 10.25 for two certified
   decommitments of one payload to different tables: `Coll_ℓ` of the checkpoint of a level whose
   next level commits to its flat witness.
-- `Tier.Suffix` is the invariant of the stages from one stage `start`: the conditions of
-  Definition 10.16 from this stage, the relation `Opens` of each first certificate
-  (Proposition 10.44 (i)), and the sums of the stage errors, of the retry loops and the tree size.
-  The stages can be those of a level `Tier` or of the terminal.
-- `Tier.suffix_last` is the suffix of a last level, whose proof has the source in the clear.
+- `Tier.suffix_last` is the suffix `Tier.Suffix` of a last level, whose proof has the source in
+  the clear.
 - `Tier.suffix_before` is the suffix of a level over a suffix of the later stages: `source` maps a
   first certificate of the later stages to the successor source of the level, `passed` is Akita
-  Lemma 10.42 (ii), and `clashes` is `Coll_ℓ`.
+  Lemma 10.42 (ii), and `clashes` is `Coll_ℓ`. The level has `blocks` fold coordinates: the source
+  blocks of one group, or the pairs of a group and a source block.
 - `Tier.suffix_committed` is `Tier.suffix_before` for a next level that commits to the flat
   witness: the source is `view` of the table of its weak opening, and `Coll_ℓ` is
   `tableCollision`.
@@ -81,70 +79,45 @@ noncomputable def tableOf {S : Shape} {O : OpeningShape S} : Option (Weak O) →
 
 namespace Tier
 
-section Invariant
-
-variable {Wire Coord Slot : Type} {total : ℕ} [Fintype Slot] [Nonempty Slot] [Fintype Coord]
-  [DecidableEq Coord] {Inner BreakT CandT KeyT Wit : Type}
-
-/-- The invariant of the stages from the stage `start` (Akita Proposition 10.44 for a suffix of
-the levels). `body` is the checkpoint structure of these stages, and `Opens` is the relation of
-their first certificates. `opened`: a first certificate has an accepting transcript and a witness
-of `Opens` (Proposition 10.44 (i)). `rooted`: `Opens` reads the transcript before the stage
-`start` only. `lawfulFrom`: the conditions of Definition 10.16 from the stage `start`. `related`:
-`Wit` returns this witness. `errorSum`, `loopCount` and `treeSize`: the sum of the stage errors
-(206), the number of the retry loops and the tree size of these stages. -/
-structure Suffix (accept : Prefix Wire (Coord → Slot) total → Prop) (start : ℕ)
-    (Opens : Prefix Wire (Coord → Slot) total → Wit → Prop)
-    (body : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
-      KeyT Wit)
-    (error : ℝ) (loops tree : ℕ) : Prop where
-  opened : ∀ inner, body.holds start inner →
-    accept (body.point inner) ∧ Opens (body.point inner) (body.witness inner)
-  rooted : ∀ point witness, Opens point witness → Opens (point.take start) witness
-  lawfulFrom : body.LawfulFrom (transcript total accept) start
-  protocol : body.protocol = transcript total accept
-  related : ∀ root witness, body.relation root witness ↔ Opens root witness
-  errorSum : body.chargeFrom start = error
-  loopCount : body.loopsFrom start = loops
-  treeSize : body.treeFrom start = tree
-
-end Invariant
-
 section Level
 
-variable {S : Shape} {O : OpeningShape S} {fold : Descriptor}
-  {Ring Stmt Brk Wire Coord Slot Result Source : Type} [Zero Ring]
-  (T : Tier O fold Ring Stmt Brk Wire Coord Slot Result Source) {total : ℕ}
-  [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
+variable {Block : Type} {Ring : Block → Type}
+  {Stmt Brk Wit Weak Wire Coord Slot Result Source : Type} [∀ b, Zero (Ring b)]
+  (T : Tier Block Ring Stmt Brk Wit Weak Wire Coord Slot Result Source) {total : ℕ}
+  [Fintype Block] [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
   {Inner BreakT CandT KeyT : Type}
 
-omit [Zero Ring] [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord] in
+omit [∀ b, Zero (Ring b)] [Fintype Block] [Fintype Slot] [Nonempty Slot] [Fintype Coord]
+  [DecidableEq Coord] in
 theorem opens_take {level : ℕ} (above : T.start ≤ level)
-    (point : Prefix Wire (Coord → Slot) total) (opening : Option (Weak O)) :
+    (point : Prefix Wire (Coord → Slot) total) (opening : Option Weak) :
     T.Opens (point.take level) opening ↔ T.Opens point opening := by
   unfold Tier.Opens
   rw [Prefix.wire_take above]
 
 variable {T} {accept : Prefix Wire (Coord → Slot) total → Prop}
 
-/-- The level over later stages that satisfy its interface `Fed` is a suffix. -/
+/-- The level over later stages that satisfy its interface `Fed` is a suffix. `blocks` is the
+number `r` of the fold coordinates. -/
 theorem suffix_over {WitT : Type}
     {tail : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
       KeyT WitT}
-    {source : Inner → Source} {clash : Inner → Inner → BreakT} (valid : T.Valid)
+    {source : Inner → Source} {clash : Inner → Inner → BreakT} {blocks : ℕ}
+    (count : Fintype.card Block = blocks) (valid : T.Valid)
     (fed : T.Fed accept tail source clash) (stages : tail.protocol.stages = total) :
     Suffix accept T.start T.Opens (T.over accept tail source clash)
-      (S.blocks * T.chance + T.costs.sum + tail.chargeFrom T.finish)
-      (S.blocks + 1 + tail.loopsFrom T.finish) (2 * (S.blocks + 1) * tail.treeFrom T.finish) where
+      (∑ b, T.chance b + T.costs.sum + tail.chargeFrom T.finish)
+      (blocks + 1 + tail.loopsFrom T.finish) (2 * (blocks + 1) * tail.treeFrom T.finish) where
   opened := T.over_opened
   rooted point opening opens := (T.opens_take le_rfl point opening).mpr opens
   lawfulFrom := T.over_lawfulFrom valid fed
   protocol := rfl
   related _ _ := Iff.rfl
-  errorSum := T.over_chargeFrom fed.fits stages
-  loopCount := T.over_loopsFrom valid.draws fed.fits stages
-  treeSize := T.over_treeFrom valid.draws fed.fits stages
+  errorSum := T.over_chargeFrom valid.injective fed.fits stages
+  loopCount := count ▸ T.over_loopsFrom valid.draws fed.fits stages
+  treeSize := count ▸ T.over_treeFrom valid.draws fed.fits stages
 
+omit [Fintype Block] in
 /-- The interface `Fed` of a last level: the proof has the source after the fold challenge, and
 the verifier accepts when the final claim of the checks is true for this source. No stage is
 after the level. -/
@@ -165,15 +138,16 @@ theorem fed_finish (sourceOf : Wire → Source) (fits : T.finish ≤ total)
     show sourceOf (inner.wire (T.start + 1)) = sourceOf (other.wire (T.start + 1))
     rw [← Prefix.wire_take le_rfl inner, same, Prefix.wire_take le_rfl]
 
-/-- The suffix of a last level, whose proof has the source in the clear: `r·p + Σ_j ε_j` for the
-stage errors, `r + 1` retry loops and the tree size `2·(r + 1)`, for `r` blocks. -/
-theorem suffix_last (valid : T.Valid) (sourceOf : Wire → Source) (fits : T.finish ≤ total)
+/-- The suffix of a last level, whose proof has the source in the clear: `Σ_b p_b + Σ_j ε_j` for
+the stage errors, `r + 1` retry loops and the tree size `2·(r + 1)`, for `r` fold coordinates. -/
+theorem suffix_last {blocks : ℕ} (count : Fintype.card Block = blocks) (valid : T.Valid)
+    (sourceOf : Wire → Source) (fits : T.finish ≤ total)
     (passed : ∀ point, accept point → T.Passed (sourceOf (point.wire (T.start + 1))) point) :
     Suffix accept T.start T.Opens
       (T.over accept (Checkpoint.finish (transcript total accept))
         (fun point => sourceOf (point.wire (T.start + 1))) (fun _ _ => ()))
-      (S.blocks * T.chance + T.costs.sum) (S.blocks + 1) (2 * (S.blocks + 1)) := by
-  have suffix := suffix_over valid (fed_finish sourceOf fits passed) rfl
+      (∑ b, T.chance b + T.costs.sum) (blocks + 1) (2 * (blocks + 1)) := by
+  have suffix := suffix_over count valid (fed_finish sourceOf fits passed) rfl
   rw [finish_chargeFrom, finish_loopsFrom, finish_treeFrom, add_zero, Nat.add_zero,
     Nat.mul_one] at suffix
   exact suffix
@@ -183,6 +157,7 @@ variable {Wit' : Type} {Opens' : Prefix Wire (Coord → Slot) total → Wit' →
     KeyT Wit'}
   {error : ℝ} {loops tree : ℕ}
 
+omit [Fintype Block] in
 /-- The interface `Fed` of a level over a suffix of the later stages (Akita Proposition 10.44,
 "Checkpoints" and "Segment soundness"). `source` maps the witness of a first certificate of the
 later stages to the successor source of the level. `decodes`: the verifier rejects an answer of
@@ -213,9 +188,10 @@ theorem fed_before (later : Suffix accept T.finish Opens' tail error loops tree)
       (later.opened inner held).2 (later.opened other heldOther).2 same different
 
 /-- The suffix of a level over a suffix of the later stages (Akita Proposition 10.44 for one more
-level): the stage errors add `r·p + Σ_j ε_j`, the retry loops add `r + 1`, and the tree size is
-multiplied by `2·(r + 1)`, for `r` blocks. The hypotheses are those of `fed_before`. -/
-theorem suffix_before (valid : T.Valid)
+level): the stage errors add `Σ_b p_b + Σ_j ε_j`, the retry loops add `r + 1`, and the tree size
+is multiplied by `2·(r + 1)`, for `r` fold coordinates. The hypotheses are those of
+`fed_before`. -/
+theorem suffix_before {blocks : ℕ} (count : Fintype.card Block = blocks) (valid : T.Valid)
     (later : Suffix accept T.finish Opens' tail error loops tree) (fits : T.finish ≤ total)
     (source : Wit' → Source) (clash : Wit' → Wit' → BreakT)
     (decodes : ∀ point, accept point → T.Decodes point)
@@ -228,10 +204,10 @@ theorem suffix_before (valid : T.Valid)
     Suffix accept T.start T.Opens
       (T.over accept tail (fun inner => source (tail.witness inner))
         (fun inner other => clash (tail.witness inner) (tail.witness other)))
-      (S.blocks * T.chance + T.costs.sum + error) (S.blocks + 1 + loops)
-      (2 * (S.blocks + 1) * tree) := by
+      (∑ b, T.chance b + T.costs.sum + error) (blocks + 1 + loops)
+      (2 * (blocks + 1) * tree) := by
   have stages : tail.protocol.stages = total := by rw [later.protocol]; rfl
-  have suffix := suffix_over valid
+  have suffix := suffix_over count valid
     (fed_before later fits source clash decodes passed clashes) stages
   rw [later.errorSum, later.loopCount, later.treeSize] at suffix
   exact suffix
@@ -240,12 +216,12 @@ end Level
 
 section Committed
 
-variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' : OpeningShape S'}
-  {fold' : Descriptor}
-  {Ring Stmt Brk Ring' Stmt' Brk' Wire Coord Slot Result Source Result' Source' : Type}
-  [Zero Ring] [Zero Ring']
-  {T : Tier O fold Ring Stmt Brk Wire Coord Slot Result Source}
-  {N : Tier O' fold' Ring' Stmt' Brk' Wire Coord Slot Result' Source'}
+variable {S' : Shape} {O' : OpeningShape S'} {Block Block' : Type} {Ring : Block → Type}
+  {Ring' : Block' → Type}
+  {Stmt Brk Wit Wk Stmt' Brk' Wit' Wire Coord Slot Result Source Result' Source' : Type}
+  [∀ b, Zero (Ring b)] [Fintype Block]
+  {T : Tier Block Ring Stmt Brk Wit Wk Wire Coord Slot Result Source}
+  {N : Tier Block' Ring' Stmt' Brk' Wit' (Weak O') Wire Coord Slot Result' Source'}
   {total : ℕ} [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
   {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Coord → Slot) total → Prop}
   {tail : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
@@ -261,20 +237,21 @@ noncomputable def collide {S : Shape} {O : OpeningShape S} (key : Key S) (openKe
       (tableCollision key innerBound ω.toCertified ω'.toCertified).map (Sum.map id Sum.inl)
   | _, _ => none
 
-omit [Zero Ring'] in
 /-- The suffix of a level over the suffix of a next level `N` that commits to its flat witness
 (Akita Proposition 10.44 for one more level, "Checkpoints"). The successor source of a first
 certificate of the next level is `view` of the table of its weak opening: `view` is the map of
 the opening method of the next level from its table to the flat witness. `certified`: this weak
-opening has a certified decommitment of the commitment `commit` that the proof has before the checks of
+opening has a certified decommitment of the commitment `commit` that the proof has before the
+  checks of
 the level (Akita Definition 10.22 (i) and (ii)). Two sources after one stage input of the
 checkpoint are two certified decommitments of one payload, and `tableCollision` gives a solution
 of Module-SIS for a matrix of the next level (Akita Corollary 10.25). `passed`: the final claim
 of the checks of the level is true for the table (Akita Lemma 10.42 (ii)). `embedded`: `embed`
 maps a solution of Module-SIS for a matrix of `N` to a witness of `R_bind` of the later stages.
-The stage errors add `r·p + Σ_j ε_j`, the retry loops add `r + 1`, and the tree size is multiplied
-by `2·(r + 1)`, for `r` blocks. -/
-theorem suffix_committed (valid : T.Valid) (next : N.start = T.finish)
+The stage errors add `Σ_b p_b + Σ_j ε_j`, the retry loops add `r + 1`, and the tree size is
+multiplied by `2·(r + 1)`, for `r` fold coordinates. -/
+theorem suffix_committed {blocks : ℕ} (count : Fintype.card Block = blocks) (valid : T.Valid)
+    (next : N.start = T.finish)
     (commit : Wire → S'.Payload) (fits : T.finish ≤ total)
     (decodes : ∀ point, accept point → T.Decodes point) {factorBound sourceBound innerBound : ℕ}
     (key' : Key S') (openKey' : OpeningKey O')
@@ -292,9 +269,9 @@ theorem suffix_committed (valid : T.Valid) (next : N.start = T.finish)
       (T.over accept tail (fun inner => view (tableOf (tail.witness inner)))
         (fun inner other =>
           embed (collide key' openKey' innerBound (tail.witness inner) (tail.witness other))))
-      (S.blocks * T.chance + T.costs.sum + error) (S.blocks + 1 + loops)
-      (2 * (S.blocks + 1) * tree) := by
-  refine suffix_before valid (next ▸ later) fits (fun opening => view (tableOf opening))
+      (∑ b, T.chance b + T.costs.sum + error) (blocks + 1 + loops)
+      (2 * (blocks + 1) * tree) := by
+  refine suffix_before count valid (next ▸ later) fits (fun opening => view (tableOf opening))
     (fun opening other => embed (collide key' openKey' innerBound opening other)) decodes ?_ ?_
   · rintro point _ accepted ⟨ω, rfl, opens⟩
     exact passed point ω accepted ⟨ω, rfl, opens⟩
@@ -314,18 +291,19 @@ end Committed
 
 section Push
 
-variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' : OpeningShape S'}
-  {fold' : Descriptor} {E Ring Stmt Brk Wire Coord Slot Result' Source' : Type} [Zero Ring]
+variable {S' : Shape} {O' : OpeningShape S'} {fold' : Descriptor} {Block : Type}
+  {Ring : Block → Type} {E Stmt Brk Wit Wk Wire Coord Slot Result' Source' : Type}
+  [∀ b, Zero (Ring b)] [Fintype Block]
   [Field E] [Algebra Zq E] {β' : Module.Basis (Fin O'.planes) Zq E} {key' : Key S'}
   {openKey' : OpeningKey O'} {weight' : ℕ}
-  (T : Tier O fold Ring Stmt Brk Wire Coord Slot (Option (List E × E)) Table)
-  (N : Tier O' fold' (Rq O'.carrierDegree) (Claim O' E)
-    (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) Wire Coord Slot Result'
-    Source')
+  (T : Tier Block Ring Stmt Brk Wit Wk Wire Coord Slot (Option (List E × E)) Table)
+  (N : Tier (Fin S'.blocks) (fun _ => Rq O'.carrierDegree) (Claim O' E)
+    (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
+    (Weak O') Wire Coord Slot Result' Source')
   {total : ℕ} [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
   {Inner BreakT CandT KeyT : Type}
 
-omit [Zero Ring] [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord] in
+omit [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord] in
 /-- The scalar of a weak opening with coefficient packing is the multilinear evaluation of the
 table of its source blocks at the point of the statement (Akita (202), with
 `scalar_contract_eq_mle`). The point has the segments `(r_pack, r_tail, r_pos, r_blk)`, and `B`,
@@ -370,9 +348,10 @@ the next level, which is the multilinear evaluation of its table (`scalar_contra
 does not read the source. `passes`: the final claim `(r_2, v_W)` is true for a table `w` when
 `v_W = w̃(r_2)`. `linked`: the verifier accepts only with the link `Linked`. `embedded`: `embed`
 maps a solution of Module-SIS for a matrix of `N` to a witness of `R_bind` of the later stages.
-The stage errors add `r·p + Σ_j ε_j`, the retry loops add `r + 1`, and the tree size is multiplied
-by `2·(r + 1)`, for `r` blocks. -/
-theorem suffix_push (valid : T.Valid) (packed : N.method = packing β' key' openKey' weight')
+The stage errors add `Σ_b p_b + Σ_j ε_j`, the retry loops add `r + 1`, and the tree size is
+multiplied by `2·(r + 1)`, for `r` fold coordinates. -/
+theorem suffix_push {blocks : ℕ} (count : Fintype.card Block = blocks) (valid : T.Valid)
+    (packed : N.method = packing β' key' openKey' weight')
     (next : N.start = T.finish) (commit : Wire → S'.Payload) (fits : T.finish ≤ total)
     (uniform : ∀ wire challenge table other,
       bare (T.check wire challenge table) = bare (T.check wire challenge other))
@@ -385,10 +364,10 @@ theorem suffix_push (valid : T.Valid) (packed : N.method = packing β' key' open
       (T.over accept tail (fun inner => tableOf (tail.witness inner))
         (fun inner other => embed (collide key' openKey'
           (2 * (2 * weight') * fold'.sourceBound S') (tail.witness inner) (tail.witness other))))
-      (S.blocks * T.chance + T.costs.sum + error) (S.blocks + 1 + loops)
-      (2 * (S.blocks + 1) * tree) := by
+      (∑ b, T.chance b + T.costs.sum + error) (blocks + 1 + loops)
+      (2 * (blocks + 1) * tree) := by
   refine suffix_committed (factorBound := 2 * weight') (sourceBound := fold'.sourceBound S')
-    valid next commit fits (fun point accepted => (linked point accepted).2.1) key' openKey'
+    count valid next commit fits (fun point accepted => (linked point accepted).2.1) key' openKey'
     (le_of_eq (by ring)) id ?_ ?_ embed embedded later
   · rintro point ω accepted ⟨_, same, opens⟩
     obtain rfl := Option.some.inj same

@@ -216,10 +216,10 @@ theorem extraction_le (statement : Statement (opening 1 1) Zq)
         (if pairAccepts first second Letter.payload Letter.digits
             ((Structure.protocol chain).final prover table) ∧
           Checkpoint.extract chain prover budget table tape = none then (1 : ℝ) else 0) ≤
-      (queries + 1) * ((shape 1 1).blocks * Tier.chance first +
+      (queries + 1) * (∑ b, Tier.chance first b +
           foldError (lockedReduction (basis 1 1) statement challenge 8 cells_first 3 rows_first)
             (shape 1 1).certifiedBase +
-          ((shape 2 128).blocks * Tier.chance second +
+          (∑ b, Tier.chance second b +
             foldError (flatReduction (basis 2 128) statement' challenge' 14 cells_second 3
               rows_second) (shape 2 128).certifiedBase)) +
         (queries + 1) * ((shape 1 1).blocks + 1 + ((shape 2 128).blocks + 1) : ℕ) / budget :=

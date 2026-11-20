@@ -123,4 +123,54 @@ theorem transcript_cut {level : ℕ} {point anchor : Prefix Wire Reply stages}
     ite_eq_left below
   exact (Option.some.inj (value.symm.trans found)).symm
 
+omit [Nonempty Reply] in
+theorem Prefix.take_take {level deeper : ℕ} (below : level ≤ deeper)
+    (point : Prefix Wire Reply stages) : (point.take deeper).take level = point.take level :=
+  Prefix.ext rfl (by
+    show (point.rest.take deeper).take level = point.rest.take level
+    rw [List.take_take, Nat.min_eq_left below])
+
+/-- The stage input with one more answer and one more message. -/
+def Prefix.snoc (point : Prefix Wire Reply stages) (move : Reply × Wire)
+    (room : point.rest.length < stages) : Prefix Wire Reply stages :=
+  ⟨point.first, point.rest ++ [move], by
+    rw [List.length_append, List.length_singleton]
+    exact room⟩
+
+omit [Nonempty Reply] in
+theorem Prefix.reply_snoc (point : Prefix Wire Reply stages) (move : Reply × Wire)
+    (room : point.rest.length < stages) {index : ℕ} (below : index < point.rest.length) :
+    (point.snoc move room).reply index = point.reply index := by
+  simp only [Prefix.snoc, Prefix.reply, List.getElem?_append_left below]
+
+omit [Nonempty Reply] in
+theorem Prefix.wire_snoc (point : Prefix Wire Reply stages) (move : Reply × Wire)
+    (room : point.rest.length < stages) {index : ℕ} (below : index ≤ point.rest.length) :
+    (point.snoc move room).wire index = point.wire index := by
+  rcases index with _ | index
+  · rfl
+  · simp only [Prefix.snoc, Prefix.wire, List.getElem?_append_left (Nat.lt_of_succ_le below)]
+
+omit [Nonempty Reply] in
+theorem Prefix.take_snoc (point : Prefix Wire Reply stages) (move : Reply × Wire)
+    (room : point.rest.length < stages) {level : ℕ} (below : level ≤ point.rest.length) :
+    (point.snoc move room).take level = point.take level :=
+  Prefix.ext rfl (List.take_append_of_le_length below)
+
+theorem transcript_step (proof : ℕ → Wire) (point : Prefix Wire Reply stages) (reply : Reply)
+    (room : point.rest.length < stages) :
+    (transcript stages accept).step proof point reply =
+      point.snoc (reply, proof (point.rest.length + 1)) room :=
+  dite_eq_left room
+
+/-- The last answer of the stage input after the stage `index`. -/
+theorem last_take_succ {point : Prefix Wire Reply stages} {index : ℕ} {reply : Reply}
+    (answered : point.reply index = some reply) :
+    (transcript stages accept).last (point.take (index + 1)) = reply := by
+  obtain ⟨move, found, rfl⟩ : ∃ move, point.rest[index]? = some move ∧ move.1 = reply :=
+    Option.map_eq_some_iff.mp answered
+  show (((point.rest.take (index + 1)).getLast?.map Prod.fst).getD _) = move.1
+  rw [List.take_add_one, found]
+  simp
+
 end NightstreamFPrime.Spec.Compression.Akita.Extract

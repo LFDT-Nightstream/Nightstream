@@ -64,17 +64,19 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [CommRi
 `traceExtract`. The fold challenges are elements of `R_{q,d_A}`, and `weight` is their norm
 `ω = ‖c‖_1`. -/
 noncomputable def trace (key : Key S) (openKey : OpeningKey O) (weight : ℕ) :
-    Method O fold (Rq S.innerDegree) (TraceClaim O E)
-      (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S)) where
+    Method (Fin S.blocks) (fun _ => Rq S.innerDegree) (TraceClaim O E)
+      (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S)) (Witness O fold)
+      (Weak O) where
   Satisfies w claim challenge := w.TraceSatisfies (claim.statement key openKey) challenge
   Opens ω claim := ω.TraceOpens (2 * weight) (fold.sourceBound S) (claim.statement key openKey)
     (S.decode ω.source)
-  merge claim first second digits :=
+  merge claim first second w :=
     match traceForkCollision (claim.statement key openKey)
-        ⟨fun i => ⟨(first i).1, (first i).2⟩, fun i => ⟨(second i).1, (second i).2⟩⟩ digits with
+        ⟨fun i => ⟨(first i).1, (first i).2⟩, fun i => ⟨(second i).1, (second i).2⟩⟩
+        w.toCarried with
     | some solution => .inr (some (.inr solution))
     | none => .inl (traceExtract
-        ⟨fun i => ⟨(first i).1, (first i).2⟩, fun i => ⟨(second i).1, (second i).2⟩⟩ digits)
+        ⟨fun i => ⟨(first i).1, (first i).2⟩, fun i => ⟨(second i).1, (second i).2⟩⟩ w.toCarried)
   broken solution := solution.isSome
 
 /-- Akita Corollary 10.32 for the method `trace` (`traceExtract_opens_or_collision`). The
@@ -84,7 +86,7 @@ theorem trace_sound {key : Key S} {openKey : OpeningKey O} {weight peak : ℕ}
     {family : Set (Rq S.innerDegree)} (units : UnitDifferences family)
     (sparse : ∀ challenge ∈ family, Sparse weight peak challenge)
     (base : 2 ≤ fold.responseBase) :
-    (trace (fold := fold) (E := E) key openKey weight).Sound family := by
+    (trace (fold := fold) (E := E) key openKey weight).Sound fun _ => family := by
   intro claim first second w challenge firstMember secondMember different agree firstSatisfies
     secondSatisfies good
   have result := traceExtract_opens_or_collision units sparse base
@@ -117,13 +119,14 @@ noncomputable def committedTrace (key : Key S) (openKey : OpeningKey O)
     (claim : Wire → TraceClaim O E) (μ : ℕ) (fits : O.cells fold < 2 ^ μ) (batch : ℕ)
     (rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch) (block : Fin S.blocks → Coord)
     (decode : E → Option (Rq S.innerDegree)) (read : Reader Wire) (weight start : ℕ) :
-    Tier O fold (Rq S.innerDegree) (TraceClaim O E)
-      (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S)) Wire Coord E
+    Tier (Fin S.blocks) (fun _ => Rq S.innerDegree) (TraceClaim O E)
+      (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S)) (Witness O fold) (Weak O)
+        Wire Coord E
       (Option (List E × E)) Table where
   method := trace key openKey weight
   claim := claim
   block := block
-  decode := decode
+  decode := fun _ => decode
   read := read
   digits := O.ofFlat fold
   check wire challenge table :=
@@ -141,13 +144,14 @@ noncomputable def clearTrace (key : Key S) (openKey : OpeningKey O)
     (claim : Wire → TraceClaim O E) (μ : ℕ) (fits : O.cells fold < 2 ^ μ) (batch : ℕ)
     (rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch) (block : Fin S.blocks → Coord)
     (decode : E → Option (Rq S.innerDegree)) (read : Reader Wire) (weight start : ℕ) :
-    Tier O fold (Rq S.innerDegree) (TraceClaim O E)
-      (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S)) Wire Coord E
+    Tier (Fin S.blocks) (fun _ => Rq S.innerDegree) (TraceClaim O E)
+      (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S)) (Witness O fold) (Weak O)
+        Wire Coord E
       (Option (List E × E)) (Witness O fold) where
   method := trace key openKey weight
   claim := claim
   block := block
-  decode := decode
+  decode := fun _ => decode
   read := read
   digits candidate := candidate
   check wire challenge candidate :=
@@ -265,14 +269,14 @@ theorem committedTrace_suffix {Wit' : Type}
       ((committedTrace key openKey claim μ fits batch rowsFit block decode read weight
         start).over accept tail (fun inner => source (tail.witness inner))
         (fun inner other => clash (tail.witness inner) (tail.witness other)))
-      (S.blocks * (committedTrace key openKey claim μ fits batch rowsFit block decode read weight
-          start).chance +
+      (∑ b, (committedTrace key openKey claim μ fits batch rowsFit block decode read weight
+          start).chance b +
         foldError (lockedTraceReduction statement challenge μ fits batch rowsFit)
           S.certifiedBase +
         error)
       (S.blocks + 1 + loops) (2 * (S.blocks + 1) * tree) := by
   rw [← foldCosts_sum]
-  exact Tier.suffix_before
+  exact Tier.suffix_before (Fintype.card_fin _)
     (committedTrace_valid injective units sparse base small varsFit batchFit) later inside source
     clash decodes passed clashes
 
@@ -299,12 +303,13 @@ theorem clearTrace_suffix {rowsFit : O.traceRowCount + 1 ≤ 2 ^ batch} {peak : 
       ((clearTrace key openKey claim μ fits batch rowsFit block decode read weight start).over
         accept (finish (transcript total accept))
         (fun point => witnessOf (point.wire (start + 1))) (fun _ _ => ()))
-      (S.blocks * (clearTrace key openKey claim μ fits batch rowsFit block decode read weight
-          start).chance +
+      (∑ b, (clearTrace key openKey claim μ fits batch rowsFit block decode read weight
+          start).chance b +
         foldError (traceReduction statement challenge μ fits batch rowsFit) S.certifiedBase)
       (S.blocks + 1) (2 * (S.blocks + 1)) := by
   rw [← foldCosts_sum]
-  exact Tier.suffix_last (clearTrace_valid injective units sparse base small varsFit batchFit)
+  exact Tier.suffix_last (Fintype.card_fin _) (clearTrace_valid injective units sparse base small
+    varsFit batchFit)
     witnessOf inside passed
 
 end Levels

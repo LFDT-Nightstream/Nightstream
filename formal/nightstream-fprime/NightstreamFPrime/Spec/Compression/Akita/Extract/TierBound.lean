@@ -6,9 +6,12 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Tier
 Akita over the later stages (ePrint 2026/1983, revision of 2026-10-15, Proposition 10.44 (iv):
 the tree size and the sum (206) of the stage errors).
 
+- `Tier.fork_chargeFrom`, `Tier.fork_loopsFrom` and `Tier.fork_treeFrom` are the values of the
+  indexed stage of the fold challenges: the sum of the weights `p_b` of the fold coordinates, one
+  retry loop for each coordinate, and the tree factor `1 + r` for `r` coordinates.
 - `Tier.over_chargeFrom` states that the stage errors from the first stage of the level sum to
-  `r·p + Σ_j ε_j` plus the sum of the later stages. `r` is the number of blocks, `p` is the largest
-  probability of one fold challenge, and `ε_j` is the bound of draw `j` of the checks.
+  `Σ_b p_b + Σ_j ε_j` plus the sum of the later stages. `p_b` is the largest probability of one
+  fold challenge of the coordinate `b`, and `ε_j` is the bound of draw `j` of the checks.
 - `Tier.over_loopsFrom` and `Tier.over_treeFrom` add `r + 1` retry loops and multiply the tree
   size by `2·(r + 1)`.
 - `finish_chargeFrom`, `finish_loopsFrom` and `finish_treeFrom` are the values after the last
@@ -20,15 +23,6 @@ namespace NightstreamFPrime.Spec.Compression.Akita.Extract
 
 open scoped BigOperators
 open NightstreamFPrime.Spec.Checkpoint
-
-/-- The sum of the entries of a list by index. -/
-theorem sum_range_getD (costs : List ℝ) :
-    ∑ index ∈ Finset.range costs.length, costs.getD index 0 = costs.sum := by
-  induction costs with
-  | nil => simp
-  | cons cost rest induction =>
-      rw [List.length_cons, Finset.sum_range_succ', List.sum_cons, ← induction, add_comm]
-      simp
 
 section Finish
 
@@ -49,183 +43,135 @@ end Finish
 
 namespace Tier
 
-variable {S : Shape} {O : OpeningShape S} {fold : Descriptor}
-  {Ring Stmt Brk Wire Coord Slot Result Source : Type} [Zero Ring]
-  (T : Tier O fold Ring Stmt Brk Wire Coord Slot Result Source) {total : ℕ}
-  [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
+variable {Block : Type} {Ring : Block → Type}
+  {Stmt Brk Wit Weak Wire Coord Slot Result Source : Type} [∀ b, Zero (Ring b)]
+  (T : Tier Block Ring Stmt Brk Wit Weak Wire Coord Slot Result Source) {total : ℕ}
+  [Fintype Block] [Fintype Slot] [Nonempty Slot]
+
+section Fork
+
+variable {Inner BreakM CandM KeyM WitM : Type} {accept : Prefix Wire (Coord → Slot) total → Prop}
+  {mid : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakM CandM
+    KeyM WitM}
+  {source : Inner → Source}
+
+theorem fork_charge_start (injective : Function.Injective T.block) (fits : T.start < total) :
+    (T.fork accept mid source).charge T.start = ∑ b, T.chance b := by
+  unfold Structure.charge
+  rw [ite_eq_left (show T.start < (T.fork accept mid source).protocol.stages from fits),
+    T.fork_kind_start]
+  show ((Finset.univ.toList.map T.block).map ((T.fork accept mid source).weight T.start)).sum = _
+  rw [List.map_map, show (T.fork accept mid source).weight T.start ∘ T.block = T.chance from
+    funext fun b => T.fork_weight_block injective b, Finset.sum_map_toList]
+
+theorem fork_charge_above (stages : mid.protocol.stages = total) {level : ℕ}
+    (above : T.start < level) :
+    (T.fork accept mid source).charge level = mid.charge level := by
+  have weight : (T.fork accept mid source).weight level = mid.weight level :=
+    funext fun coordinate => T.fork_weight_above above coordinate
+  unfold Structure.charge
+  rw [T.fork_kind_above above, weight, stages]
+  rfl
+
+/-- The stage errors from the stage of the fold challenges: the weights of the fold coordinates,
+and the stage errors of the later stages. -/
+theorem fork_chargeFrom (injective : Function.Injective T.block) (fits : T.start < total)
+    (stages : mid.protocol.stages = total) :
+    (T.fork accept mid source).chargeFrom T.start =
+      ∑ b, T.chance b + mid.chargeFrom (T.start + 1) := by
+  unfold Structure.chargeFrom
+  rw [stages]
+  show ∑ later ∈ Finset.Ico T.start total, (T.fork accept mid source).charge later = _
+  rw [Finset.sum_eq_sum_Ico_succ_bot fits, T.fork_charge_start injective fits]
+  exact congrArg _ (Finset.sum_congr rfl fun level member =>
+    T.fork_charge_above stages (Finset.mem_Ico.mp member).1)
+
+/-- The extractor has one retry loop for each fold coordinate, and the loops of the later
+stages. -/
+theorem fork_loopsFrom (fits : T.start < total) (stages : mid.protocol.stages = total) :
+    (T.fork accept mid source).loopsFrom T.start =
+      Fintype.card Block + mid.loopsFrom (T.start + 1) := by
+  have first : (T.fork accept mid source).loops T.start = Fintype.card Block := by
+    unfold Structure.loops
+    rw [T.fork_kind_start]
+    show (Finset.univ.toList.map T.block).length = _
+    rw [List.length_map, Finset.length_toList, Finset.card_univ]
+  unfold Structure.loopsFrom
+  rw [stages]
+  show ∑ later ∈ Finset.Ico T.start total, (T.fork accept mid source).loops later = _
+  rw [Finset.sum_eq_sum_Ico_succ_bot fits, first]
+  exact congrArg _ (Finset.sum_congr rfl fun level member => by
+    unfold Structure.loops
+    rw [T.fork_kind_above (Finset.mem_Ico.mp member).1])
+
+/-- The tree size from the stage of the fold challenges: `1 + r` children for `r` fold
+coordinates, and the tree size of the later stages. -/
+theorem fork_treeFrom (fits : T.start < total) (stages : mid.protocol.stages = total) :
+    (T.fork accept mid source).treeFrom T.start =
+      (1 + Fintype.card Block) * mid.treeFrom (T.start + 1) := by
+  have first : (T.fork accept mid source).arity T.start = 1 + Fintype.card Block := by
+    unfold Structure.arity
+    rw [T.fork_kind_start]
+    show 1 + (Finset.univ.toList.map T.block).length = _
+    rw [List.length_map, Finset.length_toList, Finset.card_univ]
+  unfold Structure.treeFrom
+  rw [stages]
+  show ∏ later ∈ Finset.Ico T.start total, (T.fork accept mid source).arity later = _
+  rw [Finset.prod_eq_prod_Ico_succ_bot fits, first]
+  exact congrArg _ (Finset.prod_congr rfl fun level member => by
+    unfold Structure.arity
+    rw [T.fork_kind_above (Finset.mem_Ico.mp member).1])
+
+end Fork
+
+variable [Fintype Coord] [DecidableEq Coord]
   {Inner BreakT CandT KeyT WitT : Type} {accept : Prefix Wire (Coord → Slot) total → Prop}
   {tail : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
     KeyT WitT}
   {source : Inner → Source} {clash : Inner → Inner → BreakT}
 
-theorem over_kind_start :
-    (T.over accept tail source clash).kind T.start =
-      .indexed ((List.finRange S.blocks).map T.block) := by
-  have ends := T.finish_eq
-  rw [over_kind, ite_eq_left (by omega)]
-  unfold Tier.kind
-  rw [ite_eq_left le_rfl]
-
-theorem over_kind_check {index : ℕ} (inside : index < T.costs.length) :
-    (T.over accept tail source clash).kind (T.start + (index + 1)) =
-      if index = 0 then .checkpoint (T.costs.length - 1) else .plain := by
-  have ends := T.finish_eq
-  rw [over_kind, ite_eq_left (by omega)]
-  unfold Tier.kind
-  rw [ite_eq_right (by omega)]
-  by_cases first : index = 0
-  · rw [ite_eq_left first, ite_eq_left (by omega)]
-  · rw [ite_eq_right first, ite_eq_right (by omega)]
-
-theorem over_kind_tail {level : ℕ} (outside : T.finish ≤ level) :
-    (T.over accept tail source clash).kind level = tail.kind level := by
-  rw [over_kind, ite_eq_right (by omega)]
-
-theorem over_charge_start (fits : T.finish ≤ total) :
-    (T.over accept tail source clash).charge T.start = S.blocks * T.chance := by
-  have ends := T.finish_eq
-  have weights : (T.over accept tail source clash).weight T.start ∘ T.block =
-      fun _ => T.chance :=
-    funext fun i => by rw [Function.comp, over_weight, ite_eq_left (by omega)]
-  unfold Structure.charge
-  rw [ite_eq_left (show T.start < (T.over accept tail source clash).protocol.stages by
-    show T.start < total
-    omega), T.over_kind_start]
-  show (((List.finRange S.blocks).map T.block).map
-    ((T.over accept tail source clash).weight T.start)).sum = _
-  rw [List.map_map, weights]
-  simp
-
-theorem over_charge_check (fits : T.finish ≤ total) {index : ℕ}
-    (inside : index < T.costs.length) :
-    (T.over accept tail source clash).charge (T.start + (index + 1)) =
-      T.costs.getD index 0 := by
-  have ends := T.finish_eq
-  have error : (T.over accept tail source clash).error (T.start + (index + 1)) =
-      T.costs.getD index 0 := by
-    rw [over_error, ite_eq_left (by omega),
-      show T.start + (index + 1) - T.start - 1 = index by omega]
-  unfold Structure.charge
-  rw [ite_eq_left (show T.start + (index + 1) <
-      (T.over accept tail source clash).protocol.stages by
-    show T.start + (index + 1) < total
-    omega), T.over_kind_check inside]
-  by_cases first : index = 0
-  · rw [ite_eq_left first]
-    exact error
-  · rw [ite_eq_right first]
-    exact error
-
-theorem over_charge_tail (stages : tail.protocol.stages = total) {level : ℕ}
-    (outside : T.finish ≤ level) :
-    (T.over accept tail source clash).charge level = tail.charge level := by
-  have weight : (T.over accept tail source clash).weight level = tail.weight level :=
-    funext fun coordinate => by rw [over_weight, ite_eq_right (by omega)]
-  have error : (T.over accept tail source clash).error level = tail.error level := by
-    rw [over_error, ite_eq_right (by omega)]
-  unfold Structure.charge
-  rw [T.over_kind_tail outside, weight, error, stages]
-  rfl
-
-theorem over_loops_start :
-    (T.over accept tail source clash).loops T.start = S.blocks := by
-  unfold Structure.loops
-  rw [T.over_kind_start]
-  show ((List.finRange S.blocks).map T.block).length = _
-  simp
-
-theorem over_loops_check {index : ℕ} (inside : index < T.costs.length) :
-    (T.over accept tail source clash).loops (T.start + (index + 1)) =
-      if index = 0 then 1 else 0 := by
-  unfold Structure.loops
-  rw [T.over_kind_check inside]
-  by_cases first : index = 0
-  · rw [ite_eq_left first, ite_eq_left first]
-  · rw [ite_eq_right first, ite_eq_right first]
-
-theorem over_loops_tail {level : ℕ} (outside : T.finish ≤ level) :
-    (T.over accept tail source clash).loops level = tail.loops level := by
-  unfold Structure.loops
-  rw [T.over_kind_tail outside]
-
-theorem over_arity_start :
-    (T.over accept tail source clash).arity T.start = 1 + S.blocks := by
-  unfold Structure.arity
-  rw [T.over_kind_start]
-  show 1 + ((List.finRange S.blocks).map T.block).length = _
-  simp
-
-theorem over_arity_check {index : ℕ} (inside : index < T.costs.length) :
-    (T.over accept tail source clash).arity (T.start + (index + 1)) =
-      if index = 0 then 2 else 1 := by
-  unfold Structure.arity
-  rw [T.over_kind_check inside]
-  by_cases first : index = 0
-  · rw [ite_eq_left first, ite_eq_left first]
-  · rw [ite_eq_right first, ite_eq_right first]
-
-theorem over_arity_tail {level : ℕ} (outside : T.finish ≤ level) :
-    (T.over accept tail source clash).arity level = tail.arity level := by
-  unfold Structure.arity
-  rw [T.over_kind_tail outside]
-
 /-- The stage errors from the first stage of the level: the weights of the fold challenges of
-the blocks, the bounds of the draws of the checks, and the stage errors of the later stages
-(the sum of Akita (206) for the stages from one level). -/
-theorem over_chargeFrom (fits : T.finish ≤ total)
+the fold coordinates, the bounds of the draws of the checks, and the stage errors of the later
+stages (the sum of Akita (206) for the stages from one level). -/
+theorem over_chargeFrom (injective : Function.Injective T.block) (fits : T.finish ≤ total)
     (stages : tail.protocol.stages = total) :
     (T.over accept tail source clash).chargeFrom T.start =
-      S.blocks * T.chance + T.costs.sum + tail.chargeFrom T.finish := by
+      ∑ b, T.chance b + T.costs.sum + tail.chargeFrom T.finish := by
   have ends := T.finish_eq
-  unfold Structure.chargeFrom
-  rw [stages]
-  show ∑ later ∈ Finset.Ico T.start total, (T.over accept tail source clash).charge later = _
-  rw [← Finset.sum_Ico_consecutive _ (show T.start ≤ T.finish by omega) fits]
-  refine congrArg₂ (· + ·) ?_
-    (Finset.sum_congr rfl fun level member =>
-      T.over_charge_tail stages (Finset.mem_Ico.mp member).1)
-  rw [Finset.sum_Ico_eq_sum_range, show T.finish - T.start = T.costs.length + 1 by omega,
-    Finset.sum_range_succ', Nat.add_zero, T.over_charge_start fits, add_comm, ← sum_range_getD]
-  exact congrArg _ (Finset.sum_congr rfl fun index member =>
-    T.over_charge_check fits (Finset.mem_range.mp member))
+  have checks := T.segment.over_chargeFrom (accept := accept) (source := source) (clash := clash)
+    (relation := fun _ _ => True) fits stages
+  show (T.fork accept (T.segment.over accept tail source clash fun _ _ => True)
+    source).chargeFrom T.start = _
+  rw [T.fork_chargeFrom injective (by omega) rfl, add_assoc]
+  exact congrArg _ checks
 
-/-- The extractor has one retry loop for each block and one for the checkpoint of the level,
-and the loops of the later stages. -/
+/-- The extractor has one retry loop for each fold coordinate and one for the checkpoint of the
+level, and the loops of the later stages. -/
 theorem over_loopsFrom (draws : T.costs ≠ []) (fits : T.finish ≤ total)
     (stages : tail.protocol.stages = total) :
     (T.over accept tail source clash).loopsFrom T.start =
-      S.blocks + 1 + tail.loopsFrom T.finish := by
+      Fintype.card Block + 1 + tail.loopsFrom T.finish := by
   have ends := T.finish_eq
-  have long : 0 < T.costs.length := List.length_pos_iff.mpr draws
-  unfold Structure.loopsFrom
-  rw [stages]
-  show ∑ later ∈ Finset.Ico T.start total, (T.over accept tail source clash).loops later = _
-  rw [← Finset.sum_Ico_consecutive _ (show T.start ≤ T.finish by omega) fits]
-  refine congrArg₂ (· + ·) ?_
-    (Finset.sum_congr rfl fun level member => T.over_loops_tail (Finset.mem_Ico.mp member).1)
-  rw [Finset.sum_Ico_eq_sum_range, show T.finish - T.start = T.costs.length + 1 by omega,
-    Finset.sum_range_succ', Nat.add_zero, T.over_loops_start,
-    Finset.sum_congr rfl fun index member => T.over_loops_check (Finset.mem_range.mp member),
-    Finset.sum_ite_eq', ite_eq_left (Finset.mem_range.mpr long), add_comm]
+  have checks := T.segment.over_loopsFrom (accept := accept) (source := source) (clash := clash)
+    (relation := fun _ _ => True) draws fits stages
+  show (T.fork accept (T.segment.over accept tail source clash fun _ _ => True)
+    source).loopsFrom T.start = _
+  rw [T.fork_loopsFrom (by omega) rfl, add_assoc]
+  exact congrArg _ checks
 
 /-- The tree size from the first stage of the level: `1 + r` children at the fold challenge of
-`r` blocks, two at the checkpoint, and the tree size of the later stages. -/
+`r` fold coordinates, two at the checkpoint, and the tree size of the later stages. -/
 theorem over_treeFrom (draws : T.costs ≠ []) (fits : T.finish ≤ total)
     (stages : tail.protocol.stages = total) :
     (T.over accept tail source clash).treeFrom T.start =
-      2 * (S.blocks + 1) * tail.treeFrom T.finish := by
+      2 * (Fintype.card Block + 1) * tail.treeFrom T.finish := by
   have ends := T.finish_eq
-  have long : 0 < T.costs.length := List.length_pos_iff.mpr draws
-  unfold Structure.treeFrom
-  rw [stages]
-  show ∏ later ∈ Finset.Ico T.start total, (T.over accept tail source clash).arity later = _
-  rw [← Finset.prod_Ico_consecutive _ (show T.start ≤ T.finish by omega) fits]
-  refine congrArg₂ (· * ·) ?_
-    (Finset.prod_congr rfl fun level member => T.over_arity_tail (Finset.mem_Ico.mp member).1)
-  rw [Finset.prod_Ico_eq_prod_range, show T.finish - T.start = T.costs.length + 1 by omega,
-    Finset.prod_range_succ', Nat.add_zero, T.over_arity_start,
-    Finset.prod_congr rfl fun index member => T.over_arity_check (Finset.mem_range.mp member),
-    Finset.prod_ite_eq', ite_eq_left (Finset.mem_range.mpr long)]
+  have checks := T.segment.over_treeFrom (accept := accept) (source := source) (clash := clash)
+    (relation := fun _ _ => True) draws fits stages
+  show (T.fork accept (T.segment.over accept tail source clash fun _ _ => True)
+    source).treeFrom T.start = _
+  rw [T.fork_treeFrom (by omega) rfl, show (T.segment.over accept tail source clash
+    fun _ _ => True).treeFrom (T.start + 1) = 2 * tail.treeFrom T.finish from checks]
   ring
 
 end Tier

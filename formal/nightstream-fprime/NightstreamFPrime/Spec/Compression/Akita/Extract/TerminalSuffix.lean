@@ -71,13 +71,13 @@ def clear (point : Prefix Wire (Coord → Slot) total) : Fin S.blocks → Rq S.i
 /-- The fold challenges `c_i` of a transcript. -/
 noncomputable def challenge (point : Prefix Wire (Coord → Slot) total) :
     Fin S.blocks → Rq S.innerDegree :=
-  challengeAt L.decode L.block L.start point
+  challengeAt (fun _ => L.decode) L.block L.start point
 
 /-- The checks of the verifier of the terminal on a transcript (Akita Section 8.2): each fold
 challenge decodes, the checks (128), (129) and (130) hold for the clear partials, the fold
 challenges and the clear response `z`, and `‖z‖_∞ ≤ Z_{∞,term}`. -/
 structure Passed (point : Prefix Wire (Coord → Slot) total) : Prop where
-  decodes : DecodesAt L.decode L.block L.start point
+  decodes : DecodesAt (fun _ => L.decode) L.block L.start point
   accepts : (L.statement point).Accepts (L.clear point) (L.challenge point)
     (L.response (point.wire (L.start + 1)))
   short : vecNormInf (L.response (point.wire (L.start + 1))) ≤ L.bound
@@ -387,7 +387,9 @@ certificate of the terminal (Akita Lemma 10.42 (ii)). The stage errors are
 `2·(r + 1)·(1 + B_term)`, for `r` blocks of the level. -/
 theorem suffix_after {S' : Shape} {O : OpeningShape S'} {fold : Descriptor}
     {Ring Stmt Brk Result Source : Type} [Zero Ring]
-    {T : Tier O fold Ring Stmt Brk Wire Coord Slot Result Source} (valid : T.Valid)
+    {T : Tier (Fin S'.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord Slot
+      Result Source}
+    (valid : T.Valid)
     (terminal : L.Valid accept) (next : L.start = T.finish) {peak : ℕ}
     (units : UnitDifferences L.family)
     (sparse : ∀ challenge ∈ L.family, Sparse L.weight peak challenge)
@@ -403,9 +405,9 @@ theorem suffix_after {S' : Shape} {O : OpeningShape S'} {fold : Descriptor}
         (fun inner => decoder (blocksOf ((L.body accept).witness inner)))
         (fun inner other =>
           L.collide ((L.body accept).witness inner) ((L.body accept).witness other)))
-      (S'.blocks * T.chance + T.costs.sum + S.blocks * slotChance L.decode)
+      (∑ b, T.chance b + T.costs.sum + S.blocks * slotChance L.decode)
       (S'.blocks + 1 + S.blocks) (2 * (S'.blocks + 1) * (S.blocks + 1)) := by
-  refine Tier.suffix_before valid (next ▸ L.suffix terminal)
+  refine Tier.suffix_before (Fintype.card_fin _) valid (next ▸ L.suffix terminal)
     (next ▸ Nat.le_of_lt terminal.fits) (fun witness => decoder (blocksOf witness))
     L.collide decodes ?_ ?_
   · intro point witness accepted sourced

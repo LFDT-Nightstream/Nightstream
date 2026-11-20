@@ -119,9 +119,10 @@ after the draws of the checks. A final claim `(ρ, θ, ṽ)` is true for a table
 `ṽ = θ·f̄_w(ρ)`, for the packed polynomial `f̄_w` of `w`. `ν` is the number of the tail variables:
 the point `r_2` has `ν + 1` coordinates. -/
 noncomputable def Tier.tensored
-    (T : Tier O fold Ring Stmt Brk Wire Coord Quadratic (Option (List Quadratic × Quadratic))
+    (T : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord
+      Quadratic (Option (List Quadratic × Quadratic))
       Table) (ν : ℕ) :
-    Tier O fold Ring Stmt Brk Wire Coord Quadratic
+    Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord Quadratic
       (Option (List Quadratic × Quadratic × Quadratic)) Table where
   method := T.method
   claim := T.claim
@@ -137,7 +138,8 @@ noncomputable def Tier.tensored
   start := T.start
 
 variable [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
-  {T : Tier O fold Ring Stmt Brk Wire Coord Quadratic (Option (List Quadratic × Quadratic)) Table}
+  {T : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord Quadratic
+    (Option (List Quadratic × Quadratic)) Table}
   {ν : ℕ}
 
 /-- A level with the tensor reduction satisfies the conditions of `Tier.Valid`: the soundness of
@@ -236,10 +238,12 @@ section Receiver
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' : OpeningShape S'}
   {fold' : Descriptor} {Ring Stmt Brk Wire Coord Slot Result' Source' : Type} [Zero Ring]
   {key' : Key S'} {openKey' : OpeningKey O'} {weight' : ℕ}
-  (T : Tier O fold Ring Stmt Brk Wire Coord Slot (Option (List Quadratic × Quadratic × Quadratic))
+  (T : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord Slot
+    (Option (List Quadratic × Quadratic × Quadratic))
     Table)
-  (N : Tier O' fold' (Rq S'.innerDegree) (TraceClaim O' Quadratic)
-    (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) Wire Coord Slot Result'
+  (N : Tier (Fin S'.blocks) (fun _ => Rq S'.innerDegree) (TraceClaim O' Quadratic)
+    (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
+    (Weak O') Wire Coord Slot Result'
     Source')
   {total : ℕ} [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
   {Inner BreakT CandT KeyT : Type} {m : ℕ}
@@ -288,9 +292,9 @@ theorem Tier.suffix_push_trace (valid : T.Valid)
         (fun inner => flatten (unpackTable S'.innerDegree m (tableOf (tail.witness inner))))
         (fun inner other => embed (Tier.collide key' openKey'
           (2 * (2 * weight') * fold'.sourceBound S') (tail.witness inner) (tail.witness other))))
-      (S.blocks * T.chance + T.costs.sum + error) (S.blocks + 1 + loops)
+      (∑ b, T.chance b + T.costs.sum + error) (S.blocks + 1 + loops)
       (2 * (S.blocks + 1) * tree) := by
-  refine Tier.suffix_committed (factorBound := 2 * weight')
+  refine Tier.suffix_committed (Fintype.card_fin _) (factorBound := 2 * weight')
     (sourceBound := fold'.sourceBound S') valid next commit fits
     (fun point accepted => (linked point accepted).2.1) key' openKey' (le_of_eq (by ring))
     (fun table => flatten (unpackTable S'.innerDegree m table)) ?_ ?_ embed embedded later
@@ -322,7 +326,8 @@ namespace Terminal
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape}
   {Ring Stmt Brk Wire Coord Slot : Type} [Zero Ring] {total : ℕ} [Fintype Slot] [Nonempty Slot]
   [Fintype Coord] [DecidableEq Coord]
-  (T : Tier O fold Ring Stmt Brk Wire Coord Slot (Option (List Quadratic × Quadratic × Quadratic))
+  (T : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord Slot
+    (Option (List Quadratic × Quadratic × Quadratic))
     Table)
   (L : Terminal S' Quadratic Wire Coord Slot total) {m : ℕ}
 
@@ -369,7 +374,7 @@ theorem suffix_linked (valid : T.Valid) (terminal : L.Valid accept) (next : L.st
           (S'.decode (blocksOf ((L.body accept).witness inner)))))
         (fun inner other =>
           L.collide ((L.body accept).witness inner) ((L.body accept).witness other)))
-      (S.blocks * T.chance + T.costs.sum + S'.blocks * slotChance L.decode)
+      (∑ b, T.chance b + T.costs.sum + S'.blocks * slotChance L.decode)
       (S.blocks + 1 + S'.blocks) (2 * (S.blocks + 1) * (S'.blocks + 1)) := by
   refine suffix_after valid terminal next units sparse
     (fun source => flatten (unpackTable S'.innerDegree m (S'.decode source))) ?_

@@ -87,8 +87,15 @@ impl Backend {
         }
     }
 
-    pub(crate) fn oracle(&self, packed: bool) -> Result<Oracle<'_>, EngineError> {
+    pub(crate) fn oracle(&self, packed: bool, running: usize) -> Result<Oracle<'_>, EngineError> {
         if packed {
+            #[cfg(feature = "metal")]
+            if let Self::Metal(device) = self {
+                if running == 1 {
+                    return Ok(Oracle::Packed(device.clone()));
+                }
+            }
+            let _ = running;
             return Ok(Oracle::Cpu(std::marker::PhantomData));
         }
         Ok(match self {
@@ -159,6 +166,8 @@ impl Backend {
 pub(crate) enum Oracle<'a> {
     Cpu(std::marker::PhantomData<&'a ()>),
     #[cfg(feature = "metal")]
+    Packed(metal::Device),
+    #[cfg(feature = "metal")]
     Metal(std::sync::MutexGuard<'a, neo_prover_metal::MetalRowProver>),
 }
 
@@ -168,6 +177,8 @@ impl Oracle<'_> {
             Self::Cpu(_) => None,
             #[cfg(feature = "metal")]
             Self::Metal(prover) => Some(&mut **prover),
+            #[cfg(feature = "metal")]
+            Self::Packed(device) => Some(device),
         }
     }
 }

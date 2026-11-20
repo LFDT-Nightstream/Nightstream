@@ -329,9 +329,14 @@ impl<'a> OpeningBands<'a> {
                 if cursors.iter().all(|(span, _)| span.is_none()) {
                     break;
                 }
-                let forms = cursors
-                    .each_mut()
-                    .map(|(span, spans)| events_for_block(base, span, spans, difference));
+                let mut forms = std::array::from_fn(|_| OpeningEvents {
+                    real: Rq::zero(),
+                    imaginary: Rq::zero(),
+                    mask: 0,
+                });
+                for ((span, spans), form) in cursors.iter_mut().zip(&mut forms) {
+                    events_for_block(base, span, spans, difference, form);
+                }
                 TaskSums::add_opening_blocks(&mut sums, witnesses, base / D, &forms);
             }
             sums.map(TaskSums::finish)
@@ -359,12 +364,8 @@ fn events_for_block(
     span: &mut Option<(usize, usize, K)>,
     spans: &mut impl Iterator<Item = (usize, usize, K)>,
     difference: &OpeningDifference,
-) -> OpeningEvents {
-    let mut result = OpeningEvents {
-        real: Rq::zero(),
-        imaginary: Rq::zero(),
-        mask: 0,
-    };
+    result: &mut OpeningEvents,
+) {
     let end = base + D;
     while let Some((column, span_end, value)) = span.as_mut().filter(|(column, _, _)| *column < end) {
         let start = *column - base;
@@ -386,7 +387,6 @@ fn events_for_block(
         }
         *span = spans.next();
     }
-    result
 }
 
 #[cfg(test)]

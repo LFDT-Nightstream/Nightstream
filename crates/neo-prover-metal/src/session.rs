@@ -14,6 +14,7 @@ use crate::{MetalActivity, MetalError, BUFFER_LIMIT_BYTES};
 
 mod joint;
 mod masks;
+mod packed;
 mod production_commitment;
 mod rlc;
 mod shared_key;
@@ -57,6 +58,7 @@ struct ActivityCounters {
 pub struct MetalSession {
     device: Device,
     queue: Queue,
+    packed: [Pipeline; 4],
     production_key_row: Pipeline,
     production_ajtai_accumulate: Pipeline,
     production_ajtai_matrix: Option<Pipeline>,
@@ -147,7 +149,14 @@ impl MetalSession {
         let joint_carried_projection_dense = pipeline(&device, &library, "joint_carried_projection_dense")?;
         let fe_weighted_row_table = pipeline(&device, &library, "fe_weighted_row_table")?;
         let dec_ring_reduce = pipeline(&device, &library, "dec_ring_reduce")?;
+        let packed = [
+            pipeline(&device, &library, "packed_oracle::packed_gate")?,
+            pipeline(&device, &library, "packed_oracle::packed_norm")?,
+            pipeline(&device, &library, "packed_oracle::packed_tail8")?,
+            pipeline(&device, &library, "packed_oracle::packed_tail4")?,
+        ];
         Ok(Self {
+            packed,
             device,
             queue,
             production_key_row,
@@ -194,21 +203,7 @@ impl MetalSession {
     }
 
     fn reserve_buffer(&self, bytes: usize) -> Result<std::sync::MutexGuard<'static, ()>, MetalError> {
-        let allocation = BUFFER_ALLOCATION
-            .lock()
-            .map_err(|_| MetalError::Execution("buffer allocation lock was poisoned".into()))?;
-        let allocated = self.device.currentAllocatedSize();
-        if allocated
-            .checked_add(bytes)
-            .is_none_or(|total| total > BUFFER_LIMIT_BYTES)
-        {
-            return Err(MetalError::MemoryLimit {
-                requested: bytes,
-                allocated,
-                limit: BUFFER_LIMIT_BYTES,
-            });
-        }
-        Ok(allocation)
+        reserve_on(&self.device, bytes)
     }
 
     fn buffer(&self, bytes: usize) -> Result<Buffer, MetalError> {
@@ -473,4 +468,22 @@ fn host_view_mut(buffer: &mut Buffer, len: usize) -> &mut [u64] {
     // and no command uses it, and the `&mut` borrow keeps it from being
     // bound or viewed again while this view lives.
     unsafe { std::slice::from_raw_parts_mut(contents, len) }
+}
+
+fn reserve_on(device: &Device, bytes: usize) -> Result<std::sync::MutexGuard<'static, ()>, MetalError> {
+    let allocation = BUFFER_ALLOCATION
+        .lock()
+        .map_err(|_| MetalError::Execution("buffer allocation lock was poisoned".into()))?;
+    let allocated = device.currentAllocatedSize();
+    if allocated
+        .checked_add(bytes)
+        .is_none_or(|total| total > BUFFER_LIMIT_BYTES)
+    {
+        return Err(MetalError::MemoryLimit {
+            requested: bytes,
+            allocated,
+            limit: BUFFER_LIMIT_BYTES,
+        });
+    }
+    Ok(allocation)
 }

@@ -273,8 +273,7 @@ impl Relation {
 
     pub(crate) fn assignment_columns(&self, words: &StepWords, locals: Option<&[F]>) -> Result<Vec<F>, RelationError> {
         let expanded = &self.step.expanded;
-        let columns = expanded.circuit_columns_with(&words.columns()?, locals)?;
-        Ok(expanded.relation_columns(columns)?)
+        Ok(expanded.assignment_columns(&words.columns()?, locals)?)
     }
 
     #[cfg(test)]

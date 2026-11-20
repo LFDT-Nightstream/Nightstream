@@ -338,6 +338,7 @@ impl Committed<'_> {
                 1 << self.layout.table_witness_vars,
                 Arc::clone(&self.codes),
                 columns,
+                metal_kernels,
             )?
         } else {
             let mut inverse = vec![akita::base(F::ZERO); self.layout.inverse_len()];

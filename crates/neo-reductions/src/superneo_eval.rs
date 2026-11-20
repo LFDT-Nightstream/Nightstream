@@ -775,19 +775,35 @@ impl SuperneoZBlocks {
         }
         let re = if signed_unit {
             RealBlockStorage::SignedUnit { positive, negative }
-        } else {
-            let mut dense = Vec::with_capacity(blocks);
-            let mut nonzero = Vec::with_capacity(blocks);
-            for blk in 0..blocks {
-                let mut zr = [F::ZERO; D];
-                let mut block_nonzero = false;
-                for (i, cell) in zr.iter_mut().enumerate() {
-                    *cell = as_base_field(z[(i, blk)]);
-                    block_nonzero |= *cell != F::ZERO;
-                }
-                dense.push(Rq(zr));
-                nonzero.push(block_nonzero);
+        } else if let Some(value) = z.virtual_constant_value() {
+            let value = as_base_field(*value);
+            RealBlockStorage::Dense {
+                blocks: vec![Rq([value; D]); blocks],
+                nonzero: vec![value != F::ZERO; blocks],
             }
+        } else {
+            let input = z.as_slice();
+            let column = |index: usize| {
+                let coefficients = std::array::from_fn(|lane| as_base_field(input[lane * blocks + index]));
+                let nonzero = coefficients.iter().any(|&value| value != F::ZERO);
+                (Rq(coefficients), nonzero)
+            };
+            let collect_serial = || (0..blocks).map(column).unzip();
+            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+            let (dense, nonzero) = if blocks >= 2048 {
+                let mut dense = Vec::new();
+                let mut nonzero = Vec::new();
+                (0..blocks)
+                    .into_par_iter()
+                    .with_min_len(512)
+                    .map(column)
+                    .unzip_into_vecs(&mut dense, &mut nonzero);
+                (dense, nonzero)
+            } else {
+                collect_serial()
+            };
+            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+            let (dense, nonzero) = collect_serial();
             RealBlockStorage::Dense { blocks: dense, nonzero }
         };
         Ok(Self {

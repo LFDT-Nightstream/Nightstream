@@ -7,6 +7,7 @@ use p3_field::{extension::BinomiallyExtendable, PrimeField64};
 
 fn main() {
     println!("cargo:rerun-if-changed=shaders/nightstream.metal");
+    println!("cargo:rerun-if-changed=shaders/packed.metal");
     println!("cargo:rerun-if-changed=shaders/joint.metal");
     println!("cargo:rerun-if-changed=shaders/assignments.metal");
     println!("cargo:rerun-if-changed=shaders/carried.metal");

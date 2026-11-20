@@ -51,7 +51,7 @@ impl Prover {
             Polynomial::Witness => shape.witness,
             Polynomial::Inverse => shape.inverse,
         };
-        self.commit_source(shape, polynomial, |backend, profile| {
+        self.commit_source(&self.backend, shape, polynomial, |backend, profile| {
             let source = DensePoly::from_field_prefix(vars, prefix)?;
             let source = if polynomial == Polynomial::Key {
                 prepare_key(source, profile)?
@@ -72,7 +72,7 @@ impl Prover {
             return Ok((self.commit(shape, Polynomial::Key, prefix)?, None));
         };
         let mut retained = None;
-        let committed = self.commit_source(shape, Polynomial::Key, |backend, profile| {
+        let committed = self.commit_source(&self.backend, shape, Polynomial::Key, |backend, profile| {
             let source = prepare_key(source, profile)?;
             retained = Some(source.clone());
             backend.import_source(vec![source])
@@ -87,7 +87,7 @@ impl Prover {
         (positive, negative): (&[u64], &[u64]),
         count: (usize, Base),
     ) -> Result<Committed, Error> {
-        self.commit_source(shape, Polynomial::Witness, |backend, _| {
+        self.commit_source(&self.backend, shape, Polynomial::Witness, |backend, _| {
             backend.import_source(vec![FieldRunPoly::from_signed_span(
                 shape.witness,
                 start,
@@ -99,7 +99,7 @@ impl Prover {
     }
 
     pub(crate) fn commit_inverse_runs(&self, shape: Shape, runs: Vec<(usize, Base)>) -> Result<Committed, Error> {
-        self.commit_source(shape, Polynomial::Inverse, |backend, _| {
+        self.commit_source(&self.backend, shape, Polynomial::Inverse, |backend, _| {
             backend.import_source(vec![FieldRunPoly::new(shape.inverse, runs)?])
         })
     }
@@ -110,8 +110,11 @@ impl Prover {
         width: usize,
         codes: Arc<Vec<u16>>,
         tables: Vec<Vec<Base>>,
+        metal: bool,
     ) -> Result<Committed, Error> {
-        self.commit_source(shape, Polynomial::Inverse, |backend, _| {
+        let device = metal.then(|| self.backend.with_metal_kernels());
+        let backend = device.as_ref().unwrap_or(&self.backend);
+        self.commit_source(backend, shape, Polynomial::Inverse, |backend, _| {
             backend.import_source(vec![FieldRunPoly::from_lookup_columns(
                 shape.inverse,
                 width,
@@ -123,6 +126,7 @@ impl Prover {
 
     fn commit_source(
         &self,
+        backend: &CpuBackend<Base, Extension>,
         shape: Shape,
         polynomial: Polynomial,
         import: impl FnOnce(
@@ -134,12 +138,11 @@ impl Prover {
         let schedules = self.scheme.schedules();
         let profile = profile(row(schedules, shape)?, polynomial);
         on_large_stacks(|| {
-            let source = import(&self.backend, profile).map_err(failed)?;
+            let source = import(backend, profile).map_err(failed)?;
             let CommitOutput {
                 committed_group,
                 private_handle,
-            } = self
-                .backend
+            } = backend
                 .commit(schedules, &source, GroupContext::explicit(profile))
                 .map_err(failed)?;
             Ok(Committed {

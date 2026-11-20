@@ -31,6 +31,13 @@ impl MetalRowProver {
             * size_of::<u64>()
     }
 
+    pub fn packed_rounds(
+        &self,
+        input: &PaperJointOracleInput<'_>,
+    ) -> Result<Option<Box<dyn neo_reductions::optimized_engine::PackedGateNorm>>, PiCcsError> {
+        self.session.packed_rounds(input).map_err(oracle_error)
+    }
+
     pub fn activity(&self) -> MetalActivity {
         self.session.activity()
     }

@@ -351,3 +351,5 @@ kernel void rlc_light_deltas(device const ulong *weights [[buffer(0)]],
     int two = int(popcount(b)) - 2 * int(popcount(b & flipped));
     output[i] = short(one + 2 * two);
 }
+
+#include "packed.metal"

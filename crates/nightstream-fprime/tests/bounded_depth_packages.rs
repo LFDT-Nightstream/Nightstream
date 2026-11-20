@@ -297,6 +297,10 @@ fn fresh_columns_satisfy_the_rows_that_define_them() {
         let columns = package
             .relation_columns(columns, rows)
             .expect("relation columns");
+        let direct = expanded
+            .assignment_columns(&shared_columns(summary), None)
+            .unwrap();
+        assert_eq!(columns, direct, "all fresh columns of circuit {}", package.circuit());
         let defining = rows.ring_rows().iter().cloned().chain([rows.sbox_rows()]);
         for row in defining.flatten() {
             assert_eq!(

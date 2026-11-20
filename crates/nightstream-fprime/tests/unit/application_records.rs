@@ -89,7 +89,8 @@ fn ordered_terms_recipes_and_framing_counts_survive_sealing() {
         .unwrap()
         .is_break());
     assert_eq!(calls, 1);
-    assert!(records.data.rejects_writes());
+    assert!(records.row_data.rejects_writes());
+    assert!(records.recipe_data.rejects_writes());
     assert!(records.rows.rejects_writes());
     assert!(records.recipes.rejects_writes());
     assert!(records.row_header(1).is_err());
@@ -236,6 +237,38 @@ fn walks_read_each_row_across_windows_in_any_order() {
 }
 
 #[test]
+fn a_form_longer_than_a_reader_window_preserves_every_coefficient() {
+    let terms = (storage::WINDOW_BYTES as usize / 16) + 3;
+    let mut writer = ApplicationRecordsWriter::new().unwrap();
+    writer
+        .append_row(
+            ApplicationRowHeader {
+                constants: [0, 1, terms as u64 + 1],
+                term_counts: [terms, 0, 0],
+            },
+            (0..terms).map(|variable| {
+                Ok(ApplicationTerm {
+                    form: ApplicationForm::A,
+                    variable,
+                    coefficient: 1,
+                })
+            }),
+        )
+        .unwrap();
+    let records = writer.finish().unwrap();
+    let none = records
+        .first_unsatisfied_row(|i| Ok::<_, PackageError>(1 + u64::from(i == terms - 1)))
+        .unwrap();
+    assert_eq!(none, None);
+    assert_eq!(
+        records
+            .first_unsatisfied_row(|_| Ok::<_, PackageError>(1))
+            .unwrap(),
+        Some(0)
+    );
+}
+
+#[test]
 fn first_unsatisfied_row_and_first_error_follow_row_order() {
     let rows = 50_000;
     let mut writer = ApplicationRecordsWriter::new().unwrap();
@@ -351,7 +384,7 @@ fn sealing_rejects_a_truncated_record_file() {
     writer
         .append_row(header(), terms().into_iter().map(Ok))
         .unwrap();
-    writer.data.truncate_for_test().unwrap();
+    writer.row_data.truncate_for_test().unwrap();
     assert!(writer.finish().is_err());
 }
 
@@ -450,7 +483,8 @@ fn streamed_records_preserve_exact_words_and_rebuild_sealed_indices() {
         5
     );
     assert_eq!(restored.evaluate_recipe(0, |_| Ok(9)).unwrap(), 5);
-    assert!(restored.data.rejects_writes());
+    assert!(restored.row_data.rejects_writes());
+    assert!(restored.recipe_data.rejects_writes());
     assert!(restored.rows.rejects_writes());
     assert!(restored.recipes.rejects_writes());
     let mut encoded_again = Vec::new();

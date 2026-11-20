@@ -60,3 +60,20 @@ fn poisoned() -> EngineError {
 }
 
 const POISONED: &str = "the device session lock was poisoned";
+
+impl neo_reductions::optimized_engine::PaperJointOracleBackend for Device {
+    fn create<'a>(
+        &'a mut self,
+        input: neo_reductions::optimized_engine::PaperJointOracleInput<'a>,
+    ) -> Result<Box<dyn neo_reductions::optimized_engine::PaperJointRoundOracle + 'a>, PiCcsError> {
+        let device = self
+            .0
+            .lock()
+            .map_err(|_| PiCcsError::BackendFailure {
+                backend: "metal",
+                reason: "poisoned prover lock".into(),
+            })?
+            .packed_rounds(&input)?;
+        input.optimized_with_packed_terms(device)
+    }
+}

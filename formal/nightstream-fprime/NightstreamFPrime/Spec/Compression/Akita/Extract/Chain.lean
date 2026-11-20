@@ -21,7 +21,7 @@ with (206)).
   `packingPair_extract_sound`, `packingPair_extraction_le` and `packingPair_runs_le` are the
   extraction theorem of a committed packing fold over a last packing fold.
 
-The trace levels, the quotient-lift reduction, the terminal of Akita Section 5.6, more than one
+The trace levels, the quotient-lift reduction, the terminal of Akita Section 8.2, more than one
 claim or group, and the setup offloading are not in this file. -/
 
 set_option autoImplicit false

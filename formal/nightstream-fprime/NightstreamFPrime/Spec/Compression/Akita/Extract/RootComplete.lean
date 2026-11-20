@@ -381,29 +381,27 @@ local notation "fifth" =>
   Tier.tensored (committedTraceSq (fold := fold₅) key₅ openKey₅ claim₅ μ₅ fits₅ batch₅ rowsFit₅
     norm₅ block₅ decode₅ read weight₅ operator₅ limit₅ (Tier.finish fourth)) ν₅
 
-/-- Akita Theorem 10.9 for the opening with a batching root, a fold with opening groups, a
-packing level, four trace levels and the terminal, without the probability that a response does
-not fit: the verifier `towerLinks` of `mixedTower_suffix` accepts the honest prover. `early` is a
-transcript prefix of `start` moves on the path of the table of the oracle. Its last message has
-the commitment `commit` of the table `tables g` of each group, a point `place g` with the segments
-`(r_pack, r_tail, r_pos, r_blk)` of the shape of the group, and the value of the table at this
-point (`committed`, `placed`, `valued`). Then later messages exist such that the complete
-transcript satisfies `towerLinks`: the link `RootLinked` of the batching root for the weights of
-the transcript, the link `Tier.Linked` from the root fold to the level 1, and the links and the
-checks of `packTower_complete`.
-
-`carriesR` and `carries₀`: a wire message can have the claim of the root fold, and the commitment
-and the claim of the level 1. `shape₀`, `radix₀`, `certified₀`, `path₀`, `uniform₀`, `digit₀`,
-`covers₀`, `range₀`: the conditions of `batchLevel_wins` on the root fold. `blocks₀`, `lengths₀`,
-`strides₀`, `degrees₀`, `live₀`: the segments of the point of each group have the lengths of its
-shape, and its table is 0 after the cells of its blocks. `stride₁`, `degree₁`, `length₁`,
-`blocks₁`, `point₀`, `covered₀`: the final point of the checks of the root fold has the segments
-of the shape of the level 1, and the live blocks of the level 1 have each cell before the end of
-the quotient digits of the root fold (Akita Section 4.5, (40) to (42)). `decodes₀`: each slot of
-the table of the oracle decodes to a fold challenge of the root fold. `fit`: the fit conditions
-`BatchFit` of the root fold, `LiftFit` of the level 1, `TraceFit` of the levels 2 to 5, and
-`‖z‖_2² ≤ S_max,term` at the terminal. The other hypotheses are those of
-`packTower_complete`. -/
+/-- Akita Theorem 10.9 for the opening with a batching root, a fold with opening groups, a packing
+level, four trace levels and the terminal, without the probability that a response does not fit and
+without the term of (155) for a zero tensor factor, because this verifier has no rejection at a zero
+factor: the verifier `towerLinks` of `mixedTower_suffix` accepts the honest prover. `early` is a
+transcript prefix of `start` moves on the path of the table of the oracle. Its last message has the
+commitment `commit` of the table `tables g` of each group, a point `place g` with the segments
+`(r_pack, r_tail, r_pos, r_blk)` of the shape of the group, and the value of the table at this point
+(`committed`, `placed`, `valued`). Then later messages exist such that the complete transcript
+satisfies `towerLinks`: the link `RootLinked` of the batching root for the weights of the
+transcript, the link `Tier.Linked` from the root fold to the level 1, and the links and the checks
+of `packTower_complete`. `carriesR` and `carries₀`: a wire message can have the claim of the root
+fold, and the commitment and the claim of the level 1. `shape₀`, `radix₀`, `certified₀`, `path₀`,
+`uniform₀`, `digit₀`, `covers₀`, `range₀`: the conditions of `batchLevel_wins` on the root fold.
+`blocks₀`, `lengths₀`, `strides₀`, `degrees₀`, `live₀`: the segments of the point of each group have
+the lengths of its shape, and its table is 0 after the cells of its blocks. `stride₁`, `degree₁`,
+`length₁`, `blocks₁`, `point₀`, `covered₀`: the final point of the checks of the root fold has the
+segments of the shape of the level 1, and the live blocks of the level 1 have each cell before the
+end of the quotient digits of the root fold (Akita Section 4.5, (40) to (42)). `decodes₀`: each slot
+of the table of the oracle decodes to a fold challenge of the root fold. `fit`: the fit conditions
+`BatchFit` of the root fold, `LiftFit` of the level 1, `TraceFit` of the levels 2 to 5, and `‖z‖_2²
+≤ S_max,term` at the terminal. The other hypotheses are those of `packTower_complete`. -/
 theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     (sends : Sends sendable E width cap) (four : 4 ≤ width) (room : 3 < slots)
     (carriesR : Carries sendable slots read claim)

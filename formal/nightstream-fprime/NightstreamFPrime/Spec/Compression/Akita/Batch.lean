@@ -453,8 +453,8 @@ section Single
 
 variable {S : Shape} (O : OpeningShape S) (fold : Descriptor)
 
-/-- One group as a family of groups: the index type has one element (Akita Section 5.5, after
-(101): "For `G = 1` and one claim, the rows specialize to the local formulas"). -/
+/-- One group as a family of groups: the index type has one element (Akita Section 7.2:
+"For `G = 1` and one claim, the rows specialize to the local formulas"). -/
 def single : Batch Unit where
   shape _ := S
   carrierDegree _ := O.carrierDegree

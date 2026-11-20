@@ -91,26 +91,24 @@ local notation "base₅" =>
 
 local notation "fifth" => Tier.tensored base₅ ν₅
 
-/-- Akita Theorem 10.9 for the trace levels and the terminal of the opening, without the
-probability that a response does not fit: the verifier of `mixedTower_suffix` from the first
-trace level accepts the honest prover. `early` is a transcript prefix on the path of the table of
-the oracle whose last message has the claim `honestTraceClaim` of the level 2 for a packed
-polynomial `g`. Then later messages exist such that the complete transcript has the links
-`Tier.TraceLinked` from the level 2 to the level 5, the link `Terminal.Linked` and the checks
-`Terminal.Passed`.
-
-The hypotheses are: `sends`, `four`, `room`, `carries₂` to `carriesL`: a wire message can have
-the data of the prover with at most `slots` messages of the checks. `source₂` to `source₆` and
-`sized₂` to `sized₅`: the conditions `SourceSized` and `FoldSized` of the shapes. `vars`, `point`
-and `covered`: the tensor reduction of each level has `μ − 1` tail variables, its point has the
-segments of the next shape, and the live blocks of the next shape have each cell of the flat
-witness (Akita Section 4.5, (40) to (42)). `normRoom` and `capped`: the cube of the direct norm
-check has the coordinates of `z`, and a message can have the energy. `next`, `inside`, `reads`,
-`clears`: the fold challenge of the terminal is the stage after the level 5, and the terminal
-reads its statement and its clear partials from the message before it. `decodes`: each slot of
-the table of the oracle decodes to a fold challenge. `fit`: the fit conditions `TraceFit` of the
-levels 2 to 5, and `‖z‖_2² ≤ S_max,term` at the terminal, for each fold challenge vector of the
-families (Akita Definition 10.5). -/
+/-- Akita Theorem 10.9 for the trace levels and the terminal of the opening, without the probability
+that a response does not fit and without the term of (155) for a zero tensor factor, because this
+verifier has no rejection at a zero factor: the verifier of `mixedTower_suffix` from the first trace
+level accepts the honest prover. `early` is a transcript prefix on the path of the table of the
+oracle whose last message has the claim `honestTraceClaim` of the level 2 for a packed polynomial
+`g`. Then later messages exist such that the complete transcript has the links `Tier.TraceLinked`
+from the level 2 to the level 5, the link `Terminal.Linked` and the checks `Terminal.Passed`. The
+hypotheses are: `sends`, `four`, `room`, `carries₂` to `carriesL`: a wire message can have the data
+of the prover with at most `slots` messages of the checks. `source₂` to `source₆` and `sized₂` to
+`sized₅`: the conditions `SourceSized` and `FoldSized` of the shapes. `vars`, `point` and `covered`:
+the tensor reduction of each level has `μ − 1` tail variables, its point has the segments of the
+next shape, and the live blocks of the next shape have each cell of the flat witness (Akita Section
+4.5, (40) to (42)). `normRoom` and `capped`: the cube of the direct norm check has the coordinates
+of `z`, and a message can have the energy. `next`, `inside`, `reads`, `clears`: the fold challenge
+of the terminal is the stage after the level 5, and the terminal reads its statement and its clear
+partials from the message before it. `decodes`: each slot of the table of the oracle decodes to a
+fold challenge. `fit`: the fit conditions `TraceFit` of the levels 2 to 5, and `‖z‖_2² ≤ S_max,term`
+at the terminal, for each fold challenge vector of the families (Akita Definition 10.5). -/
 theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     (sends : Sends sendable E width cap) (four : 4 ≤ width) (room : 3 < slots)
     (carries₂ : Carries sendable slots read fun wire => (commit₃ wire, claim₃ wire))

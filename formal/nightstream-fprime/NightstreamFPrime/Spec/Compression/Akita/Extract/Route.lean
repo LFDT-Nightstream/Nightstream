@@ -2,7 +2,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Terminal
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tier
 
 /-! The two norm routes of a trace level and of the terminal of Akita (ePrint 2026/1983, revision
-of 2026-10-15, Section 6, Lemma 10.23 with (174) and (177), Proposition 10.29 with (181) and
+of 2026-10-15, Section 6, Lemma 10.23 with (176) and (177), Proposition 10.29 with (181) and
 (182), and Corollary 10.35).
 
 - `Route` is the norm certificate of a level: the coefficient route with `‖·‖_∞`, or the
@@ -131,7 +131,7 @@ abbrev LevelBreakSq {O : OpeningShape S} (key : Key S) (openKey : OpeningKey O) 
   Option (ShortKernelSq key.inner bound ⊕ (OuterBreak key ⊕ OpenBreak openKey))
 
 /-- The witnesses of `R_bind` for the matrices of a trace level on a route: `LevelBreak` with
-`η_A = 2·κ̄_1·Δ^cert_f` of Akita (174), or `LevelBreakSq` with `64·Γ²·S_max` of Corollary 10.35
+`η_A = 2·κ̄_1·Δ^cert_f` of Akita (176), or `LevelBreakSq` with `64·Γ²·S_max` of Corollary 10.35
 (ii). -/
 def Route.Break {O : OpeningShape S} (key : Key S) (openKey : OpeningKey O)
     (weight sourceBound : ℕ) : Route → Type

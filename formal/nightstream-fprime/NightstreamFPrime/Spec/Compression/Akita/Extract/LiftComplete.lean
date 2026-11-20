@@ -217,22 +217,21 @@ local notation "fifth" =>
     norm₅ block₅ decode₅ read weight₅ operator₅ limit₅ (Tier.finish fourth)) ν₅
 
 /-- Akita Theorem 10.9 for the packing level, the trace levels and the terminal of the opening,
-without the probability that a response does not fit: the verifier of `mixedTower_suffix` from
-the packing level accepts the honest prover. `early` is a transcript prefix on the path of the
+without the probability that a response does not fit and without the term of (155) for a zero tensor
+factor, because this verifier has no rejection at a zero factor: the verifier of `mixedTower_suffix`
+from the packing level accepts the honest prover. `early` is a transcript prefix on the path of the
 table of the oracle whose last message has the claim `sourceClaim` of the level 1 for the source
 blocks `source`. Then later messages exist such that the complete transcript has the link
 `Tier.TraceLinked` from the level 1 to the level 2, the links from the level 2 to the level 5, the
-link `Terminal.Linked` and the checks `Terminal.Passed`.
-
-`shape₁`, `radix₁`, `certified₁`, `path₁`, `digit₁`, `covers₁`, `range₁`: the conditions of
-`liftLevel_wins` on the level 1. `vars₁`, `point₁`, `covered₁`: the tensor reduction of the
-level 1 has `μ_1 − 1` tail variables, its point has the segments of the shape of the level 2, and
-the live blocks of the level 2 have each cell before the end of the quotient digits of the level 1
-(Akita Section 4.5, (40) to (42)). `carries₁`: a wire message can have the commitment and the
-claim of the level 2. `decodes₁`: each slot of the table of the oracle decodes to a fold challenge
-of the level 1. `fit`: the fit conditions `LiftFit` of the level 1, `TraceFit` of the levels 2 to
-5, and `‖z‖_2² ≤ S_max,term` at the terminal. The other hypotheses are those of
-`traceTower_complete`. -/
+link `Terminal.Linked` and the checks `Terminal.Passed`. `shape₁`, `radix₁`, `certified₁`, `path₁`,
+`digit₁`, `covers₁`, `range₁`: the conditions of `liftLevel_wins` on the level 1. `vars₁`, `point₁`,
+`covered₁`: the tensor reduction of the level 1 has `μ_1 − 1` tail variables, its point has the
+segments of the shape of the level 2, and the live blocks of the level 2 have each cell before the
+end of the quotient digits of the level 1 (Akita Section 4.5, (40) to (42)). `carries₁`: a wire
+message can have the commitment and the claim of the level 2. `decodes₁`: each slot of the table of
+the oracle decodes to a fold challenge of the level 1. `fit`: the fit conditions `LiftFit` of the
+level 1, `TraceFit` of the levels 2 to 5, and `‖z‖_2² ≤ S_max,term` at the terminal. The other
+hypotheses are those of `traceTower_complete`. -/
 theorem packTower_complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     (sends : Sends sendable E width cap) (four : 4 ≤ width) (room : 3 < slots)
     (carries₁ : Carries sendable slots read fun wire => (commit₂ wire, claim₂ wire))

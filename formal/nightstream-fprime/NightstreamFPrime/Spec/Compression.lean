@@ -51,6 +51,7 @@ import NightstreamFPrime.Spec.Compression.Akita.FoldSumCheck
 import NightstreamFPrime.Spec.Compression.Akita.Key20
 import NightstreamFPrime.Spec.Compression.Akita.Key20Challenge
 import NightstreamFPrime.Spec.Compression.Akita.Key20Tower
+import NightstreamFPrime.Spec.Compression.Akita.Key20Opening
 import NightstreamFPrime.Spec.Compression.Akita.Layout
 import NightstreamFPrime.Spec.Compression.Akita.LiftReduction
 import NightstreamFPrime.Spec.Compression.Akita.LiftWitness

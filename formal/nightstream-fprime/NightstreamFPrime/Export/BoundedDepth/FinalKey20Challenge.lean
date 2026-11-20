@@ -1,4 +1,4 @@
-import NightstreamFPrime.Export.BoundedDepth.FinalKey20All
+import NightstreamFPrime.Export.BoundedDepth.FinalKey20History
 import NightstreamFPrime.Spec.Compression.Akita.Key20Challenge
 
 /-! The final verifier over the Akita opening of `key20.aks` with the decoders `draw` of the
@@ -13,7 +13,9 @@ sparse challenge families (SPEC.md, Algorithm 10; Akita, ePrint 2026/1983, revis
   probability. Its hypotheses on the challenges are `bounded₃` to `boundedL`: a member that
   passes the filter has `‖c‖_mul,2 ≤ Γ` (Akita Appendix H, Theorem H.1).
 - `Opening.Drawn.sized` gives `Opening.Sized` with the slot probability `p = 1/q²`.
-- `verifier_sound_drawn` is `verifier_sound` for a family of openings with `Opening.Drawn`. -/
+- `verifier_sound_drawn` is `verifier_sound` for a family of openings with `Opening.Drawn`.
+- `history_sound_drawn` and `history_knowledge_drawn` are `history_sound` and
+  `history_knowledge` for such a family. -/
 
 set_option autoImplicit false
 
@@ -279,6 +281,94 @@ theorem verifier_sound_drawn
         (1 / (fieldModulus : ℝ) ^ 2) queries budget :=
   verifier_sound setup step cap control read head kind family prover exports complete rows blocks
     coords (fun index => (drawn index).sized) bounded positive
+
+variable (budget : ℕ) {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+  {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
+  (exports : TerminalBridge.Exports relation setup.ajtai setup.circuitKeys step cubeFits)
+  {Admitted : HyperNova.ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits) →
+    Prop}
+  {StageAdmitted : HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+    (IvcWalk.Answer logicalWidth publicFits) → Prop}
+  {Efficient : (adversary :
+      HyperNova.ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits)) →
+    HyperNova.ReverseStages.NifsExtractor (IvcWalk.Answer logicalWidth publicFits) adversary →
+      Prop}
+  {error : HyperNova.ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits) → ℝ}
+  (assumption : HyperNova.ReverseStages.Assumption1 (IvcWalk.WalkSucceeds setup.ajtai)
+    (IvcWalk.WalkExtracted setup.ajtai) Admitted Efficient error)
+  (closed : HyperNova.ReverseStages.Closed (IvcWalk.attemptOf setup.ajtai setup.circuitKeys exports)
+    (IvcWalk.back setup.ajtai setup.circuitKeys exports) Admitted StageAdmitted Efficient)
+  (complete : StepExtend.Complete exports)
+
+local notation "ivc" =>
+  adversary setup complete.packageWidth step cap control read head kind family prover budget
+
+/-- The final verifier with Akita openings against a false history, for openings whose decoders
+are the decoders `draw` of the sparse challenge families: `history_sound` with `p = 1/q²`. For
+each prover with at most `Q` queries to the oracle, the probability of a false history is at most
+`shapesBound` for `p = 1/q²` plus `IvcSecurity.walkBound` of the IVC adversary `adversary`.
+`drawn`: the hypotheses `Opening.Drawn` on the opening of each shape. The other hypotheses are
+those of `history_sound`. -/
+theorem history_sound_drawn
+    (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
+      (FinalRows.packageRows exports complete circuit).matrices)
+    (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
+    (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
+    {keep₃ : ι → Rq level₃.shape.innerDegree → Prop}
+    {keep₄ : ι → Rq level₄.shape.innerDegree → Prop}
+    {keep₅ : ι → Rq level₅.shape.innerDegree → Prop}
+    {keepL : ι → Rq Key20.terminal.innerDegree → Prop}
+    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step cap control read head
+      (keep₃ index) (keep₄ index) (keep₅ index) (keepL index))
+    {queries : ℕ} (bounded : prover.QueryBound queries) (positive : 0 < budget)
+    (admitted : StageAdmitted
+      (HyperNova.ReverseStages.Stage.start (IvcSecurity.walkAdversary ivc))) (depth : ℕ)
+    (depthBound : ∀ table,
+      finalAccepts setup complete.packageWidth step cap control read head kind family
+        (played prover table) → (head (played prover table).first).statement.iteration ≤ depth) :
+    ((ivc).tape.toOuterMeasure {sample |
+        FalseHistory setup complete.packageWidth step cap control read head kind family prover
+          exports.program sample.1}).toReal ≤
+      shapesBound setup complete.packageWidth step cap control read head family prover
+          (1 / (fieldModulus : ℝ) ^ 2) queries budget +
+        IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed ivc admitted
+          depth :=
+  history_sound setup step cap control read head kind family prover budget exports assumption
+    closed complete rows keysShaped blocks coords (fun index => (drawn index).sized) bounded
+    positive admitted depth depthBound
+
+/-- The knowledge form of `history_sound_drawn`: `history_knowledge` with `p = 1/q²`. The
+probability that the final verifier accepts and the witnesses that the reverse extractor returns
+are not a history of the accepted statement is at most `shapesBound` for `p = 1/q²` plus
+`IvcSecurity.walkBound`. -/
+theorem history_knowledge_drawn
+    (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
+      (FinalRows.packageRows exports complete circuit).matrices)
+    (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
+    (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
+    {keep₃ : ι → Rq level₃.shape.innerDegree → Prop}
+    {keep₄ : ι → Rq level₄.shape.innerDegree → Prop}
+    {keep₅ : ι → Rq level₅.shape.innerDegree → Prop}
+    {keepL : ι → Rq Key20.terminal.innerDegree → Prop}
+    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step cap control read head
+      (keep₃ index) (keep₄ index) (keep₅ index) (keepL index))
+    {queries : ℕ} (bounded : prover.QueryBound queries) (positive : 0 < budget)
+    (admitted : StageAdmitted
+      (HyperNova.ReverseStages.Stage.start (IvcSecurity.walkAdversary ivc))) (depth : ℕ)
+    (depthBound : ∀ table,
+      finalAccepts setup complete.packageWidth step cap control read head kind family
+        (played prover table) → (head (played prover table).first).statement.iteration ≤ depth) :
+    ((HyperNova.ReverseStages.reverseStages assumption closed (IvcSecurity.walkAdversary ivc)
+          admitted depth).1.tape.toOuterMeasure {tape |
+        AdviceFailure setup step cap control read head kind family prover budget exports
+          assumption closed complete admitted depth tape}).toReal ≤
+      shapesBound setup complete.packageWidth step cap control read head family prover
+          (1 / (fieldModulus : ℝ) ^ 2) queries budget +
+        IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed ivc admitted
+          depth :=
+  history_knowledge setup step cap control read head kind family prover budget exports assumption
+    closed complete rows keysShaped blocks coords (fun index => (drawn index).sized) bounded
+    positive admitted depth depthBound
 
 end All
 

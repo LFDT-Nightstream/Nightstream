@@ -417,8 +417,7 @@ theorem flat_relocate (g : Fin n) (x : ℕ) : w.flat (B.relocate g x) = (w.group
         Akita.Witness.flat_of_le _ (by omega)]
 
 /-- The flat witness of a fold with one group is the flat witness `Witness.flat` of this group
-(Akita Section 5.5, after (101): "For `G = 1` and one claim, the rows specialize to the local
-formulas"). -/
+(Akita Section 7.2: "For `G = 1` and one claim, the rows specialize to the local formulas"). -/
 theorem flat_one {B : Batch (Fin 1)} (w : B.Witness) : w.flat = (w.group 0).flat :=
   funext fun x => by rw [← w.flat_relocate 0 x, B.relocate_one x]
 

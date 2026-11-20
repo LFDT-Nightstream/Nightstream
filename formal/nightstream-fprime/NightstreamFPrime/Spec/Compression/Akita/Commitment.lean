@@ -379,7 +379,7 @@ structure Certified.Opens {S : Shape} (factorBound sourceBound : ℕ) (st : Cert
   sourceNorm : ∀ i, vecNormInf (st.factor i • st.source i) ≤ sourceBound
 
 /-- The numbers of the opening descriptor of a group that fix the bounds of the certificate of its
-source blocks (Akita Section 4.6): the norm `κ_1 = ‖c‖_1` of a fold challenge, the response base
+source blocks (Akita (50) and (53)): the norm `κ_1 = ‖c‖_1` of a fold challenge, the response base
 `b_z` and the response depth `δ_f`. -/
 structure Descriptor where
   challengeMass : ℕ

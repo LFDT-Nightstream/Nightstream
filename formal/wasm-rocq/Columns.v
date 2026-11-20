@@ -414,29 +414,30 @@ Definition COL_GATHER_LOCAL_WRITE_LO : nat := 461%nat.
 Definition COL_HOST_EVENT_EXIT_LATCH : nat := 462%nat.
 Definition COL_TURN_BOUNDARY : nat := 463%nat.
 Definition COL_CI_HOST_CALL : nat := 464%nat.
-Definition ABSORB : nat := 465%nat.
-Definition ABSORB_PREVIOUS : list nat := [466%nat; 467%nat; 468%nat; 469%nat].
-Definition ABSORB_OUTPUT : list nat := [470%nat; 471%nat; 472%nat; 473%nat].
-Definition ABSORB_PERMUTATION : list nat := seq 474%nat 712%nat.
-Definition GATHER_WORD_POSITION : list nat := [1186%nat; 1187%nat; 1188%nat; 1189%nat; 1190%nat; 1191%nat; 1192%nat; 1193%nat].
-Definition GATHER_KIND : list nat := [1194%nat; 1195%nat; 1196%nat; 1197%nat; 1198%nat; 1199%nat; 1200%nat; 1201%nat; 1202%nat; 1203%nat].
-Definition GARG_VAL : nat := 1204%nat.
-Definition GOUT_VAL : nat := 1205%nat.
-Definition GSLOT_VALUE : nat := 1206%nat.
-Definition GK2_HI : nat := 1207%nat.
-Definition GHC_PARAMS : nat := 1208%nat.
-Definition G_ADVICE : nat := 1209%nat.
-Definition GMEM_LOCAL : nat := 1210%nat.
-Definition GMEM_OUTPUT : nat := 1211%nat.
-Definition GMEM_BYTE : nat := 1212%nat.
-Definition GMEM_HALF : nat := 1213%nat.
-Definition TURN_SCHEDULE_COUNT_INV : nat := 1214%nat.
-Definition OBJECT_ROOT_LANE : list nat := [1215%nat; 1216%nat; 1217%nat; 1218%nat].
-Definition OBJECT_SAVED_LANE : list nat := [1219%nat; 1220%nat; 1221%nat; 1222%nat].
-Definition RANGE_BITS : list nat := seq 1223%nat 2184%nat.
+Definition COL_TRAP_UNWIND : nat := 465%nat.
+Definition ABSORB : nat := 466%nat.
+Definition ABSORB_PREVIOUS : list nat := [467%nat; 468%nat; 469%nat; 470%nat].
+Definition ABSORB_OUTPUT : list nat := [471%nat; 472%nat; 473%nat; 474%nat].
+Definition ABSORB_PERMUTATION : list nat := seq 475%nat 712%nat.
+Definition GATHER_WORD_POSITION : list nat := [1187%nat; 1188%nat; 1189%nat; 1190%nat; 1191%nat; 1192%nat; 1193%nat; 1194%nat].
+Definition GATHER_KIND : list nat := [1195%nat; 1196%nat; 1197%nat; 1198%nat; 1199%nat; 1200%nat; 1201%nat; 1202%nat; 1203%nat; 1204%nat].
+Definition GARG_VAL : nat := 1205%nat.
+Definition GOUT_VAL : nat := 1206%nat.
+Definition GSLOT_VALUE : nat := 1207%nat.
+Definition GK2_HI : nat := 1208%nat.
+Definition GHC_PARAMS : nat := 1209%nat.
+Definition G_ADVICE : nat := 1210%nat.
+Definition GMEM_LOCAL : nat := 1211%nat.
+Definition GMEM_OUTPUT : nat := 1212%nat.
+Definition GMEM_BYTE : nat := 1213%nat.
+Definition GMEM_HALF : nat := 1214%nat.
+Definition TURN_SCHEDULE_COUNT_INV : nat := 1215%nat.
+Definition OBJECT_ROOT_LANE : list nat := [1216%nat; 1217%nat; 1218%nat; 1219%nat].
+Definition OBJECT_SAVED_LANE : list nat := [1220%nat; 1221%nat; 1222%nat; 1223%nat].
+Definition RANGE_BITS : list nat := seq 1224%nat 2184%nat.
 
-Definition namedColumnCount : nat := 465%nat.
-Definition columnCount : nat := 3407%nat.
+Definition namedColumnCount : nat := 466%nat.
+Definition columnCount : nat := 3408%nat.
 
 Definition families : list Family :=
   [(0%nat, 1%nat, Field);
@@ -849,25 +850,26 @@ Definition families : list Family :=
    (463%nat, 1%nat, Boolean);
    (464%nat, 1%nat, Boolean);
    (465%nat, 1%nat, Boolean);
-   (466%nat, 4%nat, Field);
-   (470%nat, 4%nat, Field);
-   (474%nat, 712%nat, Field);
-   (1186%nat, 8%nat, Boolean);
-   (1194%nat, 10%nat, Boolean);
-   (1204%nat, 1%nat, Field);
+   (466%nat, 1%nat, Boolean);
+   (467%nat, 4%nat, Field);
+   (471%nat, 4%nat, Field);
+   (475%nat, 712%nat, Field);
+   (1187%nat, 8%nat, Boolean);
+   (1195%nat, 10%nat, Boolean);
    (1205%nat, 1%nat, Field);
    (1206%nat, 1%nat, Field);
-   (1207%nat, 1%nat, Boolean);
-   (1208%nat, 1%nat, Field);
-   (1209%nat, 1%nat, Boolean);
+   (1207%nat, 1%nat, Field);
+   (1208%nat, 1%nat, Boolean);
+   (1209%nat, 1%nat, Field);
    (1210%nat, 1%nat, Boolean);
    (1211%nat, 1%nat, Boolean);
    (1212%nat, 1%nat, Boolean);
    (1213%nat, 1%nat, Boolean);
-   (1214%nat, 1%nat, Field);
-   (1215%nat, 4%nat, Boolean);
-   (1219%nat, 4%nat, Boolean);
-   (1223%nat, 2184%nat, Boolean)].
+   (1214%nat, 1%nat, Boolean);
+   (1215%nat, 1%nat, Field);
+   (1216%nat, 4%nat, Boolean);
+   (1220%nat, 4%nat, Boolean);
+   (1224%nat, 2184%nat, Boolean)].
 
 Definition rangeObligations : list (nat * Width) :=
   [(7%nat, (Implied 32%nat));

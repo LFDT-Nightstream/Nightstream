@@ -1,6 +1,10 @@
 -Q . ""
 R1CS.v
 Columns.v
+RelationRows0.v
+RelationRows1.v
+RelationRows2.v
+RelationRows3.v
 FullRelation.v
 MemoryTrace.v
 MemoryEventRepair.v

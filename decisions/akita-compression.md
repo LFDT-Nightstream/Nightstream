@@ -180,13 +180,30 @@ level of the final proof. It does not include:
 
 - the knowledge error of the Akita opening (`[AKITA]`). Akita states a target
   of a 128-bit Fiat–Shamir rate for each query in the classical
-  random-oracle model, and it states no complete bound. Lean proves parts
-  of the proof of Akita Theorem 10.46 as results of `Spec`, and no theorem
-  joins them for a schedule file, so the theorem stays a premise;
+  random-oracle model, and it states no complete bound. For the claims,
+  Akita Theorem 10.46 stays a premise;
 - the error of the Π_CCS run of the fresh instance; and
 - Module-SIS for the Akita commitments, which Akita prices at 169 bits of
   quantum Core-SVP cost in the ADPS16 model, and Module-SIS for the Ajtai
   commitments of the claims (`[MSIS]`).
+
+Lean has one result in which the Akita openings are not ideal:
+`Export.BoundedDepth.FinalKey20.sound`, for the schedule of `key20.aks`. A
+prover with at most `Q` queries to one uniform table of stage answers makes
+the final verifier accept a statement that has no valid proof with probability
+at most `(Q + 1) · (runCost + 7424/|K| + 135 · p) + (Q + 1) · 144/budget +
+breakChance`. `runCost` is the sum of the error bounds of one run of Π_CCS and
+of the argument. `p` is the largest probability of one fold challenge.
+`budget` is the limit of each retry loop of the extractor. `breakChance` is the `[MSIS]` term: the
+probability that the extractor returns a solution of Module-SIS. The result
+has the composition of the argument with the opening inside it, by two
+checkpoints in sequence: `W` before the lookup challenges, then `W` and `V`.
+It is a result of `Export`, not a claim. It does not cover `key30.aks`. Its
+verifier is a Lean model that differs from the pinned Akita code. The facts of
+the challenge families are its hypotheses. So the claims keep the premises of
+this section
+([security model](../formal/nightstream-fprime/SECURITY_MODEL.md), trust
+item 7).
 
 The argument has these premises about the verification key. The key is the
 key of Algorithm 11, which the pin of choice 13 gives. The commitment of the
@@ -230,6 +247,30 @@ polynomial. The verifier never reads the polynomial
 - Security against a quantum adversary of the transcript hashes.
 - A WASM build of the verifier.
 
+These points are about the Lean result `Export.BoundedDepth.FinalKey20.sound`.
+Each needs a decision of the owner
+([security model](../formal/nightstream-fprime/SECURITY_MODEL.md), trust
+item 7, gives the facts).
+
+- The claim. The result is not a claim. The decision is whether to state it as
+  a claim and to replace the claims that end in `_with_akita`. For
+  `key20.aks`, it has their premises `akita.theorem1046` and `composition` as
+  theorems under `[MSIS]`, `[KECCAK]` and its hypotheses. The history and
+  memory claims have no statement in its game.
+- The model of the verifier. The Lean verifier differs from the pinned Akita
+  code in these parts. At the levels with the squared-norm route, its norm
+  check is a stage of its own after the checks of the fold, and the code
+  merges the norm sum into a sum-check of the fold. A committed level has one
+  added row for a zero cell after its last segment, and the quotient digits
+  are after that cell. The transcript has no digests and no proof of work. A
+  change of the pinned Akita code or a change of the Lean model removes a
+  difference. The decision is which one changes, for each difference.
+- `key30.aks`. The result is for the file of the test key of `2^9` blocks. The
+  file of the key of `2^19` blocks has coefficient packing at levels 2 and 3,
+  two groups at level 1 and an offloaded setup prefix. The Lean tower has none
+  of these. The alternatives are a Lean tower for this file, or a new schedule
+  file that the Lean tower covers.
+
 These points are about parameters that the sister project shares, because
 it ports the same Akita code. Each needs a decision of the owner or a joint
 decision ([security model](../formal/nightstream-fprime/SECURITY_MODEL.md),
@@ -256,3 +297,11 @@ trust item 7, gives the facts).
   norm of the reduction is at most the bound of the file
   (`Spec.Compression.Akita.Descriptor.key20_covers`,
   `Spec.Compression.Akita.Descriptor.key30_covers`).
+- The proof of work and the probability `p`.
+  `Export.BoundedDepth.FinalKey20.sound` takes the largest probability `p` of
+  one fold challenge as a hypothesis. Its bound on the stage errors of the
+  opening is at most `14983/2^128` if `p` is at most `2^−128`. The Akita code
+  has a target of 128 bits for each query and a proof of work at each
+  challenge site, and the Lean model has no proof of work. The alternatives
+  are challenge families with `p` at most `2^−128` without the work, or a Lean
+  model of the work.

@@ -92,7 +92,7 @@ struct Matrices<'a> {
     slots: FactoredSlots<'a>,
     weights: Vec<K>,
     slots_per_task: Vec<Vec<Vec<u32>>>,
-    runs: Option<crate::column_runs::Runs>,
+    runs: Option<std::borrow::Cow<'a, neo_reductions::superneo_eval::SlotRuns>>,
     powers: [F; 256],
 }
 
@@ -105,16 +105,32 @@ impl<'a> Matrices<'a> {
         let row_weights = EqualityWeights::new(&statement.claim.r);
         let matrices = statement.claim.eval_a.len();
         let weights = rows.slot_weights(&|row| row_weights.at(row), &omega[KAPPA + 1..][..matrices]);
-        Ok(Self::of_slots(rows.slots(), weights, rows.shape().columns))
+        Ok(Self::with_runs(
+            rows.slots(),
+            weights,
+            rows.shape().columns,
+            rows.slot_runs(),
+        ))
     }
 
+    #[cfg(test)]
     fn of_slots(slots: FactoredSlots<'a>, weights: Vec<K>, columns: usize) -> Self {
+        let runs =
+            neo_reductions::superneo_eval::SlotRuns::new(slots.starts, slots.widths).map(std::borrow::Cow::Owned);
+        Self::with_runs(slots, weights, columns, runs)
+    }
+
+    fn with_runs(
+        slots: FactoredSlots<'a>,
+        weights: Vec<K>,
+        columns: usize,
+        runs: Option<std::borrow::Cow<'a, neo_reductions::superneo_eval::SlotRuns>>,
+    ) -> Self {
         let tasks = columns.div_ceil(COLUMNS_PER_TASK);
         let mut powers = [F::ONE; 256];
         for i in 1..powers.len() {
             powers[i] = powers[i - 1] * slots.ratio;
         }
-        let runs = crate::column_runs::Runs::new(slots.starts, slots.widths);
         let slots_per_task = if runs.is_some() {
             Vec::new()
         } else {
@@ -151,7 +167,7 @@ impl<'a> Matrices<'a> {
     fn add_columns(&self, task: usize, output: &mut [K]) {
         let first = task * COLUMNS_PER_TASK;
         if let Some(runs) = &self.runs {
-            runs.write(&self.weights, first, output, &self.powers);
+            crate::column_runs::write(runs, &self.weights, first, output, &self.powers);
             return;
         }
         output.fill(K::ZERO);
@@ -282,7 +298,7 @@ impl<'a> LaneSource<'a> {
         self.matrices
             .runs
             .as_ref()
-            .map(|r| r.windows(&conjugate(form), &self.matrices.powers))
+            .map(|r| crate::column_runs::windows(r, &conjugate(form), &self.matrices.powers))
     }
     pub(crate) fn project_task(
         &self,
@@ -298,7 +314,7 @@ impl<'a> LaneSource<'a> {
         let blocks = &self.blocks[start / D..];
         let key = &folded[start..][..output.len() * D];
         if let (Some(runs), Some(windows)) = (&self.matrices.runs, windows) {
-            runs.project(&self.matrices.weights, start, output, windows);
+            crate::column_runs::project(runs, &self.matrices.weights, start, output, windows);
             for ((out, key), &block) in output.iter_mut().zip(key.chunks_exact(D)).zip(blocks) {
                 let dot = key
                     .iter()

@@ -28,6 +28,7 @@ mod row_block;
 mod row_forms;
 mod row_source;
 mod scratch;
+mod slot_runs;
 mod weighted;
 mod weighted_table;
 mod window_eval;
@@ -56,6 +57,7 @@ use part_plan::PartPlan;
 use row_block::{CompactRowBlock, DenseRowBlock, COMPACT_SINGLE_BLOCK_MASK};
 pub use row_source::SuperneoEvalCacheBuilder;
 use scratch::RingEvalScratch;
+pub use slot_runs::SlotRuns;
 use std::sync::OnceLock;
 use weighted::{weighted_projection_basis_forms_from_k, weighted_projection_form_from_orig};
 #[cfg(test)]

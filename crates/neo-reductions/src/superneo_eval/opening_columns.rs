@@ -6,7 +6,10 @@ use neo_math::{KExtensions, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 #[derive(Default)]
-pub struct OpeningColumns(std::sync::OnceLock<Option<Vec<Columns>>>);
+pub struct OpeningColumns {
+    columns: std::sync::OnceLock<Option<Vec<Columns>>>,
+    pub(super) runs: std::sync::OnceLock<Option<super::SlotRuns>>,
+}
 
 const MAX_FACTORS: usize = u16::MAX as usize + 1;
 const EMPTY: u32 = u32::MAX;
@@ -19,13 +22,13 @@ impl OpeningColumns {
         entries: FactoredEntries<'_>,
         available: usize,
     ) -> Option<&[Columns]> {
-        let columns = if let Some(kept) = self.0.get() {
+        let columns = if let Some(kept) = self.columns.get() {
             kept
         } else {
             if construction_bytes(shape, slots, entries.slots.len())? > available {
                 return None;
             }
-            self.0.get_or_init(|| {
+            self.columns.get_or_init(|| {
                 let mut columns = Vec::with_capacity(shape.matrices);
                 for matrix in 0..shape.matrices {
                     columns.push(Columns::new(matrix, shape, slots, entries)?);

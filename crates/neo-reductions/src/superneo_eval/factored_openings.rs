@@ -73,6 +73,8 @@ impl<'a> OpeningBands<'a> {
     ) -> Option<Self> {
         let columns = rows.shape().columns;
         let band_count = columns.div_ceil(BAND_COLUMNS);
+        let runs = rows.existing_slot_runs();
+        let workspace_bytes = workspace_bytes.checked_sub(runs.map_or(0, |r| r.storage_bytes()))?;
         let common = storage_capacity
             .max(rows.slot_count())
             .checked_mul(size_of::<K>())?
@@ -89,23 +91,39 @@ impl<'a> OpeningBands<'a> {
             .transpose_working_bytes()
             .is_some_and(|bytes| bytes <= workspace_bytes - common);
         let layout = rows.slots();
-        let mut slots = vec![rows.slot_count()..rows.slot_count(); band_count];
-        let mut previous_end = 0;
-        for (slot, (&start, &width)) in layout.starts.iter().zip(layout.widths).enumerate() {
-            if width == 0 {
-                continue;
-            }
-            let start = start as usize;
-            let end = start + usize::from(width);
-            if start < previous_end || end > columns {
+        let slots = if let Some(runs) = runs {
+            if runs.last_column() > columns {
                 return None;
             }
-            for band in &mut slots[start / BAND_COLUMNS..=(end - 1) / BAND_COLUMNS] {
-                band.start = band.start.min(slot);
-                band.end = slot + 1;
+            (0..band_count)
+                .map(|band| {
+                    runs.slots_in(
+                        band * BAND_COLUMNS,
+                        ((band + 1) * BAND_COLUMNS).min(columns),
+                        rows.slot_count(),
+                    )
+                })
+                .collect()
+        } else {
+            let mut slots = vec![rows.slot_count()..rows.slot_count(); band_count];
+            let mut previous_end = 0;
+            for (slot, (&start, &width)) in layout.starts.iter().zip(layout.widths).enumerate() {
+                if width == 0 {
+                    continue;
+                }
+                let start = start as usize;
+                let end = start + usize::from(width);
+                if start < previous_end || end > columns {
+                    return None;
+                }
+                for band in &mut slots[start / BAND_COLUMNS..=(end - 1) / BAND_COLUMNS] {
+                    band.start = band.start.min(slot);
+                    band.end = slot + 1;
+                }
+                previous_end = end;
             }
-            previous_end = end;
-        }
+            slots
+        };
         Some(Self {
             rows,
             slots,

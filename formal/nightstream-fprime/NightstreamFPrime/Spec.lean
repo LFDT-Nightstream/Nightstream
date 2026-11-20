@@ -18,3 +18,4 @@ import NightstreamFPrime.Spec.AjtaiSetupV1.Programming
 import NightstreamFPrime.Spec.AjtaiSetupV1.Prefix
 import NightstreamFPrime.Spec.RingRelation.PiRLCAlgebra.RelaxedBinding
 import NightstreamFPrime.Spec.RingStrongSet.Cardinality
+import NightstreamFPrime.Spec.Checkpoint

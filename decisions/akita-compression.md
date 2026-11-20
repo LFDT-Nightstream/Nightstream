@@ -180,17 +180,27 @@ level of the final proof. It does not include:
 
 - the knowledge error of the Akita opening (`[AKITA]`). Akita states a target
   of a 128-bit Fiat–Shamir rate for each query in the classical
-  random-oracle model, and it states no complete bound;
+  random-oracle model, and it states no complete bound. Lean proves parts
+  of the proof of Akita Theorem 10.46 as results of `Spec`, and no theorem
+  joins them for a schedule file, so the theorem stays a premise;
 - the error of the Π_CCS run of the fresh instance; and
 - Module-SIS for the Akita commitments, which Akita prices at 169 bits of
   quantum Core-SVP cost in the ADPS16 model, and Module-SIS for the Ajtai
   commitments of the claims (`[MSIS]`).
 
 The argument has these premises about the verification key. The key is the
-key of Algorithm 11, which the pin of choice 13 gives. Akita is binding and
-knowledge sound for the key polynomial and for its own setup prefixes, so
-the value that Akita opens is the value of the key polynomial. The verifier
-never reads the polynomial, and no Lean statement covers the key
+key of Algorithm 11, which the pin of choice 13 gives. The commitment of the
+key binds the key polynomial. This is a Lean result under `[MSIS]`
+(`Claims.Compression.key_binding`) for the certified relation: Akita
+Definition 10.21 with the weak certificate of Akita Definition 10.22. Akita
+Definition 10.21 has no norm bound on the source blocks, so it is not
+binding alone. The result is for a key commitment that is the output of
+`Spec.Compression.Akita.commit` on the key polynomial, and no Lean result
+shows that the pinned key holds this output. Two parts stay premises under
+`[AKITA]`: the opening is knowledge sound with an extractor that returns the
+root weak opening, and the offloading of the setup prefix of `key30.aks` is
+sound. With these parts, the value that Akita opens is the value of the key
+polynomial. The verifier never reads the polynomial
 ([security model](../formal/nightstream-fprime/SECURITY_MODEL.md), adversary
 6 and trust item 7).
 
@@ -219,3 +229,30 @@ never reads the polynomial, and no Lean statement covers the key
   item 7).
 - Security against a quantum adversary of the transcript hashes.
 - A WASM build of the verifier.
+
+These points are about parameters that the sister project shares, because
+it ports the same Akita code. Each needs a decision of the owner or a joint
+decision ([security model](../formal/nightstream-fprime/SECURITY_MODEL.md),
+trust item 7, gives the facts).
+
+- The stream model of the fold challenges. The Akita code squeezes one
+  stream for a whole fold level. The Lean extraction (`Spec.Checkpoint`)
+  reads `[KECCAK]` thus: the squeeze run after a fixed prefix is one uniform
+  output of independent slots. The alternative is a change of the code to
+  one oracle input for each fold coordinate, as in the paper.
+- The shapes of the compression maps `F_1` and `F_2`. A schedule file does
+  not hold them. Lean takes them from the Akita code, and no check compares
+  them.
+- The pair `(λ_FS, Q_max)`. The Akita code declares neither number. It has a
+  target rate of 128 bits for each query and a proof of work at each
+  challenge site. So the budget condition S3 of Akita Definition 9.2 has no
+  value to check. The alternatives are a declared query budget, or a bound
+  in the address-sum form of Akita (211), which can take the credit of the
+  work.
+- The price of `A` for the key commitment. Akita prices each instance at 169
+  bits. The binding of the key compares an extracted opening with the honest
+  decommitment of the key, at a mixed norm. It is not known if the price of
+  the schedule file for `A` is for this norm. Lean proves only that the
+  norm of the reduction is at most the bound of the file
+  (`Spec.Compression.Akita.Descriptor.key20_covers`,
+  `Spec.Compression.Akita.Descriptor.key30_covers`).

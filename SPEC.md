@@ -1119,16 +1119,20 @@ This table lists each paper number that this document, `formal/nightstream-fprim
 | SuperNeo v1.2 | 2026/242 | 2026-09-04 | Theorem 13 | Π_DEC is a reduction of knowledge. |
 | Cyclo | 2026/359 | 2026-04-13 | Section 1.1 | Our contributions. |
 | Cyclo | 2026/359 | 2026-04-13 | Theorem 3 | The folding scheme: 1, correctness with the norm growth `L·b·γ`; 2, knowledge soundness. |
+| Akita | 2026/1983 | 2026-10-15 | Corollary 10.32 | One-fold extraction from exact branch relations. |
+| Akita | 2026/1983 | 2026-10-15 | Corollary 10.48 | Schedule-specific Fiat–Shamir ceiling. |
 | Akita | 2026/1983 | 2026-10-15 | Definition 10.16 | Checkpoint structure. |
 | Akita | 2026/1983 | 2026-10-15 | Definition 10.21 | Akita algebraic decommitment. |
 | Akita | 2026/1983 | 2026-10-15 | Definition 10.22 | Weak opening for one fold. |
 | Akita | 2026/1983 | 2026-10-15 | Definition 3.7 | PCS knowledge soundness. |
 | Akita | 2026/1983 | 2026-10-15 | Definition 9.2 | Admissible Akita schedule. |
 | Akita | 2026/1983 | 2026-10-15 | Lemma 10.20 | Shared-setup collisions reduce to ordinary MSIS. |
+| Akita | 2026/1983 | 2026-10-15 | Lemma 10.23 | Weak binding for one fold. |
 | Akita | 2026/1983 | 2026-10-15 | Lemma 10.47 | Hashed transcript entries: a bound for the protocol holds with digests, plus `ε_hash`. |
 | Akita | 2026/1983 | 2026-10-15 | Proposition 10.44 | Checkpoint structure of the opening suffix. |
 | Akita | 2026/1983 | 2026-10-15 | Section 9 | Verifier offloading. |
 | Akita | 2026/1983 | 2026-10-15 | Section 9.3 | Full schedules and admissibility. |
+| Akita | 2026/1983 | 2026-10-15 | Theorem 10.17 | Checkpoint extraction. |
 | Akita | 2026/1983 | 2026-10-15 | Theorem 10.45 | Composition with an application segment. |
 | Akita | 2026/1983 | 2026-10-15 | Theorem 10.46 | Fiat–Shamir knowledge soundness of Akita. |
 | Chiesa and Orrù | 2025/536 | 2026-03-27 | Section 2.2 | DSFS: a Fiat–Shamir transformation based on the ideal duplex sponge; the analysis covers a start that absorbs the instance from a fixed state. |

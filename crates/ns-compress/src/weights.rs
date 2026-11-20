@@ -92,6 +92,8 @@ struct Matrices<'a> {
     slots: FactoredSlots<'a>,
     weights: Vec<K>,
     slots_per_task: Vec<Vec<Vec<u32>>>,
+    runs: Option<crate::column_runs::Runs>,
+    powers: [F; 256],
 }
 
 impl<'a> Matrices<'a> {
@@ -108,41 +110,51 @@ impl<'a> Matrices<'a> {
 
     fn of_slots(slots: FactoredSlots<'a>, weights: Vec<K>, columns: usize) -> Self {
         let tasks = columns.div_ceil(COLUMNS_PER_TASK);
-        let slots_per_task = slots
-            .starts
-            .par_iter()
-            .zip(slots.widths)
-            .enumerate()
-            .with_min_len(1 << 16)
-            .fold(
-                || vec![Vec::new(); tasks],
-                |mut part, (slot, (&start, &width))| {
-                    if width == 0 {
-                        return part;
-                    }
-                    let end = start as usize + usize::from(width);
-                    for task in start as usize / COLUMNS_PER_TASK..end.div_ceil(COLUMNS_PER_TASK) {
-                        part[task].push(slot as u32);
-                    }
-                    part
-                },
-            )
-            .collect();
+        let mut powers = [F::ONE; 256];
+        for i in 1..powers.len() {
+            powers[i] = powers[i - 1] * slots.ratio;
+        }
+        let runs = crate::column_runs::Runs::new(slots.starts, slots.widths);
+        let slots_per_task = if runs.is_some() {
+            Vec::new()
+        } else {
+            slots
+                .starts
+                .par_iter()
+                .zip(slots.widths)
+                .enumerate()
+                .with_min_len(1 << 16)
+                .fold(
+                    || vec![Vec::new(); tasks],
+                    |mut part, (slot, (&start, &width))| {
+                        if width == 0 {
+                            return part;
+                        }
+                        let end = start as usize + usize::from(width);
+                        for task in start as usize / COLUMNS_PER_TASK..end.div_ceil(COLUMNS_PER_TASK) {
+                            part[task].push(slot as u32);
+                        }
+                        part
+                    },
+                )
+                .collect()
+        };
         Self {
             slots,
             weights,
             slots_per_task,
+            runs,
+            powers,
         }
     }
 
     fn add_columns(&self, task: usize, output: &mut [K]) {
         let first = task * COLUMNS_PER_TASK;
-        let mut powers = [F::ONE; u8::MAX as usize + 1];
-        let mut power = F::ONE;
-        for factor in &mut powers {
-            *factor = power;
-            power *= self.slots.ratio;
+        if let Some(runs) = &self.runs {
+            runs.write(&self.weights, first, output, &self.powers);
+            return;
         }
+        output.fill(K::ZERO);
         for &slot in self.slots_per_task.iter().flat_map(|part| &part[task]) {
             let slot = slot as usize;
             let weight = self.weights[slot];
@@ -156,7 +168,7 @@ impl<'a> Matrices<'a> {
             if lo < hi {
                 for (value, &scale) in output[lo - first..hi - first]
                     .iter_mut()
-                    .zip(&powers[lo - start..])
+                    .zip(&self.powers[lo - start..])
                 {
                     *value += weight.scale_base(scale);
                 }
@@ -258,7 +270,6 @@ impl<'a> LaneSource<'a> {
     }
 
     pub(crate) fn columns(&self, task: usize, values: &mut [K]) {
-        values.fill(K::ZERO);
         self.matrices.add_columns(task, values);
     }
 
@@ -267,8 +278,47 @@ impl<'a> LaneSource<'a> {
         std::array::from_fn(|lane| key[lane] + columns[lane])
     }
 
-    pub(crate) fn projection(&self, block: usize, columns: &[K], key: &[K], form: &[K; D], evaluation: K) -> K {
-        dot(&self.element(columns, key), form) + self.blocks[block] * evaluation
+    pub(crate) fn projection_windows(&self, form: &[K; D]) -> Option<crate::column_runs::Windows> {
+        self.matrices
+            .runs
+            .as_ref()
+            .map(|r| r.windows(&conjugate(form), &self.matrices.powers))
+    }
+    pub(crate) fn project_task(
+        &self,
+        task: usize,
+        output: &mut [K],
+        columns: &mut Vec<K>,
+        folded: &[K],
+        form: &[K; D],
+        evaluation: K,
+        windows: Option<&crate::column_runs::Windows>,
+    ) {
+        let start = task * COLUMNS_PER_TASK;
+        let blocks = &self.blocks[start / D..];
+        let key = &folded[start..][..output.len() * D];
+        if let (Some(runs), Some(windows)) = (&self.matrices.runs, windows) {
+            runs.project(&self.matrices.weights, start, output, windows);
+            for ((out, key), &block) in output.iter_mut().zip(key.chunks_exact(D)).zip(blocks) {
+                let dot = key
+                    .iter()
+                    .zip(form)
+                    .fold(ProductSum::default(), |s, (&v, &f)| s.add(v, f))
+                    .value();
+                *out += dot + block * evaluation;
+            }
+        } else {
+            columns.resize(output.len() * D, K::ZERO);
+            self.columns(task, columns);
+            for (((out, key), columns), &block) in output
+                .iter_mut()
+                .zip(key.chunks_exact(D))
+                .zip(columns.chunks_exact(D))
+                .zip(blocks)
+            {
+                *out = dot(&self.element(columns, key), form) + block * evaluation;
+            }
+        }
     }
 
     pub(crate) fn public(&self) -> &[K] {

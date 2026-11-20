@@ -70,7 +70,7 @@ impl MetalSession {
         if checked.len() != rows {
             return Ok(None);
         }
-        Ok(Some(Box::new(Packed::new(self, checked, positive, negative, width)?)))
+        optional_packed(Packed::new(self, checked, positive, negative, width))
     }
 }
 impl Packed {
@@ -103,9 +103,21 @@ impl Packed {
     }
 }
 
-fn words_at(buffer: &Buffer, index: usize) -> K {
-    let words = host_view::<u64>(buffer, buffer.length() / 8);
-    K::from_coeffs([F::from_u64(words[2 * index]), F::from_u64(words[2 * index + 1])])
+fn optional_packed(result: Result<Packed, MetalError>) -> Result<Option<Box<dyn PackedGateNorm>>, MetalError> {
+    match result {
+        Ok(packed) => Ok(Some(Box::new(packed))),
+        Err(MetalError::Buffer { .. } | MetalError::MemoryLimit { .. }) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+fn extension(words: [u64; 2]) -> K {
+    K::from_coeffs(words.map(F::from_u64))
+}
+
+fn sum_groups<const N: usize>(buffer: &Buffer, groups: usize) -> [K; N] {
+    let partials = host_view::<[[u64; 2]; N]>(buffer, groups);
+    std::array::from_fn(|i| partials.iter().map(|terms| extension(terms[i])).sum())
 }
 
 impl Packed {
@@ -223,11 +235,11 @@ impl Packed {
                 self.activity.dispatches.fetch_add(1, Ordering::Relaxed);
                 encoder.dispatchThreadgroups_threadsPerThreadgroup(line(groups), line(WIDTH));
             }
-            reductions.push((partial, sums, groups, last_groups, terms));
+            reductions.push((partial, sums, groups, last_groups));
         }
         encoder.endEncoding();
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        for (i, (partial, sums, groups, last_groups, _)) in reductions.iter().enumerate() {
+        for (i, (partial, sums, groups, last_groups)) in reductions.iter().enumerate() {
             encoder.setComputePipelineState(&self.pipelines[2 + i]);
             // SAFETY: each block reduces at most WIDTH partials into exactly one allocated output.
             unsafe {
@@ -245,11 +257,9 @@ impl Packed {
         self.activity
             .downloaded_bytes
             .fetch_add(read_bytes as u64, Ordering::Relaxed);
-        let sum = |i: usize, j: usize| {
-            let (_, b, _, groups, terms) = &reductions[i];
-            (0..*groups).map(|g| words_at(b, g * terms + j)).sum()
-        };
-        Ok((std::array::from_fn(|j| sum(0, j)), std::array::from_fn(|j| sum(1, j))))
+        let (_, gate, _, gate_groups) = &reductions[0];
+        let (_, norm, _, norm_groups) = &reductions[1];
+        Ok((sum_groups(gate, *gate_groups), sum_groups(norm, *norm_groups)))
     }
 }
 fn line(width: usize) -> MTLSize {
@@ -286,15 +296,23 @@ impl PackedGateNorm for Packed {
         if round != LAST_ROUND {
             return None;
         }
-        let count = self.rows.div_ceil(1 << round);
-        let gates = (0..4 * count)
-            .map(|i| words_at(&self.gate, 4 * ((i % count) << (round - 1)) + i / count))
+        let norm = host_view::<[u64; 2]>(self.norm.as_ref()?, self.width.div_ceil(16));
+        let gate = host_view::<[[u64; 2]; 4]>(&self.gate, self.rows.div_ceil(2));
+        let mut gates = Vec::with_capacity(4 * self.rows.div_ceil(1 << round));
+        for column in 0..4 {
+            gates.extend(
+                gate.iter()
+                    .step_by(1 << (round - 1))
+                    .map(|row| extension(row[column])),
+            );
+        }
+        let values: Vec<_> = norm
+            .iter()
+            .step_by(1 << (round - 4))
+            .copied()
+            .map(extension)
             .collect();
-        let norm = self.norm.as_ref()?;
-        let values = (0..self.width.div_ceil(1 << round))
-            .map(|i| words_at(norm, i << (round - 4)))
-            .collect();
-        let bytes = (4 * count + self.width.div_ceil(1 << round)) * size_of::<K>();
+        let bytes = (gates.len() + values.len()) * size_of::<K>();
         self.activity
             .downloaded_bytes
             .fetch_add(bytes as u64, Ordering::Relaxed);

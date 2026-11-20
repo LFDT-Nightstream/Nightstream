@@ -99,3 +99,20 @@ fn packed_rounds_and_handoff_match_direct_evaluation_with_partial_tiles() {
     assert_eq!(after.uploaded_bytes - before.uploaded_bytes, 168_720);
     assert_eq!(after.downloaded_bytes - before.downloaded_bytes, 3_424);
 }
+
+#[test]
+fn packed_startup_uses_cpu_only_on_buffer_allocation_failure() {
+    let session = MetalSession::new().unwrap();
+    let before = session.activity();
+    let limit = session
+        .buffer(usize::MAX)
+        .expect_err("allocation exceeds the device budget");
+    for error in [limit, MetalError::Buffer { bytes: 4096 }] {
+        assert!(optional_packed(Err(error)).unwrap().is_none());
+    }
+    assert!(matches!(
+        optional_packed(Err(MetalError::Shape("row count"))),
+        Err(MetalError::Shape("row count"))
+    ));
+    assert_eq!(session.activity(), before);
+}

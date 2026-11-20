@@ -643,20 +643,21 @@ fn checked_fresh_rows_match_and_are_consumed_once() {
     let points = [K::ZERO, K::ONE, K::from(F::from_u8(2)), K::from(F::from_u8(3))];
     let poly = polynomial();
     let mut actual = ApplicationTables::new(&prepared, &blocks, budget).unwrap();
-    let mut reference = ApplicationTables::new(&prepared.source, &blocks, budget).unwrap();
+    let mut reference = ApplicationTables::new(&prepared, &blocks, budget).unwrap();
     for round in 0..point.len() {
         let weights = EqualityWeights::new(&point[round + 1..]);
-        let expected = reference
-            .evals_at(&prepared.source, &blocks, &poly, K::ONE, &points, &weights)
-            .unwrap();
         let visits = prepared.source.visits.load(Ordering::Relaxed);
-        assert_eq!(
-            actual
-                .evals_at(&prepared, &blocks, &poly, K::ONE, &points, &weights)
-                .unwrap(),
-            expected
-        );
+        let cached = actual
+            .evals_at(&prepared, &blocks, &poly, K::ONE, &points, &weights)
+            .unwrap();
         assert_eq!(prepared.source.visits.load(Ordering::Relaxed), visits);
+        let replayed = reference
+            .evals_at(&prepared, &blocks, &poly, K::ONE, &points, &weights)
+            .unwrap();
+        assert_eq!(cached, replayed);
+        if round == 0 {
+            assert!(prepared.source.visits.load(Ordering::Relaxed) > visits);
+        }
         reference.fold(point[round]);
         actual.fold(point[round]);
     }

@@ -24,23 +24,25 @@ namespace NightstreamFPrime.Spec.Compression.Akita
 
 open NightstreamFPrime.Spec.Compression.Lib (eqAt mle mle_eq_cubeSum cubeSum_eq_sum_range)
 
+variable {E : Type} [CommRing E] [Algebra Zq E] [Degree2 E]
+
 section Unpack
 
 variable {d : ℕ} [NeZero d] {m : ℕ}
 
 /-- Entry `u` of `ψ^{-1}` for `k = 2` and `d = 4·m`: `Z ↦ (k/d)·Tr_H(Z·σ_{−1}(X^{p(u)}))`, for
 the position `p(u)` of entry `u` in Akita (21). -/
-noncomputable def unpack (d m : ℕ) [NeZero d] (u : ℕ) : Rq d →ₗ[Zq] Quadratic :=
+noncomputable def unpack (d m : ℕ) [NeZero d] (u : ℕ) : Rq d →ₗ[Zq] E :=
   ((2 * m : ℕ) : Zq)⁻¹ •
     (traceForm d m ∘ₗ LinearMap.mulRight Zq (conj (AdjoinRoot.root (modulus d) ^ slot m u)))
 
 /-- `T_{ρ_pack}` of Akita (97) for the packed weights `χ̌_pack = ψ(weights)` of (96):
 `Z ↦ (k/d)·Tr_H(Z·σ_{−1}(χ̌_pack))`. -/
-noncomputable def packFunctional (quarter : 4 * m = d) (weights : ℕ → Quadratic) :
-    Rq d →ₗ[Zq] Quadratic :=
+noncomputable def packFunctional (quarter : 4 * m = d) (weights : ℕ → E) :
+    Rq d →ₗ[Zq] E :=
   ((2 * m : ℕ) : Zq)⁻¹ • traceFunctional quarter weights
 
-theorem traceFunctional_eq_sum (quarter : 4 * m = d) (weights : ℕ → Quadratic) (Z : Rq d) :
+theorem traceFunctional_eq_sum (quarter : 4 * m = d) (weights : ℕ → E) (Z : Rq d) :
     traceFunctional quarter weights Z = ∑ u ∈ Finset.range (2 * m),
       weights u * traceForm d m (Z * conj (AdjoinRoot.root (modulus d) ^ slot m u)) := by
   show traceForm d m (Z * conj (psi quarter weights)) = _
@@ -53,15 +55,15 @@ theorem traceFunctional_eq_sum (quarter : 4 * m = d) (weights : ℕ → Quadrati
 /-- The value of `T_{ρ_pack}` on each ring element: `Σ_u weights_u·ψ^{-1}(Z)_u`. For the weights
 `ẽq(ρ_pack, u)` it is the evaluation at `ρ_pack` of the `d/k` values that `Z` packs
 (Akita (98)). -/
-theorem packFunctional_apply (quarter : 4 * m = d) (weights : ℕ → Quadratic) (Z : Rq d) :
+theorem packFunctional_apply (quarter : 4 * m = d) (weights : ℕ → E) (Z : Rq d) :
     packFunctional quarter weights Z =
       ∑ u ∈ Finset.range (2 * m), weights u * unpack d m u Z := by
   simp only [packFunctional, unpack, LinearMap.smul_apply, LinearMap.comp_apply,
     LinearMap.mulRight_apply, traceFunctional_eq_sum quarter, Finset.smul_sum, mul_smul_comm]
 
 /-- `T_{ρ_pack}` is linear over the fixed subfield: `T(c·Z) = c·T(Z)` for `c ∈ E ⊆ R_{q,d}`. -/
-theorem packFunctional_subfield_mul (quarter : 4 * m = d) (weights : ℕ → Quadratic)
-    (c : Quadratic) (Z : Rq d) :
+theorem packFunctional_subfield_mul (quarter : 4 * m = d) (weights : ℕ → E)
+    (c : E) (Z : Rq d) :
     packFunctional quarter weights (subfield quarter c * Z) =
       c * packFunctional quarter weights Z := by
   simp only [packFunctional, traceFunctional, LinearMap.smul_apply, LinearMap.comp_apply,
@@ -70,9 +72,9 @@ theorem packFunctional_subfield_mul (quarter : 4 * m = d) (weights : ℕ → Qua
 
 /-- `unpack` is the inverse of `ψ` on its `d/k = 2·m` entries, when `d/k` is a unit of
 `Z_q`. -/
-theorem unpack_psi (quarter : 4 * m = d) (unit : IsUnit ((2 * m : ℕ) : Zq)) (f : ℕ → Quadratic)
+theorem unpack_psi (quarter : 4 * m = d) (unit : IsUnit ((2 * m : ℕ) : Zq)) (f : ℕ → E)
     {u : ℕ} (small : u < 2 * m) : unpack d m u (psi quarter f) = f u := by
-  have single : psi quarter (fun v => if v = u then 1 else 0) =
+  have single : psi quarter (fun v => if v = u then (1 : E) else 0) =
       AdjoinRoot.root (modulus d) ^ slot m u := by
     rw [psi, Finset.sum_eq_single u]
     · rw [ite_eq_left rfl, map_one, mul_one]
@@ -80,7 +82,7 @@ theorem unpack_psi (quarter : 4 * m = d) (unit : IsUnit ((2 * m : ℕ) : Zq)) (f
       rw [ite_eq_right other, map_zero, mul_zero]
     · intro absent
       exact absurd (Finset.mem_range.mpr small) absent
-  have value := traceForm_psi_mul_conj quarter f fun v => if v = u then 1 else 0
+  have value := traceForm_psi_mul_conj quarter f fun v => if v = u then (1 : E) else 0
   rw [single, Finset.sum_eq_single u (fun v _ other => by rw [ite_eq_right other, mul_zero])
     (fun absent => absurd (Finset.mem_range.mpr small) absent), ite_eq_left rfl, mul_one] at value
   simp only [unpack, LinearMap.smul_apply, LinearMap.comp_apply, LinearMap.mulRight_apply]
@@ -88,7 +90,7 @@ theorem unpack_psi (quarter : 4 * m = d) (unit : IsUnit ((2 * m : ℕ) : Zq)) (f
 
 /-- The table of the packed polynomial `f̄` that a table of ring coefficients has: cell
 `r·(d/k) + u` is entry `u` of `ψ^{-1}` of the ring element `r` of the table. -/
-noncomputable def unpackTable (d m : ℕ) [NeZero d] (table : Table) (cell : ℕ) : Quadratic :=
+noncomputable def unpackTable (d m : ℕ) [NeZero d] (table : Table) (cell : ℕ) : E :=
   unpack d m (cell % (2 * m)) (ofCoeffs fun k => table (cell / (2 * m) * d + k))
 
 end Unpack
@@ -110,7 +112,7 @@ partials `e_i = ⟨a, G_{b,M}·s_i⟩` with `a_x = ẽq(ρ_pos, x)`, the sum
 `Σ_i ẽq(ρ_blk, i)·T_{ρ_pack}(e_i)` is the multilinear evaluation at `(ρ_pack, ρ_pos, ρ_blk)` of
 the packed polynomial of the table that the source blocks decode to. `B`, `M` and `d_A/k` are
 the powers of two of the lengths of the segments. -/
-theorem traceScalar_eq_mle (quarter : 4 * m = S.innerDegree) (block position pack : List Quadratic)
+theorem traceScalar_eq_mle (quarter : 4 * m = S.innerDegree) (block position pack : List E)
     (blocks : S.blocks = 2 ^ block.length) (length : S.blockLength = 2 ^ position.length)
     (width : 2 * m = 2 ^ pack.length) (source : Fin S.blocks → S.Source) :
     ∑ i : Fin S.blocks, eqAt block i * packFunctional quarter (eqAt pack)
@@ -149,8 +151,8 @@ theorem traceScalar_eq_mle (quarter : 4 * m = S.innerDegree) (block position pac
   have quotient : ((u : ℕ) + 2 * m * (x + S.blockLength * i)) / (2 * m) =
       x + S.blockLength * i := by
     rw [Nat.add_mul_div_left _ _ positive, Nat.div_eq_of_lt u.isLt, zero_add]
-  have cell : unpackTable S.innerDegree m (S.decode source)
-      ((u : ℕ) + 2 * m * x + S.blockLength * (2 * m) * i) =
+  have cell : (unpackTable S.innerDegree m (S.decode source)
+      ((u : ℕ) + 2 * m * x + S.blockLength * (2 * m) * i) : E) =
         unpack S.innerDegree m u (gadget S.sourceBase (source i) x) := by
     rw [show (u : ℕ) + 2 * m * x + S.blockLength * (2 * m) * i =
       u + 2 * m * (x + S.blockLength * i) by ring, unpackTable, rest, quotient]

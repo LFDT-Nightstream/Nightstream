@@ -6,9 +6,12 @@ import NightstreamFPrime.Spec.Compression.Akita.Embed
 `k = 2` (ePrint 2026/1983, revision of 2026-10-15, Section 3.1 with (21), and Section 7.1 with
 (96) and (97)).
 
-The tower is `d = 2·k·m` with `k = 2`, so `d = 4·m`. The extension field is
-`Quadratic = Z_q[u]/(u² − 2)`, which `FieldExtensionRing.carrierEquiv` identifies with the
-challenge field `K` of the package.
+The tower is `d = 2·k·m` with `k = 2`, so `d = 4·m`. The extension field is a ring `E` with
+`Degree2 E`: an isomorphism to `Quadratic = Z_q[u]/(u² − 2)`, which gives the basis `(1, u)`.
+`Quadratic` and the challenge field `K` of the package are instances.
+
+- `Degree2.re` and `Degree2.im` are the coordinates in the basis `(1, u)`, and `Degree2.pair` is
+  the element with two given coordinates.
 
 - `conj` is `σ_{−1} : X ↦ X^{−1}`, and `coeff_mul_conj` is the trace identity for `k = 1`: the
   constant coefficient of `a·σ_{−1}(b)` is `Σ_i a_i·b_i`.
@@ -33,6 +36,63 @@ open Polynomial
 /-- The extension field `E = Z_q[u]/(u² − 2)` of degree `k = 2`. -/
 abbrev Quadratic : Type := QuadraticAlgebra Zq 2 0
 
+/-- An extension `E` of `Z_q` of degree `k = 2` with the basis `(1, u)`, `u² = 2` (Akita
+Section 3.1): an isomorphism of `Z_q`-algebras to `Quadratic`. -/
+class Degree2 (E : Type) [CommRing E] [Algebra Zq E] where
+  coords : E ≃ₐ[Zq] Quadratic
+
+instance : Degree2 Quadratic := ⟨AlgEquiv.refl⟩
+
+namespace Degree2
+
+variable {E : Type} [CommRing E] [Algebra Zq E] [Degree2 E]
+
+/-- The coordinate of 1 in the basis `(1, u)`. -/
+def re (z : E) : Zq := (coords z).re
+
+/-- The coordinate of `u` in the basis `(1, u)`. -/
+def im (z : E) : Zq := (coords z).im
+
+/-- The element `a + b·u`. -/
+def pair (a b : Zq) : E := coords.symm ⟨a, b⟩
+
+@[simp] theorem re_pair (a b : Zq) : re (pair a b : E) = a := by simp [re, pair]
+
+@[simp] theorem im_pair (a b : Zq) : im (pair a b : E) = b := by simp [im, pair]
+
+theorem ext {z w : E} (first : re z = re w) (second : im z = im w) : z = w :=
+  coords.injective (QuadraticAlgebra.ext first second)
+
+theorem pair_re_im (z : E) : pair (re z) (im z) = z := ext (re_pair _ _) (im_pair _ _)
+
+theorem re_algebraMap (r : Zq) : re (algebraMap Zq E r) = r := by simp [re]
+
+theorem im_algebraMap (r : Zq) : im (algebraMap Zq E r) = 0 := by simp [im]
+
+theorem re_zero : re (0 : E) = 0 := by simp [re]
+
+theorem im_zero : im (0 : E) = 0 := by simp [im]
+
+theorem re_add (z w : E) : re (z + w) = re z + re w := by simp [re]
+
+theorem im_add (z w : E) : im (z + w) = im z + im w := by simp [im]
+
+theorem re_smul (s : Zq) (z : E) : re (s • z) = s * re z := by simp [re]
+
+theorem im_smul (s : Zq) (z : E) : im (s • z) = s * im z := by simp [im]
+
+theorem re_mul (z w : E) : re (z * w) = re z * re w + 2 * im z * im w := by simp [re, im]
+
+theorem im_mul (z w : E) : im (z * w) = re z * im w + im z * re w := by simp [re, im]
+
+theorem re_natCast (n : ℕ) : re (n : E) = n := by simp [re, QuadraticAlgebra.re_natCast]
+
+theorem im_natCast (n : ℕ) : im (n : E) = 0 := by simp [im, QuadraticAlgebra.im_natCast]
+
+end Degree2
+
+variable {E : Type} [CommRing E] [Algebra Zq E] [Degree2 E]
+
 section Fixed
 
 variable {d m : ℕ}
@@ -56,11 +116,12 @@ theorem fixed_mul_self (quarter : 4 * m = d) :
 
 /-- The embedding of the extension field in `R_{q,d}` as the fixed subfield: `u ↦ e_1`
 (Akita Section 3.1). -/
-noncomputable def subfield (quarter : 4 * m = d) : Quadratic →ₐ[Zq] Rq d :=
-  QuadraticAlgebra.lift ⟨fixed d m, fixed_mul_self quarter⟩
+noncomputable def subfield (quarter : 4 * m = d) : E →ₐ[Zq] Rq d :=
+  (QuadraticAlgebra.lift ⟨fixed d m, fixed_mul_self quarter⟩).comp
+    (Degree2.coords : E ≃ₐ[Zq] Quadratic).toAlgHom
 
-theorem subfield_apply (quarter : 4 * m = d) (z : Quadratic) :
-    subfield quarter z = z.re • 1 + z.im • fixed d m :=
+theorem subfield_apply (quarter : 4 * m = d) (z : E) :
+    subfield quarter z = Degree2.re z • 1 + Degree2.im z • fixed d m :=
   rfl
 
 /-- The position in `R_{q,d}` of entry `u` of the input of `ψ` (Akita (21)): `X^u` for the first
@@ -78,7 +139,7 @@ theorem slot_injective {u v : ℕ} (same : slot m u = slot m v) : u = v := by
 
 /-- The packing map `ψ` of Akita (21) for `k = 2`, on the `d/k = 2·m` entries of its input:
 `ψ(a) = Σ_{t<m} X^t·(a_t + X^{d/2}·a_{m+t})`. -/
-noncomputable def psi (quarter : 4 * m = d) (a : ℕ → Quadratic) : Rq d :=
+noncomputable def psi (quarter : 4 * m = d) (a : ℕ → E) : Rq d :=
   ∑ u ∈ Finset.range (2 * m), AdjoinRoot.root (modulus d) ^ slot m u * subfield quarter (a u)
 
 end Fixed
@@ -164,7 +225,7 @@ theorem conj_fixed (quarter : 4 * m = d) : conj (fixed d m) = fixed d m := by
   ring
 
 /-- `σ_{−1}` fixes the embedded extension field. -/
-theorem conj_subfield (quarter : 4 * m = d) (z : Quadratic) :
+theorem conj_subfield (quarter : 4 * m = d) (z : E) :
     conj (subfield quarter z) = subfield quarter z := by
   rw [subfield_apply, map_add, map_smul, map_smul, map_one, conj_fixed quarter]
 
@@ -184,32 +245,36 @@ theorem coeff_fixed_mul_root_pow (quarter : 4 * m = d) {p r : ℕ}
 
 /-- `Tr_H` for `k = 2` and `d = 4·m` in the coordinates of the basis `(1, e_1)` of the fixed
 subfield: `Tr_H(w) = (d/2)·w_0 + (d/4)·(e_1·w)_0·u` (Akita Section 3.1). -/
-noncomputable def traceForm (d m : ℕ) [NeZero d] : Rq d →ₗ[Zq] Quadratic where
-  toFun w := ⟨((2 * m : ℕ) : Zq) * coeff w 0, ((m : ℕ) : Zq) * coeff (fixed d m * w) 0⟩
-  map_add' x y := QuadraticAlgebra.ext
-    (by simp only [QuadraticAlgebra.re_add, coeff_add]; ring)
-    (by simp only [QuadraticAlgebra.im_add, mul_add, coeff_add])
-  map_smul' r x := QuadraticAlgebra.ext
-    (by simp only [QuadraticAlgebra.re_smul, coeff_smul, smul_eq_mul, RingHom.id_apply]; ring)
-    (by simp only [QuadraticAlgebra.im_smul, mul_smul_comm, coeff_smul, smul_eq_mul,
+noncomputable def traceForm (d m : ℕ) [NeZero d] : Rq d →ₗ[Zq] E where
+  toFun w :=
+    Degree2.pair (((2 * m : ℕ) : Zq) * coeff w 0) (((m : ℕ) : Zq) * coeff (fixed d m * w) 0)
+  map_add' x y := Degree2.ext
+    (by simp only [Degree2.re_pair, Degree2.re_add, coeff_add]; ring)
+    (by simp only [Degree2.im_pair, Degree2.im_add, mul_add, coeff_add])
+  map_smul' r x := Degree2.ext
+    (by simp only [Degree2.re_pair, Degree2.re_smul, coeff_smul, RingHom.id_apply]; ring)
+    (by simp only [Degree2.im_pair, Degree2.im_smul, mul_smul_comm, coeff_smul,
       RingHom.id_apply]; ring)
 
 /-- `Tr_H` is linear over the embedded extension field: `Tr_H(c·w) = c·Tr_H(w)`. -/
-theorem traceForm_subfield_mul (quarter : 4 * m = d) (c : Quadratic) (w : Rq d) :
+theorem traceForm_subfield_mul (quarter : 4 * m = d) (c : E) (w : Rq d) :
     traceForm d m (subfield quarter c * w) = c * traceForm d m w := by
   have square : fixed d m * (fixed d m * w) = (2 : Zq) • w := by
     rw [← mul_assoc, fixed_mul_self quarter, zero_smul, add_zero, smul_mul_assoc, one_mul]
-  have product : subfield quarter c * w = c.re • w + c.im • (fixed d m * w) := by
+  have product : subfield quarter c * w =
+      Degree2.re c • w + Degree2.im c • (fixed d m * w) := by
     rw [subfield_apply, add_mul, smul_mul_assoc, one_mul, smul_mul_assoc]
   have shifted : fixed d m * (subfield quarter c * w) =
-      c.re • (fixed d m * w) + (c.im * 2) • w := by
+      Degree2.re c • (fixed d m * w) + (Degree2.im c * 2) • w := by
     rw [product, mul_add, mul_smul_comm, mul_smul_comm, square, smul_smul]
-  refine QuadraticAlgebra.ext ?_ ?_
-  · simp only [traceForm, LinearMap.coe_mk, AddHom.coe_mk, QuadraticAlgebra.re_mul]
+  refine Degree2.ext ?_ ?_
+  · simp only [traceForm, LinearMap.coe_mk, AddHom.coe_mk, Degree2.re_mul, Degree2.re_pair,
+      Degree2.im_pair]
     rw [product, coeff_add, coeff_smul, coeff_smul]
     push_cast
     ring
-  · simp only [traceForm, LinearMap.coe_mk, AddHom.coe_mk, QuadraticAlgebra.im_mul]
+  · simp only [traceForm, LinearMap.coe_mk, AddHom.coe_mk, Degree2.im_mul, Degree2.re_pair,
+      Degree2.im_pair]
     rw [shifted, coeff_add, coeff_smul, coeff_smul]
     push_cast
     ring
@@ -219,36 +284,36 @@ theorem traceForm_subfield_mul (quarter : 4 * m = d) (c : Quadratic) (w : Rq d) 
 theorem traceForm_slot (quarter : 4 * m = d) {u v : ℕ} (left : u < 2 * m) (right : v < 2 * m) :
     traceForm d m (AdjoinRoot.root (modulus d) ^ slot m u *
         conj (AdjoinRoot.root (modulus d) ^ slot m v)) =
-      if u = v then ((2 * m : ℕ) : Quadratic) else 0 := by
+      if u = v then ((2 * m : ℕ) : E) else 0 := by
   have source := slot_range left
   have target := slot_range right
   have usmall : slot m u < d := by omega
   have vsmall : slot m v < d := by omega
-  refine QuadraticAlgebra.ext ?_ ?_
-  · simp only [traceForm, LinearMap.coe_mk, AddHom.coe_mk]
+  refine Degree2.ext ?_ ?_
+  · simp only [traceForm, LinearMap.coe_mk, AddHom.coe_mk, Degree2.re_pair]
     rw [coeff_mul_conj_root_pow _ vsmall, coeff_root_pow usmall vsmall]
     by_cases same : u = v
     · rw [ite_eq_left same, ite_eq_left (congrArg (slot m) same).symm, mul_one,
-        QuadraticAlgebra.re_natCast]
+        Degree2.re_natCast]
     · rw [ite_eq_right same,
         ite_eq_right (fun equal => same (slot_injective equal.symm)), mul_zero,
-        QuadraticAlgebra.re_zero]
-  · simp only [traceForm, LinearMap.coe_mk, AddHom.coe_mk]
+        Degree2.re_zero]
+  · simp only [traceForm, LinearMap.coe_mk, AddHom.coe_mk, Degree2.im_pair]
     rw [← mul_assoc, coeff_mul_conj_root_pow _ vsmall,
       coeff_fixed_mul_root_pow quarter source target, mul_zero]
     by_cases same : u = v
-    · rw [ite_eq_left same, QuadraticAlgebra.im_natCast]
-    · rw [ite_eq_right same, QuadraticAlgebra.im_zero]
+    · rw [ite_eq_left same, Degree2.im_natCast]
+    · rw [ite_eq_right same, Degree2.im_zero]
 
 /-- The trace identity of Akita Section 3.1 for `k = 2` and `d = 4·m`:
 `Tr_H(ψ(a)·σ_{−1}(ψ(b))) = (d/k)·⟨a, b⟩` for two inputs of `d/k = 2·m` entries. -/
-theorem traceForm_psi_mul_conj (quarter : 4 * m = d) (a b : ℕ → Quadratic) :
+theorem traceForm_psi_mul_conj (quarter : 4 * m = d) (a b : ℕ → E) :
     traceForm d m (psi quarter a * conj (psi quarter b)) =
       (2 * m) • ∑ u ∈ Finset.range (2 * m), a u * b u := by
   have term (u v : ℕ) (left : u ∈ Finset.range (2 * m)) (right : v ∈ Finset.range (2 * m)) :
       traceForm d m (AdjoinRoot.root (modulus d) ^ slot m u * subfield quarter (a u) *
         conj (AdjoinRoot.root (modulus d) ^ slot m v * subfield quarter (b v))) =
-        a u * b v * if u = v then ((2 * m : ℕ) : Quadratic) else 0 := by
+        a u * b v * if u = v then ((2 * m : ℕ) : E) else 0 := by
     rw [← traceForm_slot quarter (Finset.mem_range.mp left) (Finset.mem_range.mp right),
       ← traceForm_subfield_mul quarter, map_mul (subfield quarter), map_mul (conj (d := d)),
       conj_subfield]
@@ -265,14 +330,14 @@ theorem traceForm_psi_mul_conj (quarter : 4 * m = d) (a b : ℕ → Quadratic) :
 
 /-- `(d/k)·T_{ρ_pack}` of Akita (97) for the packed weights `χ̌_pack = ψ(weights)` of (96):
 `Z ↦ Tr_H(Z·σ_{−1}(χ̌_pack))`. -/
-noncomputable def traceFunctional (quarter : 4 * m = d) (weights : ℕ → Quadratic) :
-    Rq d →ₗ[Zq] Quadratic :=
+noncomputable def traceFunctional (quarter : 4 * m = d) (weights : ℕ → E) :
+    Rq d →ₗ[Zq] E :=
   traceForm d m ∘ₗ LinearMap.mulRight Zq (conj (psi quarter weights))
 
 /-- The value of the functional of Akita (97) on a packed element:
 `(d/k)·T_{ρ_pack}(ψ(f)) = (d/k)·Σ_u f_u·ẽq(ρ_pack, u)`, which makes the row (98) a statement on
 the evaluation of the packed table. -/
-theorem traceFunctional_psi (quarter : 4 * m = d) (weights f : ℕ → Quadratic) :
+theorem traceFunctional_psi (quarter : 4 * m = d) (weights f : ℕ → E) :
     traceFunctional quarter weights (psi quarter f) =
       (2 * m) • ∑ u ∈ Finset.range (2 * m), f u * weights u :=
   traceForm_psi_mul_conj quarter f weights

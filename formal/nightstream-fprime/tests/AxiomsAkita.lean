@@ -8,7 +8,8 @@ relation, the flat witness and the relation of one fold on it, the fold with ope
 root over it, the quotient digits in the flat witness with the levels of the quotient-lift
 route, the recursive opening suffix with its checkpoint segments, its batching root, its
 packing levels, its trace levels and the terminal, the opening of a root, a fold with groups,
-a packing level, four trace levels and the terminal (`Tower`), its rewinding extraction, its
+a packing level, four trace levels and the terminal on a norm route (`Tower`) with the direct
+norm check of the Euclidean route (`NormCheck`, `TraceNorm`), its rewinding extraction, its
 Fiat–Shamir budget and the honest prover of two packing levels
 (`Spec/Compression/Akita/Extract`), the honest prover of a game (`Spec/Compression/Game`), the
 shared setup (`Setup`) and the bad events of the hashed transcript entries (`Digest`). -/
@@ -625,6 +626,32 @@ shared setup (`Setup`) and the bad events of the hashed transcript entries (`Dig
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.Suffix.error_nonnegative
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.Suffix.extraction_le_strength
 
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.instDegree2Quadratic
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.re
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.im
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.pair
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.re_pair
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.im_pair
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.ext
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.pair_re_im
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.re_algebraMap
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.im_algebraMap
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.re_zero
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.im_zero
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.re_add
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.im_add
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.re_smul
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.im_smul
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.re_mul
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.im_mul
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.re_natCast
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Degree2.im_natCast
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.subfield
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.psi
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.traceForm
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.traceForm_subfield_mul
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.traceForm_psi_mul_conj
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.unpack
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.packFunctional
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.traceFunctional_eq_sum
@@ -987,4 +1014,48 @@ shared setup (`Setup`) and the bad events of the hashed transcript entries (`Dig
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.LevelSized.lift
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.LevelSized.trace
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.liftTower_suffix
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.towerAccepts
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.towerCompose_suffix
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.tableCollisionSq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.tableCollisionSq_isSome
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.normTable
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.normWeight
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.mle_normTable
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.normTables
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.bindTables
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.normCheck
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.normCheck_avoids
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.sum_sq_cellsOf
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Shape.sourceCode
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Shape.normKernel
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Shape.directLimit
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.OpeningShape.responseCells_le_cells
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.normTable_normKernel
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Route
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Route.Challenges
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Route.Short
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Route.Kernel
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Route.kernelOf
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Route.kernelOf_isSome
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.LevelBreakSq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Route.Break
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.traceSq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.traceSq_sound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.collideSq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.traceOn
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Route.collide
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.suffix_push_traceSq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.suffix_push_route
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.normCosts
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.normCosts_sum
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.normCosts_nonnegative
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.normCheck_stagedTo
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.normCheck_bare
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.committedTraceSq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.committedTraceSq_sound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.committedTraceSq_stagedTo
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.committedTraceSq_valid
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.committedTraceSq_uniform
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.NormSized
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.LevelSized.traceSq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.mixedTower_suffix

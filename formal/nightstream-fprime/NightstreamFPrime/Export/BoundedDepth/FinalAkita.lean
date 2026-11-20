@@ -1,6 +1,7 @@
 import NightstreamFPrime.Export.BoundedDepth.FinalSplit
 import NightstreamFPrime.Spec.Compression.Akita.Extract.ComposeRoot
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Decoders
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Tower
 
 /-! The final verifier over the Akita opening of the key polynomial, `W` and `V` (SPEC.md,
 Algorithm 10; Akita, ePrint 2026/1983, revision of 2026-10-15, Theorem 10.17, Proposition 10.44
@@ -28,7 +29,15 @@ the transcript are a function of the layout. So the result is for the final proo
   `final_sound` is the bound for "the verifier accepts and no proof with witnesses satisfies
   `Verifies`".
 - `three_sound` is `final_sound` for the opening with a batching root, a committed fold with
-  three opening groups and a last packing fold (`composeRootChain_suffix`). -/
+  three opening groups and a last packing fold (`composeRootChain_suffix`).
+- `tower_extract_sound`, `tower_extraction_le`, `tower_runs_le` and `tower_sound` are
+  `final_extract_sound`, `final_extraction_le`, `final_runs_le` and `final_sound` for the opening
+  with a batching root, a fold with three opening groups, a packing level, four trace levels and
+  the terminal (`liftTower_suffix`), under the verifier `towerAccepts`. `K` has the basis `(1, U)`
+  with `U² = 2` (`Degree2 K`).
+- `mixed_ready`, `mixed_extract_sound`, `mixed_extraction_le`, `mixed_runs_le` and `mixed_sound`
+  are these theorems for the schedule with the Euclidean route at the levels 3 to 5 and at the
+  terminal (`mixedTower_suffix`). -/
 
 set_option autoImplicit false
 
@@ -52,6 +61,9 @@ open NightstreamFPrime.Export.BoundedDepth.FinalVerifier (Mode Claims Premises)
 attribute [local instance low] Classical.propDecidable
 
 noncomputable local instance : Algebra Zq K := inferInstanceAs (Algebra F K)
+
+noncomputable local instance : Degree2 K :=
+  ⟨AlgEquiv.ofRingEquiv (f := carrierEquiv.ringEquiv) fun _ => rfl⟩
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -411,5 +423,548 @@ theorem three_sound [Finite Wire] {peak : Fin 3 → ℕ} {peak' : ℕ}
     registered covers bounded positive
 
 end Three
+
+section Tower
+
+variable {S₁ : Compression.Akita.Shape} {O₁ : OpeningShape S₁} {fold₁ : Descriptor}
+  {S₂ : Compression.Akita.Shape} {O₂ : OpeningShape S₂} {fold₂ : Descriptor}
+  {S₃ : Compression.Akita.Shape} {O₃ : OpeningShape S₃} {fold₃ : Descriptor}
+  {S₄ : Compression.Akita.Shape} {O₄ : OpeningShape S₄} {fold₄ : Descriptor}
+  {S₅ : Compression.Akita.Shape} {O₅ : OpeningShape S₅} {fold₅ : Descriptor}
+  {S₆ : Compression.Akita.Shape}
+  {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq K} {key : (g : Fin 3) → Key (B.shape g)}
+  {openKey : B.OpenKey} {claim : Wire → B.Claim K} {μ : ℕ} {fits : B.cells < 2 ^ μ}
+  {base digits : ℕ} {room : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ}
+  {rowsFit : B.rowCount + 1 + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
+  {decode : (g : Fin 3) → K → Option (Rq (B.carrierDegree g))} {mass : Fin 3 → ℕ}
+  {β₁ : Module.Basis (Fin O₁.planes) Zq K} {key₁ : Key S₁} {openKey₁ : OpeningKey O₁}
+  {claim₁ : Wire → Claim O₁ K} {μ₁ : ℕ} {fits₁ : O₁.cells fold₁ < 2 ^ μ₁} {digits₁ : ℕ}
+  {room₁ : O₁.quotientRoom fold₁ digits₁ ≤ 2 ^ μ₁} {batch₁ : ℕ}
+  {rowsFit₁ : O₁.rowCount + 1 + 1 ≤ 2 ^ batch₁} {block₁ : Fin S₁.blocks → Coord}
+  {decode₁ : K → Option (Rq O₁.carrierDegree)} {weight₁ ν₁ : ℕ}
+  {key₂ : Key S₂} {openKey₂ : OpeningKey O₂} {claim₂ : Wire → TraceClaim O₂ K} {μ₂ : ℕ}
+  {fits₂ : O₂.cells fold₂ < 2 ^ μ₂} {batch₂ : ℕ}
+  {rowsFit₂ : O₂.traceRowCount + 1 + 1 ≤ 2 ^ batch₂} {block₂ : Fin S₂.blocks → Coord}
+  {decode₂ : K → Option (Rq S₂.innerDegree)} {weight₂ ν₂ m₂ : ℕ}
+  {key₃ : Key S₃} {openKey₃ : OpeningKey O₃} {claim₃ : Wire → TraceClaim O₃ K} {μ₃ : ℕ}
+  {fits₃ : O₃.cells fold₃ < 2 ^ μ₃} {batch₃ : ℕ}
+  {rowsFit₃ : O₃.traceRowCount + 1 + 1 ≤ 2 ^ batch₃} {block₃ : Fin S₃.blocks → Coord}
+  {decode₃ : K → Option (Rq S₃.innerDegree)} {weight₃ ν₃ m₃ : ℕ}
+  {key₄ : Key S₄} {openKey₄ : OpeningKey O₄} {claim₄ : Wire → TraceClaim O₄ K} {μ₄ : ℕ}
+  {fits₄ : O₄.cells fold₄ < 2 ^ μ₄} {batch₄ : ℕ}
+  {rowsFit₄ : O₄.traceRowCount + 1 + 1 ≤ 2 ^ batch₄} {block₄ : Fin S₄.blocks → Coord}
+  {decode₄ : K → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
+  {key₅ : Key S₅} {openKey₅ : OpeningKey O₅} {claim₅ : Wire → TraceClaim O₅ K} {μ₅ : ℕ}
+  {fits₅ : O₅.cells fold₅ < 2 ^ μ₅} {batch₅ : ℕ}
+  {rowsFit₅ : O₅.traceRowCount + 1 + 1 ≤ 2 ^ batch₅} {block₅ : Fin S₅.blocks → Coord}
+  {decode₅ : K → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
+  {L : Terminal S₆ K Wire Coord K total} {m₆ : ℕ}
+  {commit : Wire → (g : Fin 3) → (B.shape g).Payload} {value : Wire → Fin 3 → K}
+  {place : Wire → Fin 3 → List K} {quarter₂ : 4 * m₂ = S₂.innerDegree}
+  {quarter₃ : 4 * m₃ = S₃.innerDegree} {quarter₄ : 4 * m₄ = S₄.innerDegree}
+  {quarter₅ : 4 * m₅ = S₅.innerDegree} {quarter₆ : 4 * m₆ = S₆.innerDegree}
+  {commit₁ : Wire → S₁.Payload} {commit₂ : Wire → S₂.Payload} {commit₃ : Wire → S₃.Payload}
+  {commit₄ : Wire → S₄.Payload} {commit₅ : Wire → S₅.Payload}
+  {stateOf : Wire → Fin S₆.blocks → Fin S₆.innerRank → Rq S₆.innerDegree}
+
+local notation "C" => compose setup packageWidths step cap control shape read head bound
+
+local notation "vf" => FinalVerifier.Setup.verifier setup shape
+
+local notation "zeroth" =>
+  liftBatch β key openKey claim μ fits base digits room batch rowsFit block decode
+    (Compose.read C) mass (Compose.root C vf + 1)
+
+local notation "first" =>
+  Tier.tensored (liftFold β₁ key₁ openKey₁ claim₁ μ₁ fits₁ digits₁ room₁ batch₁ rowsFit₁ block₁
+    decode₁ (Compose.read C) weight₁ (Tier.finish zeroth)) ν₁
+
+local notation "second" =>
+  Tier.tensored (committedTrace (fold := fold₂) key₂ openKey₂ claim₂ μ₂ fits₂ batch₂ rowsFit₂
+    block₂ decode₂ (Compose.read C) weight₂ (Tier.finish first)) ν₂
+
+local notation "third" =>
+  Tier.tensored (committedTrace (fold := fold₃) key₃ openKey₃ claim₃ μ₃ fits₃ batch₃ rowsFit₃
+    block₃ decode₃ (Compose.read C) weight₃ (Tier.finish second)) ν₃
+
+local notation "fourth" =>
+  Tier.tensored (committedTrace (fold := fold₄) key₄ openKey₄ claim₄ μ₄ fits₄ batch₄ rowsFit₄
+    block₄ decode₄ (Compose.read C) weight₄ (Tier.finish third)) ν₄
+
+local notation "fifth" =>
+  Tier.tensored (committedTrace (fold := fold₅) key₅ openKey₅ claim₅ μ₅ fits₅ batch₅ rowsFit₅
+    block₅ decode₅ (Compose.read C) weight₅ (Tier.finish fourth)) ν₅
+
+local notation "coefficient" => Route.coefficient
+
+local notation "accepts" =>
+  towerAccepts C vf coefficient coefficient coefficient coefficient zeroth first second third
+    fourth fifth L commit value place quarter₂ quarter₃ quarter₄ quarter₅ quarter₆ commit₁ commit₂
+    commit₃ commit₄ commit₅ stateOf
+
+local notation "opening" =>
+  towerRoot coefficient coefficient coefficient coefficient accepts zeroth first second third
+    fourth fifth L m₂ m₃ m₄ m₅ m₆ (Compose.root C vf) (Compose.read C) commit value place
+
+local notation "whole" => Compose.chain C vf accepts opening key openKey mass Sum.inl
+
+local notation "towerError" =>
+  (1 / (Fintype.card K : ℝ) + (∑ b, Tier.chance zeroth b + List.sum (Tier.costs zeroth) +
+    (∑ b, Tier.chance first b + List.sum (Tier.costs first) +
+      (∑ b, Tier.chance second b + List.sum (Tier.costs second) +
+        (∑ b, Tier.chance third b + List.sum (Tier.costs third) +
+          (∑ b, Tier.chance fourth b + List.sum (Tier.costs fourth) +
+            (∑ b, Tier.chance fifth b + List.sum (Tier.costs fifth) +
+              Compression.Akita.Shape.blocks S₆ * slotChance (Terminal.decode L))))))))
+
+local notation "towerLoops" =>
+  (1 + (∑ g, Compression.Akita.Shape.blocks (Batch.shape B g) + 1 +
+    (Compression.Akita.Shape.blocks S₁ + 1 + (Compression.Akita.Shape.blocks S₂ + 1 +
+      (Compression.Akita.Shape.blocks S₃ + 1 + (Compression.Akita.Shape.blocks S₄ + 1 +
+        (Compression.Akita.Shape.blocks S₅ + 1 + Compression.Akita.Shape.blocks S₆)))))))
+
+local notation "towerTree" =>
+  (2 * (2 * (∑ g, Compression.Akita.Shape.blocks (Batch.shape B g) + 1) *
+    (2 * (Compression.Akita.Shape.blocks S₁ + 1) * (2 * (Compression.Akita.Shape.blocks S₂ + 1) *
+      (2 * (Compression.Akita.Shape.blocks S₃ + 1) *
+        (2 * (Compression.Akita.Shape.blocks S₄ + 1) *
+          (2 * (Compression.Akita.Shape.blocks S₅ + 1) *
+            (Compression.Akita.Shape.blocks S₆ + 1))))))))
+
+variable {peak : Fin 3 → ℕ} {peakL : ℕ}
+  (premises : Premises setup packageWidths) (laid : setup.Laid shape)
+  (lookupsFit : (setup.params shape).lookups ≤ Fintype.card Coord)
+  (challengesFit : 4 + ((setup.params shape).lookups + ((setup.params shape).claims +
+    (setup.params shape).claims + (setup.params shape).spanVars)) ≤ Fintype.card Coord)
+  (cube : CompressionFresh.oneShape.cubeVariables ≤ Fintype.card Coord)
+  (early : ∀ anchor g, g ≠ 2 → bound anchor g = bound (anchor.take 0) g)
+  (injective : Function.Injective block)
+  (units : ∀ g, UnitDifferences {challenge | ∃ slot, decode g slot = some challenge})
+  (sparse : ∀ g challenge, (∃ slot, decode g slot = some challenge) →
+    Sparse (mass g) (peak g) challenge)
+  (response : ∀ g, 2 ≤ (B.fold g).responseBase)
+  (uniform : ∀ g, (B.shape g).certifiedBase = base) (small : base < fieldModulus)
+  (varsFit : μ ≤ Fintype.card Coord) (batchFit : batch ≤ Fintype.card Coord)
+  (groupsFit : 3 ≤ Fintype.card Coord)
+  (sized₁ : LevelSized block₁ decode₁ weight₁ fold₁.responseBase S₁.certifiedBase μ₁ batch₁)
+  (sized₂ : LevelSized block₂ decode₂ weight₂ fold₂.responseBase S₂.certifiedBase μ₂ batch₂)
+  (sized₃ : LevelSized block₃ decode₃ weight₃ fold₃.responseBase S₃.certifiedBase μ₃ batch₃)
+  (sized₄ : LevelSized block₄ decode₄ weight₄ fold₄.responseBase S₄.certifiedBase μ₄ batch₄)
+  (sized₅ : LevelSized block₅ decode₅ weight₅ fold₅.responseBase S₅.certifiedBase μ₅ batch₅)
+  (inside : Terminal.start L < total)
+  (injectiveL : Function.Injective (Terminal.block L))
+  (unitsL : UnitDifferences (Terminal.family L))
+  (sparseL : ∀ challenge ∈ Terminal.family L, Sparse (Terminal.weight L) peakL challenge)
+
+include premises laid lookupsFit challengesFit cube early injective units sparse response
+  uniform small varsFit batchFit groupsFit sized₁ sized₂ sized₃ sized₄ sized₅ inside injectiveL
+  unitsL sparseL
+
+/-- The conditions `Compose.Sized` of the final verifier and the suffix of the opening with a
+batching root, a fold with three opening groups (`liftBatch`), a packing level (`liftFold` with
+the tensor reduction), four trace levels (`committedTrace` with the tensor reduction) and the
+terminal `L`, under the verifier `towerAccepts`: `compose_sized` and `liftTower_suffix`. The first
+group of hypotheses is that of `compose_sized`, and the others are those of `liftTower_suffix`
+on the parameters. `next`: the fold challenge of the terminal is the stage after the stages of
+the level 5. -/
+theorem tower_ready (next : Terminal.start L = Tier.finish fifth) :
+    Compose.Sized C vf ∧
+      Tier.Suffix accepts (Compose.root C vf)
+        (OpensAt (Compose.root C vf) commit value place key mass) opening towerError towerLoops
+        towerTree := by
+  refine ⟨compose_sized setup packageWidths step cap control shape read head bound premises laid
+    lookupsFit challengesFit cube groupsFit early ?_, ?_⟩
+  · have ends₀ := Tier.finish_eq zeroth
+    have ends₁ := Tier.finish_eq first
+    have ends₂ := Tier.finish_eq second
+    have ends₃ := Tier.finish_eq third
+    have ends₄ := Tier.finish_eq fourth
+    have ends₅ := Tier.finish_eq fifth
+    have starts₀ : Tier.start zeroth = Compose.root C vf + 1 := rfl
+    have starts₁ : Tier.start first = Tier.finish zeroth := rfl
+    have starts₂ : Tier.start second = Tier.finish first := rfl
+    have starts₃ : Tier.start third = Tier.finish second := rfl
+    have starts₄ : Tier.start fourth = Tier.finish third := rfl
+    have starts₅ : Tier.start fifth = Tier.finish fourth := rfl
+    omega
+  · exact liftTower_suffix injective units sparse response uniform small varsFit batchFit
+      groupsFit sized₁ sized₂ sized₃ sized₄ sized₅ next inside quarter₂ quarter₃ quarter₄ quarter₅
+      quarter₆ injectiveL unitsL sparseL commit₁ commit₂ commit₃ commit₄ commit₅ stateOf
+      (fun _ accepted => ⟨accepted.2.1, accepted.2.2.1⟩) (fun _ accepted => accepted.2.2.2.1)
+      (fun _ accepted => accepted.2.2.2.2.1) (fun _ accepted => accepted.2.2.2.2.2.1)
+      (fun _ accepted => accepted.2.2.2.2.2.2.1) (fun _ accepted => accepted.2.2.2.2.2.2.2.1)
+      (fun _ accepted => accepted.2.2.2.2.2.2.2.2.1)
+      (fun _ accepted => accepted.2.2.2.2.2.2.2.2.2)
+
+local notation "ready" next:max =>
+  tower_ready setup packageWidths step cap control shape read head bound
+    (quarter₂ := quarter₂) (quarter₃ := quarter₃) (quarter₄ := quarter₄) (quarter₅ := quarter₅)
+    (quarter₆ := quarter₆) (commit₁ := commit₁) (commit₂ := commit₂) (commit₃ := commit₃)
+    (commit₄ := commit₄) (commit₅ := commit₅) (stateOf := stateOf) (commit := commit)
+    (value := value) (place := place) premises laid lookupsFit challengesFit cube early injective
+    units sparse response uniform small varsFit batchFit groupsFit sized₁ sized₂ sized₃ sized₄
+    sized₅ inside injectiveL unitsL sparseL next
+
+variable (prover : OracleComp (Prefix Wire (Coord → K) total) (Coord → K) (ℕ → Wire))
+
+/-- `final_extract_sound` for the opening with the tower of `tower_ready` (Akita Theorem 10.17):
+an output of the extractor gives a proof with witnesses that `Verifies` accepts for the statement
+of the first message, or a solution of Module-SIS (`Solved`) for the key commitment, for a matrix
+of a group, of a level, or for `A_term`. The hypotheses are those of `tower_ready`, with
+`registered` and `covers` of `final_extract_sound`. -/
+theorem tower_extract_sound (next : Terminal.start L = Tier.finish fifth)
+    {honest : Certified (B.shape 0)} {factorBound sourceBound innerBound : ℕ}
+    (registered : ∀ anchor, honest.Opens factorBound sourceBound (key 0) (bound anchor 0)
+      (keyBase (setup.params shape)))
+    (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
+      innerBound)
+    (budget : ℕ) (table : Prefix Wire (Coord → K) total → Coord → K)
+    (tape : Tape (Prefix Wire (Coord → K) total) Coord K budget (Structure.protocol whole).stages)
+    (out : _) (result : Checkpoint.extract whole prover budget table tape = some out) :
+    accepts ((Structure.protocol whole).final prover table) ∧
+      (Proved setup packageWidths step cap control head
+          (((Structure.protocol whole).input prover table 0).wire 0) ∨
+        Solved opening key honest innerBound out) :=
+  final_extract_sound setup packageWidths step cap control shape read head bound Sum.inl prover
+    (ready next).1 (fun _ accepted => accepted.1) (fun _ found => found) (ready next).2
+    registered covers budget table tape out result
+
+variable [Finite Wire]
+
+/-- `final_extraction_le` for the opening with the tower of `tower_ready` (Akita Theorem 10.17):
+the verifier accepts and the extractor returns no output with probability at most
+`(Q + 1)·(runCost + ε) + (Q + 1)·(2 + loops)/budget`. `ε` is `1/|K|` for the weights of the
+batching root, `Σ_b p_b + Σ_j ε_j` for each level and `B_term·p_term` for the terminal (206), and
+`loops` is one for the root, `B_ℓ + 1` for each level and `B_term` for the terminal. -/
+theorem tower_extraction_le (next : Terminal.start L = Tier.finish fifth) {queries : ℕ}
+    (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget
+          (Structure.protocol whole).stages,
+        (if accepts ((Structure.protocol whole).final prover table) ∧
+          Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
+      (queries + 1) * (setup.runCost shape + towerError) +
+        (queries + 1) * (2 + towerLoops : ℕ) / budget :=
+  final_extraction_le setup packageWidths step cap control shape read head bound Sum.inl prover
+    (ready next).1 (fun _ accepted => accepted.1) (fun _ found => found) (ready next).2 bounded
+    positive
+
+/-- `final_runs_le` for the opening with the tower of `tower_ready`: the expected number of runs
+of the prover in the extraction is at most `K̂ + (Q + 1)·(K̂ − 1)` with `K̂ = 4·tree`, and `tree`
+is the product of 2 for the root, `2·(B_ℓ + 1)` for each level and `B_term + 1` for the
+terminal (Akita Theorem 10.17, the cost). -/
+theorem tower_runs_le (next : Terminal.start L = Tier.finish fifth) {queries : ℕ}
+    (bounded : prover.QueryBound queries) (budget : ℕ) :
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget
+          (Structure.protocol whole).stages,
+        (extractRuns whole prover budget table tape : ℝ) ≤
+      (4 * towerTree : ℕ) + (queries + 1) * ((4 * towerTree : ℕ) - 1) :=
+  final_runs_le setup packageWidths step cap control shape read head bound Sum.inl prover
+    (ready next).1 (fun _ accepted => accepted.1) (fun _ found => found) (ready next).2 bounded
+    budget
+
+/-- Soundness of the final verifier over the opening with the tower of `tower_ready`
+(`final_sound`). For each prover with at most `Q` queries to the oracle, the probability that the
+verifier `towerAccepts` accepts and no proof with witnesses satisfies `Verifies` for the statement
+of the first message is at most
+`(Q + 1)·(runCost + ε) + (Q + 1)·(2 + loops)/budget + breakChance`, with `ε` and `loops` of
+`tower_extraction_le`. `breakChance` is the probability that the extractor returns a solution of
+Module-SIS for the key commitment, for a matrix of a group, of a level, or for `A_term`. -/
+theorem tower_sound (next : Terminal.start L = Tier.finish fifth)
+    {honest : Certified (B.shape 0)} {factorBound sourceBound innerBound : ℕ}
+    (registered : ∀ anchor, honest.Opens factorBound sourceBound (key 0) (bound anchor 0)
+      (keyBase (setup.params shape)))
+    (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
+      innerBound)
+    {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
+    𝔼 table, 𝔼 _tape : Tape (Prefix Wire (Coord → K) total) Coord K budget
+          (Structure.protocol whole).stages,
+        (if accepts ((Structure.protocol whole).final prover table) ∧
+            ¬ Proved setup packageWidths step cap control head
+              (((Structure.protocol whole).input prover table 0).wire 0) then (1 : ℝ) else 0) ≤
+      (queries + 1) * (setup.runCost shape + towerError) +
+        (queries + 1) * (2 + towerLoops : ℕ) / budget +
+        breakChance setup packageWidths step cap control shape read head bound accepts opening
+          key openKey mass Sum.inl prover honest innerBound budget :=
+  final_sound setup packageWidths step cap control shape read head bound Sum.inl prover
+    (ready next).1 (fun _ accepted => accepted.1) (fun _ found => found) (ready next).2 registered
+    covers bounded positive
+
+end Tower
+
+section Mixed
+
+variable {S₁ : Compression.Akita.Shape} {O₁ : OpeningShape S₁} {fold₁ : Descriptor}
+  {S₂ : Compression.Akita.Shape} {O₂ : OpeningShape S₂} {fold₂ : Descriptor}
+  {S₃ : Compression.Akita.Shape} {O₃ : OpeningShape S₃} {fold₃ : Descriptor}
+  {S₄ : Compression.Akita.Shape} {O₄ : OpeningShape S₄} {fold₄ : Descriptor}
+  {S₅ : Compression.Akita.Shape} {O₅ : OpeningShape S₅} {fold₅ : Descriptor}
+  {S₆ : Compression.Akita.Shape}
+  {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq K} {key : (g : Fin 3) → Key (B.shape g)}
+  {openKey : B.OpenKey} {claim : Wire → B.Claim K} {μ : ℕ} {fits : B.cells < 2 ^ μ}
+  {base digits : ℕ} {room : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ}
+  {rowsFit : B.rowCount + 1 + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
+  {decode : (g : Fin 3) → K → Option (Rq (B.carrierDegree g))} {mass : Fin 3 → ℕ}
+  {β₁ : Module.Basis (Fin O₁.planes) Zq K} {key₁ : Key S₁} {openKey₁ : OpeningKey O₁}
+  {claim₁ : Wire → Claim O₁ K} {μ₁ : ℕ} {fits₁ : O₁.cells fold₁ < 2 ^ μ₁} {digits₁ : ℕ}
+  {room₁ : O₁.quotientRoom fold₁ digits₁ ≤ 2 ^ μ₁} {batch₁ : ℕ}
+  {rowsFit₁ : O₁.rowCount + 1 + 1 ≤ 2 ^ batch₁} {block₁ : Fin S₁.blocks → Coord}
+  {decode₁ : K → Option (Rq O₁.carrierDegree)} {weight₁ ν₁ : ℕ}
+  {key₂ : Key S₂} {openKey₂ : OpeningKey O₂} {claim₂ : Wire → TraceClaim O₂ K} {μ₂ : ℕ}
+  {fits₂ : O₂.cells fold₂ < 2 ^ μ₂} {batch₂ : ℕ}
+  {rowsFit₂ : O₂.traceRowCount + 1 + 1 ≤ 2 ^ batch₂} {block₂ : Fin S₂.blocks → Coord}
+  {decode₂ : K → Option (Rq S₂.innerDegree)} {weight₂ ν₂ m₂ : ℕ}
+  {key₃ : Key S₃} {openKey₃ : OpeningKey O₃} {claim₃ : Wire → TraceClaim O₃ K} {μ₃ : ℕ}
+  {fits₃ : O₃.cells fold₃ < 2 ^ μ₃} {batch₃ : ℕ}
+  {rowsFit₃ : O₃.traceRowCount + 1 + 1 ≤ 2 ^ batch₃} {block₃ : Fin S₃.blocks → Coord}
+  {decode₃ : K → Option (Rq S₃.innerDegree)} {weight₃ ν₃ m₃ : ℕ}
+  {key₄ : Key S₄} {openKey₄ : OpeningKey O₄} {claim₄ : Wire → TraceClaim O₄ K} {μ₄ : ℕ}
+  {fits₄ : O₄.cells fold₄ < 2 ^ μ₄} {batch₄ : ℕ}
+  {rowsFit₄ : O₄.traceRowCount + 1 + 1 ≤ 2 ^ batch₄} {block₄ : Fin S₄.blocks → Coord}
+  {decode₄ : K → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
+  {key₅ : Key S₅} {openKey₅ : OpeningKey O₅} {claim₅ : Wire → TraceClaim O₅ K} {μ₅ : ℕ}
+  {fits₅ : O₅.cells fold₅ < 2 ^ μ₅} {batch₅ : ℕ}
+  {rowsFit₅ : O₅.traceRowCount + 1 + 1 ≤ 2 ^ batch₅} {block₅ : Fin S₅.blocks → Coord}
+  {decode₅ : K → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
+  {operator₃ limit₃ vars₃ operator₄ limit₄ vars₄ operator₅ limit₅ vars₅ operatorL limitL : ℕ}
+  {L : Terminal S₆ K Wire Coord K total (.euclidean operatorL limitL)} {m₆ : ℕ}
+  {commit : Wire → (g : Fin 3) → (B.shape g).Payload} {value : Wire → Fin 3 → K}
+  {place : Wire → Fin 3 → List K} {quarter₂ : 4 * m₂ = S₂.innerDegree}
+  {quarter₃ : 4 * m₃ = S₃.innerDegree} {quarter₄ : 4 * m₄ = S₄.innerDegree}
+  {quarter₅ : 4 * m₅ = S₅.innerDegree} {quarter₆ : 4 * m₆ = S₆.innerDegree}
+  {commit₁ : Wire → S₁.Payload} {commit₂ : Wire → S₂.Payload} {commit₃ : Wire → S₃.Payload}
+  {commit₄ : Wire → S₄.Payload} {commit₅ : Wire → S₅.Payload}
+  {stateOf : Wire → Fin S₆.blocks → Fin S₆.innerRank → Rq S₆.innerDegree}
+
+local notation "C" => compose setup packageWidths step cap control shape read head bound
+
+local notation "vf" => FinalVerifier.Setup.verifier setup shape
+
+local notation "zeroth" =>
+  liftBatch β key openKey claim μ fits base digits room batch rowsFit block decode
+    (Compose.read C) mass (Compose.root C vf + 1)
+
+local notation "first" =>
+  Tier.tensored (liftFold β₁ key₁ openKey₁ claim₁ μ₁ fits₁ digits₁ room₁ batch₁ rowsFit₁ block₁
+    decode₁ (Compose.read C) weight₁ (Tier.finish zeroth)) ν₁
+
+local notation "second" =>
+  Tier.tensored (committedTrace (fold := fold₂) key₂ openKey₂ claim₂ μ₂ fits₂ batch₂ rowsFit₂
+    block₂ decode₂ (Compose.read C) weight₂ (Tier.finish first)) ν₂
+
+local notation "third" =>
+  Tier.tensored (committedTraceSq (fold := fold₃) key₃ openKey₃ claim₃ μ₃ fits₃ batch₃ rowsFit₃
+    vars₃ block₃ decode₃ (Compose.read C) weight₃ operator₃ limit₃ (Tier.finish second)) ν₃
+
+local notation "fourth" =>
+  Tier.tensored (committedTraceSq (fold := fold₄) key₄ openKey₄ claim₄ μ₄ fits₄ batch₄ rowsFit₄
+    vars₄ block₄ decode₄ (Compose.read C) weight₄ operator₄ limit₄ (Tier.finish third)) ν₄
+
+local notation "fifth" =>
+  Tier.tensored (committedTraceSq (fold := fold₅) key₅ openKey₅ claim₅ μ₅ fits₅ batch₅ rowsFit₅
+    vars₅ block₅ decode₅ (Compose.read C) weight₅ operator₅ limit₅ (Tier.finish fourth)) ν₅
+
+local notation "accepts" =>
+  towerAccepts (weight₃ := weight₃) (weight₄ := weight₄) (weight₅ := weight₅) C vf
+    Route.coefficient (Route.euclidean operator₃ limit₃) (Route.euclidean operator₄ limit₄)
+    (Route.euclidean operator₅ limit₅) zeroth first second third fourth fifth L commit value place
+    quarter₂ quarter₃ quarter₄ quarter₅ quarter₆ commit₁ commit₂ commit₃ commit₄ commit₅ stateOf
+
+local notation "opening" =>
+  towerRoot (weight₃ := weight₃) (weight₄ := weight₄) (weight₅ := weight₅) Route.coefficient
+    (Route.euclidean operator₃ limit₃) (Route.euclidean operator₄ limit₄)
+    (Route.euclidean operator₅ limit₅) accepts zeroth first second third fourth fifth L m₂ m₃ m₄
+    m₅ m₆ (Compose.root C vf) (Compose.read C) commit value place
+
+local notation "whole" => Compose.chain C vf accepts opening key openKey mass Sum.inl
+
+local notation "towerError" =>
+  (1 / (Fintype.card K : ℝ) + (∑ b, Tier.chance zeroth b + List.sum (Tier.costs zeroth) +
+    (∑ b, Tier.chance first b + List.sum (Tier.costs first) +
+      (∑ b, Tier.chance second b + List.sum (Tier.costs second) +
+        (∑ b, Tier.chance third b + List.sum (Tier.costs third) +
+          (∑ b, Tier.chance fourth b + List.sum (Tier.costs fourth) +
+            (∑ b, Tier.chance fifth b + List.sum (Tier.costs fifth) +
+              Compression.Akita.Shape.blocks S₆ * slotChance (Terminal.decode L))))))))
+
+local notation "towerLoops" =>
+  (1 + (∑ g, Compression.Akita.Shape.blocks (Batch.shape B g) + 1 +
+    (Compression.Akita.Shape.blocks S₁ + 1 + (Compression.Akita.Shape.blocks S₂ + 1 +
+      (Compression.Akita.Shape.blocks S₃ + 1 + (Compression.Akita.Shape.blocks S₄ + 1 +
+        (Compression.Akita.Shape.blocks S₅ + 1 + Compression.Akita.Shape.blocks S₆)))))))
+
+local notation "towerTree" =>
+  (2 * (2 * (∑ g, Compression.Akita.Shape.blocks (Batch.shape B g) + 1) *
+    (2 * (Compression.Akita.Shape.blocks S₁ + 1) * (2 * (Compression.Akita.Shape.blocks S₂ + 1) *
+      (2 * (Compression.Akita.Shape.blocks S₃ + 1) *
+        (2 * (Compression.Akita.Shape.blocks S₄ + 1) *
+          (2 * (Compression.Akita.Shape.blocks S₅ + 1) *
+            (Compression.Akita.Shape.blocks S₆ + 1))))))))
+
+variable {peak : Fin 3 → ℕ}
+  (premises : Premises setup packageWidths) (laid : setup.Laid shape)
+  (lookupsFit : (setup.params shape).lookups ≤ Fintype.card Coord)
+  (challengesFit : 4 + ((setup.params shape).lookups + ((setup.params shape).claims +
+    (setup.params shape).claims + (setup.params shape).spanVars)) ≤ Fintype.card Coord)
+  (cube : CompressionFresh.oneShape.cubeVariables ≤ Fintype.card Coord)
+  (early : ∀ anchor g, g ≠ 2 → bound anchor g = bound (anchor.take 0) g)
+  (injective : Function.Injective block)
+  (units : ∀ g, UnitDifferences {challenge | ∃ slot, decode g slot = some challenge})
+  (sparse : ∀ g challenge, (∃ slot, decode g slot = some challenge) →
+    Sparse (mass g) (peak g) challenge)
+  (response : ∀ g, 2 ≤ (B.fold g).responseBase)
+  (uniform : ∀ g, (B.shape g).certifiedBase = base) (small : base < fieldModulus)
+  (varsFit : μ ≤ Fintype.card Coord) (batchFit : batch ≤ Fintype.card Coord)
+  (groupsFit : 3 ≤ Fintype.card Coord)
+  (sized₁ : LevelSized block₁ decode₁ weight₁ fold₁.responseBase S₁.certifiedBase μ₁ batch₁)
+  (sized₂ : LevelSized block₂ decode₂ weight₂ fold₂.responseBase S₂.certifiedBase μ₂ batch₂)
+  (sized₃ : LevelSized block₃ decode₃ weight₃ fold₃.responseBase S₃.certifiedBase μ₃ batch₃)
+  (sized₄ : LevelSized block₄ decode₄ weight₄ fold₄.responseBase S₄.certifiedBase μ₄ batch₄)
+  (sized₅ : LevelSized block₅ decode₅ weight₅ fold₅.responseBase S₅.certifiedBase μ₅ batch₅)
+  (normed₃ : NormSized S₃ fold₃ decode₃ operator₃ limit₃ vars₃)
+  (normed₄ : NormSized S₄ fold₄ decode₄ operator₄ limit₄ vars₄)
+  (normed₅ : NormSized S₅ fold₅ decode₅ operator₅ limit₅ vars₅)
+  (inside : Terminal.start L < total)
+  (injectiveL : Function.Injective (Terminal.block L))
+  (unitsL : UnitDifferences (Terminal.family L))
+  (boundedL : ∀ challenge ∈ Terminal.family L, MulBound operatorL challenge)
+
+include premises laid lookupsFit challengesFit cube early injective units sparse response
+  uniform small varsFit batchFit groupsFit sized₁ sized₂ sized₃ sized₄ sized₅ normed₃ normed₄
+  normed₅ inside injectiveL unitsL boundedL
+
+/-- `tower_ready` for the schedule with the Euclidean route at the levels 3 to 5 and at the
+terminal (Akita Section 6.2 and Corollary 10.35 (ii)): the conditions `Compose.Sized` of the final
+verifier and the suffix of the opening with a batching root, `liftBatch`, `liftFold` and
+`committedTrace` with the tensor reduction, three levels `committedTraceSq` with the tensor
+reduction and the terminal `L` on the Euclidean route, under the verifier `towerAccepts` with
+these routes: `compose_sized` and `mixedTower_suffix`. `normed₃` to `normed₅` and `boundedL` are
+the hypotheses of `mixedTower_suffix` on the Euclidean route. `next`: the fold challenge of the
+terminal is the stage after the stages of the level 5. -/
+theorem mixed_ready (next : Terminal.start L = Tier.finish fifth) :
+    Compose.Sized C vf ∧
+      Tier.Suffix accepts (Compose.root C vf)
+        (OpensAt (Compose.root C vf) commit value place key mass) opening towerError towerLoops
+        towerTree := by
+  refine ⟨compose_sized setup packageWidths step cap control shape read head bound premises laid
+    lookupsFit challengesFit cube groupsFit early ?_, ?_⟩
+  · have ends₀ := Tier.finish_eq zeroth
+    have ends₁ := Tier.finish_eq first
+    have ends₂ := Tier.finish_eq second
+    have ends₃ := Tier.finish_eq third
+    have ends₄ := Tier.finish_eq fourth
+    have ends₅ := Tier.finish_eq fifth
+    have starts₀ : Tier.start zeroth = Compose.root C vf + 1 := rfl
+    have starts₁ : Tier.start first = Tier.finish zeroth := rfl
+    have starts₂ : Tier.start second = Tier.finish first := rfl
+    have starts₃ : Tier.start third = Tier.finish second := rfl
+    have starts₄ : Tier.start fourth = Tier.finish third := rfl
+    have starts₅ : Tier.start fifth = Tier.finish fourth := rfl
+    omega
+  · exact mixedTower_suffix injective units sparse response uniform small varsFit batchFit
+      groupsFit sized₁ sized₂ sized₃ sized₄ sized₅ normed₃ normed₄ normed₅ next inside quarter₂
+      quarter₃ quarter₄ quarter₅ quarter₆ injectiveL unitsL boundedL commit₁ commit₂ commit₃
+      commit₄ commit₅ stateOf
+      (fun _ accepted => ⟨accepted.2.1, accepted.2.2.1⟩) (fun _ accepted => accepted.2.2.2.1)
+      (fun _ accepted => accepted.2.2.2.2.1) (fun _ accepted => accepted.2.2.2.2.2.1)
+      (fun _ accepted => accepted.2.2.2.2.2.2.1) (fun _ accepted => accepted.2.2.2.2.2.2.2.1)
+      (fun _ accepted => accepted.2.2.2.2.2.2.2.2.1)
+      (fun _ accepted => accepted.2.2.2.2.2.2.2.2.2)
+
+local notation "ready" next:max =>
+  mixed_ready setup packageWidths step cap control shape read head bound
+    (quarter₂ := quarter₂) (quarter₃ := quarter₃) (quarter₄ := quarter₄) (quarter₅ := quarter₅)
+    (quarter₆ := quarter₆) (commit₁ := commit₁) (commit₂ := commit₂) (commit₃ := commit₃)
+    (commit₄ := commit₄) (commit₅ := commit₅) (stateOf := stateOf) (commit := commit)
+    (value := value) (place := place) premises laid lookupsFit challengesFit cube early injective
+    units sparse response uniform small varsFit batchFit groupsFit sized₁ sized₂ sized₃ sized₄
+    sized₅ normed₃ normed₄ normed₅ inside injectiveL unitsL boundedL next
+
+variable (prover : OracleComp (Prefix Wire (Coord → K) total) (Coord → K) (ℕ → Wire))
+
+/-- `final_extract_sound` for the opening with the tower of `mixed_ready` (Akita Theorem 10.17):
+an output of the extractor gives a proof with witnesses that `Verifies` accepts for the statement
+of the first message, or a solution of Module-SIS (`Solved`) for the key commitment, for a matrix
+of a group, of a level, or for `A_term`. A solution for `A` at the levels 3 to 5 and for `A_term`
+is in the Euclidean norm. The hypotheses are those of `mixed_ready`, with `registered` and
+`covers` of `final_extract_sound`. -/
+theorem mixed_extract_sound (next : Terminal.start L = Tier.finish fifth)
+    {honest : Certified (B.shape 0)} {factorBound sourceBound innerBound : ℕ}
+    (registered : ∀ anchor, honest.Opens factorBound sourceBound (key 0) (bound anchor 0)
+      (keyBase (setup.params shape)))
+    (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
+      innerBound)
+    (budget : ℕ) (table : Prefix Wire (Coord → K) total → Coord → K)
+    (tape : Tape (Prefix Wire (Coord → K) total) Coord K budget (Structure.protocol whole).stages)
+    (out : _) (result : Checkpoint.extract whole prover budget table tape = some out) :
+    accepts ((Structure.protocol whole).final prover table) ∧
+      (Proved setup packageWidths step cap control head
+          (((Structure.protocol whole).input prover table 0).wire 0) ∨
+        Solved opening key honest innerBound out) :=
+  final_extract_sound setup packageWidths step cap control shape read head bound Sum.inl prover
+    (ready next).1 (fun _ accepted => accepted.1) (fun _ found => found) (ready next).2
+    registered covers budget table tape out result
+
+variable [Finite Wire]
+
+/-- `final_extraction_le` for the opening with the tower of `mixed_ready` (Akita Theorem 10.17):
+the verifier accepts and the extractor returns no output with probability at most
+`(Q + 1)·(runCost + ε) + (Q + 1)·(2 + loops)/budget`. `ε` is `1/|K|` for the weights of the
+batching root, `Σ_b p_b + Σ_j ε_j` for each level and `B_term·p_term` for the terminal (206), and
+`loops` is one for the root, `B_ℓ + 1` for each level and `B_term` for the terminal. The `ε_j` of
+the levels 3 to 5 include the bounds `normCosts` of the direct norm check. -/
+theorem mixed_extraction_le (next : Terminal.start L = Tier.finish fifth) {queries : ℕ}
+    (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget
+          (Structure.protocol whole).stages,
+        (if accepts ((Structure.protocol whole).final prover table) ∧
+          Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
+      (queries + 1) * (setup.runCost shape + towerError) +
+        (queries + 1) * (2 + towerLoops : ℕ) / budget :=
+  final_extraction_le setup packageWidths step cap control shape read head bound Sum.inl prover
+    (ready next).1 (fun _ accepted => accepted.1) (fun _ found => found) (ready next).2 bounded
+    positive
+
+/-- `final_runs_le` for the opening with the tower of `mixed_ready`: the expected number of runs
+of the prover in the extraction is at most `K̂ + (Q + 1)·(K̂ − 1)` with `K̂ = 4·tree`, and `tree`
+is the product of 2 for the root, `2·(B_ℓ + 1)` for each level and `B_term + 1` for the
+terminal (Akita Theorem 10.17, the cost). -/
+theorem mixed_runs_le (next : Terminal.start L = Tier.finish fifth) {queries : ℕ}
+    (bounded : prover.QueryBound queries) (budget : ℕ) :
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget
+          (Structure.protocol whole).stages,
+        (extractRuns whole prover budget table tape : ℝ) ≤
+      (4 * towerTree : ℕ) + (queries + 1) * ((4 * towerTree : ℕ) - 1) :=
+  final_runs_le setup packageWidths step cap control shape read head bound Sum.inl prover
+    (ready next).1 (fun _ accepted => accepted.1) (fun _ found => found) (ready next).2 bounded
+    budget
+
+/-- Soundness of the final verifier over the opening with the tower of `mixed_ready`
+(`final_sound`). For each prover with at most `Q` queries to the oracle, the probability that the
+verifier `towerAccepts` accepts and no proof with witnesses satisfies `Verifies` for the statement
+of the first message is at most
+`(Q + 1)·(runCost + ε) + (Q + 1)·(2 + loops)/budget + breakChance`, with `ε` and `loops` of
+`mixed_extraction_le`. `breakChance` is the probability that the extractor returns a solution of
+Module-SIS for the key commitment, for a matrix of a group, of a level, or for `A_term`. -/
+theorem mixed_sound (next : Terminal.start L = Tier.finish fifth)
+    {honest : Certified (B.shape 0)} {factorBound sourceBound innerBound : ℕ}
+    (registered : ∀ anchor, honest.Opens factorBound sourceBound (key 0) (bound anchor 0)
+      (keyBase (setup.params shape)))
+    (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
+      innerBound)
+    {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
+    𝔼 table, 𝔼 _tape : Tape (Prefix Wire (Coord → K) total) Coord K budget
+          (Structure.protocol whole).stages,
+        (if accepts ((Structure.protocol whole).final prover table) ∧
+            ¬ Proved setup packageWidths step cap control head
+              (((Structure.protocol whole).input prover table 0).wire 0) then (1 : ℝ) else 0) ≤
+      (queries + 1) * (setup.runCost shape + towerError) +
+        (queries + 1) * (2 + towerLoops : ℕ) / budget +
+        breakChance setup packageWidths step cap control shape read head bound accepts opening
+          key openKey mass Sum.inl prover honest innerBound budget :=
+  final_sound setup packageWidths step cap control shape read head bound Sum.inl prover
+    (ready next).1 (fun _ accepted => accepted.1) (fun _ found => found) (ready next).2 registered
+    covers bounded positive
+
+end Mixed
 
 end NightstreamFPrime.Export.BoundedDepth.FinalAkita

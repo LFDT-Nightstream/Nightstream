@@ -25,7 +25,7 @@ the receiver has.
 - `Tier.TraceLinked` and `Terminal.Linked` are the links that the verifier makes from a level to
   a next trace level and to the terminal. `Tier.suffix_push_trace` and `Terminal.suffix_linked`
   are the suffix of the level over the receiver. The successor source of the level is
-  `flatten (unpackTable …)` of the table of the receiver, and the condition of Akita
+  `flatten (E := E) (unpackTable …)` of the table of the receiver, and the condition of Akita
   Lemma 10.42 (ii) is a theorem. -/
 
 set_option autoImplicit false
@@ -41,29 +41,33 @@ local instance : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_nat
 
 attribute [local instance low] Classical.propDecidable
 
+variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
+
 section Reduction
 
 /-- The bounds of the draws of `tensorCheck` with `ν` tail variables: `η`, and the rounds of the
 sum-check of degree 2 (Akita Theorem 5.1 for one claim and `κ = 1`). -/
-noncomputable def tensorCosts (ν : ℕ) : List ℝ :=
-  (((1 : ℕ) : ℝ) / Fintype.card Quadratic) ::
-    List.replicate ν (((2 : ℕ) : ℝ) / Fintype.card Quadratic)
+noncomputable def tensorCosts (E : Type) [Fintype E] (ν : ℕ) : List ℝ :=
+  (((1 : ℕ) : ℝ) / Fintype.card E) ::
+    List.replicate ν (((2 : ℕ) : ℝ) / Fintype.card E)
 
+omit [Field E] [DecidableEq E] [Algebra Zq E] [Degree2 E] in
 /-- The sum of the bounds of the draws is `(κ + 2·m_max)/|E|` of Akita Theorem 5.1, item 1, for
 one claim and `κ = 1`. -/
 theorem tensorCosts_sum (ν : ℕ) :
-    (tensorCosts ν).sum = ((1 + 2 * ν : ℕ) : ℝ) / Fintype.card Quadratic := by
+    (tensorCosts E ν).sum = ((1 + 2 * ν : ℕ) : ℝ) / Fintype.card E := by
   simp only [tensorCosts, List.sum_cons, List.sum_replicate, nsmul_eq_mul]
   push_cast
   ring
 
-theorem tensorCosts_nonnegative (ν : ℕ) : ∀ cost ∈ tensorCosts ν, 0 ≤ cost := by
+omit [DecidableEq E] [Algebra Zq E] [Degree2 E] in
+theorem tensorCosts_nonnegative (ν : ℕ) : ∀ cost ∈ tensorCosts E ν, 0 ≤ cost := by
   intro cost member
   simp only [tensorCosts, List.mem_cons, List.mem_replicate] at member
   rcases member with rfl | ⟨_, rfl⟩ <;> positivity
 
 /-- The verifier of the tensor reduction is the same for each table. -/
-theorem tensorCheck_bare (ν : ℕ) (w other : Table) (r : List Quadratic) (v : Quadratic) :
+theorem tensorCheck_bare (ν : ℕ) (w other : Table) (r : List E) (v : E) :
     bare (tensorCheck ν w r v) = bare (tensorCheck ν other r v) := by
   rcases r with _ | ⟨head, tail⟩
   · rfl
@@ -80,9 +84,9 @@ theorem tensorCheck_bare (ν : ℕ) (w other : Table) (r : List Quadratic) (v : 
 /-- Each draw of `tensorCheck` has its bound of `tensorCosts`, when an answer of the oracle has a
 slot. -/
 theorem tensorCheck_staged {Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
-    (ν : ℕ) (w : Table) (r : List Quadratic) (v : Quadratic) :
-    Staged (Coord → Quadratic) (tensorCheck ν w r v) (tensorCosts ν) := by
-  have field : ∃ decode : (Coord → Quadratic) → Quadratic, Fair decode := exists_fair_slot
+    (ν : ℕ) (w : Table) (r : List E) (v : E) :
+    Staged (Coord → E) (tensorCheck ν w r v) (tensorCosts E ν) := by
+  have field : ∃ decode : (Coord → E) → E, Fair decode := exists_fair_slot
   rcases r with _ | ⟨head, tail⟩
   · trivial
   change StagedTo _ (ite (tail.length = ν) _ _) _ _
@@ -96,9 +100,9 @@ theorem tensorCheck_staged {Coord : Type} [Fintype Coord] [DecidableEq Coord] [N
   · trivial
   refine stagedTo_draw field (density_le _ 1
     (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) fun η => ?_
-  have rounds := sumcheck_staged (Reply := Coord → Quadratic) field 2 ν _
+  have rounds := sumcheck_staged (Reply := Coord → E) field 2 ν _
     (combRound_truth ν 2 (tensorTables w tail η) productComb productComb_degree).degree []
-    (fun result rest => StagedTo (Coord → Quadratic) (match result with
+    (fun result rest => StagedTo (Coord → E) (match result with
       | none => Game.pure none
       | some (ρ, final) => Game.pure (some (ρ, mle ρ (tensorWeight tail η), final))) rest
         fun _ _ => True)
@@ -120,10 +124,10 @@ after the draws of the checks. A final claim `(ρ, θ, ṽ)` is true for a table
 the point `r_2` has `ν + 1` coordinates. -/
 noncomputable def Tier.tensored
     (T : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord
-      Quadratic (Option (List Quadratic × Quadratic))
+      E (Option (List E × E))
       Table) (ν : ℕ) :
-    Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord Quadratic
-      (Option (List Quadratic × Quadratic × Quadratic)) Table where
+    Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord E
+      (Option (List E × E × E)) Table where
   method := T.method
   claim := T.claim
   block := T.block
@@ -134,12 +138,12 @@ noncomputable def Tier.tensored
     | none => .pure none
     | some (r2, v) => tensorCheck ν table r2 v
   passes table result := ∃ ρ θ v, result = some (ρ, θ, v) ∧ v = θ * mle ρ (packed table)
-  costs := T.costs ++ tensorCosts ν
+  costs := T.costs ++ tensorCosts E ν
   start := T.start
 
 variable [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
-  {T : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord Quadratic
-    (Option (List Quadratic × Quadratic)) Table}
+  {T : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord E
+    (Option (List E × E)) Table}
   {ν : ℕ}
 
 /-- A level with the tensor reduction satisfies the conditions of `Tier.Valid`: the soundness of
@@ -147,12 +151,12 @@ its checks is that of the checks of the level with `tensorCheck_avoids`. `passes
 `(r_2, v_W)` of the level is true for a table `w` when `v_W = w̃(r_2)`. `staged`: each draw of the
 checks of the level has its bound, for a game that continues after an accepted end. -/
 theorem Tier.tensored_valid (valid : T.Valid)
-    (passes : ∀ (table : Table) r2 v, v = mle r2 (lifted Quadratic table) →
+    (passes : ∀ (table : Table) r2 v, v = mle r2 (lifted E table) →
       T.passes table (some (r2, v)))
     (staged : ∀ wire challenge table (rest : List ℝ)
-      (tail : Option (List Quadratic × Quadratic) → List ℝ → Prop),
+      (tail : Option (List E × E) → List ℝ → Prop),
       (∀ costs, tail none costs) → (∀ final, tail (some final) rest) →
-      StagedTo (Coord → Quadratic) (T.check wire challenge table) (T.costs ++ rest) tail) :
+      StagedTo (Coord → E) (T.check wire challenge table) (T.costs ++ rest) tail) :
     (T.tensored ν).Valid where
   injective := valid.injective
   merges := valid.merges
@@ -164,10 +168,11 @@ theorem Tier.tensored_valid (valid : T.Valid)
       · exact (tensorCheck_avoids ν table r2 v).mono fun _ opened ⟨ρ, θ, value, ended, opening⟩ =>
           implies (passes table r2 v (opened ρ θ value ended opening)))
   staged wire challenge table :=
-    (stagedTo_bind _ _ _ _).mpr (staged wire challenge table (tensorCosts ν) _
+    (stagedTo_bind _ _ _ _).mpr (staged wire challenge table (tensorCosts E ν) _
       (fun _ => trivial) fun final => tensorCheck_staged ν table final.1 final.2)
   nonnegative cost member :=
-    (List.mem_append.mp member).elim (valid.nonnegative cost) (tensorCosts_nonnegative ν cost)
+    (List.mem_append.mp member).elim (valid.nonnegative cost)
+      (tensorCosts_nonnegative (E := E) ν cost)
   draws := List.append_ne_nil_of_left_ne_nil valid.draws _
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
@@ -194,8 +199,8 @@ the factor `θ` and the value `ṽ` of the tensor reduction: the embedding of th
 Akita Section 3.1, the weights `χ_blk(i) = ẽq(ρ_blk, i)` of (95) and `a_x = ẽq(ρ_pos, x)` of (66),
 and the functional `T_{ρ_pack}` of (97). -/
 noncomputable def TraceClaim.ofPoint (quarter : 4 * m = S.innerDegree) (payload : S.Payload)
-    (openPayload : O.Payload) (block position pack : List Quadratic) (θ v : Quadratic) :
-    TraceClaim O Quadratic :=
+    (openPayload : O.Payload) (block position pack : List E) (θ v : E) :
+    TraceClaim O E :=
   ⟨payload, openPayload, (Akita.subfield quarter).toRingHom, fun i => eqAt block i,
     fun x => eqAt position x, packFunctional quarter (eqAt pack), θ, v⟩
 
@@ -205,15 +210,16 @@ noncomputable def TerminalStatement.ofPoint (quarter : 4 * m = S.innerDegree)
     (matrix : Matrix (Fin S.innerRank) (Fin S.blockLength × Fin S.sourceDigits)
       (Rq S.innerDegree))
     (state : Fin S.blocks → Fin S.innerRank → Rq S.innerDegree)
-    (block position pack : List Quadratic) (θ v : Quadratic) : TerminalStatement S Quadratic :=
+    (block position pack : List E) (θ v : E) : TerminalStatement S E :=
   ⟨matrix, state, (Akita.subfield quarter).toRingHom, fun i => eqAt block i,
     fun x => eqAt position x, packFunctional quarter (eqAt pack), θ, v⟩
 
+omit [Fintype E] [DecidableEq E] in
 /-- The scalar row (101) of a weak opening of a trace claim is the claim of the tensor reduction
 for the table of its source blocks: `θ·f̄(ρ) = ṽ`, for the packed polynomial
 `f̄ = unpackTable` of this table (Akita (98), with `traceScalar_eq_mle`). -/
 theorem traceOpens_evaluation {quarter : 4 * m = S.innerDegree} {payload : S.Payload}
-    {openPayload : O.Payload} {block position pack : List Quadratic} {θ v : Quadratic}
+    {openPayload : O.Payload} {block position pack : List E} {θ v : E}
     {key : Key S} {openKey : OpeningKey O} {factorBound sourceBound : ℕ} {table : Table}
     {ω : Weak O}
     (opens : ω.TraceOpens factorBound sourceBound
@@ -237,14 +243,9 @@ section Receiver
 
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' : OpeningShape S'}
   {fold' : Descriptor} {Ring Stmt Brk Wire Coord Slot Result' Source' : Type} [Zero Ring]
-  {key' : Key S'} {openKey' : OpeningKey O'} {weight' : ℕ}
   (T : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord Slot
-    (Option (List Quadratic × Quadratic × Quadratic))
+    (Option (List E × E × E))
     Table)
-  (N : Tier (Fin S'.blocks) (fun _ => Rq S'.innerDegree) (TraceClaim O' Quadratic)
-    (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
-    (Weak O') Wire Coord Slot Result'
-    Source')
   {total : ℕ} [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
   {Inner BreakT CandT KeyT : Type} {m : ℕ}
 
@@ -254,7 +255,10 @@ decodes, and the checks of `T` with the tensor reduction end in a claim `(ρ, θ
 `N` is `TraceClaim.ofPoint` for the commitment `commit` of the message after the fold challenge
 of `T`, the point `ρ` with the segments `(ρ_pack, ρ_pos, ρ_blk)` of the lengths of the shape of
 `N`, the factor `θ` and the value `ṽ`. -/
-def Tier.TraceLinked (quarter : 4 * m = S'.innerDegree) (commit : Wire → S'.Payload)
+def Tier.TraceLinked {Brk' : Type}
+    (N : Tier (Fin S'.blocks) (fun _ => Rq S'.innerDegree) (TraceClaim O' E) Brk'
+      (Witness O' fold') (Weak O') Wire Coord Slot Result' Source')
+    (quarter : 4 * m = S'.innerDegree) (commit : Wire → S'.Payload)
     (point : Prefix Wire (Coord → Slot) total) : Prop :=
   T.finish ≤ point.rest.length ∧ T.Decodes point ∧
     ∃ block position pack θ v openPayload,
@@ -264,11 +268,17 @@ def Tier.TraceLinked (quarter : 4 * m = S'.innerDegree) (commit : Wire → S'.Pa
       N.claim (point.wire N.start) = TraceClaim.ofPoint quarter
         (commit (point.wire (T.start + 1))) openPayload block position pack θ v
 
-variable {T N} {accept : Prefix Wire (Coord → Slot) total → Prop}
+variable {key' : Key S'} {openKey' : OpeningKey O'} {weight' : ℕ}
+  {N : Tier (Fin S'.blocks) (fun _ => Rq S'.innerDegree) (TraceClaim O' E)
+    (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
+    (Weak O') Wire Coord Slot Result' Source'}
+
+variable {T} {accept : Prefix Wire (Coord → Slot) total → Prop}
   {tail : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
     KeyT (Option (Weak O'))}
   {error : ℝ} {loops tree : ℕ}
 
+omit [Fintype E] [DecidableEq E] in
 /-- `Tier.suffix_committed` for a next level `N` with evaluation trace (Akita Proposition 10.44
 for one more level). The successor source of the level is the table of `Z_q` of the packed
 polynomial `ψ^{-1}` of the table of a weak opening of `N`. The final claim of the level is true
@@ -289,7 +299,8 @@ theorem Tier.suffix_push_trace (valid : T.Valid)
     (later : Tier.Suffix accept N.start N.Opens tail error loops tree) :
     Tier.Suffix accept T.start T.Opens
       (T.over accept tail
-        (fun inner => flatten (unpackTable S'.innerDegree m (tableOf (tail.witness inner))))
+        (fun inner =>
+          flatten (E := E) (unpackTable S'.innerDegree m (tableOf (tail.witness inner))))
         (fun inner other => embed (Tier.collide key' openKey'
           (2 * (2 * weight') * fold'.sourceBound S') (tail.witness inner) (tail.witness other))))
       (∑ b, T.chance b + T.costs.sum + error) (S.blocks + 1 + loops)
@@ -297,7 +308,7 @@ theorem Tier.suffix_push_trace (valid : T.Valid)
   refine Tier.suffix_committed (Fintype.card_fin _) (factorBound := 2 * weight')
     (sourceBound := fold'.sourceBound S') valid next commit fits
     (fun point accepted => (linked point accepted).2.1) key' openKey' (le_of_eq (by ring))
-    (fun table => flatten (unpackTable S'.innerDegree m table)) ?_ ?_ embed embedded later
+    (fun table => flatten (E := E) (unpackTable S'.innerDegree m table)) ?_ ?_ embed embedded later
   · rintro point ω accepted ⟨_, same, opens⟩
     obtain rfl := Option.some.inj same
     rw [traced] at opens
@@ -327,9 +338,9 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape}
   {Ring Stmt Brk Wire Coord Slot : Type} [Zero Ring] {total : ℕ} [Fintype Slot] [Nonempty Slot]
   [Fintype Coord] [DecidableEq Coord]
   (T : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord Slot
-    (Option (List Quadratic × Quadratic × Quadratic))
+    (Option (List E × E × E))
     Table)
-  (L : Terminal S' Quadratic Wire Coord Slot total) {m : ℕ}
+  {route : Route} (L : Terminal S' E Wire Coord Slot total route) {m : ℕ}
 
 /-- The link of the verifier from the level `T` to the terminal (Akita Section 8.2): the
 transcript has the stages of `T`, each fold challenge decodes, and the checks of `T` with the
@@ -350,17 +361,18 @@ def Linked (quarter : 4 * m = S'.innerDegree)
 
 variable {T L} {accept : Prefix Wire (Coord → Slot) total → Prop}
 
+omit [Fintype E] [DecidableEq E] in
 /-- `Terminal.suffix_after` for a terminal with the link `Terminal.Linked` (Akita
 Proposition 10.44 for the last nonterminal level). The successor source of the level is the table
 of `Z_q` of the packed polynomial `ψ^{-1}` of the table of the source blocks of a certificate of
 the terminal. The final claim of the level is true for it by the row (130) of the certificate
 (`Terminal.Sourced.source` with `traceScalar_eq_mle`), which is Akita Lemma 10.42 (ii). Two
 accepting transcripts with one stage input of the checkpoint have one state `(t_i)_i`, because the
-message after the fold challenge of the level has this state. `uniform`, `passes` and `linked` are
-as in `Tier.suffix_push_trace`. -/
+message after the fold challenge of the level has this state. `units` and `challenges` are as in
+`Terminal.suffix_after`, for the route of the terminal. `uniform`, `passes` and `linked` are as in
+`Tier.suffix_push_trace`. -/
 theorem suffix_linked (valid : T.Valid) (terminal : L.Valid accept) (next : L.start = T.finish)
-    {peak : ℕ} (units : UnitDifferences L.family)
-    (sparse : ∀ challenge ∈ L.family, Sparse L.weight peak challenge)
+    (units : UnitDifferences L.family) (challenges : route.Challenges L.weight L.family)
     (quarter : 4 * m = S'.innerDegree)
     (stateOf : Wire → Fin S'.blocks → Fin S'.innerRank → Rq S'.innerDegree)
     (uniform : ∀ wire challenge table other,
@@ -370,14 +382,14 @@ theorem suffix_linked (valid : T.Valid) (terminal : L.Valid accept) (next : L.st
     (linked : ∀ point, accept point → Linked T L quarter stateOf point) :
     Tier.Suffix accept T.start T.Opens
       (T.over accept (L.body accept)
-        (fun inner => flatten (unpackTable S'.innerDegree m
+        (fun inner => flatten (E := E) (unpackTable S'.innerDegree m
           (S'.decode (blocksOf ((L.body accept).witness inner)))))
         (fun inner other =>
           L.collide ((L.body accept).witness inner) ((L.body accept).witness other)))
       (∑ b, T.chance b + T.costs.sum + S'.blocks * slotChance L.decode)
       (S.blocks + 1 + S'.blocks) (2 * (S.blocks + 1) * (S'.blocks + 1)) := by
-  refine suffix_after valid terminal next units sparse
-    (fun source => flatten (unpackTable S'.innerDegree m (S'.decode source))) ?_
+  refine suffix_after valid terminal next units challenges
+    (fun source => flatten (E := E) (unpackTable S'.innerDegree m (S'.decode source))) ?_
     (fun point accepted => (linked point accepted).2.1) ?_
   · intro point other accepted accepted' same
     obtain ⟨_, _, _, _, _, _, _, _, _, _, _, claimed⟩ := linked point accepted

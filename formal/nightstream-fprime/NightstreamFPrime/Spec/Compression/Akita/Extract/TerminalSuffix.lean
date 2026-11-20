@@ -1,5 +1,5 @@
-import NightstreamFPrime.Spec.Compression.Akita.Terminal
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Recursion
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Route
 
 /-! The evaluation-trace terminal of Akita as the last stages of the opening suffix (ePrint
 2026/1983, revision of 2026-10-15, Section 8.2, Proposition 10.29, and Proposition 10.44 with its
@@ -8,7 +8,7 @@ proof, "Certificates", "Terminal fold" and "Checkpoints").
 - `Terminal` has the data of the terminal with its fold challenge at the stage `start` of a
   transcript. The stage input of the stage `start` gives the public data and the clear partials
   `(e_i)_i`, and the message after the fold challenge has the clear response `z`.
-- `Terminal.Passed` is the checks (128), (129) and (130) with the bound of `z`, and
+- `Terminal.Passed` is the checks (128), (129) and (130) with the bound `Route.Short` of `z`, and
   `Terminal.Sourced` is the certificate of the terminal at its fold challenge: two accepting
   children for each block. `Terminal.Sourced.source` gives the source blocks `s⋆_i` with
   `A_term·s⋆_i = t_i`, the clear partials `e_i = a_term^⊤·G·s⋆_i` and the row (130) of these blocks.
@@ -17,7 +17,10 @@ proof, "Certificates", "Terminal fold" and "Checkpoints").
   stage error `ε_term = B_term·p` of (183), `B_term` retry loops and the tree size `1 + B_term`.
 - `Terminal.collide` is `Coll_ℓ` for a level before the terminal, and `Terminal.suffix_after` is
   the suffix of a level over the terminal: two certificates of the terminal with different source
-  blocks give the solution `terminalCollision` for `A_term` with the radius (181). -/
+  blocks give the solution `Route.kernelOf` for `A_term` with the radius (181) or (182).
+
+The route of the terminal is a parameter of `Terminal`, with the coefficient route as the
+default. -/
 
 set_option autoImplicit false
 
@@ -37,10 +40,11 @@ theorem Prefix.take_take_self {Wire Reply : Type} {stages : ℕ} (level : ℕ)
 `start`: the state `(t_i)_i` of the predecessor, the weights and the pair `(θ_term, v_tensor)`.
 `partials` gives the clear partials `(e_i)_i` of this stage input, and `response` gives the clear
 response `z` of the message after the fold challenge. `block i` is the coordinate of the slot of
-the fold challenge `c_i`, and `decode` gives the challenge of a slot. `weight` is `κ_{1,term}` and
-`bound` is `Z_{∞,term}`. -/
+the fold challenge `c_i`, and `decode` gives the challenge of a slot. `route` is the norm route of
+the terminal. `weight` is `κ_{1,term}` and `bound` is `Z_{∞,term}` of the coefficient route; the
+Euclidean route has `Γ_term` and `S_max,term` in `route`. -/
 structure Terminal (S : Shape) (E Wire Coord Slot : Type) [CommRing E] [Module Zq E]
-    (total : ℕ) where
+    (total : ℕ) (route : Route := .coefficient) where
   matrix : Matrix (Fin S.innerRank) (Fin S.blockLength × Fin S.sourceDigits) (Rq S.innerDegree)
   read : Prefix Wire (Coord → Slot) total → TerminalStatement S E
   partials : Prefix Wire (Coord → Slot) total → Fin S.blocks → Rq S.innerDegree
@@ -54,7 +58,7 @@ structure Terminal (S : Shape) (E Wire Coord Slot : Type) [CommRing E] [Module Z
 namespace Terminal
 
 variable {S : Shape} {E Wire Coord Slot : Type} [CommRing E] [Module Zq E] {total : ℕ}
-  (L : Terminal S E Wire Coord Slot total)
+  {route : Route} (L : Terminal S E Wire Coord Slot total route)
 
 /-- The set of the fold challenges `C^acc_term`: the values of the decoder. -/
 def family : Set (Rq S.innerDegree) := {challenge | ∃ slot, L.decode slot = some challenge}
@@ -75,23 +79,24 @@ noncomputable def challenge (point : Prefix Wire (Coord → Slot) total) :
 
 /-- The checks of the verifier of the terminal on a transcript (Akita Section 8.2): each fold
 challenge decodes, the checks (128), (129) and (130) hold for the clear partials, the fold
-challenges and the clear response `z`, and `‖z‖_∞ ≤ Z_{∞,term}`. -/
+challenges and the clear response `z`, and `z` has the bound `Route.Short` of the route:
+`‖z‖_∞ ≤ Z_{∞,term}` or `‖z‖_2² ≤ S_max,term`. -/
 structure Passed (point : Prefix Wire (Coord → Slot) total) : Prop where
   decodes : DecodesAt (fun _ => L.decode) L.block L.start point
   accepts : (L.statement point).Accepts (L.clear point) (L.challenge point)
     (L.response (point.wire (L.start + 1)))
-  short : vecNormInf (L.response (point.wire (L.start + 1))) ≤ L.bound
+  short : route.Short L.bound (L.response (point.wire (L.start + 1)))
 
 /-- The certificate of the terminal at its fold challenge (Akita Proposition 10.44,
 "Certificates"): two children for each block that pass the checks of the terminal for the clear
-partials of the transcript, with responses of the norm `Z_{∞,term}` at most, and the row (130) of
+partials of the transcript, with responses of the bound `Route.Short`, and the row (130) of
 the clear partials. The source blocks are `TerminalFork.source`, and the children give their unit
 challenge differences and bounded products. -/
 def Sourced (point : Prefix Wire (Coord → Slot) total) (witness : Option (TerminalFork S)) :
     Prop :=
   ∃ fork, witness = some fork ∧ fork.Accepts L.family (L.statement point) (L.clear point) ∧
-    (∀ i, vecNormInf (fork.first i).response ≤ L.bound ∧
-      vecNormInf (fork.second i).response ≤ L.bound) ∧
+    (∀ i, route.Short L.bound (fork.first i).response ∧
+      route.Short L.bound (fork.second i).response) ∧
     (L.statement point).scale * ∑ i, (L.statement point).block i *
       (L.statement point).functional (L.clear point i) = (L.statement point).value
 
@@ -122,14 +127,13 @@ noncomputable def blocksOf : Option (TerminalFork S) → Fin S.blocks → S.Sour
   | none => 0
 
 /-- `Coll_ℓ` for a level before the terminal (Akita Proposition 10.44, "Checkpoints"): the
-solution `z_A` of `terminalCollision` for the first block where it is a solution for `A_term`
-with the radius `8·κ_{1,term}·Z_{∞,term}` of Akita (181). -/
+solution `z_A` of `Route.kernelOf` for the first block where it is a solution for `A_term` with the
+radius `8·κ_{1,term}·Z_{∞,term}` of Akita (181) or `64·Γ_term²·S_max,term` of Akita (182). -/
 noncomputable def collide (witness other : Option (TerminalFork S)) :
-    Option (ShortKernel L.matrix (8 * L.weight * L.bound)) :=
+    Option (route.Kernel L.matrix L.weight L.bound) :=
   match witness, other with
   | some fork, some fork' => (List.finRange S.blocks).findSome? fun i =>
-      ShortKernel.ofCollision? L.matrix (8 * L.weight * L.bound)
-        (fork'.difference i • fork.responseDifference i)
+      route.kernelOf L.matrix L.weight L.bound (fork'.difference i • fork.responseDifference i)
         (fork.difference i • fork'.responseDifference i)
   | _, _ => none
 
@@ -152,7 +156,7 @@ witness of `R_bind` is a solution of Module-SIS for `A_term`. -/
 noncomputable def body :
     Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire)
       (Prefix Wire (Coord → Slot) total × Option (TerminalFork S))
-      (Option (ShortKernel L.matrix (8 * L.weight * L.bound))) Unit (Rq S.innerDegree)
+      (Option (route.Kernel L.matrix L.weight L.bound)) Unit (Rq S.innerDegree)
       (Option (TerminalFork S)) where
   protocol := transcript total accept
   kind level :=
@@ -377,10 +381,10 @@ variable {L}
 /-- The suffix of a level over the terminal (Akita Proposition 10.44 for the last nonterminal
 level). The successor source of a certificate of the terminal is `decoder` of its source blocks.
 Two certificates with different sources, for two accepting transcripts with one stage input of
-the checkpoint, have one state `(t_i)_i` (`bound`), and `terminalCollision_isSome` gives a solution
-of Module-SIS for `A_term` with the radius `8·κ_{1,term}·Z_{∞,term}` of Akita (181). `units` and
-`sparse`: the challenge family of the terminal has units as differences and members of the norm
-`κ_{1,term}`. `decodes`: the verifier rejects an answer without a fold challenge for each block of
+the checkpoint, have one state `(t_i)_i` (`bound`), and `Route.kernelOf_isSome` gives a solution
+of Module-SIS for `A_term` with the radius of the route. `units` and `challenges`: the challenge
+family of the terminal has units as differences and satisfies `Route.Challenges`. `decodes`: the
+verifier rejects an answer without a fold challenge for each block of
 the level. `passed`: the final claim of the checks of the level is true for the source of a
 certificate of the terminal (Akita Lemma 10.42 (ii)). The stage errors are
 `r·p + Σ_j ε_j + B_term·p_term`, the retry loops are `r + 1 + B_term`, and the tree size is
@@ -390,9 +394,8 @@ theorem suffix_after {S' : Shape} {O : OpeningShape S'} {fold : Descriptor}
     {T : Tier (Fin S'.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord Slot
       Result Source}
     (valid : T.Valid)
-    (terminal : L.Valid accept) (next : L.start = T.finish) {peak : ℕ}
-    (units : UnitDifferences L.family)
-    (sparse : ∀ challenge ∈ L.family, Sparse L.weight peak challenge)
+    (terminal : L.Valid accept) (next : L.start = T.finish) (units : UnitDifferences L.family)
+    (challenges : route.Challenges L.weight L.family)
     (decoder : (Fin S.blocks → S.Source) → Source)
     (bound : ∀ point other : Prefix Wire (Coord → Slot) total, accept point → accept other →
       point.take (T.start + 1) = other.take (T.start + 1) →
@@ -418,9 +421,8 @@ theorem suffix_after {S' : Shape} {O : OpeningShape S'} {fold : Descriptor}
     obtain ⟨i, differs⟩ := Function.ne_iff.mp fun equal : fork.source = fork'.source =>
       different (congrArg decoder equal)
     exact List.findSome?_isSome_iff.mpr ⟨i, List.mem_finRange i,
-      terminalCollision_isSome units sparse accepts accepts' rfl
-        (bound point other accepted accepted' same) short
-        short' differs⟩
+      route.kernelOf_isSome units challenges accepts accepts' rfl
+        (bound point other accepted accepted' same) short short' differs⟩
 
 end Terminal
 

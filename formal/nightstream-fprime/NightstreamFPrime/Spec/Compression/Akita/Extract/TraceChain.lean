@@ -30,6 +30,8 @@ local instance : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_nat
 
 attribute [local instance low] Classical.propDecidable
 
+variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
+
 section Triple
 
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' : OpeningShape S'}
@@ -37,13 +39,13 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' :
   [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
   {key' : Key S'} {openKey' : OpeningKey O'} {weight' total m' m'' : ℕ}
   (A : Tier (Fin S.blocks) (fun _ => Ring) Stmt Brk (Witness O fold) (Weak O) Wire Coord Slot
-    (Option (List Quadratic × Quadratic × Quadratic))
+    (Option (List E × E × E))
     Table)
-  (B : Tier (Fin S'.blocks) (fun _ => Rq S'.innerDegree) (TraceClaim O' Quadratic)
+  (B : Tier (Fin S'.blocks) (fun _ => Rq S'.innerDegree) (TraceClaim O' E)
     (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) (Witness O' fold')
     (Weak O') Wire Coord Slot
-    (Option (List Quadratic × Quadratic × Quadratic)) Table)
-  (L : Terminal S'' Quadratic Wire Coord Slot total)
+    (Option (List E × E × E)) Table)
+  (L : Terminal S'' E Wire Coord Slot total)
   (quarter' : 4 * m' = S'.innerDegree) (quarter'' : 4 * m'' = S''.innerDegree)
   (commit : Wire → S'.Payload)
   (stateOf : Wire → Fin S''.blocks → Fin S''.innerRank → Rq S''.innerDegree)
@@ -66,7 +68,7 @@ noncomputable def tripleLast :
       (Option (Weak O')) :=
   B.over (tripleAccepts A B L quarter' quarter'' commit stateOf)
     (L.body (tripleAccepts A B L quarter' quarter'' commit stateOf))
-    (fun inner => flatten (unpackTable S''.innerDegree m'' (S''.decode (Terminal.blocksOf
+    (fun inner => flatten (E := E) (unpackTable S''.innerDegree m'' (S''.decode (Terminal.blocksOf
       ((L.body (tripleAccepts A B L quarter' quarter'' commit stateOf)).witness inner)))))
     (fun inner other => L.collide
       ((L.body (tripleAccepts A B L quarter' quarter'' commit stateOf)).witness inner)
@@ -87,7 +89,7 @@ noncomputable def triple :
       (Option (Weak O)) :=
   A.over (tripleAccepts A B L quarter' quarter'' commit stateOf)
     (tripleLast A B L quarter' quarter'' commit stateOf)
-    (fun inner => flatten (unpackTable S'.innerDegree m' (tableOf
+    (fun inner => flatten (E := E) (unpackTable S'.innerDegree m' (tableOf
       ((tripleLast A B L quarter' quarter'' commit stateOf).witness inner))))
     (fun inner other => Sum.inl (Tier.collide key' openKey'
       (2 * (2 * weight') * fold'.sourceBound S')
@@ -96,6 +98,7 @@ noncomputable def triple :
 
 variable {A B L quarter' quarter'' commit stateOf}
 
+omit [Fintype E] [DecidableEq E] in
 /-- Two levels over the terminal are a suffix: the stage errors, the retry loops and the tree size
 are those of `Tier.suffix_push_trace` over `Terminal.suffix_linked`. The hypotheses on the
 terminal are: its fold challenge is a stage of the transcript after the stages of `B`, the blocks
@@ -130,7 +133,7 @@ theorem triple_suffix (valid : A.Valid) (valid' : B.Valid)
       rw [traced]
       exact found)
     (Terminal.suffix_linked valid' ⟨injective, fits, fun _ accepted => accepted.2.2⟩ next' units
-      sparse quarter'' stateOf uniform' passes' fun _ accepted => accepted.2.1)
+      ⟨peak, sparse⟩ quarter'' stateOf uniform' passes' fun _ accepted => accepted.2.1)
 
 end Triple
 
@@ -139,14 +142,14 @@ section Trace
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' : OpeningShape S'}
   {fold' : Descriptor} {S'' : Shape} {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord]
   [Nonempty Coord]
-  {β : Module.Basis (Fin O.planes) Zq Quadratic} {key : Key S} {openKey : OpeningKey O}
-  {claim : Wire → Claim O Quadratic} {μ : ℕ} {fits : O.cells fold < 2 ^ μ} {batch : ℕ}
+  {β : Module.Basis (Fin O.planes) Zq E} {key : Key S} {openKey : OpeningKey O}
+  {claim : Wire → Claim O E} {μ : ℕ} {fits : O.cells fold < 2 ^ μ} {batch : ℕ}
   {rowsFit : O.rowCount + 1 + 1 ≤ 2 ^ batch} {block : Fin S.blocks → Coord}
-  {decode : Quadratic → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight ν : ℕ}
-  {key' : Key S'} {openKey' : OpeningKey O'} {claim' : Wire → TraceClaim O' Quadratic} {μ' : ℕ}
+  {decode : E → Option (Rq O.carrierDegree)} {read : Reader Wire} {weight ν : ℕ}
+  {key' : Key S'} {openKey' : OpeningKey O'} {claim' : Wire → TraceClaim O' E} {μ' : ℕ}
   {fits' : O'.cells fold' < 2 ^ μ'} {batch' : ℕ}
   {rowsFit' : O'.traceRowCount + 1 + 1 ≤ 2 ^ batch'} {block' : Fin S'.blocks → Coord}
-  {decode' : Quadratic → Option (Rq S'.innerDegree)} {weight' ν' m' m'' : ℕ}
+  {decode' : E → Option (Rq S'.innerDegree)} {weight' ν' m' m'' : ℕ}
   {quarter' : 4 * m' = S'.innerDegree} {quarter'' : 4 * m'' = S''.innerDegree}
   {commit : Wire → S'.Payload}
   {stateOf : Wire → Fin S''.blocks → Fin S''.innerRank → Rq S''.innerDegree}
@@ -160,7 +163,7 @@ local notation "second" =>
     (committedTrace key' openKey' claim' μ' fits' batch' rowsFit' block' decode' read weight'
       (Tier.finish first)) ν'
 
-variable {total : ℕ} {L : Terminal S'' Quadratic Wire Coord Quadratic total}
+variable {total : ℕ} {L : Terminal S'' E Wire Coord E total}
 
 local notation "chain" => triple first second L quarter' quarter'' commit stateOf
 
@@ -226,13 +229,13 @@ theorem traceTriple_extract_sound {peak peak' peak'' : ℕ} (injective : Functio
     (injective'' : Function.Injective L.block)
     (units'' : UnitDifferences L.family)
     (sparse'' : ∀ challenge ∈ L.family, Sparse L.weight peak'' challenge)
-    (prover : OracleComp (Prefix Wire (Coord → Quadratic) total)
-      (Coord → Quadratic) (ℕ → Wire))
+    (prover : OracleComp (Prefix Wire (Coord → E) total)
+      (Coord → E) (ℕ → Wire))
     (budget : ℕ)
-    (table : Prefix Wire (Coord → Quadratic) total → Coord → Quadratic)
-    (tape : Tape (Prefix Wire (Coord → Quadratic) total) Coord Quadratic
+    (table : Prefix Wire (Coord → E) total → Coord → E)
+    (tape : Tape (Prefix Wire (Coord → E) total) Coord E
       budget (Structure.protocol chain).stages)
-    (out : Opened (Weak O) (Opened (Weak O') (Prefix Wire (Coord → Quadratic) total ×
+    (out : Opened (Weak O) (Opened (Weak O') (Prefix Wire (Coord → E) total ×
         Option (TerminalFork S''))) ⊕
       (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S) ⊕
         (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕
@@ -284,22 +287,22 @@ theorem traceTriple_extraction_le {peak peak' peak'' : ℕ} (injective : Functio
     (injective'' : Function.Injective L.block)
     (units'' : UnitDifferences L.family)
     (sparse'' : ∀ challenge ∈ L.family, Sparse L.weight peak'' challenge)
-    (statement : Statement O Quadratic) (challenge : Fin S.blocks → Rq O.carrierDegree)
-    (statement' : TraceStatement O' Quadratic) (challenge' : Fin S'.blocks → Rq S'.innerDegree)
-    (prover : OracleComp (Prefix Wire (Coord → Quadratic) total)
-      (Coord → Quadratic) (ℕ → Wire))
+    (statement : Statement O E) (challenge : Fin S.blocks → Rq O.carrierDegree)
+    (statement' : TraceStatement O' E) (challenge' : Fin S'.blocks → Rq S'.innerDegree)
+    (prover : OracleComp (Prefix Wire (Coord → E) total)
+      (Coord → E) (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → Quadratic) total) Coord
-          Quadratic budget (Structure.protocol chain).stages,
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → E) total) Coord
+          E budget (Structure.protocol chain).stages,
         (if tripleAccepts first second L quarter' quarter'' commit stateOf
             ((Structure.protocol chain).final prover table) ∧
           Checkpoint.extract chain prover budget table tape = none then (1 : ℝ) else 0) ≤
       (queries + 1) * (∑ b, Tier.chance first b +
           (foldError (lockedReduction β statement challenge μ fits batch rowsFit)
-            S.certifiedBase + ((1 + 2 * ν : ℕ) : ℝ) / Fintype.card Quadratic) +
+            S.certifiedBase + ((1 + 2 * ν : ℕ) : ℝ) / Fintype.card E) +
           (∑ b, Tier.chance second b +
             (foldError (lockedTraceReduction statement' challenge' μ' fits' batch' rowsFit')
-              S'.certifiedBase + ((1 + 2 * ν' : ℕ) : ℝ) / Fintype.card Quadratic) +
+              S'.certifiedBase + ((1 + 2 * ν' : ℕ) : ℝ) / Fintype.card E) +
             S''.blocks * slotChance L.decode)) +
         (queries + 1) * (S.blocks + 1 + (S'.blocks + 1 + S''.blocks) : ℕ) / budget := by
   rw [← foldCosts_sum, ← foldCosts_sum, ← tensorCosts_sum, ← tensorCosts_sum, ← List.sum_append,
@@ -327,11 +330,11 @@ theorem traceTriple_runs_le {peak peak' peak'' : ℕ} (injective : Function.Inje
     (injective'' : Function.Injective L.block)
     (units'' : UnitDifferences L.family)
     (sparse'' : ∀ challenge ∈ L.family, Sparse L.weight peak'' challenge)
-    (prover : OracleComp (Prefix Wire (Coord → Quadratic) total)
-      (Coord → Quadratic) (ℕ → Wire))
+    (prover : OracleComp (Prefix Wire (Coord → E) total)
+      (Coord → E) (ℕ → Wire))
     {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → Quadratic) total) Coord
-          Quadratic budget (Structure.protocol chain).stages,
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → E) total) Coord
+          E budget (Structure.protocol chain).stages,
         (extractRuns chain prover budget table tape : ℝ) ≤
       (2 * (S.blocks + 1) * (2 * (S'.blocks + 1) * (S''.blocks + 1)) : ℕ) +
         (queries + 1) * ((2 * (S.blocks + 1) * (2 * (S'.blocks + 1) * (S''.blocks + 1)) : ℕ) - 1) :=

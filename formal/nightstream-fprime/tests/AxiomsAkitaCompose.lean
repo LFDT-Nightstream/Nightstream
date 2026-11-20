@@ -5,8 +5,8 @@ import NightstreamFPrime.Export.BoundedDepth.FinalAkita
 /-! Axiom audits for the compression argument over the Akita opening: the verifier game in two
 parts (`Spec/Compression/Verifier/Split`), their stages, the two checkpoints of the argument and
 the result over a batching root (`Spec/Compression/Akita/Extract`: `SplitGame`, `FreshGame`,
-`Compose`, `ComposeRoot`, `Decoders`), and the final verifier over the Akita opening
-(`Export/BoundedDepth`: `FinalSplit`, `FinalAkita`). -/
+`Compose`, `ComposeRoot`, `Decoders`), and the final verifier over the Akita opening, with the
+tower of levels (`Export/BoundedDepth`: `FinalSplit`, `FinalAkita`). -/
 
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.bind_assoc
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.Finals
@@ -117,3 +117,13 @@ the result over a batching root (`Spec/Compression/Akita/Extract`: `SplitGame`, 
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.breakChance
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.final_sound
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.three_sound
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.tower_ready
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.tower_extract_sound
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.tower_extraction_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.tower_runs_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.tower_sound
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.mixed_ready
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.mixed_extract_sound
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.mixed_extraction_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.mixed_runs_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.mixed_sound

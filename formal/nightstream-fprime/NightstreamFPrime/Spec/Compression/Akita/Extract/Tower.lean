@@ -1,28 +1,35 @@
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Compose
 import NightstreamFPrime.Spec.Compression.Akita.Extract.LiftSource
-import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceLink
+import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceNorm
 
 /-! The opening suffix of Akita for a batching root, a fold with opening groups, a packing level,
-four trace levels and the terminal (ePrint 2026/1983, revision of 2026-10-15, (127),
-Proposition 10.44, Theorem 10.46, "Batching root", and Corollary 10.49 with (206)).
+four trace levels and the terminal (ePrint 2026/1983, revision of 2026-10-15, (127), Section 6.2,
+Proposition 10.44, Theorem 10.46, "Batching root", Corollary 10.35 and Corollary 10.49 with
+(206)).
 
 The levels have the order of a schedule with the root, level 1 with coefficient packing, and
-levels 2 to 5 with evaluation trace before the terminal. Each weak opening has the coefficient
-bound `β̄_∞ = Δ^cert_f`, and the terminal has the bound `Z_{∞,term}` of its clear response.
+levels 2 to 5 with evaluation trace before the terminal. Each trace level and the terminal have a
+norm route (`Route`): the coefficient route with `β̄_∞ = Δ^cert_f` and `Z_{∞,term}`, or the
+Euclidean route with `(κ̄_mul,2, β̄_2²) = (2Γ, 4·S_max)` and `S_max,term`.
 
 - `tower₅` to `tower₀` are the checkpoint structures of the levels 5 to 0 over the later stages,
-  and `towerRoot` is the batching root over them.
+  and `towerRoot` is the batching root over them, for the routes of the trace levels.
 - `tower_suffix` states that `towerRoot` is a suffix from the stage of the batching root whose
   first certificates satisfy `OpensAt`: the hypothesis `later` of `Compose.suffix`. Its links are
   `root_suffix`, `Tier.suffix_push` from the fold with groups to the packing level,
-  `Tier.suffix_push_trace` from each level to the next trace level, and `Terminal.suffix_linked`.
+  `Tier.suffix_push_route` from each level to the next trace level, and `Terminal.suffix_linked`.
 - `liftTower_suffix` is `tower_suffix` for `liftBatch`, `liftFold` with the tensor reduction and
-  four levels `committedTrace` with the tensor reduction. The hypotheses are conditions on the
-  parameters and the links of the verifier.
+  four levels `committedTrace` with the tensor reduction, all on the coefficient route. The
+  hypotheses are conditions on the parameters and the links of the verifier.
+- `NormSized` and `LevelSized.traceSq` are the conditions and the validity of a level
+  `committedTraceSq`. `mixedTower_suffix` is `tower_suffix` for the schedule with the coefficient
+  route at the levels 1 and 2 and the Euclidean route at the levels 3 to 5 and at the terminal.
 - `towerCompose_suffix` puts the two checkpoints of the compression argument before `towerRoot`
-  (`Compose.suffix`). The field of the argument is `Quadratic` here.
+  (`Compose.suffix`).
+- `towerAccepts` is the verifier of the compression argument over this opening: the conditions
+  `Compose.Ran`, the link of the root, the link of each level and the checks of the terminal.
 
-The squared-norm certificate of a level and of the terminal is not in this file. -/
+The extension field is a field `E` with `Degree2 E`. -/
 
 set_option autoImplicit false
 
@@ -36,6 +43,8 @@ local instance : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_nat
 
 attribute [local instance low] Classical.propDecidable
 
+variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
+
 section Tower
 
 variable {count : ℕ} {B : Batch (Fin count)} {S₁ : Shape} {O₁ : OpeningShape S₁}
@@ -43,78 +52,75 @@ variable {count : ℕ} {B : Batch (Fin count)} {S₁ : Shape} {O₁ : OpeningSha
   {O₃ : OpeningShape S₃} {fold₃ : Descriptor} {S₄ : Shape} {O₄ : OpeningShape S₄}
   {fold₄ : Descriptor} {S₅ : Shape} {O₅ : OpeningShape S₅} {fold₅ : Descriptor} {S₆ : Shape}
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] {total : ℕ}
-  {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq Quadratic}
+  {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E}
   {key : (g : Fin count) → Key (B.shape g)} {openKey : B.OpenKey} {mass : Fin count → ℕ}
-  {β₁ : Module.Basis (Fin O₁.planes) Zq Quadratic} {key₁ : Key S₁} {openKey₁ : OpeningKey O₁}
+  {β₁ : Module.Basis (Fin O₁.planes) Zq E} {key₁ : Key S₁} {openKey₁ : OpeningKey O₁}
   {weight₁ : ℕ} {key₂ : Key S₂} {openKey₂ : OpeningKey O₂} {weight₂ : ℕ} {key₃ : Key S₃}
   {openKey₃ : OpeningKey O₃} {weight₃ : ℕ} {key₄ : Key S₄} {openKey₄ : OpeningKey O₄}
   {weight₄ : ℕ} {key₅ : Key S₅} {openKey₅ : OpeningKey O₅} {weight₅ : ℕ}
-  (accept : Prefix Wire (Coord → Quadratic) total → Prop)
-  (T₀ : Tier B.Block (fun b => Rq (B.carrierDegree b.1)) (B.Claim Quadratic)
+  {route₂ route₃ route₄ route₅ routeL : Route}
+  (accept : Prefix Wire (Coord → E) total → Prop)
+  (T₀ : Tier B.Block (fun b => Rq (B.carrierDegree b.1)) (B.Claim E)
     (B.LevelBreak key openKey fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g))
-    B.Witness B.Weak Wire Coord Quadratic (Option (List Quadratic × Quadratic)) Table)
-  (T₁ : Tier (Fin S₁.blocks) (fun _ => Rq O₁.carrierDegree) (Claim O₁ Quadratic)
+    B.Witness B.Weak Wire Coord E (Option (List E × E)) Table)
+  (T₁ : Tier (Fin S₁.blocks) (fun _ => Rq O₁.carrierDegree) (Claim O₁ E)
     (LevelBreak key₁ openKey₁ (2 * (2 * weight₁) * fold₁.sourceBound S₁)) (Witness O₁ fold₁)
-    (Weak O₁) Wire Coord Quadratic (Option (List Quadratic × Quadratic × Quadratic)) Table)
-  (T₂ : Tier (Fin S₂.blocks) (fun _ => Rq S₂.innerDegree) (TraceClaim O₂ Quadratic)
-    (LevelBreak key₂ openKey₂ (2 * (2 * weight₂) * fold₂.sourceBound S₂)) (Witness O₂ fold₂)
-    (Weak O₂) Wire Coord Quadratic (Option (List Quadratic × Quadratic × Quadratic)) Table)
-  (T₃ : Tier (Fin S₃.blocks) (fun _ => Rq S₃.innerDegree) (TraceClaim O₃ Quadratic)
-    (LevelBreak key₃ openKey₃ (2 * (2 * weight₃) * fold₃.sourceBound S₃)) (Witness O₃ fold₃)
-    (Weak O₃) Wire Coord Quadratic (Option (List Quadratic × Quadratic × Quadratic)) Table)
-  (T₄ : Tier (Fin S₄.blocks) (fun _ => Rq S₄.innerDegree) (TraceClaim O₄ Quadratic)
-    (LevelBreak key₄ openKey₄ (2 * (2 * weight₄) * fold₄.sourceBound S₄)) (Witness O₄ fold₄)
-    (Weak O₄) Wire Coord Quadratic (Option (List Quadratic × Quadratic × Quadratic)) Table)
-  (T₅ : Tier (Fin S₅.blocks) (fun _ => Rq S₅.innerDegree) (TraceClaim O₅ Quadratic)
-    (LevelBreak key₅ openKey₅ (2 * (2 * weight₅) * fold₅.sourceBound S₅)) (Witness O₅ fold₅)
-    (Weak O₅) Wire Coord Quadratic (Option (List Quadratic × Quadratic × Quadratic)) Table)
-  (L : Terminal S₆ Quadratic Wire Coord Quadratic total) (m₂ m₃ m₄ m₅ m₆ start : ℕ)
+    (Weak O₁) Wire Coord E (Option (List E × E × E)) Table)
+  (T₂ : Tier (Fin S₂.blocks) (fun _ => Rq S₂.innerDegree) (TraceClaim O₂ E)
+    (route₂.Break key₂ openKey₂ weight₂ (fold₂.sourceBound S₂)) (Witness O₂ fold₂)
+    (Weak O₂) Wire Coord E (Option (List E × E × E)) Table)
+  (T₃ : Tier (Fin S₃.blocks) (fun _ => Rq S₃.innerDegree) (TraceClaim O₃ E)
+    (route₃.Break key₃ openKey₃ weight₃ (fold₃.sourceBound S₃)) (Witness O₃ fold₃)
+    (Weak O₃) Wire Coord E (Option (List E × E × E)) Table)
+  (T₄ : Tier (Fin S₄.blocks) (fun _ => Rq S₄.innerDegree) (TraceClaim O₄ E)
+    (route₄.Break key₄ openKey₄ weight₄ (fold₄.sourceBound S₄)) (Witness O₄ fold₄)
+    (Weak O₄) Wire Coord E (Option (List E × E × E)) Table)
+  (T₅ : Tier (Fin S₅.blocks) (fun _ => Rq S₅.innerDegree) (TraceClaim O₅ E)
+    (route₅.Break key₅ openKey₅ weight₅ (fold₅.sourceBound S₅)) (Witness O₅ fold₅)
+    (Weak O₅) Wire Coord E (Option (List E × E × E)) Table)
+  (L : Terminal S₆ E Wire Coord E total routeL) (m₂ m₃ m₄ m₅ m₆ start : ℕ)
   (read : Reader Wire) (commit : Wire → (g : Fin count) → (B.shape g).Payload)
-  (value : Wire → Fin count → Quadratic) (place : Wire → Fin count → List Quadratic)
+  (value : Wire → Fin count → E) (place : Wire → Fin count → List E)
 
 /-- The checkpoint structure of the trace level 5 over the terminal. Its successor source is the
 table of `Z_q` of the packed polynomial of the source blocks of a certificate of the terminal. -/
 noncomputable def tower₅ :=
   T₅.over accept (L.body accept)
-    (fun inner => flatten (unpackTable S₆.innerDegree m₆
+    (fun inner => flatten (E := E) (unpackTable S₆.innerDegree m₆
       (S₆.decode (Terminal.blocksOf ((L.body accept).witness inner)))))
     (fun inner other => L.collide ((L.body accept).witness inner) ((L.body accept).witness other))
 
 /-- The checkpoint structure of the trace level 4 over the level 5. -/
 noncomputable def tower₄ :=
   T₄.over accept (tower₅ accept T₅ L m₆)
-    (fun inner => flatten (unpackTable S₅.innerDegree m₅
+    (fun inner => flatten (E := E) (unpackTable S₅.innerDegree m₅
       (tableOf ((tower₅ accept T₅ L m₆).witness inner))))
-    (fun inner other => Sum.inl (Tier.collide key₅ openKey₅
-      (2 * (2 * weight₅) * fold₅.sourceBound S₅) ((tower₅ accept T₅ L m₆).witness inner)
-      ((tower₅ accept T₅ L m₆).witness other)))
+    (fun inner other => Sum.inl (route₅.collide key₅ openKey₅ weight₅ (fold₅.sourceBound S₅)
+      ((tower₅ accept T₅ L m₆).witness inner) ((tower₅ accept T₅ L m₆).witness other)))
 
 /-- The checkpoint structure of the trace level 3 over the level 4. -/
 noncomputable def tower₃ :=
   T₃.over accept (tower₄ accept T₄ T₅ L m₅ m₆)
-    (fun inner => flatten (unpackTable S₄.innerDegree m₄
+    (fun inner => flatten (E := E) (unpackTable S₄.innerDegree m₄
       (tableOf ((tower₄ accept T₄ T₅ L m₅ m₆).witness inner))))
-    (fun inner other => Sum.inl (Tier.collide key₄ openKey₄
-      (2 * (2 * weight₄) * fold₄.sourceBound S₄) ((tower₄ accept T₄ T₅ L m₅ m₆).witness inner)
-      ((tower₄ accept T₄ T₅ L m₅ m₆).witness other)))
+    (fun inner other => Sum.inl (route₄.collide key₄ openKey₄ weight₄ (fold₄.sourceBound S₄)
+      ((tower₄ accept T₄ T₅ L m₅ m₆).witness inner) ((tower₄ accept T₄ T₅ L m₅ m₆).witness other)))
 
 /-- The checkpoint structure of the trace level 2 over the level 3. -/
 noncomputable def tower₂ :=
   T₂.over accept (tower₃ accept T₃ T₄ T₅ L m₄ m₅ m₆)
-    (fun inner => flatten (unpackTable S₃.innerDegree m₃
+    (fun inner => flatten (E := E) (unpackTable S₃.innerDegree m₃
       (tableOf ((tower₃ accept T₃ T₄ T₅ L m₄ m₅ m₆).witness inner))))
-    (fun inner other => Sum.inl (Tier.collide key₃ openKey₃
-      (2 * (2 * weight₃) * fold₃.sourceBound S₃)
+    (fun inner other => Sum.inl (route₃.collide key₃ openKey₃ weight₃ (fold₃.sourceBound S₃)
       ((tower₃ accept T₃ T₄ T₅ L m₄ m₅ m₆).witness inner)
       ((tower₃ accept T₃ T₄ T₅ L m₄ m₅ m₆).witness other)))
 
 /-- The checkpoint structure of the packing level 1 over the trace level 2. -/
 noncomputable def tower₁ :=
   T₁.over accept (tower₂ accept T₂ T₃ T₄ T₅ L m₃ m₄ m₅ m₆)
-    (fun inner => flatten (unpackTable S₂.innerDegree m₂
+    (fun inner => flatten (E := E) (unpackTable S₂.innerDegree m₂
       (tableOf ((tower₂ accept T₂ T₃ T₄ T₅ L m₃ m₄ m₅ m₆).witness inner))))
-    (fun inner other => Sum.inl (Tier.collide key₂ openKey₂
-      (2 * (2 * weight₂) * fold₂.sourceBound S₂)
+    (fun inner other => Sum.inl (route₂.collide key₂ openKey₂ weight₂ (fold₂.sourceBound S₂)
       ((tower₂ accept T₂ T₃ T₄ T₅ L m₃ m₄ m₅ m₆).witness inner)
       ((tower₂ accept T₂ T₃ T₄ T₅ L m₃ m₄ m₅ m₆).witness other)))
 
@@ -128,11 +134,13 @@ noncomputable def tower₀ :=
       ((tower₁ accept T₁ T₂ T₃ T₄ T₅ L m₂ m₃ m₄ m₅ m₆).witness inner)
       ((tower₁ accept T₁ T₂ T₃ T₄ T₅ L m₂ m₃ m₄ m₅ m₆).witness other)))
 
+variable (route₂ route₃ route₄ route₅) in
 /-- The checkpoint structure of the opening: the batching root at the stage `start` over the fold
-with opening groups, the packing level, the four trace levels and the terminal. A witness of
-`R_bind` is a solution of Module-SIS for a matrix of a group, of a level, or for `A_term`. -/
+with opening groups, the packing level, the four trace levels on the routes `route₂` to `route₅`
+and the terminal. A witness of `R_bind` is a solution of Module-SIS for a matrix of a group, of a
+level, or for `A_term`. -/
 noncomputable def towerRoot :=
-  (claimsRoot (Coord := Coord) (Slot := Quadratic) (total := total) start read value
+  (claimsRoot (Coord := Coord) (Slot := E) (total := total) start read value
       place).segment.over accept (tower₀ accept T₀ T₁ T₂ T₃ T₄ T₅ L m₂ m₃ m₄ m₅ m₆)
     (fun inner =>
       Batch.tablesOf ((tower₀ accept T₀ T₁ T₂ T₃ T₄ T₅ L m₂ m₃ m₄ m₅ m₆).witness inner))
@@ -146,22 +154,23 @@ variable {accept T₀ T₁ T₂ T₃ T₄ T₅ L m₂ m₃ m₄ m₅ m₆ start 
 
 /-- The batching root over a fold with opening groups, a packing level, four trace levels and
 the terminal is a suffix from the stage `start` (Akita Proposition 10.44 and Theorem 10.46,
-"Batching root"). The stage errors are `1/|E|` for the weights of the root, `Σ_b p_b + Σ_j ε_j`
-for each level and `B_term·p_term` for the terminal. `valid`, `packed`, `traced`, `uniform` and
-`passes` are the conditions of the step lemmas on each level. `rooted`, `linked₀` to `linked₅`
-and `passed`: the verifier accepts only with the link of the root, the link from each level to
-the next level or to the terminal, and the checks of the terminal. The hypotheses on the terminal
-are those of `Terminal.suffix_linked`. -/
-theorem tower_suffix {blocks peak : ℕ} (card : Fintype.card B.Block = blocks)
+"Batching root"). Each trace level and the terminal have a norm route. The stage errors are
+`1/|E|` for the weights of the root, `Σ_b p_b + Σ_j ε_j` for each level and `B_term·p_term` for
+the terminal. `valid`, `packed`, `traced`, `uniform` and `passes` are the conditions of the step
+lemmas on each level: the method of a trace level is `traceOn` of its route. `rooted`, `linked₀`
+to `linked₅` and `passed`: the verifier accepts only with the link of the root, the link from each
+level to the next level or to the terminal, and the checks of the terminal. The hypotheses on the
+terminal are those of `Terminal.suffix_linked`. -/
+theorem tower_suffix {blocks : ℕ} (card : Fintype.card B.Block = blocks)
     (valid₀ : T₀.Valid) (valid₁ : T₁.Valid) (valid₂ : T₂.Valid) (valid₃ : T₃.Valid)
     (valid₄ : T₄.Valid) (valid₅ : T₅.Valid)
-    (fair : ∃ decode : (Coord → Quadratic) → Fin count → Quadratic, Fair decode)
+    (fair : ∃ decode : (Coord → E) → Fin count → E, Fair decode)
     (packed₀ : T₀.method = Batch.method β key openKey mass)
     (packed₁ : T₁.method = packing β₁ key₁ openKey₁ weight₁)
-    (traced₂ : T₂.method = trace key₂ openKey₂ weight₂)
-    (traced₃ : T₃.method = trace key₃ openKey₃ weight₃)
-    (traced₄ : T₄.method = trace key₄ openKey₄ weight₄)
-    (traced₅ : T₅.method = trace key₅ openKey₅ weight₅)
+    (traced₂ : T₂.method = traceOn key₂ openKey₂ weight₂ route₂)
+    (traced₃ : T₃.method = traceOn key₃ openKey₃ weight₃ route₃)
+    (traced₄ : T₄.method = traceOn key₄ openKey₄ weight₄ route₄)
+    (traced₅ : T₅.method = traceOn key₅ openKey₅ weight₅ route₅)
     (first : T₀.start = start + 1) (next₁ : T₁.start = T₀.finish) (next₂ : T₂.start = T₁.finish)
     (next₃ : T₃.start = T₂.finish) (next₄ : T₄.start = T₃.finish) (next₅ : T₅.start = T₄.finish)
     (next₆ : L.start = T₅.finish) (fits : L.start < total)
@@ -170,7 +179,7 @@ theorem tower_suffix {blocks peak : ℕ} (card : Fintype.card B.Block = blocks)
     (quarter₆ : 4 * m₆ = S₆.innerDegree)
     (uniform₀ : ∀ wire challenge table other,
       bare (T₀.check wire challenge table) = bare (T₀.check wire challenge other))
-    (passes₀ : ∀ (table : Table) r2 v, v = mle r2 (lifted Quadratic table) →
+    (passes₀ : ∀ (table : Table) r2 v, v = mle r2 (lifted E table) →
       T₀.passes table (some (r2, v)))
     (uniform₁ : ∀ wire challenge table other,
       bare (T₁.check wire challenge table) = bare (T₁.check wire challenge other))
@@ -193,13 +202,13 @@ theorem tower_suffix {blocks peak : ℕ} (card : Fintype.card B.Block = blocks)
     (passes₅ : ∀ (table : Table) ρ θ v, v = θ * mle ρ (packed table) →
       T₅.passes table (some (ρ, θ, v)))
     (injective : Function.Injective L.block) (units : UnitDifferences L.family)
-    (sparse : ∀ challenge ∈ L.family, Sparse L.weight peak challenge)
+    (challenges : routeL.Challenges L.weight L.family)
     (commit₁ : Wire → S₁.Payload) (commit₂ : Wire → S₂.Payload) (commit₃ : Wire → S₃.Payload)
     (commit₄ : Wire → S₄.Payload) (commit₅ : Wire → S₅.Payload)
     (stateOf : Wire → Fin S₆.blocks → Fin S₆.innerRank → Rq S₆.innerDegree)
     (rooted : ∀ point, accept point → start < point.rest.length ∧
       RootLinked T₀ start commit value place
-        ((claimsRoot (Coord := Coord) (Slot := Quadratic) (total := total) start read value
+        ((claimsRoot (Coord := Coord) (Slot := E) (total := total) start read value
           place).weights point) point)
     (linked₀ : ∀ point, accept point → T₀.Linked T₁ commit₁ point)
     (linked₁ : ∀ point, accept point → T₁.TraceLinked T₂ quarter₂ commit₂ point)
@@ -209,8 +218,9 @@ theorem tower_suffix {blocks peak : ℕ} (card : Fintype.card B.Block = blocks)
     (linked₅ : ∀ point, accept point → Terminal.Linked T₅ L quarter₆ stateOf point)
     (passed : ∀ point, accept point → L.Passed point) :
     Tier.Suffix accept start (OpensAt start commit value place key mass)
-      (towerRoot accept T₀ T₁ T₂ T₃ T₄ T₅ L m₂ m₃ m₄ m₅ m₆ start read commit value place)
-      (1 / Fintype.card Quadratic + (∑ b, T₀.chance b + T₀.costs.sum +
+      (towerRoot route₂ route₃ route₄ route₅ accept T₀ T₁ T₂ T₃ T₄ T₅ L m₂ m₃ m₄ m₅ m₆ start read
+        commit value place)
+      (1 / Fintype.card E + (∑ b, T₀.chance b + T₀.costs.sum +
         (∑ b, T₁.chance b + T₁.costs.sum + (∑ b, T₂.chance b + T₂.costs.sum +
           (∑ b, T₃.chance b + T₃.costs.sum + (∑ b, T₄.chance b + T₄.costs.sum +
             (∑ b, T₅.chance b + T₅.costs.sum + S₆.blocks * slotChance L.decode)))))))
@@ -225,36 +235,16 @@ theorem tower_suffix {blocks peak : ℕ} (card : Fintype.card B.Block = blocks)
   have ends₃ := T₃.finish_eq
   have ends₄ := T₄.finish_eq
   have ends₅ := T₅.finish_eq
-  have level₅ := Terminal.suffix_linked valid₅ ⟨injective, fits, passed⟩ next₆ units sparse
+  have level₅ := Terminal.suffix_linked valid₅ ⟨injective, fits, passed⟩ next₆ units challenges
     quarter₆ stateOf uniform₅ passes₅ linked₅
-  have level₄ := Tier.suffix_push_trace valid₄ traced₅ next₅ quarter₅ commit₅ (by omega)
-    uniform₄ passes₄ linked₄ Sum.inl
-    (fun solution found => by
-      show T₅.method.broken solution
-      rw [traced₅]
-      exact found)
-    level₅
-  have level₃ := Tier.suffix_push_trace valid₃ traced₄ next₄ quarter₄ commit₄ (by omega)
-    uniform₃ passes₃ linked₃ Sum.inl
-    (fun solution found => by
-      show T₄.method.broken solution
-      rw [traced₄]
-      exact found)
-    level₄
-  have level₂ := Tier.suffix_push_trace valid₂ traced₃ next₃ quarter₃ commit₃ (by omega)
-    uniform₂ passes₂ linked₂ Sum.inl
-    (fun solution found => by
-      show T₃.method.broken solution
-      rw [traced₃]
-      exact found)
-    level₃
-  have level₁ := Tier.suffix_push_trace valid₁ traced₂ next₂ quarter₂ commit₂ (by omega)
-    uniform₁ passes₁ linked₁ Sum.inl
-    (fun solution found => by
-      show T₂.method.broken solution
-      rw [traced₂]
-      exact found)
-    level₂
+  have level₄ := Tier.suffix_push_route valid₄ traced₅ next₅ quarter₅ commit₅ (by omega)
+    uniform₄ passes₄ linked₄ Sum.inl (fun _ found => found) level₅
+  have level₃ := Tier.suffix_push_route valid₃ traced₄ next₄ quarter₄ commit₄ (by omega)
+    uniform₃ passes₃ linked₃ Sum.inl (fun _ found => found) level₄
+  have level₂ := Tier.suffix_push_route valid₂ traced₃ next₃ quarter₃ commit₃ (by omega)
+    uniform₂ passes₂ linked₂ Sum.inl (fun _ found => found) level₃
+  have level₁ := Tier.suffix_push_route valid₁ traced₂ next₂ quarter₂ commit₂ (by omega)
+    uniform₁ passes₁ linked₁ Sum.inl (fun _ found => found) level₂
   have level₀ := Tier.suffix_push card valid₀ packed₁ next₁ commit₁ (by omega) uniform₀ passes₀
     linked₀ Sum.inl
     (fun solution found => by
@@ -273,8 +263,7 @@ end Tower
 
 section Sized
 
-variable {E Coord Wire : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
-  [Fintype Coord] [DecidableEq Coord]
+variable {Coord Wire : Type} [Fintype Coord] [DecidableEq Coord]
 
 /-- The conditions on the parameters of a level with one group. `injective`: the fold
 coordinates have different coordinates of the answer. `units` and `sparse`: the challenge family
@@ -297,10 +286,10 @@ variable [Nonempty Coord] {S : Shape} {O : OpeningShape S} {fold : Descriptor} {
 
 /-- A packing level on the quotient-lift route with the tensor reduction satisfies the conditions
 of `Tier.Valid`. -/
-theorem LevelSized.lift {β : Module.Basis (Fin O.planes) Zq Quadratic} {key : Key S}
-    {openKey : OpeningKey O} {claim : Wire → Claim O Quadratic} {digits : ℕ}
+theorem LevelSized.lift {β : Module.Basis (Fin O.planes) Zq E} {key : Key S}
+    {openKey : OpeningKey O} {claim : Wire → Claim O E} {digits : ℕ}
     {room : O.quotientRoom fold digits ≤ 2 ^ μ} {rowsFit : O.rowCount + 1 + 1 ≤ 2 ^ batch}
-    {block : Fin S.blocks → Coord} {decode : Quadratic → Option (Rq O.carrierDegree)}
+    {block : Fin S.blocks → Coord} {decode : E → Option (Rq O.carrierDegree)}
     (sized : LevelSized block decode weight fold.responseBase S.certifiedBase μ batch) :
     (Tier.tensored (liftFold β key openKey claim μ fits digits room batch rowsFit block decode
       read weight start) ν).Valid := by
@@ -314,8 +303,8 @@ theorem LevelSized.lift {β : Module.Basis (Fin O.planes) Zq Quadratic} {key : K
 
 /-- A trace level with the tensor reduction satisfies the conditions of `Tier.Valid`. -/
 theorem LevelSized.trace {key : Key S} {openKey : OpeningKey O}
-    {claim : Wire → TraceClaim O Quadratic} {rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch}
-    {block : Fin S.blocks → Coord} {decode : Quadratic → Option (Rq S.innerDegree)}
+    {claim : Wire → TraceClaim O E} {rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch}
+    {block : Fin S.blocks → Coord} {decode : E → Option (Rq S.innerDegree)}
     (sized : LevelSized block decode weight fold.responseBase S.certifiedBase μ batch) :
     (Tier.tensored (committedTrace (fold := fold) key openKey claim μ fits batch rowsFit block
       decode read weight start) ν).Valid := by
@@ -327,6 +316,34 @@ theorem LevelSized.trace {key : Key S} {openKey : OpeningKey O}
     fun _ _ table rest tail rejected ended =>
       foldCheck_stagedTo _ _ _ table sized.varsFit sized.batchFit rest tail rejected ended
 
+/-- The conditions on the parameters of a trace level on the Euclidean route. `bounded`: each
+challenge of the family has `‖c‖_mul,2 ≤ Γ`. `room`: the cube of `ν_norm` variables of the direct
+norm check has room for the `N_A` coordinates of `z`. `noWrap`: `max{U_dir, S_max} < q` of Akita
+Lemma 6.3, for `U_dir` of `Shape.directLimit`. -/
+structure NormSized (S : Shape) (fold : Descriptor) (decode : E → Option (Rq S.innerDegree))
+    (operator limit vars : ℕ) : Prop where
+  bounded : ∀ challenge, (∃ slot, decode slot = some challenge) → MulBound operator challenge
+  room : S.blockLength * S.sourceDigits * S.innerDegree ≤ 2 ^ vars
+  noWrap : max (S.directLimit fold) limit < fieldModulus
+
+/-- A trace level on the Euclidean route with the tensor reduction satisfies the conditions of
+`Tier.Valid`. -/
+theorem LevelSized.traceSq {key : Key S} {openKey : OpeningKey O}
+    {claim : Wire → TraceClaim O E} {rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch}
+    {block : Fin S.blocks → Coord} {decode : E → Option (Rq S.innerDegree)}
+    {operator limit vars : ℕ}
+    (sized : LevelSized block decode weight fold.responseBase S.certifiedBase μ batch)
+    (normed : NormSized S fold decode operator limit vars) :
+    (Tier.tensored (committedTraceSq (fold := fold) key openKey claim μ fits batch rowsFit vars
+      block decode read weight operator limit start) ν).Valid := by
+  obtain ⟨peak, sparse⟩ := sized.sparse
+  exact Tier.tensored_valid
+    (committedTraceSq_valid sized.injective sized.units sparse normed.bounded sized.base
+      sized.small sized.varsFit sized.batchFit normed.room normed.noWrap)
+    (fun _ r2 v opened => ⟨r2, v, rfl, opened⟩)
+    fun _ _ table rest tail rejected ended =>
+      committedTraceSq_stagedTo sized.varsFit sized.batchFit _ _ table rest tail rejected ended
+
 end Sized
 
 section Lift
@@ -336,37 +353,37 @@ variable {count : ℕ} {B : Batch (Fin count)} {S₁ : Shape} {O₁ : OpeningSha
   {O₃ : OpeningShape S₃} {fold₃ : Descriptor} {S₄ : Shape} {O₄ : OpeningShape S₄}
   {fold₄ : Descriptor} {S₅ : Shape} {O₅ : OpeningShape S₅} {fold₅ : Descriptor} {S₆ : Shape}
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] {total : ℕ}
-  {accept : Prefix Wire (Coord → Quadratic) total → Prop} {read : Reader Wire} {start : ℕ}
-  {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq Quadratic}
+  {accept : Prefix Wire (Coord → E) total → Prop} {read : Reader Wire} {start : ℕ}
+  {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E}
   {key : (g : Fin count) → Key (B.shape g)} {openKey : B.OpenKey}
-  {claim : Wire → B.Claim Quadratic} {μ : ℕ} {fits : B.cells < 2 ^ μ} {base digits : ℕ}
+  {claim : Wire → B.Claim E} {μ : ℕ} {fits : B.cells < 2 ^ μ} {base digits : ℕ}
   {room : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ} {rowsFit : B.rowCount + 1 + 1 ≤ 2 ^ batch}
-  {block : B.Block → Coord} {decode : (g : Fin count) → Quadratic → Option (Rq (B.carrierDegree g))}
+  {block : B.Block → Coord} {decode : (g : Fin count) → E → Option (Rq (B.carrierDegree g))}
   {mass : Fin count → ℕ}
-  {β₁ : Module.Basis (Fin O₁.planes) Zq Quadratic} {key₁ : Key S₁} {openKey₁ : OpeningKey O₁}
-  {claim₁ : Wire → Claim O₁ Quadratic} {μ₁ : ℕ} {fits₁ : O₁.cells fold₁ < 2 ^ μ₁} {digits₁ : ℕ}
+  {β₁ : Module.Basis (Fin O₁.planes) Zq E} {key₁ : Key S₁} {openKey₁ : OpeningKey O₁}
+  {claim₁ : Wire → Claim O₁ E} {μ₁ : ℕ} {fits₁ : O₁.cells fold₁ < 2 ^ μ₁} {digits₁ : ℕ}
   {room₁ : O₁.quotientRoom fold₁ digits₁ ≤ 2 ^ μ₁} {batch₁ : ℕ}
   {rowsFit₁ : O₁.rowCount + 1 + 1 ≤ 2 ^ batch₁} {block₁ : Fin S₁.blocks → Coord}
-  {decode₁ : Quadratic → Option (Rq O₁.carrierDegree)} {weight₁ ν₁ : ℕ}
-  {key₂ : Key S₂} {openKey₂ : OpeningKey O₂} {claim₂ : Wire → TraceClaim O₂ Quadratic}
+  {decode₁ : E → Option (Rq O₁.carrierDegree)} {weight₁ ν₁ : ℕ}
+  {key₂ : Key S₂} {openKey₂ : OpeningKey O₂} {claim₂ : Wire → TraceClaim O₂ E}
   {μ₂ : ℕ} {fits₂ : O₂.cells fold₂ < 2 ^ μ₂} {batch₂ : ℕ}
   {rowsFit₂ : O₂.traceRowCount + 1 + 1 ≤ 2 ^ batch₂} {block₂ : Fin S₂.blocks → Coord}
-  {decode₂ : Quadratic → Option (Rq S₂.innerDegree)} {weight₂ ν₂ m₂ : ℕ}
-  {key₃ : Key S₃} {openKey₃ : OpeningKey O₃} {claim₃ : Wire → TraceClaim O₃ Quadratic}
+  {decode₂ : E → Option (Rq S₂.innerDegree)} {weight₂ ν₂ m₂ : ℕ}
+  {key₃ : Key S₃} {openKey₃ : OpeningKey O₃} {claim₃ : Wire → TraceClaim O₃ E}
   {μ₃ : ℕ} {fits₃ : O₃.cells fold₃ < 2 ^ μ₃} {batch₃ : ℕ}
   {rowsFit₃ : O₃.traceRowCount + 1 + 1 ≤ 2 ^ batch₃} {block₃ : Fin S₃.blocks → Coord}
-  {decode₃ : Quadratic → Option (Rq S₃.innerDegree)} {weight₃ ν₃ m₃ : ℕ}
-  {key₄ : Key S₄} {openKey₄ : OpeningKey O₄} {claim₄ : Wire → TraceClaim O₄ Quadratic}
+  {decode₃ : E → Option (Rq S₃.innerDegree)} {weight₃ ν₃ m₃ : ℕ}
+  {key₄ : Key S₄} {openKey₄ : OpeningKey O₄} {claim₄ : Wire → TraceClaim O₄ E}
   {μ₄ : ℕ} {fits₄ : O₄.cells fold₄ < 2 ^ μ₄} {batch₄ : ℕ}
   {rowsFit₄ : O₄.traceRowCount + 1 + 1 ≤ 2 ^ batch₄} {block₄ : Fin S₄.blocks → Coord}
-  {decode₄ : Quadratic → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
-  {key₅ : Key S₅} {openKey₅ : OpeningKey O₅} {claim₅ : Wire → TraceClaim O₅ Quadratic}
+  {decode₄ : E → Option (Rq S₄.innerDegree)} {weight₄ ν₄ m₄ : ℕ}
+  {key₅ : Key S₅} {openKey₅ : OpeningKey O₅} {claim₅ : Wire → TraceClaim O₅ E}
   {μ₅ : ℕ} {fits₅ : O₅.cells fold₅ < 2 ^ μ₅} {batch₅ : ℕ}
   {rowsFit₅ : O₅.traceRowCount + 1 + 1 ≤ 2 ^ batch₅} {block₅ : Fin S₅.blocks → Coord}
-  {decode₅ : Quadratic → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
-  {L : Terminal S₆ Quadratic Wire Coord Quadratic total} {m₆ : ℕ}
-  {commit : Wire → (g : Fin count) → (B.shape g).Payload} {value : Wire → Fin count → Quadratic}
-  {place : Wire → Fin count → List Quadratic}
+  {decode₅ : E → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
+  {L : Terminal S₆ E Wire Coord E total} {m₆ : ℕ}
+  {commit : Wire → (g : Fin count) → (B.shape g).Payload} {value : Wire → Fin count → E}
+  {place : Wire → Fin count → List E}
 
 local notation "zeroth" =>
   liftBatch β key openKey claim μ fits base digits room batch rowsFit block decode read mass
@@ -424,7 +441,7 @@ theorem liftTower_suffix {peak : Fin count → ℕ} {peakL : ℕ}
     (stateOf : Wire → Fin S₆.blocks → Fin S₆.innerRank → Rq S₆.innerDegree)
     (rooted : ∀ point, accept point → start < point.rest.length ∧
       RootLinked zeroth start commit value place
-        ((claimsRoot (Coord := Coord) (Slot := Quadratic) (total := total) start read value
+        ((claimsRoot (Coord := Coord) (Slot := E) (total := total) start read value
           place).weights point) point)
     (linked₀ : ∀ point, accept point → Tier.Linked zeroth first commit₁ point)
     (linked₁ : ∀ point, accept point → Tier.TraceLinked first second quarter₂ commit₂ point)
@@ -434,9 +451,9 @@ theorem liftTower_suffix {peak : Fin count → ℕ} {peakL : ℕ}
     (linked₅ : ∀ point, accept point → Terminal.Linked fifth L quarter₆ stateOf point)
     (passed : ∀ point, accept point → L.Passed point) :
     Tier.Suffix accept start (OpensAt start commit value place key mass)
-      (towerRoot accept zeroth first second third fourth fifth L m₂ m₃ m₄ m₅ m₆ start read commit
-        value place)
-      (1 / Fintype.card Quadratic + (∑ b, Tier.chance zeroth b + (Tier.costs zeroth).sum +
+      (towerRoot .coefficient .coefficient .coefficient .coefficient accept zeroth first second
+        third fourth fifth L m₂ m₃ m₄ m₅ m₆ start read commit value place)
+      (1 / Fintype.card E + (∑ b, Tier.chance zeroth b + (Tier.costs zeroth).sum +
         (∑ b, Tier.chance first b + (Tier.costs first).sum +
           (∑ b, Tier.chance second b + (Tier.costs second).sum +
             (∑ b, Tier.chance third b + (Tier.costs third).sum +
@@ -460,7 +477,101 @@ theorem liftTower_suffix {peak : Fin count → ℕ} {peakL : ℕ}
     (Tier.tensored_uniform committedTrace_uniform) (fun _ ρ θ v opened => ⟨ρ, θ, v, rfl, opened⟩)
     (Tier.tensored_uniform committedTrace_uniform) (fun _ ρ θ v opened => ⟨ρ, θ, v, rfl, opened⟩)
     (Tier.tensored_uniform committedTrace_uniform) (fun _ ρ θ v opened => ⟨ρ, θ, v, rfl, opened⟩)
-    injectiveL unitsL sparseL commit₁ commit₂ commit₃ commit₄ commit₅ stateOf rooted linked₀
+    injectiveL unitsL ⟨peakL, sparseL⟩ commit₁ commit₂ commit₃ commit₄ commit₅ stateOf rooted
+    linked₀ linked₁ linked₂ linked₃ linked₄ linked₅ passed
+
+variable {operator₃ limit₃ vars₃ operator₄ limit₄ vars₄ operator₅ limit₅ vars₅ operatorL limitL : ℕ}
+  {L' : Terminal S₆ E Wire Coord E total (.euclidean operatorL limitL)}
+
+local notation "third'" =>
+  Tier.tensored (committedTraceSq (fold := fold₃) key₃ openKey₃ claim₃ μ₃ fits₃ batch₃ rowsFit₃
+    vars₃ block₃ decode₃ read weight₃ operator₃ limit₃ (Tier.finish second)) ν₃
+
+local notation "fourth'" =>
+  Tier.tensored (committedTraceSq (fold := fold₄) key₄ openKey₄ claim₄ μ₄ fits₄ batch₄ rowsFit₄
+    vars₄ block₄ decode₄ read weight₄ operator₄ limit₄ (Tier.finish third')) ν₄
+
+local notation "fifth'" =>
+  Tier.tensored (committedTraceSq (fold := fold₅) key₅ openKey₅ claim₅ μ₅ fits₅ batch₅ rowsFit₅
+    vars₅ block₅ decode₅ read weight₅ operator₅ limit₅ (Tier.finish fourth')) ν₅
+
+/-- The tower of the schedule with the Euclidean route at the levels 3 to 5 and at the terminal
+(Akita Section 6.2 and Corollary 10.35 (ii)): the batching root over `liftBatch`, `liftFold` and
+`committedTrace` with the tensor reduction at the levels 1 and 2, three levels `committedTraceSq`
+with the tensor reduction and the terminal `L'` on the Euclidean route is a suffix from the stage
+`start`: `tower_suffix` for these levels. `normed₃` to `normed₅` are the conditions `NormSized`
+of the levels 3 to 5, and `boundedL` is `‖c‖_mul,2 ≤ Γ_term` for each challenge of the terminal.
+The other hypotheses are those of `liftTower_suffix`. -/
+theorem mixedTower_suffix {peak : Fin count → ℕ} (injective : Function.Injective block)
+    (units : ∀ g, UnitDifferences {challenge | ∃ slot, decode g slot = some challenge})
+    (sparse : ∀ g challenge, (∃ slot, decode g slot = some challenge) →
+      Sparse (mass g) (peak g) challenge)
+    (response : ∀ g, 2 ≤ (B.fold g).responseBase)
+    (uniform : ∀ g, (B.shape g).certifiedBase = base) (small : base < fieldModulus)
+    (varsFit : μ ≤ Fintype.card Coord) (batchFit : batch ≤ Fintype.card Coord)
+    (groupsFit : count ≤ Fintype.card Coord)
+    (sized₁ : LevelSized block₁ decode₁ weight₁ fold₁.responseBase S₁.certifiedBase μ₁ batch₁)
+    (sized₂ : LevelSized block₂ decode₂ weight₂ fold₂.responseBase S₂.certifiedBase μ₂ batch₂)
+    (sized₃ : LevelSized block₃ decode₃ weight₃ fold₃.responseBase S₃.certifiedBase μ₃ batch₃)
+    (sized₄ : LevelSized block₄ decode₄ weight₄ fold₄.responseBase S₄.certifiedBase μ₄ batch₄)
+    (sized₅ : LevelSized block₅ decode₅ weight₅ fold₅.responseBase S₅.certifiedBase μ₅ batch₅)
+    (normed₃ : NormSized S₃ fold₃ decode₃ operator₃ limit₃ vars₃)
+    (normed₄ : NormSized S₄ fold₄ decode₄ operator₄ limit₄ vars₄)
+    (normed₅ : NormSized S₅ fold₅ decode₅ operator₅ limit₅ vars₅)
+    (next : L'.start = Tier.finish fifth') (inside : L'.start < total)
+    (quarter₂ : 4 * m₂ = S₂.innerDegree) (quarter₃ : 4 * m₃ = S₃.innerDegree)
+    (quarter₄ : 4 * m₄ = S₄.innerDegree) (quarter₅ : 4 * m₅ = S₅.innerDegree)
+    (quarter₆ : 4 * m₆ = S₆.innerDegree)
+    (injectiveL : Function.Injective L'.block) (unitsL : UnitDifferences L'.family)
+    (boundedL : ∀ challenge ∈ L'.family, MulBound operatorL challenge)
+    (commit₁ : Wire → S₁.Payload) (commit₂ : Wire → S₂.Payload) (commit₃ : Wire → S₃.Payload)
+    (commit₄ : Wire → S₄.Payload) (commit₅ : Wire → S₅.Payload)
+    (stateOf : Wire → Fin S₆.blocks → Fin S₆.innerRank → Rq S₆.innerDegree)
+    (rooted : ∀ point, accept point → start < point.rest.length ∧
+      RootLinked zeroth start commit value place
+        ((claimsRoot (Coord := Coord) (Slot := E) (total := total) start read value
+          place).weights point) point)
+    (linked₀ : ∀ point, accept point → Tier.Linked zeroth first commit₁ point)
+    (linked₁ : ∀ point, accept point → Tier.TraceLinked first second quarter₂ commit₂ point)
+    (linked₂ : ∀ point, accept point → Tier.TraceLinked second third' quarter₃ commit₃ point)
+    (linked₃ : ∀ point, accept point → Tier.TraceLinked third' fourth' quarter₄ commit₄ point)
+    (linked₄ : ∀ point, accept point → Tier.TraceLinked fourth' fifth' quarter₅ commit₅ point)
+    (linked₅ : ∀ point, accept point → Terminal.Linked fifth' L' quarter₆ stateOf point)
+    (passed : ∀ point, accept point → L'.Passed point) :
+    Tier.Suffix accept start (OpensAt start commit value place key mass)
+      (towerRoot (weight₃ := weight₃) (weight₄ := weight₄) (weight₅ := weight₅) .coefficient
+        (.euclidean operator₃ limit₃) (.euclidean operator₄ limit₄) (.euclidean operator₅ limit₅)
+        accept zeroth first second third' fourth' fifth' L' m₂ m₃ m₄ m₅ m₆ start read commit value
+        place)
+      (1 / Fintype.card E + (∑ b, Tier.chance zeroth b + (Tier.costs zeroth).sum +
+        (∑ b, Tier.chance first b + (Tier.costs first).sum +
+          (∑ b, Tier.chance second b + (Tier.costs second).sum +
+            (∑ b, Tier.chance third' b + (Tier.costs third').sum +
+              (∑ b, Tier.chance fourth' b + (Tier.costs fourth').sum +
+                (∑ b, Tier.chance fifth' b + (Tier.costs fifth').sum +
+                  S₆.blocks * slotChance L'.decode)))))))
+      (1 + (∑ g, (B.shape g).blocks + 1 + (S₁.blocks + 1 + (S₂.blocks + 1 + (S₃.blocks + 1 +
+        (S₄.blocks + 1 + (S₅.blocks + 1 + S₆.blocks)))))))
+      (2 * (2 * (∑ g, (B.shape g).blocks + 1) * (2 * (S₁.blocks + 1) * (2 * (S₂.blocks + 1) *
+        (2 * (S₃.blocks + 1) * (2 * (S₄.blocks + 1) *
+          (2 * (S₅.blocks + 1) * (S₆.blocks + 1)))))))) :=
+  tower_suffix B.card_block
+    (liftBatch_valid injective units sparse response uniform small varsFit batchFit) sized₁.lift
+    sized₂.trace (sized₃.traceSq normed₃) (sized₄.traceSq normed₄) (sized₅.traceSq normed₅)
+    (exists_fair_slots groupsFit) rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl next inside
+    quarter₂ quarter₃ quarter₄ quarter₅ quarter₆
+    (fun _ _ table other => foldCheck_bare _ _ _ table other)
+    (fun _ r2 v opened => ⟨r2, v, rfl, opened⟩)
+    (Tier.tensored_uniform fun _ _ table other => foldCheck_bare _ _ _ table other)
+    (fun _ ρ θ v opened => ⟨ρ, θ, v, rfl, opened⟩)
+    (Tier.tensored_uniform committedTrace_uniform) (fun _ ρ θ v opened => ⟨ρ, θ, v, rfl, opened⟩)
+    (Tier.tensored_uniform committedTraceSq_uniform)
+    (fun _ ρ θ v opened => ⟨ρ, θ, v, rfl, opened⟩)
+    (Tier.tensored_uniform committedTraceSq_uniform)
+    (fun _ ρ θ v opened => ⟨ρ, θ, v, rfl, opened⟩)
+    (Tier.tensored_uniform committedTraceSq_uniform)
+    (fun _ ρ θ v opened => ⟨ρ, θ, v, rfl, opened⟩)
+    injectiveL unitsL boundedL commit₁ commit₂ commit₃ commit₄ commit₅ stateOf rooted linked₀
     linked₁ linked₂ linked₃ linked₄ linked₅ passed
 
 end Lift
@@ -472,41 +583,63 @@ variable {B : Batch (Fin 3)} {S₁ : Shape} {O₁ : OpeningShape S₁}
   {O₃ : OpeningShape S₃} {fold₃ : Descriptor} {S₄ : Shape} {O₄ : OpeningShape S₄}
   {fold₄ : Descriptor} {S₅ : Shape} {O₅ : OpeningShape S₅} {fold₅ : Descriptor} {S₆ : Shape}
   {Wire Coord Lead : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] {total : ℕ}
-  {P : Verifier.Params Zq Quadratic} {C : Compose P B Wire Coord Lead total}
+  {P : Verifier.Params Zq E} {C : Compose P B Wire Coord Lead total}
   {vf : Verifier.VerifierData P}
-  {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq Quadratic}
+  {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E}
   {key : (g : Fin 3) → Key (B.shape g)} {openKey : B.OpenKey} {mass : Fin 3 → ℕ}
-  {β₁ : Module.Basis (Fin O₁.planes) Zq Quadratic} {key₁ : Key S₁} {openKey₁ : OpeningKey O₁}
+  {β₁ : Module.Basis (Fin O₁.planes) Zq E} {key₁ : Key S₁} {openKey₁ : OpeningKey O₁}
   {weight₁ : ℕ} {key₂ : Key S₂} {openKey₂ : OpeningKey O₂} {weight₂ : ℕ} {key₃ : Key S₃}
   {openKey₃ : OpeningKey O₃} {weight₃ : ℕ} {key₄ : Key S₄} {openKey₄ : OpeningKey O₄}
   {weight₄ : ℕ} {key₅ : Key S₅} {openKey₅ : OpeningKey O₅} {weight₅ : ℕ}
-  {accept : Prefix Wire (Coord → Quadratic) total → Prop}
-  {T₀ : Tier B.Block (fun b => Rq (B.carrierDegree b.1)) (B.Claim Quadratic)
+  {route₂ route₃ route₄ route₅ routeL : Route} {accept : Prefix Wire (Coord → E) total → Prop}
+  {T₀ : Tier B.Block (fun b => Rq (B.carrierDegree b.1)) (B.Claim E)
     (B.LevelBreak key openKey fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g))
-    B.Witness B.Weak Wire Coord Quadratic (Option (List Quadratic × Quadratic)) Table}
-  {T₁ : Tier (Fin S₁.blocks) (fun _ => Rq O₁.carrierDegree) (Claim O₁ Quadratic)
+    B.Witness B.Weak Wire Coord E (Option (List E × E)) Table}
+  {T₁ : Tier (Fin S₁.blocks) (fun _ => Rq O₁.carrierDegree) (Claim O₁ E)
     (LevelBreak key₁ openKey₁ (2 * (2 * weight₁) * fold₁.sourceBound S₁)) (Witness O₁ fold₁)
-    (Weak O₁) Wire Coord Quadratic (Option (List Quadratic × Quadratic × Quadratic)) Table}
-  {T₂ : Tier (Fin S₂.blocks) (fun _ => Rq S₂.innerDegree) (TraceClaim O₂ Quadratic)
-    (LevelBreak key₂ openKey₂ (2 * (2 * weight₂) * fold₂.sourceBound S₂)) (Witness O₂ fold₂)
-    (Weak O₂) Wire Coord Quadratic (Option (List Quadratic × Quadratic × Quadratic)) Table}
-  {T₃ : Tier (Fin S₃.blocks) (fun _ => Rq S₃.innerDegree) (TraceClaim O₃ Quadratic)
-    (LevelBreak key₃ openKey₃ (2 * (2 * weight₃) * fold₃.sourceBound S₃)) (Witness O₃ fold₃)
-    (Weak O₃) Wire Coord Quadratic (Option (List Quadratic × Quadratic × Quadratic)) Table}
-  {T₄ : Tier (Fin S₄.blocks) (fun _ => Rq S₄.innerDegree) (TraceClaim O₄ Quadratic)
-    (LevelBreak key₄ openKey₄ (2 * (2 * weight₄) * fold₄.sourceBound S₄)) (Witness O₄ fold₄)
-    (Weak O₄) Wire Coord Quadratic (Option (List Quadratic × Quadratic × Quadratic)) Table}
-  {T₅ : Tier (Fin S₅.blocks) (fun _ => Rq S₅.innerDegree) (TraceClaim O₅ Quadratic)
-    (LevelBreak key₅ openKey₅ (2 * (2 * weight₅) * fold₅.sourceBound S₅)) (Witness O₅ fold₅)
-    (Weak O₅) Wire Coord Quadratic (Option (List Quadratic × Quadratic × Quadratic)) Table}
-  {L : Terminal S₆ Quadratic Wire Coord Quadratic total} {m₂ m₃ m₄ m₅ m₆ : ℕ}
-  {commit : Wire → (g : Fin 3) → (B.shape g).Payload} {value : Wire → Fin 3 → Quadratic}
-  {place : Wire → Fin 3 → List Quadratic} {error : ℝ} {loops tree : ℕ}
+    (Weak O₁) Wire Coord E (Option (List E × E × E)) Table}
+  {T₂ : Tier (Fin S₂.blocks) (fun _ => Rq S₂.innerDegree) (TraceClaim O₂ E)
+    (route₂.Break key₂ openKey₂ weight₂ (fold₂.sourceBound S₂)) (Witness O₂ fold₂)
+    (Weak O₂) Wire Coord E (Option (List E × E × E)) Table}
+  {T₃ : Tier (Fin S₃.blocks) (fun _ => Rq S₃.innerDegree) (TraceClaim O₃ E)
+    (route₃.Break key₃ openKey₃ weight₃ (fold₃.sourceBound S₃)) (Witness O₃ fold₃)
+    (Weak O₃) Wire Coord E (Option (List E × E × E)) Table}
+  {T₄ : Tier (Fin S₄.blocks) (fun _ => Rq S₄.innerDegree) (TraceClaim O₄ E)
+    (route₄.Break key₄ openKey₄ weight₄ (fold₄.sourceBound S₄)) (Witness O₄ fold₄)
+    (Weak O₄) Wire Coord E (Option (List E × E × E)) Table}
+  {T₅ : Tier (Fin S₅.blocks) (fun _ => Rq S₅.innerDegree) (TraceClaim O₅ E)
+    (route₅.Break key₅ openKey₅ weight₅ (fold₅.sourceBound S₅)) (Witness O₅ fold₅)
+    (Weak O₅) Wire Coord E (Option (List E × E × E)) Table}
+  {L : Terminal S₆ E Wire Coord E total routeL} {m₂ m₃ m₄ m₅ m₆ : ℕ}
+  {commit : Wire → (g : Fin 3) → (B.shape g).Payload} {value : Wire → Fin 3 → E}
+  {place : Wire → Fin 3 → List E} {error : ℝ} {loops tree : ℕ}
 
+variable (C vf route₂ route₃ route₄ route₅ T₀ T₁ T₂ T₃ T₄ T₅ L commit value place) in
+/-- The verifier of the compression argument over the opening with a batching root, a fold with
+three opening groups, a packing level, four trace levels on the routes `route₂` to `route₅` and the
+terminal (SPEC.md Algorithm 10).
+It accepts with the conditions `Compose.Ran` of the stages before the opening, the stage and the
+link `RootLinked` of the batching root at the stage `Compose.root`, the link from each level to
+the next level or to the terminal, and the checks `Terminal.Passed` of the terminal. -/
+def towerAccepts (quarter₂ : 4 * m₂ = S₂.innerDegree) (quarter₃ : 4 * m₃ = S₃.innerDegree)
+    (quarter₄ : 4 * m₄ = S₄.innerDegree) (quarter₅ : 4 * m₅ = S₅.innerDegree)
+    (quarter₆ : 4 * m₆ = S₆.innerDegree) (commit₁ : Wire → S₁.Payload)
+    (commit₂ : Wire → S₂.Payload) (commit₃ : Wire → S₃.Payload) (commit₄ : Wire → S₄.Payload)
+    (commit₅ : Wire → S₅.Payload)
+    (stateOf : Wire → Fin S₆.blocks → Fin S₆.innerRank → Rq S₆.innerDegree)
+    (point : Prefix Wire (Coord → E) total) : Prop :=
+  C.Ran vf commit value place point ∧ C.root vf < point.rest.length ∧
+    RootLinked T₀ (C.root vf) commit value place
+      ((claimsRoot (Coord := Coord) (Slot := E) (total := total) (C.root vf) C.read value
+        place).weights point) point ∧
+    T₀.Linked T₁ commit₁ point ∧ T₁.TraceLinked T₂ quarter₂ commit₂ point ∧
+    T₂.TraceLinked T₃ quarter₃ commit₃ point ∧ T₃.TraceLinked T₄ quarter₄ commit₄ point ∧
+    T₄.TraceLinked T₅ quarter₅ commit₅ point ∧ Terminal.Linked T₅ L quarter₆ stateOf point ∧
+    L.Passed point
 
 local notation "opening" =>
-  towerRoot accept T₀ T₁ T₂ T₃ T₄ T₅ L m₂ m₃ m₄ m₅ m₆ (Compose.root C vf) (Compose.read C)
-    commit value place
+  towerRoot route₂ route₃ route₄ route₅ accept T₀ T₁ T₂ T₃ T₄ T₅ L m₂ m₃ m₄ m₅ m₆
+    (Compose.root C vf) (Compose.read C) commit value place
 
 /-- The compression argument over the opening `towerRoot` with three groups is a suffix from the
 stage of the lookup challenges: `Compose.suffix` for a suffix `later` of `towerRoot` at the stage

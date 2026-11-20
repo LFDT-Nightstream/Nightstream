@@ -74,7 +74,7 @@ fn construction_bytes(shape: MatrixShape, slots: usize, entries: usize) -> Optio
 pub(super) struct Columns {
     pub(super) slots: Vec<u32>,
     offsets: Vec<u32>,
-    rows: Vec<u32>,
+    rows: PackedRows,
     tags: Vec<u16>,
     factors: Vec<F>,
 }
@@ -107,13 +107,13 @@ impl Columns {
                 offsets.push(total);
             }
         }
-        let mut rows = vec![0; total as usize];
+        let mut rows = PackedRows::new(shape.rows, total as usize)?;
         let mut tags = vec![0; total as usize];
         let mut ids = FactorIds::new(total as usize);
         for (row, range) in ranges().enumerate() {
             for entry in range {
                 let next = &mut counts[entries.slots[entry] as usize];
-                rows[*next as usize] = row as u32;
+                rows.set(*next as usize, row as u32);
                 tags[*next as usize] = ids.tag(entries.coefficients[entry])?;
                 *next += 1;
             }
@@ -130,7 +130,8 @@ impl Columns {
     }
 
     fn storage_bytes(&self) -> usize {
-        (self.slots.capacity() + self.offsets.capacity() + self.rows.capacity()) * size_of::<u32>()
+        (self.slots.capacity() + self.offsets.capacity()) * size_of::<u32>()
+            + self.rows.bytes.capacity()
             + self.tags.capacity() * size_of::<u16>()
             + self.factors.capacity() * size_of::<F>()
     }
@@ -142,10 +143,10 @@ impl Columns {
 
     pub(super) fn weight(&self, row_weights: &[K], slot: usize) -> K {
         let range = self.offsets[slot] as usize..self.offsets[slot + 1] as usize;
-        self.rows[range.clone()]
-            .iter()
+        self.rows
+            .iter(range.clone())
             .zip(&self.tags[range])
-            .map(|(&row, &tag)| {
+            .map(|(row, &tag)| {
                 let w = row_weights[row as usize];
                 match tag {
                     0 => w,
@@ -161,8 +162,42 @@ impl Columns {
         if range.len() < 4 {
             return self.weight(row_weights, slot);
         }
-        let terms = self.rows[range.clone()].iter().zip(&self.tags[range]);
-        neo_math::sum_of_scaled(terms.map(|(&row, &tag)| (self.factors[tag as usize], row_weights[row as usize])))
+        let terms = self.rows.iter(range.clone()).zip(&self.tags[range]);
+        neo_math::sum_of_scaled(terms.map(|(row, &tag)| (self.factors[tag as usize], row_weights[row as usize])))
+    }
+}
+
+struct PackedRows {
+    bytes: Vec<u8>,
+    stride: usize,
+    mask: u32,
+}
+
+impl PackedRows {
+    fn new(rows: usize, n: usize) -> Option<Self> {
+        let max = u32::try_from(rows.saturating_sub(1)).ok()?;
+        let stride = (usize::try_from(u32::BITS - max.leading_zeros())
+            .ok()?
+            .div_ceil(8))
+        .max(1);
+        let mask = u32::MAX >> ((4 - stride) * 8);
+        let size = n.checked_mul(stride)?.checked_add(4 - stride)?;
+        Some(Self {
+            bytes: vec![0; size],
+            stride,
+            mask,
+        })
+    }
+    fn set(&mut self, index: usize, row: u32) {
+        self.bytes[index * self.stride..][..self.stride].copy_from_slice(&row.to_le_bytes()[..self.stride]);
+    }
+    fn iter(&self, range: std::ops::Range<usize>) -> impl Iterator<Item = u32> + '_ {
+        let mut data = &self.bytes[range.start * self.stride..range.end * self.stride + (4 - self.stride)];
+        std::iter::from_fn(move || {
+            let word = u32::from_le_bytes(*data.first_chunk::<4>()?) & self.mask;
+            data = &data[self.stride..];
+            Some(word)
+        })
     }
 }
 

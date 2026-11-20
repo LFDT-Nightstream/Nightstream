@@ -64,3 +64,26 @@ fn snapshots_match_validation_across_control_frames() {
         }
     }
 }
+
+#[test]
+fn wide_blocks_and_calls_store_at_most_one_operand_lane_per_instruction() {
+    let width = 255;
+    let types = "i32 ".repeat(width);
+    let locals: String = (0..width)
+        .map(|local| format!("local.get {local} "))
+        .collect();
+    let wasm = wat::parse_str(format!(
+        "(module
+            (type $wide (func (param {types}) (result {types})))
+            (func $same (type $wide) {locals})
+            (func (result i32) {} {} {}))",
+        "i32.const 1 ".repeat(width),
+        "block (type $wide) end call $same i32.const 1 if (type $wide) nop else nop end ".repeat(64),
+        "drop ".repeat(width - 1),
+    ))
+    .unwrap();
+    let artifacts = crate::extract_wasm_program_artifacts(&wasm).unwrap();
+    let stored = artifacts.trace.operand_types.nodes.len();
+    let operators = artifacts.trace.opcode_map.len();
+    assert!(stored <= operators, "{stored} lanes for {operators} instructions");
+}

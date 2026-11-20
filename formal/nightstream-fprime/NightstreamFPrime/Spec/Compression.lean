@@ -4,10 +4,17 @@ import NightstreamFPrime.Spec.Compression.Akita.Challenge
 import NightstreamFPrime.Spec.Compression.Akita.Commit
 import NightstreamFPrime.Spec.Compression.Akita.Euclid
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Bound
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Chain
+import NightstreamFPrime.Spec.Compression.Akita.Extract.FlatSource
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Level
 import NightstreamFPrime.Spec.Compression.Akita.Extract.PackingFold
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Recursion
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Staged
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Suffix
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Tier
+import NightstreamFPrime.Spec.Compression.Akita.Extract.TierBound
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Transcript
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Uniform
 import NightstreamFPrime.Spec.Compression.Akita.FlatFold
 import NightstreamFPrime.Spec.Compression.Akita.FlatWitness
 import NightstreamFPrime.Spec.Compression.Akita.Fold
@@ -62,4 +69,8 @@ as a game with its error (`Akita/FoldCheck`), the link from these checks to the 
 this fold on the flat witness (`Akita/FlatFold`), and the rewinding extraction of one packing fold
 (`Akita/Extract`): a finite transcript protocol (`Transcript`), a game as the stages of a
 transcript (`Staged`), one fold as a checkpoint structure (`Level`), its extraction bounds
-(`Bound`) and the fold with the checks `foldCheck` (`PackingFold`). -/
+(`Bound`) and the fold with the checks `foldCheck` (`PackingFold`), and the recursive opening
+suffix: the conditions of a suffix of the stages (`Suffix`), the verifier without the witness
+(`Uniform`), one level over the later stages (`Tier`, `TierBound`), the checks for a committed
+flat witness (`FlatSource`), the composition of the levels (`Recursion`) and the levels with the
+checks `foldCheck` (`Chain`). -/

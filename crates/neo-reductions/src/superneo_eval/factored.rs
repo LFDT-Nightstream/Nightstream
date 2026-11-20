@@ -63,38 +63,13 @@ impl<'a> FactoredRows<'a> {
         } = self;
         shape.validate(&(0..shape.rows))?;
         let invalid = |reason: &str| Err(PiCcsError::InvalidInput(format!("factored matrix rows: {reason}")));
-        let FactoredEntries {
-            offsets,
-            slots: read,
-            coefficients,
-            coefficient_starts,
-        } = entries;
-        if shape
+        if !shape
             .matrices
             .checked_mul(shape.rows)
-            .and_then(|count| count.checked_add(1))
-            != Some(offsets.len())
-            || offsets.first() != Some(&0)
-            || offsets.last() != Some(&read.len())
-            || (coefficient_starts.is_empty() && coefficients.len() != read.len())
-            || (!coefficient_starts.is_empty() && coefficient_starts.len() != offsets.len() - 1)
+            .is_some_and(|count| entries.valid(count))
             || slots.starts.len() != slots.widths.len()
         {
-            return invalid("table lengths");
-        }
-        if !offsets.windows(2).all(|pair| pair[0] <= pair[1]) {
-            return invalid("entry offsets");
-        }
-        if !coefficient_starts
-            .iter()
-            .zip(offsets.windows(2))
-            .all(|(&start, pair)| {
-                (start as usize)
-                    .checked_add(pair[1] - pair[0])
-                    .is_some_and(|end| end <= coefficients.len())
-            })
-        {
-            return invalid("coefficient offsets");
+            return invalid("entry tables");
         }
         if !slots
             .starts
@@ -104,7 +79,7 @@ impl<'a> FactoredRows<'a> {
         {
             return invalid("slot columns");
         }
-        if !all(read, |&slot| {
+        if !all(entries.slots, |&slot| {
             slots
                 .widths
                 .get(slot as usize)

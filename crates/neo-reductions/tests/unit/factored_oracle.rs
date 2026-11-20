@@ -79,8 +79,7 @@ impl Relation {
 
     fn entries(&self) -> FactoredEntries<'_> {
         FactoredEntries {
-            coefficient_starts: &[],
-            offsets: &self.offsets,
+            ports: neo_ccs::sparse::FactoredPorts::Offsets(&self.offsets),
             slots: &self.slots,
             coefficients: &self.coefficients,
         }
@@ -318,8 +317,7 @@ impl SlotRows {
         FactoredRows::new(
             self.shape,
             FactoredEntries {
-                coefficient_starts: &[],
-                offsets: &self.offsets,
+                ports: neo_ccs::sparse::FactoredPorts::Offsets(&self.offsets),
                 slots: &self.slots,
                 coefficients: &self.coefficients,
             },
@@ -397,22 +395,35 @@ fn shared_coefficients_must_cover_each_port() {
         columns: D,
         matrices: 1,
     };
+    use neo_ccs::sparse::{FactoredPorts, SharedPort};
+    let port = |slot_start, coefficient_start| SharedPort {
+        slot_start,
+        coefficient_start,
+        len: 1,
+    };
+    let valid = [port(0, 1), port(0, 0), port(0, 1)];
     let entries = FactoredEntries {
-        offsets: &[0, 1, 2, 3],
-        slots: &[0; 3],
+        ports: FactoredPorts::Shared {
+            ports: &valid,
+            entries: 3,
+        },
+        slots: &[0],
         coefficients: &[F::ONE, F::NEG_ONE],
-        coefficient_starts: &[1, 0, 1],
     };
     let rows = FactoredRows::new(shape, entries, slots).unwrap();
     assert_eq!(
         [0, 1, 2].map(|row| rows.row_value(0, row, &[F::ONE])),
         [F::NEG_ONE, F::ONE, F::NEG_ONE]
     );
-    for starts in [&[0, 1][..], &[1, 0, 2]] {
+    for ports in [
+        &valid[..2],
+        &[port(0, 1), port(1, 0), port(0, 1)],
+        &[port(0, 1), port(0, 2), port(0, 1)],
+    ] {
         assert!(FactoredRows::new(
             shape,
             FactoredEntries {
-                coefficient_starts: starts,
+                ports: FactoredPorts::Shared { ports, entries: 3 },
                 ..entries
             },
             slots

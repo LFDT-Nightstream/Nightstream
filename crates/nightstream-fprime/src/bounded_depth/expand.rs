@@ -1,9 +1,12 @@
 //! Lean `CircuitRelation.plan`, `Package.relationRows`, `CircuitRelation.outputForms`.
 
-use std::collections::{hash_map::Entry, HashMap};
+use std::collections::HashMap;
 use std::ops::Range;
 
-use neo_ccs::{crypto::poseidon2::SBOX_DEGREE, sparse::FactoredEntries};
+use neo_ccs::{
+    crypto::poseidon2::SBOX_DEGREE,
+    sparse::{FactoredEntries, FactoredPorts, SharedPort},
+};
 use neo_math::Fq;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
@@ -16,6 +19,43 @@ const PORTS: usize = 4;
 const BLOCK_LANES: usize = neo_ccs::crypto::poseidon2::WIDTH;
 const LAST_FULL_ROUND_SBOX_START: usize = SBOX_ROWS - BLOCK_LANES;
 
+fn reserve_span(end: &mut usize, len: usize) -> u32 {
+    let start = *end;
+    *end += len;
+    start as u32
+}
+
+fn shared_span<'a, T: Eq + std::hash::Hash>(
+    forms: &mut HashMap<&'a [T], u32>,
+    values: &'a [T],
+    end: &mut usize,
+) -> u32 {
+    if forms.len() == 1 << 16 {
+        forms.clear();
+    }
+    *forms
+        .entry(values)
+        .or_insert_with(|| reserve_span(end, values.len()))
+}
+
+fn compact_spans<T: Copy>(
+    values: &mut Vec<T>,
+    offsets: &[usize],
+    ports: &[SharedPort],
+    start: impl Fn(&SharedPort) -> u32,
+) {
+    let mut end = 0;
+    for (bounds, port) in offsets.windows(2).zip(ports) {
+        if start(port) as usize == end {
+            if bounds[0] != end {
+                values.copy_within(bounds[0]..bounds[1], end);
+            }
+            end += port.len as usize;
+        }
+    }
+    values.truncate(end);
+}
+
 pub struct PlanRows {
     ordinary: usize,
     piece_ranges: Vec<Range<usize>>,
@@ -23,12 +63,12 @@ pub struct PlanRows {
     offsets: Vec<usize>,
     columns: Vec<u32>,
     coefficients: Vec<Fq>,
-    coefficient_starts: Vec<u32>,
+    shared_ports: Option<(Box<[SharedPort]>, usize)>,
 }
 
 impl PlanRows {
     fn shrink_to_fit(&mut self) {
-        self.share_coefficients();
+        self.share_ports();
         self.offsets.shrink_to_fit();
         self.columns.shrink_to_fit();
         self.coefficients.shrink_to_fit();
@@ -39,7 +79,10 @@ impl PlanRows {
     }
 
     pub fn row_count(&self) -> usize {
-        (self.offsets.len() - 1) / PORTS
+        self.shared_ports
+            .as_ref()
+            .map_or_else(|| self.offsets.len() - 1, |(ports, _)| ports.len())
+            / PORTS
     }
 
     pub fn ordinary_row_count(&self) -> usize {
@@ -47,44 +90,67 @@ impl PlanRows {
     }
 
     pub fn entry_count(&self) -> usize {
-        self.columns.len()
+        self.entries().entry_count()
     }
 
     pub fn entries(&self) -> FactoredEntries<'_> {
         FactoredEntries {
-            offsets: &self.offsets,
+            ports: match &self.shared_ports {
+                Some((ports, entries)) => FactoredPorts::Shared {
+                    ports,
+                    entries: *entries,
+                },
+                None => FactoredPorts::Offsets(&self.offsets),
+            },
             slots: &self.columns,
             coefficients: &self.coefficients,
-            coefficient_starts: &self.coefficient_starts,
         }
     }
 
-    fn share_coefficients(&mut self) {
-        let ports = self.offsets.len() - 1;
-        let budget = self.coefficients.len().saturating_sub(ports.div_ceil(2));
-        if budget == 0 || self.coefficients.len() > u32::MAX as usize {
+    fn share_ports(&mut self) {
+        let port_count = self.offsets.len() - 1;
+        let entries = self.columns.len();
+        let overhead = (port_count as u64) * (size_of::<SharedPort>() - size_of::<usize>()) as u64;
+        if entries > u32::MAX as usize || (entries as u64) * (size_of::<u32>() + size_of::<Fq>()) as u64 <= overhead {
             return;
         }
-        let mut dictionary = HashMap::new();
-        let mut starts = Vec::with_capacity(ports);
-        let mut values = Vec::new();
-        for bounds in self.offsets.windows(2) {
-            let slice = &self.coefficients[bounds[0]..bounds[1]];
-            let start = match dictionary.entry(slice) {
-                Entry::Occupied(entry) => *entry.get(),
-                Entry::Vacant(entry) => {
-                    if slice.len() >= budget - values.len() {
-                        return;
-                    }
-                    let start = values.len() as u32;
-                    values.extend_from_slice(slice);
-                    *entry.insert(start)
-                }
-            };
-            starts.push(start);
+        let mut slot_forms = HashMap::new();
+        let mut coefficient_forms = HashMap::new();
+        let mut ports = Vec::new();
+        if ports.try_reserve_exact(port_count).is_err() {
+            return;
         }
-        self.coefficient_starts = starts;
-        self.coefficients = values;
+        let mut slot_count = 0;
+        let mut coefficient_count = 0;
+        for bounds in self.offsets.windows(2) {
+            let range = bounds[0]..bounds[1];
+            let columns = &self.columns[range.clone()];
+            let slot_start = if columns.len() < 4 {
+                reserve_span(&mut slot_count, columns.len())
+            } else {
+                shared_span(&mut slot_forms, columns, &mut slot_count)
+            };
+            let coefficient_start = shared_span(
+                &mut coefficient_forms,
+                &self.coefficients[range],
+                &mut coefficient_count,
+            );
+            ports.push(SharedPort {
+                slot_start,
+                coefficient_start,
+                len: columns.len() as u32,
+            });
+        }
+        let saved = (entries - slot_count) as u64 * size_of::<u32>() as u64
+            + (entries - coefficient_count) as u64 * size_of::<Fq>() as u64;
+        if saved > overhead {
+            compact_spans(&mut self.columns, &self.offsets, &ports, |port| port.slot_start);
+            compact_spans(&mut self.coefficients, &self.offsets, &ports, |port| {
+                port.coefficient_start
+            });
+            self.shared_ports = Some((ports.into_boxed_slice(), entries));
+            self.offsets = Vec::new();
+        }
     }
 
     pub fn ring_rows(&self) -> &[Range<usize>] {
@@ -118,25 +184,27 @@ impl PlanRows {
     }
 
     pub fn single(&self, row: usize, port: usize) -> Option<(usize, Fq)> {
-        let index = PORTS * row + port;
-        if self.offsets[index + 1] - self.offsets[index] != 1 {
-            return None;
-        }
-        let (slots, coefficients) = self.entries().port(index);
-        Some((slots[0] as usize, coefficients[0]))
+        let entries = self.entries();
+        let port = PORTS * row + port;
+        (entries.port_len(port) == 1).then(|| {
+            let (slots, coefficients) = entries.port(port);
+            (slots[0] as usize, coefficients[0])
+        })
     }
 
     pub fn residual(&self, row: usize, columns: &[Fq]) -> Fq {
+        let entries = self.entries();
         let index = PORTS * row;
-        let [a, b, c, s, end] = self.offsets[index..index + PORTS + 1]
-            .try_into()
-            .expect("one bounded-depth row");
         let evaluate = |port: usize| self.evaluate(row, port, columns);
         let output = evaluate(2);
-        if s != end {
+        if entries.port_len(index + 3) != 0 {
             return evaluate(0) * evaluate(1) - output + evaluate(3).exp_u64(SBOX_DEGREE);
         }
-        let (first, second) = if b - a <= c - b { (0, 1) } else { (1, 0) };
+        let (first, second) = if entries.port_len(index) <= entries.port_len(index + 1) {
+            (0, 1)
+        } else {
+            (1, 0)
+        };
         let factor = evaluate(first);
         if factor == Fq::ZERO {
             return -output;
@@ -350,7 +418,7 @@ impl StepPackage {
                 offsets: vec![0],
                 columns: Vec::new(),
                 coefficients: Vec::new(),
-                coefficient_starts: Vec::new(),
+                shared_ports: None,
             },
         };
         let word_edits = self.word_packing.edits();

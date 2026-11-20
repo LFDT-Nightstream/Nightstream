@@ -4,7 +4,7 @@ use super::*;
 fn source_residual_matches_all_ports_when_zero_factors_and_powers_mix() {
     let rows = PlanRows {
         ordinary: 3,
-        coefficient_starts: Vec::new(),
+        shared_ports: None,
         piece_ranges: Vec::new(),
         rings: Vec::new(),
         offsets: vec![0, 0, 0, 1, 2, 4, 4, 5, 5, 5, 7, 8, 8, 9, 10, 11, 12],
@@ -37,24 +37,27 @@ fn source_residual_matches_all_ports_when_zero_factors_and_powers_mix() {
 
 #[test]
 fn sharing_equal_forms_preserves_each_ports_columns_and_coefficients() {
-    let offsets = vec![0, 0, 1, 4, 7, 7, 10, 11, 14];
-    let coefficients = [1, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 1, 2, 3].map(Fq::from_u64);
+    let offsets = vec![0, 0, 1, 5, 9, 9, 13, 14, 18];
+    let coefficients = [1, 1, 2, 3, 4, 4, 3, 2, 1, 1, 2, 3, 4, 1, 4, 3, 2, 1].map(Fq::from_u64);
     let mut rows = PlanRows {
         ordinary: 2,
         piece_ranges: Vec::new(),
         rings: Vec::new(),
-        columns: (0..coefficients.len() as u32).collect(),
-        offsets,
+        columns: vec![9, 0, 1, 2, 3, 0, 1, 2, 3, 4, 5, 6, 7, 9, 4, 5, 6, 7],
+        offsets: offsets.clone(),
         coefficients: coefficients.to_vec(),
-        coefficient_starts: Vec::new(),
+        shared_ports: None,
     };
-    rows.share_coefficients();
-    assert_eq!(rows.coefficients.len(), 4);
+    let columns = rows.columns.clone();
+    rows.share_ports();
+    assert_eq!(rows.coefficients.len(), 9);
+    assert_eq!(rows.columns.len(), 10);
+    assert_eq!(rows.entry_count(), columns.len());
     let entries = rows.entries();
-    for (port, bounds) in rows.offsets.windows(2).enumerate() {
+    for (port, bounds) in offsets.windows(2).enumerate() {
         assert_eq!(
             entries.port(port),
-            (&rows.columns[bounds[0]..bounds[1]], &coefficients[bounds[0]..bounds[1]])
+            (&columns[bounds[0]..bounds[1]], &coefficients[bounds[0]..bounds[1]])
         );
     }
 }

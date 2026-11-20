@@ -17,7 +17,7 @@ use crate::lifecycle::bounded_depth::Relation;
 struct Census<'a> {
     plan: &'a PlanRows,
     slots: &'a SlotSpans,
-    next: usize,
+    port_entry: usize,
     entries: [usize; 4],
     expanded: [usize; 4],
     finished: usize,
@@ -26,14 +26,13 @@ struct Census<'a> {
 impl MatrixRowSink for Census<'_> {
     fn push_run(&mut self, row: usize, matrix: usize, run: GeometricRowRun<F>) -> Result<(), PiCcsError> {
         assert_eq!(row * 4 + matrix, self.finished);
-        let entry = self.next - self.plan.entries().offsets[self.finished];
-        let (source, coefficient) = self.plan.port(row, matrix).nth(entry).unwrap();
+        let (source, coefficient) = self.plan.port(row, matrix).nth(self.port_entry).unwrap();
         assert_eq!(run.row(), row);
         assert_eq!(run.column_start(), self.slots.starts[source] as usize);
         assert_eq!(run.len(), self.slots.widths[source] as usize);
         assert_eq!(*run.initial(), coefficient);
         assert_eq!(*run.ratio(), self.slots.ratio);
-        self.next += 1;
+        self.port_entry += 1;
         self.entries[matrix] += 1;
         self.expanded[matrix] += run.len();
         Ok(())
@@ -41,7 +40,8 @@ impl MatrixRowSink for Census<'_> {
 
     fn finish_matrix_row(&mut self, row: usize, matrix: usize) -> Result<ControlFlow<()>, PiCcsError> {
         assert_eq!(row * 4 + matrix, self.finished);
-        assert_eq!(self.next, self.plan.entries().offsets[4 * row + matrix + 1]);
+        assert_eq!(self.port_entry, self.plan.entries().port_len(self.finished));
+        self.port_entry = 0;
         self.finished += 1;
         Ok(ControlFlow::Continue(()))
     }
@@ -129,13 +129,13 @@ fn census(capacity: usize) {
         let mut sink = Census {
             plan,
             slots,
-            next: 0,
+            port_entry: 0,
             entries: [0; 4],
             expanded: [0; 4],
             finished: 0,
         };
         relation.visit_rows(0..shape.rows, &mut sink).unwrap();
-        assert_eq!(sink.next, plan.entry_count());
+        assert_eq!(sink.entries.iter().sum::<usize>(), plan.entry_count());
         assert_eq!(sink.finished, 4 * shape.rows);
         let powers = (0..plan.ordinary_row_count())
             .filter(|&row| plan.port(row, 3).next().is_some())

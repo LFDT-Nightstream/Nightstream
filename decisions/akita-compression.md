@@ -190,7 +190,10 @@ level of the final proof. It does not include:
   `Quantum169BitADPS16`), and Module-SIS for the Ajtai commitments of the
   claims (`[MSIS]`). The 169 bits are not in the paper: its floor is 128 bits
   for each instance, more than 125 bits for the family, and at least 147 bits
-  for the compression maps (Akita Appendix G).
+  for the compression maps (Akita Appendix G). The estimate of the Akita code
+  and the estimate of the main key are not in one model (Open points, the
+  model of the Module-SIS price). For `key20.aks`, the instances are the 13
+  instances of `Claims.Akita.key20_instance_list`.
 
 Lean has claims in which the Akita openings are not ideal (`Claims.Akita`).
 The main claim is `Claims.Akita.key20_verifier_sound`, from
@@ -345,15 +348,60 @@ trust item 7, gives the facts).
   paper.
 - The shapes of the compression maps `F_1` and `F_2`. A schedule file does not
   hold them. Lean takes them from the Akita code, and no check compares them.
-  The two sources differ. Lean and the pinned code have the ring degrees 64
-  and 32 for `q = 2^64 − 59` (`Spec.Compression.Akita.Key20.maps`,
-  `crates/akita-params/src/compression.rs` of the Akita code). The review of
-  the paper read, from the page image of Table 10 in Akita Appendix G, the
-  rank 1, `d_1 = 32`, `m_1 = 2048`, `d_2 = 16`, `m_2 = 128` and the bound 1
-  for this modulus. The pinned code has the degrees 32 and 16 for its 128-bit
-  modulus. So this point is open: the reading of the table must be confirmed,
-  and then the degrees of the paper and of the code must be compared. Lean is
-  not changed.
+  Lean and the pinned code have the ring degrees 64 and 32 for `q = 2^64 − 59`
+  (`Spec.Compression.Akita.Key20.maps`,
+  `crates/akita-params/src/compression.rs` of the Akita code). Table 10 of the
+  paper (Akita Appendix G) has `d_1 = 32`, `m_1 = 2048`, `d_2 = 16`,
+  `m_2 = 128`, the rank 1 and the bound 1 for this modulus, with a floor of
+  128 bits. The page was read again, and this reading is confirmed. The
+  difference has a cause. The Akita commit `dfdbd767` of 2026-10-20 raised the
+  floor of each instance to 169 bits and doubled the degrees of the maps,
+  because the degrees of the table do not reach 169 bits
+  (`specs/sis-nist-level3-policy.md` of the Akita code). So Nightstream runs
+  larger degrees than the table of the paper, for a higher floor, and the
+  paper has no price for these maps. Ring descent
+  (`Claims.Akita.module_sis_descent`) and a larger width
+  (`Spec.Compression.Akita.ShortKernel.carry`) give the price of the
+  first-stage cell of the table, 147.34 bits for `(32, 1, 2048, ∞, 1)`, to
+  `F_1` and `H_1`, because `2 · 1024 = 2048`. A larger width gives it to `F_2`
+  and `H_2`. Ring descent moves a price only from a smaller degree to a larger
+  degree, and the reductions do not give the 169 bits to an instance. What
+  stays open is a check that compares the shapes of Lean with the code.
+- The model of the Module-SIS price. `Claims.Akita.key20_instance_list` has
+  the 13 instances `(d, n, m, p, η)` of `key20.aks`: `(32, 1, 128, ∞, 1)`,
+  `(64, 1, 1024, ∞, 1)`, `(64, 2, 77, ∞, 63)`, `(64, 3, 616, ∞, 63)`,
+  `(64, 8, 256, 2, 2^46)`, `(64, 8, 512, 2, 2^45)`, `(128, 1, 1936, ∞, 7)`,
+  `(128, 1, 1092, ∞, 31)`, `(128, 4, 512, ∞, 126852)`,
+  `(128, 4, 256, 2, 2^44)`, `(512, 2, 56, ∞, 53477172)`,
+  `(1024, 1, 224, ∞, 32505732)` and `(1024, 1, 56, ∞, 53477172)`. For `p = 2`
+  the bound is on the square of the norm. `Claims.Akita.key20_instances`
+  states that the list is complete for `breakChance`, and
+  `formal/nightstream-fprime/tests/AkitaSchedules.lean` compares the list with
+  the file. Lean does not prove the hardness of an instance. `key30.aks` has
+  18 such instances, at the degrees 32 to 2048. They are from a script, and
+  Lean does not hold them. The pinned code admits an instance only at 169.07
+  bits or more of quantum ADPS16 Core-SVP cost, in a direct ℓ∞ attack model on
+  the scalar instance `(n·d, m·d)`, with the estimator of the Akita authors. A
+  run of this estimator in a copy of the pinned code reproduces the two cells
+  of Table 10 of the paper and gives 171.99 bits or more for each ℓ∞ instance
+  of both files. No estimate is independent of the Akita authors. The price
+  does not include attacks on the ring or module structure, the loss of the
+  reduction, or the sum over the instances that share one setup stream, which
+  is about 170.9 bits for each file in that model. The record of the main key
+  ([`field-2p64-59-ring-x64.md`](./field-2p64-59-ring-x64.md), Security
+  calculation) has 127.20 bits in the ADPS16 quantum model for the instance of
+  rank 18. The Akita estimator gives this number, with the block size 480, on
+  the Euclidean route at the length `β · √(m·d)`. That the record uses this
+  route is an inference from the exact match, because the files of the sister
+  project were not seen. The direct ℓ∞ model of the Akita table gives 154.23
+  bits for the same instance. By the method of the main-key record, the lowest
+  Akita instance of `key20.aks` is `B` of level 2, `(128, 1, 1092, ∞, 31)`, at
+  110.77 bits, and 6 of the 46 ℓ∞ instances of the two files are below 128
+  bits. So the two numbers of `[MSIS]` are not numbers of one model. The
+  alternatives are the direct ℓ∞ model for the main key and for Akita, the
+  Euclidean route with the factor `√(m·d)` for both, or two models with a
+  stated reason for each. This record does not select one. An estimate of the
+  instances of the list with `lattice-estimator` is also open.
 - The pair `(λ_FS, Q_max)`. The Akita code declares neither number. It has a
   target rate of 128 bits for each query. The paper has a proof of work before
   selected algebraic challenge queries (Akita Section 10.1 and Appendix I),
@@ -371,9 +419,11 @@ trust item 7, gives the facts).
   coefficient route in the ℓ∞ norm at `2 · κ̄_1 · β̄_∞`, which is the Lean
   `η_A`, and on the squared-norm route at the least power of two at or above
   `64 · Γ² · S_max`. That the schedule file has this norm and this radius for
-  `A` is a check of the file, and no check compares the norm. Lean proves that
-  the norm of the reduction is at most the bound of the file
-  (`Spec.Compression.Akita.Descriptor.key20_covers`,
+  `A` is a check of the file:
+  `formal/nightstream-fprime/tests/AkitaSchedules.lean` compares both for
+  `key20.aks`, and for `key30.aks` it compares only the bound of `A` of the
+  key group. Lean proves that the norm of the reduction is at most the bound
+  of the file (`Spec.Compression.Akita.Descriptor.key20_covers`,
   `Spec.Compression.Akita.Descriptor.key30_covers`).
 - The proof of work and the probability `p`.
   `Export.BoundedDepth.FinalKey20.sound` takes the largest probability `p` of

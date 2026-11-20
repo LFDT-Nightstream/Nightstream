@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.BoundedDepth.FinalKey20Challenge
+import NightstreamFPrime.Export.BoundedDepth.FinalKey20Instances
 import NightstreamFPrime.Spec.Checkpoint.Runs
 import NightstreamFPrime.Spec.Compression.Akita.Key20Accept
 import NightstreamFPrime.Spec.Compression.Akita.Key20Opening
@@ -20,7 +21,8 @@ item 7).
   key, the claims that end in `_with_akita` of `Claims.Final` keep the premises of `[AKITA]`.
 - Assumptions: `[MSIS]` and `[KECCAK]`. Each bound has the term `breakChance`, or it bounds only
   the event that the extractor returns no output. Lean gives no bound on the probability that an
-  output is a solution of Module-SIS.
+  output is a solution of Module-SIS. `key20_instances` and `key20_instance_list` give the
+  instances of Module-SIS that `breakChance` is about, and Lean does not prove their hardness.
 - Open: the operator bound `Γ` of the filtered challenge families is a hypothesis (`bounded₃` to
   `boundedL`). No Lean result compares the Lean decoders or the Lean verifier with the code. -/
 
@@ -29,6 +31,7 @@ namespace NightstreamFPrime.Claims.Akita
 open Spec Spec.Compression Lifecycle Lifecycle.BoundedDepth Export.BoundedDepth
 open scoped BigOperators Spec.FieldExtensionRing Spec.Compression.Production
 attribute [local instance low] Classical.propDecidable
+attribute [local instance] NightstreamFPrime.Export.BoundedDepth.FinalKey20.instAlgebraZqK
 
 /-- Akita Theorem 10.17 in the form (161), for a fixed environment. The model is one uniform table
 of stage answers with independent slots, and a limit `budget` on the attempts of each retry loop
@@ -977,5 +980,132 @@ theorem key20_blocks :
             (Akita.Key20.level₅.shape.blocks ≤ 2 ^ 3 ∧ 5 + (8 + 3) = Akita.Key20.level₄.tail) ∧
               Akita.Key20.terminal.blocks ≤ 2 ^ 3 ∧ 5 + (8 + 3) = Akita.Key20.level₅.tail :=
   @NightstreamFPrime.Spec.Compression.Akita.Key20.blocks_live
+
+/-- Ring descent for Module-SIS in the norm `‖·‖_∞`, for `q = 2^64 − 59` and each pair of ring
+degrees with `stride · d_car = d` (Akita (38) and (39)). `solve` is a solver for a matrix of `n`
+rows and `m` columns over `R_{q,d}` at the bound `β`. `ShortKernel.lower` is a solver for a matrix
+of `n` rows and `stride · m` columns over `R_{q,d_car}` at the same bound: it runs `solve` on the
+matrix whose entries have the columns of its input as coordinates in the basis
+`1, X, …, X^{stride−1}`, and it returns the coordinates of the solution. The two solvers have one
+probability on uniform matrices. So an instance at the degree `d` is not easier than the instance
+at the degree `d_car` with `stride` times the width. The claim does not give the other direction,
+and it gives no number for the hardness of an instance. -/
+theorem module_sis_descent
+    {d : ℕ}
+    {dCar : ℕ}
+    {stride : ℕ}
+    [neZeroNatD : NeZero d]
+    [neZeroNatDCar : NeZero dCar]
+    {rows : Type}
+    {cols : Type}
+    [fintypeRows : Fintype rows]
+    [decidableEqRows : DecidableEq rows]
+    [fintypeCols : Fintype cols]
+    [decidableEqCols : DecidableEq cols]
+    (tower : stride * dCar = d)
+    {bound : ℕ}
+    (solve : (M : Matrix rows cols (Akita.Rq d)) → Option (Akita.ShortKernel M bound)) :
+    (𝔼 N, if (Akita.ShortKernel.lower tower solve N).isSome then (1 : ℝ) else 0) =
+      𝔼 M, if (solve M).isSome then (1 : ℝ) else 0 :=
+  @NightstreamFPrime.Spec.Compression.Akita.ShortKernel.lower_chance d dCar stride neZeroNatD
+    neZeroNatDCar rows cols fintypeRows decidableEqRows fintypeCols decidableEqCols tower bound solve
+
+/-- The instances of Module-SIS of the Akita opening of `crates/ns-compress/artifacts/key20.aks`
+(Akita Lemma 10.20 and Appendix G). `Key20.instances` has 13 instances `(d, n, m, p, η)`: the ring
+degree, the rank, the width, the norm (`true` for `‖·‖_2`, with `η` a bound on the square) and
+the bound that the file prices. `Key20.views` has the instance of each of the 43 matrices of the
+Lean tower at the bound of its witness of `R_bind`. Each view is below an instance of the list:
+one degree, one rank, one norm, a width that is not larger and a bound that is not larger. Each
+instance has the width of a view below it, with the bound of this view in the norm `‖·‖_∞` and
+with a bound below two times the bound of this view in the norm `‖·‖_2`. No instance is below
+another instance. `tests/AkitaSchedules.lean` compares the list with the file. Lean does not
+prove the hardness of an instance, and the list is not for `key30.aks`. -/
+theorem key20_instance_list :
+    Akita.Covered Akita.Key20.instances Akita.Key20.views ∧
+      Akita.Key20.instances.map Akita.Setup.Instance.key =
+          [(32, 1, 128, false, 1), (64, 1, 1024, false, 1), (64, 2, 77, false, 63),
+            (64, 3, 616, false, 63), (64, 8, 256, true, 2 ^ 46), (64, 8, 512, true, 2 ^ 45),
+            (128, 1, 1936, false, 7), (128, 1, 1092, false, 31), (128, 4, 512, false, 126852),
+            (128, 4, 256, true, 2 ^ 44), (512, 2, 56, false, 53477172),
+            (1024, 1, 224, false, 32505732), (1024, 1, 56, false, 53477172)] ∧
+        Akita.Key20.views.length = 43 ∧
+          (∀ I ∈ Akita.Key20.instances,
+              ∃ v ∈ Akita.Key20.views,
+                v.Below I ∧ v.cols = I.cols ∧ cond I.euclidean (I.bound < 2 * v.bound) (v.bound = I.bound)) ∧
+            List.Pairwise (fun I J => ¬I.Below J ∧ ¬J.Below I) Akita.Key20.instances :=
+  @NightstreamFPrime.Spec.Compression.Akita.Key20.instances_exact
+
+/-- The list `Key20.instances` is complete for the term `breakChance` of the claims
+`key20_verifier_sound`, `key20_history_sound` and `key20_history_knowledge` (Akita Lemma 10.20).
+`solved`: `out` is an output of the extractor that is a solution of Module-SIS, which is the
+event of `FinalAkita.breakChance`: a solution for the key commitment, or a witness of `R_bind`
+for a matrix of the root, of a level or of the terminal. Then a matrix `M` of the opening has a
+solution that gives a solution of an instance of the list (`Key20.Reduced`, `Reduces`). The
+instance has the degree, the rank and the norm of `M`. Each matrix of the instance that has the
+columns of `M` at some positions has a solution at the bound of the instance, which is the
+vector for `M` with zeros in the other columns. So these 13 instances are the Module-SIS
+instances that the `key20_` claims rest on. `mass`, `weight₁` and `weight₂`: the opening has the
+norms `‖c‖_1` of the fold challenges that `FinalKey20.Opening.Drawn` gives, 31, 51 and 51 for the
+groups of the root, 51 for the level 1 and 31 for the level 2. `inner`: the bound of the
+reduction for the key commitment is at most `η_A` of the key group, 32505732. Lean does not prove the hardness of an
+instance, and it has no bound on `breakChance`: the matrices of the claims are fixed, and no Lean
+result joins this claim with the sum over the instances of Akita (168) for a uniform setup. -/
+theorem key20_instances
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+          Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    {mode : FinalVerifier.Mode}
+    {setup : FinalVerifier.Setup mode logicalWidth publicFits}
+    {packageWidths : Fin 2 → ℕ}
+    {step : AppState → AppWitness → AppState}
+    {cap : ℕ}
+    {control : AppState → AppWitness → Fin 2}
+    {Wire : Type}
+    {Coord : Type}
+    {total : ℕ}
+    {read : Akita.Extract.Reader Wire}
+    {head : Wire → FinalAkita.First logicalWidth publicFits}
+    [fintypeCoord : Fintype Coord]
+    [decidableEqCoord : DecidableEq Coord]
+    {o : FinalKey20.Opening logicalWidth publicFits Wire Coord total}
+    (mass : o.mass = Akita.Key20.rootMass)
+    (weight₁ : o.weight₁ = 51)
+    (weight₂ : o.weight₂ = 31)
+    (inner : o.innerBound ≤ (Akita.Key20.root.fold 0).innerBound (Akita.Key20.root.shape 0))
+    {out : Akita.Extract.Opened Akita.Key20.root.Weak
+            (Akita.Extract.Opened (Akita.Weak Akita.Key20.level₁.opening)
+              (Akita.Extract.Opened (Akita.Weak Akita.Key20.level₂.opening)
+                (Akita.Extract.Opened (Akita.Weak Akita.Key20.level₃.opening)
+                  (Akita.Extract.Opened (Akita.Weak Akita.Key20.level₄.opening)
+                    (Akita.Extract.Opened (Akita.Weak Akita.Key20.level₅.opening)
+                      (Akita.Extract.Prefix Wire (Coord → K) total ×
+                        Option (Akita.TerminalFork Akita.Key20.terminal))))))) ⊕
+          (Akita.Batch.LevelBreak o.key o.openKey fun g =>
+              2 * (2 * o.mass g) * (Akita.Key20.root.fold g).sourceBound (Akita.Key20.root.shape g)) ⊕
+            Akita.Extract.LevelBreak o.key₁ o.openKey₁
+                (2 * (2 * o.weight₁) * Akita.Key20.level₁.fold.sourceBound Akita.Key20.level₁.shape) ⊕
+              Akita.Extract.Route.Break o.key₂ o.openKey₂ o.weight₂
+                  (Akita.Key20.level₂.fold.sourceBound Akita.Key20.level₂.shape)
+                  Akita.Extract.Route.coefficient ⊕
+                Akita.Extract.Route.Break o.key₃ o.openKey₃ o.weight₃
+                    (Akita.Key20.level₃.fold.sourceBound Akita.Key20.level₃.shape)
+                    (Akita.Extract.Route.euclidean Akita.Key20.norm₃.operator Akita.Key20.norm₃.limit) ⊕
+                  Akita.Extract.Route.Break o.key₄ o.openKey₄ o.weight₄
+                      (Akita.Key20.level₄.fold.sourceBound Akita.Key20.level₄.shape)
+                      (Akita.Extract.Route.euclidean Akita.Key20.norm₄.operator Akita.Key20.norm₄.limit) ⊕
+                    Akita.Extract.Route.Break o.key₅ o.openKey₅ o.weight₅
+                        (Akita.Key20.level₅.fold.sourceBound Akita.Key20.level₅.shape)
+                        (Akita.Extract.Route.euclidean Akita.Key20.norm₅.operator Akita.Key20.norm₅.limit) ⊕
+                      Option
+                        ((Akita.Extract.Route.euclidean Akita.Key20.normTerminal.operator
+                              Akita.Key20.normTerminal.limit).Kernel
+                          o.terminal.matrix o.terminal.weight o.terminal.bound)}
+    (solved : FinalAkita.Solved (FinalKey20.Opening.tower setup packageWidths step cap control read head o)
+          o.key o.honest o.innerBound out) :
+    Akita.Key20.Reduced Akita.Key20.instances o.key o.openKey o.key₁ o.openKey₁ o.key₂ o.openKey₂ o.key₃
+      o.openKey₃ o.key₄ o.openKey₄ o.key₅ o.openKey₅ o.terminal.matrix :=
+  @NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.reduced logicalWidth publicFits mode setup
+    packageWidths step cap control Wire Coord total read head fintypeCoord decidableEqCoord o mass weight₁
+    weight₂ inner out solved
 
 end NightstreamFPrime.Claims.Akita

@@ -102,14 +102,22 @@ scope note.
   family for Akita on 2026-11-13 (`decisions/akita-compression.md`).
 - `MSIS`: Module-SIS for a uniform matrix of `κ = 18` rows over `F_q[X]/(X^64 + 1)` at the chain norm, in the
   lattice-estimator model of `decisions/field-2p64-59-ring-x64.md` (trust item 2), and for the Akita commitments at the
-  price of the Akita code (trust item 7). For the matrices of the commitment of the compression key, the instances are
-  those of the premise `msis` (trust item 7). The Akita matrices are views of one setup vector. For a uniform vector,
-  the advantage against the views is the sum of the advantages against a uniform matrix of each instance (Akita Lemma
-  10.20 (i), `Spec.Compression.Akita.Setup.shared_setup_eq`). The solver of a Lean extraction result runs the prover
-  `K̂ + (Q + 1)(K̂ − 1)` times in expectation, for the tree size `K̂` (`Claims.Akita.checkpoint_runs`). In
-  `Claims.Akita.key20_verifier_sound`, the term of this entry is `Export.BoundedDepth.FinalAkita.breakChance`: the
-  probability that the extractor returns a solution for the key commitment, for a matrix of the root or of a level, or
-  for the matrix of the terminal. There `K̂ = 85,798,158,336` (trust item 7 gives the instances and the radii).
+  price of the Akita code (trust item 7). The two prices are not numbers of one model. The record of the main key has
+  127.20 bits, and a run of the Akita estimator gives this number on the Euclidean route with the factor `√(m·d)`. The
+  169 bits of the Akita code are a direct ℓ∞ estimate, which gives 154.23 bits for the main key. By the method of the
+  main-key record, the lowest Akita instance of `key20.aks` has 110.77 bits. The owner has not selected one model, so
+  this entry has no common number for its instances (trust item 7, the Module-SIS instances). For the matrices of the
+  commitment of the compression key, the instances are those of the premise `msis` (trust item 7). For the opening of
+  `key20.aks`, the instances are the 13 instances of `Claims.Akita.key20_instance_list`, and
+  `Claims.Akita.key20_instances` states that this list is complete for the term `breakChance` below. Lean does not prove
+  the hardness of an instance, and it does not hold the list of `key30.aks`. The Akita matrices are views of one setup
+  vector. For a uniform vector, the advantage against the views is the sum of the advantages against a uniform matrix of
+  each instance (Akita Lemma 10.20 (i), `Spec.Compression.Akita.Setup.shared_setup_eq`). The solver of a Lean extraction
+  result runs the prover `K̂ + (Q + 1)(K̂ − 1)` times in expectation, for the tree size `K̂`
+  (`Claims.Akita.checkpoint_runs`). In `Claims.Akita.key20_verifier_sound`, the term of this entry is
+  `Export.BoundedDepth.FinalAkita.breakChance`: the probability that the extractor returns a solution for the key
+  commitment, for a matrix of the root or of a level, or for the matrix of the terminal. There `K̂ = 85,798,158,336`
+  (trust item 7 gives the instances and the radii).
 - `AKITA`: for the one Akita opening of a final proof (`Spec.Compression.Akita.Use`), Akita (ePrint 2026/1983) Theorem
   10.46 with its error `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)` and the term `ε_hash` of Akita Lemma 10.47 for its
   digests (`Spec.Compression.Akita.Theorem1046`), for an extractor that returns the root weak opening of Akita
@@ -256,6 +264,10 @@ each head.
 | `Akita/use.laid` | `Export.BoundedDepth.FinalVerifier.Setup.Laid` | game | `SPEC.md` Algorithm 10: step 5 lays out the claims, and the claim is for claims that pass the layout |
 | `Akita/use.zeros` | `Eq` | lean | `Export.BoundedDepth.FinalKey20.laidSetup_use`, for the setup `Export.BoundedDepth.FinalKey20.laidSetup` of the Akita claims of the final verifier. No Lean result compares `Export.BoundedDepth.FinalKey20.laidZeros` with the Rust code (trust item 7) |
 | `Akita/drawn` | `Export.BoundedDepth.FinalKey20.Opening.Drawn` | open | Open: the conditions `Export.BoundedDepth.FinalKey20.Opening.Drawn` of the opening of each claim shape are one hypothesis, and nothing gives three of its parts. `bounded₃` to `boundedL` are the operator bound of the row above. `decode` to `decodeL` fix the Lean decoders `draw`, and no data compares them with the sampler of the code. `registered` is a certified decommitment of the key commitment of the verifier to the key polynomial, and no Lean result or Rust test gives it for the pinned key. The other parts are the layout of step 5 and the stage layout of the rows above |
+| `Akita.key20_instances/mass`, `Akita.key20_instances/weight₁`, `Akita.key20_instances/weight₂` | `Eq` | game | adversary 6: the claim is for the opening of `Claims.Akita.key20_verifier_sound`. The hypothesis `Export.BoundedDepth.FinalKey20.Opening.Drawn` of that claim (row above) has these three equations as fields: the norms `‖c‖_1` of the fold challenges of the root and of the levels 1 and 2, which fix the bounds of the witnesses of `R_bind` |
+| `Akita.key20_instances/solved` | `Export.BoundedDepth.FinalAkita.Solved` | game | adversary 6: the event of the claim is an output of the extractor that is a solution of Module-SIS, which is the event of `Export.BoundedDepth.FinalAkita.breakChance` |
+| `Akita.key20_instances/inner` | `LE.le` | game | adversary 6: the bound `innerBound` of the reduction for the key commitment is a parameter of the experiment, and the claim is for a bound of at most `η_A = 32505732`. `Spec.Compression.Akita.Descriptor.key20_covers` gives that `η_A` is not below the norm of the reduction against the honest decommitment (row `covers`) |
+| `Akita.module_sis_descent/neZeroNatD`, `Akita.module_sis_descent/neZeroNatDCar`, `Akita.module_sis_descent/tower` | `*` | lean | `Spec.Compression.Akita.Key20.maps_tower`, for the degrees 64 and 32 of the two compression maps, with `stride = 2`. The degree of an instance is not 0 (`Spec.Compression.Akita.Setup.Instance.positive`). The claim is for each pair of degrees with `stride · d_car = d` |
 | `valid.toValid.*`, `secure` | `*` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-nebula-gate-parity-v1.json`, `is_valid_and_is_secure_are_the_lean_decisions`: Rust checks rules 1 to 6 of `SPEC.md` section 7.1 on each geometry at run time, and the test compares that check with Lean's decisions. For the fixed WASM sizes Lean proves both (`Spec.Nebula.WasmSize.valid`, `Spec.Nebula.WasmSize.secure`), and `each_wasm_size_has_the_lean_geometry_and_rows` compares the geometries |
 | `valid.romWords`, `valid.ramWords` | `LT.lt` | game | `SPEC.md` section 7.1: a program is two images of words below `2^32`, so these bounds define the statements of the game. Rust holds each image as `Vec<u32>` (`nebula::Program`), so each program that the verifier receives meets them |
 | `app.*` | `*` | open | Open: `Lifecycle.Nebula.FirstPlan.app` is the test machine. A Rust-built memory application, the WASM relation included, has no instance (Out of scope) |
@@ -910,7 +922,11 @@ not change terminal source checks.
      these values with lattice-estimator commit `3e48ef4` and Sage 10.9. Nightstream did not run them again, because
      Sage stops at start-up on this machine. The owner selected `κ = 18` on 2026-11-13. The models are heuristic generic
      lattice attacks. They are not a proof for structured Module-SIS or for the fixed public seed, and the run's files
-     are not in the repository.
+     are not in the repository. A run of the Akita estimator in a copy of the pinned Akita code gives 127.200 bits and
+     the block size 480 on the Euclidean route at the length `β · √(m·d)`, so the record uses this route. This is an
+     inference from the exact match, because the files of the run were not seen. The direct ℓ∞ model of the Akita table
+     gives 154.23 bits (block size 582) for this instance. The owner has not selected one model for the main key and the
+     Akita instances (trust item 7, the Module-SIS instances).
    - *Poseidon2 collisions.* The state hash, the slot digests, the package identity, the Nebula record chains and the
      state digests of a memory application bind their inputs only up to a Poseidon2 collision. The results name each
      collision as an event on two inputs that a reduction computes. Under `[P2-PERM]` and `[SPONGE]`, an algorithm with
@@ -1291,16 +1307,46 @@ not change terminal source checks.
      them: that is the root weak opening (item above). The claim gives no bound on `bindingError` (premise `msis`). It
      is for the output of `Spec.Compression.Akita.commit` on the key polynomial. No Lean result shows that the pinned
      key holds this output for the Akita matrices of the fixed seed: the pin and its test (item above) are the only
-     check. The pinned Akita code prices each of its Module-SIS instances at 169 bits or more in the ADPS16 quantum cost
-     model (policy `Quantum169BitADPS16`). This number is not in the paper. The floor of the paper is 128 bits of
-     quantum ADPS16 Core-SVP cost for each instance, more than 125 bits for the family, and at least 147 bits for the
-     compression maps (Akita Appendix G). The paper prices `A` on the coefficient route in the ℓ∞ norm at
-     `2 · κ̄_1 · β̄_∞`, which is the Lean `η_A`, and on the squared-norm route at the least power of two at or above
-     `64 · Γ² · S_max`. That a schedule file has this norm and this radius for `A` is a check of the file:
-     `tests/AkitaSchedules.lean` compares the bound of `A`, and no check compares the norm. Akita states that its price
-     is for one attack family on a scalar instance, that it does not price attacks on the ring or module structure, and
-     that it does not include the loss of the reduction. The Ajtai commitments of the claims keep the lower estimate of
-     trust item 2.
+     check. The paper prices `A` on the coefficient route in the ℓ∞ norm at `2 · κ̄_1 · β̄_∞`, which is the Lean `η_A`,
+     and on the squared-norm route at the least power of two at or above `64 · Γ² · S_max`. The Ajtai commitments of the
+     claims keep the estimate of trust item 2.
+   - *The Module-SIS instances of Akita `[MSIS]`.* The hardness of an instance depends on the ring degree, and the Lean
+     reductions do not. For `key20.aks`, the 43 matrices of the Lean tower give 13 instances `(d, n, m, p, η)` that are
+     not below another instance (`Claims.Akita.key20_instance_list`): the compression maps at the degrees 32 and 64, `B`
+     and `D` at 64 and 128, and `A` at 64, 128, 512 and 1024, with the norm ℓ2 for 3 of them. Each bound of a Lean
+     witness of `R_bind` is at most the bound that the file prices, and the list is complete for `breakChance`
+     (`Claims.Akita.key20_instances`). `tests/AkitaSchedules.lean` compares the degree, the rank, the width, the norm
+     and the bound of each matrix `A`, `B` and `D` of the file with the list. The file does not hold the compression
+     maps. No Lean result joins the list with the sum of Akita Lemma 10.20, because the matrices of the claims are fixed
+     and are not views of one uniform vector. `key30.aks` has 35 distinct instances, 18 of them not below another, at
+     the degrees 32 to 2048. That list is from a script, and Lean does not hold it. (i) The price. The pinned code
+     admits an instance only at 169.07 bits or more of quantum ADPS16 Core-SVP cost, `2^(0.265·β)` for the BKZ block
+     size `β` (policy `Quantum169BitADPS16`). The model is a direct ℓ∞ attack, or the Euclidean attack for a bound on
+     ℓ2, on the scalar instance `(n·d, m·d)`. The estimator is the estimator of the Akita authors. A run of it in a copy
+     of the pinned code reproduces the two cells of Table 10 of the paper, 147.34 and 153.17 bits. It gives 171.99 bits
+     or more for each of the 46 ℓ∞ instances of the two files (the exhaustive search for 27 of them, an uncertified
+     search for a local minimum for the others) and 173.57 bits or more for each of the 3 instances in ℓ2. The lowest of
+     `key20.aks` are `A` of level 2, `(128, 4, 512, ∞, 126852)`, at 171.99 bits and `B` of level 2,
+     `(128, 1, 1092, ∞, 31)`, at 172.51 bits. No estimate is independent of the Akita authors: no `lattice-estimator`
+     run exists for an Akita instance. (ii) The degrees. Table 10 of the paper (Akita Appendix G) has the degrees 32 and
+     16 for the compression maps at `q = 2^64 − 59`, with a floor of 128 bits for each instance and more than 125 bits
+     for the family. The pinned code has 64 and 32 since the Akita commit `dfdbd767` of 2026-10-20, which raised the
+     floor to 169 bits. So Nightstream runs larger degrees than the table of the paper, and the 169 bits are not in the
+     paper. The paper gives no number for an instance of `A`, `B`, `D` or the terminal at this modulus. (iii) The price
+     does not include attacks on the ring or module structure, the loss of the reduction, or the sum over the instances
+     that share one setup stream. In the model of (i), this sum is about 170.9 bits for each file. (iv) The reductions.
+     Lean proves that a solution moves to a matrix with more columns, fewer rows or a larger bound
+     (`Spec.Compression.Akita.ShortKernel.carry`), and from the degree `s · d` and the width `m` to the degree `d` and
+     the width `s · m`, at one rank and one bound (`Claims.Akita.module_sis_descent`, and
+     `Spec.Compression.Akita.ShortKernelSq.lower_chance` for ℓ2). So descent moves a price only from a smaller degree to a
+     larger degree. The first-stage cell of Table 10, `(32, 1, 2048, ∞, 1)` at 147.34 bits, covers `F_1` and `H_1` by
+     width and descent, and `F_2` and `H_2` by width. The reductions carry the 169 bits to no other instance. (v) The
+     model question is open for the owner and the sister project. By the inference of trust item 2, the 127.20 bits of
+     the main key are the number of the Euclidean route with the factor `√(m·d)`, and the direct ℓ∞ model of (i) gives
+     154.23 bits for that instance. By the method of the main-key record, the lowest Akita instance of `key20.aks` is
+     `B` of level 2 at 110.77 bits, and 6 of the 46 ℓ∞ instances of the two files are below 128 bits. So the two numbers
+     of `[MSIS]` are not numbers of one model. This page does not select a model (`decisions/akita-compression.md`, Open
+     points).
    - *The Poseidon2 sponge for the argument `[P2-PERM]` `[SPONGE]`.* The Poseidon2 sponge makes each challenge of the
      Π_CCS run and of the argument (`SPEC.md` section 5.4). Each term of the Rust sum of `SPEC.md` section 3 is for one
      interactive run, and Lean proves that the exact sum bounds one interactive run

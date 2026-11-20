@@ -208,6 +208,13 @@ Claims.Akita.key20_history_sound	bounded	Spec.RandomOracle.OracleComp.QueryBound
 Claims.Akita.key20_history_sound	positive	LT.lt
 Claims.Akita.key20_history_sound	admitted	_
 Claims.Akita.key20_history_sound	depthBound	LE.le
+Claims.Akita.key20_instance_list	-	-
+Claims.Akita.key20_instances	publicFits	LE.le
+Claims.Akita.key20_instances	mass	Eq
+Claims.Akita.key20_instances	weight₁	Eq
+Claims.Akita.key20_instances	weight₂	Eq
+Claims.Akita.key20_instances	inner	LE.le
+Claims.Akita.key20_instances	solved	Export.BoundedDepth.FinalAkita.Solved
 Claims.Akita.key20_opening_accepts	inside	LT.lt
 Claims.Akita.key20_opening_accepts	decodes	Eq
 Claims.Akita.key20_opening_accepts	decodes₁	Eq
@@ -296,6 +303,9 @@ Claims.Akita.key20_verifier_sound	coords	LE.le
 Claims.Akita.key20_verifier_sound	drawn	Export.BoundedDepth.FinalKey20.Opening.Drawn
 Claims.Akita.key20_verifier_sound	bounded	Spec.RandomOracle.OracleComp.QueryBound
 Claims.Akita.key20_verifier_sound	positive	LT.lt
+Claims.Akita.module_sis_descent	neZeroNatD	NeZero
+Claims.Akita.module_sis_descent	neZeroNatDCar	NeZero
+Claims.Akita.module_sis_descent	tower	Eq
 Claims.Akita.short_units	neZeroNatD	NeZero
 Claims.Akita.short_units	power	Eq
 Claims.Akita.short_units	nonzero	Not

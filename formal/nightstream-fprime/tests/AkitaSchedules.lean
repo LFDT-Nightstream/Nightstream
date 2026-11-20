@@ -1,4 +1,4 @@
-import NightstreamFPrime.Spec.Compression.Akita.Key20
+import NightstreamFPrime.Spec.Compression.Akita.Key20Instances
 import NightstreamFPrime.Spec.Compression.Akita.Rows
 import NightstreamFPrime.Spec.Compression.Akita.Shapes
 
@@ -6,7 +6,11 @@ import NightstreamFPrime.Spec.Compression.Akita.Shapes
 (`Spec/Compression/Akita/Rows.lean`), in the fields that `Row` names, and the key group of each
 of its rows has the numbers of its Lean shape and of its Lean opening descriptor
 (`Spec/Compression/Akita/Shapes.lean`). Each group of each level of `key20.aks` and its terminal
-have the numbers of `Spec/Compression/Akita/Key20.lean`. Lake does not track the files, so
+have the numbers of `Spec/Compression/Akita/Key20.lean`. Each matrix `A`, `B` and `D` of
+`key20.aks` and `A` of its terminal is below an instance of the list `Key20.instances`
+(`Spec/Compression/Akita/Key20Instances.lean`), and each instance of the list after the two
+compression maps has the degree, the rank, the width, the norm and the priced bound of a matrix
+of the file. The file does not hold the compression maps. Lake does not track the files, so
 `scripts/validate.sh` runs this file again. -/
 
 namespace AkitaSchedules
@@ -220,9 +224,55 @@ def towerHolds (path : System.FilePath) : IO Unit := do
     throw <| IO.userError s!"{path} does not hold the Lean numbers of the terminal: the file has
       {last}, and Lean has {terminal}"
 
+/-- The numbers `(d, n, m, p, η)` of the Module-SIS instance of a matrix of the file. -/
+def matrixNumbers (matrix : Json) (degree : ℕ) (euclidean : Bool) (bound : ℕ) :
+    Except String (ℕ × ℕ × ℕ × Bool × ℕ) := do
+  return (degree, ← nat matrix ["output_rank"], ← nat matrix ["input_width"], euclidean, bound)
+
+/-- The instance of `A`: the priced bound is the last number of `route`, and the route is
+Euclidean when it has three numbers. -/
+def innerNumbers (inner : Json) : Except String (ℕ × ℕ × ℕ × Bool × ℕ) := do
+  let (degree, norm) ← route inner
+  matrixNumbers (← inner.getObjVal? "matrix") degree (norm.length == 3) (norm.getLastD 0)
+
+/-- The instance of `B` or `D`. -/
+def keyedNumbers (matrix : Json) : Except String (ℕ × ℕ × ℕ × Bool × ℕ) := do
+  matrixNumbers matrix (← nat matrix ["sis_table_key", "ring_dimension"]) false
+    (← nat matrix ["sis_table_key", "coeff_linf_bound"])
+
+/-- The instances of the matrices of a schedule: `A_term`, and `D`, `A` and `B` of each group of
+each level. -/
+def fileInstances (schedule : Json) : Except String (List (ℕ × ℕ × ℕ × Bool × ℕ)) := do
+  let folds := (← (← schedule.getObjVal? "recursive_folds").getArr?).toList
+  let levels ← ((← schedule.getObjVal? "root") :: folds).mapM fun level => do
+    let params ← level.getObjVal? "params"
+    let groups ← (← field params ["groups", "entries"]).getArr?
+    let matrices ← groups.toList.mapM fun group => do
+      return [← innerNumbers (← field group ["profile", "inner"]),
+        ← keyedNumbers (← field group ["profile", "outer", "matrix"])]
+    return (← keyedNumbers (← params.getObjVal? "open_matrix")) :: matrices.flatten
+  return (← innerNumbers (← field schedule ["terminal", "inner"])) :: levels.flatten
+
+/-- `Setup.Instance.Below` on the numbers of two instances. -/
+def below : ℕ × ℕ × ℕ × Bool × ℕ → ℕ × ℕ × ℕ × Bool × ℕ → Bool
+  | (d, n, m, p, η), (d', n', m', p', η') =>
+      d == d' && n == n' && p == p' && decide (m ≤ m') && decide (η ≤ η')
+
+def instancesHold (path : System.FilePath) : IO Unit := do
+  let [entry] ← rows path | throw <| IO.userError s!"{path} does not have one row"
+  let views ← IO.ofExcept do fileInstances (← entry.getObjVal? "schedule")
+  let listed := Key20.instances.map (·.key)
+  unless views.all fun view => listed.any (below view) do
+    throw <| IO.userError s!"{path} has a matrix that is not below a Lean instance: the file has
+      {views}, and Lean has {listed}"
+  unless (listed.drop 2).all views.contains do
+    throw <| IO.userError s!"{path} does not hold each Lean instance: the file has {views}, and
+      Lean has {listed}"
+
 #eval holds "../../crates/ns-compress/artifacts/key20.aks" [key20] Shape.key20 Descriptor.key20
 #eval holds "../../crates/ns-compress/artifacts/key30.aks" [key30W27, key30W26] Shape.key30
   Descriptor.key30
 #eval towerHolds "../../crates/ns-compress/artifacts/key20.aks"
+#eval instancesHold "../../crates/ns-compress/artifacts/key20.aks"
 
 end AkitaSchedules

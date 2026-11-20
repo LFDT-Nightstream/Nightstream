@@ -20,7 +20,22 @@ const TERNARY: [u16; 256] = {
     table
 };
 
+type GateNormCoefficients = ([K; 8], [K; 4]);
+
+enum RoundState {
+    Ready,
+    Submitted(usize, RoundReadback),
+    Complete(usize, GateNormCoefficients),
+}
+
+struct RoundReadback {
+    command: Retained<ProtocolObject<dyn MTLCommandBuffer>>,
+    gate: (Buffer, usize),
+    norm: (Buffer, usize),
+}
+
 struct Packed {
+    round: RoundState,
     device: Device,
     queue: Queue,
     activity: Arc<ActivityCounters>,
@@ -34,7 +49,6 @@ struct Packed {
     code_buffer: Option<Buffer>,
     rows: usize,
     width: usize,
-    last: Option<(usize, ([K; 8], [K; 4]))>,
 }
 
 impl MetalSession {
@@ -98,7 +112,7 @@ impl Packed {
             code_buffer: None,
             rows,
             width,
-            last: None,
+            round: RoundState::Ready,
         })
     }
 }
@@ -152,9 +166,7 @@ impl Packed {
             .fetch_add(bytes as u64, Ordering::Relaxed);
         Ok(buffer)
     }
-    fn evaluate_round(&mut self, point: &[K], weights: (&[K], &[K])) -> Result<([K; 8], [K; 4]), MetalError> {
-        let r = point.len();
-        let challenge = point.last().copied().unwrap_or(K::ZERO);
+    fn encode(&mut self, r: usize, challenge: K, weights: (&[K], &[K])) -> Result<RoundReadback, MetalError> {
         if r <= 3 {
             if r > 0 {
                 let k = self.codebook.len();
@@ -251,15 +263,20 @@ impl Packed {
             }
         }
         encoder.endEncoding();
-        self.activity.host_waits.fetch_add(1, Ordering::Relaxed);
-        finish(&command)?;
+        command.commit();
         let read_bytes: usize = reductions.iter().map(|(_, sums, ..)| sums.length()).sum();
         self.activity
             .downloaded_bytes
             .fetch_add(read_bytes as u64, Ordering::Relaxed);
-        let (_, gate, _, gate_groups) = &reductions[0];
-        let (_, norm, _, norm_groups) = &reductions[1];
-        Ok((sum_groups(gate, *gate_groups), sum_groups(norm, *norm_groups)))
+        let [(_, gate, _, gate_groups), (_, norm, _, norm_groups)] = reductions
+            .try_into()
+            .ok()
+            .expect("one gate and one norm reduction");
+        Ok(RoundReadback {
+            command,
+            gate: (gate, gate_groups),
+            norm: (norm, norm_groups),
+        })
     }
 }
 fn line(width: usize) -> MTLSize {
@@ -281,15 +298,30 @@ impl Packed {
     }
 }
 impl PackedGateNorm for Packed {
-    fn evaluate(&mut self, point: &[K], weights: (&[K], &[K])) -> Result<([K; 8], [K; 4]), PiCcsError> {
-        let round = point.len();
-        if let Some((r, terms)) = self.last {
-            if r == round {
-                return Ok(terms);
+    fn submit(&mut self, round: usize, challenge: K, weights: (&[K], &[K])) -> Result<(), PiCcsError> {
+        let readback =
+            objc2::rc::autoreleasepool(|_| self.encode(round, challenge, weights)).map_err(crate::oracle_error)?;
+        self.round = RoundState::Submitted(round, readback);
+        Ok(())
+    }
+
+    fn coefficients(&mut self, round: usize) -> Result<GateNormCoefficients, PiCcsError> {
+        let readback = match &self.round {
+            RoundState::Complete(index, terms) if *index == round => return Ok(*terms),
+            RoundState::Submitted(index, readback) if *index == round => readback,
+            _ => {
+                return Err(PiCcsError::InvalidInput(
+                    "packed round has no matching submission".into(),
+                ))
             }
-        }
-        let terms = objc2::rc::autoreleasepool(|_| self.evaluate_round(point, weights)).map_err(crate::oracle_error)?;
-        self.last = Some((round, terms));
+        };
+        self.activity.host_waits.fetch_add(1, Ordering::Relaxed);
+        wait(&readback.command).map_err(crate::oracle_error)?;
+        let terms = (
+            sum_groups(&readback.gate.0, readback.gate.1),
+            sum_groups(&readback.norm.0, readback.norm.1),
+        );
+        self.round = RoundState::Complete(round, terms);
         Ok(terms)
     }
     fn take_tables(&mut self, round: usize) -> Option<(Vec<K>, Vec<K>)> {

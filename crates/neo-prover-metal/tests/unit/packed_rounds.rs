@@ -43,9 +43,12 @@ fn packed_rounds_and_handoff_match_direct_evaluation_with_partial_tiles() {
             .map(|i| scalar(i + 13))
             .collect::<Vec<_>>();
         let weight = |i: usize| low[i % low.len()] * high[i / low.len()];
-        let (gate, norm) = packed.evaluate(&point, (&low, &high)).unwrap();
+        packed
+            .submit(round, point.last().copied().unwrap_or(K::ZERO), (&low, &high))
+            .unwrap();
+        let (gate, norm) = packed.coefficients(round).unwrap();
         let after_round = session.activity();
-        assert_eq!(packed.evaluate(&point, (&low, &high)).unwrap(), (gate, norm));
+        assert_eq!(packed.coefficients(round).unwrap(), (gate, norm));
         assert_eq!(session.activity(), after_round);
         for sample in 0..8 {
             let x = scalar(sample + 101);

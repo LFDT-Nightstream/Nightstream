@@ -23,7 +23,7 @@ pub(crate) struct DecodedOpcode {
     pub(crate) expected_type_id: Option<u32>,
     pub(crate) pc_after_instruction: u64,
     pub(crate) operand_height: u32,
-    pub(crate) frame_operands: Vec<Option<OperandLane>>,
+    pub(crate) frame_operands: super::branch_stack::FrameOperands,
     pub(crate) frame_slides: super::branch_stack::FrameSlideEdges,
 }
 

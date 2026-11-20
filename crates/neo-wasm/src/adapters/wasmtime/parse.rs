@@ -1,4 +1,4 @@
-use super::branch_stack::OperatorStack;
+use super::branch_stack::{OperandTypes, OperatorStack};
 use super::decode::{
     checked_funcref_id, decode_control_opcode, decode_memory_opcode, decode_opcode, funcref_id, ControlFrame,
     ControlFrameKind, DecodedOpcode, NULL_FUNCREF,
@@ -120,6 +120,7 @@ pub struct WasmProgramDecodeEntry {
 
 #[derive(Clone, Debug)]
 pub(crate) struct WasmTraceLoweringTables {
+    pub(crate) operand_types: OperandTypes,
     pub(crate) opcode_map: BTreeMap<(u32, u32), DecodedOpcode>,
     pub(crate) imported_function_count: u32,
     pub(crate) function_metas: BTreeMap<u32, ParsedFunctionMeta>,
@@ -137,8 +138,10 @@ pub(crate) struct ParsedFunctionMeta {
 }
 
 pub(super) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtifacts, WasmProgramError> {
+    let (stacks_by_offset, operand_types) = super::branch_stack::operator_stacks_by_offset(wasm_bytes)?;
     let mut builder = ParsedWasmArtifactsBuilder {
-        stacks_by_offset: super::branch_stack::operator_stacks_by_offset(wasm_bytes)?,
+        stacks_by_offset,
+        operand_types,
         ..Default::default()
     };
     for payload in Parser::new(0).parse_all(wasm_bytes) {
@@ -194,6 +197,7 @@ pub(super) fn single_component_core_module(bytes: &[u8]) -> Result<&[u8], WasmPr
 }
 
 struct ParsedWasmArtifactsBuilder {
+    operand_types: OperandTypes,
     opcode_map: BTreeMap<(u32, u32), DecodedOpcode>,
     pc_rom: Vec<(u64, u64, u64)>,
     stacks_by_offset: BTreeMap<u32, OperatorStack>,
@@ -229,6 +233,7 @@ impl Default for ParsedWasmArtifactsBuilder {
             opcode_map: BTreeMap::new(),
             pc_rom: Vec::new(),
             stacks_by_offset: BTreeMap::new(),
+            operand_types: OperandTypes::default(),
             frame_slides: Vec::new(),
             program_decode: Vec::new(),
             pc_edge_kinds: Vec::new(),
@@ -379,6 +384,7 @@ impl ParsedWasmArtifactsBuilder {
                 tables_init: self.tables_init,
             },
             trace: WasmTraceLoweringTables {
+                operand_types: self.operand_types,
                 opcode_map: self.opcode_map,
                 imported_function_count: self.imported_function_count,
                 function_metas: self.function_metas,

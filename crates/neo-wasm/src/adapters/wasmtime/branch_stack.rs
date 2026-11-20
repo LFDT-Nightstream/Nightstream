@@ -9,8 +9,57 @@ pub(super) type FrameSlideEdges = Vec<(u64, u32, u32)>;
 
 pub(super) struct OperatorStack {
     pub(super) height: u32,
-    pub(super) frame_operands: Vec<Option<OperandLane>>,
+    pub(super) frame_operands: FrameOperands,
     pub(super) slides: FrameSlideEdges,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct FrameOperands {
+    top: usize,
+    len: usize,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct OperandTypes {
+    nodes: Vec<(usize, Option<OperandLane>)>,
+}
+
+impl OperandTypes {
+    fn pop(&self, top: &mut usize) -> Option<OperandLane> {
+        let (parent, lane) = self.nodes[*top - 1];
+        *top = parent;
+        lane
+    }
+
+    pub(super) fn lanes(&self, frame: FrameOperands) -> Vec<Option<OperandLane>> {
+        let mut top = frame.top;
+        let mut lanes: Vec<_> = (0..frame.len).map(|_| self.pop(&mut top)).collect();
+        lanes.reverse();
+        lanes
+    }
+
+    fn update<T: WasmModuleResources>(
+        &mut self,
+        mut top: usize,
+        height: usize,
+        outputs: Option<u32>,
+        validator: &FuncValidator<T>,
+        offset: usize,
+    ) -> Result<usize, WasmProgramError> {
+        let next_height = validator.operand_stack_height() as usize;
+        let prefix = outputs.map_or(0, |count| next_height.saturating_sub(count as usize));
+        for _ in prefix..height {
+            self.pop(&mut top);
+        }
+        for depth in (0..next_height - prefix).rev() {
+            let ty = validator
+                .get_operand_type(depth)
+                .ok_or_else(|| WasmProgramError::Invalid(format!("missing operand type at byte {offset}")))?;
+            self.nodes.push((top, ty.map(OperandLane::of_type)));
+            top = self.nodes.len();
+        }
+        Ok(top)
+    }
 }
 
 fn canonical_slide(kept: u32, distance: u32) -> (u32, u32) {
@@ -73,9 +122,12 @@ fn narrow(value: usize, offset: usize) -> Result<u32, WasmProgramError> {
     u32::try_from(value).map_err(|_| WasmProgramError::Unsupported(format!("frame slide too large at byte {offset}")))
 }
 
-pub(super) fn operator_stacks_by_offset(bytes: &[u8]) -> Result<BTreeMap<u32, OperatorStack>, WasmProgramError> {
+pub(super) fn operator_stacks_by_offset(
+    bytes: &[u8],
+) -> Result<(BTreeMap<u32, OperatorStack>, OperandTypes), WasmProgramError> {
     let invalid = |error| WasmProgramError::Invalid(format!("invalid wasm program: {error}"));
     let mut stacks = BTreeMap::new();
+    let mut operand_types = OperandTypes::default();
     let mut validator = Validator::new();
     let mut allocations = Default::default();
     for payload in Parser::new(0).parse_all(bytes) {
@@ -86,6 +138,7 @@ pub(super) fn operator_stacks_by_offset(bytes: &[u8]) -> Result<BTreeMap<u32, Op
                 .read_locals(&mut body.get_binary_reader())
                 .map_err(invalid)?;
             let mut operators = body.get_operators_reader().map_err(invalid)?;
+            let mut top = 0;
             while !operators.eof() {
                 let offset = operators.original_position();
                 let operator = operators.read().map_err(invalid)?;
@@ -94,17 +147,12 @@ pub(super) fn operator_stacks_by_offset(bytes: &[u8]) -> Result<BTreeMap<u32, Op
                 })?;
                 let reachable = !frame.unreachable;
                 let height = function.operand_stack_height() as usize;
-                let frame_operands = (0..height.checked_sub(frame.height).ok_or_else(|| {
-                    WasmProgramError::Invalid(format!("operand stack below its control frame at byte {offset}"))
-                })?)
-                    .rev()
-                    .map(|depth| {
-                        function
-                            .get_operand_type(depth)
-                            .map(|ty| ty.map(OperandLane::of_type))
-                            .ok_or_else(|| WasmProgramError::Invalid(format!("missing operand type at byte {offset}")))
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
+                let frame_operands = FrameOperands {
+                    top,
+                    len: height.checked_sub(frame.height).ok_or_else(|| {
+                        WasmProgramError::Invalid(format!("operand stack below its control frame at byte {offset}"))
+                    })?,
+                };
                 let edges = match &operator {
                     Operator::End if function.control_stack_height() == 1 => {
                         let (results, _) = arity(&function, 0, offset)?;
@@ -151,7 +199,9 @@ pub(super) fn operator_stacks_by_offset(bytes: &[u8]) -> Result<BTreeMap<u32, Op
                         slides: edges,
                     },
                 );
+                let outputs = operator.operator_arity(&function).map(|(_, count)| count);
                 function.op(offset, &operator).map_err(invalid)?;
+                top = operand_types.update(top, height, outputs, &function, offset)?;
             }
             let end_offset = operators.original_position();
             operators
@@ -161,7 +211,7 @@ pub(super) fn operator_stacks_by_offset(bytes: &[u8]) -> Result<BTreeMap<u32, Op
             allocations = function.into_allocations();
         }
     }
-    Ok(stacks)
+    Ok((stacks, operand_types))
 }
 
 #[cfg(test)]

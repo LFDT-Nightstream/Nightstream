@@ -293,25 +293,16 @@ pub(crate) fn capture_frame<T>(
         }
         None => ("<host-or-unknown>".to_string(), None, None),
     };
+    let trace = &tables.artifacts.trace;
     let decoded_opcode = match function_index.zip(byte_offset) {
-        Some(key) => Some(
-            tables
-                .artifacts
-                .trace
-                .opcode_map
-                .get(&key)
-                .cloned()
-                .ok_or_else(|| {
-                    WasmBuildError::Trace(format!("missing decoded instruction for function/byte offset {key:?}"))
-                })?,
-        ),
+        Some(key) => Some(trace.opcode_map.get(&key).cloned().ok_or_else(|| {
+            WasmBuildError::Trace(format!("missing decoded instruction for function/byte offset {key:?}"))
+        })?),
         None => None,
     };
     let pc = decoded_opcode.as_ref().map(|decoded| decoded.pc);
     let current_function_ref = function_index.and_then(|index| {
-        tables
-            .artifacts
-            .trace
+        trace
             .imported_function_count
             .checked_add(index)
             .and_then(checked_funcref_id)
@@ -342,7 +333,10 @@ pub(crate) fn capture_frame<T>(
     // Wasmtime's view of a then branch can keep stale copies of the `if`
     // parameters, with their types, below the values of the innermost frame.
     let (height, lanes) = match decoded_opcode.as_ref() {
-        Some(decoded) => (decoded.operand_height as usize, decoded.frame_operands.clone()),
+        Some(decoded) => (
+            decoded.operand_height as usize,
+            trace.operand_types.lanes(decoded.frame_operands),
+        ),
         None => (num_stacks as usize, vec![None; num_stacks as usize]),
     };
     let frame_start = (num_stacks as usize).checked_sub(lanes.len()).ok_or_else(|| {

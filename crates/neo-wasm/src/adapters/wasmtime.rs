@@ -36,7 +36,7 @@ pub use parse::{WasmProgramArtifacts, WasmProgramDecodeEntry, WasmProgramTables}
 pub struct WasmtimeTraceStep {
     /// Host-to-guest activation depth, distinct from guest call-stack depth.
     pub activation_depth: usize,
-    /// Wasmtime reported a trap or host error escaping the outermost activation after this step.
+    /// Wasmtime reported that the outermost suspended host call unwound after this callback step.
     pub top_level_unwound: bool,
     /// The cycle of this step
     pub step: u64,
@@ -453,16 +453,10 @@ impl<T: WasmTraceSink + Send + 'static> DebugHandler for WasmtimeTraceHandler<T>
             if matches!(event, DebugEvent::HostcallError(_) | DebugEvent::Trap(_)) {
                 // These notifications arrive before the current activation unwinds.
                 // Wasmtime does not report every native trap.
-                let registry_index = innermost_frame
-                    .instance(&mut store)
-                    .map(|i| i.debug_index_in_store());
-                let registry = store.data_mut().wasm_trace_registry_mut();
-                match registry_index {
-                    Ok(index) => registry.record_unwind(index, frames.len()),
-                    Err(error) => {
-                        registry.error = Some(WasmBuildError::Trace(format!("cannot inspect unwind frame: {error}")))
-                    }
-                }
+                store
+                    .data_mut()
+                    .wasm_trace_registry_mut()
+                    .record_unwind(frames.len());
                 return;
             }
             if let Err(error) = registry::capture_step(innermost_frame, frames.len(), &mut store) {

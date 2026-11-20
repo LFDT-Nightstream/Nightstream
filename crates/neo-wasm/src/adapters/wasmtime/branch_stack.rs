@@ -46,15 +46,25 @@ impl OperandTypes {
     ) -> Result<usize, WasmProgramError> {
         let next_height = validator.operand_stack_height() as usize;
         let prefix = next_height.saturating_sub(outputs as usize);
+        let mut replaced = Vec::new();
         for _ in prefix..height {
-            self.pop(&mut top);
+            let node = top;
+            replaced.push((node, self.pop(&mut top)));
         }
+        let mut unchanged = true;
         for depth in (0..next_height - prefix).rev() {
-            let ty = validator
+            let lane = validator
                 .get_operand_type(depth)
-                .ok_or_else(|| WasmProgramError::Invalid(format!("missing operand type at byte {offset}")))?;
-            self.nodes.push((top, ty.map(OperandLane::of_type)));
-            top = self.nodes.len();
+                .ok_or_else(|| WasmProgramError::Invalid(format!("missing operand type at byte {offset}")))?
+                .map(OperandLane::of_type);
+            match replaced.pop() {
+                Some((node, previous)) if unchanged && previous == lane => top = node,
+                _ => {
+                    unchanged = false;
+                    self.nodes.push((top, lane));
+                    top = self.nodes.len();
+                }
+            }
         }
         Ok(top)
     }

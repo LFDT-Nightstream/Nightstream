@@ -167,7 +167,7 @@ impl ProverKey {
         &self.verification
     }
 
-    pub(crate) fn fold(&self, omega: K, metal: bool) -> Vec<K> {
+    pub(crate) fn fold(&self, omega: K, active_blocks: usize, metal: bool) -> Vec<K> {
         if let (true, Some(source)) = (metal, &self.source) {
             let weights: Vec<_> = powers(omega, KAPPA)
                 .into_iter()
@@ -183,17 +183,21 @@ impl ProverKey {
                     .collect();
             }
         }
-        fold(&self.key, omega)
+        fold(&self.key, omega, active_blocks)
+    }
+
+    pub(crate) fn fold_remaining_blocks(&self, omega: K, lanes: &[K], folded: &mut Vec<K>) {
+        fold_remaining_blocks(&self.key, omega, lanes, folded);
     }
 }
 
 // SPEC.md section 6.
-fn fold(key: &ExpandedKey, omega: K) -> Vec<K> {
+fn fold(key: &ExpandedKey, omega: K, blocks: usize) -> Vec<K> {
     const TASK_CELLS: usize = 4096;
     const STRIPE_CELLS: usize = 1024;
     let powers = powers(omega, KAPPA);
     let cells = key.blocks() as usize * D;
-    let mut folded = vec![K::ZERO; cells];
+    let mut folded = vec![K::ZERO; blocks * D];
     folded.par_chunks_mut(TASK_CELLS).enumerate().for_each_init(
         || vec![CompactProductSum::default(); STRIPE_CELLS],
         |scratch, (task, chunk)| {
@@ -216,6 +220,41 @@ fn fold(key: &ExpandedKey, omega: K) -> Vec<K> {
         },
     );
     folded
+}
+
+fn fold_remaining_blocks(key: &ExpandedKey, omega: K, lanes: &[K], folded: &mut Vec<K>) {
+    const BLOCKS_PER_TASK: usize = 64;
+    let first = folded.len();
+    let blocks = key.blocks() as usize;
+    if first == blocks {
+        return;
+    }
+    let weights: Vec<[K; D]> = powers(omega, KAPPA)
+        .into_iter()
+        .map(|row| std::array::from_fn(|lane| row * lanes[lane]))
+        .collect();
+    folded.resize(blocks, K::ZERO);
+    folded[first..]
+        .par_chunks_mut(BLOCKS_PER_TASK)
+        .enumerate()
+        .for_each(|(task, output)| {
+            let start = (first + task * BLOCKS_PER_TASK) * D;
+            let mut sums = [CompactProductSum::default(); BLOCKS_PER_TASK];
+            for (row, weights) in key.words().chunks_exact(blocks * D).zip(&weights) {
+                for (sum, element) in sums[..output.len()]
+                    .iter_mut()
+                    .zip(row[start..].chunks_exact(D))
+                {
+                    *sum = element
+                        .iter()
+                        .zip(weights)
+                        .fold(*sum, |sum, (&word, &weight)| sum.add_scaled_word(word, weight));
+                }
+            }
+            for (value, sum) in output.iter_mut().zip(sums) {
+                *value = sum.value();
+            }
+        });
 }
 
 pub fn key_blocks(blocks: usize) -> Result<usize, Error> {

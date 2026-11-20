@@ -313,6 +313,7 @@ fn check_product(values: Vec<K>, lanes: Vec<K>, blocks: Vec<K>, rounds: usize) {
         &blocks,
         sum,
         rounds,
+        |_, _| {},
     );
     assert!(
         proved == (messages, point, tables[0][0]),

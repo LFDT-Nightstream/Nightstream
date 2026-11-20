@@ -117,6 +117,9 @@ impl<'a> Matrices<'a> {
             .fold(
                 || vec![Vec::new(); tasks],
                 |mut part, (slot, (&start, &width))| {
+                    if width == 0 {
+                        return part;
+                    }
                     let end = start as usize + usize::from(width);
                     for task in start as usize / COLUMNS_PER_TASK..end.div_ceil(COLUMNS_PER_TASK) {
                         part[task].push(slot as u32);
@@ -134,17 +137,29 @@ impl<'a> Matrices<'a> {
 
     fn add_columns(&self, task: usize, output: &mut [K]) {
         let first = task * COLUMNS_PER_TASK;
+        let mut powers = [F::ONE; u8::MAX as usize + 1];
+        let mut power = F::ONE;
+        for factor in &mut powers {
+            *factor = power;
+            power *= self.slots.ratio;
+        }
         for &slot in self.slots_per_task.iter().flat_map(|part| &part[task]) {
             let slot = slot as usize;
-            let mut term = self.weights[slot];
-            for column in (self.slots.starts[slot] as usize..).take(usize::from(self.slots.widths[slot])) {
-                if let Some(cell) = column
-                    .checked_sub(first)
-                    .and_then(|column| output.get_mut(column))
+            let weight = self.weights[slot];
+            if weight == K::ZERO {
+                continue;
+            }
+            let start = self.slots.starts[slot] as usize;
+            let width = usize::from(self.slots.widths[slot]);
+            let lo = start.max(first);
+            let hi = (start + width).min(first + output.len());
+            if lo < hi {
+                for (value, &scale) in output[lo - first..hi - first]
+                    .iter_mut()
+                    .zip(&powers[lo - start..])
                 {
-                    *cell += term;
+                    *value += weight.scale_base(scale);
                 }
-                term = term.scale_base(self.slots.ratio);
             }
         }
     }

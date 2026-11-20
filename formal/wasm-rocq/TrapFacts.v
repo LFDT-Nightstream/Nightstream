@@ -57,9 +57,9 @@ Proof.
         (@None SparseRow) Htype;
       selected_circuit_row chosen
         ([(COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1); (COL_SEL_UNREACHABLE, -1); (COL_DIV_TRAP, -1);
-          (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrap
+          (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1); (COL_TRAP_UNWIND, 1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrap
     end.
-  all: zero_gather_kinds Hkinds Hmem; rewrite ?Hone in *.
+  all: zero_trap_unwind Htrap; zero_gather_kinds Hkinds Hmem; rewrite ?Hone in *.
   all: pose proof (value_bound w COL_DIV_OVERFLOW); pose proof (value_bound w COL_DIV_TRAP);
     pose proof (value_bound w COL_MEM_OOB); pose proof (value_bound w COL_TABLE_OOB); pose proof (value_bound w COL_CI_OOB);
     pose proof (value_bound w COL_FUNCTION_CALL_TYPE_LOOKUP_GATE);
@@ -139,11 +139,11 @@ Proof.
     pose proof (value_bound w COL_ACTIVATION_FINISHED_BEFORE). field_linear Hrow. }
   selected_circuit_row COL_SEL_UNREACHABLE
     ([(COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1); (COL_SEL_UNREACHABLE, -1); (COL_DIV_TRAP, -1);
-      (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrap.
+      (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1); (COL_TRAP_UNWIND, 1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrap.
   circuit_boolean COL_TRAPPED_AFTER Hta. circuit_boolean COL_DIV_TRAP Hdiv.
   circuit_boolean COL_CALL_INDIRECT_IS_TRAP Hci. circuit_boolean COL_MEM_OOB Hmem.
   circuit_boolean COL_TABLE_OOB Htable.
-  normalize_columns. rewrite Hone, Htb in Htrap.
+  zero_trap_unwind Htrap. rewrite Hone, Htb in Htrap.
   assert (Htrapped : w COL_TRAPPED_AFTER = 1).
   { normalize_columns. apply Z.mod_divide in Htrap; [ | unfold modulus; lia]. destruct Htrap as [k Htrap]. unfold modulus in *; lia. }
   split; [exact Htrapped | ].
@@ -154,9 +154,9 @@ Proof.
     ltac:(cbn; discriminate) ltac:(cbn; discriminate) ltac:(cbn; discriminate) Hprogram) as [_ [Hresume _]].
   pose proof (full_no_activation_clear w Hfull Hturn Hresume) as Hclear.
   circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_TRAPPED_AFTER, -1);
-    (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1); (COL_HOST_EVENT_EXIT_LATCH, -1)],
+    (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1); (COL_HOST_EVENT_EXIT_LATCH, -1); (COL_TRAP_UNWIND, -1)],
     [(COL_ONE, 1)], ([] : SparseRow)) Hstate.
-  expand_row Hstate. normalize_columns. rewrite Hone, Hfb, Htrapped, Htb, Hclear in Hstate.
+  expand_row Hstate. zero_trap_unwind Hstate. rewrite Hone, Hfb, Htrapped, Htb, Hclear in Hstate.
   circuit_boolean COL_HOST_EVENT_EXIT_LATCH Hlatch. circuit_boolean COL_ACTIVATION_FINISHED_AFTER Hfa.
   normalize_columns. apply Z.mod_divide in Hstate; [ | unfold modulus; lia]. destruct Hstate as [k Hstate]. unfold modulus in *; lia.
 Qed.

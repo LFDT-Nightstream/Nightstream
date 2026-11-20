@@ -130,10 +130,11 @@ Proof.
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
   circuit_range COL_CALL_STACK_DEPTH_BEFORE Hb. circuit_range COL_CALL_STACK_DEPTH_AFTER Ha.
   circuit_boolean COL_CALL_STACK_PUSH_PRESENT Hp. circuit_boolean COL_CALL_STACK_POP_PRESENT Hq.
-  circuit_row ([(COL_CALL_STACK_DEPTH_AFTER, 1); (COL_CALL_STACK_DEPTH_BEFORE, -1);
-    (COL_CALL_STACK_PUSH_PRESENT, -1); (COL_CALL_STACK_POP_PRESENT, 1);
-    (COL_HOST_SUSPEND, -1); (COL_HOST_RESUME, 1)], [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
-  expand_row Hrow. normalize_columns. rewrite Hone, Hsuspend, Hresume in Hrow.
+  circuit_row ([(COL_TRAP_UNWIND, 1)], [(COL_CALL_STACK_DEPTH_BEFORE, 1)],
+    [(COL_CALL_STACK_DEPTH_BEFORE, 1); (COL_CALL_STACK_DEPTH_AFTER, -1);
+     (COL_CALL_STACK_PUSH_PRESENT, 1); (COL_CALL_STACK_POP_PRESENT, -1);
+     (COL_HOST_SUSPEND, 1); (COL_HOST_RESUME, -1)]) Hrow.
+  expand_row Hrow. zero_trap_unwind Hrow. rewrite Hsuspend, Hresume in Hrow.
   destruct Hp, Hq; field_linear Hrow.
 Qed.
 
@@ -221,18 +222,18 @@ Proof.
     pose proof (value_bound w COL_CALL_STACK_PUSH_PRESENT). field_linear Hrow. }
   split; [exact Hpush | ].
   circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_TRAPPED_AFTER, -1); (COL_TRAPPED_BEFORE, 1);
-    (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1); (COL_HOST_EVENT_EXIT_LATCH, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hstate.
+    (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1); (COL_HOST_EVENT_EXIT_LATCH, -1); (COL_TRAP_UNWIND, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hstate.
   expand_row Hstate. normalize_columns.
   selected_circuit_row COL_SEL_END
     ([(COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1); (COL_SEL_UNREACHABLE, -1); (COL_DIV_TRAP, -1);
-      (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrap.
+      (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1); (COL_TRAP_UNWIND, 1)], [(COL_ONE, 1)], ([] : SparseRow)) Htrap.
   selected_circuit_row COL_SEL_END
     ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1);
       (COL_CALL_STACK_POP_PRESENT, 1); (COL_PC_EDGE_KIND, -1); (COL_SEL_CALL_INDIRECT, 2);
       (COL_SEL_RETURN_CALL_INDIRECT, 2); (COL_SEL_UNREACHABLE, 2); (COL_DIV_TRAP, -1);
       (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1)],
       [(COL_ONE, 1)], ([] : SparseRow)) Hedgerow.
-  normalize_columns. rewrite Hone in Hstate, Htrap, Hedgerow.
+  normalize_columns. zero_trap_unwind Hstate. zero_trap_unwind Htrap. rewrite Hone in Hstate, Htrap, Hedgerow.
   circuit_boolean COL_CALL_STACK_POP_PRESENT Hpop. circuit_boolean COL_DIV_TRAP Hdiv.
   circuit_boolean COL_CALL_INDIRECT_IS_TRAP Hci. circuit_boolean COL_MEM_OOB Hmem.
   circuit_boolean COL_TABLE_OOB Htable.
@@ -277,15 +278,15 @@ Proof.
   (* An unfinished activation has not trapped. *)
   assert (HtrapAfter : w COL_TRAPPED_AFTER = 0).
   { circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_TRAPPED_AFTER, -1);
-      (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1); (COL_HOST_EVENT_EXIT_LATCH, -1)],
+      (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1); (COL_HOST_EVENT_EXIT_LATCH, -1); (COL_TRAP_UNWIND, -1)],
       [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
-    expand_row Hrow. normalize_columns. rewrite Hone, Hlive, HhaltBefore, HtrapBefore, Hclear in Hrow.
+    expand_row Hrow. zero_trap_unwind Hrow. rewrite Hone, Hlive, HhaltBefore, HtrapBefore, Hclear in Hrow.
     destruct Htrap as [Ht | Ht]; [exact Ht | exfalso].
     destruct Hlatch as [Hl | Hl]; normalize_columns; rewrite Ht, Hl in Hrow; field_linear Hrow. }
   destruct Hkind as [<- | [<- | []]].
   all: let c := chosen_of Hchosen in selected_circuit_row c
     ([(COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1); (COL_SEL_UNREACHABLE, -1);
-      (COL_DIV_TRAP, -1); (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1)],
+      (COL_DIV_TRAP, -1); (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1); (COL_TRAP_UNWIND, 1)],
       [(COL_ONE, 1)], ([] : SparseRow)) HtrapRow.
   all: let c := chosen_of Hchosen in selected_circuit_row c
     ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1);
@@ -293,7 +294,7 @@ Proof.
       (COL_SEL_RETURN_CALL_INDIRECT, 2); (COL_SEL_UNREACHABLE, 2); (COL_DIV_TRAP, -1);
       (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1); (COL_TABLE_OOB, -1)],
       [(COL_ONE, 1)], ([] : SparseRow)) HedgeRow.
-  all: normalize_columns; rewrite Hone, HtrapBefore, HtrapAfter in HtrapRow.
+  all: zero_trap_unwind HtrapRow; rewrite Hone, HtrapBefore, HtrapAfter in HtrapRow.
   all: rewrite Hone, Hlive, HhaltBefore, Hclear, Hedge in HedgeRow.
   all: assert (Htraps : w COL_DIV_TRAP = 0 /\ w COL_CALL_INDIRECT_IS_TRAP = 0 /\ w COL_MEM_OOB = 0 /\
       w COL_TABLE_OOB = 0) by

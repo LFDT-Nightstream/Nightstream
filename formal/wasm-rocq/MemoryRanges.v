@@ -363,19 +363,20 @@ Proof.
  circuit_boolean COL_TRAPPED_AFTER BtrapAfter.
  circuit_boolean COL_TRAPPED_BEFORE BtrapBefore.
  circuit_boolean COL_HOST_CLEAR_ACTIVATION_FINISHED Bclear.
+ circuit_boolean COL_TRAP_UNWIND Bunwind.
  circuit_row ([(COL_ACTIVATION_FINISHED_AFTER,1); (COL_ACTIVATION_FINISHED_BEFORE,-1);
    (COL_TRAPPED_AFTER,-1); (COL_TRAPPED_BEFORE,1); (COL_HOST_CLEAR_ACTIVATION_FINISHED,1);
-   (COL_HOST_EVENT_EXIT_LATCH,-1)], [(COL_ONE,1)], ([] : SparseRow)) Hgate.
+   (COL_HOST_EVENT_EXIT_LATCH,-1); (COL_TRAP_UNWIND,-1)], [(COL_ONE,1)], ([] : SparseRow)) Hgate.
  pose proof (proj1 Hfull) as Hone.
  expand_row Hgate. rewrite Hone in Hgate.
  assert (Hoff : eval w [(COL_ACTIVATION_FINISHED_AFTER,1); (COL_ACTIVATION_FINISHED_BEFORE,-1);
-   (COL_TRAPPED_AFTER,-1); (COL_TRAPPED_BEFORE,1); (COL_HOST_CLEAR_ACTIVATION_FINISHED,1)] = 0).
+   (COL_TRAPPED_AFTER,-1); (COL_TRAPPED_BEFORE,1); (COL_HOST_CLEAR_ACTIVATION_FINISHED,1); (COL_TRAP_UNWIND,-1)] = 0).
  { cbn [eval fold_right]; normalize_columns.
    repeat match goal with H : w _ = 0 |- _ => rewrite H in Hgate end.
    field_linear Hgate. }
  finish_memory_repair COL_EXIT_SLIDE_DISTANCE
    [[(COL_ACTIVATION_FINISHED_AFTER,1); (COL_ACTIVATION_FINISHED_BEFORE,-1);
-     (COL_TRAPPED_AFTER,-1); (COL_TRAPPED_BEFORE,1); (COL_HOST_CLEAR_ACTIVATION_FINISHED,1)]].
+     (COL_TRAPPED_AFTER,-1); (COL_TRAPPED_BEFORE,1); (COL_HOST_CLEAR_ACTIVATION_FINISHED,1); (COL_TRAP_UNWIND,-1)]].
 Qed.
 
 Theorem memory_range_obligations_sound : forall w,

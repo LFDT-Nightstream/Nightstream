@@ -97,12 +97,13 @@ Proof.
   circuit_row ([(COL_GUEST_ENTRY_ACTIVE, 1); (COL_TURN_BOUNDARY, 1)],
     [(COL_STACK_FRAME_BASE_AFTER, 1); (COL_LOCALS_FBP_AFTER, -1); (COL_ENTERED_FUNCTION_NUM_LOCALS, -1)],
     ([] : SparseRow)) Hstack.
-  circuit_row ([(COL_CALL_STACK_DEPTH_AFTER, 1); (COL_CALL_STACK_DEPTH_BEFORE, -1);
-    (COL_CALL_STACK_PUSH_PRESENT, -1); (COL_CALL_STACK_POP_PRESENT, 1);
-    (COL_HOST_SUSPEND, -1); (COL_HOST_RESUME, 1)], [(COL_ONE, 1)], ([] : SparseRow)) Hdepth.
+  circuit_row ([(COL_TRAP_UNWIND, 1)], [(COL_CALL_STACK_DEPTH_BEFORE, 1)],
+    [(COL_CALL_STACK_DEPTH_BEFORE, 1); (COL_CALL_STACK_DEPTH_AFTER, -1);
+     (COL_CALL_STACK_PUSH_PRESENT, 1); (COL_CALL_STACK_POP_PRESENT, -1);
+     (COL_HOST_SUSPEND, 1); (COL_HOST_RESUME, -1)]) Hdepth.
   expand_row Hfbp. expand_row Hstack. expand_row Hdepth.
   normalize_columns. rewrite Hpush in Hfbp. rewrite Hguest, Hturn in Hstack.
-  rewrite Hpush, Hpop, Hone, Hsuspend, Hresume in Hdepth.
+  zero_trap_unwind Hdepth. rewrite Hpush, Hpop, Hsuspend, Hresume in Hdepth.
   repeat split; [field_linear Hfbp | field_linear Hstack | field_linear Hdepth].
 Qed.
 

@@ -24,8 +24,11 @@ inline E add(E a, E b) { return E(add_fp(a.x, b.x), add_fp(a.y, b.y)); }
 inline E sub(E a, E b) { return E(sub_fp(a.x, b.x), sub_fp(a.y, b.y)); }
 inline E scale(E a, ulong factor) { return E(mul_fp(a.x, factor), mul_fp(a.y, factor)); }
 
+enum WitnessFormat : uint { FieldWords, SignMasks, SignedBytes };
+
 struct Config {
-    uint slots, blocks, stride, tile, workers, signed_witness;
+    uint slots, blocks, stride, tile, workers;
+    WitnessFormat witness_format;
     uint offsets_head, rows_head, tags_head, factors_head, eq_head;
     uint slots_head, starts_head, widths_head, witness_head, negative_head;
     uint first_head, tasks_head, heavy_head;
@@ -185,7 +188,7 @@ kernel void terminal_opening(device const uint *first [[buffer(0)]],
     E accumulator = 0;
     for (uint block = tile * c.tile; block < min(c.blocks, (tile + 1) * c.tile); ++block) {
         ulong pos = 0, neg = 0;
-        if (c.signed_witness) {
+        if (c.witness_format == SignMasks) {
             pos = read_split(witness, witness_tail, c.witness_head, block);
             neg = read_split(negative, negative_tail, c.negative_head, block);
             if ((pos | neg) == 0)
@@ -205,9 +208,16 @@ kernel void terminal_opening(device const uint *first [[buffer(0)]],
                 value = scale(weights[slot], powers[column - interval.x]);
         }
         forms[coordinate] = value;
-        ulong digit = c.signed_witness
-            ? (((pos >> coordinate) & 1ul) ? 1ul : ((neg >> coordinate) & 1ul) ? modulus - 1 : 0ul)
-            : read_split(witness, witness_tail, c.witness_head, column);
+        ulong digit;
+        if (c.witness_format == SignMasks) {
+            digit = ((pos >> coordinate) & 1ul) ? 1ul : ((neg >> coordinate) & 1ul) ? modulus - 1 : 0ul;
+        } else if (c.witness_format == SignedBytes) {
+            int d = int(read_split(reinterpret_cast<device const char *>(witness),
+                                   reinterpret_cast<device const char *>(witness_tail), c.witness_head, column));
+            digit = d < 0 ? modulus - ulong(-d) : ulong(d);
+        } else {
+            digit = read_split(witness, witness_tail, c.witness_head, column);
+        }
         digits[coordinate] = digit;
         threadgroup_barrier(mem_flags::mem_threadgroup);
         E carry = scale(forms[(coordinate + 63) & 63], powers[1]);

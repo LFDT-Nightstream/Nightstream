@@ -1,4 +1,4 @@
-use super::{FactoredSlots, RealBlockStorage, SuperneoZBlocks};
+use super::{DenseBlocks, FactoredSlots, RealBlockStorage, SuperneoZBlocks};
 use neo_math::{Rq, D, F, K};
 use p3_field::{Field, PrimeCharacteristicRing};
 
@@ -8,6 +8,7 @@ pub enum OpeningWitness<'a> {
         negative: &'a [u64],
     },
     Dense(&'a [Rq]),
+    Centered(&'a [[i8; D]]),
 }
 
 impl<'a> OpeningWitness<'a> {
@@ -17,7 +18,10 @@ impl<'a> OpeningWitness<'a> {
         }
         match &w.re {
             RealBlockStorage::SignedUnit { positive, negative } => Some(Self::Signed { positive, negative }),
-            RealBlockStorage::Dense { blocks, .. } => Some(Self::Dense(blocks)),
+            RealBlockStorage::Dense { blocks, .. } => match blocks {
+                DenseBlocks::Wide(rows) => Some(Self::Dense(rows)),
+                DenseBlocks::Centered(rows) => Some(Self::Centered(rows)),
+            },
             RealBlockStorage::Zero { .. } => None,
         }
     }

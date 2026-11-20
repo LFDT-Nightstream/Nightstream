@@ -38,6 +38,9 @@ const MAX_EVENT_DIGIT: u64 = 2048;
 pub struct SmallEventDigits([i32; D]);
 
 impl SmallEventDigits {
+    pub fn from_i8(digits: &[i8; D]) -> Self {
+        Self(digits.map(i32::from))
+    }
     pub fn new(digits: &[F; D]) -> Option<Self> {
         let mut small = [0i32; D];
         for (out, input) in small.iter_mut().zip(digits) {

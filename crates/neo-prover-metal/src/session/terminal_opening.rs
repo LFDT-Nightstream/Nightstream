@@ -32,9 +32,17 @@ impl Kernels {
     }
 }
 
+#[derive(Clone, Copy)]
+#[repr(u32)]
+enum WitnessFormat {
+    FieldWords = 0,
+    SignMasks = 1,
+    SignedBytes = 2,
+}
+
 struct Config {
     shape: [u32; 5],
-    signed: u32,
+    format: WitnessFormat,
     columns: [u32; 8],
     witness: u32,
     negative: u32,
@@ -52,7 +60,7 @@ impl Config {
             stride,
             tile,
             workers,
-            self.signed,
+            self.format as u32,
             offsets,
             rows,
             tags,
@@ -211,6 +219,7 @@ impl MetalSession {
             || !witnesses.iter().all(|w| match w {
                 OpeningWitness::Signed { positive, negative } => positive.len() == blocks && negative.len() == blocks,
                 OpeningWitness::Dense(rings) => rings.len() == blocks,
+                OpeningWitness::Centered(digits) => digits.len() == blocks,
             })
         {
             return None;
@@ -249,7 +258,7 @@ impl MetalSession {
                 TILE as u32,
                 workers as u32,
             ],
-            signed: 0,
+            format: WitnessFormat::FieldWords,
             columns: [
                 offsets.count,
                 rows.count,
@@ -334,12 +343,16 @@ impl MetalSession {
         for (index, witness) in witnesses.iter().enumerate() {
             let (source, negative) = match witness {
                 OpeningWitness::Signed { positive, negative } => {
-                    cfg.signed = 1;
+                    cfg.format = WitnessFormat::SignMasks;
                     (ws.view(positive, 8)?, Some(ws.view(negative, 8)?))
                 }
                 OpeningWitness::Dense(rings) => {
-                    cfg.signed = 0;
+                    cfg.format = WitnessFormat::FieldWords;
                     (ws.view(rings, 8)?, None)
+                }
+                OpeningWitness::Centered(digits) => {
+                    cfg.format = WitnessFormat::SignedBytes;
+                    (ws.view(digits, 1)?, None)
                 }
             };
             let neg = negative.as_ref().unwrap_or(&source);

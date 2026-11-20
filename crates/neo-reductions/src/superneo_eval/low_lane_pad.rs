@@ -30,15 +30,12 @@ impl PadProjection {
             match &witness.re {
                 RealBlockStorage::Dense { blocks, nonzero } => {
                     let mut sums = [ProductSum::default(); D];
-                    for (local, (digits, &nonzero)) in blocks[start..end]
-                        .iter()
-                        .zip(&nonzero[start..end])
-                        .enumerate()
-                    {
-                        if !nonzero {
+                    for block in start..end {
+                        if !nonzero[block] {
                             continue;
                         }
-                        let weight = high.at(start + local);
+                        let weight = high.at(block);
+                        let digits = blocks.ring(block);
                         for (sum, &value) in sums.iter_mut().zip(&digits.0) {
                             *sum = sum.add_scaled(value, weight);
                         }
@@ -81,7 +78,7 @@ impl PadProjection {
         let add = |(block, value): (usize, &mut K)| {
             if witness.real_nonzero(block) {
                 *value += match &witness.re {
-                    RealBlockStorage::Dense { blocks, .. } => sum_of_scaled(blocks[block].0.into_iter().zip(form)),
+                    RealBlockStorage::Dense { blocks, .. } => sum_of_scaled(blocks.ring(block).0.into_iter().zip(form)),
                     _ => sum_of_scaled((0..D).map(|lane| (witness.real_coefficient(block, lane), form[lane]))),
                 };
             }

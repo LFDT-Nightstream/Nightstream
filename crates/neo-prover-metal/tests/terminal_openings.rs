@@ -107,8 +107,13 @@ fn first_and_later_terminal_openings_match_all_cpu_coordinates_and_recover_from_
             dense[(i % D, i)] = F::from_usize(i + 2);
             dense[((i + 9) % D, i)] = -F::from_usize(i + 3);
         }
-        let witnesses = [signed, dense].map(|w| SuperneoZBlocks::from_witness_mat(&w, columns).unwrap());
-        for count in [1, 2] {
+        let mut small = Mat::zero(D, blocks, F::ZERO);
+        for i in 0..blocks {
+            small[(i % D, i)] = F::from_i8(i8::MIN);
+            small[((i + 9) % D, i)] = F::from_i8(i8::MAX);
+        }
+        let witnesses = [signed, dense, small].map(|w| SuperneoZBlocks::from_witness_mat(&w, columns).unwrap());
+        for count in 1..=witnesses.len() {
             let point = (0..columns.next_power_of_two().ilog2() as usize)
                 .map(|i| K::from_coeffs([F::from_usize(i + 3 + count), F::from_usize(i * 5 + 4)]))
                 .collect::<Vec<_>>();

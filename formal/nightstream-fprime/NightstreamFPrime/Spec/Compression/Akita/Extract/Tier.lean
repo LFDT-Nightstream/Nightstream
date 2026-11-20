@@ -6,7 +6,10 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Transcript
 /-! One level of the opening suffix of Akita as a part of a checkpoint structure (ePrint 2026/1983,
 revision of 2026-10-15, Proposition 10.44 with its proof, and Lemma 10.42).
 
-- `Tier` has the data of one packing fold whose stages start at the stage `start` of a longer
+- `Method` has the exact branch relation, the weak opening and the reduction of Akita
+  Corollary 10.32 of one opening method. `packing` is the method of a fold with coefficient
+  packing, and `packing_sound` is `extract_opens_or_collision` for it.
+- `Tier` has the data of one fold whose stages start at the stage `start` of a longer
   transcript: the stage `start` has the fold challenges, and the next stages have the draws of the
   checks. The message before the stage `start` has the claim of the level. `Source` is the type of
   the successor source `σ`: the data that the next level, or the proof, gives for the flat witness
@@ -111,6 +114,65 @@ theorem mass_inr_le (key : Slot → Option Second) (value : First ⊕ Second) {b
 
 end Keys
 
+section Challenge
+
+variable {Wire Coord Slot Ring : Type} {blocks total : ℕ} (decode : Slot → Option Ring)
+  (block : Fin blocks → Coord) (start : ℕ)
+
+/-- The fold challenges `c_i` of a stage input, from the answer of the stage `start`. `decode`
+gives the challenge of a slot, and `block i` is the coordinate of the slot of `c_i`. -/
+noncomputable def challengeAt [Zero Ring] (point : Prefix Wire (Coord → Slot) total)
+    (i : Fin blocks) : Ring :=
+  ((point.reply start).bind fun reply => decode (reply (block i))).getD 0
+
+/-- The answer of the stage `start` gives a fold challenge for each block. -/
+def DecodesAt (point : Prefix Wire (Coord → Slot) total) : Prop :=
+  ∃ reply, point.reply start = some reply ∧ ∀ i, (decode (reply (block i))).isSome
+
+variable {decode block start} in
+theorem DecodesAt.challenge [Zero Ring] {point : Prefix Wire (Coord → Slot) total}
+    {reply : Coord → Slot} (answered : point.reply start = some reply)
+    (decodes : DecodesAt decode block start point) (i : Fin blocks) :
+    decode (reply (block i)) = some (challengeAt decode block start point i) := by
+  obtain ⟨other, same, each⟩ := decodes
+  obtain rfl := Option.some.inj (same.symm.trans answered)
+  obtain ⟨value, decoded⟩ := Option.isSome_iff_exists.mp (each i)
+  simp [challengeAt, answered, decoded]
+
+theorem challengeAt_take [Zero Ring] {level : ℕ} (above : start < level)
+    (point : Prefix Wire (Coord → Slot) total) :
+    challengeAt decode block start (point.take level) = challengeAt decode block start point := by
+  funext i
+  simp only [challengeAt, Prefix.reply_take above]
+
+variable [Fintype Slot] [Nonempty Slot]
+
+/-- The largest probability of one fold challenge for a uniform slot. It is `1/|C|` for a decoder
+with the uniform law on the challenge set `C`. -/
+noncomputable def slotChance : ℝ :=
+  Finset.univ.sup' Finset.univ_nonempty fun slot : Slot =>
+    if (decode slot).isSome then mass {other | decode other = decode slot} else 0
+
+theorem slotChance_nonnegative : 0 ≤ slotChance decode := by
+  obtain ⟨slot⟩ := ‹Nonempty Slot›
+  refine le_trans ?_ (Finset.le_sup' _ (Finset.mem_univ slot))
+  split
+  · exact mass_nonnegative _
+  · exact le_rfl
+
+theorem mass_slot_le (value : Ring) :
+    mass {slot | decode slot = some value} ≤ slotChance decode := by
+  by_cases reached : ∃ slot, decode slot = some value
+  · obtain ⟨slot, decoded⟩ := reached
+    refine le_trans (le_of_eq ?_) (Finset.le_sup' _ (Finset.mem_univ slot))
+    rw [ite_eq_left (by rw [decoded]; rfl), decoded]
+  · have empty : {slot | decode slot = some value} = (∅ : Set Slot) :=
+      Set.eq_empty_of_forall_notMem fun slot decoded => reached ⟨slot, decoded⟩
+    rw [empty]
+    exact (le_of_eq (by simp [mass])).trans (slotChance_nonnegative decode)
+
+end Challenge
+
 /-- The claim of one level (Akita Definition 10.22, "The fixed folding statement", without the
 matrices): the payloads `u_pub` and `v_pub`, the weights of the opening point and the claimed
 value `v`. -/
@@ -131,74 +193,145 @@ structure Opened {S : Shape} (O : OpeningShape S) (Inner : Type) where
   inner : Inner
   opening : Option (Weak O)
 
-/-- The data of one packing fold for one claim, with its stages from the stage `start` of a
-transcript. `basis`, `key` and `openKey` are fixed, and `claim` reads the claim of the level from
-the message before the stage `start`. `block i` is the coordinate of the answer of the oracle that
-has the slot of the fold challenge `c_i`, and `decode` gives the challenge of a slot, or `none`
-for a slot that the verifier rejects. `read` decodes the messages of the proof. `digits` maps a
-successor source to the digit vectors of the fold. `check wire c σ` is the game of the checks of
-the verifier for the claim of `wire`, the fold challenges `c` and the source `σ`, `passes σ` is
-the truth of its final claim for `σ`, and `costs` has one bound for each of its draws. `weight` is
-the norm `ω = ‖c‖_1` of a fold challenge. -/
+/-- A witness of `R_bind` for the matrices of one level, or `none`: a solution of Module-SIS for
+`A` with the bound `innerBound`, for `B` or `D` with the bound `b⋆ − 1`, or for a compression map
+with the bound 1 (Akita Table 3). -/
+abbrev LevelBreak {S : Shape} {O : OpeningShape S} (key : Key S) (openKey : OpeningKey O)
+    (innerBound : ℕ) : Type :=
+  Option (ShortKernel key.inner innerBound ⊕ (OuterBreak key ⊕ OpenBreak openKey))
+
+/-- One opening method of a fold for the challenge ring `Ring`, the claims `Stmt` and the
+witnesses `Brk` of `R_bind`. `Satisfies` is the exact branch relation of the digit vectors for a
+claim and the fold challenges (Akita Section 10, before Corollary 10.32). `Opens` is the weak
+opening of a claim (Akita Definition 10.22). `merge` is the reduction of Akita Corollary 10.32 for
+the two children `(c, ŵ)` of each block and the carried digits of the reference child. `broken` is
+the truth of a witness of `R_bind`. -/
+structure Method {S : Shape} (O : OpeningShape S) (fold : Descriptor) (Ring Stmt Brk : Type) where
+  Satisfies : Witness O fold → Stmt → (Fin S.blocks → Ring) → Prop
+  Opens : Weak O → Stmt → Prop
+  merge : Stmt → (Fin S.blocks → (Fin S.blocks → Ring) × Witness O fold) →
+    (Fin S.blocks → (Fin S.blocks → Ring) × Witness O fold) → Carried O → Weak O ⊕ Brk
+  broken : Brk → Prop
+
+/-- Akita Corollary 10.32 for a method and a challenge family. The two children of block `i` have
+challenges of the family at `i` that differ, and their challenges agree at each other block. The
+digit vectors of each child, and the digit vectors `w`, satisfy their exact branch relations for
+one claim. Then `merge` for the carried digits of `w` returns a weak opening of the claim or a
+true witness of `R_bind`. -/
+def Method.Sound {S : Shape} {O : OpeningShape S} {fold : Descriptor} {Ring Stmt Brk : Type}
+    (M : Method O fold Ring Stmt Brk) (family : Set Ring) : Prop :=
+  ∀ (claim : Stmt) (first second : Fin S.blocks → (Fin S.blocks → Ring) × Witness O fold)
+    (w : Witness O fold) (challenge : Fin S.blocks → Ring),
+    (∀ i, (first i).1 i ∈ family) → (∀ i, (second i).1 i ∈ family) →
+    (∀ i, (first i).1 i ≠ (second i).1 i) → (∀ i j, j ≠ i → (first i).1 j = (second i).1 j) →
+    (∀ i, M.Satisfies (first i).2 claim (first i).1) →
+    (∀ i, M.Satisfies (second i).2 claim (second i).1) → M.Satisfies w claim challenge →
+    Sum.elim (M.Opens · claim) M.broken (M.merge claim first second w.toCarried)
+
+section Packing
+
+variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [CommRing E]
+  [Module Zq E]
+
+/-- The method of a fold with coefficient packing for one claim (Akita Sections 5.3 and 7.2):
+`Witness.Satisfies`, the weak opening `Weak.Opens` with `κ̄_1 = 2ω` and `β̄_∞ = Δ^cert_f` to the
+table that its source blocks decode to, and `forkCollision` with `extract`. `weight` is the norm
+`ω = ‖c‖_1` of a fold challenge. A witness of `R_bind` for `A` has the bound
+`η_A = 2·κ̄_1·Δ^cert_f` of Akita (50). -/
+noncomputable def packing (β : Module.Basis (Fin O.planes) Zq E) (key : Key S)
+    (openKey : OpeningKey O) (weight : ℕ) :
+    Method O fold (Rq O.carrierDegree) (Claim O E)
+      (LevelBreak key openKey (2 * (2 * weight) * fold.sourceBound S)) where
+  Satisfies w claim challenge := w.Satisfies β (claim.statement key openKey) challenge
+  Opens ω claim :=
+    ω.Opens β (2 * weight) (fold.sourceBound S) (claim.statement key openKey) (S.decode ω.source)
+  merge claim first second digits :=
+    match forkCollision (claim.statement key openKey)
+        ⟨fun i => ⟨(first i).1, (first i).2⟩, fun i => ⟨(second i).1, (second i).2⟩⟩ digits with
+    | some solution => .inr (some (.inr solution))
+    | none => .inl (extract
+        ⟨fun i => ⟨(first i).1, (first i).2⟩, fun i => ⟨(second i).1, (second i).2⟩⟩ digits)
+  broken solution := solution.isSome
+
+/-- Akita Corollary 10.32 for the method `packing`. The challenge family has units as differences
+(Akita Definition 9.2, E1) and members of the norm `ω`, and `b_z ≥ 2`. -/
+theorem packing_sound {β : Module.Basis (Fin O.planes) Zq E} {key : Key S}
+    {openKey : OpeningKey O} {weight peak : ℕ} {family : Set (Rq O.carrierDegree)}
+    (units : UnitDifferences family) (sparse : ∀ challenge ∈ family, Sparse weight peak challenge)
+    (base : 2 ≤ fold.responseBase) :
+    (packing (fold := fold) β key openKey weight).Sound family := by
+  intro claim first second w challenge firstMember secondMember different agree firstSatisfies
+    secondSatisfies good
+  have result := extract_opens_or_collision units sparse base
+    (fork := ⟨fun i => ⟨(first i).1, (first i).2⟩, fun i => ⟨(second i).1, (second i).2⟩⟩)
+    ⟨firstMember, secondMember, different, agree, firstSatisfies, secondSatisfies⟩
+    (Witness.Satisfies.carried good)
+  unfold packing
+  rcases collision : forkCollision (claim.statement key openKey)
+      (⟨fun i => ⟨(first i).1, (first i).2⟩, fun i => ⟨(second i).1, (second i).2⟩⟩ :
+        Fork O fold) w.toCarried with _ | solution
+  · rw [collision] at result
+    simp only [collision]
+    exact result.resolve_left (by simp)
+  · simp only [collision]
+    rfl
+
+end Packing
+
+/-- The data of one fold for one claim, with its stages from the stage `start` of a transcript.
+`method` is the opening method, and `claim` reads the claim of the level from the message before
+the stage `start`. `block i` is the coordinate of the answer of the oracle that has the slot of
+the fold challenge `c_i`, and `decode` gives the challenge of a slot, or `none` for a slot that
+the verifier rejects. `read` decodes the messages of the proof. `digits` maps a successor source
+to the digit vectors of the fold. `check wire c σ` is the game of the checks of the verifier for
+the claim of `wire`, the fold challenges `c` and the source `σ`, `passes σ` is the truth of its
+final claim for `σ`, and `costs` has one bound for each of its draws. -/
 structure Tier {S : Shape} (O : OpeningShape S) (fold : Descriptor)
-    (E Wire Coord Slot Result Source : Type) [CommRing E] [Module Zq E] where
-  basis : Module.Basis (Fin O.planes) Zq E
-  key : Key S
-  openKey : OpeningKey O
-  claim : Wire → Claim O E
+    (Ring Stmt Brk Wire Coord Slot Result Source : Type) where
+  method : Method O fold Ring Stmt Brk
+  claim : Wire → Stmt
   block : Fin S.blocks → Coord
-  decode : Slot → Option (Rq O.carrierDegree)
+  decode : Slot → Option Ring
   read : Reader Wire
   digits : Source → Witness O fold
-  check : Wire → (Fin S.blocks → Rq O.carrierDegree) → Source → Game Result
+  check : Wire → (Fin S.blocks → Ring) → Source → Game Result
   passes : Source → Result → Prop
   costs : List ℝ
-  weight : ℕ
   start : ℕ
 
 namespace Tier
 
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor}
-  {E Wire Coord Slot Result Source : Type} [CommRing E] [Module Zq E]
-  (T : Tier O fold E Wire Coord Slot Result Source) {total : ℕ}
+  {Ring Stmt Brk Wire Coord Slot Result Source : Type} [Zero Ring]
+  (T : Tier O fold Ring Stmt Brk Wire Coord Slot Result Source) {total : ℕ}
 
 /-- The first stage after the stages of the level: the fold challenge, and one stage for each
 draw of the checks. -/
 def finish : ℕ := T.start + (T.costs.length + 1)
 
+omit [Zero Ring] in
 theorem finish_eq : T.finish = T.start + (T.costs.length + 1) := rfl
 
-/-- The folding statement of the level for the claim of a message. -/
-@[reducible] def statement (wire : Wire) : Statement O E :=
-  (T.claim wire).statement T.key T.openKey
-
+omit [Zero Ring] in
 /-- The set of the fold challenges: the values of the decoder. -/
-def family : Set (Rq O.carrierDegree) := {challenge | ∃ slot, T.decode slot = some challenge}
+def family : Set Ring := {challenge | ∃ slot, T.decode slot = some challenge}
 
 /-- The fold challenges `c_i` of a stage input, from the answer of the stage `start`. -/
-noncomputable def challenge (point : Prefix Wire (Coord → Slot) total) (i : Fin S.blocks) :
-    Rq O.carrierDegree :=
-  ((point.reply T.start).bind fun reply => T.decode (reply (T.block i))).getD 0
+noncomputable def challenge (point : Prefix Wire (Coord → Slot) total) : Fin S.blocks → Ring :=
+  challengeAt T.decode T.block T.start point
 
+omit [Zero Ring] in
 /-- The answer of the stage `start` gives a fold challenge for each block. -/
 def Decodes (point : Prefix Wire (Coord → Slot) total) : Prop :=
-  ∃ reply, point.reply T.start = some reply ∧ ∀ i, (T.decode (reply (T.block i))).isSome
+  DecodesAt T.decode T.block T.start point
 
-/-- The relation of the extraction: a weak opening of the statement of the level (Akita
-Definition 10.22) with `κ̄_1 = 2ω` and `β̄_∞ = Δ^cert_f`, to the table that its source blocks
-decode to. -/
+omit [Zero Ring] in
+/-- The relation of the extraction: a weak opening of the claim of the level (Akita
+Definition 10.22) for the method of the level. -/
 def Opens (point : Prefix Wire (Coord → Slot) total) (opening : Option (Weak O)) : Prop :=
-  ∃ ω, opening = some ω ∧
-    ω.Opens T.basis (2 * T.weight) (fold.sourceBound S) (T.statement (point.wire T.start))
-      (S.decode ω.source)
+  ∃ ω, opening = some ω ∧ T.method.Opens ω (T.claim (point.wire T.start))
 
-/-- A witness of `R_bind` for the matrices of the level: a solution of Module-SIS for `A` with
-the bound `η_A = 2·κ̄_1·Δ^cert_f` of Akita (50), for `B` or `D` with the bound `b⋆ − 1`, or for a
-compression map with the bound 1 (Akita Table 3). -/
-abbrev Break : Type :=
-  Option (ShortKernel T.key.inner (2 * (2 * T.weight) * fold.sourceBound S) ⊕
-    (OuterBreak T.key ⊕ OpenBreak T.openKey))
-
+omit [Zero Ring] in
 /-- Definition 10.16 (i) for the stages of the level: the stage `start` is indexed by the
 blocks, the next stage is the checkpoint of the checks, and its segment has the other stages. -/
 def kind (level : ℕ) : Kind Coord :=
@@ -206,6 +339,7 @@ def kind (level : ℕ) : Kind Coord :=
   else if level = T.start + 1 then .checkpoint (T.costs.length - 1)
   else .plain
 
+omit [Zero Ring] in
 theorem costs_getD_nonnegative (nonnegative : ∀ cost ∈ T.costs, 0 ≤ cost) (index : ℕ) :
     0 ≤ T.costs.getD index 0 := by
   rw [List.getD_eq_getElem?_getD]
@@ -216,51 +350,27 @@ theorem costs_getD_nonnegative (nonnegative : ∀ cost ∈ T.costs, 0 ≤ cost) 
 variable {T} in
 theorem Decodes.challenge {point : Prefix Wire (Coord → Slot) total} {reply : Coord → Slot}
     (answered : point.reply T.start = some reply) (decodes : T.Decodes point) (i : Fin S.blocks) :
-    T.decode (reply (T.block i)) = some (T.challenge point i) := by
-  obtain ⟨other, same, each⟩ := decodes
-  obtain rfl := Option.some.inj (same.symm.trans answered)
-  obtain ⟨value, decoded⟩ := Option.isSome_iff_exists.mp (each i)
-  simp [Tier.challenge, answered, decoded]
+    T.decode (reply (T.block i)) = some (T.challenge point i) :=
+  DecodesAt.challenge answered decodes i
 
 theorem challenge_take {level : ℕ} (above : T.start < level)
     (point : Prefix Wire (Coord → Slot) total) :
-    T.challenge (point.take level) = T.challenge point := by
-  funext i
-  simp only [Tier.challenge, Prefix.reply_take above]
+    T.challenge (point.take level) = T.challenge point :=
+  challengeAt_take T.decode T.block T.start above point
 
 theorem challenge_snoc (point : Prefix Wire (Coord → Slot) total) (move : (Coord → Slot) × Wire)
     (room : point.rest.length < total) (below : T.start < point.rest.length) :
     T.challenge (point.snoc move room) = T.challenge point := by
   funext i
-  simp only [Tier.challenge, Prefix.reply_snoc point move room below]
+  simp only [Tier.challenge, challengeAt, Prefix.reply_snoc point move room below]
 
 section Random
 
 variable [Fintype Slot] [Nonempty Slot]
 
-/-- The largest probability of one fold challenge for a uniform slot. It is `1/|C|` for a decoder
-with the uniform law on the challenge set `C`. -/
-noncomputable def chance : ℝ :=
-  Finset.univ.sup' Finset.univ_nonempty fun slot : Slot =>
-    if (T.decode slot).isSome then mass {other | T.decode other = T.decode slot} else 0
-
-theorem chance_nonnegative : 0 ≤ T.chance := by
-  obtain ⟨slot⟩ := ‹Nonempty Slot›
-  refine le_trans ?_ (Finset.le_sup' _ (Finset.mem_univ slot))
-  split
-  · exact mass_nonnegative _
-  · exact le_rfl
-
-theorem mass_decode_le (value : Rq O.carrierDegree) :
-    mass {slot | T.decode slot = some value} ≤ T.chance := by
-  by_cases reached : ∃ slot, T.decode slot = some value
-  · obtain ⟨slot, decoded⟩ := reached
-    refine le_trans (le_of_eq ?_) (Finset.le_sup' _ (Finset.mem_univ slot))
-    rw [ite_eq_left (by rw [decoded]; rfl), decoded]
-  · have empty : {slot | T.decode slot = some value} = (∅ : Set Slot) :=
-      Set.eq_empty_of_forall_notMem fun slot decoded => reached ⟨slot, decoded⟩
-    rw [empty]
-    exact (le_of_eq (by simp [mass])).trans T.chance_nonnegative
+omit [Zero Ring] in
+/-- The largest probability of one fold challenge of the level for a uniform slot. -/
+noncomputable def chance : ℝ := slotChance T.decode
 
 variable [Fintype Coord] [DecidableEq Coord]
 
@@ -279,17 +389,15 @@ def Passed (source : Source) (point : Prefix Wire (Coord → Slot) total) : Prop
     ∃ result, T.game source point = .pure result ∧ T.passes source result
 
 /-- The conditions on the data of one level. `injective`: the blocks have different coordinates.
-`units` and `sparse`: the challenge family has units as differences (Akita Definition 9.2, E1) and
-members of the norm `ω`. `base`: `b_z ≥ 2`. `sound`: on a path of the game that avoids the bad
-sets, a true final claim gives the exact branch relation of the digit vectors of the source.
-`staged` and `nonnegative`: the bounds `costs` of the draws. `draws`: the game has a draw. -/
-structure Valid (peak : ℕ) : Prop where
+`merges`: Akita Corollary 10.32 for the method and the challenge family. `sound`: on a path of
+the game that avoids the bad sets, a true final claim gives the exact branch relation of the
+digit vectors of the source. `staged` and `nonnegative`: the bounds `costs` of the draws.
+`draws`: the game has a draw. -/
+structure Valid : Prop where
   injective : Function.Injective T.block
-  units : UnitDifferences T.family
-  sparse : ∀ challenge ∈ T.family, Sparse T.weight peak challenge
-  base : 2 ≤ fold.responseBase
+  merges : T.method.Sound T.family
   sound : ∀ wire challenge source, (T.check wire challenge source).Avoids fun result =>
-    T.passes source result → (T.digits source).Satisfies T.basis (T.statement wire) challenge
+    T.passes source result → T.method.Satisfies (T.digits source) (T.claim wire) challenge
   staged : ∀ wire challenge source, Staged (Coord → Slot) (T.check wire challenge source) T.costs
   nonnegative : ∀ cost ∈ T.costs, 0 ≤ cost
   draws : T.costs ≠ []
@@ -300,32 +408,24 @@ variable {Inner BreakT CandT KeyT WitT : Type}
     KeyT WitT)
   (source : Inner → Source) (clash : Inner → Inner → BreakT)
 
-/-- The children of Akita Definition 10.30 (ii) for the extraction at the stage `start`: the
-reference transcript is the first child of each block, and the transcript of the coordinate of
-block `i` is its second child. The digit vectors of a child are those of its successor source. -/
-noncomputable def fork (reference : Opened O Inner) (children : Coord → Opened O Inner) :
-    Fork O fold where
-  first _ := ⟨T.challenge (tail.point reference.inner), T.digits (source reference.inner)⟩
-  second i := ⟨T.challenge (tail.point (children (T.block i)).inner),
-    T.digits (source (children (T.block i)).inner)⟩
-
-/-- `Comb_r` at the stage `start`: the reduction of Akita Corollary 10.32. It returns a solution
-of Module-SIS when a child has other carried digits than the reference, and else the weak opening
-`extract`. -/
+/-- `Comb_r` at the stage `start`: the reduction `merge` of the method (Akita Corollary 10.32)
+for the children of Akita Definition 10.30 (ii). The reference transcript is the first child of
+each block, and the transcript of the coordinate of block `i` is its second child. The digit
+vectors of a child are those of its successor source. -/
 noncomputable def combine (reference : Opened O Inner) (children : Coord → Opened O Inner) :
-    Opened O Inner ⊕ (T.Break ⊕ BreakT) :=
-  match forkCollision (T.statement ((tail.point reference.inner).wire T.start))
-      (T.fork tail source reference children) (T.digits (source reference.inner)).toCarried with
-  | some solution => .inr (.inl (some (.inr solution)))
-  | none => .inl ⟨reference.inner,
-      some (extract (T.fork tail source reference children)
-        (T.digits (source reference.inner)).toCarried)⟩
+    Opened O Inner ⊕ (Brk ⊕ BreakT) :=
+  (T.method.merge (T.claim ((tail.point reference.inner).wire T.start))
+    (fun _ => (T.challenge (tail.point reference.inner), T.digits (source reference.inner)))
+    (fun i => (T.challenge (tail.point (children (T.block i)).inner),
+      T.digits (source (children (T.block i)).inner)))
+    (T.digits (source reference.inner)).toCarried).map
+    (fun ω => ⟨reference.inner, some ω⟩) Sum.inl
 
 /-- `Good_ℓ` of the checkpoint: the digit vectors of the successor source satisfy the exact
 branch relation of the transcript (Akita Proposition 10.44, "Checkpoints"). -/
 def Good (certificate : Opened O Inner) : Prop :=
-  (T.digits (source certificate.inner)).Satisfies T.basis
-    (T.statement ((tail.point certificate.inner).wire T.start))
+  T.method.Satisfies (T.digits (source certificate.inner))
+    (T.claim ((tail.point certificate.inner).wire T.start))
     (T.challenge (tail.point certificate.inner))
 
 /-- The certificate sets `Y_level`: at the stage `start` an accepting transcript with a weak
@@ -348,7 +448,7 @@ stage input are refuted for a source when each path of the game from this stage 
 the bad sets ends in a final claim that is false for the source. -/
 noncomputable def over :
     Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) (Opened O Inner)
-      (T.Break ⊕ BreakT) (Source ⊕ CandT) (Rq O.carrierDegree ⊕ KeyT) (Option (Weak O)) where
+      (Brk ⊕ BreakT) (Source ⊕ CandT) (Ring ⊕ KeyT) (Option (Weak O)) where
   protocol := transcript total accept
   kind level := if level < T.finish then T.kind level else tail.kind level
   key level coordinate slot :=
@@ -360,7 +460,7 @@ noncomputable def over :
   leaf point := ⟨tail.leaf point, none⟩
   point certificate := tail.point certificate.inner
   holds := T.holds accept tail source
-  breaks := Sum.elim (fun solution => solution.isSome) tail.breaks
+  breaks := Sum.elim T.method.broken tail.breaks
   combine level reference children :=
     if level < T.finish then T.combine tail source reference children
     else Sum.map (fun inner => ⟨inner, none⟩) Sum.inr
@@ -598,7 +698,7 @@ theorem game_step (candidate : Source) (proof : ℕ → Wire)
 
 /-- `Comb_r` at the stage `start` is correct (Definition 10.16 (iv) with Akita
 Corollary 10.32). -/
-theorem combine_opens {peak : ℕ} (valid : T.Valid peak) (fed : T.Fed accept tail source clash)
+theorem combine_opens (valid : T.Valid) (fed : T.Fed accept tail source clash)
     (reference : Opened O Inner) (family : Coord → Opened O Inner)
     (anchor deeper : Prefix Wire (Coord → Slot) total)
     (held : T.holds accept tail source (T.start + 1) reference)
@@ -622,11 +722,11 @@ theorem combine_opens {peak : ℕ} (valid : T.Valid peak) (fed : T.Fed accept ta
         ∀ earlier ≤ T.start,
           (transcript total accept).cut earlier (tail.point certificate.inner) =
             (transcript total accept).cut earlier (tail.point reference.inner))
-      (Sum.elim (fun solution : T.Break => solution.isSome) tail.breaks)
+      (Sum.elim T.method.broken tail.breaks)
       (T.combine tail source reference family) := by
   obtain ⟨heldTail, good⟩ := (T.holds_check valid.draws reference).mp held
-  have good : (T.digits (source reference.inner)).Satisfies T.basis
-      (T.statement ((tail.point reference.inner).wire T.start))
+  have good : T.method.Satisfies (T.digits (source reference.inner))
+      (T.claim ((tail.point reference.inner).wire T.start))
       (T.challenge (tail.point reference.inner)) := good
   have passed := fed.passed reference.inner heldTail
   obtain ⟨_, rfl⟩ := transcript_cut found
@@ -635,8 +735,8 @@ theorem combine_opens {peak : ℕ} (valid : T.Valid peak) (fed : T.Fed accept ta
   have base := last_take_succ (accept := accept) answered
   have child : ∀ i : Fin S.blocks,
       (tail.holds T.finish (family (T.block i)).inner ∧
-        (T.digits (source (family (T.block i)).inner)).Satisfies T.basis
-          (T.statement ((tail.point reference.inner).wire T.start))
+        T.method.Satisfies (T.digits (source (family (T.block i)).inner))
+          (T.claim ((tail.point reference.inner).wire T.start))
           (T.challenge (tail.point (family (T.block i)).inner))) ∧
       ∃ slot, (tail.point (family (T.block i)).inner).reply T.start =
           some (Function.update reply (T.block i) slot) ∧
@@ -645,8 +745,8 @@ theorem combine_opens {peak : ℕ} (valid : T.Valid peak) (fed : T.Fed accept ta
     obtain ⟨heldChild, foundChild, other, slot, foundOther, last, differs⟩ :=
       each (T.block i) (List.mem_map.mpr ⟨i, List.mem_finRange i, rfl⟩)
     obtain ⟨heldInner, goodChild⟩ := (T.holds_check valid.draws (family (T.block i))).mp heldChild
-    have goodChild : (T.digits (source (family (T.block i)).inner)).Satisfies T.basis
-        (T.statement ((tail.point (family (T.block i)).inner).wire T.start))
+    have goodChild : T.method.Satisfies (T.digits (source (family (T.block i)).inner))
+        (T.claim ((tail.point (family (T.block i)).inner).wire T.start))
         (T.challenge (tail.point (family (T.block i)).inner)) := goodChild
     obtain ⟨_, sameAnchor⟩ := transcript_cut foundChild
     have sameWire : (tail.point (family (T.block i)).inner).wire T.start =
@@ -661,40 +761,38 @@ theorem combine_opens {peak : ℕ} (valid : T.Valid peak) (fed : T.Fed accept ta
       rw [answeredChild, last]
     · rw [base] at differs
       exact differs
-  have forked : (T.fork tail source reference family).Accepts T.basis T.family
-      (T.statement ((tail.point reference.inner).wire T.start)) := {
-    firstMember := fun i => ⟨_, passed.2.1.challenge answered i⟩
-    secondMember := fun i => by
+  have result := valid.merges (T.claim ((tail.point reference.inner).wire T.start))
+    (fun _ => (T.challenge (tail.point reference.inner), T.digits (source reference.inner)))
+    (fun i => (T.challenge (tail.point (family (T.block i)).inner),
+      T.digits (source (family (T.block i)).inner)))
+    (T.digits (source reference.inner)) (T.challenge (tail.point reference.inner))
+    (fun i => ⟨_, passed.2.1.challenge answered i⟩)
+    (fun i => by
       obtain ⟨⟨heldInner, _⟩, slot, answeredChild, _⟩ := child i
-      exact ⟨_, (fed.passed _ heldInner).2.1.challenge answeredChild i⟩
-    different := fun i same => by
+      exact ⟨_, (fed.passed _ heldInner).2.1.challenge answeredChild i⟩)
+    (fun i same => by
       obtain ⟨⟨heldInner, _⟩, slot, answeredChild, differs⟩ := child i
       have second := (fed.passed _ heldInner).2.1.challenge answeredChild i
       rw [Function.update_self] at second
       refine differs (second.trans ?_)
       rw [passed.2.1.challenge answered i]
-      exact congrArg some same.symm
-    agree := fun i j other => by
+      exact congrArg some same.symm)
+    (fun i j other => by
       obtain ⟨⟨heldInner, _⟩, slot, answeredChild, _⟩ := child i
       have second := (fed.passed _ heldInner).2.1.challenge answeredChild j
       rw [Function.update_of_ne (fun same => other (valid.injective same)),
         passed.2.1.challenge answered j] at second
-      exact Option.some.inj second
-    firstSatisfies := fun _ => good
-    secondSatisfies := fun i => (child i).1.2 }
-  have result := extract_opens_or_collision valid.units valid.sparse valid.base forked
-    good.carried
+      exact Option.some.inj second)
+    (fun _ => good) (fun i => (child i).1.2) good
   unfold Tier.combine
-  rcases collision : forkCollision (T.statement ((tail.point reference.inner).wire T.start))
-      (T.fork tail source reference family) (T.digits (source reference.inner)).toCarried with
-    _ | solution
-  · rw [collision] at result
-    exact ⟨⟨fed.accepted _ heldTail, _, rfl, result.resolve_left (by simp)⟩, fun _ _ => rfl⟩
-  · rfl
+  generalize T.method.merge _ _ _ _ = merged at result ⊢
+  rcases merged with ω | solution
+  · exact ⟨⟨fed.accepted _ heldTail, ω, rfl, result⟩, fun _ _ => rfl⟩
+  · exact result
 
 /-- The level over the later stages satisfies the conditions of Akita Definition 10.16 from its
 first stage (Akita Proposition 10.44 for the stages from one level). -/
-theorem over_lawfulFrom {peak : ℕ} (valid : T.Valid peak)
+theorem over_lawfulFrom (valid : T.Valid)
     (fed : T.Fed accept tail source clash) :
     (T.over accept tail source clash).LawfulFrom (transcript total accept) T.start := by
   have ends := T.finish_eq
@@ -742,14 +840,14 @@ theorem over_lawfulFrom {peak : ℕ} (valid : T.Valid peak)
   · intro level coordinates coordinate value low isIndexed member
     rcases T.over_kind_indexed low isIndexed with ⟨rfl, rfl, inside⟩ | ⟨outside, isTail⟩
     · simp only [over_key, over_weight, ite_eq_left inside]
-      exact mass_inl_le T.decode value T.chance_nonnegative T.mass_decode_le
+      exact mass_inl_le T.decode value (slotChance_nonnegative T.decode) (mass_slot_le T.decode)
     · simp only [over_key, over_weight, ite_eq_right (Nat.not_lt.mpr outside)]
       exact mass_inr_le _ value (fed.lawful.weight_nonnegative level coordinate) fun second =>
         fed.lawful.key_mass level coordinates coordinate second outside isTail member
   · intro level coordinate
     rw [over_weight]
     split
-    · exact T.chance_nonnegative
+    · exact slotChance_nonnegative T.decode
     · exact fed.lawful.weight_nonnegative level coordinate
   · intro level certificate low isPlain held
     rcases T.over_kind_plain isPlain with ⟨above, inside⟩ | ⟨outside, isTail⟩

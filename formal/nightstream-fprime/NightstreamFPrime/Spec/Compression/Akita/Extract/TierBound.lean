@@ -50,8 +50,8 @@ end Finish
 namespace Tier
 
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor}
-  {E Wire Coord Slot Result Source : Type} [CommRing E] [Module Zq E]
-  (T : Tier O fold E Wire Coord Slot Result Source) {total : ℕ}
+  {Ring Stmt Brk Wire Coord Slot Result Source : Type} [Zero Ring]
+  (T : Tier O fold Ring Stmt Brk Wire Coord Slot Result Source) {total : ℕ}
   [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
   {Inner BreakT CandT KeyT WitT : Type} {accept : Prefix Wire (Coord → Slot) total → Prop}
   {tail : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT

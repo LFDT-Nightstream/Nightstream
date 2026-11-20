@@ -139,17 +139,16 @@ theorem budget_of_levels {field challengeBits fieldBits queryMax strength : ℕ}
 
 namespace Tier
 
-variable {S : Shape} {O : OpeningShape S} {fold : Descriptor}
-  {E Wire Coord Slot Result Source : Type} [CommRing E] [Module Zq E]
-  {T : Tier O fold E Wire Coord Slot Result Source} {total : ℕ}
-  [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
-  {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Coord → Slot) total → Prop}
+variable {Wire Coord Slot : Type} {total : ℕ} [Fintype Slot] [Nonempty Slot] [Fintype Coord]
+  [DecidableEq Coord] {Inner BreakT CandT KeyT Wit : Type}
+  {accept : Prefix Wire (Coord → Slot) total → Prop} {start : ℕ}
+  {Opens : Prefix Wire (Coord → Slot) total → Wit → Prop}
   {body : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
-    KeyT (Option (Weak O))}
-  {embed : T.Break → BreakT} {error : ℝ} {loops tree : ℕ}
+    KeyT Wit}
+  {error : ℝ} {loops tree : ℕ}
 
-theorem Suffix.error_nonnegative (suffix : T.Suffix accept body embed error loops tree)
-    (root : T.start = 0) : 0 ≤ error := by
+theorem Suffix.error_nonnegative (suffix : Suffix accept start Opens body error loops tree)
+    (root : start = 0) : 0 ≤ error := by
   rw [← suffix.errorSum]
   exact Finset.sum_nonneg fun level _ => body.charge_nonnegative (suffix.lawful root) level
 
@@ -159,8 +158,8 @@ variable [Finite Wire]
 when `(Q_max + 1)·ε_int ≤ 2^{−λ}` for the sum `error` of the stage errors, each prover with at
 most `Q ≤ Q_max` queries makes the verifier accept with no output of the extractor with a
 probability of at most `2^{−λ} + (Q + 1)·loops/budget`. -/
-theorem Suffix.extraction_le_strength (suffix : T.Suffix accept body embed error loops tree)
-    (root : T.start = 0)
+theorem Suffix.extraction_le_strength (suffix : Suffix accept start Opens body error loops tree)
+    (root : start = 0)
     (prover : OracleComp (Prefix Wire (Coord → Slot) total) (Coord → Slot) (ℕ → Wire))
     {queries queryMax : ℕ} (bounded : prover.QueryBound queries) (within : queries ≤ queryMax)
     {strength : ℝ} (budgeted : (queryMax + 1) * error ≤ (2 : ℝ) ^ (-strength)) {budget : ℕ}

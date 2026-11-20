@@ -11,8 +11,11 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.PackingFold
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Recursion
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Staged
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Suffix
+import NightstreamFPrime.Spec.Compression.Akita.Extract.TerminalSuffix
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tier
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TierBound
+import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceLevel
+import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceSource
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Transcript
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Uniform
 import NightstreamFPrime.Spec.Compression.Akita.FlatFold

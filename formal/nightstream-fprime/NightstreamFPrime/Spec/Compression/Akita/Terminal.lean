@@ -127,7 +127,7 @@ end TerminalFork
 
 section Extraction
 
-variable {st : TerminalStatement S E} {fork fork' : TerminalFork S}
+variable {st st' : TerminalStatement S E} {fork fork' : TerminalFork S}
   {family : Set (Rq S.innerDegree)} {partials partials' : Fin S.blocks → Rq S.innerDegree}
 
 /-- Akita Proposition 10.29, extraction step: `A_term·s⋆_i = t_i`. -/
@@ -160,7 +160,7 @@ noncomputable def terminalCollisionSq (st : TerminalStatement S E) (bound : ℕ)
     (fork.difference i • fork'.responseDifference i)
 
 theorem terminal_ne (units : UnitDifferences family) (accepts : fork.Accepts family st partials)
-    (accepts' : fork'.Accepts family st partials') {i : Fin S.blocks}
+    (accepts' : fork'.Accepts family st' partials') {i : Fin S.blocks}
     (different : fork.source i ≠ fork'.source i) :
     fork'.difference i • fork.responseDifference i ≠
       fork.difference i • fork'.responseDifference i := by
@@ -172,19 +172,23 @@ theorem terminal_ne (units : UnitDifferences family) (accepts : fork.Accepts fam
   exact different ((unit.mul unit').smul_left_cancel.mp same)
 
 theorem terminal_image (accepts : fork.Accepts family st partials)
-    (accepts' : fork'.Accepts family st partials') (i : Fin S.blocks) :
+    (accepts' : fork'.Accepts family st' partials') (matrix : st'.matrix = st.matrix)
+    (state : st'.state = st.state) (i : Fin S.blocks) :
     st.matrix.mulVec (fork'.difference i • fork.responseDifference i) =
       st.matrix.mulVec (fork.difference i • fork'.responseDifference i) := by
-  rw [Matrix.mulVec_smul, Matrix.mulVec_smul, accepts.inner_difference i,
-    accepts'.inner_difference i, smul_comm]
+  have image := accepts'.inner_difference i
+  rw [matrix, state] at image
+  rw [Matrix.mulVec_smul, Matrix.mulVec_smul, accepts.inner_difference i, image, smul_comm]
 
-/-- Akita Proposition 10.29 with the radius (181). Two forks pass the checks of one terminal
-statement, each challenge has `‖c‖_1 = κ_{1,term}`, and each clear response has
-`‖z‖_∞ ≤ Z_{∞,term}`. If the extracted candidates for block `i` differ, `z_A` is a solution of
-Module-SIS for `A_term` with the bound `8·κ_{1,term}·Z_{∞,term}`. -/
+/-- Akita Proposition 10.29 with the radius (181). Two forks pass the checks of two terminal
+statements with one matrix `A_term` and one state `(t_i)_i`, each challenge has
+`‖c‖_1 = κ_{1,term}`, and each clear response has `‖z‖_∞ ≤ Z_{∞,term}`. If the extracted candidates
+for block `i` differ, `z_A` is a solution of Module-SIS for `A_term` with the bound
+`8·κ_{1,term}·Z_{∞,term}`. -/
 theorem terminalCollision_isSome {mass peak response : ℕ} (units : UnitDifferences family)
     (sparse : ∀ c ∈ family, Sparse mass peak c) (accepts : fork.Accepts family st partials)
-    (accepts' : fork'.Accepts family st partials')
+    (accepts' : fork'.Accepts family st' partials') (matrix : st'.matrix = st.matrix)
+    (state : st'.state = st.state)
     (short : ∀ i, vecNormInf (fork.first i).response ≤ response ∧
       vecNormInf (fork.second i).response ≤ response)
     (short' : ∀ i, vecNormInf (fork'.first i).response ≤ response ∧
@@ -202,18 +206,20 @@ theorem terminalCollision_isSome {mass peak response : ℕ} (units : UnitDiffere
     (vecNormInf_sub_le _ _).trans
       ((Nat.add_le_add (short' i).2 (short' i).1).trans_eq (Nat.two_mul response).symm)
   refine ShortKernel.ofCollision?_isSome ⟨terminal_ne units accepts accepts' different,
-    terminal_image accepts accepts' i, ?_⟩
+    terminal_image accepts accepts' matrix state i, ?_⟩
   exact (vecNormInf_sub_le _ _).trans ((Nat.add_le_add
     ((vecNormInf_smul_le _ _).trans (Nat.mul_le_mul factor' delta))
     ((vecNormInf_smul_le _ _).trans (Nat.mul_le_mul factor delta'))).trans_eq (by ring))
 
-/-- Akita Proposition 10.29 with the radius (182). Two forks pass the checks of one terminal
-statement, each challenge has `‖c‖_mul,2 ≤ Γ_term`, and each clear response has
-`‖z‖_2² ≤ S_max,term`. If the extracted candidates for block `i` differ, `z_A` is a solution of
-Module-SIS for `A_term` with `‖z_A‖_2² ≤ 64·Γ_term²·S_max,term`. -/
+/-- Akita Proposition 10.29 with the radius (182). Two forks pass the checks of two terminal
+statements with one matrix `A_term` and one state `(t_i)_i`, each challenge has
+`‖c‖_mul,2 ≤ Γ_term`, and each clear response has `‖z‖_2² ≤ S_max,term`. If the extracted
+candidates for block `i` differ, `z_A` is a solution of Module-SIS for `A_term` with
+`‖z_A‖_2² ≤ 64·Γ_term²·S_max,term`. -/
 theorem terminalCollisionSq_isSome {operator energy : ℕ} (units : UnitDifferences family)
     (bounded : ∀ c ∈ family, MulBound operator c) (accepts : fork.Accepts family st partials)
-    (accepts' : fork'.Accepts family st partials')
+    (accepts' : fork'.Accepts family st' partials') (matrix : st'.matrix = st.matrix)
+    (state : st'.state = st.state)
     (short : ∀ i, vecNormSq (fork.first i).response ≤ energy ∧
       vecNormSq (fork.second i).response ≤ energy)
     (short' : ∀ i, vecNormSq (fork'.first i).response ≤ energy ∧
@@ -229,7 +235,7 @@ theorem terminalCollisionSq_isSome {operator energy : ℕ} (units : UnitDifferen
   have delta' : vecNormSq (fork'.responseDifference i) ≤ 4 * energy :=
     (vecNormSq_sub_le (short' i).2 (short' i).1 (sq _).ge).trans_eq (by ring)
   refine ShortKernelSq.ofCollision?_isSome ⟨terminal_ne units accepts accepts' different,
-    terminal_image accepts accepts' i, ?_⟩
+    terminal_image accepts accepts' matrix state i, ?_⟩
   exact (vecNormSq_sub_le
     ((factor'.vecNormSq_smul_le _).trans (Nat.mul_le_mul_left _ delta))
     ((factor.vecNormSq_smul_le _).trans (Nat.mul_le_mul_left _ delta')) (sq _).ge).trans_eq

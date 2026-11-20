@@ -131,6 +131,7 @@ theorem segment_path (lawful : structure_.Lawful) {level span : ℕ}
   by_contra none
   push Not at none
   apply finish
+  have inside := (lawful.segment level span checkpoint).1
   have reach : ∀ offset, offset ≤ span + 1 → structure_.refuted level
       (structure_.protocol.input prover table (level + offset)) candidate := by
     intro offset
@@ -142,8 +143,8 @@ theorem segment_path (lawful : structure_.Lawful) {level span : ℕ}
         exact lawful.refuted_step level span
           (structure_.protocol.input prover table (level + offset)) candidate
           (table (structure_.protocol.input prover table (level + offset))) (prover.run table)
-          checkpoint (by rw [structure_.protocol.stage_input]; omega)
-          (by rw [structure_.protocol.stage_input]; omega) before
+          checkpoint (by rw [structure_.protocol.stage_input prover table (by omega)]; omega)
+          (by rw [structure_.protocol.stage_input prover table (by omega)]; omega) before
           (none (level + offset) (by omega) (by omega))
   exact reach (span + 1) le_rfl
 
@@ -213,8 +214,9 @@ theorem segment_bad_le (lawful : structure_.Lawful) {level span frontier : ℕ}
           (Finset.mem_univ (structure_.protocol.input prover
             (structure_.protocol.regrow level anchor table sample.1) stage)))
         rw [ite_eq_left ⟨structure_.protocol.input_mem_asked prover _ inside,
-          by rw [structure_.protocol.cut_input prover _ low, same],
-          by rw [structure_.protocol.stage_input]; exact high, isBad⟩]
+          by rw [structure_.protocol.cut_input prover _ low (Nat.le_of_lt inside), same],
+          by rw [structure_.protocol.stage_input prover _ (Nat.le_of_lt inside)]; exact high,
+          isBad⟩]
       · simp [candidateKey, tried] at keyed
     · rw [ite_eq_right event]
       exact Finset.sum_nonneg fun _ _ => by split <;> norm_num
@@ -267,8 +269,8 @@ theorem segment_bad_le (lawful : structure_.Lawful) {level span frontier : ℕ}
 omit [Nonempty Slot] in
 /-- Claim 2 of Appendix E.2, second part: at most `Q + 1` stage inputs can be the selected
 checkpoint input after the table below them is replaced. -/
-theorem selected_count_le {queries : ℕ} (bounded : prover.QueryBound queries) (level : ℕ)
-    (table : Point → Coord → Slot) :
+theorem selected_count_le {queries : ℕ} (bounded : prover.QueryBound queries) {level : ℕ}
+    (within : level ≤ structure_.protocol.stages) (table : Point → Coord → Slot) :
     ∑ anchor, (if ∃ fresh, structure_.protocol.input prover
         (structure_.protocol.regrow level anchor table fresh) level = anchor
       then (1 : ℝ) else 0) ≤ queries + 1 := by
@@ -293,7 +295,7 @@ theorem selected_count_le {queries : ℕ} (bounded : prover.QueryBound queries) 
       · have outside : structure_.protocol.cut level
             (structure_.protocol.input prover table earlier) ≠ some anchor := fun cutEq => by
           have := structure_.protocol.cut_stage _ _ _ cutEq
-          rw [structure_.protocol.stage_input] at this
+          rw [structure_.protocol.stage_input prover table (by omega)] at this
           omega
         simp [Protocol.regrow, outside]
   rw [Finset.sum_boole]
@@ -500,7 +502,9 @@ theorem checkpoint_miss_le (lawful : structure_.Lawful) {level span frontier : �
             simp [Ne.symm different]
           · simp
       · unfold selectable
-        have counted := selected_count_le structure_ prover bounded level table
+        have counted := selected_count_le structure_ prover bounded
+          (Nat.le_of_lt (Nat.lt_of_le_of_lt (Nat.le_add_right level span)
+            (lawful.segment level span checkpoint).1)) table
         have scaled : ∑ anchor, (if ∃ fresh, structure_.protocol.input prover
             (structure_.protocol.regrow level anchor table fresh) level = anchor
             then 1 / (budget : ℝ) else 0) =

@@ -20,7 +20,9 @@ input: it encodes its stage and the transcript before the answer of that stage. 
 `stages` is a complete transcript. `root` is `ξ_0`, `step` extends a stage input by the answer at
 it and by the next message of the proof, `cut level` is the stage-`level` input that a point
 extends, and `last` is the answer that the last step added. The laws state that the encoding is
-injective in the way that the paper uses. -/
+injective in the way that the paper uses. The laws of `step` on the stage and on the last answer
+are for a stage input, not for a complete transcript: with these laws for each point, no finite
+type of points satisfies them. -/
 structure Protocol (Point Reply Proof : Type) where
   stages : ℕ
   root : Proof → Point
@@ -30,12 +32,13 @@ structure Protocol (Point Reply Proof : Type) where
   last : Point → Reply
   accept : Point → Prop
   stage_root : ∀ proof, stage (root proof) = 0
-  stage_step : ∀ proof point reply, stage (step proof point reply) = stage point + 1
+  stage_step : ∀ proof point reply, stage point < stages →
+    stage (step proof point reply) = stage point + 1
   cut_self : ∀ point, cut (stage point) point = some point
   cut_step : ∀ proof point reply level, level ≤ stage point →
     cut level (step proof point reply) = cut level point
   cut_stage : ∀ level point anchor, cut level point = some anchor → level ≤ stage point
-  last_step : ∀ proof point reply, last (step proof point reply) = reply
+  last_step : ∀ proof point reply, stage point < stages → last (step proof point reply) = reply
 
 variable {Point Reply Proof : Type}
 
@@ -97,24 +100,31 @@ theorem path_congr (proof : Proof) (table other : Point → Reply) (level : ℕ)
       simp only [path]
       rw [before, agree level (Nat.lt_succ_self level)]
 
-theorem stage_path (proof : Proof) (table : Point → Reply) (level : ℕ) :
+theorem stage_path (proof : Proof) (table : Point → Reply) {level : ℕ}
+    (inside : level ≤ protocol.stages) :
     protocol.stage (protocol.path proof table level) = level := by
   induction level with
   | zero => exact protocol.stage_root proof
-  | succ level induction => rw [path, protocol.stage_step, induction]
+  | succ level induction =>
+      have before := induction (Nat.le_of_succ_le inside)
+      rw [path, protocol.stage_step _ _ _ (by rw [before]; exact inside), before]
 
-theorem cut_path (proof : Proof) (table : Point → Reply) {level deep : ℕ} (below : level ≤ deep) :
+theorem cut_path (proof : Proof) (table : Point → Reply) {level deep : ℕ} (below : level ≤ deep)
+    (inside : deep ≤ protocol.stages) :
     protocol.cut level (protocol.path proof table deep) = some (protocol.path proof table level) := by
   induction deep with
   | zero =>
       obtain rfl : level = 0 := Nat.le_zero.mp below
-      simpa [protocol.stage_path] using protocol.cut_self (protocol.path proof table 0)
+      have same := protocol.cut_self (protocol.path proof table 0)
+      rwa [protocol.stage_path proof table inside] at same
   | succ deep induction =>
-      rcases Nat.lt_or_ge deep level with above | inside
+      rcases Nat.lt_or_ge deep level with above | under
       · obtain rfl : level = deep + 1 := by omega
-        simpa [protocol.stage_path] using protocol.cut_self (protocol.path proof table (deep + 1))
-      · rw [path, protocol.cut_step _ _ _ _ (by rw [protocol.stage_path]; exact inside)]
-        exact induction inside
+        have same := protocol.cut_self (protocol.path proof table (deep + 1))
+        rwa [protocol.stage_path proof table inside] at same
+      · rw [path, protocol.cut_step _ _ _ _
+          (by rw [protocol.stage_path proof table (Nat.le_of_succ_le inside)]; exact under)]
+        exact induction under (Nat.le_of_succ_le inside)
 
 variable (prover : OracleComp Point Reply Proof)
 
@@ -156,19 +166,23 @@ theorem asked_update [DecidableEq Point] (table : Point → Reply) (point : Poin
       point ∈ protocol.asked prover table :=
   OracleComp.mem_queries_update_iff table point reply (protocol.attack prover)
 
-theorem stage_input (table : Point → Reply) (level : ℕ) :
+theorem stage_input (table : Point → Reply) {level : ℕ} (inside : level ≤ protocol.stages) :
     protocol.stage (protocol.input prover table level) = level :=
-  protocol.stage_path _ table level
+  protocol.stage_path _ table inside
 
-theorem cut_input (table : Point → Reply) {level deep : ℕ} (below : level ≤ deep) :
+theorem cut_input (table : Point → Reply) {level deep : ℕ} (below : level ≤ deep)
+    (inside : deep ≤ protocol.stages) :
     protocol.cut level (protocol.input prover table deep) =
       some (protocol.input prover table level) :=
-  protocol.cut_path _ table below
+  protocol.cut_path _ table below inside
 
-theorem last_input (table : Point → Reply) (level : ℕ) :
+theorem last_input (table : Point → Reply) {level : ℕ} (inside : level < protocol.stages) :
     protocol.last (protocol.input prover table (level + 1)) =
       table (protocol.input prover table level) :=
-  protocol.last_step _ _ _
+  protocol.last_step _ _ _ (by
+    rw [show protocol.path (prover.run table) table level = protocol.input prover table level
+      from rfl, protocol.stage_input prover table (Nat.le_of_lt inside)]
+    exact inside)
 
 theorem input_congr (table other : Point → Reply) (level : ℕ)
     (agreeProver : ∀ point ∈ prover.queries table, table point = other point)
@@ -190,9 +204,9 @@ theorem stage_asked_le [Fintype Point] [DecidableEq Point] {queries : ℕ} (boun
     intro point member
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, mem_asked_iff] at member
     simp only [Finset.mem_union, List.mem_toFinset, Finset.mem_singleton]
-    rcases member.1 with queried | ⟨other, _, rfl⟩
+    rcases member.1 with queried | ⟨other, inside, rfl⟩
     · exact Or.inl queried
-    · rw [stage_input] at member
+    · rw [protocol.stage_input prover table (Nat.le_of_lt inside)] at member
       exact Or.inr (by rw [member.2])
   rw [Finset.sum_boole]
   have count := (Finset.card_le_card inside).trans (Finset.card_union_le _ _)
@@ -235,7 +249,7 @@ theorem sum_asked_le [Fintype Point] [DecidableEq Point] {queries : ℕ} (bounde
         split
         · rename_i onPath
           obtain ⟨level, inside, rfl⟩ := onPath
-          rw [protocol.stage_input]
+          rw [protocol.stage_input prover table (Nat.le_of_lt inside)]
           refine le_trans ?_ (Finset.single_le_sum (fun other _ => ?_) (Finset.mem_range.mpr inside))
           · simp
           · split <;> simp [nonnegative]

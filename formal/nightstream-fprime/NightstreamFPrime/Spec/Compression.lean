@@ -3,6 +3,11 @@ import NightstreamFPrime.Spec.Compression.Akita.Binding
 import NightstreamFPrime.Spec.Compression.Akita.Challenge
 import NightstreamFPrime.Spec.Compression.Akita.Commit
 import NightstreamFPrime.Spec.Compression.Akita.Euclid
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Bound
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Level
+import NightstreamFPrime.Spec.Compression.Akita.Extract.PackingFold
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Staged
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Transcript
 import NightstreamFPrime.Spec.Compression.Akita.FlatFold
 import NightstreamFPrime.Spec.Compression.Akita.FlatWitness
 import NightstreamFPrime.Spec.Compression.Akita.Fold
@@ -54,4 +59,7 @@ the quotient-free reduction (`Akita/RowBatch`), the quotient-lift reduction
 (`Akita/LiftReduction`), the sum-checks of one fold (`Akita/FoldSumCheck`), the checks of one fold
 as a game with its error (`Akita/FoldCheck`), the link from these checks to the branch relation
 (`Akita/Layout`), the flat witness of one packing fold (`Akita/FlatWitness`) and the relation of
-this fold on the flat witness (`Akita/FlatFold`). -/
+this fold on the flat witness (`Akita/FlatFold`), and the rewinding extraction of one packing fold
+(`Akita/Extract`): a finite transcript protocol (`Transcript`), a game as the stages of a
+transcript (`Staged`), one fold as a checkpoint structure (`Level`), its extraction bounds
+(`Bound`) and the fold with the checks `foldCheck` (`PackingFold`). -/

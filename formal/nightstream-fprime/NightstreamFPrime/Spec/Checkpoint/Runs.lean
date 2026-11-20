@@ -217,7 +217,7 @@ private theorem indexed_runs_anchor {level : ℕ} (inside : level < structure_.p
           exact (structure_.protocol.asked_update prover table anchor _).mp fresh
         have staged : structure_.protocol.stage anchor = level := by
           rw [← same]
-          exact structure_.protocol.stage_input prover _ level
+          exact structure_.protocol.stage_input prover _ (Nat.le_of_lt inside)
         rw [ite_eq_left ⟨sample, passes⟩, ite_eq_left ⟨queried, staged⟩]
         calc
           _ ≤ 𝔼 sample : (Point → Coord → Slot) × Inner,
@@ -425,7 +425,8 @@ private theorem checkpoint_runs_anchor (level budget : ℕ)
         linarith
 
 /-- The cost recurrence of a checkpoint (Appendix E.2, "Cost"): `C_ℓ ≤ 2·C_{ℓ+1} + (Q + 1)`. -/
-theorem checkpoint_runs_le (level : ℕ) {queries : ℕ} (bounded : prover.QueryBound queries)
+theorem checkpoint_runs_le {level : ℕ} (inside : level < structure_.protocol.stages)
+    {queries : ℕ} (bounded : prover.QueryBound queries)
     (budget : ℕ) (child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break))
     (childRuns : (Point → Coord → Slot) → Inner → ℕ) :
     𝔼 table, 𝔼 own : Inner, 𝔼 loops : Loops Point Coord Slot budget Inner,
@@ -490,7 +491,7 @@ theorem checkpoint_runs_le (level : ℕ) {queries : ℕ} (bounded : prover.Query
       _ ≤ _ := by
         rw [Finset.expect_add_distrib, add_comm]
         exact add_le_add le_rfl ((Finset.expect_le_expect fun table _ =>
-          selected_count_le structure_ prover bounded level table).trans
+          selected_count_le structure_ prover bounded (Nat.le_of_lt inside) table).trans
           (Finset.expect_const Finset.univ_nonempty _).le)
   unfold checkpointRuns
   simp only [Nat.cast_add, Finset.expect_add_distrib]
@@ -582,7 +583,7 @@ theorem runs_le {queries : ℕ} (bounded : prover.QueryBound queries) (budget : 
             (checkpointRuns structure_ prover level budget
               (node structure_ prover budget depth (level + 1))
               (nodeRuns structure_ prover budget depth (level + 1)) table own loops : ℝ)
-        have stage := checkpoint_runs_le structure_ prover level bounded budget
+        have stage := checkpoint_runs_le structure_ prover inside bounded budget
           (node structure_ prover budget depth (level + 1))
           (nodeRuns structure_ prover budget depth (level + 1))
         have arity : ((structure_.arity level : ℕ) : ℝ) = 2 := by

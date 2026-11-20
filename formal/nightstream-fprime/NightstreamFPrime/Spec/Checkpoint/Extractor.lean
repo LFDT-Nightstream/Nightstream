@@ -329,7 +329,7 @@ variable [Fintype Coord] [Fintype Slot]
 
 theorem indexedNode_sound (lawful : structure_.Lawful) {level frontier : ℕ}
     {coordinates : List Coord} (indexed : structure_.kind level = .indexed coordinates)
-    (deep : level + 1 ≤ frontier)
+    (within : level < structure_.protocol.stages) (deep : level + 1 ≤ frontier)
     {child : (Point → Coord → Slot) → Inner → Option (Cert ⊕ Break)}
     (sound : Sound structure_ prover child (level + 1) frontier) (budget : ℕ)
     (table : Point → Coord → Slot) (own : Inner) (loops : Loops Point Coord Slot budget Inner)
@@ -413,9 +413,9 @@ theorem indexedNode_sound (lawful : structure_.Lawful) {level frontier : ℕ}
                 coordinate, agreesChild (level + 1) deep, ?_, ?_⟩
               · rw [← same]
                 exact agreesChild level (Nat.le_of_succ_le deep)
-              · rw [structure_.protocol.last_input, structure_.protocol.last_input, same,
-                  setSlot_point]
-              · rw [structure_.protocol.last_input]
+              · rw [structure_.protocol.last_input prover _ within,
+                  structure_.protocol.last_input prover _ within, same, setSlot_point]
+              · rw [structure_.protocol.last_input prover _ within]
                 exact works
             · simp [breakOf] at clean
         have combined := lawful.combine_holds level coordinates reference _
@@ -496,7 +496,7 @@ theorem node_sound (lawful : structure_.Lawful) (budget : ℕ) :
         obtain rfl := Option.some.inj result
         refine ⟨accepts, lawful.leaf_holds _ accepts, fun earlier below => ?_⟩
         rw [lawful.leaf_point]
-        exact structure_.protocol.cut_input prover table below
+        exact structure_.protocol.cut_input prover table below le_rfl
       · exact absurd result (by simp)
   | succ depth induction =>
       intro level full table tape out result
@@ -506,7 +506,7 @@ theorem node_sound (lawful : structure_.Lawful) (budget : ℕ) :
       split at result
       · rename_i coordinates indexed
         rw [indexed]
-        exact indexedNode_sound structure_ prover lawful indexed
+        exact indexedNode_sound structure_ prover lawful indexed (by omega)
           (structure_.le_frontier depth (level + 1)) below budget table _ _ out result
       · rename_i span checkpoint
         rw [checkpoint]

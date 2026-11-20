@@ -148,8 +148,8 @@ theorem indexed_anchor_le (lawful : structure_.Lawful) {level : ℕ} {coordinate
       obtain ⟨same, childRan⟩ := (guarded_eq_some structure_ prover).mp ran
       have accepted := accepts _ _ (Option.isSome_iff_exists.mpr ⟨out, childRan⟩)
       have decoded := lawful.key_some level coordinates coordinate _ _ indexed member accepted
-        (structure_.protocol.cut_input prover _ (Nat.succ_le_of_lt inside))
-      rw [structure_.protocol.last_input, same, setSlot_apply] at decoded
+        (structure_.protocol.cut_input prover _ (Nat.succ_le_of_lt inside) le_rfl)
+      rw [structure_.protocol.last_input prover _ inside, same, setSlot_apply] at decoded
       obtain ⟨value, isValue⟩ := Option.isSome_iff_exists.mp decoded
       calc
         _ ≤ 𝔼 sample : (Point → Coord → Slot) × Inner,
@@ -185,7 +185,7 @@ theorem indexed_anchor_le (lawful : structure_.Lawful) {level : ℕ} {coordinate
           exact (structure_.protocol.asked_update prover table anchor _).mp fresh
         have staged : structure_.protocol.stage anchor = level := by
           rw [← same]
-          exact structure_.protocol.stage_input prover _ level
+          exact structure_.protocol.stage_input prover _ (Nat.le_of_lt inside)
         rw [ite_eq_left ⟨sample, passes⟩, ite_eq_left ⟨queried, staged⟩]
       · rw [ite_eq_right possible]
         split <;> linarith

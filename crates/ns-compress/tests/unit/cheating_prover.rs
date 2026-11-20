@@ -145,7 +145,14 @@ fn a_lookup_challenge_in_a_table_gives_no_proof_and_no_acceptance() {
         let uses = Uses::new(&layout, &challenges, &rho);
         (
             table_inverses(&layout, &taus).map(|_| ()),
-            weights::table(&statements, &layout, &challenges, key(), false).map(|_| ()),
+            weights::table(
+                &statements,
+                &layout,
+                &challenges,
+                || key().fold(challenges.omega, false),
+                false,
+            )
+            .map(|_| ()),
             weights::closed_part(&statements, &layout, &challenges, &uses, &rho).map(|_| ()),
         )
     };

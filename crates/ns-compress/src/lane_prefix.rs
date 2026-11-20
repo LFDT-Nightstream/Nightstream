@@ -225,6 +225,7 @@ impl<'a> LaneStart<'a> {
         assert_eq!(rho.len(), LANE_VARS);
         let coefficients: Ring = equality(rho, D).try_into().expect("D lane coefficients");
         let form = self.point.lanes(&coefficients);
+        let windows = self.source.projection_windows(&form);
         let evaluation = dot(&self.source.lanes, &form);
         let mut subsets = [[K::ZERO; 256]; D / 8];
         for (subset, weights) in subsets.iter_mut().zip(coefficients.chunks_exact(8)) {
@@ -240,15 +241,17 @@ impl<'a> LaneStart<'a> {
             .zip(weights[..blocks].par_chunks_mut(BLOCKS_PER_TASK))
             .enumerate()
             .for_each_init(Vec::new, |columns, (task, (values, weights))| {
-                columns.resize(values.len() * D, K::ZERO);
-                self.source.columns(task, columns);
+                self.source.project_task(
+                    task,
+                    weights,
+                    columns,
+                    self.folded_key,
+                    &form,
+                    evaluation,
+                    windows.as_ref(),
+                );
                 let start = task * BLOCKS_PER_TASK;
-                for (offset, ((value, weight), columns)) in values
-                    .iter_mut()
-                    .zip(weights)
-                    .zip(columns.chunks_exact(D))
-                    .enumerate()
-                {
+                for (offset, (value, weight)) in values.iter_mut().zip(weights).enumerate() {
                     let block = start + offset;
                     let (positive, negative) = self.masks.at(block);
                     *value = positive
@@ -258,14 +261,9 @@ impl<'a> LaneStart<'a> {
                         .zip(&subsets)
                         .map(|((positive, negative), subset)| subset[positive as usize] - subset[negative as usize])
                         .sum();
-                    let key = &self.folded_key[block * D..][..D];
                     let public = self.source.public().get(block * D..).unwrap_or(&[]);
                     let public = dot(&public[..public.len().min(D)], &coefficients);
-                    *weight = self.source.scale
-                        * (public
-                            + self
-                                .source
-                                .projection(block, columns, key, &form, evaluation));
+                    *weight = self.source.scale * (public + *weight);
                 }
             });
         values[self.padded_blocks..].copy_from_slice(tail_values);

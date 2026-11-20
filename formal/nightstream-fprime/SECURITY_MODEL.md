@@ -146,17 +146,27 @@ fixed. `κd = 1,152`, `d = 64`, `ℓ = 28` and `t = 4`.
 ## Premises
 
 Each row is a hypothesis of a claim. `tests/PremiseCensus.lean` reads every
-theorem of the namespace `Claims`. It fails when a declaration of the
-namespace is not a theorem, when a claim uses an axiom outside the three of
-section What Lean checks, or when the proof of a claim is not one application
-of a theorem outside the namespace. Lean writes the hypotheses of the claims to
-`artifacts/nightstream-fprime-premises-v1.tsv`, and the Lean build fails when
-that file is not current. A hypothesis is a binder whose type is a proposition,
-or a proof field of a binder whose type is a structure of the package.
+declaration of the namespace `Claims` and of the modules under `Claims`. It
+fails when one of them is not a theorem whose name is the name of its claims
+module and one more part, when a claim uses an axiom outside the three of
+section What Lean checks, when the proof of a claim is not one application of
+a theorem outside the namespace, or when the kernel does not give that proof
+the type of the claim. Lean writes the premise list to
+`artifacts/nightstream-fprime-premises-v1.tsv`. The build checks this file.
+A hypothesis is a binder whose type is a proposition, or a proof field of a
+binder whose type is a structure of the package or a function to one.
+Each field listed under a function result has the arguments and hypotheses
+of that function. For example, the three bounds of
+`Export.Generic.CircuitRelation.BlockFits` under `fitsPackage.blocks` apply
+when the pieces are packable.
 `scripts/check_premises.py`, in the `static` phase of `scripts/validate.sh`,
 fails when a hypothesis has no row or two rows, when a row covers no
-hypothesis, or when a row does not have the evidence of its class. The classes
-are these.
+hypothesis, when a row does not cover the number of lines that it gives, when
+a row does not have the evidence of its class, or when a claim has no pin in
+`SPEC.md`. So a hypothesis with a new name or with the name of a row fails
+until the table changes, and a claim with a changed statement fails until its
+pin changes. `scripts/check-boundaries.sh` reads each claims file without its
+comments and fails on a command that is not a claim. The classes are these.
 
 - `assumption`: an assumption of section Assumptions.
 - `lean`: Lean proves the hypothesis. The evidence is the theorem or the
@@ -172,71 +182,75 @@ are these.
 A name that ends in `.*` covers each field under it. A name `Scope/name`
 covers only the claims of the file or the claim `Scope` in the namespace
 `Claims`, and a name without a scope covers each claim. The head is the constant at the head of the hypothesis, and `*` is
-each head.
+each head. Lines is the number of lines of the premise list that the row
+covers.
 
 <!-- premises:begin -->
-| Premise | Head | Class | Evidence |
-| --- | --- | --- | --- |
-| `publicFits` | `LE.le` | lean | `Export.BoundedDepth.StepRelation.keyPublicFits`, at the key width `2^26` |
-| `cubeFits`, `relation.cubeFits`, `key.relation.cubeFits` | `LE.le` | lean | `Export.BoundedDepth.StepRelation.keyCubeFits`, at the key width `2^26` |
-| `program.*`, `exports.program.*` | `*` | lean | `Lifecycle.Stage1.Poseidon2HashChainV1.program` and `Export.Stage1.NebulaMemoryV1Package.application` are programs, so they carry these proofs. A Rust application has no such instance (Out of scope) |
-| `stepEq`, `validControl`, `encoded`, `rowsZero`, `others` | `*` | lean | `Claims.Ivc.terminal_bridge` joins the two step results and takes none of these |
-| `layout.*` | `*` | lean | `Claims.Ivc.terminal_bridge` and `Claims.Ivc.run_complete` take them as fields of their `exports` (rows below) |
-| `programEq` | `Eq` | game | adversary 5: the memory application is the exported program |
-| `exports.programStep` | `Eq` | game | `SPEC.md` Algorithm 3: the step of the relation is the step of the application |
-| `exports.lightKey`, `exports.refreshKey` | `Eq` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`, `relation_rows_match_the_lean_checksum`: the rows that Rust expands from each package have the checksum of Lean's rows |
-| `exports.lightLayout.*`, `exports.refreshLayout.*`, `exports.lightInside`, `exports.refreshInside` | `*` | lean | `Export.BoundedDepth.EmittedPackages.Facts.exports` builds the bundle of the two packages that the emitter writes, with the emitter's first fresh columns, source width and batches, so it carries these proofs |
-| `fitsPackage.*`, `exports.lightFitsPackage.*`, `exports.refreshFitsPackage.*` | `*` | link | `Export.BoundedDepth.EmittedPackages.Facts.lightFits` and `Export.BoundedDepth.EmittedPackages.Facts.refreshFits` derive them from the capacity of `SPEC.md` section 4.4 (`Export.Generic.RelationFits.fits_of_capacity`): the S-box columns end within the source width and the rows fit the cube. The test `step_packages_fit_their_capacity` checks the capacity on each shipped package, the light and refresh packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-light-v1.json` and its refresh package) and of both Nebula programs, with Lean's row counts and logical widths (`factored_rows_match_the_lean_dense_checksum`). Lean does not prove the capacity for an application |
-| `accepted` | `Lifecycle.BoundedDepth.Terminal.HoldsFor` | game | `SPEC.md` Algorithm 6 |
-| `keysShaped` | `Eq` | lean | `Lifecycle.BoundedDepth.CircuitKeyDigest.keys_shaped`, for the keys `Lifecycle.BoundedDepth.CircuitKeyDigest.keys` of a package identity. Rust `circuit_key` computes these digests (section Hashed encodings, row Circuit key digest) |
-| `assumption` | `Spec.HyperNova.ReverseStages.Assumption1` | assumption | `[HN-A1]` |
-| `closed.*`, `admitted` | `*` | assumption | `[HN-A1]`, in the form of trust item 3: the closure premise and the admitted adversary |
-| `premise` | `Spec.Sponge.Transfer` | assumption | `[SPONGE]` under `[P2-PERM]` |
-| `akita` | `*` | assumption | `[AKITA]` |
-| `valid.toValid.*`, `secure` | `*` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-nebula-gate-parity-v1.json`, `is_valid_and_is_secure_are_the_lean_decisions`: Rust checks rules 1 to 6 of `SPEC.md` section 7.1 on each geometry at run time, and the test compares that check with Lean's decisions. For the fixed WASM sizes Lean proves both (`Spec.Nebula.WasmSize.valid`, `Spec.Nebula.WasmSize.secure`), and `each_wasm_size_has_the_lean_geometry_and_rows` compares the geometries |
-| `valid.romWords`, `valid.ramWords` | `LT.lt` | game | `SPEC.md` section 7.1: a program is two images of words below `2^32`, so these bounds define the statements of the game. Rust holds each image as `Vec<u32>` (`nebula::Program`), so each program that the verifier receives meets them |
-| `app.*` | `*` | open | Open: `Lifecycle.Nebula.FirstPlan.app` is the test machine. A Rust-built memory application, the WASM relation included, has no instance (Out of scope) |
-| `round` | `Export.BoundedDepth.NebulaSecurity.MemoryRound` | open | Open: trust item 6. No result derives the memory round from the assumption list |
-| `sampler.*` | `*` | game | adversary 5: the `η` sampler and its query bound |
-| `wf.*`, `slots_le`, `key_fits` | `*` | lean | `Spec.Compression.Rust.layoutNew_production`, for the layout of the Lean model of `Layout::new` |
-| `counts` | `Spec.Compression.Verifier.CountsNonzero` | lean | `Spec.Compression.Production.params_countsNonzero` |
-| `matrix` | `Spec.Compression.Verifier.MatrixSpec` | lean | `Spec.Compression.Production.verifierData_matrixSpec`, for the Lean model of Rust `matrix_part`. Rust `matrix_part` gives the output of the model on three sample cases (`formal/nightstream-fprime/artifacts/nightstream-fprime-matrix-pass-parity-v1.json`, `the_matrix_part_is_the_lean_matrix_pass`). No data compares the two on the rows of the step circuits |
-| `columns`, `rows` | `LE.le` | lean | `Claims.Compression.production_sound` |
-| `statement.*`, `constantLaw.*` | `*` | game | adversary 6: the statement of the Π_CCS run and the law of its constant |
-| `params.rlc_bound`, `freshBound`, `degreeCovers` | `*` | lean | `Claims.Final.verifier_sound` uses the Π_CCS run at the production parameters and takes none of these |
-| `Final/rows` | `Eq` | link | `Relation::new` gives `FactoredRows` the package's plan rows and the spans of its layout (`crates/nightstream/src/lifecycle/bounded_depth/relation.rs`). Lean emits the row counts, the logical width and a checksum of the dense matrices of its model `Export.BoundedDepth.FinalRows.packageRows` for both packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`) and of each Nebula program (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-nebula-v1-rows-v1.json`, `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-nebula-n1-rows-v1.json`), and `Export.BoundedDepth.RowsParity.fastSum_eq` proves that the emitted value is that checksum. The test `factored_rows_match_the_lean_dense_checksum` computes the same words from Rust's plan rows and spans for each of these packages. A checksum is evidence, not a proof. The memory claims are about Lean's Nebula programs; a Rust-built memory application is row `app.*` |
-| `depthBound` | `LE.le` | game | adversary 4: the result bounds the error over the stages below a bound `depth` on the iteration of the adversary's statements, so `depth` is a parameter of the adversary class, and the error grows with it. The history results of adversary 6 (`Claims.Final.history_sound`, `Claims.Final.history_sound_with_akita`) take the same parameter. The memory results of adversary 6 do not: the checks of `SPEC.md` Algorithm 8 step 4 accept at most `S_max · N` steps (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`), so their walk has `S_max · N` stages |
-| `Encodings/same`, `Encodings/equal`, `Encodings/different` | `*` | game | `SPEC.md` section 4: the event of each encoding claim is two inputs with one digest or one block list |
-| `Encodings/leftWell.*`, `Encodings/rightWell.*` | `*` | game | `SPEC.md` section 4.2: the two states are well formed |
-| `Encodings/leftCanonical`, `Encodings/rightCanonical` | `*` | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-encoding-parity-v1.json`, `the_identity_words_are_the_lean_words`: Rust makes the words of Lean, and it refuses a stream with a word at or above `q` (`a_word_at_or_above_q_is_refused`) |
-| `Encodings/fits`, `Encodings/fits'` | `*` | game | `SPEC.md` section 4.4: each atom and each array length of a package is below `2^64`, the range of Rust `u64` |
-| `Foundations/accepted`, `Foundations/truth`, `Foundations/falseClaim`, `Foundations/represents`, `Foundations/message.coefficients_length`, `Foundations/semantic.coefficients_length` | `*` | game | `SPEC.md` Algorithm 4: the event of the sum-check claims is an accepted transcript with a false claim, and a round polynomial of the stated degree |
-| `Fold/accepted`, `Fold/fork.*`, `Fold/system`, `Fold/combined` | `*` | game | `SPEC.md` Algorithm 4: the fold verifier accepts a claim of the key's relation, and the fork of its challenges is an input of the two extraction claims |
-| `Fold/freshOpening`, `Fold/runningOpening`, `Fold/truth`, `Fold/accumulatorHolds`, `Fold/freshHolds` | `*` | game | `SPEC.md` Algorithm 5: the honest prover holds a witness of each input claim |
-| `Fold/running.point.dimension`, `Fold/start.point.dimension`, `Fold/result.*`, `Fold/accumulator.*`, `Fold/parent.*` | `*` | game | `SPEC.md` section 2.5: a claim has a point of the cube dimension and a constraint system that fits its cube |
-| `Fold.light_complete/key.*`, `Fold.light_extracts/key.*`, `Fold.refresh_complete/key.*`, `Fold.refresh_extracts/key.*` | `*` | lean | `Spec.HyperNova.Construction2.BoundedDepthKeys.lightKey` and `Lifecycle.BoundedDepth.refreshKey` are the keys of the two folds, so they carry these proofs |
-| `Fold.light_extracts/laws.*` | `*` | lean | `Lifecycle.BoundedDepth.lightExtraction` is the extraction algebra of the production light key, so it carries these proofs |
-| `Fold.refresh_extracts/laws.*` | `*` | lean | `Lifecycle.PaperExtractionAlgebra.extractionAlgebra` is the extraction algebra of the production refresh key, so it carries these proofs |
-| `Fold/normLaw.sub_bound` | `*` | lean | `Lifecycle.BoundedDepth.lightExtractionNormLaw` is this law for `Lifecycle.BoundedDepth.lightExtraction` |
-| `Fold/oneEq` | `Eq` | lean | `Lifecycle.BoundedDepth.lightExtraction_one` is this equation for the production light key and `Lifecycle.BoundedDepth.lightExtraction` |
-| `Fold/capFits`, `Ivc/capFits` | `LE.le` | lean | `Spec.Folding.Schedule.production_cap_fits`, at the production cap |
-| `Fold/p.rlc_bound`, `Ivc/p.rlc_bound` | `LT.lt` | lean | `Spec.productionGlobalParams` is the parameter record of the profile, so it carries this proof |
-| `Fold/admissible`, `Fold/member`, `Fold/start` | `*` | game | `SPEC.md` section 3: the claim is about each depth that an admissible schedule reaches |
-| `Fold/positive` | `LT.lt` | game | adversary 3: the work budget of the extractor is positive |
-| `Step/holds`, `Step/represents.*` | `*` | game | `SPEC.md` Algorithm 5: the honest prover has an assignment of the step circuit that carries its step and its fold |
-| `Step/publicBelow`, `Ivc/complete.lightLayout`, `Ivc/complete.refreshLayout`, `Ivc/complete.lightPublicBelow`, `Ivc/complete.refreshPublicBelow`, `Ivc/complete.lightFreshAfterLocals`, `Ivc/complete.refreshFreshAfterLocals`, `Nebula/complete.lightLayout`, `Nebula/complete.refreshLayout`, `Nebula/complete.lightPublicBelow`, `Nebula/complete.refreshPublicBelow`, `Nebula/complete.lightFreshAfterLocals`, `Nebula/complete.refreshFreshAfterLocals`, `Final/complete.lightLayout`, `Final/complete.refreshLayout`, `Final/complete.lightPublicBelow`, `Final/complete.refreshPublicBelow`, `Final/complete.lightFreshAfterLocals`, `Final/complete.refreshFreshAfterLocals` | `*` | lean | `Export.BoundedDepth.EmittedPackages.Emitted.complete` builds the completeness bundle of the emitted packages: their layouts are the widened slot layouts, their first fresh columns are after the public columns (`Export.BoundedDepth.EmittedPackages.publicColumns_le_lightFresh`, `Export.BoundedDepth.EmittedPackages.publicColumns_le_refreshFresh`), and they are the ends of the circuits' locals (`Export.BoundedDepth.EmittedPackages.lightFresh`, `Export.BoundedDepth.EmittedPackages.refreshFresh`) |
-| `Step/readsOwnColumns`, `Step/publicEq` | `*` | lean | `Export.BoundedDepth.StepExtend.light_extend`, `Export.BoundedDepth.StepExtend.refresh_extend` and `Export.BoundedDepth.StepExtend.base_extend` discharge them from the honest step's assignment (`Layout.BoundedDepth.LightAssemblerCompleteness.complete`, `Layout.BoundedDepth.RefreshAssemblerCompleteness.complete`): its public columns carry `encHash` of the output hash, and each row reads only columns before the end of the circuit's locals, so each piece reads only columns before a first fresh column at or after that end (`Export.BoundedDepth.StepExtend.Complete.lightReadsOwnColumns`, `Export.BoundedDepth.StepExtend.Complete.refreshReadsOwnColumns`) |
-| `Step/fitsKeyWidth`, `Ivc/complete.lightFitsKeyWidth`, `Ivc/complete.refreshFitsKeyWidth`, `Nebula/complete.lightFitsKeyWidth`, `Nebula/complete.refreshFitsKeyWidth`, `Final/complete.lightFitsKeyWidth`, `Final/complete.refreshFitsKeyWidth` | `*` | link | `SPEC.md` section 4.4 (Capacity): the slot layout of each package fits the key width `m = 2^26`. These are the fields `lightFitsKeyWidth` and `refreshFitsKeyWidth` of `Export.BoundedDepth.EmittedPackages.Facts`. The test `step_packages_fit_their_capacity` checks the capacity on each shipped package, the light and refresh packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-light-v1.json` and its refresh package) and of both Nebula programs, with Lean's row counts and logical widths (`factored_rows_match_the_lean_dense_checksum`). Lean does not prove the capacity for an application. Rust gives each relation the width of its own package's slot layout (`crates/nightstream/src/lifecycle/bounded_depth/relation.rs`) |
-| `Ivc.accepted_bounds/accepted`, `Ivc/finalAtMostB`, `Ivc/start` | `*` | game | adversary 4, the result for one slot: an accepted history of the slot |
-| `Ivc/validRun`, `Ivc/witnessLengths`, `Ivc/runBelow`, `Ivc/z0Length`, `Ivc/iterationNext`, `Ivc/valid`, `Ivc/verifies`, `Ivc/witnessLength` | `*` | game | `SPEC.md` Algorithm 5: the honest prover extends an accepted proof by a valid step, with a counter below `q` |
-| `Nebula/accepted.*`, `Nebula/start`, `Nebula/steps`, `Nebula/terminal.*` | `*` | game | `SPEC.md` Algorithm 8: the memory verifier accepts the chain of steps and its terminal state |
-| `Nebula/count`, `Nebula/exec`, `Nebula/range`, `Nebula/width` | `*` | game | `SPEC.md` Algorithm 7: the honest prover runs an execution of the machine |
-| `Ivc.light_run_complete/positive`, `Ivc.light_run_complete/short` | `*` | game | `SPEC.md` Algorithm 9: the light mode is for an honest run of 1 to `cap + 1` steps |
-| `Nebula.memory_light_complete/light` | `LE.le` | lean | `Spec.Nebula.WasmSize.steps_le_light` proves `S_max · N ≤ cap + 1` for each WASM size (`SPEC.md` Algorithm 9). For another geometry it is a condition of the claim |
-| `Fold/bounded` | `Spec.RandomOracle.OracleComp.QueryBound` | game | adversary 3: the adversary makes at most `Q` oracle queries |
-| `Ivc.slot_history_failure/assumption` | `Spec.HyperNova.Construction2.BoundedDepthSecurity.Assumption1` | assumption | `[HN-A1]`, in the form for one slot |
-| `Compression.production_error/columns`, `Compression.production_error/span_le`, `Compression.production_error/slots` | `*` | lean | `Export.BoundedDepth.FinalVerifier.game_densityLe` meets the three for the verifier of the final verifier. The mode has at most two slot claims (`Export.BoundedDepth.FinalVerifier.Mode.slots_le`). `columnVars = 2` holds by the definition of `Spec.Compression.Production.verifierData`, and `Export.BoundedDepth.FinalVerifier.Setup.layout_facts` gives `spanVars ≤ 26` for the layout of the Lean model of `Layout::new` (`Spec.Compression.Rust.layoutNew_span`) |
-| `Compression.production_error/depths_le` | `LE.le` | game | `SPEC.md` Algorithm 10: step 4 requires that the depth of each slot is at most `cap` |
+| Premise | Head | Lines | Class | Evidence |
+| --- | --- | --- | --- | --- |
+| `publicFits` | `LE.le` | 29 | lean | `Export.BoundedDepth.StepRelation.keyPublicFits`, at the key width `2^26` |
+| `cubeFits`, `relation.cubeFits`, `key.relation.cubeFits`, `circuitKeys.relation.cubeFits`, `setup.circuitKeys.relation.cubeFits` | `LE.le` | 70 | lean | `Export.BoundedDepth.StepRelation.keyCubeFits`, at the key width `2^26` |
+| `program.*`, `exports.program.*` | `*` | 294 | lean | `Lifecycle.Stage1.Poseidon2HashChainV1.program` and `Export.Stage1.NebulaMemoryV1Package.application` are programs, so they carry these proofs. A Rust application has no such instance (Out of scope) |
+| `stepEq`, `validControl`, `encoded`, `rowsZero`, `others` | `*` | 9 | lean | `Claims.Ivc.terminal_bridge` joins the two step results and takes none of these |
+| `layout.*` | `*` | 4 | lean | `Claims.Ivc.terminal_bridge` and `Claims.Ivc.run_complete` take them as fields of their `exports` (rows below) |
+| `programEq` | `Eq` | 5 | game | adversary 5: the memory application is the exported program |
+| `exports.programStep` | `Eq` | 17 | game | `SPEC.md` Algorithm 3: the step of the relation is the step of the application |
+| `exports.lightKey`, `exports.refreshKey` | `Eq` | 34 | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`, `relation_rows_match_the_lean_checksum`: the rows that Rust expands from each package have the checksum of Lean's rows |
+| `exports.lightLayout.*`, `exports.refreshLayout.*`, `exports.lightInside`, `exports.refreshInside` | `*` | 102 | lean | `Export.BoundedDepth.EmittedPackages.Facts.exports` builds the bundle of the two packages that the emitter writes, with the emitter's first fresh columns, source width and batches, so it carries these proofs |
+| `fitsPackage.*`, `exports.lightFitsPackage.*`, `exports.refreshFitsPackage.*` | `*` | 190 | link | `Export.BoundedDepth.EmittedPackages.Facts.lightFits` and `Export.BoundedDepth.EmittedPackages.Facts.refreshFits` derive them from the capacity of `SPEC.md` section 4.4 (`Export.Generic.RelationFits.fits_of_capacity`): for packable pieces, the input indices and S-box columns fit the width, and the rows fit the cube. The test `step_packages_fit_their_capacity` checks the capacity on each shipped package, the light and refresh packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-light-v1.json` and its refresh package) and of both Nebula programs, with Lean's row counts and logical widths (`factored_rows_match_the_lean_dense_checksum`). Lean does not prove the capacity for an application |
+| `accepted` | `Lifecycle.BoundedDepth.Terminal.HoldsFor` | 1 | game | `SPEC.md` Algorithm 6 |
+| `keysShaped` | `Eq` | 14 | lean | `Lifecycle.BoundedDepth.CircuitKeyDigest.keys_shaped`, for the keys `Lifecycle.BoundedDepth.CircuitKeyDigest.keys` of a package identity. Rust `circuit_key` computes these digests (section Hashed encodings, row Circuit key digest) |
+| `assumption` | `Spec.HyperNova.ReverseStages.Assumption1` | 8 | assumption | `[HN-A1]` |
+| `closed.*`, `admitted` | `*` | 27 | assumption | `[HN-A1]`, in the form of trust item 3: the closure premise and the admitted adversary |
+| `premise` | `Spec.Sponge.Transfer` | 3 | assumption | `[SPONGE]` under `[P2-PERM]` |
+| `akita` | `*` | 3 | assumption | `[AKITA]` |
+| `valid.toValid.*`, `secure` | `*` | 61 | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-nebula-gate-parity-v1.json`, `is_valid_and_is_secure_are_the_lean_decisions`: Rust checks rules 1 to 6 of `SPEC.md` section 7.1 on each geometry at run time, and the test compares that check with Lean's decisions. For the fixed WASM sizes Lean proves both (`Spec.Nebula.WasmSize.valid`, `Spec.Nebula.WasmSize.secure`), and `each_wasm_size_has_the_lean_geometry_and_rows` compares the geometries |
+| `valid.romWords`, `valid.ramWords` | `LT.lt` | 20 | game | `SPEC.md` section 7.1: a program is two images of words below `2^32`, so these bounds define the statements of the game. Rust holds each image as `Vec<u32>` (`nebula::Program`), so each program that the verifier receives meets them |
+| `app.*` | `*` | 42 | open | Open: `Lifecycle.Nebula.FirstPlan.app` is the test machine. A Rust-built memory application, the WASM relation included, has no instance (Out of scope) |
+| `round` | `Export.BoundedDepth.NebulaSecurity.MemoryRound` | 3 | open | Open: trust item 6. No result derives the memory round from the assumption list |
+| `sampler.*` | `*` | 2 | game | adversary 5: the `η` sampler and its query bound |
+| `wf.*`, `slots_le`, `key_fits` | `*` | 18 | lean | `Spec.Compression.Rust.layoutNew_production`, for the layout of the Lean model of `Layout::new` |
+| `counts` | `Spec.Compression.Verifier.CountsNonzero` | 1 | lean | `Spec.Compression.Production.params_countsNonzero` |
+| `matrix` | `Spec.Compression.Verifier.MatrixSpec` | 1 | lean | `Spec.Compression.Production.verifierData_matrixSpec`, for the Lean model of Rust `matrix_part`. Rust `matrix_part` gives the output of the model on three sample cases (`formal/nightstream-fprime/artifacts/nightstream-fprime-matrix-pass-parity-v1.json`, `the_matrix_part_is_the_lean_matrix_pass`). No data compares the two on the rows of the step circuits |
+| `columns`, `rows` | `LE.le` | 2 | lean | `Claims.Compression.production_sound` |
+| `statement.*`, `constantLaw.*` | `*` | 8 | game | adversary 6: the statement of the Π_CCS run and the law of its constant |
+| `Compression/params.rlc_bound`, `Compression/freshBound`, `Compression/degreeCovers` | `*` | 3 | lean | `Claims.Final.verifier_sound` uses the Π_CCS run at the production parameters and takes none of these |
+| `Final/rows` | `Eq` | 6 | link | `Relation::new` gives `FactoredRows` the package's plan rows and the spans of its layout (`crates/nightstream/src/lifecycle/bounded_depth/relation.rs`). Lean emits the row counts, the logical width and a checksum of the dense matrices of its model `Export.BoundedDepth.FinalRows.packageRows` for both packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`) and of each Nebula program (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-nebula-v1-rows-v1.json`, `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-nebula-n1-rows-v1.json`), and `Export.BoundedDepth.RowsParity.fastSum_eq` proves that the emitted value is that checksum. The test `factored_rows_match_the_lean_dense_checksum` computes the same words from Rust's plan rows and spans for each of these packages. A checksum is evidence, not a proof. The memory claims are about Lean's Nebula programs; a Rust-built memory application is row `app.*` |
+| `depthBound` | `LE.le` | 6 | game | adversary 4: the result bounds the error over the stages below a bound `depth` on the iteration of the adversary's statements, so `depth` is a parameter of the adversary class, and the error grows with it. The history results of adversary 6 (`Claims.Final.history_sound`, `Claims.Final.history_sound_with_akita`) take the same parameter. The memory results of adversary 6 do not: the checks of `SPEC.md` Algorithm 8 step 4 accept at most `S_max · N` steps (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`), so their walk has `S_max · N` stages |
+| `Encodings/same`, `Encodings/equal`, `Encodings/different` | `*` | 6 | game | `SPEC.md` section 4: the event of each encoding claim is two inputs with one digest or one block list |
+| `Encodings/leftWell.*`, `Encodings/rightWell.*` | `*` | 12 | game | `SPEC.md` section 4.2: the two states are well formed |
+| `Encodings/leftCanonical`, `Encodings/rightCanonical` | `*` | 2 | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-encoding-parity-v1.json`, `the_identity_words_are_the_lean_words`: Rust makes the words of Lean, and it refuses a stream with a word at or above `q` (`a_word_at_or_above_q_is_refused`) |
+| `Encodings/fits`, `Encodings/fits'` | `*` | 2 | game | `SPEC.md` section 4.4: each atom and each array length of a package is below `2^64`, the range of Rust `u64` |
+| `Foundations/accepted`, `Foundations/truth`, `Foundations/falseClaim`, `Foundations/represents`, `Foundations/message.coefficients_length`, `Foundations/semantic.coefficients_length` | `*` | 6 | game | `SPEC.md` Algorithm 4: the accepted transcript has a truth path and a false claim. For the probability bound, the message and the polynomial that represents the expected round function each have at most the stated degree |
+| `Fold/accepted`, `Fold/fork.*`, `Fold/system`, `Fold/combined` | `*` | 16 | game | `SPEC.md` Algorithm 4: the fold verifier accepts a claim of the key's relation, and the fork of its challenges is an input of the two extraction claims |
+| `Fold/freshOpening`, `Fold/runningOpening`, `Fold/truth`, `Fold/accumulatorHolds`, `Fold/freshHolds` | `*` | 10 | game | `SPEC.md` Algorithm 5: the honest prover holds a witness of each input claim |
+| `Fold/running.point.dimension`, `Fold/start.point.dimension`, `Fold/result.*`, `Fold/accumulator.*`, `Fold/parent.*` | `*` | 32 | game | `SPEC.md` section 2.5: a claim has a point of the cube dimension and a constraint system that fits its cube |
+| `Fold.light_complete/key.*`, `Fold.light_extracts/key.*`, `Fold.refresh_complete/key.*`, `Fold.refresh_extracts/key.*` | `*` | 262 | lean | `Spec.HyperNova.Construction2.BoundedDepthKeys.lightKey` and `Lifecycle.BoundedDepth.refreshKey` are the keys of the two folds, so they carry these proofs |
+| `Fold.light_extracts/laws.*` | `*` | 67 | lean | `Lifecycle.BoundedDepth.lightExtraction` is the extraction algebra of the production light key, so it carries these proofs |
+| `Fold.refresh_extracts/laws.*` | `*` | 67 | lean | `Lifecycle.PaperExtractionAlgebra.extractionAlgebra` is the extraction algebra of the production refresh key, so it carries these proofs |
+| `Fold/strongSet.*` | `Eq` | 4 | lean | `Spec.RingRelation.PiRLCAlgebra.ForkStrongSet.strongSetUnits` builds these units from `Claims.Foundations.low_norm_invertible` (SuperNeo v1.2 Theorem 4) |
+| `Fold/proof.piCcsRounds.coefficients_length`, `Fold/proof.nifs.piCcsRounds.coefficients_length`, `Step/proof.piCcsRounds.coefficients_length`, `Step/proof.nifs.piCcsRounds.coefficients_length` | `Eq` | 4 | game | `SPEC.md` Algorithm 4: each round polynomial of a fold proof has one more coefficient than the degree bound |
+| `Fold/normLaw.sub_bound` | `*` | 1 | lean | `Lifecycle.BoundedDepth.lightExtractionNormLaw` is this law for `Lifecycle.BoundedDepth.lightExtraction` |
+| `Fold/oneEq` | `Eq` | 1 | lean | `Lifecycle.BoundedDepth.lightExtraction_one` is this equation for the production light key and `Lifecycle.BoundedDepth.lightExtraction` |
+| `Fold.light_extracts/freshBound` | `Eq` | 1 | lean | `Lifecycle.BoundedDepth.keys_coherent` gives the production light key the parameters of `Lifecycle.BoundedDepth.refreshKey`, which carries this proof |
+| `Fold/capFits`, `Ivc/capFits` | `LE.le` | 2 | lean | `Spec.Folding.Schedule.production_cap_fits`, at the production cap |
+| `Fold/p.rlc_bound`, `Ivc/p.rlc_bound` | `LT.lt` | 3 | lean | `Spec.productionGlobalParams` is the parameter record of the profile, so it carries this proof |
+| `Fold/admissible`, `Fold/member`, `Fold/start` | `*` | 3 | game | `SPEC.md` section 3: the claim is about each depth that an admissible schedule reaches |
+| `Fold/positive` | `LT.lt` | 3 | game | adversary 3: the work budget of the extractor is positive |
+| `Step/holds`, `Step/represents.*` | `*` | 40 | game | `SPEC.md` Algorithm 5: the honest prover has an assignment of the step circuit that carries its step and its fold |
+| `Step/publicBelow`, `Ivc/complete.lightLayout`, `Ivc/complete.refreshLayout`, `Ivc/complete.lightPublicBelow`, `Ivc/complete.refreshPublicBelow`, `Ivc/complete.lightFreshAfterLocals`, `Ivc/complete.refreshFreshAfterLocals`, `Nebula/complete.lightLayout`, `Nebula/complete.refreshLayout`, `Nebula/complete.lightPublicBelow`, `Nebula/complete.refreshPublicBelow`, `Nebula/complete.lightFreshAfterLocals`, `Nebula/complete.refreshFreshAfterLocals`, `Final/complete.lightLayout`, `Final/complete.refreshLayout`, `Final/complete.lightPublicBelow`, `Final/complete.refreshPublicBelow`, `Final/complete.lightFreshAfterLocals`, `Final/complete.refreshFreshAfterLocals` | `*` | 68 | lean | `Export.BoundedDepth.EmittedPackages.Emitted.complete` builds the completeness bundle of the emitted packages: their layouts are the widened slot layouts, their first fresh columns are after the public columns (`Export.BoundedDepth.EmittedPackages.publicColumns_le_lightFresh`, `Export.BoundedDepth.EmittedPackages.publicColumns_le_refreshFresh`), and they are the ends of the circuits' locals (`Export.BoundedDepth.EmittedPackages.lightFresh`, `Export.BoundedDepth.EmittedPackages.refreshFresh`) |
+| `Step/readsOwnColumns`, `Step/publicEq` | `*` | 4 | lean | `Export.BoundedDepth.StepExtend.light_extend`, `Export.BoundedDepth.StepExtend.refresh_extend` and `Export.BoundedDepth.StepExtend.base_extend` discharge them from the honest step's assignment (`Layout.BoundedDepth.LightAssemblerCompleteness.complete`, `Layout.BoundedDepth.RefreshAssemblerCompleteness.complete`): its public columns carry `encHash` of the output hash, and each row reads only columns before the end of the circuit's locals, so each piece reads only columns before a first fresh column at or after that end (`Export.BoundedDepth.StepExtend.Complete.lightReadsOwnColumns`, `Export.BoundedDepth.StepExtend.Complete.refreshReadsOwnColumns`) |
+| `Step/fitsKeyWidth`, `Ivc/complete.lightFitsKeyWidth`, `Ivc/complete.refreshFitsKeyWidth`, `Nebula/complete.lightFitsKeyWidth`, `Nebula/complete.refreshFitsKeyWidth`, `Final/complete.lightFitsKeyWidth`, `Final/complete.refreshFitsKeyWidth` | `*` | 24 | link | `SPEC.md` section 4.4 (Capacity): the slot layout of each package fits the key width `m = 2^26`. These are the fields `lightFitsKeyWidth` and `refreshFitsKeyWidth` of `Export.BoundedDepth.EmittedPackages.Facts`. The test `step_packages_fit_their_capacity` checks the capacity on each shipped package, the light and refresh packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-light-v1.json` and its refresh package) and of both Nebula programs, with Lean's row counts and logical widths (`factored_rows_match_the_lean_dense_checksum`). Lean does not prove the capacity for an application. Rust gives each relation the width of its own package's slot layout (`crates/nightstream/src/lifecycle/bounded_depth/relation.rs`) |
+| `Ivc.accepted_bounds/accepted`, `Ivc/finalAtMostB`, `Ivc/start` | `*` | 3 | game | adversary 4, the result for one slot: an accepted history of the slot |
+| `Ivc/validRun`, `Ivc/witnessLengths`, `Ivc/runBelow`, `Ivc/z0Length`, `Ivc/iterationNext`, `Ivc/valid`, `Ivc/verifies`, `Ivc/witnessLength` | `*` | 11 | game | `SPEC.md` Algorithm 5: the honest prover extends an accepted proof by a valid step, with a counter below `q` |
+| `Nebula/accepted.*`, `Nebula/start`, `Nebula/steps.*`, `Nebula/terminal.*` | `*` | 57 | game | `SPEC.md` Algorithm 8: the step checks hold at each index below the chain length, and the terminal state passes the verifier checks |
+| `Nebula/count`, `Nebula/exec`, `Nebula/range`, `Nebula/width` | `*` | 10 | game | `SPEC.md` Algorithm 7: the honest prover runs the machine from its initial memory with `B_ops` port entries per step and `S · N` steps for `1 ≤ S ≤ S_max` |
+| `Ivc.light_run_complete/positive`, `Ivc.light_run_complete/short` | `*` | 2 | game | `SPEC.md` Algorithm 9: the light mode is for an honest run of 1 to `cap + 1` steps |
+| `Nebula.memory_light_complete/light` | `LE.le` | 1 | lean | `Spec.Nebula.WasmSize.steps_le_light` proves `S_max · N ≤ cap + 1` for each WASM size (`SPEC.md` Algorithm 9). For another geometry it is a condition of the claim |
+| `Fold/bounded` | `Spec.RandomOracle.OracleComp.QueryBound` | 4 | game | adversary 3: the adversary makes at most `Q` oracle queries |
+| `Ivc.slot_history_failure/assumption` | `Spec.HyperNova.Construction2.BoundedDepthSecurity.Assumption1` | 1 | assumption | `[HN-A1]`, in the form for one slot |
+| `Compression.production_error/columns`, `Compression.production_error/span_le`, `Compression.production_error/slots` | `*` | 3 | lean | `Export.BoundedDepth.FinalVerifier.game_densityLe` meets the three for the verifier of the final verifier. The mode has at most two slot claims (`Export.BoundedDepth.FinalVerifier.Mode.slots_le`). `columnVars = 2` holds by the definition of `Spec.Compression.Production.verifierData`, and `Export.BoundedDepth.FinalVerifier.Setup.layout_facts` gives `spanVars ≤ 26` for the layout of the Lean model of `Layout::new` (`Spec.Compression.Rust.layoutNew_span`) |
+| `Compression.production_error/depths_le` | `LE.le` | 1 | game | `SPEC.md` Algorithm 10: step 4 requires that the depth of each slot is at most `cap` |
 <!-- premises:end -->
 
 ## Applications and setups
@@ -1214,7 +1228,7 @@ not change terminal source checks.
      The Lean result takes the honest key as a premise.
    - *Akita binding and knowledge soundness `[AKITA]`.* The one Akita proof opens
      the key polynomial, `W` and `V`. It uses Akita (ePrint 2026/1983) at
-     git revision `c7189e08`, crate version 0.1.0, with the configuration
+     upstream verifier revision `d50f700f`, crate version 0.1.0, with the configuration
      `RecursiveCommitmentConfig<fp64::Dense>` and the schedule files of
      `SPEC.md` section 3. The premise is that an accepted proof gives
      polynomials with the claimed values, in the classical random-oracle

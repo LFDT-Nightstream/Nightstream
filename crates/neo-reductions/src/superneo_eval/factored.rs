@@ -119,6 +119,21 @@ impl<'a> FactoredRows<'a> {
         self.shape
     }
 
+    pub fn slot_runs(&self) -> Option<std::borrow::Cow<'a, super::SlotRuns>> {
+        let make = || super::SlotRuns::new(self.slots.starts, self.slots.widths);
+        match self.prepared {
+            Some(p) => p
+                .runs
+                .get_or_init(make)
+                .as_ref()
+                .map(std::borrow::Cow::Borrowed),
+            None => make().map(std::borrow::Cow::Owned),
+        }
+    }
+    pub(super) fn existing_slot_runs(&self) -> Option<&'a super::SlotRuns> {
+        self.prepared?.runs.get()?.as_ref()
+    }
+
     pub fn slot_count(&self) -> usize {
         self.slots.starts.len()
     }

@@ -4,7 +4,7 @@ set -euo pipefail
 akita="${1:?usage: $0 <Akita checkout>}"
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 artifacts="$root/crates/ns-compress/artifacts"
-revision="$(sed -n 's/^akita-pcs = .*rev = "\([0-9a-f]*\)".*/\1/p' "$root/crates/ns-compress/Cargo.toml")"
+revision="$(sed -n 's/^akita-verifier = .*rev = "\([0-9a-f]*\)".*/\1/p' "$root/crates/ns-compress/Cargo.toml")"
 if [ "$(git -C "$akita" rev-parse HEAD)" != "$revision" ]; then
   echo "the Akita checkout is not at revision $revision" >&2
   exit 1

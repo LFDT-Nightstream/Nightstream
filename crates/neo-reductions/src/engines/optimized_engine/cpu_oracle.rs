@@ -70,7 +70,48 @@ impl CarriedPad {
     }
 }
 
+pub trait PackedGateNorm {
+    fn submit(&mut self, round: usize, challenge: K, weights: (&[K], &[K])) -> Result<(), PiCcsError>;
+    fn coefficients(&mut self, round: usize) -> Result<([K; 8], [K; 4]), PiCcsError>;
+    fn take_tables(&mut self, round: usize) -> Option<(Vec<K>, Vec<K>)>;
+}
+
+impl super::PaperJointOracleInput<'_> {
+    pub fn packed_gate_norm_shape(&self) -> bool {
+        let shape = self.rows.shape();
+        self.prior_point.is_some()
+            && self.running_witnesses.len() == 1
+            && self.fresh_witnesses.len() == 1
+            && self.norm_sources == 1
+            && self.params.b() == 2
+            && self.fresh_witnesses[0].Z.is_packed_signed_unit()
+            && self.dims.variables >= 10
+            && self.dims.variables <= 30
+            && shape.matrices == 4
+            && application::is_poseidon2_gate(self.structure.f())
+            && (1 << 16..=1 << 19).contains(&shape.rows)
+            && (1 << 21..=1 << 24).contains(&self.dims.assignment_width)
+    }
+
+    pub fn optimized_with_packed_terms<'a>(
+        self,
+        device: Option<Box<dyn PackedGateNorm + 'a>>,
+        openings: &'a dyn crate::superneo_eval::TerminalOpeningDevice,
+    ) -> Result<Box<dyn PaperJointRoundOracle + 'a>, PiCcsError>
+    where
+        Self: 'a,
+    {
+        Ok(Box::new(OptimizedPaperJointOracle::with_device(
+            self,
+            device,
+            Some(openings),
+        )?))
+    }
+}
+
 pub struct OptimizedPaperJointOracle<'a> {
+    openings: Option<&'a dyn crate::superneo_eval::TerminalOpeningDevice>,
+    device: Option<Box<dyn PackedGateNorm + 'a>>,
     structure: &'a CcsStructure<F>,
     source: &'a dyn MatrixRows,
     workspace_bytes: usize,
@@ -96,16 +137,51 @@ pub struct OptimizedPaperJointOracle<'a> {
 impl<'a> OptimizedPaperJointOracle<'a> {
     pub fn new(
         structure: &'a CcsStructure<F>,
-        params: &neo_params::NeoParams,
+        params: &'a neo_params::NeoParams,
         fresh: &'a [CcsWitness<F>],
         running: &'a [Mat<F>],
         challenges: Challenges,
-        prior_point: Option<&[K]>,
+        prior_point: Option<&'a [K]>,
         dims: JointDims,
         source: &'a dyn MatrixRows,
         workspace_bytes: usize,
         norm_sources: usize,
     ) -> Result<Self, PiCcsError> {
+        Self::with_device(
+            super::PaperJointOracleInput {
+                structure,
+                params,
+                fresh_witnesses: fresh,
+                running_witnesses: running,
+                challenges,
+                prior_point,
+                dims,
+                rows: source,
+                workspace_bytes,
+                norm_sources,
+            },
+            None,
+            None,
+        )
+    }
+
+    fn with_device(
+        input: super::PaperJointOracleInput<'a>,
+        mut device: Option<Box<dyn PackedGateNorm + 'a>>,
+        openings: Option<&'a dyn crate::superneo_eval::TerminalOpeningDevice>,
+    ) -> Result<Self, PiCcsError> {
+        let super::PaperJointOracleInput {
+            structure,
+            params,
+            fresh_witnesses: fresh,
+            running_witnesses: running,
+            challenges,
+            prior_point,
+            dims,
+            rows: source,
+            workspace_bytes,
+            norm_sources,
+        } = input;
         let shape = source.shape();
         if !challenges.has_expected_dimension(dims.variables)
             || running.is_empty() != prior_point.is_none()
@@ -115,6 +191,10 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             || structure.f().eval(&vec![F::ZERO; structure.t()]) != F::ZERO
         {
             return Err(PiCcsError::InvalidInput("optimized CPU oracle input shape".into()));
+        }
+        if let Some(gpu) = &mut device {
+            let weights = EqualityWeights::new(&challenges.alpha[1..]);
+            gpu.submit(0, K::ZERO, weights.factors())?;
         }
         let witnesses = fresh
             .iter()
@@ -156,13 +236,18 @@ impl<'a> OptimizedPaperJointOracle<'a> {
         };
         let packed_norm = match assignments.as_slice() {
             [assignment]
-                if params.b() == 2 && dims.variables >= PACKED_NORM_ROUNDS && assignment.len() >= (1 << 16) =>
+                if device.is_none()
+                    && params.b() == 2
+                    && dims.variables >= PACKED_NORM_ROUNDS
+                    && assignment.len() >= (1 << 16) =>
             {
                 PackedNorm::new(witnesses[0], assignment.len(), &challenges.alpha)
             }
             _ => None,
         };
         Ok(Self {
+            openings,
+            device,
             structure,
             source,
             workspace_bytes,
@@ -334,32 +419,43 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
         if round >= self.dims.variables {
             return Err(PiCcsError::InvalidInput("completed optimized CPU oracle".into()));
         }
-        let weights = EqualityWeights::new(&self.challenges.alpha[round + 1..]);
-        let matrix = self.matrix_coefficients(points, &weights)?;
-        let norm = if self.base == 2 {
-            let polynomial = self.norm_polynomial.unwrap_or_else(|| {
-                if let Some(packed) = &self.packed_norm {
-                    return packed.coefficients(&self.point, &self.challenges.alpha[round + 1..PACKED_NORM_ROUNDS]);
-                }
-                if let (Some(previous), [Assignment::Encoded { codes, values, zero }]) =
-                    (self.packed_norm_value, self.assignments.as_slice())
-                {
-                    return prefix::encoded_moments(
-                        codes,
-                        values,
-                        *zero,
-                        &weights,
-                        previous,
-                        self.challenges.alpha[round],
-                    );
-                }
-                self.norm_coefficients(&weights)
-            });
-            self.norm_polynomial = Some(polynomial);
-            polynomial
+        let (matrix, norm, general_weights) = if let Some(gpu) = &mut self.device {
+            let (gate, norm) = gpu.coefficients(round)?;
+            let evaluations = points
+                .iter()
+                .map(|&x| crate::sumcheck::poly_eval_k(&gate, x))
+                .collect();
+            (evaluations, norm, None)
         } else {
-            [K::ZERO; 4]
+            let weights = EqualityWeights::new(&self.challenges.alpha[round + 1..]);
+            let matrix = self.matrix_coefficients(points, &weights)?;
+            if self.base == 2 {
+                let polynomial = self.norm_polynomial.unwrap_or_else(|| {
+                    if let Some(packed) = &self.packed_norm {
+                        return packed.coefficients(&self.point, &self.challenges.alpha[round + 1..PACKED_NORM_ROUNDS]);
+                    }
+                    if let (Some(previous), [Assignment::Encoded { codes, values, zero }]) =
+                        (self.packed_norm_value, self.assignments.as_slice())
+                    {
+                        return prefix::encoded_moments(
+                            codes,
+                            values,
+                            *zero,
+                            &weights,
+                            previous,
+                            self.challenges.alpha[round],
+                        );
+                    }
+                    self.norm_coefficients(&weights)
+                });
+                (matrix, polynomial, None)
+            } else {
+                (matrix, [K::ZERO; 4], Some(weights))
+            }
         };
+        if general_weights.is_none() {
+            self.norm_polynomial = Some(norm);
+        }
         let carried = if let Some(prior) = &self.prior_point {
             let polynomial = self
                 .carried_polynomial
@@ -373,12 +469,12 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
             .iter()
             .zip(matrix)
             .map(|(&point, matrix)| {
-                let norm = if self.base == 2 {
+                let norm = if let Some(weights) = &general_weights {
+                    self.general_norm(weights, point)
+                } else {
                     norm.iter()
                         .rev()
                         .fold(K::ZERO, |value, &coefficient| value * point + coefficient)
-                } else {
-                    self.general_norm(&weights, point)
                 };
                 let alpha = self.challenges.alpha[round];
                 let equality = (K::ONE - point) * (K::ONE - alpha) + point * alpha;
@@ -404,13 +500,29 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
         if round >= self.dims.variables {
             return Err(PiCcsError::InvalidInput("completed optimized CPU oracle".into()));
         }
-        self.bind_norm(round, challenge);
-        if round + 1 < self.dims.variables {
-            let weights = EqualityWeights::new(&self.challenges.alpha[round + 2..]);
+        if let Some((gate, norm)) = self
+            .device
+            .as_mut()
+            .and_then(|device| device.take_tables(round))
+        {
             self.fresh_tables
-                .fold_next_gate(challenge, self.structure.f(), &weights);
-        } else {
-            self.fresh_tables.fold(challenge);
+                .resume(&self.point, self.structure.n().div_ceil(1 << round), gate);
+            self.assignments[0] = Assignment::Folded(norm);
+            self.device = None;
+        }
+        if self.device.is_none() {
+            self.bind_norm(round, challenge);
+            if round + 1 < self.dims.variables {
+                let weights = EqualityWeights::new(&self.challenges.alpha[round + 2..]);
+                self.fresh_tables
+                    .fold_next_gate(challenge, self.structure.f(), &weights);
+            } else {
+                self.fresh_tables.fold(challenge);
+            }
+        }
+        if let Some(device) = &mut self.device {
+            let weights = EqualityWeights::new(&self.challenges.alpha[round + 2..]);
+            device.submit(round + 1, challenge, weights.factors())?;
         }
         self.bind_carried(round, challenge);
         let alpha = self.challenges.alpha[round];
@@ -439,6 +551,7 @@ impl PaperJointRoundOracle for OptimizedPaperJointOracle<'_> {
             self.workspace_bytes,
             storage,
             complete,
+            self.openings,
         )
         .map(Some)
     }

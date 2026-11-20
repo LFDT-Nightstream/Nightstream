@@ -10,6 +10,11 @@ use super::{
 };
 use crate::PiCcsError;
 
+enum OpeningPath<'a> {
+    Windows,
+    Factored(Option<&'a dyn super::TerminalOpeningDevice>),
+}
+
 pub struct TerminalEvaluations {
     pub openings: Vec<V1_2Evaluations<K>>,
     pub first_unsatisfied_row: Option<usize>,
@@ -31,7 +36,7 @@ pub fn evaluate_terminal_rows(
         Vec::new(),
         None,
         Some((polynomial, fresh)),
-        false,
+        OpeningPath::Windows,
     )
 }
 
@@ -41,18 +46,39 @@ pub fn eval_real_v1_2_openings_from_rows(
     witnesses: &[SuperneoZBlocks],
     workspace_bytes: usize,
 ) -> Result<Vec<V1_2Evaluations<K>>, PiCcsError> {
-    Ok(evaluate_rows(source, point, witnesses, workspace_bytes, Vec::new(), None, None, false)?.openings)
+    Ok(evaluate_rows(
+        source,
+        point,
+        witnesses,
+        workspace_bytes,
+        Vec::new(),
+        None,
+        None,
+        OpeningPath::Windows,
+    )?
+    .openings)
 }
 
-pub(crate) fn eval_real_v1_2_openings_from_rows_reusing(
+pub fn eval_real_v1_2_openings_from_rows_reusing(
     source: &dyn MatrixRows,
     point: &[K],
     witnesses: &[SuperneoZBlocks],
     workspace_bytes: usize,
     storage: Vec<K>,
     complete: Option<MatrixWindow>,
+    device: Option<&dyn super::TerminalOpeningDevice>,
 ) -> Result<Vec<V1_2Evaluations<K>>, PiCcsError> {
-    Ok(evaluate_rows(source, point, witnesses, workspace_bytes, storage, complete, None, true)?.openings)
+    Ok(evaluate_rows(
+        source,
+        point,
+        witnesses,
+        workspace_bytes,
+        storage,
+        complete,
+        None,
+        OpeningPath::Factored(device),
+    )?
+    .openings)
 }
 
 fn evaluate_rows(
@@ -63,7 +89,7 @@ fn evaluate_rows(
     storage: Vec<K>,
     complete: Option<MatrixWindow>,
     terminal: Option<(&SparsePoly<F>, &SuperneoZBlocks)>,
-    factored_openings: bool,
+    path: OpeningPath<'_>,
 ) -> Result<TerminalEvaluations, PiCcsError> {
     let shape = source.shape();
     shape.validate(&(0..shape.rows))?;
@@ -109,14 +135,21 @@ fn evaluate_rows(
             first_unsatisfied_row: None,
         });
     }
-    if factored_openings {
+    if let OpeningPath::Factored(device) = path {
         if let Some(bands) = source
             .factored()?
             .and_then(|rows| OpeningBands::new(rows, workspace_bytes, active.len(), storage.capacity()))
         {
             drop(complete);
             let active_witnesses: Vec<_> = active.iter().map(|&index| &witnesses[index]).collect();
-            bands.evaluate(&weights, &active_witnesses, &active, &mut result, storage);
+            bands.evaluate(
+                &weights,
+                &active_witnesses,
+                &active,
+                &mut result,
+                storage,
+                device.map(|d| (d, workspace_bytes)),
+            );
             return Ok(TerminalEvaluations {
                 openings: result,
                 first_unsatisfied_row: None,

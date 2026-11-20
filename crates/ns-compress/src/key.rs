@@ -3,6 +3,7 @@
 use std::fmt;
 use std::sync::{Arc, Mutex, OnceLock, Weak};
 
+use akita_pcs::DensePoly;
 use neo_ajtai::nightstream_fprime_setup::ExpandedKey;
 use neo_math::field::CompactProductSum;
 use neo_math::{KExtensions, D, F, K};
@@ -119,6 +120,7 @@ pub struct ProverKey {
     pub(crate) akita: Prover,
     pub(crate) committed: Committed,
     key: Arc<ExpandedKey>,
+    source: Option<DensePoly<crate::akita::Base>>,
     verification: VerificationKey,
 }
 
@@ -149,10 +151,13 @@ impl ProverKey {
     }
 
     fn of_key(schedules: &'static Schedules, key: Arc<ExpandedKey>) -> Result<Self, Error> {
-        let (akita, committed, verification) = committed(schedules, &key)?;
+        let akita = Prover::new(schedules)?;
+        let (committed, source) = akita.commit_key_words(schedules.first(), key.shared_words())?;
+        let verification = VerificationKey::of_parts(schedules, committed.bytes.clone(), akita.setup_prefixes()?);
         Ok(Self {
             akita,
             committed,
+            source,
             key,
             verification,
         })
@@ -162,7 +167,22 @@ impl ProverKey {
         &self.verification
     }
 
-    pub(crate) fn fold(&self, omega: K) -> Vec<K> {
+    pub(crate) fn fold(&self, omega: K, metal: bool) -> Vec<K> {
+        if let (true, Some(source)) = (metal, &self.source) {
+            let weights: Vec<_> = powers(omega, KAPPA)
+                .into_iter()
+                .map(|p| {
+                    let (a, b) = p.to_limbs_u64();
+                    [a, b]
+                })
+                .collect();
+            if let Some(values) = source.metal_weighted_rows(&weights) {
+                return values
+                    .into_iter()
+                    .map(|pair| K::from_coeffs(pair.map(F::new)))
+                    .collect();
+            }
+        }
         fold(&self.key, omega)
     }
 }
@@ -211,13 +231,6 @@ fn schedule_index(blocks: usize) -> Result<usize, Error> {
         .iter()
         .position(|schedules| schedules.blocks() >= blocks)
         .ok_or(Error::Layout("no Akita schedule row has a key for this many blocks"))
-}
-
-fn committed(schedules: &'static Schedules, key: &ExpandedKey) -> Result<(Prover, Committed, VerificationKey), Error> {
-    let akita = Prover::new(schedules)?;
-    let committed = akita.commit_key_words(schedules.first(), key.shared_words())?;
-    let verification = VerificationKey::of_parts(schedules, committed.bytes.clone(), akita.setup_prefixes()?);
-    Ok((akita, committed, verification))
 }
 
 pub(crate) fn row_point(omega: K) -> Result<([K; ROW_VARS], K), Error> {

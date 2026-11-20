@@ -22,8 +22,7 @@ Completeness and knowledge of the two folds of the bounded-depth scheme.
 - `light_knowledge`, `refresh_knowledge` and `assumption1_in_random_oracle_model` hold in the
   ideal-permutation or random-oracle model (`[P2-PERM]`, `[SPONGE]`).
 - `light_extracts` and `refresh_extracts` also take `strongSet`, the units of the strong
-  sampling set. It returns data, so the premise list does not show it.
-  `Claims.Foundations.low_norm_invertible` is the result behind it.
+  sampling set. `Claims.Foundations.low_norm_invertible` is the result behind it.
 - `assumption1_in_random_oracle_model` does not give the premise of the bounds of `Claims.Ivc`.
   Its adversary queries a uniform oracle. The IVC adversary has no oracle, because the step
   circuits evaluate the fixed Poseidon2 permutation (`SECURITY_MODEL.md` trust item 3). -/

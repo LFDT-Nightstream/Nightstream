@@ -55,7 +55,7 @@ impl ExpandedKey {
         self.words.clone()
     }
 
-    pub(super) fn shared() -> Option<Arc<Self>> {
+    pub fn shared() -> Option<Arc<Self>> {
         SHARED
             .lock()
             .unwrap_or_else(PoisonError::into_inner)

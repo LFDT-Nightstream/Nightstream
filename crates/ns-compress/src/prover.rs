@@ -288,9 +288,18 @@ impl Committed<'_> {
     }
 
     pub fn prove(
+        self,
+        transcript: &mut Poseidon2Transcript,
+        statements: &[Statement<'_>],
+    ) -> Result<(Proof, ProverTimes), Error> {
+        self.prove_with_backend(transcript, statements, false)
+    }
+
+    pub fn prove_with_backend(
         mut self,
         transcript: &mut Poseidon2Transcript,
         statements: &[Statement<'_>],
+        metal_kernels: bool,
     ) -> Result<(Proof, ProverTimes), Error> {
         let verification = self.key.verification_key();
         if layout(statements, verification.blocks())? != self.layout {
@@ -329,6 +338,7 @@ impl Committed<'_> {
                 1 << self.layout.table_witness_vars,
                 Arc::clone(&self.codes),
                 columns,
+                metal_kernels,
             )?
         } else {
             let mut inverse = vec![akita::base(F::ZERO); self.layout.inverse_len()];
@@ -354,12 +364,13 @@ impl Committed<'_> {
             )
         });
         let witness = std::mem::take(&mut self.witness);
+        let fold_key = || self.key.fold(challenges.omega, metal_kernels);
         let (witness, weights, folded, lane_inputs) = if let (Some((slice, _)), Some(masks)) = (self.zero_prefix, masks)
         {
             let cells = self.layout.cells[1];
             let (source, folded) = rayon::join(
                 || weights::LaneSource::new(&statements[1], &challenges, cells.blocks),
-                || self.key.fold(challenges.omega),
+                fold_key,
             );
             let weights = weights::count_tail(&self.layout, &challenges, cells.witness.range().end)?;
             (witness, weights, folded, Some((masks, source?, slice.len() / D)))
@@ -368,7 +379,7 @@ impl Committed<'_> {
                 statements,
                 &self.layout,
                 &challenges,
-                self.key,
+                fold_key,
                 self.zero_prefix.is_some(),
             )?;
             (witness, weights, folded, None)
@@ -451,6 +462,7 @@ impl Committed<'_> {
                 (inverse, &inverse_point(&self.layout, &rho, &column), inverse_value),
             ],
             &session(transcript, SESSION),
+            metal_kernels,
         )?;
         times.opening = start.elapsed();
         Ok((

@@ -1,5 +1,5 @@
 use neo_math::{
-    signed_sums::{SignedShiftSums, SmallEventDigits, SplitRing},
+    signed_sums::{SignedShiftSums, SplitRing},
     KExtensions, Rq, D, F, K,
 };
 use p3_field::PrimeCharacteristicRing;
@@ -80,11 +80,12 @@ impl TaskSums {
             if let (Some(events), super::RealBlockStorage::Dense { blocks, .. }) = (sparse, &witness.re) {
                 const _: () = assert!(TASK_BLOCKS <= (1 << 12));
                 let (a, b) = &mut self.raw[index];
-                if SignedShiftSums::add_small_event_pair([a, b], [&real.0, &imaginary.0], events, &blocks[block].0) {
+                if let Some(digits) = blocks.event_digits(block) {
+                    SignedShiftSums::add_prepared_event_pair([a, b], [&real.0, &imaginary.0], events, &digits);
                     continue;
                 }
                 let (a, b) = &mut self.reduced[index];
-                add_sparse_digit_pair([a, b], [real, imaginary], events, &blocks[block]);
+                add_sparse_digit_pair([a, b], [real, imaginary], events, &blocks.ring(block));
                 continue;
             }
             self.add_full(index, witness, block, real, imaginary);
@@ -119,10 +120,10 @@ impl TaskSums {
             }
             let signs = witness.signed_unit_masks();
             let dense = match &witness.re {
-                super::RealBlockStorage::Dense { blocks, .. } if uses_sparse => Some(&blocks[block]),
+                super::RealBlockStorage::Dense { blocks, .. } if uses_sparse => Some(blocks),
                 _ => None,
             };
-            let small = dense.and_then(|digits| SmallEventDigits::from_centered(&digits.0));
+            let small = dense.and_then(|blocks| blocks.event_digits(block));
             for (((sums, form), &sparse), split) in matrices.iter_mut().zip(forms).zip(&sparse).zip(&mut split) {
                 if form.mask == 0 {
                     continue;
@@ -152,9 +153,9 @@ impl TaskSums {
                             form.mask,
                             digits,
                         );
-                    } else if let Some(digits) = dense {
+                    } else if let Some(blocks) = dense {
                         let (a, b) = &mut sums.reduced[index];
-                        add_sparse_digit_pair([a, b], [real, imaginary], form.mask, digits);
+                        add_sparse_digit_pair([a, b], [real, imaginary], form.mask, &blocks.ring(block));
                     }
                 } else {
                     sums.add_full(index, witness, block, real, imaginary);

@@ -51,11 +51,11 @@ variable {logicalWidth : Nat}
 variable (ajtai circuitKeys step) in
 /-- The verifier of a proof with its witnesses: the terminal relation accepts the proof, and the
 slots and the fresh instance of a recursive proof pass the checks of `StepExtend.Honest`. -/
-def Verifies (packageWidths : Fin 2 → Nat) (cap : Nat) (control : AppState → AppWitness → Fin 2)
+def Verifies (packageWidths : Fin 2 → Nat) (control : AppState → AppWitness → Fin 2)
     (statement : TerminalStatement AppState)
     (proof : Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     Prop :=
-  Terminal.HoldsFor cap ajtai circuitKeys step control statement proof ∧
+  Terminal.HoldsFor ajtai circuitKeys step control statement proof ∧
     match proof with
     | .bottom => True
     | .recursive payload => Honest (ajtai := ajtai) packageWidths payload
@@ -74,27 +74,27 @@ def FreshZeroTail (packageWidths : Fin 2 → Nat)
 
 /-- The verifier accepts only what the terminal relation accepts, so each bound on an acceptance
 of the terminal relation is a bound on an acceptance of the verifier. -/
-theorem holds_of_verifies {packageWidths : Fin 2 → Nat} {cap : Nat}
+theorem holds_of_verifies {packageWidths : Fin 2 → Nat}
     {control : AppState → AppWitness → Fin 2} {statement : TerminalStatement AppState}
     {proof : Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits)}
-    (verifies : Verifies ajtai circuitKeys step packageWidths cap control statement proof) :
-    Terminal.HoldsFor cap ajtai circuitKeys step control statement proof :=
+    (verifies : Verifies ajtai circuitKeys step packageWidths control statement proof) :
+    Terminal.HoldsFor ajtai circuitKeys step control statement proof :=
   And.left verifies
 
-theorem verifies_bottom_iff (packageWidths : Fin 2 → Nat) (cap : Nat)
+theorem verifies_bottom_iff (packageWidths : Fin 2 → Nat)
     (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState) :
-    Verifies ajtai circuitKeys step packageWidths cap control statement .bottom ↔
-      Terminal.HoldsFor cap ajtai circuitKeys step control statement .bottom :=
+    Verifies ajtai circuitKeys step packageWidths control statement .bottom ↔
+      Terminal.HoldsFor ajtai circuitKeys step control statement .bottom :=
   ⟨And.left, fun holds => And.intro holds True.intro⟩
 
-theorem verifies_recursive_iff (packageWidths : Fin 2 → Nat) (cap : Nat)
+theorem verifies_recursive_iff (packageWidths : Fin 2 → Nat)
     (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
     (payload : TerminalProof (SlotData logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2) :
-    Verifies ajtai circuitKeys step packageWidths cap control statement (.recursive payload) ↔
-      Terminal.HoldsFor cap ajtai circuitKeys step control statement (.recursive payload) ∧
+    Verifies ajtai circuitKeys step packageWidths control statement (.recursive payload) ↔
+      Terminal.HoldsFor ajtai circuitKeys step control statement (.recursive payload) ∧
         Honest (ajtai := ajtai) packageWidths payload :=
   Iff.rfl
 
@@ -104,13 +104,13 @@ The fresh witness of the new proof is zero on every cell from its package width
 (`FreshZeroTail`). -/
 theorem verifies_step (exports : Exports relation ajtai circuitKeys step cubeFits)
     (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (cap : Nat) (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
+    (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
     (proof : Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (verifies : Verifies ajtai circuitKeys step complete.packageWidth cap control statement proof)
+    (verifies : Verifies ajtai circuitKeys step complete.packageWidth control statement proof)
     (witness : AppWitness) (valid : exports.program.valid statement.zi witness)
     (iterationNext : statement.iteration + 1 < fieldModulus)
     (witnessLength : witness.length = exports.program.witnessWordCount) :
-    ∃ next, Verifies ajtai circuitKeys step complete.packageWidth cap control
+    ∃ next, Verifies ajtai circuitKeys step complete.packageWidth control
         ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ (.recursive next) ∧
       FreshZeroTail complete.packageWidth (.recursive next) := by
   have nextLength : ∀ (current : AppState),
@@ -120,48 +120,47 @@ theorem verifies_step (exports : Exports relation ajtai circuitKeys step cubeFit
     rw [← exports.programStep]
     exact exports.program.step_length current witness currentLength
   have transport : ∀ (control' : AppState → AppWitness → Fin 2) payload,
-      Terminal.HoldsFor cap ajtai circuitKeys step control'
+      Terminal.HoldsFor ajtai circuitKeys step control'
           ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ (.recursive payload) →
-        Terminal.HoldsFor cap ajtai circuitKeys step control
+        Terminal.HoldsFor ajtai circuitKeys step control
           ⟨statement.iteration + 1, statement.z0, step statement.zi witness⟩ (.recursive payload) :=
     fun control' payload holds =>
-      (holdsFor_recursive_control cap ajtai circuitKeys step control' control _ payload).mp holds
+      (holdsFor_recursive_control ajtai circuitKeys step control' control _ payload).mp holds
   cases proof with
   | bottom =>
-    have bottom := (verifies_bottom_iff complete.packageWidth cap control statement).mp verifies
+    have bottom := (verifies_bottom_iff complete.packageWidth control statement).mp verifies
     obtain ⟨statementValid, iterationZero, ziEq⟩ :=
-      (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step control statement).mp bottom
-    have bottom' := (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step (fun _ _ => 0)
+      (Terminal.holdsFor_bottom_iff ajtai circuitKeys step control statement).mp bottom
+    have bottom' := (Terminal.holdsFor_bottom_iff ajtai circuitKeys step (fun _ _ => 0)
       statement).mpr ⟨statementValid, iterationZero, ziEq⟩
     obtain ⟨next, nextHolds, nextHonest, -, -, nextTail⟩ := base_extend exports complete keysShaped
-      cap
       (fun _ _ => 0) statement bottom' witness valid rfl (nextLength _ statementValid.2.2)
       witnessLength
-    exact ⟨next, (verifies_recursive_iff complete.packageWidth cap control _ next).mpr
+    exact ⟨next, (verifies_recursive_iff complete.packageWidth control _ next).mpr
       ⟨transport _ next nextHolds, nextHonest⟩, nextTail⟩
   | recursive payload =>
     obtain ⟨holds, honest⟩ :=
-      (verifies_recursive_iff complete.packageWidth cap control statement payload).mp verifies
+      (verifies_recursive_iff complete.packageWidth control statement payload).mp verifies
     obtain ⟨statementValid, pcValid, _⟩ :=
-      (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).mp
+      (Terminal.holdsFor_recursive_iff ajtai circuitKeys step control statement payload).mp
         holds
     have selectedEq : ∀ other : InRange 2 payload.pc, selectedIndex other = selectedIndex pcValid :=
       fun _ => Fin.ext rfl
     by_cases room : (payload.running (selectedIndex pcValid)).2 < Schedule.productionLightFoldCap
-    · have holds' := (holdsFor_recursive_control cap ajtai circuitKeys step control (fun _ _ => 0)
+    · have holds' := (holdsFor_recursive_control ajtai circuitKeys step control (fun _ _ => 0)
         statement payload).mp holds
       obtain ⟨next, nextHolds, nextHonest, -, -, nextTail⟩ := light_extend exports complete
-        keysShaped cap (fun _ _ => 0) statement payload holds' honest witness valid rfl
+        keysShaped (fun _ _ => 0) statement payload holds' honest witness valid rfl
         (fun other => by rw [selectedEq other]; exact room) iterationNext
         (nextLength _ statementValid.2.2) witnessLength
-      exact ⟨next, (verifies_recursive_iff complete.packageWidth cap control _ next).mpr
+      exact ⟨next, (verifies_recursive_iff complete.packageWidth control _ next).mpr
         ⟨transport _ next nextHolds, nextHonest⟩, nextTail⟩
-    · have holds' := (holdsFor_recursive_control cap ajtai circuitKeys step control (fun _ _ => 1)
+    · have holds' := (holdsFor_recursive_control ajtai circuitKeys step control (fun _ _ => 1)
         statement payload).mp holds
       obtain ⟨next, nextHolds, nextHonest, nextTail⟩ := refresh_extend exports complete
-        keysShaped cap (fun _ _ => 1) statement payload holds' honest witness valid rfl
+        keysShaped (fun _ _ => 1) statement payload holds' honest witness valid rfl
         iterationNext (nextLength _ statementValid.2.2) witnessLength
-      exact ⟨next, (verifies_recursive_iff complete.packageWidth cap control _ next).mpr
+      exact ⟨next, (verifies_recursive_iff complete.packageWidth control _ next).mpr
         ⟨transport _ next nextHolds, nextHonest⟩, nextTail⟩
 
 /-- Completeness of bounded-depth IVC: for every valid run of the application from `z0` whose
@@ -170,20 +169,20 @@ of the run's last state, and the proof's fresh witness is zero on every cell fro
 width (`FreshZeroTail`). -/
 theorem run_complete (exports : Exports relation ajtai circuitKeys step cubeFits)
     (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (cap : Nat) (control : AppState → AppWitness → Fin 2) (z0 : AppState)
+    (control : AppState → AppWitness → Fin 2) (z0 : AppState)
     (z0Length : z0.length = Stage1.Application.stateWordCount) :
     ∀ witnesses : List AppWitness, IvcWalk.ValidFrom exports.program z0 witnesses →
       (∀ witness ∈ witnesses, witness.length = exports.program.witnessWordCount) →
       witnesses.length < fieldModulus →
-        ∃ proof, Verifies ajtai circuitKeys step complete.packageWidth cap control
+        ∃ proof, Verifies ajtai circuitKeys step complete.packageWidth control
             ⟨witnesses.length, z0, witnesses.foldl step z0⟩ proof ∧
           FreshZeroTail complete.packageWidth proof := by
   intro witnesses
   induction witnesses using List.reverseRecOn with
   | nil =>
       intro _ _ _
-      refine ⟨.bottom, (verifies_bottom_iff complete.packageWidth cap control _).mpr ?_, trivial⟩
-      exact (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step control _).mpr
+      refine ⟨.bottom, (verifies_bottom_iff complete.packageWidth control _).mpr ?_, trivial⟩
+      exact (Terminal.holdsFor_bottom_iff ajtai circuitKeys step control _).mpr
         ⟨⟨show (0 : Nat) < fieldModulus by decide, z0Length, z0Length⟩, rfl, rfl⟩
   | append_singleton earlier witness inductionHypothesis =>
       intro validRun lengths lengthBound
@@ -198,7 +197,7 @@ theorem run_complete (exports : Exports relation ajtai circuitKeys step cubeFits
       have lastValid : exports.program.valid (earlier.foldl step z0) witness := by
         rw [← foldEq]
         exact validRun.2.1
-      obtain ⟨next, verified, tail⟩ := verifies_step exports complete keysShaped cap control _
+      obtain ⟨next, verified, tail⟩ := verifies_step exports complete keysShaped control _
         proof verifies witness lastValid (by simpa using lengthBound)
         (lengths witness (List.mem_append_right _ (List.mem_singleton_self _)))
       refine ⟨.recursive next, ?_, tail⟩
@@ -215,22 +214,22 @@ later step is a light fold into slot 0 below the cap (`StepExtend.light_extend`)
 the run is a refresh fold. -/
 theorem light_run_complete (exports : Exports relation ajtai circuitKeys step cubeFits)
     (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (cap : Nat) (control : AppState → AppWitness → Fin 2) (z0 : AppState)
+    (control : AppState → AppWitness → Fin 2) (z0 : AppState)
     (z0Length : z0.length = Stage1.Application.stateWordCount) :
     ∀ witnesses : List AppWitness, IvcWalk.ValidFrom exports.program z0 witnesses →
       (∀ witness ∈ witnesses, witness.length = exports.program.witnessWordCount) →
       0 < witnesses.length → witnesses.length ≤ Schedule.productionLightFoldCap + 1 →
-        ∃ payload, Verifies ajtai circuitKeys step complete.packageWidth cap control
+        ∃ payload, Verifies ajtai circuitKeys step complete.packageWidth control
             ⟨witnesses.length, z0, witnesses.foldl step z0⟩ (.recursive payload) ∧
           payload.pc = 1 ∧ payload.running 1 = (defaultSlot, 0) ∧
           (payload.running 0).2 = witnesses.length - 1 ∧
           FreshZeroTail complete.packageWidth (.recursive payload) := by
   have transport : ∀ (statement : TerminalStatement AppState)
       (control' : AppState → AppWitness → Fin 2) payload,
-      Terminal.HoldsFor cap ajtai circuitKeys step control' statement (.recursive payload) →
-        Terminal.HoldsFor cap ajtai circuitKeys step control statement (.recursive payload) :=
+      Terminal.HoldsFor ajtai circuitKeys step control' statement (.recursive payload) →
+        Terminal.HoldsFor ajtai circuitKeys step control statement (.recursive payload) :=
     fun statement control' payload holds =>
-      (holdsFor_recursive_control cap ajtai circuitKeys step control' control _ payload).mp holds
+      (holdsFor_recursive_control ajtai circuitKeys step control' control _ payload).mp holds
   intro witnesses
   induction witnesses using List.reverseRecOn with
   | nil => exact fun _ _ positive => absurd positive (Nat.lt_irrefl 0)
@@ -254,27 +253,27 @@ theorem light_run_complete (exports : Exports relation ajtai circuitKeys step cu
         List.foldl_nil, Nat.add_sub_cancel] at lengthBound ⊢
       rcases Nat.eq_zero_or_pos earlier.length with empty | positive
       · rw [List.length_eq_zero_iff.mp empty]
-        have bottom := (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step (fun _ _ => 0)
+        have bottom := (Terminal.holdsFor_bottom_iff ajtai circuitKeys step (fun _ _ => 0)
           ⟨0, z0, z0⟩).mpr ⟨⟨show (0 : Nat) < fieldModulus by decide, z0Length, z0Length⟩, rfl, rfl⟩
         rw [List.length_eq_zero_iff.mp empty] at lastValid
         obtain ⟨next, nextHolds, nextHonest, pcOne, defaults, tail⟩ := base_extend exports complete
-          keysShaped cap (fun _ _ => 0) ⟨0, z0, z0⟩ bottom witness lastValid rfl
+          keysShaped (fun _ _ => 0) ⟨0, z0, z0⟩ bottom witness lastValid rfl
           (stepLength z0 z0Length) witnessLength
-        exact ⟨next, (verifies_recursive_iff complete.packageWidth cap control _ next).mpr
+        exact ⟨next, (verifies_recursive_iff complete.packageWidth control _ next).mpr
           ⟨transport _ _ next nextHolds, nextHonest⟩, pcOne, defaults 1, by rw [defaults 0]; rfl,
           tail⟩
       · obtain ⟨payload, verifies, pcOne, slotOne, depthZero, -⟩ := inductionHypothesis validRun.1
           earlierLengths positive (by omega)
-        obtain ⟨holds, honest⟩ := (verifies_recursive_iff complete.packageWidth cap control _
+        obtain ⟨holds, honest⟩ := (verifies_recursive_iff complete.packageWidth control _
           payload).mp verifies
-        have holds' := (holdsFor_recursive_control cap ajtai circuitKeys step control
+        have holds' := (holdsFor_recursive_control ajtai circuitKeys step control
           (fun _ _ => 0) _ payload).mp holds
-        have currentLength := ((Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control _
+        have currentLength := ((Terminal.holdsFor_recursive_iff ajtai circuitKeys step control _
           payload).mp holds).1.2.2
         have selectedZero : ∀ pcValid : InRange 2 payload.pc, selectedIndex pcValid = 0 :=
           fun _ => Fin.ext (by simp [selectedIndex, pcOne])
         obtain ⟨next, nextHolds, nextHonest, nextPc, nextRunning, tail⟩ := light_extend exports
-          complete keysShaped cap (fun _ _ => 0) ⟨earlier.length, z0, earlier.foldl step z0⟩
+          complete keysShaped (fun _ _ => 0) ⟨earlier.length, z0, earlier.foldl step z0⟩
           payload holds' honest witness lastValid rfl
           (fun pcValid => by rw [selectedZero pcValid, depthZero]; omega)
           (lt_of_le_of_lt lengthBound (by decide))
@@ -282,7 +281,7 @@ theorem light_run_complete (exports : Exports relation ajtai circuitKeys step cu
         have pcValid : InRange 2 payload.pc := ⟨by rw [pcOne], by rw [pcOne]; decide⟩
         obtain ⟨nextDepth, nextOther⟩ := nextRunning pcValid
         rw [selectedZero pcValid] at nextDepth nextOther
-        refine ⟨next, (verifies_recursive_iff complete.packageWidth cap control _ next).mpr
+        refine ⟨next, (verifies_recursive_iff complete.packageWidth control _ next).mpr
           ⟨transport _ _ next nextHolds, nextHonest⟩, nextPc, ?_, ?_, tail⟩
         · rw [nextOther 1 (by decide), slotOne]
         · rw [nextDepth, depthZero]

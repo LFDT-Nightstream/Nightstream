@@ -303,7 +303,6 @@ pub struct ExpandedPackage {
     package: StepPackage,
     rows: PlanRows,
     fresh_product_rows: Box<[usize]>,
-    consecutive_sboxes: Option<usize>,
     layout: layout::LogicalLayout,
 }
 
@@ -333,8 +332,7 @@ impl ExpandedPackage {
     }
 
     pub fn relation_columns(&self, columns: Vec<Fq>) -> Result<Vec<Fq>, PackageError> {
-        self.package
-            .assign_relation_columns(columns, &self.rows, &self.fresh_product_rows, self.consecutive_sboxes)
+        self.package.relation_columns(columns, &self.rows)
     }
 }
 
@@ -343,11 +341,6 @@ impl StepPackage {
         let (rows, layout) = rayon::join(|| self.plan_rows(), || self.layout());
         let (rows, layout) = (rows?, layout?);
         let fresh_product_rows = self.fresh_product_rows(&rows);
-        let consecutive_sboxes = rows
-            .sbox_rows()
-            .enumerate()
-            .all(|(i, row)| rows.single(row, 2) == Some((self.sbox_start + i, Fq::ONE)))
-            .then_some(self.sbox_start);
         for piece in &mut self.pieces {
             if let Piece::Rows(rows) = piece {
                 *rows = Vec::new();
@@ -360,7 +353,6 @@ impl StepPackage {
         Ok(ExpandedPackage {
             rows,
             fresh_product_rows,
-            consecutive_sboxes,
             layout,
             package: self,
         })

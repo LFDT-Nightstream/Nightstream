@@ -76,7 +76,8 @@ fn canonical(value: u64) -> Result<Fq, PackageError> {
 }
 
 pub struct ApplicationRecordsWriter {
-    data: Writer,
+    row_data: Writer,
+    recipe_data: Writer,
     rows: Writer,
     recipes: Writer,
     row_count: usize,
@@ -89,9 +90,10 @@ pub struct ApplicationRecordsWriter {
 impl ApplicationRecordsWriter {
     pub fn new() -> Result<Self, PackageError> {
         Ok(Self {
-            data: Writer::new()?,
-            rows: Writer::new()?,
-            recipes: Writer::new()?,
+            row_data: Writer::new(8192)?,
+            recipe_data: Writer::new(8192)?,
+            rows: Writer::new(4096)?,
+            recipes: Writer::new(4096)?,
             row_count: 0,
             recipe_count: 0,
             row_words: 0,
@@ -114,11 +116,11 @@ impl ApplicationRecordsWriter {
         let count = header.term_counts.into_iter().try_fold(0, add)?;
         let next_words = add(self.row_words, add(44, mul(12, count)?)?)?;
         word(next_words)?;
-        let offset = self.data.position();
+        let offset = self.row_data.position();
         for form in 0..3 {
             let _ = canonical(header.constants[form])?;
-            self.data.word(header.constants[form])?;
-            self.data.word(word(header.term_counts[form])?)?;
+            self.row_data.word(header.constants[form])?;
+            self.row_data.word(word(header.term_counts[form])?)?;
         }
         let mut terms = terms.into_iter();
         for form in [ApplicationForm::A, ApplicationForm::B, ApplicationForm::C] {
@@ -130,8 +132,8 @@ impl ApplicationRecordsWriter {
                     return Err(malformed("application terms are not in form order"));
                 }
                 let _ = canonical(term.coefficient)?;
-                self.data.word(word(term.variable)?)?;
-                self.data.word(term.coefficient)?;
+                self.row_data.word(word(term.variable)?)?;
+                self.row_data.word(term.coefficient)?;
             }
         }
         if terms.next().transpose()?.is_some() {
@@ -158,7 +160,7 @@ impl ApplicationRecordsWriter {
         }
         let recipe = self.recipe_count;
         let next_count = add(recipe, 1)?;
-        let offset = self.data.position();
+        let offset = self.recipe_data.position();
         let mut count = 0;
         let mut pending = 1;
         let mut words = self.recipe_words;
@@ -183,8 +185,8 @@ impl ApplicationRecordsWriter {
                     (3, 0)
                 }
             };
-            self.data.word(tag)?;
-            self.data.word(payload)?;
+            self.recipe_data.word(tag)?;
+            self.recipe_data.word(payload)?;
             words = add(words, if tag < 2 { 12 } else { 8 })?;
             count = add(count, 1)?;
         }
@@ -213,7 +215,8 @@ impl ApplicationRecordsWriter {
             return Err(PackageError::Input("application record writer is poisoned"));
         }
         Ok(ApplicationRecords {
-            data: self.data.finish()?,
+            row_data: self.row_data.finish()?,
+            recipe_data: self.recipe_data.finish()?,
             rows: self.rows.finish()?,
             recipes: self.recipes.finish()?,
             row_count: self.row_count,
@@ -225,12 +228,16 @@ impl ApplicationRecordsWriter {
 
     #[cfg(test)]
     fn buffer_bytes(&self) -> usize {
-        self.data.buffer_bytes() + self.rows.buffer_bytes() + self.recipes.buffer_bytes()
+        self.row_data.buffer_bytes()
+            + self.recipe_data.buffer_bytes()
+            + self.rows.buffer_bytes()
+            + self.recipes.buffer_bytes()
     }
 }
 
 pub struct ApplicationRecords {
-    data: Reader,
+    row_data: Reader,
+    recipe_data: Reader,
     rows: Reader,
     recipes: Reader,
     row_count: usize,
@@ -271,7 +278,7 @@ impl ApplicationRecords {
 
     pub fn row_header(&self, row: usize) -> Result<ApplicationRowHeader, PackageError> {
         let mut input = self
-            .data
+            .row_data
             .cursor(self.row_offset(row)?, 6 * size_of::<u64>() as u64)?;
         let mut header = ApplicationRowHeader {
             constants: [0; 3],
@@ -297,7 +304,7 @@ impl ApplicationRecords {
             .checked_add(6 * size_of::<u64>() as u64)
             .ok_or_else(|| malformed("application term offset overflow"))?;
         let mut input = self
-            .data
+            .row_data
             .cursor(start, word(mul(count, 2 * size_of::<u64>())?)?)?;
         for form in [ApplicationForm::A, ApplicationForm::B, ApplicationForm::C] {
             for _ in 0..header.term_counts[form.index()] {
@@ -343,7 +350,7 @@ impl ApplicationRecords {
     ) -> Result<ControlFlow<()>, PackageError> {
         let (offset, count, _) = self.recipe_location(recipe)?;
         let mut input = self
-            .data
+            .recipe_data
             .cursor(offset, word(mul(count, 2 * size_of::<u64>())?)?)?;
         let mut pending = 1;
         for _ in 0..count {
@@ -382,7 +389,8 @@ impl ApplicationRecords {
     pub fn walk(&self) -> ApplicationWalk<'_> {
         ApplicationWalk {
             records: self,
-            data: self.data.window(),
+            row_data: self.row_data.payload_window(),
+            recipe_data: self.recipe_data.payload_window(),
             rows: self.rows.window(),
             recipes: self.recipes.window(),
         }
@@ -399,8 +407,15 @@ impl ApplicationRecords {
         (0..self.row_count.div_ceil(range))
             .into_par_iter()
             .map(|part| {
+                let end = ((part + 1) * range).min(self.row_count);
                 let mut walk = self.walk();
-                for row in part * range..((part + 1) * range).min(self.row_count) {
+                walk.rows = self.rows.window_until(word(mul(end, size_of::<u64>())?)?);
+                walk.row_data = if end < self.row_count {
+                    self.row_data.window_until(self.row_offset(end)?)
+                } else {
+                    self.row_data.window()
+                };
+                for row in part * range..end {
                     let [a, b, c] = walk.evaluate_row(row, &value)?.map(Fq::from_u64);
                     if a * b != c {
                         return Ok(Some(row));
@@ -428,7 +443,7 @@ impl ApplicationRecords {
             .row_offset(row)?
             .checked_add(word(add(6 * size_of::<u64>(), mul(preceding, 2 * size_of::<u64>())?)?)?)
             .ok_or_else(|| malformed("application form offset overflow"))?;
-        let mut input = self.data.cursor(
+        let mut input = self.row_data.cursor(
             start,
             word(mul(header.term_counts[form.index()], 2 * size_of::<u64>())?)?,
         )?;
@@ -451,7 +466,8 @@ impl ApplicationRecords {
 
 pub struct ApplicationWalk<'a> {
     records: &'a ApplicationRecords,
-    data: Window<'a>,
+    row_data: Window<'a>,
+    recipe_data: Window<'a>,
     rows: Window<'a>,
     recipes: Window<'a>,
 }
@@ -470,7 +486,7 @@ impl ApplicationWalk<'_> {
             return Err(PackageError::Input("application row is out of range"));
         }
         let mut offset = self.rows.word(word(mul(row, size_of::<u64>())?)?)?;
-        let data = &mut self.data;
+        let data = &mut self.row_data;
         let mut next = || -> Result<u64, PackageError> {
             let word = data.word(offset)?;
             offset += size_of::<u64>() as u64;
@@ -510,7 +526,7 @@ impl ApplicationWalk<'_> {
             self.recipes
                 .word(word(add(entry, 2 * size_of::<u64>())?)?)?,
         )?;
-        let data = &mut self.data;
+        let data = &mut self.recipe_data;
         let mut next = || -> Result<u64, PackageError> {
             let word = data.word(offset)?;
             offset += size_of::<u64>() as u64;
@@ -553,23 +569,27 @@ impl ApplicationWalk<'_> {
             return Err(PackageError::Input("application row is out of range").into());
         }
         let mut offset = self.rows.word(word(mul(row, size_of::<u64>())?)?)?;
-        let data = &mut self.data;
-        let mut next = || -> Result<u64, PackageError> {
-            let word = data.word(offset)?;
-            offset += size_of::<u64>() as u64;
-            Ok(word)
-        };
+        let data = &mut self.row_data;
+        let header = data.slice(offset, 6 * size_of::<u64>())?;
+        offset += header.len() as u64;
         let mut values = [Fq::ZERO; 3];
         let mut counts = [0; 3];
-        for form in 0..3 {
-            values[form] = canonical(next()?)?;
-            counts[form] = index(next()?)?;
+        let decode = |bytes: &[u8]| u64::from_le_bytes(bytes.try_into().expect("one record word"));
+        for (form, pair) in header.chunks_exact(16).enumerate() {
+            values[form] = canonical(decode(&pair[..8]))?;
+            counts[form] = index(decode(&pair[8..]))?;
         }
-        for form in 0..3 {
-            for _ in 0..counts[form] {
-                let variable = index(next()?)?;
-                let coefficient = canonical(next()?)?;
-                values[form] += coefficient * canonical(value(variable)?)?;
+        for (sum, mut remaining) in values.iter_mut().zip(counts) {
+            while remaining != 0 {
+                let terms = remaining.min(1024);
+                let bytes = data.slice(offset, terms * 16)?;
+                offset += bytes.len() as u64;
+                remaining -= terms;
+                for pair in bytes.chunks_exact(16) {
+                    let variable = index(decode(&pair[..8]))?;
+                    let coefficient = canonical(decode(&pair[8..]))?;
+                    *sum += coefficient * canonical(value(variable)?)?;
+                }
             }
         }
         Ok(values.map(|value| value.as_canonical_u64()))

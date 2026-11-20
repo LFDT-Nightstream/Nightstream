@@ -99,7 +99,8 @@ fn cached_opening_columns_match_fallback_for_distinct_points_and_many_sources() 
         let baseline = eval_real_v1_2_openings_from_rows(&rows, &point, &witnesses, usize::MAX).unwrap();
         rows.visits.store(0, Ordering::Relaxed);
         let actual =
-            eval_real_v1_2_openings_from_rows_reusing(&rows, &point, &witnesses, usize::MAX, Vec::new(), None).unwrap();
+            eval_real_v1_2_openings_from_rows_reusing(&rows, &point, &witnesses, usize::MAX, Vec::new(), None, None)
+                .unwrap();
         assert_eq!(actual, baseline);
         assert!(rows.factored.opening_columns(usize::MAX).is_some());
         assert_eq!(rows.visits.load(Ordering::Relaxed), 0);
@@ -142,7 +143,7 @@ fn too_many_column_factors_falls_back_to_the_row_transpose() {
     let point = [K::ZERO; 6];
     let baseline = eval_real_v1_2_openings_from_rows(&rows, &point, &witness, usize::MAX).unwrap();
     let actual =
-        eval_real_v1_2_openings_from_rows_reusing(&rows, &point, &witness, usize::MAX, Vec::new(), None).unwrap();
+        eval_real_v1_2_openings_from_rows_reusing(&rows, &point, &witness, usize::MAX, Vec::new(), None, None).unwrap();
     assert!(rows.factored.opening_columns(usize::MAX).is_none());
     assert_eq!(actual, baseline);
 }
@@ -185,7 +186,8 @@ fn budget_fallback_does_not_materialize_or_disable_the_index() {
     let bands = OpeningBands::new(rows.factored, work, 1, 0).unwrap();
     assert!(bands.index_budget.is_none() && !bands.parallel_transpose);
     rows.visits.store(0, Ordering::Relaxed);
-    let actual = eval_real_v1_2_openings_from_rows_reusing(&rows, &point, &witness, work, Vec::new(), None).unwrap();
+    let actual =
+        eval_real_v1_2_openings_from_rows_reusing(&rows, &point, &witness, work, Vec::new(), None, None).unwrap();
     assert_eq!(actual, baseline);
     assert_eq!(rows.visits.load(Ordering::Relaxed), 0);
     assert!(rows.factored.opening_columns(0).is_none());
@@ -236,7 +238,7 @@ fn four_matrix_bands_match_separate_openings_for_mixed_witnesses() {
             .collect::<Vec<_>>();
         let mut bands = OpeningBands::new(rows, usize::MAX, 2, 4096).unwrap();
         bands.separate_matrices = separate;
-        bands.evaluate(&weights, &sources, &[0, 1], &mut out, Vec::with_capacity(4096));
+        bands.evaluate(&weights, &sources, &[0, 1], &mut out, Vec::with_capacity(4096), None);
         out
     };
     assert_eq!(evaluate(false), evaluate(true));
@@ -324,6 +326,7 @@ fn factored_openings_match_expanded_windows_and_skip_their_construction() {
                     witnesses,
                     usize::MAX,
                     vec![K::ONE; COLUMNS],
+                    None,
                     None,
                 )
                 .unwrap();

@@ -435,9 +435,9 @@ fn source_and_packed_row_orders_fill_the_same_fresh_columns() {
         let plan = package.plan_rows().unwrap();
         let source = package.source_rows().unwrap();
         assert_eq!(source.row_count() - plan.row_count(), 2);
-        let expected = package.relation_columns(columns.clone(), &source).unwrap();
-        assert_eq!(package.relation_columns(columns.clone(), &plan).unwrap(), expected);
-        let expanded = package.clone().expand().unwrap();
-        assert_eq!(expanded.relation_columns(columns).unwrap(), expected);
+        assert_eq!(
+            package.relation_columns(columns.clone(), &plan).unwrap(),
+            package.relation_columns(columns, &source).unwrap()
+        );
     }
 }

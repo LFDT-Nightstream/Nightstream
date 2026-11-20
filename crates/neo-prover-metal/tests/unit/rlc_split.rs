@@ -117,3 +117,18 @@ fn children_per_thread_matches_decomposition_shader() {
     let shader = include_str!("../../shaders/decomposition.metal");
     assert!(shader.contains(&format!("DEC_SPLIT_CHILDREN_PER_THREAD = {CHILDREN_PER_THREAD};")));
 }
+
+#[test]
+fn packed_light_mix_matches_host_for_constant_and_dense_carries() {
+    let session = MetalSession::new().unwrap();
+    let cols = 259;
+    let fresh = witness(89, cols);
+    let rotations = [rho(5, 2), Mat::identity(D)];
+    let dense = Mat::from_row_major(D, cols, (0..D * cols).map(|i| -F::from_usize(i)).collect());
+    for running in [Mat::virtual_constant(D, cols, -F::ONE), dense] {
+        let witnesses = [&fresh, &running];
+        let expected = rlc_mix_witnesses(D * cols, &rotations, &witnesses);
+        let actual = session.mix_rlc_witnesses(&rotations, &witnesses).unwrap();
+        assert_eq!(actual, expected);
+    }
+}

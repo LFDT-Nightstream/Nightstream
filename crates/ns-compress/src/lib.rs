@@ -8,6 +8,7 @@ extern crate self as ns_compress;
 mod support;
 
 mod akita;
+mod column_runs;
 mod key;
 mod lane_prefix;
 mod layout;

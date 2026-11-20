@@ -19,6 +19,7 @@ pub(super) fn project(witness: &SuperneoZBlocks, slots: FactoredSlots<'_>, ratio
         let last = first + values.len();
         let mut block = Block {
             digits: blocks,
+            ring: Rq::zero(),
             nonzero,
             weights: &weights,
             index: usize::MAX,
@@ -80,7 +81,8 @@ impl Weights {
 }
 
 struct Block<'a> {
-    digits: &'a [Rq],
+    digits: &'a super::DenseBlocks,
+    ring: Rq,
     nonzero: &'a [bool],
     weights: &'a Weights,
     index: usize,
@@ -102,7 +104,8 @@ impl Block<'_> {
                 if self.index != index || self.cursor > lane {
                     self.index = index;
                     self.cursor = 0;
-                    self.value = sum_of_scaled(self.digits[index].0.into_iter().zip(self.weights.ring));
+                    self.ring = self.digits.ring(index).into_owned();
+                    self.value = sum_of_scaled(self.ring.0.into_iter().zip(self.weights.ring));
                 }
                 if self.cursor < lane {
                     let _ = self.span(lane);
@@ -117,7 +120,7 @@ impl Block<'_> {
     }
 
     fn span(&mut self, end: usize) -> K {
-        let digits = &self.digits[self.index].0[self.cursor..end];
+        let digits = &self.ring.0[self.cursor..end];
         let len = digits.len();
         self.cursor = end;
         if len < DIRECT_LIMIT {

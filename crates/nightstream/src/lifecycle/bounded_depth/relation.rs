@@ -17,7 +17,7 @@ use neo_reductions::superneo_eval::{
     FactoredRows, FactoredSlots, MatrixRowSink, MatrixRows, MatrixShape, MatrixWindow, RetainedMatrixWindow,
 };
 use neo_reductions::PiCcsError;
-use nightstream_fprime::{ExpandedPackage, PackageError, SlotSpans, StepWords, PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS};
+use nightstream_fprime::{ExpandedPackage, PackageError, StepWords, PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS};
 use p3_field::PrimeCharacteristicRing;
 
 const MATRICES: usize = 4;
@@ -46,7 +46,6 @@ pub(crate) enum Holds {
 pub(crate) struct CompiledStep {
     opening_columns: neo_reductions::superneo_eval::OpeningColumns,
     expanded: ExpandedPackage,
-    spans: SlotSpans,
     workspace_bytes: usize,
 }
 
@@ -54,7 +53,6 @@ impl CompiledStep {
     pub(crate) fn new(expanded: ExpandedPackage) -> Result<Self, RelationError> {
         let mut step = Self {
             opening_columns: Default::default(),
-            spans: expanded.layout().spans(),
             expanded,
             workspace_bytes: 0,
         };
@@ -76,13 +74,14 @@ impl CompiledStep {
 
     fn factored_rows(&self) -> FactoredRows<'_> {
         let rows = self.expanded.rows();
+        let spans = self.expanded.layout().spans();
         FactoredRows::new_unchecked(
             MatrixRows::shape(self),
             rows.entries(),
             FactoredSlots {
-                starts: &self.spans.starts,
-                widths: &self.spans.widths,
-                ratio: self.spans.ratio,
+                starts: &spans.starts,
+                widths: &spans.widths,
+                ratio: spans.ratio,
             },
         )
         .with_opening_columns(&self.opening_columns)
@@ -268,8 +267,7 @@ impl Relation {
 
     pub(crate) fn assignment_columns(&self, words: &StepWords, locals: Option<&[F]>) -> Result<Vec<F>, RelationError> {
         let expanded = &self.step.expanded;
-        let columns = expanded.circuit_columns_with(&words.columns()?, locals)?;
-        Ok(expanded.relation_columns(columns)?)
+        Ok(expanded.assignment_columns(&words.columns()?, locals)?)
     }
 
     #[cfg(test)]

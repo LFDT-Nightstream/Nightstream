@@ -10,7 +10,9 @@ mod baseline;
 mod block_sums;
 mod cache;
 mod compact;
+mod dense_blocks;
 mod digit;
+use dense_blocks::DenseBlocks;
 mod equality;
 mod factored;
 mod factored_openings;
@@ -28,6 +30,9 @@ mod row_block;
 mod row_forms;
 mod row_source;
 mod scratch;
+mod slot_runs;
+mod terminal_device;
+pub use terminal_device::{OpeningMatrix, OpeningTiles, OpeningWitness, TerminalOpeningDevice};
 mod weighted;
 mod weighted_table;
 mod window_eval;
@@ -56,6 +61,7 @@ use part_plan::PartPlan;
 use row_block::{CompactRowBlock, DenseRowBlock, COMPACT_SINGLE_BLOCK_MASK};
 pub use row_source::SuperneoEvalCacheBuilder;
 use scratch::RingEvalScratch;
+pub use slot_runs::SlotRuns;
 use std::sync::OnceLock;
 use weighted::{weighted_projection_basis_forms_from_k, weighted_projection_form_from_orig};
 #[cfg(test)]
@@ -64,11 +70,10 @@ pub(crate) use weighted_table::fill_geometric_projection;
 #[cfg(test)]
 pub(crate) use weighted_table::weighted_identity_projection;
 pub use window_eval::{
-    eval_real_v1_2_openings_from_rows, evaluate_terminal_rows, first_unsatisfied_row_from_rows, TerminalEvaluations,
+    eval_real_v1_2_openings_from_rows, eval_real_v1_2_openings_from_rows_reusing, evaluate_terminal_rows,
+    first_unsatisfied_row_from_rows, TerminalEvaluations,
 };
-pub(crate) use window_eval::{
-    eval_real_v1_2_openings_from_rows_reusing, fill_weighted_rows_from_source, geometric_weighted_rows_from_source,
-};
+pub(crate) use window_eval::{fill_weighted_rows_from_source, geometric_weighted_rows_from_source};
 
 pub fn weighted_projection_basis_forms(weights: &[K; D]) -> ([Rq; D], [Rq; D]) {
     weighted_projection_basis_forms_from_k(weights)
@@ -576,7 +581,7 @@ enum RealBlockStorage {
         len: usize,
     },
     Dense {
-        blocks: Vec<Rq>,
+        blocks: DenseBlocks,
         nonzero: Vec<bool>,
     },
     SignedUnit {
@@ -646,7 +651,7 @@ impl SuperneoZBlocks {
         }
         Self {
             re: RealBlockStorage::Dense {
-                blocks: re,
+                blocks: DenseBlocks::Wide(re),
                 nonzero: re_nonzero,
             },
             im,
@@ -714,7 +719,7 @@ impl SuperneoZBlocks {
         };
         Self {
             re: RealBlockStorage::Dense {
-                blocks: re,
+                blocks: DenseBlocks::Wide(re),
                 nonzero: re_nonzero,
             },
             im,
@@ -775,20 +780,41 @@ impl SuperneoZBlocks {
         }
         let re = if signed_unit {
             RealBlockStorage::SignedUnit { positive, negative }
-        } else {
-            let mut dense = Vec::with_capacity(blocks);
-            let mut nonzero = Vec::with_capacity(blocks);
-            for blk in 0..blocks {
-                let mut zr = [F::ZERO; D];
-                let mut block_nonzero = false;
-                for (i, cell) in zr.iter_mut().enumerate() {
-                    *cell = as_base_field(z[(i, blk)]);
-                    block_nonzero |= *cell != F::ZERO;
-                }
-                dense.push(Rq(zr));
-                nonzero.push(block_nonzero);
+        } else if let Some(value) = z.virtual_constant_value() {
+            let value = as_base_field(*value);
+            RealBlockStorage::Dense {
+                blocks: DenseBlocks::Wide(vec![Rq([value; D]); blocks]),
+                nonzero: vec![value != F::ZERO; blocks],
             }
-            RealBlockStorage::Dense { blocks: dense, nonzero }
+        } else if let Some((blocks, nonzero)) = DenseBlocks::try_centered(z.as_slice(), blocks) {
+            RealBlockStorage::Dense { blocks, nonzero }
+        } else {
+            let input = z.as_slice();
+            let column = |index: usize| {
+                let coefficients = std::array::from_fn(|lane| as_base_field(input[lane * blocks + index]));
+                let nonzero = coefficients.iter().any(|&value| value != F::ZERO);
+                (Rq(coefficients), nonzero)
+            };
+            let collect_serial = || (0..blocks).map(column).unzip();
+            #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+            let (dense, nonzero) = if blocks >= 2048 {
+                let mut dense = Vec::new();
+                let mut nonzero = Vec::new();
+                (0..blocks)
+                    .into_par_iter()
+                    .with_min_len(512)
+                    .map(column)
+                    .unzip_into_vecs(&mut dense, &mut nonzero);
+                (dense, nonzero)
+            } else {
+                collect_serial()
+            };
+            #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+            let (dense, nonzero) = collect_serial();
+            RealBlockStorage::Dense {
+                blocks: DenseBlocks::Wide(dense),
+                nonzero,
+            }
         };
         Ok(Self {
             re,
@@ -822,7 +848,7 @@ impl SuperneoZBlocks {
         }
         Self {
             re: RealBlockStorage::Dense {
-                blocks: re,
+                blocks: DenseBlocks::Wide(re),
                 nonzero: re_nonzero,
             },
             im: Vec::new(),
@@ -900,7 +926,7 @@ impl SuperneoZBlocks {
     fn real_coefficient(&self, block: usize, local: usize) -> F {
         match &self.re {
             RealBlockStorage::Zero { .. } => F::ZERO,
-            RealBlockStorage::Dense { blocks, .. } => blocks[block].0[local],
+            RealBlockStorage::Dense { blocks, .. } => blocks.coefficient(block, local),
             RealBlockStorage::SignedUnit { positive, negative } => {
                 let bit = 1u64 << local;
                 if positive[block] & bit != 0 {
@@ -918,7 +944,7 @@ impl SuperneoZBlocks {
     fn real_dot(&self, form: &Rq, block: usize) -> F {
         match &self.re {
             RealBlockStorage::Zero { .. } => F::ZERO,
-            RealBlockStorage::Dense { blocks, .. } => coeff_dot(form, &blocks[block]),
+            RealBlockStorage::Dense { blocks, .. } => coeff_dot(form, &blocks.ring(block)),
             RealBlockStorage::SignedUnit { positive, negative } => {
                 signed_unit_dot(form, positive[block], negative[block])
             }
@@ -929,7 +955,7 @@ impl SuperneoZBlocks {
     fn real_mul(&self, form: &Rq, block: usize) -> Rq {
         match &self.re {
             RealBlockStorage::Zero { .. } => Rq::zero(),
-            RealBlockStorage::Dense { blocks, .. } => mul_by_digit_block(form, &blocks[block]),
+            RealBlockStorage::Dense { blocks, .. } => mul_by_digit_block(form, &blocks.ring(block)),
             RealBlockStorage::SignedUnit { positive, negative } => {
                 mul_by_signed_unit_masks(form, positive[block], negative[block])
             }
@@ -940,7 +966,7 @@ impl SuperneoZBlocks {
     fn accumulate_real(&self, out: &mut [F; D], form: &Rq, block: usize) {
         match &self.re {
             RealBlockStorage::Zero { .. } => {}
-            RealBlockStorage::Dense { blocks, .. } => accumulate_by_digit_block(out, form, &blocks[block]),
+            RealBlockStorage::Dense { blocks, .. } => accumulate_by_digit_block(out, form, &blocks.ring(block)),
             RealBlockStorage::SignedUnit { positive, negative } => {
                 accumulate_by_signed_unit_masks(out, form, positive[block], negative[block]);
             }
@@ -952,7 +978,7 @@ impl SuperneoZBlocks {
         match &self.re {
             RealBlockStorage::Zero { .. } => {}
             RealBlockStorage::Dense { blocks, .. } => {
-                accumulate_pair_by_digit_block(out_re, out_im, re_form, im_form, &blocks[block]);
+                accumulate_pair_by_digit_block(out_re, out_im, re_form, im_form, &blocks.ring(block));
             }
             RealBlockStorage::SignedUnit { positive, negative } => {
                 accumulate_pair_by_signed_unit_masks(

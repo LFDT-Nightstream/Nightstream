@@ -266,17 +266,6 @@ fn block_rows_compute_the_native_permutation() {
         }
     }
     assert!(with_form > 0, "some port reads an output form");
-    for constant in [Fq::ONE, Fq::TWO] {
-        assignment[0] = constant;
-        assert_eq!(
-            expanded
-                .relation_columns(assignment.clone())
-                .expect("expanded columns"),
-            light
-                .relation_columns(assignment.clone(), rows)
-                .expect("row columns")
-        );
-    }
 }
 
 #[test]
@@ -306,13 +295,13 @@ fn fresh_columns_satisfy_the_rows_that_define_them() {
         let columns = package
             .circuit_columns(&shared_columns(summary))
             .expect("circuit columns");
-        let expected = package
-            .relation_columns(columns.clone(), rows)
+        let columns = package
+            .relation_columns(columns, rows)
             .expect("relation columns");
-        let columns = expanded
-            .relation_columns(columns)
-            .expect("expanded relation columns");
-        assert_eq!(columns, expected);
+        let direct = expanded
+            .assignment_columns(&shared_columns(summary), None)
+            .unwrap();
+        assert_eq!(columns, direct, "all fresh columns of circuit {}", package.circuit());
         let defining = rows.ring_rows().iter().cloned().chain([rows.sbox_rows()]);
         for row in defining.flatten() {
             assert_eq!(

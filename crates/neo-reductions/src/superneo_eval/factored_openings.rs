@@ -73,6 +73,8 @@ impl<'a> OpeningBands<'a> {
     ) -> Option<Self> {
         let columns = rows.shape().columns;
         let band_count = columns.div_ceil(BAND_COLUMNS);
+        let runs = rows.existing_slot_runs();
+        let workspace_bytes = workspace_bytes.checked_sub(runs.map_or(0, |r| r.storage_bytes()))?;
         let common = storage_capacity
             .max(rows.slot_count())
             .checked_mul(size_of::<K>())?
@@ -89,23 +91,39 @@ impl<'a> OpeningBands<'a> {
             .transpose_working_bytes()
             .is_some_and(|bytes| bytes <= workspace_bytes - common);
         let layout = rows.slots();
-        let mut slots = vec![rows.slot_count()..rows.slot_count(); band_count];
-        let mut previous_end = 0;
-        for (slot, (&start, &width)) in layout.starts.iter().zip(layout.widths).enumerate() {
-            if width == 0 {
-                continue;
-            }
-            let start = start as usize;
-            let end = start + usize::from(width);
-            if start < previous_end || end > columns {
+        let slots = if let Some(runs) = runs {
+            if runs.last_column() > columns {
                 return None;
             }
-            for band in &mut slots[start / BAND_COLUMNS..=(end - 1) / BAND_COLUMNS] {
-                band.start = band.start.min(slot);
-                band.end = slot + 1;
+            (0..band_count)
+                .map(|band| {
+                    runs.slots_in(
+                        band * BAND_COLUMNS,
+                        ((band + 1) * BAND_COLUMNS).min(columns),
+                        rows.slot_count(),
+                    )
+                })
+                .collect()
+        } else {
+            let mut slots = vec![rows.slot_count()..rows.slot_count(); band_count];
+            let mut previous_end = 0;
+            for (slot, (&start, &width)) in layout.starts.iter().zip(layout.widths).enumerate() {
+                if width == 0 {
+                    continue;
+                }
+                let start = start as usize;
+                let end = start + usize::from(width);
+                if start < previous_end || end > columns {
+                    return None;
+                }
+                for band in &mut slots[start / BAND_COLUMNS..=(end - 1) / BAND_COLUMNS] {
+                    band.start = band.start.min(slot);
+                    band.end = slot + 1;
+                }
+                previous_end = end;
             }
-            previous_end = end;
-        }
+            slots
+        };
         Some(Self {
             rows,
             slots,
@@ -116,6 +134,66 @@ impl<'a> OpeningBands<'a> {
         })
     }
 
+    fn evaluate_device(
+        &self,
+        device: &dyn super::TerminalOpeningDevice,
+        budget: usize,
+        columns: &[Columns],
+        weights: &[K],
+        witnesses: &[&SuperneoZBlocks],
+        active: &[usize],
+        result: &mut [V1_2Evaluations<K>],
+        storage: &mut Vec<K>,
+    ) -> Option<()> {
+        let blocks = self.rows.shape().columns / D;
+        if !device.supports(blocks, witnesses.len()) {
+            return None;
+        }
+        let inputs = witnesses
+            .iter()
+            .map(|w| super::OpeningWitness::from_blocks(w, blocks))
+            .collect::<Option<Vec<_>>>()?;
+        drop(std::mem::take(storage));
+        let fixed = self
+            .rows
+            .existing_slot_runs()
+            .map_or(0, |runs| runs.storage_bytes())
+            .checked_add(size_of_val(weights))?
+            .checked_add(
+                self.slots
+                    .capacity()
+                    .checked_mul(size_of::<Range<usize>>())?,
+            )?
+            .checked_add(
+                columns
+                    .len()
+                    .checked_mul(inputs.len())?
+                    .checked_mul(size_of::<[K; D]>())?,
+            )?;
+        let remaining = || {
+            columns
+                .iter()
+                .try_fold(budget.checked_sub(fixed)?, |bytes, c| {
+                    bytes.checked_sub(c.storage_bytes() + size_of::<Columns>())
+                })
+        };
+        let mut matrices = Vec::with_capacity(columns.len());
+        for column in columns {
+            matrices.push(column.device_matrix(self.rows.slots(), blocks, weights.len(), remaining()?)?);
+        }
+        let mut completed = vec![[K::ZERO; D]; matrices.len().checked_mul(inputs.len())?];
+        let budget = remaining()?.checked_sub(size_of_val(&*matrices))?;
+        if !device.evaluate(&matrices, weights, &inputs, budget, &mut completed) {
+            return None;
+        }
+        for (matrix, rings) in completed.chunks_exact(inputs.len()).enumerate() {
+            for (&index, ring) in active.iter().zip(rings) {
+                result[index].eval_a[matrix].copy_from_slice(ring);
+            }
+        }
+        Some(())
+    }
+
     pub(super) fn evaluate(
         self,
         weights: &EqualityWeights,
@@ -123,6 +201,7 @@ impl<'a> OpeningBands<'a> {
         active: &[usize],
         result: &mut [V1_2Evaluations<K>],
         mut storage: Vec<K>,
+        device: Option<(&dyn super::TerminalOpeningDevice, usize)>,
     ) {
         let layout = self.rows.slots();
         let columns = self
@@ -140,6 +219,23 @@ impl<'a> OpeningBands<'a> {
             super::factored::fill(&mut rows, |row| weights.at(row));
             rows
         });
+        if let (Some((device, budget)), Some(columns), Some(weights)) = (device, columns, row_weights.as_deref()) {
+            if self
+                .evaluate_device(
+                    device,
+                    budget,
+                    columns,
+                    weights,
+                    witnesses,
+                    active,
+                    result,
+                    &mut storage,
+                )
+                .is_some()
+            {
+                return;
+            }
+        }
         let difference = OpeningDifference::new(layout.ratio);
         #[cfg(test)]
         let fuse = !self.separate_matrices;
@@ -329,9 +425,14 @@ impl<'a> OpeningBands<'a> {
                 if cursors.iter().all(|(span, _)| span.is_none()) {
                     break;
                 }
-                let forms = cursors
-                    .each_mut()
-                    .map(|(span, spans)| events_for_block(base, span, spans, difference));
+                let mut forms = std::array::from_fn(|_| OpeningEvents {
+                    real: Rq::zero(),
+                    imaginary: Rq::zero(),
+                    mask: 0,
+                });
+                for ((span, spans), form) in cursors.iter_mut().zip(&mut forms) {
+                    events_for_block(base, span, spans, difference, form);
+                }
                 TaskSums::add_opening_blocks(&mut sums, witnesses, base / D, &forms);
             }
             sums.map(TaskSums::finish)
@@ -359,12 +460,8 @@ fn events_for_block(
     span: &mut Option<(usize, usize, K)>,
     spans: &mut impl Iterator<Item = (usize, usize, K)>,
     difference: &OpeningDifference,
-) -> OpeningEvents {
-    let mut result = OpeningEvents {
-        real: Rq::zero(),
-        imaginary: Rq::zero(),
-        mask: 0,
-    };
+    result: &mut OpeningEvents,
+) {
     let end = base + D;
     while let Some((column, span_end, value)) = span.as_mut().filter(|(column, _, _)| *column < end) {
         let start = *column - base;
@@ -386,7 +483,6 @@ fn events_for_block(
         }
         *span = spans.next();
     }
-    result
 }
 
 #[cfg(test)]

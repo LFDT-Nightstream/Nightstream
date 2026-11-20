@@ -33,8 +33,8 @@ variable {logicalWidth : Nat}
 /-- The verifier of SPEC.md Algorithm 6 accepts, and no `iteration` valid steps of the
 application lead from `z0` to `zi`. -/
 def FalseVerification (packageWidths : Fin 2 → Nat) (control : AppState → AppWitness → Fin 2)
-    (cap : Nat) (output : Output logicalWidth publicFits) : Prop :=
-  Verifies ajtai circuitKeys step packageWidths cap control output.1 output.2 ∧
+    (output : Output logicalWidth publicFits) : Prop :=
+  Verifies ajtai circuitKeys step packageWidths control output.1 output.2 ∧
     ¬ Reaches exports.program output.1
 
 variable {Admitted : NifsAdversary (WalkAttempt logicalWidth publicFits) → Prop}
@@ -52,20 +52,20 @@ variable {Admitted : NifsAdversary (WalkAttempt logicalWidth publicFits) → Pro
 `iteration` valid steps lead from `z0` to `zi` is at most `walkBound`, the bound of
 `probability_bound`. -/
 theorem soundness (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (packageWidths : Fin 2 → Nat) (control : AppState → AppWitness → Fin 2) (cap depth : Nat)
+    (packageWidths : Fin 2 → Nat) (control : AppState → AppWitness → Fin 2) (depth : Nat)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
     (adversary.tape.toOuterMeasure
-        {tape | FalseVerification ajtai circuitKeys exports packageWidths control cap
+        {tape | FalseVerification ajtai circuitKeys exports packageWidths control
           (adversary.output tape)}).toReal ≤
       walkBound ajtai circuitKeys exports assumption closed adversary admitted depth :=
   le_trans
     (ENNReal.toReal_mono (event_ne_top _ _)
       (MeasureTheory.OuterMeasure.mono _ fun tape
-          (accepted : FalseVerification ajtai circuitKeys exports packageWidths control cap
+          (accepted : FalseVerification ajtai circuitKeys exports packageWidths control
             (adversary.output tape)) =>
         (⟨holds_of_verifies accepted.1, accepted.2⟩ :
-          FalseAcceptance ajtai circuitKeys exports control cap (adversary.output tape))))
+          FalseAcceptance ajtai circuitKeys exports control (adversary.output tape))))
     (probability_bound ajtai circuitKeys exports assumption closed adversary admitted keysShaped
-      control cap depth depthBound)
+      control depth depthBound)
 
 end NightstreamFPrime.Export.BoundedDepth.VerifierSecurity

@@ -6,7 +6,10 @@ use neo_math::{KExtensions, F, K};
 use p3_field::PrimeCharacteristicRing;
 
 #[derive(Default)]
-pub struct OpeningColumns(std::sync::OnceLock<Option<Vec<Columns>>>);
+pub struct OpeningColumns {
+    columns: std::sync::OnceLock<Option<Vec<Columns>>>,
+    pub(super) runs: std::sync::OnceLock<Option<super::SlotRuns>>,
+}
 
 const MAX_FACTORS: usize = u16::MAX as usize + 1;
 const EMPTY: u32 = u32::MAX;
@@ -19,13 +22,13 @@ impl OpeningColumns {
         entries: FactoredEntries<'_>,
         available: usize,
     ) -> Option<&[Columns]> {
-        let columns = if let Some(kept) = self.0.get() {
+        let columns = if let Some(kept) = self.columns.get() {
             kept
         } else {
             if construction_bytes(shape, slots, entries.slots.len())? > available {
                 return None;
             }
-            self.0.get_or_init(|| {
+            self.columns.get_or_init(|| {
                 let mut columns = Vec::with_capacity(shape.matrices);
                 for matrix in 0..shape.matrices {
                     columns.push(Columns::new(matrix, shape, slots, entries)?);
@@ -69,9 +72,11 @@ fn construction_bytes(shape: MatrixShape, slots: usize, entries: usize) -> Optio
 }
 
 pub(super) struct Columns {
+    row_count: usize,
+    tiles: std::sync::OnceLock<Option<Box<super::OpeningTiles>>>,
     pub(super) slots: Vec<u32>,
     offsets: Vec<u32>,
-    rows: Vec<u32>,
+    rows: PackedRows,
     tags: Vec<u16>,
     factors: Vec<F>,
 }
@@ -104,14 +109,14 @@ impl Columns {
                 offsets.push(total);
             }
         }
-        let mut rows = vec![0; total as usize];
+        let mut rows = PackedRows::new(shape.rows, total as usize)?;
         let mut tags = vec![0; total as usize];
         let mut ids = FactorIds::new(total as usize);
         for row in 0..shape.rows {
             let (slots, coefficients) = entries.port(row * shape.matrices + matrix);
             for (&slot, &coefficient) in slots.iter().zip(coefficients) {
                 let next = &mut counts[slot as usize];
-                rows[*next as usize] = row as u32;
+                rows.set(*next as usize, row as u32);
                 tags[*next as usize] = ids.tag(coefficient)?;
                 *next += 1;
             }
@@ -119,6 +124,8 @@ impl Columns {
         let mut factors = ids.factors;
         factors.shrink_to_fit();
         Some(Self {
+            tiles: Default::default(),
+            row_count: shape.rows,
             slots,
             offsets,
             rows,
@@ -127,8 +134,57 @@ impl Columns {
         })
     }
 
-    fn storage_bytes(&self) -> usize {
-        (self.slots.capacity() + self.offsets.capacity() + self.rows.capacity()) * size_of::<u32>()
+    pub(super) fn device_matrix<'a>(
+        &'a self,
+        layout: super::FactoredSlots<'a>,
+        blocks: usize,
+        row_count: usize,
+        available: usize,
+    ) -> Option<super::OpeningMatrix<'a>> {
+        if row_count != self.row_count
+            || layout.starts.len() != layout.widths.len()
+            || self
+                .slots
+                .last()
+                .is_some_and(|&s| s as usize >= layout.widths.len())
+        {
+            return None;
+        }
+        let tiles = if let Some(kept) = self.tiles.get() {
+            kept
+        } else {
+            let sizes = super::OpeningTiles::sizes(blocks, &self.offsets)?;
+            if sizes.0 > available {
+                return None;
+            }
+            self.tiles.get_or_init(|| {
+                super::OpeningTiles::prepare(layout, blocks, &self.slots, &self.offsets, sizes.1, sizes.2)
+            })
+        }
+        .as_deref()?;
+        if tiles.first.len() != blocks + 1 || tiles.powers[1] != layout.ratio {
+            return None;
+        }
+        Some(super::OpeningMatrix {
+            layout,
+            slots: &self.slots,
+            offsets: &self.offsets,
+            rows: &self.rows.bytes,
+            row_bytes: self.rows.stride,
+            row_count,
+            tags: &self.tags,
+            factors: &self.factors,
+            tiles,
+        })
+    }
+
+    pub(super) fn storage_bytes(&self) -> usize {
+        self.tiles
+            .get()
+            .and_then(Option::as_ref)
+            .map_or(0, |tiles| tiles.bytes())
+            + (self.slots.capacity() + self.offsets.capacity()) * size_of::<u32>()
+            + self.rows.bytes.capacity()
             + self.tags.capacity() * size_of::<u16>()
             + self.factors.capacity() * size_of::<F>()
     }
@@ -140,10 +196,10 @@ impl Columns {
 
     pub(super) fn weight(&self, row_weights: &[K], slot: usize) -> K {
         let range = self.offsets[slot] as usize..self.offsets[slot + 1] as usize;
-        self.rows[range.clone()]
-            .iter()
+        self.rows
+            .iter(range.clone())
             .zip(&self.tags[range])
-            .map(|(&row, &tag)| {
+            .map(|(row, &tag)| {
                 let w = row_weights[row as usize];
                 match tag {
                     0 => w,
@@ -159,8 +215,42 @@ impl Columns {
         if range.len() < 4 {
             return self.weight(row_weights, slot);
         }
-        let terms = self.rows[range.clone()].iter().zip(&self.tags[range]);
-        neo_math::sum_of_scaled(terms.map(|(&row, &tag)| (self.factors[tag as usize], row_weights[row as usize])))
+        let terms = self.rows.iter(range.clone()).zip(&self.tags[range]);
+        neo_math::sum_of_scaled(terms.map(|(row, &tag)| (self.factors[tag as usize], row_weights[row as usize])))
+    }
+}
+
+struct PackedRows {
+    bytes: Vec<u8>,
+    stride: usize,
+    mask: u32,
+}
+
+impl PackedRows {
+    fn new(rows: usize, n: usize) -> Option<Self> {
+        let max = u32::try_from(rows.saturating_sub(1)).ok()?;
+        let stride = (usize::try_from(u32::BITS - max.leading_zeros())
+            .ok()?
+            .div_ceil(8))
+        .max(1);
+        let mask = u32::MAX >> ((4 - stride) * 8);
+        let size = n.checked_mul(stride)?.checked_add(4 - stride)?;
+        Some(Self {
+            bytes: vec![0; size],
+            stride,
+            mask,
+        })
+    }
+    fn set(&mut self, index: usize, row: u32) {
+        self.bytes[index * self.stride..][..self.stride].copy_from_slice(&row.to_le_bytes()[..self.stride]);
+    }
+    fn iter(&self, range: std::ops::Range<usize>) -> impl Iterator<Item = u32> + '_ {
+        let mut data = &self.bytes[range.start * self.stride..range.end * self.stride + (4 - self.stride)];
+        std::iter::from_fn(move || {
+            let word = u32::from_le_bytes(*data.first_chunk::<4>()?) & self.mask;
+            data = &data[self.stride..];
+            Some(word)
+        })
     }
 }
 
@@ -206,3 +296,7 @@ impl FactorIds {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/opening_rows.rs"]
+mod tests;

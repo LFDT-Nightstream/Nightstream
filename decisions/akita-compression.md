@@ -28,6 +28,11 @@ refresh fold, such as each WASM size, has a final proof of two claims, and
 its key holds the light relation only
 ([`wasm-light-compression.md`](./wasm-light-compression.md)).
 
+Accepted by the owner on 2026-11-19. The node verifies openings with the
+pinned upstream Akita implementation. CPU and Metal provers use the
+optimized fork and emit the same proof bytes. The node selects the
+verification key and the schedule from its own pinned artifacts.
+
 Proposed: each other entry of this record. The owner did not select these
 entries, and they wait for the owner's review. They include the form of the
 key polynomial, the sum-check that reduces the key's part of the weights,
@@ -74,7 +79,7 @@ a refresh fold (`Export.BoundedDepth.FinalVerifier.Mode`).
 
 | Item | Value |
 |---|---|
-| Commitment scheme | Akita, git revision `c7189e08018008268c9c7be66bbb22e3c6ae0454`, crate version 0.1.0 |
+| Commitment scheme | Akita 0.1.0. The node uses upstream revision `d50f700fb1a292395a717cef0e6f437c7ce2cdb1`. The client proves with the optimized `akita-pcs` revision in `crates/ns-compress/Cargo.toml`. |
 | Akita configuration | `RecursiveCommitmentConfig<proof_optimized::fp64::Dense>`: base field `F_q`, extension `F_q[u]/(u² − 2)`, which is `K`, schedules that offload Akita's own setup |
 | Schedule files | `crates/ns-compress/artifacts/key20.aks`, SHA-256 `8ee08715b2120cfb576227f195fde041e5e1dd828511ca5e75d5df73d4c097b5`, and `crates/ns-compress/artifacts/key30.aks`, SHA-256 `b71861d25a4cb23b8eb68b20365bc5b76336224dcacdcada86242c9d9c084f94`, from Akita's planner at the pinned revision (`scripts/akita_schedules.sh`) |
 | Committed polynomials | The key polynomial: the Ajtai key, once, in preprocessing. `W`: each witness, then the counts of each table. `V`: the lookup inverses |
@@ -198,8 +203,8 @@ never reads the polynomial, and no Lean statement covers the key
 
 - The verifier reads no element of the Ajtai key. It is not succinct: its
   time is linear in the matrices of the circuits.
-- A change of the Akita revision, of the schedule files or of the seeds
-  changes the verification key, so the pinned bytes must change with it.
+- A change to either Akita revision must pass the compatibility tests with
+  the pinned verification key. A change to the key bytes needs a new pin.
 - The schedule files have rows only for a key polynomial of `2^9` blocks,
   for tests, and of `2^19` blocks. A circuit of another size needs new rows
   from `scripts/akita_schedules.sh`.

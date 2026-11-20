@@ -160,25 +160,13 @@ impl LogicalLayout {
                 let last = self
                     .slots
                     .partition_point(|&slot| (self.offsets[slot] as usize) < end);
-                let mut digits = [0i8; FIELD_DIGITS];
                 for &slot in &self.slots[first..last] {
                     let value = *columns
                         .get(slot)
                         .ok_or(PackageError::Input("bounded-depth source columns"))?;
                     let masks = match self.kinds[slot] {
                         Kind::Bit | Kind::Centered => unit_masks(value)?,
-                        Kind::Field => {
-                            balanced_ternary_digits(value.as_canonical_u64(), &mut digits);
-                            digits
-                                .iter()
-                                .enumerate()
-                                .fold((0, 0), |(plus, minus), (lane, &digit)| {
-                                    (
-                                        plus | (u64::from(digit == 1) << lane),
-                                        minus | (u64::from(digit == -1) << lane),
-                                    )
-                                })
-                        }
+                        Kind::Field => balanced_ternary_masks(value.as_canonical_u64()),
                     };
                     put(self.offsets[slot] as usize, masks);
                 }
@@ -218,6 +206,48 @@ impl LogicalLayout {
             }
         }
         total.as_canonical_u64()
+    }
+}
+
+const TRITS_PER_CHUNK: u32 = 6;
+const TERNARY_RADIX: usize = 3usize.pow(TRITS_PER_CHUNK);
+const TERNARY_MASKS: [[u8; 2]; TERNARY_RADIX] = {
+    let mut table = [[0; 2]; TERNARY_RADIX];
+    let mut index = 0;
+    while index < TERNARY_RADIX {
+        let mut value = index;
+        let mut trit = 0;
+        while trit < TRITS_PER_CHUNK {
+            let digit = value % 3;
+            if digit != 0 {
+                table[index][digit - 1] |= 1 << trit;
+            }
+            value = value / 3 + (digit == 2) as usize;
+            trit += 1;
+        }
+        index += 1;
+    }
+    table
+};
+
+fn balanced_ternary_masks(value: u64) -> (u64, u64) {
+    let negative = value > Fq::ORDER_U64 / 2;
+    let mut magnitude = if negative { Fq::ORDER_U64 - value } else { value };
+    let mut positive = 0;
+    let mut minus = 0;
+    let mut shift = 0;
+    while magnitude != 0 {
+        let chunk = (magnitude % TERNARY_RADIX as u64) as usize;
+        let [p, n] = TERNARY_MASKS[chunk];
+        positive |= u64::from(p) << shift;
+        minus |= u64::from(n) << shift;
+        magnitude = magnitude / TERNARY_RADIX as u64 + u64::from(chunk > TERNARY_RADIX / 2);
+        shift += TRITS_PER_CHUNK;
+    }
+    if negative {
+        (minus, positive)
+    } else {
+        (positive, minus)
     }
 }
 

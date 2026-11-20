@@ -15,6 +15,7 @@ workspace = true
 [features]
 default = []
 metal = [
+    "dep:block2",
     "dep:dispatch2",
     "dep:objc2",
     "dep:objc2-foundation",
@@ -35,9 +36,10 @@ neo-math = { path = "../neo-math" }
 p3-field = { workspace = true }
 
 [target.'cfg(target_vendor = "apple")'.dependencies]
+block2 = { version = "0.6", optional = true }
 dispatch2 = { version = "0.3", default-features = false, features = ["std", "block2", "objc2"], optional = true }
 objc2 = { version = "0.6.4", default-features = false, features = ["std"], optional = true }
-objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSError", "NSString"], optional = true }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSError", "NSString", "NSZone"], optional = true }
 objc2-metal = { version = "0.3.2", default-features = false, features = [
     "std",
     "block2",

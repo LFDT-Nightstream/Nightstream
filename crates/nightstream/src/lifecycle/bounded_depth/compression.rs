@@ -329,7 +329,11 @@ impl BoundedDepth {
             .map(|slot| (&slot.accumulator.claim, slot.depth))
             .collect();
         let statements = self.compression_statements(pc, &claims, &fresh);
-        let (argument, argument_times) = committed.prove(transcript.inner_mut(), &statements)?;
+        let (argument, argument_times) = committed.prove_with_backend(
+            transcript.inner_mut(),
+            &statements,
+            self.backend.engine() == crate::Engine::Metal,
+        )?;
         let proof = FinalProof {
             iteration,
             z0,

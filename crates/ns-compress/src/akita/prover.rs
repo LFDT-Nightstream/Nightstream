@@ -46,38 +46,38 @@ impl Prover {
     }
 
     pub(crate) fn commit(&self, shape: Shape, polynomial: Polynomial, prefix: Vec<Base>) -> Result<Committed, Error> {
-        self.commit_dense(shape, polynomial, |vars| DensePoly::from_field_prefix(vars, prefix))
-    }
-
-    pub(crate) fn commit_key_words(&self, shape: Shape, words: Arc<Vec<u64>>) -> Result<Committed, Error> {
-        self.commit_dense(shape, Polynomial::Key, |vars| {
-            DensePoly::from_shared_canonical_u64_prefix(vars, words.clone()).or_else(|_| {
-                DensePoly::from_field_prefix(vars, words.par_iter().copied().map(Base::from_u64).collect())
-            })
-        })
-    }
-
-    fn commit_dense(
-        &self,
-        shape: Shape,
-        polynomial: Polynomial,
-        build: impl FnOnce(usize) -> Result<DensePoly<Base>, AkitaError> + Send,
-    ) -> Result<Committed, Error> {
         let vars = match polynomial {
             Polynomial::Key => shape.key,
             Polynomial::Witness => shape.witness,
             Polynomial::Inverse => shape.inverse,
         };
         self.commit_source(shape, polynomial, |backend, profile| {
-            let mut poly = build(vars)?;
-            if polynomial == Polynomial::Key
-                && profile.inner.matrix.ring_dimension() == 2048
-                && profile.inner_digits() == akita_params::GadgetDigits::new(16, 4)
-            {
-                poly = poly.with_fixed_fold_ntt_2048(profile.blocks.positions_per_block)?;
-            }
-            backend.import_source(vec![poly])
+            let source = DensePoly::from_field_prefix(vars, prefix)?;
+            let source = if polynomial == Polynomial::Key {
+                prepare_key(source, profile)?
+            } else {
+                source
+            };
+            backend.import_source(vec![source])
         })
+    }
+
+    pub(crate) fn commit_key_words(
+        &self,
+        shape: Shape,
+        words: Arc<Vec<u64>>,
+    ) -> Result<(Committed, Option<DensePoly<Base>>), Error> {
+        let Ok(source) = DensePoly::from_shared_canonical_u64_prefix(shape.key, Arc::clone(&words)) else {
+            let prefix = words.par_iter().copied().map(Base::from_u64).collect();
+            return Ok((self.commit(shape, Polynomial::Key, prefix)?, None));
+        };
+        let mut retained = None;
+        let committed = self.commit_source(shape, Polynomial::Key, |backend, profile| {
+            let source = prepare_key(source, profile)?;
+            retained = Some(source.clone());
+            backend.import_source(vec![source])
+        })?;
+        Ok((committed, retained))
     }
 
     pub(crate) fn commit_signed_witness(
@@ -159,7 +159,12 @@ impl Prover {
     }
 
     /// `point[i]` binds bit `i` of the cell index.
-    pub(crate) fn open(&self, openings: [(Committed, &[K], K); 3], session: &[u8]) -> Result<Vec<u8>, Error> {
+    pub(crate) fn open(
+        &self,
+        openings: [(Committed, &[K], K); 3],
+        session: &[u8],
+        metal: bool,
+    ) -> Result<Vec<u8>, Error> {
         let mut handles = Vec::with_capacity(openings.len());
         let mut groups = Vec::with_capacity(openings.len());
         for (committed, point, value) in openings {
@@ -172,10 +177,21 @@ impl Prover {
         let opening =
             SelectedProverOpeningData::from_committed_claims::<Config>(claims, handles, self.scheme.schedules())
                 .map_err(failed)?;
+        let device = metal.then(|| self.backend.with_metal_kernels());
+        let backend = device.as_ref().unwrap_or(&self.backend);
         on_large_stacks(|| {
             self.scheme
-                .batched_prove(&self.setup, opening, &self.backend, session, BasisMode::Lagrange)
+                .batched_prove(&self.setup, opening, backend, session, BasisMode::Lagrange)
                 .map_err(failed)
         })
+    }
+}
+
+fn prepare_key(source: DensePoly<Base>, profile: &GroupCommitPhaseParams) -> Result<DensePoly<Base>, AkitaError> {
+    if profile.inner.matrix.ring_dimension() == 2048 && profile.inner_digits() == akita_params::GadgetDigits::new(16, 4)
+    {
+        source.with_fixed_fold_ntt_2048(profile.blocks.positions_per_block)
+    } else {
+        Ok(source)
     }
 }

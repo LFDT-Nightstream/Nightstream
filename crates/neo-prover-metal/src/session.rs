@@ -16,6 +16,7 @@ mod joint;
 mod masks;
 mod production_commitment;
 mod rlc;
+mod shared_key;
 pub(crate) use joint::MetalPaperJointOracle;
 pub(crate) use masks::MetalWitnessMasks;
 
@@ -58,6 +59,7 @@ pub struct MetalSession {
     queue: Queue,
     production_key_row: Pipeline,
     production_ajtai_accumulate: Pipeline,
+    production_ajtai_matrix: Option<Pipeline>,
     production_ajtai_sum_groups: Pipeline,
     tensor_point_expand_k: Pipeline,
     joint_build_application_tables: Pipeline,
@@ -77,6 +79,7 @@ pub struct MetalSession {
     dec_geometric_span_weights: Pipeline,
     dec_add_geometric_span_forms: Pipeline,
     dec_bar_ring_forms_in_place: Pipeline,
+    rlc_light_deltas: Pipeline,
     rlc_witness_mix_signed_masks: Pipeline,
     dec_split_base2_masks: Pipeline,
     dec_sparse_ring_partials: Pipeline,
@@ -109,6 +112,9 @@ impl MetalSession {
             .newLibraryWithData_error(&data)
             .map_err(|error| MetalError::Library(format!("{error:?}")))?;
         let production_key_row = pipeline(&device, &library, "production_key_row")?;
+        let production_ajtai_matrix = pipeline(&device, &library, "production_ajtai_matrix")
+            .ok()
+            .filter(|p| p.threadExecutionWidth() == 32 && p.maxTotalThreadsPerThreadgroup() >= 256);
         let production_ajtai_accumulate = pipeline(&device, &library, "production_ajtai_accumulate")?;
         let production_ajtai_sum_groups = pipeline(&device, &library, "production_ajtai_sum_groups")?;
         let tensor_point_expand_k = pipeline(&device, &library, "tensor_point_expand_k")?;
@@ -131,6 +137,7 @@ impl MetalSession {
         let dec_geometric_span_weights = pipeline(&device, &library, "dec_geometric_span_weights")?;
         let dec_add_geometric_span_forms = pipeline(&device, &library, "dec_add_geometric_span_forms")?;
         let dec_bar_ring_forms_in_place = pipeline(&device, &library, "dec_bar_ring_forms_in_place")?;
+        let rlc_light_deltas = pipeline(&device, &library, "rlc_light_deltas")?;
         let rlc_witness_mix_signed_masks = pipeline(&device, &library, "rlc_witness_mix_signed_masks")?;
         let dec_split_base2_masks = pipeline(&device, &library, "dec_split_base2_masks")?;
         let dec_sparse_ring_partials = pipeline(&device, &library, "dec_sparse_ring_partials")?;
@@ -145,6 +152,7 @@ impl MetalSession {
             queue,
             production_key_row,
             production_ajtai_accumulate,
+            production_ajtai_matrix,
             production_ajtai_sum_groups,
             tensor_point_expand_k,
             joint_build_application_tables,
@@ -164,6 +172,7 @@ impl MetalSession {
             dec_geometric_span_weights,
             dec_add_geometric_span_forms,
             dec_bar_ring_forms_in_place,
+            rlc_light_deltas,
             rlc_witness_mix_signed_masks,
             dec_split_base2_masks,
             dec_sparse_ring_partials,
@@ -184,8 +193,8 @@ impl MetalSession {
         self.production_key = Some(Mutex::default());
     }
 
-    fn buffer(&self, bytes: usize) -> Result<Buffer, MetalError> {
-        let _allocation = BUFFER_ALLOCATION
+    fn reserve_buffer(&self, bytes: usize) -> Result<std::sync::MutexGuard<'static, ()>, MetalError> {
+        let allocation = BUFFER_ALLOCATION
             .lock()
             .map_err(|_| MetalError::Execution("buffer allocation lock was poisoned".into()))?;
         let allocated = self.device.currentAllocatedSize();
@@ -199,6 +208,11 @@ impl MetalSession {
                 limit: BUFFER_LIMIT_BYTES,
             });
         }
+        Ok(allocation)
+    }
+
+    fn buffer(&self, bytes: usize) -> Result<Buffer, MetalError> {
+        let _allocation = self.reserve_buffer(bytes)?;
         // Shared storage is required for explicit CPU boundaries on Apple unified memory.
         let buffer = self
             .device
@@ -417,6 +431,8 @@ unsafe trait Pod: Copy + Send + Sync {}
 unsafe impl Pod for u8 {}
 // SAFETY: an integer has no padding, and every bit pattern is a value.
 unsafe impl Pod for u16 {}
+// SAFETY: every 16-bit pattern is a valid i16.
+unsafe impl Pod for i16 {}
 // SAFETY: an integer has no padding, and every bit pattern is a value.
 unsafe impl Pod for u32 {}
 // SAFETY: an integer has no padding, and every bit pattern is a value.

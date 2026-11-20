@@ -45,3 +45,48 @@ fn packed_assignment_has_the_same_digits_across_blocks_and_tasks() {
     columns[0] = Fq::TWO;
     assert!(layout.signed_assignment(&columns).is_err());
 }
+
+#[test]
+fn ternary_masks_match_individual_digits_at_carries_and_centered_limits() {
+    let check = |value: u64| {
+        let mut digits = [0i8; FIELD_DIGITS];
+        balanced_ternary_digits(value, &mut digits);
+        let mut expected = (0u64, 0u64);
+        for (lane, digit) in digits.into_iter().enumerate() {
+            match digit {
+                1 => expected.0 |= 1 << lane,
+                -1 => expected.1 |= 1 << lane,
+                0 => {}
+                _ => unreachable!(),
+            }
+        }
+        assert_eq!(balanced_ternary_masks(value), expected, "canonical field word {value}");
+    };
+    let both_signs = |magnitude| {
+        check(magnitude);
+        if magnitude != 0 {
+            check(Fq::ORDER_U64 - magnitude);
+        }
+    };
+    for residue in 0..TERNARY_RADIX as u64 {
+        both_signs(residue);
+    }
+    let mut power = TERNARY_RADIX as u64;
+    while power <= Fq::ORDER_U64 / 2 {
+        for magnitude in [power / 2, power / 2 + 1, power - 1, power, power + 1] {
+            both_signs(magnitude);
+        }
+        let Some(next) = power.checked_mul(TERNARY_RADIX as u64) else {
+            break;
+        };
+        power = next;
+    }
+    for value in [
+        Fq::ORDER_U64 / 2 - 1,
+        Fq::ORDER_U64 / 2,
+        Fq::ORDER_U64 / 2 + 1,
+        Fq::ORDER_U64 - 1,
+    ] {
+        check(value);
+    }
+}

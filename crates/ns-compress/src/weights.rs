@@ -11,7 +11,6 @@ use neo_reductions::PiCcsError;
 use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
-use crate::key::ProverKey;
 use crate::layout::{Layout, LANE_VARS, LOOKUPS};
 use crate::lookup::Inverses;
 use crate::ring::{conjugate, dot, Point};
@@ -275,7 +274,7 @@ pub(crate) fn table(
     statements: &[Statement<'_>],
     layout: &Layout,
     challenges: &Challenges,
-    key: &ProverKey,
+    fold_key: impl FnOnce() -> Vec<K> + Send,
     omit_zero_prefix: bool,
 ) -> Result<(Vec<K>, Vec<K>), Error> {
     let point = Point::new(challenges.delta);
@@ -300,7 +299,7 @@ pub(crate) fn table(
     };
     let ((prepared, mut table), folded) = rayon::join(
         || rayon::join(prepare, || vec![K::ZERO; layout.witness_len - prefix]),
-        || key.fold(challenges.omega),
+        fold_key,
     );
     let mut prepared = prepared?.into_iter();
     let mut tables = 0;

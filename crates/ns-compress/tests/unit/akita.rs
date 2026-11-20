@@ -100,6 +100,7 @@ impl Polynomials {
                 (inverse, &self.points[2], values[2]),
             ],
             SESSION,
+            false,
         )?;
         Ok((commitments, prover.setup_prefixes()?, proof))
     }

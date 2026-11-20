@@ -2,21 +2,21 @@ use std::{borrow::Borrow, sync::MutexGuard};
 
 use neo_ajtai::{
     nightstream_fprime_setup::{
-        element_input, signed_unit_prefix_blocks, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS, SETUP_ID,
+        element_input, signed_unit_prefix_blocks, ExpandedKey, PRODUCTION_SEED, PRODUCTION_VERIFIER_ROWS, SETUP_ID,
     },
     Commitment,
 };
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use objc2_foundation::NSString;
-use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputePipelineState};
+use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputePipelineState, MTLDispatchType};
 use p3_field::PrimeCharacteristicRing;
 
 use super::{Arg, Buffer, Grid, MetalSession};
 use crate::MetalError;
 
 const COLUMNS_PER_GROUP: usize = 512;
-const _: () = assert!(COLUMNS_PER_GROUP * D <= 1 << 32);
+const _: () = assert!(COLUMNS_PER_GROUP * D * (u8::MAX as usize) < 1 << 24);
 const _: () = assert!(SETUP_ID.len() + PRODUCTION_SEED.len() == 70);
 
 #[derive(Default)]
@@ -52,6 +52,12 @@ impl MetalSession {
             return Ok(());
         }
         *key = ResidentKeyRows::default();
+        if let Some(shared) = ExpandedKey::shared().filter(|shared| shared.blocks() >= columns as u64) {
+            if let Some(rows) = self.shared_key_rows(&shared, columns)? {
+                *key = ResidentKeyRows { columns, rows };
+                return Ok(());
+            }
+        }
         let row_words = columns
             .checked_mul(D)
             .ok_or(MetalError::Shape("resident production key row overflows"))?;
@@ -139,7 +145,11 @@ impl MetalSession {
         drop((masks, columns));
 
         let key_row = &self.production_key_row;
-        let accumulate = &self.production_ajtai_accumulate;
+        let matrix = self
+            .production_ajtai_matrix
+            .as_ref()
+            .filter(|_| active.len() == 1);
+        let accumulate = matrix.unwrap_or(&self.production_ajtai_accumulate);
         let witnesses_per_group = active
             .len()
             .min(accumulate.maxTotalThreadsPerThreadgroup() / D);
@@ -148,7 +158,15 @@ impl MetalSession {
                 "device cannot hold one production commitment witness",
             ));
         }
-        let groups = count.div_ceil(COLUMNS_PER_GROUP);
+        let span = if matrix.is_some() {
+            count
+                .div_ceil(512)
+                .next_power_of_two()
+                .clamp(16, COLUMNS_PER_GROUP)
+        } else {
+            COLUMNS_PER_GROUP
+        };
+        let groups = count.div_ceil(span);
         let witness_blocks = active.len().div_ceil(witnesses_per_group);
         let slab_words = count
             .checked_mul(D)
@@ -176,7 +194,6 @@ impl MetalSession {
                 self.buffer_from_slice(&(0..count as u32).collect::<Vec<_>>())?,
             ),
         };
-        let partials = self.buffer(partial_words * size_of::<u64>())?;
         let sums = self.buffer(output_words * size_of::<u64>())?;
         let shape_words: Vec<u64> = (0..PRODUCTION_VERIFIER_ROWS)
             .flat_map(|row| {
@@ -184,7 +201,7 @@ impl MetalSession {
                     count as u64,
                     active.len() as u64,
                     groups as u64,
-                    COLUMNS_PER_GROUP as u64,
+                    span as u64,
                     row,
                     witnesses_per_group as u64,
                 ]
@@ -192,8 +209,32 @@ impl MetalSession {
             .collect();
         let shapes = self.buffer_from_slice(&shape_words)?;
 
+        let row_bytes = partial_words
+            .checked_mul(size_of::<u64>())
+            .ok_or(MetalError::Shape("production commitment partial bytes overflow"))?;
+        let parallel = if matrix.is_some() && matches!(&keys, KeyRows::Kept(_)) {
+            row_bytes
+                .checked_mul(rows)
+                .and_then(|bytes| self.buffer(bytes).ok())
+        } else {
+            None
+        };
+        let (partial_rows, partials) = match parallel {
+            Some(partials) => (rows, partials),
+            None => (1, self.buffer(row_bytes)?),
+        };
         let command = self.command_buffer("nightstream.production_commitment")?;
+        let parallel_encoder = if partial_rows > 1 {
+            Some(
+                command
+                    .computeCommandEncoderWithDispatchType(MTLDispatchType::Concurrent)
+                    .ok_or(MetalError::Encoder)?,
+            )
+        } else {
+            None
+        };
         for row in 0..rows {
+            let partial_row = row % partial_rows;
             let shape_offset = row * 6 * size_of::<u64>();
             let key = match &keys {
                 KeyRows::Kept(kept) => &kept.rows[row],
@@ -216,7 +257,10 @@ impl MetalSession {
                 }
             };
 
-            let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
+            let encoder = match &parallel_encoder {
+                Some(encoder) => encoder.clone(),
+                None => command.computeCommandEncoder().ok_or(MetalError::Encoder)?,
+            };
             encoder.setLabel(Some(&NSString::from_str("production_ajtai_accumulate")));
             self.launch(
                 &encoder,
@@ -225,14 +269,17 @@ impl MetalSession {
                     Arg::Buffer(0, key),
                     Arg::Buffer(1, &device_masks),
                     Arg::BufferAt(2, &shapes, shape_offset),
-                    Arg::Buffer(3, &partials),
+                    Arg::BufferAt(3, &partials, partial_row * row_bytes),
                     Arg::Buffer(4, &key_columns),
                 ],
                 Grid::Groups {
                     groups: groups * witness_blocks,
-                    threads: D * witnesses_per_group,
+                    threads: if matrix.is_some() { 256 } else { D * witnesses_per_group },
                 },
             );
+            if partial_row + 1 < partial_rows {
+                continue;
+            }
             encoder.endEncoding();
 
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
@@ -243,9 +290,9 @@ impl MetalSession {
                 &[
                     Arg::Buffer(0, &partials),
                     Arg::BufferAt(1, &shapes, shape_offset),
-                    Arg::BufferAt(2, &sums, row * active.len() * D * size_of::<u64>()),
+                    Arg::BufferAt(2, &sums, (row - partial_row) * active.len() * D * size_of::<u64>()),
                 ],
-                Grid::Threads(active.len() * D),
+                Grid::Threads(partial_rows * active.len() * D),
             );
             encoder.endEncoding();
         }

@@ -87,7 +87,10 @@ impl Backend {
         }
     }
 
-    pub(crate) fn oracle(&self) -> Result<Oracle<'_>, EngineError> {
+    pub(crate) fn oracle(&self, packed: bool) -> Result<Oracle<'_>, EngineError> {
+        if packed {
+            return Ok(Oracle::Cpu(std::marker::PhantomData));
+        }
         Ok(match self {
             Self::Optimized => Oracle::Cpu(std::marker::PhantomData),
             #[cfg(feature = "metal")]

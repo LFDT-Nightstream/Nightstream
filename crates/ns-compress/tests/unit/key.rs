@@ -11,7 +11,7 @@ use std::sync::Arc;
 use akita_serialization::AkitaSerialize;
 use akita_types::{AkitaSetupSeed, SetupPrefixVerifierRegistry};
 
-use super::{block_weights, committed, fold, prefix_equality, row_point, weight_at, ProverKey, VerificationKey};
+use super::{block_weights, fold, prefix_equality, row_point, weight_at, ProverKey, VerificationKey};
 use crate::akita::{self, Schedules, SCHEDULES};
 use crate::layout::LANE_VARS;
 use crate::ring::{dot, Point};
@@ -318,9 +318,9 @@ fn other_key(seed: &[u8; 32]) -> ProverKey {
 }
 
 fn derive(schedules: &'static Schedules) -> VerificationKey {
-    committed(schedules, &ExpandedKey::production(schedules.blocks() as u64))
+    ProverKey::of_key(schedules, ExpandedKey::production(schedules.blocks() as u64))
         .expect("key")
-        .2
+        .verification
 }
 
 fn the_pinned_key_is_the_key_of_the_public_seeds(schedules: &'static Schedules) {

@@ -162,13 +162,13 @@ noncomputable def Opening.breakChance (budget : ℕ) : ℝ :=
     Key30.mass Sum.inl prover o.honest o.innerBound budget
 
 /-- The bound of the final verifier for the shape of `o`:
-`(Q + 1)·(runCost + 9104/|K| + (1458 + B_1 + B_2)/q²) + (Q + 1)·(1469 + B_1 + B_2)/budget +
+`(Q + 1)·(runCost + 8132/|K| + (1458 + B_1 + B_2)/q²) + (Q + 1)·(1469 + B_1 + B_2)/budget +
 breakChance`. `B_1` and `B_2` are the live blocks of the witness group of level 1 and of level 2
 of the row. The count of the retry loops is 2 for the compression argument and
 `1467 + B_1 + B_2` for the opening: 1680 for `W` of 27 variables and 1670 for `W` of 26
 variables. -/
 noncomputable def Opening.shapeBound (queries budget : ℕ) : ℝ :=
-  (queries + 1) * (FinalVerifier.Setup.runCost S₀ o.shape + (9104 / (Fintype.card K : ℝ) +
+  (queries + 1) * (FinalVerifier.Setup.runCost S₀ o.shape + (8132 / (Fintype.card K : ℝ) +
       ((1458 + o.row.blocks₁ + o.row.blocks₂ : ℕ) : ℝ) * (1 / (fieldModulus : ℝ) ^ 2))) +
     (queries + 1) * (2 + (1467 + o.row.blocks₁ + o.row.blocks₂) : ℕ) / budget +
     o.breakChance setup packageWidths step cap control read head split prover budget

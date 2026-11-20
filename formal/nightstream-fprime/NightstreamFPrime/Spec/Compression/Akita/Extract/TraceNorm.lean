@@ -2,19 +2,19 @@ import NightstreamFPrime.Spec.Compression.Akita.NormCheck
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceRoute
 
 /-! A committed trace level of the opening suffix of Akita on the Euclidean route, with the direct
-norm check after the checks of the fold (ePrint 2026/1983, revision of 2026-10-15, Section 6.2
-with (81) to (85), Lemma 6.3, Lemma 10.34 with (184), Lemma 10.37 and Proposition 10.44).
+norm check in the checks of the fold (ePrint 2026/1983, revision of 2026-10-15, Sections 6.2 and
+6.3 with (81) to (93), Lemma 6.3, Lemma 10.34 with (184), Lemma 10.37 and Proposition 10.44).
 
-- `normCosts` has the bounds of the draws of `normCheck`, and `normCheck_stagedTo` and
-  `normCheck_bare` are its bounds and its verifier without the witness.
 - `Shape.normKernel` is the kernel `K(u, x)` of the integer coordinates `z^Z_u` of (81) in the
   flat witness of a trace level, and `normTable_normKernel` states that `normTable` with it is the
   sequence of the coefficients of `z = G_{b_z,m_A}·ẑ`. `sum_sq_cellsOf` gives the sum (85) of
   Lemma 6.3 from the sum of the cube, and `Shape.directLimit` is `U_dir` of (84) for the plane
   bounds `b⋆/2` of the digit range check.
+- `foldCostsSq` has the bounds of the draws of `foldCheckSq`, and `foldCheckSq_stagedTo` and
+  `foldCheckSq_bare` are its bounds and its verifier without the witness.
 - `committedTraceSq` is the `Tier` of a committed trace fold on the Euclidean route: the method
-  `traceSq` and the checks `foldCheck` followed by `normCheck`. `committedTraceSq_sound` is the
-  soundness of its checks with the no-wraparound condition `max{U_dir, S_max} < q` of Lemma 6.3,
+  `traceSq` and the checks `foldCheckSq`. `committedTraceSq_sound` is the soundness of its checks
+  with the no-wraparound condition `max{U_dir, S_max} < q` of Lemma 6.3,
   `committedTraceSq_valid` states the conditions of `Tier.Valid`, and `committedTraceSq_uniform`
   states that its verifier does not read the table. -/
 
@@ -108,90 +108,133 @@ section Check
 
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
 
-/-- The bounds of the draws of `normCheck`, in their order: the `ν` rounds of degree 2 of the
-sum-check of (85), the binding coefficient `η`, and the `μ` rounds of degree 2 of the binding
-sum-check. -/
-noncomputable def normCosts (E : Type) [Fintype E] (ν μ : ℕ) : List ℝ :=
-  List.replicate ν (((2 : ℕ) : ℝ) / Fintype.card E) ++
-    (((1 : ℕ) : ℝ) / Fintype.card E) :: List.replicate μ (((2 : ℕ) : ℝ) / Fintype.card E)
+/-- The bounds of the draws of the range tree on the Euclidean route: `treeCosts`, the merge
+coefficient `ζ_norm`, and the `μ'` rounds of the last stage with the binary-support point
+(Akita (187), (90) and Lemma 10.34). -/
+noncomputable def rangeCostsSq (E : Type) [Fintype E] (μ b : ℕ) : List ℝ :=
+  treeCosts E μ (rangeArities b) 1 ++ (((1 : ℕ) : ℝ) / Fintype.card E) ::
+    List.replicate μ (((max (rangeLeaf b + 1) 2 + 1 : ℕ) : ℝ) / Fintype.card E)
+
+/-- The sum of the numerators of `rangeCostsSq`. -/
+def rangeNumeratorSq (μ b : ℕ) : ℕ :=
+  treeNumerator μ (rangeArities b) 1 + 1 + μ * (max (rangeLeaf b + 1) 2 + 1)
+
+/-- The bounds of the draws of `foldCheckSq`, in the order of the draws: `α`, `τ_0`, `τ_1`, the
+draws of the range tree with `ζ_norm`, then `η_norm`, `ζ_bin`, `γ` and the rounds of the fused
+sum-check (Akita (189) with `N^norm = 2`). -/
+noncomputable def foldCostsSq (E : Type) [Fintype E] (badBound vars batch base : ℕ) : List ℝ :=
+  ((badBound : ℝ) / Fintype.card E) :: ((vars : ℝ) / Fintype.card E) ::
+    ((batch : ℝ) / Fintype.card E) ::
+      (rangeCostsSq E vars base ++
+        (((1 : ℕ) : ℝ) / Fintype.card E) :: (((1 : ℕ) : ℝ) / Fintype.card E) ::
+          (((1 : ℕ) : ℝ) / Fintype.card E) ::
+            List.replicate vars (((3 : ℕ) : ℝ) / Fintype.card E))
 
 omit [Field E] [DecidableEq E] [Algebra Zq E] in
-/-- The sum of the bounds of the draws of `normCheck` is `(2·ν + 1 + 2·μ)/|E|`. -/
-theorem normCosts_sum (ν μ : ℕ) :
-    (normCosts E ν μ).sum = ((2 * ν + 1 + 2 * μ : ℕ) : ℝ) / Fintype.card E := by
-  simp only [normCosts, List.sum_append, List.sum_cons, List.sum_replicate, nsmul_eq_mul]
+/-- The sum of the bounds of the draws of `foldCheckSq`. It is the sum of `foldCosts` plus
+`2/|E|` at a base with leaf polynomials of one factor or more. -/
+theorem foldCostsSq_sum (badBound vars batch base : ℕ) :
+    (foldCostsSq E badBound vars batch base).sum =
+      ((badBound + vars + batch + rangeNumeratorSq vars base + 1 + 1 + 1 + vars * 3 : ℕ) : ℝ) /
+        Fintype.card E := by
+  simp only [foldCostsSq, rangeCostsSq, rangeNumeratorSq, List.sum_cons, List.sum_append,
+    List.sum_replicate, nsmul_eq_mul, treeCosts_sum]
   push_cast
   ring
 
 omit [Field E] [DecidableEq E] [Algebra Zq E] in
-theorem normCosts_nonnegative (ν μ : ℕ) : ∀ cost ∈ normCosts E ν μ, 0 ≤ cost := by
+theorem foldCostsSq_nonnegative (badBound vars batch base : ℕ) :
+    ∀ cost ∈ foldCostsSq E badBound vars batch base, 0 ≤ cost := by
   intro cost member
-  simp only [normCosts, List.mem_append, List.mem_cons, List.mem_replicate] at member
-  rcases member with ⟨_, rfl⟩ | rfl | ⟨_, rfl⟩ <;> positivity
+  simp only [foldCostsSq, rangeCostsSq, List.mem_cons, List.mem_append, List.mem_replicate]
+    at member
+  rcases member with rfl | rfl | rfl | (tree | rfl | ⟨_, rfl⟩) | rfl | rfl | rfl | ⟨_, rfl⟩
+  · positivity
+  · positivity
+  · positivity
+  · exact treeCosts_nonnegative vars _ _ cost tree
+  · positivity
+  · positivity
+  · positivity
+  · positivity
+  · positivity
+  · positivity
 
-/-- Each draw of `normCheck` has its bound of `normCosts`, and an accepted end has the entries
-`rest` after these bounds, when an answer of the oracle has a slot. -/
-theorem normCheck_stagedTo {Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
-    (ν μ limit : ℕ) (kernel : ℕ → ℕ → Zq) (w : Table) (r2 : List E) (v : E) (rest : List ℝ)
+/-- Each draw of `foldCheckSq` has its bound of `foldCostsSq`, and an accepted end has the
+entries `rest` after these bounds, when an answer of the oracle has `μ'` slots or more and
+`s_rel` slots or more. -/
+theorem foldCheckSq_stagedTo {Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
+    (R : Reduction E) (base : ℕ) (support : ℕ → Prop) [DecidablePred support] (limit : ℕ)
+    (kernel : ℕ → ℕ → Zq) (w : Table) (varsFit : R.vars ≤ Fintype.card Coord)
+    (batchFit : R.batch ≤ Fintype.card Coord) (rest : List ℝ)
     (tail : Option (List E × E) → List ℝ → Prop) (rejected : ∀ costs, tail none costs)
     (ended : ∀ final, tail (some final) rest) :
-    StagedTo (Coord → E) (normCheck ν μ limit kernel w r2 v) (normCosts E ν μ ++ rest) tail := by
+    StagedTo (Coord → E) (foldCheckSq R base support limit kernel w)
+      (foldCostsSq E R.badBound R.vars R.batch base ++ rest) tail := by
   have field : ∃ decode : (Coord → E) → E, Fair decode := exists_fair_slot
-  unfold normCheck normCosts
-  split
-  swap
-  · exact rejected _
+  have line (a b : E) : ((zeros (linePoly a b)).card : ℝ) / Fintype.card E ≤
+      ((1 : ℕ) : ℝ) / Fintype.card E :=
+    density_le _ 1 (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))
+  unfold foldCheckSq foldCostsSq rangeCostsSq
+  simp only [List.cons_append, List.append_assoc]
+  refine stagedTo_draw field (density_le (C := E) (R.bad w) _ (R.bad_card w)) fun α => ?_
+  refine stagedTo_draw (exists_fair_slots varsFit) (density_rangeBad_le (E := E) base R.vars w)
+    fun τ0 => ?_
+  refine stagedTo_draw (exists_fair_slots batchFit)
+    ((R.rows α).density_batchBad_le R.vars (R.fits α) w) fun τ1 => ?_
+  refine (stagedTo_bind _ _ _ _).mpr (rangeTree_stagedTo (rangeLeaf base) R.vars w
+    (normLeafStage (rangeLeaf base) R.vars limit kernel support w) _ _
+    (fun _ => rejected _) (fun nodes weights point claim => ?_) _ _ _ _ _)
   intro claimed
   dsimp only
   split
   swap
   · exact rejected _
-  rw [List.append_assoc, List.cons_append]
-  refine (stagedTo_bind _ _ _ _).mpr (sumcheck_staged field 2 ν _
-    (combRound_truth ν 2 (normTables μ kernel w) productComb productComb_degree).degree _ _ ?_ ?_
-    ν [] _ (by simp))
+  refine stagedTo_draw field (line _ _) fun ζn => ?_
+  refine (stagedTo_bind _ _ _ _).mpr (sumcheckWith_staged (Reply := Coord → E) field
+    (max (rangeLeaf base + 1) 2) R.vars 1 _
+    (normLeaf_roundTruth (rangeLeaf base) nodes R.vars weights ζn kernel point w).degree _
+    (fun _ => bindBad_card_le _ _) _ _ ?_ ?_ R.vars [] _ (by simp))
   · exact fun _ => rejected _
-  rintro ⟨ru, value⟩ y
+  rintro ⟨r, value⟩ values
   dsimp only
   split
-  swap
-  · exact rejected _
-  refine stagedTo_draw field (density_le _ 1
-    (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) fun η => ?_
-  refine (stagedTo_bind _ _ _ _).mpr (sumcheck_staged field 2 μ _
-    (combRound_truth μ 2 (bindTables ν kernel w r2 ru η) productComb productComb_degree).degree
-    rest _ ?_ ?_ μ [] _ (by simp))
-  · exact fun _ => rejected _
-  rintro ⟨r3, final⟩ v3
-  dsimp only
-  split
-  · exact ended _
+  · exact stagedTo_draw field (line _ _) fun η => stagedTo_draw field (line _ _) fun ζ =>
+      stagedTo_draw field (line _ _) fun γ =>
+        fusedCheck_stagedTo R.vars support w _ _ r values.2 ζ γ rest tail rejected ended
   · exact rejected _
 
-/-- The verifier of `normCheck` is the same for each witness. -/
-theorem normCheck_bare (ν μ limit : ℕ) (kernel : ℕ → ℕ → Zq) (w other : Table) (r2 : List E)
-    (v : E) :
-    bare (normCheck ν μ limit kernel w r2 v) = bare (normCheck ν μ limit kernel other r2 v) := by
-  unfold normCheck
-  by_cases length : r2.length = μ
-  swap
-  · rw [ite_eq_right length, ite_eq_right length]
-  rw [ite_eq_left length, ite_eq_left length]
+/-- The verifier of the last stage of the range tree on the Euclidean route is the same for each
+witness. -/
+theorem normLeafStage_bare (leaf μ limit : ℕ) (kernel : ℕ → ℕ → Zq) (support : ℕ → Prop)
+    [DecidablePred support] (w other : Table) (nodes : ℕ) (weights : ℕ → E) (point : List E)
+    (claim : E) :
+    bare (normLeafStage leaf μ limit kernel support w nodes weights point claim) =
+      bare (normLeafStage leaf μ limit kernel support other nodes weights point claim) := by
+  unfold normLeafStage
   refine bare_recv_congr fun claimed => ?_
   by_cases small : claimed ≤ limit
   swap
   · rw [ite_eq_right small, ite_eq_right small]
   rw [ite_eq_left small, ite_eq_left small]
-  refine bare_bind_congr (sumcheck_bare 2 _ _ ν [] _) fun result => ?_
-  rcases result with _ | ⟨ru, value⟩
+  refine bare_draw_congr fun ζ => bare_bind_congr (sumcheckWith_bare _ _ _ _ _ μ [] _)
+    fun result => ?_
+  rcases result with _ | ⟨r, value⟩ <;> rfl
+
+/-- The verifier of `foldCheckSq` is the same for each witness. -/
+theorem foldCheckSq_bare (R : Reduction E) (b : ℕ) (support : ℕ → Prop) [DecidablePred support]
+    (limit : ℕ) (kernel : ℕ → ℕ → Zq) (w other : Table) :
+    bare (foldCheckSq R b support limit kernel w) =
+      bare (foldCheckSq R b support limit kernel other) := by
+  unfold foldCheckSq
+  refine bare_draw_congr fun α => bare_draw_congr fun τ0 => bare_draw_congr fun τ1 =>
+    bare_bind_congr (rangeTree_bare (rangeLeaf b) R.vars w other _ _
+      (fun nodes weights point claim => normLeafStage_bare (rangeLeaf b) R.vars limit kernel
+        support w other nodes weights point claim) _ _ _ _ _) fun result => ?_
+  rcases result with _ | ⟨r, sClaim, y⟩
   · rfl
-  refine bare_recv_congr fun y => ?_
-  by_cases squared : value = y * y
-  swap
-  · rw [ite_eq_right squared, ite_eq_right squared]
-  rw [ite_eq_left squared, ite_eq_left squared]
-  exact bare_draw_congr fun η =>
-    bare_bind_congr (sumcheck_bare 2 _ _ μ [] _) fun _ => rfl
+  · exact bare_draw_congr fun η => bare_draw_congr fun ζ => bare_draw_congr fun γ =>
+      bare_bind_congr (sumcheck_bare 3 _ _ R.vars [] _) fun _ => rfl
 
 end Check
 
@@ -202,13 +245,12 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [Field 
 
 /-- A trace fold for one claim on the Euclidean route whose flat witness the next level commits
 to, as a `Tier` with the first stage `start`. The method is `traceSq` with the operator bound `Γ`
-and the cap `S_max`. The checks are `foldCheck` for the quotient-free reduction of
-`lockedTraceRelation`, and then `normCheck` with the kernel `Shape.normKernel` on `ν` variables
-for the claim `(r_2, v_W)` of `foldCheck`. A final claim `(r_3, v)` is true for a table `w` when
-`v = w̃(r_3)`. -/
+and the cap `S_max`. The checks are `foldCheckSq` for the quotient-free reduction of
+`lockedTraceRelation`, with the kernel `Shape.normKernel` of the integer coordinates of the
+response. A final claim `(r_2, v_W)` is true for a table `w` when `v_W = w̃(r_2)`. -/
 noncomputable def committedTraceSq (key : Key S) (openKey : OpeningKey O)
     (claim : Wire → TraceClaim O E) (μ : ℕ) (fits : O.cells fold < 2 ^ μ) (batch : ℕ)
-    (rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch) (ν : ℕ) (block : Fin S.blocks → Coord)
+    (rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch) (block : Fin S.blocks → Coord)
     (decode : E → Option (Rq S.innerDegree)) (read : Reader Wire)
     (weight operator limit start : ℕ) :
     Tier (Fin S.blocks) (fun _ => Rq S.innerDegree) (TraceClaim O E)
@@ -222,47 +264,44 @@ noncomputable def committedTraceSq (key : Key S) (openKey : OpeningKey O)
   read := read
   digits := O.ofFlat fold
   check wire challenge table :=
-    (foldCheck (lockedTraceReduction ((claim wire).statement key openKey) challenge μ fits batch
-      rowsFit) S.certifiedBase (O.binarySupport fold) table).bind fun
-      | none => .pure none
-      | some (r2, v) => normCheck ν μ limit (S.normKernel fold) table r2 v
-  passes table result := ∃ r3 v, result = some (r3, v) ∧ v = mle r3 (lifted E table)
-  costs := foldCosts E (O.largestDegree - 1) μ batch S.certifiedBase ++ normCosts E ν μ
+    foldCheckSq (lockedTraceReduction ((claim wire).statement key openKey) challenge μ fits batch
+      rowsFit) S.certifiedBase (O.binarySupport fold) limit (S.normKernel fold) table
+  passes table result := ∃ r2 v, result = some (r2, v) ∧ v = mle r2 (lifted E table)
+  costs := foldCostsSq E (O.largestDegree - 1) μ batch S.certifiedBase
   start := start
 
 variable {key : Key S} {openKey : OpeningKey O} {claim : Wire → TraceClaim O E} {μ : ℕ}
   {fits : O.cells fold < 2 ^ μ} {batch : ℕ} {rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch}
-  {ν : ℕ} {block : Fin S.blocks → Coord} {decode : E → Option (Rq S.innerDegree)}
+  {block : Fin S.blocks → Coord} {decode : E → Option (Rq S.innerDegree)}
   {read : Reader Wire} {weight operator limit start : ℕ}
 
 omit [Fintype Coord] [DecidableEq Coord] in
 /-- Akita Lemma 10.42 (i) on the Euclidean route: on a path of the checks of a committed trace
 fold that avoids the bad sets, a final claim that is true for the table gives the exact branch
-relation of `traceSq` for the digit vectors `ofFlat` of the table: `Witness.TraceSatisfies` from
-`foldCheck`, and `‖G_{b_z,m_A}·ẑ‖_2² ≤ S_max` from `normCheck` with Akita Lemma 6.3. The cube of
-`ν` variables has room for the `N_A` coordinates of `z`, and `max{U_dir, S_max} < q` for `U_dir`
-of `Shape.directLimit`. -/
+relation of `traceSq` for the digit vectors `ofFlat` of the table: `Witness.TraceSatisfies`, and
+`‖G_{b_z,m_A}·ẑ‖_2² ≤ S_max` from the sum (85) with Akita Lemma 6.3. The cube of the `μ'`
+variables of the witness has room for the `N_A` coordinates of `z`, and
+`max{U_dir, S_max} < q` for `U_dir` of `Shape.directLimit`. -/
 theorem committedTraceSq_sound (small : S.certifiedBase < fieldModulus)
-    (room : S.blockLength * S.sourceDigits * S.innerDegree ≤ 2 ^ ν)
+    (room : S.blockLength * S.sourceDigits * S.innerDegree ≤ 2 ^ μ)
     (noWrap : max (S.directLimit fold) limit < fieldModulus)
     (wire : Wire) (challenge : Fin S.blocks → Rq S.innerDegree) (table : Table) :
-    ((committedTraceSq key openKey claim μ fits batch rowsFit ν block decode read weight operator
+    ((committedTraceSq key openKey claim μ fits batch rowsFit block decode read weight operator
       limit start).check wire challenge table).Avoids fun result =>
-      (committedTraceSq key openKey claim μ fits batch rowsFit ν block decode read weight
+      (committedTraceSq key openKey claim μ fits batch rowsFit block decode read weight
         operator limit start).passes table result →
-      (committedTraceSq key openKey claim μ fits batch rowsFit ν block decode read weight
+      (committedTraceSq key openKey claim μ fits batch rowsFit block decode read weight
         operator limit start).method.Satisfies (O.ofFlat fold table) (claim wire) challenge := by
   have cells : S.responseCells fold ≤ 2 ^ μ :=
     Nat.le_of_lt (Nat.lt_of_le_of_lt (O.responseCells_le_cells fold) fits)
-  refine (avoids_bind _ _ _).mpr ((lockedTraceFold_satisfies ((claim wire).statement key openKey)
-    challenge μ fits small batch rowsFit table).mono fun result implies => ?_)
-  rcases result with _ | ⟨r2, v⟩
-  · rintro ⟨_, _, ended, _⟩
-    simp at ended
-  refine (normCheck_avoids ν μ limit (S.normKernel fold) table r2 v).mono
-    fun _ opened ⟨r3, v3, ended, opening⟩ => ?_
-  obtain ⟨first, claimed, accepted, energy⟩ := opened r3 v3 ended opening
-  have satisfies := implies r2 v rfl first
+  refine (foldCheckSq_avoids (lockedTraceReduction ((claim wire).statement key openKey) challenge
+    μ fits batch rowsFit) S.certifiedBase (O.binarySupport fold) limit (S.normKernel fold)
+    table).mono fun _ implies ⟨r2, v, ended, opening⟩ => ?_
+  obtain ⟨checked, claimed, accepted, energy⟩ := implies r2 v ended opening
+  have satisfies := lockedTrace_satisfies ((claim wire).statement key openKey) challenge μ fits
+    small batch rowsFit checked.1 checked.2.1 checked.2.2
+  have energy : ∑ u ∈ Finset.range (2 ^ μ), normTable μ (S.normKernel fold) table u ^ 2 =
+      (claimed : Zq) := energy
   rw [normTable_normKernel cells, sum_sq_cellsOf S.sourceCode _ room] at energy
   exact ⟨satisfies, vecNormSq_gadget_le_of_direct
     (PlaneBounded.of_balanced satisfies.responseDigits) noWrap accepted energy⟩
@@ -277,17 +316,11 @@ theorem committedTraceSq_stagedTo (varsFit : μ ≤ Fintype.card Coord)
     (challenge : Fin S.blocks → Rq S.innerDegree) (table : Table) (rest : List ℝ)
     (tail : Option (List E × E) → List ℝ → Prop) (rejected : ∀ costs, tail none costs)
     (ended : ∀ final, tail (some final) rest) :
-    StagedTo (Coord → E) ((committedTraceSq key openKey claim μ fits batch rowsFit ν block decode
+    StagedTo (Coord → E) ((committedTraceSq key openKey claim μ fits batch rowsFit block decode
       read weight operator limit start).check wire challenge table)
-      ((committedTraceSq key openKey claim μ fits batch rowsFit ν block decode read weight
-        operator limit start).costs ++ rest) tail := by
-  rw [show (committedTraceSq key openKey claim μ fits batch rowsFit ν block decode read weight
-      operator limit start).costs ++ rest =
-    foldCosts E (O.largestDegree - 1) μ batch S.certifiedBase ++ (normCosts E ν μ ++ rest) from
-      List.append_assoc _ _ _]
-  refine (stagedTo_bind _ _ _ _).mpr (foldCheck_stagedTo _ _ _ table varsFit batchFit _ _
-    (fun _ => rejected _) fun final => ?_)
-  exact normCheck_stagedTo ν μ limit _ table final.1 final.2 rest tail rejected ended
+      ((committedTraceSq key openKey claim μ fits batch rowsFit block decode read weight
+        operator limit start).costs ++ rest) tail :=
+  foldCheckSq_stagedTo _ _ _ limit _ table varsFit batchFit rest tail rejected ended
 
 /-- A committed trace fold on the Euclidean route satisfies the conditions of `Tier.Valid`. The
 hypotheses are those of `committedTrace_valid`, the operator bound `‖c‖_mul,2 ≤ Γ` of each
@@ -300,37 +333,33 @@ theorem committedTraceSq_valid {peak : ℕ} (injective : Function.Injective bloc
       MulBound operator challenge)
     (base : 2 ≤ fold.responseBase) (small : S.certifiedBase < fieldModulus)
     (varsFit : μ ≤ Fintype.card Coord) (batchFit : batch ≤ Fintype.card Coord)
-    (room : S.blockLength * S.sourceDigits * S.innerDegree ≤ 2 ^ ν)
+    (room : S.blockLength * S.sourceDigits * S.innerDegree ≤ 2 ^ μ)
     (noWrap : max (S.directLimit fold) limit < fieldModulus) :
-    (committedTraceSq key openKey claim μ fits batch rowsFit ν block decode read weight operator
+    (committedTraceSq key openKey claim μ fits batch rowsFit block decode read weight operator
       limit start).Valid where
   injective := injective
   merges := traceSq_sound units sparse bounded base
   sound := committedTraceSq_sound small room noWrap
   staged wire challenge table := by
     have staged := committedTraceSq_stagedTo (key := key) (openKey := openKey) (claim := claim)
-      (fits := fits) (rowsFit := rowsFit) (ν := ν) (block := block) (decode := decode)
+      (fits := fits) (rowsFit := rowsFit) (block := block) (decode := decode)
       (read := read) (weight := weight) (operator := operator) (limit := limit) (start := start)
       varsFit batchFit wire challenge table [] (fun _ _ => True) (fun _ => trivial)
       (fun _ => trivial)
     rwa [List.append_nil] at staged
-  nonnegative cost member := (List.mem_append.mp member).elim
-    (foldCosts_nonnegative _ _ _ _ cost) (normCosts_nonnegative (E := E) ν μ cost)
-  draws := by simp [committedTraceSq, foldCosts]
+  nonnegative cost member := foldCostsSq_nonnegative _ _ _ _ cost member
+  draws := by simp [committedTraceSq, foldCostsSq]
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- The verifier of the checks of a committed trace fold on the Euclidean route does not read the
 table. -/
 theorem committedTraceSq_uniform (wire : Wire) (challenge : Fin S.blocks → Rq S.innerDegree)
     (table other : Table) :
-    bare ((committedTraceSq key openKey claim μ fits batch rowsFit ν block decode read weight
+    bare ((committedTraceSq key openKey claim μ fits batch rowsFit block decode read weight
         operator limit start).check wire challenge table) =
-      bare ((committedTraceSq key openKey claim μ fits batch rowsFit ν block decode read weight
+      bare ((committedTraceSq key openKey claim μ fits batch rowsFit block decode read weight
         operator limit start).check wire challenge other) :=
-  bare_bind_congr (foldCheck_bare _ _ _ table other) fun result => by
-    rcases result with _ | ⟨r2, v⟩
-    · rfl
-    · exact normCheck_bare ν μ limit _ table other r2 v
+  foldCheckSq_bare _ _ _ limit _ table other
 
 end Level
 

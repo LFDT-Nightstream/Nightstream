@@ -149,19 +149,19 @@ local notation "second" =>
 local notation "third" =>
   Tier.tensored (committedTraceSq (fold := level₃.fold) key₃ openKey₃
     (Key20.Note.claim₃ ∘ noteOf) level₃.vars (And.left sized₃) level₃.batch
-    (And.left (And.right sized₃)) norm₃.vars block₃ decode₃ (Compose.read C) weight₃
+    (And.left (And.right sized₃)) block₃ decode₃ (Compose.read C) weight₃
     norm₃.operator norm₃.limit (Tier.finish second)) level₃.tail
 
 local notation "fourth" =>
   Tier.tensored (committedTraceSq (fold := level₄.fold) key₄ openKey₄
     (Key20.Note.claim₄ ∘ noteOf) level₄.vars (And.left sized₄) level₄.batch
-    (And.left (And.right sized₄)) norm₄.vars block₄ decode₄ (Compose.read C) weight₄
+    (And.left (And.right sized₄)) block₄ decode₄ (Compose.read C) weight₄
     norm₄.operator norm₄.limit (Tier.finish third)) level₄.tail
 
 local notation "fifth" =>
   Tier.tensored (committedTraceSq (fold := level₅.fold) key₅ openKey₅
     (Key20.Note.claim₅ ∘ noteOf) level₅.vars (And.left sized₅) level₅.batch
-    (And.left (And.right sized₅)) norm₅.vars block₅ decode₅ (Compose.read C) weight₅
+    (And.left (And.right sized₅)) block₅ decode₅ (Compose.read C) weight₅
     norm₅.operator norm₅.limit (Tier.finish fourth)) level₅.tail
 
 /-- The final verifier `towerAccepts` of `sound` accepts the honest prover of a final proof with
@@ -173,7 +173,7 @@ challenges and each table of the oracle with `calm`, `regular` and `decodes` to 
 proof exists whose first message has the values `given` and whose complete transcript satisfies
 `towerAccepts`.
 
-`wide`, `capped`, `room`: a cell has 34 elements and a number up to `3029804899`, and a message
+`wide`, `capped`, `room`: a cell has 8 elements and a number up to `3029804899`, and a message
 has 4 cells. `inside`: the fold challenge of the terminal is a stage of the transcript. `checks`
 and `gate`: the values `given` pass steps 1 to 5 of SPEC.md Algorithm 10. `W` is the table of
 the witnesses and the counts, with honest counts and 0 from the cell `2^16`. `leads`: the prover
@@ -181,7 +181,7 @@ of Π_CCS on the fresh instance has a message of a cell for each draw sequence s
 ends in a probe whose claims satisfy `Shaped` and `Relation` for `W`. No Lean result gives
 `leads`. `fit`: the fit conditions of `Key20.tower_complete` for the tables of the key
 polynomial, `W` and the honest inverses of each lookup challenges that are no table values. -/
-theorem accepts (use : Use setup shape) (wide : 34 ≤ width) (capped : 3029804899 ≤ limit)
+theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 3029804899 ≤ limit)
     (room : 3 < slots) (inside : Tier.finish fifth < total)
     (accept : Prefix Leaf (Coord → K) total → Prop)
     (table : Prefix Leaf (Coord → K) total → Coord → K)
@@ -244,6 +244,8 @@ theorem accepts (use : Use setup shape) (wide : 34 ≤ width) (capped : 30298048
         (Key20.Note.commit₃ ∘ noteOf) (Key20.Note.commit₄ ∘ noteOf)
         (Key20.Note.commit₅ ∘ noteOf) (Key20.Note.state ∘ noteOf)
         ((transcript total accept).final (.done proof) table) := by
+  obtain ⟨start, started⟩ : ∃ start, start = Tier.finish fifth := ⟨_, rfl⟩
+  rw [← started] at inside ⊢
   have base : Key20.Note K := {
     commit := fun g => (Compression.Akita.commit (key g) 0).1
     value := fun _ => 0
@@ -283,7 +285,7 @@ theorem accepts (use : Use setup shape) (wide : 34 ≤ width) (capped : 30298048
     (claim₄ := (Key20.Note.claim₄ ∘ noteOf)) (block₄ := block₄) (decode₄ := decode₄)
     (weight₄ := weight₄) (key₅ := key₅) (openKey₅ := openKey₅)
     (claim₅ := (Key20.Note.claim₅ ∘ noteOf)) (block₅ := block₅) (decode₅ := decode₅)
-    (weight₅ := weight₅) (L := sheetTerminal total matrix blockL decodeL (Tier.finish fifth))
+    (weight₅ := weight₅) (L := sheetTerminal total matrix blockL decodeL start)
     (commit := (Key20.Note.commit ∘ noteOf))
     (value := (Key20.Note.value ∘ noteOf))
     (place := (Key20.Note.place ∘ noteOf))
@@ -326,7 +328,7 @@ theorem accepts (use : Use setup shape) (wide : 34 ≤ width) (capped : 30298048
         state := target.1, statement := target.2.1, partials := target.2.2 }), rfl⟩)
     (Page.carries (fun data : First logicalWidth publicFits × Key20.Note K => data.2.response)
       fun target => ⟨(given, { base with response := target }), rfl⟩)
-    rfl inside (fun _ => rfl) (fun _ => rfl) table calm regular decodes decodes₁ decodes₂
+    started inside (fun _ => rfl) (fun _ => rfl) table calm regular decodes decodes₁ decodes₂
     decodes₃ decodes₄ decodes₅ decodesL
     (⟨(given, { base with commit := fun g => (Compression.Akita.commit (key g)
       (![keyBase (setup.params shape), W, 0] g)).1 }), fun _ => (fun _ => 0, 0)⟩ : Leaf)

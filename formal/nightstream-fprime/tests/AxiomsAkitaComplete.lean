@@ -60,9 +60,14 @@ with reject sets and a checkpoint segment (`Reject`), the two parts of the verif
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.drawn_mem
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.run
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Sends
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.normCosts_length
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.foldDrawsSq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.rangeWidthSq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.foldCostsSq_length
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.sumcheck_winsAt
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.normCheck_winsAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.sumcheckWith_winsAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.rangeTree_winsAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.normLeafStage_winsAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.foldCheckSq_winsAt
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.lockedTraceRelation_of_flat
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.lockedTraceFold_winsTo
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.tensored_winsAt

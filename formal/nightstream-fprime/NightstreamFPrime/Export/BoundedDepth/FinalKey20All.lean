@@ -218,17 +218,17 @@ local notation "second" =>
 
 local notation "third" =>
   Tier.tensored (committedTraceSq (fold := level₃.fold) o.key₃ o.openKey₃ o.claim₃ level₃.vars
-    (And.left sized₃) level₃.batch (And.left (And.right sized₃)) norm₃.vars o.block₃ o.decode₃
+    (And.left sized₃) level₃.batch (And.left (And.right sized₃)) o.block₃ o.decode₃
     (Compose.read C) o.weight₃ norm₃.operator norm₃.limit (Tier.finish second)) level₃.tail
 
 local notation "fourth" =>
   Tier.tensored (committedTraceSq (fold := level₄.fold) o.key₄ o.openKey₄ o.claim₄ level₄.vars
-    (And.left sized₄) level₄.batch (And.left (And.right sized₄)) norm₄.vars o.block₄ o.decode₄
+    (And.left sized₄) level₄.batch (And.left (And.right sized₄)) o.block₄ o.decode₄
     (Compose.read C) o.weight₄ norm₄.operator norm₄.limit (Tier.finish third)) level₄.tail
 
 local notation "fifth" =>
   Tier.tensored (committedTraceSq (fold := level₅.fold) o.key₅ o.openKey₅ o.claim₅ level₅.vars
-    (And.left sized₅) level₅.batch (And.left (And.right sized₅)) norm₅.vars o.block₅ o.decode₅
+    (And.left sized₅) level₅.batch (And.left (And.right sized₅)) o.block₅ o.decode₅
     (Compose.read C) o.weight₅ norm₅.operator norm₅.limit (Tier.finish fourth)) level₅.tail
 
 /-- The final verifier for the proofs with steps of the shape of `o`: the verifier
@@ -313,7 +313,7 @@ structure Opening.Sized (p : ℝ) : Prop where
     o.innerBound
 
 /-- The conditions `Compose.Sized` of the final verifier for the shape of `o`, and the suffix of
-its Akita opening with 142 retry loops and the sum of the stage errors at most `7424/|K| + 135·p`
+its Akita opening with 142 retry loops and the sum of the stage errors at most `6318/|K| + 135·p`
 (`FinalAkita.mixed_ready` for the numbers of `Key20.lean`, with `Key20.towerError_le`).
 `blocks`: the key polynomial has 512 blocks. `coords`: an answer of the oracle has 28 slots. -/
 theorem Opening.ready {p : ℝ} (premises : Premises setup packageWidths)
@@ -323,7 +323,7 @@ theorem Opening.ready {p : ℝ} (premises : Premises setup packageWidths)
       Tier.Suffix (o.accepts setup packageWidths step cap control read head) (Compose.root C vf)
         (OpensAt (Compose.root C vf) o.commit o.value o.place o.key o.mass)
         (o.tower setup packageWidths step cap control read head) error loops tree ∧
-      error ≤ 7424 / (Fintype.card K : ℝ) + 135 * p ∧ 2 + loops = 144 := by
+      error ≤ 6318 / (Fintype.card K : ℝ) + 135 * p ∧ 2 + loops = 144 := by
   have use := laidSetup_use setup o.shape sized.laid blocks
   obtain ⟨-, -, -, span⟩ := key20_points S₀ o.shape use
   have slots : 22 ≤ Fintype.card Coord := (by decide : 22 ≤ 28).trans coords
@@ -359,13 +359,13 @@ theorem Opening.ready {p : ℝ} (premises : Premises setup packageWidths)
         sized.units₅ sized.sparse₅)
       (⟨sized.bounded₃, (Key20.norms_sized (level₃, norm₃) (by simp)).1,
         (Key20.norms_sized (level₃, norm₃) (by simp)).2⟩ :
-          NormSized level₃.shape level₃.fold o.decode₃ norm₃.operator norm₃.limit norm₃.vars)
+          NormSized level₃.shape level₃.fold o.decode₃ norm₃.operator norm₃.limit level₃.vars)
       (⟨sized.bounded₄, (Key20.norms_sized (level₄, norm₄) (by simp)).1,
         (Key20.norms_sized (level₄, norm₄) (by simp)).2⟩ :
-          NormSized level₄.shape level₄.fold o.decode₄ norm₄.operator norm₄.limit norm₄.vars)
+          NormSized level₄.shape level₄.fold o.decode₄ norm₄.operator norm₄.limit level₄.vars)
       (⟨sized.bounded₅, (Key20.norms_sized (level₅, norm₅) (by simp)).1,
         (Key20.norms_sized (level₅, norm₅) (by simp)).2⟩ :
-          NormSized level₅.shape level₅.fold o.decode₅ norm₅.operator norm₅.limit norm₅.vars)
+          NormSized level₅.shape level₅.fold o.decode₅ norm₅.operator norm₅.limit level₅.vars)
       sized.inside sized.injectiveL sized.unitsL sized.boundedL sized.next
   exact ⟨both.1, _, _, _, both.2,
     Key20.towerError_le (β := o.β) (key := o.key) (openKey := o.openKey) (claim := o.claim)
@@ -408,7 +408,7 @@ noncomputable def Opening.breakChance (budget : ℕ) : ℝ :=
 /-- Knowledge soundness of the final verifier for the shape of `o` (Akita Theorem 10.17). For
 each prover with at most `Q` queries to the oracle, the probability that the verifier
 `Opening.accepts` accepts and `Verifies` rejects the proof `Opening.proof` of the extractor is at
-most `(Q + 1)·(runCost + 7424/|K| + 135·p) + (Q + 1)·144/budget + breakChance`. The probability
+most `(Q + 1)·(runCost + 6318/|K| + 135·p) + (Q + 1)·144/budget + breakChance`. The probability
 is over the table of the oracle and the tape of the extractor. The terms are those of
 `FinalKey20.sound`. -/
 theorem Opening.knowledge {p : ℝ} (premises : Premises setup packageWidths)
@@ -422,7 +422,7 @@ theorem Opening.knowledge {p : ℝ} (premises : Premises setup packageWidths)
               (o.proof setup packageWidths step cap control read head prover budget table tape)
           then (1 : ℝ) else 0) ≤
       (queries + 1) * (FinalVerifier.Setup.runCost S₀ o.shape +
-          (7424 / (Fintype.card K : ℝ) + 135 * p)) +
+          (6318 / (Fintype.card K : ℝ) + 135 * p)) +
         (queries + 1) * (144 : ℕ) / budget +
         o.breakChance setup packageWidths step cap control read head prover budget := by
   obtain ⟨composed, error, loops, tree, later, small, count⟩ :=
@@ -509,13 +509,13 @@ noncomputable def finalProof (budget : ℕ) (table : Prefix Wire (Coord → K) t
 variable [Finite Wire]
 
 /-- The bound of the final verifier for the shapes of the family: the sum over the shapes of
-`(Q + 1)·(runCost + 7424/|K| + 135·p) + (Q + 1)·144/budget + breakChance`. The terms of a shape
+`(Q + 1)·(runCost + 6318/|K| + 135·p) + (Q + 1)·144/budget + breakChance`. The terms of a shape
 are those of `FinalKey20.sound` for its setup `laidSetup` and its opening, and the sum is the
 union bound over the shapes. -/
 noncomputable def shapesBound (p : ℝ) (queries budget : ℕ) : ℝ :=
   ∑ index, ((queries + 1) *
       (FinalVerifier.Setup.runCost (laidSetup setup (family index).shape) (family index).shape +
-        (7424 / (Fintype.card K : ℝ) + 135 * p)) +
+        (6318 / (Fintype.card K : ℝ) + 135 * p)) +
     (queries + 1) * (144 : ℕ) / budget +
     (family index).breakChance setup packageWidths step cap control read head prover budget)
 
@@ -582,7 +582,7 @@ theorem knowledge_all {p : ℝ} (premises : Premises setup packageWidths)
 family and for the proof of zero steps. For each prover with at most `Q` queries to the oracle,
 the probability that `finalAccepts` accepts and no proof with witnesses satisfies `Verifies` for
 the statement of the first message is at most `shapesBound`: the sum over the shapes of the
-family of `(Q + 1)·(runCost + 7424/|K| + 135·p) + (Q + 1)·144/budget + breakChance`. `blocks`: the
+family of `(Q + 1)·(runCost + 6318/|K| + 135·p) + (Q + 1)·144/budget + breakChance`. `blocks`: the
 key polynomial has 512 blocks. `coords`: an answer of the oracle has 28 slots. `sized`: the
 hypotheses of `FinalKey20.sound` on the opening of each shape. -/
 theorem sound_all {p : ℝ} (premises : Premises setup packageWidths)

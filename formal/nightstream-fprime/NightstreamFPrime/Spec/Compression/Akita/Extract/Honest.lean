@@ -157,12 +157,12 @@ variable (fits : Type → Prop)
 /-- The completeness of the checks of a last packing fold (Akita Lemma 10.7 with Theorem 10.9):
 for digit vectors with the exact branch relation, the prover has a message for each draw
 sequence, and the checks end in the claim `(r_2, w̃(r_2))` for the flat witness. -/
-theorem flatFold_winsTo (scalar : fits E) (range : fits (Fin (S.certifiedBase / 2 + 1 + 1) → E))
+theorem flatFold_winsTo (scalar : fits E) (range : ∀ n, n ≤ rangeWidth S.certifiedBase → fits (Fin n → E))
     (cubic : fits (Fin (3 + 1) → E)) (two : 2 ≤ S.certifiedBase)
     (small : S.certifiedBase < fieldModulus) (batch : ℕ) (rowsFit : O.rowCount + 1 ≤ 2 ^ batch)
     (satisfies : w.Satisfies β st challenge) :
     WinsTo fits (foldCheck (flatReduction β st challenge μ cells batch rowsFit) S.certifiedBase
-      (O.binarySupport fold) w.flat) (0 + μ + 1 + 1 + μ + 1 + 1 + 1) true fun result _ _ =>
+      (O.binarySupport fold) w.flat) (foldDraws μ S.certifiedBase) true fun result _ _ =>
         ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E w.flat)) :=
   foldCheck_winsTo fits (flatReduction β st challenge μ cells batch rowsFit) S.certifiedBase
     scalar range cubic _ (satisfies.flat μ cells) (satisfies.alphabets.rangeHolds two small μ)
@@ -171,11 +171,11 @@ theorem flatFold_winsTo (scalar : fits E) (range : fits (Fin (S.certifiedBase / 
 /-- `flatFold_winsTo` for the checks of a packing fold whose flat witness the next level commits
 to. -/
 theorem lockedFold_winsTo (scalar : fits E)
-    (range : fits (Fin (S.certifiedBase / 2 + 1 + 1) → E)) (cubic : fits (Fin (3 + 1) → E))
+    (range : ∀ n, n ≤ rangeWidth S.certifiedBase → fits (Fin n → E)) (cubic : fits (Fin (3 + 1) → E))
     (two : 2 ≤ S.certifiedBase) (small : S.certifiedBase < fieldModulus) (batch : ℕ)
     (rowsFit : O.rowCount + 1 + 1 ≤ 2 ^ batch) (satisfies : w.Satisfies β st challenge) :
     WinsTo fits (foldCheck (lockedReduction β st challenge μ cells batch rowsFit) S.certifiedBase
-      (O.binarySupport fold) w.flat) (0 + μ + 1 + 1 + μ + 1 + 1 + 1) true fun result _ _ =>
+      (O.binarySupport fold) w.flat) (foldDraws μ S.certifiedBase) true fun result _ _ =>
         ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E w.flat)) :=
   foldCheck_winsTo fits (lockedReduction β st challenge μ cells batch rowsFit) S.certifiedBase
     scalar range cubic _
@@ -190,9 +190,22 @@ open NightstreamFPrime.Spec.Compression (Game)
 open NightstreamFPrime.Spec.Checkpoint
 open NightstreamFPrime.Spec.RandomOracle (OracleComp)
 
+theorem treeCosts_length (E : Type) [Fintype E] (μ last : ℕ) :
+    ∀ (arities : List ℕ) (nodes : ℕ),
+      (treeCosts E μ arities nodes).length + last = treeDraws μ last arities := by
+  intro arities
+  induction arities with
+  | nil => simp [treeCosts, treeDraws]
+  | cons a rest step =>
+      intro nodes
+      simp only [treeCosts, treeDraws, List.length_cons, List.length_append,
+        List.length_replicate, ← step (nodes * a)]
+      omega
+
 theorem foldCosts_length (E : Type) [Fintype E] (badBound vars batch base : ℕ) :
-    (foldCosts E badBound vars batch base).length = 0 + vars + 1 + 1 + vars + 1 + 1 + 1 := by
-  simp only [foldCosts, List.length_cons, List.length_append, List.length_replicate]
+    (foldCosts E badBound vars batch base).length = foldDraws vars base := by
+  simp only [foldCosts, rangeCosts, foldDraws, rangeDraws, List.length_cons, List.length_append,
+    List.length_replicate, ← treeCosts_length E vars vars (rangeArities base) 1]
   omega
 
 section Play

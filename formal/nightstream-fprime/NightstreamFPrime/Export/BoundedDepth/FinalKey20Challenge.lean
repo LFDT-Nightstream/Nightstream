@@ -83,17 +83,17 @@ local notation "second" =>
 
 local notation "third" =>
   Tier.tensored (committedTraceSq (fold := level₃.fold) o.key₃ o.openKey₃ o.claim₃ level₃.vars
-    (And.left sized₃) level₃.batch (And.left (And.right sized₃)) norm₃.vars o.block₃ o.decode₃
+    (And.left sized₃) level₃.batch (And.left (And.right sized₃)) o.block₃ o.decode₃
     (Compose.read C) o.weight₃ norm₃.operator norm₃.limit (Tier.finish second)) level₃.tail
 
 local notation "fourth" =>
   Tier.tensored (committedTraceSq (fold := level₄.fold) o.key₄ o.openKey₄ o.claim₄ level₄.vars
-    (And.left sized₄) level₄.batch (And.left (And.right sized₄)) norm₄.vars o.block₄ o.decode₄
+    (And.left sized₄) level₄.batch (And.left (And.right sized₄)) o.block₄ o.decode₄
     (Compose.read C) o.weight₄ norm₄.operator norm₄.limit (Tier.finish third)) level₄.tail
 
 local notation "fifth" =>
   Tier.tensored (committedTraceSq (fold := level₅.fold) o.key₅ o.openKey₅ o.claim₅ level₅.vars
-    (And.left sized₅) level₅.batch (And.left (And.right sized₅)) norm₅.vars o.block₅ o.decode₅
+    (And.left sized₅) level₅.batch (And.left (And.right sized₅)) o.block₅ o.decode₅
     (Compose.read C) o.weight₅ norm₅.operator norm₅.limit (Tier.finish fourth)) level₅.tail
 /-- The hypotheses of `FinalKey20.sound` on the Akita opening of `o`, when its decoders are the
 decoders `draw` of the sparse challenge families of the Akita code. `decode` to `decodeL`,

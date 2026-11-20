@@ -112,17 +112,17 @@ local notation "second" =>
 
 local notation "third" =>
   Tier.tensored (committedTraceSq (fold := level₃.fold) key₃ openKey₃ claim₃ level₃.vars
-    (And.left sized₃) level₃.batch (And.left (And.right sized₃)) norm₃.vars block₃ decode₃
+    (And.left sized₃) level₃.batch (And.left (And.right sized₃)) block₃ decode₃
     (Compose.read C) weight₃ norm₃.operator norm₃.limit (Tier.finish second)) level₃.tail
 
 local notation "fourth" =>
   Tier.tensored (committedTraceSq (fold := level₄.fold) key₄ openKey₄ claim₄ level₄.vars
-    (And.left sized₄) level₄.batch (And.left (And.right sized₄)) norm₄.vars block₄ decode₄
+    (And.left sized₄) level₄.batch (And.left (And.right sized₄)) block₄ decode₄
     (Compose.read C) weight₄ norm₄.operator norm₄.limit (Tier.finish third)) level₄.tail
 
 local notation "fifth" =>
   Tier.tensored (committedTraceSq (fold := level₅.fold) key₅ openKey₅ claim₅ level₅.vars
-    (And.left sized₅) level₅.batch (And.left (And.right sized₅)) norm₅.vars block₅ decode₅
+    (And.left sized₅) level₅.batch (And.left (And.right sized₅)) block₅ decode₅
     (Compose.read C) weight₅ norm₅.operator norm₅.limit (Tier.finish fourth)) level₅.tail
 
 local notation "accepts" =>
@@ -232,7 +232,7 @@ theorem Use.points (use : Use setup shape) {point : Prefix Wire (Coord → K) to
 (`FinalAkita.mixed_sound` for the numbers of `Key20.lean`). For each prover with at most `Q`
 queries to the oracle, the probability that the verifier `towerAccepts` accepts and no proof with
 witnesses satisfies `Verifies` for the statement of the first message is at most
-`(Q + 1)·(runCost + 7424/|K| + 135·p) + (Q + 1)·144/budget + breakChance`. `p` is a bound of the
+`(Q + 1)·(runCost + 6318/|K| + 135·p) + (Q + 1)·144/budget + breakChance`. `p` is a bound of the
 slot probability of each challenge family (`Key20.towerError_le`), and 144 is the count of the
 retry loops: 2 for the compression argument and 142 for the opening. `breakChance` is the
 probability that the extractor returns a solution of Module-SIS for the key commitment, for a
@@ -296,7 +296,7 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} (premises : Premises setup pa
         (if accepts ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head
               (((Structure.protocol whole).input prover table 0).wire 0) then (1 : ℝ) else 0) ≤
-      (queries + 1) * (setup.runCost shape + (7424 / (Fintype.card K : ℝ) + 135 * p)) +
+      (queries + 1) * (setup.runCost shape + (6318 / (Fintype.card K : ℝ) + 135 * p)) +
         (queries + 1) * (144 : ℕ) / budget +
         breakChance setup packageWidths step cap control shape read head bound accepts opening
           key openKey mass Sum.inl prover honest innerBound budget := by
@@ -339,13 +339,13 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} (premises : Premises setup pa
       sparse₅)
     (⟨bounded₃, (Key20.norms_sized (level₃, norm₃) (by simp)).1,
       (Key20.norms_sized (level₃, norm₃) (by simp)).2⟩ :
-        NormSized level₃.shape level₃.fold decode₃ norm₃.operator norm₃.limit norm₃.vars)
+        NormSized level₃.shape level₃.fold decode₃ norm₃.operator norm₃.limit level₃.vars)
     (⟨bounded₄, (Key20.norms_sized (level₄, norm₄) (by simp)).1,
       (Key20.norms_sized (level₄, norm₄) (by simp)).2⟩ :
-        NormSized level₄.shape level₄.fold decode₄ norm₄.operator norm₄.limit norm₄.vars)
+        NormSized level₄.shape level₄.fold decode₄ norm₄.operator norm₄.limit level₄.vars)
     (⟨bounded₅, (Key20.norms_sized (level₅, norm₅) (by simp)).1,
       (Key20.norms_sized (level₅, norm₅) (by simp)).2⟩ :
-        NormSized level₅.shape level₅.fold decode₅ norm₅.operator norm₅.limit norm₅.vars)
+        NormSized level₅.shape level₅.fold decode₅ norm₅.operator norm₅.limit level₅.vars)
     inside injectiveL unitsL boundedL prover next registered covers bounded positive).trans ?_
   rw [loops]
   exact add_le_add (add_le_add (mul_le_mul_of_nonneg_left
@@ -378,7 +378,7 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     {accept : Prefix Wire (Coord → K) total → Prop}
     {statementOf : Wire → TerminalStatement Key20.terminal K}
     {partialsOf : Wire → Fin Key20.terminal.blocks → Rq Key20.terminal.innerDegree}
-    (use : Use setup shape) (sends : Sends sendable K width cap) (wide : 34 ≤ width)
+    (use : Use setup shape) (sends : Sends sendable K width cap) (wide : 8 ≤ width)
     (capped : 3029804899 ≤ cap) (room : 3 < slots)
     (short : ∀ values : Compression.Verifier.Values K, (∀ k, 4 ≤ k → values.2.1 k = 0) →
       sendable (Compression.Verifier.Values K) values)

@@ -137,14 +137,14 @@ local notation "fourth" =>
 local notation "fifth" =>
   Tier.tensored (committedTraceSq (fold := level₅.fold) key₅ openKey₅ claim₅ level₅.vars
     (And.left (tails_sized level₅ (List.mem_cons_self ..))) level₅.batch
-    (And.left (And.right (tails_sized level₅ (List.mem_cons_self ..)))) norm₅.vars block₅ decode₅
+    (And.left (And.right (tails_sized level₅ (List.mem_cons_self ..)))) block₅ decode₅
     (Compose.read C) weight₅ norm₅.operator norm₅.limit (Tier.finish fourth)) level₅.tail
 
 local notation "sixth" =>
   Tier.tensored (committedTraceSq (fold := level₆.fold) key₆ openKey₆ claim₆ level₆.vars
     (And.left (tails_sized level₆ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))) level₆.batch
     (And.left (And.right (tails_sized level₆ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))))
-    norm₆.vars block₆ decode₆ (Compose.read C) weight₆ norm₆.operator norm₆.limit
+    block₆ decode₆ (Compose.read C) weight₆ norm₆.operator norm₆.limit
     (Tier.finish fifth)) level₆.tail
 
 local notation "accepts" =>
@@ -238,7 +238,7 @@ theorem Use.points (use : Use setup shape r) {point : Prefix Wire (Coord → K) 
 (`FinalAkita.final_sound` with `Key30.tower_suffix`). For each prover with at most `Q` queries to
 the oracle, the probability that the verifier accepts and no proof with witnesses satisfies
 `Verifies` for the statement of the first message is at most
-`(Q + 1)·(runCost + 9104/|K| + (1458 + B_1 + B_2)·p) + (Q + 1)·(1469 + B_1 + B_2)/budget +
+`(Q + 1)·(runCost + 8132/|K| + (1458 + B_1 + B_2)·p) + (Q + 1)·(1469 + B_1 + B_2)/budget +
 breakChance`. The verifier `offAccepts` accepts with the conditions `Compose.Ran` and the links
 `offLinks` of the opening with an offloaded root. `p` is a bound of the slot probability of each challenge
 family (`Key30.towerError_le`), and `1469 + B_1 + B_2` is the count of the retry loops: 2 for the
@@ -311,7 +311,7 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} {peak₁ : Fin 2 → ℕ}
         (if accepts ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head
               (((Structure.protocol whole).input prover table 0).wire 0) then (1 : ℝ) else 0) ≤
-      (queries + 1) * (setup.runCost shape + (9104 / (Fintype.card K : ℝ) +
+      (queries + 1) * (setup.runCost shape + (8132 / (Fintype.card K : ℝ) +
           ((1458 + r.blocks₁ + r.blocks₂ : ℕ) : ℝ) * p)) +
         (queries + 1) * (2 + (1467 + r.blocks₁ + r.blocks₂) : ℕ) / budget +
         breakChance setup packageWidths step cap control shape read head bound accepts opening

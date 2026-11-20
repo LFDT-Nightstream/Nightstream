@@ -9,9 +9,10 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceNorm
 - `Sends` states which messages of the checks satisfy the condition `sendable` of `WinsAt`: an
   element of `E`, a pair, a vector of at most `width` elements, and a natural number up to `cap`.
 - `sumcheck_winsAt` is `Game.sumcheck_winsTo` for `WinsAt`.
-- `normCheck_winsAt` is the completeness of the direct norm check: for a true claim
-  `v_W = w̃(r_2)` and integer coordinates with `Σ_u (z^Z_u)² = E_resp ≤ S_max`, the prover sends
-  `E_resp`, the true round polynomials, `z̃(r_u)` and `w̃(r_3)`.
+- `foldCheckSq_winsAt` is the completeness of the checks of one fold with the direct norm check
+  (`rangeTree_winsAt`, `normLeafStage_winsAt`): for integer coordinates with
+  `Σ_u (z^Z_u)² = E_resp ≤ S_max`, the prover sends `E_resp`, the true round polynomials,
+  `z̃(r_virt)`, `s̃(r_virt)` and `w̃(r_2)`.
 - `energy_response` gives `Σ_u (z^Z_u)² = ‖G_{b_z,m_A}·ẑ‖_2²` in `Z_q` for the flat witness of
   digit vectors, so the cap of the honest prover is a bound on `‖z‖_2²`.
 - `lockedTraceFold_winsTo` is the completeness of the checks of a committed trace fold.
@@ -78,9 +79,20 @@ structure Sends (sendable : (M : Type) → M → Prop) (E : Type) (width cap : �
   vector : ∀ (n : ℕ) (message : Fin n → E), n ≤ width → sendable (Fin n → E) message
   count : ∀ message : ℕ, message ≤ cap → sendable ℕ message
 
-theorem normCosts_length (E : Type) [Fintype E] (ν μ : ℕ) :
-    (normCosts E ν μ).length = 0 + μ + 1 + ν := by
-  simp only [normCosts, List.length_append, List.length_cons, List.length_replicate]
+/-- The number of the draws of `foldCheckSq`: the draws of `foldCheck`, `ζ_norm` and
+`η_norm`. -/
+def foldDrawsSq (μ b : ℕ) : ℕ :=
+  0 + μ + 1 + 1 + 1 + treeDraws μ (μ + 1) (rangeArities b) + 1 + 1 + 1
+
+/-- The largest number of field elements in one message of `foldCheckSq` before its fused
+sum-check. -/
+def rangeWidthSq (b : ℕ) : ℕ :=
+  max (max (rangeLeaf b + 1) 2 + 1) (treeWidth (rangeArities b) 1)
+
+theorem foldCostsSq_length (E : Type) [Fintype E] (badBound vars batch base : ℕ) :
+    (foldCostsSq E badBound vars batch base).length = foldDrawsSq vars base := by
+  simp only [foldCostsSq, rangeCostsSq, foldDrawsSq, List.length_cons, List.length_append,
+    List.length_replicate, ← treeCosts_length E vars (vars + 1) (rangeArities base) 1]
   omega
 
 section Checks
@@ -120,63 +132,181 @@ theorem sumcheck_winsAt {d bound : ℕ} {truth : List E → E} {round : List E �
       exact step (point ++ [challenge]) _ 0 (by simp; omega) rfl (by omega) fun final length
         place early => ended final (by simp at length; omega) place (by omega)
 
-/-- The completeness of the direct norm check (Akita Section 6.2 and Lemma 6.3): for a true
-claim `v_W = w̃(r_2)` and a number `E_resp ≤ S_max` with `Σ_{u < 2^ν} (z^Z_u)² = E_resp` in `Z_q`,
-the prover has a message for each draw sequence, and the check ends in the claim
-`(r_3, w̃(r_3))` after `ν + 1 + μ` draws. The first messages are `E_resp` and the first round
-polynomial, after `index` messages. -/
-theorem normCheck_winsAt {width cap : ℕ} (sends : Sends sendable E width cap) (wide : 3 ≤ width)
-    {ν μ limit claimed index : ℕ} (kernel : ℕ → ℕ → Zq) (w : Table) {r2 : List E}
-    (length : r2.length = μ) (small : claimed ≤ limit) (capped : claimed ≤ cap)
-    (energy : ∑ u ∈ Finset.range (2 ^ ν), normTable μ kernel w u ^ 2 = (claimed : Zq))
-    (room : index + 2 < slots) :
-    WinsAt sendable slots (normCheck ν μ limit kernel w r2 (mle r2 (lifted E w)))
-      (0 + μ + 1 + ν) index fun result _ place =>
-        place ≤ 1 ∧ ∃ r3 : List E, r3.length = μ ∧ result = some (r3, mle r3 (lifted E w)) := by
-  unfold normCheck
-  rw [ite_eq_left length]
-  refine ⟨by omega, claimed, sends.count _ capped, ?_⟩
+omit [Algebra Zq E] in
+/-- `sumcheck_winsAt` for the sum-check with a second bad set in each round. -/
+theorem sumcheckWith_winsAt {d bound : ℕ} {truth : List E → E} {round : List E → E[X]}
+    (true_rounds : RoundTruth d bound truth round)
+    (message : ∀ coefficients : Fin (d + 1) → E, sendable (Fin (d + 1) → E) coefficients)
+    (extra : List E → Finset E) (rest : ℕ) (tail : Option (List E × E) → ℕ → ℕ → Prop) :
+    ∀ (rounds : ℕ) (point : List E) (claim : E) (index : ℕ), point.length + rounds ≤ bound →
+      claim = truth point → index < slots →
+      (∀ final : List E, final.length = point.length + rounds → ∀ place ≤ index,
+        tail (some (final, truth final)) rest place) →
+      WinsAt sendable slots (sumcheckWith d round extra rounds point claim) (rest + rounds) index
+        tail := by
+  intro rounds
+  induction rounds with
+  | zero =>
+      intro point claim index _ true_claim _ ended
+      rw [true_claim]
+      exact ended point rfl index le_rfl
+  | succ rounds step =>
+      intro point claim index inside true_claim room ended
+      have within : point.length < bound := by omega
+      refine ⟨room, fun index => (round point).coeff index, message _, ?_⟩
+      dsimp only
+      rw [coeffPoly_coeff (round point) (true_rounds.degree point within),
+        ite_eq_left (true_claim ▸ true_rounds.halves point within)]
+      intro challenge
+      show WinsAt sendable slots (sumcheckWith d round extra rounds (point ++ [challenge])
+        ((round point).eval challenge)) (rest + rounds) 0 tail
+      rw [true_rounds.binds point challenge within]
+      exact step (point ++ [challenge]) _ 0 (by simp; omega) rfl (by omega) fun final length
+        place early => ended final (by simp at length; omega) place (by omega)
+
+/-- `rangeTree_winsTo` for `WinsAt`: the completeness of the range tree for a last stage with
+`WinsAt` after a draw. -/
+theorem rangeTree_winsAt {β : Type} {width cap : ℕ} (sends : Sends sendable E width cap)
+    (room : 0 < slots) (leaf μ : ℕ) (w : Table)
+    (last : ℕ → (ℕ → E) → List E → E → Game (Option β)) (lastDraws rest : ℕ)
+    (tail : Option β → ℕ → ℕ → Prop)
+    (lastWins : ∀ nodes weights point claim, point.length = μ →
+      claim = ∑ m ∈ Finset.range nodes, weights m * mle point (nodeTable E leaf m w) →
+      WinsAt sendable slots (last nodes weights point claim) (rest + lastDraws) 0 tail) :
+    ∀ (arities : List ℕ) (nodes : ℕ) (weights : ℕ → E) (point : List E) (claim : E),
+      point.length = μ → treeWidth arities nodes ≤ width →
+      claim = ∑ m ∈ Finset.range nodes,
+        weights m * mle point (nodeTable E (arities.prod * leaf) m w) →
+      WinsAt sendable slots (rangeTree leaf μ w last arities nodes weights point claim)
+        (rest + treeDraws μ lastDraws arities) 0 tail := by
+  intro arities
+  induction arities with
+  | nil =>
+      intro nodes weights point claim long _ true_claim
+      rw [List.prod_nil, one_mul] at true_claim
+      exact lastWins nodes weights point claim long true_claim
+  | cons a others step =>
+      intro nodes weights point claim long wide true_claim
+      subst long
+      have widths : a + 1 + 1 ≤ width ∧ nodes * a ≤ width ∧
+          treeWidth others (nodes * a) ≤ width := by
+        simpa [treeWidth] using wide
+      rw [List.prod_cons, mul_assoc, ← stageTruth_nil] at true_claim
+      rw [treeDraws, ← Nat.add_assoc, ← Nat.add_assoc]
+      refine (winsAt_bind sendable slots _ _ _ _ _).mpr (sumcheck_winsAt
+        (stage_roundTruth a (others.prod * leaf) nodes point.length weights point w)
+        (fun coefficients => sends.vector _ coefficients widths.1) _ _ point.length [] claim 0
+        (by simp) true_claim room fun final length place early => ?_)
+      simp only [List.length_nil, zero_add] at length
+      obtain rfl : place = 0 := by omega
+      refine ⟨room, fun i => mle final (nodeTable E (others.prod * leaf) i w),
+        sends.vector _ _ widths.2.1, ?_⟩
+      have inside (m t : ℕ) (node : m ∈ Finset.range nodes) (place : t ∈ Finset.range a) :
+          m * a + t < nodes * a :=
+        Nat.lt_of_lt_of_le (Nat.add_lt_add_left (Finset.mem_range.mp place) _)
+          (by rw [← Nat.succ_mul]; exact Nat.mul_le_mul_right a (Finset.mem_range.mp node))
+      have final_claim := stageTruth_final a (others.prod * leaf) nodes weights point final w
+      rw [length] at final_claim
+      dsimp only
+      rw [ite_eq_left (final_claim.trans (congrArg _ (Finset.sum_congr rfl fun m node =>
+        congrArg _ (Finset.prod_congr rfl fun t place =>
+          (entry_of (fun i => mle final (nodeTable E (others.prod * leaf) i w))
+            (inside m t node place)).symm))))]
+      intro γ
+      refine step (nodes * a) (fun m => γ ^ m) final _ length widths.2.2 ?_
+      rw [rowPoly_eval]
+      exact Finset.sum_congr rfl fun m member => congrArg _
+        (entry_of (fun i => mle final (nodeTable E (others.prod * leaf) i w))
+          (Finset.mem_range.mp member))
+
+/-- The completeness of the last stage of the range tree on the Euclidean route (Akita
+Section 6.3 and Lemma 6.3): for a true claim and a number `E_resp ≤ S_max` with
+`Σ_{u < 2^{μ'}} (z^Z_u)² = E_resp` in `Z_q`, the prover sends `E_resp`, the true round
+polynomials, and the values `z̃(r_virt)` and `s̃(r_virt)`. -/
+theorem normLeafStage_winsAt {width cap : ℕ} (sends : Sends sendable E width cap)
+    (room : 0 < slots) {leaf μ limit claimed : ℕ} (wide : max (leaf + 1) 2 + 1 ≤ width)
+    (kernel : ℕ → ℕ → Zq) (support : ℕ → Prop) [DecidablePred support] (w : Table)
+    (small : claimed ≤ limit) (capped : claimed ≤ cap)
+    (energy : ∑ u ∈ Finset.range (2 ^ μ), normTable μ kernel w u ^ 2 = (claimed : Zq))
+    (rest : ℕ) (tail : Option (List E × E × E) → ℕ → ℕ → Prop)
+    (ended : ∀ r : List E, r.length = μ → tail (some (r, mle r (derived E w),
+      mle r (lifted E (normTable μ kernel w)))) rest 1)
+    (nodes : ℕ) (weights : ℕ → E) (point : List E) (claim : E) (long : point.length = μ)
+    (true_claim : claim = ∑ m ∈ Finset.range nodes,
+      weights m * mle point (nodeTable E leaf m w)) :
+    WinsAt sendable slots (normLeafStage leaf μ limit kernel support w nodes weights point claim)
+      (rest + μ + 1) 0 tail := by
+  subst long
+  refine ⟨room, claimed, sends.count _ capped, ?_⟩
   dsimp only
   rw [ite_eq_left small]
-  refine (winsAt_bind sendable slots _ _ _ _ _).mpr (sumcheck_winsAt
-    (combRound_truth ν 2 (normTables μ kernel w) productComb productComb_degree)
-    (fun coefficients => sends.vector _ coefficients wide) (0 + μ + 1) _ ν [] _ (index + 1)
-    (by simp) ?_ (by omega) fun ru count place early => ?_)
-  · rw [product_truth_nil, cubeSum_eq_sum_range, ← map_natCast (algebraMap Zq E), ← energy,
-      map_sum]
-    refine Finset.sum_congr rfl fun u _ => ?_
-    simp only [normTables, Matrix.cons_val_zero, Matrix.cons_val_one, lifted, pow_two, map_mul]
-  simp only [List.length_nil, zero_add] at count
-  have last : combTruth ν (normTables μ kernel w) productComb ru =
-      mle ru (lifted E (normTable μ kernel w)) * mle ru (lifted E (normTable μ kernel w)) := by
-    have final := product_truth_final ru (normTables μ kernel w)
-    rw [count] at final
-    exact final
-  refine ⟨by omega, mle ru (lifted E (normTable μ kernel w)), sends.scalar _, ?_⟩
+  intro ζ
+  have merged : claim + ζ * claimed =
+      combTruth point.length (normLeafTables point.length kernel point w)
+        (normLeafComb E leaf nodes weights ζ) [] := by
+    rw [normLeafTruth_nil, true_claim, ← map_natCast (algebraMap Zq E), ← energy, map_sum]
+    exact congrArg _ (congrArg _ (Finset.sum_congr rfl fun u _ => by
+      simp only [lifted, map_pow]))
+  refine (winsAt_bind sendable slots _ _ _ _ _).mpr (sumcheckWith_winsAt
+    (normLeaf_roundTruth leaf nodes point.length weights ζ kernel point w)
+    (fun coefficients => sends.vector _ coefficients wide) _ rest _ point.length [] _ 0
+    (by simp) merged room fun final length place early => ?_)
+  simp only [List.length_nil, zero_add] at length
+  obtain rfl : place = 0 := by omega
+  have last := normLeafTruth_final leaf nodes weights ζ point.length kernel point final w
+  rw [length] at last
+  refine ⟨room, (mle final (lifted E (normTable point.length kernel w)),
+    mle final (derived E w)), sends.pair _, ?_⟩
   dsimp only
   rw [ite_eq_left last]
-  intro η
-  refine (winsAt_bind sendable slots _ _ _ _ _).mpr (sumcheck_winsAt
-    (combRound_truth μ 2 (bindTables ν kernel w r2 ru η) productComb productComb_degree)
-    (fun coefficients => sends.vector _ coefficients wide) 0 _ μ [] _ 0 (by simp) ?_ (by omega)
-    fun r3 count3 place3 early3 => ?_)
-  · rw [product_truth_nil, mle_eq_cubeSum r2, length, mle_normTable kernel w count,
-      cubeSum_eq_sum_range, cubeSum_eq_sum_range, Finset.mul_sum, ← Finset.sum_add_distrib]
-    refine Finset.sum_congr rfl fun x _ => ?_
-    simp only [bindTables, Matrix.cons_val_zero, Matrix.cons_val_one]
-    ring
-  simp only [List.length_nil, zero_add] at count3
-  have last3 := product_truth_final r3 (bindTables ν kernel w r2 ru η)
-  rw [count3] at last3
-  have checked : combTruth μ (bindTables ν kernel w r2 ru η) productComb r3 =
-      mle r3 (lifted E w) * (mle r3 (eqAt r2) + η * mle r3 (normWeight ν kernel ru)) := by
-    rw [last3]
-    simp only [bindTables, Matrix.cons_val_zero, Matrix.cons_val_one]
-    rw [mle_add, mle_mul_left]
-  refine ⟨by omega, mle r3 (lifted E w), sends.scalar _, ?_⟩
-  dsimp only
-  rw [ite_eq_left checked]
-  exact ⟨by omega, r3, count3, rfl⟩
+  exact ended final length
+
+/-- The completeness of the checks of one fold on the Euclidean route (Akita Theorem 10.9 with
+Sections 6.2 and 6.3): for a witness with the relation, the digit range statement, the binary
+statement and `Σ_{u < 2^{μ'}} (z^Z_u)² = E_resp ≤ S_max` in `Z_q`, the prover has a message for
+each draw sequence, and `foldCheckSq` ends in the claim `(r_2, w̃(r_2))`. -/
+theorem foldCheckSq_winsAt {width cap : ℕ} (sends : Sends sendable E width cap)
+    (room : 0 < slots) (R : Reduction E) (b : ℕ) (wide : rangeWidthSq b ≤ width)
+    (four : 4 ≤ width) (support : ℕ → Prop) [DecidablePred support] {limit claimed : ℕ}
+    (kernel : ℕ → ℕ → Zq) {w : Table} (holds : R.Holds w) (ranged : RangeHolds b R.vars w)
+    (binary : BinaryOn support R.vars w) (small : claimed ≤ limit) (capped : claimed ≤ cap)
+    (energy : ∑ u ∈ Finset.range (2 ^ R.vars), normTable R.vars kernel w u ^ 2 =
+      (claimed : Zq)) :
+    WinsAt sendable slots (foldCheckSq R b support limit kernel w) (foldDrawsSq R.vars b) 0
+      fun result _ place => place ≤ 1 ∧
+        ∃ r2 : List E, r2.length = R.vars ∧ result = some (r2, mle r2 (lifted E w)) := by
+  intro α τ0 τ1
+  refine (winsAt_bind sendable slots _ _ _ _ _).mpr (rangeTree_winsAt sends room (rangeLeaf b)
+    R.vars w _ (R.vars + 1) (0 + R.vars + 1 + 1 + 1) _
+    (fun nodes weights point claim => normLeafStage_winsAt sends room
+      ((le_max_left _ _).trans wide) kernel support w small capped energy _ _
+      (fun final length => ?_) nodes weights point claim)
+    (rangeArities b) 1 (fun _ => 1) (List.ofFn τ0) 0 List.length_ofFn
+    ((le_max_right _ _).trans wide) ?_)
+  swap
+  · rw [root_sum b w (List.ofFn τ0)]
+    exact (mle_rangeResidual_eq_zero ranged _ List.length_ofFn).symm
+  intro η ζ γ
+  refine (winsAt_of_fresh (admits := fun M => ∀ message : M, sendable M message)
+    (fun _ message all => all message) (fusedCheck_winsTo _ sends.scalar
+      (fun message => sends.vector _ message four) R.vars support w _ _ final _ ζ γ 0 ?_)
+    room).mono fun _ _ _ kept => kept
+  have virt := fusedTruth_virt support w (fun x => (R.rows α).batchWeight (List.ofFn τ1) x +
+    η * normWeight R.vars kernel final x) final γ ζ
+  rw [length] at virt
+  have batched : (R.rows α).Batched R.vars w (List.ofFn τ1) := R.batched_of_holds holds α _
+  have zero : mle final (supportTable support w) = (0 : E) := by
+    rw [mle_congr final (u := fun _ => 0) fun x small => by
+      unfold supportTable
+      split
+      · rename_i member
+        rw [derived, binary x (length ▸ small) member, map_zero]
+      · rfl]
+    exact mle_const final 0
+  have scaled (x : ℕ) : algebraMap Zq E (w x) * (η * normWeight R.vars kernel final x) =
+      η * (algebraMap Zq E (w x) * normWeight R.vars kernel final x) := by ring
+  rw [virt, zero, mul_zero, add_zero, mle_normTable kernel w length, ← batched]
+  simp only [lifted, mul_add, Finset.sum_add_distrib, scaled, ← Finset.mul_sum]
 
 end Checks
 
@@ -206,12 +336,12 @@ variable [Fintype E] [DecidableEq E]
 prover has a message for each draw sequence, and the checks end in the claim `(r_2, w̃(r_2))` for
 the flat witness. -/
 theorem lockedTraceFold_winsTo (admits : Type → Prop) (scalar : admits E)
-    (range : admits (Fin (S.certifiedBase / 2 + 1 + 1) → E)) (cubic : admits (Fin (3 + 1) → E))
+    (range : ∀ n, n ≤ rangeWidth S.certifiedBase → admits (Fin n → E)) (cubic : admits (Fin (3 + 1) → E))
     (two : 2 ≤ S.certifiedBase) (small : S.certifiedBase < fieldModulus) (batch : ℕ)
     (rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch) {w : Witness O fold}
     (satisfies : w.TraceSatisfies st challenge) :
     WinsTo admits (foldCheck (lockedTraceReduction st challenge μ cells batch rowsFit)
-      S.certifiedBase (O.binarySupport fold) w.flat) (0 + μ + 1 + 1 + μ + 1 + 1 + 1) true
+      S.certifiedBase (O.binarySupport fold) w.flat) (foldDraws μ S.certifiedBase) true
       fun result _ _ =>
         ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E w.flat)) :=
   foldCheck_winsTo admits (lockedTraceReduction st challenge μ cells batch rowsFit)
@@ -266,55 +396,53 @@ variable {key : Key S} {openKey : OpeningKey O} {claim : Wire → TraceClaim O E
 checks of Figure 6): for digit vectors with the exact branch relation of the claim of a wire
 message, the checks end in the claim `(r_2, w̃(r_2))` for the flat witness. -/
 theorem committedTrace_winsAt (sends : Sends sendable E width cap)
-    (wide : S.certifiedBase / 2 + 1 + 1 ≤ width) (four : 4 ≤ width) (two : 2 ≤ S.certifiedBase)
+    (wide : rangeWidth S.certifiedBase ≤ width) (four : 4 ≤ width) (two : 2 ≤ S.certifiedBase)
     (small : S.certifiedBase < fieldModulus) (room : 0 < slots) {wire : Wire}
     {challenge : Fin S.blocks → Rq S.innerDegree} {w : Witness O fold}
     (satisfies : w.TraceSatisfies ((claim wire).statement key openKey) challenge) :
     WinsAt sendable slots
       ((committedTrace (fold := fold) key openKey claim μ cells batch rowsFit block decode read
-        weight start).check wire challenge w.flat) (0 + μ + 1 + 1 + μ + 1 + 1 + 1) 0
+        weight start).check wire challenge w.flat) (foldDraws μ S.certifiedBase) 0
       fun result _ place => place ≤ 1 ∧
         ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E w.flat)) :=
   winsAt_of_fresh (admits := fun M => ∀ message : M, sendable M message)
     (fun _ message all => all message)
-    (lockedTraceFold_winsTo _ sends.scalar (fun message => sends.vector _ message wide)
+    (lockedTraceFold_winsTo _ sends.scalar
+      (fun _ small message => sends.vector _ message (small.trans wide))
       (fun message => sends.vector _ message four) two small batch rowsFit satisfies) room
 
 /-- The completeness of the checks of the level `committedTraceSq` on the Euclidean route (Akita
-Theorem 10.9 with Section 6.2): for digit vectors with the exact branch relation of the claim of
-a wire message and a response with `‖G_{b_z,m_A}·ẑ‖_2² ≤ S_max`, the checks with the direct norm
-check end in the claim `(r_3, w̃(r_3))` for the flat witness. `normRoom`: the cube of `ν_norm`
-variables has the `N_A` coordinates of `z`. `capped`: a wire message can have the energy. -/
+Theorem 10.9 with Sections 6.2 and 6.3): for digit vectors with the exact branch relation of the
+claim of a wire message and a response with `‖G_{b_z,m_A}·ẑ‖_2² ≤ S_max`, the checks end in the
+claim `(r_2, w̃(r_2))` for the flat witness. `normRoom`: the cube of the `μ'` variables has the
+`N_A` coordinates of `z`. `capped`: a wire message can have the energy. -/
 theorem committedTraceSq_winsAt (sends : Sends sendable E width cap)
-    (wide : S.certifiedBase / 2 + 1 + 1 ≤ width) (four : 4 ≤ width) (two : 2 ≤ S.certifiedBase)
-    (small : S.certifiedBase < fieldModulus) (room : 3 < slots) {ν operator limit : ℕ}
-    (normRoom : S.blockLength * S.sourceDigits * S.innerDegree ≤ 2 ^ ν) {wire : Wire}
+    (wide : rangeWidthSq S.certifiedBase ≤ width) (four : 4 ≤ width) (two : 2 ≤ S.certifiedBase)
+    (small : S.certifiedBase < fieldModulus) (room : 0 < slots) {operator limit : ℕ}
+    (normRoom : S.blockLength * S.sourceDigits * S.innerDegree ≤ 2 ^ μ) {wire : Wire}
     {challenge : Fin S.blocks → Rq S.innerDegree} {w : Witness O fold}
     (satisfies : w.TraceSatisfies ((claim wire).statement key openKey) challenge)
     (short : vecNormSq (gadget fold.responseBase w.response) ≤ limit)
     (capped : limit ≤ cap) :
     WinsAt sendable slots
-      ((committedTraceSq (fold := fold) key openKey claim μ cells batch rowsFit ν block decode
+      ((committedTraceSq (fold := fold) key openKey claim μ cells batch rowsFit block decode
         read weight operator limit start).check wire challenge w.flat)
-      (0 + μ + 1 + 1 + μ + 1 + 1 + 1 + (0 + μ + 1 + ν)) 0
+      (foldDrawsSq μ S.certifiedBase) 0
       fun result _ place => place ≤ 1 ∧
-        ∃ r3 : List E, r3.length = μ ∧ result = some (r3, mle r3 (lifted E w.flat)) := by
-  have responses : S.responseCells fold ≤ 2 ^ μ :=
-    Nat.le_of_lt (Nat.lt_of_le_of_lt (O.responseCells_le_cells fold) cells)
-  change WinsAt sendable slots (Game.bind _ _) _ _ _
-  refine WinsAt.bind (committedTrace_winsAt (claim := claim) (cells := cells) (block := block)
-    (decode := decode) (read := read) (weight := weight) (start := start) sends wide four two
-    small (by omega) satisfies) fun result ⟨r2, long, ended⟩ => ?_
-  subst ended
-  exact normCheck_winsAt sends (by omega) (S.normKernel fold) w.flat long short
-    (short.trans capped) (energy_response w responses normRoom) (by omega)
+        ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E w.flat)) :=
+  foldCheckSq_winsAt sends room
+    (lockedTraceReduction ((claim wire).statement key openKey) challenge μ cells batch rowsFit)
+    S.certifiedBase wide four _ _
+    (lockedTraceRelation_of_flat (w.flat_of_le le_rfl) (satisfies.flat μ cells))
+    (satisfies.alphabets.rangeHolds two small μ) (satisfies.alphabets.binaryOn two μ) short
+    (short.trans capped)
+    (energy_response w (Nat.le_of_lt (Nat.lt_of_le_of_lt (O.responseCells_le_cells fold) cells))
+      normRoom)
 
-theorem committedTraceSq_costs_length {ν operator limit : ℕ} :
-    (committedTraceSq (fold := fold) key openKey claim μ cells batch rowsFit ν block decode read
-      weight operator limit start).costs.length =
-      0 + μ + 1 + 1 + μ + 1 + 1 + 1 + (0 + μ + 1 + ν) := by
-  show (foldCosts E _ μ batch _ ++ normCosts E ν μ).length = _
-  rw [List.length_append, foldCosts_length, normCosts_length]
+theorem committedTraceSq_costs_length {operator limit : ℕ} :
+    (committedTraceSq (fold := fold) key openKey claim μ cells batch rowsFit block decode read
+      weight operator limit start).costs.length = foldDrawsSq μ S.certifiedBase :=
+  foldCostsSq_length E _ _ _ _
 
 end Levels
 
@@ -333,7 +461,7 @@ Theorem 10.9): for digit vectors with the exact branch relation of the claim of 
 the checks end in the claim `(r_2, w̃(r_2))` for the flat witness with the digits of the
 quotients. `covers`: each element of `Z_q` has `digits` balanced digits of the base `b⋆`. -/
 theorem liftFold_winsAt (sends : Sends sendable E width cap)
-    (wide : S.certifiedBase / 2 + 1 + 1 ≤ width) (four : 4 ≤ width)
+    (wide : rangeWidth S.certifiedBase ≤ width) (four : 4 ≤ width)
     (radix : Radix S.certifiedBase)
     (covers : ∀ x : Zq, -((S.certifiedBase / 2 : ℕ) : ℤ) *
         ∑ u ∈ Finset.range digits, (S.certifiedBase : ℤ) ^ u ≤ x.valMinAbs ∧
@@ -347,13 +475,14 @@ theorem liftFold_winsAt (sends : Sends sendable E width cap)
         start).check wire challenge
         ((lockedRelation O fold β ((claim wire).statement key openKey) challenge μ
           cells).completion S.certifiedBase digits (O.cells fold + 1) w.flat))
-      (0 + μ + 1 + 1 + μ + 1 + 1 + 1) 0 fun result _ place => place ≤ 1 ∧
+      (foldDraws μ S.certifiedBase) 0 fun result _ place => place ≤ 1 ∧
         ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E
           ((lockedRelation O fold β ((claim wire).statement key openKey) challenge μ
             cells).completion S.certifiedBase digits (O.cells fold + 1) w.flat))) :=
   winsAt_of_fresh (admits := fun M => ∀ message : M, sendable M message)
     (fun _ message all => all message)
-    (liftedFold_winsTo _ sends.scalar (fun message => sends.vector _ message wide)
+    (liftedFold_winsTo _ sends.scalar
+      (fun _ small message => sends.vector _ message (small.trans wide))
       (fun message => sends.vector _ message four) radix covers room batch rowsFit satisfies)
     positive
 
@@ -374,7 +503,7 @@ variable {n : ℕ} {B : Batch (Fin n)} {E : Type} [Field E] [Fintype E] [Decidab
 Lemma 7.1, item 1, with Theorem 10.9): for digit vectors with the exact branch relation
 `Batch.Witness.Satisfies` of the claim of a wire message, the checks end in the claim
 `(r_2, w̃(r_2))` for the flat witness with the digits of the quotients. -/
-theorem liftBatch_winsAt (sends : Sends sendable E width cap) (wide : base / 2 + 1 + 1 ≤ width)
+theorem liftBatch_winsAt (sends : Sends sendable E width cap) (wide : rangeWidth base ≤ width)
     (four : 4 ≤ width) (uniform : ∀ g, (B.shape g).certifiedBase = base) (radix : Radix base)
     (covers : ∀ x : Zq, -((base / 2 : ℕ) : ℤ) * ∑ u ∈ Finset.range digits, (base : ℤ) ^ u ≤
         x.valMinAbs ∧
@@ -388,14 +517,15 @@ theorem liftBatch_winsAt (sends : Sends sendable E width cap) (wide : base / 2 +
         mass start).check wire challenge
         ((B.lockedRelation β ((claim wire).statement key openKey) (fun g i => challenge ⟨g, i⟩)
           μ cells).completion base digits (B.cells + 1) w.flat))
-      (0 + μ + 1 + 1 + μ + 1 + 1 + 1) 0 fun result _ place => place ≤ 1 ∧
+      (foldDraws μ base) 0 fun result _ place => place ≤ 1 ∧
         ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E
           ((B.lockedRelation β ((claim wire).statement key openKey)
             (fun g i => challenge ⟨g, i⟩) μ cells).completion base digits (B.cells + 1)
             w.flat))) :=
   winsAt_of_fresh (admits := fun M => ∀ message : M, sendable M message)
     (fun _ message all => all message)
-    (Batch.liftedFold_winsTo _ sends.scalar (fun message => sends.vector _ message wide)
+    (Batch.liftedFold_winsTo _ sends.scalar
+      (fun _ small message => sends.vector _ message (small.trans wide))
       (fun message => sends.vector _ message four) uniform radix covers room batch rowsFit
       satisfies)
     positive

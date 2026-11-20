@@ -10,8 +10,10 @@ in the claim `s_{ρ_S} = S̃^♭(ρ_S)` for the next level (135).
 
 - `setupCheck` is Stage 3 for the setup prefix `flat` and a weight. `setupCheck_avoids` states
   that on a path that avoids the bad sets a true final claim gives (133).
-- `SetupScan R ν flat` has the split (132) of the public weight of the reduction `R`: the local
-  part `m_local` and the weight `ω_setup` that the verifier computes, with the proof of (132).
+- `SetupScan R ν flat` has the split (132) of the public weight of the reduction `R` in the form
+  of the pinned Akita code: the local part `m_local`, the factor `scale` of the claim of Stage 3
+  and the weight of Stage 3, with the proof of the split. `SetupScan.direct` is the form of the
+  paper, and `SetupScan.direct_value` is the relation between the two.
 - `offloadCheck` is `foldCheck` with the value `σ_S` in the final check and with Stage 3 after
   it. It ends in the two claims `(r_2, v_W)` and `(ρ_S, s_{ρ_S})` of Akita (136).
   `offloadCheck_avoids` is `foldCheck_avoids` for it: Akita Lemma 9.1 for a table of the setup
@@ -77,19 +79,53 @@ theorem setupCheck_avoids (ν : ℕ) (flat : Table) (weight : ℕ → E) (σ : E
   exact claim
 
 /-- The split (132) of the public weight of the reduction `R` for the setup prefix `flat` of
-`2^ν` cells: `part α τ_1 r_2` is `m_local(r_2)` and `weight α τ_1 r_2` is `ω_setup`, which the
-verifier computes from the point `α` of the ring reduction, the batching point `τ_1` and the
-point `r_2`. -/
+`2^ν` cells, in the form of the pinned Akita code
+(`eval_flat_at_point_with_deferred_setup` in `crates/akita-verifier/src/relation/evaluation.rs`):
+`part α τ_1 r_2` is `m_local(r_2)`, `scale α τ_1 r_2` is the factor of the claim of Stage 3, which
+in the code is the evaluation of the powers of `α` at the coefficient coordinates of `r_2`
+(`common_alpha_evaluation`), and `weight α τ_1 r_2` is the weight of Stage 3. The verifier computes
+the three from the point `α` of the ring reduction, the batching point `τ_1` and the point
+`r_2`. -/
 structure SetupScan (R : Reduction E) (ν : ℕ) (flat : Table) where
   part : E → List E → List E → E
+  scale : E → List E → List E → E
   weight : E → List E → List E → ℕ → E
   split : ∀ (α : E) (τ : Fin R.batch → E) (r2 : List E), r2.length = R.vars →
     mle r2 ((R.rows α).batchWeight (List.ofFn τ)) =
-      part α (List.ofFn τ) r2 + cubeSum ν fun p => lifted E flat p * weight α (List.ofFn τ) r2 p
+      part α (List.ofFn τ) r2 + scale α (List.ofFn τ) r2 *
+        cubeSum ν fun p => lifted E flat p * weight α (List.ofFn τ) r2 p
+
+/-- The form of Akita (132) and (133) of a split: the factor 1, and the weight `ω_setup` that is
+the factor of the code times the weight of the code. -/
+def SetupScan.direct {R : Reduction E} {ν : ℕ} {flat : Table} (scan : SetupScan R ν flat) :
+    SetupScan R ν flat where
+  part := scan.part
+  scale _ _ _ := 1
+  weight α τ r2 p := scan.scale α τ r2 * scan.weight α τ r2 p
+  split α τ r2 length := by
+    rw [scan.split α τ r2 length, one_mul, ← cubeSum_mul_left]
+    exact congrArg _ (congrArg _ (funext fun p => by ring))
+
+omit [DecidableEq E] in
+/-- The relation between the two forms: for a value `σ` of Stage 3 of the code, the value
+`σ_S` of Akita (132) is `scale·σ`. It gives the same public weight in the final check of the
+fused sum-check, and it is the sum (133) for the weight of `SetupScan.direct` when `σ` is the sum
+for the weight of the code. -/
+theorem SetupScan.direct_value {R : Reduction E} {ν : ℕ} {flat : Table}
+    (scan : SetupScan R ν flat) (α : E) (τ r2 : List E) (σ : E) :
+    scan.direct.part α τ r2 + scan.direct.scale α τ r2 * (scan.scale α τ r2 * σ) =
+        scan.part α τ r2 + scan.scale α τ r2 * σ ∧
+      (σ = cubeSum ν (fun p => lifted E flat p * scan.weight α τ r2 p) →
+        scan.scale α τ r2 * σ =
+          cubeSum ν fun p => lifted E flat p * scan.direct.weight α τ r2 p) := by
+  refine ⟨by simp [SetupScan.direct], fun sum => ?_⟩
+  rw [sum, ← cubeSum_mul_left]
+  exact congrArg _ (funext fun p => by simp only [SetupScan.direct]; ring)
 
 /-- The checks of an offloaded fold for the flat witness `w` of the next level: `foldCheck` with
-the public weight `m_local(r_2) + σ_S` of Akita (132) in the final check of the fused sum-check,
-for the value `σ_S` of the proof, and then Stage 3 `setupCheck`. It ends in `none` when a check
+the public weight `m_local(r_2) + scale·σ` in the final check of the fused sum-check, for the
+value `σ` of the proof, and then Stage 3 `setupCheck` for the weight of the code. With
+`SetupScan.direct` it is the check of Akita (132) for `σ_S = scale·σ`. It ends in `none` when a check
 fails, and otherwise in the claims `(r_2, v_W)` and `(ρ_S, s_{ρ_S})` for the next level. -/
 noncomputable def offloadCheck (R : Reduction E) (b : ℕ) (support : ℕ → Prop)
     [DecidablePred support] (w : Table) (ν : ℕ) (flat : Table) (scan : SetupScan R ν flat) :
@@ -97,28 +133,25 @@ noncomputable def offloadCheck (R : Reduction E) (b : ℕ) (support : ℕ → Pr
   .draw E (R.bad w) fun α =>
   .draw (Fin R.vars → E) (rangeBad b R.vars w) fun τ0 =>
   .draw (Fin R.batch → E) ((R.rows α).batchBad R.vars R.batch w) fun τ1 =>
-  (sumcheckWith (b / 2 + 1) (combRound R.vars (rangeTables (List.ofFn τ0) w) (rangeComb E b))
-    (fun point => bindBad (R.vars - point.length - 1) (fold point (supportTable support w)))
-    R.vars [] 0).bind fun
+  (rangeCheck b R.vars support w (List.ofFn τ0)).bind fun
     | none => .pure none
-    | some (r, value) => .recv E fun sClaim =>
-        if value = mle r (eqAt (List.ofFn τ0)) * rangeSqIn b sClaim then
-          .draw E (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w))
-            (mle r (supportTable support w)))) fun ζ =>
-          .draw E (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w) +
-            ζ * mle r (supportTable support w)) (mle r (derived E w) - sClaim))) fun γ =>
-            (sumcheck 3 (combRound R.vars (fusedTables w ((R.rows α).batchWeight (List.ofFn τ1))
-              (virtWeight support r γ ζ)) (fusedComb E)) R.vars []
-              ((R.rows α).batchTarget (List.ofFn τ1) + γ * sClaim)).bind fun
-              | none => .pure none
-              | some (r2, final) => .recv E fun v => .recv E fun σ =>
-                  if final = v * (scan.part α (List.ofFn τ1) r2 + σ) +
-                      mle r2 (virtWeight support r γ ζ) * (v * (v + 1)) then
-                    (setupCheck ν flat (scan.weight α (List.ofFn τ1) r2) σ).bind fun
-                      | none => .pure none
-                      | some claim => .pure (some ((r2, v), claim))
-                  else .pure none
-        else .pure none
+    | some (r, sClaim) =>
+        .draw E (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w))
+          (mle r (supportTable support w)))) fun ζ =>
+        .draw E (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w) +
+          ζ * mle r (supportTable support w)) (mle r (derived E w) - sClaim))) fun γ =>
+          (sumcheck 3 (combRound R.vars (fusedTables w ((R.rows α).batchWeight (List.ofFn τ1))
+            (virtWeight support r γ ζ)) (fusedComb E)) R.vars []
+            ((R.rows α).batchTarget (List.ofFn τ1) + γ * sClaim)).bind fun
+            | none => .pure none
+            | some (r2, final) => .recv E fun v => .recv E fun σ =>
+                if final = v * (scan.part α (List.ofFn τ1) r2 +
+                      scan.scale α (List.ofFn τ1) r2 * σ) +
+                    mle r2 (virtWeight support r γ ζ) * (v * (v + 1)) then
+                  (setupCheck ν flat (scan.weight α (List.ofFn τ1) r2) σ).bind fun
+                    | none => .pure none
+                    | some claim => .pure (some ((r2, v), claim))
+                else .pure none
 
 /-- Akita Lemma 9.1 with `foldCheck_avoids`: on a path of `offloadCheck` that avoids the bad sets,
 two final claims that are true, `v_W = w̃(r_2)` for the committed witness and
@@ -132,28 +165,12 @@ theorem offloadCheck_avoids (R : Reduction E) (b : ℕ) (support : ℕ → Prop)
         R.Holds w ∧ RangeHolds b R.vars w ∧ BinaryOn support R.vars w := by
   intro α reduce τ0 point τ1 batch
   refine (avoids_bind _ _ _).mpr ?_
-  refine (sumcheckWith_avoids (b / 2 + 1) R.vars _ _ (range_roundTruth b R.vars (List.ofFn τ0) w)
-    (fun point => bindBad (R.vars - point.length - 1) (fold point (supportTable support w)))
-    (fun point => NonzeroOn (R.vars - point.length) (fold point (supportTable support w)))
-    (fun point c inside nonzero outside => by
-      rw [fold_append_single, List.length_append, List.length_singleton,
-        show R.vars - (point.length + 1) = R.vars - point.length - 1 by omega]
-      exact nonzeroOn_bindLow
-        (by rwa [show R.vars - point.length - 1 + 1 = R.vars - point.length by omega]) outside)
-    R.vars [] 0 (by simp)).mono ?_
-  rintro (_ | ⟨r, value⟩) ranged
+  refine (rangeCheck_avoids b R.vars support w (List.ofFn τ0) List.length_ofFn).mono ?_
+  rintro (_ | ⟨r, sClaim⟩) ranged
   · intro r2 v ρ s equal
     simp at equal
-  intro sClaim
-  dsimp only
-  split
-  swap
-  · intro r2 v ρ s equal
-    simp at equal
-  rename_i checked
+  obtain ⟨virt, rangeSound⟩ := ranged (r, sClaim) rfl
   intro ζ outsideζ γ outsideγ
-  obtain ⟨length, rangeSound, supportKept⟩ := ranged r value rfl
-  simp only [List.length_nil, zero_add] at length
   refine (avoids_bind _ _ _).mpr ?_
   refine ((sumcheck_avoids 3 R.vars _ _ (fused_roundTruth R.vars w _ _) R.vars [] _
     (by simp)).and_ends (sumcheck_ends 3 _ R.vars [] _)).mono ?_
@@ -184,39 +201,11 @@ theorem offloadCheck_avoids (R : Reduction E) (b : ℕ) (support : ℕ → Prop)
       (virtWeight support r γ ζ)
     rw [length2] at last
     rw [last, final, opening])
-  have virt := fusedTruth_virt support w ((R.rows α).batchWeight (List.ofFn τ1)) r γ ζ
-  rw [length] at virt
-  have batched : ∑ x ∈ Finset.range (2 ^ R.vars),
-      lifted E w x * (R.rows α).batchWeight (List.ofFn τ1) x -
-        (R.rows α).batchTarget (List.ofFn τ1) =
-      mle (List.ofFn τ1) ((R.rows α).residual R.vars w) :=
-    (R.rows α).batch_residual R.vars w (List.ofFn τ1)
-  have root : mle (List.ofFn τ1) ((R.rows α).residual R.vars w) +
-      ζ * mle r (supportTable support w) + γ * (mle r (derived E w) - sClaim) = 0 := by
-    rw [← batched]
-    linear_combination (fusedTrue.trans virt).symm
-  obtain ⟨first, second⟩ := eq_zero_of_not_mem_zeros_linePoly outsideγ root
-  obtain ⟨relation, binary⟩ := eq_zero_of_not_mem_zeros_linePoly outsideζ first
-  have rangeTrue := not_imp_not.mp rangeSound (by
-    have last := rangeTruth_final b (List.ofFn τ0) r w
-    rw [length] at last
-    rw [last, checked, sub_eq_zero.mp second])
-  have sum := rangeTruth_nil b (List.ofFn τ0) w
-  rw [List.length_ofFn] at sum
-  have zeroTable : ¬ NonzeroOn R.vars (supportTable (E := E) support w) := by
-    intro nonzero
-    have kept := supportKept (by simpa [fold] using nonzero)
-    rw [length, Nat.sub_self] at kept
-    obtain ⟨i, lt, cell⟩ := kept
-    obtain rfl : i = 0 := by simpa using lt
-    exact cell binary
-  refine ⟨R.sound w α reduce ((R.rows α).holds_of_batched R.vars batch
+  obtain ⟨relation, opened, binary⟩ := fused_sound virt
+    ((R.rows α).batch_residual R.vars w (List.ofFn τ1)) outsideζ outsideγ fusedTrue
+  exact ⟨R.sound w α reduce ((R.rows α).holds_of_batched R.vars batch
     (((R.rows α).batched_iff R.vars w _).mpr relation)),
-    rangeHolds_of_sum point (by rw [← sum, ← rangeTrue]), fun x small member => ?_⟩
-  by_contra cell
-  refine zeroTable ⟨x, small, ?_⟩
-  rw [supportTable, ite_eq_left member, derived]
-  exact fun zero => cell ((algebraMap Zq E).injective (zero.trans (map_zero _).symm))
+    rangeHolds_of_sum point (rangeSound opened), binary⟩
 
 namespace Extract
 
@@ -243,15 +232,11 @@ theorem offloadCheck_bare (R : Reduction E) (b : ℕ) (support : ℕ → Prop) [
       bare (offloadCheck R b support other ν flat scan) := by
   unfold offloadCheck
   refine bare_draw_congr fun α => bare_draw_congr fun τ0 => bare_draw_congr fun τ1 =>
-    bare_bind_congr (sumcheckWith_bare _ _ _ _ _ R.vars [] 0) fun result => ?_
-  rcases result with _ | ⟨r, value⟩
+    bare_bind_congr (rangeCheck_bare b R.vars support w other _) fun result => ?_
+  rcases result with _ | ⟨r, sClaim⟩
   · rfl
-  · refine bare_recv_congr fun sClaim => ?_
-    by_cases checked : value = mle r (eqAt (List.ofFn τ0)) * rangeSqIn b sClaim
-    · rw [ite_eq_left checked, ite_eq_left checked]
-      exact bare_draw_congr fun ζ => bare_draw_congr fun γ =>
-        bare_bind_congr (sumcheck_bare 3 _ _ R.vars [] _) fun _ => rfl
-    · rw [ite_eq_right checked, ite_eq_right checked]
+  · exact bare_draw_congr fun ζ => bare_draw_congr fun γ =>
+      bare_bind_congr (sumcheck_bare 3 _ _ R.vars [] _) fun _ => rfl
 
 variable {Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
 
@@ -287,15 +272,9 @@ theorem offloadCheck_staged (R : Reduction E) (base : ℕ) (support : ℕ → Pr
     fun τ0 => ?_
   refine stagedTo_draw (exists_fair_slots batchFit)
     ((R.rows α).density_batchBad_le R.vars (R.fits α) w) fun τ1 => ?_
-  refine (stagedTo_bind _ _ _ _).mpr (sumcheckWith_staged field (base / 2 + 1) R.vars 1 _
-    (range_roundTruth base R.vars (List.ofFn τ0) w).degree _ (fun _ => bindBad_card_le _ _) _ _
-    ?_ ?_ R.vars [] 0 (by simp))
+  refine (stagedTo_bind _ _ _ _).mpr (rangeCheck_stagedTo base R.vars support w _ _ _ ?_ ?_)
   · exact fun _ => trivial
-  rintro ⟨r, value⟩ sClaim
-  dsimp only
-  split
-  swap
-  · trivial
+  rintro ⟨r, sClaim⟩
   refine stagedTo_draw field (density_le _ 1
     (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) fun ζ =>
       stagedTo_draw field (density_le _ 1

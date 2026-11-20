@@ -75,7 +75,7 @@ noncomputable def interactiveError (field : ℕ) : List LevelError → ℝ
 /-- The numbers of a level with the checks `foldCheck` (Akita (189) after `ε_cw,h`). -/
 def foldLevel (blocks : ℕ) (chance : ℝ) (badBound vars batch base : ℕ) : LevelError where
   blocks := blocks
-  numerator := badBound + batch + vars + vars + vars * (base / 2 + 1) + 1 + 1 + 3 * vars
+  numerator := badBound + batch + vars + rangeNumerator vars base + 1 + 1 + 3 * vars
   chance := chance
 
 /-- The stage errors `r·p + ε_fold` of a level with the checks `foldCheck`, as

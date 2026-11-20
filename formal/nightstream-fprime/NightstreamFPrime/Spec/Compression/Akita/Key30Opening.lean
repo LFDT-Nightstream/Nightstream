@@ -15,8 +15,8 @@ route have a filter on the base family `(31, 11)` for the degree 64.
 - `Tower` has the data of the opening of a row: the matrices, the readers of the messages, the
   coordinates of the fold challenges, the setup prefix `flat`, the commitment `registry` of the
   setup prefix with its reference decommitment, the filters `keep₅` and `keep₆` of the levels 5
-  and 6, and the terminal. `part` and `weight` are the local part `m_local` and the weight
-  `ω_setup` of the public weight of the root. `Tower.Split` states the split of Akita (132) for
+  and 6, and the terminal. `part`, `scale` and `weight` are the local part `m_local`, the factor
+  of the claim of Stage 3 and the weight of Stage 3 of the public weight of the root. `Tower.Split` states the split of Akita (132) for
   them, and `Tower.scan` is the split `SetupScan` of `Extract/Offload.lean` that it gives. The
   definitions and the theorems have the hypothesis `split`.
 - `Tower.links` is the verifier `offLinks` for this data with the batching root at the stage
@@ -85,6 +85,7 @@ structure Tower (r : Row) (member : r ∈ rows) (E : Type) [Field E] [Fintype E]
   block : (root r).Block → Coord
   flat : Table
   part : (root r).Statement E → (root r).Challenge → E → List E → List E → E
+  scale : (root r).Statement E → (root r).Challenge → E → List E → List E → E
   weight : (root r).Statement E → (root r).Challenge → E → List E → List E → ℕ → E
   β₁ : ∀ g, Module.Basis (Fin ((level₁ r).planes g)) Zq E
   key₁ : (g : Fin 2) → Key ((level₁ r).shape g)
@@ -141,8 +142,8 @@ variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree
 /-- The split of the public weight of the root into the setup part, Akita (132), for the data
 `o`: for each statement, each fold challenge, each point `α` of the ring reduction, each batching
 point `τ_1` and each point `r_2`, the weight `m_{τ_1}(r_2)` of `Batch.liftedReduction` is
-`part + Σ_p S^♭(p)·weight(p)` for the setup prefix `flat`. Lean has no proof of it for the setup
-weight of the Akita code. -/
+`part + scale·Σ_p S^♭(p)·weight(p)` for the setup prefix `flat`, in the form of the pinned Akita
+code (`SetupScan`). Lean has no proof of it for the setup weight of the Akita code. -/
 def Tower.Split : Prop :=
   ∀ (st : (root r).Statement E) (challenge : (root r).Challenge) (α : E)
     (τ : Fin (Batch.liftedReduction o.β st challenge rootVars (root_sized r member).1 8
@@ -153,13 +154,14 @@ def Tower.Split : Prop :=
     mle r2 (((Batch.liftedReduction o.β st challenge rootVars (root_sized r member).1 8
         quotientDigits₀ (root_sized r member).2.1 rootBatch
         (root_sized r member).2.2.1).rows α).batchWeight (List.ofFn τ)) =
-      o.part st challenge α (List.ofFn τ) r2 +
+      o.part st challenge α (List.ofFn τ) r2 + o.scale st challenge α (List.ofFn τ) r2 *
         cubeSum setupVars fun p => lifted E o.flat p * o.weight st challenge α (List.ofFn τ) r2 p
 
 variable {o} in
 /-- The split `SetupScan` of the public weight of the root for the data `o` with `Tower.Split`. -/
 def Tower.scan (split : o.Split) : RootScan member o.β o.flat :=
-  fun st challenge => ⟨o.part st challenge, o.weight st challenge, split st challenge⟩
+  fun st challenge =>
+    ⟨o.part st challenge, o.scale st challenge, o.weight st challenge, split st challenge⟩
 
 variable (split : o.Split) (read : Reader Wire) (start : ℕ)
 
@@ -218,14 +220,14 @@ local notation "fourth" =>
 local notation "fifth" =>
   Tier.tensored (committedTraceSq (fold := level₅.fold) o.key₅ o.openKey₅ o.claim₅ level₅.vars
     (And.left (tails_sized level₅ (List.mem_cons_self ..))) level₅.batch
-    (And.left (And.right (tails_sized level₅ (List.mem_cons_self ..)))) norm₅.vars o.block₅ draw₅
+    (And.left (And.right (tails_sized level₅ (List.mem_cons_self ..)))) o.block₅ draw₅
     read 53 norm₅.operator norm₅.limit (Tier.finish fourth)) level₅.tail
 
 local notation "sixth" =>
   Tier.tensored (committedTraceSq (fold := level₆.fold) o.key₆ o.openKey₆ o.claim₆ level₆.vars
     (And.left (tails_sized level₆ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))) level₆.batch
     (And.left (And.right (tails_sized level₆ (List.mem_cons_of_mem _ (List.mem_cons_self ..)))))
-    norm₆.vars o.block₆ draw₆ read 53 norm₆.operator norm₆.limit (Tier.finish fifth))
+    o.block₆ draw₆ read 53 norm₆.operator norm₆.limit (Tier.finish fifth))
     level₆.tail
 
 /-- The verifier of the opening of a row of `key30.aks` with the batching root at the stage
@@ -313,14 +315,14 @@ theorem Tower.Drawn.fits (drawn : o.Drawn split read start keepL) : start ≤ to
 with the decoders `draw`: the stages of `Tower.body` are a suffix from the stage `start` under
 each verifier that accepts only with `Tower.links`, with `1467 + B_1 + B_2` retry loops, the tree
 size `54400647168·(129 + B_1)·(B_2 + 1)`, and a sum of the stage errors of at most
-`9104/|E| + (1458 + B_1 + B_2)/q²` (`tower_suffix` and `towerError_le` with
+`8132/|E| + (1458 + B_1 + B_2)/q²` (`tower_suffix` and `towerError_le` with
 `Key20.slotChance_draw`). `slots`: an answer of the oracle has 28 slots. -/
 theorem Tower.suffix (drawn : o.Drawn split read start keepL) (slots : 28 ≤ Fintype.card Coord)
     (linked : ∀ point, accept point → o.links split read start point) :
     ∃ error, Tier.Suffix accept start (OpensAt start o.commit o.value o.place o.key mass)
         (o.body split read start accept) error (1467 + r.blocks₁ + r.blocks₂)
         (54400647168 * ((129 + r.blocks₁) * (r.blocks₂ + 1))) ∧
-      error ≤ 9104 / (Fintype.card E : ℝ) +
+      error ≤ 8132 / (Fintype.card E : ℝ) +
         ((1458 + r.blocks₁ + r.blocks₂ : ℕ) : ℝ) * (1 / (fieldModulus : ℝ) ^ 2) := by
   have registered : Batch.Registered (o.key₁ 0) o.registry o.flat o.reference := by
     obtain ⟨table, payload, padded, decommitment⟩ := drawn.registered
@@ -424,7 +426,7 @@ variable [Finite Wire]
 row of `key30.aks` with the decoders `draw`. For each prover with at most `Q` queries to the
 table of the stage answers, the probability that `Tower.accepts` accepts and the extractor
 returns no output is at most
-`(Q + 1)·(9104/|E| + (1458 + B_1 + B_2)/q²) + (Q + 1)·(1467 + B_1 + B_2)/budget`, with
+`(Q + 1)·(8132/|E| + (1458 + B_1 + B_2)/q²) + (Q + 1)·(1467 + B_1 + B_2)/budget`, with
 `|E| = q²` (`Key20.card_field`). The probability is over the uniform table and the tape of the
 extractor. The bound has no term for the probability that the output is a solution of
 Module-SIS. -/
@@ -436,7 +438,7 @@ theorem Tower.extraction_le (drawn : o.Drawn split read 0 keepL) (slots : 28 ≤
         (if o.accepts split read ((Structure.protocol whole).final prover table) ∧
           Checkpoint.extract whole prover budget table tape = none
             then (1 : ℝ) else 0) ≤
-      (queries + 1) * (9104 / (Fintype.card E : ℝ) +
+      (queries + 1) * (8132 / (Fintype.card E : ℝ) +
           ((1458 + r.blocks₁ + r.blocks₂ : ℕ) : ℝ) * (1 / (fieldModulus : ℝ) ^ 2)) +
         (queries + 1) * (1467 + r.blocks₁ + r.blocks₂ : ℕ) / budget := by
   obtain ⟨_, suffix, small⟩ := Tower.suffix drawn slots fun _ accepted => accepted

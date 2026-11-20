@@ -19,6 +19,7 @@ against a false history (`Export/BoundedDepth/FinalShapes`, `FinalKey30All`). -/
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.level₄_sized
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.tails_sized
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.norms_sized
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.norms_response
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.quarters
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.root_points
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.level₁_points
@@ -37,6 +38,8 @@ against a false history (`Export/BoundedDepth/FinalShapes`, `FinalKey30All`). -/
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.slimFold_satisfies
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.LevelSized.slim
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.setupCheck_avoids
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.SetupScan.direct
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.SetupScan.direct_value
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.offloadCheck_avoids
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.setupCosts_sum
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.offloadCheck_bare

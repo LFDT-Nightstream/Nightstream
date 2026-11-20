@@ -151,6 +151,38 @@ theorem fusedCheck_bare (μ : ℕ) (support : ℕ → Prop) [DecidablePred suppo
       bare (fusedCheck μ support other weight target r sClaim ζ γ) :=
   bare_bind_congr (sumcheck_bare 3 _ _ μ [] _) fun _ => rfl
 
+/-- The verifier of the range tree is the same for each witness, when the verifier of its last
+stage is. -/
+theorem rangeTree_bare {β : Type} (leaf μ : ℕ) (w other : Table)
+    (last more : ℕ → (ℕ → E) → List E → E → Game (Option β))
+    (same : ∀ nodes weights point claim,
+      bare (last nodes weights point claim) = bare (more nodes weights point claim)) :
+    ∀ (arities : List ℕ) (nodes : ℕ) (weights : ℕ → E) (point : List E) (claim : E),
+      bare (rangeTree leaf μ w last arities nodes weights point claim) =
+        bare (rangeTree leaf μ other more arities nodes weights point claim) := by
+  intro arities
+  induction arities with
+  | nil => exact same
+  | cons a others step =>
+      intro nodes weights point claim
+      refine bare_bind_congr (sumcheck_bare _ _ _ μ [] claim) fun result => ?_
+      rcases result with _ | ⟨r, value⟩
+      · rfl
+      · refine bare_recv_congr fun child => ?_
+        by_cases checked : value = mle r (eqAt point) * ∑ m ∈ Finset.range nodes,
+            weights m * ∏ t ∈ Finset.range a, entry child (m * a + t)
+        · rw [ite_eq_left checked, ite_eq_left checked]
+          exact bare_draw_congr fun γ => step _ _ _ _
+        · rw [ite_eq_right checked, ite_eq_right checked]
+
+/-- The verifier of `rangeCheck` is the same for each witness. -/
+theorem rangeCheck_bare (b μ : ℕ) (support : ℕ → Prop) [DecidablePred support]
+    (w other : Table) (τ0 : List E) :
+    bare (rangeCheck b μ support w τ0) = bare (rangeCheck b μ support other τ0) := by
+  refine rangeTree_bare (rangeLeaf b) μ w other _ _ (fun nodes weights point claim =>
+    bare_bind_congr (sumcheckWith_bare _ _ _ _ _ μ [] claim) fun result => ?_) _ _ _ _ _
+  rcases result with _ | ⟨r, value⟩ <;> rfl
+
 /-- The verifier of `foldCheck` is the same for each witness: the witness is in the bad sets
 only. -/
 theorem foldCheck_bare (R : Reduction E) (b : ℕ) (support : ℕ → Prop) [DecidablePred support]
@@ -158,14 +190,10 @@ theorem foldCheck_bare (R : Reduction E) (b : ℕ) (support : ℕ → Prop) [Dec
     bare (foldCheck R b support w) = bare (foldCheck R b support other) := by
   unfold foldCheck
   refine bare_draw_congr fun α => bare_draw_congr fun τ0 => bare_draw_congr fun τ1 =>
-    bare_bind_congr (sumcheckWith_bare _ _ _ _ _ R.vars [] 0) fun result => ?_
-  rcases result with _ | ⟨r, value⟩
+    bare_bind_congr (rangeCheck_bare b R.vars support w other _) fun result => ?_
+  rcases result with _ | ⟨r, sClaim⟩
   · rfl
-  · refine bare_recv_congr fun sClaim => ?_
-    by_cases checked : value = mle r (eqAt (List.ofFn τ0)) * rangeSqIn b sClaim
-    · rw [ite_eq_left checked, ite_eq_left checked]
-      exact bare_draw_congr fun ζ => bare_draw_congr fun γ =>
-        fusedCheck_bare R.vars support w other _ _ r sClaim ζ γ
-    · rw [ite_eq_right checked, ite_eq_right checked]
+  · exact bare_draw_congr fun ζ => bare_draw_congr fun γ =>
+      fusedCheck_bare R.vars support w other _ _ r sClaim ζ γ
 
 end NightstreamFPrime.Spec.Compression.Akita.Extract

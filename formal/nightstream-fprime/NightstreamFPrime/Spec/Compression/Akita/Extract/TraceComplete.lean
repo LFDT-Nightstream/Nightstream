@@ -56,7 +56,7 @@ structure SourceSized (S : Shape) (m p s k : ℕ) : Prop where
 /-- The conditions on the fold of a trace level for the honest prover. `radix`: `b_z` is even and
 `2 ≤ b_z < q`. `certified`: `b_z ≤ b⋆`. `path`: the inputs of `H_1` and `H_2` have a position for
 each digit. `wide`: the view of `D` has the `d_A` coordinates of a partial. `two` and `small`:
-`2 ≤ b⋆ < q`. `range`: a message can have a round polynomial of the range sum-check. -/
+`2 ≤ b⋆ < q`. `range`: a message can have each message of the range tree. -/
 structure FoldSized (S : Shape) (O : OpeningShape S) (fold : Descriptor) (width : ℕ) : Prop where
   radix : Radix fold.responseBase
   certified : fold.responseBase ≤ S.certifiedBase
@@ -64,7 +64,7 @@ structure FoldSized (S : Shape) (O : OpeningShape S) (fold : Descriptor) (width 
   wide : S.innerDegree ≤ O.subcolumns * O.openDegree
   two : 2 ≤ S.certifiedBase
   small : S.certifiedBase < fieldModulus
-  range : S.certifiedBase / 2 + 1 + 1 ≤ width
+  range : rangeWidth S.certifiedBase ≤ width
 
 theorem FoldSized.mono {S : Shape} {O : OpeningShape S} {fold : Descriptor} {width wider : ℕ}
     (sized : FoldSized S O fold width) (le : width ≤ wider) : FoldSized S O fold wider :=

@@ -45,10 +45,10 @@ theorem level₁_bounded : level₁.shape.Bounded :=
     pathFits_of (by decide) (by decide)⟩
 
 /-- The level 1 has `b_z = 8 ≤ b⋆`, the compression maps of its matrix `D` have a position for
-each binary digit, and a round polynomial of its range sum-check has 6 coefficients. -/
+each binary digit, and a message of its range tree has at most 6 field elements. -/
 theorem level₁_fold : level₁.fold.responseBase ≤ level₁.shape.certifiedBase ∧
     PathFits level₁.opening.openDegree (1 * level₁.opening.openRank) level₁.opening.chain ∧
-    level₁.shape.certifiedBase / 2 + 1 + 1 = 6 :=
+    rangeWidth level₁.shape.certifiedBase = 6 :=
   ⟨by decide, pathFits_of (by decide) (by decide), by decide⟩
 
 /-- The blocks of the groups of the root have `2^20`, `2^16` and `2^16` cells. -/
@@ -116,17 +116,17 @@ local notation "second" =>
 
 local notation "third" =>
   Tier.tensored (committedTraceSq (fold := level₃.fold) key₃ openKey₃ claim₃ level₃.vars
-    (And.left sized₃) level₃.batch (And.left (And.right sized₃)) norm₃.vars block₃ decode₃ read
+    (And.left sized₃) level₃.batch (And.left (And.right sized₃)) block₃ decode₃ read
     weight₃ norm₃.operator norm₃.limit (Tier.finish second)) level₃.tail
 
 local notation "fourth" =>
   Tier.tensored (committedTraceSq (fold := level₄.fold) key₄ openKey₄ claim₄ level₄.vars
-    (And.left sized₄) level₄.batch (And.left (And.right sized₄)) norm₄.vars block₄ decode₄ read
+    (And.left sized₄) level₄.batch (And.left (And.right sized₄)) block₄ decode₄ read
     weight₄ norm₄.operator norm₄.limit (Tier.finish third)) level₄.tail
 
 local notation "fifth" =>
   Tier.tensored (committedTraceSq (fold := level₅.fold) key₅ openKey₅ claim₅ level₅.vars
-    (And.left sized₅) level₅.batch (And.left (And.right sized₅)) norm₅.vars block₅ decode₅ read
+    (And.left sized₅) level₅.batch (And.left (And.right sized₅)) block₅ decode₅ read
     weight₅ norm₅.operator norm₅.limit (Tier.finish fourth)) level₅.tail
 
 local notation "links" =>
@@ -151,7 +151,7 @@ the checks `Terminal.Passed`. The conditions on the shapes are theorems of this 
 `Key20Complete.lean`.
 
 `sends`, `wide`, `capped`, `room`, `carriesR` to `carriesL`: a wire message can have the data of
-the prover, with round polynomials of 34 coefficients, the energy `3029804899` and 4 messages of
+the prover, with messages of 8 field elements, the energy `3029804899` and 4 messages of
 the checks. `next`, `inside`, `reads`, `clears`: the stage of the terminal and its messages.
 `live`: the table of the key polynomial is 0 after `2^20` cells, and the tables of `W` and of `V`
 are 0 after `2^16` cells. `committed`, `lengths`, `valued`: the last message of `early` has the
@@ -160,7 +160,7 @@ tables at these points. `fit`: the fit conditions `BatchFit` of the root, `LiftF
 level 1, `TraceFit` of the levels 2 to 5 with `S_max` of `norm₃` to `norm₅`, and
 `‖z‖_2² ≤ S_max,term` at the terminal, for each fold challenge vector of the families. -/
 theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
-    (sends : Sends sendable E width cap) (wide : 34 ≤ width) (capped : 3029804899 ≤ cap)
+    (sends : Sends sendable E width cap) (wide : 8 ≤ width) (capped : 3029804899 ≤ cap)
     (room : 3 < slots) (carriesR : Carries sendable slots read claim)
     (carries₀ : Carries sendable slots read fun wire => (commit₁ wire, claim₁ wire))
     (carries₁ : Carries sendable slots read fun wire => (commit₂ wire, claim₂ wire))
@@ -219,7 +219,8 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     omega
   exact Extract.tower_complete sends (by omega) room carriesR carries₀ carries₁ carries₂
     carries₃ carries₄ carries₅ carriesL (fun g => root_honest g) (fun g => (root_folds g).1)
-    (fun g => (root_folds g).2) paths.1 root_sized.2.2.2.1 covers.1 covers.2 (by omega)
+    (fun g => (root_folds g).2) paths.1 root_sized.2.2.2.1 covers.1 covers.2
+    ((by decide : rangeWidth 8 ≤ 6).trans (by omega))
     level₁_bounded covers.1 level₁_fold.1 level₁_fold.2.1 covers.1 covers.2
     (by rw [level₁_fold.2.2]; omega) quarters.1 quarters.2.1
     quarters.2.2.1 quarters.2.2.2.1 quarters.2.2.2.2 source₂ source₃ source₄ source₅ source₆
@@ -230,6 +231,9 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     Key20.links.2.2.1 Key20.links.2.2.2.1 Key20.links.2.2.2.2.1 Key20.links.2.2.2.2.2
     (norms_sized (level₃, norm₃) (by simp)).1 (norms_sized (level₄, norm₄) (by simp)).1
     (norms_sized (level₅, norm₅) (by simp)).1
+    ((by decide : rangeWidthSq level₃.shape.certifiedBase ≤ 8).trans wide)
+    ((by decide : rangeWidthSq level₄.shape.certifiedBase ≤ 8).trans wide)
+    ((by decide : rangeWidthSq level₅.shape.certifiedBase ≤ 8).trans wide)
     ((by decide : norm₃.limit ≤ 3029804899).trans capped)
     ((by decide : norm₄.limit ≤ 3029804899).trans capped)
     ((by decide : norm₅.limit ≤ 3029804899).trans capped) next inside reads clears table decodes

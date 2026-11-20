@@ -160,8 +160,9 @@ response of each level is admissible (Akita Definition 10.5) for each fold chall
 family. -/
 theorem packingPair_complete (fits : Type → Prop)
     (full : Full fits claim claim' payloadOf witnessOf read) (scalar : fits E)
-    (cubic : fits (Fin (3 + 1) → E)) (range : fits (Fin (S.certifiedBase / 2 + 1 + 1) → E))
-    (range' : fits (Fin (S'.certifiedBase / 2 + 1 + 1) → E)) (shape : S.Honest)
+    (cubic : fits (Fin (3 + 1) → E))
+    (range : ∀ n, n ≤ rangeWidth S.certifiedBase → fits (Fin n → E))
+    (range' : ∀ n, n ≤ rangeWidth S'.certifiedBase → fits (Fin n → E)) (shape : S.Honest)
     (radix : Radix fold.responseBase) (certified : fold.responseBase ≤ S.certifiedBase)
     (path : PathFits O.openDegree (1 * O.openRank) O.chain) (two : 2 ≤ S.certifiedBase)
     (small : S.certifiedBase < fieldModulus) (shape' : S'.Honest)
@@ -187,7 +188,7 @@ theorem packingPair_complete (fits : Type → Prop)
       pairAccepts first second payloadOf witnessOf
         ((Structure.protocol chain).final (.done proof) table) := by
   have stages : Tier.finish second =
-      0 + μ + 1 + 1 + μ + 1 + 1 + 1 + 1 + (0 + μ' + 1 + 1 + μ' + 1 + 1 + 1 + 1) := by
+      foldDraws μ S.certifiedBase + 1 + (foldDraws μ' S'.certifiedBase + 1) := by
     rw [Tier.finish_eq, Tier.finish_eq]
     show 0 + ((foldCosts E _ μ batch _).length + 1) + ((foldCosts E _ μ' batch' _).length + 1) = _
     rw [foldCosts_length, foldCosts_length]
@@ -260,7 +261,7 @@ theorem packingPair_complete (fits : Type → Prop)
   obtain ⟨early, earlier⟩ : ∃ early : List ((Coord → E) × Wire),
       early = (reply0, wire1) :: (init ++ [final]) := ⟨_, rfl⟩
   rw [← earlier] at on
-  have long : early.length = 0 + μ + 1 + 1 + μ + 1 + 1 + 1 + 1 := by
+  have long : early.length = foldDraws μ S.certifiedBase + 1 := by
     rw [earlier, List.length_cons, List.length_append, List.length_singleton, counted]
   have short : early.length ≤ Tier.finish second := by omega
   obtain ⟨reply1, answered1⟩ : ∃ reply, reply = answer table wire0 early := ⟨_, rfl⟩
@@ -348,13 +349,13 @@ theorem packingPair_complete (fits : Type → Prop)
     rw [finished, earlier]
     simp
   have blocked : S'.blocks ≤ 2 ^ (((r2.drop p).drop t).drop s).length :=
-    blocks.trans (le_of_eq (by congr 1; simp; omega))
+    blocks.trans (le_of_eq (congrArg (2 ^ ·) (by simp; omega)))
   have lengthed : S'.blockLength = 2 ^ (((r2.drop p).drop t).take s).length := by
-    rw [length]; congr 1; simp; omega
+    rw [length]; exact congrArg (2 ^ ·) (by simp; omega)
   have strided : O'.stride = 2 ^ (r2.take p).length := by
-    rw [stride]; congr 1; simp; omega
+    rw [stride]; exact congrArg (2 ^ ·) (by simp; omega)
   have degreed : O'.carrierDegree = 2 ^ ((r2.drop p).take t).length := by
-    rw [degree]; congr 1; simp; omega
+    rw [degree]; exact congrArg (2 ^ ·) (by simp; omega)
   have value := honestClaim_value (β := β') (key := key') (openKey := openKey') shape' flat
     (((r2.drop p).drop t).drop s) (((r2.drop p).drop t).take s) (r2.take p) ((r2.drop p).take t)
     blocked lengthed strided degreed fun cell large => by

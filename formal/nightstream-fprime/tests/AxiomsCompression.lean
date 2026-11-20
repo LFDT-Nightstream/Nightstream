@@ -253,6 +253,7 @@ import NightstreamFPrime.Export.BoundedDepth.Shipped
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.level₁_sized
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.traces_sized
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.norms_sized
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.norms_response
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.quarters
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.points
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.blocks_live

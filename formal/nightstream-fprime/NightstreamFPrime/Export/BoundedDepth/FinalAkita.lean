@@ -725,7 +725,7 @@ variable {S₁ : Compression.Akita.Shape} {O₁ : OpeningShape S₁} {fold₁ : 
   {fits₅ : O₅.cells fold₅ < 2 ^ μ₅} {batch₅ : ℕ}
   {rowsFit₅ : O₅.traceRowCount + 1 + 1 ≤ 2 ^ batch₅} {block₅ : Fin S₅.blocks → Coord}
   {decode₅ : K → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
-  {operator₃ limit₃ vars₃ operator₄ limit₄ vars₄ operator₅ limit₅ vars₅ operatorL limitL : ℕ}
+  {operator₃ limit₃ operator₄ limit₄ operator₅ limit₅ operatorL limitL : ℕ}
   {L : Terminal S₆ K Wire Coord K total (.euclidean operatorL limitL)} {m₆ : ℕ}
   {commit : Wire → (g : Fin 3) → (B.shape g).Payload} {value : Wire → Fin 3 → K}
   {place : Wire → Fin 3 → List K} {quarter₂ : 4 * m₂ = S₂.innerDegree}
@@ -753,15 +753,15 @@ local notation "second" =>
 
 local notation "third" =>
   Tier.tensored (committedTraceSq (fold := fold₃) key₃ openKey₃ claim₃ μ₃ fits₃ batch₃ rowsFit₃
-    vars₃ block₃ decode₃ (Compose.read C) weight₃ operator₃ limit₃ (Tier.finish second)) ν₃
+    block₃ decode₃ (Compose.read C) weight₃ operator₃ limit₃ (Tier.finish second)) ν₃
 
 local notation "fourth" =>
   Tier.tensored (committedTraceSq (fold := fold₄) key₄ openKey₄ claim₄ μ₄ fits₄ batch₄ rowsFit₄
-    vars₄ block₄ decode₄ (Compose.read C) weight₄ operator₄ limit₄ (Tier.finish third)) ν₄
+    block₄ decode₄ (Compose.read C) weight₄ operator₄ limit₄ (Tier.finish third)) ν₄
 
 local notation "fifth" =>
   Tier.tensored (committedTraceSq (fold := fold₅) key₅ openKey₅ claim₅ μ₅ fits₅ batch₅ rowsFit₅
-    vars₅ block₅ decode₅ (Compose.read C) weight₅ operator₅ limit₅ (Tier.finish fourth)) ν₅
+    block₅ decode₅ (Compose.read C) weight₅ operator₅ limit₅ (Tier.finish fourth)) ν₅
 
 local notation "accepts" =>
   towerAccepts (weight₃ := weight₃) (weight₄ := weight₄) (weight₅ := weight₅) C vf
@@ -820,9 +820,9 @@ variable {peak : Fin 3 → ℕ}
   (sized₃ : LevelSized block₃ decode₃ weight₃ fold₃.responseBase S₃.certifiedBase μ₃ batch₃)
   (sized₄ : LevelSized block₄ decode₄ weight₄ fold₄.responseBase S₄.certifiedBase μ₄ batch₄)
   (sized₅ : LevelSized block₅ decode₅ weight₅ fold₅.responseBase S₅.certifiedBase μ₅ batch₅)
-  (normed₃ : NormSized S₃ fold₃ decode₃ operator₃ limit₃ vars₃)
-  (normed₄ : NormSized S₄ fold₄ decode₄ operator₄ limit₄ vars₄)
-  (normed₅ : NormSized S₅ fold₅ decode₅ operator₅ limit₅ vars₅)
+  (normed₃ : NormSized S₃ fold₃ decode₃ operator₃ limit₃ μ₃)
+  (normed₄ : NormSized S₄ fold₄ decode₄ operator₄ limit₄ μ₄)
+  (normed₅ : NormSized S₅ fold₅ decode₅ operator₅ limit₅ μ₅)
   (inside : Terminal.start L < total)
   (injectiveL : Function.Injective (Terminal.block L))
   (unitsL : UnitDifferences (Terminal.family L))
@@ -911,7 +911,7 @@ the verifier accepts and the extractor returns no output with probability at mos
 `(Q + 1)·(runCost + ε) + (Q + 1)·(2 + loops)/budget`. `ε` is `1/|K|` for the weights of the
 batching root, `Σ_b p_b + Σ_j ε_j` for each level and `B_term·p_term` for the terminal (206), and
 `loops` is one for the root, `B_ℓ + 1` for each level and `B_term` for the terminal. The `ε_j` of
-the levels 3 to 5 include the bounds `normCosts` of the direct norm check. -/
+the levels 3 to 5 are the bounds `foldCostsSq` of the checks with the direct norm check. -/
 theorem mixed_extraction_le (next : Terminal.start L = Tier.finish fifth) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
     𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget

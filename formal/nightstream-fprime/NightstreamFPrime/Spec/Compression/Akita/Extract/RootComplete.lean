@@ -178,7 +178,7 @@ of the checks for it. `shape`, `radix`, `certified`, `path`: the conditions of
 `base`, which has the conditions `Radix`, and each element of `Z_q` has `digits` balanced
 digits. -/
 theorem batchLevel_wins {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
-    (sends : Sends sendable E width cap) (range : base / 2 + 1 + 1 ≤ width) (four : 4 ≤ width)
+    (sends : Sends sendable E width cap) (range : rangeWidth base ≤ width) (four : 4 ≤ width)
     (positive : 0 < slots) (shape : ∀ g, (B.shape g).Honest)
     (radix : ∀ g, Radix (B.fold g).responseBase)
     (certified : ∀ g, (B.fold g).responseBase ≤ (B.shape g).certifiedBase)
@@ -200,7 +200,7 @@ theorem batchLevel_wins {sendable : (M : Type) → M → Prop} {slots width cap 
         ((liftBatch β key openKey claim μ cells base digits room batch rowsFit block decode read
           mass start).check wire c
           (batchNext β key openKey μ cells base digits table point weight fun g i => c ⟨g, i⟩))
-        (0 + μ + 1 + 1 + μ + 1 + 1 + 1) 0 fun result _ place => place ≤ 1 ∧
+        (foldDraws μ base) 0 fun result _ place => place ≤ 1 ∧
           ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E
             (batchNext β key openKey μ cells base digits table point weight
               fun g i => c ⟨g, i⟩))) := by
@@ -348,7 +348,7 @@ variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree
   {μ₅ : ℕ} {fits₅ : O₅.cells fold₅ < 2 ^ μ₅} {batch₅ : ℕ}
   {rowsFit₅ : O₅.traceRowCount + 1 + 1 ≤ 2 ^ batch₅} {block₅ : Fin S₅.blocks → Coord}
   {decode₅ : E → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
-  {operator₃ limit₃ norm₃ operator₄ limit₄ norm₄ operator₅ limit₅ norm₅ operatorL limitL : ℕ}
+  {operator₃ limit₃ operator₄ limit₄ operator₅ limit₅ operatorL limitL : ℕ}
   {L : Terminal S₆ E Wire Coord E total (.euclidean operatorL limitL)} {m₆ : ℕ}
   {commit : Wire → (g : Fin count) → (B.shape g).Payload} {value : Wire → Fin count → E}
   {place : Wire → Fin count → List E} {commit₁ : Wire → S₁.Payload} {commit₂ : Wire → S₂.Payload}
@@ -371,15 +371,15 @@ local notation "second" =>
 
 local notation "third" =>
   Tier.tensored (committedTraceSq (fold := fold₃) key₃ openKey₃ claim₃ μ₃ fits₃ batch₃ rowsFit₃
-    norm₃ block₃ decode₃ read weight₃ operator₃ limit₃ (Tier.finish second)) ν₃
+    block₃ decode₃ read weight₃ operator₃ limit₃ (Tier.finish second)) ν₃
 
 local notation "fourth" =>
   Tier.tensored (committedTraceSq (fold := fold₄) key₄ openKey₄ claim₄ μ₄ fits₄ batch₄ rowsFit₄
-    norm₄ block₄ decode₄ read weight₄ operator₄ limit₄ (Tier.finish third)) ν₄
+    block₄ decode₄ read weight₄ operator₄ limit₄ (Tier.finish third)) ν₄
 
 local notation "fifth" =>
   Tier.tensored (committedTraceSq (fold := fold₅) key₅ openKey₅ claim₅ μ₅ fits₅ batch₅ rowsFit₅
-    norm₅ block₅ decode₅ read weight₅ operator₅ limit₅ (Tier.finish fourth)) ν₅
+    block₅ decode₅ read weight₅ operator₅ limit₅ (Tier.finish fourth)) ν₅
 
 /-- Akita Theorem 10.9 for the opening with a batching root, a fold with opening groups, a packing
 level, four trace levels and the terminal, without the probability that a response does not fit and
@@ -421,7 +421,7 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     (covers₀ : ∀ x : Zq, -((base / 2 : ℕ) : ℤ) * ∑ u ∈ Finset.range digits, (base : ℤ) ^ u ≤
         x.valMinAbs ∧
       x.valMinAbs ≤ (((base / 2 : ℕ) : ℤ) - 1) * ∑ u ∈ Finset.range digits, (base : ℤ) ^ u)
-    (range₀ : base / 2 + 1 + 1 ≤ width)
+    (range₀ : rangeWidth base ≤ width)
     (shape₁ : S₁.Bounded) (radix₁ : Radix fold₁.responseBase)
     (certified₁ : fold₁.responseBase ≤ S₁.certifiedBase)
     (path₁ : PathFits O₁.openDegree (1 * O₁.openRank) O₁.chain)
@@ -430,7 +430,7 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
         ∑ u ∈ Finset.range digits₁, (S₁.certifiedBase : ℤ) ^ u ≤ x.valMinAbs ∧
       x.valMinAbs ≤ (((S₁.certifiedBase / 2 : ℕ) : ℤ) - 1) *
         ∑ u ∈ Finset.range digits₁, (S₁.certifiedBase : ℤ) ^ u)
-    (range₁ : S₁.certifiedBase / 2 + 1 + 1 ≤ width)
+    (range₁ : rangeWidth S₁.certifiedBase ≤ width)
     (quarter₂ : 4 * m₂ = S₂.innerDegree) (quarter₃ : 4 * m₃ = S₃.innerDegree)
     (quarter₄ : 4 * m₄ = S₄.innerDegree) (quarter₅ : 4 * m₅ = S₅.innerDegree)
     (quarter₆ : 4 * m₆ = S₆.innerDegree)
@@ -453,9 +453,11 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     (covered₃ : O₃.cells fold₃ ≤ 2 * (S₄.blocks * (S₄.blockLength * (2 * m₄))))
     (covered₄ : O₄.cells fold₄ ≤ 2 * (S₅.blocks * (S₅.blockLength * (2 * m₅))))
     (covered₅ : O₅.cells fold₅ ≤ 2 * (S₆.blocks * (S₆.blockLength * (2 * m₆))))
-    (normRoom₃ : S₃.blockLength * S₃.sourceDigits * S₃.innerDegree ≤ 2 ^ norm₃)
-    (normRoom₄ : S₄.blockLength * S₄.sourceDigits * S₄.innerDegree ≤ 2 ^ norm₄)
-    (normRoom₅ : S₅.blockLength * S₅.sourceDigits * S₅.innerDegree ≤ 2 ^ norm₅)
+    (normRoom₃ : S₃.blockLength * S₃.sourceDigits * S₃.innerDegree ≤ 2 ^ μ₃)
+    (normRoom₄ : S₄.blockLength * S₄.sourceDigits * S₄.innerDegree ≤ 2 ^ μ₄)
+    (normRoom₅ : S₅.blockLength * S₅.sourceDigits * S₅.innerDegree ≤ 2 ^ μ₅)
+    (wide₃ : rangeWidthSq S₃.certifiedBase ≤ width) (wide₄ : rangeWidthSq S₄.certifiedBase ≤ width)
+    (wide₅ : rangeWidthSq S₅.certifiedBase ≤ width)
     (capped₃ : limit₃ ≤ cap) (capped₄ : limit₄ ≤ cap) (capped₅ : limit₅ ≤ cap)
     (next : L.start = Tier.finish fifth) (inside : L.start < total)
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
@@ -554,7 +556,7 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     digit₁ covers₁ range₁ quarter₂ quarter₃ quarter₄ quarter₅ quarter₆ source₂ source₃ source₄
     source₅ source₆ sized₂ sized₃ sized₄ sized₅ vars₁ vars₂ vars₃ vars₄ vars₅ point₁ point₂
     point₃ point₄ point₅ covered₁ covered₂ covered₃ covered₄ covered₅ normRoom₃ normRoom₄
-    normRoom₅ capped₃ capped₄ capped₅ next inside reads clears table decodes₁ decodes₂ decodes₃
+    normRoom₅ wide₃ wide₄ wide₅ capped₃ capped₄ capped₅ next inside reads clears table decodes₁ decodes₂ decodes₃
     decodes₄ decodes₅ decodesL on₀ len₀ ready₁ fit₁
   have joined : early ++ (reply, wireR) :: (later₀ ++ later) =
       early ++ [(reply, wireR)] ++ later₀ ++ later := by

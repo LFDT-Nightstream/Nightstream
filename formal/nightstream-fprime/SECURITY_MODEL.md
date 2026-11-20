@@ -103,11 +103,20 @@ scope note.
   (`decisions/akita-compression.md`).
 - `MSIS`: Module-SIS for a uniform matrix of `κ = 18` rows over `F_q[X]/(X^64 + 1)` at the chain norm, in the
   lattice-estimator model of `decisions/field-2p64-59-ring-x64.md` (trust item 2), and for the Akita commitments at the
-  price of the Akita code (trust item 7). The two prices are not numbers of one model. The record of the main key has
-  127.20 bits, and a run of the Akita estimator gives this number on the Euclidean route with the factor `√(m·d)`. The
-  169 bits of the Akita code are a direct ℓ∞ estimate, which gives 154.23 bits for the main key. By the method of the
-  main-key record, the lowest Akita instance of `key20.aks` has 110.77 bits. The owner has not selected one model, so
-  this entry has no common number for its instances (trust item 7, the Module-SIS instances). For the matrices of the
+  price of the Akita code (trust item 7). The two prices are not numbers of one model. The 169 bits of the Akita code
+  are a direct ℓ∞ estimate. The estimator of the Akita authors gives 154.23 bits for the main key in that model, and no Sage
+  run gives that number again. On 2026-11-20 the owner selected the method of
+  the main-key record for each instance: the Sage `lattice-estimator` at `norm = 2` and the length
+  `bound · √(m·d)` (the script `scripts/estimate_nebula_sis.sage`), which gives the recorded 127.20
+  bits of the main key again. **By this method, the shipped schedule files have outer matrices below the main key.**
+  Three of the 24 largest instances of the two files are below 127.20 bits in the ADPS16 quantum model, and each is a
+  matrix `B` of rank 1 over the ring of degree 128: level 2 of `key20.aks` (width 1092, bound 31) at 110.77 bits, level
+  2 of `key30.aks` (width 4224, bound 15) at 112.36 bits, and group 1 of the root of `key30.aks` (width 11264, bound 7)
+  at 122.43 bits. Three more views are below 128 bits: `B` of level 3 of `key20.aks` (122.43), of level 2 of the
+  second row of `key30.aks` (112.89) and of level 3 of `key30.aks` (127.995). Each other largest instance has 128.79
+  bits or more. Rank 2 for such a matrix gives 285 bits or more, and the next smaller digit base gives 134.6 bits or
+  more. The schedule files are not changed, so the claims on Akita openings rest on these instances
+  (`decisions/akita-compression.md`). For the matrices of the
   commitment of the compression key, the instances are those of the premise `msis` (trust item 7). For the opening of
   `key20.aks`, the instances are the 13 instances of `Claims.Akita.key20_instance_list`, and
   `Claims.Akita.key20_instances` states that this list is complete for the term `breakChance` below. For the opening of
@@ -1189,12 +1198,12 @@ not change terminal source checks.
      and at the terminal (`Spec.Compression.Akita.Key20.tower_suffix`). The prover has at most `Q` queries to one
      uniform table of stage answers (item below). The final verifier with these openings
      (`Spec.Compression.Akita.Extract.towerAccepts`) accepts a statement for which no proof with witnesses satisfies
-     `Verifies` with probability at most `(Q + 1) · (runCost + 7424/|K| + 135 · p) + (Q + 1) · 144/budget +
+     `Verifies` with probability at most `(Q + 1) · (runCost + 6318/|K| + 135 · p) + (Q + 1) · 144/budget +
      breakChance`. `runCost` is the sum of the bounds of the draws of the Π_CCS run and of the argument
-     (`Export.BoundedDepth.FinalVerifier.Setup.runCost`). `7424/|K| + 135 · p` bounds the stage errors of the opening,
+     (`Export.BoundedDepth.FinalVerifier.Setup.runCost`). `6318/|K| + 135 · p` bounds the stage errors of the opening,
      which has 135 fold coordinates (`Spec.Compression.Akita.Key20.towerError_le`). No decoder from one slot of `K` has
      `p ≤ 2^−128`, because `|K| = q²` is below `2^128` (`Spec.Compression.Akita.Key20.pow_lt_slotChance`). For a decoder
-     that is an injection of `K` into the challenge family, `p = 1/q²`, and the bound is `7559/q²`
+     that is an injection of `K` into the challenge family, `p = 1/q²`, and the bound is `6453/q²`
      (`Spec.Compression.Akita.Key20.slotChance_draw`). The claims are for these decoders
      (`Claims.Akita.key20_opening_bound`). For them Lean proves the unit differences (`Claims.Akita.short_units`) and
      the sparse challenges. The operator bound `Γ` of the filtered families stays a hypothesis: the paper proves it for
@@ -1264,7 +1273,7 @@ not change terminal source checks.
      each claim shape and of the proof of zero steps, `Claims.AkitaKey30.key30_points` for the 30, 27 or 26, and 28
      coordinates of the opening points, and `Claims.AkitaKey30.key30_instance_list` and
      `Claims.AkitaKey30.key30_instances` for the instances of Module-SIS. The bound of one shape is `(Q + 1) · (runCost
-     + (10562 + B_1 + B_2)/q²) + (Q + 1) · (1469 + B_1 + B_2)/budget + breakChance`, with `B_1 + B_2` equal to 211 for
+     + (9590 + B_1 + B_2)/q²) + (Q + 1) · (1469 + B_1 + B_2)/budget + breakChance`, with `B_1 + B_2` equal to 211 for
      `W` of 27 variables and to 201 for `W` of 26 variables (`Export.BoundedDepth.FinalKey30.Opening.shapeBound`). The
      decoders are `Spec.Compression.Akita.Extract.draw` of the families of the code, so the unit differences, the sparse
      challenges and `p = 1/q²` are theorems. The premises are those of the claims of `key20.aks` and two more, and three

@@ -93,7 +93,7 @@ message for each draw sequence, and the checks end in the claim `(r_2, w̃(r_2))
 witness with the digits of the quotients. `covers`: each element of `Z_q` has `digits` balanced
 digits of the base `b⋆`. -/
 theorem liftedFold_winsTo [DecidableEq E] (admits : Type → Prop) (scalar : admits E)
-    (range : admits (Fin (S.certifiedBase / 2 + 1 + 1) → E)) (cubic : admits (Fin (3 + 1) → E))
+    (range : ∀ n, n ≤ rangeWidth S.certifiedBase → admits (Fin n → E)) (cubic : admits (Fin (3 + 1) → E))
     (radix : Radix S.certifiedBase) {digits : ℕ}
     (covers : ∀ x : Zq, -((S.certifiedBase / 2 : ℕ) : ℤ) *
         ∑ u ∈ Finset.range digits, (S.certifiedBase : ℤ) ^ u ≤ x.valMinAbs ∧
@@ -105,7 +105,7 @@ theorem liftedFold_winsTo [DecidableEq E] (admits : Type → Prop) (scalar : adm
     WinsTo admits (foldCheck (liftedReduction β st challenge μ fits digits room batch rowsFit)
       S.certifiedBase (O.binarySupport fold)
       ((lockedRelation O fold β st challenge μ fits).completion S.certifiedBase digits
-        (O.cells fold + 1) w.flat)) (0 + μ + 1 + 1 + μ + 1 + 1 + 1) true fun result _ _ =>
+        (O.cells fold + 1) w.flat)) (foldDraws μ S.certifiedBase) true fun result _ _ =>
         ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E
           ((lockedRelation O fold β st challenge μ fits).completion S.certifiedBase digits
             (O.cells fold + 1) w.flat))) :=
@@ -182,7 +182,7 @@ variable {β st challenge μ fits}
 checks end in the claim `(r_2, w̃(r_2))` for the flat witness with the digits of the
 quotients. -/
 theorem liftedFold_winsTo [DecidableEq E] (admits : Type → Prop) (scalar : admits E)
-    (range : admits (Fin (base / 2 + 1 + 1) → E)) (cubic : admits (Fin (3 + 1) → E))
+    (range : ∀ n, n ≤ rangeWidth base → admits (Fin n → E)) (cubic : admits (Fin (3 + 1) → E))
     (uniform : ∀ g, (B.shape g).certifiedBase = base) (radix : Radix base) {digits : ℕ}
     (covers : ∀ x : Zq, -((base / 2 : ℕ) : ℤ) * ∑ u ∈ Finset.range digits, (base : ℤ) ^ u ≤
         x.valMinAbs ∧
@@ -193,7 +193,7 @@ theorem liftedFold_winsTo [DecidableEq E] (admits : Type → Prop) (scalar : adm
     WinsTo admits (foldCheck (liftedReduction β st challenge μ fits base digits room batch
       rowsFit) base B.binarySupport
       ((B.lockedRelation β st challenge μ fits).completion base digits (B.cells + 1) w.flat))
-      (0 + μ + 1 + 1 + μ + 1 + 1 + 1) true fun result _ _ =>
+      (foldDraws μ base) true fun result _ _ =>
         ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E
           ((B.lockedRelation β st challenge μ fits).completion base digits (B.cells + 1)
             w.flat))) :=

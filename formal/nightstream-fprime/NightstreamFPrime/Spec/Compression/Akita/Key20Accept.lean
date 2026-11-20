@@ -11,7 +11,7 @@ responses of the honest prover. This file has no such hypothesis.
 - `Note` has the data of a wire message other than the messages of the checks: the commitments,
   the points and the values of the three claims, the claim of the root fold, the commitment and
   the claim of each level, and the state, the statement, the clear partials and the clear
-  response of the terminal. `Wire` is `Page` for this data, with 4 cells of 34 elements and a
+  response of the terminal. `Wire` is `Page` for this data, with 4 cells of 8 elements and a
   number up to `3029804899`.
 - `terminalOf` is the terminal that reads its statement and its clear partials from the message
   before its fold challenges.
@@ -56,9 +56,9 @@ structure Note (E : Type) [CommRing E] [Algebra Zq E] where
   partials : Fin terminal.blocks → Rq terminal.innerDegree
   response : terminal.Source
 
-/-- A wire message of the opening: the data `Note`, and 4 cells of 34 elements of `E` and a
+/-- A wire message of the opening: the data `Note`, and 4 cells of 8 elements of `E` and a
 number up to `3029804899` for the messages of the checks. -/
-abbrev Wire (E : Type) [CommRing E] [Algebra Zq E] : Type := Page (Note E) E 4 34 3029804899
+abbrev Wire (E : Type) [CommRing E] [Algebra Zq E] : Type := Page (Note E) E 4 8 3029804899
 
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E]
   {Coord : Type} [Fintype Coord] [DecidableEq Coord]
@@ -124,19 +124,19 @@ local notation "second" =>
 local notation "third" =>
   Tier.tensored (committedTraceSq (fold := level₃.fold) key₃ openKey₃
     (Note.claim₃ ∘ Page.data : Wire E → _) level₃.vars (And.left sized₃) level₃.batch
-    (And.left (And.right sized₃)) norm₃.vars block₃ decode₃ Page.read weight₃ norm₃.operator
+    (And.left (And.right sized₃)) block₃ decode₃ Page.read weight₃ norm₃.operator
     norm₃.limit (Tier.finish second)) level₃.tail
 
 local notation "fourth" =>
   Tier.tensored (committedTraceSq (fold := level₄.fold) key₄ openKey₄
     (Note.claim₄ ∘ Page.data : Wire E → _) level₄.vars (And.left sized₄) level₄.batch
-    (And.left (And.right sized₄)) norm₄.vars block₄ decode₄ Page.read weight₄ norm₄.operator
+    (And.left (And.right sized₄)) block₄ decode₄ Page.read weight₄ norm₄.operator
     norm₄.limit (Tier.finish third)) level₄.tail
 
 local notation "fifth" =>
   Tier.tensored (committedTraceSq (fold := level₅.fold) key₅ openKey₅
     (Note.claim₅ ∘ Page.data : Wire E → _) level₅.vars (And.left sized₅) level₅.batch
-    (And.left (And.right sized₅)) norm₅.vars block₅ decode₅ Page.read weight₅ norm₅.operator
+    (And.left (And.right sized₅)) block₅ decode₅ Page.read weight₅ norm₅.operator
     norm₅.limit (Tier.finish fourth)) level₅.tail
 
 /-- The verifier `towerLinks` of the opening of the schedule `key20.aks` accepts a proof: the

@@ -348,7 +348,7 @@ cover `key30.aks`. The model is one uniform table of stage answers with independ
 the verifier is the Lean verifier `Key20.Tower.accepts`, which differs from the verifier of the
 pinned Akita code. For each prover with at most `Q` queries, the probability that the verifier
 accepts and the extractor returns no output is at most
-`(Q + 1)·(7424/q² + 135/q²) + (Q + 1)·142/budget`: `7424/q²` for the draws of the checks,
+`(Q + 1)·(6318/q² + 135/q²) + (Q + 1)·142/budget`: `6318/q²` for the draws of the checks,
 `1/q²` for each of the 135 fold coordinates, and 142 retry loops. The bound does not contain the
 probability that the output is a solution of Module-SIS (`[MSIS]`), and the operator bound of
 the filtered families is a hypothesis. -/
@@ -382,7 +382,7 @@ theorem key20_opening_bound
                 Checkpoint.extract o.body prover budget table tape = none then
             1
           else 0) ≤
-      ((↑queries : ℝ) + 1) * (7424 / (↑(Fintype.card E) : ℝ) + 135 * (1 / (↑fieldModulus : ℝ) ^ 2)) +
+      ((↑queries : ℝ) + 1) * (6318 / (↑(Fintype.card E) : ℝ) + 135 * (1 / (↑fieldModulus : ℝ) ^ 2)) +
         ((↑queries : ℝ) + 1) * (↑142 : ℝ) / (↑budget : ℝ) :=
   @NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.extraction_le E fieldE fintypeE decidableEqE
     algebraZqE degree2EAlgebraZqE Wire Coord fintypeCoord decidableEqCoord nonemptyCoord total o keepL
@@ -446,17 +446,17 @@ theorem key20_opening_accepts
     (inside : ((Akita.Extract.committedTraceSq key₅ openKey₅
                   (Akita.Key20.Note.claim₅ ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _) Akita.Key20.level₅.vars
                   Akita.Key20.sized₅.left Akita.Key20.level₅.batch Akita.Key20.sized₅.right.left
-                  Akita.Key20.norm₅.vars block₅ decode₅ Akita.Extract.Page.read weight₅
+                  block₅ decode₅ Akita.Extract.Page.read weight₅
                   Akita.Key20.norm₅.operator Akita.Key20.norm₅.limit
                   ((Akita.Extract.committedTraceSq key₄ openKey₄
                           (Akita.Key20.Note.claim₄ ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _) Akita.Key20.level₄.vars
                           Akita.Key20.sized₄.left Akita.Key20.level₄.batch Akita.Key20.sized₄.right.left
-                          Akita.Key20.norm₄.vars block₄ decode₄ Akita.Extract.Page.read weight₄
+                          block₄ decode₄ Akita.Extract.Page.read weight₄
                           Akita.Key20.norm₄.operator Akita.Key20.norm₄.limit
                           ((Akita.Extract.committedTraceSq key₃ openKey₃
                                   (Akita.Key20.Note.claim₃ ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _)
                                   Akita.Key20.level₃.vars Akita.Key20.sized₃.left Akita.Key20.level₃.batch
-                                  Akita.Key20.sized₃.right.left Akita.Key20.norm₃.vars block₃ decode₃
+                                  Akita.Key20.sized₃.right.left block₃ decode₃
                                   Akita.Extract.Page.read weight₃ Akita.Key20.norm₃.operator
                                   Akita.Key20.norm₃.limit
                                   ((Akita.Extract.committedTrace key₂ openKey₂
@@ -536,7 +536,7 @@ theorem key20_opening_accepts
           Akita.Key20.level₂.tail)
         ((Akita.Extract.committedTraceSq key₃ openKey₃ (Akita.Key20.Note.claim₃ ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _)
               Akita.Key20.level₃.vars Akita.Key20.sized₃.left Akita.Key20.level₃.batch
-              Akita.Key20.sized₃.right.left Akita.Key20.norm₃.vars block₃ decode₃ Akita.Extract.Page.read
+              Akita.Key20.sized₃.right.left block₃ decode₃ Akita.Extract.Page.read
               weight₃ Akita.Key20.norm₃.operator Akita.Key20.norm₃.limit
               ((Akita.Extract.committedTrace key₂ openKey₂
                       (Akita.Key20.Note.claim₂ ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _) Akita.Key20.level₂.vars
@@ -559,12 +559,12 @@ theorem key20_opening_accepts
           Akita.Key20.level₃.tail)
         ((Akita.Extract.committedTraceSq key₄ openKey₄ (Akita.Key20.Note.claim₄ ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _)
               Akita.Key20.level₄.vars Akita.Key20.sized₄.left Akita.Key20.level₄.batch
-              Akita.Key20.sized₄.right.left Akita.Key20.norm₄.vars block₄ decode₄ Akita.Extract.Page.read
+              Akita.Key20.sized₄.right.left block₄ decode₄ Akita.Extract.Page.read
               weight₄ Akita.Key20.norm₄.operator Akita.Key20.norm₄.limit
               ((Akita.Extract.committedTraceSq key₃ openKey₃
                       (Akita.Key20.Note.claim₃ ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _) Akita.Key20.level₃.vars
                       Akita.Key20.sized₃.left Akita.Key20.level₃.batch Akita.Key20.sized₃.right.left
-                      Akita.Key20.norm₃.vars block₃ decode₃ Akita.Extract.Page.read weight₃
+                      block₃ decode₃ Akita.Extract.Page.read weight₃
                       Akita.Key20.norm₃.operator Akita.Key20.norm₃.limit
                       ((Akita.Extract.committedTrace key₂ openKey₂
                               (Akita.Key20.Note.claim₂ ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _) Akita.Key20.level₂.vars
@@ -588,17 +588,17 @@ theorem key20_opening_accepts
           Akita.Key20.level₄.tail)
         ((Akita.Extract.committedTraceSq key₅ openKey₅ (Akita.Key20.Note.claim₅ ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _)
               Akita.Key20.level₅.vars Akita.Key20.sized₅.left Akita.Key20.level₅.batch
-              Akita.Key20.sized₅.right.left Akita.Key20.norm₅.vars block₅ decode₅ Akita.Extract.Page.read
+              Akita.Key20.sized₅.right.left block₅ decode₅ Akita.Extract.Page.read
               weight₅ Akita.Key20.norm₅.operator Akita.Key20.norm₅.limit
               ((Akita.Extract.committedTraceSq key₄ openKey₄
                       (Akita.Key20.Note.claim₄ ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _) Akita.Key20.level₄.vars
                       Akita.Key20.sized₄.left Akita.Key20.level₄.batch Akita.Key20.sized₄.right.left
-                      Akita.Key20.norm₄.vars block₄ decode₄ Akita.Extract.Page.read weight₄
+                      block₄ decode₄ Akita.Extract.Page.read weight₄
                       Akita.Key20.norm₄.operator Akita.Key20.norm₄.limit
                       ((Akita.Extract.committedTraceSq key₃ openKey₃
                               (Akita.Key20.Note.claim₃ ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _) Akita.Key20.level₃.vars
                               Akita.Key20.sized₃.left Akita.Key20.level₃.batch Akita.Key20.sized₃.right.left
-                              Akita.Key20.norm₃.vars block₃ decode₃ Akita.Extract.Page.read weight₃
+                              block₃ decode₃ Akita.Extract.Page.read weight₃
                               Akita.Key20.norm₃.operator Akita.Key20.norm₃.limit
                               ((Akita.Extract.committedTrace key₂ openKey₂
                                       (Akita.Key20.Note.claim₂ ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _)
@@ -627,17 +627,17 @@ theorem key20_opening_accepts
         (Akita.Key20.terminalOf total matrix blockL decodeL
           ((Akita.Extract.committedTraceSq key₅ openKey₅ (Akita.Key20.Note.claim₅ ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _)
                   Akita.Key20.level₅.vars Akita.Key20.sized₅.left Akita.Key20.level₅.batch
-                  Akita.Key20.sized₅.right.left Akita.Key20.norm₅.vars block₅ decode₅
+                  Akita.Key20.sized₅.right.left block₅ decode₅
                   Akita.Extract.Page.read weight₅ Akita.Key20.norm₅.operator Akita.Key20.norm₅.limit
                   ((Akita.Extract.committedTraceSq key₄ openKey₄
                           (Akita.Key20.Note.claim₄ ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _) Akita.Key20.level₄.vars
                           Akita.Key20.sized₄.left Akita.Key20.level₄.batch Akita.Key20.sized₄.right.left
-                          Akita.Key20.norm₄.vars block₄ decode₄ Akita.Extract.Page.read weight₄
+                          block₄ decode₄ Akita.Extract.Page.read weight₄
                           Akita.Key20.norm₄.operator Akita.Key20.norm₄.limit
                           ((Akita.Extract.committedTraceSq key₃ openKey₃
                                   (Akita.Key20.Note.claim₃ ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _)
                                   Akita.Key20.level₃.vars Akita.Key20.sized₃.left Akita.Key20.level₃.batch
-                                  Akita.Key20.sized₃.right.left Akita.Key20.norm₃.vars block₃ decode₃
+                                  Akita.Key20.sized₃.right.left block₃ decode₃
                                   Akita.Extract.Page.read weight₃ Akita.Key20.norm₃.operator
                                   Akita.Key20.norm₃.limit
                                   ((Akita.Extract.committedTrace key₂ openKey₂
@@ -690,7 +690,7 @@ with independent slots, and the verifier is the Lean verifier `FinalKey20.finalA
 Lean decoders `draw`, which differs from the pinned Akita code. For each prover with at most `Q`
 queries, the probability that the verifier accepts and no proof with witnesses satisfies
 `Verifies` for the statement is at most `FinalKey20.shapesBound` at the slot probability `1/q²`:
-for each claim shape, `(Q + 1)·(runCost + 7424/q² + 135/q²) + (Q + 1)·144/budget + breakChance`.
+for each claim shape, `(Q + 1)·(runCost + 6318/q² + 135/q²) + (Q + 1)·144/budget + breakChance`.
 Lean gives no bound on `breakChance`, the probability of a solution of Module-SIS (`[MSIS]`).
 `drawn`: the conditions `FinalKey20.Opening.Drawn` of each opening, with the operator bound of
 the filtered families. -/

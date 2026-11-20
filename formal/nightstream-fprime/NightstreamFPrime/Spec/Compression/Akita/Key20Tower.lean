@@ -8,7 +8,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Key20
   `towerLinks`. The retry loops are 142 and the tree size is 21449539584. Its hypotheses are: an
   answer of the oracle has 22 slots, the fold coordinates of each level have different slots, each
   challenge family has units as differences and its norm bound, and the stage of the terminal.
-- `towerError_le` bounds the sum of the stage errors by `7424/|E| + 135·p` when each challenge
+- `towerError_le` bounds the sum of the stage errors by `6318/|E| + 135·p` when each challenge
   family has the slot probability at most `p`, with `|E| = q²` (`card_field`). -/
 
 set_option autoImplicit false
@@ -80,9 +80,10 @@ omit [Field E] [DecidableEq E] [Algebra Zq E] [Degree2 E] [Fintype Coord] [Decid
 /-- The sum of the bounds `foldCosts` of the draws of the checks of one fold. -/
 theorem foldCosts_total (badBound vars batch base : ℕ) :
     (foldCosts E badBound vars batch base).sum =
-      ((badBound + vars + batch + vars * (base / 2 + 1 + 1) + 1 + 1 + vars * 3 : ℕ) : ℝ) /
+      ((badBound + vars + batch + rangeNumerator vars base + 1 + 1 + vars * 3 : ℕ) : ℝ) /
         Fintype.card E := by
-  simp only [foldCosts, List.sum_cons, List.sum_append, List.sum_replicate, nsmul_eq_mul]
+  simp only [foldCosts, List.sum_cons, List.sum_append, List.sum_replicate, nsmul_eq_mul,
+    rangeCosts_sum]
   push_cast
   ring
 
@@ -127,17 +128,17 @@ local notation "second" =>
 
 local notation "third" =>
   Tier.tensored (committedTraceSq (fold := level₃.fold) key₃ openKey₃ claim₃ level₃.vars
-    (And.left sized₃) level₃.batch (And.left (And.right sized₃)) norm₃.vars block₃ decode₃ read
+    (And.left sized₃) level₃.batch (And.left (And.right sized₃)) block₃ decode₃ read
     weight₃ norm₃.operator norm₃.limit (Tier.finish second)) level₃.tail
 
 local notation "fourth" =>
   Tier.tensored (committedTraceSq (fold := level₄.fold) key₄ openKey₄ claim₄ level₄.vars
-    (And.left sized₄) level₄.batch (And.left (And.right sized₄)) norm₄.vars block₄ decode₄ read
+    (And.left sized₄) level₄.batch (And.left (And.right sized₄)) block₄ decode₄ read
     weight₄ norm₄.operator norm₄.limit (Tier.finish third)) level₄.tail
 
 local notation "fifth" =>
   Tier.tensored (committedTraceSq (fold := level₅.fold) key₅ openKey₅ claim₅ level₅.vars
-    (And.left sized₅) level₅.batch (And.left (And.right sized₅)) norm₅.vars block₅ decode₅ read
+    (And.left sized₅) level₅.batch (And.left (And.right sized₅)) block₅ decode₅ read
     weight₅ norm₅.operator norm₅.limit (Tier.finish fourth)) level₅.tail
 
 local notation "accepts" =>
@@ -243,17 +244,17 @@ theorem tower_suffix {peak : Fin 3 → ℕ} (slots : 22 ≤ Fintype.card Coord)
   exact suffix
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
-/-- The sum of the stage errors of `tower_suffix` (Akita (206)) is at most `7424/|E| + 135·p`,
+/-- The sum of the stage errors of `tower_suffix` (Akita (206)) is at most `6318/|E| + 135·p`,
 when each challenge family has the slot probability at most `p`. The 135 fold coordinates are
-56 of the root, 28, 21, 11, 7 and 7 of the levels 1 to 5, and 5 of the terminal. The 7424 are 1
-for the weights of the batching root and 2275, 2305, 588, 631, 813 and 811 for the draws of the
+56 of the root, 28, 21, 11, 7 and 7 of the levels 1 to 5, and 5 of the terminal. The 6318 are 1
+for the weights of the batching root and 2275, 2305, 458, 443, 418 and 418 for the draws of the
 checks of the root and of the levels 1 to 5, with the tensor reduction and the direct norm
 check. -/
 theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
     (chance₁ : slotChance decode₁ ≤ p) (chance₂ : slotChance decode₂ ≤ p)
     (chance₃ : slotChance decode₃ ≤ p) (chance₄ : slotChance decode₄ ≤ p)
     (chance₅ : slotChance decode₅ ≤ p) (chanceL : slotChance L.decode ≤ p) :
-    towerError ≤ 7424 / (Fintype.card E : ℝ) + 135 * p := by
+    towerError ≤ 6318 / (Fintype.card E : ℝ) + 135 * p := by
   have sum₀ : ∑ b, Tier.chance zeroth b ≤ (56 : ℕ) * p :=
     sum_le_mul (root.card_block.trans (by decide)) fun b => chance b.1
   have sum₁ : ∑ b, Tier.chance first b ≤ (28 : ℕ) * p :=
@@ -277,36 +278,33 @@ theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
       level₁.shape.certifiedBase ++ tensorCosts E level₁.tail).sum = _
     rw [List.sum_append, foldCosts_total, tensorCosts_sum, ← add_div, ← Nat.cast_add]
     exact congrArg (fun count : ℕ => (count : ℝ) / Fintype.card E) (by decide)
-  have costs₂ : (Tier.costs second).sum = (588 : ℕ) / (Fintype.card E : ℝ) := by
+  have costs₂ : (Tier.costs second).sum = (458 : ℕ) / (Fintype.card E : ℝ) := by
     show (foldCosts E (level₂.opening.largestDegree - 1) level₂.vars level₂.batch
       level₂.shape.certifiedBase ++ tensorCosts E level₂.tail).sum = _
     rw [List.sum_append, foldCosts_total, tensorCosts_sum, ← add_div, ← Nat.cast_add]
     exact congrArg (fun count : ℕ => (count : ℝ) / Fintype.card E) (by decide)
-  have costs₃ : (Tier.costs third).sum = (631 : ℕ) / (Fintype.card E : ℝ) := by
-    show ((foldCosts E (level₃.opening.largestDegree - 1) level₃.vars level₃.batch
-      level₃.shape.certifiedBase ++ normCosts E norm₃.vars level₃.vars) ++
+  have costs₃ : (Tier.costs third).sum = (443 : ℕ) / (Fintype.card E : ℝ) := by
+    show ((foldCostsSq E (level₃.opening.largestDegree - 1) level₃.vars level₃.batch
+      level₃.shape.certifiedBase) ++
         tensorCosts E level₃.tail).sum = _
-    rw [List.sum_append, List.sum_append, foldCosts_total, normCosts_sum, tensorCosts_sum,
-      ← add_div, ← add_div, ← Nat.cast_add, ← Nat.cast_add]
+    rw [List.sum_append, foldCostsSq_sum, tensorCosts_sum, ← add_div, ← Nat.cast_add]
     exact congrArg (fun count : ℕ => (count : ℝ) / Fintype.card E) (by decide)
-  have costs₄ : (Tier.costs fourth).sum = (813 : ℕ) / (Fintype.card E : ℝ) := by
-    show ((foldCosts E (level₄.opening.largestDegree - 1) level₄.vars level₄.batch
-      level₄.shape.certifiedBase ++ normCosts E norm₄.vars level₄.vars) ++
+  have costs₄ : (Tier.costs fourth).sum = (418 : ℕ) / (Fintype.card E : ℝ) := by
+    show ((foldCostsSq E (level₄.opening.largestDegree - 1) level₄.vars level₄.batch
+      level₄.shape.certifiedBase) ++
         tensorCosts E level₄.tail).sum = _
-    rw [List.sum_append, List.sum_append, foldCosts_total, normCosts_sum, tensorCosts_sum,
-      ← add_div, ← add_div, ← Nat.cast_add, ← Nat.cast_add]
+    rw [List.sum_append, foldCostsSq_sum, tensorCosts_sum, ← add_div, ← Nat.cast_add]
     exact congrArg (fun count : ℕ => (count : ℝ) / Fintype.card E) (by decide)
-  have costs₅ : (Tier.costs fifth).sum = (811 : ℕ) / (Fintype.card E : ℝ) := by
-    show ((foldCosts E (level₅.opening.largestDegree - 1) level₅.vars level₅.batch
-      level₅.shape.certifiedBase ++ normCosts E norm₅.vars level₅.vars) ++
+  have costs₅ : (Tier.costs fifth).sum = (418 : ℕ) / (Fintype.card E : ℝ) := by
+    show ((foldCostsSq E (level₅.opening.largestDegree - 1) level₅.vars level₅.batch
+      level₅.shape.certifiedBase) ++
         tensorCosts E level₅.tail).sum = _
-    rw [List.sum_append, List.sum_append, foldCosts_total, normCosts_sum, tensorCosts_sum,
-      ← add_div, ← add_div, ← Nat.cast_add, ← Nat.cast_add]
+    rw [List.sum_append, foldCostsSq_sum, tensorCosts_sum, ← add_div, ← Nat.cast_add]
     exact congrArg (fun count : ℕ => (count : ℝ) / Fintype.card E) (by decide)
-  have whole : 7424 / (Fintype.card E : ℝ) = 1 / (Fintype.card E : ℝ) +
+  have whole : 6318 / (Fintype.card E : ℝ) = 1 / (Fintype.card E : ℝ) +
       (2275 : ℕ) / (Fintype.card E : ℝ) + (2305 : ℕ) / (Fintype.card E : ℝ) +
-      (588 : ℕ) / (Fintype.card E : ℝ) + (631 : ℕ) / (Fintype.card E : ℝ) +
-      (813 : ℕ) / (Fintype.card E : ℝ) + (811 : ℕ) / (Fintype.card E : ℝ) := by
+      (458 : ℕ) / (Fintype.card E : ℝ) + (443 : ℕ) / (Fintype.card E : ℝ) +
+      (418 : ℕ) / (Fintype.card E : ℝ) + (418 : ℕ) / (Fintype.card E : ℝ) := by
     push_cast
     ring
   rw [costs₀, costs₁, costs₂, costs₃, costs₄, costs₅, whole]

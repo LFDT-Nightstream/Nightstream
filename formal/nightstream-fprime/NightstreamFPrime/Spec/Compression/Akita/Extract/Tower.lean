@@ -340,8 +340,8 @@ theorem LevelSized.trace {key : Key S} {openKey : OpeningKey O}
       foldCheck_stagedTo _ _ _ table sized.varsFit sized.batchFit rest tail rejected ended
 
 /-- The conditions on the parameters of a trace level on the Euclidean route. `bounded`: each
-challenge of the family has `‖c‖_mul,2 ≤ Γ`. `room`: the cube of `ν_norm` variables of the direct
-norm check has room for the `N_A` coordinates of `z`. `noWrap`: `max{U_dir, S_max} < q` of Akita
+challenge of the family has `‖c‖_mul,2 ≤ Γ`. `room`: the cube of the `μ'` variables of the witness
+has room for the `N_A` coordinates of `z`. `noWrap`: `max{U_dir, S_max} < q` of Akita
 Lemma 6.3, for `U_dir` of `Shape.directLimit`. -/
 structure NormSized (S : Shape) (fold : Descriptor) (decode : E → Option (Rq S.innerDegree))
     (operator limit vars : ℕ) : Prop where
@@ -354,10 +354,10 @@ structure NormSized (S : Shape) (fold : Descriptor) (decode : E → Option (Rq S
 theorem LevelSized.traceSq {key : Key S} {openKey : OpeningKey O}
     {claim : Wire → TraceClaim O E} {rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch}
     {block : Fin S.blocks → Coord} {decode : E → Option (Rq S.innerDegree)}
-    {operator limit vars : ℕ}
+    {operator limit : ℕ}
     (sized : LevelSized block decode weight fold.responseBase S.certifiedBase μ batch)
-    (normed : NormSized S fold decode operator limit vars) :
-    (Tier.tensored (committedTraceSq (fold := fold) key openKey claim μ fits batch rowsFit vars
+    (normed : NormSized S fold decode operator limit μ) :
+    (Tier.tensored (committedTraceSq (fold := fold) key openKey claim μ fits batch rowsFit
       block decode read weight operator limit start) ν).Valid := by
   obtain ⟨peak, sparse⟩ := sized.sparse
   exact Tier.tensored_valid
@@ -503,20 +503,20 @@ theorem liftTower_suffix {peak : Fin count → ℕ} {peakL : ℕ}
     injectiveL unitsL ⟨peakL, sparseL⟩ commit₁ commit₂ commit₃ commit₄ commit₅ stateOf rooted
     linked₀ linked₁ linked₂ linked₃ linked₄ linked₅ passed
 
-variable {operator₃ limit₃ vars₃ operator₄ limit₄ vars₄ operator₅ limit₅ vars₅ operatorL limitL : ℕ}
+variable {operator₃ limit₃ operator₄ limit₄ operator₅ limit₅ operatorL limitL : ℕ}
   {L' : Terminal S₆ E Wire Coord E total (.euclidean operatorL limitL)}
 
 local notation "third'" =>
   Tier.tensored (committedTraceSq (fold := fold₃) key₃ openKey₃ claim₃ μ₃ fits₃ batch₃ rowsFit₃
-    vars₃ block₃ decode₃ read weight₃ operator₃ limit₃ (Tier.finish second)) ν₃
+    block₃ decode₃ read weight₃ operator₃ limit₃ (Tier.finish second)) ν₃
 
 local notation "fourth'" =>
   Tier.tensored (committedTraceSq (fold := fold₄) key₄ openKey₄ claim₄ μ₄ fits₄ batch₄ rowsFit₄
-    vars₄ block₄ decode₄ read weight₄ operator₄ limit₄ (Tier.finish third')) ν₄
+    block₄ decode₄ read weight₄ operator₄ limit₄ (Tier.finish third')) ν₄
 
 local notation "fifth'" =>
   Tier.tensored (committedTraceSq (fold := fold₅) key₅ openKey₅ claim₅ μ₅ fits₅ batch₅ rowsFit₅
-    vars₅ block₅ decode₅ read weight₅ operator₅ limit₅ (Tier.finish fourth')) ν₅
+    block₅ decode₅ read weight₅ operator₅ limit₅ (Tier.finish fourth')) ν₅
 
 /-- The tower of the schedule with the Euclidean route at the levels 3 to 5 and at the terminal
 (Akita Section 6.2 and Corollary 10.35 (ii)): the batching root over `liftBatch`, `liftFold` and
@@ -538,9 +538,9 @@ theorem mixedTower_suffix {peak : Fin count → ℕ} (injective : Function.Injec
     (sized₃ : LevelSized block₃ decode₃ weight₃ fold₃.responseBase S₃.certifiedBase μ₃ batch₃)
     (sized₄ : LevelSized block₄ decode₄ weight₄ fold₄.responseBase S₄.certifiedBase μ₄ batch₄)
     (sized₅ : LevelSized block₅ decode₅ weight₅ fold₅.responseBase S₅.certifiedBase μ₅ batch₅)
-    (normed₃ : NormSized S₃ fold₃ decode₃ operator₃ limit₃ vars₃)
-    (normed₄ : NormSized S₄ fold₄ decode₄ operator₄ limit₄ vars₄)
-    (normed₅ : NormSized S₅ fold₅ decode₅ operator₅ limit₅ vars₅)
+    (normed₃ : NormSized S₃ fold₃ decode₃ operator₃ limit₃ μ₃)
+    (normed₄ : NormSized S₄ fold₄ decode₄ operator₄ limit₄ μ₄)
+    (normed₅ : NormSized S₅ fold₅ decode₅ operator₅ limit₅ μ₅)
     (next : L'.start = Tier.finish fifth') (inside : L'.start < total)
     (quarter₂ : 4 * m₂ = S₂.innerDegree) (quarter₃ : 4 * m₃ = S₃.innerDegree)
     (quarter₄ : 4 * m₄ = S₄.innerDegree) (quarter₅ : 4 * m₅ = S₅.innerDegree)

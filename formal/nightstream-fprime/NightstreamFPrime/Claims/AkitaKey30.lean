@@ -117,7 +117,7 @@ theorem key30_opening_sound
 `Key30.Tower.accepts`, which differs from the verifier of the pinned Akita code. For each prover
 with at most `Q` queries, the probability that the verifier accepts and the extractor returns no
 output is at most
-`(Q + 1)·(9104/q² + (1458 + B_1 + B_2)/q²) + (Q + 1)·(1467 + B_1 + B_2)/budget`. `B_1` and `B_2`
+`(Q + 1)·(8132/q² + (1458 + B_1 + B_2)/q²) + (Q + 1)·(1467 + B_1 + B_2)/budget`. `B_1` and `B_2`
 are the live blocks of the witness group of level 1 and of level 2 of the row: 167 and 44 for
 `W` of 27 variables, and 158 and 43 for `W` of 26 variables. The bound has no term for the
 probability that an output is a solution of Module-SIS (`[MSIS]`). The operator bound of the
@@ -160,7 +160,7 @@ theorem key30_opening_bound
             1
           else 0) ≤
       ((↑queries : ℝ) + 1) *
-          (9104 / (↑(Fintype.card E) : ℝ) +
+          (8132 / (↑(Fintype.card E) : ℝ) +
             (↑(1458 + r.blocks₁ + r.blocks₂) : ℝ) * (1 / (↑fieldModulus : ℝ) ^ 2)) +
         ((↑queries : ℝ) + 1) * (↑(1467 + r.blocks₁ + r.blocks₂) : ℝ) / (↑budget : ℝ) :=
   @NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.extraction_le E fieldE fintypeE decidableEqE
@@ -175,7 +175,7 @@ for the two rows of the file. The verifier is the Lean verifier `FinalKey30.fina
 the verifier of the pinned Akita code. For each prover with at most `Q` queries to the oracle,
 the probability that the verifier accepts and no proof with witnesses satisfies `Verifies` is at
 most `FinalKey30.shapesBound`: for each shape,
-`(Q + 1)·(runCost + 9104/q² + (1458 + B_1 + B_2)/q²) + (Q + 1)·(1469 + B_1 + B_2)/budget +
+`(Q + 1)·(runCost + 8132/q² + (1458 + B_1 + B_2)/q²) + (Q + 1)·(1469 + B_1 + B_2)/budget +
 breakChance`. Lean gives no bound on `breakChance`, the probability that the extractor returns a
 solution of Module-SIS (`[MSIS]`). `drawn`: the hypotheses `FinalKey30.Opening.Drawn` on the
 opening of each shape. `split`: the split of the public weight of the root into the setup part

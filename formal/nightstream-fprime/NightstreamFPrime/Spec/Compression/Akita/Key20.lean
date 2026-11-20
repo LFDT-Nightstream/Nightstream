@@ -134,7 +134,8 @@ structure Level where
 coordinates. -/
 def Level.tail (L : Level) : ℕ := L.vars - 1
 
-/-- The numbers of the Euclidean route of a level: `Γ`, `S_max` and `ν_norm`. -/
+/-- The numbers of the Euclidean route of a level: `Γ`, `S_max` and `ν_norm`, for a response of
+`2^ν_norm` coordinates. -/
 structure Squared where
   operator : ℕ
   limit : ℕ
@@ -270,10 +271,16 @@ theorem traces_sized : ∀ L ∈ traces, L.opening.cells L.fold < 2 ^ L.vars ∧
 /-- The conditions `room` and `noWrap` of `NormSized` for the levels 3 to 5. -/
 theorem norms_sized : ∀ entry ∈ [(level₃, norm₃), (level₄, norm₄), (level₅, norm₅)],
     entry.1.shape.blockLength * entry.1.shape.sourceDigits * entry.1.shape.innerDegree ≤
-        2 ^ entry.2.vars ∧
+        2 ^ entry.1.vars ∧
       max (entry.1.shape.directLimit entry.1.fold) entry.2.limit < fieldModulus := by
   simp only [Shape.directLimit_eq]
   decide
+
+/-- The response of each level on the Euclidean route has `2^ν_norm` coordinates, which is
+`physical_response_len` of the file. -/
+theorem norms_response : ∀ entry ∈ [(level₃, norm₃), (level₄, norm₄), (level₅, norm₅)],
+    entry.1.shape.blockLength * entry.1.shape.sourceDigits * entry.1.shape.innerDegree =
+      2 ^ entry.2.vars := by decide
 
 /-- `4·m = d_A` for the receivers with evaluation trace: `m` is 32 at the levels 2 and 3, and 16
 at the levels 4 and 5 and at the terminal. -/

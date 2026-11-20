@@ -201,7 +201,7 @@ The main claim is `Claims.Akita.key20_verifier_sound`, from
 prover with at most `Q` queries to one uniform table of stage answers makes
 the final verifier accept a statement that has no valid proof with probability
 at most
-`(Q + 1) · (runCost + 7424/|K| + 135 · p) + (Q + 1) · 144/budget + breakChance`.
+`(Q + 1) · (runCost + 6318/|K| + 135 · p) + (Q + 1) · 144/budget + breakChance`.
 `runCost` is the sum of the error bounds of one run of Π_CCS and of the
 argument. `p` is the largest probability of one fold challenge, and the claim
 has `p = 1/q²` for the Lean decoders. `budget` is the limit of each retry loop
@@ -302,12 +302,18 @@ section Open points lists the points that need a decision.
   joins the two hash functions of the code to it. Such a statement would have
   the shape of `Spec.Sponge.Transfer`. The session bytes bind the two
   transcripts (security model, trust item 7).
-- (b) The verifier `towerAccepts` is not the verifier of the pinned code. Its
-  norm check is a stage of its own after the checks of the fold, with the error
-  `(2ν + 1 + 2μ)/|K|` (`Spec.Compression.Akita.normCheck`,
-  `Spec.Compression.Akita.Extract.normCosts_sum`). The code merges the norm sum
-  into a sum-check of the fold, so at the squared-norm levels the Lean verifier
-  does not read the transcript of the code. A committed level has one row that
+- (b) The verifier `towerAccepts` is not the verifier of the pinned code. The
+  difference of the norm check is removed: at the squared-norm levels the norm
+  sum (85) is in the last sum-check of the range tree with the coefficient
+  `ζ_norm`, Akita (90), and the value `z̃(r_virt)` is in the fused sum-check
+  with the coefficient `η_norm`, Akita (91) and (93), in the order of the
+  direct shape of the pinned code
+  (`crates/akita-verifier/src/stages/physical_l2_norm.rs`, `stage1.rs` and
+  `stage2.rs` of the Akita code; `Spec.Compression.Akita.foldCheckSq`). The
+  added error is `2/|K|`, which is `N^norm = 2` of Akita (189)
+  (`Spec.Compression.Akita.Extract.foldCostsSq_sum`). Each schedule file has
+  the direct shape at each squared-norm level, and Lean has no model of the
+  digit-expanded shape. A committed level has one row that
   Akita does not have: the cell after the last segment is zero
   (`Spec.Compression.Akita.lockedRelation`). The segments of the quotient
   digits are after that cell, not at the places of Akita (76). So the quotient
@@ -353,11 +359,19 @@ section Open points lists the points that need a decision.
   also has no such rejection: it keeps `θ` as a scale of the next relation
   (`crates/akita-verifier/src/stages/opening_claims/extension_claim.rs` of the
   Akita code).
-- (h) At a certified base above 8, which levels 2 to 5 of `key20.aks` have, the
-  paper has a product tree of range sum-checks (Akita Section 6.1). The Lean
-  verifier has one range sum-check of degree `b⋆/2 + 1` there, so it does not
-  read the transcript of the paper at these levels, and its error term is
-  larger.
+- (h) Removed. At a certified base above 8, the Lean verifier has the product
+  tree of range sum-checks of Akita Section 6.1, in the order of the pinned
+  code (`Spec.Compression.Akita.rangeCheck`, from
+  `crates/akita-verifier/src/stages/stage1.rs` and
+  `crates/akita-params/src/layout/digit_range.rs` of the Akita code): the
+  product degrees `(2)`, `(4)` and `(2, 4)` for the bases 16, 32 and 64, leaf
+  polynomials of 4 factors, and the powers of one challenge for the claims of
+  the children of a level. Its bad sets have the bound of Akita (187)
+  (`Spec.Compression.Akita.rangeCheck_costLe`). One point stays: a round
+  message of the Lean sum-check has each coefficient of the round polynomial,
+  and the code sends the round polynomial without its equality factor and
+  without its constant term. A transcript of the code gives a transcript of
+  the Lean verifier, and Lean has no statement of this map.
 - (i) The fold of the paper has a nonce of the response search, with a limit
   that the verifier enforces (Akita Section 5.4). The Lean fold has no nonce:
   the factor `Q + 1` covers a prover that tries other messages, and Lean can
@@ -367,26 +381,30 @@ section Open points lists the points that need a decision.
   has no condition on the run time. The Lean theorems use only these
   inclusions.
 - (k) The offloaded root fold of `key30.aks` (Akita Section 9). The paper adds
-  `σ_S` to the local part in the final check of Stage 2, Akita (132), and the
-  Lean verifier does the same (`Spec.Compression.Akita.offloadCheck`). The
+  `σ_S` to the local part in the final check of Stage 2, Akita (132). The
   pinned code multiplies the claim of Stage 3 by a factor before it adds it:
   the evaluation of the powers of `α` at the coefficient coordinates of `r_2`
   (`common_alpha_evaluation` in
   `crates/akita-verifier/src/relation/evaluation.rs` of the Akita code), and
-  its Stage 3 is for the weight at the relation-address coordinates `r_x`. So
-  the value `σ_S` of a proof of the code is not the value `σ_S` of a proof of
-  the Lean model. The order of the messages is the same in the paper, in the
-  code and in Lean: `v_W`, `σ_S`, the rounds of Stage 3, and `s_{ρ_S}`. Stage 3
-  has the degree 2 and one round for each variable of the setup prefix in the
-  three. The code checks the final equation of Stage 2 after Stage 3, and Lean
-  checks it before Stage 3, so the two reject the same transcripts for this
-  equation. The code absorbs the identifier of the registry slot of the setup
-  prefix before `σ_S`, and the Lean model has the commitment `registry` as a
-  fixed value. The paper and the code state the split of the public weight for
-  the weight that the verifier computes without the setup. In Lean the split is
-  the hypothesis `Spec.Compression.Akita.Key30.Tower.Split` for the two
-  functions of the opening data, and Lean does not prove it for the weight of
-  the code.
+  its Stage 3 is for the weight at the relation-address coordinates `r_x`.
+  This difference is removed: the Lean verifier has the form of the code, with
+  the factor `scale` of `Spec.Compression.Akita.SetupScan` in the final check
+  (`Spec.Compression.Akita.offloadCheck`). The form of the paper is the case
+  with the factor 1 (`Spec.Compression.Akita.SetupScan.direct`): for a value
+  `σ` of the code, `σ_S = scale · σ`, and the weight `ω_setup` is `scale`
+  times the weight of the code
+  (`Spec.Compression.Akita.SetupScan.direct_value`). The order of the messages
+  is the same in the paper, in the code and in Lean: `v_W`, `σ_S`, the rounds
+  of Stage 3, and `s_{ρ_S}`. Stage 3 has the degree 2 and one round for each
+  variable of the setup prefix in the three. These points stay. The code
+  checks the final equation of Stage 2 after Stage 3, and Lean checks it
+  before Stage 3, so the two reject the same transcripts for this equation.
+  The code absorbs the identifier of the registry slot of the setup prefix
+  before `σ_S`, and the Lean model has the commitment `registry` as a fixed
+  value. The split of the public weight is the hypothesis
+  `Spec.Compression.Akita.Key30.Tower.Split` for the three functions `part`,
+  `scale` and `weight` of the opening data, and Lean does not prove it for the
+  weight and the factor of the code.
 - (l) The batching stage of the two claims of level 1 has the weights `(1,
   ϑ_grp)` in the paper, Akita (137). The Lean stage has an independent weight
   for each claim, as at the root
@@ -427,7 +445,7 @@ term `breakChance` under `[MSIS]`.
   root commitment to a table with the claimed value, or a solution of
   Module-SIS (`Claims.AkitaKey30.key30_opening_sound`). The verifier accepts
   while the extractor returns no output with probability at most `(Q + 1) ·
-  (10562 + B_1 + B_2)/q² + (Q + 1) · (1467 + B_1 + B_2)/budget`
+  (9590 + B_1 + B_2)/q² + (Q + 1) · (1467 + B_1 + B_2)/budget`
   (`Claims.AkitaKey30.key30_opening_bound`). `B_1` and `B_2` are the live
   blocks of the witness group of level 1 and of level 2: 167 and 44 for `W` of
   27 variables, and 158 and 43 for `W` of 26 variables. The tree size of the
@@ -435,7 +453,7 @@ term `breakChance` under `[MSIS]`.
   (`Spec.Compression.Akita.Key30.tower_counts`).
 
 - The final verifier. For each claim shape and for the proof of zero steps, the
-  bound is the sum over the shapes of `(Q + 1) · (runCost + (10562 + B_1 +
+  bound is the sum over the shapes of `(Q + 1) · (runCost + (9590 + B_1 +
   B_2)/q²) + (Q + 1) · (1469 + B_1 + B_2)/budget + breakChance`
   (`Claims.AkitaKey30.key30_verifier_sound`). The probability of a false
   history is at most this sum plus `walkBound`, and the same bound holds for
@@ -579,16 +597,13 @@ the facts).
   `leads` and `fit`, which no Lean result gives, so no closed accepting
   instance exists for the whole verifier.
 - The model of the verifier. The Lean verifier differs from the pinned Akita
-  code in these parts. At the levels with the squared-norm route, its norm
-  check is a stage of its own after the checks of the fold, and the code
-  merges the norm sum into a sum-check of the fold. A committed level has one
+  code in these parts. A committed level has one
   added row for a zero cell after its last segment, and the quotient digits
   are after that cell. The transcript has no digests and no proof of work.
-  Three more differences are with the paper. The Lean verifier has no
+  Two more differences are with the paper. The Lean verifier has no
   rejection at a zero tensor factor, and the pinned code has none
   (`crates/akita-verifier/src/stages/opening_claims/extension_claim.rs` of the
-  Akita code). It has one range sum-check where the paper has a product tree,
-  at a certified base above 8. Its fold has no nonce of the response search. A
+  Akita code). Its fold has no nonce of the response search. A
   change of the pinned Akita code or a change of the Lean model removes a
   difference. The decision is which one changes, for each difference.
 - `key30.aks`. The file of the key of `2^19` blocks has coefficient packing at
@@ -696,7 +711,7 @@ trust item 7, gives the facts).
 - The proof of work and the probability `p`.
   `Export.BoundedDepth.FinalKey20.sound` takes the largest probability `p` of
   one fold challenge as a hypothesis, and the claims have `p = 1/q²`. Its
-  bound on the stage errors of the opening is `7559/q²` for a decoder that is
+  bound on the stage errors of the opening is `6453/q²` for a decoder that is
   an injection of one slot of `K` into the challenge family, where `p = 1/q²`.
   No decoder from one slot has `p` at most `2^−128`, because `q²` is below
   `2^128`. The Akita code has a target of 128 bits for each query and a proof

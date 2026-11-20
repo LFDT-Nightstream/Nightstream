@@ -60,7 +60,7 @@ variable {S₂ : Shape} {O₂ : OpeningShape S₂} {fold₂ : Descriptor} {S₃ 
   {μ₅ : ℕ} {fits₅ : O₅.cells fold₅ < 2 ^ μ₅} {batch₅ : ℕ}
   {rowsFit₅ : O₅.traceRowCount + 1 + 1 ≤ 2 ^ batch₅} {block₅ : Fin S₅.blocks → Coord}
   {decode₅ : E → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
-  {operator₃ limit₃ norm₃ operator₄ limit₄ norm₄ operator₅ limit₅ norm₅ operatorL limitL : ℕ}
+  {operator₃ limit₃ operator₄ limit₄ operator₅ limit₅ operatorL limitL : ℕ}
   {L : Terminal S₆ E Wire Coord E total (.euclidean operatorL limitL)} {m₆ : ℕ}
   {commit₃ : Wire → S₃.Payload} {commit₄ : Wire → S₄.Payload} {commit₅ : Wire → S₅.Payload}
   {stateOf : Wire → Fin S₆.blocks → Fin S₆.innerRank → Rq S₆.innerDegree}
@@ -74,19 +74,19 @@ local notation "base₂" =>
 local notation "second" => Tier.tensored base₂ ν₂
 
 local notation "base₃" =>
-  committedTraceSq (fold := fold₃) key₃ openKey₃ claim₃ μ₃ fits₃ batch₃ rowsFit₃ norm₃ block₃
+  committedTraceSq (fold := fold₃) key₃ openKey₃ claim₃ μ₃ fits₃ batch₃ rowsFit₃ block₃
     decode₃ read weight₃ operator₃ limit₃ (Tier.finish second)
 
 local notation "third" => Tier.tensored base₃ ν₃
 
 local notation "base₄" =>
-  committedTraceSq (fold := fold₄) key₄ openKey₄ claim₄ μ₄ fits₄ batch₄ rowsFit₄ norm₄ block₄
+  committedTraceSq (fold := fold₄) key₄ openKey₄ claim₄ μ₄ fits₄ batch₄ rowsFit₄ block₄
     decode₄ read weight₄ operator₄ limit₄ (Tier.finish third)
 
 local notation "fourth" => Tier.tensored base₄ ν₄
 
 local notation "base₅" =>
-  committedTraceSq (fold := fold₅) key₅ openKey₅ claim₅ μ₅ fits₅ batch₅ rowsFit₅ norm₅ block₅
+  committedTraceSq (fold := fold₅) key₅ openKey₅ claim₅ μ₅ fits₅ batch₅ rowsFit₅ block₅
     decode₅ read weight₅ operator₅ limit₅ (Tier.finish fourth)
 
 local notation "fifth" => Tier.tensored base₅ ν₅
@@ -103,8 +103,8 @@ of the prover with at most `slots` messages of the checks. `source₂` to `sourc
 `sized₅`: the conditions `SourceSized` and `FoldSized` of the shapes. `vars`, `point` and `covered`:
 the tensor reduction of each level has `μ − 1` tail variables, its point has the segments of the
 next shape, and the live blocks of the next shape have each cell of the flat witness (Akita Section
-4.5, (40) to (42)). `normRoom` and `capped`: the cube of the direct norm check has the coordinates
-of `z`, and a message can have the energy. `next`, `inside`, `reads`, `clears`: the fold challenge
+4.5, (40) to (42)). `normRoom`, `wide₃` to `wide₅` and `capped`: the cube of the witness has the coordinates of `z`,
+and a message can have each message of the checks and the energy. `next`, `inside`, `reads`, `clears`: the fold challenge
 of the terminal is the stage after the level 5, and the terminal reads its statement and its clear
 partials from the message before it. `decodes`: each slot of the table of the oracle decodes to a
 fold challenge. `fit`: the fit conditions `TraceFit` of the levels 2 to 5, and `‖z‖_2² ≤ S_max,term`
@@ -133,9 +133,11 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     (covered₃ : O₃.cells fold₃ ≤ 2 * (S₄.blocks * (S₄.blockLength * (2 * m₄))))
     (covered₄ : O₄.cells fold₄ ≤ 2 * (S₅.blocks * (S₅.blockLength * (2 * m₅))))
     (covered₅ : O₅.cells fold₅ ≤ 2 * (S₆.blocks * (S₆.blockLength * (2 * m₆))))
-    (normRoom₃ : S₃.blockLength * S₃.sourceDigits * S₃.innerDegree ≤ 2 ^ norm₃)
-    (normRoom₄ : S₄.blockLength * S₄.sourceDigits * S₄.innerDegree ≤ 2 ^ norm₄)
-    (normRoom₅ : S₅.blockLength * S₅.sourceDigits * S₅.innerDegree ≤ 2 ^ norm₅)
+    (normRoom₃ : S₃.blockLength * S₃.sourceDigits * S₃.innerDegree ≤ 2 ^ μ₃)
+    (normRoom₄ : S₄.blockLength * S₄.sourceDigits * S₄.innerDegree ≤ 2 ^ μ₄)
+    (normRoom₅ : S₅.blockLength * S₅.sourceDigits * S₅.innerDegree ≤ 2 ^ μ₅)
+    (wide₃ : rangeWidthSq S₃.certifiedBase ≤ width) (wide₄ : rangeWidthSq S₄.certifiedBase ≤ width)
+    (wide₅ : rangeWidthSq S₅.certifiedBase ≤ width)
     (capped₃ : limit₃ ≤ cap) (capped₄ : limit₄ ≤ cap) (capped₅ : limit₅ ≤ cap)
     (next : L.start = Tier.finish fifth) (inside : L.start < total)
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
@@ -210,8 +212,8 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     packed_of_le (E := E) zero₂ (covered₂.trans (Nat.mul_le_mul_left 2 large))
   obtain ⟨fit₄, zero₃, wins₃⟩ := traceLevel_wins (B := base₃)
     (admissible := fun z => vecNormSq z ≤ limit₃) (ν := ν₃)
-    (fun wire c w satisfies admitted => (committedTraceSq_winsAt sends sized₃.range four
-      sized₃.two sized₃.small room normRoom₃ satisfies admitted capped₃).mono
+    (fun wire c w satisfies admitted => (committedTraceSq_winsAt sends wide₃ four
+      sized₃.two sized₃.small (by omega) normRoom₃ satisfies admitted capped₃).mono
         fun _ _ _ kept => ⟨kept.1, kept.2.imp fun _ both => ⟨both.1.trans vars₃, both.2⟩⟩)
     quarter₃ source₃.shape source₃.unit sized₃.radix sized₃.certified sized₃.path sized₃.wide
     (source₃.blocks.trans (Nat.pow_le_pow_right (by decide) long₃)) source₃.length source₃.pack
@@ -228,8 +230,8 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     packed_of_le (E := E) zero₃ (covered₃.trans (Nat.mul_le_mul_left 2 large))
   obtain ⟨fit₅, zero₄, wins₄⟩ := traceLevel_wins (B := base₄)
     (admissible := fun z => vecNormSq z ≤ limit₄) (ν := ν₄)
-    (fun wire c w satisfies admitted => (committedTraceSq_winsAt sends sized₄.range four
-      sized₄.two sized₄.small room normRoom₄ satisfies admitted capped₄).mono
+    (fun wire c w satisfies admitted => (committedTraceSq_winsAt sends wide₄ four
+      sized₄.two sized₄.small (by omega) normRoom₄ satisfies admitted capped₄).mono
         fun _ _ _ kept => ⟨kept.1, kept.2.imp fun _ both => ⟨both.1.trans vars₄, both.2⟩⟩)
     quarter₄ source₄.shape source₄.unit sized₄.radix sized₄.certified sized₄.path sized₄.wide
     (source₄.blocks.trans (Nat.pow_le_pow_right (by decide) long₄)) source₄.length source₄.pack
@@ -246,8 +248,8 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     packed_of_le (E := E) zero₄ (covered₄.trans (Nat.mul_le_mul_left 2 large))
   obtain ⟨fitL, zero₅, wins₅⟩ := traceLevel_wins (B := base₅)
     (admissible := fun z => vecNormSq z ≤ limit₅) (ν := ν₅)
-    (fun wire c w satisfies admitted => (committedTraceSq_winsAt sends sized₅.range four
-      sized₅.two sized₅.small room normRoom₅ satisfies admitted capped₅).mono
+    (fun wire c w satisfies admitted => (committedTraceSq_winsAt sends wide₅ four
+      sized₅.two sized₅.small (by omega) normRoom₅ satisfies admitted capped₅).mono
         fun _ _ _ kept => ⟨kept.1, kept.2.imp fun _ both => ⟨both.1.trans vars₅, both.2⟩⟩)
     quarter₅ source₅.shape source₅.unit sized₅.radix sized₅.certified sized₅.path sized₅.wide
     (source₅.blocks.trans (Nat.pow_le_pow_right (by decide) long₅)) source₅.length source₅.pack

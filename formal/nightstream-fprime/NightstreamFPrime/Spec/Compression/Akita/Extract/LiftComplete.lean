@@ -122,7 +122,7 @@ quotient digits, and the prover has a message for each draw sequence of the chec
 base `b⋆` of the quotient digits has the conditions `Radix`, and each element of `Z_q` has
 `digits` balanced digits. `range`, `four`, `positive`: a message can have a round polynomial. -/
 theorem liftLevel_wins {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
-    (sends : Sends sendable E width cap) (range : S.certifiedBase / 2 + 1 + 1 ≤ width)
+    (sends : Sends sendable E width cap) (range : rangeWidth S.certifiedBase ≤ width)
     (four : 4 ≤ width) (positive : 0 < slots) (shape : S.Bounded)
     (radix : Radix fold.responseBase) (certified : fold.responseBase ≤ S.certifiedBase)
     (path : PathFits O.openDegree (1 * O.openRank) O.chain) (base : Radix S.certifiedBase)
@@ -140,7 +140,7 @@ theorem liftLevel_wins {sendable : (M : Type) → M → Prop} {slots width cap :
       WinsAt sendable slots
         ((liftFold β key openKey claim μ cells digits room batch rowsFit block decode read weight
           start).check wire c (liftNext β key openKey fold μ cells digits source point c))
-        (0 + μ + 1 + 1 + μ + 1 + 1 + 1) 0 fun result _ place => place ≤ 1 ∧
+        (foldDraws μ S.certifiedBase) 0 fun result _ place => place ≤ 1 ∧
           ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2
             (lifted E (liftNext β key openKey fold μ cells digits source point c))) := by
   obtain ⟨encodable, later⟩ := fit point c member
@@ -186,7 +186,7 @@ variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree
   {μ₅ : ℕ} {fits₅ : O₅.cells fold₅ < 2 ^ μ₅} {batch₅ : ℕ}
   {rowsFit₅ : O₅.traceRowCount + 1 + 1 ≤ 2 ^ batch₅} {block₅ : Fin S₅.blocks → Coord}
   {decode₅ : E → Option (Rq S₅.innerDegree)} {weight₅ ν₅ m₅ : ℕ}
-  {operator₃ limit₃ norm₃ operator₄ limit₄ norm₄ operator₅ limit₅ norm₅ operatorL limitL : ℕ}
+  {operator₃ limit₃ operator₄ limit₄ operator₅ limit₅ operatorL limitL : ℕ}
   {L : Terminal S₆ E Wire Coord E total (.euclidean operatorL limitL)} {m₆ : ℕ}
   {commit₂ : Wire → S₂.Payload} {commit₃ : Wire → S₃.Payload} {commit₄ : Wire → S₄.Payload}
   {commit₅ : Wire → S₅.Payload}
@@ -206,15 +206,15 @@ local notation "second" =>
 
 local notation "third" =>
   Tier.tensored (committedTraceSq (fold := fold₃) key₃ openKey₃ claim₃ μ₃ fits₃ batch₃ rowsFit₃
-    norm₃ block₃ decode₃ read weight₃ operator₃ limit₃ (Tier.finish second)) ν₃
+    block₃ decode₃ read weight₃ operator₃ limit₃ (Tier.finish second)) ν₃
 
 local notation "fourth" =>
   Tier.tensored (committedTraceSq (fold := fold₄) key₄ openKey₄ claim₄ μ₄ fits₄ batch₄ rowsFit₄
-    norm₄ block₄ decode₄ read weight₄ operator₄ limit₄ (Tier.finish third)) ν₄
+    block₄ decode₄ read weight₄ operator₄ limit₄ (Tier.finish third)) ν₄
 
 local notation "fifth" =>
   Tier.tensored (committedTraceSq (fold := fold₅) key₅ openKey₅ claim₅ μ₅ fits₅ batch₅ rowsFit₅
-    norm₅ block₅ decode₅ read weight₅ operator₅ limit₅ (Tier.finish fourth)) ν₅
+    block₅ decode₅ read weight₅ operator₅ limit₅ (Tier.finish fourth)) ν₅
 
 /-- Akita Theorem 10.9 for the packing level, the trace levels and the terminal of the opening,
 without the probability that a response does not fit and without the term of (155) for a zero tensor
@@ -250,7 +250,7 @@ theorem packTower_complete {sendable : (M : Type) → M → Prop} {slots width c
         ∑ u ∈ Finset.range digits₁, (S₁.certifiedBase : ℤ) ^ u ≤ x.valMinAbs ∧
       x.valMinAbs ≤ (((S₁.certifiedBase / 2 : ℕ) : ℤ) - 1) *
         ∑ u ∈ Finset.range digits₁, (S₁.certifiedBase : ℤ) ^ u)
-    (range₁ : S₁.certifiedBase / 2 + 1 + 1 ≤ width)
+    (range₁ : rangeWidth S₁.certifiedBase ≤ width)
     (quarter₂ : 4 * m₂ = S₂.innerDegree) (quarter₃ : 4 * m₃ = S₃.innerDegree)
     (quarter₄ : 4 * m₄ = S₄.innerDegree) (quarter₅ : 4 * m₅ = S₅.innerDegree)
     (quarter₆ : 4 * m₆ = S₆.innerDegree)
@@ -269,9 +269,11 @@ theorem packTower_complete {sendable : (M : Type) → M → Prop} {slots width c
     (covered₃ : O₃.cells fold₃ ≤ 2 * (S₄.blocks * (S₄.blockLength * (2 * m₄))))
     (covered₄ : O₄.cells fold₄ ≤ 2 * (S₅.blocks * (S₅.blockLength * (2 * m₅))))
     (covered₅ : O₅.cells fold₅ ≤ 2 * (S₆.blocks * (S₆.blockLength * (2 * m₆))))
-    (normRoom₃ : S₃.blockLength * S₃.sourceDigits * S₃.innerDegree ≤ 2 ^ norm₃)
-    (normRoom₄ : S₄.blockLength * S₄.sourceDigits * S₄.innerDegree ≤ 2 ^ norm₄)
-    (normRoom₅ : S₅.blockLength * S₅.sourceDigits * S₅.innerDegree ≤ 2 ^ norm₅)
+    (normRoom₃ : S₃.blockLength * S₃.sourceDigits * S₃.innerDegree ≤ 2 ^ μ₃)
+    (normRoom₄ : S₄.blockLength * S₄.sourceDigits * S₄.innerDegree ≤ 2 ^ μ₄)
+    (normRoom₅ : S₅.blockLength * S₅.sourceDigits * S₅.innerDegree ≤ 2 ^ μ₅)
+    (wide₃ : rangeWidthSq S₃.certifiedBase ≤ width) (wide₄ : rangeWidthSq S₄.certifiedBase ≤ width)
+    (wide₅ : rangeWidthSq S₅.certifiedBase ≤ width)
     (capped₃ : limit₃ ≤ cap) (capped₄ : limit₄ ≤ cap) (capped₅ : limit₅ ≤ cap)
     (next : L.start = Tier.finish fifth) (inside : L.start < total)
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
@@ -340,7 +342,7 @@ theorem packTower_complete {sendable : (M : Type) → M → Prop} {slots width c
   obtain ⟨later, onL, whole, each⟩ := traceTower_complete sends four room carries₂ carries₃
     carries₄ carries₅ carriesL quarter₂ quarter₃ quarter₄ quarter₅ quarter₆ source₂ source₃
     source₄ source₅ source₆ sized₂ sized₃ sized₄ sized₅ vars₂ vars₃ vars₄ vars₅ point₂ point₃
-    point₄ point₅ covered₂ covered₃ covered₄ covered₅ normRoom₃ normRoom₄ normRoom₅ capped₃
+    point₄ point₅ covered₂ covered₃ covered₄ covered₅ normRoom₃ normRoom₄ normRoom₅ wide₃ wide₄ wide₅ capped₃
     capped₄ capped₅ next inside reads clears table decodes₂ decodes₃ decodes₄ decodes₅ decodesL
     on₁ len₁ packs positions long live₂ ready₂ fit₂
   refine ⟨later₁ ++ later, by rwa [← List.append_assoc], by rwa [← List.append_assoc],

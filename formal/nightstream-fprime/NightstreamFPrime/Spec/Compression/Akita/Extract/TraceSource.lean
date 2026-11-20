@@ -474,21 +474,16 @@ theorem traceFold_satisfies (small : S.certifiedBase < fieldModulus) (batch : �
     (O.flatLayout fold μ fits) small st challenge
     (fun _ alphabets holds => Witness.traceSatisfies_of_flat μ fits alphabets holds) w
 
-/-- Akita Lemma 10.42 (i) for the table of a successor source of a trace fold, with
-`foldCheck_avoids`: on a path of `foldCheck` that avoids the bad sets, a final claim that is true
-for the table gives the exact branch relation `Witness.TraceSatisfies` of the digit vectors
-`ofFlat` of the table (the hypothesis of Akita Corollary 10.32 for one child). -/
-theorem lockedTraceFold_satisfies (small : S.certifiedBase < fieldModulus) (batch : ℕ)
-    (rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch) (table : Table) :
-    (foldCheck (lockedTraceReduction st challenge μ fits batch rowsFit) S.certifiedBase
-      (O.binarySupport fold) table).Avoids fun result =>
-      ∀ r2 v, result = some (r2, v) → v = mle r2 (lifted E table) →
-        (O.ofFlat fold table).TraceSatisfies st challenge := by
-  refine (foldCheck_avoids (lockedTraceReduction st challenge μ fits batch rowsFit)
-    S.certifiedBase (O.binarySupport fold) table).mono fun result checked r2 v equal opening => ?_
-  obtain ⟨relation, range, binary⟩ := checked r2 v equal opening
-  have range : RangeHolds S.certifiedBase μ table := range
-  have binary : BinaryOn (O.binarySupport fold) μ table := binary
+omit [DecidableEq E] in
+/-- The exact branch relation `Witness.TraceSatisfies` of the digit vectors `ofFlat` of a table
+with the relation of `lockedTraceReduction`, the digit range statement and the binary
+statement. -/
+theorem lockedTrace_satisfies (small : S.certifiedBase < fieldModulus) (batch : ℕ)
+    (rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch) {table : Table}
+    (relation : (lockedTraceReduction (E := E) st challenge μ fits batch rowsFit).Holds table)
+    (range : RangeHolds S.certifiedBase μ table)
+    (binary : BinaryOn (O.binarySupport fold) μ table) :
+    (O.ofFlat fold table).TraceSatisfies st challenge := by
   obtain ⟨zero, flat⟩ := lockedTraceRelation_holds relation
   have same : ∀ x ≤ O.cells fold, table x = (O.ofFlat fold table).flat x := fun x below => by
     rcases Nat.lt_or_eq_of_le below with inside | rfl
@@ -509,6 +504,22 @@ theorem lockedTraceFold_satisfies (small : S.certifiedBase < fieldModulus) (batc
   exact Witness.traceSatisfies_of_flat μ fits
     ((O.flatLayout fold μ fits).alphabets small _ ranged binaried)
     (traceRelation_holds_congr same flat)
+
+/-- Akita Lemma 10.42 (i) for the table of a successor source of a trace fold, with
+`foldCheck_avoids`: on a path of `foldCheck` that avoids the bad sets, a final claim that is true
+for the table gives the exact branch relation `Witness.TraceSatisfies` of the digit vectors
+`ofFlat` of the table (the hypothesis of Akita Corollary 10.32 for one child). -/
+theorem lockedTraceFold_satisfies (small : S.certifiedBase < fieldModulus) (batch : ℕ)
+    (rowsFit : O.traceRowCount + 1 + 1 ≤ 2 ^ batch) (table : Table) :
+    (foldCheck (lockedTraceReduction st challenge μ fits batch rowsFit) S.certifiedBase
+      (O.binarySupport fold) table).Avoids fun result =>
+      ∀ r2 v, result = some (r2, v) → v = mle r2 (lifted E table) →
+        (O.ofFlat fold table).TraceSatisfies st challenge :=
+  (foldCheck_avoids (lockedTraceReduction st challenge μ fits batch rowsFit)
+    S.certifiedBase (O.binarySupport fold) table).mono fun _ checked r2 v equal opening =>
+      lockedTrace_satisfies st challenge μ fits small batch rowsFit
+        (checked r2 v equal opening).1 (checked r2 v equal opening).2.1
+        (checked r2 v equal opening).2.2
 
 end Link
 

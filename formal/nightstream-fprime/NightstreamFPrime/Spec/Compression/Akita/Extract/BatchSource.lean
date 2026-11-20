@@ -337,12 +337,12 @@ variable {β st challenge μ fits} {w : B.Witness} (admits : Type → Prop)
 /-- The completeness of the checks of a last fold with opening groups (Akita Lemma 10.7 with
 Theorem 10.9): for digit vectors with the exact branch relation, the prover has a message for
 each draw sequence, and the checks end in the claim `(r_2, w̃(r_2))` for the flat witness. -/
-theorem flatFold_winsTo (scalar : admits E) (range : admits (Fin (base / 2 + 1 + 1) → E))
+theorem flatFold_winsTo (scalar : admits E) (range : ∀ n, n ≤ rangeWidth base → admits (Fin n → E))
     (cubic : admits (Fin (3 + 1) → E)) (uniform : ∀ g, (B.shape g).certifiedBase = base)
     (two : 2 ≤ base) (small : base < fieldModulus) (batch : ℕ)
     (rowsFit : B.rowCount + 1 ≤ 2 ^ batch) (satisfies : w.Satisfies β st challenge) :
     WinsTo admits (foldCheck (flatReduction β st challenge μ fits batch rowsFit) base
-      B.binarySupport w.flat) (0 + μ + 1 + 1 + μ + 1 + 1 + 1) true fun result _ _ =>
+      B.binarySupport w.flat) (foldDraws μ base) true fun result _ _ =>
         ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E w.flat)) :=
   foldCheck_winsTo admits (flatReduction β st challenge μ fits batch rowsFit) base scalar range
     cubic _ (satisfies.flat μ fits) (satisfies.alphabets.rangeHolds uniform two small μ)
@@ -350,12 +350,12 @@ theorem flatFold_winsTo (scalar : admits E) (range : admits (Fin (base / 2 + 1 +
 
 /-- `Batch.flatFold_winsTo` for the checks of a fold with opening groups whose flat witness the
 next level commits to. -/
-theorem lockedFold_winsTo (scalar : admits E) (range : admits (Fin (base / 2 + 1 + 1) → E))
+theorem lockedFold_winsTo (scalar : admits E) (range : ∀ n, n ≤ rangeWidth base → admits (Fin n → E))
     (cubic : admits (Fin (3 + 1) → E)) (uniform : ∀ g, (B.shape g).certifiedBase = base)
     (two : 2 ≤ base) (small : base < fieldModulus) (batch : ℕ)
     (rowsFit : B.rowCount + 1 + 1 ≤ 2 ^ batch) (satisfies : w.Satisfies β st challenge) :
     WinsTo admits (foldCheck (lockedReduction β st challenge μ fits batch rowsFit) base
-      B.binarySupport w.flat) (0 + μ + 1 + 1 + μ + 1 + 1 + 1) true fun result _ _ =>
+      B.binarySupport w.flat) (foldDraws μ base) true fun result _ _ =>
         ∃ r2 : List E, r2.length = μ ∧ result = some (r2, mle r2 (lifted E w.flat)) :=
   foldCheck_winsTo admits (lockedReduction β st challenge μ fits batch rowsFit) base scalar range
     cubic _ (lockedRelation_of_flat (w.flat_of_le le_rfl) (satisfies.flat μ fits))

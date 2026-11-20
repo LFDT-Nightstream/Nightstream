@@ -13,19 +13,17 @@ of `Lib/SumCheck.lean`, `Lib/Combination.lean` and `Game/SumCheck.lean`.
   `Game.sumcheck_costLe`.
 - `lifted` is the witness as a table over `E`, and `derived` is `s(x) = w(x)·(w(x) + 1)` of Akita
   Section 6.1. `rangeSqIn` is `Q_sq` of Akita (79) over `E`.
-- `rangeComb` and `rangeTables` are the summand `ẽq(τ_0, x)·Q_sq(s(x))` of the range sum (80).
-  `rangeTruth_nil` is the sum (80), `rangeTruth_final` is the final claim
-  `ẽq(τ_0, r_virt)·Q_sq(s̃(r_virt))`, and `range_roundTruth` gives the true round polynomials, of
-  degree at most `b⋆/2 + 1`.
+- `rangeTables` has the tables `ẽq(τ_0, ·)` and `s` of the last sum-check of the range tree
+  (`RangeTree.lean`).
 - `fusedComb` and `fusedTables` are the summand of the fused sum (125), of degree 3
   (Akita Theorem 10.36). `virtWeight` is the weight
   `γ·ẽq(r_virt, x) + ζ_bin·ẽq_{I_bin}(r_virt, x)` and `supportTable` is the table
   `x ↦ 1_{I_bin}(x)·s(x)` of Akita Remark 6.2. `fusedTruth_virt` is the right side of (125),
   `fusedTruth_final` is the final claim at `r_2`, and `fused_roundTruth` gives the true round
   polynomials.
-- `rangeSumcheck_avoids` and `fusedSumcheck_avoids` are Akita Theorem 3.3, item 1, for the two
-  sum-checks, in the form of `Game.sumcheck_avoids`: an accepted false claim has a round with a
-  challenge in its bad set. `rangeSumcheck_costLe` and `fusedSumcheck_costLe` bound the bad sets.
+- `fusedSumcheck_avoids` is Akita Theorem 3.3, item 1, for the fused sum-check, in the form of
+  `Game.sumcheck_avoids`: an accepted false claim has a round with a challenge in its bad set.
+  `fusedSumcheck_costLe` bounds the bad sets.
 - `NonzeroOn`, `bindBad` and `nonzeroOn_bindLow` are the step of the binary-support point of Akita
   Lemma 10.37 (ii): a table that is nonzero on the cube stays nonzero when one variable is bound
   outside a set of at most one value.
@@ -95,59 +93,8 @@ theorem rangeResidual_eq (b : ℕ) (w : Table) (x : ℕ) :
 theorem derived_eq (w : Table) (x : ℕ) : derived E w x = lifted E w x * (lifted E w x + 1) := by
   simp [derived, lifted]
 
-/-- The summand `ẽq(τ_0, x)·Q_sq(s(x))` of the range sum (80) as a polynomial in the table of
-`ẽq(τ_0, ·)` (variable 0) and the table of `s` (variable 1). -/
-noncomputable def rangeComb (E : Type) [Field E] (b : ℕ) : MvPolynomial (Fin 2) E :=
-  MvPolynomial.X 0 * ∏ j ∈ Finset.range (b / 2),
-    (MvPolynomial.X 1 - MvPolynomial.C ((j : E) * ((j : E) + 1)))
-
 /-- The tables of the range sum (80): `ẽq(τ_0, ·)` and `s`. -/
 def rangeTables (τ : List E) (w : Table) : Fin 2 → ℕ → E := ![eqAt τ, derived E w]
-
-omit [Algebra Zq E] in
-theorem eval_rangeComb (b : ℕ) (f : Fin 2 → E) :
-    MvPolynomial.eval f (rangeComb E b) = f 0 * rangeSqIn b (f 1) := by
-  simp [rangeComb, rangeSqIn, map_prod]
-
-omit [Algebra Zq E] in
-/-- The summand of the range sum (80) has the degree `b⋆/2 + 1`: the degree `d_1 = b⋆/2` of
-`Q_sq` and one for the equality factor (Akita Lemma 10.37). -/
-theorem rangeComb_degree (b : ℕ) : (rangeComb E b).totalDegree ≤ b / 2 + 1 := by
-  unfold rangeComb
-  refine (MvPolynomial.totalDegree_mul _ _).trans ?_
-  rw [MvPolynomial.totalDegree_X, add_comm]
-  refine Nat.add_le_add_right ((MvPolynomial.totalDegree_finsetProd _ _).trans ?_) 1
-  calc ∑ j ∈ Finset.range (b / 2),
-        (MvPolynomial.X 1 - MvPolynomial.C ((j : E) * ((j : E) + 1)) :
-          MvPolynomial (Fin 2) E).totalDegree
-      ≤ ∑ _j ∈ Finset.range (b / 2), 1 := Finset.sum_le_sum fun j _ =>
-        (MvPolynomial.totalDegree_sub _ _).trans (max_le
-          (by rw [MvPolynomial.totalDegree_X]) (by rw [MvPolynomial.totalDegree_C]; omega))
-    _ = b / 2 := by simp
-
-/-- The sum-check claim of the range check is the sum (80) at the range point `τ_0`. -/
-theorem rangeTruth_nil (b : ℕ) (τ : List E) (w : Table) :
-    combTruth τ.length (rangeTables τ w) (rangeComb E b) [] = mle τ (rangeResidual E b w) := by
-  rw [combTruth_nil, mle_eq_cubeSum]
-  congr 1
-  funext x
-  rw [eval_rangeComb, rangeResidual_eq]
-  rfl
-
-/-- The final claim of the range sum-check at the point `r_virt`:
-`ẽq(τ_0, r_virt)·Q_sq(s̃(r_virt))` (Akita Section 6.1). `mle_eqAt` gives the first factor as
-`eqEval τ_0 r_virt`. -/
-theorem rangeTruth_final (b : ℕ) (τ r : List E) (w : Table) :
-    combTruth r.length (rangeTables τ w) (rangeComb E b) r =
-      mle r (eqAt τ) * rangeSqIn b (mle r (derived E w)) := by
-  rw [combTruth_final, eval_rangeComb]
-  rfl
-
-/-- The true round polynomials of the range sum-check, of degree at most `b⋆/2 + 1`. -/
-theorem range_roundTruth (b μ : ℕ) (τ : List E) (w : Table) :
-    RoundTruth (b / 2 + 1) μ (combTruth μ (rangeTables τ w) (rangeComb E b))
-      (combRound μ (rangeTables τ w) (rangeComb E b)) :=
-  combRound_truth μ _ _ _ (rangeComb_degree b)
 
 /-- The summand `w̃·m_{τ_1} + (γ·ẽq(r_virt, ·) + ζ_bin·ẽq_{I_bin}(r_virt, ·))·w̃·(w̃ + 1)` of the
 fused sum (125) as a polynomial in the table of `w` (variable 0), the table of `m_{τ_1}`
@@ -237,35 +184,6 @@ end Tables
 section Rounds
 
 variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
-
-/-- Akita Theorem 3.3, item 1, for the range sum-check of the sum (80): on a path that avoids the
-roots of each round, when the sum (80) is not zero at `τ_0`, the final claim is not
-`ẽq(τ_0, r_virt)·Q_sq(s̃(r_virt))`. -/
-theorem rangeSumcheck_avoids (b μ : ℕ) (τ : Fin μ → E) (w : Table) :
-    (Game.sumcheck (b / 2 + 1) (combRound μ (rangeTables (List.ofFn τ) w) (rangeComb E b)) μ []
-      0).Avoids fun result => ∀ final value, result = some (final, value) →
-        mle (List.ofFn τ) (rangeResidual E b w) ≠ 0 →
-          value ≠ mle final (eqAt (List.ofFn τ)) * rangeSqIn b (mle final (derived E w)) := by
-  refine ((Game.sumcheck_avoids (b / 2 + 1) μ _ _ (range_roundTruth b μ (List.ofFn τ) w) μ [] 0
-    (by simp)).and_ends (Game.sumcheck_ends (b / 2 + 1) _ μ [] 0)).mono ?_
-  rintro result ⟨sound, ends⟩ final value equal nonzero
-  obtain ⟨cs, prefixed, count⟩ := ends final value equal
-  have length : final.length = μ := by
-    rw [prefixed]
-    simpa using count
-  have last := rangeTruth_final b (List.ofFn τ) final w
-  rw [length] at last
-  have sum := rangeTruth_nil b (List.ofFn τ) w
-  rw [List.length_ofFn] at sum
-  rw [← last]
-  exact sound final value equal (by rw [sum]; exact nonzero.symm)
-
-/-- The range sum-check has `μ'` rounds with at most `b⋆/2 + 1` bad challenges each
-(Akita Lemma 10.37, (187) for one stage). -/
-theorem rangeSumcheck_costLe (b μ : ℕ) (τ : List E) (w : Table) (claim : E) :
-    (Game.sumcheck (b / 2 + 1) (combRound μ (rangeTables τ w) (rangeComb E b)) μ []
-      claim).CostLe (μ * (((b / 2 + 1 : ℕ) : ℝ) / Fintype.card E)) :=
-  Game.sumcheck_costLe (b / 2 + 1) μ _ (range_roundTruth b μ τ w).degree μ [] claim (by simp)
 
 /-- Akita Theorem 3.3, item 1, for the fused sum-check (125): on a path that avoids the roots of
 each round, a claim that is not the fused sum ends in a final claim that is not the summand at

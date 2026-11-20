@@ -1,5 +1,5 @@
 import NightstreamFPrime.Spec.Compression.Akita.RowBatch
-import NightstreamFPrime.Spec.Compression.Akita.FoldSumCheck
+import NightstreamFPrime.Spec.Compression.Akita.RangeTree
 
 /-! The checks of one fold of Akita after the commitment of the next witness, as a game
 (ePrint 2026/1983, revision of 2026-10-15, Figure 6, Sections 6.1 and 7.4, Theorem 10.36,
@@ -9,13 +9,15 @@ Lemma 10.37 and the terms of (189) after the fold challenge).
 - `BinaryOn support μ w` is the statement of Akita Remark 6.2: `w(x)·(w(x) + 1) = 0` at each
   position `x ∈ I_bin`.
 - `foldCheck` is the verifier for the flat witness `w`: the point `α` of the ring reduction, the
-  range point `τ_0`, the batching point `τ_1`, the range sum-check with the claim `s_claim`, the
-  coefficients `ζ_bin` and `γ`, and the fused sum-check (125) with the claimed value `v_W`. It
-  ends in `none` when a check fails, and otherwise in the claim `(r_2, v_W)` for the next level.
+  range point `τ_0`, the batching point `τ_1`, the range tree `rangeCheck` with the claim
+  `s_claim`, the coefficients `ζ_bin` and `γ`, and the fused sum-check (125) with the claimed
+  value `v_W`. It ends in `none` when a check fails, and otherwise in the claim `(r_2, v_W)` for
+  the next level. `fused_sound` and `fusedCheck_avoids` are the two steps of its soundness after
+  the range tree.
 - `foldCheck_avoids` states that on a path that avoids the bad sets, a claim `(r_2, v_W)` with
   `v_W = w̃(r_2)` gives the relation, the digit range statement and the binary statement.
 - `foldError` is the sum of the bounds of the bad sets, `foldError_eq` is its closed form, which
-  is the part of Akita (189) after the fold challenge for one range stage, and `foldCheck_costLe`
+  is the part of Akita (189) after the fold challenge, and `foldCheck_costLe`
   and `foldCheck_error` bound the bad sets and the probability of a false accepted claim. -/
 
 namespace NightstreamFPrime.Spec.Compression.Akita
@@ -82,66 +84,66 @@ noncomputable def fusedCheck (μ : ℕ) (support : ℕ → Prop) [DecidablePred 
         else .pure none
 
 /-- The checks of one fold for the flat witness `w` of the next level, in the order of Akita
-Figure 6. The verifier draws `α`, `τ_0` and `τ_1`, runs the range sum-check for the sum (80) to
-the point `r_virt`, receives `s_claim` and checks the final claim
-`ẽq(τ_0, r_virt)·Q_sq(s_claim)`, draws `ζ_bin` and `γ`, and runs the fused sum-check (125). The
-bad sets are: the bad set of the ring reduction, `rangeBad`, `FieldRows.batchBad`, the roots of
-each round of the range sum-check with `bindBad` for the binary-support table, the roots of the
-two combinations, and the roots of each round of the fused sum-check. -/
+Figure 6. The verifier draws `α`, `τ_0` and `τ_1`, runs the range tree `rangeCheck` for the sum
+(80) to the point `r_virt` and the value `s_claim`, draws `ζ_bin` and `γ`, and runs the fused
+sum-check (125). The bad sets are: the bad set of the ring reduction, `rangeBad`,
+`FieldRows.batchBad`, the bad sets of `rangeCheck`, the roots of the two combinations, and the
+roots of each round of the fused sum-check. -/
 noncomputable def foldCheck (R : Reduction E) (b : ℕ) (support : ℕ → Prop)
     [DecidablePred support] (w : Table) : Game (Option (List E × E)) :=
   .draw E (R.bad w) fun α =>
   .draw (Fin R.vars → E) (rangeBad b R.vars w) fun τ0 =>
   .draw (Fin R.batch → E) ((R.rows α).batchBad R.vars R.batch w) fun τ1 =>
-  (sumcheckWith (b / 2 + 1) (combRound R.vars (rangeTables (List.ofFn τ0) w) (rangeComb E b))
-    (fun point => bindBad (R.vars - point.length - 1) (fold point (supportTable support w)))
-    R.vars [] 0).bind fun
+  (rangeCheck b R.vars support w (List.ofFn τ0)).bind fun
     | none => .pure none
-    | some (r, value) => .recv E fun sClaim =>
-        if value = mle r (eqAt (List.ofFn τ0)) * rangeSqIn b sClaim then
-          .draw E (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w))
-            (mle r (supportTable support w)))) fun ζ =>
-          .draw E (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w) +
-            ζ * mle r (supportTable support w)) (mle r (derived E w) - sClaim))) fun γ =>
-            fusedCheck R.vars support w ((R.rows α).batchWeight (List.ofFn τ1))
-              ((R.rows α).batchTarget (List.ofFn τ1)) r sClaim ζ γ
-        else .pure none
+    | some (r, sClaim) =>
+        .draw E (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w))
+          (mle r (supportTable support w)))) fun ζ =>
+        .draw E (zeros (linePoly (mle (List.ofFn τ1) ((R.rows α).residual R.vars w) +
+          ζ * mle r (supportTable support w)) (mle r (derived E w) - sClaim))) fun γ =>
+          fusedCheck R.vars support w ((R.rows α).batchWeight (List.ofFn τ1))
+            ((R.rows α).batchTarget (List.ofFn τ1)) r sClaim ζ γ
 
-/-- On a path of `foldCheck` that avoids the bad sets, an accepted claim `(r_2, v_W)` that is true
-for the committed witness, `v_W = w̃(r_2)`, gives the relation of the ring reduction, the digit
-range statement of Akita Section 6.1 and the binary statement of Akita Remark 6.2. -/
-theorem foldCheck_avoids (R : Reduction E) (b : ℕ) (support : ℕ → Prop) [DecidablePred support]
-    (w : Table) :
-    (foldCheck R b support w).Avoids fun result =>
+/-- The relation, the range sum and the binary statement from a true final claim of the fused
+sum-check (125) after an end `(r_virt, s_claim)` of the range tree with `Virt`, for coefficients
+`ζ_bin` and `γ` outside the roots of the two combinations. `ranged` is the soundness of the range
+tree for a true `s_claim`. -/
+theorem fused_sound {μ : ℕ} {support : ℕ → Prop} [DecidablePred support] {w : Table}
+    {weight : ℕ → E} {target residual : E} {r : List E} {sClaim ζ γ : E}
+    (virt : Virt μ support w (r, sClaim))
+    (batched : ∑ x ∈ Finset.range (2 ^ μ), lifted E w x * weight x - target = residual)
+    (outsideζ : ζ ∉ zeros (linePoly residual (mle r (supportTable support w))))
+    (outsideγ : γ ∉ zeros (linePoly (residual + ζ * mle r (supportTable support w))
+      (mle r (derived E w) - sClaim)))
+    (fused : target + γ * sClaim =
+      combTruth μ (fusedTables w weight (virtWeight support r γ ζ)) (fusedComb E) []) :
+    residual = 0 ∧ sClaim = mle r (derived E w) ∧ BinaryOn support μ w := by
+  obtain ⟨length, nonzero⟩ := virt
+  have sum := fusedTruth_virt support w weight r γ ζ
+  rw [show r.length = μ from length] at sum
+  have root : residual + ζ * mle r (supportTable support w) +
+      γ * (mle r (derived E w) - sClaim) = 0 := by
+    rw [← batched]
+    linear_combination (fused.trans sum).symm
+  obtain ⟨first, second⟩ := eq_zero_of_not_mem_zeros_linePoly outsideγ root
+  obtain ⟨relation, binary⟩ := eq_zero_of_not_mem_zeros_linePoly outsideζ first
+  refine ⟨relation, (sub_eq_zero.mp second).symm, fun x small member => ?_⟩
+  by_contra cell
+  refine nonzero ⟨x, small, ?_⟩ binary
+  rw [supportTable, ite_eq_left member, derived]
+  exact fun zero => cell ((algebraMap Zq E).injective (zero.trans (map_zero _).symm))
+
+/-- On a path of `fusedCheck` that avoids the bad sets, an accepted claim `(r_2, v_W)` that is
+true for the witness, `v_W = w̃(r_2)`, has a true first claim `target + γ·s_claim`. -/
+theorem fusedCheck_avoids (μ : ℕ) (support : ℕ → Prop) [DecidablePred support] (w : Table)
+    (weight : ℕ → E) (target : E) (r : List E) (sClaim ζ γ : E) :
+    (fusedCheck μ support w weight target r sClaim ζ γ).Avoids fun result =>
       ∀ r2 v, result = some (r2, v) → v = mle r2 (lifted E w) →
-        R.Holds w ∧ RangeHolds b R.vars w ∧ BinaryOn support R.vars w := by
-  intro α reduce τ0 point τ1 batch
+        target + γ * sClaim =
+          combTruth μ (fusedTables w weight (virtWeight support r γ ζ)) (fusedComb E) [] := by
   refine (avoids_bind _ _ _).mpr ?_
-  refine (sumcheckWith_avoids (b / 2 + 1) R.vars _ _ (range_roundTruth b R.vars (List.ofFn τ0) w)
-    (fun point => bindBad (R.vars - point.length - 1) (fold point (supportTable support w)))
-    (fun point => NonzeroOn (R.vars - point.length) (fold point (supportTable support w)))
-    (fun point c inside nonzero outside => by
-      rw [fold_append_single, List.length_append, List.length_singleton,
-        show R.vars - (point.length + 1) = R.vars - point.length - 1 by omega]
-      exact nonzeroOn_bindLow
-        (by rwa [show R.vars - point.length - 1 + 1 = R.vars - point.length by omega]) outside)
-    R.vars [] 0 (by simp)).mono ?_
-  rintro (_ | ⟨r, value⟩) ranged
-  · intro r2 v equal
-    simp at equal
-  intro sClaim
-  dsimp only
-  split
-  swap
-  · intro r2 v equal
-    simp at equal
-  rename_i checked
-  intro ζ outsideζ γ outsideγ
-  obtain ⟨length, rangeSound, supportKept⟩ := ranged r value rfl
-  simp only [List.length_nil, zero_add] at length
-  refine (avoids_bind _ _ _).mpr ?_
-  refine ((sumcheck_avoids 3 R.vars _ _ (fused_roundTruth R.vars w _ _) R.vars [] _
-    (by simp)).and_ends (sumcheck_ends 3 _ R.vars [] _)).mono ?_
+  refine ((sumcheck_avoids 3 μ _ _ (fused_roundTruth μ w _ _) μ [] _
+    (by simp)).and_ends (sumcheck_ends 3 _ μ [] _)).mono ?_
   rintro (_ | ⟨r2, value2⟩) ⟨fusedSound, fusedEnds⟩
   · intro r2 v equal
     simp at equal
@@ -155,67 +157,59 @@ theorem foldCheck_avoids (R : Reduction E) (b : ℕ) (support : ℕ → Prop) [D
   intro r2' v' equal opening
   simp only [Option.some.injEq, Prod.mk.injEq] at equal
   obtain ⟨rfl, rfl⟩ := equal
-  have length2 : r2.length = R.vars := by
+  have length2 : r2.length = μ := by
     obtain ⟨cs, prefixed, count⟩ := fusedEnds r2 value2 rfl
     rw [prefixed]
     simpa using count
-  have fusedTrue := not_imp_not.mp (fusedSound r2 value2 rfl) (by
-    have last := fusedTruth_final r2 w ((R.rows α).batchWeight (List.ofFn τ1))
-      (virtWeight support r γ ζ)
+  exact not_imp_not.mp (fusedSound r2 value2 rfl) (by
+    have last := fusedTruth_final r2 w weight (virtWeight support r γ ζ)
     rw [length2] at last
     rw [last, final, opening])
-  have virt := fusedTruth_virt support w ((R.rows α).batchWeight (List.ofFn τ1)) r γ ζ
-  rw [length] at virt
-  have batched : ∑ x ∈ Finset.range (2 ^ R.vars),
-      lifted E w x * (R.rows α).batchWeight (List.ofFn τ1) x -
-        (R.rows α).batchTarget (List.ofFn τ1) =
-      mle (List.ofFn τ1) ((R.rows α).residual R.vars w) :=
-    (R.rows α).batch_residual R.vars w (List.ofFn τ1)
-  have root : mle (List.ofFn τ1) ((R.rows α).residual R.vars w) +
-      ζ * mle r (supportTable support w) + γ * (mle r (derived E w) - sClaim) = 0 := by
-    rw [← batched]
-    linear_combination (fusedTrue.trans virt).symm
-  obtain ⟨first, second⟩ := eq_zero_of_not_mem_zeros_linePoly outsideγ root
-  obtain ⟨relation, binary⟩ := eq_zero_of_not_mem_zeros_linePoly outsideζ first
-  have rangeTrue := not_imp_not.mp rangeSound (by
-    have last := rangeTruth_final b (List.ofFn τ0) r w
-    rw [length] at last
-    rw [last, checked, sub_eq_zero.mp second])
-  have sum := rangeTruth_nil b (List.ofFn τ0) w
-  rw [List.length_ofFn] at sum
-  have zeroTable : ¬ NonzeroOn R.vars (supportTable (E := E) support w) := by
-    intro nonzero
-    have kept := supportKept (by simpa [fold] using nonzero)
-    rw [length, Nat.sub_self] at kept
-    obtain ⟨i, lt, cell⟩ := kept
-    obtain rfl : i = 0 := by simpa using lt
-    exact cell binary
-  refine ⟨R.sound w α reduce ((R.rows α).holds_of_batched R.vars batch
+
+/-- On a path of `foldCheck` that avoids the bad sets, an accepted claim `(r_2, v_W)` that is true
+for the committed witness, `v_W = w̃(r_2)`, gives the relation of the ring reduction, the digit
+range statement of Akita Section 6.1 and the binary statement of Akita Remark 6.2. -/
+theorem foldCheck_avoids (R : Reduction E) (b : ℕ) (support : ℕ → Prop) [DecidablePred support]
+    (w : Table) :
+    (foldCheck R b support w).Avoids fun result =>
+      ∀ r2 v, result = some (r2, v) → v = mle r2 (lifted E w) →
+        R.Holds w ∧ RangeHolds b R.vars w ∧ BinaryOn support R.vars w := by
+  intro α reduce τ0 point τ1 batch
+  refine (avoids_bind _ _ _).mpr ?_
+  refine (rangeCheck_avoids b R.vars support w (List.ofFn τ0) List.length_ofFn).mono ?_
+  rintro (_ | ⟨r, sClaim⟩) ranged
+  · intro r2 v equal
+    simp at equal
+  obtain ⟨virt, rangeSound⟩ := ranged (r, sClaim) rfl
+  intro ζ outsideζ γ outsideγ
+  refine (fusedCheck_avoids R.vars support w _ _ r sClaim ζ γ).mono ?_
+  intro result fused r2 v equal opening
+  obtain ⟨relation, opened, binary⟩ := fused_sound virt
+    ((R.rows α).batch_residual R.vars w (List.ofFn τ1)) outsideζ outsideγ
+    (fused r2 v equal opening)
+  exact ⟨R.sound w α reduce ((R.rows α).holds_of_batched R.vars batch
     (((R.rows α).batched_iff R.vars w _).mpr relation)),
-    rangeHolds_of_sum point (by rw [← sum, ← rangeTrue]), fun x small member => ?_⟩
-  by_contra cell
-  refine zeroTable ⟨x, small, ?_⟩
-  rw [supportTable, ite_eq_left member, derived]
-  exact fun zero => cell ((algebraMap Zq E).injective (zero.trans (map_zero _).symm))
+    rangeHolds_of_sum point (rangeSound opened), binary⟩
 
 /-- The sum of the bounds of the bad sets of `foldCheck`, in the order of the draws: the ring
-reduction, the range point `τ_0`, the batching point `τ_1`, the `μ'` rounds of the range sum-check
-of degree `b⋆/2 + 1` with one more value for the binary-support point, the coefficients `ζ_bin`
-and `γ`, and the `μ'` rounds of the fused sum-check of degree 3 (Akita (189)). -/
+reduction, the range point `τ_0`, the batching point `τ_1`, the range tree with one more value in
+each round of its last stage for the binary-support point, the coefficients `ζ_bin` and `γ`, and
+the `μ'` rounds of the fused sum-check of degree 3 (Akita (189)). -/
 noncomputable def foldError (R : Reduction E) (b : ℕ) : ℝ :=
   (R.badBound : ℝ) / Fintype.card E + ((R.vars : ℝ) / Fintype.card E +
     ((R.batch : ℝ) / Fintype.card E +
-      ((R.vars : ℝ) * (((b / 2 + 1 + 1 : ℕ) : ℝ) / Fintype.card E) +
+      (((rangeNumerator R.vars b : ℕ) : ℝ) / Fintype.card E +
         (((1 : ℕ) : ℝ) / Fintype.card E + (((1 : ℕ) : ℝ) / Fintype.card E +
           (R.vars : ℝ) * (((3 : ℕ) : ℝ) / Fintype.card E))))))
 
 omit [DecidableEq E] in
 /-- The closed form of `foldError`. For the quotient-free reduction, with `badBound = d_max − 1`
 and `batch = ⌈log n⌉`, it is the part of `ε_h` of Akita (189) after `ε_cw,h`, with `k_ring − 1`
-for `k_ring`, for one range stage of the degree `d_1 = b⋆/2`, `β_h = 1` and `N^norm_h = 0`. -/
+for `k_ring`, `β_h = 1` and `N^norm_h = 0`: `rangeNumerator` has the term `β_h·μ'` and the two
+sums of (187). -/
 theorem foldError_eq (R : Reduction E) (b : ℕ) :
     foldError R b =
-      ((R.badBound + R.batch + R.vars + R.vars + R.vars * (b / 2 + 1) + 1 + 1 + 3 * R.vars : ℕ) :
+      ((R.badBound + R.batch + R.vars + rangeNumerator R.vars b + 1 + 1 + 3 * R.vars : ℕ) :
         ℝ) / Fintype.card E := by
   unfold foldError
   push_cast
@@ -243,22 +237,15 @@ theorem foldCheck_costLe (R : Reduction E) (b : ℕ) (support : ℕ → Prop) [D
   have batch := (R.rows α).density_batchBad_le R.vars (R.fits α) w
   unfold density at batch
   refine ⟨_, add_le_add_left batch _, fun τ1 => ?_⟩
-  refine costLe_bind (sumcheckWith_costLe (b / 2 + 1) R.vars 1 _
-    (range_roundTruth b R.vars (List.ofFn τ0) w).degree _ (fun _ => bindBad_card_le _ _)
-    R.vars [] 0 (by simp)) ?_
-  have rest : (0 : ℝ) ≤ ((1 : ℕ) : ℝ) / Fintype.card E + (((1 : ℕ) : ℝ) / Fintype.card E +
-      (R.vars : ℝ) * (((3 : ℕ) : ℝ) / Fintype.card E)) := by positivity
-  rintro (_ | ⟨r, value⟩)
-  · exact rest
-  · intro sClaim
-    dsimp only
-    split
-    · exact ⟨_, add_le_add_left (density_le _ 1
-          (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) _,
-        fun ζ => ⟨_, add_le_add_left (density_le _ 1
-          (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) _,
-          fun γ => fusedCheck_costLe R.vars support w _ _ r sClaim ζ γ⟩⟩
-    · exact rest
+  refine costLe_bind (rangeCheck_costLe b R.vars support w (List.ofFn τ0)) ?_
+  rintro (_ | ⟨r, sClaim⟩)
+  · show (0 : ℝ) ≤ _
+    positivity
+  · exact ⟨_, add_le_add_left (density_le _ 1
+        (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) _,
+      fun ζ => ⟨_, add_le_add_left (density_le _ 1
+        (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) _,
+        fun γ => fusedCheck_costLe R.vars support w _ _ r sClaim ζ γ⟩⟩
 
 /-- For each prover, the probability that `foldCheck` ends in a claim `(r_2, v_W)` with
 `v_W = w̃(r_2)` for a witness that does not satisfy the relation, the digit range statement or the

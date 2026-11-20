@@ -101,13 +101,13 @@ theorem covers (x : Zq) :
 digit vectors with the exact branch relation, the checks on the quotient-lift route end in a true
 claim for the flat witness with the digits of the quotients. -/
 theorem lift_winsTo (admits : Type → Prop) (scalar : admits Zq)
-    (range : admits (Fin (4 / 2 + 1 + 1) → Zq)) (cubic : admits (Fin (3 + 1) → Zq))
+    (range : ∀ n, n ≤ rangeWidth 4 → admits (Fin n → Zq)) (cubic : admits (Fin (3 + 1) → Zq))
     {st : groups.Statement Zq} {challenge : groups.Challenge} {w : groups.Witness}
     (satisfies : w.Satisfies groupBasis st challenge) :
     WinsTo admits (foldCheck (Batch.liftedReduction groupBasis st challenge 10 groups_cells 4 33
       groups_room 4 groups_rows) 4 groups.binarySupport
       ((groups.lockedRelation groupBasis st challenge 10 groups_cells).completion 4 33
-        (groups.cells + 1) w.flat)) (0 + 10 + 1 + 1 + 10 + 1 + 1 + 1) true fun result _ _ =>
+        (groups.cells + 1) w.flat)) (foldDraws 10 4) true fun result _ _ =>
         ∃ r2 : List Zq, r2.length = 10 ∧ result = some (r2, mle r2 (lifted Zq
           ((groups.lockedRelation groupBasis st challenge 10 groups_cells).completion 4 33
             (groups.cells + 1) w.flat))) :=

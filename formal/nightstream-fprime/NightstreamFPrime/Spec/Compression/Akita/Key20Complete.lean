@@ -11,8 +11,8 @@ schedule file `crates/ns-compress/artifacts/key20.aks` (Akita, ePrint 2026/1983,
 - `bounded`: the shapes of the levels 2 to 5 and of the terminal satisfy `Shape.Bounded`.
 - `source₂` to `source₆` and `fold₂` to `fold₅` are the conditions `SourceSized` and `FoldSized`
   of `traceTower_complete`: the point of each receiver has the segments `(ρ_pack, ρ_pos, ρ_blk)`
-  of the lengths (6, 9, 5), (6, 8, 4), (5, 9, 3), (5, 8, 3) and (5, 8, 3), and a round polynomial
-  of a range sum-check has at most 34 coefficients.
+  of the lengths (6, 9, 5), (6, 8, 4), (5, 9, 3), (5, 8, 3) and (5, 8, 3), and a message of the
+  range tree has at most 8 field elements.
 - `links`: the tensor reduction of each level has `μ − 1` tail variables, which is the count of
   the coordinates of the point of the next level, and the live blocks of the next level have each
   cell of the flat witness.
@@ -79,19 +79,19 @@ theorem source₅ : SourceSized level₅.shape 16 5 8 3 :=
 theorem source₆ : SourceSized terminal 16 5 8 3 :=
   ⟨bounded.2.2.2.2, units.2, by decide, by decide, by decide⟩
 
-theorem fold₂ : FoldSized level₂.shape level₂.opening level₂.fold 34 :=
+theorem fold₂ : FoldSized level₂.shape level₂.opening level₂.fold 8 :=
   ⟨⟨by decide, by decide, by decide⟩, by decide, pathFits_of (by decide) (by decide), by decide,
     by decide, by decide, by decide⟩
 
-theorem fold₃ : FoldSized level₃.shape level₃.opening level₃.fold 34 :=
+theorem fold₃ : FoldSized level₃.shape level₃.opening level₃.fold 8 :=
   ⟨⟨by decide, by decide, by decide⟩, by decide, pathFits_of (by decide) (by decide), by decide,
     by decide, by decide, by decide⟩
 
-theorem fold₄ : FoldSized level₄.shape level₄.opening level₄.fold 34 :=
+theorem fold₄ : FoldSized level₄.shape level₄.opening level₄.fold 8 :=
   ⟨⟨by decide, by decide, by decide⟩, by decide, trivial, by decide, by decide, by decide,
     by decide⟩
 
-theorem fold₅ : FoldSized level₅.shape level₅.opening level₅.fold 34 :=
+theorem fold₅ : FoldSized level₅.shape level₅.opening level₅.fold 8 :=
   ⟨⟨by decide, by decide, by decide⟩, by decide, trivial, by decide, by decide, by decide,
     by decide⟩
 
@@ -143,17 +143,17 @@ local notation "second" =>
 
 local notation "third" =>
   Tier.tensored (committedTraceSq (fold := level₃.fold) key₃ openKey₃ claim₃ level₃.vars
-    (And.left sized₃) level₃.batch (And.left (And.right sized₃)) norm₃.vars block₃ decode₃ read
+    (And.left sized₃) level₃.batch (And.left (And.right sized₃)) block₃ decode₃ read
     weight₃ norm₃.operator norm₃.limit (Tier.finish second)) level₃.tail
 
 local notation "fourth" =>
   Tier.tensored (committedTraceSq (fold := level₄.fold) key₄ openKey₄ claim₄ level₄.vars
-    (And.left sized₄) level₄.batch (And.left (And.right sized₄)) norm₄.vars block₄ decode₄ read
+    (And.left sized₄) level₄.batch (And.left (And.right sized₄)) block₄ decode₄ read
     weight₄ norm₄.operator norm₄.limit (Tier.finish third)) level₄.tail
 
 local notation "fifth" =>
   Tier.tensored (committedTraceSq (fold := level₅.fold) key₅ openKey₅ claim₅ level₅.vars
-    (And.left sized₅) level₅.batch (And.left (And.right sized₅)) norm₅.vars block₅ decode₅ read
+    (And.left sized₅) level₅.batch (And.left (And.right sized₅)) block₅ decode₅ read
     weight₅ norm₅.operator norm₅.limit (Tier.finish fourth)) level₅.tail
 
 local notation "linked" =>
@@ -174,12 +174,12 @@ the complete transcript has the links `Tier.TraceLinked` of the levels 2 to 5, t
 `Terminal.Linked` and the checks `Terminal.Passed`: the part of the verifier `towerLinks` of
 `Key20.tower_suffix` from the level 2. The conditions on the shapes are theorems of this file.
 `sends`, `wide`, `capped`, `room`, `carries₂` to `carriesL`: a wire message can have the data of
-the prover, with round polynomials of 34 coefficients, the energy `3029804899` and 4 messages of
+the prover, with messages of 8 field elements, the energy `3029804899` and 4 messages of
 the checks. `next`, `inside`, `reads`, `clears`: the stage of the terminal and its messages.
 `fit`: the fit conditions `TraceFit` of the levels 2 to 5 with `S_max` of `norm₃` to `norm₅`, and
 `‖z‖_2² ≤ S_max,term` at the terminal, for each fold challenge vector of the families. -/
 theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
-    (sends : Sends sendable E width cap) (wide : 34 ≤ width) (capped : 3029804899 ≤ cap)
+    (sends : Sends sendable E width cap) (wide : 8 ≤ width) (capped : 3029804899 ≤ cap)
     (room : 3 < slots)
     (carries₂ : Carries sendable slots read fun wire => (commit₃ wire, claim₃ wire))
     (carries₃ : Carries sendable slots read fun wire => (commit₄ wire, claim₄ wire))
@@ -226,6 +226,9 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     links.2.1.2.2.1 links.2.1.2.2.2 links.2.2.1 links.2.2.2.1 links.2.2.2.2.1 links.2.2.2.2.2
     (norms_sized (level₃, norm₃) (by simp)).1 (norms_sized (level₄, norm₄) (by simp)).1
     (norms_sized (level₅, norm₅) (by simp)).1
+    ((by decide : rangeWidthSq level₃.shape.certifiedBase ≤ 8).trans wide)
+    ((by decide : rangeWidthSq level₄.shape.certifiedBase ≤ 8).trans wide)
+    ((by decide : rangeWidthSq level₅.shape.certifiedBase ≤ 8).trans wide)
     ((by decide : norm₃.limit ≤ 3029804899).trans capped)
     ((by decide : norm₄.limit ≤ 3029804899).trans capped)
     ((by decide : norm₅.limit ≤ 3029804899).trans capped) next inside reads clears table decodes₂
@@ -238,7 +241,7 @@ complete transcript has the links of the levels 2 to 5 and of the terminal and t
 `Terminal.Passed`. `full`: a wire message can have this claim. The other hypotheses are those of
 `traceTower_complete`. -/
 theorem traceTower_accepts {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
-    (sends : Sends sendable E width cap) (wide : 34 ≤ width) (capped : 3029804899 ≤ cap)
+    (sends : Sends sendable E width cap) (wide : 8 ≤ width) (capped : 3029804899 ≤ cap)
     (room : 3 < slots)
     (carries₂ : Carries sendable slots read fun wire => (commit₃ wire, claim₃ wire))
     (carries₃ : Carries sendable slots read fun wire => (commit₄ wire, claim₄ wire))

@@ -187,6 +187,14 @@ local notation "second" =>
 
 local notation "chain" => pair first second Letter.payload Letter.digits
 
+/-- A vector of 4 elements gives each vector of at most 4 elements. -/
+theorem surjective_castLE {n : ℕ} (small : n ≤ 4) :
+    ∃ map : (Fin 4 → Zq) → Fin n → Zq, Function.Surjective map :=
+  ⟨fun vector index => vector (Fin.castLE small index), fun short =>
+    ⟨fun index => if inside : (index : ℕ) < n then short ⟨index, inside⟩ else 0, by
+      funext index
+      simp⟩⟩
+
 /-- `packingPair_complete` for the small instance, with no hypothesis on the parameters: for each
 matrices, each table, each opening point and each table of the oracle, the verifier accepts the
 transcript of a proof with the claim of the honest prover. -/
@@ -198,7 +206,11 @@ theorem complete (source : Table) (point : Point (opening 1 1) Zq)
           ((Structure.protocol chain).final (.done proof) table) :=
   packingPair_complete (fun M => ∃ map : (Fin 4 → Zq) → M, Function.Surjective map) Letter.full
     ⟨fun vector => vector 0, fun value => ⟨fun _ => value, rfl⟩⟩ ⟨id, Function.surjective_id⟩
-    ⟨id, Function.surjective_id⟩ ⟨id, Function.surjective_id⟩ (shape_honest (by decide)) radix
+    (fun _ small => surjective_castLE
+      (small.trans (show rangeWidth (shape 1 1).certifiedBase ≤ 4 by decide)))
+    (fun _ small => surjective_castLE
+      (small.trans (show rangeWidth (shape 3 128).certifiedBase ≤ 4 by decide)))
+    (shape_honest (by decide)) radix
     le_rfl (show PathFits 1 (1 * 1) none from trivial) (by decide) (by decide)
     (shape_honest (by decide)) radix le_rfl (show PathFits 1 (1 * 1) none from trivial)
     (by decide) (by decide) (p := 0) (t := 0) (s := 7) (k := 2) rfl rfl rfl (by decide) rfl

@@ -376,8 +376,8 @@ variable {L}
 
 /-- The suffix of a level over the terminal (Akita Proposition 10.44 for the last nonterminal
 level). The successor source of a certificate of the terminal is `decoder` of its source blocks.
-Two certificates with different sources, for two transcripts with one stage input of the
-checkpoint, have one state `(t_i)_i` (`bound`), and `terminalCollision_isSome` gives a solution
+Two certificates with different sources, for two accepting transcripts with one stage input of
+the checkpoint, have one state `(t_i)_i` (`bound`), and `terminalCollision_isSome` gives a solution
 of Module-SIS for `A_term` with the radius `8·κ_{1,term}·Z_{∞,term}` of Akita (181). `units` and
 `sparse`: the challenge family of the terminal has units as differences and members of the norm
 `κ_{1,term}`. `decodes`: the verifier rejects an answer without a fold challenge for each block of
@@ -392,7 +392,8 @@ theorem suffix_after {S' : Shape} {O : OpeningShape S'} {fold : Descriptor}
     (units : UnitDifferences L.family)
     (sparse : ∀ challenge ∈ L.family, Sparse L.weight peak challenge)
     (decoder : (Fin S.blocks → S.Source) → Source)
-    (bound : ∀ point other : Prefix Wire (Coord → Slot) total, point.take (T.start + 1) = other.take (T.start + 1) →
+    (bound : ∀ point other : Prefix Wire (Coord → Slot) total, accept point → accept other →
+      point.take (T.start + 1) = other.take (T.start + 1) →
       (L.read (other.take L.start)).state = (L.read (point.take L.start)).state)
     (decodes : ∀ point, accept point → T.Decodes point)
     (passed : ∀ point fork, accept point → L.Sourced point (some fork) →
@@ -410,12 +411,13 @@ theorem suffix_after {S' : Shape} {O : OpeningShape S'} {fold : Descriptor}
   · intro point witness accepted sourced
     obtain ⟨fork, rfl, _⟩ := id sourced
     exact passed point fork accepted sourced
-  · rintro point other _ _ _ _ ⟨fork, rfl, accepts, short, _⟩ ⟨fork', rfl, accepts', short', _⟩
-      same different
+  · rintro point other _ _ accepted accepted' ⟨fork, rfl, accepts, short, _⟩
+      ⟨fork', rfl, accepts', short', _⟩ same different
     obtain ⟨i, differs⟩ := Function.ne_iff.mp fun equal : fork.source = fork'.source =>
       different (congrArg decoder equal)
     exact List.findSome?_isSome_iff.mpr ⟨i, List.mem_finRange i,
-      terminalCollision_isSome units sparse accepts accepts' rfl (bound point other same) short
+      terminalCollision_isSome units sparse accepts accepts' rfl
+        (bound point other accepted accepted' same) short
         short' differs⟩
 
 end Terminal

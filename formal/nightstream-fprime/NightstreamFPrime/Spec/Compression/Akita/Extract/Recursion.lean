@@ -17,7 +17,8 @@ revision of 2026-10-15, Proposition 10.44 with its proof, and Corollary 10.49 wi
   first certificate of the later stages to the successor source of the level, `passed` is Akita
   Lemma 10.42 (ii), and `clashes` is `Coll_ℓ`.
 - `Tier.suffix_committed` is `Tier.suffix_before` for a next level that commits to the flat
-  witness: the source is the table of its weak opening, and `Coll_ℓ` is `tableCollision`.
+  witness: the source is `view` of the table of its weak opening, and `Coll_ℓ` is
+  `tableCollision`.
 - `Tier.Linked` is the link that the verifier makes from a level to a next level with coefficient
   packing: the payload of the next claim is the commitment that the proof has before the checks,
   and the point and the value of the next claim are the final claim `(r_2, v_W)` of the checks.
@@ -240,9 +241,10 @@ end Level
 section Committed
 
 variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' : OpeningShape S'}
-  {fold' : Descriptor} {Ring Stmt Brk Ring' Stmt' Brk' Wire Coord Slot Result Result' Source' : Type}
+  {fold' : Descriptor}
+  {Ring Stmt Brk Ring' Stmt' Brk' Wire Coord Slot Result Source Result' Source' : Type}
   [Zero Ring] [Zero Ring']
-  {T : Tier O fold Ring Stmt Brk Wire Coord Slot Result Table}
+  {T : Tier O fold Ring Stmt Brk Wire Coord Slot Result Source}
   {N : Tier O' fold' Ring' Stmt' Brk' Wire Coord Slot Result' Source'}
   {total : ℕ} [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
   {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Coord → Slot) total → Prop}
@@ -262,8 +264,9 @@ noncomputable def collide {S : Shape} {O : OpeningShape S} (key : Key S) (openKe
 omit [Zero Ring'] in
 /-- The suffix of a level over the suffix of a next level `N` that commits to its flat witness
 (Akita Proposition 10.44 for one more level, "Checkpoints"). The successor source of a first
-certificate of the next level is the table of its weak opening. `certified`: this weak opening
-has a certified decommitment of the commitment `commit` that the proof has before the checks of
+certificate of the next level is `view` of the table of its weak opening: `view` is the map of
+the opening method of the next level from its table to the flat witness. `certified`: this weak
+opening has a certified decommitment of the commitment `commit` that the proof has before the checks of
 the level (Akita Definition 10.22 (i) and (ii)). Two sources after one stage input of the
 checkpoint are two certified decommitments of one payload, and `tableCollision` gives a solution
 of Module-SIS for a matrix of the next level (Akita Corollary 10.25). `passed`: the final claim
@@ -276,21 +279,22 @@ theorem suffix_committed (valid : T.Valid) (next : N.start = T.finish)
     (decodes : ∀ point, accept point → T.Decodes point) {factorBound sourceBound innerBound : ℕ}
     (key' : Key S') (openKey' : OpeningKey O')
     (covers : factorBound * sourceBound + factorBound * sourceBound ≤ innerBound)
+    (view : Table → Source)
     (certified : ∀ point ω, accept point → N.Opens point (some ω) →
       ω.toCertified.Opens factorBound sourceBound key' (commit (point.wire (T.start + 1)))
         (S'.decode ω.source))
     (passed : ∀ point ω, accept point → N.Opens point (some ω) →
-      T.Passed (S'.decode ω.source) point)
+      T.Passed (view (S'.decode ω.source)) point)
     (embed : LevelBreak key' openKey' innerBound → BreakT)
     (embedded : ∀ solution, solution.isSome → tail.breaks (embed solution))
     (later : Suffix accept N.start N.Opens tail error loops tree) :
     Suffix accept T.start T.Opens
-      (T.over accept tail (fun inner => tableOf (tail.witness inner))
+      (T.over accept tail (fun inner => view (tableOf (tail.witness inner)))
         (fun inner other =>
           embed (collide key' openKey' innerBound (tail.witness inner) (tail.witness other))))
       (S.blocks * T.chance + T.costs.sum + error) (S.blocks + 1 + loops)
       (2 * (S.blocks + 1) * tree) := by
-  refine suffix_before valid (next ▸ later) fits tableOf
+  refine suffix_before valid (next ▸ later) fits (fun opening => view (tableOf opening))
     (fun opening other => embed (collide key' openKey' innerBound opening other)) decodes ?_ ?_
   · rintro point _ accepted ⟨ω, rfl, opens⟩
     exact passed point ω accepted ⟨ω, rfl, opens⟩
@@ -304,7 +308,7 @@ theorem suffix_committed (valid : T.Valid) (next : N.start = T.finish)
     show ((tableCollision key' innerBound ω.toCertified ω'.toCertified).map
       (Sum.map id Sum.inl)).isSome
     rw [Option.isSome_map]
-    exact tableCollision_isSome left right covers different
+    exact tableCollision_isSome left right covers fun same => different (congrArg view same)
 
 end Committed
 
@@ -385,7 +389,7 @@ theorem suffix_push (valid : T.Valid) (packed : N.method = packing β' key' open
       (2 * (S.blocks + 1) * tree) := by
   refine suffix_committed (factorBound := 2 * weight') (sourceBound := fold'.sourceBound S')
     valid next commit fits (fun point accepted => (linked point accepted).2.1) key' openKey'
-    (le_of_eq (by ring)) ?_ ?_ embed embedded later
+    (le_of_eq (by ring)) id ?_ ?_ embed embedded later
   · rintro point ω accepted ⟨_, same, opens⟩
     obtain rfl := Option.some.inj same
     rw [packed] at opens

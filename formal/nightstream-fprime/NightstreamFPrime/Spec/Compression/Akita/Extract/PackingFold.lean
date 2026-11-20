@@ -6,7 +6,8 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Staged
 
 - `foldCosts` has the bounds of the draws of `foldCheck` in their order, `foldCosts_sum` states
   that their sum is `foldError`, and `foldCheck_staged` states that each draw has its bound when an
-  answer of the oracle has a slot for each coordinate of a draw. -/
+  answer of the oracle has a slot for each coordinate of a draw. `foldCheck_stagedTo` is this
+  statement for a game that continues after an accepted end. -/
 
 set_option autoImplicit false
 
@@ -109,23 +110,55 @@ theorem foldCosts_nonnegative (badBound vars batch base : ℕ) :
 
 variable [Nonempty Coord]
 
-theorem fusedCheck_staged (μ : ℕ) (support : ℕ → Prop) [DecidablePred support] (w : Table)
-    (weight : ℕ → E) (target : E) (r : List E) (sClaim ζ γ : E) :
-    Staged (Coord → E) (fusedCheck μ support w weight target r sClaim ζ γ)
-      (List.replicate μ (((3 : ℕ) : ℝ) / Fintype.card E)) := by
-  have rounds := sumcheck_staged (Reply := Coord → E) exists_fair_slot 3 μ _
-    (fused_roundTruth μ w weight (virtWeight support r γ ζ)).degree []
-    (fun result rest => StagedTo (Coord → E) (match result with
-      | none => Game.pure none
-      | some (r2, value) => Game.recv E fun v =>
-          if value = v * mle r2 weight + mle r2 (virtWeight support r γ ζ) * (v * (v + 1)) then
-            Game.pure (some (r2, v))
-          else Game.pure none) rest fun _ _ => True)
-    (fun _ => trivial) (fun final v => by
-      dsimp only
-      split <;> trivial) μ [] (target + γ * sClaim) (by simp)
-  rw [List.append_nil] at rounds
-  exact (stagedTo_bind _ _ _ _).mpr rounds
+/-- Each draw of `fusedCheck` has the bound `3/|E|`, and an accepted end has the entries `rest`
+after the bounds of its rounds. -/
+theorem fusedCheck_stagedTo (μ : ℕ) (support : ℕ → Prop) [DecidablePred support] (w : Table)
+    (weight : ℕ → E) (target : E) (r : List E) (sClaim ζ γ : E) (rest : List ℝ)
+    (tail : Option (List E × E) → List ℝ → Prop) (rejected : ∀ costs, tail none costs)
+    (ended : ∀ final, tail (some final) rest) :
+    StagedTo (Coord → E) (fusedCheck μ support w weight target r sClaim ζ γ)
+      (List.replicate μ (((3 : ℕ) : ℝ) / Fintype.card E) ++ rest) tail := by
+  refine (stagedTo_bind _ _ _ _).mpr (sumcheck_staged (Reply := Coord → E) exists_fair_slot 3 μ _
+    (fused_roundTruth μ w weight (virtWeight support r γ ζ)).degree rest _ ?_ ?_ μ []
+    (target + γ * sClaim) (by simp))
+  · exact fun _ => rejected _
+  · intro final v
+    dsimp only
+    split
+    · exact ended _
+    · exact rejected _
+
+/-- Each draw of `foldCheck` has its bound of `foldCosts`, and an accepted end has the entries
+`rest` after these bounds, when an answer of the oracle has `μ'` slots or more and `s_rel` slots
+or more. -/
+theorem foldCheck_stagedTo (R : Reduction E) (base : ℕ) (support : ℕ → Prop)
+    [DecidablePred support] (w : Table) (varsFit : R.vars ≤ Fintype.card Coord)
+    (batchFit : R.batch ≤ Fintype.card Coord) (rest : List ℝ)
+    (tail : Option (List E × E) → List ℝ → Prop) (rejected : ∀ costs, tail none costs)
+    (ended : ∀ final, tail (some final) rest) :
+    StagedTo (Coord → E) (foldCheck R base support w)
+      (foldCosts E R.badBound R.vars R.batch base ++ rest) tail := by
+  have field : ∃ decode : (Coord → E) → E, Fair decode := exists_fair_slot
+  unfold foldCheck foldCosts
+  simp only [List.cons_append, List.append_assoc]
+  refine stagedTo_draw field (density_le (C := E) (R.bad w) _ (R.bad_card w)) fun α => ?_
+  refine stagedTo_draw (exists_fair_slots varsFit) (density_rangeBad_le (E := E) base R.vars w)
+    fun τ0 => ?_
+  refine stagedTo_draw (exists_fair_slots batchFit)
+    ((R.rows α).density_batchBad_le R.vars (R.fits α) w) fun τ1 => ?_
+  refine (stagedTo_bind _ _ _ _).mpr (sumcheckWith_staged field (base / 2 + 1) R.vars 1 _
+    (range_roundTruth base R.vars (List.ofFn τ0) w).degree _ (fun _ => bindBad_card_le _ _) _ _
+    ?_ ?_ R.vars [] 0 (by simp))
+  · exact fun _ => rejected _
+  rintro ⟨r, value⟩ sClaim
+  dsimp only
+  split
+  · exact stagedTo_draw field (density_le _ 1
+      (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) fun ζ =>
+        stagedTo_draw field (density_le _ 1
+          (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) fun γ =>
+            fusedCheck_stagedTo R.vars support w _ _ r sClaim ζ γ rest tail rejected ended
+  · exact rejected _
 
 /-- Each draw of `foldCheck` has its bound of `foldCosts`, when an answer of the oracle has `μ'`
 slots or more and `s_rel` slots or more. -/
@@ -134,25 +167,9 @@ theorem foldCheck_staged (R : Reduction E) (base : ℕ) (support : ℕ → Prop)
     (batchFit : R.batch ≤ Fintype.card Coord) :
     Staged (Coord → E) (foldCheck R base support w)
       (foldCosts E R.badBound R.vars R.batch base) := by
-  have field : ∃ decode : (Coord → E) → E, Fair decode := exists_fair_slot
-  unfold Staged foldCheck foldCosts
-  refine stagedTo_draw field (density_le (C := E) (R.bad w) _ (R.bad_card w)) fun α => ?_
-  refine stagedTo_draw (exists_fair_slots varsFit) (density_rangeBad_le (E := E) base R.vars w)
-    fun τ0 => ?_
-  refine stagedTo_draw (exists_fair_slots batchFit)
-    ((R.rows α).density_batchBad_le R.vars (R.fits α) w) fun τ1 => ?_
-  refine (stagedTo_bind _ _ _ _).mpr (sumcheckWith_staged field (base / 2 + 1) R.vars 1 _
-    (range_roundTruth base R.vars (List.ofFn τ0) w).degree _ (fun _ => bindBad_card_le _ _) _ _
-    (fun _ => trivial) ?_ R.vars [] 0 (by simp))
-  rintro ⟨r, value⟩ sClaim
-  dsimp only
-  split
-  · exact stagedTo_draw field (density_le _ 1
-      (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) fun ζ =>
-        stagedTo_draw field (density_le _ 1
-          (zeros_card_le_of_natDegree_le (linePoly_natDegree _ _))) fun γ =>
-            fusedCheck_staged R.vars support w _ _ r sClaim ζ γ
-  · trivial
+  have staged := foldCheck_stagedTo R base support w varsFit batchFit [] (fun _ _ => True)
+    (fun _ => trivial) (fun _ => trivial)
+  rwa [List.append_nil] at staged
 
 end Costs
 

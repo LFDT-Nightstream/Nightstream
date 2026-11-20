@@ -14,7 +14,9 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Suffix
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TerminalSuffix
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tier
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TierBound
+import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceChain
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceLevel
+import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceLink
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceSource
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Transcript
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Uniform
@@ -32,9 +34,11 @@ import NightstreamFPrime.Spec.Compression.Akita.RingCheck
 import NightstreamFPrime.Spec.Compression.Akita.RowBatch
 import NightstreamFPrime.Spec.Compression.Akita.Setup
 import NightstreamFPrime.Spec.Compression.Akita.Shapes
+import NightstreamFPrime.Spec.Compression.Akita.Tensor
 import NightstreamFPrime.Spec.Compression.Akita.Terminal
 import NightstreamFPrime.Spec.Compression.Akita.Trace
 import NightstreamFPrime.Spec.Compression.Akita.TraceFold
+import NightstreamFPrime.Spec.Compression.Akita.TracePack
 import NightstreamFPrime.Spec.Compression.Game.Law
 import NightstreamFPrime.Spec.Compression.Game.SumCheck
 import NightstreamFPrime.Spec.Compression.Lib.Combination
@@ -65,8 +69,9 @@ relation, the weak opening, the weak binding and the extraction of one packing f
 the Euclidean norms and the Euclidean route of the weak binding (`Akita/Euclid`), the norm checks of
 the next witness (`Akita/Range`), the checks of the ring relations (`Akita/RingCheck`), the packing
 map and the trace identity for `k = 2` (`Akita/Trace`), one fold with the evaluation-trace method
-(`Akita/TraceFold`) and the evaluation-trace terminal (`Akita/Terminal`), and the row batching and
-the quotient-free reduction (`Akita/RowBatch`), the quotient-lift reduction
+(`Akita/TraceFold`), the layout of its scalar row (`Akita/TracePack`), the tensor reduction for
+`k = 2` (`Akita/Tensor`) and the evaluation-trace terminal (`Akita/Terminal`), and the row
+batching and the quotient-free reduction (`Akita/RowBatch`), the quotient-lift reduction
 (`Akita/LiftReduction`), the sum-checks of one fold (`Akita/FoldSumCheck`), the checks of one fold
 as a game with its error (`Akita/FoldCheck`), the link from these checks to the branch relation
 (`Akita/Layout`), the flat witness of one packing fold (`Akita/FlatWitness`) and the relation of
@@ -77,6 +82,8 @@ recursive opening suffix: the conditions of a suffix of the stages (`Suffix`), t
 without the witness
 (`Uniform`), one level over the later stages (`Tier`, `TierBound`), the checks for a committed
 flat witness (`FlatSource`), the composition of the levels (`Recursion`), the levels with the
-checks `foldCheck` (`Chain`) and the Fiat–Shamir budget (`Budget`), and the shared setup with its
+checks `foldCheck` (`Chain`), the link to a receiver with evaluation trace (`TraceLink`), a
+packing level over a trace level over the terminal (`TraceChain`) and the Fiat–Shamir budget
+(`Budget`), and the shared setup with its
 reduction to ordinary Module-SIS (`Akita/Setup`) and the bad events of the hashed transcript
 entries (`Akita/Digest`). -/

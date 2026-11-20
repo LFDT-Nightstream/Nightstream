@@ -16,12 +16,9 @@ Proposition 10.44 with its proof).
   later stages, with `foldError` for the sum of the bounds of the draws.
 - `clearTrace` is the `Tier` of a last trace fold, whose proof has the digit vectors in the
   clear, and `clearTrace_suffix` is `Tier.suffix_last` for it.
-- `Tier.suffix_push_trace` is `Tier.suffix_committed` for a next level with evaluation trace:
-  `Coll_ℓ` is `tableCollision` for the certified decommitments of two weak openings
-  `Weak.TraceOpens` (Akita Corollary 10.25).
 
-The quotient-lift reduction, more than one claim or group, and the setup offloading are not in
-this file. -/
+The link from a level to a next level with evaluation trace is in `TraceLink`. The quotient-lift
+reduction, more than one claim or group, and the setup offloading are not in this file. -/
 
 set_option autoImplicit false
 
@@ -105,58 +102,6 @@ theorem trace_sound {key : Key S} {openKey : OpeningKey O} {weight peak : ℕ}
     rfl
 
 end Method
-
-section Receiver
-
-variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' : OpeningShape S'}
-  {fold' : Descriptor} {E Ring Stmt Brk Wire Coord Slot Result Result' Source' : Type}
-  [Zero Ring] [CommRing E] [Module Zq E] {key' : Key S'} {openKey' : OpeningKey O'}
-  {weight' : ℕ} {T : Tier O fold Ring Stmt Brk Wire Coord Slot Result Table}
-  {N : Tier O' fold' (Rq S'.innerDegree) (TraceClaim O' E)
-    (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S')) Wire Coord Slot Result'
-    Source'}
-  {total : ℕ} [Fintype Slot] [Nonempty Slot] [Fintype Coord] [DecidableEq Coord]
-  {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Coord → Slot) total → Prop}
-  {tail : Structure (Prefix Wire (Coord → Slot) total) Coord Slot (ℕ → Wire) Inner BreakT CandT
-    KeyT (Option (Weak O'))}
-  {error : ℝ} {loops tree : ℕ}
-
-/-- `Tier.suffix_committed` for a next level `N` with evaluation trace (Akita Proposition 10.44
-for one more level). The certified decommitment of a first certificate of `N` is that of its
-weak opening `Weak.TraceOpens`. `traced`: the method of `N` is `trace`. `committed`: the payload
-of the claim of `N` is the commitment `commit` of the message after the fold challenge of the
-level. `passed`: the final claim of the checks of the level is true for the table of a weak
-opening of `N` (Akita Lemma 10.42 (ii)). -/
-theorem Tier.suffix_push_trace (valid : T.Valid) (traced : N.method = trace key' openKey' weight')
-    (next : N.start = T.finish) (commit : Wire → S'.Payload) (fits : T.finish ≤ total)
-    (decodes : ∀ point, accept point → T.Decodes point)
-    (committed : ∀ point, accept point →
-      (N.claim (point.wire N.start)).payload = commit (point.wire (T.start + 1)))
-    (passed : ∀ point ω, accept point → N.Opens point (some ω) →
-      T.Passed (S'.decode ω.source) point)
-    (embed : LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') → BreakT)
-    (embedded : ∀ solution, solution.isSome → tail.breaks (embed solution))
-    (later : Tier.Suffix accept N.start N.Opens tail error loops tree) :
-    Tier.Suffix accept T.start T.Opens
-      (T.over accept tail (fun inner => tableOf (tail.witness inner))
-        (fun inner other => embed (Tier.collide key' openKey'
-          (2 * (2 * weight') * fold'.sourceBound S') (tail.witness inner) (tail.witness other))))
-      (S.blocks * T.chance + T.costs.sum + error) (S.blocks + 1 + loops)
-      (2 * (S.blocks + 1) * tree) := by
-  refine Tier.suffix_committed (factorBound := 2 * weight')
-    (sourceBound := fold'.sourceBound S') valid next commit fits decodes key' openKey'
-    (le_of_eq (by ring)) ?_ passed embed embedded later
-  rintro point ω accepted ⟨_, same, opens⟩
-  obtain rfl := Option.some.inj same
-  rw [traced] at opens
-  have left : ω.toCertified.Opens (2 * weight') (fold'.sourceBound S') key'
-      (N.claim (point.wire N.start)).payload (S'.decode ω.source) :=
-    (show ω.TraceOpens _ _ ((N.claim (point.wire N.start)).statement key' openKey') _ from
-      opens).certified
-  rw [committed point accepted] at left
-  exact left
-
-end Receiver
 
 section Levels
 

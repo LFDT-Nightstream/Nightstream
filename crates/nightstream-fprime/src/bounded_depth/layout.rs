@@ -14,7 +14,6 @@ use crate::package::{
 
 const FIELD_DIGITS: usize = 41;
 const FIELD_RATIO: u64 = 3;
-const NO_SLOT: u32 = u32::MAX;
 
 /// Lean `LowNormSlot.Kind`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -42,9 +41,9 @@ impl Kind {
 }
 
 pub struct LogicalLayout {
-    offsets: Vec<u32>,
+    spans: SlotSpans,
     kinds: Vec<Kind>,
-    slots: Vec<usize>,
+    slots: Box<[u32]>,
     width: usize,
 }
 
@@ -63,23 +62,12 @@ impl LogicalLayout {
         if column < PUBLIC {
             return Some((column, Kind::Centered));
         }
-        let offset = *self.offsets.get(column)?;
-        (offset != NO_SLOT).then(|| (offset as usize, self.kinds[column]))
+        (*self.spans.widths.get(column)? != 0).then(|| (self.spans.starts[column] as usize, self.kinds[column]))
     }
 
     /// Lean `SlotLayout.layout`.
-    pub fn spans(&self) -> SlotSpans {
-        let (starts, widths) = (0..self.offsets.len())
-            .map(|column| {
-                self.slot(column)
-                    .map_or((0, 0), |(offset, kind)| (offset as u32, kind.width() as u8))
-            })
-            .unzip();
-        SlotSpans {
-            starts,
-            widths,
-            ratio: Fq::from_u64(FIELD_RATIO),
-        }
+    pub fn spans(&self) -> &SlotSpans {
+        &self.spans
     }
 
     pub fn assignment(&self, columns: &[Fq]) -> Result<Vec<Fq>, PackageError> {
@@ -96,7 +84,10 @@ impl LogicalLayout {
             .max(1);
         let mut parts = Vec::new();
         for slots in self.slots.chunks(range) {
-            let width: usize = slots.iter().map(|&column| self.kinds[column].width()).sum();
+            let width: usize = slots
+                .iter()
+                .map(|&column| self.kinds[column as usize].width())
+                .sum();
             let (part, tail) = rest.split_at_mut(width);
             parts.push((slots, part));
             rest = tail;
@@ -105,6 +96,7 @@ impl LogicalLayout {
             let mut digits = [0i8; FIELD_DIGITS];
             let mut offset = 0;
             for &column in slots {
+                let column = column as usize;
                 let value = *columns
                     .get(column)
                     .ok_or(PackageError::Input("bounded-depth source columns"))?;
@@ -154,13 +146,14 @@ impl LogicalLayout {
                 for offset in start..end.min(PUBLIC) {
                     put(offset, unit_masks(columns[offset])?);
                 }
-                let first = self
-                    .slots
-                    .partition_point(|&slot| self.offsets[slot] as usize + self.kinds[slot].width() <= start);
+                let first = self.slots.partition_point(|&slot| {
+                    self.spans.starts[slot as usize] as usize + self.kinds[slot as usize].width() <= start
+                });
                 let last = self
                     .slots
-                    .partition_point(|&slot| (self.offsets[slot] as usize) < end);
+                    .partition_point(|&slot| (self.spans.starts[slot as usize] as usize) < end);
                 for &slot in &self.slots[first..last] {
+                    let slot = slot as usize;
                     let value = *columns
                         .get(slot)
                         .ok_or(PackageError::Input("bounded-depth source columns"))?;
@@ -168,7 +161,7 @@ impl LogicalLayout {
                         Kind::Bit | Kind::Centered => unit_masks(value)?,
                         Kind::Field => balanced_ternary_masks(value.as_canonical_u64()),
                     };
-                    put(self.offsets[slot] as usize, masks);
+                    put(self.spans.starts[slot] as usize, masks);
                 }
                 Ok::<_, PackageError>(())
             })?;
@@ -180,10 +173,11 @@ impl LogicalLayout {
         if logical.len() != self.width {
             return Err(PackageError::Input("bounded-depth logical assignment width"));
         }
-        let mut columns = vec![Fq::ZERO; self.offsets.len().max(PUBLIC)];
+        let mut columns = vec![Fq::ZERO; self.spans.starts.len().max(PUBLIC)];
         columns[..PUBLIC].copy_from_slice(&logical[..PUBLIC]);
         for &column in &self.slots {
-            let offset = self.offsets[column] as usize;
+            let column = column as usize;
+            let offset = self.spans.starts[column] as usize;
             let width = self.kinds[column].width();
             let mut coefficient = Fq::ONE;
             let mut value = Fq::ZERO;
@@ -199,8 +193,13 @@ impl LogicalLayout {
     /// Lean `Parity.logicalSum`.
     pub fn checksum(&self, logical: &[Fq], limit: usize) -> u64 {
         let mut total = (0..PUBLIC).fold(Fq::ZERO, |sum, column| sum + logical[column] * mix(1, column as u64));
-        for &column in self.slots.iter().filter(|&&column| column < limit) {
-            let offset = self.offsets[column] as usize;
+        for &column in self
+            .slots
+            .iter()
+            .filter(|&&column| (column as usize) < limit)
+        {
+            let column = column as usize;
+            let offset = self.spans.starts[column] as usize;
             for index in offset..offset + self.kinds[column].width() {
                 total += logical[index] * mix(1, index as u64);
             }
@@ -374,7 +373,12 @@ impl StepPackage {
             .map(|&(start, count, _)| start + count)
             .max()
             .unwrap_or(PUBLIC);
-        let mut offsets = vec![NO_SLOT; size];
+        let mut starts = vec![0; size];
+        let mut widths = vec![0; size];
+        for (column, (start, width)) in starts.iter_mut().zip(&mut widths).take(PUBLIC).enumerate() {
+            *start = column as u32;
+            *width = 1;
+        }
         let mut kinds = vec![Kind::Field; size];
         let mut slots = Vec::new();
         let mut width = PUBLIC;
@@ -384,20 +388,25 @@ impl StepPackage {
             }
             let kind = Kind::from_code(code);
             for column in start..start + count {
-                if offsets[column] != NO_SLOT {
+                if widths[column] != 0 {
                     return Err(PackageError::Malformed("bounded-depth column with two slots"));
                 }
-                offsets[column] =
+                starts[column] =
                     u32::try_from(width).map_err(|_| PackageError::TooLarge("bounded-depth logical width"))?;
                 kinds[column] = kind;
-                slots.push(column);
+                widths[column] = kind.width() as u8;
+                slots.push(u32::try_from(column).map_err(|_| PackageError::TooLarge("bounded-depth source column"))?);
                 width += kind.width();
             }
         }
         Ok(LogicalLayout {
-            offsets,
+            spans: SlotSpans {
+                starts,
+                widths,
+                ratio: Fq::from_u64(FIELD_RATIO),
+            },
             kinds,
-            slots,
+            slots: slots.into_boxed_slice(),
             width,
         })
     }

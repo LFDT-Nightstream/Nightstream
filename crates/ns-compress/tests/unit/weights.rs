@@ -9,9 +9,7 @@ use neo_reductions::superneo_eval::{
     FactoredEntries, FactoredRows, FactoredSlots, MatrixRowSink, MatrixRows, MatrixShape,
 };
 use neo_reductions::PiCcsError;
-use nightstream_fprime::{
-    load_bounded_depth_packages, ExpandedPackage, SlotSpans, BOUNDED_DEPTH_PACKAGES_IDENTITY, PUBLIC_WORDS,
-};
+use nightstream_fprime::{load_bounded_depth_packages, ExpandedPackage, BOUNDED_DEPTH_PACKAGES_IDENTITY, PUBLIC_WORDS};
 use p3_field::PrimeCharacteristicRing;
 use rand::{RngCore, SeedableRng};
 use rand_chacha::ChaCha8Rng;
@@ -184,7 +182,6 @@ fn the_column_weights_are_their_definition_across_tasks() {
 
 struct Circuit {
     expanded: ExpandedPackage,
-    spans: SlotSpans,
     blocks: usize,
 }
 
@@ -192,7 +189,6 @@ impl Circuit {
     fn new(expanded: ExpandedPackage) -> Self {
         let layout = expanded.layout();
         Self {
-            spans: layout.spans(),
             blocks: layout.width().div_ceil(D),
             expanded,
         }
@@ -200,6 +196,7 @@ impl Circuit {
 
     fn rows(&self) -> FactoredRows<'_> {
         let rows = self.expanded.rows();
+        let spans = self.expanded.layout().spans();
         FactoredRows::new(
             self.shape(),
             FactoredEntries {
@@ -208,9 +205,9 @@ impl Circuit {
                 coefficients: rows.coefficients(),
             },
             FactoredSlots {
-                starts: &self.spans.starts,
-                widths: &self.spans.widths,
-                ratio: self.spans.ratio,
+                starts: &spans.starts,
+                widths: &spans.widths,
+                ratio: spans.ratio,
             },
         )
         .expect("factored rows")

@@ -1,10 +1,12 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Compression
+import NightstreamFPrime.Export.BoundedDepth.FinalAkita
 
 /-! Axiom audits for the compression argument over the Akita opening: the verifier game in two
 parts (`Spec/Compression/Verifier/Split`), their stages, the two checkpoints of the argument and
-the result over a batching root (`Spec/Compression/Akita/Extract`: `SplitGame`, `Compose`,
-`ComposeRoot`). -/
+the result over a batching root (`Spec/Compression/Akita/Extract`: `SplitGame`, `FreshGame`,
+`Compose`, `ComposeRoot`), and the final verifier over the Akita opening
+(`Export/BoundedDepth`: `FinalSplit`, `FinalAkita`). -/
 
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.bind_assoc
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.Finals
@@ -31,6 +33,17 @@ the result over a batching root (`Spec/Compression/Akita/Extract`: `SplitGame`, 
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.back_staged
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.front_bare
 #audit_axioms NightstreamFPrime.Spec.Compression.Verifier.back_bare
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.led
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.led_avoids
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.led_staged
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.led_bare
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.costs
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.costs_sum
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.costs_nonnegative
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.roundGame_staged
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.game_staged
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.roundGame_bare
+#audit_axioms NightstreamFPrime.Spec.Compression.Fresh.game_bare
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.keyBase
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.lifted_keyBase
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.claimOf
@@ -38,15 +51,19 @@ the result over a batching root (`Spec/Compression/Akita/Extract`: `SplitGame`, 
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Decommits.collide_isSome
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.OpensAt
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.root
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.tau
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.tau_take
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.finished
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.front
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.ran
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.ran_take
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.root
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.backCheck
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.backCheck_bare
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.back
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.Sized
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.front_valid
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.back_valid
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.front_game
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.back_game
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.Ran
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.Middle
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Compose.Extracted
@@ -67,3 +84,34 @@ the result over a batching root (`Spec/Compression/Akita/Extract`: `SplitGame`, 
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.compose_extract_sound
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.compose_extraction_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.compose_runs_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.Setup.envelope
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.Setup.lead
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.Setup.verdict
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.Setup.rest
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.Setup.afterW_eq
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.Setup.split
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.Setup.game_eq
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.Setup.runCost
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.Setup.costs_sum
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.freshRun_avoids
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.lead_sound
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.laid_facts
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.front_avoids
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.back_avoids
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.lead_staged
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.front_staged
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.lead_bare
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.front_bare
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.First
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.First.claims
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.Proved
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.compose
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.compose_sized
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.Solved
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.root_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.final_suffix
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.final_extract_sound
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.final_extraction_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.final_runs_le
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.breakChance
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalAkita.final_sound

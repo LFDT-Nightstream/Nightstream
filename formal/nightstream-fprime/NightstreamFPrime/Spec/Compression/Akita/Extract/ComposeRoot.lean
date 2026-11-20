@@ -31,12 +31,12 @@ attribute [local instance low] Classical.propDecidable
 section Root
 
 variable {B : Batch (Fin 3)} {S' : Shape} {O' : OpeningShape S'} {fold' : Descriptor}
-  {E Wire Coord Result' Source' : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
+  {E Wire Coord Lead Result' Source' : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E]
   [Fintype Coord] [DecidableEq Coord] {total : ℕ} {P : Verifier.Params Zq E}
   {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin 3) → Key (B.shape g)}
   {openKey : B.OpenKey} {mass : Fin 3 → ℕ} {β' : Module.Basis (Fin O'.planes) Zq E}
   {key' : Key S'} {openKey' : OpeningKey O'} {weight' : ℕ}
-  (C : Compose P B Wire Coord total) (vf : Verifier.VerifierData P)
+  (C : Compose P B Wire Coord Lead total) (vf : Verifier.VerifierData P)
   (T : Tier B.Block (fun b => Rq (B.carrierDegree b.1)) (B.Claim E)
     (B.LevelBreak key openKey fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g))
     B.Witness B.Weak Wire Coord E (Option (List E × E)) Table)
@@ -143,7 +143,7 @@ theorem compose_suffix [Nonempty Coord] {blocks : ℕ} (sized : C.Sized vf)
       (C.Extracted key mass)
       (C.chain vf (composeAccepts C vf T N commit value place next sourceOf)
         (composeRoot C vf T N commit value place next sourceOf) key openKey mass Sum.inl)
-      (Verifier.runCost vf +
+      (C.leadCosts.sum + Verifier.runCost vf +
         (1 / Fintype.card E + (∑ b, T.chance b + T.costs.sum + (∑ b, N.chance b + N.costs.sum))))
       (2 + (1 + (blocks + 1 + (S'.blocks + 1))))
       (4 * (2 * (2 * (blocks + 1) * (2 * (S'.blocks + 1))))) :=
@@ -159,9 +159,9 @@ end Root
 section Instance
 
 variable {B : Batch (Fin 3)} {S' : Shape} {O' : OpeningShape S'} {fold' : Descriptor} {E : Type}
-  [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] {Wire Coord : Type} [Fintype Coord]
+  [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] {Wire Coord Lead : Type} [Fintype Coord]
   [DecidableEq Coord] [Nonempty Coord] {total : ℕ} {P : Verifier.Params Zq E}
-  {C : Compose P B Wire Coord total} {vf : Verifier.VerifierData P}
+  {C : Compose P B Wire Coord Lead total} {vf : Verifier.VerifierData P}
   {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin 3) → Key (B.shape g)}
   {openKey : B.OpenKey} {claim : Wire → B.Claim E} {μ : ℕ} {fits : B.cells < 2 ^ μ} {batch : ℕ}
   {rowsFit : B.rowCount + 1 + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
@@ -211,7 +211,7 @@ conditions `Compose.Sized` of the compression argument. `inside`: the stages are
 transcript. The other hypotheses are those of `batchRootChain_suffix`. -/
 theorem composeChain_suffix (inside : Tier.finish second ≤ total) :
     Tier.Suffix accepts C.start (C.Extracted key mass) whole
-      (Verifier.runCost vf + (1 / Fintype.card E + (∑ b, Tier.chance first b +
+      (C.leadCosts.sum + Verifier.runCost vf + (1 / Fintype.card E + (∑ b, Tier.chance first b +
         (Tier.costs first).sum + (∑ b, Tier.chance second b + (Tier.costs second).sum))))
       (2 + (1 + (∑ g, (B.shape g).blocks + 1 + (S'.blocks + 1))))
       (4 * (2 * (2 * (∑ g, (B.shape g).blocks + 1) * (2 * (S'.blocks + 1))))) :=
@@ -229,7 +229,7 @@ include start
 /-- An output of the extractor for the compression argument over the Akita opening (Akita
 Theorem 10.17): the verifier accepts the transcript of the prover, and the output has certified
 decommitments of the commitments of the key polynomial and of `W` of the first message, and
-`Relation` holds for its table of `W` when its table of the key polynomial is the table of
+`Compose.good` holds for its table of `W` when its table of the key polynomial is the table of
 `Params.key`, or the output is a solution of Module-SIS for a matrix of the first level or of the
 last level. -/
 theorem compose_extract_sound (inside : Tier.finish second ≤ total) (budget : ℕ) (table : Prefix Wire (Coord → E) total → Coord → E)
@@ -256,16 +256,18 @@ variable [Finite Wire]
 /-- Akita Theorem 10.17 for the compression argument over the Akita opening. For each prover
 with at most `Q` queries to the oracle, the probability that the verifier accepts and the
 extractor returns no output is at most `(Q + 1)·ε + (Q + 1)·(3 + r + 1 + r' + 1)/budget`. `ε` is
-`runCost` of the compression argument, `1/|E|` for the weights of the batching root, and the
-stage errors of the two levels with `r = Σ_g B_g` and `r'` fold coordinates. -/
+the bounds of the draws of `Compose.lead`, `runCost` of the compression argument, `1/|E|` for
+the weights of the batching root, and the stage errors of the two levels with `r = Σ_g B_g` and
+`r'` fold coordinates. -/
 theorem compose_extraction_le (inside : Tier.finish second ≤ total) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
     𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → E) total) Coord E budget
           (Structure.protocol whole).stages,
         (if accepts ((Structure.protocol whole).final prover table) ∧
           Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
-      (queries + 1) * (Verifier.runCost vf + (1 / Fintype.card E + (∑ b, Tier.chance first b +
-        (Tier.costs first).sum + (∑ b, Tier.chance second b + (Tier.costs second).sum)))) +
+      (queries + 1) * (C.leadCosts.sum + Verifier.runCost vf + (1 / Fintype.card E +
+        (∑ b, Tier.chance first b + (Tier.costs first).sum +
+          (∑ b, Tier.chance second b + (Tier.costs second).sum)))) +
         (queries + 1) * (2 + (1 + (∑ g, (B.shape g).blocks + 1 + (S'.blocks + 1))) : ℕ) / budget :=
   (composeChain_suffix (commit := commit) (value := value) (place := place) (next := next)
     (witnessOf := witnessOf) sized injective units sparse response uniform small varsFit

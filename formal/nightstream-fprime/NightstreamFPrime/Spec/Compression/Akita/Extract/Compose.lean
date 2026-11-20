@@ -8,28 +8,32 @@ section 6 and Algorithm 10).
 The groups of the opening are 0 for the key polynomial, 1 for `W` and 2 for `V`. The prover
 commits to `V` after the lookup challenges `τ`. So the argument has two checkpoints.
 
-- `Compose` has the data: the stage `start` of the draw of `τ`, the reader of the messages, the
-  claims of the first message and the commitments `bound` that a stage input fixes.
+- `Compose` has the data: the first stage `start`, the reader of the messages, the game `lead`
+  before the lookup challenges with its bounds, the claims of the first message and of a value
+  of `lead`, the test `good` of a table `W`, and the commitments `bound` that a stage input
+  fixes. For the final verifier, `lead` is Π_CCS on the fresh instance and `good` is the
+  relation of the final statement.
 - `Compose.front` is the checkpoint at the stage `start`. Its candidate is the tables of the key
-  polynomial and of `W`, its game is `Verifier.front`, and its test is `Verifier.Relation`. A
-  result `τ` is true for a candidate when some table `V` has no error. The table `V` is not a
-  part of the candidate, and the game does not read the commitment of `V`.
-- `Compose.back` is the checkpoint at the stage `start + 1`. Its candidate is the three tables,
-  its game is `Verifier.back`, and its test is "no error for `(W, V)`". A result is true for a
-  candidate when the opening claims are true for its tables.
+  polynomial and of `W`, its game is `Verifier.led`: `lead` and then the draw of `τ`. Its test
+  is `good`. A result is true for a candidate when some table `V` has no error. The table `V`
+  is not a part of the candidate, and the game does not read the commitment of `V`.
+- `Compose.back` is the checkpoint at the stage after `τ`. Its candidate is the three tables,
+  its game is `Verifier.back` for the result `Compose.ran` of the stages before it, and its test
+  is "no error for `(W, V)`". A result is true for a candidate when the opening claims are true
+  for its tables.
 - `OpensAt` is the relation of the first certificates of the Akita opening at the stage `root`:
   a certified decommitment of each commitment, and each claim is true for the table of its group.
 - `Compose.Ran` has what the verifier checks on an accepting transcript before the Akita
   opening.
 - `Compose.suffix` puts the two segments before a suffix of the Akita opening. A first
   certificate has certified decommitments of the commitments of the key polynomial and of `W`,
-  and `Relation` holds for its table of `W` when its table of the key polynomial is the table of
+  and `good` holds for its table of `W` when its table of the key polynomial is the table of
   `Params.key` (`Compose.Extracted`). Two certificates with different candidates give a solution
   of Module-SIS by `tableCollision` (`Decommits.collide_isSome`).
 - `Compose.extract_sound`, `Compose.extraction_le` and `Compose.runs_le` are Akita Theorem 10.17
   for these stages.
 - `Compose.Extracted.relation_or_collision`: with a certified decommitment of the key commitment
-  to the table of `Params.key`, a first certificate gives `Relation` or a solution of
+  to the table of `Params.key`, a first certificate gives `good` or a solution of
   Module-SIS. -/
 
 set_option autoImplicit false
@@ -113,76 +117,106 @@ def OpensAt (start : ℕ) (commit : Wire → (g : Fin count) → (B.shape g).Pay
 
 end Opening
 
-/-- The data of the compression argument over an Akita opening of the groups `B`. The stage
-`start` has the lookup challenges `τ`. `read` decodes the messages of the proof. `statement` is
-the claims of the first message. `bound anchor g` is the commitment of the group `g` that the
-stage input `anchor` fixes. -/
-structure Compose (P : Verifier.Params Zq E) (B : Batch (Fin 3)) (Wire Coord : Type)
+/-- The result of a game that has ended. -/
+def finished {α : Type} : Game (Option α) → Option α
+  | .pure result => result
+  | _ => none
+
+/-- The data of the compression argument over an Akita opening of the groups `B`. The stages
+from `start` have the draws of `lead` and then the lookup challenges `τ`. `read` decodes the
+messages of the proof. `lead wire W` is the game before the lookup challenges for the first
+message `wire` and a table `W`, with a value of the type `Lead` at its end, and `leadCosts` has
+the bounds of its draws. `statement wire value` is the claims of the argument. `good wire W` is
+the test of a table `W`. `bound anchor g` is the commitment of the group `g` that the stage
+input `anchor` fixes. -/
+structure Compose (P : Verifier.Params Zq E) (B : Batch (Fin 3)) (Wire Coord Lead : Type)
     (total : ℕ) where
   start : ℕ
   read : Reader Wire
-  statement : Wire → Verifier.Statement P
+  leadCosts : List ℝ
+  lead : Wire → Table → Game (Option Lead)
+  statement : Wire → Lead → Verifier.Statement P
+  good : Wire → Table → Prop
   bound : Prefix Wire (Coord → E) total → (g : Fin 3) → (B.shape g).Payload
 
 namespace Compose
 
-variable {P : Verifier.Params Zq E} {B : Batch (Fin 3)} {Wire Coord : Type} {total : ℕ}
-  [Fintype Coord] [DecidableEq Coord] (C : Compose P B Wire Coord total)
+variable {P : Verifier.Params Zq E} {B : Batch (Fin 3)} {Wire Coord Lead : Type} {total : ℕ}
+  [Fintype Coord] [DecidableEq Coord] (C : Compose P B Wire Coord Lead total)
   (vf : Verifier.VerifierData P)
 
-omit [Fintype E] [DecidableEq E] [Fintype Coord] [DecidableEq Coord] in
-/-- The first stage of the Akita opening: the stage after the draws of `Verifier.back`. -/
-noncomputable def root : ℕ := C.start + 1 + (Verifier.backCosts vf).length
-
-/-- The lookup challenges of a transcript: the challenges that the answer of the stage `start`
-gives. -/
-noncomputable def tau (point : Prefix Wire (Coord → E) total) : Fin P.lookups → Zq :=
-  ((point.reply C.start).map (sample (Coord → E) (Fin P.lookups → Zq))).getD 0
-
-omit [Field E] [DecidableEq E] [Algebra Zq E] in
-theorem tau_take (point : Prefix Wire (Coord → E) total) :
-    C.tau (point.take (C.start + 1)) = C.tau point := by
-  unfold tau
-  rw [Prefix.reply_take (Nat.lt_succ_self _)]
-
 /-- The checkpoint of `W` (Akita Definition 10.16 (v) to (vii)). A candidate is the tables of
-the key polynomial and of `W`. The game is the draw of `τ`. The test of a candidate is
-`Relation` for its `W`, and a result `τ` is true for a candidate when `τ` has no table value and
-some table `V` has no error. Each condition holds when the table of the key polynomial is not
-the table of `Params.key`. -/
+the key polynomial and of `W`. The game is `lead` and then the draw of `τ`. The test of a
+candidate is `good` for its `W`, and a result is true for a candidate when `lead` ends in a
+value, `τ` has no table value and some table `V` has no error for the claims of this value. Each
+condition holds when the table of the key polynomial is not the table of `Params.key`. -/
 noncomputable def front :
-    Segment Wire Coord E (Fin P.lookups → Zq) (Table × Table) total where
+    Segment Wire Coord E (Option (Lead × (Fin P.lookups → Zq))) (Table × Table) total where
   start := C.start
-  costs := [Verifier.tauError P]
+  costs := C.leadCosts ++ [Verifier.tauError P]
   read := C.read
-  check _ tables := Verifier.front P tables.2
-  passes anchor tables τ := tables.1 = keyBase P →
-    Verifier.Apart P τ ∧ ∃ V, ¬ Verifier.Fails P (C.statement (anchor.wire 0)) tables.2 V τ
-  test anchor tables := tables.1 = keyBase P →
-    Verifier.Relation P (C.statement (anchor.wire 0)) tables.2
+  check anchor tables := Verifier.led P (C.lead (anchor.wire 0) tables.2) tables.2
+  passes anchor tables result := tables.1 = keyBase P → ∃ value τ, result = some (value, τ) ∧
+    Verifier.Apart P τ ∧
+      ∃ V, ¬ Verifier.Fails P (C.statement (anchor.wire 0) value) tables.2 V τ
+  test anchor tables := tables.1 = keyBase P → C.good (anchor.wire 0) tables.2
+
+/-- The value of `lead` and the lookup challenges of a transcript: the result of the game of the
+checkpoint of `W`. The game does not read the tables (`Sized.lead_bare`, `Verifier.front_bare`),
+so the tables are zero here. -/
+noncomputable def ran (point : Prefix Wire (Coord → E) total) :
+    Option (Lead × (Fin P.lookups → Zq)) :=
+  finished (C.front.game 0 point)
+
+omit [DecidableEq E] in
+theorem ran_take (point : Prefix Wire (Coord → E) total) :
+    C.ran (point.take C.front.finish) = C.ran point := by
+  unfold ran
+  rw [Segment.game_take_finish]
+
+/-- The first stage of the Akita opening: the stage after the draws of `Verifier.back`. -/
+noncomputable def root : ℕ := C.front.finish + (Verifier.backCosts vf).length
+
+/-- The game of the checkpoint of `(W, V)` for a result of the stages before it. -/
+noncomputable def backCheck (wire : Wire) (tables : Fin 3 → Table) :
+    Option (Lead × (Fin P.lookups → Zq)) → Game (Option (Verifier.Finals E))
+  | none => .pure none
+  | some (value, τ) => Verifier.back vf (C.statement wire value) (tables 1) (tables 2) τ
+
+omit [Fintype Coord] [DecidableEq Coord] in
+theorem backCheck_bare (wire : Wire) (tables other : Fin 3 → Table)
+    (result : Option (Lead × (Fin P.lookups → Zq))) :
+    bare (C.backCheck vf wire tables result) = bare (C.backCheck vf wire other result) := by
+  rcases result with _ | ⟨value, τ⟩
+  · rfl
+  · exact Verifier.back_bare vf _ _ _ _ _ _
 
 /-- The checkpoint of `(W, V)` at the stage after `τ`. A candidate is the three tables. The game
-is `Verifier.back` for the lookup challenges of the stage input. The test of a candidate is "`τ`
-has no table value and `(W, V)` has no error", and a result is true for a candidate when it is
-the opening claims and they are true for the tables. Each condition holds when the table of the
-key polynomial is not the table of `Params.key`. -/
+is `Verifier.back` for the value of `lead` and the lookup challenges of the stage input. The test
+of a candidate is "`τ` has no table value and `(W, V)` has no error", and a result is true for a
+candidate when it is the opening claims and they are true for the tables. Each condition holds
+when the table of the key polynomial is not the table of `Params.key`. -/
 noncomputable def back :
     Segment Wire Coord E (Option (Verifier.Finals E)) (Fin 3 → Table) total where
-  start := C.start + 1
+  start := C.front.finish
   costs := Verifier.backCosts vf
   read := C.read
-  check anchor tables :=
-    Verifier.back vf (C.statement (anchor.wire 0)) (tables 1) (tables 2) (C.tau anchor)
+  check anchor tables := C.backCheck vf (anchor.wire 0) tables (C.ran anchor)
   passes _ tables result := ∃ claims, result = some claims ∧ (tables 0 = keyBase P →
     Verifier.Opened (Verifier.keyCells P) (lifted E (tables 1)) (lifted E (tables 2)) claims)
-  test anchor tables := tables 0 = keyBase P → Verifier.Apart P (C.tau anchor) ∧
-    ¬ Verifier.Fails P (C.statement (anchor.wire 0)) (tables 1) (tables 2) (C.tau anchor)
+  test anchor tables := tables 0 = keyBase P → ∃ value τ, C.ran anchor = some (value, τ) ∧
+    Verifier.Apart P τ ∧
+      ¬ Verifier.Fails P (C.statement (anchor.wire 0) value) (tables 1) (tables 2) τ
 
 /-- The conditions on the parameters. `wf` to `key_fits` are the hypotheses of
 `Verifier.game_avoids`. `lookups`, `challenges` and `column`: an answer of the oracle gives
-uniform lookup challenges, uniform challenges after `V` and a uniform column point. `early`: the
-commitments of the key polynomial and of `W` are fixed by the stage input of the stage `start`.
-`fits`: the stages before the Akita opening are stages of the transcript. -/
+uniform lookup challenges, uniform challenges after `V` and a uniform column point.
+`lead_sound`: for a table `W` that fails the test `good`, on each path of `lead` that avoids the
+bad sets `W` does not satisfy `Relation` for the claims of the value. `lead_staged`: each draw of
+`lead` has its bound of `leadCosts`, and a path that ends in a value has all the draws.
+`lead_bare`: `lead` does not read the table. `early`: the commitments of the key polynomial and
+of `W` are fixed by the stage input of the stage `start`. `fits`: the stages before the Akita
+opening are stages of the transcript. -/
 structure Sized : Prop where
   wf : Verifier.WellFormed P
   counts : Verifier.CountsNonzero P
@@ -193,58 +227,72 @@ structure Sized : Prop where
   lookups : ∃ decode : (Coord → E) → Fin P.lookups → Zq, Fair decode
   challenges : ∃ decode : (Coord → E) → Verifier.Challenges P, Fair decode
   column : vf.columnVars ≤ Fintype.card Coord
+  lead_sound : ∀ wire W, ¬ C.good wire W → (C.lead wire W).Avoids fun result =>
+    ∀ value, result = some value → ¬ Verifier.Relation P (C.statement wire value) W
+  lead_staged : ∀ wire W, StagedTo (Coord → E) (C.lead wire W)
+    (C.leadCosts ++ [Verifier.tauError P]) fun result rest =>
+      ∀ value, result = some value → rest = [Verifier.tauError P]
+  lead_bare : ∀ wire W other, bare (C.lead wire W) = bare (C.lead wire other)
+  lead_nonnegative : ∀ cost ∈ C.leadCosts, 0 ≤ cost
   early : ∀ anchor g, g ≠ 2 → C.bound anchor g = C.bound (anchor.take C.start) g
   fits : C.root vf ≤ total
 
 variable {C vf}
 
 omit [DecidableEq E] in
-/-- Definition 10.16 (vii)(a) for the checkpoint of `W`: for a table `W` that does not satisfy
-`Relation`, outside the bad set of `τ` no table `V` is without error. -/
+/-- Definition 10.16 (vii)(a) for the checkpoint of `W`: for a table `W` that fails the test
+`good`, on each path that avoids the bad sets of `lead` and of `τ` no table `V` is without
+error. -/
 theorem front_valid (sized : C.Sized vf) : C.front.Valid where
   sound anchor tables failed :=
-    (Verifier.front_avoids sized.counts (C.statement (anchor.wire 0)) tables.2
-      fun related => failed fun _ => related).mono
-      fun _ none passed => none (passed (not_imp.mp failed).1)
-  staged _ tables := Verifier.front_staged sized.lookups tables.2
+    (Verifier.led_avoids sized.counts (C.statement (anchor.wire 0)) tables.2
+      (sized.lead_sound _ _ (not_imp.mp failed).2)).mono
+      fun _ none passed => by
+        obtain ⟨value, τ, ended, apart, clean⟩ := passed (not_imp.mp failed).1
+        exact none value τ ended ⟨apart, clean⟩
+  staged _ tables := Verifier.led_staged sized.lookups tables.2 (sized.lead_staged _ _)
   nonnegative cost member := by
-    rw [List.mem_singleton.mp member]
-    exact Verifier.tauError_nonneg
-  draws := List.cons_ne_nil _ _
+    rcases List.mem_append.mp member with early | last
+    · exact sized.lead_nonnegative cost early
+    · rw [List.mem_singleton.mp last]
+      exact Verifier.tauError_nonneg
+  draws := List.append_ne_nil_of_right_ne_nil _ (List.cons_ne_nil _ _)
 
 /-- Definition 10.16 (vii)(a) for the checkpoint of `(W, V)`: for tables with an error, on each
 path that avoids the bad sets an opening claim is false. -/
 theorem back_valid [Nonempty Coord] (sized : C.Sized vf) : (C.back vf).Valid where
-  sound anchor tables failed :=
-    (Verifier.back_avoids vf sized.wf sized.matrix sized.columns sized.rows sized.key_fits
-      (C.statement (anchor.wire 0)) (tables 1) (tables 2) (C.tau anchor)).mono
-      fun _ sound passed => by
-        obtain ⟨claims, ended, opened⟩ := passed
-        exact (not_imp.mp failed).2 (sound claims ended (opened (not_imp.mp failed).1))
-  staged anchor tables := Verifier.back_staged vf sized.challenges exists_fair_slot
-    (exists_fair_slots sized.column) sized.wf _ _ _ _
+  sound anchor tables failed := by
+    show (C.backCheck vf (anchor.wire 0) tables (C.ran anchor)).Avoids _
+    rcases found : C.ran anchor with _ | ⟨value, τ⟩
+    · rintro ⟨claims, ended, -⟩
+      cases ended
+    · exact (Verifier.back_avoids vf sized.wf sized.matrix sized.columns sized.rows
+        sized.key_fits (C.statement (anchor.wire 0) value) (tables 1) (tables 2) τ).mono
+        fun _ sound passed => by
+          obtain ⟨claims, ended, opened⟩ := passed
+          have clean := sound claims ended (opened (not_imp.mp failed).1)
+          exact (not_imp.mp failed).2 ⟨value, τ, found, clean.1, clean.2⟩
+  staged anchor tables := by
+    show Staged _ (C.backCheck vf (anchor.wire 0) tables (C.ran anchor)) _
+    rcases C.ran anchor with _ | ⟨value, τ⟩
+    · trivial
+    · exact Verifier.back_staged vf sized.challenges exists_fair_slot
+        (exists_fair_slots sized.column) sized.wf _ _ _ _
   nonnegative := Verifier.backCosts_nonnegative vf
   draws := List.cons_ne_nil _ _
 
 omit [DecidableEq E] in
-/-- The game of the checkpoint of `W` on a transcript with the stage `start` ends in the lookup
-challenges of the transcript. -/
-theorem front_game (tables : Table × Table) {point : Prefix Wire (Coord → E) total}
-    (long : C.start < point.rest.length) : C.front.game tables point = .pure (C.tau point) := by
-  obtain ⟨move, found⟩ : ∃ move, point.rest[C.start]? = some move :=
-    ⟨_, List.getElem?_eq_getElem long⟩
-  have moves : (point.rest.take C.front.finish).drop C.front.start = [move] := by
-    show (point.rest.take (C.start + 1)).drop C.start = [move]
-    rw [List.take_add_one, found, List.drop_append_of_le_length (by
-        rw [List.length_take]
-        omega),
-      List.drop_eq_nil_of_le (by
-        rw [List.length_take]
-        omega)]
-    rfl
-  unfold Segment.game
-  rw [moves]
-  simp [position, settle, advance, Compose.front, Verifier.front, Compose.tau, Prefix.reply, found]
+/-- The game of the checkpoint of `W` ends in the same result for each candidate. -/
+theorem front_game (sized : C.Sized vf) (tables : Table × Table)
+    {point : Prefix Wire (Coord → E) total} {result : Option (Lead × (Fin P.lookups → Zq))}
+    (ended : C.front.game 0 point = .pure result) : C.front.game tables point = .pure result :=
+  ended_of_bare C.read (Verifier.led_bare (sized.lead_bare _ _ _) _ _) ended
+
+/-- The game of the checkpoint of `(W, V)` ends in the same result for each candidate. -/
+theorem back_game (tables other : Fin 3 → Table) {point : Prefix Wire (Coord → E) total}
+    {result : Option (Verifier.Finals E)} (ended : (C.back vf).game other point = .pure result) :
+    (C.back vf).game tables point = .pure result :=
+  ended_of_bare C.read (C.backCheck_bare vf _ _ _ _) ended
 
 variable {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Coord → E) total → Prop}
   {body : Structure (Prefix Wire (Coord → E) total) Coord E (ℕ → Wire) Inner BreakT CandT KeyT
@@ -255,37 +303,37 @@ variable {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Coord → E) to
 
 variable (C vf)
 
-/-- What the verifier checks on an accepting transcript before the Akita opening. `long`: the
-transcript has the stage `start`. `bound`: the commitments of the Akita opening are the
-commitments that the stage input of the stage `start + 1` fixes. `ended`: `Verifier.back` ends in
-the opening claims, and the points and the values of the Akita opening are these claims. The
-game does not read the tables (`Verifier.back_bare`), so the tables are zero here. -/
+/-- What the verifier checks on an accepting transcript before the Akita opening. `led`: `lead`
+ends in a value, and the transcript has the lookup challenges. `bound`: the commitments of the
+Akita opening are the commitments that the stage input of the stage after `τ` fixes. `ended`:
+`Verifier.back` ends in the opening claims, and the points and the values of the Akita opening
+are these claims. The games do not read the tables (`Verifier.back_bare`), so the tables are zero
+here. -/
 structure Ran (commit : Wire → (g : Fin 3) → (B.shape g).Payload) (value : Wire → Fin 3 → E)
     (place : Wire → Fin 3 → List E) (point : Prefix Wire (Coord → E) total) : Prop where
-  long : C.start < point.rest.length
-  bound : commit (point.wire (C.root vf)) = C.bound (point.take (C.start + 1))
+  led : ∃ value τ, C.front.game 0 point = .pure (some (value, τ))
+  bound : commit (point.wire (C.root vf)) = C.bound (point.take C.front.finish)
   ended : ∃ claims, (C.back vf).game (fun _ _ => 0) point = .pure (some claims) ∧
     place (point.wire (C.root vf)) = (fun g => (claimOf claims g).1) ∧
     value (point.wire (C.root vf)) = fun g => (claimOf claims g).2
 
-/-- The relation of a first certificate of the stages from `start + 1`: certified decommitments
-of the three commitments of the stage input, and the test of the checkpoint of `(W, V)`. -/
+/-- The relation of a first certificate of the stages after `τ`: certified decommitments of the
+three commitments of the stage input, and the test of the checkpoint of `(W, V)`. -/
 def Middle (key : (g : Fin 3) → Key (B.shape g)) (mass : Fin 3 → ℕ)
     (point : Prefix Wire (Coord → E) total) (opening : Option B.Weak) : Prop :=
-  Decommits key mass (fun _ => True) (C.bound (point.take (C.start + 1))) opening ∧
-    (C.back vf).test (point.take (C.start + 1)) (Batch.tablesOf opening)
+  Decommits key mass (fun _ => True) (C.bound (point.take C.front.finish)) opening ∧
+    (C.back vf).test (point.take C.front.finish) (Batch.tablesOf opening)
 
 omit [Fintype E] [DecidableEq E] [Fintype Coord] [DecidableEq Coord] in
 /-- The relation of a first certificate of the stages from `start`: certified decommitments of
-the commitments of the key polynomial and of `W` of the stage input, and `Relation` for the
-table of `W` when the table of the key polynomial is the table of `Params.key`. -/
+the commitments of the key polynomial and of `W` of the stage input, and `good` for the table of
+`W` when the table of the key polynomial is the table of `Params.key`. -/
 def Extracted (key : (g : Fin 3) → Key (B.shape g)) (mass : Fin 3 → ℕ)
     (point : Prefix Wire (Coord → E) total) (opening : Option B.Weak) : Prop :=
   Decommits key mass (· ≠ 2) (C.bound (point.take C.start)) opening ∧
-    (Batch.tablesOf opening 0 = keyBase P →
-      Verifier.Relation P (C.statement (point.wire 0)) (Batch.tablesOf opening 1))
+    (Batch.tablesOf opening 0 = keyBase P → C.good (point.wire 0) (Batch.tablesOf opening 1))
 
-/-- The checkpoint structure of the stages from `start + 1`: the checkpoint of `(W, V)` over the
+/-- The checkpoint structure of the stages after `τ`: the checkpoint of `(W, V)` over the
 structure `body` of the Akita opening. -/
 noncomputable def backChain (accept : Prefix Wire (Coord → E) total → Prop)
     (body : Structure (Prefix Wire (Coord → E) total) Coord E (ℕ → Wire) Inner BreakT CandT KeyT
@@ -320,15 +368,15 @@ noncomputable def chain (accept : Prefix Wire (Coord → E) total → Prop)
 variable {C vf}
 
 /-- The two checkpoints of the compression argument before a suffix of the Akita opening are a
-suffix (Akita Theorem 10.45 for two segments). The stage errors add `runCost`, the sum of the
-bounds of the draws of one run of the verifier game, the retry loops add 2, and the tree size is
-multiplied by 4. `ran`: the verifier accepts only with the conditions `Ran`. `embedded`: `embed`
-maps a solution of Module-SIS for a matrix of a group to a witness of `R_bind` of the Akita
-opening. `later`: the stages of the Akita opening are a suffix whose first certificates satisfy
+suffix (Akita Theorem 10.45 for two segments). The stage errors add the bounds `leadCosts` of the
+draws of `lead` and `runCost`, the sum of the bounds of the draws of one run of the verifier
+game, the retry loops add 2, and the tree size is multiplied by 4. `ran`: the verifier accepts
+only with the conditions `Ran`. `embedded`: `embed` maps a solution of Module-SIS for a matrix of
+a group to a witness of `R_bind` of the Akita opening. `later`: the stages of the Akita opening are a suffix whose first certificates satisfy
 `OpensAt`.
 
-Definition 10.16 (vii)(c) for the checkpoint of `W`: a first certificate of the stages from
-`start + 1` passed the test of the checkpoint of `(W, V)`, so its own table `V` has no error for
+Definition 10.16 (vii)(c) for the checkpoint of `W`: a first certificate of the stages after
+`τ` passed the test of the checkpoint of `(W, V)`, so its own table `V` has no error for
 the lookup challenges of its transcript. (vi) for both checkpoints: `Decommits.collide_isSome`. -/
 theorem suffix [Nonempty Coord] (sized : C.Sized vf)
     (ran : ∀ point, accept point → C.Ran vf commit value place point)
@@ -338,11 +386,11 @@ theorem suffix [Nonempty Coord] (sized : C.Sized vf)
     (later : Tier.Suffix accept (C.root vf) (OpensAt (C.root vf) commit value place key mass)
       body error loops tree) :
     Tier.Suffix accept C.start (C.Extracted key mass)
-      (C.chain vf accept body key openKey mass embed) (Verifier.runCost vf + error) (2 + loops)
-      (4 * tree) := by
+      (C.chain vf accept body key openKey mass embed)
+      (C.leadCosts.sum + Verifier.runCost vf + error) (2 + loops) (4 * tree) := by
   have decommits : ∀ point opening, accept point →
       OpensAt (C.root vf) commit value place key mass point opening →
-      Decommits key mass (fun _ => True) (C.bound (point.take (C.start + 1))) opening := by
+      Decommits key mass (fun _ => True) (C.bound (point.take C.front.finish)) opening := by
     rintro point _ accepted ⟨⟨ω, rfl, certified⟩, _⟩
     refine ⟨ω, rfl, fun g _ => ?_⟩
     rw [← (ran point accepted).bound]
@@ -352,20 +400,21 @@ theorem suffix [Nonempty Coord] (sized : C.Sized vf)
     rintro point _ ⟨⟨ω, rfl, certified⟩, _⟩
     refine ⟨ω, rfl, fun g small => ?_⟩
     have group := certified g trivial
-    rwa [sized.early _ g small, Prefix.take_take (Nat.le_succ _)] at group
+    rwa [sized.early _ g small,
+      Prefix.take_take (show C.start ≤ C.front.finish from Nat.le_add_right _ _)] at group
   have middle := (C.back vf).suffix_before (back_valid sized) later sized.fits Batch.tablesOf
     (fun opening other => embed (Batch.collide key openKey _ opening other))
     (C.Middle vf key mass)
     (fun point opening opens => by
-      show Decommits key mass _ (C.bound ((point.take (C.start + 1)).take (C.start + 1))) opening ∧
-        (C.back vf).test ((point.take (C.start + 1)).take (C.start + 1)) (Batch.tablesOf opening)
+      show Decommits key mass _ (C.bound ((point.take C.front.finish).take C.front.finish))
+          opening ∧
+        (C.back vf).test ((point.take C.front.finish).take C.front.finish) (Batch.tablesOf opening)
       rw [Prefix.take_take le_rfl]
       exact opens)
     (fun point opening accepted opens good => ⟨decommits point opening accepted opens, good⟩)
     (fun point opening accepted opens => by
       obtain ⟨claims, ended, places, values⟩ := (ran point accepted).ended
-      refine ⟨some claims, ended_of_bare C.read (Verifier.back_bare vf _ _ _ _ _ _) ended,
-        claims, rfl, fun honest => ?_⟩
+      refine ⟨some claims, back_game _ _ ended, claims, rfl, fun honest => ?_⟩
       have claimed := opens.2
       rw [Prefix.wire_take le_rfl, places, values] at claimed
       have keyClaim : mle claims.key.1 (lifted E (Batch.tablesOf opening 0)) = claims.key.2 :=
@@ -373,14 +422,14 @@ theorem suffix [Nonempty Coord] (sized : C.Sized vf)
       rw [honest, lifted_keyBase] at keyClaim
       exact ⟨keyClaim.symm, (congrFun claimed 1).symm, (congrFun claimed 2).symm⟩)
     (fun point other opening opening' accepted accepted' opens opens' same different => by
-      have same : point.take (C.start + 1) = other.take (C.start + 1) := same
+      have same : point.take C.front.finish = other.take C.front.finish := same
       have right := decommits other opening' accepted' opens'
       rw [← same] at right
       obtain ⟨g, differs⟩ := Function.ne_iff.mp different
       exact embedded _ ((decommits point opening accepted opens).collide_isSome openKey right
         trivial differs))
   have result := C.front.suffix_before (front_valid sized) middle
-    (show C.start + 1 ≤ total from (Nat.le_add_right _ _).trans sized.fits)
+    (show C.front.finish ≤ total from (Nat.le_add_right _ _).trans sized.fits)
     (fun opening : Option B.Weak => (Batch.tablesOf opening 0, Batch.tablesOf opening 1))
     (fun opening other => embed (Batch.collide key openKey _ opening other))
     (C.Extracted key mass)
@@ -393,20 +442,23 @@ theorem suffix [Nonempty Coord] (sized : C.Sized vf)
         exact opens.2⟩)
     (fun point opening accepted opens good => ⟨early point opening opens, by
       have good : Batch.tablesOf opening 0 = keyBase P →
-        Verifier.Relation P (C.statement ((point.take C.start).wire 0))
-          (Batch.tablesOf opening 1) := good
+        C.good ((point.take C.start).wire 0) (Batch.tablesOf opening 1) := good
       rwa [Prefix.wire_take (Nat.zero_le _)] at good⟩)
-    (fun point opening accepted opens => ⟨C.tau point,
-      front_game _ (ran point accepted).long, fun honest => by
-        have tested : Verifier.Apart P (C.tau (point.take (C.start + 1))) ∧
-            ¬ Verifier.Fails P (C.statement ((point.take (C.start + 1)).wire 0))
-              (Batch.tablesOf opening 1) (Batch.tablesOf opening 2)
-              (C.tau (point.take (C.start + 1))) := opens.2 honest
-        rw [C.tau_take, Prefix.wire_take (Nat.zero_le _)] at tested
-        show Verifier.Apart P (C.tau point) ∧ ∃ V, ¬ Verifier.Fails P
-          (C.statement ((point.take C.start).wire 0)) (Batch.tablesOf opening 1) V (C.tau point)
-        rw [Prefix.wire_take (Nat.zero_le _)]
-        exact ⟨tested.1, _, tested.2⟩⟩)
+    (fun point opening accepted opens => by
+      obtain ⟨value, τ, ended⟩ := (ran point accepted).led
+      refine ⟨some (value, τ), front_game sized _ ended, fun honest => ?_⟩
+      obtain ⟨value', τ', found, apart, clean⟩ := opens.2 honest
+      have same : some (value', τ') = some (value, τ) := by
+        rw [← found, C.ran_take]
+        unfold Compose.ran
+        rw [ended]
+        rfl
+      cases same
+      rw [Prefix.wire_take (Nat.zero_le _)] at clean
+      refine ⟨value, τ, rfl, apart, Batch.tablesOf opening 2, ?_⟩
+      show ¬ Verifier.Fails P (C.statement ((point.take C.start).wire 0) value) _ _ τ
+      rw [Prefix.wire_take (Nat.zero_le _)]
+      exact clean)
     (fun point other opening opening' accepted accepted' opens opens' same different => by
       have same : point.take C.start = other.take C.start := same
       have right := early other opening' opens'
@@ -416,17 +468,18 @@ theorem suffix [Nonempty Coord] (sized : C.Sized vf)
           (by decide) fun one => different (Prod.ext zero one))
       · exact embedded _ ((early point opening opens).collide_isSome openKey right (g := 0)
           (by decide) zero))
-  have costs : [Verifier.tauError P].sum + ((Verifier.backCosts vf).sum + error) =
-      Verifier.runCost vf + error := by
-    rw [List.sum_singleton, ← add_assoc, Verifier.backCosts_sum]
+  have costs : (C.leadCosts ++ [Verifier.tauError P]).sum +
+      ((Verifier.backCosts vf).sum + error) = C.leadCosts.sum + Verifier.runCost vf + error := by
+    rw [List.sum_append, List.sum_singleton, ← Verifier.backCosts_sum]
+    ring
   have count : 1 + (1 + loops) = 2 + loops := by omega
   have size : 2 * (2 * tree) = 4 * tree := by omega
   rw [← costs, ← count, ← size]
   exact result
 
-omit [Fintype E] [DecidableEq E] [Fintype Coord] [DecidableEq Coord] in
+omit [Field E] [Algebra Zq E] [Fintype E] [DecidableEq E] [Fintype Coord] [DecidableEq Coord] in
 /-- A first certificate with a certified decommitment `honest` of the key commitment to the
-table of `Params.key` gives `Relation` for its table of `W`, or its decommitment of the key
+table of `Params.key` gives `good` for its table of `W`, or its decommitment of the key
 commitment and `honest` give a solution of Module-SIS for a matrix of the key group
 (Akita Corollary 10.25). -/
 theorem Extracted.relation_or_collision {point : Prefix Wire (Coord → E) total}
@@ -436,7 +489,7 @@ theorem Extracted.relation_or_collision {point : Prefix Wire (Coord → E) total
       (keyBase P))
     (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
       innerBound) :
-    Verifier.Relation P (C.statement (point.wire 0)) (Batch.tablesOf opening 1) ∨
+    C.good (point.wire 0) (Batch.tablesOf opening 1) ∨
       ∃ ω, opening = some ω ∧
         (tableCollision (key 0) innerBound (ω.certified 0) honest).isSome := by
   obtain ⟨⟨ω, rfl, certified⟩, related⟩ := extracted
@@ -478,16 +531,17 @@ variable [Finite Wire]
 
 /-- Akita Theorem 10.17 for the compression argument over an Akita opening. For each prover with
 at most `Q` queries to the oracle, the probability that the verifier accepts and the extractor
-returns no output is at most `(Q + 1)·(runCost + error) + (Q + 1)·(2 + loops)/budget`. `runCost`
-is the sum of the bounds of the draws of `Verifier.front` and `Verifier.back`, and `error` and
-`loops` are the stage errors and the retry loops of the Akita opening. -/
+returns no output is at most
+`(Q + 1)·(Σ leadCosts + runCost + error) + (Q + 1)·(2 + loops)/budget`. `runCost` is the sum of
+the bounds of the draws of `Verifier.front` and `Verifier.back`, and `error` and `loops` are the
+stage errors and the retry loops of the Akita opening. -/
 theorem extraction_le {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ}
     (positive : 0 < budget) :
     𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → E) total) Coord E budget
           (Structure.protocol whole).stages,
         (if accept ((Structure.protocol whole).final prover table) ∧
           Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
-      (queries + 1) * (Verifier.runCost vf + error) +
+      (queries + 1) * (C.leadCosts.sum + Verifier.runCost vf + error) +
         (queries + 1) * (2 + loops : ℕ) / budget :=
   (suffix sized ran embed embedded later).extraction_le first prover bounded positive
 

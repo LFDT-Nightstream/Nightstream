@@ -15,6 +15,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Chain
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Compose
 import NightstreamFPrime.Spec.Compression.Akita.Extract.ComposeRoot
 import NightstreamFPrime.Spec.Compression.Akita.Extract.FlatSource
+import NightstreamFPrime.Spec.Compression.Akita.Extract.FreshGame
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Honest
 import NightstreamFPrime.Spec.Compression.Akita.Extract.LiftSource
 import NightstreamFPrime.Spec.Compression.Akita.Extract.PairComplete

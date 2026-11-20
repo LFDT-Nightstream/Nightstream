@@ -239,20 +239,24 @@ fn fold_remaining_blocks(key: &ExpandedKey, omega: K, lanes: &[K], folded: &mut 
         .enumerate()
         .for_each(|(task, output)| {
             let start = (first + task * BLOCKS_PER_TASK) * D;
-            let mut sums = [CompactProductSum::default(); BLOCKS_PER_TASK];
+            let mut sums = [[CompactProductSum::default(); 2]; BLOCKS_PER_TASK];
             for (row, weights) in key.words().chunks_exact(blocks * D).zip(&weights) {
                 for (sum, element) in sums[..output.len()]
                     .iter_mut()
                     .zip(row[start..].chunks_exact(D))
                 {
                     *sum = element
+                        .as_chunks::<2>()
+                        .0
                         .iter()
-                        .zip(weights)
-                        .fold(*sum, |sum, (&word, &weight)| sum.add_scaled_word(word, weight));
+                        .zip(weights.as_chunks::<2>().0)
+                        .fold(*sum, |[even, odd], (&[x, y], &[a, b])| {
+                            [even.add_scaled_word(x, a), odd.add_scaled_word(y, b)]
+                        });
                 }
             }
-            for (value, sum) in output.iter_mut().zip(sums) {
-                *value = sum.value();
+            for (value, [even, odd]) in output.iter_mut().zip(sums) {
+                *value = even.value() + odd.value();
             }
         });
 }

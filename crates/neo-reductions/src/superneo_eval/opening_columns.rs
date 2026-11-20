@@ -243,3 +243,7 @@ impl FactorIds {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../tests/unit/opening_rows.rs"]
+mod tests;

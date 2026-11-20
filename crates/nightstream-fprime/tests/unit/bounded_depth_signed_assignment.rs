@@ -2,14 +2,19 @@ use super::*;
 
 #[test]
 fn packed_assignment_has_the_same_digits_across_blocks_and_tasks() {
-    let mut layout = LogicalLayout {
-        offsets: vec![NO_SLOT; PUBLIC + 251],
-        kinds: vec![Kind::Field; PUBLIC + 251],
-        slots: Vec::new(),
-        width: PUBLIC,
+    let size = PUBLIC + 251;
+    let mut columns = vec![Fq::ZERO; size];
+    let mut kinds = vec![Kind::Field; size];
+    let mut slots = Vec::new();
+    let mut spans = SlotSpans {
+        starts: vec![0; size],
+        widths: vec![0; size],
+        ratio: Fq::from_u64(FIELD_RATIO),
     };
-    let mut columns = vec![Fq::ZERO; layout.offsets.len()];
+    let mut width = PUBLIC;
     for (column, value) in columns[..PUBLIC].iter_mut().enumerate() {
+        spans.starts[column] = column as u32;
+        spans.widths[column] = 1;
         *value = Fq::from_usize(column % 3) - Fq::ONE;
     }
     for column in PUBLIC..columns.len() {
@@ -23,12 +28,19 @@ fn packed_assignment_has_the_same_digits_across_blocks_and_tasks() {
             3 => (Kind::Field, Fq::new(Fq::ORDER_U64 / 2 + 1)),
             _ => (Kind::Field, Fq::ZERO),
         };
-        layout.kinds[column] = kind;
-        layout.offsets[column] = layout.width as u32;
-        layout.slots.push(column);
-        layout.width += kind.width();
+        kinds[column] = kind;
+        spans.starts[column] = width as u32;
+        spans.widths[column] = kind.width() as u8;
+        slots.push(column as u32);
+        width += kind.width();
         columns[column] = value;
     }
+    let layout = LogicalLayout {
+        spans,
+        kinds,
+        slots: slots.into_boxed_slice(),
+        width,
+    };
     let logical = layout.assignment(&columns).unwrap();
     for threads in [1, 3] {
         let pool = rayon::ThreadPoolBuilder::new()

@@ -46,6 +46,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Fold
 import NightstreamFPrime.Spec.Compression.Akita.FoldCheck
 import NightstreamFPrime.Spec.Compression.Akita.FoldComplete
 import NightstreamFPrime.Spec.Compression.Akita.FoldSumCheck
+import NightstreamFPrime.Spec.Compression.Akita.Key20
 import NightstreamFPrime.Spec.Compression.Akita.Layout
 import NightstreamFPrime.Spec.Compression.Akita.LiftReduction
 import NightstreamFPrime.Spec.Compression.Akita.LiftWitness
@@ -86,7 +87,8 @@ instance of the argument (`Production`), with the ring equations of a claim as t
 and the evaluations of `Spec.CE.Holds` (`Claim`), and Π_CCS on one source as a game (`Fresh`),
 and Akita as a polynomial commitment scheme with the premises of `[AKITA]` (`Akita`), with the
 Akita commitment (`Akita/Commitment`, `Akita/Commit`), the shapes of the key group of the schedule
-files (`Akita/Shapes`) and the binding of the commitment of the compression key from Module-SIS
+files (`Akita/Shapes`), the numbers of the levels of `key20.aks` (`Akita/Key20`) and the binding
+of the commitment of the compression key from Module-SIS
 (`Akita/Binding`), and the embedding of the challenge subring (`Akita/Embed`), the norms of the fold
 challenges (`Akita/Challenge`) and the opening path of a packing fold (`Akita/Opening`), and the
 relation, the weak opening, the weak binding and the extraction of one packing fold

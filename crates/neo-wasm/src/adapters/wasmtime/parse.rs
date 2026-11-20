@@ -224,7 +224,7 @@ struct ParsedWasmArtifactsBuilder {
     raw_param_types_by_index: BTreeMap<u32, Vec<(bool, bool)>>,
     signature_ids: BTreeMap<String, u32>,
     next_type_id: u32,
-    defined_function_type_indices: Vec<u32>,
+    function_type_indices: Vec<u32>,
     initial_memory_pages: Option<u32>,
     max_memory_pages: Option<u32>,
     linear_memory_init: Vec<(u64, u8)>,
@@ -257,7 +257,7 @@ impl Default for ParsedWasmArtifactsBuilder {
             raw_param_types_by_index: BTreeMap::new(),
             signature_ids: BTreeMap::new(),
             next_type_id: 1,
-            defined_function_type_indices: Vec::new(),
+            function_type_indices: Vec::new(),
             initial_memory_pages: None,
             max_memory_pages: None,
             linear_memory_init: Vec::new(),
@@ -472,6 +472,7 @@ impl ParsedWasmArtifactsBuilder {
                         ));
                     }
                     if let wasmparser::TypeRef::Func(raw_type_index) = import.ty {
+                        self.function_type_indices.push(raw_type_index);
                         let function_ref = funcref_id(self.imported_function_count);
                         self.imported_function_count = self.imported_function_count.saturating_add(1);
                         let type_id = *self
@@ -510,20 +511,23 @@ impl ParsedWasmArtifactsBuilder {
                     let raw_type_index = raw_type_index_result.map_err(|err| {
                         WasmProgramError::Invalid(format!("failed to decode wasm function type index: {err}"))
                     })?;
-                    self.defined_function_type_indices.push(raw_type_index);
+                    self.function_type_indices.push(raw_type_index);
                 }
             }
             Payload::ExportSection(reader) => {
                 for export in reader {
                     let export = export
                         .map_err(|err| WasmProgramError::Invalid(format!("failed to decode wasm export: {err}")))?;
-                    let results = export
-                        .index
-                        .checked_sub(self.imported_function_count)
-                        .filter(|_| export.kind == wasmparser::ExternalKind::Func)
-                        .and_then(|index| self.defined_function_type_indices.get(index as usize))
+                    if export.kind != wasmparser::ExternalKind::Func {
+                        continue;
+                    }
+                    let (_, results, _, _) = *self
+                        .function_type_indices
+                        .get(export.index as usize)
                         .and_then(|raw_type_index| self.raw_type_shape_by_index.get(raw_type_index))
-                        .map_or(0, |&(_, results, _, _)| results);
+                        .ok_or_else(|| {
+                            WasmProgramError::Invalid(format!("missing function type for export `{}`", export.name))
+                        })?;
                     if results > 1 {
                         return Err(WasmProgramError::Unsupported(format!(
                             "export `{}` returns {results} values; the proof output holds one",
@@ -540,14 +544,15 @@ impl ParsedWasmArtifactsBuilder {
                 }
             }
             Payload::CodeSectionEntry(body) => {
-                let function_ref = self
+                let function_index = self
                     .imported_function_count
                     .checked_add(self.defined_function_index)
-                    .and_then(checked_funcref_id)
+                    .ok_or_else(|| WasmProgramError::Invalid("function index overflow".to_string()))?;
+                let function_ref = checked_funcref_id(function_index)
                     .ok_or_else(|| WasmProgramError::Invalid("function ref id overflow".to_string()))?;
                 let raw_type_index = *self
-                    .defined_function_type_indices
-                    .get(self.defined_function_index as usize)
+                    .function_type_indices
+                    .get(function_index as usize)
                     .ok_or_else(|| {
                         WasmProgramError::Invalid(format!(
                             "missing type index for defined function {}",

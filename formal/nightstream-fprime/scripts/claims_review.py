@@ -18,13 +18,13 @@ DATA = PKG / '.lake/claims-review.json'
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'docs/claims-review/nightstream-claims-review.md'
 CAP = 40
 sys.path.insert(0, str(PKG / 'scripts'))
-from check_premises import table_rows, covers, premise_lines, read_premises  # noqa: E402
+from check_premises import table_rows, covers, premise_lines  # noqa: E402
 
 ORDER = ['Foundations', 'Encodings', 'Fold', 'Step', 'Ivc', 'Nebula', 'Compression', 'Final']
 data = json.loads(DATA.read_text())
 model = (PKG / 'SECURITY_MODEL.md').read_text()
 rows, _ = table_rows(model)
-premises = premise_lines(read_premises())
+premises = premise_lines((PKG / 'artifacts/nightstream-fprime-premises-v1.tsv').read_text())
 commit = subprocess.run(['git', 'rev-parse', '--short=9', 'HEAD'], cwd=ROOT,
                         capture_output=True, text=True).stdout.strip()
 

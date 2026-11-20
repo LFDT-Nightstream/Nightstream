@@ -151,8 +151,8 @@ fails when one of them is not a theorem whose name is the name of its claims
 module and one more part, when a claim uses an axiom outside the three of
 section What Lean checks, when the proof of a claim is not one application of
 a theorem outside the namespace, or when the kernel does not give that proof
-the type of the claim. Lean writes one TSV file per claims module in
-`artifacts/nightstream-fprime-premises-v1/`. The build checks each file.
+the type of the claim. Lean writes the premise list to
+`artifacts/nightstream-fprime-premises-v1.tsv`. The build checks this file.
 A hypothesis is a binder whose type is a proposition, or a proof field of a
 binder whose type is a structure of the package or a function to one.
 Each field listed under a function result has the arguments and hypotheses

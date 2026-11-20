@@ -1,13 +1,13 @@
 import tests.AxiomAudit
 
-/-! `#premise_census "folder" "Package" "Root"` reads each declaration of the namespace
+/-! `#premise_census "file" "Package" "Root"` reads each declaration of the namespace
 `Package.Root` and of the modules under `Package.Root`. It fails when one of them is not a theorem
 `Package.Root.File.name` of the module `Package.Root.File`, when the axioms of a theorem are not
 among the allowed three, when a proof is not one application of a theorem outside the namespace,
 or when the kernel does not give a proof the type of its theorem. It lists every hypothesis of
-each theorem and checks the TSV file of each module in `folder`.
-`scripts/check_premises.py` checks each line against the premise table in `SECURITY_MODEL.md`.
-The `static` phase fails when a hypothesis has no class. -/
+each theorem and compares the list with `file`. `scripts/check_premises.py` holds the
+classification of each line (`SECURITY_MODEL.md`, section Premises), so a new hypothesis fails the
+`static` phase until it has a class. -/
 
 register_option premiseCensus.write : Bool := {
   defValue := false
@@ -105,28 +105,18 @@ elab "#premise_census " path:str space:str root:str : command => do
       theorems := theorems.push name
     | _ => throwError "{name} is in {claims}, but it is not a theorem"
   theorems := theorems.qsort fun left right => Name.cmp left right == .lt
-  let folder : System.FilePath := path.getString
-  let write := premiseCensus.write.get (← getOptions)
-  if write then IO.FS.createDirAll folder
-  let mut expected := #[]
-  for home in modules.filter (·.getPrefix == claims) do
-    let filename := s!"{home.replacePrefix claims .anonymous}.tsv"
-    expected := expected.push filename
-    let file := folder / filename
-    let mut lines := #[]
-    for name in theorems.filter (·.getPrefix == home) do
-      lines := lines ++ (← liftTermElabM <| premiseLines package name)
-    let text := String.join (lines.toList.map (· ++ "\n"))
-    if write then
-      IO.FS.writeFile file text
-    else unless (← file.pathExists) && (← IO.FS.readFile file) == text do
-      throwError "{file} differs from its claims. Run `scripts/validate.sh premises` and classify \
-        each new line in SECURITY_MODEL.md"
-    logInfo m!"{file}: {lines.size} premise lines"
-  for entry in ← folder.readDir do
-    if entry.fileName.endsWith ".tsv" && !expected.contains entry.fileName then
-      if write then IO.FS.removeFile entry.path
-      else throwError "{entry.path} has no current claims module"
-  logInfo m!"{theorems.size} claims in {expected.size} premise files"
+  let mut lines := #[]
+  for name in theorems do
+    lines := lines ++ (← liftTermElabM <| premiseLines package name)
+  let text := String.intercalate "\n" lines.toList ++ "\n"
+  let file : System.FilePath := path.getString
+  if premiseCensus.write.get (← getOptions) then
+    IO.FS.writeFile file text
+    logInfo m!"wrote {lines.size} premise lines to {file}"
+  else if (← file.pathExists) && (← IO.FS.readFile file) == text then
+    logInfo m!"{file}: {lines.size} premise lines of {theorems.size} theorems are current"
+  else
+    throwError "{file} is not the premise list of its theorems: run \
+      `scripts/validate.sh premises`, then classify each new line in SECURITY_MODEL.md"
 
 end PremiseCensus

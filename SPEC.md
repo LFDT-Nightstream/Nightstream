@@ -1060,7 +1060,7 @@ These checks cover their recorded inputs. No theorem covers arbitrary Rust execu
 
 ### Verifier entry points
 
-Each row is a verifier that a caller reaches through the `nightstream` crate. The theorem of a row is the one Lean result whose event is the whole accept condition of the entry point. `SECURITY_MODEL.md`, section Premises, gives the class of each hypothesis of that theorem. A row without such a theorem starts with "Open:". `scripts/check_spec.py` fails when a public `verify` or `verify_final` function of `crates/nightstream/src/` has no row, when a row has not exactly one pin and is not open, or when the theorem of a row is not in the premise files in `formal/nightstream-fprime/artifacts/nightstream-fprime-premises-v1/`. The `neo-wasm` crate has no verifier of its own: a WASM proof goes through the two memory entry points with the WASM application.
+Each row is a verifier that a caller reaches through the `nightstream` crate. The theorem of a row is the one Lean result whose event is the whole accept condition of the entry point. `SECURITY_MODEL.md`, section Premises, gives the class of each hypothesis of that theorem. A row without such a theorem starts with "Open:". `scripts/check_spec.py` fails when a public `verify` or `verify_final` function of `crates/nightstream/src/` has no row, when a row has not exactly one pin and is not open, or when the theorem of a row is not in the premise list `formal/nightstream-fprime/artifacts/nightstream-fprime-premises-v1.tsv`. The `neo-wasm` crate has no verifier of its own: a WASM proof goes through the two memory entry points with the WASM application.
 
 <!-- entry-points -->
 | Entry point | Algorithm | Theorem |

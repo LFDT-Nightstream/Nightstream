@@ -7,7 +7,8 @@ relation, the flat witness and the relation of one fold on it, the fold with ope
 (`Batch`) with its flat witness, its relation, its levels and a small instance of the batching
 root over it, the quotient digits in the flat witness with the levels of the quotient-lift
 route, the recursive opening suffix with its checkpoint segments, its batching root, its
-packing levels, its trace levels and the terminal, its rewinding extraction, its
+packing levels, its trace levels and the terminal, the opening of a root, a fold with groups,
+a packing level, four trace levels and the terminal (`Tower`), its rewinding extraction, its
 Fiat–Shamir budget and the honest prover of two packing levels
 (`Spec/Compression/Akita/Extract`), the honest prover of a game (`Spec/Compression/Game`), the
 shared setup (`Setup`) and the bad events of the hashed transcript entries (`Digest`). -/
@@ -974,3 +975,16 @@ shared setup (`Setup`) and the bad events of the hashed transcript entries (`Dig
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.root_extract_sound
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.root_extraction_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny.root_runs_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.tower₅
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.tower₄
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.tower₃
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.tower₂
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.tower₁
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.tower₀
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.towerRoot
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.tower_suffix
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.LevelSized
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.LevelSized.lift
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.LevelSized.trace
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.liftTower_suffix
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.towerCompose_suffix

@@ -14,6 +14,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Budget
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Chain
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Compose
 import NightstreamFPrime.Spec.Compression.Akita.Extract.ComposeRoot
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Decoders
 import NightstreamFPrime.Spec.Compression.Akita.Extract.FlatSource
 import NightstreamFPrime.Spec.Compression.Akita.Extract.FreshGame
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Honest
@@ -31,6 +32,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Tier
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TierBound
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tiny
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TinyRoot
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Tower
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceChain
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceLevel
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceLink
@@ -117,8 +119,10 @@ and a small instance of this root with three groups (`TinyRoot`), and the quotie
 ring rows in the flat witness (`Akita/LiftWitness`) with the levels of the quotient-lift route
 (`LiftSource`), and the compression argument over the Akita opening: the verifier game in two
 parts that end in the opening claims (`Verifier/Split`), the stages of these parts (`SplitGame`),
-the two checkpoints of the argument before the opening (`Compose`) and the result over a batching
-root, a fold with three opening groups and a last packing fold (`ComposeRoot`), and the shared
+the two checkpoints of the argument before the opening (`Compose`), the fair decoders of its
+challenges (`Decoders`), the opening with a batching root, a fold with three opening groups and a
+last packing fold (`ComposeRoot`), and the opening with a batching root, a fold with opening
+groups, a packing level, four trace levels and the terminal (`Tower`), and the shared
 setup with its
 reduction to ordinary Module-SIS (`Akita/Setup`) and the bad events of the hashed transcript
 entries (`Akita/Digest`). -/

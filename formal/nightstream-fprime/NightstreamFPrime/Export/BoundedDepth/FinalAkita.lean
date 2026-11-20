@@ -1,5 +1,6 @@
 import NightstreamFPrime.Export.BoundedDepth.FinalSplit
 import NightstreamFPrime.Spec.Compression.Akita.Extract.ComposeRoot
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Decoders
 
 /-! The final verifier over the Akita opening of the key polynomial, `W` and `V` (SPEC.md,
 Algorithm 10; Akita, ePrint 2026/1983, revision of 2026-10-15, Theorem 10.17, Proposition 10.44
@@ -15,16 +16,19 @@ the transcript are a function of the layout. So the result is for the final proo
   after the checks of steps 1 to 5 (`Setup.lead`), the claims of the argument are the slot claims
   and the output claim of the run, and the test of a table `W` is `Verifies` for the proof
   `Setup.envelope` that `W` gives. `compose_sized` has the conditions `Compose.Sized`.
-- `final_suffix`: the stages of the final verifier over a batching root, a committed fold with
-  three opening groups and a last packing fold are a suffix from the stage 0.
+- `final_suffix`: the stages of the final verifier over an Akita opening are a suffix from the
+  stage 0. The Akita opening is the hypothesis `later`: a suffix from the stage `Compose.root`
+  whose first certificates satisfy `OpensAt`.
 - `final_extract_sound`: an output of the extractor gives a proof with witnesses that `Verifies`
   accepts for the statement of the first message, or a solution of Module-SIS (`Solved`) for a
-  matrix of a level or for the key commitment.
+  matrix of the Akita opening or for the key commitment.
 - `final_extraction_le`: the verifier accepts and the extractor returns no output with
-  probability at most `(Q + 1)·(Setup.runCost + ε_Akita) + (Q + 1)·loops/budget`.
+  probability at most `(Q + 1)·(Setup.runCost + ε_Akita) + (Q + 1)·(2 + loops)/budget`.
 - `breakChance` is the probability that the extractor returns a solution of Module-SIS, and
   `final_sound` is the bound for "the verifier accepts and no proof with witnesses satisfies
-  `Verifies`". -/
+  `Verifies`".
+- `three_sound` is `final_sound` for the opening with a batching root, a committed fold with
+  three opening groups and a last packing fold (`composeRootChain_suffix`). -/
 
 set_option autoImplicit false
 
@@ -98,15 +102,16 @@ noncomputable def compose :
 variable [Fintype Coord] [DecidableEq Coord] [Nonempty Coord]
 
 /-- The conditions `Compose.Sized` of the final verifier. `premises`: the premises of
-`FinalVerifier.soundness`. `laid`: the shape passes the layout of step 5. `lookups` and
-`challenges`: an answer of the oracle gives uniform lookup challenges and uniform challenges
-after `V`. `cube` and `groupsFit`: an answer has a slot for each coordinate of `α` and three
-slots. `early`: the commitments of the key polynomial and of `W` are fixed by the first message.
-`fits`: the stages before the Akita opening are stages of the transcript. -/
+`FinalVerifier.soundness`. `laid`: the shape passes the layout of step 5. `lookupsFit` and
+`challengesFit`: an answer of the oracle has a slot for each lookup challenge and for each
+challenge after `V` (`exists_fair_base`, `exists_fair_challenges`). `cube` and `groupsFit`: an
+answer has a slot for each coordinate of `α` and three slots. `early`: the commitments of the key
+polynomial and of `W` are fixed by the first message. `fits`: the stages before the Akita opening
+are stages of the transcript. -/
 theorem compose_sized (premises : Premises setup packageWidths) (laid : setup.Laid shape)
-    (lookups : ∃ decode : (Coord → K) → Fin (setup.params shape).lookups → F, Fair decode)
-    (challenges : ∃ decode : (Coord → K) → Compression.Verifier.Challenges (setup.params shape),
-      Fair decode)
+    (lookupsFit : (setup.params shape).lookups ≤ Fintype.card Coord)
+    (challengesFit : 4 + ((setup.params shape).lookups + ((setup.params shape).claims +
+      (setup.params shape).claims + (setup.params shape).spanVars)) ≤ Fintype.card Coord)
     (cube : CompressionFresh.oneShape.cubeVariables ≤ Fintype.card Coord)
     (groupsFit : 3 ≤ Fintype.card Coord)
     (early : ∀ anchor g, g ≠ 2 → bound anchor g = bound (anchor.take 0) g)
@@ -116,7 +121,9 @@ theorem compose_sized (premises : Premises setup packageWidths) (laid : setup.La
       (setup.verifier shape) := by
   obtain ⟨wf, counts, matrix, columns, rows, key_fits⟩ := FinalVerifier.laid_facts setup laid
   exact
-    { wf, counts, matrix, columns, rows, key_fits, lookups, challenges
+    { wf, counts, matrix, columns, rows, key_fits
+      lookups := exists_fair_base (by simpa using lookupsFit)
+      challenges := exists_fair_challenges _ challengesFit
       column := (le_of_eq (rfl : (setup.verifier shape).columnVars = 2)).trans
         ((Nat.le_succ 2).trans groupsFit)
       lead_sound := fun _ _ refuted =>
@@ -128,6 +135,191 @@ theorem compose_sized (premises : Premises setup packageWidths) (laid : setup.La
       early, fits }
 
 section Chain
+
+variable {Inner BreakT CandT KeyT : Type} {accept : Prefix Wire (Coord → K) total → Prop}
+  {body : Structure (Prefix Wire (Coord → K) total) Coord K (ℕ → Wire) Inner BreakT CandT KeyT
+    (Option B.Weak)}
+  {key : (g : Fin 3) → Key (B.shape g)} {openKey : B.OpenKey} {mass : Fin 3 → ℕ}
+  {commit : Wire → (g : Fin 3) → (B.shape g).Payload} {value : Wire → Fin 3 → K}
+  {place : Wire → Fin 3 → List K} {error : ℝ} {loops tree : ℕ}
+  (embed : B.LevelBreak key openKey
+    (fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g)) → BreakT)
+
+local notation "C" => compose setup packageWidths step cap control shape read head bound
+
+local notation "vf" => FinalVerifier.Setup.verifier setup shape
+
+local notation "whole" => Compose.chain C vf accept body key openKey mass embed
+
+variable (body key) in
+/-- The output of the extractor is a solution of Module-SIS: for the key commitment, from the
+decommitment of a certificate and the registered decommitment `honest` (`tableCollision`), or a
+witness of `R_bind` of the Akita opening `body`. -/
+def Solved (honest : Certified (B.shape 0)) (innerBound : ℕ) (out : Inner ⊕ BreakT) : Prop :=
+  Sum.elim
+    (fun certificate => ∃ ω, body.witness certificate = some ω ∧
+      (tableCollision (key 0) innerBound (ω.certified 0) honest).isSome)
+    body.breaks out
+
+/-- The stages of the final verifier over an Akita opening are a suffix from the stage 0 (Akita
+Theorem 10.45). The stage errors are `Setup.runCost` and the stage errors `error` of the Akita
+opening. `ran`: the verifier accepts only with the conditions `Compose.Ran`. `embedded`: `embed`
+maps a solution of Module-SIS for a matrix of a group to a witness of `R_bind` of the Akita
+opening. `later`: the stages of the Akita opening are a suffix whose first certificates satisfy
+`OpensAt`. `sized`: the conditions `Compose.Sized`, which `compose_sized` gives. -/
+theorem final_suffix (sized : Compose.Sized C vf)
+    (ran : ∀ point, accept point → Compose.Ran C vf commit value place point)
+    (embedded : ∀ solution, solution.isSome → body.breaks (embed solution))
+    (later : Tier.Suffix accept (Compose.root C vf)
+      (OpensAt (Compose.root C vf) commit value place key mass) body error loops tree) :
+    Tier.Suffix accept 0 (Compose.Extracted C key mass) whole (setup.runCost shape + error)
+      (2 + loops) (4 * tree) := by
+  have chain := Compose.suffix sized ran embed embedded later
+  exact chain
+
+variable (prover : OracleComp (Prefix Wire (Coord → K) total) (Coord → K) (ℕ → Wire))
+
+/-- An output of the extractor for the final verifier over an Akita opening (Akita
+Theorem 10.17). The verifier accepts the transcript of the prover. The output gives a proof with
+witnesses that `Verifies` accepts for the statement of the first message of the prover, or it is
+a solution of Module-SIS (`Solved`). `registered`: `honest` is a certified decommitment of the
+key commitment to the table of the key polynomial. `covers`: `innerBound` is the bound of
+Akita Corollary 10.25 for `honest` and a decommitment of a certificate. -/
+theorem final_extract_sound (sized : Compose.Sized C vf)
+    (ran : ∀ point, accept point → Compose.Ran C vf commit value place point)
+    (embedded : ∀ solution, solution.isSome → body.breaks (embed solution))
+    (later : Tier.Suffix accept (Compose.root C vf)
+      (OpensAt (Compose.root C vf) commit value place key mass) body error loops tree)
+    {honest : Certified (B.shape 0)}
+    {factorBound sourceBound innerBound : ℕ}
+    (registered : ∀ anchor, honest.Opens factorBound sourceBound (key 0) (bound anchor 0)
+      (keyBase (setup.params shape)))
+    (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
+      innerBound)
+    (budget : ℕ) (table : Prefix Wire (Coord → K) total → Coord → K)
+    (tape : Tape (Prefix Wire (Coord → K) total) Coord K budget (Structure.protocol whole).stages)
+    (out : Inner ⊕ BreakT)
+    (result : Checkpoint.extract whole prover budget table tape = some out) :
+    accept ((Structure.protocol whole).final prover table) ∧
+      (Proved setup packageWidths step cap control head
+          (((Structure.protocol whole).input prover table 0).wire 0) ∨
+        Solved body key honest innerBound out) := by
+  obtain ⟨accepted, extracted⟩ := (final_suffix setup packageWidths step cap control shape read
+    head bound embed sized ran embedded later).extract_sound rfl prover budget table tape out
+    result
+  refine ⟨accepted, ?_⟩
+  rcases out with certificate | broken
+  · rcases Compose.Extracted.relation_or_collision extracted (registered _) covers with
+      good | collision
+    · exact Or.inl ⟨_, good⟩
+    · exact Or.inr collision
+  · exact Or.inr extracted
+
+variable [Finite Wire]
+
+/-- Akita Theorem 10.17 for the final verifier over an Akita opening. For each prover with at
+most `Q` queries to the oracle, the probability that the verifier accepts and the extractor
+returns no output is at most `(Q + 1)·(runCost + ε) + (Q + 1)·(2 + loops)/budget`.
+`Setup.runCost` is the sum of the bounds of the draws of Π_CCS on the fresh instance and of the
+argument, and `ε` and `loops` are the stage errors and the retry loops of the Akita opening. -/
+theorem final_extraction_le (sized : Compose.Sized C vf)
+    (ran : ∀ point, accept point → Compose.Ran C vf commit value place point)
+    (embedded : ∀ solution, solution.isSome → body.breaks (embed solution))
+    (later : Tier.Suffix accept (Compose.root C vf)
+      (OpensAt (Compose.root C vf) commit value place key mass) body error loops tree)
+    {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ}
+    (positive : 0 < budget) :
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget
+          (Structure.protocol whole).stages,
+        (if accept ((Structure.protocol whole).final prover table) ∧
+          Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
+      (queries + 1) * (setup.runCost shape + error) + (queries + 1) * (2 + loops : ℕ) / budget :=
+  (final_suffix setup packageWidths step cap control shape read head bound embed sized ran
+    embedded later).extraction_le rfl prover bounded positive
+
+/-- The expected number of runs of the prover in the extraction is at most
+`K̂ + (Q + 1)·(K̂ − 1)` with `K̂ = 4·tree` for the tree size `tree` of the Akita opening (Akita
+Theorem 10.17, the cost). -/
+theorem final_runs_le (sized : Compose.Sized C vf)
+    (ran : ∀ point, accept point → Compose.Ran C vf commit value place point)
+    (embedded : ∀ solution, solution.isSome → body.breaks (embed solution))
+    (later : Tier.Suffix accept (Compose.root C vf)
+      (OpensAt (Compose.root C vf) commit value place key mass) body error loops tree)
+    {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
+    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget
+          (Structure.protocol whole).stages,
+        (extractRuns whole prover budget table tape : ℝ) ≤
+      (4 * tree : ℕ) + (queries + 1) * ((4 * tree : ℕ) - 1) :=
+  (final_suffix setup packageWidths step cap control shape read head bound embed sized ran
+    embedded later).runs_le rfl prover bounded budget
+
+variable (accept body key openKey mass) in
+/-- The probability that the extractor returns a solution of Module-SIS (`Solved`): the term of
+the Module-SIS assumption in the soundness of the final verifier. The extractor is the solver. -/
+noncomputable def breakChance (honest : Certified (B.shape 0)) (innerBound budget : ℕ) : ℝ :=
+  𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget
+      (Structure.protocol whole).stages,
+    if ∃ out, Checkpoint.extract whole prover budget table tape = some out ∧
+      Solved body key honest innerBound out then (1 : ℝ) else 0
+
+/-- Soundness of the final verifier with Akita openings. For each prover with at most `Q`
+queries to the oracle, the probability that the verifier accepts and no proof with witnesses
+satisfies `Verifies` for the statement of the first message is at most
+`(Q + 1)·(runCost + ε) + (Q + 1)·(2 + loops)/budget + breakChance`. The first two terms are those
+of `final_extraction_le`, and `breakChance` is the probability that the extractor returns a
+solution of Module-SIS. `registered` and `covers` are those of `final_extract_sound`. -/
+theorem final_sound (sized : Compose.Sized C vf)
+    (ran : ∀ point, accept point → Compose.Ran C vf commit value place point)
+    (embedded : ∀ solution, solution.isSome → body.breaks (embed solution))
+    (later : Tier.Suffix accept (Compose.root C vf)
+      (OpensAt (Compose.root C vf) commit value place key mass) body error loops tree)
+    {honest : Certified (B.shape 0)} {factorBound sourceBound innerBound : ℕ}
+    (registered : ∀ anchor, honest.Opens factorBound sourceBound (key 0) (bound anchor 0)
+      (keyBase (setup.params shape)))
+    (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
+      innerBound)
+    {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
+    𝔼 table, 𝔼 _tape : Tape (Prefix Wire (Coord → K) total) Coord K budget
+          (Structure.protocol whole).stages,
+        (if accept ((Structure.protocol whole).final prover table) ∧
+            ¬ Proved setup packageWidths step cap control head
+              (((Structure.protocol whole).input prover table 0).wire 0) then (1 : ℝ) else 0) ≤
+      (queries + 1) * (setup.runCost shape + error) + (queries + 1) * (2 + loops : ℕ) / budget +
+        breakChance setup packageWidths step cap control shape read head bound accept body key
+          openKey mass embed prover honest innerBound budget := by
+  have missed := final_extraction_le setup packageWidths step cap control shape read head bound
+    embed prover sized ran embedded later bounded positive
+  refine le_trans ?_ (add_le_add missed le_rfl)
+  unfold breakChance
+  simp only [← Finset.expect_add_distrib]
+  refine Finset.expect_le_expect fun table _ => Finset.expect_le_expect fun tape _ => ?_
+  have cases : accept ((Structure.protocol whole).final prover table) ∧
+      ¬ Proved setup packageWidths step cap control head
+        (((Structure.protocol whole).input prover table 0).wire 0) →
+      (accept ((Structure.protocol whole).final prover table) ∧
+        Checkpoint.extract whole prover budget table tape = none) ∨
+      ∃ out, Checkpoint.extract whole prover budget table tape = some out ∧
+        Solved body key honest innerBound out := by
+    intro event
+    rcases result : Checkpoint.extract whole prover budget table tape with _ | out
+    · exact Or.inl ⟨event.1, rfl⟩
+    · exact Or.inr ⟨out, rfl, ((final_extract_sound setup packageWidths step cap control shape
+        read head bound embed prover sized ran embedded later registered covers budget table tape
+        out result).2).resolve_left event.2⟩
+  by_cases event : accept ((Structure.protocol whole).final prover table) ∧
+      ¬ Proved setup packageWidths step cap control head
+        (((Structure.protocol whole).input prover table 0).wire 0)
+  · rcases cases event with none | solved
+    · rw [ite_eq_left event, ite_eq_left none]
+      split_ifs <;> norm_num
+    · rw [ite_eq_left event, ite_eq_left solved]
+      split_ifs <;> norm_num
+  · rw [ite_eq_right event]
+    split_ifs <;> norm_num
+
+end Chain
+
+section Three
 
 variable {S' : Compression.Akita.Shape} {O' : OpeningShape S'} {fold' : Descriptor}
   {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq K} {key : (g : Fin 3) → Key (B.shape g)}
@@ -155,178 +347,38 @@ local notation "second" =>
 
 local notation "accepts" => composeAccepts C vf first second commit value place next witnessOf
 
-local notation "whole" =>
-  Compose.chain C vf accepts (composeRoot C vf first second commit value place next witnessOf)
-    key openKey mass Sum.inl
+local notation "opening" => composeRoot C vf first second commit value place next witnessOf
 
-local notation "akitaError" =>
-  (1 / Fintype.card K + (∑ b, Tier.chance first b + List.sum (Tier.costs first) +
-    (∑ b, Tier.chance second b + List.sum (Tier.costs second))))
+local notation "whole" => Compose.chain C vf accepts opening key openKey mass Sum.inl
 
-local notation "loops" =>
-  2 + (1 + (∑ g, Compression.Akita.Shape.blocks (Batch.shape B g) + 1 +
-    (Compression.Akita.Shape.blocks S' + 1)))
-
-local notation "tree" =>
-  4 * (2 * (2 * (∑ g, Compression.Akita.Shape.blocks (Batch.shape B g) + 1) *
-    (2 * (Compression.Akita.Shape.blocks S' + 1))))
-
-/-- The output of the extractor is a solution of Module-SIS: for the key commitment, from the
-decommitment of a certificate and the registered decommitment `honest` (`tableCollision`), or
-for a matrix of the first level or of the last level of the Akita opening. -/
-def Solved (honest : Certified (B.shape 0)) (innerBound : ℕ)
-    (out : Opened B.Weak (Opened (Weak O') (Prefix Wire (Coord → K) total)) ⊕
-      (B.LevelBreak key openKey
-          (fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g)) ⊕
-        (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕ Unit))) : Prop :=
-  Sum.elim
-    (fun certificate => ∃ ω, certificate.opening = some ω ∧
-      (tableCollision (key 0) innerBound (ω.certified 0) honest).isSome)
-    (Sum.elim (fun solution => solution.isSome)
-      (Sum.elim (fun solution => solution.isSome) fun _ => False))
-    out
-
-variable {peak : Fin 3 → ℕ} {peak' : ℕ} (premises : Premises setup packageWidths)
-  (laid : setup.Laid shape)
-  (lookups : ∃ decode : (Coord → K) → Fin (setup.params shape).lookups → F, Fair decode)
-  (challenges : ∃ decode : (Coord → K) → Compression.Verifier.Challenges (setup.params shape),
-    Fair decode)
-  (cube : CompressionFresh.oneShape.cubeVariables ≤ Fintype.card Coord)
-  (early : ∀ anchor g, g ≠ 2 → bound anchor g = bound (anchor.take 0) g)
-  (injective : Function.Injective block)
-  (units : ∀ g, UnitDifferences {challenge | ∃ slot, decode g slot = some challenge})
-  (sparse : ∀ g challenge, (∃ slot, decode g slot = some challenge) →
-    Sparse (mass g) (peak g) challenge)
-  (response : ∀ g, 2 ≤ (B.fold g).responseBase)
-  (uniform : ∀ g, (B.shape g).certifiedBase = base) (small : base < fieldModulus)
-  (varsFit : μ ≤ Fintype.card Coord) (batchFit : batch ≤ Fintype.card Coord)
-  (groupsFit : 3 ≤ Fintype.card Coord) (injective' : Function.Injective block')
-  (units' : UnitDifferences {challenge | ∃ slot, decode' slot = some challenge})
-  (sparse' : ∀ challenge, (∃ slot, decode' slot = some challenge) →
-    Sparse weight' peak' challenge)
-  (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
-  (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
-
-include premises laid lookups challenges cube early injective units sparse response uniform small
-  varsFit batchFit groupsFit injective' units' sparse' base' small' varsFit' batchFit'
-
-omit premises laid lookups challenges cube early injective units sparse response uniform small
-  varsFit batchFit groupsFit injective' units' sparse' base' small' varsFit' batchFit'
-  [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
-theorem root_le (inside : Tier.finish second ≤ total) : Compose.root C vf ≤ total := by
-  have ends := Tier.finish_eq first
-  have ends' := Tier.finish_eq second
-  have starts : Tier.start first = Compose.root C vf + 1 := rfl
-  have starts' : Tier.start second = Tier.finish first := rfl
-  omega
-
-/-- The stages of the final verifier over a batching root, a committed fold with three opening
-groups and a last packing fold are a suffix from the stage 0 (Akita Theorem 10.45). The stage
-errors are `Setup.runCost` and the stage errors of the Akita opening. The conditions on the
-Akita opening are those of `composeChain_suffix`. -/
-theorem final_suffix (inside : Tier.finish second ≤ total) :
-    Tier.Suffix accepts 0 (Compose.Extracted C key mass) whole
-      (setup.runCost shape + akitaError) loops tree := by
-  have sized := compose_sized setup packageWidths step cap control shape read head bound premises
-    laid lookups challenges cube groupsFit early
-    (root_le setup packageWidths step cap control shape read head bound inside)
-  have chain := composeChain_suffix (commit := commit) (value := value) (place := place)
-    (next := next) (witnessOf := witnessOf) sized injective units sparse response uniform small
-    varsFit batchFit groupsFit injective' units' sparse' base' small' varsFit' batchFit' inside
-  exact chain
-
-variable (prover : OracleComp (Prefix Wire (Coord → K) total) (Coord → K) (ℕ → Wire))
-
-/-- An output of the extractor for the final verifier over the Akita opening (Akita
-Theorem 10.17). The verifier accepts the transcript of the prover. The output gives a proof with
-witnesses that `Verifies` accepts for the statement of the first message of the prover, or it is
-a solution of Module-SIS (`Solved`). `registered`: `honest` is a certified decommitment of the
-key commitment to the table of the key polynomial. `covers`: `innerBound` is the bound of
-Akita Corollary 10.25 for `honest` and a decommitment of a certificate. -/
-theorem final_extract_sound (inside : Tier.finish second ≤ total)
+/-- `final_sound` for the Akita opening with a batching root, a committed fold with three opening
+groups and a last packing fold. `ε_Akita` is `1/|K|` for the weights of the batching root and the
+stage errors of the two levels. `inside`: the stages are stages of the transcript. The conditions
+on the Akita opening are those of `composeRootChain_suffix`, and the other hypotheses are those
+of `final_sound`. -/
+theorem three_sound [Finite Wire] {peak : Fin 3 → ℕ} {peak' : ℕ}
+    (premises : Premises setup packageWidths) (laid : setup.Laid shape)
+    (lookupsFit : (setup.params shape).lookups ≤ Fintype.card Coord)
+    (challengesFit : 4 + ((setup.params shape).lookups + ((setup.params shape).claims +
+      (setup.params shape).claims + (setup.params shape).spanVars)) ≤ Fintype.card Coord)
+    (cube : CompressionFresh.oneShape.cubeVariables ≤ Fintype.card Coord)
+    (early : ∀ anchor g, g ≠ 2 → bound anchor g = bound (anchor.take 0) g)
+    (injective : Function.Injective block)
+    (units : ∀ g, UnitDifferences {challenge | ∃ slot, decode g slot = some challenge})
+    (sparse : ∀ g challenge, (∃ slot, decode g slot = some challenge) →
+      Sparse (mass g) (peak g) challenge)
+    (response : ∀ g, 2 ≤ (B.fold g).responseBase)
+    (uniform : ∀ g, (B.shape g).certifiedBase = base) (small : base < fieldModulus)
+    (varsFit : μ ≤ Fintype.card Coord) (batchFit : batch ≤ Fintype.card Coord)
+    (groupsFit : 3 ≤ Fintype.card Coord) (injective' : Function.Injective block')
+    (units' : UnitDifferences {challenge | ∃ slot, decode' slot = some challenge})
+    (sparse' : ∀ challenge, (∃ slot, decode' slot = some challenge) →
+      Sparse weight' peak' challenge)
+    (base' : 2 ≤ fold'.responseBase) (small' : S'.certifiedBase < fieldModulus)
+    (varsFit' : μ' ≤ Fintype.card Coord) (batchFit' : batch' ≤ Fintype.card Coord)
+    (inside : Tier.finish second ≤ total)
+    (prover : OracleComp (Prefix Wire (Coord → K) total) (Coord → K) (ℕ → Wire))
     {honest : Certified (B.shape 0)} {factorBound sourceBound innerBound : ℕ}
-    (registered : ∀ anchor, honest.Opens factorBound sourceBound (key 0) (bound anchor 0)
-      (keyBase (setup.params shape)))
-    (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
-      innerBound)
-    (budget : ℕ) (table : Prefix Wire (Coord → K) total → Coord → K)
-    (tape : Tape (Prefix Wire (Coord → K) total) Coord K budget (Structure.protocol whole).stages)
-    (out : Opened B.Weak (Opened (Weak O') (Prefix Wire (Coord → K) total)) ⊕
-      (B.LevelBreak key openKey
-          (fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g)) ⊕
-        (LevelBreak key' openKey' (2 * (2 * weight') * fold'.sourceBound S') ⊕ Unit)))
-    (result : Checkpoint.extract whole prover budget table tape = some out) :
-    accepts ((Structure.protocol whole).final prover table) ∧
-      (Proved setup packageWidths step cap control head
-          (((Structure.protocol whole).input prover table 0).wire 0) ∨
-        Solved honest innerBound out) := by
-  obtain ⟨accepted, extracted⟩ := (final_suffix setup packageWidths step cap control shape read
-    head bound premises laid lookups challenges cube early injective units sparse response uniform
-    small varsFit batchFit groupsFit injective' units' sparse' base' small' varsFit' batchFit'
-    inside (commit := commit) (value := value) (place := place) (next := next)
-    (witnessOf := witnessOf)).extract_sound rfl prover budget table tape out result
-  refine ⟨accepted, ?_⟩
-  rcases out with certificate | broken
-  · rcases Compose.Extracted.relation_or_collision extracted (registered _) covers with
-      good | collision
-    · exact Or.inl ⟨_, good⟩
-    · exact Or.inr collision
-  · exact Or.inr extracted
-
-variable [Finite Wire]
-
-/-- Akita Theorem 10.17 for the final verifier over the Akita opening. For each prover with at
-most `Q` queries to the oracle, the probability that the verifier accepts and the extractor
-returns no output is at most `(Q + 1)·(runCost + ε) + (Q + 1)·loops/budget`. `Setup.runCost` is
-the sum of the bounds of the draws of Π_CCS on the fresh instance and of the argument, and `ε`
-is `1/|K|` for the weights of the batching root and the stage errors of the two levels. -/
-theorem final_extraction_le (inside : Tier.finish second ≤ total) {queries : ℕ}
-    (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget
-          (Structure.protocol whole).stages,
-        (if accepts ((Structure.protocol whole).final prover table) ∧
-          Checkpoint.extract whole prover budget table tape = none then (1 : ℝ) else 0) ≤
-      (queries + 1) * (setup.runCost shape + akitaError) +
-        (queries + 1) * (loops : ℕ) / budget :=
-  (final_suffix setup packageWidths step cap control shape read head bound premises laid lookups
-    challenges cube early injective units sparse response uniform small varsFit batchFit groupsFit
-    injective' units' sparse' base' small' varsFit' batchFit' inside (commit := commit)
-    (value := value) (place := place) (next := next) (witnessOf := witnessOf)).extraction_le rfl
-    prover bounded positive
-
-/-- The expected number of runs of the prover in the extraction is at most
-`K̂ + (Q + 1)·(K̂ − 1)` with the tree size `K̂` of `final_suffix` (Akita Theorem 10.17, the
-cost). -/
-theorem final_runs_le (inside : Tier.finish second ≤ total) {queries : ℕ}
-    (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget
-          (Structure.protocol whole).stages,
-        (extractRuns whole prover budget table tape : ℝ) ≤
-      (tree : ℕ) + (queries + 1) * ((tree : ℕ) - 1) :=
-  (final_suffix setup packageWidths step cap control shape read head bound premises laid lookups
-    challenges cube early injective units sparse response uniform small varsFit batchFit groupsFit
-    injective' units' sparse' base' small' varsFit' batchFit' inside (commit := commit)
-    (value := value) (place := place) (next := next) (witnessOf := witnessOf)).runs_le rfl prover
-    bounded budget
-
-omit premises laid lookups challenges cube early injective units sparse response uniform small
-  varsFit batchFit groupsFit injective' units' sparse' base' small' varsFit' batchFit' in
-/-- The probability that the extractor returns a solution of Module-SIS (`Solved`): the term of
-the Module-SIS assumption in the soundness of the final verifier. The extractor is the solver. -/
-noncomputable def breakChance (honest : Certified (B.shape 0)) (innerBound budget : ℕ) : ℝ :=
-  𝔼 table, 𝔼 tape : Tape (Prefix Wire (Coord → K) total) Coord K budget
-      (Structure.protocol whole).stages,
-    if ∃ out, Checkpoint.extract whole prover budget table tape = some out ∧
-      Solved honest innerBound out then (1 : ℝ) else 0
-
-/-- Soundness of the final verifier with Akita openings. For each prover with at most `Q`
-queries to the oracle, the probability that the verifier accepts and no proof with witnesses
-satisfies `Verifies` for the statement of the first message is at most
-`(Q + 1)·(runCost + ε) + (Q + 1)·loops/budget + breakChance`. The first two terms are those of
-`final_extraction_le`, and `breakChance` is the probability that the extractor returns a solution
-of Module-SIS. `registered` and `covers` are those of `final_extract_sound`. -/
-theorem final_sound (inside : Tier.finish second ≤ total) {honest : Certified (B.shape 0)}
-    {factorBound sourceBound innerBound : ℕ}
     (registered : ∀ anchor, honest.Opens factorBound sourceBound (key 0) (bound anchor 0)
       (keyBase (setup.params shape)))
     (covers : factorBound * (B.fold 0).sourceBound (B.shape 0) + 2 * mass 0 * sourceBound ≤
@@ -337,50 +389,27 @@ theorem final_sound (inside : Tier.finish second ≤ total) {honest : Certified 
         (if accepts ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head
               (((Structure.protocol whole).input prover table 0).wire 0) then (1 : ℝ) else 0) ≤
-      (queries + 1) * (setup.runCost shape + akitaError) +
-        (queries + 1) * (loops : ℕ) / budget +
-        breakChance setup packageWidths step cap control shape read head bound
-          (commit := commit) (value := value) (place := place) (next := next)
-          (witnessOf := witnessOf) (β := β) (β' := β') (key := key) (key' := key')
-          (openKey := openKey) (openKey' := openKey') (claim := claim) (claim' := claim')
-          (fits := fits) (fits' := fits') (rowsFit := rowsFit) (rowsFit' := rowsFit')
-          (block := block) (block' := block') (decode := decode) (decode' := decode')
-          (mass := mass) (weight' := weight') (base := base) prover honest innerBound budget := by
-  have missed := final_extraction_le setup packageWidths step cap control shape read head bound
-    premises laid lookups challenges cube early injective units sparse response uniform small
-    varsFit batchFit groupsFit injective' units' sparse' base' small' varsFit' batchFit'
-    (commit := commit) (value := value) (place := place) (next := next) (witnessOf := witnessOf)
-    prover inside bounded positive
-  refine le_trans ?_ (add_le_add missed le_rfl)
-  unfold breakChance
-  simp only [← Finset.expect_add_distrib]
-  refine Finset.expect_le_expect fun table _ => Finset.expect_le_expect fun tape _ => ?_
-  have cases : accepts ((Structure.protocol whole).final prover table) ∧
-      ¬ Proved setup packageWidths step cap control head
-        (((Structure.protocol whole).input prover table 0).wire 0) →
-      (accepts ((Structure.protocol whole).final prover table) ∧
-        Checkpoint.extract whole prover budget table tape = none) ∨
-      ∃ out, Checkpoint.extract whole prover budget table tape = some out ∧
-        Solved honest innerBound out := by
-    intro event
-    rcases result : Checkpoint.extract whole prover budget table tape with _ | out
-    · exact Or.inl ⟨event.1, rfl⟩
-    · exact Or.inr ⟨out, rfl, ((final_extract_sound setup packageWidths step cap control shape
-        read head bound premises laid lookups challenges cube early injective units sparse
-        response uniform small varsFit batchFit groupsFit injective' units' sparse' base' small'
-        varsFit' batchFit' prover inside registered covers budget table tape out
-        result).2).resolve_left event.2⟩
-  by_cases event : accepts ((Structure.protocol whole).final prover table) ∧
-      ¬ Proved setup packageWidths step cap control head
-        (((Structure.protocol whole).input prover table 0).wire 0)
-  · rcases cases event with none | solved
-    · rw [ite_eq_left event, ite_eq_left none]
-      split_ifs <;> norm_num
-    · rw [ite_eq_left event, ite_eq_left solved]
-      split_ifs <;> norm_num
-  · rw [ite_eq_right event]
-    split_ifs <;> norm_num
+      (queries + 1) * (setup.runCost shape + (1 / Fintype.card K +
+          (∑ b, Tier.chance first b + List.sum (Tier.costs first) +
+            (∑ b, Tier.chance second b + List.sum (Tier.costs second))))) +
+        (queries + 1) * (2 + (1 + (∑ g, Compression.Akita.Shape.blocks (Batch.shape B g) + 1 +
+          (Compression.Akita.Shape.blocks S' + 1))) : ℕ) / budget +
+        breakChance setup packageWidths step cap control shape read head bound accepts opening
+          key openKey mass Sum.inl prover honest innerBound budget :=
+  final_sound setup packageWidths step cap control shape read head bound Sum.inl prover
+    (compose_sized setup packageWidths step cap control shape read head bound premises laid
+      lookupsFit challengesFit cube groupsFit early
+      (by
+        have ends := Tier.finish_eq first
+        have ends' := Tier.finish_eq second
+        have starts : Tier.start first = Compose.root C vf + 1 := rfl
+        have starts' : Tier.start second = Tier.finish first := rfl
+        omega))
+    (fun _ accepted => accepted.1) (fun _ found => found)
+    (composeRootChain_suffix injective units sparse response uniform small varsFit batchFit
+      groupsFit injective' units' sparse' base' small' varsFit' batchFit' inside)
+    registered covers bounded positive
 
-end Chain
+end Three
 
 end NightstreamFPrime.Export.BoundedDepth.FinalAkita

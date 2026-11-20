@@ -177,18 +177,18 @@ impl<'a> OpeningBands<'a> {
                     bytes.checked_sub(c.storage_bytes() + size_of::<Columns>())
                 })
         };
-        let mut completed = Vec::with_capacity(columns.len());
-        for c in columns {
-            let matrix = c.device_matrix(self.rows.slots(), blocks, weights.len(), remaining()?)?;
-            let mut out = vec![[K::ZERO; D]; inputs.len()];
-            if !device.evaluate(&matrix, weights, &inputs, remaining()?, &mut out) {
-                return None;
-            }
-            completed.push(out);
+        let mut matrices = Vec::with_capacity(columns.len());
+        for column in columns {
+            matrices.push(column.device_matrix(self.rows.slots(), blocks, weights.len(), remaining()?)?);
         }
-        for (matrix, rings) in completed.into_iter().enumerate() {
+        let mut completed = vec![[K::ZERO; D]; matrices.len().checked_mul(inputs.len())?];
+        let budget = remaining()?.checked_sub(size_of_val(&*matrices))?;
+        if !device.evaluate(&matrices, weights, &inputs, budget, &mut completed) {
+            return None;
+        }
+        for (matrix, rings) in completed.chunks_exact(inputs.len()).enumerate() {
             for (&index, ring) in active.iter().zip(rings) {
-                result[index].eval_a[matrix].copy_from_slice(&ring);
+                result[index].eval_a[matrix].copy_from_slice(ring);
             }
         }
         Some(())

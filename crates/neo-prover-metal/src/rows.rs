@@ -133,14 +133,14 @@ impl TerminalOpeningDevice for MetalRowProver {
     }
     fn evaluate(
         &self,
-        matrix: &OpeningMatrix<'_>,
+        matrices: &[OpeningMatrix<'_>],
         weights: &[K],
         witnesses: &[OpeningWitness<'_>],
         budget: usize,
         result: &mut [[K; neo_math::D]],
     ) -> bool {
         self.session
-            .tiled_opening(matrix, weights, witnesses, budget, result)
+            .tiled_opening(matrices, weights, witnesses, budget, result)
     }
 }
 

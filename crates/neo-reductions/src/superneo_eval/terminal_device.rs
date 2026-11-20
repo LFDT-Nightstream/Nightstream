@@ -44,7 +44,7 @@ pub trait TerminalOpeningDevice {
     fn supports(&self, blocks: usize, witnesses: usize) -> bool;
     fn evaluate(
         &self,
-        matrix: &OpeningMatrix<'_>,
+        matrices: &[OpeningMatrix<'_>],
         weights: &[K],
         witnesses: &[OpeningWitness<'_>],
         workspace_bytes: usize,

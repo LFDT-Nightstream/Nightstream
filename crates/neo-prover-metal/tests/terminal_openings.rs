@@ -36,19 +36,38 @@ impl TerminalOpeningDevice for Limited<'_> {
     }
     fn evaluate(
         &self,
-        matrix: &OpeningMatrix<'_>,
+        matrices: &[OpeningMatrix<'_>],
         weights: &[K],
         witnesses: &[OpeningWitness<'_>],
         budget: usize,
         out: &mut [[K; D]],
     ) -> bool {
-        let remaining = if self.calls.replace(self.calls.get() + 1) == 0 {
-            budget
-        } else {
-            0
-        };
-        self.metal
-            .evaluate(matrix, weights, witnesses, remaining, out)
+        self.calls.set(self.calls.get() + 1);
+        let mut one = vec![[K::ZERO; D]; witnesses.len()];
+        let mut low = 0;
+        let mut high = budget;
+        assert!(self
+            .metal
+            .evaluate(&matrices[..1], weights, witnesses, high, &mut one));
+        while high - low > 4096 {
+            let middle = low + (high - low) / 2;
+            if self
+                .metal
+                .evaluate(&matrices[..1], weights, witnesses, middle, &mut one)
+            {
+                high = middle;
+            } else {
+                low = middle;
+            }
+        }
+        out.fill([K::ONE; D]);
+        let before = self.metal.activity();
+        assert!(!self.metal.evaluate(matrices, weights, witnesses, high, out));
+        let after = self.metal.activity();
+        assert_eq!(after.command_buffers, before.command_buffers + 1);
+        assert_eq!(after.host_waits, before.host_waits);
+        assert!(out.iter().flatten().all(|&v| v == K::ONE));
+        false
     }
 }
 
@@ -131,8 +150,9 @@ fn first_and_later_terminal_openings_match_all_cpu_coordinates_and_recover_from_
             if blocks == 17 {
                 assert_eq!(after, before);
             } else {
-                assert_eq!(after.command_buffers - before.command_buffers, 4);
-                assert_eq!(after.host_waits - before.host_waits, 4);
+                assert_eq!(after.command_buffers - before.command_buffers, 1);
+                assert_eq!(after.host_waits - before.host_waits, 1);
+                assert_eq!(after.dispatches - before.dispatches, (4 * (3 + 3 * count)) as u64);
                 assert_eq!(
                     after.downloaded_bytes - before.downloaded_bytes,
                     (4 * count * D * size_of::<K>()) as u64
@@ -142,8 +162,7 @@ fn first_and_later_terminal_openings_match_all_cpu_coordinates_and_recover_from_
                     calls: Cell::new(0),
                 };
                 assert_eq!(evaluate(Some(&limited)), expected);
-                assert_eq!(limited.calls.get(), 2);
-                assert_eq!(metal.activity().host_waits - after.host_waits, 1);
+                assert_eq!(limited.calls.get(), 1);
             }
         }
     }

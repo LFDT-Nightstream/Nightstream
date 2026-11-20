@@ -184,42 +184,49 @@ impl MetalSession {
 
     pub(crate) fn tiled_opening(
         &self,
-        matrix: &OpeningMatrix<'_>,
+        matrices: &[OpeningMatrix<'_>],
         weights: &[K],
         witnesses: &[OpeningWitness<'_>],
         budget: usize,
         result: &mut [[K; D]],
     ) -> bool {
         objc2::rc::autoreleasepool(|_| {
-            self.try_tiled_opening(matrix, weights, witnesses, budget, result)
+            self.try_tiled_opening(matrices, weights, witnesses, budget, result)
                 .is_some()
         })
     }
 
     fn try_tiled_opening(
         &self,
-        m: &OpeningMatrix<'_>,
+        matrices: &[OpeningMatrix<'_>],
         weights: &[K],
         witnesses: &[OpeningWitness<'_>],
         budget: usize,
         result: &mut [[K; D]],
     ) -> Option<()> {
         let k = self.terminal.as_ref()?;
-        let blocks = m.tiles.first.len().checked_sub(1)?;
-        let slots = m.slots.len();
-        if weights.len() != m.row_count
-            || weights.is_empty()
+        let first_matrix = matrices.first()?;
+        let layout = first_matrix.layout;
+        let blocks = first_matrix.tiles.first.len().checked_sub(1)?;
+        if weights.is_empty()
             || witnesses.is_empty()
-            || witnesses.len() != result.len()
-            || m.tags.len() > u32::MAX as usize - 256
-            || m.rows.len() > u32::MAX as usize
-            || slots >= u32::MAX as usize
+            || witnesses.len().checked_mul(matrices.len())? != result.len()
             || blocks == 0
             || blocks > (u32::MAX as usize) / D
-            || !witnesses.iter().all(|w| match w {
-                OpeningWitness::Signed { positive, negative } => positive.len() == blocks && negative.len() == blocks,
-                OpeningWitness::Dense(rings) => rings.len() == blocks,
-                OpeningWitness::Centered(digits) => digits.len() == blocks,
+            || matrices.iter().any(|m| {
+                m.row_count != weights.len()
+                    || m.tiles.first.len() != blocks + 1
+                    || m.tags.len() > u32::MAX as usize - 256
+                    || m.rows.len() > u32::MAX as usize
+                    || m.slots.len() >= u32::MAX as usize
+                    || !std::ptr::eq(m.layout.starts, layout.starts)
+                    || !std::ptr::eq(m.layout.widths, layout.widths)
+                    || m.layout.ratio != layout.ratio
+            })
+            || witnesses.iter().any(|w| match w {
+                OpeningWitness::Signed { positive, negative } => positive.len() != blocks || negative.len() != blocks,
+                OpeningWitness::Dense(rows) => rows.len() != blocks,
+                OpeningWitness::Centered(rows) => rows.len() != blocks,
             })
         {
             return None;
@@ -233,48 +240,37 @@ impl MetalSession {
             remaining: budget,
             page,
         };
-        let offsets = ws.view(m.offsets, 4)?;
-        let rows = ws.view(m.rows, 1)?;
-        let tags = ws.view(m.tags, 2)?;
-        let factors = ws.view(m.factors, 8)?;
         let eq = ws.view(weights, 16)?;
-        let occupied = ws.view(m.slots, 4)?;
-        let starts = ws.view(m.layout.starts, 4)?;
-        let widths = ws.view(m.layout.widths, 1)?;
-        let first = ws.view(&m.tiles.first, 4)?;
-        let powers = ws.copy(&m.tiles.powers)?;
+        let starts = ws.view(layout.starts, 4)?;
+        let widths = ws.view(layout.widths, 1)?;
+        let powers = ws.copy(&first_matrix.tiles.powers)?;
+        let mut inputs = Vec::with_capacity(witnesses.len());
+        for witness in witnesses {
+            let input = match witness {
+                OpeningWitness::Signed { positive, negative } => (
+                    WitnessFormat::SignMasks,
+                    ws.view(positive, 8)?,
+                    Some(ws.view(negative, 8)?),
+                ),
+                OpeningWitness::Dense(rows) => (WitnessFormat::FieldWords, ws.view(rows, 8)?, None),
+                OpeningWitness::Centered(rows) => (WitnessFormat::SignedBytes, ws.view(rows, 1)?, None),
+            };
+            inputs.push(input);
+        }
         let workers = blocks.div_ceil(TILE);
         let groups = workers.div_ceil(D);
         let private = MTLResourceOptions::StorageModePrivate;
-        let forms = ws.scratch(slots.checked_mul(16)?, private)?;
+        let max_slots = matrices.iter().map(|m| m.slots.len()).max()?;
+        let max_tasks = matrices.iter().map(|m| m.tiles.tasks.len()).max()?;
+        let forms = ws.scratch(max_slots.checked_mul(16)?, private)?;
         let partial = ws.scratch(workers.checked_mul(D * 16)?, private)?;
         let tier = ws.scratch(groups.checked_mul(D * 16)?, private)?;
-        let answers = ws.scratch(size_of_val(result), MTLResourceOptions::StorageModeShared)?;
-        let mut cfg = Config {
-            shape: [
-                slots as u32,
-                blocks as u32,
-                m.row_bytes as u32,
-                TILE as u32,
-                workers as u32,
-            ],
-            format: WitnessFormat::FieldWords,
-            columns: [
-                offsets.count,
-                rows.count,
-                tags.count,
-                factors.count,
-                eq.count,
-                occupied.count,
-                starts.count,
-                widths.count,
-            ],
-            witness: 0,
-            negative: 0,
-            first: first.count,
-            tasks: 0,
-            heavy: 0,
+        let pieces = if max_tasks == 0 {
+            None
+        } else {
+            Some(ws.scratch(max_tasks.checked_mul(16)?, private)?)
         };
+        let answers = ws.scratch(size_of_val(result), MTLResourceOptions::StorageModeShared)?;
         let command = self.command_buffer("nightstream.terminal_opening").ok()?;
         let pass = |p: &Pipeline, args: &[Arg<'_>], groups, threads| -> Option<()> {
             let encoder = command.computeCommandEncoder()?;
@@ -283,121 +279,143 @@ impl MetalSession {
             Some(())
         };
         use Arg::{Buffer as B, BufferAt, Words};
-        pass(
-            &k.weights,
-            &[
-                B(0, &offsets.head),
-                B(1, &rows.head),
-                B(2, &tags.head),
-                B(3, &factors.head),
-                B(4, &eq.head),
-                B(5, &forms),
-                Words(6, &cfg.words()),
-                B(7, &offsets.tail),
-                B(8, &rows.tail),
-                B(9, &tags.tail),
-                B(10, &factors.tail),
-                B(11, &eq.tail),
-            ],
-            slots.div_ceil(128),
-            128,
-        )?;
-        if !m.tiles.tasks.is_empty() {
-            let tasks = ws.view(&m.tiles.tasks, 8)?;
-            cfg.tasks = tasks.count;
-            let heavy = ws.view(&m.tiles.heavy, 16)?;
-            cfg.heavy = heavy.count;
-            let pieces = ws.scratch(m.tiles.tasks.len().checked_mul(16)?, private)?;
+        for (matrix_index, m) in matrices.iter().enumerate() {
+            let slots = m.slots.len();
+            let offsets = ws.view(m.offsets, 4)?;
+            let rows = ws.view(m.rows, 1)?;
+            let tags = ws.view(m.tags, 2)?;
+            let factors = ws.view(m.factors, 8)?;
+            let occupied = ws.view(m.slots, 4)?;
+            let first = ws.view(&m.tiles.first, 4)?;
+            let mut cfg = Config {
+                shape: [
+                    slots as u32,
+                    blocks as u32,
+                    m.row_bytes as u32,
+                    TILE as u32,
+                    workers as u32,
+                ],
+                format: WitnessFormat::FieldWords,
+                columns: [
+                    offsets.count,
+                    rows.count,
+                    tags.count,
+                    factors.count,
+                    eq.count,
+                    occupied.count,
+                    starts.count,
+                    widths.count,
+                ],
+                witness: 0,
+                negative: 0,
+                first: first.count,
+                tasks: 0,
+                heavy: 0,
+            };
             pass(
-                &k.heavy_weights,
+                &k.weights,
                 &[
-                    B(0, &tasks.head),
-                    B(7, &tasks.tail),
+                    B(0, &offsets.head),
                     B(1, &rows.head),
                     B(2, &tags.head),
                     B(3, &factors.head),
                     B(4, &eq.head),
-                    B(5, &pieces),
+                    B(5, &forms),
                     Words(6, &cfg.words()),
+                    B(7, &offsets.tail),
                     B(8, &rows.tail),
                     B(9, &tags.tail),
                     B(10, &factors.tail),
                     B(11, &eq.tail),
                 ],
-                m.tiles.tasks.len(),
-                32,
+                slots.div_ceil(128),
+                128,
             )?;
-            pass(
-                &k.heavy_merge,
-                &[
-                    B(0, &heavy.head),
-                    B(1, &pieces),
-                    B(2, &forms),
-                    B(3, &heavy.tail),
-                    Words(4, &cfg.words()),
-                ],
-                m.tiles.heavy.len(),
-                32,
-            )?;
-        }
-        for (index, witness) in witnesses.iter().enumerate() {
-            let (source, negative) = match witness {
-                OpeningWitness::Signed { positive, negative } => {
-                    cfg.format = WitnessFormat::SignMasks;
-                    (ws.view(positive, 8)?, Some(ws.view(negative, 8)?))
-                }
-                OpeningWitness::Dense(rings) => {
-                    cfg.format = WitnessFormat::FieldWords;
-                    (ws.view(rings, 8)?, None)
-                }
-                OpeningWitness::Centered(digits) => {
-                    cfg.format = WitnessFormat::SignedBytes;
-                    (ws.view(digits, 1)?, None)
-                }
-            };
-            let neg = negative.as_ref().unwrap_or(&source);
-            cfg.witness = source.count;
-            cfg.negative = neg.count;
-            pass(
-                &k.opening,
-                &[
-                    B(0, &first.head),
-                    B(15, &first.tail),
-                    B(1, &occupied.head),
-                    B(2, &forms),
-                    B(3, &starts.head),
-                    B(4, &widths.head),
-                    B(5, &source.head),
-                    B(6, &neg.head),
-                    B(7, &powers),
-                    B(8, &partial),
-                    Words(9, &cfg.words()),
-                    B(10, &occupied.tail),
-                    B(11, &starts.tail),
-                    B(12, &widths.tail),
-                    B(13, &source.tail),
-                    B(14, &neg.tail),
-                ],
-                workers,
-                D,
-            )?;
-            pass(
-                &k.reduce,
-                &[B(0, &partial), B(1, &tier), Words(2, &cfg.words())],
-                groups,
-                D,
-            )?;
-            pass(
-                &k.finish,
-                &[
-                    B(0, &tier),
-                    BufferAt(1, &answers, index * D * 16),
-                    Words(2, &cfg.words()),
-                    B(3, &powers),
-                ],
-                1,
-                D,
-            )?;
+            if !m.tiles.tasks.is_empty() {
+                let tasks = ws.view(&m.tiles.tasks, 8)?;
+                cfg.tasks = tasks.count;
+                let heavy = ws.view(&m.tiles.heavy, 16)?;
+                cfg.heavy = heavy.count;
+                let pieces = pieces.as_ref()?;
+                pass(
+                    &k.heavy_weights,
+                    &[
+                        B(0, &tasks.head),
+                        B(7, &tasks.tail),
+                        B(1, &rows.head),
+                        B(2, &tags.head),
+                        B(3, &factors.head),
+                        B(4, &eq.head),
+                        B(5, pieces),
+                        Words(6, &cfg.words()),
+                        B(8, &rows.tail),
+                        B(9, &tags.tail),
+                        B(10, &factors.tail),
+                        B(11, &eq.tail),
+                    ],
+                    m.tiles.tasks.len(),
+                    32,
+                )?;
+                pass(
+                    &k.heavy_merge,
+                    &[
+                        B(0, &heavy.head),
+                        B(1, pieces),
+                        B(2, &forms),
+                        B(3, &heavy.tail),
+                        Words(4, &cfg.words()),
+                    ],
+                    m.tiles.heavy.len(),
+                    32,
+                )?;
+            }
+            for (witness_index, (format, source, negative)) in inputs.iter().enumerate() {
+                cfg.format = *format;
+                let neg = negative.as_ref().unwrap_or(source);
+                let index = matrix_index * inputs.len() + witness_index;
+                cfg.witness = source.count;
+                cfg.negative = neg.count;
+                pass(
+                    &k.opening,
+                    &[
+                        B(0, &first.head),
+                        B(15, &first.tail),
+                        B(1, &occupied.head),
+                        B(2, &forms),
+                        B(3, &starts.head),
+                        B(4, &widths.head),
+                        B(5, &source.head),
+                        B(6, &neg.head),
+                        B(7, &powers),
+                        B(8, &partial),
+                        Words(9, &cfg.words()),
+                        B(10, &occupied.tail),
+                        B(11, &starts.tail),
+                        B(12, &widths.tail),
+                        B(13, &source.tail),
+                        B(14, &neg.tail),
+                    ],
+                    workers,
+                    D,
+                )?;
+                pass(
+                    &k.reduce,
+                    &[B(0, &partial), B(1, &tier), Words(2, &cfg.words())],
+                    groups,
+                    D,
+                )?;
+                pass(
+                    &k.finish,
+                    &[
+                        B(0, &tier),
+                        BufferAt(1, &answers, index * D * 16),
+                        Words(2, &cfg.words()),
+                        B(3, &powers),
+                    ],
+                    1,
+                    D,
+                )?;
+            }
         }
         self.finish(&command).ok()?;
         let raw = host_view::<[[u64; 2]; D]>(&answers, result.len());

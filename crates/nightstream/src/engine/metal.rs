@@ -85,7 +85,7 @@ impl TerminalOpeningDevice for Device {
     }
     fn evaluate(
         &self,
-        matrix: &OpeningMatrix<'_>,
+        matrices: &[OpeningMatrix<'_>],
         weights: &[neo_math::K],
         witnesses: &[OpeningWitness<'_>],
         budget: usize,
@@ -93,6 +93,6 @@ impl TerminalOpeningDevice for Device {
     ) -> bool {
         self.0
             .lock()
-            .is_ok_and(|prover| prover.evaluate(matrix, weights, witnesses, budget, result))
+            .is_ok_and(|prover| prover.evaluate(matrices, weights, witnesses, budget, result))
     }
 }

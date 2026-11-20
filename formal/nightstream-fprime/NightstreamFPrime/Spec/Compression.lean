@@ -4,10 +4,15 @@ import NightstreamFPrime.Spec.Compression.Akita.Challenge
 import NightstreamFPrime.Spec.Compression.Akita.Commit
 import NightstreamFPrime.Spec.Compression.Akita.Euclid
 import NightstreamFPrime.Spec.Compression.Akita.Fold
+import NightstreamFPrime.Spec.Compression.Akita.FoldCheck
+import NightstreamFPrime.Spec.Compression.Akita.FoldSumCheck
+import NightstreamFPrime.Spec.Compression.Akita.Layout
+import NightstreamFPrime.Spec.Compression.Akita.LiftReduction
 import NightstreamFPrime.Spec.Compression.Akita.Opening
 import NightstreamFPrime.Spec.Compression.Akita.Prover
 import NightstreamFPrime.Spec.Compression.Akita.Range
 import NightstreamFPrime.Spec.Compression.Akita.RingCheck
+import NightstreamFPrime.Spec.Compression.Akita.RowBatch
 import NightstreamFPrime.Spec.Compression.Akita.Shapes
 import NightstreamFPrime.Spec.Compression.Akita.Terminal
 import NightstreamFPrime.Spec.Compression.Akita.Trace
@@ -42,4 +47,8 @@ relation, the weak opening, the weak binding and the extraction of one packing f
 the Euclidean norms and the Euclidean route of the weak binding (`Akita/Euclid`), the norm checks of
 the next witness (`Akita/Range`), the checks of the ring relations (`Akita/RingCheck`), the packing
 map and the trace identity for `k = 2` (`Akita/Trace`), one fold with the evaluation-trace method
-(`Akita/TraceFold`) and the evaluation-trace terminal (`Akita/Terminal`). -/
+(`Akita/TraceFold`) and the evaluation-trace terminal (`Akita/Terminal`), and the row batching and
+the quotient-free reduction (`Akita/RowBatch`), the quotient-lift reduction
+(`Akita/LiftReduction`), the sum-checks of one fold (`Akita/FoldSumCheck`), the checks of one fold
+as a game with its error (`Akita/FoldCheck`) and the link from these checks to the branch relation
+(`Akita/Layout`). -/

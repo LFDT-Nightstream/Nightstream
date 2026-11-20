@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Fail when a hypothesis of a claim has no class in SECURITY_MODEL.md.
 
-Lean writes the hypotheses of each theorem of `NightstreamFPrime.Claims` to PREMISES, one line
-for each: the theorem, the hypothesis and the constant at the head of its type. A hypothesis is a
+Lean writes one TSV file per claims module in PREMISES. Each line gives the theorem, the
+hypothesis and the constant at the head of its type. A hypothesis is a
 binder whose type is a proposition, or a proof field of a binder whose type is a structure of the
-package or a function to one. The Lean build fails when the file is not current
+package or a function to one. The Lean build fails when a premise file is not current
 (`#premise_census`).
 
 SECURITY_MODEL.md holds one table between the premise markers. A row gives hypothesis names (a
@@ -34,13 +34,19 @@ from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1]
 ROOT = PACKAGE.parents[1]
-PREMISES = PACKAGE / 'artifacts/nightstream-fprime-premises-v1.tsv'
+PREMISES = PACKAGE / 'artifacts/nightstream-fprime-premises-v1'
 BEGIN, END = '<!-- premises:begin -->', '<!-- premises:end -->'
 CLASSES = ('assumption', 'lean', 'link', 'game', 'open')
 TICKED = re.compile(r'`([^`]+)`')
 LEAN_NAME = re.compile(r'(?:Claims|Export|Layout|Lifecycle|Spec)\.[\w.]+')
 SPEC_PLACE = re.compile(r'`SPEC\.md` (Algorithm \d+|section \d+(?:\.\d+)?)')
 ADVERSARY = re.compile(r'adversary (\d+)')
+
+
+def read_premises():
+    modules = PACKAGE / 'NightstreamFPrime/Claims'
+    return ''.join((PREMISES / module.with_suffix('.tsv').name).read_text()
+                   for module in sorted(modules.glob('*.lean')))
 
 
 def premise_lines(text):
@@ -150,18 +156,20 @@ def main():
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     from check_assumptions import assumption_list
     model = (PACKAGE / 'SECURITY_MODEL.md').read_text()
-    if not PREMISES.is_file():
-        print(f'[premises] {PREMISES.name} is missing: run scripts/validate.sh premises',
+    try:
+        premises = read_premises()
+    except FileNotFoundError as error:
+        print(f'[premises] {error.filename} is missing: run scripts/validate.sh premises',
               file=sys.stderr)
         return 1
     context = {'assumptions': assumption_list(model)[1], 'tests': rust_tests(), 'model': model,
                'spec': (ROOT / 'SPEC.md').read_text()}
-    errors, opened = check(model, PREMISES.read_text(), context)
+    errors, opened = check(model, premises, context)
     for error in errors:
         print(f'[premises] SECURITY_MODEL.md: {error}', file=sys.stderr)
     if errors:
         return 1
-    theorems = {line[0] for line in premise_lines(PREMISES.read_text())}
+    theorems = {line[0] for line in premise_lines(premises)}
     print(f'[premises] each hypothesis of {len(theorems)} theorems has one class; '
           f'{opened} rows are open')
     return 0

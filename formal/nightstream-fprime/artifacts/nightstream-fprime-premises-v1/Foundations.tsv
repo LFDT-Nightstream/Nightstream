@@ -1,0 +1,11 @@
+Claims.Foundations.chain_norm	-	-
+Claims.Foundations.low_norm_invertible	-	-
+Claims.Foundations.setup_element_bias	-	-
+Claims.Foundations.setup_error	-	-
+Claims.Foundations.setup_fallback_bound	-	-
+Claims.Foundations.sumcheck_hit_probability	message.coefficients_length	Eq
+Claims.Foundations.sumcheck_hit_probability	semantic.coefficients_length	Eq
+Claims.Foundations.sumcheck_hit_probability	represents	Spec.SumCheck.Finite.FixedPhase.Represents
+Claims.Foundations.sumcheck_sound	accepted	Spec.SumCheck.Accepted
+Claims.Foundations.sumcheck_sound	truth	Spec.SumCheck.TruthPath
+Claims.Foundations.sumcheck_sound	falseClaim	Not

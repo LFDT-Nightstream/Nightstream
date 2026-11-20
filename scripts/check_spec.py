@@ -50,7 +50,7 @@ FORMATS = FPRIME / "Export/BoundedDepth/StepPackage.lean"
 PARITY_SOURCE = FPRIME / "Export/BoundedDepth/Parity.lean"
 BEGIN, END = "<!-- params -->", "<!-- /params -->"
 ENTRY_BEGIN, ENTRY_END = "<!-- entry-points -->", "<!-- /entry-points -->"
-PREMISES = ARTIFACTS / "nightstream-fprime-premises-v1.tsv"
+PREMISES = ARTIFACTS / "nightstream-fprime-premises-v1"
 ENTRY_FUNCTION = re.compile(r"^\s*pub fn (verify\w*)\(", re.M)
 SPEC_FILES = {"SPEC.md", "scripts/gpuscope/SPEC.md"}
 OLD_CITATION = re.compile(r"[Ss]pec §")
@@ -328,7 +328,8 @@ def entry_point_errors(text):
         found = re.match(r"`(crates/[^`]+)`, (?:`(\w+)`)?", cells[0])
         if len(cells) == 3 and found:
             rows[(found.group(1), found.group(2))] = cells[2]
-    listed = {line.split("\t")[0] for line in PREMISES.read_text(encoding="utf-8").splitlines()}
+    listed = {line.split("\t")[0] for module in (FPRIME / "Claims").glob("*.lean")
+              for line in (PREMISES / module.with_suffix(".tsv").name).read_text(encoding="utf-8").splitlines()}
     for (path, name), theorem in rows.items():
         pins = PIN.findall(theorem)
         if theorem.startswith("Open:"):

@@ -18,13 +18,13 @@ DATA = PKG / '.lake/claims-review.json'
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'docs/claims-review/nightstream-claims-review.md'
 CAP = 40
 sys.path.insert(0, str(PKG / 'scripts'))
-from check_premises import table_rows, covers, premise_lines  # noqa: E402
+from check_premises import table_rows, covers, premise_lines, read_premises  # noqa: E402
 
 ORDER = ['Foundations', 'Encodings', 'Fold', 'Step', 'Ivc', 'Nebula', 'Compression', 'Final']
 data = json.loads(DATA.read_text())
 model = (PKG / 'SECURITY_MODEL.md').read_text()
 rows, _ = table_rows(model)
-premises = premise_lines((PKG / 'artifacts/nightstream-fprime-premises-v1.tsv').read_text())
+premises = premise_lines(read_premises())
 commit = subprocess.run(['git', 'rev-parse', '--short=9', 'HEAD'], cwd=ROOT,
                         capture_output=True, text=True).stdout.strip()
 
@@ -70,6 +70,8 @@ w('- `lean`: a named Lean theorem discharges it at the production values.\n'
   '- `link`: Lean emits data and a Rust test checks it on the shipped packages.\n'
   '- `assumption`: an entry of the assumption list below.\n'
   '- `open`: nothing backs it yet.\n')
+w('A field under a function result has all the arguments and hypotheses of that function. '
+  'For example, the bounds under `fitsPackage.blocks` apply when the pieces are packable.\n')
 w('Read the papers next to this file. For each claim, report:\n')
 w('1. Does it state the paper\'s theorem, or a weaker or stronger one? Name the paper section.\n'
   '2. Is a hypothesis missing, too strong, or impossible to meet for the production setup? '

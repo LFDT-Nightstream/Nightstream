@@ -64,13 +64,13 @@ a canonical iteration and a state of four words, has an honest proof: the verifi
 and its fresh witness is zero on every cell from its package width. -/
 theorem accepts_of_history (exports : Exports relation ajtai circuitKeys step cubeFits)
     (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (cap : Nat) (control : AppState → AppWitness → Fin 2) {program : Stage1.Application.Program}
+    (control : AppState → AppWitness → Fin 2) {program : Stage1.Application.Program}
     (programEq : exports.program = program) {statement : TerminalStatement AppState}
     {z witness : ℕ → List F} (history : EndToEnd.History program statement z witness)
     (lengths : ∀ i < statement.iteration, (witness i).length = program.witnessWordCount)
     (z0Length : statement.z0.length = Stage1.Application.stateWordCount)
     (below : statement.iteration < fieldModulus) :
-    ∃ proof, Verifies ajtai circuitKeys step complete.packageWidth cap control statement proof ∧
+    ∃ proof, Verifies ajtai circuitKeys step complete.packageWidth control statement proof ∧
       FreshZeroTail complete.packageWidth proof := by
   subst programEq
   obtain ⟨valid, reaches⟩ :=
@@ -84,7 +84,7 @@ theorem accepts_of_history (exports : Exports relation ajtai circuitKeys step cu
     exact lengths i (List.mem_range.mp member)
   have count : ((List.range statement.iteration).map witness).length = statement.iteration := by
     rw [List.length_map, List.length_range]
-  have accepted := run_complete exports complete keysShaped cap control statement.z0 z0Length
+  have accepted := run_complete exports complete keysShaped control statement.z0 z0Length
     ((List.range statement.iteration).map witness) valid witnessLengths
     (by rw [count]; exact below)
   have last : ((List.range statement.iteration).map witness).foldl step statement.z0 =
@@ -100,14 +100,14 @@ the light circuit last and slot 1 at the default slot of depth 0, and whose fres
 on every cell from its package width (`RunCompleteness.FreshZeroTail`). -/
 theorem light_of_history (exports : Exports relation ajtai circuitKeys step cubeFits)
     (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (cap : Nat) (control : AppState → AppWitness → Fin 2) {program : Stage1.Application.Program}
+    (control : AppState → AppWitness → Fin 2) {program : Stage1.Application.Program}
     (programEq : exports.program = program) {statement : TerminalStatement AppState}
     {z witness : ℕ → List F} (history : EndToEnd.History program statement z witness)
     (lengths : ∀ i < statement.iteration, (witness i).length = program.witnessWordCount)
     (z0Length : statement.z0.length = Stage1.Application.stateWordCount)
     (positive : 0 < statement.iteration)
     (short : statement.iteration ≤ Schedule.productionLightFoldCap + 1) :
-    ∃ payload, Verifies ajtai circuitKeys step complete.packageWidth cap control statement
+    ∃ payload, Verifies ajtai circuitKeys step complete.packageWidth control statement
         (.recursive payload) ∧ payload.pc = 1 ∧ payload.running 1 = (defaultSlot, 0) ∧
       FreshZeroTail complete.packageWidth (.recursive payload) := by
   subst programEq
@@ -123,7 +123,7 @@ theorem light_of_history (exports : Exports relation ajtai circuitKeys step cube
   have count : ((List.range statement.iteration).map witness).length = statement.iteration := by
     rw [List.length_map, List.length_range]
   obtain ⟨payload, verifies, pcOne, slotOne, -, tail⟩ := light_run_complete exports complete keysShaped
-    cap control statement.z0 z0Length ((List.range statement.iteration).map witness) valid
+    control statement.z0 z0Length ((List.range statement.iteration).map witness) valid
     witnessLengths (by rw [count]; exact positive) (by rw [count]; exact short)
   have last : ((List.range statement.iteration).map witness).foldl step statement.z0 =
       statement.zi := by
@@ -151,7 +151,7 @@ theorem memory_complete {p : Plan} {app : PortApp p.toGeometry} (valid : p.Valid
     (exports : Exports relation ajtai circuitKeys step cubeFits)
     (programEq : exports.program = MemoryApp.program p.toGeometry app)
     (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (cap : Nat) (control : AppState → AppWitness → Fin 2)
+    (control : AppState → AppWitness → Fin 2)
     {s₀ s : app.State} {final : Machine} {steps : List (List (Option PortAccess))}
     {segments : ℕ} (count : steps.length = segments * p.n)
     (range : 1 ≤ segments ∧ segments ≤ p.sMax)
@@ -164,17 +164,17 @@ theorem memory_complete {p : Plan} {app : PortApp p.toGeometry} (valid : p.Valid
         ⟨segments * p.n, stateWords (List.ofFn m.initialApp) (carryWords (startCarry (context p))),
           stateWords (List.ofFn m.finalApp) (List.ofFn m.finalCarry)⟩
       EndToEnd.VerifierChecks p statement m ∧
-        ∃ payload, Verifies ajtai circuitKeys step complete.packageWidth cap control statement
+        ∃ payload, Verifies ajtai circuitKeys step complete.packageWidth control statement
             (.recursive payload) ∧ FreshZeroTail complete.packageWidth (.recursive payload) := by
   obtain ⟨carry, z, witness, history, lengths, checks⟩ :=
     MemoryApp.history_of_execution valid count range exec
   refine ⟨carry, checks, ?_⟩
-  obtain ⟨proof, verifies, tail⟩ := accepts_of_history exports complete keysShaped cap control
+  obtain ⟨proof, verifies, tail⟩ := accepts_of_history exports complete keysShaped control
     programEq history lengths (stateWords_length _ _) (steps_lt valid range.2)
   cases proof with
   | bottom =>
     obtain ⟨-, iterationZero, -⟩ :=
-      (Terminal.holdsFor_bottom_iff cap ajtai circuitKeys step control _).mp
+      (Terminal.holdsFor_bottom_iff ajtai circuitKeys step control _).mp
         (holds_of_verifies verifies)
     have zero : segments * p.n = 0 := iterationZero
     exact absurd zero (Nat.mul_pos range.1 valid.positive.2.2.1).ne'
@@ -192,7 +192,7 @@ theorem memory_light_complete {p : Plan} {app : PortApp p.toGeometry} (valid : p
     (exports : Exports relation ajtai circuitKeys step cubeFits)
     (programEq : exports.program = MemoryApp.program p.toGeometry app)
     (complete : Complete exports) (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (cap : Nat) (control : AppState → AppWitness → Fin 2)
+    (control : AppState → AppWitness → Fin 2)
     {s₀ s : app.State} {final : Machine} {steps : List (List (Option PortAccess))}
     {segments : ℕ} (count : steps.length = segments * p.n)
     (range : 1 ≤ segments ∧ segments ≤ p.sMax)
@@ -205,12 +205,12 @@ theorem memory_light_complete {p : Plan} {app : PortApp p.toGeometry} (valid : p
         ⟨segments * p.n, stateWords (List.ofFn m.initialApp) (carryWords (startCarry (context p))),
           stateWords (List.ofFn m.finalApp) (List.ofFn m.finalCarry)⟩
       EndToEnd.VerifierChecks p statement m ∧
-        ∃ payload, Verifies ajtai circuitKeys step complete.packageWidth cap control statement
+        ∃ payload, Verifies ajtai circuitKeys step complete.packageWidth control statement
             (.recursive payload) ∧ payload.pc = 1 ∧ payload.running 1 = (defaultSlot, 0) ∧
           FreshZeroTail complete.packageWidth (.recursive payload) := by
   obtain ⟨carry, z, witness, history, lengths, checks⟩ :=
     MemoryApp.history_of_execution valid count range exec
-  exact ⟨carry, checks, light_of_history exports complete keysShaped cap control programEq history
+  exact ⟨carry, checks, light_of_history exports complete keysShaped control programEq history
     lengths (stateWords_length _ _) (Nat.mul_pos range.1 valid.positive.2.2.1)
     ((Nat.mul_le_mul_right _ range.2).trans light)⟩
 

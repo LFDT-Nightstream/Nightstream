@@ -5,7 +5,7 @@ use neo_math::K;
 use super::carry::{Carry, Products};
 use super::transcript::state_words;
 use super::{
-    Application, Context, Expr, Machine, MachineError, MachineState, Memory, Package, Program, ProgramError, Run,
+    Application, Context, Expr, Machine, MachineError, MachineState, Memory, Package, Program, ProgramError, Row, Run,
     SegmentError, Statement, Step, TerminalError, Transition, View,
 };
 use neo_math::F;
@@ -478,15 +478,36 @@ fn n1_accept(engine: crate::Engine) {
     let setup = memory.compression_setup().unwrap();
     let compressed = memory.compress(&proof, &setup).unwrap();
     let statement = run.statement();
+    let bytes = compressed.to_bytes().unwrap();
+    let decoded = crate::nebula::FinalProof::from_bytes(&bytes).unwrap();
     verifier
         .verify_final(
             &Package::N1.program(),
             &statement.initial,
             &statement.final_,
             &key,
-            &compressed,
+            &decoded,
         )
         .unwrap();
+    assert!(crate::nebula::FinalProof::from_bytes(&bytes[..bytes.len() - 1]).is_err());
+    let mut longer = bytes.clone();
+    longer.push(0);
+    assert!(crate::nebula::FinalProof::from_bytes(&longer).is_err());
+    let mut aliased = bytes.clone();
+    aliased[..8].copy_from_slice(&u64::MAX.to_le_bytes());
+    assert!(crate::nebula::FinalProof::from_bytes(&aliased).is_err());
+    let mut changed = bytes;
+    changed[0] ^= 1;
+    let changed = crate::nebula::FinalProof::from_bytes(&changed).unwrap();
+    assert!(verifier
+        .verify_final(
+            &Package::N1.program(),
+            &statement.initial,
+            &statement.final_,
+            &key,
+            &changed,
+        )
+        .is_err());
 }
 
 #[test]
@@ -703,10 +724,10 @@ impl Application for Changed {
         Machine.words(state)
     }
 
-    fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
+    fn rows(&self, view: &View) -> Result<Vec<Row>, crate::Error> {
         let mut rows = Machine.rows(view)?;
         if let Changed::Row = self {
-            rows[2] = rows[2].clone() * Expr::constant(2);
+            rows[2] = (rows[2].expr() * Expr::constant(2)).into();
         }
         Ok(rows)
     }
@@ -842,11 +863,11 @@ impl Application for ReadsWord {
         Vec::new()
     }
 
-    fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
+    fn rows(&self, view: &View) -> Result<Vec<Row>, crate::Error> {
         let word = crate::application::ApplicationBuilder::new(self.0 + 1)
             .unwrap()
             .private_inputs()[self.0];
-        Ok(vec![view.pad(0) * (view.vr(0) - Expr::Var(word))])
+        Ok(vec![(view.pad(0) * (view.vr(0) - Expr::Var(word))).into()])
     }
 
     fn step(&self, _: &(), _: &(), _: &Memory) -> Result<Transition<()>, Self::Error> {
@@ -898,7 +919,7 @@ impl Application for Listed {
         state.clone()
     }
 
-    fn rows(&self, _: &View) -> Result<Vec<Expr>, crate::Error> {
+    fn rows(&self, _: &View) -> Result<Vec<Row>, crate::Error> {
         Ok(Vec::new())
     }
 

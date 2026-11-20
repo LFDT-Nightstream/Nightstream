@@ -1,13 +1,10 @@
-use std::{collections::BTreeMap, ops::ControlFlow, rc::Rc};
+use std::{collections::BTreeMap, ops::ControlFlow};
 
 use neo_ccs::crypto::poseidon2::WIDTH;
 use neo_math::Fq as F;
 use p3_field::PrimeCharacteristicRing;
 
-use super::{
-    expr::{lower_affine, lower_constraint, rank_one_row},
-    Expr, View,
-};
+use super::{expr::lower_affine, Expr, Row, View};
 use crate::application::{permutation, Affine, ApplicationBuilder, ApplicationCircuit, ApplicationError, Variable};
 
 const WORDS: usize = nightstream_fprime::BLOCK_LOCALS;
@@ -31,15 +28,6 @@ fn variable(expression: Expr) -> Result<Variable, ApplicationError> {
     match expression {
         Expr::Var(variable) => Ok(variable),
         _ => Err(invalid()),
-    }
-}
-
-fn substitute(expression: &Expr, aliases: &Aliases) -> Expr {
-    match expression {
-        Expr::Var(variable) => Expr::Var(*aliases.get(variable).unwrap_or(variable)),
-        Expr::Const(value) => Expr::Const(*value),
-        Expr::Add(left, right) => Expr::Add(Rc::new(substitute(left, aliases)), Rc::new(substitute(right, aliases))),
-        Expr::Mul(left, right) => Expr::Mul(Rc::new(substitute(left, aliases)), Rc::new(substitute(right, aliases))),
     }
 }
 
@@ -80,7 +68,7 @@ fn same(left: &Affine, right: &Affine) -> bool {
 
 pub(super) fn lower(
     builder: &mut ApplicationBuilder,
-    rows: &[Expr],
+    rows: Vec<Row>,
     mut hints: Vec<Poseidon2Hint>,
     view: &View,
     aux_count: usize,
@@ -88,7 +76,7 @@ pub(super) fn lower(
     let mut aliases = Aliases::new();
     if hints.is_empty() {
         for row in rows {
-            lower_constraint(builder, row)?;
+            row.lower(builder)?;
         }
         return Ok(aliases);
     }
@@ -143,7 +131,9 @@ pub(super) fn lower(
             }
         }
         for offset in 0..WORDS {
-            let (a, b, c) = rank_one_row(&rows[hint.row_start + offset]).ok_or_else(invalid)?;
+            let (a, b, c) = rows[hint.row_start + offset]
+                .rank_one()
+                .ok_or_else(invalid)?;
             let actual = [a, b, c];
             let expected = expected_row(&reference, offset, &lanes, trace)?;
             if !actual.iter().zip(&expected).all(|(a, b)| same(a, b)) {
@@ -165,9 +155,10 @@ pub(super) fn lower(
             aliases.insert(*source, Variable(first + offset));
         }
     }
-    for (row, covered) in rows.iter().zip(covered) {
+    for (mut row, covered) in rows.into_iter().zip(covered) {
         if !covered {
-            lower_constraint(builder, &substitute(row, &aliases))?;
+            row.rename(&aliases);
+            row.lower(builder)?;
         }
     }
     Ok(aliases)

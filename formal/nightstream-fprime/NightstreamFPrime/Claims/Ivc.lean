@@ -60,13 +60,12 @@ theorem terminal_bridge
     (exports : TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
     (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
     (control : AppState → AppWitness → Fin 2)
-    (cap : ℕ)
     (statement : Paper.TerminalStatement AppState)
     (payload : Paper.TerminalProof (SlotData logicalWidth publicFits)
         (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
         (StepFresh logicalWidth publicFits)
         (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
-    (accepted : Terminal.HoldsFor cap ajtai circuitKeys step control statement
+    (accepted : Terminal.HoldsFor ajtai circuitKeys step control statement
         (Paper.OuterTerminalProof.recursive payload)) :
     BoundedDepth.StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step
             (TerminalBridge.chosen exports.program (TerminalBridge.circuitOf payload.pc))
@@ -77,7 +76,7 @@ theorem terminal_bridge
             (exports.last payload).output ∨
         TerminalBridge.Collision exports statement payload :=
   @Export.BoundedDepth.TerminalBridge.bridge logicalWidth publicFits relation ajtai circuitKeys
-    step cubeFits exports keysShaped control cap statement payload accepted
+    step cubeFits exports keysShaped control statement payload accepted
 
 /-- Every accumulator of an accepted history stays below `B` when honest, and extraction
 recovers each below `B + cap · T · (b − 1)`. -/
@@ -131,18 +130,17 @@ theorem false_acceptance_bound
     (admitted : StageAdmitted (ReverseStages.Stage.start (IvcSecurity.walkAdversary adversary)))
     (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
     (control : AppState → AppWitness → Fin 2)
-    (cap : ℕ)
     (depth : ℕ)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
     ENNReal.toReal
           ((adversary.tape.toOuterMeasure : Set adversary.Tape → ENNReal)
             {tape : adversary.Tape |
-              IvcSecurity.FalseAcceptance ajtai circuitKeys exports control cap
+              IvcSecurity.FalseAcceptance ajtai circuitKeys exports control
                 (adversary.output tape)}) ≤
         IvcSecurity.walkBound ajtai circuitKeys exports assumption closed adversary admitted depth :=
   @Export.BoundedDepth.IvcSecurity.probability_bound logicalWidth publicFits relation ajtai
     circuitKeys step cubeFits exports Admitted StageAdmitted Efficient error assumption closed
-    adversary admitted keysShaped control cap depth depthBound
+    adversary admitted keysShaped control depth depthBound
 
 /-- HyperNova Lemma 18 for the bounded-depth scheme, on the extractor's output: the probability that the terminal
 accepts the adversary's output and the witnesses that the reverse extractor returns do not lead
@@ -173,7 +171,6 @@ theorem extraction_bound
     (admitted : StageAdmitted (ReverseStages.Stage.start (IvcSecurity.walkAdversary adversary)))
     (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
     (control : AppState → AppWitness → Fin 2)
-    (cap : ℕ)
     (depth : ℕ)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
     ENNReal.toReal
@@ -196,7 +193,7 @@ theorem extraction_bound
                       (IvcSecurity.walkAdversary adversary) admitted depth) :
                   ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
                     (IvcWalk.Answer logicalWidth publicFits)).Tape |
-              IvcSecurity.ExtractionFailure ajtai circuitKeys exports control cap
+              IvcSecurity.ExtractionFailure ajtai circuitKeys exports control
                 ((↑(ReverseStages.reverseStages (Succeeds := IvcWalk.WalkSucceeds ajtai)
                           (Extracted := IvcWalk.WalkExtracted ajtai) (Admitted := Admitted)
                           (StageAdmitted := StageAdmitted) (Efficient := Efficient) assumption
@@ -214,7 +211,7 @@ theorem extraction_bound
         IvcSecurity.walkBound ajtai circuitKeys exports assumption closed adversary admitted depth :=
   @Export.BoundedDepth.IvcSecurity.extraction_bound logicalWidth publicFits relation ajtai
     circuitKeys step cubeFits exports Admitted StageAdmitted Efficient error assumption closed
-    adversary admitted keysShaped control cap depth depthBound
+    adversary admitted keysShaped control depth depthBound
 
 /-- The numeric form of `IvcSecurity.walkBound` under `[P2-PERM]` and `[SPONGE]`: when the finder
 of each stage `j` moves under `Spec.Sponge.Transfer` of its collision event with `calls j`
@@ -291,18 +288,17 @@ theorem verifier_sound
     (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
     (packageWidths : Fin 2 → ℕ)
     (control : AppState → AppWitness → Fin 2)
-    (cap : ℕ)
     (depth : ℕ)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
     ENNReal.toReal
           ((adversary.tape.toOuterMeasure : Set adversary.Tape → ENNReal)
             {tape : adversary.Tape |
               VerifierSecurity.FalseVerification ajtai circuitKeys exports packageWidths control
-                cap (adversary.output tape)}) ≤
+                (adversary.output tape)}) ≤
         IvcSecurity.walkBound ajtai circuitKeys exports assumption closed adversary admitted depth :=
   @Export.BoundedDepth.VerifierSecurity.soundness logicalWidth publicFits relation ajtai
     circuitKeys step cubeFits exports Admitted StageAdmitted Efficient error assumption closed
-    adversary admitted keysShaped packageWidths control cap depth depthBound
+    adversary admitted keysShaped packageWidths control depth depthBound
 
 /-- Completeness of bounded-depth IVC: for every valid run of the application from `z0` whose
 witnesses have the application's witness length, the verifier of SPEC.md Algorithm 6 accepts the
@@ -321,7 +317,6 @@ theorem run_complete
     (exports : TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
     (complete : StepExtend.Complete exports)
     (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
-    (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
     (z0 : AppState)
     (z0Length : List.length z0 = Stage1.Application.stateWordCount)
@@ -330,11 +325,11 @@ theorem run_complete
     (witnessLengths : ∀ witness ∈ witnesses, List.length witness = exports.program.witnessWordCount)
     (runBelow : witnesses.length < fieldModulus) :
     ∃ (proof : Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits)),
-      RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth cap control
+      RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth control
           { iteration := witnesses.length, z0 := z0, zi := List.foldl step z0 witnesses } proof ∧
         RunCompleteness.FreshZeroTail complete.packageWidth proof :=
   @Export.BoundedDepth.RunCompleteness.run_complete logicalWidth publicFits relation ajtai
-    circuitKeys step cubeFits exports complete keysShaped cap control z0 z0Length witnesses validRun
+    circuitKeys step cubeFits exports complete keysShaped control z0 z0Length witnesses validRun
     witnessLengths runBelow
 
 /-- Completeness of the light mode of the compressed proof (SPEC.md Algorithm 9): for every valid
@@ -355,7 +350,6 @@ theorem light_run_complete
     (exports : TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
     (complete : StepExtend.Complete exports)
     (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
-    (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
     (z0 : AppState)
     (z0Length : List.length z0 = Stage1.Application.stateWordCount)
@@ -369,7 +363,7 @@ theorem light_run_complete
           (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
           (StepFresh logicalWidth publicFits)
           (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2),
-      RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth cap control
+      RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth control
           { iteration := witnesses.length, z0 := z0, zi := List.foldl step z0 witnesses }
           (Paper.OuterTerminalProof.recursive payload) ∧
         payload.pc = 1 ∧ payload.running 1 = (defaultSlot, 0) ∧
@@ -377,7 +371,7 @@ theorem light_run_complete
         RunCompleteness.FreshZeroTail complete.packageWidth
           (Paper.OuterTerminalProof.recursive payload) :=
   @Export.BoundedDepth.RunCompleteness.light_run_complete logicalWidth publicFits relation ajtai
-    circuitKeys step cubeFits exports complete keysShaped cap control z0 z0Length witnesses validRun
+    circuitKeys step cubeFits exports complete keysShaped control z0 z0Length witnesses validRun
     witnessLengths positive short
 
 /-- HyperNova Definition 11 (i) for the bounded-depth scheme: one valid step extends each proof
@@ -396,11 +390,10 @@ theorem step_extends
     (exports : TerminalBridge.Exports relation ajtai circuitKeys step cubeFits)
     (complete : StepExtend.Complete exports)
     (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
-    (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
     (statement : Paper.TerminalStatement AppState)
     (proof : Terminal.ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (verifies : RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth cap control statement
+    (verifies : RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth control statement
         proof)
     (witness : AppWitness)
     (valid : exports.program.valid statement.zi witness)
@@ -411,14 +404,14 @@ theorem step_extends
           (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
           (StepFresh logicalWidth publicFits)
           (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2),
-        RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth cap control
+        RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth control
             { iteration := statement.iteration + 1, z0 := statement.z0,
               zi := step statement.zi witness }
             (Paper.OuterTerminalProof.recursive next) ∧
           RunCompleteness.FreshZeroTail complete.packageWidth
             (Paper.OuterTerminalProof.recursive next) :=
   @Export.BoundedDepth.RunCompleteness.verifies_step logicalWidth publicFits relation ajtai
-    circuitKeys step cubeFits exports complete keysShaped cap control statement proof verifies
+    circuitKeys step cubeFits exports complete keysShaped control statement proof verifies
     witness valid iterationNext witnessLength
 
 /-- HyperNova Lemma 18 for one slot of the bounded-depth scheme: the chance that the slot's history is accepted

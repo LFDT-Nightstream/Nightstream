@@ -57,7 +57,6 @@ theorem verify_sound
         (HyperNova.ReverseStages.Stage.start (IvcSecurity.walkAdversary adversary)))
     (packageWidths : Fin 2 → ℕ)
     (control : AppState → AppWitness → Fin 2)
-    (cap : ℕ)
     (depth : ℕ)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
     ENNReal.toReal
@@ -65,13 +64,13 @@ theorem verify_sound
             {tape : adversary.Tape |
               VerifierSecurity.FalseVerification ajtai (Shipped.keys identity relations)
                 (Shipped.exports facts identity relations lightKey refreshKey) packageWidths
-                control cap (adversary.output tape)}) ≤
+                control (adversary.output tape)}) ≤
         IvcSecurity.walkBound ajtai (Shipped.keys identity relations)
           (Shipped.exports facts identity relations lightKey refreshKey) assumption closed
           adversary admitted depth :=
   @Export.BoundedDepth.Shipped.verify_sound ajtai facts identity relations lightKey refreshKey
     Admitted StageAdmitted Efficient error assumption closed adversary admitted packageWidths
-    control cap depth depthBound
+    control depth depthBound
 
 /-- `Verifier::verify_final` (SPEC.md Algorithm 10) at the shipped packages of the reference
 application, with Akita openings: the probability of a false history is at most

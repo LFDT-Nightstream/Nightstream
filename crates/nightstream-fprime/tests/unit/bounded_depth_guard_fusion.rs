@@ -327,3 +327,132 @@ fn indexed_family_search_equals_the_full_scan() {
         assert_eq!(index.containing(&terms).collect::<Vec<_>>(), scan, "{terms:?}");
     }
 }
+
+fn random(seed: u64) -> impl FnMut(u64) -> usize {
+    let mut state = seed;
+    move |bound: u64| {
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        ((state >> 33) % bound) as usize
+    }
+}
+
+/// The grouping before `groups`: one map entry and one key for each family
+/// and residual form.
+fn keyed_groups(candidates: &[Guarded], families: &Families) -> Vec<(usize, Vec<usize>)> {
+    let mut groups: BTreeMap<(usize, Key), Vec<usize>> = BTreeMap::new();
+    for (index, candidate) in candidates.iter().enumerate() {
+        if candidate.gate.constant != F::ZERO {
+            continue;
+        }
+        for family_index in families.containing(&candidate.gate.terms) {
+            let mut common = candidate.residual.clone();
+            common.constant = F::ZERO;
+            groups
+                .entry((family_index, key(&common)))
+                .or_default()
+                .push(index);
+        }
+    }
+    let mut groups = groups.into_iter().collect::<Vec<_>>();
+    groups.sort_by(|left, right| {
+        right
+            .1
+            .len()
+            .cmp(&left.1.len())
+            .then_with(|| left.0.cmp(&right.0))
+    });
+    groups
+        .into_iter()
+        .map(|((family, _), members)| (family, members))
+        .collect()
+}
+
+#[test]
+fn sorted_groups_equal_the_keyed_groups() {
+    let mut next = random(0x51ed_270b_27a3_c4e1);
+    // Prefixes, and coefficients on both sides of q/2, so that the order of
+    // the canonical words decides ties.
+    let residuals = [
+        vec![(40, F::ONE)],
+        vec![(40, F::ONE), (41, F::TWO)],
+        vec![(40, F::ONE), (41, -F::ONE)],
+        vec![(40, F::ONE), (42, F::TWO)],
+        vec![(41, F::ONE)],
+        vec![(41, F::ONE), (43, F::from_u64(5))],
+        Vec::new(),
+    ];
+    for round in 0..40 {
+        let families = Families::new(
+            (0..2 + next(30))
+                .map(|source| Family {
+                    source,
+                    selectors: (0..2 + next(4)).map(|_| 10 + next(12)).collect(),
+                    total_one: next(2) == 0,
+                })
+                .collect(),
+        );
+        let candidates = (0..next(400))
+            .map(|source| Guarded {
+                source,
+                gate: Linear {
+                    constant: if next(8) == 0 { F::ONE } else { F::ZERO },
+                    terms: (0..1 + next(2)).map(|_| (10 + next(12), F::ONE)).collect(),
+                },
+                residual: Linear {
+                    constant: F::from_u64(next(3) as u64),
+                    terms: residuals[next(residuals.len() as u64)].clone(),
+                },
+                certificate: None,
+            })
+            .collect::<Vec<_>>();
+        let keyed = keyed_groups(&candidates, &families)
+            .into_iter()
+            .filter(|(_, members)| members.len() > 1)
+            .collect::<Vec<_>>();
+        assert_eq!(groups(&candidates, &families), keyed, "round {round}");
+    }
+}
+
+#[test]
+fn a_borrowed_row_equals_its_resolved_row() {
+    let mut next = random(0x2545_f491_4f6c_dd1d);
+    let forms = HashMap::from([
+        (5, vec![(0, F::from_u64(3)), (2, F::ONE), (7, -F::ONE)]),
+        (9, vec![(4, F::TWO), (5, F::ONE)]),
+    ]);
+    let coefficients = [F::ZERO, F::ONE, -F::ONE, F::TWO, F::from_u64(1 << 40)];
+    let mut borrowed = 0;
+    for _ in 0..20_000 {
+        let mut side = || {
+            let mut terms = (0..next(5))
+                .map(|_| (next(11), coefficients[next(5)]))
+                .collect::<Vec<_>>();
+            if next(2) == 0 {
+                terms.sort_by_key(|&(column, _)| column);
+                terms.dedup_by_key(|&mut (column, _)| column);
+            }
+            Linear {
+                constant: coefficients[next(5)],
+                terms,
+            }
+        };
+        let row = Row {
+            a: side(),
+            b: side(),
+            c: side(),
+        };
+        for forms in [&forms, &HashMap::new()] {
+            let expected = Row {
+                a: resolved(&row.a, forms),
+                b: resolved(&row.b, forms),
+                c: resolved(&row.c, forms),
+            };
+            let row = resolved_row(&row, forms);
+            borrowed += usize::from(matches!(row, Cow::Borrowed(_)));
+            assert_eq!(*row, expected);
+        }
+    }
+    assert!(borrowed > 500, "{borrowed}");
+}

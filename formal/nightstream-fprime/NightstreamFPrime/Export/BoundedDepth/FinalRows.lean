@@ -101,7 +101,7 @@ theorem premises_of_rows (setup : FinalVerifier.Setup mode logicalWidth publicFi
 
 /-- `FinalVerifier.soundness` when the setup's rows have the dense matrices of `packageRows`. -/
 theorem soundness (setup : FinalVerifier.Setup mode logicalWidth publicFits)
-    (step : AppState → AppWitness → AppState) (cap : ℕ) (control : AppState → AppWitness → Fin 2)
+    (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
     (exports : Exports relation setup.ajtai setup.circuitKeys step cubeFits)
     (complete : Complete exports)
     (rows : ∀ circuit : Fin 2,
@@ -109,14 +109,14 @@ theorem soundness (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     (s : Compression.Game.Strategy (Option (Option (FinalVerifier.Outcome logicalWidth publicFits))))
     (q : ℕ) :
     Compression.Game.prob s (setup.game.restore q [])
-        (FinalVerifier.Wins setup complete.packageWidth step cap control) ≤
+        (FinalVerifier.Wins setup complete.packageWidth step control) ≤
       (q : ℝ) * FinalVerifier.finalError :=
-  FinalVerifier.soundness setup step cap control (premises_of_rows setup exports complete rows) s q
+  FinalVerifier.soundness setup step control (premises_of_rows setup exports complete rows) s q
 
 /-- `FinalVerifier.real_soundness` when the setup's rows have the dense matrices of
 `packageRows`. -/
 theorem real_soundness (setup : FinalVerifier.Setup mode logicalWidth publicFits)
-    (step : AppState → AppWitness → AppState) (cap : ℕ) (control : AppState → AppWitness → Fin 2)
+    (step : AppState → AppWitness → AppState) (control : AppState → AppWitness → Fin 2)
     (exports : Exports relation setup.ajtai setup.circuitKeys step cubeFits)
     (complete : Complete exports)
     (rows : ∀ circuit : Fin 2,
@@ -128,10 +128,10 @@ theorem real_soundness (setup : FinalVerifier.Setup mode logicalWidth publicFits
     (accepts : ∀ tape, event tape → opening.Opens real tape)
     (composition : opening.Composition real event
       (Compression.Game.prob s (setup.game.restore q [])
-        (FinalVerifier.Wins setup complete.packageWidth step cap control))) :
+        (FinalVerifier.Wins setup complete.packageWidth step control))) :
     (real.tape.toOuterMeasure {tape | event tape}).toReal ≤
       (q : ℝ) * FinalVerifier.finalError + opening.error real :=
-  FinalVerifier.real_soundness setup step cap control (premises_of_rows setup exports complete rows)
+  FinalVerifier.real_soundness setup step control (premises_of_rows setup exports complete rows)
     opening real event s q akita binding accepts composition
 
 end NightstreamFPrime.Export.BoundedDepth.FinalRows

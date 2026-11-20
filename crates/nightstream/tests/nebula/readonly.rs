@@ -28,7 +28,7 @@ impl Application for Ports {
     fn words(&self, state: &u64) -> Vec<u64> {
         vec![*state]
     }
-    fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
+    fn rows(&self, view: &View) -> Result<Vec<Row>, crate::Error> {
         let mut rows = Vec::new();
         let mut sum = Expr::constant(0);
         for slot in 0..self.count {
@@ -43,7 +43,7 @@ impl Application for Ports {
             sum = sum + view.vr(slot);
         }
         rows.push(view.output(0) - sum);
-        Ok(rows)
+        Ok(rows.into_iter().map(Row::Expr).collect())
     }
     fn step(&self, _: &u64, _: &(), memory: &Memory) -> Result<Transition<u64>, Infallible> {
         let mut ports = Vec::new();
@@ -101,7 +101,7 @@ fn only_an_authoritative_nonzero_linear_zero_row_marks_a_read() {
         Expr::constant(7) * flag.clone(),
         flag.clone() + other.clone() - other.clone(),
     ] {
-        let map = ReadOnlyValues::checked(&[row], &geometry, &layout, wires);
+        let map = ReadOnlyValues::checked(&[row.into()], &geometry, &layout, wires);
         assert_eq!(map.aliases.len(), 32);
         let mapped = map.wires(wires);
         for bit in 0..32 {
@@ -121,7 +121,7 @@ fn only_an_authoritative_nonzero_linear_zero_row_marks_a_read() {
         flag.clone() * Expr::constant(0),
         flag.clone() + other,
     ] {
-        assert!(ReadOnlyValues::checked(&[row], &geometry, &layout, wires).is_empty());
+        assert!(ReadOnlyValues::checked(&[row.into()], &geometry, &layout, wires).is_empty());
     }
 }
 
@@ -268,10 +268,10 @@ fn the_original_application_rows_are_observed_once() {
         fn words(&self, _: &()) -> Vec<u64> {
             Vec::new()
         }
-        fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
+        fn rows(&self, view: &View) -> Result<Vec<Row>, crate::Error> {
             self.0.set(self.0.get() + 1);
             assert_eq!(self.0.get(), 1);
-            Ok(vec![view.is_write(0)])
+            Ok(vec![view.is_write(0).into()])
         }
         fn step(&self, _: &(), _: &(), _: &Memory) -> Result<Transition<()>, Infallible> {
             unreachable!()

@@ -35,6 +35,27 @@ pub struct FinalProof {
     carry: Carry,
 }
 
+impl FinalProof {
+    /// The carry words as little-endian words, then
+    /// `crate::FinalProof::to_bytes`, for `FinalProof::from_bytes`.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, crate::Error> {
+        let mut bytes = carry_bytes(&self.carry);
+        bytes.extend(self.stage1.to_bytes()?);
+        Ok(bytes)
+    }
+
+    /// Decode untrusted bytes: the canonical carry words, then
+    /// `crate::FinalProof::from_bytes`. Acceptance still needs
+    /// `Verifier::verify_final`.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, crate::Error> {
+        let (carry, rest) = decode_carry(bytes)?;
+        Ok(Self {
+            stage1: crate::FinalProof::from_bytes(rest)?,
+            carry,
+        })
+    }
+}
+
 /// What a verified memory proof shows beyond its two states.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Verified {

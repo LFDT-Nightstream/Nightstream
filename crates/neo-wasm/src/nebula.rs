@@ -19,8 +19,8 @@ use std::num::NonZeroUsize;
 use neo_ccs::CcsMatrix;
 use neo_math::F;
 use nightstream::nebula::{
-    batched_slots, pack_regions, Application, CatalogBindingError, Expr, Geometry, Memory, Program, R1csApplication,
-    R1csApplicationError, R1csStepError, Region, RowRelation, Size, Terms, Transition, View,
+    batched_slots, pack_regions, Application, CatalogBindingError, Geometry, Memory, Program, R1csApplication,
+    R1csApplicationError, R1csStepError, Region, Row, RowRelation, Size, Terms, Transition, View,
 };
 use nightstream::relation::MemoryPortActivation;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -202,7 +202,7 @@ impl Application for WasmApplication {
         state_words(*state)
     }
 
-    fn rows(&self, view: &View) -> Result<Vec<Expr>, nightstream::Error> {
+    fn rows(&self, view: &View) -> Result<Vec<Row>, nightstream::Error> {
         self.0.rows(view)
     }
 

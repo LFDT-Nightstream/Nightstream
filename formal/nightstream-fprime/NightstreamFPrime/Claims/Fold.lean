@@ -25,8 +25,7 @@ Completeness and knowledge of the two folds of the bounded-depth scheme.
   with `calls` permutation calls a model prover with `calls` queries, with the event's chance
   at most `duplexError calls` higher. The event includes the extractor's retries.
 - `light_extracts` and `refresh_extracts` also take `strongSet`, the units of the strong
-  sampling set. It returns data, so the premise list does not show it.
-  `Claims.Foundations.low_norm_invertible` is the result behind it.
+  sampling set. `Claims.Foundations.low_norm_invertible` is the result behind it.
 - `light_knowledge_error_numeric` and `refresh_knowledge_error_numeric` take `[SPONGE]` under
   `[P2-PERM]` for the collision finder. The finder is one run with one output, and its reruns of
   the adversary use oracles of its own tape. Lean has no count of its permutation calls, so

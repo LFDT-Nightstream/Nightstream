@@ -189,7 +189,6 @@ theorem memory_sound
     (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
     (programEq : exports.program = Nebula.MemoryApp.program p.toGeometry app)
     (control : AppState → AppWitness → Fin 2)
-    (cap : ℕ)
     (claim : adversary.Tape → Nebula.EndToEnd.MemoryStatement app.width)
     {memoryError : NebulaSecurity.ClaimedStage (logicalWidth := logicalWidth) (publicFits := publicFits) app →
         ℝ}
@@ -217,7 +216,7 @@ theorem memory_sound
             {s : NebulaSecurity.Sample app.width logicalWidth publicFits |
               Nebula.EndToEnd.Experiment.Bad app
                 (NebulaSecurity.experiment app ajtai circuitKeys exports)
-                (NebulaSecurity.Checked app ajtai circuitKeys (step := step) control cap) s}) ≤
+                (NebulaSecurity.Checked app ajtai circuitKeys (step := step) control) s}) ≤
         IvcSecurity.walkBound ajtai circuitKeys exports assumption closed adversary admitted
                 (p.sMax * p.n) +
               ENNReal.toReal
@@ -235,7 +234,7 @@ theorem memory_sound
           memoryError c :=
   @Export.BoundedDepth.NebulaSecurity.checked_le logicalWidth publicFits p app relation ajtai
     circuitKeys step cubeFits exports Admitted StageAdmitted Efficient error assumption closed
-    adversary admitted valid keysShaped programEq control cap claim memoryError round
+    adversary admitted valid keysShaped programEq control claim memoryError round
 
 /-- Completeness of a memory application (SPEC.md Algorithm 8): for every execution of `S · N`
 steps with `1 ≤ S ≤ S_max`, the statement that the verifier computes passes its checks, and the
@@ -258,7 +257,6 @@ theorem memory_complete
     (programEq : exports.program = Nebula.MemoryApp.program p.toGeometry app)
     (complete : StepExtend.Complete exports)
     (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
-    (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
     {s₀ : app.State}
     {s : app.State}
@@ -289,12 +287,12 @@ theorem memory_complete
               (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
               (StepFresh logicalWidth publicFits)
               (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2),
-            RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth cap control
+            RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth control
                 statement (HyperNova.Construction2.Paper.OuterTerminalProof.recursive payload) ∧
               RunCompleteness.FreshZeroTail complete.packageWidth
                 (HyperNova.Construction2.Paper.OuterTerminalProof.recursive payload) :=
   @Export.BoundedDepth.NebulaCompleteness.memory_complete logicalWidth publicFits relation ajtai
-    circuitKeys step cubeFits p app valid exports programEq complete keysShaped cap control s₀ s
+    circuitKeys step cubeFits p app valid exports programEq complete keysShaped control s₀ s
     final steps segments count range exec
 
 /-- Completeness of the light mode of a memory application (SPEC.md Algorithms 8 and 9): at a
@@ -320,7 +318,6 @@ theorem memory_light_complete
     (programEq : exports.program = Nebula.MemoryApp.program p.toGeometry app)
     (complete : StepExtend.Complete exports)
     (keysShaped : ∀ (key : Fin 2), List.length (circuitKeys key).digest = 4)
-    (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
     {s₀ : app.State}
     {s : app.State}
@@ -351,13 +348,13 @@ theorem memory_light_complete
               (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
               (StepFresh logicalWidth publicFits)
               (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2),
-            RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth cap control
+            RunCompleteness.Verifies ajtai circuitKeys step complete.packageWidth control
                 statement (HyperNova.Construction2.Paper.OuterTerminalProof.recursive payload) ∧
               payload.pc = 1 ∧ payload.running 1 = (defaultSlot, 0) ∧
               RunCompleteness.FreshZeroTail complete.packageWidth
                 (HyperNova.Construction2.Paper.OuterTerminalProof.recursive payload) :=
   @Export.BoundedDepth.NebulaCompleteness.memory_light_complete logicalWidth publicFits relation
-    ajtai circuitKeys step cubeFits p app valid light exports programEq complete keysShaped cap
+    ajtai circuitKeys step cubeFits p app valid light exports programEq complete keysShaped
     control s₀ s final steps segments count range exec
 
 /-- The memory guarantee for a catalog application (`SPEC.md` section 7.6): for an execution from

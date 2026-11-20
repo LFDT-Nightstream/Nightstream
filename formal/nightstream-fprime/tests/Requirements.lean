@@ -109,7 +109,7 @@ example {F K : Type} [Field F] [Fintype F] [DecidableEq F] [Field K] [Fintype K]
 -- SPEC.md Algorithm 10, steps 1 to 5, in the light mode: the verifier takes the key of
 -- Algorithm 11, which has `2^19` blocks, and its security minimum is at most 119 bits.
 example (light : FinalVerifier.Setup .light logicalWidth publicFits) (packageWidths : Fin 2 → ℕ)
-    (step : AppState → AppWitness → AppState) (cap : ℕ)
+    (step : AppState → AppWitness → AppState)
     (control : AppState → AppWitness → Fin 2)
     (key : (Rust.schedules.find? fun s =>
         decide ((light.rows 0).matrices.columns / ringDegree ≤ s.blocks)).map
@@ -120,13 +120,13 @@ example (light : FinalVerifier.Setup .light logicalWidth publicFits) (packageWid
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
-    (verifies : RunCompleteness.Verifies light.ajtai light.circuitKeys step packageWidths cap
+    (verifies : RunCompleteness.Verifies light.ajtai light.circuitKeys step packageWidths
       control statement (.recursive payload))
     (pcOne : payload.pc = 1) (slotOne : payload.running 1 = (defaultSlot, 0))
     (commitment : PaperAlgebra.Commitment) :
     FinalVerifier.Checks .light statement ⟨payload.pc, payload.running, commitment⟩ ∧
       light.Gate ⟨payload.pc, payload.running, commitment⟩ :=
-  @Claims.Final.light_gate_complete logicalWidth publicFits light packageWidths step cap control
+  @Claims.Final.light_gate_complete logicalWidth publicFits light packageWidths step control
     key shipped minimum statement payload verifies pcOne slotOne commitment
 
 -- SPEC.md Algorithm 6 and section 1, at the shipped packages: the verifier accepts a statement
@@ -157,12 +157,12 @@ example {ajtai : Shipped.Ajtai} (facts : Shipped.Facts Shipped.program ajtai)
     (adversary : IvcAdversary
       (IvcSecurity.Output StepRelation.keyWidth StepRelation.keyPublicFits))
     (admitted : StageAdmitted (Stage.start (IvcSecurity.walkAdversary adversary)))
-    (packageWidths : Fin 2 → ℕ) (control : AppState → AppWitness → Fin 2) (cap depth : ℕ)
+    (packageWidths : Fin 2 → ℕ) (control : AppState → AppWitness → Fin 2) (depth : ℕ)
     (depthBound : ∀ tape ∈ adversary.tape.support,
       (adversary.output tape).1.iteration ≤ depth) :
     (adversary.tape.toOuterMeasure {tape |
         RunCompleteness.Verifies ajtai (Shipped.keys identity relations) Shipped.program.step
-            packageWidths cap control (adversary.output tape).1 (adversary.output tape).2 ∧
+            packageWidths control (adversary.output tape).1 (adversary.output tape).2 ∧
           ¬ IvcWalk.Reaches Shipped.program (adversary.output tape).1}).toReal ≤
       ∑ j : Fin depth,
         (IvcSecurity.finderChance ajtai (Shipped.keys identity relations)
@@ -175,7 +175,7 @@ example {ajtai : Shipped.Ajtai} (facts : Shipped.Facts Shipped.program ajtai)
             (IvcWalk.back ajtai (Shipped.keys identity relations)
               (Shipped.exports facts identity relations lightKey refreshKey)))) :=
   @Claims.Shipped.verify_sound ajtai facts identity relations lightKey refreshKey Admitted
-    StageAdmitted Efficient error assumption closed adversary admitted packageWidths control cap
+    StageAdmitted Efficient error assumption closed adversary admitted packageWidths control
     depth depthBound
 
 -- SPEC.md section 1: under `[P2-PERM]` and `[SPONGE]`, when the finder of stage `j` makes at

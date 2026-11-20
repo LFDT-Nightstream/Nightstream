@@ -61,7 +61,6 @@ theorem light_gate_complete
     (light : FinalVerifier.Setup FinalVerifier.Mode.light logicalWidth publicFits)
     {packageWidths : Fin 2 → ℕ}
     (step : AppState → AppWitness → AppState)
-    (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
     (key : Compression.Rust.keyBlocksFor (light.blocks 0) = some light.keyBlocks)
     (shipped : light.keyBlocks = 2 ^ 19)
@@ -71,7 +70,7 @@ theorem light_gate_complete
         (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
         (StepFresh logicalWidth publicFits)
         (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
-    (verifies : RunCompleteness.Verifies light.ajtai light.circuitKeys step packageWidths cap control
+    (verifies : RunCompleteness.Verifies light.ajtai light.circuitKeys step packageWidths control
         statement (HyperNova.Construction2.Paper.OuterTerminalProof.recursive payload))
     (pcOne : payload.pc = 1)
     (slotOne : payload.running 1 = (defaultSlot, 0))
@@ -79,7 +78,7 @@ theorem light_gate_complete
     FinalVerifier.Checks FinalVerifier.Mode.light statement
         ⟨payload.pc, payload.running, commitment⟩ ∧
       light.Gate ⟨payload.pc, payload.running, commitment⟩ :=
-  @Export.BoundedDepth.FinalVerifier.accepts_light logicalWidth publicFits packageWidths step cap
+  @Export.BoundedDepth.FinalVerifier.accepts_light logicalWidth publicFits packageWidths step
     control light key shipped minimum_le statement payload verifies pcOne slotOne commitment
 
 /-- In the state-restoration experiment with `q` queries, the final verifier accepts a statement
@@ -92,7 +91,6 @@ theorem verifier_sound
     {mode : FinalVerifier.Mode}
     (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     (step : AppState → AppWitness → AppState)
-    (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
@@ -103,9 +101,9 @@ theorem verifier_sound
     (s : Compression.Game.Strategy (Option (Option (FinalVerifier.Outcome logicalWidth publicFits))))
     (q : ℕ) :
     Compression.Game.prob s (setup.game.restore q [])
-          (FinalVerifier.Wins setup complete.packageWidth step cap control) ≤
+          (FinalVerifier.Wins setup complete.packageWidth step control) ≤
         (↑q : ℝ) * FinalVerifier.finalError :=
-  Export.BoundedDepth.FinalRows.soundness setup step cap control exports complete rows s q
+  Export.BoundedDepth.FinalRows.soundness setup step control exports complete rows s q
 
 /-- With Akita openings, the final verifier accepts a statement for which no proof with
 witnesses satisfies `Verifies` with probability at most `q · (1/2^119 + 38/fieldModulus²)` plus
@@ -120,7 +118,6 @@ theorem verifier_sound_with_akita
     {mode : FinalVerifier.Mode}
     (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     (step : AppState → AppWitness → AppState)
-    (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
@@ -138,10 +135,10 @@ theorem verifier_sound_with_akita
     (accepts : ∀ (tape : real.Tape), event tape → opening.Opens real tape)
     (composition : opening.Composition real event
         (Compression.Game.prob s (setup.game.restore q [])
-          (FinalVerifier.Wins setup complete.packageWidth step cap control))) :
+          (FinalVerifier.Wins setup complete.packageWidth step control))) :
     ENNReal.toReal (real.tape.toOuterMeasure {tape | event tape}) ≤
       (↑q : ℝ) * FinalVerifier.finalError + opening.error real :=
-  Export.BoundedDepth.FinalRows.real_soundness setup step cap control exports complete rows opening
+  Export.BoundedDepth.FinalRows.real_soundness setup step control exports complete rows opening
     real event s q akita binding accepts composition
 
 /-- In the state-restoration experiment with `q` queries, the probability of a false history is at

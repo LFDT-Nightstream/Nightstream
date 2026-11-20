@@ -19,12 +19,12 @@ p3-field = { workspace = true }
 rayon = { workspace = true }
 thiserror = { workspace = true }
 # Akita, ePrint 2026/1983. The Jolt revision is Akita's own pin.
-akita-pcs = { git = "https://github.com/nicarq/akita.git", rev = "a8bc0a3389b1891dc4037ddce3f6a487bf84e216" }
-akita-config = { git = "https://github.com/nicarq/akita.git", rev = "a8bc0a3389b1891dc4037ddce3f6a487bf84e216" }
-akita-params = { git = "https://github.com/nicarq/akita.git", rev = "a8bc0a3389b1891dc4037ddce3f6a487bf84e216" }
-akita-serialization = { git = "https://github.com/nicarq/akita.git", rev = "a8bc0a3389b1891dc4037ddce3f6a487bf84e216" }
-akita-types = { git = "https://github.com/nicarq/akita.git", rev = "a8bc0a3389b1891dc4037ddce3f6a487bf84e216" }
-akita-verifier = { git = "https://github.com/nicarq/akita.git", rev = "a8bc0a3389b1891dc4037ddce3f6a487bf84e216" }
+akita-pcs = { git = "https://github.com/nicarq/akita.git", rev = "c7189e08018008268c9c7be66bbb22e3c6ae0454" }
+akita-config = { git = "https://github.com/nicarq/akita.git", rev = "c7189e08018008268c9c7be66bbb22e3c6ae0454" }
+akita-params = { git = "https://github.com/nicarq/akita.git", rev = "c7189e08018008268c9c7be66bbb22e3c6ae0454" }
+akita-serialization = { git = "https://github.com/nicarq/akita.git", rev = "c7189e08018008268c9c7be66bbb22e3c6ae0454" }
+akita-types = { git = "https://github.com/nicarq/akita.git", rev = "c7189e08018008268c9c7be66bbb22e3c6ae0454" }
+akita-verifier = { git = "https://github.com/nicarq/akita.git", rev = "c7189e08018008268c9c7be66bbb22e3c6ae0454" }
 jolt-field = { git = "https://github.com/a16z/jolt", rev = "25d87ba68bde9f4a85ac986f5487b2e7b7db2699", default-features = false, features = ["asm", "solinas"] }
 
 [dev-dependencies]

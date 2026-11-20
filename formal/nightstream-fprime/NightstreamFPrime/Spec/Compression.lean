@@ -3,6 +3,8 @@ import NightstreamFPrime.Spec.Compression.Akita.Binding
 import NightstreamFPrime.Spec.Compression.Akita.Challenge
 import NightstreamFPrime.Spec.Compression.Akita.Commit
 import NightstreamFPrime.Spec.Compression.Akita.Euclid
+import NightstreamFPrime.Spec.Compression.Akita.FlatFold
+import NightstreamFPrime.Spec.Compression.Akita.FlatWitness
 import NightstreamFPrime.Spec.Compression.Akita.Fold
 import NightstreamFPrime.Spec.Compression.Akita.FoldCheck
 import NightstreamFPrime.Spec.Compression.Akita.FoldSumCheck
@@ -50,5 +52,6 @@ map and the trace identity for `k = 2` (`Akita/Trace`), one fold with the evalua
 (`Akita/TraceFold`) and the evaluation-trace terminal (`Akita/Terminal`), and the row batching and
 the quotient-free reduction (`Akita/RowBatch`), the quotient-lift reduction
 (`Akita/LiftReduction`), the sum-checks of one fold (`Akita/FoldSumCheck`), the checks of one fold
-as a game with its error (`Akita/FoldCheck`) and the link from these checks to the branch relation
-(`Akita/Layout`). -/
+as a game with its error (`Akita/FoldCheck`), the link from these checks to the branch relation
+(`Akita/Layout`), the flat witness of one packing fold (`Akita/FlatWitness`) and the relation of
+this fold on the flat witness (`Akita/FlatFold`). -/

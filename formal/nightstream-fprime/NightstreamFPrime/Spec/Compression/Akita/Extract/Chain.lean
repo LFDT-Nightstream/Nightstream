@@ -10,7 +10,9 @@ with (206)).
   the source is a table, the digit vectors are `OpeningShape.ofFlat`, and the checks are
   `foldCheck` for the quotient-free reduction of `lockedRelation`.
 - `clearFold` is the `Tier` of a last packing fold, whose proof has the digit vectors in the
-  clear: the checks are those of `packingFold`.
+  clear: the checks are `foldCheck` for the quotient-free reduction of `flatRelation`. With the
+  first stage 0, `clearFold_suffix` and `Tier.Suffix.extraction_le` are the extraction theorem of
+  one packing fold.
 - `committedFold_suffix` and `clearFold_suffix` are `Tier.suffix_push` and `Tier.suffix_last`
   for these levels, with `foldError` for the sum of the bounds of the draws. A suffix of each
   number of levels is `committedFold_suffix` for each level but the last, over

@@ -1,4 +1,5 @@
-import NightstreamFPrime.Spec.Compression.Akita.Extract.Bound
+import NightstreamFPrime.Spec.Checkpoint.Extraction
+import NightstreamFPrime.Spec.Checkpoint.Runs
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Tier
 
 /-! The stage errors, the retry loops and the tree size of one level of the opening suffix of
@@ -19,6 +20,15 @@ namespace NightstreamFPrime.Spec.Compression.Akita.Extract
 
 open scoped BigOperators
 open NightstreamFPrime.Spec.Checkpoint
+
+/-- The sum of the entries of a list by index. -/
+theorem sum_range_getD (costs : List ℝ) :
+    ∑ index ∈ Finset.range costs.length, costs.getD index 0 = costs.sum := by
+  induction costs with
+  | nil => simp
+  | cons cost rest induction =>
+      rw [List.length_cons, Finset.sum_range_succ', List.sum_cons, ← induction, add_comm]
+      simp
 
 section Finish
 

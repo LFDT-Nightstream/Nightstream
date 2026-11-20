@@ -3,8 +3,9 @@ import NightstreamFPrime.Spec.Compression
 
 /-! Axiom audits for the checks of one fold of Akita (`Spec/Compression/Akita`): row batching,
 the ring reductions, the sum-checks, the game of the checks, the link to the branch
-relation, the flat witness and the relation of one fold on it, the rewinding extraction of one
-packing fold and the recursive opening suffix (`Spec/Compression/Akita/Extract`). -/
+relation, the flat witness and the relation of one fold on it, the recursive opening suffix with
+its rewinding extraction and its Fiat–Shamir budget (`Spec/Compression/Akita/Extract`), the shared
+setup (`Setup`) and the bad events of the hashed transcript entries (`Digest`). -/
 
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.FieldRows.weightAt
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.FieldRows.targetAt
@@ -285,43 +286,7 @@ packing fold and the recursive opening suffix (`Spec/Compression/Akita/Extract`)
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.position
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.position_append
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.position_staged
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.stages
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.Stage
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.family
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.challenge
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.Decodes
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.witness
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.Cert
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.Opens
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.Break
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.kind
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.fork
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.combine
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.costs_getD_nonnegative
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.Decodes.challenge
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.challenge_take
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.witness_take
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.chance
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.chance_nonnegative
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.mass_decode_le
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.game
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.Accepts
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.holds
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.extraction
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.Valid
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.last_take_one
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.game_step
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.lawful
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.sum_range_getD
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.charge_zero
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.charge_succ
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.checkError_eq
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.loopsFrom_eq
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.treeSize_eq
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.extract_sound
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.extraction_le
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Level.runs_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.sumcheckWith_staged
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.sumcheck_staged
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.foldCosts
@@ -329,11 +294,6 @@ packing fold and the recursive opening suffix (`Spec/Compression/Akita/Extract`)
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.foldCosts_nonnegative
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.fusedCheck_staged
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.foldCheck_staged
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.packingFold
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.packingFold_valid
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.packingFold_extract_sound
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.packingFold_extraction_le
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.packingFold_runs_le
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Structure.LawfulFrom
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Structure.LawfulFrom.lawful
 #audit_axioms NightstreamFPrime.Spec.Checkpoint.Structure.chargeFrom
@@ -484,3 +444,59 @@ packing fold and the recursive opening suffix (`Spec/Compression/Akita/Extract`)
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.packingPair_extract_sound
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.packingPair_extraction_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.packingPair_runs_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Rq.fintype
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.Instance
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.Instance.size
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.Instance.Kernel
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.Instance.cols_pos
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.Instance.row_lt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.Instance.index_lt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.index_div
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.index_mod
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.view
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.embed
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.coeff_entry
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.view_embed
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.embed_view
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.embed_embed
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.expect_embed
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.Finder
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.embedded
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.embedded_isSome
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.shared_setup_eq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.expand
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.sum_expand
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.expand_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.Bound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.toComp
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.trace
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.mem_queries_iff
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.Bound.toComp
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.upTo
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.upTo_update
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.upTo_prefix
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.mem_upTo
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.Collided
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.Guessed
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.preimage
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.positions_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.mass_mem_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.collided_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.guessed_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.bad_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.Run.terminal_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.hashError
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Digest.hashError_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.effectiveStrength
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.budget_iff
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.effectiveStrength_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.LevelError
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.LevelError.value
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.interactiveError
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.foldLevel
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.foldLevel_value
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.interactiveError_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.budget_of_levels
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.Suffix.error_nonnegative
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.Suffix.extraction_le_strength

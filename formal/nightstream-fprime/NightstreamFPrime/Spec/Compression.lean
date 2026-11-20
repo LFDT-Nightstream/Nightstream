@@ -2,11 +2,11 @@ import NightstreamFPrime.Spec.Compression.Akita
 import NightstreamFPrime.Spec.Compression.Akita.Binding
 import NightstreamFPrime.Spec.Compression.Akita.Challenge
 import NightstreamFPrime.Spec.Compression.Akita.Commit
+import NightstreamFPrime.Spec.Compression.Akita.Digest
 import NightstreamFPrime.Spec.Compression.Akita.Euclid
-import NightstreamFPrime.Spec.Compression.Akita.Extract.Bound
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Budget
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Chain
 import NightstreamFPrime.Spec.Compression.Akita.Extract.FlatSource
-import NightstreamFPrime.Spec.Compression.Akita.Extract.Level
 import NightstreamFPrime.Spec.Compression.Akita.Extract.PackingFold
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Recursion
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Staged
@@ -27,6 +27,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Prover
 import NightstreamFPrime.Spec.Compression.Akita.Range
 import NightstreamFPrime.Spec.Compression.Akita.RingCheck
 import NightstreamFPrime.Spec.Compression.Akita.RowBatch
+import NightstreamFPrime.Spec.Compression.Akita.Setup
 import NightstreamFPrime.Spec.Compression.Akita.Shapes
 import NightstreamFPrime.Spec.Compression.Akita.Terminal
 import NightstreamFPrime.Spec.Compression.Akita.Trace
@@ -66,11 +67,13 @@ the quotient-free reduction (`Akita/RowBatch`), the quotient-lift reduction
 (`Akita/LiftReduction`), the sum-checks of one fold (`Akita/FoldSumCheck`), the checks of one fold
 as a game with its error (`Akita/FoldCheck`), the link from these checks to the branch relation
 (`Akita/Layout`), the flat witness of one packing fold (`Akita/FlatWitness`) and the relation of
-this fold on the flat witness (`Akita/FlatFold`), and the rewinding extraction of one packing fold
+this fold on the flat witness (`Akita/FlatFold`), and the rewinding extraction of the packing folds
 (`Akita/Extract`): a finite transcript protocol (`Transcript`), a game as the stages of a
-transcript (`Staged`), one fold as a checkpoint structure (`Level`), its extraction bounds
-(`Bound`) and the fold with the checks `foldCheck` (`PackingFold`), and the recursive opening
-suffix: the conditions of a suffix of the stages (`Suffix`), the verifier without the witness
+transcript (`Staged`), the bounds of the draws of the checks `foldCheck` (`PackingFold`), and the
+recursive opening suffix: the conditions of a suffix of the stages (`Suffix`), the verifier
+without the witness
 (`Uniform`), one level over the later stages (`Tier`, `TierBound`), the checks for a committed
-flat witness (`FlatSource`), the composition of the levels (`Recursion`) and the levels with the
-checks `foldCheck` (`Chain`). -/
+flat witness (`FlatSource`), the composition of the levels (`Recursion`), the levels with the
+checks `foldCheck` (`Chain`) and the Fiat–Shamir budget (`Budget`), and the shared setup with its
+reduction to ordinary Module-SIS (`Akita/Setup`) and the bad events of the hashed transcript
+entries (`Akita/Digest`). -/

@@ -1,18 +1,12 @@
 import NightstreamFPrime.Spec.Compression.Akita.FlatFold
-import NightstreamFPrime.Spec.Compression.Akita.Extract.Bound
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Staged
 
-/-! The rewinding extraction of one packing fold of Akita with the checks `foldCheck`
-(ePrint 2026/1983, revision of 2026-10-15, Theorem 10.17 with Corollary 10.32 and the terms of
-(189) after the fold challenge).
+/-! The bounds of the draws of the checks `foldCheck` of one packing fold of Akita
+(ePrint 2026/1983, revision of 2026-10-15, the terms of (189) after the fold challenge).
 
 - `foldCosts` has the bounds of the draws of `foldCheck` in their order, `foldCosts_sum` states
   that their sum is `foldError`, and `foldCheck_staged` states that each draw has its bound when an
-  answer of the oracle has a slot for each coordinate of a draw.
-- `packingFold` is the `Level` of one packing fold: the checks are `foldCheck` for the flat
-  witness of the digit vectors of the proof and the quotient-free reduction, and the verifier
-  accepts when the final claim `(r_2, v_W)` is true for this flat witness.
-- `packingFold_extract_sound`, `packingFold_extraction_le` and `packingFold_runs_le` are the
-  extraction theorem of one packing fold. -/
+  answer of the oracle has a slot for each coordinate of a draw. -/
 
 set_option autoImplicit false
 
@@ -21,8 +15,6 @@ namespace NightstreamFPrime.Spec.Compression.Akita.Extract
 open scoped BigOperators
 open NightstreamFPrime.Spec.Compression.Lib NightstreamFPrime.Spec.Compression.Game Polynomial
 open NightstreamFPrime.Spec.Compression (Game)
-open NightstreamFPrime.Spec.Checkpoint
-open NightstreamFPrime.Spec.RandomOracle (OracleComp)
 
 local instance : Fact (Nat.Prime fieldModulus) := ⟨FieldPrime.fieldModulus_natPrime⟩
 
@@ -163,152 +155,5 @@ theorem foldCheck_staged (R : Reduction E) (base : ℕ) (support : ℕ → Prop)
   · trivial
 
 end Costs
-
-section Fold
-
-variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [Field E] [Fintype E]
-  [DecidableEq E] [Algebra Zq E] {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord]
-  (β : Module.Basis (Fin O.planes) Zq E) (st : Statement O E) (μ : ℕ)
-  (fits : O.cells fold < 2 ^ μ) (batch : ℕ) (rowsFit : O.rowCount + 1 ≤ 2 ^ batch)
-  (block : Fin S.blocks → Coord) (decode : E → Option (Rq O.carrierDegree))
-  (witnessOf : Wire → Witness O fold) (read : Reader Wire) (weight : ℕ)
-
-/-- One packing fold for one claim as a `Level`. A slot of an answer of the oracle is one uniform
-element of `E`. The checks are `foldCheck` for the quotient-free reduction of `flatRelation` and
-the flat witness of the digit vectors of the proof. The verifier accepts a result `(r_2, v_W)`
-when `v_W = w̃(r_2)` for this flat witness: the proof has the digit vectors in the clear, so the
-verifier computes the evaluation. -/
-noncomputable def packingFold : Level O fold E Wire Coord E (Option (List E × E)) where
-  basis := β
-  statement := st
-  block := block
-  decode := decode
-  witnessOf := witnessOf
-  read := read
-  check challenge candidate := foldCheck (flatReduction β st challenge μ fits batch rowsFit)
-    S.certifiedBase (O.binarySupport fold) candidate.flat
-  passes candidate result := ∃ r2 v, result = some (r2, v) ∧ v = mle r2 (lifted E candidate.flat)
-  costs := foldCosts E (O.largestDegree - 1) μ batch S.certifiedBase
-  weight := weight
-
-variable {β st μ fits batch rowsFit block decode witnessOf read weight}
-
-/-- One packing fold satisfies the conditions of `Level.Valid`. The hypotheses are: the blocks
-have different coordinates, the challenge family has units as differences (Akita Definition 9.2,
-E1) and members with `‖c‖_1 = ω`, `b_z ≥ 2`, `b⋆ < q`, and an answer of the oracle has `μ'` slots
-or more and `s_rel` slots or more. -/
-theorem packingFold_valid [Nonempty Coord] {peak : ℕ} (injective : Function.Injective block)
-    (units : UnitDifferences {challenge | ∃ slot, decode slot = some challenge})
-    (sparse : ∀ challenge, (∃ slot, decode slot = some challenge) → Sparse weight peak challenge)
-    (base : 2 ≤ fold.responseBase) (small : S.certifiedBase < fieldModulus)
-    (varsFit : μ ≤ Fintype.card Coord) (batchFit : batch ≤ Fintype.card Coord) :
-    (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).Valid peak where
-  injective := injective
-  units := units
-  sparse := sparse
-  base := base
-  sound challenge candidate :=
-    (flatFold_satisfies β st challenge μ fits small batch rowsFit candidate).mono
-      fun _ implies passed => by
-        obtain ⟨r2, v, ended, opened⟩ := passed
-        exact implies r2 v ended opened
-  staged challenge candidate :=
-    foldCheck_staged (flatReduction β st challenge μ fits batch rowsFit) S.certifiedBase
-      (O.binarySupport fold) candidate.flat varsFit batchFit
-  nonnegative := foldCosts_nonnegative _ _ _ _
-  draws := by simp [packingFold, foldCosts]
-
-/-- An output of the extractor for one packing fold: the verifier accepts the transcript of the
-prover, and the output is a weak opening of the statement with `κ̄_1 = 2ω` and `β̄_∞ = Δ^cert_f`
-(Akita Definition 10.22), or a solution of Module-SIS for `B` or `D` with the bound `b⋆ − 1` or for
-a compression map with the bound 1 (Akita Corollary 10.32). -/
-theorem packingFold_extract_sound [Nonempty Coord] {peak : ℕ}
-    (injective : Function.Injective block)
-    (units : UnitDifferences {challenge | ∃ slot, decode slot = some challenge})
-    (sparse : ∀ challenge, (∃ slot, decode slot = some challenge) → Sparse weight peak challenge)
-    (base : 2 ≤ fold.responseBase) (small : S.certifiedBase < fieldModulus)
-    (varsFit : μ ≤ Fintype.card Coord) (batchFit : batch ≤ Fintype.card Coord)
-    (prover : OracleComp
-      (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).Stage
-      (Coord → E) (ℕ → Wire)) (budget : ℕ)
-    (table : (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).Stage →
-      Coord → E)
-    (tape : Tape (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).Stage
-      Coord E budget
-      (packingFold β st μ fits batch rowsFit block decode witnessOf read
-        weight).extraction.protocol.stages)
-    (out : (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).Cert ⊕
-      Option (OuterBreak st.key ⊕ OpenBreak st.openKey))
-    (result : Checkpoint.extract
-      (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).extraction prover
-      budget table tape = some out) :
-    (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).Accepts
-        ((packingFold β st μ fits batch rowsFit block decode witnessOf read
-          weight).extraction.protocol.final prover table) ∧
-      Sum.elim
-        (fun certificate => ∃ ω, certificate.opening = some ω ∧
-          ω.Opens β (2 * weight) (fold.sourceBound S) st (S.decode ω.source))
-        (fun solution => solution.isSome) out :=
-  (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).extract_sound
-    (packingFold_valid injective units sparse base small varsFit batchFit) prover budget table
-    tape out result
-
-variable [Finite Wire]
-
-/-- Akita Theorem 10.17 for one packing fold, with the reduction of Akita Corollary 10.32 at the
-fold challenge. For each prover with at most `Q` queries to the oracle, the probability that the
-verifier accepts and the extractor returns no output is at most
-`(Q + 1)·(r·p + ε_fold) + (Q + 1)·(r + 1)/budget`. `r` is the number of blocks, `p` is the largest
-probability of one fold challenge (`Level.chance`), `ε_fold` is `foldError` of the quotient-free
-reduction, which is the same for each `challenge`, and `budget` is the limit of the attempts of a
-retry loop of the extractor. By `packingFold_extract_sound`, an output is a weak opening or a
-solution of Module-SIS. -/
-theorem packingFold_extraction_le [Nonempty Coord] {peak : ℕ}
-    (injective : Function.Injective block)
-    (units : UnitDifferences {challenge | ∃ slot, decode slot = some challenge})
-    (sparse : ∀ challenge, (∃ slot, decode slot = some challenge) → Sparse weight peak challenge)
-    (base : 2 ≤ fold.responseBase) (small : S.certifiedBase < fieldModulus)
-    (varsFit : μ ≤ Fintype.card Coord) (batchFit : batch ≤ Fintype.card Coord)
-    (challenge : Fin S.blocks → Rq O.carrierDegree)
-    (prover : OracleComp
-      (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).Stage
-      (Coord → E) (ℕ → Wire)) {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ}
-    (positive : 0 < budget) :
-    𝔼 table, 𝔼 tape : Tape
-        (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).Stage Coord E
-        budget (packingFold β st μ fits batch rowsFit block decode witnessOf read
-          weight).extraction.protocol.stages,
-        (if (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).Accepts
-            ((packingFold β st μ fits batch rowsFit block decode witnessOf read
-              weight).extraction.protocol.final prover table) ∧
-          Checkpoint.extract
-            (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).extraction
-            prover budget table tape = none then (1 : ℝ) else 0) ≤
-      (queries + 1) * (S.blocks *
-          (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).chance +
-          foldError (flatReduction β st challenge μ fits batch rowsFit) S.certifiedBase) +
-        (queries + 1) * (S.blocks + 1) / budget := by
-  rw [← foldCosts_sum]
-  exact (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).extraction_le
-    (packingFold_valid injective units sparse base small varsFit batchFit) prover bounded positive
-
-/-- The expected number of runs of the prover in the extraction of one packing fold is at most
-`K̂ + (Q + 1)·(K̂ − 1)` with `K̂ = 2·(r + 1)` for `r` blocks (Akita Theorem 10.17, the cost). -/
-theorem packingFold_runs_le
-    (prover : OracleComp
-      (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).Stage
-      (Coord → E) (ℕ → Wire)) {queries : ℕ} (bounded : prover.QueryBound queries) (budget : ℕ) :
-    𝔼 table, 𝔼 tape : Tape
-        (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).Stage Coord E
-        budget (packingFold β st μ fits batch rowsFit block decode witnessOf read
-          weight).extraction.protocol.stages,
-        (extractRuns
-          (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).extraction
-          prover budget table tape : ℝ) ≤
-      2 * (S.blocks + 1) + (queries + 1) * (2 * (S.blocks + 1) - 1) :=
-  (packingFold β st μ fits batch rowsFit block decode witnessOf read weight).runs_le
-    (by simp [packingFold, foldCosts]) prover bounded budget
-
-end Fold
 
 end NightstreamFPrime.Spec.Compression.Akita.Extract

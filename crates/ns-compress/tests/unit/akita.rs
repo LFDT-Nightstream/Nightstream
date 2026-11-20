@@ -4,8 +4,9 @@ use p3_field::PrimeCharacteristicRing;
 use sha2::{Digest, Sha256};
 
 use super::prover::Prover;
-use super::verifier::{Opening, Verifier};
-use super::{base, commitment, commitment_bytes, profile, row, Polynomial, Schedules, Shape, SCHEDULES};
+use super::verifier::schedule::{catalog, profile, row};
+use super::verifier::{bytes_of, commitment, Opening, Verifier};
+use super::{base, Polynomial, Schedules, Shape, SCHEDULES};
 use crate::Error;
 
 const DIGESTS: [&str; 2] = [
@@ -127,7 +128,7 @@ fn each_schedule_file_has_its_pinned_digest_and_its_rows() {
             .map(|byte| format!("{byte:02x}"))
             .collect();
         assert_eq!(digest, pinned, "key of {} variables", schedules.key_vars);
-        let catalog = schedules.catalog().expect("catalog");
+        let catalog = catalog(schedules).expect("catalog");
         assert_eq!(catalog.rows().count(), schedules.rows.len());
         assert!(schedules.rows.is_sorted());
         let key = *profile(row(&catalog, schedules.first()).expect("row"), Polynomial::Key);
@@ -228,7 +229,7 @@ fn a_commitment_under_another_profile_does_not_verify() {
         )
         .expect("commitment")
         .bytes;
-    let catalog = SMALL.catalog().expect("catalog");
+    let catalog = catalog(SMALL).expect("catalog");
     let profile = *profile(row(&catalog, small()).expect("row"), Polynomial::Witness);
     let rows = commitment(&larger)
         .expect("commitment")
@@ -236,7 +237,7 @@ fn a_commitment_under_another_profile_does_not_verify() {
         .clone();
     let mut others = vec![larger];
     if let Ok(relabeled) = CommittedGroup::new(profile, rows) {
-        others.push(commitment_bytes(&relabeled).expect("bytes"));
+        others.push(bytes_of(&relabeled).expect("bytes"));
     }
     for other in others {
         let result = polynomials.verify(&prefixes, [&commitments[0], &other, &commitments[2]], values, &proof);

@@ -1,20 +1,26 @@
 use std::sync::Arc;
 
-use akita_params::{BasisMode, GroupCommitPhaseParams};
 use akita_pcs::{
-    AkitaCommitmentScheme, AkitaError, AkitaProverSetup, CommitOutput, CommitmentHandle, CpuBackend, DensePoly,
-    FieldRunPoly, GroupContext, OpeningClaims, PolynomialGroupClaims, SelectedProverOpeningData, SourceHandle,
+    AkitaCommitmentScheme, AkitaError, AkitaProverSetup, AkitaSerialize, CommitOutput, CommitmentHandle, CpuBackend,
+    DensePoly, FieldRunPoly, GroupContext, OpeningClaims, PolynomialGroupClaims, SelectedProverOpeningData,
+    SourceHandle,
 };
-use akita_types::{CommittedGroup, SetupPrefixVerifierRegistry};
 use jolt_field::Ring;
 use neo_math::K;
+use prover_akita_config as config;
+use prover_akita_params::{self as params, BasisMode, GroupCommitPhaseParams};
+use prover_akita_types::{CommittedGroup, SetupPrefixVerifierRegistry};
 use rayon::prelude::*;
 
-use super::{
-    bytes_of, commitment_bytes, extension, failed, on_large_stacks, profile, row, Base, Config, Extension, Polynomial,
-};
-use super::{Schedules, Shape};
+use super::{extension, failed, on_large_stacks, Base, Extension, Polynomial, Schedules, Shape};
+#[allow(
+    clippy::duplicate_mod,
+    reason = "The prover and verifier use schedule types from different Akita revisions."
+)]
+#[path = "schedule.rs"]
+mod schedule;
 use crate::Error;
+use schedule::{catalog, profile, row, Config};
 
 pub(crate) struct Prover {
     scheme: AkitaCommitmentScheme<Config>,
@@ -32,7 +38,7 @@ pub(crate) struct Committed {
 impl Prover {
     pub(crate) fn new(schedules: &Schedules) -> Result<Self, Error> {
         on_large_stacks(|| {
-            let scheme = AkitaCommitmentScheme::new(schedules.catalog()?);
+            let scheme = AkitaCommitmentScheme::new(catalog(schedules)?);
             let max_vars = schedules
                 .rows
                 .iter()
@@ -146,7 +152,7 @@ impl Prover {
                 .commit(schedules, &source, GroupContext::explicit(profile))
                 .map_err(failed)?;
             Ok(Committed {
-                bytes: commitment_bytes(&committed_group)?,
+                bytes: bytes_of(&committed_group)?,
                 commitment: committed_group,
                 handle: private_handle,
             })
@@ -191,10 +197,15 @@ impl Prover {
 }
 
 fn prepare_key(source: DensePoly<Base>, profile: &GroupCommitPhaseParams) -> Result<DensePoly<Base>, AkitaError> {
-    if profile.inner.matrix.ring_dimension() == 2048 && profile.inner_digits() == akita_params::GadgetDigits::new(16, 4)
-    {
+    if profile.inner.matrix.ring_dimension() == 2048 && profile.inner_digits() == params::GadgetDigits::new(16, 4) {
         source.with_fixed_fold_ntt_2048(profile.blocks.positions_per_block)
     } else {
         Ok(source)
     }
+}
+
+fn bytes_of(value: &impl AkitaSerialize) -> Result<Vec<u8>, Error> {
+    let mut bytes = Vec::new();
+    value.serialize_compressed(&mut bytes).map_err(failed)?;
+    Ok(bytes)
 }

@@ -3,10 +3,7 @@
 pub(crate) mod prover;
 pub(crate) mod verifier;
 
-use akita_config::{proof_optimized::fp64, RecursiveCommitmentConfig, ResolvedScheduleRow, TrustedScheduleCatalog};
-use akita_params::{ChunkedWitnessCfg, GroupCommitPhaseParams};
-use akita_serialization::{AkitaDeserialize, AkitaSerialize};
-use akita_types::{sample_akita_setup_seed, CommittedGroup, SetupPrefixVerifierRegistry};
+use akita_config::proof_optimized::fp64;
 use jolt_field::Ring;
 use neo_math::{KExtensions, F, K};
 use p3_field::PrimeField64;
@@ -17,8 +14,6 @@ use crate::key::ROW_VARS;
 use crate::layout::LANE_VARS;
 use crate::Error;
 
-/// The schedules that offload Akita's own setup (ePrint 2026/1983 section 9).
-pub(crate) type Config = RecursiveCommitmentConfig<fp64::Dense>;
 /// Akita's `F_q`, with the modulus of `neo_math::F`.
 pub(crate) type Base = fp64::Field;
 /// Akita's `F_q[u]/(u² − 2)`, which is `K` with the same basis.
@@ -72,11 +67,6 @@ impl Schedules {
         1 << (self.key_vars - LANE_VARS - ROW_VARS)
     }
 
-    pub(crate) fn catalog(&self) -> Result<TrustedScheduleCatalog<Config>, Error> {
-        TrustedScheduleCatalog::from_artifact_bytes(self.bytes, ChunkedWitnessCfg::default_non_chunked())
-            .map_err(failed)
-    }
-
     pub(crate) fn first(&self) -> Shape {
         let (witness, inverse) = self.rows[0];
         Shape {
@@ -84,30 +74,6 @@ impl Schedules {
             witness,
             inverse,
         }
-    }
-}
-
-pub(crate) fn row(catalog: &TrustedScheduleCatalog<Config>, shape: Shape) -> Result<&ResolvedScheduleRow, Error> {
-    let single = |profile: &GroupCommitPhaseParams, vars: usize| {
-        profile.group.num_vars() == vars && profile.group.num_polynomials() == 1
-    };
-    catalog
-        .rows()
-        .find(|row| {
-            let profiles = row.profiles();
-            single(&profiles.final_group, shape.inverse)
-                && matches!(&profiles.precommitteds[..], [key, witness]
-                    if single(key, shape.key) && single(witness, shape.witness))
-        })
-        .ok_or(Error::Layout("no Akita schedule row has these polynomials"))
-}
-
-pub(crate) fn profile(row: &ResolvedScheduleRow, polynomial: Polynomial) -> &GroupCommitPhaseParams {
-    let profiles = row.profiles();
-    match polynomial {
-        Polynomial::Key => &profiles.precommitteds[0],
-        Polynomial::Witness => &profiles.precommitteds[1],
-        Polynomial::Inverse => &profiles.final_group,
     }
 }
 
@@ -162,34 +128,6 @@ pub(crate) fn on_large_stacks<R: Send>(work: impl FnOnce() -> R + Send) -> R {
         Some(pool) => pool.install(work),
         None => work(),
     }
-}
-
-fn bytes_of(value: &impl AkitaSerialize) -> Result<Vec<u8>, Error> {
-    let mut bytes = Vec::new();
-    value.serialize_compressed(&mut bytes).map_err(failed)?;
-    Ok(bytes)
-}
-
-pub(crate) fn commitment_bytes(commitment: &CommittedGroup<Base>) -> Result<Vec<u8>, Error> {
-    bytes_of(commitment)
-}
-
-pub(crate) fn commitment(bytes: &[u8]) -> Result<CommittedGroup<Base>, Error> {
-    let commitment = CommittedGroup::<Base>::deserialize_compressed(bytes, &())
-        .map_err(|_| Error::Rejected("an Akita commitment does not decode"))?;
-    if commitment_bytes(&commitment)? != bytes {
-        return Err(Error::Rejected("an Akita commitment is not canonical"));
-    }
-    Ok(commitment)
-}
-
-pub(crate) fn setup_prefixes(bytes: &[u8]) -> Result<SetupPrefixVerifierRegistry<Base>, Error> {
-    let registry = SetupPrefixVerifierRegistry::<Base>::deserialize_compressed(bytes, &())
-        .map_err(|_| Error::Rejected("the commitments of Akita's setup do not decode"))?;
-    if bytes_of(&registry)? != bytes || *registry.setup_seed() != sample_akita_setup_seed() {
-        return Err(Error::Rejected("the commitments of Akita's setup are not canonical"));
-    }
-    Ok(registry)
 }
 
 #[cfg(test)]

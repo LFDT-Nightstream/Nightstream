@@ -12,7 +12,8 @@ use akita_serialization::AkitaSerialize;
 use akita_types::{AkitaSetupSeed, SetupPrefixVerifierRegistry};
 
 use super::{block_weights, fold, prefix_equality, row_point, weight_at, ProverKey, VerificationKey};
-use crate::akita::{self, Schedules, SCHEDULES};
+use crate::akita::verifier::{commitment, setup_prefixes};
+use crate::akita::{Schedules, SCHEDULES};
 use crate::layout::LANE_VARS;
 use crate::ring::{dot, Point};
 use crate::sumcheck;
@@ -361,7 +362,7 @@ fn only_a_pinned_key_decodes() {
         for at in 0..key.commitment.len() {
             let mut changed = key.commitment.clone();
             changed[at] ^= 1;
-            well_formed += usize::from(akita::commitment(&changed).is_ok());
+            well_formed += usize::from(commitment(&changed).is_ok());
             assert!(
                 rejected(&with_parts(&key, &changed, &key.setup_prefixes)),
                 "commitment byte {at}"
@@ -369,7 +370,7 @@ fn only_a_pinned_key_decodes() {
         }
         assert!(well_formed > 0, "no changed commitment is well formed");
 
-        let registry = akita::setup_prefixes(&key.setup_prefixes).expect("registry");
+        let registry = setup_prefixes(&key.setup_prefixes).expect("registry");
         let mut other = SetupPrefixVerifierRegistry::new(AkitaSetupSeed::shake256_paged_v1([9; 32]));
         for (_, slot) in registry.iter() {
             other.insert(slot.clone()).expect("slot");
@@ -382,7 +383,7 @@ fn only_a_pinned_key_decodes() {
         for at in 0..key.setup_prefixes.len() {
             let mut changed = key.setup_prefixes.clone();
             changed[at] ^= 1;
-            well_formed += usize::from(akita::setup_prefixes(&changed).is_ok());
+            well_formed += usize::from(setup_prefixes(&changed).is_ok());
             assert!(
                 rejected(&with_parts(&key, &key.commitment, &changed)),
                 "setup prefix byte {at}"

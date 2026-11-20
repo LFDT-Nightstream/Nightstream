@@ -1,18 +1,20 @@
 use std::sync::Arc;
 
-use akita_config::ResolvedScheduleRow;
-use akita_params::{verifier_setup_matrix_capacity_for_schedule, BasisMode, SetupMode};
+use akita_config::{self as config, ResolvedScheduleRow};
+use akita_params::{self as params, verifier_setup_matrix_capacity_for_schedule, BasisMode, SetupMode};
+use akita_serialization::{AkitaDeserialize, AkitaSerialize};
 use akita_types::{
     derive_public_matrix_prefix, sample_akita_setup_seed, AkitaExpandedSetup, AkitaSetupDescriptor, AkitaVerifierSetup,
-    GroupBatchStatement, OpeningClaims, PolynomialGroupClaims,
+    CommittedGroup, GroupBatchStatement, OpeningClaims, PolynomialGroupClaims, SetupPrefixVerifierRegistry,
 };
 use akita_verifier::{AkitaVerifier, SetupPolicy};
 use neo_math::K;
 
-use super::{
-    commitment, extension, failed, on_large_stacks, profile, row, setup_prefixes, Config, Polynomial, Shape, SCHEDULES,
-};
+use super::{extension, failed, on_large_stacks, Base, Polynomial, Schedules, Shape, SCHEDULES};
+#[path = "schedule.rs"]
+pub(crate) mod schedule;
 use crate::Error;
+use schedule::{catalog, profile, row, Config};
 
 pub(crate) struct Opening<'a> {
     pub(crate) commitment: &'a [u8],
@@ -27,11 +29,11 @@ pub(crate) struct Verifier {
 
 impl Verifier {
     pub(crate) fn new(shape: Shape, prefixes: &[u8]) -> Result<Self, Error> {
-        let catalog = SCHEDULES
+        let schedules = SCHEDULES
             .iter()
             .find(|schedules| schedules.key_vars == shape.key)
-            .ok_or(Error::Layout("no Akita schedule row has a key of this size"))?
-            .catalog()?;
+            .ok_or(Error::Layout("no Akita schedule row has a key of this size"))?;
+        let catalog = catalog(schedules)?;
         let row = row(&catalog, shape)?.clone();
         let layout = row.profiles().opening_layout().map_err(failed)?;
         let elements = verifier_setup_matrix_capacity_for_schedule(row.schedule(), &layout, SetupMode::Check)
@@ -83,4 +85,28 @@ impl Verifier {
                 .map_err(|_| Error::Rejected("the Akita opening fails"))
         })
     }
+}
+
+pub(crate) fn commitment(bytes: &[u8]) -> Result<CommittedGroup<Base>, Error> {
+    let commitment = CommittedGroup::<Base>::deserialize_compressed(bytes, &())
+        .map_err(|_| Error::Rejected("an Akita commitment does not decode"))?;
+    if bytes_of(&commitment)? != bytes {
+        return Err(Error::Rejected("an Akita commitment is not canonical"));
+    }
+    Ok(commitment)
+}
+
+pub(crate) fn setup_prefixes(bytes: &[u8]) -> Result<SetupPrefixVerifierRegistry<Base>, Error> {
+    let registry = SetupPrefixVerifierRegistry::<Base>::deserialize_compressed(bytes, &())
+        .map_err(|_| Error::Rejected("the commitments of Akita's setup do not decode"))?;
+    if bytes_of(&registry)? != bytes || *registry.setup_seed() != sample_akita_setup_seed() {
+        return Err(Error::Rejected("the commitments of Akita's setup are not canonical"));
+    }
+    Ok(registry)
+}
+
+pub(crate) fn bytes_of(value: &impl AkitaSerialize) -> Result<Vec<u8>, Error> {
+    let mut bytes = Vec::new();
+    value.serialize_compressed(&mut bytes).map_err(failed)?;
+    Ok(bytes)
 }

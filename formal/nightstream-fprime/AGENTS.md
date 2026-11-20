@@ -86,8 +86,9 @@ tests      axiom gate (explicit imports, `#audit_axioms` per theorem)
   the premise table of `SECURITY_MODEL.md` and `tests/PremiseCensus.lean` use
   `Claims` names. A theorem is a claim when its hypotheses are about an
   emitted package, a verifier entry point, or a protocol relation of the
-  paper. After a change to a claim, run `scripts/validate.sh premises` and
-  give each new hypothesis a class in `SECURITY_MODEL.md`. For an outside
+  paper. After a change to a claim, run `scripts/validate.sh premises`, give
+  each new hypothesis a class in `SECURITY_MODEL.md`, correct the line count
+  of each changed row, and write the pin of the claim in `SPEC.md`. For an outside
   review, `scripts/validate.sh review` writes the claims, their premises and a
   glossary of the names they use to `docs/claims-review/`.
 - Lean commands only through `scripts/validate.sh` (`static`, `build

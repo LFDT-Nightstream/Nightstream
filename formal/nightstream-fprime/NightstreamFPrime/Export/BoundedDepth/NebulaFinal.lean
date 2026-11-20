@@ -168,11 +168,11 @@ theorem soundness (complete : StepExtend.Complete exports)
     sampleOf setup app exports assumption closed s q claim admitted (p.sMax * p.n)
   let Rejected : Option (Option (Outcome logicalWidth publicFits)) → Prop := fun r =>
     ¬ ∀ a, r = some a → ∀ o, a = some o →
-      Verifies setup.ajtai setup.circuitKeys step complete.packageWidth 0 (fun _ _ => 0) o.1
+      Verifies setup.ajtai setup.circuitKeys step complete.packageWidth (fun _ _ => 0) o.1
         (setup.proofOf o)
   let Bad : Sample app.width logicalWidth publicFits → Prop :=
     (experiment app setup.ajtai setup.circuitKeys exports).Bad app
-      (Accepted app setup.ajtai setup.circuitKeys (step := step) (fun _ _ => 0) 0)
+      (Accepted app setup.ajtai setup.circuitKeys (step := step) (fun _ _ => 0))
   have origins : stage.tape.map tapeAt = prover.tape :=
     tape_map_origin assumption closed (walkAdversary prover) admitted (p.sMax * p.n)
   have results : prover.tape.map Prod.fst = law s (restore setup.game q []) := map_fst_bind _ _
@@ -185,10 +185,10 @@ theorem soundness (complete : StepExtend.Complete exports)
       rw [accepted]
       rfl
     have statement : (sampleAt tape).2.1.statement = o.1 := congrArg Visit.statement input
-    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth 0 (fun _ _ => 0)
+    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth (fun _ _ => 0)
       o.1 (setup.proofOf o)
     · refine Or.inr ⟨⟨?_, congrArg Visit.bounds input, ?_⟩, ?_, ?_⟩
-      · change Terminal.HoldsFor 0 setup.ajtai setup.circuitKeys step (fun _ _ => 0)
+      · change Terminal.HoldsFor setup.ajtai setup.circuitKeys step (fun _ _ => 0)
           (stage.input tape).statement (stage.input tape).proof
         rw [input]
         exact holds_of_verifies verifies
@@ -210,11 +210,11 @@ theorem soundness (complete : StepExtend.Complete exports)
       rw [← results, ← origins, PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply]
       rfl
     rw [moved, ← prob_eq_law]
-    exact restore_sound _ s _ _ (game_avoids setup step 0 (fun _ _ => 0)
+    exact restore_sound _ s _ _ (game_avoids setup step (fun _ _ => 0)
       (FinalRows.premises_of_rows setup exports complete rows))
       (game_densityLe setup) (by unfold finalError; positivity) q
   have bad := bad_le app setup.ajtai setup.circuitKeys exports assumption closed prover admitted
-    valid keysShaped programEq (fun _ _ => 0) 0 (p.sMax * p.n) Prod.snd round
+    valid keysShaped programEq (fun _ _ => 0) (p.sMax * p.n) Prod.snd round
   have sampled : stage.tape.toOuterMeasure {tape | Bad (sampleAt tape)} =
       (claimed setup app exports assumption closed s q claim admitted
         (p.sMax * p.n)).law.toOuterMeasure {sample | Bad sample} := by

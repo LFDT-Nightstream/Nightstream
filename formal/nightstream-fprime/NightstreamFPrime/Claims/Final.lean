@@ -46,7 +46,6 @@ theorem verifier_sound
     {mode : FinalVerifier.Mode}
     (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     (step : AppState → AppWitness → AppState)
-    (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
@@ -57,9 +56,9 @@ theorem verifier_sound
     (s : Compression.Game.Strategy (Option (Option (FinalVerifier.Outcome logicalWidth publicFits))))
     (q : ℕ) :
     Compression.Game.prob s (setup.game.restore q [])
-          (FinalVerifier.Wins setup complete.packageWidth step cap control) ≤
+          (FinalVerifier.Wins setup complete.packageWidth step control) ≤
         (↑q : ℝ) * FinalVerifier.finalError :=
-  Export.BoundedDepth.FinalRows.soundness setup step cap control exports complete rows s q
+  Export.BoundedDepth.FinalRows.soundness setup step control exports complete rows s q
 
 /-- With Akita openings, the final verifier accepts a statement for which no proof with
 witnesses satisfies `Verifies` with probability at most `q · (1/2^119 + 38/fieldModulus²) + εAkita`. -/
@@ -70,7 +69,6 @@ theorem verifier_sound_with_akita
     {mode : FinalVerifier.Mode}
     (setup : FinalVerifier.Setup mode logicalWidth publicFits)
     (step : AppState → AppWitness → AppState)
-    (cap : ℕ)
     (control : AppState → AppWitness → Fin 2)
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
@@ -82,10 +80,10 @@ theorem verifier_sound_with_akita
     (winsOf : Real → ℝ)
     (q : ℕ)
     (εAkita : ℝ)
-    (akita : FinalVerifier.AkitaKnowledge winsOf setup complete.packageWidth step cap control q εAkita)
+    (akita : FinalVerifier.AkitaKnowledge winsOf setup complete.packageWidth step control q εAkita)
     (real : Real) :
     winsOf real ≤ (↑q : ℝ) * FinalVerifier.finalError + εAkita :=
-  Export.BoundedDepth.FinalRows.real_soundness setup step cap control exports complete rows winsOf q
+  Export.BoundedDepth.FinalRows.real_soundness setup step control exports complete rows winsOf q
     εAkita akita real
 
 /-- In the state-restoration experiment with `q` queries, the probability of a false history is at

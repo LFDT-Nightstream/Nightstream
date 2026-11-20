@@ -66,7 +66,7 @@ theorem valid_of_chosen {program : Stage1.Application.Program} {circuit : Fin 2}
   fin_cases circuit <;> decide
 
 /-- The terminal does not read the circuit selector. -/
-theorem holdsFor_recursive_control (cap : Nat)
+theorem holdsFor_recursive_control
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (circuitKeys : Fin 2 → CircuitKey logicalWidth publicFits)
     (step : AppState → AppWitness → AppState) (control control' : AppState → AppWitness → Fin 2)
@@ -75,10 +75,10 @@ theorem holdsFor_recursive_control (cap : Nat)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2) :
-    Terminal.HoldsFor cap ajtai circuitKeys step control statement (.recursive payload) ↔
-      Terminal.HoldsFor cap ajtai circuitKeys step control' statement (.recursive payload) :=
-  (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).trans
-    (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control' statement payload).symm
+    Terminal.HoldsFor ajtai circuitKeys step control statement (.recursive payload) ↔
+      Terminal.HoldsFor ajtai circuitKeys step control' statement (.recursive payload) :=
+  (Terminal.holdsFor_recursive_iff ajtai circuitKeys step control statement payload).trans
+    (Terminal.holdsFor_recursive_iff ajtai circuitKeys step control' statement payload).symm
 
 /-- The key digests and both application states have four words; the counters are any `Nat`. -/
 structure Shaped (state : State logicalWidth publicFits) : Prop where
@@ -399,17 +399,17 @@ structure Linked (statement : TerminalStatement AppState)
     payload.freshWitness
 
 /-- A recursive terminal that the terminal relation accepts is linked. -/
-theorem linked_of_holdsFor (control : AppState → AppWitness → Fin 2) (cap : Nat)
+theorem linked_of_holdsFor (control : AppState → AppWitness → Fin 2)
     (statement : TerminalStatement AppState)
     (payload : TerminalProof (SlotData logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
-    (accepted : Terminal.HoldsFor cap ajtai circuitKeys step control statement
+    (accepted : Terminal.HoldsFor ajtai circuitKeys step control statement
       (.recursive payload)) :
     Linked (ajtai := ajtai) (circuitKeys := circuitKeys) statement payload := by
   obtain ⟨valid, pcValid, positive, freshHash, _, freshHolds⟩ :=
-    (Terminal.holdsFor_recursive_iff cap ajtai circuitKeys step control statement payload).1
+    (Terminal.holdsFor_recursive_iff ajtai circuitKeys step control statement payload).1
       accepted
   have selected : selectedIndex pcValid = circuitOf payload.pc := by
     obtain ⟨lower, upper⟩ := pcValid
@@ -495,12 +495,12 @@ theorem bridge_linked (exports : Exports relation ajtai circuitKeys step cubeFit
 selector. -/
 theorem bridge (exports : Exports relation ajtai circuitKeys step cubeFits)
     (keysShaped : ∀ key, (circuitKeys key).digest.length = 4)
-    (control : AppState → AppWitness → Fin 2) (cap : Nat) (statement : TerminalStatement AppState)
+    (control : AppState → AppWitness → Fin 2) (statement : TerminalStatement AppState)
     (payload : TerminalProof (SlotData logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits))
       (StepFresh logicalWidth publicFits)
       (Terminal.Witness (logicalWidth := logicalWidth) (publicFits := publicFits)) 2)
-    (accepted : Terminal.HoldsFor cap ajtai circuitKeys step control statement
+    (accepted : Terminal.HoldsFor ajtai circuitKeys step control statement
       (.recursive payload)) :
     (StepHolds Folding.Schedule.productionLightFoldCap ajtai circuitKeys step
         (chosen exports.program (circuitOf payload.pc)) (circuitOf payload.pc) (exports.last payload).input
@@ -509,7 +509,7 @@ theorem bridge (exports : Exports relation ajtai circuitKeys step cubeFits)
         (exports.last payload).input (exports.last payload).output) ∨
       Collision exports statement payload :=
   bridge_linked exports keysShaped statement payload
-    (linked_of_holdsFor control cap statement payload accepted)
+    (linked_of_holdsFor control statement payload accepted)
 
 end Circuits
 

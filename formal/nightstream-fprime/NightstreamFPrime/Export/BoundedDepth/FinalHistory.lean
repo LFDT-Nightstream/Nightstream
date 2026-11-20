@@ -90,23 +90,23 @@ theorem soundness (complete : StepExtend.Complete exports)
   classical
   let Rejected : Option (Option (Outcome logicalWidth publicFits)) → Prop := fun r =>
     ¬ ∀ a, r = some a → ∀ o, a = some o →
-      Verifies setup.ajtai setup.circuitKeys step complete.packageWidth 0 (fun _ _ => 0) o.1
+      Verifies setup.ajtai setup.circuitKeys step complete.packageWidth (fun _ _ => 0) o.1
         (setup.proofOf o)
   let Accepted : Option (Option (Outcome logicalWidth publicFits)) → Prop := fun r =>
-    FalseAcceptance setup.ajtai setup.circuitKeys exports (fun _ _ => 0) 0 (outputOf setup r)
+    FalseAcceptance setup.ajtai setup.circuitKeys exports (fun _ _ => 0) (outputOf setup r)
   have cover (r : Option (Option (Outcome logicalWidth publicFits)))
       (falseHistory : FalseHistory exports.program r) : Rejected r ∨ Accepted r := by
     obtain ⟨o, rfl, unreached⟩ := falseHistory
-    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth 0 (fun _ _ => 0)
+    by_cases verifies : Verifies setup.ajtai setup.circuitKeys step complete.packageWidth (fun _ _ => 0)
       o.1 (setup.proofOf o)
     · exact Or.inr ⟨holds_of_verifies verifies, unreached⟩
     · exact Or.inl fun all => verifies (all _ rfl o rfl)
   have rejected : prob s (restore setup.game q []) Rejected ≤ q * finalError :=
-    restore_sound _ s _ _ (game_avoids setup step 0 (fun _ _ => 0)
+    restore_sound _ s _ _ (game_avoids setup step (fun _ _ => 0)
       (FinalRows.premises_of_rows setup exports complete rows))
       (game_densityLe setup) (by unfold finalError; positivity) q
   have accepted := probability_bound setup.ajtai setup.circuitKeys exports assumption closed
-    (adversary setup s q) admitted keysShaped (fun _ _ => 0) 0 depth (by
+    (adversary setup s q) admitted keysShaped (fun _ _ => 0) depth (by
       rintro (_ | _ | o) inside
       · exact Nat.zero_le depth
       · exact Nat.zero_le depth

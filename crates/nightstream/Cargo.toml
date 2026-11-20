@@ -15,6 +15,10 @@ path = "src/bin/poseidon2_bench.rs"
 test = false
 bench = false
 
+[[example]]
+name = "akita_compat"
+path = "tests/akita_compat/driver.rs"
+
 [features]
 default = []
 metal = ["dep:neo-prover-metal", "neo-prover-metal/metal"]

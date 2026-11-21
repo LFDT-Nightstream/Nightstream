@@ -89,11 +89,15 @@ impl BackendClosure for KeyPair<'_> {
             states.fill([0; 25]);
             for (state, &column) in states.iter_mut().zip(columns) {
                 let input = element_input(self.seed, self.row, column);
-                for (index, byte) in input.into_iter().enumerate() {
-                    state[index / 8] ^= u64::from(byte) << (8 * (index % 8));
+                let (words, tail) = input.as_chunks::<8>();
+                for (output, &word) in state.iter_mut().zip(words) {
+                    *output = u64::from_le_bytes(word);
                 }
-                // SHAKE domain suffix and multi-rate padding, unchanged from sha3::Shake128.
-                state[ELEMENT_INPUT_BYTES / 8] ^= 0x1f << (8 * (ELEMENT_INPUT_BYTES % 8));
+                let mut last = [0; 8];
+                last[..tail.len()].copy_from_slice(tail);
+                // SHAKE128 domain suffix.
+                last[tail.len()] = 0x1f;
+                state[words.len()] = u64::from_le_bytes(last);
                 state[RATE_WORDS - 1] ^= 0x80 << 56;
             }
             for start in (0..KEY_WORDS).step_by(RATE_WORDS) {

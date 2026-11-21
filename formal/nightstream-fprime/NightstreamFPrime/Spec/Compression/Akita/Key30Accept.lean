@@ -74,8 +74,9 @@ structure Note (r : Row) (E : Type) [CommRing E] [Algebra Zq E] where
   partials : Fin terminal.blocks → Rq terminal.innerDegree
   response : terminal.Source
 
-/-- A wire message of the opening of the row `r`: the data `Note`, and 4 cells of 8 elements of
-`E` and a number up to `3029804899` for the messages of the checks. -/
+/-- A wire message of the opening of the row `r`: the data `Note`, 4 cells of 8 elements of `E`
+and a number up to `3029804899` for the messages of the checks, and the nonce of the response
+search. -/
 abbrev Wire (r : Row) (E : Type) [CommRing E] [Algebra Zq E] : Type :=
   Page (Note r E) E 4 8 3029804899
 
@@ -83,7 +84,8 @@ variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree
   {Coord : Type} [Fintype Coord] [DecidableEq Coord]
 
 /-- The terminal with the matrix `A_term`, the fold challenges at the stage `start`, and the
-statement and the clear partials of the message before this stage (Akita Section 8.2). -/
+statement, the clear partials and the nonce of the response search of the message before this
+stage (Akita Section 8.2). -/
 def terminalOf (r : Row) (total : ℕ)
     (matrix : Matrix (Fin terminal.innerRank) (Fin terminal.blockLength × Fin terminal.sourceDigits)
       (Rq terminal.innerDegree))
@@ -95,6 +97,7 @@ def terminalOf (r : Row) (total : ℕ)
   read point := (point.wire start).data.statement
   partials point := (point.wire start).data.partials
   response wire := wire.data.response
+  nonce wire := wire.nonce
   block := block
   decode := decode
   weight := 0
@@ -408,9 +411,9 @@ theorem accepts {total : ℕ} (inside : Tier.finish sixth < total)
     (Page.carries (fun note : Note r E => (note.state, note.statement, note.partials)) fun target =>
       ⟨{ base with state := target.1, statement := target.2.1, partials := target.2.2 }, rfl⟩)
     (Page.carries Note.response fun target => ⟨{ base with response := target }, rfl⟩)
-    registered started inside (fun _ => rfl) (fun _ => rfl) table decodes decodes₁ decodes₂ decodes₃
-    decodes₄ decodes₅ decodes₆ decodesL worked
-    (onPath_nil accept table (⟨base, fun _ => (fun _ => 0, 0)⟩ : Wire r E)) rfl
+    registered started inside (fun _ => rfl) (fun _ => rfl) (fun _ => rfl) table decodes decodes₁
+    decodes₂ decodes₃ decodes₄ decodes₅ decodes₆ decodesL worked
+    (onPath_nil accept table (⟨base, fun _ => (fun _ => 0, 0), 0⟩ : Wire r E)) rfl
     (tables := tables) live (by rw [based]; rfl) (fun g => by rw [based]; exact lengths g)
     (by rw [based]; rfl) fit
   obtain ⟨proof, head, holds⟩ := OnPath.accepts on whole each

@@ -112,6 +112,8 @@ for each draw sequence of the checks of `T` for the table `source`, which end in
 prefix `flat`. The honest prover sends the commitment `payload` of the group 1 of the next level
 in the message after the fold challenges, and its last message has the commitments
 `(registry, payload)`, the values `(s_{ρ_S}, v_W)` and the points `(ρ_S, r_2)` of the two groups.
+`tried`: the nonce of the response search in the last message of `early` is below
+`responseTries`. The last message of the longer prefix has a nonce below `responseTries` too.
 Each transcript with the prefix has the link `Tier.Offloaded`. -/
 theorem offLink
     (carries : Carries sendable slots T.read fun wire =>
@@ -120,6 +122,7 @@ theorem offLink
     (starts : early.length = T.start) (fits : T.finish ≤ total)
     (decodes : ∀ input b, (T.decode b (table input (T.block b))).isSome)
     (worked : ∀ input, table input none ∈ workZeros E 57) (capped : T.Capped)
+    (tried : T.read.nonce (lastWire first early) < responseTries)
     (uniform : ∀ wire challenge table other,
       bare (T.check wire challenge table) = bare (T.check wire challenge other))
     {draws μ ν : ℕ} (count : T.costs.length = draws) (source flat : Table)
@@ -131,6 +134,7 @@ theorem offLink
     ∃ (later : List ((Option Coord → E) × Wire)) (r2 ρ : List E), r2.length = μ ∧
       ρ.length = ν ∧ OnPath accept table first (early ++ later) ∧
       (early ++ later).length = T.finish ∧
+      T.read.nonce (lastWire first (early ++ later)) < responseTries ∧
       commits (lastWire first (early ++ later)) =
         Batch.pairOf (F := fun g => (B.shape g).Payload) registry payload ∧
       values (lastWire first (early ++ later)) =
@@ -140,9 +144,9 @@ theorem offLink
         (∃ rest, stage.rest = (early ++ later) ++ rest) →
         T.Offloaded commits values places registry commit stage := by
   subst count
-  obtain ⟨wire, moves, result, counted, ⟨r2, ρ, long, long', rfl⟩, on', held, last, ended,
-      facts⟩ :=
-    Tier.run (T := T) carries on starts fits decodes worked capped source wins fun _ game =>
+  obtain ⟨wire, moves, result, counted, ⟨r2, ρ, long, long', rfl⟩, fresh, on', held, last,
+      ended, facts⟩ :=
+    Tier.run (T := T) carries on starts fits decodes worked capped tried source wins fun _ game =>
       (payload, Batch.pairOf (F := fun g => (B.shape g).Payload) registry payload,
         match game with
         | .pure (some ((r, v), (σ, s))) => (![s, v], ![σ, r])
@@ -160,7 +164,8 @@ theorem offLink
     rw [List.length_append, List.length_cons, counted, starts]
     exact T.finish_eq.symm
   refine ⟨(answer table first early, wire) :: moves, r2, ρ, long, long', on', whole,
-    by rw [lastWire_append_cons]; exact committed, by rw [lastWire_append_cons]; exact valued,
+    by rw [lastWire_append_cons]; exact fresh, by rw [lastWire_append_cons]; exact committed,
+    by rw [lastWire_append_cons]; exact valued,
     by rw [lastWire_append_cons]; exact placed, fun stage rooted extended => ?_⟩
   obtain ⟨long'', decoded, _, opened, closed, game⟩ := facts stage rooted extended
   refine ⟨long'', decoded, r2, _, ρ, _,

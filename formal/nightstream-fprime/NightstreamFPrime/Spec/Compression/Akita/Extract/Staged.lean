@@ -118,9 +118,18 @@ theorem exists_fair_slots {Coord Slot : Type} [Fintype Coord] [DecidableEq Coord
 
 end Sampler
 
-/-- The decoder of the messages of a proof: message `index` of the type `M` that a game receives
-after one draw, from the wire message that the proof has after this draw. -/
-abbrev Reader (Wire : Type) : Type 1 := ∀ (M : Type) [Nonempty M], Wire → ℕ → M
+/-- The decoder of the messages of a proof. `message` gives message `index` of the type `M` that
+a game receives after one draw, from the wire message that the proof has after this draw. `nonce`
+gives the nonce of the response search of the prover from the wire message before the fold
+challenges of a level (Akita Figure 4, step 2; `FoldResponse` of the Akita code). -/
+structure Reader (Wire : Type) : Type 1 where
+  message : ∀ (M : Type) [Nonempty M], Wire → ℕ → M
+  nonce : Wire → ℕ
+
+/-- The number of the nonces of the response search of a fold: the verifier accepts a nonce
+below it (Akita Section 5.4, `N_try,h`; `FOLD_RESPONSE_ATTEMPTS = 2^12` of the Akita code,
+`crates/akita-params/src/transcript_grinding.rs`). -/
+def responseTries : ℕ := 2 ^ 12
 
 variable {Wire Reply α β : Type} [Fintype Reply]
 
@@ -130,7 +139,7 @@ def settle (read : Reader Wire) (wire : Wire) : Game α → ℕ → Game α
   | .pure result, _ => .pure result
   | @Game.draw _ C finite nonempty bad next, _ => @Game.draw _ C finite nonempty bad next
   | @Game.recv _ M nonempty next, index =>
-      settle read wire (next (@read M nonempty wire index)) (index + 1)
+      settle read wire (next (@Reader.message _ read M nonempty wire index)) (index + 1)
 
 /-- The game after one answer of the oracle to its draw. A game that has ended does not change. -/
 noncomputable def advance (reply : Reply) : Game α → Game α

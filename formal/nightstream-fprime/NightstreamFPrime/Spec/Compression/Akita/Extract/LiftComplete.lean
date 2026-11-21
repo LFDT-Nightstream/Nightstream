@@ -219,7 +219,8 @@ without the probability that a response does not fit and without the term of (15
 factor, because this verifier has no rejection at a zero factor: the verifier of `mixedTower_suffix`
 from the packing level accepts the honest prover. `early` is a transcript prefix on the path of the
 table of the oracle whose last message has the claim `sourceClaim` of the level 1 for the source
-blocks `source`. Then later messages exist such that the complete transcript has the link
+blocks `source`, and `tried`: the nonce of the response search in this message is below
+`responseTries`. Then later messages exist such that the complete transcript has the link
 `Tier.TraceLinked` from the level 1 to the level 2, the links from the level 2 to the level 5, the
 link `Terminal.Linked` and the checks `Terminal.Passed`. `shape₁`, `radix₁`, `certified₁`, `path₁`,
 `digit₁`, `covers₁`, `range₁`: the conditions of `liftLevel_wins` on the level 1. `vars₁`, `point₁`,
@@ -274,6 +275,7 @@ theorem packTower_complete {sendable : (M : Type) → M → Prop} {slots width c
     (next : L.start = Tier.finish fifth) (inside : L.start < total)
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
     (clears : ∀ point, L.partials point = partialsOf (point.wire L.start))
+    (counts : ∀ wire, L.nonce wire = read.nonce wire)
     (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
     (decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome)
     (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
@@ -285,6 +287,7 @@ theorem packTower_complete {sendable : (M : Type) → M → Prop} {slots width c
     {wire₀ : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table wire₀ early)
     (starts : early.length = start) {source : Fin S₁.blocks → S₁.Source} {point : Point O₁ E}
     (ready : claim₁ (lastWire wire₀ early) = sourceClaim β₁ key₁ openKey₁ source point)
+    (tried : read.nonce (lastWire wire₀ early) < responseTries)
     (fit : LiftFit β₁ key₁ openKey₁ fold₁ μ₁ fits₁ digits₁ decode₁ source fun w₁ =>
       TraceFit quarter₂ key₂ openKey₂ fold₂ (fun _ => decode₂) (fun _ => True) (packed w₁)
         fun w₂ =>
@@ -326,11 +329,11 @@ theorem packTower_complete {sendable : (M : Type) → M → Prop} {slots width c
     (batch := batch₁) (rowsFit := rowsFit₁) (block := block₁) (read := read) (weight := weight₁)
     (start := start) sends range₁ four (Nat.zero_lt_of_lt room) shape₁ radix₁ certified₁ path₁
     digit₁ covers₁ ready fit member
-  obtain ⟨later₁, blockSeg, positionSeg, packSeg, θ, packs, positions, long, on₁, len₁, ready₂,
-      linked₁⟩ :=
+  obtain ⟨later₁, blockSeg, positionSeg, packSeg, θ, packs, positions, long, on₁, len₁, fresh₁,
+      ready₂, linked₁⟩ :=
     traceLink (B := base₁) (ν := ν₁) (Next := second) (commit' := commit₂) carries₁ sends
       (Nat.le_of_succ_le four) on starts fin₁ decodes₁ worked
-      ⟨foldWorkBits_le _ _, map_workBits_le _⟩
+      ⟨foldWorkBits_le _ _, map_workBits_le _⟩ tried
       (fun _ _ table other => foldCheck_bare _ _ _ _ table other) (foldCosts_length E _ _ _ _ _)
       (Nat.lt_of_succ_lt (Nat.lt_of_succ_lt room)) _
       (wins₁.mono fun _ _ _ kept => ⟨kept.1, kept.2.imp fun _ both => ⟨both.1.trans vars₁, both.2⟩⟩)
@@ -340,9 +343,9 @@ theorem packTower_complete {sendable : (M : Type) → M → Prop} {slots width c
   obtain ⟨later, onL, whole, each⟩ := traceTower_complete sends four room carries₂ carries₃
     carries₄ carries₅ carriesL quarter₂ quarter₃ quarter₄ quarter₅ quarter₆ source₂ source₃
     source₄ source₅ source₆ sized₂ sized₃ sized₄ sized₅ vars₂ vars₃ vars₄ vars₅ point₂ point₃
-    point₄ point₅ covered₂ covered₃ covered₄ covered₅ normRoom₃ normRoom₄ normRoom₅ wide₃ wide₄ wide₅ capped₃
-    capped₄ capped₅ next inside reads clears table decodes₂ decodes₃ decodes₄ decodes₅ decodesL
-    worked on₁ len₁ packs positions long live₂ ready₂ fit₂
+    point₄ point₅ covered₂ covered₃ covered₄ covered₅ normRoom₃ normRoom₄ normRoom₅ wide₃ wide₄
+    wide₅ capped₃ capped₄ capped₅ next inside reads clears counts table decodes₂ decodes₃ decodes₄
+    decodes₅ decodesL worked on₁ len₁ packs positions long live₂ ready₂ fresh₁ fit₂
   refine ⟨later₁ ++ later, by rwa [← List.append_assoc], by rwa [← List.append_assoc],
     fun stage rooted shape => ⟨linked₁ stage rooted ⟨later, by rw [shape, List.append_assoc]⟩,
       each stage rooted (by rw [shape, List.append_assoc])⟩⟩

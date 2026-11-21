@@ -177,7 +177,9 @@ the complete transcript has the links `Tier.TraceLinked` of the levels 2 to 5, t
 `sends`, `wide`, `capped`, `room`, `carries₂` to `carriesL`: a wire message can have the data of
 the prover, with messages of 8 field elements, the energy `3029804899` and 4 messages of
 the checks. `next`, `inside`, `reads`, `clears`: the stage of the terminal and its messages.
-`fit`: the fit conditions `TraceFit` of the levels 2 to 5 with `S_max` of `norm₃` to `norm₅`, and
+`counts`: the terminal reads the nonce of the response search with `read`. `tried`: the nonce of
+the response search in the last message of `early` is below `responseTries`. `fit`: the fit
+conditions `TraceFit` of the levels 2 to 5 with `S_max` of `norm₃` to `norm₅`, and
 `‖z‖_2² ≤ S_max,term` at the terminal, for each fold challenge vector of the families. -/
 theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     (sends : Sends sendable E width cap) (wide : 8 ≤ width) (capped : 3029804899 ≤ cap)
@@ -191,6 +193,7 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     (next : Terminal.start L = Tier.finish fifth) (inside : Terminal.start L < total)
     (reads : ∀ point, Terminal.read L point = statementOf (point.wire (Terminal.start L)))
     (clears : ∀ point, Terminal.partials L point = partialsOf (point.wire (Terminal.start L)))
+    (counts : ∀ wire, Terminal.nonce L wire = read.nonce wire)
     (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
     (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
     (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
@@ -205,6 +208,7 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
       g cell = 0)
     (ready : claim₂ (lastWire first early) =
       honestTraceClaim (And.left quarters) key₂ openKey₂ g block position pack θ)
+    (tried : read.nonce (lastWire first early) < responseTries)
     (fit : TraceFit (And.left quarters) key₂ openKey₂ level₂.fold (fun _ => decode₂)
         (fun _ => True) g fun w₂ =>
       TraceFit (And.left (And.right quarters)) key₃ openKey₃ level₃.fold (fun _ => decode₃)
@@ -233,15 +237,17 @@ theorem traceTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     ((by decide : rangeWidthSq level₅.shape.certifiedBase ≤ 8).trans wide)
     ((by decide : norm₃.limit ≤ 3029804899).trans capped)
     ((by decide : norm₄.limit ≤ 3029804899).trans capped)
-    ((by decide : norm₅.limit ≤ 3029804899).trans capped) next inside reads clears table decodes₂
-    decodes₃ decodes₄ decodes₅ decodesL worked on starts packs positions blocks live ready fit
+    ((by decide : norm₅.limit ≤ 3029804899).trans capped) next inside reads clears counts table
+    decodes₂ decodes₃ decodes₄ decodes₅ decodesL worked on starts packs positions blocks live ready
+    tried fit
 
 /-- `traceTower_complete` for a proof whose first message has the claim of the level 2, which
 has its fold challenges at the stage 0: for each table of the oracle whose slots decode to fold
 challenges and whose work slots have 57 zero work bits, a proof exists such that its first message
 has the claim `honestTraceClaim` and its
 complete transcript has the links of the levels 2 to 5 and of the terminal and the checks
-`Terminal.Passed`. `full`: a wire message can have this claim. The other hypotheses are those of
+`Terminal.Passed`. `full`: a wire message can have this claim with a nonce of the response
+search below `responseTries`. The other hypotheses are those of
 `traceTower_complete`. -/
 theorem traceTower_accepts {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     (sends : Sends sendable E width cap) (wide : 8 ≤ width) (capped : 3029804899 ≤ cap)
@@ -255,6 +261,7 @@ theorem traceTower_accepts {sendable : (M : Type) → M → Prop} {slots width c
     (next : Terminal.start L = Tier.finish fifth) (inside : Terminal.start L < total)
     (reads : ∀ point, Terminal.read L point = statementOf (point.wire (Terminal.start L)))
     (clears : ∀ point, Terminal.partials L point = partialsOf (point.wire (Terminal.start L)))
+    (counts : ∀ wire, Terminal.nonce L wire = read.nonce wire)
     (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
     (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
     (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
@@ -267,7 +274,8 @@ theorem traceTower_accepts {sendable : (M : Type) → M → Prop} {slots width c
     (live : ∀ cell, level₂.shape.blocks * (level₂.shape.blockLength * (2 * 32)) ≤ cell →
       g cell = 0)
     (full : ∃ wire, claim₂ wire =
-      honestTraceClaim (And.left quarters) key₂ openKey₂ g block position pack θ)
+      honestTraceClaim (And.left quarters) key₂ openKey₂ g block position pack θ ∧
+      read.nonce wire < responseTries)
     (fit : TraceFit (And.left quarters) key₂ openKey₂ level₂.fold (fun _ => decode₂)
         (fun _ => True) g fun w₂ =>
       TraceFit (And.left (And.right quarters)) key₃ openKey₃ level₃.fold (fun _ => decode₃)
@@ -285,10 +293,11 @@ theorem traceTower_accepts {sendable : (M : Type) → M → Prop} {slots width c
       claim₂ (proof 0) =
         honestTraceClaim (And.left quarters) key₂ openKey₂ g block position pack θ ∧
       linked ((transcript total accept).final (.done proof) table) := by
-  obtain ⟨wire, said⟩ := full
+  obtain ⟨wire, said, tried⟩ := full
   obtain ⟨later, on, whole, each⟩ := traceTower_complete sends wide capped room carries₂ carries₃
-    carries₄ carries₅ carriesL next inside reads clears table decodes₂ decodes₃ decodes₄ decodes₅
-    decodesL worked (onPath_nil accept table wire) origin.symm packs positions blocks live said fit
+    carries₄ carries₅ carriesL next inside reads clears counts table decodes₂ decodes₃ decodes₄
+    decodes₅ decodesL worked (onPath_nil accept table wire) origin.symm packs positions blocks live
+    said tried fit
   obtain ⟨proof, zero, holds⟩ := OnPath.accepts (holds := linked) on whole each
   exact ⟨proof, zero ▸ said, holds⟩
 

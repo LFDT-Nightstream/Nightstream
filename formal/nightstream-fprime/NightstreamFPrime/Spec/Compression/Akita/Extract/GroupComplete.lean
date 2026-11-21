@@ -331,7 +331,8 @@ omit [DecidableEq E] in
 Theorem 10.46, "Batching root"). `early` is a transcript prefix of `start` moves on the path of
 the table of the oracle, and its last message has the commitments `commit`, the values `value` and
 the points `place` of the groups. The answer of the stage `start` gives the weights `ϑ`, and the
-honest prover sends the claim `target ϑ` of the fold `T` that starts after this stage. `paid`,
+honest prover sends the claim `target ϑ` of the fold `T` that starts after this stage, with a
+nonce of the response search below `responseTries`. `paid`,
 `weighed`, `valued`, `pointed`: for each weight vector, the claim has the commitments of the
 message, the weights, the target `Σ_g ϑ_g·v_g`, and a point with the segments of the shape of
 each group whose concatenation is the point of the message. Then each transcript with this
@@ -352,6 +353,7 @@ theorem rootLink (carries : Carries sendable slots read T.claim) {start : ℕ}
       (target ϑ).point g = Point.ofSegments (B.opening g) block position pack tail ∧
       place (lastWire first early) g = pack ++ (tail ++ (position ++ block))) :
     ∃ (ϑ : Fin count → E) (wire : Wire), T.claim wire = target ϑ ∧
+      read.nonce wire < responseTries ∧
       OnPath accept table first (early ++ [(answer table first early, wire)]) ∧
       ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = first →
         (∃ rest, stage.rest = early ++ (answer table first early, wire) :: rest) →
@@ -359,9 +361,9 @@ theorem rootLink (carries : Carries sendable slots read T.claim) {start : ℕ}
           RootLinked T start commit value place
             ((claimsRoot (Coord := Coord) (Slot := E) (total := total) start read value
               place).weights stage) stage := by
-  obtain ⟨wire, claimed, _⟩ := carries (target (sample (Coord → E) (Fin count → E)
+  obtain ⟨wire, claimed, tried, _⟩ := carries (target (sample (Coord → E) (Fin count → E)
     (view (answer table first early)))) [] (Nat.zero_le _) (by simp)
-  refine ⟨_, wire, claimed, on.snoc (by rw [starts]; exact rooted) wire,
+  refine ⟨_, wire, claimed, tried, on.snoc (by rw [starts]; exact rooted) wire,
     fun stage rooted' ⟨rest, shape⟩ => ?_⟩
   have before : stage.wire start = lastWire first early := by
     rw [← starts, ← rooted']

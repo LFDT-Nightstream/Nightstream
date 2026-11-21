@@ -111,18 +111,21 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {S' : Shape} {O' :
 
 /-- A wire message can have each claim of the first level, and with each message of the checks
 of a type of `fits`: each commitment of the next level, each claim of the next level, or each
-family of digit vectors of the next level. -/
+family of digit vectors of the next level. Each wire message has a nonce of the response search
+below `responseTries`. -/
 structure Full (fits : Type → Prop) (claim : Wire → Claim O E) (claim' : Wire → Claim O' E)
     (payloadOf : Wire → S'.Payload) (witnessOf : Wire → Witness O' fold') (read : Reader Wire) :
     Prop where
   root : ∀ value, ∃ wire, claim wire = value
-  message : ∀ (M : Type) [Nonempty M] (message : M), fits M → ∃ wire, read M wire 0 = message
+  message : ∀ (M : Type) [Nonempty M] (message : M), fits M →
+    ∃ wire, read.message M wire 0 = message
   commitment : ∀ value (M : Type) [Nonempty M] (message : M), fits M →
-    ∃ wire, payloadOf wire = value ∧ read M wire 0 = message
+    ∃ wire, payloadOf wire = value ∧ read.message M wire 0 = message
   next : ∀ value (M : Type) [Nonempty M] (message : M), fits M →
-    ∃ wire, claim' wire = value ∧ read M wire 0 = message
+    ∃ wire, claim' wire = value ∧ read.message M wire 0 = message
   digits : ∀ value (M : Type) [Nonempty M] (message : M), fits M →
-    ∃ wire, witnessOf wire = value ∧ read M wire 0 = message
+    ∃ wire, witnessOf wire = value ∧ read.message M wire 0 = message
+  tried : ∀ wire, read.nonce wire < responseTries
 
 variable {β : Module.Basis (Fin O.planes) Zq E} {key : Key S} {openKey : OpeningKey O}
   {claim : Wire → Claim O E} {μ : ℕ} {cells : O.cells fold ≤ 2 ^ μ} {batch : ℕ}
@@ -225,7 +228,7 @@ theorem packingPair_complete (fits : Type → Prop)
       (after : Game (Option (List E × E))), fits M →
       ∃ wire, ((index = 0 → payloadOf wire = (commit key' flat).1) ∧
         (index ≠ 0 → ∀ r v, after = Game.pure (some (r, v)) → claim' wire = next r)) ∧
-        read M wire 0 = message := by
+        read.message M wire 0 = message := by
     intro index M _ message after sendable
     by_cases start : index = 0
     · obtain ⟨wire, paid, sent⟩ := full.commitment (commit key' flat).1 M message sendable
@@ -384,7 +387,8 @@ theorem packingPair_complete (fits : Type → Prop)
   refine ⟨⟨by rw [rest, finished, List.length_append]; omega,
     ⟨⟨reply0, stage.reply_of (index := 0) head rfl, zero0, fun i =>
       Option.isSome_iff_exists.mpr ⟨_, decoded0 i⟩⟩, fun index inside =>
-        Tier.path_worked on' path worked (by rw [whole]; omega) (capped.1.getD index)⟩,
+        Tier.path_worked on' path worked (by rw [whole]; omega) (capped.1.getD index),
+      full.tried _⟩,
     ((r2.drop p).drop t).drop s, ((r2.drop p).drop t).take s, r2.take p, (r2.drop p).take t,
     mle r2 (lifted E flat), ?_, blocked, lengthed, strided, degreed, ?_, ?_, ?_⟩, ?_⟩
   · rw [game, joined]
@@ -415,7 +419,8 @@ theorem packingPair_complete (fits : Type → Prop)
         capped.2.1 reply1 answered
     refine ⟨by rw [rest, whole], ⟨⟨reply1, answered, zero1, fun i =>
       Option.isSome_iff_exists.mpr ⟨_, decoded1 i⟩⟩, fun index inside =>
-        Tier.path_worked on' path worked (by rw [whole]; omega) (capped.2.getD index)⟩,
+        Tier.path_worked on' path worked (by rw [whole]; omega) (capped.2.getD index),
+      full.tried _⟩,
       some (r3, mle r3 (lifted E (witnessOf (stage.wire (Tier.finish first + 1))).flat)), ?_,
       r3, _, rfl, rfl⟩
     have game' : position read (Tier.check second final.2 c' digits) wire2

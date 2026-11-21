@@ -47,6 +47,7 @@ import NightstreamFPrime.Export.BoundedDepth.FinalKey20History
 import NightstreamFPrime.Export.BoundedDepth.FinalKey20Instances
 import NightstreamFPrime.Export.BoundedDepth.FinalKey30
 import NightstreamFPrime.Export.BoundedDepth.FinalKey30All
+import NightstreamFPrime.Export.BoundedDepth.FinalMemory
 import NightstreamFPrime.Export.BoundedDepth.FinalSplit
 import NightstreamFPrime.Export.BoundedDepth.FinalVerifier
 import NightstreamFPrime.Export.BoundedDepth.FinalHistory

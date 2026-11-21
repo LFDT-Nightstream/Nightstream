@@ -180,12 +180,14 @@ variable {Wire Data Reply α : Type} [Fintype Reply] (fits : (M : Type) → M �
 
 /-- A wire message can have each value of the data `dataOf` with each list of at most `slots`
 messages of a game that satisfy `fits`: message `index` of the list is the message that `read`
-gives at `index`. -/
+gives at `index`. The nonce of the wire message is below `responseTries`. -/
 def Carries (dataOf : Wire → Data) : Prop :=
   ∀ (data : Data) (sent : List Sent), sent.length ≤ slots →
     (∀ letter ∈ sent, fits letter.M letter.message) →
-    ∃ wire, dataOf wire = data ∧ ∀ (index : ℕ) (inside : index < sent.length),
-      @read sent[index].M sent[index].inhabited wire index = sent[index].message
+    ∃ wire, dataOf wire = data ∧ read.nonce wire < responseTries ∧
+      ∀ (index : ℕ) (inside : index < sent.length),
+        @Reader.message _ read sent[index].M sent[index].inhabited wire index =
+          sent[index].message
 
 /-- The messages of the honest prover before a draw: when the prover has a message for each draw
 sequence, a list of messages gives the game `after` at its next draw or at its end, for each wire
@@ -196,7 +198,8 @@ theorem settle_winsAt {game : Game α} {draws index : ℕ}
       (∀ letter ∈ sent, fits letter.M letter.message) ∧
       WinsAt fits slots after draws 0 (fun result _ _ => goal result) ∧
       ∀ wire, (∀ (place : ℕ) (inside : place < sent.length),
-        @read sent[place].M sent[place].inhabited wire (index + place) = sent[place].message) →
+        @Reader.message _ read sent[place].M sent[place].inhabited wire (index + place) =
+          sent[place].message) →
         settle read wire game index = after := by
   induction game generalizing index with
   | pure result => exact ⟨[], .pure result, Nat.zero_le _, by simp, wins, fun _ _ => rfl⟩
@@ -212,8 +215,8 @@ theorem settle_winsAt {game : Game α} {draws index : ℕ}
         rcases List.mem_cons.mp member with rfl | member
         · exact sendable
         · exact each _ member
-      · have head : read M wire index = message := sends 0 (Nat.succ_pos _)
-        show settle read wire (next (read M wire index)) (index + 1) = after
+      · have head : read.message M wire index = message := sends 0 (Nat.succ_pos _)
+        show settle read wire (next (read.message M wire index)) (index + 1) = after
         rw [head]
         exact reads wire fun place inside => by
           have sentAt := sends (place + 1) (Nat.succ_lt_succ inside)
@@ -243,17 +246,20 @@ variable {read}
 the answers `reply` of the oracle, which can read the earlier messages, wire messages exist such
 that the game ends in the goal. The game reads each answer through `look`. Wire message `index`
 has the data `data index after` for the game `after` at its next draw or at its end, and
-`invariant` is a property of the prefix that each step preserves. -/
+`invariant` is a property of the prefix that each step preserves. Each wire message has a nonce
+below `responseTries`, and `base` and `step` get this fact. -/
 theorem play_carried {Answer : Type} (look : Answer → Reply) {dataOf : Wire → Data}
     (carries : Carries fits slots read dataOf)
     {start : Game α} {draws : ℕ}
     (wins : WinsAt fits slots start draws 0 fun result _ _ => goal result)
     (data : ℕ → Game α → Data) (reply : Wire → List (Answer × Wire) → Answer)
     (invariant : Wire → List (Answer × Wire) → Prop)
-    (base : ∀ first, dataOf first = data 0 (settle read first start 0) → invariant first [])
+    (base : ∀ first, dataOf first = data 0 (settle read first start 0) →
+      read.nonce first < responseTries → invariant first [])
     (step : ∀ first moves wire, moves.length < draws → invariant first moves →
       dataOf wire = data (moves.length + 1) (position read start first
         ((moves ++ [(reply first moves, wire)]).map fun move => (look move.1, move.2))) →
+      read.nonce wire < responseTries →
       invariant first (moves ++ [(reply first moves, wire)])) :
     ∃ first moves result, moves.length = draws ∧ invariant first moves ∧
       position read start first (moves.map fun move => (look move.1, move.2)) = .pure result ∧
@@ -267,11 +273,11 @@ theorem play_carried {Answer : Type} (look : Answer → Reply) {dataOf : Wire �
     | zero =>
         intro _
         obtain ⟨sent, after, short, each, won, reads⟩ := settle_winsAt fits slots read wins
-        obtain ⟨first, held, sends⟩ := carries (data 0 after) sent short each
+        obtain ⟨first, held, tried, sends⟩ := carries (data 0 after) sent short each
         have same : settle read first start 0 = after := reads first fun place inside => by
           rw [Nat.zero_add]
           exact sends place inside
-        refine ⟨first, [], rfl, base first (by rw [same]; exact held),
+        refine ⟨first, [], rfl, base first (by rw [same]; exact held) tried,
           settle_settled read first start 0, ?_⟩
         show WinsAt fits slots (settle read first start 0) _ 0 _
         rw [same]
@@ -282,7 +288,7 @@ theorem play_carried {Answer : Type} (look : Answer → Reply) {dataOf : Wire �
         rw [show draws - count = draws - (count + 1) + 1 by omega] at won
         obtain ⟨sent, after, short, each, later, reads⟩ := settle_winsAt fits slots read
           (advance_winsAt (look (reply first moves)) settled won)
-        obtain ⟨wire, held, sends⟩ := carries (data (count + 1) after) sent short each
+        obtain ⟨wire, held, tried, sends⟩ := carries (data (count + 1) after) sent short each
         have same : position read start first
             ((moves ++ [(reply first moves, wire)]).map fun move => (look move.1, move.2)) =
               after := by
@@ -291,7 +297,7 @@ theorem play_carried {Answer : Type} (look : Answer → Reply) {dataOf : Wire �
             rw [Nat.zero_add]
             exact sends place inside
         refine ⟨first, moves ++ [(reply first moves, wire)], by simp [length],
-          step first moves wire (by omega) kept (by rw [same, length]; exact held), ?_, ?_⟩
+          step first moves wire (by omega) kept (by rw [same, length]; exact held) tried, ?_, ?_⟩
         · rw [position_map_append]
           exact settle_settled read wire _ 0
         · rw [same]
@@ -368,19 +374,23 @@ moves exist such that the prefix is on the path, `wire` and the last message hav
 `data`, the game of the checks ends in the goal, and each transcript with this prefix has the
 stages of the level, zero work bits and fold challenges that decode to `Tier.drawn`, and the game
 `position` of these moves for each source. `worked`: each work slot of the table has 57 zero work
-bits, and `capped`: the work bits of the level are at most 57. -/
+bits, and `capped`: the work bits of the level are at most 57. `tried`: the nonce of the response
+search in the last message of `early` is below `responseTries`. The last message has a nonce
+below `responseTries` too. -/
 theorem run {fits : (M : Type) → M → Prop} {slots : ℕ} {dataOf : Wire → Data}
     (carries : Carries fits slots T.read dataOf) {goal : Result → Prop} {first : Wire}
     {early : List ((Option Coord → Slot) × Wire)} (on : OnPath accept table first early)
     (starts : early.length = T.start) (room : T.finish ≤ total)
     (decodes : ∀ input b, (T.decode b (table input (T.block b))).isSome)
-    (worked : ∀ input, table input none ∈ workZeros Slot 57) (capped : T.Capped) (source : Source)
+    (worked : ∀ input, table input none ∈ workZeros Slot 57) (capped : T.Capped)
+    (tried : T.read.nonce (lastWire first early) < responseTries) (source : Source)
     (wins : WinsAt fits slots
       (T.check (lastWire first early) (T.drawn table first early) source) T.costs.length 0
       fun result _ _ => goal result)
     (data : ℕ → Game Result → Data) :
     ∃ (wire : Wire) (moves : List ((Option Coord → Slot) × Wire)) (result : Result),
       moves.length = T.costs.length ∧ goal result ∧
+      T.read.nonce (lastWire wire moves) < responseTries ∧
       OnPath accept table first (early ++ (answer table first early, wire) :: moves) ∧
       dataOf wire = data 0 (settle T.read wire
         (T.check (lastWire first early) (T.drawn table first early) source) 0) ∧
@@ -397,7 +407,7 @@ theorem run {fits : (M : Type) → M → Prop} {slots : ℕ} {dataOf : Wire → 
             wire (moves.map fun move => (view move.1, move.2)) := by
   have ends := T.finish_eq
   obtain ⟨reply0, answered⟩ : ∃ reply, reply = answer table first early := ⟨_, rfl⟩
-  obtain ⟨wire, moves, result, counted, ⟨on', held, last⟩, ended, good⟩ :=
+  obtain ⟨wire, moves, result, counted, ⟨on', held, last, fresh⟩, ended, good⟩ :=
     play_carried view carries wins data
       (fun wire moves => answer table first (early ++ (reply0, wire) :: moves))
       (fun wire moves => OnPath accept table first (early ++ (reply0, wire) :: moves) ∧
@@ -405,17 +415,18 @@ theorem run {fits : (M : Type) → M → Prop} {slots : ℕ} {dataOf : Wire → 
           (T.check (lastWire first early) (T.drawn table first early) source) 0) ∧
         dataOf (lastWire wire moves) = data moves.length (position T.read
           (T.check (lastWire first early) (T.drawn table first early) source) wire
-            (moves.map fun move => (view move.1, move.2))))
-      (fun wire kept => ⟨by
+            (moves.map fun move => (view move.1, move.2))) ∧
+        T.read.nonce (lastWire wire moves) < responseTries)
+      (fun wire kept low => ⟨by
         have next := on.snoc (by omega) wire
-        rwa [← answered] at next, kept, kept⟩)
-      (fun wire moves later inside kept linked => ⟨by
+        rwa [← answered] at next, kept, kept, low⟩)
+      (fun wire moves later inside kept linked low => ⟨by
         have next := kept.1.snoc (by rw [List.length_append, List.length_cons]; omega) later
         rwa [List.append_assoc, List.cons_append] at next, kept.2.1, by
         rw [lastWire_concat, List.length_append, List.length_singleton]
-        exact linked⟩)
+        exact linked, by rwa [lastWire_concat]⟩)
   rw [ended, counted] at last
-  refine ⟨wire, moves, result, counted, good, answered ▸ on', held, counted ▸ last, ended,
+  refine ⟨wire, moves, result, counted, good, fresh, answered ▸ on', held, counted ▸ last, ended,
     fun stage rooted ⟨later, shape⟩ => ?_⟩
   rw [← answered] at shape
   have head : stage.rest = early ++ (reply0, wire) :: (moves ++ later) := by
@@ -440,7 +451,8 @@ theorem run {fits : (M : Type) → M → Prop} {slots : ℕ} {dataOf : Wire → 
   refine ⟨by rw [shape, List.length_append, whole]; omega,
     ⟨⟨reply0, replied, zero, fun b => Option.isSome_iff_exists.mpr
       ⟨_, answered ▸ T.drawn_mem table short decodes b⟩⟩, fun index inside =>
-        path_worked on' shape worked (by omega) (capped.getD index)⟩, claimed, opened, ?_,
+        path_worked on' shape worked (by omega) (capped.getD index), claimed ▸ tried⟩, claimed,
+    opened, ?_,
     fun candidate => ?_⟩
   · rw [← whole, Prefix.wire_length shape, lastWire_append_cons]
   · have moved : (stage.rest.take T.finish).drop (T.start + 1) = moves := by

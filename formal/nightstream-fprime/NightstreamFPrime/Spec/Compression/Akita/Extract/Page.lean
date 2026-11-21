@@ -48,18 +48,21 @@ def Cell.Sendable [Zero E] (M : Type) (message : M) : Prop :=
   ∀ inhabited : Nonempty M, ∃ cell : Cell E width cap,
     @Cell.message E width cap _ M inhabited cell = message
 
-/-- A wire message: a value of the other data of the proof, and one cell for each of `slots`
-messages of the checks after one draw. -/
+/-- A wire message: a value of the other data of the proof, one cell for each of `slots`
+messages of the checks after one draw, and the nonce of the response search of a fold as a
+number of 32 bits (`FoldResponse` of the Akita code). -/
 structure Page (Data E : Type) (slots width cap : ℕ) where
   data : Data
   cells : Fin slots → Cell E width cap
+  nonce : Fin (2 ^ 32)
 
 /-- The reader of the messages of the checks: message `index` after a draw is the message of the
 cell `index`. -/
-noncomputable def Page.read [Zero E] : Reader (Page Data E slots width cap) :=
-  fun M _ wire index =>
+noncomputable def Page.read [Zero E] : Reader (Page Data E slots width cap) where
+  message M _ wire index :=
     if inside : index < slots then (wire.cells ⟨index, inside⟩).message M
     else Classical.arbitrary M
+  nonce wire := wire.nonce
 
 theorem ne_nat (M : Type) [Finite M] : M ≠ ℕ := by
   rintro rfl
@@ -141,7 +144,7 @@ theorem Page.carries [Zero E] {Part : Type} (view : Data → Part)
   obtain ⟨data, rfl⟩ := onto part
   refine ⟨⟨data, fun index => if inside : (index : ℕ) < sent.length then
     (each sent[index] (List.getElem_mem inside) sent[index].inhabited).choose
-    else (fun _ => 0, 0)⟩, rfl, fun index inside => ?_⟩
+    else (fun _ => 0, 0), 0⟩, rfl, (by decide : 0 < responseTries), fun index inside => ?_⟩
   have chosen := (each sent[index] (List.getElem_mem inside) sent[index].inhabited).choose_spec
   refine (dite_eq_left (inside.trans_le short)).trans (Eq.trans ?_ chosen)
   exact congrArg (@Cell.message E width cap _ sent[index].M sent[index].inhabited)

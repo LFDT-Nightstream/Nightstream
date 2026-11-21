@@ -98,7 +98,8 @@ hypotheses are conditions of `Sized`.
 
 Then moves exist through the stage `root`, on the path, with lookup challenges `τ` that are no
 table values and opening claims that are true for the key polynomial, `W` and the honest inverses
-`V` of `τ`. The last message has the commitments `payload τ` and these claims. For each
+`V` of `τ`. The last message has the commitments `payload τ`, these claims and a nonce of the
+response search below `responseTries`. For each
 transcript with this prefix, the message after `τ` has the data `mid τ`, and the games of the two
 checkpoints end in a value with `τ` and in the claims: the conditions `led` and `ended` of
 `Ran`. -/
@@ -128,6 +129,7 @@ theorem run [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) total �
     ∃ (moves : List ((Option Coord → E) × Wire)) (τ : Fin P.lookups → Zq) (claims : Verifier.Finals
       E),
       (early ++ moves).length = C.root vf ∧ OnPath accept table first (early ++ moves) ∧
+      C.read.nonce (lastWire first (early ++ moves)) < responseTries ∧
       Verifier.Apart P τ ∧
       Verifier.Opened (Verifier.keyCells P) (lifted E W)
         (lifted E (Verifier.honestInverses P W τ)) claims ∧
@@ -154,7 +156,7 @@ theorem run [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) total �
       rw [List.length_append, List.length_singleton]]
     exact Verifier.led_wins W leads
   obtain ⟨moves₁, result₁, counted₁, ⟨lead, τ, rfl, ⟨shaped, relation⟩, apart⟩, on₁, held₁,
-      each₁⟩ :=
+      _, each₁⟩ :=
     C.front.run carriesM on starts frontFits short₀ ((0 : Table), W)
       (Verifier.led_settled settled W) frontWins dodges
       (List.append_ne_nil_of_right_ne_nil _ (List.cons_ne_nil _ _))
@@ -177,7 +179,7 @@ theorem run [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) total �
     show C.backCheck vf first _ (C.ran _) = _
     rw [ran₁]
     rfl
-  obtain ⟨moves₂, result₂, counted₂, ⟨claims, rfl, opened⟩, on₂, held₂, each₂⟩ :=
+  obtain ⟨moves₂, result₂, counted₂, ⟨claims, rfl, opened⟩, on₂, held₂, fresh, each₂⟩ :=
     (C.back vf).run (reject := Verifier.Rejects P) carriesR
       (goal := fun result => ∃ claims, result = some claims ∧
         Verifier.Opened (Verifier.keyCells P) (fun x => algebraMap Zq E (W x))
@@ -192,10 +194,12 @@ theorem run [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) total �
       (fun game => (payload τ,
         (fun g => ((finished game).map fun claims => (claimOf claims g).2).getD 0),
         fun g => ((finished game).map fun claims => (claimOf claims g).1).getD []))
-  refine ⟨moves₁ ++ moves₂, τ, claims, ?_, ?_, apart, opened, ?_, ?_, ?_, ?_⟩
+  refine ⟨moves₁ ++ moves₂, τ, claims, ?_, ?_, ?_, apart, opened, ?_, ?_, ?_, ?_⟩
   · rw [← List.append_assoc, List.length_append, length₁, counted₂]
     rfl
   · rwa [List.append_assoc] at on₂
+  · rw [← List.append_assoc]
+    exact fresh
   · rw [← List.append_assoc]
     exact congrArg Prod.fst held₂
   · rw [← List.append_assoc]
@@ -227,10 +231,10 @@ theorem run [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) total �
 `bound₀`, `bound₁` and `bound₂`: the commitments that a stage input fixes are the commitments of
 the key polynomial and of `W`, and the commitment of `V` in the message after `τ`. `tower`: for
 lookup challenges `τ` that are no table values and a transcript prefix of `root` moves on the
-path whose last message has the commitments of the key polynomial, `W` and the honest inverses
-`V` of `τ`, points of the lengths of `back_lengths` and the values of the tables at these points,
-later messages exist such that each transcript with them satisfies `links`. The other hypotheses
-are those of `run`.
+path whose last message has a nonce of the response search below `responseTries`, the
+commitments of the key polynomial, `W` and the honest inverses `V` of `τ`, points of the lengths
+of `back_lengths` and the values of the tables at these points, later messages exist such that
+each transcript with them satisfies `links`. The other hypotheses are those of `run`.
 
 Then a proof with the first message `first` exists whose complete transcript satisfies `Ran` and
 `links`. -/
@@ -265,7 +269,7 @@ theorem accepts [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) tota
     (links : Prefix Wire (Option Coord → E) total → Prop)
     (tower : ∀ τ : Fin P.lookups → Zq, Verifier.Apart P τ →
       ∀ moves : List ((Option Coord → E) × Wire), OnPath accept table first moves →
-      moves.length = C.root vf →
+      moves.length = C.root vf → C.read.nonce (lastWire first moves) < responseTries →
       commit (lastWire first moves) = (fun g =>
         (Akita.commit (key g) (![keyBase P, W, Verifier.honestInverses P W τ] g)).1) →
       ((place (lastWire first moves) 0).length = P.laneVars + P.keyBlockVars + P.rowVars ∧
@@ -279,7 +283,7 @@ theorem accepts [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) tota
     ∃ proof : ℕ → Wire, proof 0 = first ∧
       C.Ran vf commit value place ((transcript total accept).final (.done proof) table) ∧
       links ((transcript total accept).final (.done proof) table) := by
-  obtain ⟨moves, τ, claims, length, on', apart, opened, committed, places, values, each⟩ :=
+  obtain ⟨moves, τ, claims, length, on', fresh, apart, opened, committed, places, values, each⟩ :=
     run wf matrix columns rows key_fits lead_bare fits sends wide room short carriesM carriesR
       table dodges on starts W counts distinct settled leads
       (fun τ g => (Akita.commit (key g) (![keyBase P, W, Verifier.honestInverses P W τ] g)).1)
@@ -288,7 +292,8 @@ theorem accepts [Nonempty Coord] {accept : Prefix Wire (Option Coord → E) tota
   obtain ⟨-, -, -, ended₀⟩ := each ⟨first, early ++ moves, short'⟩ rfl
     ⟨[], (List.append_nil _).symm⟩
   have sizes := back_lengths wf ended₀
-  obtain ⟨later, on'', whole, linked⟩ := tower τ apart (early ++ moves) on' length committed
+  obtain ⟨later, on'', whole, linked⟩ := tower τ apart (early ++ moves) on' length fresh
+    committed
     (by rw [places]; exact sizes)
     (by
       rw [values, places]

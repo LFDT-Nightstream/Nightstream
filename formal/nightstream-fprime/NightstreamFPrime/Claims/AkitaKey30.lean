@@ -955,6 +955,209 @@ theorem key30_history_knowledge
     Efficient error assumption closed rows keysShaped blocks coords drawn queries bounded positive
     admitted depth depthBound
 
+/-- The memory verifier with the Akita openings of `crates/ns-compress/artifacts/key30.aks`
+against a false memory statement: `Claims.Final.memory_sound` in the game with Akita openings
+(Akita Theorem 10.17 with Section 9). The model and the verifier are those of
+`key30_verifier_sound`. The prover names a memory statement with the law `claim` for each table
+of the oracle. Over the walk's `S_max · N` stages, the probability that the verifier accepts
+`(i, z0, zi)`, the checks of SPEC.md Algorithm 8 hold, and the decoded history does not attest
+the memory statement is at most `FinalKey30.shapesBound` plus the terms of
+`Claims.Nebula.memory_sound`: `IvcSecurity.walkBound` under `[HN-A1]`, the state-link and chain
+collision masses, and the memory-round error. The checks of Algorithm 8 bound the iteration by
+`S_max · N`, so no premise bounds it. Lean gives no bound on the term `breakChance` of
+`shapesBound` (`[MSIS]`). -/
+theorem key30_memory_sound
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+          Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    {mode : FinalVerifier.Mode}
+    (setup : FinalVerifier.Setup mode logicalWidth publicFits)
+    (step : AppState → AppWitness → AppState)
+    (cap : ℕ)
+    (control : AppState → AppWitness → Fin 2)
+    {Wire : Type}
+    {Coord : Type}
+    {total : ℕ}
+    (read : Akita.Extract.Reader Wire)
+    (head : Wire → FinalAkita.First logicalWidth publicFits)
+    [fintypeCoord : Fintype Coord]
+    [decidableEqCoord : DecidableEq Coord]
+    [nonemptyCoord : Nonempty Coord]
+    {ι : Type}
+    [fintypeι : Fintype ι]
+    (kind : Wire → Option ι)
+    (family : ι → FinalKey30.Opening logicalWidth publicFits Wire Coord total)
+    (shared : ∀ (index : ι), (family index).tower.Shared)
+    (prover : RandomOracle.OracleComp (Akita.Extract.Prefix Wire (Option Coord → K) total)
+          (Option Coord → K) (ℕ → Wire))
+    [finiteWire : Finite Wire]
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤
+          2 ^ cubeVariables}
+    (exports : TerminalBridge.Exports relation setup.ajtai setup.circuitKeys step cubeFits)
+    (complete : StepExtend.Complete exports)
+    (budget : ℕ)
+    {Admitted : HyperNova.ReverseStages.NifsAdversary
+            (IvcWalk.WalkAttempt logicalWidth publicFits) →
+          Prop}
+    {StageAdmitted : HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+            (IvcWalk.Answer logicalWidth publicFits) →
+          Prop}
+    {Efficient : (adversary :
+            HyperNova.ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits)) →
+          HyperNova.ReverseStages.NifsExtractor (IvcWalk.Answer logicalWidth publicFits)
+              adversary →
+            Prop}
+    {error : HyperNova.ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits) →
+          ℝ}
+    (assumption : HyperNova.ReverseStages.Assumption1 (IvcWalk.WalkSucceeds setup.ajtai)
+          (IvcWalk.WalkExtracted setup.ajtai) Admitted Efficient error)
+    (closed : HyperNova.ReverseStages.Closed
+          (IvcWalk.attemptOf setup.ajtai setup.circuitKeys exports)
+          (IvcWalk.back setup.ajtai setup.circuitKeys exports) Admitted StageAdmitted Efficient)
+    {p : Nebula.Plan}
+    (app : Nebula.PortApp p.toGeometry)
+    (claim : (Akita.Extract.Prefix Wire (Option Coord → K) total → Option Coord → K) →
+          PMF (Nebula.EndToEnd.MemoryStatement app.width))
+    (rows : ∀ (circuit : Fin 2),
+          (setup.rows (↑circuit : ℕ)).matrices =
+            (FinalRows.packageRows exports complete circuit).matrices)
+    (keysShaped : ∀ (key : Fin 2), List.length (setup.circuitKeys key).digest = 4)
+    (blocks : setup.keyBlocks = 524288)
+    (coords : 40 ≤ Fintype.card Coord)
+    (drawn : ∀ (index : ι),
+          FinalKey30.Opening.Drawn setup complete.packageWidth step cap control read head
+            (family index) (shared index))
+    {queries : ℕ}
+    (bounded : prover.QueryBound queries)
+    (positive : 0 < budget)
+    (admitted : StageAdmitted
+          (HyperNova.ReverseStages.Stage.start
+            (IvcSecurity.walkAdversary
+              (FinalMemory.adversary head kind
+                (fun index =>
+                  FinalKey30.Opening.accepts setup complete.packageWidth step cap control read
+                    head (family index) (shared index))
+                (fun index =>
+                  FinalKey30.Opening.proof setup complete.packageWidth step cap control read head
+                    (family index) (shared index) prover)
+                prover budget app claim))))
+    (valid : p.Valid)
+    (programEq : exports.program = Nebula.MemoryApp.program p.toGeometry app)
+    {memoryError : NebulaSecurity.ClaimedStage (logicalWidth := logicalWidth)
+          (publicFits := publicFits) app → ℝ}
+    (round : NebulaSecurity.MemoryRound app setup.ajtai setup.circuitKeys exports StageAdmitted
+          memoryError) :
+    (((↑(HyperNova.ReverseStages.reverseStages assumption closed
+                      (IvcSecurity.walkAdversary
+                        (FinalMemory.adversary head kind
+                          (fun index =>
+                            FinalKey30.Opening.accepts setup complete.packageWidth step cap
+                              control read head (family index) (shared index))
+                          (fun index =>
+                            FinalKey30.Opening.proof setup complete.packageWidth step cap
+                              control read head (family index) (shared index) prover)
+                          prover budget app claim))
+                      admitted (p.sMax * p.n)) :
+                  HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+                    (IvcWalk.Answer logicalWidth publicFits)).tape.toOuterMeasure :
+            Set
+                (↑(HyperNova.ReverseStages.reverseStages assumption closed
+                        (IvcSecurity.walkAdversary
+                          (FinalMemory.adversary head kind
+                            (fun index =>
+                              FinalKey30.Opening.accepts setup complete.packageWidth step cap
+                                control read head (family index) (shared index))
+                            (fun index =>
+                              FinalKey30.Opening.proof setup complete.packageWidth step cap
+                                control read head (family index) (shared index) prover)
+                            prover budget app claim))
+                        admitted (p.sMax * p.n)) :
+                    HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+                      (IvcWalk.Answer logicalWidth publicFits)).Tape →
+              ENNReal)
+          {tape |
+            FinalMemory.FalseMemory setup step head kind
+              (fun index =>
+                FinalKey30.Opening.accepts setup complete.packageWidth step cap control read
+                  head (family index) (shared index))
+              prover app exports
+              (FinalMemory.tapeOf setup step head kind
+                    (fun index =>
+                      FinalKey30.Opening.accepts setup complete.packageWidth step cap control
+                        read head (family index) (shared index))
+                    (fun index =>
+                      FinalKey30.Opening.proof setup complete.packageWidth step cap control
+                        read head (family index) (shared index) prover)
+                    prover budget app exports assumption closed claim admitted (p.sMax * p.n)
+                    tape).1.1
+              (FinalMemory.sampleOf setup step head kind
+                (fun index =>
+                  FinalKey30.Opening.accepts setup complete.packageWidth step cap control read
+                    head (family index) (shared index))
+                (fun index =>
+                  FinalKey30.Opening.proof setup complete.packageWidth step cap control read
+                    head (family index) (shared index) prover)
+                prover budget app exports assumption closed claim admitted (p.sMax * p.n)
+                tape)}).toReal ≤
+      FinalKey30.shapesBound setup complete.packageWidth step cap control read head family
+          shared prover queries budget +
+        (IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed
+                (FinalMemory.adversary head kind
+                  (fun index =>
+                    FinalKey30.Opening.accepts setup complete.packageWidth step cap control
+                      read head (family index) (shared index))
+                  (fun index =>
+                    FinalKey30.Opening.proof setup complete.packageWidth step cap control read
+                      head (family index) (shared index) prover)
+                  prover budget app claim)
+                admitted (p.sMax * p.n) +
+              (((NebulaSecurity.ClaimedStage.law app
+                        (FinalMemory.claimed setup step head kind
+                          (fun index =>
+                            FinalKey30.Opening.accepts setup complete.packageWidth step cap
+                              control read head (family index) (shared index))
+                          (fun index =>
+                            FinalKey30.Opening.proof setup complete.packageWidth step cap
+                              control read head (family index) (shared index) prover)
+                          prover budget app exports assumption closed claim admitted
+                          (p.sMax * p.n))).toOuterMeasure :
+                    Set (NebulaSecurity.Sample app.width logicalWidth publicFits) → ENNReal)
+                  {sample |
+                    Nebula.EndToEnd.Experiment.StateLinkCollision app
+                      (NebulaSecurity.experiment app setup.ajtai setup.circuitKeys exports)
+                      sample}).toReal +
+            (((NebulaSecurity.ClaimedStage.law app
+                      (FinalMemory.claimed setup step head kind
+                        (fun index =>
+                          FinalKey30.Opening.accepts setup complete.packageWidth step cap
+                            control read head (family index) (shared index))
+                        (fun index =>
+                          FinalKey30.Opening.proof setup complete.packageWidth step cap
+                            control read head (family index) (shared index) prover)
+                        prover budget app exports assumption closed claim admitted
+                        (p.sMax * p.n))).toOuterMeasure :
+                  Set (NebulaSecurity.Sample app.width logicalWidth publicFits) → ENNReal)
+                {sample |
+                  Nebula.EndToEnd.Experiment.ChainCollision app
+                    (NebulaSecurity.experiment app setup.ajtai setup.circuitKeys exports)
+                    sample}).toReal +
+          memoryError
+            (FinalMemory.claimed setup step head kind
+              (fun index =>
+                FinalKey30.Opening.accepts setup complete.packageWidth step cap control read
+                  head (family index) (shared index))
+              (fun index =>
+                FinalKey30.Opening.proof setup complete.packageWidth step cap control read
+                  head (family index) (shared index) prover)
+              prover budget app exports assumption closed claim admitted (p.sMax * p.n))) :=
+  @NightstreamFPrime.Export.BoundedDepth.FinalKey30.memory_sound_drawn logicalWidth publicFits
+    mode setup step cap control Wire Coord total read head fintypeCoord decidableEqCoord
+    nonemptyCoord ι fintypeι kind family shared prover finiteWire relation cubeFits exports
+    complete budget Admitted StageAdmitted Efficient error assumption closed p app claim rows
+    keysShaped blocks coords drawn queries bounded positive admitted valid programEq memoryError
+    round
+
 /-- The numbers of the three opening claims of the final verifier for the key of
 `crates/ns-compress/artifacts/key30.aks` and the row `r` of the file. For a setup with
 `FinalKey30.Use`, the point of the key polynomial has 30 coordinates, the point of `V` has 28

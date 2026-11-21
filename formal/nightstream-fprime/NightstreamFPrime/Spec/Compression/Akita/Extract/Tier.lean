@@ -305,12 +305,15 @@ noncomputable def challenge (point : Prefix Wire (Option Coord → Slot) total) 
 
 omit [∀ b, Zero (Ring b)] in
 /-- The verifier accepts the work slots and the fold challenges of the level: the answer of the
-stage `start` has zero work bits and a fold challenge for each coordinate, and the answer of each
-stage of the checks has zero work bits (Akita (146)). -/
+stage `start` has zero work bits and a fold challenge for each coordinate, the answer of each
+stage of the checks has zero work bits (Akita (146)), and the nonce of the response search in the
+message before the stage `start` is below `responseTries` (Akita Section 5.4 and Figure 4, step 2:
+the verifier rejects a nonce outside the set; `FoldResponse` of the Akita code). -/
 def Decodes [Fintype Slot] (point : Prefix Wire (Option Coord → Slot) total) : Prop :=
   DecodesAt T.decode T.block T.start T.foldBits point ∧
-    ∀ index < T.costs.length, ∀ reply, point.reply (T.start + 1 + index) = some reply →
-      reply none ∈ workZeros Slot (T.bits.getD index 0)
+    (∀ index < T.costs.length, ∀ reply, point.reply (T.start + 1 + index) = some reply →
+      reply none ∈ workZeros Slot (T.bits.getD index 0)) ∧
+    T.read.nonce (point.wire T.start) < responseTries
 
 omit [∀ b, Zero (Ring b)] in
 /-- The relation of the extraction: a weak opening of the claim of the level (Akita
@@ -899,7 +902,7 @@ theorem Fed.segment (fed : T.Fed accept tail source clash) :
   lawful := fed.lawful
   passed inner held := by
     obtain ⟨_, decodes, result, ended, passed⟩ := fed.passed inner held
-    exact ⟨⟨result, (T.segment_game _ _).trans ended, passed⟩, decodes.2⟩
+    exact ⟨⟨result, (T.segment_game _ _).trans ended, passed⟩, decodes.2.1⟩
   clash := fed.clash
 
 variable {T} in

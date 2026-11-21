@@ -41,16 +41,18 @@ theorem Prefix.take_take_self {Wire Reply : Type} {stages : ℕ} (level : ℕ)
 `matrix` is `A_term`. `read` gives the other public data from the stage input of the stage
 `start`: the state `(t_i)_i` of the predecessor, the weights and the pair `(θ_term, v_tensor)`.
 `partials` gives the clear partials `(e_i)_i` of this stage input, and `response` gives the clear
-response `z` of the message after the fold challenge. `block i` is the coordinate of the slot of
-the fold challenge `c_i`, and `decode` gives the challenge of a slot. `route` is the norm route of
-the terminal. `weight` is `κ_{1,term}` and `bound` is `Z_{∞,term}` of the coefficient route; the
-Euclidean route has `Γ_term` and `S_max,term` in `route`. -/
+response `z` of the message after the fold challenge. `nonce` gives the nonce of the response
+search of a message (Akita Figure 4, step 2; `FoldResponse` of the Akita code). `block i` is the
+coordinate of the slot of the fold challenge `c_i`, and `decode` gives the challenge of a slot.
+`route` is the norm route of the terminal. `weight` is `κ_{1,term}` and `bound` is `Z_{∞,term}`
+of the coefficient route; the Euclidean route has `Γ_term` and `S_max,term` in `route`. -/
 structure Terminal (S : Shape) (E Wire Coord Slot : Type) [CommRing E] [Module Zq E]
     (total : ℕ) (route : Route := .coefficient) where
   matrix : Matrix (Fin S.innerRank) (Fin S.blockLength × Fin S.sourceDigits) (Rq S.innerDegree)
   read : Prefix Wire (Option Coord → Slot) total → TerminalStatement S E
   partials : Prefix Wire (Option Coord → Slot) total → Fin S.blocks → Rq S.innerDegree
   response : Wire → S.Source
+  nonce : Wire → ℕ
   block : Fin S.blocks → Coord
   decode : Slot → Option (Rq S.innerDegree)
   weight : ℕ
@@ -90,13 +92,16 @@ noncomputable def challenge (point : Prefix Wire (Option Coord → Slot) total) 
 
 /-- The checks of the verifier of the terminal on a transcript (Akita Section 8.2): the work bits
 of the fold challenges are zero and each fold challenge decodes, the checks (128), (129) and
-(130) hold for the clear partials, the fold challenges and the clear response `z`, and `z` has the
-bound `Route.Short` of the route: `‖z‖_∞ ≤ Z_{∞,term}` or `‖z‖_2² ≤ S_max,term`. -/
+(130) hold for the clear partials, the fold challenges and the clear response `z`, `z` has the
+bound `Route.Short` of the route: `‖z‖_∞ ≤ Z_{∞,term}` or `‖z‖_2² ≤ S_max,term`, and the nonce of
+the response search in the message before the stage `start` is below `responseTries` (Akita
+Section 5.4 and Figure 4, step 2). -/
 structure Passed [Fintype Slot] (point : Prefix Wire (Option Coord → Slot) total) : Prop where
   decodes : DecodesAt (fun _ => L.decode) L.slot L.start L.foldBits point
   accepts : (L.statement point).Accepts (L.clear point) (L.challenge point)
     (L.response (point.wire (L.start + 1)))
   short : route.Short L.bound (L.response (point.wire (L.start + 1)))
+  tried : L.nonce (point.wire L.start) < responseTries
 
 /-- The certificate of the terminal at its fold challenge (Akita Proposition 10.44,
 "Certificates"): two children for each block that pass the checks of the terminal for the clear

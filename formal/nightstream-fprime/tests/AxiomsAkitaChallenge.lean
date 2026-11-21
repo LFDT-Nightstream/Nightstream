@@ -1,13 +1,14 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Spec.Compression
 import NightstreamFPrime.Export.BoundedDepth.FinalKey20Challenge
+import NightstreamFPrime.Claims.Akita
 
 /-! Axiom audits for the sparse challenge families of the Akita opening: the units of short ring
 elements (`Spec/Compression/Akita/ShortUnit`), the families with their norms, their size and
 their unit differences (`ChallengeFamily`), the decoders from one slot and their slot
 probability (`Extract/Draw`), the families of the schedule `key20.aks` (`Key20Challenge`), the
-opening of this schedule with these decoders (`Key20Opening`), and the final verifier with these
-decoders (`Export/BoundedDepth/FinalKey20Challenge`). -/
+opening of this schedule with these decoders (`Key20Opening`), the final verifier with these
+decoders (`Export/BoundedDepth/FinalKey20Challenge`), and the claim `key20_memory_sound`. -/
 
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.X_pow_two_pow_sub_C_irreducible
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.exists_sq_eq_neg_one
@@ -74,3 +75,5 @@ decoders (`Export/BoundedDepth/FinalKey20Challenge`). -/
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.verifier_sound_drawn
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.history_sound_drawn
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.history_knowledge_drawn
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.memory_sound_drawn
+#audit_axioms NightstreamFPrime.Claims.Akita.key20_memory_sound

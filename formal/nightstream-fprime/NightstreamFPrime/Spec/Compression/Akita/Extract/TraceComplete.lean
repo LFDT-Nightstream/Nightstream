@@ -231,16 +231,18 @@ variable {S : Shape} {O : OpeningShape S} {fold : Descriptor} {E : Type} [Field 
 reduction (Akita Theorem 10.9 for the checks of one level and Theorem 5.1, item 1). `wins`: the
 prover has a message for each draw sequence of the checks of the level for the table `source`,
 which end in a true claim `(r_2, w̃(r_2))` of `ν + 1` coordinates. `uniform`: the verifier of the
-checks does not read the table. Then a message `wire` with the data `dFirst` and moves exist
+checks does not read the table. `tried`: the nonce of the response search in the last message of
+`early` is below `responseTries`. Then a message `wire` with the data `dFirst` and moves exist
 such that the prefix is on the path of the table of the oracle, the last message has the data
-`dLast ρ θ`, and on each transcript with this prefix the checks of the verifier end in the claim
-`(ρ, θ, θ·f̄_w(ρ))` for the packed polynomial of `source`. -/
+`dLast ρ θ` and a nonce below `responseTries`, and on each transcript with this prefix the checks
+of the verifier end in the claim `(ρ, θ, θ·f̄_w(ρ))` for the packed polynomial of `source`. -/
 theorem tensorStep {dataOf : Wire → Data} (carries : Carries sendable slots B.read dataOf)
     (sends : Sends sendable E width cap) (wide : 3 ≤ width) {first : Wire}
     {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table first early)
     (starts : early.length = B.start) (fits : (B.tensored ν).finish ≤ total)
     (decodes : ∀ input b, (B.decode b (table input (B.block b))).isSome)
     (worked : ∀ input, table input none ∈ workZeros E 57) (capped : B.Capped)
+    (tried : B.read.nonce (lastWire first early) < responseTries)
     (uniform : ∀ wire challenge table other,
       bare (B.check wire challenge table) = bare (B.check wire challenge other))
     {draws bound : ℕ} (count : B.costs.length = draws) (room : bound < slots) (source : Table)
@@ -250,6 +252,7 @@ theorem tensorStep {dataOf : Wire → Data} (carries : Carries sendable slots B.
         result = some (r2, mle r2 (lifted E source)))
     (dFirst : Data) (dLast : List E → E → Data) :
     ∃ (wire : Wire) (moves : List ((Option Coord → E) × Wire)) (ρ : List E) (θ : E), ρ.length = ν ∧
+      B.read.nonce (lastWire wire moves) < responseTries ∧
       OnPath accept table first (early ++ (answer table first early, wire) :: moves) ∧
       (early ++ (answer table first early, wire) :: moves).length = (B.tensored ν).finish ∧
       dataOf wire = dFirst ∧ dataOf (lastWire wire moves) = dLast ρ θ ∧
@@ -261,17 +264,17 @@ theorem tensorStep {dataOf : Wire → Data} (carries : Carries sendable slots B.
         (B.tensored ν).game (fun _ => 0) stage =
           .pure (some (ρ, θ, θ * mle ρ (packed source))) := by
   have won := Tier.tensored_winsAt (ν := ν) sends wide wins room count
-  obtain ⟨wire, moves, result, counted, ⟨ρ, θ, long, rfl⟩, on', held, last, ended, facts⟩ :=
+  obtain ⟨wire, moves, result, counted, ⟨ρ, θ, long, rfl⟩, fresh, on', held, last, ended, facts⟩ :=
     Tier.run (T := B.tensored ν) carries on starts fits decodes worked
       ⟨capped.1, fun g member => (List.mem_append.mp member).elim (capped.2 g)
-        (map_workBits_le _ g)⟩ source won (stepData dFirst dLast)
+        (map_workBits_le _ g)⟩ tried source won (stepData dFirst dLast)
   have positive : moves.length ≠ 0 := by
     rw [counted]
     show (B.costs ++ tensorCosts E ν).length ≠ 0
     rw [List.length_append, tensorCosts, List.length_cons]
     omega
   have ends := (B.tensored ν).finish_eq
-  refine ⟨wire, moves, ρ, θ, long, on', ?_, held.trans (stepData_zero _ _ _),
+  refine ⟨wire, moves, ρ, θ, long, fresh, on', ?_, held.trans (stepData_zero _ _ _),
     last.trans (ite_eq_right positive), fun stage rooted extended => ?_⟩
   · rw [List.length_append, List.length_cons, counted, starts, ends]
     rfl
@@ -289,8 +292,9 @@ and 5). The honest prover commits to the ring elements `ψ(f̄_w)` of the packed
 table `source` in the message after the fold challenges, and its last message has the claim
 `honestTraceClaim` of `Next` for the point `ρ` and the factor `θ` of the tensor reduction. `p`
 and `s` are the lengths of the segments `ρ_pack` and `ρ_pos` of `ρ` for the shape of `Next`, and
-`ρ_blk` has `k` coordinates or more. Each transcript with the prefix has the link
-`Tier.TraceLinked` to `Next`. -/
+`ρ_blk` has `k` coordinates or more. `tried`: the nonce of the response search in the last message
+of `early` is below `responseTries`. The last message of the longer prefix has a nonce below
+`responseTries` too. Each transcript with the prefix has the link `Tier.TraceLinked` to `Next`. -/
 theorem traceLink
     (carries : Carries sendable slots B.read fun wire => (commit' wire, Next.claim wire))
     (sends : Sends sendable E width cap) (wide : 3 ≤ width) {first : Wire}
@@ -298,6 +302,7 @@ theorem traceLink
     (starts : early.length = B.start) (fits : (B.tensored ν).finish ≤ total)
     (decodes : ∀ input b, (B.decode b (table input (B.block b))).isSome)
     (worked : ∀ input, table input none ∈ workZeros E 57) (capped : B.Capped)
+    (tried : B.read.nonce (lastWire first early) < responseTries)
     (uniform : ∀ wire challenge table other,
       bare (B.check wire challenge table) = bare (B.check wire challenge other))
     {draws bound : ℕ} (count : B.costs.length = draws) (room : bound < slots) (source : Table)
@@ -311,13 +316,15 @@ theorem traceLink
     ∃ (later : List ((Option Coord → E) × Wire)) (block position pack : List E) (θ : E),
       pack.length = p ∧ position.length = s ∧ k ≤ block.length ∧
       OnPath accept table first (early ++ later) ∧ (early ++ later).length = Next.start ∧
+      B.read.nonce (lastWire first (early ++ later)) < responseTries ∧
       Next.claim (lastWire first (early ++ later)) =
         honestTraceClaim quarter' key' openKey' (packed source) block position pack θ ∧
       ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = first →
         (∃ rest, stage.rest = (early ++ later) ++ rest) →
         (B.tensored ν).TraceLinked Next quarter' commit' stage := by
-  obtain ⟨wire, moves, ρ, θ, long, on', whole, held, last, facts⟩ :=
-    tensorStep carries sends wide on starts fits decodes worked capped uniform count room source
+  obtain ⟨wire, moves, ρ, θ, long, fresh, on', whole, held, last, facts⟩ :=
+    tensorStep carries sends wide on starts fits decodes worked capped tried uniform count room
+      source
       wins
       ((commitSource key' (traceSource quarter' (packed source : ℕ → E))).1, Next.claim first)
       fun ρ θ => ((commitSource key' (traceSource quarter' (packed source : ℕ → E))).1,
@@ -334,6 +341,7 @@ theorem traceLink
     ρ.take p, θ, by rw [List.length_take]; omega,
     by rw [List.length_take, List.length_drop]; omega,
     by rw [List.length_drop, List.length_drop]; omega, on', whole.trans next.symm,
+    by rw [lastWire_append_cons]; exact fresh,
     by rw [lastWire_append_cons]; exact claimed, fun stage rooted extended => ?_⟩
   obtain ⟨long', decoded, opened, closed, game⟩ := facts stage rooted extended
   refine ⟨long', decoded, (ρ.drop p).drop s, (ρ.drop p).take s, ρ.take p, θ,
@@ -364,8 +372,10 @@ variable {route : Route} {L : Terminal S' E Wire Coord E total route}
 the state `t_i = A_term·s_i` of the bounded source blocks of `ψ(f̄_w)` in the message after the
 fold challenges, and its last message has the statement of the terminal for the point `ρ` and
 the factor `θ` of the tensor reduction, and the clear partials `e_i`. `reads`: the statement of
-the terminal is the statement `statementOf` of the message before its fold challenges. Each
-transcript with the prefix has the link `Terminal.Linked`. -/
+the terminal is the statement `statementOf` of the message before its fold challenges. `tried`:
+the nonce of the response search in the last message of `early` is below `responseTries`. The
+last message of the longer prefix has a nonce below `responseTries` too. Each transcript with the
+prefix has the link `Terminal.Linked`. -/
 theorem terminalLink
     (carries : Carries sendable slots B.read fun wire =>
       (stateOf wire, statementOf wire, partialsOf wire))
@@ -374,6 +384,7 @@ theorem terminalLink
     (starts : early.length = B.start) (fits : (B.tensored ν).finish ≤ total)
     (decodes : ∀ input b, (B.decode b (table input (B.block b))).isSome)
     (worked : ∀ input, table input none ∈ workZeros E 57) (capped : B.Capped)
+    (tried : B.read.nonce (lastWire first early) < responseTries)
     (uniform : ∀ wire challenge table other,
       bare (B.check wire challenge table) = bare (B.check wire challenge other))
     {draws bound : ℕ} (count : B.costs.length = draws) (room : bound < slots) (source : Table)
@@ -388,6 +399,7 @@ theorem terminalLink
     ∃ (later : List ((Option Coord → E) × Wire)) (block position pack : List E) (θ : E),
       pack.length = p ∧ position.length = s ∧ k ≤ block.length ∧
       OnPath accept table first (early ++ later) ∧ (early ++ later).length = L.start ∧
+      B.read.nonce (lastWire first (early ++ later)) < responseTries ∧
       statementOf (lastWire first (early ++ later)) =
         TerminalStatement.ofPoint quarter' L.matrix
           (fun i => L.matrix.mulVec (traceSource quarter' (packed source : ℕ → E) i))
@@ -399,8 +411,9 @@ theorem terminalLink
       ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = first →
         (∃ rest, stage.rest = (early ++ later) ++ rest) →
         Terminal.Linked (B.tensored ν) L quarter' stateOf stage := by
-  obtain ⟨wire, moves, ρ, θ, long, on', whole, held, last, facts⟩ :=
-    tensorStep carries sends wide on starts fits decodes worked capped uniform count room source
+  obtain ⟨wire, moves, ρ, θ, long, fresh, on', whole, held, last, facts⟩ :=
+    tensorStep carries sends wide on starts fits decodes worked capped tried uniform count room
+      source
       wins
       ((fun i => L.matrix.mulVec (traceSource quarter' (packed source : ℕ → E) i)),
         statementOf first, partialsOf first)
@@ -423,6 +436,7 @@ theorem terminalLink
     ρ.take p, θ, by rw [List.length_take]; omega,
     by rw [List.length_take, List.length_drop]; omega,
     by rw [List.length_drop, List.length_drop]; omega, on', whole.trans next.symm,
+    by rw [lastWire_append_cons]; exact fresh,
     by rw [lastWire_append_cons]; exact stated, by rw [lastWire_append_cons]; exact cleared,
     fun stage rooted extended => ?_⟩
   obtain ⟨long', decoded, opened, closed, game⟩ := facts stage rooted extended
@@ -497,15 +511,17 @@ prover sends the clear response `z = Σ_i c_i·s_i` for the fold challenges of t
 oracle. `short`: for each fold challenge vector of the family, `z` has the bound of the norm
 route. Then the complete transcript passes the checks `Terminal.Passed`: (128), (129), (130) and
 the norm bound. `reads` and `clears`: the statement and the clear partials of the terminal are
-those of the message before its fold challenges. -/
+those of the message before its fold challenges. `tried`: the nonce of the response search in
+this message is below `responseTries`. -/
 theorem terminal_passed {read : Reader Wire} (carries : Carries sendable slots read L.response)
     {first : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table first early)
     (starts : early.length = L.start) (inside : L.start < total)
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
     (clears : ∀ point, L.partials point = partialsOf (point.wire L.start))
     (decodes : ∀ input i, (L.decode (table input (L.slot i))).isSome)
-    (worked : ∀ input, table input none ∈ workZeros E 57) (quarter : 4 * m = S.innerDegree) (shape
-      : S.Bounded) (unit : IsUnit ((2 * m : ℕ) : Zq))
+    (worked : ∀ input, table input none ∈ workZeros E 57)
+    (tried : L.nonce (lastWire first early) < responseTries) (quarter : 4 * m = S.innerDegree)
+    (shape : S.Bounded) (unit : IsUnit ((2 * m : ℕ) : Zq))
     {g : ℕ → E} {block position pack : List E} (blocks : S.blocks ≤ 2 ^ block.length)
     (length : S.blockLength = 2 ^ position.length) (width : 2 * m = 2 ^ pack.length)
     (live : ∀ cell, S.blocks * (S.blockLength * (2 * m)) ≤ cell → g cell = 0) {θ : E}
@@ -531,7 +547,7 @@ theorem terminal_passed {read : Reader Wire} (carries : Carries sendable slots r
       exact decodes _ i)
   obtain ⟨c, challenged⟩ : ∃ c : Fin S.blocks → Rq S.innerDegree,
       c = fun i => (L.decode (reply (L.slot i))).getD 0 := ⟨_, rfl⟩
-  obtain ⟨wire, sent, _⟩ := carries (traceResponse c (traceSource quarter g)) []
+  obtain ⟨wire, sent, _, _⟩ := carries (traceResponse c (traceSource quarter g)) []
     (Nat.zero_le _) (by simp)
   have on' := on.snoc (by omega) wire
   rw [← answered] at on'
@@ -564,7 +580,11 @@ theorem terminal_passed {read : Reader Wire} (carries : Carries sendable slots r
   have zero : reply none ∈ workZeros E L.foldBits :=
     Tier.path_worked filled (later := []) (by rw [head, List.append_nil]) worked
       (index := L.start) (by rw [whole]; omega) (foldWorkBits_le _ _) reply replied
-  refine ⟨⟨reply, replied, zero, fun i => Option.isSome_iff_exists.mpr ⟨_, decoded i⟩⟩, ?_, ?_⟩
+  have counted : stage.wire L.start = lastWire first early := by
+    rw [← starts, ← rooted]
+    exact Prefix.wire_length head
+  refine ⟨⟨reply, replied, zero, fun i => Option.isSome_iff_exists.mpr ⟨_, decoded i⟩⟩, ?_, ?_,
+    counted ▸ tried⟩
   · rw [statement, clear, fold, responded, sent]
     exact terminal_accepts
       (st := TerminalStatement.ofPoint quarter L.matrix

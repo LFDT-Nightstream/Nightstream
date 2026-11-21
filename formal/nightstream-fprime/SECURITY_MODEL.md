@@ -276,6 +276,7 @@ each head.
 | `Akita/decodes`, `Akita/decodes₁`, `Akita/decodes₂`, `Akita/decodes₃`, `Akita/decodes₄`, `Akita/decodes₅`, `Akita/decodesL`, `AkitaKey30/decodes`, `AkitaKey30/decodes₁`, `AkitaKey30/decodes₂`, `AkitaKey30/decodes₃`, `AkitaKey30/decodes₄`, `AkitaKey30/decodes₅`, `AkitaKey30/decodes₆`, `AkitaKey30/decodesL` | `Eq` | game | adversary 6: `Claims.Akita.key20_opening_accepts` and `Claims.AkitaKey30.key30_opening_accepts` are for each table of stage answers whose slots decode to fold challenges |
 | `Akita/worked`, `AkitaKey30/worked` | `Membership.mem` | game | adversary 6: `Claims.Akita.key20_opening_accepts` and `Claims.AkitaKey30.key30_opening_accepts` are for each table of stage answers whose work slots have 57 zero work bits (`Spec.Compression.Akita.Extract.workZeros`), in place of the nonce search of the honest prover |
 | `Akita/live`, `Akita/lengths`, `Akita/fit`, `AkitaKey30/live`, `AkitaKey30/lengths`, `AkitaKey30/fit` | `*` | game | adversary 6: `Claims.Akita.key20_opening_accepts` and `Claims.AkitaKey30.key30_opening_accepts` are for tables of the key polynomial, `W` and `V` with the sizes of the schedule, for points with their counts of coordinates, and for the setup prefix and the tables whose honest responses satisfy the fit conditions of Akita Definition 10.5 for each fold challenge vector that the decoders give (`Spec.Compression.Akita.Key20.Fit`, `Spec.Compression.Akita.Key30.Fit`). `Spec.Compression.Akita.Key20.fit_zero`, `Spec.Compression.Akita.Key30.fit_zero`, `Spec.Compression.Akita.Key20.fit_quiet` and `Spec.Compression.Akita.Key30.fit_quiet` give data that satisfies them. For the challenge families of the schedule and data that is not 0, no Lean result gives `fit` |
+| `Akita/fresh`, `Akita/apart`, `Akita/fair`, `Akita/energy`, `Akita/digits` | `*` | game | adversary 6: `Claims.Akita.key20_root_search` and `Claims.Akita.key20_level1_search` are for one transcript prefix with different stage inputs of the nonces, different slots of the fold coordinates, decoders on which the sign flips of a challenge act (`Spec.Compression.Akita.SignFair`; `Spec.Compression.Akita.signFair_signed` gives one), challenges with the energy of the families, and source blocks with the digit bound of the level. No Lean result gives `fair` for the decoders `Spec.Compression.Akita.Extract.draw` |
 | `Akita/blocks`, `Akita/use.blocks` | `Eq` | link | `crates/ns-compress/artifacts/key20.aks`, `each_schedule_file_has_its_pinned_digest_and_its_rows`: the file of the key of 512 blocks has its pinned digest, and Rust `SCHEDULES` has the Lean schedules (`schedules_and_variables_are_lean_constants`). The claims are for a verifier that takes this key. The key of the light relation of the reference application has `2^19` blocks (row `Final.light_gate_complete/shipped`), so these claims do not cover it |
 | `Akita/use.laid`, `AkitaKey30/use.laid` | `Export.BoundedDepth.FinalVerifier.Setup.Laid` | game | `SPEC.md` Algorithm 10: step 5 lays out the claims, and the claim is for claims that pass the layout |
 | `Akita/use.zeros`, `AkitaKey30/use.zeros` | `Eq` | lean | `Export.BoundedDepth.FinalKey20.laidSetup_use`, for the setup `Export.BoundedDepth.FinalKey20.laidSetup` of the Akita claims of the final verifier, and `Export.BoundedDepth.FinalKey30.Opening.knowledge` for this setup under `key30.aks`. No Lean result compares `Export.BoundedDepth.FinalKey20.laidZeros` with the Rust code (trust item 7) |
@@ -1247,7 +1248,7 @@ not change terminal source checks.
      history (`Export.BoundedDepth.FinalKey20.FalseHistory`) has a probability of at most `shapesBound + walkBound`,
      with `Export.BoundedDepth.IvcSecurity.walkBound` for a bound `depth` on the accepted iterations, and the same bound
      holds for the witnesses of the reverse extractor (`Claims.Akita.key20_history_sound`,
-     `Claims.Akita.key20_history_knowledge`). The memory results are not stated in this game. The opening verifier of
+     `Claims.Akita.key20_history_knowledge`). A false memory statement has the bound `shapesBound` plus the terms of `Claims.Nebula.memory_sound` in this game (`Claims.Akita.key20_memory_sound`). The opening verifier of
      the tower accepts the honest prover at these numbers if the fit conditions hold for its responses
      (`Spec.Compression.Akita.Key20.tower_complete`). With the fit conditions as the hypothesis `fit` it accepts for each family of
      tables (`Claims.Akita.key20_opening_accepts`, `Spec.Compression.Akita.Key20.fit_zero`, `Spec.Compression.Akita.Key20.fit_quiet`). Levels 1 to 5 have the bounded source of
@@ -1258,11 +1259,10 @@ not change terminal source checks.
      (`Spec.Compression.Verifier.Rejects`) with a probability of at most `tableError + omegaError`
      (`Spec.Compression.Verifier.rejects_mass_le`). This acceptance has two hypotheses that no Lean result gives:
      `leads`, the honest run of Π_CCS on the fresh instance, and `fit`, the fit of the honest responses. The
-     completeness of Akita Theorem 10.9 is not perfect: it has the probability that a response does not fit, and Lean
-     has no bound for this probability. The paper has it as the response-model premise of Akita (152) and (340), which
-     it calls heuristic: its text "motivates this premise but does not prove it" (Akita Appendix K). `key20.aks` is the
+     completeness of Akita Theorem 10.9 is not perfect: a response does not fit with a probability. The verifier has the nonce of the response search with its limit `2^12` (`Spec.Compression.Akita.Extract.Tier.Decodes`). For the root and level 1 of `key20.aks` and decoders with `Spec.Compression.Akita.SignFair`, no nonce fits after one prefix with probability at most `(2^−12)^4096` and `(2^−49)^4096` (`Claims.Akita.key20_root_search`, `Claims.Akita.key20_level1_search`). No Lean result joins these bounds to `fit`.
+     At the other levels the bound is the response-model premise of Akita (152) and (340), which the paper calls heuristic: its text "motivates this premise but does not prove it" (Akita Appendix K). `key20.aks` is the
      file of the test key of `2^9` blocks, and the claims of this item do not cover `key30.aks` (item below). The Lean
-     verifier differs from the pinned code (`decisions/akita-compression.md`). The memory results are not moved. The
+     verifier differs from the pinned code (`decisions/akita-compression.md`). The
      acceptance has the hypotheses `leads` and `fit`, and no closed accepting instance exists for the whole verifier.
    - *What Lean proves for `key30.aks`.* The results are the claims of `Claims.AkitaKey30`, for the two rows of the file
      of the key of `2^19` blocks. The opening has the batching root, the offloaded root fold of Akita Section 9, the
@@ -1284,7 +1284,7 @@ not change terminal source checks.
      (`Spec.Compression.Akita.Batch.registered_commit`). The operator bound `Γ` of the filtered families of levels 5 and
      6 and of the terminal is a theorem for the filter of the code (`Spec.Compression.Akita.TrigTable.filtered_code`). The Lean verifier of the opening accepts the honest proof for each setup prefix and
      each family of tables with the fit conditions (`Claims.AkitaKey30.key30_opening_accepts`). They are the hypothesis `fit`
-     (`Spec.Compression.Akita.Key30.fit_zero`, `Spec.Compression.Akita.Key30.fit_quiet`). The memory results are not stated in this game. The claims that end in
+     (`Spec.Compression.Akita.Key30.fit_zero`, `Spec.Compression.Akita.Key30.fit_quiet`). The memory result is in this game (`Claims.AkitaKey30.key30_memory_sound`). The claims that end in
      `_with_akita` do not use these results, so they keep the premises `akita.*`, `binding`, `accepts` and
      `composition`. `decisions/akita-compression.md`, section "The results for `key30.aks`", gives the limits, the
      differences from the paper and from the code, and what the removal of those premises needs.

@@ -196,7 +196,7 @@ wire message can have each message of a type of `fits` with the condition `keep`
 theorem settle_winsTo {game : Game α} {draws : ℕ} (keep : Game α → Wire → Prop)
     (some : ∀ after, ∃ wire, keep after wire)
     (free : ∀ (M : Type) [Nonempty M] (message : M) (after : Game α), fits M →
-      ∃ wire, keep after wire ∧ read M wire 0 = message)
+      ∃ wire, keep after wire ∧ read.message M wire 0 = message)
     (wins : WinsTo fits game draws true fun result _ _ => goal result) :
     ∃ wire, keep (settle read wire game 0) wire ∧
       WinsTo fits (settle read wire game 0) draws false fun result _ _ => goal result := by
@@ -212,7 +212,7 @@ theorem settle_winsTo {game : Game α} {draws : ℕ} (keep : Game α → Wire �
       obtain ⟨_, sendable, message, won⟩ := wins
       obtain ⟨wire, kept, sent⟩ := free M message (next message) sendable
       have settled : settle read wire (.recv M next) 0 = next message := by
-        show settle read wire (next (read M wire 0)) 1 = next message
+        show settle read wire (next (read.message M wire 0)) 1 = next message
         rw [sent]
         generalize next message = after at won
         cases after with
@@ -247,7 +247,7 @@ theorem play {Answer : Type} (look : Answer → Reply) {start : Game α} {draws 
     (wins : WinsTo fits start draws true fun result _ _ => goal result)
     (keep : ℕ → Game α → Wire → Prop) (some : ∀ index after, ∃ wire, keep index after wire)
     (free : ∀ (index : ℕ) (M : Type) [Nonempty M] (message : M) (after : Game α), fits M →
-      ∃ wire, keep index after wire ∧ read M wire 0 = message)
+      ∃ wire, keep index after wire ∧ read.message M wire 0 = message)
     (reply : Wire → List (Answer × Wire) → Answer)
     (invariant : Wire → List (Answer × Wire) → Prop)
     (base : ∀ first, keep 0 (settle read first start 0) first → invariant first [])

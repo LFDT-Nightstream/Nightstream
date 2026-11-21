@@ -1,4 +1,5 @@
 import NightstreamFPrime.Export.BoundedDepth.FinalKey30
+import NightstreamFPrime.Export.BoundedDepth.FinalMemory
 import NightstreamFPrime.Export.BoundedDepth.FinalShapes
 import NightstreamFPrime.Spec.Compression.Akita.Key30Instances
 
@@ -31,6 +32,8 @@ the shape. The bound is the sum of the bounds of the shapes.
 - `verifier_sound_drawn`, `history_sound_drawn` and `history_knowledge_drawn` are
   `FinalShapes.sound_all`, `FinalShapes.history_sound` and `FinalShapes.history_knowledge` for a
   setup whose rows are the rows of the packages (`FinalRows.premises_of_rows`).
+- `memory_sound_drawn` is `FinalMemory.memory_sound` for such a setup (SPEC.md Algorithm 8;
+  `SECURITY_MODEL.md`, adversary 5).
 - `Opening.reduced` states that the list `Key30.instances` is complete for the event `Solved` of
   `FinalAkita.breakChance`. `Opening.reduced_shared` states that for matrices that are the views
   of one setup vector `S`, each such output gives a solution for the view of `S` of an instance
@@ -502,6 +505,75 @@ theorem history_knowledge_drawn
         (FinalRows.premises_of_rows setup exports complete rows) blocks coords (drawn index)
         bounded positive)
     keysShaped admitted depth depthBound
+
+variable {p : Nebula.Plan} (app : Nebula.PortApp p.toGeometry)
+  (claim : (Prefix Wire (Option Coord → K) total → Option Coord → K) →
+    PMF (Lifecycle.Nebula.EndToEnd.MemoryStatement app.width))
+
+local notation "verifiers" => fun index =>
+  Opening.accepts setup complete.packageWidth step cap control read head (family index)
+    (shared index)
+
+local notation "extracted" => fun index =>
+  Opening.proof setup complete.packageWidth step cap control read head (family index)
+    (shared index) prover
+
+local notation "memory" =>
+  FinalMemory.adversary head kind verifiers extracted prover budget app claim
+
+local notation:max "claimedAt" admitted:max =>
+  FinalMemory.claimed setup step head kind verifiers extracted prover budget app exports assumption
+    closed claim admitted (p.sMax * p.n)
+
+/-- The memory verifier with the Akita openings of `key30.aks`, in the form of
+`Claims.Final.memory_sound` (`FinalMemory.memory_sound` with `Opening.knowledge`). For each
+prover with at most `Q` queries to the oracle that names a memory statement with the law `claim`
+for each table, over the walk's `S_max · N` stages, the probability that the final verifier
+accepts `(i, z0, zi)`, the checks of SPEC.md Algorithm 8 hold, and the decoded history does not
+attest the memory statement is at most `shapesBound` plus the terms of
+`NebulaSecurity.checked_le` for the IVC adversary `FinalMemory.adversary`. `drawn`: the
+hypotheses `Opening.Drawn` on the opening of each shape. The other hypotheses are those of
+`history_sound_drawn` and `NebulaFinal.soundness`. -/
+theorem memory_sound_drawn
+    (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
+      (FinalRows.packageRows exports complete circuit).matrices)
+    (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
+    (blocks : setup.keyBlocks = 524288) (coords : 40 ≤ Fintype.card Coord)
+    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step cap control read head
+      (shared index))
+    {queries : ℕ} (bounded : prover.QueryBound queries) (positive : 0 < budget)
+    (admitted : StageAdmitted
+      (HyperNova.ReverseStages.Stage.start (IvcSecurity.walkAdversary memory)))
+    (valid : p.Valid) (programEq : exports.program = Nebula.MemoryApp.program p.toGeometry app)
+    {memoryError : NebulaSecurity.ClaimedStage app (logicalWidth := logicalWidth)
+      (publicFits := publicFits) → ℝ}
+    (round : NebulaSecurity.MemoryRound app setup.ajtai setup.circuitKeys exports StageAdmitted
+      memoryError) :
+    ((HyperNova.ReverseStages.reverseStages assumption closed (IvcSecurity.walkAdversary memory)
+          admitted (p.sMax * p.n)).1.tape.toOuterMeasure {tape |
+        FinalMemory.FalseMemory setup step head kind verifiers prover app exports
+          (FinalMemory.tapeOf setup step head kind verifiers extracted prover budget app exports
+            assumption closed claim admitted (p.sMax * p.n) tape).1.1
+          (FinalMemory.sampleOf setup step head kind verifiers extracted prover budget app exports
+            assumption closed claim admitted (p.sMax * p.n) tape)}).toReal ≤
+      shapesBound setup complete.packageWidth step cap control read head family shared prover
+          queries budget +
+        (IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed memory
+            admitted (p.sMax * p.n) +
+          ((claimedAt admitted).law.toOuterMeasure
+            {sample | (NebulaSecurity.experiment app setup.ajtai setup.circuitKeys
+              exports).StateLinkCollision app sample}).toReal +
+          ((claimedAt admitted).law.toOuterMeasure
+            {sample | (NebulaSecurity.experiment app setup.ajtai setup.circuitKeys
+              exports).ChainCollision app sample}).toReal +
+          memoryError (claimedAt admitted)) :=
+  FinalMemory.memory_sound setup step cap control head kind _ _ prover budget app exports
+    assumption closed claim admitted complete
+    (fun index =>
+      Opening.knowledge setup complete.packageWidth step cap control read head prover
+        (FinalRows.premises_of_rows setup exports complete rows) blocks coords (drawn index)
+        bounded positive)
+    valid keysShaped programEq round
 
 end All
 

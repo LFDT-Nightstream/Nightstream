@@ -51,8 +51,8 @@ noncomputable local instance : Degree2 K :=
   ⟨AlgEquiv.ofRingEquiv (f := carrierEquiv.ringEquiv) fun _ => rfl⟩
 
 /-- A wire message of a final proof: the values `First` of the first message, the data
-`Key20.Note` of the Akita opening, and `slots` cells of `width` elements of `K` and a number up
-to `limit` for the messages of the checks. -/
+`Key20.Note` of the Akita opening, `slots` cells of `width` elements of `K` and a number up to
+`limit` for the messages of the checks, and the nonce of the response search. -/
 abbrev Sheet (logicalWidth : Nat)
     (publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
       RingCarrierLayout.carrierWidth logicalWidth) (slots width limit : ℕ) : Type :=
@@ -77,7 +77,8 @@ noncomputable def sheetBound (anchor : Prefix (Sheet logicalWidth publicFits slo
   else (anchor.wire 0).data.2.commit g
 
 /-- The terminal with the matrix `A_term`, the fold challenges at the stage `start`, and the
-statement and the clear partials of the message before this stage (Akita Section 8.2). -/
+statement, the clear partials and the nonce of the response search of the message before this
+stage (Akita Section 8.2). -/
 def sheetTerminal (total : ℕ)
     (matrix : Matrix (Fin Key20.terminal.innerRank)
       (Fin Key20.terminal.blockLength × Fin Key20.terminal.sourceDigits)
@@ -90,6 +91,7 @@ def sheetTerminal (total : ℕ)
   read point := (point.wire start).data.2.statement
   partials point := (point.wire start).data.2.partials
   response wire := wire.data.2.response
+  nonce wire := wire.nonce
   block := block
   decode := decode
   weight := 0
@@ -330,10 +332,10 @@ theorem accepts (use : Use setup shape) (wide : 8 ≤ width) (capped : 302980489
         state := target.1, statement := target.2.1, partials := target.2.2 }), rfl⟩)
     (Page.carries (fun data : First logicalWidth publicFits × Key20.Note K => data.2.response)
       fun target => ⟨(given, { base with response := target }), rfl⟩)
-    started inside (fun _ => rfl) (fun _ => rfl) table calm regular decodes decodes₁ decodes₂
-    decodes₃ decodes₄ decodes₅ decodesL worked
+    started inside (fun _ => rfl) (fun _ => rfl) (fun _ => rfl) table calm regular decodes decodes₁
+    decodes₂ decodes₃ decodes₄ decodes₅ decodesL worked
     (⟨(given, { base with commit := fun g => (Compression.Akita.commit (key g)
-      (![keyBase (setup.params shape), W, 0] g)).1 }), fun _ => (fun _ => 0, 0)⟩ : Leaf)
+      (![keyBase (setup.params shape), W, 0] g)).1 }), fun _ => (fun _ => 0, 0), 0⟩ : Leaf)
     checks gate W counts tail leads
     (fun anchor rooted =>
       (congrArg (fun leaf : Leaf => leaf.data.2.commit 0) rooted).trans rfl)

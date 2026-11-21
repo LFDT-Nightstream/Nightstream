@@ -222,7 +222,10 @@ the number of the shapes as a factor. The proof of zero steps adds no error
 term. `Claims.Akita.key20_history_sound` and
 `Claims.Akita.key20_history_knowledge` bound a false history in this game by
 `shapesBound` plus the bound `walkBound` of the reverse extractor for the
-depth. The memory results are not stated in this game.
+depth. `Claims.Akita.key20_memory_sound` bounds a false memory statement in
+this game by `shapesBound` plus the terms of `Claims.Nebula.memory_sound`: the
+bound `walkBound` over the `S_max · N` stages, the two collision masses and
+the error of the memory round.
 
 The verifier of these results accepts an honest proof
 (`Export.BoundedDepth.FinalKey20.accepts`), for each table of stage answers
@@ -231,9 +234,10 @@ argument. This acceptance has two hypotheses that no Lean result gives: the
 honest run of Π_CCS on the fresh instance (`leads`) and the fit of the
 responses of the honest prover (`fit`). The completeness of Akita is not
 perfect, and Lean has no bound for the probability that a response does not
-fit. The paper has this as the response-model premise of Akita (152) and
-(340), which it calls heuristic: its text "motivates this premise but does not
-prove it" (Akita Appendix K). The opening verifier accepts the proof of the honest prover for each family
+fit for a complete proof. The paper has this as the response-model premise of
+Akita (152) and (340), which it calls heuristic: its text "motivates this
+premise but does not prove it" (Akita Appendix K). Lean has the certified part
+(difference (i)). The opening verifier accepts the proof of the honest prover for each family
 of tables, and for `key30.aks` for each setup prefix, when the fit conditions
 hold (`Claims.Akita.key20_opening_accepts`,
 `Claims.AkitaKey30.key30_opening_accepts`, the hypothesis `fit`). Lean proves
@@ -249,8 +253,9 @@ of the setup prefix at level 1 of `key30.aks`: 128 blocks, challenges with 31
 coefficients `±1` and digits up to 128 give only `‖z‖_∞ ≤ 507904`, and the
 limit of `Enc` for the base 16 with 4 digits is 34952. The honest prover of
 the Akita code has a search over a nonce for a response that fits
-(`crates/akita-prover/src/protocol/fold_grind.rs`), and the Lean model has
-no nonce.
+(`crates/akita-prover/src/protocol/fold_grind.rs`). The Lean verifier has this
+nonce and its limit, and the honest prover of the acceptance results sends the
+nonce 0 (difference (i)).
 
 The owner decided that these results are claims (recorded on 2026-11-20). They
 are the claims of `Claims.Akita`, with the parts of the proof: Akita Theorem
@@ -442,17 +447,60 @@ that need a decision.
   without its constant term. A transcript of the code gives a transcript of
   the Lean verifier, and Lean has no statement of this map.
 - (i) The fold of the paper has a nonce of the response search, with a limit
-  that the verifier enforces (Akita Section 5.4). The pinned code has a
-  response nonce `n` with `n < 2^12` (`FoldResponse`, with no work bits), and
-  the proof of work of each site has a nonce of `g + 7` bits. The Lean model
-  has no nonce and no range check: a nonce is a part of a message of the
-  prover, the factor `Q + 1` covers a prover that tries other messages, and a
-  verifier without the range check accepts each transcript that the code
-  accepts. Lean states no completeness bound in the nonce limit: the
-  acceptance results are for each table whose work slots have 57 zero work
-  bits (`Claims.Akita.key20_opening_accepts` and
-  `Claims.AkitaKey30.key30_opening_accepts`, the hypothesis `worked`), in
-  place of the nonce search of the honest prover.
+  that the verifier enforces (Akita Section 5.4 and Figure 4, step 2). The
+  pinned code has a response nonce `n` with `n < 2^12` (`FoldResponse`, with
+  no work bits; `crates/akita-types/src/transcript_grinding/replay.rs`), at
+  each fold and at the terminal. The difference of the response nonce is
+  removed. The Lean reader of the messages gives the nonce of the message
+  before the fold challenges (`Spec.Compression.Akita.Extract.Reader`), and
+  the verifier of each fold and of the terminal rejects a nonce that is not
+  below `Spec.Compression.Akita.Extract.responseTries = 2^12`
+  (`Spec.Compression.Akita.Extract.Tier.Decodes`,
+  `Spec.Compression.Akita.Extract.Terminal.Passed`). No error number changes:
+  the nonce is a part of the stage input, and the paper counts each nonce
+  probe as one oracle query of the prover (Akita Section 10.1, "Response
+  grinding is not a filter"), which the factor `Q + 1` has. One point stays.
+  The proof of work of each site of the code has a nonce of `g + 7` bits, and
+  the Lean model has no such nonce and no range check for it: the work slot is
+  a part of the answer of the stage. So the acceptance results are for each
+  table whose work slots have 57 zero work bits
+  (`Claims.Akita.key20_opening_accepts` and
+  `Claims.AkitaKey30.key30_opening_accepts`, the hypothesis `worked`), and no
+  Lean result bounds the probability that a complete honest proof is
+  accepted. Lean has these parts of Akita Theorem 10.9. Akita Lemma 10.7 in
+  the table model: the answers at the stage inputs of different nonces are
+  independent, so `N` nonces fail with probability `δ^N` when one fails with
+  probability at most `δ` (`Spec.Compression.Akita.Extract.mass_misses_le`),
+  and the same bound holds for a prefix that the table gives, which is the
+  term of Akita (154) (`Spec.Compression.Akita.Extract.mass_search_le`).
+  Akita Lemma K.2 and Lemma K.3: the Hoeffding bound of a response
+  coefficient for independent signs (`Spec.Compression.Akita.rademacher_tail`,
+  `Spec.Compression.Akita.decoded_tail`), for a decoder on whose slots the
+  sign flips of a challenge act (`Spec.Compression.Akita.SignFair`). The
+  sampler of the code has independent sign bits. The Lean decoders `draw` of
+  the soundness claims are injections of `q²` slots into a family of more
+  than `q²` members, so they have no uniform law on the family, and no Lean
+  result gives them this property. The sizing rule of the code,
+  `t*² = 2·B·‖c‖_2²·‖s‖_∞²·⌈ln(2N/(1 − 1/8))⌉`
+  (`crates/akita-params/src/sis/fold_linf_cap.rs`), gives the probability
+  `7/8` or less that one group does not fit
+  (`Spec.Compression.Akita.sized_tail`). With the numbers of `key20.aks`, one
+  nonce fails with probability at most `2^−12` at the root (the three groups
+  together) and `2^−49` at level 1, so no nonce below `2^12` fits with
+  probability at most `(2^−12)^4096` and `(2^−49)^4096`
+  (`Claims.Akita.key20_root_search`, `Claims.Akita.key20_level1_search`).
+  This proof gives no bound at the other levels. The limit of `Enc` is below
+  the limit of Akita (313) at level 2 of `key20.aks` and at the group of the
+  setup prefix of level 1 and at levels 2 and 4 of `key30.aks`: the planner
+  of the code selected these digit counts with its Gaussian model. The levels
+  with the Euclidean route and the terminal have a filter, and their limit
+  `S_max` is a Markov bound of `1/40` on a modeled source energy
+  (`specs/selective-l2-fold-security-sizing.md` of the Akita code). At these
+  levels the bound of one nonce is the premise of Akita (340): `39/40` for one
+  response by the model of the code, which gives `(39/40)^4096 < 2^−149`.
+  The same computation outside Lean gives bounds below 1 for the three groups
+  of the root, the witness group of level 1 and level 3 of `key30.aks`, and
+  Lean has no statement for that file.
 - (j) `Spec.Checkpoint.Structure.Lawful` has inclusions where Akita Definition
   10.16 has equalities, it permits a plain stage outside each segment, and it
   has no condition on the run time. The Lean theorems use only these
@@ -656,7 +704,8 @@ hypothesis. Lean proves them for the zero tables and the zero setup prefix,
 and for each setup prefix with decoders that give the fold challenge 0
 (`Spec.Compression.Akita.Key30.fit_zero`,
 `Spec.Compression.Akita.Key30.fit_quiet`). The final
-verifier of this file has no acceptance result. The memory results have no statement in this game. The Lean
+verifier of this file has no acceptance result. The memory result is in this
+game (`Claims.AkitaKey30.key30_memory_sound`). The Lean
 verifier and the Lean decoders have no comparison with the code. The
 differences (k) to (p) of the section above apply.
 
@@ -701,8 +750,14 @@ It needs these changes.
   `Claims.Final.memory_sound_with_akita` go.
   `Claims.Shipped.verify_final_sound` takes the same seven premises, so it
   needs a new statement over `Claims.AkitaKey30.key30_history_sound`. The
-  memory claim has no result in the game with Akita openings: a new theorem is
-  necessary, or `Claims.Final.memory_sound_with_akita` stays.
+  memory claim has its result in the game with Akita openings:
+  `Claims.AkitaKey30.key30_memory_sound` for `key30.aks` and
+  `Claims.Akita.key20_memory_sound` for `key20.aks`
+  (`Export.BoundedDepth.FinalMemory.memory_sound`). Its prover names a memory
+  statement for each table of stage answers, its event is the event of
+  `Claims.Nebula.memory_sound` with the final verifier of the new game, and it
+  has no hypothesis on the depth, because the checks of Algorithm 8 accept at
+  most `S_max · N` steps.
 
 - `SPEC.md`. The two rows of the table of verifier entry points for
   `verify_final` cite `Claims.Final.history_sound_with_akita` and
@@ -750,7 +805,8 @@ the facts).
   verifier, which hold the Lean decoders and the certified decommitment `registered` of
   the key commitment. The 512 blocks of the key polynomial are of the class
   link. The term `breakChance` is `[MSIS]`. The uniform table of stage answers
-  is `[KECCAK]`. The memory claims have no statement in this game.
+  is `[KECCAK]`. The memory claims are `Claims.Akita.key20_memory_sound` and
+  `Claims.AkitaKey30.key30_memory_sound`.
 - The zero count. The hypothesis `Export.BoundedDepth.FinalKey20.Use` gives
   the opening point of `V` the zero count
   `Export.BoundedDepth.FinalKey20.laidZeros` of the Lean layout. No Lean
@@ -759,11 +815,11 @@ the facts).
   `leads` and `fit`, which no Lean result gives, so no closed accepting
   instance exists for the whole verifier.
 - The model of the verifier. The Lean verifier differs from the pinned Akita
-  code in these parts. The transcript has no digests and no proof of work.
+  code in these parts. The transcript has no digests.
   Two more differences are with the paper. The Lean verifier has no
   rejection at a zero tensor factor, and the pinned code has none
   (`crates/akita-verifier/src/stages/opening_claims/extension_claim.rs` of the
-  Akita code). Its fold has no nonce of the response search. A
+  Akita code). Its proof of work has no nonce (difference (i)). A
   change of the pinned Akita code or a change of the Lean model removes a
   difference. The decision is which one changes, for each difference.
 - `key30.aks`. The file of the key of `2^19` blocks has coefficient packing at
@@ -775,8 +831,9 @@ the facts).
   `Spec.Compression.Akita.Key30.Fit`
   (`Claims.AkitaKey30.key30_opening_accepts`). For the challenge families of
   the schedule, no Lean result gives the fit conditions of a setup prefix
-  that is not 0: this needs the nonce of the response search in the model
-  and a bound on the probability that a response fits.
+  that is not 0: this needs an honest prover that searches the nonce, a nonce
+  of the proof of work in the model, and the bounds of difference (i) at each
+  level.
   Lean proves the split of the public weight (Akita
   (132)) for matrices that are views of the setup prefix, in the form of the
   pinned code.

@@ -167,7 +167,8 @@ theorem settle_winsOff {game : Game α} {draws index : ℕ}
       (∀ letter ∈ sent, fits letter.M letter.message) ∧
       WinsOff reject fits slots after draws 0 (fun result _ _ => goal result) ∧
       ∀ wire, (∀ (place : ℕ) (inside : place < sent.length),
-        @read sent[place].M sent[place].inhabited wire (index + place) = sent[place].message) →
+        @Reader.message _ read sent[place].M sent[place].inhabited wire (index + place) =
+          sent[place].message) →
         settle read wire game index = after := by
   induction game generalizing index with
   | pure result => exact ⟨[], .pure result, Nat.zero_le _, by simp, wins, fun _ _ => rfl⟩
@@ -183,8 +184,8 @@ theorem settle_winsOff {game : Game α} {draws index : ℕ}
         rcases List.mem_cons.mp member with rfl | member
         · exact sendable
         · exact each _ member
-      · have head : read M wire index = message := sends 0 (Nat.succ_pos _)
-        show settle read wire (next (read M wire index)) (index + 1) = after
+      · have head : read.message M wire index = message := sends 0 (Nat.succ_pos _)
+        show settle read wire (next (read.message M wire index)) (index + 1) = after
         rw [head]
         exact reads wire fun place inside => by
           have sentAt := sends (place + 1) (Nat.succ_lt_succ inside)
@@ -214,7 +215,7 @@ theorem ended_of_winsOff {game : Game α} (settled : Settled game)
 draw, after the wire message `first`. The answers `reply` of the oracle decode to no challenge in
 `reject`. Moves exist such that the game ends in the goal. Each wire message has the data `data`
 of the game at its next draw or at its end, and `invariant` is a property of the moves that each
-step preserves. -/
+step preserves. Each wire message has a nonce below `responseTries`, and `step` gets this fact. -/
 theorem play_off {Answer : Type} (look : Answer → Reply) {dataOf : Wire → Data}
     (carries : Carries fits slots read dataOf)
     {start : Game α} {draws : ℕ} (settled : Settled start)
@@ -226,7 +227,7 @@ theorem play_off {Answer : Type} (look : Answer → Reply) {dataOf : Wire → Da
     (step : ∀ moves wire, moves.length < draws → invariant moves →
       dataOf wire = data (position read start first
         ((moves ++ [(reply moves, wire)]).map fun move => (look move.1, move.2))) →
-      invariant (moves ++ [(reply moves, wire)])) :
+      read.nonce wire < responseTries → invariant (moves ++ [(reply moves, wire)])) :
     ∃ moves result, moves.length = draws ∧ invariant moves ∧
       position read start first (moves.map fun move => (look move.1, move.2)) = .pure result ∧
         goal result := by
@@ -253,7 +254,7 @@ theorem play_off {Answer : Type} (look : Answer → Reply) {dataOf : Wire → Da
         rw [show draws - count = draws - (count + 1) + 1 by omega] at won
         obtain ⟨sent, after, short, each, later, reads⟩ := settle_winsOff read
           (advance_winsOff (look (reply moves)) ready (dodges moves (by omega)) won)
-        obtain ⟨wire, held, sends⟩ := carries (data after) sent short each
+        obtain ⟨wire, held, tried, sends⟩ := carries (data after) sent short each
         have next : position read start first
             ((moves ++ [(reply moves, wire)]).map fun move => (look move.1, move.2)) = after := by
           rw [position_map_append]
@@ -261,7 +262,7 @@ theorem play_off {Answer : Type} (look : Answer → Reply) {dataOf : Wire → Da
             rw [Nat.zero_add]
             exact sends place inside
         refine ⟨moves ++ [(reply moves, wire)], by simp [length],
-          step moves wire (by omega) kept (by rw [next]; exact held), ?_, ?_⟩
+          step moves wire (by omega) kept (by rw [next]; exact held) tried, ?_, ?_⟩
         · rw [position_map_append]
           exact settle_settled read wire _ 0
         · rw [next]
@@ -285,7 +286,8 @@ variable {Wire Coord Slot Result Cand Data : Type} {total : ℕ}
 `wins`: the game of the segment for the stage input of `early` and the candidate starts at a
 draw, and the prover has a message for each draw sequence with no challenge in `reject`.
 `dodges`: an answer of the table decodes to no challenge in `reject`. Then moves exist such that
-the prefix is on the path, the last message has the data `data` of the end of the game, and for
+the prefix is on the path, the last message has the data `data` of the end of the game and a
+nonce below `responseTries`, and for
 each transcript with this prefix the game of the segment ends in a result with the goal. -/
 theorem run {reject : (C : Type) → C → Prop} {fits : (M : Type) → M → Prop} {slots : ℕ}
     {dataOf : Wire → Data} (carries : Carries fits slots G.read dataOf) {goal : Result → Prop}
@@ -301,12 +303,13 @@ theorem run {reject : (C : Type) → C → Prop} {fits : (M : Type) → M → Pr
     ∃ (moves : List ((Option Coord → Slot) × Wire)) (result : Result),
       moves.length = G.costs.length ∧ goal result ∧ OnPath accept table first (early ++ moves) ∧
       dataOf (lastWire first (early ++ moves)) = data (.pure result) ∧
+      G.read.nonce (lastWire first (early ++ moves)) < responseTries ∧
       ∀ stage : Prefix Wire (Option Coord → Slot) total, stage.first = first →
         (∃ later, stage.rest = early ++ moves ++ later) →
         stage.wire G.finish = lastWire first (early ++ moves) ∧
           G.game candidate stage = .pure result := by
   have ends : G.finish = G.start + G.costs.length := rfl
-  obtain ⟨moves, result, counted, ⟨on', held⟩, ended, good⟩ :=
+  obtain ⟨moves, result, counted, ⟨on', held, fresh⟩, ended, good⟩ :=
     play_off (read := G.read) view carries settled wins (lastWire first early) data
       (fun moves => answer table first (early ++ moves))
       (fun moves inside C _ _ => by
@@ -316,19 +319,21 @@ theorem run {reject : (C : Type) → C → Prop} {fits : (M : Type) → M → Pr
       (fun moves => OnPath accept table first (early ++ moves) ∧
         (moves ≠ [] → dataOf (lastWire first (early ++ moves)) =
           data (position G.read (G.check ⟨first, early, short⟩ candidate) (lastWire first early)
-            (moves.map fun move => (view move.1, move.2)))))
-      ⟨by rwa [List.append_nil], fun different => (different rfl).elim⟩
-      (fun moves wire inside kept linked => ⟨by
+            (moves.map fun move => (view move.1, move.2)))) ∧
+        (moves ≠ [] → G.read.nonce (lastWire first (early ++ moves)) < responseTries))
+      ⟨by rwa [List.append_nil], fun different => (different rfl).elim,
+        fun different => (different rfl).elim⟩
+      (fun moves wire inside kept linked low => ⟨by
         have next := kept.1.snoc (by rw [List.length_append]; omega) wire
         rwa [List.append_assoc] at next, fun _ => by
         rw [← List.append_assoc, lastWire_concat]
-        exact linked⟩)
+        exact linked, fun _ => by rwa [← List.append_assoc, lastWire_concat]⟩)
   have some : moves ≠ [] := fun empty => draws (List.length_eq_zero_iff.mp (by
     rw [← counted, empty]
     rfl))
   have whole : (early ++ moves).length = G.finish := by
     rw [List.length_append, starts, counted, ends]
-  refine ⟨moves, result, counted, good, on', by rw [held some, ended],
+  refine ⟨moves, result, counted, good, on', by rw [held some, ended], fresh some,
     fun stage rooted ⟨later, shape⟩ => ⟨?_, ?_⟩⟩
   · rw [← whole, ← rooted]
     exact Prefix.wire_length shape

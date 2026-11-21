@@ -107,6 +107,7 @@ theorem traceTower₂_complete {sendable : (M : Type) → M → Prop} {slots wid
     (next : L.start = Tier.finish fourth) (inside : L.start < total)
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
     (clears : ∀ point, L.partials point = partialsOf (point.wire L.start))
+    (counts : ∀ wire, L.nonce wire = read.nonce wire)
     (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
     (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
     (decodes₃ : ∀ input i, (decode₃ (table input (some (block₃ i)))).isSome)
@@ -119,6 +120,7 @@ theorem traceTower₂_complete {sendable : (M : Type) → M → Prop} {slots wid
     (live : ∀ cell, S₂.blocks * (S₂.blockLength * (2 * m₂)) ≤ cell → g cell = 0)
     (ready : claim₂ (lastWire first early) =
       honestTraceClaim quarter₂ key₂ openKey₂ g block position pack θ)
+    (tried : read.nonce (lastWire first early) < responseTries)
     (fit : TraceFit quarter₂ key₂ openKey₂ fold₂ (fun _ => decode₂) (fun _ => True) g fun w₂ =>
       TraceFit quarter₃ key₃ openKey₃ fold₃ (fun _ => decode₃) (fun z => vecNormSq z ≤ limit₃)
         (packed w₂) fun w₃ =>
@@ -159,10 +161,10 @@ theorem traceTower₂_complete {sendable : (M : Type) → M → Prop} {slots wid
     (source₂.blocks.trans (Nat.pow_le_pow_right (by decide) blocks)) source₂.length source₂.pack
     live ready fit (c := Tier.drawn base₂ table first early)
     fun i => ⟨_, Tier.drawn_mem base₂ table short₂ decodes₂ i⟩
-  obtain ⟨later₂, blockSeg₃, positionSeg₃, packSeg₃, θ₃, rfl, rfl, long₃, on₂, len₂, ready₃,
-      linked₂⟩ :=
+  obtain ⟨later₂, blockSeg₃, positionSeg₃, packSeg₃, θ₃, rfl, rfl, long₃, on₂, len₂, fresh₂,
+      ready₃, linked₂⟩ :=
     traceLink (B := base₂) (ν := ν₂) (Next := third) (commit' := commit₃) carries₂ sends
-      three on starts fin₂ decodes₂ worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩
+      three on starts fin₂ decodes₂ worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩ tried
       (fun wire challenge table other => committedTrace_uniform wire challenge table other)
       (foldCosts_length E _ _ _ _ _) several _ wins₂ rfl quarter₃ key₃ openKey₃
       source₃.pack source₃.length source₃.blocks point₂
@@ -177,10 +179,10 @@ theorem traceTower₂_complete {sendable : (M : Type) → M → Prop} {slots wid
     (source₃.blocks.trans (Nat.pow_le_pow_right (by decide) long₃)) source₃.length source₃.pack
     live₃ ready₃ fit₃ (c := Tier.drawn base₃ table first (early ++ later₂))
     fun i => ⟨_, Tier.drawn_mem base₃ table (len₂.le.trans fin₂) decodes₃ i⟩
-  obtain ⟨later₃, blockSeg₄, positionSeg₄, packSeg₄, θ₄, rfl, rfl, long₄, on₃, len₃, ready₄,
-      linked₃⟩ :=
+  obtain ⟨later₃, blockSeg₄, positionSeg₄, packSeg₄, θ₄, rfl, rfl, long₄, on₃, len₃, fresh₃,
+      ready₄, linked₃⟩ :=
     traceLink (B := base₃) (ν := ν₃) (Next := fourth) (commit' := commit₄) carries₃ sends
-      three on₂ len₂ fin₃ decodes₃ worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩
+      three on₂ len₂ fin₃ decodes₃ worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩ fresh₂
       (fun wire challenge table other => committedTraceSq_uniform wire challenge table other)
       committedTraceSq_costs_length several _ wins₃ rfl quarter₄ key₄ openKey₄
       source₄.pack source₄.length source₄.blocks point₃
@@ -195,17 +197,17 @@ theorem traceTower₂_complete {sendable : (M : Type) → M → Prop} {slots wid
     (source₄.blocks.trans (Nat.pow_le_pow_right (by decide) long₄)) source₄.length source₄.pack
     live₄ ready₄ fit₄ (c := Tier.drawn base₄ table first (early ++ later₂ ++ later₃))
     fun i => ⟨_, Tier.drawn_mem base₄ table (len₃.le.trans fin₃) decodes₄ i⟩
-  obtain ⟨later₄, blockSeg₅, positionSeg₅, packSeg₅, θ₅, rfl, rfl, long₅, on₄, len₄, stated,
-      cleared, linked₄⟩ :=
+  obtain ⟨later₄, blockSeg₅, positionSeg₅, packSeg₅, θ₅, rfl, rfl, long₅, on₄, len₄, fresh₄,
+      stated, cleared, linked₄⟩ :=
     terminalLink (B := base₄) (ν := ν₄) (L := L) (stateOf := stateOf) carries₄ sends three
-      on₃ len₃ fin₄ decodes₄ worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩
+      on₃ len₃ fin₄ decodes₄ worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩ fresh₃
       (fun wire challenge table other => committedTraceSq_uniform wire challenge table other)
       committedTraceSq_costs_length several _ wins₄ next reads quarter₅
       source₅.pack source₅.length source₅.blocks point₄
   have live₅ := fun cell (large : S₅.blocks * (S₅.blockLength * (2 * m₅)) ≤ cell) =>
     packed_of_le (E := E) zero₄ (covered₄.trans (Nat.mul_le_mul_left 2 large))
   obtain ⟨last, onL, whole, passed⟩ := terminal_passed carriesL on₄ len₄ inside reads clears
-    decodesL worked quarter₅ source₅.shape source₅.unit
+    decodesL worked ((counts _).trans_lt fresh₄) quarter₅ source₅.shape source₅.unit
     (source₅.blocks.trans (Nat.pow_le_pow_right (by decide) long₅)) source₅.length source₅.pack
     live₅ stated cleared fitL
   have joined : early ++ (later₂ ++ (later₃ ++ (later₄ ++ last))) =
@@ -317,6 +319,7 @@ theorem packTower₂_complete {sendable : (M : Type) → M → Prop} {slots widt
     (next : L.start = Tier.finish fourth) (inside : L.start < total)
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
     (clears : ∀ point, L.partials point = partialsOf (point.wire L.start))
+    (counts : ∀ wire, L.nonce wire = read.nonce wire)
     (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
     (decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome)
     (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
@@ -327,6 +330,7 @@ theorem packTower₂_complete {sendable : (M : Type) → M → Prop} {slots widt
     {wire₀ : Wire} {early : List ((Option Coord → E) × Wire)} (on : OnPath accept table wire₀ early)
     (starts : early.length = start) {source : Fin S₁.blocks → S₁.Source} {point : Point O₁ E}
     (ready : claim₁ (lastWire wire₀ early) = sourceClaim β₁ key₁ openKey₁ source point)
+    (tried : read.nonce (lastWire wire₀ early) < responseTries)
     (fit : LiftFit β₁ key₁ openKey₁ fold₁ μ₁ fits₁ digits₁ decode₁ source fun w₁ =>
       TraceFit quarter₂ key₂ openKey₂ fold₂ (fun _ => decode₂) (fun _ => True) (packed w₁)
         fun w₂ =>
@@ -362,11 +366,11 @@ theorem packTower₂_complete {sendable : (M : Type) → M → Prop} {slots widt
     (batch := batch₁) (rowsFit := rowsFit₁) (block := block₁) (read := read) (weight := weight₁)
     (start := start) sends range₁ four (Nat.zero_lt_of_lt room) shape₁ radix₁ certified₁ path₁
     digit₁ covers₁ ready fit member
-  obtain ⟨later₁, blockSeg, positionSeg, packSeg, θ, packs, positions, long, on₁, len₁, ready₂,
-      linked₁⟩ :=
+  obtain ⟨later₁, blockSeg, positionSeg, packSeg, θ, packs, positions, long, on₁, len₁, fresh₁,
+      ready₂, linked₁⟩ :=
     traceLink (B := base₁) (ν := ν₁) (Next := second) (commit' := commit₂) carries₁ sends
       (Nat.le_of_succ_le four) on starts fin₁ decodes₁ worked
-      ⟨foldWorkBits_le _ _, map_workBits_le _⟩
+      ⟨foldWorkBits_le _ _, map_workBits_le _⟩ tried
       (fun _ _ table other => foldCheck_bare _ _ _ _ table other) (foldCosts_length E _ _ _ _ _)
       (Nat.lt_of_succ_lt (Nat.lt_of_succ_lt room)) _
       (wins₁.mono fun _ _ _ kept => ⟨kept.1, kept.2.imp fun _ both => ⟨both.1.trans vars₁, both.2⟩⟩)
@@ -376,8 +380,8 @@ theorem packTower₂_complete {sendable : (M : Type) → M → Prop} {slots widt
   obtain ⟨later, onL, whole, each⟩ := traceTower₂_complete sends four room carries₂ carries₃
     carries₄ carriesL quarter₂ quarter₃ quarter₄ quarter₅ source₂ source₃ source₄ source₅ sized₂
     sized₃ sized₄ vars₂ vars₃ vars₄ point₂ point₃ point₄ covered₂ covered₃ covered₄ normRoom₃
-    normRoom₄ wide₃ wide₄ capped₃ capped₄ next inside reads clears table decodes₂ decodes₃
-    decodes₄ decodesL worked on₁ len₁ packs positions long live₂ ready₂ fit₂
+    normRoom₄ wide₃ wide₄ capped₃ capped₄ next inside reads clears counts table decodes₂ decodes₃
+    decodes₄ decodesL worked on₁ len₁ packs positions long live₂ ready₂ fresh₁ fit₂
   refine ⟨later₁ ++ later, by rwa [← List.append_assoc], by rwa [← List.append_assoc],
     fun stage rooted shape => ⟨linked₁ stage rooted ⟨later, by rw [shape, List.append_assoc]⟩,
       each stage rooted (by rw [shape, List.append_assoc])⟩⟩

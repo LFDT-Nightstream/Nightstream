@@ -216,6 +216,7 @@ theorem stateTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     (next : L.start = Tier.finish sixth) (inside : L.start < total)
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
     (clears : ∀ point, L.partials point = partialsOf (point.wire L.start))
+    (counts : ∀ wire, L.nonce wire = read.nonce wire)
     (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
     (decodes₁ : ∀ input b, (decode₁ b.1 (table input (some (block₁ b)))).isSome)
     (decodes₂ : ∀ input i, (decode₂ (table input (some (block₂ i)))).isSome)
@@ -310,7 +311,7 @@ theorem stateTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     rfl
   have value₁ := sourceClaim_value (β := β₁ 1) (key := key₁ 1) (openKey := openKey₁.group 1)
     bounded₁₁ witness block₁' position₁ pack₁ tail₁ fits₁₁ lengths₁ strides₁ degrees₁ live
-  obtain ⟨ϑ, wireR, claimed, onR, linkedR⟩ := rootLink (T := first) (commit := commits)
+  obtain ⟨ϑ, wireR, claimed, triedR, onR, linkedR⟩ := rootLink (T := first) (commit := commits)
     (value := values) (place := places) carriesR rfl table worked on starts rooted
     (fun ϑ => Batch.stateClaim β₁ openKey₁
       (offState (key₁ 1) registry reference witness) points ϑ)
@@ -345,9 +346,9 @@ theorem stateTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     certified₁ path₁ uniform₁ digit₁ covers₁ opens
     (wire := lastWire wire₀ (early ++ [(answer table wire₀ early, wireR)]))
     (by rw [lastWire_concat]; exact claimed) fit member₁
-  obtain ⟨later₁, place₂, on₁, len₁, ready₂, linked₁⟩ :=
+  obtain ⟨later₁, place₂, on₁, len₁, fresh₁, ready₂, linked₁⟩ :=
     packLink (T := first) (Next := second) (commit' := commit₂) carries₁ onR lenR fin₁ decodes₁
-      worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩
+      worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩ (by rw [lastWire_concat]; exact triedR)
       (fun _ _ table other => foldCheck_bare _ _ _ _ table other) (foldCosts_length E _ _ _ _ _) _
       (wins₁.mono fun _ _ _ kept => kept.2) rfl shape₂ β₂ stride₂ degree₂ length₂ blocks₂ point₁
       fun cell large => zero₁ cell (covered₁.trans large)
@@ -358,9 +359,9 @@ theorem stateTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     (batch := batch₂) (rowsFit := rowsFit₂) (block := block₂) (read := read) (weight := weight₂)
     (start := Tier.finish first) sends range₂ four (Nat.zero_lt_of_lt room) shape₂ radix₂
     certified₂ path₂ digit₂ covers₂ ready₂ fit₂ member₂
-  obtain ⟨later₂, place₃, on₂, len₂, ready₃, linked₂⟩ :=
+  obtain ⟨later₂, place₃, on₂, len₂, fresh₂, ready₃, linked₂⟩ :=
     packLink (T := second) (Next := third) (commit' := commit₃) carries₂ on₁ len₁ fin₂ decodes₂
-      worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩
+      worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩ fresh₁
       (fun _ _ table other => foldCheck_bare _ _ _ _ table other) (foldCosts_length E _ _ _ _ _) _
       (wins₂.mono fun _ _ _ kept => kept.2) rfl shape₃ β₃ stride₃ degree₃ length₃ blocks₃ point₂
       fun cell large => zero₂ cell (covered₂.trans large)
@@ -368,8 +369,8 @@ theorem stateTower_complete {sendable : (M : Type) → M → Prop} {slots width 
     room carries₃ carries₄ carries₅ carries₆ carriesL shape₃ radix₃ certified₃ path₃ digit₃
     covers₃ range₃ quarter₄ quarter₅ quarter₆ quarter₇ source₄ source₅ source₆ source₇ sized₄
     sized₅ sized₆ vars₃ vars₄ vars₅ vars₆ point₃ point₄ point₅ point₆ covered₃ covered₄ covered₅
-    covered₆ normRoom₅ normRoom₆ wide₅ wide₆ capped₅ capped₆ next inside reads clears table
-    decodes₃ decodes₄ decodes₅ decodes₆ decodesL worked on₂ len₂ ready₃ fit₃
+    covered₆ normRoom₅ normRoom₆ wide₅ wide₆ capped₅ capped₆ next inside reads clears counts table
+    decodes₃ decodes₄ decodes₅ decodes₆ decodesL worked on₂ len₂ ready₃ fresh₂ fit₃
   have joined : early ++ (answer table wire₀ early, wireR) :: (later₁ ++ (later₂ ++ later)) =
       early ++ [(answer table wire₀ early, wireR)] ++ later₁ ++ later₂ ++ later := by
     simp only [List.append_assoc, List.cons_append, List.nil_append]
@@ -521,6 +522,7 @@ theorem offTower_complete {sendable : (M : Type) → M → Prop} {slots width ca
     (next : L.start = Tier.finish sixth) (inside : L.start < total)
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
     (clears : ∀ point, L.partials point = partialsOf (point.wire L.start))
+    (counts : ∀ wire, L.nonce wire = read.nonce wire)
     (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
     (decodes₀ : ∀ input b, (decode b.1 (table input (some (block b)))).isSome)
     (decodes₁ : ∀ input b, (decode₁ b.1 (table input (some (block₁ b)))).isSome)
@@ -591,7 +593,7 @@ theorem offTower_complete {sendable : (M : Type) → M → Prop} {slots width ca
   have rooted₀ : start + 1 ≤ total :=
     (show start + 1 ≤ Tier.finish zeroth from (Nat.le_add_right _ _).trans_eq ends₀.symm).trans
       fin₀
-  obtain ⟨ϑ, wireR, claimedR, onR, linkedR⟩ := rootLink (T := zeroth) (commit := commit)
+  obtain ⟨ϑ, wireR, claimedR, triedR, onR, linkedR⟩ := rootLink (T := zeroth) (commit := commit)
     (value := value) (place := place) carriesR rfl table worked on starts rooted₀
     (fun ϑ => Batch.honestClaim β key openKey tables (fun g => Point.ofSegments (B.opening g)
       (blockOf g) (positionOf g) (packOf g) (tailOf g)) ϑ)
@@ -624,10 +626,10 @@ theorem offTower_complete {sendable : (M : Type) → M → Prop} {slots width ca
     (B.opening g) (blockOf g) (positionOf g) (packOf g) (tailOf g)) ϑ (fun g i =>
       Tier.drawn zeroth table wire₀ (early ++ [(answer table wire₀ early, wireR)]) ⟨g, i⟩) =
     witness at fit₁ zero₀ wins₀
-  obtain ⟨later₀, r2, ρ, long₂, longρ, on₀, len₀, committed₁, valued₁, placed₁, linked₀⟩ :=
+  obtain ⟨later₀, r2, ρ, long₂, longρ, on₀, len₀, -, committed₁, valued₁, placed₁, linked₀⟩ :=
     offLink (T := zeroth) (B := B₁) (commits := commits) (values := values) (places := places)
       (commit := commit₁) carriesO onR lenR fin₀ decodes₀ worked
-      ⟨foldWorkBits_le _ _, map_workBits_le _⟩
+      ⟨foldWorkBits_le _ _, map_workBits_le _⟩ (by rw [lastWire_concat]; exact triedR)
       (fun wire challenge table other => offBatch_uniform wire challenge table other)
       offBatch_costs_length witness flat wins₀ registry
       (commitSource (key₁ 1) fun i => (B₁.shape 1).embed ((B₁.shape 1).pack witness i)).1
@@ -639,7 +641,7 @@ theorem offTower_complete {sendable : (M : Type) → M → Prop} {slots width ca
     length₂ blocks₂ point₁ covered₁ stride₃ degree₃ length₃ blocks₃ point₂ covered₂ quarter₄
     quarter₅ quarter₆ quarter₇ source₄ source₅ source₆ source₇ sized₄ sized₅ sized₆ vars₃ vars₄
     vars₅ vars₆ point₃ point₄ point₅ point₆ covered₃ covered₄ covered₅ covered₆ normRoom₅
-    normRoom₆ wide₅ wide₆ capped₅ capped₆ next inside reads clears table decodes₁ decodes₂
+    normRoom₆ wide₅ wide₆ capped₅ capped₆ next inside reads clears counts table decodes₁ decodes₂
     decodes₃ decodes₄ decodes₅ decodes₆ decodesL worked on₀ len₀ committed₁ valued₁ placed₁
     (longρ.trans setup) (long₂.trans point₀) (fun cell large => zero₀ cell (covered₀.trans large))
     fit₁

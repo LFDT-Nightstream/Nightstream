@@ -373,8 +373,9 @@ Rejects. `decodes` to `decodesL`: the slots of an answer decode to fold challeng
 the data of the prover. `bound₀`, `bound₁`, `bound₂`: the commitments that a stage input fixes
 are the commitments of the key polynomial and of `W`, and the commitment of `V` in the message
 after the lookup challenges. `next`, `inside`, `reads`, `clears`: the stage of the terminal and
-its messages. `fit`: the fit conditions of `Key20.tower_complete` for the tables of the key
-polynomial, `W` and the honest inverses of each lookup challenges that are no table values. -/
+its messages. `nonces`: the terminal reads the nonce of the response search with `read`. `fit`:
+the fit conditions of `Key20.tower_complete` for the tables of the key polynomial, `W` and the
+honest inverses of each lookup challenges that are no table values. -/
 theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     {accept : Prefix Wire (Option Coord → K) total → Prop}
     {statementOf : Wire → TerminalStatement Key20.terminal K}
@@ -397,6 +398,7 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
     (next : Terminal.start L = Tier.finish fifth) (inside : Terminal.start L < total)
     (reads : ∀ point, Terminal.read L point = statementOf (point.wire (Terminal.start L)))
     (clears : ∀ point, Terminal.partials L point = partialsOf (point.wire (Terminal.start L)))
+    (nonces : ∀ wire, Terminal.nonce L wire = read.nonce wire)
     (table : Prefix Wire (Option Coord → K) total → Option Coord → K)
     (calm : ∀ input, sample (Coord → K) (Fin (setup.params shape).lookups → Zq)
       (view (table input)) ∉ Compression.Verifier.tableHit (setup.params shape))
@@ -487,9 +489,9 @@ theorem complete {sendable : (M : Type) → M → Prop} {slots width cap : ℕ}
       rw [lead]
       exact leads)
     key bound₀ bound₁ bound₂ links
-    (fun τ apart moves on length committed lengths valued =>
+    (fun τ apart moves on length _ committed lengths valued =>
       Key20.tower_complete sends wide capped room carriesR carries₀ carries₁ carries₂ carries₃
-        carries₄ carries₅ carriesL next inside reads clears table decodes decodes₁ decodes₂
+        carries₄ carries₅ carriesL next inside reads clears nonces table decodes decodes₁ decodes₂
         decodes₃ decodes₄ decodes₅ decodesL worked on length
         (tables := ![keyBase (setup.params shape), W,
           Compression.Verifier.honestInverses (setup.params shape) W τ])

@@ -116,9 +116,10 @@ theorem unpack_surjective {M : Type} [Nonempty M]
   exact onto.choose_spec
 
 /-- The reader of the messages of the checks: each message is `unpack` of the elements of the
-wire message. -/
-noncomputable def Letter.read : Reader (Letter O O' fold' E width) :=
-  fun M _ wire _ => unpack width E M wire.message
+wire message. A wire message `Letter` has the nonce 0 of the response search. -/
+noncomputable def Letter.read : Reader (Letter O O' fold' E width) where
+  message M _ wire _ := unpack width E M wire.message
+  nonce _ := 0
 
 /-- The wire messages `Letter` satisfy `Full` for the message types that the vectors of `width`
 elements of `E` map onto. -/
@@ -142,6 +143,7 @@ theorem Letter.full [Zero E] :
     obtain ⟨vector, sent⟩ := unpack_surjective onto message
     exact ⟨{ Classical.arbitrary (Letter O O' fold' E width) with
       digits := value, message := vector }, rfl, sent⟩
+  tried _ := show 0 < responseTries by decide
 
 end Extract
 

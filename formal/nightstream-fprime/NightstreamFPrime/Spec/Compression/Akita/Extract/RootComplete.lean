@@ -239,7 +239,9 @@ checks of `T` for the table `source`, which end in a true claim `(r_2, w̃(r_2))
 coordinates. The honest prover commits to the bounded source blocks of `source` in the message
 after the fold challenges, and its last message has the claim `sourceClaim` of `Next` for the
 point `r_2`. `p`, `t` and `s` are the lengths of the segments `r_pack`, `r_tail` and `r_pos` of
-`r_2` for the shape of `Next`, and `r_blk` has `k` coordinates or more. `live`: the live blocks of
+`r_2` for the shape of `Next`, and `r_blk` has `k` coordinates or more. `tried`: the nonce of
+the response search in the last message of `early` is below `responseTries`. The last message of
+the longer prefix has a nonce below `responseTries` too. `live`: the live blocks of
 `Next` have each cell of `source` that is not 0 (Akita Section 4.5, (40) to (42)). Each
 transcript with the prefix has the link `Tier.Linked` to `Next`. -/
 theorem packLink
@@ -248,6 +250,7 @@ theorem packLink
     (starts : early.length = T.start) (fits : T.finish ≤ total)
     (decodes : ∀ input b, (T.decode b (table input (T.block b))).isSome)
     (worked : ∀ input, table input none ∈ workZeros E 57) (capped : T.Capped)
+    (tried : T.read.nonce (lastWire first early) < responseTries)
     (uniform : ∀ wire challenge table other,
       bare (T.check wire challenge table) = bare (T.check wire challenge other))
     {draws μ : ℕ} (count : T.costs.length = draws) (source : Table)
@@ -262,6 +265,7 @@ theorem packLink
     (live : ∀ cell, S'.blocks * (S'.blockLength * S'.innerDegree) ≤ cell → source cell = 0) :
     ∃ (later : List ((Option Coord → E) × Wire)) (point : Point O' E),
       OnPath accept table first (early ++ later) ∧ (early ++ later).length = Next.start ∧
+      T.read.nonce (lastWire first (early ++ later)) < responseTries ∧
       Next.claim (lastWire first (early ++ later)) =
         sourceClaim β' key' openKey' (fun i => S'.embed (S'.pack source i)) point ∧
       ∀ stage : Prefix Wire (Option Coord → E) total, stage.first = first →
@@ -270,8 +274,8 @@ theorem packLink
   obtain ⟨pointOf, pointed⟩ : ∃ pointOf : List E → Point O' E, pointOf = fun r =>
       Point.ofSegments O' (((r.drop p).drop t).drop s) (((r.drop p).drop t).take s) (r.take p)
         ((r.drop p).take t) := ⟨_, rfl⟩
-  obtain ⟨wire, moves, result, counted, ⟨r2, long, rfl⟩, on', held, last, ended, facts⟩ :=
-    Tier.run (T := T) carries on starts fits decodes worked capped source wins fun _ game =>
+  obtain ⟨wire, moves, result, counted, ⟨r2, long, rfl⟩, fresh, on', held, last, ended, facts⟩ :=
+    Tier.run (T := T) carries on starts fits decodes worked capped tried source wins fun _ game =>
       ((commitSource key' fun i => S'.embed (S'.pack source i)).1,
         match game with
         | .pure (some (r, _)) =>
@@ -296,7 +300,8 @@ theorem packLink
   have degreed : O'.carrierDegree = 2 ^ ((r2.drop p).take t).length := by
     rw [degree']; congr 1; simp; omega
   refine ⟨(answer table first early, wire) :: moves, pointOf r2, on', whole.trans next.symm,
-    by rw [lastWire_append_cons]; exact claimed, fun stage rooted extended => ?_⟩
+    by rw [lastWire_append_cons]; exact fresh, by rw [lastWire_append_cons]; exact claimed,
+    fun stage rooted extended => ?_⟩
   obtain ⟨long', decoded, _, opened, closed, game⟩ := facts stage rooted extended
   refine ⟨long', decoded, ((r2.drop p).drop t).drop s, ((r2.drop p).drop t).take s, r2.take p,
     (r2.drop p).take t, mle r2 (lifted E source), ?_, blocked, lengthed, strided, degreed, ?_, ?_,
@@ -457,6 +462,7 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     (next : L.start = Tier.finish fifth) (inside : L.start < total)
     (reads : ∀ point, L.read point = statementOf (point.wire L.start))
     (clears : ∀ point, L.partials point = partialsOf (point.wire L.start))
+    (counts : ∀ wire, L.nonce wire = read.nonce wire)
     (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
     (decodes₀ : ∀ input b, (decode b.1 (table input (some (block b)))).isSome)
     (decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome)
@@ -527,8 +533,8 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
   obtain ⟨points, pointed⟩ : ∃ points : (g : Fin count) → Point (B.opening g) E,
       points = fun g => Point.ofSegments (B.opening g) (blockOf g) (positionOf g) (packOf g)
         (tailOf g) := ⟨_, rfl⟩
-  obtain ⟨wireR, claimed, _⟩ := carriesR (Batch.honestClaim β key openKey tables points weights)
-    [] (Nat.zero_le _) (by simp)
+  obtain ⟨wireR, claimed, triedR, _⟩ :=
+    carriesR (Batch.honestClaim β key openKey tables points weights) [] (Nat.zero_le _) (by simp)
   have onR := on.snoc (by rw [starts]; exact rooted₀) wireR
   rw [← answered] at onR
   have lenR : (early ++ [(reply, wireR)]).length = start + 1 := by
@@ -542,9 +548,9 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     path₀ uniform₀ digit₀ covers₀
     (wire := lastWire wire₀ (early ++ [(reply, wireR)]))
     (by rw [lastWire_concat]; exact claimed) fit member₀
-  obtain ⟨later₀, place₁, on₀, len₀, ready₁, linked₀⟩ :=
+  obtain ⟨later₀, place₁, on₀, len₀, fresh₀, ready₁, linked₀⟩ :=
     packLink (T := zeroth) (Next := first) (commit' := commit₁) carries₀ onR lenR fin₀ decodes₀
-      worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩
+      worked ⟨foldWorkBits_le _ _, map_workBits_le _⟩ (by rw [lastWire_concat]; exact triedR)
       (fun _ _ table other => foldCheck_bare _ _ _ _ table other) (foldCosts_length E _ _ _ _ _) _
       (wins₀.mono fun _ _ _ kept => kept.2) rfl shape₁ β₁ stride₁ degree₁ length₁ blocks₁ point₀
       fun cell large => zero₀ cell (covered₀.trans large)
@@ -553,8 +559,8 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     digit₁ covers₁ range₁ quarter₂ quarter₃ quarter₄ quarter₅ quarter₆ source₂ source₃ source₄
     source₅ source₆ sized₂ sized₃ sized₄ sized₅ vars₁ vars₂ vars₃ vars₄ vars₅ point₁ point₂
     point₃ point₄ point₅ covered₁ covered₂ covered₃ covered₄ covered₅ normRoom₃ normRoom₄
-    normRoom₅ wide₃ wide₄ wide₅ capped₃ capped₄ capped₅ next inside reads clears table decodes₁ decodes₂ decodes₃
-    decodes₄ decodes₅ decodesL worked on₀ len₀ ready₁ fit₁
+    normRoom₅ wide₃ wide₄ wide₅ capped₃ capped₄ capped₅ next inside reads clears counts table
+    decodes₁ decodes₂ decodes₃ decodes₄ decodes₅ decodesL worked on₀ len₀ ready₁ fresh₀ fit₁
   have joined : early ++ (reply, wireR) :: (later₀ ++ later) =
       early ++ [(reply, wireR)] ++ later₀ ++ later := by
     simp only [List.append_assoc, List.cons_append, List.nil_append]

@@ -153,8 +153,9 @@ the checks `Terminal.Passed`. The conditions on the shapes are theorems of this 
 `sends`, `wide`, `capped`, `room`, `carriesR` to `carriesL`: a wire message can have the data of
 the prover, with messages of 8 field elements, the energy `3029804899` and 4 messages of
 the checks. `next`, `inside`, `reads`, `clears`: the stage of the terminal and its messages.
-`live`: the table of the key polynomial is 0 after `2^20` cells, and the tables of `W` and of `V`
-are 0 after `2^16` cells. `committed`, `lengths`, `valued`: the last message of `early` has the
+`counts`: the terminal reads the nonce of the response search with `read`. `live`: the table of
+the key polynomial is 0 after `2^20` cells, and the tables of `W` and of `V` are 0 after `2^16`
+cells. `committed`, `lengths`, `valued`: the last message of `early` has the
 commitments `commit` of the tables, points of 20, 16 and 16 coordinates, and the values of the
 tables at these points. `fit`: the fit conditions `BatchFit` of the root, `LiftFit` of the
 level 1, `TraceFit` of the levels 2 to 5 with `S_max` of `norm₃` to `norm₅`, and
@@ -173,6 +174,7 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     (next : Terminal.start L = Tier.finish fifth) (inside : Terminal.start L < total)
     (reads : ∀ point, Terminal.read L point = statementOf (point.wire (Terminal.start L)))
     (clears : ∀ point, Terminal.partials L point = partialsOf (point.wire (Terminal.start L)))
+    (counts : ∀ wire, Terminal.nonce L wire = read.nonce wire)
     (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
     (decodes : ∀ input b, (decode b.1 (table input (some (block b)))).isSome)
     (decodes₁ : ∀ input i, (decode₁ (table input (some (block₁ i)))).isSome)
@@ -237,8 +239,8 @@ theorem tower_complete {sendable : (M : Type) → M → Prop} {slots width cap :
     ((by decide : rangeWidthSq level₅.shape.certifiedBase ≤ 8).trans wide)
     ((by decide : norm₃.limit ≤ 3029804899).trans capped)
     ((by decide : norm₄.limit ≤ 3029804899).trans capped)
-    ((by decide : norm₅.limit ≤ 3029804899).trans capped) next inside reads clears table decodes
-    decodes₁ decodes₂ decodes₃ decodes₄ decodes₅ decodesL worked on starts
+    ((by decide : norm₅.limit ≤ 3029804899).trans capped) next inside reads clears counts table
+    decodes decodes₁ decodes₂ decodes₃ decodes₄ decodes₅ decodesL worked on starts
     (blockOf := fun g => (((place (lastWire wire₀ early) g).drop (![3, 3, 4] g)).drop
       (![7, 6, 6] g)).drop (![5, 3, 3] g))
     (positionOf := fun g => (((place (lastWire wire₀ early) g).drop (![3, 3, 4] g)).drop

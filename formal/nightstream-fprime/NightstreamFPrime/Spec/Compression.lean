@@ -105,6 +105,9 @@ import NightstreamFPrime.Spec.Compression.Akita.Key20Root
 import NightstreamFPrime.Spec.Compression.Akita.Key30Complete
 import NightstreamFPrime.Spec.Compression.Akita.Key30Root
 import NightstreamFPrime.Spec.Compression.Akita.Key30Accept
+import NightstreamFPrime.Spec.Compression.Akita.ResponseTail
+import NightstreamFPrime.Spec.Compression.Akita.Extract.Nonce
+import NightstreamFPrime.Spec.Compression.Akita.FitChance
 import NightstreamFPrime.Spec.Compression.Akita.TraceProver
 
 /-! The soundness of the compression argument over Akita (Rust `ns-compress`, SPEC.md section 6):

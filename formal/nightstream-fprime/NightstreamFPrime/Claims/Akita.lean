@@ -2,6 +2,7 @@ import NightstreamFPrime.Export.BoundedDepth.FinalKey20Challenge
 import NightstreamFPrime.Export.BoundedDepth.FinalKey20Instances
 import NightstreamFPrime.Spec.Checkpoint.Runs
 import NightstreamFPrime.Spec.Compression.Akita.Key20Accept
+import NightstreamFPrime.Spec.Compression.Akita.FitChance
 import NightstreamFPrime.Spec.Compression.Akita.Key20Opening
 import NightstreamFPrime.Spec.Compression.Akita.ShortUnit
 import NightstreamFPrime.Spec.Compression.Akita.TraceFold
@@ -960,6 +961,208 @@ theorem key20_history_knowledge
     Efficient error assumption closed complete rows keysShaped blocks coords drawn
     queries bounded positive admitted depth depthBound
 
+/-- The memory verifier with the Akita openings of `crates/ns-compress/artifacts/key20.aks`
+against a false memory statement: `Claims.Final.memory_sound` in the game with Akita openings
+(Akita Theorem 10.17). It does not cover `key30.aks`. The model and the verifier are those of
+`key20_verifier_sound`. The prover names a memory statement with the law `claim` for each table
+of the oracle. Over the walk's `S_max · N` stages, the probability that the verifier accepts
+`(i, z0, zi)`, the checks of SPEC.md Algorithm 8 hold, and the decoded history does not attest
+the memory statement is at most `FinalKey20.shapesBound` at the slot probability `1/q²` plus the
+terms of `Claims.Nebula.memory_sound`: `IvcSecurity.walkBound` under `[HN-A1]`, the state-link
+and chain collision masses, and the memory-round error. The checks of Algorithm 8 bound the
+iteration by `S_max · N`, so no premise bounds it. Lean gives no bound on the term `breakChance`
+of `shapesBound` (`[MSIS]`). -/
+theorem key20_memory_sound
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+          Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    {mode : FinalVerifier.Mode}
+    (setup : FinalVerifier.Setup mode logicalWidth publicFits)
+    (step : AppState → AppWitness → AppState)
+    (cap : ℕ)
+    (control : AppState → AppWitness → Fin 2)
+    {Wire : Type}
+    {Coord : Type}
+    {total : ℕ}
+    (read : Akita.Extract.Reader Wire)
+    (head : Wire → FinalAkita.First logicalWidth publicFits)
+    [fintypeCoord : Fintype Coord]
+    [decidableEqCoord : DecidableEq Coord]
+    [nonemptyCoord : Nonempty Coord]
+    {ι : Type}
+    [fintypeι : Fintype ι]
+    (kind : Wire → Option ι)
+    (family : ι → FinalKey20.Opening logicalWidth publicFits Wire Coord total)
+    (prover : RandomOracle.OracleComp (Akita.Extract.Prefix Wire (Option Coord → K) total)
+          (Option Coord → K) (ℕ → Wire))
+    [finiteWire : Finite Wire]
+    (budget : ℕ)
+    {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
+    {cubeFits : Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth ≤
+          2 ^ cubeVariables}
+    (exports : TerminalBridge.Exports relation setup.ajtai setup.circuitKeys step cubeFits)
+    {Admitted : HyperNova.ReverseStages.NifsAdversary
+            (IvcWalk.WalkAttempt logicalWidth publicFits) →
+          Prop}
+    {StageAdmitted : HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+            (IvcWalk.Answer logicalWidth publicFits) →
+          Prop}
+    {Efficient : (adversary :
+            HyperNova.ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits)) →
+          HyperNova.ReverseStages.NifsExtractor (IvcWalk.Answer logicalWidth publicFits)
+              adversary →
+            Prop}
+    {error : HyperNova.ReverseStages.NifsAdversary (IvcWalk.WalkAttempt logicalWidth publicFits) →
+          ℝ}
+    (assumption : HyperNova.ReverseStages.Assumption1 (IvcWalk.WalkSucceeds setup.ajtai)
+          (IvcWalk.WalkExtracted setup.ajtai) Admitted Efficient error)
+    (closed : HyperNova.ReverseStages.Closed
+          (IvcWalk.attemptOf setup.ajtai setup.circuitKeys exports)
+          (IvcWalk.back setup.ajtai setup.circuitKeys exports) Admitted StageAdmitted Efficient)
+    (complete : StepExtend.Complete exports)
+    {p : Nebula.Plan}
+    (app : Nebula.PortApp p.toGeometry)
+    (claim : (Akita.Extract.Prefix Wire (Option Coord → K) total → Option Coord → K) →
+          PMF (Nebula.EndToEnd.MemoryStatement app.width))
+    (rows : ∀ (circuit : Fin 2),
+          (setup.rows (↑circuit : ℕ)).matrices =
+            (FinalRows.packageRows exports complete circuit).matrices)
+    (keysShaped : ∀ (key : Fin 2), List.length (setup.circuitKeys key).digest = 4)
+    (blocks : setup.keyBlocks = 512)
+    (coords : 28 ≤ Fintype.card Coord)
+    (drawn : ∀ (index : ι),
+          FinalKey20.Opening.Drawn setup complete.packageWidth step cap control read head
+            (family index))
+    {queries : ℕ}
+    (bounded : prover.QueryBound queries)
+    (positive : 0 < budget)
+    (admitted : StageAdmitted
+          (HyperNova.ReverseStages.Stage.start
+            (IvcSecurity.walkAdversary
+              (FinalMemory.adversary head kind
+                (fun index =>
+                  FinalKey20.Opening.accepts setup complete.packageWidth step cap control read
+                    head (family index))
+                (fun index =>
+                  FinalKey20.Opening.proof setup complete.packageWidth step cap control read head
+                    (family index) prover)
+                prover budget app claim))))
+    (valid : p.Valid)
+    (programEq : exports.program = Nebula.MemoryApp.program p.toGeometry app)
+    {memoryError : NebulaSecurity.ClaimedStage (logicalWidth := logicalWidth)
+          (publicFits := publicFits) app → ℝ}
+    (round : NebulaSecurity.MemoryRound app setup.ajtai setup.circuitKeys exports StageAdmitted
+          memoryError) :
+    (((↑(HyperNova.ReverseStages.reverseStages assumption closed
+                      (IvcSecurity.walkAdversary
+                        (FinalMemory.adversary head kind
+                          (fun index =>
+                            FinalKey20.Opening.accepts setup complete.packageWidth step cap
+                              control read head (family index))
+                          (fun index =>
+                            FinalKey20.Opening.proof setup complete.packageWidth step cap
+                              control read head (family index) prover)
+                          prover budget app claim))
+                      admitted (p.sMax * p.n)) :
+                  HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+                    (IvcWalk.Answer logicalWidth publicFits)).tape.toOuterMeasure :
+            Set
+                (↑(HyperNova.ReverseStages.reverseStages assumption closed
+                        (IvcSecurity.walkAdversary
+                          (FinalMemory.adversary head kind
+                            (fun index =>
+                              FinalKey20.Opening.accepts setup complete.packageWidth step cap
+                                control read head (family index))
+                            (fun index =>
+                              FinalKey20.Opening.proof setup complete.packageWidth step cap
+                                control read head (family index) prover)
+                            prover budget app claim))
+                        admitted (p.sMax * p.n)) :
+                    HyperNova.ReverseStages.Stage (IvcWalk.Visit logicalWidth publicFits)
+                      (IvcWalk.Answer logicalWidth publicFits)).Tape →
+              ENNReal)
+          {tape |
+            FinalMemory.FalseMemory setup step head kind
+              (fun index =>
+                FinalKey20.Opening.accepts setup complete.packageWidth step cap control read
+                  head (family index))
+              prover app exports
+              (FinalMemory.tapeOf setup step head kind
+                    (fun index =>
+                      FinalKey20.Opening.accepts setup complete.packageWidth step cap control
+                        read head (family index))
+                    (fun index =>
+                      FinalKey20.Opening.proof setup complete.packageWidth step cap control
+                        read head (family index) prover)
+                    prover budget app exports assumption closed claim admitted (p.sMax * p.n)
+                    tape).1.1
+              (FinalMemory.sampleOf setup step head kind
+                (fun index =>
+                  FinalKey20.Opening.accepts setup complete.packageWidth step cap control read
+                    head (family index))
+                (fun index =>
+                  FinalKey20.Opening.proof setup complete.packageWidth step cap control read
+                    head (family index) prover)
+                prover budget app exports assumption closed claim admitted (p.sMax * p.n)
+                tape)}).toReal ≤
+      FinalKey20.shapesBound setup complete.packageWidth step cap control read head family
+          prover (1 / (↑fieldModulus : ℝ) ^ 2) queries budget +
+        (IvcSecurity.walkBound setup.ajtai setup.circuitKeys exports assumption closed
+                (FinalMemory.adversary head kind
+                  (fun index =>
+                    FinalKey20.Opening.accepts setup complete.packageWidth step cap control
+                      read head (family index))
+                  (fun index =>
+                    FinalKey20.Opening.proof setup complete.packageWidth step cap control read
+                      head (family index) prover)
+                  prover budget app claim)
+                admitted (p.sMax * p.n) +
+              (((NebulaSecurity.ClaimedStage.law app
+                        (FinalMemory.claimed setup step head kind
+                          (fun index =>
+                            FinalKey20.Opening.accepts setup complete.packageWidth step cap
+                              control read head (family index))
+                          (fun index =>
+                            FinalKey20.Opening.proof setup complete.packageWidth step cap
+                              control read head (family index) prover)
+                          prover budget app exports assumption closed claim admitted
+                          (p.sMax * p.n))).toOuterMeasure :
+                    Set (NebulaSecurity.Sample app.width logicalWidth publicFits) → ENNReal)
+                  {sample |
+                    Nebula.EndToEnd.Experiment.StateLinkCollision app
+                      (NebulaSecurity.experiment app setup.ajtai setup.circuitKeys exports)
+                      sample}).toReal +
+            (((NebulaSecurity.ClaimedStage.law app
+                      (FinalMemory.claimed setup step head kind
+                        (fun index =>
+                          FinalKey20.Opening.accepts setup complete.packageWidth step cap
+                            control read head (family index))
+                        (fun index =>
+                          FinalKey20.Opening.proof setup complete.packageWidth step cap
+                            control read head (family index) prover)
+                        prover budget app exports assumption closed claim admitted
+                        (p.sMax * p.n))).toOuterMeasure :
+                  Set (NebulaSecurity.Sample app.width logicalWidth publicFits) → ENNReal)
+                {sample |
+                  Nebula.EndToEnd.Experiment.ChainCollision app
+                    (NebulaSecurity.experiment app setup.ajtai setup.circuitKeys exports)
+                    sample}).toReal +
+          memoryError
+            (FinalMemory.claimed setup step head kind
+              (fun index =>
+                FinalKey20.Opening.accepts setup complete.packageWidth step cap control read
+                  head (family index))
+              (fun index =>
+                FinalKey20.Opening.proof setup complete.packageWidth step cap control read
+                  head (family index) prover)
+              prover budget app exports assumption closed claim admitted (p.sMax * p.n))) :=
+  @NightstreamFPrime.Export.BoundedDepth.FinalKey20.memory_sound_drawn logicalWidth publicFits
+    mode setup step cap control Wire Coord total read head fintypeCoord decidableEqCoord
+    nonemptyCoord ι fintypeι kind family prover finiteWire budget relation cubeFits exports
+    Admitted StageAdmitted Efficient error assumption closed complete p app claim rows
+    keysShaped blocks coords drawn queries bounded positive admitted valid programEq memoryError
+    round
+
 /-- The numbers of the three opening claims of the compression argument under the key of 512
 blocks, which is the key of `crates/ns-compress/artifacts/key20.aks`. For a setup whose claims
 pass the layout of `SPEC.md` Algorithm 10, step 5 (`use`), the point of the key polynomial has
@@ -1193,5 +1396,83 @@ theorem key20_instances_shared
   @NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.reduced_shared logicalWidth publicFits mode
     setup packageWidths step cap control Wire Coord total read head fintypeCoord decidableEqCoord o mass
     weight₁ weight₂ N S keys inner out solved
+
+/-- The response search of the root fold of `crates/ns-compress/artifacts/key20.aks` (Akita
+Lemma 10.7 with Definition 10.5, Lemma K.3 and (313); `FOLD_RESPONSE_ATTEMPTS = 2^12` of the
+pinned Akita code). The table of stage answers is uniform, and `input n` is the stage input with
+the nonce `n` after one transcript prefix. For source blocks with digits of the base `2^10`, no
+nonce below `2^12` gives responses of the groups of the key polynomial, `W` and `V` that satisfy
+`Enc` with probability at most `(2^−12)^4096`. The bound of one nonce is the Hoeffding bound of
+Akita (303) for each group and the union bound over the groups. `fresh`: the stage inputs of the
+nonces are different. `apart`: the fold coordinates have different slots. `fair`: the sign flips
+of a fold challenge act on the slots of each decoder (`Spec.Compression.Akita.SignFair`), which
+`Spec.Compression.Akita.signFair_signed` gives for one decoder. No Lean result gives it for the
+decoders `draw` of the soundness claims. `energy`: `‖c‖_2²` is at most 31 and 71, the values of
+the families `(31, 0)` and `(31, 10)` (`Spec.Compression.Akita.normSq_of_mem`). `digits`:
+`‖s_i‖_∞ ≤ 512`. The claim is for one prefix. It is not a bound for a complete proof: the Lean
+model has no nonce for the proof of work. -/
+theorem key20_root_search
+    {Slot Coord Point : Type}
+    [fintypeSlot : Fintype Slot]
+    [nonemptySlot : Nonempty Slot]
+    [fintypeCoord : Fintype Coord]
+    [decidableEqCoord : DecidableEq Coord]
+    [fintypePoint : Fintype Point]
+    [decidableEqPoint : DecidableEq Point]
+    (input : Fin Akita.Extract.responseTries → Point)
+    (fresh : Function.Injective input)
+    (block : Akita.Key20.root.Block → Coord)
+    (apart : Function.Injective block)
+    (decode : (g : Fin 3) → Fin (Akita.Key20.root.shape g).blocks → Slot →
+      Option (Akita.Rq (Akita.Key20.root.carrierDegree g)))
+    (fair : ∀ g i, Akita.SignFair (decode g i))
+    (energy : ∀ g i slot c, decode g i slot = some c → Akita.normSq c ≤ ![31, 71, 71] g)
+    (source : (g : Fin 3) → Fin (Akita.Key20.root.shape g).blocks →
+      (Akita.Key20.root.shape g).Source)
+    (digits : ∀ g i col, Akita.normInf (source g i col) ≤ 512) :
+    RandomOracle.mass {table : Point → Option Coord → Slot | ∀ n, ∃ g,
+      ¬ Akita.Encodable (Akita.Key20.root.fold g).responseBase
+        (Akita.Key20.root.fold g).responseDigits
+        (Akita.response (Akita.Key20.root.opening g)
+          (fun i => (decode g i (Akita.Extract.view (table (input n)) (block ⟨g, i⟩))).getD 0)
+          (source g))} ≤
+      (1 / 2 ^ 12) ^ Akita.Extract.responseTries :=
+  @NightstreamFPrime.Spec.Compression.Akita.Key20.root_search Slot Coord fintypeSlot nonemptySlot
+    fintypeCoord decidableEqCoord Point fintypePoint decidableEqPoint input fresh block apart
+    decode fair energy source digits
+
+/-- The response search of level 1 of `crates/ns-compress/artifacts/key20.aks` (Akita Lemma 10.7
+with Definition 10.5, Lemma K.3 and (313)). For 28 source blocks with digits of the base 8 and
+fold challenges with `‖c‖_2² ≤ 71`, no nonce below `2^12` gives a response that satisfies `Enc`
+with probability at most `(2^−49)^4096`. The hypotheses are those of `key20_root_search`, with
+`‖s_i‖_∞ ≤ 4` in `digits`. -/
+theorem key20_level1_search
+    {Slot Coord Point : Type}
+    [fintypeSlot : Fintype Slot]
+    [nonemptySlot : Nonempty Slot]
+    [fintypeCoord : Fintype Coord]
+    [decidableEqCoord : DecidableEq Coord]
+    [fintypePoint : Fintype Point]
+    [decidableEqPoint : DecidableEq Point]
+    (input : Fin Akita.Extract.responseTries → Point)
+    (fresh : Function.Injective input)
+    (block : Fin Akita.Key20.level₁.shape.blocks → Coord)
+    (apart : Function.Injective block)
+    (decode : Fin Akita.Key20.level₁.shape.blocks → Slot →
+      Option (Akita.Rq Akita.Key20.level₁.opening.carrierDegree))
+    (fair : ∀ i, Akita.SignFair (decode i))
+    (energy : ∀ i slot c, decode i slot = some c → Akita.normSq c ≤ 71)
+    (source : Fin Akita.Key20.level₁.shape.blocks → Akita.Key20.level₁.shape.Source)
+    (digits : ∀ i col, Akita.normInf (source i col) ≤ 4) :
+    RandomOracle.mass {table : Point → Option Coord → Slot | ∀ n,
+      ¬ Akita.Encodable Akita.Key20.level₁.fold.responseBase
+        Akita.Key20.level₁.fold.responseDigits
+        (Akita.response Akita.Key20.level₁.opening
+          (fun i => (decode i (Akita.Extract.view (table (input n)) (block i))).getD 0)
+          source)} ≤
+      (1 / 2 ^ 49) ^ Akita.Extract.responseTries :=
+  @NightstreamFPrime.Spec.Compression.Akita.Key20.level₁_search Slot Coord fintypeSlot
+    nonemptySlot fintypeCoord decidableEqCoord Point fintypePoint decidableEqPoint input fresh
+    block apart decode fair energy source digits
 
 end NightstreamFPrime.Claims.Akita

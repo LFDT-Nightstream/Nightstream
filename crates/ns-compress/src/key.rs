@@ -13,7 +13,7 @@ use rayon::prelude::*;
 
 use crate::akita::prover::{Committed, Prover};
 use crate::akita::verifier::Verifier;
-use crate::akita::{Schedules, Shape, SCHEDULES};
+use crate::akita::{Schedules, Shape, LARGE_KEY_VARS, SCHEDULES};
 use crate::layout::LANE_VARS;
 use crate::ring::dot;
 use crate::weights::{equality, powers, prefix_equality, Uses, KAPPA};
@@ -154,6 +154,9 @@ impl ProverKey {
     fn of_key(schedules: &'static Schedules, key: Arc<ExpandedKey>) -> Result<Self, Error> {
         let akita = Prover::new(schedules)?;
         let (committed, source) = akita.commit_key_words(schedules.first(), key.shared_words())?;
+        if schedules.key_vars == LARGE_KEY_VARS {
+            akita.trim_commitment_transforms()?;
+        }
         let verification = VerificationKey::of_parts(schedules, committed.bytes.clone(), akita.setup_prefixes()?);
         Ok(Self {
             akita,

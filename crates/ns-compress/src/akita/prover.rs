@@ -159,6 +159,10 @@ impl Prover {
         })
     }
 
+    pub(crate) fn trim_commitment_transforms(&self) -> Result<(), Error> {
+        self.backend.trim_caches().map(|_| ()).map_err(failed)
+    }
+
     pub(crate) fn setup_prefixes(&self) -> Result<Vec<u8>, Error> {
         let mut registry = SetupPrefixVerifierRegistry::new(self.setup.expanded.descriptor().setup_seed.clone());
         for slot in self.setup.prefix_slots.verifier_slots() {

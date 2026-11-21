@@ -27,6 +27,7 @@ pub(crate) struct Schedules {
     pub(crate) key: &'static [u8],
 }
 
+pub(crate) const LARGE_KEY_VARS: usize = 30;
 pub(crate) const SCHEDULES: [Schedules; 2] = [
     Schedules {
         key_vars: 20,
@@ -35,7 +36,7 @@ pub(crate) const SCHEDULES: [Schedules; 2] = [
         key: include_bytes!("../artifacts/key20.vk"),
     },
     Schedules {
-        key_vars: 30,
+        key_vars: LARGE_KEY_VARS,
         rows: &[(26, 28), (27, 28)],
         bytes: include_bytes!("../artifacts/key30.aks"),
         key: include_bytes!("../artifacts/key30.vk"),

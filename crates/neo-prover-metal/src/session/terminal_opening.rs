@@ -128,7 +128,7 @@ impl Workspace<'_> {
         let bytes = size_of_val(data);
         let count = u32::try_from(bytes.checked_div(word)?).ok()?;
         let size = size_of::<T>();
-        if bytes == 0 || bytes % word != 0 || bytes % size != 0 {
+        if bytes == 0 || !bytes.is_multiple_of(word) || !bytes.is_multiple_of(size) {
             return None;
         }
         let ptr = NonNull::from(data).cast::<std::ffi::c_void>();

@@ -7,7 +7,7 @@ use objc2::runtime::ProtocolObject;
 use objc2_foundation::NSString;
 use objc2_metal::{
     MTLBuffer, MTLCommandBuffer, MTLCommandQueue, MTLComputeCommandEncoder, MTLComputePipelineState,
-    MTLCreateSystemDefaultDevice, MTLDevice, MTLLibrary, MTLResourceOptions, MTLSize,
+    MTLCreateSystemDefaultDevice, MTLDevice, MTLGPUFamily, MTLLibrary, MTLResourceOptions, MTLSize,
 };
 
 use crate::{MetalActivity, MetalError, BUFFER_LIMIT_BYTES};
@@ -66,6 +66,7 @@ pub struct MetalSession {
     production_key_row: Pipeline,
     production_ajtai_accumulate: Pipeline,
     production_ajtai_matrix: Option<Pipeline>,
+    production_ajtai_column_groups: Option<Pipeline>,
     production_ajtai_sum_groups: Pipeline,
     tensor_point_expand_k: Pipeline,
     joint_build_application_tables: Pipeline,
@@ -119,9 +120,19 @@ impl MetalSession {
             .map_err(|error| MetalError::Library(format!("{error:?}")))?;
         let terminal = terminal_opening::Kernels::new(&device, &library);
         let production_key_row = pipeline(&device, &library, "production_key_row")?;
-        let production_ajtai_matrix = pipeline(&device, &library, "production_ajtai_matrix")
-            .ok()
-            .filter(|p| p.threadExecutionWidth() == 32 && p.maxTotalThreadsPerThreadgroup() >= 256);
+        let matrix_pipeline = |name| {
+            pipeline(&device, &library, name).ok().filter(|p| {
+                p.threadExecutionWidth() == 32
+                    && p.maxTotalThreadsPerThreadgroup() >= 256
+                    && p.staticThreadgroupMemoryLength() <= device.maxThreadgroupMemoryLength()
+            })
+        };
+        let production_ajtai_matrix = matrix_pipeline("production_ajtai_matrix");
+        let production_ajtai_column_groups = if device.supportsFamily(MTLGPUFamily::Apple9) {
+            matrix_pipeline("production_ajtai_column_groups")
+        } else {
+            None
+        };
         let production_ajtai_accumulate = pipeline(&device, &library, "production_ajtai_accumulate")?;
         let production_ajtai_sum_groups = pipeline(&device, &library, "production_ajtai_sum_groups")?;
         let tensor_point_expand_k = pipeline(&device, &library, "tensor_point_expand_k")?;
@@ -168,6 +179,7 @@ impl MetalSession {
             production_key_row,
             production_ajtai_accumulate,
             production_ajtai_matrix,
+            production_ajtai_column_groups,
             production_ajtai_sum_groups,
             tensor_point_expand_k,
             joint_build_application_tables,

@@ -1,19 +1,19 @@
+use std::ops::Range;
+use std::sync::{Arc, LazyLock};
+
 use neo_math::Fq;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::package::json::{array, exact_array, usize_atom};
 use crate::package::PackageError;
-
-#[derive(Debug, Deserialize, Serialize)]
-pub(super) struct RawWitnessBatch(pub(super) u64, pub(super) Vec<Value>, pub(super) Vec<Value>);
 
 #[derive(Clone, Debug)]
 pub(super) enum WitnessExpr {
     Var(usize),
     Const(Fq),
-    Add(Box<WitnessExpr>, Box<WitnessExpr>),
-    Mul(Box<WitnessExpr>, Box<WitnessExpr>),
+    Add(Box<[WitnessExpr; 2]>),
+    Mul(Box<[WitnessExpr; 2]>),
 }
 
 #[derive(Clone, Debug)]
@@ -31,6 +31,93 @@ pub(super) struct WitnessBatch {
     hints: Vec<WitnessHint>,
 }
 
+type Batches = Arc<Vec<WitnessBatch>>;
+type RestoreBatches = Box<dyn FnOnce() -> Option<Batches> + Send + Sync>;
+
+#[derive(Clone, Debug)]
+pub(super) enum WitnessProgram {
+    Ready(Batches),
+    Deferred {
+        batches: Arc<LazyLock<Option<Batches>, RestoreBatches>>,
+        bit_columns: Arc<[usize]>,
+        count: usize,
+    },
+}
+
+impl WitnessProgram {
+    pub(super) fn new(batches: Vec<WitnessBatch>) -> Self {
+        Self::Ready(Arc::new(batches))
+    }
+
+    pub(super) fn batches(&self) -> Result<&Batches, PackageError> {
+        match self {
+            Self::Ready(batches) => Ok(batches),
+            Self::Deferred { batches, .. } => batches.as_ref().as_ref().ok_or_else(Self::invalid),
+        }
+    }
+
+    pub(super) fn len(&self) -> usize {
+        match self {
+            Self::Ready(batches) => batches.len(),
+            Self::Deferred { count, .. } => *count,
+        }
+    }
+
+    pub(super) fn bit_columns(&self) -> Vec<usize> {
+        match self {
+            Self::Ready(batches) => batches.iter().flat_map(WitnessBatch::bit_columns).collect(),
+            Self::Deferred { bit_columns, .. } => bit_columns.to_vec(),
+        }
+    }
+
+    pub(super) fn remap(
+        &self,
+        replaced: Range<usize>,
+        map: impl Fn(usize) -> Option<usize> + Send + Sync + 'static,
+        defer: bool,
+    ) -> Result<Self, PackageError> {
+        let source = Arc::clone(self.batches()?);
+        let keep = move |batch: &&WitnessBatch| !replaced.contains(&batch.start);
+        let mut count = 0;
+        let mut bit_columns = Vec::new();
+        if defer {
+            for batch in source.iter().filter(&keep) {
+                let start = batch.mapped_start(&map).ok_or_else(Self::invalid)?;
+                if !batch.references_map(&map) {
+                    return Err(Self::invalid());
+                }
+                bit_columns.extend(
+                    batch
+                        .bit_columns()
+                        .map(|column| start + (column - batch.start)),
+                );
+                count += 1;
+            }
+        }
+        let restore = move || {
+            source
+                .iter()
+                .filter(keep)
+                .map(|batch| batch.map_columns(&map))
+                .collect::<Option<Vec<_>>>()
+                .map(Arc::new)
+        };
+        if defer {
+            Ok(Self::Deferred {
+                batches: Arc::new(LazyLock::new(Box::new(restore))),
+                bit_columns: bit_columns.into(),
+                count,
+            })
+        } else {
+            restore().map(Self::Ready).ok_or_else(Self::invalid)
+        }
+    }
+
+    fn invalid() -> PackageError {
+        PackageError::Malformed("bounded-depth witness batch reads the application")
+    }
+}
+
 impl WitnessBatch {
     pub(super) fn end(&self) -> usize {
         self.start + self.recipes.len() + self.hints.len()
@@ -46,11 +133,26 @@ impl WitnessBatch {
             .map(move |(index, _)| first + index)
     }
 
-    pub(super) fn map_columns(&self, map: &impl Fn(usize) -> Option<usize>) -> Option<Self> {
+    fn mapped_start(&self, map: &impl Fn(usize) -> Option<usize>) -> Option<usize> {
         let start = map(self.start)?;
-        (map(self.end() - 1)? == start + self.recipes.len() + self.hints.len() - 1).then_some(())?;
+        (map(self.end() - 1)? == start + self.recipes.len() + self.hints.len() - 1).then_some(start)
+    }
+
+    fn references_map(&self, map: &impl Fn(usize) -> Option<usize>) -> bool {
+        self.recipes
+            .iter()
+            .chain(self.hints.iter().map(|hint| match hint {
+                WitnessHint::Bit(input, _)
+                | WitnessHint::InverseOrZero(input)
+                | WitnessHint::QuotientFive(input)
+                | WitnessHint::RemainderFive(input) => input,
+            }))
+            .all(|input| input.references_map(map))
+    }
+
+    fn map_columns(&self, map: &impl Fn(usize) -> Option<usize>) -> Option<Self> {
         Some(Self {
-            start,
+            start: self.mapped_start(map)?,
             recipes: self
                 .recipes
                 .iter()
@@ -94,12 +196,20 @@ impl WitnessHint {
 }
 
 impl WitnessExpr {
+    fn references_map(&self, map: &impl Fn(usize) -> Option<usize>) -> bool {
+        match self {
+            Self::Var(column) => map(*column).is_some(),
+            Self::Const(_) => true,
+            Self::Add(args) | Self::Mul(args) => args.iter().all(|arg| arg.references_map(map)),
+        }
+    }
+
     fn map_columns(&self, map: &impl Fn(usize) -> Option<usize>) -> Option<Self> {
         Some(match self {
             Self::Var(column) => Self::Var(map(*column)?),
             Self::Const(value) => Self::Const(*value),
-            Self::Add(left, right) => Self::Add(Box::new(left.map_columns(map)?), Box::new(right.map_columns(map)?)),
-            Self::Mul(left, right) => Self::Mul(Box::new(left.map_columns(map)?), Box::new(right.map_columns(map)?)),
+            Self::Add(args) => Self::Add(Box::new([args[0].map_columns(map)?, args[1].map_columns(map)?])),
+            Self::Mul(args) => Self::Mul(Box::new([args[0].map_columns(map)?, args[1].map_columns(map)?])),
         })
     }
 
@@ -111,21 +221,23 @@ impl WitnessExpr {
         match self {
             Self::Var(column) => value(*column),
             Self::Const(value) => *value,
-            Self::Add(left, right) => left.eval_with(value) + right.eval_with(value),
-            Self::Mul(left, right) => left.eval_with(value) * right.eval_with(value),
+            Self::Add(args) => args[0].eval_with(value) + args[1].eval_with(value),
+            Self::Mul(args) => args[0].eval_with(value) * args[1].eval_with(value),
         }
     }
 }
 
 pub(super) fn validate_witness_batch(
-    raw: RawWitnessBatch,
+    raw: &Value,
     witness_start: usize,
     private_column_count: usize,
     constant_column: usize,
     total_column_count: usize,
 ) -> Result<WitnessBatch, PackageError> {
-    let RawWitnessBatch(start, recipes, hints) = raw;
-    let start = usize::try_from(start).map_err(|_| PackageError::Malformed("witness batch start"))?;
+    let fields = exact_array(raw, 3, "witness batch")?;
+    let start = usize_atom(&fields[0], "witness batch start")?;
+    let recipes = array(&fields[1], "witness recipes")?;
+    let hints = array(&fields[2], "witness hints")?;
     let output_length = recipes
         .len()
         .checked_add(hints.len())
@@ -263,14 +375,18 @@ fn decode_expr_with(
             }
             Ok(WitnessExpr::Const(Fq::from_u64(constant)))
         }
-        (2, [_, left, right]) => Ok(WitnessExpr::Add(
-            Box::new(decode_expr_with(left, validate_column)?),
-            Box::new(decode_expr_with(right, validate_column)?),
-        )),
-        (3, [_, left, right]) => Ok(WitnessExpr::Mul(
-            Box::new(decode_expr_with(left, validate_column)?),
-            Box::new(decode_expr_with(right, validate_column)?),
-        )),
+        (2, [_, left, right]) => Ok(WitnessExpr::Add(Box::new([
+            decode_expr_with(left, validate_column)?,
+            decode_expr_with(right, validate_column)?,
+        ]))),
+        (3, [_, left, right]) => Ok(WitnessExpr::Mul(Box::new([
+            decode_expr_with(left, validate_column)?,
+            decode_expr_with(right, validate_column)?,
+        ]))),
         _ => Err(PackageError::Malformed("witness expression")),
     }
 }
+
+#[cfg(test)]
+#[path = "../tests/unit/bounded_depth_witness_template.rs"]
+mod tests;

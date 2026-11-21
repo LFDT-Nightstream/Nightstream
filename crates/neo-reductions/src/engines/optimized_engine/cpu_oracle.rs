@@ -79,9 +79,10 @@ pub trait PackedGateNorm {
 impl super::PaperJointOracleInput<'_> {
     pub fn packed_gate_norm_shape(&self) -> bool {
         let shape = self.rows.shape();
-        self.prior_point.is_some()
-            && self.running_witnesses.len() == 1
-            && self.fresh_witnesses.len() == 1
+        matches!(
+            (self.prior_point, self.running_witnesses.len()),
+            (None, 0) | (Some(_), 1)
+        ) && self.fresh_witnesses.len() == 1
             && self.norm_sources == 1
             && self.params.b() == 2
             && self.fresh_witnesses[0].Z.is_packed_signed_unit()
@@ -89,8 +90,8 @@ impl super::PaperJointOracleInput<'_> {
             && self.dims.variables <= 30
             && shape.matrices == 4
             && application::is_poseidon2_gate(self.structure.f())
-            && (1 << 16..=1 << 19).contains(&shape.rows)
-            && (1 << 21..=1 << 24).contains(&self.dims.assignment_width)
+            && (1 << 16..=1 << 21).contains(&shape.rows)
+            && (1 << 21..=1 << 25).contains(&self.dims.assignment_width)
     }
 
     pub fn optimized_with_packed_terms<'a>(
@@ -592,16 +593,13 @@ fn single_carried_matrix(
     workspace_bytes: usize,
 ) -> Result<Vec<K>, PiCcsError> {
     let ratio = gamma_power(gamma, dims.matrix_count);
+    let matrix_shift = gamma_power(gamma, D);
     let factors = (0..dims.matrix_count)
-        .map(|matrix| gamma_power(gamma, matrix))
+        .map(|matrix| matrix_shift * gamma_power(gamma, matrix))
         .collect::<Vec<_>>();
-    if let Some(mut matrix) =
+    if let Some(matrix) =
         crate::superneo_eval::geometric_weighted_rows_from_source(source, witness, ratio, &factors, workspace_bytes)?
     {
-        let matrix_shift = gamma_power(gamma, D);
-        for value in &mut matrix {
-            *value *= matrix_shift;
-        }
         return Ok(matrix);
     }
     carried_matrix(
@@ -626,8 +624,9 @@ fn carried_matrix(
     powers: &[K],
 ) -> Result<(Vec<K>, Vec<K>), PiCcsError> {
     let matrix_ratio = gamma_power(gamma, running.len() * dims.matrix_count);
+    let matrix_shift = gamma_power(gamma, running.len() * D);
     let matrix_coefficients = (0..dims.matrix_count)
-        .map(|matrix| gamma_power(gamma, running.len() * matrix))
+        .map(|matrix| matrix_shift * gamma_power(gamma, running.len() * matrix))
         .collect::<Vec<_>>();
     let width = dims.assignment_width;
     let mut projection = vec![K::ZERO; width.max(rows)];
@@ -640,10 +639,6 @@ fn carried_matrix(
         &mut matrix,
         workspace_bytes,
     )?;
-    let matrix_shift = gamma_power(gamma, running.len() * D);
-    for value in &mut matrix {
-        *value *= matrix_shift;
-    }
     Ok((projection, matrix))
 }
 

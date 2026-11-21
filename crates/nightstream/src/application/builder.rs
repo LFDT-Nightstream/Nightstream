@@ -1,4 +1,8 @@
-use std::{fmt, ops::Range, sync::Arc};
+use std::{
+    fmt,
+    ops::Range,
+    sync::{Arc, OnceLock},
+};
 
 use neo_ccs::crypto::poseidon2::{permutation_locals, PERMUTATION_LOCALS};
 use neo_math::Fq;
@@ -268,7 +272,7 @@ impl ApplicationBuilder {
 
     fn into_circuit(self, outputs: [OutputRow; 4]) -> Result<ApplicationCircuit, ApplicationError> {
         Ok(ApplicationCircuit {
-            private_inputs: self.private_inputs.into(),
+            private_inputs: Default::default(),
             generated_start: self.generated_start,
             variable_count: self.variable_count,
             records: Arc::new(self.records.finish()?),
@@ -286,7 +290,7 @@ struct OutputRow {
 
 #[derive(Clone, Debug)]
 pub struct ApplicationCircuit {
-    private_inputs: Arc<[Variable]>,
+    private_inputs: Arc<OnceLock<Box<[Variable]>>>,
     generated_start: usize,
     variable_count: usize,
     records: Arc<ApplicationRecords>,
@@ -353,7 +357,7 @@ impl ApplicationCircuit {
             .map_err(|_| ApplicationError::Allocation)?;
         private_inputs.extend((4..generated_start - 4).map(Variable));
         Ok(Self {
-            private_inputs: private_inputs.into(),
+            private_inputs: Arc::new(OnceLock::from(private_inputs.into_boxed_slice())),
             generated_start,
             variable_count,
             records,
@@ -372,7 +376,7 @@ impl ApplicationCircuit {
         self.records.row_count()
     }
     pub fn private_input_count(&self) -> usize {
-        self.private_inputs.len()
+        self.generated_start - 8
     }
     pub fn variable_count(&self) -> usize {
         self.variable_count
@@ -384,7 +388,8 @@ impl ApplicationCircuit {
         std::array::from_fn(Variable)
     }
     pub fn private_inputs(&self) -> &[Variable] {
-        &self.private_inputs
+        self.private_inputs
+            .get_or_init(|| (4..self.generated_start - 4).map(Variable).collect())
     }
     pub fn output_state(&self) -> [Variable; 4] {
         std::array::from_fn(|lane| Variable(self.generated_start - 4 + lane))
@@ -408,9 +413,9 @@ impl ApplicationCircuit {
         private_inputs: &[Fq],
         blocks: &[NativeBlock],
     ) -> Result<ApplicationWitness, ApplicationError> {
-        if private_inputs.len() != self.private_inputs.len() {
+        if private_inputs.len() != self.private_input_count() {
             return Err(ApplicationError::PrivateInputCount {
-                expected: self.private_inputs.len(),
+                expected: self.private_input_count(),
                 actual: private_inputs.len(),
             });
         }

@@ -167,3 +167,90 @@ fn first_and_later_terminal_openings_match_all_cpu_coordinates_and_recover_from_
         }
     }
 }
+
+#[test]
+fn translated_short_and_heavy_columns_match_the_direct_openings_on_metal() {
+    struct Translated<'a>(&'a MetalRowProver);
+    impl TerminalOpeningDevice for Translated<'_> {
+        fn supports(&self, blocks: usize, witnesses: usize) -> bool {
+            self.0.supports(blocks, witnesses)
+        }
+        fn evaluate(
+            &self,
+            matrices: &[OpeningMatrix<'_>],
+            weights: &[K],
+            witnesses: &[OpeningWitness<'_>],
+            budget: usize,
+            out: &mut [[K; D]],
+        ) -> bool {
+            assert!(matrices
+                .iter()
+                .all(|m| m.translated && !m.tiles.heavy.is_empty()));
+            assert!(self.0.evaluate(matrices, weights, witnesses, budget, out));
+            true
+        }
+    }
+    let blocks = 2055;
+    let shape = MatrixShape {
+        rows: 4700,
+        columns: blocks * D,
+        matrices: 4,
+    };
+    let mut row_terms = vec![Vec::new(); shape.rows];
+    for slot in 0..4105 {
+        let count = if slot % 251 == 0 { 513 } else { 8 };
+        for j in 0..count {
+            row_terms[slot + j].push((slot as u32, F::from_usize(j % 7 + 1)));
+        }
+    }
+    let mut offsets = vec![0];
+    let mut slots = Vec::new();
+    let mut coefficients = Vec::new();
+    for terms in row_terms {
+        for _ in 0..4 {
+            slots.extend(terms.iter().map(|&(slot, _)| slot));
+            coefficients.extend(terms.iter().map(|&(_, coefficient)| coefficient));
+            offsets.push(slots.len());
+        }
+    }
+    let starts: Vec<_> = (0..65536).map(|slot| slot * 2).collect();
+    let widths = vec![1u8; starts.len()];
+    let rows = FactoredRows::new(
+        shape,
+        FactoredEntries {
+            ports: neo_ccs::sparse::FactoredPorts::Offsets(&offsets),
+            slots: &slots,
+            coefficients: &coefficients,
+        },
+        FactoredSlots {
+            starts: &starts,
+            widths: &widths,
+            ratio: F::from_u8(3),
+        },
+    )
+    .unwrap();
+    let positive: Vec<_> = (0..blocks).map(|i| 1u64 << (i % D)).collect();
+    let signed = Mat::<F>::compact_signed_unit_from_column_masks(D, blocks, &positive, &vec![0; blocks]).unwrap();
+    let witnesses = [SuperneoZBlocks::from_witness_mat(&signed, shape.columns).unwrap()];
+    let point: Vec<_> = (0..shape.columns.next_power_of_two().ilog2())
+        .map(|i| K::from_coeffs([F::from_u32(i + 3), F::from_u32(2 * i + 5)]))
+        .collect();
+    let expected = eval_real_v1_2_openings_from_rows(&Rows(rows), &point, &witnesses, 64 << 20).unwrap();
+    let cache = OpeningColumns::default();
+    let metal = MetalRowProver::new().unwrap();
+    let before = metal.activity();
+    let actual = eval_real_v1_2_openings_from_rows_reusing(
+        &Rows(rows.with_opening_columns(&cache)),
+        &point,
+        &witnesses,
+        64 << 20,
+        Vec::new(),
+        None,
+        Some(&Translated(&metal)),
+    )
+    .unwrap();
+    assert_eq!(actual, expected);
+    let after = metal.activity();
+    assert_eq!(after.command_buffers, before.command_buffers + 1);
+    assert_eq!(after.host_waits, before.host_waits + 1);
+}

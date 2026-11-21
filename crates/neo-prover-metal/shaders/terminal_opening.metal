@@ -31,7 +31,7 @@ struct Config {
     WitnessFormat witness_format;
     uint offsets_head, rows_head, tags_head, factors_head, eq_head;
     uint slots_head, starts_head, widths_head, witness_head, negative_head;
-    uint first_head, tasks_head, heavy_head;
+    uint first_head, tasks_head, heavy_head, translated;
 };
 
 template <typename T>
@@ -39,7 +39,7 @@ inline T read_split(device const T *head, device const T *tail, uint span, uint 
     return index < span ? head[index] : tail[index - span];
 }
 
-inline E weighted(uint from, uint to, uint step, constant Config &c,
+inline E weighted(uint from, uint to, uint step, uint base, constant Config &c,
                   device const uchar *rows, device const uchar *rows_tail,
                   device const ushort *tags, device const ushort *tags_tail,
                   device const ulong *factors, device const ulong *factors_tail,
@@ -51,7 +51,7 @@ inline E weighted(uint from, uint to, uint step, constant Config &c,
         for (uint digit = 0; digit < c.stride; ++digit)
             row |= uint(read_split(rows, rows_tail, c.rows_head, offset + digit)) << (8 * digit);
         ushort tag = read_split(tags, tags_tail, c.tags_head, entry);
-        E weight = read_split(eq, eq_tail, c.eq_head, row);
+        E weight = read_split(eq, eq_tail, c.eq_head, base + row);
         if (tag == 0)
             result = add(result, weight);
         else if (tag == 1)
@@ -119,8 +119,16 @@ kernel void terminal_weights(device const uint *offsets [[buffer(0)]],
         return;
     uint start = read_split(offsets, offsets_tail, c.offsets_head, slot);
     uint end = read_split(offsets, offsets_tail, c.offsets_head, slot + 1);
-    if (end - start <= 128)
-        out[slot] = weighted(start, end, 1, c, rows, rows_tail, tags, tags_tail, factors, factors_tail, eq, eq_tail);
+    uint count = end - start;
+    if (count <= 128) {
+        uint base = 0;
+        if (c.translated) {
+            uint index = c.slots + 1 + 2 * slot;
+            base = read_split(offsets, offsets_tail, c.offsets_head, index);
+            start = read_split(offsets, offsets_tail, c.offsets_head, index + 1);
+        }
+        out[slot] = weighted(start, start + count, 1, base, c, rows, rows_tail, tags, tags_tail, factors, factors_tail, eq, eq_tail);
+    }
 }
 
 kernel void terminal_heavy_weights(device const uint2 *tasks [[buffer(0)]],
@@ -138,7 +146,9 @@ kernel void terminal_heavy_weights(device const uint2 *tasks [[buffer(0)]],
                           uint group [[threadgroup_position_in_grid]],
                           uint lane [[thread_index_in_threadgroup]]) {
     uint2 task = read_split(tasks, tasks_tail, c.tasks_head, group);
-    E value = weighted(task.x + lane, task.y, 32, c, rows, rows_tail, tags, tags_tail, factors, factors_tail, eq, eq_tail);
+    uint base = c.translated ? task.y >> 8 : 0;
+    uint end = c.translated ? task.x + (task.y & 255) + 1 : task.y;
+    E value = weighted(task.x + lane, end, 32, base, c, rows, rows_tail, tags, tags_tail, factors, factors_tail, eq, eq_tail);
     value = reduce_simd(value);
     if (lane == 0)
         partial[group] = value;

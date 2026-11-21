@@ -448,7 +448,7 @@ impl Committed<'_> {
             transcript,
             folded,
             &uses.form,
-            &blocks,
+            blocks,
             key_part,
             LANE_VARS + self.layout.key_block_vars(),
             |lanes, folded| {

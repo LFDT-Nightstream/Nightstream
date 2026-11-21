@@ -1,6 +1,8 @@
 use neo_math::{
     field::Q,
-    signed_sums::{SignedLimbs, SignedShiftSums, SmallDigits, SmallEventDigits, SplitRing, SMALL_DIGIT_BOUND},
+    signed_sums::{
+        SignedLimbs, SignedShiftSums, SignedUnitBuckets, SmallDigits, SmallEventDigits, SplitRing, SMALL_DIGIT_BOUND,
+    },
     Fq, Rq, D,
 };
 use p3_field::PrimeCharacteristicRing;
@@ -52,6 +54,27 @@ fn signed_shift_sums_match_ring_products_after_one_reduction() {
     }
     first.add(&second);
     assert_eq!(first.reduce(), expected.0);
+}
+
+#[test]
+fn bucket_sums_match_direct_signed_shifts_for_every_pattern() {
+    let mut direct = SignedShiftSums::zero();
+    let mut grouped = SignedShiftSums::zero();
+    let repeat = u64::MAX / 15;
+    for shift in 0..4 {
+        let mut buckets = SignedUnitBuckets::zero();
+        for masks in 0..256u64 {
+            let positive = ((masks & 15) * repeat) << shift;
+            let negative = ((masks >> 4) * repeat) << shift;
+            let split = SplitRing::new(&element(shift * 256 + masks));
+            direct.add_signed_units(&split, positive, negative);
+            buckets.add_signed_units(&split, positive, negative);
+        }
+        buckets.add_to(&mut grouped);
+    }
+    assert_eq!(grouped.reduce(), direct.reduce());
+    assert_eq!(SignedUnitBuckets::min_saved_shifts(repeat), 0);
+    assert_eq!(SignedUnitBuckets::min_saved_shifts(u64::MAX), 48);
 }
 
 #[test]

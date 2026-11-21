@@ -16,6 +16,7 @@ use super::{Arg, Buffer, Grid, MetalSession};
 use crate::MetalError;
 
 const COLUMNS_PER_GROUP: usize = 512;
+const MIN_COLUMNS_FOR_SIMD_GROUPS: usize = 1 << 16;
 const _: () = assert!(COLUMNS_PER_GROUP * D * (u8::MAX as usize) < 1 << 24);
 const _: () = assert!(SETUP_ID.len() + PRODUCTION_SEED.len() == 70);
 
@@ -145,10 +146,14 @@ impl MetalSession {
         drop((masks, columns));
 
         let key_row = &self.production_key_row;
-        let matrix = self
-            .production_ajtai_matrix
-            .as_ref()
-            .filter(|_| active.len() == 1);
+        let matrix = if active.len() == 1 {
+            self.production_ajtai_column_groups
+                .as_ref()
+                .filter(|_| count >= MIN_COLUMNS_FOR_SIMD_GROUPS)
+                .or(self.production_ajtai_matrix.as_ref())
+        } else {
+            None
+        };
         let accumulate = matrix.unwrap_or(&self.production_ajtai_accumulate);
         let witnesses_per_group = active
             .len()

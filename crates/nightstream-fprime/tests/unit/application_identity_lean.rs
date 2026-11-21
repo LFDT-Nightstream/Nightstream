@@ -149,7 +149,7 @@ fn with_layout(base: &StepPackage, layout: &Value) -> StepPackage {
         word_packing: word_packing::WordPacking { groups: packing },
         packed_booleans: PackedBooleans {
             start: index(&layout[2]),
-            sources: indices(&layout[3]),
+            sources: Arc::new(indices(&layout[3])),
             removed: list(&layout[4])
                 .iter()
                 .map(|row| (index(row), empty_row()))

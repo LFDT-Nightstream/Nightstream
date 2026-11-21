@@ -112,7 +112,7 @@ fn the_reduction_gives_the_shake_value(blocks: usize, counts: &[usize], seed: u6
         &mut Poseidon2Transcript::new_v1_2(),
         folded[..(D * counts.iter().copied().max().unwrap())].to_vec(),
         &uses.form,
-        &blocks_for_key,
+        blocks_for_key,
         direct,
         rounds,
         |lanes, values| super::fold_remaining_blocks(&key, omega, lanes, values),

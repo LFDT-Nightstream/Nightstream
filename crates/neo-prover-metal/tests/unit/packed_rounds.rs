@@ -13,6 +13,19 @@ fn value(coefficients: &[K], x: K) -> K {
 }
 
 #[test]
+fn packed_gate_keeps_both_rows_of_a_signed_pair() {
+    let session = MetalSession::new().unwrap();
+    let rows = vec![[F::ZERO; 4], [-F::ONE, -F::TWO, F::TWO, F::ZERO]];
+    let mut packed = Packed::new(&session, rows, &[0], &[0], 2).unwrap();
+    packed.submit(0, K::ZERO, (&[K::ONE], &[K::ONE])).unwrap();
+    let (gate, _) = packed.coefficients(0).unwrap();
+    let mut expected = [K::ZERO; 8];
+    expected[1] = -K::TWO;
+    expected[2] = K::TWO;
+    assert_eq!(gate, expected);
+}
+
+#[test]
 fn packed_rounds_and_handoff_match_direct_evaluation_with_partial_tiles() {
     let session = MetalSession::new().unwrap();
     let before = session.activity();
@@ -98,8 +111,8 @@ fn packed_rounds_and_handoff_match_direct_evaluation_with_partial_tiles() {
     assert_eq!(after.command_buffers - before.command_buffers, 8);
     assert_eq!(after.dispatches - before.dispatches, 32);
     assert_eq!(after.host_waits - before.host_waits, 8);
-    assert_eq!(after.allocated_bytes - before.allocated_bytes, 216_080);
-    assert_eq!(after.uploaded_bytes - before.uploaded_bytes, 168_720);
+    assert_eq!(after.allocated_bytes - before.allocated_bytes, 606_864);
+    assert_eq!(after.uploaded_bytes - before.uploaded_bytes, 592_368);
     assert_eq!(after.downloaded_bytes - before.downloaded_bytes, 3_424);
 }
 
@@ -118,4 +131,106 @@ fn packed_startup_uses_cpu_only_on_buffer_allocation_failure() {
         Err(MetalError::Shape("row count"))
     ));
     assert_eq!(session.activity(), before);
+}
+
+#[test]
+fn fresh_only_packed_round_uses_checked_rows_of_the_proving_shape() {
+    use neo_ccs::{poly::Term, CcsStructure, CcsWitness, Mat, SparsePoly};
+    use neo_math::D;
+    use neo_reductions::{
+        engines::pi_ccs_joint::build_joint_dims,
+        superneo_eval::{MatrixRowSink, MatrixRows, MatrixShape},
+        Challenges,
+    };
+    use std::sync::atomic::AtomicBool;
+
+    struct Rows {
+        shape: MatrixShape,
+        checked: bool,
+        requested: AtomicBool,
+    }
+    impl MatrixRows for Rows {
+        fn shape(&self) -> MatrixShape {
+            self.shape
+        }
+        fn visit_rows(&self, _: std::ops::Range<usize>, _: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
+            panic!("the packed oracle consumes previously checked rows");
+        }
+        fn take_checked_fresh_rows(&self) -> Option<Vec<[F; 4]>> {
+            self.requested.store(true, Ordering::Relaxed);
+            self.checked.then(|| {
+                let mut rows = vec![[F::ZERO; 4]; self.shape.rows];
+                rows[self.shape.rows - 1] = [F::ONE, F::TWO, F::TWO, F::ZERO];
+                rows
+            })
+        }
+    }
+
+    let metal = MetalSession::new().unwrap();
+    for (rows, width, checked) in [(175_752, 7_010_304, true), (1_200_265, 31_785_216, false)] {
+        let source = Rows {
+            shape: MatrixShape {
+                rows,
+                columns: width,
+                matrices: 4,
+            },
+            checked,
+            requested: AtomicBool::new(false),
+        };
+        let terms =
+            [([1, 1, 0, 0], F::ONE), ([0, 0, 1, 0], -F::ONE), ([0, 0, 0, 7], F::ONE)].map(|(exps, coeff)| Term {
+                coeff,
+                exps: exps.to_vec(),
+            });
+        let structure = CcsStructure::new_verifier_artifact_header(rows, width, 4, SparsePoly::new(4, terms.to_vec()))
+            .unwrap()
+            .with_domain_variables(28)
+            .unwrap();
+        let params = neo_params::NeoParams::nightstream_p64_k14();
+        let security = params
+            .padded_row_security_summary_for_shape(
+                structure.domain_rows(),
+                width,
+                4,
+                structure.max_degree(),
+                neo_params::nightstream_p64_k14::CHALLENGE_ALPHABET.len() as u32,
+            )
+            .unwrap();
+        let params = params
+            .with_certified_lambda(security.security_bits)
+            .unwrap();
+        let dims = build_joint_dims(&params, &structure, 1, 0).unwrap();
+        let blocks = width / D;
+        let mut positive = vec![0; blocks];
+        positive[blocks - 1] = 1 << 63;
+        let fresh = [CcsWitness {
+            Z: Mat::from_owned_column_masks(D, blocks, positive, vec![0; blocks]).unwrap(),
+        }];
+        let input = PaperJointOracleInput {
+            structure: &structure,
+            params: &params,
+            fresh_witnesses: &fresh,
+            running_witnesses: &[],
+            challenges: Challenges::new(vec![K::ONE; dims.variables], K::ONE),
+            prior_point: None,
+            dims,
+            rows: &source,
+            workspace_bytes: usize::MAX,
+            norm_sources: 1,
+        };
+        let device = metal.packed_rounds(&input).unwrap();
+        assert!(source.requested.load(Ordering::Relaxed));
+        assert_eq!(device.is_some(), checked);
+        if let Some(mut device) = device {
+            let low = vec![K::ONE; 1 << ((dims.variables - 1) / 2)];
+            let high = vec![K::ONE; 1 << ((dims.variables - 1).div_ceil(2))];
+            device.submit(0, K::ZERO, (&low, &high)).unwrap();
+            let (gate, norm) = device.coefficients(0).unwrap();
+            for sample in 0..8 {
+                let x = scalar(sample);
+                assert_eq!(value(&gate, x), (x.square() - x).double());
+                assert_eq!(value(&norm, x), x.cube() - x);
+            }
+        }
+    }
 }

@@ -76,7 +76,7 @@ impl FieldLowering {
                 }
             }
         }
-        for &column in &package.packed_booleans.sources {
+        for &column in package.packed_booleans.sources.iter() {
             checked_index(&mut protected, column)?;
         }
         for piece in package.pieces.iter().skip(1) {
@@ -189,10 +189,11 @@ impl FieldLowering {
                     substituted.terms.push((input, coefficient));
                 }
             }
-            let substituted = normalized(substituted);
+            let mut substituted = normalized(substituted);
             if substituted.terms.len() > 128 || substituted.terms.iter().any(|&(input, _)| input >= column) {
                 continue;
             }
+            substituted.terms.shrink_to_fit();
             result.affine.insert(column, (index, substituted));
             result.removed.insert(index);
             result.dead.insert(column);

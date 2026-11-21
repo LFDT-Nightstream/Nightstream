@@ -1,7 +1,8 @@
 [workspace]
 members = [
   "crates/neo-params", 
-  "crates/neo-math", 
+  "crates/neo-math",
+  "crates/neo-math-native",
   "crates/neo-transcript",
   "crates/neo-ajtai",
   "crates/neo-ccs",

@@ -115,6 +115,18 @@ fn checked_in_constants_equal_params_json() {
     let mut rng = StdRng::seed_from_u64(0x7032_5f72_635f_7631);
     check_instance(&instances[0], &m4, &p2::INSTANCE_16, &mut rng);
     check_instance(&instances[1], &m4, &p2::INSTANCE_12, &mut rng);
+
+    let mut diagonal = std::array::from_fn(|_| Fq::new(rng.random()));
+    diagonal[..3].copy_from_slice(&[Fq::ZERO, Fq::ONE, -Fq::ONE]);
+    let custom = p2::Instance {
+        initial: p2::INSTANCE_16.initial,
+        terminal: p2::INSTANCE_16.terminal,
+        internal: p2::INSTANCE_16.internal,
+        diagonal,
+    };
+    let mut custom_params = instances[0].clone();
+    custom_params["internal_diagonal"] = serde_json::json!(diagonal.map(|word| word.as_canonical_u64().to_string()));
+    check_instance(&custom_params, &m4, &custom, &mut rng);
 }
 
 fn lean_numbers_after(source: &str, declaration: &str) -> Vec<u64> {

@@ -1,7 +1,8 @@
 //! Lean `LogicalPlan.plan`, `SlotLayout.layout`, `GatePolynomial.terms`.
+use std::io::{self, Read};
 use std::ops::Range;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, TryLockError, Weak};
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::{Arc, LazyLock, Mutex, MutexGuard, TryLockError, Weak};
 
 use crate::engine::{Backend, CommitError, DeviceError, EngineError};
 use crate::folding::{
@@ -17,11 +18,20 @@ use neo_reductions::superneo_eval::{
     FactoredRows, FactoredSlots, MatrixRowSink, MatrixRows, MatrixShape, MatrixWindow, RetainedMatrixWindow,
 };
 use neo_reductions::PiCcsError;
-use nightstream_fprime::{ExpandedPackage, PackageError, StepWords, PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS};
+use nightstream_fprime::{ExpandedPackage, FrameCodec, PackageError, StepWords, PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS};
 use p3_field::PrimeCharacteristicRing;
+use rayon::prelude::*;
+use ruzstd::decoding::{FrameDecoder, StreamingDecoder};
+use ruzstd::encoding::{compress_to_vec, CompressionLevel};
 
 const MATRICES: usize = 4;
 const ROWS_PER_RANGE: usize = 1024;
+
+fn check_row_ranges(failures: impl ParallelIterator<Item = Option<&'static str>>) -> Result<(), &'static str> {
+    catch_unwind(AssertUnwindSafe(|| failures.find_map_first(|error| error)))
+        .map_err(|_| "row worker panicked")?
+        .map_or(Ok(()), Err)
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum RelationError {
@@ -45,64 +55,114 @@ pub(crate) enum Holds {
 
 pub(crate) struct CompiledStep {
     opening_columns: neo_reductions::superneo_eval::OpeningColumns,
-    expanded: ExpandedPackage,
+    data: StepData,
+    row_count: usize,
+    width: usize,
     workspace_bytes: usize,
 }
 
+type RestoreStep = Box<dyn FnOnce() -> Result<ExpandedPackage, PackageError> + Send + Sync>;
+
+struct ZstdFrames;
+
+impl FrameCodec for ZstdFrames {
+    type Decoder<'a> = StreamingDecoder<&'a [u8], FrameDecoder>;
+
+    fn encode(source: impl Read) -> Box<[u8]> {
+        compress_to_vec(source, CompressionLevel::Fastest).into_boxed_slice()
+    }
+
+    fn decode(bytes: &[u8]) -> io::Result<Self::Decoder<'_>> {
+        StreamingDecoder::new(bytes).map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))
+    }
+}
+
+enum StepData {
+    Expanded(ExpandedPackage),
+    Packed(LazyLock<Result<ExpandedPackage, PackageError>, RestoreStep>),
+}
+
+impl StepData {
+    fn pack(self) -> Self {
+        match self {
+            Self::Expanded(expanded) => Self::Packed(LazyLock::new(Box::new(expanded.pack::<ZstdFrames>()))),
+            packed => packed,
+        }
+    }
+}
+
 impl CompiledStep {
-    pub(crate) fn new(expanded: ExpandedPackage) -> Result<Self, RelationError> {
+    pub(crate) fn new(expanded: ExpandedPackage, pack: bool) -> Result<Self, RelationError> {
         let mut step = Self {
             opening_columns: Default::default(),
-            expanded,
+            row_count: expanded.rows().row_count(),
+            width: expanded.layout().width(),
+            data: StepData::Expanded(expanded),
             workspace_bytes: 0,
         };
-        step.factored_rows().checked()?;
+        step.factored_rows()?.checked()?;
         let payload = 2 * MATRICES * size_of::<K>() + size_of::<F>() + size_of::<K>();
-        step.workspace_bytes =
-            MatrixWindow::required_workspace(&step, 0..step.expanded.rows().row_count(), payload)? * 2;
+        step.workspace_bytes = MatrixWindow::required_workspace(&step, 0..step.row_count, payload)? * 2;
+        if pack {
+            step.data = step.data.pack();
+        }
         Ok(step)
     }
 
     #[cfg(test)]
     pub(crate) fn expanded(&self) -> &ExpandedPackage {
-        &self.expanded
+        self.data().expect("restore the validated circuit")
+    }
+
+    #[cfg(test)]
+    pub(crate) fn remains_packed(&self) -> bool {
+        matches!(&self.data, StepData::Packed(data) if LazyLock::get(data).is_none())
+    }
+
+    fn data(&self) -> Result<&ExpandedPackage, PiCcsError> {
+        match &self.data {
+            StepData::Expanded(expanded) => Ok(expanded),
+            StepData::Packed(data) => data
+                .as_ref()
+                .map_err(|error| PiCcsError::InvalidInput(format!("restore validated circuit rows: {error}"))),
+        }
     }
 
     fn blocks(&self) -> usize {
-        self.expanded.layout().width().div_ceil(D)
+        self.width.div_ceil(D)
     }
 
-    fn factored_rows(&self) -> FactoredRows<'_> {
-        let rows = self.expanded.rows();
-        let spans = self.expanded.layout().spans();
-        FactoredRows::new_unchecked(
+    fn factored_rows(&self) -> Result<FactoredRows<'_>, PiCcsError> {
+        let expanded = self.data()?;
+        let spans = expanded.layout().spans();
+        Ok(FactoredRows::new_unchecked(
             MatrixRows::shape(self),
-            rows.entries(),
+            expanded.rows().entries(),
             FactoredSlots {
                 starts: &spans.starts,
                 widths: &spans.widths,
                 ratio: spans.ratio,
             },
         )
-        .with_opening_columns(&self.opening_columns)
+        .with_opening_columns(&self.opening_columns))
     }
 }
 
 impl MatrixRows for CompiledStep {
     fn shape(&self) -> MatrixShape {
         MatrixShape {
-            rows: self.expanded.rows().row_count(),
+            rows: self.row_count,
             columns: self.blocks() * D,
             matrices: MATRICES,
         }
     }
 
     fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
-        self.factored_rows().visit_rows(rows, sink)
+        self.factored_rows()?.visit_rows(rows, sink)
     }
 
     fn factored(&self) -> Result<Option<FactoredRows<'_>>, PiCcsError> {
-        Ok(Some(self.factored_rows()))
+        self.factored_rows().map(Some)
     }
 }
 
@@ -184,7 +244,6 @@ pub(crate) struct Relation {
 
 impl Relation {
     pub(crate) fn new(step: &Arc<CompiledStep>, minimum_security_bits: u32) -> Result<Self, RelationError> {
-        let (rows, layout) = (step.expanded.rows(), step.expanded.layout());
         let gate = SparsePoly::new(
             MATRICES,
             vec![
@@ -202,7 +261,7 @@ impl Relation {
                 },
             ],
         );
-        let structure = Structure::new_verifier_artifact_header(rows.row_count(), layout.width(), MATRICES, gate)?
+        let structure = Structure::new_verifier_artifact_header(step.row_count, step.width, MATRICES, gate)?
             .with_domain_variables(PI_CCS_V1_2_ROUND_COUNT)?;
         let params = Params::for_ccs_shape(
             structure.domain_rows(),
@@ -252,7 +311,7 @@ impl Relation {
 
     /// Lean `FreshInstance.Masks`, `FreshInstance.built`.
     pub(crate) fn instance(&self, backend: &Backend, columns: &[F]) -> Result<CcsInstance, RelationError> {
-        let witness = self.step.expanded.layout().signed_assignment(columns)?;
+        let witness = self.step.data()?.layout().signed_assignment(columns)?;
         let commitment = backend.commit(&[&witness])?.remove(0);
         Ok(CcsInstance {
             claim: CcsClaim {
@@ -266,13 +325,13 @@ impl Relation {
     }
 
     pub(crate) fn assignment_columns(&self, words: &StepWords, locals: Option<&[F]>) -> Result<Vec<F>, RelationError> {
-        let expanded = &self.step.expanded;
+        let expanded = self.step.data()?;
         Ok(expanded.assignment_columns(&words.columns()?, locals)?)
     }
 
     #[cfg(test)]
     pub(crate) fn first_failing_row(&self, words: &StepWords) -> Result<Option<usize>, RelationError> {
-        let expanded = &self.step.expanded;
+        let expanded = self.step.data()?;
         let columns = expanded.circuit_columns_with(&words.columns()?, None)?;
         let columns = expanded.relation_columns(columns)?;
         let rows = expanded.rows();
@@ -315,7 +374,7 @@ impl Relation {
                 .map(|column| z[(column % D, column / D)])
                 .collect(),
         };
-        let width = self.step.expanded.layout().width();
+        let width = self.step.width;
         if logical[width..].iter().any(|value| *value != F::ZERO) {
             return Err(Holds::Fails("nonzero witness tail"));
         }
@@ -342,41 +401,29 @@ impl Relation {
     }
 
     pub(super) fn checked_source_rows(&self, columns: &[F]) -> Result<Vec<[F; MATRICES]>, &'static str> {
-        let rows = self.step.expanded.rows();
+        let rows = self.source_data()?.rows();
         let mut values = vec![[F::ZERO; MATRICES]; rows.row_count()];
-        let pending = Mutex::new(values.chunks_mut(ROWS_PER_RANGE).enumerate());
-        let produce = || loop {
-            let (index, group) = pending
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .next()?;
-            for (local, output) in group.iter_mut().enumerate() {
-                let row = index * ROWS_PER_RANGE + local;
-                let [a, b, c, s] = std::array::from_fn(|matrix| rows.evaluate(row, matrix, columns));
-                if a * b - c + s.exp_u64(SBOX_DEGREE) != F::ZERO {
-                    return Some(row);
-                }
-                *output = [a, b, c, s];
-            }
-        };
-        let threads = std::thread::available_parallelism().map_or(1, usize::from);
-        std::thread::scope(|scope| {
-            let workers: Vec<_> = (0..threads).map(|_| scope.spawn(produce)).collect();
-            let failures = workers
-                .into_iter()
-                .map(|worker| worker.join().map_err(|_| "row worker panicked"))
-                .collect::<Result<Vec<_>, _>>()?;
-            failures
-                .into_iter()
-                .flatten()
-                .min()
-                .map_or(Ok(()), |_| Err("a relation row fails"))
-        })?;
+        check_row_ranges(
+            values
+                .par_chunks_mut(ROWS_PER_RANGE)
+                .enumerate()
+                .map(|(index, group)| {
+                    for (local, output) in group.iter_mut().enumerate() {
+                        let row = index * ROWS_PER_RANGE + local;
+                        let [a, b, c, s] = std::array::from_fn(|matrix| rows.evaluate(row, matrix, columns));
+                        if a * b - c + s.exp_u64(SBOX_DEGREE) != F::ZERO {
+                            return Some("a relation row fails");
+                        }
+                        *output = [a, b, c, s];
+                    }
+                    None
+                }),
+        )?;
         Ok(values)
     }
 
     pub(crate) fn source_rows_hold(&self, columns: &[F]) -> Result<(), &'static str> {
-        let rows = self.step.expanded.rows();
+        let rows = self.source_data()?.rows();
         self.check_rows(|row| {
             if rows.residual(row, columns) == F::ZERO {
                 Ok(())
@@ -387,7 +434,8 @@ impl Relation {
     }
 
     fn rows_hold(&self, logical: &[F]) -> Result<(), &'static str> {
-        let (rows, layout) = (self.step.expanded.rows(), self.step.expanded.layout());
+        let expanded = self.source_data()?;
+        let (rows, layout) = (expanded.rows(), expanded.layout());
         self.check_rows(|row| {
             let [a, b, c, s] = [0, 1, 2, 3].map(|port| layout.evaluate(rows, row, port, logical));
             let (Ok(a), Ok(b), Ok(c), Ok(s)) = (a, b, c, s) else {
@@ -401,36 +449,25 @@ impl Relation {
     }
 
     fn check_rows(&self, holds: impl Fn(usize) -> Result<(), &'static str> + Sync) -> Result<(), &'static str> {
-        let count = self.step.expanded.rows().row_count();
-        let next = AtomicUsize::new(0);
-        let first_failure = || loop {
-            let start = next.fetch_add(ROWS_PER_RANGE, Ordering::Relaxed);
-            if start >= count {
-                return None;
-            }
-            for row in start..(start + ROWS_PER_RANGE).min(count) {
-                if let Err(error) = holds(row) {
-                    return Some((row, error));
-                }
-            }
-        };
-        let threads = std::thread::available_parallelism().map_or(1, usize::from);
-        std::thread::scope(|scope| {
-            let workers: Vec<_> = (0..threads).map(|_| scope.spawn(first_failure)).collect();
-            let failures = workers
-                .into_iter()
-                .map(|worker| worker.join().map_err(|_| "row worker panicked"))
-                .collect::<Result<Vec<_>, _>>()?;
-            failures
-                .into_iter()
-                .flatten()
-                .min_by_key(|&(row, _)| row)
-                .map_or(Ok(()), |(_, error)| Err(error))
-        })
+        let count = self.step.row_count;
+        check_row_ranges(
+            (0..count.div_ceil(ROWS_PER_RANGE))
+                .into_par_iter()
+                .map(|index| {
+                    let start = index * ROWS_PER_RANGE;
+                    (start..(start + ROWS_PER_RANGE).min(count)).find_map(|row| holds(row).err())
+                }),
+        )
     }
 
     pub(crate) fn blocks(&self) -> usize {
         self.step.blocks()
+    }
+
+    fn source_data(&self) -> Result<&ExpandedPackage, &'static str> {
+        self.step
+            .data()
+            .map_err(|_| "restore validated circuit rows")
     }
 
     pub(crate) fn params(&self) -> &Params {

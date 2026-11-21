@@ -12,7 +12,7 @@ use neo_ccs::Mat;
 use neo_math::{
     balanced::to_balanced_i128,
     ring::D,
-    signed_sums::{SignedShiftSums, SplitRing, LIMB_BOUND, MAX_EXACT_TERMS},
+    signed_sums::{SignedShiftSums, SignedUnitBuckets, SplitRing, LIMB_BOUND, MAX_EXACT_TERMS},
     Fq,
 };
 use p3_field::PrimeCharacteristicRing;
@@ -137,6 +137,37 @@ fn with_elements<T>(
 
 fn signed_sums(row: u32, blocks: &[SignedBlock], key: Option<&ExpandedKey>) -> SignedShiftSums {
     let mut sums = SignedShiftSums::zero();
+    if blocks.len() >= 128 {
+        let sample = blocks.iter().step_by(blocks.len().div_ceil(64));
+        let saved: usize = sample
+            .clone()
+            .map(|block| SignedUnitBuckets::min_saved_shifts(block.positive | block.negative))
+            .sum();
+        if saved >= 8 * sample.count() {
+            #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+            if let Some(key) = key {
+                let width = key.blocks() as usize;
+                if blocks
+                    .last()
+                    .is_some_and(|block| block.index < key.blocks())
+                {
+                    let elements = key.words().as_chunks::<D>().0;
+                    let row = &elements[row as usize * width..][..width];
+                    if let Some(sums) =
+                        SignedShiftSums::from_dense_signed_blocks(row, blocks, |b| [b.index, b.positive, b.negative])
+                    {
+                        return sums;
+                    }
+                }
+            }
+            let mut buckets = SignedUnitBuckets::zero();
+            with_elements(row, blocks, SignedBlock::index, key, |block, element| {
+                buckets.add_signed_units(element, block.positive, block.negative);
+            });
+            buckets.add_to(&mut sums);
+            return sums;
+        }
+    }
     with_elements(row, blocks, SignedBlock::index, key, |block, element| {
         sums.add_signed_units(element, block.positive, block.negative);
     });

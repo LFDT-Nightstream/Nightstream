@@ -173,6 +173,19 @@ impl Circuit {
     /// packages: it computes the step of Lean's application region, and the
     /// Lean checks of Rust's files read those packages.
     pub fn compile(application: ApplicationCircuit) -> Result<Self, Error> {
+        Self::compile_application(application, false)
+    }
+
+    pub(crate) fn compile_memory(
+        application: ApplicationCircuit,
+        compression: lifecycle::Compression,
+    ) -> Result<Self, Error> {
+        let pack_refresh =
+            cfg!(all(target_arch = "aarch64", target_os = "macos")) && compression == lifecycle::Compression::Light;
+        Self::compile_application(application, pack_refresh).map(Self::into_memory)
+    }
+
+    fn compile_application(application: ApplicationCircuit, pack_refresh: bool) -> Result<Self, Error> {
         let embedded = crate::artifacts::embedded();
         let witness_words = application.private_input_count();
         let steps = || -> Result<CompiledSteps, Error> {
@@ -191,11 +204,14 @@ impl Circuit {
             {
                 embedded.packages.clone()
             } else {
-                embedded
-                    .packages
-                    .with_application(application.records().clone(), witness_words, application.shape())?
+                embedded.packages.with_application_and_refresh_witness(
+                    application.records().clone(),
+                    witness_words,
+                    application.shape(),
+                    pack_refresh,
+                )?
             };
-            Ok(CompiledSteps::new(packages)?)
+            Ok(CompiledSteps::with_refresh_storage(packages, pack_refresh)?)
         };
         let (checked, steps) = rayon::join(
             || crate::application::check_blocks_match_permutation_rows(&application),

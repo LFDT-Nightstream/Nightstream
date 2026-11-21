@@ -33,6 +33,120 @@ pub struct SignedShiftSums {
     terms: u64,
 }
 
+const DIGITS_PER_GROUP: usize = 4;
+const _: () = assert!(D.is_multiple_of(DIGITS_PER_GROUP));
+const GROUP_MASK: usize = (1 << DIGITS_PER_GROUP) - 1;
+const PATTERNS: usize = 3usize.pow((DIGITS_PER_GROUP - 1) as u32);
+const PATTERN_LIMBS: usize = 2 * (2 * D - 1);
+const BUCKET_LIMBS: usize = PATTERNS * PATTERN_LIMBS;
+const SIGNED_PATTERNS: [u8; 1 << (2 * DIGITS_PER_GROUP)] = {
+    let mut patterns = [0; 1 << (2 * DIGITS_PER_GROUP)];
+    let mut index = 0;
+    while index < patterns.len() {
+        let positive = index & GROUP_MASK;
+        let negative = index >> DIGITS_PER_GROUP;
+        let first_is_negative = (negative & 1) as u8;
+        let sign = 1 - 2 * first_is_negative as i8;
+        let mut pattern = 0;
+        let mut lane = 1;
+        while lane < DIGITS_PER_GROUP {
+            let digit = ((positive >> lane) & 1) as i8 - ((negative >> lane) & 1) as i8;
+            pattern += (1 + sign * digit) as u8 * 3u8.pow((lane - 1) as u32);
+            lane += 1;
+        }
+        patterns[index] = 2 * pattern + first_is_negative;
+        index += 1;
+    }
+    patterns
+};
+
+pub struct SignedUnitBuckets {
+    patterns: Box<[i64; BUCKET_LIMBS]>,
+    #[cfg(debug_assertions)]
+    terms: u64,
+}
+
+impl SignedUnitBuckets {
+    pub fn min_saved_shifts(occupied: u64) -> usize {
+        let pairs = occupied | (occupied >> 1);
+        let groups = (pairs | (pairs >> 2)) & (u64::MAX / GROUP_MASK as u64);
+        (occupied.count_ones() - groups.count_ones()) as usize
+    }
+
+    pub fn zero() -> Self {
+        Self {
+            patterns: vec![0; BUCKET_LIMBS]
+                .into_boxed_slice()
+                .try_into()
+                .expect("fixed bucket length"),
+            #[cfg(debug_assertions)]
+            terms: 0,
+        }
+    }
+
+    #[inline]
+    pub fn add_signed_units(&mut self, element: &SplitRing, positive: u64, negative: u64) {
+        #[cfg(debug_assertions)]
+        {
+            self.terms += 1;
+            debug_assert!(self.terms <= MAX_EXACT_TERMS);
+        }
+        let patterns = self.patterns.as_chunks_mut::<PATTERN_LIMBS>().0;
+        let mut live = positive ^ negative;
+        while live != 0 {
+            let degree = live.trailing_zeros() as usize;
+            let plus = ((positive >> degree) as usize) & GROUP_MASK;
+            let minus = ((negative >> degree) as usize) & GROUP_MASK;
+            let index = plus | (minus << DIGITS_PER_GROUP);
+            let pattern = SIGNED_PATTERNS[index];
+            let accum = &mut patterns[usize::from(pattern >> 1)][2 * degree..][..2 * D];
+            if pattern & 1 == 0 {
+                for (sum, &limb) in accum.iter_mut().zip(&element.limbs) {
+                    *sum += i64::from(limb);
+                }
+            } else {
+                for (sum, &limb) in accum.iter_mut().zip(&element.limbs) {
+                    *sum -= i64::from(limb);
+                }
+            }
+            live &= !((GROUP_MASK as u64) << degree);
+        }
+    }
+
+    pub fn add_to(&self, total: &mut SignedShiftSums) {
+        #[cfg(debug_assertions)]
+        {
+            total.terms += self.terms;
+            debug_assert!(total.terms <= MAX_EXACT_TERMS);
+        }
+        let patterns = self.patterns.as_chunks::<PATTERN_LIMBS>().0;
+        for (index, values) in patterns.iter().enumerate() {
+            for (sum, value) in total.limbs.iter_mut().zip(values) {
+                *sum += value;
+            }
+            let mut pattern = index;
+            for offset in 1..DIGITS_PER_GROUP {
+                let digit = pattern % 3;
+                pattern /= 3;
+                let target = &mut total.limbs[2 * offset..];
+                match digit {
+                    2 => {
+                        for (sum, value) in target.iter_mut().zip(values) {
+                            *sum += value;
+                        }
+                    }
+                    0 => {
+                        for (sum, value) in target.iter_mut().zip(values) {
+                            *sum -= value;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
 const MAX_EVENT_DIGIT: u64 = 2048;
 
 pub struct SmallEventDigits([i32; D]);
@@ -70,6 +184,18 @@ impl SmallEventDigits {
 }
 
 impl SignedShiftSums {
+    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+    pub fn from_dense_signed_blocks<T>(key: &[[u64; D]], blocks: &[T], mask: impl Fn(&T) -> [u64; 3]) -> Option<Self> {
+        let result = neo_math_native::signed_ring_sum(key, blocks, mask)?;
+        let mut sums = Self::zero();
+        sums.limbs[..2 * D].copy_from_slice(&result);
+        #[cfg(debug_assertions)]
+        {
+            sums.terms = blocks.len() as u64;
+        }
+        Some(sums)
+    }
+
     pub fn zero() -> Self {
         Self {
             limbs: [0; 2 * (2 * D - 1)],

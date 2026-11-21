@@ -34,6 +34,7 @@ pub struct OpeningMatrix<'a> {
     pub offsets: &'a [u32],
     pub rows: &'a [u8],
     pub row_bytes: usize,
+    pub translated: bool,
     pub row_count: usize,
     pub tags: &'a [u16],
     pub factors: &'a [F],
@@ -82,8 +83,7 @@ impl OpeningTiles {
         blocks: usize,
         slots: &[u32],
         offsets: &[u32],
-        heavy_count: usize,
-        task_count: usize,
+        (heavy_count, task_count): (usize, usize),
     ) -> Option<Box<Self>> {
         if layout.ratio == F::ZERO || blocks > (u32::MAX as usize) / D || slots.is_empty() {
             return None;
@@ -120,13 +120,20 @@ impl OpeningTiles {
         }
         let mut tasks = Vec::with_capacity(task_count);
         let mut heavy = Vec::with_capacity(heavy_count);
+        let (offsets, translations) = offsets.split_at(slots.len() + 1);
+        let translations = translations.as_chunks::<2>().0;
         for (slot, span) in offsets.windows(2).enumerate() {
             if span[1] - span[0] <= 128 {
                 continue;
             }
             let start = tasks.len() as u32;
             for from in (span[0]..span[1]).step_by(256) {
-                tasks.push([from, from.saturating_add(256).min(span[1])]);
+                let end = from.saturating_add(256).min(span[1]);
+                let task = match translations.get(slot) {
+                    Some(&[base, first]) => [first + (from - span[0]), (base << 8) | (end - from - 1)],
+                    None => [from, end],
+                };
+                tasks.push(task);
             }
             heavy.push([slot as u32, start, tasks.len() as u32, 0]);
         }

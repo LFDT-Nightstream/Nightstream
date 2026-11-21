@@ -6,7 +6,7 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 
 use super::expand::mix;
-use super::{Linear, Piece, Row, StepPackage};
+use super::{FrameCodec, Linear, Piece, Row, StepPackage};
 use crate::package::{
     balanced_ternary_digits, PackageError, BLOCK_LOCALS, BLOCK_OUTPUTS, PUBLIC_WORDS as PUBLIC, RING_DEGREE,
     SBOX_ROWS as SBOX_COLUMNS,
@@ -67,6 +67,18 @@ pub struct SlotSpans {
 }
 
 impl LogicalLayout {
+    pub(super) fn pack<C: FrameCodec>(&mut self) -> impl FnOnce(&mut Self) -> Result<(), PackageError> + Send + Sync {
+        use super::compact::Frame;
+
+        let starts = Frame::<C>::pack_u32(std::mem::take(&mut self.spans.starts).into_iter());
+        let widths = Frame::<C>::pack_bytes(&std::mem::take(&mut self.spans.widths));
+        move |layout| {
+            layout.spans.starts = starts.unpack_u32()?;
+            layout.spans.widths = widths.unpack_bytes()?;
+            Ok(())
+        }
+    }
+
     fn runs_from(&self, first: usize) -> impl Iterator<Item = LayoutRun> + '_ {
         let starts = &self.run_starts[first..];
         let ends = starts
@@ -320,10 +332,7 @@ pub(super) fn forced_column(row: &Row) -> Option<usize> {
 impl StepPackage {
     /// Lean `StepPackage.bitColumns`.
     pub(crate) fn bit_columns(&self) -> Vec<usize> {
-        self.witness
-            .iter()
-            .flat_map(|batch| batch.bit_columns())
-            .collect()
+        self.witness.bit_columns()
     }
 
     /// Lean `StepPackage.runsOf`.

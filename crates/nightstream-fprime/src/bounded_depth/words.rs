@@ -196,9 +196,9 @@ impl StepWords {
         for output in outputs {
             columns.extend(output.iter().flatten());
         }
-        columns.extend(self.slots[3 + self.selected as usize].digest());
-        columns.extend(self.slots[3].digest());
-        columns.extend(self.slots[4].digest());
+        let inner_digests = [&self.slots[3], &self.slots[4]].map(Slot::digest);
+        columns.extend(inner_digests[self.selected as usize]);
+        columns.extend(inner_digests.into_iter().flatten());
         if let FoldWords::Light { .. } = self.fold {
             columns.extend(self.slots[2].digest());
         }

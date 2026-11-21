@@ -59,6 +59,53 @@ fn run(prover: &BoundedDepth, steps: u64) -> (Envelope, Vec<u64>) {
 }
 
 #[test]
+fn packed_refresh_matches_a_full_step_and_raw_verification() {
+    let eager = prover(2);
+    let packed = CompiledSteps::with_refresh_storage(packages(), true).unwrap();
+    let mut packed = BoundedDepth::new(&packed, fold_gate_bits(), crate::engine::Backend::Optimized).unwrap();
+    packed.cap = 2;
+
+    let (expected, _) = run(&eager, 4);
+    let (proof, circuits) = run(&packed, 4);
+    assert_eq!(circuits, [1, 1, 1, 2]);
+    let bytes = packed.encode_proof(&proof).unwrap();
+    assert_eq!(bytes, eager.encode_proof(&expected).unwrap());
+    let read = packed.decode_proof(&bytes).unwrap();
+    packed.verify(4, read.z0, read.current, &read).unwrap();
+}
+
+#[test]
+fn a_raw_light_proof_verifies_with_the_refresh_rows_still_packed() {
+    use crate::engine::{Backend, Engine};
+
+    let prover = prover(2);
+    let (proof, circuits) = run(&prover, 2);
+    assert_eq!(circuits, [1, 1]);
+    let bytes = prover.encode_proof(&proof).unwrap();
+
+    let verify = |engine| {
+        let steps = CompiledSteps::with_refresh_storage(packages(), true).unwrap();
+        let verifier = BoundedDepth::new(&steps, fold_gate_bits(), Backend::new(engine).unwrap()).unwrap();
+        let refresh = &steps.steps()[1];
+        let decoded = verifier.decode_proof(&bytes).unwrap();
+        assert!(
+            refresh.remains_packed(),
+            "{engine:?} restored the refresh rows before verification"
+        );
+        verifier
+            .verify(2, proof.z0, proof.current, &decoded)
+            .unwrap();
+        assert!(
+            refresh.remains_packed(),
+            "{engine:?} restored the refresh rows during verification"
+        );
+    };
+    verify(Engine::Optimized);
+    #[cfg(feature = "metal")]
+    verify(Engine::Metal);
+}
+
+#[test]
 fn light_folds_and_a_refresh_verify() {
     let prover = prover(2);
     let (envelope, circuits) = run(&prover, 5);
@@ -168,6 +215,48 @@ fn addition() -> ApplicationCircuit {
     let private = builder.private_inputs().to_vec();
     let outputs = std::array::from_fn(|lane| Affine::from(input[lane]) + Affine::from(private[lane % 2]));
     builder.finish(outputs).expect("addition application")
+}
+
+#[test]
+fn deferred_native_refresh_witness_matches_the_eager_proof() {
+    let application = addition();
+    let compile = |defer| {
+        let packages = packages()
+            .with_application_and_refresh_witness(
+                application.records().clone(),
+                application.private_input_count(),
+                application.shape(),
+                defer,
+            )
+            .unwrap();
+        CompiledSteps::with_refresh_storage(packages, defer).unwrap()
+    };
+    let eager = compile(false);
+    let deferred = compile(true);
+    assert_eq!(deferred.identity(), eager.identity());
+    let prove = |steps: &CompiledSteps| {
+        let mut prover = BoundedDepth::new(steps, fold_gate_bits(), crate::engine::Backend::Optimized).unwrap();
+        prover.cap = 1;
+        let mut envelope = prover.initial(words([10, 11, 12, 13])).unwrap();
+        let mut circuits = Vec::new();
+        for step in 0..3 {
+            let message = [F::from_u64(20 + step), F::from_u64(21 + step)];
+            let next = application
+                .execute(envelope.current, &message)
+                .unwrap()
+                .output_state();
+            envelope = prover.extend(&envelope, &message, next, None).unwrap();
+            circuits.push(envelope.pc);
+        }
+        assert_eq!(circuits, [1, 1, 2]);
+        let bytes = prover.encode_proof(&envelope).unwrap();
+        let decoded = prover.decode_proof(&bytes).unwrap();
+        prover
+            .verify(3, decoded.z0, decoded.current, &decoded)
+            .unwrap();
+        bytes
+    };
+    assert_eq!(prove(&deferred), prove(&eager));
 }
 
 fn native_application_verifies(application: ApplicationCircuit) {

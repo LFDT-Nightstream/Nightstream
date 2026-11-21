@@ -2,7 +2,7 @@
 //! (`decisions/field-2p64-59-ring-x64.md`).
 
 use neo_math::{Fq, KExtensions, ProductSum, K};
-use p3_field::extension::BinomiallyExtendable;
+use p3_field::extension::{BinomiallyExtendable, BinomiallyExtendableAlgebra};
 use p3_field::integers::QuotientMap;
 use p3_field::{Field, PermutationMonomial, PrimeCharacteristicRing, PrimeField, PrimeField64};
 use rand_chacha::{rand_core::RngCore, rand_core::SeedableRng, ChaCha8Rng};
@@ -274,6 +274,36 @@ fn k_is_the_field_with_u_squared_equal_to_2() {
         assert_eq!(a.to_limbs_u64(), (a0.as_canonical_u64(), a1.as_canonical_u64()));
     }
     assert_eq!(K::ZERO.try_inverse(), None);
+}
+
+#[test]
+fn quadratic_multiplication_matches_modular_products_for_each_binomial() {
+    let values = [0, 1, 2, Q / 2, Q - 2, Q - 1];
+    let sum = |a, b| ((u128::from(a) + u128::from(b)) % u128::from(Q)) as u64;
+    for a0 in values {
+        for a1 in values {
+            for b0 in values {
+                for b1 in values {
+                    for w in values {
+                        let mut result = [Fq::ZERO; 2];
+                        Fq::binomial_mul(
+                            &[Fq::new(a0), Fq::new(a1)],
+                            &[Fq::new(b0), Fq::new(b1)],
+                            &mut result,
+                            Fq::new(w),
+                        );
+                        assert_eq!(
+                            result.map(|value| value.as_canonical_u64()),
+                            [
+                                sum(mul_mod(a0, b0, Q), mul_mod(w, mul_mod(a1, b1, Q), Q)),
+                                sum(mul_mod(a0, b1, Q), mul_mod(a1, b0, Q)),
+                            ]
+                        );
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[test]

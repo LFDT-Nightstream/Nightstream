@@ -310,7 +310,7 @@ fn check_product(values: Vec<K>, lanes: Vec<K>, blocks: Vec<K>, rounds: usize) {
         &mut Poseidon2Transcript::new_v1_2(),
         values,
         &lanes,
-        &blocks,
+        blocks,
         sum,
         rounds,
         |_, _| {},
@@ -329,5 +329,6 @@ fn the_key_sum_check_is_its_definition() {
     check_product(random(256), random(64), random(3), 9);
     check_product(random(36), random(4), random(9), 6);
     check_product(random(37), random(1), random(21), 6);
+    check_product(random(37), vec![K::ZERO], random(21), 6);
     check_product(random(1 << 15), random(64), random(1 << 9), 15);
 }

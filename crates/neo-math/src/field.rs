@@ -26,6 +26,7 @@ const _: () = assert!((7u128 * INV_7_MOD_Q_MINUS_1 as u128) % (Q as u128 - 1) ==
 
 /// An element of `F_q`. The value is always the canonical one, in `[0, q)`.
 #[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
 pub struct Fq(u64);
 
 pub type K = BinomialExtensionField<Fq, 2>;
@@ -67,6 +68,33 @@ pub fn sum_of_scaled(pairs: impl IntoIterator<Item = (Fq, K)>) -> K {
 }
 
 #[derive(Clone, Copy, Default)]
+pub struct ProductSum([UnreducedProducts; 2]);
+
+const _: () = assert!(<Fq as BinomiallyExtendable<2>>::W.0 == 2);
+
+impl ProductSum {
+    #[inline]
+    pub fn add(self, a: K, b: K) -> Self {
+        let ([a0, a1], [b0, b1]) = (a.as_coeffs(), b.as_coeffs());
+        let [real, imaginary] = self.0;
+        Self([real.add(a0, b0).add(a1, b1.double()), imaginary.add(a0, b1).add(a1, b0)])
+    }
+
+    #[inline]
+    pub fn add_scaled(self, a: Fq, b: K) -> Self {
+        let [b0, b1] = b.as_coeffs();
+        let [real, imaginary] = self.0;
+        Self([real.add(a, b0), imaginary.add(a, b1)])
+    }
+
+    #[inline]
+    pub fn value(self) -> K {
+        let [real, imaginary] = self.0;
+        K::from_coeffs([real.value(), imaginary.value()])
+    }
+}
+
+#[derive(Clone, Copy, Default)]
 struct UnreducedProducts {
     sum: u128,
     wraps: u64,
@@ -85,6 +113,33 @@ impl UnreducedProducts {
     #[inline]
     fn value(self) -> Fq {
         Fq::reduce128(self.sum) + Fq::reduce128(u128::from(self.wraps) * u128::from(TWO_POW_128_MOD_Q))
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct CompactProductSum([[u64; 3]; 2]);
+
+impl CompactProductSum {
+    #[inline]
+    pub fn add_scaled_word(self, a: u64, b: K) -> Self {
+        let terms = b.as_coeffs();
+        Self(std::array::from_fn(|i| {
+            let [lo, hi, wraps] = self.0[i];
+            let sum = (u128::from(hi) << 64) | u128::from(lo);
+            let (sum, wrapped) = sum.overflowing_add(u128::from(a) * u128::from(terms[i].0));
+            [sum as u64, (sum >> 64) as u64, wraps + u64::from(wrapped)]
+        }))
+    }
+
+    #[inline]
+    pub fn value(self) -> K {
+        K::from_coeffs(self.0.map(|[lo, hi, wraps]| {
+            UnreducedProducts {
+                sum: (u128::from(hi) << 64) | u128::from(lo),
+                wraps,
+            }
+            .value()
+        }))
     }
 }
 

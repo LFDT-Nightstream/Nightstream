@@ -173,7 +173,7 @@ impl<'a> Reader<'a> {
             positive.push(self.word()?);
             negative.push(self.word()?);
         }
-        Mat::compact_signed_unit_from_column_masks(D, shape.witness_columns, &positive, &negative)
+        Mat::from_owned_column_masks(D, shape.witness_columns, positive, negative)
             .map_err(|_| ProofCodecError("witness column masks"))
     }
 }

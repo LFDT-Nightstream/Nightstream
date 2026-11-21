@@ -1287,8 +1287,9 @@ not change terminal source checks.
      and the test is the check of the pin. No Lean result covers either.
      The Lean result takes the honest key as a premise.
    - *Akita `[AKITA]` and the gap of `V`.* The one Akita proof opens
-     the key polynomial, `W` and `V`. It uses Akita (ePrint 2026/1983) at
-     git revision `d50f700f`, crate version 0.1.0, with the configuration
+     the key polynomial, `W` and `V`. The prover uses the optimized Akita fork.
+     The verifier uses upstream Akita (ePrint 2026/1983), revision
+     `d50f700f`, crate version 0.1.0, with the configuration
      `RecursiveCommitmentConfig<fp64::Dense>` and the schedule files of
      `SPEC.md` section 3 (`Spec.Compression.Akita.Use`). Akita Theorem 10.46 (revision of
      2026-10-15) bounds extraction failure for an admissible schedule (Akita Definition 9.2)

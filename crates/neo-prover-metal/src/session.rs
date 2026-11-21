@@ -1,5 +1,5 @@
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use dispatch2::DispatchData;
 use objc2::rc::Retained;
@@ -14,8 +14,12 @@ use crate::{MetalActivity, MetalError, BUFFER_LIMIT_BYTES};
 
 mod joint;
 mod masks;
+mod packed;
 mod production_commitment;
 mod rlc;
+pub use rlc::RlcMix;
+mod shared_key;
+mod terminal_opening;
 pub(crate) use joint::MetalPaperJointOracle;
 pub(crate) use masks::MetalWitnessMasks;
 
@@ -35,6 +39,7 @@ const EMPTY_BINDING: [u64; 1] = [0];
 enum Arg<'a> {
     Buffer(usize, &'a ProtocolObject<dyn MTLBuffer>),
     BufferAt(usize, &'a ProtocolObject<dyn MTLBuffer>, usize),
+    Words(usize, &'a [u32]),
 }
 
 #[derive(Clone, Copy)]
@@ -56,8 +61,11 @@ struct ActivityCounters {
 pub struct MetalSession {
     device: Device,
     queue: Queue,
+    packed: [Pipeline; 4],
+    terminal: Option<terminal_opening::Kernels>,
     production_key_row: Pipeline,
     production_ajtai_accumulate: Pipeline,
+    production_ajtai_matrix: Option<Pipeline>,
     production_ajtai_sum_groups: Pipeline,
     tensor_point_expand_k: Pipeline,
     joint_build_application_tables: Pipeline,
@@ -77,6 +85,7 @@ pub struct MetalSession {
     dec_geometric_span_weights: Pipeline,
     dec_add_geometric_span_forms: Pipeline,
     dec_bar_ring_forms_in_place: Pipeline,
+    rlc_light_deltas: Pipeline,
     rlc_witness_mix_signed_masks: Pipeline,
     dec_split_base2_masks: Pipeline,
     dec_sparse_ring_partials: Pipeline,
@@ -89,7 +98,7 @@ pub struct MetalSession {
     production_key: Option<Mutex<production_commitment::ResidentKeyRows>>,
     resident_matrices: joint::Resident<(), Vec<joint::MetalCompactMatrix>>,
     resident_openings: joint::Resident<(usize, usize, bool), joint::ResidentOpening>,
-    activity: ActivityCounters,
+    activity: Arc<ActivityCounters>,
 }
 
 // SAFETY: the session owns a device, command queues, pipelines and buffers,
@@ -108,7 +117,11 @@ impl MetalSession {
         let library = device
             .newLibraryWithData_error(&data)
             .map_err(|error| MetalError::Library(format!("{error:?}")))?;
+        let terminal = terminal_opening::Kernels::new(&device, &library);
         let production_key_row = pipeline(&device, &library, "production_key_row")?;
+        let production_ajtai_matrix = pipeline(&device, &library, "production_ajtai_matrix")
+            .ok()
+            .filter(|p| p.threadExecutionWidth() == 32 && p.maxTotalThreadsPerThreadgroup() >= 256);
         let production_ajtai_accumulate = pipeline(&device, &library, "production_ajtai_accumulate")?;
         let production_ajtai_sum_groups = pipeline(&device, &library, "production_ajtai_sum_groups")?;
         let tensor_point_expand_k = pipeline(&device, &library, "tensor_point_expand_k")?;
@@ -131,6 +144,7 @@ impl MetalSession {
         let dec_geometric_span_weights = pipeline(&device, &library, "dec_geometric_span_weights")?;
         let dec_add_geometric_span_forms = pipeline(&device, &library, "dec_add_geometric_span_forms")?;
         let dec_bar_ring_forms_in_place = pipeline(&device, &library, "dec_bar_ring_forms_in_place")?;
+        let rlc_light_deltas = pipeline(&device, &library, "rlc_light_deltas")?;
         let rlc_witness_mix_signed_masks = pipeline(&device, &library, "rlc_witness_mix_signed_masks")?;
         let dec_split_base2_masks = pipeline(&device, &library, "dec_split_base2_masks")?;
         let dec_sparse_ring_partials = pipeline(&device, &library, "dec_sparse_ring_partials")?;
@@ -140,11 +154,20 @@ impl MetalSession {
         let joint_carried_projection_dense = pipeline(&device, &library, "joint_carried_projection_dense")?;
         let fe_weighted_row_table = pipeline(&device, &library, "fe_weighted_row_table")?;
         let dec_ring_reduce = pipeline(&device, &library, "dec_ring_reduce")?;
+        let packed = [
+            pipeline(&device, &library, "packed_oracle::packed_gate")?,
+            pipeline(&device, &library, "packed_oracle::packed_norm")?,
+            pipeline(&device, &library, "packed_oracle::packed_tail8")?,
+            pipeline(&device, &library, "packed_oracle::packed_tail4")?,
+        ];
         Ok(Self {
+            packed,
             device,
             queue,
+            terminal,
             production_key_row,
             production_ajtai_accumulate,
+            production_ajtai_matrix,
             production_ajtai_sum_groups,
             tensor_point_expand_k,
             joint_build_application_tables,
@@ -164,6 +187,7 @@ impl MetalSession {
             dec_geometric_span_weights,
             dec_add_geometric_span_forms,
             dec_bar_ring_forms_in_place,
+            rlc_light_deltas,
             rlc_witness_mix_signed_masks,
             dec_split_base2_masks,
             dec_sparse_ring_partials,
@@ -176,7 +200,7 @@ impl MetalSession {
             production_key: None,
             resident_matrices: Default::default(),
             resident_openings: Default::default(),
-            activity: ActivityCounters::default(),
+            activity: Arc::default(),
         })
     }
 
@@ -184,21 +208,12 @@ impl MetalSession {
         self.production_key = Some(Mutex::default());
     }
 
+    fn reserve_buffer(&self, bytes: usize) -> Result<std::sync::MutexGuard<'static, ()>, MetalError> {
+        reserve_on(&self.device, bytes)
+    }
+
     fn buffer(&self, bytes: usize) -> Result<Buffer, MetalError> {
-        let _allocation = BUFFER_ALLOCATION
-            .lock()
-            .map_err(|_| MetalError::Execution("buffer allocation lock was poisoned".into()))?;
-        let allocated = self.device.currentAllocatedSize();
-        if allocated
-            .checked_add(bytes)
-            .is_none_or(|total| total > BUFFER_LIMIT_BYTES)
-        {
-            return Err(MetalError::MemoryLimit {
-                requested: bytes,
-                allocated,
-                limit: BUFFER_LIMIT_BYTES,
-            });
-        }
+        let _allocation = self.reserve_buffer(bytes)?;
         // Shared storage is required for explicit CPU boundaries on Apple unified memory.
         let buffer = self
             .device
@@ -276,6 +291,11 @@ impl MetalSession {
             // stored there, at an offset aligned to that type.
             unsafe {
                 match arg {
+                    Arg::Words(index, words) => encoder.setBytes_length_atIndex(
+                        std::ptr::NonNull::from(words).cast(),
+                        size_of_val(words),
+                        slot(index),
+                    ),
                     Arg::Buffer(index, buffer) => encoder.setBuffer_offset_atIndex(Some(buffer), 0, slot(index)),
                     Arg::BufferAt(index, buffer, offset) => {
                         assert!(
@@ -417,6 +437,8 @@ unsafe trait Pod: Copy + Send + Sync {}
 unsafe impl Pod for u8 {}
 // SAFETY: an integer has no padding, and every bit pattern is a value.
 unsafe impl Pod for u16 {}
+// SAFETY: every 16-bit pattern is a valid i16.
+unsafe impl Pod for i16 {}
 // SAFETY: an integer has no padding, and every bit pattern is a value.
 unsafe impl Pod for u32 {}
 // SAFETY: an integer has no padding, and every bit pattern is a value.
@@ -457,4 +479,22 @@ fn host_view_mut(buffer: &mut Buffer, len: usize) -> &mut [u64] {
     // and no command uses it, and the `&mut` borrow keeps it from being
     // bound or viewed again while this view lives.
     unsafe { std::slice::from_raw_parts_mut(contents, len) }
+}
+
+fn reserve_on(device: &Device, bytes: usize) -> Result<std::sync::MutexGuard<'static, ()>, MetalError> {
+    let allocation = BUFFER_ALLOCATION
+        .lock()
+        .map_err(|_| MetalError::Execution("buffer allocation lock was poisoned".into()))?;
+    let allocated = device.currentAllocatedSize();
+    if allocated
+        .checked_add(bytes)
+        .is_none_or(|total| total > BUFFER_LIMIT_BYTES)
+    {
+        return Err(MetalError::MemoryLimit {
+            requested: bytes,
+            allocated,
+            limit: BUFFER_LIMIT_BYTES,
+        });
+    }
+    Ok(allocation)
 }

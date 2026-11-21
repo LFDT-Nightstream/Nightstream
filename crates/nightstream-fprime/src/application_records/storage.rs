@@ -63,10 +63,10 @@ pub(super) struct Writer {
 }
 
 impl Writer {
-    pub(super) fn new() -> Result<Self, PackageError> {
+    pub(super) fn new(capacity: usize) -> Result<Self, PackageError> {
         let (writer, reader, cleanup) = private_file()?;
         Ok(Self {
-            output: BufWriter::new(writer),
+            output: BufWriter::with_capacity(capacity, writer),
             reader,
             cleanup,
             length: 0,
@@ -147,8 +147,21 @@ pub(super) struct Reader {
 
 impl Reader {
     pub(super) fn window(&self) -> Window<'_> {
+        self.window_until(self.length)
+    }
+
+    pub(super) fn payload_window(&self) -> Window<'_> {
+        Window {
+            capacity: WINDOW_BYTES / 2,
+            ..self.window()
+        }
+    }
+
+    pub(super) fn window_until(&self, end: u64) -> Window<'_> {
         Window {
             reader: self,
+            end,
+            capacity: WINDOW_BYTES,
             start: 0,
             bytes: Vec::new(),
         }
@@ -194,18 +207,25 @@ pub(super) const WINDOW_BYTES: u64 = 1 << 20;
 
 pub(super) struct Window<'a> {
     reader: &'a Reader,
+    end: u64,
+    capacity: u64,
     start: u64,
     bytes: Vec<u8>,
 }
 
 impl Window<'_> {
     pub(super) fn word(&mut self, offset: u64) -> Result<u64, PackageError> {
+        let bytes = self.slice(offset, size_of::<u64>())?;
+        Ok(u64::from_le_bytes(bytes.try_into().expect("one record word")))
+    }
+
+    pub(super) fn slice(&mut self, offset: u64, bytes: usize) -> Result<&[u8], PackageError> {
         let end = offset
-            .checked_add(size_of::<u64>() as u64)
-            .filter(|&end| end <= self.reader.length)
+            .checked_add(bytes as u64)
+            .filter(|&end| end <= self.end)
             .ok_or(PackageError::Malformed("application record range exceeds file"))?;
         if offset < self.start || end > self.start + self.bytes.len() as u64 {
-            let bytes = (self.reader.length - offset).min(WINDOW_BYTES);
+            let bytes = (self.end - offset).min(self.capacity);
             self.bytes.resize(bytes as usize, 0);
             Cursor {
                 reader: self.reader,
@@ -216,9 +236,7 @@ impl Window<'_> {
             self.start = offset;
         }
         let at = (offset - self.start) as usize;
-        let mut word = [0; size_of::<u64>()];
-        word.copy_from_slice(&self.bytes[at..at + size_of::<u64>()]);
-        Ok(u64::from_le_bytes(word))
+        Ok(&self.bytes[at..at + bytes])
     }
 }
 

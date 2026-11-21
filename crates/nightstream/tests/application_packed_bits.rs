@@ -48,7 +48,11 @@ fn packed_bits_keep_public_multistep_statements_and_reject_false_inputs() {
         .verify(&State::new(1, initial, current), &proof)
         .unwrap();
     for (index, word) in words.into_iter().enumerate().skip(1) {
-        proof = prover.extend(&proof, &bits(word)).unwrap();
+        let next = prover.extend(&proof, &bits(word)).unwrap();
+        verifier
+            .verify(&State::new(index as u64, initial, current), &proof)
+            .unwrap();
+        proof = next;
         current[0] += F::from_u64(u64::from(word));
         verifier
             .verify(&State::new(index as u64 + 1, initial, current), &proof)

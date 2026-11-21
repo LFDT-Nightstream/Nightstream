@@ -1,7 +1,7 @@
 //! `F_q` with `q = 2^64 − 59` and `K = F_q[u]/(u² − 2)`
 //! (`decisions/field-2p64-59-ring-x64.md`).
 
-use neo_math::{Fq, KExtensions, K};
+use neo_math::{Fq, KExtensions, ProductSum, K};
 use p3_field::extension::BinomiallyExtendable;
 use p3_field::integers::QuotientMap;
 use p3_field::{Field, PermutationMonomial, PrimeCharacteristicRing, PrimeField, PrimeField64};
@@ -274,6 +274,38 @@ fn k_is_the_field_with_u_squared_equal_to_2() {
         assert_eq!(a.to_limbs_u64(), (a0.as_canonical_u64(), a1.as_canonical_u64()));
     }
     assert_eq!(K::ZERO.try_inverse(), None);
+}
+
+#[test]
+fn product_sums_are_the_sums_of_the_products() {
+    let values = samples();
+    let extension = |i: usize| {
+        K::from_coeffs([
+            Fq::from_u64(values[i % values.len()]),
+            Fq::from_u64(values[(i * 7 + 3) % values.len()]),
+        ])
+    };
+    let mut sum = ProductSum::default();
+    let mut reference = K::ZERO;
+    for i in 0..1_000 {
+        let (a, b, scale) = (
+            extension(i),
+            extension(i + 13),
+            Fq::from_u64(values[(i + 5) % values.len()]),
+        );
+        sum = sum.add(a, b).add_scaled(scale, b);
+        reference += a * b + b * scale;
+    }
+    assert_eq!(sum.value(), reference);
+    let extreme = K::from_coeffs([Fq::NEG_ONE, Fq::NEG_ONE]);
+    let sum = (0..1_000).fold(ProductSum::default(), |sum, _| {
+        sum.add(extreme, extreme).add_scaled(Fq::NEG_ONE, extreme)
+    });
+    assert_eq!(
+        sum.value(),
+        (extreme * extreme + extreme * Fq::NEG_ONE) * Fq::from_u64(1_000)
+    );
+    assert_eq!(ProductSum::default().value(), K::ZERO);
 }
 
 #[test]

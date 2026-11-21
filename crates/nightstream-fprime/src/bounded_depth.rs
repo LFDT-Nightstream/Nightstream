@@ -302,6 +302,7 @@ impl Block<'_> {
 pub struct ExpandedPackage {
     package: StepPackage,
     rows: PlanRows,
+    fresh_product_rows: Box<[usize]>,
     layout: layout::LogicalLayout,
 }
 
@@ -339,6 +340,7 @@ impl StepPackage {
     pub fn expand(mut self) -> Result<ExpandedPackage, PackageError> {
         let (rows, layout) = rayon::join(|| self.plan_rows(), || self.layout());
         let (rows, layout) = (rows?, layout?);
+        let fresh_product_rows = self.fresh_product_rows(&rows);
         for piece in &mut self.pieces {
             if let Piece::Rows(rows) = piece {
                 *rows = Vec::new();
@@ -350,6 +352,7 @@ impl StepPackage {
         self.slots = Vec::new();
         Ok(ExpandedPackage {
             rows,
+            fresh_product_rows,
             layout,
             package: self,
         })

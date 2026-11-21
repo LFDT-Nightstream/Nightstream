@@ -1,21 +1,19 @@
 use crate::support::{claim_of_seed, instances, key, layout, random_extension, statements};
-use neo_ajtai::nightstream_fprime_setup::{coefficient_block, PRODUCTION_SEED};
+use neo_ajtai::nightstream_fprime_setup::{coefficient_block, ExpandedKey, PRODUCTION_SEED};
 use neo_math::{D, F, K};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
+use std::sync::Arc;
 
 use akita_serialization::AkitaSerialize;
 use akita_types::{AkitaSetupSeed, SetupPrefixVerifierRegistry};
-use jolt_field::Ring;
 
-use super::{
-    by_cell, committed, fold, prefix_equality, production_element, row_point, table, weight_at, weight_table,
-    ProverKey, VerificationKey,
-};
-use crate::akita::{self, Base, Schedules, SCHEDULES};
+use super::{block_weights, fold, prefix_equality, row_point, weight_at, ProverKey, VerificationKey};
+use crate::akita::verifier::{commitment, setup_prefixes};
+use crate::akita::{Schedules, SCHEDULES};
 use crate::layout::LANE_VARS;
 use crate::ring::{dot, Point};
 use crate::sumcheck;
@@ -38,6 +36,14 @@ fn value(table: &[K], point: &[K]) -> K {
         .zip(equality(point, table.len()))
         .map(|(&cell, weight)| cell * weight)
         .sum()
+}
+
+/// `H` of SPEC.md Algorithm 9, step 10, as a table, lane first.
+fn weight_table(uses: &Uses) -> Vec<K> {
+    block_weights(uses)
+        .iter()
+        .flat_map(|&block| uses.form.map(|lane| lane * block))
+        .collect()
 }
 
 fn the_reduction_gives_the_shake_value(blocks: usize, counts: &[usize], seed: u64) {
@@ -80,9 +86,14 @@ fn the_reduction_gives_the_shake_value(blocks: usize, counts: &[usize], seed: u6
         .map(|claim| claim.coefficient * dot(&equality(claim.point, claim.blocks), &by_block))
         .sum();
 
-    let table = table(blocks, production_element, F::new);
-    let folded = fold(&by_cell(&table), omega);
-    assert_eq!(weights::key_part(&uses, &folded), direct, "the prover's sum");
+    let key = ExpandedKey::production(blocks as u64);
+    let folded = fold(&key, omega, blocks);
+    let blocks_for_key = block_weights(&uses);
+    assert_eq!(
+        weights::key_part(&uses.form, &blocks_for_key, &folded),
+        direct,
+        "the prover's sum"
+    );
 
     for claim in &uses.claims {
         if !claim.blocks.is_power_of_two() {
@@ -99,10 +110,12 @@ fn the_reduction_gives_the_shake_value(blocks: usize, counts: &[usize], seed: u6
     let rounds = LANE_VARS + block_vars;
     let (messages, point, folded_value) = sumcheck::prove_product(
         &mut Poseidon2Transcript::new_v1_2(),
-        folded.clone(),
-        weight_table(&uses),
+        folded[..(D * counts.iter().copied().max().unwrap())].to_vec(),
+        &uses.form,
+        &blocks_for_key,
         direct,
         rounds,
+        |lanes, values| super::fold_remaining_blocks(&key, omega, lanes, values),
     );
     assert_eq!(messages.len(), rounds);
     let (verifier_point, claim) =
@@ -121,10 +134,11 @@ fn the_reduction_gives_the_shake_value(blocks: usize, counts: &[usize], seed: u6
     assert_eq!(folded_value, value(&folded, &point));
 
     let (row_point, scale) = row_point(omega).expect("row point");
-    let row_values: Vec<K> = table
+    let row_values: Vec<K> = key
+        .words()
         .chunks(blocks * D)
         .map(|row| {
-            let cells: Vec<K> = row.par_iter().map(|&cell| K::from(cell)).collect();
+            let cells: Vec<K> = row.par_iter().map(|&cell| K::from(F::new(cell))).collect();
             value(&cells, &point)
         })
         .collect();
@@ -145,11 +159,43 @@ fn the_reduction_gives_the_shake_value(blocks: usize, counts: &[usize], seed: u6
 fn the_reduction_of_a_small_key_gives_the_shake_value() {
     the_reduction_gives_the_shake_value(16, &[16, 5, 11, 1], 1);
     the_reduction_gives_the_shake_value(8, &[7], 2);
+    the_reduction_gives_the_shake_value(32, &[1], 4);
 }
 
 #[test]
 fn the_reduction_of_the_light_relation_gives_the_shake_value() {
     the_reduction_gives_the_shake_value(LIGHT_BLOCKS.next_power_of_two(), &[LIGHT_BLOCKS], 3);
+}
+
+#[test]
+fn the_fold_is_the_sum_of_the_key_rows_times_the_powers_of_omega() {
+    let mut rng = ChaCha8Rng::seed_from_u64(6);
+    let omega = random_extension(&mut rng);
+    let rows = powers(omega, KAPPA);
+    for blocks in [2, 18, 34] {
+        let key = ExpandedKey::of_pairs(blocks, |row, pair| {
+            let word = |lane: usize| match (u64::from(row) + pair + lane as u64) % 5 {
+                0 => u64::MAX - lane as u64,
+                1 => 0,
+                _ => rng_word(row, pair, lane),
+            };
+            [std::array::from_fn(word), std::array::from_fn(|lane| word(lane + D))]
+        });
+        let cells = blocks as usize * D;
+        let expected: Vec<K> = (0..cells)
+            .map(|cell| {
+                (0..KAPPA)
+                    .map(|row| rows[row] * F::new(key.words()[row * cells + cell]))
+                    .sum()
+            })
+            .collect();
+        assert!(fold(&key, omega, blocks as usize) == expected, "{blocks} blocks");
+    }
+}
+
+fn rng_word(row: u32, pair: u64, lane: usize) -> u64 {
+    let mut rng = ChaCha8Rng::seed_from_u64((u64::from(row) << 48) ^ (pair << 8) ^ lane as u64);
+    rand::RngCore::next_u64(&mut rng)
 }
 
 #[test]
@@ -202,10 +248,7 @@ fn the_powers_of_omega_are_a_scaled_equality_table() {
 #[test]
 fn a_proof_under_the_key_of_another_seed_does_not_verify() {
     let seed = [7u8; 32];
-    let other = ProverKey::of_elements(&SCHEDULES[0], |row, pair| {
-        [2 * pair, 2 * pair + 1].map(|block| coefficient_block(&seed, row, block))
-    })
-    .expect("key");
+    let other = other_key(&seed);
     assert_ne!(other.verification_key(), key().verification_key());
     assert_eq!(other.verification_key().blocks(), key().verification_key().blocks());
     assert!(matches!(
@@ -242,13 +285,10 @@ fn a_proof_under_the_key_of_another_seed_does_not_verify() {
 #[test]
 fn the_rows_of_another_key_under_the_honest_commitment_do_not_verify() {
     let seed = [7u8; 32];
-    let other = ProverKey::of_elements(&SCHEDULES[0], |row, pair| {
-        [2 * pair, 2 * pair + 1].map(|block| coefficient_block(&seed, row, block))
-    })
-    .expect("key");
+    let other = other_key(&seed);
     let mut forged = ProverKey::new(key().verification_key().blocks()).expect("key");
     assert_eq!(forged.verification_key(), key().verification_key());
-    forged.table = other.table.clone();
+    forged.key = other.key.clone();
 
     let mut instances = instances();
     for instance in &mut instances {
@@ -272,10 +312,18 @@ fn the_rows_of_another_key_under_the_honest_commitment_do_not_verify() {
     }
 }
 
+fn other_key(seed: &[u8; 32]) -> ProverKey {
+    let blocks = SCHEDULES[0].blocks() as u64;
+    let key = ExpandedKey::of_pairs(blocks, |row, pair| {
+        [2 * pair, 2 * pair + 1].map(|block| coefficient_block(seed, row, block))
+    });
+    ProverKey::of_key(&SCHEDULES[0], Arc::new(key)).expect("key")
+}
+
 fn derive(schedules: &'static Schedules) -> VerificationKey {
-    committed(schedules, table(schedules.blocks(), production_element, Base::from_u64))
+    ProverKey::of_key(schedules, ExpandedKey::production(schedules.blocks() as u64))
         .expect("key")
-        .2
+        .verification
 }
 
 fn the_pinned_key_is_the_key_of_the_public_seeds(schedules: &'static Schedules) {
@@ -316,7 +364,7 @@ fn only_a_pinned_key_decodes() {
         for at in 0..key.commitment.len() {
             let mut changed = key.commitment.clone();
             changed[at] ^= 1;
-            well_formed += usize::from(akita::commitment(&changed).is_ok());
+            well_formed += usize::from(commitment(&changed).is_ok());
             assert!(
                 rejected(&with_parts(&key, &changed, &key.setup_prefixes)),
                 "commitment byte {at}"
@@ -324,7 +372,7 @@ fn only_a_pinned_key_decodes() {
         }
         assert!(well_formed > 0, "no changed commitment is well formed");
 
-        let registry = akita::setup_prefixes(&key.setup_prefixes).expect("registry");
+        let registry = setup_prefixes(&key.setup_prefixes).expect("registry");
         let mut other = SetupPrefixVerifierRegistry::new(AkitaSetupSeed::shake256_paged_v1([9; 32]));
         for (_, slot) in registry.iter() {
             other.insert(slot.clone()).expect("slot");
@@ -337,7 +385,7 @@ fn only_a_pinned_key_decodes() {
         for at in 0..key.setup_prefixes.len() {
             let mut changed = key.setup_prefixes.clone();
             changed[at] ^= 1;
-            well_formed += usize::from(akita::setup_prefixes(&changed).is_ok());
+            well_formed += usize::from(setup_prefixes(&changed).is_ok());
             assert!(
                 rejected(&with_parts(&key, &key.commitment, &changed)),
                 "setup prefix byte {at}"
@@ -347,4 +395,12 @@ fn only_a_pinned_key_decodes() {
             assert!(well_formed > 0, "no changed registry is well formed");
         }
     }
+}
+
+#[test]
+fn circuits_that_fit_one_schedule_share_its_live_prover_key() {
+    let a = ProverKey::shared(1).expect("small key");
+    let b = ProverKey::shared(a.verification_key().blocks()).expect("same schedule");
+    assert!(std::sync::Arc::ptr_eq(&a, &b));
+    assert_eq!(a.verification_key(), &VerificationKey::new(1).unwrap());
 }

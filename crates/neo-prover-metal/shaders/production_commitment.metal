@@ -184,6 +184,65 @@ kernel void production_ajtai_accumulate(
         fq_sub(half_sums_reduce(positive), half_sums_reduce(negative));
 }
 
+#include <metal_simdgroup_matrix>
+
+// X^64 = -1. Each byte sum is an integer with magnitude at most 512 * 64 * 255 < 2^24.
+kernel void production_ajtai_matrix(
+    device const uchar *key [[buffer(0)]],
+    device const ulong2 *masks [[buffer(1)]],
+    device const ulong *shape [[buffer(2)]],
+    device ulong *partials [[buffer(3)]],
+    device const uint *key_columns [[buffer(4)]],
+    uint group [[threadgroup_position_in_grid]],
+    uint thread_index [[thread_index_in_threadgroup]],
+    uint simd_group [[simdgroup_index_in_threadgroup]],
+    uint lane [[thread_index_in_simdgroup]]) {
+    threadgroup half key_bytes[64][8];
+    threadgroup half signed_shifts[128];
+    threadgroup float byte_sums[8][8][8];
+    simdgroup_float8x8 sums = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
+    uint span = uint(shape[3]);
+    uint end = min(uint(shape[0]), (group + 1) * span);
+    for (uint position = group * span; position < end; ++position) {
+        device const uchar *element = key + ulong(key_columns[position]) * 64 * 8;
+        for (uint byte = thread_index; byte < 64 * 8; byte += 256) {
+            uint reversed_coefficient = (byte / 8) ^ 7;
+            key_bytes[reversed_coefficient][byte % 8] = half(element[byte]);
+        }
+        if (thread_index < 64) {
+            ulong2 digits = masks[position];
+            half digit = half(int((digits.x >> thread_index) & 1) - int((digits.y >> thread_index) & 1));
+            signed_shifts[64 + thread_index] = digit;
+            signed_shifts[thread_index] = -digit;
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        for (uint coefficient = 0; coefficient < 64; coefficient += 8) {
+            simdgroup_half8x8 shifts, bytes;
+            uint start = 64 + 8 * simd_group - (coefficient + 7);
+            simdgroup_load(shifts, signed_shifts + start, 1);
+            simdgroup_load(bytes, &key_bytes[coefficient][0], 8);
+            simdgroup_multiply_accumulate(sums, shifts, bytes, sums);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    simdgroup_store(sums, &byte_sums[simd_group][0][0], 8);
+    simdgroup_barrier(mem_flags::mem_threadgroup);
+    if (lane < 8) {
+        HalfSums positive = {0, 0};
+        HalfSums negative = {0, 0};
+        for (uint byte = 0; byte < 4; ++byte) {
+            int low = int(byte_sums[simd_group][lane][byte]);
+            int high = int(byte_sums[simd_group][lane][4 + byte]);
+            positive.lo += ulong(max(low, 0)) << (8 * byte);
+            positive.hi += ulong(max(high, 0)) << (8 * byte);
+            negative.lo += ulong(max(-low, 0)) << (8 * byte);
+            negative.hi += ulong(max(-high, 0)) << (8 * byte);
+        }
+        partials[group * 64 + simd_group * 8 + lane] =
+            fq_sub(half_sums_reduce(positive), half_sums_reduce(negative));
+    }
+}
+
 kernel void production_ajtai_sum_groups(
     device const ulong *partials [[buffer(0)]],
     device const ulong *shape [[buffer(1)]],

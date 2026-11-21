@@ -8,7 +8,9 @@ extern crate self as ns_compress;
 mod support;
 
 mod akita;
+mod column_runs;
 mod key;
+mod lane_prefix;
 mod layout;
 mod lookup;
 mod prover;
@@ -24,6 +26,7 @@ use neo_reductions::superneo_eval::MatrixRows;
 use neo_transcript::{domain_chunk_v1_2, Poseidon2Transcript};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
+pub use akita::{in_cpu_prover_pool, CpuProverPool};
 pub use key::{key_blocks, ProverKey, VerificationKey};
 pub use layout::Layout;
 pub use prover::{commit, Committed, ProverTimes};

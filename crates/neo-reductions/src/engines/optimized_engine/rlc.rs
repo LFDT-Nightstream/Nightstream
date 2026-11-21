@@ -195,6 +195,16 @@ where
         );
     }
 
+    if let Some(witness) = light_popcount_mix(rhos, Zs) {
+        return witness;
+    }
+    mix_validated(rhos, Zs, z_cols)
+}
+
+fn mix_validated<Ff>(rhos: &[Mat<Ff>], Zs: &[&Mat<Ff>], z_cols: usize) -> Mat<Ff>
+where
+    Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
+{
     let mut Z = Mat::zero(D, z_cols, Ff::ZERO);
     for (rho, z_in) in rhos.iter().zip(Zs.iter()) {
         if mat_is_zero(z_in) {
@@ -204,6 +214,75 @@ where
     }
     Z
 }
+
+fn light_popcount_mix<Ff>(rhos: &[Mat<Ff>], witnesses: &[&Mat<Ff>]) -> Option<Mat<Ff>>
+where
+    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
+{
+    let ([rho, weight], [fresh, running]) = (rhos, witnesses) else {
+        return None;
+    };
+    let columns = fresh.cols();
+    if columns == 0 || rho.rows() != D || rho.cols() != D || weight.rows() != D || !weight.is_identity() {
+        return None;
+    }
+    if running.is_packed_signed_unit() {
+        return None;
+    }
+    let (positive, negative) = fresh.packed_signed_unit_column_masks()?;
+    let mut coefficients = [[0u64; 3]; D];
+    for (row, parts) in rho.as_slice().chunks_exact(D).zip(&mut coefficients) {
+        for (lane, value) in row.iter().enumerate() {
+            let canonical = value.as_canonical_u64();
+            let complement = Ff::ORDER_U64 - canonical;
+            let mask = 1u64 << lane;
+            match canonical.min(complement) {
+                0 => continue,
+                1 => parts[1] |= mask,
+                2 => parts[2] |= mask,
+                _ => return None,
+            }
+            if complement < canonical {
+                parts[0] |= mask;
+            }
+        }
+    }
+    let mut out = Mat::zero(D, columns, Ff::ZERO);
+    let constant = running.virtual_constant_value().copied();
+    let previous = if constant.is_none() { running.as_slice() } else { &[] };
+    let add = |row: usize, output: &mut [Ff]| {
+        let [signs, units, doubles] = coefficients[row];
+        let count_signed =
+            |selected: u64, flipped: u64| selected.count_ones() as i32 - 2 * (selected & flipped).count_ones() as i32;
+        let prior = if constant.is_none() {
+            &previous[row * columns..(row + 1) * columns]
+        } else {
+            &[]
+        };
+        for (column, entry) in output.iter_mut().enumerate() {
+            let occupied = positive[column] | negative[column];
+            let flipped = signs ^ negative[column];
+            let sum = count_signed(occupied & units, flipped) + 2 * count_signed(occupied & doubles, flipped);
+            *entry = constant.unwrap_or_else(|| prior[column]) + Ff::from_i32(sum);
+        }
+    };
+    #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+    if rayon::current_num_threads() > 1 {
+        out.as_mut_slice()
+            .par_chunks_exact_mut(columns)
+            .enumerate()
+            .for_each(|(row, output)| add(row, output));
+        return Some(out);
+    }
+    for (row, output) in out.as_mut_slice().chunks_exact_mut(columns).enumerate() {
+        add(row, output);
+    }
+    Some(out)
+}
+
+#[cfg(test)]
+#[path = "../../../tests/unit/rlc_popcount.rs"]
+mod popcount_tests;
 
 pub fn rlc_combine_claims<Ff>(
     s: &CcsStructure<Ff>,

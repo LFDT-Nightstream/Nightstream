@@ -1,9 +1,9 @@
 use super::{Rq, SuperneoEvalCache, SuperneoMatrixCache, SuperneoZBlocks};
 use neo_math::{
     signed_sums::{SignedLimbs, SmallDigits},
-    superneo_bar_block, KExtensions, D, F, K,
+    sum_of_scaled, superneo_bar_block, KExtensions, D, F, K,
 };
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{Field, PrimeCharacteristicRing};
 
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
@@ -233,6 +233,59 @@ pub(crate) fn weighted_identity_projection(z_blocks: &SuperneoZBlocks, weights: 
         .enumerate()
         .for_each(|(block, output)| fill_block(block, output));
     out
+}
+
+pub(crate) fn fill_geometric_projection(witnesses: &[SuperneoZBlocks], coefficients: &[K], ratio: K, output: &mut [K]) {
+    let mut power = K::ONE;
+    let powers: [K; D] = std::array::from_fn(|_| {
+        let next = power;
+        power *= ratio;
+        next
+    });
+    let mut active = witnesses
+        .iter()
+        .zip(coefficients)
+        .filter(|(source, coefficient)| !source.is_zero() && **coefficient != K::ZERO);
+    if let (Some((source, &coefficient)), None) = (active.next(), active.next()) {
+        assert_eq!(
+            witnesses.len(),
+            coefficients.len(),
+            "projection source coefficient count"
+        );
+        assert!(output.len().is_multiple_of(D), "projection needs complete ring blocks");
+        assert!(
+            witnesses
+                .iter()
+                .all(|source| source.block_len() == output.len() / D && source.imag_all_zero()),
+            "projection sources must be real and match the complete carrier"
+        );
+        let inverse = ratio.try_inverse();
+        let scale = inverse.map(|inverse| coefficient * (K::ONE + power) * inverse);
+        let fill = |(block, output): (usize, &mut [K])| {
+            if !source.real_nonzero(block) {
+                output.fill(K::ZERO);
+                return;
+            }
+            let digits: [F; D] = std::array::from_fn(|lane| source.real_coefficient(block, lane));
+            if let (Some(inverse), Some(scale)) = (inverse, scale) {
+                let mut value = coefficient * sum_of_scaled(digits.into_iter().zip(powers));
+                for (output, digit) in output.iter_mut().zip(digits) {
+                    *output = value;
+                    value = value * inverse - scale.scale_base(digit);
+                }
+            } else {
+                for (output, digit) in output.iter_mut().zip(digits) {
+                    *output = coefficient.scale_base(digit);
+                }
+            }
+        };
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
+        output.par_chunks_mut(D).enumerate().for_each(fill);
+        #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
+        output.chunks_mut(D).enumerate().for_each(fill);
+        return;
+    }
+    fill_combined_projection(witnesses, coefficients, &powers, output);
 }
 
 pub(crate) fn fill_combined_projection(

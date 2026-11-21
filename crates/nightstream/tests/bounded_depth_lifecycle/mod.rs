@@ -4,6 +4,7 @@
 #[path = "../bounded_depth_support/mod.rs"]
 mod support;
 
+mod checked_rows;
 mod compression;
 mod compression_error;
 mod encodings;

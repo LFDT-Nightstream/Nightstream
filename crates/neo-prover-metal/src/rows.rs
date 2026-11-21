@@ -1,12 +1,13 @@
 use neo_ccs::{CcsStructure, Mat, V1_2Evaluations};
 use neo_math::{F, K};
+use neo_reductions::superneo_eval::{OpeningMatrix, OpeningWitness, TerminalOpeningDevice};
 use neo_reductions::{
     optimized_engine::{PaperJointOracleBackend, PaperJointOracleInput, PaperJointRoundOracle},
     superneo_eval::MatrixRows,
     PiCcsError,
 };
 
-use crate::session::MetalPaperJointOracle;
+use crate::session::{MetalPaperJointOracle, RlcMix};
 use crate::{oracle_error, MetalActivity, MetalError, MetalSession};
 
 pub struct MetalRowProver {
@@ -31,6 +32,13 @@ impl MetalRowProver {
             * size_of::<u64>()
     }
 
+    pub fn packed_rounds(
+        &self,
+        input: &PaperJointOracleInput<'_>,
+    ) -> Result<Option<Box<dyn neo_reductions::optimized_engine::PackedGateNorm>>, PiCcsError> {
+        self.session.packed_rounds(input).map_err(oracle_error)
+    }
+
     pub fn activity(&self) -> MetalActivity {
         self.session.activity()
     }
@@ -44,7 +52,7 @@ impl MetalRowProver {
             .map_err(oracle_error)
     }
 
-    pub fn mix_rlc_witnesses(&self, rhos: &[Mat<F>], witnesses: &[&Mat<F>]) -> Result<Mat<F>, PiCcsError> {
+    pub fn mix_rlc_witnesses(&self, rhos: &[Mat<F>], witnesses: &[&Mat<F>]) -> Result<RlcMix, PiCcsError> {
         self.session
             .mix_rlc_witnesses(rhos, witnesses)
             .map_err(oracle_error)
@@ -116,6 +124,23 @@ impl MetalRowProver {
         self.session
             .evaluate_terminal_rows(&plan, structure, running, point, fresh)
             .map_err(oracle_error)
+    }
+}
+
+impl TerminalOpeningDevice for MetalRowProver {
+    fn supports(&self, blocks: usize, _witnesses: usize) -> bool {
+        self.session.supports_tiled_openings(blocks)
+    }
+    fn evaluate(
+        &self,
+        matrices: &[OpeningMatrix<'_>],
+        weights: &[K],
+        witnesses: &[OpeningWitness<'_>],
+        budget: usize,
+        result: &mut [[K; neo_math::D]],
+    ) -> bool {
+        self.session
+            .tiled_opening(matrices, weights, witnesses, budget, result)
     }
 }
 

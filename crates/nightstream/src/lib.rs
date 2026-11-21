@@ -18,6 +18,7 @@ pub use circuit::{
 };
 pub use engine::{Engine, EngineError};
 pub use neo_math::Fq;
+pub use ns_compress::CpuProverPool;
 /// The field `F_q`, `q = 2^64 − 59`, of every state, input and output word, and the
 /// Plonky3 traits that build and read its elements.
 pub use p3_field::{PrimeCharacteristicRing, PrimeField64};

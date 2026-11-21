@@ -30,6 +30,10 @@ impl EqualityWeights {
         }
     }
 
+    pub(crate) fn factors(&self) -> (&[K], &[K]) {
+        (&self.low, &self.high)
+    }
+
     pub fn at(&self, index: usize) -> K {
         self.low[index & (self.low.len() - 1)] * self.high[index >> self.low_bits]
     }

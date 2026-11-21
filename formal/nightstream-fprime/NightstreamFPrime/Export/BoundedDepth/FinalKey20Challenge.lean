@@ -8,11 +8,10 @@ sparse challenge families (SPEC.md, Algorithm 10; Akita, ePrint 2026/1983, revis
 - `Opening.Drawn` has the hypotheses of `FinalKey20.sound` on an opening whose decoders are
   `draw` of the families of the Akita code: `(31, 10)` for the groups of `W` and `V` and for the
   level 1, `(31, 0)` for the key group and for the level 2, and the base families `(31, 0)` of
-  the level 3 and `(31, 11)` of the levels 4 and 5 and of the terminal with the filters `keep₃`,
-  `keep₄`, `keep₅` and `keepL`. It has no hypothesis on units, on `‖c‖_1` or on the slot
-  probability. Its hypotheses on the challenges are `filtered₃` to `filteredL`: each filter
-  accepts only elements that the fixed-point predicate of an accurate table accepts
-  (`TrigTable.Filtered`; Akita Appendix H, Theorem H.1).
+  the level 3 and `(31, 11)` of the levels 4 and 5 and of the terminal with the filter
+  `TrigTable.codeAccepts` of the code. It has no hypothesis on units, on `‖c‖_1`, on the
+  operator bound or on the slot probability: the filter of the code accepts only elements with
+  `‖c‖_mul,2 ≤ Γ` (`TrigTable.filtered_code`; Akita Appendix H, Theorem H.1).
 - `Opening.Drawn.sized` gives `Opening.Sized` with the slot probability `p = 1/q²`.
 - `verifier_sound_drawn` is `verifier_sound` for a family of openings with `Opening.Drawn`.
 - `history_sound_drawn` and `history_knowledge_drawn` are `history_sound` and
@@ -99,15 +98,10 @@ local notation "fifth" =>
 /-- The hypotheses of `FinalKey20.sound` on the Akita opening of `o`, when its decoders are the
 decoders `draw` of the sparse challenge families of the Akita code. `decode` to `decodeL`,
 `mass`, `peak` and `weight₁` to `weight₅`: the decoders and the numbers `ω` and `c_max` of `o`
-are those of the families. `keep₃`, `keep₄`, `keep₅` and `keepL` are the filters of the levels 3
-to 5 and of the terminal, and `filtered₃` to `filteredL` state that each filter accepts only elements
-that the fixed-point predicate of an accurate table accepts for `Γ` = 13, 18, 18 and 18, so a
-member that passes it has `‖c‖_mul,2 ≤ Γ` (Akita (23) and Theorem H.1;
-`TrigTable.Filtered.mulBound`). The other fields are those of `Opening.Sized` that are not about a challenge
-family. -/
-structure Opening.Drawn (keep₃ : Rq level₃.shape.innerDegree → Prop)
-    (keep₄ : Rq level₄.shape.innerDegree → Prop) (keep₅ : Rq level₅.shape.innerDegree → Prop)
-    (keepL : Rq Key20.terminal.innerDegree → Prop) : Prop where
+are those of the families, with the filter `TrigTable.codeAccepts` of the code for `Γ` = 13,
+18, 18 and 18 at the levels 3 to 5 and at the terminal (Akita (23)). The other fields are those
+of `Opening.Sized` that are not about a challenge family. -/
+structure Opening.Drawn : Prop where
   laid : setup.Laid o.shape
   early : ∀ anchor g, g ≠ 2 → o.bound anchor g = o.bound (anchor.take 0) g
   injective : Function.Injective o.block
@@ -121,38 +115,37 @@ structure Opening.Drawn (keep₃ : Rq level₃.shape.innerDegree → Prop)
   decode₂ : o.decode₂ = draw (SparseFamily _ 31 0) fun _ => True
   weight₂ : o.weight₂ = 31
   injective₃ : Function.Injective o.block₃
-  decode₃ : o.decode₃ = draw (SparseFamily _ 31 0) keep₃
+  decode₃ : o.decode₃ = draw (SparseFamily _ 31 0)
+    (TrigTable.codeAccepts level₃.shape.innerDegree norm₃.operator)
   weight₃ : o.weight₃ = 31
-  filtered₃ : TrigTable.Filtered norm₃.operator keep₃
   injective₄ : Function.Injective o.block₄
-  decode₄ : o.decode₄ = draw (SparseFamily _ 31 11) keep₄
+  decode₄ : o.decode₄ = draw (SparseFamily _ 31 11)
+    (TrigTable.codeAccepts level₄.shape.innerDegree norm₄.operator)
   weight₄ : o.weight₄ = 53
-  filtered₄ : TrigTable.Filtered norm₄.operator keep₄
   injective₅ : Function.Injective o.block₅
-  decode₅ : o.decode₅ = draw (SparseFamily _ 31 11) keep₅
+  decode₅ : o.decode₅ = draw (SparseFamily _ 31 11)
+    (TrigTable.codeAccepts level₅.shape.innerDegree norm₅.operator)
   weight₅ : o.weight₅ = 53
-  filtered₅ : TrigTable.Filtered norm₅.operator keep₅
   next : Terminal.start o.terminal = Tier.finish fifth
   inside : Terminal.start o.terminal < total
   injectiveL : Function.Injective (Terminal.block o.terminal)
-  decodeL : Terminal.decode o.terminal = draw (SparseFamily _ 31 11) keepL
-  filteredL : TrigTable.Filtered normTerminal.operator keepL
+  decodeL : Terminal.decode o.terminal = draw (SparseFamily _ 31 11)
+    (TrigTable.codeAccepts Key20.terminal.innerDegree normTerminal.operator)
   registered : ∀ anchor, o.honest.Opens o.factorBound o.sourceBound (o.key 0) (o.bound anchor 0)
     (keyBase (FinalVerifier.Setup.params S₀ o.shape))
   covers : o.factorBound * (root.fold 0).sourceBound (root.shape 0) + 2 * o.mass 0 * o.sourceBound ≤
     o.innerBound
 
-variable {o} {keep₃ : Rq level₃.shape.innerDegree → Prop}
-  {keep₄ : Rq level₄.shape.innerDegree → Prop} {keep₅ : Rq level₅.shape.innerDegree → Prop}
-  {keepL : Rq Key20.terminal.innerDegree → Prop}
+variable {o}
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- An opening with `Opening.Drawn` has `Opening.Sized` with the slot probability `p = 1/q²`:
 the families have units as differences (`Key20.draw_units`), their members have the norms `ω`
 and `c_max` (`Key20.draw_sparse`), and a decoder `draw` gives each challenge for at most one of
-the `q²` slots (`Key20.slotChance_draw`). -/
+the `q²` slots (`Key20.slotChance_draw`), and the filter of the code gives the operator bound
+(`TrigTable.filtered_code`). -/
 theorem Opening.Drawn.sized
-    (drawn : o.Drawn setup packageWidths step cap control read head keep₃ keep₄ keep₅ keepL) :
+    (drawn : o.Drawn setup packageWidths step cap control read head) :
     o.Sized setup packageWidths step cap control read head (1 / (fieldModulus : ℝ) ^ 2) where
   laid := drawn.laid
   early := drawn.early
@@ -187,7 +180,8 @@ theorem Opening.Drawn.sized
     exact Key20.draw_sparse⟩
   bounded₃ challenge decoded := by
     rw [drawn.decode₃] at decoded
-    exact drawn.filtered₃.mulBound (by decide) (draw_mem decoded.choose_spec).2
+    exact (TrigTable.filtered_code (by decide) _).mulBound (by decide)
+      (draw_mem decoded.choose_spec).2
   injective₄ := drawn.injective₄
   units₄ := by
     rw [drawn.decode₄]
@@ -197,7 +191,8 @@ theorem Opening.Drawn.sized
     exact Key20.draw_sparse⟩
   bounded₄ challenge decoded := by
     rw [drawn.decode₄] at decoded
-    exact drawn.filtered₄.mulBound (by decide) (draw_mem decoded.choose_spec).2
+    exact (TrigTable.filtered_code (by decide) _).mulBound (by decide)
+      (draw_mem decoded.choose_spec).2
   injective₅ := drawn.injective₅
   units₅ := by
     rw [drawn.decode₅]
@@ -207,7 +202,8 @@ theorem Opening.Drawn.sized
     exact Key20.draw_sparse⟩
   bounded₅ challenge decoded := by
     rw [drawn.decode₅] at decoded
-    exact drawn.filtered₅.mulBound (by decide) (draw_mem decoded.choose_spec).2
+    exact (TrigTable.filtered_code (by decide) _).mulBound (by decide)
+      (draw_mem decoded.choose_spec).2
   next := drawn.next
   inside := drawn.inside
   injectiveL := drawn.injectiveL
@@ -218,7 +214,8 @@ theorem Opening.Drawn.sized
   boundedL challenge decoded := by
     unfold Terminal.family at decoded
     rw [drawn.decodeL] at decoded
-    exact drawn.filteredL.mulBound (by decide) (draw_mem decoded.choose_spec).2
+    exact (TrigTable.filtered_code (by decide) _).mulBound (by decide)
+      (draw_mem decoded.choose_spec).2
   chance g := by
     rw [drawn.decode]
     exact Key20.slotChance_draw _ _
@@ -257,8 +254,7 @@ of the sparse challenge families: `verifier_sound` with `p = 1/q²`. For each pr
 `Q` queries to the oracle, the probability over the table of the oracle that `finalAccepts`
 accepts and no proof with witnesses satisfies `Verifies` for the statement of the first message
 is at most `shapesBound` for `p = 1/q²`. `drawn`: the hypotheses `Opening.Drawn` on the opening
-of each shape, for filters `keep₃` to `keepL`. The other hypotheses are those of
-`verifier_sound`. -/
+of each shape. The other hypotheses are those of `verifier_sound`. -/
 theorem verifier_sound_drawn
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {cubeFits : RingCarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables}
@@ -267,12 +263,7 @@ theorem verifier_sound_drawn
     (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
       (FinalRows.packageRows exports complete circuit).matrices)
     (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
-    {keep₃ : ι → Rq level₃.shape.innerDegree → Prop}
-    {keep₄ : ι → Rq level₄.shape.innerDegree → Prop}
-    {keep₅ : ι → Rq level₅.shape.innerDegree → Prop}
-    {keepL : ι → Rq Key20.terminal.innerDegree → Prop}
-    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step cap control read head
-      (keep₃ index) (keep₄ index) (keep₅ index) (keepL index))
+    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step cap control read head)
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
     𝔼 table,
         (if finalAccepts setup complete.packageWidth step cap control read head kind family
@@ -317,12 +308,7 @@ theorem history_sound_drawn
       (FinalRows.packageRows exports complete circuit).matrices)
     (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
     (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
-    {keep₃ : ι → Rq level₃.shape.innerDegree → Prop}
-    {keep₄ : ι → Rq level₄.shape.innerDegree → Prop}
-    {keep₅ : ι → Rq level₅.shape.innerDegree → Prop}
-    {keepL : ι → Rq Key20.terminal.innerDegree → Prop}
-    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step cap control read head
-      (keep₃ index) (keep₄ index) (keep₅ index) (keepL index))
+    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step cap control read head)
     {queries : ℕ} (bounded : prover.QueryBound queries) (positive : 0 < budget)
     (admitted : StageAdmitted
       (HyperNova.ReverseStages.Stage.start (IvcSecurity.walkAdversary ivc))) (depth : ℕ)
@@ -349,12 +335,7 @@ theorem history_knowledge_drawn
       (FinalRows.packageRows exports complete circuit).matrices)
     (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
     (blocks : setup.keyBlocks = 512) (coords : 28 ≤ Fintype.card Coord)
-    {keep₃ : ι → Rq level₃.shape.innerDegree → Prop}
-    {keep₄ : ι → Rq level₄.shape.innerDegree → Prop}
-    {keep₅ : ι → Rq level₅.shape.innerDegree → Prop}
-    {keepL : ι → Rq Key20.terminal.innerDegree → Prop}
-    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step cap control read head
-      (keep₃ index) (keep₄ index) (keep₅ index) (keepL index))
+    (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step cap control read head)
     {queries : ℕ} (bounded : prover.QueryBound queries) (positive : 0 < budget)
     (admitted : StageAdmitted
       (HyperNova.ReverseStages.Stage.start (IvcSecurity.walkAdversary ivc))) (depth : ℕ)

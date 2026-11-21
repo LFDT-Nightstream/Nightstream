@@ -186,10 +186,17 @@ parts of the verifier game (`BackComplete`) and the two checkpoints of the argum
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.traceSource_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.traceFit_zero
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.batchFit_zero
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.response_quiet
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.traceResponse_quiet
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.liftFit_quiet
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.traceFit_quiet
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.batchFit_quiet
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Note
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Wire
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.terminalOf
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.zero_accepts
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.fit_zero
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.fit_quiet
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.accepts
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Cell.entry
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Cell.values
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.ne_values
@@ -268,6 +275,7 @@ parts of the verifier game (`BackComplete`) and the two checkpoints of the argum
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.stateNext
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.StateFit
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.stateFit_zero
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.stateFit_quiet
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.stateLevel_wins
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.rootLink
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.traceTower₂_complete
@@ -282,4 +290,6 @@ parts of the verifier game (`BackComplete`) and the two checkpoints of the argum
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Note
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Wire
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.terminalOf
-#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.zero_accepts
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.fit_zero
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.fit_quiet
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.accepts

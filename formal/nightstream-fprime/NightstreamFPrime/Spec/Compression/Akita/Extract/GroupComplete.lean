@@ -238,6 +238,22 @@ theorem stateFit_zero (opening : ∀ g, Base (B.shape g).openingBase (B.shape g)
   rw [FlatRelation.completion_zero _ _ _ two rows.1]
   exact holds
 
+/-- The fit conditions `StateFit` hold for each family of states when each fold challenge of the
+decoders is 0 (`quiet`) and `after` holds for the table of the zero challenges. -/
+theorem stateFit_quiet (radix : ∀ g, 2 ≤ (B.fold g).responseBase) {base μ : ℕ}
+    {cells : B.cells ≤ 2 ^ μ} {digits : ℕ}
+    {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))}
+    (quiet : ∀ g slot c, decode g slot = some c → c = 0)
+    {state : (g : Fin n) → (B.shape g).Payload × Decommitment (B.shape g)} {after : Table → Prop}
+    (holds : ∀ point weight,
+      after (stateNext β key openKey μ cells base digits state point weight fun _ _ => 0)) :
+    StateFit β key openKey μ cells base digits decode state after := by
+  intro point weight c decodable
+  obtain rfl : c = fun _ _ => 0 := funext fun g => funext fun i => by
+    obtain ⟨slot, decoded⟩ := decodable g i
+    exact quiet g slot _ decoded
+  exact ⟨fun g => by rw [response_quiet]; exact encodable_zero (radix g) _, holds point weight⟩
+
 variable [Fintype E] [DecidableEq E] {Wire Coord : Type} {claim : Wire → B.Claim E} {μ : ℕ}
   {cells : B.cells ≤ 2 ^ μ} {base digits : ℕ} {room : B.quotientRoom digits ≤ 2 ^ μ} {batch : ℕ}
   {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}

@@ -19,10 +19,10 @@ the shape. The bound is the sum of the bounds of the shapes.
   the verifier for it: the conditions `Compose.Ran` and the verifier `Key30.Tower.links` at the
   stage `Compose.root`, which is `Extract.offAccepts` of `FinalKey30.sound` for the decoders
   `draw`. `Opening.body` is its checkpoint structure.
-- `Opening.Drawn` has the hypotheses on an opening. It has no hypothesis on units, on `‖c‖_1` or
-  on the slot probability. Its hypotheses on the challenges are `filtered₅`, `filtered₆` and
-  `filteredL` of `Key30.Tower.Drawn`: each filter accepts only elements that the fixed-point
-  predicate of an accurate table accepts (`TrigTable.Filtered`; Akita Appendix H, Theorem H.1).
+- `Opening.Drawn` has the hypotheses on an opening. It has no hypothesis on units, on `‖c‖_1`,
+  on the operator bound or on the slot probability: the filter `TrigTable.codeAccepts` of the
+  code accepts only elements with `‖c‖_mul,2 ≤ Γ` (`TrigTable.filtered_code`; Akita Appendix H,
+  Theorem H.1).
 - `Opening.proof` is the proof with witnesses that the table `W` of an output of the extractor
   gives, and `Opening.knowledge` bounds the event "the verifier accepts and `Verifies` rejects
   this proof".
@@ -128,11 +128,11 @@ sparse challenge families of the Akita code. `laid`: the shape passes the layout
 commitments of the key polynomial and of `W` are fixed by the first message. `opening`: the
 hypotheses `Key30.Tower.Drawn` of the opening at the stage `Compose.root`. `registered` and
 `covers` are those of `FinalAkita.final_extract_sound`. -/
-structure Opening.Drawn (keepL : Rq Key30.terminal.innerDegree → Prop) : Prop where
+structure Opening.Drawn : Prop where
   laid : setup.Laid o.shape
   row : (FinalVerifier.Setup.params S₀ o.shape).witnessVars = o.row.vars
   early : ∀ anchor g, g ≠ 2 → o.bound anchor g = o.bound (anchor.take 0) g
-  opening : o.tower.Drawn shared (Compose.read C) (Compose.root C vf) keepL
+  opening : o.tower.Drawn shared (Compose.read C) (Compose.root C vf)
   registered : ∀ anchor, o.honest.Opens o.factorBound o.sourceBound (o.tower.key 0)
     (o.bound anchor 0) (keyBase (FinalVerifier.Setup.params S₀ o.shape))
   covers : o.factorBound * ((Key30.root o.row).fold 0).sourceBound ((Key30.root o.row).shape 0) +
@@ -178,7 +178,7 @@ noncomputable def Opening.shapeBound (queries budget : ℕ) : ℝ :=
     (queries + 1) * (2 + (1467 + o.row.blocks₁ + o.row.blocks₂) : ℕ) / budget +
     o.breakChance setup packageWidths step cap control read head shared prover budget
 
-variable {o shared} {keepL : Rq Key30.terminal.innerDegree → Prop}
+variable {o shared}
 
 /-- Knowledge soundness of the final verifier for the shape of `o` (Akita Theorem 10.17 with
 Lemma 9.1). For each prover with at most `Q` queries to the oracle, the probability that the
@@ -188,7 +188,7 @@ tape of the extractor. `blocks`: the key polynomial has `2^19` blocks. `coords`:
 the oracle has 40 slots. -/
 theorem Opening.knowledge (premises : Premises setup packageWidths)
     (blocks : setup.keyBlocks = 524288) (coords : 40 ≤ Fintype.card Coord)
-    (drawn : o.Drawn setup packageWidths step cap control read head shared keepL) {queries : ℕ}
+    (drawn : o.Drawn setup packageWidths step cap control read head shared) {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
     𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → K) total) (Option Coord) K budget total,
         (if o.accepts setup packageWidths step cap control read head shared
@@ -354,14 +354,13 @@ proof with witnesses satisfies `Verifies` for the statement of the first message
 `shapesBound`. `rows`: the rows of the setup are the rows of the packages
 (`FinalRows.premises_of_rows`). `blocks`: the key polynomial has `2^19` blocks. `coords`: an
 answer of the oracle has 40 slots. `drawn`: the hypotheses `Opening.Drawn` on the opening of
-each shape, for a filter `keepL` of the terminal. -/
+each shape. -/
 theorem verifier_sound_drawn
     (rows : ∀ circuit : Fin 2, (setup.rows circuit).matrices =
       (FinalRows.packageRows exports complete circuit).matrices)
     (blocks : setup.keyBlocks = 524288) (coords : 40 ≤ Fintype.card Coord)
-    {keepL : ι → Rq Key30.terminal.innerDegree → Prop}
     (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step cap control read head
-      (shared index) (keepL index))
+      (shared index))
     {queries : ℕ} (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
     𝔼 table,
         (if finalAccepts setup complete.packageWidth step cap control read head kind family shared
@@ -431,9 +430,8 @@ theorem history_sound_drawn
       (FinalRows.packageRows exports complete circuit).matrices)
     (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
     (blocks : setup.keyBlocks = 524288) (coords : 40 ≤ Fintype.card Coord)
-    {keepL : ι → Rq Key30.terminal.innerDegree → Prop}
     (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step cap control read head
-      (shared index) (keepL index))
+      (shared index))
     {queries : ℕ} (bounded : prover.QueryBound queries) (positive : 0 < budget)
     (admitted : StageAdmitted
       (HyperNova.ReverseStages.Stage.start (IvcSecurity.walkAdversary ivc))) (depth : ℕ)
@@ -481,9 +479,8 @@ theorem history_knowledge_drawn
       (FinalRows.packageRows exports complete circuit).matrices)
     (keysShaped : ∀ key, (setup.circuitKeys key).digest.length = 4)
     (blocks : setup.keyBlocks = 524288) (coords : 40 ≤ Fintype.card Coord)
-    {keepL : ι → Rq Key30.terminal.innerDegree → Prop}
     (drawn : ∀ index, (family index).Drawn setup complete.packageWidth step cap control read head
-      (shared index) (keepL index))
+      (shared index))
     {queries : ℕ} (bounded : prover.QueryBound queries) (positive : 0 < budget)
     (admitted : StageAdmitted
       (HyperNova.ReverseStages.Stage.start (IvcSecurity.walkAdversary ivc))) (depth : ℕ)

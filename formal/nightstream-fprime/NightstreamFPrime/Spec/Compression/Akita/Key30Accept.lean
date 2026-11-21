@@ -19,15 +19,20 @@ has no such hypothesis.
   `3029804899`.
 - `terminalOf` is the terminal that reads its statement and its clear partials from the message
   before its fold challenges.
-- `zero_accepts`: for each table of the oracle whose slots decode to fold challenges, a proof
-  exists whose transcript satisfies `offLinks`. It is the proof of the honest prover for the
-  zero tables of the key polynomial, `W` and `V` and the zero setup prefix, for which each
-  response is 0 (`Extract/ZeroFit.lean`, `stateFit_zero`). The response of the group of the setup
-  prefix at level 1 is a sum of the blocks of the setup prefix, and a non-zero setup prefix makes
-  each later witness non-zero, so for another setup prefix the fit conditions are not theorems:
-  `Key30.tower_complete` has them as hypotheses. The matrices, the decoders of the fold
-  challenges, the coordinates of their slots and the split `scan` of the public weight of the root
-  are free. -/
+- `Fit` has the fit conditions of the honest prover (Akita Definition 10.5) of each level for a
+  setup prefix and the tables of the key polynomial, `W` and `V`: for each opening point and each
+  fold challenge vector that the decoders give, the response of each level satisfies `Enc` and
+  the norm limit of its route.
+- `accepts`: for each setup prefix, each family of tables with `Fit` and each table of the oracle
+  whose slots decode to fold challenges, a proof exists whose transcript satisfies `offLinks`.
+  It is the proof of the honest prover. The matrices, the decoders of the fold challenges, the
+  coordinates of their slots and the split `scan` of the public weight of the root are free.
+- `fit_zero` and `fit_quiet` give `Fit` in two cases: for the zero setup prefix and the zero
+  tables with each decoder, and for each setup prefix and each family of tables with decoders
+  that give the fold challenge 0. For a fold challenge vector of the families of the schedule,
+  the response of a table that is not 0 can be larger than the limit of `Enc`, so `Fit` for
+  these families is a hypothesis: the honest prover of the Akita code has a search over a nonce
+  for a response that fits (`crates/akita-prover/src/protocol/fold_grind.rs`). -/
 
 set_option autoImplicit false
 
@@ -96,7 +101,7 @@ def terminalOf (r : Row) (total : ℕ)
   bound := 0
   start := start
 
-variable {r : Row} (member : r ∈ rows)
+variable {r : Row} (member : r ∈ rows) (flat : Table)
   (β : ∀ g, Module.Basis (Fin ((root r).planes g)) Zq E)
   (key : (g : Fin 3) → Key ((root r).shape g)) (openKey : (root r).OpenKey)
   (block : (root r).Block → Coord)
@@ -104,7 +109,7 @@ variable {r : Row} (member : r ∈ rows)
   (scan : ∀ (wire : Wire r E) (challenge : (root r).Challenge),
     SetupScan (Batch.liftedReduction β ((wire.data.claim).statement key openKey) challenge
       rootVars (root_sized r member).1 8 quotientDigits₀ (root_sized r member).2.1 rootBatch
-      (root_sized r member).2.2.1) setupVars 0)
+      (root_sized r member).2.2.1) setupVars (Shape.pad (Batch.shape (level₁ r) 0) flat))
   (β₁ : ∀ g, Module.Basis (Fin ((level₁ r).planes g)) Zq E)
   (key₁ : (g : Fin 2) → Key ((level₁ r).shape g)) (openKey₁ : (level₁ r).OpenKey)
   (block₁ : (level₁ r).Block → Coord)
@@ -133,15 +138,16 @@ local notation "zeroth" =>
     (And.left (root_sized r member)) 8 quotientDigits₀
     (And.left (And.right (root_sized r member))) rootBatch
     (And.left (And.right (And.right (root_sized r member)))) block decode Page.read mass (0 + 1)
-    setupVars 0 scan
+    setupVars (Shape.pad (Batch.shape (level₁ r) 0) flat) scan
 
 local notation "first" =>
   Tier.pinned (liftBatch β₁ key₁ openKey₁ (Note.claim₁ ∘ Page.data : Wire r E → _) vars₁
     (And.left (level₁_sized r member)) 16 quotientDigits
     (And.left (And.right (level₁_sized r member))) batch₁
     (And.left (And.right (And.right (level₁_sized r member)))) block₁ decode₁ Page.read mass₁
-    (Tier.finish zeroth + 1)) (Batch.Pinned 0 (Prod.fst (commit (key₁ 0) 0)) 0)
-    (fun ω _ => Batch.pinBreak key₁ openKey₁ _ 0 (Prod.snd (commit (key₁ 0) 0)) ω)
+    (Tier.finish zeroth + 1)) (Batch.Pinned 0 (Prod.fst (commit (key₁ 0) flat))
+      (Shape.pad (Batch.shape (level₁ r) 0) flat))
+    (fun ω _ => Batch.pinBreak key₁ openKey₁ _ 0 (Prod.snd (commit (key₁ 0) flat)) ω)
 
 local notation "second" =>
   liftFold β₂ key₂ openKey₂ (Note.claim₂ ∘ Page.data : Wire r E → _) (Key20.Level.vars (level₂ r))
@@ -177,25 +183,124 @@ local notation "sixth" =>
     block₆ decode₆ Page.read weight₆ norm₆.operator norm₆.limit (Tier.finish fifth))
     level₆.tail
 
-/-- The verifier `offLinks` of the opening of a row of the schedule `key30.aks` accepts a proof:
-the event of `Key30.tower_suffix` is not empty for the zero setup prefix. The wire messages are
-`Wire`, the batching root is at the stage 0, the setup prefix `S^♭` is 0 with the commitment and
-the reference decommitment of `commit` for the zero table, and the terminal is `terminalOf` at
-the stage after the level 6. For each matrix of each level, each decoder of the fold challenges,
-each split `scan` of the public weight of the root (Akita (132)), each table of the oracle whose
-slots decode to fold challenges and each acceptance condition of the transcript protocol, a proof
-exists whose complete transcript satisfies `offLinks`: the link `RootLinked` of the batching
-root, the link `Tier.Offloaded` from the root fold to the two claims of level 1, the link
-`RootLinked` of their batching stage, the links `Tier.Linked` of the levels 1 to 3, the links
-`Tier.TraceLinked` of the levels 3 to 6, the link `Terminal.Linked` and the checks
-`Terminal.Passed`. The proof is that of the honest prover for the zero tables of the key
-polynomial, `W` and `V` (`Key30.tower_complete` with `batchFit_zero`, `stateFit_zero`,
-`liftFit_zero` and `traceFit_zero`). The response of the group of the setup prefix at level 1 is a
-sum of the blocks of the setup prefix, and a non-zero setup prefix makes each later witness
-non-zero, so the theorem is for the zero setup prefix only. `inside`: the fold challenge of the
-terminal is a stage of the transcript. `worked`: each work slot of the table has 57 zero work
-bits. -/
-theorem zero_accepts {total : ℕ} (inside : Tier.finish sixth < total)
+/-- The fit conditions of the honest prover of the opening of the row `r` (Akita Definition 10.5
+and Lemma 10.7) for the setup prefix `flat` and the tables `tables` of the key polynomial, `W` and
+`V`: the conditions `BatchFit` of the root, `StateFit` of level 1 for the decommitment of the
+setup prefix of the Lean commitment algorithm and the bounded source of the witness, `LiftFit` of
+the levels 2 and 3, `TraceFit` of the levels 4 to 6 with `S_max` of `norm₅` and `norm₆`, and
+`‖z‖_2² ≤ S_max,term` at the terminal. Each condition is for each opening point and each fold
+challenge vector that the decoders give. -/
+def Fit (tables : Fin 3 → Table) : Prop :=
+  BatchFit β key openKey rootVars (And.left (root_sized r member)) 8 quotientDigits₀ decode tables
+    fun w₀ =>
+  StateFit β₁ key₁ openKey₁ vars₁ (And.left (level₁_sized r member)) 16 quotientDigits decode₁
+    (offState (key₁ 1) (commit (key₁ 0) flat).1 (commit (key₁ 0) flat).2 w₀) fun w₁ =>
+  LiftFit β₂ key₂ openKey₂ (level₂ r).fold (level₂ r).vars (And.left (level₂_sized r member))
+    quotientDigits decode₂ (fun i => (level₂ r).shape.embed ((level₂ r).shape.pack w₁ i))
+    fun w₂ =>
+  LiftFit β₃ key₃ openKey₃ level₃.fold level₃.vars (And.left level₃_sized) quotientDigits
+    decode₃ (fun i => level₃.shape.embed (level₃.shape.pack w₂ i)) fun w₃ =>
+  TraceFit (And.left quarters) key₄ openKey₄ level₄.fold (fun _ => decode₄) (fun _ => True)
+    (packed w₃) fun w₄ =>
+  TraceFit (And.left (And.right quarters)) key₅ openKey₅ level₅.fold (fun _ => decode₅)
+    (fun z => vecNormSq z ≤ norm₅.limit) (packed w₄) fun w₅ =>
+  TraceFit (And.left (And.right (And.right quarters))) key₆ openKey₆ level₆.fold
+    (fun _ => decode₆) (fun z => vecNormSq z ≤ norm₆.limit) (packed w₅) fun w₆ =>
+  ∀ c : Fin terminal.blocks → Rq terminal.innerDegree,
+    (∀ i, ∃ slot, decodeL slot = some (c i)) →
+    vecNormSq (traceResponse c (traceSource (And.right (And.right (And.right quarters)))
+      (packed w₆ : ℕ → E))) ≤ normTerminal.limit
+
+omit [Fintype E] [DecidableEq E] [Fintype Coord] [DecidableEq Coord] in
+/-- The fit conditions `Fit` hold for the zero setup prefix and the zero tables, with each
+decoder: each response is 0 (`Extract/ZeroFit.lean`, `stateFit_zero`). -/
+theorem fit_zero :
+    Fit member 0 β key openKey decode β₁ key₁ openKey₁ decode₁ β₂ key₂ openKey₂ decode₂ β₃ key₃
+      openKey₃ decode₃ key₄ openKey₄ decode₄ key₅ openKey₅ decode₅ key₆ openKey₆ decode₆ decodeL
+      fun _ => 0 := by
+  have openings := level₁_openings r member
+  have opens : ∀ g, ∃ table, (offState (key₁ 1) (commit (key₁ 0) 0).1 (commit (key₁ 0) 0).2 0
+      g).2.Opens (key₁ g) (offState (key₁ 1) (commit (key₁ 0) 0).1 (commit (key₁ 0) 0).2 0 g).1
+      table := Fin.forall_fin_two.mpr
+    ⟨⟨_, commit_opens honest.2 (key₁ 0) 0⟩,
+      ⟨_, commitSource_opens (level₁_bounded r member) (key₁ 1) _⟩⟩
+  have zero : ∀ g, (offState (key₁ 1) (commit (key₁ 0) 0).1 (commit (key₁ 0) 0).2 0
+        g).2.source = 0 ∧
+      (offState (key₁ 1) (commit (key₁ 0) 0).1 (commit (key₁ 0) 0).2 0 g).2.inner = 0 ∧
+      PathDigits.firstTable ((level₁ r).shape g).chain
+        (offState (key₁ 1) (commit (key₁ 0) 0).1 (commit (key₁ 0) 0).2 0 g).2.chain = 0 ∧
+      PathDigits.secondTable ((level₁ r).shape g).chain
+        (offState (key₁ 1) (commit (key₁ 0) 0).1 (commit (key₁ 0) 0).2 0 g).2.chain = 0 := by
+    refine Fin.forall_fin_two.mpr ⟨commit_zero (by decide : 2 ≤ 2 ^ 8) (by decide : 2 ≤ 16)
+      (key₁ 0), ?_⟩
+    dsimp only [offState, Batch.pairOf_one]
+    rw [Shape.embed_pack_zero]
+    exact ⟨rfl, commitSource_zero (by decide : 2 ≤ 16) (key₁ 1)⟩
+  exact batchFit_zero (honest.1 r member) (fun g => (root_folds r member g).1)
+    (fun g => (root_folds r member g).2) (root_path r member) (by decide)
+    (stateFit_zero (fun g => (openings g).1) (fun g => (openings g).2)
+      (fun g => (level₁_folds r member g).1) (fun g => (level₁_folds r member g).2)
+      (level₁_path r member) opens zero (by decide)
+      (liftFit_zero (lifts.1 r member).1 (lifts.1 r member).2.1 (lifts.1 r member).2.2.1
+        (lifts.1 r member).2.2.2 (by decide : 2 ≤ 16)
+        (liftFit_zero lifts.2.1 lifts.2.2.1 lifts.2.2.2.1 lifts.2.2.2.2 (by decide)
+          (traceFit_zero quarters.1 (by decide) (by decide) trivial
+            (traceFit_zero quarters.2.1 (by decide) (by decide)
+              (by rw [vecNormSq_zero]; exact Nat.zero_le _)
+              (traceFit_zero quarters.2.2.1 (by decide) (by decide)
+                (by rw [vecNormSq_zero]; exact Nat.zero_le _) fun c _ => by
+                  rw [packed_zero, traceSource_zero, traceResponse_zero, vecNormSq_zero]
+                  exact Nat.zero_le _))))))
+
+omit [Fintype E] [DecidableEq E] [Fintype Coord] [DecidableEq Coord] in
+/-- The fit conditions `Fit` hold for each setup prefix and each family of tables when each
+decoder gives only the fold challenge 0: each response is 0. So the hypothesis `fit` of `accepts`
+holds for a setup prefix and tables that are not 0. -/
+theorem fit_quiet (tables : Fin 3 → Table) :
+    Fit (E := E) member flat β key openKey (fun _ _ => some 0) β₁ key₁ openKey₁
+      (fun _ _ => some 0) β₂ key₂ openKey₂ (fun _ => some 0) β₃ key₃ openKey₃ (fun _ => some 0)
+      key₄ openKey₄ (fun _ => some 0) key₅ openKey₅ (fun _ => some 0) key₆ openKey₆
+      (fun _ => some 0) (fun _ => some 0) tables :=
+  batchFit_quiet (fun g => (root_folds r member g).1.two)
+    (fun _ _ _ decoded => (Option.some.inj decoded).symm) fun _ _ =>
+  stateFit_quiet (fun g => (level₁_folds r member g).1.two)
+    (fun _ _ _ decoded => (Option.some.inj decoded).symm) fun _ _ =>
+  liftFit_quiet (lifts.1 r member).2.1.two (fun _ _ decoded => (Option.some.inj decoded).symm)
+    fun _ =>
+  liftFit_quiet lifts.2.2.1.two (fun _ _ decoded => (Option.some.inj decoded).symm) fun _ =>
+  traceFit_quiet quarters.1 (by decide) (fun _ _ _ decoded => (Option.some.inj decoded).symm)
+    trivial fun _ =>
+  traceFit_quiet quarters.2.1 (by decide) (fun _ _ _ decoded => (Option.some.inj decoded).symm)
+    (by rw [vecNormSq_zero]; exact Nat.zero_le _) fun _ =>
+  traceFit_quiet quarters.2.2.1 (by decide)
+    (fun _ _ _ decoded => (Option.some.inj decoded).symm)
+    (by rw [vecNormSq_zero]; exact Nat.zero_le _) fun _ c decodable => by
+      obtain rfl : c = fun _ => 0 := funext fun i => by
+        obtain ⟨slot, decoded⟩ := decodable i
+        exact (Option.some.inj decoded).symm
+      rw [traceResponse_quiet, vecNormSq_zero]
+      exact Nat.zero_le _
+
+/-- The verifier `offLinks` of the opening of a row of the schedule `key30.aks` accepts the proof
+of the honest prover (Akita Theorem 10.9, Section 9 with (136)) for each setup prefix and each
+family of tables with the fit conditions `Fit`. The wire messages are `Wire`, the batching root
+is at the stage 0, the setup prefix `S^♭` is the table `flat` on its `2^23` cells with the
+commitment and the reference decommitment of `commit`, and the terminal is `terminalOf` at the
+stage after the level 6. `tables`: the tables of the key polynomial, `W` and `V`, with opening
+points `places`. For each matrix of each level, each decoder of the fold challenges, each split
+`scan` of the public weight of the root (Akita (132)), each table of the oracle whose slots
+decode to fold challenges and each acceptance condition of the transcript protocol, a proof
+exists whose first message has the commitments of the tables, the points and the values of the
+tables at the points, and whose complete transcript satisfies `offLinks`: the link `RootLinked`
+of the batching root, the link `Tier.Offloaded` from the root fold to the two claims of level 1,
+the link `RootLinked` of their batching stage, the links `Tier.Linked` of the levels 1 to 3, the
+links `Tier.TraceLinked` of the levels 3 to 6, the link `Terminal.Linked` and the checks
+`Terminal.Passed` (`Key30.tower_complete`). `inside`: the fold challenge of the terminal is a
+stage of the transcript. `worked`: each work slot of the table has 57 zero work bits. `live`: the
+tables are 0 after `2^30`, `2^vars` and `2^28` cells. `lengths`: the points have 30, `vars` and 28
+coordinates. `fit`: the fit conditions `Fit`, which `fit_zero` and `fit_quiet` give in two
+cases. -/
+theorem accepts {total : ℕ} (inside : Tier.finish sixth < total)
     (accept : Prefix (Wire r E) (Option Coord → E) total → Prop)
     (table : Prefix (Wire r E) (Option Coord → E) total → Option Coord → E)
     (decodes : ∀ input b, (decode b.1 (table input (some (block b)))).isSome)
@@ -206,8 +311,15 @@ theorem zero_accepts {total : ℕ} (inside : Tier.finish sixth < total)
     (decodes₅ : ∀ input i, (decode₅ (table input (some (block₅ i)))).isSome)
     (decodes₆ : ∀ input i, (decode₆ (table input (some (block₆ i)))).isSome)
     (decodesL : ∀ input i, (decodeL (table input (some (blockL i)))).isSome)
-    (worked : ∀ input, table input none ∈ workZeros E 57) :
+    (worked : ∀ input, table input none ∈ workZeros E 57) {tables : Fin 3 → Table}
+    (live : ∀ g cell, 2 ^ ![30, r.vars, 28] g ≤ cell → tables g cell = 0)
+    {places : Fin 3 → List E} (lengths : ∀ g, (places g).length = ![30, r.vars, 28] g)
+    (fit : Fit member flat β key openKey decode β₁ key₁ openKey₁ decode₁ β₂ key₂ openKey₂ decode₂ β₃ key₃
+      openKey₃ decode₃ key₄ openKey₄ decode₄ key₅ openKey₅ decode₅ key₆ openKey₆ decode₆ decodeL tables) :
     ∃ proof : ℕ → Wire r E,
+      (proof 0).data.commit = (fun g => (commit (key g) (tables g)).1) ∧
+      (proof 0).data.place = places ∧
+      (proof 0).data.value = (fun g => mle (places g) (lifted E (tables g))) ∧
       offLinks (weight₅ := weight₅) (weight₆ := weight₆) (route₄ := Route.coefficient)
         (route₅ := Route.euclidean norm₅.operator norm₅.limit)
         (route₆ := Route.euclidean norm₆.operator norm₆.limit) zeroth first second third fourth
@@ -215,7 +327,7 @@ theorem zero_accepts {total : ℕ} (inside : Tier.finish sixth < total)
         (Note.commit ∘ Page.data : Wire r E → _) (Note.value ∘ Page.data : Wire r E → _)
         (Note.place ∘ Page.data : Wire r E → _) (Note.commits ∘ Page.data : Wire r E → _)
         (Note.values ∘ Page.data : Wire r E → _) (Note.places ∘ Page.data : Wire r E → _)
-        (commit (key₁ 0) 0).1 (Note.commit₁ ∘ Page.data : Wire r E → _)
+        (commit (key₁ 0) flat).1 (Note.commit₁ ∘ Page.data : Wire r E → _)
         (Note.commit₂ ∘ Page.data : Wire r E → _) (Note.commit₃ ∘ Page.data : Wire r E → _)
         (And.left quarters) (And.left (And.right quarters))
         (And.left (And.right (And.right quarters))) (And.right (And.right (And.right quarters)))
@@ -225,9 +337,9 @@ theorem zero_accepts {total : ℕ} (inside : Tier.finish sixth < total)
   obtain ⟨start, started⟩ : ∃ start, start = Tier.finish sixth := ⟨_, rfl⟩
   rw [← started] at inside ⊢
   obtain ⟨base, based⟩ : ∃ base : Note r E, base = {
-      commit := fun g => (commit (key g) 0).1
-      value := fun g => mle (List.replicate (![30, r.vars, 28] g) 0) (lifted E 0)
-      place := fun g => List.replicate (![30, r.vars, 28] g) 0
+      commit := fun g => (commit (key g) (tables g)).1
+      value := fun g => mle (places g) (lifted E (tables g))
+      place := places
       claim := Batch.honestClaim β key openKey (fun _ => 0)
         (fun g => Point.ofSegments ((root r).opening g) [] [] [] []) 0
       commit₁ := (commitSource (key₁ 1) 0).1
@@ -250,29 +362,9 @@ theorem zero_accepts {total : ℕ} (inside : Tier.finish sixth < total)
       statement := TerminalStatement.ofPoint quarters.2.2.2 matrix 0 [] [] [] 0 0
       partials := 0
       response := 0 } := ⟨_, rfl⟩
-  have padded : ((level₁ r).shape 0).pad 0 = 0 := funext fun cell => by
-    unfold Shape.pad
-    split <;> rfl
-  have registered : Batch.Registered (key₁ 0) (commit (key₁ 0) 0).1 0 (commit (key₁ 0) 0).2 := by
-    have commits := Batch.registered_commit (S := (level₁ r).shape 0) honest.2 (key₁ 0) 0
-    rwa [padded] at commits
-  have openings := level₁_openings r member
-  have opens : ∀ g, ∃ table, (offState (key₁ 1) (commit (key₁ 0) 0).1 (commit (key₁ 0) 0).2 0
-      g).2.Opens (key₁ g) (offState (key₁ 1) (commit (key₁ 0) 0).1 (commit (key₁ 0) 0).2 0 g).1
-      table := Fin.forall_fin_two.mpr
-    ⟨⟨0, registered.opens⟩, ⟨_, commitSource_opens (level₁_bounded r member) (key₁ 1) _⟩⟩
-  have zero : ∀ g, (offState (key₁ 1) (commit (key₁ 0) 0).1 (commit (key₁ 0) 0).2 0
-        g).2.source = 0 ∧
-      (offState (key₁ 1) (commit (key₁ 0) 0).1 (commit (key₁ 0) 0).2 0 g).2.inner = 0 ∧
-      PathDigits.firstTable ((level₁ r).shape g).chain
-        (offState (key₁ 1) (commit (key₁ 0) 0).1 (commit (key₁ 0) 0).2 0 g).2.chain = 0 ∧
-      PathDigits.secondTable ((level₁ r).shape g).chain
-        (offState (key₁ 1) (commit (key₁ 0) 0).1 (commit (key₁ 0) 0).2 0 g).2.chain = 0 := by
-    refine Fin.forall_fin_two.mpr ⟨commit_zero (by decide : 2 ≤ 2 ^ 8) (by decide : 2 ≤ 16)
-      (key₁ 0), ?_⟩
-    dsimp only [offState, Batch.pairOf_one]
-    rw [Shape.embed_pack_zero]
-    exact ⟨rfl, commitSource_zero (by decide : 2 ≤ 16) (key₁ 1)⟩
+  have registered : Batch.Registered (key₁ 0) (commit (key₁ 0) flat).1
+      (Shape.pad (Batch.shape (level₁ r) 0) flat) (commit (key₁ 0) flat).2 :=
+    Batch.registered_commit (S := (level₁ r).shape 0) honest.2 (key₁ 0) flat
   obtain ⟨later, on, whole, each⟩ := tower_complete (member := member) (β := β) (key := key)
     (openKey := openKey) (block := block) (decode := decode) (mass := mass) (scan := scan)
     (β₁ := β₁) (key₁ := key₁) (openKey₁ := openKey₁) (block₁ := block₁) (decode₁ := decode₁)
@@ -319,24 +411,9 @@ theorem zero_accepts {total : ℕ} (inside : Tier.finish sixth < total)
     registered started inside (fun _ => rfl) (fun _ => rfl) table decodes decodes₁ decodes₂ decodes₃
     decodes₄ decodes₅ decodes₆ decodesL worked
     (onPath_nil accept table (⟨base, fun _ => (fun _ => 0, 0)⟩ : Wire r E)) rfl
-    (tables := fun _ => 0) (fun _ _ _ => rfl) (by rw [based]; rfl)
-    (fun g => by rw [based]; exact List.length_replicate) (by rw [based]; rfl)
-    (batchFit_zero (honest.1 r member) (fun g => (root_folds r member g).1)
-      (fun g => (root_folds r member g).2) (root_path r member) (by decide)
-      (stateFit_zero (fun g => (openings g).1) (fun g => (openings g).2)
-        (fun g => (level₁_folds r member g).1) (fun g => (level₁_folds r member g).2)
-        (level₁_path r member) opens zero (by decide)
-        (liftFit_zero (lifts.1 r member).1 (lifts.1 r member).2.1 (lifts.1 r member).2.2.1
-          (lifts.1 r member).2.2.2 (by decide : 2 ≤ 16)
-          (liftFit_zero lifts.2.1 lifts.2.2.1 lifts.2.2.2.1 lifts.2.2.2.2 (by decide)
-            (traceFit_zero quarters.1 (by decide) (by decide) trivial
-              (traceFit_zero quarters.2.1 (by decide) (by decide)
-                (by rw [vecNormSq_zero]; exact Nat.zero_le _)
-                (traceFit_zero quarters.2.2.1 (by decide) (by decide)
-                  (by rw [vecNormSq_zero]; exact Nat.zero_le _) fun c _ => by
-                    rw [packed_zero, traceSource_zero, traceResponse_zero, vecNormSq_zero]
-                    exact Nat.zero_le _)))))))
-  obtain ⟨proof, _, holds⟩ := OnPath.accepts on whole each
-  exact ⟨proof, holds⟩
+    (tables := tables) live (by rw [based]; rfl) (fun g => by rw [based]; exact lengths g)
+    (by rw [based]; rfl) fit
+  obtain ⟨proof, head, holds⟩ := OnPath.accepts on whole each
+  exact ⟨proof, by rw [head, based], by rw [head, based], by rw [head, based], holds⟩
 
 end NightstreamFPrime.Spec.Compression.Akita.Key30

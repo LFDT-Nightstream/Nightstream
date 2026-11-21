@@ -1,6 +1,6 @@
 import NightstreamFPrime.Spec.Compression.Akita.Key20Challenge
 import NightstreamFPrime.Spec.Compression.Akita.Key30Tower
-import NightstreamFPrime.Spec.Compression.Akita.Extract.SetupWeight
+import NightstreamFPrime.Spec.Compression.Akita.Extract.SetupFactor
 
 /-! The opening of Akita for a row of the schedule file `crates/ns-compress/artifacts/key30.aks`
 with the decoders `draw` of the sparse challenge families, as one statement (Akita, ePrint
@@ -9,24 +9,24 @@ Proposition 10.44, Theorem 10.46 and (206)).
 
 The Akita code (revision `d50f700f`, `crates/akita-challenges/src/config.rs`) has the family
 `(31, 10)` for the degree 64 and `(31, 0)` for the degree 128. The levels with the Euclidean
-route have a filter on the base family `(31, 11)` for the degree 64.
+route have the filter `accept_strict_parts` of the code (`TrigTable.codeAccepts`) on the base
+family `(31, 11)` for the degree 64.
 
 - `mass`, `rootDecode`, `mass₁` and `decode₁` are the norms `ω = 31` and the decoders of the
   groups of the root and of the level 1: each group has the degree 128 and the family `(31, 0)`.
 - `Tower` has the data of the opening of a row: the matrices, the readers of the messages, the
   coordinates of the fold challenges, the setup prefix `flat`, the commitment `registry` of the
-  setup prefix with its reference decommitment, the filters `keep₅` and `keep₆` of the levels 5
-  and 6, and the terminal.
+  setup prefix with its reference decommitment, and the terminal.
 - `Tower.Shared` states that the matrices `A` and `B` of each group of the root and the matrix
   `D` of the root are the views (Akita (35)) of the setup prefix `flat`. `Tower.scan` is the
-  split `SetupScan` of the public weight of the root (Akita (132)) that it gives
-  (`Batch.setupScan`). The definitions and the theorems have the hypothesis `shared`.
+  split `SetupScan` of the public weight of the root (Akita (132)) that it gives, in the form of
+  the pinned Akita code (`Batch.codeScan`, `root_blocked`). The definitions and the theorems have the hypothesis `shared`.
   `Tower.onSetup` puts these views in the data, and `Tower.onSetup_shared` states `Tower.Shared`
   for it.
 - `Tower.links` is the verifier `offLinks` for this data with the batching root at the stage
   `start`, and `Tower.body` is its checkpoint structure `offRoot`. The decoder of each level is
   `draw` of its family: `(31, 0)` for the root and for the levels 1 and 4, `(31, 10)` for the
-  levels 2 and 3, and `(31, 11)` with a filter for the levels 5 and 6.
+  levels 2 and 3, and `(31, 11)` with the filter of the code for the levels 5 and 6.
 - `Tower.Drawn` has the hypotheses of `tower_suffix` that are not theorems for these decoders.
 - `Tower.suffix` is `tower_suffix` with `towerError_le` at the slot probability `1/q²`
   (`Key20.slotChance_draw`).
@@ -64,6 +64,10 @@ noncomputable def rootDecode (E : Type) (r : Row) (g : Fin 3) :
 noncomputable def decode₁ (E : Type) (r : Row) (g : Fin 2) :
     E → Option (Rq ((level₁ r).carrierDegree g)) :=
   draw (SparseFamily ((level₁ r).carrierDegree g) 31 0) fun _ => True
+
+/-- The conditions `Batch.Blocked` of the root for the block of `2^7 = 128` cells, which is
+`relation_coefficient_block_len` of the pinned Akita code for the root of `key30.aks`. -/
+theorem root_blocked : ∀ r ∈ rows, (root r).Blocked 7 := by decide
 
 /-- The split of the public weight of the root of the row `r` for the setup prefix `flat` (Akita
 (132)): a split `SetupScan` for the reduction of the statement of the claim of each wire and each
@@ -115,12 +119,10 @@ structure Tower (r : Row) (member : r ∈ rows) (E : Type) [Field E] [Fintype E]
   openKey₅ : OpeningKey level₅.opening
   claim₅ : Wire → TraceClaim level₅.opening E
   block₅ : Fin level₅.shape.blocks → Coord
-  keep₅ : Rq level₅.shape.innerDegree → Prop
   key₆ : Key level₆.shape
   openKey₆ : OpeningKey level₆.opening
   claim₆ : Wire → TraceClaim level₆.opening E
   block₆ : Fin level₆.shape.blocks → Coord
-  keep₆ : Rq level₆.shape.innerDegree → Prop
   terminal : Terminal Key30.terminal E Wire Coord E total
     (.euclidean normTerminal.operator normTerminal.limit)
   commit : Wire → (g : Fin 3) → ((root r).shape g).Payload
@@ -173,17 +175,18 @@ theorem Tower.onSetup_shared : o.onSetup.Shared :=
   ⟨fun _ => ⟨rfl, rfl⟩, rfl⟩
 
 variable {o} in
-/-- The split `SetupScan` of the public weight of the root for the data `o` with `Tower.Shared`:
-`Batch.setupScan` for the statement of the claim of each wire. -/
+/-- The split `SetupScan` of the public weight of the root for the data `o` with `Tower.Shared`,
+in the form of the pinned Akita code: `Batch.codeScan` for the statement of the claim of each
+wire, with the block of `2^7` cells. -/
 noncomputable def Tower.scan (shared : o.Shared) :
     RootScan member o.β o.key o.openKey o.claim o.flat :=
   fun wire challenge =>
     Batch.Statement.over_eq ((o.claim wire).statement o.key o.openKey)
         (fun p : Fin (2 ^ setupVars) => o.flat p) (fun g => (shared.1 g).1)
         (fun g => (shared.1 g).2) shared.2 ▸
-      Batch.setupScan o.β ((o.claim wire).statement o.key o.openKey) challenge rootVars
+      Batch.codeScan o.β ((o.claim wire).statement o.key o.openKey) challenge rootVars
         (root_sized r member).1 8 quotientDigits₀ (root_sized r member).2.1 rootBatch
-        (root_sized r member).2.2.1 setupVars o.flat
+        (root_sized r member).2.2.1 setupVars o.flat 7 (root_blocked r member) (by decide)
 
 variable (shared : o.Shared) (read : Reader Wire) (start : ℕ)
 
@@ -201,11 +204,13 @@ local notation "draw₄" =>
     E → Option (Rq level₄.shape.innerDegree))
 
 local notation "draw₅" =>
-  (draw (SparseFamily level₅.shape.innerDegree 31 11) o.keep₅ :
+  (draw (SparseFamily level₅.shape.innerDegree 31 11)
+      (TrigTable.codeAccepts level₅.shape.innerDegree norm₅.operator) :
     E → Option (Rq level₅.shape.innerDegree))
 
 local notation "draw₆" =>
-  (draw (SparseFamily level₆.shape.innerDegree 31 11) o.keep₆ :
+  (draw (SparseFamily level₆.shape.innerDegree 31 11)
+      (TrigTable.codeAccepts level₆.shape.innerDegree norm₆.operator) :
     E → Option (Rq level₆.shape.innerDegree))
 
 local notation "zeroth" =>
@@ -256,7 +261,7 @@ local notation "sixth" =>
 `start` (Akita Figure 4, Sections 8.2 and 9): `offLinks` for the data `o`, with the decoders
 `draw` of the families of the Akita code. The families are `(31, 0)` for each group of the root
 and of the level 1 and for the level 4, `(31, 10)` for the levels 2 and 3, and `(31, 11)` with
-the filters `keep₅` and `keep₆` for the levels 5 and 6. -/
+the filter `TrigTable.codeAccepts` of the code for `Γ` = 18 for the levels 5 and 6. -/
 def Tower.links : Prefix Wire (Option Coord → E) total → Prop :=
   offLinks (weight₅ := 53) (weight₆ := 53) (route₄ := Route.coefficient)
     (route₅ := Route.euclidean norm₅.operator norm₅.limit)
@@ -282,13 +287,11 @@ noncomputable def Tower.body (accept : Prefix Wire (Option Coord → E) total �
 `registered`: the premise of Akita Lemma 9.1, "correct preprocessing": the commitment `registry`
 of the verifier setup is the output of the commitment algorithm `commit` for a table, the setup
 prefix `flat` is this table with zeros after its cells, and `reference` is the decommitment of
-the algorithm (`Batch.registered_commit`). `filtered₅`, `filtered₆` and
-`filteredL`: each filter accepts only elements that the fixed-point predicate of an accurate table
-accepts for `Γ` = 18 (`TrigTable.Filtered`), so a member that passes it has `‖c‖_mul,2 ≤ Γ`
-(Akita (23) and Theorem H.1; `TrigTable.Filtered.mulBound`). `next` and `inside`: the fold challenge of the terminal is the stage
-after the stages of the level 6, and it is a stage of the transcript. `decodeL`: the decoder of
-the terminal is `draw` of the family `(31, 11)` with the filter `keepL`. -/
-structure Tower.Drawn (keepL : Rq Key30.terminal.innerDegree → Prop) : Prop where
+the algorithm (`Batch.registered_commit`). `next` and `inside`: the fold challenge of the
+terminal is the stage after the stages of the level 6, and it is a stage of the transcript.
+`decodeL`: the decoder of the terminal is `draw` of the family `(31, 11)` with the filter of the
+code for `Γ` = 18. -/
+structure Tower.Drawn : Prop where
   injective : Function.Injective o.block
   injective₁ : Function.Injective o.block₁
   registered : ∃ table, o.registry = (Akita.commit (o.key₁ 0) table).1 ∧
@@ -297,22 +300,20 @@ structure Tower.Drawn (keepL : Rq Key30.terminal.innerDegree → Prop) : Prop wh
   injective₃ : Function.Injective o.block₃
   injective₄ : Function.Injective o.block₄
   injective₅ : Function.Injective o.block₅
-  filtered₅ : TrigTable.Filtered norm₅.operator o.keep₅
   injective₆ : Function.Injective o.block₆
-  filtered₆ : TrigTable.Filtered norm₆.operator o.keep₆
   next : Terminal.start o.terminal = Tier.finish sixth
   inside : Terminal.start o.terminal < total
   injectiveL : Function.Injective (Terminal.block o.terminal)
-  decodeL : Terminal.decode o.terminal = draw (SparseFamily Key30.terminal.innerDegree 31 11) keepL
-  filteredL : TrigTable.Filtered normTerminal.operator keepL
+  decodeL : Terminal.decode o.terminal = draw (SparseFamily Key30.terminal.innerDegree 31 11)
+    (TrigTable.codeAccepts Key30.terminal.innerDegree normTerminal.operator)
 
-variable {o shared read start} {keepL : Rq Key30.terminal.innerDegree → Prop}
+variable {o shared read start}
   {accept : Prefix Wire (Option Coord → E) total → Prop}
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- The stage of the batching root is a stage of the transcript: the stages of the levels and the
 stage of the terminal are after it. -/
-theorem Tower.Drawn.fits (drawn : o.Drawn shared read start keepL) : start ≤ total := by
+theorem Tower.Drawn.fits (drawn : o.Drawn shared read start) : start ≤ total := by
   have ends₀ := Tier.finish_eq zeroth
   have ends₁ := Tier.finish_eq first
   have ends₂ := Tier.finish_eq second
@@ -337,7 +338,7 @@ each verifier that accepts only with `Tower.links`, with `1467 + B_1 + B_2` retr
 size `54400647168·(129 + B_1)·(B_2 + 1)`, and a sum of the stage errors of at most
 `1623435/(4096·|E|) + (1458 + B_1 + B_2)/q²` (`tower_suffix` and `towerError_le` with
 `Key20.slotChance_draw`). `slots`: an answer of the oracle has 28 slots. -/
-theorem Tower.suffix (drawn : o.Drawn shared read start keepL) (slots : 28 ≤ Fintype.card Coord)
+theorem Tower.suffix (drawn : o.Drawn shared read start) (slots : 28 ≤ Fintype.card Coord)
     (linked : ∀ point, accept point → o.links shared read start point) :
     ∃ error, Tier.Suffix accept start (OpensAt start o.commit o.value o.place o.key mass)
         (o.body shared read start accept) error (1467 + r.blocks₁ + r.blocks₂)
@@ -357,7 +358,8 @@ theorem Tower.suffix (drawn : o.Drawn shared read start keepL) (slots : 28 ≤ F
     intro challenge decoded
     unfold Terminal.family at decoded
     rw [drawn.decodeL] at decoded
-    exact (drawn.filteredL.mulBound (by decide) (draw_mem decoded.choose_spec).2)
+    exact (TrigTable.filtered_code (by decide) _).mulBound (by decide)
+      (draw_mem decoded.choose_spec).2
   have chanceL : slotChance (Terminal.decode o.terminal) ≤ 1 / (fieldModulus : ℝ) ^ 2 := by
     rw [drawn.decodeL]
     exact slotChance_draw _ _
@@ -388,10 +390,12 @@ theorem Tower.suffix (drawn : o.Drawn shared read start keepL) (slots : 28 ≤ F
       drawn.injective₄ (draw_units 6 (by decide)) ⟨1, draw_sparse⟩
       drawn.injective₅ (draw_units 5 (by decide)) ⟨2, draw_sparse⟩
       (fun _ decoded =>
-        (drawn.filtered₅.mulBound (by decide) (draw_mem decoded.choose_spec).2))
+        ((TrigTable.filtered_code (by decide) _).mulBound (by decide)
+          (draw_mem decoded.choose_spec).2))
       drawn.injective₆ (draw_units 5 (by decide)) ⟨2, draw_sparse⟩
       (fun _ decoded =>
-        (drawn.filtered₆.mulBound (by decide) (draw_mem decoded.choose_spec).2))
+        ((TrigTable.filtered_code (by decide) _).mulBound (by decide)
+          (draw_mem decoded.choose_spec).2))
       drawn.next drawn.inside drawn.injectiveL unitsL boundedL linked,
     towerError_le (member := member) (scan := Tower.scan shared) (reference := o.reference)
       (registry := o.registry) (β := o.β) (key := o.key) (openKey := o.openKey)
@@ -423,7 +427,7 @@ transcript of the prover. A first certificate has a certified decommitment of th
 each group of the root, with `κ̄_1 = 2ω` and `β̄_∞ = Δ^cert_f`, to a table that has the claimed
 value at the claimed point (`OpensAt`). Each other output is a solution of Module-SIS for a
 matrix of a group, of a level, or for `A_term`. -/
-theorem Tower.extract_sound (drawn : o.Drawn shared read 0 keepL) (slots : 28 ≤ Fintype.card Coord)
+theorem Tower.extract_sound (drawn : o.Drawn shared read 0) (slots : 28 ≤ Fintype.card Coord)
     (prover : OracleComp (Prefix Wire (Option Coord → E) total) (Option Coord → E) (ℕ → Wire))
       (budget : ℕ)
     (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
@@ -452,7 +456,7 @@ with
 `|E| = q²` (`Key20.card_field`). The probability is over the uniform table and the tape of the
 extractor. The bound has no term for the probability that the output is a solution of
 Module-SIS. -/
-theorem Tower.extraction_le (drawn : o.Drawn shared read 0 keepL) (slots : 28 ≤ Fintype.card Coord)
+theorem Tower.extraction_le (drawn : o.Drawn shared read 0) (slots : 28 ≤ Fintype.card Coord)
     (prover : OracleComp (Prefix Wire (Option Coord → E) total) (Option Coord → E) (ℕ → Wire))
       {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :

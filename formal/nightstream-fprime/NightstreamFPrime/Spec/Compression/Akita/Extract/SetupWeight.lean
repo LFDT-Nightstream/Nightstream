@@ -18,8 +18,8 @@ of a ring row is linear in `S` or does not depend on `S`, so the public weight i
 - `Batch.flatRows_affine` states this for each ring row of `Batch.flatRows` for `st.over S`, and
   `Batch.weight_affine` states that the public weight of `Batch.liftedReduction` for `st.over S`
   is affine in `S`.
-- `Batch.setupScan` is the split `SetupScan` of the form of the paper (the factor 1) for the
-  setup prefix `flat` and the statement `st.over S` with `S_p = flat(p)`. -/
+
+`Batch.codeScan` in `Extract/SetupFactor.lean` is the split `SetupScan` for the setup prefix. -/
 
 set_option autoImplicit false
 
@@ -333,6 +333,35 @@ theorem flatRows_affine (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E) (st :
           (AffineRow.append (AffineRow.gather fun _ _ => AffineRow.of_eq fun _ => rfl)
             fun _ => AffineRow.of_eq fun _ => rfl)))
 
+/-- The weights of the quotient digits of a ring row of `Batch.flatRows` for the statement
+`st.over S` do not depend on `S`. -/
+theorem quotientWeight_over (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E) (st : B.Statement E)
+    (challenge : B.Challenge) (μ : ℕ) (fits : B.cells ≤ 2 ^ μ) (base digits : ℕ) (α : E)
+    (S : Fin N → Zq) (r : Fin B.planeRows) (x : ℕ) :
+    QuotientRead.weight ⟨digits, fun a => (base : Zq) ^ (a : ℕ),
+        (B.flatRelation β (st.over S) challenge μ fits).quotientCell (B.gaps digits) digits r⟩
+        (B.flatRows β (st.over S) challenge r).degree α x =
+      QuotientRead.weight ⟨digits, fun a => (base : Zq) ^ (a : ℕ),
+        (B.flatRelation β (st.over (0 : Fin N → Zq)) challenge μ fits).quotientCell (B.gaps digits) digits r⟩
+        (B.flatRows β (st.over (0 : Fin N → Zq)) challenge r).degree α x := by
+  have degrees : ∀ r : Fin B.planeRows, (B.flatRows β (st.over S) challenge r).degree =
+      (B.flatRows β (st.over 0) challenge r).degree :=
+    fun r => (flatRows_affine (N := N) β st challenge r).degree S
+  have cells : ∀ (j : ℕ) (a : Fin digits),
+      (B.flatRelation β (st.over S) challenge μ fits).quotientCell (B.gaps digits) digits r j a =
+        (B.flatRelation β (st.over 0) challenge μ fits).quotientCell (B.gaps digits) digits r j
+          a :=
+    fun j a => by
+      show (B.gaps digits).slot (offset (fun r : Fin B.planeRows =>
+          digits * (B.flatRows β (st.over S) challenge r).degree) r +
+          (a * (B.flatRows β (st.over S) challenge r).degree + j)) =
+        (B.gaps digits).slot (offset (fun r : Fin B.planeRows =>
+          digits * (B.flatRows β (st.over 0) challenge r).degree) r +
+          (a * (B.flatRows β (st.over 0) challenge r).degree + j))
+      simp only [degrees]
+      rfl
+  rw [degrees r, funext fun j => funext fun a => cells j a]
+
 variable [Fintype E]
 
 /-- The public weight `m_{τ_1}(r_2)` of `Batch.liftedReduction` for the statement `st.over S` is
@@ -344,22 +373,6 @@ theorem weight_affine (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E) (st : B
     Affine fun S : Fin N → Zq => mle r2 (((liftedReduction β (st.over S) challenge μ fits base
       digits room batch rowsFit).rows α).batchWeight τ) := by
   have rows := flatRows_affine (N := N) β st challenge
-  have cells : ∀ (S : Fin N → Zq) (r : Fin B.planeRows) (j : ℕ) (a : Fin digits),
-      (B.flatRelation β (st.over S) challenge μ fits).quotientCell (B.gaps digits) digits r j a =
-        (B.flatRelation β (st.over 0) challenge μ fits).quotientCell (B.gaps digits) digits r j
-          a :=
-    fun S r j a => by
-      have degrees : ∀ r : Fin B.planeRows, (B.flatRows β (st.over S) challenge r).degree =
-          (B.flatRows β (st.over 0) challenge r).degree :=
-        fun r => (rows r).degree S
-      show (B.gaps digits).slot (offset (fun r : Fin B.planeRows =>
-          digits * (B.flatRows β (st.over S) challenge r).degree) r +
-          (a * (B.flatRows β (st.over S) challenge r).degree + j)) =
-        (B.gaps digits).slot (offset (fun r : Fin B.planeRows =>
-          digits * (B.flatRows β (st.over 0) challenge r).degree) r +
-          (a * (B.flatRows β (st.over 0) challenge r).degree + j))
-      simp only [degrees]
-      rfl
   refine Affine.batchWeight (fun i x => ?_) τ r2
   refine Affine.congr (fun S => LiftRelation.liftRows_weightAt _ α i x) ?_
   refine Affine.liftEntry (m := B.planeRows)
@@ -367,43 +380,11 @@ theorem weight_affine (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E) (st : B
       (Join.plain E B.restCount)).slot
     ((Join.gather fun g => (Join.all (β g)).append (Join.plain E (B.groupTail g))).append
       (Join.plain E B.restCount)).basis (fun r => ?_) ?_ i
-  · refine AffineRow.liftWeight ((rows r).relocate (B.gaps digits).place) α x fun S => ?_
-    show QuotientRead.weight ⟨digits, fun a => (base : Zq) ^ (a : ℕ),
-        (B.flatRelation β (st.over S) challenge μ fits).quotientCell (B.gaps digits) digits r⟩
-        (B.flatRows β (st.over S) challenge r).degree α x =
-      QuotientRead.weight ⟨digits, fun a => (base : Zq) ^ (a : ℕ),
-        (B.flatRelation β (st.over 0) challenge μ fits).quotientCell (B.gaps digits) digits r⟩
-        (B.flatRows β (st.over 0) challenge r).degree α x
-    rw [(rows r).degree S, funext fun j => funext fun a => cells S r j a]
+  · exact AffineRow.liftWeight ((rows r).relocate (B.gaps digits).place) α x fun S =>
+      quotientWeight_over β st challenge μ fits base digits α S r x
   · exact Affine.of_eq fun S => by
       simp only [FlatRelation.withQuotients, Batch.flatRelation, Batch.scalarWeight,
         Batch.Statement.over]
-
-/-- The split `SetupScan` in the form of the paper (Akita (132) and (133), with the factor 1) of
-the public weight of `Batch.liftedReduction` for the statement `st.over S` with `S_p = flat(p)` for
-the `2^ν` cells of the setup prefix: `m_local` is the weight at `S = 0`, and `ω_setup(p)` is the
-weight at the unit vector `e_p` minus the weight at `S = 0`. -/
-noncomputable def setupScan (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E) (st : B.Statement E)
-    (challenge : B.Challenge) (μ : ℕ) (fits : B.cells ≤ 2 ^ μ) (base digits : ℕ)
-    (room : B.quotientRoom digits ≤ 2 ^ μ) (batch : ℕ) (rowsFit : B.rowCount + 1 ≤ 2 ^ batch)
-    (ν : ℕ) (flat : Table) :
-    SetupScan (liftedReduction β (st.over fun p : Fin (2 ^ ν) => flat p) challenge μ fits base
-      digits room batch rowsFit) ν flat where
-  part α τ r2 := mle r2 (((liftedReduction β (st.over (0 : Fin (2 ^ ν) → Zq)) challenge μ
-    fits base digits room batch rowsFit).rows α).batchWeight τ)
-  scale _ _ _ := 1
-  weight α τ r2 p := if small : p < 2 ^ ν then
-      mle r2 (((liftedReduction β (st.over (Pi.single ⟨p, small⟩ 1 : Fin (2 ^ ν) → Zq))
-        challenge μ fits base digits room batch rowsFit).rows α).batchWeight τ) -
-      mle r2 (((liftedReduction β (st.over (0 : Fin (2 ^ ν) → Zq)) challenge μ fits base digits
-        room batch rowsFit).rows α).batchWeight τ)
-    else 0
-  split α τ r2 _ := by
-    refine (weight_affine β st challenge μ fits base digits room batch rowsFit α (List.ofFn τ)
-      r2 (fun p => flat p)).trans ?_
-    beta_reduce
-    rw [one_mul, cubeSum_eq_sum_range, Finset.sum_range]
-    exact congrArg _ (Finset.sum_congr rfl fun p _ => by rw [dite_eq_left p.isLt]; rfl)
 
 end Batch
 

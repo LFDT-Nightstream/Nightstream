@@ -1,7 +1,7 @@
 import NightstreamFPrime.Spec.Compression.Akita.ChallengeFamily
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Draw
 import NightstreamFPrime.Spec.Compression.Akita.Key20Tower
-import NightstreamFPrime.Spec.Compression.Akita.OperatorFilter
+import NightstreamFPrime.Spec.Compression.Akita.TrigBuild
 
 /-! The challenge families of the schedule file `crates/ns-compress/artifacts/key20.aks` and
 their decoders from one slot of the extension field `E` (Akita, ePrint 2026/1983, revision of

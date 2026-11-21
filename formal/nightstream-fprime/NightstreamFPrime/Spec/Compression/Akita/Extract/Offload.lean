@@ -21,9 +21,8 @@ in the claim `s_{ρ_S} = S̃^♭(ρ_S)` for the next level (135).
 - `offBatch` is the level `liftBatch` with these checks, and `offBatch_valid` gives `Tier.Valid`.
   It has a split `SetupScan` for the statement of the claim of each wire.
 
-`Batch.setupScan` in `Extract/SetupWeight.lean` is a split of the form of the paper when the
-matrices `A`, `B` and `D` are views of the setup prefix. No Lean theorem gives a split with the
-factor `scale` of the code. -/
+`Batch.codeScan` in `Extract/SetupFactor.lean` is the split with the factor `scale` of the code
+when the matrices `A`, `B` and `D` are views of the setup prefix. -/
 
 set_option autoImplicit false
 

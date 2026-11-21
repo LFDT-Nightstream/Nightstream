@@ -26,9 +26,11 @@ item 7).
   instances of Module-SIS that `breakChance` is about, and Lean does not prove their hardness.
   `key20_instances_shared` gives a solution for the view of one setup vector of an instance of
   the 43 views, when the matrices are these views.
-- Open: the error bound of the integer tables of the filters of the challenge families is a
-  hypothesis (`filtered₃` to `filteredL`). With it, the operator bound `Γ` is a theorem
-  (`Spec.Compression.Akita.TrigTable.mulBound`). No Lean result compares the Lean decoders or the Lean verifier with the code. -/
+- The filters of the challenge families are the predicate of the pinned Akita code
+  (`Spec.Compression.Akita.TrigTable.codeAccepts`). Lean proves the error bound of its integer
+  tables (`Spec.Compression.Akita.TrigTable.code_accurate`), so the operator bound `Γ` is a
+  theorem (`Spec.Compression.Akita.TrigTable.filtered_code`).
+- Open: no Lean result compares the Lean decoders or the Lean verifier with the code. -/
 
 namespace NightstreamFPrime.Claims.Akita
 
@@ -281,9 +283,8 @@ It does not cover `key30.aks`. The verifier is the Lean verifier `Key20.Tower.ac
 Lean decoders `draw`, which differs from the verifier of the pinned Akita code. Each output is
 with an accepted transcript. It is a certified decommitment of the commitment of each group of
 the root to a table with the claimed value (`OpensAt`), or a solution of Module-SIS for a matrix
-of a group, of a level, or for `A_term`. `drawn.filtered₃` to `drawn.filteredL`: each filter
-accepts only elements that the fixed-point predicate of a table with the error bound of Akita
-Appendix H.1 accepts. Lean proves the operator bound `Γ` from it (Akita Theorem H.1). -/
+of a group, of a level, or for `A_term`. The filters of the families are the predicate of the
+pinned Akita code, and Lean proves the operator bound `Γ` for them (Akita Theorem H.1). -/
 theorem key20_opening_sound
     {E : Type}
     [fieldE : Field E]
@@ -298,8 +299,7 @@ theorem key20_opening_sound
     [nonemptyCoord : Nonempty Coord]
     {total : ℕ}
     {o : Akita.Key20.Tower E Wire Coord total}
-    {keepL : Akita.Rq Akita.Key20.terminal.innerDegree → Prop}
-    (drawn : o.Drawn keepL)
+    (drawn : o.Drawn)
     (slots : 22 ≤ Fintype.card Coord)
     (prover : RandomOracle.OracleComp (Akita.Extract.Prefix Wire (Option Coord → E) total) (Option Coord → E) (ℕ → Wire))
     (budget : ℕ)
@@ -343,7 +343,7 @@ theorem key20_opening_sound
             (o.body.protocol.input prover table 0) (o.body.witness certificate))
         o.body.breaks out :=
   @NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.extract_sound E fieldE fintypeE decidableEqE
-    algebraZqE degree2EAlgebraZqE Wire Coord fintypeCoord decidableEqCoord nonemptyCoord total o keepL
+    algebraZqE degree2EAlgebraZqE Wire Coord fintypeCoord decidableEqCoord nonemptyCoord total o
     drawn slots prover budget table tape out result
 
 /-- Akita Theorem 10.17 in the form (161) for the opening of
@@ -356,8 +356,8 @@ accepts and the extractor returns no output is at most
 draws of the checks, `135/q²` for the 135 fold coordinates, and 142 retry loops. The draw of
 each check has the factor `2^{−g}` for the work bits `g` of its site in the Akita code (Akita
 Remark 10.18, `Extract.workBits`), and the fold terms have no work credit. The bound does not
-contain the probability that the output is a solution of Module-SIS (`[MSIS]`), and the operator
-bound of the filtered families is a hypothesis. -/
+contain the probability that the output is a solution of Module-SIS (`[MSIS]`). The operator
+bound of the filtered families is a theorem for the filter of the code. -/
 theorem key20_opening_bound
     {E : Type}
     [fieldE : Field E]
@@ -372,9 +372,8 @@ theorem key20_opening_bound
     [nonemptyCoord : Nonempty Coord]
     {total : ℕ}
     {o : Akita.Key20.Tower E Wire Coord total}
-    {keepL : Akita.Rq Akita.Key20.terminal.innerDegree → Prop}
     [finiteWire : Finite Wire]
-    (drawn : o.Drawn keepL)
+    (drawn : o.Drawn)
     (slots : 22 ≤ Fintype.card Coord)
     (prover : RandomOracle.OracleComp (Akita.Extract.Prefix Wire (Option Coord → E) total) (Option Coord → E) (ℕ → Wire))
     {queries : ℕ}
@@ -391,19 +390,28 @@ theorem key20_opening_bound
       ((↑queries : ℝ) + 1) * (317479 / (1024 * (↑(Fintype.card E) : ℝ)) + 135 * (1 / (↑fieldModulus : ℝ) ^ 2)) +
         ((↑queries : ℝ) + 1) * (↑142 : ℝ) / (↑budget : ℝ) :=
   @NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.extraction_le E fieldE fintypeE decidableEqE
-    algebraZqE degree2EAlgebraZqE Wire Coord fintypeCoord decidableEqCoord nonemptyCoord total o keepL
+    algebraZqE degree2EAlgebraZqE Wire Coord fintypeCoord decidableEqCoord nonemptyCoord total o
     finiteWire drawn slots prover queries bounded budget positive
 
-/-- The Lean verifier of the opening of `crates/ns-compress/artifacts/key20.aks` accepts a proof
-(Akita Theorem 10.9 and Akita Section 8.2, for the zero tables). For each table of stage answers
-whose slots decode to fold challenges and whose work slots have 57 zero work bits (`worked`: 57 is
-the largest count of work bits of a site, and Lean does not model the search of the honest prover
-for the work bits of Akita Remark 10.18), a proof exists whose transcript the verifier
-`towerLinks` accepts: the proof of the honest prover for the zero tables of the key polynomial, `W` and `V`.
-So the event of `key20_opening_bound` is not empty. The claim is not a completeness bound: Lean
-has no bound on the probability that a response of another table fits, and the Lean verifier has
-no rejection at a zero tensor factor. The claim for `key30.aks` is
-`Claims.AkitaKey30.key30_opening_accepts`. -/
+/-- The Lean verifier of the opening of `crates/ns-compress/artifacts/key20.aks` accepts the proof
+of the honest prover (Akita Theorem 10.9 and Akita Section 8.2) for each family of tables with the
+fit conditions of the honest prover. `tables`, `places`: the tables of the key polynomial, `W` and
+`V` and their opening points (`live`, `lengths`: their sizes). `fit`: the fit conditions
+`Spec.Compression.Akita.Key20.Fit` (Akita Definition 10.5): for each opening point and each fold
+challenge vector that the decoders give, the response of each level satisfies `Enc` and the norm
+limit of its route. For each table of stage answers whose slots decode to fold challenges and
+whose work slots have 57 zero work bits (`worked`: 57 is the largest count of work bits of a site,
+and Lean does not model the search of the honest prover for the work bits of Akita Remark 10.18),
+a proof exists whose first message has the commitments of the tables, the points and the values,
+and whose transcript the verifier `towerLinks` accepts. So the event of `key20_opening_bound` is
+not empty. The matrices are free: the claim is for each setup. `fit` holds in two cases: for the
+zero tables with each decoder (`Spec.Compression.Akita.Key20.fit_zero`), and for each family of
+tables with decoders that give the fold challenge 0 (`Spec.Compression.Akita.Key20.fit_quiet`).
+For the challenge families of the schedule and tables that are not 0, `fit` is not a theorem: a
+response can be larger than the limit of `Enc`, and the honest prover of the Akita code has a
+search over a nonce for a response that fits. The claim is not a completeness bound: Lean has no
+bound on the probability that a response fits, and the Lean verifier has no rejection at a zero
+tensor factor. The claim for `key30.aks` is `Claims.AkitaKey30.key30_opening_accepts`. -/
 theorem key20_opening_accepts
     {E : Type}
     [fieldE : Field E]
@@ -511,8 +519,17 @@ theorem key20_opening_accepts
     (decodesL : ∀ (input : Akita.Extract.Prefix (Akita.Key20.Wire E) (Option Coord → E) total)
           (i : Fin Akita.Key20.terminal.blocks), (decodeL (table input (some (blockL i)))).isSome = true)
     (worked : ∀ (input : Akita.Extract.Prefix (Akita.Key20.Wire E) (Option Coord → E) total),
-          table input none ∈ Akita.Extract.workZeros E 57) :
-    ∃ proof,
+          table input none ∈ Akita.Extract.workZeros E 57)
+    {tables : Fin 3 → Akita.Table}
+    (live : ∀ (g : Fin 3) (cell : ℕ), 2 ^ ![20, 16, 16] g ≤ cell → tables g cell = 0)
+    {places : Fin 3 → List E}
+    (lengths : ∀ (g : Fin 3), (places g).length = ![20, 16, 16] g)
+    (fit : Akita.Key20.Fit β key openKey decode β₁ key₁ openKey₁ decode₁ key₂ openKey₂ decode₂ key₃
+        openKey₃ decode₃ key₄ openKey₄ decode₄ key₅ openKey₅ decode₅ decodeL tables) :
+    ∃ proof : ℕ → Akita.Key20.Wire E,
+      ((proof 0).data.commit = fun g => (Akita.commit (key g) (tables g)).1) ∧
+      (proof 0).data.place = places ∧
+      ((proof 0).data.value = fun g => Lib.mle (places g) (Akita.lifted E (tables g))) ∧
       Akita.Extract.towerLinks (weight₃ := weight₃) (weight₄ := weight₄) (weight₅ := weight₅) Akita.Extract.Route.coefficient
         (Akita.Extract.Route.euclidean Akita.Key20.norm₃.operator Akita.Key20.norm₃.limit)
         (Akita.Extract.Route.euclidean Akita.Key20.norm₄.operator Akita.Key20.norm₄.limit)
@@ -688,11 +705,12 @@ theorem key20_opening_accepts
         (Akita.Key20.Note.commit₅ ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _)
         (Akita.Key20.Note.state ∘ Akita.Extract.Page.data : Akita.Key20.Wire E → _)
         ((Akita.Extract.transcript total accept).final (RandomOracle.OracleComp.done proof) table) :=
-  @NightstreamFPrime.Spec.Compression.Akita.Key20.zero_accepts E fieldE fintypeE decidableEqE algebraZqE
+  @NightstreamFPrime.Spec.Compression.Akita.Key20.accepts E fieldE fintypeE decidableEqE algebraZqE
     degree2EAlgebraZqE Coord fintypeCoord decidableEqCoord β key openKey block decode mass β₁ key₁ openKey₁
     block₁ decode₁ weight₁ key₂ openKey₂ block₂ decode₂ weight₂ key₃ openKey₃ block₃ decode₃ weight₃ key₄
     openKey₄ block₄ decode₄ weight₄ key₅ openKey₅ block₅ decode₅ weight₅ matrix blockL decodeL total inside
-    accept table decodes decodes₁ decodes₂ decodes₃ decodes₄ decodes₅ decodesL worked
+    accept table decodes decodes₁ decodes₂ decodes₃ decodes₄ decodes₅ decodesL worked tables live places lengths
+    fit
 
 /-- Soundness of the final verifier of `SPEC.md` Algorithm 10 with the Akita openings of
 `crates/ns-compress/artifacts/key20.aks` (Akita Theorem 10.17 for the compression argument over
@@ -703,8 +721,7 @@ queries, the probability that the verifier accepts and no proof with witnesses s
 `Verifies` for the statement is at most `FinalKey20.shapesBound` at the slot probability `1/q²`:
 for each claim shape, `(Q + 1)·(runCost + 317479/(1024·q²) + 135/q²) + (Q + 1)·144/budget + breakChance`.
 Lean gives no bound on `breakChance`, the probability of a solution of Module-SIS (`[MSIS]`).
-`drawn`: the conditions `FinalKey20.Opening.Drawn` of each opening, with the operator bound of
-the filtered families. -/
+`drawn`: the conditions `FinalKey20.Opening.Drawn` of each opening. -/
 theorem key20_verifier_sound
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -736,13 +753,8 @@ theorem key20_verifier_sound
           (setup.rows (↑circuit : ℕ)).matrices = (FinalRows.packageRows exports complete circuit).matrices)
     (blocks : setup.keyBlocks = 512)
     (coords : 28 ≤ Fintype.card Coord)
-    {keep₃ : ι → Akita.Rq Akita.Key20.level₃.shape.innerDegree → Prop}
-    {keep₄ : ι → Akita.Rq Akita.Key20.level₄.shape.innerDegree → Prop}
-    {keep₅ : ι → Akita.Rq Akita.Key20.level₅.shape.innerDegree → Prop}
-    {keepL : ι → Akita.Rq Akita.Key20.terminal.innerDegree → Prop}
     (drawn : ∀ (index : ι),
-          FinalKey20.Opening.Drawn setup complete.packageWidth step cap control read head (family index)
-            (keep₃ index) (keep₄ index) (keep₅ index) (keepL index))
+          FinalKey20.Opening.Drawn setup complete.packageWidth step cap control read head (family index))
     {queries : ℕ}
     (bounded : prover.QueryBound queries)
     {budget : ℕ}
@@ -760,7 +772,7 @@ theorem key20_verifier_sound
         (1 / (↑fieldModulus : ℝ) ^ 2) queries budget :=
   @NightstreamFPrime.Export.BoundedDepth.FinalKey20.verifier_sound_drawn logicalWidth publicFits mode setup
     step cap control Wire Coord total read head fintypeCoord decidableEqCoord nonemptyCoord ι fintypeι kind
-    family prover finiteWire relation cubeFits exports complete rows blocks coords keep₃ keep₄ keep₅ keepL
+    family prover finiteWire relation cubeFits exports complete rows blocks coords
     drawn queries bounded budget positive
 
 /-- The final verifier with the Akita openings of `crates/ns-compress/artifacts/key20.aks` against a
@@ -815,13 +827,8 @@ theorem key20_history_sound
     (keysShaped : ∀ (key : Fin 2), List.length (setup.circuitKeys key).digest = 4)
     (blocks : setup.keyBlocks = 512)
     (coords : 28 ≤ Fintype.card Coord)
-    {keep₃ : ι → Akita.Rq Akita.Key20.level₃.shape.innerDegree → Prop}
-    {keep₄ : ι → Akita.Rq Akita.Key20.level₄.shape.innerDegree → Prop}
-    {keep₅ : ι → Akita.Rq Akita.Key20.level₅.shape.innerDegree → Prop}
-    {keepL : ι → Akita.Rq Akita.Key20.terminal.innerDegree → Prop}
     (drawn : ∀ (index : ι),
-          FinalKey20.Opening.Drawn setup complete.packageWidth step cap control read head (family index)
-            (keep₃ index) (keep₄ index) (keep₅ index) (keepL index))
+          FinalKey20.Opening.Drawn setup complete.packageWidth step cap control read head (family index))
     {queries : ℕ}
     (bounded : prover.QueryBound queries)
     (positive : 0 < budget)
@@ -853,7 +860,7 @@ theorem key20_history_sound
   @NightstreamFPrime.Export.BoundedDepth.FinalKey20.history_sound_drawn logicalWidth publicFits mode setup
     step cap control Wire Coord total read head fintypeCoord decidableEqCoord nonemptyCoord ι fintypeι kind
     family prover finiteWire budget relation cubeFits exports Admitted StageAdmitted Efficient error
-    assumption closed complete rows keysShaped blocks coords keep₃ keep₄ keep₅ keepL drawn queries bounded
+    assumption closed complete rows keysShaped blocks coords drawn queries bounded
     positive admitted depth depthBound
 
 /-- The knowledge form of `key20_history_sound`: `Claims.Final.history_knowledge` in the game with
@@ -907,13 +914,8 @@ theorem key20_history_knowledge
     (keysShaped : ∀ (key : Fin 2), List.length (setup.circuitKeys key).digest = 4)
     (blocks : setup.keyBlocks = 512)
     (coords : 28 ≤ Fintype.card Coord)
-    {keep₃ : ι → Akita.Rq Akita.Key20.level₃.shape.innerDegree → Prop}
-    {keep₄ : ι → Akita.Rq Akita.Key20.level₄.shape.innerDegree → Prop}
-    {keep₅ : ι → Akita.Rq Akita.Key20.level₅.shape.innerDegree → Prop}
-    {keepL : ι → Akita.Rq Akita.Key20.terminal.innerDegree → Prop}
     (drawn : ∀ (index : ι),
-          FinalKey20.Opening.Drawn setup complete.packageWidth step cap control read head (family index)
-            (keep₃ index) (keep₄ index) (keep₅ index) (keepL index))
+          FinalKey20.Opening.Drawn setup complete.packageWidth step cap control read head (family index))
     {queries : ℕ}
     (bounded : prover.QueryBound queries)
     (positive : 0 < budget)
@@ -955,7 +957,7 @@ theorem key20_history_knowledge
   @NightstreamFPrime.Export.BoundedDepth.FinalKey20.history_knowledge_drawn logicalWidth publicFits mode
     setup step cap control Wire Coord total read head fintypeCoord decidableEqCoord nonemptyCoord ι
     fintypeι kind family prover finiteWire budget relation cubeFits exports Admitted StageAdmitted
-    Efficient error assumption closed complete rows keysShaped blocks coords keep₃ keep₄ keep₅ keepL drawn
+    Efficient error assumption closed complete rows keysShaped blocks coords drawn
     queries bounded positive admitted depth depthBound
 
 /-- The numbers of the three opening claims of the compression argument under the key of 512

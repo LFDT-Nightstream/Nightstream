@@ -29,7 +29,7 @@ use crate::application_records::ApplicationRecords;
 use crate::identity::append_value_preimage;
 use crate::package::json::{array, exact_array, usize_atom};
 use crate::package::{IdentityKind, PackageError, BLOCK_OUTPUTS, SBOX_ROWS};
-use crate::witness::{validate_witness_batch, validate_witness_batch_order, RawWitnessBatch, WitnessBatch};
+use crate::witness::{validate_witness_batch, validate_witness_batch_order, RawWitnessBatch, WitnessProgram};
 
 const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/packages/v1";
 pub const BOUNDED_DEPTH_PACKAGES_IDENTITY: [u64; 4] = [
@@ -104,7 +104,7 @@ pub struct StepPackage {
     first_fresh: usize,
     sbox_start: usize,
     pieces: Vec<Piece>,
-    witness: Vec<WitnessBatch>,
+    witness: WitnessProgram,
     slots: Vec<(usize, usize, u8)>,
     application: Region,
     native: Option<Arc<ApplicationRecords>>,
@@ -244,7 +244,7 @@ impl StepPackage {
             first_fresh,
             sbox_start: usize_atom(&fields[4], "bounded-depth S-box start")?,
             pieces,
-            witness,
+            witness: WitnessProgram::new(witness),
             slots: array(&fields[7], "bounded-depth slots")?
                 .iter()
                 .map(|run| {

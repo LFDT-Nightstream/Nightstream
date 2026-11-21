@@ -332,10 +332,7 @@ pub(super) fn forced_column(row: &Row) -> Option<usize> {
 impl StepPackage {
     /// Lean `StepPackage.bitColumns`.
     pub(crate) fn bit_columns(&self) -> Vec<usize> {
-        self.witness
-            .iter()
-            .flat_map(|batch| batch.bit_columns())
-            .collect()
+        self.witness.bit_columns()
     }
 
     /// Lean `StepPackage.runsOf`.

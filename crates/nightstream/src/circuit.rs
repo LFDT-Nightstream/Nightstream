@@ -204,9 +204,12 @@ impl Circuit {
             {
                 embedded.packages.clone()
             } else {
-                embedded
-                    .packages
-                    .with_application(application.records().clone(), witness_words, application.shape())?
+                embedded.packages.with_application_and_refresh_witness(
+                    application.records().clone(),
+                    witness_words,
+                    application.shape(),
+                    pack_refresh,
+                )?
             };
             Ok(CompiledSteps::with_refresh_storage(packages, pack_refresh)?)
         };

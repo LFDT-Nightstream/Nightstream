@@ -147,7 +147,7 @@ impl StepPackage {
                 columns[block.start()..block.first_output()].fill(Fq::ZERO);
             }
         }
-        let mut steps: Vec<_> = self.witness.iter().map(Step::Batch).collect();
+        let mut steps: Vec<_> = self.witness.batches()?.iter().map(Step::Batch).collect();
         let mut block_index = 0;
         for piece in &self.pieces {
             match piece {

@@ -218,6 +218,48 @@ fn addition() -> ApplicationCircuit {
     builder.finish(outputs).expect("addition application")
 }
 
+#[test]
+fn deferred_native_refresh_witness_matches_the_eager_proof() {
+    let application = addition();
+    let compile = |defer| {
+        let packages = packages()
+            .with_application_and_refresh_witness(
+                application.records().clone(),
+                application.private_input_count(),
+                application.shape(),
+                defer,
+            )
+            .unwrap();
+        CompiledSteps::with_refresh_storage(packages, defer).unwrap()
+    };
+    let eager = compile(false);
+    let deferred = compile(true);
+    assert_eq!(deferred.identity(), eager.identity());
+    let prove = |steps: &CompiledSteps| {
+        let mut prover = BoundedDepth::new(steps, fold_gate_bits(), crate::engine::Backend::Optimized).unwrap();
+        prover.cap = 1;
+        let mut envelope = prover.initial(words([10, 11, 12, 13])).unwrap();
+        let mut circuits = Vec::new();
+        for step in 0..3 {
+            let message = [F::from_u64(20 + step), F::from_u64(21 + step)];
+            let next = application
+                .execute(envelope.current, &message)
+                .unwrap()
+                .output_state();
+            envelope = prover.extend(&envelope, &message, next, None).unwrap();
+            circuits.push(envelope.pc);
+        }
+        assert_eq!(circuits, [1, 1, 2]);
+        let bytes = prover.encode_proof(&envelope).unwrap();
+        let decoded = prover.decode_proof(&bytes).unwrap();
+        prover
+            .verify(3, decoded.z0, decoded.current, &decoded)
+            .unwrap();
+        bytes
+    };
+    assert_eq!(prove(&deferred), prove(&eager));
+}
+
 fn native_application_verifies(application: ApplicationCircuit) {
     let packages = packages()
         .with_application(

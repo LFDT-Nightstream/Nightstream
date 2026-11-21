@@ -151,6 +151,7 @@ impl StepPackage {
         records: &Arc<ApplicationRecords>,
         witness_words: usize,
         shape: &NativeShape,
+        defer_witness: bool,
     ) -> Result<Self, PackageError> {
         let old = self.application;
         if old.pieces > self.pieces.len() || old.local_start < WITNESS_START + old.witness_words {
@@ -167,17 +168,8 @@ impl StepPackage {
         let region_locals = old.local_start..old.local_start + old.locals;
         let region_fresh = self.first_fresh..self.first_fresh + old.fresh;
         let region_sbox = self.sbox_start..self.sbox_start + SBOX_COLUMNS * blocks;
-        let map = |column: usize| match column {
-            c if c < WITNESS_START => Some(c),
-            c if c < WITNESS_START + old.witness_words => None,
-            c if c < old.local_start => moved(c, words),
-            c if region_locals.contains(&c) => None,
-            c if c < self.first_fresh => moved(c, locals),
-            c if region_fresh.contains(&c) => None,
-            c if c < self.sbox_start => moved(c, fresh),
-            c if region_sbox.contains(&c) => None,
-            c => moved(c, sbox),
-        };
+        let first_fresh = self.first_fresh;
+        let sbox_start = self.sbox_start;
         let inside = |column: usize| {
             column < old.local_start
                 || region_locals.contains(&column)
@@ -192,6 +184,17 @@ impl StepPackage {
                 "bounded-depth application piece reads past its region",
             ));
         }
+        let map = move |column: usize| match column {
+            c if c < WITNESS_START => Some(c),
+            c if c < WITNESS_START + old.witness_words => None,
+            c if c < old.local_start => moved(c, words),
+            c if c < old.local_start + old.locals => None,
+            c if c < first_fresh => moved(c, locals),
+            c if region_fresh.contains(&c) => None,
+            c if c < sbox_start => moved(c, fresh),
+            c if region_sbox.contains(&c) => None,
+            c => moved(c, sbox),
+        };
         let mut package = Self {
             circuit: self.circuit,
             public_columns: self.public_columns,
@@ -211,7 +214,7 @@ impl StepPackage {
             guard_fusion: super::guard_fusion::GuardFusion::default(),
             word_packing: super::word_packing::WordPacking::default(),
             pieces: Vec::new(),
-            witness: Vec::new(),
+            witness: crate::witness::WitnessProgram::new(Vec::new()),
             slots: Vec::new(),
         };
         let mut pieces = package.native_pieces(records, shape)?;
@@ -221,16 +224,7 @@ impl StepPackage {
             );
         }
         package.pieces = pieces;
-        package.witness = self
-            .witness
-            .iter()
-            .filter(|batch| !region_locals.contains(&batch.start))
-            .map(|batch| {
-                batch.map_columns(&map).ok_or(PackageError::Malformed(
-                    "bounded-depth witness batch reads the application",
-                ))
-            })
-            .collect::<Result<_, _>>()?;
+        package.witness = self.witness.remap(region_locals, map, defer_witness)?;
         let (bits, forced) = package.slot_facts()?;
         package.slots = package.rule_slots(&bits, &forced);
         package.pack_native_booleans()?;
@@ -527,14 +521,21 @@ impl BoundedDepthPackages {
         records: &Arc<ApplicationRecords>,
         witness_words: usize,
         shape: &NativeShape,
+        defer_refresh_witness: bool,
         update: &mut (impl FnMut(u64) + Send),
     ) -> Result<[StepPackage; 2], PackageError> {
         let (words, (light, refresh)) = rayon::join(
             || record_words(self.identity, records, witness_words, shape, update),
             || {
                 rayon::join(
-                    || self.light.with_application(records, witness_words, shape),
-                    || self.refresh.with_application(records, witness_words, shape),
+                    || {
+                        self.light
+                            .with_application(records, witness_words, shape, false)
+                    },
+                    || {
+                        self.refresh
+                            .with_application(records, witness_words, shape, defer_refresh_witness)
+                    },
                 )
             },
         );
@@ -553,7 +554,7 @@ impl BoundedDepthPackages {
         shape: &NativeShape,
     ) -> Result<Vec<u64>, PackageError> {
         let mut words = Vec::new();
-        self.substitute(records, witness_words, shape, &mut |word| words.push(word))?;
+        self.substitute(records, witness_words, shape, false, &mut |word| words.push(word))?;
         Ok(words)
     }
 
@@ -564,9 +565,19 @@ impl BoundedDepthPackages {
         witness_words: usize,
         shape: &NativeShape,
     ) -> Result<Self, PackageError> {
+        self.with_application_and_refresh_witness(records, witness_words, shape, false)
+    }
+
+    pub fn with_application_and_refresh_witness(
+        &self,
+        records: Arc<ApplicationRecords>,
+        witness_words: usize,
+        shape: &NativeShape,
+        defer_refresh_witness: bool,
+    ) -> Result<Self, PackageError> {
         let mut input = poseidon2::Poseidon2Hasher::default();
         let mut reduced = None;
-        let [light, refresh] = self.substitute(&records, witness_words, shape, &mut |word| {
+        let [light, refresh] = self.substitute(&records, witness_words, shape, defer_refresh_witness, &mut |word| {
             if word >= Fq::ORDER_U64 {
                 reduced.get_or_insert(word);
             }

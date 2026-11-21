@@ -605,7 +605,11 @@ fn weighted_rows(claims: &[(K, &[K])], count: usize, row_value: impl Fn(usize) -
                         *sum = sum.add(low[offset], value);
                     }
                 }
-                factors.iter().zip(sums).map(|((_, high), sum)| high[group] * sum.value()).sum::<K>()
+                factors
+                    .iter()
+                    .zip(sums)
+                    .map(|((_, high), sum)| high[group] * sum.value())
+                    .sum::<K>()
             },
         )
         .sum()
@@ -633,7 +637,11 @@ pub(crate) fn slot_values(slots: FactoredSlots<'_>, blocks: &[K], form: &[K; D])
             let (block, lane) = (start as usize / D, start as usize % D);
             let width = usize::from(width);
             if width <= 1 {
-                return if width == 0 { K::ZERO } else { blocks[block] * form[lane] };
+                return if width == 0 {
+                    K::ZERO
+                } else {
+                    blocks[block] * form[lane]
+                };
             }
             windows[width]
                 .iter()

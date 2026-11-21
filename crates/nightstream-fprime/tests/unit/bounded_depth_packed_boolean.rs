@@ -37,7 +37,7 @@ fn packing_counts_unique_sources_and_restores_source_rows() {
         original.push(bit(200));
         let mut rows = original.clone();
         let packed = PackedBooleans::lower(&mut rows, 300, 400, |column| column < 200);
-        assert_eq!(packed.sources, (1..=count).collect::<Vec<_>>());
+        assert_eq!(*packed.sources, (1..=count).collect::<Vec<_>>());
         assert_eq!(packed.row_count(), count.div_ceil(31));
         assert_eq!(rows.len(), 1 + count.div_ceil(31));
         assert_eq!(
@@ -115,10 +115,10 @@ fn malformed_companion_maps_and_changed_rows_are_rejected() {
     let mut rows = vec![bit(1), bit(2)];
     let packed = PackedBooleans::lower(&mut rows, 3, 5, |_| true);
     let mut wrong = packed.clone();
-    wrong.sources.reverse();
+    Arc::make_mut(&mut wrong.sources).reverse();
     assert!(wrong.validate(&rows, 3, 5).is_err());
     let mut wrong = packed.clone();
-    wrong.sources[1] = 1;
+    Arc::make_mut(&mut wrong.sources)[1] = 1;
     assert!(wrong.validate(&rows, 3, 5).is_err());
     let mut wrong = packed.clone();
     wrong.removed[1].0 = 0;
@@ -199,7 +199,7 @@ fn packing_stops_at_the_package_width() {
         let width = start + room;
         let mut rows = original.clone();
         let packed = PackedBooleans::lower(&mut rows, start, width, |_| true);
-        assert_eq!(packed.sources, (1..=sources).collect::<Vec<_>>(), "room {room}");
+        assert_eq!(*packed.sources, (1..=sources).collect::<Vec<_>>(), "room {room}");
         assert_eq!(packed.zeros.len(), zeros, "room {room}");
         assert_eq!(packed.products.len(), products, "room {room}");
         assert!(packed.end() <= width, "room {room}");

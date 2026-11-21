@@ -396,7 +396,14 @@ impl BoundedDepthPackages {
         self.identity
     }
 
-    pub fn expand(self) -> Result<ExpandedPackages, PackageError> {
+    pub fn expand(mut self) -> Result<ExpandedPackages, PackageError> {
+        let (light_sources, refresh_sources) = (
+            &self.light.packed_booleans.sources,
+            &mut self.refresh.packed_booleans.sources,
+        );
+        if light_sources.as_slice() == refresh_sources.as_slice() {
+            refresh_sources.clone_from(light_sources);
+        }
         let (light, refresh) = rayon::join(|| self.light.expand(), || self.refresh.expand());
         Ok(ExpandedPackages {
             light: light?,

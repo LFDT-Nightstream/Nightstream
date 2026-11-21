@@ -481,7 +481,7 @@ fn layout_words(package: &StepPackage, update: &mut impl FnMut(u64)) -> Result<(
     package.word_packing.bind(rows, update);
     update(package.packed_booleans.start as u64);
     update(package.packed_booleans.sources.len() as u64);
-    for &column in &package.packed_booleans.sources {
+    for &column in package.packed_booleans.sources.iter() {
         update(column as u64);
     }
     update(package.packed_booleans.removed.len() as u64);

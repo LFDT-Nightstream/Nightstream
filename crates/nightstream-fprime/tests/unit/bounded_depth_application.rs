@@ -184,7 +184,10 @@ fn native_blocks_replace_their_rows_and_bits_take_one_coordinate() {
         assert_eq!(kind(4), Some(Kind::Field));
         assert_eq!(kind(0), Some(Kind::Field));
         assert_eq!(kind(6), None);
-        assert_eq!(packed.packed_booleans.sources, vec![packed.variable_column(5).unwrap()]);
+        assert_eq!(
+            *packed.packed_booleans.sources,
+            vec![packed.variable_column(5).unwrap()]
+        );
         for column in [packed.sbox_start(), packed.sbox_start() + 299] {
             assert_eq!(layout.slot(column).map(|(_, kind)| kind), Some(Kind::Field));
         }

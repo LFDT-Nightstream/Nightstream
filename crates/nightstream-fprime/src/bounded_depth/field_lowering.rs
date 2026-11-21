@@ -76,7 +76,7 @@ impl FieldLowering {
                 }
             }
         }
-        for &column in &package.packed_booleans.sources {
+        for &column in package.packed_booleans.sources.iter() {
             checked_index(&mut protected, column)?;
         }
         for piece in package.pieces.iter().skip(1) {

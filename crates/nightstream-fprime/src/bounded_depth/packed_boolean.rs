@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc};
 
 use neo_math::Fq as F;
 use p3_field::PrimeCharacteristicRing;
@@ -13,7 +13,7 @@ pub(super) const PAIRS_PER_ROW: usize = 31;
 #[derive(Clone, Debug, Default)]
 pub(super) struct PackedBooleans {
     pub(super) start: usize,
-    pub(super) sources: Vec<usize>,
+    pub(super) sources: Arc<Vec<usize>>,
     pub(super) removed: Vec<(usize, Row)>,
     pub(super) products: Vec<Product>,
     pub(super) zeros: Vec<ZeroProduct>,
@@ -39,7 +39,7 @@ impl PackedBooleans {
         products.truncate(room / 2);
         let mut packed = Self {
             start,
-            sources,
+            sources: Arc::new(sources),
             removed: Vec::new(),
             products,
             zeros,

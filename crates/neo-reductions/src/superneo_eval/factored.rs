@@ -271,14 +271,21 @@ impl<'a> FactoredRows<'a> {
             .enumerate()
             .filter_map(|(matrix, &weight)| {
                 let (slots, coefficients) = self.port(row, matrix);
-                if slots.is_empty() {
-                    return None;
-                }
-                let pairs = slots
-                    .iter()
-                    .zip(coefficients)
-                    .map(|(&slot, &coefficient)| (coefficient, slot_values[slot as usize]));
-                Some(weight * sum_of_scaled(pairs))
+                let value = match (slots, coefficients) {
+                    ([], []) => return None,
+                    ([slot], [coefficient]) => match *coefficient {
+                        F::ONE => slot_values[*slot as usize],
+                        F::NEG_ONE => -slot_values[*slot as usize],
+                        scale => slot_values[*slot as usize].scale_base(scale),
+                    },
+                    _ => sum_of_scaled(
+                        slots
+                            .iter()
+                            .zip(coefficients)
+                            .map(|(&slot, &coefficient)| (coefficient, slot_values[slot as usize])),
+                    ),
+                };
+                Some(weight * value)
             })
             .sum()
     }

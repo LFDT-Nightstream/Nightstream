@@ -25,6 +25,7 @@ pub(super) fn project(witness: &SuperneoZBlocks, slots: FactoredSlots<'_>, ratio
             index: usize::MAX,
             cursor: 0,
             value: K::ZERO,
+            at_end: K::ZERO,
         };
         for ((output, &start), &len) in values
             .iter_mut()
@@ -88,6 +89,7 @@ struct Block<'a> {
     index: usize,
     cursor: usize,
     value: K,
+    at_end: K,
 }
 
 impl Block<'_> {
@@ -106,13 +108,17 @@ impl Block<'_> {
                     self.cursor = 0;
                     self.ring = self.digits.ring(index).into_owned();
                     self.value = sum_of_scaled(self.ring.0.into_iter().zip(self.weights.ring));
+                    self.at_end = -self.value;
                 }
                 if self.cursor < lane {
                     let _ = self.span(lane);
                 }
-                total += self
-                    .span(lane + count)
-                    .scale_base(self.weights.slot[first - start]);
+                let value = self.span(lane + count);
+                if first == start {
+                    total = value;
+                } else {
+                    total += value.scale_base(self.weights.slot[first - start]);
+                }
             }
             first = upper;
         }
@@ -123,6 +129,11 @@ impl Block<'_> {
         let digits = &self.ring.0[self.cursor..end];
         let len = digits.len();
         self.cursor = end;
+        if let [digit] = digits {
+            let value = self.value;
+            self.value = value * self.weights.inverse[1] - self.weights.correction.scale_base(*digit);
+            return value;
+        }
         if len < DIRECT_LIMIT {
             let mut sum = K::ZERO;
             for (&digit, &weight) in digits.iter().zip(&self.weights.slot) {
@@ -131,14 +142,18 @@ impl Block<'_> {
             }
             return sum;
         }
-        let ring_sum = sum_of_scaled(digits.iter().copied().zip(self.weights.ring));
         let slot_sum = F::sum_of_products(
             digits
                 .iter()
                 .copied()
                 .zip(self.weights.slot.iter().copied()),
         );
-        let finish = (self.value - self.weights.delta * ring_sum) * self.weights.inverse[len];
+        let finish = if end == D {
+            self.at_end
+        } else {
+            let ring_sum = sum_of_scaled(digits.iter().copied().zip(self.weights.ring));
+            (self.value - self.weights.delta * ring_sum) * self.weights.inverse[len]
+        };
         let sum = self.value
             - finish.scale_base(self.weights.slot[len])
             - self

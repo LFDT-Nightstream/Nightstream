@@ -593,16 +593,13 @@ fn single_carried_matrix(
     workspace_bytes: usize,
 ) -> Result<Vec<K>, PiCcsError> {
     let ratio = gamma_power(gamma, dims.matrix_count);
+    let matrix_shift = gamma_power(gamma, D);
     let factors = (0..dims.matrix_count)
-        .map(|matrix| gamma_power(gamma, matrix))
+        .map(|matrix| matrix_shift * gamma_power(gamma, matrix))
         .collect::<Vec<_>>();
-    if let Some(mut matrix) =
+    if let Some(matrix) =
         crate::superneo_eval::geometric_weighted_rows_from_source(source, witness, ratio, &factors, workspace_bytes)?
     {
-        let matrix_shift = gamma_power(gamma, D);
-        for value in &mut matrix {
-            *value *= matrix_shift;
-        }
         return Ok(matrix);
     }
     carried_matrix(
@@ -627,8 +624,9 @@ fn carried_matrix(
     powers: &[K],
 ) -> Result<(Vec<K>, Vec<K>), PiCcsError> {
     let matrix_ratio = gamma_power(gamma, running.len() * dims.matrix_count);
+    let matrix_shift = gamma_power(gamma, running.len() * D);
     let matrix_coefficients = (0..dims.matrix_count)
-        .map(|matrix| gamma_power(gamma, running.len() * matrix))
+        .map(|matrix| matrix_shift * gamma_power(gamma, running.len() * matrix))
         .collect::<Vec<_>>();
     let width = dims.assignment_width;
     let mut projection = vec![K::ZERO; width.max(rows)];
@@ -641,10 +639,6 @@ fn carried_matrix(
         &mut matrix,
         workspace_bytes,
     )?;
-    let matrix_shift = gamma_power(gamma, running.len() * D);
-    for value in &mut matrix {
-        *value *= matrix_shift;
-    }
     Ok((projection, matrix))
 }
 

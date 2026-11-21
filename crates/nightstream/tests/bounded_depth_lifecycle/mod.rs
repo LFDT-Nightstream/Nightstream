@@ -83,11 +83,7 @@ fn a_raw_light_proof_verifies_with_the_refresh_rows_still_packed() {
     assert_eq!(circuits, [1, 1]);
     let bytes = prover.encode_proof(&proof).unwrap();
 
-    for engine in [
-        Engine::Optimized,
-        #[cfg(feature = "metal")]
-        Engine::Metal,
-    ] {
+    let verify = |engine| {
         let steps = CompiledSteps::with_refresh_storage(packages(), true).unwrap();
         let verifier = BoundedDepth::new(&steps, fold_gate_bits(), Backend::new(engine).unwrap()).unwrap();
         let refresh = &steps.steps()[1];
@@ -103,7 +99,10 @@ fn a_raw_light_proof_verifies_with_the_refresh_rows_still_packed() {
             refresh.remains_packed(),
             "{engine:?} restored the refresh rows during verification"
         );
-    }
+    };
+    verify(Engine::Optimized);
+    #[cfg(feature = "metal")]
+    verify(Engine::Metal);
 }
 
 #[test]

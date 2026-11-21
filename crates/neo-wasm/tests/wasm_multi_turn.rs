@@ -1,5 +1,4 @@
 mod common;
-use common::observe_turns;
 #[path = "multi_turn/stitching.rs"]
 mod stitching;
 
@@ -81,13 +80,15 @@ impl TracedTestComponent {
     }
 }
 
-fn run_counter_turns(component_bytes: &[u8], bindings: &HostEventBindings) -> CollectedTestTrace {
+fn run_counter_turns(component_bytes: &[u8], bindings: &HostEventBindings, inputs: [i32; 2]) -> CollectedTestTrace {
     let mut runtime = TracedTestComponent::new(component_bytes, bindings);
-    let mut first = [ComponentVal::S32(0)];
-    runtime.call("add", &[ComponentVal::S32(7)], &mut first);
-    let mut second = [ComponentVal::S32(0)];
-    runtime.call("add", &[ComponentVal::S32(35)], &mut second);
-    assert_eq!((first, second), ([ComponentVal::S32(7)], [ComponentVal::S32(42)]));
+    let mut total = 0_i32;
+    for input in inputs {
+        let mut result = [ComponentVal::S32(0)];
+        runtime.call("add", &[ComponentVal::S32(input)], &mut result);
+        total = total.wrapping_add(input);
+        assert_eq!(result, [ComponentVal::S32(total)]);
+    }
     runtime.finish()
 }
 
@@ -166,7 +167,7 @@ fn multi_turn_setup() -> MultiTurnSetup {
     let add_fref = 1;
     let mut bindings = HostEventBindings::default();
     bindings.exports.insert(add_fref, add_template());
-    let run = run_counter_turns(&component_bytes, &bindings);
+    let run = run_counter_turns(&component_bytes, &bindings, [7, 35]);
 
     let without_bindings = neo_wasm::traces_from_wasmtime_steps(&run.steps);
     assert!(
@@ -186,7 +187,6 @@ fn multi_turn_setup() -> MultiTurnSetup {
         .expect("multi-turn bindings trace");
     common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
-    observe_turns(&trace);
 
     MultiTurnSetup {
         trace,
@@ -265,7 +265,6 @@ fn exit_only_template_allows_reentry_and_commits_each_return() {
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).unwrap();
     let witnesses = common::sanity_check_trace_with_bindings(&trace, &artifacts, &bindings);
     common::ccs_check_trace(&trace);
-    observe_turns(&trace);
     let events = neo_wasm::comm_chain::absorbed_event_blocks(&trace);
     assert_eq!(
         events.iter().map(|event| event.words).collect::<Vec<_>>(),
@@ -385,7 +384,6 @@ fn reentered_export_zeroes_an_unmapped_i64_local() {
     }));
     common::sanity_check_trace_with_bindings(&trace, &run.artifacts, &bindings);
     common::ccs_check_trace(&trace);
-    observe_turns(&trace);
 
     let mut forged = trace.clone();
     let boundary = forged
@@ -455,7 +453,6 @@ fn export_advice_preserves_arguments_without_absorbing_them() {
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).unwrap();
     common::sanity_check_trace_with_bindings(&trace, &artifacts, &bindings);
     common::ccs_check_trace(&trace);
-    observe_turns(&trace);
     let events = neo_wasm::comm_chain::absorbed_event_blocks(&trace);
     assert_eq!(
         events.iter().map(|event| event.words).collect::<Vec<_>>(),
@@ -791,7 +788,6 @@ fn resultless_turn_can_precede_another_turn() {
         .expect("resultless-then-value trace");
     common::check_native_event_hashes(&trace).expect("native event hashes");
     common::ccs_check_trace(&trace);
-    observe_turns(&trace);
 
     let tb = trace
         .iter()

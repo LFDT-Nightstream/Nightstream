@@ -572,40 +572,43 @@ pub(crate) fn matrix_part(statements: &[Statement<'_>], challenges: &Challenges,
         let omega = omega_powers(statement, challenges.omega);
         let omega = &omega[KAPPA + 1..][..statement.claim.eval_a.len()];
         let slots = slot_values(rows.slots(), &equality(claim.point, claim.blocks), &form);
-        let weights = RowWeights::new(&claims);
-        total += (0..rows.shape().rows)
-            .into_par_iter()
-            .with_min_len(1 << 12)
-            .map(|row| weights.at(row) * rows.weighted_row(row, omega, &slots))
-            .sum::<K>();
+        total += weighted_rows(&claims, rows.shape().rows, |row| rows.weighted_row(row, omega, &slots));
     }
     Ok(total)
 }
 
-struct RowWeights(Vec<(Vec<K>, Vec<K>, usize)>);
-
-impl RowWeights {
-    fn new(claims: &[(K, &[K])]) -> Self {
-        Self(
-            claims
-                .iter()
-                .map(|&(coefficient, point)| {
-                    let (low, high) = point.split_at(point.len() / 2);
-                    let high = equality(high, 1 << high.len())
-                        .into_iter()
-                        .map(|weight| coefficient * weight);
-                    (equality(low, 1 << low.len()), high.collect(), low.len())
-                })
-                .collect(),
+fn weighted_rows(claims: &[(K, &[K])], count: usize, row_value: impl Fn(usize) -> K + Sync) -> K {
+    let bits = count.next_power_of_two().trailing_zeros() as usize / 2;
+    let width = 1 << bits;
+    let groups = count.div_ceil(width);
+    let factors: Vec<_> = claims
+        .iter()
+        .map(|&(coefficient, point)| {
+            let (low, high) = point.split_at(bits);
+            let mut high = equality(high, groups);
+            for weight in &mut high {
+                *weight *= coefficient;
+            }
+            (equality(low, width), high)
+        })
+        .collect();
+    (0..groups)
+        .into_par_iter()
+        .map_init(
+            || vec![ProductSum::default(); factors.len()],
+            |sums, group| {
+                sums.fill(ProductSum::default());
+                let start = group * width;
+                for offset in 0..width.min(count - start) {
+                    let value = row_value(start + offset);
+                    for (sum, (low, _)) in sums.iter_mut().zip(&factors) {
+                        *sum = sum.add(low[offset], value);
+                    }
+                }
+                factors.iter().zip(sums).map(|((_, high), sum)| high[group] * sum.value()).sum::<K>()
+            },
         )
-    }
-
-    fn at(&self, row: usize) -> K {
-        self.0
-            .iter()
-            .map(|(low, high, bits)| low[row & ((1 << bits) - 1)] * high[row >> bits])
-            .sum()
-    }
+        .sum()
 }
 
 pub(crate) fn slot_values(slots: FactoredSlots<'_>, blocks: &[K], form: &[K; D]) -> Vec<K> {
@@ -629,6 +632,9 @@ pub(crate) fn slot_values(slots: FactoredSlots<'_>, blocks: &[K], form: &[K; D])
         .map(|(&start, &width)| {
             let (block, lane) = (start as usize / D, start as usize % D);
             let width = usize::from(width);
+            if width <= 1 {
+                return if width == 0 { K::ZERO } else { blocks[block] * form[lane] };
+            }
             windows[width]
                 .iter()
                 .take((lane + width).div_ceil(D))

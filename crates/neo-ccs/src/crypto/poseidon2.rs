@@ -82,7 +82,74 @@ impl<const T: usize> Instance<T> {
 
 #[inline]
 pub fn permute_state(state: [Fq; WIDTH]) -> [Fq; WIDTH] {
-    INSTANCE_16.permute(state)
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    {
+        pinned_permutation(state)
+    }
+    #[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
+    {
+        INSTANCE_16.permute(state)
+    }
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn pinned_permutation(mut state: [Fq; WIDTH]) -> [Fq; WIDTH] {
+    const BATCH: usize = 11;
+    const MAX_DIAGONAL: u64 = 9;
+    const {
+        assert!((WIDTH as u128 + MAX_DIAGONAL as u128).pow(BATCH as u32) * (u64::MAX as u128) < i128::MAX as u128);
+    }
+    let diagonal = INSTANCE_16.diagonal.map(|entry| {
+        let word = entry.as_canonical_u64();
+        if word <= MAX_DIAGONAL {
+            i128::from(word)
+        } else {
+            let magnitude = Fq::ORDER_U64 - word;
+            assert!(magnitude <= MAX_DIAGONAL);
+            -i128::from(magnitude)
+        }
+    });
+    for constants in &INSTANCE_16.initial {
+        state = mix_and_add(state, constants).map(sbox);
+    }
+    state = mix_and_add(state, &[Fq::ZERO; WIDTH]);
+    for batch in INSTANCE_16.internal.chunks(BATCH) {
+        let mut lanes = state.map(|lane| i128::from(lane.as_canonical_u64()));
+        for &constant in batch {
+            lanes[0] = i128::from(sbox(Fq::from_i128(lanes[0]) + constant).as_canonical_u64());
+            let sum: i128 = lanes.iter().sum();
+            for (lane, coefficient) in lanes.iter_mut().zip(diagonal) {
+                *lane = sum + *lane * coefficient;
+            }
+        }
+        state = lanes.map(Fq::from_i128);
+    }
+    let [first, rest @ ..] = &INSTANCE_16.terminal;
+    state = std::array::from_fn(|i| sbox(state[i] + first[i]));
+    for constants in rest {
+        state = mix_and_add(state, constants).map(sbox);
+    }
+    mix_and_add(state, &[Fq::ZERO; WIDTH])
+}
+
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+fn mix_and_add(state: [Fq; WIDTH], constants: &[Fq; WIDTH]) -> [Fq; WIDTH] {
+    let lanes = state.map(|word| u128::from(word.as_canonical_u64()));
+    let columns: [u128; 4] = std::array::from_fn(|j| lanes[j] + lanes[j + 4] + lanes[j + 8] + lanes[j + 12]);
+    let mut mixed = [Fq::ZERO; WIDTH];
+    for ((block, dest), constants) in lanes
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .zip(mixed.as_chunks_mut::<4>().0)
+        .zip(constants.as_chunks::<4>().0)
+    {
+        let [a, b, c, d] = std::array::from_fn(|i| block[i] + columns[i]);
+        let sum = a + b + c + d;
+        let values = [sum + a + b + b, sum + b + c + c, sum + c + d + d, sum + d + a + a];
+        *dest = std::array::from_fn(|i| Fq::from_u128(values[i] + u128::from(constants[i].as_canonical_u64())));
+    }
+    mixed
 }
 
 /// Lean `Gadgets/Poseidon2/Permutation.lean`.

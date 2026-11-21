@@ -174,8 +174,7 @@ theorem build (interface : Interface) (env : Env) (offset : Nat)
       AgreesOutside env completed offset
         (localLength (Circuit.ops (circuit interface).main offset)) ∧
       holdsFlat completed (Circuit.ops (circuit interface).main offset) :=
-  PointWeightedHorner.Owned.build (coreInterface interface) env offset
-    cubeVariables_positive assumptions
+  PointWeightedHorner.Owned.build (coreInterface interface) env offset assumptions
 
 theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)

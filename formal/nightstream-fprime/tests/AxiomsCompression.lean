@@ -8,6 +8,7 @@ import NightstreamFPrime.Export.BoundedDepth.NebulaFinal
 import NightstreamFPrime.Export.Generic.PackageRows
 import NightstreamFPrime.Export.BoundedDepth.FinalRows
 import NightstreamFPrime.Export.BoundedDepth.RowsParity
+import NightstreamFPrime.Export.BoundedDepth.Shipped
 
 /-! Axiom audits for the compression argument over Akita (`Spec/Compression`). -/
 
@@ -61,6 +62,13 @@ import NightstreamFPrime.Export.BoundedDepth.RowsParity
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.draw_step
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.event_ne_top
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.prob_eq_law
+#audit_axioms NightstreamFPrime.Spec.Compression.Game.map_fst_bind
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Use.wins_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.key20_conditions
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.key30W27_conditions
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.key30W26_conditions
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Schedule.admissible_key20_iff
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Schedule.not_admissible_key30
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.walk_sound
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.DensityLe.mono
 #audit_axioms NightstreamFPrime.Spec.Compression.Game.CostLe.densityLe
@@ -229,6 +237,24 @@ import NightstreamFPrime.Export.BoundedDepth.RowsParity
 #audit_axioms NightstreamFPrime.Spec.Compression.Production.centeredMagnitude_tableValue
 #audit_axioms NightstreamFPrime.Spec.Compression.Production.slot_norm
 #audit_axioms NightstreamFPrime.Spec.Compression.Production.slot_normBounded
+#audit_axioms NightstreamFPrime.Spec.Compression.Game.plays_bind
+#audit_axioms NightstreamFPrime.Spec.Compression.Game.Ends.avoids
+#audit_axioms NightstreamFPrime.Spec.Compression.Game.plays_sumcheck
+#audit_axioms NightstreamFPrime.Spec.Compression.Game.honestSumcheck_ends
+#audit_axioms NightstreamFPrime.Spec.Compression.Game.honestSumcheck_costLe
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.density_coordinate
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.density_tableHit_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.density_omegaBad
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.omegaError_le
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.honestInverses_spec
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.plays_afterKey
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.plays_afterMain
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.plays_honest
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.honest_avoids
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.honest_costLe
+#audit_axioms NightstreamFPrime.Spec.Compression.Verifier.honest_complete
+#audit_axioms NightstreamFPrime.Spec.Compression.Production.params_tablesDistinct
+#audit_axioms NightstreamFPrime.Spec.Compression.Production.params_omegaError_le
 #audit_axioms NightstreamFPrime.Spec.Compression.Claim.mul_congr_left
 #audit_axioms NightstreamFPrime.Spec.Compression.Claim.mul_congr_right
 #audit_axioms NightstreamFPrime.Spec.Compression.Claim.map_mul
@@ -299,12 +325,15 @@ import NightstreamFPrime.Export.BoundedDepth.RowsParity
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.runningWitness_default
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.slot_or_outside
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.checks_light
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.which_light
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.placed_light
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.laid_light
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.accepts_light
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.freshIndex_eq
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.which_fresh
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.supported_slice
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.Setup.layout_facts
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.Setup.Gate.laid
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.verifies_of_run
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.verifies_of_bottom
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.game_avoids
@@ -313,7 +342,10 @@ import NightstreamFPrime.Export.BoundedDepth.RowsParity
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalVerifier.real_soundness
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalHistory.soundness
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalHistory.real_soundness
-#audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaFinal.map_fst_bind
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalHistory.knowledge
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalHistory.real_knowledge
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.Shipped.verify_sound
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.Shipped.verify_final_sound
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaFinal.soundness
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.NebulaFinal.real_soundness
 #audit_axioms NightstreamFPrime.Export.Generic.PlanPush.push_coefficient

@@ -213,12 +213,45 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
   rw [boundEqual]
   exact canonicalBitValue interface env offset index canonical bounded
 
-private theorem completedAgreesBelow
-    {before after : Env} {offset count : Nat}
-    (agrees : AgreesOutside before after offset count) :
-    ∀ index, index < offset → after index = before index := by
-  intro index below
-  exact agrees index (Or.inl below)
+private theorem witnesses_bindingOps (interface : Interface) (offset : Nat) :
+    witnesses (bindingOps interface offset) = [] := by
+  simp [witnesses, bindingOps, Op.witnesses]
+
+theorem witnesses_opsAt (interface : Interface) (offset : Nat) :
+    witnesses (opsAt interface offset) =
+      witnesses (CanonicalU64.operations (childInterface interface offset) offset) := by
+  rw [opsAt, Witness.witnesses_cons, witnesses_bindingOps, List.append_nil]
+  rfl
+
+theorem ordered (interface : Interface) (offset : Nat) (env : Env)
+    (assumptions : Assumptions interface offset env) :
+    Witness.Ordered offset (witnesses (opsAt interface offset)) (offset + privateCount) := by
+  rw [witnesses_opsAt]
+  exact CanonicalU64.ordered _ offset env (childAssumptions interface offset assumptions)
+
+theorem computed_holdsFlat (interface : Interface) (env : Env) (offset : Nat)
+    (assumptions : Assumptions interface offset env)
+    (specification : SpecHolds interface offset env)
+    (computed : Witness.Computed env (witnesses (opsAt interface offset))) :
+    holdsFlat env (opsAt interface offset) := by
+  rw [witnesses_opsAt] at computed
+  have childRows := CanonicalU64.computed_holdsFlat
+    (childInterface interface offset) env offset computed
+  have childSpecification := CanonicalU64.soundness
+    (childInterface interface offset) env offset
+    (childAssumptions interface offset assumptions)
+    (holdsFlat_implies_holds env _ childRows)
+  unfold holdsFlat
+  rw [flatConstraints_opsAt, constraintsHold_append]
+  refine ⟨childRows, ?_⟩
+  intro expression member
+  rcases List.mem_map.mp member with ⟨index, indexMember, rfl⟩
+  have bounded := List.mem_range.mp indexMember
+  rw [bindingConstraint, Expr.eval_sub]
+  apply sub_eq_zero.mpr
+  apply Fin.eq_of_val_eq
+  exact (specification index bounded).trans
+    (canonicalBitValue interface env offset index childSpecification bounded).symm
 
 theorem complete (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
@@ -227,53 +260,20 @@ theorem complete (interface : Interface) (env : Env) (offset : Nat)
       AgreesOutside env completed offset
         (localLength (Circuit.ops (main interface) offset)) ∧
       holdsFlat completed (Circuit.ops (main interface) offset) := by
-  rcases CanonicalU64.complete (childInterface interface offset) env offset
-      (childAssumptions interface offset assumptions) with
-    ⟨completed, agrees, childRows⟩
-  have agreesPrivate :
-      AgreesOutside env completed offset privateCount := by
-    rw [← childLength interface offset]
-    exact agrees
-  have agreesBelow := completedAgreesBelow agrees
-  have sourcePreserved :
-      (interface.source offset).eval completed =
-        (interface.source offset).eval env :=
-    (interface.source offset).eval_eq_of_agree_below offset completed env
-      assumptions.1 agreesBelow
-  have childSpecification := CanonicalU64.soundness
-    (childInterface interface offset) completed offset
-    (childAssumptions interface offset assumptions)
-    (holdsFlat_implies_holds completed _ childRows)
-  refine ⟨completed, ?_, ?_⟩
+  have program := ordered interface offset env assumptions
+  have below := Witness.execute_agrees_below program env
+  refine ⟨Witness.execute env (witnesses (opsAt interface offset)), ?_, ?_⟩
   · rw [localLength_eq]
-    exact agreesPrivate
-  · change holdsFlat completed (opsAt interface offset)
-    unfold holdsFlat
-    rw [flatConstraints_opsAt, constraintsHold_append]
-    refine ⟨childRows, ?_⟩
-    intro expression member
-    rcases List.mem_map.mp member with ⟨index, indexMember, rfl⟩
-    have bounded := List.mem_range.mp indexMember
-    have publicPreserved :
-        (interface.bit offset index).eval completed =
-          (interface.bit offset index).eval env :=
-      (interface.bit offset index).eval_eq_of_agree_below offset completed env
-        (assumptions.2 index bounded) agreesBelow
-    have canonical := canonicalBitValue interface completed offset index
-      childSpecification bounded
-    rw [bindingConstraint, Expr.eval_sub]
-    apply sub_eq_zero.mpr
-    apply Fin.eq_of_val_eq
-    calc
-      ((interface.bit offset index).eval completed).val =
-          ((interface.bit offset index).eval env).val :=
-        congrArg Fin.val publicPreserved
-      _ = ((interface.source offset).eval env).val / 2 ^ index % 2 :=
-        specification index bounded
-      _ = ((interface.source offset).eval completed).val / 2 ^ index % 2 := by
-        rw [sourcePreserved]
-      _ = ((CanonicalU64.bitExpr offset index).eval completed).val :=
-        canonical.symm
+    exact Witness.execute_agreesOutside program env
+  · change holdsFlat _ (opsAt interface offset)
+    refine computed_holdsFlat interface
+      (Witness.execute env (witnesses (opsAt interface offset))) offset assumptions ?_
+      (Witness.execute_computed program env)
+    intro index bounded
+    rw [(interface.bit offset index).eval_eq_of_agree_below offset _ env
+        (assumptions.2 index bounded) below,
+      (interface.source offset).eval_eq_of_agree_below offset _ env assumptions.1 below]
+    exact specification index bounded
 
 theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)

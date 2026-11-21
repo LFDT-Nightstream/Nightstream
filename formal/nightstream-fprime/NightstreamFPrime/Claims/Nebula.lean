@@ -3,6 +3,7 @@ import NightstreamFPrime.Export.BoundedDepth.NebulaCompleteness
 import NightstreamFPrime.Export.BoundedDepth.NebulaSecurity
 import NightstreamFPrime.Lifecycle.Nebula.RunLink
 import NightstreamFPrime.Spec.Nebula.Completeness
+import NightstreamFPrime.Spec.Nebula.EventBinding
 import NightstreamFPrime.Spec.Nebula.Soundness
 
 /-! # Claims: Nebula memory
@@ -14,6 +15,8 @@ Soundness and completeness of the memory checks (`SPEC.md` section 7 and Algorit
 - `model_sound`, `model_complete` and `accepts_or_collision` are deterministic.
 - `memory_light_complete` is `memory_complete` in the light mode of `SPEC.md` Algorithm 9, at a
   geometry with `S_max · N ≤ cap + 1`.
+- `catalog_agrees` is deterministic. Its premises are the conditions of a catalog application
+  (`SPEC.md` section 7.6). No Lean result shows that the Rust rows enforce them.
 - Assumptions: `eta_balanced` takes `[SPONGE]` under `[P2-PERM]`. `memory_sound` takes `[HN-A1]`.
 - Open: `memory_sound` takes the memory round as a premise (`SECURITY_MODEL.md` trust item 6).
   A memory application that Rust builds, the WASM relation included, has no Lean instance. -/
@@ -353,5 +356,34 @@ theorem memory_light_complete
   @Export.BoundedDepth.NebulaCompleteness.memory_light_complete logicalWidth publicFits relation
     ajtai circuitKeys step cubeFits p app valid light exports programEq complete keysShaped
     control s₀ s final steps segments count range exec
+
+/-- The memory guarantee for a catalog application (`SPEC.md` section 7.6): for an execution from
+the plan images whose active ports bind a reorder of the events of the trace, the events replay
+from the initial catalog state to a state that agrees with the memory of the final machine on
+every live mapped cell. -/
+theorem catalog_agrees
+    {catalog : List Nebula.MemoryTrace.MemorySpec}
+    {b : Nebula.MemoryTrace.Binding}
+    {p : Nebula.Plan}
+    {σ : Type}
+    {app : Nebula.Application p.toGeometry σ}
+    {s : σ}
+    {s' : σ}
+    {final : Nebula.Machine}
+    {steps : List (List (Option Nebula.PortAccess))}
+    {initial : Nebula.MemoryTrace.MemoryState}
+    {rows : List Nebula.MemoryTrace.Witness}
+    {order : List Nebula.MemoryTrace.Event}
+    (exec : Nebula.Executes p.toGeometry app s (Nebula.initialMachine p) steps s' final)
+    (disjoint : b.Disjoint catalog)
+    (inRange : ∀ e ∈ Nebula.MemoryTrace.eventsForTrace catalog rows, b.InRange e.memory e.address)
+    (images : b.Initial catalog p initial)
+    (reorders : Nebula.MemoryTrace.Reorders (Nebula.MemoryTrace.eventsForTrace catalog rows) order)
+    (bound : List.Forall₂ (b.Binds catalog) order (steps.flatMap fun ports => ports.filterMap id)) :
+    ∃ state,
+      Nebula.MemoryTrace.Replay initial (Nebula.MemoryTrace.eventsForTrace catalog rows) state ∧
+        Nebula.MemoryTrace.Agrees p.toGeometry catalog b state final.memory :=
+  @Spec.Nebula.MemoryTrace.agrees_of_executes catalog b p σ app s s' final steps initial
+    rows order exec disjoint inRange images reorders bound
 
 end NightstreamFPrime.Claims.Nebula

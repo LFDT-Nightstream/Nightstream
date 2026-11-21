@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Fail when SECURITY_MODEL.md or SPEC.md states an assumption that is not on the allowed list.
 
-The allowed list is the owner's list of 2026-11-13: assumptions on primitives only. A random
-oracle on a derived object (the hash, a transcript, a challenge) is not an assumption. It is the
-ideal permutation `P2-PERM` plus the named sponge theorem `SPONGE`, with its conditions as Lean
-hypotheses, or a Lean theorem.
+The allowed list is the owner's list of 2026-11-13, with `DSFS` of 2026-11-18: assumptions on
+primitives only. A random oracle on a derived object (the hash, a transcript, a challenge) is not
+an assumption. It is the ideal permutation `P2-PERM` plus the named theorem `SPONGE` or `DSFS`,
+with its conditions as Lean hypotheses, or a Lean theorem.
 
 Rules:
 1. One list between the assumption markers. Each entry is a bullet that starts with an allowed id.
@@ -20,9 +20,10 @@ from pathlib import Path
 ALLOWED = {
     'P2-PERM': 'the Poseidon2 permutation is an ideal permutation',
     'SPONGE': 'sponge indifferentiability from an ideal permutation, with its capacity term',
+    'DSFS': 'the duplex-sponge Fiat-Shamir lemma for the fold transcripts, with its two open parts',
     'KECCAK': 'SHAKE128, SHAKE256 and Keccak-f, for the Ajtai setup and Akita',
     'MSIS': 'Module-SIS under the pinned estimator model',
-    'AKITA': 'Akita knowledge soundness with the error epsilon-Akita',
+    'AKITA': 'Akita binding of the compression key commitment',
     'HN-A1': 'HyperNova errata Assumption 1',
 }
 BEGIN = '<!-- assumptions:begin -->'

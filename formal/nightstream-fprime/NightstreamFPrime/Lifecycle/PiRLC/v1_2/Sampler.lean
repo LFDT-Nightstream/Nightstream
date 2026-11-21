@@ -260,18 +260,12 @@ theorem complete (interface : Interface) (coordinate : Nat) (env : Env) (offset 
   have firstStart : offset + localLength first.operations = rangeOffset offset := by
     simpa only [entry, FormalCircuit.withConstantFootprint_main,
       v1_2.TranscriptAbsorption.localLength_eq, rangeOffset] using firstEnd
-  let decoded := WideReduction.Program.completeEnv (rangeInterface interface coordinate offset)
-    first.current (rangeOffset offset)
-  have rangeCorrect := WideReduction.Program.completeEnv_correct (rangeInterface interface coordinate offset)
-    first.current (rangeOffset offset) (range_inputs interface coordinate offset inputs)
-  have rangeAgreement : AgreesOutside first.current decoded (rangeOffset offset)
-      (localLength (Circuit.ops (rangeCircuit interface coordinate offset).main (rangeOffset offset))) := by
-    change AgreesOutside first.current decoded _ (localLength (WideReduction.Program.operations _ _))
-    rw [WideReduction.Program.localLength_eq]
-    exact rangeCorrect.1
+  obtain ⟨decoded, rangeAgreement, rangeRows⟩ := WideReduction.Program.complete
+    (rangeInterface interface coordinate offset) first.current (rangeOffset offset)
+    (range_inputs interface coordinate offset inputs)
   obtain ⟨second, secondOps, secondEnd, _, _⟩ := Sequence.appendBuiltAt first "pirlc.v1_2.sampler.reduce"
     (rangeCircuit interface coordinate offset) (rangeOffset offset) firstStart
-    (range_scope interface coordinate offset inputs) decoded rangeAgreement rangeCorrect.2
+    (range_scope interface coordinate offset inputs) decoded rangeAgreement rangeRows
   have secondStart : offset + localLength second.operations = advanceOffset offset := by
     change offset + localLength second.operations = rangeOffset offset + WideReduction.Program.privateCount
     have count := WideReduction.Program.localLength_eq (rangeInterface interface coordinate offset) (rangeOffset offset)

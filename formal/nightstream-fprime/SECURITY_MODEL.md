@@ -28,7 +28,8 @@ are not checked.
   `executables` and `all` phases use `lake build --wfail`, and single files
   run with `warningAsError`, so any warning fails a gate. `all` runs the
   boundary checks, both libraries, every `lean_exe` target and the census.
-  CI runs no Lean (owner decision of 2026-09-26).
+  The CI job `lean` runs `validate.sh all` on the self-hosted runner (owner
+  decision of 2026-11-18). It is not a required check.
 - Every audited theorem uses the three axioms above. The audit fails closed:
   `sorryAx` or a new axiom stops the build.
 - One linter is off: `Circuit/Basic.lean` turns off `linter.dupNamespace`,
@@ -43,11 +44,11 @@ are not checked.
 The results use only the assumptions of this list, and each is on a
 primitive. A random oracle on a derived object (the Poseidon2 hash, a
 transcript, `η`, or a challenge) is not an assumption. Such a model is
-`[P2-PERM]` and `[SPONGE]`, with the conditions of `[SPONGE]` as Lean
+`[P2-PERM]` with `[SPONGE]` or `[DSFS]`, with their conditions as Lean
 hypotheses, or it is a Lean theorem. Section Hashed encodings gives the status
 of each condition. `scripts/check_assumptions.py`, in the `static` phase of
 `scripts/validate.sh`, fails when an entry of this list is not on the owner's
-list of 2026-11-13, when another part of this page or `SPEC.md` states an
+list of 2026-11-13 and 2026-11-18, when another part of this page or `SPEC.md` states an
 assumption, or when a trust item cites no assumption and is not a gap or a
 scope note.
 
@@ -68,12 +69,29 @@ scope note.
   conditions: the hash pads injectively, each use absorbs an injective framing of its data, and
   two uses never absorb the same block list (domain separation). Lean proves the first for the
   `10*` padding of `Spec.Poseidon2.hash` (`Spec.Sponge.padding`, `Spec.Sponge.hash_eq_digest`).
-  The other two are Lean hypotheses of each use. Then two
-  distinct inputs give one 4-lane digest with probability at most `N²/q⁴` plus
-  `spongeError N`, because they absorb distinct block lists
-  (`Spec.Sponge.collision_blocks`). Two uses whose words start with tags that
-  differ at a position of both never absorb one block list
-  (`Spec.Sponge.blocks_ne_of_differ`).
+  The other two are Lean hypotheses of each use. Then a finder with `N` calls
+  gives two distinct inputs with one 4-lane digest with probability at most
+  `C(N + 2, 2)/q⁴ + spongeError N` (`Spec.Sponge.collision_le`), because they
+  absorb distinct block lists (`Spec.Sponge.collision_blocks`) and a uniform
+  function has this birthday bound (`Spec.RandomOracle.pair_collision_le`).
+  Two uses whose words start with tags that differ at a position of both
+  never absorb one block list (`Spec.Sponge.blocks_ne_of_differ`).
+- `DSFS`: the duplex-sponge Fiat–Shamir lemma (Chiesa and Orrù, ePrint 2025/536, Lemma 5.1, as the proof of
+  Theorem 6.2 uses it) for the fold transcripts on Nightstream's sponge. Under `[P2-PERM]` and the
+  conditions `Export.BoundedDepth.FoldSponge.Conditions`, each fold prover with at most `N` permutation
+  calls has a model prover with at most `N` queries to the uniform function of adversary 3. The probability
+  that the fold succeeds and the extractor, which reruns the model prover, does not extract is at most
+  `duplexError N = 25·N²/q⁴` larger for the fold prover (`Spec.Sponge.duplexError`,
+  `Spec.Sponge.DuplexTransfer`). The number is the error of that theorem for the alphabet `F_q`, a capacity
+  of 4 lanes and a codec bias of 0 (each challenge reads lanes of the state), when `N` is larger than the
+  number of permutation calls of one verifier run. The paper does not prove two parts, so they are parts of
+  this entry (`decisions/duplex-sponge-fiat-shamir.md`). (A) The lemma is for the sponge of ePrint 2025/536,
+  Construction 3.3, which writes each block over the rate lanes. Nightstream adds each block to the rate
+  lanes (`Spec.Poseidon2.absorbBlock`). The paper says, without a proof, that its analysis adapts to the add
+  mode. A start from a fixed state that absorbs the instance is a case that ePrint 2025/536, Section 2.2,
+  says the analysis covers. (B) The model prover of the lemma samples values, and the rewinding
+  knowledge soundness of ePrint 2025/536, Definition 3.8, is for deterministic provers. So the model prover
+  has one fixed random tape for the base run and each retry.
 - `KECCAK`: SHAKE128, SHAKE256, SHA3-256 and the Keccak-f duplex of Akita in
   the classical random-oracle model: the Ajtai setup reads SHAKE128 output
   as uniform 64-bit words (trust item 1), and Akita reads its challenges as
@@ -83,10 +101,10 @@ scope note.
   `F_q[X]/(X^64 + 1)` at the chain norm, in the lattice-estimator model
   of `decisions/field-2p64-59-ring-x64.md` (trust item 2), and for the
   Akita commitments at Akita's price (trust item 7).
-- `AKITA`: the knowledge soundness of Akita (ePrint 2026/1983) with the error
-  `εAkita` (`Export.BoundedDepth.FinalVerifier.AkitaKnowledge`), for a proof
-  that commits `W` before the Π_CCS run and the lookup challenges and `V`
-  after the lookup challenges (trust item 7).
+- `AKITA`: the Akita commitment of the compression key binds the key polynomial
+  (`Spec.Compression.Akita.Use.Binding`). Akita Theorem 10.46 bounds extraction failure
+  over a draw of the public setup. The bound for the verifier's pinned setup and the
+  composition with the commitment of `V` after the lookup challenges are open (trust item 7).
 - `HN-A1`: HyperNova errata Assumption 1 for the two fold kinds, in the form of
   trust item 3.
 <!-- assumptions:end -->
@@ -107,10 +125,10 @@ the Rust code is held to the Lean definition (trust item 5).
 | Fresh public input | `Lifecycle.encHash` | `Lifecycle.encHash_injective_fixed` | Indirect, as above |
 | Package identity | `Export.BoundedDepth.StepPackage.identity` | `Export.BoundedDepth.IdentityBinding.valuePreimage_injective`, `Claims.Encodings.package_identity_binds` (atoms and lengths below `2^64`) | Direct: `identity_code_matches_lean_on_the_probe_packages` |
 | Circuit key digest | `Lifecycle.BoundedDepth.CircuitKeyDigest.input` | `Lifecycle.BoundedDepth.CircuitKeyDigest.input_injective`, `Claims.Encodings.circuit_key_binds` (an identity of any length) | Direct: `circuit_key_is_the_lean_digest` on three identities (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/nightstream/tests/bounded_depth_lifecycle/encodings.rs`) |
-| Fold transcripts | `Lifecycle.RandomOracle.Schedule.challengeCalls`, `Lifecycle.RandomOracle.Schedule.pieces` | `Lifecycle.RandomOracle.Schedule.challengeAddress_injective`, `Lifecycle.RandomOracle.Schedule.statementCalls_identify`, `Lifecycle.RandomOracle.Schedule.proverCalls_identify`; fixed lengths: `Lifecycle.RandomOracle.Schedule.pieces_alike`, `Lifecycle.RandomOracle.Schedule.calls_pieces`; disjoint lanes: `Export.BoundedDepth.FoldSponge.rho_ne` | Direct: `the_light_transcript_absorbs_the_lean_pieces`, `the_refresh_transcript_absorbs_the_lean_pieces` (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/nightstream-fprime/tests/fold_transcript_lean.rs`). The Π_RLC sampler is direct (`crates/neo-reductions/tests/pi_rlc_lean_parity.rs`). Indirect for the fold prover: package rows |
+| Fold transcripts | `Lifecycle.RandomOracle.Schedule.challengeCalls`, `Lifecycle.RandomOracle.Schedule.pieces` | `Lifecycle.RandomOracle.Schedule.challengeAddress_injective`, `Lifecycle.RandomOracle.Schedule.statementCalls_identify`, `Lifecycle.RandomOracle.Schedule.proverCalls_identify`; fixed lengths: `Lifecycle.RandomOracle.Schedule.pieces_alike`, `Lifecycle.RandomOracle.Schedule.calls_pieces`; reads: the state of a `ρ` read is the state of no other challenge (`Lifecycle.RandomOracle.Schedule.rhoCalls_ne`) | Direct: `the_light_transcript_absorbs_the_lean_pieces`, `the_refresh_transcript_absorbs_the_lean_pieces` (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/nightstream-fprime/tests/fold_transcript_lean.rs`). The Π_RLC sampler is direct (`crates/neo-reductions/tests/pi_rlc_lean_parity.rs`). Indirect for the fold prover: package rows |
 | Compression transcript | `Export.BoundedDepth.CompressionSponge.pieces`, with `Lifecycle.RandomOracle.Sponge.byteWords` for a byte string and `Export.BoundedDepth.CompressionSponge.Claim.words` for a claim | `Export.BoundedDepth.CompressionSponge.calls_injective` (two runs of one statement shape, each byte string below `q` bytes), from `Export.BoundedDepth.CompressionSponge.pieces_alike`, `Lifecycle.RandomOracle.Sponge.byteWords_injective` and `Export.BoundedDepth.CompressionSponge.Claim.words_injective`. Rows 4 to 17 have the operations and counts of `Spec.Compression.Rust.schedule`: `Export.BoundedDepth.CompressionSponge.argumentPieces_fit` | Direct for the words: `byte_words_are_the_lean_words`, `claim_words_are_the_lean_words`, `the_domain_and_the_session_label_are_the_lean_ones`, `the_compression_domain_is_the_lean_domain`, and for the zero blocks of the reads: `a_replay_of_the_lean_pieces_ends_in_the_lean_session` (`artifacts/nightstream-fprime-encoding-parity-v1.json`, `crates/ns-compress/tests/unit/transcript.rs`). Direct for the order and the counts of rows 4 to 17 on a real proof: `a_replay_in_the_lean_order_draws_the_challenges_of_verify`. Open: no test compares rows 1 to 3 of a real proof with the Lean pieces. Rust makes them with the functions of a fold transcript (section Absorbs without a frame) |
 | Akita session bytes | `Export.BoundedDepth.CompressionSponge.session` | `Lifecycle.RandomOracle.Sponge.sessionBytes_injective`; `Export.BoundedDepth.CompressionSponge.session_binds`: two runs with one session are equal, or their transcripts are two distinct lists of sponge calls with the same lanes 0 to 3 | Direct: `the_session_is_the_lean_session`, `a_replay_of_the_lean_pieces_ends_in_the_lean_session` |
-| Akita transcript | None | Open: the Akita crates fix these bytes. `akita.verify` (`crates/ns-compress/src/akita/verifier.rs`) gives Akita the session bytes, the three commitments, the three points and the three values, and Akita absorbs them into its own Keccak sponge and makes its challenges there. Lean has no model of that sponge or of Akita's encodings. The results trust that Akita binds these inputs, as part of `[AKITA]` under `[KECCAK]` | None |
+| Akita transcript | None | Open: the Akita crates fix these bytes. `akita.verify` (`crates/ns-compress/src/akita/verifier.rs`) gives Akita the session bytes, the three commitments, the three points and the three values, and Akita absorbs them into its own Keccak sponge and makes its challenges there. Lean has no model of that sponge or of Akita's encodings. The fixed-setup and composition premises apply to this transcript under `[KECCAK]` (trust item 7) | None |
 | Nebula record chains | `Lifecycle.Nebula.blocks` | `Lifecycle.Nebula.blocks_injective`, `Lifecycle.Nebula.blockChunks_injective` | Direct: fixtures (`crates/nightstream/tests/nebula/memory.rs`) |
 | Nebula `η` | `Lifecycle.Nebula.etaInputBlocks` | `Lifecycle.Nebula.etaInputBlocks_injective`, `Lifecycle.Nebula.EtaOracle.pointOf_injective`; the four reads: `Export.BoundedDepth.EtaSponge.reads_injective` | Indirect: package rows |
 | Nebula state words | `Lifecycle.Nebula.carryVector` | `Lifecycle.Nebula.carryVector_injective`, `Lifecycle.Nebula.stateWords_eq_or_collision` | Direct: terminal fixtures |
@@ -145,28 +163,20 @@ fixed. `κd = 1,152`, `d = 64`, `ℓ = 28` and `t = 4`.
 
 ## Premises
 
-Each row is a hypothesis of a claim. `tests/PremiseCensus.lean` reads every
-declaration of the namespace `Claims` and of the modules under `Claims`. It
-fails when one of them is not a theorem whose name is the name of its claims
-module and one more part, when a claim uses an axiom outside the three of
-section What Lean checks, when the proof of a claim is not one application of
-a theorem outside the namespace, or when the kernel does not give that proof
-the type of the claim. Lean writes the premise list to
-`artifacts/nightstream-fprime-premises-v1.tsv`. The build checks this file.
-A hypothesis is a binder whose type is a proposition, or a proof field of a
-binder whose type is a structure of the package or a function to one.
-Each field listed under a function result has the arguments and hypotheses
-of that function. For example, the three bounds of
-`Export.Generic.CircuitRelation.BlockFits` under `fitsPackage.blocks` apply
-when the pieces are packable.
-`scripts/check_premises.py`, in the `static` phase of `scripts/validate.sh`,
-fails when a hypothesis has no row or two rows, when a row covers no
-hypothesis, when a row does not cover the number of lines that it gives, when
-a row does not have the evidence of its class, or when a claim has no pin in
-`SPEC.md`. So a hypothesis with a new name or with the name of a row fails
-until the table changes, and a claim with a changed statement fails until its
-pin changes. `scripts/check-boundaries.sh` reads each claims file without its
-comments and fails on a command that is not a claim. The classes are these.
+The census in `tests/PremiseCensus.lean` checks every declaration in the namespace and modules of `Claims`.
+Each declaration must be a theorem named for its claims module with one further name component.
+Its proof must apply one theorem outside the namespace to its binders, have the claim's type in the kernel,
+and use only the three axioms of section What Lean checks. The build compares the resulting premise list
+with `artifacts/nightstream-fprime-premises-v1.tsv`.
+
+The census lists each proposition among the binders and each proof field of a package structure or of a
+function returning one. Conditional fields keep the arguments and hypotheses of the function. For example,
+the three bounds of `Export.Generic.CircuitRelation.BlockFits` under `fitsPackage.blocks` apply to packable pieces.
+
+The static check in `scripts/check_premises.py` requires one row per hypothesis, the declared number
+of lines for each row, evidence for its class, and a pin for each claim in `SPEC.md`.
+A new hypothesis requires a table update even if an existing row covers its name.
+`scripts/check-boundaries.sh` checks each claims file for commands outside the claim format.
 
 - `assumption`: an assumption of section Assumptions.
 - `lean`: Lean proves the hypothesis. The evidence is the theorem or the
@@ -188,35 +198,44 @@ covers.
 <!-- premises:begin -->
 | Premise | Head | Lines | Class | Evidence |
 | --- | --- | --- | --- | --- |
-| `publicFits` | `LE.le` | 29 | lean | `Export.BoundedDepth.StepRelation.keyPublicFits`, at the key width `2^26` |
-| `cubeFits`, `relation.cubeFits`, `key.relation.cubeFits`, `circuitKeys.relation.cubeFits`, `setup.circuitKeys.relation.cubeFits` | `LE.le` | 70 | lean | `Export.BoundedDepth.StepRelation.keyCubeFits`, at the key width `2^26` |
-| `program.*`, `exports.program.*` | `*` | 294 | lean | `Lifecycle.Stage1.Poseidon2HashChainV1.program` and `Export.Stage1.NebulaMemoryV1Package.application` are programs, so they carry these proofs. A Rust application has no such instance (Out of scope) |
+| `publicFits` | `LE.le` | 33 | lean | `Export.BoundedDepth.StepRelation.keyPublicFits`, at the key width `2^26` |
+| `cubeFits`, `relation.cubeFits`, `key.relation.cubeFits`, `circuitKeys.relation.cubeFits`, `setup.circuitKeys.relation.cubeFits`, `light.circuitKeys.relation.cubeFits`, `Shipped/relations.cubeFits` | `LE.le` | 84 | lean | `Export.BoundedDepth.StepRelation.keyCubeFits`, at the key width `2^26` |
+| `program.*`, `exports.program.*` | `*` | 336 | lean | `Lifecycle.Stage1.Poseidon2HashChainV1.program` and `Export.Stage1.NebulaMemoryV1Package.application` are programs, so they carry these proofs. A Rust application has no such instance (Out of scope) |
 | `stepEq`, `validControl`, `encoded`, `rowsZero`, `others` | `*` | 9 | lean | `Claims.Ivc.terminal_bridge` joins the two step results and takes none of these |
 | `layout.*` | `*` | 4 | lean | `Claims.Ivc.terminal_bridge` and `Claims.Ivc.run_complete` take them as fields of their `exports` (rows below) |
 | `programEq` | `Eq` | 5 | game | adversary 5: the memory application is the exported program |
-| `exports.programStep` | `Eq` | 17 | game | `SPEC.md` Algorithm 3: the step of the relation is the step of the application |
-| `exports.lightKey`, `exports.refreshKey` | `Eq` | 34 | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`, `relation_rows_match_the_lean_checksum`: the rows that Rust expands from each package have the checksum of Lean's rows |
-| `exports.lightLayout.*`, `exports.refreshLayout.*`, `exports.lightInside`, `exports.refreshInside` | `*` | 102 | lean | `Export.BoundedDepth.EmittedPackages.Facts.exports` builds the bundle of the two packages that the emitter writes, with the emitter's first fresh columns, source width and batches, so it carries these proofs |
-| `fitsPackage.*`, `exports.lightFitsPackage.*`, `exports.refreshFitsPackage.*` | `*` | 190 | link | `Export.BoundedDepth.EmittedPackages.Facts.lightFits` and `Export.BoundedDepth.EmittedPackages.Facts.refreshFits` derive them from the capacity of `SPEC.md` section 4.4 (`Export.Generic.RelationFits.fits_of_capacity`): for packable pieces, the input indices and S-box columns fit the width, and the rows fit the cube. The test `step_packages_fit_their_capacity` checks the capacity on each shipped package, the light and refresh packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-light-v1.json` and its refresh package) and of both Nebula programs, with Lean's row counts and logical widths (`factored_rows_match_the_lean_dense_checksum`). Lean does not prove the capacity for an application |
+| `exports.programStep` | `Eq` | 20 | game | `SPEC.md` Algorithm 3: the step of the relation is the step of the application |
+| `exports.lightKey`, `exports.refreshKey`, `Shipped/lightKey`, `Shipped/refreshKey` | `Eq` | 44 | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`, `relation_rows_match_the_lean_checksum`: the rows that Rust expands from each package have the checksum of Lean's rows |
+| `exports.lightLayout.*`, `exports.refreshLayout.*`, `exports.lightInside`, `exports.refreshInside` | `*` | 120 | lean | `Export.BoundedDepth.EmittedPackages.Facts.exports` builds the bundle of the two packages that the emitter writes, with the emitter's first fresh columns, source width and batches, so it carries these proofs |
+| `fitsPackage.*`, `exports.lightFitsPackage.*`, `exports.refreshFitsPackage.*`, `Shipped/facts.*` | `*` | 232 | link | `Export.BoundedDepth.EmittedPackages.Facts.lightFits` and `Export.BoundedDepth.EmittedPackages.Facts.refreshFits` derive them from the capacity of `SPEC.md` section 4.4 (`Export.Generic.RelationFits.fits_of_capacity`): for packable pieces, the input indices and S-box columns fit the width, and the rows fit the cube. The test `step_packages_fit_their_capacity` checks the capacity on each shipped package, the light and refresh packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-light-v1.json` and its refresh package) and of both Nebula programs, with Lean's row counts and logical widths (`factored_rows_match_the_lean_dense_checksum`). Lean does not prove the capacity for an application |
 | `accepted` | `Lifecycle.BoundedDepth.Terminal.HoldsFor` | 1 | game | `SPEC.md` Algorithm 6 |
-| `keysShaped` | `Eq` | 14 | lean | `Lifecycle.BoundedDepth.CircuitKeyDigest.keys_shaped`, for the keys `Lifecycle.BoundedDepth.CircuitKeyDigest.keys` of a package identity. Rust `circuit_key` computes these digests (section Hashed encodings, row Circuit key digest) |
-| `assumption` | `Spec.HyperNova.ReverseStages.Assumption1` | 8 | assumption | `[HN-A1]` |
-| `closed.*`, `admitted` | `*` | 27 | assumption | `[HN-A1]`, in the form of trust item 3: the closure premise and the admitted adversary |
-| `premise` | `Spec.Sponge.Transfer` | 3 | assumption | `[SPONGE]` under `[P2-PERM]` |
-| `akita` | `*` | 3 | assumption | `[AKITA]` |
+| `keysShaped` | `Eq` | 16 | lean | `Lifecycle.BoundedDepth.CircuitKeyDigest.keys_shaped`, for the keys `Lifecycle.BoundedDepth.CircuitKeyDigest.keys` of a package identity. Rust `circuit_key` computes these digests (section Hashed encodings, row Circuit key digest) |
+| `assumption` | `Spec.HyperNova.ReverseStages.Assumption1` | 13 | assumption | `[HN-A1]` |
+| `closed.*`, `admitted` | `*` | 42 | assumption | `[HN-A1]`, in the form of trust item 3: the closure premise and the admitted adversary |
+| `Nebula/premise` | `Spec.Sponge.Transfer` | 1 | assumption | `[SPONGE]` under `[P2-PERM]` |
+| `Fold/premise` | `Spec.Sponge.DuplexTransfer` | 2 | assumption | `[DSFS]` under `[P2-PERM]`, for a fold prover with at most `calls` permutation calls and a model adversary with at most `calls` queries. The event includes the extractor's retries (adversary 3). `calls` is a parameter of the adversary class, as in the row `finder`, and it is larger than the number of permutation calls of one verifier run |
+| `Nebula/disjoint`, `Nebula/inRange`, `Nebula/images`, `Nebula/reorders`, `Nebula/bound` | `*` | 5 | open | Open: the conditions of a catalog application (`Spec.Nebula.MemoryTrace.Binding`). No Lean result shows that the binding rows of the Rust catalog backend enforce them (Out of scope) |
+| `finder` | `Spec.Sponge.Transfer` | 2 | assumption | `[SPONGE]` under `[P2-PERM]`, for the collision finder of a fold with at most `calls` permutation calls and inputs of at most `blocks` padded blocks. The event is one output of one run. The finder reruns the adversary on the oracles of its own tape, so no retry is outside the run (adversary 3). `calls` is a parameter of the adversary class, as in the row below |
+| `finders` | `Spec.Sponge.Transfer` | 1 | assumption | `[SPONGE]` under `[P2-PERM]`, for the finder of stage `j` with at most `calls j` permutation calls and inputs of at most `blocks` padded blocks. Lean has no count of the calls of a stage, which is a Lean function, so `calls` is a parameter of the adversary class, as `depth` is (adversary 4) |
+| `binding` | `*` | 5 | assumption | `[AKITA]`: the commitment of the compression key binds the key polynomial |
+| `akita.fixedSetup` | `Spec.Compression.Akita.Use.FixedSetupKnowledge` | 5 | open | Open: Akita Definition 3.7 samples the public parameters in the experiment of Akita Theorem 10.46. The verifier pins one setup. The paper gives no extraction error bound for that fixed setup |
+| `akita.admissible` | `Spec.Compression.Akita.Schedule.Admissible` | 5 | open | Open: no schedule with a row of `crates/ns-compress/artifacts/key30.aks`, the file of a key of `2^19` blocks, is admissible (`Spec.Compression.Akita.Schedule.not_admissible_key30`). Each row uses coefficient packing at levels 2 and 3, and the family F1 of Akita Definition 9.2 gives these levels evaluation trace. Akita Theorem 10.46 is for an admissible schedule, so it does not cover an opening under this file. The row of `crates/ns-compress/artifacts/key20.aks` has F1 to F3, I2, I3, the second part of I1 and the witness-length part of C3 (`Spec.Compression.Akita.key20_conditions`), and `tests/AkitaSchedules.lean` compares the Lean rows with both files. C3 also requires equality of the successor commitment shape and ordered witness segments at each edge. That part is open for both files. The remaining conditions are in `Spec.Compression.Akita.Schedule.Rest`. A file holds no challenge certificate, sampler limit, setup registry or Module-SIS estimate for the root batching conditions of I1, C1, C2, C4 to C6, E1 to E3 and S1, and it holds no `λ_FS` and no `Q_max` for S2 and S3 |
+| `akita.admitted`, `akita.budget` | `*` | 10 | game | adversary 6: the prover with Akita openings is a classical random-oracle prover with at most `Q_max` queries to Akita's `H_FS` |
+| `accepts` | `Spec.Compression.Akita.Use.Opens` | 5 | game | `SPEC.md` Algorithm 10: step 11 accepts only when Akita accepts the three openings, the first against the commitment of the compression key |
+| `composition` | `Spec.Compression.Akita.Use.Composition` | 5 | open | Open: the gap of `V` of trust item 7. No result of Akita composes its opening with a commitment that follows a challenge of the application |
 | `valid.toValid.*`, `secure` | `*` | 61 | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-nebula-gate-parity-v1.json`, `is_valid_and_is_secure_are_the_lean_decisions`: Rust checks rules 1 to 6 of `SPEC.md` section 7.1 on each geometry at run time, and the test compares that check with Lean's decisions. For the fixed WASM sizes Lean proves both (`Spec.Nebula.WasmSize.valid`, `Spec.Nebula.WasmSize.secure`), and `each_wasm_size_has_the_lean_geometry_and_rows` compares the geometries |
 | `valid.romWords`, `valid.ramWords` | `LT.lt` | 20 | game | `SPEC.md` section 7.1: a program is two images of words below `2^32`, so these bounds define the statements of the game. Rust holds each image as `Vec<u32>` (`nebula::Program`), so each program that the verifier receives meets them |
-| `app.*` | `*` | 42 | open | Open: `Lifecycle.Nebula.FirstPlan.app` is the test machine. A Rust-built memory application, the WASM relation included, has no instance (Out of scope) |
+| `app.*` | `*` | 43 | open | Open: `Lifecycle.Nebula.FirstPlan.app` is the test machine. A Rust-built memory application, the WASM relation included, has no instance (Out of scope) |
 | `round` | `Export.BoundedDepth.NebulaSecurity.MemoryRound` | 3 | open | Open: trust item 6. No result derives the memory round from the assumption list |
 | `sampler.*` | `*` | 2 | game | adversary 5: the `η` sampler and its query bound |
-| `wf.*`, `slots_le`, `key_fits` | `*` | 18 | lean | `Spec.Compression.Rust.layoutNew_production`, for the layout of the Lean model of `Layout::new` |
+| `wf.*`, `slots_le`, `key_fits` | `*` | 26 | lean | `Spec.Compression.Rust.layoutNew_production`, for the layout of the Lean model of `Layout::new` |
 | `counts` | `Spec.Compression.Verifier.CountsNonzero` | 1 | lean | `Spec.Compression.Production.params_countsNonzero` |
-| `matrix` | `Spec.Compression.Verifier.MatrixSpec` | 1 | lean | `Spec.Compression.Production.verifierData_matrixSpec`, for the Lean model of Rust `matrix_part`. Rust `matrix_part` gives the output of the model on three sample cases (`formal/nightstream-fprime/artifacts/nightstream-fprime-matrix-pass-parity-v1.json`, `the_matrix_part_is_the_lean_matrix_pass`). No data compares the two on the rows of the step circuits |
-| `columns`, `rows` | `LE.le` | 2 | lean | `Claims.Compression.production_sound` |
+| `matrix` | `Spec.Compression.Verifier.MatrixSpec` | 2 | lean | `Spec.Compression.Production.verifierData_matrixSpec`, for the Lean model of Rust `matrix_part`. Rust `matrix_part` gives the output of the model on three sample cases (`formal/nightstream-fprime/artifacts/nightstream-fprime-matrix-pass-parity-v1.json`, `the_matrix_part_is_the_lean_matrix_pass`). No data compares the two on the rows of the step circuits |
+| `columns`, `rows` | `LE.le` | 3 | lean | `Claims.Compression.production_sound` |
 | `statement.*`, `constantLaw.*` | `*` | 8 | game | adversary 6: the statement of the Π_CCS run and the law of its constant |
 | `Compression/params.rlc_bound`, `Compression/freshBound`, `Compression/degreeCovers` | `*` | 3 | lean | `Claims.Final.verifier_sound` uses the Π_CCS run at the production parameters and takes none of these |
-| `Final/rows` | `Eq` | 6 | link | `Relation::new` gives `FactoredRows` the package's plan rows and the spans of its layout (`crates/nightstream/src/lifecycle/bounded_depth/relation.rs`). Lean emits the row counts, the logical width and a checksum of the dense matrices of its model `Export.BoundedDepth.FinalRows.packageRows` for both packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`) and of each Nebula program (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-nebula-v1-rows-v1.json`, `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-nebula-n1-rows-v1.json`), and `Export.BoundedDepth.RowsParity.fastSum_eq` proves that the emitted value is that checksum. The test `factored_rows_match_the_lean_dense_checksum` computes the same words from Rust's plan rows and spans for each of these packages. A checksum is evidence, not a proof. The memory claims are about Lean's Nebula programs; a Rust-built memory application is row `app.*` |
-| `depthBound` | `LE.le` | 6 | game | adversary 4: the result bounds the error over the stages below a bound `depth` on the iteration of the adversary's statements, so `depth` is a parameter of the adversary class, and the error grows with it. The history results of adversary 6 (`Claims.Final.history_sound`, `Claims.Final.history_sound_with_akita`) take the same parameter. The memory results of adversary 6 do not: the checks of `SPEC.md` Algorithm 8 step 4 accept at most `S_max · N` steps (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`), so their walk has `S_max · N` stages |
+| `Final/rows`, `Shipped/rows` | `Eq` | 9 | link | `Relation::new` gives `FactoredRows` the package's plan rows and the spans of its layout (`crates/nightstream/src/lifecycle/bounded_depth/relation.rs`). Lean emits the row counts, the logical width and a checksum of the dense matrices of its model `Export.BoundedDepth.FinalRows.packageRows` for both packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-parity-v1.json`) and of each Nebula program (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-nebula-v1-rows-v1.json`, `formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-nebula-n1-rows-v1.json`), and `Export.BoundedDepth.RowsParity.fastSum_eq` proves that the emitted value is that checksum. The test `factored_rows_match_the_lean_dense_checksum` computes the same words from Rust's plan rows and spans for each of these packages. A checksum is evidence, not a proof. The memory claims are about Lean's Nebula programs; a Rust-built memory application is row `app.*` |
+| `depthBound` | `LE.le` | 10 | game | adversary 4: the result bounds the error over the stages below a bound `depth` on the iteration of the adversary's statements, so `depth` is a parameter of the adversary class, and the error grows with it. The history results of adversary 6 (`Claims.Final.history_sound`, `Claims.Final.history_sound_with_akita`) take the same parameter. The memory results of adversary 6 do not: the checks of `SPEC.md` Algorithm 8 step 4 accept at most `S_max · N` steps (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`), so their walk has `S_max · N` stages |
 | `Encodings/same`, `Encodings/equal`, `Encodings/different` | `*` | 6 | game | `SPEC.md` section 4: the event of each encoding claim is two inputs with one digest or one block list |
 | `Encodings/leftWell.*`, `Encodings/rightWell.*` | `*` | 12 | game | `SPEC.md` section 4.2: the two states are well formed |
 | `Encodings/leftCanonical`, `Encodings/rightCanonical` | `*` | 2 | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-encoding-parity-v1.json`, `the_identity_words_are_the_lean_words`: Rust makes the words of Lean, and it refuses a stream with a word at or above `q` (`a_word_at_or_above_q_is_refused`) |
@@ -236,21 +255,28 @@ covers.
 | `Fold/capFits`, `Ivc/capFits` | `LE.le` | 2 | lean | `Spec.Folding.Schedule.production_cap_fits`, at the production cap |
 | `Fold/p.rlc_bound`, `Ivc/p.rlc_bound` | `LT.lt` | 3 | lean | `Spec.productionGlobalParams` is the parameter record of the profile, so it carries this proof |
 | `Fold/admissible`, `Fold/member`, `Fold/start` | `*` | 3 | game | `SPEC.md` section 3: the claim is about each depth that an admissible schedule reaches |
-| `Fold/positive` | `LT.lt` | 3 | game | adversary 3: the work budget of the extractor is positive |
+| `Fold/positive` | `LT.lt` | 5 | game | adversary 3: the work budget of the extractor is positive |
 | `Step/holds`, `Step/represents.*` | `*` | 40 | game | `SPEC.md` Algorithm 5: the honest prover has an assignment of the step circuit that carries its step and its fold |
-| `Step/publicBelow`, `Ivc/complete.lightLayout`, `Ivc/complete.refreshLayout`, `Ivc/complete.lightPublicBelow`, `Ivc/complete.refreshPublicBelow`, `Ivc/complete.lightFreshAfterLocals`, `Ivc/complete.refreshFreshAfterLocals`, `Nebula/complete.lightLayout`, `Nebula/complete.refreshLayout`, `Nebula/complete.lightPublicBelow`, `Nebula/complete.refreshPublicBelow`, `Nebula/complete.lightFreshAfterLocals`, `Nebula/complete.refreshFreshAfterLocals`, `Final/complete.lightLayout`, `Final/complete.refreshLayout`, `Final/complete.lightPublicBelow`, `Final/complete.refreshPublicBelow`, `Final/complete.lightFreshAfterLocals`, `Final/complete.refreshFreshAfterLocals` | `*` | 68 | lean | `Export.BoundedDepth.EmittedPackages.Emitted.complete` builds the completeness bundle of the emitted packages: their layouts are the widened slot layouts, their first fresh columns are after the public columns (`Export.BoundedDepth.EmittedPackages.publicColumns_le_lightFresh`, `Export.BoundedDepth.EmittedPackages.publicColumns_le_refreshFresh`), and they are the ends of the circuits' locals (`Export.BoundedDepth.EmittedPackages.lightFresh`, `Export.BoundedDepth.EmittedPackages.refreshFresh`) |
+| `Step/publicBelow`, `Ivc/complete.lightLayout`, `Ivc/complete.refreshLayout`, `Ivc/complete.lightPublicBelow`, `Ivc/complete.refreshPublicBelow`, `Ivc/complete.lightFreshAfterLocals`, `Ivc/complete.refreshFreshAfterLocals`, `Nebula/complete.lightLayout`, `Nebula/complete.refreshLayout`, `Nebula/complete.lightPublicBelow`, `Nebula/complete.refreshPublicBelow`, `Nebula/complete.lightFreshAfterLocals`, `Nebula/complete.refreshFreshAfterLocals`, `Final/complete.lightLayout`, `Final/complete.refreshLayout`, `Final/complete.lightPublicBelow`, `Final/complete.refreshPublicBelow`, `Final/complete.lightFreshAfterLocals`, `Final/complete.refreshFreshAfterLocals` | `*` | 80 | lean | `Export.BoundedDepth.EmittedPackages.Emitted.complete` builds the completeness bundle of the emitted packages: their layouts are the widened slot layouts, their first fresh columns are after the public columns (`Export.BoundedDepth.EmittedPackages.publicColumns_le_lightFresh`, `Export.BoundedDepth.EmittedPackages.publicColumns_le_refreshFresh`), and they are the ends of the circuits' locals (`Export.BoundedDepth.EmittedPackages.lightFresh`, `Export.BoundedDepth.EmittedPackages.refreshFresh`) |
 | `Step/readsOwnColumns`, `Step/publicEq` | `*` | 4 | lean | `Export.BoundedDepth.StepExtend.light_extend`, `Export.BoundedDepth.StepExtend.refresh_extend` and `Export.BoundedDepth.StepExtend.base_extend` discharge them from the honest step's assignment (`Layout.BoundedDepth.LightAssemblerCompleteness.complete`, `Layout.BoundedDepth.RefreshAssemblerCompleteness.complete`): its public columns carry `encHash` of the output hash, and each row reads only columns before the end of the circuit's locals, so each piece reads only columns before a first fresh column at or after that end (`Export.BoundedDepth.StepExtend.Complete.lightReadsOwnColumns`, `Export.BoundedDepth.StepExtend.Complete.refreshReadsOwnColumns`) |
-| `Step/fitsKeyWidth`, `Ivc/complete.lightFitsKeyWidth`, `Ivc/complete.refreshFitsKeyWidth`, `Nebula/complete.lightFitsKeyWidth`, `Nebula/complete.refreshFitsKeyWidth`, `Final/complete.lightFitsKeyWidth`, `Final/complete.refreshFitsKeyWidth` | `*` | 24 | link | `SPEC.md` section 4.4 (Capacity): the slot layout of each package fits the key width `m = 2^26`. These are the fields `lightFitsKeyWidth` and `refreshFitsKeyWidth` of `Export.BoundedDepth.EmittedPackages.Facts`. The test `step_packages_fit_their_capacity` checks the capacity on each shipped package, the light and refresh packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-light-v1.json` and its refresh package) and of both Nebula programs, with Lean's row counts and logical widths (`factored_rows_match_the_lean_dense_checksum`). Lean does not prove the capacity for an application. Rust gives each relation the width of its own package's slot layout (`crates/nightstream/src/lifecycle/bounded_depth/relation.rs`) |
+| `Step/fitsKeyWidth`, `Ivc/complete.lightFitsKeyWidth`, `Ivc/complete.refreshFitsKeyWidth`, `Nebula/complete.lightFitsKeyWidth`, `Nebula/complete.refreshFitsKeyWidth`, `Final/complete.lightFitsKeyWidth`, `Final/complete.refreshFitsKeyWidth` | `*` | 28 | link | `SPEC.md` section 4.4 (Capacity): the slot layout of each package fits the key width `m = 2^26`. These are the fields `lightFitsKeyWidth` and `refreshFitsKeyWidth` of `Export.BoundedDepth.EmittedPackages.Facts`. The test `step_packages_fit_their_capacity` checks the capacity on each shipped package, the light and refresh packages of the reference application (`formal/nightstream-fprime/artifacts/nightstream-fprime-bounded-depth-light-v1.json` and its refresh package) and of both Nebula programs, with Lean's row counts and logical widths (`factored_rows_match_the_lean_dense_checksum`). Lean does not prove the capacity for an application. Rust gives each relation the width of its own package's slot layout (`crates/nightstream/src/lifecycle/bounded_depth/relation.rs`) |
 | `Ivc.accepted_bounds/accepted`, `Ivc/finalAtMostB`, `Ivc/start` | `*` | 3 | game | adversary 4, the result for one slot: an accepted history of the slot |
 | `Ivc/validRun`, `Ivc/witnessLengths`, `Ivc/runBelow`, `Ivc/z0Length`, `Ivc/iterationNext`, `Ivc/valid`, `Ivc/verifies`, `Ivc/witnessLength` | `*` | 11 | game | `SPEC.md` Algorithm 5: the honest prover extends an accepted proof by a valid step, with a counter below `q` |
 | `Nebula/accepted.*`, `Nebula/start`, `Nebula/steps.*`, `Nebula/terminal.*` | `*` | 57 | game | `SPEC.md` Algorithm 8: the step checks hold at each index below the chain length, and the terminal state passes the verifier checks |
-| `Nebula/count`, `Nebula/exec`, `Nebula/range`, `Nebula/width` | `*` | 10 | game | `SPEC.md` Algorithm 7: the honest prover runs the machine from its initial memory with `B_ops` port entries per step and `S · N` steps for `1 ≤ S ≤ S_max` |
+| `Nebula/count`, `Nebula/exec`, `Nebula/range`, `Nebula/width` | `*` | 11 | game | `SPEC.md` Algorithm 7: the honest prover runs the machine from its initial memory with `B_ops` port entries per step and `S · N` steps for `1 ≤ S ≤ S_max` |
 | `Ivc.light_run_complete/positive`, `Ivc.light_run_complete/short` | `*` | 2 | game | `SPEC.md` Algorithm 9: the light mode is for an honest run of 1 to `cap + 1` steps |
 | `Nebula.memory_light_complete/light` | `LE.le` | 1 | lean | `Spec.Nebula.WasmSize.steps_le_light` proves `S_max · N ≤ cap + 1` for each WASM size (`SPEC.md` Algorithm 9). For another geometry it is a condition of the claim |
-| `Fold/bounded` | `Spec.RandomOracle.OracleComp.QueryBound` | 4 | game | adversary 3: the adversary makes at most `Q` oracle queries |
+| `Fold/bounded` | `Spec.RandomOracle.OracleComp.QueryBound` | 6 | game | adversary 3: the adversary makes at most `Q` oracle queries |
 | `Ivc.slot_history_failure/assumption` | `Spec.HyperNova.Construction2.BoundedDepthSecurity.Assumption1` | 1 | assumption | `[HN-A1]`, in the form for one slot |
 | `Compression.production_error/columns`, `Compression.production_error/span_le`, `Compression.production_error/slots` | `*` | 3 | lean | `Export.BoundedDepth.FinalVerifier.game_densityLe` meets the three for the verifier of the final verifier. The mode has at most two slot claims (`Export.BoundedDepth.FinalVerifier.Mode.slots_le`). `columnVars = 2` holds by the definition of `Spec.Compression.Production.verifierData`, and `Export.BoundedDepth.FinalVerifier.Setup.layout_facts` gives `spanVars ≤ 26` for the layout of the Lean model of `Layout::new` (`Spec.Compression.Rust.layoutNew_span`) |
-| `Compression.production_error/depths_le` | `LE.le` | 1 | game | `SPEC.md` Algorithm 10: step 4 requires that the depth of each slot is at most `cap` |
+| `Compression.production_error/depths_le`, `Compression.light_error_bits/depth_le` | `LE.le` | 2 | game | `SPEC.md` Algorithm 10: step 4 requires that the depth of each slot is at most `cap` |
+| `Compression.light_error_bits/ok` | `Eq` | 1 | game | `SPEC.md` Algorithm 10: step 5 lays out the claims of the light mode with Rust `Layout::new`, whose model is `Spec.Compression.Rust.layoutNew`, and the claim is about each layout that the model accepts |
+| `Compression.argument_complete/shaped.*`, `Compression.argument_complete/relation`, `Compression.argument_complete/honest` | `*` | 5 | game | `SPEC.md` Algorithm 9: the honest prover names claims of the shape of its layout (step 3), holds their witnesses, and fills the count slices with the honest counts (step 4) |
+| `Compression.argument_complete/distinct` | `Spec.Compression.Verifier.TablesDistinct` | 1 | lean | `Spec.Compression.Production.params_tablesDistinct`, at the depths up to the cap |
+| `Final.light_gate_complete/key` | `Eq` | 1 | game | `SPEC.md` Algorithm 10: the verifier takes the pinned key of the block count of Algorithm 11 for its relations and mode |
+| `Final.light_gate_complete/shipped` | `Eq` | 1 | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-compression-parity-v1.json`, `error_bits_and_the_gate_match_the_lean_bound_on_each_light_claim_set`: the key of the light relation of the reference application has the `light_key_blocks` of Lean, `2^19`. For each WASM size, `the_small_light_relation_fits_the_key`, `the_medium_light_relation_fits_the_key` and `the_large_light_relation_fits_the_key` check the key of `2^19` blocks (ignored, by hand) |
+| `Final.light_gate_complete/minimum_le` | `LE.le` | 1 | link | `formal/nightstream-fprime/artifacts/nightstream-fprime-fold-gate-parity-v1.json`, `the_gate_charges_the_lean_error_on_each_step_relation`: `Relation::new` runs the fold gate with the minimum of the verifier, and the gate refuses each minimum above 115 bits, so each verifier that Rust builds has a minimum of at most 115 (`SPEC.md` section 3) |
+| `Final.light_gate_complete/verifies`, `Final.light_gate_complete/pcOne`, `Final.light_gate_complete/slotOne` | `*` | 3 | lean | `Claims.Ivc.light_run_complete` gives the three for the honest proof of each valid run of 1 to `cap + 1` steps |
 <!-- premises:end -->
 
 ## Applications and setups
@@ -463,19 +489,21 @@ not change terminal source checks.
   `Spec.Folding.Light.ErrorBudget.production_forkCoordinates`,
   `Lifecycle.Nifs.VerifierErrorBudget.test_error_eq`). Each numerator is a
   per-call count over `q²`.
-- **Random-oracle model:** in a model where each fold challenge is a uniform
-  value at the address of its sponge calls, for an adversary that makes at
-  most `Q` queries, the probability that a fold succeeds and the extractor does not return its
+- **Random-oracle model:** the model is the uniform function of `[SPONGE]`:
+  a point is the list of sponge calls before a read, and its answer is the
+  rate lanes of the state after them (`Lifecycle.RandomOracle.Test.Answer`).
+  A `K` coin of slot `s` reads lanes `2s` and `2s + 1`
+  (`Lifecycle.RandomOracle.Test.decodeK`) and a `Π_RLC` draw reads lanes 0
+  to 4 (`Lifecycle.RandomOracle.Fork.draw`), so reads of one state read one
+  answer, as in the sponge. For an adversary that makes at most `Q` queries,
+  the probability that a fold succeeds and the extractor does not return its
   witnesses is at most a statistical term, a state-collision term and a
   kernel term (`Claims.Fold.light_knowledge_in_random_oracle_model`,
-  `Claims.Fold.refresh_knowledge_in_random_oracle_model`). The model answers
-  each point, a call list and a lane pair, with five independent words
-  (`Lifecycle.RandomOracle.Test.Answer`). In the sponge, two adjacent lane
-  pairs of one state share three words
-  (`Lifecycle.BoundedDepth.RandomOracle.Fidelity.spongeOracle`), so
-  `[SPONGE]` does not move this model to the sponge as it is. The
-  test step charges each challenge's bad set at the challenge's own point, so
-  it costs at most `(Q + 1)` times the Π_CCS test error
+  `Claims.Fold.refresh_knowledge_in_random_oracle_model`). The bad set of a
+  coin reads the other coins of its state from the answer, and the coin's
+  lanes are uniform for each value of the other lanes
+  (`Lifecycle.RandomOracle.Test.bad_mass_le`), so the test step costs at most
+  `(Q + 1)` times the Π_CCS test error
   (`Lifecycle.RandomOracle.Test.family_error_le`). The statistical term is at
   most `(Q + 1) · 575/2^128` for light and `(Q + 1) · 4748/2^128` for refresh
   (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.statisticalError_le`,
@@ -498,39 +526,48 @@ not change terminal source checks.
   named prior states, and a collision finder outputs the colliding input
   pair, whose two inputs have one length
   (`Lifecycle.BoundedDepth.RandomOracle.HashSolver.hashCollisions_le_finder`).
-  Under `[P2-PERM]` and `[SPONGE]`, two distinct inputs give one digest with
-  probability at most `N²/q⁴ + spongeError N`, because the `10*` padding of
-  the sponge is injective (`Claims.Encodings.hash_padding_injective`,
-  `Spec.Sponge.collision_blocks`).
+  Under `[P2-PERM]` and `[SPONGE]`, a finder with `N` calls gives two distinct
+  inputs with one digest with probability at most
+  `C(N + 2, 2)/q⁴ + spongeError N` (`Spec.Sponge.collision_le`), because the
+  `10*` padding of the sponge is injective
+  (`Claims.Encodings.hash_padding_injective`).
   Averaged over the SHAKE128 key setup at key width `2^26`, the kernel term is
   an MSIS advantage for a uniform matrix at the chain norm plus a programming
   error below `2^−1129`, so each fold's bound uses only the two algorithms
   (`Claims.Fold.light_production_knowledge_error`,
   `Claims.Fold.refresh_production_knowledge_error`).
-  Lean bounds neither the MSIS advantage nor the collision advantage
-  numerically (trust item 2), and it states the machines' work in adversary
-  runs, not in time.
+  The finder is one run with one output, and it reruns the adversary on
+  oracles of its own tape. So `[SPONGE]` gives its advantage the number above
+  for `N` calls, a parameter of the adversary class
+  (`Claims.Fold.light_knowledge_error_numeric`,
+  `Claims.Fold.refresh_knowledge_error_numeric`). Lean does not bound the
+  MSIS advantage numerically (trust item 2), and it states the machines' work
+  in adversary runs, not in time.
 - **The sponge:** the model's address of a challenge is the list of sponge
   calls before its read (`Lifecycle.RandomOracle.Schedule.challengeCalls`).
   Distinct challenges have distinct addresses
   (`Lifecycle.RandomOracle.Schedule.challengeAddress_injective`), equal calls
   fix the absorbed data (`Lifecycle.RandomOracle.Schedule.proverCalls_identify`),
   and the light and refresh transcripts share no call prefix
-  (`Lifecycle.RandomOracle.Schedule.challengeCalls_separated`). These are
-  conditions of `[SPONGE]`. Under `[P2-PERM]` and `[SPONGE]`, the bound of
-  the model holds for a verifier that reads the sponge outside a circuit, plus
-  `spongeError N`, when every condition holds. The fold calls start with
-  their domain (`Export.DomainSeparation.fold_owns`), and the fold domains
-  are separated from the other uses (`Claims.Encodings.domains_separated`).
-  The model's answers at distinct points are independent, but a `Π_RLC`
-  draw reads lanes 0 to 4 and a coin of slot `s` reads lanes `2s` and
-  `2s + 1`. So a draw must never share its calls with a coin of slot 1 or 2:
-  it does not, because its calls are longer
-  (`Export.BoundedDepth.FoldSponge.rho_ne`). With these conditions proved
-  for every fold schedule (`Export.BoundedDepth.FoldSponge.conditions`), the
-  knowledge bound moves to the ideal-permutation model as the statistical
-  error plus `spongeError N`, with the collision and kernel terms as before
-  (`Claims.Fold.light_knowledge`,
+  (`Lifecycle.RandomOracle.Schedule.challengeCalls_separated`). The fold calls
+  start with their domain (`Export.DomainSeparation.fold_owns`), and the fold
+  domains are separated from the other uses
+  (`Claims.Encodings.domains_separated`). The model reads each address as the
+  sponge does at the rate lanes
+  (`Lifecycle.BoundedDepth.RandomOracle.Fidelity.spongeOracle_deployed`). The
+  state of a `ρ` read is the state of no other challenge, because its calls are
+  longer than those of a `K` coin and two `ρ` reads have different numbers of
+  calls (`Lifecycle.RandomOracle.Schedule.rhoCalls_ne`). So a new answer at a
+  `ρ` point keeps the Π_CCS coins
+  (`Lifecycle.RandomOracle.Fork.update_rho_ne`). These are the conditions of
+  `[DSFS]` (`Export.BoundedDepth.FoldSponge.conditions`). The event is the
+  failure event: the fold succeeds and the extractor, with the retries of the
+  retry law, does not extract
+  (`Lifecycle.BoundedDepth.RandomOracle.LightKnowledge.failureChance`). The
+  event has retries, so `[DSFS]` moves it, not `[SPONGE]`, which moves one run
+  only. For a prover with `N` permutation calls and a verifier outside a
+  circuit, its chance is at most the knowledge error of a model adversary with
+  `N` queries plus `duplexError N` (`Claims.Fold.light_knowledge`,
   `Claims.Fold.refresh_knowledge`).
 - **Not covered:** the step circuits recompute the challenges with the
   Poseidon2 permutation, and no ideal-permutation model covers a circuit
@@ -577,10 +614,14 @@ not change terminal source checks.
   words and the terminal's 38-word state preimage
   (`Export.BoundedDepth.TerminalBridge.Collision`). Each collision at the
   visit gives an output
-  (`Export.BoundedDepth.IvcWalk.visitCollision_isSome`). Lean does not bound
-  the finder's success chance. A bound needs `[P2-PERM]` and `[SPONGE]`
-  with the number of permutation calls of the finder, which Lean does not
-  count (trust item 2). So the term stays a stated term.
+  (`Export.BoundedDepth.IvcWalk.visitCollision_isSome`). Under `[P2-PERM]`
+  and `[SPONGE]`, the term of stage `j` is at most
+  `C(N_j + 2, 2)/q⁴ + spongeError N_j` for a finder with `N_j` permutation
+  calls, so `walkBound ≤ Σ_j (C(N_j + 2, 2)/q⁴ + spongeError N_j + error(stage j))`
+  (`Claims.Ivc.walk_bound_numeric`). A stage is a Lean function, and Lean
+  has no count of its calls. So `N_j` is the parameter `calls j` of the
+  premise `finders`, and the premise holds only for an adversary class
+  whose finder of stage `j` makes at most `N_j` calls (trust item 2).
 - **Per slot:** the earlier one-slot result,
   `Claims.Ivc.slot_history_failure`,
   takes the history as an adversary output and has no collision term. Its
@@ -746,8 +787,9 @@ not change terminal source checks.
   a statement for which no proof with witnesses satisfies `Verifies` with
   probability at most `Q · (2^−119 + 38/q²)`
   (`Claims.Final.verifier_sound`), and with Akita openings
-  at most `Q · (2^−119 + 38/q²) + εAkita`
-  (`Claims.Final.verifier_sound_with_akita`), under the
+  at most `Q · (2^−119 + 38/q²)` plus the fixed-setup extraction and key-binding errors
+  (`Spec.Compression.Akita.Use.error`,
+  `Claims.Final.verifier_sound_with_akita`), under the
   premises of trust item 7. Lean bounds one interactive run of the
   argument by the exact Rust error sum
   (`Spec.Compression.Rust.params_run_soundness`). Only tests join the model
@@ -800,7 +842,16 @@ not change terminal source checks.
   adversary 4 for the stages of this IVC adversary
   (`Claims.Final.history_sound`,
   `Export.BoundedDepth.IvcSecurity.walkBound`). With Akita openings, the
-  bound adds `εAkita` (`Claims.Final.history_sound_with_akita`).
+  bound adds the fixed-setup extraction and key-binding errors (`Claims.Final.history_sound_with_akita`).
+  The same bound holds for the witnesses that the reverse extractor returns:
+  the final verifier accepts, and those witnesses are not a valid history of
+  the accepted statement (`Claims.Final.history_knowledge`,
+  `Claims.Final.history_knowledge_with_akita`). At the
+  packages that the emitter writes for the reference application, Lean proves
+  each premise of class `lean` of the direct and final verifier results
+  (`Claims.Shipped.verify_sound`, `Claims.Shipped.verify_final_sound`).
+  The Lean Nebula packages are test packages that no public verifier loads,
+  so no such result exists for the memory verifiers (row `app.*`).
   The premises are those of trust item 7, `[HN-A1]` and the closure
   premise of trust item 3, an admitted IVC adversary of the prover, the
   digest length 4 of each circuit key, and a bound `depth` on the
@@ -823,7 +874,7 @@ not change terminal source checks.
   for this IVC adversary. So its probability is at most
   `Q · (2^−119 + 38/q²)` plus the terms of adversary 5
   (`Claims.Final.memory_sound`). With Akita openings, the
-  bound adds `εAkita` (`Claims.Final.memory_sound_with_akita`).
+  bound adds the fixed-setup extraction and key-binding errors (`Claims.Final.memory_sound_with_akita`).
   The premises are those of the two joined results, but without the bound
   `depth`: the checks of `SPEC.md` Algorithm 8 step 4 accept at most
   `S_max · N` steps (`Lifecycle.Nebula.EndToEnd.VerifierChecks.iteration_le`),
@@ -909,7 +960,8 @@ not change terminal source checks.
      results name each collision as an event on two inputs that a reduction
      computes. Under `[P2-PERM]` and `[SPONGE]`, an algorithm with `N`
      permutation calls finds two distinct padded inputs with one digest with
-     probability at most `N²/q⁴ + spongeError N`. Two distinct inputs of the
+     probability at most `C(N + 2, 2)/q⁴ + spongeError N`
+     (`Spec.Sponge.collision_le`). Two distinct inputs of the
      hash have distinct padded inputs (`Spec.Sponge.collision_blocks`), and
      two distinct values of a row of section Hashed encodings have distinct
      inputs only by that row's injectivity theorem. The deployed permutation
@@ -918,12 +970,17 @@ not change terminal source checks.
    - *The IVC collision term.* In the bounds of adversaries 4, 5 and 6, the
      collision term of each reverse stage is the success chance of an
      explicit finder that outputs such a pair of inputs
-     (`Export.BoundedDepth.IvcSecurity.finderChance`). To bound it with the
-     bound above, `N` must count the permutation calls of the finder. These
-     include the calls of the stage, and so the calls of the earlier stages
-     that it runs again. Lean does not count `N` and does not state this
-     bound, so the term stays a stated term.
-   - Lean bounds neither term numerically.
+     (`Export.BoundedDepth.IvcSecurity.finderChance`). Lean bounds it with the
+     bound above (`Claims.Ivc.walk_bound_numeric`). `N` counts the permutation
+     calls of the finder: the calls of the stage, and so the calls of the
+     earlier stages that it runs again. Lean cannot count them for a Lean
+     function, so `N` is a parameter of the adversary class.
+   - *The fold collision term.* The collision finder of each fold is such
+     an algorithm too, and Lean bounds its advantage with the same bound
+     (`Claims.Fold.light_knowledge_error_numeric`,
+     `Claims.Fold.refresh_knowledge_error_numeric`). `N` counts the calls of
+     the adversary in each of the finder's reruns.
+   - Lean does not bound the MSIS term numerically.
 3. **The history: HyperNova errata Assumption 1 for the two fold kinds [HN-A1].**
    `Spec.HyperNova.ReverseStages.Assumption1` states Assumption 1 in the form
    of HyperNova Definition 7 knowledge soundness. Adversary 4 uses it with the
@@ -1061,9 +1118,12 @@ not change terminal source checks.
    lifecycle on fixed inputs (`SPEC.md` section 9). No theorem covers
    arbitrary Rust execution. No Lean theorem states that the package's
    witness program (`Export.BoundedDepth.StepPackage.Package`, field
-   `witness`) computes an assignment that the rows accept. This gap is of
-   completeness only, because the verifier checks the rows and not the
-   program.
+   `witness`) computes an assignment that the rows accept. The completeness
+   of each gadget states only that such an assignment exists
+   (`Circuit.FormalCircuit`), and the rows do not fix each hint, for example
+   the inverse of `Gadgets.Range.CanonicalU64` when the value that it inverts
+   is 0. This gap is of completeness only, because the verifier checks the
+   rows and not the program.
 6. **Gap: the memory round.** `Export.BoundedDepth.NebulaSecurity.MemoryRound`
    states the memory round for the two step circuits as a hypothesis: for
    each admitted stage and the memory statement of its tape, the extracted run
@@ -1140,22 +1200,24 @@ not change terminal source checks.
      the Π_CCS run and the lookup challenges `τ` (row 2), and `V`, whose
      cells are `1/(τ_k − W(x))`, after `τ` (row 9). The game has the same
      order: `W` before `τ`, and `V` after `τ` and before the other
-     challenges (`Spec.Compression.Verifier.afterTables`).
-     `Export.BoundedDepth.FinalVerifier.AkitaKnowledge` states this premise
-     with the error `εAkita`: for each prover with Akita openings, a prover
-     of the game wins at most `εAkita` less often. Lean does not bound
-     `εAkita`. `Claims.Final.history_sound_with_akita` takes the
-     same premise for the event of a false history, at one prover of the
-     game, and that prover's IVC adversary must be admitted (trust item 3).
+     challenges (`Spec.Compression.Verifier.afterTables`). For Akita
+     openings, a win is a failure of the fixed-setup extractor, a
+     break of the binding of the key, or a win in which the extractor
+     returns the tables with the key polynomial
+     (`Spec.Compression.Akita.Use.wins_le`). The premise `composition`
+     bounds the last event by the event of one prover of the game, whose IVC
+     adversary must be admitted (trust item 3).
      `Export.BoundedDepth.FinalVerifier.Premises` collects the premises on
      the setup: `Represents` for the dense rows of each circuit, and at
      most the blocks of its package for each claim. The final claims meet
      them from the premise `rows`
-     (`Export.BoundedDepth.FinalRows.premises_of_rows`). The game takes its
-     layout from the Lean model of Rust `Layout::new`, and it rejects
-     claims that the model does not lay out or that have fewer than 320
-     cells, as step 5 of `SPEC.md` Algorithm 10 rejects them
-     (`Export.BoundedDepth.FinalVerifier.Setup.Laid`). That layout has the
+     (`Export.BoundedDepth.FinalRows.premises_of_rows`). The game runs the
+     gate of step 5 of `SPEC.md` Algorithm 10
+     (`Export.BoundedDepth.FinalVerifier.Setup.Gate`). It rejects a key
+     whose block count is not the count of Algorithm 11, claims that the
+     Lean model of Rust `Layout::new` does not lay out or that have fewer
+     than 320 cells, and a layout whose `error_bits` is below the security
+     minimum. It takes its layout from that model. That layout has the
      production bounds (`Export.BoundedDepth.FinalVerifier.Setup.layout_facts`),
      so the premise on the layout is that Rust `Layout::new` is the model,
      as above. The game
@@ -1194,18 +1256,16 @@ not change terminal source checks.
      (`Claims.Ivc.light_run_complete`,
      `Export.BoundedDepth.FinalVerifier.checks_light`), and the memory
      verifier accepts no longer run of a WASM size
-     (`Claims.Nebula.memory_light_complete`). Under the key of `2^19`
-     blocks, that proof also passes the layout of step 5, when the light
-     relation has at most `2^19` blocks and its 320 public cells
-     (`Export.BoundedDepth.FinalVerifier.accepts_light`, from
-     `Spec.Compression.Rust.layoutNew_light`). No theorem derives these
-     three hypotheses on the setup from a package. Step 5 also requires the
-     block count of Algorithm 11 and `error_bits` at least the security
-     minimum. The game models neither: the theorem takes the key of `2^19`
-     blocks as a hypothesis, and the test
+     (`Claims.Nebula.memory_light_complete`). When the verifier's key is
+     the key of Algorithm 11 and has `2^19` blocks, and its security
+     minimum is at most 119 bits, that proof also passes the whole gate of
+     step 5 (`Claims.Final.light_gate_complete`). Each light layout that the
+     model accepts at a depth at most the cap has `error_bits` 119
+     (`Claims.Compression.light_error_bits`). No theorem derives the key of
+     `2^19` blocks from a package. The test
      `error_bits_and_the_gate_match_the_lean_bound_on_each_light_claim_set`
-     checks the gate on the 65 light claim sets of the reference
-     application. In the light mode, `compress` checks the claim and the
+     checks it for the reference application, and the fold gate holds the
+     minimum to 115 bits. In the light mode, `compress` checks the claim and the
      depth of slot 1 but not its witness, and it commits only the witness
      of slot 0 (`crates/nightstream/src/lifecycle/bounded_depth/compression.rs`,
      `check_light_envelope`). So it turns a proof whose slot 1 witness is
@@ -1226,24 +1286,37 @@ not change terminal source checks.
      verifier can accept a false statement. The pin is a value in the code,
      and the test is the check of the pin. No Lean result covers either.
      The Lean result takes the honest key as a premise.
-   - *Akita binding and knowledge soundness `[AKITA]`.* The one Akita proof opens
+   - *Akita `[AKITA]` and the gap of `V`.* The one Akita proof opens
      the key polynomial, `W` and `V`. It uses Akita (ePrint 2026/1983) at
      git revision `d50f700f`, crate version 0.1.0, with the configuration
      `RecursiveCommitmentConfig<fp64::Dense>` and the schedule files of
-     `SPEC.md` section 3. The premise is that an accepted proof gives
-     polynomials with the claimed values, in the classical random-oracle
-     model, and that the extractor gives the `W` that the prover fixed
-     before `τ` and the `V` that it fixed after `τ`. The composition
-     theorem of the paper (revision of 2026-10-15, Theorem 10.45) has every
-     root commitment in the first message, before the first challenge of
-     the application, so it does not cover the commitment of `V` after
-     `τ`. Its checkpoint structures (Definition 10.16) allow more than one
+     `SPEC.md` section 3 (`Spec.Compression.Akita.Use`). Akita Theorem 10.46 (revision of
+     2026-10-15) bounds extraction failure for an admissible schedule (Akita Definition 9.2)
+     and a prover with `Q ≤ Q_max` queries to `H_FS`. Akita Definition 3.7 draws the
+     public setup inside this experiment. The error is `(Q + 1) · ε_int + Δ_setup + Σ_I Adv_I(B_I)`,
+     with `Δ_setup ≤ N_setup · q / 2^w`. Akita Lemma 10.47 adds `ε_hash` for the SHA3-256
+     digests of the last terminal block and the root commitments.
+     The verifier uses one pinned setup, including its offloaded prefix commitments.
+     The premise `akita.fixedSetup` requires this same bound for the pinned parameters
+     (`Spec.Compression.Akita.Schedule.knowledgeError`). It is open. Pinning the key
+     checks its identity. It supplies no bound on extraction failure for this key.
+     Schedule admissibility is a separate premise (`akita.admissible`). It fails for
+     `key30.aks` and remains open for `key20.aks`.
+     Under `[AKITA]`, the commitment of the compression key binds the key polynomial
+     (`Spec.Compression.Akita.Use.Binding`, premise `binding`).
+     The open premise `composition` bounds a win in which the extractor returns the
+     tables by a win of the game (`Spec.Compression.Akita.Use.Composition`).
+     The composition theorem of Akita (Theorem 10.45) has every root
+     commitment in the first message, before the first challenge of the
+     application, so it does not cover the commitment of `V` after `τ`.
+     Akita's checkpoint structures (Definition 10.16) allow more than one
      checkpoint, but no result of the paper states the composition with a
-     second commitment, and Lean does not prove it. It includes binding
-     for the key polynomial, so the opened value
-     is the value of the Ajtai key's polynomial, and binding for Akita's
-     setup prefixes, so the setup that the rows offload is Akita's public
-     setup. Akita states a target of a 128-bit Fiat–Shamir rate for each
+     second commitment, and Lean does not prove it. The premise also covers
+     `W`: Lean does not prove the conditions of Theorem 10.45 for the
+     argument, and the premise joins the Poseidon2 transcript of the game to
+     Akita's Keccak transcript.
+     Lean proves the rest of the step (`Spec.Compression.Akita.Use.wins_le`).
+     Akita states a target of a 128-bit Fiat–Shamir rate for each
      random-oracle query. Its documentation says that this target is not an
      end-to-end bound and that it declares no query budget, no bound on the
      size of the extraction tree and no reduction loss. Akita has no audit
@@ -1341,9 +1414,11 @@ not change terminal source checks.
   adversary 3 in the random-oracle and ideal-permutation models
   (`Claims.Fold`), not for Poseidon2 itself, and the other terms depend on
   MSIS at the solver's work and on Poseidon2 collisions.
-- The compressed proof has a Lean result for its argument only
-  (adversary 6). Its error is not a security level, and the final proof is
-  not zero-knowledge.
+- The compressed proof has Lean results for its argument only: soundness
+  (adversary 6) and, with ideal openings, completeness, in which the verifier
+  rejects the honest argument only when a lookup challenge is a table value or
+  `ω` has no row point (`Claims.Compression.argument_complete`). Its error is
+  not a security level, and the final proof is not zero-knowledge.
 - Attacks on the fixed Poseidon2 permutation that a uniform permutation does
   not have (`[P2-PERM]`) are outside the model. Attacks that use the hash inside the circuit (KRS)
   are outside every random-oracle model; the verifier's packages fix the
@@ -1366,8 +1441,9 @@ not change terminal source checks.
   package fixes, the binding rows of the Rust catalog backend, the rows of
   `nebula::R1csApplication` that link the rows of a batched step, and the
   WASM relation itself (`SPEC.md` sections 7.6 to 7.8). Lean proves what the slot plan conditions give
-  (`Spec.Nebula.MemoryTrace.reorders_of_slotOrder`) and that batched steps
-  are memory consistent exactly when their rows are
+  (`Spec.Nebula.MemoryTrace.reorders_of_slotOrder`), that the final catalog
+  state then agrees with the final memory (`Claims.Nebula.catalog_agrees`),
+  and that batched steps are memory consistent exactly when their rows are
   (`Spec.Nebula.MemoryTrace.memoryConsistent_batchCatalog_iff`), but not
   that the Rust rows enforce those conditions. Tests check the rows on fixed
   inputs (trust item 5). Rust tests also check that each field of the

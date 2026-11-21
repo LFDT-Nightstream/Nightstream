@@ -79,9 +79,10 @@ pub trait PackedGateNorm {
 impl super::PaperJointOracleInput<'_> {
     pub fn packed_gate_norm_shape(&self) -> bool {
         let shape = self.rows.shape();
-        self.prior_point.is_some()
-            && self.running_witnesses.len() == 1
-            && self.fresh_witnesses.len() == 1
+        matches!(
+            (self.prior_point, self.running_witnesses.len()),
+            (None, 0) | (Some(_), 1)
+        ) && self.fresh_witnesses.len() == 1
             && self.norm_sources == 1
             && self.params.b() == 2
             && self.fresh_witnesses[0].Z.is_packed_signed_unit()
@@ -89,8 +90,8 @@ impl super::PaperJointOracleInput<'_> {
             && self.dims.variables <= 30
             && shape.matrices == 4
             && application::is_poseidon2_gate(self.structure.f())
-            && (1 << 16..=1 << 19).contains(&shape.rows)
-            && (1 << 21..=1 << 24).contains(&self.dims.assignment_width)
+            && (1 << 16..=1 << 21).contains(&shape.rows)
+            && (1 << 21..=1 << 25).contains(&self.dims.assignment_width)
     }
 
     pub fn optimized_with_packed_terms<'a>(

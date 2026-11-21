@@ -1,6 +1,8 @@
 //! Poseidon2 over `F_q`, `q = 2^64 − 59` (`decisions/poseidon2-p64-instance.md`).
 
 use neo_math::Fq;
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+use p3_field::PrimeField64;
 use p3_field::{InjectiveMonomial, PrimeCharacteristicRing};
 use p3_poseidon2::{matmul_internal, mds_light_permutation, MDSMat4};
 
@@ -28,10 +30,17 @@ fn sbox(x: Fq) -> Fq {
 
 impl<const T: usize> Instance<T> {
     pub fn permute(&self, state: [Fq; T]) -> [Fq; T] {
-        self.permute_with_sboxes(state, |_| {})
+        self.permute_rounds::<true, _>(state, |_| {})
     }
 
-    pub fn permute_with_sboxes<C>(&self, mut state: [Fq; T], mut record: C) -> [Fq; T]
+    pub fn permute_with_sboxes<C>(&self, state: [Fq; T], record: C) -> [Fq; T]
+    where
+        C: FnMut(&[Fq]),
+    {
+        self.permute_rounds::<false, _>(state, record)
+    }
+
+    fn permute_rounds<const WIDEN: bool, C>(&self, mut state: [Fq; T], mut record: C) -> [Fq; T]
     where
         C: FnMut(&[Fq]),
     {
@@ -49,6 +58,19 @@ impl<const T: usize> Instance<T> {
         for &constant in &self.internal {
             state[0] = sbox(state[0] + constant);
             record(&state[..1]);
+            #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+            if WIDEN && T == 16 {
+                const {
+                    let max = Fq::ORDER_U64 as u128 - 1;
+                    assert!(max.checked_mul(max + 16).is_some());
+                }
+                let wide = |word: Fq| u128::from(word.as_canonical_u64());
+                let sum = state.iter().copied().map(wide).sum::<u128>();
+                for (word, &coefficient) in state.iter_mut().zip(&self.diagonal) {
+                    *word = Fq::from_u128(sum + wide(*word) * wide(coefficient));
+                }
+                continue;
+            }
             matmul_internal(&mut state, self.diagonal);
         }
         for constants in &self.terminal {

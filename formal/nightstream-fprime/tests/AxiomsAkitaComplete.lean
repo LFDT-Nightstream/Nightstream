@@ -8,11 +8,16 @@ a draw (`Spec/Compression/Akita/Extract`: `Play`, `CheckComplete`), the links of
 the next level (`TraceComplete`), the trace levels over the terminal (`TowerComplete`), and the
 numbers of the schedule `key20.aks` (`Spec/Compression/Akita/Key20Complete`), and for the honest
 prover of the whole opening: the packing level with a bounded source (`LiftComplete`), the root
-fold with opening groups and the verifier `towerLinks` (`RootComplete`), the wire messages
-(`Page`), the zero tables (`ZeroFit`), and the schedule `key20.aks` (`Key20Root`,
-`Key20Accept`), and for the honest prover of the compression argument before the opening: a game
-with reject sets and a checkpoint segment (`Reject`), the two parts of the verifier game
-(`BackComplete`) and the two checkpoints of the argument (`ComposeComplete`). -/
+fold with opening groups and the verifier `towerLinks` (`RootComplete`), the checks of an
+offloaded fold (`OffloadComplete`), the groups with their own commitment states and the
+batching root (`GroupComplete`), the levels of `key30.aks` from the packing level 3
+(`ShortComplete`), the offloaded root fold and its link (`OffLink`), the opening with an
+offloaded root (`OffComplete`), the wire messages (`Page`), the zero tables (`ZeroFit`),
+the schedule `key20.aks` (`Key20Root`, `Key20Accept`) and the schedule `key30.aks`
+(`Key30Complete`, `Key30Root`, `Key30Accept`), and for the honest prover of the compression
+argument before the opening: a game with reject sets and a checkpoint segment (`Reject`), the two
+parts of the verifier game (`BackComplete`) and the two checkpoints of the argument
+(`ComposeComplete`). -/
 
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Shape.Bounded
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Shape.embed
@@ -226,3 +231,55 @@ with reject sets and a checkpoint segment (`Reject`), the two parts of the verif
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.Capped.getD
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.Tier.path_worked
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.path_answers
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.liftedFold_holds
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.offloadDraws
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.offloadDraws_eq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.winsAt_of_winsTo_each
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.drawBin_winsAt_each
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.setupCheck_winsAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.offloadCheck_winsAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.offBatch_winsAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.offBatch_costs_length
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.root_folds
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.root_cells
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.root_path
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.level₁_folds
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.level₁_path
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.level₁_bounded
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.level₁_openings
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.lifts
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.widths
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.source₄
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.source₅
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.source₆
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.sourceTerm
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.fold₄
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.fold₅
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.fold₆
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.links
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.capped
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.pairOf
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.pairOf_zero
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.pairOf_one
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.stateClaim
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.stateClaim_commit
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.stateClaim_satisfies
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.honest_flat_zero_of
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.stateNext
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.StateFit
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.stateFit_zero
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.stateLevel_wins
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.rootLink
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.traceTower₂_complete
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.packTower₂_complete
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.offLevel_wins
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.offLink
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.segments_of_length
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.offState
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.stateTower_complete
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.offTower_complete
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.tower_complete
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Note
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Wire
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.terminalOf
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.zero_accepts

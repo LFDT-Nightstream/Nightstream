@@ -1,13 +1,15 @@
 import tests.AxiomAudit
-import NightstreamFPrime.Export.BoundedDepth.FinalKey30All
+import NightstreamFPrime.Claims.AkitaKey30
 
 /-! Axiom audits for the Akita opening of the schedule `key30.aks`: the numbers of the two rows
-(`Spec/Compression/Akita/Key30`), the checks of an offloaded fold (`Extract/Offload`), the group
-of the setup prefix and the offloaded step of the suffix (`Extract/Groups`), the suffix of the
-opening with an offloaded root (`Extract/OffTower`, `Key30Tower`), the opening with the decoders
-`draw` (`Key30Opening`), the instances of Module-SIS (`Key30Instances`), the final verifier over
-the opening (`Export/BoundedDepth/FinalKey30`), and the final verifier for each claim shape and
-against a false history (`Export/BoundedDepth/FinalShapes`, `FinalKey30All`). -/
+(`Spec/Compression/Akita/Key30`), the checks of an offloaded fold (`Extract/Offload`), the views
+of the shared setup and the split (132) of the public weight (`SetupView`,
+`Extract/SetupWeight`), the group of the setup prefix and the offloaded step of the suffix
+(`Extract/Groups`), the suffix of the opening with an offloaded root (`Extract/OffTower`,
+`Key30Tower`), the opening with the decoders `draw` (`Key30Opening`), the instances of Module-SIS
+(`Key30Instances`), the final verifier over the opening (`Export/BoundedDepth/FinalKey30`), and
+the final verifier for each claim shape and against a false history
+(`Export/BoundedDepth/FinalShapes`, `FinalKey30All`), and the claim `key30_instances_shared`. -/
 
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.root_sized
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.root_degrees
@@ -32,6 +34,40 @@ against a false history (`Export/BoundedDepth/FinalShapes`, `FinalKey30All`). -/
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.SetupScan.direct
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.SetupScan.direct_value
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.offloadCheck_avoids
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.shared_sum
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.Statement.over_eq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Affine.congr
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Affine.of_eq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Affine.of_sum
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Affine.add
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Affine.sub
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Affine.mul_left
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Affine.mul_right
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Affine.sum
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Affine.ite
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Affine.of_ring
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.aeval_rep_neg
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.RingRow.readWeight_eq_scan
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Form.scan_row
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Form.scan_sub
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Form.scan_ofMatrix
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Form.scan_response
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.AffineForm.sub
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.AffineForm.ofMatrix
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.AffineForm.response
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.AffineRow.of_eq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.AffineRow.relocate
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.AffineRow.row
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.AffineRow.append
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.AffineRow.gather
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.AffineRow.imageRow
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.AffineRow.liftWeight
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.LiftRelation.liftRows_weightAt
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Affine.liftEntry
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Affine.batchWeight
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.flatRows_affine
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.weight_affine
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.setupScan
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.setupCosts_sum
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.offloadCheck_bare
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Extract.setupCheck_staged
@@ -48,6 +84,8 @@ against a false history (`Export/BoundedDepth/FinalShapes`, `FinalKey30All`). -/
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.key30_points
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.Use.points
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.sound
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.onSetup_shared
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.scan
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.Drawn.fits
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.suffix
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.extract_sound
@@ -56,6 +94,14 @@ against a false history (`Export/BoundedDepth/FinalShapes`, `FinalKey30All`). -/
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.instances_exact
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.reduced
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.reduced_key
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Shared
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.shared_ofSetup
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.reduced_shared
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.reduced_key_shared
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.views_fit
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.views_fits
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.shared_setup
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key30.Tower.shared_of_views
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalShapes.knowledge_all
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalShapes.sound_all
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalShapes.rejected_le
@@ -64,6 +110,8 @@ against a false history (`Export/BoundedDepth/FinalShapes`, `FinalKey30All`). -/
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalShapes.history_knowledge
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.Opening.knowledge
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.Opening.reduced
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.Opening.reduced_shared
+#audit_axioms NightstreamFPrime.Claims.AkitaKey30.key30_instances_shared
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.verifier_sound_drawn
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.history_sound_drawn
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey30.history_knowledge_drawn

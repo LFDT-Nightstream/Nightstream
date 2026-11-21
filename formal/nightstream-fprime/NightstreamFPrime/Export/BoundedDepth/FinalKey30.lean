@@ -61,10 +61,10 @@ variable {logicalWidth : Nat}
   {claim : Wire → (root r).Claim K} {block : (root r).Block → Coord}
   {decode : (g : Fin 3) → K → Option (Rq ((root r).carrierDegree g))} {mass : Fin 3 → ℕ}
   {flat : Table}
-  {scan : ∀ (st : (root r).Statement K) (challenge : (root r).Challenge),
-    SetupScan (Batch.liftedReduction β st challenge rootVars (root_sized r member).1 8
-      quotientDigits₀ (root_sized r member).2.1 rootBatch (root_sized r member).2.2.1) setupVars
-      flat}
+  {scan : ∀ (wire : Wire) (challenge : (root r).Challenge),
+    SetupScan (Batch.liftedReduction β ((claim wire).statement key openKey) challenge rootVars
+      (root_sized r member).1 8 quotientDigits₀ (root_sized r member).2.1 rootBatch
+      (root_sized r member).2.2.1) setupVars flat}
   {β₁ : ∀ g, Module.Basis (Fin ((level₁ r).planes g)) Zq K}
   {key₁ : (g : Fin 2) → Key ((level₁ r).shape g)} {openKey₁ : (level₁ r).OpenKey}
   {claim₁ : Wire → (level₁ r).Claim K} {block₁ : (level₁ r).Block → Coord}
@@ -238,7 +238,7 @@ theorem Use.points (use : Use setup shape r) {point : Prefix Wire (Option Coord 
 (`FinalAkita.final_sound` with `Key30.tower_suffix`). For each prover with at most `Q` queries to
 the oracle, the probability that the verifier accepts and no proof with witnesses satisfies
 `Verifies` for the statement of the first message is at most
-`(Q + 1)·(runCost + 1623435/(4096·|K|) + (1752 + B_1 + 4·B_2)/256·p) + (Q + 1)·(1469 + B_1 +
+`(Q + 1)·(runCost + 1623435/(4096·|K|) + (1458 + B_1 + B_2)·p) + (Q + 1)·(1469 + B_1 +
 B_2)/budget +
 breakChance`. The verifier `offAccepts` accepts with the conditions `Compose.Ran` and the links
 `offLinks` of the opening with an offloaded root. `p` is a bound of the slot probability of each challenge
@@ -313,7 +313,7 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} {peak₁ : Fin 2 → ℕ}
             ¬ Proved setup packageWidths step cap control head
               (((Structure.protocol whole).input prover table 0).wire 0) then (1 : ℝ) else 0) ≤
       (queries + 1) * (setup.runCost shape + (1623435 / (4096 * Fintype.card K) +
-          ((1752 + r.blocks₁ + 4 * r.blocks₂ : ℕ) : ℝ) / 256 * p)) +
+          ((1458 + r.blocks₁ + r.blocks₂ : ℕ) : ℝ) * p)) +
         (queries + 1) * (2 + (1467 + r.blocks₁ + r.blocks₂) : ℕ) / budget +
         breakChance setup packageWidths step cap control shape read head bound accepts opening
           key openKey mass Sum.inl prover honest innerBound budget := by

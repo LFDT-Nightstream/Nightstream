@@ -24,6 +24,8 @@ item 7).
   the event that the extractor returns no output. Lean gives no bound on the probability that an
   output is a solution of Module-SIS. `key20_instances` and `key20_instance_list` give the
   instances of Module-SIS that `breakChance` is about, and Lean does not prove their hardness.
+  `key20_instances_shared` gives a solution for the view of one setup vector of an instance of
+  the 43 views, when the matrices are these views.
 - Open: the error bound of the integer tables of the filters of the challenge families is a
   hypothesis (`filtered₃` to `filteredL`). With it, the operator bound `Γ` is a theorem
   (`Spec.Compression.Akita.TrigTable.mulBound`). No Lean result compares the Lean decoders or the Lean verifier with the code. -/
@@ -350,12 +352,12 @@ cover `key30.aks`. The model is one uniform table of stage answers with independ
 the verifier is the Lean verifier `Key20.Tower.accepts`, which differs from the verifier of the
 pinned Akita code. For each prover with at most `Q` queries, the probability that the verifier
 accepts and the extractor returns no output is at most
-`(Q + 1)·(317479/(1024·q²) + 49/(8·q²)) + (Q + 1)·142/budget`: `317479/(1024·q²)` for the
-draws of the checks, `49/(8·q²)` for the 135 fold coordinates, and 142 retry loops. The draw of
-each site has the factor `2^{−g}` for the work bits `g` of the site in the Akita code (Akita
-Remark 10.18, `Extract.workBits`, `Extract.foldWorkBits`). The bound does not contain the
-probability that the output is a solution of Module-SIS (`[MSIS]`), and the operator bound of
-the filtered families is a hypothesis. -/
+`(Q + 1)·(317479/(1024·q²) + 135/q²) + (Q + 1)·142/budget`: `317479/(1024·q²)` for the
+draws of the checks, `135/q²` for the 135 fold coordinates, and 142 retry loops. The draw of
+each check has the factor `2^{−g}` for the work bits `g` of its site in the Akita code (Akita
+Remark 10.18, `Extract.workBits`), and the fold terms have no work credit. The bound does not
+contain the probability that the output is a solution of Module-SIS (`[MSIS]`), and the operator
+bound of the filtered families is a hypothesis. -/
 theorem key20_opening_bound
     {E : Type}
     [fieldE : Field E]
@@ -386,7 +388,7 @@ theorem key20_opening_bound
                 Checkpoint.extract o.body prover budget table tape = none then
             1
           else 0) ≤
-      ((↑queries : ℝ) + 1) * (317479 / (1024 * (↑(Fintype.card E) : ℝ)) + 49 / 8 * (1 / (↑fieldModulus : ℝ) ^ 2)) +
+      ((↑queries : ℝ) + 1) * (317479 / (1024 * (↑(Fintype.card E) : ℝ)) + 135 * (1 / (↑fieldModulus : ℝ) ^ 2)) +
         ((↑queries : ℝ) + 1) * (↑142 : ℝ) / (↑budget : ℝ) :=
   @NightstreamFPrime.Spec.Compression.Akita.Key20.Tower.extraction_le E fieldE fintypeE decidableEqE
     algebraZqE degree2EAlgebraZqE Wire Coord fintypeCoord decidableEqCoord nonemptyCoord total o keepL
@@ -400,7 +402,8 @@ for the work bits of Akita Remark 10.18), a proof exists whose transcript the ve
 `towerLinks` accepts: the proof of the honest prover for the zero tables of the key polynomial, `W` and `V`.
 So the event of `key20_opening_bound` is not empty. The claim is not a completeness bound: Lean
 has no bound on the probability that a response of another table fits, and the Lean verifier has
-no rejection at a zero tensor factor. It does not cover `key30.aks`. -/
+no rejection at a zero tensor factor. The claim for `key30.aks` is
+`Claims.AkitaKey30.key30_opening_accepts`. -/
 theorem key20_opening_accepts
     {E : Type}
     [fieldE : Field E]
@@ -698,7 +701,7 @@ with independent slots, and the verifier is the Lean verifier `FinalKey20.finalA
 Lean decoders `draw`, which differs from the pinned Akita code. For each prover with at most `Q`
 queries, the probability that the verifier accepts and no proof with witnesses satisfies
 `Verifies` for the statement is at most `FinalKey20.shapesBound` at the slot probability `1/q²`:
-for each claim shape, `(Q + 1)·(runCost + 317479/(1024·q²) + 49/(8·q²)) + (Q + 1)·144/budget + breakChance`.
+for each claim shape, `(Q + 1)·(runCost + 317479/(1024·q²) + 135/q²) + (Q + 1)·144/budget + breakChance`.
 Lean gives no bound on `breakChance`, the probability of a solution of Module-SIS (`[MSIS]`).
 `drawn`: the conditions `FinalKey20.Opening.Drawn` of each opening, with the operator bound of
 the filtered families. -/
@@ -1057,8 +1060,9 @@ instances that the `key20_` claims rest on. `mass`, `weight₁` and `weight₂`:
 norms `‖c‖_1` of the fold challenges that `FinalKey20.Opening.Drawn` gives, 31, 51 and 51 for the
 groups of the root, 51 for the level 1 and 31 for the level 2. `inner`: the bound of the
 reduction for the key commitment is at most `η_A` of the key group, 32505732. Lean does not prove the hardness of an
-instance, and it has no bound on `breakChance`: the matrices of the claims are fixed, and no Lean
-result joins this claim with the sum over the instances of Akita (168) for a uniform setup. -/
+instance, and it has no bound on `breakChance`: the matrices of the claims are fixed.
+`key20_instances_shared` joins the list with the views of one setup vector, which is the form of
+the sum of Akita (168). -/
 theorem key20_instances
     {logicalWidth : ℕ}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -1116,5 +1120,76 @@ theorem key20_instances
   @NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.reduced logicalWidth publicFits mode setup
     packageWidths step cap control Wire Coord total read head fintypeCoord decidableEqCoord o mass weight₁
     weight₂ inner out solved
+
+
+/-- The join of the list `Key20.views` with the shared setup (Akita Section 4.3 with (35),
+Table 3 and Lemma 10.20). `keys`: each matrix of the opening is the view of one flat setup vector
+`S` with the degree, the rank and the width of its instance in `views`, as the code reads it from
+one stream from the offset 0. `solved`, `mass`, `weight₁`, `weight₂` and `inner` are those of
+`key20_instances`. Then an instance `I` of the 43 views has a solution of Module-SIS for the view
+`M_I(S)` of `S` itself, at the bound of the witness of its level (`Setup.Solved`). This is the
+event of the algorithm `B` of Akita Lemma 10.20 for the inventory `views`
+(`Spec.Compression.Akita.Key20.shared_setup`, with `2^18` cells). Lean does not prove that an
+instance is hard (`[MSIS]`). -/
+theorem key20_instances_shared
+    {logicalWidth : ℕ}
+    {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
+          Folding.PiCCS.PaperJoint.RingCarrierLayout.carrierWidth logicalWidth}
+    {mode : FinalVerifier.Mode}
+    {setup : FinalVerifier.Setup mode logicalWidth publicFits}
+    {packageWidths : Fin 2 → ℕ}
+    {step : AppState → AppWitness → AppState}
+    {cap : ℕ}
+    {control : AppState → AppWitness → Fin 2}
+    {Wire : Type}
+    {Coord : Type}
+    {total : ℕ}
+    {read : Akita.Extract.Reader Wire}
+    {head : Wire → FinalAkita.First logicalWidth publicFits}
+    [fintypeCoord : Fintype Coord]
+    [decidableEqCoord : DecidableEq Coord]
+    {o : FinalKey20.Opening logicalWidth publicFits Wire Coord total}
+    (mass : o.mass = Akita.Key20.rootMass)
+    (weight₁ : o.weight₁ = 51)
+    (weight₂ : o.weight₂ = 31)
+    {N : ℕ}
+    {S : Fin N → Akita.Zq}
+    (keys : Akita.Key20.Shared S o.key o.openKey o.key₁ o.openKey₁ o.key₂ o.openKey₂ o.key₃ o.openKey₃
+          o.key₄ o.openKey₄ o.key₅ o.openKey₅ o.terminal.matrix)
+    (inner : o.innerBound ≤ (Akita.Key20.root.fold 0).innerBound (Akita.Key20.root.shape 0))
+    {out : Akita.Extract.Opened Akita.Key20.root.Weak
+            (Akita.Extract.Opened (Akita.Weak Akita.Key20.level₁.opening)
+              (Akita.Extract.Opened (Akita.Weak Akita.Key20.level₂.opening)
+                (Akita.Extract.Opened (Akita.Weak Akita.Key20.level₃.opening)
+                  (Akita.Extract.Opened (Akita.Weak Akita.Key20.level₄.opening)
+                    (Akita.Extract.Opened (Akita.Weak Akita.Key20.level₅.opening)
+                      (Akita.Extract.Prefix Wire (Option Coord → K) total ×
+                        Option (Akita.TerminalFork Akita.Key20.terminal))))))) ⊕
+          (Akita.Batch.LevelBreak o.key o.openKey fun g =>
+              2 * (2 * o.mass g) * (Akita.Key20.root.fold g).sourceBound (Akita.Key20.root.shape g)) ⊕
+            Akita.Extract.LevelBreak o.key₁ o.openKey₁
+                (2 * (2 * o.weight₁) * Akita.Key20.level₁.fold.sourceBound Akita.Key20.level₁.shape) ⊕
+              Akita.Extract.Route.Break o.key₂ o.openKey₂ o.weight₂
+                  (Akita.Key20.level₂.fold.sourceBound Akita.Key20.level₂.shape)
+                  Akita.Extract.Route.coefficient ⊕
+                Akita.Extract.Route.Break o.key₃ o.openKey₃ o.weight₃
+                    (Akita.Key20.level₃.fold.sourceBound Akita.Key20.level₃.shape)
+                    (Akita.Extract.Route.euclidean Akita.Key20.norm₃.operator Akita.Key20.norm₃.limit) ⊕
+                  Akita.Extract.Route.Break o.key₄ o.openKey₄ o.weight₄
+                      (Akita.Key20.level₄.fold.sourceBound Akita.Key20.level₄.shape)
+                      (Akita.Extract.Route.euclidean Akita.Key20.norm₄.operator Akita.Key20.norm₄.limit) ⊕
+                    Akita.Extract.Route.Break o.key₅ o.openKey₅ o.weight₅
+                        (Akita.Key20.level₅.fold.sourceBound Akita.Key20.level₅.shape)
+                        (Akita.Extract.Route.euclidean Akita.Key20.norm₅.operator Akita.Key20.norm₅.limit) ⊕
+                      Option
+                        ((Akita.Extract.Route.euclidean Akita.Key20.normTerminal.operator
+                              Akita.Key20.normTerminal.limit).Kernel
+                          o.terminal.matrix o.terminal.weight o.terminal.bound)}
+    (solved : FinalAkita.Solved (FinalKey20.Opening.tower setup packageWidths step cap control read head o)
+          o.key o.honest o.innerBound out) :
+    Akita.Setup.Solved Akita.Key20.views S :=
+  @NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.reduced_shared logicalWidth publicFits mode
+    setup packageWidths step cap control Wire Coord total read head fintypeCoord decidableEqCoord o mass
+    weight₁ weight₂ N S keys inner out solved
 
 end NightstreamFPrime.Claims.Akita

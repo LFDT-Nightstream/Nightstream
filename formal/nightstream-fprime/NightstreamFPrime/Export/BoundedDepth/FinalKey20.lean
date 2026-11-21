@@ -232,7 +232,7 @@ theorem Use.points (use : Use setup shape) {point : Prefix Wire (Option Coord �
 (`FinalAkita.mixed_sound` for the numbers of `Key20.lean`). For each prover with at most `Q`
 queries to the oracle, the probability that the verifier `towerAccepts` accepts and no proof with
 witnesses satisfies `Verifies` for the statement of the first message is at most
-`(Q + 1)·(runCost + 317479/(1024·|K|) + 49/8·p) + (Q + 1)·144/budget + breakChance`. `p` is a bound
+`(Q + 1)·(runCost + 317479/(1024·|K|) + 135·p) + (Q + 1)·144/budget + breakChance`. `p` is a bound
 of the
 slot probability of each challenge family (`Key20.towerError_le`), and 144 is the count of the
 retry loops: 2 for the compression argument and 142 for the opening. `breakChance` is the
@@ -297,7 +297,7 @@ theorem sound [Finite Wire] {peak : Fin 3 → ℕ} (premises : Premises setup pa
         (if accepts ((Structure.protocol whole).final prover table) ∧
             ¬ Proved setup packageWidths step cap control head
               (((Structure.protocol whole).input prover table 0).wire 0) then (1 : ℝ) else 0) ≤
-      (queries + 1) * (setup.runCost shape + (317479 / (1024 * Fintype.card K) + 49 / 8 * p)) +
+      (queries + 1) * (setup.runCost shape + (317479 / (1024 * Fintype.card K) + 135 * p)) +
         (queries + 1) * (144 : ℕ) / budget +
         breakChance setup packageWidths step cap control shape read head bound accepts opening
           key openKey mass Sum.inl prover honest innerBound budget := by

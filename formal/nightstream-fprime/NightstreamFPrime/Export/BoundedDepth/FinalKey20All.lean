@@ -314,7 +314,7 @@ structure Opening.Sized (p : ℝ) : Prop where
 
 /-- The conditions `Compose.Sized` of the final verifier for the shape of `o`, and the suffix of
 its Akita opening with 142 retry loops and the sum of the stage errors at most `317479/(1024·|K|) +
-49/8·p`
+135·p`
 (`FinalAkita.mixed_ready` for the numbers of `Key20.lean`, with `Key20.towerError_le`).
 `blocks`: the key polynomial has 512 blocks. `coords`: an answer of the oracle has 28 slots. -/
 theorem Opening.ready {p : ℝ} (premises : Premises setup packageWidths)
@@ -324,7 +324,7 @@ theorem Opening.ready {p : ℝ} (premises : Premises setup packageWidths)
       Tier.Suffix (o.accepts setup packageWidths step cap control read head) (Compose.root C vf)
         (OpensAt (Compose.root C vf) o.commit o.value o.place o.key o.mass)
         (o.tower setup packageWidths step cap control read head) error loops tree ∧
-      error ≤ 317479 / (1024 * Fintype.card K) + 49 / 8 * p ∧ 2 + loops = 144 := by
+      error ≤ 317479 / (1024 * Fintype.card K) + 135 * p ∧ 2 + loops = 144 := by
   have use := laidSetup_use setup o.shape sized.laid blocks
   obtain ⟨-, -, -, span⟩ := key20_points S₀ o.shape use
   have slots : 22 ≤ Fintype.card Coord := (by decide : 22 ≤ 28).trans coords
@@ -410,7 +410,7 @@ noncomputable def Opening.breakChance (budget : ℕ) : ℝ :=
 /-- Knowledge soundness of the final verifier for the shape of `o` (Akita Theorem 10.17). For
 each prover with at most `Q` queries to the oracle, the probability that the verifier
 `Opening.accepts` accepts and `Verifies` rejects the proof `Opening.proof` of the extractor is at
-most `(Q + 1)·(runCost + 317479/(1024·|K|) + 49/8·p) + (Q + 1)·144/budget + breakChance`. The
+most `(Q + 1)·(runCost + 317479/(1024·|K|) + 135·p) + (Q + 1)·144/budget + breakChance`. The
 probability
 is over the table of the oracle and the tape of the extractor. The terms are those of
 `FinalKey20.sound`. -/
@@ -425,7 +425,7 @@ theorem Opening.knowledge {p : ℝ} (premises : Premises setup packageWidths)
               (o.proof setup packageWidths step cap control read head prover budget table tape)
           then (1 : ℝ) else 0) ≤
       (queries + 1) * (FinalVerifier.Setup.runCost S₀ o.shape +
-          (317479 / (1024 * Fintype.card K) + 49 / 8 * p)) +
+          (317479 / (1024 * Fintype.card K) + 135 * p)) +
         (queries + 1) * (144 : ℕ) / budget +
         o.breakChance setup packageWidths step cap control read head prover budget := by
   obtain ⟨composed, error, loops, tree, later, small, count⟩ :=
@@ -513,14 +513,14 @@ noncomputable def finalProof (budget : ℕ) (table : Prefix Wire (Option Coord �
 variable [Finite Wire]
 
 /-- The bound of the final verifier for the shapes of the family: the sum over the shapes of
-`(Q + 1)·(runCost + 317479/(1024·|K|) + 49/8·p) + (Q + 1)·144/budget + breakChance`. The terms of a
+`(Q + 1)·(runCost + 317479/(1024·|K|) + 135·p) + (Q + 1)·144/budget + breakChance`. The terms of a
 shape
 are those of `FinalKey20.sound` for its setup `laidSetup` and its opening, and the sum is the
 union bound over the shapes. -/
 noncomputable def shapesBound (p : ℝ) (queries budget : ℕ) : ℝ :=
   ∑ index, ((queries + 1) *
       (FinalVerifier.Setup.runCost (laidSetup setup (family index).shape) (family index).shape +
-        (317479 / (1024 * Fintype.card K) + 49 / 8 * p)) +
+        (317479 / (1024 * Fintype.card K) + 135 * p)) +
     (queries + 1) * (144 : ℕ) / budget +
     (family index).breakChance setup packageWidths step cap control read head prover budget)
 
@@ -587,7 +587,7 @@ theorem knowledge_all {p : ℝ} (premises : Premises setup packageWidths)
 family and for the proof of zero steps. For each prover with at most `Q` queries to the oracle,
 the probability that `finalAccepts` accepts and no proof with witnesses satisfies `Verifies` for
 the statement of the first message is at most `shapesBound`: the sum over the shapes of the
-family of `(Q + 1)·(runCost + 317479/(1024·|K|) + 49/8·p) + (Q + 1)·144/budget + breakChance`.
+family of `(Q + 1)·(runCost + 317479/(1024·|K|) + 135·p) + (Q + 1)·144/budget + breakChance`.
 `blocks`: the
 key polynomial has 512 blocks. `coords`: an answer of the oracle has 28 slots. `sized`: the
 hypotheses of `FinalKey20.sound` on the opening of each shape. -/

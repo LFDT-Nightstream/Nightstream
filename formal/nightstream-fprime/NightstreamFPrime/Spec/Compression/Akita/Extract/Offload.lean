@@ -19,9 +19,11 @@ in the claim `s_{ρ_S} = S̃^♭(ρ_S)` for the next level (135).
   `offloadCheck_avoids` is `foldCheck_avoids` for it: Akita Lemma 9.1 for a table of the setup
   prefix that is `flat`.
 - `offBatch` is the level `liftBatch` with these checks, and `offBatch_valid` gives `Tier.Valid`.
+  It has a split `SetupScan` for the statement of the claim of each wire.
 
-The weights of `SetupScan` are parameters. Lean has no proof that the weight of the Akita code
-has the split (132) for `Batch.liftedReduction`. -/
+`Batch.setupScan` in `Extract/SetupWeight.lean` is a split of the form of the paper when the
+matrices `A`, `B` and `D` are views of the setup prefix. No Lean theorem gives a split with the
+factor `scale` of the code. -/
 
 set_option autoImplicit false
 
@@ -306,7 +308,7 @@ variable {n : ℕ} {B : Batch (Fin n)} {Wire : Type}
 
 /-- The level `liftBatch` of an offloaded fold: the checks are `offloadCheck` for
 `Batch.liftedReduction`, with the setup prefix `flat` of `2^ν` cells and the split `scan` of the
-public weight. A final claim `((r_2, v_W), (ρ_S, s_{ρ_S}))` is true for a table `w` when
+public weight for the statement of the claim of each wire. A final claim `((r_2, v_W), (ρ_S, s_{ρ_S}))` is true for a table `w` when
 `v_W = w̃(r_2)` and `s_{ρ_S} = S̃^♭(ρ_S)` (Akita (136)). -/
 noncomputable def offBatch (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E)
     (key : (g : Fin n) → Key (B.shape g)) (openKey : B.OpenKey) (claim : Wire → B.Claim E)
@@ -314,9 +316,9 @@ noncomputable def offBatch (β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E)
     (batch : ℕ) (rowsFit : B.rowCount + 1 ≤ 2 ^ batch) (block : B.Block → Coord)
     (decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))) (read : Reader Wire)
     (mass : Fin n → ℕ) (start ν : ℕ) (flat : Table)
-    (scan : ∀ (st : B.Statement E) (challenge : B.Challenge),
-      SetupScan (Batch.liftedReduction β st challenge μ fits base digits room batch rowsFit) ν
-        flat) :
+    (scan : ∀ (wire : Wire) (challenge : B.Challenge),
+      SetupScan (Batch.liftedReduction β ((claim wire).statement key openKey) challenge μ fits base
+        digits room batch rowsFit) ν flat) :
     Tier B.Block (fun b => Rq (B.carrierDegree b.1)) (B.Claim E)
       (B.LevelBreak key openKey fun g => 2 * (2 * mass g) * (B.fold g).sourceBound (B.shape g))
       B.Witness B.Weak Wire Coord E (Option ((List E × E) × (List E × E))) Table where
@@ -343,8 +345,9 @@ variable {β : ∀ g, Module.Basis (Fin (B.planes g)) Zq E} {key : (g : Fin n) �
   {rowsFit : B.rowCount + 1 ≤ 2 ^ batch} {block : B.Block → Coord}
   {decode : (g : Fin n) → E → Option (Rq (B.carrierDegree g))} {read : Reader Wire}
   {mass : Fin n → ℕ} {start ν : ℕ} {flat : Table}
-  {scan : ∀ (st : B.Statement E) (challenge : B.Challenge),
-    SetupScan (Batch.liftedReduction β st challenge μ fits base digits room batch rowsFit) ν flat}
+  {scan : ∀ (wire : Wire) (challenge : B.Challenge),
+    SetupScan (Batch.liftedReduction β ((claim wire).statement key openKey) challenge μ fits base
+      digits room batch rowsFit) ν flat}
 
 /-- An offloaded level with opening groups satisfies the conditions of `Tier.Valid`, with the
 hypotheses of `liftBatch_valid`. -/

@@ -9,9 +9,9 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.Credit
   `towerLinks`. The retry loops are 142 and the tree size is 21449539584. Its hypotheses are: an
   answer of the oracle has 22 slots, the fold coordinates of each level have different slots, each
   challenge family has units as differences and its norm bound, and the stage of the terminal.
-- `towerError_le` bounds the sum of the stage errors by `317479/(1024·|E|) + (49/8)·p` when each
-  challenge family has the slot probability at most `p`, with the work bits of the Akita code
-  (Remark 10.18) and `|E| = q²` (`card_field`). -/
+- `towerError_le` bounds the sum of the stage errors by `317479/(1024·|E|) + 135·p` when each
+  challenge family has the slot probability at most `p`, with the work bits of the stage checks of
+  the Akita code (Remark 10.18), no work credit on the fold term, and `|E| = q²` (`card_field`). -/
 
 set_option autoImplicit false
 
@@ -91,11 +91,22 @@ theorem foldCosts_total (badBound vars batch base : ℕ) (bin : Bool) :
 
 omit [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E] [Fintype Coord]
   [DecidableEq Coord] [Nonempty Coord] in
-/-- A sum of `count` numbers that are at most `p` is at most `count·p`. -/
-theorem sum_le_mul {ι : Type} [Fintype ι] {f : ι → ℝ} {p : ℝ} {count : ℕ}
-    (card : Fintype.card ι = count) (each : ∀ b, f b ≤ p) : ∑ b, f b ≤ count * p := by
+/-- The claims do not count the work credit `2^{−g}` on the fold term
+(`decisions/akita-compression.md` (d)). -/
+theorem uncredited {x y : ℝ} {g : ℕ} (nonnegative : 0 ≤ x) (bound : x ≤ y) :
+    1 / 2 ^ g * x ≤ y :=
+  (mul_le_of_le_one_left nonnegative
+    (div_le_one_of_le₀ (one_le_pow₀ one_le_two) (by positivity))).trans bound
+
+omit [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree2 E] [Fintype Coord]
+  [DecidableEq Coord] [Nonempty Coord] in
+/-- A sum of `count` numbers in `[0, p]` without the work credit is at most `count·p`. -/
+theorem sum_le_mul {ι : Type} [Fintype ι] {f : ι → ℝ} {p : ℝ} {count g : ℕ}
+    (card : Fintype.card ι = count) (nonnegative : ∀ b, 0 ≤ f b) (each : ∀ b, f b ≤ p) :
+    1 / 2 ^ g * ∑ b, f b ≤ count * p := by
   have total := Finset.sum_le_card_nsmul Finset.univ f p fun b _ => each b
-  rwa [Finset.card_univ, card, nsmul_eq_mul] at total
+  rw [Finset.card_univ, card, nsmul_eq_mul] at total
+  exact uncredited (Finset.sum_nonneg fun b _ => nonnegative b) total
 
 theorem sized₂ : level₂.opening.cells level₂.fold ≤ 2 ^ level₂.vars ∧
     level₂.opening.traceRowCount + 1 ≤ 2 ^ level₂.batch ∧ 2 ≤ level₂.fold.responseBase ∧
@@ -246,11 +257,11 @@ theorem tower_suffix {peak : Fin 3 → ℕ} (slots : 22 ≤ Fintype.card Coord)
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- The sum of the stage errors of `tower_suffix` (Akita (206)) is at most
-`317479/(1024·|E|) + (49/8)·p`, when each challenge family has the slot probability at most `p`.
-Each stage error has the factor `2^{−g}` for the work bits `g` of its site in the Akita code
-(Remark 10.18, `workBits`, `foldWorkBits`). The fold coordinates are 56 of the root with 6 work
-bits, 28, 21, 11, 7 and 7 of the levels 1 to 5 with 5, 4, 4, 3 and 3 work bits, and 5 of the
-terminal with 3 work bits: `56/2^6 + 28/2^5 + 21/2^4 + 11/2^4 + 7/2^3 + 7/2^3 + 5/2^3 = 49/8`.
+`317479/(1024·|E|) + 135·p`, when each challenge family has the slot probability at most `p`.
+Each error of a check has the factor `2^{−g}` for the work bits `g` of its site in the Akita code
+(Remark 10.18, `workBits`); the fold term has no work credit (`uncredited`). The fold coordinates
+are 56 of the root, 28, 21, 11, 7 and 7 of the levels 1 to 5, and 5 of the terminal:
+`56 + 28 + 21 + 11 + 7 + 7 + 5 = 135`.
 The draws of the checks of the root and of the levels 1 to 5, with the tensor reduction and the
 direct norm check, give `74367/2048`, `92479/2048`, `13623/256`, `13199/256`, `7907/128` and
 `7907/128`, and the weights of the batching root give `1/4`. -/
@@ -258,44 +269,24 @@ theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
     (chance₁ : slotChance decode₁ ≤ p) (chance₂ : slotChance decode₂ ≤ p)
     (chance₃ : slotChance decode₃ ≤ p) (chance₄ : slotChance decode₄ ≤ p)
     (chance₅ : slotChance decode₅ ≤ p) (chanceL : slotChance L.decode ≤ p) :
-    towerError ≤ 317479 / (1024 * Fintype.card E) + 49 / 8 * p := by
-  have sum₀ : ∑ b, Tier.chance zeroth b ≤ (56 : ℕ) * p :=
-    sum_le_mul (root.card_block.trans (by decide)) fun b => chance b.1
-  have sum₁ : ∑ b, Tier.chance first b ≤ (28 : ℕ) * p :=
-    sum_le_mul (Fintype.card_fin _) fun _ => chance₁
-  have sum₂ : ∑ b, Tier.chance second b ≤ (21 : ℕ) * p :=
-    sum_le_mul (Fintype.card_fin _) fun _ => chance₂
-  have sum₃ : ∑ b, Tier.chance third b ≤ (11 : ℕ) * p :=
-    sum_le_mul (Fintype.card_fin _) fun _ => chance₃
-  have sum₄ : ∑ b, Tier.chance fourth b ≤ (7 : ℕ) * p :=
-    sum_le_mul (Fintype.card_fin _) fun _ => chance₄
-  have sum₅ : ∑ b, Tier.chance fifth b ≤ (7 : ℕ) * p :=
-    sum_le_mul (Fintype.card_fin _) fun _ => chance₅
-  have last : (terminal.blocks : ℝ) * slotChance L.decode ≤ (5 : ℕ) * p :=
-    mul_le_mul_of_nonneg_left chanceL (Nat.cast_nonneg _)
-  have fold₀ : Tier.foldBits zeroth = 6 := by
-    dsimp only [liftBatch]
-    rw [root.card_block.trans (show ∑ g, (root.shape g).blocks = 56 by decide),
-      show root.familyBits = 128 by decide]
-    decide
-  have fold₁ : Tier.foldBits first = 5 := by
-    dsimp only [Tier.tensored, liftFold]
-    decide
-  have fold₂ : Tier.foldBits second = 4 := by
-    dsimp only [Tier.tensored, committedTrace]
-    decide
-  have fold₃ : Tier.foldBits third = 4 := by
-    dsimp only [Tier.tensored, committedTraceSq]
-    decide
-  have fold₄ : Tier.foldBits fourth = 3 := by
-    dsimp only [Tier.tensored, committedTraceSq]
-    decide
-  have fold₅ : Tier.foldBits fifth = 3 := by
-    dsimp only [Tier.tensored, committedTraceSq]
-    decide
-  have foldL : Terminal.foldBits L = 3 := by
-    dsimp only [Terminal.foldBits]
-    decide
+    towerError ≤ 317479 / (1024 * Fintype.card E) + 135 * p := by
+  have sum₀ : 1 / 2 ^ Tier.foldBits zeroth * ∑ b, Tier.chance zeroth b ≤ (56 : ℕ) * p :=
+    sum_le_mul (root.card_block.trans (by decide)) (fun _ => slotChance_nonnegative _)
+      fun b => chance b.1
+  have sum₁ : 1 / 2 ^ Tier.foldBits first * ∑ b, Tier.chance first b ≤ (28 : ℕ) * p :=
+    sum_le_mul (Fintype.card_fin _) (fun _ => slotChance_nonnegative _) fun _ => chance₁
+  have sum₂ : 1 / 2 ^ Tier.foldBits second * ∑ b, Tier.chance second b ≤ (21 : ℕ) * p :=
+    sum_le_mul (Fintype.card_fin _) (fun _ => slotChance_nonnegative _) fun _ => chance₂
+  have sum₃ : 1 / 2 ^ Tier.foldBits third * ∑ b, Tier.chance third b ≤ (11 : ℕ) * p :=
+    sum_le_mul (Fintype.card_fin _) (fun _ => slotChance_nonnegative _) fun _ => chance₃
+  have sum₄ : 1 / 2 ^ Tier.foldBits fourth * ∑ b, Tier.chance fourth b ≤ (7 : ℕ) * p :=
+    sum_le_mul (Fintype.card_fin _) (fun _ => slotChance_nonnegative _) fun _ => chance₄
+  have sum₅ : 1 / 2 ^ Tier.foldBits fifth * ∑ b, Tier.chance fifth b ≤ (7 : ℕ) * p :=
+    sum_le_mul (Fintype.card_fin _) (fun _ => slotChance_nonnegative _) fun _ => chance₅
+  have last : 1 / 2 ^ Terminal.foldBits L * ((terminal.blocks : ℝ) * slotChance L.decode) ≤
+      (5 : ℕ) * p :=
+    uncredited (mul_nonneg (Nat.cast_nonneg _) (slotChance_nonnegative _))
+      (mul_le_mul_of_nonneg_left chanceL (Nat.cast_nonneg _))
   have rooted : Root.rootBits 3 = 2 := by decide
   have positive : (0 : ℝ) < Fintype.card E := by exact_mod_cast Fintype.card_pos
   have w1 : workBits 1 = 1 := by decide
@@ -407,8 +398,7 @@ theorem towerError_le {p : ℝ} (chance : ∀ g, slotChance (decode g) ≤ p)
     field_simp
     ring
   unfold Tier.levelError Terminal.termError
-  rw [costs₀, costs₁, costs₂, costs₃, costs₄, costs₅, fold₀, fold₁, fold₂, fold₃, fold₄, fold₅,
-    foldL, rooted]
+  rw [costs₀, costs₁, costs₂, costs₃, costs₄, costs₅, rooted]
   push_cast at sum₀ sum₁ sum₂ sum₃ sum₄ sum₅ last ⊢
   rw [show (1024 : ℝ) * Fintype.card E = 1024 * Fintype.card E from rfl]
   have split : 317479 / (1024 * (Fintype.card E : ℝ)) =

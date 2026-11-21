@@ -87,6 +87,7 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.BackComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.CheckComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.ComposeComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.LiftComplete
+import NightstreamFPrime.Spec.Compression.Akita.Extract.OffloadComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Page
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Play
 import NightstreamFPrime.Spec.Compression.Akita.Extract.Reject
@@ -94,9 +95,16 @@ import NightstreamFPrime.Spec.Compression.Akita.Extract.RootComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TowerComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.TraceComplete
 import NightstreamFPrime.Spec.Compression.Akita.Extract.ZeroFit
+import NightstreamFPrime.Spec.Compression.Akita.Extract.GroupComplete
+import NightstreamFPrime.Spec.Compression.Akita.Extract.ShortComplete
+import NightstreamFPrime.Spec.Compression.Akita.Extract.OffLink
+import NightstreamFPrime.Spec.Compression.Akita.Extract.OffComplete
 import NightstreamFPrime.Spec.Compression.Akita.Key20Accept
 import NightstreamFPrime.Spec.Compression.Akita.Key20Complete
 import NightstreamFPrime.Spec.Compression.Akita.Key20Root
+import NightstreamFPrime.Spec.Compression.Akita.Key30Complete
+import NightstreamFPrime.Spec.Compression.Akita.Key30Root
+import NightstreamFPrime.Spec.Compression.Akita.Key30Accept
 import NightstreamFPrime.Spec.Compression.Akita.TraceProver
 
 /-! The soundness of the compression argument over Akita (Rust `ns-compress`, SPEC.md section 6):
@@ -152,7 +160,8 @@ completeness of the checks (`CheckComplete`), the trace levels (`TraceComplete`,
 `TowerComplete`), the packing level (`LiftComplete`), the root fold and the verifier `towerLinks`
 (`RootComplete`), a type of wire messages (`Page`) and the zero tables (`ZeroFit`), with its
 instance for the schedule `key20.aks` (`Akita/Key20Complete`, `Akita/Key20Root`,
-`Akita/Key20Accept`), the sparse challenge families with their units and their decoders from
+`Akita/Key20Accept`) and for the schedule `key30.aks` (`Akita/Key30Complete`, `Akita/Key30Root`,
+`Akita/Key30Accept`), the sparse challenge families with their units and their decoders from
 one slot (`Akita/ShortUnit`, `Akita/ChallengeFamily`, `Draw`, `Akita/Key20Challenge`), and the
 shared setup with its
 reduction to ordinary Module-SIS (`Akita/Setup`) and the bad events of the hashed transcript

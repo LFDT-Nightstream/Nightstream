@@ -1,5 +1,6 @@
 import NightstreamFPrime.Spec.Compression.Akita.Key20Challenge
 import NightstreamFPrime.Spec.Compression.Akita.Key30Tower
+import NightstreamFPrime.Spec.Compression.Akita.Extract.SetupWeight
 
 /-! The opening of Akita for a row of the schedule file `crates/ns-compress/artifacts/key30.aks`
 with the decoders `draw` of the sparse challenge families, as one statement (Akita, ePrint
@@ -15,10 +16,13 @@ route have a filter on the base family `(31, 11)` for the degree 64.
 - `Tower` has the data of the opening of a row: the matrices, the readers of the messages, the
   coordinates of the fold challenges, the setup prefix `flat`, the commitment `registry` of the
   setup prefix with its reference decommitment, the filters `keep₅` and `keep₆` of the levels 5
-  and 6, and the terminal. `part`, `scale` and `weight` are the local part `m_local`, the factor
-  of the claim of Stage 3 and the weight of Stage 3 of the public weight of the root. `Tower.Split` states the split of Akita (132) for
-  them, and `Tower.scan` is the split `SetupScan` of `Extract/Offload.lean` that it gives. The
-  definitions and the theorems have the hypothesis `split`.
+  and 6, and the terminal.
+- `Tower.Shared` states that the matrices `A` and `B` of each group of the root and the matrix
+  `D` of the root are the views (Akita (35)) of the setup prefix `flat`. `Tower.scan` is the
+  split `SetupScan` of the public weight of the root (Akita (132)) that it gives
+  (`Batch.setupScan`). The definitions and the theorems have the hypothesis `shared`.
+  `Tower.onSetup` puts these views in the data, and `Tower.onSetup_shared` states `Tower.Shared`
+  for it.
 - `Tower.links` is the verifier `offLinks` for this data with the batching root at the stage
   `start`, and `Tower.body` is its checkpoint structure `offRoot`. The decoder of each level is
   `draw` of its family: `(31, 0)` for the root and for the levels 1 and 4, `(31, 10)` for the
@@ -62,18 +66,20 @@ noncomputable def decode₁ (E : Type) (r : Row) (g : Fin 2) :
   draw (SparseFamily ((level₁ r).carrierDegree g) 31 0) fun _ => True
 
 /-- The split of the public weight of the root of the row `r` for the setup prefix `flat` (Akita
-(132)): a split `SetupScan` for the reduction of each statement and each fold challenge. -/
+(132)): a split `SetupScan` for the reduction of the statement of the claim of each wire and each
+fold challenge. -/
 def RootScan {r : Row} (member : r ∈ rows) {E : Type} [Field E] [Fintype E] [DecidableEq E]
-    [Algebra Zq E] (β : ∀ g, Module.Basis (Fin ((root r).planes g)) Zq E) (flat : Table) : Type :=
-  ∀ (st : (root r).Statement E) (challenge : (root r).Challenge),
-    SetupScan (Batch.liftedReduction β st challenge rootVars (root_sized r member).1 8
-      quotientDigits₀ (root_sized r member).2.1 rootBatch (root_sized r member).2.2.1) setupVars
-      flat
+    [Algebra Zq E] (β : ∀ g, Module.Basis (Fin ((root r).planes g)) Zq E)
+    (key : (g : Fin 3) → Key ((root r).shape g)) (openKey : (root r).OpenKey) {Wire : Type}
+    (claim : Wire → (root r).Claim E) (flat : Table) : Type :=
+  ∀ (wire : Wire) (challenge : (root r).Challenge),
+    SetupScan (Batch.liftedReduction β ((claim wire).statement key openKey) challenge rootVars
+      (root_sized r member).1 8 quotientDigits₀ (root_sized r member).2.1 rootBatch
+      (root_sized r member).2.2.1) setupVars flat
 
 /-- The data of the opening of the row `r` of `key30.aks`: the matrices and the bases of the
 root, of the levels 1 to 6 and of the terminal, the readers of the wire messages, the coordinates
-of the slots of the fold challenges, the setup prefix `flat`, the local part `part` and the
-weight `weight` of the public weight of the root (Akita (132)), the commitment `registry` of the
+of the slots of the fold challenges, the setup prefix `flat`, the commitment `registry` of the
 setup prefix with its reference decommitment `reference` (Akita (162)), and the filters of the
 challenge families of the levels 5 and 6 (Akita (23)). -/
 structure Tower (r : Row) (member : r ∈ rows) (E : Type) [Field E] [Fintype E] [DecidableEq E]
@@ -84,9 +90,6 @@ structure Tower (r : Row) (member : r ∈ rows) (E : Type) [Field E] [Fintype E]
   claim : Wire → (root r).Claim E
   block : (root r).Block → Coord
   flat : Table
-  part : (root r).Statement E → (root r).Challenge → E → List E → List E → E
-  scale : (root r).Statement E → (root r).Challenge → E → List E → List E → E
-  weight : (root r).Statement E → (root r).Challenge → E → List E → List E → ℕ → E
   β₁ : ∀ g, Module.Basis (Fin ((level₁ r).planes g)) Zq E
   key₁ : (g : Fin 2) → Key ((level₁ r).shape g)
   openKey₁ : (level₁ r).OpenKey
@@ -139,31 +142,50 @@ variable {E : Type} [Field E] [Fintype E] [DecidableEq E] [Algebra Zq E] [Degree
   {Wire Coord : Type} [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] {total : ℕ}
   {r : Row} {member : r ∈ rows} (o : Tower r member E Wire Coord total)
 
-/-- The split of the public weight of the root into the setup part, Akita (132), for the data
-`o`: for each statement, each fold challenge, each point `α` of the ring reduction, each batching
-point `τ_1` and each point `r_2`, the weight `m_{τ_1}(r_2)` of `Batch.liftedReduction` is
-`part + scale·Σ_p S^♭(p)·weight(p)` for the setup prefix `flat`, in the form of the pinned Akita
-code (`SetupScan`). Lean has no proof of it for the setup weight of the Akita code. -/
-def Tower.Split : Prop :=
-  ∀ (st : (root r).Statement E) (challenge : (root r).Challenge) (α : E)
-    (τ : Fin (Batch.liftedReduction o.β st challenge rootVars (root_sized r member).1 8
-      quotientDigits₀ (root_sized r member).2.1 rootBatch (root_sized r member).2.2.1).batch → E)
-    (r2 : List E),
-    r2.length = (Batch.liftedReduction o.β st challenge rootVars (root_sized r member).1 8
-      quotientDigits₀ (root_sized r member).2.1 rootBatch (root_sized r member).2.2.1).vars →
-    mle r2 (((Batch.liftedReduction o.β st challenge rootVars (root_sized r member).1 8
-        quotientDigits₀ (root_sized r member).2.1 rootBatch
-        (root_sized r member).2.2.1).rows α).batchWeight (List.ofFn τ)) =
-      o.part st challenge α (List.ofFn τ) r2 + o.scale st challenge α (List.ofFn τ) r2 *
-        cubeSum setupVars fun p => lifted E o.flat p * o.weight st challenge α (List.ofFn τ) r2 p
+/-- The matrices of the root of the data `o` are the views of the shared setup vector with the
+cells of the setup prefix `flat` (Akita Section 4.3 and (35)): the matrices `A` and `B` of each
+group and the matrix `D` of the shared path, in the orders of the witness layout. -/
+def Tower.Shared : Prop :=
+  (∀ g, (o.key g).inner = Setup.shared (fun p : Fin (2 ^ setupVars) => o.flat p)
+      ((root r).shape g).innerDegree ((root r).shape g).innerRank _
+      ((root r).shape g).innerSetupCode ∧
+    (o.key g).outer = Setup.shared (fun p : Fin (2 ^ setupVars) => o.flat p)
+      ((root r).shape g).outerDegree ((root r).shape g).outerRank _
+      ((root r).shape g).outerSetupCode) ∧
+  o.openKey.matrix = Setup.shared (fun p : Fin (2 ^ setupVars) => o.flat p) (root r).openDegree
+    (root r).openRank _ (root r).openSetupCode
+
+/-- The data `o` with the matrices `A` and `B` of each group of the root and the matrix `D` of
+the root replaced by the views of the setup prefix `flat`. The compression maps stay. -/
+noncomputable def Tower.onSetup : Tower r member E Wire Coord total :=
+  { o with
+    key := fun g => ⟨Setup.shared (fun p : Fin (2 ^ setupVars) => o.flat p)
+      ((root r).shape g).innerDegree ((root r).shape g).innerRank _
+      ((root r).shape g).innerSetupCode, Setup.shared (fun p : Fin (2 ^ setupVars) => o.flat p)
+      ((root r).shape g).outerDegree ((root r).shape g).outerRank _
+      ((root r).shape g).outerSetupCode, (o.key g).chain⟩
+    openKey := ⟨Setup.shared (fun p : Fin (2 ^ setupVars) => o.flat p) (root r).openDegree
+      (root r).openRank _ (root r).openSetupCode, o.openKey.chain⟩ }
+
+omit [Degree2 E] [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
+/-- The data `Tower.onSetup` satisfies `Tower.Shared`. -/
+theorem Tower.onSetup_shared : o.onSetup.Shared :=
+  ⟨fun _ => ⟨rfl, rfl⟩, rfl⟩
 
 variable {o} in
-/-- The split `SetupScan` of the public weight of the root for the data `o` with `Tower.Split`. -/
-def Tower.scan (split : o.Split) : RootScan member o.β o.flat :=
-  fun st challenge =>
-    ⟨o.part st challenge, o.scale st challenge, o.weight st challenge, split st challenge⟩
+/-- The split `SetupScan` of the public weight of the root for the data `o` with `Tower.Shared`:
+`Batch.setupScan` for the statement of the claim of each wire. -/
+noncomputable def Tower.scan (shared : o.Shared) :
+    RootScan member o.β o.key o.openKey o.claim o.flat :=
+  fun wire challenge =>
+    Batch.Statement.over_eq ((o.claim wire).statement o.key o.openKey)
+        (fun p : Fin (2 ^ setupVars) => o.flat p) (fun g => (shared.1 g).1)
+        (fun g => (shared.1 g).2) shared.2 ▸
+      Batch.setupScan o.β ((o.claim wire).statement o.key o.openKey) challenge rootVars
+        (root_sized r member).1 8 quotientDigits₀ (root_sized r member).2.1 rootBatch
+        (root_sized r member).2.2.1 setupVars o.flat
 
-variable (split : o.Split) (read : Reader Wire) (start : ℕ)
+variable (shared : o.Shared) (read : Reader Wire) (start : ℕ)
 
 local notation "draw₂" =>
   (draw (SparseFamily (OpeningShape.carrierDegree (Key20.Level.opening (level₂ r))) 31 10)
@@ -190,7 +212,7 @@ local notation "zeroth" =>
   offBatch o.β o.key o.openKey o.claim rootVars (And.left (root_sized r member)) 8 quotientDigits₀
     (And.left (And.right (root_sized r member))) rootBatch
     (And.left (And.right (And.right (root_sized r member)))) o.block (rootDecode E r) read mass
-    (start + 1) setupVars o.flat (Tower.scan split)
+    (start + 1) setupVars o.flat (Tower.scan shared)
 
 local notation "first" =>
   Tier.pinned (liftBatch o.β₁ o.key₁ o.openKey₁ o.claim₁ vars₁ (And.left (level₁_sized r member))
@@ -284,13 +306,13 @@ structure Tower.Drawn (keepL : Rq Key30.terminal.innerDegree → Prop) : Prop wh
   decodeL : Terminal.decode o.terminal = draw (SparseFamily Key30.terminal.innerDegree 31 11) keepL
   filteredL : TrigTable.Filtered normTerminal.operator keepL
 
-variable {o split read start} {keepL : Rq Key30.terminal.innerDegree → Prop}
+variable {o shared read start} {keepL : Rq Key30.terminal.innerDegree → Prop}
   {accept : Prefix Wire (Option Coord → E) total → Prop}
 
 omit [Fintype Coord] [DecidableEq Coord] [Nonempty Coord] in
 /-- The stage of the batching root is a stage of the transcript: the stages of the levels and the
 stage of the terminal are after it. -/
-theorem Tower.Drawn.fits (drawn : o.Drawn split read start keepL) : start ≤ total := by
+theorem Tower.Drawn.fits (drawn : o.Drawn shared read start keepL) : start ≤ total := by
   have ends₀ := Tier.finish_eq zeroth
   have ends₁ := Tier.finish_eq first
   have ends₂ := Tier.finish_eq second
@@ -313,15 +335,15 @@ theorem Tower.Drawn.fits (drawn : o.Drawn split read start keepL) : start ≤ to
 with the decoders `draw`: the stages of `Tower.body` are a suffix from the stage `start` under
 each verifier that accepts only with `Tower.links`, with `1467 + B_1 + B_2` retry loops, the tree
 size `54400647168·(129 + B_1)·(B_2 + 1)`, and a sum of the stage errors of at most
-`1623435/(4096·|E|) + (1752 + B_1 + 4·B_2)/(256·q²)` (`tower_suffix` and `towerError_le` with
+`1623435/(4096·|E|) + (1458 + B_1 + B_2)/q²` (`tower_suffix` and `towerError_le` with
 `Key20.slotChance_draw`). `slots`: an answer of the oracle has 28 slots. -/
-theorem Tower.suffix (drawn : o.Drawn split read start keepL) (slots : 28 ≤ Fintype.card Coord)
-    (linked : ∀ point, accept point → o.links split read start point) :
+theorem Tower.suffix (drawn : o.Drawn shared read start keepL) (slots : 28 ≤ Fintype.card Coord)
+    (linked : ∀ point, accept point → o.links shared read start point) :
     ∃ error, Tier.Suffix accept start (OpensAt start o.commit o.value o.place o.key mass)
-        (o.body split read start accept) error (1467 + r.blocks₁ + r.blocks₂)
+        (o.body shared read start accept) error (1467 + r.blocks₁ + r.blocks₂)
         (54400647168 * ((129 + r.blocks₁) * (r.blocks₂ + 1))) ∧
       error ≤ 1623435 / (4096 * Fintype.card E) +
-        ((1752 + r.blocks₁ + 4 * r.blocks₂ : ℕ) : ℝ) / 256 * (1 / (fieldModulus : ℝ) ^ 2) := by
+        ((1458 + r.blocks₁ + r.blocks₂ : ℕ) : ℝ) * (1 / (fieldModulus : ℝ) ^ 2) := by
   have registered : Batch.Registered (o.key₁ 0) o.registry o.flat o.reference := by
     obtain ⟨table, payload, padded, decommitment⟩ := drawn.registered
     rw [payload, padded, decommitment]
@@ -340,7 +362,7 @@ theorem Tower.suffix (drawn : o.Drawn split read start keepL) (slots : 28 ≤ Fi
     rw [drawn.decodeL]
     exact slotChance_draw _ _
   exact ⟨_,
-    tower_suffix (member := member) (scan := Tower.scan split) (reference := o.reference)
+    tower_suffix (member := member) (scan := Tower.scan shared) (reference := o.reference)
       (registry := o.registry) (β := o.β) (key := o.key) (openKey := o.openKey)
       (claim := o.claim) (block := o.block) (decode := rootDecode E r) (mass := mass)
       (β₁ := o.β₁) (key₁ := o.key₁) (openKey₁ := o.openKey₁) (claim₁ := o.claim₁)
@@ -371,7 +393,7 @@ theorem Tower.suffix (drawn : o.Drawn split read start keepL) (slots : 28 ≤ Fi
       (fun _ decoded =>
         (drawn.filtered₆.mulBound (by decide) (draw_mem decoded.choose_spec).2))
       drawn.next drawn.inside drawn.injectiveL unitsL boundedL linked,
-    towerError_le (member := member) (scan := Tower.scan split) (reference := o.reference)
+    towerError_le (member := member) (scan := Tower.scan shared) (reference := o.reference)
       (registry := o.registry) (β := o.β) (key := o.key) (openKey := o.openKey)
       (claim := o.claim) (block := o.block) (decode := rootDecode E r) (mass := mass)
       (β₁ := o.β₁) (key₁ := o.key₁) (openKey₁ := o.openKey₁) (claim₁ := o.claim₁)
@@ -388,12 +410,12 @@ theorem Tower.suffix (drawn : o.Drawn split read start keepL) (slots : 28 ≤ Fi
       (slotChance_draw _ _) (slotChance_draw _ _) (slotChance_draw _ _) (slotChance_draw _ _)
       (slotChance_draw _ _) chanceL⟩
 
-variable (o split read) in
+variable (o shared read) in
 /-- The verifier of the opening of a row of `key30.aks` with the batching root at the stage 0:
 `Tower.links` at the stage 0. -/
-def Tower.accepts : Prefix Wire (Option Coord → E) total → Prop := o.links split read 0
+def Tower.accepts : Prefix Wire (Option Coord → E) total → Prop := o.links shared read 0
 
-local notation "whole" => Tower.body o split read 0 (Tower.accepts o split read)
+local notation "whole" => Tower.body o shared read 0 (Tower.accepts o shared read)
 
 /-- An output of the extractor for the opening of a row of `key30.aks` is correct (Akita
 Definition 10.15, Proposition 10.44 (i) and Lemma 9.1). The verifier `Tower.accepts` accepts the
@@ -401,14 +423,14 @@ transcript of the prover. A first certificate has a certified decommitment of th
 each group of the root, with `κ̄_1 = 2ω` and `β̄_∞ = Δ^cert_f`, to a table that has the claimed
 value at the claimed point (`OpensAt`). Each other output is a solution of Module-SIS for a
 matrix of a group, of a level, or for `A_term`. -/
-theorem Tower.extract_sound (drawn : o.Drawn split read 0 keepL) (slots : 28 ≤ Fintype.card Coord)
+theorem Tower.extract_sound (drawn : o.Drawn shared read 0 keepL) (slots : 28 ≤ Fintype.card Coord)
     (prover : OracleComp (Prefix Wire (Option Coord → E) total) (Option Coord → E) (ℕ → Wire))
       (budget : ℕ)
     (table : Prefix Wire (Option Coord → E) total → Option Coord → E)
     (tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord) E budget
       (Structure.protocol whole).stages) :
     ∀ out ∈ Checkpoint.extract whole prover budget table tape,
-      o.accepts split read ((Structure.protocol whole).final prover table) ∧
+      o.accepts shared read ((Structure.protocol whole).final prover table) ∧
         Sum.elim
           (fun certificate => OpensAt 0 o.commit o.value o.place o.key mass
             ((Structure.protocol whole).input prover table 0)
@@ -425,22 +447,22 @@ variable [Finite Wire]
 row of `key30.aks` with the decoders `draw`. For each prover with at most `Q` queries to the
 table of the stage answers, the probability that `Tower.accepts` accepts and the extractor
 returns no output is at most
-`(Q + 1)·(1623435/(4096·|E|) + (1752 + B_1 + 4·B_2)/(256·q²)) + (Q + 1)·(1467 + B_1 + B_2)/budget`,
+`(Q + 1)·(1623435/(4096·|E|) + (1458 + B_1 + B_2)/q²) + (Q + 1)·(1467 + B_1 + B_2)/budget`,
 with
 `|E| = q²` (`Key20.card_field`). The probability is over the uniform table and the tape of the
 extractor. The bound has no term for the probability that the output is a solution of
 Module-SIS. -/
-theorem Tower.extraction_le (drawn : o.Drawn split read 0 keepL) (slots : 28 ≤ Fintype.card Coord)
+theorem Tower.extraction_le (drawn : o.Drawn shared read 0 keepL) (slots : 28 ≤ Fintype.card Coord)
     (prover : OracleComp (Prefix Wire (Option Coord → E) total) (Option Coord → E) (ℕ → Wire))
       {queries : ℕ}
     (bounded : prover.QueryBound queries) {budget : ℕ} (positive : 0 < budget) :
     𝔼 table, 𝔼 tape : Tape (Prefix Wire (Option Coord → E) total) (Option Coord) E budget
           (Structure.protocol whole).stages,
-        (if o.accepts split read ((Structure.protocol whole).final prover table) ∧
+        (if o.accepts shared read ((Structure.protocol whole).final prover table) ∧
           Checkpoint.extract whole prover budget table tape = none
             then (1 : ℝ) else 0) ≤
       (queries + 1) * (1623435 / (4096 * Fintype.card E) +
-          ((1752 + r.blocks₁ + 4 * r.blocks₂ : ℕ) : ℝ) / 256 * (1 / (fieldModulus : ℝ) ^ 2)) +
+          ((1458 + r.blocks₁ + r.blocks₂ : ℕ) : ℝ) * (1 / (fieldModulus : ℝ) ^ 2)) +
         (queries + 1) * (1467 + r.blocks₁ + r.blocks₂ : ℕ) / budget := by
   obtain ⟨_, suffix, small⟩ := Tower.suffix drawn slots fun _ accepted => accepted
   have bound := suffix.extraction_le rfl prover bounded positive

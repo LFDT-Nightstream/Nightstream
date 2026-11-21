@@ -185,13 +185,13 @@ variable {o} {keepL : Rq Key20.terminal.innerDegree → Prop}
 /-- Akita Proposition 10.44 and Theorem 10.46 for the opening of `key20.aks` with the decoders
 `draw`: the stages of `Tower.body` are a suffix from the stage 0 under the verifier
 `Tower.accepts`, with 142 retry loops, the tree size 21449539584, and a sum of the stage errors
-of at most `317479/(1024·|E|) + 49/(8·q²)` (`tower_suffix` and `towerError_le` with
+of at most `317479/(1024·|E|) + 135/q²` (`tower_suffix` and `towerError_le` with
 `slotChance_draw`).
 `slots`: an answer of the oracle has 22 slots. -/
 theorem Tower.suffix (drawn : o.Drawn keepL) (slots : 22 ≤ Fintype.card Coord) :
     ∃ error, Tier.Suffix o.accepts 0 (OpensAt 0 o.commit o.value o.place o.key rootMass) o.body
         error 142 21449539584 ∧
-      error ≤ 317479 / (1024 * Fintype.card E) + 49 / 8 * (1 / (fieldModulus : ℝ) ^ 2) := by
+      error ≤ 317479 / (1024 * Fintype.card E) + 135 * (1 / (fieldModulus : ℝ) ^ 2) := by
   have unitsL : UnitDifferences (Terminal.family o.terminal) := by
     unfold Terminal.family
     rw [drawn.decodeL]
@@ -273,7 +273,7 @@ variable [Finite Wire]
 /-- Akita Theorem 10.17 in the form (161), with Corollary 10.49 and (206), for the opening of
 `key20.aks` with the decoders `draw`. For each prover with at most `Q` queries to the table of
 the stage answers, the probability that `Tower.accepts` accepts and the extractor returns no
-output is at most `(Q + 1)·(317479/(1024·|E|) + 49/(8·q²)) + (Q + 1)·142/budget`, with `|E| = q²`
+output is at most `(Q + 1)·(317479/(1024·|E|) + 135/q²) + (Q + 1)·142/budget`, with `|E| = q²`
 (`card_field`). The probability is over the uniform table and the tape of the extractor. The
 bound has no term for the probability that the output is a solution of Module-SIS. -/
 theorem Tower.extraction_le (drawn : o.Drawn keepL) (slots : 22 ≤ Fintype.card Coord)
@@ -284,7 +284,7 @@ theorem Tower.extraction_le (drawn : o.Drawn keepL) (slots : 22 ≤ Fintype.card
           o.body.protocol.stages,
         (if o.accepts (o.body.protocol.final prover table) ∧
           Checkpoint.extract o.body prover budget table tape = none then (1 : ℝ) else 0) ≤
-      (queries + 1) * (317479 / (1024 * Fintype.card E) + 49 / 8 * (1 / (fieldModulus : ℝ) ^ 2)) +
+      (queries + 1) * (317479 / (1024 * Fintype.card E) + 135 * (1 / (fieldModulus : ℝ) ^ 2)) +
         (queries + 1) * (142 : ℕ) / budget := by
   obtain ⟨_, suffix, small⟩ := Tower.suffix drawn slots
   have bound := suffix.extraction_le rfl prover bounded positive

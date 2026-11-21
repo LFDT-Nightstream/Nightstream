@@ -1,4 +1,4 @@
-import NightstreamFPrime.Spec.Compression.Akita.Instance
+import NightstreamFPrime.Spec.Compression.Akita.SetupInstances
 import NightstreamFPrime.Spec.Compression.Akita.Key20Challenge
 
 /-! The instances of Module-SIS of the opening of the schedule file
@@ -21,6 +21,13 @@ Definition 3.2, Table 3, Section 10.3 and Appendix G).
   `R_bind` of the tower, and each solution of the reduction `tableCollision` for the key
   commitment at a bound of at most `η_A`, gives a solution of an instance of the list
   (`Reduces`).
+- `Shared S` states that each matrix of the opening is the view of the flat setup vector `S` with
+  the degree, the rank and the width of its instance in `views`, and `shared_ofSetup` gives such
+  keys. `reduced_shared` and `reduced_key_shared` are `reduced` and `reduced_key` for these keys:
+  each solution gives a solution of Module-SIS for the view of `S` of an instance of `views`
+  (`Setup.Solved`). So the list `views` is the list of the matrices that the verifier uses.
+- `views_fit` states that each view reads at most `2^18` cells of `S`, and that `A` of the levels
+  2 and 4 read `2^18` cells. `shared_setup` is Akita Lemma 10.20 (i) for the 43 views.
 
 Lean has no statement on the hardness of an instance. -/
 
@@ -210,6 +217,141 @@ theorem reduced_key {innerBound : ℕ}
       (ShortKernel.carry id (Function.Embedding.refl _) (fun _ _ => rfl)
         (inner.trans_eq (by decide)) z)
   · exact Key.reduces_outer covered z
+
+variable {N : ℕ}
+
+/-- The matrices of the opening of `key20.aks` are the views of one flat setup vector `S` (Akita
+Section 4.3 and (35)): the keys of the root, of the shared opening path of the root, of the levels
+1 to 5 and `A_term`. Each matrix is the view with the degree, the rank and the width of its
+instance in `views`. -/
+def Shared (S : Fin N → Zq) (key : (g : Fin 3) → Key (root.shape g)) (openKey : root.OpenKey)
+    (key₁ : Key level₁.shape) (openKey₁ : OpeningKey level₁.opening) (key₂ : Key level₂.shape)
+    (openKey₂ : OpeningKey level₂.opening) (key₃ : Key level₃.shape)
+    (openKey₃ : OpeningKey level₃.opening) (key₄ : Key level₄.shape)
+    (openKey₄ : OpeningKey level₄.opening) (key₅ : Key level₅.shape)
+    (openKey₅ : OpeningKey level₅.opening)
+    (matrix : Matrix (Fin terminal.innerRank)
+      (Fin terminal.blockLength × Fin terminal.sourceDigits) (Rq terminal.innerDegree)) : Prop :=
+  ((∀ g, (key g).Shared S) ∧ openKey.Shared S) ∧ (key₁.Shared S ∧ openKey₁.Shared S) ∧
+    (key₂.Shared S ∧ openKey₂.Shared S) ∧ (key₃.Shared S ∧ openKey₃.Shared S) ∧
+    (key₄.Shared S ∧ openKey₄.Shared S) ∧ (key₅.Shared S ∧ openKey₅.Shared S) ∧
+    matrix = Setup.shared S terminal.innerDegree terminal.innerRank _ terminal.innerSetupCode
+
+/-- The keys whose matrices are the views of `S` satisfy `Shared`. -/
+theorem shared_ofSetup (S : Fin N → Zq) :
+    Shared S (fun g => Key.ofSetup S (root.shape g)) (Batch.OpenKey.ofSetup S root)
+      (Key.ofSetup S _) (OpeningKey.ofSetup S _) (Key.ofSetup S _) (OpeningKey.ofSetup S _)
+      (Key.ofSetup S _) (OpeningKey.ofSetup S _) (Key.ofSetup S _) (OpeningKey.ofSetup S _)
+      (Key.ofSetup S _) (OpeningKey.ofSetup S _)
+      (Setup.shared S terminal.innerDegree terminal.innerRank _ terminal.innerSetupCode) :=
+  ⟨⟨fun _ => Key.ofSetup_shared S _, Batch.OpenKey.ofSetup_shared S root⟩,
+    ⟨Key.ofSetup_shared S _, OpeningKey.ofSetup_shared S _⟩,
+    ⟨Key.ofSetup_shared S _, OpeningKey.ofSetup_shared S _⟩,
+    ⟨Key.ofSetup_shared S _, OpeningKey.ofSetup_shared S _⟩,
+    ⟨Key.ofSetup_shared S _, OpeningKey.ofSetup_shared S _⟩,
+    ⟨Key.ofSetup_shared S _, OpeningKey.ofSetup_shared S _⟩, rfl⟩
+
+/-- `reduced` for the views of one setup vector `S`: each solution of a witness of `R_bind` of
+the tower of `key20.aks` gives a solution of Module-SIS for the view `M_I(S)` of an instance `I`
+of `views` itself, with the width of its matrix and the bound of the witness of its level
+(`Setup.Solved`). `shared`: each matrix of the opening is the view of `S` with the numbers of its
+instance. -/
+theorem reduced_shared {mass : Fin 3 → ℕ}
+    {weight₁ weight₂ weight₃ weight₄ weight₅ weightL boundL : ℕ} (massEq : mass = rootMass)
+    (first : weight₁ = 51) (second : weight₂ = 31) {S : Fin N → Zq}
+    (shared : Shared S key openKey key₁ openKey₁ key₂ openKey₂ key₃ openKey₃ key₄ openKey₄ key₅
+      openKey₅ matrix)
+    (brk : root.LevelBreak key openKey
+        (fun g => 2 * (2 * mass g) * (root.fold g).sourceBound (root.shape g)) ⊕
+      LevelBreak key₁ openKey₁ (2 * (2 * weight₁) * level₁.fold.sourceBound level₁.shape) ⊕
+      Route.Break key₂ openKey₂ weight₂ (level₂.fold.sourceBound level₂.shape) .coefficient ⊕
+      Route.Break key₃ openKey₃ weight₃ (level₃.fold.sourceBound level₃.shape)
+        (.euclidean norm₃.operator norm₃.limit) ⊕
+      Route.Break key₄ openKey₄ weight₄ (level₄.fold.sourceBound level₄.shape)
+        (.euclidean norm₄.operator norm₄.limit) ⊕
+      Route.Break key₅ openKey₅ weight₅ (level₅.fold.sourceBound level₅.shape)
+        (.euclidean norm₅.operator norm₅.limit) ⊕
+      Option ((Route.euclidean normTerminal.operator normTerminal.limit).Kernel matrix weightL
+        boundL))
+    (held : Sum.elim (fun b => Option.isSome b = true) (Sum.elim (fun b => Option.isSome b = true)
+      (Sum.elim (fun b => Option.isSome b = true) (Sum.elim (fun b => Option.isSome b = true)
+        (Sum.elim (fun b => Option.isSome b = true) (Sum.elim (fun b => Option.isSome b = true)
+          (fun b => Option.isSome b = true)))))) brk) :
+    Setup.Solved views S := by
+  subst massEq first second
+  obtain ⟨⟨sharedRoot, sharedOpen⟩, ⟨shared₁, sharedOpen₁⟩, ⟨shared₂, sharedOpen₂⟩,
+    ⟨shared₃, sharedOpen₃⟩, ⟨shared₄, sharedOpen₄⟩, ⟨shared₅, sharedOpen₅⟩, terminalEq⟩ := shared
+  obtain ⟨roots, rest⟩ := List.append_subset.mp (List.Subset.refl views)
+  obtain ⟨rootOpen, rest⟩ := List.append_subset.mp rest
+  obtain ⟨level₁Views, rest⟩ := List.append_subset.mp rest
+  obtain ⟨level₂Views, rest⟩ := List.append_subset.mp rest
+  obtain ⟨level₃Views, rest⟩ := List.append_subset.mp rest
+  obtain ⟨level₄Views, rest⟩ := List.append_subset.mp rest
+  obtain ⟨level₅Views, last⟩ := List.append_subset.mp rest
+  rcases brk with b | b | b | b | b | b | b
+  · obtain ⟨z, rfl⟩ := Option.isSome_iff_exists.mp held
+    exact Batch.solved sharedRoot sharedOpen
+      (fun g v member => roots (List.mem_flatMap.mpr ⟨g, List.mem_finRange g, member⟩)) rootOpen z
+  · obtain ⟨z, rfl⟩ := Option.isSome_iff_exists.mp held
+    exact level_solved (euclidean := false) shared₁ sharedOpen₁
+      (List.append_subset.mp level₁Views).1 (List.append_subset.mp level₁Views).2 z
+  · obtain ⟨z, rfl⟩ := Option.isSome_iff_exists.mp held
+    exact level_solved (euclidean := false) shared₂ sharedOpen₂
+      (List.append_subset.mp level₂Views).1 (List.append_subset.mp level₂Views).2 z
+  · obtain ⟨z, rfl⟩ := Option.isSome_iff_exists.mp held
+    exact level_solved (euclidean := true) shared₃ sharedOpen₃
+      (List.append_subset.mp level₃Views).1 (List.append_subset.mp level₃Views).2 z
+  · obtain ⟨z, rfl⟩ := Option.isSome_iff_exists.mp held
+    exact level_solved (euclidean := true) shared₄ sharedOpen₄
+      (List.append_subset.mp level₄Views).1 (List.append_subset.mp level₄Views).2 z
+  · obtain ⟨z, rfl⟩ := Option.isSome_iff_exists.mp held
+    exact level_solved (euclidean := true) shared₅ sharedOpen₅
+      (List.append_subset.mp level₅Views).1 (List.append_subset.mp level₅Views).2 z
+  · obtain ⟨z, rfl⟩ := Option.isSome_iff_exists.mp held
+    subst terminalEq
+    exact Setup.Solved.of_kernel (euclidean := true) (last List.mem_cons_self)
+      terminal.innerSetupCode.injective z
+
+/-- `reduced_key` for the views of one setup vector `S`: a solution of the reduction
+`tableCollision` for the matrices of the key group at a bound `innerBound ≤ η_A` gives a solution
+of Module-SIS for the view of an instance of `views`. `shared`: the matrices of the key group are
+the views of `S`. -/
+theorem reduced_key_shared {S : Fin N → Zq} (shared : (key 0).Shared S) {innerBound : ℕ}
+    (inner : innerBound ≤ (root.fold 0).innerBound (root.shape 0))
+    (z : ShortKernel (key 0).inner innerBound ⊕ OuterBreak (key 0)) : Setup.Solved views S := by
+  have within : (root.shape 0).instances false
+      (2 * (2 * rootMass 0) * (root.fold 0).sourceBound (root.shape 0)) ⊆ views :=
+    fun v member => (List.append_subset.mp (List.Subset.refl views)).1
+      (List.mem_flatMap.mpr ⟨0, List.mem_finRange 0, member⟩)
+  rcases z with z | z
+  · exact Key.solved_inner (euclidean := false) shared within
+      (ShortKernel.carry id (Function.Embedding.refl _) (fun _ _ => rfl)
+        (inner.trans_eq (by decide)) z)
+  · exact Key.solved_outer shared within z
+
+/-- Each view of `key20.aks` reads at most `2^18` cells of the flat setup vector, and `A` of the
+levels 2 and 4 read `2^18` cells. -/
+theorem views_fit : (∀ I ∈ views, I.size ≤ 2 ^ 18) ∧ ∃ I ∈ views, I.size = 2 ^ 18 := by
+  decide
+
+theorem views_fits {N : ℕ} (large : 2 ^ 18 ≤ N) (i : Fin views.length) :
+    (views.get i).size ≤ N :=
+  (views_fit.1 _ (List.get_mem _ _)).trans large
+
+open scoped BigOperators in
+/-- Akita Lemma 10.20 (i), (168), for the 43 views of `key20.aks` and a flat setup vector of at
+least `2^18` cells: the probability that `finder` returns an index of `views` and a solution of
+Module-SIS for the view of its instance (`Setup.Solved`, `Setup.solved_iff`) is the sum over the
+43 views of the probability of `Setup.embedded` for a uniform matrix of the view. With
+`views_covered` each view is below an instance of `instances`. -/
+theorem shared_setup {N : ℕ} {Aux : Type} [Fintype Aux] (large : 2 ^ 18 ≤ N)
+    (finder : Setup.Finder views.get N Aux) :
+    𝔼 S : Fin N → Zq, 𝔼 aux : Aux, (if (finder S aux).isSome then (1 : ℝ) else 0) =
+      ∑ i, 𝔼 M : Matrix (Fin (views.get i).rows) (Fin (views.get i).cols)
+          (Rq (views.get i).degree),
+        𝔼 coins : (Fin N → Zq) × Aux,
+          if (Setup.embedded (views_fits large) finder i M coins).isSome then (1 : ℝ) else 0 :=
+  Setup.shared_setup_eq (views_fits large) finder
 
 end Key20
 

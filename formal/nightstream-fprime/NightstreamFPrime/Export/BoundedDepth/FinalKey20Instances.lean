@@ -7,7 +7,9 @@ and Appendix G).
 
 `Opening.reduced` states that the list `Key20.instances` is complete for the event `Solved` of
 `FinalAkita.breakChance`: each output of the extractor that is a solution of Module-SIS gives a
-solution of an instance of the list. Lean has no statement on the hardness of an instance. -/
+solution of an instance of the list. `Opening.reduced_shared` states that for matrices that are the
+views of one setup vector `S`, each such output gives a solution for the view of `S` of an
+instance of `Key20.views`. Lean has no statement on the hardness of an instance. -/
 
 set_option autoImplicit false
 
@@ -58,5 +60,24 @@ theorem Opening.reduced (mass : o.mass = Key20.rootMass) (weight₁ : o.weight�
     obtain ⟨z, -⟩ := Option.isSome_iff_exists.mp found
     exact Or.inl (Or.inl ⟨0, Key20.reduced_key inner z⟩)
   · exact Key20.reduced mass weight₁ weight₂ brk solved
+
+/-- `Opening.reduced` for an opening whose matrices are the views of one flat setup vector `S`
+(`Key20.Shared`): each output of the extractor with `Solved` gives a solution of Module-SIS for
+the view `M_I(S)` of an instance `I` of `Key20.views`, with the width of its matrix and the bound
+of the witness of its level (`Setup.Solved`). -/
+theorem Opening.reduced_shared (mass : o.mass = Key20.rootMass) (weight₁ : o.weight₁ = 51)
+    (weight₂ : o.weight₂ = 31) {N : ℕ} {S : Fin N → Zq}
+    (keys : Key20.Shared S o.key o.openKey o.key₁ o.openKey₁ o.key₂ o.openKey₂ o.key₃ o.openKey₃
+      o.key₄ o.openKey₄ o.key₅ o.openKey₅ o.terminal.matrix)
+    (inner : o.innerBound ≤ (root.fold 0).innerBound (root.shape 0))
+    {out : _ ⊕ _}
+    (solved : Solved (o.tower setup packageWidths step cap control read head) o.key o.honest
+      o.innerBound out) :
+    Setup.Solved Key20.views S := by
+  rcases out with certificate | brk
+  · obtain ⟨ω, -, found⟩ := solved
+    obtain ⟨z, -⟩ := Option.isSome_iff_exists.mp found
+    exact Key20.reduced_key_shared (keys.1.1 0) inner z
+  · exact Key20.reduced_shared mass weight₁ weight₂ keys brk solved
 
 end NightstreamFPrime.Export.BoundedDepth.FinalKey20

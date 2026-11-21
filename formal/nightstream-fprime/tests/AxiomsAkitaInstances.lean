@@ -4,7 +4,8 @@ import NightstreamFPrime.Claims.Akita
 /-! Axiom audits for the instances of Module-SIS of the Akita opening: the monotone reductions and
 ring descent (`Spec/Compression/Akita/Instance`), the instances of the schedule `key20.aks` and
 the theorems that the list is complete (`Key20Instances`,
-`Export/BoundedDepth/FinalKey20Instances`), and their claims. -/
+`Export/BoundedDepth/FinalKey20Instances`), the keys of views of one setup vector and their
+solutions (`SetupInstances`), and their claims. -/
 
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.padded
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.padded_apply
@@ -75,7 +76,40 @@ the theorems that the list is complete (`Key20Instances`,
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Reduced
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.reduced
 #audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.reduced_key
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.Solved
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.solved_iff
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.shared_eq
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.kernel_view
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Setup.Solved.of_kernel
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.PathShared
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.PathKey.ofSetup
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.PathKey.ofSetup_shared
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.PathShared.solved
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key.Shared
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key.ofSetup
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key.ofSetup_shared
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.OpeningShape.openSetupCode
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.OpeningKey.Shared
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.OpeningKey.ofSetup
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.OpeningKey.ofSetup_shared
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key.solved_inner
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key.solved_outer
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.OpeningKey.solved
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.level_solved
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.OpenKey.Shared
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.OpenKey.ofSetup
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.OpenKey.ofSetup_shared
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Batch.solved
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.Shared
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.shared_ofSetup
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.reduced_shared
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.reduced_key_shared
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.views_fit
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.views_fits
+#audit_axioms NightstreamFPrime.Spec.Compression.Akita.Key20.shared_setup
 #audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.reduced
+#audit_axioms NightstreamFPrime.Export.BoundedDepth.FinalKey20.Opening.reduced_shared
 #audit_axioms NightstreamFPrime.Claims.Akita.module_sis_descent
 #audit_axioms NightstreamFPrime.Claims.Akita.key20_instance_list
 #audit_axioms NightstreamFPrime.Claims.Akita.key20_instances
+#audit_axioms NightstreamFPrime.Claims.Akita.key20_instances_shared

@@ -115,9 +115,12 @@ impl Columns {
                 *next += 1;
             }
         }
+        let temporary_bytes = counts.capacity() * size_of::<u32>();
+        drop(counts);
+        drop(ids.table);
         let mut factors = ids.factors;
         factors.shrink_to_fit();
-        Some(Self {
+        let mut columns = Self {
             tiles: Default::default(),
             row_count: shape.rows,
             slots,
@@ -125,7 +128,106 @@ impl Columns {
             rows,
             tags,
             factors,
-        })
+        };
+        columns.share_translated_terms(temporary_bytes);
+        Some(columns)
+    }
+
+    fn share_translated_terms(&mut self, temporary_bytes: usize) {
+        const CACHE: usize = 1 << 14;
+        let slots = self.slots.len();
+        let entries = self.tags.len();
+        if self.row_count > 1 << 24
+            || slots < 4096
+            || entries / slots < 3
+            || temporary_bytes / size_of::<u32>() < slots.saturating_mul(3).saturating_add(CACHE + 1)
+        {
+            return;
+        }
+        let mut recent = vec![u32::MAX; CACHE];
+        let hasher = RandomState::new();
+        let mut spans = Vec::with_capacity(3 * slots + 1);
+        spans.extend_from_slice(&self.offsets);
+        let first = spans.len();
+        let mut written = 0usize;
+        for slot in 0..slots {
+            let start = self.offsets[slot] as usize;
+            let end = self.offsets[slot + 1] as usize;
+            let count = end - start;
+            let base = self.rows.get(start);
+            let signature = (
+                &self.tags[start..end],
+                self.rows.get(start + (count - 1).min(2)) - base,
+                self.rows.get(start + count / 2) - base,
+                self.rows.get(end - 1) - base,
+            );
+            let bucket = hasher.hash_one(signature) as usize % CACHE;
+            let previous = recent[bucket] as usize;
+            if previous < slot {
+                let old = self.offsets[previous] as usize;
+                if self.offsets[previous + 1] as usize - old == count
+                    && self.tags[old..old + count] == self.tags[start..end]
+                    && self
+                        .rows
+                        .iter(old..old + count)
+                        .zip(self.rows.iter(start..end))
+                        .all(|(a, b)| a - spans[first + 2 * previous] == b - base)
+                {
+                    spans.extend([base, spans[first + 2 * previous + 1]]);
+                    continue;
+                }
+            }
+            recent[bucket] = slot as u32;
+            spans.extend([base, written as u32]);
+            written += count;
+        }
+        let term_bytes = self.rows.stride + size_of::<u16>();
+        let extra = 2 * slots * size_of::<u32>();
+        let free = temporary_bytes - extra;
+        let saved_tags = (entries - written) * size_of::<u16>();
+        let compact_row_bytes = written * self.rows.stride + 4 - self.rows.stride;
+        if written > free / size_of::<u16>()
+            || compact_row_bytes > free.saturating_add(saved_tags)
+            || (entries - written) * term_bytes < extra + entries * term_bytes / 4
+        {
+            return;
+        }
+        drop(recent);
+        self.offsets = spans;
+        let (logical, translations) = self.offsets.split_at(first);
+        let mut cursor = 0;
+        for (range, &[base, dest]) in logical.windows(2).zip(translations.as_chunks::<2>().0) {
+            if dest as usize != cursor {
+                continue;
+            }
+            let range = range[0] as usize..range[1] as usize;
+            for (i, source) in range.clone().enumerate() {
+                self.rows.set(cursor + i, self.rows.get(source) - base);
+            }
+            self.tags.copy_within(range.clone(), cursor);
+            cursor += range.len();
+        }
+        self.tags.truncate(written);
+        self.tags.shrink_to_fit();
+        self.rows.bytes.truncate(compact_row_bytes);
+        self.rows.bytes.shrink_to_fit();
+    }
+
+    fn translations(&self) -> &[[u32; 2]] {
+        self.offsets[self.slots.len() + 1..].as_chunks::<2>().0
+    }
+
+    fn terms(&self, slot: usize) -> (u32, impl Iterator<Item = (u32, u16)> + '_) {
+        let from = self.offsets[slot];
+        let count = self.offsets[slot + 1] - from;
+        let [base, start] = self.translations().get(slot).copied().unwrap_or([0, from]);
+        let range = start as usize..(start + count) as usize;
+        (
+            base,
+            self.rows
+                .iter(range.clone())
+                .zip(self.tags[range].iter().copied()),
+        )
     }
 
     pub(super) fn device_matrix<'a>(
@@ -147,12 +249,12 @@ impl Columns {
         let tiles = if let Some(kept) = self.tiles.get() {
             kept
         } else {
-            let sizes = super::OpeningTiles::sizes(blocks, &self.offsets)?;
+            let sizes = super::OpeningTiles::sizes(blocks, &self.offsets[..=self.slots.len()])?;
             if sizes.0 > available {
                 return None;
             }
             self.tiles.get_or_init(|| {
-                super::OpeningTiles::prepare(layout, blocks, &self.slots, &self.offsets, sizes.1, sizes.2)
+                super::OpeningTiles::prepare(layout, blocks, &self.slots, &self.offsets, (sizes.1, sizes.2))
             })
         }
         .as_deref()?;
@@ -166,6 +268,7 @@ impl Columns {
             rows: &self.rows.bytes,
             row_bytes: self.rows.stride,
             row_count,
+            translated: !self.translations().is_empty(),
             tags: &self.tags,
             factors: &self.factors,
             tiles,
@@ -189,11 +292,10 @@ impl Columns {
     }
 
     pub(super) fn weight(&self, row_weights: &[K], slot: usize) -> K {
-        let range = self.offsets[slot] as usize..self.offsets[slot + 1] as usize;
-        self.rows
-            .iter(range.clone())
-            .zip(&self.tags[range])
-            .map(|(row, &tag)| {
+        let (base, terms) = self.terms(slot);
+        let row_weights = &row_weights[base as usize..];
+        terms
+            .map(|(row, tag)| {
                 let w = row_weights[row as usize];
                 match tag {
                     0 => w,
@@ -205,12 +307,12 @@ impl Columns {
     }
 
     pub(super) fn weight_with_products(&self, row_weights: &[K], slot: usize) -> K {
-        let range = self.offsets[slot] as usize..self.offsets[slot + 1] as usize;
-        if range.len() < 4 {
+        if self.offsets[slot + 1] - self.offsets[slot] < 4 {
             return self.weight(row_weights, slot);
         }
-        let terms = self.rows.iter(range.clone()).zip(&self.tags[range]);
-        neo_math::sum_of_scaled(terms.map(|(row, &tag)| (self.factors[tag as usize], row_weights[row as usize])))
+        let (base, terms) = self.terms(slot);
+        let row_weights = &row_weights[base as usize..];
+        neo_math::sum_of_scaled(terms.map(|(row, tag)| (self.factors[tag as usize], row_weights[row as usize])))
     }
 }
 
@@ -237,6 +339,13 @@ impl PackedRows {
     }
     fn set(&mut self, index: usize, row: u32) {
         self.bytes[index * self.stride..][..self.stride].copy_from_slice(&row.to_le_bytes()[..self.stride]);
+    }
+    fn get(&self, index: usize) -> u32 {
+        u32::from_le_bytes(
+            *self.bytes[index * self.stride..]
+                .first_chunk::<4>()
+                .expect("packed row"),
+        ) & self.mask
     }
     fn iter(&self, range: std::ops::Range<usize>) -> impl Iterator<Item = u32> + '_ {
         let mut data = &self.bytes[range.start * self.stride..range.end * self.stride + (4 - self.stride)];

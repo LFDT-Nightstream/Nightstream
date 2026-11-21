@@ -49,9 +49,10 @@ struct Config {
     first: u32,
     tasks: u32,
     heavy: u32,
+    translated: u32,
 }
 impl Config {
-    fn words(&self) -> [u32; 19] {
+    fn words(&self) -> [u32; 20] {
         let [slots, blocks, stride, tile, workers] = self.shape;
         let [offsets, rows, tags, factors, eq, occupied, starts, widths] = self.columns;
         [
@@ -74,6 +75,7 @@ impl Config {
             self.first,
             self.tasks,
             self.heavy,
+            self.translated,
         ]
     }
 }
@@ -311,6 +313,7 @@ impl MetalSession {
                 first: first.count,
                 tasks: 0,
                 heavy: 0,
+                translated: u32::from(m.translated),
             };
             pass(
                 &k.weights,

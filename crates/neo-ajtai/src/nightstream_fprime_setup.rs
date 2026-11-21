@@ -12,7 +12,7 @@ use neo_ccs::Mat;
 use neo_math::{
     balanced::to_balanced_i128,
     ring::D,
-    signed_sums::{SignedShiftSums, SplitRing, LIMB_BOUND, MAX_EXACT_TERMS},
+    signed_sums::{SignedShiftSums, SignedUnitBuckets, SplitRing, LIMB_BOUND, MAX_EXACT_TERMS},
     Fq,
 };
 use p3_field::PrimeCharacteristicRing;
@@ -137,6 +137,21 @@ fn with_elements<T>(
 
 fn signed_sums(row: u32, blocks: &[SignedBlock], key: Option<&ExpandedKey>) -> SignedShiftSums {
     let mut sums = SignedShiftSums::zero();
+    if blocks.len() >= 128 {
+        let sample = blocks.iter().step_by(blocks.len().div_ceil(64));
+        let saved: usize = sample
+            .clone()
+            .map(|block| SignedUnitBuckets::min_saved_shifts(block.positive | block.negative))
+            .sum();
+        if saved >= 8 * sample.count() {
+            let mut buckets = SignedUnitBuckets::zero();
+            with_elements(row, blocks, SignedBlock::index, key, |block, element| {
+                buckets.add_signed_units(element, block.positive, block.negative);
+            });
+            buckets.add_to(&mut sums);
+            return sums;
+        }
+    }
     with_elements(row, blocks, SignedBlock::index, key, |block, element| {
         sums.add_signed_units(element, block.positive, block.negative);
     });

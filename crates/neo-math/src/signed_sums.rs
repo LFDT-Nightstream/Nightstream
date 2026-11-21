@@ -184,6 +184,18 @@ impl SmallEventDigits {
 }
 
 impl SignedShiftSums {
+    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+    pub fn from_dense_signed_blocks<T>(key: &[[u64; D]], blocks: &[T], mask: impl Fn(&T) -> [u64; 3]) -> Option<Self> {
+        let result = neo_math_native::signed_ring_sum(key, blocks, mask)?;
+        let mut sums = Self::zero();
+        sums.limbs[..2 * D].copy_from_slice(&result);
+        #[cfg(debug_assertions)]
+        {
+            sums.terms = blocks.len() as u64;
+        }
+        Some(sums)
+    }
+
     pub fn zero() -> Self {
         Self {
             limbs: [0; 2 * (2 * D - 1)],

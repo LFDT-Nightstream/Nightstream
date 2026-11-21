@@ -1397,6 +1397,7 @@ dependencies = [
 name = "neo-math"
 version = "0.1.0"
 dependencies = [
+ "neo-math-native",
  "neo-params",
  "num-bigint",
  "p3-field",
@@ -1406,6 +1407,13 @@ dependencies = [
  "rand_chacha",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "neo-math-native"
+version = "0.1.0"
+dependencies = [
+ "cc",
 ]
 
 [[package]]

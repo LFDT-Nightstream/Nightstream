@@ -41,7 +41,8 @@ impl Device {
     }
 
     pub(crate) fn mix_rlc_witnesses(&self, rhos: &[Mat<F>], witnesses: &[&Mat<F>]) -> Result<Mat<F>, DeviceError> {
-        self.lock()?
+        let mix = self
+            .lock()?
             .mix_rlc_witnesses(rhos, witnesses)
             .map_err(|error| match error {
                 PiCcsError::BackendFailure { reason, .. } => DeviceError::Engine(EngineError::Failure {
@@ -49,7 +50,8 @@ impl Device {
                     reason,
                 }),
                 error => DeviceError::Rejected(error),
-            })
+            })?;
+        Ok(mix.finish(witnesses))
     }
 }
 

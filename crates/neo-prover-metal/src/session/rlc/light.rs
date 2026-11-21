@@ -4,11 +4,36 @@ use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 
-use crate::session::{host_view, Arg, Grid, MetalSession};
+use crate::session::{host_view, Arg, Buffer, Grid, MetalSession};
 use crate::MetalError;
 
+pub(super) struct LightDeltas {
+    output: Buffer,
+    cells: usize,
+}
+
+impl LightDeltas {
+    pub(super) fn add_to(&self, running: &Mat<F>) -> Mat<F> {
+        let deltas = host_view::<i16>(&self.output, self.cells);
+        let values = if let Some(constant) = running.virtual_constant_value() {
+            deltas
+                .par_iter()
+                .map(|&d| *constant + F::from_i16(d))
+                .collect()
+        } else {
+            running
+                .as_slice()
+                .par_iter()
+                .zip(deltas)
+                .map(|(&x, &d)| x + F::from_i16(d))
+                .collect()
+        };
+        Mat::from_row_major(D, self.cells / D, values)
+    }
+}
+
 impl MetalSession {
-    pub(super) fn mix_light(&self, rhos: &[Mat<F>], witnesses: &[&Mat<F>]) -> Result<Option<Mat<F>>, MetalError> {
+    pub(super) fn mix_light(&self, rhos: &[Mat<F>], witnesses: &[&Mat<F>]) -> Result<Option<LightDeltas>, MetalError> {
         let ([rho, weight], [fresh, running]) = (rhos, witnesses) else {
             return Ok(None);
         };
@@ -72,20 +97,6 @@ impl MetalSession {
         );
         encoder.endEncoding();
         self.finish(&command)?;
-        let deltas = host_view::<i16>(&output, cells);
-        let values = if let Some(constant) = running.virtual_constant_value() {
-            deltas
-                .par_iter()
-                .map(|&d| *constant + F::from_i16(d))
-                .collect()
-        } else {
-            running
-                .as_slice()
-                .par_iter()
-                .zip(deltas)
-                .map(|(&x, &d)| x + F::from_i16(d))
-                .collect()
-        };
-        Ok(Some(Mat::from_row_major(D, cols, values)))
+        Ok(Some(LightDeltas { output, cells }))
     }
 }

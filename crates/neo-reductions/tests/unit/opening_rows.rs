@@ -27,7 +27,7 @@ fn translated_columns_preserve_every_term_and_device_task() {
     for slot in 0..count {
         let len = if slot % 499 == 0 { 513 } else { 7 };
         for i in 0..len {
-            expected.push((slot * 2 + i + u32::from(i == 2 && slot % 2 == 1), (i % 3) as u16));
+            expected.push((slot * 2 + i + u32::from(i == 2 && (slot / 8) % 2 == 1), (i % 3) as u16));
         }
         offsets.push(expected.len() as u32);
     }

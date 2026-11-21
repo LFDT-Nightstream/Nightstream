@@ -1,4 +1,4 @@
-use std::hash::{BuildHasher, RandomState};
+use std::hash::{BuildHasher, BuildHasherDefault, DefaultHasher, RandomState};
 
 use super::factored::fill;
 use super::{FactoredEntries, MatrixShape};
@@ -145,7 +145,7 @@ impl Columns {
             return;
         }
         let mut recent = vec![u32::MAX; CACHE];
-        let hasher = RandomState::new();
+        let hasher = BuildHasherDefault::<DefaultHasher>::default();
         let mut spans = Vec::with_capacity(3 * slots + 1);
         spans.extend_from_slice(&self.offsets);
         let first = spans.len();

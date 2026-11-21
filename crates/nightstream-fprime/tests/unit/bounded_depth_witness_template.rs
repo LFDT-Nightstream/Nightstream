@@ -4,10 +4,7 @@ use super::*;
 fn deferred_remapping_checks_references_and_keeps_only_layout_ready() {
     let batch = WitnessBatch {
         start: 12,
-        recipes: vec![WitnessExpr::Add(
-            Box::new(WitnessExpr::Var(1)),
-            Box::new(WitnessExpr::Const(Fq::ONE)),
-        )],
+        recipes: vec![WitnessExpr::Add(Box::new([WitnessExpr::Var(1), WitnessExpr::Const(Fq::ONE)]))],
         hints: vec![WitnessHint::Bit(WitnessExpr::Var(12), 0)],
     };
     let source = WitnessProgram::new(vec![batch]);

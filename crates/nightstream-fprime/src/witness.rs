@@ -3,20 +3,17 @@ use std::sync::{Arc, LazyLock};
 
 use neo_math::Fq;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::package::json::{array, exact_array, usize_atom};
 use crate::package::PackageError;
-
-#[derive(Debug, Deserialize, Serialize)]
-pub(super) struct RawWitnessBatch(pub(super) u64, pub(super) Vec<Value>, pub(super) Vec<Value>);
 
 #[derive(Clone, Debug)]
 pub(super) enum WitnessExpr {
     Var(usize),
     Const(Fq),
-    Add(Box<WitnessExpr>, Box<WitnessExpr>),
-    Mul(Box<WitnessExpr>, Box<WitnessExpr>),
+    Add(Box<[WitnessExpr; 2]>),
+    Mul(Box<[WitnessExpr; 2]>),
 }
 
 #[derive(Clone, Debug)]
@@ -203,7 +200,7 @@ impl WitnessExpr {
         match self {
             Self::Var(column) => map(*column).is_some(),
             Self::Const(_) => true,
-            Self::Add(left, right) | Self::Mul(left, right) => left.references_map(map) && right.references_map(map),
+            Self::Add(args) | Self::Mul(args) => args.iter().all(|arg| arg.references_map(map)),
         }
     }
 
@@ -211,8 +208,8 @@ impl WitnessExpr {
         Some(match self {
             Self::Var(column) => Self::Var(map(*column)?),
             Self::Const(value) => Self::Const(*value),
-            Self::Add(left, right) => Self::Add(Box::new(left.map_columns(map)?), Box::new(right.map_columns(map)?)),
-            Self::Mul(left, right) => Self::Mul(Box::new(left.map_columns(map)?), Box::new(right.map_columns(map)?)),
+            Self::Add(args) => Self::Add(Box::new([args[0].map_columns(map)?, args[1].map_columns(map)?])),
+            Self::Mul(args) => Self::Mul(Box::new([args[0].map_columns(map)?, args[1].map_columns(map)?])),
         })
     }
 
@@ -224,21 +221,23 @@ impl WitnessExpr {
         match self {
             Self::Var(column) => value(*column),
             Self::Const(value) => *value,
-            Self::Add(left, right) => left.eval_with(value) + right.eval_with(value),
-            Self::Mul(left, right) => left.eval_with(value) * right.eval_with(value),
+            Self::Add(args) => args[0].eval_with(value) + args[1].eval_with(value),
+            Self::Mul(args) => args[0].eval_with(value) * args[1].eval_with(value),
         }
     }
 }
 
 pub(super) fn validate_witness_batch(
-    raw: RawWitnessBatch,
+    raw: &Value,
     witness_start: usize,
     private_column_count: usize,
     constant_column: usize,
     total_column_count: usize,
 ) -> Result<WitnessBatch, PackageError> {
-    let RawWitnessBatch(start, recipes, hints) = raw;
-    let start = usize::try_from(start).map_err(|_| PackageError::Malformed("witness batch start"))?;
+    let fields = exact_array(raw, 3, "witness batch")?;
+    let start = usize_atom(&fields[0], "witness batch start")?;
+    let recipes = array(&fields[1], "witness recipes")?;
+    let hints = array(&fields[2], "witness hints")?;
     let output_length = recipes
         .len()
         .checked_add(hints.len())
@@ -376,14 +375,14 @@ fn decode_expr_with(
             }
             Ok(WitnessExpr::Const(Fq::from_u64(constant)))
         }
-        (2, [_, left, right]) => Ok(WitnessExpr::Add(
-            Box::new(decode_expr_with(left, validate_column)?),
-            Box::new(decode_expr_with(right, validate_column)?),
-        )),
-        (3, [_, left, right]) => Ok(WitnessExpr::Mul(
-            Box::new(decode_expr_with(left, validate_column)?),
-            Box::new(decode_expr_with(right, validate_column)?),
-        )),
+        (2, [_, left, right]) => Ok(WitnessExpr::Add(Box::new([
+            decode_expr_with(left, validate_column)?,
+            decode_expr_with(right, validate_column)?,
+        ]))),
+        (3, [_, left, right]) => Ok(WitnessExpr::Mul(Box::new([
+            decode_expr_with(left, validate_column)?,
+            decode_expr_with(right, validate_column)?,
+        ]))),
         _ => Err(PackageError::Malformed("witness expression")),
     }
 }

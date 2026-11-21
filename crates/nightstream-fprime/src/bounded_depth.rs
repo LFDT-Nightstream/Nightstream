@@ -29,7 +29,7 @@ use crate::application_records::ApplicationRecords;
 use crate::identity::append_value_preimage;
 use crate::package::json::{array, exact_array, usize_atom};
 use crate::package::{IdentityKind, PackageError, BLOCK_OUTPUTS, SBOX_ROWS};
-use crate::witness::{validate_witness_batch, validate_witness_batch_order, RawWitnessBatch, WitnessProgram};
+use crate::witness::{validate_witness_batch, validate_witness_batch_order, WitnessProgram};
 
 const IDENTITY_DOMAIN: &[u8] = b"Nightstream/OptionB/packages/v1";
 pub const BOUNDED_DEPTH_PACKAGES_IDENTITY: [u64; 4] = [
@@ -231,10 +231,7 @@ impl StepPackage {
         let first_fresh = usize_atom(&fields[3], "bounded-depth first fresh column")?;
         let witness = array(&fields[6], "bounded-depth witness")?
             .iter()
-            .map(|raw| {
-                let raw: RawWitnessBatch = serde_json::from_value(raw.clone())?;
-                validate_witness_batch(raw, local_start, first_fresh, 0, first_fresh)
-            })
+            .map(|raw| validate_witness_batch(raw, local_start, first_fresh, 0, first_fresh))
             .collect::<Result<Vec<_>, _>>()?;
         validate_witness_batch_order(&witness)?;
         Ok(Self {
@@ -433,7 +430,8 @@ pub fn load_pinned_bounded_depth_packages(
     refresh: &[u8],
     pinned: [u64; 4],
 ) -> Result<BoundedDepthPackages, PackageError> {
-    let (_, light, refresh) = decode_pair(light, refresh)?;
+    let light = decode_step(&parse_atoms(light)?, 0)?;
+    let refresh = decode_step(&parse_atoms(refresh)?, 1)?;
     Ok(BoundedDepthPackages {
         identity: pinned,
         light,
@@ -446,12 +444,17 @@ fn decode_pair(light: &[u8], refresh: &[u8]) -> Result<(Value, StepPackage, Step
     let [light_value, refresh_value] = exact_array(&pair, 2, "bounded-depth package pair")? else {
         return Err(PackageError::Malformed("bounded-depth package pair"));
     };
-    let light = StepPackage::decode(light_value)?;
-    let refresh = StepPackage::decode(refresh_value)?;
-    if light.circuit != 0 || refresh.circuit != 1 {
+    let light = decode_step(light_value, 0)?;
+    let refresh = decode_step(refresh_value, 1)?;
+    Ok((pair, light, refresh))
+}
+
+fn decode_step(value: &Value, circuit: usize) -> Result<StepPackage, PackageError> {
+    let step = StepPackage::decode(value)?;
+    if step.circuit != circuit {
         return Err(PackageError::Malformed("bounded-depth circuit indices"));
     }
-    Ok((pair, light, refresh))
+    Ok(step)
 }
 
 /// Lean `StepPackage.identity`.
@@ -487,19 +490,19 @@ pub fn parse_atoms(bytes: &[u8]) -> Result<Value, PackageError> {
             }
             b',' | b' ' | b'\n' | b'\r' | b'\t' => {}
             b'0'..=b'9' => {
-                let end = bytes[index..]
-                    .iter()
-                    .position(|byte| !byte.is_ascii_digit())
-                    .map_or(bytes.len(), |offset| index + offset);
-                let number = std::str::from_utf8(&bytes[index..end])
-                    .ok()
-                    .and_then(|digits| digits.parse::<u64>().ok())
-                    .ok_or(PackageError::Malformed("package atom"))?;
+                let mut number = u64::from(byte - b'0');
+                index += 1;
+                while let Some(&digit @ b'0'..=b'9') = bytes.get(index) {
+                    number = number
+                        .checked_mul(10)
+                        .and_then(|prefix| prefix.checked_add(u64::from(digit - b'0')))
+                        .ok_or(PackageError::Malformed("package atom"))?;
+                    index += 1;
+                }
                 stack
                     .last_mut()
                     .ok_or(PackageError::Malformed("atom outside an array"))?
                     .push(Value::from(number));
-                index = end;
                 continue;
             }
             _ => return Err(PackageError::Malformed("package byte")),

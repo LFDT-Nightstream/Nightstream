@@ -1,6 +1,6 @@
 //! Lean `LogicalPlan.plan`, `SlotLayout.layout`, `GatePolynomial.terms`.
 use std::ops::Range;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::{Arc, Mutex, MutexGuard, TryLockError, Weak};
 
 use crate::engine::{Backend, CommitError, DeviceError, EngineError};
@@ -19,9 +19,16 @@ use neo_reductions::superneo_eval::{
 use neo_reductions::PiCcsError;
 use nightstream_fprime::{ExpandedPackage, PackageError, StepWords, PI_CCS_V1_2_ROUND_COUNT, PUBLIC_WORDS};
 use p3_field::PrimeCharacteristicRing;
+use rayon::prelude::*;
 
 const MATRICES: usize = 4;
 const ROWS_PER_RANGE: usize = 1024;
+
+fn check_row_ranges(failures: impl ParallelIterator<Item = Option<&'static str>>) -> Result<(), &'static str> {
+    catch_unwind(AssertUnwindSafe(|| failures.find_map_first(|error| error)))
+        .map_err(|_| "row worker panicked")?
+        .map_or(Ok(()), Err)
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum RelationError {
@@ -344,34 +351,22 @@ impl Relation {
     pub(super) fn checked_source_rows(&self, columns: &[F]) -> Result<Vec<[F; MATRICES]>, &'static str> {
         let rows = self.step.expanded.rows();
         let mut values = vec![[F::ZERO; MATRICES]; rows.row_count()];
-        let pending = Mutex::new(values.chunks_mut(ROWS_PER_RANGE).enumerate());
-        let produce = || loop {
-            let (index, group) = pending
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .next()?;
-            for (local, output) in group.iter_mut().enumerate() {
-                let row = index * ROWS_PER_RANGE + local;
-                let [a, b, c, s] = std::array::from_fn(|matrix| rows.evaluate(row, matrix, columns));
-                if a * b - c + s.exp_u64(SBOX_DEGREE) != F::ZERO {
-                    return Some(row);
-                }
-                *output = [a, b, c, s];
-            }
-        };
-        let threads = std::thread::available_parallelism().map_or(1, usize::from);
-        std::thread::scope(|scope| {
-            let workers: Vec<_> = (0..threads).map(|_| scope.spawn(produce)).collect();
-            let failures = workers
-                .into_iter()
-                .map(|worker| worker.join().map_err(|_| "row worker panicked"))
-                .collect::<Result<Vec<_>, _>>()?;
-            failures
-                .into_iter()
-                .flatten()
-                .min()
-                .map_or(Ok(()), |_| Err("a relation row fails"))
-        })?;
+        check_row_ranges(
+            values
+                .par_chunks_mut(ROWS_PER_RANGE)
+                .enumerate()
+                .map(|(index, group)| {
+                    for (local, output) in group.iter_mut().enumerate() {
+                        let row = index * ROWS_PER_RANGE + local;
+                        let [a, b, c, s] = std::array::from_fn(|matrix| rows.evaluate(row, matrix, columns));
+                        if a * b - c + s.exp_u64(SBOX_DEGREE) != F::ZERO {
+                            return Some("a relation row fails");
+                        }
+                        *output = [a, b, c, s];
+                    }
+                    None
+                }),
+        )?;
         Ok(values)
     }
 
@@ -402,31 +397,14 @@ impl Relation {
 
     fn check_rows(&self, holds: impl Fn(usize) -> Result<(), &'static str> + Sync) -> Result<(), &'static str> {
         let count = self.step.expanded.rows().row_count();
-        let next = AtomicUsize::new(0);
-        let first_failure = || loop {
-            let start = next.fetch_add(ROWS_PER_RANGE, Ordering::Relaxed);
-            if start >= count {
-                return None;
-            }
-            for row in start..(start + ROWS_PER_RANGE).min(count) {
-                if let Err(error) = holds(row) {
-                    return Some((row, error));
-                }
-            }
-        };
-        let threads = std::thread::available_parallelism().map_or(1, usize::from);
-        std::thread::scope(|scope| {
-            let workers: Vec<_> = (0..threads).map(|_| scope.spawn(first_failure)).collect();
-            let failures = workers
-                .into_iter()
-                .map(|worker| worker.join().map_err(|_| "row worker panicked"))
-                .collect::<Result<Vec<_>, _>>()?;
-            failures
-                .into_iter()
-                .flatten()
-                .min_by_key(|&(row, _)| row)
-                .map_or(Ok(()), |(_, error)| Err(error))
-        })
+        check_row_ranges(
+            (0..count.div_ceil(ROWS_PER_RANGE))
+                .into_par_iter()
+                .map(|index| {
+                    let start = index * ROWS_PER_RANGE;
+                    (start..(start + ROWS_PER_RANGE).min(count)).find_map(|row| holds(row).err())
+                }),
+        )
     }
 
     pub(crate) fn blocks(&self) -> usize {

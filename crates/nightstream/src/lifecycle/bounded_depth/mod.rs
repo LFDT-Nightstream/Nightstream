@@ -405,20 +405,26 @@ impl BoundedDepth {
         if keeps_faulty {
             FAILED_ROW.set(relation.first_failing_row(&step)?);
         }
-        let (instance, held) = std::thread::scope(|scope| {
-            let check = (!keeps_faulty).then(|| {
-                scope.spawn(|| {
-                    if keep_checked {
-                        relation.checked_source_rows(&columns).map(Some)
-                    } else {
-                        relation.source_rows_hold(&columns).map(|()| None)
-                    }
-                })
-            });
-            let instance = relation.instance(&self.backend, &columns);
-            let held = check.map_or(Ok(None), |check| check.join().unwrap_or(Err("row check panicked")));
-            (instance, held)
-        });
+        let check = || {
+            if keep_checked {
+                relation.checked_source_rows(&columns).map(Some)
+            } else {
+                relation.source_rows_hold(&columns).map(|()| None)
+            }
+        };
+        let instance = || relation.instance(&self.backend, &columns);
+        let (instance, held) = if keeps_faulty {
+            (instance(), Ok(None))
+        } else if cfg!(target_arch = "wasm32") || rayon::current_thread_index().is_some() {
+            rayon::join(instance, || {
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(check)).unwrap_or(Err("row check panicked"))
+            })
+        } else {
+            std::thread::scope(|scope| {
+                let check = scope.spawn(check);
+                (instance(), check.join().unwrap_or(Err("row check panicked")))
+            })
+        };
         let instance = instance?;
         let checked_rows = held
             .map_err(BoundedDepthError::Fresh)?

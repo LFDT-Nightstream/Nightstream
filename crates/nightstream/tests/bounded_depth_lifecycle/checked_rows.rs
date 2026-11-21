@@ -23,6 +23,20 @@ fn rows<'a>(prover: &'a BoundedDepth, envelope: &'a Envelope) -> FreshMatrixRows
 }
 
 #[test]
+fn a_checked_step_on_one_rayon_worker_has_the_same_proof_bytes() {
+    let prover = prover(2);
+    let expected = prover.encode_proof(&first(&prover, 10)).unwrap();
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(1)
+        .build()
+        .unwrap();
+    let proof = pool.install(|| first(&prover, 10));
+    assert!(proof.checked_rows.is_some());
+    assert_eq!(prover.encode_proof(&proof).unwrap(), expected);
+    prover.verify(1, proof.z0, proof.current, &proof).unwrap();
+}
+
+#[test]
 fn checked_source_cache_is_bounded_by_relation_and_proof_lifetime() {
     let prover = prover(2);
     let (a, b) = rayon::join(|| first(&prover, 10), || first(&prover, 20));

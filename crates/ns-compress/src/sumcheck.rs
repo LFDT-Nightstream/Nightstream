@@ -644,7 +644,7 @@ pub(crate) fn prove_product(
     transcript: &mut Poseidon2Transcript,
     values: Vec<K>,
     lanes: &[K],
-    blocks: &[K],
+    blocks: Vec<K>,
     claim: K,
     rounds: usize,
     complete: impl FnOnce(&[K], &mut Vec<K>),
@@ -652,10 +652,10 @@ pub(crate) fn prove_product(
     if lanes.len() != D || rounds < LANE_VARS || !values.len().is_multiple_of(D) {
         return prove_product_direct(transcript, values, lanes, blocks, claim, rounds);
     }
-    let marginal = lane_marginal(&values, blocks);
+    let marginal = lane_marginal(&values, &blocks);
     let prefix_rounds = LANE_VARS;
     let (mut messages, mut point, _) =
-        prove_product_direct(transcript, marginal.to_vec(), lanes, &[K::ONE], claim, prefix_rounds);
+        prove_product_direct(transcript, marginal.to_vec(), lanes, vec![K::ONE], claim, prefix_rounds);
     let claim = poly_eval_k(&messages[prefix_rounds - 1], point[prefix_rounds - 1]);
     let prefix_width = 1 << prefix_rounds;
     let weights = crate::weights::equality(&point, prefix_width);
@@ -687,22 +687,20 @@ fn prove_product_direct(
     transcript: &mut Poseidon2Transcript,
     mut values: Vec<K>,
     lanes: &[K],
-    blocks: &[K],
+    mut blocks: Vec<K>,
     mut claim: K,
     rounds: usize,
 ) -> (Vec<KeyRound>, Vec<K>, K) {
     let mut lanes = lanes.to_vec();
-    let tabulate = |lanes: &[K]| -> Vec<K> { blocks.iter().map(|&block| lanes[0] * block).collect() };
-    let mut weights = (lanes.len() == 1).then(|| tabulate(&lanes));
     let mut messages = Vec::with_capacity(rounds);
     let mut point = Vec::with_capacity(rounds);
     for _ in 0..rounds {
-        let [zero, two, _] = match &weights {
-            None => lane_sums(&values, &lanes, blocks),
-            Some(weights) => {
-                let pairs = values.len().min(weights.len()).div_ceil(2);
-                sum_tasks(0..pairs, |pairs| plain(&values, weights, pairs))
-            }
+        let [zero, two, _] = if let [scale] = lanes.as_slice() {
+            let pairs = values.len().min(blocks.len()).div_ceil(2);
+            let [zero, two, _] = sum_tasks(0..pairs, |pairs| plain(&values, &blocks, pairs));
+            [zero * *scale, two * *scale, K::ZERO]
+        } else {
+            lane_sums(&values, &lanes, &blocks)
         };
         let sum = claim - zero.double();
         let quadratic = (two - zero - sum.double()).halve();
@@ -710,20 +708,14 @@ fn prove_product_direct(
         absorb_extension(transcript, &coefficients);
         let challenge = challenge(transcript);
         claim = poly_eval_k(&coefficients, challenge);
-        match &mut weights {
-            None => {
-                bind_in_place(&mut values, challenge);
-                bind_in_place(&mut lanes, challenge);
-                if lanes.len() == 1 {
-                    weights = Some(tabulate(&lanes));
-                }
-            }
-            Some(weights) => {
-                rayon::join(
-                    || bind_in_place(&mut values, challenge),
-                    || bind_in_place(weights, challenge),
-                );
-            }
+        if lanes.len() == 1 {
+            rayon::join(
+                || bind_in_place(&mut values, challenge),
+                || bind_in_place(&mut blocks, challenge),
+            );
+        } else {
+            bind_in_place(&mut values, challenge);
+            bind_in_place(&mut lanes, challenge);
         }
         messages.push(coefficients);
         point.push(challenge);
